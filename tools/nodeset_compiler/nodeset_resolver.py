@@ -1,12 +1,10 @@
 import logging
 import argparse
 import sys
-from datatypes import NodeId
-from nodeset import *
-import xml.dom.minidom as dom
-import codecs
-import re
 import os
+from datatypes import NodeId
+from lxml import etree
+from nodeset import NodeSet
 import nodes
 
 # Parse the arguments
@@ -96,11 +94,12 @@ for xmlfile in args.infiles:
     ns.addNodeSet(xmlfile)
     nsCount +=1
 
-#------------------------
 for n in ns.nodes.values():
     if n.sanitize() == False:
         raise Exception("Failed to sanitize node " + str(n))
 
+# Function for walking a tree of nodeIds in the nodeSet and recording a list
+# of nodes encountered during the walk
 def walkNodes(nodeSet, nodeIds, nodeList=[]):
     for nodeId in nodeIds:
         if nodeId not in nodeSet.nodes:
@@ -141,50 +140,27 @@ def walkNodes(nodeSet, nodeIds, nodeList=[]):
 
     return nodeList
 
+# Function for printing a set of nodeIds as Xml by filtering the referenceXml
+# file. If existingXml is given, the generated Xml is merged with it
 def printXML(nodeIds, referenceXml, existingXml=None):
-        referenceXml.seek(0)
-        fileContent = referenceXml.read()
-        #TODO: documentElement
-        # Remove BOM since the dom parser cannot handle it on Python 3 Windows
-        if fileContent.startswith( codecs.BOM_UTF8 ):
-            fileContent = fileContent.lstrip( codecs.BOM_UTF8 )
-        if (sys.version_info >= (3, 0)):
-            fileContent = fileContent.decode("utf-8")
+    referenceRoot = etree.parse(referenceXml.name).getroot()
 
-        document = dom.parseString(fileContent)
-        existingNodeset = document.getElementsByTagName("UANodeSet")[0]
+    # Filter XML for required nodeIds
+    for node in referenceRoot:
+        if ('NodeId' not in node.attrib) or NodeId(node.attrib['NodeId']) not in nodeIds:
+            # This node is not required
+            referenceRoot.remove(node)
 
-        for node in existingNodeset.childNodes:
-            if node.nodeType == dom.Node.ELEMENT_NODE:
-                nodeId = NodeId(node.getAttribute('NodeId'))
+    if existingXml is not None:
+        # Merge with existing Xml
+        existingRoot = etree.parse(existingXml.name).getroot()
 
-                if nodeId not in nodeIds:
-                    node.parentNode.removeChild(node)
+        for node in referenceRoot:
+            existingRoot.append(node)
 
-        if existingXml is not None:
-            # TODO: minidom too slow
-            existingXml.seek(0)
-            fileContent = existingXml.read()
-            # Remove BOM since the dom parser cannot handle it on Python 3 Windows
-            if fileContent.startswith( codecs.BOM_UTF8 ):
-                fileContent = fileContent.lstrip( codecs.BOM_UTF8 )
-            if (sys.version_info >= (3, 0)):
-                fileContent = fileContent.decode("utf-8")
-
-            exDocument = dom.parseString(fileContent)
-            exNodeset = document.getElementsByTagName("UANodeSet")[0]
-            for node in existingNodeset.childNodes:
-                if node.nodeType == dom.Node.ELEMENT_NODE:
-                    x = exDocument.importNode(node, False)
-                    exNodeset.appendChild(x)
-
-            document = exDocument
-
-
-        # To XML and remove empty lines (minidom quirk)
-        xml = document.toprettyxml(indent="  ")
-        xml = os.linesep.join([s.rstrip() for s in xml.splitlines() if s.strip()])
-        print(xml)
+        print(etree.tostring(existingRoot).decode('utf-8'))
+    else:
+        print(etree.tostring(referenceRoot).decode('utf-8'))
 
 logger.info("Collecting missing nodes...".format(xmlfile.name))
 usedNodes = walkNodes(ns, ns.nodes)
