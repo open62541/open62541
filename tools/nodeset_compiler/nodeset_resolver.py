@@ -189,7 +189,7 @@ def printXML(nodeIds, referenceXml, existingXml=None):
 logger.info("Collecting missing nodes...".format(xmlfile.name))
 usedNodes = walkNodes(ns, ns.nodes)
 missingNodes = [node for node in usedNodes if node not in ns.nodes]
-logger.info("{} missing nodes out of {} used nodes found".format(len(missingNodes), len(usedNodes)))
+logger.info("Collected {} missing nodes out of {} used nodes".format(len(missingNodes), len(usedNodes)))
 
 # Load reference nodeset if given on command line
 if args.ref is not None:
@@ -212,7 +212,7 @@ if args.ref is not None:
     requiredNodes = [node for node in dependentNodes if node not in ns.nodes]
     unresolvedNodes = [node for node in requiredNodes if node not in referenceNodeSet.nodes]
 
-    logger.info("{} required nodes out of {} dependent nodes found ({} unresolved)"
+    logger.info("Resolved {} required nodes out of {} dependent nodes ({} unresolved)"
         .format(len(requiredNodes), len(dependentNodes), len(unresolvedNodes)))
 
     if args.pull:
