@@ -141,9 +141,9 @@ def walkNodes(nodeSet, nodeIds, nodeList=[]):
 
     return nodeList
 
-def printXML(nodeids):
-        args.ref.seek(0)
-        fileContent = args.ref.read()
+def printXML(nodeIds, referenceXml, existingXml=None):
+        referenceXml.seek(0)
+        fileContent = referenceXml.read()
         #TODO: documentElement
         # Remove BOM since the dom parser cannot handle it on Python 3 Windows
         if fileContent.startswith( codecs.BOM_UTF8 ):
@@ -158,13 +158,13 @@ def printXML(nodeids):
             if node.nodeType == dom.Node.ELEMENT_NODE:
                 nodeId = NodeId(node.getAttribute('NodeId'))
 
-                if nodeId not in nodeids:
+                if nodeId not in nodeIds:
                     node.parentNode.removeChild(node)
 
-        if args.merge:
+        if existingXml is not None:
             # TODO: minidom too slow
-            args.existing[0].seek(0)
-            fileContent = args.existing[0].read()
+            existingXml.seek(0)
+            fileContent = existingXml.read()
             # Remove BOM since the dom parser cannot handle it on Python 3 Windows
             if fileContent.startswith( codecs.BOM_UTF8 ):
                 fileContent = fileContent.lstrip( codecs.BOM_UTF8 )
@@ -216,8 +216,15 @@ if args.ref is not None:
         .format(len(requiredNodes), len(dependentNodes), len(unresolvedNodes)))
 
     if args.pull:
-        logger.info("Pulling in required nodes from {}...".format(xmlfile.name))
-        printXML(requiredNodes)
+        # Run printXML when pull is specified. This will gather the requiredNodes
+        # from the reference file and output it as XML or merge it into the
+        # (first) existing XML file (if merge is specified)
+        if args.merge and len(args.existing) > 0:
+            logger.info("Pulling in required nodes from {} and merge with {}...".format(args.ref.name, args.existing[0].name))
+            printXML(requiredNodes, args.ref, args.existing[0])
+        else:
+            logger.info("Pulling in required nodes from {}...".format(args.ref.name))
+            printXML(requiredNodes, args.ref)
     else:
         print(requiredNodes)
 else:
