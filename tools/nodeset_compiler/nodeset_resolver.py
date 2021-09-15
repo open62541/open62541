@@ -34,6 +34,12 @@ parser.add_argument('-r', '--ref',
                     default=None,
                     help='NodeSet XML file where missing dependencies are resolved from.')
 
+parser.add_argument('-p', '--pull',
+                    action='store_true',
+                    dest='pull',
+                    default=False,
+                    help='Pull in and output missing Nodes from reference XML')
+
 parser.add_argument('-m', '--merge',
                     action='store_true',
                     dest='merge',
@@ -209,8 +215,7 @@ if args.ref is not None:
     logger.info("{} required nodes out of {} dependent nodes found ({} unresolved)"
         .format(len(requiredNodes), len(dependentNodes), len(unresolvedNodes)))
 
-    if 1:
-        # TODO: Additional switch to control output
+    if args.pull:
         logger.info("Pulling in required nodes from {}...".format(xmlfile.name))
         printXML(requiredNodes)
     else:
