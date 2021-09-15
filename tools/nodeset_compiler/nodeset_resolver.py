@@ -1,7 +1,6 @@
 import logging
 import argparse
 import sys
-import os
 from datatypes import NodeId
 from lxml import etree
 from nodeset import NodeSet
@@ -114,17 +113,13 @@ def walkNodes(nodeSet, nodeIds, nodeList=[]):
             # DataType contains other DataType fields. __definition__ is list of (Name, DataTypeNode) tuples
             for definition in n.__definition__:
                 candidateNodes.append(definition[1].id)
-                #if definition[1].id not in nodeList: nodeList.append(definition[1].id)
 
         if type(n) == nodes.VariableNode or type(n) == nodes.VariableTypeNode:
             if n.dataType is not None:
                 candidateNodes.append(n.dataType)
-                #if n.dataType not in nodeList: nodeList.append(n.dataType)
 
         for ref in n.references:
             if not ref.source == n.id: raise Exception("Reference " + str(ref) + " has an invalid source")
-            #if ref.referenceType not in nodeList: nodeList.append(ref.referenceType)
-            #if ref.target not in nodeList: nodeList.append(ref.target)
             candidateNodes.append(ref.referenceType)
             candidateNodes.append(ref.target)
 
@@ -132,7 +127,7 @@ def walkNodes(nodeSet, nodeIds, nodeList=[]):
         candidateNodes = list(set(candidateNodes) - set(nodeList))
 
         # Add remaining candidateNodes to nodeList
-        nodeList += candidateNodes
+        nodeList.extend(candidateNodes)
 
         # Inquire candidateNodes recursively if there are candidates left
         if len(candidateNodes) > 0:
