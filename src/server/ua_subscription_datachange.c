@@ -17,40 +17,42 @@
 
 #define UA_VALUENCODING_MAXSTACK 512
 
-/* Convert to double first. We might loose differences for large Int64 that
- * cannot be precisely expressed as double. */
+/* Detect value changes outside the deadband */
+#define UA_DETECT_DEADBAND(TYPE) do {          \
+    TYPE v1 = *(const TYPE*)data1;             \
+    TYPE v2 = *(const TYPE*)data2;             \
+    TYPE diff = (v1 > v2) ? v1 - v2 : v2 - v1; \
+    return (diff > deadband);                  \
+} while(false);
+
 static UA_Boolean
 outOfDeadBand(const void *data1, const void *data2,
               const UA_DataType *type, const UA_Double deadband) {
-    UA_Double v;
     if(type->typeKind == UA_DATATYPEKIND_BOOLEAN) {
-        v = (UA_Double)*(const UA_Boolean*)data1 - (UA_Double)*(const UA_Boolean*)data2;
+        UA_DETECT_DEADBAND(UA_Boolean);
     } else if(type->typeKind == UA_DATATYPEKIND_SBYTE) {
-        v = (UA_Double)*(const UA_SByte*)data1 - (UA_Double)*(const UA_SByte*)data2;
+        UA_DETECT_DEADBAND(UA_SByte);
     } else if(type->typeKind == UA_DATATYPEKIND_BYTE) {
-        v = (UA_Double)*(const UA_Byte*)data1 - (UA_Double)*(const UA_Byte*)data2;
+        UA_DETECT_DEADBAND(UA_Byte);
     } else if(type->typeKind == UA_DATATYPEKIND_INT16) {
-        v = (UA_Double)*(const UA_Int16*)data1 - (UA_Double)*(const UA_Int16*)data2;
+        UA_DETECT_DEADBAND(UA_Int16);
     } else if(type->typeKind == UA_DATATYPEKIND_UINT16) {
-        v = (UA_Double)*(const UA_UInt16*)data1 - (UA_Double)*(const UA_UInt16*)data2;
+        UA_DETECT_DEADBAND(UA_UInt16);
     } else if(type->typeKind == UA_DATATYPEKIND_INT32) {
-        v = (UA_Double)*(const UA_Int32*)data1 - (UA_Double)*(const UA_Int32*)data2;
+        UA_DETECT_DEADBAND(UA_Int32);
     } else if(type->typeKind == UA_DATATYPEKIND_UINT32) {
-        v = (UA_Double)*(const UA_UInt32*)data1 - (UA_Double)*(const UA_UInt32*)data2;
+        UA_DETECT_DEADBAND(UA_UInt32);
     } else if(type->typeKind == UA_DATATYPEKIND_INT64) {
-        v = (UA_Double)*(const UA_Int64*)data1 - (UA_Double)*(const UA_Int64*)data2;
+        UA_DETECT_DEADBAND(UA_Int64);
     } else if(type->typeKind == UA_DATATYPEKIND_UINT64) {
-        v = (UA_Double)*(const UA_UInt64*)data1 - (UA_Double)*(const UA_UInt64*)data2;
+        UA_DETECT_DEADBAND(UA_UInt64);
     } else if(type->typeKind == UA_DATATYPEKIND_FLOAT) {
-        v = (UA_Double)*(const UA_Float*)data1 - (UA_Double)*(const UA_Float*)data2;
+        UA_DETECT_DEADBAND(UA_Float);
     } else if(type->typeKind == UA_DATATYPEKIND_DOUBLE) {
-        v = (UA_Double)*(const UA_Double*)data1 - (UA_Double)*(const UA_Double*)data2;
+        UA_DETECT_DEADBAND(UA_Double);
     } else {
-        return false;
+        return false; /* Not a known numerical type */
     }
-    if(v < 0.0)
-        v = -v;
-    return (v > deadband);
 }
 
 static UA_Boolean
