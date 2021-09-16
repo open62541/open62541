@@ -218,7 +218,7 @@ if len(args.refs) > 0:
         logger.info("Preprocessing (reference) " + str(xmlfile.name))
         referenceNodeSet.addNodeSet(xmlfile, True, typesArray="UA_TYPES")
 
-    logger.info("Resolving all dependencies from {}...".format(xmlfile.name))
+    logger.info("Resolving all dependencies from references...")
 
     # Walk entire tree to find all dependencies
     dependentNodes = walkNodes(referenceNodeSet, missingNodes)
