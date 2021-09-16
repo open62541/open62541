@@ -11,6 +11,7 @@
 import logging
 import argparse
 import sys
+import os
 from datatypes import NodeId
 from lxml import etree
 from nodeset import NodeSet
@@ -167,6 +168,10 @@ def printXML(nodeIds, referenceXml, existingXml=None):
     else:
         print(etree.tostring(referenceRoot).decode('utf-8'))
 
+# Function for printg nodeIds (one nodeId per line)
+def printNodeIds(nodeIds):
+    print(os.linesep.join(map(str,nodeIds)))
+
 logger.info("Collecting missing nodes...".format(xmlfile.name))
 usedNodes = walkNodes(ns, ns.nodes)
 missingNodes = [node for node in usedNodes if node not in ns.nodes]
@@ -207,6 +212,6 @@ if args.ref is not None:
             logger.info("Pulling in required nodes from {}...".format(args.ref.name))
             printXML(requiredNodes, args.ref)
     else:
-        print(requiredNodes)
+        printNodeIds(requiredNodes)
 else:
-    print(missingNodes)
+    printNodeIds(missingNodes)
