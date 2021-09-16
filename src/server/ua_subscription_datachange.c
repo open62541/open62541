@@ -23,27 +23,27 @@ static UA_Boolean
 outOfDeadBand(const void *data1, const void *data2,
               const UA_DataType *type, const UA_Double deadband) {
     UA_Double v;
-    if(type == &UA_TYPES[UA_TYPES_BOOLEAN]) {
+    if(type->typeKind == UA_DATATYPEKIND_BOOLEAN) {
         v = (UA_Double)*(const UA_Boolean*)data1 - (UA_Double)*(const UA_Boolean*)data2;
-    } else if(type == &UA_TYPES[UA_TYPES_SBYTE]) {
+    } else if(type->typeKind == UA_DATATYPEKIND_SBYTE) {
         v = (UA_Double)*(const UA_SByte*)data1 - (UA_Double)*(const UA_SByte*)data2;
-    } else if(type == &UA_TYPES[UA_TYPES_BYTE]) {
+    } else if(type->typeKind == UA_DATATYPEKIND_BYTE) {
         v = (UA_Double)*(const UA_Byte*)data1 - (UA_Double)*(const UA_Byte*)data2;
-    } else if(type == &UA_TYPES[UA_TYPES_INT16]) {
+    } else if(type->typeKind == UA_DATATYPEKIND_INT16) {
         v = (UA_Double)*(const UA_Int16*)data1 - (UA_Double)*(const UA_Int16*)data2;
-    } else if(type == &UA_TYPES[UA_TYPES_UINT16]) {
+    } else if(type->typeKind == UA_DATATYPEKIND_UINT16) {
         v = (UA_Double)*(const UA_UInt16*)data1 - (UA_Double)*(const UA_UInt16*)data2;
-    } else if(type == &UA_TYPES[UA_TYPES_INT32]) {
+    } else if(type->typeKind == UA_DATATYPEKIND_INT32) {
         v = (UA_Double)*(const UA_Int32*)data1 - (UA_Double)*(const UA_Int32*)data2;
-    } else if(type == &UA_TYPES[UA_TYPES_UINT32]) {
+    } else if(type->typeKind == UA_DATATYPEKIND_UINT32) {
         v = (UA_Double)*(const UA_UInt32*)data1 - (UA_Double)*(const UA_UInt32*)data2;
-    } else if(type == &UA_TYPES[UA_TYPES_INT64]) {
+    } else if(type->typeKind == UA_DATATYPEKIND_INT64) {
         v = (UA_Double)*(const UA_Int64*)data1 - (UA_Double)*(const UA_Int64*)data2;
-    } else if(type == &UA_TYPES[UA_TYPES_UINT64]) {
+    } else if(type->typeKind == UA_DATATYPEKIND_UINT64) {
         v = (UA_Double)*(const UA_UInt64*)data1 - (UA_Double)*(const UA_UInt64*)data2;
-    } else if(type == &UA_TYPES[UA_TYPES_FLOAT]) {
+    } else if(type->typeKind == UA_DATATYPEKIND_FLOAT) {
         v = (UA_Double)*(const UA_Float*)data1 - (UA_Double)*(const UA_Float*)data2;
-    } else if(type == &UA_TYPES[UA_TYPES_DOUBLE]) {
+    } else if(type->typeKind == UA_DATATYPEKIND_DOUBLE) {
         v = (UA_Double)*(const UA_Double*)data1 - (UA_Double)*(const UA_Double*)data2;
     } else {
         return false;
