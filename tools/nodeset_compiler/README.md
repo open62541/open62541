@@ -14,7 +14,7 @@ The initial implementation has been contributed by 2pi-Labs GmbH specifically fo
 Use ``nodeset_resolver.py --help`` for a help output:
 ````
 usage: nodeset_resolver.py [-h] [-e <existingNodeSetXML>] [-x <nodeSetXML>]
-                           [-r <referenceNodeSetXML>] [-p] [-m] [-v]
+                           [-r <referenceNodeSetXML>] [-u] [-p] [-m] [-v]
 
 optional arguments:
   -h, --help            show this help message and exit
@@ -27,6 +27,7 @@ optional arguments:
   -r <referenceNodeSetXML>, --ref <referenceNodeSetXML>
                         NodeSet XML file where missing dependencies are
                         resolved from.
+  -u, --expanded        Output expanded node ids with a namespace uri
   -p, --pull            Pull in and output missing Nodes from reference XML
   -m, --merge           Merge missing Nodes from reference NodeSet into
                         (first) existing-NodeSet
