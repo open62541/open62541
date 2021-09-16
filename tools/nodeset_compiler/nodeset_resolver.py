@@ -42,6 +42,12 @@ parser.add_argument('-r', '--ref',
                     default=None,
                     help='NodeSet XML file where missing dependencies are resolved from.')
 
+parser.add_argument('-u', '--expanded',
+                    action='store_true',
+                    dest='expanded',
+                    default=False,
+                    help='Output expanded node ids with a namespace uri')
+
 parser.add_argument('-p', '--pull',
                     action='store_true',
                     dest='pull',
@@ -169,8 +175,15 @@ def printXML(nodeIds, referenceXml, existingXml=None):
         print(etree.tostring(referenceRoot).decode('utf-8'))
 
 # Function for printg nodeIds (one nodeId per line)
-def printNodeIds(nodeIds):
-    print(os.linesep.join(map(str,nodeIds)))
+def printNodeIds(nodeIds, namespaceMap=None):
+    if namespaceMap is not None:
+        # ExpandedNodeId
+        nodeIdStrings = ['nsu={};i={}'.format(namespaceMap[node.ns], node.i) for node in nodeIds]
+    else:
+        # NodeId
+        nodeIdStrings = ['ns={};i={}'.format(node.ns, node.i) for node in nodeIds]
+
+    print(os.linesep.join(nodeIdStrings))
 
 logger.info("Collecting missing nodes...".format(xmlfile.name))
 usedNodes = walkNodes(ns, ns.nodes)
@@ -212,6 +225,6 @@ if args.ref is not None:
             logger.info("Pulling in required nodes from {}...".format(args.ref.name))
             printXML(requiredNodes, args.ref)
     else:
-        printNodeIds(requiredNodes)
+        printNodeIds(requiredNodes, ns.namespaces if args.expanded else None)
 else:
-    printNodeIds(missingNodes)
+    printNodeIds(missingNodes, ns.namespaces if args.expanded else None)
