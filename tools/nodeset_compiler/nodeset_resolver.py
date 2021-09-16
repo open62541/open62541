@@ -38,9 +38,10 @@ parser.add_argument('-x', '--xml',
 parser.add_argument('-r', '--ref',
                     metavar="<referenceNodeSetXML>",
                     type=argparse.FileType('rb'),
-                    dest="ref",
-                    default=None,
-                    help='NodeSet XML file where missing dependencies are resolved from.')
+                    dest="refs",
+                    action='append',
+                    default=[],
+                    help='NodeSet XML files where missing dependencies are resolved from.')
 
 parser.add_argument('-u', '--expanded',
                     action='store_true',
@@ -52,13 +53,13 @@ parser.add_argument('-p', '--pull',
                     action='store_true',
                     dest='pull',
                     default=False,
-                    help='Pull in and output missing Nodes from reference XML')
+                    help='Pull in and output missing Nodes from (first) reference XML')
 
 parser.add_argument('-m', '--merge',
                     action='store_true',
                     dest='merge',
                     default=False,
-                    help='Merge missing Nodes from reference NodeSet into (first) existing-NodeSet')
+                    help='Merge missing Nodes from reference NodeSet into (first) existing XML')
 
 parser.add_argument('-v', '--verbose', action='count',
                     default=1,
@@ -154,8 +155,10 @@ def walkNodes(nodeSet, nodeIds, nodeList=[]):
 
 # Function for printing a set of nodeIds as Xml by filtering the referenceXml
 # file. If existingXml is given, the generated Xml is merged with it
-def printXML(nodeIds, referenceXml, existingXml=None):
-    referenceRoot = etree.parse(referenceXml.name).getroot()
+def printXML(nodeIds, referenceXmls, existingXml=None):
+    # TODO: For now we only use the first reference XML file to pull nodes from
+    referenceRoot = etree.parse(referenceXmls[0].name).getroot()
+    logger.info("Pulling in required nodes from {}...".format(referenceXmls[0].name))
 
     # Filter XML for required nodeIds
     for node in referenceRoot:
@@ -165,6 +168,7 @@ def printXML(nodeIds, referenceXml, existingXml=None):
 
     if existingXml is not None:
         # Merge with existing Xml
+        logger.info("Merging with {}...".format(existingXml.name))
         existingRoot = etree.parse(existingXml.name).getroot()
 
         for node in referenceRoot:
@@ -191,14 +195,14 @@ missingNodes = [node for node in usedNodes if node not in ns.nodes]
 logger.info("Collected {} missing nodes out of {} used nodes".format(len(missingNodes), len(usedNodes)))
 
 # Load reference nodeset if given on command line
-if args.ref is not None:
+if len(args.refs) > 0:
     referenceNodeSet = NodeSet()
 
     # Copy namespace mapping from original nodeset to allow direct node
     # comparison between the two nodesets
     referenceNodeSet.namespaces = ns.namespaces
 
-    for xmlfile in [args.ref]:
+    for xmlfile in args.refs:
         if xmlfile.name in loadedFiles:
             logger.info("Skipping Nodeset since it is already loaded: {} ".format(xmlfile.name))
             continue
@@ -222,12 +226,7 @@ if args.ref is not None:
         # Run printXML when pull is specified. This will gather the requiredNodes
         # from the reference file and output it as XML or merge it into the
         # (first) existing XML file (if merge is specified)
-        if args.merge and len(args.existing) > 0:
-            logger.info("Pulling in required nodes from {} and merge with {}...".format(args.ref.name, args.existing[0].name))
-            printXML(requiredNodes, args.ref, args.existing[0])
-        else:
-            logger.info("Pulling in required nodes from {}...".format(args.ref.name))
-            printXML(requiredNodes, args.ref)
+        printXML(requiredNodes, args.refs, args.existing[0] if args.merge and len(args.existing) > 0 else None)
     else:
         printNodeIds(requiredNodes, ns.namespaces if args.expanded else None)
 else:
