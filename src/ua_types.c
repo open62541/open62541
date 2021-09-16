@@ -1479,11 +1479,23 @@ UA_Array_delete(void *p, size_t size, const UA_DataType *type) {
 
 UA_Boolean
 UA_DataType_isNumeric(const UA_DataType *type) {
-    /* All data types between UA_TYPES_BOOLEAN and UA_TYPES_DOUBLE are numeric */
-    for(size_t i = UA_TYPES_BOOLEAN; i <= UA_TYPES_DOUBLE; ++i)
-        if(&UA_TYPES[i] == type)
-            return true;
-    return false;
+    switch(type->typeKind) {
+    case UA_DATATYPEKIND_BOOLEAN:
+    case UA_DATATYPEKIND_SBYTE:
+    case UA_DATATYPEKIND_BYTE:
+    case UA_DATATYPEKIND_INT16:
+    case UA_DATATYPEKIND_UINT16:
+    case UA_DATATYPEKIND_INT32:
+    case UA_DATATYPEKIND_UINT32:
+    case UA_DATATYPEKIND_INT64:
+    case UA_DATATYPEKIND_UINT64:
+    case UA_DATATYPEKIND_FLOAT:
+    case UA_DATATYPEKIND_DOUBLE:
+    /* not implemented: UA_DATATYPEKIND_DECIMAL */
+        return true;
+    default:
+        return false;
+    }
 }
 
 /**********************/
