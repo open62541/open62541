@@ -240,6 +240,6 @@ if len(args.refs) > 0:
         # (first) existing XML file (if merge is specified)
         printXML(requiredNodes, args.refs, args.existing[0] if args.merge and len(args.existing) > 0 else None)
     else:
-        printNodeIds(requiredNodes, ns.namespaces if args.expanded else None)
+        printNodeIds(requiredNodes, referenceNodeSet.namespaces if args.expanded else None)
 else:
-    printNodeIds(missingNodes, ns.namespaces if args.expanded else None)
+    printNodeIds(missingNodes, referenceNodeSet.namespaces if args.expanded else None)
