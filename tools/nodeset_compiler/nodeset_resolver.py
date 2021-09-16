@@ -156,27 +156,35 @@ def walkNodes(nodeSet, nodeIds, nodeList=[]):
 # Function for printing a set of nodeIds as Xml by filtering the referenceXml
 # file. If existingXml is given, the generated Xml is merged with it
 def printXML(nodeIds, referenceXmls, existingXml=None):
-    # TODO: For now we only use the first reference XML file to pull nodes from
-    referenceRoot = etree.parse(referenceXmls[0].name).getroot()
-    logger.info("Pulling in required nodes from {}...".format(referenceXmls[0].name))
+    # Start with empty nodeset XML
+    # For now (if not merging), this will output uncomplete/invalid XML
+    xmlRoot = etree.fromstring('''<UANodeSet
+        xmlns:xsd="http://www.w3.org/2001/XMLSchema"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xmlns="http://opcfoundation.org/UA/2011/03/UANodeSet.xsd"/>''')
 
-    # Filter XML for required nodeIds
-    for node in referenceRoot:
-        if ('NodeId' not in node.attrib) or NodeId(node.attrib['NodeId']) not in nodeIds:
-            # This node is not required
-            referenceRoot.remove(node)
+    for referenceXml in referenceXmls:
+        # Iterate through all reference XMLs looking fore nodes...
+        referenceRoot = etree.parse(referenceXml.name).getroot()
+        logger.info("Pulling in required nodes from {}...".format(referenceXml.name))
+
+        for node in referenceRoot:
+            if ('NodeId' in node.attrib) and NodeId(node.attrib['NodeId']) in nodeIds:
+                # If node is in node list, copy over and remove from node list
+                nodeIds.remove(NodeId(node.attrib['NodeId']))
+                xmlRoot.append(node)
 
     if existingXml is not None:
         # Merge with existing Xml
         logger.info("Merging with {}...".format(existingXml.name))
         existingRoot = etree.parse(existingXml.name).getroot()
 
-        for node in referenceRoot:
+        for node in xmlRoot:
             existingRoot.append(node)
 
         print(etree.tostring(existingRoot).decode('utf-8'))
     else:
-        print(etree.tostring(referenceRoot).decode('utf-8'))
+        print(etree.tostring(xmlRoot).decode('utf-8'))
 
 # Function for printg nodeIds (one nodeId per line)
 def printNodeIds(nodeIds, namespaceMap=None):
