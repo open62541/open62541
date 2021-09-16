@@ -1088,21 +1088,21 @@ void UA_EXPORT UA_clear(void *p, const UA_DataType *type);
  * @param type The datatype description of the variable */
 void UA_EXPORT UA_delete(void *p, const UA_DataType *type);
 
-#ifdef UA_ENABLE_TYPEDESCRIPTION
 /* Pretty-print the value from the datatype.
  *
  * @param p The memory location of the variable
  * @param type The datatype description of the variable
  * @param output A string that is memory-allocated for the pretty-printed output
  * @return Indicates whether the operation succeeded*/
+#ifdef UA_ENABLE_TYPEDESCRIPTION
 UA_StatusCode UA_EXPORT
 UA_print(const void *p, const UA_DataType *type, UA_String *output);
 #endif
 
 /**
- * Encodeing/Decoding
+ * Encoding/Decoding
  * ^^^^^^^^^^^^^^^^^^
- * Encodeing and decoding routines for the available formats. For all formats
+ * Encoding and decoding routines for the available formats. For all formats
  * the _calcSize, _encode and _decode methods are provided. */
 
 /* Returns the number of bytes the value p takes in binary encoding. Returns
