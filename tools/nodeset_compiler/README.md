@@ -25,15 +25,15 @@ optional arguments:
                         NodeSet XML files with nodes that dependencies shall
                         be resolved for.
   -r <referenceNodeSetXML>, --ref <referenceNodeSetXML>
-                        NodeSet XML file where missing dependencies are
+                        NodeSet XML files where missing dependencies are
                         resolved from.
   -u, --expanded        Output expanded node ids with a namespace uri
-  -p, --pull            Pull in and output missing Nodes from reference XML
+  -p, --pull            Pull in and output missing Nodes from (first)
+                        reference XML
   -m, --merge           Merge missing Nodes from reference NodeSet into
-                        (first) existing-NodeSet
+                        (first) existing XML
   -v, --verbose         Make the script more verbose. Can be applied up to 4
                         times
-
 ````
 
 ## Showing missing dependencies
