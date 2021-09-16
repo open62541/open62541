@@ -1557,8 +1557,9 @@ UA_NumericRange_parse(UA_NumericRange *range, const UA_String str) {
     if(retval == UA_STATUSCODE_GOOD && idx > 0) {
         range->dimensions = dimensions;
         range->dimensionsSize = idx;
-    } else
+    } else {
         UA_free(dimensions);
+    }
 
     return retval;
 }
