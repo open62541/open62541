@@ -197,6 +197,10 @@ def printNodeIds(nodeIds, namespaceMap=None):
 
     print(os.linesep.join(nodeIdStrings))
 
+if nsCount == 0:
+    logger.error("No files have been loaded")
+    sys.exit(1)
+
 logger.info("Collecting missing nodes...")
 usedNodes = walkNodes(ns, ns.nodes)
 missingNodes = [node for node in usedNodes if node not in ns.nodes]
