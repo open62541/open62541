@@ -1156,6 +1156,9 @@ ssize_t mqtt_pack_connection_request(uint8_t* buf, size_t bufsz,
         connect_flags &= (uint8_t)~MQTT_CONNECT_PASSWORD;
     }
 
+    char strTLS[2];
+if (useTLS==UA_TRUE)
+{    
         if (caFilePath != NULL) {
         /* a caFilePath is present */
         connect_flags |= MQTT_CONNECT_CAFILEPATH;
@@ -1188,6 +1191,14 @@ ssize_t mqtt_pack_connection_request(uint8_t* buf, size_t bufsz,
         connect_flags &= (uint8_t)~MQTT_CONNECT_CLIENTKEYPATH;
     }
 
+    if (useTLS) /* useTLS = true */
+        strncpy(strTLS, "1", 1);
+    else
+        strncpy(strTLS, "0", 1);
+    connect_flags |= MQTT_CONNECT_USETLS;
+    remaining_length += (uint32_t)__mqtt_packed_cstrlen(strTLS);
+} /* if (useTLS==UA_TRUE) */
+    
     /* fixed header length is now calculated*/
     fixed_header.remaining_length = (uint32_t)remaining_length;
 
@@ -1230,6 +1241,9 @@ ssize_t mqtt_pack_connection_request(uint8_t* buf, size_t bufsz,
     if (connect_flags & MQTT_CONNECT_PASSWORD) {
         buf += __mqtt_pack_str(buf, password);
     }
+    
+if (useTLS==UA_TRUE)
+{    
     if (connect_flags & MQTT_CONNECT_CAFILEPATH) {
         buf += __mqtt_pack_str(buf, caFilePath);
     }
@@ -1242,6 +1256,7 @@ ssize_t mqtt_pack_connection_request(uint8_t* buf, size_t bufsz,
     if (connect_flags & MQTT_CONNECT_CLIENTKEYPATH) {
         buf += __mqtt_pack_str(buf, clientKeyPath);
     }
+} /* if (useTLS==UA_TRUE)
 
     /* return the number of bytes that were consumed */
     return buf - start;
