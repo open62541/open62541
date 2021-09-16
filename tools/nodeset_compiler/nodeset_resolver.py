@@ -189,7 +189,7 @@ def printNodeIds(nodeIds, namespaceMap=None):
 
     print(os.linesep.join(nodeIdStrings))
 
-logger.info("Collecting missing nodes...".format(xmlfile.name))
+logger.info("Collecting missing nodes...")
 usedNodes = walkNodes(ns, ns.nodes)
 missingNodes = [node for node in usedNodes if node not in ns.nodes]
 logger.info("Collected {} missing nodes out of {} used nodes".format(len(missingNodes), len(usedNodes)))
