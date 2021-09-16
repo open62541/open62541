@@ -8,6 +8,8 @@ The initial implementation has been contributed by a research project of the cha
 
 The nodeset resolver can be used to identify dependencies between nodesets. The main purpose of this tool is to generate custom tailored, stripped-down namespace-zero nodesets.
 
+The initial implementation has been contributed by 2pi-Labs GmbH specifically for space-constrained embedded platforms (e.g. sensors).
+
 ## Usage
 Use ``nodeset_resolver.py --help`` for a help output:
 ````
