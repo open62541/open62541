@@ -194,6 +194,10 @@ logger.info("Collected {} missing nodes out of {} used nodes".format(len(missing
 if args.ref is not None:
     referenceNodeSet = NodeSet()
 
+    # Copy namespace mapping from original nodeset to allow direct node
+    # comparison between the two nodesets
+    referenceNodeSet.namespaces = ns.namespaces
+
     for xmlfile in [args.ref]:
         if xmlfile.name in loadedFiles:
             logger.info("Skipping Nodeset since it is already loaded: {} ".format(xmlfile.name))
