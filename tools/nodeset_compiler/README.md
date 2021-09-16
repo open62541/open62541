@@ -43,10 +43,10 @@ Due to memory constraints, you are using the default reduced OPC UA Namespace-Ze
 ````
 nodeset_resolver.py -e ../../tools/schema/Opc.Ua.NodeSet2.Reduced.xml \
   -x .../deps/ua-nodeset/PADIM/Opc.Ua.IRDI.NodeSet2.xml \
-  -x .../deps/ua-nodeset/PADIM/Opc.Ua.PADIM.NodeSet2.xml
+  -x .../deps/ua-nodeset/PADIM/Opc.Ua.PADIM.NodeSet2.xml -u
 ````
 
-The output shows a list of missing NodeIds, that can not be resolved from the supplied XML files. Ignoring ``ns=0``, the other missing nodeIds can be supplied by including the OPC UA DI model.
+The output shows a list of missing NodeIds, that can not be resolved from the supplied XML files. Ignoring ``nsu=http://opcfoundation.org/UA/``, the other missing nodeIds can be supplied by including the OPC UA DI model (``nsu=http://opcfoundation.org/UA/DI/``).
 ````
 nodeset_resolver.py -e ../../tools/schema/Opc.Ua.NodeSet2.Reduced.xml \
   -x .../deps/ua-nodeset/DI/Opc.Ua.Di.NodeSet2.xml \
@@ -54,7 +54,7 @@ nodeset_resolver.py -e ../../tools/schema/Opc.Ua.NodeSet2.Reduced.xml \
   -x .../deps/ua-nodeset/PADIM/Opc.Ua.PADIM.NodeSet2.xml
 ````
 
-This time, only NodeIds with ``ns=0`` are listed as unresolvable, because they are missing from the default reduced namespace-zero nodeset.
+This time, only NodeIds of namespace-zero are listed as unresolvable, because they are missing from the default reduced namespace-zero nodeset.
 We can now include the full OPC UA namespace-zero nodeset as a reference file to resolve all missing dependencies.
 
 ````
