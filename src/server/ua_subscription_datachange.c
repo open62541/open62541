@@ -152,9 +152,8 @@ UA_MonitoredItem_createDataChangeNotification(UA_Server *server, UA_Subscription
 
 /* Moves the value to the MonitoredItem if successful */
 static UA_StatusCode
-sampleCallbackWithValue(UA_Server *server, UA_Session *session,
-                        UA_Subscription *sub, UA_MonitoredItem *mon,
-                        UA_DataValue *value) {
+sampleCallbackWithValue(UA_Server *server, UA_Subscription *sub,
+                        UA_MonitoredItem *mon, UA_DataValue *value) {
     UA_assert(mon->itemToMonitor.attributeId != UA_ATTRIBUTEID_EVENTNOTIFIER);
 
     /* Has the value changed (with the filters applied)? */
@@ -172,10 +171,8 @@ sampleCallbackWithValue(UA_Server *server, UA_Session *session,
     if(sub) {
         UA_StatusCode retval =
             UA_MonitoredItem_createDataChangeNotification(server, sub, mon, value);
-        if(retval != UA_STATUSCODE_GOOD) {
-            UA_DataValue_clear(value);
+        if(retval != UA_STATUSCODE_GOOD)
             return retval;
-        }
     }
 
     /* <-- Point of no return --> */
@@ -224,33 +221,21 @@ monitoredItem_sampleCallback(UA_Server *server, UA_MonitoredItem *monitoredItem)
 
     UA_assert(monitoredItem->itemToMonitor.attributeId != UA_ATTRIBUTEID_EVENTNOTIFIER);
 
-    /* Get the node */
-    const UA_Node *node = UA_NODESTORE_GET(server, &monitoredItem->itemToMonitor.nodeId);
-
     /* Sample the value. The sample can still point into the node. */
-    UA_DataValue value;
-    UA_DataValue_init(&value);
-    if(node) {
-        ReadWithNode(node, server, session, monitoredItem->timestampsToReturn,
-                     &monitoredItem->itemToMonitor, &value);
-    } else {
-        value.hasStatus = true;
-        value.status = UA_STATUSCODE_BADNODEIDUNKNOWN;
-    }
+    UA_DataValue value = UA_Server_readWithSession(server, session,
+                                                   &monitoredItem->itemToMonitor,
+                                                   monitoredItem->timestampsToReturn);
 
-    /* Operate on the sample. Don't touch value after this. */
-    UA_StatusCode retval = sampleCallbackWithValue(server, session, sub,
-                                                   monitoredItem, &value);
-    if(retval != UA_STATUSCODE_GOOD) {
+    /* Operate on the sample. The sample is consumed when the status is good. */
+    UA_StatusCode res = sampleCallbackWithValue(server, sub, monitoredItem, &value);
+    if(res != UA_STATUSCODE_GOOD) {
+        UA_DataValue_clear(&value);
         UA_LOG_WARNING_SUBSCRIPTION(&server->config.logger, sub,
                                     "MonitoredItem %" PRIi32 " | "
                                     "Sampling returned the statuscode %s",
                                     monitoredItem->monitoredItemId,
-                                    UA_StatusCode_name(retval));
+                                    UA_StatusCode_name(res));
     }
-
-    if(node)
-        UA_NODESTORE_RELEASE(server, node);
 }
 
 #endif /* UA_ENABLE_SUBSCRIPTIONS */

@@ -380,7 +380,7 @@ START_TEST(Server_overflow) {
     UA_ReadValueId rvi;
     UA_ReadValueId_init(&rvi);
     rvi.nodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_CURRENTTIME);
-    rvi.attributeId = UA_ATTRIBUTEID_BROWSENAME;
+    rvi.attributeId = UA_ATTRIBUTEID_VALUE;
     rvi.indexRange = UA_STRING_NULL;
     item.itemToMonitor = rvi;
     item.monitoringMode = UA_MONITORINGMODE_REPORTING;
@@ -422,17 +422,23 @@ START_TEST(Server_overflow) {
     notification = TAILQ_LAST(&mon->queue, NotificationQueue);
     ck_assert_uint_eq(notification->data.dataChange.value.hasStatus, false);
 
+    UA_fakeSleep(1); /* modify the server's currenttime */
+
     UA_MonitoredItem_sampleCallback(server, mon);
     ck_assert_uint_eq(mon->queueSize, 2);
     ck_assert_uint_eq(mon->parameters.queueSize, 3);
     notification = TAILQ_LAST(&mon->queue, NotificationQueue);
     ck_assert_uint_eq(notification->data.dataChange.value.hasStatus, false);
 
+    UA_fakeSleep(1); /* modify the server's currenttime */
+
     UA_MonitoredItem_sampleCallback(server, mon);
     ck_assert_uint_eq(mon->queueSize, 3);
     ck_assert_uint_eq(mon->parameters.queueSize, 3);
     notification = TAILQ_LAST(&mon->queue, NotificationQueue);
     ck_assert_uint_eq(notification->data.dataChange.value.hasStatus, false);
+
+    UA_fakeSleep(1); /* modify the server's currenttime */
 
     UA_MonitoredItem_sampleCallback(server, mon);
     ck_assert_uint_eq(mon->queueSize, 3);
