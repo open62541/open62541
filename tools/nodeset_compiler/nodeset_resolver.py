@@ -242,4 +242,4 @@ if len(args.refs) > 0:
     else:
         printNodeIds(requiredNodes, referenceNodeSet.namespaces if args.expanded else None)
 else:
-    printNodeIds(missingNodes, referenceNodeSet.namespaces if args.expanded else None)
+    printNodeIds(missingNodes, ns.namespaces if args.expanded else None)
