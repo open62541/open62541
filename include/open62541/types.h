@@ -1099,6 +1099,29 @@ UA_StatusCode UA_EXPORT
 UA_print(const void *p, const UA_DataType *type, UA_String *output);
 #endif
 
+/* Compare two variables and return their order. This can also be used to test
+ * for equality of two values.
+ *
+ * For numerical types (including StatusCodes and Enums), their natural order is
+ * used. NaN is the "smallest" value for floating point values. Different bit
+ * representations of NaN are considered identical.
+ *
+ * All other types have *some* absolute ordering so that a < b, b < c -> a < c.
+ *
+ * The ordering of arrays (also strings) is in "shortlex": A shorter array is
+ * always smaller than a longer array. Otherwise the first different element
+ * defines the order.
+ *
+ * When members of different types are permitted (in Variants and
+ * ExtensionObjects), the memory address in the "UA_DataType*" pointer
+ * determines which variable is smaller.
+ *
+ * @param p1 The memory location of the first value
+ * @param p2 The memory location of the first value
+ * @param type The datatype description of both values */
+UA_Order UA_EXPORT
+UA_order(const void *p1, const void *p2, const UA_DataType *type);
+
 /**
  * Encoding/Decoding
  * ^^^^^^^^^^^^^^^^^^
