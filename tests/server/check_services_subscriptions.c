@@ -422,21 +422,18 @@ START_TEST(Server_overflow) {
     notification = TAILQ_LAST(&mon->queue, NotificationQueue);
     ck_assert_uint_eq(notification->data.dataChange.value.hasStatus, false);
 
-    UA_ByteString_clear(&mon->lastSampledValue);
     UA_MonitoredItem_sampleCallback(server, mon);
     ck_assert_uint_eq(mon->queueSize, 2);
     ck_assert_uint_eq(mon->parameters.queueSize, 3);
     notification = TAILQ_LAST(&mon->queue, NotificationQueue);
     ck_assert_uint_eq(notification->data.dataChange.value.hasStatus, false);
 
-    UA_ByteString_clear(&mon->lastSampledValue);
     UA_MonitoredItem_sampleCallback(server, mon);
     ck_assert_uint_eq(mon->queueSize, 3);
     ck_assert_uint_eq(mon->parameters.queueSize, 3);
     notification = TAILQ_LAST(&mon->queue, NotificationQueue);
     ck_assert_uint_eq(notification->data.dataChange.value.hasStatus, false);
 
-    UA_ByteString_clear(&mon->lastSampledValue);
     UA_MonitoredItem_sampleCallback(server, mon);
     ck_assert_uint_eq(mon->queueSize, 3);
     ck_assert_uint_eq(mon->parameters.queueSize, 3);

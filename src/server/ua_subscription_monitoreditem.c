@@ -484,7 +484,6 @@ UA_MonitoredItem_setMonitoringMode(UA_Server *server, UA_MonitoredItem *mon,
         UA_MonitoredItem_unregisterSampleCallback(server, mon);
         TAILQ_FOREACH_SAFE(notification, &mon->queue, listEntry, notification_tmp)
             UA_Notification_delete(server, notification);
-        UA_ByteString_clear(&mon->lastSampledValue);
         UA_DataValue_clear(&mon->lastValue);
         return UA_STATUSCODE_GOOD;
     }
@@ -545,7 +544,6 @@ UA_MonitoredItem_delete(UA_Server *server, UA_MonitoredItem *mon) {
     UA_MonitoringParameters_clear(&mon->parameters);
 
     /* Remove the last samples */
-    UA_ByteString_clear(&mon->lastSampledValue);
     UA_DataValue_clear(&mon->lastValue);
 
     /* Add a delayed callback to remove the MonitoredItem when the current jobs
