@@ -125,6 +125,9 @@ static UA_Order
 stringOrder(const UA_String *p1, const UA_String *p2, const UA_DataType *type);
 static UA_Order
 guidOrder(const UA_Guid *p1, const UA_Guid *p2, const UA_DataType *type);
+static UA_Order
+qualifiedNameOrder(const UA_QualifiedName *p1, const UA_QualifiedName *p2,
+                   const UA_DataType *type);
 
 UA_Boolean
 UA_String_equal(const UA_String *s1, const UA_String *s2) {
@@ -183,14 +186,7 @@ UA_QualifiedName_hash(const UA_QualifiedName *q) {
 UA_Boolean
 UA_QualifiedName_equal(const UA_QualifiedName *qn1,
                        const UA_QualifiedName *qn2) {
-    if(qn1 == NULL || qn2 == NULL)
-        return false;
-    if(qn1->namespaceIndex != qn2->namespaceIndex)
-        return false;
-    if(qn1->name.length != qn2->name.length)
-        return false;
-    return (memcmp((char const*)qn1->name.data,
-                   (char const*)qn2->name.data, qn1->name.length) == 0);
+    return (qualifiedNameOrder(qn1, qn2, NULL) == UA_ORDER_EQ);
 }
 
 /* DateTime */
@@ -247,9 +243,7 @@ UA_DateTime_fromStruct(UA_DateTimeStruct ts) {
 /* Guid */
 UA_Boolean
 UA_Guid_equal(const UA_Guid *g1, const UA_Guid *g2) {
-    if(memcmp(g1, g2, sizeof(UA_Guid)) == 0)
-        return true;
-    return false;
+    return (guidOrder(g1, g2, NULL) == UA_ORDER_EQ);
 }
 
 UA_Guid
@@ -1336,6 +1330,11 @@ static UA_Order
 stringOrder(const UA_String *p1, const UA_String *p2, const UA_DataType *type) {
     if(p1->length != p2->length)
         return (p1->length < p2->length) ? UA_ORDER_LESS : UA_ORDER_MORE;
+    /* For zero-length arrays, every pointer not NULL is considered a
+     * UA_EMPTY_ARRAY_SENTINEL. */
+    if(p1->data == p2->data) return UA_ORDER_EQ;
+    if(p1->data == NULL) return UA_ORDER_LESS;
+    if(p2->data == NULL) return UA_ORDER_MORE;
     int cmp = memcmp((const char*)p1->data, (const char*)p2->data, p1->length);
     if(cmp != 0)
         return (cmp < 0) ? UA_ORDER_LESS : UA_ORDER_MORE;
@@ -1415,6 +1414,11 @@ arrayOrder(const void *p1, size_t p1Length, const void *p2, size_t p2Length,
            const UA_DataType *type) {
     if(p1Length != p2Length)
         return (p1Length < p2Length) ? UA_ORDER_LESS : UA_ORDER_MORE;
+    /* For zero-length arrays, every pointer not NULL is considered a
+     * UA_EMPTY_ARRAY_SENTINEL. */
+    if(p1 == p2) return UA_ORDER_EQ;
+    if(p1 == NULL) return UA_ORDER_LESS;
+    if(p2 == NULL) return UA_ORDER_MORE;
     uintptr_t u1 = (uintptr_t)p1;
     uintptr_t u2 = (uintptr_t)p2;
     for(size_t i = 0; i < p1Length; i++) {

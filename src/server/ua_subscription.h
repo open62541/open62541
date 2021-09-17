@@ -134,7 +134,6 @@ struct UA_MonitoredItem {
 
     /* Sampling Callback */
     UA_UInt64 sampleCallbackId;
-    UA_ByteString lastSampledValue;
     UA_DataValue lastValue;
 
     /* Triggering Links */

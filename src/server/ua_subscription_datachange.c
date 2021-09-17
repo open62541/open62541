@@ -15,19 +15,17 @@
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS /* conditional compilation */
 
-#define UA_VALUENCODING_MAXSTACK 512
-
 /* Detect value changes outside the deadband */
-#define UA_DETECT_DEADBAND(TYPE) do {          \
-    TYPE v1 = *(const TYPE*)data1;             \
-    TYPE v2 = *(const TYPE*)data2;             \
-    TYPE diff = (v1 > v2) ? v1 - v2 : v2 - v1; \
-    return (diff > deadband);                  \
+#define UA_DETECT_DEADBAND(TYPE) do {                           \
+    TYPE v1 = *(const TYPE*)data1;                              \
+    TYPE v2 = *(const TYPE*)data2;                              \
+    TYPE diff = (v1 > v2) ? (TYPE)(v1 - v2) : (TYPE)(v2 - v1);  \
+    return ((UA_Double)diff > deadband);                        \
 } while(false);
 
 static UA_Boolean
-outOfDeadBand(const void *data1, const void *data2,
-              const UA_DataType *type, const UA_Double deadband) {
+detectScalarDeadBand(const void *data1, const void *data2,
+                     const UA_DataType *type, const UA_Double deadband) {
     if(type->typeKind == UA_DATATYPEKIND_BOOLEAN) {
         UA_DETECT_DEADBAND(UA_Boolean);
     } else if(type->typeKind == UA_DATATYPEKIND_SBYTE) {
@@ -56,148 +54,74 @@ outOfDeadBand(const void *data1, const void *data2,
 }
 
 static UA_Boolean
-updateNeededForFilteredValue(const UA_Variant *value, const UA_Variant *oldValue,
-                             const UA_Double deadbandValue) {
+detectVariantDeadband(const UA_Variant *value, const UA_Variant *oldValue,
+                      const UA_Double deadbandValue) {
     if(value->arrayLength != oldValue->arrayLength)
         return true;
-
     if(value->type != oldValue->type)
         return true;
-
     size_t length = 1;
     if(!UA_Variant_isScalar(value))
         length = value->arrayLength;
     uintptr_t data = (uintptr_t)value->data;
     for(size_t i = 0; i < length; ++i) {
-        if(outOfDeadBand((const void*)data, oldValue->data, value->type, deadbandValue))
+        if(detectScalarDeadBand((const void*)data, oldValue->data, value->type,
+                                deadbandValue))
             return true;
         data += value->type->memSize;
     }
-
     return false;
 }
 
-/* When a change is detected, encoding contains the heap-allocated binary
- * encoded value. The default for changed is false. */
-static UA_StatusCode
-detectValueChangeWithFilter(UA_Server *server, UA_Session *session, UA_MonitoredItem *mon,
-                            UA_DataValue *value, UA_ByteString *encoding,
-                            UA_Boolean *changed) {
-    /* Handle status change for instance Bad_NodeIdUnknown */
-    if(value->hasStatus != mon->lastValue.hasStatus ||
-       value->status != mon->lastValue.status) {
-        *changed = true;
-        return UA_STATUSCODE_GOOD;
-    }
-
-    /* Test absolute deadband */
-    if(value->value.type != NULL &&
-       UA_DataType_isNumeric(value->value.type) &&
-       mon->parameters.filter.content.decoded.type == &UA_TYPES[UA_TYPES_DATACHANGEFILTER]) {
-        UA_DataChangeFilter *filter = (UA_DataChangeFilter*)
-            mon->parameters.filter.content.decoded.data;
-        if(filter->deadbandType == UA_DEADBANDTYPE_ABSOLUTE &&
-           (filter->trigger == UA_DATACHANGETRIGGER_STATUSVALUE ||
-            filter->trigger == UA_DATACHANGETRIGGER_STATUSVALUETIMESTAMP)) {
-            *changed = updateNeededForFilteredValue(&value->value,
-                                                    &mon->lastValue.value,
-                                                    filter->deadbandValue);
-            return UA_STATUSCODE_GOOD;
-        }
-    }
-
-    /* Stack-allocate some memory for the value encoding. We might heap-allocate
-     * more memory if needed. This is just enough for scalars and small
-     * structures. */
-    UA_Byte stackValueEncoding[UA_VALUENCODING_MAXSTACK];
-    UA_ByteString valueEncoding;
-    valueEncoding.data = stackValueEncoding;
-    valueEncoding.length = UA_VALUENCODING_MAXSTACK;
-    UA_Byte *bufPos = stackValueEncoding;
-    const UA_Byte *bufEnd = &stackValueEncoding[UA_VALUENCODING_MAXSTACK];
-
-    /* Encode the value */
-    UA_StatusCode retval = UA_STATUSCODE_GOOD;
-    size_t binsize = 0;
-    if(mon->lastSampledValue.length <= UA_VALUENCODING_MAXSTACK) {
-        /* Encode without using calcSizeBinary first. This will fail with
-         * UA_STATUSCODE_BADENCODINGERROR once the end of the buffer is
-         * reached. */
-        retval = UA_DataValue_encodeBinary(value, &bufPos, bufEnd);
-        if(retval == UA_STATUSCODE_BADENCODINGERROR)
-            goto encodeOnHeap; /* The buffer was not large enough */
-    } else {
-        /* Allocate a fitting buffer on the heap. This requires us to iterate
-         * twice over the value (calcSizeBinary and encodeBinary) */
-    encodeOnHeap:
-        binsize = UA_calcSizeBinary(value, &UA_TYPES[UA_TYPES_DATAVALUE]);
-        if(binsize == 0) {
-            retval = UA_STATUSCODE_BADENCODINGERROR;
-            goto cleanup;
-        }
-        retval = UA_ByteString_allocBuffer(&valueEncoding, binsize);
-        if(retval != UA_STATUSCODE_GOOD)
-            goto cleanup;
-        bufPos = valueEncoding.data;
-        bufEnd = &valueEncoding.data[valueEncoding.length];
-        retval = UA_DataValue_encodeBinary(value, &bufPos, bufEnd);
-    }
-    if(retval != UA_STATUSCODE_GOOD)
-        goto cleanup;
-
-    /* Has the value changed? */
-    valueEncoding.length = (uintptr_t)bufPos - (uintptr_t)valueEncoding.data;
-    *changed = !UA_String_equal(&valueEncoding, &mon->lastSampledValue);
-
-    /* Change detected */
-    if(*changed) {
-        /* Move the heap-allocated encoding to the output and return */
-        if(valueEncoding.data != stackValueEncoding) {
-            *encoding = valueEncoding;
-            return UA_STATUSCODE_GOOD;
-        }
-        /* Copy stack-allocated encoding to the output */
-        retval = UA_ByteString_copy(&valueEncoding, encoding);
-    }
-
-    cleanup:
-    if(retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_ERROR_SUBSCRIPTION(&server->config.logger, mon->subscription,
-                                  "MonitoredItem %" PRIi32 " | "
-                                  "Encoding the value failed with StatusCode %s",
-                                  mon->monitoredItemId, UA_StatusCode_name(retval));
-    }
-    if(valueEncoding.data != stackValueEncoding)
-        UA_ByteString_clear(&valueEncoding);
-    return retval;
-}
-
-/* Has this sample changed from the last one? The method may allocate additional
- * space for the encoding buffer. Detect the change in encoding->data. */
-static UA_StatusCode
-detectValueChange(UA_Server *server, UA_Session *session, UA_MonitoredItem *mon,
-                  UA_DataValue value, UA_ByteString *encoding, UA_Boolean *changed) {
+static UA_Boolean
+detectValueChange(UA_Server *server, UA_MonitoredItem *mon,
+                  const UA_DataValue *value) {
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
 
-    /* Default trigger is statusvalue */
-    UA_DataChangeTrigger trigger = UA_DATACHANGETRIGGER_STATUSVALUE;
-    if(mon->parameters.filter.content.decoded.type == &UA_TYPES[UA_TYPES_DATACHANGEFILTER])
-        trigger = ((UA_DataChangeFilter*)
-                   mon->parameters.filter.content.decoded.data)->trigger;
-
-    /* Apply Filter */
-    if(trigger == UA_DATACHANGETRIGGER_STATUS)
-        value.hasValue = false;
-
-    value.hasServerTimestamp = false;
-    value.hasServerPicoseconds = false;
-    if(trigger < UA_DATACHANGETRIGGER_STATUSVALUETIMESTAMP) {
-        value.hasSourceTimestamp = false;
-        value.hasSourcePicoseconds = false;
+    /* Status changes are always reported */
+    if(value->hasStatus != mon->lastValue.hasStatus ||
+       value->status != mon->lastValue.status) {
+        return true;
     }
 
-    /* Detect the value change */
-    return detectValueChangeWithFilter(server, session, mon, &value, encoding, changed);
+    /* Default trigger is Status + Value */
+    UA_DataChangeTrigger trigger = UA_DATACHANGETRIGGER_STATUSVALUE;
+
+    /* Use the configured trigger */
+    const UA_DataChangeFilter *dcf = NULL;
+    const UA_ExtensionObject *filter = &mon->parameters.filter;
+    if(filter->content.decoded.type == &UA_TYPES[UA_TYPES_DATACHANGEFILTER]) {
+        dcf = (UA_DataChangeFilter*)filter->content.decoded.data;
+        trigger = dcf->trigger;
+    }
+
+    /* The status was already tested above */
+    if(trigger == UA_DATACHANGETRIGGER_STATUS)
+        return false;
+
+    UA_assert(trigger == UA_DATACHANGETRIGGER_STATUSVALUE ||
+              trigger == UA_DATACHANGETRIGGER_STATUSVALUETIMESTAMP);
+
+    /* Test absolute deadband */
+    if(dcf && dcf->deadbandType == UA_DEADBANDTYPE_ABSOLUTE &&
+       value->value.type != NULL && UA_DataType_isNumeric(value->value.type))
+        return detectVariantDeadband(&value->value, &mon->lastValue.value,
+                                     dcf->deadbandValue);
+
+    /* Compare the source timestamp if the trigger requires that */
+    if(trigger == UA_DATACHANGETRIGGER_STATUSVALUETIMESTAMP) {
+        if(value->hasSourceTimestamp != mon->lastValue.hasSourceTimestamp)
+            return true;
+        if(value->hasSourceTimestamp &&
+           value->sourceTimestamp != mon->lastValue.sourceTimestamp)
+            return true;
+    }
+
+    /* Has the value changed? */
+    if(value->hasValue != mon->lastValue.hasValue)
+        return true;
+    return (UA_order(&value->value, &mon->lastValue.value,
+                     &UA_TYPES[UA_TYPES_VARIANT]) != UA_ORDER_EQ);
 }
 
 UA_StatusCode
@@ -233,25 +157,8 @@ sampleCallbackWithValue(UA_Server *server, UA_Session *session,
                         UA_DataValue *value) {
     UA_assert(mon->itemToMonitor.attributeId != UA_ATTRIBUTEID_EVENTNOTIFIER);
 
-    /* Contains heap-allocated binary encoding of the value if a change was detected */
-    UA_ByteString binValueEncoding = UA_BYTESTRING_NULL;
-
-    /* Has the value changed with the filter applied? Allocates memory in
-     * binValueEncoding if necessary. The value structure is edited internally.
-     * So we don't give a pointer argument and make a shallow copy instead. */
-    UA_Boolean changed = false;
-    UA_StatusCode retval = detectValueChange(server, session, mon, *value,
-                                             &binValueEncoding, &changed);
-    if(retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_WARNING_SUBSCRIPTION(&server->config.logger, sub,
-                                    "MonitoredItem %" PRIi32 " | "
-                                    "Value change detection failed with StatusCode %s",
-                                    mon->monitoredItemId, UA_StatusCode_name(retval));
-        UA_DataValue_clear(value);
-        return retval;
-    }
-
-    /* No change detected */
+    /* Has the value changed (with the filters applied)? */
+    UA_Boolean changed = detectValueChange(server, mon, value);
     if(!changed) {
         UA_LOG_DEBUG_SUBSCRIPTION(&server->config.logger, sub,
                                   "MonitoredItem %" PRIi32 " | "
@@ -263,19 +170,15 @@ sampleCallbackWithValue(UA_Server *server, UA_Session *session,
     /* The MonitoredItem is attached to a subscription (not server-local).
      * Prepare a notification and enqueue it. */
     if(sub) {
-        retval = UA_MonitoredItem_createDataChangeNotification(server, sub, mon, value);
+        UA_StatusCode retval =
+            UA_MonitoredItem_createDataChangeNotification(server, sub, mon, value);
         if(retval != UA_STATUSCODE_GOOD) {
-            UA_ByteString_clear(&binValueEncoding);
             UA_DataValue_clear(value);
             return retval;
         }
     }
 
     /* <-- Point of no return --> */
-
-    /* Store the encoding for comparison */
-    UA_ByteString_clear(&mon->lastSampledValue);
-    mon->lastSampledValue = binValueEncoding;
 
     /* Move/store the value for filter comparison and TransferSubscription */
     UA_DataValue_clear(&mon->lastValue);
