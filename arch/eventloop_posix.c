@@ -257,9 +257,7 @@ UA_EventLoop_addDelayedCallback(UA_EventLoop *el, UA_DelayedCallback *dc) {
 }
 
 static void
-processTimerEntry(
-    UA_EventLoop *el, UA_DateTime nowMonotonic,
-    UA_TimerEntry *first) {
+processTimerEntry(UA_EventLoop *el, UA_DateTime nowMonotonic, UA_TimerEntry *first) {
 
     /* Reinsert / remove to their new position first. Because the
     * callback can interact with the zip tree and expects the
