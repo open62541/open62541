@@ -491,9 +491,10 @@ UA_EventLoop_run(UA_EventLoop *el, UA_UInt32 timeout) {
     /* Process cyclic callbacks */
     UA_DateTime now = UA_DateTime_nowMonotonic();
     UA_DateTime timeToNextCallback = processTimer(el, now);
+    UA_DateTime processTimerDuration = UA_DateTime_nowMonotonic() - now;
 
     UA_DateTime callbackTimeout = timeToNextCallback - now;
-    UA_DateTime maxTimeout = timeout * UA_DATETIME_MSEC;
+    UA_DateTime maxTimeout = timeout * UA_DATETIME_MSEC - processTimerDuration;
 
     UA_DateTime usedTimeout = UA_MIN(callbackTimeout, maxTimeout);
 
@@ -503,7 +504,7 @@ UA_EventLoop_run(UA_EventLoop *el, UA_UInt32 timeout) {
     UA_FD highestfd = setFDSets(el, &readset, &writeset, &errset);
 
     struct timeval tmptv = {usedTimeout / UA_DATETIME_SEC,
-                            (usedTimeout % UA_DATETIME_SEC) / UA_DATETIME_USEC };
+                            (usedTimeout % UA_DATETIME_SEC) * UA_DATETIME_USEC };
     int selectStatus =  select(highestfd+1, &readset, &writeset, &errset, &tmptv);
     if(selectStatus < 0) {
         /* We will retry, only log the error */
