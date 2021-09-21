@@ -1097,7 +1097,8 @@ ssize_t mqtt_pack_connection_request(uint8_t* buf, size_t bufsz,
     size_t remaining_length;
     const uint8_t *const start = buf;
     ssize_t rv;
-
+    char strTLS[2];
+    
     /* pack the fixed headr */
     fixed_header.control_type = MQTT_CONTROL_CONNECT;
     fixed_header.control_flags = 0x00;
@@ -1157,46 +1158,47 @@ ssize_t mqtt_pack_connection_request(uint8_t* buf, size_t bufsz,
         connect_flags &= (uint8_t)~MQTT_CONNECT_PASSWORD;
     }
 
-        if (caFilePath != NULL) {
-        /* a caFilePath is present */
-        connect_flags |= MQTT_CONNECT_CAFILEPATH;
-        remaining_length += (uint32_t)__mqtt_packed_cstrlen(caFilePath);
-    } else {
-        connect_flags &= (uint8_t)~MQTT_CONNECT_CAFILEPATH;
+    if (useTLS) {    
+            if (caFilePath != NULL) {
+            /* a caFilePath is present */
+            connect_flags |= MQTT_CONNECT_CAFILEPATH;
+            remaining_length += (uint32_t)__mqtt_packed_cstrlen(caFilePath);
+        } else {
+            connect_flags &= (uint8_t)~MQTT_CONNECT_CAFILEPATH;
+        }
+
+        if (caPath != NULL) {
+            /* a caPath is present */
+            connect_flags |= MQTT_CONNECT_CAPATH;
+            remaining_length += (uint32_t)__mqtt_packed_cstrlen(caPath);
+        } else {
+            connect_flags &= (uint8_t)~MQTT_CONNECT_CAPATH;
+        }
+
+        if (clientCertPath != NULL) {
+            /* a clientCertPath is present */
+            connect_flags |= MQTT_CONNECT_CLIENTCERTPATH;
+            remaining_length += (uint32_t)__mqtt_packed_cstrlen(clientCertPath);
+        } else {
+            connect_flags &= (uint8_t)~MQTT_CONNECT_CLIENTCERTPATH;
+        }
+
+        if (clientKeyPath != NULL) {
+            /* a clientKeyPath is present */
+            connect_flags |= MQTT_CONNECT_CLIENTKEYPATH;
+            remaining_length += (uint32_t)__mqtt_packed_cstrlen(clientKeyPath);
+        } else {
+            connect_flags &= (uint8_t)~MQTT_CONNECT_CLIENTKEYPATH;
+        }
+
+        if (useTLS) /* useTLS = true */
+            strncpy(strTLS, "1", 1);
+        else
+            strncpy(strTLS, "0", 1);
+        connect_flags |= MQTT_CONNECT_USETLS;
+        remaining_length += (uint32_t)__mqtt_packed_cstrlen(strTLS);
     }
-
-    if (caPath != NULL) {
-        /* a caPath is present */
-        connect_flags |= MQTT_CONNECT_CAPATH;
-        remaining_length += (uint32_t)__mqtt_packed_cstrlen(caPath);
-    } else {
-        connect_flags &= (uint8_t)~MQTT_CONNECT_CAPATH;
-    }
-
-    if (clientCertPath != NULL) {
-        /* a clientCertPath is present */
-        connect_flags |= MQTT_CONNECT_CLIENTCERTPATH;
-        remaining_length += (uint32_t)__mqtt_packed_cstrlen(clientCertPath);
-    } else {
-        connect_flags &= (uint8_t)~MQTT_CONNECT_CLIENTCERTPATH;
-    }
-
-    if (clientKeyPath != NULL) {
-        /* a clientKeyPath is present */
-        connect_flags |= MQTT_CONNECT_CLIENTKEYPATH;
-        remaining_length += (uint32_t)__mqtt_packed_cstrlen(clientKeyPath);
-    } else {
-        connect_flags &= (uint8_t)~MQTT_CONNECT_CLIENTKEYPATH;
-    }
-
-    char strTLS[2];
-    if (useTLS) /* useTLS = true */
-        strncpy(strTLS, "1", 1);
-    else
-        strncpy(strTLS, "0", 1);
-    connect_flags |= MQTT_CONNECT_USETLS;
-    remaining_length += (uint32_t)__mqtt_packed_cstrlen(strTLS);
-
+    
     /* fixed header length is now calculated*/
     fixed_header.remaining_length = (uint32_t)remaining_length;
 
@@ -1245,16 +1247,18 @@ ssize_t mqtt_pack_connection_request(uint8_t* buf, size_t bufsz,
     if (connect_flags & MQTT_CONNECT_CAPATH) {
         buf += __mqtt_pack_str(buf, caPath);
     }
-    if (connect_flags & MQTT_CONNECT_CLIENTCERTPATH) {
-        buf += __mqtt_pack_str(buf, clientCertPath);
-    }
-    if (connect_flags & MQTT_CONNECT_CLIENTKEYPATH) {
-        buf += __mqtt_pack_str(buf, clientKeyPath);
-    }
+    if (useTSL) {    
+        if (connect_flags & MQTT_CONNECT_CLIENTCERTPATH) {
+            buf += __mqtt_pack_str(buf, clientCertPath);
+        }
+        if (connect_flags & MQTT_CONNECT_CLIENTKEYPATH) {
+            buf += __mqtt_pack_str(buf, clientKeyPath);
+        }
 
-    if (connect_flags & MQTT_CONNECT_USETLS) {
-        buf += __mqtt_pack_str(buf, strTLS);
-
+        if (connect_flags & MQTT_CONNECT_USETLS) {
+            buf += __mqtt_pack_str(buf, strTLS);
+        }
+    }        
     /* return the number of bytes that were consumed */
     return buf - start;
 }
