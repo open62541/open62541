@@ -36,7 +36,12 @@ int gethostname_lwip(char* name, size_t len){
      * use a single netif anyway (LWIP_SINGLE_NETIF).
      * Use the default netif for retrieving hostname. */
     const char * hostname = netif_get_hostname(netif_default);
+    int result = 0;
 
+#if LWIP_TCPIP_CORE_LOCKING
+    /* Lock TCP/IP thread */
+    LOCK_TCPIP_CORE();
+#endif
     /* The GNU C library does not employ the gethostname() system call;
      * instead, it implements gethostname() as a library function that
      * calls uname(2) and copies up to len bytes from the returned
@@ -49,10 +54,15 @@ int gethostname_lwip(char* name, size_t len){
 
     if (strlen(hostname) >= len) {
       /* Error ENAMETOOLONG, hostname is larger than given buffer */
-      return -1;
+      result = -1;
     }
 
-    return 0;
+#if LWIP_TCPIP_CORE_LOCKING
+    /* Unlock TCP/IP thread */
+   UNLOCK_TCPIP_CORE();
+#endif
+
+    return result;
   }
 #endif /* LWIP_NETIF_HOSTNAME */
 
