@@ -3,6 +3,7 @@
  *
  *    Copyright 2018 (c) Jose Cabral, fortiss GmbH
  *    Copyright 2018 (c) Stefan Profanter, fortiss GmbH
+ *    Copyright 2021 (c) Simon Kueppers, 2pi-Labs GmbH
  */
 
 #ifdef UA_ARCHITECTURE_FREERTOSLWIP
