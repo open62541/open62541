@@ -57,7 +57,7 @@ UA_PubSubSecurityPolicy_Aes256Ctr(UA_PubSubSecurityPolicy *policy,
 
 #endif
 
-#ifdef UA_ENABLE_TPM2_PKCS11
+#ifdef UA_ENABLE_TPM2_SECURITY
 
 UA_EXPORT UA_StatusCode
 UA_PubSubSecurityPolicy_Aes128CtrTPM(UA_PubSubSecurityPolicy *policy, char *userpin, unsigned long slotId,

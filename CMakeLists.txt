@@ -17,7 +17,7 @@ set(PYTHON_EXECUTABLE ${Python3_EXECUTABLE})
 find_package(Git)
 include(AssignSourceGroup)
 include(GNUInstallDirs)
-if(UA_ENABLE_TPM2_PKCS11)
+if(UA_ENABLE_TPM2_SECURITY)
     find_library(TPM2_LIB tpm2_pkcs11)
     message(${TPM2_LIB})
 endif()
@@ -298,14 +298,14 @@ endif()
 
 option(UA_FORCE_WERROR "Force compilation with -Werror" ON)
 
+option(UA_ENABLE_TPM2_SECURITY "Enable encryption using TPM hardware" OFF)
+mark_as_advanced(UA_ENABLE_TPM2_SECURITY)
+
 #General PubSub setup
 option(UA_ENABLE_PUBSUB "Enable the PubSub protocol" OFF)
 
 option(UA_ENABLE_PUBSUB_ENCRYPTION "Enable encryption of the PubSub payload" OFF)
 mark_as_advanced(UA_ENABLE_PUBSUB_ENCRYPTION)
-
-option(UA_ENABLE_TPM2_PKCS11 "Enable for encryption of the PubSub payload using TPM hardware" OFF)
-mark_as_advanced(UA_ENABLE_TPM2_PKCS11)
 
 option(UA_ENABLE_PUBSUB_INFORMATIONMODEL "Enable PubSub information model twin" OFF)
 
@@ -552,7 +552,7 @@ if(UA_ENABLE_ENCRYPTION_MBEDTLS OR UA_ENABLE_PUBSUB_ENCRYPTION)
     list(APPEND open62541_LIBRARIES ${MBEDTLS_LIBRARIES})
 endif()
 
-if(UA_ENABLE_TPM2_PKCS11)
+if(UA_ENABLE_TPM2_SECURITY)
     list(APPEND open62541_LIBRARIES ${TPM2_LIB})
 endif()
 
@@ -967,7 +967,7 @@ list(INSERT default_plugin_sources 1
      ${PROJECT_SOURCE_DIR}/plugins/crypto/mbedtls/ua_pki_mbedtls.c)
 endif()
 
-if(UA_ENABLE_TPM2_PKCS11)
+if(UA_ENABLE_TPM2_SECURITY)
 list(INSERT default_plugin_sources 0
      ${PROJECT_SOURCE_DIR}/plugins/crypto/pkcs11/securitypolicy_pubsub_aes128ctr_tpm.c
      ${PROJECT_SOURCE_DIR}/plugins/crypto/pkcs11/securitypolicy_pubsub_aes256ctr_tpm.c)
