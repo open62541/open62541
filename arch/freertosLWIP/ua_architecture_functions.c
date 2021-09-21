@@ -24,7 +24,42 @@ unsigned int UA_socket_set_nonblocking(UA_SOCKET sockfd){
 }
 
 int gethostname_lwip(char* name, size_t len){
-  // use UA_ServerConfig_set_customHostname to set your hostname as the IP
+  /* gethostname() returns the null-terminated hostname in the
+   * character array name, which has a length of len bytes.  If the
+   * null-terminated hostname is too large to fit, then the name is
+   * truncated, and no error is returned (but see NOTES below).
+   */
+#if LWIP_NETIF_HOSTNAME
+  if ( (netif_default != NULL) && (netif_get_hostname(netif_default) != NULL) ) {
+    /* LWIP has one hostname per netif. However majority of embedded systems using LWIP
+     * use a single netif anyway (LWIP_SINGLE_NETIF).
+     * Use the default netif for retrieving hostname. */
+    const char * hostname = netif_get_hostname(netif_default);
+
+    /* The GNU C library does not employ the gethostname() system call;
+     * instead, it implements gethostname() as a library function that
+     * calls uname(2) and copies up to len bytes from the returned
+     * nodename field into name.  Having performed the copy, the
+     * function then checks if the length of the nodename was greater
+     * than or equal to len, and if it is, then the function returns -1
+     * with errno set to ENAMETOOLONG; in this case, a terminating null
+     * byte is not included in the returned name. */
+    strncpy(name, hostname, len);
+
+    if (strlen(hostname) >= len) {
+      /* Error ENAMETOOLONG, hostname is larger than given buffer */
+      return -1;
+    }
+
+    return 0;
+  }
+#endif /* LWIP_NETIF_HOSTNAME */
+
+  /* No valid hostname, due to one of the following
+   *   1. LWIP_NETIF_HOSTNAME not defined
+   *   2. no default netif set
+   *   3. no hostname on default netif set.
+   * use UA_ServerConfig_set_customHostname to set your hostname as the IP manually */
   return -1;
 }
 
