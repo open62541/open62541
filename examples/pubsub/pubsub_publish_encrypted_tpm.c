@@ -1,7 +1,7 @@
 /* This work is licensed under a Creative Commons CCZero 1.0 Universal License.
  * See http://creativecommons.org/publicdomain/zero/1.0/ for more information. */
 
- /* Note: Have to enable UA_ENABLE_PUBSUB_ENCRYPTION and UA_ENABLE_TPM2_PKCS11
+ /* Note: Have to enable UA_ENABLE_PUBSUB_ENCRYPTION and UA_ENABLE_TPM2_SECURITY
           to run the application */
 
 #include <open62541/plugin/log_stdout.h>

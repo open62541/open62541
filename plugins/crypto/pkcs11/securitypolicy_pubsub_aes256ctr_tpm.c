@@ -9,7 +9,7 @@
 #include <open62541/util.h>
 #include <open62541/types.h>
 
-#ifdef UA_ENABLE_TPM2_PKCS11
+#ifdef UA_ENABLE_TPM2_SECURITY
 #include <pkcs11.h>
 
 #if UA_MULTITHREADING >= 100
