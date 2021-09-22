@@ -513,9 +513,12 @@ Service_CreateMonitoredItems(UA_Server *server, UA_Session *session,
     cmc.sub->currentLifetimeCount = 0;
 
     response->responseHeader.serviceResult =
-        UA_Server_processServiceOperations(server, session, (UA_ServiceOperation)Operation_CreateMonitoredItem, &cmc,
-                                           &request->itemsToCreateSize, &UA_TYPES[UA_TYPES_MONITOREDITEMCREATEREQUEST],
-                                           &response->resultsSize, &UA_TYPES[UA_TYPES_MONITOREDITEMCREATERESULT]);
+        UA_Server_processServiceOperations(server, session,
+                                           (UA_ServiceOperation)Operation_CreateMonitoredItem,
+                                           &cmc, &request->itemsToCreateSize,
+                                           &UA_TYPES[UA_TYPES_MONITOREDITEMCREATEREQUEST],
+                                           &response->resultsSize,
+                                           &UA_TYPES[UA_TYPES_MONITOREDITEMCREATERESULT]);
 }
 
 UA_MonitoredItemCreateResult
@@ -633,9 +636,11 @@ Service_ModifyMonitoredItems(UA_Server *server, UA_Session *session,
 
     response->responseHeader.serviceResult =
         UA_Server_processServiceOperations(server, session,
-                  (UA_ServiceOperation)Operation_ModifyMonitoredItem, sub,
-                  &request->itemsToModifySize, &UA_TYPES[UA_TYPES_MONITOREDITEMMODIFYREQUEST],
-                  &response->resultsSize, &UA_TYPES[UA_TYPES_MONITOREDITEMMODIFYRESULT]);
+                                           (UA_ServiceOperation)Operation_ModifyMonitoredItem,
+                                           sub, &request->itemsToModifySize,
+                                           &UA_TYPES[UA_TYPES_MONITOREDITEMMODIFYREQUEST],
+                                           &response->resultsSize,
+                                           &UA_TYPES[UA_TYPES_MONITOREDITEMMODIFYRESULT]);
 }
 
 struct setMonitoringContext {
@@ -681,9 +686,11 @@ Service_SetMonitoringMode(UA_Server *server, UA_Session *session,
     smc.monitoringMode = request->monitoringMode;
     response->responseHeader.serviceResult =
         UA_Server_processServiceOperations(server, session,
-                  (UA_ServiceOperation)Operation_SetMonitoringMode, &smc,
-                  &request->monitoredItemIdsSize, &UA_TYPES[UA_TYPES_UINT32],
-                  &response->resultsSize, &UA_TYPES[UA_TYPES_STATUSCODE]);
+                                           (UA_ServiceOperation)Operation_SetMonitoringMode,
+                                           &smc, &request->monitoredItemIdsSize,
+                                           &UA_TYPES[UA_TYPES_UINT32],
+                                           &response->resultsSize,
+                                           &UA_TYPES[UA_TYPES_STATUSCODE]);
 }
 
 static void
@@ -724,9 +731,11 @@ Service_DeleteMonitoredItems(UA_Server *server, UA_Session *session,
 
     response->responseHeader.serviceResult =
         UA_Server_processServiceOperations(server, session,
-                  (UA_ServiceOperation)Operation_DeleteMonitoredItem, sub,
-                  &request->monitoredItemIdsSize, &UA_TYPES[UA_TYPES_UINT32],
-                  &response->resultsSize, &UA_TYPES[UA_TYPES_STATUSCODE]);
+                                           (UA_ServiceOperation)Operation_DeleteMonitoredItem,
+                                           sub, &request->monitoredItemIdsSize,
+                                           &UA_TYPES[UA_TYPES_UINT32],
+                                           &response->resultsSize,
+                                           &UA_TYPES[UA_TYPES_STATUSCODE]);
 }
 
 UA_StatusCode
