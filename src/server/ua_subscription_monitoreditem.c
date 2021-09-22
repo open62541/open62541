@@ -336,16 +336,12 @@ UA_MonitoredItem_init(UA_MonitoredItem *mon) {
     TAILQ_INIT(&mon->queue);
 }
 
-#ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
 static UA_StatusCode
 addMonitoredItemNodeCallback(UA_Server *server, UA_Session *session,
                              UA_Node *node, void *data) {
-    if(node->head.nodeClass != UA_NODECLASS_OBJECT)
-        return UA_STATUSCODE_BADNODECLASSINVALID;
     UA_MonitoredItem *mon = (UA_MonitoredItem*)data;
-    UA_ObjectNode *on = &node->objectNode;
-    mon->next = on->monitoredItemQueue;
-    on->monitoredItemQueue = mon;
+    mon->next = node->head.monitoredItems;
+    node->head.monitoredItems = mon;
     return UA_STATUSCODE_GOOD;
 }
 
@@ -354,19 +350,18 @@ removeMonitoredItemNodeCallback(UA_Server *server, UA_Session *session,
                                 UA_Node *node, void *data) {
     if(node->head.nodeClass != UA_NODECLASS_OBJECT)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
-    UA_ObjectNode *on = &node->objectNode;
     UA_MonitoredItem *remove = (UA_MonitoredItem*)data;
 
-    if(!on->monitoredItemQueue)
+    if(!node->head.monitoredItems)
         return UA_STATUSCODE_GOOD;
 
     /* Edge case that it's the first element */
-    if(on->monitoredItemQueue == remove) {
-        on->monitoredItemQueue = remove->next;
+    if(node->head.monitoredItems == remove) {
+        node->head.monitoredItems = remove->next;
         return UA_STATUSCODE_GOOD;
     }
 
-    UA_MonitoredItem *prev = on->monitoredItemQueue;
+    UA_MonitoredItem *prev = node->head.monitoredItems;
     UA_MonitoredItem *entry = prev->next;
     for(; entry != NULL; prev = entry, entry = entry->next) {
         if(entry == remove) {
@@ -377,7 +372,6 @@ removeMonitoredItemNodeCallback(UA_Server *server, UA_Session *session,
 
     return UA_STATUSCODE_BADNOTFOUND;
 }
-#endif
 
 UA_StatusCode
 UA_Server_registerMonitoredItem(UA_Server *server, UA_MonitoredItem *mon) {
@@ -386,15 +380,17 @@ UA_Server_registerMonitoredItem(UA_Server *server, UA_MonitoredItem *mon) {
     if(sub)
         session = sub->session;
 
-    /* Attach to the Node */
-#ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
-    if(sub && mon->itemToMonitor.attributeId == UA_ATTRIBUTEID_EVENTNOTIFIER) {
-        UA_StatusCode res = UA_Server_editNode(server, NULL, &mon->itemToMonitor.nodeId,
+    /* Attach to the Node if an Event MonitoredItem or if the sampling interval
+     * is zero. */
+    if(mon->itemToMonitor.attributeId == UA_ATTRIBUTEID_EVENTNOTIFIER ||
+       mon->parameters.samplingInterval == 0.0) {
+        UA_StatusCode res = UA_Server_editNode(server, session, &mon->itemToMonitor.nodeId,
                                                addMonitoredItemNodeCallback, mon);
         if(res != UA_STATUSCODE_GOOD)
             return res;
     }
-#endif
+
+    /* <-- Point of no return --> */
 
     /* Register in Subscription and Server */
     if(sub) {
@@ -449,12 +445,11 @@ UA_Server_unregisterMonitoredItem(UA_Server *server, UA_MonitoredItem *mon) {
     }
 
     /* Remove from the node */
-#ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
-    if(sub && mon->itemToMonitor.attributeId == UA_ATTRIBUTEID_EVENTNOTIFIER) {
+    if(mon->itemToMonitor.attributeId == UA_ATTRIBUTEID_EVENTNOTIFIER ||
+       mon->parameters.samplingInterval == 0.0) {
         UA_Server_editNode(server, session, &mon->itemToMonitor.nodeId,
                            removeMonitoredItemNodeCallback, mon);
     }
-#endif
 
     /* Deregister in Subscription and server */
     if(sub)

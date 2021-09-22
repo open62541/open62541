@@ -511,6 +511,9 @@ UA_Node_copy(const UA_Node *src, UA_Node *dst) {
     dsthead->writeMask = srchead->writeMask;
     dsthead->context = srchead->context;
     dsthead->constructed = srchead->constructed;
+#ifdef UA_ENABLE_SUBSCRIPTIONS
+    dsthead->monitoredItems = srchead->monitoredItems;
+#endif
     if(retval != UA_STATUSCODE_GOOD) {
         UA_Node_clear(dst);
         return retval;
