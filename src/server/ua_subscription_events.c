@@ -627,29 +627,31 @@ triggerEvent(UA_Server *server, const UA_NodeId eventNodeId,
     /* Add the event to the listening MonitoredItems at each relevant node */
     for(size_t i = 0; i < emitNodesSize; i++) {
         /* Get the node */
-        const UA_ObjectNode *node = (const UA_ObjectNode*)
-            UA_NODESTORE_GET(server, &emitNodes[i].nodeId);
+        const UA_Node *node = UA_NODESTORE_GET(server, &emitNodes[i].nodeId);
         if(!node)
             continue;
 
         /* Only consider objects */
         if(node->head.nodeClass != UA_NODECLASS_OBJECT) {
-            UA_NODESTORE_RELEASE(server, (const UA_Node*)node);
+            UA_NODESTORE_RELEASE(server, node);
             continue;
         }
 
         /* Add event to monitoreditems */
-        for(UA_MonitoredItem *mi = node->monitoredItemQueue; mi != NULL; mi = mi->next) {
-            retval = UA_Event_addEventToMonitoredItem(server, &eventNodeId, mi);
+        for(UA_MonitoredItem *mon = node->head.monitoredItems; mon != NULL; mon = mon->next) {
+            /* Is this an Event-MonitoredItem? */
+            if(mon->itemToMonitor.attributeId != UA_ATTRIBUTEID_EVENTNOTIFIER)
+                continue;
+            retval = UA_Event_addEventToMonitoredItem(server, &eventNodeId, mon);
             if(retval != UA_STATUSCODE_GOOD) {
                 UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
-                               "Events: Could not add the event to a listening node with StatusCode %s",
-                               UA_StatusCode_name(retval));
+                               "Events: Could not add the event to a listening "
+                               "node with StatusCode %s", UA_StatusCode_name(retval));
                 retval = UA_STATUSCODE_GOOD; /* Only log problems with individual emit nodes */
             }
         }
 
-        UA_NODESTORE_RELEASE(server, (const UA_Node*)node);
+        UA_NODESTORE_RELEASE(server, node);
 
         /* Add event entry in the historical database */
 #ifdef UA_ENABLE_HISTORIZING
