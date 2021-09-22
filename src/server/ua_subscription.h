@@ -333,7 +333,7 @@ UA_Server_evaluateWhereClauseContentFilter(UA_Server *server,
     if((SUB) && (SUB)->session) {                                       \
         UA_NodeId_print(&(SUB)->session->sessionId, &idString);         \
         UA_LOG_##LEVEL(LOGGER, UA_LOGCATEGORY_SESSION,                  \
-                       "SecureChannel %i | Session %.*s | Subscription %" PRIu32 " | " MSG "%.0s", \
+                       "SecureChannel %" PRIu32 " | Session %.*s | Subscription %" PRIu32 " | " MSG "%.0s", \
                        ((SUB)->session->header.channel ?                \
                         (SUB)->session->header.channel->securityToken.channelId : 0), \
                        (int)idString.length, idString.data, (SUB)->subscriptionId, __VA_ARGS__); \
