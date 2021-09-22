@@ -201,7 +201,8 @@ checkAdjustMonitoredItemParams(UA_Server *server, UA_Session *session,
         }
     }
 
-    /* Read the minimum sampling interval for the variable */
+    /* Read the minimum sampling interval for the variable. The sampling
+     * interval of the MonitoredItem must not be less than that. */
     if(mon->itemToMonitor.attributeId == UA_ATTRIBUTEID_VALUE) {
         const UA_Node *node = UA_NODESTORE_GET(server, &mon->itemToMonitor.nodeId);
         if(node) {
@@ -213,11 +214,18 @@ checkAdjustMonitoredItemParams(UA_Server *server, UA_Session *session,
         }
     }
         
-    /* Adjust to sampling interval to lie within the limits and check for NaN */
-    UA_BOUNDEDVALUE_SETWBOUNDS(server->config.samplingIntervalLimits,
-                               params->samplingInterval, params->samplingInterval);
-    if(mon->parameters.samplingInterval != mon->parameters.samplingInterval)
-        params->samplingInterval = server->config.samplingIntervalLimits.min;
+    /* Adjust to sampling interval to lie within the limits */
+    if(params->samplingInterval <= 0.0) {
+        /* A sampling interval of zero is possible and indicates that the
+         * MonitoredItem is checked for every write operation */
+        params->samplingInterval = 0.0;
+    } else {
+        UA_BOUNDEDVALUE_SETWBOUNDS(server->config.samplingIntervalLimits,
+                                   params->samplingInterval, params->samplingInterval);
+        /* Check for NaN */
+        if(mon->parameters.samplingInterval != mon->parameters.samplingInterval)
+            params->samplingInterval = server->config.samplingIntervalLimits.min;
+    }
 
     /* Adjust the maximum queue size */
 #ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
@@ -445,13 +453,8 @@ Operation_CreateMonitoredItem(UA_Server *server, UA_Session *session,
         return;
     }
 
-    /* Register the Monitoreditem in the server and subscription. Add Events as
-     * "listeners" to the monitored Node. */
-    result->statusCode = UA_Server_registerMonitoredItem(server, newMon);
-    if(result->statusCode != UA_STATUSCODE_GOOD) {
-        UA_MonitoredItem_delete(server, newMon);
-        return;
-    }
+    /* Register the Monitoreditem in the server and subscription */
+    UA_Server_registerMonitoredItem(server, newMon);
 
     /* Activate the MonitoredItem */
     result->statusCode |=
@@ -585,7 +588,7 @@ Operation_ModifyMonitoredItem(UA_Server *server, UA_Session *session, UA_Subscri
 
     /* Re-register the callback if necessary */
     if(oldSamplingInterval != mon->parameters.samplingInterval) {
-        UA_MonitoredItem_unregisterSampleCallback(server, mon);
+        UA_MonitoredItem_unregisterSampling(server, mon);
         result->statusCode =
             UA_MonitoredItem_setMonitoringMode(server, mon, mon->monitoringMode);
     }

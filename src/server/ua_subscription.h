@@ -148,12 +148,17 @@ void UA_MonitoredItem_init(UA_MonitoredItem *mon);
 void
 UA_MonitoredItem_delete(UA_Server *server, UA_MonitoredItem *monitoredItem);
 
-UA_StatusCode
+void
 UA_Server_registerMonitoredItem(UA_Server *server, UA_MonitoredItem *mon);
 
+/* Register sampling. Either by adding a repeated callback or by adding the
+ * MonitoredItem to a linked list in the node. */
+UA_StatusCode
+UA_MonitoredItem_registerSampling(UA_Server *server, UA_MonitoredItem *mon);
+
 void
-UA_MonitoredItem_unregisterSampleCallback(UA_Server *server,
-                                          UA_MonitoredItem *mon);
+UA_MonitoredItem_unregisterSampling(UA_Server *server,
+                                    UA_MonitoredItem *mon);
 
 UA_StatusCode
 UA_MonitoredItem_setMonitoringMode(UA_Server *server, UA_MonitoredItem *mon,
@@ -164,8 +169,8 @@ UA_MonitoredItem_sampleCallback(UA_Server *server,
                                 UA_MonitoredItem *monitoredItem);
 
 UA_StatusCode
-UA_MonitoredItem_registerSampleCallback(UA_Server *server,
-                                        UA_MonitoredItem *mon);
+sampleCallbackWithValue(UA_Server *server, UA_Subscription *sub,
+                        UA_MonitoredItem *mon, UA_DataValue *value);
 
 UA_StatusCode
 UA_MonitoredItem_removeLink(UA_Subscription *sub, UA_MonitoredItem *mon,

@@ -843,8 +843,7 @@ START_TEST(Server_invalidSamplingInterval) {
     ck_assert_uint_eq(response.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(response.resultsSize, 1);
     ck_assert_uint_eq(response.results[0].statusCode, UA_STATUSCODE_GOOD);
-    ck_assert(response.results[0].revisedSamplingInterval ==
-              server->config.samplingIntervalLimits.min);
+    ck_assert(response.results[0].revisedSamplingInterval == 0.0);
 
     UA_MonitoredItemCreateRequest_clear(&item);
     UA_CreateMonitoredItemsResponse_clear(&response);
