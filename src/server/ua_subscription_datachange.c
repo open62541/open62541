@@ -151,7 +151,7 @@ UA_MonitoredItem_createDataChangeNotification(UA_Server *server, UA_Subscription
 }
 
 /* Moves the value to the MonitoredItem if successful */
-static UA_StatusCode
+UA_StatusCode
 sampleCallbackWithValue(UA_Server *server, UA_Subscription *sub,
                         UA_MonitoredItem *mon, UA_DataValue *value) {
     UA_assert(mon->itemToMonitor.attributeId != UA_ATTRIBUTEID_EVENTNOTIFIER);
