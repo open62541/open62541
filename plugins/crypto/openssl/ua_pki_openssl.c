@@ -734,7 +734,13 @@ UA_CertificateVerification_CertFolders(UA_CertificateVerification * cv,
     cv->verifyApplicationURI = UA_CertificateVerification_VerifyApplicationURI;
     cv->clear = UA_CertificateVerification_clear;
     cv->context = context;
-    cv->verifyCertificate = UA_CertificateVerification_Verify;
+    if(trustListFolder == NULL &&
+       issuerListFolder == NULL &&
+       revocationListFolder == NULL) {
+        cv->verifyCertificate = UA_VerifyCertificateAllowAll;
+    } else {
+        cv->verifyCertificate = UA_CertificateVerification_Verify;
+    }
 
     /* Only set the folder paths. They will be reloaded during runtime. */
 
