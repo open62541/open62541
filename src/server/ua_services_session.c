@@ -682,6 +682,61 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
 #endif
     }
 
+#ifdef UA_ENABLE_ENCRYPTION
+    /* If it is a X509IdentityToken, check the userTokenSignature. Note this
+     * only validates that the user has the corresponding private key for the
+     * given user cetificate. Checking whether the user certificate is trusted
+     * has to be implemented in the access control plugin. The entire token is
+     * forwarded in the call to ActivateSession. */
+    if(utp->tokenType == UA_USERTOKENTYPE_CERTIFICATE) {
+        UA_X509IdentityToken* userCertToken = (UA_X509IdentityToken*)
+            request->userIdentityToken.content.decoded.data;
+
+        /* If the userTokenPolicy doesn't specify a security policy the security
+         * policy of the secure channel is used. */
+        UA_SecurityPolicy* securityPolicy;
+        if(!utp->securityPolicyUri.data)
+            securityPolicy = getSecurityPolicyByUri(server, &ed->securityPolicyUri);
+        else
+            securityPolicy = getSecurityPolicyByUri(server, &utp->securityPolicyUri);
+        if(!securityPolicy) {
+            response->responseHeader.serviceResult = UA_STATUSCODE_BADINTERNALERROR;
+            goto rejected;
+        }
+
+        /* We need a channel context with the user certificate in order to reuse
+         * the signature checking code. */
+        void *tempChannelContext;
+        UA_UNLOCK(&server->serviceMutex);
+        response->responseHeader.serviceResult = securityPolicy->channelModule.
+            newContext(securityPolicy, &userCertToken->certificateData, &tempChannelContext);
+        UA_LOCK(&server->serviceMutex);
+        if(response->responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
+            UA_LOG_WARNING_SESSION(&server->config.logger, session, "ActivateSession: "
+                                   "Failed to create a context for the SecurityPolicy %.*s",
+                                   (int)securityPolicy->policyUri.length,
+                                   securityPolicy->policyUri.data);
+            goto rejected;
+        }
+
+        /* Check the user token signature */
+        response->responseHeader.serviceResult =
+            checkSignature(server, channel->securityPolicy, tempChannelContext,
+                           &session->serverNonce, &request->userTokenSignature);
+
+        /* Delete the temporary channel context */
+        UA_UNLOCK(&server->serviceMutex);
+        securityPolicy->channelModule.deleteContext(tempChannelContext);
+        UA_LOCK(&server->serviceMutex);
+        if(response->responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
+            UA_LOG_WARNING_SESSION(&server->config.logger, session,
+                "ActivateSession: User token signature check failed with StatusCode %s",
+                UA_StatusCode_name(response->responseHeader.serviceResult));
+            goto securityRejected;
+        }
+    }
+#endif
+
     /* Callback into userland access control */
     UA_UNLOCK(&server->serviceMutex);
     response->responseHeader.serviceResult = server->config.accessControl.
