@@ -1256,7 +1256,7 @@ if (useTLS==UA_TRUE)
     if (connect_flags & MQTT_CONNECT_CLIENTKEYPATH) {
         buf += __mqtt_pack_str(buf, clientKeyPath);
     }
-} /* if (useTLS==UA_TRUE)
+} // if (useTLS==UA_TRUE)
 
     /* return the number of bytes that were consumed */
     return buf - start;
