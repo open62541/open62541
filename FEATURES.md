@@ -24,7 +24,7 @@ OPC UA Stack
 | **Authentication**                      |                    |                      |
 | Anonymous                               | :heavy_check_mark: |                      |
 | User Name Password                      | :heavy_check_mark: |                      |
-| X509 Certificate                        |     :new_moon:     |                      |
+| X509 Certificate                        | :heavy_check_mark: |                      |
 
 OPC UA Server
 -------------
