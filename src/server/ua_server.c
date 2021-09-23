@@ -156,10 +156,6 @@ cleanup:
 /* Server Lifecycle */
 /********************/
 
-// static void
-// serverExecuteRepeatedCallback(UA_Server *server, UA_ApplicationCallback cb,
-//                               void *callbackApplication, void *data);
-
 /* The server needs to be stopped before it can be deleted */
 void UA_Server_delete(UA_Server *server) {
     UA_LOCK(&server->serviceMutex);
