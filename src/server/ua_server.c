@@ -803,9 +803,10 @@ UA_Server_run_iterate(UA_Server *server, UA_Boolean waitInternal) {
 UA_StatusCode
 UA_Server_run_shutdown(UA_Server *server) {
     /* Stop the network layer */
-    // for(size_t i = 0; i < server->config.networkLayersSize; ++i) {
-    //     UA_ServerNetworkLayer *nl = &server->config.networkLayers[i];
-    // }
+    for(size_t i = 0; i < server->config.networkLayersSize; ++i) {
+        UA_ServerNetworkLayer *nl = &server->config.networkLayers[i];
+        nl->stop(nl, server);
+    }
 
 #ifdef UA_ENABLE_DISCOVERY_MULTICAST
     /* Stop multicast discovery */

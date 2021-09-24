@@ -73,17 +73,49 @@ typedef struct {
     LIST_HEAD(, ConnectionEntry) connections;
     UA_UInt16 connectionsSize;
 } ServerNetworkLayerTCP;
+/* run only when the server is stopped */
+
+static void
+ServerNetworkLayerTCP_stop(UA_ServerNetworkLayer *nl, UA_Server *server) {
+    ServerNetworkLayerTCP *layer = (ServerNetworkLayerTCP *)nl->handle;
+    UA_LOG_INFO(layer->logger, UA_LOGCATEGORY_NETWORK,
+                "Shutting down the TCP network layer");
+
+    /* Close the server sockets */
+    layer->serverSocketsSize = 0;
+    UA_deinitialize_architecture_network();
+}
+static void
+ServerNetworkLayerTCP_clear(UA_ServerNetworkLayer *nl) {
+    ServerNetworkLayerTCP *layer = (ServerNetworkLayerTCP *)nl->handle;
+    UA_String_clear(&nl->discoveryUrl);
+
+    /* Hard-close and remove remaining connections. The server is no longer
+     * running. So this is safe. */
+    ConnectionEntry *e, *e_tmp;
+    LIST_FOREACH_SAFE(e, &layer->connections, pointers, e_tmp) {
+        LIST_REMOVE(e, pointers);
+        layer->connectionsSize--;
+        UA_free(e);
+        if(nl->statistics) {
+            nl->statistics->currentConnectionCount--;
+        }
+    }
+
+    /* Free the layer */
+    UA_free(layer);
+}
 
 UA_ServerNetworkLayer
 UA_ServerNetworkLayerTCP(UA_ConnectionConfig config, UA_UInt16 port,
                          UA_UInt16 maxConnections) {
     UA_ServerNetworkLayer nl;
     memset(&nl, 0, sizeof(UA_ServerNetworkLayer));
-    nl.clear = NULL;
+    nl.clear = ServerNetworkLayerTCP_clear;
     nl.localConnectionConfig = config;
     nl.start = NULL;
     nl.listen = NULL;
-    nl.stop = NULL;
+    nl.stop = ServerNetworkLayerTCP_stop;
     nl.handle = NULL;
 
     ServerNetworkLayerTCP *layer = (ServerNetworkLayerTCP*)
@@ -397,3 +429,4 @@ UA_ClientConnectionTCP_init(UA_ConnectionConfig config, const UA_String endpoint
     /* Return connection with state UA_CONNECTIONSTATE_OPENING */
     return connection;
 }
+
