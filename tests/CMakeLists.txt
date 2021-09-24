@@ -141,6 +141,18 @@ if(UA_ENABLE_PUBSUB)
     endif()
 endif()
 
+if(UA_NAMESPACE_ZERO STREQUAL "FULL")
+    set(NODESET_COMPILER_OUTPUT_DIR "${CMAKE_BINARY_DIR}/src_generated/tests")
+
+    # Generate namespace for interfaces test
+    ua_generate_nodeset_and_datatypes(
+        NAME "tests-interfaces"
+        OUTPUT_DIR "${NODESET_COMPILER_OUTPUT_DIR}"
+        FILE_NS "${CMAKE_CURRENT_SOURCE_DIR}/server/interface-testmodel.xml"
+        INTERNAL
+    )
+endif()
+
 add_library(open62541-testplugins OBJECT ${test_plugin_sources} ${PROJECT_SOURCE_DIR}/arch/${UA_ARCHITECTURE}/ua_architecture_functions.c)
 add_dependencies(open62541-testplugins open62541)
 target_compile_definitions(open62541-testplugins PRIVATE -DUA_DYNAMIC_LINKING_EXPORT)
@@ -597,3 +609,11 @@ endif()
 
 # Tests for Nodeset Compiler
 add_subdirectory(nodeset-compiler)
+
+# Tests for interfaces
+if(UA_NAMESPACE_ZERO STREQUAL "FULL")
+    add_executable(check_interfaces server/check_interfaces.c ${NODESET_COMPILER_OUTPUT_DIR}/namespace_tests_interfaces_generated.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
+    target_include_directories(check_interfaces PRIVATE ${NODESET_COMPILER_OUTPUT_DIR})
+    target_link_libraries(check_interfaces ${LIBS})
+    add_test_valgrind(check_interfaces ${TESTS_BINARY_DIR}/check_interfaces)
+endif()
