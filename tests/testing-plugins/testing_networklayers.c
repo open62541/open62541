@@ -87,6 +87,7 @@ UA_Client_recvTesting(UA_Connection *connection, UA_ByteString *response,
     }
 
     UA_StatusCode res = UA_Client_recv(connection, response, timeout);
+    /* TODO: test leverages GOODNONCRITICALTIMEOUT ! */
     if(res == UA_STATUSCODE_GOODNONCRITICALTIMEOUT)
         UA_fakeSleep(timeout);
     else

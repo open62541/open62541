@@ -572,9 +572,9 @@ UA_EventLoop_run(UA_EventLoop *el, UA_UInt32 timeout) {
     el->executing = false;
     if (selectStatus == 0) {
         UA_UNLOCK(&el->elMutex);
-        UA_LOG_DEBUG(UA_EventLoop_getLogger(el), UA_LOGCATEGORY_EVENTLOOP,
-                     "select timeout on socket");
-        return UA_STATUSCODE_GOOD;
+        /* UA_LOG_DEBUG(UA_EventLoop_getLogger(el), UA_LOGCATEGORY_EVENTLOOP,
+           "select timeout on socket"); */
+        return UA_STATUSCODE_GOODNONCRITICALTIMEOUT;
     }
     UA_UNLOCK(&el->elMutex);
     return UA_STATUSCODE_GOOD;
