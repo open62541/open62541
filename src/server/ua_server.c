@@ -527,8 +527,6 @@ UA_ServerStatistics UA_Server_getStatistics(UA_Server *server)
 /* In this example, we integrate the server into an external "mainloop". This
    can be for example the event-loop used in GUI toolkits, such as Qt or GTK. */
 
-// UA_Connection connection;
-
 static UA_StatusCode UA_Connection_getSendBuffer(UA_Connection *connection, size_t length,
                                                  UA_ByteString *buf) {
     UA_ConnectionContext *ctx = (UA_ConnectionContext *) connection->handle;
@@ -554,12 +552,6 @@ static void UA_Connection_close(UA_Connection *connection) {
     UA_ConnectionManager *cm = ((UA_BasicConnectionContext *)ctx)->cm;
     cm->closeConnection(cm, ctx->connectionId);
 }
-
-
-// /* Release the send buffer manually */
-// void UA_Connection_releaseSendBuffer(UA_Connection *connection, UA_ByteString *buf) {
-//
-// }
 
 static void
 shutdownCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
@@ -593,9 +585,6 @@ connectionCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
         UA_LOG_INFO(UA_EventLoop_getLogger(cm->eventSource.eventLoop), UA_LOGCATEGORY_SERVER, "closing connection");
 
         shutdownCallback(cm, connectionId, *connectionContext);
-        // if (!ctx->isInitial) {
-        //     free(*connectionContext);
-        // }
         return;
     }
 
@@ -791,8 +780,6 @@ UA_Server_run_iterate(UA_Server *server, UA_Boolean waitInternal) {
         UA_StatusCode hasNext =
             iterateMulticastDiscoveryServer(server, &multicastNextRepeat, true);
         UA_CHECK_STATUS(hasNext, (void)0);
-        // if(hasNext == UA_STATUSCODE_GOOD && multicastNextRepeat < nextRepeated)
-        //     nextRepeated = multicastNextRepeat;
     }
 #endif
 
