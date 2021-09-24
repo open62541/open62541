@@ -1315,10 +1315,7 @@ static UA_StatusCode UA_Connection_recv(UA_Connection *connection, UA_ByteString
     response->length = ctx->currentMessage.length;
     response->data = ctx->currentMessage.data;
 
-    UA_StatusCode temp = client->connectStatus;
-    client->connectStatus = UA_STATUSCODE_GOOD;
-
-    return temp;
+    return client->connectStatus;
 }
 
 static
