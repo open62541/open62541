@@ -511,7 +511,7 @@ UA_EventLoop_run(UA_EventLoop *el, UA_UInt32 timeout) {
     UA_FD highestfd = setFDSets(el, &readset, &writeset, &errset);
 
     struct timeval tmptv = {usedTimeout / UA_DATETIME_SEC,
-                            (usedTimeout % UA_DATETIME_SEC) * UA_DATETIME_USEC };
+                            (usedTimeout % UA_DATETIME_SEC) / UA_DATETIME_USEC };
     int selectStatus =  select(highestfd+1, &readset, &writeset, &errset, &tmptv);
     if(selectStatus < 0) {
         /* We will retry, only log the error */
