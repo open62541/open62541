@@ -490,10 +490,8 @@ processResponse(UA_Client *client, UA_ByteString* msg, void* response, const UA_
 
     UA_SecureChannel *channel = &client->channel;
     void *application = &rd;
-    UA_Connection *connection = &client->connection;
 
     retval = UA_SecureChannel_processBuffer(channel, application, processServiceResponse, msg);
-    // connection->releaseRecvBuffer(connection, msg);
     return retval;
 }
 
