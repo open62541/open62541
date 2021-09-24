@@ -7,8 +7,6 @@
 
 #include "eventloop_posix.h"
 
-#include "ua_util_internal.h"
-
 #include "ziptree.h"
 
 typedef struct UA_TimerEntry {
@@ -474,8 +472,17 @@ UA_StatusCode
 UA_EventLoop_run(UA_EventLoop *el, UA_UInt32 timeout) {
     UA_LOCK(&el->elMutex);
 
+    if (el->executing) {
+        UA_LOG_ERROR(el->logger,
+                     UA_LOGCATEGORY_EVENTLOOP,
+                     "Cannot run eventloop from the run method itself");
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
+    /* TODO: use check macros instead
     UA_CHECK_ERROR(!el->executing, return UA_STATUSCODE_BADINTERNALERROR, el->logger,
-                   UA_LOGCATEGORY_EVENTLOOP, "Cannot run eventloop from the run method itself");
+                   UA_LOGCATEGORY_EVENTLOOP,
+                   "Cannot run eventloop from the run method itself");
+    */
 
     el->executing = true;
 
@@ -710,7 +717,7 @@ UA_EventLoop_deregisterFD(UA_EventLoop *el, UA_FD fd) {
         el->fds[i] = el->fds[el->fdsSize];
         UA_RegisteredFD *fds_tmp = (UA_RegisteredFD*)
             UA_realloc(el->fds, sizeof(UA_RegisteredFD) * el->fdsSize);
-        UA_CHECK_MEM(fds_tmp, return UA_STATUSCODE_BADOUTOFMEMORY);
+        /* no need to check-mem for el->fds because occupied size will decrease */
         el->fds = fds_tmp;
     } else {
         /* Remove the last entry */
