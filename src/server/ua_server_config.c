@@ -43,8 +43,8 @@ UA_ServerConfig_clean(UA_ServerConfig *config) {
     }
 
     /* Networking */
-    for(size_t i = 0; i < config->networkLayersSize; ++i)
-        config->networkLayers[i].clear(&config->networkLayers[i]);
+    // for(size_t i = 0; i < config->networkLayersSize; ++i)
+    //     config->networkLayers[i].clear(&config->networkLayers[i]);
     UA_free(config->networkLayers);
     config->networkLayers = NULL;
     config->networkLayersSize = 0;

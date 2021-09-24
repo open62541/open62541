@@ -728,7 +728,6 @@ UA_Server_run_startup(UA_Server *server) {
     for(size_t i = 0; i < server->config.networkLayersSize; ++i) {
         UA_ServerNetworkLayer *nl = &server->config.networkLayers[i];
         nl->statistics = &server->serverStats.ns;
-        // result |= nl->start(nl, &server->config.logger, &server->config.customHostname);
     }
     UA_CHECK_STATUS(result, return result);
 
@@ -764,16 +763,6 @@ UA_Server_run_startup(UA_Server *server) {
 
     return result;
 }
-
-// static void
-// serverExecuteRepeatedCallback(UA_Server *server, UA_Callback cb,
-//                               void *callbackApplication, void *data) {
-//     /* Service mutex is not set inside the timer that triggers the callback */
-//     /* The following check cannot be used since another thread can take the
-//      * serviceMutex during a server_iterate_call. */
-//     //UA_LOCK_ASSERT(&server->serviceMutex, 0);
-//     cb(callbackApplication, data);
-// }
 
 UA_UInt16
 UA_Server_run_iterate(UA_Server *server, UA_Boolean waitInternal) {
@@ -814,10 +803,9 @@ UA_Server_run_iterate(UA_Server *server, UA_Boolean waitInternal) {
 UA_StatusCode
 UA_Server_run_shutdown(UA_Server *server) {
     /* Stop the network layer */
-    for(size_t i = 0; i < server->config.networkLayersSize; ++i) {
-        UA_ServerNetworkLayer *nl = &server->config.networkLayers[i];
-        nl->stop(nl, server);
-    }
+    // for(size_t i = 0; i < server->config.networkLayersSize; ++i) {
+    //     UA_ServerNetworkLayer *nl = &server->config.networkLayers[i];
+    // }
 
 #ifdef UA_ENABLE_DISCOVERY_MULTICAST
     /* Stop multicast discovery */
