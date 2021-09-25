@@ -451,7 +451,6 @@ connectMqtt(UA_PubSubChannelDataMQTT* channelData){
 #endif
 
     /* Connect mqtt with socket fd of networktcp  */
-    //mqttErr = mqtt_connect(client, clientId, NULL, NULL, 0, username, password, 0, 400);
 #ifdef UA_ENABLE_MQTT_TLS_OPENSSL    
     mqttErr = mqtt_connect(client, clientId, NULL, NULL, 0, username, password,
                             caFilePath, caPath, clientCertPath, clientKeyPath, useTLS, 0, client->keep_alive);
@@ -480,15 +479,6 @@ connectMqtt(UA_PubSubChannelDataMQTT* channelData){
         return UA_STATUSCODE_BADCOMMUNICATIONERROR;
     }
 
-    /* sync the first mqtt packets in the buffer to send connection request.
-       After that yield must be called frequently to exchange mqtt messages. */
-    //UA_StatusCode ret = yieldMqtt(channelData, 100);
-    //if(ret != UA_STATUSCODE_GOOD){
-    //    freeTLS(channelData);
-    //    UA_free(channelData->connection);
-    //    UA_free(client);
-    //    return ret;
-    //}
     return UA_STATUSCODE_GOOD;
 }
 
