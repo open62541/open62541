@@ -452,18 +452,22 @@ connectMqtt(UA_PubSubChannelDataMQTT* channelData){
 
     /* Connect mqtt with socket fd of networktcp  */
     //mqttErr = mqtt_connect(client, clientId, NULL, NULL, 0, username, password, 0, 400);
+#ifdef UA_ENABLE_MQTT_TLS_OPENSSL    
     mqttErr = mqtt_connect(client, clientId, NULL, NULL, 0, username, password,
                             caFilePath, caPath, clientCertPath, clientKeyPath, useTLS, 0, client->keep_alive);
-                            
     UA_free(clientId);
     UA_free(username);
-    UA_free(password);
-    
-#ifdef UA_ENABLE_MQTT_TLS_OPENSSL
+    UA_free(password);     
     UA_free(caFilePath);
     UA_free(caPath);
     UA_free(clientCertPath);
     UA_free(clientKeyPath);
+#else
+    mqttErr = mqtt_connect(client, clientId, NULL, NULL, 0, username, password,
+                            NULL, NULL, NULL, NULL, UA_FALSE, 0, client->keep_alive);
+    UA_free(clientId);
+    UA_free(username);
+    UA_free(password);
 #endif
 
     if(mqttErr != MQTT_OK){
