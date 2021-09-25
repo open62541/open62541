@@ -201,7 +201,8 @@ checkAdjustMonitoredItemParams(UA_Server *server, UA_Session *session,
         }
     }
 
-    /* Read the minimum sampling interval for the variable */
+    /* Read the minimum sampling interval for the variable. The sampling
+     * interval of the MonitoredItem must not be less than that. */
     if(mon->itemToMonitor.attributeId == UA_ATTRIBUTEID_VALUE) {
         const UA_Node *node = UA_NODESTORE_GET(server, &mon->itemToMonitor.nodeId);
         if(node) {
@@ -213,11 +214,18 @@ checkAdjustMonitoredItemParams(UA_Server *server, UA_Session *session,
         }
     }
         
-    /* Adjust to sampling interval to lie within the limits and check for NaN */
-    UA_BOUNDEDVALUE_SETWBOUNDS(server->config.samplingIntervalLimits,
-                               params->samplingInterval, params->samplingInterval);
-    if(mon->parameters.samplingInterval != mon->parameters.samplingInterval)
-        params->samplingInterval = server->config.samplingIntervalLimits.min;
+    /* Adjust to sampling interval to lie within the limits */
+    if(params->samplingInterval <= 0.0) {
+        /* A sampling interval of zero is possible and indicates that the
+         * MonitoredItem is checked for every write operation */
+        params->samplingInterval = 0.0;
+    } else {
+        UA_BOUNDEDVALUE_SETWBOUNDS(server->config.samplingIntervalLimits,
+                                   params->samplingInterval, params->samplingInterval);
+        /* Check for NaN */
+        if(mon->parameters.samplingInterval != mon->parameters.samplingInterval)
+            params->samplingInterval = server->config.samplingIntervalLimits.min;
+    }
 
     /* Adjust the maximum queue size */
 #ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
@@ -445,13 +453,8 @@ Operation_CreateMonitoredItem(UA_Server *server, UA_Session *session,
         return;
     }
 
-    /* Register the Monitoreditem in the server and subscription. Add Events as
-     * "listeners" to the monitored Node. */
-    result->statusCode = UA_Server_registerMonitoredItem(server, newMon);
-    if(result->statusCode != UA_STATUSCODE_GOOD) {
-        UA_MonitoredItem_delete(server, newMon);
-        return;
-    }
+    /* Register the Monitoreditem in the server and subscription */
+    UA_Server_registerMonitoredItem(server, newMon);
 
     /* Activate the MonitoredItem */
     result->statusCode |=
@@ -513,9 +516,12 @@ Service_CreateMonitoredItems(UA_Server *server, UA_Session *session,
     cmc.sub->currentLifetimeCount = 0;
 
     response->responseHeader.serviceResult =
-        UA_Server_processServiceOperations(server, session, (UA_ServiceOperation)Operation_CreateMonitoredItem, &cmc,
-                                           &request->itemsToCreateSize, &UA_TYPES[UA_TYPES_MONITOREDITEMCREATEREQUEST],
-                                           &response->resultsSize, &UA_TYPES[UA_TYPES_MONITOREDITEMCREATERESULT]);
+        UA_Server_processServiceOperations(server, session,
+                                           (UA_ServiceOperation)Operation_CreateMonitoredItem,
+                                           &cmc, &request->itemsToCreateSize,
+                                           &UA_TYPES[UA_TYPES_MONITOREDITEMCREATEREQUEST],
+                                           &response->resultsSize,
+                                           &UA_TYPES[UA_TYPES_MONITOREDITEMCREATERESULT]);
 }
 
 UA_MonitoredItemCreateResult
@@ -582,7 +588,7 @@ Operation_ModifyMonitoredItem(UA_Server *server, UA_Session *session, UA_Subscri
 
     /* Re-register the callback if necessary */
     if(oldSamplingInterval != mon->parameters.samplingInterval) {
-        UA_MonitoredItem_unregisterSampleCallback(server, mon);
+        UA_MonitoredItem_unregisterSampling(server, mon);
         result->statusCode =
             UA_MonitoredItem_setMonitoringMode(server, mon, mon->monitoringMode);
     }
@@ -633,9 +639,11 @@ Service_ModifyMonitoredItems(UA_Server *server, UA_Session *session,
 
     response->responseHeader.serviceResult =
         UA_Server_processServiceOperations(server, session,
-                  (UA_ServiceOperation)Operation_ModifyMonitoredItem, sub,
-                  &request->itemsToModifySize, &UA_TYPES[UA_TYPES_MONITOREDITEMMODIFYREQUEST],
-                  &response->resultsSize, &UA_TYPES[UA_TYPES_MONITOREDITEMMODIFYRESULT]);
+                                           (UA_ServiceOperation)Operation_ModifyMonitoredItem,
+                                           sub, &request->itemsToModifySize,
+                                           &UA_TYPES[UA_TYPES_MONITOREDITEMMODIFYREQUEST],
+                                           &response->resultsSize,
+                                           &UA_TYPES[UA_TYPES_MONITOREDITEMMODIFYRESULT]);
 }
 
 struct setMonitoringContext {
@@ -681,9 +689,11 @@ Service_SetMonitoringMode(UA_Server *server, UA_Session *session,
     smc.monitoringMode = request->monitoringMode;
     response->responseHeader.serviceResult =
         UA_Server_processServiceOperations(server, session,
-                  (UA_ServiceOperation)Operation_SetMonitoringMode, &smc,
-                  &request->monitoredItemIdsSize, &UA_TYPES[UA_TYPES_UINT32],
-                  &response->resultsSize, &UA_TYPES[UA_TYPES_STATUSCODE]);
+                                           (UA_ServiceOperation)Operation_SetMonitoringMode,
+                                           &smc, &request->monitoredItemIdsSize,
+                                           &UA_TYPES[UA_TYPES_UINT32],
+                                           &response->resultsSize,
+                                           &UA_TYPES[UA_TYPES_STATUSCODE]);
 }
 
 static void
@@ -724,9 +734,11 @@ Service_DeleteMonitoredItems(UA_Server *server, UA_Session *session,
 
     response->responseHeader.serviceResult =
         UA_Server_processServiceOperations(server, session,
-                  (UA_ServiceOperation)Operation_DeleteMonitoredItem, sub,
-                  &request->monitoredItemIdsSize, &UA_TYPES[UA_TYPES_UINT32],
-                  &response->resultsSize, &UA_TYPES[UA_TYPES_STATUSCODE]);
+                                           (UA_ServiceOperation)Operation_DeleteMonitoredItem,
+                                           sub, &request->monitoredItemIdsSize,
+                                           &UA_TYPES[UA_TYPES_UINT32],
+                                           &response->resultsSize,
+                                           &UA_TYPES[UA_TYPES_STATUSCODE]);
 }
 
 UA_StatusCode

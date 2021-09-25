@@ -90,6 +90,11 @@ UA_parseEndpointUrl(const UA_String *endpointUrl, UA_String *outHostname,
         outHostname->data = &endpointUrl->data[10];
         outHostname->length = curr - 10;
     }
+
+    /* Empty string? */
+    if(outHostname->length == 0)
+        outHostname->data = NULL;
+
     if(curr == endpointUrl->length)
         return UA_STATUSCODE_GOOD;
 
@@ -98,7 +103,8 @@ UA_parseEndpointUrl(const UA_String *endpointUrl, UA_String *outHostname,
         if(++curr == endpointUrl->length)
             return UA_STATUSCODE_BADTCPENDPOINTURLINVALID;
         u32 largeNum;
-        size_t progress = UA_readNumber(&endpointUrl->data[curr], endpointUrl->length - curr, &largeNum);
+        size_t progress = UA_readNumber(&endpointUrl->data[curr],
+                                        endpointUrl->length - curr, &largeNum);
         if(progress == 0 || largeNum > 65535)
             return UA_STATUSCODE_BADTCPENDPOINTURLINVALID;
         /* Test if the end of a valid port was reached */
@@ -121,6 +127,10 @@ UA_parseEndpointUrl(const UA_String *endpointUrl, UA_String *outHostname,
     /* Remove trailing slash from the path */
     if(endpointUrl->data[endpointUrl->length - 1] == '/')
         outPath->length--;
+
+    /* Empty string? */
+    if(outPath->length == 0)
+        outPath->data = NULL;
 
     return UA_STATUSCODE_GOOD;
 }

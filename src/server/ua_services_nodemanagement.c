@@ -613,6 +613,9 @@ copyChild(UA_Server *server, UA_Session *session,
         /* Remove the context of the copied node */
         node->head.context = NULL;
         node->head.constructed = false;
+#ifdef UA_ENABLE_SUBSCRIPTIONS
+        node->head.monitoredItems = NULL;
+#endif
 
         /* Reset the NodeId (random numeric id will be assigned in the nodestore) */
         UA_NodeId_clear(&node->head.nodeId);
