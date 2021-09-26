@@ -102,7 +102,8 @@ struct UA_MonitoredItem {
     UA_TimerEntry delayedFreePointers;
     LIST_ENTRY(UA_MonitoredItem) listEntry; /* Linked list in the Subscription */
     UA_MonitoredItem *next; /* Linked list of MonitoredItems directly attached
-                             * to a Node */
+                             * to a Node. Initialized to ~0 to indicate that the
+                             * MonitoredItem is not added to a node. */
     UA_Subscription *subscription; /* If NULL, then this is a Local MonitoredItem */
     UA_UInt32 monitoredItemId;
 

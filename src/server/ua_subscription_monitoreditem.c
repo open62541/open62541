@@ -333,6 +333,7 @@ UA_Notification_dequeueSub(UA_Notification *n) {
 void
 UA_MonitoredItem_init(UA_MonitoredItem *mon) {
     memset(mon, 0, sizeof(UA_MonitoredItem));
+    mon->next = (UA_MonitoredItem*)~0; /* Not added to a node */
     TAILQ_INIT(&mon->queue);
 }
 
@@ -340,6 +341,7 @@ static UA_StatusCode
 addMonitoredItemBackpointer(UA_Server *server, UA_Session *session,
                             UA_Node *node, void *data) {
     UA_MonitoredItem *mon = (UA_MonitoredItem*)data;
+    UA_assert(mon != (UA_MonitoredItem*)~0);
     mon->next = node->head.monitoredItems;
     node->head.monitoredItems = mon;
     return UA_STATUSCODE_GOOD;
@@ -355,6 +357,7 @@ removeMonitoredItemBackPointer(UA_Server *server, UA_Session *session,
     UA_MonitoredItem *remove = (UA_MonitoredItem*)data;
     if(node->head.monitoredItems == remove) {
         node->head.monitoredItems = remove->next;
+        remove->next = (UA_MonitoredItem*)~0;
         return UA_STATUSCODE_GOOD;
     }
 
@@ -363,11 +366,12 @@ removeMonitoredItemBackPointer(UA_Server *server, UA_Session *session,
     for(; entry != NULL; prev = entry, entry = entry->next) {
         if(entry == remove) {
             prev->next = entry->next;
-            return UA_STATUSCODE_GOOD;
+            remove->next = (UA_MonitoredItem*)~0;
+            break;
         }
     }
 
-    return UA_STATUSCODE_BADNOTFOUND;
+    return UA_STATUSCODE_GOOD;
 }
 
 void
@@ -500,12 +504,14 @@ void
 UA_MonitoredItem_delete(UA_Server *server, UA_MonitoredItem *mon) {
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
 
+    /* Remove the sampling callback */
+    UA_MonitoredItem_unregisterSampling(server, mon);
+
+    UA_assert(mon->next == (UA_MonitoredItem*)~0); /* Not attached to any node */
+
     /* Deregister in Server and Subscription */
     if(mon->registered)
         UA_Server_unregisterMonitoredItem(server, mon);
-
-    /* Remove the sampling callback */
-    UA_MonitoredItem_unregisterSampling(server, mon);
 
     /* Remove the TriggeringLinks */
     if(mon->triggeringLinksSize > 0) {
@@ -633,6 +639,8 @@ UA_MonitoredItem_registerSampling(UA_Server *server, UA_MonitoredItem *mon) {
     if(mon->sampleCallbackIsRegistered)
         return UA_STATUSCODE_GOOD;
 
+    UA_assert(mon->next == (UA_MonitoredItem*)~0); /* Not registered in a node */
+
     /* Only DataChange MonitoredItems with a positive sampling interval have a
      * repeated callback. Other MonitoredItems are attached to the Node in a
      * linked list of backpointers. */
@@ -662,8 +670,13 @@ UA_MonitoredItem_unregisterSampling(UA_Server *server, UA_MonitoredItem *mon) {
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
     if(!mon->sampleCallbackIsRegistered)
         return;
-    if(mon->itemToMonitor.attributeId == UA_ATTRIBUTEID_EVENTNOTIFIER ||
-       mon->parameters.samplingInterval == 0.0) {
+
+    mon->sampleCallbackIsRegistered = false;
+
+    /* Check for mon->next and not the samplingInterval. Because that might
+     * currently be changed. */
+    if(mon->next != (UA_MonitoredItem*)~0) {
+        /* Added to a node */
         UA_Subscription *sub = mon->subscription;
         UA_Session *session = &server->adminSession;
         if(sub)
@@ -671,9 +684,9 @@ UA_MonitoredItem_unregisterSampling(UA_Server *server, UA_MonitoredItem *mon) {
         UA_Server_editNode(server, session, &mon->itemToMonitor.nodeId,
                            removeMonitoredItemBackPointer, mon);
     } else {
+        /* Registered with a repeated callback */
         removeCallback(server, mon->sampleCallbackId);
     }
-    mon->sampleCallbackIsRegistered = false;
 }
 
 UA_StatusCode
