@@ -457,7 +457,8 @@ UA_MonitoredItem_setMonitoringMode(UA_Server *server, UA_MonitoredItem *mon,
     if(monitoringMode > UA_MONITORINGMODE_REPORTING)
         return UA_STATUSCODE_BADMONITORINGMODEINVALID;
 
-    /* Set the MonitoringMode */
+    /* Set the MonitoringMode, store the old mode */
+    UA_MonitoringMode oldMode = mon->monitoringMode;
     mon->monitoringMode = monitoringMode;
 
     UA_Notification *notification;
@@ -495,9 +496,20 @@ UA_MonitoredItem_setMonitoringMode(UA_Server *server, UA_MonitoredItem *mon,
      * sampling callback failed, set to disabled. But don't delete the current
      * notifications. */
     UA_StatusCode res = UA_MonitoredItem_registerSampling(server, mon);
-    if(res != UA_STATUSCODE_GOOD)
+    if(res != UA_STATUSCODE_GOOD) {
         mon->monitoringMode = UA_MONITORINGMODE_DISABLED;
-    return res;
+        return res;
+    }
+
+    /* Manually create the first sample if the MonitoredItem was disabled, the
+     * MonitoredItem is now sampling (or reporting) and it is not an
+     * Event-MonitoredItem */
+    if(oldMode == UA_MONITORINGMODE_DISABLED &&
+       mon->monitoringMode > UA_MONITORINGMODE_DISABLED &&
+       mon->itemToMonitor.attributeId != UA_ATTRIBUTEID_EVENTNOTIFIER)
+        monitoredItem_sampleCallback(server, mon);
+
+    return UA_STATUSCODE_GOOD;
 }
 
 void
