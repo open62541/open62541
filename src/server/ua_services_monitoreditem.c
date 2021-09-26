@@ -360,7 +360,8 @@ Operation_CreateMonitoredItem(UA_Server *server, UA_Session *session,
        (v.status == UA_STATUSCODE_BADNODEIDUNKNOWN ||
         v.status == UA_STATUSCODE_BADATTRIBUTEIDINVALID ||
         v.status == UA_STATUSCODE_BADDATAENCODINGUNSUPPORTED ||
-        v.status == UA_STATUSCODE_BADDATAENCODINGINVALID
+        v.status == UA_STATUSCODE_BADDATAENCODINGINVALID ||
+        v.status == UA_STATUSCODE_BADINDEXRANGEINVALID
         /* Part 4, 5.12.2 CreateMonitoredItems: When a user adds a monitored
          * item that the user is denied read access to, the add operation for
          * the item shall succeed and the bad status Bad_NotReadable or
