@@ -11,6 +11,7 @@
  *    Copyright 2017 (c) Mattias Bornhager
  *    Copyright 2019 (c) HMS Industrial Networks AB (Author: Jonas Green)
  *    Copyright 2020 (c) Christian von Arnim, ISW University of Stuttgart (for VDW and umati)
+ *    Copyright 2021 (c) Fraunhofer IOSB (Author: Andreas Ebner)
  */
 
 #ifndef UA_SUBSCRIPTION_H_
@@ -61,6 +62,7 @@ typedef struct UA_Notification {
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
     UA_Boolean isOverflowEvent; /* Counted manually */
+    UA_EventFilterResult result;
 #endif
 } UA_Notification;
 
@@ -314,9 +316,10 @@ typedef struct UA_ConditionSource UA_ConditionSource;
 /* Evaluate content filter, Only for unit testing */
 #ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
 UA_StatusCode
-UA_Server_evaluateWhereClauseContentFilter(UA_Server *server,
+UA_Server_evaluateWhereClauseContentFilter(UA_Server *server, UA_Session *session,
                                            const UA_NodeId *eventNode,
-                                           const UA_ContentFilter *contentFilter);
+                                           const UA_ContentFilter *contentFilter,
+                                           UA_ContentFilterResult *contentFilterResult);
 #endif
  
 /* Setting an integer value within bounds */
