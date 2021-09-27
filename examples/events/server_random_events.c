@@ -26,11 +26,11 @@ static volatile UA_Boolean running = true;
 static UA_NodeId* eventTypes;
 
 static UA_StatusCode
-addEventType(UA_Server *server, char* name, UA_NodeId parentNodeId, UA_NodeId* eventType) {
+addEventType(UA_Server *server, char* name, UA_NodeId parentNodeId, UA_NodeId requestedId, UA_NodeId* eventType) {
     UA_ObjectTypeAttributes attr = UA_ObjectTypeAttributes_default;
     attr.displayName = UA_LOCALIZEDTEXT("en-US", name);
     attr.description = UA_LOCALIZEDTEXT("en-US", "Sample event type");
-    UA_StatusCode retval = UA_Server_addObjectTypeNode(server, UA_NODEID_NULL,
+    UA_StatusCode retval = UA_Server_addObjectTypeNode(server, requestedId,
                                                        parentNodeId,
                                                        UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE),
                                                        UA_QUALIFIEDNAME(0, name),
@@ -48,22 +48,27 @@ addSampleEventTypes(UA_Server *server) {
         UA_Array_new(SAMPLE_EVENT_TYPES_COUNT, &UA_TYPES[UA_TYPES_NODEID]);
     UA_StatusCode retval = addEventType(server, "SampleBaseEventType",
                                         UA_NODEID_NUMERIC(0, UA_NS0ID_BASEEVENTTYPE),
+                                        UA_NODEID_NULL,
                                         &eventTypes[0]);
     if (retval != UA_STATUSCODE_GOOD) return retval;
     retval = addEventType(server, "SampleDeviceFailureEventType",
                           UA_NODEID_NUMERIC(0, UA_NS0ID_BASEEVENTTYPE),
+                          UA_NODEID_NULL,
                           &eventTypes[1]);
     if (retval != UA_STATUSCODE_GOOD) return retval;
     retval = addEventType(server, "SampleEventQueueOverflowEventType",
                           UA_NODEID_NUMERIC(0, UA_NS0ID_EVENTQUEUEOVERFLOWEVENTTYPE),
+                          UA_NODEID_NULL,
                           &eventTypes[2]);
     if (retval != UA_STATUSCODE_GOOD) return retval;
     retval = addEventType(server, "SampleProgressEventType",
                           UA_NODEID_NUMERIC(0, UA_NS0ID_BASEEVENTTYPE),
+                          UA_NODEID_NULL,
                           &eventTypes[3]);
     if (retval != UA_STATUSCODE_GOOD) return retval;
     retval = addEventType(server, "SampleAuditSecurityEventType",
                           UA_NODEID_NUMERIC(0, UA_NS0ID_BASEEVENTTYPE),
+                          UA_NODEID_NUMERIC(0,60443),
                           &eventTypes[4]);
     if (retval != UA_STATUSCODE_GOOD) return retval;
     return UA_STATUSCODE_GOOD;
