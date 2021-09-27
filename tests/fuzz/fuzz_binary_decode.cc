@@ -47,6 +47,9 @@ static UA_Boolean tortureEncoding(const uint8_t *data, size_t size, size_t *newO
         if (!dstCopy)
             return UA_FALSE;
         UA_copy(dst, dstCopy, &UA_TYPES[typeIndex]);
+
+        // compare with copy
+        ck_assert(UA_order(dst, dstCopy, &UA_TYPES[typeIndex]) == UA_ORDER_EQ);
         UA_delete(dstCopy, &UA_TYPES[typeIndex]);
 
         // now also test encoding
