@@ -1009,19 +1009,6 @@ UA_Client_connectSecureChannelAsync(UA_Client *client, const char *endpointUrl) 
     return initConnect(client);
 }
 
-typedef struct {
-    UA_Boolean isInitial;
-    UA_ConnectionManager *cm;
-    UA_Client *client;
-} UA_BasicConnectionContext;
-
-typedef struct {
-    UA_BasicConnectionContext base;
-    uintptr_t connectionId;
-    UA_Connection connection;
-} UA_ConnectionContext;
-
-
 static UA_StatusCode
 UA_Client_make_connection(UA_Client *client) {
 
