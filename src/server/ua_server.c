@@ -523,119 +523,15 @@ UA_ServerStatistics UA_Server_getStatistics(UA_Server *server)
    return server->serverStats;
 }
 
-
-/* In this example, we integrate the server into an external "mainloop". This
-   can be for example the event-loop used in GUI toolkits, such as Qt or GTK. */
-
-static UA_StatusCode UA_Connection_getSendBuffer(UA_Connection *connection, size_t length,
-                                                 UA_ByteString *buf) {
-    UA_ConnectionContext *ctx = (UA_ConnectionContext *) connection->handle;
-    UA_ConnectionManager *cm = ((UA_BasicConnectionContext *)ctx)->cm;
-    return cm->allocNetworkBuffer(cm, ctx->connectionId, buf, length);
-}
-
-static UA_StatusCode UA_Connection_send(UA_Connection *connection, UA_ByteString *buf) {
-    UA_ConnectionContext *ctx = (UA_ConnectionContext *) connection->handle;
-    UA_ConnectionManager *cm = ((UA_BasicConnectionContext *)ctx)->cm;
-    return cm->sendWithConnection(cm, ctx->connectionId, buf);
-}
-
-static
-void UA_Connection_releaseBuffer (UA_Connection *connection, UA_ByteString *buf) {
-    UA_ConnectionContext *ctx = (UA_ConnectionContext *) connection->handle;
-    UA_ConnectionManager *cm = ((UA_BasicConnectionContext *)ctx)->cm;
-    cm->freeNetworkBuffer(cm, ctx->connectionId, buf);
-}
-
-static void UA_Connection_close(UA_Connection *connection) {
-    UA_ConnectionContext *ctx = (UA_ConnectionContext *) connection->handle;
-    UA_ConnectionManager *cm = ((UA_BasicConnectionContext *)ctx)->cm;
-    cm->closeConnection(cm, ctx->connectionId);
-}
-
-static void
-shutdownCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
-                 void *connectionContext) {
-
-    if (connectionContext != NULL) {
-        UA_BasicConnectionContext *ctx = (UA_BasicConnectionContext *)connectionContext;
-        if(!ctx->isInitial) {
-            UA_free(ctx);
-        }
-    }
-}
-
-static void
-connectionCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
-                   void **connectionContext, UA_StatusCode stat,
-                   UA_ByteString msg) {
-
-    UA_LOG_DEBUG(UA_EventLoop_getLogger(cm->eventSource.eventLoop), UA_LOGCATEGORY_SERVER,
-                 "connection callback for id: %lu", connectionId);
-
-    UA_BasicConnectionContext *ctx = (UA_BasicConnectionContext *) *connectionContext;
-
-    if (UA_EventLoop_getState(cm->eventSource.eventLoop) == UA_EVENTLOOPSTATE_STOPPING && stat != UA_STATUSCODE_BADCONNECTIONCLOSED) {
-        UA_LOG_DEBUG(UA_EventLoop_getLogger(cm->eventSource.eventLoop), UA_LOGCATEGORY_SERVER,
-                     "stopping eventloop so pending msgs will not be processed");
-        return;
-    }
-
-    if (stat == UA_STATUSCODE_BADCONNECTIONCLOSED) {
-        UA_LOG_INFO(UA_EventLoop_getLogger(cm->eventSource.eventLoop), UA_LOGCATEGORY_SERVER, "closing connection");
-
-        shutdownCallback(cm, connectionId, *connectionContext);
-        return;
-    }
-
-    if (ctx->isInitial) {
-        UA_ConnectionContext *newCtx = (UA_ConnectionContext*) UA_calloc(1, sizeof(UA_ConnectionContext));
-        newCtx->base.isInitial = false;
-        newCtx->base.cm = ctx->cm;
-        newCtx->base.server = ctx->server;
-        newCtx->connectionId = connectionId;
-        newCtx->connection.close = UA_Connection_close;
-        newCtx->connection.free = NULL;
-        newCtx->connection.getSendBuffer = UA_Connection_getSendBuffer;
-        newCtx->connection.recv = NULL;
-        newCtx->connection.releaseRecvBuffer = UA_Connection_releaseBuffer;
-        newCtx->connection.releaseSendBuffer = UA_Connection_releaseBuffer;
-        newCtx->connection.send = UA_Connection_send;
-        newCtx->connection.state = UA_CONNECTIONSTATE_CLOSED;
-
-        newCtx->connection.handle = newCtx;
-
-        *connectionContext = newCtx;
-    }
-
-    UA_ConnectionContext *conCtx = (UA_ConnectionContext *) *connectionContext;
-
-    if (msg.length > 0) {
-        UA_Server_processBinaryMessage(ctx->server, &conCtx->connection, &msg);
-    }
-}
-
 static void
 UA_Server_setupEventLoop(UA_Server *server) {
+    for(size_t i = 0; i < server->config.networkLayersSize; ++i) {
+        UA_ServerNetworkLayer *nl = &server->config.networkLayers[i];
 
-    /* TODO: check mem and error (and return statuscode errors */
-    UA_BasicConnectionContext *ctx = (UA_BasicConnectionContext*) UA_malloc(sizeof(UA_BasicConnectionContext));
-    memset(ctx, 0, sizeof(UA_BasicConnectionContext));
-
-    ctx->server = server;
-    ctx->isInitial = true;
-
-    UA_UInt16 port = 4840;
-    UA_Variant portVar;
-    UA_Variant_setScalar(&portVar, &port, &UA_TYPES[UA_TYPES_UINT16]);
-    UA_ConnectionManager *cm = UA_ConnectionManager_TCP_new(UA_STRING("tcpCM"));
-    server->tcpConnectionManager = cm;
-    ctx->cm = cm;
-    cm->connectionCallback = connectionCallback;
-    cm->initialConnectionContext = ctx;
-    UA_ConfigParameter_setParameter(&cm->eventSource.parameters, "listen-port", &portVar);
-
-    UA_EventLoop_registerEventSource(UA_Server_getConfig(server)->eventLoop, (UA_EventSource *) cm);
+        UA_BasicConnectionContext *ctx = (UA_BasicConnectionContext *) nl->connectionManager->initialConnectionContext;
+        ctx->server = server;
+        UA_EventLoop_registerEventSource(UA_Server_getConfig(server)->eventLoop, (UA_EventSource *) nl->connectionManager);
+    }
 }
 
 
@@ -717,6 +613,7 @@ UA_Server_run_startup(UA_Server *server) {
     for(size_t i = 0; i < server->config.networkLayersSize; ++i) {
         UA_ServerNetworkLayer *nl = &server->config.networkLayers[i];
         nl->statistics = &server->serverStats.ns;
+        result |= nl->start(nl, &server->config.logger, &server->config.customHostname);
     }
     UA_CHECK_STATUS(result, return result);
 

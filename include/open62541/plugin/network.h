@@ -9,8 +9,10 @@
 #ifndef UA_PLUGIN_NETWORK_H_
 #define UA_PLUGIN_NETWORK_H_
 
-#include <open62541/util.h>
 #include <open62541/plugin/log.h>
+#include <open62541/util.h>
+
+#include <open62541/plugin/eventloop.h>
 
 _UA_BEGIN_DECLS
 
@@ -115,6 +117,18 @@ struct UA_Connection {
     void (*free)(UA_Connection *connection);
 };
 
+typedef struct {
+    UA_Boolean isInitial;
+    UA_ConnectionManager *cm;
+    UA_Server *server;
+} UA_BasicConnectionContext;
+
+typedef struct {
+    UA_BasicConnectionContext base;
+    uintptr_t connectionId;
+    UA_Connection connection;
+} UA_ConnectionContext;
+
 /**
  * Server Network Layer
  * --------------------
@@ -155,6 +169,8 @@ struct UA_ServerNetworkLayer {
     UA_String discoveryUrl;
 
     UA_ConnectionConfig localConnectionConfig;
+
+    UA_ConnectionManager *connectionManager;
 
     /* Start listening on the network layer.
      *
