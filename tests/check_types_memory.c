@@ -71,6 +71,7 @@ START_TEST(newAndEmptyObjectShallBeDeleted) {
     void *obj = UA_new(&UA_TYPES[_i]);
     // then
     ck_assert_ptr_ne(obj, NULL);
+    ck_assert(UA_order(obj, obj, &UA_TYPES[_i]) == UA_ORDER_EQ);
     // finally
     UA_delete(obj, &UA_TYPES[_i]);
 }
@@ -151,6 +152,7 @@ START_TEST(encodeShallYieldDecode) {
     ck_assert_msg(UA_ByteString_equal(&msg1, &msg2) == true,
                   "messages differ idx=%d,nodeid=%i", _i,
                   UA_TYPES[_i].typeId.identifier.numeric);
+    ck_assert(UA_order(obj1, obj2, &UA_TYPES[_i]) == UA_ORDER_EQ);
 
     // finally
     UA_delete(obj1, &UA_TYPES[_i]);
