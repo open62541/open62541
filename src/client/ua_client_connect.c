@@ -1008,41 +1008,6 @@ UA_Client_connectSecureChannelAsync(UA_Client *client, const char *endpointUrl) 
     /* Connect Async */
     return initConnect(client);
 }
-/*
-static UA_StatusCode
-connectSync(UA_Client *client) {
-    UA_DateTime now = UA_DateTime_nowMonotonic();
-    UA_DateTime maxDate = now + ((UA_DateTime)client->config.timeout * UA_DATETIME_MSEC);
-
-    UA_StatusCode retval = initConnect(client);
-
-    if(retval != UA_STATUSCODE_GOOD)
-        return retval;
-
-    while(retval == UA_STATUSCODE_GOOD) {
-        if(client->sessionState == UA_SESSIONSTATE_ACTIVATED)
-            break;
-        if(client->noSession && client->channel.state == UA_SECURECHANNELSTATE_OPEN)
-            break;
-        now = UA_DateTime_nowMonotonic();
-        if(maxDate < now)
-            return UA_STATUSCODE_BADTIMEOUT;
-        retval = UA_Client_run_iterate(client,
-                                       (UA_UInt32)((maxDate - now) / UA_DATETIME_MSEC));
-    }
-
-    return retval;
-}
-*/
-/*
-static UA_INLINE UA_String
-UA_CONST_STRING(const char *chars) {
-    UA_String s; s.length = 0; s.data = NULL;
-    if(!chars)
-        return s;
-    s.length = strlen(chars); s.data = (const UA_Byte*)chars; return s;
-}
-*/
 
 typedef struct {
     UA_Boolean isInitial;
