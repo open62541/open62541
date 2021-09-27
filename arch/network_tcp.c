@@ -73,7 +73,50 @@ typedef struct {
     LIST_HEAD(, ConnectionEntry) connections;
     UA_UInt16 connectionsSize;
 } ServerNetworkLayerTCP;
+
 /* run only when the server is stopped */
+static UA_StatusCode
+ServerNetworkLayerTCP_start(UA_ServerNetworkLayer *nl, const UA_Logger *logger,
+                            const UA_String *customHostname) {
+    UA_initialize_architecture_network();
+
+    ServerNetworkLayerTCP *layer = (ServerNetworkLayerTCP *)nl->handle;
+    layer->logger = logger;
+
+    /* Get addrinfo of the server and create server sockets */
+    char hostname[512];
+    if(customHostname->length) {
+        if(customHostname->length >= sizeof(hostname))
+            return UA_STATUSCODE_BADOUTOFMEMORY;
+        memcpy(hostname, customHostname->data, customHostname->length);
+        hostname[customHostname->length] = '\0';
+    }
+    /* Get the discovery url from the hostname */
+    UA_String du = UA_STRING_NULL;
+    char discoveryUrlBuffer[256];
+    if(customHostname->length) {
+        du.length = (size_t)UA_snprintf(discoveryUrlBuffer, 255, "opc.tcp://%.*s:%d/",
+                                        (int)customHostname->length, customHostname->data,
+                                        layer->port);
+        du.data = (UA_Byte*)discoveryUrlBuffer;
+    } else {
+        char hostnameBuffer[256];
+        if(UA_gethostname(hostnameBuffer, 255) == 0) {
+            du.length = (size_t)UA_snprintf(discoveryUrlBuffer, 255, "opc.tcp://%s:%d/",
+                                            hostnameBuffer, layer->port);
+            du.data = (UA_Byte*)discoveryUrlBuffer;
+        } else {
+            UA_LOG_ERROR(layer->logger, UA_LOGCATEGORY_NETWORK, "Could not get the hostname");
+            return UA_STATUSCODE_BADINTERNALERROR;
+        }
+    }
+    UA_String_copy(&du, &nl->discoveryUrl);
+
+    UA_LOG_INFO(layer->logger, UA_LOGCATEGORY_NETWORK,
+                "TCP network layer listening on %.*s",
+                (int)nl->discoveryUrl.length, nl->discoveryUrl.data);
+    return UA_STATUSCODE_GOOD;
+}
 
 static void
 ServerNetworkLayerTCP_stop(UA_ServerNetworkLayer *nl, UA_Server *server) {
