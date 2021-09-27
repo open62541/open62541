@@ -515,7 +515,7 @@ UA_EventLoop_run(UA_EventLoop *el, UA_UInt32 timeout) {
     UA_DateTime processTimerDuration = UA_DateTime_nowMonotonic() - now;
 
     UA_DateTime callbackTimeout = timeToNextCallback - now;
-    UA_DateTime maxTimeout = timeout * UA_DATETIME_MSEC - processTimerDuration;
+    UA_DateTime maxTimeout = UA_MAX(timeout * UA_DATETIME_MSEC - processTimerDuration, 0);
 
     UA_DateTime usedTimeout = UA_MIN(callbackTimeout, maxTimeout);
 
