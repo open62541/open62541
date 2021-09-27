@@ -262,6 +262,22 @@ processTimerEntry(UA_EventLoop *el, UA_DateTime nowMonotonic, UA_TimerEntry *fir
     * same entries in the root and idRoot trees. */
     ZIP_REMOVE(UA_TimerZip, &el->timerRoot, first);
 
+    UA_Callback cb = first->callback;
+    void *app = first->application;
+    void *data = first->data;
+
+    /* Handle timed callbacks that will not be reinserted */
+    if(first->interval == 0) {
+        ZIP_REMOVE(UA_TimerIdZip, &el->timerIdRoot, first);
+        if(first->callback) {
+            UA_UNLOCK(&el->elMutex);
+            cb(app, data);
+            UA_LOCK(&el->elMutex);
+        }
+        UA_free(first);
+        return;
+    }
+
     /* Set the time for the next execution. Prevent an infinite loop by
     * forcing the execution time in the next iteration.
     *
@@ -284,9 +300,7 @@ processTimerEntry(UA_EventLoop *el, UA_DateTime nowMonotonic, UA_TimerEntry *fir
     /* Unlock the mutex before dropping into the callback. So that the timer
      * itself can be edited within the callback. When we return, only the
      * pointer to el must still exist. */
-    UA_Callback cb = first->callback;
-    void *app = first->application;
-    void *data = first->data;
+
     UA_UNLOCK(&el->elMutex);
     cb(app, data);
     UA_LOCK(&el->elMutex);
