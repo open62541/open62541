@@ -595,6 +595,9 @@ Operation_ModifyMonitoredItem(UA_Server *server, UA_Session *session, UA_Subscri
     /* Remove some notifications if the queue is now too small */
     UA_MonitoredItem_ensureQueueSpace(server, mon);
 
+    /* Remove the overflow bits if the queue has now a size of 1 */
+    UA_MonitoredItem_removeOverflowInfoBits(mon);
+
     UA_LOG_INFO_SUBSCRIPTION(&server->config.logger, sub,
                              "MonitoredItem %" PRIi32 " | "
                              "Modified the MonitoredItem "

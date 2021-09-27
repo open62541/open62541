@@ -152,6 +152,9 @@ void
 UA_MonitoredItem_delete(UA_Server *server, UA_MonitoredItem *monitoredItem);
 
 void
+UA_MonitoredItem_removeOverflowInfoBits(UA_MonitoredItem *mon);
+
+void
 UA_Server_registerMonitoredItem(UA_Server *server, UA_MonitoredItem *mon);
 
 /* Register sampling. Either by adding a repeated callback or by adding the

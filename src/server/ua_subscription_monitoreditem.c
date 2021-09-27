@@ -139,6 +139,27 @@ setOverflowInfoBits(UA_MonitoredItem *mon) {
         (UA_STATUSCODE_INFOTYPE_DATAVALUE | UA_STATUSCODE_INFOBITS_OVERFLOW);
 }
 
+/* Remove the InfoBits when the queueSize was reduced to 1 */
+void
+UA_MonitoredItem_removeOverflowInfoBits(UA_MonitoredItem *mon) {
+    /* Don't consider queue size > 1 and Event MonitoredItems */
+    if(mon->parameters.queueSize > 1 ||
+       mon->itemToMonitor.attributeId == UA_ATTRIBUTEID_EVENTNOTIFIER)
+        return;
+
+    /* Get the first notification */
+    UA_Notification *n = TAILQ_FIRST(&mon->queue);
+    if(!n)
+        return;
+
+    /* Assertion that at most one notification is in the queue */
+    UA_assert(n == TAILQ_LAST(&mon->queue, NotificationQueue));
+
+    /* Remve the Infobits */
+    n->data.dataChange.value.status &= ~(UA_StatusCode)
+        (UA_STATUSCODE_INFOTYPE_DATAVALUE | UA_STATUSCODE_INFOBITS_OVERFLOW);
+}
+
 UA_Notification *
 UA_Notification_new(void) {
     UA_Notification *n = (UA_Notification*)UA_calloc(1, sizeof(UA_Notification));
