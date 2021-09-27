@@ -456,8 +456,10 @@ receiveResponse(UA_Client *client, void *response, const UA_DataType *responseTy
     UA_DateTime maxDate = UA_DateTime_nowMonotonic() + ((UA_DateTime)timeout * UA_DATETIME_MSEC);
     do {
         retval = UA_SecureChannel_receive(&client->channel, &rd, processServiceResponse, timeout);
-        if(retval == UA_STATUSCODE_GOODNONCRITICALTIMEOUT)
+        if(retval == UA_STATUSCODE_GOODNONCRITICALTIMEOUT) {
+            retval = UA_STATUSCODE_GOOD;
             break;
+        }
         if(retval != UA_STATUSCODE_GOOD ||
            client->channel.state == UA_SECURECHANNELSTATE_CLOSING) {
             UA_LOG_WARNING_CHANNEL(&client->config.logger, &client->channel,
