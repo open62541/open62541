@@ -808,8 +808,9 @@ UA_Server_initNS0Nodes(UA_Server *server) {
 
     /* CurrentTime */
     UA_DataSource currentTime = {readCurrentTime, NULL};
-    retVal |= UA_Server_setVariableNode_dataSource(server,
-                 UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_CURRENTTIME), currentTime);
+    UA_NodeId currTime = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_CURRENTTIME);
+    retVal |= UA_Server_setVariableNode_dataSource(server, currTime, currentTime);
+    retVal |= UA_Server_writeMinimumSamplingInterval(server, currTime, 100.0);
 
     /* State */
     retVal |= UA_Server_setVariableNode_dataSource(server,
@@ -987,7 +988,6 @@ UA_Server_initNS0Nodes(UA_Server *server) {
     UA_Server_deleteNode(server, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERCAPABILITIES_MAXBYTESTRINGLENGTH), true);
 
     /* Remove not supported server configurations */
-    UA_Server_deleteNode(server, UA_NODEID_NUMERIC(0, UA_NS0ID_DICTIONARIES), true);
     UA_Server_deleteNode(server, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_ESTIMATEDRETURNTIME), true);
     UA_Server_deleteNode(server, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_LOCALTIME), true);
     UA_Server_deleteNode(server, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_REQUESTSERVERSTATECHANGE), true);
@@ -1069,7 +1069,7 @@ UA_Server_initNS0Nodes(UA_Server *server) {
 #endif
 
 #if defined(UA_ENABLE_METHODCALLS) && defined(UA_ENABLE_SUBSCRIPTIONS)
-    retVal |= UA_Server_setMethodNode_callback(server,
+    retVal |= UA_Server_setMethodNodeCallback(server,
                         UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_GETMONITOREDITEMS), readMonitoredItems);
 #endif
 

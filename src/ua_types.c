@@ -47,6 +47,10 @@ extern const UA_copySignature copyJumpTable[UA_DATATYPEKINDS];
 typedef void (*UA_clearSignature)(void *p, const UA_DataType *type);
 extern const UA_clearSignature clearJumpTable[UA_DATATYPEKINDS];
 
+typedef UA_Order
+(*UA_orderSignature)(const void *p1, const void *p2, const UA_DataType *type);
+extern const UA_orderSignature orderJumpTable[UA_DATATYPEKINDS];
+
 const UA_DataType *
 UA_findDataTypeWithCustom(const UA_NodeId *typeId,
                           const UA_DataTypeArray *customTypes) {
@@ -117,19 +121,18 @@ UA_String_fromChars(const char *src) {
     return s;
 }
 
+static UA_Order
+stringOrder(const UA_String *p1, const UA_String *p2, const UA_DataType *type);
+static UA_Order
+guidOrder(const UA_Guid *p1, const UA_Guid *p2, const UA_DataType *type);
+static UA_Order
+qualifiedNameOrder(const UA_QualifiedName *p1, const UA_QualifiedName *p2,
+                   const UA_DataType *type);
+
 UA_Boolean
 UA_String_equal(const UA_String *s1, const UA_String *s2) {
-    if(s1->length != s2->length)
-        return false;
-    if(s1->length == 0)
-        return true;
-    if(s2->data == NULL)
-        return false;
-    i32 is = memcmp((char const*)s1->data,
-                    (char const*)s2->data, s1->length);
-    return (is == 0) ? true : false;
+    return (stringOrder(s1, s2, NULL) == UA_ORDER_EQ);
 }
-
 
 /* Do not expose UA_String_equal_ignorecase to public API as it currently only handles
  * ASCII strings, and not UTF8! */
@@ -183,14 +186,7 @@ UA_QualifiedName_hash(const UA_QualifiedName *q) {
 UA_Boolean
 UA_QualifiedName_equal(const UA_QualifiedName *qn1,
                        const UA_QualifiedName *qn2) {
-    if(qn1 == NULL || qn2 == NULL)
-        return false;
-    if(qn1->namespaceIndex != qn2->namespaceIndex)
-        return false;
-    if(qn1->name.length != qn2->name.length)
-        return false;
-    return (memcmp((char const*)qn1->name.data,
-                   (char const*)qn2->name.data, qn1->name.length) == 0);
+    return (qualifiedNameOrder(qn1, qn2, NULL) == UA_ORDER_EQ);
 }
 
 /* DateTime */
@@ -247,9 +243,7 @@ UA_DateTime_fromStruct(UA_DateTimeStruct ts) {
 /* Guid */
 UA_Boolean
 UA_Guid_equal(const UA_Guid *g1, const UA_Guid *g2) {
-    if(memcmp(g1, g2, sizeof(UA_Guid)) == 0)
-        return true;
-    return false;
+    return (guidOrder(g1, g2, NULL) == UA_ORDER_EQ);
 }
 
 UA_Guid
@@ -344,80 +338,39 @@ UA_NodeId_isNull(const UA_NodeId *p) {
 UA_Order
 UA_NodeId_order(const UA_NodeId *n1, const UA_NodeId *n2) {
     /* Compare namespaceIndex */
-    if(n1->namespaceIndex < n2->namespaceIndex)
-        return UA_ORDER_LESS;
-    if(n1->namespaceIndex > n2->namespaceIndex)
-        return UA_ORDER_MORE;
+    if(n1->namespaceIndex != n2->namespaceIndex)
+        return (n1->namespaceIndex < n2->namespaceIndex) ? UA_ORDER_LESS : UA_ORDER_MORE;
 
     /* Compare identifierType */
-    if(n1->identifierType < n2->identifierType)
-        return UA_ORDER_LESS;
-    if(n1->identifierType > n2->identifierType)
-        return UA_ORDER_MORE;
+    if(n1->identifierType != n2->identifierType)
+        return (n1->identifierType < n2->identifierType) ? UA_ORDER_LESS : UA_ORDER_MORE;
 
     /* Compare the identifier */
     switch(n1->identifierType) {
     case UA_NODEIDTYPE_NUMERIC:
-        if(n1->identifier.numeric < n2->identifier.numeric)
-            return UA_ORDER_LESS;
-        if(n1->identifier.numeric > n2->identifier.numeric)
-            return UA_ORDER_MORE;
-        break;
-    case UA_NODEIDTYPE_GUID:
-        if(n1->identifier.guid.data1 < n2->identifier.guid.data1) {
-            return UA_ORDER_LESS;
-        } else if(n1->identifier.guid.data1 > n2->identifier.guid.data1) {
-            return UA_ORDER_MORE;
-        } else if(n1->identifier.guid.data2 < n2->identifier.guid.data2) {
-            return UA_ORDER_LESS;
-        } else if(n1->identifier.guid.data2 > n2->identifier.guid.data2) {
-            return UA_ORDER_MORE;
-        } else if(n1->identifier.guid.data3 < n2->identifier.guid.data3) {
-            return UA_ORDER_LESS;
-        } else if(n1->identifier.guid.data3 > n2->identifier.guid.data3) {
-            return UA_ORDER_MORE;
-        } else {
-            int cmp = memcmp(n1->identifier.guid.data4, n2->identifier.guid.data4, 8);
-            if(cmp < 0) return UA_ORDER_LESS;
-            if(cmp > 0) return UA_ORDER_MORE;
-
-        }
-
-        break;
-    case UA_NODEIDTYPE_STRING:
-    case UA_NODEIDTYPE_BYTESTRING: {
-        size_t minL = UA_MIN(n1->identifier.string.length, n2->identifier.string.length);
-        int cmp = strncmp((const char*)n1->identifier.string.data,
-                          (const char*)n2->identifier.string.data,
-                          minL);
-        if(cmp < 0)
-            return UA_ORDER_LESS;
-        if(cmp > 0)
-            return UA_ORDER_MORE;
-
-        if(n1->identifier.string.length < n2->identifier.string.length)
-            return UA_ORDER_LESS;
-        if(n1->identifier.string.length > n2->identifier.string.length)
-            return UA_ORDER_MORE;
-        break;
-    }
     default:
-        break;
-    }
+        if(n1->identifier.numeric != n2->identifier.numeric)
+            return (n1->identifier.numeric < n2->identifier.numeric) ?
+                UA_ORDER_LESS : UA_ORDER_MORE;
+        return UA_ORDER_EQ;
 
-    return UA_ORDER_EQ;
+    case UA_NODEIDTYPE_GUID:
+        return guidOrder(&n1->identifier.guid, &n2->identifier.guid, NULL);
+
+    case UA_NODEIDTYPE_STRING:
+    case UA_NODEIDTYPE_BYTESTRING:
+        return stringOrder(&n1->identifier.string, &n2->identifier.string, NULL);
+    }
 }
 
-/* FNV non-cryptographic hash function. See
- * https://en.wikipedia.org/wiki/Fowler%E2%80%93Noll%E2%80%93Vo_hash_function */
-#define FNV_PRIME_32 16777619
+/* sdbm-hash (http://www.cse.yorku.ca/~oz/hash.html) */
 u32
-UA_ByteString_hash(u32 fnv, const u8 *buf, size_t size) {
-    for(size_t i = 0; i < size; ++i) {
-        fnv = fnv ^ (buf[i]);
-        fnv = fnv * FNV_PRIME_32;
-    }
-    return fnv;
+UA_ByteString_hash(u32 initialHashValue,
+                   const u8 *data, size_t size) {
+    u32 h = initialHashValue;
+    for(size_t i = 0; i < size; i++)
+        h = data[i] + (h << 6) + (h << 16) - h;
+    return h;
 }
 
 u32
@@ -461,23 +414,11 @@ UA_ExpandedNodeId_isLocal(const UA_ExpandedNodeId *n) {
 UA_Order
 UA_ExpandedNodeId_order(const UA_ExpandedNodeId *n1,
                         const UA_ExpandedNodeId *n2) {
-    if(n1->serverIndex > n2->serverIndex)
-        return UA_ORDER_MORE;
-    if(n1->serverIndex < n2->serverIndex)
-        return UA_ORDER_LESS;
-    if(n1->namespaceUri.length > 0) {
-        if(n1->namespaceUri.length > n2->namespaceUri.length)
-            return UA_ORDER_MORE;
-        if(n1->namespaceUri.length < n2->namespaceUri.length)
-            return UA_ORDER_LESS;
-        int cmp = strncmp((const char*)n1->namespaceUri.data,
-                          (const char*)n2->namespaceUri.data,
-                          n1->namespaceUri.length);
-        if(cmp < 0)
-            return UA_ORDER_LESS;
-        if(cmp > 0)
-            return UA_ORDER_MORE;
-    }
+    if(n1->serverIndex != n2->serverIndex)
+        return (n1->serverIndex < n2->serverIndex) ? UA_ORDER_LESS : UA_ORDER_MORE;
+    UA_Order o = stringOrder(&n1->namespaceUri, &n2->namespaceUri, NULL);
+    if(o != UA_ORDER_EQ)
+        return o;
     return UA_NodeId_order(&n1->nodeId, &n2->nodeId);
 }
 
@@ -1329,6 +1270,419 @@ UA_delete(void *p, const UA_DataType *type) {
 }
 
 /******************/
+/* Value Ordering */
+/******************/
+
+#define UA_NUMERICORDER(NAME, TYPE)                                 \
+    static UA_Order                                                 \
+    NAME(const TYPE *p1, const TYPE *p2, const UA_DataType *type) { \
+        if(*p1 != *p2)                                              \
+            return (*p1 < *p2) ? UA_ORDER_LESS : UA_ORDER_MORE;     \
+        return UA_ORDER_EQ;                                         \
+    }
+
+UA_NUMERICORDER(booleanOrder, UA_Boolean)
+UA_NUMERICORDER(sByteOrder, UA_SByte)
+UA_NUMERICORDER(byteOrder, UA_Byte)
+UA_NUMERICORDER(int16Order, UA_Int16)
+UA_NUMERICORDER(uInt16Order, UA_UInt16)
+UA_NUMERICORDER(int32Order, UA_Int32)
+UA_NUMERICORDER(uInt32Order, UA_UInt32)
+UA_NUMERICORDER(int64Order, UA_Int64)
+UA_NUMERICORDER(uInt64Order, UA_UInt64)
+
+#define UA_FLOATORDER(NAME, TYPE)                                   \
+    static UA_Order                                                 \
+    NAME(const TYPE *p1, const TYPE *p2, const UA_DataType *type) { \
+        if(*p1 != *p2) {                                            \
+            /* p1 is NaN */                                         \
+            if(*p1 != *p1) {                                        \
+                if(*p2 != *p2)                                      \
+                    return UA_ORDER_EQ;                             \
+                return UA_ORDER_LESS;                               \
+            }                                                       \
+            /* p2 is NaN */                                         \
+            if(*p2 != *p2)                                          \
+                return UA_ORDER_MORE;                               \
+            return (*p1 < *p2) ? UA_ORDER_LESS : UA_ORDER_MORE;     \
+        }                                                           \
+        return UA_ORDER_EQ;                                         \
+    }
+
+UA_FLOATORDER(floatOrder, UA_Float)
+UA_FLOATORDER(doubleOrder, UA_Double)
+
+static UA_Order
+guidOrder(const UA_Guid *p1, const UA_Guid *p2, const UA_DataType *type) {
+    if(p1->data1 != p2->data1)
+        return (p1->data1 < p2->data1) ? UA_ORDER_LESS : UA_ORDER_MORE;
+    if(p1->data2 != p2->data2)
+        return (p1->data2 < p2->data2) ? UA_ORDER_LESS : UA_ORDER_MORE;
+    if(p1->data3 != p2->data3)
+        return (p1->data3 < p2->data3) ? UA_ORDER_LESS : UA_ORDER_MORE;
+    int cmp = memcmp(p1->data4, p2->data4, 8);
+    if(cmp != 0)
+        return (cmp < 0) ? UA_ORDER_LESS : UA_ORDER_MORE;
+    return UA_ORDER_EQ;
+}
+
+static UA_Order
+stringOrder(const UA_String *p1, const UA_String *p2, const UA_DataType *type) {
+    if(p1->length != p2->length)
+        return (p1->length < p2->length) ? UA_ORDER_LESS : UA_ORDER_MORE;
+    /* For zero-length arrays, every pointer not NULL is considered a
+     * UA_EMPTY_ARRAY_SENTINEL. */
+    if(p1->data == p2->data) return UA_ORDER_EQ;
+    if(p1->data == NULL) return UA_ORDER_LESS;
+    if(p2->data == NULL) return UA_ORDER_MORE;
+    int cmp = memcmp((const char*)p1->data, (const char*)p2->data, p1->length);
+    if(cmp != 0)
+        return (cmp < 0) ? UA_ORDER_LESS : UA_ORDER_MORE;
+    return UA_ORDER_EQ;
+}
+
+static UA_Order
+nodeIdOrder(const UA_NodeId *p1, const UA_NodeId *p2, const UA_DataType *type) {
+    return UA_NodeId_order(p1, p2);
+}
+
+static UA_Order
+expandedNodeIdOrder(const UA_ExpandedNodeId *p1, const UA_ExpandedNodeId *p2,
+                    const UA_DataType *type) {
+    return UA_ExpandedNodeId_order(p1, p2);
+}
+
+static UA_Order
+qualifiedNameOrder(const UA_QualifiedName *p1, const UA_QualifiedName *p2,
+                   const UA_DataType *type) {
+    if(p1->namespaceIndex != p2->namespaceIndex)
+        return (p1->namespaceIndex < p2->namespaceIndex) ? UA_ORDER_LESS : UA_ORDER_MORE;
+    return stringOrder(&p1->name, &p2->name, NULL);
+}
+
+static UA_Order
+localizedTextOrder(const UA_LocalizedText *p1, const UA_LocalizedText *p2,
+                   const UA_DataType *type) {
+    UA_Order o = stringOrder(&p1->locale, &p2->locale, NULL);
+    if(o != UA_ORDER_EQ)
+        return o;
+    return stringOrder(&p1->text, &p2->text, NULL);
+}
+
+static UA_Order
+extensionObjectOrder(const UA_ExtensionObject *p1, const UA_ExtensionObject *p2,
+                     const UA_DataType *type) {
+    UA_ExtensionObjectEncoding enc1 = p1->encoding;
+    UA_ExtensionObjectEncoding enc2 = p2->encoding;
+    if(enc1 > UA_EXTENSIONOBJECT_DECODED)
+        enc1 = UA_EXTENSIONOBJECT_DECODED;
+    if(enc2 > UA_EXTENSIONOBJECT_DECODED)
+        enc2 = UA_EXTENSIONOBJECT_DECODED;
+    if(enc1 != enc2)
+        return (enc1 < enc2) ? UA_ORDER_LESS : UA_ORDER_MORE;
+
+    switch(enc1) {
+    case UA_EXTENSIONOBJECT_ENCODED_NOBODY:
+        return UA_ORDER_EQ;
+
+    case UA_EXTENSIONOBJECT_ENCODED_BYTESTRING:
+    case UA_EXTENSIONOBJECT_ENCODED_XML: {
+            UA_Order o = UA_NodeId_order(&p1->content.encoded.typeId,
+                                         &p2->content.encoded.typeId);
+            if(o == UA_ORDER_EQ)
+                o = stringOrder((const UA_String*)&p1->content.encoded.body,
+                                (const UA_String*)&p2->content.encoded.body, NULL);
+            return o;
+        }
+        
+    case UA_EXTENSIONOBJECT_DECODED:
+    default: {
+            const UA_DataType *type1 = p1->content.decoded.type;
+            const UA_DataType *type2 = p1->content.decoded.type;
+            if(type1 != type2)
+                return ((uintptr_t)type1 < (uintptr_t)type2) ? UA_ORDER_LESS : UA_ORDER_MORE;
+            if(!type1)
+                return UA_ORDER_EQ;
+            return orderJumpTable[type1->typeKind]
+                (p1->content.decoded.data, p2->content.decoded.data, type1);
+        }
+    }
+}
+
+static UA_Order
+arrayOrder(const void *p1, size_t p1Length, const void *p2, size_t p2Length,
+           const UA_DataType *type) {
+    if(p1Length != p2Length)
+        return (p1Length < p2Length) ? UA_ORDER_LESS : UA_ORDER_MORE;
+    /* For zero-length arrays, every pointer not NULL is considered a
+     * UA_EMPTY_ARRAY_SENTINEL. */
+    if(p1 == p2) return UA_ORDER_EQ;
+    if(p1 == NULL) return UA_ORDER_LESS;
+    if(p2 == NULL) return UA_ORDER_MORE;
+    uintptr_t u1 = (uintptr_t)p1;
+    uintptr_t u2 = (uintptr_t)p2;
+    for(size_t i = 0; i < p1Length; i++) {
+        UA_Order o = orderJumpTable[type->typeKind]((const void*)u1, (const void*)u2, type);
+        if(o != UA_ORDER_EQ)
+            return o;
+        u1 += type->memSize;
+        u2 += type->memSize;
+    }
+    return UA_ORDER_EQ;
+}
+
+static UA_Order
+variantOrder(const UA_Variant *p1, const UA_Variant *p2,
+             const UA_DataType *type) {
+    if(p1->type != p2->type)
+        return ((uintptr_t)p1->type < (uintptr_t)p2->type) ? UA_ORDER_LESS : UA_ORDER_MORE;
+
+    if(p1->arrayLength != p2->arrayLength)
+        return (p1->arrayLength < p2->arrayLength) ? UA_ORDER_LESS : UA_ORDER_MORE;
+        
+    UA_Order o;
+    if(p1->type != NULL) {
+        if(p1->arrayLength == 0)
+            o = orderJumpTable[p1->type->typeKind](p1->data, p2->data, p1->type);
+        else
+            o = arrayOrder(p1->data, p1->arrayLength, p2->data, p2->arrayLength, p1->type);
+        if(o != UA_ORDER_EQ)
+            return o;
+    }
+
+    if(p1->arrayDimensionsSize != p2->arrayDimensionsSize)
+        return (p1->arrayDimensionsSize < p2->arrayDimensionsSize) ?
+            UA_ORDER_LESS : UA_ORDER_MORE;
+    o = UA_ORDER_EQ;
+    if(p1->arrayDimensionsSize > 0)
+        o = arrayOrder(p1->arrayDimensions, p1->arrayDimensionsSize,
+                       p2->arrayDimensions, p2->arrayDimensionsSize,
+                       &UA_TYPES[UA_TYPES_UINT32]);
+    return o;
+}
+
+static UA_Order
+dataValueOrder(const UA_DataValue *p1, const UA_DataValue *p2,
+               const UA_DataType *type) {
+    /* Value */
+    if(p1->hasValue != p2->hasValue)
+        return (!p1->hasValue) ? UA_ORDER_LESS : UA_ORDER_MORE;
+    if(p1->hasValue) {
+        UA_Order o = variantOrder(&p1->value, &p2->value, NULL);
+        if(o != UA_ORDER_EQ)
+            return o;
+    }
+
+    /* Status */
+    if(p1->hasStatus != p2->hasStatus)
+        return (!p1->hasStatus) ? UA_ORDER_LESS : UA_ORDER_MORE;
+    if(p1->hasStatus && p1->status != p2->status)
+        return (p1->status < p2->status) ? UA_ORDER_LESS : UA_ORDER_MORE;
+
+    /* SourceTimestamp */
+    if(p1->hasSourceTimestamp != p2->hasSourceTimestamp)
+        return (!p1->hasSourceTimestamp) ? UA_ORDER_LESS : UA_ORDER_MORE;
+    if(p1->hasSourceTimestamp && p1->sourceTimestamp != p2->sourceTimestamp)
+        return (p1->sourceTimestamp < p2->sourceTimestamp) ? UA_ORDER_LESS : UA_ORDER_MORE;
+
+    /* ServerTimestamp */
+    if(p1->hasServerTimestamp != p2->hasServerTimestamp)
+        return (!p1->hasServerTimestamp) ? UA_ORDER_LESS : UA_ORDER_MORE;
+    if(p1->hasServerTimestamp && p1->serverTimestamp != p2->serverTimestamp)
+        return (p1->serverTimestamp < p2->serverTimestamp) ? UA_ORDER_LESS : UA_ORDER_MORE;
+
+    /* SourcePicoseconds */
+    if(p1->hasSourcePicoseconds != p2->hasSourcePicoseconds)
+        return (!p1->hasSourcePicoseconds) ? UA_ORDER_LESS : UA_ORDER_MORE;
+    if(p1->hasSourcePicoseconds && p1->sourcePicoseconds != p2->sourcePicoseconds)
+        return (p1->sourcePicoseconds < p2->sourcePicoseconds) ?
+            UA_ORDER_LESS : UA_ORDER_MORE;
+
+    /* ServerPicoseconds */
+    if(p1->hasServerPicoseconds != p2->hasServerPicoseconds)
+        return (!p1->hasServerPicoseconds) ? UA_ORDER_LESS : UA_ORDER_MORE;
+    if(p1->hasServerPicoseconds && p1->serverPicoseconds != p2->serverPicoseconds)
+        return (p1->serverPicoseconds < p2->serverPicoseconds) ?
+            UA_ORDER_LESS : UA_ORDER_MORE;
+
+    return UA_ORDER_EQ;
+}
+
+static UA_Order
+diagnosticInfoOrder(const UA_DiagnosticInfo *p1, const UA_DiagnosticInfo *p2,
+                    const UA_DataType *type) {
+    /* SymbolicId */
+    if(p1->hasSymbolicId != p2->hasSymbolicId)
+        return (!p1->hasSymbolicId) ? UA_ORDER_LESS : UA_ORDER_MORE;
+    if(p1->hasSymbolicId && p1->symbolicId != p2->symbolicId)
+        return (p1->symbolicId < p2->symbolicId) ? UA_ORDER_LESS : UA_ORDER_MORE;
+
+    /* NamespaceUri */
+    if(p1->hasNamespaceUri != p2->hasNamespaceUri)
+        return (!p1->hasNamespaceUri) ? UA_ORDER_LESS : UA_ORDER_MORE;
+    if(p1->hasNamespaceUri && p1->namespaceUri != p2->namespaceUri)
+        return (p1->namespaceUri < p2->namespaceUri) ? UA_ORDER_LESS : UA_ORDER_MORE;
+
+    /* LocalizedText */
+    if(p1->hasLocalizedText != p2->hasLocalizedText)
+        return (!p1->hasLocalizedText) ? UA_ORDER_LESS : UA_ORDER_MORE;
+    if(p1->hasLocalizedText && p1->localizedText != p2->localizedText)
+        return (p1->localizedText < p2->localizedText) ? UA_ORDER_LESS : UA_ORDER_MORE;
+
+    /* Locale */
+    if(p1->hasLocale != p2->hasLocale)
+        return (!p1->hasLocale) ? UA_ORDER_LESS : UA_ORDER_MORE;
+    if(p1->hasLocale && p1->locale != p2->locale)
+        return (p1->locale < p2->locale) ? UA_ORDER_LESS : UA_ORDER_MORE;
+
+    /* AdditionalInfo */
+    if(p1->hasAdditionalInfo != p2->hasAdditionalInfo)
+        return (!p1->hasAdditionalInfo) ? UA_ORDER_LESS : UA_ORDER_MORE;
+    if(p1->hasAdditionalInfo) {
+        UA_Order o = stringOrder(&p1->additionalInfo, &p2->additionalInfo, NULL);
+        if(o != UA_ORDER_EQ)
+            return o;
+    }
+
+    /* InnerStatusCode */
+    if(p1->hasInnerStatusCode != p2->hasInnerStatusCode)
+        return (!p1->hasInnerStatusCode) ? UA_ORDER_LESS : UA_ORDER_MORE;
+    if(p1->hasInnerStatusCode && p1->innerStatusCode != p2->innerStatusCode)
+        return (p1->innerStatusCode < p2->innerStatusCode) ? UA_ORDER_LESS : UA_ORDER_MORE;
+
+    /* InnerDiagnosticInfo */
+    if(p1->hasInnerDiagnosticInfo != p2->hasInnerDiagnosticInfo)
+        return (!p1->hasInnerDiagnosticInfo) ? UA_ORDER_LESS : UA_ORDER_MORE;
+    if(p1->innerDiagnosticInfo == p2->innerDiagnosticInfo)
+        return UA_ORDER_EQ;
+    if(!p1->innerDiagnosticInfo || !p2->innerDiagnosticInfo)
+        return (!p1->innerDiagnosticInfo) ? UA_ORDER_LESS : UA_ORDER_MORE;
+    return diagnosticInfoOrder(p1->innerDiagnosticInfo, p2->innerDiagnosticInfo, NULL);
+}
+
+static UA_Order
+structureOrder(const void *p1, const void *p2, const UA_DataType *type) {
+    uintptr_t u1 = (uintptr_t)p1;
+    uintptr_t u2 = (uintptr_t)p2;
+    UA_Order o = UA_ORDER_EQ;
+    for(size_t i = 0; i < type->membersSize; ++i) {
+        const UA_DataTypeMember *m = &type->members[i];
+        const UA_DataType *mt = m->memberType;
+        u1 += m->padding;
+        u2 += m->padding;
+        if(!m->isOptional) {
+            if(!m->isArray) {
+                o = orderJumpTable[mt->typeKind]((const void *)u1, (const void *)u2, mt);
+                u1 += mt->memSize;
+                u2 += mt->memSize;
+            } else {
+                size_t size1 = *(size_t*)u1;
+                size_t size2 = *(size_t*)u2;
+                u1 += sizeof(size_t);
+                u2 += sizeof(size_t);
+                o = arrayOrder((const void*)u1, size1, (const void*)u2, size2, mt);
+                u1 += sizeof(void*);
+                u2 += sizeof(void*);
+            }
+        } else {
+            if(!m->isArray) {
+                const void *pp1 = *(void* const*)u1;
+                const void *pp2 = *(void* const*)u2;
+                if(pp1 == pp2) {
+                    o = UA_ORDER_EQ;
+                } else if(pp1 == NULL) {
+                    o = UA_ORDER_LESS;
+                } else if(pp2 == NULL) {
+                    o = UA_ORDER_MORE;
+                } else {
+                    o = orderJumpTable[mt->typeKind](pp1, pp2, mt);
+                }
+            } else {
+                size_t sa1 = *(size_t*)u1;
+                size_t sa2 = *(size_t*)u2;
+                u1 += sizeof(size_t);
+                u2 += sizeof(size_t);
+                const void *pa1 = *(void* const*)u1;
+                const void *pa2 = *(void* const*)u2;
+                o = arrayOrder(pa1, sa1, pa2, sa2, mt);
+            }
+            u1 += sizeof(void*);
+            u2 += sizeof(void*);
+        }
+
+        if(o != UA_ORDER_EQ)
+            break;
+    }
+    return o;
+}
+
+static UA_Order
+unionOrder(const void *p1, const void *p2, const UA_DataType *type) {
+    UA_UInt32 sel1 = *(const UA_UInt32 *)p1;
+    UA_UInt32 sel2 = *(const UA_UInt32 *)p2;
+    if(sel1 != sel2)
+        return (sel1 < sel2) ? UA_ORDER_LESS : UA_ORDER_MORE;
+
+    const UA_DataTypeMember *m = &type->members[sel1-1];
+    const UA_DataType *mt = m->memberType;
+
+    uintptr_t u1 = ((uintptr_t)p1) + m->padding; /* includes switchfield length */
+    uintptr_t u2 = ((uintptr_t)p2) + m->padding;
+    if(m->isArray) {
+        size_t sa1 = *(size_t*)u1;
+        size_t sa2 = *(size_t*)u2;
+        u1 += sizeof(size_t);
+        u2 += sizeof(size_t);
+        return arrayOrder(*(void* const*)u1, sa1, *(void* const*)u2, sa2, mt);
+    }
+    return orderJumpTable[mt->typeKind]((const void*)u1, (const void*)u2, mt);
+}
+
+static UA_Order
+notImplementedOrder(const void *p1, const void *p2, const UA_DataType *type) {
+    return UA_ORDER_EQ;
+}
+
+const
+UA_orderSignature orderJumpTable[UA_DATATYPEKINDS] = {
+    (UA_orderSignature)booleanOrder,
+    (UA_orderSignature)sByteOrder,
+    (UA_orderSignature)byteOrder,
+    (UA_orderSignature)int16Order,
+    (UA_orderSignature)uInt16Order,
+    (UA_orderSignature)int32Order,
+    (UA_orderSignature)uInt32Order,
+    (UA_orderSignature)int64Order,
+    (UA_orderSignature)uInt64Order,
+    (UA_orderSignature)floatOrder,
+    (UA_orderSignature)doubleOrder,
+    (UA_orderSignature)stringOrder,
+    (UA_orderSignature)int64Order,  /* DateTime */
+    (UA_orderSignature)guidOrder,
+    (UA_orderSignature)stringOrder, /* ByteString */
+    (UA_orderSignature)stringOrder, /* XmlElement */
+    (UA_orderSignature)nodeIdOrder,
+    (UA_orderSignature)expandedNodeIdOrder,
+    (UA_orderSignature)uInt32Order, /* StatusCode */
+    (UA_orderSignature)qualifiedNameOrder,
+    (UA_orderSignature)localizedTextOrder,
+    (UA_orderSignature)extensionObjectOrder,
+    (UA_orderSignature)dataValueOrder,
+    (UA_orderSignature)variantOrder,
+    (UA_orderSignature)diagnosticInfoOrder,
+    notImplementedOrder, /* Decimal, not implemented */
+    (UA_orderSignature)uInt32Order, /* Enumeration */
+    (UA_orderSignature)structureOrder,
+    (UA_orderSignature)structureOrder, /* Struct with Optional Fields*/
+    (UA_orderSignature)unionOrder, /* Union*/
+    notImplementedOrder /* BitfieldCluster, not implemented */
+};
+
+UA_Order UA_order(const void *p1, const void *p2, const UA_DataType *type) {
+    return orderJumpTable[type->typeKind](p1, p2, type);
+}
+
+/******************/
 /* Array Handling */
 /******************/
 
@@ -1481,11 +1835,23 @@ UA_Array_delete(void *p, size_t size, const UA_DataType *type) {
 
 UA_Boolean
 UA_DataType_isNumeric(const UA_DataType *type) {
-    /* All data types between UA_TYPES_BOOLEAN and UA_TYPES_DOUBLE are numeric */
-    for(size_t i = UA_TYPES_BOOLEAN; i <= UA_TYPES_DOUBLE; ++i)
-        if(&UA_TYPES[i] == type)
-            return true;
-    return false;
+    switch(type->typeKind) {
+    case UA_DATATYPEKIND_BOOLEAN:
+    case UA_DATATYPEKIND_SBYTE:
+    case UA_DATATYPEKIND_BYTE:
+    case UA_DATATYPEKIND_INT16:
+    case UA_DATATYPEKIND_UINT16:
+    case UA_DATATYPEKIND_INT32:
+    case UA_DATATYPEKIND_UINT32:
+    case UA_DATATYPEKIND_INT64:
+    case UA_DATATYPEKIND_UINT64:
+    case UA_DATATYPEKIND_FLOAT:
+    case UA_DATATYPEKIND_DOUBLE:
+    /* not implemented: UA_DATATYPEKIND_DECIMAL */
+        return true;
+    default:
+        return false;
+    }
 }
 
 /**********************/
@@ -1559,8 +1925,9 @@ UA_NumericRange_parse(UA_NumericRange *range, const UA_String str) {
     if(retval == UA_STATUSCODE_GOOD && idx > 0) {
         range->dimensions = dimensions;
         range->dimensionsSize = idx;
-    } else
+    } else {
         UA_free(dimensions);
+    }
 
     return retval;
 }

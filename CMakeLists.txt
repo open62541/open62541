@@ -12,10 +12,15 @@ endif()
 string(TOLOWER "${CMAKE_BUILD_TYPE}" BUILD_TYPE_LOWER_CASE)
 
 set(CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/tools/cmake")
-find_package(PythonInterp REQUIRED)
+find_package(Python3 REQUIRED)
+set(PYTHON_EXECUTABLE ${Python3_EXECUTABLE})
 find_package(Git)
 include(AssignSourceGroup)
 include(GNUInstallDirs)
+if(UA_ENABLE_TPM2_SECURITY)
+    find_library(TPM2_LIB tpm2_pkcs11)
+    message(${TPM2_LIB})
+endif()
 
 # Set when installed via make install
 set(open62541_TOOLS_DIR ${PROJECT_SOURCE_DIR}/tools)
@@ -148,21 +153,31 @@ endforeach(arch_ ${architectures})
 option(BUILD_SHARED_LIBS "Enable building of shared libraries (dll/so)" OFF)
 set(UA_LOGLEVEL 300 CACHE STRING "Level at which logs shall be reported")
 set(UA_MULTITHREADING 0 CACHE STRING "Level of multithreading (0-99: No Multithreading, >=100: Thread-Safe API")
-option(UA_ENABLE_HISTORIZING "Enable basic support for historical access (client and server)" OFF)
 option(UA_ENABLE_METHODCALLS "Enable the Method service set" ON)
-option(UA_ENABLE_NODEMANAGEMENT "Enable dynamic addition and removal of nodes at runtime" ON)
-option(UA_ENABLE_SUBSCRIPTIONS "Enable subscriptions support." ON)
-option(UA_ENABLE_SUBSCRIPTIONS_EVENTS "Enable the use of event subscriptions" OFF)
-option(UA_ENABLE_DISCOVERY "Enable Discovery Service (LDS)" OFF)
-option(UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS "Enable the use of A&C. (EXPERIMENTAL)" OFF)
-option(UA_ENABLE_DISCOVERY_MULTICAST "Enable Discovery Service with multicast support (LDS-ME)" OFF)
-option(UA_ENABLE_PARSING "Utility functions that require parsing (e.g. NodeId expressions)" ON)
+option(UA_ENABLE_SUBSCRIPTIONS "Enable subscriptions support" ON)
+option(UA_ENABLE_SUBSCRIPTIONS_EVENTS "Enable event monitoring" ON)
 option(UA_ENABLE_DA "Enable OPC UA DataAccess (Part 8) definitions" ON)
+option(UA_ENABLE_HISTORIZING "Enable basic support for historical access (client and server)" OFF)
+option(UA_ENABLE_DISCOVERY "Enable Discovery Service (LDS)" OFF)
+
+option(UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS "Enable the use of A&C. (EXPERIMENTAL)" OFF)
+mark_as_advanced(UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS)
+
+option(UA_ENABLE_NODEMANAGEMENT "Enable dynamic addition and removal of nodes at runtime" ON)
+mark_as_advanced(UA_ENABLE_NODEMANAGEMENT)
+
+option(UA_ENABLE_PARSING "Utility functions that require parsing (e.g. NodeId expressions)" ON)
+mark_as_advanced(UA_ENABLE_PARSING)
+
+option(UA_ENABLE_DISCOVERY_MULTICAST "Enable Discovery Service with multicast support (LDS-ME)" OFF)
+mark_as_advanced(UA_ENABLE_DISCOVERY_MULTICAST)
+
 option(UA_ENABLE_WEBSOCKET_SERVER "Enable websocket support (uses libwebsockets)" OFF)
+mark_as_advanced(UA_ENABLE_WEBSOCKET_SERVER)
 
 # security provider
-set(UA_ENCRYPTION_PLUGINS "MBEDTLS" "OPENSSL")
-set(UA_ENABLE_ENCRYPTION "OFF" CACHE STRING "Encryption support")
+set(UA_ENCRYPTION_PLUGINS "MBEDTLS" "OPENSSL" "LIBRESSL")
+set(UA_ENABLE_ENCRYPTION "OFF" CACHE STRING "Encryption support (Libressl EXPERIMENTAL)")
 SET_PROPERTY(CACHE UA_ENABLE_ENCRYPTION PROPERTY STRINGS "OFF" ${UA_ENCRYPTION_PLUGINS})
 option(UA_ENABLE_ENCRYPTION_OPENSSL "Deprecated: Enable encryption support (uses openssl)" OFF)
 mark_as_advanced(UA_ENABLE_ENCRYPTION_OPENSSL)
@@ -173,10 +188,13 @@ list (FIND UA_ENCRYPTION_PLUGINS ${UA_ENABLE_ENCRYPTION} _tmp)
 if(UA_ENABLE_ENCRYPTION STREQUAL "OFF" OR ${_tmp} GREATER -1)
     set(UA_ENABLE_ENCRYPTION_OPENSSL OFF)
     set(UA_ENABLE_ENCRYPTION_MBEDTLS OFF)
+    set(UA_ENABLE_ENCRYPTION_LIBRESSL OFF)
     if(UA_ENABLE_ENCRYPTION STREQUAL "MBEDTLS")
         set(UA_ENABLE_ENCRYPTION_MBEDTLS ON)
     elseif(UA_ENABLE_ENCRYPTION STREQUAL "OPENSSL")
         set(UA_ENABLE_ENCRYPTION_OPENSSL ON)
+    elseif(UA_ENABLE_ENCRYPTION STREQUAL "LIBRESSL")
+        set(UA_ENABLE_ENCRYPTION_LIBRESSL ON)
     endif()
 # Only for backward compatability
 elseif(UA_ENABLE_ENCRYPTION)
@@ -287,6 +305,11 @@ if(UA_FORCE_CPP)
     enable_language(CXX)
     add_definitions(-D__STDC_CONSTANT_MACROS) # We need the UINT32_C define
 endif()
+
+option(UA_FORCE_WERROR "Force compilation with -Werror" ON)
+
+option(UA_ENABLE_TPM2_SECURITY "Enable encryption using TPM hardware" OFF)
+mark_as_advanced(UA_ENABLE_TPM2_SECURITY)
 
 #General PubSub setup
 option(UA_ENABLE_PUBSUB "Enable the PubSub protocol" OFF)
@@ -498,11 +521,6 @@ if(BUILD_SHARED_LIBS)
   endif()
 endif()
 
-# Warn if experimental features are enabled
-if(UA_MULTITHREADING GREATER 199)
-    MESSAGE(WARNING "UA_MULTITHREADING >= 200. Internal threads of the server are an EXPERIMENTAL feature. Expect bugs")
-endif()
-
 if(UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS)
     MESSAGE(WARNING "UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS is enabled. The feature is under development and marked as EXPERIMENTAL")
 endif()
@@ -524,7 +542,17 @@ if(UA_ENABLE_ENCRYPTION_OPENSSL OR UA_ENABLE_MQTT_TLS_OPENSSL)
     # https://cmake.org/cmake/help/v3.0/module/FindOpenSSL.html
     find_package(OpenSSL REQUIRED)
     list(APPEND open62541_LIBRARIES ${OPENSSL_LIBRARIES})
-endif ()
+    endif ()
+    
+if(UA_ENABLE_ENCRYPTION_LIBRESSL)
+    # See https://github.com/libressl-portable/portable/blob/master/FindLibreSSL.cmake
+    find_package(LibreSSL REQUIRED)
+    list(APPEND open62541_LIBRARIES ${LIBRESSL_LIBRARIES})
+    if(WIN32)
+        # Add bestcrypt for random generator
+        list(APPEND open62541_LIBRARIES bcrypt)
+    endif()
+endif()
 
 if(UA_ENABLE_ENCRYPTION_MBEDTLS OR UA_ENABLE_PUBSUB_ENCRYPTION)
     # The recommended way is to install mbedtls via the OS package manager. If
@@ -532,6 +560,10 @@ if(UA_ENABLE_ENCRYPTION_MBEDTLS OR UA_ENABLE_PUBSUB_ENCRYPTION)
     # defined in /tools/cmake/FindMbedTLS.cmake.
     find_package(MbedTLS REQUIRED)
     list(APPEND open62541_LIBRARIES ${MBEDTLS_LIBRARIES})
+endif()
+
+if(UA_ENABLE_TPM2_SECURITY)
+    list(APPEND open62541_LIBRARIES ${TPM2_LIB})
 endif()
 
 if(UA_ENABLE_WEBSOCKET_SERVER)
@@ -575,7 +607,9 @@ if(NOT UA_FORCE_CPP AND (CMAKE_COMPILER_IS_GNUCC OR "x${CMAKE_C_COMPILER_ID}" ST
     check_add_cc_flag("-Wall")      # Warnings
     check_add_cc_flag("-Wextra")    # More warnings
     check_add_cc_flag("-Wpedantic") # Standard compliance
-    check_add_cc_flag("-Werror")    # All warnings are errors
+    if(UA_FORCE_WERROR)
+        check_add_cc_flag("-Werror")    # All warnings are errors
+    endif()
 
     check_add_cc_flag("-Wno-static-in-inline") # Clang doesn't like the use of static inline methods inside static inline methods
     check_add_cc_flag("-Wno-overlength-strings") # May happen in the nodeset compiler when complex values are directly encoded
@@ -609,15 +643,12 @@ if(NOT UA_FORCE_CPP AND (CMAKE_COMPILER_IS_GNUCC OR "x${CMAKE_C_COMPILER_ID}" ST
         check_add_cc_flag("-fPIC")
     endif()
 
+    # Force 32bit build
     if(UA_FORCE_32BIT)
-      string(FIND "${CMAKE_C_FLAGS}" "-m32" m32_already_set)
-      if(m32_already_set EQUAL -1)
-        set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -m32")
-      endif()
-      unset(flag_supported CACHE)
+	check_add_cc_flag("-m32")
     endif()
 
-    if(NOT MINGW)
+    if(NOT MINGW AND NOT UA_BUILD_OSS_FUZZ)
         if(UA_ENABLE_HARDENING)
             check_add_cc_flag("-fstack-protector-strong") # more performant stack protector, available since gcc 4.9
             check_add_cc_flag("-fstack-clash-protection") # increased reliability of stack overflow detection, available since gcc 8
@@ -655,26 +686,22 @@ if(NOT UA_FORCE_CPP AND (CMAKE_COMPILER_IS_GNUCC OR "x${CMAKE_C_COMPILER_ID}" ST
     set(CMAKE_SHARED_LIBRARY_LINK_C_FLAGS "") # cmake sets -rdynamic by default
 
     # Debug
-    if(BUILD_TYPE_LOWER_CASE STREQUAL "debug" AND UNIX)
-        if("x${CMAKE_C_COMPILER_ID}" STREQUAL "xClang" AND NOT UA_ENABLE_UNIT_TESTS_MEMCHECK)
-            # Add default sanitizer settings when using clang and Debug build.
-            # This allows e.g. CLion to find memory locations for SegFaults
-            message(STATUS "Sanitizer enabled")
-            set(SANITIZER_FLAGS "-g -fno-omit-frame-pointer -gline-tables-only -fsanitize=address -fsanitize-address-use-after-scope -fsanitize=leak -fsanitize=undefined")
-            if(CMAKE_CXX_COMPILER_VERSION VERSION_LESS 10.0)
-                set(SANITIZER_FLAGS "${SANITIZER_FLAGS} -fsanitize-coverage=trace-pc-guard")
-            endif()
-            set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${SANITIZER_FLAGS}")
-            set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${SANITIZER_FLAGS}")
+    if(BUILD_TYPE_LOWER_CASE STREQUAL "debug" AND UNIX AND NOT UA_BUILD_OSS_FUZZ AND
+       "x${CMAKE_C_COMPILER_ID}" STREQUAL "xClang" AND NOT UA_ENABLE_UNIT_TESTS_MEMCHECK)
+        # Add default sanitizer settings when using clang and Debug build.
+        # This allows e.g. CLion to find memory locations for SegFaults
+        message(STATUS "Sanitizer enabled")
+        set(SANITIZER_FLAGS "-g -fno-omit-frame-pointer -gline-tables-only -fsanitize=address -fsanitize-address-use-after-scope -fsanitize=leak -fsanitize=undefined")
+        if(CMAKE_CXX_COMPILER_VERSION VERSION_LESS 10.0)
+            set(SANITIZER_FLAGS "${SANITIZER_FLAGS} -fsanitize-coverage=trace-pc-guard")
         endif()
+        set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${SANITIZER_FLAGS}")
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${SANITIZER_FLAGS}")
     endif()
 
-    if (NOT MINGW)
-        if(UA_ENABLE_HARDENING AND ((CMAKE_BUILD_TYPE STREQUAL "Release") OR (CMAKE_BUILD_TYPE STREQUAL "RelWithDebInfo")))
-            check_add_cc_flag("-D_FORTIFY_SOURCE=2") # run-time buffer overflow detection (needs at least -O1)
-        endif()
+    if(NOT MINGW AND UA_ENABLE_HARDENING AND ((CMAKE_BUILD_TYPE STREQUAL "Release") OR (CMAKE_BUILD_TYPE STREQUAL "RelWithDebInfo")))
+        check_add_cc_flag("-D_FORTIFY_SOURCE=2") # run-time buffer overflow detection (needs at least -O1)
     endif()
-
 
     # Strip release builds
     if(CMAKE_BUILD_TYPE STREQUAL "MinSizeRel" OR CMAKE_BUILD_TYPE STREQUAL "Release")
@@ -813,12 +840,10 @@ set(internal_headers ${PROJECT_SOURCE_DIR}/deps/open62541_queue.h
                      ${PROJECT_SOURCE_DIR}/deps/pcg_basic.h
                      ${PROJECT_SOURCE_DIR}/deps/libc_time.h
                      ${PROJECT_SOURCE_DIR}/deps/base64.h
-                     ${PROJECT_SOURCE_DIR}/src/ua_util_internal.h
                      ${PROJECT_SOURCE_DIR}/src/ua_types_encoding_binary.h
-                     ${PROJECT_BINARY_DIR}/src_generated/open62541/types_generated_encoding_binary.h
+                     ${PROJECT_SOURCE_DIR}/src/ua_util_internal.h
                      ${PROJECT_BINARY_DIR}/src_generated/open62541/transport_generated.h
                      ${PROJECT_BINARY_DIR}/src_generated/open62541/transport_generated_handling.h
-                     ${PROJECT_BINARY_DIR}/src_generated/open62541/transport_generated_encoding_binary.h
                      ${PROJECT_SOURCE_DIR}/src/ua_connection_internal.h
                      ${PROJECT_SOURCE_DIR}/src/ua_securechannel.h
                      ${PROJECT_SOURCE_DIR}/src/ua_timer.h
@@ -857,7 +882,9 @@ set(lib_sources ${PROJECT_SOURCE_DIR}/src/ua_types.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_server_async.c
                 ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_networkmessage.c
                 ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_writer.c
+                ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_writergroup.c
                 ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_reader.c
+                ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_readergroup.c
                 ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_manager.c
                 ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_ns0.c
                 # services
@@ -935,6 +962,12 @@ if(UA_ENABLE_PUBSUB_ENCRYPTION)
     ${PROJECT_SOURCE_DIR}/plugins/crypto/mbedtls/securitypolicy_pubsub_aes256ctr.c)
 endif()
 
+if(UA_ENABLE_ENCRYPTION_MBEDTLS OR UA_ENABLE_ENCRYPTION_OPENSSL OR UA_ENABLE_ENCRYPTION_LIBRESSL OR UA_ENABLE_AMALGAMATION)
+  list(APPEND default_plugin_headers
+      ${PROJECT_SOURCE_DIR}/plugins/include/open62541/plugin/create_certificate.h
+  )
+endif()
+
 if(UA_ENABLE_ENCRYPTION_MBEDTLS OR UA_ENABLE_AMALGAMATION)
 list(INSERT default_plugin_sources 1
      ${PROJECT_SOURCE_DIR}/plugins/crypto/mbedtls/ua_securitypolicy_basic128rsa15.c
@@ -944,7 +977,13 @@ list(INSERT default_plugin_sources 1
      ${PROJECT_SOURCE_DIR}/plugins/crypto/mbedtls/ua_pki_mbedtls.c)
 endif()
 
-if(UA_ENABLE_ENCRYPTION_OPENSSL OR UA_ENABLE_AMALGAMATION)
+if(UA_ENABLE_TPM2_SECURITY)
+list(INSERT default_plugin_sources 0
+     ${PROJECT_SOURCE_DIR}/plugins/crypto/pkcs11/securitypolicy_pubsub_aes128ctr_tpm.c
+     ${PROJECT_SOURCE_DIR}/plugins/crypto/pkcs11/securitypolicy_pubsub_aes256ctr_tpm.c)
+endif()
+
+if(UA_ENABLE_ENCRYPTION_OPENSSL OR UA_ENABLE_ENCRYPTION_LIBRESSL OR UA_ENABLE_AMALGAMATION)
 list(INSERT default_plugin_sources 0
      ${PROJECT_SOURCE_DIR}/plugins/crypto/openssl/securitypolicy_openssl_common.h
      ${PROJECT_SOURCE_DIR}/plugins/crypto/openssl/ua_openssl_version_abstraction.h
@@ -953,6 +992,7 @@ list(INSERT default_plugin_sources 0
      ${PROJECT_SOURCE_DIR}/plugins/crypto/openssl/ua_openssl_basic256.c
      ${PROJECT_SOURCE_DIR}/plugins/crypto/openssl/ua_openssl_basic256sha256.c
      ${PROJECT_SOURCE_DIR}/plugins/crypto/openssl/ua_openssl_aes128sha256rsaoaep.c
+     ${PROJECT_SOURCE_DIR}/plugins/crypto/openssl/ua_openssl_create_certificate.c
      ${PROJECT_SOURCE_DIR}/plugins/crypto/openssl/ua_pki_openssl.c)
 endif()
 
@@ -994,14 +1034,14 @@ if(UA_ENABLE_PUBSUB)
         if(WIN32)
             MESSAGE(WARNING "Multithreading is enabled in MQTT plugin. This feature is under development and marked as EXPERIMENTAL")
         else()
-            list(APPEND default_plugin_headers ${PROJECT_SOURCE_DIR}/deps/mqtt-c/mqtt_pal.h)
-            list(APPEND default_plugin_sources ${PROJECT_SOURCE_DIR}/plugins/mqtt/ua_mqtt_pal.c)
-            list(APPEND default_plugin_headers ${PROJECT_SOURCE_DIR}/deps/mqtt-c/mqtt.h)
-            list(APPEND default_plugin_sources ${PROJECT_SOURCE_DIR}/deps/mqtt-c/mqtt.c)
-            list(APPEND default_plugin_headers ${PROJECT_SOURCE_DIR}/plugins/ua_network_pubsub_mqtt.h)
-            list(APPEND default_plugin_sources ${PROJECT_SOURCE_DIR}/plugins/ua_network_pubsub_mqtt.c)
-            list(APPEND default_plugin_headers ${PROJECT_SOURCE_DIR}/plugins/mqtt/ua_mqtt_adapter.h)
-            list(APPEND default_plugin_sources ${PROJECT_SOURCE_DIR}/plugins/mqtt/ua_mqtt_adapter.c)
+            list(APPEND default_plugin_headers ${PROJECT_SOURCE_DIR}/deps/mqtt-c/mqtt_pal.h
+                                               ${PROJECT_SOURCE_DIR}/deps/mqtt-c/mqtt.h
+                                               ${PROJECT_SOURCE_DIR}/plugins/ua_network_pubsub_mqtt.h
+                                               ${PROJECT_SOURCE_DIR}/plugins/mqtt/ua_mqtt_adapter.h)
+            list(APPEND default_plugin_sources ${PROJECT_SOURCE_DIR}/plugins/mqtt/ua_mqtt_pal.c
+                                               ${PROJECT_SOURCE_DIR}/deps/mqtt-c/mqtt.c
+                                               ${PROJECT_SOURCE_DIR}/plugins/ua_network_pubsub_mqtt.c
+                                               ${PROJECT_SOURCE_DIR}/plugins/mqtt/ua_mqtt_adapter.c)
         endif()
     endif()
     if(UA_ENABLE_MALLOC_SINGLETON AND UA_ENABLE_PUBSUB_BUFMALLOC)
@@ -1037,11 +1077,9 @@ if(UA_ENABLE_SUBSCRIPTIONS)
         if(UA_NAMESPACE_ZERO STREQUAL "MINIMAL")
             message(FATAL_ERROR "Events require at least the reduced Namespace Zero")
         endif()
-        list(APPEND lib_sources
-             ${PROJECT_SOURCE_DIR}/src/server/ua_subscription_events.c)
+        list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/src/server/ua_subscription_events.c)
         if(UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS)
-            list(APPEND lib_sources
-                 ${PROJECT_SOURCE_DIR}/src/server/ua_subscription_alarms_conditions.c)
+            list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/src/server/ua_subscription_alarms_conditions.c)
         endif()
     endif()
 endif()
@@ -1257,6 +1295,9 @@ if(UA_ENABLE_AMALGAMATION)
     if(UA_ENABLE_ENCRYPTION_OPENSSL OR UA_ENABLE_MQTT_TLS_OPENSSL)
         target_include_directories(open62541-object PRIVATE ${OPENSSL_INCLUDE_DIR})
     endif()
+    if(UA_ENABLE_ENCRYPTION_LIBRESSL)
+        target_include_directories(open62541-object PRIVATE ${LIBRESSL_INCLUDE_DIR})
+    endif()
 
     # make sure the open62541_amalgamation target builds before so that amalgamation is finished and it is not executed again for open62541-object
     # and thus may overwrite the amalgamation result during multiprocessor compilation
@@ -1310,6 +1351,13 @@ else()
         set_source_files_properties(${default_plugin_sources} ${ua_architecture_sources} PROPERTIES LANGUAGE CXX)
     endif()
 
+    if(UA_ENABLE_ENCRYPTION_LIBRESSL)
+        # Prevent Wincrypt override warning.
+        target_compile_definitions(open62541-plugins PUBLIC NOCRYPT=1)
+        target_compile_definitions(open62541-object PUBLIC NOCRYPT=1)
+        target_compile_definitions(open62541 PUBLIC NOCRYPT=1)
+    endif()
+
     # Declare include directories
     function(include_directories_private)
         foreach(_include_dir IN ITEMS ${ARGN})
@@ -1341,6 +1389,9 @@ else()
     endif()
     if(UA_ENABLE_ENCRYPTION_OPENSSL OR UA_ENABLE_MQTT_TLS_OPENSSL)
         include_directories_private(${OPENSSL_INCLUDE_DIR})
+    endif()
+    if(UA_ENABLE_ENCRYPTION_LIBRESSL)
+        include_directories_private(${LIBRESSL_INCLUDE_DIR})
     endif()
 
     # Option-specific includes
@@ -1418,6 +1469,7 @@ if(UA_BUILD_FUZZING OR UA_BUILD_OSS_FUZZ OR UA_BUILD_FUZZING_CORPUS)
 endif()
 
 if(UA_BUILD_TOOLS)
+    add_subdirectory(tools/ua-tool)
     if(UA_ENABLE_JSON_ENCODING)
         add_subdirectory(tools/ua2json)
     endif()
@@ -1465,6 +1517,9 @@ endif()
 if(UA_ENABLE_ENCRYPTION_OPENSSL)
     list(APPEND open62541_enabled_components "EncryptionOpenSSL")
 endif()
+if(UA_ENABLE_ENCRYPTION_LIBRESSL)
+    list(APPEND open62541_enabled_components "EncryptionLibreSSL")
+endif()
 if(UA_ENABLE_AMALGAMATION)
     list(APPEND open62541_enabled_components "Amalgamation")
 endif()
@@ -1477,7 +1532,7 @@ endif()
 if(UA_ENABLE_SUBSCRIPTIONS_EVENTS)
     list(APPEND open62541_enabled_components "Events")
 endif()
-if(UA_MULTITHREADING)
+if(UA_MULTITHREADING GREATER_EQUAL 100)
     list(APPEND open62541_enabled_components "Multithreading")
 endif()
 if(UA_ENABLE_DISCOVERY)

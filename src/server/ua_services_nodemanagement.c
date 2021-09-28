@@ -21,6 +21,11 @@
 #include "ua_server_internal.h"
 #include "ua_services.h"
 
+static UA_StatusCode
+setMethodNode_callback(UA_Server *server,
+                       const UA_NodeId methodNodeId,
+                       UA_MethodCallback methodCallback);
+
 /*********************/
 /* Edit Node Context */
 /*********************/
@@ -509,6 +514,7 @@ isMandatoryChild(UA_Server *server, UA_Session *session,
         return false;
 
     /* Look for the reference making the child mandatory */
+    UA_NodePointer mandatoryP = UA_NodePointer_fromNodeId(&mandatoryId);
     for(size_t i = 0; i < child->head.referencesSize; ++i) {
         UA_NodeReferenceKind *rk = &child->head.references[i];
         if(rk->referenceTypeIndex != UA_REFERENCETYPEINDEX_HASMODELLINGRULE)
@@ -516,10 +522,9 @@ isMandatoryChild(UA_Server *server, UA_Session *session,
         if(rk->isInverse)
             continue;
 
-        for(UA_ReferenceTarget *t = UA_NodeReferenceKind_firstTarget(rk);
-            t; t = UA_NodeReferenceKind_nextTarget(rk, t)) {
-            if(UA_ExpandedNodeId_isLocal(&t->targetId) &&
-               UA_NodeId_equal(&mandatoryId, &t->targetId.nodeId)) {
+        const UA_ReferenceTarget *t = NULL;
+        while((t = UA_NodeReferenceKind_iterate(rk, t))) {
+            if(UA_NodePointer_equal(mandatoryP, t->targetId)) {
                 UA_NODESTORE_RELEASE(server, child);
                 return true;
             }
@@ -541,6 +546,61 @@ recursiveTypeCheckAddChildren(UA_Server *server, UA_Session *session,
 static void
 Operation_addReference(UA_Server *server, UA_Session *session, void *context,
                        const UA_AddReferencesItem *item, UA_StatusCode *retval);
+
+static UA_StatusCode
+addRef(UA_Server *server, UA_Session *session, const UA_NodeId *nodeId,
+       const UA_NodeId *referenceTypeId, const UA_NodeId *parentNodeId,
+       UA_Boolean forward) {
+    UA_AddReferencesItem ref_item;
+    UA_AddReferencesItem_init(&ref_item);
+    ref_item.sourceNodeId = *nodeId;
+    ref_item.referenceTypeId = *referenceTypeId;
+    ref_item.isForward = forward;
+    ref_item.targetNodeId.nodeId = *parentNodeId;
+
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+    Operation_addReference(server, session, NULL, &ref_item, &retval);
+    return retval;
+}
+
+static UA_StatusCode
+addInterfaceChildren(UA_Server *server, UA_Session *session,
+                const UA_NodeHead *head, const UA_Node *type) {
+    /* Get the hierarchy of the type and all its supertypes */
+    UA_NodeId *hierarchy = NULL;
+    size_t hierarchySize = 0;
+    UA_StatusCode retval = getAllInterfaceChildNodeIds(server, &head->nodeId, &type->head.nodeId,
+                                                              &hierarchy, &hierarchySize);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
+    UA_assert(hierarchySize < 1000);
+
+    /* Copy members of the type and supertypes (and instantiate them) */
+    for(size_t i = 0; i < hierarchySize; ++i) {
+        retval = copyAllChildren(server, session, &hierarchy[i], &head->nodeId);
+        if(retval != UA_STATUSCODE_GOOD) {
+            UA_Array_delete(hierarchy, hierarchySize, &UA_TYPES[UA_TYPES_NODEID]);
+            return retval;
+        }
+    }
+
+    for (size_t i = 0; i < hierarchySize; ++i) {
+        UA_NodeId refId = UA_NODEID_NUMERIC(0, UA_NS0ID_HASINTERFACE);
+        retval = addRef(server, &server->adminSession, &head->nodeId, &refId, &hierarchy[i], true);
+
+        /* Don't add the original HasInterface reference to ObjectType sub nodes */
+        if (retval == UA_STATUSCODE_BADDUPLICATEREFERENCENOTALLOWED) {
+            retval = UA_STATUSCODE_GOOD;
+            continue;
+        }
+
+        if (retval != UA_STATUSCODE_GOOD)
+            break;
+    }
+
+    UA_Array_delete(hierarchy, hierarchySize, &UA_TYPES[UA_TYPES_NODEID]);
+    return retval;
+}
 
 static UA_StatusCode
 copyChild(UA_Server *server, UA_Session *session,
@@ -608,6 +668,9 @@ copyChild(UA_Server *server, UA_Session *session,
         /* Remove the context of the copied node */
         node->head.context = NULL;
         node->head.constructed = false;
+#ifdef UA_ENABLE_SUBSCRIPTIONS
+        node->head.monitoredItems = NULL;
+#endif
 
         /* Reset the NodeId (random numeric id will be assigned in the nodestore) */
         UA_NodeId_clear(&node->head.nodeId);
@@ -658,6 +721,24 @@ copyChild(UA_Server *server, UA_Session *session,
         if(retval != UA_STATUSCODE_GOOD) {
             UA_NODESTORE_REMOVE(server, &newNodeId);
             return retval;
+        }
+
+        /* Add HasInterface references to the child */
+        if(rd->nodeClass == UA_NODECLASS_OBJECT && !UA_NodeId_isNull(&rd->typeDefinition.nodeId)) {
+            const UA_Node *typeNode = UA_NODESTORE_GET(server, &rd->typeDefinition.nodeId);
+
+            if (!typeNode) {
+                UA_NODESTORE_REMOVE(server, &newNodeId);
+                return retval;
+            }
+
+            retval = addInterfaceChildren(server, session, &node->head, typeNode);
+            UA_NODESTORE_RELEASE(server, typeNode);
+
+            if (retval != UA_STATUSCODE_GOOD) {
+                UA_NODESTORE_REMOVE(server, &newNodeId);
+                return retval;
+            }
         }
 
         /* For the new child, recursively copy the members of the original. No
@@ -727,45 +808,6 @@ addTypeChildren(UA_Server *server, UA_Session *session,
     }
 
     UA_Array_delete(hierarchy, hierarchySize, &UA_TYPES[UA_TYPES_NODEID]);
-    return retval;
-}
-
-static UA_StatusCode
-addInterfaceChildren(UA_Server *server, UA_Session *session,
-                const UA_NodeHead *head, const UA_Node *type) {
-    /* Get the hierarchy of the type and all its supertypes */
-    UA_NodeId *hierarchy = NULL;
-    size_t hierarchySize = 0;
-    UA_StatusCode retval = getAllInterfaceChildNodeIds(server, &head->nodeId, &type->head.nodeId,
-                                                              &hierarchy, &hierarchySize);
-    if(retval != UA_STATUSCODE_GOOD)
-        return retval;
-    UA_assert(hierarchySize < 1000);
-
-    /* Copy members of the type and supertypes (and instantiate them) */
-    for(size_t i = 0; i < hierarchySize; ++i) {
-        retval = copyAllChildren(server, session, &hierarchy[i], &head->nodeId);
-        if(retval != UA_STATUSCODE_GOOD)
-            break;
-    }
-
-    UA_Array_delete(hierarchy, hierarchySize, &UA_TYPES[UA_TYPES_NODEID]);
-    return retval;
-}
-
-static UA_StatusCode
-addRef(UA_Server *server, UA_Session *session, const UA_NodeId *nodeId,
-       const UA_NodeId *referenceTypeId, const UA_NodeId *parentNodeId,
-       UA_Boolean forward) {
-    UA_AddReferencesItem ref_item;
-    UA_AddReferencesItem_init(&ref_item);
-    ref_item.sourceNodeId = *nodeId;
-    ref_item.referenceTypeId = *referenceTypeId;
-    ref_item.isForward = forward;
-    ref_item.targetNodeId.nodeId = *parentNodeId;
-
-    UA_StatusCode retval = UA_STATUSCODE_GOOD;
-    Operation_addReference(server, session, NULL, &ref_item, &retval);
     return retval;
 }
 
@@ -1654,11 +1696,11 @@ removeIncomingReferences(UA_Server *server, UA_Session *session, const UA_NodeHe
         item.isForward = rk->isInverse;
         item.referenceTypeId =
             *UA_NODESTORE_GETREFERENCETYPEID(server, rk->referenceTypeIndex);
-        for(UA_ReferenceTarget *t = UA_NodeReferenceKind_firstTarget(rk);
-            t; t = UA_NodeReferenceKind_nextTarget(rk, t)) {
-            if(!UA_ExpandedNodeId_isLocal(&t->targetId))
+        const UA_ReferenceTarget *t = NULL;
+        while((t = UA_NodeReferenceKind_iterate(rk, t))) {
+            if(!UA_NodePointer_isLocal(t->targetId))
                 continue;
-            item.sourceNodeId = t->targetId.nodeId;
+            item.sourceNodeId = UA_NodePointer_toNodeId(t->targetId);
             Operation_deleteReference(server, session, NULL, &item, &dummy);
         }
     }
@@ -1674,11 +1716,12 @@ hasParentRef(const UA_NodeHead *head, const UA_ReferenceTypeSet *refSet,
             continue;
         if(!UA_ReferenceTypeSet_contains(refSet, rk->referenceTypeIndex))
             continue;
-        for(UA_ReferenceTarget *t = UA_NodeReferenceKind_firstTarget(rk);
-            t; t = UA_NodeReferenceKind_nextTarget(rk, t)) {
-            if(!UA_ExpandedNodeId_isLocal(&t->targetId))
+        const UA_ReferenceTarget *t = NULL;
+        while((t = UA_NodeReferenceKind_iterate(rk, t))) {
+            if(!UA_NodePointer_isLocal(t->targetId))
                 continue;
-            if(!RefTree_containsNodeId(refTree, &t->targetId.nodeId))
+            UA_NodeId tmpId = UA_NodePointer_toNodeId(t->targetId);
+            if(!RefTree_containsNodeId(refTree, &tmpId))
                 return true;
         }
     }
@@ -1760,14 +1803,10 @@ autoDeleteChildren(UA_Server *server, UA_Session *session, RefTree *refTree,
             continue;
 
         /* Loop over the references */
-        for(UA_ReferenceTarget *t = UA_NodeReferenceKind_firstTarget(refs);
-            t; t = UA_NodeReferenceKind_nextTarget(refs, t)) {
-            /* References an external server? */
-            if(!UA_ExpandedNodeId_isLocal(&t->targetId))
-               continue;
-
+        const UA_ReferenceTarget *t = NULL;
+        while((t = UA_NodeReferenceKind_iterate(refs, t))) {
             /* Get the child */
-            const UA_Node *child = UA_NODESTORE_GET(server, &t->targetId.nodeId);
+            const UA_Node *child = UA_NODESTORE_GETFROMREF(server, t->targetId);
             if(!child)
                 continue;
 
@@ -2578,24 +2617,47 @@ editMethodCallback(UA_Server *server, UA_Session* session,
     return UA_STATUSCODE_GOOD;
 }
 
-UA_StatusCode
+static UA_StatusCode
 setMethodNode_callback(UA_Server *server,
-                                 const UA_NodeId methodNodeId,
-                                 UA_MethodCallback methodCallback) {
+                       const UA_NodeId methodNodeId,
+                       UA_MethodCallback methodCallback) {
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
     return UA_Server_editNode(server, &server->adminSession, &methodNodeId,
-                                              (UA_EditNodeCallback)editMethodCallback,
-                                              (void*)(uintptr_t)methodCallback);
+                              (UA_EditNodeCallback)editMethodCallback,
+                              (void*)(uintptr_t)methodCallback);
 }
 
 UA_StatusCode
-UA_Server_setMethodNode_callback(UA_Server *server,
-                                 const UA_NodeId methodNodeId,
-                                 UA_MethodCallback methodCallback) {
+UA_Server_setMethodNodeCallback(UA_Server *server,
+                                const UA_NodeId methodNodeId,
+                                UA_MethodCallback methodCallback) {
     UA_LOCK(&server->serviceMutex);
     UA_StatusCode retVal = setMethodNode_callback(server, methodNodeId, methodCallback);
     UA_UNLOCK(&server->serviceMutex);
     return retVal;
+}
+
+UA_StatusCode
+UA_Server_getMethodNodeCallback(UA_Server *server,
+                                const UA_NodeId methodNodeId,
+                                UA_MethodCallback *outMethodCallback) {
+    UA_LOCK(&server->serviceMutex);
+    const UA_Node *node = UA_NODESTORE_GET(server, &methodNodeId);
+    if(!node) {
+        UA_UNLOCK(&server->serviceMutex);
+        return UA_STATUSCODE_BADNODEIDUNKNOWN;
+    }
+
+    if(node->head.nodeClass != UA_NODECLASS_METHOD) {
+        UA_NODESTORE_RELEASE(server, node);
+        UA_UNLOCK(&server->serviceMutex);
+        return UA_STATUSCODE_BADNODECLASSINVALID;
+    }
+
+    *outMethodCallback = node->methodNode.method;
+    UA_NODESTORE_RELEASE(server, node);
+    UA_UNLOCK(&server->serviceMutex);
+    return UA_STATUSCODE_GOOD;
 }
 
 #endif

@@ -76,22 +76,19 @@ needsValidation(const UA_Logger *logger,
 
 UA_StatusCode
 verifyAndDecrypt(const UA_Logger *logger, UA_ByteString *buffer,
-                 const size_t *currentPosition,
-                 const UA_NetworkMessage *currentNetworkMessage, UA_Boolean doValidate,
-                 UA_Boolean doDecrypt, void *channelContext,
+                 const size_t *currentPosition, const UA_NetworkMessage *nm,
+                 UA_Boolean doValidate, UA_Boolean doDecrypt, void *channelContext,
                  UA_PubSubSecurityPolicy *securityPolicy) {
     UA_StatusCode rv = UA_STATUSCODE_GOOD;
 
     if(doValidate) {
-
-        size_t sigSize = securityPolicy->symmetricModule
-                      .cryptoModule.signatureAlgorithm.getLocalSignatureSize(channelContext);
-
+        size_t sigSize = securityPolicy->symmetricModule.cryptoModule.
+            signatureAlgorithm.getLocalSignatureSize(channelContext);
         UA_ByteString toBeVerified = {buffer->length - sigSize, buffer->data};
         UA_ByteString signature = {sigSize, buffer->data + buffer->length - sigSize};
 
-        rv = securityPolicy->symmetricModule
-                 .cryptoModule.signatureAlgorithm.verify(channelContext, &toBeVerified, &signature);
+        rv = securityPolicy->symmetricModule.cryptoModule.signatureAlgorithm.
+            verify(channelContext, &toBeVerified, &signature);
         UA_CHECK_STATUS_WARN(rv, return rv, logger, UA_LOGCATEGORY_SECURITYPOLICY,
                              "PubSub receive. Signature invalid");
 
@@ -101,10 +98,8 @@ verifyAndDecrypt(const UA_Logger *logger, UA_ByteString *buffer,
     }
 
     if(doDecrypt) {
-
-        rv =
-            securityPolicy->setMessageNonce(
-                channelContext, &currentNetworkMessage->securityHeader.messageNonce);
+        rv = securityPolicy->setMessageNonce(channelContext,
+                                             &nm->securityHeader.messageNonce);
         UA_CHECK_STATUS_WARN(rv, return rv, logger, UA_LOGCATEGORY_SECURITYPOLICY,
                              "PubSub receive. Faulty Nonce set");
 
@@ -119,28 +114,23 @@ verifyAndDecrypt(const UA_Logger *logger, UA_ByteString *buffer,
 }
 
 UA_StatusCode
-verifyAndDecryptNetworkMessage(const UA_Logger *logger,
-                               UA_ByteString *buffer, size_t *currentPosition,
-                               UA_NetworkMessage *currentNetworkMessage,
+verifyAndDecryptNetworkMessage(const UA_Logger *logger, UA_ByteString *buffer,
+                               size_t *currentPosition, UA_NetworkMessage *nm,
                                UA_ReaderGroup *readerGroup) {
-
-    UA_StatusCode rv = UA_STATUSCODE_GOOD;
-
     UA_MessageSecurityMode securityMode = readerGroup->config.securityMode;
-
     UA_Boolean doValidate = false;
     UA_Boolean doDecrypt = false;
 
-    rv = needsValidation(logger, currentNetworkMessage, securityMode, &doValidate);
+    UA_StatusCode rv = UA_STATUSCODE_GOOD;
+    rv = needsValidation(logger, nm, securityMode, &doValidate);
     UA_CHECK_STATUS_WARN(rv, return rv, logger, UA_LOGCATEGORY_SECURITYPOLICY,
                          "PubSub receive. Validation security mode error");
 
-    rv = needsDecryption(logger, currentNetworkMessage, securityMode, &doDecrypt);
+    rv = needsDecryption(logger, nm, securityMode, &doDecrypt);
     UA_CHECK_STATUS_WARN(rv, return rv, logger, UA_LOGCATEGORY_SECURITYPOLICY,
                          "PubSub receive. Decryption security mode error");
 
-    if (doValidate || doDecrypt) {
-
+    if(doValidate || doDecrypt) {
         void *channelContext = readerGroup->securityPolicyContext;
         UA_PubSubSecurityPolicy *securityPolicy = readerGroup->config.securityPolicy;
         UA_CHECK_MEM_ERROR(channelContext, return UA_STATUSCODE_BADINVALIDARGUMENT,
@@ -152,9 +142,8 @@ verifyAndDecryptNetworkMessage(const UA_Logger *logger,
                            "PubSub receive. securityPolicy must be set when security mode"
                            "is enabled to sign and/or encrypt");
 
-        rv = verifyAndDecrypt(
-            logger, buffer, currentPosition, currentNetworkMessage,
-            doValidate, doDecrypt, channelContext, securityPolicy);
+        rv = verifyAndDecrypt(logger, buffer, currentPosition, nm,
+                              doValidate, doDecrypt, channelContext, securityPolicy);
 
         UA_CHECK_STATUS_ERROR(rv, return rv, logger, UA_LOGCATEGORY_SERVER,
                               "PubSub receive. verify and decrypt failed");

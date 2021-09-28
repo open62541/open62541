@@ -70,7 +70,23 @@ def generateObjectNodeCode(node):
     code = []
     code.append("UA_ObjectAttributes attr = UA_ObjectAttributes_default;")
     if node.eventNotifier:
-        code.append("attr.eventNotifier = true;")
+        code_part = "attr.eventNotifier = "
+        is_first = True
+        if node.eventNotifier & 1:
+            code_part += "UA_EVENTNOTIFIER_SUBSCRIBE_TO_EVENT"
+            is_first = False
+        if node.eventNotifier & 4:
+            if not is_first:
+                code_part += " || "
+            code_part += "UA_EVENTNOTIFIER_HISTORY_READ"
+            is_first = False
+        if node.eventNotifier & 8:
+            if not is_first:
+                code_part += " || "
+            code_part += "UA_EVENTNOTIFIER_HISTORY_WRITE"
+            is_first = False
+        code_part += ";"
+        code.append(code_part)
     return code
 
 def setNodeDatatypeRecursive(node, nodeset):
@@ -288,8 +304,10 @@ def generateExtensionObjectSubtypeCode(node, parent, nodeset, global_var_code, i
     if values == None:
         values = []
     for idx,subv in enumerate(values):
-        encField = node.encodingRule[idx]
-        memberName = makeCIdentifier(lowerFirstChar(encField[0]))
+        if subv is None:
+            continue
+        encField = node.encodingRule[idx].name
+        memberName = makeCIdentifier(lowerFirstChar(encField))
 
         # Check if this is an array
         accessor = "." if isArrayElement else "->"
@@ -298,7 +316,7 @@ def generateExtensionObjectSubtypeCode(node, parent, nodeset, global_var_code, i
             if len(subv) == 0:
                 continue
             logger.info("ExtensionObject contains array")
-            memberName = makeCIdentifier(lowerFirstChar(encField[0]))
+            memberName = makeCIdentifier(lowerFirstChar(encField))
             encTypeString = "UA_" + subv[0].__class__.__name__
             instanceNameSafe = makeCIdentifier(instanceName)
             code.append("UA_STACKARRAY(" + encTypeString + ", " + instanceNameSafe + "_" + memberName+", {0});".format(len(subv)))
@@ -322,7 +340,7 @@ def generateExtensionObjectSubtypeCode(node, parent, nodeset, global_var_code, i
                 code.append(generateNodeValueCode(valueName,
                             subv, instanceName,valueName, global_var_code, asIndirect=False))
         else:
-            memberName = makeCIdentifier(lowerFirstChar(encField[0]))
+            memberName = makeCIdentifier(lowerFirstChar(encField))
             code.append(generateNodeValueCode(instanceName + accessor + memberName + "Size", subv,
                                               instanceName,valueName, global_var_code, asIndirect=False))
 

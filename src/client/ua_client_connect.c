@@ -7,11 +7,10 @@
  */
 
 #include <open62541/transport_generated.h>
-#include <open62541/transport_generated_encoding_binary.h>
 #include <open62541/transport_generated_handling.h>
-#include <open62541/types_generated_encoding_binary.h>
 
 #include "ua_client_internal.h"
+#include "ua_types_encoding_binary.h"
 
 #define UA_MINMESSAGESIZE 8192
 #define UA_SESSION_LOCALNONCELENGTH 32
@@ -152,9 +151,10 @@ encryptUserIdentityToken(UA_Client *client, const UA_String *userTokenSecurityPo
 
     UA_Byte *pos = encrypted.data;
     const UA_Byte *end = &encrypted.data[encrypted.length];
-    UA_UInt32_encodeBinary(&length, &pos, end);
+    retval = UA_UInt32_encodeBinary(&length, &pos, end);
     memcpy(pos, tokenData->data, tokenData->length);
     memcpy(&pos[tokenData->length], client->remoteNonce.data, client->remoteNonce.length);
+    UA_assert(retval == UA_STATUSCODE_GOOD);
 
     /* Add padding
      *
@@ -231,7 +231,9 @@ processERRResponse(UA_Client *client, const UA_ByteString *chunk) {
 
     size_t offset = 0;
     UA_TcpErrorMessage errMessage;
-    UA_StatusCode res = UA_TcpErrorMessage_decodeBinary(chunk, &offset, &errMessage);
+    UA_StatusCode res =
+        UA_decodeBinaryInternal(chunk, &offset, &errMessage,
+                                &UA_TRANSPORT[UA_TRANSPORT_TCPERRORMESSAGE], NULL);
     if(res != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR_CHANNEL(&client->config.logger, &client->channel,
                              "Received an ERR response that could not be decoded with StatusCode %s",
@@ -262,7 +264,9 @@ processACKResponse(UA_Client *client, const UA_ByteString *chunk) {
     /* Decode the message */
     size_t offset = 0;
     UA_TcpAcknowledgeMessage ackMessage;
-    client->connectStatus = UA_TcpAcknowledgeMessage_decodeBinary(chunk, &offset, &ackMessage);
+    client->connectStatus =
+        UA_decodeBinaryInternal(chunk, &offset, &ackMessage,
+                                &UA_TRANSPORT[UA_TRANSPORT_TCPACKNOWLEDGEMESSAGE], NULL);
     if(client->connectStatus != UA_STATUSCODE_GOOD) {
         UA_LOG_INFO(&client->config.logger, UA_LOGCATEGORY_NETWORK,
                      "Decoding ACK message failed");
@@ -303,14 +307,18 @@ sendHELMessage(UA_Client *client) {
 
     UA_Byte *bufPos = &message.data[8]; /* skip the header */
     const UA_Byte *bufEnd = &message.data[message.length];
-    client->connectStatus = UA_TcpHelloMessage_encodeBinary(&hello, &bufPos, bufEnd);
+    client->connectStatus =
+        UA_encodeBinaryInternal(&hello, &UA_TRANSPORT[UA_TRANSPORT_TCPHELLOMESSAGE],
+                                &bufPos, &bufEnd, NULL, NULL);
 
     /* Encode the message header at offset 0 */
     UA_TcpMessageHeader messageHeader;
     messageHeader.messageTypeAndChunkType = UA_CHUNKTYPE_FINAL + UA_MESSAGETYPE_HEL;
     messageHeader.messageSize = (UA_UInt32) ((uintptr_t)bufPos - (uintptr_t)message.data);
     bufPos = message.data;
-    retval = UA_TcpMessageHeader_encodeBinary(&messageHeader, &bufPos, bufEnd);
+    retval = UA_encodeBinaryInternal(&messageHeader,
+                                     &UA_TRANSPORT[UA_TRANSPORT_TCPMESSAGEHEADER],
+                                     &bufPos, &bufEnd, NULL, NULL);
     if(retval != UA_STATUSCODE_GOOD) {
         conn->releaseSendBuffer(conn, &message);
         return retval;
@@ -349,7 +357,8 @@ processOPNResponse(UA_Client *client, const UA_ByteString *message) {
 
     /* Decode the response */
     UA_OpenSecureChannelResponse response;
-    retval = UA_OpenSecureChannelResponse_decodeBinary(message, &offset, &response);
+    retval = UA_decodeBinaryInternal(message, &offset, &response,
+                                     &UA_TYPES[UA_TYPES_OPENSECURECHANNELRESPONSE], NULL);
     if(retval != UA_STATUSCODE_GOOD) {
         closeSecureChannel(client);
         return;

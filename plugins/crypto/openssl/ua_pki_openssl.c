@@ -12,7 +12,7 @@
 
 #include "securitypolicy_openssl_common.h"
 
-#ifdef UA_ENABLE_ENCRYPTION_OPENSSL
+#if defined(UA_ENABLE_ENCRYPTION_OPENSSL) || defined(UA_ENABLE_ENCRYPTION_LIBRESSL)
 #include <openssl/x509.h>
 #include <openssl/x509_vfy.h>
 #include <openssl/x509v3.h>
@@ -26,14 +26,11 @@
 static const unsigned char *
 bstrchr(const unsigned char *s, const unsigned char ch, size_t l) {
     /* find first occurrence of c in char s[] for length l*/
-    /* handle special case */
-    if(l == 0)
-        return (NULL);
-
-    for(; *s != ch; ++s, --l)
-        if(l == 0)
-            return (NULL);
-    return s;
+    for(; l > 0; ++s, --l) {
+        if(*s == ch)
+            return s;
+    }
+    return NULL;
 }
 
 static const unsigned char *
@@ -734,7 +731,13 @@ UA_CertificateVerification_CertFolders(UA_CertificateVerification * cv,
     cv->verifyApplicationURI = UA_CertificateVerification_VerifyApplicationURI;
     cv->clear = UA_CertificateVerification_clear;
     cv->context = context;
-    cv->verifyCertificate = UA_CertificateVerification_Verify;
+    if(trustListFolder == NULL &&
+       issuerListFolder == NULL &&
+       revocationListFolder == NULL) {
+        cv->verifyCertificate = UA_VerifyCertificateAllowAll;
+    } else {
+        cv->verifyCertificate = UA_CertificateVerification_Verify;
+    }
 
     /* Only set the folder paths. They will be reloaded during runtime. */
 
@@ -746,4 +749,4 @@ UA_CertificateVerification_CertFolders(UA_CertificateVerification * cv,
 }
 #endif
 
-#endif  /* end of UA_ENABLE_ENCRYPTION_OPENSSL */
+#endif  /* end of defined(UA_ENABLE_ENCRYPTION_OPENSSL) || defined(UA_ENABLE_ENCRYPTION_LIBRESSL) */

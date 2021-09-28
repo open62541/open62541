@@ -9,9 +9,7 @@
 #include <open62541/plugin/securitypolicy_default.h>
 #include <open62541/server_config_default.h>
 #include <open62541/server_pubsub.h>
-
-#include "open62541/types_generated_encoding_binary.h"
-#include "open62541/types_generated_handling.h"
+#include <open62541/types_generated_handling.h>
 
 #include "ua_pubsub.h"
 #include "ua_server_internal.h"
@@ -31,7 +29,7 @@
 #define READERGROUP_COUNT        2       /* Value to add readergroup to connection */
 #define CHECK_READERGROUP_COUNT  3       /* Value to check readergroup count */
 
-#define UA_AES128CTR_SIGNING_KEY_LENGTH 16
+#define UA_AES128CTR_SIGNING_KEY_LENGTH 32
 #define UA_AES128CTR_KEY_LENGTH 16
 #define UA_AES128CTR_KEYNONCE_LENGTH 4
 

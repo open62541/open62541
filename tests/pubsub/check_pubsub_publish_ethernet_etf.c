@@ -7,9 +7,10 @@
 #include <open62541/plugin/pubsub_ethernet.h>
 #include <open62541/server_config_default.h>
 #include <open62541/server_pubsub.h>
+
 #include <check.h>
 #include <time.h>
-#include "open62541/types_generated_encoding_binary.h"
+
 #include "ua_pubsub.h"
 #include "ua_server_internal.h"
 #include "ua_pubsub_networkmessage.h"
@@ -28,7 +29,7 @@
 #define SECONDS                           1000 * 1000 * 1000
 #define MILLI_SECONDS                     1000 * 1000
 #define SECONDS_SLEEP                     5
-#define NANO_SECONDS_SLEEP_PUB            CYCLE_TIME * MILLI_SECONDS * 0.6
+#define NANO_SECONDS_SLEEP_PUB            (long) (CYCLE_TIME * MILLI_SECONDS * 0.6)
 #define QBV_OFFSET                        25 * 1000
 #define CLOCKID                           CLOCK_TAI
 #define SOCKET_PRIORITY                   3
@@ -60,7 +61,7 @@ START_TEST(EthernetSendWithoutVLANTag) {
     UA_UInt64 transmission_time;
     nextnanosleeptime.tv_sec = SECONDS_SLEEP;
     nextnanosleeptime.tv_nsec = NANO_SECONDS_SLEEP_PUB;
-    UA_UInt64 roundOffCycleTime = (CYCLE_TIME * MILLI_SECONDS) - NANO_SECONDS_SLEEP_PUB;
+    UA_UInt64 roundOffCycleTime = (long) (CYCLE_TIME * MILLI_SECONDS) - NANO_SECONDS_SLEEP_PUB;
 
     /* Add connection to the server */
     UA_PubSubConnectionConfig connectionConfig;
@@ -113,7 +114,7 @@ START_TEST(EthernetSendWithVLANTag) {
     UA_UInt64 transmission_time;
     nextnanosleeptime.tv_sec = SECONDS_SLEEP;
     nextnanosleeptime.tv_nsec = NANO_SECONDS_SLEEP_PUB;
-    UA_UInt64 roundOffCycleTime = (CYCLE_TIME * MILLI_SECONDS) - NANO_SECONDS_SLEEP_PUB;
+    UA_UInt64 roundOffCycleTime = (long) (CYCLE_TIME * MILLI_SECONDS) - NANO_SECONDS_SLEEP_PUB;
     /* Add connection to the server */
     UA_PubSubConnectionConfig connectionConfig;
     memset(&connectionConfig, 0, sizeof(UA_PubSubConnectionConfig));

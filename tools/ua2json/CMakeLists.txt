@@ -1,5 +1,4 @@
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
-include_directories(${PROJECT_SOURCE_DIR}/src)
 
 add_executable(ua2json ua2json.c)
 target_link_libraries(ua2json open62541 ${open62541_LIBRARIES})

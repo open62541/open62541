@@ -20,23 +20,48 @@
 _UA_BEGIN_DECLS
 
 #define UA_JSON_MAXTOKENCOUNT 1000
-    
+
+/* Returns the number of bytes the value src takes in json encoding. Returns
+ * zero if an error occurs. */
 size_t
-UA_calcSizeJson(const void *src, const UA_DataType *type,
-                UA_String *namespaces, size_t namespaceSize,
-                UA_String *serverUris, size_t serverUriSize,
-                UA_Boolean useReversible) UA_FUNC_ATTR_WARN_UNUSED_RESULT;
+UA_calcSizeJsonInternal(const void *src, const UA_DataType *type,
+                        const UA_String *namespaces, size_t namespaceSize,
+                        const UA_String *serverUris, size_t serverUriSize,
+                        UA_Boolean useReversible) UA_FUNC_ATTR_WARN_UNUSED_RESULT;
 
+/* Encodes the scalar value described by type to json encoding.
+ *
+ * @param src The value. Must not be NULL.
+ * @param type The value type. Must not be NULL.
+ * @param bufPos Points to a pointer to the current position in the encoding
+ *        buffer. Must not be NULL.
+ * @param bufEnd Points to a pointer to the end of the encoding buffer (encoding
+ *        always stops before *buf_end). Must not be NULL.
+ * @param namespaces An array of namespaces
+ * @param namespaceSize The size of the namespaces array
+ * @param serverUris An array of serverUris
+ * @param serverUriSize The size of the serverUris array
+ * @param useReversible preserve datatypes in json encoding
+ * @return Returns a statuscode whether encoding succeeded. */
 UA_StatusCode
-UA_encodeJson(const void *src, const UA_DataType *type,
-              uint8_t **bufPos, const uint8_t **bufEnd,
-              UA_String *namespaces, size_t namespaceSize,
-              UA_String *serverUris, size_t serverUriSize,
-              UA_Boolean useReversible) UA_FUNC_ATTR_WARN_UNUSED_RESULT;
+UA_encodeJsonInternal(const void *src, const UA_DataType *type, uint8_t **bufPos,
+                      const uint8_t **bufEnd, const UA_String *namespaces,
+                      size_t namespaceSize, const UA_String *serverUris,
+                      size_t serverUriSize,
+                      UA_Boolean useReversible) UA_FUNC_ATTR_WARN_UNUSED_RESULT;
 
+/* Decodes a scalar value described by type from json encoding.
+ *
+ * @param src The buffer with the json encoded value. Must not be NULL.
+ * @param dst The target value. Must not be NULL. The target is assumed to have
+ *        size type->memSize. The value is reset to zero before decoding. If
+ *        decoding fails, members are deleted and the value is reset (zeroed)
+ *        again.
+ * @param type The value type. Must not be NULL.
+ * @return Returns a statuscode whether decoding succeeded. */
 UA_StatusCode
-UA_decodeJson(const UA_ByteString *src, void *dst,
-              const UA_DataType *type) UA_FUNC_ATTR_WARN_UNUSED_RESULT;
+UA_decodeJsonInternal(const UA_ByteString *src, void *dst,
+                      const UA_DataType *type) UA_FUNC_ATTR_WARN_UNUSED_RESULT;
 
 /* Interal Definitions
  *
@@ -53,10 +78,10 @@ typedef struct {
     UA_Boolean calcOnly; /* Only compute the length of the decoding */
 
     size_t namespacesSize;
-    UA_String *namespaces;
+    const UA_String *namespaces;
     
     size_t serverUrisSize;
-    UA_String *serverUris;
+    const UA_String *serverUris;
 } CtxJson;
 
 UA_StatusCode writeJsonObjStart(CtxJson *ctx);

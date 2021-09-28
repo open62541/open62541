@@ -52,21 +52,21 @@ getNodeType(UA_Server *server, const UA_NodeHead *head) {
 
     /* Return the first matching candidate */
     for(size_t i = 0; i < head->referencesSize; ++i) {
-        if(head->references[i].isInverse != inverse)
+        UA_NodeReferenceKind *rk = &head->references[i];
+        if(rk->isInverse != inverse)
             continue;
-        if(head->references[i].referenceTypeIndex != parentRefIndex)
+        if(rk->referenceTypeIndex != parentRefIndex)
             continue;
 
-        UA_assert(head->references[i].idTreeRoot);
-        const UA_ReferenceTarget *rt =
-            UA_NodeReferenceKind_firstTarget(&head->references[i]);
-        UA_assert(rt);
-        const UA_Node *type = UA_NODESTORE_GET(server, &rt->targetId.nodeId);
-        if(!type)
-            continue;
-        if(type->head.nodeClass == typeNodeClass)
-            return type; /* Don't release the node that is returned */
-        UA_NODESTORE_RELEASE(server, type);
+        const UA_ReferenceTarget *t = NULL;
+        while((t = UA_NodeReferenceKind_iterate(rk, t))) {
+            const UA_Node *type = UA_NODESTORE_GETFROMREF(server, t->targetId);
+            if(!type)
+                continue;
+            if(type->head.nodeClass == typeNodeClass)
+                return type; /* Don't release the node that is returned */
+            UA_NODESTORE_RELEASE(server, type);
+        }
     }
 
     return NULL;
@@ -164,10 +164,9 @@ getAllInterfaceChildNodeIds(UA_Server *server, const UA_NodeId *objectNode,
     UA_ReferenceTypeSet reftypes_subtype =
         UA_REFTYPESET(UA_REFERENCETYPEINDEX_HASSUBTYPE);
 
-    /* Don't include the start node */
     UA_StatusCode retval = browseRecursive(server, 1, objectTypeNode, UA_BROWSEDIRECTION_INVERSE,
                                            &reftypes_subtype, UA_NODECLASS_OBJECTTYPE,
-                                           false, &hasInterfaceCandidatesSize,
+                                           true, &hasInterfaceCandidatesSize,
                                            &hasInterfaceCandidates);
 
     if (retval != UA_STATUSCODE_GOOD)

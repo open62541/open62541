@@ -461,9 +461,9 @@ UA_ServerConfig_setMinimalCustomBuffer(UA_ServerConfig *config, UA_UInt16 portNu
     }
 
     /* Initialize the Access Control plugin */
-    retval = UA_AccessControl_default(config, true,
-                &config->securityPolicies[config->securityPoliciesSize-1].policyUri,
-                usernamePasswordsSize, usernamePasswords);
+    retval = UA_AccessControl_default(config, true, NULL,
+                                      &config->securityPolicies[config->securityPoliciesSize-1].policyUri,
+                                      usernamePasswordsSize, usernamePasswords);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_ServerConfig_clean(config);
         return retval;
@@ -709,7 +709,12 @@ UA_ServerConfig_setDefaultWithSecurityPolicies(UA_ServerConfig *conf,
         return retval;
     }
 
-    retval = UA_AccessControl_default(conf, true,
+    UA_CertificateVerification accessControlVerification;
+    retval = UA_CertificateVerification_Trustlist(&accessControlVerification,
+                                                  trustList, trustListSize,
+                                                  issuerList, issuerListSize,
+                                                  revocationList, revocationListSize);
+    retval |= UA_AccessControl_default(conf, true, &accessControlVerification,
                 &conf->securityPolicies[conf->securityPoliciesSize-1].policyUri,
                 usernamePasswordsSize, usernamePasswords);
     if(retval != UA_STATUSCODE_GOOD) {

@@ -9,7 +9,6 @@
 #include <open62541/server_config_default.h>
 #include <open62541/server_pubsub.h>
 #include <open62541/types.h>
-#include <open62541/types_generated_encoding_binary.h>
 
 #include "ua_pubsub.h"
 #include "ua_server_internal.h"
@@ -66,11 +65,7 @@ START_TEST(SinglePublishDataSetField){
         pdsConfig.name = UA_STRING("PublishedDataSet 1");
         UA_AddPublishedDataSetResult result = UA_Server_addPublishedDataSet(server, &pdsConfig, &publishedDataSet1);
         ck_assert_int_eq(result.addResult, UA_STATUSCODE_GOOD);
-        UA_DataSetWriterConfig dataSetWriterConfig;
-        memset(&dataSetWriterConfig, 0, sizeof(dataSetWriterConfig));
-        dataSetWriterConfig.name = UA_STRING("DataSetWriter 1");
-        retVal = UA_Server_addDataSetWriter(server, writerGroup1, publishedDataSet1, &dataSetWriterConfig, &dataSetWriter1);
-        ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+
         UA_DataSetFieldConfig dataSetFieldConfig;
         memset(&dataSetFieldConfig, 0, sizeof(UA_DataSetFieldConfig));
         dataSetFieldConfig.dataSetFieldType = UA_PUBSUB_DATASETFIELD_VARIABLE;
@@ -80,6 +75,12 @@ START_TEST(SinglePublishDataSetField){
         dataSetFieldConfig.field.variable.publishParameters.attributeId = UA_ATTRIBUTEID_VALUE;
         UA_DataSetFieldResult dsFieldResult = UA_Server_addDataSetField(server, publishedDataSet1, &dataSetFieldConfig, NULL);
         ck_assert_int_eq(dsFieldResult.result, UA_STATUSCODE_GOOD);
+
+        UA_DataSetWriterConfig dataSetWriterConfig;
+        memset(&dataSetWriterConfig, 0, sizeof(dataSetWriterConfig));
+        dataSetWriterConfig.name = UA_STRING("DataSetWriter 1");
+        retVal = UA_Server_addDataSetWriter(server, writerGroup1, publishedDataSet1, &dataSetWriterConfig, &dataSetWriter1);
+        ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
 
         UA_WriterGroup *wg = UA_WriterGroup_findWGbyId(server, writerGroup1);
         ck_assert(wg != 0);

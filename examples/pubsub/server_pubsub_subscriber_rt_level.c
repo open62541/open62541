@@ -69,12 +69,12 @@ externalDataReadNotificationCallback(UA_Server *server, const UA_NodeId *session
 
 static void
 SubscribeAfterWriteCallback(
-   UA_Server *ipServer,
-   const UA_NodeId *ipDataSetReaderId,
-   const UA_NodeId *ipReaderGroupId,
-   const UA_NodeId *ipTargetVariableId,
-   void *ipTargetVariableContext,
-   UA_DataValue **ippExternalValueSource) { // received value has already been copied to ippExternalValueSource
+    UA_Server *ipServer,
+    const UA_NodeId *ipDataSetReaderId,
+    const UA_NodeId *ipReaderGroupId,
+    const UA_NodeId *ipTargetVariableId,
+    void *ipTargetVariableContext,
+    UA_DataValue **ippExternalValueSource) { // received value has already been copied to ippExternalValueSource
 
     (void) ipServer;
     (void) ipDataSetReaderId;
@@ -255,6 +255,7 @@ addDataSetReader(UA_Server *server) {
     readerConfig.writerGroupId    = 100;
     readerConfig.dataSetWriterId  = 62541;
     readerConfig.messageSettings.encoding = UA_EXTENSIONOBJECT_DECODED;
+    readerConfig.expectedEncoding = UA_PUBSUB_RT_RAW;
     readerConfig.messageSettings.content.decoded.type = &UA_TYPES[UA_TYPES_UADPDATASETREADERMESSAGEDATATYPE];
     UA_UadpDataSetReaderMessageDataType *dataSetReaderMessage = UA_UadpDataSetReaderMessageDataType_new();
     dataSetReaderMessage->networkMessageContentMask           = (UA_UadpNetworkMessageContentMask)(UA_UADPNETWORKMESSAGECONTENTMASK_PUBLISHERID |

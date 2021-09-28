@@ -154,12 +154,12 @@ START_TEST(readSpeedWithEncoding) {
         /* Encode the request */
         UA_Byte *pos = request_msg.data;
         const UA_Byte *end = &request_msg.data[request_msg.length];
-        retval |= UA_encodeBinary(&request, &UA_TYPES[UA_TYPES_READREQUEST], &pos, &end, NULL, NULL);
+        retval |= UA_encodeBinaryInternal(&request, &UA_TYPES[UA_TYPES_READREQUEST], &pos, &end, NULL, NULL);
         ck_assert(retval == UA_STATUSCODE_GOOD);
 
         /* Decode the request */
         size_t offset = 0;
-        retval |= UA_decodeBinary(&request_msg, &offset, &req, &UA_TYPES[UA_TYPES_READREQUEST], NULL);
+        retval |= UA_decodeBinaryInternal(&request_msg, &offset, &req, &UA_TYPES[UA_TYPES_READREQUEST], NULL);
 
         UA_LOCK(&server->serviceMutex);
         Service_Read(server, &server->adminSession, &req, &res);
@@ -167,7 +167,7 @@ START_TEST(readSpeedWithEncoding) {
 
         UA_Byte *rpos = response_msg.data;
         const UA_Byte *rend = &response_msg.data[response_msg.length];
-        retval |= UA_encodeBinary(&res, &UA_TYPES[UA_TYPES_READRESPONSE],
+        retval |= UA_encodeBinaryInternal(&res, &UA_TYPES[UA_TYPES_READRESPONSE],
                                   &rpos, &rend, NULL, NULL);
 
         UA_ReadRequest_clear(&req);

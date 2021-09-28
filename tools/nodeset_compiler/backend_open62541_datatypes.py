@@ -26,7 +26,7 @@ def makeCIdentifier(value):
 
 # Escape C strings:
 def makeCLiteral(value):
-    return re.sub(r'(?<!\\)"', r'\\"', value.replace('\\', r'\\').replace('"', r'\"').replace('\n', r'\\n').replace('\r', r''))
+    return re.sub(r'(?<!\\)"', r'\\"', value.replace('\\', r'\\').replace('"', r'\"').replace('\n', r'\n').replace('\r', r''))
 
 def splitStringLiterals(value, splitLength=500):
     """
@@ -74,6 +74,8 @@ def generateByteStringCode(value, valueName, global_var_code, isPointer):
                                                         accessor='->' if isPointer else '.')
 
 def generateLocalizedTextCode(value, alloc=False):
+    if value.text is None:
+        value.text = ""
     vt = makeCLiteral(value.text)
     return u"UA_LOCALIZEDTEXT{}(\"{}\", {})".format("_ALLOC" if alloc else "", '' if value.locale is None else value.locale,
                                                    splitStringLiterals(vt))

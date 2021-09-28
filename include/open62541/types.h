@@ -323,9 +323,7 @@ UA_ByteString_equal(const UA_ByteString *string1,
                            (const UA_String*)string2);
 }
 
-/* Returns a non-cryptographic hash for the String.
- * Uses FNV non-cryptographic hash function. See
- * https://en.wikipedia.org/wiki/Fowler%E2%80%93Noll%E2%80%93Vo_hash_function */
+/* Returns a non-cryptographic hash of a bytestring */
 UA_UInt32 UA_EXPORT
 UA_ByteString_hash(UA_UInt32 initialHashValue,
                    const UA_Byte *data, size_t size);
@@ -1020,9 +1018,17 @@ struct UA_DataType {
     UA_DataTypeMember *members;
 };
 
-/* Test if the data type is a numeric builtin data type. This includes Boolean,
- * integers and floating point numbers. Not included are DateTime and
- * StatusCode. */
+/* Datatype arrays with custom type definitions can be added in a linked list to
+ * the client or server configuration. */
+typedef struct UA_DataTypeArray {
+    const struct UA_DataTypeArray *next;
+    const size_t typesSize;
+    const UA_DataType *types;
+} UA_DataTypeArray;
+
+/* Test if the data type is a numeric builtin data type (via the typeKind field
+ * of UA_DataType). This includes Boolean, integers and floating point numbers.
+ * Not included are DateTime, StatusCode and Enums. */
 UA_Boolean
 UA_DataType_isNumeric(const UA_DataType *type);
 
@@ -1082,17 +1088,121 @@ void UA_EXPORT UA_clear(void *p, const UA_DataType *type);
  * @param type The datatype description of the variable */
 void UA_EXPORT UA_delete(void *p, const UA_DataType *type);
 
-#ifdef UA_ENABLE_TYPEDESCRIPTION
 /* Pretty-print the value from the datatype.
  *
  * @param p The memory location of the variable
  * @param type The datatype description of the variable
  * @param output A string that is memory-allocated for the pretty-printed output
  * @return Indicates whether the operation succeeded*/
+#ifdef UA_ENABLE_TYPEDESCRIPTION
 UA_StatusCode UA_EXPORT
 UA_print(const void *p, const UA_DataType *type, UA_String *output);
 #endif
 
+/* Compare two variables and return their order. This can also be used to test
+ * for equality of two values.
+ *
+ * For numerical types (including StatusCodes and Enums), their natural order is
+ * used. NaN is the "smallest" value for floating point values. Different bit
+ * representations of NaN are considered identical.
+ *
+ * All other types have *some* absolute ordering so that a < b, b < c -> a < c.
+ *
+ * The ordering of arrays (also strings) is in "shortlex": A shorter array is
+ * always smaller than a longer array. Otherwise the first different element
+ * defines the order.
+ *
+ * When members of different types are permitted (in Variants and
+ * ExtensionObjects), the memory address in the "UA_DataType*" pointer
+ * determines which variable is smaller.
+ *
+ * @param p1 The memory location of the first value
+ * @param p2 The memory location of the first value
+ * @param type The datatype description of both values */
+UA_Order UA_EXPORT
+UA_order(const void *p1, const void *p2, const UA_DataType *type);
+
+/**
+ * Encoding/Decoding
+ * ^^^^^^^^^^^^^^^^^^
+ * Encoding and decoding routines for the available formats. For all formats
+ * the _calcSize, _encode and _decode methods are provided. */
+
+/* Returns the number of bytes the value p takes in binary encoding. Returns
+ * zero if an error occurs. */
+UA_EXPORT size_t
+UA_calcSizeBinary(const void *p, const UA_DataType *type);
+
+/* Encodes a data-structure in the binary format. If outBuf has a length of
+ * zero, a buffer of the required size is allocated. Otherwise, encoding into
+ * the existing outBuf is attempted (and may fail if the buffer is too
+ * small). */
+UA_EXPORT UA_StatusCode
+UA_encodeBinary(const void *p, const UA_DataType *type,
+                UA_ByteString *outBuf);
+
+/* The structure with the decoding options may be extended in the future.
+ * Zero-out the entire structure initially to ensure code-compatibility when
+ * more fields are added in a later release. */
+typedef struct {
+    const UA_DataTypeArray *customTypes; /* Begin of a linked list with custom
+                                          * datatype definitions */
+} UA_DecodeBinaryOptions;
+
+/* Decodes a data structure from the input buffer in the binary format. It is
+ * assumed that `p` points to valid memory (not necessarily zeroed out). The
+ * options can be NULL and will be disregarded in that case. */
+UA_EXPORT UA_StatusCode
+UA_decodeBinary(const UA_ByteString *inBuf,
+                void *p, const UA_DataType *type,
+                const UA_DecodeBinaryOptions *options);
+
+typedef struct {
+    const UA_String *namespaces;
+    size_t namespacesSize;
+    const UA_String *serverUris;
+    size_t serverUrisSize;
+    UA_Boolean useReversible;
+} UA_EncodeJsonOptions;
+
+/* Returns the number of bytes the value src takes in json encoding. Returns
+ * zero if an error occurs. */
+UA_EXPORT size_t
+UA_calcSizeJson(const void *src, const UA_DataType *type,
+                const UA_EncodeJsonOptions *options);
+
+/* Encodes the scalar value described by type to json encoding.
+ *
+ * @param src The value. Must not be NULL.
+ * @param type The value type. Must not be NULL.
+ * @param outBuf Pointer to ByteString containing the result if the encoding was
+ * successful
+ * @return Returns a statuscode whether encoding succeeded. */
+UA_StatusCode UA_EXPORT
+UA_encodeJson(const void *src, const UA_DataType *type, UA_ByteString *outBuf,
+              const UA_EncodeJsonOptions *options);
+
+/* The structure with the decoding options may be extended in the future.
+ * Zero-out the entire structure initially to ensure code-compatibility when
+ * more fields are added in a later release. */
+typedef struct {
+    const UA_DataTypeArray *customTypes; /* Begin of a linked list with custom
+                                          * datatype definitions */
+} UA_DecodeJsonOptions;
+
+/* Decodes a scalar value described by type from json encoding.
+ *
+ * @param src The buffer with the json encoded value. Must not be NULL.
+ * @param dst The target value. Must not be NULL. The target is assumed to have
+ *        size type->memSize. The value is reset to zero before decoding. If
+ *        decoding fails, members are deleted and the value is reset (zeroed)
+ *        again.
+ * @param type The value type. Must not be NULL.
+ * @param options The options struct for decoding, currently unused
+ * @return Returns a statuscode whether decoding succeeded. */
+UA_StatusCode UA_EXPORT
+UA_decodeJson(const UA_ByteString *src, void *dst, const UA_DataType *type,
+              const UA_DecodeJsonOptions *options);
 /**
  * .. _array-handling:
  *
@@ -1203,14 +1313,6 @@ UA_Guid UA_EXPORT UA_Guid_random(void);     /* no cryptographic entropy */
 #else
 # define UA_TYPENAME(name)
 #endif
-
-/* Datatype arrays with custom type definitions can be added in a linked list to
- * the client or server configuration. */
-typedef struct UA_DataTypeArray {
-    const struct UA_DataTypeArray *next;
-    const size_t typesSize;
-    const UA_DataType *types;
-} UA_DataTypeArray;
 
 /**
  * .. include:: types_generated.rst */

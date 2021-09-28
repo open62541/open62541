@@ -66,6 +66,7 @@ function build_amalgamation {
           -DUA_ENABLE_SUBSCRIPTIONS_EVENTS=ON \
           -DUA_ENABLE_JSON_ENCODING=ON \
           -DUA_ENABLE_PUBSUB=ON \
+          -DUA_ENABLE_PUBSUB_ETH_UADP=ON \
           -DUA_ENABLE_PUBSUB_DELTAFRAMES=ON \
           -DUA_ENABLE_PUBSUB_INFORMATIONMODEL=ON \
           -DUA_ENABLE_PUBSUB_MONITORING=ON \
@@ -76,6 +77,12 @@ function build_amalgamation {
 ############################
 # Build and Run Unit Tests #
 ############################
+
+function set_capabilities {
+    for filename in bin/tests/*; do
+        sudo setcap cap_sys_ptrace,cap_net_raw,cap_net_admin=eip $filename
+    done
+} 
 
 function unit_tests {
     mkdir -p build; cd build; rm -rf *
@@ -88,11 +95,13 @@ function unit_tests {
           -DUA_ENABLE_HISTORIZING=ON \
           -DUA_ENABLE_JSON_ENCODING=ON \
           -DUA_ENABLE_PUBSUB=ON \
+          -DUA_ENABLE_PUBSUB_ETH_UADP=ON \
           -DUA_ENABLE_PUBSUB_DELTAFRAMES=ON \
           -DUA_ENABLE_PUBSUB_INFORMATIONMODEL=ON \
           -DUA_ENABLE_PUBSUB_MONITORING=ON \
           ..
     make ${MAKEOPTS}
+    set_capabilities
     make test ARGS="-V"
 }
 
@@ -111,27 +120,28 @@ function unit_tests_mt {
     make test ARGS="-V"
 }
 
-function unit_tests_encryption_mbedtls {
+function unit_tests_alarms {
     mkdir -p build; cd build; rm -rf *
     cmake -DCMAKE_BUILD_TYPE=Debug \
           -DUA_BUILD_EXAMPLES=ON \
           -DUA_BUILD_UNIT_TESTS=ON \
-          -DUA_ENABLE_DISCOVERY=ON \
-          -DUA_ENABLE_DISCOVERY_MULTICAST=ON \
-          -DUA_ENABLE_ENCRYPTION=MBEDTLS \
+          -DUA_ENABLE_DA=ON \
+          -DUA_ENABLE_SUBSCRIPTIONS_EVENTS=ON \
+	      -DUA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS=ON \
+          -DUA_NAMESPACE_ZERO=FULL \
           ..
     make ${MAKEOPTS}
     make test ARGS="-V"
 }
 
-function unit_tests_encryption_openssl {
+function unit_tests_encryption {
     mkdir -p build; cd build; rm -rf *
     cmake -DCMAKE_BUILD_TYPE=Debug \
           -DUA_BUILD_EXAMPLES=ON \
           -DUA_BUILD_UNIT_TESTS=ON \
           -DUA_ENABLE_DISCOVERY=ON \
           -DUA_ENABLE_DISCOVERY_MULTICAST=ON \
-          -DUA_ENABLE_ENCRYPTION=OPENSSL \
+          -DUA_ENABLE_ENCRYPTION=$1 \
           ..
     make ${MAKEOPTS}
     make test ARGS="-V"
@@ -166,7 +176,7 @@ function unit_tests_valgrind {
           -DUA_BUILD_UNIT_TESTS=ON \
           -DUA_ENABLE_DISCOVERY=ON \
           -DUA_ENABLE_DISCOVERY_MULTICAST=ON \
-          -DUA_ENABLE_ENCRYPTION=MBEDTLS \
+          -DUA_ENABLE_ENCRYPTION=$1 \
           -DUA_ENABLE_SUBSCRIPTIONS_EVENTS=ON \
           -DUA_ENABLE_HISTORIZING=ON \
           -DUA_ENABLE_JSON_ENCODING=ON \
@@ -174,13 +184,11 @@ function unit_tests_valgrind {
           -DUA_ENABLE_PUBSUB_DELTAFRAMES=ON \
           -DUA_ENABLE_PUBSUB_INFORMATIONMODEL=ON \
           -DUA_ENABLE_PUBSUB_MONITORING=ON \
-          -DUA_ENABLE_PUBSUB_ENCRYPTION=ON \
           -DUA_ENABLE_UNIT_TESTS_MEMCHECK=ON \
           ..
     make ${MAKEOPTS}
     make test ARGS="-V"
 }
-
 
 ##############################
 # Clang Static Code Analysis #

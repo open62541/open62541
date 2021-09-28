@@ -137,7 +137,7 @@ struct UA_Server {
     UA_UInt32 lastLocalMonitoredItemId;
 
 # ifdef UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS
-    LIST_HEAD(, UA_ConditionSource) headConditionSource;
+    LIST_HEAD(, UA_ConditionSource) conditionSources;
 # endif
 
 #endif
@@ -162,15 +162,8 @@ struct UA_Server {
 
 extern const struct aa_head refNameTree;
 
-UA_ReferenceTarget *
-UA_NodeReferenceKind_firstTarget(const UA_NodeReferenceKind *kind);
-
-UA_ReferenceTarget *
-UA_NodeReferenceKind_nextTarget(const UA_NodeReferenceKind *kind,
-                                const UA_ReferenceTarget *current);
-
-UA_ReferenceTarget *
-UA_NodeReferenceKind_findTarget(const UA_NodeReferenceKind *kind,
+const UA_ReferenceTarget *
+UA_NodeReferenceKind_findTarget(const UA_NodeReferenceKind *rk,
                                 const UA_ExpandedNodeId *targetId);
 
 /**************************/
@@ -362,11 +355,6 @@ setVariableNode_dataSource(UA_Server *server, const UA_NodeId nodeId,
                            const UA_DataSource dataSource);
 
 UA_StatusCode
-setMethodNode_callback(UA_Server *server,
-                       const UA_NodeId methodNodeId,
-                       UA_MethodCallback methodCallback);
-
-UA_StatusCode
 writeAttribute(UA_Server *server, UA_Session *session,
                const UA_NodeId *nodeId, const UA_AttributeId attributeId,
                const void *attr, const UA_DataType *attr_type);
@@ -400,6 +388,11 @@ void monitoredItem_sampleCallback(UA_Server *server, UA_MonitoredItem *monitored
 
 UA_Subscription *
 UA_Server_getSubscriptionById(UA_Server *server, UA_UInt32 subscriptionId);
+
+UA_StatusCode
+triggerEvent(UA_Server *server, const UA_NodeId eventNodeId,
+             const UA_NodeId origin, UA_ByteString *outEventId,
+             const UA_Boolean deleteEventNode);
 
 #endif /* UA_ENABLE_SUBSCRIPTIONS */
 
@@ -470,9 +463,6 @@ UA_StatusCode UA_FUNC_ATTR_WARN_UNUSED_RESULT
 RefTree_init(RefTree *rt);
 
 void RefTree_clear(RefTree *rt);
-
-UA_StatusCode UA_FUNC_ATTR_WARN_UNUSED_RESULT
-RefTree_add(RefTree *rt, const UA_ExpandedNodeId *target, UA_Boolean *duplicate);
 
 UA_StatusCode UA_FUNC_ATTR_WARN_UNUSED_RESULT
 RefTree_addNodeId(RefTree *rt, const UA_NodeId *target, UA_Boolean *duplicate);
@@ -604,7 +594,7 @@ UA_StatusCode writeNs0VariableArray(UA_Server *server, UA_UInt32 id, void *v,
 
 /* Returns NULL if the target is an external Reference (per the ExpandedNodeId) */
 const UA_Node *
-UA_NODESTORE_GETFROMREF(UA_Server *server, const UA_ReferenceTarget *target);
+UA_NODESTORE_GETFROMREF(UA_Server *server, UA_NodePointer target);
 
 #define UA_NODESTORE_RELEASE(server, node)                              \
     server->config.nodestore.releaseNode(server->config.nodestore.context, node)
