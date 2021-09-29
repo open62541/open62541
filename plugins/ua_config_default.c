@@ -45,8 +45,11 @@ UA_Server *
 UA_Server_new() {
     UA_ServerConfig config;
     memset(&config, 0, sizeof(UA_ServerConfig));
-    /* Set a default logger and NodeStore for the initialization */
+    /* Set a default logger, NS0 bootstraping and NodeStore for the initialization */
     config.logger = UA_Log_Stdout_;
+    config.bootstrapNs0BaseNodes = UA_TRUE;
+    config.bootstrapNs0Nodes = UA_TRUE;
+    config.initializeNs0NodesInRunStartup = UA_FALSE;
     if(UA_STATUSCODE_GOOD != UA_Nodestore_HashMap(&config.nodestore)) {
         return NULL;
     }
@@ -181,11 +184,6 @@ setDefaultConfig(UA_ServerConfig *conf) {
 
     /* Endpoints */
     /* conf->endpoints = {0, NULL}; */
-
-    /* Namespace 0 bootstraping */
-    conf->bootstrapNs0BaseNodes = UA_TRUE;
-    conf->bootstrapNs0Nodes = UA_TRUE;
-    conf->initializeNs0NodesInRunStartup = UA_FALSE;
 
     /* Certificate Verification that accepts every certificate. Can be
      * overwritten when the policy is specialized. */
