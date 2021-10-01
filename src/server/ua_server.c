@@ -497,8 +497,11 @@ getSecurityPolicyByUri(const UA_Server *server, const UA_ByteString *securityPol
  * SecurityPolicies */
 static UA_StatusCode
 verifyServerApplicationURI(const UA_Server *server) {
+    const UA_String securityPolicyNoneUri = UA_STRING("http://opcfoundation.org/UA/SecurityPolicy#None");
     for(size_t i = 0; i < server->config.securityPoliciesSize; i++) {
         UA_SecurityPolicy *sp = &server->config.securityPolicies[i];
+        if(UA_String_equal(&sp->policyUri, &securityPolicyNoneUri) && (sp->localCertificate.length == 0))
+            continue;
         UA_StatusCode retval = server->config.certificateVerification.
             verifyApplicationURI(server->config.certificateVerification.context,
                                  &sp->localCertificate,
