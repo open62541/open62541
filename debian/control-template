@@ -22,7 +22,7 @@ Package: libopen62541-<soname>-dev
 Section: libdevel
 Architecture: any
 Multi-Arch: same
-Depends: libopen62541-<soname> (= ${binary:Version}), ${misc:Depends}
+Depends: libopen62541-<soname> (= ${binary:Version}), ${misc:Depends}, libmbedtls-dev
 Description: Open source implementation of OPC UA - development files
  open62541 (http://open62541.org) is an open source and free implementation
  of OPC UA (OPC Unified Architecture) written in the common subset of the
