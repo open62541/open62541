@@ -240,7 +240,7 @@ if(UA_BUILD_FUZZING OR UA_BUILD_OSS_FUZZ OR UA_BUILD_FUZZING_CORPUS)
     set(UA_ENABLE_DISCOVERY ON CACHE STRING "" FORCE)
     set(UA_ENABLE_DISCOVERY_MULTICAST ON CACHE STRING "" FORCE)
     set(UA_ENABLE_ENCRYPTION ON CACHE STRING "OFF" FORCE)
-    set(UA_ENABLE_ENCRYPTION_MBEDTLS ON CACHE STRING "" FORCE)    
+    set(UA_ENABLE_ENCRYPTION_MBEDTLS ON CACHE STRING "" FORCE)
     set(UA_ENABLE_HISTORIZING ON CACHE STRING "" FORCE)
     set(UA_ENABLE_JSON_ENCODING ON CACHE STRING "" FORCE)
     set(UA_ENABLE_SUBSCRIPTIONS ON CACHE STRING "" FORCE)
@@ -543,7 +543,7 @@ if(UA_ENABLE_ENCRYPTION_OPENSSL OR UA_ENABLE_MQTT_TLS_OPENSSL)
     find_package(OpenSSL REQUIRED)
     list(APPEND open62541_LIBRARIES ${OPENSSL_LIBRARIES})
     endif ()
-    
+
 if(UA_ENABLE_ENCRYPTION_LIBRESSL)
     # See https://github.com/libressl-portable/portable/blob/master/FindLibreSSL.cmake
     find_package(LibreSSL REQUIRED)
@@ -791,6 +791,8 @@ endif()
 
 set(exported_headers ${exported_headers}
                      ${PROJECT_BINARY_DIR}/src_generated/open62541/config.h
+                     ${PROJECT_SOURCE_DIR}/deps/ms_stdint.h
+                     ${PROJECT_SOURCE_DIR}/include/open62541/architecture_definitions.h
                      ${ua_architecture_headers_beginning}
                      )
 
@@ -810,8 +812,6 @@ if(UA_ENABLE_HISTORIZING)
 endif()
 
 set(exported_headers ${exported_headers}
-                     ${PROJECT_SOURCE_DIR}/deps/ms_stdint.h
-                     ${PROJECT_SOURCE_DIR}/include/open62541/architecture_definitions.h
                      ${PROJECT_BINARY_DIR}/src_generated/open62541/statuscodes.h
                      ${PROJECT_BINARY_DIR}/src_generated/open62541/nodeids.h
                      ${PROJECT_SOURCE_DIR}/include/open62541/common.h
@@ -910,7 +910,7 @@ set(lib_sources ${PROJECT_SOURCE_DIR}/src/ua_types.c
                 ${PROJECT_SOURCE_DIR}/deps/pcg_basic.c
                 ${PROJECT_SOURCE_DIR}/deps/base64.c
                 ${PROJECT_SOURCE_DIR}/deps/aa_tree.c
-                
+
                 ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_config.c)
 
 set(default_plugin_headers ${PROJECT_SOURCE_DIR}/plugins/include/open62541/plugin/accesscontrol_default.h
@@ -1614,8 +1614,8 @@ set(UA_install_tools_files "tools/generate_datatypes.py"
     "tools/generate_nodeid_header.py"
     "tools/generate_statuscode_descriptions.py")
 
-install(DIRECTORY ${UA_install_tools_dirs} 
-    DESTINATION ${open62541_install_tools_dir} 
+install(DIRECTORY ${UA_install_tools_dirs}
+    DESTINATION ${open62541_install_tools_dir}
     USE_SOURCE_PERMISSIONS
     FILES_MATCHING
     PATTERN "*"
@@ -1669,7 +1669,7 @@ if(NOT UA_ENABLE_AMALGAMATION)
     endforeach()
 
 else()
-    # Export amalgamated header open62541.h which is generated due to build of 
+    # Export amalgamated header open62541.h which is generated due to build of
     # open62541-object
     install(FILES ${PROJECT_BINARY_DIR}/open62541.h DESTINATION include)
 endif()
