@@ -216,7 +216,7 @@ sendSymmetricServiceRequest(UA_Client *client, const void *request,
                          (unsigned)rqId, requestType->typeName);
 #else
     UA_LOG_DEBUG_CHANNEL(&client->config.logger, &client->channel,
-                         "Sending request with RequestId %u of type %" PRIi16,
+                         "Sending request with RequestId %u of type %" PRIu32,
                          (unsigned)rqId, requestType->binaryEncodingId.identifier.numeric);
 #endif
 

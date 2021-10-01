@@ -429,7 +429,7 @@ sendResponse(UA_Server *server, UA_Session *session, UA_SecureChannel *channel,
                              (unsigned)requestId, responseType->typeName);
 #else
         UA_LOG_DEBUG_SESSION(&server->config.logger, session,
-                             "Sending reponse for RequestId %u of type %" PRIi16,
+                             "Sending reponse for RequestId %u of type %" PRIu32,
                              (unsigned)requestId, responseType->binaryEncodingId.identifier.numeric);
 #endif
     } else {
@@ -439,7 +439,7 @@ sendResponse(UA_Server *server, UA_Session *session, UA_SecureChannel *channel,
                              (unsigned)requestId, responseType->typeName);
 #else
         UA_LOG_DEBUG_CHANNEL(&server->config.logger, channel,
-                             "Sending reponse for RequestId %u of type %" PRIi16,
+                             "Sending reponse for RequestId %u of type %" PRIu32,
                              (unsigned)requestId, responseType->binaryEncodingId.identifier.numeric);
 #endif
     }
@@ -561,7 +561,7 @@ processMSGDecoded(UA_Server *server, UA_SecureChannel *channel, UA_UInt32 reques
                                    requestType->typeName);
 #else
             UA_LOG_WARNING_CHANNEL(&server->config.logger, channel,
-                                   "Service %" PRIi16 " refused without a valid session",
+                                   "Service %" PRIu32 " refused without a valid session",
                                    requestType->binaryEncodingId.identifier.numeric);
 #endif
             return sendServiceFault(channel, requestId, requestHeader->requestHandle,
@@ -584,7 +584,7 @@ processMSGDecoded(UA_Server *server, UA_SecureChannel *channel, UA_UInt32 reques
                                requestType->typeName);
 #else
         UA_LOG_WARNING_SESSION(&server->config.logger, session,
-                               "Service %" PRIi16 " refused on a non-activated session",
+                               "Service %" PRIu32 " refused on a non-activated session",
                                requestType->binaryEncodingId.identifier.numeric);
 #endif
         if(session != &anonymousSession) {
