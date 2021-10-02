@@ -64,11 +64,14 @@ detectVariantDeadband(const UA_Variant *value, const UA_Variant *oldValue,
     if(!UA_Variant_isScalar(value))
         length = value->arrayLength;
     uintptr_t data = (uintptr_t)value->data;
+    uintptr_t oldData = (uintptr_t)oldValue->data;
+    UA_UInt32 memSize = value->type->memSize;
     for(size_t i = 0; i < length; ++i) {
-        if(detectScalarDeadBand((const void*)data, oldValue->data, value->type,
-                                deadbandValue))
+        if(detectScalarDeadBand((const void*)data, (const void*)oldData,
+                                value->type, deadbandValue))
             return true;
-        data += value->type->memSize;
+        data += memSize;
+        oldData += memSize;
     }
     return false;
 }
