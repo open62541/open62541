@@ -1836,7 +1836,6 @@ UA_Array_delete(void *p, size_t size, const UA_DataType *type) {
 UA_Boolean
 UA_DataType_isNumeric(const UA_DataType *type) {
     switch(type->typeKind) {
-    case UA_DATATYPEKIND_BOOLEAN:
     case UA_DATATYPEKIND_SBYTE:
     case UA_DATATYPEKIND_BYTE:
     case UA_DATATYPEKIND_INT16:

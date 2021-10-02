@@ -1027,8 +1027,8 @@ typedef struct UA_DataTypeArray {
 } UA_DataTypeArray;
 
 /* Test if the data type is a numeric builtin data type (via the typeKind field
- * of UA_DataType). This includes Boolean, integers and floating point numbers.
- * Not included are DateTime, StatusCode and Enums. */
+ * of UA_DataType). This includes integers and floating point numbers. Not
+ * included are Boolean, DateTime, StatusCode and Enums. */
 UA_Boolean
 UA_DataType_isNumeric(const UA_DataType *type);
 

@@ -26,9 +26,7 @@
 static UA_Boolean
 detectScalarDeadBand(const void *data1, const void *data2,
                      const UA_DataType *type, const UA_Double deadband) {
-    if(type->typeKind == UA_DATATYPEKIND_BOOLEAN) {
-        UA_DETECT_DEADBAND(UA_Boolean);
-    } else if(type->typeKind == UA_DATATYPEKIND_SBYTE) {
+    if(type->typeKind == UA_DATATYPEKIND_SBYTE) {
         UA_DETECT_DEADBAND(UA_SByte);
     } else if(type->typeKind == UA_DATATYPEKIND_BYTE) {
         UA_DETECT_DEADBAND(UA_Byte);
