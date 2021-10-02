@@ -153,6 +153,19 @@ void UA_sleep_ms(unsigned long ms);
 # define UA_INLINE inline
 #endif
 
+/**
+ * Assertions
+ * ----------
+ * The assert macro is disabled by defining NDEBUG. It is often forgotten to
+ * include -DNDEBUG in the compiler flags when using the single-file release. So
+ * we make assertions dependent on the UA_DEBUG definition handled by CMake. */
+#ifdef UA_DEBUG
+# include <assert.h>
+# define UA_assert(ignore) assert(ignore)
+#else
+# define UA_assert(ignore) do {} while(0)
+#endif
+
 typedef struct {
     pthread_mutex_t mutex;
     pthread_mutexattr_t mutexAttr;
