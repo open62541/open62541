@@ -789,7 +789,8 @@ START_TEST(Server_MonitoredItemsAbsoluteFilterOnBool) {
 
     ck_assert_uint_eq(createResponse.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(createResponse.resultsSize, 1);
-    ck_assert_uint_eq(createResponse.results[0].statusCode, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(createResponse.results[0].statusCode,
+                      UA_STATUSCODE_BADFILTERNOTALLOWED);
     UA_CreateMonitoredItemsResponse_clear(&createResponse);
 }
 END_TEST
