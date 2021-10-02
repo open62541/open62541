@@ -166,6 +166,15 @@ void UA_sleep_ms(unsigned long ms);
 
 #if UA_MULTITHREADING >= 100
 
+/**
+ * Inline Functions
+ * ---------------- */
+#ifdef _MSC_VER
+# define UA_INLINE __inline
+#else
+# define UA_INLINE inline
+#endif
+
 typedef struct {
     CRITICAL_SECTION mutex;
     int mutexCounter;

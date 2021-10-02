@@ -813,8 +813,6 @@ endif()
 
 set(exported_headers ${exported_headers}
                      ${PROJECT_BINARY_DIR}/src_generated/open62541/config.h
-                     ${PROJECT_SOURCE_DIR}/deps/ms_stdint.h
-                     ${PROJECT_SOURCE_DIR}/include/open62541/architecture_definitions.h
                      ${ua_architecture_headers_beginning}
                      )
 
@@ -834,6 +832,8 @@ if(UA_ENABLE_HISTORIZING)
 endif()
 
 set(exported_headers ${exported_headers}
+                     ${PROJECT_SOURCE_DIR}/deps/ms_stdint.h
+                     ${PROJECT_SOURCE_DIR}/include/open62541/architecture_definitions.h
                      ${PROJECT_BINARY_DIR}/src_generated/open62541/statuscodes.h
                      ${PROJECT_BINARY_DIR}/src_generated/open62541/nodeids.h
                      ${PROJECT_SOURCE_DIR}/include/open62541/common.h

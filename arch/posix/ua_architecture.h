@@ -144,6 +144,15 @@ void UA_sleep_ms(unsigned long ms);
 
 #include <pthread.h>
 
+/**
+ * Inline Functions
+ * ---------------- */
+#ifdef _MSC_VER
+# define UA_INLINE __inline
+#else
+# define UA_INLINE inline
+#endif
+
 typedef struct {
     pthread_mutex_t mutex;
     pthread_mutexattr_t mutexAttr;
