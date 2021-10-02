@@ -179,12 +179,14 @@ checkAdjustMonitoredItemParams(UA_Server *server, UA_Session *session,
             case UA_DEADBANDTYPE_NONE:
                 break;
             case UA_DEADBANDTYPE_ABSOLUTE:
-                if(!valueType || !UA_DataType_isNumeric(valueType))
+                if(mon->itemToMonitor.attributeId != UA_ATTRIBUTEID_VALUE ||
+                   !valueType || !UA_DataType_isNumeric(valueType))
                     return UA_STATUSCODE_BADFILTERNOTALLOWED;
                 break;
 #ifdef UA_ENABLE_DA
             case UA_DEADBANDTYPE_PERCENT: {
-                if(!valueType || !UA_DataType_isNumeric(valueType))
+                if(mon->itemToMonitor.attributeId != UA_ATTRIBUTEID_VALUE ||
+                   !valueType || !UA_DataType_isNumeric(valueType))
                     return UA_STATUSCODE_BADFILTERNOTALLOWED;
                 /* If percentage deadband is supported, look up the range values
                  * and precompute as if it was an absolute deadband. */
