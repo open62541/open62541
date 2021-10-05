@@ -73,7 +73,7 @@ static void teardown(void) {
 
 /***************************************************************************************************/
 static void AddConnection(
-    char *pName, 
+    char *pName,
     UA_UInt32 PublisherId,
     UA_NodeId *opConnectionId) {
 
@@ -89,8 +89,8 @@ static void AddConnection(
     UA_Variant_setScalar(&connectionConfig.address, &networkAddressUrl,
                          &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
 
-    connectionConfig.publisherIdType = UA_PUBSUB_PUBLISHERID_NUMERIC;
-    connectionConfig.publisherId.numeric = PublisherId;
+    connectionConfig.publisherIdType = UA_PUBLISHERIDTYPE_UINT32;
+    connectionConfig.publisherId.uint32 = PublisherId;
 
     ck_assert(UA_Server_addPubSubConnection(server, &connectionConfig, opConnectionId) == UA_STATUSCODE_GOOD);
     ck_assert(UA_PubSubConnection_regist(server, opConnectionId) == UA_STATUSCODE_GOOD);
@@ -99,7 +99,7 @@ static void AddConnection(
 /***************************************************************************************************/
 static void AddWriterGroup(
     UA_NodeId *pConnectionId,
-    char *pName, 
+    char *pName,
     UA_UInt32 WriterGroupId,
     UA_Duration PublishingInterval,
     UA_NodeId *opWriterGroupId) {
@@ -133,10 +133,10 @@ static void AddWriterGroup(
 /***************************************************************************************************/
 static void AddPublishedDataSet(
     UA_NodeId *pWriterGroupId,
-    char *pPublishedDataSetName, 
+    char *pPublishedDataSetName,
     char *pDataSetWriterName,
     UA_UInt32 DataSetWriterId,
-    UA_NodeId *opPublishedDataSetId, 
+    UA_NodeId *opPublishedDataSetId,
     UA_NodeId *opPublishedVarId,
     UA_NodeId *opDataSetWriterId) {
 
@@ -206,7 +206,7 @@ static void AddPublishedDataSet(
 /***************************************************************************************************/
 static void AddReaderGroup(
     UA_NodeId *pConnectionId,
-    char *pName, 
+    char *pName,
     UA_NodeId *opReaderGroupId) {
 
     ck_assert(pConnectionId != 0);
@@ -226,7 +226,7 @@ static void AddReaderGroup(
 /***************************************************************************************************/
 static void AddDataSetReader(
     UA_NodeId *pReaderGroupId,
-    char *pName, 
+    char *pName,
     UA_UInt32 PublisherId,
     UA_UInt32 WriterGroupId,
     UA_UInt32 DataSetWriterId,
@@ -242,7 +242,7 @@ static void AddDataSetReader(
     UA_DataSetReaderConfig readerConfig;
     memset (&readerConfig, 0, sizeof(UA_DataSetReaderConfig));
     readerConfig.name = UA_STRING(pName);
-    UA_Variant_setScalar(&readerConfig.publisherId, (UA_UInt16*) &PublisherId, &UA_TYPES[UA_TYPES_UINT16]);
+    UA_Variant_setScalar(&readerConfig.publisherId, (UA_UInt32*) &PublisherId, &UA_TYPES[UA_TYPES_UINT32]);
     readerConfig.writerGroupId    = (UA_UInt16) WriterGroupId;
     readerConfig.dataSetWriterId  = (UA_UInt16) DataSetWriterId;
     readerConfig.messageReceiveTimeout = MessageReceiveTimeout;
@@ -303,7 +303,7 @@ static void AddDataSetReader(
     UA_FieldTargetVariable *pTargetVariables =  (UA_FieldTargetVariable *)
         UA_calloc(readerConfig.dataSetMetaData.fieldsSize, sizeof(UA_FieldTargetVariable));
     ck_assert(pTargetVariables != 0);
-    
+
     UA_FieldTargetDataType_init(&pTargetVariables[0].targetVariable);
 
     pTargetVariables[0].targetVariable.attributeId  = UA_ATTRIBUTEID_VALUE;
@@ -311,7 +311,7 @@ static void AddDataSetReader(
 
     ck_assert(UA_Server_DataSetReader_createTargetVariables(server, *opDataSetReaderId,
         readerConfig.dataSetMetaData.fieldsSize, pTargetVariables) == UA_STATUSCODE_GOOD);
-    
+
     UA_FieldTargetDataType_clear(&pTargetVariables[0].targetVariable);
     UA_free(pTargetVariables);
     pTargetVariables = 0;
@@ -328,7 +328,7 @@ static void AddDataSetReader(
 static void ServerDoProcess(
     const char *pMessage,
     const UA_UInt32 Sleep_ms,             /* use at least publishing interval */
-    const UA_UInt32 NoOfRunIterateCycles) 
+    const UA_UInt32 NoOfRunIterateCycles)
 {
     ck_assert(pMessage != 0);
 
@@ -349,7 +349,7 @@ static void ValidatePublishSubscribe(
     UA_NodeId SubscribedVarId,
     UA_Int32 TestValue,
     UA_UInt32 Sleep_ms, /* use at least publishing interval */
-    UA_UInt32 NoOfRunIterateCycles) 
+    UA_UInt32 NoOfRunIterateCycles)
 {
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "ValidatePublishSubscribe(): set variable to publish");
 
@@ -367,7 +367,7 @@ static void ValidatePublishSubscribe(
     retVal = UA_Server_readValue(server, SubscribedVarId, &SubscribedNodeData);
     ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
     ck_assert(SubscribedNodeData.data != 0);
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "ValidatePublishSubscribe(): check value: %i vs. %i", 
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "ValidatePublishSubscribe(): check value: %i vs. %i",
         TestValue, *(UA_Int32 *)SubscribedNodeData.data);
     ck_assert_int_eq(TestValue, *(UA_Int32 *)SubscribedNodeData.data);
     UA_Variant_clear(&SubscribedNodeData);
@@ -379,7 +379,7 @@ static void ValidatePublishSubscribe(
 static void ValidatePublishSubscribe_fast_path(
     UA_Int32 TestValue,
     UA_UInt32 Sleep_ms, /* use at least publishing interval */
-    UA_UInt32 NoOfRunIterateCycles) 
+    UA_UInt32 NoOfRunIterateCycles)
 {
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "ValidatePublishSubscribe_fast_path(): set variable to publish");
 
@@ -447,7 +447,7 @@ START_TEST(Test_basic) {
     UA_NodeId PDSId_Conn1_WG1_PDS1;
     UA_NodeId_init(&PDSId_Conn1_WG1_PDS1);
 
-    AddPublishedDataSet(&WGId_Conn1_WG1, "Conn1_WG1_PDS1", "Conn1_WG1_DS1", 1, &PDSId_Conn1_WG1_PDS1, 
+    AddPublishedDataSet(&WGId_Conn1_WG1, "Conn1_WG1_PDS1", "Conn1_WG1_DS1", 1, &PDSId_Conn1_WG1_PDS1,
         &VarId_Conn1_WG1, &DsWId_Conn1_WG1_DS1);
 
     /* setup Connection 2: corresponding readergroup and reader for Connection 1 */
@@ -538,7 +538,7 @@ START_TEST(Test_basic) {
 
     /* check that PubSubStateChange callback has been called for the specific DataSetReader */
     ck_assert_int_eq(1, CallbackCnt);
-    
+
     /* enable the publisher WriterGroup again */
     /* DataSetReader state shall be back to operational after receiving a new message */
     ExpectedCallbackStatus = UA_STATUSCODE_GOOD;
@@ -657,14 +657,14 @@ static void PubSubStateChangeCallback_different_timeouts (
 
 /* TODO: test does not work if we add the same reader on the same connection ...
     maybe only 1 reader per connection receives the data ... ??
-    or the second reader overwrites the first? 
+    or the second reader overwrites the first?
     issue: https://github.com/open62541/open62541/issues/3901 */
 
 START_TEST(Test_different_timeouts) {
 
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "\n\nSTART: Test_different_timeouts");
 
-    /* 
+    /*
         Connection 1: WG1 : DSW1 (pub interval = 20)    --> Connection 1: RG1 : DSR1 (msgrcvtimeout = 100)
                                                         --> Connection 1: RG1 : DSR2 (msgrcvtimeout = 200)
                                                         --> Connection 2: RG1 : DSR1 (msgrcvtimeout = 300)
@@ -695,7 +695,7 @@ START_TEST(Test_different_timeouts) {
     UA_NodeId PDSId_Conn1_WG1_PDS1;
     UA_NodeId_init(&PDSId_Conn1_WG1_PDS1);
     UA_UInt32 DSWNo_Conn1_WG1 = 1;
-    AddPublishedDataSet(&WGId_Conn1_WG1, "Conn1_WG1_PDS1", "Conn1_WG1_DS1", DSWNo_Conn1_WG1, &PDSId_Conn1_WG1_PDS1, 
+    AddPublishedDataSet(&WGId_Conn1_WG1, "Conn1_WG1_PDS1", "Conn1_WG1_DS1", DSWNo_Conn1_WG1, &PDSId_Conn1_WG1_PDS1,
         &VarId_Conn1_WG1_DS1, &DsWId_Conn1_WG1_DS1);
 
     UA_NodeId RGId_Conn1_RG1;
@@ -707,7 +707,7 @@ START_TEST(Test_different_timeouts) {
     UA_NodeId VarId_Conn1_RG1_DSR1;
     UA_NodeId_init(&VarId_Conn1_RG1_DSR1);
     UA_Duration MessageReceiveTimeout_Conn1_RG1_DSR1 = 100.0;
-    AddDataSetReader(&RGId_Conn1_RG1, "Conn1_RG1_DSR1", PublisherNo_Conn1, WGNo_Conn1_WG1, DSWNo_Conn1_WG1, 
+    AddDataSetReader(&RGId_Conn1_RG1, "Conn1_RG1_DSR1", PublisherNo_Conn1, WGNo_Conn1_WG1, DSWNo_Conn1_WG1,
         MessageReceiveTimeout_Conn1_RG1_DSR1, &VarId_Conn1_RG1_DSR1, &DSRId_Conn1_RG1_DSR1);
 
     UA_String strId;
@@ -722,7 +722,7 @@ START_TEST(Test_different_timeouts) {
     // UA_NodeId VarId_Conn1_RG1_DSR2;
     // UA_NodeId_init(&VarId_Conn1_RG1_DSR2);
     // UA_Duration MessageReceiveTimeout_Conn1_RG1_DSR2 = 200.0;
-    // AddDataSetReader(&RGId_Conn1_RG1, "Conn1_RG1_DSR2", PublisherNo_Conn1, WGNo_Conn1_WG1, DSWNo_Conn1_WG1, 
+    // AddDataSetReader(&RGId_Conn1_RG1, "Conn1_RG1_DSR2", PublisherNo_Conn1, WGNo_Conn1_WG1, DSWNo_Conn1_WG1,
     //     MessageReceiveTimeout_Conn1_RG1_DSR2, &VarId_Conn1_RG1_DSR2, &DSRId_Conn1_RG1_DSR2);
     // UA_String_init(&strId);
     // UA_NodeId_print(&DSRId_Conn1_RG1_DSR2, &strId);
@@ -744,7 +744,7 @@ START_TEST(Test_different_timeouts) {
     UA_NodeId VarId_Conn2_RG1_DSR1;
     UA_NodeId_init(&VarId_Conn2_RG1_DSR1);
     UA_Duration MessageReceiveTimeout_Conn2_RG1_DSR1 = 300.0;
-    AddDataSetReader(&RGId_Conn2_RG1, "Conn2_RG1_DSR1", PublisherNo_Conn1, WGNo_Conn1_WG1, DSWNo_Conn1_WG1, MessageReceiveTimeout_Conn2_RG1_DSR1, 
+    AddDataSetReader(&RGId_Conn2_RG1, "Conn2_RG1_DSR1", PublisherNo_Conn1, WGNo_Conn1_WG1, DSWNo_Conn1_WG1, MessageReceiveTimeout_Conn2_RG1_DSR1,
         &VarId_Conn2_RG1_DSR1, &DSRId_Conn2_RG1_DSR1);
     UA_String_init(&strId);
     UA_NodeId_print(&DSRId_Conn2_RG1_DSR1, &strId);
@@ -762,9 +762,9 @@ START_TEST(Test_different_timeouts) {
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "check normal pubsub operation");
 
     /* set all writer- and readergroups to operational (this triggers the publish and subscribe callback)
-        enable the readers first, because otherwise we receive something immediately and start the 
+        enable the readers first, because otherwise we receive something immediately and start the
         message receive timeout.
-        If we do some other checks before triggering the server_run_iterate function, this could 
+        If we do some other checks before triggering the server_run_iterate function, this could
         cause a timeout. */
     ck_assert(UA_STATUSCODE_GOOD == UA_Server_setReaderGroupOperational(server, RGId_Conn1_RG1));
     ck_assert(UA_STATUSCODE_GOOD == UA_Server_setReaderGroupOperational(server, RGId_Conn2_RG1));
@@ -780,7 +780,7 @@ START_TEST(Test_different_timeouts) {
     // ck_assert(UA_Server_DataSetReader_getState(server, DSRId_Conn1_RG1_DSR2, &state) == UA_STATUSCODE_GOOD);
     // ck_assert(state == UA_PUBSUBSTATE_OPERATIONAL);
     ck_assert(UA_Server_DataSetReader_getState(server, DSRId_Conn2_RG1_DSR1, &state) == UA_STATUSCODE_GOOD);
-    ck_assert(state == UA_PUBSUBSTATE_OPERATIONAL); 
+    ck_assert(state == UA_PUBSUBSTATE_OPERATIONAL);
 
     /* check that publish/subscribe works (for all readers) -> set some test values */
     ValidatePublishSubscribe(VarId_Conn1_WG1_DS1, VarId_Conn1_RG1_DSR1, 10, (UA_UInt32) (PublishingInterval_Conn1_WG1), 20);
@@ -829,10 +829,10 @@ static void PubSubStateChangeCallback_wrong_timeout (
         "Component Id = %.*s, state = %i, status = 0x%08x %s", (UA_Int32) strId.length, strId.data, state, status, UA_StatusCode_name(status));
     UA_String_clear(&strId);
 
-    if ((UA_NodeId_equal(pubsubComponentId, &ExpectedCallbackComponentNodeId) == UA_TRUE) && 
+    if ((UA_NodeId_equal(pubsubComponentId, &ExpectedCallbackComponentNodeId) == UA_TRUE) &&
         (state == UA_PUBSUBSTATE_ERROR) &&
         (status == UA_STATUSCODE_BADTIMEOUT)) {
-        
+
         CallbackCnt++;
     }
 }
@@ -842,7 +842,7 @@ START_TEST(Test_wrong_timeout) {
 
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "\n\nSTART: Test_wrong_timeout");
 
-    /* 
+    /*
         Connection 1: WG1 : DSW1    --> Connection 1: RG1 : DSR1
     */
 
@@ -871,7 +871,7 @@ START_TEST(Test_wrong_timeout) {
     UA_NodeId PDSId_Conn1_WG1_PDS1;
     UA_NodeId_init(&PDSId_Conn1_WG1_PDS1);
     UA_UInt32 DSWNo_Conn1_WG1 = 1;
-    AddPublishedDataSet(&WGId_Conn1_WG1, "Conn1_WG1_PDS1", "Conn1_WG1_DS1", DSWNo_Conn1_WG1, &PDSId_Conn1_WG1_PDS1, 
+    AddPublishedDataSet(&WGId_Conn1_WG1, "Conn1_WG1_PDS1", "Conn1_WG1_DS1", DSWNo_Conn1_WG1, &PDSId_Conn1_WG1_PDS1,
         &VarId_Conn1_WG1_DS1, &DsWId_Conn1_WG1_DS1);
 
     UA_NodeId RGId_Conn1_RG1;
@@ -883,7 +883,7 @@ START_TEST(Test_wrong_timeout) {
     UA_NodeId VarId_Conn1_RG1_DSR1;
     UA_NodeId_init(&VarId_Conn1_RG1_DSR1);
     UA_Duration MessageReceiveTimeout_Conn1_RG1_DSR1 = 200.0;
-    AddDataSetReader(&RGId_Conn1_RG1, "Conn1_RG1_DSR1", PublisherNo_Conn1, WGNo_Conn1_WG1, DSWNo_Conn1_WG1, 
+    AddDataSetReader(&RGId_Conn1_RG1, "Conn1_RG1_DSR1", PublisherNo_Conn1, WGNo_Conn1_WG1, DSWNo_Conn1_WG1,
         MessageReceiveTimeout_Conn1_RG1_DSR1, &VarId_Conn1_RG1_DSR1, &DSRId_Conn1_RG1_DSR1);
 
     /* expected order of pubsub component timeouts: */
@@ -960,7 +960,7 @@ static void PubSubStateChangeCallback_many_components (
     if (ExpectedCallbackStateChange == UA_PUBSUBSTATE_ERROR) {
         /*  On error we want to verify the order of DataSetReader timeouts */
         ck_assert(UA_NodeId_equal(pubsubComponentId, &pExpectedComponentCallbackIds[CallbackCnt]) == UA_TRUE);
-    } /* when the state is set back to operational we cannot verify the order of StateChanges, because we 
+    } /* when the state is set back to operational we cannot verify the order of StateChanges, because we
             cannot know which DataSetReader will be operational first */
     CallbackCnt++;
 }
@@ -1003,7 +1003,7 @@ START_TEST(Test_many_components) {
     UA_NodeId PDSId_Conn1_WG1_PDS1;
     UA_NodeId_init(&PDSId_Conn1_WG1_PDS1);
     UA_UInt32 DSWNo_Conn1_WG1_DS1 = 1;
-    AddPublishedDataSet(&WGId_Conn1_WG1, "Conn1_WG1_PDS1", "Conn1_WG1_DS1", DSWNo_Conn1_WG1_DS1, &PDSId_Conn1_WG1_PDS1, 
+    AddPublishedDataSet(&WGId_Conn1_WG1, "Conn1_WG1_PDS1", "Conn1_WG1_DS1", DSWNo_Conn1_WG1_DS1, &PDSId_Conn1_WG1_PDS1,
         &VarId_Conn1_WG1_DS1, &DsWId_Conn1_WG1_DS1);
 
     UA_NodeId DsWId_Conn1_WG1_DS2;
@@ -1013,7 +1013,7 @@ START_TEST(Test_many_components) {
     UA_NodeId PDSId_Conn1_WG1_PDS2;
     UA_NodeId_init(&PDSId_Conn1_WG1_PDS2);
     UA_UInt32 DSWNo_Conn1_WG1_DS2 = 2;
-    AddPublishedDataSet(&WGId_Conn1_WG1, "Conn1_WG1_PDS2", "Conn1_WG1_DS2", DSWNo_Conn1_WG1_DS2, &PDSId_Conn1_WG1_PDS2, 
+    AddPublishedDataSet(&WGId_Conn1_WG1, "Conn1_WG1_PDS2", "Conn1_WG1_DS2", DSWNo_Conn1_WG1_DS2, &PDSId_Conn1_WG1_PDS2,
         &VarId_Conn1_WG1_DS2, &DsWId_Conn1_WG1_DS2);
 
 
@@ -1036,7 +1036,7 @@ START_TEST(Test_many_components) {
     UA_NodeId PDSId_Conn2_WG1_PDS1;
     UA_NodeId_init(&PDSId_Conn2_WG1_PDS1);
     UA_UInt32 DSWNo_Conn2_WG1_DS1 = 1;
-    AddPublishedDataSet(&WGId_Conn2_WG1, "Conn2_WG1_PDS1", "Conn2_WG1_DS1", DSWNo_Conn2_WG1_DS1, &PDSId_Conn2_WG1_PDS1, 
+    AddPublishedDataSet(&WGId_Conn2_WG1, "Conn2_WG1_PDS1", "Conn2_WG1_DS1", DSWNo_Conn2_WG1_DS1, &PDSId_Conn2_WG1_PDS1,
         &VarId_Conn2_WG1_DS1, &DsWId_Conn2_WG1_DS1);
 
 
@@ -1053,7 +1053,7 @@ START_TEST(Test_many_components) {
     UA_NodeId PDSId_Conn2_WG2_PDS1;
     UA_NodeId_init(&PDSId_Conn2_WG2_PDS1);
     UA_UInt32 DSWNo_Conn2_WG2_DS1 = 1;
-    AddPublishedDataSet(&WGId_Conn2_WG2, "Conn2_WG2_PDS1", "Conn2_WG2_DS1", DSWNo_Conn2_WG2_DS1, &PDSId_Conn2_WG2_PDS1, 
+    AddPublishedDataSet(&WGId_Conn2_WG2, "Conn2_WG2_PDS1", "Conn2_WG2_DS1", DSWNo_Conn2_WG2_DS1, &PDSId_Conn2_WG2_PDS1,
         &VarId_Conn2_WG2_DS1, &DsWId_Conn2_WG2_DS1);
 
     /* setup Connection 1: readers */
@@ -1066,7 +1066,7 @@ START_TEST(Test_many_components) {
     UA_NodeId VarId_Conn1_RG1_DSR1;
     UA_NodeId_init(&VarId_Conn1_RG1_DSR1);
     UA_Duration MessageReceiveTimeout_Conn1_RG1_DSR1 = 25.0;
-    AddDataSetReader(&RGId_Conn1_RG1, "Conn1_RG1_DSR1", PublisherNo_Conn2, WGNo_Conn2_WG1, DSWNo_Conn2_WG1_DS1, 
+    AddDataSetReader(&RGId_Conn1_RG1, "Conn1_RG1_DSR1", PublisherNo_Conn2, WGNo_Conn2_WG1, DSWNo_Conn2_WG1_DS1,
         MessageReceiveTimeout_Conn1_RG1_DSR1, &VarId_Conn1_RG1_DSR1, &DSRId_Conn1_RG1_DSR1);
     UA_String strId;
     UA_String_init(&strId);
@@ -1084,7 +1084,7 @@ START_TEST(Test_many_components) {
     UA_NodeId VarId_Conn2_RG1_DSR1;
     UA_NodeId_init(&VarId_Conn2_RG1_DSR1);
     UA_Duration MessageReceiveTimeout_Conn2_RG1_DSR1 = 40.0;
-    AddDataSetReader(&RGId_Conn2_RG1, "Conn2_RG1_DSR1", PublisherNo_Conn1, WGNo_Conn1_WG1, DSWNo_Conn1_WG1_DS1, 
+    AddDataSetReader(&RGId_Conn2_RG1, "Conn2_RG1_DSR1", PublisherNo_Conn1, WGNo_Conn1_WG1, DSWNo_Conn1_WG1_DS1,
         MessageReceiveTimeout_Conn2_RG1_DSR1, &VarId_Conn2_RG1_DSR1, &DSRId_Conn2_RG1_DSR1);
     UA_String_init(&strId);
     UA_NodeId_print(&DSRId_Conn2_RG1_DSR1, &strId);
@@ -1100,7 +1100,7 @@ START_TEST(Test_many_components) {
     UA_NodeId VarId_Conn2_RG2_DSR1;
     UA_NodeId_init(&VarId_Conn2_RG2_DSR1);
     UA_Duration MessageReceiveTimeout_Conn2_RG2_DSR1 = 45.0;
-    AddDataSetReader(&RGId_Conn2_RG2, "Conn2_RG2_DSR1", PublisherNo_Conn1, WGNo_Conn1_WG1, DSWNo_Conn1_WG1_DS2, 
+    AddDataSetReader(&RGId_Conn2_RG2, "Conn2_RG2_DSR1", PublisherNo_Conn1, WGNo_Conn1_WG1, DSWNo_Conn1_WG1_DS2,
         MessageReceiveTimeout_Conn2_RG2_DSR1, &VarId_Conn2_RG2_DSR1, &DSRId_Conn2_RG2_DSR1);
     UA_String_init(&strId);
     UA_NodeId_print(&DSRId_Conn2_RG2_DSR1, &strId);
@@ -1122,7 +1122,7 @@ START_TEST(Test_many_components) {
     UA_NodeId VarId_Conn3_RG1_DSR1;
     UA_NodeId_init(&VarId_Conn3_RG1_DSR1);
     UA_Duration MessageReceiveTimeout_Conn3_RG1_DSR1 = 25.0;
-    AddDataSetReader(&RGId_Conn3_RG1, "Conn3_RG1_DSR1", PublisherNo_Conn2, WGNo_Conn2_WG2, DSWNo_Conn2_WG2_DS1, 
+    AddDataSetReader(&RGId_Conn3_RG1, "Conn3_RG1_DSR1", PublisherNo_Conn2, WGNo_Conn2_WG2, DSWNo_Conn2_WG2_DS1,
         MessageReceiveTimeout_Conn3_RG1_DSR1, &VarId_Conn3_RG1_DSR1, &DSRId_Conn3_RG1_DSR1);
     UA_String_init(&strId);
     UA_NodeId_print(&DSRId_Conn3_RG1_DSR1, &strId);
@@ -1149,7 +1149,7 @@ START_TEST(Test_many_components) {
 
     /* check that publish/subscribe works -> set some test values */
 
-    /* use a low enough sleep value to ensure that publishing intervals and message receive timeouts 
+    /* use a low enough sleep value to ensure that publishing intervals and message receive timeouts
         are handled */
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "check Conn2_RG1_DSR1");
     ValidatePublishSubscribe(VarId_Conn1_WG1_DS1, VarId_Conn2_RG1_DSR1, 10, SleepTime, NoOfRunIterateCycles);
@@ -1213,7 +1213,7 @@ START_TEST(Test_many_components) {
 
     /* check number of timeouts */
     ck_assert_int_eq(ExpectedCallbackCnt, CallbackCnt);
-    
+
     /* enable the publisher WriterGroup again */
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "enable writergroup Conn 1 - WG 1");
     CallbackCnt = 0;
@@ -1264,10 +1264,10 @@ START_TEST(Test_many_components) {
     ck_assert(UA_Server_DataSetReader_getState(server, DSRId_Conn3_RG1_DSR1, &state) == UA_STATUSCODE_GOOD);
     ck_assert(state == UA_PUBSUBSTATE_OPERATIONAL);
     ValidatePublishSubscribe(VarId_Conn2_WG2_DS1, VarId_Conn3_RG1_DSR1, 119, SleepTime, NoOfRunIterateCycles);
-    
+
     /* check number of timeouts */
     ck_assert_int_eq(ExpectedCallbackCnt, CallbackCnt);
-    
+
     /* enable the publisher WriterGroup again */
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "enable writergroup");
     CallbackCnt = 0;
@@ -1317,7 +1317,7 @@ START_TEST(Test_many_components) {
     ck_assert(UA_Server_setWriterGroupOperational(server, WGId_Conn1_WG1) == UA_STATUSCODE_GOOD);
     ck_assert(UA_Server_setWriterGroupOperational(server, WGId_Conn2_WG1) == UA_STATUSCODE_GOOD);
     ck_assert(UA_Server_setWriterGroupOperational(server, WGId_Conn2_WG2) == UA_STATUSCODE_GOOD);
-    
+
     ServerDoProcess("C 1", SleepTime, NoOfRunIterateCycles);
 
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "disable all writers");
@@ -1407,7 +1407,7 @@ START_TEST(Test_update_config) {
     UA_NodeId PDSId_Conn1_WG1_PDS1;
     UA_NodeId_init(&PDSId_Conn1_WG1_PDS1);
 
-    AddPublishedDataSet(&WGId_Conn1_WG1, "Conn1_WG1_PDS1", "Conn1_WG1_DS1", 1, &PDSId_Conn1_WG1_PDS1, 
+    AddPublishedDataSet(&WGId_Conn1_WG1, "Conn1_WG1_PDS1", "Conn1_WG1_DS1", 1, &PDSId_Conn1_WG1_PDS1,
         &VarId_Conn1_WG1, &DsWId_Conn1_WG1_DS1);
 
     /* setup corresponding readergroup and reader for Connection 1 */
@@ -1441,7 +1441,7 @@ START_TEST(Test_update_config) {
     /* check that publish/subscribe works -> set some test values */
     ValidatePublishSubscribe(VarId_Conn1_WG1, VarId_Conn1_RG1_DSR1, 10, SleepTime, NoOfRunIterateCycles);
     ValidatePublishSubscribe(VarId_Conn1_WG1, VarId_Conn1_RG1_DSR1, 33, SleepTime, NoOfRunIterateCycles);
-    
+
     ck_assert(UA_Server_DataSetReader_getState(server, DSRId_Conn1_RG1_DSR1, &state) == UA_STATUSCODE_GOOD);
     ck_assert(state == UA_PUBSUBSTATE_OPERATIONAL);
 
@@ -1577,7 +1577,7 @@ START_TEST(Test_fast_path) {
     UA_NodeId PDSId_Conn1_WG1_PDS1;
     UA_NodeId_init(&PDSId_Conn1_WG1_PDS1);
 
-    AddPublishedDataSet(&WGId_Conn1_WG1, "Conn1_WG1_PDS1", "Conn1_WG1_DS1", 1, &PDSId_Conn1_WG1_PDS1, 
+    AddPublishedDataSet(&WGId_Conn1_WG1, "Conn1_WG1_PDS1", "Conn1_WG1_DS1", 1, &PDSId_Conn1_WG1_PDS1,
         &VarId_Conn1_WG1, &DsWId_Conn1_WG1_DS1);
 
     /* setup Connection 2: corresponding readergroup and reader for Connection 1 */
@@ -1670,7 +1670,7 @@ START_TEST(Test_fast_path) {
 
     /* check that PubSubStateChange callback has been called for the specific DataSetReader */
     ck_assert_int_eq(1, CallbackCnt);
-    
+
     /* enable the publisher WriterGroup again */
     /* DataSetReader state shall be back to operational after receiving a new message */
     ExpectedCallbackStatus = UA_STATUSCODE_GOOD;
@@ -1732,7 +1732,7 @@ int main(void) {
     TCase *tc_basic = tcase_create("Message Receive Timeout");
     tcase_add_checked_fixture(tc_basic, setup, teardown);
 
-    /* test case description: 
+    /* test case description:
         - check normal pubsub operation (2 connections)
         - 1 Connection with 1 DataSetWriter, 1 Connection with counterpart DataSetReader
         - enable/disable writer- and readergroup multiple times
@@ -1740,14 +1740,14 @@ int main(void) {
     */
     tcase_add_test(tc_basic, Test_basic);
 
-    /* test case description: 
+    /* test case description:
         - 1 DataSetWriter
         - multiple DataSetReaders with different timeout settings
         - check order and no of message receive timeouts for the different DataSetReaders
     */
     tcase_add_test(tc_basic, Test_different_timeouts);
 
-    /* test case description: 
+    /* test case description:
         - 1 Connection, 1 DataSetWriter, 1 DataSetReader
         - reader with wrong timeout setting (timeout is smaller than publishing interval)
     */
@@ -1755,7 +1755,7 @@ int main(void) {
 
     /* test case description:
         - configure multiple connections with multiple readers and writers
-        - disable/enable and check for correct timeouts 
+        - disable/enable and check for correct timeouts
     */
     tcase_add_test(tc_basic, Test_many_components);
 

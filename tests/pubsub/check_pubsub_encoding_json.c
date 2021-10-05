@@ -34,8 +34,8 @@ START_TEST(UA_PubSub_EncodeAllOptionalFields) {
 
     /* enable publisherId */
     m.publisherIdEnabled = true;
-    m.publisherIdType = UA_PUBLISHERDATATYPE_UINT16;
-    m.publisherId.publisherIdUInt16 = 65535;
+    m.publisherIdType = UA_PUBLISHERIDTYPE_UINT16;
+    m.publisherId.uint16 = 65535;
 
     /* enable dataSetClassId */
     m.dataSetClassIdEnabled = true;

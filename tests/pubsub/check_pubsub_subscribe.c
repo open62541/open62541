@@ -107,7 +107,8 @@ static void setup(void) {
                          &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
     connectionConfig.transportProfileUri =
         UA_STRING("http://opcfoundation.org/UA-Profile/Transport/pubsub-udp-uadp");
-    connectionConfig.publisherId.numeric = PUBLISHER_ID;
+    connectionConfig.publisherIdType = UA_PUBLISHERIDTYPE_UINT16;
+    connectionConfig.publisherId.uint16 = PUBLISHER_ID;
     UA_Server_addPubSubConnection(server, &connectionConfig, &connectionId);
 }
 
@@ -1337,7 +1338,7 @@ START_TEST(MultiPublishSubscribeInt32) {
     UA_NodeId dataSetWriter;
     UA_NodeId readerIdentifier;
     UA_NodeId writerGroup;
-    
+
     /* Published DataSet */
     memset(&pdsConfig, 0, sizeof(UA_PublishedDataSetConfig));
     pdsConfig.publishedDataSetType = UA_PUBSUB_DATASET_PUBLISHEDITEMS;
