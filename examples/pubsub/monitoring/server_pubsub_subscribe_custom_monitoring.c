@@ -2,17 +2,17 @@
  * See http://creativecommons.org/publicdomain/zero/1.0/ for more information. */
 
 /**
- * This example can be used to receive and display values that are published 
- * by tutorial_pubsub_publish example in the TargetVariables of Subscriber 
+ * This example can be used to receive and display values that are published
+ * by tutorial_pubsub_publish example in the TargetVariables of Subscriber
  * Information Model.
- * 
+ *
  * Additionally this example shows the usage of the PubSub monitoring implementation.
- * The application can provide the pubsubStateChangeCallback to get notifications 
- * about specific PubSub state changes or timeouts. Currently only the 
+ * The application can provide the pubsubStateChangeCallback to get notifications
+ * about specific PubSub state changes or timeouts. Currently only the
  * MessageReceiveTimeout handling of a DataSetReader is implemented.
- * Stop the tutorial_pubsub_publish example during operation to trigger the 
+ * Stop the tutorial_pubsub_publish example during operation to trigger the
  * MessageReceiveTimeout and check the callback invocation.
- * 
+ *
  * Per default the monitoring backend is provided by the open62541 sdk.
  * An application can provide it's own monitoring backend (e.g. linux timers),
  * by setting the monitoring callbacks. This option can be tested with
@@ -55,9 +55,9 @@ typedef struct MonitoringParams {
     UA_ServerCallback callback;
 } TMonitoringParams;
 
-/* In this example we only configure 1 DataSetReader and therefore only provide 1 
+/* In this example we only configure 1 DataSetReader and therefore only provide 1
 data structure for monitoring params. This example only works with 1 DataSetReader for simplicity's sake.
-If more DataSetReaders shall be configured one can create a new data structure at every pubSubComponent_createMonitoring() call and 
+If more DataSetReaders shall be configured one can create a new data structure at every pubSubComponent_createMonitoring() call and
 administer them with a list/map/vector ....  */
 TMonitoringParams monitoringParams;
 
@@ -81,7 +81,8 @@ addPubSubConnection(UA_Server *server, UA_String *transportProfile,
     connectionConfig.enabled = UA_TRUE;
     UA_Variant_setScalar(&connectionConfig.address, networkAddressUrl,
                          &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
-    connectionConfig.publisherId.numeric = UA_UInt32_random ();
+    connectionConfig.publisherIdType = UA_PUBLISHERIDTYPE_UINT32;
+    connectionConfig.publisherId.uint32 = UA_UInt32_random();
     retval |= UA_Server_addPubSubConnection (server, &connectionConfig, &connectionIdentifier);
     if (retval != UA_STATUSCODE_GOOD) {
         return retval;
@@ -259,13 +260,13 @@ static void stopHandler(int sign) {
 
 /* Provide a callback to get notifications about specific PubSub state changes or timeouts.
     Currently only the MessageReceiveTimeout of the subscriber is supported.
-    Stop the tutorial_pubsub_publish example during operation to trigger the MessageReceiveTimeout and 
+    Stop the tutorial_pubsub_publish example during operation to trigger the MessageReceiveTimeout and
     check the callback invocation here */
 static void
 pubsubStateChangeCallback(UA_NodeId *pubsubComponentId,
                                       UA_PubSubState state,
                                       UA_StatusCode code) {
-    
+
     if (pubsubComponentId == 0) {
         UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "pubsubStateChangeCallback(): Null pointer error. Internal error");
         return;
@@ -289,7 +290,7 @@ monitoringCallbackHandler(union sigval val)
 
 /* Custom monitoring backend implementation: only 1 DataSetReader is supported */
 static UA_StatusCode
-pubSubComponent_createMonitoring(UA_Server *server, UA_NodeId Id, UA_PubSubComponentEnumType eComponentType, 
+pubSubComponent_createMonitoring(UA_Server *server, UA_NodeId Id, UA_PubSubComponentEnumType eComponentType,
                                     UA_PubSubMonitoringType eMonitoringType, void *data, UA_ServerCallback callback) {
     if ((!server) || (!data)) {
         return UA_STATUSCODE_BADINVALIDARGUMENT;
@@ -320,7 +321,7 @@ pubSubComponent_createMonitoring(UA_Server *server, UA_NodeId Id, UA_PubSubCompo
 }
 
 static UA_StatusCode
-pubSubComponent_startMonitoring(UA_Server *server, UA_NodeId Id, UA_PubSubComponentEnumType eComponentType, 
+pubSubComponent_startMonitoring(UA_Server *server, UA_NodeId Id, UA_PubSubComponentEnumType eComponentType,
                                     UA_PubSubMonitoringType eMonitoringType, void *data) {
     if ((!server) || (!data)) {
         return UA_STATUSCODE_BADINVALIDARGUMENT;
@@ -346,7 +347,7 @@ pubSubComponent_startMonitoring(UA_Server *server, UA_NodeId Id, UA_PubSubCompon
 }
 
 static UA_StatusCode
-pubSubComponent_stopMonitoring(UA_Server *server, UA_NodeId Id, UA_PubSubComponentEnumType eComponentType, 
+pubSubComponent_stopMonitoring(UA_Server *server, UA_NodeId Id, UA_PubSubComponentEnumType eComponentType,
                                     UA_PubSubMonitoringType eMonitoringType, void *data) {
     if ((!server) || (!data)) {
         return UA_STATUSCODE_BADINVALIDARGUMENT;
@@ -372,7 +373,7 @@ pubSubComponent_stopMonitoring(UA_Server *server, UA_NodeId Id, UA_PubSubCompone
 }
 
 static UA_StatusCode
-pubSubComponent_updateMonitoringInterval(UA_Server *server, UA_NodeId Id, UA_PubSubComponentEnumType eComponentType, 
+pubSubComponent_updateMonitoringInterval(UA_Server *server, UA_NodeId Id, UA_PubSubComponentEnumType eComponentType,
                                             UA_PubSubMonitoringType eMonitoringType, void *data)
 {
     if ((!server) || (!data)) {
@@ -407,7 +408,7 @@ pubSubComponent_updateMonitoringInterval(UA_Server *server, UA_NodeId Id, UA_Pub
 }
 
 static UA_StatusCode
-pubSubComponent_deleteMonitoring(UA_Server *server, UA_NodeId Id, UA_PubSubComponentEnumType eComponentType, 
+pubSubComponent_deleteMonitoring(UA_Server *server, UA_NodeId Id, UA_PubSubComponentEnumType eComponentType,
                                     UA_PubSubMonitoringType eMonitoringType, void *data) {
     if ((!server) || (!data)) {
         return UA_STATUSCODE_BADINVALIDARGUMENT;
