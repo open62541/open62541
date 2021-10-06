@@ -889,15 +889,24 @@ DataSetReader_processRaw(UA_Server *server, UA_ReaderGroup *rg,
             &dsr->config.subscribedDataSet.subscribedDataSetTarget.targetVariables[i];
 
         if(rg->config.rtLevel == UA_PUBSUB_RT_FIXED_SIZE) {
+            if (tv->beforeWrite) {
+                void *pData = (**tv->externalDataValue).value.data;
+                (**tv->externalDataValue).value.data = value;   // set raw data as "preview"
+                tv->beforeWrite(server,
+                                &dsr->identifier,
+                                &dsr->linkedReaderGroup,
+                                &dsr->config.subscribedDataSet.subscribedDataSetTarget.targetVariables[i].targetVariable.targetNodeId,
+                                dsr->config.subscribedDataSet.subscribedDataSetTarget.targetVariables[i].targetVariableContext,
+                                tv->externalDataValue);
+                (**tv->externalDataValue).value.data = pData;  // restore previous data pointer
+            }
             memcpy((**tv->externalDataValue).value.data, value, type->memSize);
-            if(tv->targetVariableContext)
-                memcpy(tv->targetVariableContext, value, type->memSize);
             if(tv->afterWrite)
                 tv->afterWrite(server, &dsr->identifier,
-                               &dsr->linkedReaderGroup,
-                               &tv->targetVariable.targetNodeId,
-                               tv->targetVariableContext,
-                               tv->externalDataValue);
+                                &dsr->linkedReaderGroup,
+                                &tv->targetVariable.targetNodeId,
+                                tv->targetVariableContext,
+                                tv->externalDataValue);
             continue; /* No dynamic allocation for fixed-size msg, no need to _clear */
         }
 
@@ -930,20 +939,22 @@ DataSetReader_processFixedSize(UA_Server *server, UA_ReaderGroup *rg,
             &dsr->config.subscribedDataSet.subscribedDataSetTarget.targetVariables[i];
         if(tv->targetVariable.attributeId != UA_ATTRIBUTEID_VALUE)
             continue;
-
+        if (tv->beforeWrite) {
+            UA_DataValue *tmp = &msg->data.keyFrameData.dataSetFields[i];
+            tv->beforeWrite(server,
+                      &dsr->identifier,
+                      &dsr->linkedReaderGroup,
+                      &dsr->config.subscribedDataSet.subscribedDataSetTarget.targetVariables[i].targetVariable.targetNodeId,
+                      dsr->config.subscribedDataSet.subscribedDataSetTarget.targetVariables[i].targetVariableContext,
+                      &tmp);
+        }
         memcpy((**tv->externalDataValue).value.data,
-               msg->data.keyFrameData.dataSetFields[i].value.data,
-               msg->data.keyFrameData.dataSetFields[i].value.type->memSize);
-
-        if(tv->targetVariableContext)
-            memcpy(tv->targetVariableContext,
-                   msg->data.keyFrameData.dataSetFields[i].value.data,
-                   msg->data.keyFrameData.dataSetFields[i].value.type->memSize);
-
+                    msg->data.keyFrameData.dataSetFields[i].value.data,
+                    msg->data.keyFrameData.dataSetFields[i].value.type->memSize);
         if(tv->afterWrite)
             tv->afterWrite(server, &dsr->identifier, &dsr->linkedReaderGroup,
-                           &tv->targetVariable.targetNodeId,
-                           tv->targetVariableContext, tv->externalDataValue);
+                        &tv->targetVariable.targetNodeId,
+                        tv->targetVariableContext, tv->externalDataValue);
     }
 }
 
