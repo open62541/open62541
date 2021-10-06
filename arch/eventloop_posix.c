@@ -448,8 +448,7 @@ UA_EventLoop_stop(UA_EventLoop *el) {
     UA_EventSource *es = el->eventSources;
     while(es) {
         if(es->state == UA_EVENTSOURCESTATE_STARTING ||
-           es->state == UA_EVENTSOURCESTATE_STARTED ||
-           es->state == UA_EVENTSOURCESTATE_STOPPING)
+           es->state == UA_EVENTSOURCESTATE_STARTED)
             es->stop(es);
         es = es->next;
     }
