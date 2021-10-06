@@ -659,6 +659,8 @@ UA_StatusCode
 UA_EventLoop_registerFD(UA_EventLoop *el, UA_FD fd, short eventMask,
                         UA_FDCallback cb, UA_EventSource *es, void *fdcontext) {
     UA_LOCK(&el->elMutex);
+
+    UA_LOG_DEBUG(el->logger, UA_LOGCATEGORY_EVENTLOOP, "registering fd: %d", fd);
     /* Realloc */
     UA_RegisteredFD *fds_tmp = (UA_RegisteredFD*)
         UA_realloc(el->fds, sizeof(UA_RegisteredFD) * (el->fdsSize + 1));
@@ -711,6 +713,7 @@ UA_StatusCode
 UA_EventLoop_deregisterFD(UA_EventLoop *el, UA_FD fd) {
     UA_LOCK(&el->elMutex);
 
+    UA_LOG_DEBUG(el->logger, UA_LOGCATEGORY_EVENTLOOP, "unregistering fd: %d", fd);
     /* Find the entry */
     size_t i = 0;
     for(; i < el->fdsSize; i++) {
