@@ -182,6 +182,9 @@ isTrue(uint8_t expr) {
 #define UA_CHECK_STATUS_INFO(STATUSCODE, EVAL, LOGGER, CAT, ...)                         \
     UA_MACRO_EXPAND(                                                                     \
         UA_CHECK_STATUS_LOG(STATUSCODE, EVAL, INFO, LOGGER, CAT, __VA_ARGS__))
+#define UA_CHECK_STATUS_DEBUG(STATUSCODE, EVAL, LOGGER, CAT, ...)                         \
+    UA_MACRO_EXPAND(                                                                     \
+        UA_CHECK_STATUS_LOG(STATUSCODE, EVAL, DEBUG, LOGGER, CAT, __VA_ARGS__))
 
 #define UA_CHECK_MEM_FATAL(PTR, EVAL, LOGGER, CAT, ...)                        \
     UA_MACRO_EXPAND(                                                                     \
