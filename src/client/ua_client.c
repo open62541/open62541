@@ -145,7 +145,9 @@ void
 UA_Client_delete(UA_Client* client) {
     UA_Client_clear(client);
     UA_ClientConfig_clear(&client->config);
-    UA_Client_connectionContext_free(client->connection.handle);
+    if (client->connection.handle) {
+        UA_Client_connectionContext_free(client->connection.handle);
+    }
     UA_free(client);
 }
 
