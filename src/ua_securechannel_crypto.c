@@ -557,9 +557,10 @@ checkSymHeader(UA_SecureChannel *channel, const UA_UInt32 tokenId) {
         UA_CHECK_STATUS(retval, return retval);
     }
 
-    UA_DateTime timeout = token->createdAt + (token->revisedLifetime * UA_DATETIME_MSEC);
+    UA_DateTime timeoutDate = token->createdAt + (token->revisedLifetime * UA_DATETIME_MSEC);
+    UA_DateTime now = UA_DateTime_nowMonotonic();
     if(channel->state == UA_SECURECHANNELSTATE_OPEN &&
-       timeout < UA_DateTime_nowMonotonic()) {
+       timeoutDate < now) {
         UA_LOG_WARNING_CHANNEL(channel->securityPolicy->logger, channel,
                                "SecurityToken timed out");
         UA_SecureChannel_close(channel);
