@@ -707,6 +707,7 @@ copyChild(UA_Server *server, UA_Session *session,
         } else {
             UA_ReferenceTypeSet_init(&reftypes_skipped);
         }
+        reftypes_skipped = UA_ReferenceTypeSet_union(reftypes_skipped, UA_REFTYPESET(UA_REFERENCETYPEINDEX_HASINTERFACE));
         UA_Node_deleteReferencesSubset(node, &reftypes_skipped);
 
         /* Add the node to the nodestore */
