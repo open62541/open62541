@@ -1,0 +1,2044 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<!--
+ * Copyright (c) 2005-2020 The OPC Foundation, Inc. All rights reserved.
+ *
+ * OPC Foundation MIT License 1.00
+ * 
+ * Permission is hereby granted, free of charge, to any person
+ * obtaining a copy of this software and associated documentation
+ * files (the "Software"), to deal in the Software without
+ * restriction, including without limitation the rights to use,
+ * copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the
+ * Software is furnished to do so, subject to the following
+ * conditions:
+ * 
+ * The above copyright notice and this permission notice shall be
+ * included in all copies or substantial portions of the Software.
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+ * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
+ * OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+ * NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
+ * HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+ * WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+ * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+ * OTHER DEALINGS IN THE SOFTWARE.
+ *
+ * The complete license agreement can be found here:
+ * http://opcfoundation.org/License/MIT/1.00/
+-->
+
+<UANodeSet xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" LastModified="2020-07-15T00:00:00Z" xmlns="http://opcfoundation.org/UA/2011/03/UANodeSet.xsd">
+  <Models>
+    <Model ModelUri="http://opcfoundation.org/UA/" Version="1.04.7" PublicationDate="2020-07-15T00:00:00Z" />
+  </Models>
+  <Aliases>
+    <Alias Alias="Boolean">i=1</Alias>
+    <Alias Alias="SByte">i=2</Alias>
+    <Alias Alias="Byte">i=3</Alias>
+    <Alias Alias="Int16">i=4</Alias>
+    <Alias Alias="UInt16">i=5</Alias>
+    <Alias Alias="Int32">i=6</Alias>
+    <Alias Alias="UInt32">i=7</Alias>
+    <Alias Alias="Int64">i=8</Alias>
+    <Alias Alias="UInt64">i=9</Alias>
+    <Alias Alias="Float">i=10</Alias>
+    <Alias Alias="Double">i=11</Alias>
+    <Alias Alias="DateTime">i=13</Alias>
+    <Alias Alias="String">i=12</Alias>
+    <Alias Alias="ByteString">i=15</Alias>
+    <Alias Alias="Guid">i=14</Alias>
+    <Alias Alias="XmlElement">i=16</Alias>
+    <Alias Alias="NodeId">i=17</Alias>
+    <Alias Alias="ExpandedNodeId">i=18</Alias>
+    <Alias Alias="QualifiedName">i=20</Alias>
+    <Alias Alias="LocalizedText">i=21</Alias>
+    <Alias Alias="StatusCode">i=19</Alias>
+    <Alias Alias="Structure">i=22</Alias>
+    <Alias Alias="Number">i=26</Alias>
+    <Alias Alias="Integer">i=27</Alias>
+    <Alias Alias="UInteger">i=28</Alias>
+    <Alias Alias="HasComponent">i=47</Alias>
+    <Alias Alias="HasProperty">i=46</Alias>
+    <Alias Alias="Organizes">i=35</Alias>
+    <Alias Alias="HasEventSource">i=36</Alias>
+    <Alias Alias="HasNotifier">i=48</Alias>
+    <Alias Alias="HasSubtype">i=45</Alias>
+    <Alias Alias="HasTypeDefinition">i=40</Alias>
+    <Alias Alias="HasModellingRule">i=37</Alias>
+    <Alias Alias="HasEncoding">i=38</Alias>
+    <Alias Alias="HasDescription">i=39</Alias>
+  </Aliases>
+  <UAObject NodeId="i=3062" BrowseName="Default Binary" SymbolicName="DefaultBinary">
+    <DisplayName>Default Binary</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=58</Reference>
+    </References>
+  </UAObject>
+  <UAObject NodeId="i=3063" BrowseName="Default XML" SymbolicName="DefaultXml">
+    <DisplayName>Default XML</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=58</Reference>
+    </References>
+  </UAObject>
+  <UADataType NodeId="i=24" BrowseName="BaseDataType" IsAbstract="true">
+    <DisplayName>BaseDataType</DisplayName>
+    <References />
+  </UADataType>
+  <UADataType NodeId="i=26" BrowseName="Number" IsAbstract="true">
+    <DisplayName>Number</DisplayName>
+    <References>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=24</Reference>
+    </References>
+  </UADataType>
+  <UADataType NodeId="i=27" BrowseName="Integer" IsAbstract="true">
+    <DisplayName>Integer</DisplayName>
+    <References>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=26</Reference>
+    </References>
+  </UADataType>
+  <UADataType NodeId="i=28" BrowseName="UInteger" IsAbstract="true">
+    <DisplayName>UInteger</DisplayName>
+    <References>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=26</Reference>
+    </References>
+  </UADataType>
+  <UADataType NodeId="i=29" BrowseName="Enumeration" IsAbstract="true">
+    <DisplayName>Enumeration</DisplayName>
+    <References>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=24</Reference>
+    </References>
+  </UADataType>
+  <UADataType NodeId="i=1" BrowseName="Boolean">
+    <DisplayName>Boolean</DisplayName>
+    <References>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=24</Reference>
+    </References>
+  </UADataType>
+  <UADataType NodeId="i=2" BrowseName="SByte">
+    <DisplayName>SByte</DisplayName>
+    <References>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=27</Reference>
+    </References>
+  </UADataType>
+  <UADataType NodeId="i=3" BrowseName="Byte">
+    <DisplayName>Byte</DisplayName>
+    <References>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=28</Reference>
+    </References>
+  </UADataType>
+  <UADataType NodeId="i=4" BrowseName="Int16">
+    <DisplayName>Int16</DisplayName>
+    <References>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=27</Reference>
+    </References>
+  </UADataType>
+  <UADataType NodeId="i=5" BrowseName="UInt16">
+    <DisplayName>UInt16</DisplayName>
+    <References>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=28</Reference>
+    </References>
+  </UADataType>
+  <UADataType NodeId="i=6" BrowseName="Int32">
+    <DisplayName>Int32</DisplayName>
+    <References>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=27</Reference>
+    </References>
+  </UADataType>
+  <UADataType NodeId="i=7" BrowseName="UInt32">
+    <DisplayName>UInt32</DisplayName>
+    <References>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=28</Reference>
+    </References>
+  </UADataType>
+  <UADataType NodeId="i=8" BrowseName="Int64">
+    <DisplayName>Int64</DisplayName>
+    <References>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=27</Reference>
+    </References>
+  </UADataType>
+  <UADataType NodeId="i=9" BrowseName="UInt64">
+    <DisplayName>UInt64</DisplayName>
+    <References>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=28</Reference>
+    </References>
+  </UADataType>
+  <UADataType NodeId="i=10" BrowseName="Float">
+    <DisplayName>Float</DisplayName>
+    <References>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=26</Reference>
+    </References>
+  </UADataType>
+  <UADataType NodeId="i=11" BrowseName="Double">
+    <DisplayName>Double</DisplayName>
+    <References>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=26</Reference>
+    </References>
+  </UADataType>
+  <UADataType NodeId="i=12" BrowseName="String">
+    <DisplayName>String</DisplayName>
+    <References>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=24</Reference>
+    </References>
+  </UADataType>
+  <UADataType NodeId="i=13" BrowseName="DateTime">
+    <DisplayName>DateTime</DisplayName>
+    <References>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=24</Reference>
+    </References>
+  </UADataType>
+  <UADataType NodeId="i=14" BrowseName="Guid">
+    <DisplayName>Guid</DisplayName>
+    <References>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=24</Reference>
+    </References>
+  </UADataType>
+  <UADataType NodeId="i=15" BrowseName="ByteString">
+    <DisplayName>ByteString</DisplayName>
+    <References>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=24</Reference>
+    </References>
+  </UADataType>
+  <UADataType NodeId="i=16" BrowseName="XmlElement">
+    <DisplayName>XmlElement</DisplayName>
+    <References>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=24</Reference>
+    </References>
+  </UADataType>
+  <UADataType NodeId="i=17" BrowseName="NodeId">
+    <DisplayName>NodeId</DisplayName>
+    <References>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=24</Reference>
+    </References>
+  </UADataType>
+  <UADataType NodeId="i=20" BrowseName="QualifiedName">
+    <DisplayName>QualifiedName</DisplayName>
+    <References>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=24</Reference>
+    </References>
+  </UADataType>
+  <UADataType NodeId="i=21" BrowseName="LocalizedText">
+    <DisplayName>LocalizedText</DisplayName>
+    <References>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=24</Reference>
+    </References>
+  </UADataType>
+  <UADataType NodeId="i=22" BrowseName="Structure" IsAbstract="true">
+    <DisplayName>Structure</DisplayName>
+    <References>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=24</Reference>
+    </References>
+  </UADataType>
+  <UADataType NodeId="i=30" BrowseName="Image" IsAbstract="true">
+    <DisplayName>Image</DisplayName>
+    <References>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=15</Reference>
+    </References>
+  </UADataType>
+  <UADataType NodeId="i=50" BrowseName="Decimal">
+    <DisplayName>Decimal</DisplayName>
+    <References>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=26</Reference>
+    </References>
+  </UADataType>
+  <UAReferenceType NodeId="i=31" BrowseName="References" IsAbstract="true" Symmetric="true">
+    <DisplayName>References</DisplayName>
+    <References />
+  </UAReferenceType>
+  <UAReferenceType NodeId="i=32" BrowseName="NonHierarchicalReferences" IsAbstract="true" Symmetric="true">
+    <DisplayName>NonHierarchicalReferences</DisplayName>
+    <References>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=31</Reference>
+    </References>
+  </UAReferenceType>
+  <UAReferenceType NodeId="i=33" BrowseName="HierarchicalReferences" IsAbstract="true">
+    <DisplayName>HierarchicalReferences</DisplayName>
+    <References>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=31</Reference>
+    </References>
+    <InverseName>HierarchicalReferences</InverseName>
+  </UAReferenceType>
+  <UAReferenceType NodeId="i=34" BrowseName="HasChild" IsAbstract="true">
+    <DisplayName>HasChild</DisplayName>
+    <References>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=33</Reference>
+    </References>
+    <InverseName>ChildOf</InverseName>
+  </UAReferenceType>
+  <UAReferenceType NodeId="i=35" BrowseName="Organizes">
+    <DisplayName>Organizes</DisplayName>
+    <References>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=33</Reference>
+    </References>
+    <InverseName>OrganizedBy</InverseName>
+  </UAReferenceType>
+  <UAReferenceType NodeId="i=36" BrowseName="HasEventSource">
+    <DisplayName>HasEventSource</DisplayName>
+    <References>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=33</Reference>
+    </References>
+    <InverseName>EventSourceOf</InverseName>
+  </UAReferenceType>
+  <UAReferenceType NodeId="i=37" BrowseName="HasModellingRule">
+    <DisplayName>HasModellingRule</DisplayName>
+    <References>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=32</Reference>
+    </References>
+    <InverseName>ModellingRuleOf</InverseName>
+  </UAReferenceType>
+  <UAReferenceType NodeId="i=38" BrowseName="HasEncoding">
+    <DisplayName>HasEncoding</DisplayName>
+    <References>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=32</Reference>
+    </References>
+    <InverseName>EncodingOf</InverseName>
+  </UAReferenceType>
+  <UAReferenceType NodeId="i=39" BrowseName="HasDescription">
+    <DisplayName>HasDescription</DisplayName>
+    <References>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=32</Reference>
+    </References>
+    <InverseName>DescriptionOf</InverseName>
+  </UAReferenceType>
+  <UAReferenceType NodeId="i=40" BrowseName="HasTypeDefinition">
+    <DisplayName>HasTypeDefinition</DisplayName>
+    <References>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=32</Reference>
+    </References>
+    <InverseName>TypeDefinitionOf</InverseName>
+  </UAReferenceType>
+  <UAReferenceType NodeId="i=41" BrowseName="GeneratesEvent">
+    <DisplayName>GeneratesEvent</DisplayName>
+    <References>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=32</Reference>
+    </References>
+    <InverseName>GeneratedBy</InverseName>
+  </UAReferenceType>
+  <UAReferenceType NodeId="i=3065" BrowseName="AlwaysGeneratesEvent">
+    <DisplayName>AlwaysGeneratesEvent</DisplayName>
+    <References>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=41</Reference>
+    </References>
+    <InverseName>AlwaysGeneratedBy</InverseName>
+  </UAReferenceType>
+  <UAReferenceType NodeId="i=44" BrowseName="Aggregates" IsAbstract="true">
+    <DisplayName>Aggregates</DisplayName>
+    <References>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=34</Reference>
+    </References>
+    <InverseName>AggregatedBy</InverseName>
+  </UAReferenceType>
+  <UAReferenceType NodeId="i=45" BrowseName="HasSubtype">
+    <DisplayName>HasSubtype</DisplayName>
+    <References>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=34</Reference>
+    </References>
+    <InverseName>SubtypeOf</InverseName>
+  </UAReferenceType>
+  <UAReferenceType NodeId="i=46" BrowseName="HasProperty">
+    <DisplayName>HasProperty</DisplayName>
+    <References>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=44</Reference>
+    </References>
+    <InverseName>PropertyOf</InverseName>
+  </UAReferenceType>
+  <UAReferenceType NodeId="i=47" BrowseName="HasComponent">
+    <DisplayName>HasComponent</DisplayName>
+    <References>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=44</Reference>
+    </References>
+    <InverseName>ComponentOf</InverseName>
+  </UAReferenceType>
+  <UAReferenceType NodeId="i=48" BrowseName="HasNotifier">
+    <DisplayName>HasNotifier</DisplayName>
+    <References>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=36</Reference>
+    </References>
+    <InverseName>NotifierOf</InverseName>
+  </UAReferenceType>
+  <UAReferenceType NodeId="i=49" BrowseName="HasOrderedComponent">
+    <DisplayName>HasOrderedComponent</DisplayName>
+    <References>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=47</Reference>
+    </References>
+    <InverseName>OrderedComponentOf</InverseName>
+  </UAReferenceType>
+  <UADataType NodeId="i=120" BrowseName="NamingRuleType">
+    <DisplayName>NamingRuleType</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty">i=12169</Reference>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=29</Reference>
+    </References>
+    <Definition Name="NamingRuleType">
+      <Field Name="Mandatory" Value="1">
+        <Description>The BrowseName must appear in all instances of the type.</Description>
+      </Field>
+      <Field Name="Optional" Value="2">
+        <Description>The BrowseName may appear in an instance of the type.</Description>
+      </Field>
+      <Field Name="Constraint" Value="3">
+        <Description>The modelling rule defines a constraint and the BrowseName is not used in an instance of the type.</Description>
+      </Field>
+    </Definition>
+  </UADataType>
+  <UAVariable NodeId="i=12169" BrowseName="EnumValues" ParentNodeId="i=120" DataType="i=7594" ValueRank="1" ArrayDimensions="0">
+    <DisplayName>EnumValues</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">i=120</Reference>
+    </References>
+    <Value>
+      <ListOfExtensionObject xmlns="http://opcfoundation.org/UA/2008/02/Types.xsd">
+        <ExtensionObject>
+          <TypeId>
+            <Identifier>i=7616</Identifier>
+          </TypeId>
+          <Body>
+            <EnumValueType>
+              <Value>1</Value>
+              <DisplayName>
+                <Locale>
+                </Locale>
+                <Text>Mandatory</Text>
+              </DisplayName>
+              <Description>
+                <Locale>
+                </Locale>
+                <Text>The BrowseName must appear in all instances of the type.</Text>
+              </Description>
+            </EnumValueType>
+          </Body>
+        </ExtensionObject>
+        <ExtensionObject>
+          <TypeId>
+            <Identifier>i=7616</Identifier>
+          </TypeId>
+          <Body>
+            <EnumValueType>
+              <Value>2</Value>
+              <DisplayName>
+                <Locale>
+                </Locale>
+                <Text>Optional</Text>
+              </DisplayName>
+              <Description>
+                <Locale>
+                </Locale>
+                <Text>The BrowseName may appear in an instance of the type.</Text>
+              </Description>
+            </EnumValueType>
+          </Body>
+        </ExtensionObject>
+        <ExtensionObject>
+          <TypeId>
+            <Identifier>i=7616</Identifier>
+          </TypeId>
+          <Body>
+            <EnumValueType>
+              <Value>3</Value>
+              <DisplayName>
+                <Locale>
+                </Locale>
+                <Text>Constraint</Text>
+              </DisplayName>
+              <Description>
+                <Locale>
+                </Locale>
+                <Text>The modelling rule defines a constraint and the BrowseName is not used in an instance of the type.</Text>
+              </Description>
+            </EnumValueType>
+          </Body>
+        </ExtensionObject>
+      </ListOfExtensionObject>
+    </Value>
+  </UAVariable>
+  <UAReferenceType NodeId="i=129" BrowseName="HasArgumentDescription">
+    <DisplayName>HasArgumentDescription</DisplayName>
+    <References>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=47</Reference>
+    </References>
+    <InverseName>ArgumentDescriptionOf</InverseName>
+  </UAReferenceType>
+  <UAReferenceType NodeId="i=131" BrowseName="HasOptionalInputArgumentDescription">
+    <DisplayName>HasOptionalInputArgumentDescription</DisplayName>
+    <References>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=129</Reference>
+    </References>
+    <InverseName>OptionalInputArgumentDescriptionOf</InverseName>
+  </UAReferenceType>
+  <UAVariable NodeId="i=3068" BrowseName="NodeVersion" DataType="String">
+    <DisplayName>NodeVersion</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="i=12170" BrowseName="ViewVersion" DataType="UInt32">
+    <DisplayName>ViewVersion</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="i=3067" BrowseName="Icon" DataType="i=30">
+    <DisplayName>Icon</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="i=3069" BrowseName="LocalTime" DataType="i=8912">
+    <DisplayName>LocalTime</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="i=3070" BrowseName="AllowNulls" DataType="Boolean">
+    <DisplayName>AllowNulls</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="i=11433" BrowseName="ValueAsText" DataType="LocalizedText">
+    <DisplayName>ValueAsText</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="i=11498" BrowseName="MaxStringLength" DataType="UInt32">
+    <DisplayName>MaxStringLength</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="i=15002" BrowseName="MaxCharacters" DataType="UInt32">
+    <DisplayName>MaxCharacters</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="i=12908" BrowseName="MaxByteStringLength" DataType="UInt32">
+    <DisplayName>MaxByteStringLength</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="i=11512" BrowseName="MaxArrayLength" DataType="UInt32">
+    <DisplayName>MaxArrayLength</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="i=11513" BrowseName="EngineeringUnits" DataType="i=887">
+    <DisplayName>EngineeringUnits</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="i=11432" BrowseName="EnumStrings" DataType="LocalizedText" ValueRank="1" ArrayDimensions="0">
+    <DisplayName>EnumStrings</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="i=3071" BrowseName="EnumValues" DataType="i=7594" ValueRank="1" ArrayDimensions="0">
+    <DisplayName>EnumValues</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="i=12745" BrowseName="OptionSetValues" DataType="LocalizedText" ValueRank="1" ArrayDimensions="0">
+    <DisplayName>OptionSetValues</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="i=3072" BrowseName="InputArguments" DataType="i=296" ValueRank="1" ArrayDimensions="0">
+    <DisplayName>InputArguments</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="i=3073" BrowseName="OutputArguments" DataType="i=296" ValueRank="1" ArrayDimensions="0">
+    <DisplayName>OutputArguments</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="i=16306" BrowseName="DefaultInputValues" ValueRank="1" ArrayDimensions="0">
+    <DisplayName>DefaultInputValues</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="i=17605" BrowseName="DefaultInstanceBrowseName" DataType="QualifiedName">
+    <DisplayName>DefaultInstanceBrowseName</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UADataType NodeId="i=2000" BrowseName="ImageBMP">
+    <DisplayName>ImageBMP</DisplayName>
+    <References>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=30</Reference>
+    </References>
+  </UADataType>
+  <UADataType NodeId="i=2001" BrowseName="ImageGIF">
+    <DisplayName>ImageGIF</DisplayName>
+    <References>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=30</Reference>
+    </References>
+  </UADataType>
+  <UADataType NodeId="i=2002" BrowseName="ImageJPG">
+    <DisplayName>ImageJPG</DisplayName>
+    <References>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=30</Reference>
+    </References>
+  </UADataType>
+  <UADataType NodeId="i=2003" BrowseName="ImagePNG">
+    <DisplayName>ImagePNG</DisplayName>
+    <References>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=30</Reference>
+    </References>
+  </UADataType>
+  <UADataType NodeId="i=16307" BrowseName="AudioDataType">
+    <DisplayName>AudioDataType</DisplayName>
+    <References>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=15</Reference>
+    </References>
+  </UADataType>
+  <UAVariable NodeId="i=23501" BrowseName="CurrencyUnit" DataType="i=23498" ValueRank="-2">
+    <DisplayName>CurrencyUnit</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UADataType NodeId="i=17861" BrowseName="DecimalDataType" Purpose="CodeGenerator">
+    <DisplayName>DecimalDataType</DisplayName>
+    <References>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=22</Reference>
+    </References>
+    <Definition Name="DecimalDataType">
+      <Field Name="Scale" DataType="i=4" />
+      <Field Name="Value" DataType="i=15" />
+    </Definition>
+  </UADataType>
+  <UADataType NodeId="i=256" BrowseName="IdType">
+    <DisplayName>IdType</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty">i=7591</Reference>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=29</Reference>
+    </References>
+    <Definition Name="IdType">
+      <Field Name="Numeric" Value="0" />
+      <Field Name="String" Value="1" />
+      <Field Name="Guid" Value="2" />
+      <Field Name="Opaque" Value="3" />
+    </Definition>
+  </UADataType>
+  <UAVariable NodeId="i=7591" BrowseName="EnumStrings" ParentNodeId="i=256" DataType="LocalizedText" ValueRank="1" ArrayDimensions="0">
+    <DisplayName>EnumStrings</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">i=256</Reference>
+    </References>
+    <Value>
+      <ListOfLocalizedText xmlns="http://opcfoundation.org/UA/2008/02/Types.xsd">
+        <LocalizedText>
+          <Locale>
+          </Locale>
+          <Text>Numeric</Text>
+        </LocalizedText>
+        <LocalizedText>
+          <Locale>
+          </Locale>
+          <Text>String</Text>
+        </LocalizedText>
+        <LocalizedText>
+          <Locale>
+          </Locale>
+          <Text>Guid</Text>
+        </LocalizedText>
+        <LocalizedText>
+          <Locale>
+          </Locale>
+          <Text>Opaque</Text>
+        </LocalizedText>
+      </ListOfLocalizedText>
+    </Value>
+  </UAVariable>
+  <UADataType NodeId="i=257" BrowseName="NodeClass">
+    <DisplayName>NodeClass</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty">i=11878</Reference>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=29</Reference>
+    </References>
+    <Definition Name="NodeClass">
+      <Field Name="Unspecified" Value="0" />
+      <Field Name="Object" Value="1" />
+      <Field Name="Variable" Value="2" />
+      <Field Name="Method" Value="4" />
+      <Field Name="ObjectType" Value="8" />
+      <Field Name="VariableType" Value="16" />
+      <Field Name="ReferenceType" Value="32" />
+      <Field Name="DataType" Value="64" />
+      <Field Name="View" Value="128" />
+    </Definition>
+  </UADataType>
+  <UAVariable NodeId="i=11878" BrowseName="EnumValues" ParentNodeId="i=257" DataType="i=7594" ValueRank="1" ArrayDimensions="0">
+    <DisplayName>EnumValues</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">i=257</Reference>
+    </References>
+    <Value>
+      <ListOfExtensionObject xmlns="http://opcfoundation.org/UA/2008/02/Types.xsd">
+        <ExtensionObject>
+          <TypeId>
+            <Identifier>i=7616</Identifier>
+          </TypeId>
+          <Body>
+            <EnumValueType>
+              <Value>0</Value>
+              <DisplayName>
+                <Locale>
+                </Locale>
+                <Text>Unspecified</Text>
+              </DisplayName>
+            </EnumValueType>
+          </Body>
+        </ExtensionObject>
+        <ExtensionObject>
+          <TypeId>
+            <Identifier>i=7616</Identifier>
+          </TypeId>
+          <Body>
+            <EnumValueType>
+              <Value>1</Value>
+              <DisplayName>
+                <Locale>
+                </Locale>
+                <Text>Object</Text>
+              </DisplayName>
+            </EnumValueType>
+          </Body>
+        </ExtensionObject>
+        <ExtensionObject>
+          <TypeId>
+            <Identifier>i=7616</Identifier>
+          </TypeId>
+          <Body>
+            <EnumValueType>
+              <Value>2</Value>
+              <DisplayName>
+                <Locale>
+                </Locale>
+                <Text>Variable</Text>
+              </DisplayName>
+            </EnumValueType>
+          </Body>
+        </ExtensionObject>
+        <ExtensionObject>
+          <TypeId>
+            <Identifier>i=7616</Identifier>
+          </TypeId>
+          <Body>
+            <EnumValueType>
+              <Value>4</Value>
+              <DisplayName>
+                <Locale>
+                </Locale>
+                <Text>Method</Text>
+              </DisplayName>
+            </EnumValueType>
+          </Body>
+        </ExtensionObject>
+        <ExtensionObject>
+          <TypeId>
+            <Identifier>i=7616</Identifier>
+          </TypeId>
+          <Body>
+            <EnumValueType>
+              <Value>8</Value>
+              <DisplayName>
+                <Locale>
+                </Locale>
+                <Text>ObjectType</Text>
+              </DisplayName>
+            </EnumValueType>
+          </Body>
+        </ExtensionObject>
+        <ExtensionObject>
+          <TypeId>
+            <Identifier>i=7616</Identifier>
+          </TypeId>
+          <Body>
+            <EnumValueType>
+              <Value>16</Value>
+              <DisplayName>
+                <Locale>
+                </Locale>
+                <Text>VariableType</Text>
+              </DisplayName>
+            </EnumValueType>
+          </Body>
+        </ExtensionObject>
+        <ExtensionObject>
+          <TypeId>
+            <Identifier>i=7616</Identifier>
+          </TypeId>
+          <Body>
+            <EnumValueType>
+              <Value>32</Value>
+              <DisplayName>
+                <Locale>
+                </Locale>
+                <Text>ReferenceType</Text>
+              </DisplayName>
+            </EnumValueType>
+          </Body>
+        </ExtensionObject>
+        <ExtensionObject>
+          <TypeId>
+            <Identifier>i=7616</Identifier>
+          </TypeId>
+          <Body>
+            <EnumValueType>
+              <Value>64</Value>
+              <DisplayName>
+                <Locale>
+                </Locale>
+                <Text>DataType</Text>
+              </DisplayName>
+            </EnumValueType>
+          </Body>
+        </ExtensionObject>
+        <ExtensionObject>
+          <TypeId>
+            <Identifier>i=7616</Identifier>
+          </TypeId>
+          <Body>
+            <EnumValueType>
+              <Value>128</Value>
+              <DisplayName>
+                <Locale>
+                </Locale>
+                <Text>View</Text>
+              </DisplayName>
+            </EnumValueType>
+          </Body>
+        </ExtensionObject>
+      </ListOfExtensionObject>
+    </Value>
+  </UAVariable>
+  <UADataType NodeId="i=94" BrowseName="PermissionType">
+    <DisplayName>PermissionType</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty">i=15030</Reference>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=7</Reference>
+    </References>
+    <Definition Name="PermissionType" IsOptionSet="true">
+      <Field Name="Browse" Value="0" />
+      <Field Name="ReadRolePermissions" Value="1" />
+      <Field Name="WriteAttribute" Value="2" />
+      <Field Name="WriteRolePermissions" Value="3" />
+      <Field Name="WriteHistorizing" Value="4" />
+      <Field Name="Read" Value="5" />
+      <Field Name="Write" Value="6" />
+      <Field Name="ReadHistory" Value="7" />
+      <Field Name="InsertHistory" Value="8" />
+      <Field Name="ModifyHistory" Value="9" />
+      <Field Name="DeleteHistory" Value="10" />
+      <Field Name="ReceiveEvents" Value="11" />
+      <Field Name="Call" Value="12" />
+      <Field Name="AddReference" Value="13" />
+      <Field Name="RemoveReference" Value="14" />
+      <Field Name="DeleteNode" Value="15" />
+      <Field Name="AddNode" Value="16" />
+    </Definition>
+  </UADataType>
+  <UAVariable NodeId="i=15030" BrowseName="OptionSetValues" ParentNodeId="i=94" DataType="LocalizedText" ValueRank="1" ArrayDimensions="0">
+    <DisplayName>OptionSetValues</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">i=94</Reference>
+    </References>
+    <Value>
+      <ListOfLocalizedText xmlns="http://opcfoundation.org/UA/2008/02/Types.xsd">
+        <LocalizedText>
+          <Locale>
+          </Locale>
+          <Text>Browse</Text>
+        </LocalizedText>
+        <LocalizedText>
+          <Locale>
+          </Locale>
+          <Text>ReadRolePermissions</Text>
+        </LocalizedText>
+        <LocalizedText>
+          <Locale>
+          </Locale>
+          <Text>WriteAttribute</Text>
+        </LocalizedText>
+        <LocalizedText>
+          <Locale>
+          </Locale>
+          <Text>WriteRolePermissions</Text>
+        </LocalizedText>
+        <LocalizedText>
+          <Locale>
+          </Locale>
+          <Text>WriteHistorizing</Text>
+        </LocalizedText>
+        <LocalizedText>
+          <Locale>
+          </Locale>
+          <Text>Read</Text>
+        </LocalizedText>
+        <LocalizedText>
+          <Locale>
+          </Locale>
+          <Text>Write</Text>
+        </LocalizedText>
+        <LocalizedText>
+          <Locale>
+          </Locale>
+          <Text>ReadHistory</Text>
+        </LocalizedText>
+        <LocalizedText>
+          <Locale>
+          </Locale>
+          <Text>InsertHistory</Text>
+        </LocalizedText>
+        <LocalizedText>
+          <Locale>
+          </Locale>
+          <Text>ModifyHistory</Text>
+        </LocalizedText>
+        <LocalizedText>
+          <Locale>
+          </Locale>
+          <Text>DeleteHistory</Text>
+        </LocalizedText>
+        <LocalizedText>
+          <Locale>
+          </Locale>
+          <Text>ReceiveEvents</Text>
+        </LocalizedText>
+        <LocalizedText>
+          <Locale>
+          </Locale>
+          <Text>Call</Text>
+        </LocalizedText>
+        <LocalizedText>
+          <Locale>
+          </Locale>
+          <Text>AddReference</Text>
+        </LocalizedText>
+        <LocalizedText>
+          <Locale>
+          </Locale>
+          <Text>RemoveReference</Text>
+        </LocalizedText>
+        <LocalizedText>
+          <Locale>
+          </Locale>
+          <Text>DeleteNode</Text>
+        </LocalizedText>
+        <LocalizedText>
+          <Locale>
+          </Locale>
+          <Text>AddNode</Text>
+        </LocalizedText>
+      </ListOfLocalizedText>
+    </Value>
+  </UAVariable>
+  <UADataType NodeId="i=15031" BrowseName="AccessLevelType">
+    <DisplayName>AccessLevelType</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty">i=15032</Reference>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=3</Reference>
+    </References>
+    <Definition Name="AccessLevelType" IsOptionSet="true">
+      <Field Name="CurrentRead" Value="0" />
+      <Field Name="CurrentWrite" Value="1" />
+      <Field Name="HistoryRead" Value="2" />
+      <Field Name="HistoryWrite" Value="3" />
+      <Field Name="SemanticChange" Value="4" />
+      <Field Name="StatusWrite" Value="5" />
+      <Field Name="TimestampWrite" Value="6" />
+    </Definition>
+  </UADataType>
+  <UAVariable NodeId="i=15032" BrowseName="OptionSetValues" ParentNodeId="i=15031" DataType="LocalizedText" ValueRank="1" ArrayDimensions="0">
+    <DisplayName>OptionSetValues</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">i=15031</Reference>
+    </References>
+    <Value>
+      <ListOfLocalizedText xmlns="http://opcfoundation.org/UA/2008/02/Types.xsd">
+        <LocalizedText>
+          <Locale>
+          </Locale>
+          <Text>CurrentRead</Text>
+        </LocalizedText>
+        <LocalizedText>
+          <Locale>
+          </Locale>
+          <Text>CurrentWrite</Text>
+        </LocalizedText>
+        <LocalizedText>
+          <Locale>
+          </Locale>
+          <Text>HistoryRead</Text>
+        </LocalizedText>
+        <LocalizedText>
+          <Locale>
+          </Locale>
+          <Text>HistoryWrite</Text>
+        </LocalizedText>
+        <LocalizedText>
+          <Locale>
+          </Locale>
+          <Text>SemanticChange</Text>
+        </LocalizedText>
+        <LocalizedText>
+          <Locale>
+          </Locale>
+          <Text>StatusWrite</Text>
+        </LocalizedText>
+        <LocalizedText>
+          <Locale>
+          </Locale>
+          <Text>TimestampWrite</Text>
+        </LocalizedText>
+      </ListOfLocalizedText>
+    </Value>
+  </UAVariable>
+  <UADataType NodeId="i=15406" BrowseName="AccessLevelExType">
+    <DisplayName>AccessLevelExType</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty">i=15407</Reference>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=7</Reference>
+    </References>
+    <Definition Name="AccessLevelExType" IsOptionSet="true">
+      <Field Name="CurrentRead" Value="0" />
+      <Field Name="CurrentWrite" Value="1" />
+      <Field Name="HistoryRead" Value="2" />
+      <Field Name="HistoryWrite" Value="3" />
+      <Field Name="SemanticChange" Value="4" />
+      <Field Name="StatusWrite" Value="5" />
+      <Field Name="TimestampWrite" Value="6" />
+      <Field Name="NonatomicRead" Value="8" />
+      <Field Name="NonatomicWrite" Value="9" />
+      <Field Name="WriteFullArrayOnly" Value="10" />
+    </Definition>
+  </UADataType>
+  <UAVariable NodeId="i=15407" BrowseName="OptionSetValues" ParentNodeId="i=15406" DataType="LocalizedText" ValueRank="1" ArrayDimensions="0">
+    <DisplayName>OptionSetValues</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">i=15406</Reference>
+    </References>
+    <Value>
+      <ListOfLocalizedText xmlns="http://opcfoundation.org/UA/2008/02/Types.xsd">
+        <LocalizedText>
+          <Locale>
+          </Locale>
+          <Text>CurrentRead</Text>
+        </LocalizedText>
+        <LocalizedText>
+          <Locale>
+          </Locale>
+          <Text>CurrentWrite</Text>
+        </LocalizedText>
+        <LocalizedText>
+          <Locale>
+          </Locale>
+          <Text>HistoryRead</Text>
+        </LocalizedText>
+        <LocalizedText>
+          <Locale>
+          </Locale>
+          <Text>HistoryWrite</Text>
+        </LocalizedText>
+        <LocalizedText>
+          <Locale>
+          </Locale>
+          <Text>SemanticChange</Text>
+        </LocalizedText>
+        <LocalizedText>
+          <Locale>
+          </Locale>
+          <Text>StatusWrite</Text>
+        </LocalizedText>
+        <LocalizedText>
+          <Locale>
+          </Locale>
+          <Text>TimestampWrite</Text>
+        </LocalizedText>
+        <LocalizedText>
+          <Locale>
+          </Locale>
+          <Text>Reserved</Text>
+        </LocalizedText>
+        <LocalizedText>
+          <Locale>
+          </Locale>
+          <Text>NonatomicRead</Text>
+        </LocalizedText>
+        <LocalizedText>
+          <Locale>
+          </Locale>
+          <Text>NonatomicWrite</Text>
+        </LocalizedText>
+        <LocalizedText>
+          <Locale>
+          </Locale>
+          <Text>WriteFullArrayOnly</Text>
+        </LocalizedText>
+      </ListOfLocalizedText>
+    </Value>
+  </UAVariable>
+  <UADataType NodeId="i=15033" BrowseName="EventNotifierType">
+    <DisplayName>EventNotifierType</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty">i=15034</Reference>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=3</Reference>
+    </References>
+    <Definition Name="EventNotifierType" IsOptionSet="true">
+      <Field Name="SubscribeToEvents" Value="0" />
+      <Field Name="HistoryRead" Value="2" />
+      <Field Name="HistoryWrite" Value="3" />
+    </Definition>
+  </UADataType>
+  <UAVariable NodeId="i=15034" BrowseName="OptionSetValues" ParentNodeId="i=15033" DataType="LocalizedText" ValueRank="1" ArrayDimensions="0">
+    <DisplayName>OptionSetValues</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">i=15033</Reference>
+    </References>
+    <Value>
+      <ListOfLocalizedText xmlns="http://opcfoundation.org/UA/2008/02/Types.xsd">
+        <LocalizedText>
+          <Locale>
+          </Locale>
+          <Text>SubscribeToEvents</Text>
+        </LocalizedText>
+        <LocalizedText>
+          <Locale>
+          </Locale>
+          <Text>Reserved</Text>
+        </LocalizedText>
+        <LocalizedText>
+          <Locale>
+          </Locale>
+          <Text>HistoryRead</Text>
+        </LocalizedText>
+        <LocalizedText>
+          <Locale>
+          </Locale>
+          <Text>HistoryWrite</Text>
+        </LocalizedText>
+      </ListOfLocalizedText>
+    </Value>
+  </UAVariable>
+  <UADataType NodeId="i=95" BrowseName="AccessRestrictionType">
+    <DisplayName>AccessRestrictionType</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty">i=15035</Reference>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=7</Reference>
+    </References>
+    <Definition Name="AccessRestrictionType" IsOptionSet="true">
+      <Field Name="SigningRequired" Value="0" />
+      <Field Name="EncryptionRequired" Value="1" />
+      <Field Name="SessionRequired" Value="2" />
+    </Definition>
+  </UADataType>
+  <UAVariable NodeId="i=15035" BrowseName="OptionSetValues" ParentNodeId="i=95" DataType="LocalizedText" ValueRank="1" ArrayDimensions="0">
+    <DisplayName>OptionSetValues</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">i=95</Reference>
+    </References>
+    <Value>
+      <ListOfLocalizedText xmlns="http://opcfoundation.org/UA/2008/02/Types.xsd">
+        <LocalizedText>
+          <Locale>
+          </Locale>
+          <Text>SigningRequired</Text>
+        </LocalizedText>
+        <LocalizedText>
+          <Locale>
+          </Locale>
+          <Text>EncryptionRequired</Text>
+        </LocalizedText>
+        <LocalizedText>
+          <Locale>
+          </Locale>
+          <Text>SessionRequired</Text>
+        </LocalizedText>
+      </ListOfLocalizedText>
+    </Value>
+  </UAVariable>
+  <UADataType NodeId="i=96" BrowseName="RolePermissionType">
+    <DisplayName>RolePermissionType</DisplayName>
+    <References>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=22</Reference>
+    </References>
+    <Definition Name="RolePermissionType">
+      <Field Name="RoleId" DataType="i=17" />
+      <Field Name="Permissions" DataType="i=94" />
+    </Definition>
+  </UADataType>
+  <UADataType NodeId="i=97" BrowseName="DataTypeDefinition" IsAbstract="true">
+    <DisplayName>DataTypeDefinition</DisplayName>
+    <References>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=22</Reference>
+    </References>
+  </UADataType>
+  <UADataType NodeId="i=98" BrowseName="StructureType">
+    <DisplayName>StructureType</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty">i=14528</Reference>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=29</Reference>
+    </References>
+    <Definition Name="StructureType">
+      <Field Name="Structure" Value="0" />
+      <Field Name="StructureWithOptionalFields" Value="1" />
+      <Field Name="Union" Value="2" />
+    </Definition>
+  </UADataType>
+  <UAVariable NodeId="i=14528" BrowseName="EnumStrings" ParentNodeId="i=98" DataType="LocalizedText" ValueRank="1" ArrayDimensions="0">
+    <DisplayName>EnumStrings</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">i=98</Reference>
+    </References>
+    <Value>
+      <ListOfLocalizedText xmlns="http://opcfoundation.org/UA/2008/02/Types.xsd">
+        <LocalizedText>
+          <Locale>
+          </Locale>
+          <Text>Structure</Text>
+        </LocalizedText>
+        <LocalizedText>
+          <Locale>
+          </Locale>
+          <Text>StructureWithOptionalFields</Text>
+        </LocalizedText>
+        <LocalizedText>
+          <Locale>
+          </Locale>
+          <Text>Union</Text>
+        </LocalizedText>
+      </ListOfLocalizedText>
+    </Value>
+  </UAVariable>
+  <UADataType NodeId="i=101" BrowseName="StructureField">
+    <DisplayName>StructureField</DisplayName>
+    <References>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=22</Reference>
+    </References>
+    <Definition Name="StructureField">
+      <Field Name="Name" DataType="i=12" />
+      <Field Name="Description" DataType="i=21" />
+      <Field Name="DataType" DataType="i=17" />
+      <Field Name="ValueRank" DataType="i=6" />
+      <Field Name="ArrayDimensions" DataType="i=7" ValueRank="1" />
+      <Field Name="MaxStringLength" DataType="i=7" />
+      <Field Name="IsOptional" DataType="i=1" />
+    </Definition>
+  </UADataType>
+  <UADataType NodeId="i=99" BrowseName="StructureDefinition">
+    <DisplayName>StructureDefinition</DisplayName>
+    <References>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=97</Reference>
+    </References>
+    <Definition Name="StructureDefinition">
+      <Field Name="DefaultEncodingId" DataType="i=17" />
+      <Field Name="BaseDataType" DataType="i=17" />
+      <Field Name="StructureType" DataType="i=98" />
+      <Field Name="Fields" DataType="i=101" ValueRank="1" />
+    </Definition>
+  </UADataType>
+  <UADataType NodeId="i=100" BrowseName="EnumDefinition">
+    <DisplayName>EnumDefinition</DisplayName>
+    <References>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=97</Reference>
+    </References>
+    <Definition Name="EnumDefinition">
+      <Field Name="Fields" DataType="i=102" ValueRank="1" />
+    </Definition>
+  </UADataType>
+  <UADataType NodeId="i=258" BrowseName="Node" Purpose="CodeGenerator">
+    <DisplayName>Node</DisplayName>
+    <References>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=22</Reference>
+    </References>
+    <Definition Name="Node">
+      <Field Name="NodeId" DataType="i=17" />
+      <Field Name="NodeClass" DataType="i=257" />
+      <Field Name="BrowseName" DataType="i=20" />
+      <Field Name="DisplayName" DataType="i=21" />
+      <Field Name="Description" DataType="i=21" />
+      <Field Name="WriteMask" DataType="i=7" />
+      <Field Name="UserWriteMask" DataType="i=7" />
+      <Field Name="RolePermissions" DataType="i=96" ValueRank="1" />
+      <Field Name="UserRolePermissions" DataType="i=96" ValueRank="1" />
+      <Field Name="AccessRestrictions" DataType="i=5" />
+      <Field Name="References" DataType="i=285" ValueRank="1" />
+    </Definition>
+  </UADataType>
+  <UADataType NodeId="i=11879" BrowseName="InstanceNode">
+    <DisplayName>InstanceNode</DisplayName>
+    <References>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=258</Reference>
+    </References>
+  </UADataType>
+  <UADataType NodeId="i=11880" BrowseName="TypeNode">
+    <DisplayName>TypeNode</DisplayName>
+    <References>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=258</Reference>
+    </References>
+  </UADataType>
+  <UADataType NodeId="i=261" BrowseName="ObjectNode" Purpose="CodeGenerator">
+    <DisplayName>ObjectNode</DisplayName>
+    <References>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=11879</Reference>
+    </References>
+    <Definition Name="ObjectNode">
+      <Field Name="EventNotifier" DataType="i=3" />
+    </Definition>
+  </UADataType>
+  <UADataType NodeId="i=264" BrowseName="ObjectTypeNode" Purpose="CodeGenerator">
+    <DisplayName>ObjectTypeNode</DisplayName>
+    <References>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=11880</Reference>
+    </References>
+    <Definition Name="ObjectTypeNode">
+      <Field Name="IsAbstract" DataType="i=1" />
+    </Definition>
+  </UADataType>
+  <UADataType NodeId="i=267" BrowseName="VariableNode" Purpose="CodeGenerator">
+    <DisplayName>VariableNode</DisplayName>
+    <References>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=11879</Reference>
+    </References>
+    <Definition Name="VariableNode">
+      <Field Name="Value" />
+      <Field Name="DataType" DataType="i=17" />
+      <Field Name="ValueRank" DataType="i=6" />
+      <Field Name="ArrayDimensions" DataType="i=7" ValueRank="1" />
+      <Field Name="AccessLevel" DataType="i=3" />
+      <Field Name="UserAccessLevel" DataType="i=3" />
+      <Field Name="MinimumSamplingInterval" DataType="i=290" />
+      <Field Name="Historizing" DataType="i=1" />
+      <Field Name="AccessLevelEx" DataType="i=7" />
+    </Definition>
+  </UADataType>
+  <UADataType NodeId="i=270" BrowseName="VariableTypeNode" Purpose="CodeGenerator">
+    <DisplayName>VariableTypeNode</DisplayName>
+    <References>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=11880</Reference>
+    </References>
+    <Definition Name="VariableTypeNode">
+      <Field Name="Value" />
+      <Field Name="DataType" DataType="i=17" />
+      <Field Name="ValueRank" DataType="i=6" />
+      <Field Name="ArrayDimensions" DataType="i=7" ValueRank="1" />
+      <Field Name="IsAbstract" DataType="i=1" />
+    </Definition>
+  </UADataType>
+  <UADataType NodeId="i=273" BrowseName="ReferenceTypeNode" Purpose="CodeGenerator">
+    <DisplayName>ReferenceTypeNode</DisplayName>
+    <References>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=11880</Reference>
+    </References>
+    <Definition Name="ReferenceTypeNode">
+      <Field Name="IsAbstract" DataType="i=1" />
+      <Field Name="Symmetric" DataType="i=1" />
+      <Field Name="InverseName" DataType="i=21" />
+    </Definition>
+  </UADataType>
+  <UADataType NodeId="i=276" BrowseName="MethodNode" Purpose="CodeGenerator">
+    <DisplayName>MethodNode</DisplayName>
+    <References>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=11879</Reference>
+    </References>
+    <Definition Name="MethodNode">
+      <Field Name="Executable" DataType="i=1" />
+      <Field Name="UserExecutable" DataType="i=1" />
+    </Definition>
+  </UADataType>
+  <UADataType NodeId="i=279" BrowseName="ViewNode" Purpose="CodeGenerator">
+    <DisplayName>ViewNode</DisplayName>
+    <References>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=11879</Reference>
+    </References>
+    <Definition Name="ViewNode">
+      <Field Name="ContainsNoLoops" DataType="i=1" />
+      <Field Name="EventNotifier" DataType="i=3" />
+    </Definition>
+  </UADataType>
+  <UADataType NodeId="i=282" BrowseName="DataTypeNode" Purpose="CodeGenerator">
+    <DisplayName>DataTypeNode</DisplayName>
+    <References>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=11880</Reference>
+    </References>
+    <Definition Name="DataTypeNode">
+      <Field Name="IsAbstract" DataType="i=1" />
+      <Field Name="DataTypeDefinition" DataType="i=22" />
+    </Definition>
+  </UADataType>
+  <UADataType NodeId="i=285" BrowseName="ReferenceNode" Purpose="CodeGenerator">
+    <DisplayName>ReferenceNode</DisplayName>
+    <References>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=22</Reference>
+    </References>
+    <Definition Name="ReferenceNode">
+      <Field Name="ReferenceTypeId" DataType="i=17" />
+      <Field Name="IsInverse" DataType="i=1" />
+      <Field Name="TargetId" DataType="i=18" />
+    </Definition>
+  </UADataType>
+  <UADataType NodeId="i=296" BrowseName="Argument">
+    <DisplayName>Argument</DisplayName>
+    <References>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=22</Reference>
+    </References>
+    <Definition Name="Argument">
+      <Field Name="Name" DataType="i=12" />
+      <Field Name="DataType" DataType="i=17" />
+      <Field Name="ValueRank" DataType="i=6" />
+      <Field Name="ArrayDimensions" DataType="i=7" ValueRank="1" />
+      <Field Name="Description" DataType="i=21" />
+    </Definition>
+  </UADataType>
+  <UADataType NodeId="i=7594" BrowseName="EnumValueType">
+    <DisplayName>EnumValueType</DisplayName>
+    <References>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=22</Reference>
+    </References>
+    <Definition Name="EnumValueType">
+      <Field Name="Value" DataType="i=8" />
+      <Field Name="DisplayName" DataType="i=21" />
+      <Field Name="Description" DataType="i=21" />
+    </Definition>
+  </UADataType>
+  <UADataType NodeId="i=102" BrowseName="EnumField">
+    <DisplayName>EnumField</DisplayName>
+    <References>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=7594</Reference>
+    </References>
+    <Definition Name="EnumField">
+      <Field Name="Name" DataType="i=12" />
+    </Definition>
+  </UADataType>
+  <UADataType NodeId="i=12755" BrowseName="OptionSet">
+    <DisplayName>OptionSet</DisplayName>
+    <References>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=22</Reference>
+    </References>
+    <Definition Name="OptionSet">
+      <Field Name="Value" DataType="i=15" />
+      <Field Name="ValidBits" DataType="i=15" />
+    </Definition>
+  </UADataType>
+  <UADataType NodeId="i=12756" BrowseName="Union" IsAbstract="true">
+    <DisplayName>Union</DisplayName>
+    <References>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=22</Reference>
+    </References>
+  </UADataType>
+  <UADataType NodeId="i=12877" BrowseName="NormalizedString">
+    <DisplayName>NormalizedString</DisplayName>
+    <References>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=12</Reference>
+    </References>
+  </UADataType>
+  <UADataType NodeId="i=12878" BrowseName="DecimalString">
+    <DisplayName>DecimalString</DisplayName>
+    <References>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=12</Reference>
+    </References>
+  </UADataType>
+  <UADataType NodeId="i=12879" BrowseName="DurationString">
+    <DisplayName>DurationString</DisplayName>
+    <References>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=12</Reference>
+    </References>
+  </UADataType>
+  <UADataType NodeId="i=12880" BrowseName="TimeString">
+    <DisplayName>TimeString</DisplayName>
+    <References>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=12</Reference>
+    </References>
+  </UADataType>
+  <UADataType NodeId="i=12881" BrowseName="DateString">
+    <DisplayName>DateString</DisplayName>
+    <References>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=12</Reference>
+    </References>
+  </UADataType>
+  <UADataType NodeId="i=290" BrowseName="Duration">
+    <DisplayName>Duration</DisplayName>
+    <References>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=11</Reference>
+    </References>
+  </UADataType>
+  <UADataType NodeId="i=294" BrowseName="UtcTime">
+    <DisplayName>UtcTime</DisplayName>
+    <References>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=13</Reference>
+    </References>
+  </UADataType>
+  <UADataType NodeId="i=295" BrowseName="LocaleId">
+    <DisplayName>LocaleId</DisplayName>
+    <References>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=12</Reference>
+    </References>
+  </UADataType>
+  <UADataType NodeId="i=8912" BrowseName="TimeZoneDataType">
+    <DisplayName>TimeZoneDataType</DisplayName>
+    <References>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=22</Reference>
+    </References>
+    <Definition Name="TimeZoneDataType">
+      <Field Name="Offset" DataType="i=4" />
+      <Field Name="DaylightSavingInOffset" DataType="i=1" />
+    </Definition>
+  </UADataType>
+  <UAObject NodeId="i=17863" BrowseName="Default Binary" SymbolicName="DefaultBinary">
+    <DisplayName>Default Binary</DisplayName>
+    <References>
+      <Reference ReferenceType="HasEncoding" IsForward="false">i=17861</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=76</Reference>
+    </References>
+  </UAObject>
+  <UAObject NodeId="i=128" BrowseName="Default Binary" SymbolicName="DefaultBinary">
+    <DisplayName>Default Binary</DisplayName>
+    <References>
+      <Reference ReferenceType="HasEncoding" IsForward="false">i=96</Reference>
+      <Reference ReferenceType="HasDescription">i=16131</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=76</Reference>
+    </References>
+  </UAObject>
+  <UAObject NodeId="i=121" BrowseName="Default Binary" SymbolicName="DefaultBinary">
+    <DisplayName>Default Binary</DisplayName>
+    <References>
+      <Reference ReferenceType="HasEncoding" IsForward="false">i=97</Reference>
+      <Reference ReferenceType="HasDescription">i=18178</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=76</Reference>
+    </References>
+  </UAObject>
+  <UAObject NodeId="i=14844" BrowseName="Default Binary" SymbolicName="DefaultBinary">
+    <DisplayName>Default Binary</DisplayName>
+    <References>
+      <Reference ReferenceType="HasEncoding" IsForward="false">i=101</Reference>
+      <Reference ReferenceType="HasDescription">i=18181</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=76</Reference>
+    </References>
+  </UAObject>
+  <UAObject NodeId="i=122" BrowseName="Default Binary" SymbolicName="DefaultBinary">
+    <DisplayName>Default Binary</DisplayName>
+    <References>
+      <Reference ReferenceType="HasEncoding" IsForward="false">i=99</Reference>
+      <Reference ReferenceType="HasDescription">i=18184</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=76</Reference>
+    </References>
+  </UAObject>
+  <UAObject NodeId="i=123" BrowseName="Default Binary" SymbolicName="DefaultBinary">
+    <DisplayName>Default Binary</DisplayName>
+    <References>
+      <Reference ReferenceType="HasEncoding" IsForward="false">i=100</Reference>
+      <Reference ReferenceType="HasDescription">i=18187</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=76</Reference>
+    </References>
+  </UAObject>
+  <UAObject NodeId="i=260" BrowseName="Default Binary" SymbolicName="DefaultBinary">
+    <DisplayName>Default Binary</DisplayName>
+    <References>
+      <Reference ReferenceType="HasEncoding" IsForward="false">i=258</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=76</Reference>
+    </References>
+  </UAObject>
+  <UAObject NodeId="i=11889" BrowseName="Default Binary" SymbolicName="DefaultBinary">
+    <DisplayName>Default Binary</DisplayName>
+    <References>
+      <Reference ReferenceType="HasEncoding" IsForward="false">i=11879</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=76</Reference>
+    </References>
+  </UAObject>
+  <UAObject NodeId="i=11890" BrowseName="Default Binary" SymbolicName="DefaultBinary">
+    <DisplayName>Default Binary</DisplayName>
+    <References>
+      <Reference ReferenceType="HasEncoding" IsForward="false">i=11880</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=76</Reference>
+    </References>
+  </UAObject>
+  <UAObject NodeId="i=263" BrowseName="Default Binary" SymbolicName="DefaultBinary">
+    <DisplayName>Default Binary</DisplayName>
+    <References>
+      <Reference ReferenceType="HasEncoding" IsForward="false">i=261</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=76</Reference>
+    </References>
+  </UAObject>
+  <UAObject NodeId="i=266" BrowseName="Default Binary" SymbolicName="DefaultBinary">
+    <DisplayName>Default Binary</DisplayName>
+    <References>
+      <Reference ReferenceType="HasEncoding" IsForward="false">i=264</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=76</Reference>
+    </References>
+  </UAObject>
+  <UAObject NodeId="i=269" BrowseName="Default Binary" SymbolicName="DefaultBinary">
+    <DisplayName>Default Binary</DisplayName>
+    <References>
+      <Reference ReferenceType="HasEncoding" IsForward="false">i=267</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=76</Reference>
+    </References>
+  </UAObject>
+  <UAObject NodeId="i=272" BrowseName="Default Binary" SymbolicName="DefaultBinary">
+    <DisplayName>Default Binary</DisplayName>
+    <References>
+      <Reference ReferenceType="HasEncoding" IsForward="false">i=270</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=76</Reference>
+    </References>
+  </UAObject>
+  <UAObject NodeId="i=275" BrowseName="Default Binary" SymbolicName="DefaultBinary">
+    <DisplayName>Default Binary</DisplayName>
+    <References>
+      <Reference ReferenceType="HasEncoding" IsForward="false">i=273</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=76</Reference>
+    </References>
+  </UAObject>
+  <UAObject NodeId="i=278" BrowseName="Default Binary" SymbolicName="DefaultBinary">
+    <DisplayName>Default Binary</DisplayName>
+    <References>
+      <Reference ReferenceType="HasEncoding" IsForward="false">i=276</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=76</Reference>
+    </References>
+  </UAObject>
+  <UAObject NodeId="i=281" BrowseName="Default Binary" SymbolicName="DefaultBinary">
+    <DisplayName>Default Binary</DisplayName>
+    <References>
+      <Reference ReferenceType="HasEncoding" IsForward="false">i=279</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=76</Reference>
+    </References>
+  </UAObject>
+  <UAObject NodeId="i=284" BrowseName="Default Binary" SymbolicName="DefaultBinary">
+    <DisplayName>Default Binary</DisplayName>
+    <References>
+      <Reference ReferenceType="HasEncoding" IsForward="false">i=282</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=76</Reference>
+    </References>
+  </UAObject>
+  <UAObject NodeId="i=287" BrowseName="Default Binary" SymbolicName="DefaultBinary">
+    <DisplayName>Default Binary</DisplayName>
+    <References>
+      <Reference ReferenceType="HasEncoding" IsForward="false">i=285</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=76</Reference>
+    </References>
+  </UAObject>
+  <UAObject NodeId="i=298" BrowseName="Default Binary" SymbolicName="DefaultBinary">
+    <DisplayName>Default Binary</DisplayName>
+    <References>
+      <Reference ReferenceType="HasEncoding" IsForward="false">i=296</Reference>
+      <Reference ReferenceType="HasDescription">i=7650</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=76</Reference>
+    </References>
+  </UAObject>
+  <UAObject NodeId="i=8251" BrowseName="Default Binary" SymbolicName="DefaultBinary">
+    <DisplayName>Default Binary</DisplayName>
+    <References>
+      <Reference ReferenceType="HasEncoding" IsForward="false">i=7594</Reference>
+      <Reference ReferenceType="HasDescription">i=7656</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=76</Reference>
+    </References>
+  </UAObject>
+  <UAObject NodeId="i=14845" BrowseName="Default Binary" SymbolicName="DefaultBinary">
+    <DisplayName>Default Binary</DisplayName>
+    <References>
+      <Reference ReferenceType="HasEncoding" IsForward="false">i=102</Reference>
+      <Reference ReferenceType="HasDescription">i=14870</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=76</Reference>
+    </References>
+  </UAObject>
+  <UAObject NodeId="i=12765" BrowseName="Default Binary" SymbolicName="DefaultBinary">
+    <DisplayName>Default Binary</DisplayName>
+    <References>
+      <Reference ReferenceType="HasEncoding" IsForward="false">i=12755</Reference>
+      <Reference ReferenceType="HasDescription">i=12767</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=76</Reference>
+    </References>
+  </UAObject>
+  <UAObject NodeId="i=12766" BrowseName="Default Binary" SymbolicName="DefaultBinary">
+    <DisplayName>Default Binary</DisplayName>
+    <References>
+      <Reference ReferenceType="HasEncoding" IsForward="false">i=12756</Reference>
+      <Reference ReferenceType="HasDescription">i=12770</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=76</Reference>
+    </References>
+  </UAObject>
+  <UAObject NodeId="i=8917" BrowseName="Default Binary" SymbolicName="DefaultBinary">
+    <DisplayName>Default Binary</DisplayName>
+    <References>
+      <Reference ReferenceType="HasEncoding" IsForward="false">i=8912</Reference>
+      <Reference ReferenceType="HasDescription">i=8914</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=76</Reference>
+    </References>
+  </UAObject>
+  <UAObject NodeId="i=17862" BrowseName="Default XML" SymbolicName="DefaultXml">
+    <DisplayName>Default XML</DisplayName>
+    <References>
+      <Reference ReferenceType="HasEncoding" IsForward="false">i=17861</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=76</Reference>
+    </References>
+  </UAObject>
+  <UAObject NodeId="i=16126" BrowseName="Default XML" SymbolicName="DefaultXml">
+    <DisplayName>Default XML</DisplayName>
+    <References>
+      <Reference ReferenceType="HasEncoding" IsForward="false">i=96</Reference>
+      <Reference ReferenceType="HasDescription">i=16127</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=76</Reference>
+    </References>
+  </UAObject>
+  <UAObject NodeId="i=14797" BrowseName="Default XML" SymbolicName="DefaultXml">
+    <DisplayName>Default XML</DisplayName>
+    <References>
+      <Reference ReferenceType="HasEncoding" IsForward="false">i=97</Reference>
+      <Reference ReferenceType="HasDescription">i=18166</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=76</Reference>
+    </References>
+  </UAObject>
+  <UAObject NodeId="i=14800" BrowseName="Default XML" SymbolicName="DefaultXml">
+    <DisplayName>Default XML</DisplayName>
+    <References>
+      <Reference ReferenceType="HasEncoding" IsForward="false">i=101</Reference>
+      <Reference ReferenceType="HasDescription">i=18169</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=76</Reference>
+    </References>
+  </UAObject>
+  <UAObject NodeId="i=14798" BrowseName="Default XML" SymbolicName="DefaultXml">
+    <DisplayName>Default XML</DisplayName>
+    <References>
+      <Reference ReferenceType="HasEncoding" IsForward="false">i=99</Reference>
+      <Reference ReferenceType="HasDescription">i=18172</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=76</Reference>
+    </References>
+  </UAObject>
+  <UAObject NodeId="i=14799" BrowseName="Default XML" SymbolicName="DefaultXml">
+    <DisplayName>Default XML</DisplayName>
+    <References>
+      <Reference ReferenceType="HasEncoding" IsForward="false">i=100</Reference>
+      <Reference ReferenceType="HasDescription">i=18175</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=76</Reference>
+    </References>
+  </UAObject>
+  <UAObject NodeId="i=259" BrowseName="Default XML" SymbolicName="DefaultXml">
+    <DisplayName>Default XML</DisplayName>
+    <References>
+      <Reference ReferenceType="HasEncoding" IsForward="false">i=258</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=76</Reference>
+    </References>
+  </UAObject>
+  <UAObject NodeId="i=11887" BrowseName="Default XML" SymbolicName="DefaultXml">
+    <DisplayName>Default XML</DisplayName>
+    <References>
+      <Reference ReferenceType="HasEncoding" IsForward="false">i=11879</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=76</Reference>
+    </References>
+  </UAObject>
+  <UAObject NodeId="i=11888" BrowseName="Default XML" SymbolicName="DefaultXml">
+    <DisplayName>Default XML</DisplayName>
+    <References>
+      <Reference ReferenceType="HasEncoding" IsForward="false">i=11880</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=76</Reference>
+    </References>
+  </UAObject>
+  <UAObject NodeId="i=262" BrowseName="Default XML" SymbolicName="DefaultXml">
+    <DisplayName>Default XML</DisplayName>
+    <References>
+      <Reference ReferenceType="HasEncoding" IsForward="false">i=261</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=76</Reference>
+    </References>
+  </UAObject>
+  <UAObject NodeId="i=265" BrowseName="Default XML" SymbolicName="DefaultXml">
+    <DisplayName>Default XML</DisplayName>
+    <References>
+      <Reference ReferenceType="HasEncoding" IsForward="false">i=264</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=76</Reference>
+    </References>
+  </UAObject>
+  <UAObject NodeId="i=268" BrowseName="Default XML" SymbolicName="DefaultXml">
+    <DisplayName>Default XML</DisplayName>
+    <References>
+      <Reference ReferenceType="HasEncoding" IsForward="false">i=267</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=76</Reference>
+    </References>
+  </UAObject>
+  <UAObject NodeId="i=271" BrowseName="Default XML" SymbolicName="DefaultXml">
+    <DisplayName>Default XML</DisplayName>
+    <References>
+      <Reference ReferenceType="HasEncoding" IsForward="false">i=270</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=76</Reference>
+    </References>
+  </UAObject>
+  <UAObject NodeId="i=274" BrowseName="Default XML" SymbolicName="DefaultXml">
+    <DisplayName>Default XML</DisplayName>
+    <References>
+      <Reference ReferenceType="HasEncoding" IsForward="false">i=273</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=76</Reference>
+    </References>
+  </UAObject>
+  <UAObject NodeId="i=277" BrowseName="Default XML" SymbolicName="DefaultXml">
+    <DisplayName>Default XML</DisplayName>
+    <References>
+      <Reference ReferenceType="HasEncoding" IsForward="false">i=276</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=76</Reference>
+    </References>
+  </UAObject>
+  <UAObject NodeId="i=280" BrowseName="Default XML" SymbolicName="DefaultXml">
+    <DisplayName>Default XML</DisplayName>
+    <References>
+      <Reference ReferenceType="HasEncoding" IsForward="false">i=279</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=76</Reference>
+    </References>
+  </UAObject>
+  <UAObject NodeId="i=283" BrowseName="Default XML" SymbolicName="DefaultXml">
+    <DisplayName>Default XML</DisplayName>
+    <References>
+      <Reference ReferenceType="HasEncoding" IsForward="false">i=282</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=76</Reference>
+    </References>
+  </UAObject>
+  <UAObject NodeId="i=286" BrowseName="Default XML" SymbolicName="DefaultXml">
+    <DisplayName>Default XML</DisplayName>
+    <References>
+      <Reference ReferenceType="HasEncoding" IsForward="false">i=285</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=76</Reference>
+    </References>
+  </UAObject>
+  <UAObject NodeId="i=297" BrowseName="Default XML" SymbolicName="DefaultXml">
+    <DisplayName>Default XML</DisplayName>
+    <References>
+      <Reference ReferenceType="HasEncoding" IsForward="false">i=296</Reference>
+      <Reference ReferenceType="HasDescription">i=8285</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=76</Reference>
+    </References>
+  </UAObject>
+  <UAObject NodeId="i=7616" BrowseName="Default XML" SymbolicName="DefaultXml">
+    <DisplayName>Default XML</DisplayName>
+    <References>
+      <Reference ReferenceType="HasEncoding" IsForward="false">i=7594</Reference>
+      <Reference ReferenceType="HasDescription">i=8291</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=76</Reference>
+    </References>
+  </UAObject>
+  <UAObject NodeId="i=14801" BrowseName="Default XML" SymbolicName="DefaultXml">
+    <DisplayName>Default XML</DisplayName>
+    <References>
+      <Reference ReferenceType="HasEncoding" IsForward="false">i=102</Reference>
+      <Reference ReferenceType="HasDescription">i=14826</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=76</Reference>
+    </References>
+  </UAObject>
+  <UAObject NodeId="i=12757" BrowseName="Default XML" SymbolicName="DefaultXml">
+    <DisplayName>Default XML</DisplayName>
+    <References>
+      <Reference ReferenceType="HasEncoding" IsForward="false">i=12755</Reference>
+      <Reference ReferenceType="HasDescription">i=12759</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=76</Reference>
+    </References>
+  </UAObject>
+  <UAObject NodeId="i=12758" BrowseName="Default XML" SymbolicName="DefaultXml">
+    <DisplayName>Default XML</DisplayName>
+    <References>
+      <Reference ReferenceType="HasEncoding" IsForward="false">i=12756</Reference>
+      <Reference ReferenceType="HasDescription">i=12762</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=76</Reference>
+    </References>
+  </UAObject>
+  <UAObject NodeId="i=8913" BrowseName="Default XML" SymbolicName="DefaultXml">
+    <DisplayName>Default XML</DisplayName>
+    <References>
+      <Reference ReferenceType="HasEncoding" IsForward="false">i=8912</Reference>
+      <Reference ReferenceType="HasDescription">i=8918</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=76</Reference>
+    </References>
+  </UAObject>
+  <UAObject NodeId="i=15045" BrowseName="Default JSON" SymbolicName="DefaultJson">
+    <DisplayName>Default JSON</DisplayName>
+    <References>
+      <Reference ReferenceType="HasEncoding" IsForward="false">i=17861</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=76</Reference>
+    </References>
+  </UAObject>
+  <UAObject NodeId="i=15062" BrowseName="Default JSON" SymbolicName="DefaultJson">
+    <DisplayName>Default JSON</DisplayName>
+    <References>
+      <Reference ReferenceType="HasEncoding" IsForward="false">i=96</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=76</Reference>
+    </References>
+  </UAObject>
+  <UAObject NodeId="i=15063" BrowseName="Default JSON" SymbolicName="DefaultJson">
+    <DisplayName>Default JSON</DisplayName>
+    <References>
+      <Reference ReferenceType="HasEncoding" IsForward="false">i=97</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=76</Reference>
+    </References>
+  </UAObject>
+  <UAObject NodeId="i=15065" BrowseName="Default JSON" SymbolicName="DefaultJson">
+    <DisplayName>Default JSON</DisplayName>
+    <References>
+      <Reference ReferenceType="HasEncoding" IsForward="false">i=101</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=76</Reference>
+    </References>
+  </UAObject>
+  <UAObject NodeId="i=15066" BrowseName="Default JSON" SymbolicName="DefaultJson">
+    <DisplayName>Default JSON</DisplayName>
+    <References>
+      <Reference ReferenceType="HasEncoding" IsForward="false">i=99</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=76</Reference>
+    </References>
+  </UAObject>
+  <UAObject NodeId="i=15067" BrowseName="Default JSON" SymbolicName="DefaultJson">
+    <DisplayName>Default JSON</DisplayName>
+    <References>
+      <Reference ReferenceType="HasEncoding" IsForward="false">i=100</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=76</Reference>
+    </References>
+  </UAObject>
+  <UAObject NodeId="i=15068" BrowseName="Default JSON" SymbolicName="DefaultJson">
+    <DisplayName>Default JSON</DisplayName>
+    <References>
+      <Reference ReferenceType="HasEncoding" IsForward="false">i=258</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=76</Reference>
+    </References>
+  </UAObject>
+  <UAObject NodeId="i=15069" BrowseName="Default JSON" SymbolicName="DefaultJson">
+    <DisplayName>Default JSON</DisplayName>
+    <References>
+      <Reference ReferenceType="HasEncoding" IsForward="false">i=11879</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=76</Reference>
+    </References>
+  </UAObject>
+  <UAObject NodeId="i=15070" BrowseName="Default JSON" SymbolicName="DefaultJson">
+    <DisplayName>Default JSON</DisplayName>
+    <References>
+      <Reference ReferenceType="HasEncoding" IsForward="false">i=11880</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=76</Reference>
+    </References>
+  </UAObject>
+  <UAObject NodeId="i=15071" BrowseName="Default JSON" SymbolicName="DefaultJson">
+    <DisplayName>Default JSON</DisplayName>
+    <References>
+      <Reference ReferenceType="HasEncoding" IsForward="false">i=261</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=76</Reference>
+    </References>
+  </UAObject>
+  <UAObject NodeId="i=15073" BrowseName="Default JSON" SymbolicName="DefaultJson">
+    <DisplayName>Default JSON</DisplayName>
+    <References>
+      <Reference ReferenceType="HasEncoding" IsForward="false">i=264</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=76</Reference>
+    </References>
+  </UAObject>
+  <UAObject NodeId="i=15074" BrowseName="Default JSON" SymbolicName="DefaultJson">
+    <DisplayName>Default JSON</DisplayName>
+    <References>
+      <Reference ReferenceType="HasEncoding" IsForward="false">i=267</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=76</Reference>
+    </References>
+  </UAObject>
+  <UAObject NodeId="i=15075" BrowseName="Default JSON" SymbolicName="DefaultJson">
+    <DisplayName>Default JSON</DisplayName>
+    <References>
+      <Reference ReferenceType="HasEncoding" IsForward="false">i=270</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=76</Reference>
+    </References>
+  </UAObject>
+  <UAObject NodeId="i=15076" BrowseName="Default JSON" SymbolicName="DefaultJson">
+    <DisplayName>Default JSON</DisplayName>
+    <References>
+      <Reference ReferenceType="HasEncoding" IsForward="false">i=273</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=76</Reference>
+    </References>
+  </UAObject>
+  <UAObject NodeId="i=15077" BrowseName="Default JSON" SymbolicName="DefaultJson">
+    <DisplayName>Default JSON</DisplayName>
+    <References>
+      <Reference ReferenceType="HasEncoding" IsForward="false">i=276</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=76</Reference>
+    </References>
+  </UAObject>
+  <UAObject NodeId="i=15078" BrowseName="Default JSON" SymbolicName="DefaultJson">
+    <DisplayName>Default JSON</DisplayName>
+    <References>
+      <Reference ReferenceType="HasEncoding" IsForward="false">i=279</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=76</Reference>
+    </References>
+  </UAObject>
+  <UAObject NodeId="i=15079" BrowseName="Default JSON" SymbolicName="DefaultJson">
+    <DisplayName>Default JSON</DisplayName>
+    <References>
+      <Reference ReferenceType="HasEncoding" IsForward="false">i=282</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=76</Reference>
+    </References>
+  </UAObject>
+  <UAObject NodeId="i=15080" BrowseName="Default JSON" SymbolicName="DefaultJson">
+    <DisplayName>Default JSON</DisplayName>
+    <References>
+      <Reference ReferenceType="HasEncoding" IsForward="false">i=285</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=76</Reference>
+    </References>
+  </UAObject>
+  <UAObject NodeId="i=15081" BrowseName="Default JSON" SymbolicName="DefaultJson">
+    <DisplayName>Default JSON</DisplayName>
+    <References>
+      <Reference ReferenceType="HasEncoding" IsForward="false">i=296</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=76</Reference>
+    </References>
+  </UAObject>
+  <UAObject NodeId="i=15082" BrowseName="Default JSON" SymbolicName="DefaultJson">
+    <DisplayName>Default JSON</DisplayName>
+    <References>
+      <Reference ReferenceType="HasEncoding" IsForward="false">i=7594</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=76</Reference>
+    </References>
+  </UAObject>
+  <UAObject NodeId="i=15083" BrowseName="Default JSON" SymbolicName="DefaultJson">
+    <DisplayName>Default JSON</DisplayName>
+    <References>
+      <Reference ReferenceType="HasEncoding" IsForward="false">i=102</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=76</Reference>
+    </References>
+  </UAObject>
+  <UAObject NodeId="i=15084" BrowseName="Default JSON" SymbolicName="DefaultJson">
+    <DisplayName>Default JSON</DisplayName>
+    <References>
+      <Reference ReferenceType="HasEncoding" IsForward="false">i=12755</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=76</Reference>
+    </References>
+  </UAObject>
+  <UAObject NodeId="i=15085" BrowseName="Default JSON" SymbolicName="DefaultJson">
+    <DisplayName>Default JSON</DisplayName>
+    <References>
+      <Reference ReferenceType="HasEncoding" IsForward="false">i=12756</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=76</Reference>
+    </References>
+  </UAObject>
+  <UAObject NodeId="i=15086" BrowseName="Default JSON" SymbolicName="DefaultJson">
+    <DisplayName>Default JSON</DisplayName>
+    <References>
+      <Reference ReferenceType="HasEncoding" IsForward="false">i=8912</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=76</Reference>
+    </References>
+  </UAObject>
+</UANodeSet>

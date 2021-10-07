@@ -1,0 +1,569 @@
+<?xml version="1.0" encoding="utf-8"?>
+<wsdl:definitions
+  name="UAEndpoints"
+  targetNamespace="http://opcfoundation.org/UA/2008/02/Endpoints.wsdl"
+  xmlns:tns="http://opcfoundation.org/UA/2008/02/Endpoints.wsdl"
+  xmlns:s0="http://opcfoundation.org/UA/2008/02/Services.wsdl"
+  xmlns:s1="http://localhost.org/UA/SampleServer"
+  xmlns:wsdl="http://schemas.xmlsoap.org/wsdl/"
+  xmlns:soap="http://schemas.xmlsoap.org/wsdl/soap/"
+  xmlns:soap12="http://schemas.xmlsoap.org/wsdl/soap12/"
+  xmlns:wsa10="http://www.w3.org/2005/08/addressing"
+>
+  <wsdl:import namespace="http://opcfoundation.org/UA/2008/02/Services.wsdl" location="http://opcfoundation.org/UA/2008/02/Services.wsdl" />
+  <wsdl:types />
+
+  <wsdl:binding name="UaSoapXmlBinding_ISessionEndpoint" type="s0:ISessionEndpoint">
+    <soap12:binding transport="http://schemas.xmlsoap.org/soap/http"/>
+
+    <wsdl:operation name="InvokeService">
+      <soap12:operation soapAction="http://opcfoundation.org/UA/2008/02/Types.xsd/InvokeService" style="document"/>
+      <wsdl:input name="InvokeServiceMessage">
+        <soap12:body use="literal"/>
+      </wsdl:input>
+      <wsdl:output name="InvokeServiceResponseMessage">
+        <soap12:body use="literal"/>
+      </wsdl:output>
+      <wsdl:fault name="InvokeServiceFaultMessage">
+        <soap12:fault name="InvokeServiceFaultMessage" use="literal" />
+      </wsdl:fault>
+    </wsdl:operation>
+
+    <wsdl:operation name="CreateSession">
+      <soap12:operation soapAction="http://opcfoundation.org/UA/2008/02/Services.wsdl/CreateSession" style="document"/>
+      <wsdl:input name="CreateSessionMessage">
+        <soap12:body use="literal"/>
+      </wsdl:input>
+      <wsdl:output name="CreateSessionResponseMessage">
+        <soap12:body use="literal"/>
+      </wsdl:output>
+      <wsdl:fault name="CreateSessionFaultMessage">
+        <soap12:fault name="CreateSessionFaultMessage" use="literal" />
+      </wsdl:fault>
+    </wsdl:operation>
+
+    <wsdl:operation name="ActivateSession">
+      <soap12:operation soapAction="http://opcfoundation.org/UA/2008/02/Services.wsdl/ActivateSession" style="document"/>
+      <wsdl:input name="ActivateSessionMessage">
+        <soap12:body use="literal"/>
+      </wsdl:input>
+      <wsdl:output name="ActivateSessionResponseMessage">
+        <soap12:body use="literal"/>
+      </wsdl:output>
+      <wsdl:fault name="ActivateSessionFaultMessage">
+        <soap12:fault name="ActivateSessionFaultMessage" use="literal" />
+      </wsdl:fault>
+    </wsdl:operation>
+
+    <wsdl:operation name="CloseSession">
+      <soap12:operation soapAction="http://opcfoundation.org/UA/2008/02/Services.wsdl/CloseSession" style="document"/>
+      <wsdl:input name="CloseSessionMessage">
+        <soap12:body use="literal"/>
+      </wsdl:input>
+      <wsdl:output name="CloseSessionResponseMessage">
+        <soap12:body use="literal"/>
+      </wsdl:output>
+      <wsdl:fault name="CloseSessionFaultMessage">
+        <soap12:fault name="CloseSessionFaultMessage" use="literal" />
+      </wsdl:fault>
+    </wsdl:operation>
+
+    <wsdl:operation name="Cancel">
+      <soap12:operation soapAction="http://opcfoundation.org/UA/2008/02/Services.wsdl/Cancel" style="document"/>
+      <wsdl:input name="CancelMessage">
+        <soap12:body use="literal"/>
+      </wsdl:input>
+      <wsdl:output name="CancelResponseMessage">
+        <soap12:body use="literal"/>
+      </wsdl:output>
+      <wsdl:fault name="CancelFaultMessage">
+        <soap12:fault name="CancelFaultMessage" use="literal" />
+      </wsdl:fault>
+    </wsdl:operation>
+
+    <wsdl:operation name="AddNodes">
+      <soap12:operation soapAction="http://opcfoundation.org/UA/2008/02/Services.wsdl/AddNodes" style="document"/>
+      <wsdl:input name="AddNodesMessage">
+        <soap12:body use="literal"/>
+      </wsdl:input>
+      <wsdl:output name="AddNodesResponseMessage">
+        <soap12:body use="literal"/>
+      </wsdl:output>
+      <wsdl:fault name="AddNodesFaultMessage">
+        <soap12:fault name="AddNodesFaultMessage" use="literal" />
+      </wsdl:fault>
+    </wsdl:operation>
+
+    <wsdl:operation name="AddReferences">
+      <soap12:operation soapAction="http://opcfoundation.org/UA/2008/02/Services.wsdl/AddReferences" style="document"/>
+      <wsdl:input name="AddReferencesMessage">
+        <soap12:body use="literal"/>
+      </wsdl:input>
+      <wsdl:output name="AddReferencesResponseMessage">
+        <soap12:body use="literal"/>
+      </wsdl:output>
+      <wsdl:fault name="AddReferencesFaultMessage">
+        <soap12:fault name="AddReferencesFaultMessage" use="literal" />
+      </wsdl:fault>
+    </wsdl:operation>
+
+    <wsdl:operation name="DeleteNodes">
+      <soap12:operation soapAction="http://opcfoundation.org/UA/2008/02/Services.wsdl/DeleteNodes" style="document"/>
+      <wsdl:input name="DeleteNodesMessage">
+        <soap12:body use="literal"/>
+      </wsdl:input>
+      <wsdl:output name="DeleteNodesResponseMessage">
+        <soap12:body use="literal"/>
+      </wsdl:output>
+      <wsdl:fault name="DeleteNodesFaultMessage">
+        <soap12:fault name="DeleteNodesFaultMessage" use="literal" />
+      </wsdl:fault>
+    </wsdl:operation>
+
+    <wsdl:operation name="DeleteReferences">
+      <soap12:operation soapAction="http://opcfoundation.org/UA/2008/02/Services.wsdl/DeleteReferences" style="document"/>
+      <wsdl:input name="DeleteReferencesMessage">
+        <soap12:body use="literal"/>
+      </wsdl:input>
+      <wsdl:output name="DeleteReferencesResponseMessage">
+        <soap12:body use="literal"/>
+      </wsdl:output>
+      <wsdl:fault name="DeleteReferencesFaultMessage">
+        <soap12:fault name="DeleteReferencesFaultMessage" use="literal" />
+      </wsdl:fault>
+    </wsdl:operation>
+
+    <wsdl:operation name="Browse">
+      <soap12:operation soapAction="http://opcfoundation.org/UA/2008/02/Services.wsdl/Browse" style="document"/>
+      <wsdl:input name="BrowseMessage">
+        <soap12:body use="literal"/>
+      </wsdl:input>
+      <wsdl:output name="BrowseResponseMessage">
+        <soap12:body use="literal"/>
+      </wsdl:output>
+      <wsdl:fault name="BrowseFaultMessage">
+        <soap12:fault name="BrowseFaultMessage" use="literal" />
+      </wsdl:fault>
+    </wsdl:operation>
+
+    <wsdl:operation name="BrowseNext">
+      <soap12:operation soapAction="http://opcfoundation.org/UA/2008/02/Services.wsdl/BrowseNext" style="document"/>
+      <wsdl:input name="BrowseNextMessage">
+        <soap12:body use="literal"/>
+      </wsdl:input>
+      <wsdl:output name="BrowseNextResponseMessage">
+        <soap12:body use="literal"/>
+      </wsdl:output>
+      <wsdl:fault name="BrowseNextFaultMessage">
+        <soap12:fault name="BrowseNextFaultMessage" use="literal" />
+      </wsdl:fault>
+    </wsdl:operation>
+
+    <wsdl:operation name="TranslateBrowsePathsToNodeIds">
+      <soap12:operation soapAction="http://opcfoundation.org/UA/2008/02/Services.wsdl/TranslateBrowsePathsToNodeIds" style="document"/>
+      <wsdl:input name="TranslateBrowsePathsToNodeIdsMessage">
+        <soap12:body use="literal"/>
+      </wsdl:input>
+      <wsdl:output name="TranslateBrowsePathsToNodeIdsResponseMessage">
+        <soap12:body use="literal"/>
+      </wsdl:output>
+      <wsdl:fault name="TranslateBrowsePathsToNodeIdsFaultMessage">
+        <soap12:fault name="TranslateBrowsePathsToNodeIdsFaultMessage" use="literal" />
+      </wsdl:fault>
+    </wsdl:operation>
+
+    <wsdl:operation name="RegisterNodes">
+      <soap12:operation soapAction="http://opcfoundation.org/UA/2008/02/Services.wsdl/RegisterNodes" style="document"/>
+      <wsdl:input name="RegisterNodesMessage">
+        <soap12:body use="literal"/>
+      </wsdl:input>
+      <wsdl:output name="RegisterNodesResponseMessage">
+        <soap12:body use="literal"/>
+      </wsdl:output>
+      <wsdl:fault name="RegisterNodesFaultMessage">
+        <soap12:fault name="RegisterNodesFaultMessage" use="literal" />
+      </wsdl:fault>
+    </wsdl:operation>
+
+    <wsdl:operation name="UnregisterNodes">
+      <soap12:operation soapAction="http://opcfoundation.org/UA/2008/02/Services.wsdl/UnregisterNodes" style="document"/>
+      <wsdl:input name="UnregisterNodesMessage">
+        <soap12:body use="literal"/>
+      </wsdl:input>
+      <wsdl:output name="UnregisterNodesResponseMessage">
+        <soap12:body use="literal"/>
+      </wsdl:output>
+      <wsdl:fault name="UnregisterNodesFaultMessage">
+        <soap12:fault name="UnregisterNodesFaultMessage" use="literal" />
+      </wsdl:fault>
+    </wsdl:operation>
+
+    <wsdl:operation name="QueryFirst">
+      <soap12:operation soapAction="http://opcfoundation.org/UA/2008/02/Services.wsdl/QueryFirst" style="document"/>
+      <wsdl:input name="QueryFirstMessage">
+        <soap12:body use="literal"/>
+      </wsdl:input>
+      <wsdl:output name="QueryFirstResponseMessage">
+        <soap12:body use="literal"/>
+      </wsdl:output>
+      <wsdl:fault name="QueryFirstFaultMessage">
+        <soap12:fault name="QueryFirstFaultMessage" use="literal" />
+      </wsdl:fault>
+    </wsdl:operation>
+
+    <wsdl:operation name="QueryNext">
+      <soap12:operation soapAction="http://opcfoundation.org/UA/2008/02/Services.wsdl/QueryNext" style="document"/>
+      <wsdl:input name="QueryNextMessage">
+        <soap12:body use="literal"/>
+      </wsdl:input>
+      <wsdl:output name="QueryNextResponseMessage">
+        <soap12:body use="literal"/>
+      </wsdl:output>
+      <wsdl:fault name="QueryNextFaultMessage">
+        <soap12:fault name="QueryNextFaultMessage" use="literal" />
+      </wsdl:fault>
+    </wsdl:operation>
+
+    <wsdl:operation name="Read">
+      <soap12:operation soapAction="http://opcfoundation.org/UA/2008/02/Services.wsdl/Read" style="document"/>
+      <wsdl:input name="ReadMessage">
+        <soap12:body use="literal"/>
+      </wsdl:input>
+      <wsdl:output name="ReadResponseMessage">
+        <soap12:body use="literal"/>
+      </wsdl:output>
+      <wsdl:fault name="ReadFaultMessage">
+        <soap12:fault name="ReadFaultMessage" use="literal" />
+      </wsdl:fault>
+    </wsdl:operation>
+
+    <wsdl:operation name="HistoryRead">
+      <soap12:operation soapAction="http://opcfoundation.org/UA/2008/02/Services.wsdl/HistoryRead" style="document"/>
+      <wsdl:input name="HistoryReadMessage">
+        <soap12:body use="literal"/>
+      </wsdl:input>
+      <wsdl:output name="HistoryReadResponseMessage">
+        <soap12:body use="literal"/>
+      </wsdl:output>
+      <wsdl:fault name="HistoryReadFaultMessage">
+        <soap12:fault name="HistoryReadFaultMessage" use="literal" />
+      </wsdl:fault>
+    </wsdl:operation>
+
+    <wsdl:operation name="Write">
+      <soap12:operation soapAction="http://opcfoundation.org/UA/2008/02/Services.wsdl/Write" style="document"/>
+      <wsdl:input name="WriteMessage">
+        <soap12:body use="literal"/>
+      </wsdl:input>
+      <wsdl:output name="WriteResponseMessage">
+        <soap12:body use="literal"/>
+      </wsdl:output>
+      <wsdl:fault name="WriteFaultMessage">
+        <soap12:fault name="WriteFaultMessage" use="literal" />
+      </wsdl:fault>
+    </wsdl:operation>
+
+    <wsdl:operation name="HistoryUpdate">
+      <soap12:operation soapAction="http://opcfoundation.org/UA/2008/02/Services.wsdl/HistoryUpdate" style="document"/>
+      <wsdl:input name="HistoryUpdateMessage">
+        <soap12:body use="literal"/>
+      </wsdl:input>
+      <wsdl:output name="HistoryUpdateResponseMessage">
+        <soap12:body use="literal"/>
+      </wsdl:output>
+      <wsdl:fault name="HistoryUpdateFaultMessage">
+        <soap12:fault name="HistoryUpdateFaultMessage" use="literal" />
+      </wsdl:fault>
+    </wsdl:operation>
+
+    <wsdl:operation name="Call">
+      <soap12:operation soapAction="http://opcfoundation.org/UA/2008/02/Services.wsdl/Call" style="document"/>
+      <wsdl:input name="CallMessage">
+        <soap12:body use="literal"/>
+      </wsdl:input>
+      <wsdl:output name="CallResponseMessage">
+        <soap12:body use="literal"/>
+      </wsdl:output>
+      <wsdl:fault name="CallFaultMessage">
+        <soap12:fault name="CallFaultMessage" use="literal" />
+      </wsdl:fault>
+    </wsdl:operation>
+
+    <wsdl:operation name="CreateMonitoredItems">
+      <soap12:operation soapAction="http://opcfoundation.org/UA/2008/02/Services.wsdl/CreateMonitoredItems" style="document"/>
+      <wsdl:input name="CreateMonitoredItemsMessage">
+        <soap12:body use="literal"/>
+      </wsdl:input>
+      <wsdl:output name="CreateMonitoredItemsResponseMessage">
+        <soap12:body use="literal"/>
+      </wsdl:output>
+      <wsdl:fault name="CreateMonitoredItemsFaultMessage">
+        <soap12:fault name="CreateMonitoredItemsFaultMessage" use="literal" />
+      </wsdl:fault>
+    </wsdl:operation>
+
+    <wsdl:operation name="ModifyMonitoredItems">
+      <soap12:operation soapAction="http://opcfoundation.org/UA/2008/02/Services.wsdl/ModifyMonitoredItems" style="document"/>
+      <wsdl:input name="ModifyMonitoredItemsMessage">
+        <soap12:body use="literal"/>
+      </wsdl:input>
+      <wsdl:output name="ModifyMonitoredItemsResponseMessage">
+        <soap12:body use="literal"/>
+      </wsdl:output>
+      <wsdl:fault name="ModifyMonitoredItemsFaultMessage">
+        <soap12:fault name="ModifyMonitoredItemsFaultMessage" use="literal" />
+      </wsdl:fault>
+    </wsdl:operation>
+
+    <wsdl:operation name="SetMonitoringMode">
+      <soap12:operation soapAction="http://opcfoundation.org/UA/2008/02/Services.wsdl/SetMonitoringMode" style="document"/>
+      <wsdl:input name="SetMonitoringModeMessage">
+        <soap12:body use="literal"/>
+      </wsdl:input>
+      <wsdl:output name="SetMonitoringModeResponseMessage">
+        <soap12:body use="literal"/>
+      </wsdl:output>
+      <wsdl:fault name="SetMonitoringModeFaultMessage">
+        <soap12:fault name="SetMonitoringModeFaultMessage" use="literal" />
+      </wsdl:fault>
+    </wsdl:operation>
+
+    <wsdl:operation name="SetTriggering">
+      <soap12:operation soapAction="http://opcfoundation.org/UA/2008/02/Services.wsdl/SetTriggering" style="document"/>
+      <wsdl:input name="SetTriggeringMessage">
+        <soap12:body use="literal"/>
+      </wsdl:input>
+      <wsdl:output name="SetTriggeringResponseMessage">
+        <soap12:body use="literal"/>
+      </wsdl:output>
+      <wsdl:fault name="SetTriggeringFaultMessage">
+        <soap12:fault name="SetTriggeringFaultMessage" use="literal" />
+      </wsdl:fault>
+    </wsdl:operation>
+
+    <wsdl:operation name="DeleteMonitoredItems">
+      <soap12:operation soapAction="http://opcfoundation.org/UA/2008/02/Services.wsdl/DeleteMonitoredItems" style="document"/>
+      <wsdl:input name="DeleteMonitoredItemsMessage">
+        <soap12:body use="literal"/>
+      </wsdl:input>
+      <wsdl:output name="DeleteMonitoredItemsResponseMessage">
+        <soap12:body use="literal"/>
+      </wsdl:output>
+      <wsdl:fault name="DeleteMonitoredItemsFaultMessage">
+        <soap12:fault name="DeleteMonitoredItemsFaultMessage" use="literal" />
+      </wsdl:fault>
+    </wsdl:operation>
+
+    <wsdl:operation name="CreateSubscription">
+      <soap12:operation soapAction="http://opcfoundation.org/UA/2008/02/Services.wsdl/CreateSubscription" style="document"/>
+      <wsdl:input name="CreateSubscriptionMessage">
+        <soap12:body use="literal"/>
+      </wsdl:input>
+      <wsdl:output name="CreateSubscriptionResponseMessage">
+        <soap12:body use="literal"/>
+      </wsdl:output>
+      <wsdl:fault name="CreateSubscriptionFaultMessage">
+        <soap12:fault name="CreateSubscriptionFaultMessage" use="literal" />
+      </wsdl:fault>
+    </wsdl:operation>
+
+    <wsdl:operation name="ModifySubscription">
+      <soap12:operation soapAction="http://opcfoundation.org/UA/2008/02/Services.wsdl/ModifySubscription" style="document"/>
+      <wsdl:input name="ModifySubscriptionMessage">
+        <soap12:body use="literal"/>
+      </wsdl:input>
+      <wsdl:output name="ModifySubscriptionResponseMessage">
+        <soap12:body use="literal"/>
+      </wsdl:output>
+      <wsdl:fault name="ModifySubscriptionFaultMessage">
+        <soap12:fault name="ModifySubscriptionFaultMessage" use="literal" />
+      </wsdl:fault>
+    </wsdl:operation>
+
+    <wsdl:operation name="SetPublishingMode">
+      <soap12:operation soapAction="http://opcfoundation.org/UA/2008/02/Services.wsdl/SetPublishingMode" style="document"/>
+      <wsdl:input name="SetPublishingModeMessage">
+        <soap12:body use="literal"/>
+      </wsdl:input>
+      <wsdl:output name="SetPublishingModeResponseMessage">
+        <soap12:body use="literal"/>
+      </wsdl:output>
+      <wsdl:fault name="SetPublishingModeFaultMessage">
+        <soap12:fault name="SetPublishingModeFaultMessage" use="literal" />
+      </wsdl:fault>
+    </wsdl:operation>
+
+    <wsdl:operation name="Publish">
+      <soap12:operation soapAction="http://opcfoundation.org/UA/2008/02/Services.wsdl/Publish" style="document"/>
+      <wsdl:input name="PublishMessage">
+        <soap12:body use="literal"/>
+      </wsdl:input>
+      <wsdl:output name="PublishResponseMessage">
+        <soap12:body use="literal"/>
+      </wsdl:output>
+      <wsdl:fault name="PublishFaultMessage">
+        <soap12:fault name="PublishFaultMessage" use="literal" />
+      </wsdl:fault>
+    </wsdl:operation>
+
+    <wsdl:operation name="Republish">
+      <soap12:operation soapAction="http://opcfoundation.org/UA/2008/02/Services.wsdl/Republish" style="document"/>
+      <wsdl:input name="RepublishMessage">
+        <soap12:body use="literal"/>
+      </wsdl:input>
+      <wsdl:output name="RepublishResponseMessage">
+        <soap12:body use="literal"/>
+      </wsdl:output>
+      <wsdl:fault name="RepublishFaultMessage">
+        <soap12:fault name="RepublishFaultMessage" use="literal" />
+      </wsdl:fault>
+    </wsdl:operation>
+
+    <wsdl:operation name="TransferSubscriptions">
+      <soap12:operation soapAction="http://opcfoundation.org/UA/2008/02/Services.wsdl/TransferSubscriptions" style="document"/>
+      <wsdl:input name="TransferSubscriptionsMessage">
+        <soap12:body use="literal"/>
+      </wsdl:input>
+      <wsdl:output name="TransferSubscriptionsResponseMessage">
+        <soap12:body use="literal"/>
+      </wsdl:output>
+      <wsdl:fault name="TransferSubscriptionsFaultMessage">
+        <soap12:fault name="TransferSubscriptionsFaultMessage" use="literal" />
+      </wsdl:fault>
+    </wsdl:operation>
+
+    <wsdl:operation name="DeleteSubscriptions">
+      <soap12:operation soapAction="http://opcfoundation.org/UA/2008/02/Services.wsdl/DeleteSubscriptions" style="document"/>
+      <wsdl:input name="DeleteSubscriptionsMessage">
+        <soap12:body use="literal"/>
+      </wsdl:input>
+      <wsdl:output name="DeleteSubscriptionsResponseMessage">
+        <soap12:body use="literal"/>
+      </wsdl:output>
+      <wsdl:fault name="DeleteSubscriptionsFaultMessage">
+        <soap12:fault name="DeleteSubscriptionsFaultMessage" use="literal" />
+      </wsdl:fault>
+    </wsdl:operation>
+
+  </wsdl:binding>
+
+  <wsdl:binding name="UaSoapXmlBinding_IDiscoveryEndpoint" type="s0:IDiscoveryEndpoint">
+    <soap12:binding transport="http://schemas.xmlsoap.org/soap/http"/>
+
+    <wsdl:operation name="InvokeService">
+      <soap12:operation soapAction="http://opcfoundation.org/UA/2008/02/Types.xsd/InvokeService" style="document"/>
+      <wsdl:input name="InvokeServiceMessage">
+        <soap12:body use="literal"/>
+      </wsdl:input>
+      <wsdl:output name="InvokeServiceResponseMessage">
+        <soap12:body use="literal"/>
+      </wsdl:output>
+      <wsdl:fault name="InvokeServiceFaultMessage">
+        <soap12:fault name="InvokeServiceFaultMessage" use="literal" />
+      </wsdl:fault>
+    </wsdl:operation>
+
+    <wsdl:operation name="FindServers">
+      <soap12:operation soapAction="http://opcfoundation.org/UA/2008/02/Services.wsdl/FindServers" style="document"/>
+      <wsdl:input name="FindServersMessage">
+        <soap12:body use="literal"/>
+      </wsdl:input>
+      <wsdl:output name="FindServersResponseMessage">
+        <soap12:body use="literal"/>
+      </wsdl:output>
+      <wsdl:fault name="FindServersFaultMessage">
+        <soap12:fault name="FindServersFaultMessage" use="literal" />
+      </wsdl:fault>
+    </wsdl:operation>
+
+    <wsdl:operation name="FindServersOnNetwork">
+      <soap12:operation soapAction="http://opcfoundation.org/UA/2008/02/Services.wsdl/FindServersOnNetwork" style="document"/>
+      <wsdl:input name="FindServersOnNetworkMessage">
+        <soap12:body use="literal"/>
+      </wsdl:input>
+      <wsdl:output name="FindServersOnNetworkResponseMessage">
+        <soap12:body use="literal"/>
+      </wsdl:output>
+      <wsdl:fault name="FindServersOnNetworkFaultMessage">
+        <soap12:fault name="FindServersOnNetworkFaultMessage" use="literal" />
+      </wsdl:fault>
+    </wsdl:operation>
+
+    <wsdl:operation name="GetEndpoints">
+      <soap12:operation soapAction="http://opcfoundation.org/UA/2008/02/Services.wsdl/GetEndpoints" style="document"/>
+      <wsdl:input name="GetEndpointsMessage">
+        <soap12:body use="literal"/>
+      </wsdl:input>
+      <wsdl:output name="GetEndpointsResponseMessage">
+        <soap12:body use="literal"/>
+      </wsdl:output>
+      <wsdl:fault name="GetEndpointsFaultMessage">
+        <soap12:fault name="GetEndpointsFaultMessage" use="literal" />
+      </wsdl:fault>
+    </wsdl:operation>
+
+  </wsdl:binding>
+
+  <wsdl:binding name="UaSoapXmlBinding_IRegistrationEndpoint" type="s0:IRegistrationEndpoint">
+    <soap12:binding transport="http://schemas.xmlsoap.org/soap/http"/>
+
+    <wsdl:operation name="InvokeService">
+      <soap12:operation soapAction="http://opcfoundation.org/UA/2008/02/Services.wsdl/InvokeService" style="document"/>
+      <wsdl:input name="InvokeServiceMessage">
+        <soap12:body use="literal"/>
+      </wsdl:input>
+      <wsdl:output name="InvokeServiceResponseMessage">
+        <soap12:body use="literal"/>
+      </wsdl:output>
+      <wsdl:fault name="InvokeServiceFaultMessage">
+        <soap12:fault name="InvokeServiceFaultMessage" use="literal" />
+      </wsdl:fault>
+    </wsdl:operation>
+
+    <wsdl:operation name="RegisterServer">
+      <soap12:operation soapAction="http://opcfoundation.org/UA/2008/02/Services.wsdl/RegisterServer" style="document"/>
+      <wsdl:input name="RegisterServerMessage">
+        <soap12:body use="literal"/>
+      </wsdl:input>
+      <wsdl:output name="RegisterServerResponseMessage">
+        <soap12:body use="literal"/>
+      </wsdl:output>
+      <wsdl:fault name="RegisterServerFaultMessage">
+        <soap12:fault name="RegisterServerFaultMessage" use="literal" />
+      </wsdl:fault>
+    </wsdl:operation>
+
+    <wsdl:operation name="RegisterServer2">
+      <soap12:operation soapAction="http://opcfoundation.org/UA/2008/02/Services.wsdl/RegisterServer2" style="document"/>
+      <wsdl:input name="RegisterServer2Message">
+        <soap12:body use="literal"/>
+      </wsdl:input>
+      <wsdl:output name="RegisterServer2ResponseMessage">
+        <soap12:body use="literal"/>
+      </wsdl:output>
+      <wsdl:fault name="RegisterServer2FaultMessage">
+        <soap12:fault name="RegisterServer2FaultMessage" use="literal" />
+      </wsdl:fault>
+    </wsdl:operation>
+
+  </wsdl:binding>
+
+  <wsdl:service name="UAService">
+    <wsdl:port name="UaSoapXmlBinding_ISessionEndpoint" binding="tns:UaSoapXmlBinding_ISessionEndpoint">
+      <soap12:address location="http://localhost/UAService"/>
+    </wsdl:port>
+    <wsdl:port name="UaSoapXmlBinding_IDiscoveryEndpoint" binding="tns:UaSoapXmlBinding_IDiscoveryEndpoint">
+      <soap12:address location="http://localhost/UAService/discovery"/>
+    </wsdl:port>
+  </wsdl:service>
+
+  <wsdl:service name="UADiscoveryService">
+    <wsdl:port name="UaSoapXmlBinding_IDiscoveryEndpoint" binding="tns:UaSoapXmlBinding_IDiscoveryEndpoint">
+      <soap12:address location="http://localhost:52601/UADiscovery"/>
+    </wsdl:port>
+    <wsdl:port name="UaSoapXmlBinding_IRegistrationEndpoint" binding="tns:UaSoapXmlBinding_IRegistrationEndpoint">
+      <soap12:address location="http://localhost:52601/UADiscovery/registration"/>
+    </wsdl:port>
+  </wsdl:service>
+
+</wsdl:definitions>

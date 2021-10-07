@@ -1,0 +1,497 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<!--
+ * Copyright (c) 2005-2020 The OPC Foundation, Inc. All rights reserved.
+ *
+ * OPC Foundation MIT License 1.00
+ * 
+ * Permission is hereby granted, free of charge, to any person
+ * obtaining a copy of this software and associated documentation
+ * files (the "Software"), to deal in the Software without
+ * restriction, including without limitation the rights to use,
+ * copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the
+ * Software is furnished to do so, subject to the following
+ * conditions:
+ * 
+ * The above copyright notice and this permission notice shall be
+ * included in all copies or substantial portions of the Software.
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+ * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
+ * OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+ * NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
+ * HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+ * WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+ * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+ * OTHER DEALINGS IN THE SOFTWARE.
+ *
+ * The complete license agreement can be found here:
+ * http://opcfoundation.org/License/MIT/1.00/
+-->
+
+<xs:schema
+    targetNamespace="http://opcfoundation.org/UA/2011/03/UANodeSet.xsd"
+    elementFormDefault="qualified"
+    xmlns="http://opcfoundation.org/UA/2011/03/UANodeSet.xsd"
+    xmlns:xs="http://www.w3.org/2001/XMLSchema"
+>
+  <xs:element name="UANodeSet">
+    <xs:complexType>
+      <xs:sequence>
+        <xs:element name="NamespaceUris" type="UriTable" minOccurs="0" />
+        <xs:element name="ServerUris" type="UriTable" minOccurs="0" />
+        <xs:element name="Models" type="ModelTable" minOccurs="0" />
+        <xs:element name="Aliases" type="AliasTable" minOccurs="0" />
+        <xs:element name="Extensions" type="ListOfExtensions" minOccurs="0" />
+        <xs:choice minOccurs="0" maxOccurs="unbounded">
+          <xs:element name="UAObject" type="UAObject" />
+          <xs:element name="UAVariable" type="UAVariable" />
+          <xs:element name="UAMethod" type="UAMethod" />
+          <xs:element name="UAView" type="UAView" />
+          <xs:element name="UAObjectType" type="UAObjectType" />
+          <xs:element name="UAVariableType" type="UAVariableType" />
+          <xs:element name="UADataType" type="UADataType" />
+          <xs:element name="UAReferenceType" type="UAReferenceType" />
+        </xs:choice>
+      </xs:sequence>
+      <xs:attribute name="LastModified" type="xs:dateTime" />
+    </xs:complexType>
+  </xs:element>
+
+  <xs:element name="UANodeSetChanges">
+    <xs:complexType>
+      <xs:sequence>
+        <xs:element name="NamespaceUris" type="UriTable" minOccurs="0" />
+        <xs:element name="ServerUris" type="UriTable" minOccurs="0" />
+        <xs:element name="Aliases" type="AliasTable" minOccurs="0" />
+        <xs:element name="Extensions" type="ListOfExtensions" minOccurs="0" />
+        <xs:element name="NodesToAdd" type="NodesToAdd" minOccurs="0" />
+        <xs:element name="ReferencesToAdd" type="ReferencesToChange" minOccurs="0" />
+        <xs:element name="NodesToDelete" type="NodesToDelete" minOccurs="0" />
+        <xs:element name="ReferencesToDelete" type="ReferencesToChange" minOccurs="0" />
+      </xs:sequence>
+      <xs:attribute name="LastModified" type="xs:dateTime" />
+      <xs:attribute name="TransactionId" type="xs:string" use="required" />
+      <xs:attribute name="AcceptAllOrNothing" type="xs:boolean" default="false" />
+    </xs:complexType>
+  </xs:element>
+
+  <xs:element name="UANodeSetChangesStatus">
+    <xs:complexType>
+      <xs:sequence>
+        <xs:element name="NodesToAdd" type="NodeSetStatusList" minOccurs="0" />
+        <xs:element name="ReferencesToAdd" type="NodeSetStatusList" minOccurs="0" />
+        <xs:element name="NodesToDelete" type="NodeSetStatusList" minOccurs="0" />
+        <xs:element name="ReferencesToDelete" type="NodeSetStatusList" minOccurs="0" />
+      </xs:sequence>
+      <xs:attribute name="LastModified" type="xs:dateTime" />
+      <xs:attribute name="TransactionId" type="xs:string" use="required" />
+    </xs:complexType>
+  </xs:element>
+
+  <xs:complexType name="NodesToAdd">
+    <xs:choice minOccurs="0" maxOccurs="unbounded">
+      <xs:element name="UAObject" type="UAObject" />
+      <xs:element name="UAVariable" type="UAVariable" />
+      <xs:element name="UAMethod" type="UAMethod" />
+      <xs:element name="UAView" type="UAView" />
+      <xs:element name="UAObjectType" type="UAObjectType" />
+      <xs:element name="UAVariableType" type="UAVariableType" />
+      <xs:element name="UADataType" type="UADataType" />
+      <xs:element name="UAReferenceType" type="UAReferenceType" />
+    </xs:choice>
+  </xs:complexType>
+
+  <xs:complexType name="NodesToDelete">
+    <xs:sequence>
+      <xs:element name="Node" type="NodeToDelete" minOccurs="0" maxOccurs="unbounded" />
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:complexType name="NodeToDelete">
+    <xs:simpleContent>
+      <xs:extension base="NodeId">
+        <xs:attribute name="DeleteReverseReferences" type="xs:boolean" default="true" />
+      </xs:extension>
+    </xs:simpleContent>
+  </xs:complexType>
+
+  <xs:complexType name="ReferencesToChange">
+    <xs:sequence>
+      <xs:element name="Reference" type="ReferenceChange" minOccurs="0" maxOccurs="unbounded" />
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:complexType name="ReferenceChange">
+    <xs:simpleContent>
+      <xs:extension base="NodeId">
+        <xs:attribute name="Source" type="NodeId" use="required" />
+        <xs:attribute name="ReferenceType" type="NodeId" use="required" />
+        <xs:attribute name="IsForward" type="xs:boolean" default="true" />
+      </xs:extension>
+    </xs:simpleContent>
+  </xs:complexType>
+
+  <xs:complexType name="NodeSetStatus">
+    <xs:simpleContent>
+      <xs:extension base="xs:string">
+        <xs:attribute name="Code" type="xs:unsignedInt" default="0" />
+      </xs:extension>
+    </xs:simpleContent>
+  </xs:complexType>
+
+  <xs:complexType name="NodeSetStatusList">
+    <xs:sequence>
+      <xs:element name="Status" type="NodeSetStatus" minOccurs="0" maxOccurs="unbounded" />
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:complexType name="UriTable">
+    <xs:sequence>
+      <xs:element name="Uri" type="xs:string" minOccurs="0" maxOccurs="unbounded" />
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:complexType name="ModelTableEntry">
+    <xs:sequence>
+      <xs:element name="RolePermissions" type="ListOfRolePermissions" minOccurs="0" />
+      <xs:element name="RequiredModel" type="ModelTableEntry" minOccurs="0" maxOccurs="unbounded" />
+    </xs:sequence>
+    <xs:attribute name="ModelUri" type="xs:string" use="required" />
+    <xs:attribute name="Version" type="xs:string" />
+    <xs:attribute name="PublicationDate" type="xs:dateTime" />
+    <xs:attribute name="AccessRestrictions" type="AccessRestriction" default="0" />
+  </xs:complexType>
+
+  <xs:complexType name="ModelTable">
+    <xs:sequence>
+      <xs:element name="Model" type="ModelTableEntry" minOccurs="0" maxOccurs="unbounded" />
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:simpleType name="NodeId">
+    <xs:restriction base="xs:string" />
+  </xs:simpleType>
+
+  <xs:simpleType name="QualifiedName">
+    <xs:restriction base="xs:string" />
+  </xs:simpleType>
+
+  <xs:complexType name="NodeIdAlias">
+    <xs:simpleContent>
+      <xs:extension base="NodeId">
+        <xs:attribute name="Alias" type="xs:string" use="required" />
+      </xs:extension>
+    </xs:simpleContent>
+  </xs:complexType>
+
+  <xs:complexType name="AliasTable">
+    <xs:sequence>
+      <xs:element name="Alias" type="NodeIdAlias" minOccurs="0" maxOccurs="unbounded" />
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:simpleType name="Locale">
+    <xs:restriction base="xs:string" />
+  </xs:simpleType>
+
+  <xs:complexType name="LocalizedText">
+    <xs:simpleContent>
+      <xs:extension base="xs:string">
+        <xs:attribute name="Locale" type="Locale" default="" />
+      </xs:extension>
+    </xs:simpleContent>
+  </xs:complexType>
+
+  <xs:simpleType name="WriteMask">
+    <xs:restriction base="xs:unsignedInt" />
+  </xs:simpleType>
+
+  <xs:simpleType name="EventNotifier">
+    <xs:restriction base="xs:unsignedByte" />
+  </xs:simpleType>
+
+  <xs:simpleType name="ValueRank">
+    <xs:restriction base="xs:int" />
+  </xs:simpleType>
+
+  <xs:simpleType name="AccessRestriction">
+    <xs:restriction base="xs:unsignedByte" />
+  </xs:simpleType>
+
+  <xs:simpleType name="ArrayDimensions">
+	<xs:restriction base="xs:token">
+	  <xs:pattern value="(([0-9]+,)*[0-9]+)?" />
+	</xs:restriction>
+  </xs:simpleType>
+
+  <xs:simpleType name="SymbolicName">
+    <xs:list>
+      <xs:simpleType>
+        <xs:restriction base="xs:string">
+          <xs:pattern value="[A-Za-z][A-Za-z0-9_]*" />
+        </xs:restriction>
+      </xs:simpleType>
+    </xs:list>
+  </xs:simpleType>
+
+  <xs:simpleType name="CardinalityType">
+    <xs:list>
+      <xs:simpleType>
+        <xs:restriction base="xs:string">
+          <xs:pattern value="(\p{N})*|unbounded" />
+        </xs:restriction>
+      </xs:simpleType>
+    </xs:list>
+  </xs:simpleType>
+
+  <xs:simpleType name="Duration">
+    <xs:restriction base="xs:double" />
+  </xs:simpleType>
+
+  <xs:simpleType name="AccessLevel">
+    <xs:restriction base="xs:unsignedInt" />
+  </xs:simpleType>
+
+  <xs:complexType name="Reference">
+    <xs:simpleContent>
+      <xs:extension base="NodeId">
+        <xs:attribute name="ReferenceType" type="NodeId" use="required" />
+        <xs:attribute name="IsForward" type="xs:boolean" default="true" />
+      </xs:extension>
+    </xs:simpleContent>
+  </xs:complexType>
+
+  <xs:complexType name="ListOfReferences">
+    <xs:sequence>
+      <xs:element name="Reference" type="Reference" minOccurs="0" maxOccurs="unbounded" />
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:complexType name="RolePermission">
+    <xs:simpleContent>
+      <xs:extension base="NodeId">
+        <xs:attribute name="Permissions" type="xs:unsignedInt" default="0" />
+      </xs:extension>
+    </xs:simpleContent>
+  </xs:complexType>
+
+  <xs:complexType name="ListOfRolePermissions">
+    <xs:sequence>
+      <xs:element name="RolePermission" type="RolePermission" minOccurs="0" maxOccurs="unbounded" />
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:complexType name="ListOfExtensions">
+    <xs:sequence>
+      <xs:element name="Extension" minOccurs="0" maxOccurs="unbounded">
+        <xs:complexType>
+          <xs:sequence>
+            <xs:any minOccurs="0" processContents="lax" />
+          </xs:sequence>
+        </xs:complexType>
+      </xs:element>
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:simpleType name="ReleaseStatus">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="Released" />
+      <xs:enumeration value="Draft" />
+      <xs:enumeration value="Deprecated" />
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:complexType name="UANode">
+    <xs:sequence>
+      <xs:element name="DisplayName" type="LocalizedText" minOccurs="0" maxOccurs="unbounded" />
+      <xs:element name="Description" type="LocalizedText" minOccurs="0" maxOccurs="unbounded" />
+      <xs:element name="Category" type="xs:string" minOccurs="0" maxOccurs="unbounded" />
+      <xs:element name="Documentation" type="xs:string" minOccurs="0" />
+      <xs:element name="References" type="ListOfReferences" minOccurs="0" />
+      <xs:element name="RolePermissions" type="ListOfRolePermissions" minOccurs="0" />
+      <xs:element name="Extensions" type="ListOfExtensions" minOccurs="0" />
+    </xs:sequence>
+    <xs:attribute name="NodeId" type="NodeId" use="required" />
+    <xs:attribute name="BrowseName" type="QualifiedName" use="required" />
+    <xs:attribute name="WriteMask" type="WriteMask" default="0" />
+    <xs:attribute name="UserWriteMask" type="WriteMask" default="0" />
+    <xs:attribute name="AccessRestrictions" type="AccessRestriction" default="0" />
+    <xs:attribute name="SymbolicName" type="SymbolicName" />
+    <xs:attribute name="ReleaseStatus" type="ReleaseStatus" default="Released" />
+  </xs:complexType>
+
+  <xs:complexType name="UAInstance">
+    <xs:complexContent>
+      <xs:extension base="UANode">
+        <xs:attribute name="ParentNodeId" type="NodeId" />
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+
+  <xs:complexType name="UAObject">
+    <xs:complexContent>
+      <xs:extension base="UAInstance">
+        <xs:attribute name="EventNotifier" type="EventNotifier" default="0" />
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+
+  <xs:complexType name="UAVariable">
+    <xs:complexContent>
+      <xs:extension base="UAInstance">
+        <xs:sequence>
+          <xs:element name="Value" minOccurs="0">
+            <xs:complexType>
+              <xs:sequence>
+                <xs:any minOccurs="0" processContents="lax" />
+              </xs:sequence>
+            </xs:complexType>
+          </xs:element>
+          <xs:element name="Translation" type="TranslationType" minOccurs="0" maxOccurs="unbounded" />
+        </xs:sequence>
+        <xs:attribute name="DataType" type="NodeId" default="i=24" />
+        <xs:attribute name="ValueRank" type="ValueRank" default="-1" />
+        <xs:attribute name="ArrayDimensions" type="ArrayDimensions" default="" />
+        <xs:attribute name="AccessLevel" type="AccessLevel" default="1" />
+        <xs:attribute name="UserAccessLevel" type="AccessLevel" default="1" />
+        <xs:attribute name="MinimumSamplingInterval" type="Duration" default="0" />
+        <xs:attribute name="Historizing" type="xs:boolean" default="false" />
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+
+  <xs:complexType name="UAMethodArgument">
+    <xs:sequence>
+      <xs:element name="Name" type="xs:string" minOccurs="0" />
+      <xs:element name="Description" type="LocalizedText" minOccurs="0" maxOccurs="unbounded" />
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:complexType name="UAMethod">
+    <xs:complexContent>
+      <xs:extension base="UAInstance">
+        <xs:sequence>
+          <xs:element name="ArgumentDescription" type="UAMethodArgument" minOccurs="0" maxOccurs="unbounded" />
+        </xs:sequence>
+        <xs:attribute name="Executable" type="xs:boolean" default="true" />
+        <xs:attribute name="UserExecutable" type="xs:boolean" default="true" />
+        <xs:attribute name="MethodDeclarationId" type="NodeId" />
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+
+  <xs:complexType name="TranslationType">
+    <xs:choice minOccurs="0">
+      <xs:element name="Text" type="LocalizedText" minOccurs="0" maxOccurs="unbounded" />
+      <xs:element name="Field" type="StructureTranslationType" minOccurs="0" maxOccurs="unbounded" />
+    </xs:choice>
+  </xs:complexType>
+
+  <xs:complexType name="StructureTranslationType">
+    <xs:sequence>
+      <xs:element name="Text" type="LocalizedText" minOccurs="0" maxOccurs="unbounded" />
+    </xs:sequence>
+    <xs:attribute name="Name" type="xs:string" use="required" />
+  </xs:complexType>
+
+  <xs:complexType name="UAView">
+    <xs:complexContent>
+      <xs:extension base="UAInstance">
+        <xs:attribute name="ContainsNoLoops" type="xs:boolean" default="false" />
+        <xs:attribute name="EventNotifier" type="EventNotifier" default="0" />
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+
+  <xs:complexType name="UAType">
+    <xs:complexContent>
+      <xs:extension base="UANode">
+        <xs:attribute name="IsAbstract" type="xs:boolean" default="false" />
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+
+  <xs:complexType name="UAObjectType">
+    <xs:complexContent>
+      <xs:extension base="UAType" />
+    </xs:complexContent>
+  </xs:complexType>
+
+  <xs:complexType name="UAVariableType">
+    <xs:complexContent>
+      <xs:extension base="UAType">
+        <xs:sequence>
+          <xs:element name="Value" minOccurs="0">
+            <xs:complexType>
+              <xs:sequence>
+                <xs:any minOccurs="0" processContents="lax" />
+              </xs:sequence>
+            </xs:complexType>
+          </xs:element>
+        </xs:sequence>
+        <xs:attribute name="DataType" type="NodeId" default="i=24" />
+        <xs:attribute name="ValueRank" type="ValueRank" default="-1" />
+        <xs:attribute name="ArrayDimensions" type="ArrayDimensions" default="" />
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+
+  <xs:simpleType name="DataTypePurpose">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="Normal" />
+      <xs:enumeration value="ServicesOnly" />
+      <xs:enumeration value="CodeGenerator" />
+    </xs:restriction>
+  </xs:simpleType>
+  
+  <xs:complexType name="UADataType">
+    <xs:complexContent>
+      <xs:extension base="UAType">
+        <xs:sequence>
+          <xs:element name="Definition" type="DataTypeDefinition" minOccurs="0" />
+        </xs:sequence>
+        <xs:attribute name="Purpose" type="DataTypePurpose" default="Normal" />
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+
+  <xs:complexType name="DataTypeDefinition">
+    <xs:sequence>
+      <xs:element name="Field" type="DataTypeField" minOccurs="0" maxOccurs="unbounded" />
+    </xs:sequence>
+    <xs:attribute name="Name" type="QualifiedName" use="required" />
+    <xs:attribute name="SymbolicName" type="SymbolicName" default="" />
+    <xs:attribute name="IsUnion" type="xs:boolean" default="false" />
+    <xs:attribute name="IsOptionSet" type="xs:boolean" default="false" />
+    
+    <!-- BaseType is obsolete and no longer used. Left in for backwards compatibility. -->
+    <xs:attribute name="BaseType" type="QualifiedName" default="" />
+  </xs:complexType>
+
+  <xs:complexType name="DataTypeField">
+    <xs:sequence>
+      <xs:element name="DisplayName" type="LocalizedText" minOccurs="0" maxOccurs="unbounded" />
+      <xs:element name="Description" type="LocalizedText" minOccurs="0" maxOccurs="unbounded" />
+    </xs:sequence>
+    <xs:attribute name="Name" type="xs:string" use="required" />
+    <xs:attribute name="SymbolicName" type="SymbolicName" />
+    <xs:attribute name="DataType" type="NodeId" default="i=24" />
+    <xs:attribute name="ValueRank" type="ValueRank" default="-1" />
+    <xs:attribute name="ArrayDimensions" type="ArrayDimensions" default="" />
+    <xs:attribute name="MaxStringLength" type="xs:unsignedInt" default="0" />
+    <xs:attribute name="Value" type="xs:int" default="-1" />
+    <xs:attribute name="IsOptional" type="xs:boolean" default="false" />
+  </xs:complexType>
+
+  <xs:complexType name="UAReferenceType">
+    <xs:complexContent>
+      <xs:extension base="UAType">
+        <xs:sequence>
+          <xs:element name="InverseName" type="LocalizedText" minOccurs="0" maxOccurs="unbounded" />
+        </xs:sequence>
+        <xs:attribute name="Symmetric" type="xs:boolean" default="false" />
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+
+</xs:schema>

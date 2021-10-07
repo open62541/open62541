@@ -1,0 +1,171 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<!--
+ * Copyright (c) 2005-2020 The OPC Foundation, Inc. All rights reserved.
+ *
+ * OPC Foundation MIT License 1.00
+ * 
+ * Permission is hereby granted, free of charge, to any person
+ * obtaining a copy of this software and associated documentation
+ * files (the "Software"), to deal in the Software without
+ * restriction, including without limitation the rights to use,
+ * copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the
+ * Software is furnished to do so, subject to the following
+ * conditions:
+ * 
+ * The above copyright notice and this permission notice shall be
+ * included in all copies or substantial portions of the Software.
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+ * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
+ * OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+ * NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
+ * HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+ * WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+ * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+ * OTHER DEALINGS IN THE SOFTWARE.
+ *
+ * The complete license agreement can be found here:
+ * http://opcfoundation.org/License/MIT/1.00/
+-->
+
+<opc:TypeDictionary
+  xmlns:opc="http://opcfoundation.org/BinarySchema/"
+  xmlns:ua="http://opcfoundation.org/UA/2008/02/Types.bsd"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xmlns:tns="http://www.OPCFoundation.org/UA/2013/01/ISA95"
+  DefaultByteOrder="LittleEndian"
+  TargetNamespace="http://www.OPCFoundation.org/UA/2013/01/ISA95"  
+>
+  <opc:Import Namespace="http://opcfoundation.org/UA/" Location="Opc.Ua.BinarySchema.bsd"/>
+  
+  <opc:OpaqueType Name="DecimalString">
+  </opc:OpaqueType>
+
+  <opc:OpaqueType Name="DateString">
+  </opc:OpaqueType>
+
+  <opc:OpaqueType Name="TimeString">
+  </opc:OpaqueType>
+
+  <opc:OpaqueType Name="DurationString">
+  </opc:OpaqueType>
+
+  <opc:OpaqueType Name="NormalizedString">
+  </opc:OpaqueType>
+
+  <opc:OpaqueType Name="Decimal">
+  </opc:OpaqueType>
+
+  <opc:StructuredType Name="CurrencyCode" BaseType="ua:ExtensionObject">
+    <opc:Field Name="namespaceUri" TypeName="opc:String" />
+    <opc:Field Name="unitId" TypeName="opc:Int32" />
+    <opc:Field Name="NoOfcharId" TypeName="opc:Int32" />
+    <opc:Field Name="charId" TypeName="opc:Byte" LengthField="NoOfcharId" />
+    <opc:Field Name="displayName" TypeName="ua:LocalizedText" />
+    <opc:Field Name="Description" TypeName="ua:LocalizedText" />
+  </opc:StructuredType>
+
+  <opc:OpaqueType Name="CDTAmountDecimal">
+  </opc:OpaqueType>
+
+  <opc:OpaqueType Name="CDTBinaryObject">
+  </opc:OpaqueType>
+
+  <opc:OpaqueType Name="CDTCode">
+  </opc:OpaqueType>
+
+  <opc:OpaqueType Name="CDTDateTime">
+  </opc:OpaqueType>
+
+  <opc:OpaqueType Name="CDTGraphic">
+  </opc:OpaqueType>
+
+  <opc:OpaqueType Name="CDTIdentifier">
+  </opc:OpaqueType>
+
+  <opc:OpaqueType Name="CDTMeasureDecimal">
+  </opc:OpaqueType>
+
+  <opc:OpaqueType Name="CDTMeasureDouble">
+  </opc:OpaqueType>
+
+  <opc:OpaqueType Name="CDTMeasureFloat">
+  </opc:OpaqueType>
+
+  <opc:OpaqueType Name="CDTMeasureInt16">
+  </opc:OpaqueType>
+
+  <opc:OpaqueType Name="CDTMeasureInt32">
+  </opc:OpaqueType>
+
+  <opc:OpaqueType Name="CDTMeasureInt64">
+  </opc:OpaqueType>
+
+  <opc:OpaqueType Name="CDTOrdinal">
+  </opc:OpaqueType>
+
+  <opc:OpaqueType Name="CDTPicture">
+  </opc:OpaqueType>
+
+  <opc:OpaqueType Name="CDTRateDecimal">
+  </opc:OpaqueType>
+
+  <opc:OpaqueType Name="CDTRateDouble">
+  </opc:OpaqueType>
+
+  <opc:OpaqueType Name="CDTRateFloat">
+  </opc:OpaqueType>
+
+  <opc:OpaqueType Name="CDTRateInt32">
+  </opc:OpaqueType>
+
+  <opc:OpaqueType Name="CDTSound">
+  </opc:OpaqueType>
+
+  <opc:OpaqueType Name="CDTVideo">
+  </opc:OpaqueType>
+
+  <opc:EnumeratedType Name="ISA95EquipmentElementLevelEnum" LengthInBits="32">
+    <opc:EnumeratedValue Name="Enterprise" Value="0" />
+    <opc:EnumeratedValue Name="Site" Value="1" />
+    <opc:EnumeratedValue Name="Area" Value="2" />
+    <opc:EnumeratedValue Name="ProcessCell" Value="3" />
+    <opc:EnumeratedValue Name="Unit" Value="4" />
+    <opc:EnumeratedValue Name="ProductionLine" Value="5" />
+    <opc:EnumeratedValue Name="WorkCell" Value="6" />
+    <opc:EnumeratedValue Name="ProductionUnit" Value="7" />
+    <opc:EnumeratedValue Name="StorageZone" Value="8" />
+    <opc:EnumeratedValue Name="StorageUnit" Value="9" />
+    <opc:EnumeratedValue Name="WorkCenter" Value="10" />
+    <opc:EnumeratedValue Name="WorkUnit" Value="11" />
+    <opc:EnumeratedValue Name="EquipmentModule" Value="12" />
+    <opc:EnumeratedValue Name="ControlModule" Value="13" />
+    <opc:EnumeratedValue Name="Other" Value="14" />
+  </opc:EnumeratedType>
+
+  <opc:StructuredType Name="ISA95TestResultMeasurementDataType" BaseType="ua:ExtensionObject">
+    <opc:Field Name="Id" TypeName="ua:NodeId" />
+    <opc:Field Name="TestResultDescription" TypeName="ua:LocalizedText" />
+    <opc:Field Name="Date" TypeName="opc:DateTime" />
+    <opc:Field Name="Result" TypeName="ua:Variant" />
+    <opc:Field Name="ResultUnitOfMeasure" TypeName="ua:EUInformation" />
+    <opc:Field Name="Expiration" TypeName="opc:DateTime" />
+  </opc:StructuredType>
+
+  <opc:StructuredType Name="ISA95TestResultDataType" BaseType="ua:ExtensionObject">
+    <opc:Field Name="Id" TypeName="ua:NodeId" />
+    <opc:Field Name="TestResultDescription" TypeName="ua:LocalizedText" />
+    <opc:Field Name="Date" TypeName="opc:DateTime" />
+    <opc:Field Name="Result" TypeName="ua:Variant" />
+    <opc:Field Name="ResultUnitOfMeasure" TypeName="opc:String" />
+    <opc:Field Name="Expiration" TypeName="opc:DateTime" />
+  </opc:StructuredType>
+
+  <opc:StructuredType Name="ISA95AssetAssignmentDataType" BaseType="ua:ExtensionObject">
+    <opc:Field Name="Id" TypeName="ua:NodeId" />
+    <opc:Field Name="AssinmentDescription" TypeName="ua:LocalizedText" />
+    <opc:Field Name="StartTime" TypeName="opc:DateTime" />
+    <opc:Field Name="EndTime" TypeName="opc:DateTime" />
+  </opc:StructuredType>
+  
+</opc:TypeDictionary>

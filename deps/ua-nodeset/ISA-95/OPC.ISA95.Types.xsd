@@ -1,0 +1,193 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<!--
+ * Copyright (c) 2005-2020 The OPC Foundation, Inc. All rights reserved.
+ *
+ * OPC Foundation MIT License 1.00
+ * 
+ * Permission is hereby granted, free of charge, to any person
+ * obtaining a copy of this software and associated documentation
+ * files (the "Software"), to deal in the Software without
+ * restriction, including without limitation the rights to use,
+ * copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the
+ * Software is furnished to do so, subject to the following
+ * conditions:
+ * 
+ * The above copyright notice and this permission notice shall be
+ * included in all copies or substantial portions of the Software.
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+ * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
+ * OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+ * NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
+ * HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+ * WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+ * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+ * OTHER DEALINGS IN THE SOFTWARE.
+ *
+ * The complete license agreement can be found here:
+ * http://opcfoundation.org/License/MIT/1.00/
+-->
+
+<xs:schema 
+  xmlns:xs="http://www.w3.org/2001/XMLSchema"
+  xmlns:ua="http://opcfoundation.org/UA/2008/02/Types.xsd" 
+  xmlns:tns="http://www.OPCFoundation.org/UA/2013/01/ISA95" 
+  targetNamespace="http://www.OPCFoundation.org/UA/2013/01/ISA95" 
+  elementFormDefault="qualified"
+>
+  <xs:import namespace="http://opcfoundation.org/UA/2008/02/Types.xsd" />
+  
+  <xs:element name="DecimalString" type="xs:string" />
+
+  <xs:element name="DateString" type="xs:string" />
+
+  <xs:element name="TimeString" type="xs:string" />
+
+  <xs:element name="DurationString" type="xs:string" />
+
+  <xs:element name="NormalizedString" type="xs:string" />
+
+  <xs:element name="Decimal" type="xs:base64Binary" />
+
+  <xs:complexType name="CurrencyCode">
+  	<xs:sequence>
+      <xs:element name="namespaceUri" type="xs:string" minOccurs="0" nillable="true" />
+      <xs:element name="unitId" type="xs:int" minOccurs="0" />
+      <xs:element name="charId" type="ua:ListOfByte" minOccurs="0" nillable="true" />
+      <xs:element name="displayName" type="ua:LocalizedText" minOccurs="0" nillable="true" />
+      <xs:element name="Description" type="ua:LocalizedText" minOccurs="0" nillable="true" />
+  	</xs:sequence>
+  </xs:complexType>
+  <xs:element name="CurrencyCode" type="tns:CurrencyCode" />
+
+  <xs:complexType name="ListOfCurrencyCode">
+    <xs:sequence>
+      <xs:element name="CurrencyCode" type="tns:CurrencyCode" minOccurs="0" maxOccurs="unbounded" nillable="true" />
+    </xs:sequence>
+  </xs:complexType>
+  <xs:element name="ListOfCurrencyCode" type="tns:ListOfCurrencyCode" nillable="true"></xs:element>
+
+  <xs:element name="CDTAmountDecimal" type="xs:base64Binary" />
+
+  <xs:element name="CDTBinaryObject" type="xs:base64Binary" />
+
+  <xs:element name="CDTCode" type="xs:string" />
+
+  <xs:element name="CDTDateTime" type="xs:dateTime" />
+
+  <xs:element name="CDTGraphic" type="xs:base64Binary" />
+
+  <xs:element name="CDTIdentifier" type="xs:string" />
+
+  <xs:element name="CDTMeasureDecimal" type="xs:base64Binary" />
+
+  <xs:element name="CDTMeasureDouble" type="xs:double" />
+
+  <xs:element name="CDTMeasureFloat" type="xs:float" />
+
+  <xs:element name="CDTMeasureInt16" type="xs:short" />
+
+  <xs:element name="CDTMeasureInt32" type="xs:int" />
+
+  <xs:element name="CDTMeasureInt64" type="xs:long" />
+
+  <xs:element name="CDTOrdinal" type="xs:int" />
+
+  <xs:element name="CDTPicture" type="xs:base64Binary" />
+
+  <xs:element name="CDTRateDecimal" type="xs:base64Binary" />
+
+  <xs:element name="CDTRateDouble" type="xs:double" />
+
+  <xs:element name="CDTRateFloat" type="xs:float" />
+
+  <xs:element name="CDTRateInt32" type="xs:int" />
+
+  <xs:element name="CDTSound" type="xs:base64Binary" />
+
+  <xs:element name="CDTVideo" type="xs:base64Binary" />
+
+  <xs:simpleType  name="ISA95EquipmentElementLevelEnum">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="Enterprise_0" />
+      <xs:enumeration value="Site_1" />
+      <xs:enumeration value="Area_2" />
+      <xs:enumeration value="ProcessCell_3" />
+      <xs:enumeration value="Unit_4" />
+      <xs:enumeration value="ProductionLine_5" />
+      <xs:enumeration value="WorkCell_6" />
+      <xs:enumeration value="ProductionUnit_7" />
+      <xs:enumeration value="StorageZone_8" />
+      <xs:enumeration value="StorageUnit_9" />
+      <xs:enumeration value="WorkCenter_10" />
+      <xs:enumeration value="WorkUnit_11" />
+      <xs:enumeration value="EquipmentModule_12" />
+      <xs:enumeration value="ControlModule_13" />
+      <xs:enumeration value="Other_14" />
+    </xs:restriction>
+  </xs:simpleType>
+  <xs:element name="ISA95EquipmentElementLevelEnum" type="tns:ISA95EquipmentElementLevelEnum" />
+
+  <xs:complexType name="ListOfISA95EquipmentElementLevelEnum">
+    <xs:sequence>
+      <xs:element name="ISA95EquipmentElementLevelEnum" type="tns:ISA95EquipmentElementLevelEnum" minOccurs="0" maxOccurs="unbounded" />
+    </xs:sequence>
+  </xs:complexType>
+  <xs:element name="ListOfISA95EquipmentElementLevelEnum" type="tns:ListOfISA95EquipmentElementLevelEnum" nillable="true"></xs:element>
+
+  <xs:complexType name="ISA95TestResultMeasurementDataType">
+  	<xs:sequence>
+      <xs:element name="Id" type="ua:NodeId" minOccurs="0" nillable="true" />
+      <xs:element name="TestResultDescription" type="ua:LocalizedText" minOccurs="0" nillable="true" />
+      <xs:element name="Date" type="xs:dateTime" minOccurs="0" />
+      <xs:element name="Result" type="ua:Variant" minOccurs="0" />
+      <xs:element name="ResultUnitOfMeasure" type="ua:EUInformation" minOccurs="0" nillable="true" />
+      <xs:element name="Expiration" type="xs:dateTime" minOccurs="0" />
+  	</xs:sequence>
+  </xs:complexType>
+  <xs:element name="ISA95TestResultMeasurementDataType" type="tns:ISA95TestResultMeasurementDataType" />
+
+  <xs:complexType name="ListOfISA95TestResultMeasurementDataType">
+    <xs:sequence>
+      <xs:element name="ISA95TestResultMeasurementDataType" type="tns:ISA95TestResultMeasurementDataType" minOccurs="0" maxOccurs="unbounded" nillable="true" />
+    </xs:sequence>
+  </xs:complexType>
+  <xs:element name="ListOfISA95TestResultMeasurementDataType" type="tns:ListOfISA95TestResultMeasurementDataType" nillable="true"></xs:element>
+
+  <xs:complexType name="ISA95TestResultDataType">
+  	<xs:sequence>
+      <xs:element name="Id" type="ua:NodeId" minOccurs="0" nillable="true" />
+      <xs:element name="TestResultDescription" type="ua:LocalizedText" minOccurs="0" nillable="true" />
+      <xs:element name="Date" type="xs:dateTime" minOccurs="0" />
+      <xs:element name="Result" type="ua:Variant" minOccurs="0" />
+      <xs:element name="ResultUnitOfMeasure" type="xs:string" minOccurs="0" nillable="true" />
+      <xs:element name="Expiration" type="xs:dateTime" minOccurs="0" />
+  	</xs:sequence>
+  </xs:complexType>
+  <xs:element name="ISA95TestResultDataType" type="tns:ISA95TestResultDataType" />
+
+  <xs:complexType name="ListOfISA95TestResultDataType">
+    <xs:sequence>
+      <xs:element name="ISA95TestResultDataType" type="tns:ISA95TestResultDataType" minOccurs="0" maxOccurs="unbounded" nillable="true" />
+    </xs:sequence>
+  </xs:complexType>
+  <xs:element name="ListOfISA95TestResultDataType" type="tns:ListOfISA95TestResultDataType" nillable="true"></xs:element>
+
+  <xs:complexType name="ISA95AssetAssignmentDataType">
+  	<xs:sequence>
+      <xs:element name="Id" type="ua:NodeId" minOccurs="0" nillable="true" />
+      <xs:element name="AssinmentDescription" type="ua:LocalizedText" minOccurs="0" nillable="true" />
+      <xs:element name="StartTime" type="xs:dateTime" minOccurs="0" />
+      <xs:element name="EndTime" type="xs:dateTime" minOccurs="0" />
+  	</xs:sequence>
+  </xs:complexType>
+  <xs:element name="ISA95AssetAssignmentDataType" type="tns:ISA95AssetAssignmentDataType" />
+
+  <xs:complexType name="ListOfISA95AssetAssignmentDataType">
+    <xs:sequence>
+      <xs:element name="ISA95AssetAssignmentDataType" type="tns:ISA95AssetAssignmentDataType" minOccurs="0" maxOccurs="unbounded" nillable="true" />
+    </xs:sequence>
+  </xs:complexType>
+  <xs:element name="ListOfISA95AssetAssignmentDataType" type="tns:ListOfISA95AssetAssignmentDataType" nillable="true"></xs:element>
+  
+</xs:schema>

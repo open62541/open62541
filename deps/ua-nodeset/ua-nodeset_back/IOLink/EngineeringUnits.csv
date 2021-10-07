@@ -1,0 +1,608 @@
+﻿IO-Link unitCode;NamespaceUri;UnitId;DisplayName;Description
+1000;http://www.opcfoundation.org/UA/units/un/cefact;4932940;K;kelvin
+1001;http://www.opcfoundation.org/UA/units/un/cefact;4408652;°C;degree Celsius
+1002;http://www.opcfoundation.org/UA/units/un/cefact;4604232;°F;degree Fahrenheit
+1003;http://www.opcfoundation.org/UA/units/un/cefact;4273208;°R;degree Rankine
+1004;http://www.opcfoundation.org/UA/units/un/cefact;4405297;rad;radian
+1005;http://www.opcfoundation.org/UA/units/un/cefact;17476;°;degree [unit of angle]
+1006;http://www.opcfoundation.org/UA/units/un/cefact;4470321;';minute [unit of angle]
+1007;http://www.opcfoundation.org/UA/units/un/cefact;4470322;"""";second [unit of angle]
+1008;http://www.opcfoundation.org/UA/units/un/cefact;4274481;gon;gon
+1009;http://www.opcfoundation.org/UA/units/un/cefact;4405296;rad;rad
+1010;http://www.opcfoundation.org/UA/units/un/cefact;5067858;m;metre
+1011;http://www.opcfoundation.org/UA/units/un/cefact;4936781;km;kilometre
+1012;http://www.opcfoundation.org/UA/units/un/cefact;4410708;cm;centimetre
+1013;http://www.opcfoundation.org/UA/units/un/cefact;5066068;mm;millimetre
+1014;http://www.opcfoundation.org/UA/units/un/cefact;13384;µm;micrometre (micron)
+1015;http://www.opcfoundation.org/UA/units/un/cefact;4404277;nm;nanometre
+1016;http://www.opcfoundation.org/UA/units/un/cefact;4404530;pm;picometre
+1017;http://www.opcfoundation.org/UA/units/un/cefact;4272433;Å;angstrom
+1018;http://www.opcfoundation.org/UA/units/un/cefact;4607828;ft;foot
+1019;http://www.opcfoundation.org/UA/units/un/cefact;4804168;in;inch
+1020;http://www.opcfoundation.org/UA/units/un/cefact;5853764;yd;yard
+1021;http://www.opcfoundation.org/UA/units/un/cefact;5459273;mile;mile (statute mile)
+1022;http://www.opcfoundation.org/UA/units/un/cefact;5131593;n mile;nautical mile
+1023;http://www.opcfoundation.org/UA/units/un/cefact;5067851;m²;square metre
+1024;http://www.opcfoundation.org/UA/units/un/cefact;4934987;km²;square kilometre
+1025;http://www.opcfoundation.org/UA/units/un/cefact;4410699;cm²;square centimetre
+1026;http://www.opcfoundation.org/UA/units/un/cefact;4476235;dm²;square decimetre
+1027;http://www.opcfoundation.org/UA/units/un/cefact;5066059;mm²;square millimetre
+1028;http://www.opcfoundation.org/UA/units/un/cefact;4280901;a;are
+1029;http://www.opcfoundation.org/UA/units/un/cefact;4735314;ha;hectare
+1030;http://www.opcfoundation.org/UA/units/un/cefact;4804171;in²;square inch
+1031;http://www.opcfoundation.org/UA/units/un/cefact;4609099;ft²;square foot
+1032;http://www.opcfoundation.org/UA/units/un/cefact;5850187;yd²;square yard
+1033;http://www.opcfoundation.org/UA/units/un/cefact;5065035;mi²;square mile (statute mile)
+1034;http://www.opcfoundation.org/UA/units/un/cefact;5067857;m³;cubic metre
+1035;http://www.opcfoundation.org/UA/units/un/cefact;4476241;dm³;cubic decimetre
+1036;http://www.opcfoundation.org/UA/units/un/cefact;4410705;cm³;cubic centimetre
+1037;http://www.opcfoundation.org/UA/units/un/cefact;5066065;mm³;cubic millimetre
+1038;http://www.opcfoundation.org/UA/units/un/cefact;5002322;l;litre
+1039;http://www.opcfoundation.org/UA/units/un/cefact;4410452;cl;centilitre
+1040;http://www.opcfoundation.org/UA/units/un/cefact;5065812;ml;millilitre
+1041;http://www.opcfoundation.org/UA/units/un/cefact;4738132;hl;hectolitre
+1042;http://www.opcfoundation.org/UA/units/un/cefact;4804177;in³;cubic inch
+1043;http://www.opcfoundation.org/UA/units/un/cefact;4609105;ft³;cubic foot
+1044;http://www.opcfoundation.org/UA/units/un/cefact;5850193;yd³;cubic yard
+1045;http://www.opcfoundation.org/UA/units/un/cefact;5060153;mi³;cubic mile (UK statute)
+1046;http://www.opcfoundation.org/UA/units/un/cefact;20564;pt (US);pint (US)
+1047;http://www.opcfoundation.org/UA/units/un/cefact;5329993;qt (UK);quart (UK)
+1048;http://www.opcfoundation.org/UA/units/un/cefact;4273974;Gal;gal
+1049;http://www.opcfoundation.org/UA/units/un/cefact;18227;gal (UK) /min;Imperial gallon per minute
+1050;http://www.opcfoundation.org/UA/units/un/cefact;4347209;bushel (UK);bushel (UK)
+1050;http://www.opcfoundation.org/UA/units/un/cefact;4347201;bu (US);bushel (US)
+1051;http://www.opcfoundation.org/UA/units/un/cefact;4344900;bbl (US);dry barrel (US)
+1052;http://www.opcfoundation.org/UA/units/un/cefact;4863287;bbl (UK liq.);barrel (UK petroleum)
+1053;http://www.opcfoundation.org/UA/units/un/cefact;13641;std;standard cubic foot
+1054;http://www.opcfoundation.org/UA/units/un/cefact;5457219;s;second [unit of time]
+1055;http://www.opcfoundation.org/UA/units/un/cefact;4338994;ks;kilosecond
+1056;http://www.opcfoundation.org/UA/units/un/cefact;4403766;ms;millisecond
+1057;http://www.opcfoundation.org/UA/units/un/cefact;4340024;µs;microsecond
+1058;http://www.opcfoundation.org/UA/units/un/cefact;5065038;min;minute [unit of time]
+1059;http://www.opcfoundation.org/UA/units/un/cefact;4740434;h;hour
+1060;http://www.opcfoundation.org/UA/units/un/cefact;4473177;d;day
+1061;http://www.opcfoundation.org/UA/units/un/cefact;5067859;m/s;metre per second
+1062;http://www.opcfoundation.org/UA/units/un/cefact;4403510;mm/s;millimetre per second
+1063;http://www.opcfoundation.org/UA/units/un/cefact;5060144;m/h;metre per hour
+1064;http://www.opcfoundation.org/UA/units/un/cefact;4934984;km/h;kilometre per hour
+1065;http://www.opcfoundation.org/UA/units/un/cefact;4935252;kn;knot
+1066;http://www.opcfoundation.org/UA/units/un/cefact;18773;in/s;inch per second
+1067;http://www.opcfoundation.org/UA/units/un/cefact;18003;ft/s;foot per second
+1068;http://www.opcfoundation.org/UA/units/un/cefact;5060148;yd/s;yard per second
+1069;http://www.opcfoundation.org/UA/units/un/cefact;5060147;in/min;inch per minute
+1070;http://www.opcfoundation.org/UA/units/un/cefact;18002;ft/min;foot per minute
+1071;http://www.opcfoundation.org/UA/units/un/cefact;5060149;yd/min;yard per minute
+1072;http://opcfoundation.org/UA/IOLink;1072;in/h;inch per hour
+1073;http://www.opcfoundation.org/UA/units/un/cefact;4927796;ft/h;foot per hour
+1074;http://www.opcfoundation.org/UA/units/un/cefact;5060150;yd/h;yard per hour
+1075;http://www.opcfoundation.org/UA/units/un/cefact;18509;mile/h;mile per hour (statute mile)
+1076;http://www.opcfoundation.org/UA/units/un/cefact;5067595;m/s²;metre per second squared
+1077;http://www.opcfoundation.org/UA/units/un/cefact;4740186;Hz;hertz
+1078;http://www.opcfoundation.org/UA/units/un/cefact;4469305;THz;terahertz
+1079;http://www.opcfoundation.org/UA/units/un/cefact;4274230;GHz;gigahertz
+1080;http://www.opcfoundation.org/UA/units/un/cefact;5064794;MHz;megahertz
+1081;http://www.opcfoundation.org/UA/units/un/cefact;4933722;kHz;kilohertz
+1082;http://opcfoundation.org/UA/IOLink;1082;1/s;per second
+1083;http://opcfoundation.org/UA/IOLink;1083;1/min;per minute
+1084;http://www.opcfoundation.org/UA/units/un/cefact;5394515;r/s;revolutions per second
+1085;http://www.opcfoundation.org/UA/units/un/cefact;5394509;r/min;revolutions per minute
+1086;http://www.opcfoundation.org/UA/units/un/cefact;12865;rad/s;radian per second
+1087;http://www.opcfoundation.org/UA/units/un/cefact;12866;rad/s²;radian per second squared
+1088;http://www.opcfoundation.org/UA/units/un/cefact;4933453;kg;kilogram
+1089;http://www.opcfoundation.org/UA/units/un/cefact;4674125;g;gram
+1090;http://www.opcfoundation.org/UA/units/un/cefact;5064525;mg;milligram
+1091;http://www.opcfoundation.org/UA/units/un/cefact;12885;Mg;megagram
+1092;http://www.opcfoundation.org/UA/units/un/cefact;5525061;t;tonne (metric ton)
+1093;http://www.opcfoundation.org/UA/units/un/cefact;5197402;oz;ounce (avoirdupois)
+1094;http://www.opcfoundation.org/UA/units/un/cefact;4997714;lb;pound
+1095;http://opcfoundation.org/UA/IOLink;1095;STon;short ton in pound
+1096;http://opcfoundation.org/UA/IOLink;1096;LTon;long ton in pound
+1097;http://www.opcfoundation.org/UA/units/un/cefact;4934993;kg/m³;kilogram per cubic metre
+1098;http://www.opcfoundation.org/UA/units/un/cefact;4339506;Mg/m³;megagram per cubic metre
+1099;http://www.opcfoundation.org/UA/units/un/cefact;4338484;kg/dm³;kilogram per cubic decimetre
+1100;http://www.opcfoundation.org/UA/units/un/cefact;12851;g/cm³;gram per cubic centimetre
+1101;http://www.opcfoundation.org/UA/units/un/cefact;4274483;g/m³;gram per cubic metre
+1102;http://opcfoundation.org/UA/IOLink;1102;t/m³;metric ton per cubic meter
+1103;http://www.opcfoundation.org/UA/units/un/cefact;4338485;kg/l or kg/L;kilogram per litre
+1104;http://www.opcfoundation.org/UA/units/un/cefact;18250;g/ml;gram per millilitre
+1105;http://www.opcfoundation.org/UA/units/un/cefact;18252;g/l;gram per litre
+1106;http://www.opcfoundation.org/UA/units/un/cefact;19521;lb/in³;pound per cubic inch
+1107;http://www.opcfoundation.org/UA/units/un/cefact;14391;lb/ft³;pound per cubic foot
+1108;http://www.opcfoundation.org/UA/units/un/cefact;18245;lb/gal (US);pound per gallon (US)
+1109;http://opcfoundation.org/UA/IOLink;1109;STon/yd³;short ton per cubic yard
+1110;http://opcfoundation.org/UA/IOLink;1110;°Twad;degree Twaddell
+1111;http://opcfoundation.org/UA/IOLink;1111;°Baum (hv);degree Baume heavy
+1112;http://opcfoundation.org/UA/IOLink;1112;°Baum (lt);degree Baume light
+1113;http://opcfoundation.org/UA/IOLink;1113;°API;degree API
+1114;http://opcfoundation.org/UA/IOLink;1114;SGU;specific gravity unit
+1115;http://www.opcfoundation.org/UA/units/un/cefact;19276;kg/m;kilogram per metre
+1116;http://www.opcfoundation.org/UA/units/un/cefact;4403506;mg/m;milligram per metre
+1117;http://opcfoundation.org/UA/IOLink;1117;10-6 kg/m;tex
+1118;http://www.opcfoundation.org/UA/units/un/cefact;4338482;kg·m²;kilogram metre squared
+1119;http://www.opcfoundation.org/UA/units/un/cefact;4338481;kg·m/s;kilogram metre per second
+1120;http://www.opcfoundation.org/UA/units/un/cefact;5129559;N;newton
+1121;http://www.opcfoundation.org/UA/units/un/cefact;4339507;MN;meganewton
+1122;http://www.opcfoundation.org/UA/units/un/cefact;4338743;kN;kilonewton
+1123;http://www.opcfoundation.org/UA/units/un/cefact;4403760;mN;millinewton
+1124;http://www.opcfoundation.org/UA/units/un/cefact;4340018;µN;micronewton
+1125;http://opcfoundation.org/UA/IOLink;1125;kgm²/s;kilogram square meter per second
+1126;http://www.opcfoundation.org/UA/units/un/cefact;20053;N·m;newton metre
+1127;http://www.opcfoundation.org/UA/units/un/cefact;4339508;MN·m;meganewton metre
+1128;http://www.opcfoundation.org/UA/units/un/cefact;4338744;kN·m;kilonewton metre
+1129;http://www.opcfoundation.org/UA/units/un/cefact;4470835;mN·m;millinewton metre
+1130;http://www.opcfoundation.org/UA/units/un/cefact;5259596;Pa;pascal
+1131;http://www.opcfoundation.org/UA/units/un/cefact;4274233;GPa;gigapascal
+1132;http://www.opcfoundation.org/UA/units/un/cefact;5066817;MPa;megapascal
+1133;http://www.opcfoundation.org/UA/units/un/cefact;4935745;kPa;kilopascal
+1134;http://www.opcfoundation.org/UA/units/un/cefact;14132;mPa;millipascal
+1135;http://www.opcfoundation.org/UA/units/un/cefact;4340022;µPa;micropascal
+1136;http://www.opcfoundation.org/UA/units/un/cefact;4274487;hPa;hectopascal
+1137;http://www.opcfoundation.org/UA/units/un/cefact;4342098;bar;bar [unit of pressure]
+1138;http://www.opcfoundation.org/UA/units/un/cefact;5063250;mbar;millibar
+1139;http://www.opcfoundation.org/UA/units/un/cefact;21825;Torr;torr
+1140;http://www.opcfoundation.org/UA/units/un/cefact;4281421;atm;standard atmosphere
+1141;http://opcfoundation.org/UA/IOLink;1141;psi;pound-force per square inch
+1142;http://opcfoundation.org/UA/IOLink;1142;psia;pound-force per square inch absolute
+1143;http://opcfoundation.org/UA/IOLink;1143;psig;pound-force per square inch gauge
+1144;http://www.opcfoundation.org/UA/units/un/cefact;4928305;gf/cm²;gram-force per square centimetre
+1145;http://www.opcfoundation.org/UA/units/un/cefact;4535346;kgf/cm²;kilogram-force per square centimetre
+1146;http://www.opcfoundation.org/UA/units/un/cefact;4601656;inH2O;inch of water
+1147;http://opcfoundation.org/UA/IOLink;1147;inH2O (4°C);inch of water at 4°C
+1148;http://opcfoundation.org/UA/IOLink;1148;inH2O (68°F);inch of water at 68°F
+1149;http://opcfoundation.org/UA/IOLink;1149;mmH2O;millimeter of water
+1150;http://opcfoundation.org/UA/IOLink;1150;mmH2O (4°C);millimeter of water at 4°C
+1151;http://opcfoundation.org/UA/IOLink;1151;mmH2O (68°F);millimeter of water at 68°F
+1152;http://www.opcfoundation.org/UA/units/un/cefact;4928052;ft H₂O;foot of water
+1153;http://opcfoundation.org/UA/IOLink;1153;ft H2O (4°C);foot of water at 4°C
+1154;http://opcfoundation.org/UA/IOLink;1154;ft H2O (68°F);foot of water at 68°F
+1155;http://www.opcfoundation.org/UA/units/un/cefact;4601657;inHg;inch of mercury
+1156;http://opcfoundation.org/UA/IOLink;1156;inHg (0°C);inch of mercury at 0°C
+1157;http://opcfoundation.org/UA/IOLink;1157;mmHg;millimeter of mercury
+1158;http://opcfoundation.org/UA/IOLink;1158;mmHg (0°C);millimeter of mercury at 0°C
+1159;http://www.opcfoundation.org/UA/units/un/cefact;4404789;Pa·s;pascal second
+1160;http://www.opcfoundation.org/UA/units/un/cefact;21300;m²/s;square metre per second
+1161;http://www.opcfoundation.org/UA/units/un/cefact;14393;P;poise
+1162;http://www.opcfoundation.org/UA/units/un/cefact;17207;cP;centipoise
+1163;http://www.opcfoundation.org/UA/units/un/cefact;14641;St;stokes
+1164;http://www.opcfoundation.org/UA/units/un/cefact;13379;cSt;centistokes
+1165;http://www.opcfoundation.org/UA/units/un/cefact;13392;N/m;newton per metre
+1166;http://www.opcfoundation.org/UA/units/un/cefact;4403762;mN/m;millinewton per metre
+1167;http://www.opcfoundation.org/UA/units/un/cefact;4869973;J;joule
+1168;http://www.opcfoundation.org/UA/units/un/cefact;4273720;EJ;exajoule
+1169;http://www.opcfoundation.org/UA/units/un/cefact;4404792;PJ;petajoule
+1170;http://www.opcfoundation.org/UA/units/un/cefact;4469552;TJ;terajoule
+1171;http://www.opcfoundation.org/UA/units/un/cefact;18262;GJ;gigajoule
+1172;http://www.opcfoundation.org/UA/units/un/cefact;13122;MJ;megajoule
+1173;http://www.opcfoundation.org/UA/units/un/cefact;4934223;kJ;kilojoule
+1174;http://www.opcfoundation.org/UA/units/un/cefact;4403509;mJ;millijoule
+1175;http://www.opcfoundation.org/UA/units/un/cefact;5720146;W·h;watt hour
+1176;http://www.opcfoundation.org/UA/units/un/cefact;4469554;TW·h;terawatt hour
+1177;http://www.opcfoundation.org/UA/units/un/cefact;4675400;GW·h;gigawatt hour
+1178;http://www.opcfoundation.org/UA/units/un/cefact;5068616;MW·h;megawatt hour (1000 kW.h)
+1179;http://www.opcfoundation.org/UA/units/un/cefact;4937544;kW·h;kilowatt hour
+1180;http://www.opcfoundation.org/UA/units/un/cefact;4863797;cal;calorie (mean)
+1181;http://www.opcfoundation.org/UA/units/un/cefact;4928817;kcal;kilocalorie (mean)
+1182;http://opcfoundation.org/UA/IOLink;1182;Mcal;megacalorie (= 4.184 MJ)
+1183;http://www.opcfoundation.org/UA/units/un/cefact;5125686;Btu (39 ºF);British thermal unit (39 ºF)
+1184;http://opcfoundation.org/UA/IOLink;1184;datherm;dekatherm (= 1.05506·10^9 J )
+1185;http://www.opcfoundation.org/UA/units/un/cefact;14389;ft·lbf;foot pound-force
+1186;http://www.opcfoundation.org/UA/units/un/cefact;5723220;W;watt
+1187;http://www.opcfoundation.org/UA/units/un/cefact;4469553;TW;terawatt
+1188;http://www.opcfoundation.org/UA/units/un/cefact;4274480;GW;gigawatt
+1189;http://www.opcfoundation.org/UA/units/un/cefact;5062999;MW;megawatt
+1190;http://www.opcfoundation.org/UA/units/un/cefact;4937556;kW;kilowatt
+1191;http://www.opcfoundation.org/UA/units/un/cefact;4404017;mW;milliwatt
+1192;http://www.opcfoundation.org/UA/units/un/cefact;4470832;µW;microwatt
+1193;http://www.opcfoundation.org/UA/units/un/cefact;4404281;nW;nanowatt
+1194;http://www.opcfoundation.org/UA/units/un/cefact;4405045;pW;picowatt
+1195;http://opcfoundation.org/UA/IOLink;1195;Mcal/h;megacalorie per hour
+1196;http://opcfoundation.org/UA/IOLink;1196;MJ/h;megajoule per hour
+1197;http://opcfoundation.org/UA/IOLink;1197;Btu/h;British thermal unit per hour
+1198;http://www.opcfoundation.org/UA/units/un/cefact;4928563;electric hp;horsepower (electric)
+1199;http://www.opcfoundation.org/UA/units/un/cefact;4470067;W/(m·K);watt per metre kelvin
+1200;http://www.opcfoundation.org/UA/units/un/cefact;4470069;W/(m²·K);watt per square metre kelvin
+1201;http://www.opcfoundation.org/UA/units/un/cefact;4469049;m²·K/W;square metre kelvin per watt
+1202;http://www.opcfoundation.org/UA/units/un/cefact;19013;J/K;joule per kelvin
+1203;http://www.opcfoundation.org/UA/units/un/cefact;4338737;kJ/K;kilojoule per kelvin
+1204;http://www.opcfoundation.org/UA/units/un/cefact;4337969;J/(kg·K);joule per kilogram kelvin
+1205;http://www.opcfoundation.org/UA/units/un/cefact;4338739;kJ/(kg·K);kilojoule per kilogram kelvin
+1206;http://www.opcfoundation.org/UA/units/un/cefact;18994;J/kg;joule per kilogram
+1207;http://www.opcfoundation.org/UA/units/un/cefact;19019;MJ/kg;megajoule per kilogram
+1208;http://www.opcfoundation.org/UA/units/un/cefact;4338738;kJ/kg;kilojoule per kilogram
+1209;http://www.opcfoundation.org/UA/units/un/cefact;4279632;A;ampere
+1210;http://www.opcfoundation.org/UA/units/un/cefact;4338226;kA;kiloampere
+1211;http://www.opcfoundation.org/UA/units/un/cefact;13387;mA;milliampere
+1212;http://www.opcfoundation.org/UA/units/un/cefact;4339764;µA;microampere
+1213;http://www.opcfoundation.org/UA/units/un/cefact;4404025;nA;nanoampere
+1214;http://www.opcfoundation.org/UA/units/un/cefact;4405040;pA;picoampere
+1215;http://www.opcfoundation.org/UA/units/un/cefact;4411221;C;coulomb
+1216;http://www.opcfoundation.org/UA/units/un/cefact;4470583;MC;megacoulomb
+1217;http://www.opcfoundation.org/UA/units/un/cefact;4338230;kC;kilocoulomb
+1218;http://www.opcfoundation.org/UA/units/un/cefact;4339766;µC;microcoulomb
+1219;http://www.opcfoundation.org/UA/units/un/cefact;4404272;nC;nanocoulomb
+1220;http://www.opcfoundation.org/UA/units/un/cefact;4405041;pC;picocoulomb
+1221;http://www.opcfoundation.org/UA/units/un/cefact;4279624;A·h;ampere hour
+1222;http://www.opcfoundation.org/UA/units/un/cefact;4272697;C/m³;coulomb per cubic metre
+1223;http://www.opcfoundation.org/UA/units/un/cefact;4272944;C/mm³;coulomb per cubic millimetre
+1224;http://www.opcfoundation.org/UA/units/un/cefact;4272696;C/cm³;coulomb per cubic centimetre
+1225;http://www.opcfoundation.org/UA/units/un/cefact;4338231;kC/m³;kilocoulomb per cubic metre
+1226;http://www.opcfoundation.org/UA/units/un/cefact;4470840;mC/m³;millicoulomb per cubic metre
+1227;http://www.opcfoundation.org/UA/units/un/cefact;4339767;µC/m³;microcoulomb per cubic metre
+1228;http://www.opcfoundation.org/UA/units/un/cefact;4272948;C/m²;coulomb per square metre
+1229;http://www.opcfoundation.org/UA/units/un/cefact;4272949;C/mm²;coulomb per square millimetre
+1230;http://www.opcfoundation.org/UA/units/un/cefact;4272947;C/cm²;coulomb per square centimetre
+1231;http://www.opcfoundation.org/UA/units/un/cefact;4338232;kC/m²;kilocoulomb per square metre
+1232;http://www.opcfoundation.org/UA/units/un/cefact;4470841;mC/m²;millicoulomb per square metre
+1233;http://www.opcfoundation.org/UA/units/un/cefact;4339768;µC/m²;microcoulomb per square metre
+1234;http://www.opcfoundation.org/UA/units/un/cefact;4470064;V/m;volt per metre
+1235;http://www.opcfoundation.org/UA/units/un/cefact;4339513;MV/m;megavolt per metre
+1236;http://www.opcfoundation.org/UA/units/un/cefact;4338997;kV/m;kilovolt per metre
+1237;http://www.opcfoundation.org/UA/units/un/cefact;4469815;V/cm;volt per centimetre
+1238;http://www.opcfoundation.org/UA/units/un/cefact;4404016;mV/m;millivolt per metre
+1239;http://www.opcfoundation.org/UA/units/un/cefact;17203;µV/m;microvolt per metre
+1240;http://www.opcfoundation.org/UA/units/un/cefact;5655636;V;volt
+1241;http://www.opcfoundation.org/UA/units/un/cefact;4339512;MV;megavolt
+1242;http://www.opcfoundation.org/UA/units/un/cefact;4937300;kV;kilovolt
+1243;http://www.opcfoundation.org/UA/units/un/cefact;12890;mV;millivolt
+1244;http://www.opcfoundation.org/UA/units/un/cefact;4470834;µV;microvolt
+1245;http://www.opcfoundation.org/UA/units/un/cefact;4604242;F;farad
+1246;http://www.opcfoundation.org/UA/units/un/cefact;4403504;mF;millifarad
+1247;http://www.opcfoundation.org/UA/units/un/cefact;13391;µF;microfarad
+1248;http://www.opcfoundation.org/UA/units/un/cefact;4404273;nF;nanofarad
+1249;http://www.opcfoundation.org/UA/units/un/cefact;13396;pF;picofarad
+1250;http://www.opcfoundation.org/UA/units/un/cefact;4273721;F/m;farad per metre
+1251;http://www.opcfoundation.org/UA/units/un/cefact;4731448;µF/km;microfarad per kilometre
+1252;http://www.opcfoundation.org/UA/units/un/cefact;4404274;nF/m;nanofarad per metre
+1253;http://www.opcfoundation.org/UA/units/un/cefact;4405042;pF/m;picofarad per metre
+1254;http://www.opcfoundation.org/UA/units/un/cefact;4272694;C·m;coulomb metre
+1255;http://www.opcfoundation.org/UA/units/un/cefact;4273201;A/m²;ampere per square metre
+1256;http://www.opcfoundation.org/UA/units/un/cefact;4339254;MA/m²;megaampere per square metre
+1257;http://www.opcfoundation.org/UA/units/un/cefact;16692;A/cm²;ampere per square centimetre
+1258;http://www.opcfoundation.org/UA/units/un/cefact;4338227;kA/m²;kiloampere per square metre
+1259;http://www.opcfoundation.org/UA/units/un/cefact;16709;A/m;ampere per metre
+1260;http://www.opcfoundation.org/UA/units/un/cefact;4338228;kA/m;kiloampere per metre
+1261;http://www.opcfoundation.org/UA/units/un/cefact;16690;A/cm;ampere per centimetre
+1262;http://www.opcfoundation.org/UA/units/un/cefact;4469555;T;tesla
+1263;http://www.opcfoundation.org/UA/units/un/cefact;4403769;mT;millitesla
+1264;http://www.opcfoundation.org/UA/units/un/cefact;4470833;µT;microtesla
+1265;http://www.opcfoundation.org/UA/units/un/cefact;4404280;nT;nanotesla
+1266;http://www.opcfoundation.org/UA/units/un/cefact;5719362;Wb;weber
+1267;http://www.opcfoundation.org/UA/units/un/cefact;4404019;mWb;milliweber
+1268;http://www.opcfoundation.org/UA/units/un/cefact;4470073;Wb/m;weber per metre
+1269;http://www.opcfoundation.org/UA/units/un/cefact;4338998;kWb/m;kiloweber per metre
+1270;http://www.opcfoundation.org/UA/units/un/cefact;14385;H;henry
+1271;http://www.opcfoundation.org/UA/units/un/cefact;4403508;mH;millihenry
+1272;http://www.opcfoundation.org/UA/units/un/cefact;4340016;µH;microhenry
+1273;http://www.opcfoundation.org/UA/units/un/cefact;4404275;nH;nanohenry
+1274;http://www.opcfoundation.org/UA/units/un/cefact;4405043;pH;picohenry
+1275;http://www.opcfoundation.org/UA/units/un/cefact;4274488;H/m;henry per metre
+1276;http://www.opcfoundation.org/UA/units/un/cefact;4340017;µH/m;microhenry per metre
+1277;http://www.opcfoundation.org/UA/units/un/cefact;4404276;nH/m;nanohenry per metre
+1278;http://www.opcfoundation.org/UA/units/un/cefact;16693;A·m²;ampere square metre
+1279;http://www.opcfoundation.org/UA/units/un/cefact;5256249;N·m²/A;newton square metre per ampere
+1280;http://www.opcfoundation.org/UA/units/un/cefact;5256496;Wb·m;weber metre
+1281;http://www.opcfoundation.org/UA/units/un/cefact;5195853;Ω;ohm
+1282;http://www.opcfoundation.org/UA/units/un/cefact;4274231;GΩ;gigaohm
+1283;http://www.opcfoundation.org/UA/units/un/cefact;4339509;MΩ;megaohm
+1284;http://www.opcfoundation.org/UA/units/un/cefact;4338745;kΩ;kiloohm
+1285;http://www.opcfoundation.org/UA/units/un/cefact;4535349;mΩ;milliohm
+1286;http://www.opcfoundation.org/UA/units/un/cefact;4340020;µΩ;microohm
+1287;http://www.opcfoundation.org/UA/units/un/cefact;5458245;S;siemens
+1288;http://www.opcfoundation.org/UA/units/un/cefact;4338995;kS;kilosiemens
+1289;http://www.opcfoundation.org/UA/units/un/cefact;4403767;mS;millisiemens
+1290;http://www.opcfoundation.org/UA/units/un/cefact;4340025;µS;microsiemens
+1291;http://www.opcfoundation.org/UA/units/un/cefact;4404785;Ω·m;ohm metre
+1292;http://www.opcfoundation.org/UA/units/un/cefact;4274232;GΩ·m;gigaohm metre
+1293;http://www.opcfoundation.org/UA/units/un/cefact;4339510;MΩ·m;megaohm metre
+1294;http://www.opcfoundation.org/UA/units/un/cefact;4338992;kΩ·m;kiloohm metre
+1295;http://www.opcfoundation.org/UA/units/un/cefact;4404784;Ω·cm;ohm centimetre
+1296;http://www.opcfoundation.org/UA/units/un/cefact;4403763;mΩ·m;milliohm metre
+1297;http://www.opcfoundation.org/UA/units/un/cefact;4340021;µΩ·m;microohm metre
+1298;http://www.opcfoundation.org/UA/units/un/cefact;4404278;nΩ·m;nanoohm metre
+1299;http://www.opcfoundation.org/UA/units/un/cefact;4469040;S/m;siemens per metre
+1300;http://www.opcfoundation.org/UA/units/un/cefact;4339511;MS/m;megasiemens per metre
+1301;http://www.opcfoundation.org/UA/units/un/cefact;4338996;kS/m;kilosiemens per metre
+1302;http://www.opcfoundation.org/UA/units/un/cefact;4732465;mS/cm;millisiemens per centimetre
+1304;http://www.opcfoundation.org/UA/units/un/cefact;4731184;1/h;reciprocal hour
+1305;http://www.opcfoundation.org/UA/units/un/cefact;4469303;sr;steradian
+1306;http://www.opcfoundation.org/UA/units/un/cefact;4470071;W/sr;watt per steradian
+1307;http://www.opcfoundation.org/UA/units/un/cefact;4470072;W/(sr·m²);watt per steradian square metre
+1309;http://www.opcfoundation.org/UA/units/un/cefact;5002573;lm;lumen
+1310;http://www.opcfoundation.org/UA/units/un/cefact;4339250;lm·s;lumen second
+1311;http://www.opcfoundation.org/UA/units/un/cefact;4339001;lm·h;lumen hour
+1312;http://www.opcfoundation.org/UA/units/un/cefact;4339248;lm/m²;lumen per square metre
+1313;http://www.opcfoundation.org/UA/units/un/cefact;4339249;lm/W;lumen per watt
+1314;http://www.opcfoundation.org/UA/units/un/cefact;5002584;lx;lux
+1315;http://www.opcfoundation.org/UA/units/un/cefact;4339252;lx·s;lux second
+1316;http://www.opcfoundation.org/UA/units/un/cefact;4408396;cd;candela
+1317;http://www.opcfoundation.org/UA/units/un/cefact;4272692;cd/m²;candela per square metre
+1318;http://www.opcfoundation.org/UA/units/un/cefact;4600377;g/s;gram per second
+1319;http://www.opcfoundation.org/UA/units/un/cefact;4600376;g/min;gram per minute
+1320;http://www.opcfoundation.org/UA/units/un/cefact;4600375;g/h;gram per hour
+1321;http://www.opcfoundation.org/UA/units/un/cefact;4600374;g/d;gram per day
+1322;http://www.opcfoundation.org/UA/units/un/cefact;4933459;kg/s;kilogram per second
+1323;http://www.opcfoundation.org/UA/units/un/cefact;4600625;kg/min;kilogram per minute
+1324;http://www.opcfoundation.org/UA/units/un/cefact;4536627;kg/h;kilogram per hour
+1325;http://www.opcfoundation.org/UA/units/un/cefact;4600624;kg/d;kilogram per day
+1326;http://www.opcfoundation.org/UA/units/un/cefact;4995121;t/s;tonne per second
+1327;http://www.opcfoundation.org/UA/units/un/cefact;4994873;(t/min)/K;tonne per minute kelvin
+1328;http://opcfoundation.org/UA/IOLink;1328;t/h;metric ton per hour
+1329;http://opcfoundation.org/UA/IOLink;1329;t/d;metric ton per day
+1330;http://opcfoundation.org/UA/IOLink;1330;lb/s;pound per second
+1331;http://opcfoundation.org/UA/IOLink;1331;lb/min;pound per minute
+1332;http://www.opcfoundation.org/UA/units/un/cefact;13397;lb/h;pound per hour
+1333;http://opcfoundation.org/UA/IOLink;1333;lb/d;pound per day
+1334;http://opcfoundation.org/UA/IOLink;1334;STon/s;short ton per second
+1335;http://opcfoundation.org/UA/IOLink;1335;STon/min;short ton per minute
+1336;http://opcfoundation.org/UA/IOLink;1336;STon/h;short ton per hour
+1337;http://opcfoundation.org/UA/IOLink;1337;STon/d;short ton per day
+1338;http://opcfoundation.org/UA/IOLink;1338;LTon/s;long ton per second
+1339;http://opcfoundation.org/UA/IOLink;1339;LTon/min;long ton per minute
+1340;http://opcfoundation.org/UA/IOLink;1340;LTon/h;long ton per hour
+1341;http://opcfoundation.org/UA/IOLink;1341;LTon/d;long ton per day
+1342;http://opcfoundation.org/UA/IOLink;1342;%;percent ( = 0.01)
+1343;http://opcfoundation.org/UA/IOLink;1343;% sol/wt;percent solid per weight
+1344;http://opcfoundation.org/UA/IOLink;1344;% sol/vol;percent solid per volume
+1345;http://opcfoundation.org/UA/IOLink;1345;% stm qual;percent steam quality
+1346;http://opcfoundation.org/UA/IOLink;1346;°Plato;degree plato
+1347;http://www.opcfoundation.org/UA/units/un/cefact;5067091;m³/s;cubic metre per second
+1348;http://www.opcfoundation.org/UA/units/un/cefact;4666675;m³/min;cubic metre per minute
+1349;http://www.opcfoundation.org/UA/units/un/cefact;5067080;m³/h;cubic metre per hour
+1359;http://www.opcfoundation.org/UA/units/un/cefact;4928050;ft³/d;cubic foot per day
+1360;http://www.opcfoundation.org/UA/units/un/cefact;12876;ft³/min;cubic foot per minute
+1361;http://opcfoundation.org/UA/IOLink;1361;ft³/h std.;standard cubic foot per hour
+1362;http://www.opcfoundation.org/UA/units/un/cefact;4928056;gal (UK)/s;gallon (UK) per second
+1363;http://opcfoundation.org/UA/IOLink;1363;gal/min;gallon (U.S.) per minute
+1364;http://www.opcfoundation.org/UA/units/un/cefact;4666672;gal/h;gallon (US) per hour
+1365;http://www.opcfoundation.org/UA/units/un/cefact;4928054;gal (UK)/d;gallon (UK) per day
+1366;http://opcfoundation.org/UA/IOLink;1366;Mgal/d;megagallon (U.S.) per day
+1367;http://www.opcfoundation.org/UA/units/un/cefact;4863537;bbl (UK liq.)/s;barrel (UK petroleum) per second
+1368;http://www.opcfoundation.org/UA/units/un/cefact;4863288;bbl (UK liq.)/min;barrel (UK petroleum) per minute
+1369;http://opcfoundation.org/UA/IOLink;1369;ImpGal/h;gallon (Imperial) per hour
+1370;http://www.opcfoundation.org/UA/units/un/cefact;4863289;bbl (UK liq.)/d;barrel (UK petroleum) per day
+1371;http://opcfoundation.org/UA/IOLink;1371;bbl/s;barrel per second
+1372;http://opcfoundation.org/UA/IOLink;1372;bbl/min;barrel per minute
+1373;http://www.opcfoundation.org/UA/units/un/cefact;4863536;bbl (UK liq.)/h;barrel (UK petroleum) per hour
+1374;http://opcfoundation.org/UA/IOLink;1374;bbl/d;barrel per day
+1375;http://www.opcfoundation.org/UA/units/un/cefact;4470068;W/m²;watt per square metre
+1376;http://www.opcfoundation.org/UA/units/un/cefact;4404018;mW/m²;milliwatt per square metre
+1377;http://www.opcfoundation.org/UA/units/un/cefact;4470837;µW/m²;microwatt per square metre
+1378;http://www.opcfoundation.org/UA/units/un/cefact;4405046;pW/m²;picowatt per square metre
+1379;http://www.opcfoundation.org/UA/units/un/cefact;4404790;Pa·s/m³;pascal second per cubic metre
+1380;http://www.opcfoundation.org/UA/units/un/cefact;4404536;N·s/m;newton second per metre
+1380;http://www.opcfoundation.org/UA/units/un/cefact;4404531;N·m·s;newton metre second
+1381;http://www.opcfoundation.org/UA/units/un/cefact;4404791;Pa· s/m;pascal second per metre
+1382;http://www.opcfoundation.org/UA/units/un/cefact;5060402;B;bel
+1383;http://www.opcfoundation.org/UA/units/un/cefact;12878;dB;decibel
+1384;http://www.opcfoundation.org/UA/units/un/cefact;4404020;mol;mole
+1385;http://www.opcfoundation.org/UA/units/un/cefact;4338741;kmol;kilomole
+1386;http://www.opcfoundation.org/UA/units/un/cefact;4403512;mmol;millimole
+1387;http://www.opcfoundation.org/UA/units/un/cefact;17992;µmol;micromole
+1388;http://www.opcfoundation.org/UA/units/un/cefact;4470580;kg/mol;kilogram per mole
+1389;http://www.opcfoundation.org/UA/units/un/cefact;4274484;g/mol;gram per mole
+1390;http://www.opcfoundation.org/UA/units/un/cefact;4273200;m³/mol;cubic metre per mole
+1391;http://www.opcfoundation.org/UA/units/un/cefact;4272951;dm³/mol;cubic decimetre per mole
+1392;http://www.opcfoundation.org/UA/units/un/cefact;4272950;cm³/mol;cubic centimetre per mole
+1393;http://www.opcfoundation.org/UA/units/un/cefact;4339000;l/mol;litre per mole
+1394;http://www.opcfoundation.org/UA/units/un/cefact;4337973;J/mol;joule per mole
+1395;http://www.opcfoundation.org/UA/units/un/cefact;4338740;kJ/mol;kilojoule per mole
+1396;http://www.opcfoundation.org/UA/units/un/cefact;4337974;J/(mol·K);joule per mole kelvin
+1397;http://www.opcfoundation.org/UA/units/un/cefact;4404022;mol/m³;mole per cubic metre
+1398;http://www.opcfoundation.org/UA/units/un/cefact;4404021;mol/dm³;mole per cubic decimetre
+1399;http://www.opcfoundation.org/UA/units/un/cefact;4404024;mol/l;mole per litre
+1400;http://www.opcfoundation.org/UA/units/un/cefact;4403513;mol/kg;mole per kilogram
+1401;http://www.opcfoundation.org/UA/units/un/cefact;4470839;mmol/kg;millimole per kilogram
+1402;http://www.opcfoundation.org/UA/units/un/cefact;4346188;Bq;becquerel
+1403;http://www.opcfoundation.org/UA/units/un/cefact;13390;MBq;megabecquerel
+1404;http://www.opcfoundation.org/UA/units/un/cefact;12881;kBq;kilobecquerel
+1405;http://www.opcfoundation.org/UA/units/un/cefact;4272440;Bq/kg;becquerel per kilogram
+1406;http://www.opcfoundation.org/UA/units/un/cefact;4338229;kBq/kg;kilobecquerel per kilogram
+1407;http://www.opcfoundation.org/UA/units/un/cefact;4339255;MBq/kg;megabecquerel per kilogram
+1408;http://www.opcfoundation.org/UA/units/un/cefact;4274485;Gy;gray
+1409;http://www.opcfoundation.org/UA/units/un/cefact;4403507;mGy;milligray
+1410;http://opcfoundation.org/UA/IOLink;1410;rd;rad (= 10^-2 Gy)
+1411;http://www.opcfoundation.org/UA/units/un/cefact;4469043;Sv;sievert
+1412;http://www.opcfoundation.org/UA/units/un/cefact;4403768;mSv;millisievert
+1413;http://www.opcfoundation.org/UA/units/un/cefact;4471089;rem;rem
+1414;http://www.opcfoundation.org/UA/units/un/cefact;4410183;C/kg;coulomb per kilogram
+1415;http://www.opcfoundation.org/UA/units/un/cefact;17208;mC/kg;millicoulomb per kilogram
+1416;http://www.opcfoundation.org/UA/units/un/cefact;12867;R;roentgen
+1417;http://opcfoundation.org/UA/IOLink;1417;1/J·m³;per joule and cubic meter
+1418;http://www.opcfoundation.org/UA/units/un/cefact;4405304;eV⁻¹/m³;reciprocal electron volt per cubic metre
+1419;http://www.opcfoundation.org/UA/units/un/cefact;4272952;m³/C;cubic metre per coulomb
+1420;http://www.opcfoundation.org/UA/units/un/cefact;4469816;V/K;volt per kelvin
+1421;http://www.opcfoundation.org/UA/units/un/cefact;4469817;mV/K;millivolt per kelvin
+1422;http://opcfoundation.org/UA/IOLink;1422;pH;pH
+1423;http://opcfoundation.org/UA/IOLink;1423;ppm;parts per million ( = 10^-6 )
+1424;http://opcfoundation.org/UA/IOLink;1424;ppb;parts per billion ( = 10^-9 )
+1425;http://opcfoundation.org/UA/IOLink;1425;ppth;parts per thousand ( = 10^-3)
+1426;http://opcfoundation.org/UA/IOLink;1426;°Brix;degree Brix
+1427;http://opcfoundation.org/UA/IOLink;1427;°Ball;degree Balling
+1428;http://opcfoundation.org/UA/IOLink;1428;proof/vol;proof per volume
+1429;http://opcfoundation.org/UA/IOLink;1429;proof/mass;proof per mass
+1430;http://opcfoundation.org/UA/IOLink;1430;lb/ImpGal;pound per gallon (Imperial)
+1431;http://opcfoundation.org/UA/IOLink;1431;kcal/s;kilocalorie per second
+1432;http://opcfoundation.org/UA/IOLink;1432;kcal/min;kilocalorie per minute
+1433;http://opcfoundation.org/UA/IOLink;1433;kcal/h;kilocalorie per hour
+1434;http://opcfoundation.org/UA/IOLink;1434;kcal/d;kilocalorie per day
+1435;http://opcfoundation.org/UA/IOLink;1435;Mcal/s;megacalorie per second
+1436;http://opcfoundation.org/UA/IOLink;1436;Mcal/min;megacalorie per minute
+1437;http://opcfoundation.org/UA/IOLink;1437;Mcal/d;megacalorie per day
+1438;http://www.opcfoundation.org/UA/units/un/cefact;5255480;kJ/s;kilojoule per second
+1439;http://www.opcfoundation.org/UA/units/un/cefact;5255481;kJ/min;kilojoule per minute
+1440;http://www.opcfoundation.org/UA/units/un/cefact;5255728;kJ/h;kilojoule per hour
+1441;http://www.opcfoundation.org/UA/units/un/cefact;5255729;kJ/d;kilojoule per day
+1442;http://opcfoundation.org/UA/IOLink;1442;MJ/s;megajoule per second
+1443;http://opcfoundation.org/UA/IOLink;1443;MJ/min;megajoule per minute
+1444;http://opcfoundation.org/UA/IOLink;1444;MJ/d;megajoule per day
+1445;http://opcfoundation.org/UA/IOLink;1445;Btu/s;British thermal unit per second
+1446;http://opcfoundation.org/UA/IOLink;1446;Btu/min;British thermal unit per minute
+1447;http://opcfoundation.org/UA/IOLink;1447;Btu/d;British thermal unit per day
+1448;http://opcfoundation.org/UA/IOLink;1448;µgal/s;microgallon (U.S.) per second
+1449;http://opcfoundation.org/UA/IOLink;1449;mgal/s;milligallon (U.S.) per second
+1450;http://opcfoundation.org/UA/IOLink;1450;kgal/s;kilogallon (U.S.) per second
+1451;http://opcfoundation.org/UA/IOLink;1451;Mgal/s;megagallon (U.S.) per second
+1452;http://opcfoundation.org/UA/IOLink;1452;µgal/min;microgallon (U.S.) per minute
+1453;http://opcfoundation.org/UA/IOLink;1453;mgal/min;milligallon (U.S.) per second
+1454;http://opcfoundation.org/UA/IOLink;1454;kgal/min;kilogallon (U.S.) per minute
+1455;http://opcfoundation.org/UA/IOLink;1455;Mgal/min;megagallon (U.S.) per minute
+1456;http://opcfoundation.org/UA/IOLink;1456;µgal/h;microgallon (U.S.) per hour
+1457;http://opcfoundation.org/UA/IOLink;1457;mgal/h;milligallon (U.S.) per hour
+1458;http://opcfoundation.org/UA/IOLink;1458;kgal/h;kilogallon (U.S.) per hour
+1459;http://opcfoundation.org/UA/IOLink;1459;Mgal/h;megagallon (U.S.) per hour
+1460;http://opcfoundation.org/UA/IOLink;1460;µgal/d;microgallon (U.S.) per day
+1461;http://opcfoundation.org/UA/IOLink;1461;mgal/d;milligallon (U.S.) per day
+1462;http://opcfoundation.org/UA/IOLink;1462;kgal/d;kilogallon (U.S.) per day
+1463;http://opcfoundation.org/UA/IOLink;1463;µImpGal/s;microgallon (Imperial) per second
+1464;http://opcfoundation.org/UA/IOLink;1464;mImpGal/s;milligallon (Imperial) per second
+1465;http://opcfoundation.org/UA/IOLink;1465;kImpGal/s;kilogallon (Imperial) per second
+1466;http://opcfoundation.org/UA/IOLink;1466;MImpGal/s;megagallon (Imperial) per second
+1467;http://opcfoundation.org/UA/IOLink;1467;µImpGal/min;microgallon (Imperial) per minute
+1468;http://opcfoundation.org/UA/IOLink;1468;mImpGal/min;milligallon (Imperial) per minute
+1469;http://opcfoundation.org/UA/IOLink;1469;kImpGal/min;kilogallon (Imperial) per minute
+1470;http://opcfoundation.org/UA/IOLink;1470;MImpGal/min;megagallon (Imperial) per minute
+1471;http://opcfoundation.org/UA/IOLink;1471;µImpGal/h;microgallon (Imperial) per hour
+1472;http://opcfoundation.org/UA/IOLink;1472;mImpGal/h;milligallon (Imperial) per hour
+1473;http://opcfoundation.org/UA/IOLink;1473;kImpGal/h;kilogallon (Imperial) per hour
+1474;http://opcfoundation.org/UA/IOLink;1474;MImpGal/h;megagallon (Imperial) per hour
+1475;http://opcfoundation.org/UA/IOLink;1475;µImpGal/d;microgallon (Imperial) per day
+1476;http://opcfoundation.org/UA/IOLink;1476;mImpGal/d;milligallon (Imperial) per day
+1477;http://opcfoundation.org/UA/IOLink;1477;kImpGal/d;kilogallon (Imperial) per day
+1478;http://opcfoundation.org/UA/IOLink;1478;MImpGal/d;megagallon (Imperial) per day
+1479;http://opcfoundation.org/UA/IOLink;1479;µbbl/s;microbarrel per second
+1480;http://opcfoundation.org/UA/IOLink;1480;mbbl/s;millibarrel per second
+1481;http://opcfoundation.org/UA/IOLink;1481;kbbl/s;kilobarrel per second
+1482;http://opcfoundation.org/UA/IOLink;1482;Mbbl/s;megabarrel per second
+1483;http://opcfoundation.org/UA/IOLink;1483;µbbl/min;microbarrel per minute
+1484;http://opcfoundation.org/UA/IOLink;1484;mbbl/min;millibarrel per minute
+1485;http://opcfoundation.org/UA/IOLink;1485;kbbl/min;kilobarrel per minute
+1486;http://opcfoundation.org/UA/IOLink;1486;Mbbl/min;megabarrel per minute
+1487;http://opcfoundation.org/UA/IOLink;1487;µbbl/h;microbarrel per hour
+1488;http://opcfoundation.org/UA/IOLink;1488;mbbl/h;millibarrel per hour
+1489;http://opcfoundation.org/UA/IOLink;1489;kbbl/h;kilobarrel per hour
+1490;http://opcfoundation.org/UA/IOLink;1490;Mbbl/h;megabarrel per hour
+1491;http://opcfoundation.org/UA/IOLink;1491;µbbl/d;microbarrel per day
+1492;http://opcfoundation.org/UA/IOLink;1492;mbbl/d;millibarrel per day
+1493;http://opcfoundation.org/UA/IOLink;1493;kbbl/d;kilobarrel per day
+1494;http://opcfoundation.org/UA/IOLink;1494;Mbbl/d;megabarrel per day
+1495;http://opcfoundation.org/UA/IOLink;1495;µm³/s;cubic micrometer per second
+1496;http://opcfoundation.org/UA/IOLink;1496;mm³/s;cubic millimeter per second
+1497;http://opcfoundation.org/UA/IOLink;1497;km³/s;cubic kilometer per second
+1498;http://opcfoundation.org/UA/IOLink;1498;Mm³/s;cubic megameter per second
+1499;http://opcfoundation.org/UA/IOLink;1499;µm³/min;cubic micrometer per minute
+1500;http://opcfoundation.org/UA/IOLink;1500;mm³/min;cubic millimeter per minute
+1501;http://opcfoundation.org/UA/IOLink;1501;km³/min;cubic kilometer per minute
+1502;http://opcfoundation.org/UA/IOLink;1502;Mm³/min;cubic megameter per minute
+1503;http://opcfoundation.org/UA/IOLink;1503;µm³/h;cubic micrometer per hour
+1504;http://opcfoundation.org/UA/IOLink;1504;mm³/h;cubic millimeter per hour
+1505;http://opcfoundation.org/UA/IOLink;1505;km³/h;cubic kilometer per hour
+1506;http://opcfoundation.org/UA/IOLink;1506;Mm³/h;cubic megameter per hour
+1507;http://opcfoundation.org/UA/IOLink;1507;Âµm³/d;cubic micrometer per day
+1508;http://opcfoundation.org/UA/IOLink;1508;mm³/d;cubic millimeter per day
+1509;http://opcfoundation.org/UA/IOLink;1509;km³/d;cubic kilometer per day
+1510;http://opcfoundation.org/UA/IOLink;1510;Mm³/d;cubic megameter per day
+1511;http://www.opcfoundation.org/UA/units/un/cefact;12874;cm³/s;cubic centimetre per second
+1512;http://www.opcfoundation.org/UA/units/un/cefact;4666425;cm³/min;cubic centimetre per minute
+1513;http://www.opcfoundation.org/UA/units/un/cefact;4666424;cm³/h;cubic centimetre per hour
+1514;http://www.opcfoundation.org/UA/units/un/cefact;4666423;cm³/d;cubic centimetre per day
+1515;http://opcfoundation.org/UA/IOLink;1515;kcal/kg;kilocalorie per kilogram
+1516;http://opcfoundation.org/UA/IOLink;1516;Btu/lb;British thermal unit per pound
+1517;http://opcfoundation.org/UA/IOLink;1517;kL;kiloliter
+1518;http://opcfoundation.org/UA/IOLink;1518;kL/min;kiloliter per minute
+1519;http://www.opcfoundation.org/UA/units/un/cefact;13400;kl/h;kilolitre per hour
+1520;http://opcfoundation.org/UA/IOLink;1520;kL/d;kiloliter per day
+1551;http://www.opcfoundation.org/UA/units/un/cefact;4731955;S/cm;siemens per centimetre
+1552;http://www.opcfoundation.org/UA/units/un/cefact;4666418;µS/cm;microsiemens per centimetre
+1553;http://opcfoundation.org/UA/IOLink;1553;mS/m;millisiemens per meter
+1554;http://www.opcfoundation.org/UA/units/un/cefact;4666419;µS/m;microsiemens per metre
+1555;http://opcfoundation.org/UA/IOLink;1555;MΩ·cm;megaohm centimeter
+1556;http://opcfoundation.org/UA/IOLink;1556;kΩ·cm;kiloohm centimeter
+1557;http://opcfoundation.org/UA/IOLink;1557;wt%;percent of weight
+1558;http://opcfoundation.org/UA/IOLink;1558;mg/L;milligram per liter
+1559;http://opcfoundation.org/UA/IOLink;1559;µg/L;microgram per liter
+1560;http://opcfoundation.org/UA/IOLink;1560;%;percent saturation
+1561;http://opcfoundation.org/UA/IOLink;1561;vpm;vpm
+1562;http://opcfoundation.org/UA/IOLink;1562;%vol;volume percent
+1563;http://www.opcfoundation.org/UA/units/un/cefact;13361;ml/min;millilitre per minute
+1564;http://www.opcfoundation.org/UA/units/un/cefact;4732467;mg/cm²;milligram per square centimetre
+1565;http://www.opcfoundation.org/UA/units/un/cefact;19761;mg/l;milligram per litre
+1566;http://www.opcfoundation.org/UA/units/un/cefact;18256;mg/m³;milligram per cubic metre
+1567;http://opcfoundation.org/UA/IOLink;1567;ct;carat (jewel) (200.0·10^-6 kg)
+1568;http://opcfoundation.org/UA/IOLink;1568;lb;pound (troy or apothecary) (= 0.3732417216 kg)
+1569;http://opcfoundation.org/UA/IOLink;1569;oz;ounce (troy or apothecary) ( = (1/12) lb (tr))
+1570;http://www.opcfoundation.org/UA/units/un/cefact;5200449;fl oz (US);fluid ounce (US)
+1571;http://opcfoundation.org/UA/IOLink;1571;cm³;cubic centimeter
+1572;http://opcfoundation.org/UA/IOLink;1572;af;acre foot (= 43560 ft³ )
+1573;http://opcfoundation.org/UA/IOLink;1573;m³;normal cubic meter  ( 0°C, 1atm = 101325Pa)
+1574;http://opcfoundation.org/UA/IOLink;1574;L;normal liter   ( 0°C, 1atm = 101325Pa)
+1575;http://opcfoundation.org/UA/IOLink;1575;m³;standard cubic meter   ( 20°C, 1atm = 101325Pa)
+1576;http://opcfoundation.org/UA/IOLink;1576;L;standard liter   (2 0°C, 1atm = 101325Pa)
+1577;http://www.opcfoundation.org/UA/units/un/cefact;13360;ml/s;millilitre per second
+1578;http://www.opcfoundation.org/UA/units/un/cefact;4666677;ml/h;millilitre per hour
+1579;http://opcfoundation.org/UA/IOLink;1579;ml/d;milliliter per day
+1580;http://opcfoundation.org/UA/IOLink;1580;af/s;acre foot per second
+1581;http://opcfoundation.org/UA/IOLink;1581;af/min;acre foot per minute
+1582;http://opcfoundation.org/UA/IOLink;1582;af/h;acre foot per hour
+1583;http://opcfoundation.org/UA/IOLink;1583;af/d;acre foot per day
+1584;http://opcfoundation.org/UA/IOLink;1584;fl oz (U.S.)/s;ounce (U.S. fluid) per second
+1585;http://opcfoundation.org/UA/IOLink;1585;fl oz (U.S.)/min;ounce (U.S. fluid) per minute
+1586;http://opcfoundation.org/UA/IOLink;1586;fl oz (U.S.)/h;ounce (U.S. fluid) per hour
+1587;http://opcfoundation.org/UA/IOLink;1587;fl oz (U.S.)/d;ounce (U.S. fluid) per day
+1588;http://opcfoundation.org/UA/IOLink;1588;m³/s normal;normal cubic meter per second
+1589;http://opcfoundation.org/UA/IOLink;1589;m³/min normal;normal cubic meter per minute
+1590;http://opcfoundation.org/UA/IOLink;1590;m³/h normal;normal cubic meter per hour
+1591;http://opcfoundation.org/UA/IOLink;1591;m³/d normal;normal cubic meter per day
+1592;http://opcfoundation.org/UA/IOLink;1592;L/s normal;normal liter per second
+1593;http://opcfoundation.org/UA/IOLink;1593;L/min normal;normal liter per minute
+1594;http://opcfoundation.org/UA/IOLink;1594;L/h normal;normal liter per hour
+1595;http://opcfoundation.org/UA/IOLink;1595;L/d normal;normal liter per day
+1596;http://opcfoundation.org/UA/IOLink;1596;m³/s std.;standard cubic meter per second
+1597;http://opcfoundation.org/UA/IOLink;1597;m³/min std.;standard cubic meter per minute
+1598;http://opcfoundation.org/UA/IOLink;1598;m³/h std.;standard cubic meter per hour
+1599;http://opcfoundation.org/UA/IOLink;1599;m³/d std.;standard cubic meter per day
+1600;http://opcfoundation.org/UA/IOLink;1600;L/s std.;standard liter per second
+1601;http://opcfoundation.org/UA/IOLink;1601;L/min std.;standard liter per minute
+1602;http://opcfoundation.org/UA/IOLink;1602;L/h std.;standard liter per hour
+1603;http://opcfoundation.org/UA/IOLink;1603;L/d std.;standard liter per day
+1604;http://opcfoundation.org/UA/IOLink;1604;ft³/s std.;standard cubic foot per second
+1605;http://opcfoundation.org/UA/IOLink;1605;ft³/d std.;standard cubic foot per day
+1606;http://opcfoundation.org/UA/IOLink;1606;oz/s;ounce per second
+1607;http://opcfoundation.org/UA/IOLink;1607;oz/min;ounce per minute
+1608;http://opcfoundation.org/UA/IOLink;1608;oz/h;ounce per hour
+1609;http://opcfoundation.org/UA/IOLink;1609;oz/d;ounce per day
+1610;http://opcfoundation.org/UA/IOLink;1610;Paa;pascal absolute
+1611;http://opcfoundation.org/UA/IOLink;1611;Pag;pascal gauge
+1612;http://opcfoundation.org/UA/IOLink;1612;GPaa;gigapascal absolute
+1613;http://opcfoundation.org/UA/IOLink;1613;GPag;gigapascal gauge
+1614;http://opcfoundation.org/UA/IOLink;1614;MPaa;megapascal absolute
+1615;http://opcfoundation.org/UA/IOLink;1615;MPag;megapascal gauge
+1616;http://opcfoundation.org/UA/IOLink;1616;kPaa;kilopascal absolute
+1617;http://opcfoundation.org/UA/IOLink;1617;kPag;kilopascal gauge
+1618;http://opcfoundation.org/UA/IOLink;1618;mPaa;millipascal absolute
+1619;http://opcfoundation.org/UA/IOLink;1619;mPag;millipascal gauge
+1620;http://opcfoundation.org/UA/IOLink;1620;µPaa;micropascal absolute
+1621;http://opcfoundation.org/UA/IOLink;1621;µPag;micropascal gauge
+1622;http://opcfoundation.org/UA/IOLink;1622;hPaa;hectopascal absolute
+1623;http://opcfoundation.org/UA/IOLink;1623;hPag;hectopascal gauge
+1624;http://opcfoundation.org/UA/IOLink;1624;gf/cm²a;gram-force per square centimeter absolute
+1625;http://opcfoundation.org/UA/IOLink;1625;gf/cm²g;gram-force per square centimeter gauge
+1626;http://opcfoundation.org/UA/IOLink;1626;kgf/cm²a;kilogram-force per square centimeter absolute
+1627;http://opcfoundation.org/UA/IOLink;1627;kgf/cm²g;kilogram-force per square centimeter gauge
+1628;http://opcfoundation.org/UA/IOLink;1628;SD4°C;standard density at 4°C
+1629;http://opcfoundation.org/UA/IOLink;1629;SD15°C;standard density at 15°C
+1630;http://opcfoundation.org/UA/IOLink;1630;SD20°C;standard density at 20°C
+1631;http://opcfoundation.org/UA/IOLink;1631;PS;horsepower (metric)
+1632;http://opcfoundation.org/UA/IOLink;1632;ppt;parts per trillion (= 735.49875 W)
+1633;http://opcfoundation.org/UA/IOLink;1633;hl/s;hectoliter per second (= 10^-12)
+1634;http://opcfoundation.org/UA/IOLink;1634;hl/min;hectoliter per minute
+1635;http://opcfoundation.org/UA/IOLink;1635;hl/h;hectoliter per hour
+1636;http://opcfoundation.org/UA/IOLink;1636;hl/d;hectoliter per day
+1637;http://opcfoundation.org/UA/IOLink;1637;bbl (liq)/s;barrel (U.S. liquid) per second
+1638;http://opcfoundation.org/UA/IOLink;1638;bbl (liq)/min;barrel (U.S. liquid) per minute
+1639;http://opcfoundation.org/UA/IOLink;1639;bbl (liq)/h;barrel (U.S. liquid) per hour
+1640;http://opcfoundation.org/UA/IOLink;1640;bbl (liq)/d;barrel (U.S. liquid) per day
+1641;http://opcfoundation.org/UA/IOLink;1641;bbl (fed);barrel (U.S. federal)
+1642;http://opcfoundation.org/UA/IOLink;1642;bbl (fed)/s;barrel (U.S. federal) per second (= 31 gal )
+1643;http://opcfoundation.org/UA/IOLink;1643;bbl (fed)/min;barrel (U.S. federal) per minute
+1644;http://opcfoundation.org/UA/IOLink;1644;bbl (fed)/h;barrel (U.S. federal) per hour
+1645;http://opcfoundation.org/UA/IOLink;1645;bbl (fed)/d;barrel (U.S. federal) per day

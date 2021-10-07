@@ -1,0 +1,559 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<!--
+ * Copyright (c) 2005-2020 The OPC Foundation, Inc. All rights reserved.
+ *
+ * OPC Foundation MIT License 1.00
+ * 
+ * Permission is hereby granted, free of charge, to any person
+ * obtaining a copy of this software and associated documentation
+ * files (the "Software"), to deal in the Software without
+ * restriction, including without limitation the rights to use,
+ * copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the
+ * Software is furnished to do so, subject to the following
+ * conditions:
+ * 
+ * The above copyright notice and this permission notice shall be
+ * included in all copies or substantial portions of the Software.
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+ * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
+ * OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+ * NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
+ * HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+ * WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+ * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+ * OTHER DEALINGS IN THE SOFTWARE.
+ *
+ * The complete license agreement can be found here:
+ * http://opcfoundation.org/License/MIT/1.00/
+-->
+
+<UANodeSet xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" LastModified="2020-07-15T00:00:00Z" xmlns="http://opcfoundation.org/UA/2011/03/UANodeSet.xsd">
+  <Models>
+    <Model ModelUri="http://opcfoundation.org/UA/" Version="1.04.7" PublicationDate="2020-07-15T00:00:00Z" />
+  </Models>
+  <Aliases>
+    <Alias Alias="Boolean">i=1</Alias>
+    <Alias Alias="SByte">i=2</Alias>
+    <Alias Alias="Byte">i=3</Alias>
+    <Alias Alias="Int16">i=4</Alias>
+    <Alias Alias="UInt16">i=5</Alias>
+    <Alias Alias="Int32">i=6</Alias>
+    <Alias Alias="UInt32">i=7</Alias>
+    <Alias Alias="Int64">i=8</Alias>
+    <Alias Alias="UInt64">i=9</Alias>
+    <Alias Alias="Float">i=10</Alias>
+    <Alias Alias="Double">i=11</Alias>
+    <Alias Alias="DateTime">i=13</Alias>
+    <Alias Alias="String">i=12</Alias>
+    <Alias Alias="ByteString">i=15</Alias>
+    <Alias Alias="Guid">i=14</Alias>
+    <Alias Alias="XmlElement">i=16</Alias>
+    <Alias Alias="NodeId">i=17</Alias>
+    <Alias Alias="ExpandedNodeId">i=18</Alias>
+    <Alias Alias="QualifiedName">i=20</Alias>
+    <Alias Alias="LocalizedText">i=21</Alias>
+    <Alias Alias="StatusCode">i=19</Alias>
+    <Alias Alias="Structure">i=22</Alias>
+    <Alias Alias="Number">i=26</Alias>
+    <Alias Alias="Integer">i=27</Alias>
+    <Alias Alias="UInteger">i=28</Alias>
+    <Alias Alias="HasComponent">i=47</Alias>
+    <Alias Alias="HasProperty">i=46</Alias>
+    <Alias Alias="Organizes">i=35</Alias>
+    <Alias Alias="HasEventSource">i=36</Alias>
+    <Alias Alias="HasNotifier">i=48</Alias>
+    <Alias Alias="HasSubtype">i=45</Alias>
+    <Alias Alias="HasTypeDefinition">i=40</Alias>
+    <Alias Alias="HasModellingRule">i=37</Alias>
+    <Alias Alias="HasEncoding">i=38</Alias>
+    <Alias Alias="HasDescription">i=39</Alias>
+  </Aliases>
+  <UAObjectType NodeId="i=23455" BrowseName="AliasNameType">
+    <DisplayName>AliasNameType</DisplayName>
+    <References>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=58</Reference>
+    </References>
+  </UAObjectType>
+  <UAObjectType NodeId="i=23456" BrowseName="AliasNameCategoryType">
+    <DisplayName>AliasNameCategoryType</DisplayName>
+    <References>
+      <Reference ReferenceType="HasComponent">i=23457</Reference>
+      <Reference ReferenceType="HasComponent">i=23458</Reference>
+      <Reference ReferenceType="HasComponent">i=23462</Reference>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=61</Reference>
+    </References>
+  </UAObjectType>
+  <UAObject NodeId="i=23457" BrowseName="&lt;Alias&gt;" SymbolicName="Alias_Placeholder" ParentNodeId="i=23456">
+    <DisplayName>&lt;Alias&gt;</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=23455</Reference>
+      <Reference ReferenceType="HasModellingRule">i=11508</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">i=23456</Reference>
+    </References>
+  </UAObject>
+  <UAObject NodeId="i=23458" BrowseName="&lt;SubAliasNameCategories&gt;" SymbolicName="SubAliasNameCategories_Placeholder" ParentNodeId="i=23456">
+    <DisplayName>&lt;SubAliasNameCategories&gt;</DisplayName>
+    <References>
+      <Reference ReferenceType="HasComponent">i=23459</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=23456</Reference>
+      <Reference ReferenceType="HasModellingRule">i=11508</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">i=23456</Reference>
+    </References>
+  </UAObject>
+  <UAMethod NodeId="i=23459" BrowseName="FindAlias" ParentNodeId="i=23458" MethodDeclarationId="i=23462">
+    <DisplayName>FindAlias</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty">i=23460</Reference>
+      <Reference ReferenceType="HasProperty">i=23461</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">i=23458</Reference>
+    </References>
+  </UAMethod>
+  <UAVariable NodeId="i=23460" BrowseName="InputArguments" ParentNodeId="i=23459" DataType="i=296" ValueRank="1" ArrayDimensions="0">
+    <DisplayName>InputArguments</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">i=23459</Reference>
+    </References>
+    <Value>
+      <ListOfExtensionObject xmlns="http://opcfoundation.org/UA/2008/02/Types.xsd">
+        <ExtensionObject>
+          <TypeId>
+            <Identifier>i=297</Identifier>
+          </TypeId>
+          <Body>
+            <Argument>
+              <Name>AliasNameSearchPattern</Name>
+              <DataType>
+                <Identifier>i=12</Identifier>
+              </DataType>
+              <ValueRank>-1</ValueRank>
+              <ArrayDimensions />
+            </Argument>
+          </Body>
+        </ExtensionObject>
+        <ExtensionObject>
+          <TypeId>
+            <Identifier>i=297</Identifier>
+          </TypeId>
+          <Body>
+            <Argument>
+              <Name>ReferenceTypeFilter</Name>
+              <DataType>
+                <Identifier>i=17</Identifier>
+              </DataType>
+              <ValueRank>-1</ValueRank>
+              <ArrayDimensions />
+            </Argument>
+          </Body>
+        </ExtensionObject>
+      </ListOfExtensionObject>
+    </Value>
+  </UAVariable>
+  <UAVariable NodeId="i=23461" BrowseName="OutputArguments" ParentNodeId="i=23459" DataType="i=296" ValueRank="1" ArrayDimensions="0">
+    <DisplayName>OutputArguments</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">i=23459</Reference>
+    </References>
+    <Value>
+      <ListOfExtensionObject xmlns="http://opcfoundation.org/UA/2008/02/Types.xsd">
+        <ExtensionObject>
+          <TypeId>
+            <Identifier>i=297</Identifier>
+          </TypeId>
+          <Body>
+            <Argument>
+              <Name>AliasNodeList</Name>
+              <DataType>
+                <Identifier>i=23468</Identifier>
+              </DataType>
+              <ValueRank>1</ValueRank>
+              <ArrayDimensions>
+                <UInt32>0</UInt32>
+              </ArrayDimensions>
+            </Argument>
+          </Body>
+        </ExtensionObject>
+      </ListOfExtensionObject>
+    </Value>
+  </UAVariable>
+  <UAMethod NodeId="i=23462" BrowseName="FindAlias" ParentNodeId="i=23456">
+    <DisplayName>FindAlias</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty">i=23463</Reference>
+      <Reference ReferenceType="HasProperty">i=23464</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">i=23456</Reference>
+    </References>
+  </UAMethod>
+  <UAVariable NodeId="i=23463" BrowseName="InputArguments" ParentNodeId="i=23462" DataType="i=296" ValueRank="1" ArrayDimensions="0">
+    <DisplayName>InputArguments</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">i=23462</Reference>
+    </References>
+    <Value>
+      <ListOfExtensionObject xmlns="http://opcfoundation.org/UA/2008/02/Types.xsd">
+        <ExtensionObject>
+          <TypeId>
+            <Identifier>i=297</Identifier>
+          </TypeId>
+          <Body>
+            <Argument>
+              <Name>AliasNameSearchPattern</Name>
+              <DataType>
+                <Identifier>i=12</Identifier>
+              </DataType>
+              <ValueRank>-1</ValueRank>
+              <ArrayDimensions />
+            </Argument>
+          </Body>
+        </ExtensionObject>
+        <ExtensionObject>
+          <TypeId>
+            <Identifier>i=297</Identifier>
+          </TypeId>
+          <Body>
+            <Argument>
+              <Name>ReferenceTypeFilter</Name>
+              <DataType>
+                <Identifier>i=17</Identifier>
+              </DataType>
+              <ValueRank>-1</ValueRank>
+              <ArrayDimensions />
+            </Argument>
+          </Body>
+        </ExtensionObject>
+      </ListOfExtensionObject>
+    </Value>
+  </UAVariable>
+  <UAVariable NodeId="i=23464" BrowseName="OutputArguments" ParentNodeId="i=23462" DataType="i=296" ValueRank="1" ArrayDimensions="0">
+    <DisplayName>OutputArguments</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">i=23462</Reference>
+    </References>
+    <Value>
+      <ListOfExtensionObject xmlns="http://opcfoundation.org/UA/2008/02/Types.xsd">
+        <ExtensionObject>
+          <TypeId>
+            <Identifier>i=297</Identifier>
+          </TypeId>
+          <Body>
+            <Argument>
+              <Name>AliasNodeList</Name>
+              <DataType>
+                <Identifier>i=23468</Identifier>
+              </DataType>
+              <ValueRank>1</ValueRank>
+              <ArrayDimensions>
+                <UInt32>0</UInt32>
+              </ArrayDimensions>
+            </Argument>
+          </Body>
+        </ExtensionObject>
+      </ListOfExtensionObject>
+    </Value>
+  </UAVariable>
+  <UADataType NodeId="i=23468" BrowseName="AliasNameDataType">
+    <DisplayName>AliasNameDataType</DisplayName>
+    <References>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=22</Reference>
+    </References>
+    <Definition Name="AliasNameDataType">
+      <Field Name="AliasName" DataType="i=20" />
+      <Field Name="ReferencedNodes" DataType="i=18" ValueRank="1" />
+    </Definition>
+  </UADataType>
+  <UAReferenceType NodeId="i=23469" BrowseName="AliasFor">
+    <DisplayName>AliasFor</DisplayName>
+    <References>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=32</Reference>
+    </References>
+    <InverseName>HasAlias</InverseName>
+  </UAReferenceType>
+  <UAObject NodeId="i=23470" BrowseName="Aliases">
+    <DisplayName>Aliases</DisplayName>
+    <References>
+      <Reference ReferenceType="HasComponent">i=23476</Reference>
+      <Reference ReferenceType="Organizes" IsForward="false">i=85</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=23456</Reference>
+    </References>
+  </UAObject>
+  <UAMethod NodeId="i=23476" BrowseName="FindAlias" ParentNodeId="i=23470" MethodDeclarationId="i=23462">
+    <DisplayName>FindAlias</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty">i=23477</Reference>
+      <Reference ReferenceType="HasProperty">i=23478</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">i=23470</Reference>
+    </References>
+  </UAMethod>
+  <UAVariable NodeId="i=23477" BrowseName="InputArguments" ParentNodeId="i=23476" DataType="i=296" ValueRank="1" ArrayDimensions="0">
+    <DisplayName>InputArguments</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">i=23476</Reference>
+    </References>
+    <Value>
+      <ListOfExtensionObject xmlns="http://opcfoundation.org/UA/2008/02/Types.xsd">
+        <ExtensionObject>
+          <TypeId>
+            <Identifier>i=297</Identifier>
+          </TypeId>
+          <Body>
+            <Argument>
+              <Name>AliasNameSearchPattern</Name>
+              <DataType>
+                <Identifier>i=12</Identifier>
+              </DataType>
+              <ValueRank>-1</ValueRank>
+              <ArrayDimensions />
+            </Argument>
+          </Body>
+        </ExtensionObject>
+        <ExtensionObject>
+          <TypeId>
+            <Identifier>i=297</Identifier>
+          </TypeId>
+          <Body>
+            <Argument>
+              <Name>ReferenceTypeFilter</Name>
+              <DataType>
+                <Identifier>i=17</Identifier>
+              </DataType>
+              <ValueRank>-1</ValueRank>
+              <ArrayDimensions />
+            </Argument>
+          </Body>
+        </ExtensionObject>
+      </ListOfExtensionObject>
+    </Value>
+  </UAVariable>
+  <UAVariable NodeId="i=23478" BrowseName="OutputArguments" ParentNodeId="i=23476" DataType="i=296" ValueRank="1" ArrayDimensions="0">
+    <DisplayName>OutputArguments</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">i=23476</Reference>
+    </References>
+    <Value>
+      <ListOfExtensionObject xmlns="http://opcfoundation.org/UA/2008/02/Types.xsd">
+        <ExtensionObject>
+          <TypeId>
+            <Identifier>i=297</Identifier>
+          </TypeId>
+          <Body>
+            <Argument>
+              <Name>AliasNodeList</Name>
+              <DataType>
+                <Identifier>i=23468</Identifier>
+              </DataType>
+              <ValueRank>1</ValueRank>
+              <ArrayDimensions>
+                <UInt32>0</UInt32>
+              </ArrayDimensions>
+            </Argument>
+          </Body>
+        </ExtensionObject>
+      </ListOfExtensionObject>
+    </Value>
+  </UAVariable>
+  <UAObject NodeId="i=23479" BrowseName="TagVariables">
+    <DisplayName>TagVariables</DisplayName>
+    <References>
+      <Reference ReferenceType="HasComponent">i=23485</Reference>
+      <Reference ReferenceType="Organizes" IsForward="false">i=23470</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=23456</Reference>
+    </References>
+  </UAObject>
+  <UAMethod NodeId="i=23485" BrowseName="FindAlias" ParentNodeId="i=23479" MethodDeclarationId="i=23462">
+    <DisplayName>FindAlias</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty">i=23486</Reference>
+      <Reference ReferenceType="HasProperty">i=23487</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">i=23479</Reference>
+    </References>
+  </UAMethod>
+  <UAVariable NodeId="i=23486" BrowseName="InputArguments" ParentNodeId="i=23485" DataType="i=296" ValueRank="1" ArrayDimensions="0">
+    <DisplayName>InputArguments</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">i=23485</Reference>
+    </References>
+    <Value>
+      <ListOfExtensionObject xmlns="http://opcfoundation.org/UA/2008/02/Types.xsd">
+        <ExtensionObject>
+          <TypeId>
+            <Identifier>i=297</Identifier>
+          </TypeId>
+          <Body>
+            <Argument>
+              <Name>AliasNameSearchPattern</Name>
+              <DataType>
+                <Identifier>i=12</Identifier>
+              </DataType>
+              <ValueRank>-1</ValueRank>
+              <ArrayDimensions />
+            </Argument>
+          </Body>
+        </ExtensionObject>
+        <ExtensionObject>
+          <TypeId>
+            <Identifier>i=297</Identifier>
+          </TypeId>
+          <Body>
+            <Argument>
+              <Name>ReferenceTypeFilter</Name>
+              <DataType>
+                <Identifier>i=17</Identifier>
+              </DataType>
+              <ValueRank>-1</ValueRank>
+              <ArrayDimensions />
+            </Argument>
+          </Body>
+        </ExtensionObject>
+      </ListOfExtensionObject>
+    </Value>
+  </UAVariable>
+  <UAVariable NodeId="i=23487" BrowseName="OutputArguments" ParentNodeId="i=23485" DataType="i=296" ValueRank="1" ArrayDimensions="0">
+    <DisplayName>OutputArguments</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">i=23485</Reference>
+    </References>
+    <Value>
+      <ListOfExtensionObject xmlns="http://opcfoundation.org/UA/2008/02/Types.xsd">
+        <ExtensionObject>
+          <TypeId>
+            <Identifier>i=297</Identifier>
+          </TypeId>
+          <Body>
+            <Argument>
+              <Name>AliasNodeList</Name>
+              <DataType>
+                <Identifier>i=23468</Identifier>
+              </DataType>
+              <ValueRank>1</ValueRank>
+              <ArrayDimensions>
+                <UInt32>0</UInt32>
+              </ArrayDimensions>
+            </Argument>
+          </Body>
+        </ExtensionObject>
+      </ListOfExtensionObject>
+    </Value>
+  </UAVariable>
+  <UAObject NodeId="i=23488" BrowseName="Topics">
+    <DisplayName>Topics</DisplayName>
+    <References>
+      <Reference ReferenceType="HasComponent">i=23494</Reference>
+      <Reference ReferenceType="Organizes" IsForward="false">i=23470</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=23456</Reference>
+    </References>
+  </UAObject>
+  <UAMethod NodeId="i=23494" BrowseName="FindAlias" ParentNodeId="i=23488" MethodDeclarationId="i=23462">
+    <DisplayName>FindAlias</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty">i=23495</Reference>
+      <Reference ReferenceType="HasProperty">i=23496</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">i=23488</Reference>
+    </References>
+  </UAMethod>
+  <UAVariable NodeId="i=23495" BrowseName="InputArguments" ParentNodeId="i=23494" DataType="i=296" ValueRank="1" ArrayDimensions="0">
+    <DisplayName>InputArguments</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">i=23494</Reference>
+    </References>
+    <Value>
+      <ListOfExtensionObject xmlns="http://opcfoundation.org/UA/2008/02/Types.xsd">
+        <ExtensionObject>
+          <TypeId>
+            <Identifier>i=297</Identifier>
+          </TypeId>
+          <Body>
+            <Argument>
+              <Name>AliasNameSearchPattern</Name>
+              <DataType>
+                <Identifier>i=12</Identifier>
+              </DataType>
+              <ValueRank>-1</ValueRank>
+              <ArrayDimensions />
+            </Argument>
+          </Body>
+        </ExtensionObject>
+        <ExtensionObject>
+          <TypeId>
+            <Identifier>i=297</Identifier>
+          </TypeId>
+          <Body>
+            <Argument>
+              <Name>ReferenceTypeFilter</Name>
+              <DataType>
+                <Identifier>i=17</Identifier>
+              </DataType>
+              <ValueRank>-1</ValueRank>
+              <ArrayDimensions />
+            </Argument>
+          </Body>
+        </ExtensionObject>
+      </ListOfExtensionObject>
+    </Value>
+  </UAVariable>
+  <UAVariable NodeId="i=23496" BrowseName="OutputArguments" ParentNodeId="i=23494" DataType="i=296" ValueRank="1" ArrayDimensions="0">
+    <DisplayName>OutputArguments</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">i=23494</Reference>
+    </References>
+    <Value>
+      <ListOfExtensionObject xmlns="http://opcfoundation.org/UA/2008/02/Types.xsd">
+        <ExtensionObject>
+          <TypeId>
+            <Identifier>i=297</Identifier>
+          </TypeId>
+          <Body>
+            <Argument>
+              <Name>AliasNodeList</Name>
+              <DataType>
+                <Identifier>i=23468</Identifier>
+              </DataType>
+              <ValueRank>1</ValueRank>
+              <ArrayDimensions>
+                <UInt32>0</UInt32>
+              </ArrayDimensions>
+            </Argument>
+          </Body>
+        </ExtensionObject>
+      </ListOfExtensionObject>
+    </Value>
+  </UAVariable>
+  <UAObject NodeId="i=23499" BrowseName="Default Binary" SymbolicName="DefaultBinary">
+    <DisplayName>Default Binary</DisplayName>
+    <References>
+      <Reference ReferenceType="HasEncoding" IsForward="false">i=23468</Reference>
+      <Reference ReferenceType="HasDescription">i=23502</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=76</Reference>
+    </References>
+  </UAObject>
+  <UAObject NodeId="i=23505" BrowseName="Default XML" SymbolicName="DefaultXml">
+    <DisplayName>Default XML</DisplayName>
+    <References>
+      <Reference ReferenceType="HasEncoding" IsForward="false">i=23468</Reference>
+      <Reference ReferenceType="HasDescription">i=23508</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=76</Reference>
+    </References>
+  </UAObject>
+  <UAObject NodeId="i=23511" BrowseName="Default JSON" SymbolicName="DefaultJson">
+    <DisplayName>Default JSON</DisplayName>
+    <References>
+      <Reference ReferenceType="HasEncoding" IsForward="false">i=23468</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=76</Reference>
+    </References>
+  </UAObject>
+</UANodeSet>

@@ -1,0 +1,477 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<!--
+ * Copyright (c) 2005-2020 The OPC Foundation, Inc. All rights reserved.
+ *
+ * OPC Foundation MIT License 1.00
+ * 
+ * Permission is hereby granted, free of charge, to any person
+ * obtaining a copy of this software and associated documentation
+ * files (the "Software"), to deal in the Software without
+ * restriction, including without limitation the rights to use,
+ * copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the
+ * Software is furnished to do so, subject to the following
+ * conditions:
+ * 
+ * The above copyright notice and this permission notice shall be
+ * included in all copies or substantial portions of the Software.
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+ * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
+ * OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+ * NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
+ * HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+ * WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+ * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+ * OTHER DEALINGS IN THE SOFTWARE.
+ *
+ * The complete license agreement can be found here:
+ * http://opcfoundation.org/License/MIT/1.00/
+-->
+
+<UANodeSet LastModified="2020-02-12T13:22:47.785Z" xmlns="http://opcfoundation.org/UA/2011/03/UANodeSet.xsd" xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd">
+    <NamespaceUris>
+        <Uri>http://opcfoundation.org/UA/Dictionary/IRDI</Uri>
+    </NamespaceUris>
+    <Models>
+        <Model ModelUri="http://opcfoundation.org/UA/Dictionary/IRDI" PublicationDate="2020-02-04T00:00:00Z" Version="1.00">
+            <RequiredModel ModelUri="http://opcfoundation.org/UA/" PublicationDate="2019-11-20T00:00:00Z" Version="1.04.4"/>
+        </Model>
+    </Models>
+    <Aliases>
+        <Alias Alias="Boolean">i=1</Alias>
+        <Alias Alias="DateTime">i=13</Alias>
+        <Alias Alias="String">i=12</Alias>
+        <Alias Alias="HasComponent">i=47</Alias>
+        <Alias Alias="HasProperty">i=46</Alias>
+        <Alias Alias="HasTypeDefinition">i=40</Alias>
+    </Aliases>
+    <UAObject SymbolicName="http___opcfoundation_org_UA_Dictionary_IRDI" NodeId="ns=1;i=1000" BrowseName="1:http://opcfoundation.org/UA/Dictionary/IRDI">
+        <DisplayName>http://opcfoundation.org/UA/Dictionary/IRDI</DisplayName>
+        <References>
+            <Reference ReferenceType="HasComponent" IsForward="false">i=11715</Reference>
+            <Reference ReferenceType="HasTypeDefinition">i=11616</Reference>
+        </References>
+    </UAObject>
+    <UAVariable DataType="Boolean" NodeId="ns=1;i=1001" BrowseName="IsNamespaceSubset" ParentNodeId="ns=1;i=1000">
+        <DisplayName>IsNamespaceSubset</DisplayName>
+        <Description>If TRUE then the server only supports a subset of the namespace.</Description>
+        <References>
+            <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=1000</Reference>
+            <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+        </References>
+    </UAVariable>
+    <UAVariable DataType="DateTime" NodeId="ns=1;i=1002" BrowseName="NamespacePublicationDate" ParentNodeId="ns=1;i=1000">
+        <DisplayName>NamespacePublicationDate</DisplayName>
+        <Description>The publication date for the namespace.</Description>
+        <References>
+            <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=1000</Reference>
+            <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+        </References>
+        <Value>
+            <uax:DateTime>2020-02-04T00:00:00Z</uax:DateTime>
+        </Value>
+    </UAVariable>
+    <UAVariable DataType="String" NodeId="ns=1;i=1003" BrowseName="NamespaceUri" ParentNodeId="ns=1;i=1000">
+        <DisplayName>NamespaceUri</DisplayName>
+        <Description>The URI of the namespace.</Description>
+        <References>
+            <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=1000</Reference>
+            <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+        </References>
+        <Value>
+            <uax:String>http://opcfoundation.org/UA/Dictionary/IRDI</uax:String>
+        </Value>
+    </UAVariable>
+    <UAVariable DataType="String" NodeId="ns=1;i=1004" BrowseName="NamespaceVersion" ParentNodeId="ns=1;i=1000">
+        <DisplayName>NamespaceVersion</DisplayName>
+        <Description>The human readable string representing version of the namespace.</Description>
+        <References>
+            <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=1000</Reference>
+            <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+        </References>
+        <Value>
+            <uax:String>1.00</uax:String>
+        </Value>
+    </UAVariable>
+    <UAVariable DataType="i=256" ValueRank="1" NodeId="ns=1;i=1005" BrowseName="StaticNodeIdTypes" ParentNodeId="ns=1;i=1000">
+        <DisplayName>StaticNodeIdTypes</DisplayName>
+        <Description>A list of IdTypes for nodes which are the same in every server that exposes them.</Description>
+        <References>
+            <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=1000</Reference>
+            <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+        </References>
+    </UAVariable>
+    <UAVariable DataType="i=291" ValueRank="1" NodeId="ns=1;i=1006" BrowseName="StaticNumericNodeIdRange" ParentNodeId="ns=1;i=1000">
+        <DisplayName>StaticNumericNodeIdRange</DisplayName>
+        <Description>A list of ranges for numeric node ids which are the same in every server that exposes them.</Description>
+        <References>
+            <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=1000</Reference>
+            <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+        </References>
+    </UAVariable>
+    <UAVariable DataType="String" NodeId="ns=1;i=1007" BrowseName="StaticStringNodeIdPattern" ParentNodeId="ns=1;i=1000">
+        <DisplayName>StaticStringNodeIdPattern</DisplayName>
+        <Description>A regular expression which matches string node ids are the same in every server that exposes them.</Description>
+        <References>
+            <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=1000</Reference>
+            <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+        </References>
+    </UAVariable>
+    <UAObject SymbolicName="S0112_2___61987_ABA565_007" NodeId="ns=1;s=0112/2///61987#ABA565#007" BrowseName="1:0112/2///61987#ABA565#007">
+        <DisplayName>Manufacturer</DisplayName>
+        <References>
+            <Reference ReferenceType="HasComponent" IsForward="false">i=17594</Reference>
+            <Reference ReferenceType="HasTypeDefinition">i=17598</Reference>
+        </References>
+    </UAObject>
+    <UAObject SymbolicName="S0112_2___61987_ABN597_001" NodeId="ns=1;s=0112/2///61987#ABN597#001" BrowseName="1:0112/2///61987#ABN597#001">
+        <DisplayName>Display language</DisplayName>
+        <References>
+            <Reference ReferenceType="HasComponent" IsForward="false">i=17594</Reference>
+            <Reference ReferenceType="HasTypeDefinition">i=17598</Reference>
+        </References>
+    </UAObject>
+    <UAObject SymbolicName="S0112_2___61987_ABA300_006" NodeId="ns=1;s=0112/2///61987#ABA300#006" BrowseName="1:0112/2///61987#ABA300#006">
+        <DisplayName>Product code</DisplayName>
+        <References>
+            <Reference ReferenceType="HasComponent" IsForward="false">i=17594</Reference>
+            <Reference ReferenceType="HasTypeDefinition">i=17598</Reference>
+        </References>
+    </UAObject>
+    <UAObject SymbolicName="S0112_2___61987_ABA567_007" NodeId="ns=1;s=0112/2///61987#ABA567#007" BrowseName="1:0112/2///61987#ABA567#007">
+        <DisplayName>Model</DisplayName>
+        <References>
+            <Reference ReferenceType="HasComponent" IsForward="false">i=17594</Reference>
+            <Reference ReferenceType="HasTypeDefinition">i=17598</Reference>
+        </References>
+    </UAObject>
+    <UAObject SymbolicName="S0112_2___61987_ABA601_006" NodeId="ns=1;s=0112/2///61987#ABA601#006" BrowseName="1:0112/2///61987#ABA601#006">
+        <DisplayName>Software revision</DisplayName>
+        <References>
+            <Reference ReferenceType="HasComponent" IsForward="false">i=17594</Reference>
+            <Reference ReferenceType="HasTypeDefinition">i=17598</Reference>
+        </References>
+    </UAObject>
+    <UAObject SymbolicName="S0112_2___61987_ABA926_006" NodeId="ns=1;s=0112/2///61987#ABA926#006" BrowseName="1:0112/2///61987#ABA926#006">
+        <DisplayName>Hardware revision</DisplayName>
+        <References>
+            <Reference ReferenceType="HasComponent" IsForward="false">i=17594</Reference>
+            <Reference ReferenceType="HasTypeDefinition">i=17598</Reference>
+        </References>
+    </UAObject>
+    <UAObject SymbolicName="S0112_2___61987_ABA951_007" NodeId="ns=1;s=0112/2///61987#ABA951#007" BrowseName="1:0112/2///61987#ABA951#007">
+        <DisplayName>Serial number</DisplayName>
+        <References>
+            <Reference ReferenceType="HasComponent" IsForward="false">i=17594</Reference>
+            <Reference ReferenceType="HasTypeDefinition">i=17598</Reference>
+        </References>
+    </UAObject>
+    <UAObject SymbolicName="S0112_2___61987_ABN591_001" NodeId="ns=1;s=0112/2///61987#ABN591#001" BrowseName="1:0112/2///61987#ABN591#001">
+        <DisplayName>URI of Manufacturer</DisplayName>
+        <References>
+            <Reference ReferenceType="HasComponent" IsForward="false">i=17594</Reference>
+            <Reference ReferenceType="HasTypeDefinition">i=17598</Reference>
+        </References>
+    </UAObject>
+    <UAObject SymbolicName="S0112_2___61987_ABN603_001" NodeId="ns=1;s=0112/2///61987#ABN603#001" BrowseName="1:0112/2///61987#ABN603#001">
+        <DisplayName>Revision counter</DisplayName>
+        <References>
+            <Reference ReferenceType="HasComponent" IsForward="false">i=17594</Reference>
+            <Reference ReferenceType="HasTypeDefinition">i=17598</Reference>
+        </References>
+    </UAObject>
+    <UAObject SymbolicName="S0112_2___61987_ABN590_001" NodeId="ns=1;s=0112/2///61987#ABN590#001" BrowseName="1:0112/2///61987#ABN590#001">
+        <DisplayName>URI of Product instance</DisplayName>
+        <References>
+            <Reference ReferenceType="HasComponent" IsForward="false">i=17594</Reference>
+            <Reference ReferenceType="HasTypeDefinition">i=17598</Reference>
+        </References>
+    </UAObject>
+    <UAObject SymbolicName="S0112_2___61987_ABA038_003" NodeId="ns=1;s=0112/2///61987#ABA038#003" BrowseName="1:0112/2///61987#ABA038#003">
+        <DisplayName>Asset ID</DisplayName>
+        <References>
+            <Reference ReferenceType="HasComponent" IsForward="false">i=17594</Reference>
+            <Reference ReferenceType="HasTypeDefinition">i=17598</Reference>
+        </References>
+    </UAObject>
+    <UAObject SymbolicName="S0112_2___61987_ABN604_001" NodeId="ns=1;s=0112/2///61987#ABN604#001" BrowseName="1:0112/2///61987#ABN604#001">
+        <DisplayName>Date of last change</DisplayName>
+        <References>
+            <Reference ReferenceType="HasComponent" IsForward="false">i=17594</Reference>
+            <Reference ReferenceType="HasTypeDefinition">i=17598</Reference>
+        </References>
+    </UAObject>
+    <UAObject SymbolicName="S0112_2___61987_ABN609_001" NodeId="ns=1;s=0112/2///61987#ABN609#001" BrowseName="1:0112/2///61987#ABN609#001">
+        <DisplayName>Factory reset</DisplayName>
+        <References>
+            <Reference ReferenceType="HasComponent" IsForward="false">i=17594</Reference>
+            <Reference ReferenceType="HasTypeDefinition">i=17598</Reference>
+        </References>
+    </UAObject>
+    <UAObject SymbolicName="S0112_2___61987_ABB271_007" NodeId="ns=1;s=0112/2///61987#ABB271#007" BrowseName="1:0112/2///61987#ABB271#007">
+        <DisplayName>Tag</DisplayName>
+        <References>
+            <Reference ReferenceType="HasComponent" IsForward="false">i=17594</Reference>
+            <Reference ReferenceType="HasTypeDefinition">i=17598</Reference>
+        </References>
+    </UAObject>
+    <UAObject SymbolicName="S0112_2___61987_ABN611_001" NodeId="ns=1;s=0112/2///61987#ABN611#001" BrowseName="1:0112/2///61987#ABN611#001">
+        <DisplayName>Simulation state</DisplayName>
+        <References>
+            <Reference ReferenceType="HasComponent" IsForward="false">i=17594</Reference>
+            <Reference ReferenceType="HasTypeDefinition">i=17598</Reference>
+        </References>
+    </UAObject>
+    <UAObject SymbolicName="S0112_2___61987_ABN634_001" NodeId="ns=1;s=0112/2///61987#ABN634#001" BrowseName="1:0112/2///61987#ABN634#001">
+        <DisplayName>Value</DisplayName>
+        <References>
+            <Reference ReferenceType="HasComponent" IsForward="false">i=17594</Reference>
+            <Reference ReferenceType="HasTypeDefinition">i=17598</Reference>
+        </References>
+    </UAObject>
+    <UAObject SymbolicName="S0112_2___61987_ABN644_001" NodeId="ns=1;s=0112/2///61987#ABN644#001" BrowseName="1:0112/2///61987#ABN644#001">
+        <DisplayName>Actual value</DisplayName>
+        <References>
+            <Reference ReferenceType="HasComponent" IsForward="false">i=17594</Reference>
+            <Reference ReferenceType="HasTypeDefinition">i=17598</Reference>
+        </References>
+    </UAObject>
+    <UAObject SymbolicName="S0112_2___61987_ABN613_001" NodeId="ns=1;s=0112/2///61987#ABN613#001" BrowseName="1:0112/2///61987#ABN613#001">
+        <DisplayName>Simulation value</DisplayName>
+        <References>
+            <Reference ReferenceType="HasComponent" IsForward="false">i=17594</Reference>
+            <Reference ReferenceType="HasTypeDefinition">i=17598</Reference>
+        </References>
+    </UAObject>
+    <UAObject SymbolicName="S0112_2___61987_ABH526_002" NodeId="ns=1;s=0112/2///61987#ABH526#002" BrowseName="1:0112/2///61987#ABH526#002">
+        <DisplayName>Damping</DisplayName>
+        <References>
+            <Reference ReferenceType="HasComponent" IsForward="false">i=17594</Reference>
+            <Reference ReferenceType="HasTypeDefinition">i=17598</Reference>
+        </References>
+    </UAObject>
+    <UAObject SymbolicName="S0112_2___61987_ABN614_001" NodeId="ns=1;s=0112/2///61987#ABN614#001" BrowseName="1:0112/2///61987#ABN614#001">
+        <DisplayName>Zero point adjustment</DisplayName>
+        <References>
+            <Reference ReferenceType="HasComponent" IsForward="false">i=17594</Reference>
+            <Reference ReferenceType="HasTypeDefinition">i=17598</Reference>
+        </References>
+    </UAObject>
+    <UAObject SymbolicName="S0112_2___61987_ABB088_002" NodeId="ns=1;s=0112/2///61987#ABB088#002" BrowseName="1:0112/2///61987#ABB088#002">
+        <DisplayName>Sensor type</DisplayName>
+        <References>
+            <Reference ReferenceType="HasComponent" IsForward="false">i=17594</Reference>
+            <Reference ReferenceType="HasTypeDefinition">i=17598</Reference>
+        </References>
+    </UAObject>
+    <UAObject SymbolicName="S0112_2___61987_ABB092_002" NodeId="ns=1;s=0112/2///61987#ABB092#002" BrowseName="1:0112/2///61987#ABB092#002">
+        <DisplayName>Sensor type</DisplayName>
+        <References>
+            <Reference ReferenceType="HasComponent" IsForward="false">i=17594</Reference>
+            <Reference ReferenceType="HasTypeDefinition">i=17598</Reference>
+        </References>
+    </UAObject>
+    <UAObject SymbolicName="S0112_2___61987_ABB091_002" NodeId="ns=1;s=0112/2///61987#ABB091#002" BrowseName="1:0112/2///61987#ABB091#002">
+        <DisplayName>RTD-Sensor connection</DisplayName>
+        <References>
+            <Reference ReferenceType="HasComponent" IsForward="false">i=17594</Reference>
+            <Reference ReferenceType="HasTypeDefinition">i=17598</Reference>
+        </References>
+    </UAObject>
+    <UAObject SymbolicName="S0112_2___61987_ABB093_002" NodeId="ns=1;s=0112/2///61987#ABB093#002" BrowseName="1:0112/2///61987#ABB093#002">
+        <DisplayName>TC-Sensor reference</DisplayName>
+        <References>
+            <Reference ReferenceType="HasComponent" IsForward="false">i=17594</Reference>
+            <Reference ReferenceType="HasTypeDefinition">i=17598</Reference>
+        </References>
+    </UAObject>
+    <UAObject SymbolicName="S0112_2___61987_ABJ724_002" NodeId="ns=1;s=0112/2///61987#ABJ724#002" BrowseName="1:0112/2///61987#ABJ724#002">
+        <DisplayName>Low flow cut off</DisplayName>
+        <References>
+            <Reference ReferenceType="HasComponent" IsForward="false">i=17594</Reference>
+            <Reference ReferenceType="HasTypeDefinition">i=17598</Reference>
+        </References>
+    </UAObject>
+    <UAObject SymbolicName="S0112_2___61987_ABN594_002" NodeId="ns=1;s=0112/2///61987#ABN594#002" BrowseName="1:0112/2///61987#ABN594#002">
+        <DisplayName>Flow direction</DisplayName>
+        <References>
+            <Reference ReferenceType="HasComponent" IsForward="false">i=17594</Reference>
+            <Reference ReferenceType="HasTypeDefinition">i=17598</Reference>
+        </References>
+    </UAObject>
+    <UAObject SymbolicName="S0112_2___61987_ABN607_001" NodeId="ns=1;s=0112/2///61987#ABN607#001" BrowseName="1:0112/2///61987#ABN607#001">
+        <DisplayName>Setpoint</DisplayName>
+        <References>
+            <Reference ReferenceType="HasComponent" IsForward="false">i=17594</Reference>
+            <Reference ReferenceType="HasTypeDefinition">i=17598</Reference>
+        </References>
+    </UAObject>
+    <UAObject SymbolicName="S0112_2___61987_ABD740_002" NodeId="ns=1;s=0112/2///61987#ABD740#002" BrowseName="1:0112/2///61987#ABD740#002">
+        <DisplayName>Operating direction</DisplayName>
+        <References>
+            <Reference ReferenceType="HasComponent" IsForward="false">i=17594</Reference>
+            <Reference ReferenceType="HasTypeDefinition">i=17598</Reference>
+        </References>
+    </UAObject>
+    <UAObject SymbolicName="S0112_2___61987_ABD742_002" NodeId="ns=1;s=0112/2///61987#ABD742#002" BrowseName="1:0112/2///61987#ABD742#002">
+        <DisplayName>Actuator type</DisplayName>
+        <References>
+            <Reference ReferenceType="HasComponent" IsForward="false">i=17594</Reference>
+            <Reference ReferenceType="HasTypeDefinition">i=17598</Reference>
+        </References>
+    </UAObject>
+    <UAObject SymbolicName="S0112_2___61987_ABN726_001" NodeId="ns=1;s=0112/2///61987#ABN726#001" BrowseName="1:0112/2///61987#ABN726#001">
+        <DisplayName>Autoadjust</DisplayName>
+        <References>
+            <Reference ReferenceType="HasComponent" IsForward="false">i=17594</Reference>
+            <Reference ReferenceType="HasTypeDefinition">i=17598</Reference>
+        </References>
+    </UAObject>
+    <UAObject SymbolicName="S0112_2___61987_ABA418_001" NodeId="ns=1;s=0112/2///61987#ABA418#001" BrowseName="1:0112/2///61987#ABA418#001">
+        <DisplayName>Pulse value</DisplayName>
+        <References>
+            <Reference ReferenceType="HasComponent" IsForward="false">i=17594</Reference>
+            <Reference ReferenceType="HasTypeDefinition">i=17598</Reference>
+        </References>
+    </UAObject>
+    <UAObject SymbolicName="S0112_2___61987_ABE882_001" NodeId="ns=1;s=0112/2///61987#ABE882#001" BrowseName="1:0112/2///61987#ABE882#001">
+        <DisplayName>Pulse value</DisplayName>
+        <References>
+            <Reference ReferenceType="HasComponent" IsForward="false">i=17594</Reference>
+            <Reference ReferenceType="HasTypeDefinition">i=17598</Reference>
+        </References>
+    </UAObject>
+    <UAObject SymbolicName="S0112_2___61987_ABA635_002" NodeId="ns=1;s=0112/2///61987#ABA635#002" BrowseName="1:0112/2///61987#ABA635#002">
+        <DisplayName>Pulse width</DisplayName>
+        <References>
+            <Reference ReferenceType="HasComponent" IsForward="false">i=17594</Reference>
+            <Reference ReferenceType="HasTypeDefinition">i=17598</Reference>
+        </References>
+    </UAObject>
+    <UAObject SymbolicName="S0112_2___61987_ABN636_001" NodeId="ns=1;s=0112/2///61987#ABN636#001" BrowseName="1:0112/2///61987#ABN636#001">
+        <DisplayName>MultiStateValue</DisplayName>
+        <References>
+            <Reference ReferenceType="HasComponent" IsForward="false">i=17594</Reference>
+            <Reference ReferenceType="HasTypeDefinition">i=17598</Reference>
+        </References>
+    </UAObject>
+    <UAObject SymbolicName="S0112_2___61987_ABN646_001" NodeId="ns=1;s=0112/2///61987#ABN646#001" BrowseName="1:0112/2///61987#ABN646#001">
+        <DisplayName>MultiStateActualValue</DisplayName>
+        <References>
+            <Reference ReferenceType="HasComponent" IsForward="false">i=17594</Reference>
+            <Reference ReferenceType="HasTypeDefinition">i=17598</Reference>
+        </References>
+    </UAObject>
+    <UAObject SymbolicName="S0112_2___61987_ABN637_001" NodeId="ns=1;s=0112/2///61987#ABN637#001" BrowseName="1:0112/2///61987#ABN637#001">
+        <DisplayName>MultiStateSimulationValue</DisplayName>
+        <References>
+            <Reference ReferenceType="HasComponent" IsForward="false">i=17594</Reference>
+            <Reference ReferenceType="HasTypeDefinition">i=17598</Reference>
+        </References>
+    </UAObject>
+    <UAObject SymbolicName="S0112_2___61987_ABN635_001" NodeId="ns=1;s=0112/2///61987#ABN635#001" BrowseName="1:0112/2///61987#ABN635#001">
+        <DisplayName>TwoStateValue</DisplayName>
+        <References>
+            <Reference ReferenceType="HasComponent" IsForward="false">i=17594</Reference>
+            <Reference ReferenceType="HasTypeDefinition">i=17598</Reference>
+        </References>
+    </UAObject>
+    <UAObject SymbolicName="S0112_2___61987_ABN____001" NodeId="ns=1;s=0112/2///61987#ABN645#001" BrowseName="1:0112/2///61987#ABN645#001">
+        <DisplayName>TwoStateActualValue</DisplayName>
+        <References>
+            <Reference ReferenceType="HasComponent" IsForward="false">i=17594</Reference>
+            <Reference ReferenceType="HasTypeDefinition">i=17598</Reference>
+        </References>
+    </UAObject>
+    <UAObject SymbolicName="S0112_2___61987_xzx665_001" NodeId="ns=1;s=0112/2///61987#ABN632#001" BrowseName="1:0112/2///61987#ABN632#001">
+        <DisplayName>TwoStateSimulationValue</DisplayName>
+        <References>
+            <Reference ReferenceType="HasComponent" IsForward="false">i=17594</Reference>
+            <Reference ReferenceType="HasTypeDefinition">i=17598</Reference>
+        </References>
+    </UAObject>
+    <UAObject SymbolicName="S0112_2___61987_ABA927_005" NodeId="ns=1;s=0112/2///61987#ABA927#005" BrowseName="1:0112/2///61987#ABA927#005">
+        <DisplayName>Temperature</DisplayName>
+        <References>
+            <Reference ReferenceType="HasComponent" IsForward="false">i=17594</Reference>
+            <Reference ReferenceType="HasTypeDefinition">i=17598</Reference>
+        </References>
+    </UAObject>
+    <UAObject SymbolicName="S0112_2___61987_ABN616_001" NodeId="ns=1;s=0112/2///61987#ABN616#001" BrowseName="1:0112/2///61987#ABN616#001">
+        <DisplayName>Pressure</DisplayName>
+        <References>
+            <Reference ReferenceType="HasComponent" IsForward="false">i=17594</Reference>
+            <Reference ReferenceType="HasTypeDefinition">i=17598</Reference>
+        </References>
+    </UAObject>
+    <UAObject SymbolicName="S0112_2___61987_ABH329_002" NodeId="ns=1;s=0112/2///61987#ABH329#002" BrowseName="1:0112/2///61987#ABH329#002">
+        <DisplayName>Level</DisplayName>
+        <References>
+            <Reference ReferenceType="HasComponent" IsForward="false">i=17594</Reference>
+            <Reference ReferenceType="HasTypeDefinition">i=17598</Reference>
+        </References>
+    </UAObject>
+    <UAObject SymbolicName="S0112_2___61987_ABB290_005" NodeId="ns=1;s=0112/2///61987#ABB290#005" BrowseName="1:0112/2///61987#ABB290#005">
+        <DisplayName>Mass flow rate</DisplayName>
+        <References>
+            <Reference ReferenceType="HasComponent" IsForward="false">i=17594</Reference>
+            <Reference ReferenceType="HasTypeDefinition">i=17598</Reference>
+        </References>
+    </UAObject>
+    <UAObject SymbolicName="S0112_2___61987_ABB291_005" NodeId="ns=1;s=0112/2///61987#ABB291#005" BrowseName="1:0112/2///61987#ABB291#005">
+        <DisplayName>Volume flow rate</DisplayName>
+        <References>
+            <Reference ReferenceType="HasComponent" IsForward="false">i=17594</Reference>
+            <Reference ReferenceType="HasTypeDefinition">i=17598</Reference>
+        </References>
+    </UAObject>
+    <UAObject SymbolicName="S0112_2___61987_ABB292_005" NodeId="ns=1;s=0112/2///61987#ABB292#005" BrowseName="1:0112/2///61987#ABB292#005">
+        <DisplayName>Normalized volume flow rate</DisplayName>
+        <References>
+            <Reference ReferenceType="HasComponent" IsForward="false">i=17594</Reference>
+            <Reference ReferenceType="HasTypeDefinition">i=17598</Reference>
+        </References>
+    </UAObject>
+    <UAObject SymbolicName="S0112_2___61987_ABA946_004" NodeId="ns=1;s=0112/2///61987#ABA946#004" BrowseName="1:0112/2///61987#ABA946#004">
+        <DisplayName>Density</DisplayName>
+        <References>
+            <Reference ReferenceType="HasComponent" IsForward="false">i=17594</Reference>
+            <Reference ReferenceType="HasTypeDefinition">i=17598</Reference>
+        </References>
+    </UAObject>
+    <UAObject SymbolicName="S0112_2___61987_ABJ683_001" NodeId="ns=1;s=0112/2///61987#ABJ683#001" BrowseName="1:0112/2///61987#ABJ683#001">
+        <DisplayName>ControlReadback</DisplayName>
+        <References>
+            <Reference ReferenceType="HasComponent" IsForward="false">i=17594</Reference>
+            <Reference ReferenceType="HasTypeDefinition">i=17598</Reference>
+        </References>
+    </UAObject>
+    <UAObject SymbolicName="S0112_2___61987_ABH327_001" NodeId="ns=1;s=0112/2///61987#ABH327#001" BrowseName="1:0112/2///61987#ABH327#001">
+        <DisplayName>Mass</DisplayName>
+        <References>
+            <Reference ReferenceType="HasComponent" IsForward="false">i=17594</Reference>
+            <Reference ReferenceType="HasTypeDefinition">i=17598</Reference>
+        </References>
+    </UAObject>
+    <UAObject SymbolicName="S0112_2___61987_ABH328_001" NodeId="ns=1;s=0112/2///61987#ABH328#001" BrowseName="1:0112/2///61987#ABH328#001">
+        <DisplayName>Volume</DisplayName>
+        <References>
+            <Reference ReferenceType="HasComponent" IsForward="false">i=17594</Reference>
+            <Reference ReferenceType="HasTypeDefinition">i=17598</Reference>
+        </References>
+    </UAObject>
+    <UAObject SymbolicName="S0112_2___61987_ABN972_001" NodeId="ns=1;s=0112/2///61987#ABN972#001" BrowseName="1:0112/2///61987#ABN972#001">
+        <DisplayName>Device diagnostic status</DisplayName>
+        <References>
+            <Reference ReferenceType="HasComponent" IsForward="false">i=17594</Reference>
+            <Reference ReferenceType="HasTypeDefinition">i=17598</Reference>
+        </References>
+    </UAObject>
+    <UAObject SymbolicName="S0112_2___61987_ABA968_002" NodeId="ns=1;s=0112/2///61987#ABA968#002" BrowseName="1:0112/2///61987#ABA968#002">
+        <DisplayName>UnitOfMeasure</DisplayName>
+        <References>
+            <Reference ReferenceType="HasComponent" IsForward="false">i=17594</Reference>
+            <Reference ReferenceType="HasTypeDefinition">i=17598</Reference>
+        </References>
+    </UAObject>
+</UANodeSet>

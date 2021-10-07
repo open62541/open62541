@@ -1,0 +1,25 @@
+###########################
+# UaModeler Project File  #
+# Generated at 14.11.2019 #
+###########################
+
+PROJECTNAME = Opc.Ua.Safety.NodeSet2
+
+TEMPLATESET = ($TEMPLATES)/modeling/v1_0/t0/modeling.tt2set
+
+MODELS += ($MODELS)/Opc.Ua.NodeSet2.ua \
+    Opc.Ua.Safety.NodeSet2.ua
+
+COLORS = ($MODELS)/Opc.Ua.NodeSet2.ua: #0000ff\
+    Opc.Ua.Safety.NodeSet2.ua: #008000
+
+OUTPUTPATH = ../../3_OPC_UA/Test-Modelle
+
+GENERATE += Opc.Ua.Safety.NodeSet2.ua
+
+NODEACCESSINFOROLES += Administrator \
+    SecurityAdmin \
+    ConfigurationAdmin \
+    Operator \
+    Observer
+
