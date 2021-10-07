@@ -47,13 +47,6 @@ UA_DataSetReaderConfig readerConfig;
 UA_UInt32    *repeatedFieldValues[PUBSUB_CONFIG_FIELD_COUNT];
 UA_DataValue *repeatedDataValueRT[PUBSUB_CONFIG_FIELD_COUNT];
 
-typedef enum {
-    NO_WRITE_CALLBACK,
-    BEFORE_WRITE_CALLBACK,
-    AFTER_WRITE_CALLBACK
-} SubscriberWriteCallbackSelect;
-
-static SubscriberWriteCallbackSelect sSelectSubscriberWriteCallback = BEFORE_WRITE_CALLBACK;
 static UA_UInt32 sSubscribedDataSink[PUBSUB_CONFIG_FIELD_COUNT];    /* simulate a custom data sink (e.g. shared memory) */
 static UA_UInt32 sSubscribedTargetVarDataOffset[PUBSUB_CONFIG_FIELD_COUNT];
 
@@ -79,7 +72,7 @@ externalDataReadNotificationCallback(UA_Server *server, const UA_NodeId *session
 }
 
 static void
-SubscribeAfterWriteCallback(
+subscribeAfterWriteCallback(
    UA_Server *server,
    const UA_NodeId *dataSetReaderId,
    const UA_NodeId *readerGroupId,
@@ -97,7 +90,7 @@ SubscribeAfterWriteCallback(
     UA_String strId;
     UA_String_init(&strId);
     UA_NodeId_print(targetVariableId, &strId);
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "SubscribeAfterWriteCallback(): "
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "subscribeAfterWriteCallback(): "
         "WriteUpdate() for node Id = '%.*s'. New Value = %u", (UA_Int32) strId.length, strId.data,
         *((UA_UInt32*) (**externalDataValue).value.data));
     UA_String_clear(&strId);
@@ -106,7 +99,7 @@ SubscribeAfterWriteCallback(
 /* callback gets triggered before subscriber has received data
     received data hasn't been copied/handled yet */
 static void
-SubscribeBeforeWriteCallback(
+subscribeBeforeWriteCallback(
     UA_Server *server,
     const UA_NodeId *dataSetReaderId,
     const UA_NodeId *readerGroupId,
@@ -129,7 +122,7 @@ SubscribeBeforeWriteCallback(
     UA_String strId;
     UA_String_init(&strId);
     UA_NodeId_print(targetVariableId, &strId);
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "SubscribeBeforeWriteCallback(): "
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "subscribeBeforeWriteCallback(): "
         "WriteUpdate() for node Id = '%.*s'. New Value Data = %u", (UA_Int32) strId.length, strId.data,
         *(UA_UInt32*) data);
     UA_String_clear(&strId);
@@ -140,7 +133,7 @@ SubscribeBeforeWriteCallback(
         in this example we simulate a custom data sink */
     UA_UInt32 offset = *((UA_UInt32*) targetVariableContext);
     assert(offset < PUBSUB_CONFIG_FIELD_COUNT);
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "SubscribeBeforeWriteCallback(): "
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "subscribeBeforeWriteCallback(): "
         "offset = %u", offset);
     memcpy(sSubscribedDataSink + offset, data, dataSize);
 }
@@ -284,19 +277,13 @@ addSubscribedVariables (UA_Server *server) {
         UA_FieldTargetDataType_init(&readerConfig.subscribedDataSet.subscribedDataSetTarget.targetVariables[i].targetVariable);
         readerConfig.subscribedDataSet.subscribedDataSetTarget.targetVariables[i].targetVariable.attributeId  = UA_ATTRIBUTEID_VALUE;
         readerConfig.subscribedDataSet.subscribedDataSetTarget.targetVariables[i].targetVariable.targetNodeId = newnodeId;
-        switch (sSelectSubscriberWriteCallback) {
-            case BEFORE_WRITE_CALLBACK:
-                readerConfig.subscribedDataSet.subscribedDataSetTarget.targetVariables[i].beforeWrite = SubscribeBeforeWriteCallback;
-                sSubscribedTargetVarDataOffset[i] = (UA_UInt32) i;
-                readerConfig.subscribedDataSet.subscribedDataSetTarget.targetVariables[i].targetVariableContext = &sSubscribedTargetVarDataOffset[i];
-                break;
-            case AFTER_WRITE_CALLBACK:
-                readerConfig.subscribedDataSet.subscribedDataSetTarget.targetVariables[i].afterWrite = SubscribeAfterWriteCallback;
-                break;
-            default:
-                /* either NO_WRITE_CALLBACK or unsupported configuration - nothing to do */
-                break;
-        }
+        /* set both before and after write callback to show the usage */
+        /* configure before write callback */
+        readerConfig.subscribedDataSet.subscribedDataSetTarget.targetVariables[i].beforeWrite = subscribeBeforeWriteCallback;
+        sSubscribedTargetVarDataOffset[i] = (UA_UInt32) i;
+        readerConfig.subscribedDataSet.subscribedDataSetTarget.targetVariables[i].targetVariableContext = &sSubscribedTargetVarDataOffset[i];
+        /* configure after write callback */
+        readerConfig.subscribedDataSet.subscribedDataSetTarget.targetVariables[i].afterWrite = subscribeAfterWriteCallback;
     }
 
     return retval;
