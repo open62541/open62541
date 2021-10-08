@@ -17,6 +17,7 @@ jobs:
         with:
           python-version: '3.x' # Version range or exact version of a Python version to use, using SemVer's version range syntax
           architecture: 'x64' # optional x64 or x86. Defaults to x64 if not specified
+      - run: git fetch --prune --unshallow --tags
       - run: python ./tools/prepare_packaging.py
       - run: git checkout -b pack-tmp
       - run: git config --local user.email "41898282+github-actions[bot]@users.noreply.github.com"
