@@ -69,7 +69,7 @@ createEventOverflowNotification(UA_Server *server, UA_Subscription *sub,
         UA_Variant_setScalarCopy(overflowNotification->data.event.eventFields,
                                  &eventQueueOverflowEventType, &UA_TYPES[UA_TYPES_NODEID]);
     if(retval != UA_STATUSCODE_GOOD) {
-        UA_Notification_delete(server, overflowNotification);
+        UA_Notification_delete(overflowNotification);
         return retval;
     }
 
@@ -176,7 +176,7 @@ static void UA_Notification_enqueueSub(UA_Notification *n);
 static void UA_Notification_dequeueSub(UA_Notification *n);
 
 void
-UA_Notification_delete(UA_Server *server, UA_Notification *n) {
+UA_Notification_delete(UA_Notification *n) {
     UA_assert(n != UA_SUBSCRIPTION_QUEUE_SENTINEL);
     if(n->mon) {
         UA_Notification_dequeueMon(n);
@@ -496,8 +496,9 @@ UA_MonitoredItem_setMonitoringMode(UA_Server *server, UA_MonitoredItem *mon,
     if(mon->monitoringMode == UA_MONITORINGMODE_DISABLED) {
         UA_Notification *notification_tmp;
         UA_MonitoredItem_unregisterSampling(server, mon);
-        TAILQ_FOREACH_SAFE(notification, &mon->queue, localEntry, notification_tmp)
-            UA_Notification_delete(server, notification);
+        TAILQ_FOREACH_SAFE(notification, &mon->queue, localEntry, notification_tmp) {
+            UA_Notification_delete(notification);
+        }
         UA_DataValue_clear(&mon->lastValue);
         return UA_STATUSCODE_GOOD;
     }
@@ -563,7 +564,7 @@ UA_MonitoredItem_delete(UA_Server *server, UA_MonitoredItem *mon) {
     /* Remove the queued notifications attached to the subscription */
     UA_Notification *notification, *notification_tmp;
     TAILQ_FOREACH_SAFE(notification, &mon->queue, localEntry, notification_tmp) {
-        UA_Notification_delete(server, notification);
+        UA_Notification_delete(notification);
     }
 
     /* Remove the settings */
@@ -653,7 +654,7 @@ UA_MonitoredItem_ensureQueueSpace(UA_Server *server, UA_MonitoredItem *mon) {
         remove--;
 
         /* Delete the notification and remove it from the queues */
-        UA_Notification_delete(server, del);
+        UA_Notification_delete(del);
 
         /* Assertions to help Clang's scan-analyzer */
         UA_assert(del != TAILQ_FIRST(&mon->queue));
