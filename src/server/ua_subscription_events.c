@@ -579,7 +579,7 @@ UA_Event_addEventToMonitoredItem(UA_Server *server, const UA_NodeId *event,
                                                  eventFilter, &notification->data.event,
                                                  &notification->result);
     if(retval != UA_STATUSCODE_GOOD) {
-        UA_Notification_delete(server, notification);
+        UA_Notification_delete(notification);
         if(retval == UA_STATUSCODE_BADNOMATCH)
             return UA_STATUSCODE_GOOD;
         return retval;
