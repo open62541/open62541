@@ -270,6 +270,12 @@ UA_Notification_enqueueAndTrigger(UA_Server *server, UA_Notification *n) {
             continue;
         }
 
+        /* Only sampling MonitoredItems receive a trigger. Reporting
+         * MonitoredItems send out Notifications anyway and disabled
+         * MonitoredItems don't create samples to send. */
+        if(triggeredMon->monitoringMode != UA_MONITORINGMODE_SAMPLING)
+            continue;
+
         /* Get the latest sampled Notification from that MonitoredItem. Report
          * it if not already done so. */
         UA_Notification *n2 = TAILQ_LAST(&triggeredMon->queue, NotificationQueue);
