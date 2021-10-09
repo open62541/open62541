@@ -48,7 +48,7 @@ _UA_BEGIN_DECLS
 #define UA_SUBSCRIPTION_QUEUE_SENTINEL ((UA_Notification*)0x01)
 
 typedef struct UA_Notification {
-    TAILQ_ENTRY(UA_Notification) listEntry;   /* Notification list for the MonitoredItem */
+    TAILQ_ENTRY(UA_Notification) localEntry;   /* Notification list for the MonitoredItem */
     TAILQ_ENTRY(UA_Notification) globalEntry; /* Notification list for the Subscription */
     UA_MonitoredItem *mon; /* Always set */
 

@@ -42,7 +42,7 @@ createEventOverflowNotification(UA_Server *server, UA_Subscription *sub,
         UA_assert(indicator); /* must exist */
         /* Skip the last element. It is the recently added notification that
          * shall be kept. We know it is not an OverflowEvent. */
-        UA_Notification *before = TAILQ_PREV(indicator, NotificationQueue, listEntry);
+        UA_Notification *before = TAILQ_PREV(indicator, NotificationQueue, localEntry);
         if(before && before->isOverflowEvent)
             return UA_STATUSCODE_GOOD;
     }
@@ -79,7 +79,7 @@ createEventOverflowNotification(UA_Server *server, UA_Subscription *sub,
      *
      * Ensure that the following is consistent with UA_Notification_enqueueMon
      * and UA_Notification_enqueueSub! */
-    TAILQ_INSERT_BEFORE(indicator, overflowNotification, listEntry);
+    TAILQ_INSERT_BEFORE(indicator, overflowNotification, localEntry);
     ++mon->eventOverflows;
     ++mon->queueSize;
 
@@ -99,7 +99,7 @@ createEventOverflowNotification(UA_Server *server, UA_Subscription *sub,
         } else {
             /* Find the oldest reported element. Add before that. */
             while(indicator) {
-                indicator = TAILQ_PREV(indicator, NotificationQueue, listEntry);
+                indicator = TAILQ_PREV(indicator, NotificationQueue, localEntry);
                 if(!indicator) {
                     TAILQ_INSERT_TAIL(&mon->subscription->notificationQueue,
                                       overflowNotification, globalEntry);
@@ -166,7 +166,7 @@ UA_Notification_new(void) {
     if(n) {
         /* Set the sentinel for a notification that is not enqueued */
         TAILQ_NEXT(n, globalEntry) = UA_SUBSCRIPTION_QUEUE_SENTINEL;
-        TAILQ_NEXT(n, listEntry) = UA_SUBSCRIPTION_QUEUE_SENTINEL;
+        TAILQ_NEXT(n, localEntry) = UA_SUBSCRIPTION_QUEUE_SENTINEL;
     }
     return n;
 }
@@ -201,10 +201,10 @@ static void
 UA_Notification_enqueueMon(UA_Server *server, UA_Notification *n) {
     UA_MonitoredItem *mon = n->mon;
     UA_assert(mon);
-    UA_assert(TAILQ_NEXT(n, listEntry) == UA_SUBSCRIPTION_QUEUE_SENTINEL);
+    UA_assert(TAILQ_NEXT(n, localEntry) == UA_SUBSCRIPTION_QUEUE_SENTINEL);
 
     /* Add to the MonitoredItem */
-    TAILQ_INSERT_TAIL(&mon->queue, n, listEntry);
+    TAILQ_INSERT_TAIL(&mon->queue, n, localEntry);
     ++mon->queueSize;
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
@@ -306,7 +306,7 @@ UA_Notification_dequeueMon(UA_Server *server, UA_Notification *n) {
     UA_MonitoredItem *mon = n->mon;
     UA_assert(mon);
 
-    if(TAILQ_NEXT(n, listEntry) == UA_SUBSCRIPTION_QUEUE_SENTINEL)
+    if(TAILQ_NEXT(n, localEntry) == UA_SUBSCRIPTION_QUEUE_SENTINEL)
         return;
 
     /* Remove from the MonitoredItem queue */
@@ -315,7 +315,7 @@ UA_Notification_dequeueMon(UA_Server *server, UA_Notification *n) {
         --mon->eventOverflows;
 #endif
 
-    TAILQ_REMOVE(&mon->queue, n, listEntry);
+    TAILQ_REMOVE(&mon->queue, n, localEntry);
     --mon->queueSize;
 
     /* Test for consistency */
@@ -323,7 +323,7 @@ UA_Notification_dequeueMon(UA_Server *server, UA_Notification *n) {
     UA_assert(mon->eventOverflows <= mon->queueSize - mon->eventOverflows + 1);
 
     /* Reset the sentintel */
-    TAILQ_NEXT(n, listEntry) = UA_SUBSCRIPTION_QUEUE_SENTINEL;
+    TAILQ_NEXT(n, localEntry) = UA_SUBSCRIPTION_QUEUE_SENTINEL;
 }
 
 void
@@ -496,7 +496,7 @@ UA_MonitoredItem_setMonitoringMode(UA_Server *server, UA_MonitoredItem *mon,
     if(mon->monitoringMode == UA_MONITORINGMODE_DISABLED) {
         UA_Notification *notification_tmp;
         UA_MonitoredItem_unregisterSampling(server, mon);
-        TAILQ_FOREACH_SAFE(notification, &mon->queue, listEntry, notification_tmp)
+        TAILQ_FOREACH_SAFE(notification, &mon->queue, localEntry, notification_tmp)
             UA_Notification_delete(server, notification);
         UA_DataValue_clear(&mon->lastValue);
         return UA_STATUSCODE_GOOD;
@@ -510,13 +510,13 @@ UA_MonitoredItem_setMonitoringMode(UA_Server *server, UA_MonitoredItem *mon,
         /* Make all notifications reporting. Re-enqueue to ensure they have the
          * right order if some notifications are already reported by a trigger
          * link. */
-        TAILQ_FOREACH(notification, &mon->queue, listEntry) {
+        TAILQ_FOREACH(notification, &mon->queue, localEntry) {
             UA_Notification_dequeueSub(notification);
             UA_Notification_enqueueSub(notification);
         }
     } else /* mon->monitoringMode == UA_MONITORINGMODE_SAMPLING */ {
         /* Make all notifications non-reporting */
-        TAILQ_FOREACH(notification, &mon->queue, listEntry)
+        TAILQ_FOREACH(notification, &mon->queue, localEntry)
             UA_Notification_dequeueSub(notification);
     }
 
@@ -562,7 +562,7 @@ UA_MonitoredItem_delete(UA_Server *server, UA_MonitoredItem *mon) {
 
     /* Remove the queued notifications attached to the subscription */
     UA_Notification *notification, *notification_tmp;
-    TAILQ_FOREACH_SAFE(notification, &mon->queue, listEntry, notification_tmp) {
+    TAILQ_FOREACH_SAFE(notification, &mon->queue, localEntry, notification_tmp) {
         UA_Notification_delete(server, notification);
     }
 
@@ -611,16 +611,16 @@ UA_MonitoredItem_ensureQueueSpace(UA_Server *server, UA_MonitoredItem *mon) {
             del = TAILQ_FIRST(&mon->queue);
 #if defined(UA_ENABLE_SUBSCRIPTIONS_EVENTS) && !defined(__clang_analyzer__)
             while(del->isOverflowEvent)
-                del = TAILQ_NEXT(del, listEntry); /* skip overflow events */
+                del = TAILQ_NEXT(del, localEntry); /* skip overflow events */
 #endif
         } else {
             /* Remove the second newest (to keep the up-to-date notification).
              * The last entry is not an OverflowEvent -- we just added it. */
             del = TAILQ_LAST(&mon->queue, NotificationQueue);
-            del = TAILQ_PREV(del, NotificationQueue, listEntry);
+            del = TAILQ_PREV(del, NotificationQueue, localEntry);
 #if defined(UA_ENABLE_SUBSCRIPTIONS_EVENTS) && !defined(__clang_analyzer__)
             while(del->isOverflowEvent)
-                del = TAILQ_PREV(del, NotificationQueue, listEntry); /* skip overflow events */
+                del = TAILQ_PREV(del, NotificationQueue, localEntry); /* skip overflow events */
 #endif
         }
 
@@ -642,7 +642,7 @@ UA_MonitoredItem_ensureQueueSpace(UA_Server *server, UA_MonitoredItem *mon) {
          * For the reinsertion to work, first insert into the per-Subscription
          * queue. */
         if(TAILQ_NEXT(del, globalEntry) != UA_SUBSCRIPTION_QUEUE_SENTINEL) {
-            UA_Notification *after_del = TAILQ_NEXT(del, listEntry);
+            UA_Notification *after_del = TAILQ_NEXT(del, localEntry);
             UA_assert(after_del); /* There must be one remaining element after del */
             if(TAILQ_NEXT(after_del, globalEntry) != UA_SUBSCRIPTION_QUEUE_SENTINEL) {
                 TAILQ_REMOVE(&sub->notificationQueue, after_del, globalEntry);
@@ -659,7 +659,7 @@ UA_MonitoredItem_ensureQueueSpace(UA_Server *server, UA_MonitoredItem *mon) {
         UA_assert(del != TAILQ_FIRST(&mon->queue));
         UA_assert(del != TAILQ_LAST(&mon->queue, NotificationQueue));
         UA_assert(del != TAILQ_PREV(TAILQ_LAST(&mon->queue, NotificationQueue),
-                                    NotificationQueue, listEntry));
+                                    NotificationQueue, localEntry));
     }
 
         /* Leave an entry to indicate that notifications were removed */
