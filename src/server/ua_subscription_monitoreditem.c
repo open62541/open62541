@@ -171,7 +171,7 @@ UA_Notification_new(void) {
     return n;
 }
 
-static void UA_Notification_dequeueMon(UA_Server *server, UA_Notification *n);
+static void UA_Notification_dequeueMon(UA_Notification *n);
 static void UA_Notification_enqueueSub(UA_Notification *n);
 static void UA_Notification_dequeueSub(UA_Notification *n);
 
@@ -179,7 +179,7 @@ void
 UA_Notification_delete(UA_Server *server, UA_Notification *n) {
     UA_assert(n != UA_SUBSCRIPTION_QUEUE_SENTINEL);
     if(n->mon) {
-        UA_Notification_dequeueMon(server, n);
+        UA_Notification_dequeueMon(n);
         UA_Notification_dequeueSub(n);
         switch(n->mon->itemToMonitor.attributeId) {
 #ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
@@ -302,7 +302,7 @@ UA_Notification_enqueueAndTrigger(UA_Server *server, UA_Notification *n) {
 
 /* Remove from the MonitoredItem queue and adjust all counters */
 static void
-UA_Notification_dequeueMon(UA_Server *server, UA_Notification *n) {
+UA_Notification_dequeueMon(UA_Notification *n) {
     UA_MonitoredItem *mon = n->mon;
     UA_assert(mon);
 
