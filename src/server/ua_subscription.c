@@ -282,7 +282,7 @@ prepareNotificationMessage(UA_Server *server, UA_Subscription *sub,
          * are non-reporting. And we don't want them to show up after the
          * current Notification has been sent out. */
         UA_Notification *prev;
-        while((prev = TAILQ_PREV(notification, NotificationQueue, listEntry)))
+        while((prev = TAILQ_PREV(notification, NotificationQueue, localEntry)))
             UA_Notification_delete(server, prev);
 
         /* Delete the notification, remove from the queues and decrease the counters */
