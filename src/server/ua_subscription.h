@@ -115,6 +115,12 @@ struct UA_MonitoredItem {
     UA_TimestampsToReturn timestampsToReturn;
     UA_Boolean sampleCallbackIsRegistered;
     UA_Boolean registered; /* Registered in the server / Subscription */
+    UA_DateTime triggeredUntil;  /* If the MonitoringMode is SAMPLING, a
+                                  * triggered MonitoredItem puts the next
+                                  * Notification into the global queue (of the
+                                  * Subscription) for publishing. But triggering
+                                  * is only active for the duration of one
+                                  * publishin cycle. */
 
     /* If the filter is a UA_DataChangeFilter: The DataChangeFilter always
      * contains an absolute deadband definition. Part 8, §6.2 gives the
