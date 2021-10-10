@@ -229,7 +229,8 @@ UA_Notification_enqueueSub(UA_Notification *n) {
     UA_Subscription *sub = mon->subscription;
     UA_assert(sub);
 
-    UA_assert(TAILQ_NEXT(n, globalEntry) == UA_SUBSCRIPTION_QUEUE_SENTINEL);
+    if(TAILQ_NEXT(n, globalEntry) != UA_SUBSCRIPTION_QUEUE_SENTINEL)
+        return;
 
     /* Add to the subscription if reporting is enabled */
     TAILQ_INSERT_TAIL(&sub->notificationQueue, n, globalEntry);
@@ -253,8 +254,12 @@ UA_Notification_enqueueAndTrigger(UA_Server *server, UA_Notification *n) {
      * MonitoredItem. Otherwise the reinsertion in
      * UA_MonitoredItem_ensureQueueSpace might not work. */
     UA_MonitoredItem *mon = n->mon;
-    if(mon->monitoringMode == UA_MONITORINGMODE_REPORTING)
+    if(mon->monitoringMode == UA_MONITORINGMODE_REPORTING ||
+       (mon->monitoringMode == UA_MONITORINGMODE_SAMPLING &&
+        mon->triggeredUntil > UA_DateTime_nowMonotonic())) {
         UA_Notification_enqueueSub(n);
+        mon->triggeredUntil = UA_INT64_MIN;
+    }
 
     /* Insert into the MonitoredItem. This checks the queue size and
      * handles overflow. */
@@ -276,27 +281,22 @@ UA_Notification_enqueueAndTrigger(UA_Server *server, UA_Notification *n) {
         if(triggeredMon->monitoringMode != UA_MONITORINGMODE_SAMPLING)
             continue;
 
-        /* Get the latest sampled Notification from that MonitoredItem. Report
-         * it if not already done so. */
+        /* Get the latest sampled Notification from the triggered MonitoredItem.
+         * Enqueue for publication. */
         UA_Notification *n2 = TAILQ_LAST(&triggeredMon->queue, NotificationQueue);
-        if(!n2) {
-            /* No Notification ready in the target MonitoredItem. This can happen,
-             * for example, if all samples from the target MonitoredItem are already
-             * sent out. Add sample "out of sync". */
-            monitoredItem_sampleCallback(server, triggeredMon);
-            n2 = TAILQ_LAST(&triggeredMon->queue, NotificationQueue);
-        }
-        if(n2 && TAILQ_NEXT(n2, globalEntry) == UA_SUBSCRIPTION_QUEUE_SENTINEL) {
-            UA_LOG_DEBUG_SUBSCRIPTION(&server->config.logger, sub,
-                                      "MonitoredItem %u triggers MonitoredItem %u",
-                                      mon->monitoredItemId, triggeredMon->monitoredItemId);
+        if(n2)
             UA_Notification_enqueueSub(n2);
-        } else {
-            UA_LOG_DEBUG_SUBSCRIPTION(&server->config.logger, sub,
-                                      "MonitoredItem %u triggers MonitoredItem %u, "
-                                      "but no Notification awaits reporting",
-                                      mon->monitoredItemId, triggeredMon->monitoredItemId);
-        }
+
+        /* The next Notification within the publishing interval is going to be
+         * published as well. (Falsely) assume that the publishing cycle has
+         * started right now, so that we don't have to loop over MonitoredItems
+         * to deactivate the triggering after the publishing cycle. */
+        triggeredMon->triggeredUntil = UA_DateTime_nowMonotonic() +
+            (UA_DateTime)(sub->publishingInterval * (UA_Double)UA_DATETIME_MSEC);
+
+        UA_LOG_DEBUG_SUBSCRIPTION(&server->config.logger, sub,
+                                  "MonitoredItem %u triggers MonitoredItem %u",
+                                  mon->monitoredItemId, triggeredMon->monitoredItemId);
     }
 }
 
@@ -363,6 +363,7 @@ UA_MonitoredItem_init(UA_MonitoredItem *mon) {
     memset(mon, 0, sizeof(UA_MonitoredItem));
     mon->next = (UA_MonitoredItem*)~0; /* Not added to a node */
     TAILQ_INIT(&mon->queue);
+    mon->triggeredUntil = UA_INT64_MIN;
 }
 
 static UA_StatusCode
