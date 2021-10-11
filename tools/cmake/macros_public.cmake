@@ -256,7 +256,7 @@ endfunction()
 function(ua_generate_nodeset)
 
     set(options INTERNAL )
-    set(oneValueArgs NAME TYPES_ARRAY OUTPUT_DIR IGNORE TARGET_PREFIX BLACKLIST)
+    set(oneValueArgs NAME TYPES_ARRAY OUTPUT_DIR IGNORE TARGET_PREFIX BLACKLIST FILES_BSD)
     set(multiValueArgs FILE DEPENDS_TYPES DEPENDS_NS DEPENDS_TARGET)
     cmake_parse_arguments(UA_GEN_NS "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN} )
 
@@ -284,12 +284,23 @@ function(ua_generate_nodeset)
         set(UA_GEN_NS_TARGET_PREFIX "open62541-generator")
     endif()
 
+
     # Set blacklist file
     set(GEN_BLACKLIST "")
     set(GEN_BLACKLIST_DEPENDS "")
     if(UA_GEN_NS_BLACKLIST)
         set(GEN_BLACKLIST "--blacklist=${UA_GEN_NS_BLACKLIST}")
         set(GEN_BLACKLIST_DEPENDS "${UA_GEN_NS_BLACKLIST}")
+    endif()
+
+    # Set bsd files
+    set(GEN_BSB "")
+    set(GEN_BSD_DEPENDS "")
+    if(UA_GEN_NS_FILES_BSD)
+        foreach(f ${UA_GEN_NS_FILES_BSD})
+            set(GEN_BSD ${GEN_BSD} "--bsd=${f}")
+        endforeach()
+        set(GEN_BSD_DEPENDS "${UA_GEN_NS_FILES_BSD}")
     endif()
 
     # ------ Add custom command and target -----
@@ -350,6 +361,7 @@ function(ua_generate_nodeset)
                        ${GEN_BIN_SIZE}
                        ${GEN_IGNORE}
                        ${GEN_BLACKLIST}
+                       ${GEN_BSD}
                        ${TYPES_ARRAY_LIST}
                        ${DEPENDS_FILE_LIST}
                        ${FILE_LIST}
@@ -365,6 +377,7 @@ function(ua_generate_nodeset)
                        ${UA_GEN_NS_FILE}
                        ${UA_GEN_NS_DEPENDS_NS}
                        ${GEN_BLACKLIST_DEPENDS}
+                       ${GEN_BSD_DEPENDS}
                        )
 
     add_custom_target(${UA_GEN_NS_TARGET_PREFIX}-${TARGET_SUFFIX}
@@ -599,6 +612,7 @@ function(ua_generate_nodeset_and_datatypes)
         FILE "${UA_GEN_FILE_NS}"
         TYPES_ARRAY "${NODESET_TYPES_ARRAY}"
         BLACKLIST "${UA_GEN_BLACKLIST}"
+        FILES_BSD "${UA_GEN_FILE_BSD}"
         ${NODESET_INTERNAL}
         DEPENDS_TYPES ${TYPES_DEPENDS}
         DEPENDS_NS ${NODESET_DEPENDS}

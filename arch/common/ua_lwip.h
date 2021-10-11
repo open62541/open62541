@@ -88,7 +88,7 @@ unsigned int lwip_if_nametoindex(const char *ifname);
 # endif
 #endif
 
-int gethostname_lwip(char* name, size_t len); //gethostname is not present in LwIP. We implement here a dummy. See ../freertosLWIP/ua_architecture_functions.c
+int gethostname_lwip(char* name, size_t len);
 
 #define UA_LOG_SOCKET_ERRNO_GAI_WRAP UA_LOG_SOCKET_ERRNO_WRAP
 

@@ -1461,6 +1461,31 @@ updateLocalizedText(const UA_LocalizedText *source, UA_LocalizedText *target) {
     return UA_STATUSCODE_GOOD;
 }
 
+/* Trigger sampling if a MonitoredItem surveils the attribute with no sampling
+ * interval */
+static void
+triggerImmediateDataChange(UA_Server *server, UA_Session *session,
+                           UA_Node *node, const UA_WriteValue *wvalue) {
+    for(UA_MonitoredItem *mon = node->head.monitoredItems; mon != NULL; mon = mon->next) {
+        if(mon->itemToMonitor.attributeId != wvalue->attributeId)
+            continue;
+        UA_DataValue value;
+        UA_DataValue_init(&value);
+        ReadWithNode(node, server, session, mon->timestampsToReturn,
+                     &mon->itemToMonitor, &value);
+        UA_Subscription *sub = mon->subscription;
+        UA_StatusCode res = sampleCallbackWithValue(server, sub, mon, &value);
+        if(res != UA_STATUSCODE_GOOD) {
+            UA_DataValue_clear(&value);
+            UA_LOG_WARNING_SUBSCRIPTION(&server->config.logger, sub,
+                                        "MonitoredItem %" PRIi32 " | "
+                                        "Sampling returned the statuscode %s",
+                                        mon->monitoredItemId,
+                                        UA_StatusCode_name(res));
+        }
+    }
+}
+
 /* This function implements the main part of the write service and operates on a
    copy of the node (not in single-threaded mode). */
 static UA_StatusCode
@@ -1617,12 +1642,19 @@ copyAttributeIntoNode(UA_Server *server, UA_Session *session,
         retval = UA_STATUSCODE_BADATTRIBUTEIDINVALID;
         break;
     }
+
+    /* Check if writing succeeded */
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_INFO_SESSION(&server->config.logger, session,
                             "WriteRequest returned status code %s",
                             UA_StatusCode_name(retval));
+        return retval;
     }
-    return retval;
+
+    /* Trigger MonitoredItems with no SamplingInterval */
+    triggerImmediateDataChange(server, session, node, wvalue);
+
+    return UA_STATUSCODE_GOOD;
 }
 
 static void

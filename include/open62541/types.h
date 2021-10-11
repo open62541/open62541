@@ -1026,9 +1026,9 @@ typedef struct UA_DataTypeArray {
     const UA_DataType *types;
 } UA_DataTypeArray;
 
-/* Test if the data type is a numeric builtin data type. This includes Boolean,
- * integers and floating point numbers. Not included are DateTime and
- * StatusCode. */
+/* Test if the data type is a numeric builtin data type (via the typeKind field
+ * of UA_DataType). This includes integers and floating point numbers. Not
+ * included are Boolean, DateTime, StatusCode and Enums. */
 UA_Boolean
 UA_DataType_isNumeric(const UA_DataType *type);
 
@@ -1088,21 +1088,44 @@ void UA_EXPORT UA_clear(void *p, const UA_DataType *type);
  * @param type The datatype description of the variable */
 void UA_EXPORT UA_delete(void *p, const UA_DataType *type);
 
-#ifdef UA_ENABLE_TYPEDESCRIPTION
 /* Pretty-print the value from the datatype.
  *
  * @param p The memory location of the variable
  * @param type The datatype description of the variable
  * @param output A string that is memory-allocated for the pretty-printed output
  * @return Indicates whether the operation succeeded*/
+#ifdef UA_ENABLE_TYPEDESCRIPTION
 UA_StatusCode UA_EXPORT
 UA_print(const void *p, const UA_DataType *type, UA_String *output);
 #endif
 
+/* Compare two variables and return their order. This can also be used to test
+ * for equality of two values.
+ *
+ * For numerical types (including StatusCodes and Enums), their natural order is
+ * used. NaN is the "smallest" value for floating point values. Different bit
+ * representations of NaN are considered identical.
+ *
+ * All other types have *some* absolute ordering so that a < b, b < c -> a < c.
+ *
+ * The ordering of arrays (also strings) is in "shortlex": A shorter array is
+ * always smaller than a longer array. Otherwise the first different element
+ * defines the order.
+ *
+ * When members of different types are permitted (in Variants and
+ * ExtensionObjects), the memory address in the "UA_DataType*" pointer
+ * determines which variable is smaller.
+ *
+ * @param p1 The memory location of the first value
+ * @param p2 The memory location of the first value
+ * @param type The datatype description of both values */
+UA_Order UA_EXPORT
+UA_order(const void *p1, const void *p2, const UA_DataType *type);
+
 /**
- * Encodeing/Decoding
+ * Encoding/Decoding
  * ^^^^^^^^^^^^^^^^^^
- * Encodeing and decoding routines for the available formats. For all formats
+ * Encoding and decoding routines for the available formats. For all formats
  * the _calcSize, _encode and _decode methods are provided. */
 
 /* Returns the number of bytes the value p takes in binary encoding. Returns
