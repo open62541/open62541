@@ -17,10 +17,6 @@ set(PYTHON_EXECUTABLE ${Python3_EXECUTABLE})
 find_package(Git)
 include(AssignSourceGroup)
 include(GNUInstallDirs)
-if(UA_ENABLE_TPM2_PKCS11)
-    find_library(TPM2_LIB tpm2_pkcs11)
-    message(${TPM2_LIB})
-endif()
 
 # Set when installed via make install
 set(open62541_TOOLS_DIR ${PROJECT_SOURCE_DIR}/tools)
@@ -153,17 +149,27 @@ endforeach(arch_ ${architectures})
 option(BUILD_SHARED_LIBS "Enable building of shared libraries (dll/so)" OFF)
 set(UA_LOGLEVEL 300 CACHE STRING "Level at which logs shall be reported")
 set(UA_MULTITHREADING 0 CACHE STRING "Level of multithreading (0-99: No Multithreading, >=100: Thread-Safe API")
-option(UA_ENABLE_HISTORIZING "Enable basic support for historical access (client and server)" OFF)
 option(UA_ENABLE_METHODCALLS "Enable the Method service set" ON)
-option(UA_ENABLE_NODEMANAGEMENT "Enable dynamic addition and removal of nodes at runtime" ON)
-option(UA_ENABLE_SUBSCRIPTIONS "Enable subscriptions support." ON)
-option(UA_ENABLE_SUBSCRIPTIONS_EVENTS "Enable the use of event subscriptions" OFF)
-option(UA_ENABLE_DISCOVERY "Enable Discovery Service (LDS)" OFF)
-option(UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS "Enable the use of A&C. (EXPERIMENTAL)" OFF)
-option(UA_ENABLE_DISCOVERY_MULTICAST "Enable Discovery Service with multicast support (LDS-ME)" OFF)
-option(UA_ENABLE_PARSING "Utility functions that require parsing (e.g. NodeId expressions)" ON)
+option(UA_ENABLE_SUBSCRIPTIONS "Enable subscriptions support" ON)
+option(UA_ENABLE_SUBSCRIPTIONS_EVENTS "Enable event monitoring" ON)
 option(UA_ENABLE_DA "Enable OPC UA DataAccess (Part 8) definitions" ON)
+option(UA_ENABLE_HISTORIZING "Enable basic support for historical access (client and server)" OFF)
+option(UA_ENABLE_DISCOVERY "Enable Discovery Service (LDS)" OFF)
+
+option(UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS "Enable the use of A&C. (EXPERIMENTAL)" OFF)
+mark_as_advanced(UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS)
+
+option(UA_ENABLE_NODEMANAGEMENT "Enable dynamic addition and removal of nodes at runtime" ON)
+mark_as_advanced(UA_ENABLE_NODEMANAGEMENT)
+
+option(UA_ENABLE_PARSING "Utility functions that require parsing (e.g. NodeId expressions)" ON)
+mark_as_advanced(UA_ENABLE_PARSING)
+
+option(UA_ENABLE_DISCOVERY_MULTICAST "Enable Discovery Service with multicast support (LDS-ME)" OFF)
+mark_as_advanced(UA_ENABLE_DISCOVERY_MULTICAST)
+
 option(UA_ENABLE_WEBSOCKET_SERVER "Enable websocket support (uses libwebsockets)" OFF)
+mark_as_advanced(UA_ENABLE_WEBSOCKET_SERVER)
 
 # security provider
 set(UA_ENCRYPTION_PLUGINS "MBEDTLS" "OPENSSL" "LIBRESSL")
@@ -201,6 +207,42 @@ else()
     if(UA_ENABLE_ENCRYPTION_OPENSSL)
         set(UA_ENABLE_ENCRYPTION "OPENSSL")
         set(UA_ENABLE_ENCRYPTION_MBEDTLS OFF)
+    endif()
+endif()
+
+# TPM Security
+set(UA_ENABLE_ENCRYPTION_TPM2 "OFF" CACHE STRING "TPM encryption support")
+SET_PROPERTY(CACHE UA_ENABLE_ENCRYPTION_TPM2 PROPERTY STRINGS "PKCS11" "KEYSTORE" "OFF")
+
+if(UA_ENABLE_ENCRYPTION_TPM2 STREQUAL "OFF")
+    set(UA_ENABLE_TPM2_SECURITY OFF)
+    set(UA_ENABLE_TPM2_KEYSTORE OFF)
+elseif(UA_ENABLE_ENCRYPTION_TPM2 STREQUAL "PKCS11")
+    set(UA_ENABLE_TPM2_SECURITY ON)
+elseif(UA_ENABLE_ENCRYPTION_TPM2 STREQUAL "KEYSTORE")
+    set(UA_ENABLE_TPM2_KEYSTORE ON)
+endif()
+
+if(UA_ENABLE_TPM2_SECURITY)
+    find_library(TPM2_LIB tpm2_pkcs11)
+    message(${TPM2_LIB})
+endif()
+
+if(UA_ENABLE_TPM2_SECURITY)
+    if(NOT UA_ENABLE_PUBSUB_ENCRYPTION)
+        message(FATAL_ERROR "TPM2 encryption cannot be used with disabled UA_ENABLE_PUBSUB_ENCRYPTION")
+    endif()
+endif()
+
+if(UA_ENABLE_TPM2_KEYSTORE)
+    if(UA_ENABLE_PUBSUB)
+        if(NOT UA_ENABLE_PUBSUB_ENCRYPTION)
+            message(FATAL_ERROR "TPM2 Keystore for PubSub cannot be used with disabled UA_ENABLE_PUBSUB_ENCRYPTION")
+        endif()
+    else()
+        if(NOT UA_ENABLE_ENCRYPTION)
+            message(FATAL_ERROR "TPM2 Keystore cannot be used with disabled UA_ENABLE_ENCRYPTION")
+        endif()
     endif()
 endif()
 
@@ -303,9 +345,6 @@ option(UA_ENABLE_PUBSUB "Enable the PubSub protocol" OFF)
 
 option(UA_ENABLE_PUBSUB_ENCRYPTION "Enable encryption of the PubSub payload" OFF)
 mark_as_advanced(UA_ENABLE_PUBSUB_ENCRYPTION)
-
-option(UA_ENABLE_TPM2_PKCS11 "Enable for encryption of the PubSub payload using TPM hardware" OFF)
-mark_as_advanced(UA_ENABLE_TPM2_PKCS11)
 
 option(UA_ENABLE_PUBSUB_INFORMATIONMODEL "Enable PubSub information model twin" OFF)
 
@@ -552,7 +591,7 @@ if(UA_ENABLE_ENCRYPTION_MBEDTLS OR UA_ENABLE_PUBSUB_ENCRYPTION)
     list(APPEND open62541_LIBRARIES ${MBEDTLS_LIBRARIES})
 endif()
 
-if(UA_ENABLE_TPM2_PKCS11)
+if(UA_ENABLE_TPM2_SECURITY)
     list(APPEND open62541_LIBRARIES ${TPM2_LIB})
 endif()
 
@@ -967,7 +1006,7 @@ list(INSERT default_plugin_sources 1
      ${PROJECT_SOURCE_DIR}/plugins/crypto/mbedtls/ua_pki_mbedtls.c)
 endif()
 
-if(UA_ENABLE_TPM2_PKCS11)
+if(UA_ENABLE_TPM2_SECURITY)
 list(INSERT default_plugin_sources 0
      ${PROJECT_SOURCE_DIR}/plugins/crypto/pkcs11/securitypolicy_pubsub_aes128ctr_tpm.c
      ${PROJECT_SOURCE_DIR}/plugins/crypto/pkcs11/securitypolicy_pubsub_aes256ctr_tpm.c)
@@ -1067,11 +1106,9 @@ if(UA_ENABLE_SUBSCRIPTIONS)
         if(UA_NAMESPACE_ZERO STREQUAL "MINIMAL")
             message(FATAL_ERROR "Events require at least the reduced Namespace Zero")
         endif()
-        list(APPEND lib_sources
-             ${PROJECT_SOURCE_DIR}/src/server/ua_subscription_events.c)
+        list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/src/server/ua_subscription_events.c)
         if(UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS)
-            list(APPEND lib_sources
-                 ${PROJECT_SOURCE_DIR}/src/server/ua_subscription_alarms_conditions.c)
+            list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/src/server/ua_subscription_alarms_conditions.c)
         endif()
     endif()
 endif()
@@ -1464,6 +1501,9 @@ if(UA_BUILD_TOOLS)
     add_subdirectory(tools/ua-tool)
     if(UA_ENABLE_JSON_ENCODING)
         add_subdirectory(tools/ua2json)
+    endif()
+    if(UA_ENABLE_TPM2_KEYSTORE)
+        add_subdirectory(tools/tpm_keystore)
     endif()
 endif()
 

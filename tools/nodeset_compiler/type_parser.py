@@ -8,7 +8,10 @@ from collections import OrderedDict
 import sys
 
 if sys.version_info[0] >= 3:
-    from nodeset_compiler.opaque_type_mapping import get_base_type_for_opaque as get_base_type_for_opaque_ns0
+    try:
+        from opaque_type_mapping import get_base_type_for_opaque as get_base_type_for_opaque_ns0
+    except ImportError:
+        from nodeset_compiler.opaque_type_mapping import get_base_type_for_opaque as get_base_type_for_opaque_ns0
 else:
     from opaque_type_mapping import get_base_type_for_opaque as get_base_type_for_opaque_ns0
 

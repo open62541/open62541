@@ -289,6 +289,11 @@ Detailed SDK Features
       - ``MBEDTLS`` Encryption support using mbed TLS
       - ``OPENSSL`` Encryption support using OpenSSL
       - ``LIBRESSL`` EXPERIMENTAL: Encryption support using LibreSSL
+**UA_ENABLE_ENCRYPTION_TPM2**
+   Enable TPM hardware for encryption. The possible options are:
+      - ``OFF`` No TPM encryption support. (default)
+      - ``PKCS11`` Encryption support using tpm2_pkcs11
+      - ``KEYSTORE`` Encryption of keys using TPM
 
 **UA_NAMESPACE_ZERO**
 
