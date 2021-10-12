@@ -11,6 +11,7 @@
  *    Copyright 2017 (c) Mattias Bornhager
  *    Copyright 2019 (c) HMS Industrial Networks AB (Author: Jonas Green)
  *    Copyright 2020 (c) Christian von Arnim, ISW University of Stuttgart (for VDW and umati)
+ *    Copyright 2021 (c) Fraunhofer IOSB (Author: Andreas Ebner)
  */
 
 #ifndef UA_SUBSCRIPTION_H_
@@ -27,9 +28,6 @@
 _UA_BEGIN_DECLS
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS
-
-struct UA_MonitoredItem;
-typedef struct UA_MonitoredItem UA_MonitoredItem;
 
 /* MonitoredItems create Notifications. Subscriptions collect Notifications from
  * (several) MonitoredItems and publish them to the client.
@@ -50,7 +48,7 @@ typedef struct UA_MonitoredItem UA_MonitoredItem;
 #define UA_SUBSCRIPTION_QUEUE_SENTINEL ((UA_Notification*)0x01)
 
 typedef struct UA_Notification {
-    TAILQ_ENTRY(UA_Notification) listEntry;   /* Notification list for the MonitoredItem */
+    TAILQ_ENTRY(UA_Notification) localEntry;   /* Notification list for the MonitoredItem */
     TAILQ_ENTRY(UA_Notification) globalEntry; /* Notification list for the Subscription */
     UA_MonitoredItem *mon; /* Always set */
 
@@ -64,6 +62,7 @@ typedef struct UA_Notification {
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
     UA_Boolean isOverflowEvent; /* Counted manually */
+    UA_EventFilterResult result;
 #endif
 } UA_Notification;
 
@@ -83,7 +82,7 @@ void UA_Notification_enqueueAndTrigger(UA_Server *server,
                                        UA_Notification *n);
 
 /* Dequeue and delete the notification */
-void UA_Notification_delete(UA_Server *server, UA_Notification *n);
+void UA_Notification_delete(UA_Notification *n);
 
 /* A NotificationMessage contains an array of notifications.
  * Sent NotificationMessages are stored for the republish service. */
@@ -104,10 +103,9 @@ typedef TAILQ_HEAD(NotificationMessageQueue, UA_NotificationMessageEntry)
 struct UA_MonitoredItem {
     UA_TimerEntry delayedFreePointers;
     LIST_ENTRY(UA_MonitoredItem) listEntry; /* Linked list in the Subscription */
-#ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
     UA_MonitoredItem *next; /* Linked list of MonitoredItems directly attached
-                             * to a Node */
-#endif
+                             * to a Node. Initialized to ~0 to indicate that the
+                             * MonitoredItem is not added to a node. */
     UA_Subscription *subscription; /* If NULL, then this is a Local MonitoredItem */
     UA_UInt32 monitoredItemId;
 
@@ -117,6 +115,12 @@ struct UA_MonitoredItem {
     UA_TimestampsToReturn timestampsToReturn;
     UA_Boolean sampleCallbackIsRegistered;
     UA_Boolean registered; /* Registered in the server / Subscription */
+    UA_DateTime triggeredUntil;  /* If the MonitoringMode is SAMPLING, a
+                                  * triggered MonitoredItem puts the next
+                                  * Notification into the global queue (of the
+                                  * Subscription) for publishing. But triggering
+                                  * is only active for the duration of one
+                                  * publishin cycle. */
 
     /* If the filter is a UA_DataChangeFilter: The DataChangeFilter always
      * contains an absolute deadband definition. Part 8, §6.2 gives the
@@ -134,7 +138,6 @@ struct UA_MonitoredItem {
 
     /* Sampling Callback */
     UA_UInt64 sampleCallbackId;
-    UA_ByteString lastSampledValue;
     UA_DataValue lastValue;
 
     /* Triggering Links */
@@ -154,12 +157,20 @@ void UA_MonitoredItem_init(UA_MonitoredItem *mon);
 void
 UA_MonitoredItem_delete(UA_Server *server, UA_MonitoredItem *monitoredItem);
 
-UA_StatusCode
-UA_Server_registerMonitoredItem(UA_Server *server, UA_MonitoredItem *mon);
+void
+UA_MonitoredItem_removeOverflowInfoBits(UA_MonitoredItem *mon);
 
 void
-UA_MonitoredItem_unregisterSampleCallback(UA_Server *server,
-                                          UA_MonitoredItem *mon);
+UA_Server_registerMonitoredItem(UA_Server *server, UA_MonitoredItem *mon);
+
+/* Register sampling. Either by adding a repeated callback or by adding the
+ * MonitoredItem to a linked list in the node. */
+UA_StatusCode
+UA_MonitoredItem_registerSampling(UA_Server *server, UA_MonitoredItem *mon);
+
+void
+UA_MonitoredItem_unregisterSampling(UA_Server *server,
+                                    UA_MonitoredItem *mon);
 
 UA_StatusCode
 UA_MonitoredItem_setMonitoringMode(UA_Server *server, UA_MonitoredItem *mon,
@@ -170,8 +181,8 @@ UA_MonitoredItem_sampleCallback(UA_Server *server,
                                 UA_MonitoredItem *monitoredItem);
 
 UA_StatusCode
-UA_MonitoredItem_registerSampleCallback(UA_Server *server,
-                                        UA_MonitoredItem *mon);
+sampleCallbackWithValue(UA_Server *server, UA_Subscription *sub,
+                        UA_MonitoredItem *mon, UA_DataValue *value);
 
 UA_StatusCode
 UA_MonitoredItem_removeLink(UA_Subscription *sub, UA_MonitoredItem *mon,
@@ -314,9 +325,10 @@ typedef struct UA_ConditionSource UA_ConditionSource;
 /* Evaluate content filter, Only for unit testing */
 #ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
 UA_StatusCode
-UA_Server_evaluateWhereClauseContentFilter(UA_Server *server,
+UA_Server_evaluateWhereClauseContentFilter(UA_Server *server, UA_Session *session,
                                            const UA_NodeId *eventNode,
-                                           const UA_ContentFilter *contentFilter);
+                                           const UA_ContentFilter *contentFilter,
+                                           UA_ContentFilterResult *contentFilterResult);
 #endif
  
 /* Setting an integer value within bounds */
@@ -333,7 +345,7 @@ UA_Server_evaluateWhereClauseContentFilter(UA_Server *server,
     if((SUB) && (SUB)->session) {                                       \
         UA_NodeId_print(&(SUB)->session->sessionId, &idString);         \
         UA_LOG_##LEVEL(LOGGER, UA_LOGCATEGORY_SESSION,                  \
-                       "SecureChannel %i | Session %.*s | Subscription %" PRIu32 " | " MSG "%.0s", \
+                       "SecureChannel %" PRIu32 " | Session %.*s | Subscription %" PRIu32 " | " MSG "%.0s", \
                        ((SUB)->session->header.channel ?                \
                         (SUB)->session->header.channel->securityToken.channelId : 0), \
                        (int)idString.length, idString.data, (SUB)->subscriptionId, __VA_ARGS__); \

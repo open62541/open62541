@@ -164,10 +164,9 @@ getAllInterfaceChildNodeIds(UA_Server *server, const UA_NodeId *objectNode,
     UA_ReferenceTypeSet reftypes_subtype =
         UA_REFTYPESET(UA_REFERENCETYPEINDEX_HASSUBTYPE);
 
-    /* Don't include the start node */
     UA_StatusCode retval = browseRecursive(server, 1, objectTypeNode, UA_BROWSEDIRECTION_INVERSE,
                                            &reftypes_subtype, UA_NODECLASS_OBJECTTYPE,
-                                           false, &hasInterfaceCandidatesSize,
+                                           true, &hasInterfaceCandidatesSize,
                                            &hasInterfaceCandidates);
 
     if (retval != UA_STATUSCODE_GOOD)

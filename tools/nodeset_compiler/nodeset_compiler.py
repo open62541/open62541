@@ -34,6 +34,14 @@ parser.add_argument('-x', '--xml',
                     default=[],
                     help='NodeSet XML files with nodes that shall be generated.')
 
+parser.add_argument('--bsd',
+                    metavar="<nodeSetBSD>",
+                    type=argparse.FileType('rb'),
+                    action='append',
+                    dest="bsdFile",
+                    default=[],
+                    help='Nodeset BSD file which must be specified if self-defined data types are contained in the XML and the BSD blob is not integrated in the XML.')
+
 parser.add_argument('outputFile',
                     metavar='<outputFile>',
                     help='The path/basename for the <output file>.c and <output file>.h files to be generated. This will also be the function name used in the header and c-file.')
@@ -150,6 +158,9 @@ for ignoreFile in args.ignoreFiles:
 # Remove nodes that are not printable or contain parsing errors, such as
 # unresolvable or no references or invalid NodeIDs
 ns.sanitize()
+
+# Generate the BSD file from the XML.
+ns.generateParser(args.existing, args.infiles, args.bsdFile)
 
 # Allocate/Parse the data values. In order to do this, we must have run
 # buidEncodingRules.

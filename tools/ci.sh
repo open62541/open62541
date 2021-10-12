@@ -38,6 +38,19 @@ function build_docs {
     make doc
 }
 
+#######################
+# Build TPM tool #
+#######################
+
+function build_tpm_tool {
+    mkdir -p build; cd build; rm -rf *
+    cmake -DUA_BUILD_TOOLS=ON \
+          -DUA_ENABLE_ENCRYPTION=MBEDTLS \
+          -DUA_ENABLE_ENCRYPTION_TPM2=KEYSTORE \
+          ..
+    make ${MAKEOPTS}
+}
+
 #########################
 # Build Release Version #
 #########################

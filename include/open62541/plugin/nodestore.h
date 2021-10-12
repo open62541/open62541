@@ -23,8 +23,9 @@
 _UA_BEGIN_DECLS
 
 /* Forward declaration */
-#ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
+#ifdef UA_ENABLE_SUBSCRIPTIONS
 struct UA_MonitoredItem;
+typedef struct UA_MonitoredItem UA_MonitoredItem;
 #endif
 
 /**
@@ -398,6 +399,10 @@ struct UA_NodeHead {
     /* Members specific to open62541 */
     void *context;
     UA_Boolean constructed; /* Constructors were called */
+#ifdef UA_ENABLE_SUBSCRIPTIONS
+    UA_MonitoredItem *monitoredItems; /* MonitoredItems for Events and immediate
+                                       * DataChanges (no sampling interval). */
+#endif
 };
 
 /**
@@ -736,9 +741,6 @@ typedef struct {
 
 typedef struct {
     UA_NodeHead head;
-#ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
-    struct UA_MonitoredItem *monitoredItemQueue;
-#endif
     UA_Byte eventNotifier;
 } UA_ObjectNode;
 
