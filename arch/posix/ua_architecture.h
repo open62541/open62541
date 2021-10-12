@@ -127,7 +127,7 @@ void UA_sleep_ms(unsigned long ms);
 #define UA_snprintf snprintf
 #define UA_strncasecmp strncasecmp
 
-#define UA_clean_errno(STR_FUN) (errno == 0 ? "None" : (STR_FUN)(errno))
+#define UA_clean_errno(STR_FUN) (errno == 0 ? (char*) "None" : (STR_FUN)(errno))
 
 #define UA_LOG_SOCKET_ERRNO_WRAP(LOG) { \
     char *errno_str = UA_clean_errno(strerror); \
