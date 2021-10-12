@@ -1049,8 +1049,8 @@ UA_DataSetReader_process(UA_Server *server, UA_ReaderGroup *rg,
 void
 UA_DataSetReader_checkMessageReceiveTimeout(UA_Server *server,
                                             UA_DataSetReader *dsr) {
-    assert(server != 0);
-    assert(dsr != 0);
+    UA_assert(server != 0);
+    UA_assert(dsr != 0);
 
     /* If previous reader state was error (because we haven't received messages
      * and ran into timeout) we should set the state back to operational */
