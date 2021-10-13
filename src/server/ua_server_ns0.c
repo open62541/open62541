@@ -1100,7 +1100,6 @@ UA_Server_initNS0(UA_Server *server) {
         /* Initialize base nodes, cannot be created through the NS compiler */
         server->bootstrapNS0 = true;
         retVal = UA_Server_createNS0_base(server);
-        server->bootstrapNS0 = false;
 
         if(server->config.bootstrapNs0Nodes) {
 #ifdef UA_GENERATED_NAMESPACE_ZERO
@@ -1111,6 +1110,8 @@ UA_Server_initNS0(UA_Server *server) {
             retVal |= UA_Server_minimalServerObject(server);
 #endif
         }
+
+		server->bootstrapNS0 = false;
 
         if(retVal != UA_STATUSCODE_GOOD) {
             UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
