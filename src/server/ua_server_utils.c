@@ -195,6 +195,12 @@ getAllInterfaceChildNodeIds(UA_Server *server, const UA_NodeId *objectNode,
     size_t outputIndex = 0;
 
     for (size_t i = 0; i < hasInterfaceCandidatesSize; ++i) {
+        /* browseRecursive returns a null node id reference for the PubSub information model
+         * in combination with the reduced namespace 0 nodeset when immutable nodes are enabled.
+         */
+        if (UA_NodeId_isNull(&hasInterfaceCandidates[i].nodeId))
+            continue;
+
         UA_ReferenceTypeSet reftypes_interface =
             UA_REFTYPESET(UA_REFERENCETYPEINDEX_HASINTERFACE);
         UA_ExpandedNodeId *interfaceChildren = NULL;
