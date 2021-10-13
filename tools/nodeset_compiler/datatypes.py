@@ -260,7 +260,14 @@ class Value(object):
                         extobj.encodingRule.append(e)
                         if isinstance(e.member_type, BuiltinType):
                             if e.is_array:
-                                extobj.value.append([])
+                                values = []
+                                for el in ebodypart.childNodes:
+                                    if not el.nodeType == el.ELEMENT_NODE:
+                                        continue
+                                    t = self.getTypeByString(e.member_type.name, None)
+                                    t.parseXML(el)
+                                    values.append(t)
+                                extobj.value.append(values)
                             else:
                                 t = self.getTypeByString(e.member_type.name, None)
                                 t.alias = ebodypart.localName
@@ -323,12 +330,18 @@ class Value(object):
                         if isinstance(e.member_type, BuiltinType):
                             if e.is_array:
                                 values = []
+                                for el in ebodypart.childNodes:
+                                    if not el.nodeType == el.ELEMENT_NODE:
+                                        continue
+                                    t = self.getTypeByString(e.member_type.name, None)
+                                    t.parseXML(el)
+                                    values.append(t)
                                 self.value.append(values)
                             else:
                                 t = self.getTypeByString(e.member_type.name, None)
+                                t.alias = e.name
                                 if childValue is not None:
                                     t.parseXML(childValue)
-                                    t.alias = childValue.localName
                                     self.value.append(t)
                                 else:
                                     if not e.is_optional:
@@ -337,11 +350,16 @@ class Value(object):
                             structure = Structure()
                             structure.alias = ebodypart.localName
                             structure.value = []
-                            structure.value.append(structure.__parseXMLSingleValue(childValue, parentDataTypeNode, parent, parser, alias=None, encodingPart=e.member_type))
+                            structure.__parseXMLSingleValue(childValue, parentDataTypeNode, parent, parser, alias=None, encodingPart=e.member_type)
                             self.value.append(structure)
                             return structure
+                        elif isinstance(e.member_type, EnumerationType):
+                            t = self.getTypeByString("Int32", None)
+                            t.parseXML(ebodypart)
+                            t.alias = e.name
+                            self.value.append(t)
                         else:
-                            logger.error(str(parent.id) + ": Description of dataType " + str(parentDataTypeNode.browseName) + " in ExtensionObject is not a BuildinType or StructMember.")
+                            logger.error(str(parent.id) + ": Description of dataType " + str(parentDataTypeNode.browseName) + " in ExtensionObject is not a BuildinType, EnumerationType or StructMember.")
                             return self
 
                         childValue = getNextElementNode(childValue)
