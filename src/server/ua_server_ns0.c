@@ -1111,7 +1111,7 @@ UA_Server_initNS0(UA_Server *server) {
 #endif
         }
 
-		server->bootstrapNS0 = false;
+        server->bootstrapNS0 = false;
 
         if(retVal != UA_STATUSCODE_GOOD) {
             UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
