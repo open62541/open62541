@@ -380,7 +380,7 @@ class NodeSet(object):
     def addInverseReferences(self):
         # Ensure that every reference has an inverse reference in the target
         for u in self.nodes.values():
-            for ref in u.references:
+            for ref in u.references.copy():
                 back = Reference(ref.target, ref.referenceType, ref.source, not ref.isForward)
                 self.nodes[ref.target].references.add(back) # ref set does not make a duplicate entry
 
