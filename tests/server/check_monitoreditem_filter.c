@@ -471,7 +471,7 @@ START_TEST(Server_MonitoredItemsAbsoluteFilterSetOnCreateRemoveLater) {
 }
 END_TEST
 
-START_TEST(Server_MonitoredItemsPercentFilterSetLater) {
+START_TEST(Server_MonitoredItemsPercentFilterSetLaterMissingEURange) {
     UA_DataValue_init(&lastValue);
     /* define a monitored item with no filter */
     UA_MonitoredItemCreateRequest item = UA_MonitoredItemCreateRequest_default(outNodeId);
@@ -569,6 +569,7 @@ START_TEST(Server_MonitoredItemsPercentFilterSetLater) {
        UA_Client_MonitoredItems_modify(client, modifyRequest);
 
     ck_assert_uint_eq(modifyResponse.resultsSize, 1);
+    /* missing EURange. See https://reference.opcfoundation.org/v104/Core/docs/Part8/6.2/ */
     ck_assert_uint_eq(modifyResponse.results[0].statusCode,
                       UA_STATUSCODE_BADMONITOREDITEMFILTERUNSUPPORTED);
 
@@ -883,7 +884,7 @@ START_TEST(Server_MonitoredItemsAbsoluteFilterSetOnCreate) {
 }
 END_TEST
 
-START_TEST(Server_MonitoredItemsPercentFilterSetOnCreate) {
+START_TEST(Server_MonitoredItemsPercentFilterSetOnCreateMissingEURange) {
     UA_DataValue_init(&lastValue);
     /* define a monitored item with an percent filter with deadbandvalue = 2.0 */
     UA_MonitoredItemCreateRequest item = UA_MonitoredItemCreateRequest_default(outNodeId);
@@ -914,6 +915,7 @@ START_TEST(Server_MonitoredItemsPercentFilterSetOnCreate) {
 
     ck_assert_uint_eq(createResponse.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(createResponse.resultsSize, 1);
+    /* missing EURange. See https://reference.opcfoundation.org/v104/Core/docs/Part8/6.2/ */
     ck_assert_uint_eq(createResponse.results[0].statusCode,
                       UA_STATUSCODE_BADMONITOREDITEMFILTERUNSUPPORTED);
     newMonitoredItemIds[0] = createResponse.results[0].monitoredItemId;
@@ -957,8 +959,8 @@ static Suite* testSuite_Client(void) {
     tcase_add_test(tc_server, Server_MonitoredItemsAbsoluteFilterOnBool);
     tcase_add_test(tc_server, Server_MonitoredItemsAbsoluteFilterSetLater);
     tcase_add_test(tc_server, Server_MonitoredItemsAbsoluteFilterSetOnCreateRemoveLater);
-    tcase_add_test(tc_server, Server_MonitoredItemsPercentFilterSetOnCreate);
-    tcase_add_test(tc_server, Server_MonitoredItemsPercentFilterSetLater);
+    tcase_add_test(tc_server, Server_MonitoredItemsPercentFilterSetOnCreateMissingEURange);
+    tcase_add_test(tc_server, Server_MonitoredItemsPercentFilterSetLaterMissingEURange);
 #endif /* UA_ENABLE_SUBSCRIPTIONS */
     suite_add_tcase(s, tc_server);
 
