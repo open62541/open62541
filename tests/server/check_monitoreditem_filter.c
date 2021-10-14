@@ -28,6 +28,7 @@ UA_UInt32 subId;
 UA_NodeId parentNodeId;
 UA_NodeId parentReferenceNodeId;
 UA_NodeId outNodeId;
+UA_NodeId outNodeIdAnalogItem;
 
 UA_Boolean notificationReceived = false;
 UA_UInt32 countNotificationReceived = 0;
@@ -77,6 +78,33 @@ static void setup(void) {
                                   attr, NULL, &outNodeId);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
+#ifdef UA_ENABLE_DA
+    /* Add an AnalogItem node  */
+    UA_NodeId aiNodeId = UA_NODEID_STRING(1, "an AnalogItem");
+    UA_QualifiedName aiName = UA_QUALIFIEDNAME(1, "an AnalogItem");
+    attr.description = UA_LOCALIZEDTEXT("en-US","the answer AnalogItem");
+    attr.displayName = UA_LOCALIZEDTEXT("en-US","the answer AnalogItem");
+    retval =
+        UA_Server_addVariableNode(server, aiNodeId, parentNodeId,
+                                  parentReferenceNodeId, aiName,
+                                  UA_NODEID_NUMERIC(0, UA_NS0ID_ANALOGITEMTYPE),
+                                  attr, NULL, &outNodeIdAnalogItem);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    UA_QualifiedName qn = UA_QUALIFIEDNAME(0, "EURange");
+    UA_BrowsePathResult bpr = UA_Server_browseSimplifiedBrowsePath(server, outNodeIdAnalogItem, 1, &qn);
+    ck_assert_uint_eq(bpr.statusCode, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(bpr.targetsSize, 1);
+    UA_Variant v;
+    UA_Range range;
+    range.high = 120;
+    range.low = 10;
+    UA_Variant_init(&v);
+    UA_Variant_setScalar(&v, &range, &UA_TYPES[UA_TYPES_RANGE]);
+    retval = UA_Server_writeValue(server, bpr.targets[0].targetId.nodeId, v);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    UA_BrowsePathResult_clear(&bpr);
+#endif /* UA_ENABLE_DA */
+
     /* Add a boolean node */
     UA_Boolean myBool = false;
     UA_Variant_setScalar(&attr.value, &myBool, &UA_TYPES[UA_TYPES_BOOLEAN]);
@@ -117,6 +145,9 @@ static void teardown(void) {
     UA_NodeId_clear(&parentNodeId);
     UA_NodeId_clear(&parentReferenceNodeId);
     UA_NodeId_clear(&outNodeId);
+#ifdef UA_ENABLE_DA
+    UA_NodeId_clear(&outNodeIdAnalogItem);
+#endif /* UA_ENABLE_DA */
     pauseServer();
     UA_Server_run_shutdown(server);
     UA_Server_delete(server);
