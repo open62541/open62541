@@ -38,6 +38,18 @@ function build_docs {
     make doc
 }
 
+#####################################
+# Build Documentation including PDF #
+#####################################
+
+function build_docs_pdf {
+    mkdir -p build; cd build; rm -rf *
+    cmake -DCMAKE_BUILD_TYPE=Release \
+          -DUA_BUILD_EXAMPLES=ON \
+          ..
+    make doc doc_pdf
+}
+
 #######################
 # Build TPM tool #
 #######################
