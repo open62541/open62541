@@ -77,7 +77,7 @@ typeCheckArguments(UA_Server *server, UA_Session *session,
                             &args[i], NULL))
             continue;
 
-        /* Incompatible try to correct the type if possible */
+        /* Incompatible value. Try to correct the type if possible. */
         adjustValueType(server, &args[i], &argReqs[i].dataType);
 
         /* Recheck */
