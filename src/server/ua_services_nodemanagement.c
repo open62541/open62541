@@ -717,6 +717,7 @@ copyChild(UA_Server *server, UA_Session *session,
                                  &rd->referenceTypeId, &rd->typeDefinition.nodeId);
         if(retval != UA_STATUSCODE_GOOD) {
             UA_NODESTORE_REMOVE(server, &newNodeId);
+            UA_NodeId_clear(&newNodeId);
             return retval;
         }
 
@@ -725,6 +726,7 @@ copyChild(UA_Server *server, UA_Session *session,
             const UA_Node *typeNode = UA_NODESTORE_GET(server, &rd->typeDefinition.nodeId);
             if(!typeNode) {
                 UA_NODESTORE_REMOVE(server, &newNodeId);
+                UA_NodeId_clear(&newNodeId);
                 return retval;
             }
 
@@ -733,6 +735,7 @@ copyChild(UA_Server *server, UA_Session *session,
 
             if(retval != UA_STATUSCODE_GOOD) {
                 UA_NODESTORE_REMOVE(server, &newNodeId);
+                UA_NodeId_clear(&newNodeId);
                 return retval;
             }
         }
