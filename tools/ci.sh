@@ -38,6 +38,31 @@ function build_docs {
     make doc
 }
 
+#####################################
+# Build Documentation including PDF #
+#####################################
+
+function build_docs_pdf {
+    mkdir -p build; cd build; rm -rf *
+    cmake -DCMAKE_BUILD_TYPE=Release \
+          -DUA_BUILD_EXAMPLES=ON \
+          ..
+    make doc doc_pdf
+}
+
+#######################
+# Build TPM tool #
+#######################
+
+function build_tpm_tool {
+    mkdir -p build; cd build; rm -rf *
+    cmake -DUA_BUILD_TOOLS=ON \
+          -DUA_ENABLE_ENCRYPTION=MBEDTLS \
+          -DUA_ENABLE_ENCRYPTION_TPM2=KEYSTORE \
+          ..
+    make ${MAKEOPTS}
+}
+
 #########################
 # Build Release Version #
 #########################

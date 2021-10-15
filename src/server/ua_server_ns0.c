@@ -832,8 +832,9 @@ UA_Server_initNS0(UA_Server *server) {
 
     /* CurrentTime */
     UA_DataSource currentTime = {readCurrentTime, NULL};
-    retVal |= UA_Server_setVariableNode_dataSource(server,
-                 UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_CURRENTTIME), currentTime);
+    UA_NodeId currTime = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_CURRENTTIME);
+    retVal |= UA_Server_setVariableNode_dataSource(server, currTime, currentTime);
+    retVal |= UA_Server_writeMinimumSamplingInterval(server, currTime, 100.0);
 
     /* State */
     retVal |= UA_Server_setVariableNode_dataSource(server,

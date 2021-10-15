@@ -163,7 +163,7 @@ setupWhereClauses(UA_ContentFilter *contentFilter, UA_UInt16 whereClauseSize, UA
             /* first Element (OR) */
             setupOrFilter(&contentFilter->elements[0]);
             /* second Element (OfType) */
-            setupOfTypeFilter(&contentFilter->elements[1], UA_NS0ID_AUDITEVENTTYPE);
+            setupOfTypeFilter(&contentFilter->elements[1], 60443);
             /* third Element (OfType) */
             setupOfTypeFilter(&contentFilter->elements[2], UA_NS0ID_EVENTQUEUEOVERFLOWEVENTTYPE);
             break;
@@ -171,7 +171,7 @@ setupWhereClauses(UA_ContentFilter *contentFilter, UA_UInt16 whereClauseSize, UA
             UA_ContentFilter_clear(contentFilter);
             return UA_STATUSCODE_BADCONFIGURATIONERROR;
     }
-    return result;
+    return UA_STATUSCODE_GOOD;
 }
 
 static void
@@ -240,7 +240,7 @@ int main(int argc, char *argv[]) {
     /* Add a MonitoredItem */
     UA_MonitoredItemCreateRequest item;
     UA_MonitoredItemCreateRequest_init(&item);
-    item.itemToMonitor.nodeId = UA_NODEID_NUMERIC(0, 2253); // Root->Objects->Server
+    item.itemToMonitor.nodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER); // Root->Objects->Server
     item.itemToMonitor.attributeId = UA_ATTRIBUTEID_EVENTNOTIFIER;
     item.monitoringMode = UA_MONITORINGMODE_REPORTING;
 

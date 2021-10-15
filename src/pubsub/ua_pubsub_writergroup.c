@@ -542,7 +542,8 @@ UA_WriterGroup_clear(UA_Server *server, UA_WriterGroup *writerGroup) {
 
     if(writerGroup->bufferedMessage.offsetsSize > 0){
         for(size_t i = 0; i < writerGroup->bufferedMessage.offsetsSize; i++) {
-            if(writerGroup->bufferedMessage.offsets[i].contentType == UA_PUBSUB_OFFSETTYPE_PAYLOAD_VARIANT) {
+            if((writerGroup->bufferedMessage.offsets[i].contentType == UA_PUBSUB_OFFSETTYPE_PAYLOAD_VARIANT) ||
+                (writerGroup->bufferedMessage.offsets[i].contentType == UA_PUBSUB_OFFSETTYPE_PAYLOAD_RAW)) {
                 UA_DataValue_delete(writerGroup->bufferedMessage.offsets[i].offsetData.value.value);
             } else if(writerGroup->bufferedMessage.offsets[i].contentType == UA_PUBSUB_OFFSETTYPE_NETWORKMESSAGE_FIELDENCDODING) {
                 writerGroup->bufferedMessage.offsets[i].offsetData.value.value->value.data = NULL;
