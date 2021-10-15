@@ -978,6 +978,82 @@ START_TEST(Server_MonitoredItemsPercentFilterSetOnCreateMissingEURange) {
 END_TEST
 
 #ifdef UA_ENABLE_DA
+START_TEST(Server_MonitoredItemsPercentFilterSetOnCreate) {
+    UA_DataValue_init(&lastValue);
+    /* define a monitored item with an percent filter with deadbandvalue = 10.0 */
+    UA_MonitoredItemCreateRequest item = UA_MonitoredItemCreateRequest_default(outNodeIdAnalogItem);
+    UA_DataChangeFilter filter;
+    UA_DataChangeFilter_init(&filter);
+    filter.trigger = UA_DATACHANGETRIGGER_STATUSVALUE;
+    filter.deadbandType = UA_DEADBANDTYPE_PERCENT;
+    filter.deadbandValue = 10.0;
+    item.requestedParameters.filter.encoding = UA_EXTENSIONOBJECT_DECODED;
+    item.requestedParameters.filter.content.decoded.type = &UA_TYPES[UA_TYPES_DATACHANGEFILTER];
+    item.requestedParameters.filter.content.decoded.data = &filter;
+    UA_UInt32 newMonitoredItemIds[1];
+    UA_Client_DataChangeNotificationCallback callbacks[1];
+    callbacks[0] = dataChangeHandler;
+    UA_Client_DeleteMonitoredItemCallback deleteCallbacks[1] = {NULL};
+    void *contexts[1];
+    contexts[0] = NULL;
+
+    UA_CreateMonitoredItemsRequest createRequest;
+    UA_CreateMonitoredItemsRequest_init(&createRequest);
+    createRequest.subscriptionId = subId;
+    createRequest.timestampsToReturn = UA_TIMESTAMPSTORETURN_BOTH;
+    createRequest.itemsToCreate = &item;
+    createRequest.itemsToCreateSize = 1;
+    UA_CreateMonitoredItemsResponse createResponse =
+       UA_Client_MonitoredItems_createDataChanges(client, createRequest, contexts,
+                                                  callbacks, deleteCallbacks);
+
+    ck_assert_uint_eq(createResponse.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(createResponse.resultsSize, 1);
+    ck_assert_uint_eq(createResponse.results[0].statusCode, UA_STATUSCODE_GOOD);
+    newMonitoredItemIds[0] = createResponse.results[0].monitoredItemId;
+    UA_CreateMonitoredItemsResponse_clear(&createResponse);
+
+    // Do we get initial value ?
+    notificationReceived = false;
+    countNotificationReceived = 0;
+    ck_assert_uint_eq(waitForNotification(1, 10), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(notificationReceived, true);
+    ck_assert_uint_eq(countNotificationReceived, 1);
+
+    // This should not trigger because the change is too small and gets filtered
+    notificationReceived = false;
+    countNotificationReceived = 0;
+    ck_assert_uint_eq(setDouble(client, outNodeIdAnalogItem, 45.0), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(waitForNotification(1, 10), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(notificationReceived, false);
+    ck_assert_uint_eq(countNotificationReceived, 0);
+
+    // This should trigger
+    notificationReceived = false;
+    countNotificationReceived = 0;
+    ck_assert_uint_eq(setDouble(client, outNodeIdAnalogItem, 90.0), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(waitForNotification(1, 10), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(notificationReceived, true);
+    ck_assert_uint_eq(countNotificationReceived, 1);
+    ck_assert(fuzzyLastValueIsEqualTo(90.0));
+
+    UA_DeleteMonitoredItemsRequest deleteRequest;
+    UA_DeleteMonitoredItemsRequest_init(&deleteRequest);
+    deleteRequest.subscriptionId = subId;
+    deleteRequest.monitoredItemIds = newMonitoredItemIds;
+    deleteRequest.monitoredItemIdsSize = 1;
+
+    UA_DeleteMonitoredItemsResponse deleteResponse =
+        UA_Client_MonitoredItems_delete(client, deleteRequest);
+
+    ck_assert_uint_eq(deleteResponse.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(deleteResponse.resultsSize, 1);
+    ck_assert_uint_eq(deleteResponse.results[0], UA_STATUSCODE_GOOD);
+
+    UA_DeleteMonitoredItemsResponse_clear(&deleteResponse);
+}
+END_TEST
+
 START_TEST(Server_MonitoredItemsPercentFilterSetOnCreateDeadBandValueOutOfRange) {
     UA_DataValue_init(&lastValue);
     /* define a monitored item with an percent filter with deadbandvalue = 101 */
@@ -1055,6 +1131,7 @@ static Suite* testSuite_Client(void) {
     tcase_add_test(tc_server, Server_MonitoredItemsPercentFilterSetOnCreateMissingEURange);
     tcase_add_test(tc_server, Server_MonitoredItemsPercentFilterSetLaterMissingEURange);
 #ifdef UA_ENABLE_DA
+    tcase_add_test(tc_server, Server_MonitoredItemsPercentFilterSetOnCreate);
     tcase_add_test(tc_server, Server_MonitoredItemsPercentFilterSetOnCreateDeadBandValueOutOfRange);
 #endif /* UA_ENABLE_DA */
 #endif /* UA_ENABLE_SUBSCRIPTIONS */
