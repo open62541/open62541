@@ -23,7 +23,7 @@
 #include "ua_connection_internal.h"
 #include "ua_session.h"
 #include "ua_server_async.h"
-#include "ua_timer.h"
+#include "common/ua_timer.h" /* arch-folder, TODO: Remove after the EventLoop is integrated */
 #include "ua_util_internal.h"
 #include "ziptree.h"
 
