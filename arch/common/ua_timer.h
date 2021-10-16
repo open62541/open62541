@@ -9,7 +9,8 @@
 #ifndef UA_TIMER_H_
 #define UA_TIMER_H_
 
-#include "ua_util_internal.h"
+#include <open62541/types.h>
+#include <open62541/util.h>
 #include "aa_tree.h"
 
 _UA_BEGIN_DECLS
