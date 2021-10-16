@@ -6,7 +6,6 @@
  *    Copyright 2017 (c) Stefan Profanter, fortiss GmbH
  */
 
-#include "ua_util_internal.h"
 #include "ua_timer.h"
 
 /* There may be several entries with the same nextTime in the tree. We give them
