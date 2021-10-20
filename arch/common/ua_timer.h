@@ -56,6 +56,9 @@ typedef struct {
 void
 UA_Timer_init(UA_Timer *t);
 
+UA_DateTime
+UA_Timer_nextRepeatedTime(UA_Timer *t);
+
 UA_StatusCode
 UA_Timer_addTimedCallback(UA_Timer *t, UA_ApplicationCallback callback,
                           void *application, void *data, UA_DateTime date,
