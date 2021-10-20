@@ -272,6 +272,12 @@ UA_Timer_process(UA_Timer *t, UA_DateTime nowMonotonic,
     return next;
 }
 
+UA_DateTime
+UA_Timer_nextRepeatedTime(UA_Timer *t) {
+    UA_TimerEntry *first = (UA_TimerEntry*)aa_min(&t->root);
+    return (first) ? first->nextTime : UA_INT64_MAX;
+}
+
 void
 UA_Timer_clear(UA_Timer *t) {
     UA_LOCK(&t->timerMutex);
