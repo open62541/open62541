@@ -473,16 +473,16 @@ UA_Server_freezeReaderGroupConfiguration(UA_Server *server,
     /* Not rt, we don't have to adjust anything */
     if(rg->config.rtLevel != UA_PUBSUB_RT_FIXED_SIZE)
         return UA_STATUSCODE_GOOD;
-    
+
     if(dsrCount > 1) {
         UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
                        "Mutiple DSR in a readerGroup not supported in RT "
                        "fixed size configuration");
         return UA_STATUSCODE_BADNOTIMPLEMENTED;
     }
-    
+
     dataSetReader = LIST_FIRST(&rg->readers);
-    
+
     /* Support only to UADP encoding */
     if(dataSetReader->config.messageSettings.content.decoded.type !=
        &UA_TYPES[UA_TYPES_UADPDATASETREADERMESSAGEDATATYPE]) {
@@ -516,7 +516,8 @@ UA_Server_freezeReaderGroupConfiguration(UA_Server *server,
                            "PubSub-RT configuration fail: "
                            "PDS contains String/ByteString with dynamic length.");
             return UA_STATUSCODE_BADNOTSUPPORTED;
-        } else if(!UA_DataType_isNumeric(UA_findDataType(&field->dataType))) {
+        } else if(!UA_DataType_isNumeric(UA_findDataType(&field->dataType)) &&
+                  !UA_NodeId_equal(&field->dataType, &UA_TYPES[UA_TYPES_BOOLEAN].typeId)) {
             UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
                            "PubSub-RT configuration fail: "
                            "PDS contains variable with dynamic size.");
