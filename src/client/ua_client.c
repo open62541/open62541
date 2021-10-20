@@ -70,6 +70,19 @@ UA_ClientConfig_clear(UA_ClientConfig *config) {
     UA_free(config->securityPolicies);
     config->securityPolicies = 0;
 
+    /* Stop and delete the EventLoop */
+    if(config->eventLoop && !config->externalEventLoop) {
+        if(UA_EventLoop_getState(config->eventLoop) != UA_EVENTLOOPSTATE_FRESH &&
+           UA_EventLoop_getState(config->eventLoop) != UA_EVENTLOOPSTATE_STOPPED) {
+            UA_EventLoop_stop(config->eventLoop);
+            while(UA_EventLoop_getState(config->eventLoop) != UA_EVENTLOOPSTATE_STOPPED) {
+                UA_EventLoop_run(config->eventLoop, 100);
+            }
+        }
+        UA_EventLoop_delete(config->eventLoop);
+        config->eventLoop = NULL;
+    }
+
     /* Logger */
     if(config->logger.clear)
         config->logger.clear(config->logger.context);

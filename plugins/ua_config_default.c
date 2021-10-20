@@ -754,6 +754,12 @@ UA_ClientConfig_setDefault(UA_ClientConfig *config) {
        config->logger.clear = UA_Log_Stdout_clear;
     }
 
+    /* EventLoop */
+    if(config->eventLoop == NULL) {
+        config->eventLoop = UA_EventLoop_new(&config->logger);
+        config->externalEventLoop = false;
+    }
+
     if (config->sessionLocaleIdsSize > 0 && config->sessionLocaleIds) {
         UA_Array_delete(config->sessionLocaleIds, config->sessionLocaleIdsSize, &UA_TYPES[UA_TYPES_LOCALEID]);
     }
