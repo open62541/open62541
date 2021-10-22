@@ -625,6 +625,13 @@ UA_Server_run_startup(UA_Server *server) {
         startMulticastDiscoveryServer(server);
 #endif
 
+    /* Update Endpoint description */
+    for(size_t i = 0; i < server->config.endpointsSize; ++i){
+        UA_ApplicationDescription_clear(&server->config.endpoints[i].server);
+        UA_ApplicationDescription_copy(&server->config.applicationDescription,
+                                       &server->config.endpoints[i].server);
+    }
+
     server->state = UA_SERVERLIFECYCLE_FRESH;
 
     return result;

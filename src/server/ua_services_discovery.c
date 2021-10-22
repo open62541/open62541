@@ -255,6 +255,10 @@ Service_GetEndpoints(UA_Server *server, UA_Session *session,
             if(nl_endpointurl)
                 endpointUrl = &server->config.networkLayers[i].discoveryUrl;
             retval |= UA_String_copy(endpointUrl, &response->endpoints[pos].endpointUrl);
+            /* Clear Endpoint URL */
+            UA_Array_delete(response->endpoints->server.discoveryUrls,
+                            response->endpoints->server.discoveryUrlsSize,
+                            &UA_TYPES[UA_TYPES_STRING]);
             retval |= UA_Array_copy(endpointUrl, 1,
                                     (void**)&response->endpoints[pos].server.discoveryUrls,
                                     &UA_TYPES[UA_TYPES_STRING]);
