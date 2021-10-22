@@ -20,6 +20,7 @@ import re
 import logging
 
 import sys
+
 if sys.version_info[0] >= 3:
     # strings are already parsed to unicode
     def unicode(s):
@@ -305,6 +306,7 @@ def generateExtensionObjectSubtypeCode(node, parent, nodeset, global_var_code, i
         if subv is None:
             continue
         encField = node.encodingRule[idx].name
+        encRule = node.encodingRule[idx]
         memberName = makeCIdentifier(lowerFirstChar(encField))
 
         # Check if this is an array
@@ -331,16 +333,11 @@ def generateExtensionObjectSubtypeCode(node, parent, nodeset, global_var_code, i
             continue
 
         logger.debug("Encoding of field " + memberName + " is " + str(subv.encodingRule) + "defined by " + str(encField))
-        if subv.valueRank is None or subv.valueRank == 0:
-            if not subv.isNone():
-                # Some values can be optional
-                valueName = instanceName + accessor + memberName
-                code.append(generateNodeValueCode(valueName,
-                            subv, instanceName,valueName, global_var_code, asIndirect=False, nodeset=nodeset))
-        else:
-            memberName = makeCIdentifier(lowerFirstChar(encField))
-            code.append(generateNodeValueCode(instanceName + accessor + memberName + "Size", subv,
-                                              instanceName,valueName, global_var_code, asIndirect=False))
+        if not subv.isNone():
+            # Some values can be optional
+            valueName = instanceName + accessor + memberName
+            code.append(generateNodeValueCode(valueName,
+                        subv, instanceName,valueName, global_var_code, asIndirect=False, nodeset=nodeset, encRule=encRule))
 
     if not isArrayElement:
         code.append("UA_Variant_setScalar(&attr.value, " + instanceName + ", &" + typeArrayString + ");")
