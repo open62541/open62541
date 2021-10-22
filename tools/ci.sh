@@ -58,7 +58,10 @@ function build_tpm_tool {
     mkdir -p build; cd build; rm -rf *
     cmake -DUA_BUILD_TOOLS=ON \
           -DUA_ENABLE_ENCRYPTION=MBEDTLS \
-          -DUA_ENABLE_ENCRYPTION_TPM2=KEYSTORE \
+          -DUA_ENABLE_ENCRYPTION_TPM2=ON \
+          -DUA_ENABLE_PUBSUB=ON \
+          -DUA_ENABLE_PUBSUB_ETH_UADP=ON \
+          -DUA_ENABLE_PUBSUB_ENCRYPTION=ON \
           ..
     make ${MAKEOPTS}
 }
