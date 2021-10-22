@@ -114,6 +114,12 @@ ns = NodeSet()
 nsCount = 0
 loadedFiles = list()
 
+# Remove duplicate entries in typesArray, which occur when a nodeset has more than one depend.
+tmp_list = []
+for e in args.typesArray:
+    if e not in tmp_list:
+        tmp_list.append(e)
+args.typesArray = tmp_list
 def getTypesArray(nsIdx):
     if nsIdx < len(args.typesArray):
         return args.typesArray[nsIdx]
