@@ -41,15 +41,17 @@ UA_DURATIONRANGE(UA_Duration min, UA_Duration max) {
     return range;
 }
 
+static UA_StatusCode
+setDefaultConfig(UA_ServerConfig *conf);
+
 UA_Server *
 UA_Server_new() {
     UA_ServerConfig config;
     memset(&config, 0, sizeof(UA_ServerConfig));
-    /* Set a default logger and NodeStore for the initialization */
-    config.logger = UA_Log_Stdout_;
-    if(UA_STATUSCODE_GOOD != UA_Nodestore_HashMap(&config.nodestore)) {
+
+    UA_StatusCode res = setDefaultConfig(&config);
+    if(res != UA_STATUSCODE_GOOD)
         return NULL;
-    }
 
     return UA_Server_newWithConfig(&config);
 }
