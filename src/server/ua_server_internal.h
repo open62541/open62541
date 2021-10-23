@@ -66,13 +66,13 @@ typedef enum {
 } UA_DiagnosticEvent;
 
 typedef struct channel_entry {
-    UA_TimerEntry cleanupCallback;
+    UA_DelayedCallback cleanupCallback;
     TAILQ_ENTRY(channel_entry) pointers;
     UA_SecureChannel channel;
 } channel_entry;
 
 typedef struct session_list_entry {
-    UA_TimerEntry cleanupCallback;
+    UA_DelayedCallback cleanupCallback;
     LIST_ENTRY(session_list_entry) pointers;
     UA_Session session;
 } session_list_entry;
@@ -110,9 +110,6 @@ struct UA_Server {
     /* Namespaces */
     size_t namespacesSize;
     UA_String *namespaces;
-
-    /* Callbacks with a repetition interval */
-    UA_Timer timer;
 
     /* For bootstrapping, omit some consistency checks, creating a reference to
      * the parent and member instantiation */
