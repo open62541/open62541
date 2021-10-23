@@ -12,6 +12,7 @@
  *    Copyright 2019 (c) HMS Industrial Networks AB (Author: Jonas Green)
  *    Copyright 2020 (c) Christian von Arnim, ISW University of Stuttgart (for VDW and umati)
  *    Copyright 2021 (c) Fraunhofer IOSB (Author: Andreas Ebner)
+ *    Copyright 2021 (c) Fraunhofer IOSB (Author: Jan Hermes)
  */
 
 #ifndef UA_SUBSCRIPTION_H_
@@ -101,7 +102,7 @@ typedef TAILQ_HEAD(NotificationMessageQueue, UA_NotificationMessageEntry)
 /*****************/
 
 struct UA_MonitoredItem {
-    UA_TimerEntry delayedFreePointers;
+    UA_DelayedCallback delayedFreePointers;
     LIST_ENTRY(UA_MonitoredItem) listEntry; /* Linked list in the Subscription */
     UA_MonitoredItem *next; /* Linked list of MonitoredItems directly attached
                              * to a Node. Initialized to ~0 to indicate that the
@@ -239,7 +240,7 @@ typedef enum {
  * may keep Subscriptions intact beyond the Session lifetime. They can then be
  * re-bound to a new Session with the TransferSubscription Service. */
 struct UA_Subscription {
-    UA_TimerEntry delayedFreePointers;
+    UA_DelayedCallback delayedFreePointers;
     LIST_ENTRY(UA_Subscription) serverListEntry;
     /* Ordered according to the priority byte and round-robin scheduling for
      * late subscriptions. See ua_session.h. Only set if session != NULL. */
@@ -332,7 +333,7 @@ UA_Server_evaluateWhereClauseContentFilter(UA_Server *server, UA_Session *sessio
                                            const UA_ContentFilter *contentFilter,
                                            UA_ContentFilterResult *contentFilterResult);
 #endif
- 
+
 /* Setting an integer value within bounds */
 #define UA_BOUNDEDVALUE_SETWBOUNDS(BOUNDS, SRC, DST) { \
         if(SRC > BOUNDS.max) DST = BOUNDS.max;         \
