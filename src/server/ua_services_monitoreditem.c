@@ -63,9 +63,10 @@ setAbsoluteFromPercentageDeadband(UA_Server *server, UA_Session *session,
     UA_Range *euRange = (UA_Range*)rangeVal.value.data;
     UA_Double absDeadband = (filter->deadbandValue/100.0) * (euRange->high - euRange->low);
 
+    UA_DataValue_clear(&rangeVal);
+
     /* EURange invalid or NaN? */
     if(absDeadband < 0.0 || absDeadband != absDeadband) {
-        UA_DataValue_clear(&rangeVal);
         return UA_STATUSCODE_BADMONITOREDITEMFILTERUNSUPPORTED;
     }
 

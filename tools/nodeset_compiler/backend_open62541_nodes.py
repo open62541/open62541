@@ -338,7 +338,7 @@ def generateExtensionObjectSubtypeCode(node, parent, nodeset, global_var_code, i
                 # Some values can be optional
                 valueName = instanceName + accessor + memberName
                 code.append(generateNodeValueCode(valueName,
-                            subv, instanceName,valueName, global_var_code, asIndirect=False))
+                            subv, instanceName,valueName, global_var_code, asIndirect=False, nodeset=nodeset))
         else:
             memberName = makeCIdentifier(lowerFirstChar(encField))
             code.append(generateNodeValueCode(instanceName + accessor + memberName + "Size", subv,

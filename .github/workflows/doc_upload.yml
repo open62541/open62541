@@ -1,0 +1,57 @@
+name: "Documentation Upload"
+
+on:
+  push:
+    branches: [ main, master ]
+    tags:
+      - v1.*
+
+jobs:
+  Documentation-Generation-And-Upload:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v2
+        with:
+          python-version: '3.x' # Version range or exact version of a Python version to use, using SemVer's version range syntax
+          architecture: 'x64' # optional x64 or x86. Defaults to x64 if not specified
+      - name: Install Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y -qq python3-sphinx graphviz python-six texlive-fonts-recommended texlive-latex-extra texlive-plain-generic texlive-latex-recommended latexmk
+          pip install sphinx-rtd-theme
+      - name: Build Documentation
+        run: source tools/ci.sh && build_docs_pdf
+      - name: Checkout Website Repository
+        uses: actions/checkout@v2
+        with:
+          repository: andreasebner/open62541-www-staging
+          path: open62541-www
+          persist-credentials: false
+      - name: Get the current branch name
+        shell: bash
+        run: echo "::set-output name=branch::${GITHUB_REF##*/}"
+        id: myref
+      - name: Copy Documentation Files to Website repository
+        run: |
+          rm -r -f ./open62541-www/static/doc/${{ steps.myref.outputs.branch }} || true # ignore result
+          mkdir ./open62541-www/static/doc/${{ steps.myref.outputs.branch }} || true # ignore result
+          cp -r /home/runner/work/open62541/open62541/build/doc/* ./open62541-www/static/doc/${{ steps.myref.outputs.branch }}
+          cp -r /home/runner/work/open62541/open62541/build/doc_latex/open62541.pdf ./open62541-www/static/doc/open62541-${{ steps.myref.outputs.branch }}.pdf
+      - name: Setup Git-Config Mail
+        run: |
+          cd ./open62541-www
+          git config --local user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+          git add -A ./static/doc
+          git commit -am "updated generated documentation on webpage by github-action [ci skip]"
+      - name: Push changes
+        uses: ad-m/github-push-action@master
+        with:
+          github_token: ${{ secrets.WWW_PUSH_TOKEN }}
+          directory: open62541-www
+          repository: open62541/open62541-www-staging
+          branch: master
+          force: true

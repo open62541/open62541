@@ -292,8 +292,7 @@ Detailed SDK Features
 **UA_ENABLE_ENCRYPTION_TPM2**
    Enable TPM hardware for encryption. The possible options are:
       - ``OFF`` No TPM encryption support. (default)
-      - ``PKCS11`` Encryption support using tpm2_pkcs11
-      - ``KEYSTORE`` Encryption of keys using TPM
+      - ``ON`` TPM encryption support
 
 **UA_NAMESPACE_ZERO**
 

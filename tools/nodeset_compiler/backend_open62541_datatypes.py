@@ -111,7 +111,7 @@ def generateDateTimeCode(value):
 def lowerFirstChar(inputString):
     return inputString[0].lower() + inputString[1:]
 
-def generateNodeValueCode(prepend , node, instanceName, valueName, global_var_code, asIndirect=False):
+def generateNodeValueCode(prepend , node, instanceName, valueName, global_var_code, asIndirect=False, nodeset=None):
     if type(node) in [Boolean, Byte, SByte, Int16, UInt16, Int32, UInt32, Int64, UInt64, Float, Double]:
         return prepend + " = (UA_" + node.__class__.__name__ + ") " + str(node.value) + ";"
     elif isinstance(node, String):
@@ -146,8 +146,29 @@ def generateNodeValueCode(prepend , node, instanceName, valueName, global_var_co
         return prepend + " = " + str(instanceName) + ";"
     elif isinstance(node, Structure):
         code = []
-        for subv in node.value:
-            code.append(generateNodeValueCode(prepend + "." + lowerFirstChar(subv.alias), subv, instanceName, valueName, global_var_code, asIndirect))
+        for idx,subv in enumerate(node.value):
+            if isinstance(subv, list):
+                if len(subv) == 0:
+                    continue
+                logger.info("Structure contains array")
+                accessor = "->"
+                encField = node.encodingRule[idx].name
+                memberName = makeCIdentifier(lowerFirstChar(encField))
+                encTypeString = "UA_" + subv[0].__class__.__name__
+                instanceNameSafe = makeCIdentifier(instanceName)
+                code.append("UA_STACKARRAY(" + encTypeString + ", " + instanceNameSafe + "_" + memberName+", {0});".format(len(subv)))
+                encTypeArr = nodeset.getDataTypeNode(subv[0].__class__.__name__).typesArray
+                encTypeArrayString = encTypeArr + "[" + encTypeArr + "_" + subv[0].__class__.__name__.upper() + "]"
+                code.append("UA_init({instanceName}, &{typeArrayString});".format(instanceName=instanceNameSafe + "_" + memberName,
+                                                                                typeArrayString=encTypeArrayString))
+
+                for subArrayIdx,val in enumerate(subv):
+                    code.append(generateNodeValueCode(instanceNameSafe + "_" + memberName + "[" + str(subArrayIdx) + "]",
+                                                    val, instanceName,instanceName + "_gehtNed_member", global_var_code, asIndirect=False))
+                code.append(instanceName + accessor + memberName + "Size = {0};".format(len(subv)))
+                code.append(instanceName + accessor + memberName + " = " + instanceNameSafe+"_"+ memberName+";")
+            else:
+                code.append(generateNodeValueCode(prepend + "." + lowerFirstChar(subv.alias), subv, instanceName, valueName, global_var_code, asIndirect))
         return "\n".join(code)
 
 

@@ -243,7 +243,8 @@ UA_Server_freezeWriterGroupConfiguration(UA_Server *server,
                                "PubSub-RT configuration fail: "
                                "PDS contains String/ByteString with dynamic length.");
                 return UA_STATUSCODE_BADNOTSUPPORTED;
-            } else if(!UA_DataType_isNumeric(UA_findDataType(&dsf->fieldMetaData.dataType))){
+            } else if(!UA_DataType_isNumeric(UA_findDataType(&dsf->fieldMetaData.dataType)) &&
+                      !UA_NodeId_equal(&dsf->fieldMetaData.dataType, &UA_TYPES[UA_TYPES_BOOLEAN].typeId)) {
                 UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
                                "PubSub-RT configuration fail: "
                                "PDS contains variable with dynamic size.");
