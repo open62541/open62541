@@ -77,6 +77,7 @@ UA_Server_createEvent(UA_Server *server, const UA_NodeId eventType,
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_USERLAND,
                      "Adding event failed. StatusCode %s", UA_StatusCode_name(retval));
+        UA_UNLOCK(&server->serviceMutex);
         return retval;
     }
 
