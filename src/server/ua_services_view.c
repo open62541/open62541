@@ -548,18 +548,24 @@ browseReferences(UA_Server *server, const UA_NodeHead *head,
         for(; i < head->referencesSize; ++i) {
             UA_NodeReferenceKind *rk = &head->references[i];
 
+            /* Was this the last transmitted ReferenceType? */
+            if(head->references[i].referenceTypeIndex != cp->nextRefKindIndex)
+                continue;
+
             /* Reference in the right direction? */
             if(rk->isInverse && bd->browseDirection == UA_BROWSEDIRECTION_FORWARD)
                 continue;
             if(!rk->isInverse && bd->browseDirection == UA_BROWSEDIRECTION_INVERSE)
                 continue;
 
-            /* Was this the last transmitted ReferenceType? If yes, get the next
-             * target to send out. */
-            if(head->references[i].referenceTypeIndex == cp->nextRefKindIndex) {
-                ref = UA_NodeReferenceKind_findTarget(rk, &cp->nextTarget);
+            /* Get the next target */
+            ref = UA_NodeReferenceKind_findTarget(rk, &cp->nextTarget);
+            if(ref)
                 break;
-            }
+
+            /* The target no longer exists for this ReferenceType (and
+             * direction). Continue to iterate for the case that a nodestore has
+             * a duplicate UA_NodeReferenceKind (should not happen though). */
         }
 
         /* Fail with an error if the reference no longer exists. */
