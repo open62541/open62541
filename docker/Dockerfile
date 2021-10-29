@@ -1,5 +1,5 @@
 FROM alpine:3.10
-RUN apk add --no-cache cmake gcc git g++ musl-dev mbedtls-dev python py-pip make && rm -rf /var/cache/apk/*
+RUN apk add --no-cache cmake gcc git g++ musl-dev mbedtls-dev python3 py3-pip make && rm -rf /var/cache/apk/*
 ADD . /opt/open62541
 
 # Get all the git tags to make sure we detect the correct version with git describe
@@ -16,7 +16,7 @@ RUN cmake -DBUILD_SHARED_LIBS=ON \
 		-DUA_BUILD_EXAMPLES=ON \
 		# Hardening needs to be disabled, otherwise the docker build takes too long and travis fails
 		-DUA_ENABLE_HARDENING=OFF \
-        -DUA_ENABLE_ENCRYPTION=ON \
+        -DUA_ENABLE_ENCRYPTION=MBEDTLS \
         -DUA_ENABLE_SUBSCRIPTIONS=ON \
         -DUA_ENABLE_SUBSCRIPTIONS_EVENTS=ON \
 		-DUA_NAMESPACE_ZERO=FULL \
@@ -26,10 +26,10 @@ RUN make install
 WORKDIR /opt/open62541
 
 # Generate certificates
-RUN apk add --no-cache python-dev linux-headers openssl && rm -rf /var/cache/apk/*
-RUN pip install netifaces==0.10.9
+RUN apk add --no-cache python3-dev linux-headers openssl && rm -rf /var/cache/apk/*
+RUN pip3 install --no-cache-dir netifaces==0.10.9
 RUN mkdir -p /opt/open62541/pki/created
-RUN python /opt/open62541/tools/certs/create_self-signed.py /opt/open62541/pki/created
+RUN python3 /opt/open62541/tools/certs/create_self-signed.py /opt/open62541/pki/created
 
 
 EXPOSE 4840

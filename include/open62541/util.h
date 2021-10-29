@@ -17,7 +17,7 @@ _UA_BEGIN_DECLS
 /**
  * Forward Declarations
  * --------------------
- * Opaque oointers used by the plugins. */
+ * Opaque pointers used by the plugins. */
 
 struct UA_Server;
 typedef struct UA_Server UA_Server;
@@ -25,8 +25,66 @@ typedef struct UA_Server UA_Server;
 struct UA_ServerConfig;
 typedef struct UA_ServerConfig UA_ServerConfig;
 
+typedef void (*UA_ServerCallback)(UA_Server *server, void *data);
+
 struct UA_Client;
 typedef struct UA_Client UA_Client;
+
+/* Timer policy to handle cycle misses */
+typedef enum {
+    UA_TIMER_HANDLE_CYCLEMISS_WITH_CURRENTTIME,
+    UA_TIMER_HANDLE_CYCLEMISS_WITH_BASETIME
+} UA_TimerPolicy;
+
+/**
+ * Key Value Map
+ * -------------
+ * Helper functions to work with configuration parameters in an array of
+ * UA_KeyValuePair. Lookup is linear. So this is for small numbers of
+ * keys. */
+
+/* Makes a copy of the value. Can reallocate the underlying array. This
+ * invalidates pointers into the previous array. If the key exists already, the
+ * value is overwritten. */
+UA_EXPORT UA_StatusCode
+UA_KeyValueMap_setQualified(UA_KeyValuePair **map, size_t *mapSize,
+                            const UA_QualifiedName *key,
+                            const UA_Variant *value);
+
+/* Simplified version that assumes the key is in namespace 0 */
+UA_EXPORT UA_StatusCode
+UA_KeyValueMap_set(UA_KeyValuePair **map, size_t *mapSize,
+                   const char *key, const UA_Variant *value);
+
+/* Returns a pointer into underlying array or NULL if the key is not found.*/
+UA_EXPORT const UA_Variant *
+UA_KeyValueMap_getQualified(UA_KeyValuePair *map, size_t mapSize,
+                            const UA_QualifiedName *key);
+
+/* Simplified version that assumes the key is in namespace 0 */
+UA_EXPORT const UA_Variant *
+UA_KeyValueMap_get(UA_KeyValuePair *map, size_t mapSize,
+                   const char *key);
+
+/* Returns NULL if the value for the key is not defined or not of the right
+ * datatype and scalar/array */
+UA_EXPORT const UA_Variant *
+UA_KeyValueMap_getScalar(UA_KeyValuePair *map, size_t mapSize,
+                         const char *key, const UA_DataType *type);
+
+UA_EXPORT const UA_Variant *
+UA_KeyValueMap_getArray(UA_KeyValuePair *map, size_t mapSize,
+                        const char *key, const UA_DataType *type);
+
+/* Remove a single entry. To delete the entire map, use UA_Array_delete. */
+UA_EXPORT void
+UA_KeyValueMap_deleteQualified(UA_KeyValuePair **map, size_t *mapSize,
+                               const UA_QualifiedName *key);
+
+/* Simplified version that assumes the key is in namespace 0 */
+UA_EXPORT void
+UA_KeyValueMap_delete(UA_KeyValuePair **map, size_t *mapSize,
+                      const char *key);
 
 /**
  * Endpoint URL Parser
@@ -133,7 +191,8 @@ UA_RelativePath_parse(UA_RelativePath *rp, const UA_String str);
 /**
  * Convenience macros for complex types
  * ------------------------------------ */
-#define UA_PRINTF_GUID_FORMAT "%08x-%04x-%04x-%02x%02x-%02x%02x%02x%02x%02x%02x"
+#define UA_PRINTF_GUID_FORMAT "%08" PRIx32 "-%04" PRIx16 "-%04" PRIx16 \
+    "-%02" PRIx8 "%02" PRIx8 "-%02" PRIx8 "%02" PRIx8 "%02" PRIx8 "%02" PRIx8 "%02" PRIx8 "%02" PRIx8
 #define UA_PRINTF_GUID_DATA(GUID) (GUID).data1, (GUID).data2, (GUID).data3, \
         (GUID).data4[0], (GUID).data4[1], (GUID).data4[2], (GUID).data4[3], \
         (GUID).data4[4], (GUID).data4[5], (GUID).data4[6], (GUID).data4[7]

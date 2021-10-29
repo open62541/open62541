@@ -17,7 +17,7 @@ if ! [ -z ${SONAR+x} ]; then
 	    -DUA_BUILD_EXAMPLES=ON \
         -DUA_ENABLE_DISCOVERY=ON \
         -DUA_ENABLE_DISCOVERY_MULTICAST=ON \
-        -DUA_ENABLE_ENCRYPTION=ON .. \
+        -DUA_ENABLE_ENCRYPTION=MBEDTLS .. \
     && make -j
 	cd ..
 	sonar-scanner
@@ -365,7 +365,7 @@ mkdir -p build && cd build
 cmake \
     -DPYTHON_EXECUTABLE:FILEPATH=/usr/bin/$PYTHON \
     -DUA_BUILD_EXAMPLES=ON \
-    -DUA_ENABLE_ENCRYPTION=ON ..
+    -DUA_ENABLE_ENCRYPTION=MBEDTLS ..
 make -j
 if [ $? -ne 0 ] ; then exit 1 ; fi
 cd .. && rm build -rf
@@ -430,7 +430,7 @@ cmake \
     -DUA_ENABLE_DA=ON \
     -DUA_ENABLE_DISCOVERY=ON \
     -DUA_ENABLE_DISCOVERY_MULTICAST=ON \
-    -DUA_ENABLE_ENCRYPTION=ON \
+    -DUA_ENABLE_ENCRYPTION=MBEDTLS \
     -DUA_ENABLE_JSON_ENCODING=ON \
     -DUA_ENABLE_PUBSUB=ON \
     -DUA_ENABLE_PUBSUB_DELTAFRAMES=ON \
@@ -458,7 +458,7 @@ if [ "$CC" != "tcc" ]; then
         -DUA_ENABLE_DA=ON \
         -DUA_ENABLE_DISCOVERY=ON \
         -DUA_ENABLE_DISCOVERY_MULTICAST=ON \
-        -DUA_ENABLE_ENCRYPTION=ON \
+        -DUA_ENABLE_ENCRYPTION=MBEDTLS \
         -DUA_ENABLE_JSON_ENCODING=ON \
         -DUA_ENABLE_PUBSUB=ON \
         -DUA_ENABLE_PUBSUB_DELTAFRAMES=ON \
@@ -506,7 +506,7 @@ if [ "$CC" != "tcc" ]; then
         -DUA_ENABLE_DA=ON \
         -DUA_ENABLE_DISCOVERY=ON \
         -DUA_ENABLE_DISCOVERY_MULTICAST=ON \
-        -DUA_ENABLE_ENCRYPTION=ON \
+        -DUA_ENABLE_ENCRYPTION=MBEDTLS \
         -DUA_ENABLE_JSON_ENCODING=ON \
         -DUA_ENABLE_PUBSUB=ON \
         -DUA_ENABLE_PUBSUB_DELTAFRAMES=ON \
@@ -516,6 +516,31 @@ if [ "$CC" != "tcc" ]; then
     make -j && make test ARGS="-V"
     if [ $? -ne 0 ] ; then exit 1 ; fi
     echo -en 'travis_fold:end:script.build.unit_test_ns0_reduced\\r'
+
+    echo -e "\r\n== Unit tests (reduced NS0 with malloc singleton and pubsub mem pool) ==" && echo -en 'travis_fold:start:script.build.unit_test_ns0_reduced\\r'
+    mkdir -p build && cd build
+    cmake \
+        -DCMAKE_BUILD_TYPE=Debug \
+        -DPYTHON_EXECUTABLE:FILEPATH=/usr/bin/$PYTHON \
+        -DUA_BUILD_EXAMPLES=ON \
+        -DUA_BUILD_UNIT_TESTS=ON \
+        -DUA_ENABLE_COVERAGE=ON \
+        -DUA_ENABLE_DA=ON \
+        -DUA_ENABLE_DISCOVERY=ON \
+        -DUA_ENABLE_DISCOVERY_MULTICAST=ON \
+        -DUA_ENABLE_ENCRYPTION=MBEDTLS \
+        -DUA_ENABLE_JSON_ENCODING=ON \
+        -DUA_ENABLE_PUBSUB=ON \
+        -DUA_ENABLE_PUBSUB_DELTAFRAMES=ON \
+        -DUA_ENABLE_PUBSUB_INFORMATIONMODEL=ON \
+        -UA_ENABLE_MALLOC_SINGLETON=ON \
+        -DUA_ENABLE_PUBSUB_BUFMALLOC=ON \
+        -DUA_ENABLE_UNIT_TESTS_MEMCHECK=ON \
+        -DUA_NAMESPACE_ZERO=REDUCED ..
+    make -j && make test ARGS="-V"
+    if [ $? -ne 0 ] ; then exit 1 ; fi
+    echo -en 'travis_fold:end:script.build.unit_test_ns0_reduced\\r'
+
 
     # only run coveralls on main repo and when MINGW=true
     # We only want to build coveralls once, so we just take the travis run where MINGW=true which is only enabled once

@@ -16,13 +16,12 @@
  */
 
 #include <open62541/transport_generated.h>
-#include <open62541/transport_generated_encoding_binary.h>
 #include <open62541/transport_generated_handling.h>
-#include <open62541/types_generated_encoding_binary.h>
 #include <open62541/types_generated_handling.h>
 #include "open62541/plugin/network.h"
 
 #include "ua_server_internal.h"
+#include "ua_types_encoding_binary.h"
 #include "ua_services.h"
 
 #ifdef FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
@@ -66,7 +65,9 @@ decodeHeaderSendServiceFault(UA_SecureChannel *channel, const UA_ByteString *msg
                              size_t offset, const UA_DataType *responseType,
                              UA_UInt32 requestId, UA_StatusCode error) {
     UA_RequestHeader requestHeader;
-    UA_StatusCode retval = UA_RequestHeader_decodeBinary(msg, &offset, &requestHeader);
+    UA_StatusCode retval =
+        UA_decodeBinaryInternal(msg, &offset, &requestHeader,
+                                &UA_TYPES[UA_TYPES_REQUESTHEADER], NULL);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
     retval = sendServiceFault(channel,  requestId, requestHeader.requestHandle,
@@ -115,18 +116,18 @@ getServicePointers(UA_UInt32 requestTypeId, const UA_DataType **requestType,
         break;
 #endif
     case UA_NS0ID_CREATESESSIONREQUEST_ENCODING_DEFAULTBINARY:
-        *service = (UA_Service)(uintptr_t)Service_CreateSession;
+        *service = (UA_Service)Service_CreateSession;
         *requestType = &UA_TYPES[UA_TYPES_CREATESESSIONREQUEST];
         *responseType = &UA_TYPES[UA_TYPES_CREATESESSIONRESPONSE];
         *requiresSession = false;
         break;
     case UA_NS0ID_ACTIVATESESSIONREQUEST_ENCODING_DEFAULTBINARY:
-        *service = (UA_Service)(uintptr_t)Service_ActivateSession;
+        *service = (UA_Service)Service_ActivateSession;
         *requestType = &UA_TYPES[UA_TYPES_ACTIVATESESSIONREQUEST];
         *responseType = &UA_TYPES[UA_TYPES_ACTIVATESESSIONRESPONSE];
         break;
     case UA_NS0ID_CLOSESESSIONREQUEST_ENCODING_DEFAULTBINARY:
-        *service = (UA_Service)(uintptr_t)Service_CloseSession;
+        *service = (UA_Service)Service_CloseSession;
         *requestType = &UA_TYPES[UA_TYPES_CLOSESESSIONREQUEST];
         *responseType = &UA_TYPES[UA_TYPES_CLOSESESSIONRESPONSE];
         break;
@@ -290,7 +291,9 @@ processHEL(UA_Server *server, UA_SecureChannel *channel, const UA_ByteString *ms
         return UA_STATUSCODE_BADINTERNALERROR;
     size_t offset = 0; /* Go to the beginning of the TcpHelloMessage */
     UA_TcpHelloMessage helloMessage;
-    UA_StatusCode retval = UA_TcpHelloMessage_decodeBinary(msg, &offset, &helloMessage);
+    UA_StatusCode retval =
+        UA_decodeBinaryInternal(msg, &offset, &helloMessage,
+                                &UA_TRANSPORT[UA_TRANSPORT_TCPHELLOMESSAGE], NULL);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
@@ -331,8 +334,12 @@ processHEL(UA_Server *server, UA_SecureChannel *channel, const UA_ByteString *ms
     /* Encode and send the response */
     UA_Byte *bufPos = ack_msg.data;
     const UA_Byte *bufEnd = &ack_msg.data[ack_msg.length];
-    retval |= UA_TcpMessageHeader_encodeBinary(&ackHeader, &bufPos, bufEnd);
-    retval |= UA_TcpAcknowledgeMessage_encodeBinary(&ackMessage, &bufPos, bufEnd);
+    retval |= UA_encodeBinaryInternal(&ackHeader,
+                                      &UA_TRANSPORT[UA_TRANSPORT_TCPMESSAGEHEADER],
+                                      &bufPos, &bufEnd, NULL, NULL);
+    retval |= UA_encodeBinaryInternal(&ackMessage,
+                                      &UA_TRANSPORT[UA_TRANSPORT_TCPACKNOWLEDGEMESSAGE],
+                                      &bufPos, &bufEnd, NULL, NULL);
     if(retval != UA_STATUSCODE_GOOD) {
         connection->releaseSendBuffer(connection, &ack_msg);
         return retval;
@@ -349,14 +356,14 @@ processHEL(UA_Server *server, UA_SecureChannel *channel, const UA_ByteString *ms
 static UA_StatusCode
 processOPN(UA_Server *server, UA_SecureChannel *channel,
            const UA_UInt32 requestId, const UA_ByteString *msg) {
-    if(channel->state != UA_SECURECHANNELSTATE_ACK_SENT && channel->state != UA_SECURECHANNELSTATE_OPEN)
+    if(channel->state != UA_SECURECHANNELSTATE_ACK_SENT &&
+       channel->state != UA_SECURECHANNELSTATE_OPEN)
         return UA_STATUSCODE_BADINTERNALERROR;
     /* Decode the request */
     UA_NodeId requestType;
     UA_OpenSecureChannelRequest openSecureChannelRequest;
     size_t offset = 0;
     UA_StatusCode retval = UA_NodeId_decodeBinary(msg, &offset, &requestType);
-
     if(retval != UA_STATUSCODE_GOOD) {
         UA_NodeId_clear(&requestType);
         UA_LOG_WARNING_CHANNEL(&server->config.logger, channel,
@@ -364,7 +371,8 @@ processOPN(UA_Server *server, UA_SecureChannel *channel,
         UA_Server_closeSecureChannel(server, channel, UA_DIAGNOSTICEVENT_REJECT);
         return retval;
     }
-    retval = UA_OpenSecureChannelRequest_decodeBinary(msg, &offset, &openSecureChannelRequest);
+    retval = UA_decodeBinaryInternal(msg, &offset, &openSecureChannelRequest,
+                                     &UA_TYPES[UA_TYPES_OPENSECURECHANNELREQUEST], NULL);
 
     /* Error occurred */
     if(retval != UA_STATUSCODE_GOOD ||
@@ -421,7 +429,7 @@ sendResponse(UA_Server *server, UA_Session *session, UA_SecureChannel *channel,
                              (unsigned)requestId, responseType->typeName);
 #else
         UA_LOG_DEBUG_SESSION(&server->config.logger, session,
-                             "Sending reponse for RequestId %u of type %" PRIi16,
+                             "Sending reponse for RequestId %u of type %" PRIu32,
                              (unsigned)requestId, responseType->binaryEncodingId.identifier.numeric);
 #endif
     } else {
@@ -431,7 +439,7 @@ sendResponse(UA_Server *server, UA_Session *session, UA_SecureChannel *channel,
                              (unsigned)requestId, responseType->typeName);
 #else
         UA_LOG_DEBUG_CHANNEL(&server->config.logger, channel,
-                             "Sending reponse for RequestId %u of type %" PRIi16,
+                             "Sending reponse for RequestId %u of type %" PRIu32,
                              (unsigned)requestId, responseType->binaryEncodingId.identifier.numeric);
 #endif
     }
@@ -443,7 +451,7 @@ sendResponse(UA_Server *server, UA_Session *session, UA_SecureChannel *channel,
         return retval;
 
     /* Assert's required for clang-analyzer */
-    UA_assert(mc.buf_pos == &mc.messageBuffer.data[UA_SECURE_MESSAGE_HEADER_LENGTH]);
+    UA_assert(mc.buf_pos == &mc.messageBuffer.data[UA_SECURECHANNEL_SYMMETRIC_HEADER_TOTALLENGTH]);
     UA_assert(mc.buf_end <= &mc.messageBuffer.data[mc.messageBuffer.length]);
 
     /* Encode the response type */
@@ -517,9 +525,9 @@ processMSGDecoded(UA_Server *server, UA_SecureChannel *channel, UA_UInt32 reques
     if(requestType == &UA_TYPES[UA_TYPES_CREATESESSIONREQUEST] ||
        requestType == &UA_TYPES[UA_TYPES_ACTIVATESESSIONREQUEST] ||
        requestType == &UA_TYPES[UA_TYPES_CLOSESESSIONREQUEST]) {
-        UA_LOCK(server->serviceMutex);
-        ((UA_ChannelService)(uintptr_t)service)(server, channel, request, response);
-        UA_UNLOCK(server->serviceMutex);
+        UA_LOCK(&server->serviceMutex);
+        ((UA_ChannelService)service)(server, channel, request, response);
+        UA_UNLOCK(&server->serviceMutex);
 #ifdef FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
         /* Store the authentication token so we can help fuzzing by setting
          * these values in the next request automatically */
@@ -533,11 +541,11 @@ processMSGDecoded(UA_Server *server, UA_SecureChannel *channel, UA_UInt32 reques
 
     /* Get the Session bound to the SecureChannel (not necessarily activated) */
     UA_Session *session = NULL;
-    UA_StatusCode retval = UA_STATUSCODE_GOOD;
     if(!UA_NodeId_isNull(&requestHeader->authenticationToken)) {
-        UA_LOCK(server->serviceMutex);
-        retval = getBoundSession(server, channel, &requestHeader->authenticationToken, &session);
-        UA_UNLOCK(server->serviceMutex);
+        UA_LOCK(&server->serviceMutex);
+        UA_StatusCode retval = getBoundSession(
+            server, channel, &requestHeader->authenticationToken, &session);
+        UA_UNLOCK(&server->serviceMutex);
         if(retval != UA_STATUSCODE_GOOD)
             return sendServiceFault(channel, requestId, requestHeader->requestHandle,
                                     responseType, retval);
@@ -553,7 +561,7 @@ processMSGDecoded(UA_Server *server, UA_SecureChannel *channel, UA_UInt32 reques
                                    requestType->typeName);
 #else
             UA_LOG_WARNING_CHANNEL(&server->config.logger, channel,
-                                   "Service %" PRIi16 " refused without a valid session",
+                                   "Service %" PRIu32 " refused without a valid session",
                                    requestType->binaryEncodingId.identifier.numeric);
 #endif
             return sendServiceFault(channel, requestId, requestHeader->requestHandle,
@@ -576,14 +584,14 @@ processMSGDecoded(UA_Server *server, UA_SecureChannel *channel, UA_UInt32 reques
                                requestType->typeName);
 #else
         UA_LOG_WARNING_SESSION(&server->config.logger, session,
-                               "Service %" PRIi16 " refused on a non-activated session",
+                               "Service %" PRIu32 " refused on a non-activated session",
                                requestType->binaryEncodingId.identifier.numeric);
 #endif
         if(session != &anonymousSession) {
-            UA_LOCK(server->serviceMutex);
+            UA_LOCK(&server->serviceMutex);
             UA_Server_removeSessionByToken(server, &session->header.authenticationToken,
                                            UA_DIAGNOSTICEVENT_ABORT);
-            UA_UNLOCK(server->serviceMutex);
+            UA_UNLOCK(&server->serviceMutex);
         }
         return sendServiceFault(channel, requestId, requestHeader->requestHandle,
                                 responseType, UA_STATUSCODE_BADSESSIONNOTACTIVATED);
@@ -595,9 +603,9 @@ processMSGDecoded(UA_Server *server, UA_SecureChannel *channel, UA_UInt32 reques
 #ifdef UA_ENABLE_SUBSCRIPTIONS
     /* The publish request is not answered immediately */
     if(requestType == &UA_TYPES[UA_TYPES_PUBLISHREQUEST]) {
-        UA_LOCK(server->serviceMutex);
+        UA_LOCK(&server->serviceMutex);
         Service_Publish(server, session, &request->publishRequest, requestId);
-        UA_UNLOCK(server->serviceMutex);
+        UA_UNLOCK(&server->serviceMutex);
         return UA_STATUSCODE_GOOD;
     }
 #endif
@@ -606,10 +614,10 @@ processMSGDecoded(UA_Server *server, UA_SecureChannel *channel, UA_UInt32 reques
     /* The call request might not be answered immediately */
     if(requestType == &UA_TYPES[UA_TYPES_CALLREQUEST]) {
         UA_Boolean finished = true;
-        UA_LOCK(server->serviceMutex);
+        UA_LOCK(&server->serviceMutex);
         Service_CallAsync(server, session, requestId, &request->callRequest,
                           &response->callResponse, &finished);
-        UA_UNLOCK(server->serviceMutex);
+        UA_UNLOCK(&server->serviceMutex);
 
         /* Async method calls remain. Don't send a response now */
         if(!finished)
@@ -621,9 +629,9 @@ processMSGDecoded(UA_Server *server, UA_SecureChannel *channel, UA_UInt32 reques
 #endif
 
     /* Dispatch the synchronous service call and send the response */
-    UA_LOCK(server->serviceMutex);
+    UA_LOCK(&server->serviceMutex);
     service(server, session, request, response);
-    UA_UNLOCK(server->serviceMutex);
+    UA_UNLOCK(&server->serviceMutex);
     return sendResponse(server, session, channel, requestId, response, responseType);
 }
 
@@ -652,9 +660,10 @@ processMSG(UA_Server *server, UA_SecureChannel *channel,
     getServicePointers(requestTypeId.identifier.numeric, &requestType,
                        &responseType, &service, &sessionRequired);
     if(!requestType) {
-        if(requestTypeId.identifier.numeric == 787) {
+        if(requestTypeId.identifier.numeric ==
+           UA_NS0ID_CREATESUBSCRIPTIONREQUEST_ENCODING_DEFAULTBINARY) {
             UA_LOG_INFO_CHANNEL(&server->config.logger, channel,
-                                "Client requested a subscription, " \
+                                "Client requested a subscription, "
                                 "but those are not enabled in the build");
         } else {
             UA_LOG_INFO_CHANNEL(&server->config.logger, channel,
@@ -669,7 +678,8 @@ processMSG(UA_Server *server, UA_SecureChannel *channel,
 
     /* Decode the request */
     UA_Request request;
-    retval = UA_decodeBinary(msg, &offset, &request, requestType, server->config.customDataTypes);
+    retval = UA_decodeBinaryInternal(msg, &offset, &request,
+                                     requestType, server->config.customDataTypes);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_DEBUG_CHANNEL(&server->config.logger, channel,
                              "Could not decode the request with StatusCode %s",

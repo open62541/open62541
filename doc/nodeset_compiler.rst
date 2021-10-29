@@ -1,7 +1,7 @@
 XML Nodeset Compiler
 --------------------
 
-When writing an application, it is more comfortable to create information models using some GUI tools. Most tools can export data according the OPC UA Nodeset XML schema. open62541 contains a python based nodeset compiler that can transform these information model definitions into a working server.
+When writing an application, it is more comfortable to create information models using some GUI tools. Most tools can export data according the OPC UA Nodeset XML schema. open62541 contains a Python based nodeset compiler that can transform these information model definitions into a working server.
 
 Note that the nodeset compiler you can find in the *tools/nodeset_compiler* subfolder is *not* an XML transformation tool but a compiler. That means that it will create an internal representation when parsing the XML files and attempt to understand and verify the correctness of this representation in order to generate C Code.
 
@@ -302,7 +302,7 @@ Here are some examples for the ``DI`` and ``PLCOpen`` nodesets::
     ua_generate_nodeset_and_datatypes(
         NAME "plc"
         # PLCopen does not define custom types. Only generate the nodeset
-        FILE_NS "${PROJECT_SOURCE_DIR}/deps/ua-nodeset/PLCopen/Opc.Ua.Plc.NodeSet2.xml"
+        FILE_NS "${PROJECT_SOURCE_DIR}/deps/ua-nodeset/PLCopen/Opc.Ua.PLCopen.NodeSet2_V1.02.xml"
         # PLCopen depends on the di nodeset, which must be generated before
         DEPENDS "di"
     )
@@ -312,7 +312,7 @@ Creating object instances
 
 One of the key benefits of defining object types is being able to create object instances fairly easily. Object instantiation is handled automatically when the typedefinition NodeId points to a valid ObjectType node. All Attributes and Methods contained in the objectType definition will be instantiated along with the object node.
 
-While variables are copied from the objetType definition (allowing the user for example to attach new dataSources to them), methods are always only linked. This paradigm is identical to languages like C++: The method called is always the same piece of code, but the first argument is a pointer to an object. Likewise, in OPC UA, only one methodCallback can be attached to a specific methodNode. If that methodNode is called, the parent objectId will be passed to the method - it is the methods job to derefence which object instance it belongs to in that moment.
+While variables are copied from the objectType definition (allowing the user for example to attach new dataSources to them), methods are always only linked. This paradigm is identical to languages like C++: The method called is always the same piece of code, but the first argument is a pointer to an object. Likewise, in OPC UA, only one methodCallback can be attached to a specific methodNode. If that methodNode is called, the parent objectId will be passed to the method - it is the methods job to derefence which object instance it belongs to in that moment.
 
 Let's look at an example that will create a pump instance given the newly defined objectType from myNS.xml:
 
@@ -387,13 +387,13 @@ If you start the server and inspect the nodes with UA Expert, you will find the 
 
    Instantiated Pump Object with inherited children
 
-As you can see the pump has inherited it's parents attributes (ManufacturerName and ModelName). Methods, in contrast to objects and variables, are never cloned but instead only linked. The reason is that you will quite propably attach a method callback to a central method, not each object. Objects are instantiated if they are *below* the object you are creating, so any object (like an object called associatedServer of ServerType) that is part of pump will be instantiated as well. Objects *above* you object are never instantiated, so the same ServerType object in Fielddevices would have been ommitted (the reason is that the recursive instantiation function protects itself from infinite recursions, which are hard to track when first ascending, then redescending into a tree).
+As you can see the pump has inherited its parents attributes (ManufacturerName and ModelName). Methods, in contrast to objects and variables, are never cloned but instead only linked. The reason is that you will quite propably attach a method callback to a central method, not each object. Objects are instantiated if they are *below* the object you are creating, so any object (like an object called associatedServer of ServerType) that is part of pump will be instantiated as well. Objects *above* you object are never instantiated, so the same ServerType object in Fielddevices would have been omitted (the reason is that the recursive instantiation function protects itself from infinite recursions, which are hard to track when first ascending, then redescending into a tree).
 
 
 Combination of multiple nodesets
 ................................
 
-In previous section you have seen how you can use the nodeset compiler with one single nodeset which depends on the default nodeset (NS0) ``Opc.Ua.NodeSet2.xml``. The nodeset compiler also supports nodesets which depend on more than one nodeset. We will show this use-case with the PLCopen nodeset. The PLCopen nodeset ``Opc.Ua.Plc.NodeSet2.xml`` depends on the DI nodeset ``Opc.Ua.Di.NodeSet2.xml`` which then depends on NS0. This example is also shown in ``examples/nodeset/CMakeLists.txt``.
+In the previous section you have seen how you can use the nodeset compiler with one single nodeset which depends on the default nodeset (NS0) ``Opc.Ua.NodeSet2.xml``. The nodeset compiler also supports nodesets which depend on more than one nodeset. We will show this use-case with the PLCopen nodeset. The PLCopen nodeset ``Opc.Ua.PLCopen.NodeSet2_V1.02.xml`` depends on the DI nodeset ``Opc.Ua.Di.NodeSet2.xml`` which then depends on NS0. This example is also shown in ``examples/nodeset/CMakeLists.txt``.
 
 This DI nodeset makes use of some additional data types in ``deps/ua-nodeset/DI/Opc.Ua.Di.Types.bsd``. Since we also need these types within the generated code, we first need to compile the types into C code. The generated code is mainly a definition of the binary representation of the types required for encoding and decoding. The generation can be done using the ``ua_generate_datatypes`` CMake function, which uses the ``tools/generate_datatypes.py`` script::
 
@@ -429,7 +429,7 @@ Next we can generate the PLCopen nodeset. Since it doesn't require any additiona
 
     ua_generate_nodeset(
         NAME "plc"
-        FILE "${PROJECT_SOURCE_DIR}/deps/ua-nodeset/PLCopen/Opc.Ua.Plc.NodeSet2.xml"
+        FILE "${PROJECT_SOURCE_DIR}/deps/ua-nodeset/PLCopen/Opc.Ua.PLCopen.NodeSet2_V1.02.xml"
         INTERNAL
         DEPENDS_TYPES
             "UA_TYPES" "UA_TYPES_DI"
@@ -439,7 +439,7 @@ Next we can generate the PLCopen nodeset. Since it doesn't require any additiona
         DEPENDS_TARGET "open62541-generator-ns-di"
     )
 
-This call is quite similar to the compilation of the DI nodeset. As you can see, we do not define any specific types array for the PLCopen nodeset. Since the PLCopen nodeset depends on the NS0 and DI nodeset, we need to tell the nodeset compiler that these two nodesets should be seen as already existing. Make sure that the order is the same as in your XML file, e.g., in this case the order indicated in ``Opc.Ua.Plc.NodeSet2.xml -> UANodeSet -> Models -> Model``.
+This call is quite similar to the compilation of the DI nodeset. As you can see, we do not define any specific types array for the PLCopen nodeset. Since the PLCopen nodeset depends on the NS0 and DI nodeset, we need to tell the nodeset compiler that these two nodesets should be seen as already existing. Make sure that the order is the same as in your XML file, e.g., in this case the order indicated in ``Opc.Ua.PLCopen.NodeSet2_V1.02.xml -> UANodeSet -> Models -> Model``.
 
 As a result of the previous scripts you will have multiple source files:
 

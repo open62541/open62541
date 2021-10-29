@@ -7,11 +7,10 @@
  */
 
 #include <open62541/transport_generated.h>
-#include <open62541/transport_generated_encoding_binary.h>
 #include <open62541/transport_generated_handling.h>
-#include <open62541/types_generated_encoding_binary.h>
 
 #include "ua_client_internal.h"
+#include "ua_types_encoding_binary.h"
 
 #define UA_MINMESSAGESIZE 8192
 #define UA_SESSION_LOCALNONCELENGTH 32
@@ -31,13 +30,13 @@ getSecurityPolicy(UA_Client *client, UA_String policyUri) {
 
 static UA_Boolean
 endpointUnconfigured(UA_Client *client) {
-    UA_Byte test = 0;
-    UA_Byte *pos = (UA_Byte*)&client->config.endpoint;
+    char test = 0;
+    char *pos = (char *)&client->config.endpoint;
     for(size_t i = 0; i < sizeof(UA_EndpointDescription); i++)
-        test = test | pos[i];
-    pos = (UA_Byte*)&client->config.userTokenPolicy;
+        test = test | *(pos + i);
+    pos = (char *)&client->config.userTokenPolicy;
     for(size_t i = 0; i < sizeof(UA_UserTokenPolicy); i++)
-        test = test | pos[i];
+        test = test | *(pos + i);
     return (test == 0);
 }
 
@@ -56,7 +55,7 @@ signActivateSessionRequest(UA_Client *client, UA_SecureChannel *channel,
 
     /* Prepare the signature */
     size_t signatureSize = sp->certificateSigningAlgorithm.
-        getLocalSignatureSize(sp, channel->channelContext);
+        getLocalSignatureSize(channel->channelContext);
     UA_StatusCode retval = UA_String_copy(&sp->certificateSigningAlgorithm.uri,
                                           &sd->algorithm);
     if(retval != UA_STATUSCODE_GOOD)
@@ -81,7 +80,7 @@ signActivateSessionRequest(UA_Client *client, UA_SecureChannel *channel,
            channel->remoteCertificate.length);
     memcpy(dataToSign.data + channel->remoteCertificate.length,
            client->remoteNonce.data, client->remoteNonce.length);
-    retval = sp->certificateSigningAlgorithm.sign(sp, channel->channelContext,
+    retval = sp->certificateSigningAlgorithm.sign(channel->channelContext,
                                                   &dataToSign, &sd->signature);
 
     /* Clean up */
@@ -132,19 +131,19 @@ encryptUserIdentityToken(UA_Client *client, const UA_String *userTokenSecurityPo
     
     /* Compute the encrypted length (at least one byte padding) */
     size_t plainTextBlockSize = sp->asymmetricModule.cryptoModule.
-        encryptionAlgorithm.getRemotePlainTextBlockSize(sp, channelContext);
+        encryptionAlgorithm.getRemotePlainTextBlockSize(channelContext);
+    size_t encryptedBlockSize = sp->asymmetricModule.cryptoModule.
+        encryptionAlgorithm.getRemoteBlockSize(channelContext);
     UA_UInt32 length = (UA_UInt32)(tokenData->length + client->remoteNonce.length);
     UA_UInt32 totalLength = length + 4; /* Including the length field */
     size_t blocks = totalLength / plainTextBlockSize;
-    if(totalLength  % plainTextBlockSize != 0)
+    if(totalLength % plainTextBlockSize != 0)
         blocks++;
-    size_t overHead =
-        UA_SecurityPolicy_getRemoteAsymEncryptionBufferLengthOverhead(sp, channelContext,
-                                                                      blocks * plainTextBlockSize);
+    size_t encryptedLength = blocks * encryptedBlockSize;
 
     /* Allocate memory for encryption overhead */
     UA_ByteString encrypted;
-    retval = UA_ByteString_allocBuffer(&encrypted, (blocks * plainTextBlockSize) + overHead);
+    retval = UA_ByteString_allocBuffer(&encrypted, encryptedLength);
     if(retval != UA_STATUSCODE_GOOD) {
         sp->channelModule.deleteContext(channelContext);
         return UA_STATUSCODE_BADOUTOFMEMORY;
@@ -152,9 +151,10 @@ encryptUserIdentityToken(UA_Client *client, const UA_String *userTokenSecurityPo
 
     UA_Byte *pos = encrypted.data;
     const UA_Byte *end = &encrypted.data[encrypted.length];
-    UA_UInt32_encodeBinary(&length, &pos, end);
+    retval = UA_UInt32_encodeBinary(&length, &pos, end);
     memcpy(pos, tokenData->data, tokenData->length);
     memcpy(&pos[tokenData->length], client->remoteNonce.data, client->remoteNonce.length);
+    UA_assert(retval == UA_STATUSCODE_GOOD);
 
     /* Add padding
      *
@@ -168,8 +168,8 @@ encryptUserIdentityToken(UA_Client *client, const UA_String *userTokenSecurityPo
     encrypted.length = paddedLength;
 
     retval = sp->asymmetricModule.cryptoModule.encryptionAlgorithm.
-        encrypt(sp, channelContext, &encrypted);
-    encrypted.length = (blocks * plainTextBlockSize) + overHead;
+        encrypt(channelContext, &encrypted);
+    encrypted.length = encryptedLength;
 
     if(iit) {
         retval |= UA_String_copy(&sp->asymmetricModule.cryptoModule.encryptionAlgorithm.uri,
@@ -213,7 +213,7 @@ checkCreateSessionSignature(UA_Client *client, const UA_SecureChannel *channel,
     memcpy(dataToVerify.data + lc->length,
            client->localNonce.data, client->localNonce.length);
 
-    retval = sp->certificateSigningAlgorithm.verify(sp, channel->channelContext, &dataToVerify,
+    retval = sp->certificateSigningAlgorithm.verify(channel->channelContext, &dataToVerify,
                                                     &response->serverSignature.signature);
     UA_ByteString_clear(&dataToVerify);
     return retval;
@@ -231,7 +231,9 @@ processERRResponse(UA_Client *client, const UA_ByteString *chunk) {
 
     size_t offset = 0;
     UA_TcpErrorMessage errMessage;
-    UA_StatusCode res = UA_TcpErrorMessage_decodeBinary(chunk, &offset, &errMessage);
+    UA_StatusCode res =
+        UA_decodeBinaryInternal(chunk, &offset, &errMessage,
+                                &UA_TRANSPORT[UA_TRANSPORT_TCPERRORMESSAGE], NULL);
     if(res != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR_CHANNEL(&client->config.logger, &client->channel,
                              "Received an ERR response that could not be decoded with StatusCode %s",
@@ -262,7 +264,9 @@ processACKResponse(UA_Client *client, const UA_ByteString *chunk) {
     /* Decode the message */
     size_t offset = 0;
     UA_TcpAcknowledgeMessage ackMessage;
-    client->connectStatus = UA_TcpAcknowledgeMessage_decodeBinary(chunk, &offset, &ackMessage);
+    client->connectStatus =
+        UA_decodeBinaryInternal(chunk, &offset, &ackMessage,
+                                &UA_TRANSPORT[UA_TRANSPORT_TCPACKNOWLEDGEMESSAGE], NULL);
     if(client->connectStatus != UA_STATUSCODE_GOOD) {
         UA_LOG_INFO(&client->config.logger, UA_LOGCATEGORY_NETWORK,
                      "Decoding ACK message failed");
@@ -303,14 +307,18 @@ sendHELMessage(UA_Client *client) {
 
     UA_Byte *bufPos = &message.data[8]; /* skip the header */
     const UA_Byte *bufEnd = &message.data[message.length];
-    client->connectStatus = UA_TcpHelloMessage_encodeBinary(&hello, &bufPos, bufEnd);
+    client->connectStatus =
+        UA_encodeBinaryInternal(&hello, &UA_TRANSPORT[UA_TRANSPORT_TCPHELLOMESSAGE],
+                                &bufPos, &bufEnd, NULL, NULL);
 
     /* Encode the message header at offset 0 */
     UA_TcpMessageHeader messageHeader;
     messageHeader.messageTypeAndChunkType = UA_CHUNKTYPE_FINAL + UA_MESSAGETYPE_HEL;
     messageHeader.messageSize = (UA_UInt32) ((uintptr_t)bufPos - (uintptr_t)message.data);
     bufPos = message.data;
-    retval = UA_TcpMessageHeader_encodeBinary(&messageHeader, &bufPos, bufEnd);
+    retval = UA_encodeBinaryInternal(&messageHeader,
+                                     &UA_TRANSPORT[UA_TRANSPORT_TCPMESSAGEHEADER],
+                                     &bufPos, &bufEnd, NULL, NULL);
     if(retval != UA_STATUSCODE_GOOD) {
         conn->releaseSendBuffer(conn, &message);
         return retval;
@@ -349,7 +357,8 @@ processOPNResponse(UA_Client *client, const UA_ByteString *message) {
 
     /* Decode the response */
     UA_OpenSecureChannelResponse response;
-    retval = UA_OpenSecureChannelResponse_decodeBinary(message, &offset, &response);
+    retval = UA_decodeBinaryInternal(message, &offset, &response,
+                                     &UA_TYPES[UA_TYPES_OPENSECURECHANNELRESPONSE], NULL);
     if(retval != UA_STATUSCODE_GOOD) {
         closeSecureChannel(client);
         return;
@@ -515,6 +524,15 @@ activateSessionAsync(UA_Client *client) {
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
+    if (client->config.sessionLocaleIdsSize && client->config.sessionLocaleIds) {
+        retval = UA_Array_copy(client->config.sessionLocaleIds, client->config.sessionLocaleIdsSize,
+                               (void **)&request.localeIds, &UA_TYPES[UA_TYPES_LOCALEID]);
+        if (retval != UA_STATUSCODE_GOOD)
+            return retval;
+
+        request.localeIdsSize = client->config.sessionLocaleIdsSize;
+    }
+
     /* If not token is set, use anonymous */
     if(request.userIdentityToken.encoding == UA_EXTENSIONOBJECT_ENCODED_NOBODY) {
         UA_AnonymousIdentityToken *t = UA_AnonymousIdentityToken_new();
@@ -546,8 +564,15 @@ activateSessionAsync(UA_Client *client) {
                                             &UA_TYPES[UA_TYPES_ACTIVATESESSIONREQUEST],
                                             (UA_ClientAsyncServiceCallback) responseActivateSession,
                                             &UA_TYPES[UA_TYPES_ACTIVATESESSIONRESPONSE], NULL, NULL);
+
     UA_ActivateSessionRequest_clear(&request);
-    client->sessionState = UA_SESSIONSTATE_ACTIVATE_REQUESTED;
+    if(retval == UA_STATUSCODE_GOOD)
+        client->sessionState = UA_SESSIONSTATE_ACTIVATE_REQUESTED;
+    else
+        UA_LOG_ERROR(&client->config.logger, UA_LOGCATEGORY_CLIENT,
+                           "ActivateSession failed when sending the request with error code %s",
+                           UA_StatusCode_name(retval));
+
     return retval;
 }
 
@@ -687,8 +712,8 @@ responseGetEndpoints(UA_Client *client, void *userdata, UA_UInt32 requestId,
 
             /* Log the selected endpoint */
             UA_LOG_INFO(&client->config.logger, UA_LOGCATEGORY_CLIENT,
-                        "Selected Endpoint %.*s with SecurityMode %s and SecurityPolicy %.*s",
-                        (int)endpoint->endpointUrl.length, endpoint->endpointUrl.data,
+                        "Selected endpoint %lu in URL %.*s with SecurityMode %s and SecurityPolicy %.*s",
+                        (long unsigned)i, (int)endpoint->endpointUrl.length, endpoint->endpointUrl.data,
                         securityModeNames[endpoint->securityMode - 1],
                         (int)endpoint->securityPolicyUri.length,
                         endpoint->securityPolicyUri.data);
@@ -741,13 +766,17 @@ requestGetEndpoints(UA_Client *client) {
     request.requestHeader.timestamp = UA_DateTime_now();
     request.requestHeader.timeoutHint = 10000;
     request.endpointUrl = client->endpointUrl;
-    client->connectStatus =
+    UA_StatusCode retval =
         UA_Client_sendAsyncRequest(client, &request, &UA_TYPES[UA_TYPES_GETENDPOINTSREQUEST],
                                    (UA_ClientAsyncServiceCallback) responseGetEndpoints,
                                    &UA_TYPES[UA_TYPES_GETENDPOINTSRESPONSE], NULL, NULL);
-    if(client->connectStatus == UA_STATUSCODE_GOOD)
+    if(retval == UA_STATUSCODE_GOOD)
         client->endpointsHandshake = true;
-    return client->connectStatus;
+    else
+        UA_LOG_ERROR(&client->config.logger, UA_LOGCATEGORY_CLIENT,
+                           "RequestGetEndpoints failed when sending the request with error code %s",
+                           UA_StatusCode_name(retval));
+    return retval;
 }
 
 static void
@@ -806,7 +835,8 @@ createSessionAsync(UA_Client *client) {
                 return retval;
         }
         retval = client->channel.securityPolicy->symmetricModule.
-                 generateNonce(client->channel.securityPolicy, &client->localNonce);
+                 generateNonce(client->channel.securityPolicy->policyContext,
+                               &client->localNonce);
         if(retval != UA_STATUSCODE_GOOD)
             return retval;
     }
@@ -836,9 +866,12 @@ createSessionAsync(UA_Client *client) {
 
     if(retval == UA_STATUSCODE_GOOD)
         client->sessionState = UA_SESSIONSTATE_CREATE_REQUESTED;
+    else
+        UA_LOG_ERROR(&client->config.logger, UA_LOGCATEGORY_CLIENT,
+                           "CreateSession failed when sending the request with error code %s",
+                           UA_StatusCode_name(retval));
 
-    client->connectStatus = retval;
-    return client->connectStatus;
+    return retval;
 }
 
 static UA_StatusCode
@@ -935,11 +968,11 @@ connectIterate(UA_Client *client, UA_UInt32 timeout) {
     switch(client->sessionState) {
     case UA_SESSIONSTATE_CLOSED:
         if(!endpointUnconfigured(client)) {
-            createSessionAsync(client);
+            client->connectStatus = createSessionAsync(client);
             return client->connectStatus;
         }
         if(!client->endpointsHandshake) {
-            requestGetEndpoints(client);
+            client->connectStatus = requestGetEndpoints(client);
             return client->connectStatus;
         }
         receiveResponseAsync(client, timeout);
@@ -949,7 +982,7 @@ connectIterate(UA_Client *client, UA_UInt32 timeout) {
         receiveResponseAsync(client, timeout);
         return client->connectStatus;
     case UA_SESSIONSTATE_CREATED:
-        activateSessionAsync(client);
+        client->connectStatus = activateSessionAsync(client);
         return client->connectStatus;
     default:
         break;

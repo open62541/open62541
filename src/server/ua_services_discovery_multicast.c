@@ -12,7 +12,7 @@
 
 #if defined(UA_ENABLE_DISCOVERY) && defined(UA_ENABLE_DISCOVERY_MULTICAST)
 
-#if UA_MULTITHREADING >= 200
+#if UA_MULTITHREADING >= 100
 
 static void *
 multicastWorkerLoop(UA_Server *server) {
@@ -111,7 +111,7 @@ void startMulticastDiscoveryServer(UA_Server *server) {
     /* find any other server on the net */
     UA_Discovery_multicastQuery(server);
 
-#if UA_MULTITHREADING >= 200
+#if UA_MULTITHREADING >= 100
     multicastListenStart(server);
 # endif
 }
@@ -138,7 +138,7 @@ stopMulticastDiscoveryServer(UA_Server *server) {
 
     }
 
-#if UA_MULTITHREADING >= 200
+#if UA_MULTITHREADING >= 100
     multicastListenStop(server);
 # else
     // send out last package with TTL = 0
@@ -174,7 +174,7 @@ entryMatchesCapabilityFilter(size_t serverCapabilityFilterSize, UA_String *serve
 void Service_FindServersOnNetwork(UA_Server *server, UA_Session *session,
                                   const UA_FindServersOnNetworkRequest *request,
                                   UA_FindServersOnNetworkResponse *response) {
-    UA_LOCK_ASSERT(server->serviceMutex, 1);
+    UA_LOCK_ASSERT(&server->serviceMutex, 1);
 
     if (!server->config.mdnsEnabled) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADNOTIMPLEMENTED;
@@ -278,10 +278,10 @@ void
 UA_Server_setServerOnNetworkCallback(UA_Server *server,
                                      UA_Server_serverOnNetworkCallback cb,
                                      void* data) {
-    UA_LOCK(server->serviceMutex);
+    UA_LOCK(&server->serviceMutex);
     server->discoveryManager.serverOnNetworkCallback = cb;
     server->discoveryManager.serverOnNetworkCallbackData = data;
-    UA_UNLOCK(server->serviceMutex);
+    UA_UNLOCK(&server->serviceMutex);
 }
 
 static void

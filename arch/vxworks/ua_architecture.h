@@ -69,6 +69,7 @@
 #define UA_recv recv
 #define UA_sendto sendto
 #define UA_recvfrom recvfrom
+#define UA_recvmsg recvmsg
 #define UA_htonl htonl
 #define UA_ntohl ntohl
 #define UA_close close
@@ -82,6 +83,7 @@
 #define UA_getaddrinfo getaddrinfo
 #define UA_getsockopt getsockopt
 #define UA_setsockopt setsockopt
+#define UA_ioctl ioctl
 #define UA_freeaddrinfo freeaddrinfo
 #define UA_gethostname gethostname
 #define UA_getsockname getsockname
@@ -112,13 +114,11 @@
 #if UA_MULTITHREADING >= 100
 #error Multithreading unsupported
 #else
-#define UA_LOCK_TYPE(mutexName)
-#define UA_LOCK_TYPE_POINTER(mutexName)
-#define UA_LOCK_INIT(mutexName)
-#define UA_LOCK_DESTROY(mutexName)
-#define UA_LOCK(mutexName)
-#define UA_UNLOCK(mutexName)
-#define UA_LOCK_ASSERT(mutexName, num)
+#define UA_LOCK_INIT(lock)
+#define UA_LOCK_DESTROY(lock)
+#define UA_LOCK(lock)
+#define UA_UNLOCK(lock)
+#define UA_LOCK_ASSERT(lock, num)
 #endif
 
 #include <open62541/architecture_functions.h>

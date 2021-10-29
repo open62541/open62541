@@ -124,30 +124,27 @@ typedef struct {
 
 static UA_DataTypeMember members[1] = {
     {
-        UA_TYPES_FLOAT,  /* .memberTypeIndex, points into UA_TYPES since
-                            .namespaceZero is true */
-        0,               /* .padding */
-        true,            /* .namespaceZero, see .memberTypeIndex */
-        false,           /* .isArray */
-        false            /* .isOptional*/
-        UA_TYPENAME("p") /* .memberName */
+        UA_TYPENAME("p")           /* .memberName */
+        &UA_TYPES[UA_TYPES_FLOAT], /* .memberType */
+        0,                         /* .padding */
+        false,                     /* .isArray */
+        false                      /* .isOptional*/
     }
 };
 
 static UA_DataType PointType = {
+    UA_TYPENAME("Point")             /* .typeName */
     {1, UA_NODEIDTYPE_NUMERIC, {0}}, /* .typeId */
     {1, UA_NODEIDTYPE_NUMERIC, {0}}, /* .binaryEncodingId, the numeric
                                          identifier used on the wire (the
                                          namespaceindex is from .typeId) */
     sizeof(Point),                   /* .memSize */
-    0,                               /* .typeIndex, in the array of custom types */
     UA_DATATYPEKIND_STRUCTURE,       /* .typeKind */
     true,                            /* .pointerFree */
     false,                           /* .overlayable (depends on endianness and
                                          the absence of padding) */
     1,                               /* .membersSize */
     members
-    UA_TYPENAME("Point")             /* .typeName */
 };
 
 UA_DataTypeArray customDataTypes = {NULL, 1, &PointType};

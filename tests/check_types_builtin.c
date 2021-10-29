@@ -4,11 +4,10 @@
 
 #include <open62541/types.h>
 #include <open62541/types_generated.h>
-#include <open62541/types_generated_encoding_binary.h>
 #include <open62541/types_generated_handling.h>
 #include <open62541/util.h>
 
-#include "ua_types_encoding_binary.h"
+#include "ua_util_internal.h"
 
 #include <check.h>
 #include <float.h>
@@ -1470,7 +1469,7 @@ START_TEST(UA_ExtensionObject_encodeDecodeShallWorkOnExtensionObject) {
     /* varAttr.specifiedAttributes |= UA_NODEATTRIBUTESMASK_VALUE; */
     /* varAttr.specifiedAttributes |= UA_NODEATTRIBUTESMASK_USERWRITEMASK; */
 
-    /* /\* wrap it into a extension object attributes *\/ */
+    /* /\* wrap it into an extension object attributes *\/ */
     /* UA_ExtensionObject extensionObject; */
     /* UA_ExtensionObject_init(&extensionObject); */
     /* extensionObject.typeId = UA_TYPES[UA_TYPES_VARIABLEATTRIBUTES].typeId; */

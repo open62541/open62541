@@ -74,9 +74,9 @@ helloWorldMethodCallback1(UA_Server *server,
         memcpy(&tmp.data[tmp.length], inputStr->data, inputStr->length);
         tmp.length += inputStr->length;
     }
-	UA_Variant_setScalarCopy(output, &tmp, &UA_TYPES[UA_TYPES_STRING]);   
+	UA_Variant_setScalarCopy(output, &tmp, &UA_TYPES[UA_TYPES_STRING]);
     char* test = (char*)calloc(1,tmp.length+1);
-    memcpy(test, tmp.data, tmp.length);    
+    memcpy(test, tmp.data, tmp.length);
     UA_String_clear(&tmp);
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "'Hello World 1 (async)' was called and will take 3 seconds");
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "    Data 1: %s", test);
@@ -86,7 +86,7 @@ helloWorldMethodCallback1(UA_Server *server,
 }
 
 static void
-addHellWorldMethod1(UA_Server *server) {
+addHelloWorldMethod1(UA_Server *server) {
     UA_Argument inputArgument;
     UA_Argument_init(&inputArgument);
     inputArgument.description = UA_LOCALIZEDTEXT("en-US", "A String");
@@ -111,10 +111,10 @@ addHellWorldMethod1(UA_Server *server) {
                             UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
                             UA_QUALIFIEDNAME(1, "hello world"),
                             helloAttr, &helloWorldMethodCallback1,
-                            1, &inputArgument, 1, &outputArgument, NULL, NULL);	
+                            1, &inputArgument, 1, &outputArgument, NULL, NULL);
 	/* Get the method node */
 	UA_NodeId id = UA_NODEID_NUMERIC(1, 62541);
-	UA_Server_setMethodNodeAsync(server, id, UA_TRUE);	
+	UA_Server_setMethodNodeAsync(server, id, UA_TRUE);
 }
 
 static UA_StatusCode
@@ -143,7 +143,7 @@ helloWorldMethodCallback2(UA_Server *server,
 }
 
 static void
-addHellWorldMethod2(UA_Server *server) {
+addHelloWorldMethod2(UA_Server *server) {
 	UA_Argument inputArgument;
 	UA_Argument_init(&inputArgument);
 	inputArgument.description = UA_LOCALIZEDTEXT("en-US", "A String");
@@ -190,7 +190,7 @@ THREAD_CALLBACK(ThreadWorker) {
             UA_CallMethodResult_clear(&response);
         } else {
             /* not a good style, but done for simplicity :-) */
-            Sleep(5000);
+            sleep(5);
         }
     }
     return 0;
@@ -217,10 +217,10 @@ int main(void) {
     /* Start the Worker-Thread */
     THREAD_HANDLE hThread;
     THREAD_CREATE(hThread, ThreadWorker);
-    
+
     /* Add methods */
-    addHellWorldMethod1(globalServer);
-	addHellWorldMethod2(globalServer);
+    addHelloWorldMethod1(globalServer);
+	addHelloWorldMethod2(globalServer);
 
     UA_StatusCode retval = UA_Server_run(globalServer, &running);
 

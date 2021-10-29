@@ -2,7 +2,7 @@
 #include <open62541/plugin/pki.h>
 #include <open62541/types.h>
 
-#ifdef UA_ENABLE_ENCRYPTION_MBEDTLS
+#if defined(UA_ENABLE_ENCRYPTION_MBEDTLS) || defined(UA_ENABLE_PUBSUB_ENCRYPTION)
 
 #include "securitypolicy_mbedtls_common.h"
 

@@ -10,7 +10,7 @@ try {
         $build_encryption = "OFF"
         Write-Host -ForegroundColor Green "`n## Building without encryption on VS2008 or VS2013 #####`n"
     } else {
-        $build_encryption = "ON"
+        $build_encryption = "MBEDTLS"
     }
 
     $vcpkg_toolchain = '-DCMAKE_TOOLCHAIN_FILE="C:/Tools/vcpkg/scripts/buildsystems/vcpkg.cmake"'
@@ -35,7 +35,7 @@ try {
             -DCMAKE_BUILD_TYPE=RelWithDebInfo `
             -DUA_BUILD_EXAMPLES:BOOL=OFF  `
             -DUA_ENABLE_AMALGAMATION:BOOL=ON `
-            -DUA_ENABLE_ENCRYPTION:BOOL=$build_encryption ..
+            -DUA_ENABLE_ENCRYPTION:STRING=$build_encryption ..
     & cmake --build . --config RelWithDebInfo
     if ($LASTEXITCODE -and $LASTEXITCODE -ne 0) {
         Write-Host -ForegroundColor Red "`n`n*** Make failed. Exiting ... ***"

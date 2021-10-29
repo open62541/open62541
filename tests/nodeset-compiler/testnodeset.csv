@@ -15,3 +15,6 @@ BaseDataTypes_ByteString_Scalar,16002,Variable
 PointWithArray,3003,DataType
 NestedPoint,10008,DataType
 SelfContainingUnion,4002,DataType
+TestObjectType,1003,ObjectType
+TestDataType,3006,DataType
+TestFunction,7004,Method

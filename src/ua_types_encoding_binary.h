@@ -38,10 +38,11 @@ typedef UA_StatusCode (*UA_exchangeEncodeBuffer)(void *handle, UA_Byte **bufPos,
  * @param exchangeHandle Custom data passed into the exchangeCallback.
  * @return Returns a statuscode whether encoding succeeded. */
 UA_StatusCode 
-UA_encodeBinary(const void *src, const UA_DataType *type,
-                UA_Byte **bufPos, const UA_Byte **bufEnd,
-                UA_exchangeEncodeBuffer exchangeCallback,
-                void *exchangeHandle) UA_FUNC_ATTR_WARN_UNUSED_RESULT;
+UA_encodeBinaryInternal(const void *src, const UA_DataType *type,
+                        UA_Byte **bufPos, const UA_Byte **bufEnd,
+                        UA_exchangeEncodeBuffer exchangeCallback,
+                        void *exchangeHandle)
+    UA_FUNC_ATTR_WARN_UNUSED_RESULT;
 
 /* Decodes a scalar value described by type from binary encoding. Decoding
  * is thread-safe if thread-local variables are enabled. Decoding is also
@@ -61,15 +62,10 @@ UA_encodeBinary(const void *src, const UA_DataType *type,
  *        UA_TYPES). Can be NULL if customTypesSize is zero.
  * @return Returns a statuscode whether decoding succeeded. */
 UA_StatusCode
-UA_decodeBinary(const UA_ByteString *src, size_t *offset, void *dst,
-                const UA_DataType *type, const UA_DataTypeArray *customTypes)
+UA_decodeBinaryInternal(const UA_ByteString *src, size_t *offset,
+                        void *dst, const UA_DataType *type,
+                        const UA_DataTypeArray *customTypes)
     UA_FUNC_ATTR_WARN_UNUSED_RESULT;
-
-/* Returns the number of bytes the value p takes in binary encoding. Returns
- * zero if an error occurs. UA_calcSizeBinary is thread-safe and reentrant since
- * it does not access global (thread-local) variables. */
-size_t
-UA_calcSizeBinary(const void *p, const UA_DataType *type);
 
 const UA_DataType *
 UA_findDataTypeByBinary(const UA_NodeId *typeId);

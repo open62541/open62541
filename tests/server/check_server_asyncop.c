@@ -174,7 +174,7 @@ START_TEST(Async_timeout) {
     UA_Client_run_iterate(client, 0);
     ck_assert_uint_eq(clientCounter, 0);
 
-    UA_fakeSleep(1000 * 1.5);
+    UA_fakeSleep((UA_UInt32)(1000 * 1.5));
 
     /* We expect to receive the timeout not yet*/
     UA_Server_run_iterate(server, true);

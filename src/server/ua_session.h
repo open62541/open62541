@@ -47,8 +47,13 @@ typedef struct {
     UA_Double         timeout; /* in ms */
     UA_DateTime       validTill;
     UA_ByteString     serverNonce;
+
     UA_UInt16         availableContinuationPoints;
     ContinuationPoint *continuationPoints;
+
+    size_t paramsSize;
+    UA_KeyValuePair *params;
+
 #ifdef UA_ENABLE_SUBSCRIPTIONS
     size_t subscriptionsSize;
     TAILQ_HEAD(, UA_Subscription) subscriptions; /* Late subscriptions that do eventually
@@ -120,7 +125,7 @@ UA_Session_dequeuePublishReq(UA_Session *session);
                 (SESSION)->header.channel->securityToken.channelId : 0; \
         }                                                               \
         UA_LOG_##LEVEL(LOGGER, UA_LOGCATEGORY_SESSION,                  \
-                       "SecureChannel %i | Session %.*s | " MSG "%.0s", \
+                       "SecureChannel %" PRIu32 " | Session %.*s | " MSG "%.0s", \
                        channelId, (int)idString.length, idString.data, __VA_ARGS__); \
         UA_String_clear(&idString);                                     \
     } while(0)

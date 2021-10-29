@@ -374,6 +374,31 @@ START_TEST(Client_activateSessionTimeout) {
 }
 END_TEST
 
+START_TEST(Client_activateSessionLocaleIds) {
+    // restart server
+    teardown();
+    setup();
+    ck_assert_uint_eq(server->sessionCount, 0);
+
+    UA_Client *client = UA_Client_new();
+    UA_ClientConfig *config = UA_Client_getConfig(client);
+    UA_ClientConfig_setDefault(config);
+
+    config->sessionLocaleIdsSize = 1;
+    config->sessionLocaleIds = (UA_LocaleId*)UA_Array_new(1, &UA_TYPES[UA_TYPES_LOCALEID]);
+    config->sessionLocaleIds[0] = UA_STRING_ALLOC("en");
+
+    UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    ck_assert_uint_eq(server->sessionCount, 1);
+
+    UA_Client_delete(client);
+
+    ck_assert_uint_eq(server->sessionCount, 0);
+}
+END_TEST
+
 static Suite* testSuite_Client(void) {
     Suite *s = suite_create("Client");
     TCase *tc_client = tcase_create("Client Basic");
@@ -394,6 +419,7 @@ static Suite* testSuite_Client(void) {
     tcase_add_test(tc_client_reconnect, Client_reconnect);
     tcase_add_test(tc_client_reconnect, Client_activateSessionClose);
     tcase_add_test(tc_client_reconnect, Client_activateSessionTimeout);
+    tcase_add_test(tc_client_reconnect, Client_activateSessionLocaleIds);
     suite_add_tcase(s,tc_client_reconnect);
     return s;
 }

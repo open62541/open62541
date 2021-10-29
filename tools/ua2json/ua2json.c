@@ -19,87 +19,55 @@
 #endif
 
 #include <open62541/types.h>
-
 #include <stdio.h>
-
-/* Internal headers */
 #include <open62541/types_generated.h>
 #include <open62541/types_generated_handling.h>
 
+/* Internal headers */
 #include "ua_pubsub_networkmessage.h"
-#include "ua_types_encoding_binary.h"
-#include "ua_types_encoding_json.h"
 
 static UA_StatusCode
-encode(const UA_ByteString *buf, UA_ByteString *out,
-       const UA_DataType *type) {
+encode(const UA_ByteString *buf, UA_ByteString *out, const UA_DataType *type) {
     void *data = malloc(type->memSize);
     if(!data)
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
-    size_t offset = 0;
-    UA_StatusCode retval = UA_decodeBinary(buf, &offset, data, type, NULL);
+    UA_StatusCode retval = UA_decodeBinary(buf, data, type, NULL);
     if(retval != UA_STATUSCODE_GOOD) {
         free(data);
         return retval;
     }
-    if(offset != buf->length) {
-        UA_delete(data, type);
-        fprintf(stderr, "Input buffer not completely read\n");
-        return UA_STATUSCODE_BADINTERNALERROR;
-    }
 
-    size_t jsonLength = UA_calcSizeJson(data, type, NULL, 0, NULL, 0, true);
-    retval = UA_ByteString_allocBuffer(out, jsonLength);
-    if(retval != UA_STATUSCODE_GOOD) {
-        UA_delete(data, type);
-        return retval;
-    }
-
-    uint8_t *bufPos = &out->data[0];
-    const uint8_t *bufEnd = &out->data[out->length];
-    retval = UA_encodeJson(data, type, &bufPos, &bufEnd, NULL, 0, NULL, 0, true);
+    retval = UA_encodeJson(data, type, out, NULL);
     UA_delete(data, type);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_ByteString_clear(out);
         return retval;
     }
-
-    out->length = (size_t)((uintptr_t)bufPos - (uintptr_t)out->data);
     return UA_STATUSCODE_GOOD;
 }
 
 static UA_StatusCode
-decode(const UA_ByteString *buf, UA_ByteString *out,
-       const UA_DataType *type) {
+decode(const UA_ByteString *buf, UA_ByteString *out, const UA_DataType *type) {
+    /* Allocate memory for the type */
     void *data = malloc(type->memSize);
     if(!data)
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
-    UA_StatusCode retval = UA_decodeJson(buf, data, type);
+    /* Decode JSON */
+    const UA_DecodeJsonOptions opt = {NULL};
+    UA_StatusCode retval = UA_decodeJson(buf, data, type, &opt);
     if(retval != UA_STATUSCODE_GOOD) {
         free(data);
         return retval;
     }
 
-    size_t binLength = UA_calcSizeBinary(data, type);
-    retval = UA_ByteString_allocBuffer(out, binLength);
-    if(retval != UA_STATUSCODE_GOOD) {
-        UA_delete(data, type);
-        return retval;
-    }
+    /* Encode Binary. Internally allocates the buffer upon success */
+    retval = UA_encodeBinary(data, type, out);
 
-    uint8_t *bufPos = &out->data[0];
-    const uint8_t *bufEnd = &out->data[out->length];
-    retval = UA_encodeBinary(data, type, &bufPos, &bufEnd, NULL, NULL);
+    /* Clean up */
     UA_delete(data, type);
-    if(retval != UA_STATUSCODE_GOOD) {
-        UA_ByteString_clear(out);
-        return retval;
-    }
-
-    out->length = (size_t)((uintptr_t)bufPos - (uintptr_t)out->data);
-    return UA_STATUSCODE_GOOD;
+    return retval;
 }
 
 #ifdef UA_ENABLE_PUBSUB
@@ -154,7 +122,7 @@ decodeNetworkMessage(const UA_ByteString *buf, UA_ByteString *out) {
 
     uint8_t *bufPos = &out->data[0];
     const uint8_t *bufEnd = &out->data[out->length];
-    retval = UA_NetworkMessage_encodeBinary(&msg, &bufPos, bufEnd);
+    retval = UA_NetworkMessage_encodeBinary(&msg, &bufPos, bufEnd, NULL);
     UA_NetworkMessage_clear(&msg);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_ByteString_clear(out);
@@ -179,7 +147,9 @@ usage(void) {
 
 int main(int argc, char **argv) {
     UA_Boolean encode_option = true;
+#ifdef UA_ENABLE_PUBSUB
     UA_Boolean pubsub = false;
+#endif
     const char *datatype_option = "Variant";
     const char *input_option = NULL;
     const char *output_option = NULL;
@@ -241,9 +211,12 @@ int main(int argc, char **argv) {
 
     /* Find the data type */
     const UA_DataType *type = NULL;
+#ifdef UA_ENABLE_PUBSUB
     if(strcmp(datatype_option, "PubSub") == 0) {
         pubsub = true;
-    } else {
+    } else
+#endif
+    {
         for(size_t i = 0; i < UA_TYPES_COUNT; ++i) {
             if(strcmp(datatype_option, UA_TYPES[i].typeName) == 0) {
                 type = &UA_TYPES[i];

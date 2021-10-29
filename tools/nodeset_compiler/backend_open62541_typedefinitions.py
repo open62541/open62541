@@ -3,9 +3,6 @@ import re
 import itertools
 import sys
 import copy
-import time
-import getpass
-import platform
 from collections import OrderedDict
 
 if sys.version_info[0] >= 3:
@@ -135,16 +132,15 @@ class CGenerator(object):
         idName = makeCIdentifier(datatype.name)
         pointerfree = "true" if datatype.pointerfree else "false"
         return "{\n" + \
+               "    UA_TYPENAME(\"%s\") /* .typeName */\n" % idName + \
                "    " + typeid + ", /* .typeId */\n" + \
                "    " + binaryEncodingId + ", /* .binaryEncodingId */\n" + \
                "    sizeof(UA_" + idName + "), /* .memSize */\n" + \
-               "    " + self.get_type_index(datatype) + ", /* .typeIndex */\n" + \
                "    " + self.get_type_kind(datatype) + ", /* .typeKind */\n" + \
                "    " + pointerfree + ", /* .pointerFree */\n" + \
                "    " + self.get_type_overlayable(datatype) + ", /* .overlayable */\n" + \
                "    " + str(len(datatype.members)) + ", /* .membersSize */\n" + \
                "    %s_members" % idName + "  /* .members */\n" + \
-               "    UA_TYPENAME(\"%s\") /* .typeName */\n" % idName + \
                "}"
 
     @staticmethod
@@ -161,8 +157,11 @@ class CGenerator(object):
             member_name_capital = member_name
             if len(member_name) > 0:
                 member_name_capital = member_name[0].upper() + member_name[1:]
-            m = "\n{\n    UA_%s_%s, /* .memberTypeIndex */\n" % (
-                member.member_type.outname.upper(), makeCIdentifier(member.member_type.name.upper()))
+            m = "\n{\n"
+            m += "    UA_TYPENAME(\"%s\") /* .memberName */\n" % member_name_capital
+            m += "    &UA_%s[UA_%s_%s], /* .memberType */\n" % (
+                member.member_type.outname.upper(), member.member_type.outname.upper(),
+                makeCIdentifier(member.member_type.name.upper()))
             m += "    "
             if not before and not isUnion:
                 m += "0,"
@@ -179,10 +178,8 @@ class CGenerator(object):
                 else:
                     m += " - sizeof(UA_%s)," % makeCIdentifier(before.member_type.name)
             m += " /* .padding */\n"
-            m += "    %s, /* .namespaceZero */\n" % ("true" if (namespaceMap[member.member_type.namespaceUri] == 0) else "false")
             m += ("    true" if member.is_array else "    false") + ", /* .isArray */\n"
-            m += ("    true" if member.is_optional else "    false") + "  /* .isOptional */\n"
-            m += "    UA_TYPENAME(\"%s\") /* .memberName */\n}" % member_name_capital
+            m += ("    true" if member.is_optional else "    false") + "  /* .isOptional */\n}"
             if i != size:
                 m += ","
             members += m
@@ -265,7 +262,7 @@ class CGenerator(object):
             returnstr += CGenerator.print_enum_typedef(obj)
             returnstr += "\n\n"
         if len(struct.members) == 0:
-            return "typedef void * UA_%s;" % makeCIdentifier(struct.name)
+            raise Exception("Structs with no members are filtered out. Why not here?")
         if struct.is_recursive:
             returnstr += "typedef struct UA_%s UA_%s;\n" % (makeCIdentifier(struct.name), makeCIdentifier(struct.name))
             returnstr += "struct UA_%s {\n" % makeCIdentifier(struct.name)
@@ -314,7 +311,6 @@ class CGenerator(object):
     def write_definitions(self):
         self.fh = open(self.outfile + "_generated.h", 'w')
         self.ff = open(self.outfile + "_generated_handling.h", 'w')
-        self.fe = open(self.outfile + "_generated_encoding_binary.h", 'w')
         self.fc = open(self.outfile + "_generated.c", 'w')
 
         self.filtered_types = self.iter_types(self.parser.types)
@@ -322,12 +318,10 @@ class CGenerator(object):
         self.print_header()
         self.print_handling()
         self.print_description_array()
-        self.print_encoding()
 
         self.fh.close()
         self.ff.close()
         self.fc.close()
-        self.fe.close()
 
     def printh(self, string):
         print(string, end='\n', file=self.fh)
@@ -335,36 +329,57 @@ class CGenerator(object):
     def printf(self, string):
         print(string, end='\n', file=self.ff)
 
-    def printe(self, string):
-        print(string, end='\n', file=self.fe)
-
     def printc(self, string):
         print(string, end='\n', file=self.fc)
 
     def iter_types(self, v):
+        # Make a copy. We cannot delete from the map that is iterated over at
+        # the same time.
         l = copy.deepcopy(v)
+
+        # Keep only selected types?
         if len(self.parser.selected_types) > 0:
             for ns in v:
                 for t in v[ns]:
                     if t not in self.parser.selected_types:
                         if ns in l and t in l[ns]:
                             del l[ns][t]
+
+        # Remove builtins?
         if self.parser.no_builtin:
             for ns in v:
                 for t in v[ns]:
                     if isinstance(v[ns][t], BuiltinType):
                         if ns in l and t in l[ns]:
                             del l[ns][t]
+
+        # Remove types that from other bsd files
         for ns in self.parser.existing_types:
             for t in self.parser.existing_types[ns]:
                 if ns in l and t in l[ns]:
                     del l[ns][t]
+
+        # Remove structs with no members
+        for ns in v:
+            for t in v[ns]:
+                if isinstance(v[ns][t], StructType) and len(v[ns][t].members) == 0:
+                    if ns in l and t in l[ns]:
+                        del l[ns][t]
         return l
 
     def print_header(self):
-        self.printh('''/* Generated from ''' + self.inname + ''' with script ''' +
-                    sys.argv[0] + ''' * on host ''' + platform.uname()[1] + ''' by user ''' +
-                    getpass.getuser() + ''' at ''' + time.strftime("%Y-%m-%d %I:%M:%S") + ''' */
+        additionalHeaders = ""
+        for arr in self.parser.existing_types_array:
+            if arr == "UA_TYPES":
+                continue
+            # remove ua_ prefix if exists
+            typeFile = arr.lower()
+            typeFile = typeFile[typeFile.startswith("ua_") and len("ua_"):]
+            additionalHeaders += """#include "%s_generated.h"\n""" % typeFile
+            
+        self.printh(u'''/**********************************
+ * Autogenerated -- do not modify *
+ **********************************/
 
 #ifndef ''' + self.parser.outname.upper() + '''_GENERATED_H_
 #define ''' + self.parser.outname.upper() + '''_GENERATED_H_
@@ -375,6 +390,8 @@ class CGenerator(object):
 #include <open62541/types.h>
 ''' + ('#include <open62541/types_generated.h>\n' if self.parser.outname != "types" else '') + '''
 #endif
+
+''' + (additionalHeaders) + '''
 
 _UA_BEGIN_DECLS
 
@@ -417,9 +434,9 @@ _UA_END_DECLS
 #endif /* %s_GENERATED_H_ */''' % self.parser.outname.upper())
 
     def print_handling(self):
-        self.printf('''/* Generated from ''' + self.inname + ''' with script ''' + sys.argv[0] + '''
- * on host ''' + platform.uname()[1] + ''' by user ''' + getpass.getuser() + ''' at ''' + time.strftime(
-            "%Y-%m-%d %I:%M:%S") + ''' */
+        self.printf(u'''/**********************************
+ * Autogenerated -- do not modify *
+ **********************************/
 
 #ifndef ''' + self.parser.outname.upper() + '''_GENERATED_HANDLING_H_
 #define ''' + self.parser.outname.upper() + '''_GENERATED_HANDLING_H_
@@ -451,9 +468,9 @@ _UA_END_DECLS
 #endif /* %s_GENERATED_HANDLING_H_ */''' % self.parser.outname.upper())
 
     def print_description_array(self):
-        self.printc('''/* Generated from ''' + self.inname + ''' with script ''' + sys.argv[0] + '''
- * on host ''' + platform.uname()[1] + ''' by user ''' + getpass.getuser() + ''' at ''' + time.strftime(
-            "%Y-%m-%d %I:%M:%S") + ''' */
+        self.printc(u'''/**********************************
+ * Autogenerated -- do not modify *
+ **********************************/
 
 #include "''' + self.parser.outname + '''_generated.h"''')
 
@@ -476,28 +493,3 @@ _UA_END_DECLS
                     self.printc("/* " + t.name + " */")
                     self.printc(self.print_datatype(t, self.namespaceMap) + ",")
             self.printc("};\n")
-
-    def print_encoding(self):
-        self.printe('''/* Generated from ''' + self.inname + ''' with script ''' + sys.argv[0] + '''
- * on host ''' + platform.uname()[1] + ''' by user ''' + getpass.getuser() + ''' at ''' + time.strftime(
-            "%Y-%m-%d %I:%M:%S") + ''' */
-
-#ifndef ''' + self.parser.outname.upper() + '''_GENERATED_ENCODING_BINARY_H_
-#define ''' + self.parser.outname.upper() + '''_GENERATED_ENCODING_BINARY_H_
-
-#ifdef UA_ENABLE_AMALGAMATION
-# include "open62541.h"
-#else
-# include "ua_types_encoding_binary.h"
-# include "''' + self.parser.outname + '''_generated.h"
-#endif
-
-''')
-
-        for ns in self.filtered_types:
-            for i, t_name in enumerate(self.filtered_types[ns]):
-                t = self.filtered_types[ns][t_name]
-                self.printe("\n/* " + t.name + " */")
-                self.printe(self.print_datatype_encoding(t))
-
-        self.printe("\n#endif /* " + self.parser.outname.upper() + "_GENERATED_ENCODING_BINARY_H_ */")

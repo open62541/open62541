@@ -6,7 +6,7 @@
 # This definition stops the following lines choking if HOME isn't
 # defined.
 HOME			= .
-RANDFILE		= $ENV::HOME/.rnd
+#RANDFILE		= $ENV::HOME/.rnd
 
 # Extra OBJECT IDENTIFIER info:
 #oid_file		= $ENV::HOME/.oid
@@ -58,7 +58,7 @@ crlnumber	= $dir/crlnumber	# the current crl number
 					# must be commented out to leave a V1 CRL
 crl		= $dir/crl.pem 		# The current CRL
 private_key	= $dir/ca.key 		# The private key
-RANDFILE	= $dir/.rand		# private random number file
+#RANDFILE	= $dir/.rand		# private random number file
 
 x509_extensions	= usr_cert		# The extensions to add to the cert
 

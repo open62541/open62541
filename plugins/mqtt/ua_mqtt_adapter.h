@@ -3,6 +3,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  *
  * Copyright (c) 2018 Fraunhofer IOSB (Author: Lukas Meling)
+ * Copyright (c) 2020 basysKom GmbH
  */
 
 #ifndef UA_PLUGIN_MQTT_H_
@@ -13,6 +14,8 @@ extern "C" {
 #endif
 
 #include "ua_network_pubsub_mqtt.h"
+
+void freeTLS(UA_PubSubChannelDataMQTT *data);
 
 UA_StatusCode
 connectMqtt(UA_PubSubChannelDataMQTT*);

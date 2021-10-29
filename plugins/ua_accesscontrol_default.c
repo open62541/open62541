@@ -21,11 +21,14 @@ typedef struct {
     UA_Boolean allowAnonymous;
     size_t usernamePasswordLoginSize;
     UA_UsernamePasswordLogin *usernamePasswordLogin;
+    UA_CertificateVerification verifyX509;
 } AccessControlContext;
 
 #define ANONYMOUS_POLICY "open62541-anonymous-policy"
+#define CERTIFICATE_POLICY "open62541-certificate-policy"
 #define USERNAME_POLICY "open62541-username-policy"
 const UA_String anonymous_policy = UA_STRING_STATIC(ANONYMOUS_POLICY);
+const UA_String certificate_policy = UA_STRING_STATIC(CERTIFICATE_POLICY);
 const UA_String username_policy = UA_STRING_STATIC(USERNAME_POLICY);
 
 /************************/
@@ -108,6 +111,22 @@ activateSession_default(UA_Server *server, UA_AccessControl *ac,
             UA_ByteString_copy(&userToken->userName, username);
         *sessionContext = username;
         return UA_STATUSCODE_GOOD;
+    }
+
+    /* x509 certificate */
+    if(userIdentityToken->content.decoded.type == &UA_TYPES[UA_TYPES_X509IDENTITYTOKEN]) {
+        const UA_X509IdentityToken *userToken = (UA_X509IdentityToken*)
+            userIdentityToken->content.decoded.data;
+
+        if(!UA_String_equal(&userToken->policyId, &certificate_policy))
+            return UA_STATUSCODE_BADIDENTITYTOKENINVALID;
+
+        if(!context->verifyX509.verifyCertificate)
+            return UA_STATUSCODE_BADIDENTITYTOKENINVALID;
+
+        return context->verifyX509.
+            verifyCertificate(context->verifyX509.context,
+                              &userToken->certificateData);
     }
 
     /* Unsupported token type */
@@ -240,19 +259,29 @@ static void clear_default(UA_AccessControl *ac) {
         }
         if(context->usernamePasswordLoginSize > 0)
             UA_free(context->usernamePasswordLogin);
+
+        if(context->verifyX509.clear)
+            context->verifyX509.clear(&context->verifyX509);
+
         UA_free(ac->context);
         ac->context = NULL;
     }
 }
 
 UA_StatusCode
-UA_AccessControl_default(UA_ServerConfig *config, UA_Boolean allowAnonymous,
+UA_AccessControl_default(UA_ServerConfig *config,
+                         UA_Boolean allowAnonymous,
+                         UA_CertificateVerification *verifyX509,
                          const UA_ByteString *userTokenPolicyUri,
                          size_t usernamePasswordLoginSize,
                          const UA_UsernamePasswordLogin *usernamePasswordLogin) {
     UA_LOG_WARNING(&config->logger, UA_LOGCATEGORY_SERVER,
                    "AccessControl: Unconfigured AccessControl. Users have all permissions.");
     UA_AccessControl *ac = &config->accessControl;
+
+    if(ac->clear)
+        clear_default(ac);
+    
     ac->clear = clear_default;
     ac->activateSession = activateSession_default;
     ac->closeSession = closeSession_default;
@@ -290,6 +319,16 @@ UA_AccessControl_default(UA_ServerConfig *config, UA_Boolean allowAnonymous,
                     "AccessControl: Anonymous login is enabled");
     }
 
+    /* Allow x509 certificates? Move the plugin over. */
+    if(verifyX509) {
+        context->verifyX509 = *verifyX509;
+        memset(verifyX509, 0, sizeof(UA_CertificateVerification));
+    } else {
+        memset(&context->verifyX509, 0, sizeof(UA_CertificateVerification));
+        UA_LOG_INFO(&config->logger, UA_LOGCATEGORY_SERVER,
+                    "AccessControl: x509 certificate user authentication is enabled");
+    }
+
     /* Copy username/password to the access control plugin */
     if(usernamePasswordLoginSize > 0) {
         context->usernamePasswordLogin = (UA_UsernamePasswordLogin*)
@@ -298,14 +337,18 @@ UA_AccessControl_default(UA_ServerConfig *config, UA_Boolean allowAnonymous,
             return UA_STATUSCODE_BADOUTOFMEMORY;
         context->usernamePasswordLoginSize = usernamePasswordLoginSize;
         for(size_t i = 0; i < usernamePasswordLoginSize; i++) {
-            UA_String_copy(&usernamePasswordLogin[i].username, &context->usernamePasswordLogin[i].username);
-            UA_String_copy(&usernamePasswordLogin[i].password, &context->usernamePasswordLogin[i].password);
+            UA_String_copy(&usernamePasswordLogin[i].username,
+                           &context->usernamePasswordLogin[i].username);
+            UA_String_copy(&usernamePasswordLogin[i].password,
+                           &context->usernamePasswordLogin[i].password);
         }
     }
 
     /* Set the allowed policies */
     size_t policies = 0;
     if(allowAnonymous)
+        policies++;
+    if(verifyX509)
         policies++;
     if(usernamePasswordLoginSize > 0)
         policies++;
@@ -320,6 +363,14 @@ UA_AccessControl_default(UA_ServerConfig *config, UA_Boolean allowAnonymous,
     if(allowAnonymous) {
         ac->userTokenPolicies[policies].tokenType = UA_USERTOKENTYPE_ANONYMOUS;
         ac->userTokenPolicies[policies].policyId = UA_STRING_ALLOC(ANONYMOUS_POLICY);
+        if (!ac->userTokenPolicies[policies].policyId.data)
+            return UA_STATUSCODE_BADOUTOFMEMORY;
+        policies++;
+    }
+
+    if(verifyX509) {
+        ac->userTokenPolicies[policies].tokenType = UA_USERTOKENTYPE_CERTIFICATE;
+        ac->userTokenPolicies[policies].policyId = UA_STRING_ALLOC(CERTIFICATE_POLICY);
         if (!ac->userTokenPolicies[policies].policyId.data)
             return UA_STATUSCODE_BADOUTOFMEMORY;
         policies++;
@@ -344,3 +395,4 @@ UA_AccessControl_default(UA_ServerConfig *config, UA_Boolean allowAnonymous,
     }
     return UA_STATUSCODE_GOOD;
 }
+

@@ -6,7 +6,7 @@
 
 /*
  * This header has all the functions that are architecture dependent. The
- * declaration is behind a ifndef since they can be previously defined in the
+ * declaration is behind an ifndef since they can be previously defined in the
  * ua_architecture.h which include this files at the end
  */
 
@@ -16,23 +16,6 @@
 #include <open62541/config.h>
 
 _UA_BEGIN_DECLS
-
-/* Allocation functions */
-#ifndef UA_malloc
-void* UA_malloc(size_t size); //allocate memory in the heap with size bytes
-#endif
-
-#ifndef UA_calloc
-void* UA_calloc(size_t num, size_t size); //allocate memory in the heap with size*num bytes and set the memory to zero
-#endif
-
-#ifndef UA_realloc
-void* UA_realloc(void *ptr, size_t new_size);//re-allocate memory in the heap with new_size bytes from previously allocated memory ptr
-#endif
-
-#ifndef UA_free
-void UA_free(void* ptr); //de-allocate memory previously allocated with UA_malloc, UA_calloc or UA_realloc
-#endif
 
 /* Sleep function */
 #ifndef UA_sleep_ms
@@ -45,7 +28,7 @@ ssize_t UA_send(UA_SOCKET sockfd, const void *buf, size_t len, int flags); //equ
 #endif
 
 #ifndef UA_sendto
-ssize_t sendto(UA_SOCKET sockfd, const void *buf, size_t len, int flags, const struct sockaddr *dest_addr, socklen_t addrlen); //equivalent to posix sendto implementation
+ssize_t UA_sendto(UA_SOCKET sockfd, const void *buf, size_t len, int flags, const struct sockaddr *dest_addr, socklen_t addrlen); //equivalent to posix sendto implementation
 #endif
 
 #ifndef UA_select
@@ -57,7 +40,11 @@ ssize_t UA_recv(UA_SOCKET sockfd, void *buf, size_t len, int flags); //equivalen
 #endif
 
 #ifndef UA_recvfrom
-ssize_t recvfrom(UA_SOCKET sockfd, void *buf, size_t len, int flags, struct sockaddr *src_addr, socklen_t *addrlen);
+ssize_t UA_recvfrom(UA_SOCKET sockfd, void *buf, size_t len, int flags, struct sockaddr *src_addr, socklen_t *addrlen);//equivalent to posix recvfrom implementation
+#endif
+
+#ifndef UA_recvmsg
+ssize_t UA_recvmsg(int sockfd, struct msghdr *msg, int flags);//equivalent to posix recvmsg implementation
 #endif
 
 #ifndef UA_shutdown
@@ -126,6 +113,10 @@ unsigned int UA_socket_set_blocking(UA_SOCKET sockfd);//set a socket as blocking
 unsigned int UA_socket_set_nonblocking(UA_SOCKET sockfd);//set a socket as non-blocking. Returns 0 if OK, other value otherwise
 #endif
 
+#ifndef UA_ioctl
+int UA_ioctl(int fildes, int request, ...);//equivalent to posix ioctl implementation
+#endif
+
 #ifndef UA_getsockopt
 int UA_getsockopt(int sockfd, int level, int optname, void *optval, socklen_t *optlen); //equivalent to posix getsockopt implementation. Only in non windows architectures
 #endif
@@ -135,7 +126,7 @@ int UA_setsockopt(int sockfd, int level, int optname, const void *optval, sockle
 #endif
 
 #ifndef UA_freeaddrinfo
-void UA_freeaddrinfo(struct addrinfo *res);//equivalent to posix freeaddrinfo implementatio
+void UA_freeaddrinfo(struct addrinfo *res);//equivalent to posix freeaddrinfo implementation
 #endif
 
 #ifndef UA_gethostname

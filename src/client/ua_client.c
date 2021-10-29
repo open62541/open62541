@@ -15,10 +15,10 @@
  *    Copyright 2016 (c) Lykurg
  *    Copyright 2017 (c) Mark Giraud, Fraunhofer IOSB
  *    Copyright 2018 (c) Kalycito Infotech Private Limited
+ *    Copyright 2020 (c) Christian von Arnim, ISW University of Stuttgart
  */
 
-#include <open62541/types_generated_encoding_binary.h>
-#include "open62541/transport_generated.h"
+#include <open62541/transport_generated.h>
 
 #include "ua_client_internal.h"
 #include "ua_connection_internal.h"
@@ -75,6 +75,12 @@ UA_ClientConfig_clear(UA_ClientConfig *config) {
         config->logger.clear(config->logger.context);
     config->logger.log = NULL;
     config->logger.clear = NULL;
+
+    if (config->sessionLocaleIdsSize > 0 && config->sessionLocaleIds) {
+        UA_Array_delete(config->sessionLocaleIds, config->sessionLocaleIdsSize, &UA_TYPES[UA_TYPES_LOCALEID]);
+    }
+    config->sessionLocaleIds = NULL;
+    config->sessionLocaleIdsSize = 0;
 }
 
 static void
@@ -210,7 +216,7 @@ sendSymmetricServiceRequest(UA_Client *client, const void *request,
                          (unsigned)rqId, requestType->typeName);
 #else
     UA_LOG_DEBUG_CHANNEL(&client->config.logger, &client->channel,
-                         "Sending request with RequestId %u of type %" PRIi16,
+                         "Sending request with RequestId %u of type %" PRIu32,
                          (unsigned)rqId, requestType->binaryEncodingId.identifier.numeric);
 #endif
 
@@ -270,14 +276,14 @@ processAsyncResponse(UA_Client *client, UA_UInt32 requestId, const UA_NodeId *re
     }
 
     /* Decode the response */
-    retval = UA_decodeBinary(responseMessage, offset, &response, responseType,
-                             client->config.customDataTypes);
+    retval = UA_decodeBinaryInternal(responseMessage, offset, &response, responseType,
+                                     client->config.customDataTypes);
 
  process:
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_INFO(&client->config.logger, UA_LOGCATEGORY_CLIENT,
                     "Could not decode the response with id %u due to %s",
-                    requestId, UA_StatusCode_name(retval));
+                    (unsigned)requestId, UA_StatusCode_name(retval));
         response.responseHeader.serviceResult = retval;
     } else if(response.responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
         /* Decode as a ServiceFault, i.e. only the response header */
@@ -346,9 +352,9 @@ processServiceResponse(void *application, UA_SecureChannel *channel,
     if(!UA_NodeId_equal(&responseId, &rd->responseType->binaryEncodingId)) {
         if(UA_NodeId_equal(&responseId, &serviceFaultId)) {
             UA_init(rd->response, rd->responseType);
-            retval = UA_decodeBinary(message, &offset, rd->response,
-                                     &UA_TYPES[UA_TYPES_SERVICEFAULT],
-                                     rd->client->config.customDataTypes);
+            retval = UA_decodeBinaryInternal(message, &offset, rd->response,
+                                             &UA_TYPES[UA_TYPES_SERVICEFAULT],
+                                             rd->client->config.customDataTypes);
             if(retval != UA_STATUSCODE_GOOD)
                 ((UA_ResponseHeader*)rd->response)->serviceResult = retval;
             UA_LOG_INFO(&rd->client->config.logger, UA_LOGCATEGORY_CLIENT,
@@ -372,8 +378,8 @@ processServiceResponse(void *application, UA_SecureChannel *channel,
 #endif
 
     /* Decode the response */
-    retval = UA_decodeBinary(message, &offset, rd->response, rd->responseType,
-                             rd->client->config.customDataTypes);
+    retval = UA_decodeBinaryInternal(message, &offset, rd->response, rd->responseType,
+                                     rd->client->config.customDataTypes);
 
 finish:
     UA_NodeId_clear(&responseId);
@@ -507,6 +513,20 @@ void UA_Client_AsyncService_removeAll(UA_Client *client, UA_StatusCode statusCod
     }
 }
 
+UA_StatusCode UA_Client_modifyAsyncCallback(UA_Client *client, UA_UInt32 requestId,
+        void *userdata, UA_ClientAsyncServiceCallback callback) {
+    AsyncServiceCall *ac;
+    LIST_FOREACH(ac, &client->asyncServiceCalls, pointers) {
+        if(ac->requestId == requestId) {
+            ac->callback = callback;
+            ac->userdata = userdata;
+            return UA_STATUSCODE_GOOD;
+        }
+    }
+
+    return UA_STATUSCODE_BADNOTFOUND;
+}
+
 UA_StatusCode
 __UA_Client_AsyncServiceEx(UA_Client *client, const void *request,
                            const UA_DataType *requestType,
@@ -517,7 +537,7 @@ __UA_Client_AsyncServiceEx(UA_Client *client, const void *request,
     if(client->channel.state != UA_SECURECHANNELSTATE_OPEN) {
         UA_LOG_INFO(&client->config.logger, UA_LOGCATEGORY_CLIENT,
                     "SecureChannel must be connected before sending requests");
-		return UA_STATUSCODE_BADSERVERNOTCONNECTED;
+        return UA_STATUSCODE_BADSERVERNOTCONNECTED;
     }
 
     /* Prepare the entry for the linked list */
@@ -580,13 +600,14 @@ UA_StatusCode
 UA_Client_addRepeatedCallback(UA_Client *client, UA_ClientCallback callback,
                               void *data, UA_Double interval_ms, UA_UInt64 *callbackId) {
     return UA_Timer_addRepeatedCallback(&client->timer, (UA_ApplicationCallback)callback,
-                                        client, data, interval_ms, callbackId);
+                                        client, data, interval_ms, NULL,
+                                        UA_TIMER_HANDLE_CYCLEMISS_WITH_CURRENTTIME, callbackId);
 }
 
 UA_StatusCode
 UA_Client_changeRepeatedCallbackInterval(UA_Client *client, UA_UInt64 callbackId,
                                          UA_Double interval_ms) {
-    return UA_Timer_changeRepeatedCallbackInterval(&client->timer, callbackId, interval_ms);
+    return UA_Timer_changeRepeatedCallback(&client->timer, callbackId, interval_ms, NULL, UA_TIMER_HANDLE_CYCLEMISS_WITH_CURRENTTIME);
 }
 
 void

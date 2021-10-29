@@ -20,8 +20,6 @@ if (${_index} GREATER -1 OR "${UA_ARCHITECTURE}" STREQUAL "posix")
           ua_architecture_append_to_library(netdb ndblib socket)
         else()
           ua_architecture_append_to_library(m)
-          #TODO - Error on first make run if pthread is included conditional?
-          ua_architecture_append_to_library(pthread)
           if(UA_MULTITHREADING OR UA_BUILD_UNIT_TESTS)
             ua_architecture_append_to_library(pthread)
           endif()

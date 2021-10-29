@@ -336,9 +336,8 @@ addServerSocket(ServerNetworkLayerTCP *layer, struct addrinfo *ai) {
                 ret = 0;
             }
         }
-
 #if UA_IPV6
-        if(ai->ai_family == AF_INET6) {
+        else if(ai->ai_family == AF_INET6) {
             struct sockaddr_in6 *sin6 = (struct sockaddr_in6 *)ai->ai_addr;
             if(!IN6_IS_ADDR_UNSPECIFIED(&sin6->sin6_addr)) {
                 memset(&sin6->sin6_addr, 0, sizeof(sin6->sin6_addr));
@@ -346,8 +345,7 @@ addServerSocket(ServerNetworkLayerTCP *layer, struct addrinfo *ai) {
                 ret = 0;
             }
         }
-#endif
-
+#endif // UA_IPV6
         if(ret == 0) {
             ret = UA_bind(newsock, ai->ai_addr, (socklen_t)ai->ai_addrlen);
             if(ret == 0) {
@@ -411,6 +409,9 @@ ServerNetworkLayerTCP_start(UA_ServerNetworkLayer *nl, const UA_Logger *logger,
     hints.ai_family = AF_UNSPEC;
     hints.ai_socktype = SOCK_STREAM;
     hints.ai_flags = AI_PASSIVE;
+#ifdef AI_ADDRCONFIG
+    hints.ai_flags |= AI_ADDRCONFIG;
+#endif
     hints.ai_protocol = IPPROTO_TCP;
     int retcode = UA_getaddrinfo(customHostname->length ? hostname : NULL,
                                  portno, &hints, &res);
@@ -688,7 +689,6 @@ ClientNetworkLayerTCP_free(UA_Connection *connection) {
 UA_StatusCode
 UA_ClientConnectionTCP_poll(UA_Connection *connection, UA_UInt32 timeout,
                             const UA_Logger *logger) {
-    int error = 0;
     if(connection->state == UA_CONNECTIONSTATE_CLOSED)
         return UA_STATUSCODE_BADDISCONNECT;
     if(connection->state == UA_CONNECTIONSTATE_ESTABLISHED)
@@ -739,8 +739,8 @@ UA_ClientConnectionTCP_poll(UA_Connection *connection, UA_UInt32 timeout,
         if(sso_result < 0)
             UA_LOG_WARNING(logger, UA_LOGCATEGORY_NETWORK, "Couldn't set SO_NOSIGPIPE");
 #endif
-        error = UA_connect(connection->sockfd, tcpConnection->server->ai_addr,
-                           tcpConnection->server->ai_addrlen);
+        int error = UA_connect(connection->sockfd, tcpConnection->server->ai_addr,
+                               tcpConnection->server->ai_addrlen);
 
         /* Connection successful */
         if(error == 0) {
@@ -764,7 +764,7 @@ UA_ClientConnectionTCP_poll(UA_Connection *connection, UA_UInt32 timeout,
     UA_UInt32 timeout_usec = timeout * 1000;
 
 #ifdef _OS9000
-    /* OS-9 can't use select for checking write sockets. Therefore, we need to
+    /* OS-9 cannot use select for checking write sockets. Therefore, we need to
      * use connect until success or failed */
     int resultsize = 0;
     do {

@@ -9,7 +9,7 @@
 
 #include <open62541/plugin/securitypolicy.h>
 
-#ifdef UA_ENABLE_ENCRYPTION_MBEDTLS
+#if defined(UA_ENABLE_ENCRYPTION_MBEDTLS) || defined(UA_ENABLE_PUBSUB_ENCRYPTION)
 
 #include <mbedtls/md.h>
 #include <mbedtls/x509_crt.h>

@@ -19,7 +19,7 @@ static void stopHandler(int sign) {
     running = false;
 }
 
-// Info: It is still possible to create a RT-PubSub configuration without a information model
+// Info: It is still possible to create a RT-PubSub configuration without an information model
 // node. Just set the DSF flags to 'rtInformationModelNode' -> UA_TRUE and
 // 'rtInformationModelNode' -> UA_FALSE and provide the PTR to your self managed value source.
 
@@ -34,7 +34,7 @@ addMinimalPubSubConfiguration(UA_Server * server){
     connectionConfig.enabled = UA_TRUE;
     UA_NetworkAddressUrlDataType networkAddressUrl = {UA_STRING_NULL , UA_STRING("opc.udp://224.0.0.22:4840/")};
     UA_Variant_setScalar(&connectionConfig.address, &networkAddressUrl, &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
-    connectionConfig.publisherId.numeric = UA_UInt32_random();
+    connectionConfig.publisherId.numeric = 2234;
     UA_Server_addPubSubConnection(server, &connectionConfig, &connectionIdentifier);
     /* Add one PublishedDataSet */
     UA_PublishedDataSetConfig publishedDataSetConfig;
@@ -121,13 +121,7 @@ int main(void){
     UA_Server *server = UA_Server_new();
     UA_ServerConfig *config = UA_Server_getConfig(server);
     UA_ServerConfig_setDefault(config);
-    config->pubsubTransportLayers = (UA_PubSubTransportLayer *) UA_malloc(sizeof(UA_PubSubTransportLayer));
-    if(!config->pubsubTransportLayers) {
-        UA_Server_delete(server);
-        return -1;
-    }
-    config->pubsubTransportLayers[0] = UA_PubSubTransportLayerUDPMP();
-    config->pubsubTransportLayersSize++;
+    UA_ServerConfig_addPubSubTransportLayer(config, UA_PubSubTransportLayerUDPMP());
 
     addMinimalPubSubConfiguration(server);
 
@@ -157,6 +151,8 @@ int main(void){
     dataSetWriterConfig.name = UA_STRING("Demo DataSetWriter");
     dataSetWriterConfig.dataSetWriterId = 62541;
     dataSetWriterConfig.keyFrameCount = 10;
+    /* Encode fields as RAW-Encoded */
+    dataSetWriterConfig.dataSetFieldContentMask = UA_DATASETFIELDCONTENTMASK_RAWDATA;
     UA_Server_addDataSetWriter(server, writerGroupIdent, publishedDataSetIdent, &dataSetWriterConfig, &dataSetWriterIdent);
 
     /* add new node to the information model with external data source backend*/
@@ -179,6 +175,7 @@ int main(void){
     memset(&dsfConfig, 0, sizeof(UA_DataSetFieldConfig));
     dsfConfig.field.variable.rtValueSource.rtInformationModelNode = UA_TRUE;
     dsfConfig.field.variable.publishParameters.publishedVariable = rtNodeId1;
+    dsfConfig.field.variable.fieldNameAlias = UA_STRING("Field 1");
     UA_NodeId dsfNodeId;
     UA_Server_addDataSetField(server, publishedDataSetIdent, &dsfConfig, &dsfNodeId);
 
@@ -203,6 +200,7 @@ int main(void){
     memset(&dsfConfig2, 0, sizeof(UA_DataSetFieldConfig));
     dsfConfig2.field.variable.rtValueSource.rtInformationModelNode = UA_TRUE;
     dsfConfig2.field.variable.publishParameters.publishedVariable = rtNodeId2;
+    dsfConfig2.field.variable.fieldNameAlias = UA_STRING("Field 2");
     UA_Server_addDataSetField(server, publishedDataSetIdent, &dsfConfig2, NULL);
 
     /* Freeze the PubSub configuration (and start implicitly the publish callback) */

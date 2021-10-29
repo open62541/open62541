@@ -119,19 +119,19 @@ register_server_with_discovery_server(UA_Server *server,
 UA_StatusCode
 UA_Server_register_discovery(UA_Server *server, UA_Client *client,
                              const char* semaphoreFilePath) {
-    UA_LOCK(server->serviceMutex);
+    UA_LOCK(&server->serviceMutex);
     UA_StatusCode retval = register_server_with_discovery_server(server, client,
                                                                  false, semaphoreFilePath);
-    UA_UNLOCK(server->serviceMutex);
+    UA_UNLOCK(&server->serviceMutex);
     return retval;
 }
 
 UA_StatusCode
 UA_Server_unregister_discovery(UA_Server *server, UA_Client *client) {
-    UA_LOCK(server->serviceMutex);
+    UA_LOCK(&server->serviceMutex);
     UA_StatusCode retval = register_server_with_discovery_server(server, client,
                                                                  true, NULL);
-    UA_UNLOCK(server->serviceMutex);
+    UA_UNLOCK(&server->serviceMutex);
     return retval;
 }
 

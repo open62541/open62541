@@ -45,6 +45,11 @@ typedef enum {
     UA_PUBSUB_CHANNEL_CLOSED
 } UA_PubSubChannelState;
 
+typedef UA_StatusCode
+(*UA_PubSubReceiveCallback)(UA_PubSubChannel *channel,
+                            void *callbackContext,
+                            const UA_ByteString *buffer);
+
 /* Interface structure between network plugin and internal implementation */
 struct UA_PubSubChannel {
     UA_UInt32 publisherId; /* unique identifier */
@@ -61,15 +66,18 @@ struct UA_PubSubChannel {
                           const UA_ByteString *buf);
 
     /* Register to an specified message source, e.g. multicast group or topic. Callback is used for mqtt. */
-    UA_StatusCode (*regist)(UA_PubSubChannel * channel, UA_ExtensionObject *transportSettings,
+    UA_StatusCode (*regist)(UA_PubSubChannel *channel, UA_ExtensionObject *transportSettings,
         void (*callback)(UA_ByteString *encodedBuffer, UA_ByteString *topic));
 
     /* Remove subscription to an specified message source, e.g. multicast group or topic */
-    UA_StatusCode (*unregist)(UA_PubSubChannel * channel, UA_ExtensionObject *transportSettings);
+    UA_StatusCode (*unregist)(UA_PubSubChannel *channel, UA_ExtensionObject *transportSettings);
 
     /* Receive messages. A regist to the message source is needed before. */
-    UA_StatusCode (*receive)(UA_PubSubChannel * channel, UA_ByteString *,
-                             UA_ExtensionObject *transportSettings, UA_UInt32 timeout);
+    UA_StatusCode (*receive)(UA_PubSubChannel *channel,
+                             UA_ExtensionObject *transportSettings,
+                             UA_PubSubReceiveCallback receiveCallback,
+                             void *receiveCallbackContext,
+                             UA_UInt32 timeout);
 
     /* Closing the connection and implicit free of the channel structures. */
     UA_StatusCode (*close)(UA_PubSubChannel *channel);
@@ -80,13 +88,13 @@ struct UA_PubSubChannel {
 
 /**
  * The UA_PubSubTransportLayer is used for the creation of new connections.
- * Whenever on runtime a new connection is request, the internal PubSub
- * implementation call * the 'createPubSubChannel' function. The
+ * Whenever in runtime a new connection is requested, the internal PubSub
+ * implementation calls the 'createPubSubChannel' function. The
  * 'transportProfileUri' contains the standard defined transport profile
  * information and is used to identify the type of connections which can be
  * created by the TransportLayer. The server config contains a list of
  * UA_PubSubTransportLayer. Take a look in the tutorial_pubsub_connection to get
- * informations about the TransportLayer handling. */
+ * information about the TransportLayer handling. */
 
 typedef struct {
     UA_String transportProfileUri;

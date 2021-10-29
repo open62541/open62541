@@ -45,7 +45,7 @@ UA_Subscription_new() {
 
 void
 UA_Subscription_delete(UA_Server *server, UA_Subscription *sub) {
-    UA_LOCK_ASSERT(server->serviceMutex, 1);
+    UA_LOCK_ASSERT(&server->serviceMutex, 1);
 
     /* Unregister the publish callback */
     Subscription_unregisterPublishCallback(server, sub);
@@ -107,7 +107,7 @@ UA_Subscription_getMonitoredItem(UA_Subscription *sub, UA_UInt32 monitoredItemId
 static void
 removeOldestRetransmissionMessageFromSub(UA_Subscription *sub) {
     UA_NotificationMessageEntry *oldestEntry =
-        TAILQ_LAST(&sub->retransmissionQueue, ListOfNotificationMessages);
+        TAILQ_LAST(&sub->retransmissionQueue, NotificationMessageQueue);
     TAILQ_REMOVE(&sub->retransmissionQueue, oldestEntry, listEntry);
     UA_NotificationMessage_clear(&oldestEntry->message);
     UA_free(oldestEntry);
@@ -123,7 +123,7 @@ removeOldestRetransmissionMessageFromSession(UA_Session *session) {
     UA_Subscription *sub;
     TAILQ_FOREACH(sub, &session->subscriptions, sessionListEntry) {
         UA_NotificationMessageEntry *first =
-            TAILQ_LAST(&sub->retransmissionQueue, ListOfNotificationMessages);
+            TAILQ_LAST(&sub->retransmissionQueue, NotificationMessageQueue);
         if(!first)
             continue;
         if(!oldestEntry || oldestEntry->message.publishTime > first->message.publishTime) {
@@ -282,11 +282,12 @@ prepareNotificationMessage(UA_Server *server, UA_Subscription *sub,
          * are non-reporting. And we don't want them to show up after the
          * current Notification has been sent out. */
         UA_Notification *prev;
-        while((prev = TAILQ_PREV(notification, NotificationQueue, listEntry)))
-            UA_Notification_delete(server, prev);
+        while((prev = TAILQ_PREV(notification, NotificationQueue, localEntry))) {
+            UA_Notification_delete(prev);
+        }
 
         /* Delete the notification, remove from the queues and decrease the counters */
-        UA_Notification_delete(server, notification);
+        UA_Notification_delete(notification);
 
         totalNotifications++;
     }
@@ -325,10 +326,10 @@ UA_Subscription_nextSequenceNumber(UA_UInt32 sequenceNumber) {
 
 static void
 publishCallback(UA_Server *server, UA_Subscription *sub) {
-    UA_LOCK(server->serviceMutex);
+    UA_LOCK(&server->serviceMutex);
     sub->readyNotifications = sub->notificationQueueSize;
     UA_Subscription_publish(server, sub);
-    UA_UNLOCK(server->serviceMutex);
+    UA_UNLOCK(&server->serviceMutex);
 }
 
 static void
@@ -385,7 +386,7 @@ sendStatusChangeDelete(UA_Server *server, UA_Subscription *sub,
 
 void
 UA_Subscription_publish(UA_Server *server, UA_Subscription *sub) {
-    UA_LOCK_ASSERT(server->serviceMutex, 1);
+    UA_LOCK_ASSERT(&server->serviceMutex, 1);
     UA_LOG_DEBUG_SUBSCRIPTION(&server->config.logger, sub, "Publish Callback");
     UA_assert(sub);
 
@@ -444,7 +445,7 @@ UA_Subscription_publish(UA_Server *server, UA_Subscription *sub) {
      * the SecureChannel for the Session is closed. */
     if(!pre || !sub->session || !sub->session->header.channel) {
         UA_LOG_DEBUG_SUBSCRIPTION(&server->config.logger, sub,
-                                  "Want to send a publish response but can't. "
+                                  "Want to send a publish response but cannot. "
                                   "The subscription is late.");
         sub->state = UA_SUBSCRIPTIONSTATE_LATE;
         if(pre)
@@ -602,7 +603,7 @@ UA_StatusCode
 Subscription_registerPublishCallback(UA_Server *server, UA_Subscription *sub) {
     UA_LOG_DEBUG_SUBSCRIPTION(&server->config.logger, sub,
                               "Register subscription publishing callback");
-    UA_LOCK_ASSERT(server->serviceMutex, 1);
+    UA_LOCK_ASSERT(&server->serviceMutex, 1);
 
     if(sub->publishCallbackId > 0)
         return UA_STATUSCODE_GOOD;

@@ -2,6 +2,7 @@
 <UANodeSet xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd" xmlns="http://opcfoundation.org/UA/2011/03/UANodeSet.xsd" xmlns:s1="http://yourorganisation.org/test/Types.xsd" xmlns:ua="http://unifiedautomation.com/Configuration/NodeSet.xsd" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
     <NamespaceUris>
         <Uri>http://yourorganisation.org/test/</Uri>
+        <Uri>http://opcfoundation.org/UA/DI/</Uri>
     </NamespaceUris>
     <Aliases>
         <Alias Alias="Int32">i=6</Alias>
@@ -18,6 +19,8 @@
         <Alias Alias="Point3D">ns=1;i=3002</Alias>
         <Alias Alias="Point">ns=1;i=10001</Alias>
         <Alias Alias="SelfContainingUnion">ns=1;i=4002</Alias>
+        <Alias Alias="TestDataType">ns=1;i=3006</Alias>
+        <Alias Alias="TestObjectType">ns=1;i=1003</Alias>
     </Aliases>
     <Extensions>
         <Extension>
@@ -537,4 +540,64 @@
             </ExtensionObject>
         </Value>
     </UAVariable>
+    <UAObjectType NodeId="ns=1;i=1003" BrowseName="1:TestObjectType">
+        <DisplayName>TestObjectType</DisplayName>
+        <Description>Test object type</Description>
+        <References>
+            <Reference ReferenceType="HasComponent">ns=1;i=7004</Reference>
+            <Reference ReferenceType="HasSubtype" IsForward="false">i=58</Reference>
+        </References>
+    </UAObjectType>
+    <UAMethod ParentNodeId="ns=1;i=1003" NodeId="ns=1;i=7004" BrowseName="1:TestMethod">
+        <DisplayName>TestMethod</DisplayName>
+        <Description>Test method</Description>
+        <References>
+            <Reference ReferenceType="HasProperty">ns=1;i=6020</Reference>
+            <Reference ReferenceType="HasModellingRule">i=78</Reference>
+            <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=1003</Reference>
+        </References>
+    </UAMethod>
+    <UAVariable DataType="Argument" ParentNodeId="ns=1;i=7004" ValueRank="1" NodeId="ns=1;i=6020" ArrayDimensions="1" BrowseName="InputArguments">
+        <DisplayName>InputArguments</DisplayName>
+        <References>
+            <Reference ReferenceType="HasModellingRule">i=78</Reference>
+            <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+            <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=7004</Reference>
+        </References>
+        <Value>
+            <uax:ListOfExtensionObject>
+                <uax:ExtensionObject>
+                    <uax:TypeId>
+                        <uax:Identifier>i=297</uax:Identifier>
+                    </uax:TypeId>
+                    <uax:Body>
+                        <uax:Argument>
+                            <uax:Name>TestDataType</uax:Name>
+                            <uax:DataType>
+                                <uax:Identifier>ns=1;i=3006</uax:Identifier>
+                            </uax:DataType>
+                            <uax:ValueRank>1</uax:ValueRank>
+                            <uax:ArrayDimensions/>
+                            <uax:Description/>
+                        </uax:Argument>
+                    </uax:Body>
+                </uax:ExtensionObject>
+            </uax:ListOfExtensionObject>
+        </Value>
+    </UAVariable>
+    <UADataType NodeId="ns=1;i=3006" BrowseName="1:TestDataType">
+        <DisplayName>TestDataType</DisplayName>
+        <Description>Test argument data type</Description>
+        <References>
+            <Reference ReferenceType="HasSubtype" IsForward="false">i=22</Reference>
+        </References>
+        <Definition Name="1:TestDataType">
+            <Field DataType="String" Name="Name">
+                <Description>Name</Description>
+            </Field>
+            <Field DataType="String" Name="Description">
+                <Description>Description</Description>
+            </Field>
+        </Definition>
+    </UADataType>
 </UANodeSet>

@@ -84,3 +84,9 @@ Makefile
 Pipfile
 Pipfile.lock
 .vscode
+
+# clangd cache
+.cache/
+
+# project local vim settings
+.vim/

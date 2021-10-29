@@ -13,7 +13,7 @@
  * -----------------
  * To make sense of the many things going on in a server, monitoring items can be useful. Though in many cases, data
  * change does not convey enough information to be the optimal solution. Events can be generated at any time,
- * hold a lot of information and can be filtered so the client only receives the specific attributes he is interested in.
+ * hold a lot of information and can be filtered so the client only receives the specific attributes of interest.
  *
  * Emitting events by calling methods
  * ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

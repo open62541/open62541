@@ -67,11 +67,6 @@
     <opc:Field Name="ReceiverCertificateThumbprint" TypeName="opc:ByteString" />
   </opc:StructuredType>
 
-  <opc:StructuredType Name="SymmetricAlgorithmSecurityHeader">
-    <opc:Documentation>Symmetric Security Header</opc:Documentation>
-    <opc:Field Name="TokenId" TypeName="opc:UInt32" />
-  </opc:StructuredType>
-  
   <opc:StructuredType Name="SequenceHeader">
     <opc:Documentation>Secure Layer Sequence Header</opc:Documentation>
     <opc:Field Name="SequenceNumber" TypeName="opc:UInt32" />
