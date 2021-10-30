@@ -615,12 +615,14 @@ assembleProcessMessage(UA_SecureChannel *channel, void *application,
     UA_Chunk *chunk = SIMPLEQ_FIRST(&channel->decryptedChunks);
     UA_assert(chunk != NULL);
 
+    UA_StatusCode res = UA_STATUSCODE_GOOD;
     if(chunk->chunkType == UA_CHUNKTYPE_FINAL) {
         SIMPLEQ_REMOVE_HEAD(&channel->decryptedChunks, pointers);
         UA_assert(chunk->chunkType == UA_CHUNKTYPE_FINAL);
-        UA_StatusCode retval = callback(application, channel, chunk->messageType, chunk->requestId, &chunk->bytes);
+        res = callback(application, channel, chunk->messageType,
+                       chunk->requestId, &chunk->bytes);
         UA_Chunk_delete(chunk);
-        return retval;
+        return res;
     }
 
     UA_UInt32 requestId = chunk->requestId;
@@ -646,7 +648,7 @@ assembleProcessMessage(UA_SecureChannel *channel, void *application,
 
     /* Allocate memory for the full message */
     UA_ByteString payload;
-    UA_StatusCode res = UA_ByteString_allocBuffer(&payload, messageSize);
+    res = UA_ByteString_allocBuffer(&payload, messageSize);
     UA_CHECK_STATUS(res, return res);
     
     /* Assemble the full message */
@@ -663,9 +665,9 @@ assembleProcessMessage(UA_SecureChannel *channel, void *application,
     }
     
     /* Process the assembled message */
-    UA_StatusCode retval = callback(application, channel, messageType, requestId, &payload);
+    res = callback(application, channel, messageType, requestId, &payload);
     UA_ByteString_clear(&payload);
-    return retval;
+    return res;
 }
 
 static UA_StatusCode
