@@ -735,7 +735,7 @@ processChunks(UA_SecureChannel *channel, void *application,
             return retval;
         }
 
-        /* Add to the decrypted queue */
+        /* Add to the decrypted-chunk queue */
         SIMPLEQ_INSERT_TAIL(&channel->decryptedChunks, chunk, pointers);
 
         /* Check the resource limits */
@@ -748,18 +748,29 @@ processChunks(UA_SecureChannel *channel, void *application,
             return UA_STATUSCODE_BADTCPMESSAGETOOLARGE;
         }
 
-        /* Continue */
-        if(chunk->chunkType != UA_CHUNKTYPE_FINAL)
+        /* Waiting for additional chunks */
+        if(chunk->chunkType == UA_CHUNKTYPE_INTERMEDIATE)
             continue;
 
+        /* Final chunk or abort. Reset the counters. */
+        channel->decryptedChunksCount = 0;
+        channel->decryptedChunksLength = 0;
+
+        /* Abort the message, remove all decrypted chunks
+         * TODO: Log a warning with the error code */
+        if(chunk->chunkType == UA_CHUNKTYPE_ABORT) {
+            while((chunk = SIMPLEQ_FIRST(&channel->decryptedChunks))) {
+                SIMPLEQ_REMOVE_HEAD(&channel->decryptedChunks, pointers);
+                UA_Chunk_delete(chunk);
+            }
+            continue;
+        }
+
         /* The decrypted queue contains a full message. Process it. */
+        UA_assert(chunk->chunkType == UA_CHUNKTYPE_FINAL);
         retval = assembleProcessMessage(channel, application, callback);
         if(retval != UA_STATUSCODE_GOOD)
             return retval;
-
-        /* Reset the counters */
-        channel->decryptedChunksCount = 0;
-        channel->decryptedChunksLength = 0;
     }
 
     return UA_STATUSCODE_GOOD;
