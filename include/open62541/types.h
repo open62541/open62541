@@ -1176,6 +1176,8 @@ UA_decodeBinary(const UA_ByteString *inBuf,
                 void *p, const UA_DataType *type,
                 const UA_DecodeBinaryOptions *options);
 
+#ifdef UA_ENABLE_JSON_ENCODING
+
 typedef struct {
     const UA_String *namespaces;
     size_t namespacesSize;
@@ -1194,8 +1196,8 @@ UA_calcSizeJson(const void *src, const UA_DataType *type,
  *
  * @param src The value. Must not be NULL.
  * @param type The value type. Must not be NULL.
- * @param outBuf Pointer to ByteString containing the result if the encoding was
- * successful
+ * @param outBuf Pointer to ByteString containing the result if the encoding
+ *        was successful
  * @return Returns a statuscode whether encoding succeeded. */
 UA_StatusCode UA_EXPORT
 UA_encodeJson(const void *src, const UA_DataType *type, UA_ByteString *outBuf,
@@ -1222,6 +1224,9 @@ typedef struct {
 UA_StatusCode UA_EXPORT
 UA_decodeJson(const UA_ByteString *src, void *dst, const UA_DataType *type,
               const UA_DecodeJsonOptions *options);
+
+#endif /* UA_ENABLE_JSON_ENCODING */
+
 /**
  * .. _array-handling:
  *
@@ -1240,7 +1245,7 @@ UA_decodeJson(const UA_ByteString *src, void *dst, const UA_DataType *type,
  * @param size The requested array length
  * @param type The datatype description
  * @return Returns the memory location of the variable or NULL if no memory
-           could be allocated */
+ *         could be allocated */
 void UA_EXPORT *
 UA_Array_new(size_t size, const UA_DataType *type) UA_FUNC_ATTR_MALLOC;
 
@@ -1259,13 +1264,13 @@ UA_Array_copy(const void *src, size_t size, void **dst,
  * if the array length is increased. If the array length is decreased, the last
  * entries are removed if the size is decreased.
  *
- * @param p Double pointer to the array memory. Can be overwritten by the result of a
- *          realloc.
+ * @param p Double pointer to the array memory. Can be overwritten by the result
+ *          of a realloc.
  * @param size The current size of the array. Overwritten in case of success.
  * @param newSize The new size of the array
  * @param type The datatype of the array members
- * @return Returns UA_STATUSCODE_GOOD or UA_STATUSCODE_BADOUTOFMEMORY. The original array
- *         is left untouched in the failure case. */
+ * @return Returns UA_STATUSCODE_GOOD or UA_STATUSCODE_BADOUTOFMEMORY. The
+ *         original array is left untouched in the failure case. */
 UA_StatusCode UA_EXPORT
 UA_Array_resize(void **p, size_t *size, size_t newSize,
                 const UA_DataType *type) UA_FUNC_ATTR_WARN_UNUSED_RESULT;
@@ -1274,26 +1279,27 @@ UA_Array_resize(void **p, size_t *size, size_t newSize,
  * (shallow copy) and the original memory is _init'ed if appending is
  * successful.
  *
- * @param p Double pointer to the array memory. Can be overwritten by the result of a
- *          realloc.
+ * @param p Double pointer to the array memory. Can be overwritten by the result
+ *          of a realloc.
  * @param size The current size of the array. Overwritten in case of success.
  * @param newElem The element to be appended. The memory is reset upon success.
  * @param type The datatype of the array members
- * @return Returns UA_STATUSCODE_GOOD or UA_STATUSCODE_BADOUTOFMEMORY. The original array
- *         is left untouched in the failure case. */
+ * @return Returns UA_STATUSCODE_GOOD or UA_STATUSCODE_BADOUTOFMEMORY. The
+ *         original array is left untouched in the failure case. */
 UA_StatusCode UA_EXPORT
 UA_Array_append(void **p, size_t *size, void *newElem,
                 const UA_DataType *type) UA_FUNC_ATTR_WARN_UNUSED_RESULT;
 
 /* Append a copy of the given element at the end of the array.
  *
- * @param p Double pointer to the array memory. Can be overwritten by the result of a
- *          realloc.
+ * @param p Double pointer to the array memory. Can be overwritten by the result
+ *          of a realloc.
  * @param size The current size of the array. Overwritten in case of success.
  * @param newElem The element to be appended.
  * @param type The datatype of the array members
- * @return Returns UA_STATUSCODE_GOOD or UA_STATUSCODE_BADOUTOFMEMORY. The original array
- *         is left untouched in the failure case. */
+ * @return Returns UA_STATUSCODE_GOOD or UA_STATUSCODE_BADOUTOFMEMORY. The
+ *         original array is left untouched in the failure case. */
+
 UA_StatusCode UA_EXPORT
 UA_Array_appendCopy(void **p, size_t *size, const void *newElem,
                     const UA_DataType *type) UA_FUNC_ATTR_WARN_UNUSED_RESULT;
