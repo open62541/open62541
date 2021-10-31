@@ -1580,7 +1580,7 @@ structureOrder(const void *p1, const void *p2, const UA_DataType *type) {
                 size_t size2 = *(size_t*)u2;
                 u1 += sizeof(size_t);
                 u2 += sizeof(size_t);
-                o = arrayOrder((const void*)u1, size1, (const void*)u2, size2, mt);
+                o = arrayOrder(*(void* const*)u1, size1, *(void* const*)u2, size2, mt);
                 u1 += sizeof(void*);
                 u2 += sizeof(void*);
             }
@@ -1602,9 +1602,7 @@ structureOrder(const void *p1, const void *p2, const UA_DataType *type) {
                 size_t sa2 = *(size_t*)u2;
                 u1 += sizeof(size_t);
                 u2 += sizeof(size_t);
-                const void *pa1 = *(void* const*)u1;
-                const void *pa2 = *(void* const*)u2;
-                o = arrayOrder(pa1, sa1, pa2, sa2, mt);
+                o = arrayOrder(*(void* const*)u1, sa1, *(void* const*)u2, sa2, mt);
             }
             u1 += sizeof(void*);
             u2 += sizeof(void*);
