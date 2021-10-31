@@ -132,7 +132,17 @@ typedef double UA_Double;
  * ^^^^^^^^^^
  * A numeric identifier for an error or condition that is associated with a
  * value or an operation. See the section :ref:`statuscodes` for the meaning of
- * a specific code. */
+ * a specific code.
+ *
+ * Each StatusCode has one of three "severity" bit-flags:
+ * Good, Uncertain, Bad. An additional reason is indicated by the SubCode
+ * bitfield.
+ *
+ * - A StatusCode with severity Good means that the value is of good quality.
+ * - A StatusCode with severity Uncertain means that the quality of the value is
+ *   uncertain for reasons indicated by the SubCode.
+ * - A StatusCode with severity Bad means that the value is not usable for
+ *   reasons indicated by the SubCode. */
 typedef uint32_t UA_StatusCode;
 
 /* Returns the human-readable name of the StatusCode. If no matching StatusCode
@@ -142,6 +152,23 @@ typedef uint32_t UA_StatusCode;
  * empty string for every StatusCode. */
 UA_EXPORT const char *
 UA_StatusCode_name(UA_StatusCode code);
+
+/* Extracts the severity from a StatusCode. See Part 4, Section 7.34 for
+ * details. */
+static UA_INLINE UA_Boolean
+UA_StatusCode_isBad(UA_StatusCode code) {
+    return ((code >> 30) >= 0x02);
+}
+
+static UA_INLINE UA_Boolean
+UA_StatusCode_isUncertain(UA_StatusCode code) {
+    return ((code >> 30) == 0x01);
+}
+
+static UA_INLINE UA_Boolean
+UA_StatusCode_isGood(UA_StatusCode code) {
+    return ((code >> 30) == 0x00);
+}
 
 /**
  * String
@@ -602,12 +629,6 @@ UA_LOCALIZEDTEXT_ALLOC(const char *locale, const char *text) {
     UA_LocalizedText lt; lt.locale = UA_STRING_ALLOC(locale);
     lt.text = UA_STRING_ALLOC(text); return lt;
 }
-
-/* 
- * Check if the StatusCode is bad.
- * @return Returns UA_TRUE if StatusCode is bad, else UA_FALSE. */
-UA_EXPORT UA_Boolean
-UA_StatusCode_isBad(const UA_StatusCode code);
 
 /**
  * .. _numericrange:
