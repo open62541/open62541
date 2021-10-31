@@ -22,8 +22,6 @@
 
 _UA_BEGIN_DECLS
 
-#define UA_BUILTIN_TYPES_COUNT 25U
-
 /**
  * .. _types:
  *
