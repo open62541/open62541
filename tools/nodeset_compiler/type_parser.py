@@ -31,8 +31,11 @@ excluded_types = [
 
 rename_types = {"NumericRange": "OpaqueNumericRange"}
 
-builtin_overlayable = ["Boolean", "SByte", "Byte", "Int16", "UInt16", "Int32", "UInt32",
-                       "Int64", "UInt64", "Float", "Double", "DateTime", "StatusCode", "Guid"]
+# Boolean is not overlayable 1-byte type. We get "undefined behavior" errors
+# during fuzzing if we don't force the value to either exactly true or false.
+builtin_overlayable = ["SByte", "Byte", "Int16", "UInt16", "Int32", "UInt32",
+                       "Int64", "UInt64", "Float", "Double", "DateTime",
+                       "StatusCode", "Guid"]
 
 # Type aliases
 type_aliases = {"CharArray": "String"}
