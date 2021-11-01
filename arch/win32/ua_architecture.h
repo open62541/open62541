@@ -165,6 +165,7 @@ void UA_sleep_ms(unsigned long ms);
 #define UA_LOG_SOCKET_ERRNO_GAI_WRAP UA_LOG_SOCKET_ERRNO_WRAP
 
 #if UA_MULTITHREADING >= 100
+#include <assert.h>
 
 typedef struct {
     CRITICAL_SECTION mutex;

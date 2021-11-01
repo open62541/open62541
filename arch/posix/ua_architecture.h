@@ -142,8 +142,9 @@ void UA_sleep_ms(unsigned long ms);
 
 #if UA_MULTITHREADING >= 100
 
-#include <pthread.h>
 
+#include <pthread.h>
+#include <assert.h>
 typedef struct {
     pthread_mutex_t mutex;
     pthread_mutexattr_t mutexAttr;
