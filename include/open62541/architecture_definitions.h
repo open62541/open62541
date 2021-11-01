@@ -130,6 +130,20 @@ extern UA_THREAD_LOCAL void * (*UA_reallocSingleton)(void *ptr, size_t size);
 # endif
 #endif
 
+/**
+ * Assertions
+ * ----------
+ * The assert macro is disabled by defining NDEBUG. It is often forgotten to
+ * include -DNDEBUG in the compiler flags when using the single-file release. So
+ * we make assertions dependent on the UA_DEBUG definition handled by CMake. */
+#ifdef UA_DEBUG
+#if !defined(UA_asserrt)
+#include <assert.h>
+# define UA_assert(ignore) assert(ignore)
+#else
+# define UA_assert(ignore) do {} while(0)
+#endif
+#endif
 /* Outputs an error message at compile time if the assert fails.
  * Example usage:
  * UA_STATIC_ASSERT(sizeof(long)==7, use_another_compiler_luke)
