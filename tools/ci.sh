@@ -98,7 +98,7 @@ function build_amalgamation {
           -DUA_ENABLE_PUBSUB_DELTAFRAMES=ON \
           -DUA_ENABLE_PUBSUB_INFORMATIONMODEL=ON \
           -DUA_ENABLE_PUBSUB_MONITORING=ON \
-          -DUA_MULTITHREADING=100
+          -DUA_MULTITHREADING=100 \
           ..
     make ${MAKEOPTS}
 }
