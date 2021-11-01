@@ -427,14 +427,13 @@ ServerNetworkLayerTCP_start(UA_ServerNetworkLayer *nl, const UA_Logger *logger,
     for(layer->serverSocketsSize = 0;
         layer->serverSocketsSize < FD_SETSIZE && ai != NULL;
         ai = ai->ai_next) {
-        UA_StatusCode statusCode = addServerSocket(layer, ai);
-        if(statusCode != UA_STATUSCODE_GOOD)
-        {
-            UA_freeaddrinfo(res);
-            return statusCode;
-        }
+        addServerSocket(layer, ai);
     }
     UA_freeaddrinfo(res);
+    
+    if(layer->serverSocketsSize == 0) {
+        return UA_STATUSCODE_BADCOMMUNICATIONERROR;
+    }    
 
     /* Get the discovery url from the hostname */
     UA_String du = UA_STRING_NULL;
