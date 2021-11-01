@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Exit immediately if a command exits with a non-zero status
-set -e 
+set -e
 
 # Use the error status of the first failure in a pipeline
 set -o pipefail
@@ -98,6 +98,7 @@ function build_amalgamation {
           -DUA_ENABLE_PUBSUB_DELTAFRAMES=ON \
           -DUA_ENABLE_PUBSUB_INFORMATIONMODEL=ON \
           -DUA_ENABLE_PUBSUB_MONITORING=ON \
+          -DUA_MULTITHREADING=100 \
           ..
     make ${MAKEOPTS}
 }
@@ -110,7 +111,7 @@ function set_capabilities {
     for filename in bin/tests/*; do
         sudo setcap cap_sys_ptrace,cap_net_raw,cap_net_admin=eip $filename
     done
-} 
+}
 
 function unit_tests {
     mkdir -p build; cd build; rm -rf *

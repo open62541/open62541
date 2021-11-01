@@ -117,6 +117,15 @@
 // specific architectures can undef this
 #define UA_HAS_GETIFADDR
 
+/**
+ * Inline Functions
+ * ---------------- */
+#ifdef _MSC_VER
+# define UA_INLINE __inline
+#else
+# define UA_INLINE inline
+#endif
+
 #include "${UA_ARCHITECTURE}/ua_architecture.h"
 
 #endif /* UA_CONFIG_H_ */
