@@ -3,6 +3,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  *
  *    Copyright 2018 (c) basysKom GmbH <opensource@basyskom.com> (Author: Peter Rustler)
+ *    Copyright 2021 (c) luibass92 <luibass92@live.it> (Author: Luigi Bassetta)
  */
 
 #ifndef UA_HISTORYDATABACKEND_MEMORY_H_
@@ -16,6 +17,9 @@ _UA_BEGIN_DECLS
 
 UA_HistoryDataBackend UA_EXPORT
 UA_HistoryDataBackend_Memory(size_t initialNodeIdStoreSize, size_t initialDataStoreSize);
+
+UA_HistoryDataBackend UA_EXPORT
+UA_HistoryDataBackend_Memory_Circular(size_t initialNodeIdStoreSize, size_t initialDataStoreSize);
 
 void UA_EXPORT
 UA_HistoryDataBackend_Memory_clear(UA_HistoryDataBackend *backend);

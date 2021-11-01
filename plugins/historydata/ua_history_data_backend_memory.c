@@ -3,6 +3,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  *
  *    Copyright 2018 (c) basysKom GmbH <opensource@basyskom.com> (Author: Peter Rustler)
+ *    Copyright 2021 (c) luibass92 <luibass92@live.it> (Author: Luigi Bassetta)
  */
 
 #include <open62541/plugin/historydata/history_data_backend_memory.h>
@@ -26,6 +27,8 @@ typedef struct {
     UA_DataValueMemoryStoreItem **dataStore;
     size_t storeEnd;
     size_t storeSize;
+    /* New field useful for circular buffer management */
+    size_t lastInserted;
 } UA_NodeIdStoreContextItem_backend_memory;
 
 static void
@@ -602,4 +605,269 @@ UA_HistoryDataBackend_Memory_clear(UA_HistoryDataBackend *backend)
     UA_MemoryStoreContext *ctx = (UA_MemoryStoreContext*)backend->context;
     UA_MemoryStoreContext_delete(ctx);
     memset(backend, 0, sizeof(UA_HistoryDataBackend));
+}
+
+/* Circular buffer implementation */
+
+static UA_NodeIdStoreContextItem_backend_memory *
+getNewNodeIdContext_backend_memory_Circular(UA_MemoryStoreContext *context,
+                                            UA_Server *server, const UA_NodeId *nodeId) {
+    UA_MemoryStoreContext *ctx = (UA_MemoryStoreContext *)context;
+    if(ctx->storeEnd >= ctx->storeSize) {
+        return NULL;
+    }
+    UA_NodeIdStoreContextItem_backend_memory *item = &ctx->dataStore[ctx->storeEnd];
+    UA_NodeId_copy(nodeId, &item->nodeId);
+    UA_DataValueMemoryStoreItem **store = (UA_DataValueMemoryStoreItem **)UA_calloc(
+        ctx->initialStoreSize, sizeof(UA_DataValueMemoryStoreItem *));
+    if(!store) {
+        UA_NodeIdStoreContextItem_clear(item);
+        return NULL;
+    }
+    item->dataStore = store;
+    item->storeSize = ctx->initialStoreSize;
+    item->storeEnd = 0;
+    ++ctx->storeEnd;
+    return item;
+}
+
+static UA_NodeIdStoreContextItem_backend_memory *
+getNodeIdStoreContextItem_backend_memory_Circular(UA_MemoryStoreContext *context,
+                                                  UA_Server *server,
+                                                  const UA_NodeId *nodeId) {
+    for(size_t i = 0; i < context->storeEnd; ++i) {
+        if(UA_NodeId_equal(nodeId, &context->dataStore[i].nodeId)) {
+            return &context->dataStore[i];
+        }
+    }
+    return getNewNodeIdContext_backend_memory_Circular(context, server, nodeId);
+}
+
+static UA_StatusCode
+serverSetHistoryData_backend_memory_Circular(
+    UA_Server *server, void *context, const UA_NodeId *sessionId, void *sessionContext,
+    const UA_NodeId *nodeId, UA_Boolean historizing, const UA_DataValue *value) {
+    UA_NodeIdStoreContextItem_backend_memory *item =
+        getNodeIdStoreContextItem_backend_memory_Circular(
+            (UA_MemoryStoreContext *)context, server, nodeId);
+    if(item == NULL) {
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    }
+    if(item->lastInserted >= item->storeSize) {
+        /* If the buffer size is overcomed, push new elements from the start of the buffer
+         */
+        item->lastInserted = 0;
+    }
+    UA_DateTime timestamp = 0;
+    if(value->hasSourceTimestamp) {
+        timestamp = value->sourceTimestamp;
+    } else if(value->hasServerTimestamp) {
+        timestamp = value->serverTimestamp;
+    } else {
+        timestamp = UA_DateTime_now();
+    }
+    UA_DataValueMemoryStoreItem *newItem =
+        (UA_DataValueMemoryStoreItem *)UA_calloc(1, sizeof(UA_DataValueMemoryStoreItem));
+    newItem->timestamp = timestamp;
+    UA_DataValue_copy(value, &newItem->value);
+
+    /* This implementation does NOT sort values by timestamp */
+
+    if(item->dataStore[item->lastInserted] != NULL) {
+        UA_DataValueMemoryStoreItem_clear(item->dataStore[item->lastInserted]);
+        UA_free(item->dataStore[item->lastInserted]);
+    }
+    item->dataStore[item->lastInserted] = newItem;
+    ++item->lastInserted;
+
+    if(item->storeEnd < item->storeSize) {
+        ++item->storeEnd;
+    }
+
+    return UA_STATUSCODE_GOOD;
+}
+
+static size_t
+getResultSize_service_Circular(const UA_HistoryDataBackend *backend, UA_Server *server,
+                               const UA_NodeId *sessionId, void *sessionContext,
+                               const UA_NodeId *nodeId, UA_DateTime start,
+                               UA_DateTime end, UA_UInt32 numValuesPerNode,
+                               UA_Boolean returnBounds, size_t *startIndex,
+                               size_t *endIndex, UA_Boolean *addFirst,
+                               UA_Boolean *addLast, UA_Boolean *reverse) {
+    *startIndex = 0;
+    *endIndex =
+        backend->lastIndex(server, backend->context, sessionId, sessionContext, nodeId);
+    *addFirst = false;
+    *addLast = false;
+    if(end == LLONG_MIN) {
+        *reverse = false;
+    } else if(start == LLONG_MIN) {
+        *reverse = true;
+    } else {
+        *reverse = end < start;
+    }
+
+    size_t size = 0;
+    const UA_NodeIdStoreContextItem_backend_memory *item =
+        getNodeIdStoreContextItem_backend_memory_Circular(
+            (UA_MemoryStoreContext *)backend->context, server, nodeId);
+    if(item == NULL) {
+        size = 0;
+    } else {
+        size = item->storeEnd;
+    }
+    return size;
+}
+
+static UA_StatusCode
+getHistoryData_service_Circular(
+    UA_Server *server, const UA_NodeId *sessionId, void *sessionContext,
+    const UA_HistoryDataBackend *backend, const UA_DateTime start, const UA_DateTime end,
+    const UA_NodeId *nodeId, size_t maxSize, UA_UInt32 numValuesPerNode,
+    UA_Boolean returnBounds, UA_TimestampsToReturn timestampsToReturn,
+    UA_NumericRange range, UA_Boolean releaseContinuationPoints,
+    const UA_ByteString *continuationPoint, UA_ByteString *outContinuationPoint,
+    UA_HistoryData *historyData) {
+    size_t *resultSize = &historyData->dataValuesSize;
+    UA_DataValue **result = &historyData->dataValues;
+    size_t skip = 0;
+    UA_ByteString backendContinuationPoint;
+    UA_ByteString_init(&backendContinuationPoint);
+    if(continuationPoint->length > 0) {
+        if(continuationPoint->length >= sizeof(size_t)) {
+            skip = *((size_t *)(continuationPoint->data));
+            if(continuationPoint->length > 0) {
+                backendContinuationPoint.length =
+                    continuationPoint->length - sizeof(size_t);
+                backendContinuationPoint.data = continuationPoint->data + sizeof(size_t);
+            }
+        } else {
+            return UA_STATUSCODE_BADCONTINUATIONPOINTINVALID;
+        }
+    }
+
+    size_t storeEnd =
+        backend->getEnd(server, backend->context, sessionId, sessionContext, nodeId);
+    size_t startIndex;
+    size_t endIndex;
+    UA_Boolean addFirst;
+    UA_Boolean addLast;
+    UA_Boolean reverse;
+    size_t _resultSize = getResultSize_service_Circular(
+        backend, server, sessionId, sessionContext, nodeId, start, end,
+        numValuesPerNode == 0 ? 0 : numValuesPerNode + (UA_UInt32)skip, returnBounds,
+        &startIndex, &endIndex, &addFirst, &addLast, &reverse);
+
+    *resultSize = _resultSize - skip;
+    if(*resultSize > maxSize) {
+        *resultSize = maxSize;
+    }
+    UA_DataValue *outResult =
+        (UA_DataValue *)UA_Array_new(*resultSize, &UA_TYPES[UA_TYPES_DATAVALUE]);
+    if(!outResult) {
+        *resultSize = 0;
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    }
+    *result = outResult;
+    size_t counter = 0;
+    if(addFirst) {
+        if(skip == 0) {
+            outResult[counter].hasStatus = true;
+            outResult[counter].status = UA_STATUSCODE_BADBOUNDNOTFOUND;
+            outResult[counter].hasSourceTimestamp = true;
+            if(start == LLONG_MIN) {
+                outResult[counter].sourceTimestamp = end;
+            } else {
+                outResult[counter].sourceTimestamp = start;
+            }
+            ++counter;
+        }
+    }
+    UA_ByteString backendOutContinuationPoint;
+    UA_ByteString_init(&backendOutContinuationPoint);
+    if(endIndex != storeEnd && startIndex != storeEnd) {
+        size_t retval = 0;
+
+        size_t valueSize = *resultSize - counter;
+        if(valueSize + skip > _resultSize - addFirst - addLast) {
+            if(skip == 0) {
+                valueSize = _resultSize - addFirst - addLast;
+            } else {
+                valueSize = _resultSize - skip - addLast;
+            }
+        }
+
+        UA_StatusCode ret = UA_STATUSCODE_GOOD;
+        if(valueSize > 0)
+
+            ret = backend->copyDataValues(
+                server, backend->context, sessionId, sessionContext, nodeId, startIndex,
+                endIndex, reverse, valueSize, range, releaseContinuationPoints,
+                &backendContinuationPoint, &backendOutContinuationPoint, &retval,
+                &outResult[counter]);
+        if(ret != UA_STATUSCODE_GOOD) {
+
+            UA_Array_delete(outResult, *resultSize, &UA_TYPES[UA_TYPES_DATAVALUE]);
+            *result = NULL;
+            *resultSize = 0;
+            return ret;
+        }
+        counter += retval;
+    }
+    if(addLast && counter < *resultSize) {
+
+        outResult[counter].hasStatus = true;
+        outResult[counter].status = UA_STATUSCODE_BADBOUNDNOTFOUND;
+        outResult[counter].hasSourceTimestamp = true;
+        if(start == LLONG_MIN &&
+           storeEnd != backend->firstIndex(server, backend->context, sessionId,
+                                           sessionContext, nodeId)) {
+            outResult[counter].sourceTimestamp =
+                backend
+                    ->getDataValue(server, backend->context, sessionId, sessionContext,
+                                   nodeId, endIndex)
+                    ->sourceTimestamp -
+                UA_DATETIME_SEC;
+        } else if(end == LLONG_MIN &&
+                  storeEnd != backend->firstIndex(server, backend->context, sessionId,
+                                                  sessionContext, nodeId)) {
+            outResult[counter].sourceTimestamp =
+                backend
+                    ->getDataValue(server, backend->context, sessionId, sessionContext,
+                                   nodeId, endIndex)
+                    ->sourceTimestamp +
+                UA_DATETIME_SEC;
+        } else {
+            outResult[counter].sourceTimestamp = end;
+        }
+    }
+    // there are more values
+    if(skip + *resultSize < _resultSize
+       // there are not more values for this request, but there are more values in
+       // database
+       || (backendOutContinuationPoint.length > 0 && numValuesPerNode != 0)
+       // we deliver just one value which is a FIRST/LAST value
+       || (skip == 0 && addFirst == true && *resultSize == 1)) {
+
+        if(UA_ByteString_allocBuffer(outContinuationPoint,
+                                     backendOutContinuationPoint.length +
+                                         sizeof(size_t)) != UA_STATUSCODE_GOOD) {
+            return UA_STATUSCODE_BADOUTOFMEMORY;
+        }
+        *((size_t *)(outContinuationPoint->data)) = skip + *resultSize;
+        if(backendOutContinuationPoint.length > 0)
+            memcpy(outContinuationPoint->data + sizeof(size_t),
+                   backendOutContinuationPoint.data, backendOutContinuationPoint.length);
+    }
+    UA_ByteString_clear(&backendOutContinuationPoint);
+    return UA_STATUSCODE_GOOD;
+}
+
+UA_HistoryDataBackend
+UA_HistoryDataBackend_Memory_Circular(size_t initialNodeIdStoreSize, size_t initialDataStoreSize) {
+    UA_HistoryDataBackend result = UA_HistoryDataBackend_Memory(initialNodeIdStoreSize, initialDataStoreSize);
+    result.serverSetHistoryData = &serverSetHistoryData_backend_memory_Circular;
+    result.getHistoryData = &getHistoryData_service_Circular;
+    return result;
 }

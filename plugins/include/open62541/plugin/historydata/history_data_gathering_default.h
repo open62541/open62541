@@ -3,6 +3,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  *
  *    Copyright 2018 (c) basysKom GmbH <opensource@basyskom.com> (Author: Peter Rustler)
+ *    Copyright 2021 (c) luibass92 <luibass92@live.it> (Author: Luigi Bassetta)
  */
 
 #ifndef UA_HISTORYDATAGATHERING_DEFAULT_H_
@@ -14,6 +15,9 @@ _UA_BEGIN_DECLS
 
 UA_HistoryDataGathering UA_EXPORT
 UA_HistoryDataGathering_Default(size_t initialNodeIdStoreSize);
+
+UA_HistoryDataGathering UA_EXPORT
+UA_HistoryDataGathering_Circular(size_t initialNodeIdStoreSize);
 
 _UA_END_DECLS
 
