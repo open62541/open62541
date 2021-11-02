@@ -1428,15 +1428,21 @@ variantOrder(const UA_Variant *p1, const UA_Variant *p2,
     if(p1->type != p2->type)
         return ((uintptr_t)p1->type < (uintptr_t)p2->type) ? UA_ORDER_LESS : UA_ORDER_MORE;
 
-    if(p1->arrayLength != p2->arrayLength)
-        return (p1->arrayLength < p2->arrayLength) ? UA_ORDER_LESS : UA_ORDER_MORE;
-        
     UA_Order o;
     if(p1->type != NULL) {
-        if(p1->arrayLength == 0)
+        /* Check if both variants are scalars or arrays */
+        UA_Boolean s1 = UA_Variant_isScalar(p1);
+        UA_Boolean s2 = UA_Variant_isScalar(p2);
+        if(s1 != s2)
+            return s1 ? UA_ORDER_LESS : UA_ORDER_MORE;
+        if(s1) {
             o = orderJumpTable[p1->type->typeKind](p1->data, p2->data, p1->type);
-        else
+        } else {
+            /* Mismatching array length? */
+            if(p1->arrayLength != p2->arrayLength)
+                return (p1->arrayLength < p2->arrayLength) ? UA_ORDER_LESS : UA_ORDER_MORE;
             o = arrayOrder(p1->data, p1->arrayLength, p2->data, p2->arrayLength, p1->type);
+        }
         if(o != UA_ORDER_EQ)
             return o;
     }
