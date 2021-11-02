@@ -240,7 +240,7 @@ registerNodeId_gathering_circular(UA_Server *server, void *context,
     if(getNodeIdStoreContextItem_gathering_default(ctx, nodeId)) {
         return UA_STATUSCODE_BADNODEIDEXISTS;
     }
-    if(ctx->storeEnd >= ctx->storeSize) {
+    if(ctx->storeEnd >= ctx->storeSize || !ctx->dataStore) {
         return UA_STATUSCODE_BADOUTOFMEMORY;
     }
     UA_NodeId_copy(nodeId, &ctx->dataStore[ctx->storeEnd].nodeId);
