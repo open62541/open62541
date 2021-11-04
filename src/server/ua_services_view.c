@@ -25,8 +25,12 @@
 UA_StatusCode
 referenceTypeIndices(UA_Server *server, const UA_NodeId *refType,
                      UA_ReferenceTypeSet *indices, UA_Boolean includeSubtypes) {
-    UA_ReferenceTypeSet_init(indices);
+    if(UA_NodeId_isNull(refType)) {
+        UA_ReferenceTypeSet_any(indices);
+        return UA_STATUSCODE_GOOD;
+    }
 
+    UA_ReferenceTypeSet_init(indices);
     const UA_Node *refNode = UA_NODESTORE_GET(server, refType);
     if(!refNode)
         return UA_STATUSCODE_BADREFERENCETYPEIDINVALID;
@@ -390,16 +394,12 @@ UA_Server_browseRecursive(UA_Server *server, const UA_BrowseDescription *bd,
     UA_LOCK(&server->serviceMutex);
 
     /* Set the list of relevant reference types */
-    UA_StatusCode retval = UA_STATUSCODE_GOOD;
     UA_ReferenceTypeSet refTypes;
-    UA_ReferenceTypeSet_any(&refTypes);
-    if(!UA_NodeId_isNull(&bd->referenceTypeId)) {
-        retval = referenceTypeIndices(server, &bd->referenceTypeId,
-                                      &refTypes, bd->includeSubtypes);
-        if(retval != UA_STATUSCODE_GOOD) {
-            UA_UNLOCK(&server->serviceMutex);
-            return retval;
-        }
+    UA_StatusCode retval = referenceTypeIndices(server, &bd->referenceTypeId,
+                                                &refTypes, bd->includeSubtypes);
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_UNLOCK(&server->serviceMutex);
+        return retval;
     }
 
     /* Browse */
@@ -739,15 +739,11 @@ Operation_Browse(UA_Server *server, UA_Session *session, const UA_UInt32 *maxref
     }
 
     /* Get the list of relevant reference types */
-    if(UA_NodeId_isNull(&descr->referenceTypeId)) {
-        UA_ReferenceTypeSet_any(&cp.relevantReferences);
-    } else {
-        result->statusCode =
-            referenceTypeIndices(server, &descr->referenceTypeId,
-                                 &cp.relevantReferences, descr->includeSubtypes);
-        if(result->statusCode != UA_STATUSCODE_GOOD)
-            return;
-    }
+    result->statusCode =
+        referenceTypeIndices(server, &descr->referenceTypeId,
+                             &cp.relevantReferences, descr->includeSubtypes);
+    if(result->statusCode != UA_STATUSCODE_GOOD)
+        return;
 
     UA_Boolean done = browseWithContinuation(server, session, &cp, result);
 
@@ -963,16 +959,12 @@ walkBrowsePathElement(UA_Server *server, UA_Session *session,
     UA_UInt32 browseNameHash = UA_QualifiedName_hash(&elem->targetName);
 
     /* Get the relevant ReferenceTypes */
-    UA_StatusCode res = UA_STATUSCODE_GOOD;
     UA_ReferenceTypeSet refTypes;
-    if(UA_NodeId_isNull(&elem->referenceTypeId)) {
-        UA_ReferenceTypeSet_any(&refTypes);
-    } else {
-        res = referenceTypeIndices(server, &elem->referenceTypeId,
-                                   &refTypes, elem->includeSubtypes);
-        if(res != UA_STATUSCODE_GOOD)
-            return UA_STATUSCODE_BADNOMATCH;
-    }
+    UA_StatusCode res =
+        referenceTypeIndices(server, &elem->referenceTypeId,
+                             &refTypes, elem->includeSubtypes);
+    if(res != UA_STATUSCODE_GOOD)
+        return UA_STATUSCODE_BADNOMATCH;
 
     struct aa_head _refNameTree = refNameTree;
 
