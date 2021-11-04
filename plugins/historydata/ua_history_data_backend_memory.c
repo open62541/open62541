@@ -788,7 +788,6 @@ getHistoryData_service_Circular(
     UA_ByteString_init(&backendOutContinuationPoint);
     if(endIndex != storeEnd && startIndex != storeEnd) {
         size_t retval = 0;
-
         size_t valueSize = *resultSize - counter;
         if(valueSize + skip > _resultSize - addFirst - addLast) {
             if(skip == 0) {
@@ -797,17 +796,14 @@ getHistoryData_service_Circular(
                 valueSize = _resultSize - skip - addLast;
             }
         }
-
         UA_StatusCode ret = UA_STATUSCODE_GOOD;
         if(valueSize > 0)
-
             ret = backend->copyDataValues(
                 server, backend->context, sessionId, sessionContext, nodeId, startIndex,
                 endIndex, reverse, valueSize, range, releaseContinuationPoints,
                 &backendContinuationPoint, &backendOutContinuationPoint, &retval,
                 &outResult[counter]);
         if(ret != UA_STATUSCODE_GOOD) {
-
             UA_Array_delete(outResult, *resultSize, &UA_TYPES[UA_TYPES_DATAVALUE]);
             *result = NULL;
             *resultSize = 0;
@@ -816,28 +812,13 @@ getHistoryData_service_Circular(
         counter += retval;
     }
     if(addLast && counter < *resultSize) {
-
         outResult[counter].hasStatus = true;
         outResult[counter].status = UA_STATUSCODE_BADBOUNDNOTFOUND;
         outResult[counter].hasSourceTimestamp = true;
-        if(start == LLONG_MIN &&
-           storeEnd != backend->firstIndex(server, backend->context, sessionId,
-                                           sessionContext, nodeId)) {
-            outResult[counter].sourceTimestamp =
-                backend
-                    ->getDataValue(server, backend->context, sessionId, sessionContext,
-                                   nodeId, endIndex)
-                    ->sourceTimestamp -
-                UA_DATETIME_SEC;
-        } else if(end == LLONG_MIN &&
-                  storeEnd != backend->firstIndex(server, backend->context, sessionId,
-                                                  sessionContext, nodeId)) {
-            outResult[counter].sourceTimestamp =
-                backend
-                    ->getDataValue(server, backend->context, sessionId, sessionContext,
-                                   nodeId, endIndex)
-                    ->sourceTimestamp +
-                UA_DATETIME_SEC;
+        if(start == LLONG_MIN && storeEnd != backend->firstIndex(server, backend->context, sessionId, sessionContext, nodeId)) {
+            outResult[counter].sourceTimestamp = backend->getDataValue(server, backend->context, sessionId, sessionContext, nodeId, endIndex)->sourceTimestamp - UA_DATETIME_SEC;
+        } else if(end == LLONG_MIN && storeEnd != backend->firstIndex(server, backend->context, sessionId, sessionContext, nodeId)) {
+            outResult[counter].sourceTimestamp = backend->getDataValue(server, backend->context, sessionId, sessionContext, nodeId, endIndex)->sourceTimestamp + UA_DATETIME_SEC;
         } else {
             outResult[counter].sourceTimestamp = end;
         }
@@ -849,16 +830,12 @@ getHistoryData_service_Circular(
        || (backendOutContinuationPoint.length > 0 && numValuesPerNode != 0)
        // we deliver just one value which is a FIRST/LAST value
        || (skip == 0 && addFirst == true && *resultSize == 1)) {
-
-        if(UA_ByteString_allocBuffer(outContinuationPoint,
-                                     backendOutContinuationPoint.length +
-                                         sizeof(size_t)) != UA_STATUSCODE_GOOD) {
+        if(UA_ByteString_allocBuffer(outContinuationPoint, backendOutContinuationPoint.length + sizeof(size_t)) != UA_STATUSCODE_GOOD) {
             return UA_STATUSCODE_BADOUTOFMEMORY;
         }
         *((size_t *)(outContinuationPoint->data)) = skip + *resultSize;
         if(backendOutContinuationPoint.length > 0)
-            memcpy(outContinuationPoint->data + sizeof(size_t),
-                   backendOutContinuationPoint.data, backendOutContinuationPoint.length);
+            memcpy(outContinuationPoint->data + sizeof(size_t), backendOutContinuationPoint.data, backendOutContinuationPoint.length);
     }
     UA_ByteString_clear(&backendOutContinuationPoint);
     return UA_STATUSCODE_GOOD;
