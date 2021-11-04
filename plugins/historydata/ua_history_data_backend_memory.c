@@ -611,15 +611,15 @@ UA_HistoryDataBackend_Memory_clear(UA_HistoryDataBackend *backend)
 
 static UA_NodeIdStoreContextItem_backend_memory *
 getNewNodeIdContext_backend_memory_Circular(UA_MemoryStoreContext *context,
-                                            UA_Server *server, const UA_NodeId *nodeId) {
+                                            UA_Server *server,
+                                            const UA_NodeId *nodeId) {
     UA_MemoryStoreContext *ctx = (UA_MemoryStoreContext *)context;
     if(ctx->storeEnd >= ctx->storeSize) {
         return NULL;
     }
     UA_NodeIdStoreContextItem_backend_memory *item = &ctx->dataStore[ctx->storeEnd];
     UA_NodeId_copy(nodeId, &item->nodeId);
-    UA_DataValueMemoryStoreItem **store = (UA_DataValueMemoryStoreItem **)UA_calloc(
-        ctx->initialStoreSize, sizeof(UA_DataValueMemoryStoreItem *));
+    UA_DataValueMemoryStoreItem **store = (UA_DataValueMemoryStoreItem **)UA_calloc(ctx->initialStoreSize, sizeof(UA_DataValueMemoryStoreItem *));
     if(!store) {
         UA_NodeIdStoreContextItem_clear(item);
         return NULL;
@@ -644,18 +644,19 @@ getNodeIdStoreContextItem_backend_memory_Circular(UA_MemoryStoreContext *context
 }
 
 static UA_StatusCode
-serverSetHistoryData_backend_memory_Circular(
-    UA_Server *server, void *context, const UA_NodeId *sessionId, void *sessionContext,
-    const UA_NodeId *nodeId, UA_Boolean historizing, const UA_DataValue *value) {
-    UA_NodeIdStoreContextItem_backend_memory *item =
-        getNodeIdStoreContextItem_backend_memory_Circular(
-            (UA_MemoryStoreContext *)context, server, nodeId);
+serverSetHistoryData_backend_memory_Circular(UA_Server *server,
+                                             void *context,
+                                             const UA_NodeId *sessionId,
+                                             void *sessionContext,
+                                             const UA_NodeId *nodeId,
+                                             UA_Boolean historizing,
+                                             const UA_DataValue *value) {
+    UA_NodeIdStoreContextItem_backend_memory *item = getNodeIdStoreContextItem_backend_memory_Circular((UA_MemoryStoreContext *)context, server, nodeId);
     if(item == NULL) {
         return UA_STATUSCODE_BADOUTOFMEMORY;
     }
     if(item->lastInserted >= item->storeSize) {
-        /* If the buffer size is overcomed, push new elements from the start of the buffer
-         */
+        /* If the buffer size is overcomed, push new elements from the start of the buffer */
         item->lastInserted = 0;
     }
     UA_DateTime timestamp = 0;
@@ -666,8 +667,7 @@ serverSetHistoryData_backend_memory_Circular(
     } else {
         timestamp = UA_DateTime_now();
     }
-    UA_DataValueMemoryStoreItem *newItem =
-        (UA_DataValueMemoryStoreItem *)UA_calloc(1, sizeof(UA_DataValueMemoryStoreItem));
+    UA_DataValueMemoryStoreItem *newItem = (UA_DataValueMemoryStoreItem *)UA_calloc(1, sizeof(UA_DataValueMemoryStoreItem));
     newItem->timestamp = timestamp;
     UA_DataValue_copy(value, &newItem->value);
 
@@ -696,8 +696,7 @@ getResultSize_service_Circular(const UA_HistoryDataBackend *backend, UA_Server *
                                size_t *endIndex, UA_Boolean *addFirst,
                                UA_Boolean *addLast, UA_Boolean *reverse) {
     *startIndex = 0;
-    *endIndex =
-        backend->lastIndex(server, backend->context, sessionId, sessionContext, nodeId);
+    *endIndex = backend->lastIndex(server, backend->context, sessionId, sessionContext, nodeId);
     *addFirst = false;
     *addLast = false;
     if(end == LLONG_MIN) {
@@ -709,9 +708,7 @@ getResultSize_service_Circular(const UA_HistoryDataBackend *backend, UA_Server *
     }
 
     size_t size = 0;
-    const UA_NodeIdStoreContextItem_backend_memory *item =
-        getNodeIdStoreContextItem_backend_memory_Circular(
-            (UA_MemoryStoreContext *)backend->context, server, nodeId);
+    const UA_NodeIdStoreContextItem_backend_memory *item = getNodeIdStoreContextItem_backend_memory_Circular((UA_MemoryStoreContext *)backend->context, server, nodeId);
     if(item == NULL) {
         size = 0;
     } else {
@@ -721,50 +718,59 @@ getResultSize_service_Circular(const UA_HistoryDataBackend *backend, UA_Server *
 }
 
 static UA_StatusCode
-getHistoryData_service_Circular(
-    UA_Server *server, const UA_NodeId *sessionId, void *sessionContext,
-    const UA_HistoryDataBackend *backend, const UA_DateTime start, const UA_DateTime end,
-    const UA_NodeId *nodeId, size_t maxSize, UA_UInt32 numValuesPerNode,
-    UA_Boolean returnBounds, UA_TimestampsToReturn timestampsToReturn,
-    UA_NumericRange range, UA_Boolean releaseContinuationPoints,
-    const UA_ByteString *continuationPoint, UA_ByteString *outContinuationPoint,
-    UA_HistoryData *historyData) {
+getHistoryData_service_Circular(UA_Server *server,
+                                const UA_NodeId *sessionId,
+                                void *sessionContext,
+                                const UA_HistoryDataBackend *backend,
+                                const UA_DateTime start,
+                                const UA_DateTime end,
+                                const UA_NodeId *nodeId,
+                                size_t maxSize,
+                                UA_UInt32 numValuesPerNode,
+                                UA_Boolean returnBounds,
+                                UA_TimestampsToReturn timestampsToReturn,
+                                UA_NumericRange range,
+                                UA_Boolean releaseContinuationPoints,
+                                const UA_ByteString *continuationPoint,
+                                UA_ByteString *outContinuationPoint,
+                                UA_HistoryData *historyData) {
     size_t *resultSize = &historyData->dataValuesSize;
     UA_DataValue **result = &historyData->dataValues;
     size_t skip = 0;
     UA_ByteString backendContinuationPoint;
     UA_ByteString_init(&backendContinuationPoint);
     if(continuationPoint->length > 0) {
-        if(continuationPoint->length >= sizeof(size_t)) {
-            skip = *((size_t *)(continuationPoint->data));
-            if(continuationPoint->length > 0) {
-                backendContinuationPoint.length =
-                    continuationPoint->length - sizeof(size_t);
-                backendContinuationPoint.data = continuationPoint->data + sizeof(size_t);
-            }
-        } else {
+        if(continuationPoint->length < sizeof(size_t))
             return UA_STATUSCODE_BADCONTINUATIONPOINTINVALID;
-        }
+        skip = *((size_t *)(continuationPoint->data));
+        backendContinuationPoint.length = continuationPoint->length - sizeof(size_t);
+        backendContinuationPoint.data = continuationPoint->data + sizeof(size_t);
     }
-
-    size_t storeEnd =
-        backend->getEnd(server, backend->context, sessionId, sessionContext, nodeId);
+    size_t storeEnd = backend->getEnd(server, backend->context, sessionId, sessionContext, nodeId);
     size_t startIndex;
     size_t endIndex;
     UA_Boolean addFirst;
     UA_Boolean addLast;
     UA_Boolean reverse;
-    size_t _resultSize = getResultSize_service_Circular(
-        backend, server, sessionId, sessionContext, nodeId, start, end,
-        numValuesPerNode == 0 ? 0 : numValuesPerNode + (UA_UInt32)skip, returnBounds,
-        &startIndex, &endIndex, &addFirst, &addLast, &reverse);
-
+    size_t _resultSize = getResultSize_service_Circular(backend,
+                                                        server,
+                                                        sessionId,
+                                                        sessionContext,
+                                                        nodeId,
+                                                        start,
+                                                        end,
+                                                        numValuesPerNode == 0 ? 0 : numValuesPerNode + (UA_UInt32)skip,
+                                                        returnBounds,
+                                                        &startIndex,
+                                                        &endIndex,
+                                                        &addFirst,
+                                                        &addLast,
+                                                        &reverse);
     *resultSize = _resultSize - skip;
     if(*resultSize > maxSize) {
         *resultSize = maxSize;
     }
-    UA_DataValue *outResult =
-        (UA_DataValue *)UA_Array_new(*resultSize, &UA_TYPES[UA_TYPES_DATAVALUE]);
+    UA_DataValue *outResult = (UA_DataValue *)UA_Array_new(*resultSize, &UA_TYPES[UA_TYPES_DATAVALUE]);
     if(!outResult) {
         *resultSize = 0;
         return UA_STATUSCODE_BADOUTOFMEMORY;
@@ -798,11 +804,21 @@ getHistoryData_service_Circular(
         }
         UA_StatusCode ret = UA_STATUSCODE_GOOD;
         if(valueSize > 0)
-            ret = backend->copyDataValues(
-                server, backend->context, sessionId, sessionContext, nodeId, startIndex,
-                endIndex, reverse, valueSize, range, releaseContinuationPoints,
-                &backendContinuationPoint, &backendOutContinuationPoint, &retval,
-                &outResult[counter]);
+            ret = backend->copyDataValues(server,
+                                          backend->context,
+                                          sessionId,
+                                          sessionContext,
+                                          nodeId,
+                                          startIndex,
+                                          endIndex,
+                                          reverse,
+                                          valueSize,
+                                          range,
+                                          releaseContinuationPoints,
+                                          &backendContinuationPoint,
+                                          &backendOutContinuationPoint,
+                                          &retval,
+                                          &outResult[counter]);
         if(ret != UA_STATUSCODE_GOOD) {
             UA_Array_delete(outResult, *resultSize, &UA_TYPES[UA_TYPES_DATAVALUE]);
             *result = NULL;
