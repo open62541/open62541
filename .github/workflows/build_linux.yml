@@ -73,6 +73,9 @@ jobs:
           - build_name: Amalgamation Build
             cmd_deps: ""
             cmd_action: build_amalgamation
+          - build_name: Amalgamation Build with Multithreading
+            cmd_deps: ""
+            cmd_action: build_amalgamation_mt
           - build_name: "Valgrind Build & Unit Tests with MbedTLS (gcc)"
             cmd_deps: sudo apt-get install -y -qq valgrind libmbedtls-dev
             cmd_action: unit_tests_valgrind MBEDTLS
