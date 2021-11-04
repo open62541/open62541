@@ -338,7 +338,7 @@ if(UA_FORCE_CPP)
     add_definitions(-D__STDC_CONSTANT_MACROS) # We need the UINT32_C define
 endif()
 
-option(UA_FORCE_WERROR "Force compilation with -Werror" ON)
+option(UA_FORCE_WERROR "Force compilation with -Werror (or /WX on MSVC)" ON)
 
 #General PubSub setup
 option(UA_ENABLE_PUBSUB "Enable the PubSub protocol" OFF)
@@ -769,7 +769,10 @@ if(APPLE)
 endif()
 
 if(MSVC)
-  set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /W3 /WX /w44996") # Compiler warnings, error on warning
+  set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /W3 /w44996")
+  if(UA_FORCE_WERROR)
+      set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /WX") # Compiler warnings, error on warning
+  endif()
 
   if(UA_MSVC_FORCE_STATIC_CRT AND NOT BUILD_SHARED_LIBS)
     set(CompilerFlags CMAKE_CXX_FLAGS CMAKE_CXX_FLAGS_DEBUG CMAKE_CXX_FLAGS_RELEASE CMAKE_C_FLAGS
