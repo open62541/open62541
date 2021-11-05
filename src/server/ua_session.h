@@ -55,13 +55,16 @@ typedef struct {
     UA_KeyValuePair *params;
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS
+    /* The queue is ordered according to the priority byte (higher bytes come
+     * first). When a late subscription finally publishes, then it is pushed to
+     * the back within the sub-set of subscriptions that has the same priority
+     * (round-robin scheduling). */
     size_t subscriptionsSize;
-    TAILQ_HEAD(, UA_Subscription) subscriptions; /* Late subscriptions that do eventually
-                                                  * publish are moved to the tail. So that
-                                                  * other late subscriptions are not
-                                                  * starved. */
+    TAILQ_HEAD(, UA_Subscription) subscriptions;
+
     size_t responseQueueSize;
     SIMPLEQ_HEAD(, UA_PublishResponseEntry) responseQueue;
+
     size_t totalRetransmissionQueueSize; /* Retransmissions of all subscriptions */
 #endif
 } UA_Session;
@@ -88,9 +91,12 @@ void UA_Session_updateLifetime(UA_Session *session);
 void
 UA_Session_attachSubscription(UA_Session *session, UA_Subscription *sub);
 
+/* If releasePublishResponses is true and the last subscription is removed, all
+ * outstanding PublishResponse are sent with a StatusCode. But we don't do that
+ * if a Subscription is only detached for modification. */
 void
 UA_Session_detachSubscription(UA_Server *server, UA_Session *session,
-                              UA_Subscription *sub);
+                              UA_Subscription *sub, UA_Boolean releasePublishResponses);
 
 UA_Subscription *
 UA_Session_getSubscriptionById(UA_Session *session,

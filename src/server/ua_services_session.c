@@ -822,7 +822,7 @@ Service_CloseSession(UA_Server *server, UA_SecureChannel *channel,
         TAILQ_FOREACH_SAFE(sub, &session->subscriptions, sessionListEntry, sub_tmp) {
             UA_LOG_INFO_SUBSCRIPTION(&server->config.logger, sub,
                                      "Detaching the Subscription from the Session");
-            UA_Session_detachSubscription(server, session, sub);
+            UA_Session_detachSubscription(server, session, sub, true);
         }
     }
 #endif
