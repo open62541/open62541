@@ -272,7 +272,7 @@ if(UA_BUILD_FUZZING OR UA_BUILD_OSS_FUZZ OR UA_BUILD_FUZZING_CORPUS)
     set(UA_ENABLE_DISCOVERY ON CACHE STRING "" FORCE)
     set(UA_ENABLE_DISCOVERY_MULTICAST ON CACHE STRING "" FORCE)
     set(UA_ENABLE_ENCRYPTION ON CACHE STRING "OFF" FORCE)
-    set(UA_ENABLE_ENCRYPTION_MBEDTLS ON CACHE STRING "" FORCE)    
+    set(UA_ENABLE_ENCRYPTION_MBEDTLS ON CACHE STRING "" FORCE)
     set(UA_ENABLE_HISTORIZING ON CACHE STRING "" FORCE)
     set(UA_ENABLE_JSON_ENCODING ON CACHE STRING "" FORCE)
     set(UA_ENABLE_SUBSCRIPTIONS ON CACHE STRING "" FORCE)
@@ -572,7 +572,7 @@ if(UA_ENABLE_ENCRYPTION_OPENSSL OR UA_ENABLE_MQTT_TLS_OPENSSL)
     find_package(OpenSSL REQUIRED)
     list(APPEND open62541_LIBRARIES ${OPENSSL_LIBRARIES})
     endif ()
-    
+
 if(UA_ENABLE_ENCRYPTION_LIBRESSL)
     # See https://github.com/libressl-portable/portable/blob/master/FindLibreSSL.cmake
     find_package(LibreSSL REQUIRED)
@@ -940,7 +940,7 @@ set(lib_sources ${PROJECT_SOURCE_DIR}/src/ua_types.c
                 ${PROJECT_SOURCE_DIR}/deps/pcg_basic.c
                 ${PROJECT_SOURCE_DIR}/deps/base64.c
                 ${PROJECT_SOURCE_DIR}/deps/aa_tree.c
-                
+
                 ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_config.c)
 
 set(default_plugin_headers ${PROJECT_SOURCE_DIR}/plugins/include/open62541/plugin/accesscontrol_default.h
@@ -1061,18 +1061,14 @@ if(UA_ENABLE_PUBSUB)
         endif()
     endif()
     if(UA_ENABLE_PUBSUB_MQTT)
-        if(WIN32)
-            MESSAGE(WARNING "Multithreading is enabled in MQTT plugin. This feature is under development and marked as EXPERIMENTAL")
-        else()
-            list(APPEND default_plugin_headers ${PROJECT_SOURCE_DIR}/deps/mqtt-c/mqtt_pal.h
-                                               ${PROJECT_SOURCE_DIR}/deps/mqtt-c/mqtt.h
-                                               ${PROJECT_SOURCE_DIR}/plugins/ua_network_pubsub_mqtt.h
-                                               ${PROJECT_SOURCE_DIR}/plugins/mqtt/ua_mqtt_adapter.h)
-            list(APPEND default_plugin_sources ${PROJECT_SOURCE_DIR}/plugins/mqtt/ua_mqtt_pal.c
-                                               ${PROJECT_SOURCE_DIR}/deps/mqtt-c/mqtt.c
-                                               ${PROJECT_SOURCE_DIR}/plugins/ua_network_pubsub_mqtt.c
-                                               ${PROJECT_SOURCE_DIR}/plugins/mqtt/ua_mqtt_adapter.c)
-        endif()
+      list(APPEND default_plugin_headers ${PROJECT_SOURCE_DIR}/deps/mqtt-c/mqtt_pal.h
+        ${PROJECT_SOURCE_DIR}/deps/mqtt-c/mqtt.h
+        ${PROJECT_SOURCE_DIR}/plugins/ua_network_pubsub_mqtt.h
+        ${PROJECT_SOURCE_DIR}/plugins/mqtt/ua_mqtt_adapter.h)
+      list(APPEND default_plugin_sources ${PROJECT_SOURCE_DIR}/plugins/mqtt/ua_mqtt_pal.c
+        ${PROJECT_SOURCE_DIR}/deps/mqtt-c/mqtt.c
+        ${PROJECT_SOURCE_DIR}/plugins/ua_network_pubsub_mqtt.c
+        ${PROJECT_SOURCE_DIR}/plugins/mqtt/ua_mqtt_adapter.c)
     endif()
     if(UA_ENABLE_MALLOC_SINGLETON AND UA_ENABLE_PUBSUB_BUFMALLOC)
         list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_bufmalloc.c)
@@ -1647,8 +1643,8 @@ set(UA_install_tools_files "tools/generate_datatypes.py"
     "tools/generate_nodeid_header.py"
     "tools/generate_statuscode_descriptions.py")
 
-install(DIRECTORY ${UA_install_tools_dirs} 
-    DESTINATION ${open62541_install_tools_dir} 
+install(DIRECTORY ${UA_install_tools_dirs}
+    DESTINATION ${open62541_install_tools_dir}
     USE_SOURCE_PERMISSIONS
     FILES_MATCHING
     PATTERN "*"
@@ -1702,7 +1698,7 @@ if(NOT UA_ENABLE_AMALGAMATION)
     endforeach()
 
 else()
-    # Export amalgamated header open62541.h which is generated due to build of 
+    # Export amalgamated header open62541.h which is generated due to build of
     # open62541-object
     install(FILES ${PROJECT_BINARY_DIR}/open62541.h DESTINATION include)
 endif()
