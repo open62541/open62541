@@ -1719,28 +1719,27 @@ deconstructNodeSet(UA_Server *server, UA_Session *session,
         if(member->head.nodeClass == UA_NODECLASS_OBJECT ||
            member->head.nodeClass == UA_NODECLASS_VARIABLE) {
             const UA_Node *type = getNodeType(server, &member->head);
-            if(!type)
-                continue;
+            if(type) {
+               /* Get the lifecycle */
+               const UA_NodeTypeLifecycle *lifecycle;
+               if(member->head.nodeClass == UA_NODECLASS_OBJECT)
+                  lifecycle = &type->objectTypeNode.lifecycle;
+               else
+                  lifecycle = &type->variableTypeNode.lifecycle;
+               
+               /* Call the destructor */
+               if(lifecycle->destructor) {
+                  UA_UNLOCK(&server->serviceMutex);
+                  lifecycle->destructor(server,
+                                        &session->sessionId, session->sessionHandle,
+                                        &type->head.nodeId, type->head.context,
+                                        &member->head.nodeId, &context);
+                  UA_LOCK(&server->serviceMutex);
+               }
 
-            /* Get the lifecycle */
-            const UA_NodeTypeLifecycle *lifecycle;
-            if(member->head.nodeClass == UA_NODECLASS_OBJECT)
-                lifecycle = &type->objectTypeNode.lifecycle;
-            else
-                lifecycle = &type->variableTypeNode.lifecycle;
-
-            /* Call the destructor */
-            if(lifecycle->destructor) {
-                UA_UNLOCK(&server->serviceMutex);
-                lifecycle->destructor(server,
-                                      &session->sessionId, session->sessionHandle,
-                                      &type->head.nodeId, type->head.context,
-                                      &member->head.nodeId, &context);
-                UA_LOCK(&server->serviceMutex);
+               /* Release the type node */
+               UA_NODESTORE_RELEASE(server, type);
             }
-
-            /* Release the type node */
-            UA_NODESTORE_RELEASE(server, type);
         }
 
         /* Call the global destructor */
