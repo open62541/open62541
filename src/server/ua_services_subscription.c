@@ -210,7 +210,7 @@ Service_Publish(UA_Server *server, UA_Session *session,
      * resources for the new publish request. If the limit has been reached the
      * oldest publish request shall be responded */
     if((server->config.maxPublishReqPerSession != 0) &&
-       (session->numPublishReq >= server->config.maxPublishReqPerSession)) {
+       (session->responseQueueSize >= server->config.maxPublishReqPerSession)) {
         if(!UA_Session_reachedPublishReqLimit(server, session)) {
             sendServiceFault(session->header.channel, requestId,
                              request->requestHeader.requestHandle,
