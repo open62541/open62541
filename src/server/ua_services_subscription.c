@@ -133,6 +133,7 @@ Service_ModifySubscription(UA_Server *server, UA_Session *session,
 
     /* Store the old publishing interval */
     UA_Double oldPublishingInterval = sub->publishingInterval;
+    UA_Byte oldPriority = sub->priority;
 
     /* Change the Subscription settings */
     setSubscriptionSettings(server, sub, request->requestedPublishingInterval,
@@ -149,6 +150,13 @@ Service_ModifySubscription(UA_Server *server, UA_Session *session,
        sub->publishingInterval != oldPublishingInterval)
         changeRepeatedCallbackInterval(server, sub->publishCallbackId,
                                        sub->publishingInterval);
+
+    /* If the priority has changed, re-enter the subscription to the
+     * priority-ordered queue in the session. */
+    if(oldPriority != sub->priority) {
+        UA_Session_detachSubscription(server, session, sub, false);
+        UA_Session_attachSubscription(session, sub);
+    }
 
     /* Set the response */
     response->revisedPublishingInterval = sub->publishingInterval;
@@ -276,9 +284,10 @@ Service_Publish(UA_Server *server, UA_Session *session,
     UA_LOG_DEBUG_SESSION(&server->config.logger, session, "Queued a publication message");
 
     /* If there are late subscriptions, the new publish request is used to
-     * answer them immediately. However, a single subscription that generates
-     * many notifications must not "starve" other late subscriptions. Hence we
-     * move it to the end of the queue when a response was sent. */
+     * answer them immediately. Late subscriptions with higher priority are
+     * considered earlier. However, a single subscription that generates many
+     * notifications must not "starve" other late subscriptions. Hence we move
+     * it to the end of the queue for the subscriptions of that priority. */
     UA_Subscription *late = NULL;
     TAILQ_FOREACH(late, &session->subscriptions, sessionListEntry) {
         if(late->state != UA_SUBSCRIPTIONSTATE_LATE)
@@ -287,12 +296,24 @@ Service_Publish(UA_Server *server, UA_Session *session,
         UA_LOG_DEBUG_SUBSCRIPTION(&server->config.logger, late,
                                   "Send PublishResponse on a late subscription");
         UA_Subscription_publish(server, late);
-        /* If the subscription was not detached from the session during publish,
-         * enqueue at the end */
-        if(late->session) {
-            TAILQ_REMOVE(&session->subscriptions, late, sessionListEntry);
+
+        /* The subscription was detached from the session during publish? */
+        if(!late->session)
+            break;
+
+        /* Find the first element with smaller priority. If there is none,
+         * insert at the end. */
+        UA_Subscription *after = TAILQ_NEXT(late, sessionListEntry);
+        while(after && after->priority >= late->priority)
+            after = TAILQ_NEXT(after, sessionListEntry);
+
+        TAILQ_REMOVE(&session->subscriptions, late, sessionListEntry);
+
+        if(after)
+            TAILQ_INSERT_BEFORE(after, late, sessionListEntry);
+        else
             TAILQ_INSERT_TAIL(&session->subscriptions, late, sessionListEntry);
-        }
+
         break;
     }
 }

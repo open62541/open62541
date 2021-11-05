@@ -54,7 +54,7 @@ UA_Subscription_delete(UA_Server *server, UA_Subscription *sub) {
 
     /* Detach from the session if necessary */
     if(sub->session)
-        UA_Session_detachSubscription(server, sub->session, sub);
+        UA_Session_detachSubscription(server, sub->session, sub, true);
 
     /* Remove from the server if not previously registered */
     if(sub->serverListEntry.le_prev) {
