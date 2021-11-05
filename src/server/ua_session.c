@@ -177,18 +177,19 @@ UA_Session_dequeuePublishReq(UA_Session *session) {
     UA_PublishResponseEntry* entry = SIMPLEQ_FIRST(&session->responseQueue);
     if(entry) {
         SIMPLEQ_REMOVE_HEAD(&session->responseQueue, listEntry);
-        session->numPublishReq--;
+        session->responseQueueSize--;
     }
     return entry;
 }
 
 void
-UA_Session_queuePublishReq(UA_Session *session, UA_PublishResponseEntry* entry, UA_Boolean head) {
+UA_Session_queuePublishReq(UA_Session *session, UA_PublishResponseEntry* entry,
+                           UA_Boolean head) {
     if(!head)
         SIMPLEQ_INSERT_TAIL(&session->responseQueue, entry, listEntry);
     else
         SIMPLEQ_INSERT_HEAD(&session->responseQueue, entry, listEntry);
-    session->numPublishReq++;
+    session->responseQueueSize++;
 }
 
 #endif

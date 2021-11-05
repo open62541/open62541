@@ -60,8 +60,8 @@ typedef struct {
                                                   * publish are moved to the tail. So that
                                                   * other late subscriptions are not
                                                   * starved. */
+    size_t responseQueueSize;
     SIMPLEQ_HEAD(, UA_PublishResponseEntry) responseQueue;
-    UA_UInt32 numPublishReq;
     size_t totalRetransmissionQueueSize; /* Retransmissions of all subscriptions */
 #endif
 } UA_Session;
