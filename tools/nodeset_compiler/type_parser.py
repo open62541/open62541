@@ -405,7 +405,7 @@ class CSVBSDTypeParser(TypeParser):
     def parse_types(self):
         # parse existing types
         for i in self.existing_bsd:
-            (outname_import, file_import) = i.split("#")
+            (file_import, outname_import) = i.split("#")
             self.existing_types_array.add(outname_import)
             outname_import = outname_import.lower()
             if outname_import.startswith("ua_"):
