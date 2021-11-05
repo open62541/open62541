@@ -435,7 +435,7 @@ class NodeSet(object):
                     f.flush()
                     self.all_files.append(f.name)
                     f.close()
-                    bsd = "UA_TYPES#" + f.name
+                    bsd = f.name + "#UA_TYPES"
                     import_bsd.append(bsd)
         for xmlfile in infiles:
             nodeset_base = open(xmlfile.name, "rb")

@@ -332,8 +332,8 @@ class TypeParser():
                                    ". If the unknown subtype is 'Bit', then maybe a struct with " +
                                    "optional fields is defined wrong in the .bsd-file. If not, maybe " +
                                    "you need to import additional types with the --import flag. " +
-                                   "E.g. '--import==UA_TYPES#/path/to/deps/ua-nodeset/Schema/" +
-                                   "Opc.Ua.Types.bsd'")
+                                   "E.g. '--import=/path/to/deps/ua-nodeset/Schema/" +
+                                   "Opc.Ua.Types.bsd'" + "#UA_TYPES")
             detectLoop = len(snippets)
             for name, typeXml in list(snippets.items()):
                 if (targetNamespace in self.types and name in self.types[targetNamespace]) or name in excluded_types:
