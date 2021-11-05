@@ -1736,7 +1736,7 @@ deconstructNodeSet(UA_Server *server, UA_Session *session,
                                         &member->head.nodeId, &context);
                   UA_LOCK(&server->serviceMutex);
                }
-               
+
                /* Release the type node */
                UA_NODESTORE_RELEASE(server, type);
             }

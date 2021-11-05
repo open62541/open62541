@@ -99,6 +99,23 @@ function build_amalgamation {
     make ${MAKEOPTS}
 }
 
+function build_amalgamation_mt {
+    mkdir -p build; cd build; rm -rf *
+    cmake -DCMAKE_BUILD_TYPE=Debug \
+          -DUA_ENABLE_AMALGAMATION=ON \
+          -DUA_ENABLE_DISCOVERY=ON \
+          -DUA_ENABLE_SUBSCRIPTIONS_EVENTS=ON \
+          -DUA_ENABLE_JSON_ENCODING=ON \
+          -DUA_ENABLE_PUBSUB=ON \
+          -DUA_ENABLE_PUBSUB_ETH_UADP=ON \
+          -DUA_ENABLE_PUBSUB_DELTAFRAMES=ON \
+          -DUA_ENABLE_PUBSUB_INFORMATIONMODEL=ON \
+          -DUA_ENABLE_PUBSUB_MONITORING=ON \
+          -DUA_MULTITHREADING=100 \
+          ..
+    make ${MAKEOPTS}
+}
+
 ############################
 # Build and Run Unit Tests #
 ############################

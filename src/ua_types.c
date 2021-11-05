@@ -325,11 +325,10 @@ UA_NodeId_isNull(const UA_NodeId *p) {
     case UA_NODEIDTYPE_NUMERIC:
         return (p->identifier.numeric == 0);
     case UA_NODEIDTYPE_STRING:
-        return UA_String_equal(&p->identifier.string, &UA_STRING_NULL);
+    case UA_NODEIDTYPE_BYTESTRING:
+        return (p->identifier.string.length == 0); /* Null and empty string */
     case UA_NODEIDTYPE_GUID:
         return UA_Guid_equal(&p->identifier.guid, &UA_GUID_NULL);
-    case UA_NODEIDTYPE_BYTESTRING:
-        return UA_ByteString_equal(&p->identifier.byteString, &UA_BYTESTRING_NULL);
     }
     return false;
 }
