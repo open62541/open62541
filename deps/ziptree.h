@@ -2,11 +2,13 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. 
  *
- *    Copyright 2018 (c) Julius Pfrommer
+ *    Copyright 2018, 2021 (c) Julius Pfrommer
  */
 
 #ifndef	ZIPTREE_H_
 #define	ZIPTREE_H_
+
+#include <stddef.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -30,6 +32,8 @@ extern "C" {
  * is inserted. A fast way (with a single call to a pseudo random generator) to
  * compute the rank is with ZIP_FFS32(random()). The ZIP_FFS32 returns the least
  * significant nonzero bit of a 32bit number. */
+
+unsigned char ZIP_FFS32(unsigned int v);
 
 #define ZIP_HEAD(name, type)                    \
 struct name {                                   \
@@ -80,23 +84,6 @@ enum ZIP_CMP {
     ZIP_CMP_EQ = 0,
     ZIP_CMP_MORE = 1
 };
-
-/* Find the position of the first bit in an unsigned 32bit integer */
-#ifdef _MSC_VER
-static __inline
-#else
-static inline
-#endif
-unsigned char
-ZIP_FFS32(unsigned int v) {
-    unsigned int t = 1;
-    unsigned char r = 1;
-    if(v == 0) return 0;
-    while((v & t) == 0) {
-        t = t << 1; r++;
-    }
-    return r;
-}
 
 /* Zip tree method implementations */
 #define ZIP_IMPL(name, type, field, keytype, keyfield, cmp)             \
