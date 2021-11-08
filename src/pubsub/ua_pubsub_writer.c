@@ -232,12 +232,15 @@ UA_PublishedDataSet_clear(UA_Server *server, UA_PublishedDataSet *publishedDataS
 /* The fieldMetaData variable has to be cleaned up external in case of an error */
 static UA_StatusCode
 generateFieldMetaData(UA_Server *server, UA_DataSetField *field,
-                      UA_FieldMetaData *fieldMetaData) {
+                      UA_FieldMetaData *fieldMetaData, const UA_Guid *fieldId) {
     if(field->config.dataSetFieldType != UA_PUBSUB_DATASETFIELD_VARIABLE)
         return UA_STATUSCODE_BADNOTSUPPORTED;
 
-    /* Set the field identifier */
-    fieldMetaData->dataSetFieldId = UA_PubSubManager_generateUniqueGuid(server);
+    if(UA_Guid_equal(fieldId, &UA_GUID_NULL)){
+        fieldMetaData->dataSetFieldId = UA_PubSubManager_generateUniqueGuid(server);
+    } else {
+        fieldMetaData->dataSetFieldId = *fieldId;
+    }
 
     /* Set the description */
     fieldMetaData->description = UA_LOCALIZEDTEXT_ALLOC("", "");
@@ -387,7 +390,7 @@ UA_Server_addDataSetField(UA_Server *server, const UA_NodeId publishedDataSet,
     /* Initialize the field metadata. Also generates a FieldId */
     UA_FieldMetaData fmd;
     UA_FieldMetaData_init(&fmd);
-    result.result = generateFieldMetaData(server, newField, &fmd);
+    result.result = generateFieldMetaData(server, newField, &fmd, &fieldConfig->dataSetFieldId);
     if(result.result != UA_STATUSCODE_GOOD) {
         UA_FieldMetaData_clear(&fmd);
         UA_DataSetFieldConfig_clear(&newField->config);
@@ -494,7 +497,9 @@ UA_Server_removeDataSetField(UA_Server *server, const UA_NodeId dsf) {
     /* Regenerate DataSetMetaData */
     pds->dataSetMetaData.fieldsSize--;
     if(pds->dataSetMetaData.fieldsSize > 0) {
+        UA_Guid guidSizes[pds->dataSetMetaData.fieldsSize+1];
         for(size_t i = 0; i < pds->dataSetMetaData.fieldsSize+1; i++) {
+            guidSizes[i] = pds->dataSetMetaData.fields[i].dataSetFieldId;
             UA_FieldMetaData_clear(&pds->dataSetMetaData.fields[i]);
         }
         UA_free(pds->dataSetMetaData.fields);
@@ -507,7 +512,7 @@ UA_Server_removeDataSetField(UA_Server *server, const UA_NodeId dsf) {
         UA_DataSetField *tmpDSF;
         size_t counter = 0;
         TAILQ_FOREACH(tmpDSF, &pds->fields, listEntry){
-            result.result = generateFieldMetaData(server, tmpDSF, &fieldMetaData[counter]);
+            result.result = generateFieldMetaData(server, tmpDSF, &fieldMetaData[counter], &guidSizes[counter]);
             if(result.result != UA_STATUSCODE_GOOD) {
                 UA_FieldMetaData_clear(&fieldMetaData[counter]);
                 UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,

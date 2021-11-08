@@ -351,8 +351,6 @@ typedef struct{
         //TODO -> decide if suppress C++ warnings and use 'UA_DataValue * * const staticValueSource;'
         UA_DataValue ** staticValueSource;
     } rtValueSource;
-
-
 } UA_DataSetVariableConfig;
 
 typedef enum {
@@ -366,6 +364,8 @@ typedef struct {
         /* events need other config later */
         UA_DataSetVariableConfig variable;
     } field;
+    /* non std. field */
+    UA_Guid dataSetFieldId;
 } UA_DataSetFieldConfig;
 
 void UA_EXPORT
