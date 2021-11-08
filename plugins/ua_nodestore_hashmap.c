@@ -442,7 +442,7 @@ UA_NodeMap_replaceNode(void *context, UA_Node *node) {
 static const UA_NodeId *
 UA_NodeMap_getReferenceTypeId(void *nsCtx, UA_Byte refTypeIndex) {
     UA_NodeMap *ns = (UA_NodeMap*)nsCtx;
-    if(refTypeIndex > ns->referenceTypeCounter)
+    if(refTypeIndex >= ns->referenceTypeCounter)
         return NULL;
     return &ns->referenceTypeIds[refTypeIndex];
 }
