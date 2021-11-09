@@ -185,6 +185,20 @@ struct UA_ServerConfig {
     /* Nodestore */
     UA_Nodestore nodestore;
 
+    /* Namespace 0 bootstrapping.
+     * Gives the flexibility to either initialize namespace zero during the server
+     * initialization or manually before calling UA_Server_run_startup(). */
+    UA_Boolean bootstrapNs0BaseNodes; /* Bootstraps the Standard AddresSpace structure or
+                                       * otherwise these nodes must be bootstrapped manually
+                                       * before calling UA_Server_run_startup().
+                                       * Part 5 - 8.2.1
+                                       * https://reference.opcfoundation.org/v104/Core/docs/Part5/8.2.1/. */
+    UA_Boolean bootstrapNs0Nodes; /* Bootstrap the generated namespace zero nodes/a minimal server object or
+                                   * otherwise the namespace zero nodes must be bootstrapped manually before
+                                   * calling UA_Server_run_startup(). */
+    UA_Boolean initializeNs0NodesInRunStartup; /* Initialize the namespace zero nodes in UA_Server_run_startup()
+                                                * or otherwise the initialize will occur in UA_Server_newWithConfig(). */
+
     /* Certificate Verification */
     UA_CertificateVerification certificateVerification;
 

@@ -26,6 +26,10 @@ static UA_NodeId readNodeIds[READNODES];
 static void setup(void) {
     UA_ServerConfig config;
     memset(&config, 0, sizeof(UA_ServerConfig));
+    /*Set a default NS0 bootstraping for the initialization*/
+    config.bootstrapNs0BaseNodes = UA_TRUE;
+    config.bootstrapNs0Nodes = UA_TRUE;
+    config.initializeNs0NodesInRunStartup = UA_FALSE;
     UA_Nodestore_HashMap(&config.nodestore);
     server = UA_Server_newWithConfig(&config);
 }
