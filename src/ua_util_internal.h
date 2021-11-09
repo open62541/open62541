@@ -18,6 +18,7 @@
 #define UA_INTERNAL
 #include <open62541/types.h>
 #include <open62541/util.h>
+#include <open62541/statuscodes.h>
 
 #include "ua_types_encoding_binary.h"
 
