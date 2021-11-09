@@ -844,7 +844,7 @@ UA_ClientConnectionTCP_poll(UA_Connection *connection, UA_UInt32 timeout,
 
     /* The connection is fully opened. Otherwise, select has timed out. But we
      * can retry. */
-    if(resultsize == 1)
+    if(resultsize > 0)
         connection->state = UA_CONNECTIONSTATE_ESTABLISHED;
 
     return UA_STATUSCODE_GOOD;
