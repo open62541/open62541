@@ -289,8 +289,9 @@ if((UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS) AND (NOT (UA_ENABLE_SUBSCRIPTIONS
 endif()
 
 if(UA_ENABLE_COVERAGE)
-  set(CMAKE_BUILD_TYPE DEBUG)
-  set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -g -O0 -fprofile-arcs -ftest-coverage")
+  # We are using the scripts provided at for coverage testing: https://github.com/RWTH-HPC/CMake-codecov
+  set(ENABLE_COVERAGE ON)
+  find_package(codecov REQUIRED)
   set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -fprofile-arcs -ftest-coverage -lgcov")
   set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -fprofile-arcs -ftest-coverage")
 endif()
@@ -1360,7 +1361,9 @@ else()
                       open62541-generator-statuscode
                       open62541-generator-namespace
                       )
-
+    if(UA_ENABLE_COVERAGE)
+        add_coverage(open62541-object)
+    endif()
     target_include_directories(open62541-object PRIVATE ${PROJECT_SOURCE_DIR}/src)
 
     add_library(open62541-plugins OBJECT ${default_plugin_sources} ${ua_architecture_sources} ${exported_headers})
