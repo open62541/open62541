@@ -307,7 +307,7 @@ zipNsRemoveNode(void *nsCtx, const UA_NodeId *nodeId) {
 static const UA_NodeId *
 zipNsGetReferenceTypeId(void *nsCtx, UA_Byte refTypeIndex) {
     ZipContext *ns = (ZipContext*)nsCtx;
-    if(refTypeIndex > ns->referenceTypeCounter)
+    if(refTypeIndex >= ns->referenceTypeCounter)
         return NULL;
     return &ns->referenceTypeIds[refTypeIndex];
 }

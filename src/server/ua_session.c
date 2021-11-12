@@ -108,18 +108,28 @@ void
 UA_Session_attachSubscription(UA_Session *session, UA_Subscription *sub) {
     /* Attach to the session */
     sub->session = session;
-    TAILQ_INSERT_TAIL(&session->subscriptions, sub, sessionListEntry);
 
     /* Increase the count */
     session->subscriptionsSize++;
 
     /* Increase the number of outstanding retransmissions */
     session->totalRetransmissionQueueSize += sub->retransmissionQueueSize;
+
+    /* Insert at the end of the subscriptions of the same priority / just before
+     * the subscriptions with the next lower priority. */
+    UA_Subscription *after = NULL;
+    TAILQ_FOREACH(after, &session->subscriptions, sessionListEntry) {
+        if(after->priority < sub->priority) {
+            TAILQ_INSERT_BEFORE(after, sub, sessionListEntry);
+            return;
+        }
+    }
+    TAILQ_INSERT_TAIL(&session->subscriptions, sub, sessionListEntry);
 }
 
 void
 UA_Session_detachSubscription(UA_Server *server, UA_Session *session,
-                              UA_Subscription *sub) {
+                              UA_Subscription *sub, UA_Boolean releasePublishResponses) {
     /* Detach from the session */
     sub->session = NULL;
     TAILQ_REMOVE(&session->subscriptions, sub, sessionListEntry);
@@ -132,7 +142,7 @@ UA_Session_detachSubscription(UA_Server *server, UA_Session *session,
     session->totalRetransmissionQueueSize -= sub->retransmissionQueueSize;
     
     /* Send remaining publish responses if the last subscription was removed */
-    if(!TAILQ_EMPTY(&session->subscriptions))
+    if(!releasePublishResponses || !TAILQ_EMPTY(&session->subscriptions))
         return;
     UA_PublishResponseEntry *pre;
     while((pre = UA_Session_dequeuePublishReq(session))) {
@@ -177,18 +187,19 @@ UA_Session_dequeuePublishReq(UA_Session *session) {
     UA_PublishResponseEntry* entry = SIMPLEQ_FIRST(&session->responseQueue);
     if(entry) {
         SIMPLEQ_REMOVE_HEAD(&session->responseQueue, listEntry);
-        session->numPublishReq--;
+        session->responseQueueSize--;
     }
     return entry;
 }
 
 void
-UA_Session_queuePublishReq(UA_Session *session, UA_PublishResponseEntry* entry, UA_Boolean head) {
+UA_Session_queuePublishReq(UA_Session *session, UA_PublishResponseEntry* entry,
+                           UA_Boolean head) {
     if(!head)
         SIMPLEQ_INSERT_TAIL(&session->responseQueue, entry, listEntry);
     else
         SIMPLEQ_INSERT_HEAD(&session->responseQueue, entry, listEntry);
-    session->numPublishReq++;
+    session->responseQueueSize++;
 }
 
 #endif

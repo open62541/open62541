@@ -302,7 +302,7 @@ class TypeParser():
                     return True
             return False
 
-        snippets = {}
+        snippets = OrderedDict()
         xmlDoc = etree.iterparse(
             xmlDescription, events=['start-ns']
         )
