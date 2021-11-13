@@ -669,21 +669,15 @@ UA_Client_addMethodNode_async(UA_Client *client, const UA_NodeId requestedNewNod
  * Misc Functionalities
  * ^^^^^^^^^^^^^^^^^^^^ */
 
-UA_DEPRECATED UA_StatusCode UA_EXPORT
-__UA_Client_translateBrowsePathsToNodeIds_async(UA_Client *client, char *paths[],
-                                                UA_UInt32 ids[], size_t pathSize,
-                                                UA_ClientAsyncServiceCallback callback,
-                                                void *userdata, UA_UInt32 *reqId);
+/* typedef void (*UA_ClientAsyncTranslateCallback)( */
+/*     UA_Client *client, void *userdata, UA_UInt32 requestId, */
+/*     UA_TranslateBrowsePathsToNodeIdsResponse *tr); */
 
-typedef void (*UA_ClientAsyncTranslateCallback)(
-    UA_Client *client, void *userdata, UA_UInt32 requestId,
-    UA_TranslateBrowsePathsToNodeIdsResponse *tr);
-
-UA_DEPRECATED UA_StatusCode UA_EXPORT
-UA_Cient_translateBrowsePathsToNodeIds_async(UA_Client *client, char **paths,
-                                             UA_UInt32 *ids, size_t pathSize,
-                                             UA_ClientAsyncTranslateCallback callback,
-                                             void *userdata, UA_UInt32 *reqId);
+/* UA_DEPRECATED UA_StatusCode UA_EXPORT */
+/* UA_Cient_translateBrowsePathsToNodeIds_async(UA_Client *client, char **paths, */
+/*                                              UA_UInt32 *ids, size_t pathSize, */
+/*                                              UA_ClientAsyncTranslateCallback callback, */
+/*                                              void *userdata, UA_UInt32 *reqId); */
 
 _UA_END_DECLS
 

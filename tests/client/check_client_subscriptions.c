@@ -486,7 +486,7 @@ START_TEST(Client_subscription_modifyMonitoredItem) {
     ck_assert_uint_eq(createResponse.resultsSize, 1);
     ck_assert_uint_eq(createResponse.results[0].statusCode, UA_STATUSCODE_GOOD);
     newMonitoredItemIds[0] = createResponse.results[0].monitoredItemId;
-    UA_CreateMonitoredItemsResponse_deleteMembers(&createResponse);
+    UA_CreateMonitoredItemsResponse_clear(&createResponse);
 
     UA_fakeSleep((UA_UInt32)publishingInterval + 1);
 
@@ -521,7 +521,7 @@ START_TEST(Client_subscription_modifyMonitoredItem) {
         UA_Client_MonitoredItems_modify(client, modifyRequest);
     ck_assert_uint_eq(modifyResponse.resultsSize, 1);
     ck_assert_uint_eq(modifyResponse.results[0].statusCode, UA_STATUSCODE_GOOD);
-    UA_ModifyMonitoredItemsResponse_deleteMembers(&modifyResponse);
+    UA_ModifyMonitoredItemsResponse_clear(&modifyResponse);
 
     /* Sleep longer than the publishing interval */
     UA_fakeSleep((UA_UInt32)publishingInterval + 1);
@@ -547,7 +547,7 @@ START_TEST(Client_subscription_modifyMonitoredItem) {
     modifyResponse = UA_Client_MonitoredItems_modify(client, modifyRequest);
     ck_assert_uint_eq(modifyResponse.resultsSize, 1);
     ck_assert_uint_eq(modifyResponse.results[0].statusCode, UA_STATUSCODE_GOOD);
-    UA_ModifyMonitoredItemsResponse_deleteMembers(&modifyResponse);
+    UA_ModifyMonitoredItemsResponse_clear(&modifyResponse);
 
     /* Sleep longer than the publishing interval */
     UA_fakeSleep((UA_UInt32)publishingInterval + 1);
@@ -584,7 +584,7 @@ START_TEST(Client_subscription_modifyMonitoredItem) {
 
     ck_assert_uint_eq(deleteResponse.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(deleteResponse.resultsSize, 1);
-    UA_DeleteMonitoredItemsResponse_deleteMembers(&deleteResponse);
+    UA_DeleteMonitoredItemsResponse_clear(&deleteResponse);
 
     retval = UA_Client_Subscriptions_deleteSingle(client, subId);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);

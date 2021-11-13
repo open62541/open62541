@@ -237,7 +237,7 @@ START_TEST(encryption_connect_pem) {
     ck_assert(client != NULL);
 
     for(size_t deleteCount = 0; deleteCount < trustListSize; deleteCount++) {
-        UA_ByteString_deleteMembers(&trustList[deleteCount]);
+        UA_ByteString_clear(&trustList[deleteCount]);
     }
 
     /* Secure client connect */
@@ -249,7 +249,7 @@ START_TEST(encryption_connect_pem) {
     UA_NodeId nodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_STATE);
     retval = UA_Client_readValueAttribute(client, nodeId, &val);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
-    UA_Variant_deleteMembers(&val);
+    UA_Variant_clear(&val);
 
     UA_Client_disconnect(client);
     UA_Client_delete(client);

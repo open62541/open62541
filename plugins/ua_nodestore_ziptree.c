@@ -56,8 +56,7 @@ typedef struct {
     UA_Byte referenceTypeCounter;
 } ZipContext;
 
-ZIP_PROTOTYPE(NodeTree, NodeEntry, NodeEntry)
-ZIP_IMPL(NodeTree, NodeEntry, zipfields, NodeEntry, zipfields, cmpNodeId)
+ZIP_FUNCTIONS(NodeTree, NodeEntry, zipfields, NodeEntry, zipfields, cmpNodeId)
 
 static NodeEntry *
 newEntry(UA_NodeClass nodeClass) {
@@ -256,7 +255,7 @@ zipNsInsertNode(void *nsCtx, UA_Node *node, UA_NodeId *addedNodeId) {
 
     /* Insert the node */
     entry->nodeIdHash = dummy.nodeIdHash;
-    ZIP_INSERT(NodeTree, &ns->root, entry, ZIP_FFS32(UA_UInt32_random()));
+    ZIP_INSERT(NodeTree, &ns->root, entry, UA_UInt32_random());
     return UA_STATUSCODE_GOOD;
 }
 

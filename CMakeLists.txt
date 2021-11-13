@@ -212,14 +212,13 @@ endif()
 
 # TPM Security
 set(UA_ENABLE_ENCRYPTION_TPM2 "OFF" CACHE STRING "TPM encryption support")
-SET_PROPERTY(CACHE UA_ENABLE_ENCRYPTION_TPM2 PROPERTY STRINGS "PKCS11" "KEYSTORE" "OFF")
+SET_PROPERTY(CACHE UA_ENABLE_ENCRYPTION_TPM2 PROPERTY STRINGS "ON" "OFF")
 
 if(UA_ENABLE_ENCRYPTION_TPM2 STREQUAL "OFF")
     set(UA_ENABLE_TPM2_SECURITY OFF)
     set(UA_ENABLE_TPM2_KEYSTORE OFF)
-elseif(UA_ENABLE_ENCRYPTION_TPM2 STREQUAL "PKCS11")
+else()
     set(UA_ENABLE_TPM2_SECURITY ON)
-elseif(UA_ENABLE_ENCRYPTION_TPM2 STREQUAL "KEYSTORE")
     set(UA_ENABLE_TPM2_KEYSTORE ON)
 endif()
 
@@ -940,6 +939,7 @@ set(lib_sources ${PROJECT_SOURCE_DIR}/src/ua_types.c
                 ${PROJECT_SOURCE_DIR}/deps/pcg_basic.c
                 ${PROJECT_SOURCE_DIR}/deps/base64.c
                 ${PROJECT_SOURCE_DIR}/deps/aa_tree.c
+                ${PROJECT_SOURCE_DIR}/deps/ziptree.c
 
                 ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_config.c)
 
