@@ -124,8 +124,10 @@ START_TEST(Async_call) {
     /* Process the async method call for the server */
     UA_AsyncOperationType aot;
     const UA_AsyncOperationRequest *request;
-    void *context;
-    UA_Boolean haveAsync = UA_Server_getAsyncOperation(server, &aot, &request, &context);
+    void *context = NULL;
+    UA_DateTime timeout = 0;
+    UA_Boolean haveAsync =
+        UA_Server_getAsyncOperationNonBlocking(server, &aot, &request, &context, &timeout);
     ck_assert_uint_eq(haveAsync, true);
     UA_AsyncOperationResponse response;
     UA_CallMethodResult_init(&response.callMethodResult);
@@ -220,8 +222,10 @@ START_TEST(Async_timeout_worker) {
     /* Process the async method call for the server */
     UA_AsyncOperationType aot;
     const UA_AsyncOperationRequest *request;
-    void *context;
-    UA_Boolean haveAsync = UA_Server_getAsyncOperation(server, &aot, &request, &context);
+    void *context = NULL;
+    UA_DateTime timeout = 0;
+    UA_Boolean haveAsync =
+        UA_Server_getAsyncOperationNonBlocking(server, &aot, &request, &context, &timeout);
     ck_assert_uint_eq(haveAsync, true);
     UA_AsyncOperationResponse response;
     UA_CallMethodResult_init(&response.callMethodResult);

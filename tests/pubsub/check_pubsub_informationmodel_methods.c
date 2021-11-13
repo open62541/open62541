@@ -261,7 +261,7 @@ START_TEST(AddandRemoveNewPubSubConnectionWithWriterGroup){
         ck_assert_int_eq(response.results->statusCode, UA_STATUSCODE_GOOD);
         if(response.results->outputArguments->type == &UA_TYPES[UA_TYPES_NODEID])
             connectionId =  *((UA_NodeId *) response.results->outputArguments->data);
-        UA_CallResponse_deleteMembers(&response);
+        UA_CallResponse_clear(&response);
 
         //Remove the connection
         UA_Variant_init(&inputArguments);
@@ -282,7 +282,7 @@ START_TEST(AddandRemoveNewPubSubConnectionWithWriterGroup){
         UA_ExtensionObject_clear(&eo);
         UA_free(writerGroupMessage);
         UA_free(pubSubConnection.writerGroups);
-        UA_CallResponse_deleteMembers(&response);
+        UA_CallResponse_clear(&response);
         UA_Client_disconnect(client);
         UA_Client_delete(client);
 }END_TEST
@@ -384,7 +384,7 @@ START_TEST(AddNewPubSubConnectionWithWriterGroupAndDataSetWriter){
         UA_free(pubSubConnection.writerGroups->dataSetWriters);
         UA_free(writerGroupMessage);
         UA_free(pubSubConnection.writerGroups);
-        UA_CallResponse_deleteMembers(&response);
+        UA_CallResponse_clear(&response);
         UA_Client_disconnect(client);
         UA_Client_delete(client);
 }END_TEST
@@ -556,7 +556,7 @@ START_TEST(AddAndRemovePublishedDataSetFoldersUsingClient){
         ck_assert(UA_String_equal(&connectionDisplayName.text, &compareText) == UA_TRUE);
         retVal = UA_Server_readNodeId(server, createdFolder, &createdFolder);
         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
-        UA_CallResponse_deleteMembers(&response);
+        UA_CallResponse_clear(&response);
         UA_LocalizedText_clear(&connectionDisplayName);
 
         //create folder inside the new folder
@@ -588,7 +588,7 @@ START_TEST(AddAndRemovePublishedDataSetFoldersUsingClient){
         ck_assert(UA_String_equal(&connectionDisplayName.text, &compareText) == UA_TRUE);
         retVal = UA_Server_readNodeId(server, createdFolder2, &createdFolder2);
         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
-        UA_CallResponse_deleteMembers(&response);
+        UA_CallResponse_clear(&response);
 
         //delete the folder
         UA_Variant_init(&inputArguments);
@@ -613,7 +613,7 @@ START_TEST(AddAndRemovePublishedDataSetFoldersUsingClient){
         retVal = UA_Server_readNodeId(server, createdFolder, NULL);
         ck_assert_int_eq(retVal, UA_STATUSCODE_BADNODEIDUNKNOWN);
 
-        UA_CallResponse_deleteMembers(&response);
+        UA_CallResponse_clear(&response);
         UA_Client_disconnect(client);
         UA_Client_delete(client);
         UA_LocalizedText_clear(&connectionDisplayName);
@@ -726,7 +726,7 @@ START_TEST(AddAndRemovePublishedDataSetItemsUsingClient){
         ck_assert_int_eq(response.results->statusCode, UA_STATUSCODE_GOOD);
         if(response.results->outputArguments->type == &UA_TYPES[UA_TYPES_NODEID])
             dataSetItemsNodeId = *((UA_NodeId *) response.results->outputArguments->data);
-        UA_CallResponse_deleteMembers(&response);
+        UA_CallResponse_clear(&response);
 
         //Remove the publishedDataItems
         UA_Variant inputArgument;
@@ -744,7 +744,7 @@ START_TEST(AddAndRemovePublishedDataSetItemsUsingClient){
         ck_assert_int_eq(0, response.results->outputArgumentsSize);
         ck_assert_int_eq(response.results->statusCode, UA_STATUSCODE_GOOD);
 
-        UA_CallResponse_deleteMembers(&response);
+        UA_CallResponse_clear(&response);
         UA_free(inputArguments);
         UA_free(fieldNameAliases);
         UA_free(dataSetFieldFlags);
@@ -849,7 +849,7 @@ START_TEST(AddAndRemoveWriterGroupsUsingClient){
         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
         UA_String compareText = UA_STRING("TestWriterGroup");
         ck_assert(UA_String_equal(&writerGroupDisplayName.text, &compareText) == UA_TRUE);
-        UA_CallResponse_deleteMembers(&response);
+        UA_CallResponse_clear(&response);
 
         //Remove the Writergroup
         UA_Variant_init(inputArgument);
@@ -866,7 +866,7 @@ START_TEST(AddAndRemoveWriterGroupsUsingClient){
         ck_assert_int_eq(response.results->statusCode, UA_STATUSCODE_GOOD);
         UA_free(inputArgument);
 
-        UA_CallResponse_deleteMembers(&response);
+        UA_CallResponse_clear(&response);
         UA_Client_disconnect(client);
         UA_Client_delete(client);
         UA_LocalizedText_clear(&writerGroupDisplayName);
@@ -940,7 +940,7 @@ START_TEST(AddNewPubSubConnectionWithReaderGroup){
         ck_assert_int_eq(response.results->statusCode, UA_STATUSCODE_GOOD);
         UA_ExtensionObject_clear(&eo);
         UA_free(pubSubConnection.readerGroups);
-        UA_CallResponse_deleteMembers(&response);
+        UA_CallResponse_clear(&response);
         UA_Client_disconnect(client);
         UA_Client_delete(client);
 } END_TEST
@@ -1079,7 +1079,7 @@ START_TEST(AddNewPubSubConnectionWithReaderGroupandDataSetReader){
         UA_free(targetVars.targetVariables);
         UA_free(pubSubConnection.readerGroups->dataSetReaders);
         UA_free(pubSubConnection.readerGroups);
-        UA_CallResponse_deleteMembers(&response);
+        UA_CallResponse_clear(&response);
         UA_Client_disconnect(client);
         UA_Client_delete(client);
 } END_TEST
@@ -1128,7 +1128,7 @@ START_TEST(AddandRemoveReaderGroup){
         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
         UA_String compareText = UA_STRING("TestReaderGroup");
         ck_assert(UA_String_equal(&readerGroupDisplayName.text, &compareText) == UA_TRUE);
-        UA_CallResponse_deleteMembers(&response);
+        UA_CallResponse_clear(&response);
 
         //Remove the ReaderGroup
         UA_Variant_init(inputArgument);
@@ -1145,7 +1145,7 @@ START_TEST(AddandRemoveReaderGroup){
         ck_assert_int_eq(response.results->statusCode, UA_STATUSCODE_GOOD);
         UA_free(inputArgument);
 
-        UA_CallResponse_deleteMembers(&response);
+        UA_CallResponse_clear(&response);
         UA_Client_disconnect(client);
         UA_Client_delete(client);
         UA_LocalizedText_clear(&readerGroupDisplayName);
