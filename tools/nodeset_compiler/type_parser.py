@@ -21,21 +21,20 @@ builtin_types = ["Boolean", "SByte", "Byte", "Int16", "UInt16", "Int32", "UInt32
                  "QualifiedName", "LocalizedText", "ExtensionObject", "DataValue",
                  "Variant", "DiagnosticInfo"]
 
+builtin_pointerfree = ["Boolean", "SByte", "Byte", "Int16", "UInt16",
+                       "Int32", "UInt32", "Int64", "UInt64", "Float", "Double",
+                       "DateTime", "StatusCode", "Guid"]
+
 # DataTypes that are ignored/not generated
 excluded_types = [
     # NodeId Types
-    "NodeIdType", "TwoByteNodeId", "FourByteNodeId", "NumericNodeId", "StringNodeId", "GuidNodeId", "ByteStringNodeId",
+    "NodeIdType", "TwoByteNodeId", "FourByteNodeId", "NumericNodeId",
+    "StringNodeId", "GuidNodeId", "ByteStringNodeId",
     # Node Types
     "InstanceNode", "TypeNode", "Node", "ObjectNode", "ObjectTypeNode", "VariableNode",
     "VariableTypeNode", "ReferenceTypeNode", "MethodNode", "ViewNode", "DataTypeNode"]
 
 rename_types = {"NumericRange": "OpaqueNumericRange"}
-
-# Boolean is not overlayable 1-byte type. We get "undefined behavior" errors
-# during fuzzing if we don't force the value to either exactly true or false.
-builtin_overlayable = ["SByte", "Byte", "Int16", "UInt16", "Int32", "UInt32",
-                       "Int64", "UInt64", "Float", "Double", "DateTime",
-                       "StatusCode", "Guid"]
 
 # Type aliases
 type_aliases = {"CharArray": "String"}
@@ -92,8 +91,7 @@ class BuiltinType(Type):
     def __init__(self, name):
         Type.__init__(self, "types", None, "http://opcfoundation.org/UA/")
         self.name = name
-        if self.name in builtin_overlayable:
-            self.pointerfree = True
+        self.pointerfree = self.name in builtin_pointerfree
 
 
 class EnumerationType(Type):
