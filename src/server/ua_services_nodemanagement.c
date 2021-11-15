@@ -665,6 +665,22 @@ copyChild(UA_Server *server, UA_Session *session,
          * typechecking is performed here. Assuming that the original is
          * consistent. */
         retval = copyAllChildren(server, session, &rd->nodeId.nodeId, &newNodeId);
+        if(retval != UA_STATUSCODE_GOOD) {
+            deleteNode(server, newNodeId, true);
+            return retval;
+        }
+
+        /* Check if its a dynamic variable, add all type and/or interface
+         * children and call the constructor */
+        retval = AddNode_finish(server, session, &newNodeId);
+        if(retval != UA_STATUSCODE_GOOD) {
+            deleteNode(server, newNodeId, true);
+            return retval;
+        }
+        
+        /* Clean up.  Because it can happen that a string is assigned as ID at 
+         * generateChildNodeId. */
+        UA_NodeId_clear(&newNodeId);
     }
 
     return retval;
