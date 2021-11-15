@@ -1,3 +1,4 @@
+# Build Stage (1/2)
 FROM alpine:3.13.6 AS build
 RUN apk add --no-cache cmake gcc git g++ musl-dev mbedtls-dev python3 py3-pip make && rm -rf /var/cache/apk/*
 COPY . /opt/open62541
@@ -32,23 +33,29 @@ RUN apk add --no-cache python3-dev linux-headers openssl && rm -rf /var/cache/ap
     python3 /opt/open62541/tools/certs/create_self-signed.py /opt/open62541/pki/created
 
 
+# Final Stage (2/2)
 FROM alpine:3.13.6 AS server
 
-RUN apk add --no-cache mbedtls-dev && \
-    mkdir -p /opt/open62541/pki/created
-
-COPY --from=build /opt/open62541/pki/created /opt/open62541/pki/created
-COPY --from=build /opt/open62541/build/bin/examples /opt/open62541/examples
-COPY --from=build /usr/local/lib64/libopen62541* /usr/local/lib64/
-COPY --from=build /usr/local/lib64/cmake/open62541/ /usr/local/lib64/cmake/open62541/
-COPY --from=build /usr/local/lib64/pkgconfig/open62541.pc /usr/local/lib64/pkgconfig/open62541.pc
-COPY --from=build /usr/local/share/open62541/tools/certs /usr/local/share/open62541/tools/certs
-COPY --from=build /usr/local/include/open62541/ /usr/local/include/open62541/
-COPY --from=build /usr/local/include/ms_stdint.h /usr/local/include/ms_stdint.h
-COPY --from=build /usr/local/include/ziptree.h /usr/local/include/ziptree.h
-COPY --from=build /usr/local/include/aa_tree.h /usr/local/include/aa_tree.h
-COPY --from=build /usr/local/bin/ua_server_ctt.exe /usr/local/bin/ua_server_ctt.exe
-COPY --from=build /usr/local/bin/ua_client /usr/local/bin/ua_client
+RUN apk add --no-cache mbedtls
+RUN --mount=src=/,dst=/artifacts,from=build \
+    mkdir -p /opt/open62541/pki \
+    && mkdir -p /usr/local/lib64/cmake/open62541 \
+    && mkdir -p /usr/local/lib64/pkgconfig \
+    && mkdir -p /usr/local/share/open62541/tools \
+    && mkdir -p /usr/local/include/open62541 \
+    && mkdir -p /usr/local/bin \
+    && cp -r /artifacts/opt/open62541/pki/created /opt/open62541/pki/created \
+    && cp -r /artifacts/opt/open62541/build/bin/examples /opt/open62541 \
+    && cp -r /artifacts/usr/local/lib64/libopen62541* /usr/local/lib64/ \
+    && cp -r /artifacts/usr/local/lib64/cmake/open62541/ /usr/local/lib64/cmake/open62541/ \
+    && cp -r /artifacts/usr/local/lib64/pkgconfig/open62541.pc /usr/local/lib64/pkgconfig/open62541.pc \
+    && cp -r /artifacts/usr/local/share/open62541/tools/certs /usr/local/share/open62541/tools/certs \
+    && cp -r /artifacts/usr/local/include/open62541/ /usr/local/include/open62541/ \
+    && cp /artifacts/usr/local/include/ms_stdint.h /usr/local/include/ms_stdint.h \
+    && cp /artifacts/usr/local/include/ziptree.h /usr/local/include/ziptree.h \
+    && cp /artifacts/usr/local/include/aa_tree.h /usr/local/include/aa_tree.h \
+    && cp /artifacts/usr/local/bin/ua_server_ctt.exe /usr/local/bin/ua_server_ctt.exe \
+    && cp /artifacts/usr/local/bin/ua_client /usr/local/bin/ua_client
 
 ENV LD_LIBRARY_PATH=/usr/local/lib64/
 
