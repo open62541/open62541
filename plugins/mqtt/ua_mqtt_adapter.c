@@ -290,7 +290,7 @@ connectMqtt(UA_PubSubChannelDataMQTT* channelData){
         return UA_STATUSCODE_BADOUTOFMEMORY;
     }
     client->keep_alive = 400;
-    
+
     /* save reference */
     channelData->mqttClient = client;
 
@@ -451,19 +451,19 @@ connectMqtt(UA_PubSubChannelDataMQTT* channelData){
 #endif
 
     /* Connect mqtt with socket fd of networktcp  */
-#ifdef UA_ENABLE_MQTT_TLS_OPENSSL    
+#ifdef UA_ENABLE_MQTT_TLS_OPENSSL
     mqttErr = mqtt_connect(client, clientId, NULL, NULL, 0, username, password,
                             caFilePath, caPath, clientCertPath, clientKeyPath, useTLS, 0, client->keep_alive);
     UA_free(clientId);
     UA_free(username);
-    UA_free(password);     
+    UA_free(password);
     UA_free(caFilePath);
     UA_free(caPath);
     UA_free(clientCertPath);
     UA_free(clientKeyPath);
 #else
     mqttErr = mqtt_connect(client, clientId, NULL, NULL, 0, username, password,
-                            NULL, NULL, NULL, NULL, UA_FALSE, 0, client->keep_alive);
+                           0, client->keep_alive);
     UA_free(clientId);
     UA_free(username);
     UA_free(password);
@@ -523,9 +523,9 @@ publish_callback(void** channelDataPtr, struct mqtt_response_publish *published)
                 //Setup topic
                 UA_ByteString *topic = UA_ByteString_new();
                 if(!topic) return;
-                UA_ByteString *msg = UA_ByteString_new();  
+                UA_ByteString *msg = UA_ByteString_new();
                 if(!msg) return;
-                
+
                 /* memory for topic */
                 UA_StatusCode ret = UA_ByteString_allocBuffer(topic, published->topic_name_size);
                 if(ret){
@@ -546,7 +546,7 @@ publish_callback(void** channelDataPtr, struct mqtt_response_publish *published)
                 channelData->callback(msg, topic);
             }
         }
-    }  
+    }
 }
 
 UA_StatusCode
@@ -555,7 +555,7 @@ subscribeMqtt(UA_PubSubChannelDataMQTT* channelData, UA_String topic, UA_Byte qo
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     }
     struct mqtt_client* client = (struct mqtt_client*)channelData->mqttClient;
-    
+
     UA_STACKARRAY(char, topicStr, sizeof(char) * topic.length +1);
     memcpy(topicStr, topic.data, topic.length);
     topicStr[topic.length] = '\0';
@@ -584,14 +584,14 @@ yieldMqtt(UA_PubSubChannelDataMQTT* channelData, UA_UInt16 timeout){
     if(!connection) {
         return UA_STATUSCODE_BADCOMMUNICATIONERROR;
     }
-    
+
     if(connection->state != UA_CONNECTIONSTATE_ESTABLISHED &&
        connection->state != UA_CONNECTIONSTATE_OPENING) {
         UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_NETWORK,
                      "PubSub MQTT: yield: Tcp Connection not established!");
         return UA_STATUSCODE_BADCOMMUNICATIONERROR;
     }
-    
+
     struct mqtt_client* client = (struct mqtt_client*)channelData->mqttClient;
     client->socketfd->timeout = timeout;
 
@@ -602,11 +602,11 @@ yieldMqtt(UA_PubSubChannelDataMQTT* channelData, UA_UInt16 timeout){
         UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_NETWORK, "PubSub MQTT: yield: Communication Error.");
         return UA_STATUSCODE_BADCOMMUNICATIONERROR;
     }
-    
+
     /* map mqtt errors to ua errors */
     const char* errorStr = mqtt_error_str(error);
     UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "PubSub MQTT: yield: error: %s", errorStr);
-    
+
     switch(error){
         case MQTT_ERROR_CONNECTION_CLOSED:
             return UA_STATUSCODE_BADNOTCONNECTED;
@@ -614,7 +614,7 @@ yieldMqtt(UA_PubSubChannelDataMQTT* channelData, UA_UInt16 timeout){
             return UA_STATUSCODE_BADCOMMUNICATIONERROR;
         case MQTT_ERROR_CONNECTION_REFUSED:
             return UA_STATUSCODE_BADCONNECTIONREJECTED;
-            
+
         default:
             return UA_STATUSCODE_BADCOMMUNICATIONERROR;
     }
@@ -629,7 +629,7 @@ publishMqtt(UA_PubSubChannelDataMQTT* channelData, UA_String topic, const UA_Byt
     UA_STACKARRAY(char, topicChar, sizeof(char) * topic.length +1);
     memcpy(topicChar, topic.data, topic.length);
     topicChar[topic.length] = '\0';
-    
+
     struct mqtt_client* client = (struct mqtt_client*)channelData->mqttClient;
     if(client == NULL)
         return UA_STATUSCODE_BADNOTCONNECTED;
