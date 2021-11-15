@@ -777,6 +777,8 @@ START_TEST(WriteSingleAttributeValue) {
     UA_Int32 myInteger = 20;
     UA_Variant_setScalar(&wValue.value.value, &myInteger, &UA_TYPES[UA_TYPES_INT32]);
     wValue.value.hasValue = true;
+    wValue.value.hasSourceTimestamp = true;
+    wValue.value.sourceTimestamp = 1337;
     wValue.nodeId = UA_NODEID_STRING(1, "the.answer");
     wValue.attributeId = UA_ATTRIBUTEID_VALUE;
     UA_StatusCode retval = UA_Server_write(server, &wValue);
@@ -786,10 +788,12 @@ START_TEST(WriteSingleAttributeValue) {
     UA_ReadValueId_init(&rvi);
     rvi.nodeId = UA_NODEID_STRING(1, "the.answer");
     rvi.attributeId = UA_ATTRIBUTEID_VALUE;
-    UA_DataValue resp = UA_Server_read(server, &rvi, UA_TIMESTAMPSTORETURN_NEITHER);
+    UA_DataValue resp = UA_Server_read(server, &rvi, UA_TIMESTAMPSTORETURN_BOTH);
 
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
     ck_assert(resp.hasValue);
+    ck_assert(resp.hasSourceTimestamp);
+    ck_assert_int_eq(resp.sourceTimestamp, 1337);
     ck_assert_int_eq(20, *(UA_Int32*)resp.value.data);
     UA_DataValue_clear(&resp);
 } END_TEST
