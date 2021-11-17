@@ -152,7 +152,7 @@ static UA_Double  userAppWakeupPercentage = 0.3;
 #define             ETH_TRANSPORT_PROFILE                   "http://opcfoundation.org/UA-Profile/Transport/pubsub-eth-uadp"
 
 #ifdef UA_ENABLE_PUBSUB_ENCRYPTION
-#define             UA_AES128CTR_SIGNING_KEY_LENGTH          16
+#define             UA_AES128CTR_SIGNING_KEY_LENGTH          32
 #define             UA_AES128CTR_KEY_LENGTH                  16
 #define             UA_AES128CTR_KEYNONCE_LENGTH             4
 
