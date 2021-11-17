@@ -1010,6 +1010,10 @@ compatibleValue(UA_Server *server, UA_Session *session, const UA_NodeId *targetD
 void
 adjustValueType(UA_Server *server, UA_Variant *value,
                 const UA_NodeId *targetDataTypeId) {
+    /* If the value is empty, there is nothing we can do here */
+    if(!value->type)
+        return;
+
     const UA_DataType *targetDataType = UA_findDataType(targetDataTypeId);
     if(!targetDataType)
         return;
