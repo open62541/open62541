@@ -156,7 +156,7 @@ static UA_Double  userAppWakeupPercentage = 0.3;
 #define             LATENCY_CSV_FILE_NAME                   "latencyT1toT8.csv"
 
 #ifdef UA_ENABLE_PUBSUB_ENCRYPTION
-#define             UA_AES128CTR_SIGNING_KEY_LENGTH          16
+#define             UA_AES128CTR_SIGNING_KEY_LENGTH          32
 #define             UA_AES128CTR_KEY_LENGTH                  16
 #define             UA_AES128CTR_KEYNONCE_LENGTH             4
 
