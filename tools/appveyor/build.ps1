@@ -28,24 +28,7 @@ try {
     Copy-Item README.md pack
 
     Write-Host -ForegroundColor Green "`n###################################################################"
-    Write-Host -ForegroundColor Green "`n##### Testing $env:CC_NAME with amalgamation #####`n"
-    New-Item -ItemType directory -Path "build"
-    cd build
-    & cmake $cmake_cnf `
-            -DCMAKE_BUILD_TYPE=RelWithDebInfo `
-            -DUA_BUILD_EXAMPLES:BOOL=OFF  `
-            -DUA_ENABLE_AMALGAMATION:BOOL=ON `
-            -DUA_ENABLE_ENCRYPTION:STRING=$build_encryption ..
-    & cmake --build . --config RelWithDebInfo
-    if ($LASTEXITCODE -and $LASTEXITCODE -ne 0) {
-        Write-Host -ForegroundColor Red "`n`n*** Make failed. Exiting ... ***"
-        exit $LASTEXITCODE
-    }
-    cd ..
-    Remove-Item -Path build -Recurse -Force
-
-    Write-Host -ForegroundColor Green "`n###################################################################"
-    Write-Host -ForegroundColor Green "`n##### Testing $env:CC_NAME with full NS0 #####`n"
+    Write-Host -ForegroundColor Green "`n##### Testing $env:CC_NAME with PubSub #####`n"
     New-Item -ItemType directory -Path "build"
     cd build
     & cmake $cmake_cnf `
@@ -58,8 +41,7 @@ try {
             -DUA_ENABLE_PUBSUB_INFORMATIONMODEL:BOOL=ON `
             -DUA_ENABLE_SUBSCRIPTIONS_EVENTS:BOOL=ON `
             -DUA_ENABLE_PUBSUB_MQTT:BOOL=ON `
-	        -DUA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS:BOOL=ON `
-            -DUA_NAMESPACE_ZERO:STRING=FULL ..
+            -DUA_NAMESPACE_ZERO:STRING=REDUCED ..
     & cmake --build . --config RelWithDebInfo
     if ($LASTEXITCODE -and $LASTEXITCODE -ne 0) {
         Write-Host -ForegroundColor Red "`n`n*** Make failed. Exiting ... ***"
