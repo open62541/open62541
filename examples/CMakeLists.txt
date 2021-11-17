@@ -165,6 +165,7 @@ add_example(server_loglevel server_loglevel.c)
 
 if(UA_ENABLE_HISTORIZING)
     add_example(tutorial_server_historicaldata tutorial_server_historicaldata.c)
+    add_example(tutorial_server_historicaldata_circular tutorial_server_historicaldata_circular.c)
 endif()
 
 if(UA_ENABLE_ENCRYPTION OR UA_ENABLE_ENCRYPTION STREQUAL "MBEDTLS" OR UA_ENABLE_ENCRYPTION STREQUAL "OPENSSL")

@@ -346,6 +346,10 @@ if(UA_ENABLE_HISTORIZING)
     add_executable(check_server_historical_data server/check_server_historical_data.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
     target_link_libraries(check_server_historical_data ${LIBS})
     add_test_valgrind(server_historical_data ${TESTS_BINARY_DIR}/check_server_historical_data)
+
+    add_executable(check_server_historical_data_circular server/check_server_historical_data_circular.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
+    target_link_libraries(check_server_historical_data_circular ${LIBS})
+    add_test_valgrind(server_historical_data_circular ${TESTS_BINARY_DIR}/check_server_historical_data_circular)
 endif()
 
 add_executable(check_session server/check_session.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
