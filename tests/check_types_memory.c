@@ -103,6 +103,17 @@ START_TEST(encodeShallYieldDecode) {
                   UA_TYPES[_i].typeId.identifier.numeric);
     ck_assert(UA_order(obj1, obj2, &UA_TYPES[_i]) == UA_ORDER_EQ);
 
+    // pretty-print the value
+    
+#ifdef UA_ENABLE_TYPEDESCRIPTION
+    UA_Byte staticBuf[512];
+    UA_String buf;
+    buf.data = staticBuf;
+    buf.length = 512;
+    retval = UA_print(obj2, &UA_TYPES[_i], &buf);
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+#endif
+
     // finally
     UA_delete(obj1, &UA_TYPES[_i]);
     UA_delete(obj2, &UA_TYPES[_i]);
