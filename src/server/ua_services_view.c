@@ -25,8 +25,12 @@
 UA_StatusCode
 referenceTypeIndices(UA_Server *server, const UA_NodeId *refType,
                      UA_ReferenceTypeSet *indices, UA_Boolean includeSubtypes) {
-    UA_ReferenceTypeSet_init(indices);
+    if(UA_NodeId_isNull(refType)) {
+        UA_ReferenceTypeSet_any(indices);
+        return UA_STATUSCODE_GOOD;
+    }
 
+    UA_ReferenceTypeSet_init(indices);
     const UA_Node *refNode = UA_NODESTORE_GET(server, refType);
     if(!refNode)
         return UA_STATUSCODE_BADREFERENCETYPEIDINVALID;
@@ -165,8 +169,7 @@ cmpTarget(const void *a, const void *b) {
     return (enum ZIP_CMP)UA_ExpandedNodeId_order(aa->target, bb->target);
 }
 
-ZIP_PROTOTYPE(RefHead, RefEntry, RefEntry)
-ZIP_IMPL(RefHead, RefEntry, zipfields, RefEntry, zipfields, cmpTarget)
+ZIP_FUNCTIONS(RefHead, RefEntry, zipfields, RefEntry, zipfields, cmpTarget)
 
 UA_StatusCode
 RefTree_init(RefTree *rt) {
@@ -221,7 +224,7 @@ RefTree_double(RefTree *rt) {
         reArray[i].target = (UA_ExpandedNodeId*)((uintptr_t)reArray[i].target + arraydiff);
     }
 
-    rt->head.zip_root = (RefEntry*)((uintptr_t)rt->head.zip_root + entrydiff);
+    ZIP_ROOT(&rt->head) = (RefEntry*)((uintptr_t)ZIP_ROOT(&rt->head) + entrydiff);
     rt->capacity = capacity;
     rt->targets = newTargets;
     return UA_STATUSCODE_GOOD;
@@ -256,7 +259,7 @@ RefTree_add(RefTree *rt, UA_NodePointer target, UA_Boolean *duplicate) {
                                (sizeof(RefEntry) * rt->size));
     re->target = &rt->targets[rt->size];
     re->targetHash = dummy.targetHash;
-    ZIP_INSERT(RefHead, &rt->head, re, ZIP_FFS32(UA_UInt32_random()));
+    ZIP_INSERT(RefHead, &rt->head, re, UA_UInt32_random());
     rt->size++;
     return UA_STATUSCODE_GOOD;
 }
@@ -390,16 +393,12 @@ UA_Server_browseRecursive(UA_Server *server, const UA_BrowseDescription *bd,
     UA_LOCK(&server->serviceMutex);
 
     /* Set the list of relevant reference types */
-    UA_StatusCode retval = UA_STATUSCODE_GOOD;
     UA_ReferenceTypeSet refTypes;
-    UA_ReferenceTypeSet_any(&refTypes);
-    if(!UA_NodeId_isNull(&bd->referenceTypeId)) {
-        retval = referenceTypeIndices(server, &bd->referenceTypeId,
-                                      &refTypes, bd->includeSubtypes);
-        if(retval != UA_STATUSCODE_GOOD) {
-            UA_UNLOCK(&server->serviceMutex);
-            return retval;
-        }
+    UA_StatusCode retval = referenceTypeIndices(server, &bd->referenceTypeId,
+                                                &refTypes, bd->includeSubtypes);
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_UNLOCK(&server->serviceMutex);
+        return retval;
     }
 
     /* Browse */
@@ -548,18 +547,24 @@ browseReferences(UA_Server *server, const UA_NodeHead *head,
         for(; i < head->referencesSize; ++i) {
             UA_NodeReferenceKind *rk = &head->references[i];
 
+            /* Was this the last transmitted ReferenceType? */
+            if(head->references[i].referenceTypeIndex != cp->nextRefKindIndex)
+                continue;
+
             /* Reference in the right direction? */
             if(rk->isInverse && bd->browseDirection == UA_BROWSEDIRECTION_FORWARD)
                 continue;
             if(!rk->isInverse && bd->browseDirection == UA_BROWSEDIRECTION_INVERSE)
                 continue;
 
-            /* Was this the last transmitted ReferenceType? If yes, get the next
-             * target to send out. */
-            if(head->references[i].referenceTypeIndex == cp->nextRefKindIndex) {
-                ref = UA_NodeReferenceKind_findTarget(rk, &cp->nextTarget);
+            /* Get the next target */
+            ref = UA_NodeReferenceKind_findTarget(rk, &cp->nextTarget);
+            if(ref)
                 break;
-            }
+
+            /* The target no longer exists for this ReferenceType (and
+             * direction). Continue to iterate for the case that a nodestore has
+             * a duplicate UA_NodeReferenceKind (should not happen though). */
         }
 
         /* Fail with an error if the reference no longer exists. */
@@ -733,15 +738,11 @@ Operation_Browse(UA_Server *server, UA_Session *session, const UA_UInt32 *maxref
     }
 
     /* Get the list of relevant reference types */
-    if(UA_NodeId_isNull(&descr->referenceTypeId)) {
-        UA_ReferenceTypeSet_any(&cp.relevantReferences);
-    } else {
-        result->statusCode =
-            referenceTypeIndices(server, &descr->referenceTypeId,
-                                 &cp.relevantReferences, descr->includeSubtypes);
-        if(result->statusCode != UA_STATUSCODE_GOOD)
-            return;
-    }
+    result->statusCode =
+        referenceTypeIndices(server, &descr->referenceTypeId,
+                             &cp.relevantReferences, descr->includeSubtypes);
+    if(result->statusCode != UA_STATUSCODE_GOOD)
+        return;
 
     UA_Boolean done = browseWithContinuation(server, session, &cp, result);
 
@@ -957,16 +958,12 @@ walkBrowsePathElement(UA_Server *server, UA_Session *session,
     UA_UInt32 browseNameHash = UA_QualifiedName_hash(&elem->targetName);
 
     /* Get the relevant ReferenceTypes */
-    UA_StatusCode res = UA_STATUSCODE_GOOD;
     UA_ReferenceTypeSet refTypes;
-    if(UA_NodeId_isNull(&elem->referenceTypeId)) {
-        UA_ReferenceTypeSet_any(&refTypes);
-    } else {
-        res = referenceTypeIndices(server, &elem->referenceTypeId,
-                                   &refTypes, elem->includeSubtypes);
-        if(res != UA_STATUSCODE_GOOD)
-            return UA_STATUSCODE_BADNOMATCH;
-    }
+    UA_StatusCode res =
+        referenceTypeIndices(server, &elem->referenceTypeId,
+                             &refTypes, elem->includeSubtypes);
+    if(res != UA_STATUSCODE_GOOD)
+        return UA_STATUSCODE_BADNOMATCH;
 
     struct aa_head _refNameTree = refNameTree;
 

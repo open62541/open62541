@@ -10,19 +10,6 @@
 #ifndef PLUGINS_ARCH_POSIX_UA_ARCHITECTURE_H_
 #define PLUGINS_ARCH_POSIX_UA_ARCHITECTURE_H_
 
-/* Enable POSIX features */
-#if !defined(_XOPEN_SOURCE)
-# define _XOPEN_SOURCE 600
-#endif
-#ifndef _DEFAULT_SOURCE
-# define _DEFAULT_SOURCE
-#endif
-/* On older systems we need to define _BSD_SOURCE.
- * _DEFAULT_SOURCE is an alias for that. */
-#ifndef _BSD_SOURCE
-# define _BSD_SOURCE
-#endif
-
 #include <open62541/architecture_definitions.h>
 
 #include <errno.h>
@@ -127,7 +114,7 @@ void UA_sleep_ms(unsigned long ms);
 #define UA_snprintf snprintf
 #define UA_strncasecmp strncasecmp
 
-#define UA_clean_errno(STR_FUN) (errno == 0 ? "None" : (STR_FUN)(errno))
+#define UA_clean_errno(STR_FUN) (errno == 0 ? (char*) "None" : (STR_FUN)(errno))
 
 #define UA_LOG_SOCKET_ERRNO_WRAP(LOG) { \
     char *errno_str = UA_clean_errno(strerror); \

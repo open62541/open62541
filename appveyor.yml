@@ -9,8 +9,8 @@ clone_folder: c:\projects\open62541
 skip_branch_with_pr: true
 
 # Fast finish (stop other builds if one fails) to speed up appveyor builds
-# matrix:
-#  fast_finish: true
+matrix:
+  fast_finish: true
 
 environment:
     global:
@@ -30,7 +30,6 @@ cache:
   - C:\ProgramData\chocolatey\bin -> tools/appveyor/install.ps1
   - C:\ProgramData\chocolatey\lib -> tools/appveyor/install.ps1
   - C:\tools\vcpkg\installed -> tools/appveyor/install.ps1
-  #- 'c:\miktex'
 
 init:
   - git config --global core.autocrlf input # Attempt to ensure we don't try to convert line endings to Win32 CRLF as this will cause build to fail

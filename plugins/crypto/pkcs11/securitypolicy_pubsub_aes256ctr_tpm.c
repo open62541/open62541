@@ -281,6 +281,9 @@ channelContext_newContext_sp_pubsub_aes256ctr_tpm(void *policyContext,
     {
         UA_LOG_ERROR(cc->policyContext->securityPolicy->logger, UA_LOGCATEGORY_SECURITYPOLICY,
                      "Initialize session failed 0x%.8lX", (long unsigned int)rv);
+#if UA_MULTITHREADING >= 100
+        pthread_mutex_unlock(&initLock256_g);
+#endif
         return rv;
     }
 
@@ -293,6 +296,9 @@ channelContext_newContext_sp_pubsub_aes256ctr_tpm(void *policyContext,
         if (rv != UA_STATUSCODE_GOOD){
             UA_LOG_ERROR(cc->policyContext->securityPolicy->logger, UA_LOGCATEGORY_SECURITYPOLICY,
                          "getSecurityKeys failed 0x%.8lX", (long unsigned int)rv);
+#if UA_MULTITHREADING >= 100
+            pthread_mutex_unlock(&initLock256_g);
+#endif
             return rv;
         }
     } else {

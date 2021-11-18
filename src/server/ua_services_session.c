@@ -301,6 +301,7 @@ Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
     if(response->responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
         UA_LOG_WARNING_CHANNEL(&server->config.logger, channel,
                                "Processing CreateSessionRequest failed");
+        UA_atomic_addSize(&server->serverStats.ss.rejectedSessionCount, 1);
         return;
     }
 
@@ -821,7 +822,7 @@ Service_CloseSession(UA_Server *server, UA_SecureChannel *channel,
         TAILQ_FOREACH_SAFE(sub, &session->subscriptions, sessionListEntry, sub_tmp) {
             UA_LOG_INFO_SUBSCRIPTION(&server->config.logger, sub,
                                      "Detaching the Subscription from the Session");
-            UA_Session_detachSubscription(server, session, sub);
+            UA_Session_detachSubscription(server, session, sub, true);
         }
     }
 #endif

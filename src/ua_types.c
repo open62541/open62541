@@ -325,11 +325,10 @@ UA_NodeId_isNull(const UA_NodeId *p) {
     case UA_NODEIDTYPE_NUMERIC:
         return (p->identifier.numeric == 0);
     case UA_NODEIDTYPE_STRING:
-        return UA_String_equal(&p->identifier.string, &UA_STRING_NULL);
+    case UA_NODEIDTYPE_BYTESTRING:
+        return (p->identifier.string.length == 0); /* Null and empty string */
     case UA_NODEIDTYPE_GUID:
         return UA_Guid_equal(&p->identifier.guid, &UA_GUID_NULL);
-    case UA_NODEIDTYPE_BYTESTRING:
-        return UA_ByteString_equal(&p->identifier.byteString, &UA_BYTESTRING_NULL);
     }
     return false;
 }
@@ -979,15 +978,6 @@ DiagnosticInfo_copy(UA_DiagnosticInfo const *src, UA_DiagnosticInfo *dst,
     return retval;
 }
 
-/* StatusCode */
-UA_Boolean
-UA_StatusCode_isBad(const UA_StatusCode code) {
-    if ((code & 0x80000000) != 0) {
-        return UA_TRUE;
-    }
-    return UA_FALSE;
-} 
-
 /********************/
 /* Structured Types */
 /********************/
@@ -1437,15 +1427,21 @@ variantOrder(const UA_Variant *p1, const UA_Variant *p2,
     if(p1->type != p2->type)
         return ((uintptr_t)p1->type < (uintptr_t)p2->type) ? UA_ORDER_LESS : UA_ORDER_MORE;
 
-    if(p1->arrayLength != p2->arrayLength)
-        return (p1->arrayLength < p2->arrayLength) ? UA_ORDER_LESS : UA_ORDER_MORE;
-        
     UA_Order o;
     if(p1->type != NULL) {
-        if(p1->arrayLength == 0)
+        /* Check if both variants are scalars or arrays */
+        UA_Boolean s1 = UA_Variant_isScalar(p1);
+        UA_Boolean s2 = UA_Variant_isScalar(p2);
+        if(s1 != s2)
+            return s1 ? UA_ORDER_LESS : UA_ORDER_MORE;
+        if(s1) {
             o = orderJumpTable[p1->type->typeKind](p1->data, p2->data, p1->type);
-        else
+        } else {
+            /* Mismatching array length? */
+            if(p1->arrayLength != p2->arrayLength)
+                return (p1->arrayLength < p2->arrayLength) ? UA_ORDER_LESS : UA_ORDER_MORE;
             o = arrayOrder(p1->data, p1->arrayLength, p2->data, p2->arrayLength, p1->type);
+        }
         if(o != UA_ORDER_EQ)
             return o;
     }
@@ -1580,7 +1576,7 @@ structureOrder(const void *p1, const void *p2, const UA_DataType *type) {
                 size_t size2 = *(size_t*)u2;
                 u1 += sizeof(size_t);
                 u2 += sizeof(size_t);
-                o = arrayOrder((const void*)u1, size1, (const void*)u2, size2, mt);
+                o = arrayOrder(*(void* const*)u1, size1, *(void* const*)u2, size2, mt);
                 u1 += sizeof(void*);
                 u2 += sizeof(void*);
             }
@@ -1602,9 +1598,7 @@ structureOrder(const void *p1, const void *p2, const UA_DataType *type) {
                 size_t sa2 = *(size_t*)u2;
                 u1 += sizeof(size_t);
                 u2 += sizeof(size_t);
-                const void *pa1 = *(void* const*)u1;
-                const void *pa2 = *(void* const*)u2;
-                o = arrayOrder(pa1, sa1, pa2, sa2, mt);
+                o = arrayOrder(*(void* const*)u1, sa1, *(void* const*)u2, sa2, mt);
             }
             u1 += sizeof(void*);
             u2 += sizeof(void*);

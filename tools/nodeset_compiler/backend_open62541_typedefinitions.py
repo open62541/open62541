@@ -13,9 +13,12 @@ else:
 # Some types can be memcpy'd off the binary stream. That's especially important
 # for arrays. But we need to check if they contain padding and whether the
 # endianness is correct. This dict gives the C-statement that must be true for the
-# type to be overlayable. Parsed types are added if they apply.
-builtin_overlayable = {"Boolean": "true",
-                       "SByte": "true", "Byte": "true",
+# type to be overlayable. Parsed types are added to the list if they apply.
+#
+# Boolean is not overlayable 1-byte type. We get "undefined behavior" errors
+# during fuzzing if we don't force the value to either exactly true or false.
+builtin_overlayable = {"SByte": "true",
+                       "Byte": "true",
                        "Int16": "UA_BINARY_OVERLAYABLE_INTEGER",
                        "UInt16": "UA_BINARY_OVERLAYABLE_INTEGER",
                        "Int32": "UA_BINARY_OVERLAYABLE_INTEGER",
@@ -243,7 +246,7 @@ class CGenerator(object):
             return "typedef enum {\n    " + ",\n    ".join(
                 map(lambda kv: makeCIdentifier("UA_" + enum.name.upper() + "_" + kv[0].upper()) +
                                " = " + kv[1], values)) + \
-                   ",\n    __UA_{0}_FORCE32BIT = 0x7fffffff\n".format(makeCIdentifier(enum.name.upper())) + "} " + \
+                   "{}\n    __UA_{}_FORCE32BIT = 0x7fffffff\n".format("," if len(enum.elements) != 0 else "", makeCIdentifier(enum.name.upper())) + "} " + \
                    "UA_{0};\nUA_STATIC_ASSERT(sizeof(UA_{0}) == sizeof(UA_Int32), enum_must_be_32bit);".format(
                        makeCIdentifier(enum.name))
 

@@ -212,14 +212,13 @@ endif()
 
 # TPM Security
 set(UA_ENABLE_ENCRYPTION_TPM2 "OFF" CACHE STRING "TPM encryption support")
-SET_PROPERTY(CACHE UA_ENABLE_ENCRYPTION_TPM2 PROPERTY STRINGS "PKCS11" "KEYSTORE" "OFF")
+SET_PROPERTY(CACHE UA_ENABLE_ENCRYPTION_TPM2 PROPERTY STRINGS "ON" "OFF")
 
 if(UA_ENABLE_ENCRYPTION_TPM2 STREQUAL "OFF")
     set(UA_ENABLE_TPM2_SECURITY OFF)
     set(UA_ENABLE_TPM2_KEYSTORE OFF)
-elseif(UA_ENABLE_ENCRYPTION_TPM2 STREQUAL "PKCS11")
+else()
     set(UA_ENABLE_TPM2_SECURITY ON)
-elseif(UA_ENABLE_ENCRYPTION_TPM2 STREQUAL "KEYSTORE")
     set(UA_ENABLE_TPM2_KEYSTORE ON)
 endif()
 
@@ -272,7 +271,7 @@ if(UA_BUILD_FUZZING OR UA_BUILD_OSS_FUZZ OR UA_BUILD_FUZZING_CORPUS)
     set(UA_ENABLE_DISCOVERY ON CACHE STRING "" FORCE)
     set(UA_ENABLE_DISCOVERY_MULTICAST ON CACHE STRING "" FORCE)
     set(UA_ENABLE_ENCRYPTION ON CACHE STRING "OFF" FORCE)
-    set(UA_ENABLE_ENCRYPTION_MBEDTLS ON CACHE STRING "" FORCE)    
+    set(UA_ENABLE_ENCRYPTION_MBEDTLS ON CACHE STRING "" FORCE)
     set(UA_ENABLE_HISTORIZING ON CACHE STRING "" FORCE)
     set(UA_ENABLE_JSON_ENCODING ON CACHE STRING "" FORCE)
     set(UA_ENABLE_SUBSCRIPTIONS ON CACHE STRING "" FORCE)
@@ -290,8 +289,9 @@ if((UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS) AND (NOT (UA_ENABLE_SUBSCRIPTIONS
 endif()
 
 if(UA_ENABLE_COVERAGE)
-  set(CMAKE_BUILD_TYPE DEBUG)
-  set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -g -O0 -fprofile-arcs -ftest-coverage")
+  # We are using the scripts provided at for coverage testing: https://github.com/RWTH-HPC/CMake-codecov
+  set(ENABLE_COVERAGE ON)
+  find_package(codecov REQUIRED)
   set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -fprofile-arcs -ftest-coverage -lgcov")
   set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -fprofile-arcs -ftest-coverage")
 endif()
@@ -338,7 +338,7 @@ if(UA_FORCE_CPP)
     add_definitions(-D__STDC_CONSTANT_MACROS) # We need the UINT32_C define
 endif()
 
-option(UA_FORCE_WERROR "Force compilation with -Werror" ON)
+option(UA_FORCE_WERROR "Force compilation with -Werror (or /WX on MSVC)" ON)
 
 #General PubSub setup
 option(UA_ENABLE_PUBSUB "Enable the PubSub protocol" OFF)
@@ -572,7 +572,7 @@ if(UA_ENABLE_ENCRYPTION_OPENSSL OR UA_ENABLE_MQTT_TLS_OPENSSL)
     find_package(OpenSSL REQUIRED)
     list(APPEND open62541_LIBRARIES ${OPENSSL_LIBRARIES})
     endif ()
-    
+
 if(UA_ENABLE_ENCRYPTION_LIBRESSL)
     # See https://github.com/libressl-portable/portable/blob/master/FindLibreSSL.cmake
     find_package(LibreSSL REQUIRED)
@@ -769,7 +769,10 @@ if(APPLE)
 endif()
 
 if(MSVC)
-  set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /W3 /WX /w44996") # Compiler warnings, error on warning
+  set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /W3 /w44996")
+  if(UA_FORCE_WERROR)
+      set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /WX") # Compiler warnings, error on warning
+  endif()
 
   if(UA_MSVC_FORCE_STATIC_CRT AND NOT BUILD_SHARED_LIBS)
     set(CompilerFlags CMAKE_CXX_FLAGS CMAKE_CXX_FLAGS_DEBUG CMAKE_CXX_FLAGS_RELEASE CMAKE_C_FLAGS
@@ -818,10 +821,7 @@ if(UA_ENABLE_DISCOVERY_MULTICAST)
       CUSTOM_CONTENT_FROM_VARIABLE MDNSD_CONFIG_EXTRA)
 endif()
 
-set(exported_headers ${exported_headers}
-                     ${PROJECT_BINARY_DIR}/src_generated/open62541/config.h
-                     ${ua_architecture_headers_beginning}
-                     )
+set(exported_headers ${ua_architecture_headers_beginning})
 
 if(NOT "${UA_AMALGAMATION_ARCHITECTURES}" STREQUAL "")
     foreach(arch ${UA_AMALGAMATION_ARCHITECTURES})
@@ -838,9 +838,10 @@ if(UA_ENABLE_HISTORIZING)
          ${PROJECT_SOURCE_DIR}/include/open62541/plugin/historydatabase.h)
 endif()
 
-set(exported_headers ${exported_headers}
+set(exported_headers ${PROJECT_BINARY_DIR}/src_generated/open62541/config.h
                      ${PROJECT_SOURCE_DIR}/deps/ms_stdint.h
                      ${PROJECT_SOURCE_DIR}/include/open62541/architecture_definitions.h
+                     ${exported_headers}
                      ${PROJECT_BINARY_DIR}/src_generated/open62541/statuscodes.h
                      ${PROJECT_BINARY_DIR}/src_generated/open62541/nodeids.h
                      ${PROJECT_SOURCE_DIR}/include/open62541/common.h
@@ -939,7 +940,8 @@ set(lib_sources ${PROJECT_SOURCE_DIR}/src/ua_types.c
                 ${PROJECT_SOURCE_DIR}/deps/pcg_basic.c
                 ${PROJECT_SOURCE_DIR}/deps/base64.c
                 ${PROJECT_SOURCE_DIR}/deps/aa_tree.c
-                
+                ${PROJECT_SOURCE_DIR}/deps/ziptree.c
+
                 ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_config.c)
 
 set(default_plugin_headers ${PROJECT_SOURCE_DIR}/plugins/include/open62541/plugin/accesscontrol_default.h
@@ -1359,7 +1361,9 @@ else()
                       open62541-generator-statuscode
                       open62541-generator-namespace
                       )
-
+    if(UA_ENABLE_COVERAGE)
+        add_coverage(open62541-object)
+    endif()
     target_include_directories(open62541-object PRIVATE ${PROJECT_SOURCE_DIR}/src)
 
     add_library(open62541-plugins OBJECT ${default_plugin_sources} ${ua_architecture_sources} ${exported_headers})
@@ -1646,8 +1650,8 @@ set(UA_install_tools_files "tools/generate_datatypes.py"
     "tools/generate_nodeid_header.py"
     "tools/generate_statuscode_descriptions.py")
 
-install(DIRECTORY ${UA_install_tools_dirs} 
-    DESTINATION ${open62541_install_tools_dir} 
+install(DIRECTORY ${UA_install_tools_dirs}
+    DESTINATION ${open62541_install_tools_dir}
     USE_SOURCE_PERMISSIONS
     FILES_MATCHING
     PATTERN "*"
@@ -1701,7 +1705,7 @@ if(NOT UA_ENABLE_AMALGAMATION)
     endforeach()
 
 else()
-    # Export amalgamated header open62541.h which is generated due to build of 
+    # Export amalgamated header open62541.h which is generated due to build of
     # open62541-object
     install(FILES ${PROJECT_BINARY_DIR}/open62541.h DESTINATION include)
 endif()

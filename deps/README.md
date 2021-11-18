@@ -1,6 +1,6 @@
 # open62541 Third-Party libraries
 
-Specific optional features are dependent on third-party libraries. 
+Specific optional features are dependent on third-party libraries.
 Any third-party library which may be used is inside this `/deps` folder.
 
 Up to now all these libraries have a less strict License compared to MPL 2.0.
@@ -21,3 +21,4 @@ Here's a list of third party libraries:
 | pcg_basic       | Apache License 2 | Random Number Generation                      |
 | string_escape   | MIT              | utf8 encoding and decoding                    |
 | ziptree         | MPL 2.0          | Reusable zip tree implementation              |
+| mqtt-c          | MIT              | a portable MQTT client, written in C          |

@@ -427,14 +427,13 @@ ServerNetworkLayerTCP_start(UA_ServerNetworkLayer *nl, const UA_Logger *logger,
     for(layer->serverSocketsSize = 0;
         layer->serverSocketsSize < FD_SETSIZE && ai != NULL;
         ai = ai->ai_next) {
-        UA_StatusCode statusCode = addServerSocket(layer, ai);
-        if(statusCode != UA_STATUSCODE_GOOD)
-        {
-            UA_freeaddrinfo(res);
-            return statusCode;
-        }
+        addServerSocket(layer, ai);
     }
     UA_freeaddrinfo(res);
+    
+    if(layer->serverSocketsSize == 0) {
+        return UA_STATUSCODE_BADCOMMUNICATIONERROR;
+    }    
 
     /* Get the discovery url from the hostname */
     UA_String du = UA_STRING_NULL;
@@ -845,7 +844,7 @@ UA_ClientConnectionTCP_poll(UA_Connection *connection, UA_UInt32 timeout,
 
     /* The connection is fully opened. Otherwise, select has timed out. But we
      * can retry. */
-    if(resultsize == 1)
+    if(resultsize > 0)
         connection->state = UA_CONNECTIONSTATE_ESTABLISHED;
 
     return UA_STATUSCODE_GOOD;

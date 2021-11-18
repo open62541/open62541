@@ -559,6 +559,9 @@ class DataTypeNode(Node):
                         isOptional = str(av)
                     elif at == "ArrayDimensions":
                         arrayDimensions = int(av)
+                    elif at == "AllowSubTypes":
+                        # ignore
+                        continue
                     else:
                         logger.warn("Unknown Field Attribute " + str(at))
                 # This can either be an enumeration OR a structure, not both.

@@ -156,10 +156,10 @@ endif()
 add_library(open62541-testplugins OBJECT ${test_plugin_sources} ${PROJECT_SOURCE_DIR}/arch/${UA_ARCHITECTURE}/ua_architecture_functions.c)
 add_dependencies(open62541-testplugins open62541)
 target_compile_definitions(open62541-testplugins PRIVATE -DUA_DYNAMIC_LINKING_EXPORT)
-
-if(NOT MSVC)
-    add_definitions(-Wno-deprecated-declarations)
+if(UA_ENABLE_COVERAGE)
+    add_coverage(open62541-testplugins)
 endif()
+
 # Workaround some clang warnings in the uni tests
 if((NOT ${CMAKE_SYSTEM_NAME} MATCHES "OpenBSD") AND (CMAKE_COMPILER_IS_GNUCC OR "x${CMAKE_C_COMPILER_ID}" STREQUAL "xClang"))
     add_definitions(-Wno-sign-conversion)
@@ -346,6 +346,10 @@ if(UA_ENABLE_HISTORIZING)
     add_executable(check_server_historical_data server/check_server_historical_data.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
     target_link_libraries(check_server_historical_data ${LIBS})
     add_test_valgrind(server_historical_data ${TESTS_BINARY_DIR}/check_server_historical_data)
+
+    add_executable(check_server_historical_data_circular server/check_server_historical_data_circular.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
+    target_link_libraries(check_server_historical_data_circular ${LIBS})
+    add_test_valgrind(server_historical_data_circular ${TESTS_BINARY_DIR}/check_server_historical_data_circular)
 endif()
 
 add_executable(check_session server/check_session.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
@@ -450,14 +454,22 @@ if(UA_ENABLE_PUBSUB)
                 $<TARGET_OBJECTS:open62541-testplugins>)
         target_link_libraries(check_pubsub_subscribe_encrypted ${LIBS})
         add_test_valgrind(check_pubsub_subscribe_encrypted ${TESTS_BINARY_DIR}/check_pubsub_subscribe_encrypted)
+
+        add_executable(check_pubsub_encrypted_rt_levels pubsub/check_pubsub_encrypted_rt_levels.c
+                $<TARGET_OBJECTS:open62541-object>
+                $<TARGET_OBJECTS:open62541-testplugins>)
+        target_link_libraries(check_pubsub_encrypted_rt_levels ${LIBS})
+        add_test_valgrind(check_pubsub_encrypted_rt_levels ${TESTS_BINARY_DIR}/check_pubsub_encrypted_rt_levels)
     endif()
 
     if (UA_ENABLE_PUBSUB_MONITORING)
-        add_executable(check_pubsub_subscribe_msgrcvtimeout pubsub/check_pubsub_subscribe_msgrcvtimeout.c 
-            $<TARGET_OBJECTS:open62541-object>
-            $<TARGET_OBJECTS:open62541-testplugins>)
-        target_link_libraries(check_pubsub_subscribe_msgrcvtimeout ${LIBS})
-        add_test_valgrind(check_pubsub_subscribe_msgrcvtimeout ${TESTS_BINARY_DIR}/check_pubsub_subscribe_msgrcvtimeout)
+        if(NOT UA_ENABLE_PUBSUB_ENCRYPTION) #ToDO: Multiple Receive handling for PubsubEncryption
+            add_executable(check_pubsub_subscribe_msgrcvtimeout pubsub/check_pubsub_subscribe_msgrcvtimeout.c 
+                    $<TARGET_OBJECTS:open62541-object>
+                    $<TARGET_OBJECTS:open62541-testplugins>)
+            target_link_libraries(check_pubsub_subscribe_msgrcvtimeout ${LIBS})
+            add_test_valgrind(check_pubsub_subscribe_msgrcvtimeout ${TESTS_BINARY_DIR}/check_pubsub_subscribe_msgrcvtimeout)
+        endif()
     endif()
 
     if(UA_ENABLE_PUBSUB_ETH_UADP)

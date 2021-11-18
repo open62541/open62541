@@ -148,11 +148,10 @@ def setNodeValueRankRecursive(node, nodeset):
 
         setNodeValueRankRecursive(typeDefNode, nodeset)
 
-        if typeDefNode.valueRank is not None and typeDefNode.valueRank > -1:
+        if typeDefNode.valueRank is not None:
             node.valueRank = typeDefNode.valueRank
         else:
-            # Default value
-            node.valueRank = -1
+            raise RuntimeError("Node {}: the ValueRank of the parent node is None.".format(str(node.id)))
     else:
         if node.parent is None:
             raise RuntimeError("Node {}: does not have a parent. Probably the parent node was blacklisted?".format(str(node.id)))
@@ -161,11 +160,10 @@ def setNodeValueRankRecursive(node, nodeset):
         setNodeValueRankRecursive(node.parent, nodeset)
 
 
-        if node.parent.valueRank is not None and node.parent.valueRank > -1:
+        if node.parent.valueRank is not None:
             node.valueRank = node.parent.valueRank
         else:
-            # Default value
-            node.valueRank = -1
+            raise RuntimeError("Node {}: the ValueRank of the parent node is None.".format(str(node.id)))
 
 
 def generateCommonVariableCode(node, nodeset):
@@ -338,7 +336,7 @@ def generateExtensionObjectSubtypeCode(node, parent, nodeset, global_var_code, i
                 # Some values can be optional
                 valueName = instanceName + accessor + memberName
                 code.append(generateNodeValueCode(valueName,
-                            subv, instanceName,valueName, global_var_code, asIndirect=False))
+                            subv, instanceName,valueName, global_var_code, asIndirect=False, nodeset=nodeset))
         else:
             memberName = makeCIdentifier(lowerFirstChar(encField))
             code.append(generateNodeValueCode(instanceName + accessor + memberName + "Size", subv,

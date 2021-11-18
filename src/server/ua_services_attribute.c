@@ -211,7 +211,6 @@ readValueAttributeComplete(UA_Server *server, UA_Session *session,
                 retval = UA_STATUSCODE_BADNOTREADABLE;
             }
             if(retval != UA_STATUSCODE_GOOD){
-                retval = UA_STATUSCODE_BADNOTREADABLE;
                 break;
             }
             /* Set the result */
@@ -219,7 +218,7 @@ readValueAttributeComplete(UA_Server *server, UA_Session *session,
                 return UA_Variant_copyRange(
                     (const UA_Variant *)&vn->valueBackend.backend.external.value,
                     &v->value, *rangeptr);
-            UA_DataValue_copy(*vn->valueBackend.backend.external.value, v);
+            retval = UA_DataValue_copy(*vn->valueBackend.backend.external.value, v);
             break;
         case UA_VALUEBACKENDTYPE_NONE:
             /* Read the value */
@@ -1011,6 +1010,10 @@ compatibleValue(UA_Server *server, UA_Session *session, const UA_NodeId *targetD
 void
 adjustValueType(UA_Server *server, UA_Variant *value,
                 const UA_NodeId *targetDataTypeId) {
+    /* If the value is empty, there is nothing we can do here */
+    if(!value->type)
+        return;
+
     const UA_DataType *targetDataType = UA_findDataType(targetDataTypeId);
     if(!targetDataType)
         return;
@@ -1365,7 +1368,7 @@ writeNodeValueAttribute(UA_Server *server, UA_Session *session,
                     UA_free(rangeptr->dimensions);
                 return UA_STATUSCODE_BADWRITENOTSUPPORTED;
             }
-            node->valueBackend.backend.external.callback.
+            retval = node->valueBackend.backend.external.callback.
                 userWrite(server, &session->sessionId, session->sessionHandle,
                           &node->head.nodeId, node->head.context,
                           rangeptr, &adjustedValue);
