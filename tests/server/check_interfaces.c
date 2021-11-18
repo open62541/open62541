@@ -141,6 +141,57 @@ START_TEST(check_interface_instantiation) {
     ck_assert(found == true);
 
     UA_BrowseResult_clear(&br);
+
+    UA_RelativePathElement_init(&el);
+    el.referenceTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT);
+    el.targetName = UA_QUALIFIEDNAME(2, (char *)"BaseObjectWithInterface");
+
+    bp.relativePath.elements = &el;
+
+    bpr = UA_Server_translateBrowsePathToNodeIds(server, &bp);
+    ck_assert_int_eq(bpr.statusCode, UA_STATUSCODE_GOOD);
+    ck_assert_int_eq(bpr.targetsSize, 1);
+
+    const UA_NodeId baseObjectWithInterfaceId = bpr.targets->targetId.nodeId;
+    UA_BrowsePathResult_clear(&bpr);
+
+    bd.nodeId = baseObjectWithInterfaceId;
+    bd.resultMask = UA_BROWSERESULTMASK_ALL;
+    bd.browseDirection = UA_BROWSEDIRECTION_FORWARD;
+    bd.referenceTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_REFERENCES);
+    bd.includeSubtypes = UA_TRUE;
+    bd.nodeClassMask = 0xFFFFFFFF;
+
+    br = UA_Server_browse(server, 1000, &bd);
+    ck_assert_int_eq(br.statusCode, UA_STATUSCODE_GOOD);
+    ck_assert_int_gt(br.referencesSize, 0);
+
+    found = false;
+    for (size_t i = 0; i < br.referencesSize; ++i) {
+        UA_NodeId expectedRef = UA_NODEID_NUMERIC(0, UA_NS0ID_HASINTERFACE);
+        UA_NodeId expectedId = UA_NODEID_NUMERIC(2, 1005);
+        if (UA_NodeId_equal(&br.references[i].referenceTypeId, &expectedRef) &&
+                UA_NodeId_equal(&br.references[i].nodeId.nodeId, &expectedId))
+        {
+            found = true;
+            break;
+        }
+    }
+    ck_assert(found == true);
+
+    found = false;
+    for (size_t i = 0; i < br.referencesSize; ++i) {
+        UA_NodeId expectedRef = UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY);
+        UA_QualifiedName expectedName = UA_QUALIFIEDNAME(2, (char *)"MyOtherInterfaceProperty");
+        if (UA_NodeId_equal(&br.references[i].referenceTypeId, &expectedRef) &&
+                UA_QualifiedName_equal(&br.references[i].browseName, &expectedName))
+        {
+            found = true;
+            break;
+        }
+    }
+    ck_assert(found == true);
+
 } END_TEST
 
 int main(void) {
