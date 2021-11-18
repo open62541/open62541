@@ -55,18 +55,6 @@ START_TEST(arrayCopyShallMakeADeepCopy) {
 END_TEST
 
 START_TEST(encodeShallYieldDecode) {
-    /* floating point types may change the representaton due to several possible NaN values. */
-    if(_i != UA_TYPES_FLOAT || _i != UA_TYPES_DOUBLE ||
-       _i != UA_TYPES_CREATESESSIONREQUEST || _i != UA_TYPES_CREATESESSIONRESPONSE ||
-       _i != UA_TYPES_VARIABLEATTRIBUTES || _i != UA_TYPES_READREQUEST
-#ifdef UA_ENABLE_SUBSCRIPTIONS
-       ||
-       _i != UA_TYPES_MONITORINGPARAMETERS || _i != UA_TYPES_MONITOREDITEMCREATERESULT ||
-       _i != UA_TYPES_CREATESUBSCRIPTIONREQUEST || _i != UA_TYPES_CREATESUBSCRIPTIONRESPONSE
-#endif
-       )
-        return;
-
     // given
     UA_ByteString msg1, msg2;
     void *obj1 = UA_new(&UA_TYPES[_i]);
@@ -104,12 +92,11 @@ START_TEST(encodeShallYieldDecode) {
     ck_assert(UA_order(obj1, obj2, &UA_TYPES[_i]) == UA_ORDER_EQ);
 
     // pretty-print the value
-    
 #ifdef UA_ENABLE_TYPEDESCRIPTION
-    UA_Byte staticBuf[512];
+    UA_Byte staticBuf[4096];
     UA_String buf;
     buf.data = staticBuf;
-    buf.length = 512;
+    buf.length = 4096;
     retval = UA_print(obj2, &UA_TYPES[_i], &buf);
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
 #endif
