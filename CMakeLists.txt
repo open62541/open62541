@@ -1,5 +1,5 @@
-cmake_minimum_required(VERSION 3.12)
-cmake_policy(VERSION 3.0)
+cmake_minimum_required(VERSION 3.21)
+cmake_policy(VERSION 3.21)
 if(UA_BUILD_FUZZING OR UA_BUILD_OSS_FUZZ OR UA_BUILD_FUZZING_CORPUS)
     project(open62541) # We need to have C++ support configured for fuzzing
 else()
