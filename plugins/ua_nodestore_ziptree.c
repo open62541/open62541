@@ -151,6 +151,14 @@ zipNsGetNode(void *nsCtx, const UA_NodeId *nodeId) {
     return (const UA_Node*)&entry->nodeId;
 }
 
+static const UA_Node *
+zipNsGetNodeFromPtr(void *nsCtx, UA_NodePointer ptr) {
+    if(!UA_NodePointer_isLocal(ptr))
+        return NULL;
+    UA_NodeId id = UA_NodePointer_toNodeId(ptr);
+    return zipNsGetNode(nsCtx, &id);
+}
+
 static void
 zipNsReleaseNode(void *nsCtx, const UA_Node *node) {
     if(!node)
@@ -372,6 +380,7 @@ UA_Nodestore_ZipTree(UA_Nodestore *ns) {
     ns->newNode = zipNsNewNode;
     ns->deleteNode = zipNsDeleteNode;
     ns->getNode = zipNsGetNode;
+    ns->getNodeFromPtr = zipNsGetNodeFromPtr;
     ns->releaseNode = zipNsReleaseNode;
     ns->getNodeCopy = zipNsGetNodeCopy;
     ns->insertNode = zipNsInsertNode;

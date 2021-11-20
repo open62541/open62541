@@ -591,9 +591,8 @@ UA_StatusCode writeNs0VariableArray(UA_Server *server, UA_UInt32 id, void *v,
 #define UA_NODESTORE_GET(server, nodeid)                                \
     server->config.nodestore.getNode(server->config.nodestore.context, nodeid)
 
-/* Returns NULL if the target is an external Reference (per the ExpandedNodeId) */
-const UA_Node *
-UA_NODESTORE_GETFROMREF(UA_Server *server, UA_NodePointer target);
+#define UA_NODESTORE_GETFROMREF(server, target)                         \
+    server->config.nodestore.getNodeFromPtr(server->config.nodestore.context, target)
 
 #define UA_NODESTORE_RELEASE(server, node)                              \
     server->config.nodestore.releaseNode(server->config.nodestore.context, node)
