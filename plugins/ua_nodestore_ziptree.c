@@ -181,10 +181,9 @@ zipNsGetNodeCopy(void *nsCtx, const UA_NodeId *nodeId,
                  UA_Node **outNode) {
     /* Get the node (with all attributes and references, the mask and refs are
        currently noy evaluated within the plugin.) */
-    UA_ReferenceTypeSet allRefs;
-    UA_ReferenceTypeSet_any(&allRefs);
-    const UA_Node *node = zipNsGetNode(nsCtx, nodeId, ~(UA_UInt32)0,
-                                       allRefs, UA_BROWSEDIRECTION_BOTH);
+    const UA_Node *node =
+        zipNsGetNode(nsCtx, nodeId, UA_NODEATTRIBUTESMASK_ALL,
+                     UA_REFERENCETYPESET_ALL, UA_BROWSEDIRECTION_BOTH);
     if(!node)
         return UA_STATUSCODE_BADNODEIDUNKNOWN;
 
@@ -281,10 +280,9 @@ zipNsInsertNode(void *nsCtx, UA_Node *node, UA_NodeId *addedNodeId) {
 static UA_StatusCode
 zipNsReplaceNode(void *nsCtx, UA_Node *node) {
     /* Find the node (the mask and refs are not evaluated yet by the plugin)*/
-    UA_ReferenceTypeSet allRefs;
-    UA_ReferenceTypeSet_any(&allRefs);
-    const UA_Node *oldNode = zipNsGetNode(nsCtx, &node->head.nodeId, ~(UA_UInt32)0,
-                                          allRefs, UA_BROWSEDIRECTION_BOTH);
+    const UA_Node *oldNode =
+        zipNsGetNode(nsCtx, &node->head.nodeId, UA_NODEATTRIBUTESMASK_ALL,
+                     UA_REFERENCETYPESET_ALL, UA_BROWSEDIRECTION_BOTH);
     if(!oldNode) {
         deleteEntry(container_of(node, NodeEntry, nodeId));
         return UA_STATUSCODE_BADNODEIDUNKNOWN;
