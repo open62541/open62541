@@ -221,11 +221,6 @@ UA_ReferenceTypeSet_init(UA_ReferenceTypeSet *set) {
     memset(set, 0, sizeof(UA_ReferenceTypeSet));
 }
 
-static UA_INLINE void
-UA_ReferenceTypeSet_any(UA_ReferenceTypeSet *set) {
-    memset(set, -1, sizeof(UA_ReferenceTypeSet));
-}
-
 static UA_INLINE UA_ReferenceTypeSet
 UA_REFTYPESET(UA_Byte index) {
     UA_Byte i = index / 32, j = index % 32;
@@ -970,7 +965,7 @@ typedef struct {
      * It can be indicated if only a subset of the attributes and referencs need
      * to be accessed. That is relevant when the nodestore accesses a slow
      * storage backend for the attributes. The attribute mask is a bitfield with
-     * the bit indices take from the UA_AttributeId enum.
+     * ORed entries from UA_NodeAttributesMask.
      *
      * The returned node always contains the context-pointer and other fields
      * specific to open626541 (not official attributes).

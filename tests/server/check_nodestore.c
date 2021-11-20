@@ -5,6 +5,8 @@
 #include <open62541/types.h>
 #include <open62541/util.h>
 #include <open62541/plugin/nodestore_default.h>
+#include "open62541/plugin/nodestore.h"
+#include "open62541/types_generated.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -79,9 +81,8 @@ START_TEST(findNodeInUA_NodeStoreWithSingleEntry) {
     UA_Node* n1 = createNode(0,2253);
     ns.insertNode(ns.context, n1, NULL);
     UA_NodeId in1 = UA_NODEID_NUMERIC(0,2253);
-    UA_ReferenceTypeSet allRefs;
-    UA_ReferenceTypeSet_any(&allRefs);
-    const UA_Node* nr = ns.getNode(ns.context, &in1, ~(UA_UInt32)0, allRefs, UA_BROWSEDIRECTION_BOTH);
+    const UA_Node* nr = ns.getNode(ns.context, &in1, ~(UA_UInt32)0,
+                                   UA_REFERENCETYPESET_ALL, UA_BROWSEDIRECTION_BOTH);
     ck_assert_uint_eq((uintptr_t)n1, (uintptr_t)nr);
     ns.releaseNode(ns.context, nr);
 }
@@ -91,9 +92,8 @@ START_TEST(failToFindNodeInOtherUA_NodeStore) {
     UA_Node* n1 = createNode(0,2255);
     ns.insertNode(ns.context, n1, NULL);
     UA_NodeId in1 = UA_NODEID_NUMERIC(1, 2255);
-    UA_ReferenceTypeSet allRefs;
-    UA_ReferenceTypeSet_any(&allRefs);
-    const UA_Node* nr = ns.getNode(ns.context, &in1, ~(UA_UInt32)0, allRefs, UA_BROWSEDIRECTION_BOTH);
+    const UA_Node* nr = ns.getNode(ns.context, &in1, ~(UA_UInt32)0,
+                                   UA_REFERENCETYPESET_ALL, UA_BROWSEDIRECTION_BOTH);
     ck_assert_uint_eq((uintptr_t)nr, 0);
 }
 END_TEST
@@ -113,9 +113,8 @@ START_TEST(findNodeInUA_NodeStoreWithSeveralEntries) {
     ns.insertNode(ns.context, n6, NULL);
 
     UA_NodeId in3 = UA_NODEID_NUMERIC(0, 2257);
-    UA_ReferenceTypeSet allRefs;
-    UA_ReferenceTypeSet_any(&allRefs);
-    const UA_Node* nr = ns.getNode(ns.context, &in3, ~(UA_UInt32)0, allRefs, UA_BROWSEDIRECTION_BOTH);
+    const UA_Node* nr = ns.getNode(ns.context, &in3, ~(UA_UInt32)0,
+                                   UA_REFERENCETYPESET_ALL, UA_BROWSEDIRECTION_BOTH);
     ck_assert_uint_eq((uintptr_t)nr, (uintptr_t)n3);
     ns.releaseNode(ns.context, nr);
 }
@@ -150,9 +149,8 @@ START_TEST(findNodeInExpandedNamespace) {
     }
     // when
     UA_Node *n2 = createNode(0,25);
-    UA_ReferenceTypeSet allRefs;
-    UA_ReferenceTypeSet_any(&allRefs);
-    const UA_Node* nr = ns.getNode(ns.context, &n2->head.nodeId, ~(UA_UInt32)0, allRefs, UA_BROWSEDIRECTION_BOTH);
+    const UA_Node* nr = ns.getNode(ns.context, &n2->head.nodeId, ~(UA_UInt32)0,
+                                   UA_REFERENCETYPESET_ALL, UA_BROWSEDIRECTION_BOTH);
     ck_assert_int_eq(nr->head.nodeId.identifier.numeric, n2->head.nodeId.identifier.numeric);
     ns.releaseNode(ns.context, nr);
     ns.deleteNode(ns.context, n2);
@@ -187,9 +185,8 @@ START_TEST(failToFindNonExistentNodeInUA_NodeStoreWithSeveralEntries) {
     ns.insertNode(ns.context, n5, NULL);
 
     UA_NodeId id = UA_NODEID_NUMERIC(0, 12);
-    UA_ReferenceTypeSet allRefs;
-    UA_ReferenceTypeSet_any(&allRefs);
-    const UA_Node* nr = ns.getNode(ns.context, &id, ~(UA_UInt32)0, allRefs, UA_BROWSEDIRECTION_BOTH);
+    const UA_Node* nr = ns.getNode(ns.context, &id, ~(UA_UInt32)0,
+                                   UA_REFERENCETYPESET_ALL, UA_BROWSEDIRECTION_BOTH);
     ck_assert_uint_eq((uintptr_t)nr, 0);
 }
 END_TEST
@@ -213,9 +210,8 @@ static void *profileGetThread(void *arg) {
     for(UA_Int32 x = 0; x<test->rounds; x++) {
         for(UA_Int32 i=test->min_val; i<max_val; i++) {
             id.identifier.numeric = i+1;
-            UA_ReferenceTypeSet allRefs;
-            UA_ReferenceTypeSet_any(&allRefs);
-            const UA_Node* n = ns.getNode(ns.context, &id, ~(UA_UInt32)0, allRefs, UA_BROWSEDIRECTION_BOTH);
+            const UA_Node* n = ns.getNode(ns.context, &id, ~(UA_UInt32)0,
+                                          UA_REFERENCETYPESET_ALL, UA_BROWSEDIRECTION_BOTH);
             ns.releaseNode(ns.context, n);
         }
     }
@@ -250,9 +246,8 @@ START_TEST(profileGetDelete) {
     UA_NodeId id = UA_NODEID_NULL;
     for(size_t i = 0; i < N; i++) {
         id.identifier.numeric = (UA_UInt32)i+1;
-        UA_ReferenceTypeSet allRefs;
-        UA_ReferenceTypeSet_any(&allRefs);
-        const UA_Node *node = ns.getNode(ns.context, &id, ~(UA_UInt32)0, allRefs, UA_BROWSEDIRECTION_BOTH);
+        const UA_Node *node = ns.getNode(ns.context, &id, ~(UA_UInt32)0,
+                                         UA_REFERENCETYPESET_ALL, UA_BROWSEDIRECTION_BOTH);
         ns.releaseNode(ns.context, node);
     }
     end = clock();

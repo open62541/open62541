@@ -26,7 +26,7 @@ UA_StatusCode
 referenceTypeIndices(UA_Server *server, const UA_NodeId *refType,
                      UA_ReferenceTypeSet *indices, UA_Boolean includeSubtypes) {
     if(UA_NodeId_isNull(refType)) {
-        UA_ReferenceTypeSet_any(indices);
+        *indices = UA_REFERENCETYPESET_ALL;
         return UA_STATUSCODE_GOOD;
     }
 
