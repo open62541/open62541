@@ -209,7 +209,9 @@ typedef struct {
 
 /* The maximum number of ReferrenceTypes. Must be a multiple of 32. */
 #define UA_REFERENCETYPESET_MAX 128
-typedef struct { UA_UInt32 bits[UA_REFERENCETYPESET_MAX / 32]; } UA_ReferenceTypeSet;
+typedef struct {
+    UA_UInt32 bits[UA_REFERENCETYPESET_MAX / 32];
+} UA_ReferenceTypeSet;
 
 static UA_INLINE void
 UA_ReferenceTypeSet_init(UA_ReferenceTypeSet *set) {
