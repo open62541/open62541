@@ -968,6 +968,12 @@ typedef struct {
      * that the pointer is no longer accessed afterwards. */
     const UA_Node * (*getNode)(void *nsCtx, const UA_NodeId *nodeId);
 
+    /* Similar to the normal ``getNode``. But it can take advantage of the
+     * NodePointer structure, e.g. if it contains a direct pointer. */
+    const UA_Node * (*getNodeFromPtr)(void *nsCtx, UA_NodePointer ptr);
+
+    /* Release a node that has been retrieved with ``getNode`` or
+     * ``getNodeFromPtr``. */
     void (*releaseNode)(void *nsCtx, const UA_Node *node);
 
     /* Returns an editable copy of a node (needs to be deleted with the

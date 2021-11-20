@@ -389,14 +389,6 @@ UA_NodeReferenceKind_findTarget(const UA_NodeReferenceKind *rk,
     return NULL;
 }
 
-const UA_Node *
-UA_NODESTORE_GETFROMREF(UA_Server *server, UA_NodePointer target) {
-    if(!UA_NodePointer_isLocal(target))
-        return NULL;
-    UA_NodeId id = UA_NodePointer_toNodeId(target);
-    return UA_NODESTORE_GET(server, &id);
-}
-
 /* General node handling methods. There is no UA_Node_new() method here.
  * Creating nodes is part of the Nodestore layer */
 

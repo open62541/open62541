@@ -263,6 +263,14 @@ UA_NodeMap_getNode(void *context, const UA_NodeId *nodeid) {
     return &slot->entry->node;
 }
 
+static const UA_Node *
+UA_NodeMap_getNodeFromPtr(void *context, UA_NodePointer ptr) {
+    if(!UA_NodePointer_isLocal(ptr))
+        return NULL;
+    UA_NodeId id = UA_NodePointer_toNodeId(ptr);
+    return UA_NodeMap_getNode(context, &id);
+}
+
 static void
 UA_NodeMap_releaseNode(void *context, const UA_Node *node) {
     if (!node)
@@ -513,6 +521,7 @@ UA_Nodestore_HashMap(UA_Nodestore *ns) {
     ns->newNode = UA_NodeMap_newNode;
     ns->deleteNode = UA_NodeMap_deleteNode;
     ns->getNode = UA_NodeMap_getNode;
+    ns->getNodeFromPtr = UA_NodeMap_getNodeFromPtr;
     ns->releaseNode = UA_NodeMap_releaseNode;
     ns->getNodeCopy = UA_NodeMap_getNodeCopy;
     ns->insertNode = UA_NodeMap_insertNode;
