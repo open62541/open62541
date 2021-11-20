@@ -213,6 +213,9 @@ typedef struct {
     UA_UInt32 bits[UA_REFERENCETYPESET_MAX / 32];
 } UA_ReferenceTypeSet;
 
+UA_EXPORT extern const UA_ReferenceTypeSet UA_REFERENCETYPESET_NONE;
+UA_EXPORT extern const UA_ReferenceTypeSet UA_REFERENCETYPESET_ALL;
+
 static UA_INLINE void
 UA_ReferenceTypeSet_init(UA_ReferenceTypeSet *set) {
     memset(set, 0, sizeof(UA_ReferenceTypeSet));
