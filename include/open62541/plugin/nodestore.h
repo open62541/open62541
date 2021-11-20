@@ -964,13 +964,32 @@ typedef struct {
 
     void (*deleteNode)(void *nsCtx, UA_Node *node);
 
-    /* ``Get`` returns a pointer to an immutable node. ``Release`` indicates
-     * that the pointer is no longer accessed afterwards. */
-    const UA_Node * (*getNode)(void *nsCtx, const UA_NodeId *nodeId);
+    /* ``Get`` returns a pointer to an immutable node. Call ``releaseNode`` to
+     * indicate when the pointer is no longer accessed.
+     *
+     * It can be indicated if only a subset of the attributes and referencs need
+     * to be accessed. That is relevant when the nodestore accesses a slow
+     * storage backend for the attributes. The attribute mask is a bitfield with
+     * the bit indices take from the UA_AttributeId enum.
+     *
+     * The returned node always contains the context-pointer and other fields
+     * specific to open626541 (not official attributes).
+     *
+     * The NodeStore does not complain if attributes and references that don't
+     * exist (for that node) are requested. Attributes and references in
+     * addition to those specified can be returned. For example, if the full
+     * node already is kept in memory by the Nodestore. */
+    const UA_Node * (*getNode)(void *nsCtx, const UA_NodeId *nodeId,
+                               UA_UInt32 attributeMask,
+                               UA_ReferenceTypeSet references,
+                               UA_BrowseDirection referenceDirections);
 
     /* Similar to the normal ``getNode``. But it can take advantage of the
      * NodePointer structure, e.g. if it contains a direct pointer. */
-    const UA_Node * (*getNodeFromPtr)(void *nsCtx, UA_NodePointer ptr);
+    const UA_Node * (*getNodeFromPtr)(void *nsCtx, UA_NodePointer ptr,
+                                      UA_UInt32 attributeMask,
+                                      UA_ReferenceTypeSet references,
+                                      UA_BrowseDirection referenceDirections);
 
     /* Release a node that has been retrieved with ``getNode`` or
      * ``getNodeFromPtr``. */
