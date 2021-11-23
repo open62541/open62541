@@ -153,18 +153,20 @@ static UA_StatusCode
 setConnectionPublisherId(const UA_PubSubConnectionDataType *src,
                          UA_PubSubConnectionConfig *dst) {
     if(src->publisherId.type == &UA_TYPES[UA_TYPES_STRING]) {
-        dst->publisherIdType = UA_PUBSUB_PUBLISHERID_STRING;
+        dst->publisherIdType = UA_PUBLISHERIDTYPE_STRING;
         dst->publisherId.string = *(UA_String*)src->publisherId.data;
-    } else if(src->publisherId.type == &UA_TYPES[UA_TYPES_BYTE] ||
-              src->publisherId.type == &UA_TYPES[UA_TYPES_UINT16] ||
-              src->publisherId.type == &UA_TYPES[UA_TYPES_UINT32]) {
-        dst->publisherIdType = UA_PUBSUB_PUBLISHERID_NUMERIC;
-        dst->publisherId.numeric =  *(UA_UInt32*)src->publisherId.data;
+    } else if(src->publisherId.type == &UA_TYPES[UA_TYPES_BYTE]) {
+        dst->publisherIdType = UA_PUBLISHERIDTYPE_BYTE;
+        dst->publisherId.byte = *((UA_Byte*)src->publisherId.data);
+    } else if(src->publisherId.type == &UA_TYPES[UA_TYPES_UINT16]) {
+        dst->publisherIdType = UA_PUBLISHERIDTYPE_UINT16;
+        dst->publisherId.uint16 = *((UA_UInt16*)src->publisherId.data);
+    } else if(src->publisherId.type == &UA_TYPES[UA_TYPES_UINT32]) {
+        dst->publisherIdType = UA_PUBLISHERIDTYPE_UINT32;
+        dst->publisherId.uint32 = *(UA_UInt32*)src->publisherId.data;
     } else if(src->publisherId.type == &UA_TYPES[UA_TYPES_UINT64]) {
-        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
-                     "[UA_PubSubManager_setConnectionPublisherId] PublisherId is UInt64 "
-                     "(not implemented); Recommended dataType for PublisherId: UInt32");
-        return UA_STATUSCODE_BADNOTIMPLEMENTED;
+        dst->publisherIdType = UA_PUBLISHERIDTYPE_UINT64;
+        dst->publisherId.uint64 = *(UA_UInt64*)src->publisherId.data;
     } else {
         UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
                      "[UA_PubSubManager_setConnectionPublisherId] PublisherId is not valid.");
@@ -1057,14 +1059,36 @@ generatePubSubConnectionDataType(const UA_PubSubConnection *src,
                              &dst->connectionProperties[i]);
     }
 
-    if(src->config->publisherIdType == UA_PUBSUB_PUBLISHERID_NUMERIC) {
-        UA_Variant_setScalarCopy(&dst->publisherId,
-                                 &src->config->publisherId.numeric,
-                                 &UA_TYPES[UA_TYPES_UINT32]);
-    } else if(src->config->publisherIdType == UA_PUBSUB_PUBLISHERID_STRING) {
-        UA_Variant_setScalarCopy(&dst->publisherId,
-                                 &src->config->publisherId.string,
-                                 &UA_TYPES[UA_TYPES_STRING]);
+    switch (src->config->publisherIdType) {
+        case UA_PUBLISHERIDTYPE_BYTE:
+            UA_Variant_setScalarCopy(&dst->publisherId,
+                                     &src->config->publisherId.byte,
+                                     &UA_TYPES[UA_TYPES_BYTE]);
+            break;
+        case UA_PUBLISHERIDTYPE_UINT16:
+            UA_Variant_setScalarCopy(&dst->publisherId,
+                                     &src->config->publisherId.uint16,
+                                     &UA_TYPES[UA_TYPES_UINT16]);
+            break;
+        case UA_PUBLISHERIDTYPE_UINT32:
+            UA_Variant_setScalarCopy(&dst->publisherId,
+                                     &src->config->publisherId.uint32,
+                                     &UA_TYPES[UA_TYPES_UINT32]);
+            break;
+        case UA_PUBLISHERIDTYPE_UINT64:
+            UA_Variant_setScalarCopy(&dst->publisherId,
+                                     &src->config->publisherId.uint64,
+                                     &UA_TYPES[UA_TYPES_UINT64]);
+            break;
+        case UA_PUBLISHERIDTYPE_STRING:
+            UA_Variant_setScalarCopy(&dst->publisherId,
+                                     &src->config->publisherId.string,
+                                     &UA_TYPES[UA_TYPES_STRING]);
+            break;
+        default:
+            UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "generatePubSubConnectionDataType(): publisher Id type is not supported");
+            return UA_STATUSCODE_BADINTERNALERROR;
+            break;
     }
 
     /* Possibly, array size and dimensions of src->config->address and

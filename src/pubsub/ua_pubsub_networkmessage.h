@@ -12,6 +12,9 @@
 #include <open62541/types.h>
 #include <open62541/types_generated.h>
 #include <open62541/plugin/securitypolicy.h>
+#include <open62541/server_pubsub.h>
+
+#ifdef UA_ENABLE_PUBSUB
 
 _UA_BEGIN_DECLS
 
@@ -92,14 +95,6 @@ typedef struct {
 } UA_DataSetPayload;
 
 typedef enum {
-    UA_PUBLISHERDATATYPE_BYTE = 0,
-    UA_PUBLISHERDATATYPE_UINT16 = 1,
-    UA_PUBLISHERDATATYPE_UINT32 = 2,
-    UA_PUBLISHERDATATYPE_UINT64 = 3,
-    UA_PUBLISHERDATATYPE_STRING = 4
-} UA_PublisherIdDatatype;
-
-typedef enum {
     UA_NETWORKMESSAGE_DATASET = 0,
     UA_NETWORKMESSAGE_DISCOVERY_REQUEST = 1,
     UA_NETWORKMESSAGE_DISCOVERY_RESPONSE = 2
@@ -142,7 +137,6 @@ typedef struct {
     UA_Boolean publisherIdEnabled;
     UA_Boolean groupHeaderEnabled;
     UA_Boolean payloadHeaderEnabled;
-    UA_PublisherIdDatatype publisherIdType;
     UA_Boolean dataSetClassIdEnabled;
     UA_Boolean securityEnabled;
     UA_Boolean timestampEnabled;
@@ -150,16 +144,11 @@ typedef struct {
     UA_Boolean chunkMessage;
     UA_Boolean promotedFieldsEnabled;
     UA_NetworkMessageType networkMessageType;
-    union {
-        UA_Byte publisherIdByte;
-        UA_UInt16 publisherIdUInt16;
-        UA_UInt32 publisherIdUInt32;
-        UA_UInt64 publisherIdUInt64;
-        UA_Guid publisherIdGuid;
-        UA_String publisherIdString;
-    } publisherId;
+    UA_PublisherIdType publisherIdType;
+    UA_PublisherId publisherId; /* publisherId is a shallow copy of the PublisherId from connection configuration
+        -> the configuration needs to be stable during publishing process
+        -> it must not be cleaned after network message has been sent */
     UA_Guid dataSetClassId;
-
     UA_NetworkMessageGroupHeader groupHeader;
 
     union {
@@ -349,5 +338,7 @@ UA_StatusCode UA_NetworkMessage_decodeJson(UA_NetworkMessage *dst, const UA_Byte
 #endif
 
 _UA_END_DECLS
+
+#endif /* UA_ENABLE_PUBSUB */
 
 #endif /* UA_PUBSUB_NETWORKMESSAGE_H_ */

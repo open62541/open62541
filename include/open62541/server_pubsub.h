@@ -138,18 +138,26 @@ typedef enum  {
 } UA_PubSubComponentEnumType;
 
 typedef enum {
-    UA_PUBSUB_PUBLISHERID_NUMERIC,
-    UA_PUBSUB_PUBLISHERID_STRING
+    UA_PUBLISHERIDTYPE_BYTE = 0,
+    UA_PUBLISHERIDTYPE_UINT16 = 1,
+    UA_PUBLISHERIDTYPE_UINT32 = 2,
+    UA_PUBLISHERIDTYPE_UINT64 = 3,
+    UA_PUBLISHERIDTYPE_STRING = 4
 } UA_PublisherIdType;
+
+typedef union { /* std: valid types UInt or String */
+    UA_Byte byte;
+    UA_UInt16 uint16;
+    UA_UInt32 uint32;
+    UA_UInt64 uint64;
+    UA_String string;
+} UA_PublisherId;
 
 struct UA_PubSubConnectionConfig {
     UA_String name;
     UA_Boolean enabled;
     UA_PublisherIdType publisherIdType;
-    union { /* std: valid types UInt or String */
-        UA_UInt32 numeric;
-        UA_String string;
-    } publisherId;
+    UA_PublisherId publisherId;
     UA_String transportProfileUri;
     UA_Variant address;
     size_t connectionPropertiesSize;

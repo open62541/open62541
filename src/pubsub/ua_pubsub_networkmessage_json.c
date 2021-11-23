@@ -7,6 +7,7 @@
 
 #include <open62541/types.h>
 #include <open62541/types_generated_handling.h>
+#include <open62541/server_pubsub.h>
 
 #include "ua_pubsub_networkmessage.h"
 #include "ua_types_encoding_json.h"
@@ -152,28 +153,28 @@ UA_NetworkMessage_encodeJson_internal(const UA_NetworkMessage* src, CtxJson *ctx
     if(src->publisherIdEnabled) {
         rv = writeJsonKey(ctx, UA_DECODEKEY_PUBLISHERID);
         switch (src->publisherIdType) {
-        case UA_PUBLISHERDATATYPE_BYTE:
-            rv |= encodeJsonInternal(&src->publisherId.publisherIdByte,
+        case UA_PUBLISHERIDTYPE_BYTE:
+            rv |= encodeJsonInternal(&src->publisherId.byte,
                                      &UA_TYPES[UA_TYPES_BYTE], ctx);
             break;
 
-        case UA_PUBLISHERDATATYPE_UINT16:
-            rv |= encodeJsonInternal(&src->publisherId.publisherIdUInt16,
+        case UA_PUBLISHERIDTYPE_UINT16:
+            rv |= encodeJsonInternal(&src->publisherId.uint16,
                                      &UA_TYPES[UA_TYPES_UINT16], ctx);
             break;
 
-        case UA_PUBLISHERDATATYPE_UINT32:
-            rv |= encodeJsonInternal(&src->publisherId.publisherIdUInt32,
+        case UA_PUBLISHERIDTYPE_UINT32:
+            rv |= encodeJsonInternal(&src->publisherId.uint32,
                                      &UA_TYPES[UA_TYPES_UINT32], ctx);
             break;
 
-        case UA_PUBLISHERDATATYPE_UINT64:
-            rv |= encodeJsonInternal(&src->publisherId.publisherIdUInt64,
+        case UA_PUBLISHERIDTYPE_UINT64:
+            rv |= encodeJsonInternal(&src->publisherId.uint64,
                                      &UA_TYPES[UA_TYPES_UINT64], ctx);
             break;
 
-        case UA_PUBLISHERDATATYPE_STRING:
-            rv |= encodeJsonInternal(&src->publisherId.publisherIdString,
+        case UA_PUBLISHERIDTYPE_STRING:
+            rv |= encodeJsonInternal(&src->publisherId.string,
                                      &UA_TYPES[UA_TYPES_STRING], ctx);
             break;
         }
@@ -437,10 +438,10 @@ static status NetworkMessage_decodeJsonInternal(UA_NetworkMessage *dst, CtxJson 
         jsmntok_t publishIdToken = parseCtx->tokenArray[searchResultPublishIdType];
         if(publishIdToken.type == JSMN_PRIMITIVE) {
             publishIdTypeIndex = UA_TYPES_UINT64;
-            dst->publisherIdType = UA_PUBLISHERDATATYPE_UINT64; //store in biggest possible
+            dst->publisherIdType = UA_PUBLISHERIDTYPE_UINT64; //store in biggest possible
         } else if(publishIdToken.type == JSMN_STRING) {
             publishIdTypeIndex = UA_TYPES_STRING;
-            dst->publisherIdType = UA_PUBLISHERDATATYPE_STRING;
+            dst->publisherIdType = UA_PUBLISHERIDTYPE_STRING;
         } else {
             return UA_STATUSCODE_BADDECODINGERROR;
         }
@@ -490,14 +491,14 @@ static status NetworkMessage_decodeJsonInternal(UA_NetworkMessage *dst, CtxJson 
     DecodeEntry entries[5] = {
         {UA_DECODEKEY_MESSAGEID, &dst->messageId, getDecodeSignature(UA_TYPES_STRING), false, NULL},
         {UA_DECODEKEY_MESSAGETYPE, &messageType, NULL, false, NULL},
-        {UA_DECODEKEY_PUBLISHERID, &dst->publisherId.publisherIdString, getDecodeSignature(publishIdTypeIndex), false, NULL},
+        {UA_DECODEKEY_PUBLISHERID, &dst->publisherId.string, getDecodeSignature(publishIdTypeIndex), false, NULL},
         {UA_DECODEKEY_DATASETCLASSID, &dst->dataSetClassId, getDecodeSignature(UA_TYPES_GUID), false, NULL},
         {UA_DECODEKEY_MESSAGES, &dst->payload.dataSetPayload.dataSetMessages, &DatasetMessage_Array_decodeJsonInternal, false, NULL}
     };
 
     //Store publisherId in correct union
     if(publishIdTypeIndex == UA_TYPES_UINT64)
-        entries[2].fieldPointer = &dst->publisherId.publisherIdUInt64;
+        entries[2].fieldPointer = &dst->publisherId.uint64;
 
     status ret = decodeFields(ctx, parseCtx, entries, 5, NULL);
     if(ret != UA_STATUSCODE_GOOD)
@@ -506,7 +507,7 @@ static status NetworkMessage_decodeJsonInternal(UA_NetworkMessage *dst, CtxJson 
     dst->messageIdEnabled = entries[0].found;
     dst->publisherIdEnabled = entries[2].found;
     if(dst->publisherIdEnabled)
-        dst->publisherIdType = UA_PUBLISHERDATATYPE_STRING;
+        dst->publisherIdType = UA_PUBLISHERIDTYPE_STRING;
     dst->dataSetClassIdEnabled = entries[3].found;
     dst->payloadHeaderEnabled = UA_TRUE;
     dst->payloadHeader.dataSetPayloadHeader.count = (UA_Byte)messageCount;
