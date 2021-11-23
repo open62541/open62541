@@ -184,7 +184,7 @@ function(ua_generate_datatypes)
 
     if(MINGW)
         # fix issue 4156 that MINGW will do automatic Windows Path Conversion
-        set(GENERATOR_ENV_COMMAND MSYS2_ARG_CONV_EXCL=--import)
+        set(GENERATOR_ENV_COMMAND "MSYS2_ARG_CONV_EXCL=--import")
     endif()
 
     add_custom_command(OUTPUT ${UA_GEN_DT_OUTPUT_DIR}/${UA_GEN_DT_NAME}_generated.c
