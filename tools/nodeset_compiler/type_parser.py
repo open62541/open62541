@@ -310,8 +310,8 @@ class TypeParser():
         if xmlDoc.root.get("TargetNamespace"):
             targetNamespace = xmlDoc.root.get("TargetNamespace")
             if not targetNamespace in self.namespaceIndexMap:
-                raise RuntimeError("TargetNamespace '{targetNs}' is not listed in namespace index mapping. " 
-                                   "Use the following option to define the mapping (can be used multiple times). " 
+                raise RuntimeError("TargetNamespace '{targetNs}' is not listed in namespace index mapping. "
+                                   "Use the following option to define the mapping (can be used multiple times). "
                                    "--namespaceMap=X:{targetNs} where X is the resulting namespace index in the server.".format(targetNs=targetNamespace))
         else:
             raise RuntimeError("TargetNamespace Attribute not defined in BSD file.")
@@ -330,8 +330,8 @@ class TypeParser():
                                    ". If the unknown subtype is 'Bit', then maybe a struct with " +
                                    "optional fields is defined wrong in the .bsd-file. If not, maybe " +
                                    "you need to import additional types with the --import flag. " +
-                                   "E.g. '--import=/path/to/deps/ua-nodeset/Schema/" +
-                                   "Opc.Ua.Types.bsd'" + "#UA_TYPES")
+                                   "E.g. '--import=UA_TYPES#/path/to/deps/ua-nodeset/Schema/" +
+                                   "Opc.Ua.Types.bsd'")
             detectLoop = len(snippets)
             for name, typeXml in list(snippets.items()):
                 if (targetNamespace in self.types and name in self.types[targetNamespace]) or name in excluded_types:
@@ -403,7 +403,7 @@ class CSVBSDTypeParser(TypeParser):
     def parse_types(self):
         # parse existing types
         for i in self.existing_bsd:
-            (file_import, outname_import) = i.split("#")
+            (outname_import, file_import) = i.split("#")
             self.existing_types_array.add(outname_import)
             outname_import = outname_import.lower()
             if outname_import.startswith("ua_"):

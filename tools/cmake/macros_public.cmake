@@ -96,7 +96,7 @@ endfunction()
 #                   passed which will all combined to one resulting code.
 #   IMPORT_BSD      Combination of types array and path to the .bsd file containing additional type definitions referenced by
 #                   the FILES_BSD files. The value is separated with a hash sign, i.e.
-#                   '${PROJECT_SOURCE_DIR}/deps/ua-nodeset/Schema/Opc.Ua.Types.bsd#UA_TYPES'
+#                   'UA_TYPES#${PROJECT_SOURCE_DIR}/deps/ua-nodeset/Schema/Opc.Ua.Types.bsd'
 #                   Multiple files can be passed which will all be imported.
 #   [FILES_SELECTED] Optional path to a simple text file which contains a list of types which should be included in the generation.
 #                   The file should contain one type per line. Multiple files can be passed to this argument.
@@ -449,7 +449,7 @@ endfunction()
 #                   This parameter is mandatory if FILE_CSV or FILE_BSD is set.
 #   [IMPORT_BSD]    Optional combination of types array and path to the .bsd file containing additional type definitions referenced by
 #                   the FILES_BSD files. The value is separated with a hash sign, i.e.
-#                   '${PROJECT_SOURCE_DIR}/deps/ua-nodeset/Schema/Opc.Ua.Types.bsd#UA_TYPES'
+#                   'UA_TYPES#${PROJECT_SOURCE_DIR}/deps/ua-nodeset/Schema/Opc.Ua.Types.bsd'
 #                   Multiple files can be passed which will all be imported.
 #   [DEPENDS]       Optional list of nodeset names on which this nodeset depends. These names must match any name from a previous
 #                   call to this funtion. E.g. 'di' if you are generating the 'plcopen' nodeset

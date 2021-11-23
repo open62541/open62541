@@ -34,7 +34,7 @@ if sys.version_info[0] >= 3:
         return s
     string_types = str
 else:
-    string_types = basestring 
+    string_types = basestring
 
 ####################
 # Helper Functions #
@@ -435,7 +435,7 @@ class NodeSet(object):
                     f.flush()
                     self.all_files.append(f.name)
                     f.close()
-                    bsd = f.name + "#UA_TYPES"
+                    bsd = "UA_TYPES#" + f.name
                     import_bsd.append(bsd)
         for xmlfile in infiles:
             nodeset_base = open(xmlfile.name, "rb")
