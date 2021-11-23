@@ -184,14 +184,14 @@ function(ua_generate_datatypes)
 
     if(MINGW)
         # fix issue 4156 that MINGW will do automatic Windows Path Conversion
-        set(GENERATOR_ENV_COMMAND "-E env \"MSYS2_ARG_CONV_EXCL=--import\"")
+        set(ENV{MSYS2_ARG_CONV_EXCL} "--import")
     endif()
 
     add_custom_command(OUTPUT ${UA_GEN_DT_OUTPUT_DIR}/${UA_GEN_DT_NAME}_generated.c
         ${UA_GEN_DT_OUTPUT_DIR}/${UA_GEN_DT_NAME}_generated.h
         ${UA_GEN_DT_OUTPUT_DIR}/${UA_GEN_DT_NAME}_generated_handling.h
         PRE_BUILD
-        COMMAND ${GENERATOR_ENV_COMMAND} ${PYTHON_EXECUTABLE} ${open62541_TOOLS_DIR}/generate_datatypes.py
+        COMMAND ${PYTHON_EXECUTABLE} ${open62541_TOOLS_DIR}/generate_datatypes.py
         ${NAMESPACE_MAP_TMP}
         ${SELECTED_TYPES_TMP}
         ${BSD_FILES_TMP}
