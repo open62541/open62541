@@ -56,8 +56,7 @@ typedef struct {
     UA_Byte referenceTypeCounter;
 } ZipContext;
 
-ZIP_PROTOTYPE(NodeTree, NodeEntry, NodeEntry)
-ZIP_IMPL(NodeTree, NodeEntry, zipfields, NodeEntry, zipfields, cmpNodeId)
+ZIP_FUNCTIONS(NodeTree, NodeEntry, zipfields, NodeEntry, zipfields, cmpNodeId)
 
 static NodeEntry *
 newEntry(UA_NodeClass nodeClass) {
@@ -256,7 +255,7 @@ zipNsInsertNode(void *nsCtx, UA_Node *node, UA_NodeId *addedNodeId) {
 
     /* Insert the node */
     entry->nodeIdHash = dummy.nodeIdHash;
-    ZIP_INSERT(NodeTree, &ns->root, entry, ZIP_FFS32(UA_UInt32_random()));
+    ZIP_INSERT(NodeTree, &ns->root, entry, UA_UInt32_random());
     return UA_STATUSCODE_GOOD;
 }
 
@@ -308,7 +307,7 @@ zipNsRemoveNode(void *nsCtx, const UA_NodeId *nodeId) {
 static const UA_NodeId *
 zipNsGetReferenceTypeId(void *nsCtx, UA_Byte refTypeIndex) {
     ZipContext *ns = (ZipContext*)nsCtx;
-    if(refTypeIndex > ns->referenceTypeCounter)
+    if(refTypeIndex >= ns->referenceTypeCounter)
         return NULL;
     return &ns->referenceTypeIds[refTypeIndex];
 }

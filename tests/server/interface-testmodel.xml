@@ -24,23 +24,24 @@
     </Aliases>
     <Extensions>
         <Extension>
-            <ua:ModelInfo Tool="UaModeler" Hash="QC0H4teuLnB95dz5UaKEmw==" Version="1.6.5"/>
+            <ua:ModelInfo Tool="UaModeler" Hash="EnbWjmGunr/glm0Z6NGB4w==" Version="1.6.5"/>
         </Extension>
     </Extensions>
     <UAObjectType NodeId="ns=1;i=1005" BrowseName="1:MyOtherInterface">
         <DisplayName>MyOtherInterface</DisplayName>
         <References>
+            <Reference ReferenceType="HasInterface" IsForward="false">ns=1;i=1004</Reference>
             <Reference ReferenceType="HasSubtype" IsForward="false">i=17602</Reference>
             <Reference ReferenceType="HasProperty">ns=1;i=6010</Reference>
-            <Reference ReferenceType="HasInterface" IsForward="false">ns=1;i=1004</Reference>
+            <Reference ReferenceType="HasInterface" IsForward="false">ns=1;i=5003</Reference>
         </References>
     </UAObjectType>
     <UAVariable DataType="Double" ParentNodeId="ns=1;i=1005" NodeId="ns=1;i=6010" BrowseName="1:MyOtherInterfaceProperty" AccessLevel="3">
         <DisplayName>MyOtherInterfaceProperty</DisplayName>
         <References>
             <Reference ReferenceType="HasModellingRule">i=78</Reference>
-            <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
             <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=1005</Reference>
+            <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
         </References>
     </UAVariable>
     <UAObjectType NodeId="ns=1;i=1002" BrowseName="1:MyTestInterface">
@@ -54,9 +55,9 @@
     <UAVariable DataType="Double" ParentNodeId="ns=1;i=1002" NodeId="ns=1;i=6001" BrowseName="1:Interface1Property" AccessLevel="3">
         <DisplayName>Interface1Property</DisplayName>
         <References>
+            <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=1002</Reference>
             <Reference ReferenceType="HasModellingRule">i=78</Reference>
             <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
-            <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=1002</Reference>
         </References>
     </UAVariable>
     <UAObjectType IsAbstract="true" NodeId="ns=1;i=1003" BrowseName="1:MyBaseObjectType">
@@ -78,17 +79,27 @@
         <DisplayName>MyTestObjectProperty</DisplayName>
         <References>
             <Reference ReferenceType="HasModellingRule">i=78</Reference>
-            <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
             <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=1004</Reference>
+            <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
         </References>
     </UAVariable>
     <UAObjectType NodeId="ns=1;i=1006" BrowseName="1:TopLevelObjectType">
         <DisplayName>TopLevelObjectType</DisplayName>
         <References>
+            <Reference ReferenceType="HasComponent">ns=1;i=5003</Reference>
             <Reference ReferenceType="HasComponent">ns=1;i=5002</Reference>
             <Reference ReferenceType="HasSubtype" IsForward="false">i=58</Reference>
         </References>
     </UAObjectType>
+    <UAObject ParentNodeId="ns=1;i=1006" NodeId="ns=1;i=5003" BrowseName="1:BaseObjectWithInterface">
+        <DisplayName>BaseObjectWithInterface</DisplayName>
+        <References>
+            <Reference ReferenceType="HasTypeDefinition">i=58</Reference>
+            <Reference ReferenceType="HasModellingRule">i=78</Reference>
+            <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=1006</Reference>
+            <Reference ReferenceType="HasInterface">ns=1;i=1005</Reference>
+        </References>
+    </UAObject>
     <UAObject ParentNodeId="ns=1;i=1006" NodeId="ns=1;i=5002" BrowseName="1:ObjectWithInterfaces">
         <DisplayName>ObjectWithInterfaces</DisplayName>
         <References>

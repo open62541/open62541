@@ -660,11 +660,6 @@ UA_NUMERICRANGE(const char *s) {
     UA_NumericRange_parse(&nr, UA_STRING((char*)(uintptr_t)s)); return nr;
 }
 
-UA_DEPRECATED static UA_INLINE UA_StatusCode
-UA_NumericRange_parseFromString(UA_NumericRange *range, const UA_String *str) {
-    return UA_NumericRange_parse(range, *str);
-}
-
 /**
  * .. _variant:
  *

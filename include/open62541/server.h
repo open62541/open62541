@@ -300,14 +300,6 @@ struct UA_ServerConfig {
 void UA_EXPORT
 UA_ServerConfig_clean(UA_ServerConfig *config);
 
-/* Set a custom hostname in server configuration */
-UA_DEPRECATED static UA_INLINE void 
-UA_ServerConfig_setCustomHostname(UA_ServerConfig *config,
-                                  const UA_String customHostname) {
-    UA_String_clear(&config->customHostname);
-    UA_String_copy(&customHostname, &config->customHostname);
-}
-
 /**
  * .. _server-lifecycle:
  *
@@ -1692,13 +1684,6 @@ void UA_EXPORT
 UA_Server_setAsyncOperationResult(UA_Server *server,
                                   const UA_AsyncOperationResponse *response,
                                   void *context);
-
-/* Get the next async operation. Attention! This method is deprecated and has
- * been replaced by UA_Server_getAsyncOperationNonBlocking! */
-UA_DEPRECATED UA_Boolean UA_EXPORT
-UA_Server_getAsyncOperation(UA_Server *server, UA_AsyncOperationType *type,
-                            const UA_AsyncOperationRequest **request,
-                            void **context);
 
 #endif /* !UA_MULTITHREADING >= 100 */
 

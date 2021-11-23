@@ -151,7 +151,8 @@ START_TEST(Server_set_customHostname) {
     UA_Server *server = UA_Server_new();
     UA_ServerConfig *config = UA_Server_getConfig(server);
     UA_ServerConfig_setMinimal(config, port, NULL);
-    UA_ServerConfig_setCustomHostname(config, customHost);
+    UA_String_clear(&config->customHostname);
+    UA_String_copy(&customHost, &config->customHostname);
 
     UA_StatusCode retval = UA_Server_run_startup(server);
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
@@ -164,7 +165,9 @@ START_TEST(Server_set_customHostname) {
     for (size_t i=0; i<config->networkLayersSize; i++) {
         const UA_ServerNetworkLayer *nl = &config->networkLayers[i];
         char discoveryUrl[256];
-        unsigned int len = (unsigned int)snprintf(discoveryUrl, 255, "opc.tcp://%.*s:%d/", (int)customHost.length, customHost.data, port);
+        unsigned int len = (unsigned int)
+            snprintf(discoveryUrl, 255, "opc.tcp://%.*s:%d/",
+                     (int)customHost.length, customHost.data, port);
         ck_assert_uint_eq(nl->discoveryUrl.length, len);
         ck_assert_uint_eq(config->applicationDescription.discoveryUrls[i].length, len);
         ck_assert(strncmp(discoveryUrl, (char*)nl->discoveryUrl.data, len)==0);

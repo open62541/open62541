@@ -48,7 +48,7 @@ _UA_BEGIN_DECLS
 #define UA_SUBSCRIPTION_QUEUE_SENTINEL ((UA_Notification*)0x01)
 
 typedef struct UA_Notification {
-    TAILQ_ENTRY(UA_Notification) localEntry;   /* Notification list for the MonitoredItem */
+    TAILQ_ENTRY(UA_Notification) localEntry;  /* Notification list for the MonitoredItem */
     TAILQ_ENTRY(UA_Notification) globalEntry; /* Notification list for the Subscription */
     UA_MonitoredItem *mon; /* Always set */
 
@@ -241,7 +241,9 @@ typedef enum {
 struct UA_Subscription {
     UA_TimerEntry delayedFreePointers;
     LIST_ENTRY(UA_Subscription) serverListEntry;
-    TAILQ_ENTRY(UA_Subscription) sessionListEntry; /* Only set if session != NULL */
+    /* Ordered according to the priority byte and round-robin scheduling for
+     * late subscriptions. See ua_session.h. Only set if session != NULL. */
+    TAILQ_ENTRY(UA_Subscription) sessionListEntry;
     UA_Session *session; /* May be NULL if no session is attached. */
     UA_UInt32 subscriptionId;
 
@@ -251,7 +253,7 @@ struct UA_Subscription {
     UA_Double publishingInterval; /* in ms */
     UA_UInt32 notificationsPerPublish;
     UA_Boolean publishingEnabled;
-    UA_UInt32 priority;
+    UA_Byte priority;
 
     /* Runtime information */
     UA_SubscriptionState state;

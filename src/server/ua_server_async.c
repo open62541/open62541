@@ -306,13 +306,6 @@ UA_Server_getAsyncOperationNonBlocking(UA_Server *server, UA_AsyncOperationType 
     return bRV;
 }
 
-UA_Boolean
-UA_Server_getAsyncOperation(UA_Server *server, UA_AsyncOperationType *type,
-                            const UA_AsyncOperationRequest **request,
-                            void **context) {
-    return UA_Server_getAsyncOperationNonBlocking(server, type, request, context, NULL);
-}
-
 /* Worker submits Method Call Response */
 void
 UA_Server_setAsyncOperationResult(UA_Server *server,

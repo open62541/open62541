@@ -169,8 +169,7 @@ cmpTarget(const void *a, const void *b) {
     return (enum ZIP_CMP)UA_ExpandedNodeId_order(aa->target, bb->target);
 }
 
-ZIP_PROTOTYPE(RefHead, RefEntry, RefEntry)
-ZIP_IMPL(RefHead, RefEntry, zipfields, RefEntry, zipfields, cmpTarget)
+ZIP_FUNCTIONS(RefHead, RefEntry, zipfields, RefEntry, zipfields, cmpTarget)
 
 UA_StatusCode
 RefTree_init(RefTree *rt) {
@@ -225,7 +224,7 @@ RefTree_double(RefTree *rt) {
         reArray[i].target = (UA_ExpandedNodeId*)((uintptr_t)reArray[i].target + arraydiff);
     }
 
-    rt->head.zip_root = (RefEntry*)((uintptr_t)rt->head.zip_root + entrydiff);
+    ZIP_ROOT(&rt->head) = (RefEntry*)((uintptr_t)ZIP_ROOT(&rt->head) + entrydiff);
     rt->capacity = capacity;
     rt->targets = newTargets;
     return UA_STATUSCODE_GOOD;
@@ -260,7 +259,7 @@ RefTree_add(RefTree *rt, UA_NodePointer target, UA_Boolean *duplicate) {
                                (sizeof(RefEntry) * rt->size));
     re->target = &rt->targets[rt->size];
     re->targetHash = dummy.targetHash;
-    ZIP_INSERT(RefHead, &rt->head, re, ZIP_FFS32(UA_UInt32_random()));
+    ZIP_INSERT(RefHead, &rt->head, re, UA_UInt32_random());
     rt->size++;
     return UA_STATUSCODE_GOOD;
 }

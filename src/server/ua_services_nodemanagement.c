@@ -679,6 +679,7 @@ copyChild(UA_Server *server, UA_Session *session,
         } else {
             UA_ReferenceTypeSet_init(&reftypes_skipped);
         }
+        reftypes_skipped = UA_ReferenceTypeSet_union(reftypes_skipped, UA_REFTYPESET(UA_REFERENCETYPEINDEX_HASINTERFACE));
         UA_Node_deleteReferencesSubset(node, &reftypes_skipped);
 
         /* Add the node to the nodestore */
@@ -697,22 +698,22 @@ copyChild(UA_Server *server, UA_Session *session,
             return retval;
         }
 
-        /* Add HasInterface references to the child */
-        if(rd->nodeClass == UA_NODECLASS_OBJECT &&
-           !UA_NodeId_isNull(&rd->typeDefinition.nodeId)) {
-            retval = addInterfaceChildren(server, session, &newNodeId,
-                                          &rd->typeDefinition.nodeId);
-            if(retval != UA_STATUSCODE_GOOD) {
-                UA_NODESTORE_REMOVE(server, &newNodeId);
-                UA_NodeId_clear(&newNodeId);
-                return retval;
-            }
-        }
-
         /* For the new child, recursively copy the members of the original. No
          * typechecking is performed here. Assuming that the original is
          * consistent. */
         retval = copyAllChildren(server, session, &rd->nodeId.nodeId, &newNodeId);
+        if(retval != UA_STATUSCODE_GOOD) {
+            deleteNode(server, newNodeId, true);
+            return retval;
+        }
+
+        /* Check if its a dynamic variable, add all type and/or interface
+         * children and call the constructor */
+        retval = AddNode_finish(server, session, &newNodeId);
+        if(retval != UA_STATUSCODE_GOOD) {
+            deleteNode(server, newNodeId, true);
+            return retval;
+        }
         
         /* Clean up.  Because it can happen that a string is assigned as ID at 
          * generateChildNodeId. */

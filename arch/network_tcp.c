@@ -406,7 +406,11 @@ ServerNetworkLayerTCP_start(UA_ServerNetworkLayer *nl, const UA_Logger *logger,
     UA_snprintf(portno, 6, "%d", layer->port);
     struct addrinfo hints, *res;
     memset(&hints, 0, sizeof hints);
-    hints.ai_family = AF_UNSPEC;
+#if UA_IPV6
+    hints.ai_family = AF_UNSPEC; /* allow IPv4 and IPv6 */
+#else
+    hints.ai_family = AF_INET;   /* enforce IPv4 only */
+#endif
     hints.ai_socktype = SOCK_STREAM;
     hints.ai_flags = AI_PASSIVE;
 #ifdef AI_ADDRCONFIG
@@ -844,7 +848,7 @@ UA_ClientConnectionTCP_poll(UA_Connection *connection, UA_UInt32 timeout,
 
     /* The connection is fully opened. Otherwise, select has timed out. But we
      * can retry. */
-    if(resultsize == 1)
+    if(resultsize > 0)
         connection->state = UA_CONNECTIONSTATE_ESTABLISHED;
 
     return UA_STATUSCODE_GOOD;
