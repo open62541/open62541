@@ -547,7 +547,7 @@ createReaderGroup(UA_Server *server,
     memset(&config, 0, sizeof(UA_ReaderGroupConfig));
 
     config.name = readerGroupParameters->name;
-    config.securityParameters.securityMode = readerGroupParameters->securityMode;
+    config.securityMode = readerGroupParameters->securityMode;
 
     UA_NodeId readerGroupIdent;
     UA_StatusCode res =
