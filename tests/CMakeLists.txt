@@ -426,6 +426,9 @@ if(UA_ENABLE_PUBSUB)
     add_executable(check_pubsub_get_state pubsub/check_pubsub_get_state.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
     target_link_libraries(check_pubsub_get_state ${LIBS})
     add_test_valgrind(check_pubsub_get_state ${TESTS_BINARY_DIR}/check_pubsub_get_state)
+    add_executable(check_pubsub_publisherid pubsub/check_pubsub_publisherid.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
+    target_link_libraries(check_pubsub_publisherid ${LIBS})
+    add_test_valgrind(check_pubsub_publisherid ${TESTS_BINARY_DIR}/check_pubsub_publisherid)
 
     #Link libraries for executing subscriber unit test
     add_executable(check_pubsub_subscribe pubsub/check_pubsub_subscribe.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
