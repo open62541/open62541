@@ -348,6 +348,10 @@ if(UA_ENABLE_SUBSCRIPTIONS)
   add_executable(check_subscription_events server/check_subscription_events.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
   target_link_libraries(check_subscription_events ${LIBS})
   add_test_valgrind(subscription_events ${TESTS_BINARY_DIR}/check_subscription_events)
+
+  add_executable(check_subscription_event_filter server/check_subscription_event_filter.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
+  target_link_libraries(check_subscription_event_filter ${LIBS})
+  add_test_valgrind(check_subscription_event_filter ${TESTS_BINARY_DIR}/check_subscription_event_filter)
 endif()
 
 add_executable(check_nodestore server/check_nodestore.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
