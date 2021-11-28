@@ -48,25 +48,25 @@ typedef enum {
  * value is overwritten. */
 UA_EXPORT UA_StatusCode
 UA_KeyValueMap_set(UA_KeyValuePair **map, size_t *mapSize,
-                   const UA_QualifiedName *key,
+                   const UA_QualifiedName key,
                    const UA_Variant *value);
 
 /* Returns a pointer to the value or NULL if the key is not found.*/
 UA_EXPORT const UA_Variant *
 UA_KeyValueMap_get(UA_KeyValuePair *map, size_t mapSize,
-                   const UA_QualifiedName *key);
+                   const UA_QualifiedName key);
 
 /* Returns NULL if the value for the key is not defined or not of the right
  * datatype and scalar/array */
-UA_EXPORT const UA_Variant *
+UA_EXPORT const void *
 UA_KeyValueMap_getScalar(UA_KeyValuePair *map, size_t mapSize,
-                         const UA_QualifiedName *key,
+                         const UA_QualifiedName key,
                          const UA_DataType *type);
 
 /* Remove a single entry. To delete the entire map, use UA_Array_delete. */
 UA_EXPORT void
 UA_KeyValueMap_delete(UA_KeyValuePair **map, size_t *mapSize,
-                      const UA_QualifiedName *key);
+                      const UA_QualifiedName key);
 
 /**
  * Config Parameters
