@@ -25,7 +25,9 @@ START_TEST(listenTCP) {
     UA_Variant_setScalar(&portVar, &port, &UA_TYPES[UA_TYPES_UINT16]);
     UA_ConnectionManager *cm = UA_ConnectionManager_TCP_new(UA_STRING("tcpCM"));
     cm->connectionCallback = noopCallback;
-    UA_ConfigParameter_setParameter(&cm->eventSource.parameters, "listen-port", &portVar);
+    UA_KeyValueMap_set(&cm->eventSource.params,
+                       &cm->eventSource.paramsSize,
+                       UA_QUALIFIEDNAME(0, "port"), &portVar);
     UA_EventLoop_registerEventSource(el, &cm->eventSource);
 
     UA_EventLoop_start(el);
@@ -97,7 +99,9 @@ START_TEST(runEventloopFailsIfCalledFromCallback) {
     UA_Variant_setScalar(&portVar, &port, &UA_TYPES[UA_TYPES_UINT16]);
     UA_ConnectionManager *cm = UA_ConnectionManager_TCP_new(UA_STRING("tcpCM"));
     cm->connectionCallback = illegalConnectionCallback;
-    UA_ConfigParameter_setParameter(&cm->eventSource.parameters, "listen-port", &portVar);
+    UA_KeyValueMap_set(&cm->eventSource.params,
+                       &cm->eventSource.paramsSize,
+                       UA_QUALIFIEDNAME(0, "port"), &portVar);
     UA_EventLoop_registerEventSource(el, &cm->eventSource);
 
     connCount = 0;
@@ -159,7 +163,9 @@ START_TEST(connectTCP) {
     UA_Variant_setScalar(&portVar, &port, &UA_TYPES[UA_TYPES_UINT16]);
     UA_ConnectionManager *cm = UA_ConnectionManager_TCP_new(UA_STRING("tcpCM"));
     cm->connectionCallback = connectionCallback;
-    UA_ConfigParameter_setParameter(&cm->eventSource.parameters, "listen-port", &portVar);
+    UA_KeyValueMap_set(&cm->eventSource.params,
+                       &cm->eventSource.paramsSize,
+                       UA_QUALIFIEDNAME(0, "port"), &portVar);
     UA_EventLoop_registerEventSource(el, &cm->eventSource);
 
     connCount = 0;

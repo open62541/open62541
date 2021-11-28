@@ -574,34 +574,57 @@ TCP_eventSourceStart(UA_ConnectionManager *cm) {
 #endif
 
     /* Listening on a socket? */
-    const UA_Variant *portConfig =
-        UA_ConfigParameter_getScalarParameter(cm->eventSource.parameters,
-                           "listen-port", &UA_TYPES[UA_TYPES_UINT16]);
-    if(!portConfig)
+    const UA_UInt16 *port = (const UA_UInt16*)
+        UA_KeyValueMap_getScalar(cm->eventSource.params,
+                                 cm->eventSource.paramsSize,
+                                 UA_QUALIFIEDNAME(0, "port"),
+                                 &UA_TYPES[UA_TYPES_UINT16]);
+    if(!port) {
+        UA_LOG_ERROR(UA_EventLoop_getLogger(cm->eventSource.eventLoop),
+                     UA_LOGCATEGORY_EVENTLOOP,
+                     "No port configured, don't accept connections");
         return UA_STATUSCODE_GOOD;
+    }
 
     /* Prepare the port parameter as a string */
-    UA_UInt16 port = *(UA_UInt16*)portConfig->data;
     char portno[6];
-    UA_snprintf(portno, 6, "%d", port);
+    UA_snprintf(portno, 6, "%d", *port);
 
     /* Get the hostnames configuration */
     const UA_Variant *hostNames =
-        UA_ConfigParameter_getArrayParameter(cm->eventSource.parameters,
-                           "listen-hostnames", &UA_TYPES[UA_TYPES_STRING]);
+        UA_KeyValueMap_get(cm->eventSource.params,
+                           cm->eventSource.paramsSize,
+                           UA_QUALIFIEDNAME(0, "hostnames"));
     if(!hostNames) {
         /* No hostnames configured */
+        UA_LOG_ERROR(UA_EventLoop_getLogger(cm->eventSource.eventLoop),
+                     UA_LOGCATEGORY_EVENTLOOP, "Listening on all interfaces");
         TCP_registerListenSocketDomainName(cm, NULL, portno);
+    } else if(hostNames->type != &UA_TYPES[UA_TYPES_STRING]) {
+        /* Wrong datatype */
+           UA_LOG_ERROR(UA_EventLoop_getLogger(cm->eventSource.eventLoop),
+                        UA_LOGCATEGORY_EVENTLOOP,
+                        "The hostnames have to be strings");
+           return UA_STATUSCODE_BADINTERNALERROR;
     } else {
-        /* Iterate over the configured hostnames */
-        UA_String *hostStrings = (UA_String*)hostNames->data;
-        for(size_t i = 0; i < hostNames->arrayLength; i++) {
-            char hostname[512];
-            if(hostStrings[i].length >= sizeof(hostname))
-                continue;
-            memcpy(hostname, hostStrings[i].data, hostStrings->length);
-            hostname[hostStrings->length] = '\0';
-            TCP_registerListenSocketDomainName(cm, hostname, portno);
+        size_t interfaces = hostNames->arrayLength;
+        if(UA_Variant_isScalar(hostNames))
+            interfaces = 1;
+        if(interfaces == 0) {
+            UA_LOG_ERROR(UA_EventLoop_getLogger(cm->eventSource.eventLoop),
+                         UA_LOGCATEGORY_EVENTLOOP, "Listening on all interfaces");
+            TCP_registerListenSocketDomainName(cm, NULL, portno);
+        } else {
+            /* Iterate over the configured hostnames */
+            UA_String *hostStrings = (UA_String*)hostNames->data;
+            for(size_t i = 0; i < hostNames->arrayLength; i++) {
+                char hostname[512];
+                if(hostStrings[i].length >= sizeof(hostname))
+                    continue;
+                memcpy(hostname, hostStrings[i].data, hostStrings->length);
+                hostname[hostStrings->length] = '\0';
+                TCP_registerListenSocketDomainName(cm, hostname, portno);
+            }
         }
     }
 
@@ -669,8 +692,12 @@ TCP_eventSourceDelete(UA_ConnectionManager *cm) {
 
     UA_deinitialize_architecture_network();
 
-    while(cm->eventSource.parameters)
-        UA_ConfigParameter_delete(&cm->eventSource.parameters);
+    /* Delete the parameters */
+    UA_Array_delete(cm->eventSource.params,
+                    cm->eventSource.paramsSize,
+                    &UA_TYPES[UA_TYPES_KEYVALUEPAIR]);
+    cm->eventSource.params = NULL;
+    cm->eventSource.paramsSize = 0;
 
     UA_String_clear(&cm->eventSource.name);
     UA_free(cm);

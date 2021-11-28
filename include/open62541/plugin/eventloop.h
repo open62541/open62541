@@ -153,9 +153,9 @@ struct UA_EventSource {
     /* Configuration
      * ~~~~~~~~~~~~~ */
     UA_String name;                 /* Unique name of the ES for logging */
-    UA_ConfigParameter *parameters; /* Configuration parameters, depend on the
-                                     * ES type */
     void *application;              /* Application to which the ES belongs */
+    size_t paramsSize;
+    UA_KeyValuePair *params;        /* Configuration parameters */
 
     /* Lifecycle
      * ~~~~~~~~~ */
@@ -276,12 +276,12 @@ struct UA_ConnectionManager {
  *
  * Configuration Parameters:
  *
- * - listen-port [uint16]: Port to listen for new connections (default: do not
- *                         listen on any port).
- * - listen-hostnames [array of strings]: Network devices to listen on (default:
- *                                        listens on all available devices).
- * - listen-bufsize [uint16]: Size of the buffer that is allocated for receiving
- *                            messages (default 16kB). */
+ * - 0:port [uint16]: Port to listen for new connections (default: do not
+ *                    listen on any port).
+ * - 0:hostnames [string | array of strings]: Network devices to listen on
+ *                                            (default: listen on all devices).
+ * - 0:bufsize [uint16]: Size of the buffer that is allocated for receiving
+ *                       messages (default 16kB). */
 UA_EXPORT UA_ConnectionManager *
 UA_ConnectionManager_TCP_new(const UA_String eventSourceName);
 
