@@ -107,7 +107,6 @@ TCP_close(UA_ConnectionManager *cm, UA_FD fd) {
 static void
 TCP_connectionSocketCallback(UA_ConnectionManager *cm, UA_FD fd,
                              void **fdcontext, short event) {
-
     UA_LOG_DEBUG(UA_EventLoop_getLogger(cm->eventSource.eventLoop),
                  UA_LOGCATEGORY_NETWORK,
                  "Connection socket callback, fd: %u", (unsigned)fd);
@@ -198,13 +197,23 @@ TCP_listenSocketCallback(UA_ConnectionManager *cm, UA_FD fd,
     socklen_t remote_size = sizeof(remote);
     UA_FD newsockfd = UA_accept(fd, (struct sockaddr*)&remote, &remote_size);
     if(newsockfd == UA_INVALID_FD) {
-        UA_LOG_SOCKET_ERRNO_WRAP(
-            UA_LOG_WARNING(UA_EventLoop_getLogger(cm->eventSource.eventLoop),
-                           UA_LOGCATEGORY_NETWORK,
-                           "Error during accept: %s", errno_str));
+        /* Temporary error -- retry */
+        if(UA_ERRNO == UA_INTERRUPTED)
+            return;
+
         /* Close the listen socket */
-        if(UA_ERRNO != UA_INTERRUPTED)
-            TCP_close(cm, fd);
+        if(cm->eventSource.state == UA_EVENTSOURCESTATE_STOPPING) {
+            UA_LOG_INFO(UA_EventLoop_getLogger(cm->eventSource.eventLoop),
+                           UA_LOGCATEGORY_NETWORK,
+                           "Closing the listen-socket: %u", (unsigned)fd);
+        } else {
+            UA_LOG_SOCKET_ERRNO_WRAP(
+                UA_LOG_WARNING(UA_EventLoop_getLogger(cm->eventSource.eventLoop),
+                               UA_LOGCATEGORY_NETWORK,
+                               "Error %s, closing listen-socket: %u",
+                               errno_str, (unsigned)fd));
+        }
+        TCP_close(cm, fd);
         return;
     }
 
@@ -412,6 +421,7 @@ TCP_shutdownConnection(UA_ConnectionManager *cm, uintptr_t connectionId) {
 
 static UA_StatusCode
 TCP_sendWithConnection(UA_ConnectionManager *cm, uintptr_t connectionId,
+                       size_t paramsSize, UA_KeyValuePair *params,
                        UA_ByteString *buf) {
     /* Prevent OS signals when sending to a closed socket */
     int flags = MSG_NOSIGNAL;
@@ -449,37 +459,50 @@ TCP_sendWithConnection(UA_ConnectionManager *cm, uintptr_t connectionId,
 }
 
 static UA_StatusCode
-TCP_openConnection(UA_ConnectionManager *cm, const UA_String connectString,
+TCP_openConnection(UA_ConnectionManager *cm,
+                   size_t paramsSize, UA_KeyValuePair *params,
                    void *context) {
-    UA_LOG_INFO(UA_EventLoop_getLogger(cm->eventSource.eventLoop),
-                UA_LOGCATEGORY_NETWORK, "Open a TCP connection to %.*s",
-                (int)connectString.length, connectString.data);
 
-    /* Disect the connectString */
+    /* Get the connection parameters */
     char hostname[256];
     char portStr[16];
-    const char *colon = (const char*)
-        memchr(connectString.data, ':', connectString.length);
-    UA_StatusCode res = UA_STATUSCODE_GOOD;
-    if(colon) {
-        size_t hostnameLen = (uintptr_t)(colon - (const char*)connectString.data);
-        size_t portStrLen = connectString.length - hostnameLen - 1;
-        if(hostnameLen < 256 && portStrLen < 16) {
-            strncpy(hostname, (const char*)connectString.data, hostnameLen);
-            hostname[hostnameLen] = 0;
-            strncpy(portStr, colon+1, portStrLen);
-            portStr[portStrLen] = 0;
-        } else {
-            res = UA_STATUSCODE_BADINTERNALERROR;
-        }
-    } else {
-        res = UA_STATUSCODE_BADINTERNALERROR;
+
+    /* Prepare the port parameter as a string */
+    const UA_UInt16 *port = (const UA_UInt16*)
+        UA_KeyValueMap_getScalar(params, paramsSize,
+                                 UA_QUALIFIEDNAME(0, "target-port"),
+                                 &UA_TYPES[UA_TYPES_UINT16]);
+    if(!port) {
+        UA_LOG_ERROR(UA_EventLoop_getLogger(cm->eventSource.eventLoop),
+                     UA_LOGCATEGORY_EVENTLOOP,
+                     "Open TCP Connection: No target port defined, aborting");
+        return UA_STATUSCODE_BADINTERNALERROR;
     }
-    if(res != UA_STATUSCODE_GOOD) {
-        UA_LOG_WARNING(UA_EventLoop_getLogger(cm->eventSource.eventLoop),
-                       UA_LOGCATEGORY_NETWORK, "Invalid connection string");
-        return res;
+    UA_snprintf(portStr, 6, "%d", *port);
+
+    /* Prepare the hostname string */
+    const UA_String *host = (const UA_String*)
+        UA_KeyValueMap_getScalar(params, paramsSize,
+                                 UA_QUALIFIEDNAME(0, "target-hostname"),
+                                 &UA_TYPES[UA_TYPES_STRING]);
+    if(!host) {
+        UA_LOG_ERROR(UA_EventLoop_getLogger(cm->eventSource.eventLoop),
+                     UA_LOGCATEGORY_EVENTLOOP,
+                     "Open TCP Connection: No target hostname defined, aborting");
+        return UA_STATUSCODE_BADINTERNALERROR;
     }
+    if(host->length >= 256) {
+        UA_LOG_ERROR(UA_EventLoop_getLogger(cm->eventSource.eventLoop),
+                     UA_LOGCATEGORY_EVENTLOOP,
+                     "Open TCP Connection: No target hostname too long, aborting");
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
+    strncpy(hostname, (const char*)host->data, host->length);
+    hostname[host->length] = 0;
+
+    UA_LOG_INFO(UA_EventLoop_getLogger(cm->eventSource.eventLoop),
+                UA_LOGCATEGORY_NETWORK, "Open a TCP connection to %s:%s",
+                hostname, portStr);
 
     /* Create the socket description from the connectString
      * TODO: Make this non-blocking */
@@ -509,6 +532,7 @@ TCP_openConnection(UA_ConnectionManager *cm, const UA_String connectString,
     }
 
     /* Set the socket options */
+    UA_StatusCode res = UA_STATUSCODE_GOOD;
     res |= TCP_setNonBlocking(newSock);
     res |= TCP_setNoSigPipe(newSock);
     res |= TCP_setNoNagle(newSock);
@@ -577,7 +601,7 @@ TCP_eventSourceStart(UA_ConnectionManager *cm) {
     const UA_UInt16 *port = (const UA_UInt16*)
         UA_KeyValueMap_getScalar(cm->eventSource.params,
                                  cm->eventSource.paramsSize,
-                                 UA_QUALIFIEDNAME(0, "port"),
+                                 UA_QUALIFIEDNAME(0, "listen-port"),
                                  &UA_TYPES[UA_TYPES_UINT16]);
     if(!port) {
         UA_LOG_ERROR(UA_EventLoop_getLogger(cm->eventSource.eventLoop),
@@ -594,11 +618,11 @@ TCP_eventSourceStart(UA_ConnectionManager *cm) {
     const UA_Variant *hostNames =
         UA_KeyValueMap_get(cm->eventSource.params,
                            cm->eventSource.paramsSize,
-                           UA_QUALIFIEDNAME(0, "hostnames"));
+                           UA_QUALIFIEDNAME(0, "listen-hostnames"));
     if(!hostNames) {
         /* No hostnames configured */
-        UA_LOG_ERROR(UA_EventLoop_getLogger(cm->eventSource.eventLoop),
-                     UA_LOGCATEGORY_EVENTLOOP, "Listening on all interfaces");
+        UA_LOG_INFO(UA_EventLoop_getLogger(cm->eventSource.eventLoop),
+                    UA_LOGCATEGORY_EVENTLOOP, "Listening on all interfaces");
         TCP_registerListenSocketDomainName(cm, NULL, portno);
     } else if(hostNames->type != &UA_TYPES[UA_TYPES_STRING]) {
         /* Wrong datatype */
@@ -628,17 +652,15 @@ TCP_eventSourceStart(UA_ConnectionManager *cm) {
         }
     }
 
-    /* Not a single listen socket configured? Then the ConnectionManager is in
-     * stopped state. */
-    TCPConnectionManager *tcm = (TCPConnectionManager*)cm;
-    if(tcm->fdCount == 0) {
-        UA_LOG_ERROR(UA_EventLoop_getLogger(cm->eventSource.eventLoop),
-                     UA_LOGCATEGORY_NETWORK, "Could not register a socket "
-                     "to listen for TCP connections");
-        cm->eventSource.state = UA_EVENTSOURCESTATE_STOPPED;
-        return UA_STATUSCODE_BADINTERNALERROR;
-    }
-
+    /* The receive buffersize was configured? */
+    const UA_UInt16 *bufSize = (const UA_UInt16*)
+        UA_KeyValueMap_getScalar(cm->eventSource.params,
+                                 cm->eventSource.paramsSize,
+                                 UA_QUALIFIEDNAME(0, "recv-bufsize"),
+                                 &UA_TYPES[UA_TYPES_UINT16]);
+    if(bufSize)
+        ((TCPConnectionManager*)cm)->recvBufferSize = *bufSize;
+    
     /* Set the EventSource to the started state */
     cm->eventSource.state = UA_EVENTSOURCESTATE_STARTED;
     return UA_STATUSCODE_GOOD;
