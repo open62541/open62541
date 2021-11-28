@@ -47,44 +47,26 @@ typedef enum {
  * invalidates pointers into the previous array. If the key exists already, the
  * value is overwritten. */
 UA_EXPORT UA_StatusCode
-UA_KeyValueMap_setQualified(UA_KeyValuePair **map, size_t *mapSize,
-                            const UA_QualifiedName *key,
-                            const UA_Variant *value);
-
-/* Simplified version that assumes the key is in namespace 0 */
-UA_EXPORT UA_StatusCode
 UA_KeyValueMap_set(UA_KeyValuePair **map, size_t *mapSize,
-                   const char *key, const UA_Variant *value);
+                   const UA_QualifiedName *key,
+                   const UA_Variant *value);
 
-/* Returns a pointer into underlying array or NULL if the key is not found.*/
-UA_EXPORT const UA_Variant *
-UA_KeyValueMap_getQualified(UA_KeyValuePair *map, size_t mapSize,
-                            const UA_QualifiedName *key);
-
-/* Simplified version that assumes the key is in namespace 0 */
+/* Returns a pointer to the value or NULL if the key is not found.*/
 UA_EXPORT const UA_Variant *
 UA_KeyValueMap_get(UA_KeyValuePair *map, size_t mapSize,
-                   const char *key);
+                   const UA_QualifiedName *key);
 
 /* Returns NULL if the value for the key is not defined or not of the right
  * datatype and scalar/array */
 UA_EXPORT const UA_Variant *
 UA_KeyValueMap_getScalar(UA_KeyValuePair *map, size_t mapSize,
-                         const char *key, const UA_DataType *type);
-
-UA_EXPORT const UA_Variant *
-UA_KeyValueMap_getArray(UA_KeyValuePair *map, size_t mapSize,
-                        const char *key, const UA_DataType *type);
+                         const UA_QualifiedName *key,
+                         const UA_DataType *type);
 
 /* Remove a single entry. To delete the entire map, use UA_Array_delete. */
 UA_EXPORT void
-UA_KeyValueMap_deleteQualified(UA_KeyValuePair **map, size_t *mapSize,
-                               const UA_QualifiedName *key);
-
-/* Simplified version that assumes the key is in namespace 0 */
-UA_EXPORT void
 UA_KeyValueMap_delete(UA_KeyValuePair **map, size_t *mapSize,
-                      const char *key);
+                      const UA_QualifiedName *key);
 
 /**
  * Config Parameters
