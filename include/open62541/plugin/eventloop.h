@@ -218,22 +218,22 @@ struct UA_ConnectionManager {
     UA_ConnectionCallback connectionCallback;
     void *initialConnectionContext;
 
-    /* Actively open connections
-     * ~~~~~~~~~~~~~~~~~~~~~~~~~
-     * Some ConnectionManagers can actively open a new Connection. This happens
-     * asynchronously by a callback. The possible parameters depend on the
-     * protocol and implementation.
+    /* Actively Open a Connection
+     * ~~~~~~~~~~~~~~~~~~~~~~~~~~
+     * Some ConnectionManagers can actively open a new Connection. Connecting is
+     * asynchronous. cm->connectionCallback is called when the connection is
+     * open (status=GOOD) or aborted (status!=GOOD) when connecting failed.
      *
-     * The connectString contains the necessary information to open up a
-     * connection and has the schema "hostname:port".
+     * The parameters describe the connection. For example hostname and port
+     * (for TCP). Other protocols (e.g. MQTT, AMQP, etc.) may required
+     * additional arguments to open a connection.
      *
      * The connection is opened asynchronously. The ConnectionCallback is
      * triggered when the connection is fully opened (UA_STATUSCODE_GOOD) or has
-     * failed (with an error code).
-     *
-     * The ConnectionCallback cb and context are set to the new connection. */
+     * failed (with an error code). */
     UA_StatusCode
-    (*openConnection)(UA_ConnectionManager *cm, const UA_String connectString,
+    (*openConnection)(UA_ConnectionManager *cm,
+                      size_t paramsSize, UA_KeyValuePair *params,
                       void *context);
 
     /* Connection Activities
@@ -254,12 +254,16 @@ struct UA_ConnectionManager {
     /* Send a message. Sending is asynchronous. That is, the function returns
      * before the message is ACKed from remote. The memory for the buffer is
      * expected to be allocated with allocNetworkBuffer and is released
-     * internally (also if sending fails). */
+     * internally (also if sending fails).
+     *
+     * Some ConnectionManagers can accept additional parameters for sending. For
+     * example a tx-time for sending in time-synchronized TSN settings. */
     UA_StatusCode
     (*sendWithConnection)(UA_ConnectionManager *cm, uintptr_t connectionId,
+                          size_t paramsSize, UA_KeyValuePair *params,
                           UA_ByteString *buf);
 
-    /* When a connection is closed, the connectionCallback is called with
+    /* When a connection is closed, cm->connectionCallback is called with
      * (status=BadConnectionClosed, msg=empty). Then the connection is cleared
      * up inside the ConnectionManager. This is the case both for connections
      * that are actively closed and those that are closed remotely. The return
@@ -275,13 +279,21 @@ struct UA_ConnectionManager {
  * parameters have to set before calling _start to take effect.
  *
  * Configuration Parameters:
+ * - 0:listen-port [uint16]: Port to listen for new connections (default: do not
+ *                           listen on any port).
+ * - 0:listen-hostnames [string | string array]: Hostnames of the devices to
+ *                                               listen on (default: listen on
+ *                                               all devices).
+ * - 0:recv-bufsize [uint16]: Size of the buffer that is allocated for receiving
+ *                            messages (default 16kB).
  *
- * - 0:port [uint16]: Port to listen for new connections (default: do not
- *                    listen on any port).
- * - 0:hostnames [string | array of strings]: Network devices to listen on
- *                                            (default: listen on all devices).
- * - 0:bufsize [uint16]: Size of the buffer that is allocated for receiving
- *                       messages (default 16kB). */
+ * Open Connection Parameters:
+ * - 0:target-hostname [string]: Hostname (or IPv4/IPv6 address) of the target
+ *                               (required).
+ * - 0:target-port [uint16]: Port of the target host (required).
+ *
+ * Send Parameters:
+ * No additional parameters for sending over an established TCP socket defined. */
 UA_EXPORT UA_ConnectionManager *
 UA_ConnectionManager_TCP_new(const UA_String eventSourceName);
 
