@@ -409,6 +409,202 @@ orOperator(UA_Server *server, UA_Session *session,
     }
 }
 
+/* Casts numeric values to their biggest type by calling implicitNumericCast and performs the according operation and returns
+ * UA_STATUSCODE_GOOD if the comparison was true
+ * UA_STATUSCODE_BADNOMATCH if the comparison was false
+ * UA_STATUSCODE_BADFILTEROPERATORINVALID for invalid operators
+ * UA_STATUSCODE_BADTYPEMISMATCH if one of the operands was not numeric */
+static UA_StatusCode
+compareOperation(UA_Variant *firstOperand, UA_Variant *secondOperand, UA_FilterOperator op) {
+    //get precedence of the operand types
+    UA_Int16 firstOperand_precedence = UA_DataType_getPrecedence(firstOperand->type);
+    UA_Int16 secondOperand_precedence = UA_DataType_getPrecedence(secondOperand->type);
+    //if the types are not equal and one of the precedence-ranks is -1, then there is
+    //no implicit conversion possible and therefore no compare
+    if(!UA_NodeId_equal(&firstOperand->type->typeId, &secondOperand->type->typeId) &&
+       (firstOperand_precedence == -1 || secondOperand_precedence == -1)){
+        return UA_STATUSCODE_BADTYPEMISMATCH;
+    }
+
+    UA_DataTypeKind kindConversionRule[21] = {
+        UA_DATATYPEKIND_BOOLEAN,
+        UA_DATATYPEKIND_BYTE,
+        UA_DATATYPEKIND_BYTESTRING,
+        UA_DATATYPEKIND_DATETIME,
+        UA_DATATYPEKIND_DOUBLE,
+        UA_DATATYPEKIND_EXPANDEDNODEID,
+        UA_DATATYPEKIND_FLOAT,
+        UA_DATATYPEKIND_GUID,
+        UA_DATATYPEKIND_INT16,
+        UA_DATATYPEKIND_INT32,
+        UA_DATATYPEKIND_INT64,
+        UA_DATATYPEKIND_NODEID,
+        UA_DATATYPEKIND_SBYTE,
+        UA_DATATYPEKIND_STATUSCODE,
+        UA_DATATYPEKIND_STRING,
+        UA_DATATYPEKIND_LOCALIZEDTEXT,
+        UA_DATATYPEKIND_QUALIFIEDNAME,
+        UA_DATATYPEKIND_UINT16,
+        UA_DATATYPEKIND_UINT32,
+        UA_DATATYPEKIND_UINT64,
+        UA_DATATYPEKIND_XMLELEMENT
+    };
+
+    //0 -> Same Type, 1 -> Implicit Cast, 2 -> Only explicit Cast, -1 -> cast invalid
+    UA_SByte convertLookup[21][21] = {
+        {0, 1, -1, -1, 1, -1, 1, -1, 1, 1, 1, -1, 1, -1, 2, -1, -1, 1, 1, 1, -1},
+        {2, 0, -1, -1, 1, -1, 1, -1, 1, 1, 1, -1, 1, -1, 2, -1, -1, 1, 1, 1, -1},
+        {-1, -1, 0, -1, -1, -1, -1, 2, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1},
+        {-1, -1, -1, 0, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, 2, -1, -1, -1, -1, -1, -1},
+        {2, 2, -1, -1, 0, -1, 2, -1, 2, 2, 2, -1, 2, -1, 2, -1, -1, 2, 2, 2, -1},
+        {-1, -1, -1, -1, -1, 0, -1, -1, -1, -1, -1, 2, -1, -1, 1, -1, -1, -1, -1, -1, -1},
+        {2, 2, -1, -1, 1, -1, 0, -1, 2, 2, 2, -1, 2, -1, 2, -1, -1, 2, 2, 2, -1},
+        {-1, -1, 2, -1, -1, -1, -1, 0, -1, -1, -1, -1, -1, -1, 2, -1, -1, -1, -1, -1, -1},
+        {2, 2, -1, -1, 1, -1, 1, -1, 0, 1, 1, -1, 2, -1, 2, -1, -1, 2, 1, 1, -1},
+        {2, 2, -1, -1, 1, -1, 1, -1, 2, 0, 1, -1, 2, 2, 2, -1, -1, 2, 2, 1, -1},
+        {2, 2, -1, -1, 1, -1, 1, -1, 2, 2, 0, -1, 2, 2, 2, -1, -1, 2, 2, 2, -1},
+        {-1, -1, -1, -1, -1, 1, -1, -1, -1, -1, -1, 0, -1, -1, 1, -1, -1, -1, -1, -1, -1},
+        {2, 2, -1, -1, 1, -1, 1, -1, 1, 1, 1, -1, 0, -1, 2, -1, -1, 1, 1, 1, -1},
+        {-1, -1, -1, -1, -1, -1, -1, -1, -1, 1, 1, -1, -1, 0, -1, -1, -1, 2, 1, 1, -1},
+        {1, 1, -1, 2, 1, 2, 1, 1, 1, 1, 1, 2, 1, -1, 0, 2, 2, 1, 1, 1, -1},
+        {-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, 1, 0, -1, -1, -1, -1, -1},
+        {-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, 1, 1, 0, -1, -1, -1, -1},
+        {2, 2, -1, -1, 1, -1, 1, -1, 1, 1, 1, -1, 2, 1, 2, -1, -1, 0, 1, 1, -1},
+        {2, 2, -1, -1, 1, -1, 1, -1, 2, 1, 1, -1, 2, 2, 2, -1, -1, 2, 0, 1, -1},
+        {2, 2, -1, -1, 1, -1, 1, -1, 2, 2, 1, -1, 2, 2, 2, -1, -1, 2, 2, 0, -1},
+        {-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, 0}
+    };
+
+    UA_Byte firstOperatorTypeKindIndex, secondOperatorTypeKindIndex;
+    for(UA_Byte i = 0; i < 21; ++i) {
+        if(firstOperand->type->typeKind == kindConversionRule[i])
+            firstOperatorTypeKindIndex = i;
+        if(secondOperand->type->typeKind == kindConversionRule[i])
+            secondOperatorTypeKindIndex = i;
+    }
+    UA_SByte conversionResult = -1;
+    if (firstOperand_precedence > secondOperand_precedence){
+        conversionResult = convertLookup[firstOperatorTypeKindIndex][secondOperatorTypeKindIndex];
+    } else if (firstOperand_precedence < secondOperand_precedence){
+        conversionResult = convertLookup[secondOperatorTypeKindIndex][firstOperatorTypeKindIndex];
+    }
+
+    if(!(conversionResult == 0 || conversionResult == 1)){
+        return UA_STATUSCODE_BADTYPEMISMATCH;
+    }
+
+    //handle equal DataTypes
+    //unsigned numeric types
+    UA_Int32 rule = -1; //ToDo make this an more readable enum
+    if(conversionResult == 0 ||
+       (firstOperand->type->typeKind == UA_DATATYPEKIND_UINT64 ||
+        firstOperand->type->typeKind == UA_DATATYPEKIND_UINT32 ||
+        firstOperand->type->typeKind == UA_DATATYPEKIND_UINT16 ||
+        firstOperand->type->typeKind == UA_DATATYPEKIND_BYTE)){
+        rule = 1; //signed integer operation
+    } else if(conversionResult == 0 ||
+        (firstOperand->type->typeKind == UA_DATATYPEKIND_INT64 ||
+         firstOperand->type->typeKind == UA_DATATYPEKIND_INT32 ||
+         firstOperand->type->typeKind == UA_DATATYPEKIND_INT16 ||
+         firstOperand->type->typeKind == UA_DATATYPEKIND_SBYTE)){
+        rule = 2;
+    }
+
+    switch(op) {
+        case UA_FILTEROPERATOR_EQUALS:
+            switch(rule) {
+                case 1:
+                    if(*(UA_UInt64 *)firstOperand->data == *(UA_UInt64 *)secondOperand->data)
+                        return UA_STATUSCODE_GOOD;
+                    break;
+                case 2:
+                    if(*(UA_Int64 *)firstOperand->data == *(UA_Int64 *)secondOperand->data)
+                        return UA_STATUSCODE_GOOD;
+                    break;
+                default:
+                    return UA_STATUSCODE_BADNOMATCH;
+            }
+        case UA_FILTEROPERATOR_GREATERTHAN:
+            switch(rule) {
+                case 1:
+                    if(*(UA_UInt64 *)firstOperand->data > *(UA_UInt64 *)secondOperand->data)
+                        return UA_STATUSCODE_GOOD;
+                    break;
+                case 2:
+                    if(*(UA_Int64 *)firstOperand->data > *(UA_Int64 *)secondOperand->data)
+                        return UA_STATUSCODE_GOOD;
+                    break;
+                default:
+                    return UA_STATUSCODE_BADNOMATCH;
+            }
+        case UA_FILTEROPERATOR_LESSTHAN:
+            switch(rule) {
+                case 1:
+                    if(*(UA_UInt64 *)firstOperand->data < *(UA_UInt64 *)secondOperand->data)
+                        return UA_STATUSCODE_GOOD;
+                    break;
+                case 2:
+                    if(*(UA_Int64 *)firstOperand->data < *(UA_Int64 *)secondOperand->data)
+                        return UA_STATUSCODE_GOOD;
+                    break;
+                default:
+                    return UA_STATUSCODE_BADNOMATCH;
+            }
+        case UA_FILTEROPERATOR_GREATERTHANOREQUAL:
+            switch(rule) {
+                case 1:
+                    if(*(UA_UInt64 *)firstOperand->data >= *(UA_UInt64 *)secondOperand->data)
+                        return UA_STATUSCODE_GOOD;
+                    break;
+                case 2:
+                    if(*(UA_Int64 *)firstOperand->data >= *(UA_Int64 *)secondOperand->data)
+                        return UA_STATUSCODE_GOOD;
+                    break;
+                default:
+                    return UA_STATUSCODE_BADNOMATCH;
+            }
+        case UA_FILTEROPERATOR_LESSTHANOREQUAL:
+            switch(rule) {
+                case 1:
+                    if(*(UA_UInt64 *)firstOperand->data <= *(UA_UInt64 *)secondOperand->data)
+                        return UA_STATUSCODE_GOOD;
+                    break;
+                case 2:
+                    if(*(UA_Int64 *)firstOperand->data <= *(UA_Int64 *)secondOperand->data)
+                        return UA_STATUSCODE_GOOD;
+                    break;
+                default:
+                    return UA_STATUSCODE_BADNOMATCH;
+            }
+        default:
+            return UA_STATUSCODE_BADFILTEROPERATORINVALID;
+    }
+}
+
+static UA_StatusCode
+compareOperator(UA_Server *server, UA_Session *session,
+           const UA_NodeId *eventNode,
+           const UA_ContentFilter *contentFilter,
+           UA_ContentFilterResult *contentFilterResult,
+           UA_Variant* valueResult, UA_UInt16 index,
+           UA_UInt16 nr, UA_ContentFilterElement *pElement) {
+    UA_Variant firstOperand = resolveOperand(server, session, eventNode, contentFilter,
+                                             contentFilterResult, valueResult, index, 0);
+    if(UA_Variant_isEmpty(&firstOperand))
+        return UA_STATUSCODE_BADFILTEROPERANDINVALID;
+    UA_Variant secondOperand = resolveOperand(server, session, eventNode, contentFilter,
+                                              contentFilterResult, valueResult, index, 1);
+    if(UA_Variant_isEmpty(&secondOperand)) {
+        return UA_STATUSCODE_BADFILTEROPERANDINVALID;
+    }
+    //ToDo remove the following restriction: Currently the equal, gt, le, gte, gle only support numeric types
+    if(!(UA_DataType_isNumeric(firstOperand.type) || UA_DataType_isNumeric(secondOperand.type) ||
+       UA_Variant_isScalar(&firstOperand) || UA_Variant_isScalar(&secondOperand))){
+        return UA_STATUSCODE_BADFILTEROPERATORUNSUPPORTED;
+    }
+    return compareOperation(&firstOperand, &secondOperand, contentFilter->elements[index].filterOperator);
+}
+
 static UA_StatusCode
 isNullOperator(UA_Server *server, UA_Session *session,
            const UA_NodeId *eventNode,
@@ -467,24 +663,23 @@ evaluateWhereClauseContentFilter(UA_Server *server, UA_Session *session,
         case UA_FILTEROPERATOR_INVIEW:
             return UA_STATUSCODE_BADEVENTFILTERINVALID;
         case UA_FILTEROPERATOR_RELATEDTO: {
+            //Fallthrough
+        case UA_FILTEROPERATOR_RELATEDTO:
             /* Not allowed for event WhereClause according to 7.17.3 in Part 4 */
             return UA_STATUSCODE_BADEVENTFILTERINVALID;
-        }
         case UA_FILTEROPERATOR_EQUALS:
-            return UA_STATUSCODE_BADFILTEROPERATORUNSUPPORTED;
-        case UA_FILTEROPERATOR_ISNULL:
-            contentFilterResult->elementResults[index].statusCode =
-                isNullOperator(server, session, eventNode, contentFilter,
-                               contentFilterResult, valueResult, index, 0, pElement);
-            break;
+            //Fallthrough
         case UA_FILTEROPERATOR_GREATERTHAN:
-            return UA_STATUSCODE_BADFILTEROPERATORUNSUPPORTED;
+            //Fallthrough
         case UA_FILTEROPERATOR_LESSTHAN:
-            return UA_STATUSCODE_BADFILTEROPERATORUNSUPPORTED;
+            //Fallthrough
         case UA_FILTEROPERATOR_GREATERTHANOREQUAL:
-            return UA_STATUSCODE_BADFILTEROPERATORUNSUPPORTED;
+            //Fallthrough
         case UA_FILTEROPERATOR_LESSTHANOREQUAL:
-            return UA_STATUSCODE_BADFILTEROPERATORUNSUPPORTED;
+            contentFilterResult->elementResults[index].statusCode =
+                compareOperator(server, session, eventNode, contentFilter,
+                                contentFilterResult, valueResult, index, 0, pElement);
+            break;
         case UA_FILTEROPERATOR_LIKE:
             return UA_STATUSCODE_BADFILTEROPERATORUNSUPPORTED;
         case UA_FILTEROPERATOR_NOT:
@@ -496,6 +691,11 @@ evaluateWhereClauseContentFilter(UA_Server *server, UA_Session *session,
             return UA_STATUSCODE_BADFILTEROPERATORUNSUPPORTED;
         case UA_FILTEROPERATOR_INLIST:
             return UA_STATUSCODE_BADFILTEROPERATORUNSUPPORTED;
+        case UA_FILTEROPERATOR_ISNULL:
+            contentFilterResult->elementResults[index].statusCode =
+                isNullOperator(server, session, eventNode, contentFilter,
+                               contentFilterResult, valueResult, index, 0, pElement);
+            break;
         case UA_FILTEROPERATOR_AND: {
             contentFilterResult->elementResults[index].statusCode =
                 andOperator(server, session, eventNode, contentFilter,

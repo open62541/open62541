@@ -1847,6 +1847,51 @@ UA_DataType_isNumeric(const UA_DataType *type) {
     }
 }
 
+UA_Int16
+UA_DataType_getPrecedence(const UA_DataType *type){
+    //Defined in Part 4 Table 123 "Data Precedence Rules"
+    switch(type->typeKind) {
+        case UA_DATATYPEKIND_DOUBLE:
+            return 1;
+        case UA_DATATYPEKIND_FLOAT:
+            return 2;
+        case UA_DATATYPEKIND_INT64:
+            return 3;
+        case UA_DATATYPEKIND_UINT64:
+            return 4;
+        case UA_DATATYPEKIND_INT32:
+            return 5;
+        case UA_DATATYPEKIND_UINT32:
+            return 6;
+        case UA_DATATYPEKIND_STATUSCODE:
+            return 7;
+        case UA_DATATYPEKIND_INT16:
+            return 8;
+        case UA_DATATYPEKIND_UINT16:
+            return 9;
+        case UA_DATATYPEKIND_SBYTE:
+            return 10;
+        case UA_DATATYPEKIND_BYTE:
+            return 11;
+        case UA_DATATYPEKIND_BOOLEAN:
+            return 12;
+        case UA_DATATYPEKIND_GUID:
+            return 13;
+        case UA_DATATYPEKIND_STRING:
+            return 14;
+        case UA_DATATYPEKIND_EXPANDEDNODEID:
+            return 15;
+        case UA_DATATYPEKIND_NODEID:
+            return 16;
+        case UA_DATATYPEKIND_LOCALIZEDTEXT:
+            return 17;
+        case UA_DATATYPEKIND_QUALIFIEDNAME:
+            return 18;
+        default:
+            return -1;
+    }
+}
+
 /**********************/
 /* Parse NumericRange */
 /**********************/

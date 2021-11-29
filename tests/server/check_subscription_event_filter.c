@@ -351,7 +351,7 @@ static void deleteMonitoredItems(void){
 }
 
 static void
-checkForEvent(UA_MonitoredItemCreateResult *createResult){
+checkForEvent(UA_MonitoredItemCreateResult *createResult, UA_Boolean expect){
     // let the client fetch the event and check if the correct values were received
     notificationReceived = false;
     sleepUntilAnswer(publishingInterval + 100);
@@ -359,7 +359,7 @@ checkForEvent(UA_MonitoredItemCreateResult *createResult){
     sleepUntilAnswer(publishingInterval + 100);
     retval |= UA_Client_run_iterate(client, 0);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
-    ck_assert_uint_eq(notificationReceived, true);
+    ck_assert_uint_eq(notificationReceived, expect);
     ck_assert_uint_eq(createResult->revisedQueueSize, 1);
 }
 
@@ -394,6 +394,13 @@ setupNotFilter(UA_ContentFilterElement *element){
     setupOperandArrays(element);
 }
 
+static void
+setupOfTypeFilter(UA_ContentFilterElement *element){
+    element->filterOperator = UA_FILTEROPERATOR_OFTYPE;
+    element->filterOperandsSize = 1;
+    setupOperandArrays(element);
+}
+
 /*static void
 setupElementOperand(UA_ContentFilterElement *element, size_t count, UA_UInt32 *indexes){
     for(size_t i = 0; i < count; ++i) {
@@ -418,7 +425,7 @@ setupLiteralOperand(UA_ContentFilterElement *element, size_t count, UA_Variant *
     }
 }
 
-//Test Case Description:
+// Test Case "not-Operator" Description:
 // Phase 1:
 //  Action -> Fire default "EventType_A_Layer_1" Event
 //  Event-Source: Server-Object
@@ -456,7 +463,7 @@ START_TEST(notOperatorValidation) {
     retval = triggerEventLocked(eventNodeId, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER), NULL, UA_TRUE);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
-    checkForEvent(&createResult);
+    checkForEvent(&createResult, false);
     deleteMonitoredItems();
 
     condition = false;
@@ -469,8 +476,64 @@ START_TEST(notOperatorValidation) {
     eventSetup(&eventNodeId);
     retval = triggerEventLocked(eventNodeId, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER), NULL, UA_TRUE);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
-    checkForEvent(&createResult);
+    checkForEvent(&createResult, true);
     deleteMonitoredItems();
+} END_TEST
+
+// Test Case "ofType-Operator" Description:
+// Phase 1:
+//  Action -> Fire default "EventType_A_Layer_1" Event
+//  Event-Source: Server-Object
+//  Filters: Select(Severity, Message, EventType, SourceNode) Where (ofType EventType_B_Layer_1)
+//  Expect: No Notification
+//Phase 2:
+//  Action -> Fire default "EventType_B_Layer_1" Event
+//  Event-Source: Server-Object
+//  Filters: Select(Severity, Message, EventType, SourceNode) Where (ofType EventType_B_Layer_1)
+//  Expect: Get Notification
+START_TEST(ofTypeOperatorValidation) {
+    //setup event filter
+    UA_EventFilter filter;
+    UA_EventFilter_init(&filter);
+    setupSelectClauses();
+    filter.selectClauses = selectClauses;
+    filter.selectClausesSize = defaultSlectClauseSize;
+    setupContentFilter(&filter.whereClause, 1);
+    setupOfTypeFilter(&filter.whereClause.elements[0]);
+    UA_Variant literalContent;
+    UA_NodeId *nodeId = UA_NodeId_new();
+    UA_NodeId_init(nodeId);
+    *nodeId = EventType_B_Layer_1;
+    UA_Variant_setScalar(&literalContent, nodeId, &UA_TYPES[UA_TYPES_NODEID]);
+    setupLiteralOperand(&filter.whereClause.elements[0], 1, &literalContent);
+    //setup event
+    eventType = EventType_A_Layer_1;
+    UA_NodeId eventNodeId;
+    UA_StatusCode retval = eventSetup(&eventNodeId);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    // add a monitored item (with filter)
+    UA_MonitoredItemCreateResult createResult = addMonitoredItem(handler_events_simple, &filter, true);
+    ck_assert_uint_eq(createResult.statusCode, UA_STATUSCODE_GOOD);
+    monitoredItemId = createResult.monitoredItemId;
+    // trigger the event
+    retval = triggerEventLocked(eventNodeId, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER), NULL, UA_TRUE);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    checkForEvent(&createResult, false);
+    // trigger the event
+    eventType = EventType_B_Layer_1;
+    eventSetup(&eventNodeId);
+    retval = triggerEventLocked(eventNodeId, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER), NULL, UA_TRUE);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    checkForEvent(&createResult, true);
+    deleteMonitoredItems();
+} END_TEST
+
+START_TEST(orTypeOperatorValidation) {
+
+} END_TEST
+
+START_TEST(andTypeOperatorValidation) {
+
 } END_TEST
 
 //printf("Status: %s", UA_StatusCode_name(retval));
@@ -480,6 +543,9 @@ static Suite *testSuite_Client(void) {
     TCase *tc_server = tcase_create("Basic Event Filters");
     tcase_add_unchecked_fixture(tc_server, setup, teardown);
     tcase_add_test(tc_server, notOperatorValidation);
+    tcase_add_test(tc_server, ofTypeOperatorValidation);
+    tcase_add_test(tc_server, orTypeOperatorValidation);
+    tcase_add_test(tc_server, andTypeOperatorValidation);
     suite_add_tcase(s, tc_server);
     return s;
 }
