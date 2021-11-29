@@ -248,11 +248,11 @@ setFDSets(UA_EventLoop *el, fd_set *readset, fd_set *writeset, fd_set *errset) {
         UA_FD currentFD = el->fds[i].fd;
         /* Add to the fd_sets */
         if(el->fds[i].eventMask & UA_POSIX_EVENT_READ)
-            FD_SET(currentFD, readset);
+            UA_fd_set(currentFD, readset);
         if(el->fds[i].eventMask & UA_POSIX_EVENT_WRITE)
-            FD_SET(currentFD, writeset);
+            UA_fd_set(currentFD, writeset);
         if(el->fds[i].eventMask & UA_POSIX_EVENT_ERR)
-            FD_SET(currentFD, errset);
+            UA_fd_set(currentFD, errset);
 
         /* Highest fd? */
         if(currentFD > highestfd || highestfd == UA_INVALID_FD)
@@ -304,7 +304,7 @@ processFDs(UA_EventLoop *el, UA_DateTime usedTimeout) {
                      "Processing fd: %u", (unsigned)fd);
 
         /* Error Event */
-        if((rfd->eventMask & UA_POSIX_EVENT_ERR) && FD_ISSET(fd, &errset)) {
+        if((rfd->eventMask & UA_POSIX_EVENT_ERR) && UA_fd_isset(fd, &errset)) {
             UA_LOG_DEBUG(el->logger, UA_LOGCATEGORY_EVENTLOOP,
                          "Processing error event for fd: %u", (unsigned)fd);
             UA_UNLOCK(&el->elMutex);
@@ -316,7 +316,7 @@ processFDs(UA_EventLoop *el, UA_DateTime usedTimeout) {
         }
 
         /* Read Event */
-        if((rfd->eventMask & UA_POSIX_EVENT_READ) && FD_ISSET(fd, &readset)) {
+        if((rfd->eventMask & UA_POSIX_EVENT_READ) && UA_fd_isset(fd, &readset)) {
             UA_LOG_DEBUG(el->logger, UA_LOGCATEGORY_EVENTLOOP,
                          "Processing read event for fd: %u", (unsigned)fd);
             UA_UNLOCK(&el->elMutex);
@@ -328,7 +328,7 @@ processFDs(UA_EventLoop *el, UA_DateTime usedTimeout) {
         }
 
         /* Write Event */
-        if((rfd->eventMask & UA_POSIX_EVENT_WRITE) && FD_ISSET(fd, &writeset)) {
+        if((rfd->eventMask & UA_POSIX_EVENT_WRITE) && UA_fd_isset(fd, &writeset)) {
             UA_LOG_DEBUG(el->logger, UA_LOGCATEGORY_EVENTLOOP,
                          "Processing write event for fd: %u", (unsigned)fd);
             UA_UNLOCK(&el->elMutex);
