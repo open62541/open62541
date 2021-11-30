@@ -221,7 +221,7 @@ UA_Asym_Basic256Sha256_getRemoteSignatureSize(const void *channelContext) {
     const Channel_Context_Basic256Sha256 * cc =
         (const Channel_Context_Basic256Sha256 *) channelContext;
     UA_Int32 keyLen = 0;
-    UA_Openssl_RSA_Public_GetKeyLength(cc->remoteCertificateX509, &keyLen);
+    UA_Openssl_RSA_Public_GetKeyLength (cc->remoteCertificateX509, &keyLen);
     return (size_t) keyLen; 
 }
 
@@ -234,7 +234,7 @@ UA_AsySig_Basic256Sha256_getLocalSignatureSize(const void *channelContext) {
         (const Channel_Context_Basic256Sha256 *) channelContext;
     Policy_Context_Basic256Sha256 * pc = cc->policyContext;
     UA_Int32 keyLen = 0;
-    UA_Openssl_RSA_Private_GetKeyLength(pc->localPrivateKey, &keyLen);
+    UA_Openssl_RSA_Private_GetKeyLength (pc->localPrivateKey, &keyLen);
     return (size_t) keyLen; 
 }
 
@@ -468,7 +468,7 @@ UA_AsymEn_Basic256Sha256_getLocalKeyLength(const void *channelContext) {
         (const Channel_Context_Basic256Sha256 *) channelContext;
     Policy_Context_Basic256Sha256 *pc = cc->policyContext;
     UA_Int32 keyLen = 0;
-    UA_Openssl_RSA_Private_GetKeyLength(pc->localPrivateKey, &keyLen);
+    UA_Openssl_RSA_Private_GetKeyLength (pc->localPrivateKey, &keyLen);
     return (size_t) keyLen * 8; 
 }
 
