@@ -677,7 +677,10 @@ if(NOT UA_FORCE_CPP AND (CMAKE_COMPILER_IS_GNUCC OR "x${CMAKE_C_COMPILER_ID}" ST
 
     # Force 32bit build
     if(UA_FORCE_32BIT)
-	check_add_cc_flag("-m32")
+      if(MSVC)
+        message(FATAL_ERROR "Select the 32bit (cross-) compiler instead of forcing compiler options")
+      endif()
+      set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -m32") # GCC and Clang, possibly more
     endif()
 
     if(NOT MINGW AND NOT UA_BUILD_OSS_FUZZ)
