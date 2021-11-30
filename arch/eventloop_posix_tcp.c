@@ -144,12 +144,12 @@ TCP_connectionSocketCallback(UA_ConnectionManager *cm, UA_FD fd,
 
     /* Receive */
 #ifndef _WIN32
-    ssize_t ret = recv(fd, (char*)response.data, response.length, MSG_DONTWAIT);
+    ssize_t ret = UA_recv(fd, (char*)response.data, response.length, MSG_DONTWAIT);
     UA_LOG_DEBUG(UA_EventLoop_getLogger(cm->eventSource.eventLoop),
                  UA_LOGCATEGORY_NETWORK,
                  "TCP #%u\t| recv(...) returned %zd", (unsigned)fd, ret);
 #else
-    int ret = recv(fd, (char*)response.data, response.length, MSG_DONTWAIT);
+    int ret = UA_recv(fd, (char*)response.data, response.length, MSG_DONTWAIT);
     UA_LOG_DEBUG(UA_EventLoop_getLogger(cm->eventSource.eventLoop),
                  UA_LOGCATEGORY_NETWORK,
                  "TCP #%u\t| recv(...) returned %d", (unsigned)fd, ret);
@@ -217,10 +217,10 @@ TCP_listenSocketCallback(UA_ConnectionManager *cm, UA_FD fd,
 #if UA_LOGLEVEL <= 300
     char hoststr[128];
     int get_res = getnameinfo((struct sockaddr *)&remote, sizeof(remote),
-                              hoststr, sizeof(hoststr), NULL, 0, 0);
+                              hoststr, 128, NULL, 0, 0);
     if(get_res != 0) {
         get_res = getnameinfo((struct sockaddr *)&remote, sizeof(remote),
-                              hoststr, sizeof(hoststr), NULL, 0, NI_NUMERICHOST);
+                              hoststr, 128, NULL, 0, NI_NUMERICHOST);
         if(get_res != 0) {
             hoststr[0] = 0;
             UA_LOG_SOCKET_ERRNO_WRAP(
@@ -280,12 +280,10 @@ TCP_registerListenSocket(UA_ConnectionManager *cm, struct addrinfo *ai) {
     char hoststr[256];
     char portstr[16];
     int get_res = getnameinfo(ai->ai_addr, ai->ai_addrlen,
-                              hoststr, sizeof(hoststr),
-                              portstr, sizeof(portstr), NI_NUMERICSERV);
+                              hoststr, 256, portstr, 16, NI_NUMERICSERV);
     if(get_res != 0) {
         get_res = getnameinfo(ai->ai_addr, ai->ai_addrlen,
-                              hoststr, sizeof(hoststr),
-                              portstr, sizeof(portstr),
+                              hoststr, 256, portstr, 16,
                               NI_NUMERICHOST | NI_NUMERICSERV);
         if(get_res != 0) {
             hoststr[0] = 0;
@@ -592,7 +590,7 @@ TCP_openConnection(UA_ConnectionManager *cm,
                            UA_LOGCATEGORY_NETWORK,
                            "TCP\t| Could not set socket options: %s", errno_str));
         freeaddrinfo(info);
-        close(newSock);
+        UA_close(newSock);
         return res;
     }
 
