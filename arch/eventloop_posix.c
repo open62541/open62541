@@ -274,8 +274,8 @@ processFDs(UA_EventLoop *el, UA_DateTime usedTimeout) {
 
     struct timeval tmptv = {
 #ifndef _WIN32
-        usedTimeout / UA_DATETIME_SEC,
-        (usedTimeout % UA_DATETIME_SEC) / UA_DATETIME_USEC
+        (time_t)(usedTimeout / UA_DATETIME_SEC),
+        (suseconds_t)((usedTimeout % UA_DATETIME_SEC) / UA_DATETIME_USEC)
 #else
         (long)(usedTimeout / UA_DATETIME_SEC),
         (long)((usedTimeout % UA_DATETIME_SEC) / UA_DATETIME_USEC)
