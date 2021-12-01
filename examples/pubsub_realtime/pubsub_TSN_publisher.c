@@ -356,7 +356,7 @@ addPubSubApplicationCallback(UA_Server *server, UA_NodeId identifier,
         char threadNamePub[10] = "Publisher";
         *callbackId            = threadCreation((UA_Int16)pubPriority, (size_t)pubCore, publisherETF, threadNamePub, threadArguments);
         UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
-                    "Publisher thread callback Id: %ld\n", *callbackId);
+                    "Publisher thread callback Id: %lu\n", (unsigned long)*callbackId);
 #endif
     }
     else {
@@ -365,7 +365,7 @@ addPubSubApplicationCallback(UA_Server *server, UA_NodeId identifier,
         char threadNameSub[11] = "Subscriber";
         *callbackId            = threadCreation((UA_Int16)subPriority, (size_t)subCore, subscriber, threadNameSub, threadArguments);
         UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
-                    "Subscriber thread callback Id: %ld\n", *callbackId);
+                    "Subscriber thread callback Id: %lu\n", (unsigned long)*callbackId);
 #endif
     }
 
@@ -385,9 +385,9 @@ changePubSubApplicationCallback(UA_Server *server, UA_NodeId identifier,
 /* Remove the callback added for cyclic repetition */
 static void
 removePubSubApplicationCallback(UA_Server *server, UA_NodeId identifier, UA_UInt64 callbackId) {
-    if(callbackId && (pthread_join(callbackId, NULL) != 0))
+    if(callbackId && (pthread_join((pthread_t)callbackId, NULL) != 0))
         UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
-                       "Pthread Join Failed thread: %ld\n", callbackId);
+                       "Pthread Join Failed thread: %lu\n", (unsigned long)callbackId);
 }
 
 /**
@@ -916,7 +916,8 @@ updateMeasurementsPublisher(struct timespec start_time,
     }
 
     if(consolePrint)
-        UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,"Pub:%ld,%ld.%09ld\n", counterValue, start_time.tv_sec, start_time.tv_nsec);
+        UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,"Pub:%lu,%ld.%09ld\n",
+                    (long unsigned)counterValue, start_time.tv_sec, start_time.tv_nsec);
 
 
     if (signalTerm != UA_TRUE){
@@ -942,7 +943,8 @@ updateMeasurementsSubscriber(struct timespec receive_time,
     }
 
     if(consolePrint)
-        UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,"Sub:%ld,%ld.%09ld\n", counterValue, receive_time.tv_sec, receive_time.tv_nsec);
+        UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,"Sub:%lu,%ld.%09ld\n",
+                    (long unsigned)counterValue, receive_time.tv_sec, receive_time.tv_nsec);
 
     if (signalTerm != UA_TRUE)
     {
@@ -1209,7 +1211,7 @@ static pthread_t threadCreation(UA_Int16 threadPriority, size_t coreAffinity, vo
         UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,":%s Cannot create thread\n", applicationName);
 
     if (CPU_ISSET(coreAffinity, &cpuset))
-        UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,"%s CPU CORE: %ld\n", applicationName, coreAffinity);
+        UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,"%s CPU CORE: %lu\n", applicationName, (unsigned long)coreAffinity);
 
    return threadID;
 }
@@ -1403,8 +1405,8 @@ static void computeLatencyAndGenerateCsv(char *latencyFileName) {
 
         if(((latencyCharIndex - prevLatencyCharIndex) + latencyCharIndex + 3) < MAX_MEASUREMENTS_FILEWRITE) {
             latencyCharIndex += (UA_UInt64)sprintf(&latency_measurements[latencyCharIndex],
-                                                   "%0.3f, %ld, %ld\n",
-                                                   finalTime, missed_counter, repeated_counter);
+                                                   "%0.3f, %lu, %lu\n",
+                                                   finalTime, (unsigned long)missed_counter, (unsigned long)repeated_counter);
         }
         else {
             UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
@@ -1416,7 +1418,7 @@ static void computeLatencyAndGenerateCsv(char *latencyFileName) {
     }
 
     /* Write into the latency file */
-    fwrite(&latency_measurements[0], prevLatencyCharIndex, 1, fp_latency);
+    fwrite(&latency_measurements[0], (size_t)prevLatencyCharIndex, 1, fp_latency);
     fclose(fp_latency);
 }
 #endif
@@ -1725,10 +1727,10 @@ if (enableCsvLog) {
         size_t pubLoopVariable               = 0;
         for (pubLoopVariable = 0; pubLoopVariable < measurementsPublisher;
              pubLoopVariable++) {
-            fprintf(fpPublisher, "%ld,%ld.%09ld\n",
-                    publishCounterValue[pubLoopVariable],
-                    publishTimestamp[pubLoopVariable].tv_sec,
-                    publishTimestamp[pubLoopVariable].tv_nsec);
+            fprintf(fpPublisher, "%lu,%lu.%09lu\n",
+                    (long unsigned)publishCounterValue[pubLoopVariable],
+                    (long unsigned)publishTimestamp[pubLoopVariable].tv_sec,
+                    (long unsigned)publishTimestamp[pubLoopVariable].tv_nsec);
         }
 #endif
 #if defined(SUBSCRIBER)
@@ -1736,10 +1738,10 @@ if (enableCsvLog) {
         size_t subLoopVariable               = 0;
         for (subLoopVariable = 0; subLoopVariable < measurementsSubscriber;
              subLoopVariable++) {
-            fprintf(fpSubscriber, "%ld,%ld.%09ld\n",
-                    subscribeCounterValue[subLoopVariable],
-                    subscribeTimestamp[subLoopVariable].tv_sec,
-                    subscribeTimestamp[subLoopVariable].tv_nsec);
+            fprintf(fpSubscriber, "%lu,%lu.%09lu\n",
+                    (long unsigned)subscribeCounterValue[subLoopVariable],
+                    (long unsigned)subscribeTimestamp[subLoopVariable].tv_sec,
+                    (long unsigned)subscribeTimestamp[subLoopVariable].tv_nsec);
         }
 #endif
     }

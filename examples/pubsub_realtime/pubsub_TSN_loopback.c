@@ -353,7 +353,7 @@ addPubSubApplicationCallback(UA_Server *server, UA_NodeId identifier,
         char threadNamePub[10] = "Publisher";
         *callbackId            = threadCreation((UA_Int16)pubPriority, (size_t)pubCore, publisherETF, threadNamePub, threadArguments);
         UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
-                    "Publisher thread callback Id: %ld\n", *callbackId);
+                    "Publisher thread callback Id: %lu\n", (long unsigned)*callbackId);
 #endif
     }
     else {
@@ -362,7 +362,7 @@ addPubSubApplicationCallback(UA_Server *server, UA_NodeId identifier,
         char threadNameSub[11] = "Subscriber";
         *callbackId            = threadCreation((UA_Int16)subPriority,(size_t)subCore, subscriber, threadNameSub, threadArguments);
         UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
-                    "Subscriber thread callback Id: %ld\n", *callbackId);
+                    "Subscriber thread callback Id: %lu\n", (long unsigned)*callbackId);
 #endif
     }
 
@@ -382,9 +382,9 @@ changePubSubApplicationCallback(UA_Server *server, UA_NodeId identifier,
 /* Remove the callback added for cyclic repetition */
 static void
 removePubSubApplicationCallback(UA_Server *server, UA_NodeId identifier, UA_UInt64 callbackId) {
-    if(callbackId && (pthread_join(callbackId, NULL) != 0))
+    if(callbackId && (pthread_join((pthread_t)callbackId, NULL) != 0))
         UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
-                       "Pthread Join Failed thread: %ld\n", callbackId);
+                       "Pthread Join Failed thread: %lu\n", (long unsigned)callbackId);
 
 }
 
@@ -909,7 +909,8 @@ updateMeasurementsPublisher(struct timespec start_time,
     }
 
     if(consolePrint)
-        UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,"Pub:%ld,%ld.%09ld\n", counterValue, start_time.tv_sec, start_time.tv_nsec);
+        UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,"Pub:%lu,%ld.%09ld\n",
+                    (long unsigned)counterValue, start_time.tv_sec, start_time.tv_nsec);
 
     if (signalTerm != UA_TRUE){
         publishTimestamp[measurementsPublisher]        = start_time;
@@ -934,7 +935,8 @@ updateMeasurementsSubscriber(struct timespec receive_time, UA_UInt64 counterValu
     }
 
     if(consolePrint)
-        UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,"Sub:%ld,%ld.%09ld\n", counterValue, receive_time.tv_sec, receive_time.tv_nsec);
+        UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,"Sub:%lu,%ld.%09ld\n",
+                    (long unsigned)counterValue, receive_time.tv_sec, receive_time.tv_nsec);
 
     if (signalTerm != UA_TRUE){
         subscribeTimestamp[measurementsSubscriber]     = receive_time;
@@ -1203,7 +1205,7 @@ static pthread_t threadCreation(UA_Int16 threadPriority, size_t coreAffinity, vo
         UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,":%s Cannot create thread\n", applicationName);
 
     if (CPU_ISSET(coreAffinity, &cpuset))
-        UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,"%s CPU CORE: %ld\n", applicationName, coreAffinity);
+        UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,"%s CPU CORE: %lu\n", applicationName, (long unsigned)coreAffinity);
 
    return threadID;
 }
@@ -1633,8 +1635,8 @@ if (enableCsvLog)
         size_t pubLoopVariable = 0;
         for (pubLoopVariable = 0; pubLoopVariable < measurementsPublisher;
              pubLoopVariable++) {
-            fprintf(fpPublisher, "%ld,%ld.%09ld\n",
-                    publishCounterValue[pubLoopVariable],
+            fprintf(fpPublisher, "%lu,%ld.%09ld\n",
+                    (long unsigned)publishCounterValue[pubLoopVariable],
                     publishTimestamp[pubLoopVariable].tv_sec,
                     publishTimestamp[pubLoopVariable].tv_nsec);
         }
@@ -1644,8 +1646,8 @@ if (enableCsvLog)
         size_t subLoopVariable = 0;
         for (subLoopVariable = 0; subLoopVariable < measurementsSubscriber;
              subLoopVariable++) {
-            fprintf(fpSubscriber, "%ld,%ld.%09ld\n",
-                    subscribeCounterValue[subLoopVariable],
+            fprintf(fpSubscriber, "%lu,%ld.%09ld\n",
+                    (long unsigned)subscribeCounterValue[subLoopVariable],
                     subscribeTimestamp[subLoopVariable].tv_sec,
                     subscribeTimestamp[subLoopVariable].tv_nsec);
         }
