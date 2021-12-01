@@ -90,7 +90,8 @@ void UA_sleep_ms(unsigned long ms);
 # define errno
 #endif
 
-#define UA_getnameinfo getnameinfo
+#define UA_getnameinfo(sa, salen, host, hostlen, serv, servlen, flags) \
+    getnameinfo(sa, (socklen_t)salen, host, (DWORD)hostlen, serv, (DWORD)servlen, flags)
 #define UA_send(sockfd, buf, len, flags) send(sockfd, buf, (int)(len), flags)
 #define UA_recv(sockfd, buf, len, flags) recv(sockfd, buf, (int)(len), flags)
 #define UA_sendto(sockfd, buf, len, flags, dest_addr, addrlen) sendto(sockfd, (const char*)(buf), (int)(len), flags, dest_addr, (int) (addrlen))

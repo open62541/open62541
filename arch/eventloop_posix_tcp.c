@@ -215,12 +215,12 @@ TCP_listenSocketCallback(UA_ConnectionManager *cm, UA_FD fd,
 
     /* Log the name of the remote host */
 #if UA_LOGLEVEL <= 300
-    char hoststr[128];
-    int get_res = getnameinfo((struct sockaddr *)&remote, sizeof(remote),
-                              hoststr, 128, NULL, 0, 0);
+    char hoststr[256];
+    int get_res = UA_getnameinfo((struct sockaddr *)&remote, sizeof(remote),
+                                 hoststr, sizeof(hoststr), NULL, 0, 0);
     if(get_res != 0) {
-        get_res = getnameinfo((struct sockaddr *)&remote, sizeof(remote),
-                              hoststr, 128, NULL, 0, NI_NUMERICHOST);
+        get_res = UA_getnameinfo((struct sockaddr *)&remote, sizeof(remote),
+                                 hoststr, sizeof(hoststr), NULL, 0, NI_NUMERICHOST);
         if(get_res != 0) {
             hoststr[0] = 0;
             UA_LOG_SOCKET_ERRNO_WRAP(
@@ -279,12 +279,14 @@ TCP_registerListenSocket(UA_ConnectionManager *cm, struct addrinfo *ai) {
     /* Get logging information */
     char hoststr[256];
     char portstr[16];
-    int get_res = getnameinfo(ai->ai_addr, ai->ai_addrlen,
-                              hoststr, 256, portstr, 16, NI_NUMERICSERV);
+    int get_res = UA_getnameinfo(ai->ai_addr, ai->ai_addrlen,
+                                 hoststr, sizeof(hoststr),
+                                 portstr, sizeof(portstr), NI_NUMERICSERV);
     if(get_res != 0) {
-        get_res = getnameinfo(ai->ai_addr, ai->ai_addrlen,
-                              hoststr, 256, portstr, 16,
-                              NI_NUMERICHOST | NI_NUMERICSERV);
+        get_res = UA_getnameinfo(ai->ai_addr, ai->ai_addrlen,
+                                 hoststr, sizeof(hoststr),
+                                 portstr, sizeof(portstr),
+                                 NI_NUMERICHOST | NI_NUMERICSERV);
         if(get_res != 0) {
             hoststr[0] = 0;
             portstr[0] = 0;

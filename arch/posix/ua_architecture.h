@@ -72,7 +72,8 @@ void UA_sleep_ms(unsigned long ms);
 
 #define UA_ENABLE_LOG_COLORS
 
-#define UA_getnameinfo getnameinfo
+#define UA_getnameinfo(sa, salen, host, hostlen, serv, servlen, flags) \
+    getnameinfo(sa, salen, host, hostlen, serv, servlen, flags)
 #define UA_send send
 #define UA_recv recv
 #define UA_sendto sendto
