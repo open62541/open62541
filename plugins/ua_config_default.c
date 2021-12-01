@@ -41,15 +41,17 @@ UA_DURATIONRANGE(UA_Duration min, UA_Duration max) {
     return range;
 }
 
+static UA_StatusCode
+setDefaultConfig(UA_ServerConfig *conf);
+
 UA_Server *
 UA_Server_new() {
     UA_ServerConfig config;
     memset(&config, 0, sizeof(UA_ServerConfig));
-    /* Set a default logger and NodeStore for the initialization */
-    config.logger = UA_Log_Stdout_;
-    if(UA_STATUSCODE_GOOD != UA_Nodestore_HashMap(&config.nodestore)) {
+
+    UA_StatusCode res = setDefaultConfig(&config);
+    if(res != UA_STATUSCODE_GOOD)
         return NULL;
-    }
 
     return UA_Server_newWithConfig(&config);
 }
@@ -125,13 +127,21 @@ setDefaultConfig(UA_ServerConfig *conf) {
     if(!conf)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
 
+    /* NodeStore */
     if(conf->nodestore.context == NULL)
         UA_Nodestore_HashMap(&conf->nodestore);
 
-    /* --> Start setting the default static config <-- */
-    /* Allow user to set his own logger */
+    /* Logging */
     if(!conf->logger.log)
         conf->logger = UA_Log_Stdout_;
+
+    /* EventLoop */
+    if(conf->eventLoop == NULL) {
+        conf->eventLoop = UA_EventLoop_new(&conf->logger);
+        conf->externalEventLoop = false;
+    }
+
+    /* --> Start setting the default static config <-- */
 
     conf->shutdownDelay = 0.0;
 
@@ -750,6 +760,12 @@ UA_ClientConfig_setDefault(UA_ClientConfig *config) {
        config->logger.log = UA_Log_Stdout_log;
        config->logger.context = NULL;
        config->logger.clear = UA_Log_Stdout_clear;
+    }
+
+    /* EventLoop */
+    if(config->eventLoop == NULL) {
+        config->eventLoop = UA_EventLoop_new(&config->logger);
+        config->externalEventLoop = false;
     }
 
     if (config->sessionLocaleIdsSize > 0 && config->sessionLocaleIds) {

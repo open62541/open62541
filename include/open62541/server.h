@@ -24,6 +24,7 @@
 #include <open62541/types_generated.h>
 #include <open62541/types_generated_handling.h>
 
+#include <open62541/plugin/eventloop.h>
 #include <open62541/plugin/securitypolicy.h>
 #include <open62541/plugin/accesscontrol.h>
 #include <open62541/plugin/nodestore.h>
@@ -118,6 +119,10 @@ struct UA_ServerConfig {
      * .. note:: See the section on :ref:`generic-types`. Examples for working
      *    with custom data types are provided in
      *    ``/examples/custom_datatype/``. */
+
+    /* EventLoop */
+    UA_EventLoop *eventLoop;
+    UA_Boolean externalEventLoop; /* The EventLoop is not deleted with the config */
 
     /* Networking */
     size_t networkLayersSize;
@@ -424,28 +429,29 @@ UA_Server_closeSession(UA_Server *server, const UA_NodeId *sessionId);
 
 UA_EXPORT UA_StatusCode UA_THREADSAFE
 UA_Server_setSessionParameter(UA_Server *server, const UA_NodeId *sessionId,
-                              const char *name, const UA_Variant *parameter);
+                              const UA_QualifiedName key,
+                              const UA_Variant *value);
 
 UA_EXPORT void UA_THREADSAFE
 UA_Server_deleteSessionParameter(UA_Server *server, const UA_NodeId *sessionId,
-                                 const char *name);
+                                 const UA_QualifiedName key);
 
 /* Returns NULL if the session or the parameter are not defined. Returns a deep
  * copy otherwise */
 UA_EXPORT UA_StatusCode UA_THREADSAFE
 UA_Server_getSessionParameter(UA_Server *server, const UA_NodeId *sessionId,
-                              const char *name, UA_Variant *outParameter);
+                              const UA_QualifiedName key,
+                              UA_Variant *outValue);
 
-/* Returns NULL if the parameter is not defined or not of the right datatype */
+/* Returns NULL if the parameter is not defined or not a scalar or not of the
+ * right datatype. Otherwise a deep copy of the scalar value is filled at the
+ * target location of the void pointer. */
 UA_EXPORT UA_StatusCode UA_THREADSAFE
-UA_Server_getSessionScalarParameter(UA_Server *server, const UA_NodeId *sessionId,
-                                    const char *name, const UA_DataType *type,
-                                    UA_Variant *outParameter);
-
-UA_EXPORT UA_StatusCode UA_THREADSAFE
-UA_Server_getSessionArrayParameter(UA_Server *server, const UA_NodeId *sessionId,
-                                   const char *name, const UA_DataType *type,
-                                   UA_Variant *outParameter);
+UA_Server_getSessionParameter_scalar(UA_Server *server,
+                                     const UA_NodeId *sessionId,
+                                     const UA_QualifiedName key,
+                                     const UA_DataType *type,
+                                     void *outValue);
 
 /**
  * Reading and Writing Node Attributes
