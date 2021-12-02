@@ -23,7 +23,7 @@
 #include "ua_connection_internal.h"
 #include "ua_session.h"
 #include "ua_server_async.h"
-#include "ua_timer.h"
+#include "common/ua_timer.h" /* arch-folder, TODO: Remove after the EventLoop is integrated */
 #include "ua_util_internal.h"
 #include "ziptree.h"
 
@@ -66,13 +66,13 @@ typedef enum {
 } UA_DiagnosticEvent;
 
 typedef struct channel_entry {
-    UA_TimerEntry cleanupCallback;
+    UA_DelayedCallback cleanupCallback;
     TAILQ_ENTRY(channel_entry) pointers;
     UA_SecureChannel channel;
 } channel_entry;
 
 typedef struct session_list_entry {
-    UA_TimerEntry cleanupCallback;
+    UA_DelayedCallback cleanupCallback;
     LIST_ENTRY(session_list_entry) pointers;
     UA_Session session;
 } session_list_entry;
@@ -110,9 +110,6 @@ struct UA_Server {
     /* Namespaces */
     size_t namespacesSize;
     UA_String *namespaces;
-
-    /* Callbacks with a repetition interval */
-    UA_Timer timer;
 
     /* For bootstrapping, omit some consistency checks, creating a reference to
      * the parent and member instantiation */
@@ -588,12 +585,29 @@ UA_StatusCode writeNs0VariableArray(UA_Server *server, UA_UInt32 id, void *v,
 #define UA_NODESTORE_DELETE(server, node)                               \
     server->config.nodestore.deleteNode(server->config.nodestore.context, node)
 
-#define UA_NODESTORE_GET(server, nodeid)                                \
-    server->config.nodestore.getNode(server->config.nodestore.context, nodeid)
+/* Get the node with all attributes and references */
+static UA_INLINE const UA_Node *
+UA_NODESTORE_GET(UA_Server *server, const UA_NodeId *nodeId) {
+    return server->config.nodestore.
+        getNode(server->config.nodestore.context, nodeId, UA_NODEATTRIBUTESMASK_ALL,
+                UA_REFERENCETYPESET_ALL, UA_BROWSEDIRECTION_BOTH);
+}
 
-/* Returns NULL if the target is an external Reference (per the ExpandedNodeId) */
-const UA_Node *
-UA_NODESTORE_GETFROMREF(UA_Server *server, UA_NodePointer target);
+/* Get the node with all attributes and references */
+static UA_INLINE const UA_Node *
+UA_NODESTORE_GETFROMREF(UA_Server *server, UA_NodePointer target) {
+    return server->config.nodestore.
+        getNodeFromPtr(server->config.nodestore.context, target, UA_NODEATTRIBUTESMASK_ALL,
+                       UA_REFERENCETYPESET_ALL, UA_BROWSEDIRECTION_BOTH);
+}
+
+#define UA_NODESTORE_GET_SELECTIVE(server, nodeid, attrMask, refs, refDirs) \
+    server->config.nodestore.getNode(server->config.nodestore.context,      \
+                                     nodeid, attrMask, refs, refDirs)
+
+#define UA_NODESTORE_GETFROMREF_SELECTIVE(server, target, attrMask, refs, refDirs) \
+    server->config.nodestore.getNodeFromPtr(server->config.nodestore.context,      \
+                                            target, attrMask, refs, refDirs)
 
 #define UA_NODESTORE_RELEASE(server, node)                              \
     server->config.nodestore.releaseNode(server->config.nodestore.context, node)

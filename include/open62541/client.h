@@ -27,6 +27,7 @@
 #include <open62541/plugin/log.h>
 #include <open62541/plugin/network.h>
 #include <open62541/plugin/securitypolicy.h>
+#include <open62541/plugin/eventloop.h>
 
 _UA_BEGIN_DECLS
 
@@ -119,6 +120,9 @@ typedef struct {
                                               * up together with the
                                               * configuration. So it is possible
                                               * to allocate them on ROM. */
+    /* EventLoop */
+    UA_EventLoop *eventLoop;
+    UA_Boolean externalEventLoop; /* The EventLoop is not deleted with the config */
 
     /* Available SecurityPolicies */
     size_t securityPoliciesSize;

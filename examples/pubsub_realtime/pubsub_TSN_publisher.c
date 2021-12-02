@@ -80,6 +80,8 @@
 #include <open62541/types_generated.h>
 #include <open62541/plugin/pubsub_ethernet.h>
 
+#include <open62541/plugin/securitypolicy_default.h>
+
 #include "ua_pubsub.h"
 
 #include <linux/if_link.h>
@@ -110,12 +112,10 @@ UA_DataSetReaderConfig readerConfig;
 #define             DATA_SET_WRITER_ID                    62541
 #define             DEFAULT_PUBLISHING_MAC_ADDRESS        "opc.eth://01-00-5E-7F-00-01:8.3"
 #endif
-#if defined(SUBSCRIBER)
 #define             PUBLISHER_ID_SUB                      2235
 #define             WRITER_GROUP_ID_SUB                   100
 #define             DATA_SET_WRITER_ID_SUB                62541
 #define             DEFAULT_SUBSCRIBING_MAC_ADDRESS       "opc.eth://01-00-5E-00-00-01:8.3"
-#endif
 #define             REPEATED_NODECOUNTS                   2    // Default to publish 64 bytes
 #define             PORT_NUMBER                           62541
 #define             DEFAULT_XDP_QUEUE                     2
@@ -129,9 +129,11 @@ UA_DataSetReaderConfig readerConfig;
 /* Publisher will sleep for 60% of cycle time and then prepares the */
 /* transmission packet within 40% */
 static UA_Double  pubWakeupPercentage     = 0.6;
+#if defined(SUBSCRIBER)
 /* Subscriber will wakeup only during start of cycle and check whether */
 /* the packets are received */
 static UA_Double  subWakeupPercentage     = 0;
+#endif
 /* User application Pub/Sub will wakeup at the 30% of cycle time and handles the */
 /* user data such as read and write in Information model */
 static UA_Double  userAppWakeupPercentage = 0.3;
@@ -152,6 +154,24 @@ static UA_Double  userAppWakeupPercentage = 0.3;
 #define             CLOCKID                                 CLOCK_TAI
 #define             ETH_TRANSPORT_PROFILE                   "http://opcfoundation.org/UA-Profile/Transport/pubsub-eth-uadp"
 #define             LATENCY_CSV_FILE_NAME                   "latencyT1toT8.csv"
+
+#ifdef UA_ENABLE_PUBSUB_ENCRYPTION
+#define             UA_AES128CTR_SIGNING_KEY_LENGTH          32
+#define             UA_AES128CTR_KEY_LENGTH                  16
+#define             UA_AES128CTR_KEYNONCE_LENGTH             4
+
+#if defined(PUBLISHER)
+UA_Byte signingKeyPub[UA_AES128CTR_SIGNING_KEY_LENGTH] = {0};
+UA_Byte encryptingKeyPub[UA_AES128CTR_KEY_LENGTH] = {0};
+UA_Byte keyNoncePub[UA_AES128CTR_KEYNONCE_LENGTH] = {0};
+#endif
+
+#if defined(SUBSCRIBER)
+UA_Byte signingKeySub[UA_AES128CTR_SIGNING_KEY_LENGTH] = {0};
+UA_Byte encryptingKeySub[UA_AES128CTR_KEY_LENGTH] = {0};
+UA_Byte keyNonceSub[UA_AES128CTR_KEYNONCE_LENGTH] = {0};
+#endif
+#endif
 
 /* If the Hardcoded publisher/subscriber MAC addresses need to be changed,
  * change PUBLISHING_MAC_ADDRESS and SUBSCRIBING_MAC_ADDRESS
@@ -336,7 +356,7 @@ addPubSubApplicationCallback(UA_Server *server, UA_NodeId identifier,
         char threadNamePub[10] = "Publisher";
         *callbackId            = threadCreation((UA_Int16)pubPriority, (size_t)pubCore, publisherETF, threadNamePub, threadArguments);
         UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
-                    "Publisher thread callback Id: %ld\n", *callbackId);
+                    "Publisher thread callback Id: %lu\n", (unsigned long)*callbackId);
 #endif
     }
     else {
@@ -345,7 +365,7 @@ addPubSubApplicationCallback(UA_Server *server, UA_NodeId identifier,
         char threadNameSub[11] = "Subscriber";
         *callbackId            = threadCreation((UA_Int16)subPriority, (size_t)subCore, subscriber, threadNameSub, threadArguments);
         UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
-                    "Subscriber thread callback Id: %ld\n", *callbackId);
+                    "Subscriber thread callback Id: %lu\n", (unsigned long)*callbackId);
 #endif
     }
 
@@ -365,9 +385,9 @@ changePubSubApplicationCallback(UA_Server *server, UA_NodeId identifier,
 /* Remove the callback added for cyclic repetition */
 static void
 removePubSubApplicationCallback(UA_Server *server, UA_NodeId identifier, UA_UInt64 callbackId) {
-    if(callbackId && (pthread_join(callbackId, NULL) != 0))
+    if(callbackId && (pthread_join((pthread_t)callbackId, NULL) != 0))
         UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
-                       "Pthread Join Failed thread: %ld\n", callbackId);
+                       "Pthread Join Failed thread: %lu\n", (unsigned long)callbackId);
 }
 
 /**
@@ -456,13 +476,30 @@ addReaderGroup(UA_Server *server) {
         readerGroupConfig.timeout = 0;  //Blocking  socket
     }
 
+#ifdef UA_ENABLE_PUBSUB_ENCRYPTION
+    /* Encryption settings */
+    UA_ServerConfig *config = UA_Server_getConfig(server);
+    readerGroupConfig.securityMode = UA_MESSAGESECURITYMODE_SIGNANDENCRYPT;
+    readerGroupConfig.securityPolicy = &config->pubSubConfig.securityPolicies[1];
+#endif
+
     readerGroupConfig.pubsubManagerCallback.addCustomCallback = addPubSubApplicationCallback;
     readerGroupConfig.pubsubManagerCallback.changeCustomCallback = changePubSubApplicationCallback;
     readerGroupConfig.pubsubManagerCallback.removeCustomCallback = removePubSubApplicationCallback;
 
     UA_Server_addReaderGroup(server, connectionIdentSubscriber, &readerGroupConfig,
                              &readerGroupIdentifier);
+
+#ifdef UA_ENABLE_PUBSUB_ENCRYPTION
+    /* Add the encryption key informaton */
+    UA_ByteString sk = {UA_AES128CTR_SIGNING_KEY_LENGTH, signingKeySub};
+    UA_ByteString ek = {UA_AES128CTR_KEY_LENGTH, encryptingKeySub};
+    UA_ByteString kn = {UA_AES128CTR_KEYNONCE_LENGTH, keyNonceSub};
+    // TODO security token not necessary for readergroup (extracted from security-header)
+    UA_Server_setReaderGroupEncryptionKeys(server, readerGroupIdentifier, 1, sk, ek, kn);
+#endif
 }
+
 
 /* Set SubscribedDataSet type to TargetVariables data type
  * Add SubscriberCounter variable to the DataSetReader */
@@ -817,6 +854,13 @@ addWriterGroup(UA_Server *server) {
 
     writerGroupConfig.messageSettings.encoding             = UA_EXTENSIONOBJECT_DECODED;
     writerGroupConfig.messageSettings.content.decoded.type = &UA_TYPES[UA_TYPES_UADPWRITERGROUPMESSAGEDATATYPE];
+
+#ifdef UA_ENABLE_PUBSUB_ENCRYPTION
+    UA_ServerConfig *config = UA_Server_getConfig(server);
+    writerGroupConfig.securityMode = UA_MESSAGESECURITYMODE_SIGNANDENCRYPT;
+    writerGroupConfig.securityPolicy = &config->pubSubConfig.securityPolicies[0];
+#endif
+
     /* The configuration flags for the messages are encapsulated inside the
      * message- and transport settings extension objects. These extension
      * objects are defined by the standard. e.g.
@@ -833,6 +877,14 @@ addWriterGroup(UA_Server *server) {
     UA_Server_addWriterGroup(server, connectionIdent, &writerGroupConfig, &writerGroupIdent);
     UA_Server_setWriterGroupOperational(server, writerGroupIdent);
     UA_UadpWriterGroupMessageDataType_delete(writerGroupMessage);
+
+#ifdef UA_ENABLE_PUBSUB_ENCRYPTION
+    /* Add the encryption key informaton */
+    UA_ByteString sk = {UA_AES128CTR_SIGNING_KEY_LENGTH, signingKeyPub};
+    UA_ByteString ek = {UA_AES128CTR_KEY_LENGTH, encryptingKeyPub};
+    UA_ByteString kn = {UA_AES128CTR_KEYNONCE_LENGTH, keyNoncePub};
+    UA_Server_setWriterGroupEncryptionKeys(server, writerGroupIdent, 1, sk, ek, kn);
+#endif
 }
 
 /* DataSetWriter handling */
@@ -864,7 +916,8 @@ updateMeasurementsPublisher(struct timespec start_time,
     }
 
     if(consolePrint)
-        UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,"Pub:%ld,%ld.%09ld\n", counterValue, start_time.tv_sec, start_time.tv_nsec);
+        UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,"Pub:%lu,%ld.%09ld\n",
+                    (long unsigned)counterValue, start_time.tv_sec, start_time.tv_nsec);
 
 
     if (signalTerm != UA_TRUE){
@@ -890,7 +943,8 @@ updateMeasurementsSubscriber(struct timespec receive_time,
     }
 
     if(consolePrint)
-        UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,"Sub:%ld,%ld.%09ld\n", counterValue, receive_time.tv_sec, receive_time.tv_nsec);
+        UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,"Sub:%lu,%ld.%09ld\n",
+                    (long unsigned)counterValue, receive_time.tv_sec, receive_time.tv_nsec);
 
     if (signalTerm != UA_TRUE)
     {
@@ -969,6 +1023,9 @@ void *publisherETF(void *arg) {
         nanoSecondFieldConversion(&nextnanosleeptime);
     }
 
+#if defined(PUBLISHER) && !defined(SUBSCRIBER)
+    runningServer = UA_FALSE;
+#endif
     UA_free(threadArgumentsPublisher);
     return (void*)NULL;
 }
@@ -1066,7 +1123,11 @@ void *userApplicationPubSub(void *arg) {
         *repeatedCounterData[iterator] = repeatedCounterValue;
     }
 
+#if defined(PUBLISHER) && defined(SUBSCRIBER)
     while (*runningPub || *runningSub) {
+#else
+    while (*runningPub) {
+#endif
         /* The User application threads wakes up at the configured userApp wake up percentage (30%) of each cycle */
         clock_nanosleep(CLOCKID, TIMER_ABSTIME, &nextnanosleeptimeUserApplication, NULL);
 #if defined(PUBLISHER)
@@ -1150,7 +1211,7 @@ static pthread_t threadCreation(UA_Int16 threadPriority, size_t coreAffinity, vo
         UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,":%s Cannot create thread\n", applicationName);
 
     if (CPU_ISSET(coreAffinity, &cpuset))
-        UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,"%s CPU CORE: %ld\n", applicationName, coreAffinity);
+        UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,"%s CPU CORE: %lu\n", applicationName, (unsigned long)coreAffinity);
 
    return threadID;
 }
@@ -1263,7 +1324,6 @@ static void removeServerNodes(UA_Server *server) {
     }
     UA_Server_deleteNode(server, runningPubStatusNodeID, UA_TRUE);
     UA_NodeId_clear(&runningPubStatusNodeID);
-
     UA_Server_deleteNode(server, subNodeID, UA_TRUE);
     UA_NodeId_clear(&subNodeID);
     for (UA_Int32 iterator = 0; iterator < REPEATED_NODECOUNTS; iterator++)
@@ -1274,7 +1334,7 @@ static void removeServerNodes(UA_Server *server) {
     UA_Server_deleteNode(server, runningSubStatusNodeID, UA_TRUE);
     UA_NodeId_clear(&runningSubStatusNodeID);
 }
-
+#if defined (PUBLISHER) && defined(SUBSCRIBER)
 /**
  * **Time Difference Calculation**
  *
@@ -1345,8 +1405,8 @@ static void computeLatencyAndGenerateCsv(char *latencyFileName) {
 
         if(((latencyCharIndex - prevLatencyCharIndex) + latencyCharIndex + 3) < MAX_MEASUREMENTS_FILEWRITE) {
             latencyCharIndex += (UA_UInt64)sprintf(&latency_measurements[latencyCharIndex],
-                                                   "%0.3f, %ld, %ld\n",
-                                                   finalTime, missed_counter, repeated_counter);
+                                                   "%0.3f, %lu, %lu\n",
+                                                   finalTime, (unsigned long)missed_counter, (unsigned long)repeated_counter);
         }
         else {
             UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
@@ -1358,10 +1418,10 @@ static void computeLatencyAndGenerateCsv(char *latencyFileName) {
     }
 
     /* Write into the latency file */
-    fwrite(&latency_measurements[0], prevLatencyCharIndex, 1, fp_latency);
+    fwrite(&latency_measurements[0], (size_t)prevLatencyCharIndex, 1, fp_latency);
     fclose(fp_latency);
 }
-
+#endif
 /**
  * **Usage function**
  *
@@ -1557,6 +1617,23 @@ int main(int argc, char **argv) {
     }
 
     UA_ServerConfig_setMinimal(config, PORT_NUMBER, NULL);
+#ifdef UA_ENABLE_PUBSUB_ENCRYPTION
+#if defined(PUBLISHER) && defined(SUBSCRIBER)
+    /* Instantiate the PubSub SecurityPolicy */
+    config->pubSubConfig.securityPolicies = (UA_PubSubSecurityPolicy*)
+        UA_calloc(2, sizeof(UA_PubSubSecurityPolicy));
+    config->pubSubConfig.securityPoliciesSize = 2;
+#else
+    config->pubSubConfig.securityPolicies = (UA_PubSubSecurityPolicy*)
+        UA_malloc(sizeof(UA_PubSubSecurityPolicy));
+    config->pubSubConfig.securityPoliciesSize = 1;
+#endif
+#endif
+
+#if defined(UA_ENABLE_PUBSUB_ENCRYPTION) && defined(PUBLISHER)
+    UA_PubSubSecurityPolicy_Aes128Ctr(&config->pubSubConfig.securityPolicies[0],
+                                      &config->logger);
+#endif
 
 #if defined(PUBLISHER)
     UA_NetworkAddressUrlDataType networkAddressUrlPub;
@@ -1606,6 +1683,11 @@ if (enableCsvLog) {
     UA_Server_freezeWriterGroupConfiguration(server, writerGroupIdent);
 #endif
 
+#if defined(UA_ENABLE_PUBSUB_ENCRYPTION) && defined(SUBSCRIBER)
+    UA_PubSubSecurityPolicy_Aes128Ctr(&config->pubSubConfig.securityPolicies[1],
+                                      &config->logger);
+#endif
+
 #if defined (PUBLISHER) && defined(SUBSCRIBER)
     UA_ServerConfig_addPubSubTransportLayer(config, UA_PubSubTransportLayerEthernet());
 #endif
@@ -1631,23 +1713,24 @@ if (enableCsvLog) {
 #endif
 
     retval |= UA_Server_run(server, &runningServer);
+#if defined(SUBSCRIBER)
     UA_Server_unfreezeReaderGroupConfiguration(server, readerGroupIdentifier);
+#endif
 #if defined(PUBLISHER) || defined(SUBSCRIBER)
     returnValue = pthread_join(userThreadID, NULL);
     if (returnValue != 0)
         UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,"\nPthread Join Failed for User thread:%d\n", returnValue);
 #endif
-
     if (enableCsvLog) {
 #if defined(PUBLISHER)
         /* Write the published data in the publisher_T1.csv file */
         size_t pubLoopVariable               = 0;
         for (pubLoopVariable = 0; pubLoopVariable < measurementsPublisher;
              pubLoopVariable++) {
-            fprintf(fpPublisher, "%ld,%ld.%09ld\n",
-                    publishCounterValue[pubLoopVariable],
-                    publishTimestamp[pubLoopVariable].tv_sec,
-                    publishTimestamp[pubLoopVariable].tv_nsec);
+            fprintf(fpPublisher, "%lu,%lu.%09lu\n",
+                    (long unsigned)publishCounterValue[pubLoopVariable],
+                    (long unsigned)publishTimestamp[pubLoopVariable].tv_sec,
+                    (long unsigned)publishTimestamp[pubLoopVariable].tv_nsec);
         }
 #endif
 #if defined(SUBSCRIBER)
@@ -1655,17 +1738,19 @@ if (enableCsvLog) {
         size_t subLoopVariable               = 0;
         for (subLoopVariable = 0; subLoopVariable < measurementsSubscriber;
              subLoopVariable++) {
-            fprintf(fpSubscriber, "%ld,%ld.%09ld\n",
-                    subscribeCounterValue[subLoopVariable],
-                    subscribeTimestamp[subLoopVariable].tv_sec,
-                    subscribeTimestamp[subLoopVariable].tv_nsec);
+            fprintf(fpSubscriber, "%lu,%lu.%09lu\n",
+                    (long unsigned)subscribeCounterValue[subLoopVariable],
+                    (long unsigned)subscribeTimestamp[subLoopVariable].tv_sec,
+                    (long unsigned)subscribeTimestamp[subLoopVariable].tv_nsec);
         }
 #endif
     }
 
     if(enableLatencyCsvLog) {
+#if defined (PUBLISHER) && defined(SUBSCRIBER)
         char *latencyCsvName = LATENCY_CSV_FILE_NAME;
         computeLatencyAndGenerateCsv(latencyCsvName);
+#endif
     }
 
 #if defined(PUBLISHER) || defined(SUBSCRIBER)
@@ -1688,7 +1773,6 @@ if (enableCsvLog) {
     if (enableCsvLog)
         fclose(fpPublisher);
 #endif
-
 #if defined(SUBSCRIBER)
     UA_free(runningSub);
     UA_free(subCounterData);

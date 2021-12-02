@@ -117,11 +117,14 @@ GET_PROPERTY(ua_architecture_sources GLOBAL PROPERTY UA_ARCHITECTURE_SOURCES)
 
 set(ua_architecture_sources ${ua_architecture_sources}
     ${PROJECT_SOURCE_DIR}/arch/network_tcp.c
+    ${PROJECT_SOURCE_DIR}/arch/eventloop_posix.c
+    ${PROJECT_SOURCE_DIR}/arch/eventloop_posix_tcp.c
 )
 
 set(ua_architecture_headers ${ua_architecture_headers}
     ${PROJECT_SOURCE_DIR}/include/open62541/network_tcp.h
     ${PROJECT_SOURCE_DIR}/include/open62541/architecture_functions.h
+    ${PROJECT_SOURCE_DIR}/arch/eventloop_posix.h
 )
 
 if(UA_ENABLE_WEBSOCKET_SERVER)
@@ -289,8 +292,9 @@ if((UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS) AND (NOT (UA_ENABLE_SUBSCRIPTIONS
 endif()
 
 if(UA_ENABLE_COVERAGE)
-  set(CMAKE_BUILD_TYPE DEBUG)
-  set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -g -O0 -fprofile-arcs -ftest-coverage")
+  # We are using the scripts provided at for coverage testing: https://github.com/RWTH-HPC/CMake-codecov
+  set(ENABLE_COVERAGE ON)
+  find_package(codecov REQUIRED)
   set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -fprofile-arcs -ftest-coverage -lgcov")
   set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -fprofile-arcs -ftest-coverage")
 endif()
@@ -673,7 +677,10 @@ if(NOT UA_FORCE_CPP AND (CMAKE_COMPILER_IS_GNUCC OR "x${CMAKE_C_COMPILER_ID}" ST
 
     # Force 32bit build
     if(UA_FORCE_32BIT)
-	check_add_cc_flag("-m32")
+      if(MSVC)
+        message(FATAL_ERROR "Select the 32bit (cross-) compiler instead of forcing compiler options")
+      endif()
+      set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -m32") # GCC and Clang, possibly more
     endif()
 
     if(NOT MINGW AND NOT UA_BUILD_OSS_FUZZ)
@@ -856,6 +863,7 @@ set(exported_headers ${PROJECT_BINARY_DIR}/src_generated/open62541/config.h
                      ${PROJECT_SOURCE_DIR}/include/open62541/plugin/pubsub.h
                      ${PROJECT_SOURCE_DIR}/deps/ziptree.h
                      ${PROJECT_SOURCE_DIR}/deps/aa_tree.h
+                     ${PROJECT_SOURCE_DIR}/include/open62541/plugin/eventloop.h
                      ${PROJECT_SOURCE_DIR}/include/open62541/plugin/nodestore.h
                      ${historizing_exported_headers}
                      ${PROJECT_SOURCE_DIR}/include/open62541/server_pubsub.h
@@ -875,7 +883,7 @@ set(internal_headers ${PROJECT_SOURCE_DIR}/deps/open62541_queue.h
                      ${PROJECT_BINARY_DIR}/src_generated/open62541/transport_generated_handling.h
                      ${PROJECT_SOURCE_DIR}/src/ua_connection_internal.h
                      ${PROJECT_SOURCE_DIR}/src/ua_securechannel.h
-                     ${PROJECT_SOURCE_DIR}/src/ua_timer.h
+                     ${PROJECT_SOURCE_DIR}/arch/common/ua_timer.h
                      ${PROJECT_SOURCE_DIR}/src/server/ua_session.h
                      ${PROJECT_SOURCE_DIR}/src/server/ua_subscription.h
                      ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_networkmessage.h
@@ -896,7 +904,7 @@ set(lib_sources ${PROJECT_SOURCE_DIR}/src/ua_types.c
                 ${PROJECT_BINARY_DIR}/src_generated/open62541/transport_generated.c
                 ${PROJECT_BINARY_DIR}/src_generated/open62541/statuscodes.c
                 ${PROJECT_SOURCE_DIR}/src/ua_util.c
-                ${PROJECT_SOURCE_DIR}/src/ua_timer.c
+                ${PROJECT_SOURCE_DIR}/arch/common/ua_timer.c
                 ${PROJECT_SOURCE_DIR}/src/ua_connection.c
                 ${PROJECT_SOURCE_DIR}/src/ua_securechannel.c
                 ${PROJECT_SOURCE_DIR}/src/ua_securechannel_crypto.c
@@ -1360,8 +1368,11 @@ else()
                       open62541-generator-statuscode
                       open62541-generator-namespace
                       )
-
+    if(UA_ENABLE_COVERAGE)
+        add_coverage(open62541-object)
+    endif()
     target_include_directories(open62541-object PRIVATE ${PROJECT_SOURCE_DIR}/src)
+    target_include_directories(open62541-object PRIVATE ${PROJECT_SOURCE_DIR}/arch) # TODO: Remove once the EventLoop is integrated
 
     add_library(open62541-plugins OBJECT ${default_plugin_sources} ${ua_architecture_sources} ${exported_headers})
     add_dependencies(open62541-plugins open62541-generator-types open62541-generator-transport open62541-generator-namespace)

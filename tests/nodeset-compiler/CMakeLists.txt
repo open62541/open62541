@@ -45,7 +45,7 @@ if(UA_NAMESPACE_ZERO STREQUAL "FULL")
     ua_generate_nodeset_and_datatypes(
         NAME "tests-plc"
         # PLCopen does not define custom types. Only generate the nodeset
-        FILE_NS "${open62541_NODESET_DIR}/PLCopen/Opc.Ua.Plc.NodeSet2.xml"
+        FILE_NS "${open62541_NODESET_DIR}/PLCopen/Opc.Ua.PLCopen.NodeSet2_V1.02.xml"
         # PLCopen depends on the di nodeset, which must be generated before
         OUTPUT_DIR "${GENERATE_OUTPUT_DIR}"
         DEPENDS "tests-di"

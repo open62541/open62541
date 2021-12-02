@@ -32,6 +32,12 @@
 /* This functionality of this API will be used in future to create mirror Variables - TODO */
 /* #define UA_MAX_SIZENAME           64 */ /* Max size of Qualified Name of Subscribed Variable */
 
+/* Static memory allocation for the message nonce */
+#ifdef UA_ENABLE_PUBSUB_ENCRYPTION
+#define MESSAGE_NONCE_LENGTH      8
+static UA_Byte MessageNonceGenerated[MESSAGE_NONCE_LENGTH];
+#endif
+
 /* Clear DataSetReader */
 static void
 UA_DataSetReader_clear(UA_Server *server, UA_DataSetReader *dataSetReader);
@@ -210,10 +216,9 @@ UA_DataSetReader_generateDataSetMessage(UA_Server *server,
 }
 
 UA_StatusCode
-UA_DataSetReader_generateNetworkMessage(UA_PubSubConnection *pubSubConnection,
-                                        UA_DataSetReader *dataSetReader,
-                                        UA_DataSetMessage *dsm, UA_UInt16 *writerId,
-                                        UA_Byte dsmCount, UA_NetworkMessage *nm) {
+UA_DataSetReader_generateNetworkMessage(UA_PubSubConnection *pubSubConnection, UA_ReaderGroup *readerGroup,
+                                        UA_DataSetReader *dataSetReader, UA_DataSetMessage *dsm, UA_UInt16 *writerId, UA_Byte dsmCount,
+                                        UA_NetworkMessage *nm) {
     UA_ExtensionObject *settings = &dataSetReader->config.messageSettings;
     if(settings->content.decoded.type != &UA_TYPES[UA_TYPES_UADPDATASETREADERMESSAGEDATATYPE])
         return UA_STATUSCODE_BADNOTSUPPORTED;
@@ -242,6 +247,28 @@ UA_DataSetReader_generateNetworkMessage(UA_PubSubConnection *pubSubConnection,
                                  (u64)UA_UADPNETWORKMESSAGECONTENTMASK_DATASETCLASSID) != 0;
     nm->promotedFieldsEnabled = ((u64)dsrm->networkMessageContentMask &
                                  (u64)UA_UADPNETWORKMESSAGECONTENTMASK_PROMOTEDFIELDS) != 0;
+    /* Set the SecurityHeader */
+#ifdef UA_ENABLE_PUBSUB_ENCRYPTION
+    if(readerGroup->config.securityMode > UA_MESSAGESECURITYMODE_NONE) {
+        nm->securityEnabled = true;
+        nm->securityHeader.networkMessageSigned = true;
+        if(readerGroup->config.securityMode >= UA_MESSAGESECURITYMODE_SIGNANDENCRYPT)
+            nm->securityHeader.networkMessageEncrypted = true;
+        nm->securityHeader.securityTokenId = readerGroup->securityTokenId;
+
+        /* Generate the MessageNonce */
+        nm->securityHeader.messageNonce.length = MESSAGE_NONCE_LENGTH;
+        nm->securityHeader.messageNonce.data = MessageNonceGenerated;
+
+        nm->securityHeader.messageNonce.length = 4; /* Generate 4 random bytes */
+        UA_StatusCode rv = readerGroup->config.securityPolicy->symmetricModule.
+            generateNonce(readerGroup->config.securityPolicy->policyContext,
+                          &nm->securityHeader.messageNonce);
+        if(rv != UA_STATUSCODE_GOOD)
+            return rv;
+        nm->securityHeader.messageNonce.length = 8;
+    }
+#endif
     nm->version = 1;
     nm->networkMessageType = UA_NETWORKMESSAGE_DATASET;
 
@@ -1359,6 +1386,26 @@ decodeAndProcessNetworkMessageRT(UA_Server *server, UA_ReaderGroup *readerGroup,
     size_t currentPosition = 0;
     UA_DataSetReader *dataSetReader = LIST_FIRST(&readerGroup->readers);
     UA_NetworkMessage *nm = dataSetReader->bufferedMessage.nm;
+
+#ifdef UA_ENABLE_PUBSUB_ENCRYPTION
+    UA_NetworkMessage currentNetworkMessage;
+    memset(&currentNetworkMessage, 0, sizeof(UA_NetworkMessage));
+    UA_StatusCode rv;
+    size_t payLoadPosition = 0;
+    rv = UA_NetworkMessage_decodeHeaders(
+        buffer, &payLoadPosition, &currentNetworkMessage);
+
+    UA_CHECK_STATUS_ERROR(rv, return rv, &server->config.logger, UA_LOGCATEGORY_SERVER,
+                          "PubSub receive. decoding headers failed");
+    rv = verifyAndDecryptNetworkMessage(&server->config.logger,
+                                        buffer,
+                                        &payLoadPosition,
+                                        &currentNetworkMessage,
+                                        readerGroup);
+    UA_CHECK_STATUS_WARN(rv, return rv, &server->config.logger, UA_LOGCATEGORY_SERVER,
+                         "Subscribe failed. verify and decrypt network message failed.");
+    UA_NetworkMessage_clear(&currentNetworkMessage);
+#endif
 
     /* Decode only the necessary offset and update the networkMessage */
     UA_StatusCode res =
