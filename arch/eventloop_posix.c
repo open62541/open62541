@@ -470,6 +470,19 @@ UA_EventLoop_deregisterEventSource(UA_EventLoop *el, UA_EventSource *es) {
     return UA_STATUSCODE_GOOD;
 }
 
+UA_EventSource *
+UA_EventLoop_findEventSource(UA_EventLoop *el, const UA_String name) {
+    UA_LOCK(&el->elMutex);
+    UA_EventSource *s = el->eventSources;
+    while(s) {
+        if(UA_String_equal(&name, &s->name))
+            break;
+        s = s->next;
+    }
+    UA_UNLOCK(&el->elMutex);
+    return s;
+}
+
 /********************************/
 /* Registering File Descriptors */
 /********************************/
