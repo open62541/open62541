@@ -178,6 +178,11 @@ UA_EXPORT UA_StatusCode
 UA_EventLoop_deregisterEventSource(UA_EventLoop *el,
                                    UA_EventSource *es);
 
+/* Look up the EventSource by name. Returns the first EventSource of that name
+ * (duplicates should be avoided). */
+UA_EXPORT UA_EventSource *
+UA_EventLoop_findEventSource(UA_EventLoop *el, const UA_String name);
+
 /**
  * Connection Manager
  * ------------------
