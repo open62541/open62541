@@ -564,7 +564,7 @@ static UA_StatusCode
 readMonitoredItems(UA_Server *server, const UA_NodeId *sessionId, void *sessionContext,
                    const UA_NodeId *methodId, void *methodContext, const UA_NodeId *objectId,
                    void *objectContext, size_t inputSize, const UA_Variant *input,
-                   size_t outputSize, UA_Variant *output) {
+                   size_t outputSize, UA_Variant *output, UA_Argument *outputArgs) {
     /* Return two empty arrays by default */
     UA_Variant_setArray(&output[0], UA_Array_new(0, &UA_TYPES[UA_TYPES_UINT32]),
                         0, &UA_TYPES[UA_TYPES_UINT32]);

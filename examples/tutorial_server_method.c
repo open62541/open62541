@@ -44,7 +44,8 @@ helloWorldMethodCallback(UA_Server *server,
                          const UA_NodeId *methodId, void *methodContext,
                          const UA_NodeId *objectId, void *objectContext,
                          size_t inputSize, const UA_Variant *input,
-                         size_t outputSize, UA_Variant *output) {
+                         size_t outputSize, UA_Variant *output,
+                         UA_Argument *outputArguments) {
     UA_String *inputStr = (UA_String*)input->data;
     UA_String tmp = UA_STRING_ALLOC("Hello ");
     if(inputStr->length > 0) {
@@ -99,7 +100,8 @@ IncInt32ArrayMethodCallback(UA_Server *server,
                             const UA_NodeId *methodId, void *methodContext,
                             const UA_NodeId *objectId, void *objectContext,
                             size_t inputSize, const UA_Variant *input,
-                            size_t outputSize, UA_Variant *output) {
+                            size_t outputSize, UA_Variant *output,
+                            UA_Argument *outputArguments) {
     UA_Int32 *inputArray = (UA_Int32*)input[0].data;
     UA_Int32 delta = *(UA_Int32*)input[1].data;
 

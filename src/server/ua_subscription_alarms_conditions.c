@@ -1197,7 +1197,8 @@ disableMethodCallback(UA_Server *server, const UA_NodeId *sessionId,
                       void *sessionContext, const UA_NodeId *methodId,
                       void *methodContext, const UA_NodeId *objectId,
                       void *objectContext, size_t inputSize,
-                      const UA_Variant *input, size_t outputSize, UA_Variant *output) {
+                      const UA_Variant *input, size_t outputSize, UA_Variant *output,
+                      UA_Argument *outputArgs) {
     UA_NodeId conditionTypeNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_CONDITIONTYPE);
     if(UA_NodeId_equal(objectId, &conditionTypeNodeId)) {
         UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_USERLAND,
@@ -1227,7 +1228,7 @@ enableMethodCallback(UA_Server *server, const UA_NodeId *sessionId,
                      void *methodContext, const UA_NodeId *objectId,
                      void *objectContext, size_t inputSize,
                      const UA_Variant *input, size_t outputSize,
-                     UA_Variant *output) {
+                     UA_Variant *output, UA_Argument *outputArgs) {
     UA_NodeId conditionTypeNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_CONDITIONTYPE);
     if(UA_NodeId_equal(objectId, &conditionTypeNodeId)) {
         UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_USERLAND,
@@ -1258,7 +1259,7 @@ addCommentMethodCallback(UA_Server *server, const UA_NodeId *sessionId,
                          void *methodContext, const UA_NodeId *objectId,
                          void *objectContext, size_t inputSize,
                          const UA_Variant *input, size_t outputSize,
-                         UA_Variant *output) {
+                         UA_Variant *output, UA_Argument *outputArgs) {
     UA_QualifiedName fieldComment = UA_QUALIFIEDNAME(0, CONDITION_FIELD_COMMENT);
     UA_QualifiedName fieldSourceTimeStamp =
         UA_QUALIFIEDNAME(0, CONDITION_FIELD_CONDITIONVARIABLE_SOURCETIMESTAMP);
@@ -1342,7 +1343,7 @@ acknowledgeMethodCallback(UA_Server *server, const UA_NodeId *sessionId,
                           void *methodContext, const UA_NodeId *objectId,
                           void *objectContext, size_t inputSize,
                           const UA_Variant *input, size_t outputSize,
-                          UA_Variant *output) {
+                          UA_Variant *output, UA_Argument *outputArgs) {
     UA_QualifiedName fieldComment = UA_QUALIFIEDNAME(0, CONDITION_FIELD_COMMENT);
     UA_Variant value;
 
@@ -1418,7 +1419,7 @@ confirmMethodCallback(UA_Server *server, const UA_NodeId *sessionId,
                       void *methodContext, const UA_NodeId *objectId,
                       void *objectContext, size_t inputSize,
                       const UA_Variant *input, size_t outputSize,
-                      UA_Variant *output) {
+                      UA_Variant *output, UA_Argument *outputArgs) {
     UA_QualifiedName fieldComment = UA_QUALIFIEDNAME(0, CONDITION_FIELD_COMMENT);
     UA_Variant value;
 
@@ -1644,7 +1645,7 @@ refresh2MethodCallback(UA_Server *server, const UA_NodeId *sessionId,
                       void *methodContext, const UA_NodeId *objectId,
                       void *objectContext, size_t inputSize,
                       const UA_Variant *input, size_t outputSize,
-                      UA_Variant *output) {
+                      UA_Variant *output, UA_Argument *outputArgs) {
     //TODO implement logic for subscription array
     /* Check if valid subscriptionId */
     UA_Session *session = UA_Server_getSessionById(server, sessionId);
@@ -1679,7 +1680,7 @@ refreshMethodCallback(UA_Server *server, const UA_NodeId *sessionId,
                       void *methodContext, const UA_NodeId *objectId,
                       void *objectContext, size_t inputSize,
                       const UA_Variant *input, size_t outputSize,
-                      UA_Variant *output) {
+                      UA_Variant *output, UA_Argument *outputArgs) {
     //TODO implement logic for subscription array
     /* Check if valid subscriptionId */
     UA_Session *session = UA_Server_getSessionById(server, sessionId);

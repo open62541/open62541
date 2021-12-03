@@ -303,7 +303,8 @@ helloWorld(UA_Server *server,
            const UA_NodeId *methodId, void *methodContext,
            const UA_NodeId *objectId, void *objectContext,
            size_t inputSize, const UA_Variant *input,
-           size_t outputSize, UA_Variant *output) {
+           size_t outputSize, UA_Variant *output,
+           UA_Argument *outputArguments) {
     /* input is a scalar string (checked by the server) */
     UA_String *name = (UA_String *)input[0].data;
     UA_String hello = UA_STRING("Hello ");
@@ -323,7 +324,8 @@ noargMethod(UA_Server *server,
             const UA_NodeId *methodId, void *methodContext,
             const UA_NodeId *objectId, void *objectContext,
             size_t inputSize, const UA_Variant *input,
-            size_t outputSize, UA_Variant *output) {
+            size_t outputSize, UA_Variant *output,
+            UA_Argument *outputArguments) {
     return UA_STATUSCODE_GOOD;
 }
 
@@ -333,7 +335,8 @@ outargMethod(UA_Server *server,
              const UA_NodeId *methodId, void *methodContext,
              const UA_NodeId *objectId, void *objectContext,
              size_t inputSize, const UA_Variant *input,
-             size_t outputSize, UA_Variant *output) {
+             size_t outputSize, UA_Variant *output,
+             UA_Argument *outputArguments) {
     UA_Int32 out = 42;
     UA_Variant_setScalarCopy(output, &out, &UA_TYPES[UA_TYPES_INT32]);
     return UA_STATUSCODE_GOOD;

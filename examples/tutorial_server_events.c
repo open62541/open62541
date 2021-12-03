@@ -91,7 +91,8 @@ generateEventMethodCallback(UA_Server *server,
                          const UA_NodeId *methodId, void *methodContext,
                          const UA_NodeId *objectId, void *objectContext,
                          size_t inputSize, const UA_Variant *input,
-                         size_t outputSize, UA_Variant *output) {
+                         size_t outputSize, UA_Variant *output,
+                         UA_Argument *outputArguments) {
 
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "Creating event");
 

@@ -614,7 +614,8 @@ addPubSubConnectionAction(UA_Server *server,
                           const UA_NodeId *methodId, void *methodContext,
                           const UA_NodeId *objectId, void *objectContext,
                           size_t inputSize, const UA_Variant *input,
-                          size_t outputSize, UA_Variant *output){
+                          size_t outputSize, UA_Variant *output,
+                          UA_Argument *outputArgs){
     UA_StatusCode retVal = UA_STATUSCODE_GOOD;
     UA_PubSubConnectionDataType pubSubConnectionDataType = *((UA_PubSubConnectionDataType *) input[0].data);
 
@@ -697,7 +698,8 @@ removeConnectionAction(UA_Server *server,
                        const UA_NodeId *methodId, void *methodContext,
                        const UA_NodeId *objectId, void *objectContext,
                        size_t inputSize, const UA_Variant *input,
-                       size_t outputSize, UA_Variant *output){
+                       size_t outputSize, UA_Variant *output,
+                       UA_Argument *outputArgs){
     UA_StatusCode retVal = UA_STATUSCODE_GOOD;
     UA_NodeId nodeToRemove = *((UA_NodeId *) input[0].data);
     retVal |= UA_Server_removePubSubConnection(server, nodeToRemove);
@@ -779,7 +781,8 @@ addDataSetReaderAction(UA_Server *server,
                        const UA_NodeId *methodId, void *methodContext,
                        const UA_NodeId *objectId, void *objectContext,
                        size_t inputSize, const UA_Variant *input,
-                       size_t outputSize, UA_Variant *output){
+                       size_t outputSize, UA_Variant *output,
+                       UA_Argument *outputArgs){
     UA_StatusCode retVal = UA_STATUSCODE_GOOD;
     UA_ReaderGroup *rg = UA_ReaderGroup_findRGbyId(server, *objectId);
     if(rg->configurationFrozen) {
@@ -814,7 +817,8 @@ removeDataSetReaderAction(UA_Server *server,
                           const UA_NodeId *methodId, void *methodContext,
                           const UA_NodeId *objectId, void *objectContext,
                           size_t inputSize, const UA_Variant *input,
-                          size_t outputSize, UA_Variant *output){
+                          size_t outputSize, UA_Variant *output,
+                          UA_Argument *outputArgs){
     UA_NodeId nodeToRemove = *((UA_NodeId *)input[0].data);
     return UA_Server_removeDataSetReader(server, nodeToRemove);
 }
@@ -830,7 +834,8 @@ addDataSetFolderAction(UA_Server *server,
                        const UA_NodeId *methodId, void *methodContext,
                        const UA_NodeId *objectId, void *objectContext,
                        size_t inputSize, const UA_Variant *input,
-                       size_t outputSize, UA_Variant *output){
+                       size_t outputSize, UA_Variant *output,
+                       UA_Argument *outputArgs){
     /* defined in R 1.04 9.1.4.5.7 */
     UA_StatusCode retVal = UA_STATUSCODE_GOOD;
     UA_String newFolderName = *((UA_String *) input[0].data);
@@ -869,7 +874,8 @@ removeDataSetFolderAction(UA_Server *server,
                           const UA_NodeId *methodId, void *methodContext,
                           const UA_NodeId *objectId, void *objectContext,
                           size_t inputSize, const UA_Variant *input,
-                          size_t outputSize, UA_Variant *output) {
+                          size_t outputSize, UA_Variant *output,
+                          UA_Argument *outputArgs) {
     UA_NodeId nodeToRemove = *((UA_NodeId *) input[0].data);
     return UA_Server_deleteNode(server, nodeToRemove, true);
 }
@@ -963,7 +969,8 @@ addPublishedDataItemsAction(UA_Server *server,
                             const UA_NodeId *methodId, void *methodContext,
                             const UA_NodeId *objectId, void *objectContext,
                             size_t inputSize, const UA_Variant *input,
-                            size_t outputSize, UA_Variant *output){
+                            size_t outputSize, UA_Variant *output,
+                            UA_Argument *outputArgs){
     UA_StatusCode retVal = UA_STATUSCODE_GOOD;
     size_t fieldNameAliasesSize = input[1].arrayLength;
     UA_String * fieldNameAliases = (UA_String *) input[1].data;
@@ -1029,7 +1036,8 @@ addVariablesAction(UA_Server *server,
                    const UA_NodeId *methodId, void *methodContext,
                    const UA_NodeId *objectId, void *objectContext,
                    size_t inputSize, const UA_Variant *input,
-                   size_t outputSize, UA_Variant *output){
+                   size_t outputSize, UA_Variant *output,
+                   UA_Argument *outputArgs){
     return UA_STATUSCODE_GOOD;
 }
 
@@ -1039,7 +1047,8 @@ removeVariablesAction(UA_Server *server,
                       const UA_NodeId *methodId, void *methodContext,
                       const UA_NodeId *objectId, void *objectContext,
                       size_t inputSize, const UA_Variant *input,
-                      size_t outputSize, UA_Variant *output){
+                      size_t outputSize, UA_Variant *output,
+                      UA_Argument *outputArgs){
     return UA_STATUSCODE_GOOD;
 }
 #endif
@@ -1058,7 +1067,8 @@ removePublishedDataSetAction(UA_Server *server,
                              const UA_NodeId *methodId, void *methodContext,
                              const UA_NodeId *objectId, void *objectContext,
                              size_t inputSize, const UA_Variant *input,
-                             size_t outputSize, UA_Variant *output){
+                             size_t outputSize, UA_Variant *output,
+                             UA_Argument *outputArgs){
     UA_NodeId nodeToRemove = *((UA_NodeId *) input[0].data);
     return UA_Server_removePublishedDataSet(server, nodeToRemove);
 }
@@ -1226,7 +1236,8 @@ addWriterGroupAction(UA_Server *server,
                              const UA_NodeId *methodId, void *methodContext,
                              const UA_NodeId *objectId, void *objectContext,
                              size_t inputSize, const UA_Variant *input,
-                             size_t outputSize, UA_Variant *output){
+                             size_t outputSize, UA_Variant *output,
+                             UA_Argument *outputArgs){
     UA_StatusCode retVal = UA_STATUSCODE_GOOD;
     UA_WriterGroupDataType *writerGroupDataType = ((UA_WriterGroupDataType *) input[0].data);
     UA_NodeId writerGroupId;
@@ -1259,7 +1270,8 @@ removeGroupAction(UA_Server *server,
                   const UA_NodeId *methodId, void *methodContext,
                   const UA_NodeId *objectId, void *objectContext,
                   size_t inputSize, const UA_Variant *input,
-                  size_t outputSize, UA_Variant *output){
+                  size_t outputSize, UA_Variant *output,
+                  UA_Argument *outputArgs){
     UA_NodeId nodeToRemove = *((UA_NodeId *)input->data);
     if(UA_WriterGroup_findWGbyId(server, nodeToRemove)) {
         UA_WriterGroup *wg = UA_WriterGroup_findWGbyId(server, nodeToRemove);
@@ -1313,7 +1325,8 @@ addReaderGroupAction(UA_Server *server,
                      const UA_NodeId *methodId, void *methodContext,
                      const UA_NodeId *objectId, void *objectContext,
                      size_t inputSize, const UA_Variant *input,
-                     size_t outputSize, UA_Variant *output){
+                     size_t outputSize, UA_Variant *output,
+                     UA_Argument *outputArgs){
     UA_StatusCode retVal = UA_STATUSCODE_GOOD;
     UA_ReaderGroupDataType *readerGroupDataType = ((UA_ReaderGroupDataType *) input->data);
     UA_NodeId readerGroupId;
@@ -1409,7 +1422,8 @@ addDataSetWriterAction(UA_Server *server,
                        const UA_NodeId *methodId, void *methodContext,
                        const UA_NodeId *objectId, void *objectContext,
                        size_t inputSize, const UA_Variant *input,
-                       size_t outputSize, UA_Variant *output){
+                       size_t outputSize, UA_Variant *output,
+                       UA_Argument *outputArgs){
     UA_StatusCode retVal = UA_STATUSCODE_GOOD;
     UA_WriterGroup *wg = UA_WriterGroup_findWGbyId(server, *objectId);
     if(!wg) {
@@ -1451,7 +1465,8 @@ removeDataSetWriterAction(UA_Server *server,
                           const UA_NodeId *methodId, void *methodContext,
                           const UA_NodeId *objectId, void *objectContext,
                           size_t inputSize, const UA_Variant *input,
-                          size_t outputSize, UA_Variant *output){
+                          size_t outputSize, UA_Variant *output,
+                          UA_Argument *outputArgs){
     UA_NodeId nodeToRemove = *((UA_NodeId *) input[0].data);
     return UA_Server_removeDataSetWriter(server, nodeToRemove);
 }
@@ -1578,7 +1593,8 @@ UA_loadPubSubConfigMethodCallback(UA_Server *server,
                                   const UA_NodeId *methodId, void *methodContext,
                                   const UA_NodeId *objectId, void *objectContext,
                                   size_t inputSize, const UA_Variant *input,
-                                  size_t outputSize, UA_Variant *output) {
+                                  size_t outputSize, UA_Variant *output,
+                                  UA_Argument *outputArguments) {
     if(inputSize == 1) {
         UA_ByteString *inputStr = (UA_ByteString*)input->data;
         return UA_PubSubManager_loadPubSubConfigFromByteString(server, *inputStr);
@@ -1621,7 +1637,8 @@ UA_deletePubSubConfigMethodCallback(UA_Server *server,
                                     const UA_NodeId *methodId, void *methodContext,
                                     const UA_NodeId *objectId, void *objectContext,
                                     size_t inputSize, const UA_Variant *input,
-                                    size_t outputSize, UA_Variant *output) {
+                                    size_t outputSize, UA_Variant *output,
+                                    UA_Argument *outputArguments) {
     UA_PubSubManager_delete(server, &(server->pubSubManager));
     return UA_STATUSCODE_GOOD;
 }

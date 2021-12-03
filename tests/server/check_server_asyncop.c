@@ -26,7 +26,8 @@ methodCallback(UA_Server *serverArg,
          const UA_NodeId *methodId, void *methodContext,
          const UA_NodeId *objectId, void *objectContext,
          size_t inputSize, const UA_Variant *input,
-         size_t outputSize, UA_Variant *output) {
+         size_t outputSize, UA_Variant *output,
+         UA_Argument *outputArguments) {
     return UA_STATUSCODE_GOOD;
 }
 

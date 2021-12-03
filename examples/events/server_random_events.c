@@ -162,7 +162,8 @@ addGenerateSampleEventsMethodCallback(UA_Server *server,
                              const UA_NodeId *methodId, void *methodContext,
                              const UA_NodeId *objectId, void *objectContext,
                              size_t inputSize, const UA_Variant *input,
-                             size_t outputSize, UA_Variant *output) {
+                             size_t outputSize, UA_Variant *output,
+                             UA_Argument *outputArguments) {
     UA_StatusCode retval;
     UA_NodeId* eventNodeId;
     eventNodeId = (UA_NodeId*)
@@ -193,7 +194,8 @@ generateRandomEventMethodCallback(UA_Server *server,
                                   const UA_NodeId *methodId, void *methodContext,
                                   const UA_NodeId *objectId, void *objectContext,
                                   size_t inputSize, const UA_Variant *input,
-                                  size_t outputSize, UA_Variant *output) {
+                                  size_t outputSize, UA_Variant *output,
+                                  UA_Argument *outputArguments) {
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "Creating event");
     UA_UInt32 random = (UA_UInt32) UA_UInt32_random() % SAMPLE_EVENT_TYPES_COUNT;
     /* set up event */

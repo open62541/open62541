@@ -301,8 +301,11 @@ callWithMethodAndObject(UA_Server *server, UA_Session *session,
 
     /* Allocate the output arguments array */
     size_t outputArgsSize = 0;
-    if(outputArguments)
+    UA_Argument* outputArgsDescriptions = NULL;
+    if(outputArguments) {
         outputArgsSize = outputArguments->value.data.value.value.arrayLength;
+        outputArgsDescriptions = (UA_Argument*)outputArguments->value.data.value.value.data;
+    }
     result->outputArguments = (UA_Variant*)
         UA_Array_new(outputArgsSize, &UA_TYPES[UA_TYPES_VARIANT]);
     if(!result->outputArguments) {
@@ -311,17 +314,19 @@ callWithMethodAndObject(UA_Server *server, UA_Session *session,
     }
     result->outputArgumentsSize = outputArgsSize;
 
-    /* Release the output arguments node */
-    UA_NODESTORE_RELEASE(server, (const UA_Node*)outputArguments);
-
     /* Call the method */
     UA_UNLOCK(&server->serviceMutex);
     result->statusCode = method->method(server, &session->sessionId, session->sessionHandle,
                                         &method->head.nodeId, method->head.context,
                                         &object->head.nodeId, object->head.context,
                                         request->inputArgumentsSize, request->inputArguments,
-                                        result->outputArgumentsSize, result->outputArguments);
+                                        result->outputArgumentsSize, result->outputArguments,
+                                        outputArgsDescriptions);
     UA_LOCK(&server->serviceMutex);
+
+    /* Release the output arguments node */
+    UA_NODESTORE_RELEASE(server, (const UA_Node*)outputArguments);
+
     /* TODO: Verify Output matches the argument definition */
 }
 

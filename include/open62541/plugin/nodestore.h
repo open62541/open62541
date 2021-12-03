@@ -717,7 +717,7 @@ typedef UA_StatusCode
                      void *methodContext, const UA_NodeId *objectId,
                      void *objectContext, size_t inputSize,
                      const UA_Variant *input, size_t outputSize,
-                     UA_Variant *output);
+                     UA_Variant *output, UA_Argument *outputArgs);
 
 typedef struct {
     UA_NodeHead head;
