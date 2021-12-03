@@ -192,12 +192,28 @@ typedef struct UA_ConnectionManager UA_ConnectionManager;
 
 /**
  * The ConnectionCallback is the only interface from the connection back to the
- * application. The connectionId is announced to the application when it is
- * first used for the callback. The context is a double-pointer so the context
- * can be overwritten by the application */
+ * application.
+ *
+ * - The connectionId is initially unknown to the target application and
+ *   "announced" to the application when first used first in this callback.
+ *
+ * - The context is attached to the connection. Initially a default context is set.
+ *   The context can be replaced within the callback (via the double-pointer).
+ *
+ * - The status indicates whether the connection is closing down. If status !=
+ *   GOOD, then the application should clean up the context, as this is the last
+ *   time the callback will be called for this connection.
+ *
+ * - The parameters are a key-value list with additional information. The
+ *   possible keys and their meaning are documented for the individual
+ *   ConnectionManager implementations.
+ *
+ * - The msg ByteString is the message (or packet) received on the
+ *   connection. Can be empty. */
 typedef void
 (*UA_ConnectionCallback)(UA_ConnectionManager *cm, uintptr_t connectionId,
                          void **connectionContext, UA_StatusCode status,
+                         size_t paramsSize, UA_KeyValuePair *params,
                          UA_ByteString msg);
 
 struct UA_ConnectionManager {

@@ -123,7 +123,7 @@ TCP_connectionSocketCallback(UA_ConnectionManager *cm, UA_FD fd,
 
         /* The socket has opened. Signal it to the application. */
         cm->connectionCallback(cm, (uintptr_t)fd, fdcontext,
-                               UA_STATUSCODE_GOOD, UA_BYTESTRING_NULL);
+                               UA_STATUSCODE_GOOD, 0, NULL, UA_BYTESTRING_NULL);
 
         /* Now we are interested in read-events. */
         UA_EventLoop_modifyFD(cm->eventSource.eventLoop, fd, UA_POSIX_EVENT_READ,
@@ -164,7 +164,7 @@ TCP_connectionSocketCallback(UA_ConnectionManager *cm, UA_FD fd,
         /* Callback to the application layer */
         response.length = (size_t)ret; /* Set the length of the received buffer */
         cm->connectionCallback(cm, (uintptr_t)fd, fdcontext,
-                               UA_STATUSCODE_GOOD, response);
+                               UA_STATUSCODE_GOOD, 0, NULL, response);
     } else if(UA_ERRNO != UA_INTERRUPTED && UA_ERRNO != UA_EAGAIN) {
         /* Orderly shutdown of the connection. Signal to the application and
          * then close the connection. We end up in this path after shutdown was
@@ -177,7 +177,7 @@ TCP_connectionSocketCallback(UA_ConnectionManager *cm, UA_FD fd,
         /* Close the connection if not a temporary error on a nonblocking socket */
         cm->connectionCallback(cm, (uintptr_t)fd, fdcontext,
                                UA_STATUSCODE_BADCONNECTIONCLOSED,
-                               UA_BYTESTRING_NULL);
+                               0, NULL, UA_BYTESTRING_NULL);
         TCP_close(cm, fd);
     }
 
@@ -256,7 +256,7 @@ TCP_listenSocketCallback(UA_ConnectionManager *cm, UA_FD fd,
     /* The socket has opened. Signal it to the application. The callback can
      * switch out the context. So put it into a temp variable.  */
     cm->connectionCallback(cm, (uintptr_t)newsockfd, &ctx, UA_STATUSCODE_GOOD,
-                           UA_BYTESTRING_NULL);
+                           0, NULL, UA_BYTESTRING_NULL);
 
     /* Register in the EventLoop. Signal to the user if registering failed. */
     res = UA_EventLoop_registerFD(cm->eventSource.eventLoop, newsockfd,
@@ -265,7 +265,8 @@ TCP_listenSocketCallback(UA_ConnectionManager *cm, UA_FD fd,
                                   &cm->eventSource, ctx);
     if(res != UA_STATUSCODE_GOOD) {
         cm->connectionCallback(cm, (uintptr_t)newsockfd, &ctx,
-                               UA_STATUSCODE_BADINTERNALERROR, UA_BYTESTRING_NULL);
+                               UA_STATUSCODE_BADINTERNALERROR,
+                               0, NULL, UA_BYTESTRING_NULL);
         UA_close(newsockfd);
     }
 
@@ -390,7 +391,7 @@ TCP_registerListenSocket(UA_ConnectionManager *cm, struct addrinfo *ai) {
     UA_StatusCode res =
         UA_EventLoop_registerFD(cm->eventSource.eventLoop, listenSocket,
                                 UA_POSIX_EVENT_READ,
-                                (UA_FDCallback) TCP_listenSocketCallback,
+                                (UA_FDCallback)TCP_listenSocketCallback,
                                 &cm->eventSource, NULL);
     if(res != UA_STATUSCODE_GOOD) {
         UA_LOG_WARNING(UA_EventLoop_getLogger(cm->eventSource.eventLoop),
