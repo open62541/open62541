@@ -253,7 +253,7 @@ UA_KeyValueMap_set(UA_KeyValuePair **map, size_t *mapSize,
 }
 
 const UA_Variant *
-UA_KeyValueMap_get(UA_KeyValuePair *map, size_t mapSize,
+UA_KeyValueMap_get(const UA_KeyValuePair *map, size_t mapSize,
                    const UA_QualifiedName key) {
     for(size_t i = 0; i < mapSize; i++) {
         if(map[i].key.namespaceIndex == key.namespaceIndex &&
@@ -266,7 +266,7 @@ UA_KeyValueMap_get(UA_KeyValuePair *map, size_t mapSize,
 
 /* Returns NULL if the parameter is not defined or not of the right datatype */
 const void *
-UA_KeyValueMap_getScalar(UA_KeyValuePair *map, size_t mapSize,
+UA_KeyValueMap_getScalar(const UA_KeyValuePair *map, size_t mapSize,
                          const UA_QualifiedName key,
                          const UA_DataType *type) {
     const UA_Variant *v = UA_KeyValueMap_get(map, mapSize, key);

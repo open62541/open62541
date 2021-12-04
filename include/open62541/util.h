@@ -53,13 +53,13 @@ UA_KeyValueMap_set(UA_KeyValuePair **map, size_t *mapSize,
 
 /* Returns a pointer to the value or NULL if the key is not found.*/
 UA_EXPORT const UA_Variant *
-UA_KeyValueMap_get(UA_KeyValuePair *map, size_t mapSize,
+UA_KeyValueMap_get(const UA_KeyValuePair *map, size_t mapSize,
                    const UA_QualifiedName key);
 
 /* Returns NULL if the value for the key is not defined or not of the right
  * datatype and scalar/array */
 UA_EXPORT const void *
-UA_KeyValueMap_getScalar(UA_KeyValuePair *map, size_t mapSize,
+UA_KeyValueMap_getScalar(const UA_KeyValuePair *map, size_t mapSize,
                          const UA_QualifiedName key,
                          const UA_DataType *type);
 
