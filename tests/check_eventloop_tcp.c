@@ -17,7 +17,7 @@ UA_EventLoop *el;
 
 static void noopCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
                          void **connectionContext, UA_StatusCode status,
-                         size_t paramsSize, UA_KeyValuePair *params,
+                         size_t paramsSize, const UA_KeyValuePair *params,
                          UA_ByteString msg) {}
 
 START_TEST(listenTCP) {
@@ -59,7 +59,7 @@ static UA_Boolean received;
 static void
 connectionCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
                    void **connectionContext, UA_StatusCode status,
-                   size_t paramsSize, UA_KeyValuePair *params,
+                   size_t paramsSize, const UA_KeyValuePair *params,
                    UA_ByteString msg) {
     if(*connectionContext != NULL)
         clientId = connectionId;
@@ -79,7 +79,7 @@ connectionCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
 static void
 illegalConnectionCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
                           void **connectionContext, UA_StatusCode status,
-                          size_t paramsSize, UA_KeyValuePair *params,
+                          size_t paramsSize, const UA_KeyValuePair *params,
                           UA_ByteString msg) {
     UA_StatusCode rv = UA_EventLoop_run(el, 1);
     ck_assert_uint_eq(rv, UA_STATUSCODE_BADINTERNALERROR);

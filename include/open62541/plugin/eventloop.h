@@ -227,7 +227,7 @@ typedef struct UA_ConnectionManager UA_ConnectionManager;
 typedef void
 (*UA_ConnectionCallback)(UA_ConnectionManager *cm, uintptr_t connectionId,
                          void **connectionContext, UA_StatusCode status,
-                         size_t paramsSize, UA_KeyValuePair *params,
+                         size_t paramsSize, const UA_KeyValuePair *params,
                          UA_ByteString msg);
 
 struct UA_ConnectionManager {
@@ -258,12 +258,16 @@ struct UA_ConnectionManager {
      * (for TCP). Other protocols (e.g. MQTT, AMQP, etc.) may required
      * additional arguments to open a connection.
      *
+     * The provided context is set as the initial context attached to this
+     * connection. It is already set before the first call to
+     * cm->connectionCallback.
+     *
      * The connection is opened asynchronously. The ConnectionCallback is
      * triggered when the connection is fully opened (UA_STATUSCODE_GOOD) or has
      * failed (with an error code). */
     UA_StatusCode
     (*openConnection)(UA_ConnectionManager *cm,
-                      size_t paramsSize, UA_KeyValuePair *params,
+                      size_t paramsSize, const UA_KeyValuePair *params,
                       void *context);
 
     /* Connection Activities
@@ -290,7 +294,7 @@ struct UA_ConnectionManager {
      * example a tx-time for sending in time-synchronized TSN settings. */
     UA_StatusCode
     (*sendWithConnection)(UA_ConnectionManager *cm, uintptr_t connectionId,
-                          size_t paramsSize, UA_KeyValuePair *params,
+                          size_t paramsSize, const UA_KeyValuePair *params,
                           UA_ByteString *buf);
 
     /* When a connection is closed, cm->connectionCallback is called with
