@@ -146,21 +146,30 @@ typedef enum {
                                        * EventLoop cycles to finish */
 } UA_EventSourceState;
 
+/* Type-tag for proper casting of the difference EventSource (e.g. when they are
+ * looked up via UA_EventLoop_findEventSource). */
+typedef enum {
+    UA_EVENTSOURCETYPE_ANY = 0,
+    UA_EVENTSOURCETYPE_CONNECTIONMANAGER
+} UA_EventSourceType;
+
 struct UA_EventSource {
     struct UA_EventSource *next; /* Singly-linked list for use by the
                                   * application that registered the ES */
 
+    UA_EventSourceType eventSourceType;
+
     /* Configuration
      * ~~~~~~~~~~~~~ */
-    UA_String name;                 /* Unique name of the ES for logging */
+    UA_String name;                 /* Unique name of the ES */
+    UA_EventLoop *eventLoop;        /* EventLoop where the ES is registered */
     void *application;              /* Application to which the ES belongs */
-    size_t paramsSize;
-    UA_KeyValuePair *params;        /* Configuration parameters */
+    size_t paramsSize;              /* Configuration parameters */
+    UA_KeyValuePair *params;
 
     /* Lifecycle
      * ~~~~~~~~~ */
     UA_EventSourceState state;
-    UA_EventLoop *eventLoop; /* EventLoop where the ES is registered */
     UA_StatusCode (*start)(UA_EventSource *es);
     void (*stop)(UA_EventSource *es); /* Asynchronous. Iterate theven EventLoop
                                        * until the EventSource is stopped. */
