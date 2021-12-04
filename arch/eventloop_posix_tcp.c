@@ -775,6 +775,7 @@ UA_ConnectionManager_TCP_new(const UA_String eventSourceName) {
     if(!cm)
         return NULL;
 
+    cm->cm.eventSource.eventSourceType = UA_EVENTSOURCETYPE_CONNECTIONMANAGER;
     UA_String_copy(&eventSourceName, &cm->cm.eventSource.name);
     cm->cm.eventSource.start = (UA_StatusCode (*)(UA_EventSource *)) TCP_eventSourceStart;
     cm->cm.eventSource.stop = (void (*)(UA_EventSource *))TCP_eventSourceStop;
