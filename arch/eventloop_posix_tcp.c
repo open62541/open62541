@@ -472,7 +472,7 @@ TCP_shutdownConnection(UA_ConnectionManager *cm, uintptr_t connectionId) {
 
 static UA_StatusCode
 TCP_sendWithConnection(UA_ConnectionManager *cm, uintptr_t connectionId,
-                       size_t paramsSize, UA_KeyValuePair *params,
+                       size_t paramsSize, const UA_KeyValuePair *params,
                        UA_ByteString *buf) {
     /* Prevent OS signals when sending to a closed socket */
     int flags = MSG_NOSIGNAL;
@@ -510,9 +510,8 @@ TCP_sendWithConnection(UA_ConnectionManager *cm, uintptr_t connectionId,
 
 static UA_StatusCode
 TCP_openConnection(UA_ConnectionManager *cm,
-                   size_t paramsSize, UA_KeyValuePair *params,
+                   size_t paramsSize, const UA_KeyValuePair *params,
                    void *context) {
-
     /* Get the connection parameters */
     char hostname[256];
     char portStr[16];
