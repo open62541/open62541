@@ -105,6 +105,8 @@ class Node(object):
                 self.eventNotifier = int(av)
             elif at == "SymbolicName":
                 self.symbolicName = String(av)
+            elif at == "ParentNodeId":
+                self.parent = RefOrAlias(av)
 
         for x in xmlelement.childNodes:
             if x.nodeType != x.ELEMENT_NODE:
@@ -122,6 +124,17 @@ class Node(object):
                     self.userWriteMask = int(unicode(x.firstChild.data))
                 if x.localName == "References":
                     self.parseXMLReferences(x)
+
+        # determine parent reference type
+        PARENT_REFERENCE_NODES = [
+                NodeId("ns=0;i=35"), NodeId("ns=0;i=45"),
+                NodeId("ns=0;i=46"), NodeId("ns=0;i=47"),
+                NodeId("ns=0;i=56"),
+        ]
+        for ref in self.references:
+            if ref.referenceType in PARENT_REFERENCE_NODES and not ref.isForward:
+                self.parentReference = ref.referenceType
+                break
 
     def parseXMLReferences(self, xmlelement):
         for ref in xmlelement.childNodes:
