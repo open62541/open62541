@@ -12,6 +12,7 @@
  *    Copyright 2017 (c) Julian Grothoff
  *    Copyright 2019 (c) Kalycito Infotech Private Limited
  *    Copyright 2019 (c) HMS Industrial Networks AB (Author: Jonas Green)
+ *    Copyright 2021 (c) Fraunhofer IOSB (Author: Andreas Ebner)
  */
 
 #ifndef UA_SERVER_INTERNAL_H_
