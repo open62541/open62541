@@ -45,13 +45,13 @@ struct zip_entry {
 void *
 __ZIP_INSERT(zip_cmp_cb cmp, unsigned short fieldoffset,
              unsigned short keyoffset, void *root, void *elm) {
-    struct zip_entry *root_entry = ZIP_ENTRY_PTR(root);
     struct zip_entry *elm_entry  = ZIP_ENTRY_PTR(elm);
     if(!root) {
         elm_entry->left = NULL;
         elm_entry->right = NULL;
         return elm;
     }
+    struct zip_entry *root_entry = ZIP_ENTRY_PTR(root);
     enum ZIP_CMP order = cmp(ZIP_KEY_PTR(elm), ZIP_KEY_PTR(root));
     if(order == ZIP_CMP_LESS) {
         if(__ZIP_INSERT(cmp, fieldoffset, keyoffset, root_entry->left, elm) == elm) {
