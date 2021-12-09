@@ -268,7 +268,7 @@ processFDs(UA_EventLoop *el, UA_DateTime usedTimeout) {
 
     /* Nothing to do? */
     if(highestfd == UA_INVALID_FD) {
-        UA_LOG_DEBUG(el->logger, UA_LOGCATEGORY_EVENTLOOP,
+        UA_LOG_TRACE(el->logger, UA_LOGCATEGORY_EVENTLOOP,
                      "No valid FDs for processing");
         return UA_STATUSCODE_GOOD;
     }
@@ -347,7 +347,7 @@ UA_StatusCode
 UA_EventLoop_run(UA_EventLoop *el, UA_UInt32 timeout) {
     UA_LOCK(&el->elMutex);
 
-    UA_LOG_DEBUG(el->logger, UA_LOGCATEGORY_EVENTLOOP, "iterate the EventLoop");
+    UA_LOG_TRACE(el->logger, UA_LOGCATEGORY_EVENTLOOP, "iterate the EventLoop");
 
     if(el->executing) {
         UA_LOG_ERROR(el->logger,
