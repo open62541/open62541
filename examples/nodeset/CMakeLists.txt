@@ -123,6 +123,6 @@ if(UA_NAMESPACE_ZERO STREQUAL "FULL")
                 ${UA_TYPES_DI_SOURCES}
                 ${UA_TYPES_POWERLINK_SOURCES})
     add_dependencies(server_nodeset_powerlink open62541-generator-ns-powerlink)
-    
+
 
 endif()

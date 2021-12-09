@@ -10,15 +10,15 @@ if(NOT MSVC)
     add_definitions(-Wno-deprecated-declarations)
 endif()
 
-if (UA_BUILD_FUZZING_CORPUS)
+if(UA_BUILD_FUZZING_CORPUS)
     set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 
     add_definitions(-DUA_CORPUS_OUTPUT_DIR="${PROJECT_BINARY_DIR}/corpus/custom")
     file(MAKE_DIRECTORY ${PROJECT_BINARY_DIR}/corpus/custom)
 
     add_executable(corpus_generator ua_debug_dump_pkgs_file.c corpus_generator.c
-                                    ${PROJECT_SOURCE_DIR}/tests/testing-plugins/testing_networklayers.c
-                                    ${PROJECT_SOURCE_DIR}/tests/testing-plugins/testing_clock.c)
+                   ${PROJECT_SOURCE_DIR}/tests/testing-plugins/testing_networklayers.c
+                   ${PROJECT_SOURCE_DIR}/tests/testing-plugins/testing_clock.c)
     target_link_libraries(corpus_generator open62541 ${open62541_LIBRARIES})
     assign_source_group(corpus_generator)
     set_target_properties(corpus_generator PROPERTIES FOLDER "open62541/corpus_generator")
@@ -35,10 +35,10 @@ if(NOT UA_BUILD_OSS_FUZZ)
     endif()
 
     # oss-fuzz builds already include these flags
-    if (CMAKE_CXX_COMPILER_VERSION VERSION_LESS 5.0)
+    if(CMAKE_CXX_COMPILER_VERSION VERSION_LESS 5.0)
         set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O1 -fsanitize=address")
         set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O1 -fsanitize=address")
-    elseif (CMAKE_CXX_COMPILER_VERSION VERSION_GREATER_EQUAL 10.0)
+    elseif(CMAKE_CXX_COMPILER_VERSION VERSION_GREATER_EQUAL 10.0)
         set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fno-omit-frame-pointer -gline-tables-only -fsanitize=address -fsanitize-address-use-after-scope -fsanitize=fuzzer-no-link")
         set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-omit-frame-pointer -gline-tables-only -fsanitize=address -fsanitize-address-use-after-scope -fsanitize=fuzzer-no-link")
     else()
@@ -61,7 +61,8 @@ list(APPEND LIBS "${open62541_LIBRARIES}")
 link_libraries("-fsanitize=fuzzer")
 
 # Use different plugins for testing
-set(fuzzing_plugin_sources ${PROJECT_SOURCE_DIR}/arch/network_tcp.c
+set(fuzzing_plugin_sources
+    ${PROJECT_SOURCE_DIR}/arch/network_tcp.c
     ${PROJECT_SOURCE_DIR}/tests/testing-plugins/testing_clock.c
     ${PROJECT_SOURCE_DIR}/tests/testing-plugins/testing_networklayers.c
     ${PROJECT_SOURCE_DIR}/plugins/ua_log_stdout.c
@@ -71,16 +72,16 @@ set(fuzzing_plugin_sources ${PROJECT_SOURCE_DIR}/arch/network_tcp.c
     ${PROJECT_SOURCE_DIR}/plugins/ua_accesscontrol_default.c
     ${PROJECT_SOURCE_DIR}/plugins/crypto/ua_pki_none.c
     ${PROJECT_SOURCE_DIR}/plugins/crypto/ua_securitypolicy_none.c
-)
+    )
 
 if(UA_ENABLE_ENCRYPTION OR UA_ENABLE_ENCRYPTION STREQUAL "MBEDTLS" OR UA_ENABLE_ENCRYPTION STREQUAL "OPENSSL")
-  list(APPEND fuzzing_plugin_sources
-       ${PROJECT_SOURCE_DIR}/plugins/crypto/mbedtls/securitypolicy_mbedtls_common.c
-       ${PROJECT_SOURCE_DIR}/plugins/crypto/mbedtls/ua_securitypolicy_basic128rsa15.c
-       ${PROJECT_SOURCE_DIR}/plugins/crypto/mbedtls/ua_securitypolicy_basic256.c
-       ${PROJECT_SOURCE_DIR}/plugins/crypto/mbedtls/ua_securitypolicy_basic256sha256.c
-       ${PROJECT_SOURCE_DIR}/plugins/crypto/mbedtls/ua_securitypolicy_aes128sha256rsaoaep.c
-       ${PROJECT_SOURCE_DIR}/plugins/crypto/mbedtls/ua_pki_mbedtls.c)
+    list(APPEND fuzzing_plugin_sources
+         ${PROJECT_SOURCE_DIR}/plugins/crypto/mbedtls/securitypolicy_mbedtls_common.c
+         ${PROJECT_SOURCE_DIR}/plugins/crypto/mbedtls/ua_securitypolicy_basic128rsa15.c
+         ${PROJECT_SOURCE_DIR}/plugins/crypto/mbedtls/ua_securitypolicy_basic256.c
+         ${PROJECT_SOURCE_DIR}/plugins/crypto/mbedtls/ua_securitypolicy_basic256sha256.c
+         ${PROJECT_SOURCE_DIR}/plugins/crypto/mbedtls/ua_securitypolicy_aes128sha256rsaoaep.c
+         ${PROJECT_SOURCE_DIR}/plugins/crypto/mbedtls/ua_pki_mbedtls.c)
 endif()
 
 add_library(open62541-fuzzplugins OBJECT
@@ -95,8 +96,8 @@ set(FUZZER_TARGETS)
 
 macro(add_fuzzer FUZZER_NAME FUZZER_SOURCE)
     add_executable(${FUZZER_NAME} ${FUZZER_SOURCE}
-                                  $<TARGET_OBJECTS:open62541-object>
-                                  $<TARGET_OBJECTS:open62541-fuzzplugins>)
+                   $<TARGET_OBJECTS:open62541-object>
+                   $<TARGET_OBJECTS:open62541-fuzzplugins>)
     target_link_libraries(${FUZZER_NAME} ${LIBS})
     target_include_directories(${FUZZER_NAME} PRIVATE ${PROJECT_SOURCE_DIR}/src/server)
     target_include_directories(${FUZZER_NAME} PRIVATE ${PROJECT_SOURCE_DIR}/deps/mdnsd)

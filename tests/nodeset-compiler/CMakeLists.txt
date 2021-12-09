@@ -64,22 +64,22 @@ if(UA_NAMESPACE_ZERO STREQUAL "FULL")
 
     # generate AutoID namespace which is using DI (test e.g. for structures with optional fields)
     ua_generate_nodeset_and_datatypes(
-            NAME "tests-autoid"
-            FILE_CSV "${PROJECT_SOURCE_DIR}/tests/nodeset-compiler/Opc.Ua.AutoID.NodeIds.csv"
-            FILE_BSD "${PROJECT_SOURCE_DIR}/tests/nodeset-compiler/Opc.Ua.AutoID.Types.bsd"
-            NAMESPACE_MAP "3:http://opcfoundation.org/UA/AutoID/"
-            OUTPUT_DIR "${GENERATE_OUTPUT_DIR}"
-            FILE_NS "${open62541_NODESET_DIR}/AutoID/Opc.Ua.AutoID.NodeSet2.xml"
-            DEPENDS "tests-di"
-            INTERNAL
+        NAME "tests-autoid"
+        FILE_CSV "${PROJECT_SOURCE_DIR}/tests/nodeset-compiler/Opc.Ua.AutoID.NodeIds.csv"
+        FILE_BSD "${PROJECT_SOURCE_DIR}/tests/nodeset-compiler/Opc.Ua.AutoID.Types.bsd"
+        NAMESPACE_MAP "3:http://opcfoundation.org/UA/AutoID/"
+        OUTPUT_DIR "${GENERATE_OUTPUT_DIR}"
+        FILE_NS "${open62541_NODESET_DIR}/AutoID/Opc.Ua.AutoID.NodeSet2.xml"
+        DEPENDS "tests-di"
+        INTERNAL
     )
 
     add_executable(check_nodeset_compiler_autoid check_nodeset_compiler_autoid.c
-            ${UA_NODESET_TESTS_DI_SOURCES}
-            ${UA_NODESET_TESTS_AUTOID_SOURCES}
-            ${UA_TYPES_TESTS_DI_SOURCES}
-            ${UA_TYPES_TESTS_AUTOID_SOURCES}
-            $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
+                   ${UA_NODESET_TESTS_DI_SOURCES}
+                   ${UA_NODESET_TESTS_AUTOID_SOURCES}
+                   ${UA_TYPES_TESTS_DI_SOURCES}
+                   ${UA_TYPES_TESTS_AUTOID_SOURCES}
+                   $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
     add_dependencies(check_nodeset_compiler_autoid open62541-generator-ns-tests-autoid)
     target_link_libraries(check_nodeset_compiler_autoid ${LIBS})
     add_test_valgrind(nodeset_compiler_autoid ${TESTS_BINARY_DIR}/check_nodeset_compiler_autoid)
@@ -124,7 +124,7 @@ if(UA_NAMESPACE_ZERO STREQUAL "FULL")
                    ${UA_NODESET_TESTS_TESTNODESET_SOURCES}
                    ${UA_TYPES_TESTS_DI_SOURCES}
                    ${UA_TYPES_TESTS_TESTNODESET_SOURCES}
-                $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
+                   $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
     add_dependencies(check_nodeset_compiler_testnodeset open62541-generator-ns-tests-testnodeset)
     target_link_libraries(check_nodeset_compiler_testnodeset ${LIBS})
     add_test_valgrind(nodeset_compiler_testnodeset ${TESTS_BINARY_DIR}/check_nodeset_compiler_testnodeset)
