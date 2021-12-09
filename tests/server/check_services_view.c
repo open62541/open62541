@@ -406,7 +406,7 @@ START_TEST(Service_TranslateBrowsePathsNoMatches) {
     browsePath.relativePath.elementsSize = 1;
 
     rpe.referenceTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES);
-    rpe.targetName = UA_QUALIFIEDNAME_ALLOC(0, "NoMatchToBeFound");
+    rpe.targetName = UA_QUALIFIEDNAME(0, "NoMatchToBeFound");
 
     UA_BrowsePathResult bpr =
         UA_Server_translateBrowsePathToNodeIds(server_translate_browse, &browsePath);
