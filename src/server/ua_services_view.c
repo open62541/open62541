@@ -1201,7 +1201,7 @@ Operation_TranslateBrowsePathToNodeIds(UA_Server *server, UA_Session *session,
     tmpResults = (UA_BrowsePathTarget*)
         UA_realloc(result->targets, sizeof(UA_BrowsePathTarget) *
                    (result->targetsSize + next->size));
-    if(!tmpResults) {
+    if(!tmpResults && next->size > 0) {
         result->statusCode = UA_STATUSCODE_BADOUTOFMEMORY;
         goto cleanup;
     }
