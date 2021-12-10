@@ -81,13 +81,9 @@ static UA_StatusCode
 detectValueChangeWithFilter(UA_Server *server, UA_Session *session, UA_MonitoredItem *mon,
                             UA_DataValue *value, UA_ByteString *encoding,
                             UA_Boolean *changed) {
-    if(!value->value.type) {
-        *changed = !(UA_ByteString_equal(encoding, &mon->lastSampledValue));
-        return UA_STATUSCODE_GOOD;
-    }
-
     /* Test absolute deadband */
-    if(UA_DataType_isNumeric(value->value.type) &&
+    if(value->value.type &&
+       UA_DataType_isNumeric(value->value.type) &&
        mon->parameters.filter.content.decoded.type == &UA_TYPES[UA_TYPES_DATACHANGEFILTER]) {
         UA_DataChangeFilter *filter = (UA_DataChangeFilter*)
             mon->parameters.filter.content.decoded.data;
