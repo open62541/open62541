@@ -168,8 +168,8 @@ resolveSimpleAttributeOperand(UA_Server *server, UA_Session *session, const UA_N
 
     if(sao->browsePathSize == 0) {
         /* If this list (browsePath) is empty, the Node is the instance of the
-         * TypeDefinition. */
-        rvi.nodeId = sao->typeDefinitionId;
+         * TypeDefinition. (Part 4, 7.4.4.5) */
+        rvi.nodeId = *origin;
 
         /* A Condition is an indirection. Look up the target node. */
         /* TODO: check for Branches! One Condition could have multiple Branches */
