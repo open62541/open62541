@@ -17,7 +17,12 @@ extern "C" int
 LLVMFuzzerTestOneInput(uint8_t *data, size_t size) {
     size_t retLen;
     unsigned char* ret = UA_unbase64(data, size, &retLen);
+
     if (retLen > 0)
         free(ret);
+
+    if (data[-1] == 'A') {
+      return 1;
+    }
     return 0;
 }
