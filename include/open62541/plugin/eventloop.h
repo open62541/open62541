@@ -146,21 +146,30 @@ typedef enum {
                                        * EventLoop cycles to finish */
 } UA_EventSourceState;
 
+/* Type-tag for proper casting of the difference EventSource (e.g. when they are
+ * looked up via UA_EventLoop_findEventSource). */
+typedef enum {
+    UA_EVENTSOURCETYPE_ANY = 0,
+    UA_EVENTSOURCETYPE_CONNECTIONMANAGER
+} UA_EventSourceType;
+
 struct UA_EventSource {
     struct UA_EventSource *next; /* Singly-linked list for use by the
                                   * application that registered the ES */
 
+    UA_EventSourceType eventSourceType;
+
     /* Configuration
      * ~~~~~~~~~~~~~ */
-    UA_String name;                 /* Unique name of the ES for logging */
+    UA_String name;                 /* Unique name of the ES */
+    UA_EventLoop *eventLoop;        /* EventLoop where the ES is registered */
     void *application;              /* Application to which the ES belongs */
-    size_t paramsSize;
-    UA_KeyValuePair *params;        /* Configuration parameters */
+    size_t paramsSize;              /* Configuration parameters */
+    UA_KeyValuePair *params;
 
     /* Lifecycle
      * ~~~~~~~~~ */
     UA_EventSourceState state;
-    UA_EventLoop *eventLoop; /* EventLoop where the ES is registered */
     UA_StatusCode (*start)(UA_EventSource *es);
     void (*stop)(UA_EventSource *es); /* Asynchronous. Iterate theven EventLoop
                                        * until the EventSource is stopped. */
@@ -178,6 +187,11 @@ UA_EXPORT UA_StatusCode
 UA_EventLoop_deregisterEventSource(UA_EventLoop *el,
                                    UA_EventSource *es);
 
+/* Look up the EventSource by name. Returns the first EventSource of that name
+ * (duplicates should be avoided). */
+UA_EXPORT UA_EventSource *
+UA_EventLoop_findEventSource(UA_EventLoop *el, const UA_String name);
+
 /**
  * Connection Manager
  * ------------------
@@ -192,12 +206,28 @@ typedef struct UA_ConnectionManager UA_ConnectionManager;
 
 /**
  * The ConnectionCallback is the only interface from the connection back to the
- * application. The connectionId is announced to the application when it is
- * first used for the callback. The context is a double-pointer so the context
- * can be overwritten by the application */
+ * application.
+ *
+ * - The connectionId is initially unknown to the target application and
+ *   "announced" to the application when first used first in this callback.
+ *
+ * - The context is attached to the connection. Initially a default context is set.
+ *   The context can be replaced within the callback (via the double-pointer).
+ *
+ * - The status indicates whether the connection is closing down. If status !=
+ *   GOOD, then the application should clean up the context, as this is the last
+ *   time the callback will be called for this connection.
+ *
+ * - The parameters are a key-value list with additional information. The
+ *   possible keys and their meaning are documented for the individual
+ *   ConnectionManager implementations.
+ *
+ * - The msg ByteString is the message (or packet) received on the
+ *   connection. Can be empty. */
 typedef void
 (*UA_ConnectionCallback)(UA_ConnectionManager *cm, uintptr_t connectionId,
                          void **connectionContext, UA_StatusCode status,
+                         size_t paramsSize, const UA_KeyValuePair *params,
                          UA_ByteString msg);
 
 struct UA_ConnectionManager {
@@ -228,12 +258,16 @@ struct UA_ConnectionManager {
      * (for TCP). Other protocols (e.g. MQTT, AMQP, etc.) may required
      * additional arguments to open a connection.
      *
+     * The provided context is set as the initial context attached to this
+     * connection. It is already set before the first call to
+     * cm->connectionCallback.
+     *
      * The connection is opened asynchronously. The ConnectionCallback is
      * triggered when the connection is fully opened (UA_STATUSCODE_GOOD) or has
      * failed (with an error code). */
     UA_StatusCode
     (*openConnection)(UA_ConnectionManager *cm,
-                      size_t paramsSize, UA_KeyValuePair *params,
+                      size_t paramsSize, const UA_KeyValuePair *params,
                       void *context);
 
     /* Connection Activities
@@ -260,7 +294,7 @@ struct UA_ConnectionManager {
      * example a tx-time for sending in time-synchronized TSN settings. */
     UA_StatusCode
     (*sendWithConnection)(UA_ConnectionManager *cm, uintptr_t connectionId,
-                          size_t paramsSize, UA_KeyValuePair *params,
+                          size_t paramsSize, const UA_KeyValuePair *params,
                           UA_ByteString *buf);
 
     /* When a connection is closed, cm->connectionCallback is called with

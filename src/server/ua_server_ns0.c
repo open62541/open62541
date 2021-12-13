@@ -585,10 +585,16 @@ readMonitoredItems(UA_Server *server, const UA_NodeId *sessionId, void *sessionC
 
     /* Get the Subscription */
     UA_UInt32 subscriptionId = *((UA_UInt32*)(input[0].data));
-    UA_Subscription *subscription = UA_Session_getSubscriptionById(session, subscriptionId);
+    UA_Subscription *subscription = UA_Server_getSubscriptionById(server, subscriptionId);
     if(!subscription) {
         UA_UNLOCK(&server->serviceMutex);
         return UA_STATUSCODE_BADSUBSCRIPTIONIDINVALID;
+    }
+
+    /* The Subscription is not attached to this Session */
+    if(subscription->session != session) {
+        UA_UNLOCK(&server->serviceMutex);
+        return UA_STATUSCODE_BADUSERACCESSDENIED;
     }
 
     /* Count the MonitoredItems */
