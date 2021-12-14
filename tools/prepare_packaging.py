@@ -64,49 +64,50 @@ with open(changelog_file, 'w') as modified:
 control_file_template = os.path.join(debian_path, "control-template")
 control_file = os.path.join(debian_path, "control")
 os.rename(control_file_template, control_file)
-
 with open(control_file, 'r+') as f:
     content = f.read()
     f.seek(0)
     f.truncate()
     f.write(content.replace('<soname>', "{}".format(version_major)))
 
-
 # rename the install template to match the soname
 install_file_template = os.path.join(debian_path, "libopen62541.install-template")
-install_file = os.path.join(debian_path, "libopen62541-{}.install".format(version_major))
+install_file = os.path.join(debian_path,
+                  "libopen62541-{}.{}.install".format(version_major, version_minor))
 os.rename(install_file_template, install_file)
 
 install_file_template = os.path.join(debian_path, "libopen62541-dev.install-template")
-install_file = os.path.join(debian_path, "libopen62541-{}-dev.install".format(version_major))
+install_file = os.path.join(debian_path,
+                  "libopen62541-{}.{}-dev.install".format(version_major, version_minor))
 os.rename(install_file_template, install_file)
 
 install_file_template = os.path.join(debian_path, "libopen62541-tools.install-template")
-install_file = os.path.join(debian_path, "libopen62541-{}-tools.install".format(version_major))
+install_file = os.path.join(debian_path,
+                  "libopen62541-{}.{}-tools.install".format(version_major, version_minor))
 os.rename(install_file_template, install_file)
 
 install_file_template = os.path.join(debian_path, "libopen62541-doc.doc-base-template")
-install_file = os.path.join(debian_path, "libopen62541-doc.doc-base")
+install_file = os.path.join(debian_path,
+                  "libopen62541-{}.{}-doc.doc-base".format(version_major, version_minor))
 os.rename(install_file_template, install_file)
 
 install_file_template = os.path.join(debian_path, "libopen62541-doc.install-template")
-install_file = os.path.join(debian_path, "libopen62541-doc.install")
+install_file = os.path.join(debian_path,
+                  "libopen62541-{}.{}-doc.install".format(version_major, version_minor))
 os.rename(install_file_template, install_file)
 
 # Create rule file and replace template variables
 rule_file_template = os.path.join(debian_path, "rules-template")
 rule_file = os.path.join(debian_path, "rules")
 os.rename(rule_file_template, rule_file)
-
 with open(rule_file, 'r+') as f:
     content = f.read()
     f.seek(0)
     f.truncate()
-    content = content.replace('<soname>', "{}".format(version_major))
+    content = content.replace('<soname>', "{}.{}".format(version_major, version_minor))
     f.write(content)
 
 # Update CMakeLists.txt to include full version string
-
 with open(os.path.join(dirpath,"CMakeLists.txt"), 'r+') as f:
     lines = f.readlines()
     f.seek(0)
