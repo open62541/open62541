@@ -9,6 +9,7 @@ import os
 import re
 from email.utils import formatdate
 import datetime
+import shutil
 
 
 dirpath = os.path.join(os.path.dirname(os.path.realpath(__file__)),"..")
@@ -63,7 +64,7 @@ with open(changelog_file, 'w') as modified:
 # Create control file and replace template variables
 control_file_template = os.path.join(debian_path, "control-template")
 control_file = os.path.join(debian_path, "control")
-os.rename(control_file_template, control_file)
+shutil.copy(control_file_template, control_file)
 with open(control_file, 'r+') as f:
     content = f.read()
     f.seek(0)
@@ -74,32 +75,32 @@ with open(control_file, 'r+') as f:
 install_file_template = os.path.join(debian_path, "libopen62541.install-template")
 install_file = os.path.join(debian_path,
                   "libopen62541-{}.{}.install".format(version_major, version_minor))
-os.rename(install_file_template, install_file)
+shutil.copy(install_file_template, install_file)
 
 install_file_template = os.path.join(debian_path, "libopen62541-dev.install-template")
 install_file = os.path.join(debian_path,
                   "libopen62541-{}.{}-dev.install".format(version_major, version_minor))
-os.rename(install_file_template, install_file)
+shutil.copy(install_file_template, install_file)
 
 install_file_template = os.path.join(debian_path, "libopen62541-tools.install-template")
 install_file = os.path.join(debian_path,
                   "libopen62541-{}.{}-tools.install".format(version_major, version_minor))
-os.rename(install_file_template, install_file)
+shutil.copy(install_file_template, install_file)
 
 install_file_template = os.path.join(debian_path, "libopen62541-doc.doc-base-template")
 install_file = os.path.join(debian_path,
                   "libopen62541-{}.{}-doc.doc-base".format(version_major, version_minor))
-os.rename(install_file_template, install_file)
+shutil.copy(install_file_template, install_file)
 
 install_file_template = os.path.join(debian_path, "libopen62541-doc.install-template")
 install_file = os.path.join(debian_path,
                   "libopen62541-{}.{}-doc.install".format(version_major, version_minor))
-os.rename(install_file_template, install_file)
+shutil.copy(install_file_template, install_file)
 
 # Create rule file and replace template variables
 rule_file_template = os.path.join(debian_path, "rules-template")
 rule_file = os.path.join(debian_path, "rules")
-os.rename(rule_file_template, rule_file)
+shutil.copy(rule_file_template, rule_file)
 with open(rule_file, 'r+') as f:
     content = f.read()
     f.seek(0)
