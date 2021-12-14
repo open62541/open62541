@@ -1704,14 +1704,15 @@ if(NOT UA_ENABLE_AMALGAMATION)
         string(REPLACE ${BASE_PATH_GENERATED} "" file ${file})
         string(REPLACE ${BASE_PATH_DEPS} "" file ${file})
 
-        get_filename_component( dir ${file} DIRECTORY )
-        if(${full_path} MATCHES ${BASE_PATH_DEPS})
-            install( FILES ${full_path} DESTINATION include${dir} )
+        get_filename_component(dir ${file} DIRECTORY)
+
+        string(FIND "${full_path}" "${BASE_PATH_DEPS}" has_base_path)
+        if("${has_base_path}" EQUAL 0)
+            install(FILES ${full_path} DESTINATION include${dir})
         else()
-            install( FILES ${full_path} DESTINATION include/open62541${dir} )
+            install(FILES ${full_path} DESTINATION include/open62541${dir})
         endif()
     endforeach()
-
 else()
     # Export amalgamated header open62541.h which is generated due to build of
     # open62541-object
