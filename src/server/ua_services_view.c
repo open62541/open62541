@@ -543,7 +543,8 @@ browseReferences(UA_Server *server, const UA_NodeHead *head,
              * target to send out. */
             if(head->references[i].referenceTypeIndex == cp->nextRefKindIndex) {
                 ref = UA_NodeReferenceKind_findTarget(rk, &cp->nextTarget);
-                break;
+                if(ref)
+                    break;
             }
         }
 
