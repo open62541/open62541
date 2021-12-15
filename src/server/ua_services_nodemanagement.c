@@ -189,6 +189,7 @@ checkParentReference(UA_Server *server, UA_Session *session, const UA_NodeHead *
     return UA_STATUSCODE_GOOD;
 }
 
+/* Only BaseDataType can have empty values. Generate a default value. */
 static UA_StatusCode
 setDefaultValue(UA_Server *server, const UA_VariableNode *node) {
     /* Get the DataType */
@@ -238,35 +239,27 @@ setDefaultValue(UA_Server *server, const UA_VariableNode *node) {
         if(!data)
             return UA_STATUSCODE_BADOUTOFMEMORY;
         UA_Variant_setScalar(&val, data, type);
-    } else if(node->valueRank == 0) {
-        /* Use an empty array of one dimension */
-        UA_Variant_setArray(&val, NULL, 0, type);
     } else {
-        /* Write an array that matches the ArrayDimensions */
-        res = UA_Array_copy(node->arrayDimensions, node->arrayDimensionsSize,
-                            (void**)&val.arrayDimensions, &UA_TYPES[UA_TYPES_UINT32]);
-        if(res != UA_STATUSCODE_GOOD)
-            return res;
-        val.arrayDimensionsSize = node->arrayDimensionsSize;
-
-        /* No length restriction in the ArrayDimension -> use length 1 */
-        size_t size = 1;
-        for(size_t i = 0; i < val.arrayDimensionsSize; i++) {
-            if(val.arrayDimensions[i] == 0)
-                val.arrayDimensions[i] = 1;
-            size *= val.arrayDimensions[i];
-        }
-
-        /* Create the content array */
-        void *data = UA_Array_new(size, type);
-        if(!data) {
-            UA_Variant_clear(&val);
-            return UA_STATUSCODE_BADOUTOFMEMORY;
-        }
-
-        val.data = data;
-        val.arrayLength = size;
-        val.type = type;
+        /* Set an array
+         *
+         * https://reference.opcfoundation.org/v104/Core/docs/Part3/5.6.2/#Table13
+         * specifies ArrayDimensions as follows: This Attribute specifies the
+         * maximum supported length of each dimension. If the maximum is unknown
+         * the value shall be 0. The number of elements shall be equal to the
+         * value of the ValueRank Attribute. This Attribute shall be null if
+         * ValueRank <= 0.
+         *
+         * The (variant) values themselves cannot have ArrayDimensions with a
+         * dimension length of zero. We however consider that empty arrays
+         * (null-array or length zero) have implicit array dimensions [0,0,...].
+         * With the appropriate number of dimensions. So they always match.
+         *
+         * We automatically create a null array during the node creation when
+         * required for the type-checking..
+         *
+         * Also see the method 'compatibleValueArrayDimensions' where the
+         * compatibility of the ArrayDimensions is checked. */
+        UA_Variant_setArray(&val, NULL, 0, type);
     }
 
     /* Write the value */
