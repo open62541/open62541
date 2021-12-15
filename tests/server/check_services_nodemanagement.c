@@ -96,6 +96,28 @@ START_TEST(AddVariableNode_ValueRankZero) {
     ck_assert_int_eq(UA_STATUSCODE_GOOD, res);
 } END_TEST
 
+START_TEST(AddVariableNode_EmptyValueWithNonZeroValueRank) {
+    UA_VariableAttributes vattr = UA_VariableAttributes_default;
+    /* VariableNode with zero (unlimited dimensions */
+    vattr = UA_VariableAttributes_default;
+    UA_Variant_clear(&vattr.value);
+    vattr.valueRank = 2;
+    UA_UInt32 myIntegerDimensions2[2] = {0, 2};
+    vattr.arrayDimensions = myIntegerDimensions2;
+    vattr.arrayDimensionsSize = 2;
+    vattr.dataType = UA_NODEID_NUMERIC(0, UA_NS0ID_INT32);
+    vattr.displayName = UA_LOCALIZEDTEXT("en-US", "myarraydims");
+    UA_QualifiedName myIntegerName = UA_QUALIFIEDNAME(1, "myarraydims");
+    UA_NodeId myIntegerNodeId = UA_NODEID_STRING(1, "myarraydims");
+    UA_NodeId parentNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER);
+    UA_NodeId parentReferenceNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES);
+    UA_StatusCode retval = UA_Server_addVariableNode(server, myIntegerNodeId, parentNodeId,
+                                                     parentReferenceNodeId, myIntegerName,
+                                                     UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
+                                                     vattr, NULL, NULL);
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+} END_TEST
+
 START_TEST(AddVariableNode_Matrix) {
     /* Add a variable node to the address space */
     UA_VariableAttributes attr = UA_VariableAttributes_default;
@@ -104,7 +126,7 @@ START_TEST(AddVariableNode_Matrix) {
 
     attr.dataType = UA_TYPES[UA_TYPES_DOUBLE].typeId;
     attr.valueRank = UA_VALUERANK_TWO_DIMENSIONS;
-    UA_UInt32 arrayDims[2] = {2,2};
+    UA_UInt32 arrayDims[2] = {2, 2};
     attr.arrayDimensions = arrayDims;
     attr.arrayDimensionsSize = 2;
     UA_Double zero[4] = {0.0, 0.0, 0.0, 0.0};
@@ -720,6 +742,7 @@ int main(void) {
     tcase_add_checked_fixture(tc_addnodes, setup, teardown);
     tcase_add_test(tc_addnodes, AddVariableNode);
     tcase_add_test(tc_addnodes, AddVariableNode_ValueRankZero);
+    tcase_add_test(tc_addnodes, AddVariableNode_EmptyValueWithNonZeroValueRank);
     tcase_add_test(tc_addnodes, AddVariableNode_Matrix);
     tcase_add_test(tc_addnodes, AddVariableNode_ExtensionObject);
     tcase_add_test(tc_addnodes, InstantiateVariableTypeNode);
