@@ -206,9 +206,9 @@ changePubSubApplicationCallback(UA_Server *server, UA_NodeId identifier,
 /* Remove the callback added for cyclic repetition */
 static void
 removePubSubApplicationCallback(UA_Server *server, UA_NodeId identifier, UA_UInt64 callbackId){
-    if(callbackId && (pthread_join(callbackId, NULL) != 0))
+    if(callbackId && (pthread_join((pthread_t)callbackId, NULL) != 0))
         UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
-                       "Pthread Join Failed thread: %ld\n", callbackId);
+                       "Pthread Join Failed thread: %lu\n", (long unsigned)callbackId);
 }
 
 /**
@@ -705,8 +705,8 @@ int main(int argc, char **argv) {
         size_t pubLoopVariable               = 0;
         for (pubLoopVariable = 0; pubLoopVariable < measurementsPublisher;
              pubLoopVariable++) {
-            fprintf(fpPublisher, "%ld,%ld.%09ld,%lf\n",
-                    publishCounterValue[pubLoopVariable],
+            fprintf(fpPublisher, "%lu,%ld.%09ld,%lf\n",
+                    (long unsigned)publishCounterValue[pubLoopVariable],
                     publishTimestamp[pubLoopVariable].tv_sec,
                     publishTimestamp[pubLoopVariable].tv_nsec,
                     pressureValues[pubLoopVariable]);
@@ -717,8 +717,8 @@ int main(int argc, char **argv) {
         size_t pubLoopVariable               = 0;
         for (pubLoopVariable = 0; pubLoopVariable < measurementsPublisher;
              pubLoopVariable++) {
-             printf("%ld,%ld.%09ld,%lf\n",
-                    publishCounterValue[pubLoopVariable],
+             printf("%lu,%ld.%09ld,%lf\n",
+                    (long unsigned)publishCounterValue[pubLoopVariable],
                     publishTimestamp[pubLoopVariable].tv_sec,
                     publishTimestamp[pubLoopVariable].tv_nsec,
                     pressureValues[pubLoopVariable]);

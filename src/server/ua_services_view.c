@@ -22,16 +22,37 @@
 
 #define UA_MAX_TREE_RECURSE 50 /* How deep up/down the tree do we recurse at most? */
 
+static UA_UInt32
+resultMask2AttributesMask(UA_UInt32 resultMask) {
+    UA_UInt32 result = 0;
+    if(resultMask & UA_BROWSERESULTMASK_NODECLASS)
+        result |= UA_NODEATTRIBUTESMASK_NODECLASS;
+    if(resultMask & UA_BROWSERESULTMASK_BROWSENAME)
+        result |= UA_NODEATTRIBUTESMASK_BROWSENAME;
+    if(resultMask & UA_BROWSERESULTMASK_DISPLAYNAME)
+        result |= UA_NODEATTRIBUTESMASK_DISPLAYNAME;
+    return result;
+}
+
 UA_StatusCode
 referenceTypeIndices(UA_Server *server, const UA_NodeId *refType,
                      UA_ReferenceTypeSet *indices, UA_Boolean includeSubtypes) {
     if(UA_NodeId_isNull(refType)) {
-        UA_ReferenceTypeSet_any(indices);
+        *indices = UA_REFERENCETYPESET_ALL;
         return UA_STATUSCODE_GOOD;
     }
 
     UA_ReferenceTypeSet_init(indices);
-    const UA_Node *refNode = UA_NODESTORE_GET(server, refType);
+
+    /* Get the node with only the NodeClass attribute. If it is a
+     * ReferenceTypeNode, then the indices are always included, as this is an
+     * open62541 specific field (not selectable via the attribute id). */
+    const UA_Node *refNode =
+        UA_NODESTORE_GET_SELECTIVE(server, refType,
+                                   UA_NODEATTRIBUTESMASK_NODECLASS,
+                                   UA_REFERENCETYPESET_NONE,
+                                   UA_BROWSEDIRECTION_INVALID);
+
     if(!refNode)
         return UA_STATUSCODE_BADREFERENCETYPEIDINVALID;
 
@@ -82,7 +103,13 @@ isNodeInTreeNoCircular(UA_Server *server,
     if(visitedRefs->depth >= UA_MAX_TREE_RECURSE)
         return false;
 
-    const UA_Node *node = UA_NODESTORE_GETFROMREF(server, leafNode);
+    /* Get the node without attributes (if the NodeStore supports it) and only
+     * the relevant references in inverse direction */
+    const UA_Node *node =
+        UA_NODESTORE_GETFROMREF_SELECTIVE(server, leafNode,
+                                          UA_NODEATTRIBUTESMASK_NONE,
+                                          *relevantRefs,
+                                          UA_BROWSEDIRECTION_INVERSE);
     if(!node)
         return false;
 
@@ -299,7 +326,12 @@ browseRecursiveInner(UA_Server *server, RefTree *rt, UA_UInt16 depth, UA_Boolean
     if(depth >= UA_MAX_TREE_RECURSE)
         return UA_STATUSCODE_GOOD;
 
-    const UA_Node *node = UA_NODESTORE_GETFROMREF(server, nodeP);
+    /* We only look at the NodeClass attribute and a subset of the references.
+     * Get a node with only these elements if the NodeStore supports that. */
+    const UA_Node *node =
+        UA_NODESTORE_GETFROMREF_SELECTIVE(server, nodeP,
+                                          UA_NODEATTRIBUTESMASK_NODECLASS,
+                                          *refTypes, browseDirection);
     if(!node)
         return UA_STATUSCODE_BADNODEIDUNKNOWN;
 
@@ -572,8 +604,19 @@ browseReferences(UA_Server *server, const UA_NodeHead *head,
             return UA_STATUSCODE_BADINTERNALERROR;
     }
 
+    /* Get the node with additional reference types if we need to lookup the
+     * TypeDefinition */
+    UA_ReferenceTypeSet resultRefs = cp->relevantReferences;
+    if(bd->resultMask & UA_BROWSERESULTMASK_TYPEDEFINITION) {
+        resultRefs = UA_ReferenceTypeSet_union(resultRefs,
+                                               UA_REFTYPESET(UA_REFERENCETYPEINDEX_HASTYPEDEFINITION));
+        resultRefs = UA_ReferenceTypeSet_union(resultRefs,
+                                               UA_REFTYPESET(UA_REFERENCETYPEINDEX_HASSUBTYPE));
+    }
+
     /* Loop over the ReferenceTypes */
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
+
     for(; i < head->referencesSize; ++i) {
         UA_NodeReferenceKind *rk = &head->references[i];
 
@@ -595,9 +638,13 @@ browseReferences(UA_Server *server, const UA_NodeHead *head,
         if(!ref)
             ref = UA_NodeReferenceKind_iterate(rk, ref);
         for(;ref; ref = UA_NodeReferenceKind_iterate(rk, ref)) {
-            /* Get the node if it is not a remote reference */
+            /* Get the node (NULL if is a remote reference). Include only the
+             * ReferenceTypes we are interested in, including those for figuring
+             * out the TypeDefinition (if that was requested). */
             const UA_Node *target =
-                UA_NODESTORE_GETFROMREF(server, ref->targetId);
+                UA_NODESTORE_GETFROMREF_SELECTIVE(server, ref->targetId,
+                                                  resultMask2AttributesMask(bd->resultMask),
+                                                  resultRefs, bd->browseDirection);
 
             /* Test if the node class matches */
             if(target && !matchClassMask(target, bd->nodeClassMask)) {
@@ -653,7 +700,11 @@ browseWithContinuation(UA_Server *server, UA_Session *session,
 
     /* Is the reference type valid? */
     if(!UA_NodeId_isNull(&descr->referenceTypeId)) {
-        const UA_Node *reftype = UA_NODESTORE_GET(server, &descr->referenceTypeId);
+        const UA_Node *reftype =
+            UA_NODESTORE_GET_SELECTIVE(server, &descr->referenceTypeId,
+                                       UA_NODEATTRIBUTESMASK_NODECLASS,
+                                       UA_REFERENCETYPESET_NONE,
+                                       UA_BROWSEDIRECTION_INVALID);
         if(!reftype) {
             result->statusCode = UA_STATUSCODE_BADREFERENCETYPEIDINVALID;
             return true;
@@ -668,7 +719,11 @@ browseWithContinuation(UA_Server *server, UA_Session *session,
         }
     }
 
-    const UA_Node *node = UA_NODESTORE_GET(server, &descr->nodeId);
+    /* Get node with only the selected references and attributes */
+    const UA_Node *node =
+        UA_NODESTORE_GET_SELECTIVE(server, &descr->nodeId,
+                                   resultMask2AttributesMask(descr->resultMask),
+                                   cp->relevantReferences, descr->browseDirection);
     if(!node) {
         result->statusCode = UA_STATUSCODE_BADNODEIDUNKNOWN;
         return true;
@@ -990,8 +1045,16 @@ walkBrowsePathElement(UA_Server *server, UA_Session *session,
             continue;
         }
 
-        /* Local Node. Add to the tree of results at the next depth. */
-        const UA_Node *node = UA_NODESTORE_GET(server, &current->targets[i].nodeId);
+        /* Local Node. Add to the tree of results at the next depth. Get only
+         * the NodeClass + BrowseName attribute and the selected ReferenceTypes
+         * if the nodestore supports that. */
+        const UA_Node *node =
+            UA_NODESTORE_GET_SELECTIVE(server, &current->targets[i].nodeId,
+                                       UA_NODEATTRIBUTESMASK_NODECLASS |
+                                       UA_NODEATTRIBUTESMASK_BROWSENAME,
+                                       refTypes,
+                                       elem->isInverse ? UA_BROWSEDIRECTION_INVERSE :
+                                                         UA_BROWSEDIRECTION_FORWARD);
         if(!node)
             continue;
 
@@ -1076,7 +1139,11 @@ Operation_TranslateBrowsePathToNodeIds(UA_Server *server, UA_Session *session,
     }
 
     /* Check if the starting node exists */
-    const UA_Node *startingNode = UA_NODESTORE_GET(server, &path->startingNode);
+    const UA_Node *startingNode =
+        UA_NODESTORE_GET_SELECTIVE(server, &path->startingNode,
+                                   UA_NODEATTRIBUTESMASK_NONE,
+                                   UA_REFERENCETYPESET_NONE,
+                                   UA_BROWSEDIRECTION_INVALID);
     if(!startingNode) {
         result->statusCode = UA_STATUSCODE_BADNODEIDUNKNOWN;
         return;
@@ -1134,15 +1201,20 @@ Operation_TranslateBrowsePathToNodeIds(UA_Server *server, UA_Session *session,
     tmpResults = (UA_BrowsePathTarget*)
         UA_realloc(result->targets, sizeof(UA_BrowsePathTarget) *
                    (result->targetsSize + next->size));
-    if(!tmpResults) {
+    if(!tmpResults && next->size > 0) {
         result->statusCode = UA_STATUSCODE_BADOUTOFMEMORY;
         goto cleanup;
     }
     result->targets = tmpResults;
 
     for(size_t k = 0; k < next->size; k++) {
-        /* Check the BrowseName. It has been filtered only via its hash so far. */
-        const UA_Node *node = UA_NODESTORE_GET(server, &next->targets[k].nodeId);
+        /* Check the BrowseName. It has been filtered only via its hash so far.
+         * Get only the BrowseName attribute if the nodestore supports that. */
+        const UA_Node *node =
+            UA_NODESTORE_GET_SELECTIVE(server, &next->targets[k].nodeId,
+                                       UA_NODEATTRIBUTESMASK_BROWSENAME,
+                                       UA_REFERENCETYPESET_NONE,
+                                       UA_BROWSEDIRECTION_INVALID);
         if(!node)
             continue;
         UA_Boolean match = UA_QualifiedName_equal(browseNameFilter, &node->head.browseName);

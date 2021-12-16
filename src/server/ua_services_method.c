@@ -23,14 +23,19 @@ getArgumentsVariableNode(UA_Server *server, const UA_NodeHead *head,
                          UA_String withBrowseName) {
     for(size_t i = 0; i < head->referencesSize; ++i) {
         const UA_NodeReferenceKind *rk = &head->references[i];
-        if(rk->isInverse != false)
+        if(rk->isInverse)
             continue;
         if(rk->referenceTypeIndex != UA_REFERENCETYPEINDEX_HASPROPERTY)
             continue;
         const UA_ReferenceTarget *t = NULL;
         while((t = UA_NodeReferenceKind_iterate(rk, t))) {
+            /* Get only the NodeClass and Value attributes, no references */
             const UA_Node *refTarget =
-                UA_NODESTORE_GETFROMREF(server, t->targetId);
+                UA_NODESTORE_GETFROMREF_SELECTIVE(server, t->targetId,
+                                                  UA_NODEATTRIBUTESMASK_NODECLASS |
+                                                  UA_NODEATTRIBUTESMASK_VALUE,
+                                                  UA_REFERENCETYPESET_NONE,
+                                                  UA_BROWSEDIRECTION_INVALID);
             if(!refTarget)
                 continue;
             if(refTarget->head.nodeClass == UA_NODECLASS_VARIABLE &&
@@ -327,15 +332,29 @@ Operation_CallMethodAsync(UA_Server *server, UA_Session *session, UA_UInt32 requ
                           UA_UInt32 requestHandle, size_t opIndex,
                           UA_CallMethodRequest *opRequest, UA_CallMethodResult *opResult,
                           UA_AsyncResponse **ar) {
-    /* Get the method node */
-    const UA_Node *method = UA_NODESTORE_GET(server, &opRequest->methodId);
+    /* Get the method node. We only need the nodeClass and executable attribute.
+     * Take all forward hasProperty references to get the input/output argument
+     * definition variables. */
+    const UA_Node *method =
+        UA_NODESTORE_GET_SELECTIVE(server, &opRequest->methodId,
+                                   UA_NODEATTRIBUTESMASK_NODECLASS |
+                                   UA_NODEATTRIBUTESMASK_EXECUTABLE,
+                                   UA_REFTYPESET(UA_REFERENCETYPEINDEX_HASPROPERTY),
+                                   UA_BROWSEDIRECTION_FORWARD);
     if(!method) {
         opResult->statusCode = UA_STATUSCODE_BADNODEIDUNKNOWN;
         return;
     }
 
-    /* Get the object node */
-    const UA_Node *object = UA_NODESTORE_GET(server, &opRequest->objectId);
+    /* Get the object node. We only need the NodeClass attribute. But take all
+     * references for now.
+     *
+     * TODO: Which references do we need actually? */
+    const UA_Node *object =
+        UA_NODESTORE_GET_SELECTIVE(server, &opRequest->objectId,
+                                   UA_NODEATTRIBUTESMASK_NODECLASS,
+                                   UA_REFERENCETYPESET_ALL,
+                                   UA_BROWSEDIRECTION_BOTH);
     if(!object) {
         opResult->statusCode = UA_STATUSCODE_BADNODEIDUNKNOWN;
         UA_NODESTORE_RELEASE(server, method);
@@ -410,15 +429,29 @@ Service_CallAsync(UA_Server *server, UA_Session *session, UA_UInt32 requestId,
 static void
 Operation_CallMethod(UA_Server *server, UA_Session *session, void *context,
                      const UA_CallMethodRequest *request, UA_CallMethodResult *result) {
-    /* Get the method node */
-    const UA_Node *method = UA_NODESTORE_GET(server, &request->methodId);
+    /* Get the method node. We only need the nodeClass and executable attribute.
+     * Take all forward hasProperty references to get the input/output argument
+     * definition variables. */
+    const UA_Node *method =
+        UA_NODESTORE_GET_SELECTIVE(server, &request->methodId,
+                                   UA_NODEATTRIBUTESMASK_NODECLASS |
+                                   UA_NODEATTRIBUTESMASK_EXECUTABLE,
+                                   UA_REFTYPESET(UA_REFERENCETYPEINDEX_HASPROPERTY),
+                                   UA_BROWSEDIRECTION_FORWARD);
     if(!method) {
         result->statusCode = UA_STATUSCODE_BADNODEIDUNKNOWN;
         return;
     }
 
-    /* Get the object node */
-    const UA_Node *object = UA_NODESTORE_GET(server, &request->objectId);
+    /* Get the object node. We only need the NodeClass attribute. But take all
+     * references for now.
+     *
+     * TODO: Which references do we need actually? */
+    const UA_Node *object =
+        UA_NODESTORE_GET_SELECTIVE(server, &request->objectId,
+                                   UA_NODEATTRIBUTESMASK_NODECLASS,
+                                   UA_REFERENCETYPESET_ALL,
+                                   UA_BROWSEDIRECTION_BOTH);
     if(!object) {
         result->statusCode = UA_STATUSCODE_BADNODEIDUNKNOWN;
         UA_NODESTORE_RELEASE(server, method);

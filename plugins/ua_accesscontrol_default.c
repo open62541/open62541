@@ -363,35 +363,38 @@ UA_AccessControl_default(UA_ServerConfig *config,
     if(allowAnonymous) {
         ac->userTokenPolicies[policies].tokenType = UA_USERTOKENTYPE_ANONYMOUS;
         ac->userTokenPolicies[policies].policyId = UA_STRING_ALLOC(ANONYMOUS_POLICY);
-        if (!ac->userTokenPolicies[policies].policyId.data)
-            return UA_STATUSCODE_BADOUTOFMEMORY;
         policies++;
     }
 
     if(verifyX509) {
         ac->userTokenPolicies[policies].tokenType = UA_USERTOKENTYPE_CERTIFICATE;
         ac->userTokenPolicies[policies].policyId = UA_STRING_ALLOC(CERTIFICATE_POLICY);
-        if (!ac->userTokenPolicies[policies].policyId.data)
-            return UA_STATUSCODE_BADOUTOFMEMORY;
+#if UA_LOGLEVEL <= 400
+        if(UA_ByteString_equal(userTokenPolicyUri, &UA_SECURITY_POLICY_NONE_URI)) {
+            UA_LOG_WARNING(&config->logger, UA_LOGCATEGORY_SERVER,
+                           "x509 Certificate Authentication configured, "
+                           "but no encrypting SecurityPolicy. "
+                           "This can leak credentials on the network.");
+        }
+#endif
+        UA_ByteString_copy(userTokenPolicyUri,
+                           &ac->userTokenPolicies[policies].securityPolicyUri);
         policies++;
     }
 
     if(usernamePasswordLoginSize > 0) {
         ac->userTokenPolicies[policies].tokenType = UA_USERTOKENTYPE_USERNAME;
         ac->userTokenPolicies[policies].policyId = UA_STRING_ALLOC(USERNAME_POLICY);
-        if(!ac->userTokenPolicies[policies].policyId.data)
-            return UA_STATUSCODE_BADOUTOFMEMORY;
-
 #if UA_LOGLEVEL <= 400
-        const UA_String noneUri = UA_STRING("http://opcfoundation.org/UA/SecurityPolicy#None");
-        if(UA_ByteString_equal(userTokenPolicyUri, &noneUri)) {
+        if(UA_ByteString_equal(userTokenPolicyUri, &UA_SECURITY_POLICY_NONE_URI)) {
             UA_LOG_WARNING(&config->logger, UA_LOGCATEGORY_SERVER,
-                           "Username/Password configured, but no encrypting SecurityPolicy. "
+                           "Username/Password Authentication configured, "
+                           "but no encrypting SecurityPolicy. "
                            "This can leak credentials on the network.");
         }
 #endif
-        return UA_ByteString_copy(userTokenPolicyUri,
-                                  &ac->userTokenPolicies[policies].securityPolicyUri);
+        UA_ByteString_copy(userTokenPolicyUri,
+                           &ac->userTokenPolicies[policies].securityPolicyUri);
     }
     return UA_STATUSCODE_GOOD;
 }

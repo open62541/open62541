@@ -39,7 +39,8 @@
 #define UA_WOULDBLOCK EWOULDBLOCK
 #define UA_ERR_CONNECTION_PROGRESS EINPROGRESS
 
-#define UA_getnameinfo getnameinfo
+#define UA_getnameinfo(sa, salen, host, hostlen, serv, servlen, flags) \
+    getnameinfo(sa, salen, host, hostlen, serv, servlen, flags)
 #define UA_send send
 #define UA_recv recv
 #define UA_sendto sendto

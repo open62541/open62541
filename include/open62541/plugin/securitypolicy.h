@@ -16,7 +16,7 @@
 
 _UA_BEGIN_DECLS
 
-extern UA_EXPORT const UA_ByteString UA_SECURITY_POLICY_NONE_URI;
+extern UA_EXPORT const UA_String UA_SECURITY_POLICY_NONE_URI;
 
 struct UA_SecurityPolicy;
 typedef struct UA_SecurityPolicy UA_SecurityPolicy;
@@ -296,7 +296,7 @@ struct UA_SecurityPolicy {
     void *policyContext;
 
     /* The policy uri that identifies the implemented algorithms */
-    UA_ByteString policyUri;
+    UA_String policyUri;
 
     /* The local certificate is specific for each SecurityPolicy since it
      * depends on the used key length. */
@@ -333,8 +333,8 @@ struct UA_PubSubSecurityPolicy;
 typedef struct UA_PubSubSecurityPolicy UA_PubSubSecurityPolicy;
 
 struct UA_PubSubSecurityPolicy {
-    UA_ByteString policyUri; /* The policy uri that identifies the implemented
-                              * algorithms */
+    UA_String policyUri; /* The policy uri that identifies the implemented
+                          * algorithms */
     UA_SecurityPolicySymmetricModule symmetricModule;
 
     /* Create the context for the WriterGroup. The keys and nonce can be NULL

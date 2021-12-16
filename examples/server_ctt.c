@@ -1226,6 +1226,9 @@ int main(int argc, char **argv) {
     config.maxNodesPerNodeManagement = MAX_OPERATION_LIMIT;
     config.maxMonitoredItemsPerCall = MAX_OPERATION_LIMIT;
 
+    /* Set Subscription limits */
+    config.maxSubscriptions = 100;
+
     /* If RequestTimestamp is '0', log the warning and proceed */
     config.verifyRequestTimestamp = UA_RULEHANDLING_WARN;
     if(enableTime)

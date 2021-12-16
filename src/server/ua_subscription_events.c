@@ -162,6 +162,29 @@ isValidEvent(UA_Server *server, const UA_NodeId *validEventParent,
     return isSubtypeOfBaseEvent;
 }
 
+/* Resolves a variant of type string or boolean into a corresponding status code */
+static UA_StatusCode
+resolveBoolean(UA_Variant operand) {
+    UA_String value;
+    value = UA_STRING("True");
+    if(((operand.type == &UA_TYPES[UA_TYPES_STRING]) &&
+        (UA_String_equal((UA_String *)operand.data, &value))) ||
+       ((operand.type == &UA_TYPES[UA_TYPES_BOOLEAN]) &&
+        (*(UA_Boolean *)operand.data == UA_TRUE))) {
+        return UA_STATUSCODE_GOOD;
+    }
+    value = UA_STRING("False");
+    if(((operand.type == &UA_TYPES[UA_TYPES_STRING]) &&
+        (UA_String_equal((UA_String *)operand.data, &value))) ||
+       ((operand.type == &UA_TYPES[UA_TYPES_BOOLEAN]) &&
+        (*(UA_Boolean *)operand.data == UA_FALSE))) {
+        return UA_STATUSCODE_BADNOMATCH;
+    }
+
+    /* If the operand can't be resolved, an error is returned */
+    return UA_STATUSCODE_BADFILTEROPERANDINVALID;
+}
+
 /* Part 4: 7.4.4.5 SimpleAttributeOperand
  * The clause can point to any attribute of nodes. Either a child of the event
  * node and also the event type. */
@@ -178,8 +201,8 @@ resolveSimpleAttributeOperand(UA_Server *server, UA_Session *session, const UA_N
 
     if(sao->browsePathSize == 0) {
         /* If this list (browsePath) is empty, the Node is the instance of the
-         * TypeDefinition. */
-        rvi.nodeId = sao->typeDefinitionId;
+         * TypeDefinition. (Part 4, 7.4.4.5) */
+        rvi.nodeId = *origin;
 
         /* A Condition is an indirection. Look up the target node. */
         /* TODO: check for Branches! One Condition could have multiple Branches */
@@ -233,6 +256,7 @@ resolveOperand(UA_Server *server, UA_Session *session, const UA_NodeId *origin,
 
     UA_StatusCode res;
     UA_Variant variant;
+    UA_Variant_init(&variant);
     /*SimpleAttributeOperands*/
     if(contentFilter->elements[index].filterOperands[nr].content.decoded.type ==
        &UA_TYPES[UA_TYPES_SIMPLEATTRIBUTEOPERAND]) {
@@ -246,23 +270,17 @@ resolveOperand(UA_Server *server, UA_Session *session, const UA_NodeId *origin,
     } else if(contentFilter->elements[index].filterOperands[nr].content.decoded.type ==
               &UA_TYPES[UA_TYPES_LITERALOPERAND]) {
         variant = ((UA_LiteralOperand *)contentFilter->elements[index]
-            .filterOperands[nr]
-            .content.decoded.data)
-            ->value;
+            .filterOperands[nr].content.decoded.data)->value;
         res = UA_STATUSCODE_GOOD;
     } else if(contentFilter->elements[index].filterOperands[nr].content.decoded.type ==
               &UA_TYPES[UA_TYPES_ELEMENTOPERAND]) {
         res = evaluateWhereClauseContentFilter(
             server, session, origin, contentFilter, contentFilterResult, valueResult,
             (UA_UInt16)((UA_ElementOperand *)contentFilter->elements[index]
-                .filterOperands[nr]
-                .content.decoded.data)
-                ->index);
+                .filterOperands[nr].content.decoded.data)->index);
         variant =
             valueResult[(UA_UInt16)((UA_ElementOperand *)contentFilter->elements[index]
-                .filterOperands[nr]
-                .content.decoded.data)
-                ->index];
+                .filterOperands[nr].content.decoded.data)->index];
         /*ElementOperands*/
     } else {
         res = UA_STATUSCODE_BADFILTEROPERANDINVALID;
@@ -272,6 +290,161 @@ resolveOperand(UA_Server *server, UA_Session *session, const UA_NodeId *origin,
         contentFilterResult->elementResults[index].operandStatusCodes[nr] = res;
     }
     return variant;
+}
+
+static UA_StatusCode
+ofTypeOperator(UA_Server *server, UA_Session *session,
+               const UA_NodeId *eventNode,
+               const UA_ContentFilter *contentFilter,
+               UA_ContentFilterResult *contentFilterResult,
+               UA_Variant* valueResult, UA_UInt16 index,
+               UA_UInt16 nr, UA_ContentFilterElement *pElement){
+    UA_Boolean result = false;
+    valueResult[index].type = &UA_TYPES[UA_TYPES_BOOLEAN];
+    if(pElement->filterOperandsSize != 1)
+        return UA_STATUSCODE_BADFILTEROPERANDCOUNTMISMATCH;
+    if(pElement->filterOperands[0].content.decoded.type !=
+       &UA_TYPES[UA_TYPES_LITERALOPERAND])
+        return UA_STATUSCODE_BADFILTEROPERATORUNSUPPORTED;
+
+    UA_LiteralOperand *literalOperand =
+        (UA_LiteralOperand *) pElement->filterOperands[0].content.decoded.data;
+    if(!UA_Variant_isScalar(&literalOperand->value))
+        return UA_STATUSCODE_BADEVENTFILTERINVALID;
+
+    if(literalOperand->value.type != &UA_TYPES[UA_TYPES_NODEID] || literalOperand->value.data == NULL)
+        return UA_STATUSCODE_BADEVENTFILTERINVALID;
+
+    UA_NodeId *literalOperandNodeId = (UA_NodeId *) literalOperand->value.data;
+    UA_Variant typeNodeIdVariant;
+    UA_Variant_init(&typeNodeIdVariant);
+    UA_StatusCode readStatusCode =
+        readObjectProperty(server, *eventNode, UA_QUALIFIEDNAME(0, "EventType"),
+                           &typeNodeIdVariant);
+    if(readStatusCode != UA_STATUSCODE_GOOD)
+        return readStatusCode;
+
+    if(!UA_Variant_isScalar(&typeNodeIdVariant) ||
+       typeNodeIdVariant.type != &UA_TYPES[UA_TYPES_NODEID] ||
+       typeNodeIdVariant.data == NULL) {
+        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                     "EventType has an invalid type.");
+        UA_Variant_clear(&typeNodeIdVariant);
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
+    //check if the eventtype-nodeid is equal to the given oftype argument
+    result = UA_NodeId_equal((UA_NodeId*) typeNodeIdVariant.data, literalOperandNodeId);
+    //check if the eventtype-nodeid is a subtype of the given oftype argument
+    if(!result)
+        result = isNodeInTree_singleRef(server,
+                                        (UA_NodeId*) typeNodeIdVariant.data,
+                                        literalOperandNodeId,
+                                        UA_REFERENCETYPEINDEX_HASSUBTYPE);
+    UA_Variant_clear(&typeNodeIdVariant);
+    if(!result)
+        return UA_STATUSCODE_BADNOMATCH;
+    return UA_STATUSCODE_GOOD;
+}
+
+static UA_StatusCode
+andOperator(UA_Server *server, UA_Session *session,
+            const UA_NodeId *eventNode,
+            const UA_ContentFilter *contentFilter,
+            UA_ContentFilterResult *contentFilterResult,
+            UA_Variant* valueResult, UA_UInt16 index,
+            UA_UInt16 nr, UA_ContentFilterElement *pElement) {
+    UA_StatusCode firstBoolean_and = resolveBoolean(
+        resolveOperand(server, session, eventNode, contentFilter,
+                       contentFilterResult, valueResult, index, 0));
+    if(firstBoolean_and == UA_STATUSCODE_BADNOMATCH) {
+        valueResult[index].type = &UA_TYPES[UA_TYPES_BOOLEAN];
+        return UA_STATUSCODE_BADNOMATCH;
+    }
+    /* Evaluation of second operand */
+    UA_StatusCode secondBoolean = resolveBoolean(
+        resolveOperand(server, session, eventNode, contentFilter,
+                       contentFilterResult, valueResult, index, 1));
+
+    /* Filteroperator AND */
+    if(secondBoolean == UA_STATUSCODE_BADNOMATCH) {
+        valueResult[index].type = &UA_TYPES[UA_TYPES_BOOLEAN];
+        return UA_STATUSCODE_BADNOMATCH;
+    } else if((firstBoolean_and == UA_STATUSCODE_GOOD) &&
+              (secondBoolean == UA_STATUSCODE_GOOD)) {
+        valueResult[index].type = &UA_TYPES[UA_TYPES_BOOLEAN];
+        return UA_STATUSCODE_GOOD;
+    } else {
+        return UA_STATUSCODE_BADFILTERELEMENTINVALID;
+    }
+}
+
+static UA_StatusCode
+orOperator(UA_Server *server, UA_Session *session,
+           const UA_NodeId *eventNode,
+           const UA_ContentFilter *contentFilter,
+           UA_ContentFilterResult *contentFilterResult,
+           UA_Variant* valueResult, UA_UInt16 index,
+           UA_UInt16 nr, UA_ContentFilterElement *pElement) {
+    UA_StatusCode firstBoolean_or = resolveBoolean(
+        resolveOperand(server, session, eventNode, contentFilter,
+                       contentFilterResult, valueResult, index, 0));
+    if(firstBoolean_or == UA_STATUSCODE_GOOD) {
+        valueResult[index].type = &UA_TYPES[UA_TYPES_BOOLEAN];
+        return UA_STATUSCODE_GOOD;
+    }
+    /* Evaluation of second operand */
+    UA_StatusCode secondBoolean = resolveBoolean(
+        resolveOperand(server, session, eventNode, contentFilter,
+                       contentFilterResult, valueResult, index, 1));
+
+    if(secondBoolean == UA_STATUSCODE_GOOD) {
+        valueResult[index].type = &UA_TYPES[UA_TYPES_BOOLEAN];
+        return UA_STATUSCODE_GOOD;
+    } else if((firstBoolean_or == UA_STATUSCODE_BADNOMATCH) &&
+              (secondBoolean == UA_STATUSCODE_BADNOMATCH)) {
+        valueResult[index].type = &UA_TYPES[UA_TYPES_BOOLEAN];
+        return UA_STATUSCODE_BADNOMATCH;
+    } else {
+        return UA_STATUSCODE_BADFILTERELEMENTINVALID;
+    }
+}
+
+static UA_StatusCode
+isNullOperator(UA_Server *server, UA_Session *session,
+           const UA_NodeId *eventNode,
+           const UA_ContentFilter *contentFilter,
+           UA_ContentFilterResult *contentFilterResult,
+           UA_Variant* valueResult, UA_UInt16 index,
+           UA_UInt16 nr, UA_ContentFilterElement *pElement) {
+    /* Checking if operand is NULL. This is done by reducing the operand to a
+    * variant and then checking if it is empty. */
+    UA_Variant operand =
+        resolveOperand(server, session, eventNode, contentFilter,
+                       contentFilterResult, valueResult, index, 0);
+    valueResult[index].type = &UA_TYPES[UA_TYPES_BOOLEAN];
+    if(!UA_Variant_isEmpty(&operand)) {
+        return UA_STATUSCODE_BADNOMATCH;
+    }
+    return UA_STATUSCODE_GOOD;
+}
+
+static UA_StatusCode
+notOperator(UA_Server *server, UA_Session *session,
+               const UA_NodeId *eventNode,
+               const UA_ContentFilter *contentFilter,
+               UA_ContentFilterResult *contentFilterResult,
+               UA_Variant* valueResult, UA_UInt16 index,
+               UA_UInt16 nr, UA_ContentFilterElement *pElement) {
+    /* Inverting the boolean value of the operand. */
+    UA_StatusCode res = resolveBoolean(
+        resolveOperand(server, session, eventNode, contentFilter,
+                       contentFilterResult, valueResult, index, 0));
+    valueResult[index].type = &UA_TYPES[UA_TYPES_BOOLEAN];
+    //invert result
+    if(res == UA_STATUSCODE_GOOD) {
+        return UA_STATUSCODE_BADNOMATCH;
+    }
+    return UA_STATUSCODE_GOOD;
 }
 
 static UA_StatusCode
@@ -289,97 +462,72 @@ evaluateWhereClauseContentFilter(UA_Server *server, UA_Session *session,
 
     /* The first element needs to be evaluated, this might be linked to other
      * elements, which are evaluated in these cases. See 7.4.1 in Part 4. */
-    UA_ContentFilterElement *pElement = &contentFilter->elements[0];
+    UA_ContentFilterElement *pElement = &contentFilter->elements[index];
     switch(pElement->filterOperator) {
         case UA_FILTEROPERATOR_INVIEW:
+            return UA_STATUSCODE_BADEVENTFILTERINVALID;
         case UA_FILTEROPERATOR_RELATEDTO: {
             /* Not allowed for event WhereClause according to 7.17.3 in Part 4 */
             return UA_STATUSCODE_BADEVENTFILTERINVALID;
         }
         case UA_FILTEROPERATOR_EQUALS:
-        case UA_FILTEROPERATOR_ISNULL: {
-            /* Checking if operand is NULL. This is done by reducing the operand to a
-            * variant and then checking if it is empty. */
-            UA_Variant operand =
-                resolveOperand(server, session, eventNode, contentFilter,
-                               contentFilterResult, valueResult, index, 0);
-            valueResult[index].type = &UA_TYPES[UA_TYPES_BOOLEAN];
-            if(UA_Variant_isEmpty(&operand)) {
-                contentFilterResult->elementResults[index].statusCode =
-                    UA_STATUSCODE_GOOD;
-                break;
-            }
-            contentFilterResult->elementResults[index].statusCode =
-                UA_STATUSCODE_BADNOMATCH;
-            break;
-        }
-        case UA_FILTEROPERATOR_GREATERTHAN:
-        case UA_FILTEROPERATOR_LESSTHAN:
-        case UA_FILTEROPERATOR_GREATERTHANOREQUAL:
-        case UA_FILTEROPERATOR_LESSTHANOREQUAL:
-        case UA_FILTEROPERATOR_LIKE:
-        case UA_FILTEROPERATOR_NOT:
-        case UA_FILTEROPERATOR_BETWEEN:
-        case UA_FILTEROPERATOR_INLIST:
-        case UA_FILTEROPERATOR_AND:
-        case UA_FILTEROPERATOR_OR:
-        case UA_FILTEROPERATOR_CAST:
-        case UA_FILTEROPERATOR_BITWISEAND:
-        case UA_FILTEROPERATOR_BITWISEOR:
             return UA_STATUSCODE_BADFILTEROPERATORUNSUPPORTED;
-
-        case UA_FILTEROPERATOR_OFTYPE: {
-            UA_Boolean result = UA_FALSE;
-            if(pElement->filterOperandsSize != 1)
-                return UA_STATUSCODE_BADFILTEROPERANDCOUNTMISMATCH;
-            if(pElement->filterOperands[0].content.decoded.type !=
-                &UA_TYPES[UA_TYPES_LITERALOPERAND])
-                return UA_STATUSCODE_BADFILTEROPERATORUNSUPPORTED;
-
-            UA_LiteralOperand *pOperand =
-                (UA_LiteralOperand *) pElement->filterOperands[0].content.decoded.data;
-            if(!UA_Variant_isScalar(&pOperand->value))
-                return UA_STATUSCODE_BADEVENTFILTERINVALID;
-
-            if(pOperand->value.type != &UA_TYPES[UA_TYPES_NODEID] ||
-               pOperand->value.data == NULL) {
-                result = UA_FALSE;
-            } else {
-                UA_NodeId *pOperandNodeId = (UA_NodeId *) pOperand->value.data;
-                UA_QualifiedName eventTypeQualifiedName = UA_QUALIFIEDNAME(0, "EventType");
-                UA_Variant typeNodeIdVariant;
-                UA_Variant_init(&typeNodeIdVariant);
-                UA_StatusCode readStatusCode =
-                    readObjectProperty(server, *eventNode, eventTypeQualifiedName,
-                                       &typeNodeIdVariant);
-                if(readStatusCode != UA_STATUSCODE_GOOD)
-                    return readStatusCode;
-
-                if(!UA_Variant_isScalar(&typeNodeIdVariant) ||
-                   typeNodeIdVariant.type != &UA_TYPES[UA_TYPES_NODEID] ||
-                   typeNodeIdVariant.data == NULL) {
-                    UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
-                                 "EventType has an invalid type.");
-                    UA_Variant_clear(&typeNodeIdVariant);
-                    return UA_STATUSCODE_BADINTERNALERROR;
-                }
-
-                result = isNodeInTree_singleRef(server,
-                                                (UA_NodeId*) typeNodeIdVariant.data,
-                                                pOperandNodeId,
-                                                UA_REFERENCETYPEINDEX_HASSUBTYPE);
-                UA_Variant_clear(&typeNodeIdVariant);
-            }
-
-            if(result)
-                return UA_STATUSCODE_GOOD;
-            else
-                return UA_STATUSCODE_BADNOMATCH;
-        }
+        case UA_FILTEROPERATOR_ISNULL:
+            contentFilterResult->elementResults[index].statusCode =
+                isNullOperator(server, session, eventNode, contentFilter,
+                               contentFilterResult, valueResult, index, 0, pElement);
             break;
-    default:
-        return UA_STATUSCODE_BADFILTEROPERATORINVALID;
-        break;
+        case UA_FILTEROPERATOR_GREATERTHAN:
+            return UA_STATUSCODE_BADFILTEROPERATORUNSUPPORTED;
+        case UA_FILTEROPERATOR_LESSTHAN:
+            return UA_STATUSCODE_BADFILTEROPERATORUNSUPPORTED;
+        case UA_FILTEROPERATOR_GREATERTHANOREQUAL:
+            return UA_STATUSCODE_BADFILTEROPERATORUNSUPPORTED;
+        case UA_FILTEROPERATOR_LESSTHANOREQUAL:
+            return UA_STATUSCODE_BADFILTEROPERATORUNSUPPORTED;
+        case UA_FILTEROPERATOR_LIKE:
+            return UA_STATUSCODE_BADFILTEROPERATORUNSUPPORTED;
+        case UA_FILTEROPERATOR_NOT:
+            contentFilterResult->elementResults[index].statusCode =
+                notOperator(server, session, eventNode, contentFilter,
+                            contentFilterResult, valueResult, index, 0, pElement);
+            break;
+        case UA_FILTEROPERATOR_BETWEEN:
+            return UA_STATUSCODE_BADFILTEROPERATORUNSUPPORTED;
+        case UA_FILTEROPERATOR_INLIST:
+            return UA_STATUSCODE_BADFILTEROPERATORUNSUPPORTED;
+        case UA_FILTEROPERATOR_AND: {
+            contentFilterResult->elementResults[index].statusCode =
+                andOperator(server, session, eventNode, contentFilter,
+                            contentFilterResult, valueResult, index, 0, pElement);
+            break;
+            case UA_FILTEROPERATOR_OR:
+                contentFilterResult->elementResults[index].statusCode =
+                    orOperator(server, session, eventNode, contentFilter,
+                               contentFilterResult, valueResult, index, 0, pElement);
+                break;
+            case UA_FILTEROPERATOR_CAST:
+                return UA_STATUSCODE_BADFILTEROPERATORUNSUPPORTED;
+            case UA_FILTEROPERATOR_BITWISEAND:
+                return UA_STATUSCODE_BADFILTEROPERATORUNSUPPORTED;
+            case UA_FILTEROPERATOR_BITWISEOR:
+                return UA_STATUSCODE_BADFILTEROPERATORUNSUPPORTED;
+            case UA_FILTEROPERATOR_OFTYPE:
+                contentFilterResult->elementResults[index].statusCode =
+                    ofTypeOperator(server, session, eventNode, contentFilter,
+                                   contentFilterResult, valueResult, index, 0, pElement);
+                break;
+            default:
+                return UA_STATUSCODE_BADFILTEROPERATORINVALID;
+        }
+    }
+    if(valueResult[index].type == &UA_TYPES[UA_TYPES_BOOLEAN]) {
+        UA_Boolean *result = UA_Boolean_new();
+        if(contentFilterResult->elementResults[index].statusCode == UA_STATUSCODE_GOOD)
+            *result = true;
+        else
+            *result = false;
+        valueResult[index].data = result;
     }
     return contentFilterResult->elementResults[index].statusCode;
 }
