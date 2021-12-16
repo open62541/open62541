@@ -385,7 +385,7 @@ sendStatusChangeDelete(UA_Server *server, UA_Subscription *sub,
 void
 UA_Subscription_publish(UA_Server *server, UA_Subscription *sub) {
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
-    UA_LOG_DEBUG_SUBSCRIPTION(&server->config.logger, sub, "Publish Callback");
+    UA_LOG_TRACE_SUBSCRIPTION(&server->config.logger, sub, "Publish Callback");
     UA_assert(sub);
 
     /* Dequeue a response */

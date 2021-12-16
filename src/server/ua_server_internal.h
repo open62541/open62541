@@ -185,8 +185,7 @@ UA_Server_configSecureChannel(void *application, UA_SecureChannel *channel,
                               const UA_AsymmetricAlgorithmSecurityHeader *asymHeader);
 
 UA_StatusCode
-sendServiceFault(UA_SecureChannel *channel, UA_UInt32 requestId, UA_UInt32 requestHandle,
-                 const UA_DataType *responseType, UA_StatusCode statusCode);
+sendServiceFault(UA_SecureChannel *channel, UA_UInt32 requestId, UA_UInt32 requestHandle, UA_StatusCode statusCode);
 
 void
 UA_Server_closeSecureChannel(UA_Server *server, UA_SecureChannel *channel,
