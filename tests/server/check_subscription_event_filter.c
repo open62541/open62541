@@ -422,6 +422,20 @@ setupEqualsFilter(UA_ContentFilterElement *element, UA_FilterOperator compareOpe
     setupOperandArrays(element);
 }
 
+static void
+setupBetweenFilter(UA_ContentFilterElement *element){
+    element->filterOperator = UA_FILTEROPERATOR_BETWEEN;
+    element->filterOperandsSize = 3;
+    setupOperandArrays(element);
+}
+
+static void
+setupInListFilter(UA_ContentFilterElement *element, UA_UInt16 elements){
+    element->filterOperator = UA_FILTEROPERATOR_INLIST;
+    element->filterOperandsSize = elements;
+    setupOperandArrays(element);
+}
+
 /*static void
 setupElementOperand(UA_ContentFilterElement *element, size_t count, UA_UInt32 *indexes){
     for(size_t i = 0; i < count; ++i) {
@@ -683,6 +697,79 @@ START_TEST(orderedCompareOperatorValidation) {
     UA_EventFilter_clear(&filter);
 } END_TEST
 
+START_TEST(betweenOperatorValidation) {
+    /*  setup event filter */
+    UA_EventFilter filter;
+    UA_EventFilter_init(&filter);
+    setupSelectClauses();
+    filter.selectClauses = selectClauses;
+    filter.selectClausesSize = defaultSlectClauseSize;
+    setupContentFilter(&filter.whereClause, 1);
+    setupBetweenFilter(&filter.whereClause.elements[0]);
+    /*  setup operands */
+    UA_UInt32 range_element = 40;
+    UA_UInt32 range_start = 10;
+    UA_UInt32 range_stop = 100;
+    UA_Variant literalContent[3];
+    memset(literalContent, 0, sizeof(UA_Variant) * 3);
+    UA_Variant_setScalarCopy(&literalContent[0], &range_element, &UA_TYPES[UA_TYPES_UINT32]);
+    UA_Variant_setScalarCopy(&literalContent[1], &range_start, &UA_TYPES[UA_TYPES_UINT32]);
+    UA_Variant_setScalarCopy(&literalContent[2], &range_stop, &UA_TYPES[UA_TYPES_UINT32]);
+    setupLiteralOperand(&filter.whereClause.elements[0], 3, literalContent);
+    /*  setup event */
+    eventType = EventType_A_Layer_1;
+    UA_NodeId eventNodeId;
+    UA_StatusCode retval = eventSetup(&eventNodeId);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    /*  add a monitored item (with filter) */
+    UA_MonitoredItemCreateResult createResult = addMonitoredItem(handler_events_simple, &filter, true);
+    ck_assert_uint_eq(createResult.statusCode, UA_STATUSCODE_GOOD);
+    monitoredItemId = createResult.monitoredItemId;
+    /*  trigger the event */
+    retval = triggerEventLocked(eventNodeId, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER), NULL, UA_TRUE);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    checkForEvent(&createResult, true);
+    deleteMonitoredItems();
+    UA_EventFilter_clear(&filter);
+} END_TEST
+
+START_TEST(inListOperatorValidation) {
+    /*  setup event filter */
+    UA_EventFilter filter;
+    UA_EventFilter_init(&filter);
+    setupSelectClauses();
+    filter.selectClauses = selectClauses;
+    filter.selectClausesSize = defaultSlectClauseSize;
+    setupContentFilter(&filter.whereClause, 1);
+    setupInListFilter(&filter.whereClause.elements[0], 4);
+    /*  setup operands */
+    UA_UInt32 target_element = 40;
+    UA_UInt32 element_1 = 10;
+    UA_UInt32 element_2 = 100;
+    UA_UInt32 element_3 = 40;
+    UA_Variant literalContent[4];
+    memset(literalContent, 0, sizeof(UA_Variant) * 4);
+    UA_Variant_setScalarCopy(&literalContent[0], &target_element, &UA_TYPES[UA_TYPES_INT32]);
+    UA_Variant_setScalarCopy(&literalContent[1], &element_1, &UA_TYPES[UA_TYPES_INT32]);
+    UA_Variant_setScalarCopy(&literalContent[2], &element_2, &UA_TYPES[UA_TYPES_INT32]);
+    UA_Variant_setScalarCopy(&literalContent[3], &element_3, &UA_TYPES[UA_TYPES_INT32]);
+    setupLiteralOperand(&filter.whereClause.elements[0], 4, literalContent);
+    /*  setup event */
+    eventType = EventType_A_Layer_1;
+    UA_NodeId eventNodeId;
+    UA_StatusCode retval = eventSetup(&eventNodeId);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    /*  add a monitored item (with filter) */
+    UA_MonitoredItemCreateResult createResult = addMonitoredItem(handler_events_simple, &filter, true);
+    ck_assert_uint_eq(createResult.statusCode, UA_STATUSCODE_GOOD);
+    monitoredItemId = createResult.monitoredItemId;
+    /*  trigger the event */
+    retval = triggerEventLocked(eventNodeId, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER), NULL, UA_TRUE);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    checkForEvent(&createResult, true);
+    deleteMonitoredItems();
+    UA_EventFilter_clear(&filter);
+} END_TEST
 
 static Suite *testSuite_Client(void) {
     Suite *s = suite_create("Server Subscription Event Filters");
@@ -694,6 +781,9 @@ static Suite *testSuite_Client(void) {
     tcase_add_test(tc_server, andTypeOperatorValidation);
     tcase_add_test(tc_server, equalOperatorValidation);
     tcase_add_test(tc_server, orderedCompareOperatorValidation);
+    tcase_add_test(tc_server, betweenOperatorValidation);
+    tcase_add_test(tc_server, inListOperatorValidation);
+
     suite_add_tcase(s, tc_server);
     return s;
 }

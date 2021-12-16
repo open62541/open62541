@@ -12,12 +12,18 @@
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
 
+typedef struct {
+    UA_Server *server;
+    UA_Session *session;
+    const UA_NodeId *eventNode;
+    const UA_ContentFilter *contentFilter;
+    UA_ContentFilterResult *contentFilterResult;
+    UA_Variant *valueResult;
+    UA_UInt16 index;
+} UA_FilterOperatorContext;
+
 static UA_StatusCode
-evaluateWhereClauseContentFilter(UA_Server *server, UA_Session *session,
-                                 const UA_NodeId *eventNode,
-                                 const UA_ContentFilter *contentFilter,
-                                 UA_ContentFilterResult *contentFilterResult,
-                                 UA_Variant* valueResult, UA_UInt16 index);
+evaluateWhereClauseContentFilter(UA_FilterOperatorContext *ctx);
 
 /* We use a 16-Byte ByteString as an identifier */
 UA_StatusCode
@@ -248,58 +254,47 @@ resolveSimpleAttributeOperand(UA_Server *server, UA_Session *session, const UA_N
 /* Resolve operands to variants according to the operand type.
  * Part 4: 7.17.3 Table 142 specifies the allowed types. */
 static UA_Variant
-resolveOperand(UA_Server *server, UA_Session *session, const UA_NodeId *origin,
-               const UA_ContentFilter *contentFilter,
-               UA_ContentFilterResult *contentFilterResult, UA_Variant *valueResult,
-               UA_UInt16 index, UA_UInt16 nr) {
-
+resolveOperand(UA_FilterOperatorContext *ctx, UA_UInt16 nr) {
     UA_StatusCode res;
     UA_Variant variant;
     UA_Variant_init(&variant);
     /*SimpleAttributeOperands*/
-    if(contentFilter->elements[index].filterOperands[nr].content.decoded.type ==
+    if(ctx->contentFilter->elements[ctx->index].filterOperands[nr].content.decoded.type ==
        &UA_TYPES[UA_TYPES_SIMPLEATTRIBUTEOPERAND]) {
-        res = resolveSimpleAttributeOperand(
-            server, session, origin,
-            (UA_SimpleAttributeOperand *)contentFilter->elements[index]
-                .filterOperands[nr]
-                .content.decoded.data,
-            &variant);
+        res = resolveSimpleAttributeOperand(ctx->server, ctx->session, ctx->eventNode,
+                                            (UA_SimpleAttributeOperand *)ctx->contentFilter->elements[ctx->index]
+                                            .filterOperands[nr].content.decoded.data,
+                                            &variant);
         /*LiteralAttribute*/
-    } else if(contentFilter->elements[index].filterOperands[nr].content.decoded.type ==
+    } else if(ctx->contentFilter->elements[ctx->index].filterOperands[nr].content.decoded.type ==
               &UA_TYPES[UA_TYPES_LITERALOPERAND]) {
-        variant = ((UA_LiteralOperand *)contentFilter->elements[index]
-            .filterOperands[nr].content.decoded.data)->value;
+        variant = ((UA_LiteralOperand *)ctx->contentFilter->elements[ctx->index]
+                   .filterOperands[nr].content.decoded.data)->value;
         res = UA_STATUSCODE_GOOD;
-    } else if(contentFilter->elements[index].filterOperands[nr].content.decoded.type ==
+    } else if(ctx->contentFilter->elements[ctx->index].filterOperands[nr].content.decoded.type ==
               &UA_TYPES[UA_TYPES_ELEMENTOPERAND]) {
-        res = evaluateWhereClauseContentFilter(
-            server, session, origin, contentFilter, contentFilterResult, valueResult,
-            (UA_UInt16)((UA_ElementOperand *)contentFilter->elements[index]
-                .filterOperands[nr].content.decoded.data)->index);
-        variant =
-            valueResult[(UA_UInt16)((UA_ElementOperand *)contentFilter->elements[index]
-                .filterOperands[nr].content.decoded.data)->index];
+        UA_UInt16 oldIndex = ctx->index;
+        ctx->index = (UA_UInt16)((UA_ElementOperand *)ctx->contentFilter->elements[ctx->index]
+                                 .filterOperands[nr].content.decoded.data)->index;
+        res = evaluateWhereClauseContentFilter(ctx);
+        variant = ctx->valueResult[ctx->index];
+        ctx->index = oldIndex; /* restore the old index */
         /*ElementOperands*/
     } else {
         res = UA_STATUSCODE_BADFILTEROPERANDINVALID;
     }
     if(res != UA_STATUSCODE_GOOD && res != UA_STATUSCODE_BADNOMATCH) {
         variant.type = NULL;
-        contentFilterResult->elementResults[index].operandStatusCodes[nr] = res;
+        ctx->contentFilterResult->elementResults[ctx->index].operandStatusCodes[nr] = res;
     }
     return variant;
 }
 
 static UA_StatusCode
-ofTypeOperator(UA_Server *server, UA_Session *session,
-               const UA_NodeId *eventNode,
-               const UA_ContentFilter *contentFilter,
-               UA_ContentFilterResult *contentFilterResult,
-               UA_Variant* valueResult, UA_UInt16 index,
-               UA_UInt16 nr, UA_ContentFilterElement *pElement){
+ofTypeOperator(UA_FilterOperatorContext *ctx) {
+    UA_ContentFilterElement *pElement = &ctx->contentFilter->elements[ctx->index];
     UA_Boolean result = false;
-    valueResult[index].type = &UA_TYPES[UA_TYPES_BOOLEAN];
+    ctx->valueResult[ctx->index].type = &UA_TYPES[UA_TYPES_BOOLEAN];
     if(pElement->filterOperandsSize != 1)
         return UA_STATUSCODE_BADFILTEROPERANDCOUNTMISMATCH;
     if(pElement->filterOperands[0].content.decoded.type !=
@@ -318,15 +313,15 @@ ofTypeOperator(UA_Server *server, UA_Session *session,
     UA_Variant typeNodeIdVariant;
     UA_Variant_init(&typeNodeIdVariant);
     UA_StatusCode readStatusCode =
-        readObjectProperty(server, *eventNode, UA_QUALIFIEDNAME(0, "EventType"),
-                           &typeNodeIdVariant);
+        readObjectProperty(ctx->server, *ctx->eventNode,
+                           UA_QUALIFIEDNAME(0, "EventType"), &typeNodeIdVariant);
     if(readStatusCode != UA_STATUSCODE_GOOD)
         return readStatusCode;
 
     if(!UA_Variant_isScalar(&typeNodeIdVariant) ||
        typeNodeIdVariant.type != &UA_TYPES[UA_TYPES_NODEID] ||
        typeNodeIdVariant.data == NULL) {
-        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
+        UA_LOG_ERROR(&ctx->server->config.logger, UA_LOGCATEGORY_SERVER,
                      "EventType has an invalid type.");
         UA_Variant_clear(&typeNodeIdVariant);
         return UA_STATUSCODE_BADINTERNALERROR;
@@ -335,7 +330,7 @@ ofTypeOperator(UA_Server *server, UA_Session *session,
     result = UA_NodeId_equal((UA_NodeId*) typeNodeIdVariant.data, literalOperandNodeId);
     /* check if the eventtype-nodeid is a subtype of the given oftype argument */
     if(!result)
-        result = isNodeInTree_singleRef(server,
+        result = isNodeInTree_singleRef(ctx->server,
                                         (UA_NodeId*) typeNodeIdVariant.data,
                                         literalOperandNodeId,
                                         UA_REFERENCETYPEINDEX_HASSUBTYPE);
@@ -346,66 +341,46 @@ ofTypeOperator(UA_Server *server, UA_Session *session,
 }
 
 static UA_StatusCode
-andOperator(UA_Server *server, UA_Session *session,
-            const UA_NodeId *eventNode,
-            const UA_ContentFilter *contentFilter,
-            UA_ContentFilterResult *contentFilterResult,
-            UA_Variant* valueResult, UA_UInt16 index,
-            UA_UInt16 nr, UA_ContentFilterElement *pElement) {
-    UA_StatusCode firstBoolean_and = resolveBoolean(
-        resolveOperand(server, session, eventNode, contentFilter,
-                       contentFilterResult, valueResult, index, 0));
+andOperator(UA_FilterOperatorContext *ctx) {
+    UA_StatusCode firstBoolean_and = resolveBoolean(resolveOperand(ctx, 0));
     if(firstBoolean_and == UA_STATUSCODE_BADNOMATCH) {
-        valueResult[index].type = &UA_TYPES[UA_TYPES_BOOLEAN];
+        ctx->valueResult[ctx->index].type = &UA_TYPES[UA_TYPES_BOOLEAN];
         return UA_STATUSCODE_BADNOMATCH;
     }
     /* Evaluation of second operand */
-    UA_StatusCode secondBoolean = resolveBoolean(
-        resolveOperand(server, session, eventNode, contentFilter,
-                       contentFilterResult, valueResult, index, 1));
-
+    UA_StatusCode secondBoolean = resolveBoolean(resolveOperand(ctx, 1));
     /* Filteroperator AND */
     if(secondBoolean == UA_STATUSCODE_BADNOMATCH) {
-        valueResult[index].type = &UA_TYPES[UA_TYPES_BOOLEAN];
+        ctx->valueResult[ctx->index].type = &UA_TYPES[UA_TYPES_BOOLEAN];
         return UA_STATUSCODE_BADNOMATCH;
-    } else if((firstBoolean_and == UA_STATUSCODE_GOOD) &&
-              (secondBoolean == UA_STATUSCODE_GOOD)) {
-        valueResult[index].type = &UA_TYPES[UA_TYPES_BOOLEAN];
-        return UA_STATUSCODE_GOOD;
-    } else {
-        return UA_STATUSCODE_BADFILTERELEMENTINVALID;
     }
+    if((firstBoolean_and == UA_STATUSCODE_GOOD) &&
+       (secondBoolean == UA_STATUSCODE_GOOD)) {
+        ctx->valueResult[ctx->index].type = &UA_TYPES[UA_TYPES_BOOLEAN];
+        return UA_STATUSCODE_GOOD;
+    }
+    return UA_STATUSCODE_BADFILTERELEMENTINVALID;
 }
 
 static UA_StatusCode
-orOperator(UA_Server *server, UA_Session *session,
-           const UA_NodeId *eventNode,
-           const UA_ContentFilter *contentFilter,
-           UA_ContentFilterResult *contentFilterResult,
-           UA_Variant* valueResult, UA_UInt16 index,
-           UA_UInt16 nr, UA_ContentFilterElement *pElement) {
-    UA_StatusCode firstBoolean_or = resolveBoolean(
-        resolveOperand(server, session, eventNode, contentFilter,
-                       contentFilterResult, valueResult, index, 0));
+orOperator(UA_FilterOperatorContext *ctx) {
+    UA_StatusCode firstBoolean_or = resolveBoolean(resolveOperand(ctx, 0));
     if(firstBoolean_or == UA_STATUSCODE_GOOD) {
-        valueResult[index].type = &UA_TYPES[UA_TYPES_BOOLEAN];
+        ctx->valueResult[ctx->index].type = &UA_TYPES[UA_TYPES_BOOLEAN];
         return UA_STATUSCODE_GOOD;
     }
     /* Evaluation of second operand */
-    UA_StatusCode secondBoolean = resolveBoolean(
-        resolveOperand(server, session, eventNode, contentFilter,
-                       contentFilterResult, valueResult, index, 1));
-
+    UA_StatusCode secondBoolean = resolveBoolean(resolveOperand(ctx, 1));
     if(secondBoolean == UA_STATUSCODE_GOOD) {
-        valueResult[index].type = &UA_TYPES[UA_TYPES_BOOLEAN];
+        ctx->valueResult[ctx->index].type = &UA_TYPES[UA_TYPES_BOOLEAN];
         return UA_STATUSCODE_GOOD;
-    } else if((firstBoolean_or == UA_STATUSCODE_BADNOMATCH) &&
-              (secondBoolean == UA_STATUSCODE_BADNOMATCH)) {
-        valueResult[index].type = &UA_TYPES[UA_TYPES_BOOLEAN];
+    } 
+    if((firstBoolean_or == UA_STATUSCODE_BADNOMATCH) &&
+       (secondBoolean == UA_STATUSCODE_BADNOMATCH)) {
+        ctx->valueResult[ctx->index].type = &UA_TYPES[UA_TYPES_BOOLEAN];
         return UA_STATUSCODE_BADNOMATCH;
-    } else {
-        return UA_STATUSCODE_BADFILTERELEMENTINVALID;
     }
+    return UA_STATUSCODE_BADFILTERELEMENTINVALID;
 }
 
 static UA_Boolean
@@ -631,11 +606,11 @@ compareOperation(UA_Variant *firstOperand, UA_Variant *secondOperand, UA_FilterO
     }
 
     if(op == UA_FILTEROPERATOR_EQUALS){
+        UA_Byte variantContent[16];
+        memset(&variantContent, 0, sizeof(UA_Byte) * 16);
         if(compareHandlingRuleEnum == UA_TYPES_DIFFERENT_NUMERIC_SIGNED ||
            compareHandlingRuleEnum == UA_TYPES_DIFFERENT_NUMERIC_UNSIGNED ||
            compareHandlingRuleEnum == UA_TYPES_DIFFERENT_NUMERIC_FLOATING_POINT) {
-            UA_Byte variantContent[16];
-            memset(&variantContent, 0, sizeof(UA_Byte) * 16);
             implicitNumericVariantTransformation(firstCompareOperand, variantContent);
             implicitNumericVariantTransformation(secondCompareOperand, &variantContent[8]);
         } else if(compareHandlingRuleEnum == UA_TYPES_DIFFERENT_TEXT) {
@@ -688,18 +663,11 @@ compareOperation(UA_Variant *firstOperand, UA_Variant *secondOperand, UA_FilterO
 }
 
 static UA_StatusCode
-compareOperator(UA_Server *server, UA_Session *session,
-           const UA_NodeId *eventNode,
-           const UA_ContentFilter *contentFilter,
-           UA_ContentFilterResult *contentFilterResult,
-           UA_Variant* valueResult, UA_UInt16 index,
-           UA_UInt16 nr, UA_ContentFilterElement *pElement) {
-    UA_Variant firstOperand = resolveOperand(server, session, eventNode, contentFilter,
-                                             contentFilterResult, valueResult, index, 0);
+compareOperator(UA_FilterOperatorContext *ctx) {
+    UA_Variant firstOperand = resolveOperand(ctx, 0);
     if(UA_Variant_isEmpty(&firstOperand))
         return UA_STATUSCODE_BADFILTEROPERANDINVALID;
-    UA_Variant secondOperand = resolveOperand(server, session, eventNode, contentFilter,
-                                              contentFilterResult, valueResult, index, 1);
+    UA_Variant secondOperand = resolveOperand(ctx, 1);
     if(UA_Variant_isEmpty(&secondOperand)) {
         return UA_STATUSCODE_BADFILTEROPERANDINVALID;
     }
@@ -707,33 +675,24 @@ compareOperator(UA_Server *server, UA_Session *session,
     if(!UA_Variant_isScalar(&firstOperand) || !UA_Variant_isScalar(&secondOperand)){
         return UA_STATUSCODE_BADFILTEROPERATORUNSUPPORTED;
     }
-    return compareOperation(&firstOperand, &secondOperand, contentFilter->elements[index].filterOperator);
+    return compareOperation(&firstOperand, &secondOperand,
+                            ctx->contentFilter->elements[ctx->index].filterOperator);
 }
 
 static UA_StatusCode
-bitwiseOperator(UA_Server *server, UA_Session *session,
-                const UA_NodeId *eventNode,
-                const UA_ContentFilter *contentFilter,
-                UA_ContentFilterResult *contentFilterResult,
-                UA_Variant* valueResult, UA_UInt16 index,
-                UA_UInt16 nr, UA_ContentFilterElement *pElement) {
-
+bitwiseOperator(UA_FilterOperatorContext *ctx) {
     /* The bitwise operators all have 2 operands which are evaluated equally. */
-    UA_Variant firstOperand =
-        resolveOperand(server, session, eventNode, contentFilter,
-                       contentFilterResult, valueResult, index, 0);
+    UA_Variant firstOperand = resolveOperand(ctx, 0);
     if(UA_Variant_isEmpty(&firstOperand)) {
         return UA_STATUSCODE_BADFILTEROPERANDINVALID;
     }
-    UA_Variant secondOperand =
-        resolveOperand(server, session, eventNode, contentFilter,
-                       contentFilterResult, valueResult, index, 1);
+    UA_Variant secondOperand = resolveOperand(ctx, 1);
     if(UA_Variant_isEmpty(&secondOperand)) {
         return UA_STATUSCODE_BADFILTEROPERANDINVALID;
     }
 
-    UA_Boolean bitwiseAnd = contentFilter->elements[index].filterOperator ==
-                            UA_FILTEROPERATOR_BITWISEAND;
+    UA_Boolean bitwiseAnd =
+        ctx->contentFilter->elements[ctx->index].filterOperator == UA_FILTEROPERATOR_BITWISEAND;
 
     /* check if the operators are integers */
     if(!UA_DataType_isNumeric(firstOperand.type) ||
@@ -755,84 +714,84 @@ bitwiseOperator(UA_Server *server, UA_Session *session,
 
     switch(precedence){
         case 3:
-            valueResult[index].type = &UA_TYPES[UA_TYPES_INT64];
+            ctx->valueResult[ctx->index].type = &UA_TYPES[UA_TYPES_INT64];
             UA_Int64 result_int64;
             if(bitwiseAnd) {
                 result_int64 = *((UA_Int64 *)firstOperand.data) & *((UA_Int64 *)secondOperand.data);
             } else {
                 result_int64 = *((UA_Int64 *)firstOperand.data) | *((UA_Int64 *)secondOperand.data);
             }
-            UA_Int64_copy(&result_int64, (UA_Int64 *) valueResult[index].data);
+            UA_Int64_copy(&result_int64, (UA_Int64 *) ctx->valueResult[ctx->index].data);
             break;
         case 4:
-            valueResult[index].type = &UA_TYPES[UA_TYPES_UINT64];
+            ctx->valueResult[ctx->index].type = &UA_TYPES[UA_TYPES_UINT64];
             UA_UInt64 result_uint64s;
             if(bitwiseAnd) {
                 result_uint64s = *((UA_UInt64 *)firstOperand.data) & *((UA_UInt64 *)secondOperand.data);
             } else {
                 result_uint64s = *((UA_UInt64 *)firstOperand.data) | *((UA_UInt64 *)secondOperand.data);
             }
-            UA_UInt64_copy(&result_uint64s, (UA_UInt64 *) valueResult[index].data);
+            UA_UInt64_copy(&result_uint64s, (UA_UInt64 *) ctx->valueResult[ctx->index].data);
             break;
         case 5:
-            valueResult[index].type = &UA_TYPES[UA_TYPES_INT32];
+            ctx->valueResult[ctx->index].type = &UA_TYPES[UA_TYPES_INT32];
             UA_Int32 result_int32;
             if(bitwiseAnd) {
                 result_int32 = *((UA_Int32 *)firstOperand.data) & *((UA_Int32 *)secondOperand.data);
             } else {
                 result_int32 = *((UA_Int32 *)firstOperand.data) | *((UA_Int32 *)secondOperand.data);
             }
-            UA_Int32_copy(&result_int32, (UA_Int32 *) valueResult[index].data);
+            UA_Int32_copy(&result_int32, (UA_Int32 *) ctx->valueResult[ctx->index].data);
             break;
         case 6:
-            valueResult[index].type = &UA_TYPES[UA_TYPES_UINT32];
+            ctx->valueResult[ctx->index].type = &UA_TYPES[UA_TYPES_UINT32];
             UA_UInt32 result_uint32;
             if(bitwiseAnd) {
                 result_uint32 = *((UA_UInt32 *)firstOperand.data) & *((UA_UInt32 *)secondOperand.data);
             } else {
                 result_uint32 = *((UA_UInt32 *)firstOperand.data) | *((UA_UInt32 *)secondOperand.data);
             }
-            UA_UInt32_copy(&result_uint32, (UA_UInt32 *) valueResult[index].data);
+            UA_UInt32_copy(&result_uint32, (UA_UInt32 *) ctx->valueResult[ctx->index].data);
             break;
         case 8:
-            valueResult[index].type = &UA_TYPES[UA_TYPES_INT16];
+            ctx->valueResult[ctx->index].type = &UA_TYPES[UA_TYPES_INT16];
             UA_Int16 result_int16;
             if(bitwiseAnd) {
                 result_int16 = *((UA_Int16 *)firstOperand.data) & *((UA_Int16 *)secondOperand.data);
             } else {
                 result_int16 = *((UA_Int16 *)firstOperand.data) | *((UA_Int16 *)secondOperand.data);
             }
-            UA_Int16_copy(&result_int16, (UA_Int16 *) valueResult[index].data);
+            UA_Int16_copy(&result_int16, (UA_Int16 *) ctx->valueResult[ctx->index].data);
             break;
         case 9:
-            valueResult[index].type = &UA_TYPES[UA_TYPES_UINT16];
+            ctx->valueResult[ctx->index].type = &UA_TYPES[UA_TYPES_UINT16];
             UA_UInt16 result_uint16;
             if(bitwiseAnd) {
                 result_uint16 = *((UA_UInt16 *)firstOperand.data) & *((UA_UInt16 *)secondOperand.data);
             } else {
                 result_uint16 = *((UA_UInt16 *)firstOperand.data) | *((UA_UInt16 *)secondOperand.data);
             }
-            UA_UInt16_copy(&result_uint16, (UA_UInt16 *) valueResult[index].data);
+            UA_UInt16_copy(&result_uint16, (UA_UInt16 *) ctx->valueResult[ctx->index].data);
             break;
         case 10:
-            valueResult[index].type = &UA_TYPES[UA_TYPES_SBYTE];
+            ctx->valueResult[ctx->index].type = &UA_TYPES[UA_TYPES_SBYTE];
             UA_SByte result_sbyte;
             if(bitwiseAnd) {
                 result_sbyte = *((UA_SByte *)firstOperand.data) & *((UA_SByte *)secondOperand.data);
             } else {
                 result_sbyte = *((UA_SByte *)firstOperand.data) | *((UA_SByte *)secondOperand.data);
             }
-            UA_SByte_copy(&result_sbyte, (UA_SByte *) valueResult[index].data);
+            UA_SByte_copy(&result_sbyte, (UA_SByte *) ctx->valueResult[ctx->index].data);
             break;
         case 11:
-            valueResult[index].type = &UA_TYPES[UA_TYPES_BYTE];
+            ctx->valueResult[ctx->index].type = &UA_TYPES[UA_TYPES_BYTE];
             UA_Byte result_byte;
             if(bitwiseAnd) {
                 result_byte = *((UA_Byte *)firstOperand.data) & *((UA_Byte *)secondOperand.data);
             } else {
                 result_byte = *((UA_Byte *)firstOperand.data) | *((UA_Byte *)secondOperand.data);
             }
-            UA_Byte_copy(&result_byte, (UA_Byte *) valueResult[index].data);
+            UA_Byte_copy(&result_byte, (UA_Byte *) ctx->valueResult[ctx->index].data);
             break;
         default:
             return UA_STATUSCODE_BADFILTEROPERANDINVALID;
@@ -841,24 +800,12 @@ bitwiseOperator(UA_Server *server, UA_Session *session,
 }
 
 static UA_StatusCode
-betweenOperator(UA_Server *server, UA_Session *session,
-                const UA_NodeId *eventNode,
-                const UA_ContentFilter *contentFilter,
-                UA_ContentFilterResult *contentFilterResult,
-                UA_Variant* valueResult, UA_UInt16 index,
-                UA_UInt16 nr, UA_ContentFilterElement *pElement) {
+betweenOperator(UA_FilterOperatorContext *ctx) {
+    ctx->valueResult[ctx->index].type = &UA_TYPES[UA_TYPES_BOOLEAN];
 
-    valueResult[index].type = &UA_TYPES[UA_TYPES_BOOLEAN];
-
-    UA_Variant firstOperand =
-        resolveOperand(server, session, eventNode, contentFilter,
-                       contentFilterResult, valueResult, index, 0);
-    UA_Variant secondOperand =
-        resolveOperand(server, session, eventNode, contentFilter,
-                       contentFilterResult, valueResult, index, 1);
-    UA_Variant thirdOperand =
-        resolveOperand(server, session, eventNode, contentFilter,
-                       contentFilterResult, valueResult, index, 2);
+    UA_Variant firstOperand = resolveOperand(ctx, 0);
+    UA_Variant secondOperand = resolveOperand(ctx, 1);
+    UA_Variant thirdOperand = resolveOperand(ctx, 2);
 
     if((UA_Variant_isEmpty(&firstOperand) ||
         UA_Variant_isEmpty(&secondOperand) ||
@@ -873,41 +820,30 @@ betweenOperator(UA_Server *server, UA_Session *session,
     }
 
     /* Between can be evaluated through greaterThanOrEqual and lessThanOrEqual */
-    if(compareOperation(&firstOperand, &secondOperand, UA_FILTEROPERATOR_GREATERTHANOREQUAL) &&
-       compareOperation(&firstOperand, &thirdOperand, UA_FILTEROPERATOR_LESSTHANOREQUAL)){
+    if(compareOperation(&firstOperand, &secondOperand, UA_FILTEROPERATOR_GREATERTHANOREQUAL) == UA_STATUSCODE_GOOD &&
+       compareOperation(&firstOperand, &thirdOperand, UA_FILTEROPERATOR_LESSTHANOREQUAL) == UA_STATUSCODE_GOOD){
         return UA_STATUSCODE_GOOD;
     }
     return UA_STATUSCODE_BADNOMATCH;
 }
 
 static UA_StatusCode
-inListOperator(UA_Server *server, UA_Session *session,
-                const UA_NodeId *eventNode,
-                const UA_ContentFilter *contentFilter,
-                UA_ContentFilterResult *contentFilterResult,
-                UA_Variant* valueResult, UA_UInt16 index,
-                UA_UInt16 nr, UA_ContentFilterElement *pElement) {
+inListOperator(UA_FilterOperatorContext *ctx) {
+    ctx->valueResult[ctx->index].type = &UA_TYPES[UA_TYPES_BOOLEAN];
+    UA_Variant firstOperand = resolveOperand(ctx, 0);
 
-    valueResult[index].type = &UA_TYPES[UA_TYPES_BOOLEAN];
-
-    UA_Variant firstOperand = resolveOperand(server, session, eventNode, contentFilter,
-                                             contentFilterResult, valueResult, index, 0);
-
-    if(UA_Variant_isEmpty(&firstOperand) || !UA_DataType_isNumeric(firstOperand.type) ||
+    if(UA_Variant_isEmpty(&firstOperand) ||
        !UA_Variant_isScalar(&firstOperand)) {
         return UA_STATUSCODE_BADFILTEROPERATORUNSUPPORTED;
     }
 
     /* Evaluating the list of operands */
-    for(size_t i = 1; i < contentFilter->elements[index].filterOperandsSize; i++) {
+    for(size_t i = 1; i < ctx->contentFilter->elements[ctx->index].filterOperandsSize; i++) {
         /* Resolving the current operand */
-        UA_Variant currentOperator =
-            resolveOperand(server, session, eventNode, contentFilter, contentFilterResult,
-                           valueResult, index, (UA_UInt16)i);
+        UA_Variant currentOperator = resolveOperand(ctx, (UA_UInt16)i);
 
         /* Check if the operand conforms to the operator*/
         if(UA_Variant_isEmpty(&currentOperator) ||
-           !UA_DataType_isNumeric(currentOperator.type) ||
            !UA_Variant_isScalar(&currentOperator)) {
             return UA_STATUSCODE_BADFILTEROPERATORUNSUPPORTED;
         }
@@ -919,59 +855,40 @@ inListOperator(UA_Server *server, UA_Session *session,
 }
 
 static UA_StatusCode
-isNullOperator(UA_Server *server, UA_Session *session,
-           const UA_NodeId *eventNode,
-           const UA_ContentFilter *contentFilter,
-           UA_ContentFilterResult *contentFilterResult,
-           UA_Variant* valueResult, UA_UInt16 index,
-           UA_UInt16 nr, UA_ContentFilterElement *pElement) {
+isNullOperator(UA_FilterOperatorContext *ctx) {
     /* Checking if operand is NULL. This is done by reducing the operand to a
     * variant and then checking if it is empty. */
-    UA_Variant operand =
-        resolveOperand(server, session, eventNode, contentFilter,
-                       contentFilterResult, valueResult, index, 0);
-    valueResult[index].type = &UA_TYPES[UA_TYPES_BOOLEAN];
-    if(!UA_Variant_isEmpty(&operand)) {
+    UA_Variant operand = resolveOperand(ctx, 0);
+    ctx->valueResult[ctx->index].type = &UA_TYPES[UA_TYPES_BOOLEAN];
+    if(!UA_Variant_isEmpty(&operand))
         return UA_STATUSCODE_BADNOMATCH;
-    }
     return UA_STATUSCODE_GOOD;
 }
 
 static UA_StatusCode
-notOperator(UA_Server *server, UA_Session *session,
-               const UA_NodeId *eventNode,
-               const UA_ContentFilter *contentFilter,
-               UA_ContentFilterResult *contentFilterResult,
-               UA_Variant* valueResult, UA_UInt16 index,
-               UA_UInt16 nr, UA_ContentFilterElement *pElement) {
+notOperator(UA_FilterOperatorContext *ctx) {
     /* Inverting the boolean value of the operand. */
-    UA_StatusCode res = resolveBoolean(
-        resolveOperand(server, session, eventNode, contentFilter,
-                       contentFilterResult, valueResult, index, 0));
-    valueResult[index].type = &UA_TYPES[UA_TYPES_BOOLEAN];
+    UA_StatusCode res = resolveBoolean(resolveOperand(ctx, 0));
+    ctx->valueResult[ctx->index].type = &UA_TYPES[UA_TYPES_BOOLEAN];
     /* invert result */
-    if(res == UA_STATUSCODE_GOOD) {
+    if(res == UA_STATUSCODE_GOOD)
         return UA_STATUSCODE_BADNOMATCH;
-    }
     return UA_STATUSCODE_GOOD;
 }
 
 static UA_StatusCode
-evaluateWhereClauseContentFilter(UA_Server *server, UA_Session *session,
-                                 const UA_NodeId *eventNode,
-                                 const UA_ContentFilter *contentFilter,
-                                 UA_ContentFilterResult *contentFilterResult,
-                                 UA_Variant* valueResult, UA_UInt16 index) {
-    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+evaluateWhereClauseContentFilter(UA_FilterOperatorContext *ctx) {
+    UA_LOCK_ASSERT(&ctx->server->serviceMutex, 1);
 
-    if(contentFilter->elements == NULL || contentFilter->elementsSize == 0) {
+    if(ctx->contentFilter->elements == NULL || ctx->contentFilter->elementsSize == 0) {
         /* Nothing to do.*/
         return UA_STATUSCODE_GOOD;
     }
 
     /* The first element needs to be evaluated, this might be linked to other
      * elements, which are evaluated in these cases. See 7.4.1 in Part 4. */
-    UA_ContentFilterElement *pElement = &contentFilter->elements[index];
+    UA_ContentFilterElement *pElement = &ctx->contentFilter->elements[ctx->index];
+    UA_StatusCode *result = &ctx->contentFilterResult->elementResults[ctx->index].statusCode;
     switch(pElement->filterOperator) {
         case UA_FILTEROPERATOR_INVIEW:
             /* Fallthrough */
@@ -987,74 +904,53 @@ evaluateWhereClauseContentFilter(UA_Server *server, UA_Session *session,
         case UA_FILTEROPERATOR_GREATERTHANOREQUAL:
             /* Fallthrough */
         case UA_FILTEROPERATOR_LESSTHANOREQUAL:
-            contentFilterResult->elementResults[index].statusCode =
-                compareOperator(server, session, eventNode, contentFilter,
-                                contentFilterResult, valueResult, index, 0, pElement);
+            *result = compareOperator(ctx);
             break;
         case UA_FILTEROPERATOR_LIKE:
             return UA_STATUSCODE_BADFILTEROPERATORUNSUPPORTED;
         case UA_FILTEROPERATOR_NOT:
-            contentFilterResult->elementResults[index].statusCode =
-                notOperator(server, session, eventNode, contentFilter,
-                            contentFilterResult, valueResult, index, 0, pElement);
+            *result = notOperator(ctx);
             break;
         case UA_FILTEROPERATOR_BETWEEN:
-            /* ToDo currently only numeric types are allowed */
-            contentFilterResult->elementResults[index].statusCode =
-                betweenOperator(server, session, eventNode, contentFilter,
-                                contentFilterResult, valueResult, index, 0, pElement);
+            *result = betweenOperator(ctx);
             break;
         case UA_FILTEROPERATOR_INLIST:
             /* ToDo currently only numeric types are allowed */
-            contentFilterResult->elementResults[index].statusCode =
-                inListOperator(server, session, eventNode, contentFilter,
-                               contentFilterResult, valueResult, index, 0, pElement);
+            *result = inListOperator(ctx);
             break;
         case UA_FILTEROPERATOR_ISNULL:
-            contentFilterResult->elementResults[index].statusCode =
-                isNullOperator(server, session, eventNode, contentFilter,
-                               contentFilterResult, valueResult, index, 0, pElement);
+            *result = isNullOperator(ctx);
             break;
         case UA_FILTEROPERATOR_AND:
-            contentFilterResult->elementResults[index].statusCode =
-                andOperator(server, session, eventNode, contentFilter,
-                            contentFilterResult, valueResult, index, 0, pElement);
+            *result = andOperator(ctx);
             break;
         case UA_FILTEROPERATOR_OR:
-            contentFilterResult->elementResults[index].statusCode =
-                orOperator(server, session, eventNode, contentFilter,
-                           contentFilterResult, valueResult, index, 0, pElement);
+            *result = orOperator(ctx);
             break;
         case UA_FILTEROPERATOR_CAST:
             return UA_STATUSCODE_BADFILTEROPERATORUNSUPPORTED;
         case UA_FILTEROPERATOR_BITWISEAND:
-            contentFilterResult->elementResults[index].statusCode =
-                bitwiseOperator(server, session, eventNode, contentFilter,
-                           contentFilterResult, valueResult, index, 0, pElement);
+            *result = bitwiseOperator(ctx);
             break;
         case UA_FILTEROPERATOR_BITWISEOR:
-            contentFilterResult->elementResults[index].statusCode =
-                bitwiseOperator(server, session, eventNode, contentFilter,
-                           contentFilterResult, valueResult, index, 0, pElement);
+            *result = bitwiseOperator(ctx);
             break;
         case UA_FILTEROPERATOR_OFTYPE:
-            contentFilterResult->elementResults[index].statusCode =
-                ofTypeOperator(server, session, eventNode, contentFilter,
-                               contentFilterResult, valueResult, index, 0, pElement);
+            *result = ofTypeOperator(ctx);
             break;
         default:
             return UA_STATUSCODE_BADFILTEROPERATORINVALID;
     }
 
-    if(valueResult[index].type == &UA_TYPES[UA_TYPES_BOOLEAN]) {
-        UA_Boolean *result = UA_Boolean_new();
-        if(contentFilterResult->elementResults[index].statusCode == UA_STATUSCODE_GOOD)
-            *result = true;
+    if(ctx->valueResult[ctx->index].type == &UA_TYPES[UA_TYPES_BOOLEAN]) {
+        UA_Boolean *res = UA_Boolean_new();
+        if(ctx->contentFilterResult->elementResults[ctx->index].statusCode == UA_STATUSCODE_GOOD)
+            *res = true;
         else
-            *result = false;
-        valueResult[index].data = result;
+            *res = false;
+        ctx->valueResult[ctx->index].data = res;
     }
-    return contentFilterResult->elementResults[index].statusCode;
+    return ctx->contentFilterResult->elementResults[ctx->index].statusCode;
 }
 
 UA_StatusCode
@@ -1071,11 +967,20 @@ UA_Server_evaluateWhereClauseContentFilter(UA_Server *server, UA_Session *sessio
     for(size_t i = 0; i < contentFilter->elementsSize; ++i) {
         UA_Variant_init(&valueResult[i]);
     }
-    UA_StatusCode res = evaluateWhereClauseContentFilter(
-        server, session, eventNode, contentFilter, contentFilterResult, valueResult, 0);
-    for(size_t i = 0; i < contentFilter->elementsSize; i++) {
-        if(!UA_Variant_isEmpty(&valueResult[i]))
-            UA_Variant_clear(&valueResult[i]);
+
+    UA_FilterOperatorContext ctx;
+    ctx.server = server;
+    ctx.session = session;
+    ctx.eventNode = eventNode;
+    ctx.contentFilter = contentFilter;
+    ctx.contentFilterResult = contentFilterResult;
+    ctx.valueResult = valueResult;
+    ctx.index = 0;
+
+    UA_StatusCode res = evaluateWhereClauseContentFilter(&ctx);
+    for(size_t i = 0; i < ctx.contentFilter->elementsSize; i++) {
+        if(!UA_Variant_isEmpty(&ctx.valueResult[i]))
+            UA_Variant_clear(&ctx.valueResult[i]);
     }
     return res;
 }
@@ -1655,7 +1560,7 @@ UA_Event_staticWhereClauseValidation(UA_Server *server,
                 break;
             }
             case UA_FILTEROPERATOR_INLIST: {
-                if(ef.filterOperandsSize >= 2) {
+                if(ef.filterOperandsSize <= 2) {
                     er->statusCode =
                         UA_STATUSCODE_BADFILTEROPERANDCOUNTMISMATCH;
                     break;
@@ -1689,12 +1594,6 @@ UA_Event_staticWhereClauseValidation(UA_Server *server,
                     (UA_LiteralOperand *)ef.filterOperands[0]
                         .content.decoded.data;
 
-                if(((UA_NodeId *)literalOperand->value.data)->identifierType !=
-                   UA_NODEIDTYPE_NUMERIC) {
-                    er->statusCode =
-                        UA_STATUSCODE_BADATTRIBUTEIDINVALID;
-                    break;
-                }
                 /* Make sure the &pOperand->nodeId is a subtype of BaseEventType */
                 UA_NodeId baseEventTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_BASEEVENTTYPE);
                 if(!isNodeInTree_singleRef(
