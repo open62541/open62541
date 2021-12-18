@@ -278,12 +278,6 @@ struct UA_Subscription {
     UA_UInt32 dataChangeNotifications;
     UA_UInt32 eventNotifications;
 
-    /* Notifications to be sent out now (already late). In a regular publish
-     * callback, all queued notifications are sent out. In a late publish
-     * response, only the notifications left from the last regular publish
-     * callback are sent. */
-    UA_UInt32 readyNotifications;
-
     /* Retransmission Queue */
     NotificationMessageQueue retransmissionQueue;
     size_t retransmissionQueueSize;
