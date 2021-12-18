@@ -194,9 +194,9 @@ changePubSubApplicationCallback(UA_Server *server, UA_NodeId identifier, UA_UInt
 /* Remove the callback added for cyclic repetition */
 static void
 removePubSubApplicationCallback(UA_Server *server, UA_NodeId identifier, UA_UInt64 callbackId) {
-    if(callbackId && (pthread_join((pthread_t)callbackId, NULL) != 0))
+    if(callbackId && (pthread_join(callbackId, NULL) != 0))
         UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
-                       "Pthread Join Failed thread: %lu\n", (long unsigned)callbackId);
+                       "Pthread Join Failed thread: %ld\n", callbackId);
 }
 
 /**
@@ -665,8 +665,8 @@ int main(int argc, char **argv) {
         size_t subLoopVariable               = 0;
         for (subLoopVariable = 0; subLoopVariable < measurementsSubscriber;
              subLoopVariable++) {
-             fprintf(fpSubscriber, "%lu,%ld.%09ld,%lf\n",
-                     (long unsigned)subscribeCounterValue[subLoopVariable],
+             fprintf(fpSubscriber, "%ld,%ld.%09ld,%lf\n",
+                     subscribeCounterValue[subLoopVariable],
                      subscribeTimestamp[subLoopVariable].tv_sec,
                      subscribeTimestamp[subLoopVariable].tv_nsec,
                      pressureValues[subLoopVariable]);
@@ -677,8 +677,8 @@ int main(int argc, char **argv) {
         size_t subLoopVariable               = 0;
         for (subLoopVariable = 0; subLoopVariable < measurementsSubscriber;
              subLoopVariable++) {
-             fprintf(fpSubscriber, "%lu,%ld.%09ld,%lf\n",
-                     (long unsigned)subscribeCounterValue[subLoopVariable],
+             fprintf(fpSubscriber, "%ld,%ld.%09ld,%lf\n",
+                     subscribeCounterValue[subLoopVariable],
                      subscribeTimestamp[subLoopVariable].tv_sec,
                      subscribeTimestamp[subLoopVariable].tv_nsec,
                      pressureValues[subLoopVariable]);

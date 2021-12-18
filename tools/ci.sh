@@ -150,28 +150,6 @@ function unit_tests {
     make test ARGS="-V"
 }
 
-function unit_tests_32 {
-    mkdir -p build; cd build; rm -rf *
-    cmake -DCMAKE_BUILD_TYPE=Debug \
-          -DUA_BUILD_EXAMPLES=ON \
-          -DUA_BUILD_UNIT_TESTS=ON \
-          -DUA_ENABLE_DISCOVERY=ON \
-          -DUA_ENABLE_DISCOVERY_MULTICAST=ON \
-          -DUA_ENABLE_SUBSCRIPTIONS_EVENTS=ON \
-          -DUA_ENABLE_HISTORIZING=ON \
-          -DUA_ENABLE_JSON_ENCODING=ON \
-          -DUA_ENABLE_PUBSUB=ON \
-          -DUA_ENABLE_PUBSUB_DELTAFRAMES=ON \
-          -DUA_ENABLE_PUBSUB_INFORMATIONMODEL=ON \
-          -DUA_ENABLE_PUBSUB_MONITORING=ON \
-          -DUA_FORCE_32BIT=ON \
-          ..
-          #-DUA_ENABLE_PUBSUB_ETH_UADP=ON \ # TODO: Enable this
-    make ${MAKEOPTS}
-    set_capabilities
-    make test ARGS="-V"
-}
-
 function unit_tests_mt {
     mkdir -p build; cd build; rm -rf *
     cmake -DCMAKE_BUILD_TYPE=Debug \
@@ -230,34 +208,6 @@ function unit_tests_encryption_mbedtls_pubsub {
           ..
     make ${MAKEOPTS}
     make test ARGS="-V"
-}
-
-##########################################
-# Build and Run Unit Tests with Coverage #
-##########################################
-
-function unit_tests_with_coverage {
-    mkdir -p build; cd build; rm -rf *
-    cmake -DCMAKE_BUILD_TYPE=Debug \
-          -DUA_BUILD_EXAMPLES=ON \
-          -DUA_BUILD_UNIT_TESTS=ON \
-          -DUA_ENABLE_COVERAGE=ON \
-          -DUA_ENABLE_DISCOVERY=ON \
-          -DUA_ENABLE_DISCOVERY_MULTICAST=ON \
-          -DUA_ENABLE_SUBSCRIPTIONS_EVENTS=ON \
-          -DUA_ENABLE_HISTORIZING=ON \
-          -DUA_ENABLE_JSON_ENCODING=ON \
-          -DUA_ENABLE_PUBSUB=ON \
-          -DUA_ENABLE_PUBSUB_ETH_UADP=ON \
-          -DUA_ENABLE_PUBSUB_DELTAFRAMES=ON \
-          -DUA_ENABLE_PUBSUB_INFORMATIONMODEL=ON \
-          -DUA_ENABLE_PUBSUB_MONITORING=ON \
-          -DUA_ENABLE_ENCRYPTION=MBEDTLS \
-          ..
-    make ${MAKEOPTS}
-    set_capabilities
-    make test ARGS="-V"
-    make gcov
 }
 
 ##########################################

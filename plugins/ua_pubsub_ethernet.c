@@ -1243,7 +1243,7 @@ UA_PubSubChannelEthernet_receive(UA_PubSubChannel *channel,
                                            * VLAN header size is stripped before it is recieved
                                            * so the packet length is less than 60bytes */
 
-        messageLength = ((size_t)dataLen - sizeof(struct ether_header));
+        messageLength = messageLength + ((size_t)dataLen - sizeof(struct ether_header));
         buffer.length = messageLength;
 
         retval = receiveCallback(channel, receiveCallbackContext, &buffer);

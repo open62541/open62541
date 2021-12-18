@@ -1106,10 +1106,7 @@ void UA_EXPORT UA_delete(void *p, const UA_DataType *type);
  *
  * @param p The memory location of the variable
  * @param type The datatype description of the variable
- * @param output A string that is used for the pretty-printed output. If the
- *        memory for string is already allocated, we try to use the existing
- *        string (the length is adjusted). If the string is empty, memory
- *        is allocated for it.
+ * @param output A string that is memory-allocated for the pretty-printed output
  * @return Indicates whether the operation succeeded*/
 #ifdef UA_ENABLE_TYPEDESCRIPTION
 UA_StatusCode UA_EXPORT

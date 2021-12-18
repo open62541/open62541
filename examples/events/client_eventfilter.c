@@ -108,14 +108,14 @@ setupOrFilter(UA_ContentFilterElement *element){
 }
 
 static void
-setupOfTypeFilter(UA_ContentFilterElement *element, UA_UInt16 nsIndex, UA_UInt32 typeId){
+setupOfTypeFilter(UA_ContentFilterElement *element, UA_UInt32 typeId){
     element->filterOperands[0].content.decoded.type = &UA_TYPES[UA_TYPES_LITERALOPERAND];
     element->filterOperands[0].encoding = UA_EXTENSIONOBJECT_DECODED;
     UA_LiteralOperand *literalOperand = UA_LiteralOperand_new();
     UA_LiteralOperand_init(literalOperand);
     UA_NodeId *nodeId = UA_NodeId_new();
     UA_NodeId_init(nodeId);
-    nodeId->namespaceIndex = nsIndex;
+    nodeId->namespaceIndex = 0;
     nodeId->identifierType = UA_NODEIDTYPE_NUMERIC;
     nodeId->identifier.numeric = typeId;
     UA_Variant_setScalar(&literalOperand->value, nodeId, &UA_TYPES[UA_TYPES_NODEID]);
@@ -133,14 +133,6 @@ setupOfTypeFilter(UA_ContentFilterElement *element, UA_UInt16 nsIndex, UA_UInt32
  *
  * filterSelection 0:
  *      ( (OfType AUDITEVENTTYPE ) (or) (OfType EVENTQUEUEOVERFLOWEVENTTYPE) )
- * filterSelection 2:
- *      ((EventTypeId == NodeID("StartScanEvent")           ||
- *        (EventTypeId == NodeID("DcpScanFinishedEvent")    ||
- *        (EventTypeId == NodeID("ScanFinishedEvent")       ||
- *        (EventTypeId == NodeID("CancelScanEvent")         ||
- *        (EventTypeId == NodeID("CancelScanFinishedEvent") ||
- *        (EventTypeId == NodeID("ShutdownEvent"))
- *
  */
 static UA_StatusCode
 setupWhereClauses(UA_ContentFilter *contentFilter, UA_UInt16 whereClauseSize, UA_UInt16 filterSelection){
@@ -155,7 +147,7 @@ setupWhereClauses(UA_ContentFilter *contentFilter, UA_UInt16 whereClauseSize, UA
     }
     UA_StatusCode result = UA_STATUSCODE_GOOD;
     switch(filterSelection) {
-        case 0: {
+        case 0:
             contentFilter->elements[0].filterOperator = UA_FILTEROPERATOR_OR;
             contentFilter->elements[1].filterOperator = UA_FILTEROPERATOR_OFTYPE;
             contentFilter->elements[2].filterOperator = UA_FILTEROPERATOR_OFTYPE;
@@ -164,77 +156,17 @@ setupWhereClauses(UA_ContentFilter *contentFilter, UA_UInt16 whereClauseSize, UA
             contentFilter->elements[2].filterOperandsSize = 1;
             /* Setup Operand Arrays */
             result = setupOperandArrays(contentFilter);
-            if(result != UA_STATUSCODE_GOOD) {
+            if(result != UA_STATUSCODE_GOOD){
                 UA_ContentFilter_clear(contentFilter);
                 return UA_STATUSCODE_BADCONFIGURATIONERROR;
             }
             /* first Element (OR) */
             setupOrFilter(&contentFilter->elements[0]);
             /* second Element (OfType) */
-            setupOfTypeFilter(&contentFilter->elements[1], 1, 5003);
+            setupOfTypeFilter(&contentFilter->elements[1], 60443);
             /* third Element (OfType) */
-            setupOfTypeFilter(&contentFilter->elements[2], 0,
-                              UA_NS0ID_EVENTQUEUEOVERFLOWEVENTTYPE);
+            setupOfTypeFilter(&contentFilter->elements[2], UA_NS0ID_EVENTQUEUEOVERFLOWEVENTTYPE);
             break;
-        }
-        case 1: {
-            contentFilter->elements[0].filterOperator = UA_FILTEROPERATOR_OFTYPE;
-            UA_UInt32 placeholder_ScanFinishedEvent = 10000;
-            setupOfTypeFilter(&contentFilter->elements[0], 1,
-                              placeholder_ScanFinishedEvent);
-            break;
-        }
-        case 2: {
-            contentFilter->elements[0].filterOperator = UA_FILTEROPERATOR_OR;
-            contentFilter->elements[1].filterOperator = UA_FILTEROPERATOR_OR;
-            contentFilter->elements[2].filterOperator = UA_FILTEROPERATOR_OR;
-            contentFilter->elements[3].filterOperator = UA_FILTEROPERATOR_OR;
-            contentFilter->elements[4].filterOperator = UA_FILTEROPERATOR_OR;
-            contentFilter->elements[5].filterOperator = UA_FILTEROPERATOR_OFTYPE;
-            contentFilter->elements[6].filterOperator = UA_FILTEROPERATOR_OFTYPE;
-            contentFilter->elements[7].filterOperator = UA_FILTEROPERATOR_OFTYPE;
-            contentFilter->elements[8].filterOperator = UA_FILTEROPERATOR_OFTYPE;
-            contentFilter->elements[9].filterOperator = UA_FILTEROPERATOR_OFTYPE;
-            contentFilter->elements[10].filterOperator = UA_FILTEROPERATOR_OFTYPE;
-
-            // init or clauses
-            setupOrFilter(&contentFilter->elements[0]);
-            setupOrFilter(&contentFilter->elements[1]);
-            setupOrFilter(&contentFilter->elements[2]);
-            setupOrFilter(&contentFilter->elements[3]);
-            setupOrFilter(&contentFilter->elements[4]);
-            // init oftype
-            UA_UInt32 placeholder_StartScanEvent = 10000;
-            UA_UInt32 placeholder_DcpScanFinishedEvent = 10001;
-            UA_UInt32 CancelScanEvent = 10003;
-            UA_UInt32 placeholder_CancelScanFinishedEvent = 10004;
-            UA_UInt32 placeholder_ShutdownEvent = 10005;
-            UA_UInt32 placeholder_ShutdownEvent_1 = 10006;
-            setupOfTypeFilter(&contentFilter->elements[5], 1, placeholder_StartScanEvent);
-            setupOfTypeFilter(&contentFilter->elements[6], 1,
-                              placeholder_DcpScanFinishedEvent);
-            setupOfTypeFilter(&contentFilter->elements[7], 1,
-                              placeholder_ShutdownEvent_1);
-            setupOfTypeFilter(&contentFilter->elements[8], 1, CancelScanEvent);
-            setupOfTypeFilter(&contentFilter->elements[9], 1,
-                              placeholder_CancelScanFinishedEvent);
-            setupOfTypeFilter(&contentFilter->elements[10], 1, placeholder_ShutdownEvent);
-            break;
-        }
-        case 3:{
-            UA_UInt32 placeholder_ShutdownEvent_2 = 10000;
-            contentFilter->elements[0].filterOperator = UA_FILTEROPERATOR_OFTYPE;
-            setupOfTypeFilter(&contentFilter->elements[0], 1, placeholder_ShutdownEvent_2);
-            break;
-        }
-        case 4: {
-            contentFilter->elements[0].filterOperator = UA_FILTEROPERATOR_AND;
-            contentFilter->elements[1].filterOperator = UA_FILTEROPERATOR_OFTYPE;
-            contentFilter->elements[2].filterOperator = UA_FILTEROPERATOR_AND;
-            contentFilter->elements[2].filterOperator = UA_FILTEROPERATOR_EQUALS;
-            contentFilter->elements[2].filterOperator = UA_FILTEROPERATOR_EQUALS;
-            break;
-        }
         default:
             UA_ContentFilter_clear(contentFilter);
             return UA_STATUSCODE_BADCONFIGURATIONERROR;
@@ -243,10 +175,11 @@ setupWhereClauses(UA_ContentFilter *contentFilter, UA_UInt16 whereClauseSize, UA
 }
 
 static void
-handler_events_filter(UA_Client *client, UA_UInt32 subId, void *subContext,
+handler_events(UA_Client *client, UA_UInt32 subId, void *subContext,
                UA_UInt32 monId, void *monContext,
                size_t nEventFields, UA_Variant *eventFields) {
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "Received Event Notification (Filter passed)");
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "Notification");
+
     for(size_t i = 0; i < nEventFields; ++i) {
         if(UA_Variant_hasScalarType(&eventFields[i], &UA_TYPES[UA_TYPES_UINT16])) {
             UA_UInt16 severity = *(UA_UInt16 *)eventFields[i].data;
@@ -255,7 +188,8 @@ handler_events_filter(UA_Client *client, UA_UInt32 subId, void *subContext,
             UA_LocalizedText *lt = (UA_LocalizedText *)eventFields[i].data;
             UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
                         "Message: '%.*s'", (int)lt->text.length, lt->text.data);
-        } else {
+        }
+        else {
 #ifdef UA_ENABLE_TYPEDESCRIPTION
             UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
                         "Don't know how to handle type: '%s'", eventFields[i].type->typeName);
@@ -328,11 +262,11 @@ int main(int argc, char *argv[]) {
     UA_MonitoredItemCreateResult result =
         UA_Client_MonitoredItems_createEvent(client, subId,
                                              UA_TIMESTAMPSTORETURN_BOTH, item,
-                                             &monId, handler_events_filter, NULL);
+                                             &monId, handler_events, NULL);
 
     if(result.statusCode != UA_STATUSCODE_GOOD) {
         UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
-                    "Could not add the MonitoredItem with %s", UA_StatusCode_name(result.statusCode));
+                    "Could not add the MonitoredItem with %s", UA_StatusCode_name(retval));
         goto cleanup;
     } else {
         UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
@@ -342,7 +276,7 @@ int main(int argc, char *argv[]) {
     monId = result.monitoredItemId;
 
     while(running)
-        UA_Client_run_iterate(client, 100);
+        retval = UA_Client_run_iterate(client, 100);
 
     /* Delete the subscription */
     cleanup:

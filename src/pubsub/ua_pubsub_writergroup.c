@@ -27,14 +27,6 @@
 static void
 UA_WriterGroup_clear(UA_Server *server, UA_WriterGroup *writerGroup);
 
-#ifdef UA_ENABLE_PUBSUB_ENCRYPTION
-static UA_StatusCode
-encryptAndSign(UA_WriterGroup *wg, const UA_NetworkMessage *nm,
-               UA_Byte *signStart, UA_Byte *encryptStart,
-               UA_Byte *msgEnd);
-
-#endif
-
 static UA_StatusCode
 generateNetworkMessage(UA_PubSubConnection *connection, UA_WriterGroup *wg,
                        UA_DataSetMessage *dsm, UA_UInt16 *writerIds, UA_Byte dsmCount,
@@ -294,13 +286,6 @@ UA_Server_freezeWriterGroupConfiguration(UA_Server *server,
 
     /* Allocate the buffer. Allocate on the stack if the buffer is small. */
     msgSize = UA_NetworkMessage_calcSizeBinary(&networkMessage, NULL);
-#ifdef UA_ENABLE_PUBSUB_ENCRYPTION
-    if(wg->config.securityMode > UA_MESSAGESECURITYMODE_NONE) {
-        UA_PubSubSecurityPolicy *sp = wg->config.securityPolicy;
-        msgSize += sp->symmetricModule.cryptoModule.
-                   signatureAlgorithm.getLocalSignatureSize(sp->policyContext);
-    }
-#endif
     res = UA_ByteString_allocBuffer(&buf, msgSize);
     if(res != UA_STATUSCODE_GOOD)
         goto cleanup;
@@ -309,21 +294,7 @@ UA_Server_freezeWriterGroupConfiguration(UA_Server *server,
     /* Encode the NetworkMessage */
     bufEnd = &wg->bufferedMessage.buffer.data[wg->bufferedMessage.buffer.length];
     bufPos = wg->bufferedMessage.buffer.data;
-#ifdef UA_ENABLE_PUBSUB_ENCRYPTION
-    if (wg->config.securityMode > UA_MESSAGESECURITYMODE_NONE){
-        UA_Byte *payloadPosition;
-        UA_NetworkMessage_encodeBinary(&networkMessage, &bufPos, bufEnd, &payloadPosition);
-        wg->bufferedMessage.payloadPosition = payloadPosition;
-        wg->bufferedMessage.nm = (UA_NetworkMessage *)UA_malloc(sizeof(networkMessage));
-        wg->bufferedMessage.nm->securityHeader.networkMessageEncrypted = networkMessage.securityHeader.networkMessageEncrypted;
-        wg->bufferedMessage.nm->securityHeader.networkMessageSigned = networkMessage.securityHeader.networkMessageSigned;
-        UA_ByteString_copy(&networkMessage.securityHeader.messageNonce, &wg->bufferedMessage.nm->securityHeader.messageNonce);
-        UA_ByteString_allocBuffer(&wg->bufferedMessage.encryptBuffer, msgSize);
-        UA_ByteString_clear(&networkMessage.securityHeader.messageNonce);
-    }
-#endif
-    if (wg->config.securityMode <= UA_MESSAGESECURITYMODE_NONE)
-        UA_NetworkMessage_encodeBinary(&networkMessage, &bufPos, bufEnd, NULL);
+    UA_NetworkMessage_encodeBinary(&networkMessage, &bufPos, bufEnd, NULL);
 
  cleanup:
     UA_free(networkMessage.payload.dataSetPayload.sizes);
@@ -377,18 +348,8 @@ UA_Server_unfreezeWriterGroupConfiguration(UA_Server *server,
         }
         dataSetWriter->configurationFrozen = UA_FALSE;
     }
-    if(wg->config.rtLevel == UA_PUBSUB_RT_FIXED_SIZE) {
+    if(wg->config.rtLevel == UA_PUBSUB_RT_FIXED_SIZE)
         UA_ByteString_clear(&wg->bufferedMessage.buffer);
-#ifdef UA_ENABLE_PUBSUB_ENCRYPTION
-        if (wg->config.securityMode > UA_MESSAGESECURITYMODE_NONE) {
-            if (wg->bufferedMessage.nm != NULL) {
-                UA_ByteString_clear(&wg->bufferedMessage.nm->securityHeader.messageNonce);
-                UA_free(wg->bufferedMessage.nm);
-            }
-            UA_ByteString_clear(&wg->bufferedMessage.encryptBuffer);
-        }
-#endif
-    }
 
     return UA_STATUSCODE_GOOD;
 }
@@ -738,7 +699,7 @@ encryptAndSign(UA_WriterGroup *wg, const UA_NetworkMessage *nm,
                                     signStart};
 
         size_t sigSize = wg->config.securityPolicy->symmetricModule.cryptoModule.
-                     signatureAlgorithm.getLocalSignatureSize(channelContext);
+            signatureAlgorithm.getLocalSignatureSize(channelContext);
         UA_ByteString signature = {sigSize, msgEnd};
 
         rv = wg->config.securityPolicy->symmetricModule.cryptoModule.
@@ -988,18 +949,19 @@ cleanup:
 
 static UA_StatusCode
 sendBufferedNetworkMessage(UA_Server *server, UA_PubSubConnection *connection,
-                           UA_ByteString *buffer,
+                           UA_NetworkMessageOffsetBuffer *buffer,
                            UA_ExtensionObject *transportSettings) {
-
+    if(UA_NetworkMessage_updateBufferedMessage(buffer) != UA_STATUSCODE_GOOD)
+        UA_LOG_DEBUG(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                     "PubSub sending. Unknown field type.");
     return connection->channel->send(connection->channel,
-                                     transportSettings, buffer);
+                                     transportSettings, &buffer->buffer);
 }
 
 /* This callback triggers the collection and publish of NetworkMessages and the
  * contained DataSetMessages. */
 void
 UA_WriterGroup_publishCallback(UA_Server *server, UA_WriterGroup *writerGroup) {
-    UA_StatusCode res = UA_STATUSCODE_GOOD;
     UA_LOG_DEBUG(&server->config.logger, UA_LOGCATEGORY_SERVER, "Publish Callback");
 
     // TODO: review if its okay to force correct value from caller side instead
@@ -1035,39 +997,14 @@ UA_WriterGroup_publishCallback(UA_Server *server, UA_WriterGroup *writerGroup) {
     }
 
     if(writerGroup->config.rtLevel == UA_PUBSUB_RT_FIXED_SIZE) {
-        if(UA_NetworkMessage_updateBufferedMessage(&writerGroup->bufferedMessage) != UA_STATUSCODE_GOOD)
-            UA_LOG_DEBUG(&server->config.logger, UA_LOGCATEGORY_SERVER,
-                         "PubSub sending. Unknown field type.");
-
-#ifdef UA_ENABLE_PUBSUB_ENCRYPTION
-        if (writerGroup->config.securityMode > UA_MESSAGESECURITYMODE_NONE) {
-            size_t sigSize = writerGroup->config.securityPolicy->symmetricModule.cryptoModule.
-                            signatureAlgorithm.getLocalSignatureSize(writerGroup->securityPolicyContext);
-
-            UA_Byte payloadOffset        = (UA_Byte)(writerGroup->bufferedMessage.payloadPosition - writerGroup->bufferedMessage.buffer.data);
-            memcpy(writerGroup->bufferedMessage.encryptBuffer.data, writerGroup->bufferedMessage.buffer.data, writerGroup->bufferedMessage.buffer.length);
-            res = encryptAndSign(writerGroup, writerGroup->bufferedMessage.nm,
-                                              writerGroup->bufferedMessage.encryptBuffer.data,
-                                              writerGroup->bufferedMessage.encryptBuffer.data + payloadOffset,
-                                              writerGroup->bufferedMessage.encryptBuffer.data + writerGroup->bufferedMessage.encryptBuffer.length - sigSize);
-
-            if(res != UA_STATUSCODE_GOOD)
-                UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER, "PubSub Encryption failed");
-            /* Send the encrypted buffered network message
-             * if PubSub encryption is enabled */
-            res = sendBufferedNetworkMessage(server, connection, &writerGroup->bufferedMessage.encryptBuffer,
-                                             &writerGroup->config.transportSettings);
-        }
-#endif
-        if (writerGroup->config.securityMode < UA_MESSAGESECURITYMODE_NONE)
-            res = sendBufferedNetworkMessage(server, connection, &writerGroup->bufferedMessage.buffer,
-                                             &writerGroup->config.transportSettings);
-
+        UA_StatusCode res =
+            sendBufferedNetworkMessage(server, connection, &writerGroup->bufferedMessage,
+                                       &writerGroup->config.transportSettings);
         if(res == UA_STATUSCODE_GOOD) {
             writerGroup->sequenceNumber++;
         } else {
             UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
-                         "Publish failed. sendBufferedNetworkMessage failed. StatusCode %s", UA_StatusCode_name(res));
+                       "Publish failed. RT fixed size. sendBufferedNetworkMessage failed");
             UA_WriterGroup_setPubSubState(server, UA_PUBSUBSTATE_ERROR, writerGroup);
         }
         return;
@@ -1085,6 +1022,7 @@ UA_WriterGroup_publishCallback(UA_Server *server, UA_WriterGroup *writerGroup) {
      * But only if they do not contain promoted fields. NM with only DSM are
      * sent out right away. The others are kept in a buffer for "batching". */
     size_t dsmCount = 0;
+    UA_StatusCode res = UA_STATUSCODE_GOOD;
     UA_STACKARRAY(UA_UInt16, dsWriterIds, writerGroup->writersCount);
     UA_STACKARRAY(UA_DataSetMessage, dsmStore, writerGroup->writersCount);
     UA_DataSetWriter *dsw;

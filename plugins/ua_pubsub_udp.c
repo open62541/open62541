@@ -631,7 +631,6 @@ UA_PubSubChannelUDPMC_receive(UA_PubSubChannel *channel,
         UA_DateTime newTimeoutValue = remainingTimeoutValue - receiveDuration;
         timeoutValue.tv_sec = (long int)(newTimeoutValue  / UA_DATETIME_SEC);
         timeoutValue.tv_usec = (long int)((newTimeoutValue % UA_DATETIME_SEC) * 100);
-
     } while(true); /* TODO:Need to handle for jumbo frames*/
                                              /* 1518 bytes is the maximum size of ethernet packet
                                               * where 18 bytes used for header size, 28 bytes of header
