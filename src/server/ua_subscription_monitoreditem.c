@@ -281,6 +281,9 @@ UA_Notification_enqueueAndTrigger(UA_Server *server, UA_Notification *n) {
     UA_Notification_enqueueMon(server, n);
 
     UA_Subscription *sub = mon->subscription;
+    if(!sub)
+        return; /* Currently not for local MonitoredItems, as the triggering
+                 * link stays within the Subscription */
     for(size_t i = mon->triggeringLinksSize - 1; i < mon->triggeringLinksSize; i--) {
         /* Get the triggered MonitoredItem. Remove the link if the MI doesn't exist. */
         UA_MonitoredItem *triggeredMon =
