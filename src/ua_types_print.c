@@ -774,45 +774,33 @@ UA_print(const void *p, const UA_DataType *type, UA_String *output) {
     ctx.depth = 0;
     TAILQ_INIT(&ctx.outputs);
 
-    /* Allocate before the goto */
-    size_t total = 0;
-    size_t pos = 0;
-    UA_PrintOutput *out, *out_tmp;
-
     /* Encode */
     UA_StatusCode retval = printJumpTable[type->typeKind](&ctx, p, type);
-    if(retval != UA_STATUSCODE_GOOD)
-        goto cleanup;
 
-    /* If printing succeeded the output cannot be empty*/
-    TAILQ_FOREACH(out, &ctx.outputs, next)
-        total += out->length;
-    UA_assert(total > 0);
-
-    if(output->length == 0) {
-        /* Allocate memory for the output */
+    /* Allocate memory for the output */
+    if(retval == UA_STATUSCODE_GOOD) {
+        size_t total = 0;
+        UA_PrintOutput *out;
+        TAILQ_FOREACH(out, &ctx.outputs, next)
+            total += out->length;
         retval = UA_ByteString_allocBuffer((UA_String*)output, total);
-    } else {
-        /* Check if the buffer is large enough */
-        if(output->length >= total)
-            output->length = total;
-        else
-            retval = UA_STATUSCODE_BADOUTOFMEMORY;
-    }
-    if(retval != UA_STATUSCODE_GOOD)
-        goto cleanup;
-
-    /* Write to the output buffer */
-    TAILQ_FOREACH(out, &ctx.outputs, next) {
-        memcpy(&output->data[pos], out->data, out->length);
-        pos += out->length;
     }
 
- cleanup:
+    /* Write the output */
+    if(retval == UA_STATUSCODE_GOOD) {
+        size_t pos = 0;
+        UA_PrintOutput *out;
+        TAILQ_FOREACH(out, &ctx.outputs, next) {
+            memcpy(&output->data[pos], out->data, out->length);
+            pos += out->length;
+        }
+    }
+
     /* Free the context */
-    TAILQ_FOREACH_SAFE(out, &ctx.outputs, next, out_tmp) {
-        TAILQ_REMOVE(&ctx.outputs, out, next);
-        UA_free(out);
+    UA_PrintOutput *o, *o2;
+    TAILQ_FOREACH_SAFE(o, &ctx.outputs, next, o2) {
+        TAILQ_REMOVE(&ctx.outputs, o, next);
+        UA_free(o);
     }
     return retval;
 }

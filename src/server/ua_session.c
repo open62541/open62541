@@ -8,7 +8,6 @@
  */
 
 #include "ua_session.h"
-#include "open62541/types.h"
 #include "ua_server_internal.h"
 #ifdef UA_ENABLE_SUBSCRIPTIONS
 #include "ua_subscription.h"
@@ -225,31 +224,30 @@ UA_Server_closeSession(UA_Server *server, const UA_NodeId *sessionId) {
 
 UA_StatusCode
 UA_Server_setSessionParameter(UA_Server *server, const UA_NodeId *sessionId,
-                              const UA_QualifiedName key, const UA_Variant *value) {
+                              const char *name, const UA_Variant *parameter) {
     UA_LOCK(&server->serviceMutex);
     UA_Session *session = UA_Server_getSessionById(server, sessionId);
     UA_StatusCode res = UA_STATUSCODE_BADSESSIONIDINVALID;
     if(session)
         res = UA_KeyValueMap_set(&session->params, &session->paramsSize,
-                                 key, value);
+                                 name, parameter);
     UA_UNLOCK(&server->serviceMutex);
     return res;
 }
 
 void
 UA_Server_deleteSessionParameter(UA_Server *server, const UA_NodeId *sessionId,
-                                 const UA_QualifiedName key) {
+                                 const char *name) {
     UA_LOCK(&server->serviceMutex);
     UA_Session *session = UA_Server_getSessionById(server, sessionId);
     if(session)
-        UA_KeyValueMap_delete(&session->params, &session->paramsSize, key);
+        UA_KeyValueMap_delete(&session->params, &session->paramsSize, name);
     UA_UNLOCK(&server->serviceMutex);
 }
 
 UA_StatusCode
 UA_Server_getSessionParameter(UA_Server *server, const UA_NodeId *sessionId,
-                              const UA_QualifiedName key,
-                              UA_Variant *outParameter) {
+                              const char *name, UA_Variant *outParameter) {
     UA_LOCK(&server->serviceMutex);
     if(!outParameter) {
         UA_UNLOCK(&server->serviceMutex);
@@ -263,7 +261,7 @@ UA_Server_getSessionParameter(UA_Server *server, const UA_NodeId *sessionId,
     }
 
     const UA_Variant *param =
-        UA_KeyValueMap_get(session->params, session->paramsSize, key);
+        UA_KeyValueMap_get(session->params, session->paramsSize, name);
     if(!param) {
         UA_UNLOCK(&server->serviceMutex);
         return UA_STATUSCODE_BADNOTFOUND;
@@ -275,10 +273,9 @@ UA_Server_getSessionParameter(UA_Server *server, const UA_NodeId *sessionId,
 }
 
 UA_StatusCode
-UA_Server_getSessionParameter_scalar(UA_Server *server, const UA_NodeId *sessionId,
-                                     const UA_QualifiedName key,
-                                     const UA_DataType *type,
-                                     void *outParameter) {
+UA_Server_getSessionScalarParameter(UA_Server *server, const UA_NodeId *sessionId,
+                                    const char *name, const UA_DataType *type,
+                                    UA_Variant *outParameter) {
     UA_LOCK(&server->serviceMutex);
     if(!outParameter) {
         UA_UNLOCK(&server->serviceMutex);
@@ -292,13 +289,41 @@ UA_Server_getSessionParameter_scalar(UA_Server *server, const UA_NodeId *session
     }
 
     const UA_Variant *param =
-        UA_KeyValueMap_get(session->params, session->paramsSize, key);
+        UA_KeyValueMap_get(session->params, session->paramsSize, name);
     if(!param || !UA_Variant_hasScalarType(param, type)) {
         UA_UNLOCK(&server->serviceMutex);
         return UA_STATUSCODE_BADNOTFOUND;
     }
 
-    UA_StatusCode res = UA_copy(param->data, outParameter, type);
+    UA_StatusCode res = UA_Variant_copy(param, outParameter);
+    UA_UNLOCK(&server->serviceMutex);
+    return res;
+}
+
+UA_StatusCode
+UA_Server_getSessionArrayParameter(UA_Server *server, const UA_NodeId *sessionId,
+                                   const char *name, const UA_DataType *type,
+                                   UA_Variant *outParameter) {
+    UA_LOCK(&server->serviceMutex);
+    if(!outParameter) {
+        UA_UNLOCK(&server->serviceMutex);
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
+
+    UA_Session *session = UA_Server_getSessionById(server, sessionId);
+    if(!session) {
+        UA_UNLOCK(&server->serviceMutex);
+        return UA_STATUSCODE_BADSESSIONIDINVALID;
+    }
+
+    const UA_Variant *param =
+        UA_KeyValueMap_get(session->params, session->paramsSize, name);
+    if(!param || !UA_Variant_hasArrayType(param, type)) {
+        UA_UNLOCK(&server->serviceMutex);
+        return UA_STATUSCODE_BADNOTFOUND;
+    }
+
+    UA_StatusCode res = UA_Variant_copy(param, outParameter);
     UA_UNLOCK(&server->serviceMutex);
     return res;
 }

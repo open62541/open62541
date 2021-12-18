@@ -563,7 +563,7 @@ UA_Server_freezeReaderGroupConfiguration(UA_Server *server,
         return UA_STATUSCODE_BADOUTOFMEMORY;
     }
 
-    res = UA_DataSetReader_generateNetworkMessage(pubSubConnection, rg, dataSetReader, dsm,
+    res = UA_DataSetReader_generateNetworkMessage(pubSubConnection, dataSetReader, dsm,
                                                   dsWriterIds, 1, networkMessage);
     if(res != UA_STATUSCODE_GOOD) {
         UA_free(networkMessage->payload.dataSetPayload.sizes);

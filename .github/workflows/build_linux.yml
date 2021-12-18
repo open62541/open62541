@@ -11,12 +11,6 @@ jobs:
           - build_name: "Debug Build & Unit Tests (gcc)"
             cmd_deps: ""
             cmd_action: unit_tests
-          - build_name: "Debug Build & Unit Tests (gcc, 32bit)"
-            cmd_deps: |
-                sudo dpkg --add-architecture i386
-                sudo apt-get update
-                sudo apt-get install -y -qq gcc-multilib libsubunit-dev:i386 check:i386
-            cmd_action: unit_tests_32
           - build_name: "Debug Build & Unit Tests with multithreading (gcc)"
             cmd_deps: ""
             cmd_action: unit_tests_mt

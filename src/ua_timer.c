@@ -6,6 +6,7 @@
  *    Copyright 2017 (c) Stefan Profanter, fortiss GmbH
  */
 
+#include "ua_util_internal.h"
 #include "ua_timer.h"
 
 /* There may be several entries with the same nextTime in the tree. We give them
@@ -270,12 +271,6 @@ UA_Timer_process(UA_Timer *t, UA_DateTime nowMonotonic,
         next = nowMonotonic;
     UA_UNLOCK(&t->timerMutex);
     return next;
-}
-
-UA_DateTime
-UA_Timer_nextRepeatedTime(UA_Timer *t) {
-    UA_TimerEntry *first = (UA_TimerEntry*)aa_min(&t->root);
-    return (first) ? first->nextTime : UA_INT64_MAX;
 }
 
 void

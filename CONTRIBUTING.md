@@ -103,7 +103,6 @@ The scope is optional, but recommended to be used. It should be the name of the 
 The following is the list of supported scopes:
 
 - **arch**: Changes to specific architecture code in `root/arch`
-- **el**: Changes to the eventloop and associated event sources (also networking)
 - **client**: Changes only affecting client code
 - **core**: Core functionality used by the client and server
 - **ex**: Example code changes

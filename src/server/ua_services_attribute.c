@@ -27,40 +27,6 @@
 #include <open62541/plugin/historydatabase.h>
 #endif
 
-static UA_UInt32
-attributeId2AttributeMask(UA_AttributeId id) {
-    switch(id) {
-    case UA_ATTRIBUTEID_NODEID: return UA_NODEATTRIBUTESMASK_NODEID;
-    case UA_ATTRIBUTEID_NODECLASS: return UA_NODEATTRIBUTESMASK_NODECLASS;
-    case UA_ATTRIBUTEID_BROWSENAME: return UA_NODEATTRIBUTESMASK_BROWSENAME;
-    case UA_ATTRIBUTEID_DISPLAYNAME: return UA_NODEATTRIBUTESMASK_DISPLAYNAME;
-    case UA_ATTRIBUTEID_DESCRIPTION: return UA_NODEATTRIBUTESMASK_DESCRIPTION;
-    case UA_ATTRIBUTEID_WRITEMASK: return UA_NODEATTRIBUTESMASK_WRITEMASK;
-    case UA_ATTRIBUTEID_USERWRITEMASK: return UA_NODEATTRIBUTESMASK_USERWRITEMASK;
-    case UA_ATTRIBUTEID_ISABSTRACT: return UA_NODEATTRIBUTESMASK_ISABSTRACT;
-    case UA_ATTRIBUTEID_SYMMETRIC: return UA_NODEATTRIBUTESMASK_SYMMETRIC;
-    case UA_ATTRIBUTEID_INVERSENAME: return UA_NODEATTRIBUTESMASK_INVERSENAME;
-    case UA_ATTRIBUTEID_CONTAINSNOLOOPS: return UA_NODEATTRIBUTESMASK_CONTAINSNOLOOPS;
-    case UA_ATTRIBUTEID_EVENTNOTIFIER: return UA_NODEATTRIBUTESMASK_EVENTNOTIFIER;
-    case UA_ATTRIBUTEID_VALUE: return UA_NODEATTRIBUTESMASK_VALUE;
-    case UA_ATTRIBUTEID_DATATYPE: return UA_NODEATTRIBUTESMASK_DATATYPE;
-    case UA_ATTRIBUTEID_VALUERANK: return UA_NODEATTRIBUTESMASK_VALUERANK;
-    case UA_ATTRIBUTEID_ARRAYDIMENSIONS: return UA_NODEATTRIBUTESMASK_ARRAYDIMENSIONS;
-    case UA_ATTRIBUTEID_ACCESSLEVEL: return UA_NODEATTRIBUTESMASK_ACCESSLEVEL;
-    case UA_ATTRIBUTEID_USERACCESSLEVEL: return UA_NODEATTRIBUTESMASK_USERACCESSLEVEL;
-    case UA_ATTRIBUTEID_MINIMUMSAMPLINGINTERVAL: return UA_NODEATTRIBUTESMASK_MINIMUMSAMPLINGINTERVAL;
-    case UA_ATTRIBUTEID_HISTORIZING: return UA_NODEATTRIBUTESMASK_HISTORIZING;
-    case UA_ATTRIBUTEID_EXECUTABLE: return UA_NODEATTRIBUTESMASK_EXECUTABLE;
-    case UA_ATTRIBUTEID_USEREXECUTABLE: return UA_NODEATTRIBUTESMASK_USEREXECUTABLE;
-    case UA_ATTRIBUTEID_DATATYPEDEFINITION: return UA_NODEATTRIBUTESMASK_DATATYPEDEFINITION;
-    case UA_ATTRIBUTEID_ROLEPERMISSIONS: return UA_NODEATTRIBUTESMASK_ROLEPERMISSIONS;
-    case UA_ATTRIBUTEID_USERROLEPERMISSIONS: return UA_NODEATTRIBUTESMASK_ROLEPERMISSIONS;
-    case UA_ATTRIBUTEID_ACCESSRESTRICTIONS: return UA_NODEATTRIBUTESMASK_ACCESSRESTRICTIONS;
-    case UA_ATTRIBUTEID_ACCESSLEVELEX: return UA_NODEATTRIBUTESMASK_ACCESSLEVEL;
-    default: return UA_NODEATTRIBUTESMASK_NONE;
-    }
-}
-
 /******************/
 /* Access Control */
 /******************/
@@ -165,11 +131,7 @@ readValueAttributeFromNode(UA_Server *server, UA_Session *session,
                                        &vn->head.nodeId, vn->head.context, rangeptr,
                                        &vn->value.data.value);
         UA_LOCK(&server->serviceMutex);
-        vn = (const UA_VariableNode*)
-            UA_NODESTORE_GET_SELECTIVE(server, &vn->head.nodeId,
-                                       UA_NODEATTRIBUTESMASK_VALUE,
-                                       UA_REFERENCETYPESET_NONE,
-                                       UA_BROWSEDIRECTION_INVALID);
+        vn = (const UA_VariableNode*)UA_NODESTORE_GET(server, &vn->head.nodeId);
         if(!vn)
             return UA_STATUSCODE_BADNODEIDUNKNOWN;
     }
@@ -600,12 +562,8 @@ ReadWithNode(const UA_Node *node, UA_Server *server, UA_Session *session,
 static void
 Operation_Read(UA_Server *server, UA_Session *session, UA_ReadRequest *request,
                UA_ReadValueId *rvi, UA_DataValue *result) {
-    /* Get the node (with only the selected attribute if the NodeStore supports that) */
-    const UA_Node *node =
-        UA_NODESTORE_GET_SELECTIVE(server, &rvi->nodeId,
-                                   attributeId2AttributeMask((UA_AttributeId)rvi->attributeId),
-                                   UA_REFERENCETYPESET_NONE,
-                                   UA_BROWSEDIRECTION_INVALID);
+    /* Get the node */
+    const UA_Node *node = UA_NODESTORE_GET(server, &rvi->nodeId);
 
     /* Perform the read operation */
     if(node) {
@@ -662,12 +620,8 @@ UA_Server_readWithSession(UA_Server *server, UA_Session *session,
     UA_DataValue dv;
     UA_DataValue_init(&dv);
 
-    /* Get the node (with only the selected attribute if the NodeStore supports it) */
-    const UA_Node *node =
-        UA_NODESTORE_GET_SELECTIVE(server, &item->nodeId,
-                                   attributeId2AttributeMask((UA_AttributeId)item->attributeId),
-                                   UA_REFERENCETYPESET_NONE,
-                                   UA_BROWSEDIRECTION_INVALID);
+    /* Get the node */
+    const UA_Node *node = UA_NODESTORE_GET(server, &item->nodeId);
     if(!node) {
         dv.hasStatus = true;
         dv.status = UA_STATUSCODE_BADNODEIDUNKNOWN;

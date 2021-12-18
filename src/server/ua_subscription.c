@@ -89,7 +89,9 @@ UA_Subscription_delete(UA_Server *server, UA_Subscription *sub) {
     sub->delayedFreePointers.callback = NULL;
     sub->delayedFreePointers.application = server;
     sub->delayedFreePointers.data = NULL;
-    UA_EventLoop_addDelayedCallback(server->config.eventLoop, &sub->delayedFreePointers);
+    sub->delayedFreePointers.nextTime = UA_DateTime_nowMonotonic() + 1;
+    sub->delayedFreePointers.interval = 0; /* Remove the structure */
+    UA_Timer_addTimerEntry(&server->timer, &sub->delayedFreePointers, NULL);
 }
 
 UA_MonitoredItem *

@@ -13,9 +13,8 @@
 
 const char *syslogLevelNames[6] = {"trace", "debug", "info",
                                    "warn", "error", "fatal"};
-const char *syslogCategoryNames[UA_LOGCATEGORIES] =
-    {"network", "channel", "session", "server",
-     "client", "userland", "securitypolicy", "eventloop"};
+const char *syslogCategoryNames[7] = {"network", "channel", "session", "server",
+                                      "client", "userland", "securitypolicy"};
 
 #ifdef __clang__
 __attribute__((__format__(__printf__, 4 , 0)))
