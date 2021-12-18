@@ -112,10 +112,10 @@ Service_CreateSubscription(UA_Server *server, UA_Session *session,
     response->revisedMaxKeepAliveCount = sub->maxKeepAliveCount;
 
     UA_LOG_INFO_SUBSCRIPTION(&server->config.logger, sub,
-                             "Created the Subscription with a "
-                             "publishing interval of %.2f ms",
-                             sub->publishingInterval);
-}
+                             "Subscription created (Publishing interval %.2fms, "
+                             "max %lu notifications per publish)",
+                             sub->publishingInterval,
+                             (long unsigned)sub->notificationsPerPublish);}
 
 void
 Service_ModifySubscription(UA_Server *server, UA_Session *session,
