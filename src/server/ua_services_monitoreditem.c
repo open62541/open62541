@@ -476,10 +476,10 @@ Operation_CreateMonitoredItem(UA_Server *server, UA_Session *session,
     UA_LOG_INFO_SUBSCRIPTION(&server->config.logger, cmc->sub,
                              "MonitoredItem %" PRIi32 " | "
                              "Created the MonitoredItem "
-                             "(Sampling Interval: %fms, Queue Size: %lu)",
+                             "(Sampling Interval: %.2fms, Queue Size: %lu)",
                              newMon->monitoredItemId,
                              newMon->parameters.samplingInterval,
-                             (unsigned long)newMon->queueSize);
+                             (unsigned long)newMon->parameters.queueSize);
 }
 
 void
