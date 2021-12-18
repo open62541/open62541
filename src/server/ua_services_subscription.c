@@ -499,7 +499,6 @@ Operation_TransferSubscription(UA_Server *server, UA_Session *session,
     sub->notificationQueueSize = 0;
     sub->dataChangeNotifications = 0;
     sub->eventNotifications = 0;
-    sub->readyNotifications = 0;
 
     TAILQ_INIT(&newSub->retransmissionQueue);
     UA_NotificationMessageEntry *nme, *nme_tmp;
@@ -553,10 +552,8 @@ Operation_TransferSubscription(UA_Server *server, UA_Session *session,
         }
     }
 
-    /* Immediately try to publish. If the notification was late, include the new
-     * sample in the "ready-list" and don't wait until the next cyclic
-     * timeout. */
-    newSub->readyNotifications = newSub->notificationQueueSize;
+    /* Immediately try to publish on the new Subscription. This might put it
+     * into the "late subscription" mode. */
     UA_Subscription_publish(server, newSub);
 }
 
