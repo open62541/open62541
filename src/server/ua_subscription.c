@@ -325,7 +325,6 @@ UA_Subscription_nextSequenceNumber(UA_UInt32 sequenceNumber) {
 static void
 publishCallback(UA_Server *server, UA_Subscription *sub) {
     UA_LOCK(&server->serviceMutex);
-    sub->readyNotifications = sub->notificationQueueSize;
     UA_Subscription_publish(server, sub);
     UA_UNLOCK(&server->serviceMutex);
 }
@@ -415,12 +414,8 @@ UA_Subscription_publish(UA_Server *server, UA_Subscription *sub) {
         return;
     }
 
-    /* If there are several late publish responses... */
-    if(sub->readyNotifications > sub->notificationQueueSize)
-        sub->readyNotifications = sub->notificationQueueSize;
-
     /* Count the available notifications */
-    UA_UInt32 notifications = (sub->publishingEnabled) ? sub->readyNotifications : 0;
+    UA_UInt32 notifications = (sub->publishingEnabled) ? sub->notificationQueueSize : 0;
     UA_Boolean moreNotifications = false;
     if(notifications > sub->notificationsPerPublish) {
         notifications = sub->notificationsPerPublish;
@@ -488,10 +483,6 @@ UA_Subscription_publish(UA_Server *server, UA_Subscription *sub) {
     }
 
     /* <-- The point of no return --> */
-
-    /* Adjust the number of ready notifications */
-    UA_assert(sub->readyNotifications >= notifications);
-    sub->readyNotifications -= notifications;
 
     /* Set up the response */
     response->responseHeader.timestamp = UA_DateTime_now();
