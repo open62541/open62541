@@ -24,10 +24,7 @@ static UA_Server *server;
 static UA_NodeId readNodeIds[READNODES];
 
 static void setup(void) {
-    UA_ServerConfig config;
-    memset(&config, 0, sizeof(UA_ServerConfig));
-    UA_Nodestore_HashMap(&config.nodestore);
-    server = UA_Server_newWithConfig(&config);
+    server = UA_Server_new();
 }
 
 static void teardown(void) {

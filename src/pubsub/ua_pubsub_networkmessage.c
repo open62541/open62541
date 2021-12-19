@@ -49,6 +49,10 @@ const UA_Byte DS_MESSAGEHEADER_PICOSECONDS_INCLUDED_MASK = 32;
 const UA_Byte NM_SHIFT_LEN = 2;
 const UA_Byte DS_MH_SHIFT_LEN = 1;
 
+/* Static memory allocation for the message nonce */
+#define MESSAGE_NONCE_LENGTH      8
+static UA_Byte MessageNonceGenerated[MESSAGE_NONCE_LENGTH];
+
 static UA_Boolean UA_NetworkMessage_ExtendedFlags1Enabled(const UA_NetworkMessage* src);
 static UA_Boolean UA_NetworkMessage_ExtendedFlags2Enabled(const UA_NetworkMessage* src);
 static UA_Boolean UA_DataSetMessageHeader_DataSetFlags2Enabled(const UA_DataSetMessageHeader* src);
@@ -762,7 +766,8 @@ UA_SecurityHeader_decodeBinary(const UA_ByteString *src, size_t *offset,
     // MessageNonce
     if(nonceLength > 0) {
         //TODO: check for memory leaks
-        rv = UA_ByteString_allocBuffer(&dst->securityHeader.messageNonce, nonceLength);
+        dst->securityHeader.messageNonce.length = MESSAGE_NONCE_LENGTH;
+        dst->securityHeader.messageNonce.data = MessageNonceGenerated;
         UA_CHECK_STATUS(rv, return rv);
         for (UA_Byte i = 0; i < nonceLength; i++) {
             rv = UA_Byte_decodeBinary(src, offset,
@@ -1094,8 +1099,6 @@ void
 UA_NetworkMessage_clear(UA_NetworkMessage* p) {
     if(p->promotedFieldsEnabled)
         UA_Array_delete(p->promotedFields, p->promotedFieldsSize, &UA_TYPES[UA_TYPES_VARIANT]);
-
-    UA_ByteString_clear(&p->securityHeader.messageNonce);
 
     if(p->networkMessageType == UA_NETWORKMESSAGE_DATASET) {
         if(p->payloadHeaderEnabled) {

@@ -139,7 +139,10 @@ zipNsDeleteNode(void *nsCtx, UA_Node *node) {
 }
 
 static const UA_Node *
-zipNsGetNode(void *nsCtx, const UA_NodeId *nodeId) {
+zipNsGetNode(void *nsCtx, const UA_NodeId *nodeId,
+             UA_UInt32 attributeMask,
+             UA_ReferenceTypeSet references,
+             UA_BrowseDirection referenceDirections) {
     ZipContext *ns = (ZipContext*)nsCtx;
     NodeEntry dummy;
     dummy.nodeIdHash = UA_NodeId_hash(nodeId);
@@ -149,6 +152,18 @@ zipNsGetNode(void *nsCtx, const UA_NodeId *nodeId) {
         return NULL;
     ++entry->refCount;
     return (const UA_Node*)&entry->nodeId;
+}
+
+static const UA_Node *
+zipNsGetNodeFromPtr(void *nsCtx, UA_NodePointer ptr,
+                    UA_UInt32 attributeMask,
+                    UA_ReferenceTypeSet references,
+                    UA_BrowseDirection referenceDirections) {
+    if(!UA_NodePointer_isLocal(ptr))
+        return NULL;
+    UA_NodeId id = UA_NodePointer_toNodeId(ptr);
+    return zipNsGetNode(nsCtx, &id, attributeMask,
+                        references, referenceDirections);
 }
 
 static void
@@ -163,9 +178,12 @@ zipNsReleaseNode(void *nsCtx, const UA_Node *node) {
 
 static UA_StatusCode
 zipNsGetNodeCopy(void *nsCtx, const UA_NodeId *nodeId,
-                         UA_Node **outNode) {
-    /* Find the node */
-    const UA_Node *node = zipNsGetNode(nsCtx, nodeId);
+                 UA_Node **outNode) {
+    /* Get the node (with all attributes and references, the mask and refs are
+       currently noy evaluated within the plugin.) */
+    const UA_Node *node =
+        zipNsGetNode(nsCtx, nodeId, UA_NODEATTRIBUTESMASK_ALL,
+                     UA_REFERENCETYPESET_ALL, UA_BROWSEDIRECTION_BOTH);
     if(!node)
         return UA_STATUSCODE_BADNODEIDUNKNOWN;
 
@@ -261,8 +279,10 @@ zipNsInsertNode(void *nsCtx, UA_Node *node, UA_NodeId *addedNodeId) {
 
 static UA_StatusCode
 zipNsReplaceNode(void *nsCtx, UA_Node *node) {
-    /* Find the node */
-    const UA_Node *oldNode = zipNsGetNode(nsCtx, &node->head.nodeId);
+    /* Find the node (the mask and refs are not evaluated yet by the plugin)*/
+    const UA_Node *oldNode =
+        zipNsGetNode(nsCtx, &node->head.nodeId, UA_NODEATTRIBUTESMASK_ALL,
+                     UA_REFERENCETYPESET_ALL, UA_BROWSEDIRECTION_BOTH);
     if(!oldNode) {
         deleteEntry(container_of(node, NodeEntry, nodeId));
         return UA_STATUSCODE_BADNODEIDUNKNOWN;
@@ -372,6 +392,7 @@ UA_Nodestore_ZipTree(UA_Nodestore *ns) {
     ns->newNode = zipNsNewNode;
     ns->deleteNode = zipNsDeleteNode;
     ns->getNode = zipNsGetNode;
+    ns->getNodeFromPtr = zipNsGetNodeFromPtr;
     ns->releaseNode = zipNsReleaseNode;
     ns->getNodeCopy = zipNsGetNodeCopy;
     ns->insertNode = zipNsInsertNode;
