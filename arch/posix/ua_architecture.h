@@ -20,6 +20,7 @@
 #include <sys/select.h>
 #include <sys/types.h>
 #include <net/if.h>
+#include <poll.h>
 #ifdef UA_sleep_ms
 void UA_sleep_ms(unsigned long ms);
 #else
@@ -70,10 +71,14 @@ void UA_sleep_ms(unsigned long ms);
 #define UA_WOULDBLOCK EWOULDBLOCK
 #define UA_ERR_CONNECTION_PROGRESS EINPROGRESS
 
+#define UA_POLLIN POLLIN
+#define UA_POLLOUT POLLOUT
+
 #define UA_ENABLE_LOG_COLORS
 
 #define UA_getnameinfo(sa, salen, host, hostlen, serv, servlen, flags) \
     getnameinfo(sa, salen, host, hostlen, serv, servlen, flags)
+#define UA_poll poll
 #define UA_send send
 #define UA_recv recv
 #define UA_sendto sendto

@@ -219,6 +219,16 @@ UA_Notification_enqueueMon(UA_Server *server, UA_Notification *n) {
     /* Ensure enough space is available in the MonitoredItem. Do this only after
      * adding the new Notification. */
     UA_MonitoredItem_ensureQueueSpace(server, mon);
+
+#if UA_LOGLEVEL <= 200
+    UA_Subscription *sub = mon->subscription;
+    UA_LOG_DEBUG_SUBSCRIPTION(&server->config.logger, sub,
+                              "MonitoredItem %" PRIi32 " | "
+                              "Notification enqueued (Queue size %lu / %lu)",
+                              mon->monitoredItemId,
+                              (long unsigned)mon->queueSize,
+                              (long unsigned)mon->parameters.queueSize);
+#endif
 }
 
 void
@@ -259,6 +269,11 @@ UA_Notification_enqueueAndTrigger(UA_Server *server, UA_Notification *n) {
         mon->triggeredUntil > UA_DateTime_nowMonotonic())) {
         UA_Notification_enqueueSub(n);
         mon->triggeredUntil = UA_INT64_MIN;
+        if(mon->subscription) {
+            UA_LOG_DEBUG_SUBSCRIPTION(&server->config.logger, mon->subscription,
+                                      "Notification enqueued (Queue size %lu)",
+                                      (long unsigned)mon->subscription->notificationQueueSize);
+        }
     }
 
     /* Insert into the MonitoredItem. This checks the queue size and
@@ -266,6 +281,9 @@ UA_Notification_enqueueAndTrigger(UA_Server *server, UA_Notification *n) {
     UA_Notification_enqueueMon(server, n);
 
     UA_Subscription *sub = mon->subscription;
+    if(!sub)
+        return; /* Currently not for local MonitoredItems, as the triggering
+                 * link stays within the Subscription */
     for(size_t i = mon->triggeringLinksSize - 1; i < mon->triggeringLinksSize; i--) {
         /* Get the triggered MonitoredItem. Remove the link if the MI doesn't exist. */
         UA_MonitoredItem *triggeredMon =

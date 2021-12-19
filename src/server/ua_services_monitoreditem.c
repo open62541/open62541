@@ -446,7 +446,7 @@ Operation_CreateMonitoredItem(UA_Server *server, UA_Session *session,
                                                          valueType, &newMon->parameters);
 #ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
     result->statusCode |= checkEventFilterParam(server, session, newMon,
-                                                         &newMon->parameters);
+                                                &newMon->parameters);
 #endif
     if(result->statusCode != UA_STATUSCODE_GOOD) {
         UA_LOG_INFO_SUBSCRIPTION(&server->config.logger, cmc->sub,
@@ -456,6 +456,10 @@ Operation_CreateMonitoredItem(UA_Server *server, UA_Session *session,
         UA_MonitoredItem_delete(server, newMon);
         return;
     }
+
+    /* Initialize the value status so the first sample always passes the filter */
+    newMon->lastValue.hasStatus = true;
+    newMon->lastValue.status = ~(UA_StatusCode)0;
 
     /* Register the Monitoreditem in the server and subscription */
     UA_Server_registerMonitoredItem(server, newMon);
@@ -476,10 +480,10 @@ Operation_CreateMonitoredItem(UA_Server *server, UA_Session *session,
     UA_LOG_INFO_SUBSCRIPTION(&server->config.logger, cmc->sub,
                              "MonitoredItem %" PRIi32 " | "
                              "Created the MonitoredItem "
-                             "(Sampling Interval: %fms, Queue Size: %lu)",
+                             "(Sampling Interval: %.2fms, Queue Size: %lu)",
                              newMon->monitoredItemId,
                              newMon->parameters.samplingInterval,
-                             (unsigned long)newMon->queueSize);
+                             (unsigned long)newMon->parameters.queueSize);
 }
 
 void

@@ -61,6 +61,10 @@ connection_write(UA_Connection *connection, UA_ByteString *buf) {
     int flags = 0;
     flags |= MSG_NOSIGNAL;
 
+    struct pollfd poll_fd[1];
+    poll_fd[0].fd = connection->sockfd;
+    poll_fd[0].events = UA_POLLOUT;
+
     /* Send the full buffer. This may require several calls to send */
     size_t nWritten = 0;
     do {
@@ -70,12 +74,19 @@ connection_write(UA_Connection *connection, UA_ByteString *buf) {
             n = UA_send(connection->sockfd,
                      (const char*)buf->data + nWritten,
                      bytes_to_send, flags);
-            if(n < 0 && UA_ERRNO != UA_INTERRUPTED && UA_ERRNO != UA_AGAIN) {
-                connection->close(connection);
-                UA_ByteString_clear(buf);
-                return UA_STATUSCODE_BADCONNECTIONCLOSED;
+            if(n<0) {
+                if(UA_ERRNO != UA_INTERRUPTED && UA_ERRNO != UA_AGAIN) {
+                    connection->close(connection);
+                    UA_ByteString_clear(buf);
+                    return UA_STATUSCODE_BADCONNECTIONCLOSED;
+                }
+                int poll_ret;
+                do {
+                    poll_ret = UA_poll (poll_fd, 1, 1000);
+                } while (poll_ret == 0 || (poll_ret < 0 && UA_ERRNO == UA_INTERRUPTED));
             }
         } while(n < 0);
+
         nWritten += (size_t)n;
     } while(nWritten < buf->length);
 
