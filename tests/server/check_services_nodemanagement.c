@@ -568,6 +568,61 @@ START_TEST(InstantiateObjectType) {
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
 } END_TEST
 
+START_TEST(ObjectWithDynamicVariableChild) {
+    /* Add a ModellingRuleType object */
+    UA_ObjectAttributes attr = UA_ObjectAttributes_default;
+    attr.displayName = UA_LOCALIZEDTEXT("en-US","my object with variable child");
+
+    UA_NodeId newObjectId;
+    UA_NodeId_init(&newObjectId);
+
+    UA_StatusCode res = UA_Server_addObjectNode(server, UA_NODEID_NULL,
+                                  UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
+                                  UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
+                                  UA_QUALIFIEDNAME(0, "MyObjectWithVariableChild"), UA_NODEID_NUMERIC(0, UA_NS0ID_MODELLINGRULETYPE),
+                                  attr, NULL, &newObjectId);
+    ck_assert_int_eq(res, UA_STATUSCODE_GOOD);
+
+    UA_BrowsePath bp;
+    UA_BrowsePath_init(&bp);
+    bp.startingNode = newObjectId;
+    bp.relativePath.elementsSize = 1;
+
+    UA_RelativePathElement bpe;
+    UA_RelativePathElement_init(&bpe);
+    bpe.targetName = UA_QUALIFIEDNAME(0, "NamingRule");
+    bpe.referenceTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY);
+    bp.relativePath.elements = &bpe;
+
+    UA_BrowsePathResult bpr = UA_Server_translateBrowsePathToNodeIds(server, &bp);
+
+    ck_assert_int_eq(bpr.targetsSize, 1);
+
+    UA_WriteValue wv;
+    UA_WriteValue_init(&wv);
+    wv.nodeId = bpr.targets->targetId.nodeId;
+    wv.attributeId = UA_ATTRIBUTEID_VALUE;
+    wv.value.hasValue = UA_TRUE;
+    UA_NamingRuleType rt = UA_NAMINGRULETYPE_MANDATORY;
+    UA_Variant_setScalar(&wv.value.value, &rt, &UA_TYPES[UA_TYPES_NAMINGRULETYPE]);
+    wv.value.hasSourceTimestamp = UA_TRUE;
+    wv.value.sourceTimestamp = 12345;
+
+    res = UA_Server_write(server, &wv);
+    ck_assert_int_eq(res, UA_STATUSCODE_GOOD);
+
+    UA_ReadValueId rvi;
+    UA_ReadValueId_init(&rvi);
+    rvi.nodeId = bpr.targets->targetId.nodeId;
+    rvi.attributeId = UA_ATTRIBUTEID_VALUE;
+    UA_DataValue dv = UA_Server_read(server, &rvi, UA_TIMESTAMPSTORETURN_BOTH);
+    ck_assert(dv.hasSourceTimestamp == UA_TRUE);
+    ck_assert_int_eq(dv.sourceTimestamp, 12345);
+
+    UA_BrowsePathResult_clear(&bpr);
+    UA_DataValue_clear(&dv);
+} END_TEST
+
 static UA_NodeId
 findReference(const UA_NodeId sourceId, const UA_NodeId refTypeId) {
 	UA_BrowseDescription * bDesc = UA_BrowseDescription_new();
@@ -674,6 +729,7 @@ int main(void) {
     tcase_add_test(tc_addnodes, AddNodeTwiceGivesError);
     tcase_add_test(tc_addnodes, AddObjectWithConstructor);
     tcase_add_test(tc_addnodes, InstantiateObjectType);
+    tcase_add_test(tc_addnodes, ObjectWithDynamicVariableChild);
     suite_add_tcase(s, tc_addnodes);
 
     TCase *tc_deletenodes = tcase_create("deletenodes");
