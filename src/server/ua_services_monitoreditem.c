@@ -170,7 +170,7 @@ checkAdjustMonitoredItemParams(UA_Server *server, UA_Session *session,
          * DataChangeFilter */
         if(params->filter.encoding != UA_EXTENSIONOBJECT_ENCODED_NOBODY &&
            params->filter.content.decoded.type != &UA_TYPES[UA_TYPES_DATACHANGEFILTER])
-            return UA_STATUSCODE_BADMONITOREDITEMFILTERUNSUPPORTED;
+            return UA_STATUSCODE_BADFILTERNOTALLOWED;
 
         /* Check the deadband and adjust if necessary. */
         if(params->filter.content.decoded.type == &UA_TYPES[UA_TYPES_DATACHANGEFILTER]) {
