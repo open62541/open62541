@@ -287,6 +287,7 @@ checkEventFilterParam(UA_Server *server, UA_Session *session,
                 return whereResult;
             }
         }
+        UA_ContentFilterResult_clear(&contentFilterResult);
     }
     //check the select clause for logical consistency
     UA_StatusCode selectClauseValidationResult[128];

@@ -12,13 +12,18 @@
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
 
-//forward declaration
+typedef struct {
+    UA_Server *server;
+    UA_Session *session;
+    const UA_NodeId *eventNode;
+    const UA_ContentFilter *contentFilter;
+    UA_ContentFilterResult *contentFilterResult;
+    UA_Variant *valueResult;
+    UA_UInt16 index;
+} UA_FilterOperatorContext;
+
 static UA_StatusCode
-evaluateWhereClauseContentFilter(UA_Server *server, UA_Session *session,
-                                 const UA_NodeId *eventNode,
-                                 const UA_ContentFilter *contentFilter,
-                                 UA_ContentFilterResult *contentFilterResult,
-                                 UA_Variant* valueResult, UA_UInt16 index);
+evaluateWhereClauseContentFilter(UA_FilterOperatorContext *ctx);
 
 /* We use a 16-Byte ByteString as an identifier */
 UA_StatusCode
@@ -60,7 +65,7 @@ UA_Server_createEvent(UA_Server *server, const UA_NodeId eventType,
 
     /* Create an ObjectNode which represents the event */
     UA_QualifiedName name;
-    // set a dummy name. This is not used.
+    /*  set a dummy name. This is not used. */
     name = UA_QUALIFIEDNAME(0,"E");
     UA_NodeId newNodeId = UA_NODEID_NULL;
     UA_ObjectAttributes oAttr = UA_ObjectAttributes_default;
@@ -249,58 +254,47 @@ resolveSimpleAttributeOperand(UA_Server *server, UA_Session *session, const UA_N
 /* Resolve operands to variants according to the operand type.
  * Part 4: 7.17.3 Table 142 specifies the allowed types. */
 static UA_Variant
-resolveOperand(UA_Server *server, UA_Session *session, const UA_NodeId *origin,
-               const UA_ContentFilter *contentFilter,
-               UA_ContentFilterResult *contentFilterResult, UA_Variant *valueResult,
-               UA_UInt16 index, UA_UInt16 nr) {
-
+resolveOperand(UA_FilterOperatorContext *ctx, UA_UInt16 nr) {
     UA_StatusCode res;
     UA_Variant variant;
     UA_Variant_init(&variant);
     /*SimpleAttributeOperands*/
-    if(contentFilter->elements[index].filterOperands[nr].content.decoded.type ==
+    if(ctx->contentFilter->elements[ctx->index].filterOperands[nr].content.decoded.type ==
        &UA_TYPES[UA_TYPES_SIMPLEATTRIBUTEOPERAND]) {
-        res = resolveSimpleAttributeOperand(
-            server, session, origin,
-            (UA_SimpleAttributeOperand *)contentFilter->elements[index]
-                .filterOperands[nr]
-                .content.decoded.data,
-            &variant);
+        res = resolveSimpleAttributeOperand(ctx->server, ctx->session, ctx->eventNode,
+                                            (UA_SimpleAttributeOperand *)ctx->contentFilter->elements[ctx->index]
+                                            .filterOperands[nr].content.decoded.data,
+                                            &variant);
         /*LiteralAttribute*/
-    } else if(contentFilter->elements[index].filterOperands[nr].content.decoded.type ==
+    } else if(ctx->contentFilter->elements[ctx->index].filterOperands[nr].content.decoded.type ==
               &UA_TYPES[UA_TYPES_LITERALOPERAND]) {
-        variant = ((UA_LiteralOperand *)contentFilter->elements[index]
-            .filterOperands[nr].content.decoded.data)->value;
+        variant = ((UA_LiteralOperand *)ctx->contentFilter->elements[ctx->index]
+                   .filterOperands[nr].content.decoded.data)->value;
         res = UA_STATUSCODE_GOOD;
-    } else if(contentFilter->elements[index].filterOperands[nr].content.decoded.type ==
+    } else if(ctx->contentFilter->elements[ctx->index].filterOperands[nr].content.decoded.type ==
               &UA_TYPES[UA_TYPES_ELEMENTOPERAND]) {
-        res = evaluateWhereClauseContentFilter(
-            server, session, origin, contentFilter, contentFilterResult, valueResult,
-            (UA_UInt16)((UA_ElementOperand *)contentFilter->elements[index]
-                .filterOperands[nr].content.decoded.data)->index);
-        variant =
-            valueResult[(UA_UInt16)((UA_ElementOperand *)contentFilter->elements[index]
-                .filterOperands[nr].content.decoded.data)->index];
+        UA_UInt16 oldIndex = ctx->index;
+        ctx->index = (UA_UInt16)((UA_ElementOperand *)ctx->contentFilter->elements[ctx->index]
+                                 .filterOperands[nr].content.decoded.data)->index;
+        res = evaluateWhereClauseContentFilter(ctx);
+        variant = ctx->valueResult[ctx->index];
+        ctx->index = oldIndex; /* restore the old index */
         /*ElementOperands*/
     } else {
         res = UA_STATUSCODE_BADFILTEROPERANDINVALID;
     }
     if(res != UA_STATUSCODE_GOOD && res != UA_STATUSCODE_BADNOMATCH) {
         variant.type = NULL;
-        contentFilterResult->elementResults[index].operandStatusCodes[nr] = res;
+        ctx->contentFilterResult->elementResults[ctx->index].operandStatusCodes[nr] = res;
     }
     return variant;
 }
 
 static UA_StatusCode
-ofTypeOperator(UA_Server *server, UA_Session *session,
-               const UA_NodeId *eventNode,
-               const UA_ContentFilter *contentFilter,
-               UA_ContentFilterResult *contentFilterResult,
-               UA_Variant* valueResult, UA_UInt16 index,
-               UA_UInt16 nr, UA_ContentFilterElement *pElement){
+ofTypeOperator(UA_FilterOperatorContext *ctx) {
+    UA_ContentFilterElement *pElement = &ctx->contentFilter->elements[ctx->index];
     UA_Boolean result = false;
-    valueResult[index].type = &UA_TYPES[UA_TYPES_BOOLEAN];
+    ctx->valueResult[ctx->index].type = &UA_TYPES[UA_TYPES_BOOLEAN];
     if(pElement->filterOperandsSize != 1)
         return UA_STATUSCODE_BADFILTEROPERANDCOUNTMISMATCH;
     if(pElement->filterOperands[0].content.decoded.type !=
@@ -319,24 +313,24 @@ ofTypeOperator(UA_Server *server, UA_Session *session,
     UA_Variant typeNodeIdVariant;
     UA_Variant_init(&typeNodeIdVariant);
     UA_StatusCode readStatusCode =
-        readObjectProperty(server, *eventNode, UA_QUALIFIEDNAME(0, "EventType"),
-                           &typeNodeIdVariant);
+        readObjectProperty(ctx->server, *ctx->eventNode,
+                           UA_QUALIFIEDNAME(0, "EventType"), &typeNodeIdVariant);
     if(readStatusCode != UA_STATUSCODE_GOOD)
         return readStatusCode;
 
     if(!UA_Variant_isScalar(&typeNodeIdVariant) ||
        typeNodeIdVariant.type != &UA_TYPES[UA_TYPES_NODEID] ||
        typeNodeIdVariant.data == NULL) {
-        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
+        UA_LOG_ERROR(&ctx->server->config.logger, UA_LOGCATEGORY_SERVER,
                      "EventType has an invalid type.");
         UA_Variant_clear(&typeNodeIdVariant);
         return UA_STATUSCODE_BADINTERNALERROR;
     }
-    //check if the eventtype-nodeid is equal to the given oftype argument
+    /* check if the eventtype-nodeid is equal to the given oftype argument */
     result = UA_NodeId_equal((UA_NodeId*) typeNodeIdVariant.data, literalOperandNodeId);
-    //check if the eventtype-nodeid is a subtype of the given oftype argument
+    /* check if the eventtype-nodeid is a subtype of the given oftype argument */
     if(!result)
-        result = isNodeInTree_singleRef(server,
+        result = isNodeInTree_singleRef(ctx->server,
                                         (UA_NodeId*) typeNodeIdVariant.data,
                                         literalOperandNodeId,
                                         UA_REFERENCETYPEINDEX_HASSUBTYPE);
@@ -347,189 +341,616 @@ ofTypeOperator(UA_Server *server, UA_Session *session,
 }
 
 static UA_StatusCode
-andOperator(UA_Server *server, UA_Session *session,
-            const UA_NodeId *eventNode,
-            const UA_ContentFilter *contentFilter,
-            UA_ContentFilterResult *contentFilterResult,
-            UA_Variant* valueResult, UA_UInt16 index,
-            UA_UInt16 nr, UA_ContentFilterElement *pElement) {
-    UA_StatusCode firstBoolean_and = resolveBoolean(
-        resolveOperand(server, session, eventNode, contentFilter,
-                       contentFilterResult, valueResult, index, 0));
+andOperator(UA_FilterOperatorContext *ctx) {
+    UA_StatusCode firstBoolean_and = resolveBoolean(resolveOperand(ctx, 0));
     if(firstBoolean_and == UA_STATUSCODE_BADNOMATCH) {
-        valueResult[index].type = &UA_TYPES[UA_TYPES_BOOLEAN];
+        ctx->valueResult[ctx->index].type = &UA_TYPES[UA_TYPES_BOOLEAN];
         return UA_STATUSCODE_BADNOMATCH;
     }
     /* Evaluation of second operand */
-    UA_StatusCode secondBoolean = resolveBoolean(
-        resolveOperand(server, session, eventNode, contentFilter,
-                       contentFilterResult, valueResult, index, 1));
-
+    UA_StatusCode secondBoolean = resolveBoolean(resolveOperand(ctx, 1));
     /* Filteroperator AND */
     if(secondBoolean == UA_STATUSCODE_BADNOMATCH) {
-        valueResult[index].type = &UA_TYPES[UA_TYPES_BOOLEAN];
+        ctx->valueResult[ctx->index].type = &UA_TYPES[UA_TYPES_BOOLEAN];
         return UA_STATUSCODE_BADNOMATCH;
-    } else if((firstBoolean_and == UA_STATUSCODE_GOOD) &&
-              (secondBoolean == UA_STATUSCODE_GOOD)) {
-        valueResult[index].type = &UA_TYPES[UA_TYPES_BOOLEAN];
-        return UA_STATUSCODE_GOOD;
-    } else {
-        return UA_STATUSCODE_BADFILTERELEMENTINVALID;
     }
+    if((firstBoolean_and == UA_STATUSCODE_GOOD) &&
+       (secondBoolean == UA_STATUSCODE_GOOD)) {
+        ctx->valueResult[ctx->index].type = &UA_TYPES[UA_TYPES_BOOLEAN];
+        return UA_STATUSCODE_GOOD;
+    }
+    return UA_STATUSCODE_BADFILTERELEMENTINVALID;
 }
 
 static UA_StatusCode
-orOperator(UA_Server *server, UA_Session *session,
-           const UA_NodeId *eventNode,
-           const UA_ContentFilter *contentFilter,
-           UA_ContentFilterResult *contentFilterResult,
-           UA_Variant* valueResult, UA_UInt16 index,
-           UA_UInt16 nr, UA_ContentFilterElement *pElement) {
-    UA_StatusCode firstBoolean_or = resolveBoolean(
-        resolveOperand(server, session, eventNode, contentFilter,
-                       contentFilterResult, valueResult, index, 0));
+orOperator(UA_FilterOperatorContext *ctx) {
+    UA_StatusCode firstBoolean_or = resolveBoolean(resolveOperand(ctx, 0));
     if(firstBoolean_or == UA_STATUSCODE_GOOD) {
-        valueResult[index].type = &UA_TYPES[UA_TYPES_BOOLEAN];
+        ctx->valueResult[ctx->index].type = &UA_TYPES[UA_TYPES_BOOLEAN];
         return UA_STATUSCODE_GOOD;
     }
     /* Evaluation of second operand */
-    UA_StatusCode secondBoolean = resolveBoolean(
-        resolveOperand(server, session, eventNode, contentFilter,
-                       contentFilterResult, valueResult, index, 1));
-
+    UA_StatusCode secondBoolean = resolveBoolean(resolveOperand(ctx, 1));
     if(secondBoolean == UA_STATUSCODE_GOOD) {
-        valueResult[index].type = &UA_TYPES[UA_TYPES_BOOLEAN];
+        ctx->valueResult[ctx->index].type = &UA_TYPES[UA_TYPES_BOOLEAN];
         return UA_STATUSCODE_GOOD;
-    } else if((firstBoolean_or == UA_STATUSCODE_BADNOMATCH) &&
-              (secondBoolean == UA_STATUSCODE_BADNOMATCH)) {
-        valueResult[index].type = &UA_TYPES[UA_TYPES_BOOLEAN];
+    } 
+    if((firstBoolean_or == UA_STATUSCODE_BADNOMATCH) &&
+       (secondBoolean == UA_STATUSCODE_BADNOMATCH)) {
+        ctx->valueResult[ctx->index].type = &UA_TYPES[UA_TYPES_BOOLEAN];
         return UA_STATUSCODE_BADNOMATCH;
-    } else {
-        return UA_STATUSCODE_BADFILTERELEMENTINVALID;
     }
+    return UA_STATUSCODE_BADFILTERELEMENTINVALID;
+}
+
+static UA_Boolean
+isNumericUnsigned(UA_UInt32 dataTypeKind){
+    if(dataTypeKind == UA_DATATYPEKIND_UINT64 ||
+       dataTypeKind == UA_DATATYPEKIND_UINT32 ||
+       dataTypeKind == UA_DATATYPEKIND_UINT16 ||
+       dataTypeKind == UA_DATATYPEKIND_BYTE)
+        return true;
+    return false;
+}
+
+static UA_Boolean
+isNumericSigned(UA_UInt32 dataTypeKind){
+    if(dataTypeKind == UA_DATATYPEKIND_INT64 ||
+       dataTypeKind == UA_DATATYPEKIND_INT32 ||
+       dataTypeKind == UA_DATATYPEKIND_INT16 ||
+       dataTypeKind == UA_DATATYPEKIND_SBYTE)
+        return true;
+    return false;
+}
+
+static UA_Boolean
+isFloatingPoint(UA_UInt32 dataTypeKind){
+    if(dataTypeKind == UA_DATATYPEKIND_FLOAT ||
+       dataTypeKind == UA_DATATYPEKIND_DOUBLE)
+        return true;
+    return false;
+}
+
+static UA_Boolean
+isStringType(UA_UInt32 dataTypeKind){
+    if(dataTypeKind == UA_DATATYPEKIND_STRING ||
+       dataTypeKind == UA_DATATYPEKIND_BYTESTRING)
+        return true;
+    return false;
+}
+
+
+
+static UA_StatusCode
+implicitNumericVariantTransformation(UA_Variant *variant, void *data){
+    if(variant->type == &UA_TYPES[UA_TYPES_UINT64]){
+        *(UA_UInt64 *)data = *(UA_UInt64 *)variant->data;
+        UA_Variant_setScalar(variant, data, &UA_TYPES[UA_TYPES_UINT64]);
+    } else if(variant->type == &UA_TYPES[UA_TYPES_UINT32]){
+        *(UA_UInt64 *)data = *(UA_UInt32 *)variant->data;
+        UA_Variant_setScalar(variant, data, &UA_TYPES[UA_TYPES_UINT64]);
+    } else if(variant->type == &UA_TYPES[UA_TYPES_UINT16]){
+        *(UA_UInt64 *)data = *(UA_UInt16 *)variant->data;
+        UA_Variant_setScalar(variant, data, &UA_TYPES[UA_TYPES_UINT64]);
+    } else if(variant->type == &UA_TYPES[UA_TYPES_BYTE]){
+        *(UA_UInt64 *)data = *(UA_Byte *)variant->data;
+        UA_Variant_setScalar(variant, data, &UA_TYPES[UA_TYPES_UINT64]);
+    } else if(variant->type == &UA_TYPES[UA_TYPES_INT64]){
+        *(UA_Int64 *)data = *(UA_Int64 *)variant->data;
+        UA_Variant_setScalar(variant, data, &UA_TYPES[UA_TYPES_INT64]);
+    } else if(variant->type == &UA_TYPES[UA_TYPES_INT32]){
+        *(UA_Int64 *)data = *(UA_Int32 *)variant->data;
+        UA_Variant_setScalar(variant, data, &UA_TYPES[UA_TYPES_INT64]);
+    } else if(variant->type == &UA_TYPES[UA_TYPES_INT16]){
+        *(UA_Int64 *)data = *(UA_Int16 *)variant->data;
+        UA_Variant_setScalar(variant, data, &UA_TYPES[UA_TYPES_INT64]);
+    } else if(variant->type == &UA_TYPES[UA_TYPES_SBYTE]){
+        *(UA_Int64 *)data = *(UA_SByte *)variant->data;
+        UA_Variant_setScalar(variant, data, &UA_TYPES[UA_TYPES_INT64]);
+    } else if(variant->type == &UA_TYPES[UA_TYPES_DOUBLE]){
+        *(UA_Double *)data = *(UA_Double *)variant->data;
+        UA_Variant_setScalar(variant, data, &UA_TYPES[UA_TYPES_DOUBLE]);
+    } else if(variant->type == &UA_TYPES[UA_TYPES_SBYTE]){
+        *(UA_Double *)data = *(UA_Float *)variant->data;
+        UA_Variant_setScalar(variant, data, &UA_TYPES[UA_TYPES_DOUBLE]);
+    } else {
+        return UA_STATUSCODE_BADTYPEMISMATCH;
+    }
+    return UA_STATUSCODE_GOOD;
+}
+
+/* 0 -> Same Type, 1 -> Implicit Cast, 2 -> Only explicit Cast, -1 -> cast invalid */
+static UA_SByte convertLookup[21][21] = {
+    { 0, 1,-1,-1, 1,-1, 1,-1, 1, 1, 1,-1, 1,-1, 2,-1,-1, 1, 1, 1,-1},
+    { 2, 0,-1,-1, 1,-1, 1,-1, 1, 1, 1,-1, 1,-1, 2,-1,-1, 1, 1, 1,-1},
+    {-1,-1, 0,-1,-1,-1,-1, 2,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1},
+    {-1,-1,-1, 0,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1, 2,-1,-1,-1,-1,-1,-1},
+    { 2,2,-1,-1, 0,-1, 2,-1, 2, 2, 2,-1, 2,-1, 2,-1,-1, 2, 2, 2,-1},
+    {-1,-1,-1,-1,-1, 0,-1,-1,-1,-1,-1, 2,-1,-1, 1,-1,-1,-1,-1,-1,-1},
+    { 2, 2,-1,-1, 1,-1, 0,-1, 2, 2, 2,-1, 2,-1, 2,-1,-1, 2, 2, 2,-1},
+    {-1,-1, 2,-1,-1,-1,-1, 0,-1,-1,-1,-1,-1,-1, 2,-1,-1,-1,-1,-1,-1},
+    { 2, 2,-1,-1, 1,-1, 1,-1, 0, 1, 1,-1, 2,-1, 2,-1,-1, 2, 1, 1,-1},
+    { 2, 2,-1,-1, 1,-1, 1,-1, 2, 0, 1,-1, 2, 2, 2,-1,-1, 2, 2, 1,-1},
+    { 2, 2,-1,-1, 1,-1, 1,-1, 2, 2, 0,-1, 2, 2, 2,-1,-1, 2, 2, 2,-1},
+    {-1,-1,-1,-1,-1, 1,-1,-1,-1,-1,-1, 0,-1,-1, 1,-1,-1,-1,-1,-1,-1},
+    { 2, 2,-1,-1, 1,-1, 1,-1, 1, 1, 1,-1, 0,-1, 2,-1,-1, 1, 1, 1,-1},
+    {-1,-1,-1,-1,-1,-1,-1,-1,-1, 1, 1,-1,-1, 0,-1,-1,-1, 2, 1, 1,-1},
+    { 1, 1,-1, 2, 1, 2, 1, 1, 1, 1, 1, 2, 1,-1, 0, 2, 2, 1, 1, 1,-1},
+    {-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1, 1, 0,-1,-1,-1,-1,-1},
+    {-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1, 1, 1, 0,-1,-1,-1,-1},
+    { 2, 2,-1,-1, 1,-1, 1,-1, 1, 1, 1,-1, 2, 1, 2,-1,-1, 0, 1, 1,-1},
+    { 2, 2,-1,-1, 1,-1, 1,-1, 2, 1, 1,-1, 2, 2, 2,-1,-1, 2, 0, 1,-1},
+    { 2, 2,-1,-1, 1,-1, 1,-1, 2, 2, 1,-1, 2, 2, 2,-1,-1, 2, 2, 0,-1},
+    {-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1, 0}
+};
+
+/* This array maps the index of the
+ * standard DataType-Kind order to the
+ * order of the type convertion array */
+static UA_Byte dataTypeKindIndex[30] = {
+    0,   12,  1,  8, 17,
+    9,   18, 10, 19,  6,
+    4,   14,  3,  7,  2,
+    20,  11,  5, 13, 16,
+    15, 255,255,255,255,
+    255,255,255,255,255
+};
+
+/*
+ * The OPC UA Standard defines in Part 4 several data type casting-rules. (see 1.04 part 4 Table 122)
+ * Return:
+ *      0 -> same type
+ *      1 -> types can be casted implicit
+ *      2 -> types can only be explicitly casted
+ *     -1 -> types can't be casted
+ */
+static UA_SByte
+checkTypeCastingOption(const UA_DataType *cast_target, const UA_DataType *cast_source) {
+    UA_Byte firstOperatorTypeKindIndex = UA_BYTE_MAX;
+    UA_Byte secondOperatorTypeKindIndex = UA_BYTE_MAX;
+    firstOperatorTypeKindIndex = dataTypeKindIndex[cast_target->typeKind];
+    secondOperatorTypeKindIndex = dataTypeKindIndex[cast_source->typeKind];
+
+    if(firstOperatorTypeKindIndex == UA_BYTE_MAX || secondOperatorTypeKindIndex == UA_BYTE_MAX)
+        return -1;
+
+    return convertLookup[firstOperatorTypeKindIndex][secondOperatorTypeKindIndex];
+}
+
+/* Compare operation for equal, gt, le, gte, lee
+ * UA_STATUSCODE_GOOD if the comparison was true
+ * UA_STATUSCODE_BADNOMATCH if the comparison was false
+ * UA_STATUSCODE_BADFILTEROPERATORINVALID for invalid operators
+ * UA_STATUSCODE_BADTYPEMISMATCH if one of the operands was not numeric
+ * ToDo Array-Casting
+ */
+static UA_StatusCode
+compareOperation(UA_Variant *firstOperand, UA_Variant *secondOperand, UA_FilterOperator op) {
+    /* get precedence of the operand types */
+    UA_Int16 firstOperand_precedence = UA_DataType_getPrecedence(firstOperand->type);
+    UA_Int16 secondOperand_precedence = UA_DataType_getPrecedence(secondOperand->type);
+    /* if the types are not equal and one of the precedence-ranks is -1, then there is
+       no implicit conversion possible and therefore no compare */
+    if(!UA_NodeId_equal(&firstOperand->type->typeId, &secondOperand->type->typeId) &&
+       (firstOperand_precedence == -1 || secondOperand_precedence == -1)){
+        return UA_STATUSCODE_BADTYPEMISMATCH;
+    }
+    /* check if the precedence order of the operators is swapped */
+    UA_Variant *firstCompareOperand = firstOperand;
+    UA_Variant *secondCompareOperand = secondOperand;
+    UA_Boolean swapped = false;
+    if (firstOperand_precedence < secondOperand_precedence){
+        firstCompareOperand = secondOperand;
+        secondCompareOperand = firstOperand;
+        swapped = true;
+    }
+    UA_SByte castRule =
+        checkTypeCastingOption(firstCompareOperand->type, secondCompareOperand->type);
+
+    if(!(castRule == 0 || castRule == 1)){
+        return UA_STATUSCODE_BADTYPEMISMATCH;
+    }
+
+    /* The operand Data-Types influence the behavior and steps for the comparison.
+     * We need to check the operand types and store a rule which is used to select
+     * the right behavior afterwards. */
+    enum compareHandlingRuleEnum {
+        UA_TYPES_EQUAL_ORDERED,
+        UA_TYPES_EQUAL_UNORDERED,
+        UA_TYPES_DIFFERENT_NUMERIC_UNSIGNED,
+        UA_TYPES_DIFFERENT_NUMERIC_SIGNED,
+        UA_TYPES_DIFFERENT_NUMERIC_FLOATING_POINT,
+        UA_TYPES_DIFFERENT_TEXT,
+        UA_TYPES_DIFFERENT_COMPARE_FORBIDDEN,
+        UA_TYPES_DIFFERENT_COMPARE_EXPLIC
+    } compareHandlingRuleEnum;
+
+    if(castRule == 0 &&
+       (UA_DataType_isNumeric(firstOperand->type) ||
+        firstCompareOperand->type->typeKind == (UA_UInt32) UA_DATATYPEKIND_DATETIME ||
+        firstCompareOperand->type->typeKind == (UA_UInt32) UA_DATATYPEKIND_STRING ||
+        firstCompareOperand->type->typeKind == (UA_UInt32) UA_DATATYPEKIND_BYTESTRING)){
+        /* Data-Types with a natural order (allow le, gt, lee, gte) */
+        compareHandlingRuleEnum = UA_TYPES_EQUAL_ORDERED;
+    } else if(castRule == 0){
+        /* Data-Types without a natural order (le, gt, lee, gte are not allowed) */
+        compareHandlingRuleEnum = UA_TYPES_EQUAL_UNORDERED;
+    } else if(castRule == 1 &&
+              isNumericSigned(firstOperand->type->typeKind) &&
+              isNumericSigned(secondOperand->type->typeKind)){
+        compareHandlingRuleEnum = UA_TYPES_DIFFERENT_NUMERIC_SIGNED;
+    } else if(castRule == 1 &&
+              isNumericUnsigned(firstOperand->type->typeKind) &&
+              isNumericUnsigned(secondOperand->type->typeKind)){
+        compareHandlingRuleEnum = UA_TYPES_DIFFERENT_NUMERIC_UNSIGNED;
+    } else if(castRule == 1 &&
+              isFloatingPoint(firstOperand->type->typeKind) &&
+              isFloatingPoint(secondOperand->type->typeKind)){
+        compareHandlingRuleEnum = UA_TYPES_DIFFERENT_NUMERIC_FLOATING_POINT;
+    } else if(castRule == 1 &&
+              isStringType(firstOperand->type->typeKind)&&
+              isStringType(secondOperand->type->typeKind)){
+        compareHandlingRuleEnum = UA_TYPES_DIFFERENT_TEXT;
+    } else if(castRule == -1 || castRule == 2){
+        compareHandlingRuleEnum = UA_TYPES_DIFFERENT_COMPARE_EXPLIC;
+    } else {
+        compareHandlingRuleEnum = UA_TYPES_DIFFERENT_COMPARE_FORBIDDEN;
+    }
+
+    if(compareHandlingRuleEnum == UA_TYPES_DIFFERENT_COMPARE_FORBIDDEN)
+        return UA_STATUSCODE_BADFILTEROPERATORINVALID;
+
+    if(swapped){
+        firstCompareOperand = secondCompareOperand;
+        secondCompareOperand = firstCompareOperand;
+    }
+
+    if(op == UA_FILTEROPERATOR_EQUALS){
+        UA_Byte variantContent[16];
+        memset(&variantContent, 0, sizeof(UA_Byte) * 16);
+        if(compareHandlingRuleEnum == UA_TYPES_DIFFERENT_NUMERIC_SIGNED ||
+           compareHandlingRuleEnum == UA_TYPES_DIFFERENT_NUMERIC_UNSIGNED ||
+           compareHandlingRuleEnum == UA_TYPES_DIFFERENT_NUMERIC_FLOATING_POINT) {
+            implicitNumericVariantTransformation(firstCompareOperand, variantContent);
+            implicitNumericVariantTransformation(secondCompareOperand, &variantContent[8]);
+        } else if(compareHandlingRuleEnum == UA_TYPES_DIFFERENT_TEXT) {
+            firstCompareOperand->type = &UA_TYPES[UA_TYPES_STRING];
+            secondCompareOperand->type = &UA_TYPES[UA_TYPES_STRING];
+        } else if(compareHandlingRuleEnum == UA_TYPES_DIFFERENT_COMPARE_FORBIDDEN ||
+                  compareHandlingRuleEnum == UA_TYPES_DIFFERENT_COMPARE_EXPLIC ){
+            return UA_STATUSCODE_BADFILTEROPERATORINVALID;
+        }
+        if(UA_order(firstCompareOperand, secondCompareOperand, &UA_TYPES[UA_TYPES_VARIANT]) == UA_ORDER_EQ) {
+            return UA_STATUSCODE_GOOD;
+        }
+    } else {
+        UA_Byte variantContent[16];
+        if(compareHandlingRuleEnum == UA_TYPES_DIFFERENT_NUMERIC_SIGNED ||
+           compareHandlingRuleEnum == UA_TYPES_DIFFERENT_NUMERIC_UNSIGNED ||
+           compareHandlingRuleEnum == UA_TYPES_DIFFERENT_NUMERIC_FLOATING_POINT) {
+            memset(&variantContent, 0, sizeof(UA_Byte) * 16);
+            implicitNumericVariantTransformation(firstCompareOperand, variantContent);
+            implicitNumericVariantTransformation(secondCompareOperand, &variantContent[8]);
+        } else if(compareHandlingRuleEnum == UA_TYPES_DIFFERENT_TEXT) {
+            firstCompareOperand->type = &UA_TYPES[UA_TYPES_STRING];
+            secondCompareOperand->type = &UA_TYPES[UA_TYPES_STRING];
+        } else if(compareHandlingRuleEnum == UA_TYPES_EQUAL_UNORDERED) {
+            return UA_STATUSCODE_BADFILTEROPERATORINVALID;
+        } else if(compareHandlingRuleEnum == UA_TYPES_DIFFERENT_COMPARE_FORBIDDEN ||
+                  compareHandlingRuleEnum == UA_TYPES_DIFFERENT_COMPARE_EXPLIC) {
+            return UA_STATUSCODE_BADFILTEROPERATORINVALID;
+        }
+        UA_Order gte_result = UA_order(firstCompareOperand, secondCompareOperand, &UA_TYPES[UA_TYPES_VARIANT]);
+        if(op == UA_FILTEROPERATOR_LESSTHAN) {
+            if(gte_result == UA_ORDER_LESS) {
+                return UA_STATUSCODE_GOOD;
+            }
+        } else if(op == UA_FILTEROPERATOR_GREATERTHAN) {
+            if(gte_result == UA_ORDER_MORE) {
+                return UA_STATUSCODE_GOOD;
+            }
+        } else if(op == UA_FILTEROPERATOR_LESSTHANOREQUAL) {
+            if(gte_result == UA_ORDER_LESS || gte_result == UA_ORDER_EQ) {
+                return UA_STATUSCODE_GOOD;
+            }
+        } else if(op == UA_FILTEROPERATOR_GREATERTHANOREQUAL) {
+            if(gte_result == UA_ORDER_MORE || gte_result == UA_ORDER_EQ) {
+                return UA_STATUSCODE_GOOD;
+            }
+        }
+    }
+    return UA_STATUSCODE_BADNOMATCH;
 }
 
 static UA_StatusCode
-isNullOperator(UA_Server *server, UA_Session *session,
-           const UA_NodeId *eventNode,
-           const UA_ContentFilter *contentFilter,
-           UA_ContentFilterResult *contentFilterResult,
-           UA_Variant* valueResult, UA_UInt16 index,
-           UA_UInt16 nr, UA_ContentFilterElement *pElement) {
+compareOperator(UA_FilterOperatorContext *ctx) {
+    UA_Variant firstOperand = resolveOperand(ctx, 0);
+    if(UA_Variant_isEmpty(&firstOperand))
+        return UA_STATUSCODE_BADFILTEROPERANDINVALID;
+    UA_Variant secondOperand = resolveOperand(ctx, 1);
+    if(UA_Variant_isEmpty(&secondOperand)) {
+        return UA_STATUSCODE_BADFILTEROPERANDINVALID;
+    }
+    /* ToDo remove the following restriction: Add support for arrays */
+    if(!UA_Variant_isScalar(&firstOperand) || !UA_Variant_isScalar(&secondOperand)){
+        return UA_STATUSCODE_BADFILTEROPERATORUNSUPPORTED;
+    }
+    return compareOperation(&firstOperand, &secondOperand,
+                            ctx->contentFilter->elements[ctx->index].filterOperator);
+}
+
+static UA_StatusCode
+bitwiseOperator(UA_FilterOperatorContext *ctx) {
+    /* The bitwise operators all have 2 operands which are evaluated equally. */
+    UA_Variant firstOperand = resolveOperand(ctx, 0);
+    if(UA_Variant_isEmpty(&firstOperand)) {
+        return UA_STATUSCODE_BADFILTEROPERANDINVALID;
+    }
+    UA_Variant secondOperand = resolveOperand(ctx, 1);
+    if(UA_Variant_isEmpty(&secondOperand)) {
+        return UA_STATUSCODE_BADFILTEROPERANDINVALID;
+    }
+
+    UA_Boolean bitwiseAnd =
+        ctx->contentFilter->elements[ctx->index].filterOperator == UA_FILTEROPERATOR_BITWISEAND;
+
+    /* check if the operators are integers */
+    if(!UA_DataType_isNumeric(firstOperand.type) ||
+       !UA_DataType_isNumeric(secondOperand.type) ||
+       !UA_Variant_isScalar(&firstOperand) ||
+       !UA_Variant_isScalar(&secondOperand) ||
+       (firstOperand.type == &UA_TYPES[UA_TYPES_DOUBLE]) ||
+       (secondOperand.type == &UA_TYPES[UA_TYPES_DOUBLE]) ||
+       (secondOperand.type == &UA_TYPES[UA_TYPES_FLOAT]) ||
+       (firstOperand.type == &UA_TYPES[UA_TYPES_FLOAT])) {
+        return UA_STATUSCODE_BADFILTEROPERANDINVALID;
+    }
+
+    /* check which is the return type (higher precedence == bigger integer)*/
+    UA_Int16 precedence = UA_DataType_getPrecedence(firstOperand.type);
+    if(precedence > UA_DataType_getPrecedence(secondOperand.type)) {
+        precedence = UA_DataType_getPrecedence(secondOperand.type);
+    }
+
+    switch(precedence){
+        case 3:
+            ctx->valueResult[ctx->index].type = &UA_TYPES[UA_TYPES_INT64];
+            UA_Int64 result_int64;
+            if(bitwiseAnd) {
+                result_int64 = *((UA_Int64 *)firstOperand.data) & *((UA_Int64 *)secondOperand.data);
+            } else {
+                result_int64 = *((UA_Int64 *)firstOperand.data) | *((UA_Int64 *)secondOperand.data);
+            }
+            UA_Int64_copy(&result_int64, (UA_Int64 *) ctx->valueResult[ctx->index].data);
+            break;
+        case 4:
+            ctx->valueResult[ctx->index].type = &UA_TYPES[UA_TYPES_UINT64];
+            UA_UInt64 result_uint64s;
+            if(bitwiseAnd) {
+                result_uint64s = *((UA_UInt64 *)firstOperand.data) & *((UA_UInt64 *)secondOperand.data);
+            } else {
+                result_uint64s = *((UA_UInt64 *)firstOperand.data) | *((UA_UInt64 *)secondOperand.data);
+            }
+            UA_UInt64_copy(&result_uint64s, (UA_UInt64 *) ctx->valueResult[ctx->index].data);
+            break;
+        case 5:
+            ctx->valueResult[ctx->index].type = &UA_TYPES[UA_TYPES_INT32];
+            UA_Int32 result_int32;
+            if(bitwiseAnd) {
+                result_int32 = *((UA_Int32 *)firstOperand.data) & *((UA_Int32 *)secondOperand.data);
+            } else {
+                result_int32 = *((UA_Int32 *)firstOperand.data) | *((UA_Int32 *)secondOperand.data);
+            }
+            UA_Int32_copy(&result_int32, (UA_Int32 *) ctx->valueResult[ctx->index].data);
+            break;
+        case 6:
+            ctx->valueResult[ctx->index].type = &UA_TYPES[UA_TYPES_UINT32];
+            UA_UInt32 result_uint32;
+            if(bitwiseAnd) {
+                result_uint32 = *((UA_UInt32 *)firstOperand.data) & *((UA_UInt32 *)secondOperand.data);
+            } else {
+                result_uint32 = *((UA_UInt32 *)firstOperand.data) | *((UA_UInt32 *)secondOperand.data);
+            }
+            UA_UInt32_copy(&result_uint32, (UA_UInt32 *) ctx->valueResult[ctx->index].data);
+            break;
+        case 8:
+            ctx->valueResult[ctx->index].type = &UA_TYPES[UA_TYPES_INT16];
+            UA_Int16 result_int16;
+            if(bitwiseAnd) {
+                result_int16 = *((UA_Int16 *)firstOperand.data) & *((UA_Int16 *)secondOperand.data);
+            } else {
+                result_int16 = *((UA_Int16 *)firstOperand.data) | *((UA_Int16 *)secondOperand.data);
+            }
+            UA_Int16_copy(&result_int16, (UA_Int16 *) ctx->valueResult[ctx->index].data);
+            break;
+        case 9:
+            ctx->valueResult[ctx->index].type = &UA_TYPES[UA_TYPES_UINT16];
+            UA_UInt16 result_uint16;
+            if(bitwiseAnd) {
+                result_uint16 = *((UA_UInt16 *)firstOperand.data) & *((UA_UInt16 *)secondOperand.data);
+            } else {
+                result_uint16 = *((UA_UInt16 *)firstOperand.data) | *((UA_UInt16 *)secondOperand.data);
+            }
+            UA_UInt16_copy(&result_uint16, (UA_UInt16 *) ctx->valueResult[ctx->index].data);
+            break;
+        case 10:
+            ctx->valueResult[ctx->index].type = &UA_TYPES[UA_TYPES_SBYTE];
+            UA_SByte result_sbyte;
+            if(bitwiseAnd) {
+                result_sbyte = *((UA_SByte *)firstOperand.data) & *((UA_SByte *)secondOperand.data);
+            } else {
+                result_sbyte = *((UA_SByte *)firstOperand.data) | *((UA_SByte *)secondOperand.data);
+            }
+            UA_SByte_copy(&result_sbyte, (UA_SByte *) ctx->valueResult[ctx->index].data);
+            break;
+        case 11:
+            ctx->valueResult[ctx->index].type = &UA_TYPES[UA_TYPES_BYTE];
+            UA_Byte result_byte;
+            if(bitwiseAnd) {
+                result_byte = *((UA_Byte *)firstOperand.data) & *((UA_Byte *)secondOperand.data);
+            } else {
+                result_byte = *((UA_Byte *)firstOperand.data) | *((UA_Byte *)secondOperand.data);
+            }
+            UA_Byte_copy(&result_byte, (UA_Byte *) ctx->valueResult[ctx->index].data);
+            break;
+        default:
+            return UA_STATUSCODE_BADFILTEROPERANDINVALID;
+    }
+    return UA_STATUSCODE_GOOD;
+}
+
+static UA_StatusCode
+betweenOperator(UA_FilterOperatorContext *ctx) {
+    ctx->valueResult[ctx->index].type = &UA_TYPES[UA_TYPES_BOOLEAN];
+
+    UA_Variant firstOperand = resolveOperand(ctx, 0);
+    UA_Variant secondOperand = resolveOperand(ctx, 1);
+    UA_Variant thirdOperand = resolveOperand(ctx, 2);
+
+    if((UA_Variant_isEmpty(&firstOperand) ||
+        UA_Variant_isEmpty(&secondOperand) ||
+        UA_Variant_isEmpty(&thirdOperand)) ||
+       (!UA_DataType_isNumeric(firstOperand.type) ||
+        !UA_DataType_isNumeric(secondOperand.type) ||
+        !UA_DataType_isNumeric(thirdOperand.type)) ||
+       (!UA_Variant_isScalar(&firstOperand) ||
+        !UA_Variant_isScalar(&secondOperand) ||
+        !UA_Variant_isScalar(&thirdOperand))) {
+        return UA_STATUSCODE_BADFILTEROPERANDINVALID;
+    }
+
+    /* Between can be evaluated through greaterThanOrEqual and lessThanOrEqual */
+    if(compareOperation(&firstOperand, &secondOperand, UA_FILTEROPERATOR_GREATERTHANOREQUAL) == UA_STATUSCODE_GOOD &&
+       compareOperation(&firstOperand, &thirdOperand, UA_FILTEROPERATOR_LESSTHANOREQUAL) == UA_STATUSCODE_GOOD){
+        return UA_STATUSCODE_GOOD;
+    }
+    return UA_STATUSCODE_BADNOMATCH;
+}
+
+static UA_StatusCode
+inListOperator(UA_FilterOperatorContext *ctx) {
+    ctx->valueResult[ctx->index].type = &UA_TYPES[UA_TYPES_BOOLEAN];
+    UA_Variant firstOperand = resolveOperand(ctx, 0);
+
+    if(UA_Variant_isEmpty(&firstOperand) ||
+       !UA_Variant_isScalar(&firstOperand)) {
+        return UA_STATUSCODE_BADFILTEROPERATORUNSUPPORTED;
+    }
+
+    /* Evaluating the list of operands */
+    for(size_t i = 1; i < ctx->contentFilter->elements[ctx->index].filterOperandsSize; i++) {
+        /* Resolving the current operand */
+        UA_Variant currentOperator = resolveOperand(ctx, (UA_UInt16)i);
+
+        /* Check if the operand conforms to the operator*/
+        if(UA_Variant_isEmpty(&currentOperator) ||
+           !UA_Variant_isScalar(&currentOperator)) {
+            return UA_STATUSCODE_BADFILTEROPERATORUNSUPPORTED;
+        }
+        if(compareOperation(&firstOperand, &currentOperator, UA_FILTEROPERATOR_EQUALS)) {
+            return UA_STATUSCODE_GOOD;
+        }
+    }
+    return UA_STATUSCODE_BADNOMATCH;
+}
+
+static UA_StatusCode
+isNullOperator(UA_FilterOperatorContext *ctx) {
     /* Checking if operand is NULL. This is done by reducing the operand to a
     * variant and then checking if it is empty. */
-    UA_Variant operand =
-        resolveOperand(server, session, eventNode, contentFilter,
-                       contentFilterResult, valueResult, index, 0);
-    valueResult[index].type = &UA_TYPES[UA_TYPES_BOOLEAN];
-    if(!UA_Variant_isEmpty(&operand)) {
+    UA_Variant operand = resolveOperand(ctx, 0);
+    ctx->valueResult[ctx->index].type = &UA_TYPES[UA_TYPES_BOOLEAN];
+    if(!UA_Variant_isEmpty(&operand))
         return UA_STATUSCODE_BADNOMATCH;
-    }
     return UA_STATUSCODE_GOOD;
 }
 
 static UA_StatusCode
-notOperator(UA_Server *server, UA_Session *session,
-               const UA_NodeId *eventNode,
-               const UA_ContentFilter *contentFilter,
-               UA_ContentFilterResult *contentFilterResult,
-               UA_Variant* valueResult, UA_UInt16 index,
-               UA_UInt16 nr, UA_ContentFilterElement *pElement) {
+notOperator(UA_FilterOperatorContext *ctx) {
     /* Inverting the boolean value of the operand. */
-    UA_StatusCode res = resolveBoolean(
-        resolveOperand(server, session, eventNode, contentFilter,
-                       contentFilterResult, valueResult, index, 0));
-    valueResult[index].type = &UA_TYPES[UA_TYPES_BOOLEAN];
-    //invert result
-    if(res == UA_STATUSCODE_GOOD) {
+    UA_StatusCode res = resolveBoolean(resolveOperand(ctx, 0));
+    ctx->valueResult[ctx->index].type = &UA_TYPES[UA_TYPES_BOOLEAN];
+    /* invert result */
+    if(res == UA_STATUSCODE_GOOD)
         return UA_STATUSCODE_BADNOMATCH;
-    }
     return UA_STATUSCODE_GOOD;
 }
 
 static UA_StatusCode
-evaluateWhereClauseContentFilter(UA_Server *server, UA_Session *session,
-                                 const UA_NodeId *eventNode,
-                                 const UA_ContentFilter *contentFilter,
-                                 UA_ContentFilterResult *contentFilterResult,
-                                 UA_Variant* valueResult, UA_UInt16 index) {
-    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+evaluateWhereClauseContentFilter(UA_FilterOperatorContext *ctx) {
+    UA_LOCK_ASSERT(&ctx->server->serviceMutex, 1);
 
-    if(contentFilter->elements == NULL || contentFilter->elementsSize == 0) {
+    if(ctx->contentFilter->elements == NULL || ctx->contentFilter->elementsSize == 0) {
         /* Nothing to do.*/
         return UA_STATUSCODE_GOOD;
     }
 
     /* The first element needs to be evaluated, this might be linked to other
      * elements, which are evaluated in these cases. See 7.4.1 in Part 4. */
-    UA_ContentFilterElement *pElement = &contentFilter->elements[index];
+    UA_ContentFilterElement *pElement = &ctx->contentFilter->elements[ctx->index];
+    UA_StatusCode *result = &ctx->contentFilterResult->elementResults[ctx->index].statusCode;
     switch(pElement->filterOperator) {
         case UA_FILTEROPERATOR_INVIEW:
-            return UA_STATUSCODE_BADEVENTFILTERINVALID;
-        case UA_FILTEROPERATOR_RELATEDTO: {
+            /* Fallthrough */
+        case UA_FILTEROPERATOR_RELATEDTO:
             /* Not allowed for event WhereClause according to 7.17.3 in Part 4 */
             return UA_STATUSCODE_BADEVENTFILTERINVALID;
-        }
         case UA_FILTEROPERATOR_EQUALS:
-            return UA_STATUSCODE_BADFILTEROPERATORUNSUPPORTED;
-        case UA_FILTEROPERATOR_ISNULL:
-            contentFilterResult->elementResults[index].statusCode =
-                isNullOperator(server, session, eventNode, contentFilter,
-                               contentFilterResult, valueResult, index, 0, pElement);
-            break;
+            /* Fallthrough */
         case UA_FILTEROPERATOR_GREATERTHAN:
-            return UA_STATUSCODE_BADFILTEROPERATORUNSUPPORTED;
+            /* Fallthrough */
         case UA_FILTEROPERATOR_LESSTHAN:
-            return UA_STATUSCODE_BADFILTEROPERATORUNSUPPORTED;
+            /* Fallthrough */
         case UA_FILTEROPERATOR_GREATERTHANOREQUAL:
-            return UA_STATUSCODE_BADFILTEROPERATORUNSUPPORTED;
+            /* Fallthrough */
         case UA_FILTEROPERATOR_LESSTHANOREQUAL:
-            return UA_STATUSCODE_BADFILTEROPERATORUNSUPPORTED;
+            *result = compareOperator(ctx);
+            break;
         case UA_FILTEROPERATOR_LIKE:
             return UA_STATUSCODE_BADFILTEROPERATORUNSUPPORTED;
         case UA_FILTEROPERATOR_NOT:
-            contentFilterResult->elementResults[index].statusCode =
-                notOperator(server, session, eventNode, contentFilter,
-                            contentFilterResult, valueResult, index, 0, pElement);
+            *result = notOperator(ctx);
             break;
         case UA_FILTEROPERATOR_BETWEEN:
-            return UA_STATUSCODE_BADFILTEROPERATORUNSUPPORTED;
-        case UA_FILTEROPERATOR_INLIST:
-            return UA_STATUSCODE_BADFILTEROPERATORUNSUPPORTED;
-        case UA_FILTEROPERATOR_AND: {
-            contentFilterResult->elementResults[index].statusCode =
-                andOperator(server, session, eventNode, contentFilter,
-                            contentFilterResult, valueResult, index, 0, pElement);
+            *result = betweenOperator(ctx);
             break;
-            case UA_FILTEROPERATOR_OR:
-                contentFilterResult->elementResults[index].statusCode =
-                    orOperator(server, session, eventNode, contentFilter,
-                               contentFilterResult, valueResult, index, 0, pElement);
-                break;
-            case UA_FILTEROPERATOR_CAST:
-                return UA_STATUSCODE_BADFILTEROPERATORUNSUPPORTED;
-            case UA_FILTEROPERATOR_BITWISEAND:
-                return UA_STATUSCODE_BADFILTEROPERATORUNSUPPORTED;
-            case UA_FILTEROPERATOR_BITWISEOR:
-                return UA_STATUSCODE_BADFILTEROPERATORUNSUPPORTED;
-            case UA_FILTEROPERATOR_OFTYPE:
-                contentFilterResult->elementResults[index].statusCode =
-                    ofTypeOperator(server, session, eventNode, contentFilter,
-                                   contentFilterResult, valueResult, index, 0, pElement);
-                break;
-            default:
-                return UA_STATUSCODE_BADFILTEROPERATORINVALID;
-        }
+        case UA_FILTEROPERATOR_INLIST:
+            /* ToDo currently only numeric types are allowed */
+            *result = inListOperator(ctx);
+            break;
+        case UA_FILTEROPERATOR_ISNULL:
+            *result = isNullOperator(ctx);
+            break;
+        case UA_FILTEROPERATOR_AND:
+            *result = andOperator(ctx);
+            break;
+        case UA_FILTEROPERATOR_OR:
+            *result = orOperator(ctx);
+            break;
+        case UA_FILTEROPERATOR_CAST:
+            return UA_STATUSCODE_BADFILTEROPERATORUNSUPPORTED;
+        case UA_FILTEROPERATOR_BITWISEAND:
+            *result = bitwiseOperator(ctx);
+            break;
+        case UA_FILTEROPERATOR_BITWISEOR:
+            *result = bitwiseOperator(ctx);
+            break;
+        case UA_FILTEROPERATOR_OFTYPE:
+            *result = ofTypeOperator(ctx);
+            break;
+        default:
+            return UA_STATUSCODE_BADFILTEROPERATORINVALID;
     }
-    if(valueResult[index].type == &UA_TYPES[UA_TYPES_BOOLEAN]) {
-        UA_Boolean *result = UA_Boolean_new();
-        if(contentFilterResult->elementResults[index].statusCode == UA_STATUSCODE_GOOD)
-            *result = true;
+
+    if(ctx->valueResult[ctx->index].type == &UA_TYPES[UA_TYPES_BOOLEAN]) {
+        UA_Boolean *res = UA_Boolean_new();
+        if(ctx->contentFilterResult->elementResults[ctx->index].statusCode == UA_STATUSCODE_GOOD)
+            *res = true;
         else
-            *result = false;
-        valueResult[index].data = result;
+            *res = false;
+        ctx->valueResult[ctx->index].data = res;
     }
-    return contentFilterResult->elementResults[index].statusCode;
+    return ctx->contentFilterResult->elementResults[ctx->index].statusCode;
 }
 
 UA_StatusCode
@@ -539,18 +960,27 @@ UA_Server_evaluateWhereClauseContentFilter(UA_Server *server, UA_Session *sessio
                                            UA_ContentFilterResult *contentFilterResult) {
     if(contentFilter->elementsSize == 0)
         return UA_STATUSCODE_GOOD;
-    //TODO add maximum lenth size to the server config
+    /* TODO add maximum lenth size to the server config */
     if (contentFilter->elementsSize > 256)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     UA_STACKARRAY(UA_Variant, valueResult, contentFilter->elementsSize);
     for(size_t i = 0; i < contentFilter->elementsSize; ++i) {
         UA_Variant_init(&valueResult[i]);
     }
-    UA_StatusCode res = evaluateWhereClauseContentFilter(
-        server, session, eventNode, contentFilter, contentFilterResult, valueResult, 0);
-    for(size_t i = 0; i < contentFilter->elementsSize; i++) {
-        if(!UA_Variant_isEmpty(&valueResult[i]))
-            UA_Variant_clear(&valueResult[i]);
+
+    UA_FilterOperatorContext ctx;
+    ctx.server = server;
+    ctx.session = session;
+    ctx.eventNode = eventNode;
+    ctx.contentFilter = contentFilter;
+    ctx.contentFilterResult = contentFilterResult;
+    ctx.valueResult = valueResult;
+    ctx.index = 0;
+
+    UA_StatusCode res = evaluateWhereClauseContentFilter(&ctx);
+    for(size_t i = 0; i < ctx.contentFilter->elementsSize; i++) {
+        if(!UA_Variant_isEmpty(&ctx.valueResult[i]))
+            UA_Variant_clear(&ctx.valueResult[i]);
     }
     return res;
 }
@@ -571,7 +1001,7 @@ UA_Server_filterEvent(UA_Server *server, UA_Session *session,
         return UA_STATUSCODE_BADOUTOFMEMORY;
     efl->eventFieldsSize = filter->selectClausesSize;
 
-    //empty event filter result
+    /* empty event filter result */
     UA_EventFilterResult_init(result);
     result->selectClauseResultsSize = filter->selectClausesSize;
     result->selectClauseResults = (UA_StatusCode *)
@@ -581,7 +1011,7 @@ UA_Server_filterEvent(UA_Server *server, UA_Session *session,
         UA_EventFilterResult_clear(result);
         return UA_STATUSCODE_BADOUTOFMEMORY;
     }
-    //prepare content filter result structure
+    /* prepare content filter result structure */
     if(filter->whereClause.elementsSize != 0) {
         result->whereClauseResult.elementResultsSize = filter->whereClause.elementsSize;
         result->whereClauseResult.elementResults = (UA_ContentFilterElementResult *)
@@ -975,7 +1405,7 @@ UA_Event_staticSelectClauseValidation(UA_Server *server,
         return;
     for(size_t i = 0; i < eventFilter->selectClausesSize; ++i) {
         result[i] = UA_STATUSCODE_GOOD;
-        ///typedefenitionid or browsepath of any clause is not NULL ?
+        /* /typedefenitionid or browsepath of any clause is not NULL ? */
         if(UA_NodeId_isNull(&eventFilter->selectClauses[i].typeDefinitionId)) {
             result[i] = UA_STATUSCODE_BADTYPEDEFINITIONINVALID;
             continue;
@@ -993,7 +1423,7 @@ UA_Event_staticSelectClauseValidation(UA_Server *server,
             result[i] = UA_STATUSCODE_BADBROWSENAMEINVALID;
             continue;
         }
-        //eventType is a subtype of BaseEventType ?
+        /* eventType is a subtype of BaseEventType ? */
         UA_NodeId baseEventTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_BASEEVENTTYPE);
         if(!isNodeInTree_singleRef(
             server, &eventFilter->selectClauses[i].typeDefinitionId,
@@ -1001,13 +1431,13 @@ UA_Event_staticSelectClauseValidation(UA_Server *server,
             result[i] = UA_STATUSCODE_BADTYPEDEFINITIONINVALID;
             continue;
         }
-        //attributeId is valid ?
+        /* attributeId is valid ? */
         if(!((0 < eventFilter->selectClauses[i].attributeId) &&
              (eventFilter->selectClauses[i].attributeId < 28))) {
             result[i] = UA_STATUSCODE_BADATTRIBUTEIDINVALID;
             continue;
         }
-        //browsePath contains null ?
+        /* browsePath contains null ? */
         for(size_t j = 0; j < eventFilter->selectClauses[i].browsePathSize; ++j) {
             if(UA_QualifiedName_isNull(
                 &eventFilter->selectClauses[i].browsePath[j])) {
@@ -1017,10 +1447,10 @@ UA_Event_staticSelectClauseValidation(UA_Server *server,
         }
         if(result[i] != UA_STATUSCODE_GOOD)
             continue;
-        //indexRange is defined ?
+        /*indexRange is defined ? */
         if(!UA_String_equal(&eventFilter->selectClauses[i].indexRange,
                             &UA_STRING_NULL)) {
-            //indexRange is parsable ?
+            /* indexRange is parsable ? */
             UA_NumericRange numericRange = UA_NUMERICRANGE("");
             if(UA_NumericRange_parse(&numericRange,
                                      eventFilter->selectClauses[i].indexRange) !=
@@ -1029,7 +1459,7 @@ UA_Event_staticSelectClauseValidation(UA_Server *server,
                 continue;
             }
             UA_free(numericRange.dimensions);
-            //attributeId is value ?
+            /* attributeId is value ? */
             if(eventFilter->selectClauses[i].attributeId != UA_ATTRIBUTEID_VALUE) {
                 result[i] = UA_STATUSCODE_BADTYPEMISMATCH;
                 continue;
@@ -1130,7 +1560,7 @@ UA_Event_staticWhereClauseValidation(UA_Server *server,
                 break;
             }
             case UA_FILTEROPERATOR_INLIST: {
-                if(ef.filterOperandsSize >= 2) {
+                if(ef.filterOperandsSize <= 2) {
                     er->statusCode =
                         UA_STATUSCODE_BADFILTEROPERANDCOUNTMISMATCH;
                     break;
@@ -1164,12 +1594,6 @@ UA_Event_staticWhereClauseValidation(UA_Server *server,
                     (UA_LiteralOperand *)ef.filterOperands[0]
                         .content.decoded.data;
 
-                if(((UA_NodeId *)literalOperand->value.data)->identifierType !=
-                   UA_NODEIDTYPE_NUMERIC) {
-                    er->statusCode =
-                        UA_STATUSCODE_BADATTRIBUTEIDINVALID;
-                    break;
-                }
                 /* Make sure the &pOperand->nodeId is a subtype of BaseEventType */
                 UA_NodeId baseEventTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_BASEEVENTTYPE);
                 if(!isNodeInTree_singleRef(

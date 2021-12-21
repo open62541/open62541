@@ -1046,6 +1046,11 @@ typedef struct UA_DataTypeArray {
 UA_Boolean
 UA_DataType_isNumeric(const UA_DataType *type);
 
+/* Return the Data Type Precedence-Rank defined in Part 4.
+ * If there is no Precedence-Rank assigned with the type -1 is returned.*/
+UA_Int16
+UA_DataType_getPrecedence(const UA_DataType *type);
+
 /**
  * Builtin data types can be accessed as UA_TYPES[UA_TYPES_XXX], where XXX is
  * the name of the data type. If only the NodeId of a type is known, use the
