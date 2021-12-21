@@ -603,8 +603,8 @@ START_TEST(ObjectWithDynamicVariableChild) {
     wv.nodeId = bpr.targets->targetId.nodeId;
     wv.attributeId = UA_ATTRIBUTEID_VALUE;
     wv.value.hasValue = UA_TRUE;
-    UA_NamingRuleType rt = UA_NAMINGRULETYPE_MANDATORY;
-    UA_Variant_setScalar(&wv.value.value, &rt, &UA_TYPES[UA_TYPES_NAMINGRULETYPE]);
+    UA_Int32 rt = 1;
+    UA_Variant_setScalar(&wv.value.value, &rt, &UA_TYPES[UA_TYPES_INT32]);
     wv.value.hasSourceTimestamp = UA_TRUE;
     wv.value.sourceTimestamp = 12345;
 
