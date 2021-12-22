@@ -155,8 +155,9 @@ UA_EventLoop_delete(UA_EventLoop *el) {
     /* Process remaining delayed callbacks */
     processDelayed(el);
 
-    /* free the file descriptors */
-    UA_free(el->fds);
+    /* All file descriptors were removed together with the coresponding
+     * EventSource */
+    UA_assert(el->fdsSize == 0);
 
     /* Clean up */
     UA_UNLOCK(&el->elMutex);
