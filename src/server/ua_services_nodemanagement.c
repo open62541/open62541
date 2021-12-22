@@ -361,9 +361,10 @@ typeCheckVariableNode(UA_Server *server, UA_Session *session,
 
     /* Perform the value typecheck. If this fails, write the current value
      * again. The write-service tries to convert to the correct type... */
+    const char *reason;
     if(!compatibleValue(server, session, &node->dataType, node->valueRank,
                         node->arrayDimensionsSize, node->arrayDimensions,
-                        &value.value, NULL)) {
+                        &value.value, NULL, &reason)) {
         retval = writeValueAttribute(server, session, &node->head.nodeId, &value.value);
         if(retval != UA_STATUSCODE_GOOD) {
             logAddNode(&server->config.logger, session, &node->head.nodeId,
