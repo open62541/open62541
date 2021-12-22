@@ -19,6 +19,7 @@
  *    Copyright 2020 (c) Christian von Arnim, ISW University of Stuttgart  (for VDW and umati)
  */
 
+#include "open62541/plugin/log.h"
 #include "ua_server_internal.h"
 #include "ua_types_encoding_binary.h"
 #include "ua_services.h"
@@ -957,11 +958,16 @@ compatibleValueArrayDimensions(const UA_Variant *value, size_t targetArrayDimens
                                      valueArrayDimensionsSize, valueArrayDimensions);
 }
 
+const char *reason_EmptyType = "Empty value only allowed for BaseDataType";
+const char *reason_ValueDataType = "DataType of the value is incompatible";
+const char *reason_ValueArrayDimensions = "ArrayDimensions of the value are incompatible";
+const char *reason_ValueValueRank = "ValueRank of the value is incompatible";
+
 UA_Boolean
 compatibleValue(UA_Server *server, UA_Session *session, const UA_NodeId *targetDataTypeId,
                 UA_Int32 targetValueRank, size_t targetArrayDimensionsSize,
                 const UA_UInt32 *targetArrayDimensions, const UA_Variant *value,
-                const UA_NumericRange *range) {
+                const UA_NumericRange *range, const char **reason) {
     /* Empty value */
     if(!value->type) {
         /* Empty value is allowed for BaseDataType */
@@ -983,12 +989,15 @@ compatibleValue(UA_Server *server, UA_Session *session, const UA_NodeId *targetD
             return true;
 
         /* Default handling is to abort */
+        *reason = reason_EmptyType;
         return false;
     }
 
     /* Is the datatype compatible? */
-    if(!compatibleValueDataType(server, value->type, targetDataTypeId))
+    if(!compatibleValueDataType(server, value->type, targetDataTypeId)) {
+        *reason = reason_ValueDataType;
         return false;
+    }
 
     /* Array dimensions are checked later when writing the range */
     if(range)
@@ -996,11 +1005,18 @@ compatibleValue(UA_Server *server, UA_Session *session, const UA_NodeId *targetD
 
     /* See if the array dimensions match. */
     if(!compatibleValueArrayDimensions(value, targetArrayDimensionsSize,
-                                       targetArrayDimensions))
+                                       targetArrayDimensions)) {
+        *reason = reason_ValueArrayDimensions;
         return false;
+    }
 
     /* Check if the valuerank allows for the value dimension */
-    return compatibleValueRankValue(targetValueRank, value);
+    if(!compatibleValueRankValue(targetValueRank, value)) {
+        *reason = reason_ValueValueRank;
+        return false;
+    }
+
+    return true;
 }
 
 /*****************/
@@ -1179,9 +1195,10 @@ writeDataTypeAttribute(UA_Server *server, UA_Session *session,
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
     if(value.hasValue) {
+        const char *reason; /* temp value */
         if(!compatibleValue(server, session, dataType, node->valueRank,
                             node->arrayDimensionsSize, node->arrayDimensions,
-                            &value.value, NULL))
+                            &value.value, NULL, &reason))
             retval = UA_STATUSCODE_BADTYPEMISMATCH;
         UA_DataValue_clear(&value);
         if(retval != UA_STATUSCODE_GOOD) {
@@ -1291,9 +1308,24 @@ writeNodeValueAttribute(UA_Server *server, UA_Session *session,
            value->value.type->typeId.identifier.numeric == UA_NS0ID_STRUCTURE)
             nodeDataTypePtr = &nodeDataType;
 
+        const char *reason;
         if(!compatibleValue(server, session, nodeDataTypePtr, node->valueRank,
                             node->arrayDimensionsSize, node->arrayDimensions,
-                            &adjustedValue.value, rangeptr)) {
+                            &adjustedValue.value, rangeptr, &reason)) {
+            UA_LOG_NODEID_WARNING(&node->head.nodeId,
+            if(session == &server->adminSession) {
+                /* If the value is written via the local API, log a warning */
+                UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                               "Writing the value of Node %.*s failed with the "
+                               "following reason: %s",
+                               (int)nodeIdStr.length, nodeIdStr.data, reason);
+            } else {
+                /* Don't spam the logs if writing from remote failed */
+                UA_LOG_DEBUG_SESSION(&server->config.logger, session,
+                                     "Writing the value of Node %.*s failed with the "
+                                     "following reason: %s",
+                                     (int)nodeIdStr.length, nodeIdStr.data, reason);
+            });
             if(rangeptr && rangeptr->dimensions != NULL)
                 UA_free(rangeptr->dimensions);
             return UA_STATUSCODE_BADTYPEMISMATCH;
