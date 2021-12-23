@@ -29,7 +29,7 @@
 # define UA_WOULDBLOCK WSAEWOULDBLOCK
 # define UA_ERR_CONNECTION_PROGRESS WSAEWOULDBLOCK
 #else /* Unix */
-# include <sys/select.h>
+# include <sys/poll.h>
 #endif
 
 /* Catch-all for the architectures that are "actually POSIX" */
@@ -64,13 +64,7 @@ _UA_BEGIN_DECLS
 
 /* POSIX events are based on sockets / file descriptors. The EventSources can
  * register their fd in the EventLoop so that they are considered by the
- * EventLoop dropping into "select" to wait for events. */
-
-/* POSIX-select can listen for three types of events. It has to be selected
- * for each registered fd which events they are interested in.  */
-#define UA_POSIX_EVENT_READ 1
-#define UA_POSIX_EVENT_WRITE 2
-#define UA_POSIX_EVENT_ERR 4
+ * EventLoop dropping into "poll" to wait for events. */
 
 typedef void
 (*UA_FDCallback)(UA_EventSource *es, UA_FD fd, void *fdcontext, short event);

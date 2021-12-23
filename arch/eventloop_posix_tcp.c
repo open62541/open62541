@@ -36,7 +36,8 @@ TCP_freeNetworkBuffer(UA_ConnectionManager *cm, uintptr_t connectionId,
     UA_ByteString_clear(buf);
 }
 
-/* Set the socket non-blocking */
+/* Set the socket non-blocking. If the listen-socket is nonblocking, incoming
+ * connections inherit this state. */
 static UA_StatusCode
 TCP_setNonBlocking(UA_FD sockfd) {
 #ifndef _WIN32
@@ -116,7 +117,7 @@ TCP_connectionSocketCallback(UA_ConnectionManager *cm, UA_FD fd,
 
     /* Write-Event, a new connection has opened.  */
     UA_StatusCode res = UA_STATUSCODE_GOOD;
-    if(event & UA_POSIX_EVENT_WRITE) {
+    if(event == UA_POLLOUT) {
         UA_LOG_DEBUG(UA_EventLoop_getLogger(cm->eventSource.eventLoop),
                      UA_LOGCATEGORY_NETWORK,
                      "TCP %u\t| Opening a new connection", (unsigned)fd);
@@ -126,8 +127,9 @@ TCP_connectionSocketCallback(UA_ConnectionManager *cm, UA_FD fd,
                                UA_STATUSCODE_GOOD, 0, NULL, UA_BYTESTRING_NULL);
 
         /* Now we are interested in read-events. */
-        UA_EventLoop_modifyFD(cm->eventSource.eventLoop, fd, UA_POSIX_EVENT_READ,
-                              (UA_FDCallback)TCP_connectionSocketCallback, *fdcontext);
+        UA_EventLoop_modifyFD(cm->eventSource.eventLoop, fd, UA_POLLIN,
+                              (UA_FDCallback)TCP_connectionSocketCallback,
+                              *fdcontext);
         return;
     }
 
@@ -238,7 +240,7 @@ TCP_listenSocketCallback(UA_ConnectionManager *cm, UA_FD fd,
 
     /* Configure the new socket */
     UA_StatusCode res = UA_STATUSCODE_GOOD;
-    res |= TCP_setNonBlocking(newsockfd); /* Set the socket non-blocking */
+    /* res |= TCP_setNonBlocking(newsockfd); Inherited from the listen-socket */
     res |= TCP_setNoSigPipe(newsockfd);   /* Supress interrupts from the socket */
     res |= TCP_setNoNagle(newsockfd);     /* Disable Nagle's algorithm */
     if(res != UA_STATUSCODE_GOOD) {
@@ -259,8 +261,7 @@ TCP_listenSocketCallback(UA_ConnectionManager *cm, UA_FD fd,
                            0, NULL, UA_BYTESTRING_NULL);
 
     /* Register in the EventLoop. Signal to the user if registering failed. */
-    res = UA_EventLoop_registerFD(cm->eventSource.eventLoop, newsockfd,
-                                  UA_POSIX_EVENT_READ,
+    res = UA_EventLoop_registerFD(cm->eventSource.eventLoop, newsockfd, UA_POLLIN,
                                   (UA_FDCallback)TCP_connectionSocketCallback,
                                   &cm->eventSource, ctx);
     if(res != UA_STATUSCODE_GOOD) {
@@ -389,8 +390,7 @@ TCP_registerListenSocket(UA_ConnectionManager *cm, struct addrinfo *ai) {
 
     /* Register the socket */
     UA_StatusCode res =
-        UA_EventLoop_registerFD(cm->eventSource.eventLoop, listenSocket,
-                                UA_POSIX_EVENT_READ,
+        UA_EventLoop_registerFD(cm->eventSource.eventLoop, listenSocket, UA_POLLIN,
                                 (UA_FDCallback)TCP_listenSocketCallback,
                                 &cm->eventSource, NULL);
     if(res != UA_STATUSCODE_GOOD) {
@@ -609,7 +609,7 @@ TCP_openConnection(UA_ConnectionManager *cm,
     }
 
     /* Register the fd to trigger when output is possible (the connection is open) */
-    res = UA_EventLoop_registerFD(cm->eventSource.eventLoop, newSock, UA_POSIX_EVENT_WRITE,
+    res = UA_EventLoop_registerFD(cm->eventSource.eventLoop, newSock, UA_POLLOUT,
                                   (UA_FDCallback)TCP_connectionSocketCallback,
                                   &cm->eventSource, context);
     if(res != UA_STATUSCODE_GOOD) {
