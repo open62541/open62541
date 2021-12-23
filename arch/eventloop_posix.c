@@ -10,8 +10,9 @@
 #include "common/ua_timer.h"
 
 typedef struct {
-    UA_FD fd;
-    short eventMask;
+    /* The members fd and events are stored in the separate pollfds array:
+     * UA_FD fd;
+     * short events; */
     UA_EventSource *es;
     UA_FDCallback callback;
     void *fdcontext;
@@ -33,6 +34,7 @@ struct UA_EventLoop {
     /* Registered file descriptors */
     size_t fdsSize;
     UA_RegisteredFD *fds;
+    struct pollfd *pollfds; /* has the same size as "fds" */
 
     /* Flag determining whether the eventloop is currently within the "run" method */
     UA_Boolean executing;
@@ -45,9 +47,6 @@ struct UA_EventLoop {
 /*********/
 /* Timer */
 /*********/
-
-static UA_StatusCode
-processFDs(UA_EventLoop *el, UA_DateTime usedTimeout);
 
 static void
 timerExecutionTrampoline(void *executionApplication, UA_ApplicationCallback cb,
@@ -237,109 +236,52 @@ UA_EventLoop_stop(UA_EventLoop *el) {
     UA_UNLOCK(&el->elMutex);
 }
 
-/* After every select, reset the file-descriptors to listen on */
-static UA_FD
-setFDSets(UA_EventLoop *el, fd_set *readset, fd_set *writeset, fd_set *errset) {
-    FD_ZERO(readset);
-    FD_ZERO(writeset);
-    FD_ZERO(errset);
-    UA_FD highestfd = UA_INVALID_FD;
-    for(size_t i = 0; i < el->fdsSize; i++) {
-
-        UA_FD currentFD = el->fds[i].fd;
-        /* Add to the fd_sets */
-        if(el->fds[i].eventMask & UA_POSIX_EVENT_READ)
-            UA_fd_set(currentFD, readset);
-        if(el->fds[i].eventMask & UA_POSIX_EVENT_WRITE)
-            UA_fd_set(currentFD, writeset);
-        if(el->fds[i].eventMask & UA_POSIX_EVENT_ERR)
-            UA_fd_set(currentFD, errset);
-
-        /* Highest fd? */
-        if(currentFD > highestfd || highestfd == UA_INVALID_FD)
-            highestfd = currentFD;
-    }
-    return highestfd;
-}
-
 static UA_StatusCode
-processFDs(UA_EventLoop *el, UA_DateTime usedTimeout) {
-    fd_set readset, writeset, errset;
-    UA_FD highestfd = setFDSets(el, &readset, &writeset, &errset);
-
-    /* Nothing to do? */
-    if(highestfd == UA_INVALID_FD) {
-        UA_LOG_TRACE(el->logger, UA_LOGCATEGORY_EVENTLOOP,
-                     "No valid FDs for processing");
-        return UA_STATUSCODE_GOOD;
-    }
-
-    struct timeval tmptv = {
-#ifndef _WIN32
-        (time_t)(usedTimeout / UA_DATETIME_SEC),
-        (suseconds_t)((usedTimeout % UA_DATETIME_SEC) / UA_DATETIME_USEC)
-#else
+pollFDs(UA_EventLoop *el, UA_DateTime usedTimeout) {
+    /* Poll the registered sockets */
+#ifdef _GNU_SOURCE
+    struct timespec precisionTimeout = {
         (long)(usedTimeout / UA_DATETIME_SEC),
-        (long)((usedTimeout % UA_DATETIME_SEC) / UA_DATETIME_USEC)
-#endif
+        (long)((usedTimeout % UA_DATETIME_SEC) * 100)
     };
+    int pollStatus = ppoll(el->pollfds, el->fdsSize, &precisionTimeout, NULL);
+#else
+    int pollStatus = UA_poll(el->pollfds, el->fdsSize, usedTimeout / UA_DATETIME_MSEC);
+#endif
 
-    int selectStatus =  UA_select(highestfd+1, &readset, &writeset, &errset, &tmptv);
-    if(selectStatus < 0) {
+    if(pollStatus < 0) {
         /* We will retry, only log the error */
         UA_LOG_SOCKET_ERRNO_WRAP(
             UA_LOG_WARNING(UA_EventLoop_getLogger(el),
                            UA_LOGCATEGORY_EVENTLOOP,
-                           "Error during select: %s", errno_str));
-        el->executing = false;
+                           "Error during poll: %s", errno_str));
         return UA_STATUSCODE_GOODCALLAGAIN;
     }
 
     /* Loop over all registered FD to see if an event arrived. Yes, this is why
-      * select is slow for many open sockets. */
+     * poll is slow for many open sockets. */
+    int processed = 0;
     for(size_t i = 0; i < el->fdsSize; i++) {
+        /* All done */
+        if(processed >= pollStatus)
+            break;
+
+        /* Nothing to do for this fd */
+        if(el->pollfds[i].revents == 0)
+            continue;
+
+        /* Process the fd */
         UA_RegisteredFD *rfd = &el->fds[i];
-        UA_FD fd = rfd->fd;
-        UA_assert(fd > 0);
+        UA_FD fd = el->pollfds[i].fd;
+        short revent = el->pollfds[i].revents;
+        UA_UNLOCK(&el->elMutex);
+        rfd->callback(rfd->es, fd, &rfd->fdcontext, revent);
+        UA_LOCK(&el->elMutex);
+        processed++;
 
-        UA_LOG_DEBUG(el->logger, UA_LOGCATEGORY_EVENTLOOP,
-                     "Processing fd: %u", (unsigned)fd);
-
-        /* Error Event */
-        if((rfd->eventMask & UA_POSIX_EVENT_ERR) && UA_fd_isset(fd, &errset)) {
-            UA_LOG_DEBUG(el->logger, UA_LOGCATEGORY_EVENTLOOP,
-                         "Processing error event for fd: %u", (unsigned)fd);
-            UA_UNLOCK(&el->elMutex);
-            rfd->callback(rfd->es, fd, &rfd->fdcontext, UA_POSIX_EVENT_ERR);
-            UA_LOCK(&el->elMutex);
-            if(i == el->fdsSize || fd != el->fds[i].fd)
-                i--; /* The fd has removed itself */
-            continue;
-        }
-
-        /* Read Event */
-        if((rfd->eventMask & UA_POSIX_EVENT_READ) && UA_fd_isset(fd, &readset)) {
-            UA_LOG_DEBUG(el->logger, UA_LOGCATEGORY_EVENTLOOP,
-                         "Processing read event for fd: %u", (unsigned)fd);
-            UA_UNLOCK(&el->elMutex);
-            rfd->callback(rfd->es, fd, &rfd->fdcontext, UA_POSIX_EVENT_READ);
-            UA_LOCK(&el->elMutex);
-            if(i == el->fdsSize || fd != el->fds[i].fd)
-                i--; /* The fd has removed itself */
-            continue;
-        }
-
-        /* Write Event */
-        if((rfd->eventMask & UA_POSIX_EVENT_WRITE) && UA_fd_isset(fd, &writeset)) {
-            UA_LOG_DEBUG(el->logger, UA_LOGCATEGORY_EVENTLOOP,
-                         "Processing write event for fd: %u", (unsigned)fd);
-            UA_UNLOCK(&el->elMutex);
-            rfd->callback(rfd->es, fd, &rfd->fdcontext, UA_POSIX_EVENT_WRITE);
-            UA_LOCK(&el->elMutex);
-            if(i == el->fdsSize || fd != el->fds[i].fd)
-                i--; /* The fd has removed itself */
-            continue;
-        }
+        /* The fd has removed itself from within the callback? */
+        if(i >= el->fdsSize || fd != el->pollfds[i].fd)
+            i--;
     }
     return UA_STATUSCODE_GOOD;
 }
@@ -392,15 +334,7 @@ UA_EventLoop_run(UA_EventLoop *el, UA_UInt32 timeout) {
     UA_DateTime usedTimeout = UA_MIN(callbackTimeout, maxTimeout);
 
     /* Listen on the active file-descriptors (sockets) from the ConnectionManagers */
-    UA_StatusCode rv = processFDs(el, usedTimeout);
-    if(rv == UA_STATUSCODE_GOODCALLAGAIN) {
-        UA_UNLOCK(&el->elMutex);
-        return UA_STATUSCODE_GOOD;
-    }
-    if(rv != UA_STATUSCODE_GOOD) {
-        UA_UNLOCK(&el->elMutex);
-        return rv;
-    }
+    UA_StatusCode rv = pollFDs(el, usedTimeout);
 
     /* Process and then free registered delayed callbacks */
     processDelayed(el);
@@ -411,7 +345,7 @@ UA_EventLoop_run(UA_EventLoop *el, UA_UInt32 timeout) {
 
     el->executing = false;
     UA_UNLOCK(&el->elMutex);
-    return UA_STATUSCODE_GOOD;
+    return rv;
 }
 
 
@@ -505,12 +439,20 @@ UA_EventLoop_registerFD(UA_EventLoop *el, UA_FD fd, short eventMask,
     }
     el->fds = fds_tmp;
 
+    struct pollfd *pollfds_tmp = (struct pollfd*)
+        UA_realloc(el->pollfds, sizeof(struct pollfd) *(el->fdsSize + 1));
+    if(!pollfds_tmp) {
+        UA_UNLOCK(&el->elMutex);
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    }
+    el->pollfds = pollfds_tmp;
+
     /* Add to the last entry */
     el->fds[el->fdsSize].callback = cb;
-    el->fds[el->fdsSize].eventMask = eventMask;
     el->fds[el->fdsSize].es = es;
     el->fds[el->fdsSize].fdcontext = fdcontext;
-    el->fds[el->fdsSize].fd = fd;
+    el->pollfds[el->fdsSize].fd = fd;
+    el->pollfds[el->fdsSize].events = eventMask;
     el->fdsSize++;
 
     UA_UNLOCK(&el->elMutex);
@@ -525,7 +467,7 @@ UA_EventLoop_modifyFD(UA_EventLoop *el, UA_FD fd, short eventMask,
     /* Find the entry */
     size_t i = 0;
     for(; i < el->fdsSize; i++) {
-        if(el->fds[i].fd == fd)
+        if(el->pollfds[i].fd == fd)
             break;
     }
 
@@ -537,7 +479,7 @@ UA_EventLoop_modifyFD(UA_EventLoop *el, UA_FD fd, short eventMask,
 
     /* Modify */
     el->fds[i].callback = cb;
-    el->fds[i].eventMask = eventMask;
+    el->pollfds[i].events = eventMask;
     el->fds[i].fdcontext = fdcontext;
 
     UA_UNLOCK(&el->elMutex);
@@ -554,7 +496,7 @@ UA_EventLoop_deregisterFD(UA_EventLoop *el, UA_FD fd) {
     /* Find the entry */
     size_t i = 0;
     for(; i < el->fdsSize; i++) {
-        if(el->fds[i].fd == fd)
+        if(el->pollfds[i].fd == fd)
             break;
     }
 
@@ -564,21 +506,28 @@ UA_EventLoop_deregisterFD(UA_EventLoop *el, UA_FD fd) {
         return UA_STATUSCODE_BADNOTFOUND;
     }
 
-    if(el->fdsSize > 1) {
-        /* Move the last entry in the ith slot and realloc. */
-        el->fdsSize--;
+    el->fdsSize--;
+    if(el->fdsSize > 0) {
+        /* Move the last entry to the ith slot and realloc. */
         el->fds[i] = el->fds[el->fdsSize];
+        el->pollfds[i] = el->pollfds[el->fdsSize];
+
+        /* If realloc fails the fds are still in a correct state with
+         * possibly lost memory, so failing silently here is ok */
         UA_RegisteredFD *fds_tmp = (UA_RegisteredFD*)
             UA_realloc(el->fds, sizeof(UA_RegisteredFD) * el->fdsSize);
-        /* if realloc fails the fds are still in a correct state with 
-         * possibly lost memory, so failing silently here is ok */
         if(fds_tmp)
             el->fds = fds_tmp;
+        struct pollfd *pollfds_tmp = (struct pollfd*)
+            UA_realloc(el->pollfds, sizeof(struct pollfd) * el->fdsSize);
+        if(pollfds_tmp)
+            el->pollfds = pollfds_tmp;
     } else {
-        /* Remove the last entry */
+        /* Free the lists */
         UA_free(el->fds);
         el->fds = NULL;
-        el->fdsSize = 0;
+        UA_free(el->pollfds);
+        el->pollfds = NULL;
     }
 
     UA_UNLOCK(&el->elMutex);
@@ -590,10 +539,13 @@ UA_EventLoop_iterateFD(UA_EventLoop *el, UA_EventSource *es, UA_FDCallback cb) {
     for(size_t i = 0; i < el->fdsSize; i++) {
         if(el->fds[i].es != es)
             continue;
-        UA_FD fd = el->fds[i].fd;
+
+        UA_FD fd = el->pollfds[i].fd;
         cb(es, fd, el->fds[i].fdcontext, 0);
-        if(i == el->fdsSize || fd != el->fds[i].fd)
-            i--; /* The fd has removed itself */
+
+        /* The fd has removed itself from within the callback? */
+        if(i >= el->fdsSize || fd != el->pollfds[i].fd)
+            i--;
     }
 }
 
