@@ -244,7 +244,7 @@ enum MQTTErrors mqtt_connect(struct mqtt_client *client,
                                                       client->mq.curr, client->mq.curr_sz,
                                                       client_id, will_topic, will_message,
                                                       will_message_size,user_name, password,
-                                                      caFilePath, caPath, clientCertPath, clientKeyPath
+                                                      caFilePath, caPath, clientCertPath, clientKeyPath,
                                                       connect_flags, keep_alive
                                                       ),
                          1
