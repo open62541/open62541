@@ -304,7 +304,7 @@ TCP_registerListenSocket(UA_ConnectionManager *cm, struct addrinfo *ai) {
     
     /* Create the server socket */
     UA_FD listenSocket = UA_socket(ai->ai_family, ai->ai_socktype, ai->ai_protocol);
-    if(listenSocket == UA_INVALID_SOCKET) {
+    if(listenSocket == UA_INVALID_FD) {
         UA_LOG_SOCKET_ERRNO_WRAP(
            UA_LOG_WARNING(UA_EventLoop_getLogger(cm->eventSource.eventLoop),
                           UA_LOGCATEGORY_NETWORK,
@@ -576,7 +576,7 @@ TCP_openConnection(UA_ConnectionManager *cm,
 
     /* Create a socket */
     UA_FD newSock = socket(info->ai_family, info->ai_socktype, info->ai_protocol);
-    if(newSock == UA_INVALID_SOCKET) {
+    if(newSock == UA_INVALID_FD) {
         freeaddrinfo(info);
         UA_LOG_SOCKET_ERRNO_WRAP(
             UA_LOG_WARNING(UA_EventLoop_getLogger(cm->eventSource.eventLoop),

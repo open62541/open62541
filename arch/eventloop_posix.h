@@ -12,36 +12,10 @@
 #include <open62541/config.h>
 #include <open62541/plugin/eventloop.h>
 
-/* A macro-forest to work around small differences between POSIX and
- * nearly-POSIX architectures */
+/* TODO: Move the macro-forest from /arch/<arch>/ua_architecture.h */
 
-#if defined(_WIN32) /* Windows */
-# include <winsock2.h>
-# if !defined(__MINGW32__) || defined(__clang__)
-#  define UA_FD SOCKET /* On MSVC, a socket is a pointer and not an int */
-#  define UA_INVALID_FD INVALID_SOCKET
-# endif
-# define UA_ERRNO WSAGetLastError()
-# define UA_INTERRUPTED WSAEINTR
-# define UA_AGAIN WSAEWOULDBLOCK
-# define UA_EAGAIN EAGAIN
-# define UA_WOULDBLOCK WSAEWOULDBLOCK
-#else /* Unix */
-# include <sys/poll.h>
-#endif
-
-/* Catch-all for the architectures that are "actually POSIX" */
-#ifndef UA_FD
-# define UA_FD int
-# define UA_INVALID_FD -1
-#endif
-#ifndef UA_ERRNO
-# define UA_ERRNO errno
-# define UA_INTERRUPTED EINTR
-# define UA_AGAIN EAGAIN
-# define UA_EAGAIN EAGAIN
-# define UA_WOULDBLOCK EWOULDBLOCK
-#endif
+#define UA_FD UA_SOCKET
+#define UA_INVALID_FD UA_INVALID_SOCKET
 
 _UA_BEGIN_DECLS
 
