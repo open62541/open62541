@@ -1220,7 +1220,7 @@ ssize_t mqtt_pack_connection_request(uint8_t* buf, size_t bufsz,
         {
             //strncpy(strTLS, "0", 1);
             strTLS[0] = '0';
-            strTLS[1] = \0';
+            strTLS[1] = '\0';
         }
         connect_flags |= (uint8_t)MQTT_CONNECT_USETLS;
         remaining_length += (uint32_t)__mqtt_packed_cstrlen(strTLS);
