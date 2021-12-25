@@ -68,8 +68,7 @@ void UA_sleep_ms(unsigned long ms);
 #define UA_INVALID_SOCKET INVALID_SOCKET
 #define UA_ERRNO WSAGetLastError()
 #define UA_INTERRUPTED WSAEINTR
-#define UA_AGAIN WSAEWOULDBLOCK
-#define UA_EAGAIN EAGAIN
+#define UA_AGAIN EAGAIN /* the same as wouldblock on nearly every system */
 #define UA_WOULDBLOCK WSAEWOULDBLOCK
 #define UA_POLLIN POLLRDNORM
 #define UA_POLLOUT POLLWRNORM

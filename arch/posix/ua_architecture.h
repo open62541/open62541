@@ -66,8 +66,7 @@ void UA_sleep_ms(unsigned long ms);
 #define UA_INVALID_SOCKET -1
 #define UA_ERRNO errno
 #define UA_INTERRUPTED EINTR
-#define UA_AGAIN EAGAIN
-#define UA_EAGAIN EAGAIN
+#define UA_AGAIN EAGAIN /* the same as wouldblock on nearly every system */
 #define UA_WOULDBLOCK EWOULDBLOCK
 
 #define UA_POLLIN POLLIN

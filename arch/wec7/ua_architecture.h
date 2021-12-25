@@ -71,8 +71,7 @@ void UA_sleep_ms(unsigned long ms);
 #endif
 #define UA_ERRNO WSAGetLastError()
 #define UA_INTERRUPTED WSAEINTR
-#define UA_AGAIN WSAEWOULDBLOCK
-#define UA_EAGAIN EAGAIN
+#define UA_AGAIN EAGAIN /* the same as wouldblock on nearly every system */
 #define UA_WOULDBLOCK WSAEWOULDBLOCK
 
 #define UA_fd_set(fd, fds) FD_SET((UA_SOCKET)fd, fds)
