@@ -153,7 +153,7 @@ connection_recv(UA_Connection *connection, UA_ByteString *response,
         if(internallyAllocated)
             UA_ByteString_clear(response);
         if(UA_ERRNO == UA_INTERRUPTED || (timeout > 0) ?
-           false : (UA_ERRNO == UA_EAGAIN || UA_ERRNO == UA_WOULDBLOCK))
+           false : (UA_ERRNO == UA_AGAIN || UA_ERRNO == UA_WOULDBLOCK))
             return UA_STATUSCODE_GOOD; /* statuscode_good but no data -> retry */
         connection->close(connection);
         return UA_STATUSCODE_BADCONNECTIONCLOSED;

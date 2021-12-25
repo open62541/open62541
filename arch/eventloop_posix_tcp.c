@@ -167,7 +167,9 @@ TCP_connectionSocketCallback(UA_ConnectionManager *cm, UA_FD fd,
         response.length = (size_t)ret; /* Set the length of the received buffer */
         cm->connectionCallback(cm, (uintptr_t)fd, fdcontext,
                                UA_STATUSCODE_GOOD, 0, NULL, response);
-    } else if(UA_ERRNO != UA_INTERRUPTED && UA_ERRNO != UA_EAGAIN) {
+    } else if(UA_ERRNO != UA_INTERRUPTED &&
+              UA_ERRNO != UA_WOULDBLOCK &&
+              UA_ERRNO != UA_AGAIN) {
         /* Orderly shutdown of the connection. Signal to the application and
          * then close the connection. We end up in this path after shutdown was
          * called on the socket. Here, we then are in the next EventLoop
@@ -489,7 +491,10 @@ TCP_sendWithConnection(UA_ConnectionManager *cm, uintptr_t connectionId,
             n = UA_send((UA_FD)connectionId,
                         (const char*)buf->data + nWritten,
                         bytes_to_send, flags);
-            if(n < 0 && UA_ERRNO != UA_INTERRUPTED && UA_ERRNO != UA_AGAIN) {
+            if(n < 0 &&
+               UA_ERRNO != UA_INTERRUPTED &&
+               UA_ERRNO != UA_WOULDBLOCK &&
+               UA_ERRNO != UA_AGAIN) {
                 UA_LOG_SOCKET_ERRNO_GAI_WRAP(
                     UA_LOG_ERROR(UA_EventLoop_getLogger(cm->eventSource.eventLoop),
                                  UA_LOGCATEGORY_NETWORK,
