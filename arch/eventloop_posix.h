@@ -20,7 +20,6 @@
 # if !defined(__MINGW32__) || defined(__clang__)
 #  define UA_FD SOCKET /* On MSVC, a socket is a pointer and not an int */
 #  define UA_INVALID_FD INVALID_SOCKET
-//#  define UA_close(s) closesocket(s) /* closesocket() takes a SOCKET (and sock() an int) */
 # endif
 # define UA_ERRNO WSAGetLastError()
 # define UA_INTERRUPTED WSAEINTR
@@ -35,7 +34,6 @@
 #ifndef UA_FD
 # define UA_FD int
 # define UA_INVALID_FD -1
-//# define UA_close(s) close(s)
 #endif
 #ifndef UA_ERRNO
 # define UA_ERRNO errno
