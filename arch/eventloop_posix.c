@@ -237,16 +237,19 @@ UA_EventLoop_stop(UA_EventLoop *el) {
 }
 
 static UA_StatusCode
-pollFDs(UA_EventLoop *el, UA_DateTime usedTimeout) {
+pollFDs(UA_EventLoop *el, UA_DateTime listenTimeout) {
+    UA_assert(listenTimeout >= 0);
     /* Poll the registered sockets */
 #ifdef _GNU_SOURCE
     struct timespec precisionTimeout = {
-        (long)(usedTimeout / UA_DATETIME_SEC),
-        (long)((usedTimeout % UA_DATETIME_SEC) * 100)
+        (long)(listenTimeout / UA_DATETIME_SEC),
+        (long)((listenTimeout % UA_DATETIME_SEC) * 100)
     };
-    int pollStatus = ppoll(el->pollfds, el->fdsSize, &precisionTimeout, NULL);
+    int pollStatus = ppoll(el->pollfds, el->fdsSize,
+                           &precisionTimeout, NULL);
 #else
-    int pollStatus = UA_poll(el->pollfds, el->fdsSize, usedTimeout / UA_DATETIME_MSEC);
+    int pollStatus = UA_poll(el->pollfds, el->fdsSize,
+                             (int)(listenTimeout / UA_DATETIME_MSEC));
 #endif
 
     if(pollStatus < 0) {
@@ -290,7 +293,7 @@ UA_StatusCode
 UA_EventLoop_run(UA_EventLoop *el, UA_UInt32 timeout) {
     UA_LOCK(&el->elMutex);
 
-    UA_LOG_TRACE(el->logger, UA_LOGCATEGORY_EVENTLOOP, "iterate the EventLoop");
+    UA_LOG_TRACE(el->logger, UA_LOGCATEGORY_EVENTLOOP, "Iterate the EventLoop");
 
     if(el->executing) {
         UA_LOG_ERROR(el->logger,
@@ -324,17 +327,16 @@ UA_EventLoop_run(UA_EventLoop *el, UA_UInt32 timeout) {
         UA_Timer_process(&el->timer, dateBeforeCallback, timerExecutionTrampoline, NULL);
     UA_LOCK(&el->elMutex);
 
-    UA_DateTime dateAfterCallback = UA_DateTime_nowMonotonic();
-
-    UA_DateTime processTimerDuration = dateAfterCallback - dateBeforeCallback;
-
-    UA_DateTime callbackTimeout = dateOfNextCallback - dateAfterCallback;
-    UA_DateTime maxTimeout = UA_MAX(timeout * UA_DATETIME_MSEC - processTimerDuration, 0);
-
-    UA_DateTime usedTimeout = UA_MIN(callbackTimeout, maxTimeout);
+    /* Compute the remaining time */
+    UA_DateTime maxDate = dateBeforeCallback + (timeout * UA_DATETIME_MSEC);
+    if(dateOfNextCallback > maxDate)
+        dateOfNextCallback = maxDate;
+    UA_DateTime listenTimeout = dateOfNextCallback - UA_DateTime_nowMonotonic();
+    if(listenTimeout < 0)
+        listenTimeout = 0;
 
     /* Listen on the active file-descriptors (sockets) from the ConnectionManagers */
-    UA_StatusCode rv = pollFDs(el, usedTimeout);
+    UA_StatusCode rv = pollFDs(el, listenTimeout);
 
     /* Process and then free registered delayed callbacks */
     processDelayed(el);
