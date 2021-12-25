@@ -95,7 +95,6 @@ To port to a new architecture you should follow these steps:
     //#define UA_AGAIN
     //#define UA_EAGAIN
     //#define UA_WOULDBLOCK
-    //#define UA_ERR_CONNECTION_PROGRESS
     //#define UA_INTERRUPTED
     
     /*
