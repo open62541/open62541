@@ -27,7 +27,6 @@
 # define UA_AGAIN WSAEWOULDBLOCK
 # define UA_EAGAIN EAGAIN
 # define UA_WOULDBLOCK WSAEWOULDBLOCK
-# define UA_ERR_CONNECTION_PROGRESS WSAEWOULDBLOCK
 #else /* Unix */
 # include <sys/poll.h>
 #endif
@@ -44,20 +43,6 @@
 # define UA_AGAIN EAGAIN
 # define UA_EAGAIN EAGAIN
 # define UA_WOULDBLOCK EWOULDBLOCK
-# define UA_ERR_CONNECTION_PROGRESS EINPROGRESS
-#endif
-
-/* Workaround a bug in early glibc. Additionally, some non-glibc implementations
- * use a macro for FD_SET that triggers a cast-warning (e.g. early BSD libc or
- * musl libc). */
-#if (!defined(__GNU_LIBRARY__) && defined(FD_SET)) ||       \
-    (defined(__GNU_LIBRARY__) && (__GNU_LIBRARY__ <= 6) &&  \
-     (__GLIBC__ <= 2) && (__GLIBC_MINOR__ < 16))
-# define UA_FD_SET(fd, fds) FD_SET((unsigned int)fd, fds)
-# define UA_FD_ISSET(fd, fds) FD_ISSET((unsigned int)fd, fds)
-#else
-# define UA_FD_SET(fd, fds) FD_SET((UA_FD)fd, fds)
-# define UA_FD_ISSET(fd, fds) FD_ISSET((UA_FD)fd, fds)
 #endif
 
 _UA_BEGIN_DECLS

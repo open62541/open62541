@@ -69,7 +69,6 @@ void UA_sleep_ms(unsigned long ms);
 #define UA_AGAIN EAGAIN
 #define UA_EAGAIN EAGAIN
 #define UA_WOULDBLOCK EWOULDBLOCK
-#define UA_ERR_CONNECTION_PROGRESS EINPROGRESS
 
 #define UA_POLLIN POLLIN
 #define UA_POLLOUT POLLOUT

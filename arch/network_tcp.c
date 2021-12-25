@@ -764,7 +764,7 @@ UA_ClientConnectionTCP_poll(UA_Connection *connection, UA_UInt32 timeout,
         }
 
         /* The connection failed */
-        if((UA_ERRNO != UA_ERR_CONNECTION_PROGRESS)) {
+        if(UA_ERRNO != UA_WOULDBLOCK && UA_ERRNO != UA_INPROGRESS) {
             UA_LOG_WARNING(logger, UA_LOGCATEGORY_NETWORK,
                            "Connection to %.*s failed with error: %s",
                            (int)tcpConnection->endpointUrl.length,

@@ -74,7 +74,6 @@ void UA_sleep_ms(unsigned long ms);
 #define UA_AGAIN WSAEWOULDBLOCK
 #define UA_EAGAIN EAGAIN
 #define UA_WOULDBLOCK WSAEWOULDBLOCK
-#define UA_ERR_CONNECTION_PROGRESS WSAEWOULDBLOCK
 
 #define UA_fd_set(fd, fds) FD_SET((UA_SOCKET)fd, fds)
 #define UA_fd_isset(fd, fds) FD_ISSET((UA_SOCKET)fd, fds)
