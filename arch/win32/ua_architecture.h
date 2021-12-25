@@ -11,10 +11,6 @@
 #ifndef PLUGINS_ARCH_WIN32_UA_ARCHITECTURE_H_
 #define PLUGINS_ARCH_WIN32_UA_ARCHITECTURE_H_
 
-#ifndef _BSD_SOURCE
-# define _BSD_SOURCE
-#endif
-
 /* Disable some security warnings on MSVC */
 #if defined(_MSC_VER) && !defined(_CRT_SECURE_NO_WARNINGS)
 # define _CRT_SECURE_NO_WARNINGS
@@ -42,7 +38,6 @@
 #include <winsock2.h>
 #include <windows.h>
 #include <ws2tcpip.h>
-#include <winsock2.h>
 
 #if defined (_MSC_VER) || defined(__clang__)
 # ifndef UNDER_CE
@@ -69,14 +64,8 @@ void UA_sleep_ms(unsigned long ms);
 // #define UA_ENABLE_LOG_COLORS
 
 #define UA_IPV6 1
-
-#if defined(__MINGW32__) && !defined(__clang__) //mingw defines SOCKET as long long unsigned int, giving errors in logging and when comparing with UA_Int32
-# define UA_SOCKET int
-# define UA_INVALID_SOCKET -1
-#else
-# define UA_SOCKET SOCKET
-# define UA_INVALID_SOCKET INVALID_SOCKET
-#endif
+#define UA_SOCKET SOCKET
+#define UA_INVALID_SOCKET INVALID_SOCKET
 #define UA_ERRNO WSAGetLastError()
 #define UA_INTERRUPTED WSAEINTR
 #define UA_AGAIN WSAEWOULDBLOCK
