@@ -795,7 +795,7 @@ UA_ClientConnectionTCP_poll(UA_Connection *connection, UA_UInt32 timeout,
                         tcpConnection->server->ai_addrlen);
         if((error == -1 && UA_ERRNO == EISCONN) || (error == 0))
             resultsize = 1;
-        if(error == -1 && UA_ERRNO != EALREADY && UA_ERRNO != EINPROGRESS)
+        if(error == -1 && UA_ERRNO != UA_ALREADY && UA_ERRNO != UA_INPROGRESS)
             break;
     } while(resultsize == 0);
 #else

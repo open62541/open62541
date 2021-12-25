@@ -479,6 +479,10 @@ TCP_sendWithConnection(UA_ConnectionManager *cm, uintptr_t connectionId,
     /* Prevent OS signals when sending to a closed socket */
     int flags = MSG_NOSIGNAL;
 
+    struct pollfd tmp_poll_fd;
+    tmp_poll_fd.fd = (UA_FD)connectionId;
+    tmp_poll_fd.events = UA_POLLOUT;
+
     /* Send the full buffer. This may require several calls to send */
     size_t nWritten = 0;
     do {
@@ -491,18 +495,27 @@ TCP_sendWithConnection(UA_ConnectionManager *cm, uintptr_t connectionId,
             n = UA_send((UA_FD)connectionId,
                         (const char*)buf->data + nWritten,
                         bytes_to_send, flags);
-            if(n < 0 &&
-               UA_ERRNO != UA_INTERRUPTED &&
-               UA_ERRNO != UA_WOULDBLOCK &&
-               UA_ERRNO != UA_AGAIN) {
-                UA_LOG_SOCKET_ERRNO_GAI_WRAP(
-                    UA_LOG_ERROR(UA_EventLoop_getLogger(cm->eventSource.eventLoop),
-                                 UA_LOGCATEGORY_NETWORK,
-                                 "TCP %u\t| Send failed with error %s",
-                                 (unsigned)connectionId, errno_str));
-                TCP_shutdownConnection(cm, connectionId);
-                UA_ByteString_clear(buf);
-                return UA_STATUSCODE_BADCONNECTIONCLOSED;
+            if(n < 0) {
+                /* An error we cannot recover from? */
+                if(UA_ERRNO != UA_INTERRUPTED &&
+                   UA_ERRNO != UA_WOULDBLOCK &&
+                   UA_ERRNO != UA_AGAIN) {
+                    UA_LOG_SOCKET_ERRNO_GAI_WRAP(
+                       UA_LOG_ERROR(UA_EventLoop_getLogger(cm->eventSource.eventLoop),
+                                    UA_LOGCATEGORY_NETWORK,
+                                    "TCP %u\t| Send failed with error %s",
+                                    (unsigned)connectionId, errno_str));
+                    TCP_shutdownConnection(cm, connectionId);
+                    UA_ByteString_clear(buf);
+                    return UA_STATUSCODE_BADCONNECTIONCLOSED;
+                }
+
+                /* Poll for the socket resources to become available and retry
+                 * (blocking) */
+                int poll_ret;
+                do {
+                    poll_ret = UA_poll(&tmp_poll_fd, 1, 100);
+                } while(poll_ret == 0 || (poll_ret < 0 && UA_ERRNO == UA_INTERRUPTED));
             }
         } while(n < 0);
         nWritten += (size_t)n;
@@ -604,7 +617,9 @@ TCP_openConnection(UA_ConnectionManager *cm,
     /* Non-blocking connect */
     error = UA_connect(newSock, info->ai_addr, info->ai_addrlen);
     freeaddrinfo(info);
-    if(error != 0 && UA_ERRNO != UA_WOULDBLOCK) {
+    if(error != 0 &&
+       UA_ERRNO != UA_INPROGRESS &&
+       UA_ERRNO != UA_WOULDBLOCK) {
         UA_LOG_SOCKET_ERRNO_WRAP(
             UA_LOG_ERROR(UA_EventLoop_getLogger(cm->eventSource.eventLoop),
                          UA_LOGCATEGORY_NETWORK,
