@@ -537,13 +537,16 @@ UA_EventLoop_deregisterFD(UA_EventLoop *el, UA_FD fd) {
 }
 
 void
-UA_EventLoop_iterateFD(UA_EventLoop *el, UA_EventSource *es, UA_FDCallback cb) {
+UA_EventLoop_iterateFD(UA_EventLoop *el, UA_EventSource *es,
+                       UA_EventLoopPOSIXIterateCB cb, void *iterateContext) {
     for(size_t i = 0; i < el->fdsSize; i++) {
         if(el->fds[i].es != es)
             continue;
 
         UA_FD fd = el->pollfds[i].fd;
-        cb(es, fd, el->fds[i].fdcontext, 0);
+        int done = cb(es, fd, el->fds[i].fdcontext, iterateContext);
+        if(done)
+            break;
 
         /* The fd has removed itself from within the callback? */
         if(i >= el->fdsSize || fd != el->pollfds[i].fd)

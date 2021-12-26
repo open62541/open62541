@@ -738,9 +738,11 @@ TCP_eventSourceStart(UA_ConnectionManager *cm) {
     return UA_STATUSCODE_GOOD;
 }
 
-static void
-TCP_shutdownCallback(UA_EventSource *es, UA_FD fd, void *fdcontext, short event) {
+static UA_Boolean
+TCP_shutdownCallback(UA_EventSource *es, UA_FD fd,
+                     void *fdContext, void *iterateContext) {
     TCP_shutdownConnection((UA_ConnectionManager*)es, (uintptr_t)fd);
+    return false;
 }
 
 static void
@@ -751,7 +753,7 @@ TCP_eventSourceStop(UA_ConnectionManager *cm) {
     /* Shut down all registered fd. The cm is set to "stopped" when the last fd
      * is closed and deregistered in the callback from the EventLoop. */
     UA_EventLoop_iterateFD(cm->eventSource.eventLoop, &cm->eventSource,
-                           TCP_shutdownCallback);
+                           TCP_shutdownCallback, NULL);
     cm->eventSource.state = UA_EVENTSOURCESTATE_STOPPING;
 
     TCPConnectionManager *tcm = (TCPConnectionManager*)cm;
