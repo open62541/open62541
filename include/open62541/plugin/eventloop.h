@@ -38,7 +38,7 @@ typedef struct UA_InterruptManager UA_InterruptManager;
  * these. Hence, several applications can share an EventLoop.
  *
  * The EventLoop and the ConnectionManager implementation is
- * architecture-specific. The goal is to have a single call to "select" (epoll,
+ * architecture-specific. The goal is to have a single call to "poll" (epoll,
  * kqueue, ...) in the EventLoop that covers all ConnectionManagers. Hence the
  * EventLoop plugin implementation must know implementation details of the
  * ConnectionManager implementations. So the EventLoop can extract socket
@@ -166,7 +166,8 @@ typedef enum {
  * looked up via UA_EventLoop_findEventSource). */
 typedef enum {
     UA_EVENTSOURCETYPE_ANY = 0,
-    UA_EVENTSOURCETYPE_CONNECTIONMANAGER
+    UA_EVENTSOURCETYPE_CONNECTIONMANAGER,
+    UA_EVENTSOURCETYPE_INTERRUPTMANAGER
 } UA_EventSourceType;
 
 struct UA_EventSource {
@@ -390,6 +391,15 @@ UA_EventLoop_new_POSIX(const UA_Logger *logger);
  * No additional parameters for sending over an established TCP socket defined. */
 UA_EXPORT UA_ConnectionManager *
 UA_ConnectionManager_new_POSIX_TCP(const UA_String eventSourceName);
+
+/**
+ * Signal Interrupt Manager
+ * ~~~~~~~~~~~~~~~~~~~~~~~~
+ * Create an instance of the interrupt manager that handles POSX signals. This
+ * interrupt manager takes the numerical interrupt identifiers from <signal.h>
+ * for the interruptHandle. */
+UA_EXPORT UA_InterruptManager *
+UA_InterruptManager_new_POSIX(const UA_String eventSourceName);
 
 #endif /* defined(UA_ARCHITECTURE_POSIX) || defined(UA_ARCHITECTURE_WIN32) */
 
