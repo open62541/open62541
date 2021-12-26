@@ -24,7 +24,7 @@ _UA_BEGIN_DECLS
  * EventLoop dropping into "poll" to wait for events. */
 
 typedef void
-(*UA_FDCallback)(UA_EventSource *es, UA_FD fd, void *fdcontext, short event);
+(*UA_FDCallback)(UA_EventSource *es, UA_FD fd, void **fdcontext, short event);
 
 UA_StatusCode
 UA_EventLoop_registerFD(UA_EventLoop *el, UA_FD fd, short eventMask,
@@ -41,9 +41,17 @@ UA_EventLoop_modifyFD(UA_EventLoop *el, UA_FD fd, short eventMask,
 UA_StatusCode
 UA_EventLoop_deregisterFD(UA_EventLoop *el, UA_FD fd);
 
-/* Call the callback for all fd that are registered from that event source */
+/* abort the iteration if the returned boolean is true */
+typedef UA_Boolean
+(*UA_EventLoopPOSIXIterateCB)(UA_EventSource *es, UA_FD fd,
+                              void *fdContext, void *iterateContext);
+
+/* Call the callback for all fd that are registered from that event source. The
+ * callback is called with the 'event' argument set to zero to disambiguate from
+ * a callback after 'poll'. */
 void
-UA_EventLoop_iterateFD(UA_EventLoop *el, UA_EventSource *es, UA_FDCallback cb);
+UA_EventLoop_iterateFD(UA_EventLoop *el, UA_EventSource *es,
+                       UA_EventLoopPOSIXIterateCB cb, void *iterateContext);
 
 _UA_END_DECLS
 
