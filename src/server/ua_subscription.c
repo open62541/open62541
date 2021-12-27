@@ -89,7 +89,8 @@ UA_Subscription_delete(UA_Server *server, UA_Subscription *sub) {
     sub->delayedFreePointers.callback = NULL;
     sub->delayedFreePointers.application = server;
     sub->delayedFreePointers.data = NULL;
-    UA_EventLoop_addDelayedCallback(server->config.eventLoop, &sub->delayedFreePointers);
+    server->config.eventLoop->
+        addDelayedCallback(server->config.eventLoop, &sub->delayedFreePointers);
 }
 
 UA_MonitoredItem *

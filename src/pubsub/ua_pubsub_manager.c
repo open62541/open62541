@@ -351,22 +351,23 @@ UA_StatusCode
 UA_PubSubManager_addRepeatedCallback(UA_Server *server, UA_ServerCallback callback,
                                      void *data, UA_Double interval_ms, UA_DateTime *baseTime,
                                      UA_TimerPolicy timerPolicy, UA_UInt64 *callbackId) {
-    return UA_EventLoop_addCyclicCallback(server->config.eventLoop, (UA_Callback)callback,
-                                          server, data, interval_ms, baseTime,
-                                          timerPolicy, callbackId);
+    return server->config.eventLoop->
+        addCyclicCallback(server->config.eventLoop, (UA_Callback)callback, server, data,
+                          interval_ms, baseTime, timerPolicy, callbackId);
 }
 
 UA_StatusCode
 UA_PubSubManager_changeRepeatedCallback(UA_Server *server, UA_UInt64 callbackId,
                                         UA_Double interval_ms, UA_DateTime *baseTime,
                                         UA_TimerPolicy timerPolicy) {
-    return UA_EventLoop_modifyCyclicCallback(server->config.eventLoop, callbackId,
-                                             interval_ms, baseTime, timerPolicy);
+    return server->config.eventLoop->
+        modifyCyclicCallback(server->config.eventLoop, callbackId, interval_ms,
+                             baseTime, timerPolicy);
 }
 
 void
 UA_PubSubManager_removeRepeatedPubSubCallback(UA_Server *server, UA_UInt64 callbackId) {
-    UA_EventLoop_removeCyclicCallback(server->config.eventLoop, callbackId);
+    server->config.eventLoop->removeCyclicCallback(server->config.eventLoop, callbackId);
 }
 
 
@@ -428,8 +429,10 @@ UA_PubSubComponent_startMonitoring(UA_Server *server, UA_NodeId Id, UA_PubSubCom
                     /* use a timed callback, because one notification is enough, 
                     we assume that MessageReceiveTimeout configuration is in [ms], we do not handle or check fractions */
                     UA_UInt64 interval = (UA_UInt64)(reader->config.messageReceiveTimeout * UA_DATETIME_MSEC);
-                    ret = UA_EventLoop_addTimedCallback(server->config.eventLoop, (UA_Callback) reader->msgRcvTimeoutTimerCallback,
-                        server, reader, UA_DateTime_nowMonotonic() + (UA_DateTime) interval, &(reader->msgRcvTimeoutTimerId));
+                    ret = server->config.eventLoop->
+                        addTimedCallback(server->config.eventLoop, (UA_Callback) reader->msgRcvTimeoutTimerCallback,
+                                         server, reader, UA_DateTime_nowMonotonic() + (UA_DateTime) interval,
+                                         &(reader->msgRcvTimeoutTimerId));
                     if (ret == UA_STATUSCODE_GOOD) {
                         UA_LOG_DEBUG(&server->config.logger, UA_LOGCATEGORY_SERVER,
                             "UA_PubSubComponent_startMonitoring(): DataSetReader '%.*s'- MessageReceiveTimeout: MessageReceiveTimeout = '%f' "
@@ -476,7 +479,7 @@ UA_PubSubComponent_stopMonitoring(UA_Server *server, UA_NodeId Id, UA_PubSubComp
             UA_DataSetReader *reader = (UA_DataSetReader*) data;
             switch (eMonitoringType) {
                 case UA_PUBSUB_MONITORING_MESSAGE_RECEIVE_TIMEOUT: {
-                    UA_EventLoop_removeCyclicCallback(server->config.eventLoop, reader->msgRcvTimeoutTimerId);
+                    server->config.eventLoop->removeCyclicCallback(server->config.eventLoop, reader->msgRcvTimeoutTimerId);
                     UA_LOG_DEBUG(&server->config.logger, UA_LOGCATEGORY_SERVER,
                         "UA_PubSubComponent_stopMonitoring(): DataSetReader '%.*s' - MessageReceiveTimeout: MessageReceiveTimeout = '%f' "
                             "Timer Id = '%u'", (UA_Int32) reader->config.name.length, reader->config.name.data, 
@@ -516,9 +519,10 @@ UA_PubSubComponent_updateMonitoringInterval(UA_Server *server, UA_NodeId Id, UA_
             UA_DataSetReader *reader = (UA_DataSetReader*) data;
             switch (eMonitoringType) {
                 case UA_PUBSUB_MONITORING_MESSAGE_RECEIVE_TIMEOUT: {
-                    ret = UA_EventLoop_modifyCyclicCallback(server->config.eventLoop, reader->msgRcvTimeoutTimerId,
-                                                          reader->config.messageReceiveTimeout, NULL,
-                                                          UA_TIMER_HANDLE_CYCLEMISS_WITH_CURRENTTIME);
+                    ret = server->config.eventLoop->
+                        modifyCyclicCallback(server->config.eventLoop, reader->msgRcvTimeoutTimerId,
+                                             reader->config.messageReceiveTimeout, NULL,
+                                             UA_TIMER_HANDLE_CYCLEMISS_WITH_CURRENTTIME);
                     if (ret == UA_STATUSCODE_GOOD) {
                         UA_LOG_DEBUG(&server->config.logger, UA_LOGCATEGORY_SERVER,
                             "UA_PubSubComponent_updateMonitoringInterval(): DataSetReader '%.*s' - MessageReceiveTimeout: new MessageReceiveTimeout = '%f' "

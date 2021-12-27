@@ -76,7 +76,7 @@ TCP_setNoNagle(UA_FD sockfd) {
 
 static UA_StatusCode
 TCP_close(UA_ConnectionManager *cm, UA_FD fd) {
-    UA_LOG_DEBUG(UA_EventLoop_getLogger(cm->eventSource.eventLoop),
+    UA_LOG_DEBUG(cm->eventSource.eventLoop->logger,
                  UA_LOGCATEGORY_NETWORK,
                  "TCP %u\t| Closing connection", (unsigned)fd);
 
@@ -86,7 +86,8 @@ TCP_close(UA_ConnectionManager *cm, UA_FD fd) {
     int ret = UA_close(fd);
     if(ret != 0)
         return UA_STATUSCODE_BADINTERNALERROR;
-    UA_StatusCode sc = UA_EventLoop_deregisterFD(tcm->cm.eventSource.eventLoop, fd);
+    UA_StatusCode sc =
+        POSIX_EL_deregisterFD((POSIX_EL*)tcm->cm.eventSource.eventLoop, fd);
     if(sc != UA_STATUSCODE_GOOD)
         return sc;
 
@@ -94,12 +95,12 @@ TCP_close(UA_ConnectionManager *cm, UA_FD fd) {
     UA_assert(tcm->fdCount > 0);
     tcm->fdCount--;
 
-    UA_LOG_INFO(UA_EventLoop_getLogger(cm->eventSource.eventLoop),
+    UA_LOG_INFO(cm->eventSource.eventLoop->logger,
                 UA_LOGCATEGORY_NETWORK, "TCP %u\t| Socket closed", (unsigned)fd);
 
     /* Stopped? */
     if(tcm->fdCount == 0 && cm->eventSource.state == UA_EVENTSOURCESTATE_STOPPING) {
-        UA_LOG_DEBUG(UA_EventLoop_getLogger(cm->eventSource.eventLoop),
+        UA_LOG_DEBUG(cm->eventSource.eventLoop->logger,
                      UA_LOGCATEGORY_NETWORK,
                      "TCP\t| All sockets closed, the EventLoop has stopped");
         cm->eventSource.state = UA_EVENTSOURCESTATE_STOPPED;
@@ -111,14 +112,14 @@ TCP_close(UA_ConnectionManager *cm, UA_FD fd) {
 static void
 TCP_connectionSocketCallback(UA_ConnectionManager *cm, UA_FD fd,
                              void **fdcontext, short event) {
-    UA_LOG_DEBUG(UA_EventLoop_getLogger(cm->eventSource.eventLoop),
+    UA_LOG_DEBUG(cm->eventSource.eventLoop->logger,
                  UA_LOGCATEGORY_NETWORK,
                  "TCP %u\t| Activity on the socket", (unsigned)fd);
 
     /* Write-Event, a new connection has opened.  */
     UA_StatusCode res = UA_STATUSCODE_GOOD;
     if(event == UA_POLLOUT) {
-        UA_LOG_DEBUG(UA_EventLoop_getLogger(cm->eventSource.eventLoop),
+        UA_LOG_DEBUG(cm->eventSource.eventLoop->logger,
                      UA_LOGCATEGORY_NETWORK,
                      "TCP %u\t| Opening a new connection", (unsigned)fd);
 
@@ -127,13 +128,12 @@ TCP_connectionSocketCallback(UA_ConnectionManager *cm, UA_FD fd,
                                UA_STATUSCODE_GOOD, 0, NULL, UA_BYTESTRING_NULL);
 
         /* Now we are interested in read-events. */
-        UA_EventLoop_modifyFD(cm->eventSource.eventLoop, fd, UA_POLLIN,
-                              (UA_FDCallback)TCP_connectionSocketCallback,
-                              *fdcontext);
+        POSIX_EL_modifyFD((POSIX_EL*)cm->eventSource.eventLoop, fd, UA_POLLIN,
+                          (UA_FDCallback)TCP_connectionSocketCallback, *fdcontext);
         return;
     }
 
-    UA_LOG_DEBUG(UA_EventLoop_getLogger(cm->eventSource.eventLoop),
+    UA_LOG_DEBUG(cm->eventSource.eventLoop->logger,
                  UA_LOGCATEGORY_NETWORK,
                  "TCP %u\t| Allocate receive buffer", (unsigned)fd);
 
@@ -147,18 +147,18 @@ TCP_connectionSocketCallback(UA_ConnectionManager *cm, UA_FD fd,
     /* Receive */
 #ifndef _WIN32
     ssize_t ret = UA_recv(fd, (char*)response.data, response.length, MSG_DONTWAIT);
-    UA_LOG_DEBUG(UA_EventLoop_getLogger(cm->eventSource.eventLoop),
+    UA_LOG_DEBUG(cm->eventSource.eventLoop->logger,
                  UA_LOGCATEGORY_NETWORK,
                  "TCP %u\t| recv(...) returned %zd", (unsigned)fd, ret);
 #else
     int ret = UA_recv(fd, (char*)response.data, response.length, MSG_DONTWAIT);
-    UA_LOG_DEBUG(UA_EventLoop_getLogger(cm->eventSource.eventLoop),
+    UA_LOG_DEBUG(cm->eventSource.eventLoop->logger,
                  UA_LOGCATEGORY_NETWORK,
                  "TCP %u\t| recv(...) returned %d", (unsigned)fd, ret);
 #endif
 
     if(ret > 0) {
-        UA_LOG_DEBUG(UA_EventLoop_getLogger(cm->eventSource.eventLoop),
+        UA_LOG_DEBUG(cm->eventSource.eventLoop->logger,
                      UA_LOGCATEGORY_NETWORK,
                      "TCP %u\t| Received message of size %u",
                      (unsigned)fd, (unsigned)ret);
@@ -174,7 +174,7 @@ TCP_connectionSocketCallback(UA_ConnectionManager *cm, UA_FD fd,
          * then close the connection. We end up in this path after shutdown was
          * called on the socket. Here, we then are in the next EventLoop
          * iteration and the socket is known to be unused. */
-        UA_LOG_DEBUG(UA_EventLoop_getLogger(cm->eventSource.eventLoop),
+        UA_LOG_DEBUG(cm->eventSource.eventLoop->logger,
                      UA_LOGCATEGORY_NETWORK,
                      "TCP %u\t| recv signaled closed connection", (unsigned)fd);
 
@@ -192,7 +192,7 @@ TCP_connectionSocketCallback(UA_ConnectionManager *cm, UA_FD fd,
 static void
 TCP_listenSocketCallback(UA_ConnectionManager *cm, UA_FD fd,
                          void **fdcontext, short event) {
-    UA_LOG_DEBUG(UA_EventLoop_getLogger(cm->eventSource.eventLoop),
+    UA_LOG_DEBUG(cm->eventSource.eventLoop->logger,
                  UA_LOGCATEGORY_NETWORK,
                  "TCP %u\t| Callback on server socket", (unsigned)fd);
 
@@ -208,7 +208,7 @@ TCP_listenSocketCallback(UA_ConnectionManager *cm, UA_FD fd,
         /* Close the listen socket */
         if(cm->eventSource.state != UA_EVENTSOURCESTATE_STOPPING) {
             UA_LOG_SOCKET_ERRNO_WRAP(
-                UA_LOG_WARNING(UA_EventLoop_getLogger(cm->eventSource.eventLoop),
+                UA_LOG_WARNING(cm->eventSource.eventLoop->logger,
                                UA_LOGCATEGORY_NETWORK,
                                "TCP %u\t| Error %s, closing the server socket",
                                (unsigned)fd, errno_str));
@@ -228,13 +228,13 @@ TCP_listenSocketCallback(UA_ConnectionManager *cm, UA_FD fd,
         if(get_res != 0) {
             hoststr[0] = 0;
             UA_LOG_SOCKET_ERRNO_WRAP(
-                UA_LOG_WARNING(UA_EventLoop_getLogger(cm->eventSource.eventLoop),
+                UA_LOG_WARNING(cm->eventSource.eventLoop->logger,
                                UA_LOGCATEGORY_NETWORK,
                                "TCP %u\t| getnameinfo(...) could not resolve the "
                                "hostname (%s)", (unsigned)fd, errno_str));
         }
     }
-    UA_LOG_INFO(UA_EventLoop_getLogger(cm->eventSource.eventLoop),
+    UA_LOG_INFO(cm->eventSource.eventLoop->logger,
                 UA_LOGCATEGORY_NETWORK,
                 "TCP %u\t| Connection opened from \"%s\" via the server socket %u",
                 (unsigned)newsockfd, hoststr, (unsigned)fd);
@@ -247,7 +247,7 @@ TCP_listenSocketCallback(UA_ConnectionManager *cm, UA_FD fd,
     res |= TCP_setNoNagle(newsockfd);     /* Disable Nagle's algorithm */
     if(res != UA_STATUSCODE_GOOD) {
         UA_LOG_SOCKET_ERRNO_WRAP(
-            UA_LOG_WARNING(UA_EventLoop_getLogger(cm->eventSource.eventLoop),
+            UA_LOG_WARNING(cm->eventSource.eventLoop->logger,
                            UA_LOGCATEGORY_NETWORK,
                            "TCP %u\t| Error seeting the TCP options (%s), closing",
                            (unsigned)newsockfd, errno_str));
@@ -263,9 +263,9 @@ TCP_listenSocketCallback(UA_ConnectionManager *cm, UA_FD fd,
                            0, NULL, UA_BYTESTRING_NULL);
 
     /* Register in the EventLoop. Signal to the user if registering failed. */
-    res = UA_EventLoop_registerFD(cm->eventSource.eventLoop, newsockfd, UA_POLLIN,
-                                  (UA_FDCallback)TCP_connectionSocketCallback,
-                                  &cm->eventSource, ctx);
+    res = POSIX_EL_registerFD((POSIX_EL*)cm->eventSource.eventLoop, newsockfd,
+                              UA_POLLIN, (UA_FDCallback)TCP_connectionSocketCallback,
+                              &cm->eventSource, ctx);
     if(res != UA_STATUSCODE_GOOD) {
         cm->connectionCallback(cm, (uintptr_t)newsockfd, &ctx,
                                UA_STATUSCODE_BADINTERNALERROR,
@@ -295,7 +295,7 @@ TCP_registerListenSocket(UA_ConnectionManager *cm, struct addrinfo *ai) {
             hoststr[0] = 0;
             portstr[0] = 0;
             UA_LOG_SOCKET_ERRNO_WRAP(
-                UA_LOG_WARNING(UA_EventLoop_getLogger(cm->eventSource.eventLoop),
+                UA_LOG_WARNING(cm->eventSource.eventLoop->logger,
                                UA_LOGCATEGORY_NETWORK,
                                "TCP\t| getnameinfo(...) could not resolve the hostname (%s)",
                                errno_str));
@@ -306,7 +306,7 @@ TCP_registerListenSocket(UA_ConnectionManager *cm, struct addrinfo *ai) {
     UA_FD listenSocket = UA_socket(ai->ai_family, ai->ai_socktype, ai->ai_protocol);
     if(listenSocket == UA_INVALID_FD) {
         UA_LOG_SOCKET_ERRNO_WRAP(
-           UA_LOG_WARNING(UA_EventLoop_getLogger(cm->eventSource.eventLoop),
+           UA_LOG_WARNING(cm->eventSource.eventLoop->logger,
                           UA_LOGCATEGORY_NETWORK,
                           "TCP %u\t| Error opening the listen socket for "
                           "\"%s\" on port %s(%s)",
@@ -314,7 +314,7 @@ TCP_registerListenSocket(UA_ConnectionManager *cm, struct addrinfo *ai) {
         return;
     }
 
-    UA_LOG_INFO(UA_EventLoop_getLogger(cm->eventSource.eventLoop),
+    UA_LOG_INFO(cm->eventSource.eventLoop->logger,
                 UA_LOGCATEGORY_NETWORK,
                 "TCP %u\t| New server socket for \"%s\" on port %s",
                 (unsigned)listenSocket, hoststr, portstr);
@@ -327,7 +327,7 @@ TCP_registerListenSocket(UA_ConnectionManager *cm, struct addrinfo *ai) {
     if(ai->ai_family == AF_INET6 &&
        UA_setsockopt(listenSocket, IPPROTO_IPV6, IPV6_V6ONLY,
                      (const char*)&optval, sizeof(optval)) == -1) {
-        UA_LOG_WARNING(UA_EventLoop_getLogger(cm->eventSource.eventLoop),
+        UA_LOG_WARNING(cm->eventSource.eventLoop->logger,
                        UA_LOGCATEGORY_NETWORK,
                        "TCP %u\t| Could not set an IPv6 socket to IPv6 only, closing",
                        (unsigned)listenSocket);
@@ -339,7 +339,7 @@ TCP_registerListenSocket(UA_ConnectionManager *cm, struct addrinfo *ai) {
     /* Allow rebinding to the IP/port combination. Eg. to restart the server. */
     if(UA_setsockopt(listenSocket, SOL_SOCKET, SO_REUSEADDR,
                      (const char *)&optval, sizeof(optval)) == -1) {
-        UA_LOG_WARNING(UA_EventLoop_getLogger(cm->eventSource.eventLoop),
+        UA_LOG_WARNING(cm->eventSource.eventLoop->logger,
                        UA_LOGCATEGORY_NETWORK,
                        "TCP %u\t| Could not make the socket reusable, closing",
                        (unsigned)listenSocket);
@@ -349,7 +349,7 @@ TCP_registerListenSocket(UA_ConnectionManager *cm, struct addrinfo *ai) {
 
     /* Set the socket non-blocking */
     if(TCP_setNonBlocking(listenSocket) != UA_STATUSCODE_GOOD) {
-        UA_LOG_WARNING(UA_EventLoop_getLogger(cm->eventSource.eventLoop),
+        UA_LOG_WARNING(cm->eventSource.eventLoop->logger,
                        UA_LOGCATEGORY_NETWORK,
                        "TCP %u\t| Could not set the socket non-blocking, closing",
                        (unsigned)listenSocket);
@@ -359,7 +359,7 @@ TCP_registerListenSocket(UA_ConnectionManager *cm, struct addrinfo *ai) {
 
     /* Supress interrupts from the socket */
     if(TCP_setNoSigPipe(listenSocket) != UA_STATUSCODE_GOOD) {
-        UA_LOG_WARNING(UA_EventLoop_getLogger(cm->eventSource.eventLoop),
+        UA_LOG_WARNING(cm->eventSource.eventLoop->logger,
                        UA_LOGCATEGORY_NETWORK,
                        "TCP %u\t| Could not disable SIGPIPE, closing",
                        (unsigned)listenSocket);
@@ -371,7 +371,7 @@ TCP_registerListenSocket(UA_ConnectionManager *cm, struct addrinfo *ai) {
     int ret = UA_bind(listenSocket, ai->ai_addr, (socklen_t)ai->ai_addrlen);
     if(ret < 0) {
         UA_LOG_SOCKET_ERRNO_WRAP(
-           UA_LOG_WARNING(UA_EventLoop_getLogger(cm->eventSource.eventLoop),
+           UA_LOG_WARNING(cm->eventSource.eventLoop->logger,
                           UA_LOGCATEGORY_NETWORK,
                           "TCP %u\t| Error binding the socket to the address (%s), closing",
                           (unsigned)listenSocket, errno_str));
@@ -382,7 +382,7 @@ TCP_registerListenSocket(UA_ConnectionManager *cm, struct addrinfo *ai) {
     /* Start listening */
     if(UA_listen(listenSocket, UA_MAXBACKLOG) < 0) {
         UA_LOG_SOCKET_ERRNO_WRAP(
-           UA_LOG_WARNING(UA_EventLoop_getLogger(cm->eventSource.eventLoop),
+           UA_LOG_WARNING(cm->eventSource.eventLoop->logger,
                           UA_LOGCATEGORY_NETWORK,
                           "TCP %u\t| Error listening on the socket (%s), closing",
                           (unsigned)listenSocket, errno_str));
@@ -392,11 +392,11 @@ TCP_registerListenSocket(UA_ConnectionManager *cm, struct addrinfo *ai) {
 
     /* Register the socket */
     UA_StatusCode res =
-        UA_EventLoop_registerFD(cm->eventSource.eventLoop, listenSocket, UA_POLLIN,
-                                (UA_FDCallback)TCP_listenSocketCallback,
-                                &cm->eventSource, NULL);
+        POSIX_EL_registerFD((POSIX_EL*)cm->eventSource.eventLoop, listenSocket,
+                            UA_POLLIN, (UA_FDCallback)TCP_listenSocketCallback,
+                            &cm->eventSource, NULL);
     if(res != UA_STATUSCODE_GOOD) {
-        UA_LOG_WARNING(UA_EventLoop_getLogger(cm->eventSource.eventLoop),
+        UA_LOG_WARNING(cm->eventSource.eventLoop->logger,
                        UA_LOGCATEGORY_NETWORK,
                        "TCP %u\t| Error registering the socket in the "
                        "EventLoop, closing", (unsigned)listenSocket);
@@ -431,7 +431,7 @@ TCP_registerListenSocketDomainName(UA_ConnectionManager *cm, const char *hostnam
     int retcode = UA_getaddrinfo(hostname, port, &hints, &res);
     if(retcode != 0) {
         UA_LOG_SOCKET_ERRNO_GAI_WRAP(
-           UA_LOG_WARNING(UA_EventLoop_getLogger(cm->eventSource.eventLoop),
+           UA_LOG_WARNING(cm->eventSource.eventLoop->logger,
                           UA_LOGCATEGORY_NETWORK,
                           "TCP\t| getaddrinfo lookup for \"%s\" on port %s failed (%s)",
                           hostname, port, errno_str));
@@ -450,7 +450,7 @@ TCP_registerListenSocketDomainName(UA_ConnectionManager *cm, const char *hostnam
 
 static UA_StatusCode
 TCP_shutdownConnection(UA_ConnectionManager *cm, uintptr_t connectionId) {
-    UA_LOG_DEBUG(UA_EventLoop_getLogger(cm->eventSource.eventLoop),
+    UA_LOG_DEBUG(cm->eventSource.eventLoop->logger,
                  UA_LOGCATEGORY_NETWORK,
                  "TCP %u\t| Shutdown called", (unsigned)connectionId);
 
@@ -463,7 +463,7 @@ TCP_shutdownConnection(UA_ConnectionManager *cm, uintptr_t connectionId) {
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     if(res != 0) {
         UA_LOG_SOCKET_ERRNO_WRAP(
-            UA_LOG_WARNING(UA_EventLoop_getLogger(cm->eventSource.eventLoop),
+            UA_LOG_WARNING(cm->eventSource.eventLoop->logger,
                            UA_LOGCATEGORY_NETWORK,
                            "TCP %u\t| Error shutting down the socket (%s), closing",
                            (unsigned)connectionId, errno_str));
@@ -488,7 +488,7 @@ TCP_sendWithConnection(UA_ConnectionManager *cm, uintptr_t connectionId,
     do {
         ssize_t n = 0;
         do {
-            UA_LOG_DEBUG(UA_EventLoop_getLogger(cm->eventSource.eventLoop),
+            UA_LOG_DEBUG(cm->eventSource.eventLoop->logger,
                          UA_LOGCATEGORY_NETWORK,
                          "TCP %u\t| Attempting to send", (unsigned)connectionId);
             size_t bytes_to_send = buf->length - nWritten;
@@ -501,7 +501,7 @@ TCP_sendWithConnection(UA_ConnectionManager *cm, uintptr_t connectionId,
                    UA_ERRNO != UA_WOULDBLOCK &&
                    UA_ERRNO != UA_AGAIN) {
                     UA_LOG_SOCKET_ERRNO_GAI_WRAP(
-                       UA_LOG_ERROR(UA_EventLoop_getLogger(cm->eventSource.eventLoop),
+                       UA_LOG_ERROR(cm->eventSource.eventLoop->logger,
                                     UA_LOGCATEGORY_NETWORK,
                                     "TCP %u\t| Send failed with error %s",
                                     (unsigned)connectionId, errno_str));
@@ -540,7 +540,7 @@ TCP_openConnection(UA_ConnectionManager *cm,
                                  UA_QUALIFIEDNAME(0, "target-port"),
                                  &UA_TYPES[UA_TYPES_UINT16]);
     if(!port) {
-        UA_LOG_ERROR(UA_EventLoop_getLogger(cm->eventSource.eventLoop),
+        UA_LOG_ERROR(cm->eventSource.eventLoop->logger,
                      UA_LOGCATEGORY_EVENTLOOP,
                      "TCP\t| Open TCP Connection: No target port defined, aborting");
         return UA_STATUSCODE_BADINTERNALERROR;
@@ -553,13 +553,13 @@ TCP_openConnection(UA_ConnectionManager *cm,
                                  UA_QUALIFIEDNAME(0, "target-hostname"),
                                  &UA_TYPES[UA_TYPES_STRING]);
     if(!host) {
-        UA_LOG_ERROR(UA_EventLoop_getLogger(cm->eventSource.eventLoop),
+        UA_LOG_ERROR(cm->eventSource.eventLoop->logger,
                      UA_LOGCATEGORY_EVENTLOOP,
                      "TCP\t| Open TCP Connection: No target hostname defined, aborting");
         return UA_STATUSCODE_BADINTERNALERROR;
     }
     if(host->length >= 256) {
-        UA_LOG_ERROR(UA_EventLoop_getLogger(cm->eventSource.eventLoop),
+        UA_LOG_ERROR(cm->eventSource.eventLoop->logger,
                      UA_LOGCATEGORY_EVENTLOOP,
                      "TCP\t| Open TCP Connection: No target hostname too long, aborting");
         return UA_STATUSCODE_BADINTERNALERROR;
@@ -567,7 +567,7 @@ TCP_openConnection(UA_ConnectionManager *cm,
     strncpy(hostname, (const char*)host->data, host->length);
     hostname[host->length] = 0;
 
-    UA_LOG_DEBUG(UA_EventLoop_getLogger(cm->eventSource.eventLoop),
+    UA_LOG_DEBUG(cm->eventSource.eventLoop->logger,
                  UA_LOGCATEGORY_NETWORK, "TCP\t| Open a connection to \"%s\" on port %s",
                  hostname, portStr);
 
@@ -580,7 +580,7 @@ TCP_openConnection(UA_ConnectionManager *cm,
     int error = getaddrinfo(hostname, portStr, &hints, &info);
     if(error != 0) {
         UA_LOG_SOCKET_ERRNO_GAI_WRAP(
-        UA_LOG_WARNING(UA_EventLoop_getLogger(cm->eventSource.eventLoop),
+        UA_LOG_WARNING(cm->eventSource.eventLoop->logger,
                        UA_LOGCATEGORY_NETWORK,
                        "TCP\t| Lookup of %s failed with error %d - %s",
                        hostname, error, errno_str));
@@ -592,7 +592,7 @@ TCP_openConnection(UA_ConnectionManager *cm,
     if(newSock == UA_INVALID_FD) {
         freeaddrinfo(info);
         UA_LOG_SOCKET_ERRNO_WRAP(
-            UA_LOG_WARNING(UA_EventLoop_getLogger(cm->eventSource.eventLoop),
+            UA_LOG_WARNING(cm->eventSource.eventLoop->logger,
                            UA_LOGCATEGORY_NETWORK,
                            "TCP\t| Could not create socket to connect to %s (%s)",
                            hostname, errno_str));
@@ -606,7 +606,7 @@ TCP_openConnection(UA_ConnectionManager *cm,
     res |= TCP_setNoNagle(newSock);
     if(res != UA_STATUSCODE_GOOD) {
         UA_LOG_SOCKET_ERRNO_WRAP(
-            UA_LOG_WARNING(UA_EventLoop_getLogger(cm->eventSource.eventLoop),
+            UA_LOG_WARNING(cm->eventSource.eventLoop->logger,
                            UA_LOGCATEGORY_NETWORK,
                            "TCP\t| Could not set socket options: %s", errno_str));
         freeaddrinfo(info);
@@ -621,7 +621,7 @@ TCP_openConnection(UA_ConnectionManager *cm,
        UA_ERRNO != UA_INPROGRESS &&
        UA_ERRNO != UA_WOULDBLOCK) {
         UA_LOG_SOCKET_ERRNO_WRAP(
-            UA_LOG_ERROR(UA_EventLoop_getLogger(cm->eventSource.eventLoop),
+            UA_LOG_ERROR(cm->eventSource.eventLoop->logger,
                          UA_LOGCATEGORY_NETWORK,
                          "TCP\t| Connecting the socket to %s failed (%s)",
                          hostname, errno_str));
@@ -629,11 +629,11 @@ TCP_openConnection(UA_ConnectionManager *cm,
     }
 
     /* Register the fd to trigger when output is possible (the connection is open) */
-    res = UA_EventLoop_registerFD(cm->eventSource.eventLoop, newSock, UA_POLLOUT,
-                                  (UA_FDCallback)TCP_connectionSocketCallback,
-                                  &cm->eventSource, context);
+    res = POSIX_EL_registerFD((POSIX_EL*)cm->eventSource.eventLoop, newSock,
+                              UA_POLLOUT, (UA_FDCallback)TCP_connectionSocketCallback,
+                              &cm->eventSource, context);
     if(res != UA_STATUSCODE_GOOD) {
-        UA_LOG_ERROR(UA_EventLoop_getLogger(cm->eventSource.eventLoop),
+        UA_LOG_ERROR(cm->eventSource.eventLoop->logger,
                      UA_LOGCATEGORY_NETWORK,
                      "TCP\t| Registering the socket to connect to %s failed", hostname);
         UA_close(newSock);
@@ -644,7 +644,7 @@ TCP_openConnection(UA_ConnectionManager *cm,
     TCPConnectionManager *tcm = (TCPConnectionManager*)cm;
     tcm->fdCount++;
 
-    UA_LOG_INFO(UA_EventLoop_getLogger(cm->eventSource.eventLoop),
+    UA_LOG_INFO(cm->eventSource.eventLoop->logger,
                 UA_LOGCATEGORY_NETWORK,
                 "TCP %u\t| New connection to \"%s\" on port %s",
                 (unsigned)newSock, hostname, portStr);
@@ -657,7 +657,7 @@ static UA_StatusCode
 TCP_eventSourceStart(UA_ConnectionManager *cm) {
     /* Check the state */
     if(cm->eventSource.state != UA_EVENTSOURCESTATE_STOPPED) {
-        UA_LOG_ERROR(UA_EventLoop_getLogger(cm->eventSource.eventLoop),
+        UA_LOG_ERROR(cm->eventSource.eventLoop->logger,
                      UA_LOGCATEGORY_EVENTLOOP, "To start the TCP ConnectionManager, "
                      "it has to be registered in an EventLoop and not started");
         return UA_STATUSCODE_BADINTERNALERROR;
@@ -676,7 +676,7 @@ TCP_eventSourceStart(UA_ConnectionManager *cm) {
                                  UA_QUALIFIEDNAME(0, "listen-port"),
                                  &UA_TYPES[UA_TYPES_UINT16]);
     if(!port) {
-        UA_LOG_ERROR(UA_EventLoop_getLogger(cm->eventSource.eventLoop),
+        UA_LOG_ERROR(cm->eventSource.eventLoop->logger,
                      UA_LOGCATEGORY_EVENTLOOP,
                      "TCP\t| No port configured, don't accept connections");
         return UA_STATUSCODE_GOOD;
@@ -693,12 +693,12 @@ TCP_eventSourceStart(UA_ConnectionManager *cm) {
                            UA_QUALIFIEDNAME(0, "listen-hostnames"));
     if(!hostNames) {
         /* No hostnames configured */
-        UA_LOG_INFO(UA_EventLoop_getLogger(cm->eventSource.eventLoop),
+        UA_LOG_INFO(cm->eventSource.eventLoop->logger,
                     UA_LOGCATEGORY_NETWORK, "TCP\t| Listening on all interfaces");
         TCP_registerListenSocketDomainName(cm, NULL, portno);
     } else if(hostNames->type != &UA_TYPES[UA_TYPES_STRING]) {
         /* Wrong datatype */
-           UA_LOG_ERROR(UA_EventLoop_getLogger(cm->eventSource.eventLoop),
+           UA_LOG_ERROR(cm->eventSource.eventLoop->logger,
                         UA_LOGCATEGORY_EVENTLOOP,
                         "TCP\t| The hostnames have to be strings");
            return UA_STATUSCODE_BADINTERNALERROR;
@@ -707,7 +707,7 @@ TCP_eventSourceStart(UA_ConnectionManager *cm) {
         if(UA_Variant_isScalar(hostNames))
             interfaces = 1;
         if(interfaces == 0) {
-            UA_LOG_ERROR(UA_EventLoop_getLogger(cm->eventSource.eventLoop),
+            UA_LOG_ERROR(cm->eventSource.eventLoop->logger,
                          UA_LOGCATEGORY_EVENTLOOP, "TCP\t| Listening on all interfaces");
             TCP_registerListenSocketDomainName(cm, NULL, portno);
         } else {
@@ -747,13 +747,13 @@ TCP_shutdownCallback(UA_EventSource *es, UA_FD fd,
 
 static void
 TCP_eventSourceStop(UA_ConnectionManager *cm) {
-    UA_LOG_INFO(UA_EventLoop_getLogger(cm->eventSource.eventLoop),
+    UA_LOG_INFO(cm->eventSource.eventLoop->logger,
                 UA_LOGCATEGORY_NETWORK, "TCP\t| Shutting down the ConnectionManager");
 
     /* Shut down all registered fd. The cm is set to "stopped" when the last fd
      * is closed and deregistered in the callback from the EventLoop. */
-    UA_EventLoop_iterateFD(cm->eventSource.eventLoop, &cm->eventSource,
-                           TCP_shutdownCallback, NULL);
+    POSIX_EL_iterateFD((POSIX_EL*)cm->eventSource.eventLoop,
+                       &cm->eventSource, TCP_shutdownCallback, NULL);
     cm->eventSource.state = UA_EVENTSOURCESTATE_STOPPING;
 
     TCPConnectionManager *tcm = (TCPConnectionManager*)cm;
@@ -762,14 +762,14 @@ TCP_eventSourceStop(UA_ConnectionManager *cm) {
     if(tcm->fdCount == 0 && cm->eventSource.state == UA_EVENTSOURCESTATE_STOPPING)
         cm->eventSource.state = UA_EVENTSOURCESTATE_STOPPED;
 
-    UA_LOG_DEBUG(UA_EventLoop_getLogger(cm->eventSource.eventLoop),
-                UA_LOGCATEGORY_NETWORK, "TCP\t| EventSource successfully stopped");
+    UA_LOG_DEBUG(cm->eventSource.eventLoop->logger,
+                 UA_LOGCATEGORY_NETWORK, "TCP\t| EventSource successfully stopped");
 }
 
 static UA_StatusCode
 TCP_eventSourceDelete(UA_ConnectionManager *cm) {
     if(cm->eventSource.state >= UA_EVENTSOURCESTATE_STARTING) {
-        UA_LOG_ERROR(UA_EventLoop_getLogger(cm->eventSource.eventLoop),
+        UA_LOG_ERROR(cm->eventSource.eventLoop->logger,
                      UA_LOGCATEGORY_EVENTLOOP,
                      "TCP\t| The EventSource must be stopped before it can be deleted");
         return UA_STATUSCODE_BADINTERNALERROR;
@@ -790,7 +790,7 @@ TCP_eventSourceDelete(UA_ConnectionManager *cm) {
 }
 
 UA_ConnectionManager *
-UA_ConnectionManager_TCP_new(const UA_String eventSourceName) {
+UA_ConnectionManager_new_POSIX_TCP(const UA_String eventSourceName) {
     TCPConnectionManager *cm = (TCPConnectionManager*)
         UA_calloc(1, sizeof(TCPConnectionManager));
     if(!cm)

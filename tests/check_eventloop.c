@@ -23,19 +23,19 @@ createEvents(UA_UInt32 events) {
     for(size_t i = 0; i < events; i++) {
         UA_Double interval = (UA_Double)i+1;
         UA_StatusCode retval =
-            UA_EventLoop_addCyclicCallback(el, timerCallback, NULL, NULL, interval, NULL,
-                                           UA_TIMER_HANDLE_CYCLEMISS_WITH_CURRENTTIME, NULL);
+            el->addCyclicCallback(el, timerCallback, NULL, NULL, interval, NULL,
+                                  UA_TIMER_HANDLE_CYCLEMISS_WITH_CURRENTTIME, NULL);
         ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
     }
 }
 
 START_TEST(benchmarkTimer) {
-    el = UA_EventLoop_new(NULL);
+    el = UA_EventLoop_new_POSIX(NULL);
     createEvents(N_EVENTS);
 
     clock_t begin = clock();
     for(size_t i = 0; i < 1000; i++) {
-        UA_DateTime next = UA_EventLoop_run(el, 1);
+        UA_DateTime next = el->run(el, 1);
         UA_fakeSleep((UA_UInt32)((next - UA_DateTime_now()) / UA_DATETIME_MSEC));
     }
 
@@ -44,8 +44,8 @@ START_TEST(benchmarkTimer) {
     printf("duration was %f s\n", time_spent);
     printf("%lu callbacks\n", (unsigned long)count);
 
-    UA_EventLoop_stop(el);
-    UA_EventLoop_delete(el);
+    el->stop(el);
+    el->free(el);
     el = NULL;
 } END_TEST
 
