@@ -120,6 +120,7 @@ GET_PROPERTY(ua_architecture_sources GLOBAL PROPERTY UA_ARCHITECTURE_SOURCES)
 
 set(ua_architecture_sources ${ua_architecture_sources}
     ${PROJECT_SOURCE_DIR}/arch/network_tcp.c
+    ${PROJECT_SOURCE_DIR}/arch/eventloop_posix.h
     ${PROJECT_SOURCE_DIR}/arch/eventloop_posix.c
     ${PROJECT_SOURCE_DIR}/arch/eventloop_posix_tcp.c
 )
@@ -127,7 +128,6 @@ set(ua_architecture_sources ${ua_architecture_sources}
 set(ua_architecture_headers ${ua_architecture_headers}
     ${PROJECT_SOURCE_DIR}/include/open62541/network_tcp.h
     ${PROJECT_SOURCE_DIR}/include/open62541/architecture_functions.h
-    ${PROJECT_SOURCE_DIR}/arch/eventloop_posix.h
 )
 
 if(UA_ENABLE_WEBSOCKET_SERVER)

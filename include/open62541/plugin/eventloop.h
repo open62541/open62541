@@ -22,6 +22,12 @@ typedef struct UA_EventLoop UA_EventLoop;
 struct UA_EventSource;
 typedef struct UA_EventSource UA_EventSource;
 
+struct UA_ConnectionManager;
+typedef struct UA_ConnectionManager UA_ConnectionManager;
+
+struct UA_InterruptManager;
+typedef struct UA_InterruptManager UA_InterruptManager;
+
 /**
  * Event Loop Subsystem
  * ====================
@@ -63,80 +69,90 @@ typedef enum {
     UA_EVENTLOOPSTATE_STOPPED
 } UA_EventLoopState;
 
-/**
- * EventLoop Lifecycle
- * ~~~~~~~~~~~~~~~~~~~ */
+struct UA_EventLoop {
+    /* Configuration
+     * ~~~~~~~~~~~~~~~
+     * The configuration should be set before the EventLoop is started */
+    const UA_Logger *logger;
+    size_t paramsSize;
+    UA_KeyValuePair *params; /* See the implementation-specific documentation */
 
-UA_EXPORT UA_EventLoop *
-UA_EventLoop_new(const UA_Logger *logger);
+    /* EventLoop Lifecycle
+     * ~~~~~~~~~~~~~~~~~~~~ */
+    const volatile UA_EventLoopState state; /* Only read the state from outside */
 
-/* Clean up the EventLoop and free allocated memory. Can fail if the EventLoop
- * is not stopped. */
-UA_EXPORT UA_StatusCode
-UA_EventLoop_delete(UA_EventLoop *el);
+    /* Start the EventLoop and start all already registered EventSources */
+    UA_StatusCode (*start)(UA_EventLoop *el);
 
-UA_EXPORT UA_EventLoopState
-UA_EventLoop_getState(UA_EventLoop *el);
+    /* Stop all EventSources. This is asynchronous and might need a few
+     * iterations of the main-loop to succeed. */
+    void (*stop)(UA_EventLoop *el);
 
-UA_EXPORT UA_StatusCode
-UA_EventLoop_start(UA_EventLoop *el);
+    /* Process events for at most "timeout" ms or until an unrecoverable error
+     * occurs. If timeout==0, then only already received events are
+     * processed. */
+    UA_StatusCode (*run)(UA_EventLoop *el, UA_UInt32 timeout);
 
-/* Stop all EventSources. This is asynchronous and might need a few
- * iterations of the main-loop to succeed. */
-UA_EXPORT void
-UA_EventLoop_stop(UA_EventLoop *el);
+    /* Clean up the EventLoop and free allocated memory. Can fail if the
+     * EventLoop is not stopped. */
+    UA_StatusCode (*free)(UA_EventLoop *el);
 
-/* Process events for at most "timeout" ms or until an unrecoverable error
- * occurs. If timeout==0, then only already received events are processed. */
-UA_EXPORT UA_StatusCode
-UA_EventLoop_run(UA_EventLoop *el, UA_UInt32 timeout);
+    /* Cyclic and Delayed Callbacks
+     * ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+     * Cyclic callbacks are executed regularly with an interval. A delayed
+     * callback is executed in the next cycle of the EventLoop. The memory for
+     * the delayed callback is freed after the execution. */
 
-/* Time of the next cyclic callback. Returns the max DateTime if no cyclic
- * callback is registered. */
-UA_EXPORT UA_DateTime
-UA_EventLoop_nextCyclicTime(UA_EventLoop *el);
+    /* Time of the next cyclic callback. Returns the max DateTime if no cyclic
+     * callback is registered. */
+    UA_DateTime (*nextCyclicTime)(UA_EventLoop *el);
 
-/**
- * Cyclic and Delayed Callbacks
- * ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
- * Cyclic callbacks are executed regularly with an interval. A delayed callback
- * is executed in the next cycle of the EventLoop. The memory for the delayed
- * callback is freed after the execution. */
+    /* The execution interval is in ms. Returns the callbackId if the pointer is
+     * non-NULL. */
+    UA_StatusCode
+    (*addCyclicCallback)(UA_EventLoop *el, UA_Callback cb, void *application,
+                         void *data, UA_Double interval_ms, UA_DateTime *baseTime,
+                         UA_TimerPolicy timerPolicy, UA_UInt64 *callbackId);
 
-/* The execution interval is in ms. Returns the callbackId if the pointer is
- * non-NULL. */
-UA_EXPORT UA_StatusCode
-UA_EventLoop_addCyclicCallback(UA_EventLoop *el, UA_Callback cb,
-                               void *application, void *data, UA_Double interval_ms,
-                               UA_DateTime *baseTime, UA_TimerPolicy timerPolicy,
-                               UA_UInt64 *callbackId);
+    UA_StatusCode
+    (*modifyCyclicCallback)(UA_EventLoop *el, UA_UInt64 callbackId,
+                            UA_Double interval_ms, UA_DateTime *baseTime,
+                            UA_TimerPolicy timerPolicy);
 
-UA_EXPORT UA_StatusCode
-UA_EventLoop_addTimedCallback(UA_EventLoop *el, UA_Callback callback,
-                              void *application, void *data, UA_DateTime date,
-                              UA_UInt64 *callbackId);
-UA_EXPORT UA_StatusCode
-UA_EventLoop_modifyCyclicCallback(UA_EventLoop *el, UA_UInt64 callbackId,
-                                  UA_Double interval_ms, UA_DateTime *baseTime,
-                                  UA_TimerPolicy timerPolicy);
+    void (*removeCyclicCallback)(UA_EventLoop *el, UA_UInt64 callbackId);
 
-UA_EXPORT void
-UA_EventLoop_removeCyclicCallback(UA_EventLoop *el, UA_UInt64 callbackId);
+    /* Like a cyclic callback, but executed only once */
+    UA_StatusCode
+    (*addTimedCallback)(UA_EventLoop *el, UA_Callback cb, void *application,
+                        void *data, UA_DateTime date, UA_UInt64 *callbackId);
 
-UA_EXPORT void
-UA_EventLoop_addDelayedCallback(UA_EventLoop *el, UA_DelayedCallback *dc);
+    void (*addDelayedCallback)(UA_EventLoop *el, UA_DelayedCallback *dc);
 
-/* Helper Functions */
-UA_EXPORT const UA_Logger *
-UA_EventLoop_getLogger(UA_EventLoop *el);
+    /* Manage EventSources
+     * ~~~~~~~~~~~~~~~~~~~ */
 
-UA_EXPORT void
-UA_EventLoop_setLogger(UA_EventLoop *el, const UA_Logger *logger);
+    /* Register the ES. Immediately starts the ES if the EventLoop is already
+     * started. Otherwise the ES is started together with the EventLoop. */
+    UA_StatusCode
+    (*registerEventSource)(UA_EventLoop *el, UA_EventSource *es);
+
+    /* Stops the EventSource before deregistrering it */
+    UA_StatusCode
+    (*deregisterEventSource)(UA_EventLoop *el, UA_EventSource *es);
+
+    /* Look up the EventSource by name. Returns the first EventSource of that
+     * name (duplicates should be avoided). */
+    UA_EventSource *
+    (*findEventSource)(UA_EventLoop *el, const UA_String name);
+};
 
 /**
  * Event Source
- * ------------ */
-
+ * ------------
+ * Event Sources are attached to an EventLoop. Typically the event source and
+ * the EventLoop are developed together and share a private API in the
+ * background. */
+ 
 typedef enum {
     UA_EVENTSOURCESTATE_FRESH = 0,
     UA_EVENTSOURCESTATE_STOPPED,      /* Registered but stopped */
@@ -176,22 +192,6 @@ struct UA_EventSource {
     UA_StatusCode (*free)(UA_EventSource *es);
 };
 
-/* Register the ES. Immediately starts the ES if the EventLoop is already
- * started. Otherwise the ES is started together with the EventLoop. */
-UA_EXPORT UA_StatusCode
-UA_EventLoop_registerEventSource(UA_EventLoop *el,
-                                 UA_EventSource *es);
-
-/* If still registered, call _stop (but not _clear) on the CM and deregister. */
-UA_EXPORT UA_StatusCode
-UA_EventLoop_deregisterEventSource(UA_EventLoop *el,
-                                   UA_EventSource *es);
-
-/* Look up the EventSource by name. Returns the first EventSource of that name
- * (duplicates should be avoided). */
-UA_EXPORT UA_EventSource *
-UA_EventLoop_findEventSource(UA_EventLoop *el, const UA_String name);
-
 /**
  * Connection Manager
  * ------------------
@@ -201,51 +201,47 @@ UA_EventLoop_findEventSource(UA_EventLoop *el, const UA_String name);
  * it can keep a session to an MQTT broker open which is used by individual
  * connections that are each bound to an MQTT topic. */
 
-struct UA_ConnectionManager;
-typedef struct UA_ConnectionManager UA_ConnectionManager;
-
-/**
- * The ConnectionCallback is the only interface from the connection back to the
- * application.
- *
- * - The connectionId is initially unknown to the target application and
- *   "announced" to the application when first used first in this callback.
- *
- * - The context is attached to the connection. Initially a default context is set.
- *   The context can be replaced within the callback (via the double-pointer).
- *
- * - The status indicates whether the connection is closing down. If status !=
- *   GOOD, then the application should clean up the context, as this is the last
- *   time the callback will be called for this connection.
- *
- * - The parameters are a key-value list with additional information. The
- *   possible keys and their meaning are documented for the individual
- *   ConnectionManager implementations.
- *
- * - The msg ByteString is the message (or packet) received on the
- *   connection. Can be empty. */
-typedef void
-(*UA_ConnectionCallback)(UA_ConnectionManager *cm, uintptr_t connectionId,
-                         void **connectionContext, UA_StatusCode status,
-                         size_t paramsSize, const UA_KeyValuePair *params,
-                         UA_ByteString msg);
-
 struct UA_ConnectionManager {
     /* Every ConnectionManager is treated like an EventSource from the
      * perspective of the EventLoop. */
     UA_EventSource eventSource;
 
+    /* The ConnectionCallback is the only interface from the connection back to
+     * the application.
+     *
+     * - The connectionId is initially unknown to the target application and
+     *   "announced" to the application when first used first in this callback.
+     *
+     * - The context is attached to the connection. Initially a default context
+     *   is set. The context can be replaced within the callback (via the
+     *   double-pointer).
+     *
+     * - The status indicates whether the connection is closing down. If status
+     *   != GOOD, then the application should clean up the context, as this is
+     *   the last time the callback will be called for this connection.
+     *
+     * - The parameters are a key-value list with additional information. The
+     *   possible keys and their meaning are documented for the individual
+     *   ConnectionManager implementations.
+     *
+     * - The msg ByteString is the message (or packet) received on the
+     *   connection. Can be empty. */
+    void
+    (*connectionCallback)(UA_ConnectionManager *cm, uintptr_t connectionId,
+                          void **connectionContext, UA_StatusCode status,
+                          size_t paramsSize, const UA_KeyValuePair *params,
+                          UA_ByteString msg);
+
     /* Passively listen for new connections
      * ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
      * Some ConnectionManagers passively listen to open new Connections. The
      * configuration parameters stored in the EventSource are used during
-     * "start" of the EventSource to set this up. The "connectionCallback"
+     * 'start' of the EventSource to set this up. The 'connectionCallback'
      * callback is used to indicate that a new connection has been are created
      * (status==Good, msg=empty).
      *
-     * The callback depends on the application and has to be manually
-     * configured. */
-    UA_ConnectionCallback connectionCallback;
+     * The context an internally created new connection is initialized with.
+     * Before calling the 'connectionCallback' for it the first time. */
     void *initialConnectionContext;
 
     /* Actively Open a Connection
@@ -307,10 +303,74 @@ struct UA_ConnectionManager {
 };
 
 /**
+ * Interrupt Manager
+ * -----------------
+ * The Interrupt Manager allows to register to listen for system interrupts.
+ * Triggering the interrupt calls the callback associated with it.
+ *
+ * The implementations of the interrupt manager for the different platforms
+ * shall be designed such that:
+ *
+ * Registered interrupts are only intercepted from within the running EventLoop
+ *
+ * Processing an interrupt in the EventLoop is handled similarly to handling a
+ * network event: all methods and also memory allocation are available from
+ * within the interrupt callback. */
+
+/* Interrupts can have additional key-value 'instanceInfos' for each individual
+ * triggering. See the architecture-specific documentation. */
+typedef void
+(*UA_InterruptCallback)(UA_InterruptManager *im,
+                        uintptr_t interruptHandle, void *interruptContext,
+                        size_t instanceInfosSize,
+                        const UA_KeyValuePair *instanceInfos);
+
+struct UA_InterruptManager {
+    /* Every InterruptManager is treated like an EventSource from the
+     * perspective of the EventLoop. */
+    UA_EventSource eventSource;
+
+    /* Register an interrupt. The handle and context information is passed
+     * through to the callback.
+     *
+     * The interruptHandle is a numerical identifier of the interrupt. In some
+     * cases, such as POSIX signals, this is enough information to register
+     * callback. For other interrupt systems (architectures) additional
+     * parameters may be required and can be passed in via the parameters
+     * key-value list. See the implementation-specific documentation.
+     *
+     * The interruptContext is opaque user-defined information and passed
+     * through to the callback without modification. */
+    UA_StatusCode
+    (*registerInterrupt)(UA_InterruptManager *im, uintptr_t interruptHandle,
+                         size_t paramsSize, const UA_KeyValuePair *params,
+                         UA_InterruptCallback callback, void *interruptContext);
+
+    /* Remove a registered interrupt. Returns no error code if the interrupt is
+     * already deregistered. */
+    void
+    (*deregisterInterrupt)(UA_InterruptManager *im, uintptr_t interruptHandle);
+};
+
+/**
+ * POSIX-Specific Implementation
+ * -----------------------------
+ * The POSIX compatibility of WIN32 is 'close enough'. So a joint implementation
+ * is provided. */
+
+#if defined(UA_ARCHITECTURE_POSIX) || defined(UA_ARCHITECTURE_WIN32)
+
+UA_EXPORT UA_EventLoop *
+UA_EventLoop_new_POSIX(const UA_Logger *logger);
+
+/**
  * TCP Connection Manager
  * ~~~~~~~~~~~~~~~~~~~~~~
- * Listens on the network and manages TCP connections. The configuration
- * parameters have to set before calling _start to take effect.
+ * Listens on the network and manages TCP connections. This should be available
+ * for all architectures.
+ *
+ * The configuration parameters have to set before calling _start to take
+ * effect.
  *
  * Configuration Parameters:
  * - 0:listen-port [uint16]: Port to listen for new connections (default: do not
@@ -329,7 +389,9 @@ struct UA_ConnectionManager {
  * Send Parameters:
  * No additional parameters for sending over an established TCP socket defined. */
 UA_EXPORT UA_ConnectionManager *
-UA_ConnectionManager_TCP_new(const UA_String eventSourceName);
+UA_ConnectionManager_new_POSIX_TCP(const UA_String eventSourceName);
+
+#endif /* defined(UA_ARCHITECTURE_POSIX) || defined(UA_ARCHITECTURE_WIN32) */
 
 _UA_END_DECLS
 

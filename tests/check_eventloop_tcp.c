@@ -21,34 +21,34 @@ static void noopCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
                          UA_ByteString msg) {}
 
 START_TEST(listenTCP) {
-    el = UA_EventLoop_new(UA_Log_Stdout);
+    el = UA_EventLoop_new_POSIX(UA_Log_Stdout);
 
     UA_UInt16 port = 4840;
     UA_Variant portVar;
     UA_Variant_setScalar(&portVar, &port, &UA_TYPES[UA_TYPES_UINT16]);
-    UA_ConnectionManager *cm = UA_ConnectionManager_TCP_new(UA_STRING("tcpCM"));
+    UA_ConnectionManager *cm = UA_ConnectionManager_new_POSIX_TCP(UA_STRING("tcpCM"));
     cm->connectionCallback = noopCallback;
     UA_KeyValueMap_set(&cm->eventSource.params,
                        &cm->eventSource.paramsSize,
                        UA_QUALIFIEDNAME(0, "listen-port"), &portVar);
-    UA_EventLoop_registerEventSource(el, &cm->eventSource);
+    el->registerEventSource(el, &cm->eventSource);
 
-    UA_EventLoop_start(el);
+    el->start(el);
 
     for(size_t i = 0; i < 10; i++) {
-        UA_DateTime next = UA_EventLoop_run(el, 1);
+        UA_DateTime next = el->run(el, 1);
         UA_fakeSleep((UA_UInt32)((next - UA_DateTime_now()) / UA_DATETIME_MSEC));
     }
     int max_stop_iteration_count = 1000;
     int iteration = 0;
     /* Stop the EventLoop */
-    UA_EventLoop_stop(el);
-    while(UA_EventLoop_getState(el) != UA_EVENTLOOPSTATE_STOPPED && iteration < max_stop_iteration_count) {
-        UA_DateTime next = UA_EventLoop_run(el, 1);
+    el->stop(el);
+    while(el->state != UA_EVENTLOOPSTATE_STOPPED && iteration < max_stop_iteration_count) {
+        UA_DateTime next = el->run(el, 1);
         UA_fakeSleep((UA_UInt32)((next - UA_DateTime_now()) / UA_DATETIME_MSEC));
         iteration++;
     }
-    UA_EventLoop_delete(el);
+    el->free(el);
     el = NULL;
 } END_TEST
 
@@ -81,7 +81,7 @@ illegalConnectionCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
                           void **connectionContext, UA_StatusCode status,
                           size_t paramsSize, const UA_KeyValuePair *params,
                           UA_ByteString msg) {
-    UA_StatusCode rv = UA_EventLoop_run(el, 1);
+    UA_StatusCode rv = el->run(el, 1);
     ck_assert_uint_eq(rv, UA_STATUSCODE_BADINTERNALERROR);
     if(*connectionContext != NULL)
         clientId = connectionId;
@@ -97,20 +97,20 @@ illegalConnectionCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
 }
 
 START_TEST(runEventloopFailsIfCalledFromCallback) {
-    el = UA_EventLoop_new(UA_Log_Stdout);
+    el = UA_EventLoop_new_POSIX(UA_Log_Stdout);
 
     UA_UInt16 port = 4840;
     UA_Variant portVar;
     UA_Variant_setScalar(&portVar, &port, &UA_TYPES[UA_TYPES_UINT16]);
-    UA_ConnectionManager *cm = UA_ConnectionManager_TCP_new(UA_STRING("tcpCM"));
+    UA_ConnectionManager *cm = UA_ConnectionManager_new_POSIX_TCP(UA_STRING("tcpCM"));
     cm->connectionCallback = illegalConnectionCallback;
     UA_KeyValueMap_set(&cm->eventSource.params,
                        &cm->eventSource.paramsSize,
                        UA_QUALIFIEDNAME(0, "listen-port"), &portVar);
-    UA_EventLoop_registerEventSource(el, &cm->eventSource);
+    el->registerEventSource(el, &cm->eventSource);
 
     connCount = 0;
-    UA_EventLoop_start(el);
+    el->start(el);
 
     /* Open a client connection */
     clientId = 0;
@@ -125,7 +125,7 @@ START_TEST(runEventloopFailsIfCalledFromCallback) {
     UA_StatusCode retval = cm->openConnection(cm, 2, params, (void*)0x01);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     for(size_t i = 0; i < 10; i++) {
-        UA_DateTime next = UA_EventLoop_run(el, 1);
+        UA_DateTime next = el->run(el, 1);
         UA_fakeSleep((UA_UInt32)((next - UA_DateTime_now()) / UA_DATETIME_MSEC));
     }
     ck_assert(clientId != 0);
@@ -140,7 +140,7 @@ START_TEST(runEventloopFailsIfCalledFromCallback) {
     retval = cm->sendWithConnection(cm, clientId, 0, NULL, &snd);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     for(size_t i = 0; i < 10; i++) {
-        UA_DateTime next = UA_EventLoop_run(el, 1);
+        UA_DateTime next = el->run(el, 1);
         UA_fakeSleep((UA_UInt32)((next - UA_DateTime_now()) / UA_DATETIME_MSEC));
     }
     ck_assert(received);
@@ -150,7 +150,7 @@ START_TEST(runEventloopFailsIfCalledFromCallback) {
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(connCount, 2);
     for(size_t i = 0; i < 10; i++) {
-        UA_DateTime next = UA_EventLoop_run(el, 1);
+        UA_DateTime next = el->run(el, 1);
         UA_fakeSleep((UA_UInt32)((next - UA_DateTime_now()) / UA_DATETIME_MSEC));
     }
     ck_assert_uint_eq(connCount, 0);
@@ -158,31 +158,32 @@ START_TEST(runEventloopFailsIfCalledFromCallback) {
     int max_stop_iteration_count = 1000;
     int iteration = 0;
     /* Stop the EventLoop */
-    UA_EventLoop_stop(el);
-    while(UA_EventLoop_getState(el) != UA_EVENTLOOPSTATE_STOPPED && iteration < max_stop_iteration_count) {
-        UA_DateTime next = UA_EventLoop_run(el, 1);
+    el->stop(el);
+    while(el->state != UA_EVENTLOOPSTATE_STOPPED &&
+          iteration < max_stop_iteration_count) {
+        UA_DateTime next = el->run(el, 1);
         UA_fakeSleep((UA_UInt32)((next - UA_DateTime_now()) / UA_DATETIME_MSEC));
         iteration++;
     }
-    UA_EventLoop_delete(el);
+    el->free(el);
     el = NULL;
 } END_TEST
 
 START_TEST(connectTCP) {
-    el = UA_EventLoop_new(UA_Log_Stdout);
+    el = UA_EventLoop_new_POSIX(UA_Log_Stdout);
 
     UA_UInt16 port = 4840;
     UA_Variant portVar;
     UA_Variant_setScalar(&portVar, &port, &UA_TYPES[UA_TYPES_UINT16]);
-    UA_ConnectionManager *cm = UA_ConnectionManager_TCP_new(UA_STRING("tcpCM"));
+    UA_ConnectionManager *cm = UA_ConnectionManager_new_POSIX_TCP(UA_STRING("tcpCM"));
     cm->connectionCallback = connectionCallback;
     UA_KeyValueMap_set(&cm->eventSource.params,
                        &cm->eventSource.paramsSize,
                        UA_QUALIFIEDNAME(0, "listen-port"), &portVar);
-    UA_EventLoop_registerEventSource(el, &cm->eventSource);
+    el->registerEventSource(el, &cm->eventSource);
 
     connCount = 0;
-    UA_EventLoop_start(el);
+    el->start(el);
 
     /* Open a client connection */
     clientId = 0;
@@ -197,7 +198,7 @@ START_TEST(connectTCP) {
     UA_StatusCode retval = cm->openConnection(cm, 2, params, (void*)0x01);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     for(size_t i = 0; i < 10; i++) {
-        UA_DateTime next = UA_EventLoop_run(el, 1);
+        UA_DateTime next = el->run(el, 1);
         UA_fakeSleep((UA_UInt32)((next - UA_DateTime_now()) / UA_DATETIME_MSEC));
     }
     ck_assert(clientId != 0);
@@ -212,7 +213,7 @@ START_TEST(connectTCP) {
     retval = cm->sendWithConnection(cm, clientId, 0, NULL, &snd);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     for(size_t i = 0; i < 10; i++) {
-        UA_DateTime next = UA_EventLoop_run(el, 1);
+        UA_DateTime next = el->run(el, 1);
         UA_fakeSleep((UA_UInt32)((next - UA_DateTime_now()) / UA_DATETIME_MSEC));
     }
     ck_assert(received);
@@ -222,7 +223,7 @@ START_TEST(connectTCP) {
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(connCount, 2);
     for(size_t i = 0; i < 10; i++) {
-        UA_DateTime next = UA_EventLoop_run(el, 1);
+        UA_DateTime next = el->run(el, 1);
         UA_fakeSleep((UA_UInt32)((next - UA_DateTime_now()) / UA_DATETIME_MSEC));
     }
     ck_assert_uint_eq(connCount, 0);
@@ -231,13 +232,14 @@ START_TEST(connectTCP) {
     int max_stop_iteration_count = 1000;
     int iteration = 0;
     /* Stop the EventLoop */
-    UA_EventLoop_stop(el);
-    while(UA_EventLoop_getState(el) != UA_EVENTLOOPSTATE_STOPPED && iteration < max_stop_iteration_count) {
-        UA_DateTime next = UA_EventLoop_run(el, 1);
+    el->stop(el);
+    while(el->state != UA_EVENTLOOPSTATE_STOPPED &&
+          iteration < max_stop_iteration_count) {
+        UA_DateTime next = el->run(el, 1);
         UA_fakeSleep((UA_UInt32)((next - UA_DateTime_now()) / UA_DATETIME_MSEC));
         iteration++;
     }
-    UA_EventLoop_delete(el);
+    el->free(el);
     el = NULL;
 } END_TEST
 

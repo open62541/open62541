@@ -201,12 +201,13 @@ void UA_Server_delete(UA_Server *server) {
 #endif
 
     /* Stop the EventLoop and iterate until stopped or an error occurs */
-    UA_EventLoop_stop(server->config.eventLoop);
+    if(server->config.eventLoop->state == UA_EVENTLOOPSTATE_STARTED)
+        server->config.eventLoop->stop(server->config.eventLoop);
     UA_StatusCode res = UA_STATUSCODE_GOOD;
-    UA_EventLoopState state = UA_EventLoop_getState(server->config.eventLoop);
-    while(res == UA_STATUSCODE_GOOD && state != UA_EVENTLOOPSTATE_STOPPED) {
-        res = UA_EventLoop_run(server->config.eventLoop, 100);
-        state = UA_EventLoop_getState(server->config.eventLoop);
+    while(res == UA_STATUSCODE_GOOD &&
+          (server->config.eventLoop->state != UA_EVENTLOOPSTATE_FRESH &&
+           server->config.eventLoop->state != UA_EVENTLOOPSTATE_STOPPED)) {
+        res = server->config.eventLoop->run(server->config.eventLoop, 100);
     }
 
     /* Clean up the Admin Session */
@@ -345,7 +346,7 @@ UA_Server_newWithConfig(UA_ServerConfig *config) {
     for(size_t i = 0; i < server->config.securityPoliciesSize; i++)
         server->config.securityPolicies[i].logger = &server->config.logger;
 
-    UA_EventLoop_setLogger(server->config.eventLoop, &server->config.logger);
+    server->config.eventLoop->logger = &server->config.logger;
 
     /* Reset the old config */
     memset(config, 0, sizeof(UA_ServerConfig));
@@ -373,22 +374,20 @@ UA_StatusCode
 UA_Server_addTimedCallback(UA_Server *server, UA_ServerCallback callback,
                            void *data, UA_DateTime date, UA_UInt64 *callbackId) {
     UA_LOCK(&server->serviceMutex);
-    UA_StatusCode retval =
-        UA_EventLoop_addTimedCallback(server->config.eventLoop,
-                                      (UA_Callback)callback,
-                                      server, data, date, callbackId);
+    UA_StatusCode retval = server->config.eventLoop->
+        addTimedCallback(server->config.eventLoop, (UA_Callback)callback,
+                         server, data, date, callbackId);
     UA_UNLOCK(&server->serviceMutex);
     return retval;
 }
 
 UA_StatusCode
 addRepeatedCallback(UA_Server *server, UA_ServerCallback callback,
-                              void *data, UA_Double interval_ms,
-                              UA_UInt64 *callbackId) {
-    return UA_EventLoop_addCyclicCallback(server->config.eventLoop, (UA_Callback) callback,
-                                          server, data, interval_ms, NULL,
-                                          UA_TIMER_HANDLE_CYCLEMISS_WITH_CURRENTTIME,
-                                          callbackId);
+                    void *data, UA_Double interval_ms, UA_UInt64 *callbackId) {
+    return server->config.eventLoop->
+        addCyclicCallback(server->config.eventLoop, (UA_Callback) callback,
+                          server, data, interval_ms, NULL,
+                          UA_TIMER_HANDLE_CYCLEMISS_WITH_CURRENTTIME, callbackId);
 }
 
 UA_StatusCode
@@ -405,9 +404,9 @@ UA_Server_addRepeatedCallback(UA_Server *server, UA_ServerCallback callback,
 UA_StatusCode
 changeRepeatedCallbackInterval(UA_Server *server, UA_UInt64 callbackId,
                                UA_Double interval_ms) {
-    return UA_EventLoop_modifyCyclicCallback(server->config.eventLoop, callbackId,
-                                             interval_ms, NULL,
-                                             UA_TIMER_HANDLE_CYCLEMISS_WITH_CURRENTTIME);
+    return server->config.eventLoop->
+        modifyCyclicCallback(server->config.eventLoop, callbackId, interval_ms,
+                             NULL, UA_TIMER_HANDLE_CYCLEMISS_WITH_CURRENTTIME);
 }
 
 UA_StatusCode
@@ -422,7 +421,8 @@ UA_Server_changeRepeatedCallbackInterval(UA_Server *server, UA_UInt64 callbackId
 
 void
 removeCallback(UA_Server *server, UA_UInt64 callbackId) {
-    UA_EventLoop_removeCyclicCallback(server->config.eventLoop, callbackId);
+    server->config.eventLoop->removeCyclicCallback(server->config.eventLoop,
+                                                   callbackId);
 }
 
 void
@@ -553,7 +553,7 @@ UA_Server_run_startup(UA_Server *server) {
                  "This should only be used for specific fuzzing builds.");
 #endif
 
-    UA_StatusCode retVal = UA_EventLoop_start(server->config.eventLoop);
+    UA_StatusCode retVal = server->config.eventLoop->start(server->config.eventLoop);
     UA_CHECK_STATUS(retVal, return retVal);
 
     /* ensure that the uri for ns1 is set up from the app description */
@@ -640,8 +640,9 @@ UA_UInt16
 UA_Server_run_iterate(UA_Server *server, UA_Boolean waitInternal) {
     /* Process repeated work */
     UA_DateTime now = UA_DateTime_nowMonotonic();
-    UA_EventLoop_run(server->config.eventLoop, 0);
-    UA_DateTime nextRepeated = UA_EventLoop_nextCyclicTime(server->config.eventLoop);
+    server->config.eventLoop->run(server->config.eventLoop, 0);
+    UA_DateTime nextRepeated =
+        server->config.eventLoop->nextCyclicTime(server->config.eventLoop);
     UA_DateTime latest = now + (UA_MAXTIMEOUT * UA_DATETIME_MSEC);
     if(nextRepeated > latest)
         nextRepeated = latest;
