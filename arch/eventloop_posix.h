@@ -15,6 +15,13 @@
 #if defined(UA_ARCHITECTURE_POSIX) || defined(UA_ARCHITECTURE_WIN32)
 
 #include "common/ua_timer.h"
+#include "open62541_queue.h"
+
+/* epoll_pwait returns bogus data with the tc compiler */
+#if defined(__linux__) && !defined(__TINYC__)
+# define UA_HAVE_EPOLL
+# include <sys/epoll.h>
+#endif
 
 _UA_BEGIN_DECLS
 
@@ -27,22 +34,30 @@ _UA_BEGIN_DECLS
 #define UA_FD UA_SOCKET
 #define UA_INVALID_FD UA_INVALID_SOCKET
 
-typedef void
-(*UA_FDCallback)(UA_EventSource *es, UA_FD fd, void **fdcontext, short event);
+struct UA_RegisteredFD;
+typedef struct UA_RegisteredFD UA_RegisteredFD;
 
-typedef struct {
-    /* The members fd and events are stored in the separate
-     * pollfds array:
-     * - UA_FD fd;
-     * - short events; */
-    UA_EventSource *es;
+/* Bitmask to be used for the UA_FDCallback event argument */
+#define UA_FDEVENT_IN 1
+#define UA_FDEVENT_OUT 2
+#define UA_FDEVENT_ERR 4
+
+typedef void (*UA_FDCallback)(UA_EventSource *es, UA_RegisteredFD *rfd, short event);
+
+struct UA_RegisteredFD {
+    LIST_ENTRY(UA_RegisteredFD) es_pointers; /* Register FD in the EventSource */
+
+    UA_FD fd;
+    short listenEvents; /* UA_FDEVENT_IN | UA_FDEVENT_OUT*/
+
+    UA_EventSource *es; /* Backpointer to the EventSource */
     UA_FDCallback callback;
-    void *fdcontext;
-} UA_RegisteredFD;
+    void *context;
+};
 
 typedef struct {
     UA_EventLoop eventLoop;
-    
+
     /* Timer */
     UA_Timer timer;
 
@@ -52,47 +67,39 @@ typedef struct {
     /* Pointers to registered EventSources */
     UA_EventSource *eventSources;
 
-    /* Registered file descriptors */
-    size_t fdsSize;
-    UA_RegisteredFD *fds;
-    struct pollfd *pollfds; /* has the same size as "fds" */
-
     /* Flag determining whether the eventloop is currently within the
      * "run" method */
     UA_Boolean executing;
 
+#if defined(UA_HAVE_EPOLL)
+    UA_FD epollfd;
+#else
+    /* Explicit list of file descriptors */
+    size_t fdsSize;
+    UA_RegisteredFD **fds;
+#endif
+
 #if UA_MULTITHREADING >= 100
     UA_Lock elMutex;
 #endif
-} POSIX_EL;
+} UA_EventLoopPOSIX;
 
+/* The following functions differ between epoll and normal select */
+
+/* Register to start receiving events */
 UA_StatusCode
-POSIX_EL_registerFD(POSIX_EL *el, UA_FD fd, short eventMask,
-                    UA_FDCallback cb, UA_EventSource *es, void *fdcontext);
+UA_EventLoopPOSIX_registerFD(UA_EventLoopPOSIX *el, UA_RegisteredFD *rfd);
 
-/* Change the fd settings (event mask, callback) in-place. Fails only if the fd
- * no longer exists. */
+/* Modify the events that the fd listens on */
 UA_StatusCode
-POSIX_EL_modifyFD(POSIX_EL *el, UA_FD fd, short eventMask,
-                  UA_FDCallback cb, void *fdcontext);
+UA_EventLoopPOSIX_modifyFD(UA_EventLoopPOSIX *el, UA_RegisteredFD *rfd);
 
-/* During processing of an fd-event, the fd may deregister itself. But in the
- * fd-callback they must not deregister another fd. */
-UA_StatusCode
-POSIX_EL_deregisterFD(POSIX_EL *el, UA_FD fd);
-
-/* abort the iteration if the returned boolean is true */
-typedef UA_Boolean
-(*POSIX_EL_IterateCallback)(UA_EventSource *es, UA_FD fd,
-                            void *fdContext, void *iterateContext);
-
-/* Call the callback for all fd that are registered from that event source. The
- * callback is called with the 'event' argument set to zero to disambiguate from
- * a callback after 'poll'. */
+/* Deregister but do not close the fd. No further events are received. */
 void
-POSIX_EL_iterateFD(POSIX_EL *el, UA_EventSource *es,
-                   POSIX_EL_IterateCallback callback,
-                   void *iterateContext);
+UA_EventLoopPOSIX_deregisterFD(UA_EventLoopPOSIX *el, UA_RegisteredFD *rfd);
+
+UA_StatusCode
+UA_EventLoopPOSIX_pollFDs(UA_EventLoopPOSIX *el, UA_DateTime listenTimeout);
 
 _UA_END_DECLS
 
