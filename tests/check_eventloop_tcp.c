@@ -197,7 +197,7 @@ START_TEST(connectTCP) {
 
     UA_StatusCode retval = cm->openConnection(cm, 2, params, (void*)0x01);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
-    for(size_t i = 0; i < 10; i++) {
+    for(size_t i = 0; i < 2; i++) {
         UA_DateTime next = el->run(el, 1);
         UA_fakeSleep((UA_UInt32)((next - UA_DateTime_now()) / UA_DATETIME_MSEC));
     }
@@ -212,7 +212,7 @@ START_TEST(connectTCP) {
     memcpy(snd.data, testMsg, strlen(testMsg));
     retval = cm->sendWithConnection(cm, clientId, 0, NULL, &snd);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
-    for(size_t i = 0; i < 10; i++) {
+    for(size_t i = 0; i < 2; i++) {
         UA_DateTime next = el->run(el, 1);
         UA_fakeSleep((UA_UInt32)((next - UA_DateTime_now()) / UA_DATETIME_MSEC));
     }
@@ -222,14 +222,14 @@ START_TEST(connectTCP) {
     retval = cm->closeConnection(cm, clientId);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(connCount, 2);
-    for(size_t i = 0; i < 10; i++) {
+    for(size_t i = 0; i < 2; i++) {
         UA_DateTime next = el->run(el, 1);
         UA_fakeSleep((UA_UInt32)((next - UA_DateTime_now()) / UA_DATETIME_MSEC));
     }
     ck_assert_uint_eq(connCount, 0);
 
     /* Stop the EventLoop */
-    int max_stop_iteration_count = 1000;
+    int max_stop_iteration_count = 10;
     int iteration = 0;
     /* Stop the EventLoop */
     el->stop(el);
@@ -239,6 +239,7 @@ START_TEST(connectTCP) {
         UA_fakeSleep((UA_UInt32)((next - UA_DateTime_now()) / UA_DATETIME_MSEC));
         iteration++;
     }
+    ck_assert(el->state == UA_EVENTLOOPSTATE_STOPPED);
     el->free(el);
     el = NULL;
 } END_TEST
