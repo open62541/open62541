@@ -97,37 +97,6 @@ else {
    printf("strncmp endpointUrl->data with <opc.tcp://> is a match \n");
 }
 
-// added by Jacky on 2 Jan 2022 to handle websockets ws:// or wss://
-// to reuse the code below, change
-//   1. wss:// to opc.wss://
-//   2. ws:// to opc.ws://
-
-/*
-#ifdef UA_ENABLE_WEBSOCKET_SERVER
-    if (strncmp((char*)endpointUrl->data, "opc.tcp://", 10) != 0) {
- 	    char New_URL[255];
-
-if (strncmp((char*)endpointUrl->data, "wss://", 6) == 0)
-{
-	strcpy(New_URL, "opc.wss://");
-	strcat(New_URL, (char*)endpointUrl->data[6]);
-	printf("New_URL is %s \n", New_URL);
-}
-else if (strncmp((char*)endpointUrl->data, "ws://", 5) == 0)
-{
-            char New_URL[255];
-            strcpy(New_URL, "opc.ws1://");
-            strcat(New_URL, (char*)endpointUrl->data[6]);
-            printf("New_URL is %s \n", New_URL);
-    }
-strcpy(endpointUrl->data, New_URL);
-printf("A. endpointUrl->data is %s \n",  endpointUrl->data);
-exit(0);
-} else
-printf("B. endpointUrl->data is %s \n", (char*)endpointUrl->data);
-#endif
-*/
-
 /* Where does the hostname end? */
 
 size_t curr;
