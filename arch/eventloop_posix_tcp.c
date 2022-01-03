@@ -24,7 +24,8 @@ typedef struct {
     size_t fdsSize;
     LIST_HEAD(, UA_RegisteredFD) fds;
 
-    size_t recvBufferSize;
+    UA_ByteString rxBuffer; /* Reuse the receiver buffer. The size is configured
+                             * via the recv-bufsize parameter.*/
 } TCPConnectionManager;
 
 static UA_StatusCode
@@ -97,6 +98,19 @@ TCP_setNoNagle(UA_FD sockfd) {
     return UA_STATUSCODE_GOOD;
 }
 
+/* Test if the ConnectionManager can be stopped */
+static void
+TCP_checkStopped(TCPConnectionManager *tcm) {
+    if(tcm->fdsSize == 0 && tcm->cm.eventSource.state == UA_EVENTSOURCESTATE_STOPPING) {
+        UA_LOG_DEBUG(tcm->cm.eventSource.eventLoop->logger,
+                     UA_LOGCATEGORY_NETWORK,
+                     "TCP\t| All sockets closed, the EventLoop has stopped");
+
+        UA_ByteString_clear(&tcm->rxBuffer);
+        tcm->cm.eventSource.state = UA_EVENTSOURCESTATE_STOPPED;
+    }
+}
+
 static UA_StatusCode
 TCP_close(TCPConnectionManager *tcm, UA_RegisteredFD *rfd) {
     UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX*)tcm->cm.eventSource.eventLoop;
@@ -121,13 +135,9 @@ TCP_close(TCPConnectionManager *tcm, UA_RegisteredFD *rfd) {
     /* Free the rfd */
     UA_free(rfd);
 
-    /* Stopped? */
-    if(tcm->fdsSize == 0 && tcm->cm.eventSource.state == UA_EVENTSOURCESTATE_STOPPING) {
-        UA_LOG_DEBUG(tcm->cm.eventSource.eventLoop->logger,
-                     UA_LOGCATEGORY_NETWORK,
-                     "TCP\t| All sockets closed, the EventLoop has stopped");
-        tcm->cm.eventSource.state = UA_EVENTSOURCESTATE_STOPPED;
-    }
+    /* Stop if the tcm is stopping and this was the last open socket */
+    TCP_checkStopped(tcm);
+
     return UA_STATUSCODE_GOOD;
 }
 
@@ -135,13 +145,11 @@ TCP_close(TCPConnectionManager *tcm, UA_RegisteredFD *rfd) {
 static void
 TCP_connectionSocketCallback(UA_ConnectionManager *cm, UA_RegisteredFD *rfd,
                              short event) {
-    TCPConnectionManager *tcm = (TCPConnectionManager*)cm;
     UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX*)cm->eventSource.eventLoop;
     UA_LOG_DEBUG(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
                  "TCP %u\t| Activity on the socket", (unsigned)rfd->fd);
 
     /* Write-Event, a new connection has opened.  */
-    UA_StatusCode res = UA_STATUSCODE_GOOD;
     if(event == UA_FDEVENT_OUT) {
         UA_LOG_DEBUG(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
                      "TCP %u\t| Opening a new connection", (unsigned)rfd->fd);
@@ -159,11 +167,9 @@ TCP_connectionSocketCallback(UA_ConnectionManager *cm, UA_RegisteredFD *rfd,
     UA_LOG_DEBUG(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
                  "TCP %u\t| Allocate receive buffer", (unsigned)rfd->fd);
 
-    /* Allocate the receive-buffer */
-    UA_ByteString response;
-    res = UA_ByteString_allocBuffer(&response, tcm->recvBufferSize);
-    if(res != UA_STATUSCODE_GOOD)
-        return; /* Retry in the next iteration */
+    /* Use the already allocated receive-buffer */
+    TCPConnectionManager *tcm = (TCPConnectionManager*)cm;
+    UA_ByteString response = tcm->rxBuffer;
 
     /* Receive */
 #ifndef _WIN32
@@ -172,33 +178,37 @@ TCP_connectionSocketCallback(UA_ConnectionManager *cm, UA_RegisteredFD *rfd,
     int ret = UA_recv(rfd->fd, (char*)response.data, response.length, MSG_DONTWAIT);
 #endif
 
-    if(ret > 0) {
-        UA_LOG_DEBUG(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
-                     "TCP %u\t| Received message of size %u",
-                     (unsigned)rfd->fd, (unsigned)ret);
+    /* Receive has failed */
+    if(ret <= 0) {
+        if(UA_ERRNO == UA_INTERRUPTED ||
+           UA_ERRNO == UA_WOULDBLOCK ||
+           UA_ERRNO == UA_AGAIN)
+            return; /* Temporary error on an non-blocking socket */
 
-        /* Callback to the application layer */
-        response.length = (size_t)ret; /* Set the length of the received buffer */
-        cm->connectionCallback(cm, (uintptr_t)rfd->fd, &rfd->context,
-                               UA_STATUSCODE_GOOD, 0, NULL, response);
-    } else if(UA_ERRNO != UA_INTERRUPTED &&
-              UA_ERRNO != UA_WOULDBLOCK &&
-              UA_ERRNO != UA_AGAIN) {
-        /* Orderly shutdown of the connection. Signal to the application and
-         * then close the connection. We end up in this path after shutdown was
+        /* Orderly shutdown of the socket. Signal to the application and then
+         * close the socket. We end up in this code-path after shutdown was
          * called on the socket. Here, we then are in the next EventLoop
          * iteration and the socket is known to be unused. */
-        UA_LOG_DEBUG(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
-                     "TCP %u\t| recv signaled closed connection", (unsigned)rfd->fd);
 
-        /* Close the connection if not a temporary error on a nonblocking socket */
+        UA_LOG_DEBUG(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
+                     "TCP %u\t| recv signaled the socket was shutdown",
+                     (unsigned)rfd->fd);
+
         cm->connectionCallback(cm, (uintptr_t)rfd->fd, &rfd->context,
                                UA_STATUSCODE_BADCONNECTIONCLOSED,
                                0, NULL, UA_BYTESTRING_NULL);
         TCP_close(tcm, rfd);
+        return;
     }
 
-    UA_ByteString_clear(&response);
+    UA_LOG_DEBUG(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
+                 "TCP %u\t| Received message of size %u",
+                 (unsigned)rfd->fd, (unsigned)ret);
+
+    /* Callback to the application layer */
+    response.length = (size_t)ret; /* Set the length of the received buffer */
+    cm->connectionCallback(cm, (uintptr_t)rfd->fd, &rfd->context,
+                           UA_STATUSCODE_GOOD, 0, NULL, response);
 }
 
 /* Gets called when a new connection opens or if the listenSocket is closed */
@@ -768,13 +778,18 @@ TCP_eventSourceStart(UA_ConnectionManager *cm) {
     }
 
     /* The receive buffersize was configured? */
-    const UA_UInt16 *bufSize = (const UA_UInt16*)
+    TCPConnectionManager *tcm = (TCPConnectionManager*)cm;
+    UA_UInt16 rxBufSize = 2u << 14; /* The default is 16kb */
+    const UA_UInt16 *configRxBufSize = (const UA_UInt16*)
         UA_KeyValueMap_getScalar(cm->eventSource.params,
                                  cm->eventSource.paramsSize,
                                  UA_QUALIFIEDNAME(0, "recv-bufsize"),
                                  &UA_TYPES[UA_TYPES_UINT16]);
-    if(bufSize)
-        ((TCPConnectionManager*)cm)->recvBufferSize = *bufSize;
+    if(configRxBufSize)
+        rxBufSize = *configRxBufSize;
+    UA_StatusCode res = UA_ByteString_allocBuffer(&tcm->rxBuffer, rxBufSize);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
     
     /* Set the EventSource to the started state */
     cm->eventSource.state = UA_EVENTSOURCESTATE_STARTED;
@@ -787,6 +802,8 @@ TCP_eventSourceStop(UA_ConnectionManager *cm) {
     UA_LOG_INFO(cm->eventSource.eventLoop->logger,
                 UA_LOGCATEGORY_NETWORK, "TCP\t| Shutting down the ConnectionManager");
 
+    cm->eventSource.state = UA_EVENTSOURCESTATE_STOPPING;
+
     /* Shut down all registered fd. The cm is set to "stopped" when the last fd
      * is closed and deregistered in the callback from the EventLoop. */
     UA_RegisteredFD *rfd, *rfd_tmp;
@@ -798,14 +815,9 @@ TCP_eventSourceStop(UA_ConnectionManager *cm) {
             TCP_shutdownConnection(cm, (uintptr_t)rfd->fd);
         }
     }
-    cm->eventSource.state = UA_EVENTSOURCESTATE_STOPPING;
 
-    /* Closed? */
-    if(tcm->fdsSize == 0 && cm->eventSource.state == UA_EVENTSOURCESTATE_STOPPING)
-        cm->eventSource.state = UA_EVENTSOURCESTATE_STOPPED;
-
-    UA_LOG_DEBUG(cm->eventSource.eventLoop->logger,
-                 UA_LOGCATEGORY_NETWORK, "TCP\t| EventSource successfully stopped");
+    /* All sockets closed? Otherwise iterate some more. */
+    TCP_checkStopped(tcm);
 }
 
 static UA_StatusCode
@@ -848,6 +860,5 @@ UA_ConnectionManager_new_POSIX_TCP(const UA_String eventSourceName) {
     cm->cm.freeNetworkBuffer = TCP_freeNetworkBuffer;
     cm->cm.sendWithConnection = TCP_sendWithConnection;
     cm->cm.closeConnection = TCP_shutdownConnection;
-    cm->recvBufferSize = 1 << 14; /* TODO: Read from the config */
     return &cm->cm;
 }
