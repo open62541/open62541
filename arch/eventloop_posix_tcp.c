@@ -241,7 +241,6 @@ TCP_listenSocketCallback(UA_ConnectionManager *cm, UA_RegisteredFD *rfd,
     }
 
     /* Log the name of the remote host */
-#if UA_LOGLEVEL <= 300
     char hoststr[256];
     int get_res = UA_getnameinfo((struct sockaddr *)&remote, sizeof(remote),
                                  hoststr, sizeof(hoststr), NULL, 0, 0);
@@ -261,7 +260,6 @@ TCP_listenSocketCallback(UA_ConnectionManager *cm, UA_RegisteredFD *rfd,
                 UA_LOGCATEGORY_NETWORK,
                 "TCP %u\t| Connection opened from \"%s\" via the server socket %u",
                 (unsigned)newsockfd, hoststr, (unsigned)rfd->fd);
-#endif
 
     /* Configure the new socket */
     UA_StatusCode res = UA_STATUSCODE_GOOD;
@@ -307,10 +305,15 @@ TCP_listenSocketCallback(UA_ConnectionManager *cm, UA_RegisteredFD *rfd,
         return;
     }
 
-    /* The socket has opened. Signal it to the application. The callback can
-     * switch out the context. So put it into a temp variable.  */
+    /* Forward the remote hostname to the application */
+    UA_KeyValuePair kvp;
+    kvp.key = UA_QUALIFIEDNAME(0, "remote-hostname");
+    UA_String hostName = UA_STRING(hoststr);
+    UA_Variant_setScalar(&kvp.value, &hostName, &UA_TYPES[UA_TYPES_STRING]);
+
+    /* The socket has opened. Signal it to the application. */
     cm->connectionCallback(cm, (uintptr_t)newsockfd, &newrfd->context,
-                           UA_STATUSCODE_GOOD, 0, NULL, UA_BYTESTRING_NULL);
+                           UA_STATUSCODE_GOOD, 1, &kvp, UA_BYTESTRING_NULL);
 }
 
 static void
