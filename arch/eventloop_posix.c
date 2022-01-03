@@ -172,6 +172,7 @@ UA_EventLoopPOSIX_stop(UA_EventLoopPOSIX *el) {
     if(el->eventLoop.state != UA_EVENTLOOPSTATE_STARTED) {
         UA_LOG_WARNING(el->eventLoop.logger, UA_LOGCATEGORY_EVENTLOOP,
                        "The EventLoop is not running, cannot be stopped");
+        UA_UNLOCK(&el->elMutex);
         return;
     }
 
@@ -193,6 +194,7 @@ UA_EventLoopPOSIX_stop(UA_EventLoopPOSIX *el) {
     *(UA_EventLoopState*)(uintptr_t)&el->eventLoop.state =
         UA_EVENTLOOPSTATE_STOPPING;
     checkClosed(el);
+
     UA_UNLOCK(&el->elMutex);
 }
 
