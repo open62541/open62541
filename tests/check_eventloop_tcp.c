@@ -117,9 +117,9 @@ START_TEST(runEventloopFailsIfCalledFromCallback) {
 
     UA_String targetHost = UA_STRING("localhost");
     UA_KeyValuePair params[2];
-    params[0].key = UA_QUALIFIEDNAME(0, "target-port");
+    params[0].key = UA_QUALIFIEDNAME(0, "port");
     params[0].value = portVar;
-    params[1].key = UA_QUALIFIEDNAME(0, "target-hostname");
+    params[1].key = UA_QUALIFIEDNAME(0, "hostname");
     UA_Variant_setScalar(&params[1].value, &targetHost, &UA_TYPES[UA_TYPES_STRING]);
 
     UA_StatusCode retval = cm->openConnection(cm, 2, params, (void*)0x01);
@@ -190,9 +190,9 @@ START_TEST(connectTCP) {
 
     UA_String targetHost = UA_STRING("localhost");
     UA_KeyValuePair params[2];
-    params[0].key = UA_QUALIFIEDNAME(0, "target-port");
+    params[0].key = UA_QUALIFIEDNAME(0, "port");
     params[0].value = portVar;
-    params[1].key = UA_QUALIFIEDNAME(0, "target-hostname");
+    params[1].key = UA_QUALIFIEDNAME(0, "hostname");
     UA_Variant_setScalar(&params[1].value, &targetHost, &UA_TYPES[UA_TYPES_STRING]);
 
     UA_StatusCode retval = cm->openConnection(cm, 2, params, (void*)0x01);

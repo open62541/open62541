@@ -586,11 +586,11 @@ TCP_openConnection(UA_ConnectionManager *cm,
     /* Prepare the port parameter as a string */
     const UA_UInt16 *port = (const UA_UInt16*)
         UA_KeyValueMap_getScalar(params, paramsSize,
-                                 UA_QUALIFIEDNAME(0, "target-port"),
+                                 UA_QUALIFIEDNAME(0, "port"),
                                  &UA_TYPES[UA_TYPES_UINT16]);
     if(!port) {
         UA_LOG_ERROR(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
-                     "TCP\t| Open TCP Connection: No target port defined, aborting");
+                     "TCP\t| Open TCP Connection: No port defined, aborting");
         return UA_STATUSCODE_BADINTERNALERROR;
     }
     UA_snprintf(portStr, 6, "%d", *port);
@@ -598,16 +598,16 @@ TCP_openConnection(UA_ConnectionManager *cm,
     /* Prepare the hostname string */
     const UA_String *host = (const UA_String*)
         UA_KeyValueMap_getScalar(params, paramsSize,
-                                 UA_QUALIFIEDNAME(0, "target-hostname"),
+                                 UA_QUALIFIEDNAME(0, "hostname"),
                                  &UA_TYPES[UA_TYPES_STRING]);
     if(!host) {
         UA_LOG_ERROR(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
-                     "TCP\t| Open TCP Connection: No target hostname defined, aborting");
+                     "TCP\t| Open TCP Connection: No hostname defined, aborting");
         return UA_STATUSCODE_BADINTERNALERROR;
     }
     if(host->length >= 256) {
         UA_LOG_ERROR(el->eventLoop.logger, UA_LOGCATEGORY_EVENTLOOP,
-                     "TCP\t| Open TCP Connection: No target hostname too long, aborting");
+                     "TCP\t| Open TCP Connection: Hostname too long, aborting");
         return UA_STATUSCODE_BADINTERNALERROR;
     }
     strncpy(hostname, (const char*)host->data, host->length);
