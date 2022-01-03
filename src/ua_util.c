@@ -43,157 +43,246 @@ UA_readNumber(const UA_Byte *buf, size_t buflen, UA_UInt32 *number) {
 
 UA_StatusCode
 UA_parseEndpointUrl(const UA_String *endpointUrl, UA_String *outHostname,
-                    u16 *outPort, UA_String *outPath) {
-    UA_Boolean ipv6 = false;
+                u16 *outPort, UA_String *outPath) {
+UA_Boolean ipv6 = false;
+UA_Boolean is_udp = false;
+UA_Boolean is_tcp = false;
+UA_Boolean is_mqtt = false;
+UA_Boolean is_ws = false;
+UA_Boolean is_wss = false;
 
-    /* Url must begin with "opc.tcp://" or opc.udp:// (if pubsub enabled) */
-    if(endpointUrl->length < 11) {
-        return UA_STATUSCODE_BADTCPENDPOINTURLINVALID;
-    }
-    if (strncmp((char*)endpointUrl->data, "opc.tcp://", 10) != 0) {
+printf("UA_parseEndpointUrl() : endpointUrl = %s, length = %d \n", endpointUrl->data, endpointUrl->length);
+
+/* Url must begin with "opc.tcp://" or opc.udp:// (if pubsub enabled) */
+//if(endpointUrl->length < 11) {
+//    return UA_STATUSCODE_BADTCPENDPOINTURLINVALID;
+//}
+
+if (strncmp((char*)endpointUrl->data, "opc.tcp://", 10) != 0) {
 #ifdef UA_ENABLE_PUBSUB
-        if (strncmp((char*)endpointUrl->data, "opc.udp://", 10) != 0 &&
-                strncmp((char*)endpointUrl->data, "opc.mqtt://", 11) != 0) {
-            return UA_STATUSCODE_BADTCPENDPOINTURLINVALID;
-        }
+  if (strncmp((char*)endpointUrl->data, "opc.udp://", 10) != 0) {
+ if (strncmp((char*)endpointUrl->data, "opc.mqtt://", 11) != 0) {
+    #ifdef UA_ENABLE_WEBSOCKET_SERVER
+        if (strncmp((char*)endpointUrl->data, "ws://", 5) != 0) {
+	  if (strncmp((char*)endpointUrl->data, "wss://", 6) != 0 ) {
+			return UA_STATUSCODE_BADTCPENDPOINTURLINVALID;
+	  }
+	  else {
+		 is_wss = true;
+		 printf("url prefix is a <wss://> \n");
+	  }
+	}
+	else {
+	       is_ws = true;
+	       printf("url prefix is a <ws://> \n");
+	}
+    #endif
+        	//return UA_STATUSCODE_BADTCPENDPOINTURLINVALID;
+ }
+ else {
+	is_mqtt=true;
+	printf("url prefix is a <opc.mqtt://> \n");
+ }
+  }
+  else {
+     is_udp = true;
+     printf("url prefix is a <opc.udp://> or <opc.mqtt://> \n");
+  }
 #else
-        return UA_STATUSCODE_BADTCPENDPOINTURLINVALID;
+    return UA_STATUSCODE_BADTCPENDPOINTURLINVALID;
 #endif
+}
+else {
+   is_tcp = true;
+   printf("strncmp endpointUrl->data with <opc.tcp://> is a match \n");
+}
+
+// added by Jacky on 2 Jan 2022 to handle websockets ws:// or wss://
+// to reuse the code below, change
+//   1. wss:// to opc.wss://
+//   2. ws:// to opc.ws://
+
+/*
+#ifdef UA_ENABLE_WEBSOCKET_SERVER
+    if (strncmp((char*)endpointUrl->data, "opc.tcp://", 10) != 0) {
+ 	    char New_URL[255];
+
+if (strncmp((char*)endpointUrl->data, "wss://", 6) == 0)
+{
+	strcpy(New_URL, "opc.wss://");
+	strcat(New_URL, (char*)endpointUrl->data[6]);
+	printf("New_URL is %s \n", New_URL);
+}
+else if (strncmp((char*)endpointUrl->data, "ws://", 5) == 0)
+{
+            char New_URL[255];
+            strcpy(New_URL, "opc.ws1://");
+            strcat(New_URL, (char*)endpointUrl->data[6]);
+            printf("New_URL is %s \n", New_URL);
     }
+strcpy(endpointUrl->data, New_URL);
+printf("A. endpointUrl->data is %s \n",  endpointUrl->data);
+exit(0);
+} else
+printf("B. endpointUrl->data is %s \n", (char*)endpointUrl->data);
+#endif
+*/
 
-    /* Where does the hostname end? */
-    size_t curr = 10;
-    if(endpointUrl->data[curr] == '[') {
-        /* IPv6: opc.tcp://[2001:0db8:85a3::8a2e:0370:7334]:1234/path */
-        for(; curr < endpointUrl->length; ++curr) {
-            if(endpointUrl->data[curr] == ']')
-                break;
-        }
-        if(curr == endpointUrl->length)
-            return UA_STATUSCODE_BADTCPENDPOINTURLINVALID;
-        curr++;
-        ipv6 = true;
-    } else {
-        /* IPv4 or hostname: opc.tcp://something.something:1234/path */
-        for(; curr < endpointUrl->length; ++curr) {
-            if(endpointUrl->data[curr] == ':' || endpointUrl->data[curr] == '/')
-                break;
-        }
+/* Where does the hostname end? */
+
+size_t curr;
+if (is_udp || is_tcp)
+    curr = 10;
+else if (is_ws)
+    curr = 5;
+else if (is_wss)
+    curr = 6;
+else if (is_mqtt)
+    curr = 11;
+
+if(endpointUrl->data[curr] == '[') {
+    /* IPv6: opc.tcp://[2001:0db8:85a3::8a2e:0370:7334]:1234/path */
+    for(; curr < endpointUrl->length; ++curr) {
+        if(endpointUrl->data[curr] == ']')
+            break;
     }
-
-    /* Set the hostname */
-    if(ipv6) {
-        /* Skip the ipv6 '[]' container for getaddrinfo() later */
-        outHostname->data = &endpointUrl->data[11];
-        outHostname->length = curr - 12;
-    } else {
-        outHostname->data = &endpointUrl->data[10];
-        outHostname->length = curr - 10;
-    }
-
-    /* Empty string? */
-    if(outHostname->length == 0)
-        outHostname->data = NULL;
-
     if(curr == endpointUrl->length)
-        return UA_STATUSCODE_GOOD;
-
-    /* Set the port */
-    if(endpointUrl->data[curr] == ':') {
-        if(++curr == endpointUrl->length)
-            return UA_STATUSCODE_BADTCPENDPOINTURLINVALID;
-        u32 largeNum;
-        size_t progress = UA_readNumber(&endpointUrl->data[curr],
-                                        endpointUrl->length - curr, &largeNum);
-        if(progress == 0 || largeNum > 65535)
-            return UA_STATUSCODE_BADTCPENDPOINTURLINVALID;
-        /* Test if the end of a valid port was reached */
-        curr += progress;
-        if(curr == endpointUrl->length || endpointUrl->data[curr] == '/')
-            *outPort = (u16)largeNum;
-        if(curr == endpointUrl->length)
-            return UA_STATUSCODE_GOOD;
-    }
-
-    /* Set the path */
-    UA_assert(curr < endpointUrl->length);
-    if(endpointUrl->data[curr] != '/')
         return UA_STATUSCODE_BADTCPENDPOINTURLINVALID;
-    if(++curr == endpointUrl->length)
-        return UA_STATUSCODE_GOOD;
-    outPath->data = &endpointUrl->data[curr];
-    outPath->length = endpointUrl->length - curr;
+    curr++;
+    ipv6 = true;
+} else {
+    /* IPv4 or hostname: opc.tcp://something.something:1234/path */
+    for(; curr < endpointUrl->length; ++curr) {
+        if(endpointUrl->data[curr] == ':' || endpointUrl->data[curr] == '/'){
+	printf("curr position is %d \n", curr);
+            break;
+    }
+    }
+}
 
-    /* Remove trailing slash from the path */
-    if(endpointUrl->data[endpointUrl->length - 1] == '/')
-        outPath->length--;
+/* Set the hostname */
+if(ipv6) {
+    /* Skip the ipv6 '[]' container for getaddrinfo() later */
+    outHostname->data = &endpointUrl->data[11];
+    outHostname->length = curr - 12;
+} else {
+	printf("curr is %d \n", curr);
+         switch (curr)
+     {
+	case 21: // for addMdnsRecordForNetworkLayer() : discoveryUrl ws://OPCServerUAT-112:7681/,
+		outHostname->data = &endpointUrl->data[5];
+		outHostname->length = curr-5;	// 26-5 = 21
+		break;
+	case 22: // -- opc.tcp://  or opc.udp://
+	case 26: // for addMdnsRecordForNetworkLayer() : discoveryUrl opc.tcp://OPCServerUAT-112:4840/,
+    		outHostname->data = &endpointUrl->data[10];
+    		outHostname->length = curr-10;
+		break;
+	case 23: // -- opc.mqtt://
+		outHostname->data = &endpointUrl->data[11];
+		outHostname->data[17]='\0';	// remove extra character 'A'
+		outHostname->length = curr-11;	// 23-11 = 12
 
-    /* Empty string? */
-    if(outPath->length == 0)
-        outPath->data = NULL;
+     }
+printf("outHostname->data = %s, length = %d \n", outHostname->data, outHostname->length);
+}
 
+/* Empty string? */
+if(outHostname->length == 0)
+    outHostname->data = NULL;
+
+if(curr == endpointUrl->length)
+    return UA_STATUSCODE_GOOD;
+
+printf("setting the port \n");
+/* Set the port */
+if(endpointUrl->data[curr] == ':') {
+printf("here with ':' \n");
+    if(++curr == endpointUrl->length)	// curr = 24
+        return UA_STATUSCODE_BADTCPENDPOINTURLINVALID;
+    u32 largeNum;
+    size_t progress = UA_readNumber(&endpointUrl->data[curr],
+                                    endpointUrl->length - curr, &largeNum);
+printf("progress = %d, largenum = %d \n", progress, largeNum);
+    if(progress == 0 || largeNum > 65535)
+        return UA_STATUSCODE_BADTCPENDPOINTURLINVALID;
+    /* Test if the end of a valid port was reached */
+    curr += progress;
+printf("curr += progress = %d \n", curr);
+printf("endpointUrl->length = %d \n", endpointUrl->length);
+printf("endpointUrl->data[%d] is %s \n", curr, (char*)endpointUrl->data);
+
+    if(curr == endpointUrl->length || endpointUrl->data[curr] == '/')
+        *outPort = (u16)largeNum;
+
+    if (is_tcp || is_udp) {
+        if(curr == endpointUrl->length) {
+	    printf("successfully executed UA_parseEndpointUrl():set the port, returning to calling function \n");
+        	return UA_STATUSCODE_GOOD;
+	}
+    }
+}
+
+printf("setting the path \n");
+/* Set the path */
+  if (is_tcp || is_udp) {
+    UA_assert(curr < endpointUrl->length);	// curr = 27, length = 28
+printf("curr = %d, endpointUrl->length = %d \n", curr, endpointUrl->length);
+
+if(endpointUrl->data[curr] != '/')
+    return UA_STATUSCODE_BADTCPENDPOINTURLINVALID;
+if(++curr == endpointUrl->length) {
+printf("just about to exit UA_parseEndpointUrl() \n");
+    return UA_STATUSCODE_GOOD;
+}
+outPath->data = &endpointUrl->data[curr];
+outPath->length = endpointUrl->length - curr;
+
+/* Remove trailing slash from the path */
+if(endpointUrl->data[endpointUrl->length - 1] == '/')
+    outPath->length--;
+
+/* Empty string? */
+if(outPath->length == 0)
+    outPath->data = NULL;
+
+return UA_STATUSCODE_GOOD;
+  }
+if (is_mqtt) {
+printf("curr = %d, endpointUrl->length = %d \n", curr, endpointUrl->length);
+printf("outHostname->length = %d \n", outHostname->length);
+printf("outHostname->data = %s \n", outHostname->data);
+UA_assert(curr == endpointUrl->length);      // curr = 28, length = 28
+
+endpointUrl->data[curr] = '/';	// added by Jacky
+outPath->length = endpointUrl->length;
+outPath->data = outHostname->data;
+
+return UA_STATUSCODE_GOOD;
+
+/*
+if(endpointUrl->data[curr] != '/')
+    return UA_STATUSCODE_BADTCPENDPOINTURLINVALID;
+if(++curr == endpointUrl->length) {
+    printf("just about to exit UA_parseEndpointUrl() \n");
     return UA_STATUSCODE_GOOD;
 }
 
-UA_StatusCode
-UA_parseEndpointUrlEthernet(const UA_String *endpointUrl, UA_String *target,
-                            UA_UInt16 *vid, UA_Byte *pcp) {
-    /* Url must begin with "opc.eth://" */
-    if(endpointUrl->length < 11) {
-        return UA_STATUSCODE_BADINTERNALERROR;
-    }
-    if(strncmp((char*) endpointUrl->data, "opc.eth://", 10) != 0) {
-        return UA_STATUSCODE_BADINTERNALERROR;
-    }
+outPath->data = &endpointUrl->data[curr];	// curr
+outPath->length = endpointUrl->length - curr;
 
-    /* Where does the host address end? */
-    size_t curr = 10;
-    for(; curr < endpointUrl->length; ++curr) {
-        if(endpointUrl->data[curr] == ':') {
-           break;
-        }
-    }
+// Remove trailing slash from the path
+if(endpointUrl->data[endpointUrl->length - 1] == '/')
+    outPath->length--;
 
-    /* set host address */
-    target->data = &endpointUrl->data[10];
-    target->length = curr - 10;
-    if(curr == endpointUrl->length) {
-        return UA_STATUSCODE_GOOD;
-    }
+// Empty string?
+if(outPath->length == 0)
+    outPath->data = NULL;
 
-    /* Set VLAN */
-    u32 value = 0;
-    curr++;  /* skip ':' */
-    size_t progress = UA_readNumber(&endpointUrl->data[curr],
-                                    endpointUrl->length - curr, &value);
-    if(progress == 0 || value > 4096) {
-        return UA_STATUSCODE_BADINTERNALERROR;
-    }
-    curr += progress;
-    if(curr == endpointUrl->length || endpointUrl->data[curr] == '.') {
-        *vid = (UA_UInt16) value;
-    }
-    if(curr == endpointUrl->length) {
-        return UA_STATUSCODE_GOOD;
-    }
+return UA_STATUSCODE_GOOD;
+*/
 
-    /* Set priority */
-    if(endpointUrl->data[curr] != '.') {
-        return UA_STATUSCODE_BADINTERNALERROR;
-    }
-    curr++;  /* skip '.' */
-    progress = UA_readNumber(&endpointUrl->data[curr],
-                             endpointUrl->length - curr, &value);
-    if(progress == 0 || value > 7) {
-        return UA_STATUSCODE_BADINTERNALERROR;
-    }
-    curr += progress;
-    if(curr != endpointUrl->length) {
-        return UA_STATUSCODE_BADINTERNALERROR;
-    }
-    *pcp = (UA_Byte) value;
-
-    return UA_STATUSCODE_GOOD;
+  }
 }
 
 UA_StatusCode
