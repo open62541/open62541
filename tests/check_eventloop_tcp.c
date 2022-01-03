@@ -63,8 +63,18 @@ connectionCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
                    UA_ByteString msg) {
     if(*connectionContext != NULL)
         clientId = connectionId;
-    if(msg.length == 0 && status == UA_STATUSCODE_GOOD)
+    if(msg.length == 0 && status == UA_STATUSCODE_GOOD) {
         connCount++;
+
+        /* The remote-hostname is set during the first callback */
+        if(paramsSize > 0) {
+            const void *hn =
+                UA_KeyValueMap_getScalar(params, paramsSize,
+                                         UA_QUALIFIEDNAME(0, "remote-hostname"),
+                                         &UA_TYPES[UA_TYPES_STRING]);
+            ck_assert(hn != NULL);
+        }
+    }
     if(status != UA_STATUSCODE_GOOD) {
         connCount--;
     }
