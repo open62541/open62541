@@ -137,7 +137,7 @@ setDefaultConfig(UA_ServerConfig *conf) {
 
     /* EventLoop */
     if(conf->eventLoop == NULL) {
-        conf->eventLoop = UA_EventLoop_new(&conf->logger);
+        conf->eventLoop = UA_EventLoop_new_POSIX(&conf->logger);
         conf->externalEventLoop = false;
     }
 
@@ -764,7 +764,7 @@ UA_ClientConfig_setDefault(UA_ClientConfig *config) {
 
     /* EventLoop */
     if(config->eventLoop == NULL) {
-        config->eventLoop = UA_EventLoop_new(&config->logger);
+        config->eventLoop = UA_EventLoop_new_POSIX(&config->logger);
         config->externalEventLoop = false;
     }
 

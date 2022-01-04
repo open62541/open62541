@@ -71,7 +71,8 @@ removeSecureChannel(UA_Server *server, channel_entry *entry,
     entry->cleanupCallback.callback = (UA_Callback)removeSecureChannelCallback;
     entry->cleanupCallback.application = NULL;
     entry->cleanupCallback.data = entry;
-    UA_EventLoop_addDelayedCallback(server->config.eventLoop, &entry->cleanupCallback);
+    server->config.eventLoop->
+        addDelayedCallback(server->config.eventLoop, &entry->cleanupCallback);
 }
 
 void
