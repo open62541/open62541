@@ -270,6 +270,7 @@ typedef union {
 
 typedef union {
     UA_ResponseHeader responseHeader;
+    UA_ServiceFault serviceFault;
     UA_FindServersResponse findServersResponse;
     UA_GetEndpointsResponse getEndpointsResponse;
 #ifdef UA_ENABLE_DISCOVERY
