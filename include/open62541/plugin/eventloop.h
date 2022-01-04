@@ -383,9 +383,13 @@ UA_EventLoop_new_POSIX(const UA_Logger *logger);
  *                            messages (default 16kB).
  *
  * Open Connection Parameters:
- * - 0:target-hostname [string]: Hostname (or IPv4/IPv6 address) of the target
- *                               (required).
- * - 0:target-port [uint16]: Port of the target host (required).
+ * - 0:hostname [string]: Hostname (or IPv4/v6 address) to connect to (required).
+ * - 0:port [uint16]: Port of the target host (required).
+ *
+ * Connection Callback Paramters:
+ * - 0:remote-hostname [string]: When a new connection is opened by listening on
+ *                               a port, the first callback contains the remote
+ *                               hostname parameter.
  *
  * Send Parameters:
  * No additional parameters for sending over an established TCP socket defined. */

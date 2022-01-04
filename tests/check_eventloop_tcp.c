@@ -63,8 +63,18 @@ connectionCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
                    UA_ByteString msg) {
     if(*connectionContext != NULL)
         clientId = connectionId;
-    if(msg.length == 0 && status == UA_STATUSCODE_GOOD)
+    if(msg.length == 0 && status == UA_STATUSCODE_GOOD) {
         connCount++;
+
+        /* The remote-hostname is set during the first callback */
+        if(paramsSize > 0) {
+            const void *hn =
+                UA_KeyValueMap_getScalar(params, paramsSize,
+                                         UA_QUALIFIEDNAME(0, "remote-hostname"),
+                                         &UA_TYPES[UA_TYPES_STRING]);
+            ck_assert(hn != NULL);
+        }
+    }
     if(status != UA_STATUSCODE_GOOD) {
         connCount--;
     }
@@ -117,9 +127,9 @@ START_TEST(runEventloopFailsIfCalledFromCallback) {
 
     UA_String targetHost = UA_STRING("localhost");
     UA_KeyValuePair params[2];
-    params[0].key = UA_QUALIFIEDNAME(0, "target-port");
+    params[0].key = UA_QUALIFIEDNAME(0, "port");
     params[0].value = portVar;
-    params[1].key = UA_QUALIFIEDNAME(0, "target-hostname");
+    params[1].key = UA_QUALIFIEDNAME(0, "hostname");
     UA_Variant_setScalar(&params[1].value, &targetHost, &UA_TYPES[UA_TYPES_STRING]);
 
     UA_StatusCode retval = cm->openConnection(cm, 2, params, (void*)0x01);
@@ -190,9 +200,9 @@ START_TEST(connectTCP) {
 
     UA_String targetHost = UA_STRING("localhost");
     UA_KeyValuePair params[2];
-    params[0].key = UA_QUALIFIEDNAME(0, "target-port");
+    params[0].key = UA_QUALIFIEDNAME(0, "port");
     params[0].value = portVar;
-    params[1].key = UA_QUALIFIEDNAME(0, "target-hostname");
+    params[1].key = UA_QUALIFIEDNAME(0, "hostname");
     UA_Variant_setScalar(&params[1].value, &targetHost, &UA_TYPES[UA_TYPES_STRING]);
 
     UA_StatusCode retval = cm->openConnection(cm, 2, params, (void*)0x01);
