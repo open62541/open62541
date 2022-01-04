@@ -225,7 +225,8 @@ UA_EventLoopPOSIX_run(UA_EventLoopPOSIX *el, UA_UInt32 timeout) {
     }
 
     /* Process cyclic callbacks */
-    UA_DateTime dateBefore = UA_DateTime_nowMonotonic();
+    UA_DateTime dateBefore =
+        el->eventLoop.dateTime_nowMonotonic(&el->eventLoop);
 
     UA_UNLOCK(&el->elMutex);
     UA_DateTime dateNext =
@@ -237,7 +238,8 @@ UA_EventLoopPOSIX_run(UA_EventLoopPOSIX *el, UA_UInt32 timeout) {
     UA_DateTime maxDate = dateBefore + (timeout * UA_DATETIME_MSEC);
     if(dateNext > maxDate)
         dateNext = maxDate;
-    UA_DateTime listenTimeout = dateNext - UA_DateTime_nowMonotonic();
+    UA_DateTime listenTimeout =
+        dateNext - el->eventLoop.dateTime_nowMonotonic(&el->eventLoop);
     if(listenTimeout < 0)
         listenTimeout = 0;
 
@@ -331,6 +333,28 @@ UA_EventLoopPOSIX_findEventSource(UA_EventLoopPOSIX *el,
     return s;
 }
 
+/***************/
+/* Time Domain */
+/***************/
+
+/* No special synchronization with an external source, just use the globally
+ * defined functions. */
+
+static UA_DateTime
+UA_EventLoopPOSIX_DateTime_now(UA_EventLoop *el) {
+    return UA_DateTime_now();
+}
+
+static UA_DateTime
+UA_EventLoopPOSIX_DateTime_nowMonotonic(UA_EventLoop *el) {
+    return UA_DateTime_nowMonotonic();
+}
+
+static UA_Int64
+UA_EventLoopPOSIX_DateTime_localTimeUtcOffset(UA_EventLoop *el) {
+    return UA_DateTime_localTimeUtcOffset();
+}
+
 /*************************/
 /* Initialize and Delete */
 /*************************/
@@ -398,6 +422,12 @@ UA_EventLoop_new_POSIX(const UA_Logger *logger) {
     el->eventLoop.stop = (void (*)(UA_EventLoop*))UA_EventLoopPOSIX_stop;
     el->eventLoop.run = (UA_StatusCode (*)(UA_EventLoop*, UA_UInt32))UA_EventLoopPOSIX_run;
     el->eventLoop.free = (UA_StatusCode (*)(UA_EventLoop*))UA_EventLoopPOSIX_free;
+
+    el->eventLoop.dateTime_now = UA_EventLoopPOSIX_DateTime_now;
+    el->eventLoop.dateTime_nowMonotonic =
+        UA_EventLoopPOSIX_DateTime_nowMonotonic;
+    el->eventLoop.dateTime_localTimeUtcOffset =
+        UA_EventLoopPOSIX_DateTime_localTimeUtcOffset;
 
     el->eventLoop.nextCyclicTime = UA_EventLoopPOSIX_nextCyclicTime;
     el->eventLoop.addCyclicCallback = UA_EventLoopPOSIX_addCyclicCallback;
