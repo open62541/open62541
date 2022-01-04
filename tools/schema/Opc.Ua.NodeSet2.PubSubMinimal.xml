@@ -849,14 +849,6 @@
       </ListOfExtensionObject>
     </Value>
   </UAVariable>
-  <UAObject NodeId="i=11508" BrowseName="OptionalPlaceholder" SymbolicName="ModellingRule_OptionalPlaceholder">
-    <DisplayName>OptionalPlaceholder</DisplayName>
-    <Description>Specifies that zero or more instances with the attributes and references of the instance declaration may appear when a type is instantiated.</Description>
-    <References>
-      <!--<Reference ReferenceType="HasProperty">i=11509</Reference>-->
-      <Reference ReferenceType="HasTypeDefinition">i=77</Reference>
-    </References>
-  </UAObject>
   <UADataType NodeId="i=15617" BrowseName="PubSubConnectionDataType">
     <DisplayName>PubSubConnectionDataType</DisplayName>
     <References>
