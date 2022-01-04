@@ -117,3 +117,8 @@ ServerState
 ServerDiagnosticsSummaryDataType
 RedundancySupport
 KeyValuePair
+PermissionType
+AccessRestrictionType
+RolePermissionType
+IdType
+NumericRange
