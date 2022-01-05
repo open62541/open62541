@@ -153,7 +153,9 @@ struct UA_Server {
 #endif
 
     /* Statistics */
-    UA_ServerStatistics serverStats;
+    UA_NetworkStatistics networkStatistics;
+    UA_SecureChannelStatistics secureChannelStatistics;
+    UA_ServerDiagnosticsSummaryDataType serverDiagnosticsSummary;
 };
 
 /***********************/

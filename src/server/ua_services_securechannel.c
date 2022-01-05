@@ -43,7 +43,7 @@ removeSecureChannel(UA_Server *server, channel_entry *entry,
     TAILQ_REMOVE(&server->channels, entry, pointers);
 
     /* Update the statistics */
-    UA_SecureChannelStatistics *scs = &server->serverStats.scs;
+    UA_SecureChannelStatistics *scs = &server->secureChannelStatistics;
     UA_atomic_subSize(&scs->currentChannelCount, 1);
     switch(event) {
     case UA_DIAGNOSTICEVENT_CLOSE:
@@ -160,7 +160,8 @@ UA_Server_createSecureChannel(UA_Server *server, UA_Connection *connection) {
     /* Check if there exists a free SC, otherwise try to purge one SC without a
      * session the purge has been introduced to pass CTT, it is not clear what
      * strategy is expected here */
-    if(server->serverStats.scs.currentChannelCount >= server->config.maxSecureChannels &&
+    if((server->secureChannelStatistics.currentChannelCount >=
+        server->config.maxSecureChannels) &&
        !purgeFirstChannelWithoutSession(server))
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
@@ -170,14 +171,15 @@ UA_Server_createSecureChannel(UA_Server *server, UA_Connection *connection) {
 
     /* Channel state is closed (0) */
     /* TODO: Use the connection config from the correct network layer */
-    UA_SecureChannel_init(&entry->channel, &server->config.networkLayers[0].localConnectionConfig);
+    UA_SecureChannel_init(&entry->channel,
+                          &server->config.networkLayers[0].localConnectionConfig);
     entry->channel.certificateVerification = &server->config.certificateVerification;
     entry->channel.processOPNHeader = UA_Server_configSecureChannel;
 
     TAILQ_INSERT_TAIL(&server->channels, entry, pointers);
     UA_Connection_attachSecureChannel(connection, &entry->channel);
-    UA_atomic_addSize(&server->serverStats.scs.currentChannelCount, 1);
-    UA_atomic_addSize(&server->serverStats.scs.cumulatedChannelCount, 1);
+    server->secureChannelStatistics.currentChannelCount++;
+    server->secureChannelStatistics.cumulatedChannelCount++;
     return UA_STATUSCODE_GOOD;
 }
 
