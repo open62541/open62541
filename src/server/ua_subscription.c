@@ -61,6 +61,7 @@ UA_Subscription_delete(UA_Server *server, UA_Subscription *sub) {
         LIST_REMOVE(sub, serverListEntry);
         UA_assert(server->subscriptionsSize > 0);
         server->subscriptionsSize--;
+        server->serverDiagnosticsSummary.currentSubscriptionCount--;
     }
 
     /* Delete monitored Items */

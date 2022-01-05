@@ -102,6 +102,10 @@ Service_CreateSubscription(UA_Server *server, UA_Session *session,
     LIST_INSERT_HEAD(&server->subscriptions, sub, serverListEntry);
     server->subscriptionsSize++;
 
+    /* Update the server statistics */
+    server->serverDiagnosticsSummary.currentSubscriptionCount++;
+    server->serverDiagnosticsSummary.cumulatedSubscriptionCount++;
+
     /* Attach the Subscription to the session */
     UA_Session_attachSubscription(session, sub);
 
@@ -516,6 +520,12 @@ Operation_TransferSubscription(UA_Server *server, UA_Session *session,
     UA_assert(newSub->subscriptionId == sub->subscriptionId);
     LIST_INSERT_HEAD(&server->subscriptions, newSub, serverListEntry);
     server->subscriptionsSize++;
+
+    /* Do not update the statistics here. The fact that we duplicate
+     * the subscription and move over the content is just an implementtion
+     * detail.
+    server->serverDiagnosticsSummary.currentSubscriptionCount++;
+    server->serverDiagnosticsSummary.cumulatedSubscriptionCount++; */
 
     /* Attach to the session */
     UA_Session_attachSubscription(session, newSub);
