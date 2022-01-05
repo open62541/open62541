@@ -62,24 +62,24 @@ UA_Server_removeSession(UA_Server *server, session_list_entry *sentry,
     /* Detach the session from the session manager and make the capacity
      * available */
     LIST_REMOVE(sentry, pointers);
-    UA_atomic_subUInt32(&server->sessionCount, 1);
-    UA_atomic_subSize(&server->serverStats.ss.currentSessionCount, 1);
+    server->sessionCount--;
+    server->serverDiagnosticsSummary.currentSessionCount--;
 
     switch(event) {
     case UA_DIAGNOSTICEVENT_CLOSE:
     case UA_DIAGNOSTICEVENT_PURGE:
         break;
     case UA_DIAGNOSTICEVENT_TIMEOUT:
-        UA_atomic_addSize(&server->serverStats.ss.sessionTimeoutCount, 1);
+        server->serverDiagnosticsSummary.sessionTimeoutCount++;
         break;
     case UA_DIAGNOSTICEVENT_REJECT:
-        UA_atomic_addSize(&server->serverStats.ss.rejectedSessionCount, 1);
+        server->serverDiagnosticsSummary.rejectedSessionCount++;
         break;
     case UA_DIAGNOSTICEVENT_SECURITYREJECT:
-        UA_atomic_addSize(&server->serverStats.ss.securityRejectedSessionCount, 1);
+        server->serverDiagnosticsSummary.securityRejectedSessionCount++;
         break;
     case UA_DIAGNOSTICEVENT_ABORT:
-        UA_atomic_addSize(&server->serverStats.ss.sessionAbortCount, 1);
+        server->serverDiagnosticsSummary.sessionAbortCount++;
         break;
     default:
         UA_assert(false);
@@ -289,8 +289,8 @@ Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
         if(response->responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
             UA_LOG_WARNING_CHANNEL(&server->config.logger, channel,
                                    "The client's ApplicationURI did not match the certificate");
-            UA_atomic_addSize(&server->serverStats.ss.securityRejectedSessionCount, 1);
-            UA_atomic_addSize(&server->serverStats.ss.rejectedSessionCount, 1);
+            server->serverDiagnosticsSummary.securityRejectedSessionCount++;
+            server->serverDiagnosticsSummary.rejectedSessionCount++;
             return;
         }
     }
@@ -301,7 +301,7 @@ Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
     if(response->responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
         UA_LOG_WARNING_CHANNEL(&server->config.logger, channel,
                                "Processing CreateSessionRequest failed");
-        UA_atomic_addSize(&server->serverStats.ss.rejectedSessionCount, 1);
+        server->serverDiagnosticsSummary.rejectedSessionCount++;
         return;
     }
 
@@ -775,17 +775,17 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
     /* Activate the session */
     if(!session->activated) {
         session->activated = true;
-        UA_atomic_addSize(&server->serverStats.ss.currentSessionCount, 1);
-        UA_atomic_addSize(&server->serverStats.ss.cumulatedSessionCount, 1);
+        server->serverDiagnosticsSummary.currentSessionCount++;
+        server->serverDiagnosticsSummary.cumulatedSessionCount++;
     }
 
     UA_LOG_INFO_SESSION(&server->config.logger, session, "ActivateSession: Session activated");
     return;
 
 securityRejected:
-    UA_atomic_addSize(&server->serverStats.ss.securityRejectedSessionCount, 1);
+    server->serverDiagnosticsSummary.securityRejectedSessionCount++;
 rejected:
-    UA_atomic_addSize(&server->serverStats.ss.rejectedSessionCount, 1);
+    server->serverDiagnosticsSummary.rejectedSessionCount++;
 }
 
 void
