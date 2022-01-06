@@ -151,7 +151,9 @@ struct UA_Server {
 #endif
 
     /* Statistics */
-    UA_ServerStatistics serverStats;
+    UA_NetworkStatistics networkStatistics;
+    UA_SecureChannelStatistics secureChannelStatistics;
+    UA_ServerDiagnosticsSummaryDataType serverDiagnosticsSummary;
 };
 
 /***********************/
@@ -502,12 +504,14 @@ readValueAttribute(UA_Server *server, UA_Session *session,
  * - array dimensions.
  * Sometimes it can be necessary to transform the content of the value, e.g.
  * byte array to bytestring or uint32 to some enum. If editableValue is non-NULL,
- * we try to create a matching variant that points to the original data. */
+ * we try to create a matching variant that points to the original data.
+ *
+ * The reason is set whenever the return value is false */
 UA_Boolean
 compatibleValue(UA_Server *server, UA_Session *session, const UA_NodeId *targetDataTypeId,
                 UA_Int32 targetValueRank, size_t targetArrayDimensionsSize,
                 const UA_UInt32 *targetArrayDimensions, const UA_Variant *value,
-                const UA_NumericRange *range);
+                const UA_NumericRange *range, const char **reason);
 
 /* Is the DataType compatible */
 UA_Boolean

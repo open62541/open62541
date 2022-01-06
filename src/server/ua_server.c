@@ -523,9 +523,26 @@ verifyServerApplicationURI(const UA_Server *server) {
 }
 #endif
 
-UA_ServerStatistics UA_Server_getStatistics(UA_Server *server)
-{
-   return server->serverStats;
+UA_ServerStatistics
+UA_Server_getStatistics(UA_Server *server) {
+    UA_ServerStatistics stat;
+    stat.ns = server->networkStatistics;
+    stat.scs = server->secureChannelStatistics;
+
+    stat.ss.currentSessionCount =
+        server->serverDiagnosticsSummary.currentSessionCount;
+    stat.ss.cumulatedSessionCount =
+        server->serverDiagnosticsSummary.cumulatedSessionCount;
+    stat.ss.securityRejectedSessionCount =
+        server->serverDiagnosticsSummary.securityRejectedSessionCount;
+    stat.ss.rejectedSessionCount =
+        server->serverDiagnosticsSummary.rejectedSessionCount;
+    stat.ss.sessionTimeoutCount =
+        server->serverDiagnosticsSummary.sessionTimeoutCount;
+    stat.ss.sessionAbortCount =
+        server->serverDiagnosticsSummary.sessionAbortCount;
+    
+    return stat;
 }
 
 /********************/
@@ -598,7 +615,7 @@ UA_Server_run_startup(UA_Server *server) {
     UA_StatusCode result = UA_STATUSCODE_GOOD;
     for(size_t i = 0; i < server->config.networkLayersSize; ++i) {
         UA_ServerNetworkLayer *nl = &server->config.networkLayers[i];
-        nl->statistics = &server->serverStats.ns;
+        nl->statistics = &server->networkStatistics;
         result |= nl->start(nl, &server->config.logger, &server->config.customHostname);
     }
     UA_CHECK_STATUS(result, return result);

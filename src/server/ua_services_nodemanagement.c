@@ -82,6 +82,10 @@ UA_Server_setNodeContext(UA_Server *server, UA_NodeId nodeId,
     return retval;
 }
 
+static UA_StatusCode
+checkSetIsDynamicVariable(UA_Server *server, UA_Session *session,
+                          const UA_NodeId *nodeId);
+
 /**********************/
 /* Consistency Checks */
 /**********************/
@@ -361,9 +365,10 @@ typeCheckVariableNode(UA_Server *server, UA_Session *session,
 
     /* Perform the value typecheck. If this fails, write the current value
      * again. The write-service tries to convert to the correct type... */
+    const char *reason;
     if(!compatibleValue(server, session, &node->dataType, node->valueRank,
                         node->arrayDimensionsSize, node->arrayDimensions,
-                        &value.value, NULL)) {
+                        &value.value, NULL, &reason)) {
         retval = writeValueAttribute(server, session, &node->head.nodeId, &value.value);
         if(retval != UA_STATUSCODE_GOOD) {
             logAddNode(&server->config.logger, session, &node->head.nodeId,
@@ -696,6 +701,15 @@ copyChild(UA_Server *server, UA_Session *session,
             UA_NODESTORE_REMOVE(server, &newNodeId);
             UA_NodeId_clear(&newNodeId);
             return retval;
+        }
+
+        if (rd->nodeClass == UA_NODECLASS_VARIABLE) {
+            retval = checkSetIsDynamicVariable(server, session, &newNodeId);
+
+            if(retval != UA_STATUSCODE_GOOD) {
+                UA_NODESTORE_REMOVE(server, &newNodeId);
+                return retval;
+            }
         }
 
         /* For the new child, recursively copy the members of the original. No

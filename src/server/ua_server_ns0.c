@@ -13,6 +13,9 @@
  */
 
 #include "open62541/namespace0_generated.h"
+#include "open62541/nodeids.h"
+#include "open62541/types.h"
+#include "open62541/types_generated.h"
 
 #include "ua_server_internal.h"
 #include "ua_session.h"
@@ -388,6 +391,79 @@ readStatus(UA_Server *server, const UA_NodeId *sessionId, void *sessionContext,
     value->hasValue = true;
     return UA_copy(data, value->value.data, value->value.type);
 }
+
+#ifdef UA_ENABLE_DIAGNOSTICS
+static UA_StatusCode
+readDiagnostics(UA_Server *server, const UA_NodeId *sessionId, void *sessionContext,
+                const UA_NodeId *nodeId, void *nodeContext, UA_Boolean sourceTimestamp,
+                const UA_NumericRange *range, UA_DataValue *value) {
+    if(range) {
+        value->hasStatus = true;
+        value->status = UA_STATUSCODE_BADINDEXRANGEINVALID;
+        return UA_STATUSCODE_GOOD;
+    }
+
+    if(sourceTimestamp) {
+        value->hasSourceTimestamp = true;
+        value->sourceTimestamp = UA_DateTime_now();
+    }
+
+    UA_assert(nodeId->identifierType == UA_NODEIDTYPE_NUMERIC);
+
+    void *data = NULL;
+    const UA_DataType *type = &UA_TYPES[UA_TYPES_UINT32]; /* Default */
+
+    switch(nodeId->identifier.numeric) {
+    case UA_NS0ID_SERVER_SERVERDIAGNOSTICS_SERVERDIAGNOSTICSSUMMARY:
+        data = &server->serverDiagnosticsSummary;
+        type = &UA_TYPES[UA_TYPES_SERVERDIAGNOSTICSSUMMARYDATATYPE];
+        break;
+    case UA_NS0ID_SERVER_SERVERDIAGNOSTICS_SERVERDIAGNOSTICSSUMMARY_SERVERVIEWCOUNT:
+        data = &server->serverDiagnosticsSummary.serverViewCount;
+        break;
+    case UA_NS0ID_SERVER_SERVERDIAGNOSTICS_SERVERDIAGNOSTICSSUMMARY_CURRENTSESSIONCOUNT:
+        data = &server->serverDiagnosticsSummary.currentSessionCount;
+        break;
+    case UA_NS0ID_SERVER_SERVERDIAGNOSTICS_SERVERDIAGNOSTICSSUMMARY_CUMULATEDSESSIONCOUNT:
+        data = &server->serverDiagnosticsSummary.cumulatedSessionCount;
+        break;
+    case UA_NS0ID_SERVER_SERVERDIAGNOSTICS_SERVERDIAGNOSTICSSUMMARY_SECURITYREJECTEDSESSIONCOUNT:
+        data = &server->serverDiagnosticsSummary.securityRejectedSessionCount;
+        break;
+    case UA_NS0ID_SERVER_SERVERDIAGNOSTICS_SERVERDIAGNOSTICSSUMMARY_REJECTEDSESSIONCOUNT:
+        data = &server->serverDiagnosticsSummary.rejectedSessionCount;
+        break;
+    case UA_NS0ID_SERVER_SERVERDIAGNOSTICS_SERVERDIAGNOSTICSSUMMARY_SESSIONTIMEOUTCOUNT:
+        data = &server->serverDiagnosticsSummary.sessionTimeoutCount;
+        break;
+    case UA_NS0ID_SERVER_SERVERDIAGNOSTICS_SERVERDIAGNOSTICSSUMMARY_SESSIONABORTCOUNT:
+        data = &server->serverDiagnosticsSummary.sessionAbortCount;
+        break;
+    case UA_NS0ID_SERVER_SERVERDIAGNOSTICS_SERVERDIAGNOSTICSSUMMARY_CURRENTSUBSCRIPTIONCOUNT:
+        data = &server->serverDiagnosticsSummary.currentSubscriptionCount;
+        break;
+    case UA_NS0ID_SERVER_SERVERDIAGNOSTICS_SERVERDIAGNOSTICSSUMMARY_CUMULATEDSUBSCRIPTIONCOUNT:
+        data = &server->serverDiagnosticsSummary.cumulatedSubscriptionCount;
+        break;
+    case UA_NS0ID_SERVER_SERVERDIAGNOSTICS_SERVERDIAGNOSTICSSUMMARY_PUBLISHINGINTERVALCOUNT:
+        data = &server->serverDiagnosticsSummary.publishingIntervalCount;
+        break;
+    case UA_NS0ID_SERVER_SERVERDIAGNOSTICS_SERVERDIAGNOSTICSSUMMARY_SECURITYREJECTEDREQUESTSCOUNT:
+        data = &server->serverDiagnosticsSummary.securityRejectedRequestsCount;
+        break;
+    case UA_NS0ID_SERVER_SERVERDIAGNOSTICS_SERVERDIAGNOSTICSSUMMARY_REJECTEDREQUESTSCOUNT:
+        data = &server->serverDiagnosticsSummary.rejectedRequestsCount;
+        break;
+    default:
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
+
+    UA_StatusCode res = UA_Variant_setScalarCopy(&value->value, data, type);
+    if(res == UA_STATUSCODE_GOOD)
+        value->hasValue = true;
+    return res;
+}
+#endif
 
 #ifdef UA_GENERATED_NAMESPACE_ZERO
 static UA_StatusCode
@@ -899,15 +975,12 @@ UA_Server_initNS0(UA_Server *server) {
     retVal |= UA_Server_setVariableNode_dataSource(server,
                         UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVICELEVEL), serviceLevel);
 
-    /* ServerDiagnostics - ServerDiagnosticsSummary */
-    UA_ServerDiagnosticsSummaryDataType serverDiagnosticsSummary;
-    UA_ServerDiagnosticsSummaryDataType_init(&serverDiagnosticsSummary);
-    retVal |= writeNs0Variable(server, UA_NS0ID_SERVER_SERVERDIAGNOSTICS_SERVERDIAGNOSTICSSUMMARY,
-                               &serverDiagnosticsSummary,
-                               &UA_TYPES[UA_TYPES_SERVERDIAGNOSTICSSUMMARYDATATYPE]);
-
     /* ServerDiagnostics - EnabledFlag */
+#ifdef UA_ENABLE_DIAGNOSTICS
+    UA_Boolean enabledFlag = true;
+#else
     UA_Boolean enabledFlag = false;
+#endif
     retVal |= writeNs0Variable(server, UA_NS0ID_SERVER_SERVERDIAGNOSTICS_ENABLEDFLAG,
                                &enabledFlag, &UA_TYPES[UA_TYPES_BOOLEAN]);
 
@@ -1025,14 +1098,69 @@ UA_Server_initNS0(UA_Server *server) {
     UA_Server_deleteNode(server, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVERCONFIGURATION), true);
     UA_Server_deleteNode(server, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SETSUBSCRIPTIONDURABLE), true);
 
-    /* Remove unused diagnostics */
+#ifdef UA_ENABLE_DIAGNOSTICS
+    /* ServerDiagnostics - ServerDiagnosticsSummary */
+    UA_DataSource serverDiagSummary = {readDiagnostics, NULL};
+    retVal |= UA_Server_setVariableNode_dataSource(server,
+                        UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERDIAGNOSTICS_SERVERDIAGNOSTICSSUMMARY), serverDiagSummary);
+
+    /* ServerDiagnostics - ServerDiagnosticsSummary - ServerViewCount */
+    retVal |= UA_Server_setVariableNode_dataSource(server,
+                        UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERDIAGNOSTICS_SERVERDIAGNOSTICSSUMMARY_SERVERVIEWCOUNT), serverDiagSummary);
+
+    /* ServerDiagnostics - ServerDiagnosticsSummary - CurrentSessionCount */
+    retVal |= UA_Server_setVariableNode_dataSource(server,
+                        UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERDIAGNOSTICS_SERVERDIAGNOSTICSSUMMARY_CURRENTSESSIONCOUNT), serverDiagSummary);
+
+    /* ServerDiagnostics - ServerDiagnosticsSummary - CumulatedSessionCount */
+    retVal |= UA_Server_setVariableNode_dataSource(server,
+                        UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERDIAGNOSTICS_SERVERDIAGNOSTICSSUMMARY_CUMULATEDSESSIONCOUNT), serverDiagSummary);
+
+    /* ServerDiagnostics - ServerDiagnosticsSummary - SecurityRejectedSessionCount */
+    retVal |= UA_Server_setVariableNode_dataSource(server,
+                        UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERDIAGNOSTICS_SERVERDIAGNOSTICSSUMMARY_SECURITYREJECTEDSESSIONCOUNT), serverDiagSummary);
+
+    /* ServerDiagnostics - ServerDiagnosticsSummary - RejectedSessionCount */
+    retVal |= UA_Server_setVariableNode_dataSource(server,
+                        UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERDIAGNOSTICS_SERVERDIAGNOSTICSSUMMARY_REJECTEDSESSIONCOUNT), serverDiagSummary);
+
+    /* ServerDiagnostics - ServerDiagnosticsSummary - SessionTimeoutCount */
+    retVal |= UA_Server_setVariableNode_dataSource(server,
+                        UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERDIAGNOSTICS_SERVERDIAGNOSTICSSUMMARY_SESSIONTIMEOUTCOUNT), serverDiagSummary);
+
+    /* ServerDiagnostics - ServerDiagnosticsSummary - SessionAbortCount */
+    retVal |= UA_Server_setVariableNode_dataSource(server,
+                        UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERDIAGNOSTICS_SERVERDIAGNOSTICSSUMMARY_SESSIONABORTCOUNT), serverDiagSummary);
+
+    /* ServerDiagnostics - ServerDiagnosticsSummary - CurrentSubscriptionCount */
+    retVal |= UA_Server_setVariableNode_dataSource(server,
+                        UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERDIAGNOSTICS_SERVERDIAGNOSTICSSUMMARY_CURRENTSUBSCRIPTIONCOUNT), serverDiagSummary);
+
+    /* ServerDiagnostics - ServerDiagnosticsSummary - CumulatedSubscriptionCount */
+    retVal |= UA_Server_setVariableNode_dataSource(server,
+                        UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERDIAGNOSTICS_SERVERDIAGNOSTICSSUMMARY_CUMULATEDSUBSCRIPTIONCOUNT), serverDiagSummary);
+
+    /* ServerDiagnostics - ServerDiagnosticsSummary - PublishingIntervalCount */
+    retVal |= UA_Server_setVariableNode_dataSource(server,
+                        UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERDIAGNOSTICS_SERVERDIAGNOSTICSSUMMARY_PUBLISHINGINTERVALCOUNT), serverDiagSummary);
+
+    /* ServerDiagnostics - ServerDiagnosticsSummary - SecurityRejectedRequestsCount */
+    retVal |= UA_Server_setVariableNode_dataSource(server,
+                        UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERDIAGNOSTICS_SERVERDIAGNOSTICSSUMMARY_SECURITYREJECTEDREQUESTSCOUNT), serverDiagSummary);
+
+    /* ServerDiagnostics - ServerDiagnosticsSummary - RejectedRequestsCount */
+    retVal |= UA_Server_setVariableNode_dataSource(server,
+                        UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERDIAGNOSTICS_SERVERDIAGNOSTICSSUMMARY_REJECTEDREQUESTSCOUNT), serverDiagSummary);
+#else
+    /* Removing these NodeIds make Server Object to be non-complaint with UA
+     * 1.03 in CTT (Base Inforamtion/Base Info Core Structure/ 001.js) In the
+     * 1.04 specification this has been resolved by allowing to remove these
+     * static nodes as well */
     UA_Server_deleteNode(server, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERDIAGNOSTICS_SAMPLINGINTERVALDIAGNOSTICSARRAY), true);
     UA_Server_deleteNode(server, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERDIAGNOSTICS_SESSIONSDIAGNOSTICSSUMMARY), true);
-
-    /* Removing these NodeIds make Server Object to be non-complaint with UA 1.03  in CTT (Base Inforamtion/Base Info Core Structure/ 001.js)
-     * In the 1.04 specification this has been resolved by allowing to remove these static nodes as well */
     UA_Server_deleteNode(server, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERDIAGNOSTICS_SERVERDIAGNOSTICSSUMMARY), true);
     UA_Server_deleteNode(server, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERDIAGNOSTICS_SUBSCRIPTIONDIAGNOSTICSARRAY), true);
+#endif
 
 #ifndef UA_ENABLE_PUBSUB
     UA_Server_deleteNode(server, UA_NODEID_NUMERIC(0, UA_NS0ID_PUBLISHSUBSCRIBE), true);
