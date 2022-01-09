@@ -151,12 +151,13 @@ UA_Boolean is_wss = false;
             return UA_STATUSCODE_BADTCPENDPOINTURLINVALID;
         /* Test if the end of a valid port was reached */
         curr += progress;
-        if(curr == endpointUrl->length || endpointUrl->data[curr] == '/')
+        if(curr == endpointUrl->length || endpointUrl->data[curr] == '/') {
             *outPort = (u16)largeNum;
 
-        if (is_tcp || is_udp) {
-            if(curr == endpointUrl->length) {
-        	    return UA_STATUSCODE_GOOD;
+            if (is_tcp || is_udp) {
+                if(curr == endpointUrl->length) {
+        	        return UA_STATUSCODE_GOOD;
+                }
             }
         }
     }
