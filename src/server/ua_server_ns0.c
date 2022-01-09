@@ -13,9 +13,6 @@
  */
 
 #include "open62541/namespace0_generated.h"
-#include "open62541/nodeids.h"
-#include "open62541/types.h"
-#include "open62541/types_generated.h"
 
 #include "ua_server_internal.h"
 #include "ua_session.h"
