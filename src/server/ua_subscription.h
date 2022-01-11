@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  *
- *    Copyright 2015-2018, 2021 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
+ *    Copyright 2015-2018, 2021-2022 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
  *    Copyright 2015 (c) Chris Iatrou
  *    Copyright 2015-2016 (c) Sten Grüner
  *    Copyright 2015 (c) Oleksiy Vasylyev
@@ -281,6 +281,28 @@ struct UA_Subscription {
     /* Retransmission Queue */
     NotificationMessageQueue retransmissionQueue;
     size_t retransmissionQueueSize;
+
+    /* Statistics for the server diagnostics. The fields are defined according
+     * to the SubscriptionDiagnosticsDataType (Part 5, §12.15). */
+#ifdef UA_ENABLE_DIAGNOSTICS
+    UA_UInt32 modifyCount; /* TODO: Update the statistics */
+    UA_UInt32 enableCount; /* TODO: Update the statistics */
+    UA_UInt32 disableCount; /* TODO: Update the statistics */
+    UA_UInt32 republishRequestCount; /* TODO: Update the statistics */
+    UA_UInt32 republishMessageCount; /* TODO: Update the statistics */
+    UA_UInt32 transferRequestCount; /* TODO: Update the statistics */
+    UA_UInt32 transferredToAltClientCount; /* TODO: Update the statistics */
+    UA_UInt32 transferredToSameClientCount; /* TODO: Update the statistics */
+    UA_UInt32 publishRequestCount; /* TODO: Update the statistics */
+    UA_UInt32 dataChangeNotificationsCount; /* TODO: Update the statistics */
+    UA_UInt32 eventNotificationsCount; /* TODO: Update the statistics */
+    UA_UInt32 notificationsCount; /* TODO: Update the statistics */
+    UA_UInt32 latePublishRequestCount; /* TODO: Update the statistics */
+    UA_UInt32 unacknowledgedMessageCount; /* TODO: Update the statistics */
+    UA_UInt32 discardedMessageCount; /* TODO: Update the statistics */
+    UA_UInt32 monitoringQueueOverflowCount; /* TODO: Update the statistics */
+    UA_UInt32 eventQueueOverFlowCount; /* TODO: Update the statistics */
+#endif
 };
 
 UA_Subscription * UA_Subscription_new(void);

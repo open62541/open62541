@@ -463,6 +463,83 @@ readDiagnostics(UA_Server *server, const UA_NodeId *sessionId, void *sessionCont
         value->hasValue = true;
     return res;
 }
+
+static void
+fillSubscriptionDiagnostics(UA_Subscription *sub,
+                            UA_SubscriptionDiagnosticsDataType *diag) {
+    UA_NodeId_copy(&sub->session->sessionId, &diag->sessionId); /* ignore status */
+    diag->subscriptionId = sub->subscriptionId;
+    diag->priority = sub->priority;
+    diag->publishingInterval = sub->publishingInterval;
+    diag->maxKeepAliveCount = sub->maxKeepAliveCount;
+    diag->maxLifetimeCount = sub->lifeTimeCount;
+    diag->maxNotificationsPerPublish = sub->notificationsPerPublish;
+    diag->publishingEnabled = sub->publishingEnabled;
+    diag->modifyCount = sub->modifyCount;
+    diag->enableCount = sub->enableCount;
+    diag->disableCount = sub->disableCount;
+    diag->republishRequestCount = sub->republishRequestCount;
+    diag->republishMessageRequestCount =
+        sub->republishRequestCount; /* Always equal to the previous republishRequestCount */
+    diag->republishMessageCount = sub->republishMessageCount;
+    diag->transferRequestCount = sub->transferRequestCount;
+    diag->transferredToAltClientCount = sub->transferredToAltClientCount;
+    diag->transferredToSameClientCount = sub->transferredToSameClientCount;
+    diag->publishRequestCount = sub->publishRequestCount;
+    diag->dataChangeNotificationsCount = sub->dataChangeNotificationsCount;
+    diag->eventNotificationsCount = sub->eventNotificationsCount;
+    diag->notificationsCount = sub->notificationsCount;
+    diag->latePublishRequestCount = sub->latePublishRequestCount;
+    diag->currentKeepAliveCount = sub->currentKeepAliveCount;
+    diag->currentLifetimeCount = sub->currentLifetimeCount;
+    diag->unacknowledgedMessageCount = sub->unacknowledgedMessageCount;
+    diag->discardedMessageCount = sub->discardedMessageCount;
+    diag->monitoredItemCount = sub->monitoredItemsSize;
+    diag->monitoringQueueOverflowCount = sub->monitoringQueueOverflowCount;
+    diag->nextSequenceNumber = sub->nextSequenceNumber;
+    diag->eventQueueOverFlowCount = sub->eventQueueOverFlowCount;
+
+    /* Count the disabled MonitoredItems */
+    UA_MonitoredItem *mon;
+    LIST_FOREACH(mon, &sub->monitoredItems, listEntry) {
+        if(mon->monitoringMode == UA_MONITORINGMODE_DISABLED)
+            diag->disabledMonitoredItemCount++;
+    }
+}
+
+static UA_StatusCode
+readSubscriptionDiagnostics(UA_Server *server,
+                            const UA_NodeId *sessionId, void *sessionContext,
+                            const UA_NodeId *nodeId, void *nodeContext,
+                            UA_Boolean sourceTimestamp,
+                            const UA_NumericRange *range, UA_DataValue *value) {
+    /* Get the current session */
+    UA_Session *session = UA_Server_getSessionById(server, sessionId);
+    if(!session)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
+    /* Allocate the output array */
+    UA_SubscriptionDiagnosticsDataType *sd = (UA_SubscriptionDiagnosticsDataType*)
+        UA_Array_new(session->subscriptionsSize,
+                     &UA_TYPES[UA_TYPES_SUBSCRIPTIONDIAGNOSTICSDATATYPE]);
+    if(!sd)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+
+    /* Collect the statistics */
+    size_t i = 0;
+    UA_Subscription *sub;
+    TAILQ_FOREACH(sub, &session->subscriptions, sessionListEntry) {
+        fillSubscriptionDiagnostics(sub, &sd[i]);
+        i++;
+    }
+
+    /* Set the output */
+    value->hasValue = true;
+    UA_Variant_setArray(&value->value, sd, session->subscriptionsSize,
+                        &UA_TYPES[UA_TYPES_SUBSCRIPTIONDIAGNOSTICSDATATYPE]);
+    return UA_STATUSCODE_GOOD;
+}
+
 #endif
 
 #ifdef UA_GENERATED_NAMESPACE_ZERO
@@ -1151,6 +1228,11 @@ UA_Server_initNS0(UA_Server *server) {
     /* ServerDiagnostics - ServerDiagnosticsSummary - RejectedRequestsCount */
     retVal |= UA_Server_setVariableNode_dataSource(server,
                         UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERDIAGNOSTICS_SERVERDIAGNOSTICSSUMMARY_REJECTEDREQUESTSCOUNT), serverDiagSummary);
+
+    /* ServerDiagnostics - SubscriptionDiagnosticsArray */
+    UA_DataSource serverSubDiagSummary = {readSubscriptionDiagnostics, NULL};
+    retVal |= UA_Server_setVariableNode_dataSource(server,
+                        UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERDIAGNOSTICS_SUBSCRIPTIONDIAGNOSTICSARRAY), serverSubDiagSummary);
 #else
     /* Removing these NodeIds make Server Object to be non-complaint with UA
      * 1.03 in CTT (Base Inforamtion/Base Info Core Structure/ 001.js) In the
