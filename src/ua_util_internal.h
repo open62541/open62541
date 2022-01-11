@@ -206,9 +206,6 @@ isTrue(uint8_t expr) {
  * Utility Functions
  * ----------------- */
 
-const UA_DataType *
-UA_findDataTypeWithCustom(const UA_NodeId *typeId,
-                          const UA_DataTypeArray *customTypes);
 
 /* Get the number of optional fields contained in an structure type */
 size_t UA_EXPORT
