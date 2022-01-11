@@ -135,6 +135,12 @@
       <Reference ReferenceType="HasComponent" IsForward="false">i=2275</Reference>
     </References>
   </UAVariable>
+  <UAVariable NodeId="i=2290" BrowseName="SubscriptionDiagnosticsArray" ParentNodeId="i=2274" DataType="i=874" ValueRank="1" ArrayDimensions="0">
+    <DisplayName>SubscriptionDiagnosticsArray</DisplayName>
+    <References>
+      <Reference ReferenceType="HasComponent" IsForward="false">i=2274</Reference>
+    </References>
+  </UAVariable>
   <UAVariableType NodeId="i=2150" BrowseName="ServerDiagnosticsSummaryType" DataType="i=859">
     <DisplayName>ServerDiagnosticsSummaryType</DisplayName>
     <References>
@@ -267,6 +273,45 @@
       <Field Name="PublishingIntervalCount" DataType="i=7" />
       <Field Name="SecurityRejectedRequestsCount" DataType="i=7" />
       <Field Name="RejectedRequestsCount" DataType="i=7" />
+    </Definition>
+  </UADataType>
+  <UADataType NodeId="i=874" BrowseName="SubscriptionDiagnosticsDataType">
+    <DisplayName>SubscriptionDiagnosticsDataType</DisplayName>
+    <References>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=22</Reference>
+    </References>
+    <Definition Name="SubscriptionDiagnosticsDataType">
+      <Field Name="SessionId" DataType="i=17" />
+      <Field Name="SubscriptionId" DataType="i=7" />
+      <Field Name="Priority" DataType="i=3" />
+      <Field Name="PublishingInterval" DataType="i=290" />
+      <Field Name="MaxKeepAliveCount" DataType="i=7" />
+      <Field Name="MaxLifetimeCount" DataType="i=7" />
+      <Field Name="MaxNotificationsPerPublish" DataType="i=7" />
+      <Field Name="PublishingEnabled" DataType="i=1" />
+      <Field Name="ModifyCount" DataType="i=7" />
+      <Field Name="EnableCount" DataType="i=7" />
+      <Field Name="DisableCount" DataType="i=7" />
+      <Field Name="RepublishRequestCount" DataType="i=7" />
+      <Field Name="RepublishMessageRequestCount" DataType="i=7" />
+      <Field Name="RepublishMessageCount" DataType="i=7" />
+      <Field Name="TransferRequestCount" DataType="i=7" />
+      <Field Name="TransferredToAltClientCount" DataType="i=7" />
+      <Field Name="TransferredToSameClientCount" DataType="i=7" />
+      <Field Name="PublishRequestCount" DataType="i=7" />
+      <Field Name="DataChangeNotificationsCount" DataType="i=7" />
+      <Field Name="EventNotificationsCount" DataType="i=7" />
+      <Field Name="NotificationsCount" DataType="i=7" />
+      <Field Name="LatePublishRequestCount" DataType="i=7" />
+      <Field Name="CurrentKeepAliveCount" DataType="i=7" />
+      <Field Name="CurrentLifetimeCount" DataType="i=7" />
+      <Field Name="UnacknowledgedMessageCount" DataType="i=7" />
+      <Field Name="DiscardedMessageCount" DataType="i=7" />
+      <Field Name="MonitoredItemCount" DataType="i=7" />
+      <Field Name="DisabledMonitoredItemCount" DataType="i=7" />
+      <Field Name="MonitoringQueueOverflowCount" DataType="i=7" />
+      <Field Name="NextSequenceNumber" DataType="i=7" />
+      <Field Name="EventQueueOverFlowCount" DataType="i=7" />
     </Definition>
   </UADataType>
 </UANodeSet>
