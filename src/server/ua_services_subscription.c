@@ -395,6 +395,11 @@ Service_Republish(UA_Server *server, UA_Session *session,
     /* Reset the subscription lifetime */
     sub->currentLifetimeCount = 0;
 
+    /* Update the subscription statistics */
+#ifdef UA_ENABLE_DIAGNOSTICS
+    sub->republishRequestCount++;
+#endif
+
     /* Find the notification in the retransmission queue  */
     UA_NotificationMessageEntry *entry;
     TAILQ_FOREACH(entry, &sub->retransmissionQueue, listEntry) {
@@ -408,6 +413,11 @@ Service_Republish(UA_Server *server, UA_Session *session,
 
     response->responseHeader.serviceResult =
         UA_NotificationMessage_copy(&entry->message, &response->notificationMessage);
+
+    /* Update the subscription statistics for the case where we return a message */
+#ifdef UA_ENABLE_DIAGNOSTICS
+    sub->republishMessageCount++;
+#endif
 }
 
 static UA_StatusCode
