@@ -97,6 +97,25 @@ struct UA_EventLoop {
      * EventLoop is not stopped. */
     UA_StatusCode (*free)(UA_EventLoop *el);
 
+    /* EventLoop Time Domain
+     * ~~~~~~~~~~~~~~~~~~~~~
+     * Each EventLoop instance can manage its own time domain. This affects the
+     * execution of timed/cyclic callbacks and time-based sending of network
+     * packets (if this is implemented). Managing independent time domains is
+     * important when different parts of a system a synchronized to different
+     * external (network-wide) clocks.
+     *
+     * Note that the logger configured in the EventLoop generates timestamps
+     * internally as well. If the logger uses a different time domain than the
+     * EventLoop, discrepancies may appear in the logs.
+     *
+     * The time domain of the EventLoop is exposed via the following functons.
+     * See `open62541/types.h` for the documentation of their equivalent
+     * globally defined functions. */
+    UA_DateTime (*dateTime_now)(UA_EventLoop *el);
+    UA_DateTime (*dateTime_nowMonotonic)(UA_EventLoop *el);
+    UA_Int64    (*dateTime_localTimeUtcOffset)(UA_EventLoop *el);
+
     /* Cyclic and Delayed Callbacks
      * ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
      * Cyclic callbacks are executed regularly with an interval. A delayed

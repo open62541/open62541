@@ -6,9 +6,6 @@
  */
 
 #include "eventloop_posix.h"
-#ifdef __linux__
-#include <linux/version.h>
-#endif
 
 #if defined(UA_HAVE_EPOLL)
 
@@ -72,17 +69,17 @@ UA_EventLoopPOSIX_pollFDs(UA_EventLoopPOSIX *el, UA_DateTime listenTimeout) {
 
     /* Poll the registered sockets */
     struct epoll_event epoll_events[64];
-#if LINUX_VERSION_CODE < KERNEL_VERSION(5,11,0)
-    int events = epoll_pwait(el->epollfd, epoll_events, 64,
-                             (int)(listenTimeout / UA_DATETIME_MSEC), NULL);
-#else
-    struct timespec precisionTimeout = {
-        (long)(listenTimeout / UA_DATETIME_SEC),
-        (long)((listenTimeout % UA_DATETIME_SEC) * 100)
-    };
-    int events = epoll_pwait2(el->epollfd, epoll_events, 64,
-                              precisionTimeout, NULL);
-#endif
+    int events = epoll_wait(el->epollfd, epoll_events, 64,
+                            (int)(listenTimeout / UA_DATETIME_MSEC));
+    /* TODO: Replace with pwait2 for higher-precision timeouts once this is
+     * available in the standard library.
+     *
+     * struct timespec precisionTimeout = {
+     *  (long)(listenTimeout / UA_DATETIME_SEC),
+     *   (long)((listenTimeout % UA_DATETIME_SEC) * 100)
+     * };
+     * int events = epoll_pwait2(el->epollfd, epoll_events, 64,
+     *                        precisionTimeout, NULL); */
 
     /* Handle error conditions */
     if(events == -1) {
