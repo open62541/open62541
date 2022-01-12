@@ -285,7 +285,7 @@ struct UA_Subscription {
     /* Statistics for the server diagnostics. The fields are defined according
      * to the SubscriptionDiagnosticsDataType (Part 5, §12.15). */
 #ifdef UA_ENABLE_DIAGNOSTICS
-    UA_UInt32 modifyCount; /* TODO: Update the statistics */
+    UA_UInt32 modifyCount;
     UA_UInt32 enableCount; /* TODO: Update the statistics */
     UA_UInt32 disableCount; /* TODO: Update the statistics */
     UA_UInt32 republishRequestCount; /* TODO: Update the statistics */
