@@ -286,8 +286,8 @@ struct UA_Subscription {
      * to the SubscriptionDiagnosticsDataType (Part 5, §12.15). */
 #ifdef UA_ENABLE_DIAGNOSTICS
     UA_UInt32 modifyCount;
-    UA_UInt32 enableCount; /* TODO: Update the statistics */
-    UA_UInt32 disableCount; /* TODO: Update the statistics */
+    UA_UInt32 enableCount;
+    UA_UInt32 disableCount;
     UA_UInt32 republishRequestCount; /* TODO: Update the statistics */
     UA_UInt32 republishMessageCount; /* TODO: Update the statistics */
     UA_UInt32 transferRequestCount; /* TODO: Update the statistics */

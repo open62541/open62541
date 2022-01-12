@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. 
  *
- *    Copyright 2014-2018 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
+ *    Copyright 2014-2018, 2022 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
  *    Copyright 2016-2017 (c) Florian Palm
  *    Copyright 2015 (c) Chris Iatrou
  *    Copyright 2015-2016 (c) Sten Grüner
@@ -21,6 +21,21 @@
 #include "ua_subscription.h"
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS /* conditional compilation */
+
+static void
+setPublishingEnabled(UA_Subscription *sub, UA_Boolean publishingEnabled) {
+    if(sub->publishingEnabled == publishingEnabled)
+        return;
+
+    sub->publishingEnabled = publishingEnabled;
+
+#ifdef UA_ENABLE_DIAGNOSTICS
+    if(publishingEnabled)
+        sub->enableCount++;
+    else
+        sub->disableCount++;
+#endif
+}
 
 static void
 setSubscriptionSettings(UA_Server *server, UA_Subscription *subscription,
@@ -80,7 +95,7 @@ Service_CreateSubscription(UA_Server *server, UA_Session *session,
                             request->requestedLifetimeCount,
                             request->requestedMaxKeepAliveCount,
                             request->maxNotificationsPerPublish, request->priority);
-    sub->publishingEnabled = request->publishingEnabled;
+    setPublishingEnabled(sub, request->publishingEnabled);
     sub->currentKeepAliveCount = sub->maxKeepAliveCount; /* set settings first */
 
     /* Assign the SubscriptionId */
@@ -186,7 +201,7 @@ Operation_SetPublishingMode(UA_Server *server, UA_Session *session,
     }
 
     sub->currentLifetimeCount = 0; /* Reset the subscription lifetime */
-    sub->publishingEnabled = *publishingEnabled; /* Set the publishing mode */
+    setPublishingEnabled(sub, *publishingEnabled); /* Set the publishing mode */
 }
 
 void
