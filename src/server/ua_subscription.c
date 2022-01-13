@@ -388,6 +388,15 @@ sendStatusChangeDelete(UA_Server *server, UA_Subscription *sub,
     UA_Subscription_delete(server, sub);
 }
 
+/* Called every time we set the subscription late (or it is still late) */
+static void
+UA_Subscription_isLate(UA_Subscription *sub) {
+    sub->state = UA_SUBSCRIPTIONSTATE_LATE;
+#ifdef UA_ENABLE_DIAGNOSTICS
+    sub->latePublishRequestCount++;
+#endif
+}
+
 void
 UA_Subscription_publish(UA_Server *server, UA_Subscription *sub) {
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
@@ -444,12 +453,13 @@ UA_Subscription_publish(UA_Server *server, UA_Subscription *sub) {
         UA_LOG_DEBUG_SUBSCRIPTION(&server->config.logger, sub,
                                   "Want to send a publish response but cannot. "
                                   "The subscription is late.");
-        sub->state = UA_SUBSCRIPTIONSTATE_LATE;
+        UA_Subscription_isLate(sub);
         if(pre)
             UA_Session_queuePublishReq(sub->session, pre, true); /* Re-enqueue */
         return;
     }
 
+    UA_assert(pre);
     UA_assert(sub->session); /* Otherwise pre is NULL */
 
     /* Prepare the response */
@@ -469,7 +479,8 @@ UA_Subscription_publish(UA_Server *server, UA_Subscription *sub) {
                 UA_LOG_WARNING_SUBSCRIPTION(&server->config.logger, sub,
                                             "Could not allocate memory for retransmission. "
                                             "The subscription is late.");
-                sub->state = UA_SUBSCRIPTIONSTATE_LATE;
+
+                UA_Subscription_isLate(sub);
                 UA_Session_queuePublishReq(sub->session, pre, true); /* Re-enqueue */
                 return;
             }
@@ -485,7 +496,7 @@ UA_Subscription_publish(UA_Server *server, UA_Subscription *sub) {
             /* If the retransmission queue is enabled a retransmission message is allocated */
             if(retransmission)
                 UA_free(retransmission);
-            sub->state = UA_SUBSCRIPTIONSTATE_LATE;
+            UA_Subscription_isLate(sub);
             UA_Session_queuePublishReq(sub->session, pre, true); /* Re-enqueue */
             return;
         }
