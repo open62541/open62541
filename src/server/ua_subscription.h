@@ -298,7 +298,6 @@ struct UA_Subscription {
     UA_UInt32 eventNotificationsCount;
     UA_UInt32 notificationsCount;
     UA_UInt32 latePublishRequestCount;
-    UA_UInt32 unacknowledgedMessageCount; /* TODO: Update the statistics */
     UA_UInt32 discardedMessageCount; /* TODO: Update the statistics */
     UA_UInt32 monitoringQueueOverflowCount; /* TODO: Update the statistics */
     UA_UInt32 eventQueueOverFlowCount; /* TODO: Update the statistics */

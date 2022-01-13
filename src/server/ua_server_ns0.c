@@ -492,7 +492,7 @@ fillSubscriptionDiagnostics(UA_Subscription *sub,
     diag->latePublishRequestCount = sub->latePublishRequestCount;
     diag->currentKeepAliveCount = sub->currentKeepAliveCount;
     diag->currentLifetimeCount = sub->currentLifetimeCount;
-    diag->unacknowledgedMessageCount = sub->unacknowledgedMessageCount;
+    diag->unacknowledgedMessageCount = (UA_UInt32)sub->retransmissionQueueSize;
     diag->discardedMessageCount = sub->discardedMessageCount;
     diag->monitoredItemCount = sub->monitoredItemsSize;
     diag->monitoringQueueOverflowCount = sub->monitoringQueueOverflowCount;
