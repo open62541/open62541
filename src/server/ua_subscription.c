@@ -182,10 +182,12 @@ UA_Subscription_removeRetransmissionMessage(UA_Subscription *sub, UA_UInt32 sequ
     return UA_STATUSCODE_GOOD;
 }
 
+/* The output counters are only set when the preparation is successful */
 static UA_StatusCode
 prepareNotificationMessage(UA_Server *server, UA_Subscription *sub,
-                           UA_NotificationMessage *message, size_t notifications) {
-    UA_assert(notifications > 0);
+                           UA_NotificationMessage *message,
+                           size_t maxNotifications) {
+    UA_assert(maxNotifications > 0);
 
     /* Allocate an ExtensionObject for Event- and DataChange-Notifications. Also
      * there can be StatusChange-Notifications. The standard says in Part 4,
@@ -201,8 +203,8 @@ prepareNotificationMessage(UA_Server *server, UA_Subscription *sub,
 
     /* Pre-allocate DataChangeNotifications */
     size_t notificationDataIdx = 0;
+    size_t dcnPos = 0; /* How many DataChangeNotifications? */
     UA_DataChangeNotification *dcn = NULL;
-    size_t dcnPos = 0; /* How many DataChangeNotifications were moved into the list? */
     if(sub->dataChangeNotifications > 0) {
         dcn = UA_DataChangeNotification_new();
         if(!dcn) {
@@ -212,8 +214,8 @@ prepareNotificationMessage(UA_Server *server, UA_Subscription *sub,
         UA_ExtensionObject_setValue(message->notificationData, dcn,
                                     &UA_TYPES[UA_TYPES_DATACHANGENOTIFICATION]);
         size_t dcnSize = sub->dataChangeNotifications;
-        if(dcnSize > notifications)
-            dcnSize = notifications;
+        if(dcnSize > maxNotifications)
+            dcnSize = maxNotifications;
         dcn->monitoredItems = (UA_MonitoredItemNotification*)
             UA_Array_new(dcnSize, &UA_TYPES[UA_TYPES_MONITOREDITEMNOTIFICATION]);
         if(!dcn->monitoredItems) {
@@ -225,8 +227,8 @@ prepareNotificationMessage(UA_Server *server, UA_Subscription *sub,
     }
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
+    size_t enlPos = 0; /* How many EventNotifications? */
     UA_EventNotificationList *enl = NULL;
-    size_t enlPos = 0; /* How many EventNotifications were moved into the list? */
     if(sub->eventNotifications > 0) {
         enl = UA_EventNotificationList_new();
         if(!enl) {
@@ -236,8 +238,8 @@ prepareNotificationMessage(UA_Server *server, UA_Subscription *sub,
         UA_ExtensionObject_setValue(&message->notificationData[notificationDataIdx],
                                     enl, &UA_TYPES[UA_TYPES_EVENTNOTIFICATIONLIST]);
         size_t enlSize = sub->eventNotifications;
-        if(enlSize > notifications)
-            enlSize = notifications;
+        if(enlSize > maxNotifications)
+            enlSize = maxNotifications;
         enl->events = (UA_EventFieldList*)
             UA_Array_new(enlSize, &UA_TYPES[UA_TYPES_EVENTFIELDLIST]);
         if(!enl->events) {
@@ -254,10 +256,12 @@ prepareNotificationMessage(UA_Server *server, UA_Subscription *sub,
 
     /* <-- The point of no return --> */
 
-    size_t totalNotifications = 0; /* How many notifications were moved to the response overall? */
+    /* How many notifications were moved to the response overall? */
+    size_t totalNotifications = 0;
     UA_Notification *notification, *notification_tmp;
-    TAILQ_FOREACH_SAFE(notification, &sub->notificationQueue, globalEntry, notification_tmp) {
-        if(totalNotifications >= notifications)
+    TAILQ_FOREACH_SAFE(notification, &sub->notificationQueue,
+                       globalEntry, notification_tmp) {
+        if(totalNotifications >= maxNotifications)
             break;
 
         /* Move the content to the response */
@@ -419,11 +423,8 @@ UA_Subscription_publish(UA_Server *server, UA_Subscription *sub) {
 
     /* Count the available notifications */
     UA_UInt32 notifications = (sub->publishingEnabled) ? sub->notificationQueueSize : 0;
-    UA_Boolean moreNotifications = false;
-    if(notifications > sub->notificationsPerPublish) {
+    if(notifications > sub->notificationsPerPublish)
         notifications = sub->notificationsPerPublish;
-        moreNotifications = true;
-    }
 
     /* Return if no notifications and no keepalive */
     if(notifications == 0) {
@@ -455,6 +456,10 @@ UA_Subscription_publish(UA_Server *server, UA_Subscription *sub) {
     UA_PublishResponse *response = &pre->response;
     UA_NotificationMessage *message = &response->notificationMessage;
     UA_NotificationMessageEntry *retransmission = NULL;
+#ifdef UA_ENABLE_DIAGNOSTICS
+    size_t priorDataChangeNotifications = sub->dataChangeNotifications;
+    size_t priorEventNotifications = sub->eventNotifications;
+#endif
     if(notifications > 0) {
         if(server->config.enableRetransmissionQueue) {
             /* Allocate the retransmission entry */
@@ -471,7 +476,8 @@ UA_Subscription_publish(UA_Server *server, UA_Subscription *sub) {
         }
 
         /* Prepare the response */
-        UA_StatusCode retval = prepareNotificationMessage(server, sub, message, notifications);
+        UA_StatusCode retval =
+            prepareNotificationMessage(server, sub, message, notifications);
         if(retval != UA_STATUSCODE_GOOD) {
             UA_LOG_WARNING_SUBSCRIPTION(&server->config.logger, sub,
                                         "Could not prepare the notification message. "
@@ -486,6 +492,9 @@ UA_Subscription_publish(UA_Server *server, UA_Subscription *sub) {
     }
 
     /* <-- The point of no return --> */
+
+    /* Notifications remaining? */
+    UA_Boolean moreNotifications = (sub->notificationsCount > 0);
 
     /* Set up the response */
     response->responseHeader.timestamp = UA_DateTime_now();
@@ -510,7 +519,8 @@ UA_Subscription_publish(UA_Server *server, UA_Subscription *sub) {
         }
         /* Only if a notification was created, the sequence number must be
          * increased. For a keepalive the sequence number can be reused. */
-        sub->nextSequenceNumber = UA_Subscription_nextSequenceNumber(sub->nextSequenceNumber);
+        sub->nextSequenceNumber =
+            UA_Subscription_nextSequenceNumber(sub->nextSequenceNumber);
     }
 
     /* Get the available sequence numbers from the retransmission queue */
@@ -527,8 +537,9 @@ UA_Subscription_publish(UA_Server *server, UA_Subscription *sub) {
     UA_assert(i == sub->retransmissionQueueSize);
 
     /* Send the response */
-    UA_LOG_DEBUG_SUBSCRIPTION(&server->config.logger, sub, "Sending out a publish response "
-                              "with %" PRIu32 " notifications", notifications);
+    UA_LOG_DEBUG_SUBSCRIPTION(&server->config.logger, sub,
+                              "Sending out a publish response with %" PRIu32
+                              " notifications", notifications);
     sendResponse(server, sub->session, sub->session->header.channel, pre->requestId,
                  (UA_Response*)response, &UA_TYPES[UA_TYPES_PUBLISHRESPONSE]);
 
@@ -545,6 +556,18 @@ UA_Subscription_publish(UA_Server *server, UA_Subscription *sub) {
     UA_PublishResponse_clear(&pre->response);
     UA_free(pre);
 
+    /* Update the diagnostics statistics */
+#ifdef UA_ENABLE_DIAGNOSTICS
+    sub->publishRequestCount++;
+
+    UA_UInt32 sentDCN = (UA_UInt32)
+        (priorDataChangeNotifications - sub->dataChangeNotifications);
+    UA_UInt32 sentEN = (UA_UInt32)(priorEventNotifications - sub->eventNotifications);
+    sub->dataChangeNotificationsCount += sentDCN;
+    sub->eventNotificationsCount += sentEN;
+    sub->notificationsCount += (sentDCN + sentEN);
+#endif
+
     /* Repeat sending responses if there are more notifications to send */
     if(moreNotifications)
         UA_Subscription_publish(server, sub);
@@ -560,7 +583,8 @@ UA_Session_reachedPublishReqLimit(UA_Server *server, UA_Session *session) {
 
     /* Cannot publish without a response */
     if(!pre) {
-        UA_LOG_FATAL_SESSION(&server->config.logger, session, "No publish requests available");
+        UA_LOG_FATAL_SESSION(&server->config.logger, session,
+                             "No publish requests available");
         return false;
     }
 
