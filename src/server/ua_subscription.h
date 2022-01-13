@@ -293,10 +293,10 @@ struct UA_Subscription {
     UA_UInt32 transferRequestCount;
     UA_UInt32 transferredToAltClientCount;
     UA_UInt32 transferredToSameClientCount;
-    UA_UInt32 publishRequestCount; /* TODO: Update the statistics */
-    UA_UInt32 dataChangeNotificationsCount; /* TODO: Update the statistics */
-    UA_UInt32 eventNotificationsCount; /* TODO: Update the statistics */
-    UA_UInt32 notificationsCount; /* TODO: Update the statistics */
+    UA_UInt32 publishRequestCount;
+    UA_UInt32 dataChangeNotificationsCount;
+    UA_UInt32 eventNotificationsCount;
+    UA_UInt32 notificationsCount;
     UA_UInt32 latePublishRequestCount; /* TODO: Update the statistics */
     UA_UInt32 unacknowledgedMessageCount; /* TODO: Update the statistics */
     UA_UInt32 discardedMessageCount; /* TODO: Update the statistics */
