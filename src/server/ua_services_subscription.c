@@ -455,10 +455,18 @@ Operation_TransferSubscription(UA_Server *server, UA_Session *session,
         return;
     }
 
+    /* Update the diagnostics statistics */
+#ifdef UA_ENABLE_DIAGNOSTICS
+    sub->transferRequestCount++;
+#endif
+
     /* Is this the same session? Return the sequence numbers and do nothing else. */
     UA_Session *oldSession = sub->session;
     if(oldSession == session) {
         result->statusCode = setTransferredSequenceNumbers(sub, result);
+#ifdef UA_ENABLE_DIAGNOSTICS
+        sub->transferredToSameClientCount++;
+#endif
         return;
     }
 
@@ -551,12 +559,6 @@ Operation_TransferSubscription(UA_Server *server, UA_Session *session,
     LIST_INSERT_HEAD(&server->subscriptions, newSub, serverListEntry);
     server->subscriptionsSize++;
 
-    /* Do not update the statistics here. The fact that we duplicate
-     * the subscription and move over the content is just an implementtion
-     * detail.
-    server->serverDiagnosticsSummary.currentSubscriptionCount++;
-    server->serverDiagnosticsSummary.cumulatedSubscriptionCount++; */
-
     /* Attach to the session */
     UA_Session_attachSubscription(session, newSub);
 
@@ -591,6 +593,23 @@ Operation_TransferSubscription(UA_Server *server, UA_Session *session,
                                                           &mon->lastValue);
         }
     }
+
+    /* Do not update the statistics for the number of Subscriptions here. The
+     * fact that we duplicate the subscription and move over the content is just
+     * an implementtion detail.
+     * server->serverDiagnosticsSummary.currentSubscriptionCount++;
+     * server->serverDiagnosticsSummary.cumulatedSubscriptionCount++;
+     *
+     * Update the diagnostics statistics: */
+#ifdef UA_ENABLE_DIAGNOSTICS
+    if(oldSession &&
+       UA_order(&oldSession->clientDescription,
+                &session->clientDescription,
+                &UA_TYPES[UA_TYPES_APPLICATIONDESCRIPTION]) == UA_ORDER_EQ)
+        sub->transferredToSameClientCount++;
+    else
+        sub->transferredToAltClientCount++;
+#endif
 
     /* Immediately try to publish on the new Subscription. This might put it
      * into the "late subscription" mode. */

@@ -290,9 +290,9 @@ struct UA_Subscription {
     UA_UInt32 disableCount;
     UA_UInt32 republishRequestCount;
     UA_UInt32 republishMessageCount;
-    UA_UInt32 transferRequestCount; /* TODO: Update the statistics */
-    UA_UInt32 transferredToAltClientCount; /* TODO: Update the statistics */
-    UA_UInt32 transferredToSameClientCount; /* TODO: Update the statistics */
+    UA_UInt32 transferRequestCount;
+    UA_UInt32 transferredToAltClientCount;
+    UA_UInt32 transferredToSameClientCount;
     UA_UInt32 publishRequestCount; /* TODO: Update the statistics */
     UA_UInt32 dataChangeNotificationsCount; /* TODO: Update the statistics */
     UA_UInt32 eventNotificationsCount; /* TODO: Update the statistics */
