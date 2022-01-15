@@ -148,11 +148,14 @@ UA_Subscription_addRetransmissionMessage(UA_Server *server, UA_Subscription *sub
     /* Release the oldest entry if there is not enough space */
     UA_Session *session = sub->session;
     if(sub->retransmissionQueueSize >= UA_MAX_RETRANSMISSIONQUEUESIZE) {
+        UA_LOG_WARNING_SUBSCRIPTION(&server->config.logger, sub,
+                                    "Subscription retransmission queue overflow");
         removeOldestRetransmissionMessageFromSub(sub);
     } else if(session && server->config.maxRetransmissionQueueSize > 0 &&
-               session->totalRetransmissionQueueSize >= server->config.maxRetransmissionQueueSize) {
+              session->totalRetransmissionQueueSize >=
+              server->config.maxRetransmissionQueueSize) {
         UA_LOG_WARNING_SUBSCRIPTION(&server->config.logger, sub,
-                                    "Retransmission queue overflow");
+                                    "Session-wide retransmission queue overflow");
         removeOldestRetransmissionMessageFromSession(sub->session);
     }
 
