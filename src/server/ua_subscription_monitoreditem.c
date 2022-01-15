@@ -673,6 +673,11 @@ UA_MonitoredItem_ensureQueueSpace(UA_Server *server, UA_MonitoredItem *mon) {
         /* Delete the notification and remove it from the queues */
         UA_Notification_delete(del);
 
+        /* Update the subscription diagnostics statistics */
+#ifdef UA_ENABLE_DIAGNOSTICS
+        sub->monitoringQueueOverflowCount++;
+#endif
+
         /* Assertions to help Clang's scan-analyzer */
         UA_assert(del != TAILQ_FIRST(&mon->queue));
         UA_assert(del != TAILQ_LAST(&mon->queue, NotificationQueue));
