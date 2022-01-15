@@ -115,6 +115,10 @@ removeOldestRetransmissionMessageFromSub(UA_Subscription *sub) {
     --sub->retransmissionQueueSize;
     if(sub->session)
         --sub->session->totalRetransmissionQueueSize;
+
+#ifdef UA_ENABLE_DIAGNOSTICS
+    sub->discardedMessageCount++;
+#endif
 }
 
 static void
