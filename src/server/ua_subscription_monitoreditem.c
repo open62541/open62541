@@ -220,15 +220,12 @@ UA_Notification_enqueueMon(UA_Server *server, UA_Notification *n) {
      * adding the new Notification. */
     UA_MonitoredItem_ensureQueueSpace(server, mon);
 
-#if UA_LOGLEVEL <= 200
-    UA_Subscription *sub = mon->subscription;
-    UA_LOG_DEBUG_SUBSCRIPTION(&server->config.logger, sub,
+    UA_LOG_DEBUG_SUBSCRIPTION(&server->config.logger, mon->subscription,
                               "MonitoredItem %" PRIi32 " | "
                               "Notification enqueued (Queue size %lu / %lu)",
                               mon->monitoredItemId,
                               (long unsigned)mon->queueSize,
                               (long unsigned)mon->parameters.queueSize);
-#endif
 }
 
 void
