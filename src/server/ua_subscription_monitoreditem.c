@@ -112,8 +112,15 @@ createEventOverflowNotification(UA_Server *server, UA_Subscription *sub,
             }
         }
     }
+
     ++sub->notificationQueueSize;
     ++sub->eventNotifications;
+
+    /* Update the diagnostics statistics */
+#ifdef UA_ENABLE_DIAGNOSTICS
+    sub->eventQueueOverFlowCount++;
+#endif
+
     return UA_STATUSCODE_GOOD;
 }
 
