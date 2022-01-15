@@ -574,7 +574,11 @@ UA_Event_addEventToMonitoredItem(UA_Server *server, const UA_NodeId *event,
     UA_EventFilter *eventFilter = (UA_EventFilter*)
         mon->parameters.filter.content.decoded.data;
 
+    /* The MonitoredItem must be attached to a Subscription. This code path is
+     * not taken for local MonitoredItems (once they are enabled for Events). */
     UA_Subscription *sub = mon->subscription;
+    UA_assert(sub);
+
     UA_Session *session = sub->session;
     UA_StatusCode retval = UA_Server_filterEvent(server, session, event,
                                                  eventFilter, &notification->data.event,
