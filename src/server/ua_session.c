@@ -54,6 +54,11 @@ void UA_Session_clear(UA_Session *session, UA_Server* server) {
                     &UA_TYPES[UA_TYPES_KEYVALUEPAIR]);
     session->params = NULL;
     session->paramsSize = 0;
+
+#ifdef UA_ENABLE_DIAGNOSTICS
+    UA_SessionDiagnosticsDataType_clear(&session->diagnostics);
+    UA_SessionSecurityDiagnosticsDataType_clear(&session->securityDiagnostics);
+#endif
 }
 
 void

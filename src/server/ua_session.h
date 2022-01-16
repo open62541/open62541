@@ -67,6 +67,53 @@ typedef struct {
 
     size_t totalRetransmissionQueueSize; /* Retransmissions of all subscriptions */
 #endif
+
+#ifdef UA_ENABLE_DIAGNOSTICS
+    UA_SessionSecurityDiagnosticsDataType securityDiagnostics;
+    UA_SessionDiagnosticsDataType diagnostics;
+    /* Fields to enable:
+    UA_String serverUri;
+    UA_String endpointUrl;
+    size_t localeIdsSize;
+    UA_String *localeIds;
+    UA_Double actualSessionTimeout;
+    UA_DateTime clientConnectionTime;
+    UA_DateTime clientLastContactTime;
+    UA_UInt32 currentSubscriptionsCount;
+    UA_UInt32 currentMonitoredItemsCount;
+    UA_UInt32 currentPublishRequestsInQueue;
+    UA_ServiceCounterDataType totalRequestCount;
+    UA_UInt32 unauthorizedRequestCount;
+    UA_ServiceCounterDataType readCount;
+    UA_ServiceCounterDataType historyReadCount;
+    UA_ServiceCounterDataType writeCount;
+    UA_ServiceCounterDataType historyUpdateCount;
+    UA_ServiceCounterDataType callCount;
+    UA_ServiceCounterDataType createMonitoredItemsCount;
+    UA_ServiceCounterDataType modifyMonitoredItemsCount;
+    UA_ServiceCounterDataType setMonitoringModeCount;
+    UA_ServiceCounterDataType setTriggeringCount;
+    UA_ServiceCounterDataType deleteMonitoredItemsCount;
+    UA_ServiceCounterDataType createSubscriptionCount;
+    UA_ServiceCounterDataType modifySubscriptionCount;
+    UA_ServiceCounterDataType setPublishingModeCount;
+    UA_ServiceCounterDataType publishCount;
+    UA_ServiceCounterDataType republishCount;
+    UA_ServiceCounterDataType transferSubscriptionsCount;
+    UA_ServiceCounterDataType deleteSubscriptionsCount;
+    UA_ServiceCounterDataType addNodesCount;
+    UA_ServiceCounterDataType addReferencesCount;
+    UA_ServiceCounterDataType deleteNodesCount;
+    UA_ServiceCounterDataType deleteReferencesCount;
+    UA_ServiceCounterDataType browseCount;
+    UA_ServiceCounterDataType browseNextCount;
+    UA_ServiceCounterDataType translateBrowsePathsToNodeIdsCount;
+    UA_ServiceCounterDataType queryFirstCount;
+    UA_ServiceCounterDataType queryNextCount;
+    UA_ServiceCounterDataType registerNodesCount;
+    UA_ServiceCounterDataType unregisterNodesCount;
+    */
+#endif
 } UA_Session;
 
 /**
