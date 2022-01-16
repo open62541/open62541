@@ -590,9 +590,18 @@ readSessionSecurityDiagnostics(UA_Server *server,
     size_t i = 0;
     session_list_entry *session;
     LIST_FOREACH(session, &server->sessions, pointers) {
-        UA_SessionSecurityDiagnosticsDataType_copy(&session->session.
-                                                   sessionSecurityDiagnostics, &sd[i]);
+        UA_SessionSecurityDiagnosticsDataType_copy(&session->session.securityDiagnostics,
+                                                   &sd[i]);
         UA_NodeId_copy(&session->session.sessionId, &sd[i].sessionId);
+        UA_SecureChannel *channel = session->session.header.channel;
+        if(channel) {
+            UA_ByteString_copy(&channel->remoteCertificate, &sd[i].clientCertificate);
+            UA_String_copy(&channel->securityPolicy->policyUri,
+                           &sd[i].securityPolicyUri);
+            sd[i].securityMode = channel->securityMode;
+            sd[i].encoding = UA_STRING_ALLOC("UA Binary"); /* The only one atm */
+            sd[i].transportProtocol = UA_STRING_ALLOC("opc.tcp"); /* The only one atm */
+        }
         i++;
     }
 

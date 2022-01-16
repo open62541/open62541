@@ -817,7 +817,23 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
 
 #ifdef UA_ENABLE_DIAGNOSTICS
     saveClientUserId(&request->userIdentityToken,
-                     &session->sessionSecurityDiagnostics);
+                     &session->securityDiagnostics);
+    UA_String_clear(&session->securityDiagnostics.authenticationMechanism);
+    switch(utp->tokenType) {
+    case UA_USERTOKENTYPE_ANONYMOUS:
+        session->securityDiagnostics.authenticationMechanism = UA_STRING_ALLOC("Anonymous");
+        break;
+    case UA_USERTOKENTYPE_USERNAME:
+        session->securityDiagnostics.authenticationMechanism = UA_STRING_ALLOC("UserName");
+        break;
+    case UA_USERTOKENTYPE_CERTIFICATE:
+        session->securityDiagnostics.authenticationMechanism = UA_STRING_ALLOC("Certificate");
+        break;
+    case UA_USERTOKENTYPE_ISSUEDTOKEN:
+        session->securityDiagnostics.authenticationMechanism = UA_STRING_ALLOC("IssuedToken");
+        break;
+    default: break;
+    }
 #endif
 
     UA_LOG_INFO_SESSION(&server->config.logger, session, "ActivateSession: Session activated");
