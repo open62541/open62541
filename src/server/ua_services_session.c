@@ -540,6 +540,42 @@ selectEndpointAndTokenPolicy(UA_Server *server, UA_SecureChannel *channel,
     }
 }
 
+#ifdef UA_ENABLE_DIAGNOSTICS
+static UA_StatusCode
+saveClientUserId(const UA_ExtensionObject *userIdentityToken,
+                 UA_SessionSecurityDiagnosticsDataType *diag) {
+    UA_StatusCode res = UA_STATUSCODE_GOOD;
+
+    UA_String_clear(&diag->clientUserIdOfSession);
+    if(userIdentityToken->encoding != UA_EXTENSIONOBJECT_DECODED)
+        return UA_STATUSCODE_GOOD;
+
+    if(userIdentityToken->content.decoded.type ==
+       &UA_TYPES[UA_TYPES_ANONYMOUSIDENTITYTOKEN]) {
+        /* String of length 0 */
+    } else if(userIdentityToken->content.decoded.type ==
+       &UA_TYPES[UA_TYPES_USERNAMEIDENTITYTOKEN]) {
+        const UA_UserNameIdentityToken *userToken = (UA_UserNameIdentityToken*)
+            userIdentityToken->content.decoded.data;
+        res = UA_String_copy(&userToken->userName, &diag->clientUserIdOfSession);
+    } else if(userIdentityToken->content.decoded.type ==
+       &UA_TYPES[UA_TYPES_X509IDENTITYTOKEN]) {
+        /* TODO: return the X509 Subject Name of the certificate */
+    } else {
+        return UA_STATUSCODE_BADIDENTITYTOKENINVALID;
+    }
+
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
+
+    return UA_Array_appendCopy((void**)&diag->clientUserIdHistory,
+                               &diag->clientUserIdHistorySize,
+                               &diag->clientUserIdOfSession,
+                               &UA_TYPES[UA_TYPES_STRING]);
+}
+#endif
+
+
 /* TODO: Check all of the following: The Server shall verify that the
  * Certificate the Client used to create the new SecureChannel is the same as
  * the Certificate used to create the original SecureChannel. In addition, the
@@ -778,6 +814,11 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
         server->serverDiagnosticsSummary.currentSessionCount++;
         server->serverDiagnosticsSummary.cumulatedSessionCount++;
     }
+
+#ifdef UA_ENABLE_DIAGNOSTICS
+    saveClientUserId(&request->userIdentityToken,
+                     &session->sessionSecurityDiagnostics);
+#endif
 
     UA_LOG_INFO_SESSION(&server->config.logger, session, "ActivateSession: Session activated");
     return;
