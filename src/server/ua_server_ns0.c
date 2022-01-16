@@ -563,6 +563,10 @@ readSessionDiagnostics(UA_Server *server,
         UA_ApplicationDescription_copy(&session->session.clientDescription,
                                        &sd[i].clientDescription);
         sd[i].maxResponseMessageSize = session->session.maxResponseMessageSize;
+        sd[i].currentSubscriptionsCount = (UA_UInt32)
+            session->session.subscriptionsSize;
+        sd[i].currentPublishRequestsInQueue = (UA_UInt32)
+            session->session.responseQueueSize;
         i++;
     }
 
