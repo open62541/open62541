@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  *
- *    Copyright 2017-2020 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
+ *    Copyright 2017-2022 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
  *    Copyright 2017 (c) Stefan Profanter, fortiss GmbH
  *    Copyright 2017 (c) Thomas Bender
  *    Copyright 2017 (c) Julian Grothoff
@@ -537,6 +537,69 @@ readSubscriptionDiagnostics(UA_Server *server,
     value->hasValue = true;
     UA_Variant_setArray(&value->value, sd, session->subscriptionsSize,
                         &UA_TYPES[UA_TYPES_SUBSCRIPTIONDIAGNOSTICSDATATYPE]);
+    return UA_STATUSCODE_GOOD;
+}
+
+static UA_StatusCode
+readSessionDiagnostics(UA_Server *server,
+                       const UA_NodeId *sessionId, void *sessionContext,
+                       const UA_NodeId *nodeId, void *nodeContext,
+                       UA_Boolean sourceTimestamp,
+                       const UA_NumericRange *range, UA_DataValue *value) {
+    /* Allocate the output array */
+    UA_SessionDiagnosticsDataType *sd = (UA_SessionDiagnosticsDataType*)
+        UA_Array_new(server->sessionCount,
+                     &UA_TYPES[UA_TYPES_SESSIONDIAGNOSTICSDATATYPE]);
+    if(!sd)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+
+    /* Collect the statistics */
+    size_t i = 0;
+    session_list_entry *session;
+    LIST_FOREACH(session, &server->sessions, pointers) {
+        UA_SessionDiagnosticsDataType_copy(&session->session.diagnostics, &sd[i]);
+        UA_NodeId_copy(&session->session.sessionId, &sd[i].sessionId);
+        UA_String_copy(&session->session.sessionName, &sd[i].sessionName);
+        UA_ApplicationDescription_copy(&session->session.clientDescription,
+                                       &sd[i].clientDescription);
+        sd[i].maxResponseMessageSize = session->session.maxResponseMessageSize;
+        i++;
+    }
+
+    /* Set the output */
+    value->hasValue = true;
+    UA_Variant_setArray(&value->value, sd, server->sessionCount,
+                        &UA_TYPES[UA_TYPES_SESSIONDIAGNOSTICSDATATYPE]);
+    return UA_STATUSCODE_GOOD;
+}
+
+static UA_StatusCode
+readSessionSecurityDiagnostics(UA_Server *server,
+                               const UA_NodeId *sessionId, void *sessionContext,
+                               const UA_NodeId *nodeId, void *nodeContext,
+                               UA_Boolean sourceTimestamp,
+                               const UA_NumericRange *range, UA_DataValue *value) {
+    /* Allocate the output array */
+    UA_SessionSecurityDiagnosticsDataType *sd = (UA_SessionSecurityDiagnosticsDataType*)
+        UA_Array_new(server->sessionCount,
+                     &UA_TYPES[UA_TYPES_SESSIONSECURITYDIAGNOSTICSDATATYPE]);
+    if(!sd)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+
+    /* Collect the statistics */
+    size_t i = 0;
+    session_list_entry *session;
+    LIST_FOREACH(session, &server->sessions, pointers) {
+        UA_SessionSecurityDiagnosticsDataType_copy(&session->session.
+                                                   sessionSecurityDiagnostics, &sd[i]);
+        UA_NodeId_copy(&session->session.sessionId, &sd[i].sessionId);
+        i++;
+    }
+
+    /* Set the output */
+    value->hasValue = true;
+    UA_Variant_setArray(&value->value, sd, server->sessionCount,
+                        &UA_TYPES[UA_TYPES_SESSIONSECURITYDIAGNOSTICSDATATYPE]);
     return UA_STATUSCODE_GOOD;
 }
 
@@ -1233,6 +1296,17 @@ UA_Server_initNS0(UA_Server *server) {
     UA_DataSource serverSubDiagSummary = {readSubscriptionDiagnostics, NULL};
     retVal |= UA_Server_setVariableNode_dataSource(server,
                         UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERDIAGNOSTICS_SUBSCRIPTIONDIAGNOSTICSARRAY), serverSubDiagSummary);
+
+    /* ServerDiagnostics - SessionDiagnosticsSummary - SessionDiagnosticsArray */
+    UA_DataSource sessionDiagSummary = {readSessionDiagnostics, NULL};
+    retVal |= UA_Server_setVariableNode_dataSource(server,
+                        UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERDIAGNOSTICS_SESSIONSDIAGNOSTICSSUMMARY_SESSIONDIAGNOSTICSARRAY), sessionDiagSummary);
+
+    /* ServerDiagnostics - SessionDiagnosticsSummary - SessionSecurityDiagnosticsArray */
+    UA_DataSource sessionSecDiagSummary = {readSessionSecurityDiagnostics, NULL};
+    retVal |= UA_Server_setVariableNode_dataSource(server,
+                        UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERDIAGNOSTICS_SESSIONSDIAGNOSTICSSUMMARY_SESSIONSECURITYDIAGNOSTICSARRAY), sessionSecDiagSummary);
+
 #else
     /* Removing these NodeIds make Server Object to be non-complaint with UA
      * 1.03 in CTT (Base Inforamtion/Base Info Core Structure/ 001.js) In the

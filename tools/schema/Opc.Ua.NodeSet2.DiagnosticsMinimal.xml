@@ -141,6 +141,26 @@
       <Reference ReferenceType="HasComponent" IsForward="false">i=2274</Reference>
     </References>
   </UAVariable>
+  <UAObject NodeId="i=3706" BrowseName="SessionsDiagnosticsSummary" ParentNodeId="i=2274">
+    <DisplayName>SessionsDiagnosticsSummary</DisplayName>
+    <References>
+      <Reference ReferenceType="HasComponent">i=3707</Reference>
+      <Reference ReferenceType="HasComponent">i=3708</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">i=2274</Reference>
+    </References>
+  </UAObject>
+  <UAVariable NodeId="i=3707" BrowseName="SessionDiagnosticsArray" ParentNodeId="i=3706" DataType="i=865" ValueRank="1" ArrayDimensions="0">
+    <DisplayName>SessionDiagnosticsArray</DisplayName>
+    <References>
+      <Reference ReferenceType="HasComponent" IsForward="false">i=3706</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="i=3708" BrowseName="SessionSecurityDiagnosticsArray" ParentNodeId="i=3706" DataType="i=868" ValueRank="1" ArrayDimensions="0">
+    <DisplayName>SessionSecurityDiagnosticsArray</DisplayName>
+    <References>
+      <Reference ReferenceType="HasComponent" IsForward="false">i=3706</Reference>
+    </References>
+  </UAVariable>
   <UAVariableType NodeId="i=2150" BrowseName="ServerDiagnosticsSummaryType" DataType="i=859">
     <DisplayName>ServerDiagnosticsSummaryType</DisplayName>
     <References>
@@ -255,6 +275,70 @@
       <Reference ReferenceType="HasComponent" IsForward="false">i=2150</Reference>
     </References>
   </UAVariable>
+  <UAVariable NodeId="i=7595" BrowseName="EnumStrings" ParentNodeId="i=302" DataType="LocalizedText" ValueRank="1" ArrayDimensions="0">
+    <DisplayName>EnumStrings</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">i=302</Reference>
+    </References>
+    <Value>
+      <ListOfLocalizedText xmlns="http://opcfoundation.org/UA/2008/02/Types.xsd">
+        <LocalizedText>
+          <Locale>
+          </Locale>
+          <Text>Invalid</Text>
+        </LocalizedText>
+        <LocalizedText>
+          <Locale>
+          </Locale>
+          <Text>None</Text>
+        </LocalizedText>
+        <LocalizedText>
+          <Locale>
+          </Locale>
+          <Text>Sign</Text>
+        </LocalizedText>
+        <LocalizedText>
+          <Locale>
+          </Locale>
+          <Text>SignAndEncrypt</Text>
+        </LocalizedText>
+      </ListOfLocalizedText>
+    </Value>
+  </UAVariable>
+  <UAVariable NodeId="i=7597" BrowseName="EnumStrings" ParentNodeId="i=307" DataType="LocalizedText" ValueRank="1" ArrayDimensions="0">
+    <DisplayName>EnumStrings</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">i=307</Reference>
+    </References>
+    <Value>
+      <ListOfLocalizedText xmlns="http://opcfoundation.org/UA/2008/02/Types.xsd">
+        <LocalizedText>
+          <Locale>
+          </Locale>
+          <Text>Server</Text>
+        </LocalizedText>
+        <LocalizedText>
+          <Locale>
+          </Locale>
+          <Text>Client</Text>
+        </LocalizedText>
+        <LocalizedText>
+          <Locale>
+          </Locale>
+          <Text>ClientAndServer</Text>
+        </LocalizedText>
+        <LocalizedText>
+          <Locale>
+          </Locale>
+          <Text>DiscoveryServer</Text>
+        </LocalizedText>
+      </ListOfLocalizedText>
+    </Value>
+  </UAVariable>
   <UADataType NodeId="i=859" BrowseName="ServerDiagnosticsSummaryDataType">
     <DisplayName>ServerDiagnosticsSummaryDataType</DisplayName>
     <References>
@@ -312,6 +396,131 @@
       <Field Name="MonitoringQueueOverflowCount" DataType="i=7" />
       <Field Name="NextSequenceNumber" DataType="i=7" />
       <Field Name="EventQueueOverFlowCount" DataType="i=7" />
+    </Definition>
+  </UADataType>
+  <UADataType NodeId="i=871" BrowseName="ServiceCounterDataType">
+    <DisplayName>ServiceCounterDataType</DisplayName>
+    <Documentation>https://reference.opcfoundation.org/v104/Core/docs/Part5/12.13</Documentation>
+    <References>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=22</Reference>
+    </References>
+    <Definition Name="ServiceCounterDataType">
+      <Field Name="TotalCount" DataType="i=7" />
+      <Field Name="ErrorCount" DataType="i=7" />
+    </Definition>
+  </UADataType>
+  <UADataType NodeId="i=307" BrowseName="ApplicationType">
+    <DisplayName>ApplicationType</DisplayName>
+    <Documentation>https://reference.opcfoundation.org/v104/Core/docs/Part4/7.1</Documentation>
+    <References>
+      <Reference ReferenceType="HasProperty">i=7597</Reference>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=29</Reference>
+    </References>
+    <Definition Name="ApplicationType">
+      <Field Name="Server" Value="0" />
+      <Field Name="Client" Value="1" />
+      <Field Name="ClientAndServer" Value="2" />
+      <Field Name="DiscoveryServer" Value="3" />
+    </Definition>
+  </UADataType>
+  <UADataType NodeId="i=308" BrowseName="ApplicationDescription">
+    <DisplayName>ApplicationDescription</DisplayName>
+    <Documentation>https://reference.opcfoundation.org/v104/Core/docs/Part4/7.1</Documentation>
+    <References>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=22</Reference>
+    </References>
+    <Definition Name="ApplicationDescription">
+      <Field Name="ApplicationUri" DataType="i=12" />
+      <Field Name="ProductUri" DataType="i=12" />
+      <Field Name="ApplicationName" DataType="i=21" />
+      <Field Name="ApplicationType" DataType="i=307" />
+      <Field Name="GatewayServerUri" DataType="i=12" />
+      <Field Name="DiscoveryProfileUri" DataType="i=12" />
+      <Field Name="DiscoveryUrls" DataType="i=12" ValueRank="1" />
+    </Definition>
+  </UADataType>
+  <UADataType NodeId="i=865" BrowseName="SessionDiagnosticsDataType">
+    <DisplayName>SessionDiagnosticsDataType</DisplayName>
+    <Documentation>https://reference.opcfoundation.org/v104/Core/docs/Part5/12.11</Documentation>
+    <References>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=22</Reference>
+    </References>
+    <Definition Name="SessionDiagnosticsDataType">
+      <Field Name="SessionId" DataType="i=17" />
+      <Field Name="SessionName" DataType="i=12" />
+      <Field Name="ClientDescription" DataType="i=308" />
+      <Field Name="ServerUri" DataType="i=12" />
+      <Field Name="EndpointUrl" DataType="i=12" />
+      <Field Name="LocaleIds" DataType="i=295" ValueRank="1" />
+      <Field Name="ActualSessionTimeout" DataType="i=290" />
+      <Field Name="MaxResponseMessageSize" DataType="i=7" />
+      <Field Name="ClientConnectionTime" DataType="i=294" />
+      <Field Name="ClientLastContactTime" DataType="i=294" />
+      <Field Name="CurrentSubscriptionsCount" DataType="i=7" />
+      <Field Name="CurrentMonitoredItemsCount" DataType="i=7" />
+      <Field Name="CurrentPublishRequestsInQueue" DataType="i=7" />
+      <Field Name="TotalRequestCount" DataType="i=871" />
+      <Field Name="UnauthorizedRequestCount" DataType="i=7" />
+      <Field Name="ReadCount" DataType="i=871" />
+      <Field Name="HistoryReadCount" DataType="i=871" />
+      <Field Name="WriteCount" DataType="i=871" />
+      <Field Name="HistoryUpdateCount" DataType="i=871" />
+      <Field Name="CallCount" DataType="i=871" />
+      <Field Name="CreateMonitoredItemsCount" DataType="i=871" />
+      <Field Name="ModifyMonitoredItemsCount" DataType="i=871" />
+      <Field Name="SetMonitoringModeCount" DataType="i=871" />
+      <Field Name="SetTriggeringCount" DataType="i=871" />
+      <Field Name="DeleteMonitoredItemsCount" DataType="i=871" />
+      <Field Name="CreateSubscriptionCount" DataType="i=871" />
+      <Field Name="ModifySubscriptionCount" DataType="i=871" />
+      <Field Name="SetPublishingModeCount" DataType="i=871" />
+      <Field Name="PublishCount" DataType="i=871" />
+      <Field Name="RepublishCount" DataType="i=871" />
+      <Field Name="TransferSubscriptionsCount" DataType="i=871" />
+      <Field Name="DeleteSubscriptionsCount" DataType="i=871" />
+      <Field Name="AddNodesCount" DataType="i=871" />
+      <Field Name="AddReferencesCount" DataType="i=871" />
+      <Field Name="DeleteNodesCount" DataType="i=871" />
+      <Field Name="DeleteReferencesCount" DataType="i=871" />
+      <Field Name="BrowseCount" DataType="i=871" />
+      <Field Name="BrowseNextCount" DataType="i=871" />
+      <Field Name="TranslateBrowsePathsToNodeIdsCount" DataType="i=871" />
+      <Field Name="QueryFirstCount" DataType="i=871" />
+      <Field Name="QueryNextCount" DataType="i=871" />
+      <Field Name="RegisterNodesCount" DataType="i=871" />
+      <Field Name="UnregisterNodesCount" DataType="i=871" />
+    </Definition>
+  </UADataType>
+  <UADataType NodeId="i=302" BrowseName="MessageSecurityMode">
+    <DisplayName>MessageSecurityMode</DisplayName>
+    <Documentation>https://reference.opcfoundation.org/v104/Core/docs/Part4/7.15</Documentation>
+    <References>
+      <Reference ReferenceType="HasProperty">i=7595</Reference>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=29</Reference>
+    </References>
+    <Definition Name="MessageSecurityMode">
+      <Field Name="Invalid" Value="0" />
+      <Field Name="None" Value="1" />
+      <Field Name="Sign" Value="2" />
+      <Field Name="SignAndEncrypt" Value="3" />
+    </Definition>
+  </UADataType>
+  <UADataType NodeId="i=868" BrowseName="SessionSecurityDiagnosticsDataType">
+    <DisplayName>SessionSecurityDiagnosticsDataType</DisplayName>
+    <Documentation>https://reference.opcfoundation.org/v104/Core/docs/Part5/12.12</Documentation>
+    <References>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=22</Reference>
+    </References>
+    <Definition Name="SessionSecurityDiagnosticsDataType">
+      <Field Name="SessionId" DataType="i=17" />
+      <Field Name="ClientUserIdOfSession" DataType="i=12" />
+      <Field Name="ClientUserIdHistory" DataType="i=12" ValueRank="1" />
+      <Field Name="AuthenticationMechanism" DataType="i=12" />
+      <Field Name="Encoding" DataType="i=12" />
+      <Field Name="TransportProtocol" DataType="i=12" />
+      <Field Name="SecurityMode" DataType="i=302" />
+      <Field Name="SecurityPolicyUri" DataType="i=12" />
+      <Field Name="ClientCertificate" DataType="i=15" />
     </Definition>
   </UADataType>
 </UANodeSet>
