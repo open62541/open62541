@@ -79,9 +79,7 @@ typedef struct {
     UA_Double actualSessionTimeout;
     UA_DateTime clientConnectionTime;
     UA_DateTime clientLastContactTime;
-    UA_UInt32 currentSubscriptionsCount;
     UA_UInt32 currentMonitoredItemsCount;
-    UA_UInt32 currentPublishRequestsInQueue;
     UA_ServiceCounterDataType totalRequestCount;
     UA_UInt32 unauthorizedRequestCount;
     UA_ServiceCounterDataType readCount;
