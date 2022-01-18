@@ -1289,7 +1289,9 @@ int main(int argc, char **argv) {
     config.maxMonitoredItemsPerCall = MAX_OPERATION_LIMIT;
 
     /* Set Subscription limits */
+#ifdef UA_ENABLE_SUBSCRIPTIONS
     config.maxSubscriptions = 100;
+#endif
 
     /* If RequestTimestamp is '0', log the warning and proceed */
     config.verifyRequestTimestamp = UA_RULEHANDLING_WARN;
