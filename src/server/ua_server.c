@@ -280,6 +280,7 @@ UA_Server_init(UA_Server *server) {
     server->adminSession.sessionId.identifierType = UA_NODEIDTYPE_GUID;
     server->adminSession.sessionId.identifier.guid.data1 = 1;
     server->adminSession.validTill = UA_INT64_MAX;
+    server->adminSession.sessionName = UA_STRING_ALLOC("Administrator");
 
     /* Create Namespaces 0 and 1
      * Ns1 will be filled later with the uri from the app description */
