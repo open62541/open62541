@@ -567,6 +567,7 @@ readSessionDiagnostics(UA_Server *server,
             session->session.subscriptionsSize;
         sd[i].currentPublishRequestsInQueue = (UA_UInt32)
             session->session.responseQueueSize;
+        sd[i].actualSessionTimeout = session->session.timeout;
         i++;
     }
 
