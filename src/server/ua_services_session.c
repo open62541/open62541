@@ -671,7 +671,7 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
            securityPolicy = getSecurityPolicyByUri(server, &utp->securityPolicyUri);
        if(!securityPolicy) {
           response->responseHeader.serviceResult = UA_STATUSCODE_BADINTERNALERROR;
-          goto rejected;
+          goto securityRejected;
        }
 
        /* Test if the encryption algorithm is correctly specified */
@@ -703,7 +703,7 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
                                           "Failed to create a context for the SecurityPolicy %.*s",
                                           (int)securityPolicy->policyUri.length,
                                           securityPolicy->policyUri.data);
-                   goto rejected;
+                   goto securityRejected;
                }
            }
 
@@ -720,7 +720,7 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
        } else if(userToken->encryptionAlgorithm.length != 0) {
            /* If SecurityPolicy is None there shall be no EncryptionAlgorithm  */
            response->responseHeader.serviceResult = UA_STATUSCODE_BADIDENTITYTOKENINVALID;
-           return;
+           goto securityRejected;
        }
 
        if(response->responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
@@ -751,7 +751,7 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
             securityPolicy = getSecurityPolicyByUri(server, &utp->securityPolicyUri);
         if(!securityPolicy) {
             response->responseHeader.serviceResult = UA_STATUSCODE_BADINTERNALERROR;
-            goto rejected;
+            goto securityRejected;
         }
 
         /* We need a channel context with the user certificate in order to reuse
@@ -766,7 +766,7 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
                                    "Failed to create a context for the SecurityPolicy %.*s",
                                    (int)securityPolicy->policyUri.length,
                                    securityPolicy->policyUri.data);
-            goto rejected;
+            goto securityRejected;
         }
 
         /* Check the user token signature */
@@ -797,7 +797,7 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
         UA_LOG_WARNING_SESSION(&server->config.logger, session, "ActivateSession: The AccessControl "
                                "plugin denied the activation with the StatusCode %s",
                                UA_StatusCode_name(response->responseHeader.serviceResult));
-        goto rejected;
+        goto securityRejected;
     }
 
     /* Attach the session to the currently used channel if the session isn't

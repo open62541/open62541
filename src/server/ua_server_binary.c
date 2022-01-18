@@ -520,11 +520,15 @@ getBoundSession(UA_Server *server, const UA_SecureChannel *channel,
             continue;
         UA_Session *current = (UA_Session*)sh;
         /* Has the session timed out? */
-        if(current->validTill < now)
+        if(current->validTill < now) {
+            server->serverDiagnosticsSummary.rejectedSessionCount++;
             return UA_STATUSCODE_BADSESSIONCLOSED;
+        }
         *session = current;
         return UA_STATUSCODE_GOOD;
     }
+
+    server->serverDiagnosticsSummary.rejectedSessionCount++;
 
     /* Session exists on another SecureChannel. The CTT expect this error. */
     UA_Session *tmpSession = getSessionByToken(server, token);
