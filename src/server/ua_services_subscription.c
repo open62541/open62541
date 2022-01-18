@@ -223,7 +223,7 @@ Service_SetPublishingMode(UA_Server *server, UA_Session *session,
                                            &UA_TYPES[UA_TYPES_STATUSCODE]);
 }
 
-void
+UA_StatusCode
 Service_Publish(UA_Server *server, UA_Session *session,
                 const UA_PublishRequest *request, UA_UInt32 requestId) {
     UA_LOG_DEBUG_SESSION(&server->config.logger, session, "Processing PublishRequest");
@@ -235,7 +235,7 @@ Service_Publish(UA_Server *server, UA_Session *session,
                          request->requestHeader.requestHandle,
                          &UA_TYPES[UA_TYPES_PUBLISHRESPONSE],
                          UA_STATUSCODE_BADNOSUBSCRIPTION);
-        return;
+        return UA_STATUSCODE_BADNOSUBSCRIPTION;
     }
 
     /* Handle too many subscriptions to free resources before trying to allocate
@@ -248,7 +248,7 @@ Service_Publish(UA_Server *server, UA_Session *session,
                              request->requestHeader.requestHandle,
                              &UA_TYPES[UA_TYPES_PUBLISHRESPONSE],
                              UA_STATUSCODE_BADINTERNALERROR);
-            return;
+            return UA_STATUSCODE_BADINTERNALERROR;
         }
     }
 
@@ -260,7 +260,7 @@ Service_Publish(UA_Server *server, UA_Session *session,
                          request->requestHeader.requestHandle,
                          &UA_TYPES[UA_TYPES_PUBLISHRESPONSE],
                          UA_STATUSCODE_BADOUTOFMEMORY);
-        return;
+        return UA_STATUSCODE_BADOUTOFMEMORY;
     }
 
     /* Prepare the response */
@@ -280,10 +280,12 @@ Service_Publish(UA_Server *server, UA_Session *session,
                              request->requestHeader.requestHandle,
                              &UA_TYPES[UA_TYPES_PUBLISHRESPONSE],
                              UA_STATUSCODE_BADOUTOFMEMORY);
-            return;
+            return UA_STATUSCODE_BADOUTOFMEMORY;
         }
         response->resultsSize = request->subscriptionAcknowledgementsSize;
     }
+
+    /* <--- A good StatusCode is returned from here on ---> */
 
     /* Delete Acknowledged Subscription Messages */
     for(size_t i = 0; i < request->subscriptionAcknowledgementsSize; ++i) {
@@ -340,6 +342,8 @@ Service_Publish(UA_Server *server, UA_Session *session,
 
         break;
     }
+
+    return UA_STATUSCODE_GOOD;
 }
 
 static void
