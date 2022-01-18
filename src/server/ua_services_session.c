@@ -352,6 +352,11 @@ Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
     response->responseHeader.serviceResult |=
         UA_String_copy(&request->sessionName, &newSession->sessionName);
 
+#ifdef UA_ENABLE_DIAGNOSTICS
+    response->responseHeader.serviceResult |=
+        UA_String_copy(&request->serverUri, &newSession->diagnostics.serverUri);
+#endif
+
     UA_ByteString_init(&response->serverCertificate);
 
     if(server->config.endpointsSize > 0)

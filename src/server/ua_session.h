@@ -72,7 +72,6 @@ typedef struct {
     UA_SessionSecurityDiagnosticsDataType securityDiagnostics;
     UA_SessionDiagnosticsDataType diagnostics;
     /* Fields to enable:
-    UA_String serverUri;
     UA_String endpointUrl;
     size_t localeIdsSize;
     UA_String *localeIds;
