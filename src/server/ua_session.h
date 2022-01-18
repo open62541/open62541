@@ -74,7 +74,6 @@ typedef struct {
     /* Fields to enable:
     size_t localeIdsSize;
     UA_String *localeIds;
-    UA_Double actualSessionTimeout;
     UA_DateTime clientConnectionTime;
     UA_DateTime clientLastContactTime;
     UA_UInt32 currentMonitoredItemsCount;
