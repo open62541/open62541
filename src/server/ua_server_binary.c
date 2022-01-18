@@ -492,8 +492,13 @@ getBoundSession(UA_Server *server, const UA_SecureChannel *channel,
     }
 
     /* Session exists on another SecureChannel. The CTT expect this error. */
-    if(getSessionByToken(server, token))
+    UA_Session *tmpSession = getSessionByToken(server, token);
+    if(tmpSession) {
+#ifdef UA_ENABLE_DIAGNOSTICS
+        tmpSession->diagnostics.unauthorizedRequestCount++;
+#endif
         return UA_STATUSCODE_BADSECURECHANNELIDINVALID;
+    }
 
     return UA_STATUSCODE_GOOD;
 }
