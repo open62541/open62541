@@ -221,7 +221,8 @@ UA_Server_createSession(UA_Server *server, UA_SecureChannel *channel,
     if(server->sessionCount >= server->config.maxSessions)
         return UA_STATUSCODE_BADTOOMANYSESSIONS;
 
-    session_list_entry *newentry = (session_list_entry *)UA_malloc(sizeof(session_list_entry));
+    session_list_entry *newentry = (session_list_entry*)
+        UA_malloc(sizeof(session_list_entry));
     if(!newentry)
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
