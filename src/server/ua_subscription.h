@@ -358,22 +358,18 @@ UA_Server_evaluateWhereClauseContentFilter(UA_Server *server, UA_Session *sessio
 
 /* Logging
  * See a description of the tricks used in ua_session.h */
-#define UA_LOG_SUBSCRIPTION_INTERNAL(LOGGER, LEVEL, SUB, MSG, ...) do { \
-    UA_String idString = UA_STRING_NULL;                                \
-    if((SUB) && (SUB)->session) {                                       \
-        UA_NodeId_print(&(SUB)->session->sessionId, &idString);         \
-        UA_LOG_##LEVEL(LOGGER, UA_LOGCATEGORY_SESSION,                  \
-                       "SecureChannel %" PRIu32 " | Session %.*s | Subscription %" PRIu32 " | " MSG "%.0s", \
-                       ((SUB)->session->header.channel ?                \
-                        (SUB)->session->header.channel->securityToken.channelId : 0), \
-                       (int)idString.length, idString.data, (SUB)->subscriptionId, __VA_ARGS__); \
-        UA_String_clear(&idString);                                     \
-    } else {                                                            \
-        UA_LOG_##LEVEL(LOGGER, UA_LOGCATEGORY_SERVER,                   \
-                       "Subscription %" PRIu32 " | " MSG "%.0s",        \
-                       (SUB) ? (SUB)->subscriptionId : 0, __VA_ARGS__); \
-    }                                                                   \
-} while(0)
+#define UA_LOG_SUBSCRIPTION_INTERNAL(LOGGER, LEVEL, SUB, MSG, ...)      \
+    do {                                                                \
+        if((SUB) && (SUB)->session) {                                   \
+            UA_LOG_##LEVEL##_SESSION(LOGGER, (SUB)->session,            \
+                                     "Subscription %" PRIu32 " | " MSG "%.0s", \
+                                     (SUB)->subscriptionId, __VA_ARGS__); \
+        } else {                                                        \
+            UA_LOG_##LEVEL(LOGGER, UA_LOGCATEGORY_SERVER,               \
+                           "Subscription %" PRIu32 " | " MSG "%.0s",    \
+                           (SUB) ? (SUB)->subscriptionId : 0, __VA_ARGS__); \
+        }                                                               \
+    } while(0)
 
 #if UA_LOGLEVEL <= 100
 # define UA_LOG_TRACE_SUBSCRIPTION(LOGGER, SUB, ...)                     \

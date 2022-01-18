@@ -132,17 +132,14 @@ UA_Session_dequeuePublishReq(UA_Session *session);
 
 #define UA_LOG_SESSION_INTERNAL(LOGGER, LEVEL, SESSION, MSG, ...)       \
     do {                                                                \
-        UA_String idString = UA_STRING_NULL;                            \
-        UA_UInt32 channelId = 0;                                        \
-        if(SESSION) {                                                   \
-            UA_NodeId_print(&(SESSION)->sessionId, &idString);          \
-            channelId = (SESSION)->header.channel ?                     \
-                (SESSION)->header.channel->securityToken.channelId : 0; \
-        }                                                               \
+        int nameLen = (SESSION) ? (int)(SESSION)->sessionName.length : 0; \
+        const char *nameStr = (SESSION) ?                               \
+            (const char*)(SESSION)->sessionName.data : NULL;            \
+        UA_UInt32 chanId = ((SESSION) && (SESSION)->header.channel) ?   \
+            (SESSION)->header.channel->securityToken.channelId : 0;     \
         UA_LOG_##LEVEL(LOGGER, UA_LOGCATEGORY_SESSION,                  \
-                       "SecureChannel %" PRIu32 " | Session %.*s | " MSG "%.0s", \
-                       channelId, (int)idString.length, idString.data, __VA_ARGS__); \
-        UA_String_clear(&idString);                                     \
+                       "SecureChannel %" PRIu32 " | Session \"%.*s\" | " MSG "%.0s", \
+                       chanId, nameLen, nameStr, __VA_ARGS__);          \
     } while(0)
 
 #if UA_LOGLEVEL <= 100
