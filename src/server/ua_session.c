@@ -55,6 +55,11 @@ void UA_Session_clear(UA_Session *session, UA_Server* server) {
     session->params = NULL;
     session->paramsSize = 0;
 
+    UA_Array_delete(session->localeIds, session->localeIdsSize,
+                    &UA_TYPES[UA_TYPES_STRING]);
+    session->localeIds = NULL;
+    session->localeIdsSize = 0;
+
 #ifdef UA_ENABLE_DIAGNOSTICS
     UA_SessionDiagnosticsDataType_clear(&session->diagnostics);
     UA_SessionSecurityDiagnosticsDataType_clear(&session->securityDiagnostics);

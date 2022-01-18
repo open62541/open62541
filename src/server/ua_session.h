@@ -54,6 +54,10 @@ typedef struct {
     size_t paramsSize;
     UA_KeyValuePair *params;
 
+    /* Localization information */
+    size_t localeIdsSize;
+    UA_String *localeIds;
+
 #ifdef UA_ENABLE_SUBSCRIPTIONS
     /* The queue is ordered according to the priority byte (higher bytes come
      * first). When a late subscription finally publishes, then it is pushed to
@@ -72,8 +76,6 @@ typedef struct {
     UA_SessionSecurityDiagnosticsDataType securityDiagnostics;
     UA_SessionDiagnosticsDataType diagnostics;
     /* Fields to enable:
-    size_t localeIdsSize;
-    UA_String *localeIds;
     UA_DateTime clientConnectionTime;
     UA_DateTime clientLastContactTime;
     UA_UInt32 currentMonitoredItemsCount;

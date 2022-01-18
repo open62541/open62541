@@ -598,6 +598,7 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
                         UA_ActivateSessionResponse *response) {
     const UA_EndpointDescription *ed = NULL;
     const UA_UserTokenPolicy *utp = NULL;
+    UA_String *tmpLocaleIds;
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
 
     UA_Session *session = getSessionByToken(server, &request->requestHeader.authenticationToken);
@@ -813,6 +814,21 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
                                "ActivateSession: Could not generate the server nonce");
         goto rejected;
     }
+
+    /* Set the locale */
+    response->responseHeader.serviceResult |=
+        UA_Array_copy(request->localeIds, request->localeIdsSize,
+                      (void**)&tmpLocaleIds, &UA_TYPES[UA_TYPES_STRING]);
+    if(response->responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
+        UA_Session_detachFromSecureChannel(session);
+        UA_LOG_WARNING_SESSION(&server->config.logger, session,
+                               "ActivateSession: Could not store the Session LocaleIds");
+        goto rejected;
+    }
+    UA_Array_delete(session->localeIds, session->localeIdsSize,
+                    &UA_TYPES[UA_TYPES_STRING]);
+    session->localeIds = tmpLocaleIds;
+    session->localeIdsSize = request->localeIdsSize;
 
     UA_Session_updateLifetime(session);
 
