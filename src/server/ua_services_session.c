@@ -391,6 +391,12 @@ Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
         return;
     }
 
+#ifdef UA_ENABLE_DIAGNOSTICS
+    newSession->diagnostics.clientConnectionTime = UA_DateTime_now();
+    newSession->diagnostics.clientLastContactTime =
+        newSession->diagnostics.clientConnectionTime;
+#endif
+
     UA_LOG_INFO_SESSION(&server->config.logger, newSession, "Session created");
 }
 
