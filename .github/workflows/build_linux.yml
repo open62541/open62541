@@ -11,6 +11,12 @@ jobs:
           - build_name: "Debug Build & Unit Tests (gcc)"
             cmd_deps: ""
             cmd_action: unit_tests
+          - build_name: "Debug Build & Unit Tests without Subscriptions (gcc)"
+            cmd_deps: ""
+            cmd_action: unit_tests_nosub
+          - build_name: "Debug Build & Unit Tests with Diagnostics (gcc)"
+            cmd_deps: ""
+            cmd_action: unit_tests_diag
           - build_name: "Debug Build & Unit Tests with multithreading (gcc)"
             cmd_deps: ""
             cmd_action: unit_tests_mt
