@@ -563,18 +563,28 @@ readSessionDiagnostics(UA_Server *server,
         UA_ApplicationDescription_copy(&session->session.clientDescription,
                                        &sd[i].clientDescription);
         sd[i].maxResponseMessageSize = session->session.maxResponseMessageSize;
-        sd[i].currentSubscriptionsCount = (UA_UInt32)
-            session->session.subscriptionsSize;
         sd[i].currentPublishRequestsInQueue = (UA_UInt32)
             session->session.responseQueueSize;
         sd[i].actualSessionTimeout = session->session.timeout;
 
+        /* Set LocaleIds */
         UA_StatusCode res = UA_Array_copy(session->session.localeIds,
                                           session->session.localeIdsSize,
                                           (void**)&sd[i].localeIds,
                                           &UA_TYPES[UA_TYPES_STRING]);
         if(UA_LIKELY(res == UA_STATUSCODE_GOOD))
             sd[i].localeIdsSize = session->session.localeIdsSize;
+
+        /* Set Subscription diagnostics */
+#ifdef UA_ENABLE_SUBSCRIPTIONS
+        sd[i].currentSubscriptionsCount = (UA_UInt32)
+            session->session.subscriptionsSize;
+
+        UA_Subscription *sub;
+        TAILQ_FOREACH(sub, &session->session.subscriptions, sessionListEntry) {
+            sd[i].currentMonitoredItemsCount += (UA_UInt32)sub->monitoredItemsSize;
+        }
+#endif
 
         i++;
     }

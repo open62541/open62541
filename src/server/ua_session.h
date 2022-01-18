@@ -76,7 +76,6 @@ typedef struct {
     UA_SessionSecurityDiagnosticsDataType securityDiagnostics;
     UA_SessionDiagnosticsDataType diagnostics;
     /* Fields to enable:
-    UA_UInt32 currentMonitoredItemsCount;
     UA_ServiceCounterDataType totalRequestCount;
     UA_UInt32 unauthorizedRequestCount;
     UA_ServiceCounterDataType readCount;
