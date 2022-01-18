@@ -512,7 +512,7 @@ UA_Subscription_publish(UA_Server *server, UA_Subscription *sub) {
     /* <-- The point of no return --> */
 
     /* Notifications remaining? */
-    UA_Boolean moreNotifications = (sub->notificationsCount > 0);
+    UA_Boolean moreNotifications = (sub->notificationQueueSize > 0);
 
     /* Set up the response */
     response->responseHeader.timestamp = UA_DateTime_now();
