@@ -568,6 +568,14 @@ readSessionDiagnostics(UA_Server *server,
         sd[i].currentPublishRequestsInQueue = (UA_UInt32)
             session->session.responseQueueSize;
         sd[i].actualSessionTimeout = session->session.timeout;
+
+        UA_StatusCode res = UA_Array_copy(session->session.localeIds,
+                                          session->session.localeIdsSize,
+                                          (void**)&sd[i].localeIds,
+                                          &UA_TYPES[UA_TYPES_STRING]);
+        if(UA_LIKELY(res == UA_STATUSCODE_GOOD))
+            sd[i].localeIdsSize = session->session.localeIdsSize;
+
         i++;
     }
 
