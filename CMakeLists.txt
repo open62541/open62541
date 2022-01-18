@@ -554,6 +554,11 @@ if(UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS)
     MESSAGE(WARNING "UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS is enabled. The feature is under development and marked as EXPERIMENTAL")
 endif()
 
+if(UA_ENABLE_SUBSCRIPTIONS_EVENTS AND (NOT UA_ENABLE_SUBSCRIPTIONS))
+    MESSAGE(WARNING "UA_ENABLE_SUBSCRIPTIONS_EVENTS needs Subscriptions enabled")
+    set(UA_ENABLE_SUBSCRIPTIONS_EVENTS OFF)
+endif()
+
 ########################
 # Linting during build #
 ########################
