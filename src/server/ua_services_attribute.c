@@ -992,9 +992,15 @@ UA_Boolean
 compatibleValueArrayDimensions(const UA_Variant *value, size_t targetArrayDimensionsSize,
                                const UA_UInt32 *targetArrayDimensions) {
     size_t valueArrayDimensionsSize = value->arrayDimensionsSize;
-    UA_UInt32 *valueArrayDimensions = value->arrayDimensions;
+    UA_UInt32 const *valueArrayDimensions = value->arrayDimensions;
     UA_UInt32 tempArrayDimensions;
     if(!valueArrayDimensions && !UA_Variant_isScalar(value)) {
+        /* An empty array implicitly has array dimensions [0,0,...] with the
+         * correct number of dimensions. So it always matches. */
+        if(value->arrayLength == 0)
+            return true;
+
+        /* Arrays with content and without array dimensions have one implicit dimension */
         valueArrayDimensionsSize = 1;
         tempArrayDimensions = (UA_UInt32)value->arrayLength;
         valueArrayDimensions = &tempArrayDimensions;

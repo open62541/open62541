@@ -90,7 +90,8 @@ START_TEST(check1dimValues) {
     // Point_1dim_noInit
     UA_Server_readValue(server, UA_NODEID_NUMERIC(testNamespaceIndex, 10007), &out);
     ck_assert(!UA_Variant_isScalar(&out));
-    ck_assert(out.arrayDimensionsSize == 1);
+    ck_assert(out.arrayDimensionsSize == 0);
+    ck_assert(out.arrayDimensions == NULL);
     UA_Variant_clear(&out);
     // Point_1dim_init
     UA_Server_readValue(server, UA_NODEID_NUMERIC(testNamespaceIndex, 10004), &out);

@@ -500,7 +500,7 @@ readValueAttribute(UA_Server *server, UA_Session *session,
 
 /* Test whether the value matches a variable definition given by
  * - datatype
- * - valueranke
+ * - valuerank
  * - array dimensions.
  * Sometimes it can be necessary to transform the content of the value, e.g.
  * byte array to bytestring or uint32 to some enum. If editableValue is non-NULL,
