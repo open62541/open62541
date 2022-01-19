@@ -220,7 +220,8 @@ UA_Server_createSession(UA_Server *server, UA_SecureChannel *channel,
     if(server->sessionCount >= server->config.maxSessions)
         return UA_STATUSCODE_BADTOOMANYSESSIONS;
 
-    session_list_entry *newentry = (session_list_entry *)UA_malloc(sizeof(session_list_entry));
+    session_list_entry *newentry = (session_list_entry*)
+        UA_malloc(sizeof(session_list_entry));
     if(!newentry)
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
@@ -350,6 +351,13 @@ Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
     response->responseHeader.serviceResult |=
         UA_String_copy(&request->sessionName, &newSession->sessionName);
 
+#ifdef UA_ENABLE_DIAGNOSTICS
+    response->responseHeader.serviceResult |=
+        UA_String_copy(&request->serverUri, &newSession->diagnostics.serverUri);
+    response->responseHeader.serviceResult |=
+        UA_String_copy(&request->endpointUrl, &newSession->diagnostics.endpointUrl);
+#endif
+
     UA_ByteString_init(&response->serverCertificate);
 
     if(server->config.endpointsSize > 0)
@@ -381,6 +389,12 @@ Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
                                        UA_DIAGNOSTICEVENT_REJECT);
         return;
     }
+
+#ifdef UA_ENABLE_DIAGNOSTICS
+    newSession->diagnostics.clientConnectionTime = UA_DateTime_now();
+    newSession->diagnostics.clientLastContactTime =
+        newSession->diagnostics.clientConnectionTime;
+#endif
 
     UA_LOG_INFO_SESSION(&server->config.logger, newSession, "Session created");
 }
@@ -539,6 +553,42 @@ selectEndpointAndTokenPolicy(UA_Server *server, UA_SecureChannel *channel,
     }
 }
 
+#ifdef UA_ENABLE_DIAGNOSTICS
+static UA_StatusCode
+saveClientUserId(const UA_ExtensionObject *userIdentityToken,
+                 UA_SessionSecurityDiagnosticsDataType *diag) {
+    UA_StatusCode res = UA_STATUSCODE_GOOD;
+
+    UA_String_clear(&diag->clientUserIdOfSession);
+    if(userIdentityToken->encoding != UA_EXTENSIONOBJECT_DECODED)
+        return UA_STATUSCODE_GOOD;
+
+    if(userIdentityToken->content.decoded.type ==
+       &UA_TYPES[UA_TYPES_ANONYMOUSIDENTITYTOKEN]) {
+        /* String of length 0 */
+    } else if(userIdentityToken->content.decoded.type ==
+       &UA_TYPES[UA_TYPES_USERNAMEIDENTITYTOKEN]) {
+        const UA_UserNameIdentityToken *userToken = (UA_UserNameIdentityToken*)
+            userIdentityToken->content.decoded.data;
+        res = UA_String_copy(&userToken->userName, &diag->clientUserIdOfSession);
+    } else if(userIdentityToken->content.decoded.type ==
+       &UA_TYPES[UA_TYPES_X509IDENTITYTOKEN]) {
+        /* TODO: return the X509 Subject Name of the certificate */
+    } else {
+        return UA_STATUSCODE_BADIDENTITYTOKENINVALID;
+    }
+
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
+
+    return UA_Array_appendCopy((void**)&diag->clientUserIdHistory,
+                               &diag->clientUserIdHistorySize,
+                               &diag->clientUserIdOfSession,
+                               &UA_TYPES[UA_TYPES_STRING]);
+}
+#endif
+
+
 /* TODO: Check all of the following: The Server shall verify that the
  * Certificate the Client used to create the new SecureChannel is the same as
  * the Certificate used to create the original SecureChannel. In addition, the
@@ -553,6 +603,7 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
                         UA_ActivateSessionResponse *response) {
     const UA_EndpointDescription *ed = NULL;
     const UA_UserTokenPolicy *utp = NULL;
+    UA_String *tmpLocaleIds;
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
 
     UA_Session *session = getSessionByToken(server, &request->requestHeader.authenticationToken);
@@ -619,7 +670,7 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
            securityPolicy = getSecurityPolicyByUri(server, &utp->securityPolicyUri);
        if(!securityPolicy) {
           response->responseHeader.serviceResult = UA_STATUSCODE_BADINTERNALERROR;
-          goto rejected;
+          goto securityRejected;
        }
 
        /* Test if the encryption algorithm is correctly specified */
@@ -651,7 +702,7 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
                                           "Failed to create a context for the SecurityPolicy %.*s",
                                           (int)securityPolicy->policyUri.length,
                                           securityPolicy->policyUri.data);
-                   goto rejected;
+                   goto securityRejected;
                }
            }
 
@@ -668,7 +719,7 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
        } else if(userToken->encryptionAlgorithm.length != 0) {
            /* If SecurityPolicy is None there shall be no EncryptionAlgorithm  */
            response->responseHeader.serviceResult = UA_STATUSCODE_BADIDENTITYTOKENINVALID;
-           return;
+           goto securityRejected;
        }
 
        if(response->responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
@@ -699,7 +750,7 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
             securityPolicy = getSecurityPolicyByUri(server, &utp->securityPolicyUri);
         if(!securityPolicy) {
             response->responseHeader.serviceResult = UA_STATUSCODE_BADINTERNALERROR;
-            goto rejected;
+            goto securityRejected;
         }
 
         /* We need a channel context with the user certificate in order to reuse
@@ -714,7 +765,7 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
                                    "Failed to create a context for the SecurityPolicy %.*s",
                                    (int)securityPolicy->policyUri.length,
                                    securityPolicy->policyUri.data);
-            goto rejected;
+            goto securityRejected;
         }
 
         /* Check the user token signature */
@@ -745,7 +796,7 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
         UA_LOG_WARNING_SESSION(&server->config.logger, session, "ActivateSession: The AccessControl "
                                "plugin denied the activation with the StatusCode %s",
                                UA_StatusCode_name(response->responseHeader.serviceResult));
-        goto rejected;
+        goto securityRejected;
     }
 
     /* Attach the session to the currently used channel if the session isn't
@@ -769,6 +820,21 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
         goto rejected;
     }
 
+    /* Set the locale */
+    response->responseHeader.serviceResult |=
+        UA_Array_copy(request->localeIds, request->localeIdsSize,
+                      (void**)&tmpLocaleIds, &UA_TYPES[UA_TYPES_STRING]);
+    if(response->responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
+        UA_Session_detachFromSecureChannel(session);
+        UA_LOG_WARNING_SESSION(&server->config.logger, session,
+                               "ActivateSession: Could not store the Session LocaleIds");
+        goto rejected;
+    }
+    UA_Array_delete(session->localeIds, session->localeIdsSize,
+                    &UA_TYPES[UA_TYPES_STRING]);
+    session->localeIds = tmpLocaleIds;
+    session->localeIdsSize = request->localeIdsSize;
+
     UA_Session_updateLifetime(session);
 
     /* Activate the session */
@@ -777,6 +843,27 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
         server->serverDiagnosticsSummary.currentSessionCount++;
         server->serverDiagnosticsSummary.cumulatedSessionCount++;
     }
+
+#ifdef UA_ENABLE_DIAGNOSTICS
+    saveClientUserId(&request->userIdentityToken,
+                     &session->securityDiagnostics);
+    UA_String_clear(&session->securityDiagnostics.authenticationMechanism);
+    switch(utp->tokenType) {
+    case UA_USERTOKENTYPE_ANONYMOUS:
+        session->securityDiagnostics.authenticationMechanism = UA_STRING_ALLOC("Anonymous");
+        break;
+    case UA_USERTOKENTYPE_USERNAME:
+        session->securityDiagnostics.authenticationMechanism = UA_STRING_ALLOC("UserName");
+        break;
+    case UA_USERTOKENTYPE_CERTIFICATE:
+        session->securityDiagnostics.authenticationMechanism = UA_STRING_ALLOC("Certificate");
+        break;
+    case UA_USERTOKENTYPE_ISSUEDTOKEN:
+        session->securityDiagnostics.authenticationMechanism = UA_STRING_ALLOC("IssuedToken");
+        break;
+    default: break;
+    }
+#endif
 
     UA_LOG_INFO_SESSION(&server->config.logger, session, "ActivateSession: Session activated");
     return;
