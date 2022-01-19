@@ -144,6 +144,7 @@ UA_MonitoredItem_createDataChangeNotification(UA_Server *server, UA_Subscription
     }
 
     /* Enqueue the notification */
+    UA_assert(sub);
     UA_Notification_enqueueAndTrigger(server, newNotification);
     return UA_STATUSCODE_GOOD;
 }
