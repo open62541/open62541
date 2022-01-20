@@ -1789,6 +1789,10 @@ Service_HistoryRead(UA_Server *server, UA_Session *session,
                     UA_HistoryReadResponse *response) {
     UA_assert(session != NULL);
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
+    if(server->config.historyDatabase.context == NULL) {
+        response->responseHeader.serviceResult = UA_STATUSCODE_BADNOTSUPPORTED;
+        return;
+    }
 
     if(request->historyReadDetails.encoding != UA_EXTENSIONOBJECT_DECODED) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADNOTSUPPORTED;
