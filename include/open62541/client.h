@@ -70,17 +70,23 @@ _UA_BEGIN_DECLS
  * The :ref:`tutorials` provide a good starting point for this. */
 
 typedef struct {
-    /* Basic client configuration */
-    void *clientContext; /* User-defined data attached to the client */
-    UA_Logger logger;   /* Logger used by the client */
-    UA_UInt32 timeout;  /* Response timeout in ms */
+    void *clientContext; /* User-defined pointer attached to the client */
+    UA_Logger logger;    /* Logger used by the client */
+    UA_UInt32 timeout;   /* Response timeout in ms */
 
     /* The description must be internally consistent.
      * - The ApplicationUri set in the ApplicationDescription must match the
-     *   URI set in the server certificate */
+     *   URI set in the certificate */
     UA_ApplicationDescription clientDescription;
 
-    /* Basic connection configuration */
+    /**
+     * Connection configuration
+     * ~~~~~~~~~~~~~~~~~~~~~~~~
+     *
+     * The following configuration elements reduce the "degrees of freedom" the
+     * client has when connecting to a server. If no connection can be made
+     * under these restrictions, then the connection will abort with an error
+     * message. */
     UA_ExtensionObject userIdentityToken; /* Configured User-Identity Token */
     UA_MessageSecurityMode securityMode;  /* None, Sign, SignAndEncrypt. The
                                            * default is invalid. This indicates
@@ -90,8 +96,7 @@ typedef struct {
                                   * empty string indicates the client to select
                                   * any matching SecurityPolicy. */
 
-    /* Advanced connection configuration
-     *
+    /**
      * If either endpoint or userTokenPolicy has been set (at least one non-zero
      * byte in either structure), then the selected Endpoint and UserTokenPolicy
      * overwrite the settings in the basic connection configuration. The
@@ -106,7 +111,22 @@ typedef struct {
     UA_EndpointDescription endpoint;
     UA_UserTokenPolicy userTokenPolicy;
 
-    /* Advanced client configuration */
+    /**
+     * Custom Data Types
+     * ~~~~~~~~~~~~~~~~~
+     * The following is a linked list of arrays with custom data types. All data
+     * types that are accessible from here are automatically considered for the
+     * decoding of received messages. Custom data types are not cleaned up
+     * together with the configuration. So it is possible to allocate them on
+     * ROM.
+     *
+     * See the section on :ref:`generic-types`. Examples for working with custom
+     * data types are provided in ``/examples/custom_datatype/``. */
+    const UA_DataTypeArray *customDataTypes;
+
+    /**
+     * Advanced Client Configuration
+     * ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ */
 
     UA_UInt32 secureChannelLifeTime; /* Lifetime in ms (then the channel needs
                                         to be renewed) */
@@ -114,12 +134,6 @@ typedef struct {
     UA_ConnectionConfig localConnectionConfig;
     UA_UInt32 connectivityCheckInterval;     /* Connectivity check interval in ms.
                                               * 0 = background task disabled */
-    const UA_DataTypeArray *customDataTypes; /* Custom DataTypes. Attention!
-                                              * Custom datatypes are not cleaned
-                                              * up together with the
-                                              * configuration. So it is possible
-                                              * to allocate them on ROM. */
-
     /* Available SecurityPolicies */
     size_t securityPoliciesSize;
     UA_SecurityPolicy *securityPolicies;
