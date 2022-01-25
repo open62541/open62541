@@ -160,11 +160,20 @@ struct UA_Server {
 /* References Handling */
 /***********************/
 
-extern const struct aa_head refNameTree;
-
 const UA_ReferenceTarget *
 UA_NodeReferenceKind_findTarget(const UA_NodeReferenceKind *rk,
                                 const UA_ExpandedNodeId *targetId);
+
+/* Binary search tree for target nodeids and browse names */
+
+enum ZIP_CMP cmpRefTargetId(const void *a, const void *b);
+enum ZIP_CMP cmpRefTargetName(const void *a, const void *b);
+
+ZIP_FUNCTIONS(UA_ReferenceIdTree, UA_ReferenceTargetTreeElem, idTreeEntry,
+              UA_ReferenceTargetTreeElem, target, cmpRefTargetId)
+
+ZIP_FUNCTIONS(UA_ReferenceNameTree, UA_ReferenceTargetTreeElem, nameTreeEntry,
+              UA_UInt32, targetIdHash, cmpRefTargetName)
 
 /**************************/
 /* SecureChannel Handling */

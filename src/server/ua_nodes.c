@@ -13,7 +13,7 @@
 
 #include "ua_server_internal.h"
 #include "ua_types_encoding_binary.h"
-#include "aa_tree.h"
+#include "ziptree.h"
 
 /*********************/
 /* ReferenceType Set */
@@ -256,47 +256,41 @@ static UA_StatusCode
 addReferenceTarget(UA_NodeReferenceKind *refs, UA_NodePointer target,
                    UA_UInt32 targetNameHash);
 
-static enum aa_cmp
+enum ZIP_CMP
 cmpRefTargetId(const void *a, const void *b) {
     const UA_ReferenceTargetTreeElem *aa = (const UA_ReferenceTargetTreeElem*)a;
     const UA_ReferenceTargetTreeElem *bb = (const UA_ReferenceTargetTreeElem*)b;
     if(aa->targetIdHash < bb->targetIdHash)
-        return AA_CMP_LESS;
+        return ZIP_CMP_LESS;
     if(aa->targetIdHash > bb->targetIdHash)
-        return AA_CMP_MORE;
-    return (enum aa_cmp)UA_NodePointer_order(aa->target.targetId,
-                                             bb->target.targetId);
+        return ZIP_CMP_MORE;
+    return (enum ZIP_CMP)UA_NodePointer_order(aa->target.targetId,
+                                              bb->target.targetId);
 }
 
-static enum aa_cmp
+enum ZIP_CMP
 cmpRefTargetName(const void *a, const void *b) {
     const UA_UInt32 *nameHashA = (const UA_UInt32*)a;
     const UA_UInt32 *nameHashB = (const UA_UInt32*)b;
     if(*nameHashA < *nameHashB)
-        return AA_CMP_LESS;
+        return ZIP_CMP_LESS;
     if(*nameHashA > *nameHashB)
-        return AA_CMP_MORE;
-    return AA_CMP_EQ;
+        return ZIP_CMP_MORE;
+    return ZIP_CMP_EQ;
 }
-
-/* Reusable binary search tree "heads". Just switch out the root pointer. */
-static const struct aa_head refIdTree =
-    { NULL, cmpRefTargetId, offsetof(UA_ReferenceTargetTreeElem, idTreeEntry), 0 };
-const struct aa_head refNameTree =
-    { NULL, cmpRefTargetName, offsetof(UA_ReferenceTargetTreeElem, nameTreeEntry),
-      offsetof(UA_ReferenceTarget, targetNameHash) };
 
 const UA_ReferenceTarget *
 UA_NodeReferenceKind_iterate(const UA_NodeReferenceKind *rk,
                              const UA_ReferenceTarget *prev) {
     /* Return from the tree */
     if(rk->hasRefTree) {
-        const struct aa_head _refIdTree =
-            { rk->targets.tree.idTreeRoot, cmpRefTargetId,
-              offsetof(UA_ReferenceTargetTreeElem, idTreeEntry), 0 };
+        const UA_ReferenceTargetTreeElem *elem;
         if(prev == NULL)
-            return (const UA_ReferenceTarget*)aa_min(&_refIdTree);
-        return (const UA_ReferenceTarget*)aa_next(&_refIdTree, prev);
+            elem = ZIP_MIN(UA_ReferenceIdTree, &rk->targets.tree.idTree);
+        else
+            elem = ZIP_NEXT(UA_ReferenceIdTree, &rk->targets.tree.idTree,
+                            (UA_ReferenceTargetTreeElem*)(uintptr_t)prev);
+        return elem ? &elem->target : NULL;
     }
     if(prev == NULL) /* Return start of the array */
         return rk->targets.array;
@@ -308,11 +302,9 @@ UA_NodeReferenceKind_iterate(const UA_NodeReferenceKind *rk,
 /* Also deletes the elements of the tree */
 static void
 moveTreeToArray(UA_ReferenceTarget *array, size_t *pos,
-                struct aa_entry *entry) {
-    if(!entry)
+                UA_ReferenceTargetTreeElem *elem) {
+    if(!elem)
         return;
-    UA_ReferenceTargetTreeElem *elem = (UA_ReferenceTargetTreeElem*)
-        ((uintptr_t)entry - offsetof(UA_ReferenceTargetTreeElem, idTreeEntry));
     moveTreeToArray(array, pos, elem->idTreeEntry.left);
     moveTreeToArray(array, pos, elem->idTreeEntry.right);
     array[*pos] = elem->target;
@@ -329,39 +321,38 @@ UA_NodeReferenceKind_switch(UA_NodeReferenceKind *rk) {
         if(!array)
             return UA_STATUSCODE_BADOUTOFMEMORY;
         size_t pos = 0;
-        moveTreeToArray(array, &pos, rk->targets.tree.idTreeRoot);
+        moveTreeToArray(array, &pos, rk->targets.tree.idTree.root);
         rk->targets.array = array;
         rk->hasRefTree = false;
         return UA_STATUSCODE_GOOD;
     }
 
     /* From array to tree */
-    UA_NodeReferenceKind newRk = *rk;
+    UA_NodeReferenceKind newRk = *rk; /* Make a local temporary copy */
     newRk.hasRefTree = true;
-    newRk.targets.tree.idTreeRoot = NULL;
-    newRk.targets.tree.nameTreeRoot = NULL;
+    newRk.targets.tree.idTree.root = NULL;
+    newRk.targets.tree.nameTree.root = NULL;
     for(size_t i = 0; i < rk->targetsSize; i++) {
         UA_StatusCode res =
             addReferenceTarget(&newRk, rk->targets.array[i].targetId,
                                rk->targets.array[i].targetNameHash);
         if(res != UA_STATUSCODE_GOOD) {
-            struct aa_head _refIdTree = refIdTree;
-            _refIdTree.root = newRk.targets.tree.idTreeRoot;
-            while(_refIdTree.root) {
-                UA_ReferenceTargetTreeElem *elem = (UA_ReferenceTargetTreeElem*)
-                    ((uintptr_t)_refIdTree.root -
-                     offsetof(UA_ReferenceTargetTreeElem, idTreeEntry));
-                aa_remove(&_refIdTree, elem);
+            while(newRk.targets.tree.idTree.root) {
+                UA_ReferenceTargetTreeElem *elem = newRk.targets.tree.idTree.root;
+                ZIP_REMOVE(UA_ReferenceIdTree, &newRk.targets.tree.idTree, elem);
                 UA_NodePointer_clear(&elem->target.targetId);
                 UA_free(elem);
             }
             return res;
         }
     }
+
+    /* Replace with the local temporary copy */
     for(size_t i = 0; i < rk->targetsSize; i++)
         UA_NodePointer_clear(&rk->targets.array[i].targetId);
     UA_free(rk->targets.array);
     *rk = newRk;
+
     return UA_STATUSCODE_GOOD;
 }
 
@@ -375,10 +366,10 @@ UA_NodeReferenceKind_findTarget(const UA_NodeReferenceKind *rk,
         UA_ReferenceTargetTreeElem tmpTarget;
         tmpTarget.target.targetId = targetP;
         tmpTarget.targetIdHash = UA_ExpandedNodeId_hash(targetId);
-        const struct aa_head _refIdTree =
-            { rk->targets.tree.idTreeRoot, cmpRefTargetId,
-              offsetof(UA_ReferenceTargetTreeElem, idTreeEntry), 0 };
-        return (const UA_ReferenceTarget*)aa_find(&_refIdTree, &tmpTarget);
+        return (UA_ReferenceTarget*)
+            ZIP_FIND(UA_ReferenceIdTree,
+                     (UA_ReferenceIdTree*)(uintptr_t)&rk->targets.tree.idTree,
+                     &tmpTarget);
     }
 
     /* Return from the array */
@@ -869,18 +860,13 @@ addReferenceTarget(UA_NodeReferenceKind *rk, UA_NodePointer targetId,
     entry->targetIdHash = UA_ExpandedNodeId_hash(&en);
     entry->target.targetNameHash = targetNameHash;
 
-    /* Insert to the id lookup binary search tree. Only the root is kept in refs
-     * to save space. */
-    struct aa_head _refIdTree = refIdTree;
-    _refIdTree.root = rk->targets.tree.idTreeRoot;
-    aa_insert(&_refIdTree, entry);
-    rk->targets.tree.idTreeRoot = _refIdTree.root;
+    /* Insert to the id lookup binary search tree */
+    ZIP_INSERT(UA_ReferenceIdTree, &rk->targets.tree.idTree,
+               entry, UA_UInt32_random());
 
     /* Insert to the name lookup binary search tree */
-    struct aa_head _refNameTree = refNameTree;
-    _refNameTree.root = rk->targets.tree.nameTreeRoot;
-    aa_insert(&_refNameTree, entry);
-    rk->targets.tree.nameTreeRoot = _refNameTree.root;
+    ZIP_INSERT(UA_ReferenceNameTree, &rk->targets.tree.nameTree,
+               entry, UA_UInt32_random());
 
     rk->targetsSize++;
 
@@ -952,9 +938,6 @@ UA_Node_addReference(UA_Node *node, UA_Byte refTypeIndex, UA_Boolean isForward,
 UA_StatusCode
 UA_Node_deleteReference(UA_Node *node, UA_Byte refTypeIndex, UA_Boolean isForward,
                         const UA_ExpandedNodeId *targetNodeId) {
-    struct aa_head _refIdTree = refIdTree;
-    struct aa_head _refNameTree = refNameTree;
-
     UA_NodeHead *head = &node->head;
     for(size_t i = 0; i < head->referencesSize; i++) {
         UA_NodeReferenceKind *refs = &head->references[i];
@@ -992,17 +975,12 @@ UA_Node_deleteReference(UA_Node *node, UA_Byte refTypeIndex, UA_Boolean isForwar
             UA_free(refs->targets.array);
         } else {
             /* Remove from the tree */
-            _refIdTree.root = refs->targets.tree.idTreeRoot;
-            aa_remove(&_refIdTree, target);
-            refs->targets.tree.idTreeRoot = _refIdTree.root;
-
-            _refNameTree.root = refs->targets.tree.nameTreeRoot;
-            aa_remove(&_refNameTree, target);
-            refs->targets.tree.nameTreeRoot = _refNameTree.root;
-
+            UA_ReferenceTargetTreeElem *elem = (UA_ReferenceTargetTreeElem*)target;
+            ZIP_REMOVE(UA_ReferenceIdTree, &refs->targets.tree.idTree, elem);
+            ZIP_REMOVE(UA_ReferenceNameTree, &refs->targets.tree.nameTree, elem);
             UA_NodePointer_clear(&target->targetId);
             UA_free(target);
-            if(refs->targets.tree.idTreeRoot)
+            if(refs->targets.tree.idTree.root)
                 return UA_STATUSCODE_GOOD; /* At least one target remains */
         }
 
@@ -1032,7 +1010,6 @@ UA_Node_deleteReference(UA_Node *node, UA_Byte refTypeIndex, UA_Boolean isForwar
 void
 UA_Node_deleteReferencesSubset(UA_Node *node, const UA_ReferenceTypeSet *keepSet) {
     UA_NodeHead *head = &node->head;
-    struct aa_head _refIdTree = refIdTree;
     for(size_t i = 0; i < head->referencesSize; i++) {
         /* Keep the references of this type? */
         UA_NodeReferenceKind *refs = &head->references[i];
@@ -1046,12 +1023,9 @@ UA_Node_deleteReferencesSubset(UA_Node *node, const UA_ReferenceTypeSet *keepSet
                 UA_NodePointer_clear(&refs->targets.array[j].targetId);
             UA_free(refs->targets.array);
         } else {
-            _refIdTree.root = refs->targets.tree.idTreeRoot;
-            while(_refIdTree.root) {
-                UA_ReferenceTargetTreeElem *elem = (UA_ReferenceTargetTreeElem*)
-                    ((uintptr_t)_refIdTree.root -
-                     offsetof(UA_ReferenceTargetTreeElem, idTreeEntry));
-                aa_remove(&_refIdTree, elem);
+            while(refs->targets.tree.idTree.root) {
+                UA_ReferenceTargetTreeElem *elem = refs->targets.tree.idTree.root;
+                ZIP_REMOVE(UA_ReferenceIdTree, &refs->targets.tree.idTree, elem);
                 UA_NodePointer_clear(&elem->target.targetId);
                 UA_free(elem);
             }

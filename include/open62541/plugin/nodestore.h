@@ -18,7 +18,7 @@
  * / OPC UA services to interact with the information model. */
 
 #include <open62541/util.h>
-#include "aa_tree.h"
+#include "ziptree.h"
 
 _UA_BEGIN_DECLS
 
@@ -339,12 +339,23 @@ typedef struct {
                                * if the target is remote. */
 } UA_ReferenceTarget;
 
-typedef struct {
+struct UA_ReferenceTargetTreeElem;
+typedef struct UA_ReferenceTargetTreeElem UA_ReferenceTargetTreeElem;
+
+struct UA_ReferenceTargetTreeElem {
     UA_ReferenceTarget target;   /* Has to be the first entry */
     UA_UInt32 targetIdHash;      /* Hash of the targetId */
-    struct aa_entry idTreeEntry; /* Binary-Tree for fast lookup */
-    struct aa_entry nameTreeEntry;
-} UA_ReferenceTargetTreeElem;
+
+    /* Binary-Tree for fast lookup */
+    ZIP_ENTRY(UA_ReferenceTargetTreeElem) idTreeEntry;
+    ZIP_ENTRY(UA_ReferenceTargetTreeElem) nameTreeEntry;
+};
+
+ZIP_HEAD(UA_ReferenceIdTree, UA_ReferenceTargetTreeElem);
+typedef struct UA_ReferenceIdTree UA_ReferenceIdTree;
+
+ZIP_HEAD(UA_ReferenceNameTree, UA_ReferenceTargetTreeElem);
+typedef struct UA_ReferenceNameTree UA_ReferenceNameTree;
 
 /* List of reference targets with the same reference type and direction. Uses
  * either an array or a tree structure. The SDK will not change the type of
@@ -361,8 +372,10 @@ typedef struct {
 
         /* Organize the references in a tree for fast lookup */
         struct {
-            struct aa_entry *idTreeRoot;   /* Fast lookup based on the target id */
-            struct aa_entry *nameTreeRoot; /* Fast lookup based on the target browseName*/
+            /* Fast lookup based on the target id */
+            UA_ReferenceIdTree idTree;
+            /* Fast lookup based on the target browseName*/
+            UA_ReferenceNameTree nameTree;
         } tree;
     } targets;
     size_t targetsSize;
