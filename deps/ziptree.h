@@ -85,6 +85,9 @@ void
 __ZIP_ITER(unsigned short fieldoffset, __zip_iter_cb cb,
            void *context, void *elm);
 
+void * __ZIP_PREV(unsigned short fieldoffset, void *root, void *elm);
+void * __ZIP_NEXT(unsigned short fieldoffset, void *root, void *elm);
+
 void * __ZIP_MIN(unsigned short fieldoffset, void *elm);
 void * __ZIP_MAX(unsigned short fieldoffset, void *elm);
 
@@ -103,6 +106,8 @@ unsigned char __ZIP_FFS32(unsigned int v);
 #define ZIP_INSERT(name, head, elm, rank) name##_ZIP_INSERT(head, elm, rank)
 #define ZIP_REMOVE(name, head, elm) name##_ZIP_REMOVE(head, elm)
 #define ZIP_FIND(name, head, key) name##_ZIP_FIND(head, key)
+#define ZIP_NEXT(name, head, elm) name##_ZIP_PREV(head, elm)
+#define ZIP_PREV(name, head, elm) name##_ZIP_NEXT(head, elm)
 #define ZIP_MIN(name, head) name##_ZIP_MIN(head)
 #define ZIP_MAX(name, head) name##_ZIP_MAX(head)
 #define ZIP_ITER(name, head, cb, d) name##_ZIP_ITER(head, cb, d)
@@ -134,7 +139,19 @@ name##_ZIP_FIND(struct name *head, const keytype *key) {                \
 }                                                                       \
                                                                         \
 ZIP_UNUSED static ZIP_INLINE struct type *                              \
-name##_ZIP_MIN(struct name *head) {                                     \
+name##_ZIP_PREV(const struct name *head, struct type *elm) {            \
+    return (struct type *)__ZIP_PREV(offsetof(struct type, field),      \
+                                     ZIP_ROOT(head), elm);              \
+}                                                                       \
+                                                                        \
+ZIP_UNUSED static ZIP_INLINE struct type *                              \
+name##_ZIP_NEXT(const struct name *head, struct type *elm) {            \
+    return (struct type *)__ZIP_NEXT(offsetof(struct type, field),      \
+                                     ZIP_ROOT(head), elm);              \
+}                                                                       \
+                                                                        \
+ZIP_UNUSED static ZIP_INLINE struct type *                              \
+name##_ZIP_MIN(const struct name *head) {                               \
     return (struct type *)__ZIP_MIN(offsetof(struct type, field),       \
                                     ZIP_ROOT(head));                    \
 }                                                                       \

@@ -140,6 +140,16 @@ __ZIP_FIND(zip_cmp_cb cmp, unsigned short fieldoffset,
 }
 
 void *
+__ZIP_PREV(unsigned short fieldoffset, void *root, void *elm) {
+    return NULL;
+}
+
+void *
+__ZIP_NEXT(unsigned short fieldoffset, void *root, void *elm) {
+    return NULL;
+}
+
+void *
 __ZIP_MIN(unsigned short fieldoffset, void *elm) {
     if(!elm)
         return NULL;
