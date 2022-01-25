@@ -1539,7 +1539,7 @@ UA_StatusCode UA_EXPORT
 UA_Server_createCondition(UA_Server *server,
                           const UA_NodeId conditionId,
                           const UA_NodeId conditionType,
-                          UA_QualifiedName conditionName,
+                          const UA_QualifiedName conditionName,
                           const UA_NodeId conditionSource,
                           const UA_NodeId hierarchialReferenceType,
                           UA_NodeId *outConditionId);
@@ -1554,7 +1554,7 @@ UA_Server_createCondition(UA_Server *server,
 UA_StatusCode UA_EXPORT
 UA_Server_setConditionField(UA_Server *server,
                             const UA_NodeId condition,
-                            const UA_Variant* value,
+                            const UA_Variant *value,
                             const UA_QualifiedName fieldName);
 
 /* Set the value of property of condition field.
@@ -1570,7 +1570,7 @@ UA_Server_setConditionField(UA_Server *server,
 UA_StatusCode UA_EXPORT
 UA_Server_setConditionVariableFieldProperty(UA_Server *server,
                                             const UA_NodeId condition,
-                                            const UA_Variant* value,
+                                            const UA_Variant *value,
                                             const UA_QualifiedName variableFieldName,
                                             const UA_QualifiedName variablePropertyName);
 
@@ -1581,9 +1581,10 @@ UA_Server_setConditionVariableFieldProperty(UA_Server *server,
  * @param condition The NodeId of the node representation of the Condition Instance
  * @param conditionSource The NodeId of the node representation of the Condition Source
  * @param outEventId last generated EventId
- * @return The StatusCode of the UA_Server_triggerConditionEvent method*/
+ * @return The StatusCode of the UA_Server_triggerConditionEvent method */
 UA_StatusCode UA_EXPORT
-UA_Server_triggerConditionEvent(UA_Server *server, const UA_NodeId condition,
+UA_Server_triggerConditionEvent(UA_Server *server,
+                                const UA_NodeId condition,
                                 const UA_NodeId conditionSource,
                                 UA_ByteString *outEventId);
 
@@ -1596,9 +1597,10 @@ UA_Server_triggerConditionEvent(UA_Server *server, const UA_NodeId condition,
  * from which the optional field comes
  * @param fieldName Name of the optional field
  * @param outOptionalVariable The NodeId of the created field (Variable Node)
- * @return The StatusCode of the UA_Server_addConditionOptionalField method*/
+ * @return The StatusCode of the UA_Server_addConditionOptionalField method */
 UA_StatusCode UA_EXPORT
-UA_Server_addConditionOptionalField(UA_Server *server, const UA_NodeId condition,
+UA_Server_addConditionOptionalField(UA_Server *server,
+                                    const UA_NodeId condition,
                                     const UA_NodeId conditionType,
                                     const UA_QualifiedName fieldName,
                                     UA_NodeId *outOptionalVariable);
@@ -1614,9 +1616,10 @@ UA_Server_addConditionOptionalField(UA_Server *server, const UA_NodeId condition
  * @param removeBranch (Not Implemented yet)
  * @param callback User specific callback function
  * @param callbackType Callback function type, indicates where it should be called
- * @return The StatusCode of the UA_Server_setConditionTwoStateVariableCallback method*/
+ * @return The StatusCode of the UA_Server_setConditionTwoStateVariableCallback method */
 UA_StatusCode UA_EXPORT
-UA_Server_setConditionTwoStateVariableCallback(UA_Server *server, const UA_NodeId condition,
+UA_Server_setConditionTwoStateVariableCallback(UA_Server *server,
+                                               const UA_NodeId condition,
                                                const UA_NodeId conditionSource,
                                                UA_Boolean removeBranch,
                                                UA_TwoStateVariableChangeCallback callback,
