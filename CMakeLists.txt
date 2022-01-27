@@ -158,11 +158,8 @@ endforeach(arch_ ${architectures})
 option(BUILD_SHARED_LIBS "Enable building of shared libraries (dll/so)" OFF)
 set(UA_LOGLEVEL 300 CACHE STRING "Level at which logs shall be reported")
 set(UA_MULTITHREADING 0 CACHE STRING "Level of multithreading (0-99: No Multithreading, >=100: Thread-Safe API")
-
 option(UA_ENABLE_DIAGNOSTICS "Enable diagnostics information exposed by the server" OFF)
 option(UA_ENABLE_INFORMATIONMODEL_LOADING "Enable loading of information models without UA_NAMESPACE_ZERO=FULL" ON)
-option(UA_ENABLE_DIAGNOSTICS "Enable diagnostics information exposed by the server" OFF)
-
 option(UA_ENABLE_METHODCALLS "Enable the Method service set" ON)
 option(UA_ENABLE_SUBSCRIPTIONS "Enable subscriptions support" ON)
 option(UA_ENABLE_SUBSCRIPTIONS_EVENTS "Enable event monitoring" ON)
