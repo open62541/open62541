@@ -576,11 +576,11 @@ setSessionDiagnostics(UA_Session *session, UA_SessionDiagnosticsDataType *sd) {
 }
 
 static UA_StatusCode
-readSessionDiagnostics(UA_Server *server,
-                       const UA_NodeId *sessionId, void *sessionContext,
-                       const UA_NodeId *nodeId, void *nodeContext,
-                       UA_Boolean sourceTimestamp,
-                       const UA_NumericRange *range, UA_DataValue *value) {
+readSessionDiagnosticsArray(UA_Server *server,
+                            const UA_NodeId *sessionId, void *sessionContext,
+                            const UA_NodeId *nodeId, void *nodeContext,
+                            UA_Boolean sourceTimestamp,
+                            const UA_NumericRange *range, UA_DataValue *value) {
     /* Allocate the output array */
     UA_SessionDiagnosticsDataType *sd = (UA_SessionDiagnosticsDataType*)
         UA_Array_new(server->sessionCount,
@@ -601,6 +601,240 @@ readSessionDiagnostics(UA_Server *server,
     UA_Variant_setArray(&value->value, sd, server->sessionCount,
                         &UA_TYPES[UA_TYPES_SESSIONDIAGNOSTICSDATATYPE]);
     return UA_STATUSCODE_GOOD;
+}
+
+static UA_Boolean
+equalBrowseName(UA_String *bn, char *n) {
+    UA_String name = UA_STRING(n);
+    return UA_String_equal(bn, &name);
+}
+
+static UA_StatusCode
+readSessionDiagnostics(UA_Server *server,
+                       const UA_NodeId *sessionId, void *sessionContext,
+                       const UA_NodeId *nodeId, void *nodeContext,
+                       UA_Boolean sourceTimestamp,
+                       const UA_NumericRange *range, UA_DataValue *value) {
+    /* Get the Session */
+    UA_Session *session = UA_Server_getSessionById(server, sessionId);
+    if(!session)
+        return UA_STATUSCODE_BADINTERNALERROR;
+    
+    /* Read the BrowseName */
+    UA_QualifiedName bn;
+    UA_StatusCode res =
+        readWithReadValue(server, nodeId, UA_ATTRIBUTEID_BROWSENAME, &bn);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
+
+    /* Set the value */
+    UA_UInt32 tmpUInt32;
+    void *content = NULL;
+    const UA_DataType *type = NULL;
+    if(equalBrowseName(&bn.name, "SessionId")) {
+        content = &session->sessionId;
+        type = &UA_TYPES[UA_TYPES_NODEID];
+    } else if(equalBrowseName(&bn.name, "SessionName")) {
+        content = &session->sessionName;
+        type = &UA_TYPES[UA_TYPES_STRING];
+    } else if(equalBrowseName(&bn.name, "ClientDescription")) {
+        content = &session->diagnostics.clientDescription;
+        type = &UA_TYPES[UA_TYPES_APPLICATIONDESCRIPTION];
+    } else if(equalBrowseName(&bn.name, "ServerUri")) {
+        content = &session->diagnostics.serverUri;
+        type = &UA_TYPES[UA_TYPES_STRING];
+    } else if(equalBrowseName(&bn.name, "EndpointUrl")) {
+        content = &session->diagnostics.endpointUrl;
+        type = &UA_TYPES[UA_TYPES_STRING];
+    } else if(equalBrowseName(&bn.name, "LocaleIds")) {
+        res = UA_Variant_setArrayCopy(&value->value,
+                                      session->localeIds, session->localeIdsSize,
+                                      &UA_TYPES[UA_TYPES_STRING]);
+        if(res != UA_STATUSCODE_GOOD)
+            return res;
+        value->hasValue = true;
+        return UA_STATUSCODE_GOOD;
+    } else if(equalBrowseName(&bn.name, "ActualSessionTimeout")) {
+        content = &session->timeout;
+        type = &UA_TYPES[UA_TYPES_DOUBLE];
+    } else if(equalBrowseName(&bn.name, "MaxResponseMessageSize")) {
+        content = &session->maxResponseMessageSize;
+        type = &UA_TYPES[UA_TYPES_UINT32];
+    } else if(equalBrowseName(&bn.name, "ClientConnectionTime")) {
+        content = &session->diagnostics.clientConnectionTime;
+        type = &UA_TYPES[UA_TYPES_DATETIME];
+    } else if(equalBrowseName(&bn.name, "ClientLastContactTime")) {
+        content = &session->diagnostics.clientLastContactTime;
+        type = &UA_TYPES[UA_TYPES_DATETIME];
+    } else if(equalBrowseName(&bn.name, "CurrentSubscriptionsCount")) {
+#ifdef UA_ENABLE_SUBSCRIPTIONS
+        content = &session->diagnostics.currentSubscriptionsCount;
+#else
+        tmpUInt32 = 0;
+        content = &tmpUInt32;
+#endif
+        type = &UA_TYPES[UA_TYPES_UINT32];
+    } else if(equalBrowseName(&bn.name, "CurrentMonitoredItemsCount")) {
+        tmpUInt32 = 0;
+#ifdef UA_ENABLE_SUBSCRIPTIONS
+        UA_Subscription *sub;
+        TAILQ_FOREACH(sub, &session->subscriptions, sessionListEntry) {
+            tmpUInt32 += (UA_UInt32)sub->monitoredItemsSize;
+        }
+#endif
+        content = &tmpUInt32;
+        type = &UA_TYPES[UA_TYPES_UINT32];
+    } else if(equalBrowseName(&bn.name, "CurrentPublishRequestsInQueue")) {
+#ifdef UA_ENABLE_SUBSCRIPTIONS
+        content = &session->diagnostics.currentPublishRequestsInQueue;
+#else
+        tmpUInt32 = 0;
+        content = &tmpUInt32;
+#endif
+        type = &UA_TYPES[UA_TYPES_UINT32];
+    } else if(equalBrowseName(&bn.name, "TotalRequestCount")) {
+        content = &session->diagnostics.totalRequestCount;
+        type = &UA_TYPES[UA_TYPES_SERVICECOUNTERDATATYPE];
+    } else if(equalBrowseName(&bn.name, "UnauthorizedRequestCount")) {
+        content = &session->diagnostics.unauthorizedRequestCount;
+        type = &UA_TYPES[UA_TYPES_UINT32];
+    } else if(equalBrowseName(&bn.name, "ReadCount")) {
+        content = &session->diagnostics.readCount;
+        type = &UA_TYPES[UA_TYPES_SERVICECOUNTERDATATYPE];
+    } else if(equalBrowseName(&bn.name, "HistoryReadCount")) {
+        content = &session->diagnostics.historyReadCount;
+        type = &UA_TYPES[UA_TYPES_SERVICECOUNTERDATATYPE];
+    } else if(equalBrowseName(&bn.name, "WriteCount")) {
+        content = &session->diagnostics.writeCount;
+        type = &UA_TYPES[UA_TYPES_SERVICECOUNTERDATATYPE];
+    } else if(equalBrowseName(&bn.name, "HistoryUpdateCount")) {
+        content = &session->diagnostics.historyUpdateCount;
+        type = &UA_TYPES[UA_TYPES_SERVICECOUNTERDATATYPE];
+    } else if(equalBrowseName(&bn.name, "CallCount")) {
+        content = &session->diagnostics.callCount;
+        type = &UA_TYPES[UA_TYPES_SERVICECOUNTERDATATYPE];
+    } else if(equalBrowseName(&bn.name, "CreateMonitoredItemsCount")) {
+        content = &session->diagnostics.createMonitoredItemsCount;
+        type = &UA_TYPES[UA_TYPES_SERVICECOUNTERDATATYPE];
+    } else if(equalBrowseName(&bn.name, "ModifyMonitoredItemsCount")) {
+        content = &session->diagnostics.modifyMonitoredItemsCount;
+        type = &UA_TYPES[UA_TYPES_SERVICECOUNTERDATATYPE];
+    } else if(equalBrowseName(&bn.name, "SetMonitoringModeCount")) {
+        content = &session->diagnostics.setMonitoringModeCount;
+        type = &UA_TYPES[UA_TYPES_SERVICECOUNTERDATATYPE];
+    } else if(equalBrowseName(&bn.name, "SetTriggeringCount")) {
+        content = &session->diagnostics.setTriggeringCount;
+        type = &UA_TYPES[UA_TYPES_SERVICECOUNTERDATATYPE];
+    } else if(equalBrowseName(&bn.name, "DeleteMonitoredItemsCount")) {
+        content = &session->diagnostics.deleteMonitoredItemsCount;
+        type = &UA_TYPES[UA_TYPES_SERVICECOUNTERDATATYPE];
+    } else if(equalBrowseName(&bn.name, "CreateSubscriptionCount")) {
+        content = &session->diagnostics.createSubscriptionCount;
+        type = &UA_TYPES[UA_TYPES_SERVICECOUNTERDATATYPE];
+    } else if(equalBrowseName(&bn.name, "ModifySubscriptionCount")) {
+        content = &session->diagnostics.modifySubscriptionCount;
+        type = &UA_TYPES[UA_TYPES_SERVICECOUNTERDATATYPE];
+    } else if(equalBrowseName(&bn.name, "SetPublishingModeCount")) {
+        content = &session->diagnostics.setPublishingModeCount;
+        type = &UA_TYPES[UA_TYPES_SERVICECOUNTERDATATYPE];
+    } else if(equalBrowseName(&bn.name, "PublishCount")) {
+        content = &session->diagnostics.publishCount;
+        type = &UA_TYPES[UA_TYPES_SERVICECOUNTERDATATYPE];
+    } else if(equalBrowseName(&bn.name, "RepublishCount")) {
+        content = &session->diagnostics.republishCount;
+        type = &UA_TYPES[UA_TYPES_SERVICECOUNTERDATATYPE];
+    } else if(equalBrowseName(&bn.name, "TransferSubscriptionsCount")) {
+        content = &session->diagnostics.transferSubscriptionsCount;
+        type = &UA_TYPES[UA_TYPES_SERVICECOUNTERDATATYPE];
+    } else if(equalBrowseName(&bn.name, "DeleteSubscriptionsCount")) {
+        content = &session->diagnostics.deleteSubscriptionsCount;
+        type = &UA_TYPES[UA_TYPES_SERVICECOUNTERDATATYPE];
+    } else if(equalBrowseName(&bn.name, "AddNodesCount")) {
+        content = &session->diagnostics.addNodesCount;
+        type = &UA_TYPES[UA_TYPES_SERVICECOUNTERDATATYPE];
+    } else if(equalBrowseName(&bn.name, "AddReferencesCount")) {
+        content = &session->diagnostics.addReferencesCount;
+        type = &UA_TYPES[UA_TYPES_SERVICECOUNTERDATATYPE];
+    } else if(equalBrowseName(&bn.name, "DeleteNodesCount")) {
+        content = &session->diagnostics.deleteNodesCount;
+        type = &UA_TYPES[UA_TYPES_SERVICECOUNTERDATATYPE];
+    } else if(equalBrowseName(&bn.name, "DeleteReferencesCount")) {
+        content = &session->diagnostics.deleteReferencesCount;
+        type = &UA_TYPES[UA_TYPES_SERVICECOUNTERDATATYPE];
+    } else if(equalBrowseName(&bn.name, "BrowseCount")) {
+        content = &session->diagnostics.browseCount;
+        type = &UA_TYPES[UA_TYPES_SERVICECOUNTERDATATYPE];
+    } else if(equalBrowseName(&bn.name, "BrowseNextCount")) {
+        content = &session->diagnostics.browseNextCount;
+        type = &UA_TYPES[UA_TYPES_SERVICECOUNTERDATATYPE];
+    } else if(equalBrowseName(&bn.name, "TranslateBrowsePathsToNodeIdsCount")) {
+        content = &session->diagnostics.translateBrowsePathsToNodeIdsCount;
+        type = &UA_TYPES[UA_TYPES_SERVICECOUNTERDATATYPE];
+    } else if(equalBrowseName(&bn.name, "QueryFirstCount")) {
+        content = &session->diagnostics.queryFirstCount;
+        type = &UA_TYPES[UA_TYPES_SERVICECOUNTERDATATYPE];
+    } else if(equalBrowseName(&bn.name, "QueryNextCount")) {
+        content = &session->diagnostics.queryNextCount;
+        type = &UA_TYPES[UA_TYPES_SERVICECOUNTERDATATYPE];
+    } else if(equalBrowseName(&bn.name, "RegisterNodesCount")) {
+        content = &session->diagnostics.registerNodesCount;
+        type = &UA_TYPES[UA_TYPES_SERVICECOUNTERDATATYPE];
+    } else if(equalBrowseName(&bn.name, "UnregisterNodesCount")) {
+        content = &session->diagnostics.unregisterNodesCount;
+        type = &UA_TYPES[UA_TYPES_SERVICECOUNTERDATATYPE];
+    }
+    if(!content)
+        return UA_STATUSCODE_BADNOTIMPLEMENTED;
+    UA_Variant_setScalarCopy(&value->value, content, type);
+    value->hasValue = true;
+    return UA_STATUSCODE_GOOD;
+}
+
+void
+createSessionObject(UA_Server *server, UA_Session *session) {
+    UA_ExpandedNodeId *children = NULL;
+    size_t childrenSize = 0;
+    UA_ReferenceTypeSet refTypes;
+    UA_NodeId hasComponent = UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT);
+
+    /* Create an object for the session. Instantiates all the mandatory children. */
+    UA_ObjectAttributes object_attr = UA_ObjectAttributes_default;
+    object_attr.displayName.text = session->sessionName;
+    UA_NodeId parentId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERDIAGNOSTICS_SESSIONSDIAGNOSTICSSUMMARY);
+    UA_NodeId refId = UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT);
+    UA_QualifiedName browseName = UA_QUALIFIEDNAME(0, "");
+    browseName.name = session->sessionName; /* shallow copy */
+    UA_NodeId typeId = UA_NODEID_NUMERIC(0, UA_NS0ID_SESSIONDIAGNOSTICSOBJECTTYPE);
+    UA_StatusCode res = addNode(server, UA_NODECLASS_OBJECT,
+                                &session->sessionId, &parentId, &refId, browseName, &typeId,
+                                (UA_NodeAttributes*)&object_attr,
+                                &UA_TYPES[UA_TYPES_OBJECTATTRIBUTES], NULL, NULL);
+    if(res != UA_STATUSCODE_GOOD)
+        goto cleanup;
+
+    /* Recursively browse all children */
+    res = referenceTypeIndices(server, &hasComponent, &refTypes, false);
+    if(res != UA_STATUSCODE_GOOD)
+        goto cleanup;
+    res = browseRecursive(server, 1, &session->sessionId,
+                          UA_BROWSEDIRECTION_FORWARD, &refTypes,
+                          UA_NODECLASS_VARIABLE, false, &childrenSize, &children);
+    if(res != UA_STATUSCODE_GOOD)
+        goto cleanup;
+
+    /* Add the callback to all variables  */
+    UA_DataSource sessionDiagSource = {readSessionDiagnostics, NULL};
+    for(size_t i = 0; i < childrenSize; i++) {
+        setVariableNode_dataSource(server, children[i].nodeId, sessionDiagSource);
+    }
+
+ cleanup:
+    if(res != UA_STATUSCODE_GOOD) {
+        UA_LOG_WARNING_SESSION(&server->config.logger, session,
+                               "Creating the session diagnostics object failed "
+                               "with StatusCode %s", UA_StatusCode_name(res));
+    }
+    UA_Array_delete(children, childrenSize, &UA_TYPES[UA_TYPES_EXPANDEDNODEID]);
 }
 
 static UA_StatusCode
@@ -1339,7 +1573,7 @@ UA_Server_initNS0(UA_Server *server) {
 #endif
 
     /* ServerDiagnostics - SessionDiagnosticsSummary - SessionDiagnosticsArray */
-    UA_DataSource sessionDiagSummary = {readSessionDiagnostics, NULL};
+    UA_DataSource sessionDiagSummary = {readSessionDiagnosticsArray, NULL};
     retVal |= UA_Server_setVariableNode_dataSource(server,
                         UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERDIAGNOSTICS_SESSIONSDIAGNOSTICSSUMMARY_SESSIONDIAGNOSTICSARRAY), sessionDiagSummary);
 
