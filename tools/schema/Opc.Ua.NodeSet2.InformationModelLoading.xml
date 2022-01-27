@@ -126,24 +126,6 @@
       </ListOfLocalizedText>
     </Value>
   </UAVariable>
-  <UAObject NodeId="i=11508" BrowseName="OptionalPlaceholder" SymbolicName="ModellingRule_OptionalPlaceholder">
-    <DisplayName>OptionalPlaceholder</DisplayName>
-    <Documentation>https://reference.opcfoundation.org/v104/Core/docs/Part5/8.4.4</Documentation>
-    <References>
-      <Reference ReferenceType="HasProperty">i=11509</Reference>
-      <Reference ReferenceType="HasTypeDefinition">i=77</Reference>
-    </References>
-  </UAObject>
-  <UAVariable NodeId="i=11509" BrowseName="NamingRule" ParentNodeId="i=11508" DataType="i=120">
-    <DisplayName>NamingRule</DisplayName>
-    <References>
-      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
-      <Reference ReferenceType="HasProperty" IsForward="false">i=11508</Reference>
-    </References>
-    <Value>
-      <Int32 xmlns="http://opcfoundation.org/UA/2008/02/Types.xsd">2</Int32>
-    </Value>
-  </UAVariable>
   <UAObject NodeId="i=11527" BrowseName="Namespaces" ParentNodeId="i=2004">
     <DisplayName>Namespaces</DisplayName>
     <References>
