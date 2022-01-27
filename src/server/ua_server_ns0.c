@@ -464,6 +464,8 @@ readDiagnostics(UA_Server *server, const UA_NodeId *sessionId, void *sessionCont
     return res;
 }
 
+#ifdef UA_ENABLE_SUBSCRIPTIONS
+
 static void
 fillSubscriptionDiagnostics(UA_Subscription *sub,
                             UA_SubscriptionDiagnosticsDataType *diag) {
@@ -539,6 +541,8 @@ readSubscriptionDiagnostics(UA_Server *server,
                         &UA_TYPES[UA_TYPES_SUBSCRIPTIONDIAGNOSTICSDATATYPE]);
     return UA_STATUSCODE_GOOD;
 }
+
+#endif /* UA_ENABLE_SUBSCRIPTIONS */
 
 static UA_StatusCode
 readSessionDiagnostics(UA_Server *server,
@@ -1325,9 +1329,11 @@ UA_Server_initNS0(UA_Server *server) {
                         UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERDIAGNOSTICS_SERVERDIAGNOSTICSSUMMARY_REJECTEDREQUESTSCOUNT), serverDiagSummary);
 
     /* ServerDiagnostics - SubscriptionDiagnosticsArray */
+#ifdef UA_ENABLE_SUBSCRIPTIONS
     UA_DataSource serverSubDiagSummary = {readSubscriptionDiagnostics, NULL};
     retVal |= UA_Server_setVariableNode_dataSource(server,
                         UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERDIAGNOSTICS_SUBSCRIPTIONDIAGNOSTICSARRAY), serverSubDiagSummary);
+#endif
 
     /* ServerDiagnostics - SessionDiagnosticsSummary - SessionDiagnosticsArray */
     UA_DataSource sessionDiagSummary = {readSessionDiagnostics, NULL};
