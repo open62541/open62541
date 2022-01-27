@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  *
- *    Copyright 2017-2020 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
+ *    Copyright 2017-2022 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
  *    Copyright 2017 (c) Stefan Profanter, fortiss GmbH
  *    Copyright 2017 (c) Thomas Bender
  *    Copyright 2017 (c) Julian Grothoff
@@ -460,6 +460,178 @@ readDiagnostics(UA_Server *server, const UA_NodeId *sessionId, void *sessionCont
         value->hasValue = true;
     return res;
 }
+
+static void
+fillSubscriptionDiagnostics(UA_Subscription *sub,
+                            UA_SubscriptionDiagnosticsDataType *diag) {
+    UA_NodeId_copy(&sub->session->sessionId, &diag->sessionId); /* ignore status */
+    diag->subscriptionId = sub->subscriptionId;
+    diag->priority = sub->priority;
+    diag->publishingInterval = sub->publishingInterval;
+    diag->maxKeepAliveCount = sub->maxKeepAliveCount;
+    diag->maxLifetimeCount = sub->lifeTimeCount;
+    diag->maxNotificationsPerPublish = sub->notificationsPerPublish;
+    diag->publishingEnabled = sub->publishingEnabled;
+    diag->modifyCount = sub->modifyCount;
+    diag->enableCount = sub->enableCount;
+    diag->disableCount = sub->disableCount;
+    diag->republishRequestCount = sub->republishRequestCount;
+    diag->republishMessageRequestCount =
+        sub->republishRequestCount; /* Always equal to the previous republishRequestCount */
+    diag->republishMessageCount = sub->republishMessageCount;
+    diag->transferRequestCount = sub->transferRequestCount;
+    diag->transferredToAltClientCount = sub->transferredToAltClientCount;
+    diag->transferredToSameClientCount = sub->transferredToSameClientCount;
+    diag->publishRequestCount = sub->publishRequestCount;
+    diag->dataChangeNotificationsCount = sub->dataChangeNotificationsCount;
+    diag->eventNotificationsCount = sub->eventNotificationsCount;
+    diag->notificationsCount = sub->notificationsCount;
+    diag->latePublishRequestCount = sub->latePublishRequestCount;
+    diag->currentKeepAliveCount = sub->currentKeepAliveCount;
+    diag->currentLifetimeCount = sub->currentLifetimeCount;
+    diag->unacknowledgedMessageCount = (UA_UInt32)sub->retransmissionQueueSize;
+    diag->discardedMessageCount = sub->discardedMessageCount;
+    diag->monitoredItemCount = sub->monitoredItemsSize;
+    diag->monitoringQueueOverflowCount = sub->monitoringQueueOverflowCount;
+    diag->nextSequenceNumber = sub->nextSequenceNumber;
+    diag->eventQueueOverFlowCount = sub->eventQueueOverFlowCount;
+
+    /* Count the disabled MonitoredItems */
+    UA_MonitoredItem *mon;
+    LIST_FOREACH(mon, &sub->monitoredItems, listEntry) {
+        if(mon->monitoringMode == UA_MONITORINGMODE_DISABLED)
+            diag->disabledMonitoredItemCount++;
+    }
+}
+
+static UA_StatusCode
+readSubscriptionDiagnostics(UA_Server *server,
+                            const UA_NodeId *sessionId, void *sessionContext,
+                            const UA_NodeId *nodeId, void *nodeContext,
+                            UA_Boolean sourceTimestamp,
+                            const UA_NumericRange *range, UA_DataValue *value) {
+    /* Get the current session */
+    UA_Session *session = UA_Server_getSessionById(server, sessionId);
+    if(!session)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
+    /* Allocate the output array */
+    UA_SubscriptionDiagnosticsDataType *sd = (UA_SubscriptionDiagnosticsDataType*)
+        UA_Array_new(session->subscriptionsSize,
+                     &UA_TYPES[UA_TYPES_SUBSCRIPTIONDIAGNOSTICSDATATYPE]);
+    if(!sd)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+
+    /* Collect the statistics */
+    size_t i = 0;
+    UA_Subscription *sub;
+    TAILQ_FOREACH(sub, &session->subscriptions, sessionListEntry) {
+        fillSubscriptionDiagnostics(sub, &sd[i]);
+        i++;
+    }
+
+    /* Set the output */
+    value->hasValue = true;
+    UA_Variant_setArray(&value->value, sd, session->subscriptionsSize,
+                        &UA_TYPES[UA_TYPES_SUBSCRIPTIONDIAGNOSTICSDATATYPE]);
+    return UA_STATUSCODE_GOOD;
+}
+
+static UA_StatusCode
+readSessionDiagnostics(UA_Server *server,
+                       const UA_NodeId *sessionId, void *sessionContext,
+                       const UA_NodeId *nodeId, void *nodeContext,
+                       UA_Boolean sourceTimestamp,
+                       const UA_NumericRange *range, UA_DataValue *value) {
+    /* Allocate the output array */
+    UA_SessionDiagnosticsDataType *sd = (UA_SessionDiagnosticsDataType*)
+        UA_Array_new(server->sessionCount,
+                     &UA_TYPES[UA_TYPES_SESSIONDIAGNOSTICSDATATYPE]);
+    if(!sd)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+
+    /* Collect the statistics */
+    size_t i = 0;
+    session_list_entry *session;
+    LIST_FOREACH(session, &server->sessions, pointers) {
+        UA_SessionDiagnosticsDataType_copy(&session->session.diagnostics, &sd[i]);
+        UA_NodeId_copy(&session->session.sessionId, &sd[i].sessionId);
+        UA_String_copy(&session->session.sessionName, &sd[i].sessionName);
+        UA_ApplicationDescription_copy(&session->session.clientDescription,
+                                       &sd[i].clientDescription);
+        sd[i].maxResponseMessageSize = session->session.maxResponseMessageSize;
+        sd[i].currentPublishRequestsInQueue = (UA_UInt32)
+            session->session.responseQueueSize;
+        sd[i].actualSessionTimeout = session->session.timeout;
+
+        /* Set LocaleIds */
+        UA_StatusCode res = UA_Array_copy(session->session.localeIds,
+                                          session->session.localeIdsSize,
+                                          (void**)&sd[i].localeIds,
+                                          &UA_TYPES[UA_TYPES_STRING]);
+        if(UA_LIKELY(res == UA_STATUSCODE_GOOD))
+            sd[i].localeIdsSize = session->session.localeIdsSize;
+
+        /* Set Subscription diagnostics */
+#ifdef UA_ENABLE_SUBSCRIPTIONS
+        sd[i].currentSubscriptionsCount = (UA_UInt32)
+            session->session.subscriptionsSize;
+
+        UA_Subscription *sub;
+        TAILQ_FOREACH(sub, &session->session.subscriptions, sessionListEntry) {
+            sd[i].currentMonitoredItemsCount += (UA_UInt32)sub->monitoredItemsSize;
+        }
+#endif
+
+        i++;
+    }
+
+    /* Set the output */
+    value->hasValue = true;
+    UA_Variant_setArray(&value->value, sd, server->sessionCount,
+                        &UA_TYPES[UA_TYPES_SESSIONDIAGNOSTICSDATATYPE]);
+    return UA_STATUSCODE_GOOD;
+}
+
+static UA_StatusCode
+readSessionSecurityDiagnostics(UA_Server *server,
+                               const UA_NodeId *sessionId, void *sessionContext,
+                               const UA_NodeId *nodeId, void *nodeContext,
+                               UA_Boolean sourceTimestamp,
+                               const UA_NumericRange *range, UA_DataValue *value) {
+    /* Allocate the output array */
+    UA_SessionSecurityDiagnosticsDataType *sd = (UA_SessionSecurityDiagnosticsDataType*)
+        UA_Array_new(server->sessionCount,
+                     &UA_TYPES[UA_TYPES_SESSIONSECURITYDIAGNOSTICSDATATYPE]);
+    if(!sd)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+
+    /* Collect the statistics */
+    size_t i = 0;
+    session_list_entry *session;
+    LIST_FOREACH(session, &server->sessions, pointers) {
+        UA_SessionSecurityDiagnosticsDataType_copy(&session->session.securityDiagnostics,
+                                                   &sd[i]);
+        UA_NodeId_copy(&session->session.sessionId, &sd[i].sessionId);
+        UA_SecureChannel *channel = session->session.header.channel;
+        if(channel) {
+            UA_ByteString_copy(&channel->remoteCertificate, &sd[i].clientCertificate);
+            UA_String_copy(&channel->securityPolicy->policyUri,
+                           &sd[i].securityPolicyUri);
+            sd[i].securityMode = channel->securityMode;
+            sd[i].encoding = UA_STRING_ALLOC("UA Binary"); /* The only one atm */
+            sd[i].transportProtocol = UA_STRING_ALLOC("opc.tcp"); /* The only one atm */
+        }
+        i++;
+    }
+
+    /* Set the output */
+    value->hasValue = true;
+    UA_Variant_setArray(&value->value, sd, server->sessionCount,
+                        &UA_TYPES[UA_TYPES_SESSIONSECURITYDIAGNOSTICSDATATYPE]);
+    return UA_STATUSCODE_GOOD;
+}
+
 #endif
 
 #ifdef UA_GENERATED_NAMESPACE_ZERO
@@ -1148,6 +1320,22 @@ UA_Server_initNS0(UA_Server *server) {
     /* ServerDiagnostics - ServerDiagnosticsSummary - RejectedRequestsCount */
     retVal |= UA_Server_setVariableNode_dataSource(server,
                         UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERDIAGNOSTICS_SERVERDIAGNOSTICSSUMMARY_REJECTEDREQUESTSCOUNT), serverDiagSummary);
+
+    /* ServerDiagnostics - SubscriptionDiagnosticsArray */
+    UA_DataSource serverSubDiagSummary = {readSubscriptionDiagnostics, NULL};
+    retVal |= UA_Server_setVariableNode_dataSource(server,
+                        UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERDIAGNOSTICS_SUBSCRIPTIONDIAGNOSTICSARRAY), serverSubDiagSummary);
+
+    /* ServerDiagnostics - SessionDiagnosticsSummary - SessionDiagnosticsArray */
+    UA_DataSource sessionDiagSummary = {readSessionDiagnostics, NULL};
+    retVal |= UA_Server_setVariableNode_dataSource(server,
+                        UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERDIAGNOSTICS_SESSIONSDIAGNOSTICSSUMMARY_SESSIONDIAGNOSTICSARRAY), sessionDiagSummary);
+
+    /* ServerDiagnostics - SessionDiagnosticsSummary - SessionSecurityDiagnosticsArray */
+    UA_DataSource sessionSecDiagSummary = {readSessionSecurityDiagnostics, NULL};
+    retVal |= UA_Server_setVariableNode_dataSource(server,
+                        UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERDIAGNOSTICS_SESSIONSDIAGNOSTICSSUMMARY_SESSIONSECURITYDIAGNOSTICSARRAY), sessionSecDiagSummary);
+
 #else
     /* Removing these NodeIds make Server Object to be non-complaint with UA
      * 1.03 in CTT (Base Inforamtion/Base Info Core Structure/ 001.js) In the

@@ -17,6 +17,12 @@ jobs:
                 sudo apt-get update
                 sudo apt-get install -y -qq gcc-multilib libsubunit-dev:i386 check:i386
             cmd_action: unit_tests_32
+          - build_name: "Debug Build & Unit Tests without Subscriptions (gcc)"
+            cmd_deps: ""
+            cmd_action: unit_tests_nosub
+          - build_name: "Debug Build & Unit Tests with Diagnostics (gcc)"
+            cmd_deps: ""
+            cmd_action: unit_tests_diag
           - build_name: "Debug Build & Unit Tests with multithreading (gcc)"
             cmd_deps: ""
             cmd_action: unit_tests_mt

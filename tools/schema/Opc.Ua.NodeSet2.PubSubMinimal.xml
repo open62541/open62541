@@ -91,9 +91,7 @@
       <Reference ReferenceType="HasComponent">i=16884</Reference>
       <Reference ReferenceType="HasComponent">i=16923</Reference>-->
       <Reference ReferenceType="HasTypeDefinition">i=14477</Reference>
-<!--
       <Reference ReferenceType="HasModellingRule">i=11508</Reference>
--->
       <Reference ReferenceType="Organizes" IsForward="false">i=14477</Reference>
     </References>
   </UAObject>
@@ -1004,6 +1002,7 @@
     <DisplayName>&lt;WriterGroupName&gt;</DisplayName>
     <References>
       <Reference ReferenceType="HasTypeDefinition">i=17725</Reference>
+      <Reference ReferenceType="HasModellingRule">i=11508</Reference>
 
       <!--      <Reference ReferenceType="HasProperty">i=17311</Reference>
             <Reference ReferenceType="HasProperty">i=17204</Reference>
@@ -1014,7 +1013,6 @@
             <Reference ReferenceType="HasProperty">i=17319</Reference>
             <Reference ReferenceType="HasProperty">i=17321</Reference>
             <Reference ReferenceType="HasProperty">i=17322</Reference>
-            <Reference ReferenceType="HasModellingRule">i=11508</Reference>
             <Reference ReferenceType="HasComponent" IsForward="false">i=14209</Reference>-->
     </References>
   </UAObject>

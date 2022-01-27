@@ -547,7 +547,7 @@ UA_EXPANDEDNODEID_BYTESTRING_ALLOC(UA_UInt16 nsIndex, const char *chars) {
 
 static UA_INLINE UA_ExpandedNodeId
 UA_EXPANDEDNODEID_NODEID(UA_NodeId nodeId) {
-    UA_ExpandedNodeId id = {0}; id.nodeId = nodeId; return id;
+    UA_ExpandedNodeId id; memset(&id, 0, sizeof(UA_ExpandedNodeId)); id.nodeId = nodeId; return id;
 }
 
 /* Does the ExpandedNodeId point to a local node? That is, are namespaceUri and

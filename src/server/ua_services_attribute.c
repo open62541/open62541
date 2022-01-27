@@ -1541,6 +1541,7 @@ updateLocalizedText(const UA_LocalizedText *source, UA_LocalizedText *target) {
 
 /* Trigger sampling if a MonitoredItem surveils the attribute with no sampling
  * interval */
+#ifdef UA_ENABLE_SUBSCRIPTIONS
 static void
 triggerImmediateDataChange(UA_Server *server, UA_Session *session,
                            UA_Node *node, const UA_WriteValue *wvalue) {
@@ -1563,6 +1564,7 @@ triggerImmediateDataChange(UA_Server *server, UA_Session *session,
         }
     }
 }
+#endif
 
 /* This function implements the main part of the write service and operates on a
    copy of the node (not in single-threaded mode). */
@@ -1730,7 +1732,9 @@ copyAttributeIntoNode(UA_Server *server, UA_Session *session,
     }
 
     /* Trigger MonitoredItems with no SamplingInterval */
+#ifdef UA_ENABLE_SUBSCRIPTIONS
     triggerImmediateDataChange(server, session, node, wvalue);
+#endif
 
     return UA_STATUSCODE_GOOD;
 }
