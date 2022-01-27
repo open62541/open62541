@@ -544,6 +544,37 @@ readSubscriptionDiagnostics(UA_Server *server,
 
 #endif /* UA_ENABLE_SUBSCRIPTIONS */
 
+static void
+setSessionDiagnostics(UA_Session *session, UA_SessionDiagnosticsDataType *sd) {
+    UA_SessionDiagnosticsDataType_copy(&session->diagnostics, sd);
+    UA_NodeId_copy(&session->sessionId, &sd->sessionId);
+    UA_String_copy(&session->sessionName, &sd->sessionName);
+    UA_ApplicationDescription_copy(&session->clientDescription,
+                                   &sd->clientDescription);
+    sd->maxResponseMessageSize = session->maxResponseMessageSize;
+#ifdef UA_ENABLE_SUBSCRIPTIONS
+    sd->currentPublishRequestsInQueue = (UA_UInt32)session->responseQueueSize;
+#endif
+    sd->actualSessionTimeout = session->timeout;
+
+    /* Set LocaleIds */
+    UA_StatusCode res =
+        UA_Array_copy(session->localeIds, session->localeIdsSize,
+                      (void **)&sd->localeIds, &UA_TYPES[UA_TYPES_STRING]);
+    if(UA_LIKELY(res == UA_STATUSCODE_GOOD))
+        sd->localeIdsSize = session->localeIdsSize;
+
+        /* Set Subscription diagnostics */
+#ifdef UA_ENABLE_SUBSCRIPTIONS
+    sd->currentSubscriptionsCount = (UA_UInt32)session->subscriptionsSize;
+
+    UA_Subscription *sub;
+    TAILQ_FOREACH(sub, &session->subscriptions, sessionListEntry) {
+        sd->currentMonitoredItemsCount += (UA_UInt32)sub->monitoredItemsSize;
+    }
+#endif
+}
+
 static UA_StatusCode
 readSessionDiagnostics(UA_Server *server,
                        const UA_NodeId *sessionId, void *sessionContext,
@@ -561,35 +592,7 @@ readSessionDiagnostics(UA_Server *server,
     size_t i = 0;
     session_list_entry *session;
     LIST_FOREACH(session, &server->sessions, pointers) {
-        UA_SessionDiagnosticsDataType_copy(&session->session.diagnostics, &sd[i]);
-        UA_NodeId_copy(&session->session.sessionId, &sd[i].sessionId);
-        UA_String_copy(&session->session.sessionName, &sd[i].sessionName);
-        UA_ApplicationDescription_copy(&session->session.clientDescription,
-                                       &sd[i].clientDescription);
-        sd[i].maxResponseMessageSize = session->session.maxResponseMessageSize;
-        sd[i].currentPublishRequestsInQueue = (UA_UInt32)
-            session->session.responseQueueSize;
-        sd[i].actualSessionTimeout = session->session.timeout;
-
-        /* Set LocaleIds */
-        UA_StatusCode res = UA_Array_copy(session->session.localeIds,
-                                          session->session.localeIdsSize,
-                                          (void**)&sd[i].localeIds,
-                                          &UA_TYPES[UA_TYPES_STRING]);
-        if(UA_LIKELY(res == UA_STATUSCODE_GOOD))
-            sd[i].localeIdsSize = session->session.localeIdsSize;
-
-        /* Set Subscription diagnostics */
-#ifdef UA_ENABLE_SUBSCRIPTIONS
-        sd[i].currentSubscriptionsCount = (UA_UInt32)
-            session->session.subscriptionsSize;
-
-        UA_Subscription *sub;
-        TAILQ_FOREACH(sub, &session->session.subscriptions, sessionListEntry) {
-            sd[i].currentMonitoredItemsCount += (UA_UInt32)sub->monitoredItemsSize;
-        }
-#endif
-
+        setSessionDiagnostics(&session->session, &sd[i]);
         i++;
     }
 
