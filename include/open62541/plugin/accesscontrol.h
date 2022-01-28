@@ -105,6 +105,14 @@ struct UA_AccessControl {
     UA_Boolean (*allowTransferSubscription)(UA_Server *server, UA_AccessControl *ac,
                                             const UA_NodeId *oldSessionId, void *oldSessionContext,
                                             const UA_NodeId *newSessionId, void *newSessionContext);
+
+    /* Allow CreateMonitoredItem request for NodeId and certain AttributeId.
+     * true = it is permitted to create a MonitoredItem to this currently not available node.
+     * false = request will rejected with Operation Level Result Code BadNodeIdUnknown.
+     */
+    UA_Boolean (*allowCreateMonitoredItemNodeId)(UA_Server *server, const UA_NodeId *sessionId,
+                                                 void *sessionContext, const UA_NodeId *nodeId,
+                                                 const UA_UInt32 attributeId);
 #endif
 
 #ifdef UA_ENABLE_HISTORIZING
