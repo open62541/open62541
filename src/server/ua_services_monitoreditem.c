@@ -1,6 +1,6 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. 
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  *
  *    Copyright 2014-2018 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
  *    Copyright 2016-2017 (c) Florian Palm
@@ -95,7 +95,7 @@ Service_SetTriggering(UA_Server *server, UA_Session *session,
         response->responseHeader.serviceResult = UA_STATUSCODE_BADSUBSCRIPTIONIDINVALID;
         return;
     }
-    
+
     /* Get the MonitoredItem */
     UA_MonitoredItem *mon = UA_Subscription_getMonitoredItem(sub, request->triggeringItemId);
     if(!mon) {
@@ -215,8 +215,11 @@ checkAdjustMonitoredItemParams(UA_Server *server, UA_Session *session,
                 params->samplingInterval = vn->minimumSamplingInterval;
             UA_NODESTORE_RELEASE(server, node);
         }
+        else{
+          params->samplingInterval = server->config.samplingIntervalLimits.min;
+        }
     }
-        
+
     /* Adjust to sampling interval to lie within the limits */
     if(params->samplingInterval <= 0.0) {
         /* A sampling interval of zero is possible and indicates that the
