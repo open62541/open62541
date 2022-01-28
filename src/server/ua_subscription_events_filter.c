@@ -519,6 +519,7 @@ compareOperation(UA_Variant *firstOperand, UA_Variant *secondOperand, UA_FilterO
 
 static UA_StatusCode
 compareOperator(UA_FilterOperatorContext *ctx) {
+    ctx->valueResult[ctx->index].type = &UA_TYPES[UA_TYPES_BOOLEAN];
     UA_Variant firstOperand = resolveOperand(ctx, 0);
     if(UA_Variant_isEmpty(&firstOperand))
         return UA_STATUSCODE_BADFILTEROPERANDINVALID;
