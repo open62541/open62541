@@ -91,10 +91,6 @@ UA_StatusCode UA_Session_generateNonce(UA_Session *session);
 /* If any activity on a session happens, the timeout is extended */
 void UA_Session_updateLifetime(UA_Session *session);
 
-#ifdef UA_ENABLE_DIAGNOSTICS
-void createSessionObject(UA_Server *server, UA_Session *session);
-#endif
-
 /**
  * Subscription handling
  * --------------------- */
