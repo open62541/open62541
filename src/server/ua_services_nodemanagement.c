@@ -73,11 +73,17 @@ editNodeContext(UA_Server *server, UA_Session* session,
 }
 
 UA_StatusCode
+setNodeContext(UA_Server *server, UA_NodeId nodeId,
+               void *nodeContext) {
+    return UA_Server_editNode(server, &server->adminSession, &nodeId,
+                              (UA_EditNodeCallback)editNodeContext, nodeContext);
+}
+
+UA_StatusCode
 UA_Server_setNodeContext(UA_Server *server, UA_NodeId nodeId,
                          void *nodeContext) {
     UA_LOCK(&server->serviceMutex);
-    UA_StatusCode retval = UA_Server_editNode(server, &server->adminSession, &nodeId,
-                              (UA_EditNodeCallback)editNodeContext, nodeContext);
+    UA_StatusCode retval = setNodeContext(server, nodeId, nodeContext);
     UA_UNLOCK(&server->serviceMutex);
     return retval;
 }
