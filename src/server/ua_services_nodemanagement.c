@@ -538,16 +538,16 @@ static void
 Operation_addReference(UA_Server *server, UA_Session *session, void *context,
                        const UA_AddReferencesItem *item, UA_StatusCode *retval);
 
-static UA_StatusCode
-addRef(UA_Server *server, UA_Session *session, const UA_NodeId *nodeId,
-       const UA_NodeId *referenceTypeId, const UA_NodeId *parentNodeId,
+UA_StatusCode
+addRef(UA_Server *server, UA_Session *session, const UA_NodeId *sourceId,
+       const UA_NodeId *referenceTypeId, const UA_NodeId *targetId,
        UA_Boolean forward) {
     UA_AddReferencesItem ref_item;
     UA_AddReferencesItem_init(&ref_item);
-    ref_item.sourceNodeId = *nodeId;
+    ref_item.sourceNodeId = *sourceId;
     ref_item.referenceTypeId = *referenceTypeId;
     ref_item.isForward = forward;
-    ref_item.targetNodeId.nodeId = *parentNodeId;
+    ref_item.targetNodeId.nodeId = *targetId;
 
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     Operation_addReference(server, session, NULL, &ref_item, &retval);
