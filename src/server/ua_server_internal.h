@@ -409,6 +409,9 @@ writeObjectProperty(UA_Server *server, const UA_NodeId objectId,
 UA_StatusCode
 getNodeContext(UA_Server *server, UA_NodeId nodeId, void **nodeContext);
 
+UA_StatusCode
+setNodeContext(UA_Server *server, UA_NodeId nodeId, void *nodeContext);
+
 void
 removeCallback(UA_Server *server, UA_UInt64 callbackId);
 
