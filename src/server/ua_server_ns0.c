@@ -629,6 +629,21 @@ equalBrowseName(UA_String *bn, char *n) {
     return UA_String_equal(bn, &name);
 }
 
+static void
+setSessionSecurityDiagnostics(UA_Session *session,
+                              UA_SessionSecurityDiagnosticsDataType *sd) {
+    UA_SessionSecurityDiagnosticsDataType_copy(&session->securityDiagnostics, sd);
+    UA_NodeId_copy(&session->sessionId, &sd->sessionId);
+    UA_SecureChannel *channel = session->header.channel;
+    if(channel) {
+        UA_ByteString_copy(&channel->remoteCertificate, &sd->clientCertificate);
+        UA_String_copy(&channel->securityPolicy->policyUri, &sd->securityPolicyUri);
+        sd->securityMode = channel->securityMode;
+        sd->encoding = UA_STRING_ALLOC("UA Binary"); /* The only one atm */
+        sd->transportProtocol = UA_STRING_ALLOC("opc.tcp"); /* The only one atm */
+    }
+}
+
 static UA_StatusCode
 readSessionDiagnostics(UA_Server *server,
                        const UA_NodeId *sessionId, void *sessionContext,
@@ -648,8 +663,13 @@ readSessionDiagnostics(UA_Server *server,
         return res;
 
     /* Set the value */
-    UA_UInt32 tmpUInt32;
+    union {
+        UA_UInt32 u32;
+        UA_SessionDiagnosticsDataType sddt;
+        UA_SessionSecurityDiagnosticsDataType ssddt;
+    } tmpData;
     void *content = NULL;
+    UA_Boolean allocated = false;
     const UA_DataType *type = NULL;
     if(equalBrowseName(&bn.name, "SubscriptionDiagnosticsArray")) {
         /* Reuse the datasource callback. Forward a non-null nodeContext to
@@ -658,6 +678,18 @@ readSessionDiagnostics(UA_Server *server,
         return readSubscriptionDiagnostics(server, sessionId, sessionContext,
                                            nodeId, (void*)0x01,
                                            sourceTimestamp, range, value);
+    } else if(equalBrowseName(&bn.name, "SessionDiagnostics")) {
+        UA_SessionDiagnosticsDataType_init(&tmpData.sddt);
+        setSessionDiagnostics(session, &tmpData.sddt);
+        content = &tmpData.sddt;
+        type = &UA_TYPES[UA_TYPES_SESSIONDIAGNOSTICSDATATYPE];
+        allocated = true;
+    } else if(equalBrowseName(&bn.name, "SessionSecurityDiagnostics")) {
+        UA_SessionSecurityDiagnosticsDataType_init(&tmpData.ssddt);
+        setSessionSecurityDiagnostics(session, &tmpData.ssddt);
+        content = &tmpData.ssddt;
+        type = &UA_TYPES[UA_TYPES_SESSIONSECURITYDIAGNOSTICSDATATYPE];
+        allocated = true;
     } else if(equalBrowseName(&bn.name, "SessionId")) {
         content = &session->sessionId;
         type = &UA_TYPES[UA_TYPES_NODEID];
@@ -697,26 +729,26 @@ readSessionDiagnostics(UA_Server *server,
 #ifdef UA_ENABLE_SUBSCRIPTIONS
         content = &session->diagnostics.currentSubscriptionsCount;
 #else
-        tmpUInt32 = 0;
-        content = &tmpUInt32;
+        tmpDta.u32 = 0;
+        content = &tmpData.u32;
 #endif
         type = &UA_TYPES[UA_TYPES_UINT32];
     } else if(equalBrowseName(&bn.name, "CurrentMonitoredItemsCount")) {
-        tmpUInt32 = 0;
+        tmpData.u32 = 0;
 #ifdef UA_ENABLE_SUBSCRIPTIONS
         UA_Subscription *sub;
         TAILQ_FOREACH(sub, &session->subscriptions, sessionListEntry) {
-            tmpUInt32 += (UA_UInt32)sub->monitoredItemsSize;
+            tmpData.u32 += (UA_UInt32)sub->monitoredItemsSize;
         }
 #endif
-        content = &tmpUInt32;
+        content = &tmpData.u32;
         type = &UA_TYPES[UA_TYPES_UINT32];
     } else if(equalBrowseName(&bn.name, "CurrentPublishRequestsInQueue")) {
 #ifdef UA_ENABLE_SUBSCRIPTIONS
         content = &session->diagnostics.currentPublishRequestsInQueue;
 #else
-        tmpUInt32 = 0;
-        content = &tmpUInt32;
+        tmpData.u32 = 0;
+        content = &tmpData.u32;
 #endif
         type = &UA_TYPES[UA_TYPES_UINT32];
     } else if(equalBrowseName(&bn.name, "TotalRequestCount")) {
@@ -812,9 +844,12 @@ readSessionDiagnostics(UA_Server *server,
     }
     if(!content)
         return UA_STATUSCODE_BADNOTIMPLEMENTED;
-    UA_Variant_setScalarCopy(&value->value, content, type);
-    value->hasValue = true;
-    return UA_STATUSCODE_GOOD;
+    res = UA_Variant_setScalarCopy(&value->value, content, type);
+    if(UA_LIKELY(res == UA_STATUSCODE_GOOD))
+        value->hasValue = true;
+    if(allocated)
+        UA_clear(content, type);
+    return res;
 }
 
 void
@@ -959,18 +994,7 @@ readSessionSecurityDiagnostics(UA_Server *server,
     size_t i = 0;
     session_list_entry *session;
     LIST_FOREACH(session, &server->sessions, pointers) {
-        UA_SessionSecurityDiagnosticsDataType_copy(&session->session.securityDiagnostics,
-                                                   &sd[i]);
-        UA_NodeId_copy(&session->session.sessionId, &sd[i].sessionId);
-        UA_SecureChannel *channel = session->session.header.channel;
-        if(channel) {
-            UA_ByteString_copy(&channel->remoteCertificate, &sd[i].clientCertificate);
-            UA_String_copy(&channel->securityPolicy->policyUri,
-                           &sd[i].securityPolicyUri);
-            sd[i].securityMode = channel->securityMode;
-            sd[i].encoding = UA_STRING_ALLOC("UA Binary"); /* The only one atm */
-            sd[i].transportProtocol = UA_STRING_ALLOC("opc.tcp"); /* The only one atm */
-        }
+        setSessionSecurityDiagnostics(&session->session, &sd[i]);
         i++;
     }
 
