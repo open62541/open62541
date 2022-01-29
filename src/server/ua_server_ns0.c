@@ -509,14 +509,69 @@ fillSubscriptionDiagnostics(UA_Subscription *sub,
     }
 }
 
-/* If the nodeContext == NULL, return all subscriptions in the server.
- * Otherwise only for the current session. */
+static UA_Boolean
+equalBrowseName(UA_String *bn, char *n) {
+    UA_String name = UA_STRING(n);
+    return UA_String_equal(bn, &name);
+}
+
+/* The node context points to the subscription */
 static UA_StatusCode
 readSubscriptionDiagnostics(UA_Server *server,
                             const UA_NodeId *sessionId, void *sessionContext,
                             const UA_NodeId *nodeId, void *nodeContext,
                             UA_Boolean sourceTimestamp,
                             const UA_NumericRange *range, UA_DataValue *value) {
+    /* Check the Subscription pointer */
+    UA_Subscription *sub = (UA_Subscription*)nodeContext;
+    if(!sub)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
+    /* Read the BrowseName */
+    UA_QualifiedName bn;
+    UA_StatusCode res = readWithReadValue(server, nodeId, UA_ATTRIBUTEID_BROWSENAME, &bn);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
+
+    /* Set the value */
+    UA_SubscriptionDiagnosticsDataType sddt;
+    UA_SubscriptionDiagnosticsDataType_init(&sddt);
+    fillSubscriptionDiagnostics(sub, &sddt);
+
+    char memberName[128];
+    memcpy(memberName, bn.name.data, bn.name.length);
+    memberName[bn.name.length] = 0;
+
+    size_t memberOffset;
+    const UA_DataType *memberType;
+    UA_Boolean isArray;
+    UA_Boolean found =
+        UA_DataType_getStructMember(&UA_TYPES[UA_TYPES_SUBSCRIPTIONDIAGNOSTICSDATATYPE],
+                                    memberName, &memberOffset, &memberType, &isArray);
+    if(!found) {
+        /* Not the member, but the main subscription diagnostics variable... */
+        memberOffset = 0;
+        memberType = &UA_TYPES[UA_TYPES_SUBSCRIPTIONDIAGNOSTICSDATATYPE];
+    }
+
+    void *content = (void*)(((uintptr_t)&sddt) + memberOffset);
+    res = UA_Variant_setScalarCopy(&value->value, content, memberType);
+    if(UA_LIKELY(res == UA_STATUSCODE_GOOD))
+        value->hasValue = true;
+
+    UA_SubscriptionDiagnosticsDataType_clear(&sddt);
+    UA_QualifiedName_clear(&bn);
+    return res;
+}
+
+/* If the nodeContext == NULL, return all subscriptions in the server.
+ * Otherwise only for the current session. */
+static UA_StatusCode
+readSubscriptionDiagnosticsArray(UA_Server *server,
+                                 const UA_NodeId *sessionId, void *sessionContext,
+                                 const UA_NodeId *nodeId, void *nodeContext,
+                                 UA_Boolean sourceTimestamp,
+                                 const UA_NumericRange *range, UA_DataValue *value) {
     /* Get the current session */
     size_t sdSize = 0;
     UA_Session *session = NULL;
@@ -623,12 +678,6 @@ readSessionDiagnosticsArray(UA_Server *server,
     return UA_STATUSCODE_GOOD;
 }
 
-static UA_Boolean
-equalBrowseName(UA_String *bn, char *n) {
-    UA_String name = UA_STRING(n);
-    return UA_String_equal(bn, &name);
-}
-
 static void
 setSessionSecurityDiagnostics(UA_Session *session,
                               UA_SessionSecurityDiagnosticsDataType *sd) {
@@ -657,198 +706,83 @@ readSessionDiagnostics(UA_Server *server,
     
     /* Read the BrowseName */
     UA_QualifiedName bn;
-    UA_StatusCode res =
-        readWithReadValue(server, nodeId, UA_ATTRIBUTEID_BROWSENAME, &bn);
+    UA_StatusCode res = readWithReadValue(server, nodeId, UA_ATTRIBUTEID_BROWSENAME, &bn);
     if(res != UA_STATUSCODE_GOOD)
         return res;
 
-    /* Set the value */
     union {
-        UA_UInt32 u32;
         UA_SessionDiagnosticsDataType sddt;
         UA_SessionSecurityDiagnosticsDataType ssddt;
-    } tmpData;
-    void *content = NULL;
-    UA_Boolean allocated = false;
+    } data;
+    void *content;
+    UA_Boolean isArray = false;
     const UA_DataType *type = NULL;
+    UA_Boolean securityDiagnostics = false;
+
+    char memberName[128];
+    size_t memberOffset;
+    UA_Boolean found;
+
     if(equalBrowseName(&bn.name, "SubscriptionDiagnosticsArray")) {
         /* Reuse the datasource callback. Forward a non-null nodeContext to
          * indicate that we want to see only the subscriptions for the current
          * session. */
-        return readSubscriptionDiagnostics(server, sessionId, sessionContext,
-                                           nodeId, (void*)0x01,
-                                           sourceTimestamp, range, value);
+        res = readSubscriptionDiagnosticsArray(server, sessionId, sessionContext,
+                                               nodeId, (void*)0x01,
+                                               sourceTimestamp, range, value);
+        goto cleanup;
     } else if(equalBrowseName(&bn.name, "SessionDiagnostics")) {
-        UA_SessionDiagnosticsDataType_init(&tmpData.sddt);
-        setSessionDiagnostics(session, &tmpData.sddt);
-        content = &tmpData.sddt;
+        setSessionDiagnostics(session, &data.sddt);
+        content = &data.sddt;
         type = &UA_TYPES[UA_TYPES_SESSIONDIAGNOSTICSDATATYPE];
-        allocated = true;
+        goto set_value;
     } else if(equalBrowseName(&bn.name, "SessionSecurityDiagnostics")) {
-        UA_SessionSecurityDiagnosticsDataType_init(&tmpData.ssddt);
-        setSessionSecurityDiagnostics(session, &tmpData.ssddt);
-        content = &tmpData.ssddt;
+        setSessionSecurityDiagnostics(session, &data.ssddt);
+        securityDiagnostics = true;
+        content = &data.ssddt;
         type = &UA_TYPES[UA_TYPES_SESSIONSECURITYDIAGNOSTICSDATATYPE];
-        allocated = true;
-    } else if(equalBrowseName(&bn.name, "SessionId")) {
-        content = &session->sessionId;
-        type = &UA_TYPES[UA_TYPES_NODEID];
-    } else if(equalBrowseName(&bn.name, "SessionName")) {
-        content = &session->sessionName;
-        type = &UA_TYPES[UA_TYPES_STRING];
-    } else if(equalBrowseName(&bn.name, "ClientDescription")) {
-        content = &session->diagnostics.clientDescription;
-        type = &UA_TYPES[UA_TYPES_APPLICATIONDESCRIPTION];
-    } else if(equalBrowseName(&bn.name, "ServerUri")) {
-        content = &session->diagnostics.serverUri;
-        type = &UA_TYPES[UA_TYPES_STRING];
-    } else if(equalBrowseName(&bn.name, "EndpointUrl")) {
-        content = &session->diagnostics.endpointUrl;
-        type = &UA_TYPES[UA_TYPES_STRING];
-    } else if(equalBrowseName(&bn.name, "LocaleIds")) {
-        res = UA_Variant_setArrayCopy(&value->value,
-                                      session->localeIds, session->localeIdsSize,
-                                      &UA_TYPES[UA_TYPES_STRING]);
-        if(res != UA_STATUSCODE_GOOD)
-            return res;
-        value->hasValue = true;
-        return UA_STATUSCODE_GOOD;
-    } else if(equalBrowseName(&bn.name, "ActualSessionTimeout")) {
-        content = &session->timeout;
-        type = &UA_TYPES[UA_TYPES_DOUBLE];
-    } else if(equalBrowseName(&bn.name, "MaxResponseMessageSize")) {
-        content = &session->maxResponseMessageSize;
-        type = &UA_TYPES[UA_TYPES_UINT32];
-    } else if(equalBrowseName(&bn.name, "ClientConnectionTime")) {
-        content = &session->diagnostics.clientConnectionTime;
-        type = &UA_TYPES[UA_TYPES_DATETIME];
-    } else if(equalBrowseName(&bn.name, "ClientLastContactTime")) {
-        content = &session->diagnostics.clientLastContactTime;
-        type = &UA_TYPES[UA_TYPES_DATETIME];
-    } else if(equalBrowseName(&bn.name, "CurrentSubscriptionsCount")) {
-#ifdef UA_ENABLE_SUBSCRIPTIONS
-        content = &session->diagnostics.currentSubscriptionsCount;
-#else
-        tmpDta.u32 = 0;
-        content = &tmpData.u32;
-#endif
-        type = &UA_TYPES[UA_TYPES_UINT32];
-    } else if(equalBrowseName(&bn.name, "CurrentMonitoredItemsCount")) {
-        tmpData.u32 = 0;
-#ifdef UA_ENABLE_SUBSCRIPTIONS
-        UA_Subscription *sub;
-        TAILQ_FOREACH(sub, &session->subscriptions, sessionListEntry) {
-            tmpData.u32 += (UA_UInt32)sub->monitoredItemsSize;
-        }
-#endif
-        content = &tmpData.u32;
-        type = &UA_TYPES[UA_TYPES_UINT32];
-    } else if(equalBrowseName(&bn.name, "CurrentPublishRequestsInQueue")) {
-#ifdef UA_ENABLE_SUBSCRIPTIONS
-        content = &session->diagnostics.currentPublishRequestsInQueue;
-#else
-        tmpData.u32 = 0;
-        content = &tmpData.u32;
-#endif
-        type = &UA_TYPES[UA_TYPES_UINT32];
-    } else if(equalBrowseName(&bn.name, "TotalRequestCount")) {
-        content = &session->diagnostics.totalRequestCount;
-        type = &UA_TYPES[UA_TYPES_SERVICECOUNTERDATATYPE];
-    } else if(equalBrowseName(&bn.name, "UnauthorizedRequestCount")) {
-        content = &session->diagnostics.unauthorizedRequestCount;
-        type = &UA_TYPES[UA_TYPES_UINT32];
-    } else if(equalBrowseName(&bn.name, "ReadCount")) {
-        content = &session->diagnostics.readCount;
-        type = &UA_TYPES[UA_TYPES_SERVICECOUNTERDATATYPE];
-    } else if(equalBrowseName(&bn.name, "HistoryReadCount")) {
-        content = &session->diagnostics.historyReadCount;
-        type = &UA_TYPES[UA_TYPES_SERVICECOUNTERDATATYPE];
-    } else if(equalBrowseName(&bn.name, "WriteCount")) {
-        content = &session->diagnostics.writeCount;
-        type = &UA_TYPES[UA_TYPES_SERVICECOUNTERDATATYPE];
-    } else if(equalBrowseName(&bn.name, "HistoryUpdateCount")) {
-        content = &session->diagnostics.historyUpdateCount;
-        type = &UA_TYPES[UA_TYPES_SERVICECOUNTERDATATYPE];
-    } else if(equalBrowseName(&bn.name, "CallCount")) {
-        content = &session->diagnostics.callCount;
-        type = &UA_TYPES[UA_TYPES_SERVICECOUNTERDATATYPE];
-    } else if(equalBrowseName(&bn.name, "CreateMonitoredItemsCount")) {
-        content = &session->diagnostics.createMonitoredItemsCount;
-        type = &UA_TYPES[UA_TYPES_SERVICECOUNTERDATATYPE];
-    } else if(equalBrowseName(&bn.name, "ModifyMonitoredItemsCount")) {
-        content = &session->diagnostics.modifyMonitoredItemsCount;
-        type = &UA_TYPES[UA_TYPES_SERVICECOUNTERDATATYPE];
-    } else if(equalBrowseName(&bn.name, "SetMonitoringModeCount")) {
-        content = &session->diagnostics.setMonitoringModeCount;
-        type = &UA_TYPES[UA_TYPES_SERVICECOUNTERDATATYPE];
-    } else if(equalBrowseName(&bn.name, "SetTriggeringCount")) {
-        content = &session->diagnostics.setTriggeringCount;
-        type = &UA_TYPES[UA_TYPES_SERVICECOUNTERDATATYPE];
-    } else if(equalBrowseName(&bn.name, "DeleteMonitoredItemsCount")) {
-        content = &session->diagnostics.deleteMonitoredItemsCount;
-        type = &UA_TYPES[UA_TYPES_SERVICECOUNTERDATATYPE];
-    } else if(equalBrowseName(&bn.name, "CreateSubscriptionCount")) {
-        content = &session->diagnostics.createSubscriptionCount;
-        type = &UA_TYPES[UA_TYPES_SERVICECOUNTERDATATYPE];
-    } else if(equalBrowseName(&bn.name, "ModifySubscriptionCount")) {
-        content = &session->diagnostics.modifySubscriptionCount;
-        type = &UA_TYPES[UA_TYPES_SERVICECOUNTERDATATYPE];
-    } else if(equalBrowseName(&bn.name, "SetPublishingModeCount")) {
-        content = &session->diagnostics.setPublishingModeCount;
-        type = &UA_TYPES[UA_TYPES_SERVICECOUNTERDATATYPE];
-    } else if(equalBrowseName(&bn.name, "PublishCount")) {
-        content = &session->diagnostics.publishCount;
-        type = &UA_TYPES[UA_TYPES_SERVICECOUNTERDATATYPE];
-    } else if(equalBrowseName(&bn.name, "RepublishCount")) {
-        content = &session->diagnostics.republishCount;
-        type = &UA_TYPES[UA_TYPES_SERVICECOUNTERDATATYPE];
-    } else if(equalBrowseName(&bn.name, "TransferSubscriptionsCount")) {
-        content = &session->diagnostics.transferSubscriptionsCount;
-        type = &UA_TYPES[UA_TYPES_SERVICECOUNTERDATATYPE];
-    } else if(equalBrowseName(&bn.name, "DeleteSubscriptionsCount")) {
-        content = &session->diagnostics.deleteSubscriptionsCount;
-        type = &UA_TYPES[UA_TYPES_SERVICECOUNTERDATATYPE];
-    } else if(equalBrowseName(&bn.name, "AddNodesCount")) {
-        content = &session->diagnostics.addNodesCount;
-        type = &UA_TYPES[UA_TYPES_SERVICECOUNTERDATATYPE];
-    } else if(equalBrowseName(&bn.name, "AddReferencesCount")) {
-        content = &session->diagnostics.addReferencesCount;
-        type = &UA_TYPES[UA_TYPES_SERVICECOUNTERDATATYPE];
-    } else if(equalBrowseName(&bn.name, "DeleteNodesCount")) {
-        content = &session->diagnostics.deleteNodesCount;
-        type = &UA_TYPES[UA_TYPES_SERVICECOUNTERDATATYPE];
-    } else if(equalBrowseName(&bn.name, "DeleteReferencesCount")) {
-        content = &session->diagnostics.deleteReferencesCount;
-        type = &UA_TYPES[UA_TYPES_SERVICECOUNTERDATATYPE];
-    } else if(equalBrowseName(&bn.name, "BrowseCount")) {
-        content = &session->diagnostics.browseCount;
-        type = &UA_TYPES[UA_TYPES_SERVICECOUNTERDATATYPE];
-    } else if(equalBrowseName(&bn.name, "BrowseNextCount")) {
-        content = &session->diagnostics.browseNextCount;
-        type = &UA_TYPES[UA_TYPES_SERVICECOUNTERDATATYPE];
-    } else if(equalBrowseName(&bn.name, "TranslateBrowsePathsToNodeIdsCount")) {
-        content = &session->diagnostics.translateBrowsePathsToNodeIdsCount;
-        type = &UA_TYPES[UA_TYPES_SERVICECOUNTERDATATYPE];
-    } else if(equalBrowseName(&bn.name, "QueryFirstCount")) {
-        content = &session->diagnostics.queryFirstCount;
-        type = &UA_TYPES[UA_TYPES_SERVICECOUNTERDATATYPE];
-    } else if(equalBrowseName(&bn.name, "QueryNextCount")) {
-        content = &session->diagnostics.queryNextCount;
-        type = &UA_TYPES[UA_TYPES_SERVICECOUNTERDATATYPE];
-    } else if(equalBrowseName(&bn.name, "RegisterNodesCount")) {
-        content = &session->diagnostics.registerNodesCount;
-        type = &UA_TYPES[UA_TYPES_SERVICECOUNTERDATATYPE];
-    } else if(equalBrowseName(&bn.name, "UnregisterNodesCount")) {
-        content = &session->diagnostics.unregisterNodesCount;
-        type = &UA_TYPES[UA_TYPES_SERVICECOUNTERDATATYPE];
+        goto set_value;
     }
-    if(!content)
-        return UA_STATUSCODE_BADNOTIMPLEMENTED;
-    res = UA_Variant_setScalarCopy(&value->value, content, type);
+
+    /* Try to find the member in SessionDiagnosticsDataType and
+     * SessionSecurityDiagnosticsDataType */
+    memcpy(memberName, bn.name.data, bn.name.length);
+    memberName[bn.name.length] = 0;
+    found = UA_DataType_getStructMember(&UA_TYPES[UA_TYPES_SESSIONDIAGNOSTICSDATATYPE],
+                                        memberName, &memberOffset, &type, &isArray);
+    if(found) {
+        setSessionDiagnostics(session, &data.sddt);
+        content = (void*)(((uintptr_t)&data.sddt) + memberOffset);
+    } else {
+        found = UA_DataType_getStructMember(&UA_TYPES[UA_TYPES_SESSIONSECURITYDIAGNOSTICSDATATYPE],
+                                            memberName, &memberOffset, &type, &isArray);
+        if(!found) {
+            res = UA_STATUSCODE_BADNOTIMPLEMENTED;
+            goto cleanup;
+        }
+        setSessionSecurityDiagnostics(session, &data.ssddt);
+        securityDiagnostics = true;
+        content = (void*)(((uintptr_t)&data.ssddt) + memberOffset);
+    }
+
+ set_value:
+    if(!isArray) {
+        res = UA_Variant_setScalarCopy(&value->value, content, type);
+    } else {
+        size_t len = *(size_t*)content;
+        content = (void*)(((uintptr_t)content) + sizeof(size_t));
+        res = UA_Variant_setArrayCopy(&value->value, content, len, type);
+    }
     if(UA_LIKELY(res == UA_STATUSCODE_GOOD))
         value->hasValue = true;
-    if(allocated)
-        UA_clear(content, type);
+
+    if(securityDiagnostics)
+        UA_SessionSecurityDiagnosticsDataType_clear(&data.ssddt);
+    else
+        UA_SessionDiagnosticsDataType_clear(&data.sddt);
+
+ cleanup:
+    UA_QualifiedName_clear(&bn);
     return res;
 }
 
@@ -1696,7 +1630,7 @@ UA_Server_initNS0(UA_Server *server) {
 
     /* ServerDiagnostics - SubscriptionDiagnosticsArray */
 #ifdef UA_ENABLE_SUBSCRIPTIONS
-    UA_DataSource serverSubDiagSummary = {readSubscriptionDiagnostics, NULL};
+    UA_DataSource serverSubDiagSummary = {readSubscriptionDiagnosticsArray, NULL};
     retVal |= UA_Server_setVariableNode_dataSource(server,
                         UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERDIAGNOSTICS_SUBSCRIPTIONDIAGNOSTICSARRAY), serverSubDiagSummary);
 #endif
