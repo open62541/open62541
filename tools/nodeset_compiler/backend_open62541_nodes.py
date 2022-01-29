@@ -538,7 +538,10 @@ def generateNodeCode_begin(node, nodeset, code_global):
     code.append("retVal |= UA_Server_addNode_begin(server, UA_NODECLASS_{},".
             format(makeCIdentifier(node.__class__.__name__.upper().replace("NODE" ,""))))
     code.append(generateNodeIdCode(node.id) + ",")
-    code.append(generateNodeIdCode(node.parent.id if node.parent else NodeId()) + ",")
+    if isinstance(node.parent, NodeId):
+      code.append(generateNodeIdCode(node.parent if node.parent else NodeId()) + ",")
+    else:
+      code.append(generateNodeIdCode(node.parent.id if node.parent else NodeId()) + ",")
     code.append(generateNodeIdCode(node.parentReference.id if node.parentReference else NodeId()) + ",")
     code.append(generateQualifiedNameCode(node.browseName) + ",")
     if isinstance(node, VariableNode) or isinstance(node, ObjectNode):

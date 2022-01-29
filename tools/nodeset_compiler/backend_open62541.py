@@ -33,6 +33,11 @@ from datatypes import NodeId
 from nodes import *
 from nodeset import *
 from backend_open62541_nodes import generateNodeCode_begin, generateNodeCode_finish, generateReferenceCode
+def getNodeId(something):
+    if isinstance(something, NodeId):
+        return something
+    else:
+        return something.id
 
 # Kahn's algorithm: https://algocoding.wordpress.com/2015/04/05/topological-sorting-python/
 def sortNodes(nodeset):
@@ -248,7 +253,7 @@ _UA_END_DECLS
                 continue
             if node.hidden and nodeset.nodes[ref.target].hidden:
                 continue
-            if node.parent is not None and ref.target == node.parent.id \
+            if node.parent is not None and ref.target == getNodeId(node.parent) \
                 and ref.referenceType == node.parentReference.id:
                 # Skip parent reference
                 continue
