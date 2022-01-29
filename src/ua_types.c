@@ -1827,6 +1827,49 @@ UA_Array_delete(void *p, size_t size, const UA_DataType *type) {
     UA_free((void*)((uintptr_t)p & ~(uintptr_t)UA_EMPTY_ARRAY_SENTINEL));
 }
 
+#ifdef UA_ENABLE_TYPEDESCRIPTION
+UA_Boolean
+UA_DataType_getStructMember(const UA_DataType *type, const char *memberName,
+                            size_t *outOffset, const UA_DataType **outMemberType,
+                            UA_Boolean *outIsArray) {
+    if(type->typeKind != UA_DATATYPEKIND_STRUCTURE &&
+       type->typeKind != UA_DATATYPEKIND_OPTSTRUCT)
+        return false;
+
+    size_t offset = 0;
+    for(size_t i = 0; i < type->membersSize; ++i) {
+        const UA_DataTypeMember *m = &type->members[i];
+        const UA_DataType *mt = m->memberType;
+        offset += m->padding;
+
+        if(strcmp(memberName, m->memberName) == 0) {
+            *outOffset = offset;
+            *outMemberType = mt;
+            *outIsArray = m->isArray;
+            return true;
+        }
+
+        if(!m->isOptional) {
+            if(!m->isArray) {
+                offset += mt->memSize;
+            } else {
+                offset += sizeof(size_t);
+                offset += sizeof(void*);
+            }
+        } else { /* field is optional */
+            if(!m->isArray) {
+                offset += sizeof(void *);
+            } else {
+                offset += sizeof(size_t);
+                offset += sizeof(void *);
+            }
+        }
+    }
+
+    return false;
+}
+#endif
+
 UA_Boolean
 UA_DataType_isNumeric(const UA_DataType *type) {
     switch(type->typeKind) {

@@ -1040,6 +1040,20 @@ typedef struct UA_DataTypeArray {
     const UA_DataType *types;
 } UA_DataTypeArray;
 
+/* Returns the offset and type of a structure member. The return value is false
+ * if the member was not found.
+ *
+ * If the member is an array, the offset points to the (size_t) length field.
+ * (The array pointer comes after the length field without any padding.) */
+#ifdef UA_ENABLE_TYPEDESCRIPTION
+UA_Boolean
+UA_DataType_getStructMember(const UA_DataType *type,
+                            const char *memberName,
+                            size_t *outOffset,
+                            const UA_DataType **outMemberType,
+                            UA_Boolean *outIsArray);
+#endif
+
 /* Test if the data type is a numeric builtin data type (via the typeKind field
  * of UA_DataType). This includes integers and floating point numbers. Not
  * included are Boolean, DateTime, StatusCode and Enums. */
