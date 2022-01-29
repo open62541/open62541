@@ -509,6 +509,8 @@ fillSubscriptionDiagnostics(UA_Subscription *sub,
     }
 }
 
+/* If the nodeContext == NULL, return all subscriptions in the server.
+ * Otherwise only for the current session. */
 static UA_StatusCode
 readSubscriptionDiagnostics(UA_Server *server,
                             const UA_NodeId *sessionId, void *sessionContext,
@@ -516,28 +518,46 @@ readSubscriptionDiagnostics(UA_Server *server,
                             UA_Boolean sourceTimestamp,
                             const UA_NumericRange *range, UA_DataValue *value) {
     /* Get the current session */
-    UA_Session *session = UA_Server_getSessionById(server, sessionId);
-    if(!session)
-        return UA_STATUSCODE_BADINTERNALERROR;
+    size_t sdSize = 0;
+    UA_Session *session = NULL;
+    session_list_entry *sentry;
+    if(nodeContext) {
+        session = UA_Server_getSessionById(server, sessionId);
+        if(!session)
+            return UA_STATUSCODE_BADINTERNALERROR;
+        sdSize = session->subscriptionsSize;
+    } else {
+        LIST_FOREACH(sentry, &server->sessions, pointers) {
+            sdSize += sentry->session.subscriptionsSize;
+        }
+    }
 
     /* Allocate the output array */
     UA_SubscriptionDiagnosticsDataType *sd = (UA_SubscriptionDiagnosticsDataType*)
-        UA_Array_new(session->subscriptionsSize,
-                     &UA_TYPES[UA_TYPES_SUBSCRIPTIONDIAGNOSTICSDATATYPE]);
+        UA_Array_new(sdSize, &UA_TYPES[UA_TYPES_SUBSCRIPTIONDIAGNOSTICSDATATYPE]);
     if(!sd)
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
     /* Collect the statistics */
     size_t i = 0;
     UA_Subscription *sub;
-    TAILQ_FOREACH(sub, &session->subscriptions, sessionListEntry) {
-        fillSubscriptionDiagnostics(sub, &sd[i]);
-        i++;
+    if(session) {
+        TAILQ_FOREACH(sub, &session->subscriptions, sessionListEntry) {
+            fillSubscriptionDiagnostics(sub, &sd[i]);
+            i++;
+        }
+    } else {
+        LIST_FOREACH(sentry, &server->sessions, pointers) {
+            TAILQ_FOREACH(sub, &sentry->session.subscriptions, sessionListEntry) {
+                fillSubscriptionDiagnostics(sub, &sd[i]);
+                i++;
+            }
+        }
     }
 
     /* Set the output */
     value->hasValue = true;
-    UA_Variant_setArray(&value->value, sd, session->subscriptionsSize,
+    UA_Variant_setArray(&value->value, sd, sdSize,
                         &UA_TYPES[UA_TYPES_SUBSCRIPTIONDIAGNOSTICSDATATYPE]);
     return UA_STATUSCODE_GOOD;
 }
@@ -631,7 +651,14 @@ readSessionDiagnostics(UA_Server *server,
     UA_UInt32 tmpUInt32;
     void *content = NULL;
     const UA_DataType *type = NULL;
-    if(equalBrowseName(&bn.name, "SessionId")) {
+    if(equalBrowseName(&bn.name, "SubscriptionDiagnosticsArray")) {
+        /* Reuse the datasource callback. Forward a non-null nodeContext to
+         * indicate that we want to see only the subscriptions for the current
+         * session. */
+        return readSubscriptionDiagnostics(server, sessionId, sessionContext,
+                                           nodeId, (void*)0x01,
+                                           sourceTimestamp, range, value);
+    } else if(equalBrowseName(&bn.name, "SessionId")) {
         content = &session->sessionId;
         type = &UA_TYPES[UA_TYPES_NODEID];
     } else if(equalBrowseName(&bn.name, "SessionName")) {
