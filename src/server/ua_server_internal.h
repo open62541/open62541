@@ -590,6 +590,12 @@ UA_StatusCode UA_Server_initNS0(UA_Server *server);
 UA_StatusCode writeNs0VariableArray(UA_Server *server, UA_UInt32 id, void *v,
                       size_t length, const UA_DataType *type);
 
+#ifdef UA_ENABLE_DIAGNOSTICS
+void createSessionObject(UA_Server *server, UA_Session *session);
+void createSubscriptionObject(UA_Server *server, UA_Session *session,
+                              UA_Subscription *sub);
+#endif
+
 /***************************/
 /* Nodestore Access Macros */
 /***************************/

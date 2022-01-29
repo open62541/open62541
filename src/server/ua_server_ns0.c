@@ -837,6 +837,84 @@ createSessionObject(UA_Server *server, UA_Session *session) {
     UA_Array_delete(children, childrenSize, &UA_TYPES[UA_TYPES_EXPANDEDNODEID]);
 }
 
+#ifdef UA_ENABLE_SUBSCRIPTIONS
+
+void
+createSubscriptionObject(UA_Server *server, UA_Session *session,
+                         UA_Subscription *sub) {
+    UA_ExpandedNodeId *children = NULL;
+    size_t childrenSize = 0;
+    UA_ReferenceTypeSet refTypes;
+    UA_NodeId hasComponent = UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT);
+
+    char subIdStr[32];
+    snprintf(subIdStr, 32, "%u", sub->subscriptionId);
+
+    /* Find the NodeId of the SubscriptionDiagnosticsArray */
+    UA_BrowsePath bp;
+    UA_BrowsePath_init(&bp);
+    bp.startingNode = sub->session->sessionId;
+    UA_RelativePathElement rpe[1];
+    memset(rpe, 0, sizeof(UA_RelativePathElement) * 1);
+    rpe[0].targetName = UA_QUALIFIEDNAME(0, "SubscriptionDiagnosticsArray");
+    bp.relativePath.elements = rpe;
+    bp.relativePath.elementsSize = 1;
+    UA_BrowsePathResult bpr = translateBrowsePathToNodeIds(server, &bp);
+    if(bpr.targetsSize < 1)
+        return;
+
+    /* Create an object for the subscription. Instantiates all the mandatory
+     * children. */
+    UA_VariableAttributes var_attr = UA_VariableAttributes_default;
+    var_attr.displayName.text = UA_STRING(subIdStr);
+    var_attr.dataType = UA_TYPES[UA_TYPES_SUBSCRIPTIONDIAGNOSTICSDATATYPE].typeId;
+    UA_NodeId refId = UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT);
+    UA_QualifiedName browseName = UA_QUALIFIEDNAME(0, subIdStr);
+    UA_NodeId typeId = UA_NODEID_NUMERIC(0, UA_NS0ID_SUBSCRIPTIONDIAGNOSTICSTYPE);
+    UA_NodeId objId = UA_NODEID_NUMERIC(1, 0); /* 0 => assign a random free id */
+    UA_StatusCode res = addNode(server, UA_NODECLASS_VARIABLE,
+                                &objId,
+                                &bpr.targets[0].targetId.nodeId /* parent */,
+                                &refId, browseName, &typeId,
+                                (UA_NodeAttributes*)&var_attr,
+                                &UA_TYPES[UA_TYPES_VARIABLEATTRIBUTES], NULL, &objId);
+    UA_CHECK_STATUS(res, goto cleanup);
+
+    /* Add a second reference from the overall SubscriptionDiagnosticsArray variable */
+    const UA_NodeId subDiagArray =
+        UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERDIAGNOSTICS_SUBSCRIPTIONDIAGNOSTICSARRAY);
+    res = addRef(server, session,  &subDiagArray, &refId, &objId, true);
+
+    /* Get all children (including the variable itself) and set the contenxt + callback */
+    res = referenceTypeIndices(server, &hasComponent, &refTypes, false);
+    if(res != UA_STATUSCODE_GOOD)
+        goto cleanup;
+    res = browseRecursive(server, 1, &objId,
+                          UA_BROWSEDIRECTION_FORWARD, &refTypes,
+                          UA_NODECLASS_VARIABLE, true, &childrenSize, &children);
+    if(res != UA_STATUSCODE_GOOD)
+        goto cleanup;
+
+    /* Add the callback to all variables  */
+    UA_DataSource subDiagSource = {readSubscriptionDiagnostics, NULL};
+    for(size_t i = 0; i < childrenSize; i++) {
+        setVariableNode_dataSource(server, children[i].nodeId, subDiagSource);
+        setNodeContext(server, children[i].nodeId, sub);
+    }
+
+    UA_Array_delete(children, childrenSize, &UA_TYPES[UA_TYPES_EXPANDEDNODEID]);
+
+ cleanup:
+    UA_BrowsePathResult_clear(&bpr);
+    if(res != UA_STATUSCODE_GOOD) {
+        UA_LOG_WARNING_SESSION(&server->config.logger, session,
+                               "Creating the subscription diagnostics object failed "
+                               "with StatusCode %s", UA_StatusCode_name(res));
+    }
+}
+
+#endif
+
 static UA_StatusCode
 readSessionSecurityDiagnostics(UA_Server *server,
                                const UA_NodeId *sessionId, void *sessionContext,
