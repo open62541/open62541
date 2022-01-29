@@ -353,6 +353,11 @@ addNode(UA_Server *server, const UA_NodeClass nodeClass, const UA_NodeId *reques
         void *nodeContext, UA_NodeId *outNewNodeId);
 
 UA_StatusCode
+addRef(UA_Server *server, UA_Session *session, const UA_NodeId *sourceId,
+       const UA_NodeId *referenceTypeId, const UA_NodeId *targetId,
+       UA_Boolean forward);
+
+UA_StatusCode
 setVariableNode_dataSource(UA_Server *server, const UA_NodeId nodeId,
                            const UA_DataSource dataSource);
 
