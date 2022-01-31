@@ -177,6 +177,7 @@ option(UA_ENABLE_DISCOVERY "Enable Discovery Service (LDS)" OFF)
 option(UA_ENABLE_JSON_ENCODING "Enable JSON encoding" ON)
 option(UA_ENABLE_XML_ENCODING "Enable XML encoding (EXPERIMENTAL)" OFF)
 option(UA_ENABLE_NODESETLOADER "Enable nodesetLoader public API" OFF)
+option(UA_ENABLE_NODESET_INJECTOR "Enable automatic nodeset injection" OFF)
 
 set(MULTITHREADING_DEFAULT 0)
 if(WIN32 OR UNIX)
@@ -1075,6 +1076,25 @@ if(UA_ENABLE_PARSING)
     list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/src/ua_types_lex.c)
 endif()
 
+if(UA_ENABLE_NODESET_INJECTOR)
+    message(STATUS "Nodesetinjector enabled")
+    cmake_minimum_required(VERSION 3.20)
+
+    add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/src_generated/open62541/nodesetinjector.h
+                       ${PROJECT_BINARY_DIR}/src_generated/open62541/nodesetinjector.c
+                       PRE_BUILD
+                       COMMAND ${PYTHON_EXECUTABLE} ${open62541_TOOLS_DIR}/nodeset_injector/generate_nodesetinjector.py
+                       ${PROJECT_BINARY_DIR}/src_generated/open62541/nodesetinjector)
+    add_custom_target(open62541-generator-nodesetinjector DEPENDS
+                      ${PROJECT_BINARY_DIR}/src_generated/open62541/nodesetinjector.c
+                      ${PROJECT_BINARY_DIR}/src_generated/open62541/nodesetinjector.h
+                      )
+
+    set(UA_NODESETINJECTOR_GENERATORS "")
+    set(UA_NODESETINJECTOR_SOURCE_FILES "")
+    set(UA_NODESETINJECTOR_EXAMPLE_NAMES "")
+endif()
+
 # Always include encryption plugins into the amalgamation
 # Use guards in the files to ensure that UA_ENABLE_ENCRYPTON_MBEDTLS and UA_ENABLE_ENCRYPTION_OPENSSL are honored.
 
@@ -1398,12 +1418,10 @@ ua_generate_nodeid_header(
     FILE_CSV "${UA_FILE_NODEIDS}"
 )
 
-# we need a custom target to avoid that the generator is called concurrently and
-# thus overwriting files while the other thread is compiling
 add_custom_target(open62541-generator-statuscode DEPENDS
-        ${PROJECT_BINARY_DIR}/src_generated/open62541/nodeids.h
-        ${PROJECT_BINARY_DIR}/src_generated/open62541/statuscodes.h
-        ${PROJECT_BINARY_DIR}/src_generated/open62541/statuscodes.c)
+                  ${PROJECT_BINARY_DIR}/src_generated/open62541/nodeids.h
+                  ${PROJECT_BINARY_DIR}/src_generated/open62541/statuscodes.h
+                  ${PROJECT_BINARY_DIR}/src_generated/open62541/statuscodes.c)
 
 if(UA_ENABLE_AMALGAMATION)
     # single-file release
@@ -1507,6 +1525,10 @@ else()
                       open62541-generator-statuscode
                       open62541-generator-namespace
                       )
+    if(UA_ENABLE_NODESET_INJECTOR)
+        add_dependencies(open62541-code-generation open62541-generator-nodesetinjector)
+    endif()
+
     if(UA_ENABLE_COVERAGE)
         add_coverage(open62541-object)
     endif()
@@ -1887,3 +1909,23 @@ set_target_properties(open62541-generator-namespace PROPERTIES FOLDER "open62541
 set_target_properties(open62541-generator-statuscode PROPERTIES FOLDER "open62541/generators")
 set_target_properties(open62541-generator-transport PROPERTIES FOLDER "open62541/generators")
 set_target_properties(open62541-generator-types PROPERTIES FOLDER "open62541/generators")
+if(UA_ENABLE_NODESET_INJECTOR)
+    set_target_properties(open62541-generator-nodesetinjector PROPERTIES FOLDER "open62541/generators")
+endif()
+
+assign_source_group(${lib_sources})
+assign_source_group(${internal_headers})
+assign_source_group(${exported_headers})
+assign_source_group(${default_plugin_sources})
+assign_source_group(${ua_architecture_sources})
+
+if(UA_ENABLE_NODESET_INJECTOR)
+    # no dependencies
+#    set(UA_INFORMATION_MODEL_AUTOLOAD DI ISA95-JOBCONTROL OpenSCS DEXPI AMB)
+    # di as dependency
+#    set(UA_INFORMATION_MODEL_AUTOLOAD DI AutoID  POWERLINK IA Machinery PNEM PLCopen)
+    # more dependencies
+#    set(UA_INFORMATION_MODEL_AUTOLOAD DI Machinery IA MachineTool)
+
+    add_subdirectory(tools/nodeset_injector)
+endif()

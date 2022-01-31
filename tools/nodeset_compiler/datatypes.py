@@ -509,8 +509,12 @@ class Int32(Integer):
 
     @staticmethod
     def __strIsInt(strValue):
+        # 0_0 is not a valid number, but does not throw an error when converted to an integer.
+        # Therefore, this case must be checked separately.
         try:
             int(strValue)
+            if strValue[0:2] == '0_':
+                return False
             return True
         except:
             return False

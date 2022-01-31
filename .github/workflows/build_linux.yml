@@ -106,6 +106,9 @@ jobs:
           - build_name: "Clang Static Analyzer"
             cmd_deps: sudo apt-get install -y -qq clang-11 clang-tools-11 libmbedtls-dev mosquitto
             cmd_action: build_clang_analyzer
+          - build_name: "Build All Companion Specifications"
+            cmd_deps: ""
+            cmd_action: build_all_companion_specs
     name: ${{matrix.build_name}}
     runs-on: ubuntu-20.04
     steps:
