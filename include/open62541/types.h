@@ -1061,6 +1061,14 @@ UA_DataType_getPrecedence(const UA_DataType *type);
 const UA_DataType UA_EXPORT *
 UA_findDataType(const UA_NodeId *typeId);
 
+/**
+ * Same functionality as UA_findDataType, except that a custom types array
+ * can be supplied to be searched in addition to the base types.
+ */
+const UA_DataType UA_EXPORT *
+UA_findDataTypeWithCustom(const UA_NodeId *typeId,
+                          const UA_DataTypeArray *customTypes);
+
 /** The following functions are used for generic handling of data types. */
 
 /* Allocates and initializes a variable of type dataType

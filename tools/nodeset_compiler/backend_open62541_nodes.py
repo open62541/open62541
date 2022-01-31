@@ -556,13 +556,14 @@ def generateNodeCode_finish(node):
     code = []
 
     if isinstance(node, MethodNode):
-        code.append("UA_Server_addMethodNode_finish(server, ")
+        code.append("UA_Server_addMethodNodeEx_finish(server, ")
     else:
         code.append("UA_Server_addNode_finish(server, ")
     code.append(generateNodeIdCode(node.id))
 
     if isinstance(node, MethodNode):
-        code.append(", NULL, 0, NULL, 0, NULL);")
+        mdi = generateNodeIdCode(node.methodDeclarationId) if node.methodDeclarationId else 'UA_NODEID_NULL'
+        code.append(f", NULL, {mdi}, 0, NULL, 0, NULL);")
     else:
         code.append(");")
 

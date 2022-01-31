@@ -319,7 +319,7 @@ class MethodNode(Node):
         Node.__init__(self)
         self.executable = True
         self.userExecutable = True
-        self.methodDecalaration = None
+        self.methodDeclarationId = None
         if xmlelement:
             MethodNode.parseXML(self, xmlelement)
 
@@ -331,7 +331,7 @@ class MethodNode(Node):
             if at == "UserExecutable":
                 self.userExecutable = "false" not in av.lower()
             if at == "MethodDeclarationId":
-                self.methodDeclaration = str(av)
+                self.methodDeclarationId = NodeId(str(av))
 
 class ObjectTypeNode(Node):
     def __init__(self, xmlelement=None):

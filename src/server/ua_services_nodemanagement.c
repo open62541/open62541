@@ -21,10 +21,6 @@
 #include "ua_server_internal.h"
 #include "ua_services.h"
 
-static UA_StatusCode
-setMethodNode_callback(UA_Server *server,
-                       const UA_NodeId methodNodeId,
-                       UA_MethodCallback methodCallback);
 
 /*********************/
 /* Edit Node Context */
@@ -578,15 +574,19 @@ addInterfaceChildren(UA_Server *server, UA_Session *session,
 }
 
 static UA_StatusCode
-copyChild(UA_Server *server, UA_Session *session,
-          const UA_NodeId *destinationNodeId,
+copyChild(UA_Server *server, UA_Session *session, const UA_NodeId *sourceNodeId, const UA_NodeId *destinationNodeId,
           const UA_ReferenceDescription *rd) {
     UA_assert(session);
 
     /* Is there an existing child with the browsename? */
     UA_NodeId existingChild = UA_NODEID_NULL;
+    UA_NodeId sourceChild = UA_NODEID_NULL;
     UA_StatusCode retval = findChildByBrowsename(server, session, destinationNodeId,
                                                  &rd->browseName, &existingChild);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
+    retval = findChildByBrowsename(server, session, sourceNodeId,
+                                   &rd->browseName, &sourceChild);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
@@ -595,6 +595,14 @@ copyChild(UA_Server *server, UA_Session *session,
         if(rd->nodeClass == UA_NODECLASS_VARIABLE ||
            rd->nodeClass == UA_NODECLASS_OBJECT)
             retval = copyAllChildren(server, session, &rd->nodeId.nodeId, &existingChild);
+        UA_MethodCallback callback;
+        UA_MethodCallback existingChildCallback;
+        if(UA_Server_getMethodNodeCallback_internal(server, sourceChild, &callback) == UA_STATUSCODE_GOOD &&
+           UA_Server_getMethodNodeCallback_internal(server, existingChild, &existingChildCallback) == UA_STATUSCODE_GOOD) {
+            if(existingChildCallback == NULL) {
+                UA_Server_setMethodNodeCallback_internal(server, existingChild, callback);
+            }
+        }
         UA_NodeId_clear(&existingChild);
         return retval;
     }
@@ -721,7 +729,7 @@ copyChild(UA_Server *server, UA_Session *session,
             deleteNode(server, newNodeId, true);
             return retval;
         }
-        
+
         /* Clean up.  Because it can happen that a string is assigned as ID at 
          * generateChildNodeId. */
         UA_NodeId_clear(&newNodeId);
@@ -755,7 +763,7 @@ copyAllChildren(UA_Server *server, UA_Session *session,
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     for(size_t i = 0; i < br.referencesSize; ++i) {
         UA_ReferenceDescription *rd = &br.references[i];
-        retval = copyChild(server, session, destination, rd);
+        retval = copyChild(server, session, source, destination, rd);
         if(retval != UA_STATUSCODE_GOOD)
             break;
     }
@@ -1734,7 +1742,7 @@ deconstructNodeSet(UA_Server *server, UA_Session *session,
                   lifecycle = &type->objectTypeNode.lifecycle;
                else
                   lifecycle = &type->variableTypeNode.lifecycle;
-               
+
                /* Call the destructor */
                if(lifecycle->destructor) {
                   UA_UNLOCK(&server->serviceMutex);
@@ -2434,16 +2442,14 @@ static const UA_NodeId hasproperty = {0, UA_NODEIDTYPE_NUMERIC, {UA_NS0ID_HASPRO
 static const UA_NodeId propertytype = {0, UA_NODEIDTYPE_NUMERIC, {UA_NS0ID_PROPERTYTYPE}};
 
 static UA_StatusCode
-UA_Server_addMethodNodeEx_finish(UA_Server *server, const UA_NodeId nodeId,
-                                 UA_MethodCallback method,
-                                 const size_t inputArgumentsSize,
-                                 const UA_Argument *inputArguments,
-                                 const UA_NodeId inputArgumentsRequestedNewNodeId,
-                                 UA_NodeId *inputArgumentsOutNewNodeId,
-                                 const size_t outputArgumentsSize,
-                                 const UA_Argument *outputArguments,
-                                 const UA_NodeId outputArgumentsRequestedNewNodeId,
-                                 UA_NodeId *outputArgumentsOutNewNodeId) {
+ua_Server_addMethodNode_finish(UA_Server *server, const UA_NodeId nodeId, UA_MethodCallback method,
+                               UA_NodeId methodDeclarationId,
+                               const size_t inputArgumentsSize, const UA_Argument *inputArguments,
+                               const UA_NodeId inputArgumentsRequestedNewNodeId,
+                               UA_NodeId *inputArgumentsOutNewNodeId,
+                               const size_t outputArgumentsSize, const UA_Argument *outputArguments,
+                               const UA_NodeId outputArgumentsRequestedNewNodeId,
+                               UA_NodeId *outputArgumentsOutNewNodeId) {
     /* Browse to see which argument nodes exist */
     UA_BrowseDescription bd;
     UA_BrowseDescription_init(&bd);
@@ -2516,16 +2522,31 @@ UA_Server_addMethodNodeEx_finish(UA_Server *server, const UA_NodeId nodeId,
                             outputArgumentsSize, &UA_TYPES[UA_TYPES_ARGUMENT]);
         retval = addNode(server, UA_NODECLASS_VARIABLE, &outputArgumentsRequestedNewNodeId,
                          &nodeId, &hasproperty, UA_QUALIFIEDNAME(0, name),
-                         &propertytype, (const UA_NodeAttributes*)&attr,
+                         &propertytype, (const UA_NodeAttributes *) &attr,
                          &UA_TYPES[UA_TYPES_VARIABLEATTRIBUTES],
                          NULL, &outputArgsId);
         if(retval != UA_STATUSCODE_GOOD)
             goto error;
     }
 
-    retval = setMethodNode_callback(server, nodeId, method);
+    /* Try to fetch the method callback from the declaration. */
+    if(method == NULL && !UA_NodeId_equal(&methodDeclarationId, &UA_NODEID_NULL)) {
+        retval = UA_Server_getMethodNodeCallback_internal(server, methodDeclarationId, &method);
+        if(retval != UA_STATUSCODE_GOOD && retval != UA_STATUSCODE_BADNODEIDUNKNOWN)
+            goto error;
+    }
+
+    UA_MethodCallback existingCallback;
+    retval = UA_Server_getMethodNodeCallback_internal(server, nodeId, &existingCallback);
     if(retval != UA_STATUSCODE_GOOD)
         goto error;
+
+    /* Callback was already set after addnode_begin and before calling finish */
+    if(existingCallback == NULL) {
+        retval = UA_Server_setMethodNodeCallback_internal(server, nodeId, method);
+        if(retval != UA_STATUSCODE_GOOD)
+            goto error;
+    }
 
     /* Call finish to add the parent reference */
     retval = AddNode_finish(server, &server->adminSession, &nodeId);
@@ -2552,17 +2573,25 @@ error:
 UA_StatusCode
 UA_Server_addMethodNode_finish(UA_Server *server, const UA_NodeId nodeId,
                                UA_MethodCallback method,
-                               size_t inputArgumentsSize,
-                               const UA_Argument* inputArguments,
-                               size_t outputArgumentsSize,
-                               const UA_Argument* outputArguments) {
+                               size_t inputArgumentsSize, const UA_Argument *inputArguments,
+                               size_t outputArgumentsSize, const UA_Argument *outputArguments) {
     UA_LOCK(&server->serviceMutex);
-    UA_StatusCode retval =
-        UA_Server_addMethodNodeEx_finish(server, nodeId, method,
-                                         inputArgumentsSize, inputArguments,
-                                         UA_NODEID_NULL, NULL,
-                                         outputArgumentsSize, outputArguments,
-                                         UA_NODEID_NULL, NULL);
+    UA_StatusCode retval = ua_Server_addMethodNode_finish(server, nodeId, method, UA_NODEID_NULL,
+                                                          inputArgumentsSize, inputArguments, UA_NODEID_NULL, NULL,
+                                                          outputArgumentsSize, outputArguments, UA_NODEID_NULL, NULL);
+    UA_UNLOCK(&server->serviceMutex);
+    return retval;
+}
+
+UA_StatusCode
+UA_Server_addMethodNodeEx_finish(UA_Server *server, const UA_NodeId nodeId,
+                                 UA_MethodCallback method, UA_NodeId methodDeclarationId,
+                                 size_t inputArgumentsSize, const UA_Argument *inputArguments,
+                                 size_t outputArgumentsSize, const UA_Argument *outputArguments) {
+    UA_LOCK(&server->serviceMutex);
+    UA_StatusCode retval = ua_Server_addMethodNode_finish(server, nodeId, method, methodDeclarationId,
+                                                          inputArgumentsSize, inputArguments, UA_NODEID_NULL, NULL,
+                                                          outputArgumentsSize, outputArguments, UA_NODEID_NULL, NULL);
     UA_UNLOCK(&server->serviceMutex);
     return retval;
 }
@@ -2601,13 +2630,14 @@ UA_Server_addMethodNodeEx(UA_Server *server, const UA_NodeId requestedNewNodeId,
         return retval;
     }
 
-    retval = UA_Server_addMethodNodeEx_finish(server, *outNewNodeId, method,
-                                              inputArgumentsSize, inputArguments,
-                                              inputArgumentsRequestedNewNodeId,
-                                              inputArgumentsOutNewNodeId,
-                                              outputArgumentsSize, outputArguments,
-                                              outputArgumentsRequestedNewNodeId,
-                                              outputArgumentsOutNewNodeId);
+    retval = ua_Server_addMethodNode_finish(server, *outNewNodeId, method,
+                                            UA_NODEID_NULL,
+                                            inputArgumentsSize, inputArguments,
+                                            inputArgumentsRequestedNewNodeId,
+                                            inputArgumentsOutNewNodeId,
+                                            outputArgumentsSize, outputArguments,
+                                            outputArgumentsRequestedNewNodeId,
+                                            outputArgumentsOutNewNodeId);
     UA_UNLOCK(&server->serviceMutex);
     if(outNewNodeId == &newId)
         UA_NodeId_clear(&newId);
@@ -2623,8 +2653,8 @@ editMethodCallback(UA_Server *server, UA_Session* session,
     return UA_STATUSCODE_GOOD;
 }
 
-static UA_StatusCode
-setMethodNode_callback(UA_Server *server,
+UA_StatusCode
+UA_Server_setMethodNodeCallback_internal(UA_Server *server,
                        const UA_NodeId methodNodeId,
                        UA_MethodCallback methodCallback) {
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
@@ -2638,9 +2668,29 @@ UA_Server_setMethodNodeCallback(UA_Server *server,
                                 const UA_NodeId methodNodeId,
                                 UA_MethodCallback methodCallback) {
     UA_LOCK(&server->serviceMutex);
-    UA_StatusCode retVal = setMethodNode_callback(server, methodNodeId, methodCallback);
+    UA_StatusCode retVal = UA_Server_setMethodNodeCallback_internal(server, methodNodeId, methodCallback);
     UA_UNLOCK(&server->serviceMutex);
     return retVal;
+}
+
+UA_StatusCode
+UA_Server_getMethodNodeCallback_internal(UA_Server *server,
+                                         const UA_NodeId methodNodeId,
+                                         UA_MethodCallback *outMethodCallback) {
+    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+    const UA_Node *node = UA_NODESTORE_GET(server, &methodNodeId);
+    if(!node) {
+        return UA_STATUSCODE_BADNODEIDUNKNOWN;
+    }
+
+    if(node->head.nodeClass != UA_NODECLASS_METHOD) {
+        UA_NODESTORE_RELEASE(server, node);
+        return UA_STATUSCODE_BADNODECLASSINVALID;
+    }
+
+    *outMethodCallback = node->methodNode.method;
+    UA_NODESTORE_RELEASE(server, node);
+    return UA_STATUSCODE_GOOD;
 }
 
 UA_StatusCode
@@ -2648,20 +2698,7 @@ UA_Server_getMethodNodeCallback(UA_Server *server,
                                 const UA_NodeId methodNodeId,
                                 UA_MethodCallback *outMethodCallback) {
     UA_LOCK(&server->serviceMutex);
-    const UA_Node *node = UA_NODESTORE_GET(server, &methodNodeId);
-    if(!node) {
-        UA_UNLOCK(&server->serviceMutex);
-        return UA_STATUSCODE_BADNODEIDUNKNOWN;
-    }
-
-    if(node->head.nodeClass != UA_NODECLASS_METHOD) {
-        UA_NODESTORE_RELEASE(server, node);
-        UA_UNLOCK(&server->serviceMutex);
-        return UA_STATUSCODE_BADNODECLASSINVALID;
-    }
-
-    *outMethodCallback = node->methodNode.method;
-    UA_NODESTORE_RELEASE(server, node);
+    UA_Server_getMethodNodeCallback_internal(server, methodNodeId, outMethodCallback);
     UA_UNLOCK(&server->serviceMutex);
     return UA_STATUSCODE_GOOD;
 }

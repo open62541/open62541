@@ -1071,7 +1071,23 @@ UA_Server_deleteMonitoredItem(UA_Server *server, UA_UInt32 monitoredItemId);
  * added over the network. In theory, it is possible to add a callback via
  * ``UA_Server_setMethodNode_callback`` within the global constructor when
  * adding methods over the network is really wanted. See the Section
- * :ref:`object-interaction` for calling methods on an object. */
+ * :ref:`object-interaction` for calling methods on an object.
+ *
+ * It is also possible to use inheritance to pass on a callback from the parent
+ * method to a child node, that is created. Either the child node is omitted by
+ * instead referencing the parent node directly, or if the child node is created,
+ * the stack will look at the methodDeclarationId and copy over the callback from
+ * the referenced node. This can only occur during construction of the child.
+ * This is useful for many predefined nodesets that redefine methods but also
+ * contain the methodDeclarationId. To set the same callback for all methods that
+ * inherit from some type, the callback can be set between the begin and finish calls
+ * of the namespace initialization. Example:
+ * ```
+ * namespace_XYZ_generated_begin(server);
+ * setupMethodCallbacks(); // Set up all callbacks on the type's methods, such that inheritance will occur
+ * namespace_XYZ_generated_finish(server); // All methods inheriting from the types will get the callbacks
+ * ```
+ * */
 
 #ifdef UA_ENABLE_METHODCALLS
 UA_StatusCode UA_EXPORT UA_THREADSAFE
@@ -1388,9 +1404,15 @@ UA_Server_addNode_finish(UA_Server *server, const UA_NodeId nodeId);
 
 UA_StatusCode UA_EXPORT UA_THREADSAFE
 UA_Server_addMethodNode_finish(UA_Server *server, const UA_NodeId nodeId,
-                         UA_MethodCallback method,
-                         size_t inputArgumentsSize, const UA_Argument* inputArguments,
-                         size_t outputArgumentsSize, const UA_Argument* outputArguments);
+                               UA_MethodCallback method,
+                               size_t inputArgumentsSize, const UA_Argument *inputArguments,
+                               size_t outputArgumentsSize, const UA_Argument *outputArguments);
+
+UA_StatusCode UA_EXPORT UA_THREADSAFE
+UA_Server_addMethodNodeEx_finish(UA_Server *server, const UA_NodeId nodeId,
+                                 UA_MethodCallback method, UA_NodeId methodDeclarationId,
+                                 size_t inputArgumentsSize, const UA_Argument *inputArguments,
+                                 size_t outputArgumentsSize, const UA_Argument *outputArguments);
 
 #endif
 
