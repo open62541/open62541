@@ -29,18 +29,30 @@ int main(int argc, char** argv) {
     UA_Server *server = UA_Server_new();
     UA_ServerConfig_setDefault(UA_Server_getConfig(server));
 
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+
     /* create nodes from nodeset */
-    UA_StatusCode retval = namespace_di_generated(server);
-    if(retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "Adding the DI namespace failed. Please check previous error output.");
-        UA_Server_delete(server);
-        return EXIT_FAILURE;
+    size_t idx = LONG_MAX;
+    UA_Server_getNamespaceByName(server, UA_STRING("http://opcfoundation.org/UA/DI/"), &idx);
+    if(idx == LONG_MAX) {
+        retval = namespace_di_generated(server);
+        if(retval != UA_STATUSCODE_GOOD) {
+            UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
+                         "Adding the DI namespace failed. Please check previous error output.");
+            UA_Server_delete(server);
+            return EXIT_FAILURE;
+        }
     }
-    retval |= namespace_powerlink_generated(server);
-    if(retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "Adding the Powerlink namespace failed. Please check previous error output.");
-        UA_Server_delete(server);
-        return EXIT_FAILURE;
+    idx = LONG_MAX;
+    UA_Server_getNamespaceByName(server, UA_STRING("http://opcfoundation.org/UA/POWERLINK/"), &idx);
+    if(idx == LONG_MAX) {
+        retval = namespace_powerlink_generated(server);
+        if(retval != UA_STATUSCODE_GOOD) {
+            UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
+                         "Adding the Powerlink namespace failed. Please check previous error output.");
+            UA_Server_delete(server);
+            return EXIT_FAILURE;
+        }
     }
 
     retval = UA_Server_run(server, &running);

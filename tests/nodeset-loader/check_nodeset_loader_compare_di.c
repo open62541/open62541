@@ -33,7 +33,13 @@ START_TEST(Server_compareDiNodeset) {
     UA_ServerConfig *config = UA_Server_getConfig(server);
     ck_assert(config->customDataTypes);
 
+    UA_UInt16 nsIndex = UA_Server_addNamespace(server, "http://opcfoundation.org/UA/DI/");
+    printf("%d\n", nsIndex);
+
     for(int i = 0; i < UA_TYPES_NODESETLOADER_DI_COUNT; ++i) {
+        UA_TYPES_NODESETLOADER_DI[i].typeId.namespaceIndex = nsIndex;
+        UA_TYPES_NODESETLOADER_DI[i].binaryEncodingId.namespaceIndex = nsIndex;
+
         const UA_DataType *compiledType = &UA_TYPES_NODESETLOADER_DI[i];
         const UA_DataType *loadedType = UA_Server_findDataType(server, &compiledType->typeId);
 

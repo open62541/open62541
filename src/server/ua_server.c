@@ -29,6 +29,10 @@
 #include "ua_subscription.h"
 #endif
 
+#ifdef UA_ENABLE_NODESET_INJECTOR
+#include "open62541/nodesetinjector.h"
+#endif
+
 #ifdef UA_ENABLE_VALGRIND_INTERACTIVE
 #include <valgrind/memcheck.h>
 #endif
@@ -404,6 +408,13 @@ UA_Server_init(UA_Server *server) {
     /* Initialize namespace 0*/
     res = initNS0(server);
     UA_CHECK_STATUS(res, goto cleanup);
+
+#ifdef UA_ENABLE_NODESET_INJECTOR
+    UA_UNLOCK(&server->serviceMutex);
+    res = UA_Server_injectNodesets(server);
+    UA_LOCK(&server->serviceMutex);
+    UA_CHECK_STATUS(res, goto cleanup);
+#endif
 
 #ifdef UA_ENABLE_PUBSUB
     /* Initialized PubSubManager */

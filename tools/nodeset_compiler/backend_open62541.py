@@ -12,6 +12,8 @@
 
 
 from __future__ import print_function
+
+import re
 from os.path import basename
 import logging
 import codecs
@@ -305,6 +307,28 @@ UA_StatusCode retVal = UA_STATUSCODE_GOOD;""" % (outfilebase))
     for i, nsid in enumerate(nodeset.namespaces):
         nsid = nsid.replace("\"", "\\\"")
         writec("ns[" + str(i) + "] = UA_Server_addNamespace(server, \"" + nsid + "\");")
+
+    # Change namespaceIndex from the current namespace,
+    # but only if it defines its own data types, otherwise it is not necessary.
+    # The current namespace is the last item in the list of namespaces.
+    currentNs = nodeset.namespaces[-1]
+    split = currentNs.strip('/').split('/')
+    ns = split[-1]
+    # Check whether ns contains a number. If it is, check if the value starts with an uppercase letter.
+    # If not, it is not the correct value. Grab the next one and repeat the check.
+    # eg. http://opcfoundation.org/UA/TMC/v2/, http://opcfoundation.org/UA/I4AAS/
+    idx = 2
+    while re.search(r'\d', ns) and ns[0].islower():
+        ns = split[idx*-1]
+        idx += 1
+    if len(typesArray) > 0:
+        typeArr = typesArray[-1]
+        if typeArr == "UA_TYPES_"+ns.upper():
+            writec("/* Change namespaceIndex from current namespace */")
+            writec("for(int i = 0; i < " + typeArr + "_COUNT" + "; i++) {")
+            writec(typeArr + "[i]" + ".typeId.namespaceIndex = ns[" + str(nodeset.namespaceMapping[1]) + "];")
+            writec(typeArr + "[i]" + ".binaryEncodingId.namespaceIndex = ns[" + str(nodeset.namespaceMapping[1]) + "];")
+            writec("}")
 
     # Add generated types to the server
     writec("\n/* Load custom datatype definitions into the server */")

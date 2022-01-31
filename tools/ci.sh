@@ -459,3 +459,22 @@ function build_clang_analyzer {
           ..
     scan-build-11 --status-bugs make ${MAKEOPTS}
 }
+
+###################################################
+# Compile alle ua-schema companion specifications #
+###################################################
+
+function build_all_companion_specs {
+    mkdir -p build; cd build; rm -rf *
+    cmake -DCMAKE_BUILD_TYPE=Debug \
+          -DUA_BUILD_EXAMPLES=ON \
+          -DUA_ENABLE_NODESET_INJECTOR=ON \
+          -DUA_INFORMATION_MODEL_AUTOLOAD=DI\;ISA95-JOBCONTROL\;OpenSCS\; \
+          DEXPI\;AMB\;AutoID\;POWERLINK\;IA\;Machinery\; \
+          PackML\;PNEM\;PLCopen\;MachineTool\;PROFINET\; \
+          MachineVision\;FDT\;CommercialKitchenEquipment\; \
+          PNRIO\;Scales\;Weihenstephan\;Pumps\;CAS\;TMC \
+          -DUA_NAMESPACE_ZERO=FULL \
+          ..
+    make ${MAKEOPTS}
+}

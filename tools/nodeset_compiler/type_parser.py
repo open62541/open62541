@@ -307,14 +307,7 @@ class TypeParser():
         xmlNamespaces = dict([
             node for _, node in xmlDoc
         ])
-        if xmlDoc.root.get("TargetNamespace"):
-            targetNamespace = xmlDoc.root.get("TargetNamespace")
-            if not targetNamespace in self.namespaceIndexMap:
-                raise RuntimeError("TargetNamespace '{targetNs}' is not listed in namespace index mapping. "
-                                   "Use the following option to define the mapping (can be used multiple times). "
-                                   "--namespaceMap=X:{targetNs} where X is the resulting namespace index in the server.".format(targetNs=targetNamespace))
-        else:
-            raise RuntimeError("TargetNamespace Attribute not defined in BSD file.")
+        targetNamespace = xmlDoc.root.get("TargetNamespace")
         for typeXml in xmlDoc.root:
             if not typeXml.get("Name"):
                 continue
