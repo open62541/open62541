@@ -21,7 +21,7 @@ static UA_THREAD_LOCAL UA_Byte ReceiveMsgBufferUDP[RECEIVE_MSG_BUFFER_SIZE];
 
 /* UDP multicast network layer specific internal data */
 typedef struct {
-    int ai_family;                    /* Protocol family for socket. IPv4/IPv6 */
+    int ai_family;                   /* Protocol family for socket. IPv4/IPv6 */
     struct sockaddr_storage ai_addr; /* https://msdn.microsoft.com/de-de/library/windows/desktop/ms740496(v=vs.85).aspx */
     socklen_t ai_addrlen;            /* Address length */
     struct sockaddr_storage intf_addr;
@@ -62,7 +62,8 @@ UA_PubSubChannelUDPMC_open(const UA_PubSubConnectionConfig *connectionConfig) {
     }
 
     /* Set default values */
-    UA_PubSubChannelDataUDPMC defaultValues = {0, {0}, 0, {0}, 255, UA_TRUE, UA_TRUE, UA_TRUE};
+    UA_PubSubChannelDataUDPMC defaultValues =
+        {0, {0}, 0, {0}, 255, true, true, true};
     memcpy(channelDataUDPMC, &defaultValues, sizeof(UA_PubSubChannelDataUDPMC));
     /* Iterate over the given KeyValuePair parameters */
     UA_String ttlParam = UA_STRING("ttl");
@@ -99,7 +100,8 @@ UA_PubSubChannelUDPMC_open(const UA_PubSubConnectionConfig *connectionConfig) {
         }
     }
 
-    UA_PubSubChannel *newChannel = (UA_PubSubChannel *) UA_calloc(1, sizeof(UA_PubSubChannel));
+    UA_PubSubChannel *newChannel = (UA_PubSubChannel *)
+        UA_calloc(1, sizeof(UA_PubSubChannel));
     if(!newChannel) {
         UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
                      "PubSub Connection creation failed. Out of memory.");
@@ -124,7 +126,8 @@ UA_PubSubChannelUDPMC_open(const UA_PubSubConnectionConfig *connectionConfig) {
         UA_free(newChannel);
         return NULL;
     }
-    if(hostname.length > 512) {
+
+    if(hostname.length >= 512) {
         UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
                      "PubSub Connection creation failed. URL maximum length is 512.");
         UA_free(channelDataUDPMC);
@@ -132,9 +135,10 @@ UA_PubSubChannelUDPMC_open(const UA_PubSubConnectionConfig *connectionConfig) {
         return NULL;
     }
 
-    UA_STACKARRAY(char, addressAsChar, sizeof(char) * hostname.length +1);
+    char addressAsChar[512];
     memcpy(addressAsChar, hostname.data, hostname.length);
     addressAsChar[hostname.length] = 0;
+
     char port[6];
     sprintf(port, "%u", networkPort);
 
@@ -151,7 +155,6 @@ UA_PubSubChannelUDPMC_open(const UA_PubSubConnectionConfig *connectionConfig) {
         return NULL;
     }
 
-
     /* Check if the ip address is a multicast address */
     if(requestResult->ai_family == PF_INET) {
         struct in_addr imr_interface;
@@ -160,7 +163,7 @@ UA_PubSubChannelUDPMC_open(const UA_PubSubConnectionConfig *connectionConfig) {
            (UA_ntohl(imr_interface.s_addr) & 0xF0000000) != 0xE0000000) {
             UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
                 "PubSub Connection is created for a unicast address (IPv4)");
-            channelDataUDPMC->isMulticast = UA_FALSE;
+            channelDataUDPMC->isMulticast = false;
         }
     } else {
         struct in6_addr imr_interface;
@@ -169,7 +172,7 @@ UA_PubSubChannelUDPMC_open(const UA_PubSubConnectionConfig *connectionConfig) {
            (imr_interface.s6_addr[0] != 0xFF)) {
             UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
                 "PubSub Connection is created for a unicast address (IPv6)");
-            channelDataUDPMC->isMulticast = UA_FALSE;
+            channelDataUDPMC->isMulticast = false;
         }
     }
 
