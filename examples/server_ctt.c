@@ -1278,6 +1278,9 @@ int main(int argc, char **argv) {
     if(!enableAnon)
         disableAnonymous(&config);
 
+    /* Revolve the SecureChannel token every 300 seconds */
+    config.maxSecurityTokenLifetime = 300000;
+
     /* Set operation limits */
     config.maxNodesPerRead = MAX_OPERATION_LIMIT;
     config.maxNodesPerWrite = MAX_OPERATION_LIMIT;
