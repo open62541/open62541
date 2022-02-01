@@ -1,25 +1,30 @@
 /* This work is licensed under a Creative Commons CCZero 1.0 Universal License.
  * See http://creativecommons.org/publicdomain/zero/1.0/ for more information. */
+
 /**
- * .. _pubsub-tutorial:
+ * .. _pubsub-nodeset-subscriber-tutorial:
  *
  * Subscriber Realtime example using custom nodes
- * ---------------------------------------------
+ * ----------------------------------------------
  *
  * The purpose of this example file is to use the custom nodes of the XML
- * file(subDataModel.xml) for subscriber.
- * This Subscriber example uses the two custom nodes (SubscriberCounterVariable and Pressure)
- * created using the XML file(subDataModel.xml) for subscribing the packet.
- * The subDataModel.csv will contain the nodeids of custom nodes(object and variables) and
- * the nodeids of the custom nodes are harcoded inside the addSubscribedVariables API
+ * file(subDataModel.xml) for subscriber. This Subscriber example uses the two
+ * custom nodes (SubscriberCounterVariable and Pressure) created using the XML
+ * file(subDataModel.xml) for subscribing the packet. The subDataModel.csv will
+ * contain the nodeids of custom nodes(object and variables) and the nodeids of
+ * the custom nodes are harcoded inside the addSubscribedVariables API
  *
- * This example uses two threads namely the Subscriber and UserApplication. The Subscriber thread is used to subscribe to data at every cycle.
- * The UserApplication thread serves the functionality of the Control loop, which reads the Information Model of the Subscriber and
- * the new counterdata will be written in the csv along with received timestamp.
+ * This example uses two threads namely the Subscriber and UserApplication. The
+ * Subscriber thread is used to subscribe to data at every cycle. The
+ * UserApplication thread serves the functionality of the Control loop, which
+ * reads the Information Model of the Subscriber and the new counterdata will be
+ * written in the csv along with received timestamp.
  *
  * Run steps of the Subscriber application as mentioned below:
- * ./bin/examples/pubsub_nodeset_rt_subscriber -i <iface>
- * For more information run ./bin/examples/pubsub_nodeset_rt_subscriber -h */
+ *
+ * ``./bin/examples/pubsub_nodeset_rt_subscriber -i <iface>``
+ *
+ * For more information run ``./bin/examples/pubsub_nodeset_rt_subscriber -h``. */
 
 #define _GNU_SOURCE
 
