@@ -156,6 +156,19 @@ class CGenerator(object):
         before = None
         size = len(datatype.members)
         for i, member in enumerate(datatype.members):
+
+            # Abfrage member_type
+            if not member.member_type.members and isinstance(member.member_type, StructType):
+                type_name = "ExtensionObject"
+            else:
+                type_name = member.member_type.name
+
+            if before:
+                if not before.member_type.members and isinstance(before.member_type, StructType):
+                    type_name_before = "ExtensionObject"
+                else:
+                    type_name_before = before.member_type.name
+
             member_name = makeCIdentifier(member.name)
             member_name_capital = member_name
             if len(member_name) > 0:
@@ -164,7 +177,7 @@ class CGenerator(object):
             m += "    UA_TYPENAME(\"%s\") /* .memberName */\n" % member_name_capital
             m += "    &UA_%s[UA_%s_%s], /* .memberType */\n" % (
                 member.member_type.outname.upper(), member.member_type.outname.upper(),
-                makeCIdentifier(member.member_type.name.upper()))
+                makeCIdentifier(type_name.upper()))
             m += "    "
             if not before and not isUnion:
                 m += "0,"
@@ -179,7 +192,7 @@ class CGenerator(object):
                 if before.is_array or before.is_optional:
                     m += " - sizeof(void *),"
                 else:
-                    m += " - sizeof(UA_%s)," % makeCIdentifier(before.member_type.name)
+                    m += " - sizeof(UA_%s)," % makeCIdentifier(type_name_before)
             m += " /* .padding */\n"
             m += ("    true" if member.is_array else "    false") + ", /* .isArray */\n"
             m += ("    true" if member.is_optional else "    false") + "  /* .isOptional */\n}"
@@ -275,6 +288,11 @@ class CGenerator(object):
             returnstr += "    UA_%sSwitch switchField;\n" % struct.name
             returnstr += "    union {\n"
         for member in struct.members:
+            if not member.member_type.members and isinstance(member.member_type, StructType):
+                type_name = "ExtensionObject"
+            else:
+                type_name = member.member_type.name
+
             if member.is_array:
                 if struct.is_union:
                     returnstr += "        struct {\n        "
@@ -282,18 +300,18 @@ class CGenerator(object):
                 if struct.is_union:
                     returnstr += "        "
                 returnstr += "    UA_%s *%s;\n" % (
-                    makeCIdentifier(member.member_type.name), makeCIdentifier(member.name))
+                    makeCIdentifier(type_name), makeCIdentifier(member.name))
                 if struct.is_union:
                     returnstr += "        } " + makeCIdentifier(member.name) + ";\n"
             elif struct.is_union:
                 returnstr += "        UA_%s %s;\n" % (
-                makeCIdentifier(member.member_type.name), makeCIdentifier(member.name))
+                makeCIdentifier(type_name), makeCIdentifier(member.name))
             elif member.is_optional:
                 returnstr += "    UA_%s *%s;\n" % (
-                    makeCIdentifier(member.member_type.name), makeCIdentifier(member.name))
+                    makeCIdentifier(type_name), makeCIdentifier(member.name))
             else:
                 returnstr += "    UA_%s %s;\n" % (
-                    makeCIdentifier(member.member_type.name), makeCIdentifier(member.name))
+                    makeCIdentifier(type_name), makeCIdentifier(member.name))
         if struct.is_union:
             returnstr += "    } fields;\n"
         if struct.is_recursive:

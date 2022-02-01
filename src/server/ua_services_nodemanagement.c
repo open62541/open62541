@@ -2085,7 +2085,11 @@ Operation_addReference(UA_Server *server, UA_Session *session, void *context,
     if(*retval == UA_STATUSCODE_BADDUPLICATEREFERENCENOTALLOWED) {
         /* Calculate common duplicate reference not allowed result and set bad
          * result if BOTH directions already existed */
-        if(firstExisted) {
+        if(UA_NodeId_equal(&item->sourceNodeId, &item->targetNodeId.nodeId)) {
+            *retval = UA_STATUSCODE_GOOD;
+            UA_LOG_INFO_SESSION(&server->config.logger, session, "The source node and the target node are identical. The check for duplicate references is skipped.");
+        }
+        else if(firstExisted) {
             *retval = UA_STATUSCODE_BADDUPLICATEREFERENCENOTALLOWED;
             return;
         }
