@@ -42,15 +42,15 @@ static UA_PubSubChannel *
 UA_PubSubChannelUDPMC_open(const UA_PubSubConnectionConfig *connectionConfig) {
     UA_initialize_architecture_network();
 
-    UA_NetworkAddressUrlDataType address;
-    if(UA_Variant_hasScalarType(&connectionConfig->address,
+    if(!UA_Variant_hasScalarType(&connectionConfig->address,
                                 &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE])) {
-        address = *(UA_NetworkAddressUrlDataType *)connectionConfig->address.data;
-    } else {
         UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
                      "PubSub Connection creation failed. Invalid Address.");
         return NULL;
     }
+
+    UA_NetworkAddressUrlDataType *address =
+        (UA_NetworkAddressUrlDataType *)connectionConfig->address.data;
 
     /* Allocate and init memory for the UDP multicast specific internal data */
     UA_PubSubChannelDataUDPMC * channelDataUDPMC = (UA_PubSubChannelDataUDPMC *)
@@ -113,9 +113,11 @@ UA_PubSubChannelUDPMC_open(const UA_PubSubConnectionConfig *connectionConfig) {
     hints.ai_flags = 0;
     hints.ai_protocol = 0;
 
-    UA_String hostname, path;
-    UA_UInt16 networkPort;
-    if(UA_parseEndpointUrl(&address.url, &hostname, &networkPort, &path) != UA_STATUSCODE_GOOD){
+    UA_String hostname = UA_STRING_NULL;
+    UA_String path = UA_STRING_NULL;
+    UA_UInt16 networkPort = 0;
+    UA_StatusCode res = UA_parseEndpointUrl(&address->url, &hostname, &networkPort, &path);
+    if(res != UA_STATUSCODE_GOOD){
         UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
                      "PubSub Connection creation failed. Invalid URL.");
         UA_free(channelDataUDPMC);
@@ -290,11 +292,11 @@ UA_PubSubChannelUDPMC_open(const UA_PubSubConnectionConfig *connectionConfig) {
         goto cleanup;
     }
 
-    if(address.networkInterface.length > 0) {
+    if(address->networkInterface.length > 0) {
         /* Set configured interface */
-        UA_STACKARRAY(char, interfaceAsChar, sizeof(char) * address.networkInterface.length + 1);
-        memcpy(interfaceAsChar, address.networkInterface.data, address.networkInterface.length);
-        interfaceAsChar[address.networkInterface.length] = 0;
+        UA_STACKARRAY(char, interfaceAsChar, sizeof(char) * address->networkInterface.length + 1);
+        memcpy(interfaceAsChar, address->networkInterface.data, address->networkInterface.length);
+        interfaceAsChar[address->networkInterface.length] = 0;
 
         if(ipVersion == IPv4) {
             if(UA_inet_pton(AF_INET, interfaceAsChar, &group.ipv4.imr_interface) <= 0) {
