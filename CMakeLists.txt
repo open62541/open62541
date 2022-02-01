@@ -1135,11 +1135,13 @@ if(UA_ENABLE_JSON_ENCODING)
         list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_networkmessage_json.c)
     endif()
     list(APPEND internal_headers ${PROJECT_SOURCE_DIR}/deps/jsmn/jsmn.h
+                                 ${PROJECT_SOURCE_DIR}/deps/cj5.h
                                  ${PROJECT_SOURCE_DIR}/deps/string_escape.h
                                  ${PROJECT_SOURCE_DIR}/deps/itoa.h
                                  ${PROJECT_SOURCE_DIR}/deps/atoi.h
                                  ${PROJECT_SOURCE_DIR}/src/ua_types_encoding_json.h)
     list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/deps/jsmn/jsmn.c
+                            ${PROJECT_SOURCE_DIR}/deps/cj5.c
                             ${PROJECT_SOURCE_DIR}/deps/string_escape.c
                             ${PROJECT_SOURCE_DIR}/deps/itoa.c
                             ${PROJECT_SOURCE_DIR}/deps/atoi.c
