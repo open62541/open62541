@@ -351,6 +351,11 @@ addNode(UA_Server *server, const UA_NodeClass nodeClass, const UA_NodeId *reques
         void *nodeContext, UA_NodeId *outNewNodeId);
 
 UA_StatusCode
+addRef(UA_Server *server, UA_Session *session, const UA_NodeId *sourceId,
+       const UA_NodeId *referenceTypeId, const UA_NodeId *targetId,
+       UA_Boolean forward);
+
+UA_StatusCode
 setVariableNode_dataSource(UA_Server *server, const UA_NodeId nodeId,
                            const UA_DataSource dataSource);
 
@@ -415,6 +420,9 @@ writeObjectProperty(UA_Server *server, const UA_NodeId objectId,
 
 UA_StatusCode
 getNodeContext(UA_Server *server, UA_NodeId nodeId, void **nodeContext);
+
+UA_StatusCode
+setNodeContext(UA_Server *server, UA_NodeId nodeId, void *nodeContext);
 
 void
 removeCallback(UA_Server *server, UA_UInt64 callbackId);
@@ -588,6 +596,39 @@ UA_StatusCode UA_Server_initNS0(UA_Server *server);
 
 UA_StatusCode writeNs0VariableArray(UA_Server *server, UA_UInt32 id, void *v,
                       size_t length, const UA_DataType *type);
+
+#ifdef UA_ENABLE_DIAGNOSTICS
+void createSessionObject(UA_Server *server, UA_Session *session);
+
+void createSubscriptionObject(UA_Server *server, UA_Session *session,
+                              UA_Subscription *sub);
+
+UA_StatusCode
+readDiagnostics(UA_Server *server, const UA_NodeId *sessionId, void *sessionContext,
+                const UA_NodeId *nodeId, void *nodeContext, UA_Boolean sourceTimestamp,
+                const UA_NumericRange *range, UA_DataValue *value);
+
+UA_StatusCode
+readSubscriptionDiagnosticsArray(UA_Server *server,
+                                 const UA_NodeId *sessionId, void *sessionContext,
+                                 const UA_NodeId *nodeId, void *nodeContext,
+                                 UA_Boolean sourceTimestamp,
+                                 const UA_NumericRange *range, UA_DataValue *value);
+
+UA_StatusCode
+readSessionDiagnosticsArray(UA_Server *server,
+                            const UA_NodeId *sessionId, void *sessionContext,
+                            const UA_NodeId *nodeId, void *nodeContext,
+                            UA_Boolean sourceTimestamp,
+                            const UA_NumericRange *range, UA_DataValue *value);
+
+UA_StatusCode
+readSessionSecurityDiagnostics(UA_Server *server,
+                               const UA_NodeId *sessionId, void *sessionContext,
+                               const UA_NodeId *nodeId, void *nodeContext,
+                               UA_Boolean sourceTimestamp,
+                               const UA_NumericRange *range, UA_DataValue *value);
+#endif
 
 /***************************/
 /* Nodestore Access Macros */
