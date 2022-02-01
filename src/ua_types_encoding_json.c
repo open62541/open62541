@@ -3121,11 +3121,11 @@ Array_decodeJson_internal(void **dst, const UA_DataType *type,
     size_t length = (size_t)parseCtx->tokenArray[parseCtx->index].size;
 
     /* Save the length of the array */
-    size_t *p = (size_t*) dst - 1;
-    *p = length;
+    size_t *size_ptr = (size_t*) dst - 1;
 
     /* Return early for empty arrays */
     if(length == 0) {
+        *size_ptr = length;
         *dst = UA_EMPTY_ARRAY_SENTINEL;
         return UA_STATUSCODE_GOOD;
     }
@@ -3149,6 +3149,8 @@ Array_decodeJson_internal(void **dst, const UA_DataType *type,
         }
         ptr += type->memSize;
     }
+
+    *size_ptr = length; /* All good, set the size */
     return UA_STATUSCODE_GOOD;
 }
 
