@@ -394,6 +394,9 @@ Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
     newSession->diagnostics.clientConnectionTime = UA_DateTime_now();
     newSession->diagnostics.clientLastContactTime =
         newSession->diagnostics.clientConnectionTime;
+
+    /* Create the object in the information model */
+    createSessionObject(server, newSession);
 #endif
 
     UA_LOG_INFO_SESSION(&server->config.logger, newSession, "Session created");

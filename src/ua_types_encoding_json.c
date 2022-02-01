@@ -142,12 +142,14 @@ writeJsonArrElm(CtxJson *ctx, const void *value,
     return ret;
 }
 
-status writeJsonObjElm(CtxJson *ctx, const char *key,
-                       const void *value, const UA_DataType *type){
+status
+writeJsonObjElm(CtxJson *ctx, const char *key,
+                const void *value, const UA_DataType *type) {
     return writeJsonKey(ctx, key) | encodeJsonInternal(value, type, ctx);
 }
 
-status writeJsonNull(CtxJson *ctx) {
+status
+writeJsonNull(CtxJson *ctx) {
     if(ctx->pos + 4 > ctx->end)
         return UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED;
     if(ctx->calcOnly) {
@@ -3111,8 +3113,8 @@ decodeFields(CtxJson *ctx, ParseCtx *parseCtx, DecodeEntry *entries,
 }
 
 static status
-Array_decodeJson_internal(void **dst, const UA_DataType *type, 
-        CtxJson *ctx, ParseCtx *parseCtx, UA_Boolean moveToken) {
+Array_decodeJson_internal(void **dst, const UA_DataType *type, CtxJson *ctx,
+                          ParseCtx *parseCtx, UA_Boolean moveToken) {
     (void) moveToken;
     
     if(parseCtx->tokenArray[parseCtx->index].type != JSMN_ARRAY)
@@ -3121,11 +3123,11 @@ Array_decodeJson_internal(void **dst, const UA_DataType *type,
     size_t length = (size_t)parseCtx->tokenArray[parseCtx->index].size;
 
     /* Save the length of the array */
-    size_t *p = (size_t*) dst - 1;
-    *p = length;
+    size_t *size_ptr = (size_t*) dst - 1;
 
     /* Return early for empty arrays */
     if(length == 0) {
+        *size_ptr = length;
         *dst = UA_EMPTY_ARRAY_SENTINEL;
         return UA_STATUSCODE_GOOD;
     }
@@ -3149,6 +3151,8 @@ Array_decodeJson_internal(void **dst, const UA_DataType *type,
         }
         ptr += type->memSize;
     }
+
+    *size_ptr = length; /* All good, set the size */
     return UA_STATUSCODE_GOOD;
 }
 

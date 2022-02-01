@@ -469,22 +469,24 @@ UA_SecureChannel_sendSymmetricMessage(UA_SecureChannel *channel, UA_UInt32 reque
 /* Receive and Process Messages */
 /********************************/
 
+/* Does the sequence number match? Otherwise try to rollover. See Part 6,
+ * Section 6.7.2.4 of the standard. */
+#define UA_SEQUENCENUMBER_ROLLOVER 4294966271
+
 #ifndef FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
 static UA_StatusCode
 processSequenceNumberSym(UA_SecureChannel *channel, UA_UInt32 sequenceNumber) {
-    /* Failure mode hook for unit tests */
 #ifdef UA_ENABLE_UNIT_TEST_FAILURE_HOOKS
+    /* Failure mode hook for unit tests */
     if(processSym_seqNumberFailure != UA_STATUSCODE_GOOD)
         return processSym_seqNumberFailure;
 #endif
 
-    /* Does the sequence number match? */
     if(sequenceNumber != channel->receiveSequenceNumber + 1) {
-        /* FIXME: Remove magic numbers :( */
-        if(channel->receiveSequenceNumber + 1 > 4294966271 && sequenceNumber < 1024)
-            channel->receiveSequenceNumber = sequenceNumber - 1; /* Roll over */
-        else
+        if(channel->receiveSequenceNumber + 1 <= UA_SEQUENCENUMBER_ROLLOVER ||
+           sequenceNumber >= 1024)
             return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
+        channel->receiveSequenceNumber = sequenceNumber - 1; /* Roll over */
     }
     ++channel->receiveSequenceNumber;
     return UA_STATUSCODE_GOOD;
