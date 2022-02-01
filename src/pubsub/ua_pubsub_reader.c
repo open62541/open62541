@@ -29,8 +29,16 @@
 #include "ua_pubsub_bufmalloc.h"
 #endif
 
-/* This functionality of this API will be used in future to create mirror Variables - TODO */
-/* #define UA_MAX_SIZENAME           64 */ /* Max size of Qualified Name of Subscribed Variable */
+#ifdef UA_ARCHITECTURE_POSIX
+#include <time.h>
+#ifndef CLOCK_TAI
+#define             CLOCK_TAI                               11
+#endif
+#define             CLOCKID                                 CLOCK_TAI
+
+struct timespec subDataProcessResultime;
+struct timespec subscriberDataProcessStartTime;
+#endif
 
 /* Static memory allocation for the message nonce */
 #ifdef UA_ENABLE_PUBSUB_ENCRYPTION
@@ -41,6 +49,28 @@ static UA_Byte MessageNonceGenerated[MESSAGE_NONCE_LENGTH];
 /* Clear DataSetReader */
 static void
 UA_DataSetReader_clear(UA_Server *server, UA_DataSetReader *dataSetReader);
+
+/**
+ * **Time Difference Calculation**
+ *
+ * This function is used to calculate the difference between the publishertimestamp and
+ * subscribertimestamp and store the result
+ */
+#ifdef UA_ARCHITECTURE_POSIX
+static void
+timespec_diff(struct timespec *start, struct timespec *stop, struct timespec *result)
+{
+    if ((stop->tv_nsec - start->tv_nsec) < 0) {
+        result->tv_sec = stop->tv_sec - start->tv_sec - 1;
+        result->tv_nsec = stop->tv_nsec - start->tv_nsec + 1000000000;
+    } else {
+        result->tv_sec = stop->tv_sec - start->tv_sec;
+        result->tv_nsec = stop->tv_nsec - start->tv_nsec;
+    }
+
+    return;
+}
+#endif
 
 static void
 UA_PubSubDSRDataSetField_sampleValue(UA_Server *server, UA_DataSetReader *dataSetReader,
@@ -1435,6 +1465,11 @@ decodeAndProcessNetworkMessageRT(UA_Server *server, UA_ReaderGroup *readerGroup,
     UA_DataSetMessage_freeDecodedPayload(nm->payload.dataSetPayload.dataSetMessages);
 #ifdef UA_ENABLE_PUBSUB_BUFMALLOC
     useNormalAlloc();
+#endif
+#ifdef UA_ARCHITECTURE_POSIX
+    struct timespec subscriberDataProcessEndTime;
+    clock_gettime(CLOCKID, &subscriberDataProcessEndTime);
+    timespec_diff(&subscriberDataProcessStartTime, &subscriberDataProcessEndTime, &subDataProcessResultime);
 #endif
     return res;
 }

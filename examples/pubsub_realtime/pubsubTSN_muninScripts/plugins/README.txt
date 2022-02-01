@@ -1,0 +1,4 @@
+ - Add the custom Munin plugin scripts in this folder
+ - The scripts available in this folder has to be made available
+       - in the folder /usr/share/munin/plugins of the system to be monitored and
+       - symbolic links are to be created in the directory /etc/munin/plugins

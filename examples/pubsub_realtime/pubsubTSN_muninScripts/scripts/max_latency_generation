@@ -1,0 +1,53 @@
+#!/bin/bash
+#------------------------------------------------------------------------------
+# Copyright (C) 2021 Kalycito Infotech Private Limited
+# Author: Kalycito Infotech Private Limited
+#
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation; either version 2 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+# -----------------------------------------------------------------------------
+
+###############################################################################
+# Global Variable - constant                                                  #
+###############################################################################
+LATENCY_FILE_NAME=/usr/local/src/max_latencies.txt
+#Find the uptime in epoch
+UP_TIME_IN_EPOCH=`cat /proc/stat | \
+                  grep btime | \
+                  awk '{ print $2 }'`
+#Get the number of cores
+CORES=`nproc --all`
+
+#Assignment of specific directory to HISTDIR constant
+if test -d /sys/kernel/debug/tracing/latency_hist/timerandwakeup; then
+    HISTDIR=/sys/kernel/debug/tracing/latency_hist/timerandwakeup
+elif test -d /sys/kernel/debug/latency_hist/timerandwakeup; then
+    HISTDIR=/sys/kernel/debug/latency_hist/timerandwakeup
+else
+    exit 0
+fi
+
+for (( core=0; core < CORES; core++ )); do
+    #Get the timerwakeupswitch max latency of core
+    maxLatencyCPU=`sudo cat $HISTDIR/max_latency-CPU$core`
+    #Find the time at which the latency was caused - time will be in the
+    # format of seconds since bootup
+    timeOfMaxLatencyInSecondsSinceUptime=`echo $maxLatencyCPU | \
+                                          awk '{printf("%d\n"),$10}'`
+    #Find the time epoch time at which the latency was caused
+    maxLatencyEpochTime=\
+`expr $UP_TIME_IN_EPOCH+$timeOfMaxLatencyInSecondsSinceUptime|bc`
+    #Convert epoch time to human readable date format
+    dateTimeOfMaxLatency=\
+`date --date @$maxLatencyEpochTime +"[%d-%m-%Y %H:%M:%S]"`
+    #Write the time and max latency of core 0 in the latency file
+    sudo bash -c "echo \"$dateTimeOfMaxLatency $maxLatencyCPU\" >> \
+                  $LATENCY_FILE_NAME"
+done

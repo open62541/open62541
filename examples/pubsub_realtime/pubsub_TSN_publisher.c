@@ -69,6 +69,7 @@
 #include <linux/types.h>
 #include <sys/io.h>
 #include <getopt.h>
+#include <execinfo.h>
 
 /* For thread operations */
 #include <pthread.h>
@@ -83,6 +84,9 @@
 #include <open62541/plugin/securitypolicy_default.h>
 
 #include "ua_pubsub.h"
+
+/* Circular buffer - Used for 24*7 long run */
+#include "circular_buffer.h"
 
 #include <linux/if_link.h>
 #include <linux/if_xdp.h>
@@ -125,7 +129,7 @@ UA_DataSetReaderConfig readerConfig;
 /* Milli sec and sec conversion to nano sec */
 #define             MILLI_SECONDS                         1000 * 1000
 #define             SECONDS                               1000 * 1000 * 1000
-#define             SECONDS_SLEEP                         5
+#define             SECONDS_SLEEP                         47
 /* Publisher will sleep for 60% of cycle time and then prepares the */
 /* transmission packet within 40% */
 static UA_Double  pubWakeupPercentage     = 0.6;
@@ -144,10 +148,12 @@ static UA_Double  userAppWakeupPercentage = 0.3;
 #define             DEFAULT_USERAPPLICATION_SCHED_PRIORITY  75
 #define             MAX_MEASUREMENTS                        1000000
 #define             MAX_MEASUREMENTS_FILEWRITE              100000000
+#define             NSEC_PER_SEC                            1000000000L
 #define             DEFAULT_PUB_CORE                        2
 #define             DEFAULT_SUB_CORE                        2
 #define             DEFAULT_USER_APP_CORE                   3
 #define             SECONDS_INCREMENT                       1
+#define             MAXFRAMES                               20
 #ifndef CLOCK_TAI
 #define             CLOCK_TAI                               11
 #endif
@@ -200,6 +206,19 @@ static UA_Boolean consolePrint         = UA_FALSE;
 static UA_Boolean enableBlockingSocket = UA_FALSE;
 static UA_Boolean signalTerm           = UA_FALSE;
 static UA_Boolean enableXdpSubscribe   = UA_FALSE;
+static UA_Boolean enableLongRunMeas    = UA_FALSE;
+extern struct timespec subDataProcessResultime;
+
+// Parameters needed to change the cores
+char shell[256]              = {0};
+FILE* filePointer            = NULL;
+char var[255]                = {0};
+int pidOfApp                 = 0;
+int pidOfPubThread           = 0;
+int pidOfSubThread           = 0;
+int pidOfUserAppThread       = 0;
+int pidOfLatencyComputation  = 0;
+int pidOfLatencyFileWrite    = 0;
 
 /* Variables corresponding to PubSub connection creation,
  * published data set and writer group */
@@ -226,6 +245,14 @@ UA_Boolean          *runningSub = NULL;
 UA_DataValue        *runningSubDataValueRT =  NULL;
 UA_UInt64           *subRepeatedCounterData[REPEATED_NODECOUNTS] = {NULL};
 UA_DataValue        *subRepeatedDataValueRT[REPEATED_NODECOUNTS] = {NULL};
+
+struct timespec pubResultime;
+struct timespec userResultime;
+
+
+struct timespec subThreadJitter;
+struct timespec pubThreadJitter;
+struct timespec userThreadJitter;
 
 /**
  * **CSV file handling**
@@ -269,6 +296,16 @@ UA_NodeId           connectionIdentSubscriber;
 struct timespec     dataReceiveTime;
 #endif
 
+/* File to store the missed and repeated counter data due to delay */
+FILE               *fpDelayedPackets;
+char               *fileDelayedPackets     = "delayed_packets.txt";
+/* To find the misses at the stack level so we can find out the real misses
+ * as we now handle misses in multiple receive messages */
+static UA_Boolean missedReceiveCounter = UA_FALSE;
+UA_UInt64 previousValue        = 0;
+UA_UInt64 repeatedCounter_recv = 0;
+UA_UInt64 missedCounter_recv   = 0;
+
 /* Thread for user application*/
 pthread_t           userApplicationThreadID;
 
@@ -304,11 +341,36 @@ static void removeServerNodes(UA_Server *server);
 /* To create multi-threads */
 static pthread_t threadCreation(UA_Int16 threadPriority, size_t coreAffinity, void *(*thread) (void *),
                                 char *applicationName, void *serverConfig);
+/* To find missed and repeated counters */
+void missedRepeatedCounter_callback(UA_Server *server, const UA_NodeId *readerIdentifierCB,
+                                    const UA_NodeId *readerGroupIdentifierCB, const UA_NodeId *targetVariableIdentifier,
+                                    void *targetVariableContext, UA_DataValue **externalDataValue);
 
 /* Stop signal */
 static void stopHandler(int sign) {
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "received ctrl-c");
     signalTerm = UA_TRUE;
+
+    if(enableLongRunMeas)
+        printQueueDepth();
+}
+
+/* Missed and repeated counters verification - Call from the stack is used */
+void missedRepeatedCounter_callback(UA_Server *server, const UA_NodeId *readerIdentifierCB,
+                                    const UA_NodeId *readerGroupIdentifierCB, const UA_NodeId *targetVariableIdentifier,
+                                    void *targetVariableContext, UA_DataValue **externalDataValue) {
+
+    UA_UInt64 currentValue = *(UA_UInt64 *)((**externalDataValue).value.data);
+    if(previousValue && (currentValue == previousValue)) {
+        repeatedCounter_recv++;
+        missedReceiveCounter = UA_TRUE;
+    }
+    else if(previousValue && (currentValue > (previousValue + 1))) {
+        missedCounter_recv = missedCounter_recv + (currentValue - previousValue - 1);
+        missedReceiveCounter = UA_TRUE;
+    }
+
+    previousValue = currentValue;
 }
 
 /**
@@ -602,6 +664,7 @@ static void addSubscribedVariables (UA_Server *server) {
     UA_FieldTargetDataType_init(&targetVars[iterator].targetVariable);
     targetVars[iterator].targetVariable.attributeId  = UA_ATTRIBUTEID_VALUE;
     targetVars[iterator].targetVariable.targetNodeId = subNodeID;
+    targetVars[iterator].afterWrite = missedRepeatedCounter_callback;
 
     /* Set the subscribed data to TargetVariable type */
     readerConfig.subscribedDataSetType = UA_PUBSUB_SDS_TARGET;
@@ -956,6 +1019,26 @@ updateMeasurementsSubscriber(struct timespec receive_time,
 #endif
 
 /**
+ * **Time Difference Calculation**
+ *
+ * This function is used to calculate the difference between the publishertimestamp and
+ * subscribertimestamp and store the result
+ */
+static void
+timespec_diff(struct timespec *start, struct timespec *stop, struct timespec *result)
+{
+    if ((stop->tv_nsec - start->tv_nsec) < 0) {
+        result->tv_sec = stop->tv_sec - start->tv_sec - 1;
+        result->tv_nsec = stop->tv_nsec - start->tv_nsec + 1000000000;
+    } else {
+        result->tv_sec = stop->tv_sec - start->tv_sec;
+        result->tv_nsec = stop->tv_nsec - start->tv_nsec;
+    }
+
+    return;
+}
+
+/**
  * **Publisher thread routine**
  *
  * This is the Publisher thread that sleeps for 60% of the cycletime (250us) and prepares the tranmission packet within 40% of
@@ -967,6 +1050,9 @@ updateMeasurementsSubscriber(struct timespec receive_time,
  */
 void *publisherETF(void *arg) {
     struct timespec   nextnanosleeptime;
+    struct timespec   actualpubthreadtime;
+    struct timespec   executionstarttime;
+    struct timespec   executionendtime;
     UA_ServerCallback pubCallback;
     UA_Server*        server;
     UA_WriterGroup*   currentWriterGroup; // TODO: Remove WriterGroup Usage
@@ -1009,17 +1095,22 @@ void *publisherETF(void *arg) {
     while (*runningPub) {
         /* The Publisher threads wakes up at the configured publisher wake up percentage (60%) of each cycle */
         clock_nanosleep(CLOCKID, TIMER_ABSTIME, &nextnanosleeptime, NULL);
-        /* Whenever Ctrl + C pressed, publish running boolean as false to stop the subscriber before terminating the application */
+        clock_gettime(CLOCKID, &actualpubthreadtime);
+        /* Compute jitter with difference between publisher thread start time and computed publisher thread start time */
+        timespec_diff(&nextnanosleeptime, &actualpubthreadtime, &pubThreadJitter);
+
         if (signalTerm == UA_TRUE)
             *runningPub = UA_FALSE;
 
         /* Calculation of transmission time using the configured qbv offset by the user - Will be handled by publishingOffset in the future */
         transmission_time = ((UA_UInt64)nextnanosleeptime.tv_sec * SECONDS + (UA_UInt64)nextnanosleeptime.tv_nsec) + roundOffCycleTime + (UA_UInt64)(qbvOffset * 1000);
         ethernettransportSettings.transmission_time = transmission_time;
-        /* Publish the data using the pubcallback - UA_WriterGroup_publishCallback() */
+
+        clock_gettime(CLOCKID, &executionstarttime);
         pubCallback(server, currentWriterGroup);
-        /* Calculation of the next wake up time by adding the interval with the previous wake up time */
-        nextnanosleeptime.tv_nsec += (__syscall_slong_t)interval_ns;
+        clock_gettime(CLOCKID, &executionendtime);
+        timespec_diff(&executionstarttime, &executionendtime, &pubResultime);
+        nextnanosleeptime.tv_nsec                     += (__syscall_slong_t)interval_ns;
         nanoSecondFieldConversion(&nextnanosleeptime);
     }
 
@@ -1027,6 +1118,7 @@ void *publisherETF(void *arg) {
     runningServer = UA_FALSE;
 #endif
     UA_free(threadArgumentsPublisher);
+
     return (void*)NULL;
 }
 #endif
@@ -1045,6 +1137,7 @@ void *subscriber(void *arg) {
     void*             currentReaderGroup;
     UA_ServerCallback subCallback;
     struct timespec   nextnanosleeptimeSub;
+    struct timespec   actualsubthreadtime;
     UA_UInt64         subInterval_ns;
 
     threadArg *threadArgumentsSubscriber = (threadArg *)arg;
@@ -1068,12 +1161,19 @@ void *subscriber(void *arg) {
     nanoSecondFieldConversion(&nextnanosleeptimeSub);
     while (*runningSub) {
         /* The Subscriber threads wakes up at the configured subscriber wake up percentage (0%) of each cycle */
-        clock_nanosleep(CLOCKID, TIMER_ABSTIME, &nextnanosleeptimeSub, NULL);
-        /* Receive and process the incoming data using the subcallback - UA_ReaderGroup_subscribeCallback() */
+        if (enableBlockingSocket != UA_TRUE) {
+            clock_nanosleep(CLOCKID, TIMER_ABSTIME, &nextnanosleeptimeSub, NULL);
+            clock_gettime(CLOCKID, &actualsubthreadtime);
+            /* Compute jitter with difference between publisher thread start time and computed publisher thread start time */
+            timespec_diff(&nextnanosleeptimeSub, &actualsubthreadtime, &subThreadJitter);
+        }
+
         subCallback(server, currentReaderGroup);
-        /* Calculation of the next wake up time by adding the interval with the previous wake up time */
-        nextnanosleeptimeSub.tv_nsec += (__syscall_slong_t)subInterval_ns;
-        nanoSecondFieldConversion(&nextnanosleeptimeSub);
+
+        if (enableBlockingSocket != UA_TRUE) {
+            nextnanosleeptimeSub.tv_nsec += (__syscall_slong_t)subInterval_ns;
+            nanoSecondFieldConversion(&nextnanosleeptimeSub);
+        }
 
         /* Whenever Ctrl + C pressed, modify the runningSub boolean to false to end this while loop */
         if (signalTerm == UA_TRUE)
@@ -1102,8 +1202,11 @@ void *subscriber(void *arg) {
  */
 void *userApplicationPubSub(void *arg) {
     UA_UInt64  repeatedCounterValue = 10;
-    struct timespec nextnanosleeptimeUserApplication;
-    /* Verify whether baseTime has already been calculated */
+    struct timespec   nextnanosleeptimeUserApplication;
+    struct timespec   actualuserthreadtime;
+    struct timespec   executionstarttime;
+    struct timespec   executionendtime;    /* Verify whether baseTime has already been calculated */
+    fpDelayedPackets = fopen(fileDelayedPackets, "w+");
     if(!baseTimeCalculated) {
         /* Get current time and compute the next nanosleeptime */
         clock_gettime(CLOCKID, &threadBaseTime);
@@ -1130,6 +1233,11 @@ void *userApplicationPubSub(void *arg) {
 #endif
         /* The User application threads wakes up at the configured userApp wake up percentage (30%) of each cycle */
         clock_nanosleep(CLOCKID, TIMER_ABSTIME, &nextnanosleeptimeUserApplication, NULL);
+        clock_gettime(CLOCKID, &actualuserthreadtime);
+        /* Compute jitter with difference between publisher thread start time and computed publisher thread start time */
+        timespec_diff(&nextnanosleeptimeUserApplication, &actualuserthreadtime, &userThreadJitter);
+
+        clock_gettime(CLOCKID, &executionstarttime);
 #if defined(PUBLISHER)
         /* Increment the counter data and repeated counter data for the next cycle publish */
         *pubCounterData      = *pubCounterData + 1;
@@ -1150,8 +1258,23 @@ void *userApplicationPubSub(void *arg) {
         clock_gettime(CLOCKID, &dataReceiveTime);
 #endif
 
-        /* Update the T1, T8 time with the counter data in the user defined publisher and subscriber arrays */
-        if (enableCsvLog || enableLatencyCsvLog || consolePrint) {
+        if(missedReceiveCounter) {
+            fprintf(fpDelayedPackets, "%ld,%ld\n", missedCounter_recv, repeatedCounter_recv);
+            fflush(fpDelayedPackets);
+            missedReceiveCounter = UA_FALSE;
+        }
+
+        if(enableLongRunMeas) {
+#if defined(PUBLISHER)
+            updateLRMeasurementsPublisher(dataModificationTime, *pubCounterData, pubResultime, userResultime, subThreadJitter, pubThreadJitter, userThreadJitter);
+#endif
+
+#if defined(SUBSCRIBER)
+            if (*subCounterData > 0)
+                updateLRMeasurementsSubscriber(dataReceiveTime, *subCounterData, subDataProcessResultime);
+#endif
+        }
+        else if (enableCsvLog || enableLatencyCsvLog || consolePrint) {
 #if defined(PUBLISHER)
             updateMeasurementsPublisher(dataModificationTime, *pubCounterData);
 #endif
@@ -1162,11 +1285,13 @@ void *userApplicationPubSub(void *arg) {
 #endif
         }
 
-        /* Calculation of the next wake up time by adding the interval with the previous wake up time */
+        clock_gettime(CLOCKID, &executionendtime);
+        timespec_diff(&executionstarttime, &executionendtime, &userResultime);
         nextnanosleeptimeUserApplication.tv_nsec += (__syscall_slong_t)(cycleTimeInMsec * MILLI_SECONDS);
         nanoSecondFieldConversion(&nextnanosleeptimeUserApplication);
     }
 
+    fclose(fpDelayedPackets);
     return (void*)NULL;
 }
 #endif
@@ -1185,7 +1310,7 @@ static pthread_t threadCreation(UA_Int16 threadPriority, size_t coreAffinity, vo
     pthread_t           threadID;
     struct sched_param  schedParam;
     UA_Int32         returnValue         = 0;
-    UA_Int32         errorSetAffinity    = 0;
+    //UA_Int32         errorSetAffinity    = 0;
     /* Return the ID for thread */
     threadID = pthread_self();
     schedParam.sched_priority = threadPriority;
@@ -1199,12 +1324,12 @@ static pthread_t threadCreation(UA_Int16 threadPriority, size_t coreAffinity, vo
                 "\npthread_setschedparam:%s Thread priority is %d \n", \
                 applicationName, schedParam.sched_priority);
     CPU_ZERO(&cpuset);
-    CPU_SET(coreAffinity, &cpuset);
+    /*CPU_SET(coreAffinity, &cpuset);
     errorSetAffinity = pthread_setaffinity_np(threadID, sizeof(cpu_set_t), &cpuset);
     if (errorSetAffinity) {
         fprintf(stderr, "pthread_setaffinity_np: %s\n", strerror(errorSetAffinity));
         exit(1);
-    }
+    }*/
 
     returnValue = pthread_create(&threadID, NULL, thread, serverConfig);
     if (returnValue != 0)
@@ -1336,26 +1461,6 @@ static void removeServerNodes(UA_Server *server) {
 }
 #if defined (PUBLISHER) && defined(SUBSCRIBER)
 /**
- * **Time Difference Calculation**
- *
- * This function is used to calculate the difference between the publishertimestamp and
- * subscribertimestamp and store the result
- */
-static void
-timespec_diff(struct timespec *start, struct timespec *stop, struct timespec *result)
-{
-    if ((stop->tv_nsec - start->tv_nsec) < 0) {
-        result->tv_sec = stop->tv_sec - start->tv_sec - 1;
-        result->tv_nsec = stop->tv_nsec - start->tv_nsec + 1000000000;
-    } else {
-        result->tv_sec = stop->tv_sec - start->tv_sec;
-        result->tv_nsec = stop->tv_nsec - start->tv_nsec;
-    }
-
-    return;
-}
-
-/**
  * **Latency Calculation**
  *
  * When the application is run with "-enableLatencyCsvLog" option, this function gets executed.
@@ -1437,28 +1542,30 @@ static void usage(char *appname)
         "\n"
         "usage: %s [options]\n"
         "\n"
-        " -interface       [name] Use network interface 'name'\n"
-        " -cycleTimeInMsec [num]  Cycle time in milli seconds (default %lf)\n"
-        " -socketPriority  [num]  Set publisher SO_PRIORITY to (default %d)\n"
-        " -pubPriority     [num]  Publisher thread priority value (default %d)\n"
-        " -subPriority     [num]  Subscriber thread priority value (default %d)\n"
-        " -userAppPriority [num]  User application thread priority value (default %d)\n"
-        " -pubCore         [num]  Run on CPU for publisher (default %d)\n"
-        " -subCore         [num]  Run on CPU for subscriber (default %d)\n"
-        " -userAppCore     [num]  Run on CPU for userApplication (default %d)\n"
-        " -pubMacAddress   [name] Publisher Mac address (default %s - where 8 is the VLAN ID and 3 is the PCP)\n"
-        " -subMacAddress   [name] Subscriber Mac address (default %s - where 8 is the VLAN ID and 3 is the PCP)\n"
-        " -qbvOffset       [num]  QBV offset value (default %d)\n"
-        " -disableSoTxtime        Do not use SO_TXTIME\n"
-        " -enableCsvLog           Experimental: To log the data in csv files. Support up to 1 million samples\n"
-        " -enableLatencyCsvLog    Experimental: To compute and create RTT latency csv. Support up to 1 million samples\n"
-        " -enableconsolePrint     Experimental: To print the data in console output. Support for higher cycle time\n"
-        " -enableBlockingSocket   Run application with blocking socket option. While using blocking socket option need to\n"
-        "                         run both the Publisher and Loopback application. Otherwise application will not terminate.\n"
-        " -enableXdpSubscribe     Enable XDP feature for subscriber. XDP_COPY and XDP_FLAGS_SKB_MODE is used by default. Not recommended to be enabled along with blocking socket.\n"
-        " -xdpQueue        [num]  XDP queue value (default %d)\n"
-        " -xdpFlagDrvMode         Use XDP in DRV mode\n"
-        " -xdpBindFlagZeroCopy    Use Zero-Copy mode in XDP\n"
+        " -interface       [name]    Use network interface 'name'\n"
+        " -cycleTimeInMsec [num]     Cycle time in milli seconds (default %lf)\n"
+        " -socketPriority  [num]     Set publisher SO_PRIORITY to (default %d)\n"
+        " -pubPriority     [num]     Publisher thread priority value (default %d)\n"
+        " -subPriority     [num]     Subscriber thread priority value (default %d)\n"
+        " -userAppPriority [num]     User application thread priority value (default %d)\n"
+        " -pubCore         [num]     Run on CPU for publisher (default %d)\n"
+        " -subCore         [num]     Run on CPU for subscriber (default %d)\n"
+        " -userAppCore     [num]     Run on CPU for userApplication (default %d)\n"
+        " -pubMacAddress   [name]    Publisher Mac address (default %s - where 8 is the VLAN ID and 3 is the PCP)\n"
+        " -subMacAddress   [name]    Subscriber Mac address (default %s - where 8 is the VLAN ID and 3 is the PCP)\n"
+        " -qbvOffset       [num]     QBV offset value (default %d)\n"
+        " -disableSoTxtime           Do not use SO_TXTIME\n"
+        " -enableCsvLog              Experimental: To log the data in csv files. Support up to 1 million samples\n"
+        " -enableLatencyCsvLog       Experimental: To compute and create RTT latency csv. Support up to 1 million samples\n"
+        " -enableconsolePrint        Experimental: To print the data in console output. Support for higher cycle time\n"
+        " -enableBlockingSocket      Run application with blocking socket option. While using blocking socket option need to\n"
+        "                            run both the Publisher and Loopback application. Otherwise application will not terminate.\n"
+        " -enableXdpSubscribe        Enable XDP feature for subscriber. XDP_COPY and XDP_FLAGS_SKB_MODE is used by default. Not recommended to be enabled along with blocking socket.\n"
+        " -xdpQueue        [num]     XDP queue value (default %d)\n"
+        " -xdpFlagDrvMode            Use XDP in DRV mode\n"
+        " -xdpBindFlagZeroCopy       Use Zero-Copy mode in XDP\n"
+        " -enableLongRunMeasurements Log the computed latency data in multiple csv files. Supported for 24*7"
+        "                            Do not run with other logs - csvlog, latencycsvlog, consolelog"
         "\n",
         appname, DEFAULT_CYCLE_TIME, DEFAULT_SOCKET_PRIORITY, DEFAULT_PUB_SCHED_PRIORITY, \
         DEFAULT_SUB_SCHED_PRIORITY, DEFAULT_USERAPPLICATION_SCHED_PRIORITY, \
@@ -1475,6 +1582,8 @@ static void usage(char *appname)
 int main(int argc, char **argv) {
     signal(SIGINT, stopHandler);
     signal(SIGTERM, stopHandler);
+    signal(SIGSEGV, stopHandler);
+    signal(SIGFPE, stopHandler);
 
     UA_Int32         returnValue         = 0;
     UA_StatusCode    retval              = UA_STATUSCODE_GOOD;
@@ -1485,6 +1594,8 @@ int main(int argc, char **argv) {
     UA_Int32         long_index          = 0;
     char            *progname            = NULL;
     pthread_t        userThreadID;
+    pthread_t        latencyComputationID;
+    pthread_t        latencyFileWriteID;
 
     /* Process the command line arguments */
     progname = strrchr(argv[0], '/');
@@ -1512,7 +1623,8 @@ int main(int argc, char **argv) {
         {"xdpFlagDrvMode",       no_argument,       0, 's'},
         {"xdpBindFlagZeroCopy",  no_argument,       0, 't'},
         {"enableXdpSubscribe",   no_argument,       0, 'u'},
-        {"help",                 no_argument,       0, 'v'},
+        {"enableLongRunMeasurements", no_argument,  0, 'v'},
+        {"help",                 no_argument,       0, 'w'},
         {0,                      0,                 0,  0 }
     };
 
@@ -1583,6 +1695,9 @@ int main(int argc, char **argv) {
                 enableXdpSubscribe = UA_TRUE;
                 break;
             case 'v':
+                enableLongRunMeas = UA_TRUE;
+                break;
+            case 'w':
                 usage(progname);
                 return -1;
             case '?':
@@ -1603,6 +1718,14 @@ int main(int argc, char **argv) {
         return -1;
     }
 
+    if (enableLongRunMeas) {
+        if (enableCsvLog || enableLatencyCsvLog || consolePrint) {
+            UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "Do not enable long run with other logs");
+            usage(progname);
+            return -1;
+        }
+    }
+
     if (enableBlockingSocket == UA_TRUE) {
         if (enableXdpSubscribe == UA_TRUE) {
             UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "Cannot enable blocking socket and xdp at the same time");
@@ -1614,6 +1737,12 @@ int main(int argc, char **argv) {
     if (xdpFlag == XDP_FLAGS_DRV_MODE || xdpBindFlag == XDP_ZEROCOPY) {
         if (enableXdpSubscribe == UA_FALSE)
             UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,"Flag enableXdpSubscribe is false, running application without XDP");
+    }
+
+    int cpu_dma_latency = open("/dev/cpu_dma_latency", O_WRONLY);
+    if (write(cpu_dma_latency, "0", 1) != 1) {
+         perror("Could not disable sleep stages");
+         return -1;
     }
 
     UA_ServerConfig_setMinimal(config, PORT_NUMBER, NULL);
@@ -1712,6 +1841,92 @@ if (enableCsvLog) {
     userThreadID                       = threadCreation((UA_Int16)userAppPriority, (size_t)userAppCore, userApplicationPubSub, threadNameUserApplication, serverConfig);
 #endif
 
+    if(enableLongRunMeas) {
+        char threadNameComputation[33] = "ComputationRTT";
+        char threadNamefileWrite[33]   = "latencyFileWrite";
+        UA_UInt64 *cycleTime = UA_UInt64_new();
+        *cycleTime = (UA_UInt64)(cycleTimeInMsec * MILLI_SECONDS);
+        /* Run the latency file write thread to core 0 - as the block write won't disturb other threads
+         * Priority will be set to 20. It should be minimum priority of all threads */
+        latencyFileWriteID = threadCreation(20, 0, fileWriteLatency, threadNamefileWrite, NULL);
+        /* Run the latency file computation to core 3 - as the block write won't disturb other threads
+         * Priority will be set to 22. */
+        latencyComputationID = threadCreation(22, 3, latency_computation, threadNameComputation, cycleTime);
+    }
+
+    // Move the application to core 2
+    snprintf(shell, sizeof(shell), "ps -aux | grep \"[p]ubsub_TSN\" | awk '{print $2}'");
+    filePointer = popen(shell ,"r");
+    fgets(var, sizeof(var), filePointer);
+    pidOfApp = atoi(var);
+    fclose(filePointer);
+    if (pidOfApp > 0)
+    {
+        snprintf(shell, sizeof(shell), "/bin/echo %d > /cpuset/com/tasks", pidOfApp);
+        system(shell);
+    }
+
+    /* ToDo: Code needs to be optimised */
+    // Move the publisher to core 2
+    snprintf(shell, sizeof(shell), "top -H -bn 1 | grep pubsub | grep -w %d | awk '{print $1}'", (DEFAULT_PUB_SCHED_PRIORITY+1));
+    filePointer = popen(shell ,"r");
+    fgets(var, sizeof(var), filePointer);
+    pidOfPubThread = atoi(var);
+    fclose(filePointer);
+    if (pidOfPubThread > 0)
+    {
+        snprintf(shell, sizeof(shell), "/bin/echo %d > /cpuset/com/tasks", pidOfPubThread);
+        system(shell);
+    }
+
+    // Move the subscriber to core 2
+    snprintf(shell, sizeof(shell), "top -H -bn 1 | grep pubsub | grep -w %d | awk '{print $1}'", (DEFAULT_SUB_SCHED_PRIORITY+1));
+    filePointer = popen(shell ,"r");
+    fgets(var, sizeof(var), filePointer);
+    pidOfSubThread = atoi(var);
+    fclose(filePointer);
+    if (pidOfSubThread > 0)
+    {
+        snprintf(shell, sizeof(shell), "/bin/echo %d > /cpuset/com/tasks", pidOfSubThread);
+        system(shell);
+    }
+
+    // Move the user application to core 3
+    snprintf(shell, sizeof(shell), "top -H -bn 1 | grep pubsub | grep -w %d | awk '{print $1}'", (DEFAULT_USERAPPLICATION_SCHED_PRIORITY+1));
+    filePointer = popen(shell ,"r");
+    fgets(var, sizeof(var), filePointer);
+    pidOfUserAppThread = atoi(var);
+    fclose(filePointer);
+    if (pidOfUserAppThread > 0)
+    {
+        snprintf(shell, sizeof(shell), "/bin/echo %d > /cpuset/user/tasks", pidOfUserAppThread);
+        system(shell);
+    }
+
+    // Move the latency computation to core 3
+    snprintf(shell, sizeof(shell), "top -H -bn 1 | grep pubsub | grep -w 23 | grep -v %d | awk '{print $1}'", pidOfApp);
+    filePointer = popen(shell ,"r");
+    fgets(var, sizeof(var), filePointer);
+    pidOfLatencyComputation = atoi(var);
+    fclose(filePointer);
+    if (pidOfLatencyComputation > 0)
+    {
+        snprintf(shell, sizeof(shell), "/bin/echo %d > /cpuset/user/tasks", pidOfLatencyComputation);
+        system(shell);
+    }
+
+    // Move the latency file write to core 3
+    snprintf(shell, sizeof(shell), "top -H -bn 1 | grep pubsub | grep -w 21 | awk '{print $1}'");
+    filePointer = popen(shell ,"r");
+    fgets(var, sizeof(var), filePointer);
+    pidOfLatencyFileWrite = atoi(var);
+    fclose(filePointer);
+    if (pidOfLatencyFileWrite > 0)
+    {
+        snprintf(shell, sizeof(shell), "/bin/echo %d > /cpuset/user/tasks", pidOfLatencyFileWrite);
+        system(shell);
+    }
+
     retval |= UA_Server_run(server, &runningServer);
 #if defined(SUBSCRIBER)
     UA_Server_unfreezeReaderGroupConfiguration(server, readerGroupIdentifier);
@@ -1720,6 +1935,16 @@ if (enableCsvLog) {
     returnValue = pthread_join(userThreadID, NULL);
     if (returnValue != 0)
         UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,"\nPthread Join Failed for User thread:%d\n", returnValue);
+
+    if(enableLongRunMeas) {
+        returnValue = pthread_join(latencyComputationID, NULL);
+        if(returnValue != 0)
+            UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,"\nPthread Join Failed for latency thread:%d\n", returnValue);
+
+        returnValue = pthread_join(latencyFileWriteID, NULL);
+        if(returnValue != 0)
+            UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,"\nPthread Join Failed for latency filw write thread:%d\n", returnValue);
+    }
 #endif
     if (enableCsvLog) {
 #if defined(PUBLISHER)
@@ -1757,6 +1982,7 @@ if (enableCsvLog) {
     removeServerNodes(server);
     UA_Server_delete(server);
     UA_free(serverConfig);
+    close(cpu_dma_latency);
 #endif
 
 #if defined(PUBLISHER)

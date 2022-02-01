@@ -57,6 +57,10 @@ static UA_THREAD_LOCAL UA_Byte ReceiveMsgBufferETH[RECEIVE_MSG_BUFFER_SIZE];
 #endif
 
 #include <time.h>
+#ifndef CLOCK_TAI
+#define CLOCK_TAI                            11
+#endif
+#define CLOCKID                              CLOCK_TAI
 #define ETHERTYPE_UADP                       0xb62c
 #define MIN_ETHERNET_PACKET_SIZE_WITHOUT_FCS 60
 #define VLAN_HEADER_SIZE                     4
@@ -70,6 +74,10 @@ static UA_THREAD_LOCAL UA_Byte ReceiveMsgBufferETH[RECEIVE_MSG_BUFFER_SIZE];
 
 #ifndef XDP_FLAGS_SKB_MODE
 #define XDP_FLAGS_SKB_MODE                   (1U << 1)
+#endif
+
+#ifndef UA_ENABLE_AMALGAMATION
+extern struct timespec subscriberDataProcessStartTime;
 #endif
 
 #if defined(LIBBPF_EBPF)
@@ -1202,6 +1210,7 @@ UA_PubSubChannelEthernet_receive(UA_PubSubChannel *channel,
         msg.msg_iovlen  = 2;
 
         dataLen = UA_recvmsg(channel->sockfd, &msg, receiveFlags);
+        clock_gettime(CLOCKID, &subscriberDataProcessStartTime);
         if(dataLen < 0) {
             if(rcvCount == 0) {
                 UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,

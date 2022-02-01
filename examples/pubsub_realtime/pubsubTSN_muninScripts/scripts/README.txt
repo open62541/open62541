@@ -1,0 +1,4 @@
+ - Add the scripts that retrieve data for the Munin plugin in the folder 'scripts'
+ - The scripts available in this folder has to be made available
+       - in the folder /usr/local/bin/ of the system to be monitored and
+       - are scheduled to run by executing the commands using crontab
