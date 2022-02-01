@@ -226,6 +226,7 @@ endfunction()
 ua_add_test(check_types_builtin.c)
 
 if(UA_ENABLE_JSON_ENCODING)
+    ua_add_test(check_cj5.c)
     ua_add_test(check_types_builtin_json.c)
 
     if(UA_ENABLE_PUBSUB)
