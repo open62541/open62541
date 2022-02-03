@@ -34,8 +34,6 @@ removeSecureChannel(UA_Server *server, channel_entry *entry,
 
     /* Detach from the connection and close the connection */
     if(entry->channel.connection) {
-        if(entry->channel.connection->state != UA_CONNECTIONSTATE_CLOSED)
-            entry->channel.connection->close(entry->channel.connection);
         UA_Connection_detachSecureChannel(entry->channel.connection);
     }
 

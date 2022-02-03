@@ -51,6 +51,7 @@
  *
  * Therefore one has to set the custom NS1 URI before one of the previously
  * mentioned steps. */
+
 void
 setupNs1Uri(UA_Server *server) {
     if(!server->namespaces[1].data) {
@@ -207,7 +208,10 @@ void UA_Server_delete(UA_Server *server) {
     while(res == UA_STATUSCODE_GOOD &&
           (server->config.eventLoop->state != UA_EVENTLOOPSTATE_FRESH &&
            server->config.eventLoop->state != UA_EVENTLOOPSTATE_STOPPED)) {
+
+        UA_UNLOCK(&server->serviceMutex);
         res = server->config.eventLoop->run(server->config.eventLoop, 100);
+        UA_LOCK(&server->serviceMutex);
     }
 
     /* Clean up the Admin Session */
@@ -546,6 +550,29 @@ UA_Server_getStatistics(UA_Server *server) {
     return stat;
 }
 
+/**************************/
+/* Setup Server EventLoop */
+/**************************/
+
+static
+UA_StatusCode
+UA_Server_setupEventLoop(UA_Server *server) {
+    UA_Server_BasicConnectionContext *ctx = (UA_Server_BasicConnectionContext*) UA_malloc(sizeof(UA_Server_BasicConnectionContext));
+    memset(ctx, 0, sizeof(UA_Server_BasicConnectionContext));
+    UA_CHECK_MEM(ctx, return UA_STATUSCODE_BADOUTOFMEMORY);
+
+    ctx->server = server;
+    ctx->isInitial = true;
+
+    /* TODO: map the connection managers to their names instead of "0" for TCP */
+    UA_ConnectionManager *tcpCM = UA_Server_getConfig(server)->connectionManagers[0];
+    ctx->cm = tcpCM;
+    tcpCM->connectionCallback = UA_Server_connectionCallback;
+    tcpCM->initialConnectionContext = ctx;
+
+    return UA_STATUSCODE_GOOD;
+}
+
 /********************/
 /* Main Server Loop */
 /********************/
@@ -571,7 +598,10 @@ UA_Server_run_startup(UA_Server *server) {
                  "This should only be used for specific fuzzing builds.");
 #endif
 
-    UA_StatusCode retVal = server->config.eventLoop->start(server->config.eventLoop);
+    UA_StatusCode retVal = UA_Server_setupEventLoop(server);
+    UA_CHECK_STATUS(retVal, return retVal);
+
+    retVal = server->config.eventLoop->start(server->config.eventLoop);
     UA_CHECK_STATUS(retVal, return retVal);
 
     /* ensure that the uri for ns1 is set up from the app description */
@@ -656,27 +686,8 @@ UA_Server_run_startup(UA_Server *server) {
 
 UA_UInt16
 UA_Server_run_iterate(UA_Server *server, UA_Boolean waitInternal) {
-    /* Process repeated work */
-    UA_DateTime now = UA_DateTime_nowMonotonic();
-    server->config.eventLoop->run(server->config.eventLoop, 0);
-    UA_DateTime nextRepeated =
-        server->config.eventLoop->nextCyclicTime(server->config.eventLoop);
-    UA_DateTime latest = now + (UA_MAXTIMEOUT * UA_DATETIME_MSEC);
-    if(nextRepeated > latest)
-        nextRepeated = latest;
 
     UA_UInt16 timeout = 0;
-
-    /* round always to upper value to avoid timeout to be set to 0
-    * if(nextRepeated - now) < (UA_DATETIME_MSEC/2) */
-    if(waitInternal)
-        timeout = (UA_UInt16)(((nextRepeated - now) + (UA_DATETIME_MSEC - 1)) / UA_DATETIME_MSEC);
-
-    /* Listen on the networklayer */
-    for(size_t i = 0; i < server->config.networkLayersSize; ++i) {
-        UA_ServerNetworkLayer *nl = &server->config.networkLayers[i];
-        nl->listen(nl, server, timeout);
-    }
 
 #if defined(UA_ENABLE_PUBSUB_MQTT)
     /* Listen on the pubsublayer, but only if the yield function is set */
@@ -688,11 +699,25 @@ UA_Server_run_iterate(UA_Server *server, UA_Boolean waitInternal) {
         }
     }
 #endif
+    /* Process repeated work */
+    UA_DateTime now = UA_DateTime_nowMonotonic();
+    UA_DateTime nextRepeated =
+        server->config.eventLoop->nextCyclicTime(server->config.eventLoop);
+    UA_DateTime latest = now + (UA_MAXTIMEOUT * UA_DATETIME_MSEC);
+    if(nextRepeated > latest)
+        nextRepeated = latest;
+    /* round always to upper value to avoid timeout to be set to 0
+    * if(nextRepeated - now) < (UA_DATETIME_MSEC/2) */
+    if(waitInternal)
+        timeout = (UA_UInt16)(((nextRepeated - now) + (UA_DATETIME_MSEC - 1)) / UA_DATETIME_MSEC);
 
-    UA_LOCK(&server->serviceMutex);
+    server->config.eventLoop->run(server->config.eventLoop, timeout);
 
 #if defined(UA_ENABLE_DISCOVERY_MULTICAST) && (UA_MULTITHREADING < 200)
+
+    UA_LOCK(&server->serviceMutex);
     if(server->config.mdnsEnabled) {
+
         /* TODO multicastNextRepeat does not consider new input data (requests)
          * on the socket. It will be handled on the next call. if needed, we
          * need to use select with timeout on the multicast socket
@@ -703,23 +728,50 @@ UA_Server_run_iterate(UA_Server *server, UA_Boolean waitInternal) {
         if(hasNext == UA_STATUSCODE_GOOD && multicastNextRepeat < nextRepeated)
             nextRepeated = multicastNextRepeat;
     }
+    UA_UNLOCK(&server->serviceMutex);
 #endif
 
-    UA_UNLOCK(&server->serviceMutex);
-
-    now = UA_DateTime_nowMonotonic();
-    timeout = 0;
-    if(nextRepeated > now)
-        timeout = (UA_UInt16)((nextRepeated - now) / UA_DATETIME_MSEC);
     return timeout;
+}
+
+static
+bool
+allEventSourcesStopped(UA_ConnectionManager** sources, size_t count) {
+    UA_Boolean allStopped = true;
+    for (size_t i = 0; i < count; ++i) {
+        UA_ConnectionManager *source = sources[i];
+        allStopped = allStopped && source->eventSource.state == UA_EVENTSOURCESTATE_STOPPED;
+    }
+    return allStopped;
 }
 
 UA_StatusCode
 UA_Server_run_shutdown(UA_Server *server) {
+
     /* Stop the netowrk layer */
     for(size_t i = 0; i < server->config.networkLayersSize; ++i) {
         UA_ServerNetworkLayer *nl = &server->config.networkLayers[i];
         nl->stop(nl, server);
+    }
+
+    for (size_t i = 0; i < server->config.connectionManagersSize; ++i) {
+        UA_ConnectionManager *cm = server->config.connectionManagers[i];
+        if (cm->eventSource.eventLoop != NULL) {
+            cm->eventSource.stop(&cm->eventSource);
+        }
+    }
+
+    UA_DateTime elapsedTime = 0;
+    UA_DateTime startTime = UA_DateTime_nowMonotonic();
+    UA_DateTime timeout = UA_UINT32_MAX / 2;
+
+    UA_EventLoop *el = server->config.eventLoop;
+    while (!allEventSourcesStopped(server->config.connectionManagers,
+                                server->config.connectionManagersSize) &&
+                                elapsedTime < timeout)
+    {
+        el->run(el, 0);
+        elapsedTime = UA_DateTime_nowMonotonic() - startTime;
     }
 
 #ifdef UA_ENABLE_DISCOVERY_MULTICAST
@@ -762,3 +814,4 @@ UA_Server_run(UA_Server *server, const volatile UA_Boolean *running) {
     }
     return UA_Server_run_shutdown(server);
 }
+
