@@ -153,9 +153,13 @@ struct UA_ServerConfig {
     UA_EventLoop *eventLoop;
     UA_Boolean externalEventLoop; /* The EventLoop is not deleted with the config */
 
+    size_t connectionManagersSize;
+    UA_ConnectionManager *connectionManagers[10];
+
     /**
      * Networking
      * ^^^^^^^^^^ */
+
     size_t networkLayersSize;
     UA_ServerNetworkLayer *networkLayers;
     UA_String customHostname;

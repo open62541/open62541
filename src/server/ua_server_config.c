@@ -28,6 +28,10 @@ UA_ServerConfig_clean(UA_ServerConfig *config) {
 
     /* Custom DataTypes */
     /* nothing to do */
+    for (size_t i = 0; i < config->connectionManagersSize; i++) {
+        UA_ConnectionManager* cm = config->connectionManagers[i];
+        UA_free(cm->initialConnectionContext);
+    }
 
     /* Stop and delete the EventLoop */
     UA_EventLoop *el = config->eventLoop;
