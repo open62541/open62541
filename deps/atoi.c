@@ -22,58 +22,41 @@ THE SOFTWARE.
 
 #include "atoi.h"
 
-UA_StatusCode atoiUnsigned(const char *s, size_t size, UA_UInt64 *result){
-    if(size < 1){   
-        return UA_STATUSCODE_BADDECODINGERROR;
-    }
-    
-    size_t i = 0; 
+size_t atoiUnsigned(const char *pos, size_t size, UA_UInt64 *result) {
+    size_t i = 0;
     UA_UInt64 n = 0;
-    
-    while ( i < size) {
-        /*isDigit*/
-        if ( s[i] >= '0' && s[i] <= '9' )
-        {
-          n *= 10;
-          n = (n + (UA_UInt64)(s[i] - '0'));
-          i++;
-        }else{
-            return UA_STATUSCODE_BADDECODINGERROR;
-        }
-    }
-    
-    *result = n;
-    return UA_STATUSCODE_GOOD;
-   }
-
-UA_StatusCode atoiSigned(const char *s, size_t size, UA_Int64 *result){
-    if(size < 1){   
-        return UA_STATUSCODE_BADDECODINGERROR;
-    }
-    
-    size_t i = 0; 
-    UA_Int64 n = 0;
-    UA_Boolean neg = 0; 
-    
-    if(*s == '-'){
-        neg = 1;
+    while(i < size) {
+        if(pos[i] < '0' || pos[i] > '9')
+            break;
+        n *= 10;
+        n += (UA_UInt64)(pos[i] - '0');
         i++;
     }
-    while ( i < size) {
-        if ( s[i] >= '0' && s[i] <= '9' )
-        {
-          n *= 10;
-          n = (n + (s[i] - '0'));
-          i++;
-        }else{
-            return UA_STATUSCODE_BADDECODINGERROR;
-        }
-    }
-    
-    if (neg){
-       n *= -1;
-    }
     
     *result = n;
-    return UA_STATUSCODE_GOOD;
-   }
+    return i;
+}
+
+size_t atoiSigned(const char *pos, size_t size, UA_Int64 *result) {
+    size_t i = 0;
+    UA_Int64 n = 0;
+    UA_Boolean neg = false;
+    if(*pos == '-') {
+        neg = true;
+        pos++;
+    }
+
+    while(i < size) {
+        if(pos[i] < '0' || pos[i] > '9')
+            break;
+        n *= 10;
+        n += pos[i] - '0';
+        i++;
+    }
+
+    if(neg)
+        n = -n;
+
+    *result = n;
+    return i;
+}
