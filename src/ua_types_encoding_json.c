@@ -2958,6 +2958,7 @@ Variant_decodeJsonUnwrapExtensionObject(UA_Variant *dst, const UA_DataType *type
     }
         
     const UA_DataType *typeOfBody = UA_findDataType(&typeId);
+    UA_NodeId_clear(&typeId);
         
     if(encoding == 0 || typeOfBody != NULL) {
         /*This value is 0 if the body is Structure encoded as a JSON object (see 5.4.6).*/
@@ -2969,10 +2970,8 @@ Variant_decodeJsonUnwrapExtensionObject(UA_Variant *dst, const UA_DataType *type
 
         /* Allocate memory for type*/
         dst->data = UA_new(dst->type);
-        if(!dst->data) {
-            UA_NodeId_clear(&typeId);
+        if(!dst->data)
             return UA_STATUSCODE_BADOUTOFMEMORY;
-        }
 
         /* Decode the content */
         UA_NodeId nodeIddummy;
@@ -2990,8 +2989,6 @@ Variant_decodeJsonUnwrapExtensionObject(UA_Variant *dst, const UA_DataType *type
             dst->type = NULL;
         }
     } else if(encoding == 1 || encoding == 2 || typeOfBody == NULL) {
-        UA_NodeId_clear(&typeId);
-            
         /* decode as ExtensionObject */
         dst->type = &UA_TYPES[UA_TYPES_EXTENSIONOBJECT];
 
