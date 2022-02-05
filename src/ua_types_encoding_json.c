@@ -2882,9 +2882,9 @@ DECODE_JSON(ExtensionObject) {
             dst->encoding = UA_EXTENSIONOBJECT_ENCODED_BYTESTRING;
             UA_UInt16 encodingTypeJson;
             DecodeEntry entries[3] = {
-                {UA_JSONKEY_ENCODING, &encodingTypeJson, (decodeJsonSignature) UInt16_decodeJson, false, NULL},
-                {UA_JSONKEY_BODY, &dst->content.encoded.body, (decodeJsonSignature) String_decodeJson, false, NULL},
-                {UA_JSONKEY_TYPEID, &dst->content.encoded.typeId, (decodeJsonSignature) NodeId_decodeJson, false, NULL}
+                {UA_JSONKEY_ENCODING, &encodingTypeJson, (decodeJsonSignature)UInt16_decodeJson, false, NULL},
+                {UA_JSONKEY_BODY, &dst->content.encoded.body, (decodeJsonSignature)String_decodeJson, false, NULL},
+                {UA_JSONKEY_TYPEID, &dst->content.encoded.typeId, (decodeJsonSignature)NodeId_decodeJson, false, NULL}
             };
 
             return decodeFields(ctx, parseCtx, entries, 3, type);
@@ -2893,9 +2893,9 @@ DECODE_JSON(ExtensionObject) {
             dst->encoding = UA_EXTENSIONOBJECT_ENCODED_XML;
             UA_UInt16 encodingTypeJson;
             DecodeEntry entries[3] = {
-                {UA_JSONKEY_ENCODING, &encodingTypeJson, (decodeJsonSignature) UInt16_decodeJson, false, NULL},
-                {UA_JSONKEY_BODY, &dst->content.encoded.body, (decodeJsonSignature) String_decodeJson, false, NULL},
-                {UA_JSONKEY_TYPEID, &dst->content.encoded.typeId, (decodeJsonSignature) NodeId_decodeJson, false, NULL}
+                {UA_JSONKEY_ENCODING, &encodingTypeJson, (decodeJsonSignature)UInt16_decodeJson, false, NULL},
+                {UA_JSONKEY_BODY, &dst->content.encoded.body, (decodeJsonSignature)String_decodeJson, false, NULL},
+                {UA_JSONKEY_TYPEID, &dst->content.encoded.typeId, (decodeJsonSignature)NodeId_decodeJson, false, NULL}
             };
             return decodeFields(ctx, parseCtx, entries, 3, type);
         } else {
@@ -2985,8 +2985,9 @@ Variant_decodeJsonUnwrapExtensionObject(UA_Variant *dst, const UA_DataType *type
 
         ret = decodeFields(ctx, parseCtx, entries, encodingFound ? 3:2, typeOfBody);
         if(ret != UA_STATUSCODE_GOOD) {
-            UA_free(dst->data);
+            UA_delete(dst->data, dst->type);
             dst->data = NULL;
+            dst->type = NULL;
         }
     } else if(encoding == 1 || encoding == 2 || typeOfBody == NULL) {
         UA_NodeId_clear(&typeId);
@@ -3002,8 +3003,9 @@ Variant_decodeJsonUnwrapExtensionObject(UA_Variant *dst, const UA_DataType *type
         /* decode: Does not move tokenindex. */
         ret = DECODE_DIRECT_JSON(dst->data, ExtensionObject);
         if(ret != UA_STATUSCODE_GOOD) {
-            UA_free(dst->data);
+            UA_delete(dst->data, dst->type);
             dst->data = NULL;
+            dst->type = NULL;
         }
     } else {
         /*no recognized encoding type*/
