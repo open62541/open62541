@@ -248,7 +248,7 @@ typedef struct UA_DateTimeStruct {
     UA_UInt16 hour;
     UA_UInt16 day;   /* From 1 to 31 */
     UA_UInt16 month; /* From 1 to 12 */
-    UA_UInt16 year;
+    UA_Int16 year;   /* Can be negative (BC) */
 } UA_DateTimeStruct;
 
 UA_DateTimeStruct UA_EXPORT UA_DateTime_toStruct(UA_DateTime t);

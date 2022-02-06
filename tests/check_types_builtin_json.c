@@ -1302,6 +1302,28 @@ START_TEST(UA_DateTime_json_encode) {
 }
 END_TEST
 
+START_TEST(UA_DateTime_json_encode_null) {
+    UA_DateTime src = 0;
+    const UA_DataType *type = &UA_TYPES[UA_TYPES_DATETIME];
+    size_t size = UA_calcSizeJsonInternal((void *)&src, type, NULL, 0, NULL, 0, UA_TRUE);
+    UA_ByteString buf;
+
+    UA_ByteString_allocBuffer(&buf, size+1);
+
+    UA_Byte *bufPos = &buf.data[0];
+    const UA_Byte *bufEnd = &buf.data[size+1];
+    status s = UA_encodeJsonInternal((void *)&src, type, &bufPos, &bufEnd,
+                                     NULL, 0, NULL, 0, UA_TRUE);
+    *bufPos = 0;
+
+    // then
+    ck_assert_int_eq(s, UA_STATUSCODE_GOOD);
+    char* result = "\"1601-01-01T00:00:00Z\"";
+    ck_assert_str_eq(result, (char*)buf.data);
+    UA_ByteString_clear(&buf); 
+}
+END_TEST
+
 START_TEST(UA_DateTime_with_nanoseconds_json_encode) {
     UA_DateTime *src = UA_DateTime_new();
     *src = UA_DateTime_fromUnixTime(1234567) + 8901234;
@@ -4528,6 +4550,31 @@ START_TEST(UA_DateTime_json_decode) {
 }
 END_TEST
 
+START_TEST(UA_DateTime_json_decode_negative) {
+    // given
+    UA_DateTime out;
+    UA_DateTime_init(&out);
+    UA_ByteString buf = UA_STRING("\"-0050-01-02T01:02:03.005Z\"");
+    // when
+    
+    UA_StatusCode retval = UA_decodeJsonInternal(&buf, &out, &UA_TYPES[UA_TYPES_DATETIME]);
+    // then
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+    UA_DateTimeStruct dts = UA_DateTime_toStruct(out);
+    ck_assert_int_eq(dts.year, -50);
+    ck_assert_int_eq(dts.month, 1);
+    ck_assert_int_eq(dts.day, 2);
+    ck_assert_int_eq(dts.hour, 1);
+    ck_assert_int_eq(dts.min, 2);
+    ck_assert_int_eq(dts.sec, 3);
+    ck_assert_int_eq(dts.milliSec, 5);
+    ck_assert_int_eq(dts.microSec, 0);
+    ck_assert_int_eq(dts.nanoSec, 0);
+    
+    UA_DateTime_clear(&out);
+}
+END_TEST
+
 START_TEST(UA_DateTime_micro_json_decode) {
     // given
     UA_DateTime out;
@@ -5739,6 +5786,7 @@ static Suite *testSuite_builtin_json(void) {
     
     //DateTime
     tcase_add_test(tc_json_encode, UA_DateTime_json_encode);
+    tcase_add_test(tc_json_encode, UA_DateTime_json_encode_null);
     tcase_add_test(tc_json_encode, UA_DateTime_with_nanoseconds_json_encode);
     
     
@@ -5919,6 +5967,7 @@ static Suite *testSuite_builtin_json(void) {
     
     //DateTime
     tcase_add_test(tc_json_decode, UA_DateTime_json_decode);
+    tcase_add_test(tc_json_decode, UA_DateTime_json_decode_negative);
     tcase_add_test(tc_json_decode, UA_DateTime_micro_json_decode);
     
     

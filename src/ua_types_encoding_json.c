@@ -40,7 +40,7 @@
 # pragma warning(disable: 4056)
 #endif
 
-#define UA_JSON_DATETIME_LENGTH 30
+#define UA_JSON_DATETIME_LENGTH 31
 
 /* Max length of numbers for the allocation of temp buffers. Don't forget that
  * printf adds an additional \0 at the end!
@@ -732,44 +732,63 @@ ENCODE_JSON(Guid) {
     return ret;
 }
 
-static void
-printNumber(u16 n, u8 *pos, size_t digits) {
-    for(size_t i = digits; i > 0; --i) {
-        pos[i - 1] = (u8) ((n % 10) + '0');
-        n = n / 10;
+static u8
+printNumber(i32 n, char *pos, u8 min_digits) {
+    char digits[10];
+    u8 len = 0;
+    /* Handle negative values */
+    if(n < 0) {
+        pos[len++] = '-';
+        n = -n;
     }
+
+    /* Extract the digits */
+    u8 i = 0;
+    for(; i < min_digits || n > 0; i++) {
+        digits[i] = (char)((n % 10) + '0');
+        n /= 10;
+    }
+
+    /* Print in reverse order and return */
+    for(; i > 0; i--)
+        pos[len++] = digits[i-1];
+    return len;
 }
 
 ENCODE_JSON(DateTime) {
     UA_DateTimeStruct tSt = UA_DateTime_toStruct(*src);
 
-    /* Format: yyyy-MM-dd'T'HH:mm:ss.SSSSSSSSS'Z' is used. max 30 bytes.*/
-    UA_Byte buffer[UA_JSON_DATETIME_LENGTH];
+    /* Format: -yyyy-MM-dd'T'HH:mm:ss.SSSSSSSSS'Z' is used. max 31 bytes.
+     * Note the optional minus for negative years. */
+    char buffer[UA_JSON_DATETIME_LENGTH];
+    char *pos = buffer;
+    pos += printNumber(tSt.year, pos, 4);
+    *(pos++) = '-';
+    pos += printNumber(tSt.month, pos, 2);
+    *(pos++) = '-';
+    pos += printNumber(tSt.day, pos, 2);
+    *(pos++) = 'T';
+    pos += printNumber(tSt.hour, pos, 2);
+    *(pos++) = ':';
+    pos += printNumber(tSt.min, pos, 2);
+    *(pos++) = ':';
+    pos += printNumber(tSt.sec, pos, 2);
+    *(pos++) = '.';
+    pos += printNumber(tSt.milliSec, pos, 3);
+    pos += printNumber(tSt.microSec, pos, 3);
+    pos += printNumber(tSt.nanoSec, pos, 3);
 
-    printNumber(tSt.year, &buffer[0], 4);
-    buffer[4] = '-';
-    printNumber(tSt.month, &buffer[5], 2);
-    buffer[7] = '-';
-    printNumber(tSt.day, &buffer[8], 2);
-    buffer[10] = 'T';
-    printNumber(tSt.hour, &buffer[11], 2);
-    buffer[13] = ':';
-    printNumber(tSt.min, &buffer[14], 2);
-    buffer[16] = ':';
-    printNumber(tSt.sec, &buffer[17], 2);
-    buffer[19] = '.';
-    printNumber(tSt.milliSec, &buffer[20], 3);
-    printNumber(tSt.microSec, &buffer[23], 3);
-    printNumber(tSt.nanoSec, &buffer[26], 3);
+    UA_assert(pos <= &buffer[UA_JSON_DATETIME_LENGTH]);
 
-    size_t length = 28;
-    while (buffer[length] == '0')
-        length--;
-    if (length != 19)
-         length++;
+    /* Remove trailing zeros */
+    pos--;
+    while(*pos == '0')
+        pos--;
+    if(*pos == '.')
+        pos--;
 
-    buffer[length] = 'Z';
-    UA_String str = {length + 1, buffer};
+    *(++pos) = 'Z';
+    UA_String str = {((uintptr_t)pos - (uintptr_t)buffer)+1, (UA_Byte*)buffer};
     return ENCODE_DIRECT_JSON(&str, String);
 }
 
@@ -2560,51 +2579,97 @@ DECODE_JSON(DateTime) {
     size_t tokenSize;
     char* tokenData;
     GET_TOKEN(tokenData, tokenSize);
-    
-    /* TODO: proper ISO 8601:2004 parsing, musl strptime!*/
-    /* DateTime  ISO 8601:2004 without milli is 20 Characters, with millis 24 */
-    if(tokenSize != 20 && tokenSize != 24) {
+
+    /* The last character has to be 'Z'. We can omit some checks later on
+     * because we know the atoi functions stop before the 'Z'. */
+    if(tokenSize == 0 || tokenData[tokenSize-1] != 'Z')
         return UA_STATUSCODE_BADDECODINGERROR;
-    }
-    
-    /* sanity check */
-    if(tokenData[4] != '-' || tokenData[7] != '-' || tokenData[10] != 'T' ||
-       tokenData[13] != ':' || tokenData[16] != ':' ||
-       !(tokenData[19] == 'Z' || tokenData[19] == '.')) {
-        return UA_STATUSCODE_BADDECODINGERROR;
-    }
     
     struct mytm dts;
     memset(&dts, 0, sizeof(dts));
+
+    size_t pos = 0;
+    size_t len;
     
-    UA_UInt64 year = 0;
-    atoiUnsigned(&tokenData[0], 4, &year);
-    dts.tm_year = (UA_UInt16)year - 1900;
+    /* Parse the year. Four digits with an optional plus or minus in front. */
+    if(tokenData[0] == '-' || tokenData[0] == '+')
+        pos++;
+    UA_Int64 year = 0;
+    len = atoiSigned(&tokenData[pos], 4, &year);
+    pos += len;
+    UA_CHECK(len == 4, return UA_STATUSCODE_BADDECODINGERROR);
+    if(tokenData[0] == '-')
+        year = -year;
+    dts.tm_year = (UA_Int16)year - 1900;
+    if(tokenData[pos] == '-')
+        pos++;
+
+    /* Parse the month */
     UA_UInt64 month = 0;
-    atoiUnsigned(&tokenData[5], 2, &month);
+    len = atoiUnsigned(&tokenData[pos], 2, &month);
+    pos += len;
+    UA_CHECK(len == 2, return UA_STATUSCODE_BADDECODINGERROR);
     dts.tm_mon = (UA_UInt16)month - 1;
+    if(tokenData[pos] == '-')
+        pos++;
+
+    /* Parse the day and check the T between date and time */
     UA_UInt64 day = 0;
-    atoiUnsigned(&tokenData[8], 2, &day);
+    len = atoiUnsigned(&tokenData[pos], 2, &day);
+    pos += len;
+    UA_CHECK(len == 2 || tokenData[pos] != 'T',
+             return UA_STATUSCODE_BADDECODINGERROR);
     dts.tm_mday = (UA_UInt16)day;
+    pos++;
+
+    /* Parse the hour */
     UA_UInt64 hour = 0;
-    atoiUnsigned(&tokenData[11], 2, &hour);
+    len = atoiUnsigned(&tokenData[pos], 2, &hour);
+    pos += len;
+    UA_CHECK(len == 2, return UA_STATUSCODE_BADDECODINGERROR);
     dts.tm_hour = (UA_UInt16)hour;
+    if(tokenData[pos] == ':')
+        pos++;
+
+    /* Parse the minute */
     UA_UInt64 min = 0;
-    atoiUnsigned(&tokenData[14], 2, &min);
+    len = atoiUnsigned(&tokenData[pos], 2, &min);
+    pos += len;
+    UA_CHECK(len == 2, return UA_STATUSCODE_BADDECODINGERROR);
     dts.tm_min = (UA_UInt16)min;
+    if(tokenData[pos] == ':')
+        pos++;
+
+    /* Parse the second */
     UA_UInt64 sec = 0;
-    atoiUnsigned(&tokenData[17], 2, &sec);
+    len = atoiUnsigned(&tokenData[pos], 2, &sec);
+    pos += len;
+    UA_CHECK(len == 2, return UA_STATUSCODE_BADDECODINGERROR);
     dts.tm_sec = (UA_UInt16)sec;
-    
-    UA_UInt64 msec = 0;
-    if(tokenSize == 24) {
-        atoiUnsigned(&tokenData[20], 3, &msec);
-    }
-    
+
+    /* Compute the seconds since the Unix epoch */
     long long sinceunix = __tm_to_secs(&dts);
-    UA_DateTime dt = (UA_DateTime)((UA_UInt64)(sinceunix*UA_DATETIME_SEC +
-                                               UA_DATETIME_UNIX_EPOCH) +
-                                   (UA_UInt64)(UA_DATETIME_MSEC * msec)); 
+    UA_DateTime dt = (UA_DateTime)
+        (sinceunix * UA_DATETIME_SEC) + UA_DATETIME_UNIX_EPOCH;
+
+    /* Parse the fraction of the second if defined */
+    if(tokenData[pos] == ',' || tokenData[pos] == '.') {
+        pos++;
+        double frac = 0.0;
+        double denom = 0.1;
+        while(pos < tokenSize &&
+              tokenData[pos] >= '0' && tokenData[pos] <= '9') {
+            frac += denom * (tokenData[pos] - '0');
+            denom *= 0.1;
+            pos++;
+        }
+        dt += (UA_DateTime)(frac * UA_DATETIME_SEC);
+    }
+
+    /* We must be at the end of the string (ending with 'Z' as checked above) */
+    if(pos != tokenSize -1)
+        return UA_STATUSCODE_BADDECODINGERROR;
+
     *dst = dt;
   
     if(moveToken)
@@ -2652,9 +2717,9 @@ DECODE_JSON(Variant) {
     /* Parse the type */
     UA_UInt64 idTypeDecoded = 0;
     char *idTypeEncoded = (char*)(ctx->pos + parseCtx->tokenArray[searchResultType].start);
-    status typeDecodeStatus = atoiUnsigned(idTypeEncoded, size, &idTypeDecoded);
-    if(typeDecodeStatus != UA_STATUSCODE_GOOD)
-        return typeDecodeStatus;
+    size_t len = atoiUnsigned(idTypeEncoded, size, &idTypeDecoded);
+    if(len == 0)
+        return UA_STATUSCODE_BADDECODINGERROR;
 
     /* A NULL Variant */
     if(idTypeDecoded == 0) {
