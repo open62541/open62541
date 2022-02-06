@@ -192,30 +192,33 @@ UA_QualifiedName_equal(const UA_QualifiedName *qn1,
 /* DateTime */
 UA_DateTimeStruct
 UA_DateTime_toStruct(UA_DateTime t) {
-    /* Calculating the the milli-, micro- and nanoseconds */
-    UA_DateTimeStruct dateTimeStruct;
-    if(t >= 0) {
-        dateTimeStruct.nanoSec  = (u16)((t % 10) * 100);
-        dateTimeStruct.microSec = (u16)((t % 10000) / 10);
-        dateTimeStruct.milliSec = (u16)((t % 10000000) / 10000);
-    } else {
-        dateTimeStruct.nanoSec  = (u16)(((t % 10 + t) % 10) * 100);
-        dateTimeStruct.microSec = (u16)(((t % 10000 + t) % 10000) / 10);
-        dateTimeStruct.milliSec = (u16)(((t % 10000000 + t) % 10000000) / 10000);
-    }
-
-    /* Calculating the unix time with #include <time.h> */
+    /* Divide, then subtract -> avoid underflow. Also, negative numbers are
+     * rounded up, not down. */
     long long secSinceUnixEpoch = (long long)(t / UA_DATETIME_SEC)
         - (long long)(UA_DATETIME_UNIX_EPOCH / UA_DATETIME_SEC);
+
+    /* Negative fractions of a second? Remove one full second from the epoch
+     * distance and allow only a positive fraction. */
+    UA_DateTime frac = t % UA_DATETIME_SEC;
+    if(frac < 0) {
+        secSinceUnixEpoch--;
+        frac += UA_DATETIME_SEC;
+    }
+
     struct mytm ts;
     memset(&ts, 0, sizeof(struct mytm));
     __secs_to_tm(secSinceUnixEpoch, &ts);
-    dateTimeStruct.sec    = (u16)ts.tm_sec;
-    dateTimeStruct.min    = (u16)ts.tm_min;
-    dateTimeStruct.hour   = (u16)ts.tm_hour;
-    dateTimeStruct.day    = (u16)ts.tm_mday;
+
+    UA_DateTimeStruct dateTimeStruct;
+    dateTimeStruct.year   = (i16)(ts.tm_year + 1900);
     dateTimeStruct.month  = (u16)(ts.tm_mon + 1);
-    dateTimeStruct.year   = (u16)(ts.tm_year + 1900);
+    dateTimeStruct.day    = (u16)ts.tm_mday;
+    dateTimeStruct.hour   = (u16)ts.tm_hour;
+    dateTimeStruct.min    = (u16)ts.tm_min;
+    dateTimeStruct.sec    = (u16)ts.tm_sec;
+    dateTimeStruct.milliSec = (u16)((frac % 10000000) / 10000);
+    dateTimeStruct.microSec = (u16)((frac % 10000) / 10);
+    dateTimeStruct.nanoSec  = (u16)((frac % 10) * 100);
     return dateTimeStruct;
 }
 
