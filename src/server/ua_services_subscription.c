@@ -130,6 +130,10 @@ Service_CreateSubscription(UA_Server *server, UA_Session *session,
     response->revisedLifetimeCount = sub->lifeTimeCount;
     response->revisedMaxKeepAliveCount = sub->maxKeepAliveCount;
 
+#ifdef UA_ENABLE_DIAGNOSTICS
+    createSubscriptionObject(server, session, sub);
+#endif
+
     UA_LOG_INFO_SUBSCRIPTION(&server->config.logger, sub,
                              "Subscription created (Publishing interval %.2fms, "
                              "max %lu notifications per publish)",

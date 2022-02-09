@@ -67,6 +67,7 @@ setAbsoluteFromPercentageDeadband(UA_Server *server, UA_Session *session,
 
     /* EURange invalid or NaN? */
     if(absDeadband < 0.0 || absDeadband != absDeadband) {
+        UA_DataValue_clear(&rangeVal);
         return UA_STATUSCODE_BADMONITOREDITEMFILTERUNSUPPORTED;
     }
 
@@ -447,7 +448,7 @@ Operation_CreateMonitoredItem(UA_Server *server, UA_Session *session,
                                                          valueType, &newMon->parameters);
 #ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
     result->statusCode |= checkEventFilterParam(server, session, newMon,
-                                                &newMon->parameters);
+                                                         &newMon->parameters);
 #endif
     if(result->statusCode != UA_STATUSCODE_GOOD) {
         UA_LOG_INFO_SUBSCRIPTION(&server->config.logger, cmc->sub,

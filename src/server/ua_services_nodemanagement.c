@@ -73,11 +73,17 @@ editNodeContext(UA_Server *server, UA_Session* session,
 }
 
 UA_StatusCode
+setNodeContext(UA_Server *server, UA_NodeId nodeId,
+               void *nodeContext) {
+    return UA_Server_editNode(server, &server->adminSession, &nodeId,
+                              (UA_EditNodeCallback)editNodeContext, nodeContext);
+}
+
+UA_StatusCode
 UA_Server_setNodeContext(UA_Server *server, UA_NodeId nodeId,
                          void *nodeContext) {
     UA_LOCK(&server->serviceMutex);
-    UA_StatusCode retval = UA_Server_editNode(server, &server->adminSession, &nodeId,
-                              (UA_EditNodeCallback)editNodeContext, nodeContext);
+    UA_StatusCode retval = setNodeContext(server, nodeId, nodeContext);
     UA_UNLOCK(&server->serviceMutex);
     return retval;
 }
@@ -525,16 +531,16 @@ static void
 Operation_addReference(UA_Server *server, UA_Session *session, void *context,
                        const UA_AddReferencesItem *item, UA_StatusCode *retval);
 
-static UA_StatusCode
-addRef(UA_Server *server, UA_Session *session, const UA_NodeId *nodeId,
-       const UA_NodeId *referenceTypeId, const UA_NodeId *parentNodeId,
+UA_StatusCode
+addRef(UA_Server *server, UA_Session *session, const UA_NodeId *sourceId,
+       const UA_NodeId *referenceTypeId, const UA_NodeId *targetId,
        UA_Boolean forward) {
     UA_AddReferencesItem ref_item;
     UA_AddReferencesItem_init(&ref_item);
-    ref_item.sourceNodeId = *nodeId;
+    ref_item.sourceNodeId = *sourceId;
     ref_item.referenceTypeId = *referenceTypeId;
     ref_item.isForward = forward;
-    ref_item.targetNodeId.nodeId = *parentNodeId;
+    ref_item.targetNodeId.nodeId = *targetId;
 
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     Operation_addReference(server, session, NULL, &ref_item, &retval);
