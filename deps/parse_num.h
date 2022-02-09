@@ -25,8 +25,9 @@ extern "C" {
  * Hex numbers start with 0x.
  * Signed numbers may have a +/- prefix. */
 
-size_t atoiUnsigned(const char *pos, size_t size, uint64_t *result);
-size_t atoiSigned(const char *pos, size_t size, int64_t *result);
+size_t parseUInt64(const char *str, size_t size, uint64_t *result);
+size_t parseInt64(const char *str, size_t size, int64_t *result);
+size_t parseDouble(const char *str, size_t size, double *result);
     
 #ifdef __cplusplus
 }

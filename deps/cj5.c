@@ -25,8 +25,6 @@
 #include "parse_num.h"
 
 #include <string.h>
-#include <stdlib.h>
-#include <errno.h>
 
 #if defined(_DEBUG) || defined(NDEBUG)
 # include <assert.h>
@@ -513,31 +511,22 @@ cj5_parse(const char *json5, unsigned int len,
 
 cj5_error_code
 cj5_get_float(const char *json5, const cj5_token *token, double *out) {
-    char buf[128];
-    unsigned int len = token->end - token->start;
-    if(len >= 128)
-        return CJ5_ERROR_OVERFLOW;
-    memcpy(buf, &json5[token->start], len);
-    buf[len] = 0;
-    errno = 0;
-    char *endptr;
-    *out = strtod(&json5[token->start], &endptr);
-    if(errno != 0 || endptr != &json5[token->end])
-        return CJ5_ERROR_INVALID;
-    return CJ5_ERROR_NONE;
+    size_t parsed = parseDouble(&json5[token->start],
+                                token->end - token->start, out);
+    return (parsed != 0) ? CJ5_ERROR_NONE : CJ5_ERROR_INVALID;
 }
 
 cj5_error_code
 cj5_get_int(const char *json5, const cj5_token *token, int64_t *out) {
-    size_t parsed = atoiSigned(&json5[token->start],
+    size_t parsed = parseInt64(&json5[token->start],
                                token->end - token->start, out);
     return (parsed != 0) ? CJ5_ERROR_NONE : CJ5_ERROR_INVALID;
 }
 
 cj5_error_code
 cj5_get_uint(const char *json5, const cj5_token *token, uint64_t *out) {
-    size_t parsed = atoiUnsigned(&json5[token->start],
-                                 token->end - token->start, out);
+    size_t parsed = parseUInt64(&json5[token->start],
+                                token->end - token->start, out);
     return (parsed != 0) ? CJ5_ERROR_NONE : CJ5_ERROR_INVALID;
 }
 

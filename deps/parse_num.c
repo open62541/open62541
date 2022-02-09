@@ -22,15 +22,19 @@
 
 #include "parse_num.h"
 
-size_t atoiUnsigned(const char *pos, size_t size, uint64_t *result) {
+#include <string.h>
+#include <stdlib.h>
+#include <errno.h>
+
+size_t parseUInt64(const char *str, size_t size, uint64_t *result) {
     size_t i = 0;
     uint64_t n = 0;
     bool digit = false; /* At least one real digit */
-    if(size - i >= 2 && pos[i] == '0' && (pos[i+1] | 32) == 'x') {
+    if(size - i >= 2 && str[i] == '0' && (str[i+1] | 32) == 'x') {
         /* Hex */
         i += 2;
         for(; i < size; i++) {
-            uint8_t c = (uint8_t)pos[i] | 32;
+            uint8_t c = (uint8_t)str[i] | 32;
             if(c >= '0' && c <= '9')
                 c = c - '0';
             else if(c >= 'a' && c <='f')
@@ -45,11 +49,11 @@ size_t atoiUnsigned(const char *pos, size_t size, uint64_t *result) {
     } else {
         /* Decimal */
         for(; i < size; i++) {
-            if(pos[i] < '0' || pos[i] > '9')
+            if(str[i] < '0' || str[i] > '9')
                 break;
             n *= 10;
             digit = true;
-            n +=(uint8_t)(pos[i] - '0');
+            n +=(uint8_t)(str[i] - '0');
         }
     }
 
@@ -61,22 +65,36 @@ size_t atoiUnsigned(const char *pos, size_t size, uint64_t *result) {
     return i;
 }
 
-size_t atoiSigned(const char *pos, size_t size, int64_t *result) {
+size_t parseInt64(const char *str, size_t size, int64_t *result) {
     /* Negative value? */
     size_t i = 0;
     bool neg = false;
-    if(*pos == '-' || *pos == '+') {
-        neg = (*pos == '-');
+    if(*str == '-' || *str == '+') {
+        neg = (*str == '-');
         i++;
     }
 
     /* Parse as unsigned */
     uint64_t n = 0;
-    size_t len = atoiUnsigned(&pos[i], size - i, &n);
+    size_t len = parseUInt64(&str[i], size - i, &n);
     if(len == 0)
         return 0;
 
     /* Adjust and return */
     *result = (!neg) ? (int64_t)n  : -(int64_t)n;
     return len + i;
+}
+
+size_t parseDouble(const char *str, size_t size, double *result) {
+    char buf[128];
+    if(size >= 128)
+        return 0;
+    memcpy(buf, str, size);
+    buf[size] = 0;
+    errno = 0;
+    char *endptr;
+    *result = strtod(str, &endptr);
+    if(errno != 0)
+        return 0;
+    return (uintptr_t)endptr - (uintptr_t)str;
 }
