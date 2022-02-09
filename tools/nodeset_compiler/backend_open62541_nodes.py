@@ -12,7 +12,7 @@
 ###    Copyright 2018 (c) Jannis Volker
 ###    Copyright 2018 (c) Ralph Lange
 
-from datatypes import  ExtensionObject, NodeId, StatusCode, DiagnosticInfo, Guid, Value
+from datatypes import  ExtensionObject, NodeId, StatusCode, DiagnosticInfo, Value
 from nodes import ReferenceTypeNode, ObjectNode, VariableNode, VariableTypeNode, MethodNode, ObjectTypeNode, DataTypeNode, ViewNode
 from backend_open62541_datatypes import makeCIdentifier, generateLocalizedTextCode, generateQualifiedNameCode, generateNodeIdCode, \
     generateExpandedNodeIdCode, generateNodeValueCode
@@ -394,9 +394,7 @@ def generateValueCode(node, parentNode, nodeset, bootstrapping=True):
 
     if isArrayVariableNode(node, parentNode):
         # User the following strategy for all directly mappable values a la 'UA_Type MyInt = (UA_Type) 23;'
-        if isinstance(node.value[0], Guid):
-            logger.warn("Don't know how to print array of GUID in node " + str(parentNode.id))
-        elif isinstance(node.value[0], DiagnosticInfo):
+        if isinstance(node.value[0], DiagnosticInfo):
             logger.warn("Don't know how to print array of DiagnosticInfo in node " + str(parentNode.id))
         elif isinstance(node.value[0], StatusCode):
             logger.warn("Don't know how to print array of StatusCode in node " + str(parentNode.id))
@@ -423,9 +421,7 @@ def generateValueCode(node, parentNode, nodeset, bootstrapping=True):
     #scalar value
     else:
         # User the following strategy for all directly mappable values a la 'UA_Type MyInt = (UA_Type) 23;'
-        if isinstance(node.value[0], Guid):
-            logger.warn("Don't know how to print scalar GUID in node " + str(parentNode.id))
-        elif isinstance(node.value[0], DiagnosticInfo):
+        if isinstance(node.value[0], DiagnosticInfo):
             logger.warn("Don't know how to print scalar DiagnosticInfo in node " + str(parentNode.id))
         elif isinstance(node.value[0], StatusCode):
             logger.warn("Don't know how to print scalar StatusCode in node " + str(parentNode.id))

@@ -846,10 +846,15 @@ class Guid(Value):
     def parseXML(self, xmlvalue):
         self.checkXML(xmlvalue)
 
-        val = getXmlTextTrimmed(xmlvalue.firstChild)
+        # Support GUID in format:
+        # <Guid>
+        #   <String>01234567-89AB-CDEF-ABCD-0123456789AB</String>
+        # </Guid>
+        if len(xmlvalue.getElementsByTagName("String")) != 0:
+            val = getXmlTextTrimmed(xmlvalue.getElementsByTagName("String")[0].firstChild)
 
         if val is None:
-            self.value = [0, 0, 0, 0]  # Catch XML <Guid /> by setting the value to a default
+            self.value = ['00000000', '0000', '0000', '0000', '000000000000']  # Catch XML <Guid /> by setting the value to a default
         else:
             self.value = val
             self.value = self.value.replace("{", "")
@@ -862,9 +867,8 @@ class Guid(Value):
                 except Exception:
                     logger.error("Invalid formatting of Guid. Expected {01234567-89AB-CDEF-ABCD-0123456789AB}, got " + \
                                  unicode(xmlvalue.firstChild.data))
-                    tmp = [0, 0, 0, 0, 0]
+                    self.value = ['00000000', '0000', '0000', '0000', '000000000000']
             if len(tmp) != 5:
                 logger.error("Invalid formatting of Guid. Expected {01234567-89AB-CDEF-ABCD-0123456789AB}, got " + \
                              unicode(xmlvalue.firstChild.data))
-                tmp = [0, 0, 0, 0]
-            self.value = tmp
+                self.value = ['00000000', '0000', '0000', '0000', '000000000000']
