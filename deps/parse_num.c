@@ -20,7 +20,7 @@
  * THE SOFTWARE.
  */
 
-#include "atoi.h"
+#include "parse_num.h"
 
 size_t atoiUnsigned(const char *pos, size_t size, uint64_t *result) {
     size_t i = 0;
@@ -66,8 +66,7 @@ size_t atoiSigned(const char *pos, size_t size, int64_t *result) {
     size_t i = 0;
     bool neg = false;
     if(*pos == '-' || *pos == '+') {
-        if(*pos == '-')
-            neg = true;
+        neg = (*pos == '-');
         i++;
     }
 

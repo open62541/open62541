@@ -22,7 +22,7 @@
 // SOFTWARE.
 
 #include "cj5.h"
-#include "atoi.h"
+#include "parse_num.h"
 
 #include <string.h>
 #include <stdlib.h>
