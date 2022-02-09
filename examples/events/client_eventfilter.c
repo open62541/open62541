@@ -30,6 +30,8 @@
 static UA_Boolean running = true;
 const size_t nSelectClauses = 2;
 const size_t nWhereClauses = 1;
+UA_Variant literalContent;
+UA_UInt32 literal_value = 99;
 
 /**
  * Setting up SelectClauses
@@ -123,15 +125,22 @@ setupOfTypeFilter(UA_ContentFilterElement *element, UA_UInt16 nsIndex, UA_UInt32
 }
 
 static void
-setupLiteralOperand(UA_ContentFilterElement *element, size_t count, UA_Variant *literals){
-    for(size_t i = 0; i < count; ++i) {
-        element->filterOperands[i].content.decoded.type = &UA_TYPES[UA_TYPES_LITERALOPERAND];
-        element->filterOperands[i].encoding = UA_EXTENSIONOBJECT_DECODED;
-        UA_LiteralOperand *literalOperand = UA_LiteralOperand_new();
-        UA_LiteralOperand_init(literalOperand);
-        literalOperand->value = literals[i];
-        element->filterOperands[i].content.decoded.data = literalOperand;
-    }
+setupLiteralOperand(UA_ContentFilterElement *element, size_t operandIndex, UA_Variant literal){
+    element->filterOperands[operandIndex].content.decoded.type = &UA_TYPES[UA_TYPES_LITERALOPERAND];
+    element->filterOperands[operandIndex].encoding = UA_EXTENSIONOBJECT_DECODED;
+    UA_LiteralOperand *literalOperand = UA_LiteralOperand_new();
+    UA_LiteralOperand_init(literalOperand);
+    literalOperand->value = literal;
+    element->filterOperands[operandIndex].content.decoded.data = literalOperand;
+}
+
+static void
+setupSimpleAttributeOperand(UA_ContentFilterElement *element, size_t operandIndex, UA_SimpleAttributeOperand attributeOperand){
+    element->filterOperands[operandIndex].content.decoded.type = &UA_TYPES[UA_TYPES_SIMPLEATTRIBUTEOPERAND];
+    element->filterOperands[operandIndex].encoding = UA_EXTENSIONOBJECT_DECODED;
+    UA_SimpleAttributeOperand *simpleAttributeOperand = UA_SimpleAttributeOperand_new();
+    *simpleAttributeOperand = attributeOperand;
+    element->filterOperands[operandIndex].content.decoded.data = simpleAttributeOperand;
 }
 
 /**
@@ -152,6 +161,8 @@ setupLiteralOperand(UA_ContentFilterElement *element, size_t count, UA_Variant *
  *        (EventTypeId == NodeID("CancelScanEvent")         ||
  *        (EventTypeId == NodeID("CancelScanFinishedEvent") ||
  *        (EventTypeId == NodeID("ShutdownEvent"))
+ * filterSelection 3:
+ *      ((OfType 5003 ) (and) ((Equal 99 == 99) (and) (Equal Event-Field "servity" > 99))
  *
  */
 static UA_StatusCode
@@ -253,7 +264,7 @@ setupWhereClauses(UA_ContentFilter *contentFilter, UA_UInt16 whereClauseSize, UA
         contentFilter->elements[1].filterOperator = UA_FILTEROPERATOR_OFTYPE;
         contentFilter->elements[2].filterOperator = UA_FILTEROPERATOR_AND;
         contentFilter->elements[3].filterOperator = UA_FILTEROPERATOR_EQUALS;
-        contentFilter->elements[4].filterOperator = UA_FILTEROPERATOR_EQUALS;
+        contentFilter->elements[4].filterOperator = UA_FILTEROPERATOR_GREATERTHAN;
 
         contentFilter->elements[0].filterOperandsSize = 2;
         contentFilter->elements[1].filterOperandsSize = 1;
@@ -273,13 +284,22 @@ setupWhereClauses(UA_ContentFilter *contentFilter, UA_UInt16 whereClauseSize, UA
         setupTwoOperandsFilter(&contentFilter->elements[2], 3, 4);
         setupOfTypeFilter(&contentFilter->elements[1], 1, 5000);
 
-        UA_UInt32 literal_value;
-        UA_Variant literalContent[2];
-        memset(literalContent, 0, sizeof(UA_Variant) * 2);
-        UA_Variant_setScalar(&literalContent[0], &literal_value, &UA_TYPES[UA_TYPES_UINT32]);
-        UA_Variant_setScalar(&literalContent[1], &literal_value, &UA_TYPES[UA_TYPES_UINT32]);
-        setupLiteralOperand(&contentFilter->elements[3], 2, literalContent);
-        setupLiteralOperand(&contentFilter->elements[4], 2, literalContent);
+        UA_Variant_init(&literalContent);
+        UA_Variant_setScalar(&literalContent, &literal_value, &UA_TYPES[UA_TYPES_UINT32]);
+
+        setupLiteralOperand(&contentFilter->elements[3], 0, literalContent);
+        setupLiteralOperand(&contentFilter->elements[3], 1, literalContent);
+
+        UA_SimpleAttributeOperand sao;
+        UA_SimpleAttributeOperand_init(&sao);
+        sao.attributeId = UA_ATTRIBUTEID_VALUE;
+        sao.typeDefinitionId = UA_NODEID_NUMERIC(0, 5000);
+        sao.browsePathSize = 1;
+        UA_QualifiedName *qn = UA_QualifiedName_new();
+        *qn = UA_QUALIFIEDNAME_ALLOC(0, "Severity");
+        sao.browsePath = qn;
+        setupSimpleAttributeOperand(&contentFilter->elements[4], 0, sao);
+        setupLiteralOperand(&contentFilter->elements[4], 1, literalContent);
         break;
     }
     default:
@@ -325,7 +345,7 @@ int main(int argc, char *argv[]) {
     signal(SIGTERM, stopHandler);
 
     if(argc < 2) {
-        printf("Usage: tutorial_client_events <opc.tcp://server-url>\n");
+        printf("Usage: tutorial_client_event_filter <opc.tcp://server-url>\n");
         return EXIT_FAILURE;
     }
 

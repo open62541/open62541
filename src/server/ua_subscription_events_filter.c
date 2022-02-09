@@ -479,10 +479,10 @@ compareOperation(UA_Variant *firstOperand, UA_Variant *secondOperand, UA_FilterO
         }
     } else {
         UA_Byte variantContent[16];
+        memset(&variantContent, 0, sizeof(UA_Byte) * 16);
         if(compareHandlingRuleEnum == UA_TYPES_DIFFERENT_NUMERIC_SIGNED ||
            compareHandlingRuleEnum == UA_TYPES_DIFFERENT_NUMERIC_UNSIGNED ||
            compareHandlingRuleEnum == UA_TYPES_DIFFERENT_NUMERIC_FLOATING_POINT) {
-            memset(&variantContent, 0, sizeof(UA_Byte) * 16);
             implicitNumericVariantTransformation(firstCompareOperand, variantContent);
             implicitNumericVariantTransformation(secondCompareOperand, &variantContent[8]);
         } else if(compareHandlingRuleEnum == UA_TYPES_DIFFERENT_TEXT) {
