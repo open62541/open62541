@@ -396,11 +396,7 @@ ENCODE_JSON(Float) {
     } else if(*src == -INFINITY) {
         strcpy(buffer, "\"-Infinity\"");
     } else {
-#ifdef UA_ENABLE_CUSTOM_LIBC
-        fmt_fp(buffer, *src, 0, -1, 0, 'g');
-#else
         UA_snprintf(buffer, 200, "%.149g", (UA_Double)*src);
-#endif
     }
 
     size_t len = strlen(buffer);
@@ -426,11 +422,7 @@ ENCODE_JSON(Double) {
     } else if(*src == -INFINITY) {
         strcpy(buffer, "\"-Infinity\"");
     } else {
-#ifdef UA_ENABLE_CUSTOM_LIBC
-        fmt_fp(buffer, *src, 0, 17, 0, 'g');
-#else
         UA_snprintf(buffer, 2000, "%.1074g", *src);
-#endif
     }
 
     size_t len = strlen(buffer);
