@@ -8,6 +8,7 @@
         <Alias Alias="Int32">i=6</Alias>
         <Alias Alias="UInt32">i=7</Alias>
         <Alias Alias="Double">i=11</Alias>
+        <Alias Alias="Guid">i=14</Alias>
         <Alias Alias="Organizes">i=35</Alias>
         <Alias Alias="HasModellingRule">i=37</Alias>
         <Alias Alias="HasEncoding">i=38</Alias>
@@ -600,4 +601,36 @@
             </Field>
         </Definition>
     </UADataType>
+    <UAVariable DataType="Guid" ParentNodeId="ns=1;i=5100" NodeId="ns=1;i=7051" BrowseName="1:TestGuidScalar" AccessLevel="3">
+        <DisplayName>TestGuidScalar</DisplayName>
+        <References>
+            <Reference ReferenceType="HasTypeDefinition">i=63</Reference>
+            <Reference ReferenceType="Organizes" IsForward="false">ns=1;i=5100</Reference>
+        </References>
+        <Value>
+            <uax:Guid>
+                <uax:String>7822a391-de79-4a59-b08d-b70bc63fecec</uax:String>
+            </uax:Guid>
+        </Value>
+    </UAVariable>
+    <UAVariable DataType="Guid" ParentNodeId="ns=1;i=5100" ValueRank="1" NodeId="ns=1;i=7052" ArrayDimensions="0" BrowseName="1:TestGuidArray" AccessLevel="3">
+        <DisplayName>TestGuidArray</DisplayName>
+        <References>
+            <Reference ReferenceType="HasTypeDefinition">i=63</Reference>
+            <Reference ReferenceType="Organizes" IsForward="false">ns=1;i=5100</Reference>
+        </References>
+		<Value>
+            <uax:ListOfString>
+                <uax:Guid>
+					<uax:String>7822a391-1111-4a59-b08d-b70bc63fecec</uax:String>
+				</uax:Guid>
+					<uax:Guid>
+					<uax:String>7822a391-2222-4a59-b08d-b70bc63fecec</uax:String>
+				</uax:Guid>
+					<uax:Guid>
+					<uax:String>7822a391-3333-4a59-b08d-b70bc63fecec</uax:String>
+				</uax:Guid>
+            </uax:ListOfString>
+        </Value>
+    </UAVariable>
 </UANodeSet>

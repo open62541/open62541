@@ -174,6 +174,31 @@ START_TEST(checkInputArguments) {
 }
 END_TEST
 
+START_TEST(checkGuid) {
+    UA_Variant out;
+    UA_Variant_init(&out);
+    UA_StatusCode status = UA_Server_readValue(server, UA_NODEID_NUMERIC(testNamespaceIndex, 7051), &out);
+    ck_assert(status == UA_STATUSCODE_GOOD);
+    ck_assert(out.type == &UA_TYPES[UA_TYPES_GUID]);
+    UA_Guid *scalarData = (UA_Guid *)out.data;
+    UA_Guid scalarGuidVal = UA_GUID("7822a391-de79-4a59-b08d-b70bc63fecec");
+    ck_assert(UA_Guid_equal(scalarData, &scalarGuidVal));
+    UA_Variant_clear(&out);
+    status = UA_Server_readValue(server, UA_NODEID_NUMERIC(testNamespaceIndex, 7052), &out);
+    ck_assert(status == UA_STATUSCODE_GOOD);
+    ck_assert(out.type == &UA_TYPES[UA_TYPES_GUID]);
+    ck_assert(out.arrayLength == 3);
+    UA_Guid *ArrayData = (UA_Guid *)out.data;
+    UA_Guid ArrayGuidVal[3] = {UA_GUID("7822a391-1111-4a59-b08d-b70bc63fecec"), 
+                               UA_GUID("7822a391-2222-4a59-b08d-b70bc63fecec"), 
+                               UA_GUID("7822a391-3333-4a59-b08d-b70bc63fecec")};
+    ck_assert(UA_Guid_equal(&ArrayData[0], &ArrayGuidVal[0]));
+    ck_assert(UA_Guid_equal(&ArrayData[1], &ArrayGuidVal[1]));
+    ck_assert(UA_Guid_equal(&ArrayData[2], &ArrayGuidVal[2]));
+    UA_Variant_clear(&out);
+}
+END_TEST
+
 static Suite *testSuite_Client(void) {
     Suite *s = suite_create("Server Nodeset Compiler");
     TCase *tc_server = tcase_create("Server Testnodeset");
@@ -185,6 +210,7 @@ static Suite *testSuite_Client(void) {
     tcase_add_test(tc_server, readValueRank);
     tcase_add_test(tc_server, checkFrameValues);
     tcase_add_test(tc_server, checkInputArguments);
+    tcase_add_test(tc_server, checkGuid);
     suite_add_tcase(s, tc_server);
     return s;
 }

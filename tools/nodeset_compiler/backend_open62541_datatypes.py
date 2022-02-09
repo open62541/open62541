@@ -85,6 +85,12 @@ def generateQualifiedNameCode(value, alloc=False,):
     return u"UA_QUALIFIEDNAME{}(ns[{}], {})".format("_ALLOC" if alloc else "",
                                                      str(value.ns), splitStringLiterals(vn))
 
+def generateGuidCode(value):
+    if not value or len(value) != 5:
+        return "UA_GUID_NULL"
+    else:
+        return "UA_GUID(\"{}\")".format('-'.join(value))
+
 def generateNodeIdCode(value):
     if not value:
         return "UA_NODEID_NUMERIC(0, 0)"
@@ -150,7 +156,7 @@ def generateNodeValueCode(prepend , node, instanceName, valueName, global_var_co
     elif isinstance(node, DiagnosticInfo):
         raise Exception("generateNodeValueCode for type " + node.__class__.name + " not implemented")
     elif isinstance(node, Guid):
-        raise Exception("generateNodeValueCode for type " + node.__class__.name + " not implemented")
+        return prepend + " = " + generateGuidCode(node.value) + ";"
     elif isinstance(node, ExtensionObject):
         if asIndirect == False:
             return prepend + " = *" + str(instanceName) + ";"
