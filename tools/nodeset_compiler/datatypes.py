@@ -333,7 +333,7 @@ class Value(object):
                 
 
             childValue = ebodypart.firstChild
-            if not childValue == ebodypart.ELEMENT_NODE:
+            if not childValue.nodeType == ebodypart.ELEMENT_NODE:
                 childValue = getNextElementNode(childValue)
             for e in members:
                     if isinstance(e, StructMember):
@@ -341,7 +341,7 @@ class Value(object):
                         if isinstance(e.member_type, BuiltinType):
                             if e.is_array:
                                 values = []
-                                for el in ebodypart.childNodes:
+                                for el in childValue.childNodes:
                                     if not el.nodeType == el.ELEMENT_NODE:
                                         continue
                                     t = self.getTypeByString(e.member_type.name, None)
@@ -361,12 +361,13 @@ class Value(object):
                             structure = Structure()
                             structure.alias = e.name
                             structure.value = []
-                            structure.__parseXMLSingleValue(childValue, parentDataTypeNode, parent, parser, alias=None, encodingPart=e.member_type)
+                            if not len(childValue.childNodes) == 0:
+                                structure.__parseXMLSingleValue(childValue, parentDataTypeNode, parent, parser, alias=None, encodingPart=e.member_type)
                             self.value.append(structure)
                             return structure
                         elif isinstance(e.member_type, EnumerationType):
                             t = self.getTypeByString("Int32", None)
-                            t.parseXML(ebodypart)
+                            t.parseXML(childValue)
                             t.alias = e.name
                             self.value.append(t)
                         else:

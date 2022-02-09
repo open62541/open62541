@@ -199,6 +199,25 @@ START_TEST(checkGuid) {
 }
 END_TEST
 
+START_TEST(checkDataSetMetaData) {
+    UA_Variant out;
+    UA_Variant_init(&out);
+    UA_StatusCode status = UA_Server_readValue(server, UA_NODEID_NUMERIC(testNamespaceIndex, 6021), &out);
+    ck_assert(status == UA_STATUSCODE_GOOD);
+    ck_assert(out.type == &UA_TYPES[UA_TYPES_DATASETMETADATATYPE]);
+    UA_DataSetMetaDataType *p = (UA_DataSetMetaDataType *)out.data;
+    UA_String dataSetName = UA_STRING("DataSetName");
+    ck_assert(UA_String_equal(&p->name, &dataSetName) == UA_TRUE);
+    ck_assert(p->fieldsSize == 1);
+    UA_String fieldName = UA_STRING("FieldName");
+    ck_assert(UA_String_equal(&p->fields[0].name, &fieldName) == UA_TRUE);
+    UA_Guid guid = UA_GUID("10000000-2000-3000-4000-500000000000");
+    ck_assert(UA_Guid_equal(&p->dataSetClassId, &guid) == UA_TRUE);
+
+    UA_Variant_clear(&out);
+}
+END_TEST
+
 static Suite *testSuite_Client(void) {
     Suite *s = suite_create("Server Nodeset Compiler");
     TCase *tc_server = tcase_create("Server Testnodeset");
@@ -211,6 +230,7 @@ static Suite *testSuite_Client(void) {
     tcase_add_test(tc_server, checkFrameValues);
     tcase_add_test(tc_server, checkInputArguments);
     tcase_add_test(tc_server, checkGuid);
+    tcase_add_test(tc_server, checkDataSetMetaData);
     suite_add_tcase(s, tc_server);
     return s;
 }
