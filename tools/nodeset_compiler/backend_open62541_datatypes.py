@@ -180,6 +180,10 @@ def generateNodeValueCode(prepend , node, instanceName, valueName, global_var_co
             typeOfArray = encRule.member_type.name
             arrayName = encRule.name
             code.append("UA_STACKARRAY(UA_" + typeOfArray + ", " + arrayName+", {0});".format(len(node)))
+            # memset is used here instead of UA_Init. Finding the dataType nodeID (to get the type array)
+            # would require searching whole nodeset to match the type name
+            code.append("memset({arrayName}, 0, sizeof(UA_{typeOfArray}) * {arrayLength});".format(arrayName=arrayName, typeOfArray=typeOfArray, 
+                                                                                                   arrayLength=len(node)))
             for idx,subv in enumerate(node):
                 code.append(generateNodeValueCode(arrayName + "[" + str(idx) + "]", subv, instanceName, valueName, global_var_code, asIndirect, encRule=encRule, idxList=idx))
             code.append(prepend + "Size = {0};".format(len(node)))
@@ -207,6 +211,10 @@ def generateNodeValueCode(prepend , node, instanceName, valueName, global_var_co
             typeOfArray = encRule.member_type.name
             arrayName = encRule.name
             code.append("UA_STACKARRAY(UA_" + typeOfArray + ", " + arrayName+", {0});".format(len(node.value)))
+            # memset is used here instead of UA_Init. Finding the dataType nodeID (to get the type array)
+            # would require searching whole nodeset to match the type name
+            code.append("memset({arrayName}, 0, sizeof(UA_{typeOfArray}) * {arrayLength});".format(arrayName=arrayName, typeOfArray=typeOfArray, 
+                                                                                                   arrayLength=len(node.value)))
             # Values is a list of lists
             # The current index must be passed so that the code path for evaluating lists has the current index value and can generate the code correctly.
             for idx,subv in enumerate(node.value):
