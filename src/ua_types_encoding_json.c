@@ -1271,12 +1271,12 @@ ENCODE_JSON(Variant) {
 
 /* DataValue */
 ENCODE_JSON(DataValue) {
-    UA_Boolean hasValue = src->hasValue && src->value.type != NULL;
-    UA_Boolean hasStatus = src->hasStatus && src->status;
-    UA_Boolean hasSourceTimestamp = src->hasSourceTimestamp && src->sourceTimestamp;
-    UA_Boolean hasSourcePicoseconds = src->hasSourcePicoseconds && src->sourcePicoseconds;
-    UA_Boolean hasServerTimestamp = src->hasServerTimestamp && src->serverTimestamp;
-    UA_Boolean hasServerPicoseconds = src->hasServerPicoseconds && src->serverPicoseconds;
+    UA_Boolean hasValue = src->hasValue;
+    UA_Boolean hasStatus = src->hasStatus;
+    UA_Boolean hasSourceTimestamp = src->hasSourceTimestamp;
+    UA_Boolean hasSourcePicoseconds = src->hasSourcePicoseconds;
+    UA_Boolean hasServerTimestamp = src->hasServerTimestamp;
+    UA_Boolean hasServerPicoseconds = src->hasServerPicoseconds;
 
     if(!hasValue && !hasStatus && !hasSourceTimestamp && !hasSourcePicoseconds &&
        !hasServerTimestamp && !hasServerPicoseconds) {
