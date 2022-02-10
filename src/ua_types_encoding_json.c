@@ -2509,7 +2509,10 @@ DECODE_JSON(NodeId) {
     } else {
         dst->namespaceIndex = 0;
     }
+
     ret = decodeFields(ctx, parseCtx, entries, fieldCount, type);
+    if(ret != UA_STATUSCODE_GOOD)
+        UA_NodeId_clear(dst);
     return ret;
 }
 
