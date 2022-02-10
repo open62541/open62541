@@ -25,9 +25,9 @@ START_TEST(UA_Boolean_true_json_encode) {
    
     UA_Boolean *src = UA_Boolean_new();
     UA_Boolean_init(src);
-    *src = UA_TRUE;
+    *src = true;
     const UA_DataType *type = &UA_TYPES[UA_TYPES_BOOLEAN];
-    size_t size = UA_calcSizeJsonInternal((void *) src, type, NULL, 0, NULL, 0, UA_TRUE);
+    size_t size = UA_calcSizeJsonInternal((void *) src, type, NULL, 0, NULL, 0, true);
     UA_ByteString buf;
 
     UA_ByteString_allocBuffer(&buf, size+1);
@@ -35,7 +35,7 @@ START_TEST(UA_Boolean_true_json_encode) {
     UA_Byte *bufPos = &buf.data[0];
     const UA_Byte *bufEnd = &buf.data[size+1];
 
-    status s = UA_encodeJsonInternal((void *) src, type, &bufPos, &bufEnd, NULL, 0, NULL, 0, UA_TRUE);
+    status s = UA_encodeJsonInternal((void *) src, type, &bufPos, &bufEnd, NULL, 0, NULL, 0, true);
 
     *bufPos = 0;
     
@@ -53,12 +53,12 @@ START_TEST(UA_Boolean_false_json_encode) {
    
     UA_Boolean *src = UA_Boolean_new();
     UA_Boolean_init(src);
-    *src = UA_FALSE;
+    *src = false;
     const UA_DataType *type = &UA_TYPES[UA_TYPES_BOOLEAN];
 
     UA_ByteString buf;
 
-    size_t size = UA_calcSizeJsonInternal((void *) src, type, NULL, 0, NULL, 0, UA_TRUE);
+    size_t size = UA_calcSizeJsonInternal((void *) src, type, NULL, 0, NULL, 0, true);
     ck_assert_int_eq(size, 5);
     
     UA_ByteString_allocBuffer(&buf, size+1);
@@ -66,7 +66,7 @@ START_TEST(UA_Boolean_false_json_encode) {
     UA_Byte *bufPos = &buf.data[0];
     const UA_Byte *bufEnd = &buf.data[size+1];
         
-    status s = UA_encodeJsonInternal((void *) src, type, &bufPos, &bufEnd, NULL, 0, NULL, 0, UA_TRUE);
+    status s = UA_encodeJsonInternal((void *) src, type, &bufPos, &bufEnd, NULL, 0, NULL, 0, true);
 
     *bufPos = 0;
     
@@ -82,7 +82,7 @@ START_TEST(UA_Boolean_true_bufferTooSmall_json_encode) {
    
     UA_Boolean *src = UA_Boolean_new();
     UA_Boolean_init(src);
-    *src = UA_FALSE;
+    *src = false;
     const UA_DataType *type = &UA_TYPES[UA_TYPES_BOOLEAN];
 
     UA_ByteString buf;
@@ -91,7 +91,7 @@ START_TEST(UA_Boolean_true_bufferTooSmall_json_encode) {
     UA_Byte *bufPos = &buf.data[0];
     const UA_Byte *bufEnd = &buf.data[2];
 
-    status s = UA_encodeJsonInternal((void *) src, type, &bufPos, &bufEnd, NULL, 0, NULL, 0, UA_TRUE);
+    status s = UA_encodeJsonInternal((void *) src, type, &bufPos, &bufEnd, NULL, 0, NULL, 0, true);
 
     *bufPos = 0;
     
@@ -111,13 +111,13 @@ START_TEST(UA_String_json_encode) {
     const UA_DataType *type = &UA_TYPES[UA_TYPES_STRING];
     
     UA_ByteString buf;
-    size_t size = UA_calcSizeJsonInternal((void *) &src, type, NULL, 0, NULL, 0, UA_TRUE);
+    size_t size = UA_calcSizeJsonInternal((void *) &src, type, NULL, 0, NULL, 0, true);
     UA_ByteString_allocBuffer(&buf, size+1);
 
     UA_Byte *bufPos = &buf.data[0];
     const UA_Byte *bufEnd = &buf.data[size+1];
     // when
-    status s = UA_encodeJsonInternal(&src, type, &bufPos, &bufEnd, NULL, 0, NULL, 0, UA_TRUE);
+    status s = UA_encodeJsonInternal(&src, type, &bufPos, &bufEnd, NULL, 0, NULL, 0, true);
     *bufPos = 0;
     // then
     ck_assert_int_eq(s, UA_STATUSCODE_GOOD);
@@ -133,13 +133,13 @@ START_TEST(UA_String_Empty_json_encode) {
     UA_ByteString buf;
     const UA_DataType *type = &UA_TYPES[UA_TYPES_STRING];
     
-    size_t size = UA_calcSizeJsonInternal((void *) &src, type, NULL, 0, NULL, 0, UA_TRUE);
+    size_t size = UA_calcSizeJsonInternal((void *) &src, type, NULL, 0, NULL, 0, true);
     UA_ByteString_allocBuffer(&buf, size+1);
 
     UA_Byte *bufPos = &buf.data[0];
     const UA_Byte *bufEnd = &buf.data[size+1];
     // when
-    status s = UA_encodeJsonInternal(&src, type, &bufPos, &bufEnd, NULL, 0, NULL, 0, UA_TRUE);
+    status s = UA_encodeJsonInternal(&src, type, &bufPos, &bufEnd, NULL, 0, NULL, 0, true);
     *bufPos = 0;
     // then
     ck_assert_int_eq(s, UA_STATUSCODE_GOOD);
@@ -155,13 +155,13 @@ START_TEST(UA_String_Null_json_encode) {
     UA_ByteString buf;
 
     const UA_DataType *type = &UA_TYPES[UA_TYPES_STRING];
-    size_t size = UA_calcSizeJsonInternal((void *) &src, type, NULL, 0, NULL, 0, UA_TRUE);
+    size_t size = UA_calcSizeJsonInternal((void *) &src, type, NULL, 0, NULL, 0, true);
     UA_ByteString_allocBuffer(&buf, size+1);
  
     UA_Byte *bufPos = &buf.data[0];
     const UA_Byte *bufEnd = &buf.data[size+1];
     // when
-    status s = UA_encodeJsonInternal(&src, type, &bufPos, &bufEnd, NULL, 0, NULL, 0, UA_TRUE);
+    status s = UA_encodeJsonInternal(&src, type, &bufPos, &bufEnd, NULL, 0, NULL, 0, true);
     *bufPos = 0;
     // then
     ck_assert_int_eq(s, UA_STATUSCODE_GOOD);
@@ -176,13 +176,13 @@ START_TEST(UA_String_escapesimple_json_encode) {
     UA_String src = UA_STRING("\b\th\"e\fl\nl\\o\r");
     UA_ByteString buf;
     const UA_DataType *type = &UA_TYPES[UA_TYPES_STRING];
-    size_t size = UA_calcSizeJsonInternal((void *) &src, type, NULL, 0, NULL, 0, UA_TRUE);
+    size_t size = UA_calcSizeJsonInternal((void *) &src, type, NULL, 0, NULL, 0, true);
     UA_ByteString_allocBuffer(&buf, size+1);
 
     UA_Byte *bufPos = &buf.data[0];
     const UA_Byte *bufEnd = &buf.data[size+1];
     // when
-    status s = UA_encodeJsonInternal(&src, type, &bufPos, &bufEnd, NULL, 0, NULL, 0, UA_TRUE);
+    status s = UA_encodeJsonInternal(&src, type, &bufPos, &bufEnd, NULL, 0, NULL, 0, true);
     *bufPos = 0;
     // then
     ck_assert_int_eq(s, UA_STATUSCODE_GOOD);
@@ -198,13 +198,13 @@ START_TEST(UA_String_escapeutf_json_encode) {
     UA_ByteString buf;
 
     const UA_DataType *type = &UA_TYPES[UA_TYPES_STRING];
-    size_t size = UA_calcSizeJsonInternal((void *) &src, type, NULL, 0, NULL, 0, UA_TRUE);
+    size_t size = UA_calcSizeJsonInternal((void *) &src, type, NULL, 0, NULL, 0, true);
     UA_ByteString_allocBuffer(&buf, size+1);
 
     UA_Byte *bufPos = &buf.data[0];
     const UA_Byte *bufEnd = &buf.data[size+1];
     // when
-    status s = UA_encodeJsonInternal(&src, type, &bufPos, &bufEnd, NULL, 0, NULL, 0, UA_TRUE);
+    status s = UA_encodeJsonInternal(&src, type, &bufPos, &bufEnd, NULL, 0, NULL, 0, true);
     *bufPos = 0;
     // then
     ck_assert_int_eq(s, UA_STATUSCODE_GOOD);
@@ -220,13 +220,13 @@ START_TEST(UA_String_special_json_encode) {
     UA_ByteString buf;
 
     const UA_DataType *type = &UA_TYPES[UA_TYPES_STRING];
-    size_t size = UA_calcSizeJsonInternal((void *) &src, type, NULL, 0, NULL, 0, UA_TRUE);
+    size_t size = UA_calcSizeJsonInternal((void *) &src, type, NULL, 0, NULL, 0, true);
     UA_ByteString_allocBuffer(&buf, size+1);
 
     UA_Byte *bufPos = &buf.data[0];
     const UA_Byte *bufEnd = &buf.data[size+1];
     // when
-    status s = UA_encodeJsonInternal(&src, type, &bufPos, &bufEnd, NULL, 0, NULL, 0, UA_TRUE);
+    status s = UA_encodeJsonInternal(&src, type, &bufPos, &bufEnd, NULL, 0, NULL, 0, true);
     *bufPos = 0;
     // then
     ck_assert_int_eq(s, UA_STATUSCODE_GOOD);
@@ -244,13 +244,13 @@ START_TEST(UA_Byte_Max_Number_json_encode) {
     const UA_DataType *type = &UA_TYPES[UA_TYPES_BYTE];
 
     UA_ByteString buf;
-    size_t size = UA_calcSizeJsonInternal((void *) src, type, NULL, 0, NULL, 0, UA_TRUE);
+    size_t size = UA_calcSizeJsonInternal((void *) src, type, NULL, 0, NULL, 0, true);
     UA_ByteString_allocBuffer(&buf, size+1);
 
     UA_Byte *bufPos = &buf.data[0];
     const UA_Byte *bufEnd = &buf.data[size+1];
 
-    status s = UA_encodeJsonInternal((void *) src, type, &bufPos, &bufEnd, NULL, 0, NULL, 0, UA_TRUE);
+    status s = UA_encodeJsonInternal((void *) src, type, &bufPos, &bufEnd, NULL, 0, NULL, 0, true);
 
     *bufPos = 0;
     // then
@@ -269,13 +269,13 @@ START_TEST(UA_Byte_Min_Number_json_encode) {
     const UA_DataType *type = &UA_TYPES[UA_TYPES_BYTE];
 
     UA_ByteString buf;
-    size_t size = UA_calcSizeJsonInternal((void *) src, type, NULL, 0, NULL, 0, UA_TRUE);
+    size_t size = UA_calcSizeJsonInternal((void *) src, type, NULL, 0, NULL, 0, true);
     UA_ByteString_allocBuffer(&buf, size+1);
 
     UA_Byte *bufPos = &buf.data[0];
     const UA_Byte *bufEnd = &buf.data[size+1];
 
-    status s = UA_encodeJsonInternal((void *) src, type, &bufPos, &bufEnd, NULL, 0, NULL, 0, UA_TRUE);
+    status s = UA_encodeJsonInternal((void *) src, type, &bufPos, &bufEnd, NULL, 0, NULL, 0, true);
 
     *bufPos = 0;
     // then
@@ -299,7 +299,7 @@ START_TEST(UA_Byte_smallbuf_Number_json_encode) {
     UA_Byte *bufPos = &buf.data[0];
     const UA_Byte *bufEnd = &buf.data[2];
 
-    status s = UA_encodeJsonInternal((void *) src, type, &bufPos, &bufEnd, NULL, 0, NULL, 0, UA_TRUE);
+    status s = UA_encodeJsonInternal((void *) src, type, &bufPos, &bufEnd, NULL, 0, NULL, 0, true);
 
     *bufPos = 0;
     // then
@@ -315,7 +315,7 @@ START_TEST(UA_SByte_Max_Number_json_encode) {
     UA_SByte *src = UA_SByte_new();
     *src = 127;
     const UA_DataType *type = &UA_TYPES[UA_TYPES_SBYTE];
-    size_t size = UA_calcSizeJsonInternal((void *) src, type, NULL, 0, NULL, 0, UA_TRUE);
+    size_t size = UA_calcSizeJsonInternal((void *) src, type, NULL, 0, NULL, 0, true);
     UA_ByteString buf;
 
     UA_ByteString_allocBuffer(&buf, size+1);
@@ -323,7 +323,7 @@ START_TEST(UA_SByte_Max_Number_json_encode) {
     UA_Byte *bufPos = &buf.data[0];
     const UA_Byte *bufEnd = &buf.data[size+1];
 
-    status s = UA_encodeJsonInternal((void *) src, type, &bufPos, &bufEnd, NULL, 0, NULL, 0, UA_TRUE);
+    status s = UA_encodeJsonInternal((void *) src, type, &bufPos, &bufEnd, NULL, 0, NULL, 0, true);
 
     *bufPos = 0;
     // then
@@ -340,7 +340,7 @@ START_TEST(UA_SByte_Min_Number_json_encode) {
     UA_SByte *src = UA_SByte_new();
     *src = -128;
     const UA_DataType *type = &UA_TYPES[UA_TYPES_SBYTE];
-    size_t size = UA_calcSizeJsonInternal((void *) src, type, NULL, 0, NULL, 0, UA_TRUE);
+    size_t size = UA_calcSizeJsonInternal((void *) src, type, NULL, 0, NULL, 0, true);
     UA_ByteString buf;
 
     UA_ByteString_allocBuffer(&buf, size+1);
@@ -348,7 +348,7 @@ START_TEST(UA_SByte_Min_Number_json_encode) {
     UA_Byte *bufPos = &buf.data[0];
     const UA_Byte *bufEnd = &buf.data[size+1];
 
-    status s = UA_encodeJsonInternal((void *) src, type, &bufPos, &bufEnd, NULL, 0, NULL, 0, UA_TRUE);
+    status s = UA_encodeJsonInternal((void *) src, type, &bufPos, &bufEnd, NULL, 0, NULL, 0, true);
 
     *bufPos = 0;
     // then
@@ -365,7 +365,7 @@ START_TEST(UA_SByte_Zero_Number_json_encode) {
     UA_SByte *src = UA_SByte_new();
     *src = 0;
     const UA_DataType *type = &UA_TYPES[UA_TYPES_SBYTE];
-    size_t size = UA_calcSizeJsonInternal((void *) src, type, NULL, 0, NULL, 0, UA_TRUE);
+    size_t size = UA_calcSizeJsonInternal((void *) src, type, NULL, 0, NULL, 0, true);
     UA_ByteString buf;
 
     UA_ByteString_allocBuffer(&buf, size+1);
@@ -373,7 +373,7 @@ START_TEST(UA_SByte_Zero_Number_json_encode) {
     UA_Byte *bufPos = &buf.data[0];
     const UA_Byte *bufEnd = &buf.data[size+1];
 
-    status s = UA_encodeJsonInternal((void *) src, type, &bufPos, &bufEnd, NULL, 0, NULL, 0, UA_TRUE);
+    status s = UA_encodeJsonInternal((void *) src, type, &bufPos, &bufEnd, NULL, 0, NULL, 0, true);
 
     *bufPos = 0;
     // then
@@ -397,7 +397,7 @@ START_TEST(UA_SByte_smallbuf_Number_json_encode) {
     UA_Byte *bufPos = &buf.data[0];
     const UA_Byte *bufEnd = &buf.data[2];
 
-    status s = UA_encodeJsonInternal((void *) src, type, &bufPos, &bufEnd, NULL, 0, NULL, 0, UA_TRUE);
+    status s = UA_encodeJsonInternal((void *) src, type, &bufPos, &bufEnd, NULL, 0, NULL, 0, true);
 
     *bufPos = 0;
     // then
@@ -414,7 +414,7 @@ START_TEST(UA_UInt16_Max_Number_json_encode) {
     UA_UInt16 *src = UA_UInt16_new();
     *src = 65535;
     const UA_DataType *type = &UA_TYPES[UA_TYPES_UINT16];
-    size_t size = UA_calcSizeJsonInternal((void *) src, type, NULL, 0, NULL, 0, UA_TRUE);
+    size_t size = UA_calcSizeJsonInternal((void *) src, type, NULL, 0, NULL, 0, true);
     UA_ByteString buf;
 
     UA_ByteString_allocBuffer(&buf, size+1);
@@ -422,7 +422,7 @@ START_TEST(UA_UInt16_Max_Number_json_encode) {
     UA_Byte *bufPos = &buf.data[0];
     const UA_Byte *bufEnd = &buf.data[size+1];
 
-    status s = UA_encodeJsonInternal((void *) src, type, &bufPos, &bufEnd, NULL, 0, NULL, 0, UA_TRUE);
+    status s = UA_encodeJsonInternal((void *) src, type, &bufPos, &bufEnd, NULL, 0, NULL, 0, true);
 
     *bufPos = 0;
     // then
@@ -439,7 +439,7 @@ START_TEST(UA_UInt16_Min_Number_json_encode) {
     UA_UInt16 *src = UA_UInt16_new();
     *src = 0;
     const UA_DataType *type = &UA_TYPES[UA_TYPES_UINT16];
-    size_t size = UA_calcSizeJsonInternal((void *) src, type, NULL, 0, NULL, 0, UA_TRUE);
+    size_t size = UA_calcSizeJsonInternal((void *) src, type, NULL, 0, NULL, 0, true);
     UA_ByteString buf;
 
     UA_ByteString_allocBuffer(&buf, size+1);
@@ -447,7 +447,7 @@ START_TEST(UA_UInt16_Min_Number_json_encode) {
     UA_Byte *bufPos = &buf.data[0];
     const UA_Byte *bufEnd = &buf.data[size+1];
 
-    status s = UA_encodeJsonInternal((void *) src, type, &bufPos, &bufEnd, NULL, 0, NULL, 0, UA_TRUE);
+    status s = UA_encodeJsonInternal((void *) src, type, &bufPos, &bufEnd, NULL, 0, NULL, 0, true);
 
     *bufPos = 0;
     // then
@@ -471,7 +471,7 @@ START_TEST(UA_UInt16_smallbuf_Number_json_encode) {
     UA_Byte *bufPos = &buf.data[0];
     const UA_Byte *bufEnd = &buf.data[2];
 
-    status s = UA_encodeJsonInternal((void *) src, type, &bufPos, &bufEnd, NULL, 0, NULL, 0, UA_TRUE);
+    status s = UA_encodeJsonInternal((void *) src, type, &bufPos, &bufEnd, NULL, 0, NULL, 0, true);
 
     *bufPos = 0;
     // then
@@ -487,7 +487,7 @@ START_TEST(UA_Int16_Max_Number_json_encode) {
     UA_Int16 *src = UA_Int16_new();
     *src = 32767;
     const UA_DataType *type = &UA_TYPES[UA_TYPES_INT16];
-    size_t size = UA_calcSizeJsonInternal((void *) src, type, NULL, 0, NULL, 0, UA_TRUE);
+    size_t size = UA_calcSizeJsonInternal((void *) src, type, NULL, 0, NULL, 0, true);
     UA_ByteString buf;
 
     UA_ByteString_allocBuffer(&buf, size+1);
@@ -495,7 +495,7 @@ START_TEST(UA_Int16_Max_Number_json_encode) {
     UA_Byte *bufPos = &buf.data[0];
     const UA_Byte *bufEnd = &buf.data[size+1];
 
-    status s = UA_encodeJsonInternal((void *) src, type, &bufPos, &bufEnd, NULL, 0, NULL, 0, UA_TRUE);
+    status s = UA_encodeJsonInternal((void *) src, type, &bufPos, &bufEnd, NULL, 0, NULL, 0, true);
 
     *bufPos = 0;
     // then
@@ -512,7 +512,7 @@ START_TEST(UA_Int16_Min_Number_json_encode) {
     UA_Int16 *src = UA_Int16_new();
     *src = -32768;
     const UA_DataType *type = &UA_TYPES[UA_TYPES_INT16];
-    size_t size = UA_calcSizeJsonInternal((void *) src, type, NULL, 0, NULL, 0, UA_TRUE);
+    size_t size = UA_calcSizeJsonInternal((void *) src, type, NULL, 0, NULL, 0, true);
     UA_ByteString buf;
 
     UA_ByteString_allocBuffer(&buf, size+1);
@@ -520,7 +520,7 @@ START_TEST(UA_Int16_Min_Number_json_encode) {
     UA_Byte *bufPos = &buf.data[0];
     const UA_Byte *bufEnd = &buf.data[size+1];
 
-    status s = UA_encodeJsonInternal((void *) src, type, &bufPos, &bufEnd, NULL, 0, NULL, 0, UA_TRUE);
+    status s = UA_encodeJsonInternal((void *) src, type, &bufPos, &bufEnd, NULL, 0, NULL, 0, true);
 
     *bufPos = 0;
     // then
@@ -537,7 +537,7 @@ START_TEST(UA_Int16_Zero_Number_json_encode) {
     UA_Int16 *src = UA_Int16_new();
     *src = 0;
     const UA_DataType *type = &UA_TYPES[UA_TYPES_INT16];
-    size_t size = UA_calcSizeJsonInternal((void *) src, type, NULL, 0, NULL, 0, UA_TRUE);
+    size_t size = UA_calcSizeJsonInternal((void *) src, type, NULL, 0, NULL, 0, true);
     UA_ByteString buf;
 
     UA_ByteString_allocBuffer(&buf, size+1);
@@ -545,7 +545,7 @@ START_TEST(UA_Int16_Zero_Number_json_encode) {
     UA_Byte *bufPos = &buf.data[0];
     const UA_Byte *bufEnd = &buf.data[size+1];
 
-    status s = UA_encodeJsonInternal((void *) src, type, &bufPos, &bufEnd, NULL, 0, NULL, 0, UA_TRUE);
+    status s = UA_encodeJsonInternal((void *) src, type, &bufPos, &bufEnd, NULL, 0, NULL, 0, true);
 
     *bufPos = 0;
     // then
@@ -569,7 +569,7 @@ START_TEST(UA_Int16_smallbuf_Number_json_encode) {
     UA_Byte *bufPos = &buf.data[0];
     const UA_Byte *bufEnd = &buf.data[2];
 
-    status s = UA_encodeJsonInternal((void *) src, type, &bufPos, &bufEnd, NULL, 0, NULL, 0, UA_TRUE);
+    status s = UA_encodeJsonInternal((void *) src, type, &bufPos, &bufEnd, NULL, 0, NULL, 0, true);
 
     *bufPos = 0;
     // then
@@ -587,7 +587,7 @@ START_TEST(UA_UInt32_Max_Number_json_encode) {
     UA_UInt32 *src = UA_UInt32_new();
     *src = 4294967295;
     const UA_DataType *type = &UA_TYPES[UA_TYPES_UINT32];
-    size_t size = UA_calcSizeJsonInternal((void *) src, type, NULL, 0, NULL, 0, UA_TRUE);
+    size_t size = UA_calcSizeJsonInternal((void *) src, type, NULL, 0, NULL, 0, true);
     UA_ByteString buf;
 
     UA_ByteString_allocBuffer(&buf, size+1);
@@ -595,7 +595,7 @@ START_TEST(UA_UInt32_Max_Number_json_encode) {
     UA_Byte *bufPos = &buf.data[0];
     const UA_Byte *bufEnd = &buf.data[size+1];
 
-    status s = UA_encodeJsonInternal((void *) src, type, &bufPos, &bufEnd, NULL, 0, NULL, 0, UA_TRUE);
+    status s = UA_encodeJsonInternal((void *) src, type, &bufPos, &bufEnd, NULL, 0, NULL, 0, true);
 
     *bufPos = 0;
     // then
@@ -612,7 +612,7 @@ START_TEST(UA_UInt32_Min_Number_json_encode) {
     UA_UInt32 *src = UA_UInt32_new();
     *src = 0;
     const UA_DataType *type = &UA_TYPES[UA_TYPES_UINT32];
-    size_t size = UA_calcSizeJsonInternal((void *) src, type, NULL, 0, NULL, 0, UA_TRUE);
+    size_t size = UA_calcSizeJsonInternal((void *) src, type, NULL, 0, NULL, 0, true);
     UA_ByteString buf;
 
     UA_ByteString_allocBuffer(&buf, size+1);
@@ -620,7 +620,7 @@ START_TEST(UA_UInt32_Min_Number_json_encode) {
     UA_Byte *bufPos = &buf.data[0];
     const UA_Byte *bufEnd = &buf.data[size+1];
 
-    status s = UA_encodeJsonInternal((void *) src, type, &bufPos, &bufEnd, NULL, 0, NULL, 0, UA_TRUE);
+    status s = UA_encodeJsonInternal((void *) src, type, &bufPos, &bufEnd, NULL, 0, NULL, 0, true);
 
     *bufPos = 0;
     // then
@@ -644,7 +644,7 @@ START_TEST(UA_UInt32_smallbuf_Number_json_encode) {
     UA_Byte *bufPos = &buf.data[0];
     const UA_Byte *bufEnd = &buf.data[2];
 
-    status s = UA_encodeJsonInternal((void *) src, type, &bufPos, &bufEnd, NULL, 0, NULL, 0, UA_TRUE);
+    status s = UA_encodeJsonInternal((void *) src, type, &bufPos, &bufEnd, NULL, 0, NULL, 0, true);
 
     *bufPos = 0;
     // then
@@ -662,7 +662,7 @@ START_TEST(UA_Int32_Max_Number_json_encode) {
     UA_Int32 *src = UA_Int32_new();
     *src = 2147483647;
     const UA_DataType *type = &UA_TYPES[UA_TYPES_INT32];
-    size_t size = UA_calcSizeJsonInternal((void *) src, type, NULL, 0, NULL, 0, UA_TRUE);
+    size_t size = UA_calcSizeJsonInternal((void *) src, type, NULL, 0, NULL, 0, true);
     UA_ByteString buf;
 
     UA_ByteString_allocBuffer(&buf, size+1);
@@ -670,7 +670,7 @@ START_TEST(UA_Int32_Max_Number_json_encode) {
     UA_Byte *bufPos = &buf.data[0];
     const UA_Byte *bufEnd = &buf.data[size+1];
 
-    status s = UA_encodeJsonInternal((void *) src, type, &bufPos, &bufEnd, NULL, 0, NULL, 0, UA_TRUE);
+    status s = UA_encodeJsonInternal((void *) src, type, &bufPos, &bufEnd, NULL, 0, NULL, 0, true);
 
     *bufPos = 0;
     // then
@@ -685,7 +685,7 @@ END_TEST
 START_TEST(UA_Int32_Min_Number_json_encode) {
     UA_Int32 src = -2147483648;
     const UA_DataType *type = &UA_TYPES[UA_TYPES_INT32];
-    size_t size = UA_calcSizeJsonInternal((void *)&src, type, NULL, 0, NULL, 0, UA_TRUE);
+    size_t size = UA_calcSizeJsonInternal((void *)&src, type, NULL, 0, NULL, 0, true);
     UA_ByteString buf;
 
     UA_ByteString_allocBuffer(&buf, size+1);
@@ -693,7 +693,7 @@ START_TEST(UA_Int32_Min_Number_json_encode) {
     UA_Byte *bufPos = &buf.data[0];
     const UA_Byte *bufEnd = &buf.data[size+1];
 
-    status s = UA_encodeJsonInternal((void *)&src, type, &bufPos, &bufEnd, NULL, 0, NULL, 0, UA_TRUE);
+    status s = UA_encodeJsonInternal((void *)&src, type, &bufPos, &bufEnd, NULL, 0, NULL, 0, true);
 
     *bufPos = 0;
     // then
@@ -709,7 +709,7 @@ START_TEST(UA_Int32_Zero_Number_json_encode) {
     UA_Int32 *src = UA_Int32_new();
     *src = 0;
     const UA_DataType *type = &UA_TYPES[UA_TYPES_INT32];
-    size_t size = UA_calcSizeJsonInternal((void *) src, type, NULL, 0, NULL, 0, UA_TRUE);
+    size_t size = UA_calcSizeJsonInternal((void *) src, type, NULL, 0, NULL, 0, true);
     UA_ByteString buf;
 
     UA_ByteString_allocBuffer(&buf, size+1);
@@ -717,7 +717,7 @@ START_TEST(UA_Int32_Zero_Number_json_encode) {
     UA_Byte *bufPos = &buf.data[0];
     const UA_Byte *bufEnd = &buf.data[size+1];
 
-    status s = UA_encodeJsonInternal((void *) src, type, &bufPos, &bufEnd, NULL, 0, NULL, 0, UA_TRUE);
+    status s = UA_encodeJsonInternal((void *) src, type, &bufPos, &bufEnd, NULL, 0, NULL, 0, true);
 
     *bufPos = 0;
     // then
@@ -742,7 +742,7 @@ START_TEST(UA_Int32_smallbuf_Number_json_encode) {
     UA_Byte *bufPos = &buf.data[0];
     const UA_Byte *bufEnd = &buf.data[2];
 
-    status s = UA_encodeJsonInternal((void *) src, type, &bufPos, &bufEnd, NULL, 0, NULL, 0, UA_TRUE);
+    status s = UA_encodeJsonInternal((void *) src, type, &bufPos, &bufEnd, NULL, 0, NULL, 0, true);
 
     *bufPos = 0;
     // then
@@ -768,7 +768,7 @@ START_TEST(UA_UInt64_Max_Number_json_encode) {
     ((u8*)src)[6] = 0xFF;
     ((u8*)src)[7] = 0xFF;
     const UA_DataType *type = &UA_TYPES[UA_TYPES_UINT64];
-    size_t size = UA_calcSizeJsonInternal((void *) src, type, NULL, 0, NULL, 0, UA_TRUE);
+    size_t size = UA_calcSizeJsonInternal((void *) src, type, NULL, 0, NULL, 0, true);
     UA_ByteString buf;
 
     UA_ByteString_allocBuffer(&buf, size+1);
@@ -776,7 +776,7 @@ START_TEST(UA_UInt64_Max_Number_json_encode) {
     UA_Byte *bufPos = &buf.data[0];
     const UA_Byte *bufEnd = &buf.data[size+1];
 
-    status s = UA_encodeJsonInternal((void *) src, type, &bufPos, &bufEnd, NULL, 0, NULL, 0, UA_TRUE);
+    status s = UA_encodeJsonInternal((void *) src, type, &bufPos, &bufEnd, NULL, 0, NULL, 0, true);
 
     *bufPos = 0;
     // then
@@ -793,7 +793,7 @@ START_TEST(UA_UInt64_Min_Number_json_encode) {
     UA_UInt64 *src = UA_UInt64_new();
     *src = 0;
     const UA_DataType *type = &UA_TYPES[UA_TYPES_UINT64];
-    size_t size = UA_calcSizeJsonInternal((void *) src, type, NULL, 0, NULL, 0, UA_TRUE);
+    size_t size = UA_calcSizeJsonInternal((void *) src, type, NULL, 0, NULL, 0, true);
     UA_ByteString buf;
 
     UA_ByteString_allocBuffer(&buf, size+1);
@@ -801,7 +801,7 @@ START_TEST(UA_UInt64_Min_Number_json_encode) {
     UA_Byte *bufPos = &buf.data[0];
     const UA_Byte *bufEnd = &buf.data[size+1];
 
-    status s = UA_encodeJsonInternal((void *) src, type, &bufPos, &bufEnd, NULL, 0, NULL, 0, UA_TRUE);
+    status s = UA_encodeJsonInternal((void *) src, type, &bufPos, &bufEnd, NULL, 0, NULL, 0, true);
 
     *bufPos = 0;
     // then
@@ -834,7 +834,7 @@ START_TEST(UA_UInt64_smallbuf_Number_json_encode) {
     UA_Byte *bufPos = &buf.data[0];
     const UA_Byte *bufEnd = &buf.data[2];
 
-    status s = UA_encodeJsonInternal((void *) src, type, &bufPos, &bufEnd, NULL, 0, NULL, 0, UA_TRUE);
+    status s = UA_encodeJsonInternal((void *) src, type, &bufPos, &bufEnd, NULL, 0, NULL, 0, true);
 
     *bufPos = 0;
     // then
@@ -859,7 +859,7 @@ START_TEST(UA_Int64_Max_Number_json_encode) {
     ((u8*)src)[7] = 0x7F;
     
     const UA_DataType *type = &UA_TYPES[UA_TYPES_INT64];
-    size_t size = UA_calcSizeJsonInternal((void *) src, type, NULL, 0, NULL, 0, UA_TRUE);
+    size_t size = UA_calcSizeJsonInternal((void *) src, type, NULL, 0, NULL, 0, true);
     UA_ByteString buf;
 
     UA_ByteString_allocBuffer(&buf, size+1);
@@ -867,7 +867,7 @@ START_TEST(UA_Int64_Max_Number_json_encode) {
     UA_Byte *bufPos = &buf.data[0];
     const UA_Byte *bufEnd = &buf.data[size+1];
 
-    status s = UA_encodeJsonInternal((void *) src, type, &bufPos, &bufEnd, NULL, 0, NULL, 0, UA_TRUE);
+    status s = UA_encodeJsonInternal((void *) src, type, &bufPos, &bufEnd, NULL, 0, NULL, 0, true);
 
     *bufPos = 0;
     // then
@@ -897,7 +897,7 @@ START_TEST(UA_Int64_Min_Number_json_encode) {
     
     
     const UA_DataType *type = &UA_TYPES[UA_TYPES_INT64];
-    size_t size = UA_calcSizeJsonInternal((void *) src, type, NULL, 0, NULL, 0, UA_TRUE);
+    size_t size = UA_calcSizeJsonInternal((void *) src, type, NULL, 0, NULL, 0, true);
     UA_ByteString buf;
 
     UA_ByteString_allocBuffer(&buf, size+1);
@@ -905,7 +905,7 @@ START_TEST(UA_Int64_Min_Number_json_encode) {
     UA_Byte *bufPos = &buf.data[0];
     const UA_Byte *bufEnd = &buf.data[size+1];
 
-    status s = UA_encodeJsonInternal((void *) src, type, &bufPos, &bufEnd, NULL, 0, NULL, 0, UA_TRUE);
+    status s = UA_encodeJsonInternal((void *) src, type, &bufPos, &bufEnd, NULL, 0, NULL, 0, true);
 
     *bufPos = 0;
     // then
@@ -922,7 +922,7 @@ START_TEST(UA_Int64_Zero_Number_json_encode) {
     UA_Int64 *src = UA_Int64_new();
     *src = 0;
     const UA_DataType *type = &UA_TYPES[UA_TYPES_INT64];
-    size_t size = UA_calcSizeJsonInternal((void *) src, type, NULL, 0, NULL, 0, UA_TRUE);
+    size_t size = UA_calcSizeJsonInternal((void *) src, type, NULL, 0, NULL, 0, true);
     UA_ByteString buf;
 
     UA_ByteString_allocBuffer(&buf, size+1);
@@ -930,7 +930,7 @@ START_TEST(UA_Int64_Zero_Number_json_encode) {
     UA_Byte *bufPos = &buf.data[0];
     const UA_Byte *bufEnd = &buf.data[size+1];
 
-    status s = UA_encodeJsonInternal((void *) src, type, &bufPos, &bufEnd, NULL, 0, NULL, 0, UA_TRUE);
+    status s = UA_encodeJsonInternal((void *) src, type, &bufPos, &bufEnd, NULL, 0, NULL, 0, true);
 
     *bufPos = 0;
     // then
@@ -955,7 +955,7 @@ START_TEST(UA_Int64_smallbuf_Number_json_encode) {
     UA_Byte *bufPos = &buf.data[0];
     const UA_Byte *bufEnd = &buf.data[2];
 
-    status s = UA_encodeJsonInternal((void *) src, type, &bufPos, &bufEnd, NULL, 0, NULL, 0, UA_TRUE);
+    status s = UA_encodeJsonInternal((void *) src, type, &bufPos, &bufEnd, NULL, 0, NULL, 0, true);
 
     *bufPos = 0;
     // then
@@ -969,7 +969,7 @@ END_TEST
 START_TEST(UA_Double_json_encode) {
     UA_Double src = 1.1234;
     const UA_DataType *type = &UA_TYPES[UA_TYPES_DOUBLE];
-    size_t size = UA_calcSizeJsonInternal((void *) &src, type, NULL, 0, NULL, 0, UA_TRUE);
+    size_t size = UA_calcSizeJsonInternal((void *) &src, type, NULL, 0, NULL, 0, true);
     UA_ByteString buf;
 
     UA_ByteString_allocBuffer(&buf, size+1);
@@ -977,7 +977,7 @@ START_TEST(UA_Double_json_encode) {
     UA_Byte *bufPos = &buf.data[0];
     const UA_Byte *bufEnd = &buf.data[size+1];
 
-    status s = UA_encodeJsonInternal(&src, type, &bufPos, &bufEnd, NULL, 0, NULL, 0, UA_TRUE);
+    status s = UA_encodeJsonInternal(&src, type, &bufPos, &bufEnd, NULL, 0, NULL, 0, true);
 
     *bufPos = 0;
     
@@ -992,7 +992,7 @@ END_TEST
 START_TEST(UA_Double_pluszero_json_encode) {
     UA_Double src = 0;
     const UA_DataType *type = &UA_TYPES[UA_TYPES_DOUBLE];
-    size_t size = UA_calcSizeJsonInternal((void *) &src, type, NULL, 0, NULL, 0, UA_TRUE);
+    size_t size = UA_calcSizeJsonInternal((void *) &src, type, NULL, 0, NULL, 0, true);
     UA_ByteString buf;
 
     UA_ByteString_allocBuffer(&buf, size+1);
@@ -1000,7 +1000,7 @@ START_TEST(UA_Double_pluszero_json_encode) {
     UA_Byte *bufPos = &buf.data[0];
     const UA_Byte *bufEnd = &buf.data[size+1];
 
-    status s = UA_encodeJsonInternal(&src, type, &bufPos, &bufEnd, NULL, 0, NULL, 0, UA_TRUE);
+    status s = UA_encodeJsonInternal(&src, type, &bufPos, &bufEnd, NULL, 0, NULL, 0, true);
 
     *bufPos = 0;
     
@@ -1015,7 +1015,7 @@ END_TEST
 START_TEST(UA_Double_minuszero_json_encode) {
     UA_Double src = -0;
     const UA_DataType *type = &UA_TYPES[UA_TYPES_DOUBLE];
-    size_t size = UA_calcSizeJsonInternal((void *) &src, type, NULL, 0, NULL, 0, UA_TRUE);
+    size_t size = UA_calcSizeJsonInternal((void *) &src, type, NULL, 0, NULL, 0, true);
     UA_ByteString buf;
 
     UA_ByteString_allocBuffer(&buf, size+1);
@@ -1023,7 +1023,7 @@ START_TEST(UA_Double_minuszero_json_encode) {
     UA_Byte *bufPos = &buf.data[0];
     const UA_Byte *bufEnd = &buf.data[size+1];
 
-    status s = UA_encodeJsonInternal(&src, type, &bufPos, &bufEnd, NULL, 0, NULL, 0, UA_TRUE);
+    status s = UA_encodeJsonInternal(&src, type, &bufPos, &bufEnd, NULL, 0, NULL, 0, true);
 
     *bufPos = 0;
     
@@ -1038,7 +1038,7 @@ END_TEST
 START_TEST(UA_Double_plusInf_json_encode) {
     UA_Double src = INFINITY;
     const UA_DataType *type = &UA_TYPES[UA_TYPES_DOUBLE];
-    size_t size = UA_calcSizeJsonInternal((void *) &src, type, NULL, 0, NULL, 0, UA_TRUE);
+    size_t size = UA_calcSizeJsonInternal((void *) &src, type, NULL, 0, NULL, 0, true);
     UA_ByteString buf;
 
     UA_ByteString_allocBuffer(&buf, size+1);
@@ -1046,7 +1046,7 @@ START_TEST(UA_Double_plusInf_json_encode) {
     UA_Byte *bufPos = &buf.data[0];
     const UA_Byte *bufEnd = &buf.data[size+1];
 
-    status s = UA_encodeJsonInternal(&src, type, &bufPos, &bufEnd, NULL, 0, NULL, 0, UA_TRUE);
+    status s = UA_encodeJsonInternal(&src, type, &bufPos, &bufEnd, NULL, 0, NULL, 0, true);
 
     *bufPos = 0;
     
@@ -1063,7 +1063,7 @@ END_TEST
 START_TEST(UA_Double_minusInf_json_encode) {
     UA_Double src = -INFINITY;
     const UA_DataType *type = &UA_TYPES[UA_TYPES_DOUBLE];
-    size_t size = UA_calcSizeJsonInternal((void *) &src, type, NULL, 0, NULL, 0, UA_TRUE);
+    size_t size = UA_calcSizeJsonInternal((void *) &src, type, NULL, 0, NULL, 0, true);
     UA_ByteString buf;
 
     UA_ByteString_allocBuffer(&buf, size+1);
@@ -1071,7 +1071,7 @@ START_TEST(UA_Double_minusInf_json_encode) {
     UA_Byte *bufPos = &buf.data[0];
     const UA_Byte *bufEnd = &buf.data[size+1];
 
-    status s = UA_encodeJsonInternal(&src, type, &bufPos, &bufEnd, NULL, 0, NULL, 0, UA_TRUE);
+    status s = UA_encodeJsonInternal(&src, type, &bufPos, &bufEnd, NULL, 0, NULL, 0, true);
 
     *bufPos = 0;
     
@@ -1086,7 +1086,7 @@ END_TEST
 START_TEST(UA_Double_nan_json_encode) {
     UA_Double src = NAN;
     const UA_DataType *type = &UA_TYPES[UA_TYPES_DOUBLE];
-    size_t size = UA_calcSizeJsonInternal((void *) &src, type, NULL, 0, NULL, 0, UA_TRUE);
+    size_t size = UA_calcSizeJsonInternal((void *) &src, type, NULL, 0, NULL, 0, true);
     UA_ByteString buf;
 
     UA_ByteString_allocBuffer(&buf, size+1);
@@ -1094,7 +1094,7 @@ START_TEST(UA_Double_nan_json_encode) {
     UA_Byte *bufPos = &buf.data[0];
     const UA_Byte *bufEnd = &buf.data[size+1];
 
-    status s = UA_encodeJsonInternal(&src, type, &bufPos, &bufEnd, NULL, 0, NULL, 0, UA_TRUE);
+    status s = UA_encodeJsonInternal(&src, type, &bufPos, &bufEnd, NULL, 0, NULL, 0, true);
 
     *bufPos = 0;
     
@@ -1109,7 +1109,7 @@ END_TEST
 START_TEST(UA_Double_onesmallest_json_encode) {
     UA_Double src = 1.0000000000000002220446049250313080847263336181640625;
     const UA_DataType *type = &UA_TYPES[UA_TYPES_DOUBLE];
-    size_t size = UA_calcSizeJsonInternal((void *) &src, type, NULL, 0, NULL, 0, UA_TRUE);
+    size_t size = UA_calcSizeJsonInternal((void *) &src, type, NULL, 0, NULL, 0, true);
     UA_ByteString buf;
 
     UA_ByteString_allocBuffer(&buf, size+1);
@@ -1117,7 +1117,7 @@ START_TEST(UA_Double_onesmallest_json_encode) {
     UA_Byte *bufPos = &buf.data[0];
     const UA_Byte *bufEnd = &buf.data[size+1];
 
-    status s = UA_encodeJsonInternal(&src, type, &bufPos, &bufEnd, NULL, 0, NULL, 0, UA_TRUE);
+    status s = UA_encodeJsonInternal(&src, type, &bufPos, &bufEnd, NULL, 0, NULL, 0, true);
 
     *bufPos = 0;
     
@@ -1132,7 +1132,7 @@ END_TEST
 START_TEST(UA_Float_json_encode) {
     UA_Float src = 1.0000000000F;
     const UA_DataType *type = &UA_TYPES[UA_TYPES_FLOAT];
-    size_t size = UA_calcSizeJsonInternal((void *) &src, type, NULL, 0, NULL, 0, UA_TRUE);
+    size_t size = UA_calcSizeJsonInternal((void *) &src, type, NULL, 0, NULL, 0, true);
     UA_ByteString buf;
 
     UA_ByteString_allocBuffer(&buf, size+1);
@@ -1140,7 +1140,7 @@ START_TEST(UA_Float_json_encode) {
     UA_Byte *bufPos = &buf.data[0];
     const UA_Byte *bufEnd = &buf.data[size+1];
 
-    status s = UA_encodeJsonInternal(&src, type, &bufPos, &bufEnd, NULL, 0, NULL, 0, UA_TRUE);
+    status s = UA_encodeJsonInternal(&src, type, &bufPos, &bufEnd, NULL, 0, NULL, 0, true);
 
     *bufPos = 0;
     
@@ -1162,7 +1162,7 @@ START_TEST(UA_LocText_json_encode) {
     src->locale = UA_STRING_ALLOC("theLocale");
     src->text = UA_STRING_ALLOC("theText");
     const UA_DataType *type = &UA_TYPES[UA_TYPES_LOCALIZEDTEXT];
-    size_t size = UA_calcSizeJsonInternal((void *) src, type, NULL, 0, NULL, 0, UA_TRUE);
+    size_t size = UA_calcSizeJsonInternal((void *) src, type, NULL, 0, NULL, 0, true);
     UA_ByteString buf;
 
     UA_ByteString_allocBuffer(&buf, size+1);
@@ -1170,7 +1170,7 @@ START_TEST(UA_LocText_json_encode) {
     UA_Byte *bufPos = &buf.data[0];
     const UA_Byte *bufEnd = &buf.data[size+1];
 
-    status s = UA_encodeJsonInternal((void *) src, type, &bufPos, &bufEnd, NULL, 0, NULL, 0, UA_TRUE);
+    status s = UA_encodeJsonInternal((void *) src, type, &bufPos, &bufEnd, NULL, 0, NULL, 0, true);
 
     *bufPos = 0;
     // then
@@ -1190,7 +1190,7 @@ START_TEST(UA_LocText_NonReversible_json_encode) {
     src->locale = UA_STRING_ALLOC("theLocale");
     src->text = UA_STRING_ALLOC("theText");
     const UA_DataType *type = &UA_TYPES[UA_TYPES_LOCALIZEDTEXT];
-    size_t size = UA_calcSizeJsonInternal((void *) src, type, NULL, 0, NULL, 0, UA_FALSE);
+    size_t size = UA_calcSizeJsonInternal((void *) src, type, NULL, 0, NULL, 0, false);
     UA_ByteString buf;
 
     UA_ByteString_allocBuffer(&buf, size+1);
@@ -1198,7 +1198,7 @@ START_TEST(UA_LocText_NonReversible_json_encode) {
     UA_Byte *bufPos = &buf.data[0];
     const UA_Byte *bufEnd = &buf.data[size+1];
 
-    status s = UA_encodeJsonInternal((void *) src, type, &bufPos, &bufEnd, NULL, 0, NULL, 0, UA_FALSE);
+    status s = UA_encodeJsonInternal((void *) src, type, &bufPos, &bufEnd, NULL, 0, NULL, 0, false);
 
     *bufPos = 0;
     // then
@@ -1224,7 +1224,7 @@ START_TEST(UA_LocText_smallBuffer_json_encode) {
     UA_Byte *bufPos = &buf.data[0];
     const UA_Byte *bufEnd = &buf.data[4];
 
-    status s = UA_encodeJsonInternal((void *) src, type, &bufPos, &bufEnd, NULL, 0, NULL, 0, UA_TRUE);
+    status s = UA_encodeJsonInternal((void *) src, type, &bufPos, &bufEnd, NULL, 0, NULL, 0, true);
 
     // then
     ck_assert_int_eq(s, UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED);
@@ -1237,7 +1237,7 @@ END_TEST
 START_TEST(UA_Guid_json_encode) {
     UA_Guid src = {3, 9, 10, {8, 7, 6, 5, 4, 3, 2, 1}};
     const UA_DataType *type = &UA_TYPES[UA_TYPES_GUID];
-    size_t size = UA_calcSizeJsonInternal((void *) &src, type, NULL, 0, NULL, 0, UA_TRUE);
+    size_t size = UA_calcSizeJsonInternal((void *) &src, type, NULL, 0, NULL, 0, true);
     UA_ByteString buf;
 
     UA_ByteString_allocBuffer(&buf, size+1);
@@ -1245,7 +1245,7 @@ START_TEST(UA_Guid_json_encode) {
     UA_Byte *bufPos = &buf.data[0];
     const UA_Byte *bufEnd = &buf.data[size+1];
 
-    status s = UA_encodeJsonInternal((void *) &src, type, &bufPos, &bufEnd, NULL, 0, NULL, 0, UA_TRUE);
+    status s = UA_encodeJsonInternal((void *) &src, type, &bufPos, &bufEnd, NULL, 0, NULL, 0, true);
     *bufPos = 0;
     // then
     ck_assert_int_eq(s, UA_STATUSCODE_GOOD);
@@ -1266,7 +1266,7 @@ START_TEST(UA_Guid_smallbuf_json_encode) {
     UA_Byte *bufPos = &buf.data[0];
     const UA_Byte *bufEnd = &buf.data[1];
 
-    status s = UA_encodeJsonInternal((void *) src, type, &bufPos, &bufEnd, NULL, 0, NULL, 0, UA_TRUE);
+    status s = UA_encodeJsonInternal((void *) src, type, &bufPos, &bufEnd, NULL, 0, NULL, 0, true);
     *bufPos = 0;
     // then
     ck_assert_int_eq(s, UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED);
@@ -1282,7 +1282,7 @@ START_TEST(UA_DateTime_json_encode) {
     UA_DateTime *src = UA_DateTime_new();
     *src = UA_DateTime_fromUnixTime(1234567);
     const UA_DataType *type = &UA_TYPES[UA_TYPES_DATETIME];
-    size_t size = UA_calcSizeJsonInternal((void *) src, type, NULL, 0, NULL, 0, UA_TRUE);
+    size_t size = UA_calcSizeJsonInternal((void *) src, type, NULL, 0, NULL, 0, true);
     UA_ByteString buf;
 
     UA_ByteString_allocBuffer(&buf, size+1);
@@ -1290,7 +1290,7 @@ START_TEST(UA_DateTime_json_encode) {
     UA_Byte *bufPos = &buf.data[0];
     const UA_Byte *bufEnd = &buf.data[size+1];
 
-    status s = UA_encodeJsonInternal((void *) src, type, &bufPos, &bufEnd, NULL, 0, NULL, 0, UA_TRUE);
+    status s = UA_encodeJsonInternal((void *) src, type, &bufPos, &bufEnd, NULL, 0, NULL, 0, true);
 
     *bufPos = 0;
     // then
@@ -1305,7 +1305,7 @@ END_TEST
 START_TEST(UA_DateTime_json_encode_null) {
     UA_DateTime src = 0;
     const UA_DataType *type = &UA_TYPES[UA_TYPES_DATETIME];
-    size_t size = UA_calcSizeJsonInternal((void *)&src, type, NULL, 0, NULL, 0, UA_TRUE);
+    size_t size = UA_calcSizeJsonInternal((void *)&src, type, NULL, 0, NULL, 0, true);
     UA_ByteString buf;
 
     UA_ByteString_allocBuffer(&buf, size+1);
@@ -1313,7 +1313,7 @@ START_TEST(UA_DateTime_json_encode_null) {
     UA_Byte *bufPos = &buf.data[0];
     const UA_Byte *bufEnd = &buf.data[size+1];
     status s = UA_encodeJsonInternal((void *)&src, type, &bufPos, &bufEnd,
-                                     NULL, 0, NULL, 0, UA_TRUE);
+                                     NULL, 0, NULL, 0, true);
     *bufPos = 0;
 
     // then
@@ -1328,7 +1328,7 @@ START_TEST(UA_DateTime_with_nanoseconds_json_encode) {
     UA_DateTime *src = UA_DateTime_new();
     *src = UA_DateTime_fromUnixTime(1234567) + 8901234;
     const UA_DataType *type = &UA_TYPES[UA_TYPES_DATETIME];
-    size_t size = UA_calcSizeJsonInternal((void *) src, type, NULL, 0, NULL, 0, UA_TRUE);
+    size_t size = UA_calcSizeJsonInternal((void *) src, type, NULL, 0, NULL, 0, true);
     UA_ByteString buf;
 
     UA_ByteString_allocBuffer(&buf, size+1);
@@ -1336,7 +1336,7 @@ START_TEST(UA_DateTime_with_nanoseconds_json_encode) {
     UA_Byte *bufPos = &buf.data[0];
     const UA_Byte *bufEnd = &buf.data[size+1];
 
-    status s = UA_encodeJsonInternal((void *) src, type, &bufPos, &bufEnd, NULL, 0, NULL, 0, UA_TRUE);
+    status s = UA_encodeJsonInternal((void *) src, type, &bufPos, &bufEnd, NULL, 0, NULL, 0, true);
 
     *bufPos = 0;
     // then
@@ -1353,7 +1353,7 @@ START_TEST(UA_StatusCode_json_encode) {
     UA_StatusCode *src = UA_StatusCode_new();
     *src = UA_STATUSCODE_BADAGGREGATECONFIGURATIONREJECTED;
     const UA_DataType *type = &UA_TYPES[UA_TYPES_STATUSCODE];
-    size_t size = UA_calcSizeJsonInternal((void *) src, type, NULL, 0, NULL, 0, UA_TRUE);
+    size_t size = UA_calcSizeJsonInternal((void *) src, type, NULL, 0, NULL, 0, true);
     UA_ByteString buf;
 
     UA_ByteString_allocBuffer(&buf, size+1);
@@ -1361,7 +1361,7 @@ START_TEST(UA_StatusCode_json_encode) {
     UA_Byte *bufPos = &buf.data[0];
     const UA_Byte *bufEnd = &buf.data[size+1];
 
-    status s = UA_encodeJsonInternal((void *) src, type, &bufPos, &bufEnd, NULL, 0, NULL, 0, UA_TRUE);
+    status s = UA_encodeJsonInternal((void *) src, type, &bufPos, &bufEnd, NULL, 0, NULL, 0, true);
 
      *bufPos = 0;
     
@@ -1378,7 +1378,7 @@ START_TEST(UA_StatusCode_nonReversible_json_encode) {
     UA_StatusCode *src = UA_StatusCode_new();
     *src = UA_STATUSCODE_BADAGGREGATECONFIGURATIONREJECTED;
     const UA_DataType *type = &UA_TYPES[UA_TYPES_STATUSCODE];
-    size_t size = UA_calcSizeJsonInternal((void *) src, type, NULL, 0, NULL, 0, UA_FALSE);
+    size_t size = UA_calcSizeJsonInternal((void *) src, type, NULL, 0, NULL, 0, false);
     UA_ByteString buf;
 
     UA_ByteString_allocBuffer(&buf, size+1);
@@ -1386,7 +1386,7 @@ START_TEST(UA_StatusCode_nonReversible_json_encode) {
     UA_Byte *bufPos = &buf.data[0];
     const UA_Byte *bufEnd = &buf.data[size+1];
 
-    status s = UA_encodeJsonInternal((void *) src, type, &bufPos, &bufEnd, NULL, 0, NULL, 0, UA_FALSE);
+    status s = UA_encodeJsonInternal((void *) src, type, &bufPos, &bufEnd, NULL, 0, NULL, 0, false);
 
      *bufPos = 0;
     
@@ -1403,7 +1403,7 @@ START_TEST(UA_StatusCode_nonReversible_good_json_encode) {
     UA_StatusCode *src = UA_StatusCode_new();
     *src = UA_STATUSCODE_GOOD;
     const UA_DataType *type = &UA_TYPES[UA_TYPES_STATUSCODE];
-    size_t size = UA_calcSizeJsonInternal((void *) src, type, NULL, 0, NULL, 0, UA_FALSE);
+    size_t size = UA_calcSizeJsonInternal((void *) src, type, NULL, 0, NULL, 0, false);
     UA_ByteString buf;
 
     UA_ByteString_allocBuffer(&buf, size+1);
@@ -1411,7 +1411,7 @@ START_TEST(UA_StatusCode_nonReversible_good_json_encode) {
     UA_Byte *bufPos = &buf.data[0];
     const UA_Byte *bufEnd = &buf.data[size+1];
 
-    status s = UA_encodeJsonInternal((void *) src, type, &bufPos, &bufEnd, NULL, 0, NULL, 0, UA_FALSE);
+    status s = UA_encodeJsonInternal((void *) src, type, &bufPos, &bufEnd, NULL, 0, NULL, 0, false);
 
      *bufPos = 0;
     
@@ -1436,7 +1436,7 @@ START_TEST(UA_StatusCode_smallbuf_json_encode) {
     UA_Byte *bufPos = &buf.data[0];
     const UA_Byte *bufEnd = &buf.data[1];
 
-    status s = UA_encodeJsonInternal((void *) src, type, &bufPos, &bufEnd, NULL, 0, NULL, 0, UA_FALSE);
+    status s = UA_encodeJsonInternal((void *) src, type, &bufPos, &bufEnd, NULL, 0, NULL, 0, false);
     // then
     ck_assert_int_eq(s, UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED);
     UA_ByteString_clear(&buf); 
@@ -1452,7 +1452,7 @@ START_TEST(UA_NodeId_Numeric_json_encode) {
     UA_NodeId *src = UA_NodeId_new();
     *src = UA_NODEID_NUMERIC(0, 5555);
     const UA_DataType *type = &UA_TYPES[UA_TYPES_NODEID];
-    size_t size = UA_calcSizeJsonInternal((void *) src, type, NULL, 0, NULL, 0, UA_TRUE);
+    size_t size = UA_calcSizeJsonInternal((void *) src, type, NULL, 0, NULL, 0, true);
     UA_ByteString buf;
 
     UA_ByteString_allocBuffer(&buf, size+1);
@@ -1460,7 +1460,7 @@ START_TEST(UA_NodeId_Numeric_json_encode) {
     UA_Byte *bufPos = &buf.data[0];
     const UA_Byte *bufEnd = &buf.data[size+1];
 
-    status s = UA_encodeJsonInternal((void *) src, type, &bufPos, &bufEnd, NULL, 0, NULL, 0, UA_TRUE);
+    status s = UA_encodeJsonInternal((void *) src, type, &bufPos, &bufEnd, NULL, 0, NULL, 0, true);
 
     *bufPos = 0;
     // then
@@ -1476,7 +1476,7 @@ START_TEST(UA_NodeId_Numeric_Namespace_json_encode) {
     UA_NodeId *src = UA_NodeId_new();
     *src = UA_NODEID_NUMERIC(4, 5555);
     const UA_DataType *type = &UA_TYPES[UA_TYPES_NODEID];
-    size_t size = UA_calcSizeJsonInternal((void *) src, type, NULL, 0, NULL, 0, UA_TRUE);
+    size_t size = UA_calcSizeJsonInternal((void *) src, type, NULL, 0, NULL, 0, true);
     UA_ByteString buf;
 
     UA_ByteString_allocBuffer(&buf, size+1);
@@ -1484,7 +1484,7 @@ START_TEST(UA_NodeId_Numeric_Namespace_json_encode) {
     UA_Byte *bufPos = &buf.data[0];
     const UA_Byte *bufEnd = &buf.data[size+1];
 
-    status s = UA_encodeJsonInternal((void *) src, type, &bufPos, &bufEnd, NULL, 0, NULL, 0, UA_TRUE);
+    status s = UA_encodeJsonInternal((void *) src, type, &bufPos, &bufEnd, NULL, 0, NULL, 0, true);
 
     *bufPos = 0;
     // then
@@ -1501,7 +1501,7 @@ START_TEST(UA_NodeId_String_json_encode) {
     UA_NodeId *src = UA_NodeId_new();
     *src = UA_NODEID_STRING_ALLOC(0, "foobar");
     const UA_DataType *type = &UA_TYPES[UA_TYPES_NODEID];
-    size_t size = UA_calcSizeJsonInternal((void *) src, type, NULL, 0, NULL, 0, UA_TRUE);
+    size_t size = UA_calcSizeJsonInternal((void *) src, type, NULL, 0, NULL, 0, true);
     UA_ByteString buf;
 
     UA_ByteString_allocBuffer(&buf, size+1);
@@ -1509,7 +1509,7 @@ START_TEST(UA_NodeId_String_json_encode) {
     UA_Byte *bufPos = &buf.data[0];
     const UA_Byte *bufEnd = &buf.data[size+1];
 
-    status s = UA_encodeJsonInternal((void *) src, type, &bufPos, &bufEnd, NULL, 0, NULL, 0, UA_TRUE);
+    status s = UA_encodeJsonInternal((void *) src, type, &bufPos, &bufEnd, NULL, 0, NULL, 0, true);
 
     *bufPos = 0;
     // then
@@ -1525,7 +1525,7 @@ START_TEST(UA_NodeId_String_Namespace_json_encode) {
     UA_NodeId *src = UA_NodeId_new();
     *src = UA_NODEID_STRING_ALLOC(5, "foobar");
     const UA_DataType *type = &UA_TYPES[UA_TYPES_NODEID];
-    size_t size = UA_calcSizeJsonInternal((void *) src, type, NULL, 0, NULL, 0, UA_TRUE);
+    size_t size = UA_calcSizeJsonInternal((void *) src, type, NULL, 0, NULL, 0, true);
     UA_ByteString buf;
 
     UA_ByteString_allocBuffer(&buf, size+1);
@@ -1533,7 +1533,7 @@ START_TEST(UA_NodeId_String_Namespace_json_encode) {
     UA_Byte *bufPos = &buf.data[0];
     const UA_Byte *bufEnd = &buf.data[size+1];
 
-    status s = UA_encodeJsonInternal((void *) src, type, &bufPos, &bufEnd, NULL, 0, NULL, 0, UA_TRUE);
+    status s = UA_encodeJsonInternal((void *) src, type, &bufPos, &bufEnd, NULL, 0, NULL, 0, true);
 
     *bufPos = 0;
     // then
@@ -1552,7 +1552,7 @@ START_TEST(UA_NodeId_Guid_json_encode) {
     UA_Guid g = {3, 9, 10, {8, 7, 6, 5, 4, 3, 2, 1}};
     *src = UA_NODEID_GUID(0, g);
     const UA_DataType *type = &UA_TYPES[UA_TYPES_NODEID];
-    size_t size = UA_calcSizeJsonInternal((void *) src, type, NULL, 0, NULL, 0, UA_TRUE);
+    size_t size = UA_calcSizeJsonInternal((void *) src, type, NULL, 0, NULL, 0, true);
     UA_ByteString buf;
 
     UA_ByteString_allocBuffer(&buf, size+1);
@@ -1560,7 +1560,7 @@ START_TEST(UA_NodeId_Guid_json_encode) {
     UA_Byte *bufPos = &buf.data[0];
     const UA_Byte *bufEnd = &buf.data[size+1];
 
-    status s = UA_encodeJsonInternal((void *) src, type, &bufPos, &bufEnd, NULL, 0, NULL, 0, UA_TRUE);
+    status s = UA_encodeJsonInternal((void *) src, type, &bufPos, &bufEnd, NULL, 0, NULL, 0, true);
 
     *bufPos = 0;
     // then
@@ -1577,7 +1577,7 @@ START_TEST(UA_NodeId_Guid_Namespace_json_encode) {
     UA_Guid g = {3, 9, 10, {8, 7, 6, 5, 4, 3, 2, 1}};
     *src = UA_NODEID_GUID(5, g);
     const UA_DataType *type = &UA_TYPES[UA_TYPES_NODEID];
-    size_t size = UA_calcSizeJsonInternal((void *) src, type, NULL, 0, NULL, 0, UA_TRUE);
+    size_t size = UA_calcSizeJsonInternal((void *) src, type, NULL, 0, NULL, 0, true);
     UA_ByteString buf;
 
     // {"IdType":2,"Id":"00000003-0009-000A-0807-060504030201","Namespace":5}
@@ -1588,7 +1588,7 @@ START_TEST(UA_NodeId_Guid_Namespace_json_encode) {
     UA_Byte *bufPos = &buf.data[0];
     const UA_Byte *bufEnd = &buf.data[size+1];
 
-    status s = UA_encodeJsonInternal((void *) src, type, &bufPos, &bufEnd, NULL, 0, NULL, 0, UA_TRUE);
+    status s = UA_encodeJsonInternal((void *) src, type, &bufPos, &bufEnd, NULL, 0, NULL, 0, true);
 
     *bufPos = 0;
     // then
@@ -1605,7 +1605,7 @@ START_TEST(UA_NodeId_ByteString_json_encode) {
     UA_NodeId *src = UA_NodeId_new();
     *src = UA_NODEID_BYTESTRING_ALLOC(0, "asdfasdf");
     const UA_DataType *type = &UA_TYPES[UA_TYPES_NODEID];
-    size_t size = UA_calcSizeJsonInternal((void *) src, type, NULL, 0, NULL, 0, UA_TRUE);
+    size_t size = UA_calcSizeJsonInternal((void *) src, type, NULL, 0, NULL, 0, true);
     UA_ByteString buf;
 
     UA_ByteString_allocBuffer(&buf, size+1);
@@ -1616,7 +1616,7 @@ START_TEST(UA_NodeId_ByteString_json_encode) {
     //{"IdType":3,"Id":"YXNkZmFzZGY="}
     ck_assert_int_eq(size, 32);
     
-    status s = UA_encodeJsonInternal((void *) src, type, &bufPos, &bufEnd, NULL, 0, NULL, 0, UA_TRUE);
+    status s = UA_encodeJsonInternal((void *) src, type, &bufPos, &bufEnd, NULL, 0, NULL, 0, true);
 
     *bufPos = 0;
     // then
@@ -1632,7 +1632,7 @@ START_TEST(UA_NodeId_ByteString_Namespace_json_encode) {
     UA_NodeId *src = UA_NodeId_new();
     *src = UA_NODEID_BYTESTRING_ALLOC(5, "asdfasdf");
     const UA_DataType *type = &UA_TYPES[UA_TYPES_NODEID];
-    size_t size = UA_calcSizeJsonInternal((void *) src, type, NULL, 0, NULL, 0, UA_TRUE);
+    size_t size = UA_calcSizeJsonInternal((void *) src, type, NULL, 0, NULL, 0, true);
     UA_ByteString buf;
 
     UA_ByteString_allocBuffer(&buf, size+1);
@@ -1640,7 +1640,7 @@ START_TEST(UA_NodeId_ByteString_Namespace_json_encode) {
     UA_Byte *bufPos = &buf.data[0];
     const UA_Byte *bufEnd = &buf.data[size+1];
 
-    status s = UA_encodeJsonInternal((void *) src, type, &bufPos, &bufEnd, NULL, 0, NULL, 0, UA_TRUE);
+    status s = UA_encodeJsonInternal((void *) src, type, &bufPos, &bufEnd, NULL, 0, NULL, 0, true);
 
     *bufPos = 0;
     // then
@@ -1659,7 +1659,7 @@ START_TEST(UA_NodeId_NonReversible_Numeric_Namespace_json_encode) {
     const UA_DataType *type = &UA_TYPES[UA_TYPES_NODEID];
     
     UA_String namespaces[3] = {UA_STRING("ns0"),UA_STRING("ns1"),UA_STRING("ns2")};
-    size_t size = UA_calcSizeJsonInternal((void *) src, type, namespaces, 3, NULL, 0, UA_FALSE);
+    size_t size = UA_calcSizeJsonInternal((void *) src, type, namespaces, 3, NULL, 0, false);
     ck_assert_int_ne(size, 0);
     UA_ByteString buf;
 
@@ -1669,7 +1669,7 @@ START_TEST(UA_NodeId_NonReversible_Numeric_Namespace_json_encode) {
     const UA_Byte *bufEnd = &buf.data[size+1];
 
 
-    status s = UA_encodeJsonInternal((void *) src, type, &bufPos, &bufEnd, namespaces, 3, NULL, 0, UA_FALSE);
+    status s = UA_encodeJsonInternal((void *) src, type, &bufPos, &bufEnd, namespaces, 3, NULL, 0, false);
 
     *bufPos = 0;
     // then
@@ -1685,13 +1685,13 @@ END_TEST
 START_TEST(UA_DiagInfo_json_encode) {
     UA_DiagnosticInfo *src = UA_DiagnosticInfo_new();
     UA_DiagnosticInfo_init(src);
-    src->hasAdditionalInfo = UA_TRUE;
-    src->hasInnerDiagnosticInfo = UA_FALSE;
-    src->hasInnerStatusCode = UA_TRUE;
-    src->hasLocale = UA_TRUE;
-    src->hasSymbolicId = UA_TRUE;
-    src->hasLocalizedText = UA_TRUE;
-    src->hasNamespaceUri = UA_TRUE;
+    src->hasAdditionalInfo = true;
+    src->hasInnerDiagnosticInfo = false;
+    src->hasInnerStatusCode = true;
+    src->hasLocale = true;
+    src->hasSymbolicId = true;
+    src->hasLocalizedText = true;
+    src->hasNamespaceUri = true;
 
     UA_StatusCode statusCode = UA_STATUSCODE_BADARGUMENTSMISSING;
     src->additionalInfo = UA_STRING_ALLOC("additionalInfo");
@@ -1703,7 +1703,7 @@ START_TEST(UA_DiagInfo_json_encode) {
 
     const UA_DataType *type = &UA_TYPES[UA_TYPES_DIAGNOSTICINFO];
 
-    size_t size = UA_calcSizeJsonInternal((void *) src, type, NULL, 0, NULL, 0, UA_TRUE);
+    size_t size = UA_calcSizeJsonInternal((void *) src, type, NULL, 0, NULL, 0, true);
     UA_ByteString buf;
 
     UA_ByteString_allocBuffer(&buf, size+1);
@@ -1711,7 +1711,7 @@ START_TEST(UA_DiagInfo_json_encode) {
     UA_Byte *bufPos = &buf.data[0];
     const UA_Byte *bufEnd = &buf.data[size+1];
 
-    status s = UA_encodeJsonInternal((void *) src, type, &bufPos, &bufEnd, NULL, 0, NULL, 0, UA_TRUE);
+    status s = UA_encodeJsonInternal((void *) src, type, &bufPos, &bufEnd, NULL, 0, NULL, 0, true);
 
     *bufPos = 0;
     // then
@@ -1728,24 +1728,24 @@ END_TEST
 START_TEST(UA_DiagInfo_withInner_json_encode) {
     UA_DiagnosticInfo *innerDiag = UA_DiagnosticInfo_new();
     UA_DiagnosticInfo_init(innerDiag);
-    innerDiag->hasAdditionalInfo = UA_TRUE;
+    innerDiag->hasAdditionalInfo = true;
     innerDiag->additionalInfo = UA_STRING_ALLOC("INNER ADDITION INFO");
-    innerDiag->hasInnerDiagnosticInfo = UA_FALSE;
-    innerDiag->hasInnerStatusCode = UA_FALSE;
-    innerDiag->hasLocale = UA_FALSE;
-    innerDiag->hasSymbolicId = UA_FALSE;
-    innerDiag->hasLocalizedText = UA_FALSE;
-    innerDiag->hasNamespaceUri = UA_FALSE;
+    innerDiag->hasInnerDiagnosticInfo = false;
+    innerDiag->hasInnerStatusCode = false;
+    innerDiag->hasLocale = false;
+    innerDiag->hasSymbolicId = false;
+    innerDiag->hasLocalizedText = false;
+    innerDiag->hasNamespaceUri = false;
 
     UA_DiagnosticInfo *src = UA_DiagnosticInfo_new();
     UA_DiagnosticInfo_init(src);
-    src->hasAdditionalInfo = UA_TRUE;
-    src->hasInnerDiagnosticInfo = UA_TRUE;
-    src->hasInnerStatusCode = UA_TRUE;
-    src->hasLocale = UA_TRUE;
-    src->hasSymbolicId = UA_TRUE;
-    src->hasLocalizedText = UA_TRUE;
-    src->hasNamespaceUri = UA_FALSE;
+    src->hasAdditionalInfo = true;
+    src->hasInnerDiagnosticInfo = true;
+    src->hasInnerStatusCode = true;
+    src->hasLocale = true;
+    src->hasSymbolicId = true;
+    src->hasLocalizedText = true;
+    src->hasNamespaceUri = false;
 
     UA_StatusCode statusCode = UA_STATUSCODE_BADARGUMENTSMISSING;
     src->additionalInfo = UA_STRING_ALLOC("additionalInfo");
@@ -1759,7 +1759,7 @@ START_TEST(UA_DiagInfo_withInner_json_encode) {
 
 
     UA_ByteString buf;
-    size_t size = UA_calcSizeJsonInternal((void *) src, type, NULL, 0, NULL, 0, UA_TRUE);
+    size_t size = UA_calcSizeJsonInternal((void *) src, type, NULL, 0, NULL, 0, true);
     UA_ByteString_allocBuffer(&buf, size+1);
 
     UA_Byte *bufPos = &buf.data[0];
@@ -1768,7 +1768,7 @@ START_TEST(UA_DiagInfo_withInner_json_encode) {
     //{"SymbolicId":13,"LocalizedText":14,"Locale":12,"AdditionalInfo":"additionalInfo","InnerStatusCode":2155216896,"InnerDiagnosticInfo":{"AdditionalInfo":"INNER ADDITION INFO"}}
     ck_assert_int_eq(size, 174);
     
-    status s = UA_encodeJsonInternal((void *) src, type, &bufPos, &bufEnd, NULL, 0, NULL, 0, UA_TRUE);
+    status s = UA_encodeJsonInternal((void *) src, type, &bufPos, &bufEnd, NULL, 0, NULL, 0, true);
 
     *bufPos = 0;
     // then
@@ -1784,37 +1784,37 @@ START_TEST(UA_DiagInfo_withTwoInner_json_encode) {
     
     UA_DiagnosticInfo *innerDiag2 = UA_DiagnosticInfo_new();
     UA_DiagnosticInfo_init(innerDiag2);
-    innerDiag2->hasAdditionalInfo = UA_TRUE;
+    innerDiag2->hasAdditionalInfo = true;
     innerDiag2->additionalInfo = UA_STRING_ALLOC("INNER ADDITION INFO2");
-    innerDiag2->hasInnerDiagnosticInfo = UA_FALSE;
-    innerDiag2->hasInnerStatusCode = UA_FALSE;
-    innerDiag2->hasLocale = UA_FALSE;
-    innerDiag2->hasSymbolicId = UA_FALSE;
-    innerDiag2->hasLocalizedText = UA_FALSE;
-    innerDiag2->hasNamespaceUri = UA_FALSE;
+    innerDiag2->hasInnerDiagnosticInfo = false;
+    innerDiag2->hasInnerStatusCode = false;
+    innerDiag2->hasLocale = false;
+    innerDiag2->hasSymbolicId = false;
+    innerDiag2->hasLocalizedText = false;
+    innerDiag2->hasNamespaceUri = false;
     
     UA_DiagnosticInfo *innerDiag = UA_DiagnosticInfo_new();
     UA_DiagnosticInfo_init(innerDiag);
-    innerDiag->hasAdditionalInfo = UA_TRUE;
+    innerDiag->hasAdditionalInfo = true;
     innerDiag->additionalInfo = UA_STRING_ALLOC("INNER ADDITION INFO");
-    innerDiag->hasInnerDiagnosticInfo = UA_TRUE;
+    innerDiag->hasInnerDiagnosticInfo = true;
     innerDiag->innerDiagnosticInfo = innerDiag2;
-    innerDiag->hasInnerStatusCode = UA_FALSE;
-    innerDiag->hasLocale = UA_FALSE;
-    innerDiag->hasSymbolicId = UA_FALSE;
-    innerDiag->hasLocalizedText = UA_FALSE;
-    innerDiag->hasNamespaceUri = UA_FALSE;
+    innerDiag->hasInnerStatusCode = false;
+    innerDiag->hasLocale = false;
+    innerDiag->hasSymbolicId = false;
+    innerDiag->hasLocalizedText = false;
+    innerDiag->hasNamespaceUri = false;
 
     UA_DiagnosticInfo *src = UA_DiagnosticInfo_new();
     UA_DiagnosticInfo_init(src);
     
-    src->hasAdditionalInfo = UA_TRUE;
-    src->hasInnerDiagnosticInfo = UA_TRUE;
-    src->hasInnerStatusCode = UA_TRUE;
-    src->hasLocale = UA_TRUE;
-    src->hasSymbolicId = UA_TRUE;
-    src->hasLocalizedText = UA_TRUE;
-    src->hasNamespaceUri = UA_FALSE;
+    src->hasAdditionalInfo = true;
+    src->hasInnerDiagnosticInfo = true;
+    src->hasInnerStatusCode = true;
+    src->hasLocale = true;
+    src->hasSymbolicId = true;
+    src->hasLocalizedText = true;
+    src->hasNamespaceUri = false;
 
     UA_StatusCode statusCode = UA_STATUSCODE_BADARGUMENTSMISSING;
     src->additionalInfo = UA_STRING_ALLOC("additionalInfo");
@@ -1826,7 +1826,7 @@ START_TEST(UA_DiagInfo_withTwoInner_json_encode) {
 
     const UA_DataType *type = &UA_TYPES[UA_TYPES_DIAGNOSTICINFO];
 
-    size_t size = UA_calcSizeJsonInternal((void *) src, type, NULL, 0, NULL, 0, UA_TRUE);
+    size_t size = UA_calcSizeJsonInternal((void *) src, type, NULL, 0, NULL, 0, true);
     UA_ByteString buf;
 
     UA_ByteString_allocBuffer(&buf, size+1);
@@ -1834,7 +1834,7 @@ START_TEST(UA_DiagInfo_withTwoInner_json_encode) {
     UA_Byte *bufPos = &buf.data[0];
     const UA_Byte *bufEnd = &buf.data[size+1];
 
-    status s = UA_encodeJsonInternal((void *) src, type, &bufPos, &bufEnd, NULL, 0, NULL, 0, UA_TRUE);
+    status s = UA_encodeJsonInternal((void *) src, type, &bufPos, &bufEnd, NULL, 0, NULL, 0, true);
 
     *bufPos = 0;
     // then
@@ -1850,7 +1850,7 @@ START_TEST(UA_DiagInfo_noFields_json_encode) {
     UA_DiagnosticInfo *src = UA_DiagnosticInfo_new();
     UA_DiagnosticInfo_init(src);
     const UA_DataType *type = &UA_TYPES[UA_TYPES_DIAGNOSTICINFO];
-    size_t size = UA_calcSizeJsonInternal((void *) src, type, NULL, 0, NULL, 0, UA_TRUE);
+    size_t size = UA_calcSizeJsonInternal((void *) src, type, NULL, 0, NULL, 0, true);
     UA_ByteString buf;
 
     UA_ByteString_allocBuffer(&buf, size+1);
@@ -1858,7 +1858,7 @@ START_TEST(UA_DiagInfo_noFields_json_encode) {
     UA_Byte *bufPos = &buf.data[0];
     const UA_Byte *bufEnd = &buf.data[size+1];
 
-    status s = UA_encodeJsonInternal((void *) src, type, &bufPos, &bufEnd, NULL, 0, NULL, 0, UA_TRUE);
+    status s = UA_encodeJsonInternal((void *) src, type, &bufPos, &bufEnd, NULL, 0, NULL, 0, true);
 
     *bufPos = 0;
     // then
@@ -1873,13 +1873,13 @@ END_TEST
 START_TEST(UA_DiagInfo_smallBuffer_json_encode) {
     UA_DiagnosticInfo *src = UA_DiagnosticInfo_new();
     UA_DiagnosticInfo_init(src);
-    src->hasAdditionalInfo = UA_TRUE;
-    src->hasInnerDiagnosticInfo = UA_FALSE;
-    src->hasInnerStatusCode = UA_TRUE;
-    src->hasLocale = UA_TRUE;
-    src->hasSymbolicId = UA_TRUE;
-    src->hasLocalizedText = UA_TRUE;
-    src->hasNamespaceUri = UA_FALSE;
+    src->hasAdditionalInfo = true;
+    src->hasInnerDiagnosticInfo = false;
+    src->hasInnerStatusCode = true;
+    src->hasLocale = true;
+    src->hasSymbolicId = true;
+    src->hasLocalizedText = true;
+    src->hasNamespaceUri = false;
 
     UA_StatusCode statusCode = UA_STATUSCODE_BADARGUMENTSMISSING;
     src->additionalInfo = UA_STRING_ALLOC("additionalInfo");
@@ -1898,7 +1898,7 @@ START_TEST(UA_DiagInfo_smallBuffer_json_encode) {
     UA_Byte *bufPos = &buf.data[0];
     const UA_Byte *bufEnd = &buf.data[2];
 
-    status s = UA_encodeJsonInternal((void *) src, type, &bufPos, &bufEnd, NULL, 0, NULL, 0, UA_TRUE);
+    status s = UA_encodeJsonInternal((void *) src, type, &bufPos, &bufEnd, NULL, 0, NULL, 0, true);
 
     *bufPos = 0;
     // then
@@ -1914,7 +1914,7 @@ START_TEST(UA_ByteString_json_encode) {
     UA_ByteString_init(src);
     *src = UA_BYTESTRING_ALLOC("asdfasdf");
     const UA_DataType *type = &UA_TYPES[UA_TYPES_BYTESTRING];
-    size_t size = UA_calcSizeJsonInternal((void *) src, type, NULL, 0, NULL, 0, UA_TRUE);
+    size_t size = UA_calcSizeJsonInternal((void *) src, type, NULL, 0, NULL, 0, true);
     UA_ByteString buf;
 
     UA_ByteString_allocBuffer(&buf, size+1);
@@ -1922,7 +1922,7 @@ START_TEST(UA_ByteString_json_encode) {
     UA_Byte *bufPos = &buf.data[0];
     const UA_Byte *bufEnd = &buf.data[size+1];
 
-    status s = UA_encodeJsonInternal((void *) src, type, &bufPos, &bufEnd, NULL, 0, NULL, 0, UA_TRUE);
+    status s = UA_encodeJsonInternal((void *) src, type, &bufPos, &bufEnd, NULL, 0, NULL, 0, true);
 
     *bufPos = 0;
     // then
@@ -1939,7 +1939,7 @@ START_TEST(UA_ByteString2_json_encode) {
     UA_ByteString_init(src);
     *src = UA_BYTESTRING_ALLOC("Lorem ipsum dolor sit amet, consectetur adipiscing elit.");
     const UA_DataType *type = &UA_TYPES[UA_TYPES_BYTESTRING];
-    size_t size = UA_calcSizeJsonInternal((void *) src, type, NULL, 0, NULL, 0, UA_TRUE);
+    size_t size = UA_calcSizeJsonInternal((void *) src, type, NULL, 0, NULL, 0, true);
     UA_ByteString buf;
 
     UA_ByteString_allocBuffer(&buf, size+1);
@@ -1947,7 +1947,7 @@ START_TEST(UA_ByteString2_json_encode) {
     UA_Byte *bufPos = &buf.data[0];
     const UA_Byte *bufEnd = &buf.data[size+1];
 
-    status s = UA_encodeJsonInternal((void *) src, type, &bufPos, &bufEnd, NULL, 0, NULL, 0, UA_TRUE);
+    status s = UA_encodeJsonInternal((void *) src, type, &bufPos, &bufEnd, NULL, 0, NULL, 0, true);
 
     
     //s = UA_decodeJsonInternal()
@@ -1969,7 +1969,7 @@ START_TEST(UA_ByteString3_json_encode) {
     UA_Variant_setScalar(src, variantContent, &UA_TYPES[UA_TYPES_BYTESTRING]);
 
     const UA_DataType *type = &UA_TYPES[UA_TYPES_VARIANT];
-    size_t size = UA_calcSizeJsonInternal((void *) src, type, NULL, 0, NULL, 0, UA_TRUE);
+    size_t size = UA_calcSizeJsonInternal((void *) src, type, NULL, 0, NULL, 0, true);
     UA_ByteString buf;
 
     UA_ByteString_allocBuffer(&buf, size+1);
@@ -1977,7 +1977,7 @@ START_TEST(UA_ByteString3_json_encode) {
     UA_Byte *bufPos = &buf.data[0];
     const UA_Byte *bufEnd = &buf.data[size+1];
 
-    status retval = UA_encodeJsonInternal((void *) src, type, &bufPos, &bufEnd, NULL, 0, NULL, 0, UA_TRUE);
+    status retval = UA_encodeJsonInternal((void *) src, type, &bufPos, &bufEnd, NULL, 0, NULL, 0, true);
 
     *bufPos = 0;
     //printf("%s\n\n", (char*)buf.data);
@@ -2004,7 +2004,7 @@ START_TEST(UA_QualName_json_encode) {
     src->name = UA_STRING_ALLOC("derName");
     src->namespaceIndex = 1;
     const UA_DataType *type = &UA_TYPES[UA_TYPES_QUALIFIEDNAME];
-    size_t size = UA_calcSizeJsonInternal((void *) src, type, NULL, 0, NULL, 0, UA_TRUE);
+    size_t size = UA_calcSizeJsonInternal((void *) src, type, NULL, 0, NULL, 0, true);
     UA_ByteString buf;
 
     UA_ByteString_allocBuffer(&buf, size+1);
@@ -2012,7 +2012,7 @@ START_TEST(UA_QualName_json_encode) {
     UA_Byte *bufPos = &buf.data[0];
     const UA_Byte *bufEnd = &buf.data[size+1];
 
-    status s = UA_encodeJsonInternal((void *) src, type, &bufPos, &bufEnd, NULL, 0, NULL, 0, UA_TRUE);
+    status s = UA_encodeJsonInternal((void *) src, type, &bufPos, &bufEnd, NULL, 0, NULL, 0, true);
 
     *bufPos = 0;
     // then
@@ -2032,7 +2032,7 @@ START_TEST(UA_QualName_NonReversible_json_encode) {
     src->name = UA_STRING_ALLOC("derName");
     src->namespaceIndex = 1;
     const UA_DataType *type = &UA_TYPES[UA_TYPES_QUALIFIEDNAME];
-    size_t size = UA_calcSizeJsonInternal((void *) src, type, NULL, 0, NULL, 0, UA_FALSE);
+    size_t size = UA_calcSizeJsonInternal((void *) src, type, NULL, 0, NULL, 0, false);
     UA_ByteString buf;
 
     UA_ByteString_allocBuffer(&buf, size+1);
@@ -2040,7 +2040,7 @@ START_TEST(UA_QualName_NonReversible_json_encode) {
     UA_Byte *bufPos = &buf.data[0];
     const UA_Byte *bufEnd = &buf.data[size+1];
 
-    status s = UA_encodeJsonInternal((void *) src, type, &bufPos, &bufEnd, NULL, 0, NULL, 0, UA_FALSE);
+    status s = UA_encodeJsonInternal((void *) src, type, &bufPos, &bufEnd, NULL, 0, NULL, 0, false);
 
     *bufPos = 0;
     // then
@@ -2059,7 +2059,7 @@ START_TEST(UA_QualName_NonReversible_Namespace_json_encode) {
     src->namespaceIndex = 2;
     const UA_DataType *type = &UA_TYPES[UA_TYPES_QUALIFIEDNAME];
     UA_String namespaces[3] = {UA_STRING("ns0"),UA_STRING("ns1"),UA_STRING("ns2")};
-    size_t size = UA_calcSizeJsonInternal((void *) src, type, namespaces, 3, NULL, 0, UA_FALSE);
+    size_t size = UA_calcSizeJsonInternal((void *) src, type, namespaces, 3, NULL, 0, false);
     UA_ByteString buf;
 
     UA_ByteString_allocBuffer(&buf, size+1);
@@ -2068,7 +2068,7 @@ START_TEST(UA_QualName_NonReversible_Namespace_json_encode) {
     const UA_Byte *bufEnd = &buf.data[size+1];
 
 
-    status s = UA_encodeJsonInternal((void *) src, type, &bufPos, &bufEnd, namespaces, 3, NULL, 0, UA_FALSE);
+    status s = UA_encodeJsonInternal((void *) src, type, &bufPos, &bufEnd, namespaces, 3, NULL, 0, false);
 
     *bufPos = 0;
     // then
@@ -2086,7 +2086,7 @@ START_TEST(UA_QualName_NonReversible_NoNamespaceAsNumber_json_encode) {
     src->name = UA_STRING_ALLOC("derName");
     src->namespaceIndex = 6789;
     const UA_DataType *type = &UA_TYPES[UA_TYPES_QUALIFIEDNAME];
-    size_t size = UA_calcSizeJsonInternal((void *) src, type, NULL, 0, NULL, 0, UA_FALSE);
+    size_t size = UA_calcSizeJsonInternal((void *) src, type, NULL, 0, NULL, 0, false);
     UA_ByteString buf;
 
     UA_ByteString_allocBuffer(&buf, size+1);
@@ -2094,7 +2094,7 @@ START_TEST(UA_QualName_NonReversible_NoNamespaceAsNumber_json_encode) {
     UA_Byte *bufPos = &buf.data[0];
     const UA_Byte *bufEnd = &buf.data[size+1];
 
-    status s = UA_encodeJsonInternal((void *) src, type, &bufPos, &bufEnd, NULL, 0, NULL, 0, UA_FALSE);
+    status s = UA_encodeJsonInternal((void *) src, type, &bufPos, &bufEnd, NULL, 0, NULL, 0, false);
 
     *bufPos = 0;
     // then
@@ -2118,7 +2118,7 @@ START_TEST(UA_Variant_Bool_json_encode) {
     UA_Variant_setScalar(src, variantContent, &UA_TYPES[UA_TYPES_BOOLEAN]);
 
     const UA_DataType *type = &UA_TYPES[UA_TYPES_VARIANT];
-    size_t size = UA_calcSizeJsonInternal((void *) src, type, NULL, 0, NULL, 0, UA_TRUE);
+    size_t size = UA_calcSizeJsonInternal((void *) src, type, NULL, 0, NULL, 0, true);
     UA_ByteString buf;
 
     UA_ByteString_allocBuffer(&buf, size+1);
@@ -2126,7 +2126,7 @@ START_TEST(UA_Variant_Bool_json_encode) {
     UA_Byte *bufPos = &buf.data[0];
     const UA_Byte *bufEnd = &buf.data[size+1];
 
-    status s = UA_encodeJsonInternal((void *) src, type, &bufPos, &bufEnd, NULL, 0, NULL, 0, UA_TRUE);
+    status s = UA_encodeJsonInternal((void *) src, type, &bufPos, &bufEnd, NULL, 0, NULL, 0, true);
 
     *bufPos = 0;
     // then
@@ -2146,7 +2146,7 @@ START_TEST(UA_Variant_Number_json_encode) {
     UA_Variant_setScalar(src, variantContent, &UA_TYPES[UA_TYPES_UINT64]);
 
     const UA_DataType *type = &UA_TYPES[UA_TYPES_VARIANT];
-    size_t size = UA_calcSizeJsonInternal((void *) src, type, NULL, 0, NULL, 0, UA_TRUE);
+    size_t size = UA_calcSizeJsonInternal((void *) src, type, NULL, 0, NULL, 0, true);
     UA_ByteString buf;
 
     UA_ByteString_allocBuffer(&buf, size+1);
@@ -2154,7 +2154,7 @@ START_TEST(UA_Variant_Number_json_encode) {
     UA_Byte *bufPos = &buf.data[0];
     const UA_Byte *bufEnd = &buf.data[size+1];
 
-    status s = UA_encodeJsonInternal((void *) src, type, &bufPos, &bufEnd, NULL, 0, NULL, 0, UA_TRUE);
+    status s = UA_encodeJsonInternal((void *) src, type, &bufPos, &bufEnd, NULL, 0, NULL, 0, true);
 
     *bufPos = 0;
     // then
@@ -2180,7 +2180,7 @@ START_TEST(UA_Variant_Double_json_encode) {
         UA_Variant_setScalar(src, variantContent, &UA_TYPES[UA_TYPES_DOUBLE]);
 
         const UA_DataType *type = &UA_TYPES[UA_TYPES_VARIANT];
-        size_t size = UA_calcSizeJsonInternal((void *) src, type, NULL, 0, NULL, 0, UA_TRUE);
+        size_t size = UA_calcSizeJsonInternal((void *) src, type, NULL, 0, NULL, 0, true);
         UA_ByteString buf;
 
         UA_ByteString_allocBuffer(&buf, size+1);
@@ -2188,7 +2188,7 @@ START_TEST(UA_Variant_Double_json_encode) {
         UA_Byte *bufPos = &buf.data[0];
         const UA_Byte *bufEnd = &buf.data[size+1];
 
-        status retval = UA_encodeJsonInternal((void *) src, type, &bufPos, &bufEnd, NULL, 0, NULL, 0, UA_TRUE);
+        status retval = UA_encodeJsonInternal((void *) src, type, &bufPos, &bufEnd, NULL, 0, NULL, 0, true);
 
         *bufPos = 0;
         //printf("%s\n\n", (char*)buf.data);
@@ -2217,7 +2217,7 @@ START_TEST(UA_Variant_Double2_json_encode) {
     UA_Variant_setScalar(src, variantContent, &UA_TYPES[UA_TYPES_DOUBLE]);
 
     const UA_DataType *type = &UA_TYPES[UA_TYPES_VARIANT];
-    size_t size = UA_calcSizeJsonInternal((void *) src, type, NULL, 0, NULL, 0, UA_TRUE);
+    size_t size = UA_calcSizeJsonInternal((void *) src, type, NULL, 0, NULL, 0, true);
     UA_ByteString buf;
 
     UA_ByteString_allocBuffer(&buf, size+1);
@@ -2225,7 +2225,7 @@ START_TEST(UA_Variant_Double2_json_encode) {
     UA_Byte *bufPos = &buf.data[0];
     const UA_Byte *bufEnd = &buf.data[size+1];
 
-    status retval = UA_encodeJsonInternal((void *) src, type, &bufPos, &bufEnd, NULL, 0, NULL, 0, UA_TRUE);
+    status retval = UA_encodeJsonInternal((void *) src, type, &bufPos, &bufEnd, NULL, 0, NULL, 0, true);
 
     *bufPos = 0;
 
@@ -2256,7 +2256,7 @@ START_TEST(UA_Variant_Double3_json_encode) {
     UA_Variant_setScalar(src, variantContent, &UA_TYPES[UA_TYPES_DOUBLE]);
 
     const UA_DataType *type = &UA_TYPES[UA_TYPES_VARIANT];
-    size_t size = UA_calcSizeJsonInternal((void *) src, type, NULL, 0, NULL, 0, UA_TRUE);
+    size_t size = UA_calcSizeJsonInternal((void *) src, type, NULL, 0, NULL, 0, true);
     UA_ByteString buf;
 
     UA_ByteString_allocBuffer(&buf, size+1);
@@ -2264,7 +2264,7 @@ START_TEST(UA_Variant_Double3_json_encode) {
     UA_Byte *bufPos = &buf.data[0];
     const UA_Byte *bufEnd = &buf.data[size+1];
 
-    status retval = UA_encodeJsonInternal((void *) src, type, &bufPos, &bufEnd, NULL, 0, NULL, 0, UA_TRUE);
+    status retval = UA_encodeJsonInternal((void *) src, type, &bufPos, &bufEnd, NULL, 0, NULL, 0, true);
 
     *bufPos = 0;
 
@@ -2291,7 +2291,7 @@ START_TEST(UA_Variant_DoubleInf_json_encode) {
     UA_Variant_setScalar(src, variantContent, &UA_TYPES[UA_TYPES_DOUBLE]);
 
     const UA_DataType *type = &UA_TYPES[UA_TYPES_VARIANT];
-    size_t size = UA_calcSizeJsonInternal((void *) src, type, NULL, 0, NULL, 0, UA_TRUE);
+    size_t size = UA_calcSizeJsonInternal((void *) src, type, NULL, 0, NULL, 0, true);
     UA_ByteString buf;
 
     UA_ByteString_allocBuffer(&buf, size+1);
@@ -2299,7 +2299,7 @@ START_TEST(UA_Variant_DoubleInf_json_encode) {
     UA_Byte *bufPos = &buf.data[0];
     const UA_Byte *bufEnd = &buf.data[size+1];
 
-    status retval = UA_encodeJsonInternal((void *) src, type, &bufPos, &bufEnd, NULL, 0, NULL, 0, UA_TRUE);
+    status retval = UA_encodeJsonInternal((void *) src, type, &bufPos, &bufEnd, NULL, 0, NULL, 0, true);
 
     *bufPos = 0;
     //printf("%s\n\n", (char*)buf.data);
@@ -2327,7 +2327,7 @@ START_TEST(UA_Variant_DoubleNan_json_encode) {
     UA_Variant_setScalar(src, variantContent, &UA_TYPES[UA_TYPES_DOUBLE]);
 
     const UA_DataType *type = &UA_TYPES[UA_TYPES_VARIANT];
-    size_t size = UA_calcSizeJsonInternal((void *) src, type, NULL, 0, NULL, 0, UA_TRUE);
+    size_t size = UA_calcSizeJsonInternal((void *) src, type, NULL, 0, NULL, 0, true);
     UA_ByteString buf;
 
     UA_ByteString_allocBuffer(&buf, size+1);
@@ -2335,7 +2335,7 @@ START_TEST(UA_Variant_DoubleNan_json_encode) {
     UA_Byte *bufPos = &buf.data[0];
     const UA_Byte *bufEnd = &buf.data[size+1];
 
-    status retval = UA_encodeJsonInternal((void *) src, type, &bufPos, &bufEnd, NULL, 0, NULL, 0, UA_TRUE);
+    status retval = UA_encodeJsonInternal((void *) src, type, &bufPos, &bufEnd, NULL, 0, NULL, 0, true);
 
     *bufPos = 0;
     //printf("%s\n\n", (char*)buf.data);
@@ -2363,7 +2363,7 @@ START_TEST(UA_Variant_Float_json_encode) {
     UA_Variant_setScalar(src, variantContent, &UA_TYPES[UA_TYPES_FLOAT]);
 
     const UA_DataType *type = &UA_TYPES[UA_TYPES_VARIANT];
-    size_t size = UA_calcSizeJsonInternal((void *) src, type, NULL, 0, NULL, 0, UA_TRUE);
+    size_t size = UA_calcSizeJsonInternal((void *) src, type, NULL, 0, NULL, 0, true);
     UA_ByteString buf;
 
     UA_ByteString_allocBuffer(&buf, size+1);
@@ -2371,7 +2371,7 @@ START_TEST(UA_Variant_Float_json_encode) {
     UA_Byte *bufPos = &buf.data[0];
     const UA_Byte *bufEnd = &buf.data[size+1];
 
-    status retval = UA_encodeJsonInternal((void *) src, type, &bufPos, &bufEnd, NULL, 0, NULL, 0, UA_TRUE);
+    status retval = UA_encodeJsonInternal((void *) src, type, &bufPos, &bufEnd, NULL, 0, NULL, 0, true);
 
     *bufPos = 0;
 
@@ -2398,7 +2398,7 @@ START_TEST(UA_Variant_NodeId_json_encode) {
     UA_Variant_setScalarCopy(src, &variantContent, &UA_TYPES[UA_TYPES_NODEID]);
 
     const UA_DataType *type = &UA_TYPES[UA_TYPES_VARIANT];
-    size_t size = UA_calcSizeJsonInternal((void *) src, type, NULL, 0, NULL, 0, UA_TRUE);
+    size_t size = UA_calcSizeJsonInternal((void *) src, type, NULL, 0, NULL, 0, true);
     UA_ByteString buf;
 
     UA_ByteString_allocBuffer(&buf, size+1);
@@ -2406,7 +2406,7 @@ START_TEST(UA_Variant_NodeId_json_encode) {
     UA_Byte *bufPos = &buf.data[0];
     const UA_Byte *bufEnd = &buf.data[size+1];
 
-    status s = UA_encodeJsonInternal((void *) src, type, &bufPos, &bufEnd, NULL, 0, NULL, 0, UA_TRUE);
+    status s = UA_encodeJsonInternal((void *) src, type, &bufPos, &bufEnd, NULL, 0, NULL, 0, true);
 
     *bufPos = 0;
     // then
@@ -2427,7 +2427,7 @@ START_TEST(UA_Variant_LocText_json_encode) {
     UA_Variant_setScalarCopy(src, &variantContent, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]);
 
     const UA_DataType *type = &UA_TYPES[UA_TYPES_VARIANT];
-    size_t size = UA_calcSizeJsonInternal((void *) src, type, NULL, 0, NULL, 0, UA_TRUE);
+    size_t size = UA_calcSizeJsonInternal((void *) src, type, NULL, 0, NULL, 0, true);
     UA_ByteString buf;
 
     UA_ByteString_allocBuffer(&buf, size+1);
@@ -2435,7 +2435,7 @@ START_TEST(UA_Variant_LocText_json_encode) {
     UA_Byte *bufPos = &buf.data[0];
     const UA_Byte *bufEnd = &buf.data[size+1];
 
-    status s = UA_encodeJsonInternal((void *) src, type, &bufPos, &bufEnd, NULL, 0, NULL, 0, UA_TRUE);
+    status s = UA_encodeJsonInternal((void *) src, type, &bufPos, &bufEnd, NULL, 0, NULL, 0, true);
 
     *bufPos = 0;
     // then
@@ -2458,7 +2458,7 @@ START_TEST(UA_Variant_QualName_json_encode) {
     UA_Variant_setScalarCopy(src, &variantContent, &UA_TYPES[UA_TYPES_QUALIFIEDNAME]);
 
     const UA_DataType *type = &UA_TYPES[UA_TYPES_VARIANT];
-    size_t size = UA_calcSizeJsonInternal((void *) src, type, NULL, 0, NULL, 0, UA_TRUE);
+    size_t size = UA_calcSizeJsonInternal((void *) src, type, NULL, 0, NULL, 0, true);
     UA_ByteString buf;
 
     UA_ByteString_allocBuffer(&buf, size+1);
@@ -2466,7 +2466,7 @@ START_TEST(UA_Variant_QualName_json_encode) {
     UA_Byte *bufPos = &buf.data[0];
     const UA_Byte *bufEnd = &buf.data[size+1];
 
-    status s = UA_encodeJsonInternal((void *) src, type, &bufPos, &bufEnd, NULL, 0, NULL, 0, UA_TRUE);
+    status s = UA_encodeJsonInternal((void *) src, type, &bufPos, &bufEnd, NULL, 0, NULL, 0, true);
 
     *bufPos = 0;
     
@@ -2489,7 +2489,7 @@ START_TEST(UA_Variant_Array_UInt16_json_encode) {
    
 
     const UA_DataType *type = &UA_TYPES[UA_TYPES_VARIANT];
-    size_t size = UA_calcSizeJsonInternal((void *) src, type, NULL, 0, NULL, 0, UA_TRUE);
+    size_t size = UA_calcSizeJsonInternal((void *) src, type, NULL, 0, NULL, 0, true);
     UA_ByteString buf;
 
     UA_ByteString_allocBuffer(&buf, size+1);
@@ -2499,7 +2499,7 @@ START_TEST(UA_Variant_Array_UInt16_json_encode) {
 
     ck_assert_int_eq(size, 25);
     
-    status s = UA_encodeJsonInternal((void *) src, type, &bufPos, &bufEnd, NULL, 0, NULL, 0, UA_TRUE);
+    status s = UA_encodeJsonInternal((void *) src, type, &bufPos, &bufEnd, NULL, 0, NULL, 0, true);
 
     *bufPos = 0;
     // then
@@ -2519,7 +2519,7 @@ START_TEST(UA_Variant_Array_Byte_json_encode) {
    
 
     const UA_DataType *type = &UA_TYPES[UA_TYPES_VARIANT];
-    size_t size = UA_calcSizeJsonInternal((void *) src, type, NULL, 0, NULL, 0, UA_TRUE);
+    size_t size = UA_calcSizeJsonInternal((void *) src, type, NULL, 0, NULL, 0, true);
     UA_ByteString buf;
 
     UA_ByteString_allocBuffer(&buf, size+1);
@@ -2527,7 +2527,7 @@ START_TEST(UA_Variant_Array_Byte_json_encode) {
     UA_Byte *bufPos = &buf.data[0];
     const UA_Byte *bufEnd = &buf.data[size+1];
 
-    status s = UA_encodeJsonInternal((void *) src, type, &bufPos, &bufEnd, NULL, 0, NULL, 0, UA_TRUE);
+    status s = UA_encodeJsonInternal((void *) src, type, &bufPos, &bufEnd, NULL, 0, NULL, 0, true);
 
     *bufPos = 0;
     // then
@@ -2547,7 +2547,7 @@ START_TEST(UA_Variant_Array_String_json_encode) {
    
 
     const UA_DataType *type = &UA_TYPES[UA_TYPES_VARIANT];
-    size_t size = UA_calcSizeJsonInternal((void *) src, type, NULL, 0, NULL, 0, UA_TRUE);
+    size_t size = UA_calcSizeJsonInternal((void *) src, type, NULL, 0, NULL, 0, true);
     UA_ByteString buf;
 
     UA_ByteString_allocBuffer(&buf, size+1);
@@ -2555,7 +2555,7 @@ START_TEST(UA_Variant_Array_String_json_encode) {
     UA_Byte *bufPos = &buf.data[0];
     const UA_Byte *bufEnd = &buf.data[size+1];
 
-    status s = UA_encodeJsonInternal((void *) src, type, &bufPos, &bufEnd, NULL, 0, NULL, 0, UA_TRUE);
+    status s = UA_encodeJsonInternal((void *) src, type, &bufPos, &bufEnd, NULL, 0, NULL, 0, true);
 
     *bufPos = 0;
     
@@ -2585,7 +2585,7 @@ START_TEST(UA_Variant_Matrix_UInt16_json_encode) {
     src.arrayDimensions[1] = 3;
     
     const UA_DataType *type = &UA_TYPES[UA_TYPES_VARIANT];
-    size_t size = UA_calcSizeJsonInternal((void *) &src, type, NULL, 0, NULL, 0, UA_TRUE);
+    size_t size = UA_calcSizeJsonInternal((void *) &src, type, NULL, 0, NULL, 0, true);
     UA_ByteString buf;
 
     UA_ByteString_allocBuffer(&buf, size+1);
@@ -2594,10 +2594,10 @@ START_TEST(UA_Variant_Matrix_UInt16_json_encode) {
     const UA_Byte *bufEnd = &buf.data[size+1];
 
     //{"Type":5,"Body":[1,2,3,4,5,6,7,8,9],"Dimension":[3,3]}
-    size_t sizeOfBytes = UA_calcSizeJsonInternal((void *) &src, type, NULL, 0, NULL, 0, UA_TRUE);
+    size_t sizeOfBytes = UA_calcSizeJsonInternal((void *) &src, type, NULL, 0, NULL, 0, true);
     ck_assert_int_eq(sizeOfBytes, 55);
     
-    status s = UA_encodeJsonInternal((void *) &src, type, &bufPos, &bufEnd, NULL, 0, NULL, 0, UA_TRUE);
+    status s = UA_encodeJsonInternal((void *) &src, type, &bufPos, &bufEnd, NULL, 0, NULL, 0, true);
 
     *bufPos = 0;
     // then
@@ -2618,7 +2618,7 @@ START_TEST(UA_Variant_StatusCode_NonReversible_json_encode) {
     UA_Variant_setScalarCopy(src, &variantContent, &UA_TYPES[UA_TYPES_STATUSCODE]);
 
     const UA_DataType *type = &UA_TYPES[UA_TYPES_VARIANT];
-    size_t size = UA_calcSizeJsonInternal((void *) src, type, NULL, 0, NULL, 0, UA_FALSE);
+    size_t size = UA_calcSizeJsonInternal((void *) src, type, NULL, 0, NULL, 0, false);
     UA_ByteString buf;
 
     UA_ByteString_allocBuffer(&buf, size+1);
@@ -2626,7 +2626,7 @@ START_TEST(UA_Variant_StatusCode_NonReversible_json_encode) {
     UA_Byte *bufPos = &buf.data[0];
     const UA_Byte *bufEnd = &buf.data[size+1];
 
-    status s = UA_encodeJsonInternal((void *) src, type, &bufPos, &bufEnd, NULL, 0, NULL, 0, UA_FALSE);
+    status s = UA_encodeJsonInternal((void *) src, type, &bufPos, &bufEnd, NULL, 0, NULL, 0, false);
 
     *bufPos = 0;
     // then
@@ -2653,7 +2653,7 @@ START_TEST(UA_Variant_Array_String_NonReversible_json_encode) {
     src.arrayDimensions[0] = 8;
     
     const UA_DataType *type = &UA_TYPES[UA_TYPES_VARIANT];
-    size_t size = UA_calcSizeJsonInternal((void *) &src, type, NULL, 0, NULL, 0, UA_FALSE);
+    size_t size = UA_calcSizeJsonInternal((void *) &src, type, NULL, 0, NULL, 0, false);
     UA_ByteString buf;
 
     UA_ByteString_allocBuffer(&buf, size+1);
@@ -2661,7 +2661,7 @@ START_TEST(UA_Variant_Array_String_NonReversible_json_encode) {
     UA_Byte *bufPos = &buf.data[0];
     const UA_Byte *bufEnd = &buf.data[size+1];
 
-    status s = UA_encodeJsonInternal((void *) &src, type, &bufPos, &bufEnd, NULL, 0, NULL, 0, UA_FALSE);
+    status s = UA_encodeJsonInternal((void *) &src, type, &bufPos, &bufEnd, NULL, 0, NULL, 0, false);
 
     *bufPos = 0;
     // then
@@ -2690,7 +2690,7 @@ START_TEST(UA_Variant_Matrix_String_NonReversible_json_encode) {
     src.arrayDimensions[3] = 1;
     
     const UA_DataType *type = &UA_TYPES[UA_TYPES_VARIANT];
-    size_t size = UA_calcSizeJsonInternal((void *) &src, type, NULL, 0, NULL, 0, UA_FALSE);
+    size_t size = UA_calcSizeJsonInternal((void *) &src, type, NULL, 0, NULL, 0, false);
     UA_ByteString buf;
 
     UA_ByteString_allocBuffer(&buf, size+1);
@@ -2699,10 +2699,10 @@ START_TEST(UA_Variant_Matrix_String_NonReversible_json_encode) {
     const UA_Byte *bufEnd = &buf.data[size+1];
 
     //{"Body":[[[["1"],["2"]],[["3"],["4"]]],[[["5"],["6"]],[["7"],["8"]]]]}
-    size_t sizeOfBytes = UA_calcSizeJsonInternal((void *) &src, type, NULL, 0, NULL, 0, UA_FALSE);
+    size_t sizeOfBytes = UA_calcSizeJsonInternal((void *) &src, type, NULL, 0, NULL, 0, false);
     ck_assert_int_eq(sizeOfBytes, 70);
     
-    status s = UA_encodeJsonInternal((void *) &src, type, &bufPos, &bufEnd, NULL, 0, NULL, 0, UA_FALSE);
+    status s = UA_encodeJsonInternal((void *) &src, type, &bufPos, &bufEnd, NULL, 0, NULL, 0, false);
 
     *bufPos = 0;
     // then
@@ -2728,7 +2728,7 @@ START_TEST(UA_Variant_Matrix_NodeId_NonReversible_json_encode) {
     src.arrayDimensions[3] = 1;
     
     const UA_DataType *type = &UA_TYPES[UA_TYPES_VARIANT];
-    size_t size = UA_calcSizeJsonInternal((void *) &src, type, NULL, 0, NULL, 0, UA_FALSE);
+    size_t size = UA_calcSizeJsonInternal((void *) &src, type, NULL, 0, NULL, 0, false);
     UA_ByteString buf;
 
     UA_ByteString_allocBuffer(&buf, size+1);
@@ -2736,7 +2736,7 @@ START_TEST(UA_Variant_Matrix_NodeId_NonReversible_json_encode) {
     UA_Byte *bufPos = &buf.data[0];
     const UA_Byte *bufEnd = &buf.data[size+1];
 
-    status s = UA_encodeJsonInternal((void *) &src, type, &bufPos, &bufEnd, NULL, 0, NULL, 0, UA_FALSE);
+    status s = UA_encodeJsonInternal((void *) &src, type, &bufPos, &bufEnd, NULL, 0, NULL, 0, false);
 
     *bufPos = 0;
     // then
@@ -2762,7 +2762,7 @@ START_TEST(UA_Variant_Wrap_json_encode) {
     UA_Variant_setScalarCopy(src, &variantContent, &UA_TYPES[UA_TYPES_VIEWDESCRIPTION]);
 
     const UA_DataType *type = &UA_TYPES[UA_TYPES_VARIANT];
-    size_t size = UA_calcSizeJsonInternal((void *) src, type, NULL, 0, NULL, 0, UA_TRUE);
+    size_t size = UA_calcSizeJsonInternal((void *) src, type, NULL, 0, NULL, 0, true);
     UA_ByteString buf;
 
     UA_ByteString_allocBuffer(&buf, size+1);
@@ -2770,7 +2770,7 @@ START_TEST(UA_Variant_Wrap_json_encode) {
     UA_Byte *bufPos = &buf.data[0];
     const UA_Byte *bufEnd = &buf.data[size+1];
 
-    status s = UA_encodeJsonInternal((void *) src, type, &bufPos, &bufEnd, NULL, 0, NULL, 0, UA_TRUE);
+    status s = UA_encodeJsonInternal((void *) src, type, &bufPos, &bufEnd, NULL, 0, NULL, 0, true);
 
     *bufPos = 0;
     // then
@@ -2807,7 +2807,7 @@ START_TEST(UA_Variant_Wrap_Array_json_encode) {
 
 
     const UA_DataType *type = &UA_TYPES[UA_TYPES_VARIANT];
-    size_t size = UA_calcSizeJsonInternal((void *) &src, type, NULL, 0, NULL, 0, UA_TRUE);
+    size_t size = UA_calcSizeJsonInternal((void *) &src, type, NULL, 0, NULL, 0, true);
     UA_ByteString buf;
 
     UA_ByteString_allocBuffer(&buf, size+1);
@@ -2815,7 +2815,7 @@ START_TEST(UA_Variant_Wrap_Array_json_encode) {
     UA_Byte *bufPos = &buf.data[0];
     const UA_Byte *bufEnd = &buf.data[size+1];
 
-    status s = UA_encodeJsonInternal(&src, type, &bufPos, &bufEnd, NULL, 0, NULL, 0, UA_TRUE);
+    status s = UA_encodeJsonInternal(&src, type, &bufPos, &bufEnd, NULL, 0, NULL, 0, true);
 
     *bufPos = 0;
     // then
@@ -2852,7 +2852,7 @@ START_TEST(UA_Variant_Wrap_Array_NonReversible_json_encode) {
 
 
     const UA_DataType *type = &UA_TYPES[UA_TYPES_VARIANT];
-    size_t size = UA_calcSizeJsonInternal((void *) &src, type, NULL, 0, NULL, 0, UA_FALSE);
+    size_t size = UA_calcSizeJsonInternal((void *) &src, type, NULL, 0, NULL, 0, false);
     UA_ByteString buf;
 
     UA_ByteString_allocBuffer(&buf, size+1);
@@ -2860,7 +2860,7 @@ START_TEST(UA_Variant_Wrap_Array_NonReversible_json_encode) {
     UA_Byte *bufPos = &buf.data[0];
     const UA_Byte *bufEnd = &buf.data[size+1];
 
-    status s = UA_encodeJsonInternal(&src, type, &bufPos, &bufEnd, NULL, 0, NULL, 0, UA_FALSE);
+    status s = UA_encodeJsonInternal(&src, type, &bufPos, &bufEnd, NULL, 0, NULL, 0, false);
 
     *bufPos = 0;
     // then
@@ -2879,11 +2879,11 @@ START_TEST(UA_ExtensionObject_json_encode) {
     src->encoding = UA_EXTENSIONOBJECT_DECODED_NODELETE;
     src->content.decoded.type = &UA_TYPES[UA_TYPES_BOOLEAN];
 
-    UA_Boolean b = UA_FALSE;
+    UA_Boolean b = false;
     src->content.decoded.data = &b;
 
     const UA_DataType *type = &UA_TYPES[UA_TYPES_EXTENSIONOBJECT];
-    size_t size = UA_calcSizeJsonInternal((void *) src, type, NULL, 0, NULL, 0, UA_TRUE);
+    size_t size = UA_calcSizeJsonInternal((void *) src, type, NULL, 0, NULL, 0, true);
     UA_ByteString buf;
 
     UA_ByteString_allocBuffer(&buf, size+1);
@@ -2891,7 +2891,7 @@ START_TEST(UA_ExtensionObject_json_encode) {
     UA_Byte *bufPos = &buf.data[0];
     const UA_Byte *bufEnd = &buf.data[size+1];
 
-    status s = UA_encodeJsonInternal((void *) src, type, &bufPos, &bufEnd, NULL, 0, NULL, 0, UA_TRUE);
+    status s = UA_encodeJsonInternal((void *) src, type, &bufPos, &bufEnd, NULL, 0, NULL, 0, true);
 
     *bufPos = 0;
     // then
@@ -2913,7 +2913,7 @@ START_TEST(UA_ExtensionObject_xml_json_encode) {
     src->content.encoded.body = b;
 
     const UA_DataType *type = &UA_TYPES[UA_TYPES_EXTENSIONOBJECT];
-    size_t size = UA_calcSizeJsonInternal((void *) src, type, NULL, 0, NULL, 0, UA_TRUE);
+    size_t size = UA_calcSizeJsonInternal((void *) src, type, NULL, 0, NULL, 0, true);
     UA_ByteString buf;
 
     UA_ByteString_allocBuffer(&buf, size+1);
@@ -2921,7 +2921,7 @@ START_TEST(UA_ExtensionObject_xml_json_encode) {
     UA_Byte *bufPos = &buf.data[0];
     const UA_Byte *bufEnd = &buf.data[size+1];
 
-    status s = UA_encodeJsonInternal((void *) src, type, &bufPos, &bufEnd, NULL, 0, NULL, 0, UA_TRUE);
+    status s = UA_encodeJsonInternal((void *) src, type, &bufPos, &bufEnd, NULL, 0, NULL, 0, true);
 
     *bufPos = 0;
     // then
@@ -2944,7 +2944,7 @@ START_TEST(UA_ExtensionObject_byteString_json_encode) {
     src->content.encoded.body = b;
 
     const UA_DataType *type = &UA_TYPES[UA_TYPES_EXTENSIONOBJECT];
-    size_t size = UA_calcSizeJsonInternal((void *) src, type, NULL, 0, NULL, 0, UA_TRUE);
+    size_t size = UA_calcSizeJsonInternal((void *) src, type, NULL, 0, NULL, 0, true);
     UA_ByteString buf;
 
     UA_ByteString_allocBuffer(&buf, size+1);
@@ -2952,7 +2952,7 @@ START_TEST(UA_ExtensionObject_byteString_json_encode) {
     UA_Byte *bufPos = &buf.data[0];
     const UA_Byte *bufEnd = &buf.data[size+1];
 
-    status s = UA_encodeJsonInternal((void *) src, type, &bufPos, &bufEnd, NULL, 0, NULL, 0, UA_TRUE);
+    status s = UA_encodeJsonInternal((void *) src, type, &bufPos, &bufEnd, NULL, 0, NULL, 0, true);
 
     *bufPos = 0;
     // then
@@ -2975,7 +2975,7 @@ START_TEST(UA_ExtensionObject_NonReversible_StatusCode_json_encode) {
     src->content.decoded.data = &b;
 
     const UA_DataType *type = &UA_TYPES[UA_TYPES_EXTENSIONOBJECT];
-    size_t size = UA_calcSizeJsonInternal((void *) src, type, NULL, 0, NULL, 0, UA_FALSE);
+    size_t size = UA_calcSizeJsonInternal((void *) src, type, NULL, 0, NULL, 0, false);
     UA_ByteString buf;
 
     UA_ByteString_allocBuffer(&buf, size+1);
@@ -2983,7 +2983,7 @@ START_TEST(UA_ExtensionObject_NonReversible_StatusCode_json_encode) {
     UA_Byte *bufPos = &buf.data[0];
     const UA_Byte *bufEnd = &buf.data[size+1];
 
-    status s = UA_encodeJsonInternal((void *) src, type, &bufPos, &bufEnd, NULL, 0, NULL, 0, UA_FALSE);
+    status s = UA_encodeJsonInternal((void *) src, type, &bufPos, &bufEnd, NULL, 0, NULL, 0, false);
 
     *bufPos = 0;
     // then
@@ -3005,7 +3005,7 @@ START_TEST(UA_ExpandedNodeId_json_encode) {
     src->namespaceUri = UA_STRING_ALLOC("asdf");
     src->serverIndex = 1345;
     const UA_DataType *type = &UA_TYPES[UA_TYPES_EXPANDEDNODEID];
-    size_t size = UA_calcSizeJsonInternal((void *) src, type, NULL, 0, NULL, 0, UA_TRUE);
+    size_t size = UA_calcSizeJsonInternal((void *) src, type, NULL, 0, NULL, 0, true);
     UA_ByteString buf;
 
     UA_ByteString_allocBuffer(&buf, size+1);
@@ -3013,7 +3013,7 @@ START_TEST(UA_ExpandedNodeId_json_encode) {
     UA_Byte *bufPos = &buf.data[0];
     const UA_Byte *bufEnd = &buf.data[size+1];
 
-    status s = UA_encodeJsonInternal((void *) src, type, &bufPos, &bufEnd, NULL, 0, NULL, 0, UA_TRUE);
+    status s = UA_encodeJsonInternal((void *) src, type, &bufPos, &bufEnd, NULL, 0, NULL, 0, true);
 
     *bufPos = 0;
     // then
@@ -3033,7 +3033,7 @@ START_TEST(UA_ExpandedNodeId_MissingNamespaceUri_json_encode) {
     src->namespaceUri = UA_STRING_NULL;
     src->serverIndex = 1345;
     const UA_DataType *type = &UA_TYPES[UA_TYPES_EXPANDEDNODEID];
-    size_t size = UA_calcSizeJsonInternal((void *) src, type, NULL, 0, NULL, 0, UA_TRUE);
+    size_t size = UA_calcSizeJsonInternal((void *) src, type, NULL, 0, NULL, 0, true);
     UA_ByteString buf;
 
     UA_ByteString_allocBuffer(&buf, size+1);
@@ -3041,7 +3041,7 @@ START_TEST(UA_ExpandedNodeId_MissingNamespaceUri_json_encode) {
     UA_Byte *bufPos = &buf.data[0];
     const UA_Byte *bufEnd = &buf.data[size+1];
 
-    status s = UA_encodeJsonInternal((void *) src, type, &bufPos, &bufEnd, NULL, 0, NULL, 0, UA_TRUE);
+    status s = UA_encodeJsonInternal((void *) src, type, &bufPos, &bufEnd, NULL, 0, NULL, 0, true);
 
     *bufPos = 0;
     // then
@@ -3062,7 +3062,7 @@ START_TEST(UA_ExpandedNodeId_NonReversible_Ns1_json_encode) {
     const UA_DataType *type = &UA_TYPES[UA_TYPES_EXPANDEDNODEID];
     
     UA_String serverUris[3] = {UA_STRING("uri0"),UA_STRING("uri1"),UA_STRING("uri2")};
-    size_t size = UA_calcSizeJsonInternal((void *) src, type, NULL, 0, serverUris, 3, UA_FALSE);
+    size_t size = UA_calcSizeJsonInternal((void *) src, type, NULL, 0, serverUris, 3, false);
     UA_ByteString buf;
 
     UA_ByteString_allocBuffer(&buf, size+1);
@@ -3071,7 +3071,7 @@ START_TEST(UA_ExpandedNodeId_NonReversible_Ns1_json_encode) {
     const UA_Byte *bufEnd = &buf.data[size+1];
 
     
-    status s = UA_encodeJsonInternal((void *) src, type, &bufPos, &bufEnd, NULL, 0, serverUris, 3, UA_FALSE);
+    status s = UA_encodeJsonInternal((void *) src, type, &bufPos, &bufEnd, NULL, 0, serverUris, 3, false);
 
     *bufPos = 0;
     // then
@@ -3094,7 +3094,7 @@ START_TEST(UA_ExpandedNodeId_NonReversible_Namespace_json_encode) {
     UA_String namespaces[3] = {UA_STRING("ns0"),UA_STRING("ns1"),UA_STRING("ns2")};
     UA_String serverUris[3] = {UA_STRING("uri0"),UA_STRING("uri1"),UA_STRING("uri2")};
     
-    size_t size = UA_calcSizeJsonInternal((void *) src, type, namespaces, 3, serverUris, 3, UA_FALSE);
+    size_t size = UA_calcSizeJsonInternal((void *) src, type, namespaces, 3, serverUris, 3, false);
     UA_ByteString buf;
 
     UA_ByteString_allocBuffer(&buf, size+1);
@@ -3103,7 +3103,7 @@ START_TEST(UA_ExpandedNodeId_NonReversible_Namespace_json_encode) {
     const UA_Byte *bufEnd = &buf.data[size+1];
 
 
-    status s = UA_encodeJsonInternal((void *) src, type, &bufPos, &bufEnd, namespaces, 3, serverUris, 3, UA_FALSE);
+    status s = UA_encodeJsonInternal((void *) src, type, &bufPos, &bufEnd, namespaces, 3, serverUris, 3, false);
 
     *bufPos = 0;
     // then
@@ -3127,7 +3127,7 @@ START_TEST(UA_ExpandedNodeId_NonReversible_NamespaceUriGiven_json_encode) {
     
     
     const UA_DataType *type = &UA_TYPES[UA_TYPES_EXPANDEDNODEID];
-    size_t size = UA_calcSizeJsonInternal((void *) src, type, namespaces, 3, serverUris, 3, UA_FALSE);
+    size_t size = UA_calcSizeJsonInternal((void *) src, type, namespaces, 3, serverUris, 3, false);
     UA_ByteString buf;
 
     UA_ByteString_allocBuffer(&buf, size+1);
@@ -3135,7 +3135,7 @@ START_TEST(UA_ExpandedNodeId_NonReversible_NamespaceUriGiven_json_encode) {
     UA_Byte *bufPos = &buf.data[0];
     const UA_Byte *bufEnd = &buf.data[size+1];
 
-    status s = UA_encodeJsonInternal((void *) src, type, &bufPos, &bufEnd, namespaces, 3, serverUris, 3, UA_FALSE);
+    status s = UA_encodeJsonInternal((void *) src, type, &bufPos, &bufEnd, namespaces, 3, serverUris, 3, false);
 
     *bufPos = 0;
     // then
@@ -3151,12 +3151,12 @@ END_TEST
 START_TEST(UA_DataValue_json_encode) {
     UA_DataValue *src = UA_DataValue_new();
     UA_DataValue_init(src);
-    src->hasServerPicoseconds = UA_TRUE;
-    src->hasServerTimestamp = UA_TRUE;
-    src->hasSourcePicoseconds = UA_TRUE;
-    src->hasSourceTimestamp = UA_TRUE;
-    src->hasStatus = UA_TRUE;
-    src->hasValue = UA_TRUE;
+    src->hasServerPicoseconds = true;
+    src->hasServerTimestamp = true;
+    src->hasSourcePicoseconds = true;
+    src->hasSourceTimestamp = true;
+    src->hasStatus = true;
+    src->hasValue = true;
 
     UA_DateTime srcts = UA_DateTime_fromUnixTime(1234567) + 8901234;
     UA_DateTime srvts = UA_DateTime_fromUnixTime(2345678) + 9012345;
@@ -3174,7 +3174,7 @@ START_TEST(UA_DataValue_json_encode) {
 
     src->status = UA_STATUSCODE_BADAPPLICATIONSIGNATUREINVALID;
     const UA_DataType *type = &UA_TYPES[UA_TYPES_DATAVALUE];
-    size_t size = UA_calcSizeJsonInternal((void *) src, type, NULL, 0, NULL, 0, UA_TRUE);
+    size_t size = UA_calcSizeJsonInternal((void *) src, type, NULL, 0, NULL, 0, true);
     UA_ByteString buf;
 
     UA_ByteString_allocBuffer(&buf, size+1);
@@ -3182,7 +3182,7 @@ START_TEST(UA_DataValue_json_encode) {
     UA_Byte *bufPos = &buf.data[0];
     const UA_Byte *bufEnd = &buf.data[size+1];
 
-    status s = UA_encodeJsonInternal((void *) src, type, &bufPos, &bufEnd, NULL, 0, NULL, 0, UA_TRUE);
+    status s = UA_encodeJsonInternal((void *) src, type, &bufPos, &bufEnd, NULL, 0, NULL, 0, true);
 
     *bufPos = 0;
     // then
@@ -3199,7 +3199,7 @@ START_TEST(UA_DataValue_null_json_encode) {
     UA_DataValue_init(src);
     
     const UA_DataType *type = &UA_TYPES[UA_TYPES_DATAVALUE];
-    size_t size = UA_calcSizeJsonInternal((void *) src, type, NULL, 0, NULL, 0, UA_TRUE);
+    size_t size = UA_calcSizeJsonInternal((void *) src, type, NULL, 0, NULL, 0, true);
     UA_ByteString buf;
 
     UA_ByteString_allocBuffer(&buf, size+1);
@@ -3207,7 +3207,7 @@ START_TEST(UA_DataValue_null_json_encode) {
     UA_Byte *bufPos = &buf.data[0];
     const UA_Byte *bufEnd = &buf.data[size+1];
 
-    status s = UA_encodeJsonInternal((void *) src, type, &bufPos, &bufEnd, NULL, 0, NULL, 0, UA_TRUE);
+    status s = UA_encodeJsonInternal((void *) src, type, &bufPos, &bufEnd, NULL, 0, NULL, 0, true);
 
     *bufPos = 0;
     // then
@@ -3223,14 +3223,14 @@ START_TEST(UA_MessageReadResponse_json_encode) {
     UA_ReadResponse src;
     UA_ReadResponse_init(&src);
     UA_DiagnosticInfo innerDiag;
-    innerDiag.hasAdditionalInfo = UA_TRUE;
+    innerDiag.hasAdditionalInfo = true;
     innerDiag.additionalInfo = UA_STRING_ALLOC("INNER ADDITION INFO");
-    innerDiag.hasInnerDiagnosticInfo = UA_FALSE;
-    innerDiag.hasInnerStatusCode = UA_FALSE;
-    innerDiag.hasLocale = UA_FALSE;
-    innerDiag.hasSymbolicId = UA_FALSE;
-    innerDiag.hasLocalizedText = UA_FALSE;
-    innerDiag.hasNamespaceUri = UA_FALSE;
+    innerDiag.hasInnerDiagnosticInfo = false;
+    innerDiag.hasInnerStatusCode = false;
+    innerDiag.hasLocale = false;
+    innerDiag.hasSymbolicId = false;
+    innerDiag.hasLocalizedText = false;
+    innerDiag.hasNamespaceUri = false;
     
     UA_DiagnosticInfo *info = (UA_DiagnosticInfo*)UA_calloc(1, sizeof(UA_DiagnosticInfo));
     info[0] = innerDiag;
@@ -3239,10 +3239,10 @@ START_TEST(UA_MessageReadResponse_json_encode) {
     
     UA_DataValue dv;
     UA_DataValue_init(&dv);
-    dv.hasServerTimestamp = UA_TRUE;
-    dv.hasSourceTimestamp = UA_TRUE;
-    dv.hasStatus = UA_TRUE;
-    dv.hasValue = UA_TRUE;
+    dv.hasServerTimestamp = true;
+    dv.hasSourceTimestamp = true;
+    dv.hasStatus = true;
+    dv.hasValue = true;
 
     UA_DateTime srcts = UA_DateTime_fromUnixTime(1234567);
     UA_DateTime srvts = UA_DateTime_fromUnixTime(1234567);
@@ -3277,14 +3277,14 @@ START_TEST(UA_MessageReadResponse_json_encode) {
     
     UA_DiagnosticInfo serverDiag;
     UA_DiagnosticInfo_init(&serverDiag);
-    serverDiag.hasAdditionalInfo = UA_TRUE;
+    serverDiag.hasAdditionalInfo = true;
     serverDiag.additionalInfo = UA_STRING_ALLOC("serverDiag");
-    serverDiag.hasInnerDiagnosticInfo = UA_FALSE;
-    serverDiag.hasInnerStatusCode = UA_FALSE;
-    serverDiag.hasLocale = UA_FALSE;
-    serverDiag.hasSymbolicId = UA_FALSE;
-    serverDiag.hasLocalizedText = UA_FALSE;
-    serverDiag.hasNamespaceUri = UA_FALSE;
+    serverDiag.hasInnerDiagnosticInfo = false;
+    serverDiag.hasInnerStatusCode = false;
+    serverDiag.hasLocale = false;
+    serverDiag.hasSymbolicId = false;
+    serverDiag.hasLocalizedText = false;
+    serverDiag.hasNamespaceUri = false;
     rh.serviceDiagnostics = serverDiag;
     
     
@@ -3293,7 +3293,7 @@ START_TEST(UA_MessageReadResponse_json_encode) {
     e.encoding = UA_EXTENSIONOBJECT_DECODED_NODELETE;
     e.content.decoded.type = &UA_TYPES[UA_TYPES_BOOLEAN];
 
-    UA_Boolean b = UA_FALSE;
+    UA_Boolean b = false;
     e.content.decoded.data = &b;
     
     rh.additionalHeader = e;
@@ -3301,7 +3301,7 @@ START_TEST(UA_MessageReadResponse_json_encode) {
     src.responseHeader = rh;
     
     const UA_DataType *type = &UA_TYPES[UA_TYPES_READRESPONSE];
-    size_t size = UA_calcSizeJsonInternal((void *) &src, type, NULL, 0, NULL, 0, UA_TRUE);
+    size_t size = UA_calcSizeJsonInternal((void *) &src, type, NULL, 0, NULL, 0, true);
     UA_ByteString buf;
 
     UA_ByteString_allocBuffer(&buf, size+1);
@@ -3309,7 +3309,7 @@ START_TEST(UA_MessageReadResponse_json_encode) {
     UA_Byte *bufPos = &buf.data[0];
     const UA_Byte *bufEnd = &buf.data[size+1];
 
-    status s = UA_encodeJsonInternal((void *) &src, type, &bufPos, &bufEnd, NULL, 0, NULL, 0, UA_TRUE);
+    status s = UA_encodeJsonInternal((void *) &src, type, &bufPos, &bufEnd, NULL, 0, NULL, 0, true);
 
     *bufPos = 0;
     // then
@@ -3330,7 +3330,7 @@ START_TEST(UA_ViewDescription_json_encode) {
     src.viewId = UA_NODEID_NUMERIC(0,99999);
     
     const UA_DataType *type = &UA_TYPES[UA_TYPES_VIEWDESCRIPTION];
-    size_t size = UA_calcSizeJsonInternal((void *) &src, type, NULL, 0, NULL, 0, UA_TRUE);
+    size_t size = UA_calcSizeJsonInternal((void *) &src, type, NULL, 0, NULL, 0, true);
     UA_ByteString buf;
 
     UA_ByteString_allocBuffer(&buf, size+1);
@@ -3338,7 +3338,7 @@ START_TEST(UA_ViewDescription_json_encode) {
     UA_Byte *bufPos = &buf.data[0];
     const UA_Byte *bufEnd = &buf.data[size+1];
 
-    status s = UA_encodeJsonInternal((void *) &src, type, &bufPos, &bufEnd, NULL, 0, NULL, 0, UA_TRUE);
+    status s = UA_encodeJsonInternal((void *) &src, type, &bufPos, &bufEnd, NULL, 0, NULL, 0, true);
 
     *bufPos = 0;
     // then
@@ -3367,7 +3367,7 @@ START_TEST(UA_WriteRequest_json_encode) {
     e.encoding = UA_EXTENSIONOBJECT_DECODED_NODELETE;
     e.content.decoded.type = &UA_TYPES[UA_TYPES_BOOLEAN];
 
-    UA_Boolean b = UA_FALSE;
+    UA_Boolean b = false;
     e.content.decoded.data = &b;
     
     rh.additionalHeader = e;
@@ -3376,10 +3376,10 @@ START_TEST(UA_WriteRequest_json_encode) {
     
     UA_DataValue dv;
     UA_DataValue_init(&dv);
-    dv.hasServerTimestamp = UA_TRUE;
-    dv.hasSourceTimestamp = UA_TRUE;
-    dv.hasStatus = UA_TRUE;
-    dv.hasValue = UA_TRUE;
+    dv.hasServerTimestamp = true;
+    dv.hasSourceTimestamp = true;
+    dv.hasStatus = true;
+    dv.hasValue = true;
 
     UA_DateTime srcts = UA_DateTime_fromUnixTime(1234567);
     UA_DateTime srvts = UA_DateTime_fromUnixTime(1234567);
@@ -3397,10 +3397,10 @@ START_TEST(UA_WriteRequest_json_encode) {
     
     UA_DataValue dv2;
     UA_DataValue_init(&dv2);
-    dv2.hasServerTimestamp = UA_TRUE;
-    dv2.hasSourceTimestamp = UA_TRUE;
-    dv2.hasStatus = UA_TRUE;
-    dv2.hasValue = UA_TRUE;
+    dv2.hasServerTimestamp = true;
+    dv2.hasSourceTimestamp = true;
+    dv2.hasStatus = true;
+    dv2.hasValue = true;
 
     UA_DateTime srcts2 = UA_DateTime_fromUnixTime(1234567);
     UA_DateTime srvts2 = UA_DateTime_fromUnixTime(1234567);
@@ -3441,7 +3441,7 @@ START_TEST(UA_WriteRequest_json_encode) {
     src.requestHeader = rh;
 
     const UA_DataType *type = &UA_TYPES[UA_TYPES_WRITEREQUEST];
-    size_t size = UA_calcSizeJsonInternal((void *) &src, type, NULL, 0, NULL, 0, UA_TRUE);
+    size_t size = UA_calcSizeJsonInternal((void *) &src, type, NULL, 0, NULL, 0, true);
     UA_ByteString buf;
 
     UA_ByteString_allocBuffer(&buf, size+1);
@@ -3449,7 +3449,7 @@ START_TEST(UA_WriteRequest_json_encode) {
     UA_Byte *bufPos = &buf.data[0];
     const UA_Byte *bufEnd = &buf.data[size+1];
 
-    status s = UA_encodeJsonInternal((void *) &src, type, &bufPos, &bufEnd, NULL, 0, NULL, 0, UA_TRUE);
+    status s = UA_encodeJsonInternal((void *) &src, type, &bufPos, &bufEnd, NULL, 0, NULL, 0, true);
 
     *bufPos = 0;
     // then
@@ -3484,7 +3484,7 @@ START_TEST(UA_VariableAttributes_json_encode) {
     src.dataType = UA_TYPES[UA_TYPES_INT32].typeId;
 
     const UA_DataType *type = &UA_TYPES[UA_TYPES_VARIABLETYPEATTRIBUTES];
-    size_t size = UA_calcSizeJsonInternal((void *) &src, type, NULL, 0, NULL, 0, UA_TRUE);
+    size_t size = UA_calcSizeJsonInternal((void *) &src, type, NULL, 0, NULL, 0, true);
     UA_ByteString buf;
 
     UA_ByteString_allocBuffer(&buf, size+1);
@@ -3492,7 +3492,7 @@ START_TEST(UA_VariableAttributes_json_encode) {
     UA_Byte *bufPos = &buf.data[0];
     const UA_Byte *bufEnd = &buf.data[size+1];
 
-    status s = UA_encodeJsonInternal((void *) &src, type, &bufPos, &bufEnd, NULL, 0, NULL, 0, UA_TRUE);
+    status s = UA_encodeJsonInternal((void *) &src, type, &bufPos, &bufEnd, NULL, 0, NULL, 0, true);
 
     *bufPos = 0;
     // then
@@ -5106,7 +5106,7 @@ START_TEST(UA_ExtensionObject_json_decode) {
     // then
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
     ck_assert_int_eq(out.encoding, UA_EXTENSIONOBJECT_DECODED);
-    ck_assert_int_eq(*((UA_Boolean*)out.content.decoded.data), UA_TRUE);
+    ck_assert_int_eq(*((UA_Boolean*)out.content.decoded.data), true);
     ck_assert_int_eq(out.content.decoded.type->typeKind, UA_DATATYPEKIND_BOOLEAN);
     UA_ExtensionObject_clear(&out);
 }
@@ -5685,7 +5685,7 @@ END_TEST
 /* Test Boolean */
 START_TEST(UA_Boolean_true_public_json_encode) {
 
-    UA_Boolean src = UA_TRUE;
+    UA_Boolean src = true;
     UA_ByteString out = UA_BYTESTRING_NULL;
     status s = UA_encodeJson(&src, &UA_TYPES[UA_TYPES_BOOLEAN], &out, NULL);
 
