@@ -165,6 +165,8 @@ def generateNodeValueCode(prepend , node, instanceName, valueName, global_var_co
         code = []
         if idxList is None:
             raise Exception("No index was passed and the code generation cannot generate the array element")
+        if len(node) == 0:
+            return "\n".join(code)
         # Code generation for structure arrays with fields of type Buildin.
         # Example:
         #   Structure []
