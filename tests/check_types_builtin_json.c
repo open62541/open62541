@@ -3239,9 +3239,7 @@ START_TEST(UA_MessageReadResponse_json_encode) {
     
     UA_DataValue dv;
     UA_DataValue_init(&dv);
-    dv.hasServerPicoseconds = UA_TRUE;
     dv.hasServerTimestamp = UA_TRUE;
-    dv.hasSourcePicoseconds = UA_TRUE;
     dv.hasSourceTimestamp = UA_TRUE;
     dv.hasStatus = UA_TRUE;
     dv.hasValue = UA_TRUE;
@@ -3378,9 +3376,7 @@ START_TEST(UA_WriteRequest_json_encode) {
     
     UA_DataValue dv;
     UA_DataValue_init(&dv);
-    dv.hasServerPicoseconds = UA_TRUE;
     dv.hasServerTimestamp = UA_TRUE;
-    dv.hasSourcePicoseconds = UA_TRUE;
     dv.hasSourceTimestamp = UA_TRUE;
     dv.hasStatus = UA_TRUE;
     dv.hasValue = UA_TRUE;
@@ -3390,8 +3386,6 @@ START_TEST(UA_WriteRequest_json_encode) {
 
     dv.sourceTimestamp = srcts;
     dv.serverTimestamp = srvts;
-    dv.sourcePicoseconds = 0;
-    dv.serverPicoseconds = 0;
     
     UA_Variant variant;
     UA_Variant_init(&variant);
@@ -3403,9 +3397,7 @@ START_TEST(UA_WriteRequest_json_encode) {
     
     UA_DataValue dv2;
     UA_DataValue_init(&dv2);
-    dv2.hasServerPicoseconds = UA_TRUE;
     dv2.hasServerTimestamp = UA_TRUE;
-    dv2.hasSourcePicoseconds = UA_TRUE;
     dv2.hasSourceTimestamp = UA_TRUE;
     dv2.hasStatus = UA_TRUE;
     dv2.hasValue = UA_TRUE;
