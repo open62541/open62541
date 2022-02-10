@@ -2173,6 +2173,10 @@ DECODE_JSON(String) {
     while(p < end) {
         /* No escaping */
         if(*p != '\\') {
+            /* In the ASCII range, but not a printable character */
+            if(*p < 32 || *p == 127)
+                goto cleanup;
+
             *(pos++) = *(p++);
             continue;
         }
