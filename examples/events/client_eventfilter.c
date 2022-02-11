@@ -30,8 +30,6 @@
 static UA_Boolean running = true;
 const size_t nSelectClauses = 2;
 const size_t nWhereClauses = 1;
-UA_Variant literalContent;
-UA_UInt32 literal_value = 99;
 
 /**
  * Setting up SelectClauses
@@ -284,8 +282,10 @@ setupWhereClauses(UA_ContentFilter *contentFilter, UA_UInt16 whereClauseSize, UA
         setupTwoOperandsFilter(&contentFilter->elements[2], 3, 4);
         setupOfTypeFilter(&contentFilter->elements[1], 1, 5000);
 
+        UA_Variant literalContent;
         UA_Variant_init(&literalContent);
-        UA_Variant_setScalar(&literalContent, &literal_value, &UA_TYPES[UA_TYPES_UINT32]);
+        UA_UInt32 literal_value = 99;
+        UA_Variant_setScalarCopy(&literalContent, &literal_value, &UA_TYPES[UA_TYPES_UINT32]);
 
         setupLiteralOperand(&contentFilter->elements[3], 0, literalContent);
         setupLiteralOperand(&contentFilter->elements[3], 1, literalContent);
@@ -300,6 +300,43 @@ setupWhereClauses(UA_ContentFilter *contentFilter, UA_UInt16 whereClauseSize, UA
         sao.browsePath = qn;
         setupSimpleAttributeOperand(&contentFilter->elements[4], 0, sao);
         setupLiteralOperand(&contentFilter->elements[4], 1, literalContent);
+        break;
+    }
+    case 4: {
+        contentFilter->elements[0].filterOperator = UA_FILTEROPERATOR_AND;
+        contentFilter->elements[1].filterOperator = UA_FILTEROPERATOR_OFTYPE;
+        contentFilter->elements[2].filterOperator = UA_FILTEROPERATOR_GREATERTHAN;
+
+        contentFilter->elements[0].filterOperandsSize = 2;
+        contentFilter->elements[1].filterOperandsSize = 1;
+        contentFilter->elements[2].filterOperandsSize = 2;
+
+        /* Setup Operand Arrays */
+        result = setupOperandArrays(contentFilter);
+        if(result != UA_STATUSCODE_GOOD) {
+            UA_ContentFilter_clear(contentFilter);
+            return UA_STATUSCODE_BADCONFIGURATIONERROR;
+        }
+
+        // init clauses
+        setupTwoOperandsFilter(&contentFilter->elements[0], 1, 2);
+        setupOfTypeFilter(&contentFilter->elements[1], 1, 5000);
+
+        UA_Variant literalContent;
+        UA_Variant_init(&literalContent);
+        UA_UInt32 literal_value = 99;
+        UA_Variant_setScalarCopy(&literalContent, &literal_value, &UA_TYPES[UA_TYPES_UINT32]);
+
+        UA_SimpleAttributeOperand sao;
+        UA_SimpleAttributeOperand_init(&sao);
+        sao.attributeId = UA_ATTRIBUTEID_VALUE;
+        sao.typeDefinitionId = UA_NODEID_NUMERIC(0, UA_NS0ID_BASEEVENTTYPE);
+        sao.browsePathSize = 1;
+        UA_QualifiedName *qn = UA_QualifiedName_new();
+        *qn = UA_QUALIFIEDNAME_ALLOC(0, "Severity");
+        sao.browsePath = qn;
+        setupSimpleAttributeOperand(&contentFilter->elements[2], 0, sao);
+        setupLiteralOperand(&contentFilter->elements[2], 1, literalContent);
         break;
     }
     default:
@@ -381,7 +418,7 @@ int main(int argc, char *argv[]) {
     UA_EventFilter_init(&filter);
     filter.selectClauses = setupSelectClauses();
     filter.selectClausesSize = nSelectClauses;
-    retval = setupWhereClauses(&filter.whereClause, 5, 3);
+    retval = setupWhereClauses(&filter.whereClause, 3, 4);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_Client_delete(client);
         return EXIT_FAILURE;
