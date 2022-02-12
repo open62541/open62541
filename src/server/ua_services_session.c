@@ -226,23 +226,25 @@ UA_Server_createSession(UA_Server *server, UA_SecureChannel *channel,
     if(!newentry)
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
-    UA_atomic_addUInt32(&server->sessionCount, 1);
+    /* Initialize the Session */
     UA_Session_init(&newentry->session);
     newentry->session.sessionId = UA_NODEID_GUID(1, UA_Guid_random());
     newentry->session.header.authenticationToken = UA_NODEID_GUID(1, UA_Guid_random());
 
+    newentry->session.timeout = server->config.maxSessionTimeout;
     if(request->requestedSessionTimeout <= server->config.maxSessionTimeout &&
        request->requestedSessionTimeout > 0)
         newentry->session.timeout = request->requestedSessionTimeout;
-    else
-        newentry->session.timeout = server->config.maxSessionTimeout;
 
     /* Attach the session to the channel. But don't activate for now. */
     if(channel)
         UA_Session_attachToSecureChannel(&newentry->session, channel);
     UA_Session_updateLifetime(&newentry->session);
 
+    /* Add to the server */
     LIST_INSERT_HEAD(&server->sessions, newentry, pointers);
+    server->sessionCount++;
+
     *session = &newentry->session;
     return UA_STATUSCODE_GOOD;
 }
