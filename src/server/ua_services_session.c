@@ -220,8 +220,11 @@ UA_Server_createSession(UA_Server *server, UA_SecureChannel *channel,
                         const UA_CreateSessionRequest *request, UA_Session **session) {
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
 
-    if(server->sessionCount >= server->config.maxSessions)
+    if(server->sessionCount >= server->config.maxSessions) {
+        UA_LOG_WARNING_CHANNEL(&server->config.logger, channel,
+                               "Could not create a Session - Server limits reached");
         return UA_STATUSCODE_BADTOOMANYSESSIONS;
+    }
 
     session_list_entry *newentry = (session_list_entry*)
         UA_malloc(sizeof(session_list_entry));
