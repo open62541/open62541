@@ -526,8 +526,7 @@ UA_Server_getStatistics(UA_Server *server) {
     stat.ns = server->networkStatistics;
     stat.scs = server->secureChannelStatistics;
 
-    stat.ss.currentSessionCount =
-        server->serverDiagnosticsSummary.currentSessionCount;
+    stat.ss.currentSessionCount = server->activeSessionCount;
     stat.ss.cumulatedSessionCount =
         server->serverDiagnosticsSummary.cumulatedSessionCount;
     stat.ss.securityRejectedSessionCount =

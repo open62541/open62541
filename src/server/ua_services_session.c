@@ -57,13 +57,15 @@ UA_Server_removeSession(UA_Server *server, session_list_entry *sentry,
     UA_Session_detachFromSecureChannel(session);
 
     /* Deactivate the session */
-    sentry->session.activated = false;
+    if(sentry->session.activated) {
+        sentry->session.activated = false;
+        server->activeSessionCount--;
+    }
 
     /* Detach the session from the session manager and make the capacity
      * available */
     LIST_REMOVE(sentry, pointers);
     server->sessionCount--;
-    server->serverDiagnosticsSummary.currentSessionCount--;
 
     switch(event) {
     case UA_DIAGNOSTICEVENT_CLOSE:
@@ -846,7 +848,7 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
     /* Activate the session */
     if(!session->activated) {
         session->activated = true;
-        server->serverDiagnosticsSummary.currentSessionCount++;
+        server->activeSessionCount++;
         server->serverDiagnosticsSummary.cumulatedSessionCount++;
     }
 
