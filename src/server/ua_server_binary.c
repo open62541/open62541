@@ -454,6 +454,11 @@ sendResponse(UA_Server *server, UA_Session *session, UA_SecureChannel *channel,
     if(!channel)
         return UA_STATUSCODE_BADINTERNALERROR;
 
+    /* If the overall service call failed, answer with a ServiceFault */
+    if(response->responseHeader.serviceResult != UA_STATUSCODE_GOOD)
+        return sendServiceFault(channel, requestId, response->responseHeader.requestHandle,
+                                response->responseHeader.serviceResult);
+
     /* Prepare the ResponseHeader */
     response->responseHeader.timestamp = UA_DateTime_now();
 
