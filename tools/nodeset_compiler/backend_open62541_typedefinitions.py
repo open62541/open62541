@@ -259,7 +259,7 @@ class CGenerator(object):
             return "typedef enum {\n    " + ",\n    ".join(
                 map(lambda kv: makeCIdentifier("UA_" + enum.name.upper() + "_" + kv[0].upper()) +
                                " = " + kv[1], values)) + \
-                   ",\n    __UA_{0}_FORCE32BIT = 0x7fffffff\n".format(makeCIdentifier(enum.name.upper())) + "} " + \
+                   "{}\n    __UA_{}_FORCE32BIT = 0x7fffffff\n".format("," if len(enum.elements) != 0 else "", makeCIdentifier(enum.name.upper())) + "} " + \
                    "UA_{0};\nUA_STATIC_ASSERT(sizeof(UA_{0}) == sizeof(UA_Int32), enum_must_be_32bit);".format(
                        makeCIdentifier(enum.name))
 

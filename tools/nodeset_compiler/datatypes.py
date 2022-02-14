@@ -241,12 +241,26 @@ class Value(object):
                     return extobj
 
                 extobj.value = []
+                members = enc.members
 
                 # The EncodingMask must be skipped.
                 if ebodypart.localName == "EncodingMask":
                     ebodypart = getNextElementNode(ebodypart)
 
-                for e in enc.members:
+                # The SwitchField must be checked.
+                if ebodypart.localName == "SwitchField":
+                    # The switch field is the index of the available union fields starting with 1
+                    data = int(ebodypart.firstChild.data)
+                    if data == 0:
+                        # If the switch field is 0 then no field is present. A Union with no fields present has the same meaning as a NULL value.
+                        members = []
+                    else:
+                        members = []
+                        members.append(enc.members[data-1])
+                        ebodypart = getNextElementNode(ebodypart)
+
+
+                for e in members:
                     # ebodypart can be None if the field is not set, although the field is not optional.
                     if ebodypart is None:
                         if not e.is_optional:
@@ -326,7 +340,7 @@ class Value(object):
                     else:
                         members = []
                         members.append(enc.members[data-1])
-                        ebodypart =  getNextElementNode(body)
+                        ebodypart = getNextElementNode(body)
                 else:
                     logger.error(str(parent.id) + ": Could not parse <SwitchFiled> for Union.")
                     return self

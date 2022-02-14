@@ -2,7 +2,7 @@ from datatypes import  Boolean, Byte, SByte, \
                         Int16, UInt16, Int32, UInt32, Int64, UInt64, Float, Double, \
                         String, XmlElement, ByteString, Structure, ExtensionObject, LocalizedText, \
                         NodeId, ExpandedNodeId, DateTime, QualifiedName, StatusCode, \
-                        DiagnosticInfo, Guid, BuiltinType
+                        DiagnosticInfo, Guid, BuiltinType, EnumerationType
 import datetime
 import re
 
@@ -121,7 +121,7 @@ def generateNodeValueCode(prepend , node, instanceName, valueName, global_var_co
                 node.value = 0.0
             else: 
                 node.value = 0
-        if encRule is None:
+        if encRule is None or isinstance(encRule.member_type, EnumerationType):
             return prepend + " = (UA_" + node.__class__.__name__ + ") " + str(node.value) + ";"
         else:
             return prepend + " = (UA_" + encRule.member_type.name + ") " + str(node.value) + ";"
@@ -130,6 +130,10 @@ def generateNodeValueCode(prepend , node, instanceName, valueName, global_var_co
     elif isinstance(node, XmlElement):
         return prepend + " = " + generateXmlElementCode(node.value, alloc=asIndirect) + ";"
     elif isinstance(node, ByteString):
+        # Basically the prepend must be passed to the generateByteStrongCode function so that the nested structures are
+        # generated correctly. In case of a pointer the valueName is used. This is for example the case with NS0
+        # (ns=0;i=8252)
+        valueName = valueName if prepend[0] == '*' else prepend
         # replace whitespaces between tags and remove newlines
         return prepend + " = UA_BYTESTRING_NULL;" if not node.value else generateByteStringCode(
             node.value, valueName, global_var_code, isPointer=asIndirect)
