@@ -1749,7 +1749,7 @@ parseUnsignedInteger(char* inputBuffer, size_t sizeOfBuffer,
     }
 
     /* convert to null terminated string  */
-    UA_STACKARRAY(char, string, sizeOfBuffer+1);
+    char string[21];
     memcpy(string, inputBuffer, sizeOfBuffer);
     string[sizeOfBuffer] = 0;
 
@@ -1786,7 +1786,7 @@ parseSignedInteger(char* inputBuffer, size_t sizeOfBuffer,
         return UA_STATUSCODE_BADDECODINGERROR;
 
     /* convert to null terminated string  */
-    UA_STACKARRAY(char, string, sizeOfBuffer + 1);
+    char string[21];
     memcpy(string, inputBuffer, sizeOfBuffer);
     string[sizeOfBuffer] = 0;
 
@@ -1995,7 +1995,7 @@ DECODE_JSON(Float) {
         return UA_STATUSCODE_BADDECODINGERROR;
 
     /* Null-Terminate for sscanf. */
-    UA_STACKARRAY(char, string, tokenSize+1);
+    char string[151];
     memcpy(string, tokenData, tokenSize);
     string[tokenSize] = 0;
     
@@ -2065,7 +2065,7 @@ DECODE_JSON(Double) {
 
     /* Null-Terminate for sscanf. Should this better be handled on heap? Max
      * 1075 input chars allowed. Not using heap. */
-    UA_STACKARRAY(char, string, tokenSize+1);
+    char string[1076];
     memcpy(string, tokenData, tokenSize);
     string[tokenSize] = 0;
     
