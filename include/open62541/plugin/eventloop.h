@@ -416,6 +416,38 @@ UA_EXPORT UA_ConnectionManager *
 UA_ConnectionManager_new_POSIX_TCP(const UA_String eventSourceName);
 
 /**
+ * UDP Connection Manager
+ * ~~~~~~~~~~~~~~~~~~~~~~
+ * Listens on the network and manages UDP connections. This should be available
+ * for all architectures.
+ *
+ * The configuration parameters have to set before calling _start to take
+ * effect.
+ *
+ * Configuration Parameters:
+ * - 0:listen-port [uint16]: Port to listen for new connections (default: do not
+ *                           listen on any port).
+ * - 0:listen-hostnames [string | string array]: Hostnames of the devices to
+ *                                               listen on (default: listen on
+ *                                               all devices).
+ * - 0:recv-bufsize [uint16]: Size of the buffer that is allocated for receiving
+ *                            messages (default 16kB).
+ *
+ * Open Connection Parameters:
+ * - 0:hostname [string]: Hostname (or IPv4/v6 address) to connect to (required).
+ * - 0:port [uint16]: Port of the target host (required).
+ *
+ * Connection Callback Paramters:
+ * - 0:remote-hostname [string]: When a new connection is opened by listening on
+ *                               a port, the first callback contains the remote
+ *                               hostname parameter.
+ *
+ * Send Parameters:
+ * No additional parameters for sending over an established UDP socket defined. */
+UA_EXPORT UA_ConnectionManager *
+UA_ConnectionManager_new_POSIX_UDP(const UA_String eventSourceName);
+
+/**
  * Signal Interrupt Manager
  * ~~~~~~~~~~~~~~~~~~~~~~~~
  * Create an instance of the interrupt manager that handles POSX signals. This
