@@ -2783,12 +2783,10 @@ DECODE_JSON(Variant) {
             {UA_JSONKEY_BODY, &dst->data, (decodeJsonSignature) Array_decodeJson, false, NULL},
             {UA_JSONKEY_DIMENSION, &dst->arrayDimensions,
              (decodeJsonSignature) VariantDimension_decodeJson, false, NULL}};
-        if(!hasDimension) {
-            ret = decodeFields(ctx, parseCtx, entries, 2, dst->type); /*use first 2 fields*/
-        } else {
-            ret = decodeFields(ctx, parseCtx, entries, 3, dst->type); /*use all fields*/
-        }      
-        return ret;
+        size_t entriesCount = 3;
+        if(!hasDimension)
+            entriesCount = 2; /* Use the first 2 fields only */
+        return decodeFields(ctx, parseCtx, entries, entriesCount, dst->type);
     }
 
     /* Decode a value wrapped in an ExtensionObject */
