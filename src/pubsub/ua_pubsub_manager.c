@@ -160,12 +160,16 @@ UA_Server_addPublishedDataSet(UA_Server *server,
     if(UA_String_isEmpty(&publishedDataSetConfig->name))
     {
         // DataSet has to have a valid name
+        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                     "PublishedDataSet creation failed. Invalid name.");
         return result;
     }
 
     if(UA_PublishedDataSet_findPDSbyName(server, publishedDataSetConfig->name))
     {
         // DataSet name has to be unique in the publisher
+        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                     "PublishedDataSet creation failed. DataSet with the same name already exists.");
         result.addResult = UA_STATUSCODE_BADBROWSENAMEDUPLICATED;
         return result;
     }
