@@ -1276,7 +1276,7 @@ ssize_t mqtt_pack_connection_request(uint8_t* buf, size_t bufsz,
     if (connect_flags & MQTT_CONNECT_CAPATH) {
         buf += __mqtt_pack_str(buf, caPath);
     }
-    if (useTSL) {
+    if (useTLS) {
         if (connect_flags & MQTT_CONNECT_CLIENTCERTPATH) {
             buf += __mqtt_pack_str(buf, clientCertPath);
         }
