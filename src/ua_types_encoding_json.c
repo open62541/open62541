@@ -498,6 +498,10 @@ ENCODE_JSON(Double) {
 static status
 encodeJsonArray(CtxJson *ctx, const void *ptr, size_t length,
                 const UA_DataType *type) {
+    /* Null-arrays (length -1) are written as JSON 'null'. Empty arrays (length
+     * 0) are just an empty array. */
+    if(ptr == NULL)
+        return writeJsonNull(ctx);
     encodeJsonSignature encodeType = encodeJsonJumpTable[type->typeKind];
     status ret = writeJsonArrStart(ctx);
     if(ret != UA_STATUSCODE_GOOD)
@@ -2702,6 +2706,16 @@ VariantDimension_decodeJson(void * dst, const UA_DataType *type,
     return Array_decodeJson_internal((void**)dst, dimType, ctx, parseCtx, moveToken);
 }
 
+static UA_Boolean
+tokenIsNull(CtxJson *ctx, ParseCtx *parseCtx, size_t tokenIndex) {
+    jsmntok_t *tok = &parseCtx->tokenArray[tokenIndex];
+    if(tok->type != JSMN_PRIMITIVE)
+        return false;
+    if(tok->end - tok->start != 4)
+        return false;
+    return (strncmp((const char*)ctx->pos + tok->start, "null", 4) == 0);
+}
+
 DECODE_JSON(Variant) {
     ALLOW_NULL;
     CHECK_OBJECT;
@@ -2748,11 +2762,14 @@ DECODE_JSON(Variant) {
         return UA_STATUSCODE_BADDECODINGERROR;
     }
 
-    /* value is an array? */
+    /* Value is an array? */
     UA_Boolean isArray = false;
     if(parseCtx->tokenArray[searchResultBody].type == JSMN_ARRAY) {
         isArray = true;
         dst->arrayLength = (size_t)parseCtx->tokenArray[searchResultBody].size;
+    } else if(tokenIsNull(ctx, parseCtx, searchResultBody)) {
+        isArray = true;
+        dst->arrayLength = 0;
     }
 
     /* Has the variant dimension? */
@@ -3185,14 +3202,21 @@ static status
 Array_decodeJson_internal(void **dst, const UA_DataType *type, CtxJson *ctx,
                           ParseCtx *parseCtx, UA_Boolean moveToken) {
     (void) moveToken;
-    
-    if(parseCtx->tokenArray[parseCtx->index].type != JSMN_ARRAY)
-        return UA_STATUSCODE_BADDECODINGERROR;
-    
-    size_t length = (size_t)parseCtx->tokenArray[parseCtx->index].size;
 
     /* Save the length of the array */
     size_t *size_ptr = (size_t*) dst - 1;
+
+    if(parseCtx->tokenArray[parseCtx->index].type != JSMN_ARRAY) {
+        /* Null array? */
+        if(tokenIsNull(ctx, parseCtx, parseCtx->index)) {
+            *dst = NULL;
+            *size_ptr = 0;
+            return UA_STATUSCODE_GOOD;
+        }
+        return UA_STATUSCODE_BADDECODINGERROR;
+    }
+
+    size_t length = (size_t)parseCtx->tokenArray[parseCtx->index].size;
 
     /* Return early for empty arrays */
     if(length == 0) {
