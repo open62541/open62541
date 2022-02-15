@@ -2172,13 +2172,13 @@ DECODE_JSON(String) {
      * - A single \uXXXX escape (length 6) is converted to at most 3 bytes
      * - Two \uXXXX escapes (length 12) forming an UTF-16 surrogate pair are
      *   converted to 4 bytes */
-    char *outputBuffer = (char*)UA_malloc(tokenSize);
+    uint8_t *outputBuffer = (uint8_t*)UA_malloc(tokenSize);
     if(!outputBuffer)
         return UA_STATUSCODE_BADOUTOFMEMORY;
     
-    const char *p = (char*)tokenData;
-    const char *end = (char*)&tokenData[tokenSize];
-    char *pos = outputBuffer;
+    const uint8_t *p = (uint8_t*)tokenData;
+    const uint8_t *end = (uint8_t*)&tokenData[tokenSize];
+    uint8_t *pos = outputBuffer;
     while(p < end) {
         /* No escaping */
         if(*p != '\\') {
@@ -2213,7 +2213,7 @@ DECODE_JSON(String) {
         /* Unicode */
         if(p + 4 >= end)
             goto cleanup;
-        int32_t value_signed = decode_unicode_escape(p);
+        int32_t value_signed = decode_unicode_escape((const char*)p);
         if(value_signed < 0)
             goto cleanup;
         uint32_t value = (uint32_t)value_signed;
@@ -2225,7 +2225,7 @@ DECODE_JSON(String) {
                 goto cleanup;
             if(*p != '\\' || *(p + 1) != 'u')
                 goto cleanup;
-            int32_t value2 = decode_unicode_escape(p + 1);
+            int32_t value2 = decode_unicode_escape((const char*)p + 1);
             if(value2 < 0xDC00 || value2 > 0xDFFF)
                 goto cleanup;
             value = ((value - 0xD800u) << 10u) + (uint32_t)((value2 - 0xDC00) + 0x10000);
@@ -2236,7 +2236,7 @@ DECODE_JSON(String) {
         }
 
         size_t length;
-        if(utf8_encode((int32_t)value, pos, &length))
+        if(utf8_encode((int32_t)value, (char*)pos, &length))
             goto cleanup;
 
         pos += length;
