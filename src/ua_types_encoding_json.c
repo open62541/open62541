@@ -554,8 +554,13 @@ ENCODE_JSON(String) {
 
         while(end < lim) {
             end = utf8_iterate(pos, (size_t)(lim - pos), (int32_t *)&codepoint);
-            if(!end)
-                return UA_STATUSCODE_BADENCODINGERROR;
+            if(!end)  {
+                /* A malformed utf8 character. Print anyway and let the
+                 * receiving side choose how to handle it. */
+                pos++;
+                end = pos;
+                continue;
+            }
 
             /* mandatory escape or control char */
             if(codepoint == '\\' || codepoint == '"' || codepoint < 0x20)
