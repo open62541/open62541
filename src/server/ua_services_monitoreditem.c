@@ -42,7 +42,7 @@ setAbsoluteFromPercentageDeadband(UA_Server *server, UA_Session *session,
         browseSimplifiedBrowsePath(server, mon->itemToMonitor.nodeId, 1, &qn);
     if(bpr.statusCode != UA_STATUSCODE_GOOD || bpr.targetsSize < 1) {
         UA_BrowsePathResult_clear(&bpr);
-        return UA_STATUSCODE_BADMONITOREDITEMFILTERUNSUPPORTED;
+        return UA_STATUSCODE_BADFILTERNOTALLOWED;
     }
 
     /* Read the range */
@@ -56,7 +56,7 @@ setAbsoluteFromPercentageDeadband(UA_Server *server, UA_Session *session,
     if(!UA_Variant_isScalar(&rangeVal.value) ||
        rangeVal.value.type != &UA_TYPES[UA_TYPES_RANGE]) {
         UA_DataValue_clear(&rangeVal);
-        return UA_STATUSCODE_BADMONITOREDITEMFILTERUNSUPPORTED;
+        return UA_STATUSCODE_BADFILTERNOTALLOWED;
     }
 
     /* Compute the abs deadband */
@@ -68,7 +68,7 @@ setAbsoluteFromPercentageDeadband(UA_Server *server, UA_Session *session,
     /* EURange invalid or NaN? */
     if(absDeadband < 0.0 || absDeadband != absDeadband) {
         UA_DataValue_clear(&rangeVal);
-        return UA_STATUSCODE_BADMONITOREDITEMFILTERUNSUPPORTED;
+        return UA_STATUSCODE_BADFILTERNOTALLOWED;
     }
 
     /* Adjust the original filter */
@@ -171,7 +171,7 @@ checkAdjustMonitoredItemParams(UA_Server *server, UA_Session *session,
          * DataChangeFilter */
         if(params->filter.encoding != UA_EXTENSIONOBJECT_ENCODED_NOBODY &&
            params->filter.content.decoded.type != &UA_TYPES[UA_TYPES_DATACHANGEFILTER])
-            return UA_STATUSCODE_BADMONITOREDITEMFILTERUNSUPPORTED;
+            return UA_STATUSCODE_BADFILTERNOTALLOWED;
 
         /* Check the deadband and adjust if necessary. */
         if(params->filter.content.decoded.type == &UA_TYPES[UA_TYPES_DATACHANGEFILTER]) {

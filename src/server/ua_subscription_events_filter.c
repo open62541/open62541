@@ -319,7 +319,7 @@ implicitNumericVariantTransformation(UA_Variant *variant, void *data){
 static UA_StatusCode
 implicitNumericVariantTransformationUnsingedToSigned(UA_Variant *variant, void *data){
     if(variant->type == &UA_TYPES[UA_TYPES_UINT64]){
-        if(*(UA_UInt64 *)variant->data > INT64_MAX)
+        if(*(UA_UInt64 *)variant->data > UA_INT64_MAX)
             return UA_STATUSCODE_BADTYPEMISMATCH;
         *(UA_Int64 *)data = *(UA_Int64 *)variant->data;
         UA_Variant_setScalar(variant, data, &UA_TYPES[UA_TYPES_INT64]);
@@ -461,8 +461,8 @@ compareOperation(UA_Variant *firstOperand, UA_Variant *secondOperand, UA_FilterO
         UA_TYPES_DIFFERENT_TEXT,
         UA_TYPES_DIFFERENT_COMPARE_FORBIDDEN,
         UA_TYPES_DIFFERENT_COMPARE_EXPLIC,
-        UA_TYPES_DIFFERENT_NUMERIC_SIGN_O1_SIGNED,
-        UA_TYPES_DIFFERENT_NUMERIC_SIGN_O2_SIGNED
+        UA_TYPES_DIFFERENT_SIGNEDNESS_CAST_TO_SIGNED,
+        UA_TYPES_DIFFERENT_SIGNEDNESS_CAST_TO_UNSIGNED
     } compareHandlingRuleEnum;
 
     if(castRule == 0 &&
@@ -494,11 +494,11 @@ compareOperation(UA_Variant *firstOperand, UA_Variant *secondOperand, UA_FilterO
     } else if(castRule == 1 &&
               isNumericSigned(firstOperand->type->typeKind) &&
               isNumericUnsigned(secondOperand->type->typeKind)){
-        compareHandlingRuleEnum = UA_TYPES_DIFFERENT_NUMERIC_SIGN_O1_SIGNED;
+        compareHandlingRuleEnum = UA_TYPES_DIFFERENT_SIGNEDNESS_CAST_TO_SIGNED;
     } else if(castRule == 1 &&
               isNumericSigned(secondOperand->type->typeKind) &&
               isNumericUnsigned(firstOperand->type->typeKind)){
-        compareHandlingRuleEnum = UA_TYPES_DIFFERENT_NUMERIC_SIGN_O2_SIGNED;
+        compareHandlingRuleEnum = UA_TYPES_DIFFERENT_SIGNEDNESS_CAST_TO_UNSIGNED;
     } else if(castRule == -1 || castRule == 2){
         compareHandlingRuleEnum = UA_TYPES_DIFFERENT_COMPARE_EXPLIC;
     } else {
@@ -521,10 +521,10 @@ compareOperation(UA_Variant *firstOperand, UA_Variant *secondOperand, UA_FilterO
            compareHandlingRuleEnum == UA_TYPES_DIFFERENT_NUMERIC_FLOATING_POINT) {
             implicitNumericVariantTransformation(firstCompareOperand, variantContent);
             implicitNumericVariantTransformation(secondCompareOperand, &variantContent[8]);
-        } else if(compareHandlingRuleEnum == UA_TYPES_DIFFERENT_NUMERIC_SIGN_O1_SIGNED) {
+        } else if(compareHandlingRuleEnum == UA_TYPES_DIFFERENT_SIGNEDNESS_CAST_TO_SIGNED) {
             implicitNumericVariantTransformation(firstCompareOperand, variantContent);
             implicitNumericVariantTransformationUnsingedToSigned(secondCompareOperand, &variantContent[8]);
-        } else if(compareHandlingRuleEnum == UA_TYPES_DIFFERENT_NUMERIC_SIGN_O2_SIGNED) {
+        } else if(compareHandlingRuleEnum == UA_TYPES_DIFFERENT_SIGNEDNESS_CAST_TO_UNSIGNED) {
             implicitNumericVariantTransformation(firstCompareOperand, variantContent);
             implicitNumericVariantTransformationSignedToUnSigned(secondCompareOperand, &variantContent[8]);
         } else if(compareHandlingRuleEnum == UA_TYPES_DIFFERENT_TEXT) {
@@ -545,10 +545,10 @@ compareOperation(UA_Variant *firstOperand, UA_Variant *secondOperand, UA_FilterO
            compareHandlingRuleEnum == UA_TYPES_DIFFERENT_NUMERIC_FLOATING_POINT) {
             implicitNumericVariantTransformation(firstCompareOperand, variantContent);
             implicitNumericVariantTransformation(secondCompareOperand, &variantContent[8]);
-        } else if(compareHandlingRuleEnum == UA_TYPES_DIFFERENT_NUMERIC_SIGN_O1_SIGNED) {
+        } else if(compareHandlingRuleEnum == UA_TYPES_DIFFERENT_SIGNEDNESS_CAST_TO_SIGNED) {
             implicitNumericVariantTransformation(firstCompareOperand, variantContent);
             implicitNumericVariantTransformationUnsingedToSigned(secondCompareOperand, &variantContent[8]);
-        } else if(compareHandlingRuleEnum == UA_TYPES_DIFFERENT_NUMERIC_SIGN_O2_SIGNED) {
+        } else if(compareHandlingRuleEnum == UA_TYPES_DIFFERENT_SIGNEDNESS_CAST_TO_UNSIGNED) {
             implicitNumericVariantTransformation(firstCompareOperand, variantContent);
             implicitNumericVariantTransformationSignedToUnSigned(secondCompareOperand, &variantContent[8]);
         } else if(compareHandlingRuleEnum == UA_TYPES_DIFFERENT_TEXT) {

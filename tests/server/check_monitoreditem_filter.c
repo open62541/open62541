@@ -602,7 +602,7 @@ START_TEST(Server_MonitoredItemsPercentFilterSetLaterMissingEURange) {
     ck_assert_uint_eq(modifyResponse.resultsSize, 1);
     /* missing EURange. See https://reference.opcfoundation.org/v104/Core/docs/Part8/6.2/ */
     ck_assert_uint_eq(modifyResponse.results[0].statusCode,
-                      UA_STATUSCODE_BADMONITOREDITEMFILTERUNSUPPORTED);
+                      UA_STATUSCODE_BADFILTERNOTALLOWED);
 
     UA_ModifyMonitoredItemsResponse_clear(&modifyResponse);
 
@@ -948,7 +948,7 @@ START_TEST(Server_MonitoredItemsPercentFilterSetOnCreateMissingEURange) {
     ck_assert_uint_eq(createResponse.resultsSize, 1);
     /* missing EURange. See https://reference.opcfoundation.org/v104/Core/docs/Part8/6.2/ */
     ck_assert_uint_eq(createResponse.results[0].statusCode,
-                      UA_STATUSCODE_BADMONITOREDITEMFILTERUNSUPPORTED);
+                      UA_STATUSCODE_BADFILTERNOTALLOWED);
     newMonitoredItemIds[0] = createResponse.results[0].monitoredItemId;
     UA_CreateMonitoredItemsResponse_clear(&createResponse);
 

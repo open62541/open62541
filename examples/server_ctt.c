@@ -787,6 +787,10 @@ setInformationModel(UA_Server *server) {
 #ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
     /* Create the reusable event instance */
     UA_Server_createEvent(server, UA_NODEID_NUMERIC(0, UA_NS0ID_BASEEVENTTYPE), &eventId);
+    UA_UInt16 eventSeverity = 500;
+    UA_Server_writeObjectProperty_scalar(server, eventId,
+                                         UA_QUALIFIEDNAME(0, "Severity"),
+                                         &eventSeverity, &UA_TYPES[UA_TYPES_UINT16]);
 
     /* Trigger the event from two variables */
     UA_ValueCallback eventTriggerValueBackend;
