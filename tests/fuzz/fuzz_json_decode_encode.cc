@@ -24,6 +24,7 @@ LLVMFuzzerTestOneInput(uint8_t *data, size_t size) {
         return 0;
 
     size_t jsonSize = UA_calcSizeJson(&value, &UA_TYPES[UA_TYPES_VARIANT], NULL);
+    UA_assert(jsonSize > 0); /* 0 => fail */
 
     UA_ByteString buf2 = UA_BYTESTRING_NULL;
     retval = UA_ByteString_allocBuffer(&buf2, jsonSize);
