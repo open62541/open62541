@@ -2,12 +2,7 @@
  * See http://creativecommons.org/publicdomain/zero/1.0/ for more information. */
 
 /**
- *
- * Attention! WIP: The event-filter mechanism is currently "Work in progress" and will be completed
- * soon. Some of the below defined filters are currently not working and will be completed
- * in on of the next event-filter-batches.
- *
- * When using events, the client is mostly only interested in a small selection of events.
+ * When using events, the client is most often only interested in a small selection of events.
  * To avoid unnecessary event transmission, the client can configure filters. These filters
  * are part of the event-subscription configuration.
  *
@@ -28,7 +23,7 @@
 #define USE_FILTER_OR_TYPEOF
 
 static UA_Boolean running = true;
-const size_t nSelectClauses = 2;
+const size_t nSelectClauses = 3;
 const size_t nWhereClauses = 1;
 
 /**
@@ -70,6 +65,17 @@ setupSelectClauses(void) {
     }
     selectClauses[1].attributeId = UA_ATTRIBUTEID_VALUE;
     selectClauses[1].browsePath[0] = UA_QUALIFIEDNAME_ALLOC(0, "Severity");
+    //configure TypeName
+    selectClauses[2].typeDefinitionId = UA_NODEID_NUMERIC(0, UA_NS0ID_BASEEVENTTYPE);
+    selectClauses[2].browsePathSize = 1;
+    selectClauses[2].browsePath = (UA_QualifiedName*)
+            UA_Array_new(selectClauses[2].browsePathSize, &UA_TYPES[UA_TYPES_QUALIFIEDNAME]);
+    if(!selectClauses[2].browsePath) {
+        UA_SimpleAttributeOperand_delete(selectClauses);
+        return NULL;
+    }
+    selectClauses[2].attributeId = UA_ATTRIBUTEID_VALUE;
+    selectClauses[2].browsePath[0] = UA_QUALIFIEDNAME_ALLOC(0, "EventType");
 
     return selectClauses;
 }
@@ -324,7 +330,7 @@ setupWhereClauses(UA_ContentFilter *contentFilter, UA_UInt16 whereClauseSize, UA
 
         UA_Variant literalContent;
         UA_Variant_init(&literalContent);
-        UA_UInt32 literal_value = 99;
+        UA_UInt32 literal_value = 400;
         UA_Variant_setScalarCopy(&literalContent, &literal_value, &UA_TYPES[UA_TYPES_UINT32]);
 
         UA_SimpleAttributeOperand sao;
@@ -359,6 +365,14 @@ handler_events_filter(UA_Client *client, UA_UInt32 subId, void *subContext,
             UA_LocalizedText *lt = (UA_LocalizedText *)eventFields[i].data;
             UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
                         "Message: '%.*s'", (int)lt->text.length, lt->text.data);
+        } else if (UA_Variant_hasScalarType(&eventFields[i], &UA_TYPES[UA_TYPES_NODEID])) {
+            UA_NodeId *typeNodeId = (UA_NodeId *) eventFields[i].data;
+            UA_String nodeIdPrint;
+            UA_String_init(&nodeIdPrint);
+            UA_NodeId_print(typeNodeId, &nodeIdPrint);
+            UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
+                        "TypeNodeId: '%.*s'", (int)nodeIdPrint.length, nodeIdPrint.data);
+            UA_String_clear(&nodeIdPrint);
         } else {
 #ifdef UA_ENABLE_TYPEDESCRIPTION
             UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
