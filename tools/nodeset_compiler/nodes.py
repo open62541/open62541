@@ -151,7 +151,7 @@ class Node(object):
 
     def popTypeDef(self):
         for ref in self.references:
-            if ref.referenceType.i == 40 and ref.isForward:
+            if ref.referenceType.ns == 0 and ref.referenceType.i == 40 and ref.isForward:
                 self.references.remove(ref)
                 return ref
         return Reference(NodeId(), NodeId(), NodeId(), False)
