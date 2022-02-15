@@ -259,7 +259,7 @@ UA_Client_call(UA_Client *client, const UA_NodeId objectId,
         else
             retval = UA_STATUSCODE_BADUNEXPECTEDERROR;
     }
-    if(retval != UA_STATUSCODE_GOOD) {
+    if(UA_StatusCode_isBad(retval)) {
         UA_CallResponse_clear(&response);
         return retval;
     }
