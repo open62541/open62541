@@ -1,0 +1,3708 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<!--
+ * Copyright (c) 2005-2021 The OPC Foundation, Inc. All rights reserved.
+ *
+ * OPC Foundation MIT License 1.00
+ * 
+ * Permission is hereby granted, free of charge, to any person
+ * obtaining a copy of this software and associated documentation
+ * files (the "Software"), to deal in the Software without
+ * restriction, including without limitation the rights to use,
+ * copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the
+ * Software is furnished to do so, subject to the following
+ * conditions:
+ * 
+ * The above copyright notice and this permission notice shall be
+ * included in all copies or substantial portions of the Software.
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+ * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
+ * OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+ * NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
+ * HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+ * WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+ * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+ * OTHER DEALINGS IN THE SOFTWARE.
+ *
+ * The complete license agreement can be found here:
+ * http://opcfoundation.org/License/MIT/1.00/
+-->
+
+<UANodeSet xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns="http://opcfoundation.org/UA/2011/03/UANodeSet.xsd">
+  <NamespaceUris>
+    <Uri>http://opcfoundation.org/UA/PNEM/</Uri>
+    <Uri>http://opcfoundation.org/UA/DI/</Uri>
+  </NamespaceUris>
+  <Models>
+    <Model ModelUri="http://opcfoundation.org/UA/PNEM/" Version="1.0.0" PublicationDate="2021-03-11T00:00:00Z">
+      <RequiredModel ModelUri="http://opcfoundation.org/UA/" Version="1.04.7" PublicationDate="2020-07-15T00:00:00Z" />
+      <RequiredModel ModelUri="http://opcfoundation.org/UA/DI/" Version="1.02.2" PublicationDate="2020-06-02T00:00:00Z" />
+    </Model>
+  </Models>
+  <Aliases>
+    <Alias Alias="Boolean">i=1</Alias>
+    <Alias Alias="Byte">i=3</Alias>
+    <Alias Alias="UInt16">i=5</Alias>
+    <Alias Alias="UInt32">i=7</Alias>
+    <Alias Alias="Float">i=10</Alias>
+    <Alias Alias="Double">i=11</Alias>
+    <Alias Alias="String">i=12</Alias>
+    <Alias Alias="DateTime">i=13</Alias>
+    <Alias Alias="ByteString">i=15</Alias>
+    <Alias Alias="LocalizedText">i=21</Alias>
+    <Alias Alias="Number">i=26</Alias>
+    <Alias Alias="HasModellingRule">i=37</Alias>
+    <Alias Alias="HasEncoding">i=38</Alias>
+    <Alias Alias="HasDescription">i=39</Alias>
+    <Alias Alias="HasTypeDefinition">i=40</Alias>
+    <Alias Alias="HasSubtype">i=45</Alias>
+    <Alias Alias="HasProperty">i=46</Alias>
+    <Alias Alias="HasComponent">i=47</Alias>
+    <Alias Alias="IdType">i=256</Alias>
+    <Alias Alias="Duration">i=290</Alias>
+    <Alias Alias="NumericRange">i=291</Alias>
+    <Alias Alias="Argument">i=296</Alias>
+    <Alias Alias="EUInformation">i=887</Alias>
+    <Alias Alias="EnumValueType">i=7594</Alias>
+    <Alias Alias="StandbyModeTransitionDataType">ns=1;i=3002</Alias>
+    <Alias Alias="EnergyStateInformationDataType">ns=1;i=3003</Alias>
+    <Alias Alias="PeVersionDataType">ns=1;i=3004</Alias>
+    <Alias Alias="AcPeDataType">ns=1;i=3005</Alias>
+    <Alias Alias="AcPpDataType">ns=1;i=3006</Alias>
+    <Alias Alias="PeClassEnumeration">ns=1;i=3007</Alias>
+    <Alias Alias="PeSubclassEnumeration">ns=1;i=3008</Alias>
+    <Alias Alias="AccuracyClassEnumeration">ns=1;i=3009</Alias>
+    <Alias Alias="AccuracyDomainEnumeration">ns=1;i=3010</Alias>
+  </Aliases>
+  <Extensions>
+    <Extension>
+      <ua:ModelInfo Tool="UaModeler" Hash="atv3e70U1w4pF3nU+uPp8Q==" Version="1.6.5" xmlns:ua="http://unifiedautomation.com/Configuration/NodeSet.xsd" />
+    </Extension>
+  </Extensions>
+  <UADataType NodeId="ns=1;i=3009" BrowseName="1:AccuracyClassEnumeration">
+    <DisplayName>AccuracyClassEnumeration</DisplayName>
+    <Documentation>https://reference.opcfoundation.org/v104/PNEM/v100/docs/10.2.4</Documentation>
+    <References>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=29</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6111</Reference>
+    </References>
+    <Definition Name="1:AccuracyClassEnumeration">
+      <Field Name="ACCURACY_CLASS_0" Value="0">
+        <Description>Reserved</Description>
+      </Field>
+      <Field Name="ACCURACY_CLASS_1" Value="1" />
+      <Field Name="ACCURACY_CLASS_2" Value="2" />
+      <Field Name="ACCURACY_CLASS_3" Value="3" />
+      <Field Name="ACCURACY_CLASS_4" Value="4" />
+      <Field Name="ACCURACY_CLASS_5" Value="5" />
+      <Field Name="ACCURACY_CLASS_6" Value="6" />
+      <Field Name="ACCURACY_CLASS_7" Value="7" />
+      <Field Name="ACCURACY_CLASS_8" Value="8" />
+      <Field Name="ACCURACY_CLASS_9" Value="9" />
+      <Field Name="ACCURACY_CLASS_10" Value="10" />
+      <Field Name="ACCURACY_CLASS_11" Value="11" />
+      <Field Name="ACCURACY_CLASS_12" Value="12" />
+      <Field Name="ACCURACY_CLASS_13" Value="13" />
+      <Field Name="ACCURACY_CLASS_14" Value="14" />
+      <Field Name="ACCURACY_CLASS_15" Value="15" />
+    </Definition>
+  </UADataType>
+  <UAVariable NodeId="ns=1;i=6111" BrowseName="EnumValues" ParentNodeId="ns=1;i=3009" DataType="EnumValueType" ValueRank="1" ArrayDimensions="16">
+    <DisplayName>EnumValues</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=3009</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+    <Value>
+      <uax:ListOfExtensionObject xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd">
+        <uax:ExtensionObject>
+          <uax:TypeId>
+            <uax:Identifier>i=7616</uax:Identifier>
+          </uax:TypeId>
+          <uax:Body>
+            <uax:EnumValueType>
+              <uax:Value>0</uax:Value>
+              <uax:DisplayName>
+                <uax:Text>ACCURACY_CLASS_0</uax:Text>
+              </uax:DisplayName>
+              <uax:Description>
+                <uax:Text>Reserved</uax:Text>
+              </uax:Description>
+            </uax:EnumValueType>
+          </uax:Body>
+        </uax:ExtensionObject>
+        <uax:ExtensionObject>
+          <uax:TypeId>
+            <uax:Identifier>i=7616</uax:Identifier>
+          </uax:TypeId>
+          <uax:Body>
+            <uax:EnumValueType>
+              <uax:Value>1</uax:Value>
+              <uax:DisplayName>
+                <uax:Text>ACCURACY_CLASS_1</uax:Text>
+              </uax:DisplayName>
+              <uax:Description />
+            </uax:EnumValueType>
+          </uax:Body>
+        </uax:ExtensionObject>
+        <uax:ExtensionObject>
+          <uax:TypeId>
+            <uax:Identifier>i=7616</uax:Identifier>
+          </uax:TypeId>
+          <uax:Body>
+            <uax:EnumValueType>
+              <uax:Value>2</uax:Value>
+              <uax:DisplayName>
+                <uax:Text>ACCURACY_CLASS_2</uax:Text>
+              </uax:DisplayName>
+              <uax:Description />
+            </uax:EnumValueType>
+          </uax:Body>
+        </uax:ExtensionObject>
+        <uax:ExtensionObject>
+          <uax:TypeId>
+            <uax:Identifier>i=7616</uax:Identifier>
+          </uax:TypeId>
+          <uax:Body>
+            <uax:EnumValueType>
+              <uax:Value>3</uax:Value>
+              <uax:DisplayName>
+                <uax:Text>ACCURACY_CLASS_3</uax:Text>
+              </uax:DisplayName>
+              <uax:Description />
+            </uax:EnumValueType>
+          </uax:Body>
+        </uax:ExtensionObject>
+        <uax:ExtensionObject>
+          <uax:TypeId>
+            <uax:Identifier>i=7616</uax:Identifier>
+          </uax:TypeId>
+          <uax:Body>
+            <uax:EnumValueType>
+              <uax:Value>4</uax:Value>
+              <uax:DisplayName>
+                <uax:Text>ACCURACY_CLASS_4</uax:Text>
+              </uax:DisplayName>
+              <uax:Description />
+            </uax:EnumValueType>
+          </uax:Body>
+        </uax:ExtensionObject>
+        <uax:ExtensionObject>
+          <uax:TypeId>
+            <uax:Identifier>i=7616</uax:Identifier>
+          </uax:TypeId>
+          <uax:Body>
+            <uax:EnumValueType>
+              <uax:Value>5</uax:Value>
+              <uax:DisplayName>
+                <uax:Text>ACCURACY_CLASS_5</uax:Text>
+              </uax:DisplayName>
+              <uax:Description />
+            </uax:EnumValueType>
+          </uax:Body>
+        </uax:ExtensionObject>
+        <uax:ExtensionObject>
+          <uax:TypeId>
+            <uax:Identifier>i=7616</uax:Identifier>
+          </uax:TypeId>
+          <uax:Body>
+            <uax:EnumValueType>
+              <uax:Value>6</uax:Value>
+              <uax:DisplayName>
+                <uax:Text>ACCURACY_CLASS_6</uax:Text>
+              </uax:DisplayName>
+              <uax:Description />
+            </uax:EnumValueType>
+          </uax:Body>
+        </uax:ExtensionObject>
+        <uax:ExtensionObject>
+          <uax:TypeId>
+            <uax:Identifier>i=7616</uax:Identifier>
+          </uax:TypeId>
+          <uax:Body>
+            <uax:EnumValueType>
+              <uax:Value>7</uax:Value>
+              <uax:DisplayName>
+                <uax:Text>ACCURACY_CLASS_7</uax:Text>
+              </uax:DisplayName>
+              <uax:Description />
+            </uax:EnumValueType>
+          </uax:Body>
+        </uax:ExtensionObject>
+        <uax:ExtensionObject>
+          <uax:TypeId>
+            <uax:Identifier>i=7616</uax:Identifier>
+          </uax:TypeId>
+          <uax:Body>
+            <uax:EnumValueType>
+              <uax:Value>8</uax:Value>
+              <uax:DisplayName>
+                <uax:Text>ACCURACY_CLASS_8</uax:Text>
+              </uax:DisplayName>
+              <uax:Description />
+            </uax:EnumValueType>
+          </uax:Body>
+        </uax:ExtensionObject>
+        <uax:ExtensionObject>
+          <uax:TypeId>
+            <uax:Identifier>i=7616</uax:Identifier>
+          </uax:TypeId>
+          <uax:Body>
+            <uax:EnumValueType>
+              <uax:Value>9</uax:Value>
+              <uax:DisplayName>
+                <uax:Text>ACCURACY_CLASS_9</uax:Text>
+              </uax:DisplayName>
+              <uax:Description />
+            </uax:EnumValueType>
+          </uax:Body>
+        </uax:ExtensionObject>
+        <uax:ExtensionObject>
+          <uax:TypeId>
+            <uax:Identifier>i=7616</uax:Identifier>
+          </uax:TypeId>
+          <uax:Body>
+            <uax:EnumValueType>
+              <uax:Value>10</uax:Value>
+              <uax:DisplayName>
+                <uax:Text>ACCURACY_CLASS_10</uax:Text>
+              </uax:DisplayName>
+              <uax:Description />
+            </uax:EnumValueType>
+          </uax:Body>
+        </uax:ExtensionObject>
+        <uax:ExtensionObject>
+          <uax:TypeId>
+            <uax:Identifier>i=7616</uax:Identifier>
+          </uax:TypeId>
+          <uax:Body>
+            <uax:EnumValueType>
+              <uax:Value>11</uax:Value>
+              <uax:DisplayName>
+                <uax:Text>ACCURACY_CLASS_11</uax:Text>
+              </uax:DisplayName>
+              <uax:Description />
+            </uax:EnumValueType>
+          </uax:Body>
+        </uax:ExtensionObject>
+        <uax:ExtensionObject>
+          <uax:TypeId>
+            <uax:Identifier>i=7616</uax:Identifier>
+          </uax:TypeId>
+          <uax:Body>
+            <uax:EnumValueType>
+              <uax:Value>12</uax:Value>
+              <uax:DisplayName>
+                <uax:Text>ACCURACY_CLASS_12</uax:Text>
+              </uax:DisplayName>
+              <uax:Description />
+            </uax:EnumValueType>
+          </uax:Body>
+        </uax:ExtensionObject>
+        <uax:ExtensionObject>
+          <uax:TypeId>
+            <uax:Identifier>i=7616</uax:Identifier>
+          </uax:TypeId>
+          <uax:Body>
+            <uax:EnumValueType>
+              <uax:Value>13</uax:Value>
+              <uax:DisplayName>
+                <uax:Text>ACCURACY_CLASS_13</uax:Text>
+              </uax:DisplayName>
+              <uax:Description />
+            </uax:EnumValueType>
+          </uax:Body>
+        </uax:ExtensionObject>
+        <uax:ExtensionObject>
+          <uax:TypeId>
+            <uax:Identifier>i=7616</uax:Identifier>
+          </uax:TypeId>
+          <uax:Body>
+            <uax:EnumValueType>
+              <uax:Value>14</uax:Value>
+              <uax:DisplayName>
+                <uax:Text>ACCURACY_CLASS_14</uax:Text>
+              </uax:DisplayName>
+              <uax:Description />
+            </uax:EnumValueType>
+          </uax:Body>
+        </uax:ExtensionObject>
+        <uax:ExtensionObject>
+          <uax:TypeId>
+            <uax:Identifier>i=7616</uax:Identifier>
+          </uax:TypeId>
+          <uax:Body>
+            <uax:EnumValueType>
+              <uax:Value>15</uax:Value>
+              <uax:DisplayName>
+                <uax:Text>ACCURACY_CLASS_15</uax:Text>
+              </uax:DisplayName>
+              <uax:Description />
+            </uax:EnumValueType>
+          </uax:Body>
+        </uax:ExtensionObject>
+      </uax:ListOfExtensionObject>
+    </Value>
+  </UAVariable>
+  <UADataType NodeId="ns=1;i=3010" BrowseName="1:AccuracyDomainEnumeration">
+    <DisplayName>AccuracyDomainEnumeration</DisplayName>
+    <Documentation>https://reference.opcfoundation.org/v104/PNEM/v100/docs/10.2.3</Documentation>
+    <References>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=29</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6130</Reference>
+    </References>
+    <Definition Name="1:AccuracyDomainEnumeration">
+      <Field Name="ACCURACY_DOMAIN_RESERVED" Value="0">
+        <Description>Reserved</Description>
+      </Field>
+      <Field Name="ACCURACY_DOMAIN_PERCENT_FULL_SCALE" Value="1">
+        <Description>The accuracy is given as percent of the full-scale reading. </Description>
+      </Field>
+      <Field Name="ACCURACY_DOMAIN_PERCENT_ACTUAL_READING" Value="2">
+        <Description>The accuracy is given as percent of the actual reading.</Description>
+      </Field>
+      <Field Name="ACCURACY_DOMAIN_IEC" Value="3">
+        <Description>The accuracy is given according to IEC 61557-12. </Description>
+      </Field>
+      <Field Name="ACCURACY_DOMAIN_EN" Value="4">
+        <Description>The accuracy is given as specified in the EN 50470-3, Chapter 8.</Description>
+      </Field>
+    </Definition>
+  </UADataType>
+  <UAVariable NodeId="ns=1;i=6130" BrowseName="EnumValues" ParentNodeId="ns=1;i=3010" DataType="EnumValueType" ValueRank="1" ArrayDimensions="5">
+    <DisplayName>EnumValues</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=3010</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+    <Value>
+      <uax:ListOfExtensionObject xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd">
+        <uax:ExtensionObject>
+          <uax:TypeId>
+            <uax:Identifier>i=7616</uax:Identifier>
+          </uax:TypeId>
+          <uax:Body>
+            <uax:EnumValueType>
+              <uax:Value>0</uax:Value>
+              <uax:DisplayName>
+                <uax:Text>ACCURACY_DOMAIN_RESERVED</uax:Text>
+              </uax:DisplayName>
+              <uax:Description>
+                <uax:Text>Reserved</uax:Text>
+              </uax:Description>
+            </uax:EnumValueType>
+          </uax:Body>
+        </uax:ExtensionObject>
+        <uax:ExtensionObject>
+          <uax:TypeId>
+            <uax:Identifier>i=7616</uax:Identifier>
+          </uax:TypeId>
+          <uax:Body>
+            <uax:EnumValueType>
+              <uax:Value>1</uax:Value>
+              <uax:DisplayName>
+                <uax:Text>ACCURACY_DOMAIN_PERCENT_FULL_SCALE</uax:Text>
+              </uax:DisplayName>
+              <uax:Description>
+                <uax:Text>The accuracy is given as percent of the full-scale reading. </uax:Text>
+              </uax:Description>
+            </uax:EnumValueType>
+          </uax:Body>
+        </uax:ExtensionObject>
+        <uax:ExtensionObject>
+          <uax:TypeId>
+            <uax:Identifier>i=7616</uax:Identifier>
+          </uax:TypeId>
+          <uax:Body>
+            <uax:EnumValueType>
+              <uax:Value>2</uax:Value>
+              <uax:DisplayName>
+                <uax:Text>ACCURACY_DOMAIN_PERCENT_ACTUAL_READING</uax:Text>
+              </uax:DisplayName>
+              <uax:Description>
+                <uax:Text>The accuracy is given as percent of the actual reading.</uax:Text>
+              </uax:Description>
+            </uax:EnumValueType>
+          </uax:Body>
+        </uax:ExtensionObject>
+        <uax:ExtensionObject>
+          <uax:TypeId>
+            <uax:Identifier>i=7616</uax:Identifier>
+          </uax:TypeId>
+          <uax:Body>
+            <uax:EnumValueType>
+              <uax:Value>3</uax:Value>
+              <uax:DisplayName>
+                <uax:Text>ACCURACY_DOMAIN_IEC</uax:Text>
+              </uax:DisplayName>
+              <uax:Description>
+                <uax:Text>The accuracy is given according to IEC 61557-12. </uax:Text>
+              </uax:Description>
+            </uax:EnumValueType>
+          </uax:Body>
+        </uax:ExtensionObject>
+        <uax:ExtensionObject>
+          <uax:TypeId>
+            <uax:Identifier>i=7616</uax:Identifier>
+          </uax:TypeId>
+          <uax:Body>
+            <uax:EnumValueType>
+              <uax:Value>4</uax:Value>
+              <uax:DisplayName>
+                <uax:Text>ACCURACY_DOMAIN_EN</uax:Text>
+              </uax:DisplayName>
+              <uax:Description>
+                <uax:Text>The accuracy is given as specified in the EN 50470-3, Chapter 8.</uax:Text>
+              </uax:Description>
+            </uax:EnumValueType>
+          </uax:Body>
+        </uax:ExtensionObject>
+      </uax:ListOfExtensionObject>
+    </Value>
+  </UAVariable>
+  <UADataType NodeId="ns=1;i=3007" BrowseName="1:PeClassEnumeration">
+    <DisplayName>PeClassEnumeration</DisplayName>
+    <Documentation>https://reference.opcfoundation.org/v104/PNEM/v100/docs/10.2.1</Documentation>
+    <References>
+      <Reference ReferenceType="HasProperty">ns=1;i=6015</Reference>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=29</Reference>
+    </References>
+    <Definition Name="1:PeClassEnumeration">
+      <Field Name="PE_CLASS1" Value="0">
+        <Description>The PE Entity supports energy management functionality.</Description>
+      </Field>
+      <Field Name="PE_CLASS2" Value="1">
+        <Description>The PE Entity supports energy measurement functionality.</Description>
+      </Field>
+      <Field Name="PE_CLASS3" Value="2">
+        <Description>The PE Entity supports both energy management and energy measurement functionality.</Description>
+      </Field>
+    </Definition>
+  </UADataType>
+  <UAVariable NodeId="ns=1;i=6015" BrowseName="EnumValues" ParentNodeId="ns=1;i=3007" DataType="EnumValueType" ValueRank="1" ArrayDimensions="3">
+    <DisplayName>EnumValues</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=3007</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+    <Value>
+      <uax:ListOfExtensionObject xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd">
+        <uax:ExtensionObject>
+          <uax:TypeId>
+            <uax:Identifier>i=7616</uax:Identifier>
+          </uax:TypeId>
+          <uax:Body>
+            <uax:EnumValueType>
+              <uax:Value>0</uax:Value>
+              <uax:DisplayName>
+                <uax:Text>PE_CLASS1</uax:Text>
+              </uax:DisplayName>
+              <uax:Description>
+                <uax:Text>The PE Entity supports energy management functionality.</uax:Text>
+              </uax:Description>
+            </uax:EnumValueType>
+          </uax:Body>
+        </uax:ExtensionObject>
+        <uax:ExtensionObject>
+          <uax:TypeId>
+            <uax:Identifier>i=7616</uax:Identifier>
+          </uax:TypeId>
+          <uax:Body>
+            <uax:EnumValueType>
+              <uax:Value>1</uax:Value>
+              <uax:DisplayName>
+                <uax:Text>PE_CLASS2</uax:Text>
+              </uax:DisplayName>
+              <uax:Description>
+                <uax:Text>The PE Entity supports energy measurement functionality.</uax:Text>
+              </uax:Description>
+            </uax:EnumValueType>
+          </uax:Body>
+        </uax:ExtensionObject>
+        <uax:ExtensionObject>
+          <uax:TypeId>
+            <uax:Identifier>i=7616</uax:Identifier>
+          </uax:TypeId>
+          <uax:Body>
+            <uax:EnumValueType>
+              <uax:Value>2</uax:Value>
+              <uax:DisplayName>
+                <uax:Text>PE_CLASS3</uax:Text>
+              </uax:DisplayName>
+              <uax:Description>
+                <uax:Text>The PE Entity supports both energy management and energy measurement functionality.</uax:Text>
+              </uax:Description>
+            </uax:EnumValueType>
+          </uax:Body>
+        </uax:ExtensionObject>
+      </uax:ListOfExtensionObject>
+    </Value>
+  </UAVariable>
+  <UADataType NodeId="ns=1;i=3008" BrowseName="1:PeSubclassEnumeration">
+    <DisplayName>PeSubclassEnumeration</DisplayName>
+    <Documentation>https://reference.opcfoundation.org/v104/PNEM/v100/docs/10.2.2</Documentation>
+    <References>
+      <Reference ReferenceType="HasProperty">ns=1;i=6017</Reference>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=29</Reference>
+    </References>
+    <Definition Name="1:PeSubclassEnumeration">
+      <Field Name="PE_SUBCLASS1" Value="0">
+        <Description>The PE Entity does not support energy management disabled.</Description>
+      </Field>
+      <Field Name="PE_SUBCLASS2" Value="1">
+        <Description>The PE Entity supports energy management disabled.</Description>
+      </Field>
+    </Definition>
+  </UADataType>
+  <UAVariable NodeId="ns=1;i=6017" BrowseName="EnumValues" ParentNodeId="ns=1;i=3008" DataType="EnumValueType" ValueRank="1" ArrayDimensions="2">
+    <DisplayName>EnumValues</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=3008</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+    <Value>
+      <uax:ListOfExtensionObject xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd">
+        <uax:ExtensionObject>
+          <uax:TypeId>
+            <uax:Identifier>i=7616</uax:Identifier>
+          </uax:TypeId>
+          <uax:Body>
+            <uax:EnumValueType>
+              <uax:Value>0</uax:Value>
+              <uax:DisplayName>
+                <uax:Text>PE_SUBCLASS1</uax:Text>
+              </uax:DisplayName>
+              <uax:Description>
+                <uax:Text>The PE Entity does not support energy management disabled.</uax:Text>
+              </uax:Description>
+            </uax:EnumValueType>
+          </uax:Body>
+        </uax:ExtensionObject>
+        <uax:ExtensionObject>
+          <uax:TypeId>
+            <uax:Identifier>i=7616</uax:Identifier>
+          </uax:TypeId>
+          <uax:Body>
+            <uax:EnumValueType>
+              <uax:Value>1</uax:Value>
+              <uax:DisplayName>
+                <uax:Text>PE_SUBCLASS2</uax:Text>
+              </uax:DisplayName>
+              <uax:Description>
+                <uax:Text>The PE Entity supports energy management disabled.</uax:Text>
+              </uax:Description>
+            </uax:EnumValueType>
+          </uax:Body>
+        </uax:ExtensionObject>
+      </uax:ListOfExtensionObject>
+    </Value>
+  </UAVariable>
+  <UADataType NodeId="ns=1;i=3005" BrowseName="1:AcPeDataType">
+    <DisplayName>AcPeDataType</DisplayName>
+    <Documentation>https://reference.opcfoundation.org/v104/PNEM/v100/docs/10.1.4</Documentation>
+    <References>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=22</Reference>
+      <Reference ReferenceType="HasEncoding">ns=1;i=5010</Reference>
+      <Reference ReferenceType="HasEncoding">ns=1;i=5012</Reference>
+      <Reference ReferenceType="HasEncoding">ns=1;i=5011</Reference>
+    </References>
+    <Definition Name="1:AcPeDataType">
+      <Field Name="A" DataType="Float" />
+      <Field Name="B" DataType="Float" />
+      <Field Name="C" DataType="Float" />
+    </Definition>
+  </UADataType>
+  <UAVariable NodeId="ns=1;i=6011" BrowseName="1:AcPeDataType" ParentNodeId="ns=1;i=6001" DataType="String">
+    <DisplayName>AcPeDataType</DisplayName>
+    <References>
+      <Reference ReferenceType="HasDescription" IsForward="false">ns=1;i=5010</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=6001</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=69</Reference>
+    </References>
+    <Value>
+      <uax:String xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd">AcPeDataType</uax:String>
+    </Value>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6012" BrowseName="1:AcPeDataType" ParentNodeId="ns=1;i=6003" DataType="String">
+    <DisplayName>AcPeDataType</DisplayName>
+    <References>
+      <Reference ReferenceType="HasDescription" IsForward="false">ns=1;i=5011</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=6003</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=69</Reference>
+    </References>
+    <Value>
+      <uax:String xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd">//xs:element[@name='AcPeDataType']</uax:String>
+    </Value>
+  </UAVariable>
+  <UADataType NodeId="ns=1;i=3006" BrowseName="1:AcPpDataType">
+    <DisplayName>AcPpDataType</DisplayName>
+    <Documentation>https://reference.opcfoundation.org/v104/PNEM/v100/docs/10.1.5</Documentation>
+    <References>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=22</Reference>
+      <Reference ReferenceType="HasEncoding">ns=1;i=5013</Reference>
+      <Reference ReferenceType="HasEncoding">ns=1;i=5015</Reference>
+      <Reference ReferenceType="HasEncoding">ns=1;i=5014</Reference>
+    </References>
+    <Definition Name="1:AcPpDataType">
+      <Field Name="A_b" DataType="Float" />
+      <Field Name="B_c" DataType="Float" />
+      <Field Name="C_a" DataType="Float" />
+    </Definition>
+  </UADataType>
+  <UAVariable NodeId="ns=1;i=6013" BrowseName="1:AcPpDataType" ParentNodeId="ns=1;i=6001" DataType="String">
+    <DisplayName>AcPpDataType</DisplayName>
+    <References>
+      <Reference ReferenceType="HasDescription" IsForward="false">ns=1;i=5013</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=6001</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=69</Reference>
+    </References>
+    <Value>
+      <uax:String xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd">AcPpDataType</uax:String>
+    </Value>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6014" BrowseName="1:AcPpDataType" ParentNodeId="ns=1;i=6003" DataType="String">
+    <DisplayName>AcPpDataType</DisplayName>
+    <References>
+      <Reference ReferenceType="HasDescription" IsForward="false">ns=1;i=5014</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=6003</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=69</Reference>
+    </References>
+    <Value>
+      <uax:String xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd">//xs:element[@name='AcPpDataType']</uax:String>
+    </Value>
+  </UAVariable>
+  <UADataType NodeId="ns=1;i=3003" BrowseName="1:EnergyStateInformationDataType">
+    <DisplayName>EnergyStateInformationDataType</DisplayName>
+    <Documentation>https://reference.opcfoundation.org/v104/PNEM/v100/docs/10.1.2</Documentation>
+    <References>
+      <Reference ReferenceType="HasEncoding">ns=1;i=5004</Reference>
+      <Reference ReferenceType="HasEncoding">ns=1;i=5006</Reference>
+      <Reference ReferenceType="HasEncoding">ns=1;i=5005</Reference>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=22</Reference>
+    </References>
+    <Definition Name="1:EnergyStateInformationDataType">
+      <Field Name="IDSource" DataType="Byte">
+        <Description>PROFIenergy mode ID of current energy saving mode. Servers not implementing PROFIenergy shall always set this field to 0.</Description>
+      </Field>
+      <Field Name="IDDestination" DataType="Byte">
+        <Description>PROFIenergy mode ID of destination energy saving mode. Servers not implementing PROFIenergy shall always set this field to 0.</Description>
+      </Field>
+      <Field Name="RegularTimeToOperate" DataType="Duration">
+        <Description>Time needed to reach READY_TO_OPERATE if the energy saving mode is regularly terminated. Shall be 0 if IDSource is equal to 0xFF (The StandbyManagementStatus variable has the value READY_TO_OPERATE).</Description>
+      </Field>
+      <Field Name="ModePowerConsumption" DataType="Float">
+        <Description>Power consumption in actual state.</Description>
+      </Field>
+    </Definition>
+  </UADataType>
+  <UAVariable NodeId="ns=1;i=6007" BrowseName="1:EnergyStateInformationDataType" ParentNodeId="ns=1;i=6001" DataType="String">
+    <DisplayName>EnergyStateInformationDataType</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=69</Reference>
+      <Reference ReferenceType="HasDescription" IsForward="false">ns=1;i=5004</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=6001</Reference>
+    </References>
+    <Value>
+      <uax:String xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd">EnergyStateInformationDataType</uax:String>
+    </Value>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6008" BrowseName="1:EnergyStateInformationDataType" ParentNodeId="ns=1;i=6003" DataType="String">
+    <DisplayName>EnergyStateInformationDataType</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=69</Reference>
+      <Reference ReferenceType="HasDescription" IsForward="false">ns=1;i=5005</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=6003</Reference>
+    </References>
+    <Value>
+      <uax:String xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd">//xs:element[@name='EnergyStateInformationDataType']</uax:String>
+    </Value>
+  </UAVariable>
+  <UADataType NodeId="ns=1;i=3004" BrowseName="1:PeVersionDataType">
+    <DisplayName>PeVersionDataType</DisplayName>
+    <Documentation>https://reference.opcfoundation.org/v104/PNEM/v100/docs/10.1.3</Documentation>
+    <References>
+      <Reference ReferenceType="HasEncoding">ns=1;i=5007</Reference>
+      <Reference ReferenceType="HasEncoding">ns=1;i=5009</Reference>
+      <Reference ReferenceType="HasEncoding">ns=1;i=5008</Reference>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=22</Reference>
+    </References>
+    <Definition Name="1:PeVersionDataType">
+      <Field Name="MajorVersion" DataType="Byte" />
+      <Field Name="MinorVersion" DataType="Byte" />
+      <Field Name="Revision" DataType="Byte" />
+    </Definition>
+  </UADataType>
+  <UAVariable NodeId="ns=1;i=6009" BrowseName="1:PeVersionDataType" ParentNodeId="ns=1;i=6001" DataType="String">
+    <DisplayName>PeVersionDataType</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=69</Reference>
+      <Reference ReferenceType="HasDescription" IsForward="false">ns=1;i=5007</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=6001</Reference>
+    </References>
+    <Value>
+      <uax:String xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd">PeVersionDataType</uax:String>
+    </Value>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6010" BrowseName="1:PeVersionDataType" ParentNodeId="ns=1;i=6003" DataType="String">
+    <DisplayName>PeVersionDataType</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=69</Reference>
+      <Reference ReferenceType="HasDescription" IsForward="false">ns=1;i=5008</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=6003</Reference>
+    </References>
+    <Value>
+      <uax:String xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd">//xs:element[@name='PeVersionDataType']</uax:String>
+    </Value>
+  </UAVariable>
+  <UADataType NodeId="ns=1;i=3002" BrowseName="1:StandbyModeTransitionDataType">
+    <DisplayName>StandbyModeTransitionDataType</DisplayName>
+    <Documentation>https://reference.opcfoundation.org/v104/PNEM/v100/docs/10.1.1</Documentation>
+    <References>
+      <Reference ReferenceType="HasEncoding">ns=1;i=5001</Reference>
+      <Reference ReferenceType="HasEncoding">ns=1;i=5003</Reference>
+      <Reference ReferenceType="HasEncoding">ns=1;i=5002</Reference>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=22</Reference>
+    </References>
+    <Definition Name="1:StandbyModeTransitionDataType">
+      <Field Name="IDDestination" DataType="Byte">
+        <Description>Identification of destination energy saving mode.</Description>
+      </Field>
+      <Field Name="CurrentTimeToDestination" DataType="Duration">
+        <Description>Time needed to reach the mode IDDestination. Shall be a “Worst case” value if ongoing (dynamic) time value is not supported. Shall be 0 if destination energy saving mode is reached.</Description>
+      </Field>
+      <Field Name="CurrentTimeToOperate" DataType="Duration">
+        <Description>Time needed to reach READY_TO_OPERATE if the energy saving mode is not regularly terminated. The server might update the value after reaching the destination state as long as the TimeMinLengthOfStay of the destination state is not reached.</Description>
+      </Field>
+      <Field Name="EnergyConsumptionToDestination" DataType="Float">
+        <Description>Energy consumption for actual transition. Shall be 0 if not in a transition state.</Description>
+      </Field>
+    </Definition>
+  </UADataType>
+  <UAVariable NodeId="ns=1;i=6005" BrowseName="1:StandbyModeTransitionDataType" ParentNodeId="ns=1;i=6001" DataType="String">
+    <DisplayName>StandbyModeTransitionDataType</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=69</Reference>
+      <Reference ReferenceType="HasDescription" IsForward="false">ns=1;i=5001</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=6001</Reference>
+    </References>
+    <Value>
+      <uax:String xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd">StandbyModeTransitionDataType</uax:String>
+    </Value>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6006" BrowseName="1:StandbyModeTransitionDataType" ParentNodeId="ns=1;i=6003" DataType="String">
+    <DisplayName>StandbyModeTransitionDataType</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=69</Reference>
+      <Reference ReferenceType="HasDescription" IsForward="false">ns=1;i=5002</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=6003</Reference>
+    </References>
+    <Value>
+      <uax:String xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd">//xs:element[@name='StandbyModeTransitionDataType']</uax:String>
+    </Value>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6001" BrowseName="1:TypeDictionary" SymbolicName="TypeDictionary_BinarySchema" DataType="ByteString">
+    <DisplayName>TypeDictionary</DisplayName>
+    <Description>Collects the data type descriptions of http://opcfoundation.org/UA/PNEM/</Description>
+    <References>
+      <Reference ReferenceType="HasComponent">ns=1;i=6011</Reference>
+      <Reference ReferenceType="HasComponent">ns=1;i=6013</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=72</Reference>
+      <Reference ReferenceType="HasComponent">ns=1;i=6007</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6002</Reference>
+      <Reference ReferenceType="HasComponent">ns=1;i=6009</Reference>
+      <Reference ReferenceType="HasComponent">ns=1;i=6005</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">i=93</Reference>
+    </References>
+    <Value>
+      <uax:ByteString xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd">PG9wYzpUeXBlRGljdGlvbmFyeSB4bWxuczp4c2k9Imh0dHA6Ly93d3cudzMub3JnLzIwMDEvWE1MU2NoZ
+        W1hLWluc3RhbmNlIiB4bWxuczp0bnM9Imh0dHA6Ly9vcGNmb3VuZGF0aW9uLm9yZy9VQS9QT
+        kVNLyIgRGVmYXVsdEJ5dGVPcmRlcj0iTGl0dGxlRW5kaWFuIiB4bWxuczpvcGM9Imh0dHA6L
+        y9vcGNmb3VuZGF0aW9uLm9yZy9CaW5hcnlTY2hlbWEvIiB4bWxuczp1YT0iaHR0cDovL29wY
+        2ZvdW5kYXRpb24ub3JnL1VBLyIgVGFyZ2V0TmFtZXNwYWNlPSJodHRwOi8vb3BjZm91bmRhd
+        Glvbi5vcmcvVUEvUE5FTS8iPgogPG9wYzpJbXBvcnQgTmFtZXNwYWNlPSJodHRwOi8vb3BjZ
+        m91bmRhdGlvbi5vcmcvVUEvIi8+CiA8b3BjOlN0cnVjdHVyZWRUeXBlIEJhc2VUeXBlPSJ1Y
+        TpFeHRlbnNpb25PYmplY3QiIE5hbWU9IkFjUGVEYXRhVHlwZSI+CiAgPG9wYzpGaWVsZCBUe
+        XBlTmFtZT0ib3BjOkZsb2F0IiBOYW1lPSJBIi8+CiAgPG9wYzpGaWVsZCBUeXBlTmFtZT0ib
+        3BjOkZsb2F0IiBOYW1lPSJCIi8+CiAgPG9wYzpGaWVsZCBUeXBlTmFtZT0ib3BjOkZsb2F0I
+        iBOYW1lPSJDIi8+CiA8L29wYzpTdHJ1Y3R1cmVkVHlwZT4KIDxvcGM6U3RydWN0dXJlZFR5c
+        GUgQmFzZVR5cGU9InVhOkV4dGVuc2lvbk9iamVjdCIgTmFtZT0iQWNQcERhdGFUeXBlIj4KI
+        CA8b3BjOkZpZWxkIFR5cGVOYW1lPSJvcGM6RmxvYXQiIE5hbWU9IkFfYiIvPgogIDxvcGM6R
+        mllbGQgVHlwZU5hbWU9Im9wYzpGbG9hdCIgTmFtZT0iQl9jIi8+CiAgPG9wYzpGaWVsZCBUe
+        XBlTmFtZT0ib3BjOkZsb2F0IiBOYW1lPSJDX2EiLz4KIDwvb3BjOlN0cnVjdHVyZWRUeXBlP
+        gogPG9wYzpTdHJ1Y3R1cmVkVHlwZSBCYXNlVHlwZT0idWE6RXh0ZW5zaW9uT2JqZWN0IiBOY
+        W1lPSJFbmVyZ3lTdGF0ZUluZm9ybWF0aW9uRGF0YVR5cGUiPgogIDxvcGM6RmllbGQgVHlwZ
+        U5hbWU9Im9wYzpCeXRlIiBOYW1lPSJJRFNvdXJjZSIvPgogIDxvcGM6RmllbGQgVHlwZU5hb
+        WU9Im9wYzpCeXRlIiBOYW1lPSJJRERlc3RpbmF0aW9uIi8+CiAgPG9wYzpGaWVsZCBUeXBlT
+        mFtZT0ib3BjOkRvdWJsZSIgTmFtZT0iUmVndWxhclRpbWVUb09wZXJhdGUiLz4KICA8b3BjO
+        kZpZWxkIFR5cGVOYW1lPSJvcGM6RmxvYXQiIE5hbWU9Ik1vZGVQb3dlckNvbnN1bXB0aW9uI
+        i8+CiA8L29wYzpTdHJ1Y3R1cmVkVHlwZT4KIDxvcGM6U3RydWN0dXJlZFR5cGUgQmFzZVR5c
+        GU9InVhOkV4dGVuc2lvbk9iamVjdCIgTmFtZT0iUGVWZXJzaW9uRGF0YVR5cGUiPgogIDxvc
+        GM6RmllbGQgVHlwZU5hbWU9Im9wYzpCeXRlIiBOYW1lPSJNYWpvclZlcnNpb24iLz4KICA8b
+        3BjOkZpZWxkIFR5cGVOYW1lPSJvcGM6Qnl0ZSIgTmFtZT0iTWlub3JWZXJzaW9uIi8+CiAgP
+        G9wYzpGaWVsZCBUeXBlTmFtZT0ib3BjOkJ5dGUiIE5hbWU9IlJldmlzaW9uIi8+CiA8L29wY
+        zpTdHJ1Y3R1cmVkVHlwZT4KIDxvcGM6U3RydWN0dXJlZFR5cGUgQmFzZVR5cGU9InVhOkV4d
+        GVuc2lvbk9iamVjdCIgTmFtZT0iU3RhbmRieU1vZGVUcmFuc2l0aW9uRGF0YVR5cGUiPgogI
+        DxvcGM6RmllbGQgVHlwZU5hbWU9Im9wYzpCeXRlIiBOYW1lPSJJRERlc3RpbmF0aW9uIi8+C
+        iAgPG9wYzpGaWVsZCBUeXBlTmFtZT0ib3BjOkRvdWJsZSIgTmFtZT0iQ3VycmVudFRpbWVUb
+        0Rlc3RpbmF0aW9uIi8+CiAgPG9wYzpGaWVsZCBUeXBlTmFtZT0ib3BjOkRvdWJsZSIgTmFtZ
+        T0iQ3VycmVudFRpbWVUb09wZXJhdGUiLz4KICA8b3BjOkZpZWxkIFR5cGVOYW1lPSJvcGM6R
+        mxvYXQiIE5hbWU9IkVuZXJneUNvbnN1bXB0aW9uVG9EZXN0aW5hdGlvbiIvPgogPC9vcGM6U
+        3RydWN0dXJlZFR5cGU+CiA8b3BjOkVudW1lcmF0ZWRUeXBlIExlbmd0aEluQml0cz0iMzIiI
+        E5hbWU9IkFjY3VyYWN5Q2xhc3NFbnVtZXJhdGlvbiI+CiAgPG9wYzpFbnVtZXJhdGVkVmFsd
+        WUgTmFtZT0iQUNDVVJBQ1lfQ0xBU1NfMCIgVmFsdWU9IjAiLz4KICA8b3BjOkVudW1lcmF0Z
+        WRWYWx1ZSBOYW1lPSJBQ0NVUkFDWV9DTEFTU18xIiBWYWx1ZT0iMSIvPgogIDxvcGM6RW51b
+        WVyYXRlZFZhbHVlIE5hbWU9IkFDQ1VSQUNZX0NMQVNTXzIiIFZhbHVlPSIyIi8+CiAgPG9wY
+        zpFbnVtZXJhdGVkVmFsdWUgTmFtZT0iQUNDVVJBQ1lfQ0xBU1NfMyIgVmFsdWU9IjMiLz4KI
+        CA8b3BjOkVudW1lcmF0ZWRWYWx1ZSBOYW1lPSJBQ0NVUkFDWV9DTEFTU180IiBWYWx1ZT0iN
+        CIvPgogIDxvcGM6RW51bWVyYXRlZFZhbHVlIE5hbWU9IkFDQ1VSQUNZX0NMQVNTXzUiIFZhb
+        HVlPSI1Ii8+CiAgPG9wYzpFbnVtZXJhdGVkVmFsdWUgTmFtZT0iQUNDVVJBQ1lfQ0xBU1NfN
+        iIgVmFsdWU9IjYiLz4KICA8b3BjOkVudW1lcmF0ZWRWYWx1ZSBOYW1lPSJBQ0NVUkFDWV9DT
+        EFTU183IiBWYWx1ZT0iNyIvPgogIDxvcGM6RW51bWVyYXRlZFZhbHVlIE5hbWU9IkFDQ1VSQ
+        UNZX0NMQVNTXzgiIFZhbHVlPSI4Ii8+CiAgPG9wYzpFbnVtZXJhdGVkVmFsdWUgTmFtZT0iQ
+        UNDVVJBQ1lfQ0xBU1NfOSIgVmFsdWU9IjkiLz4KICA8b3BjOkVudW1lcmF0ZWRWYWx1ZSBOY
+        W1lPSJBQ0NVUkFDWV9DTEFTU18xMCIgVmFsdWU9IjEwIi8+CiAgPG9wYzpFbnVtZXJhdGVkV
+        mFsdWUgTmFtZT0iQUNDVVJBQ1lfQ0xBU1NfMTEiIFZhbHVlPSIxMSIvPgogIDxvcGM6RW51b
+        WVyYXRlZFZhbHVlIE5hbWU9IkFDQ1VSQUNZX0NMQVNTXzEyIiBWYWx1ZT0iMTIiLz4KICA8b
+        3BjOkVudW1lcmF0ZWRWYWx1ZSBOYW1lPSJBQ0NVUkFDWV9DTEFTU18xMyIgVmFsdWU9IjEzI
+        i8+CiAgPG9wYzpFbnVtZXJhdGVkVmFsdWUgTmFtZT0iQUNDVVJBQ1lfQ0xBU1NfMTQiIFZhb
+        HVlPSIxNCIvPgogIDxvcGM6RW51bWVyYXRlZFZhbHVlIE5hbWU9IkFDQ1VSQUNZX0NMQVNTX
+        zE1IiBWYWx1ZT0iMTUiLz4KIDwvb3BjOkVudW1lcmF0ZWRUeXBlPgogPG9wYzpFbnVtZXJhd
+        GVkVHlwZSBMZW5ndGhJbkJpdHM9IjMyIiBOYW1lPSJBY2N1cmFjeURvbWFpbkVudW1lcmF0a
+        W9uIj4KICA8b3BjOkVudW1lcmF0ZWRWYWx1ZSBOYW1lPSJBQ0NVUkFDWV9ET01BSU5fUkVTR
+        VJWRUQiIFZhbHVlPSIwIi8+CiAgPG9wYzpFbnVtZXJhdGVkVmFsdWUgTmFtZT0iQUNDVVJBQ
+        1lfRE9NQUlOX1BFUkNFTlRfRlVMTF9TQ0FMRSIgVmFsdWU9IjEiLz4KICA8b3BjOkVudW1lc
+        mF0ZWRWYWx1ZSBOYW1lPSJBQ0NVUkFDWV9ET01BSU5fUEVSQ0VOVF9BQ1RVQUxfUkVBRElOR
+        yIgVmFsdWU9IjIiLz4KICA8b3BjOkVudW1lcmF0ZWRWYWx1ZSBOYW1lPSJBQ0NVUkFDWV9ET
+        01BSU5fSUVDIiBWYWx1ZT0iMyIvPgogIDxvcGM6RW51bWVyYXRlZFZhbHVlIE5hbWU9IkFDQ
+        1VSQUNZX0RPTUFJTl9FTiIgVmFsdWU9IjQiLz4KIDwvb3BjOkVudW1lcmF0ZWRUeXBlPgogP
+        G9wYzpFbnVtZXJhdGVkVHlwZSBMZW5ndGhJbkJpdHM9IjMyIiBOYW1lPSJQZUNsYXNzRW51b
+        WVyYXRpb24iPgogIDxvcGM6RW51bWVyYXRlZFZhbHVlIE5hbWU9IlBFX0NMQVNTMSIgVmFsd
+        WU9IjAiLz4KICA8b3BjOkVudW1lcmF0ZWRWYWx1ZSBOYW1lPSJQRV9DTEFTUzIiIFZhbHVlP
+        SIxIi8+CiAgPG9wYzpFbnVtZXJhdGVkVmFsdWUgTmFtZT0iUEVfQ0xBU1MzIiBWYWx1ZT0iM
+        iIvPgogPC9vcGM6RW51bWVyYXRlZFR5cGU+CiA8b3BjOkVudW1lcmF0ZWRUeXBlIExlbmd0a
+        EluQml0cz0iMzIiIE5hbWU9IlBlU3ViY2xhc3NFbnVtZXJhdGlvbiI+CiAgPG9wYzpFbnVtZ
+        XJhdGVkVmFsdWUgTmFtZT0iUEVfU1VCQ0xBU1MxIiBWYWx1ZT0iMCIvPgogIDxvcGM6RW51b
+        WVyYXRlZFZhbHVlIE5hbWU9IlBFX1NVQkNMQVNTMiIgVmFsdWU9IjEiLz4KIDwvb3BjOkVud
+        W1lcmF0ZWRUeXBlPgo8L29wYzpUeXBlRGljdGlvbmFyeT4K</uax:ByteString>
+    </Value>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6002" BrowseName="NamespaceUri" ParentNodeId="ns=1;i=6001" DataType="String">
+    <DisplayName>NamespaceUri</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6001</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+    <Value>
+      <uax:String xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd">http://opcfoundation.org/UA/PNEM/</uax:String>
+    </Value>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6003" BrowseName="1:TypeDictionary" SymbolicName="TypeDictionary_XmlSchema" DataType="ByteString">
+    <DisplayName>TypeDictionary</DisplayName>
+    <Description>Collects the data type descriptions of http://opcfoundation.org/UA/PNEM/</Description>
+    <References>
+      <Reference ReferenceType="HasComponent">ns=1;i=6012</Reference>
+      <Reference ReferenceType="HasComponent">ns=1;i=6014</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=72</Reference>
+      <Reference ReferenceType="HasComponent">ns=1;i=6008</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6004</Reference>
+      <Reference ReferenceType="HasComponent">ns=1;i=6010</Reference>
+      <Reference ReferenceType="HasComponent">ns=1;i=6006</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">i=92</Reference>
+    </References>
+    <Value>
+      <uax:ByteString xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd">PHhzOnNjaGVtYSBlbGVtZW50Rm9ybURlZmF1bHQ9InF1YWxpZmllZCIgdGFyZ2V0TmFtZXNwYWNlPSJod
+        HRwOi8vb3BjZm91bmRhdGlvbi5vcmcvVUEvUE5FTS9UeXBlcy54c2QiIHhtbG5zOnRucz0ia
+        HR0cDovL29wY2ZvdW5kYXRpb24ub3JnL1VBL1BORU0vVHlwZXMueHNkIiB4bWxuczp1YT0ia
+        HR0cDovL29wY2ZvdW5kYXRpb24ub3JnL1VBLzIwMDgvMDIvVHlwZXMueHNkIiB4bWxuczp4c
+        z0iaHR0cDovL3d3dy53My5vcmcvMjAwMS9YTUxTY2hlbWEiPgogPHhzOmltcG9ydCBuYW1lc
+        3BhY2U9Imh0dHA6Ly9vcGNmb3VuZGF0aW9uLm9yZy9VQS8yMDA4LzAyL1R5cGVzLnhzZCIvP
+        gogPHhzOnNpbXBsZVR5cGUgbmFtZT0iQWNjdXJhY3lDbGFzc0VudW1lcmF0aW9uIj4KICA8e
+        HM6cmVzdHJpY3Rpb24gYmFzZT0ieHM6c3RyaW5nIj4KICAgPHhzOmVudW1lcmF0aW9uIHZhb
+        HVlPSJBQ0NVUkFDWV9DTEFTU18wXzAiLz4KICAgPHhzOmVudW1lcmF0aW9uIHZhbHVlPSJBQ
+        0NVUkFDWV9DTEFTU18xXzEiLz4KICAgPHhzOmVudW1lcmF0aW9uIHZhbHVlPSJBQ0NVUkFDW
+        V9DTEFTU18yXzIiLz4KICAgPHhzOmVudW1lcmF0aW9uIHZhbHVlPSJBQ0NVUkFDWV9DTEFTU
+        18zXzMiLz4KICAgPHhzOmVudW1lcmF0aW9uIHZhbHVlPSJBQ0NVUkFDWV9DTEFTU180XzQiL
+        z4KICAgPHhzOmVudW1lcmF0aW9uIHZhbHVlPSJBQ0NVUkFDWV9DTEFTU181XzUiLz4KICAgP
+        HhzOmVudW1lcmF0aW9uIHZhbHVlPSJBQ0NVUkFDWV9DTEFTU182XzYiLz4KICAgPHhzOmVud
+        W1lcmF0aW9uIHZhbHVlPSJBQ0NVUkFDWV9DTEFTU183XzciLz4KICAgPHhzOmVudW1lcmF0a
+        W9uIHZhbHVlPSJBQ0NVUkFDWV9DTEFTU184XzgiLz4KICAgPHhzOmVudW1lcmF0aW9uIHZhb
+        HVlPSJBQ0NVUkFDWV9DTEFTU185XzkiLz4KICAgPHhzOmVudW1lcmF0aW9uIHZhbHVlPSJBQ
+        0NVUkFDWV9DTEFTU18xMF8xMCIvPgogICA8eHM6ZW51bWVyYXRpb24gdmFsdWU9IkFDQ1VSQ
+        UNZX0NMQVNTXzExXzExIi8+CiAgIDx4czplbnVtZXJhdGlvbiB2YWx1ZT0iQUNDVVJBQ1lfQ
+        0xBU1NfMTJfMTIiLz4KICAgPHhzOmVudW1lcmF0aW9uIHZhbHVlPSJBQ0NVUkFDWV9DTEFTU
+        18xM18xMyIvPgogICA8eHM6ZW51bWVyYXRpb24gdmFsdWU9IkFDQ1VSQUNZX0NMQVNTXzE0X
+        zE0Ii8+CiAgIDx4czplbnVtZXJhdGlvbiB2YWx1ZT0iQUNDVVJBQ1lfQ0xBU1NfMTVfMTUiL
+        z4KICA8L3hzOnJlc3RyaWN0aW9uPgogPC94czpzaW1wbGVUeXBlPgogPHhzOmVsZW1lbnQgd
+        HlwZT0idG5zOkFjY3VyYWN5Q2xhc3NFbnVtZXJhdGlvbiIgbmFtZT0iQWNjdXJhY3lDbGFzc
+        0VudW1lcmF0aW9uIi8+CiA8eHM6Y29tcGxleFR5cGUgbmFtZT0iTGlzdE9mQWNjdXJhY3lDb
+        GFzc0VudW1lcmF0aW9uIj4KICA8eHM6c2VxdWVuY2U+CiAgIDx4czplbGVtZW50IG1pbk9jY
+        3Vycz0iMCIgbWF4T2NjdXJzPSJ1bmJvdW5kZWQiIHR5cGU9InRuczpBY2N1cmFjeUNsYXNzR
+        W51bWVyYXRpb24iIG5hbWU9IkFjY3VyYWN5Q2xhc3NFbnVtZXJhdGlvbiIgbmlsbGFibGU9I
+        nRydWUiLz4KICA8L3hzOnNlcXVlbmNlPgogPC94czpjb21wbGV4VHlwZT4KIDx4czplbGVtZ
+        W50IHR5cGU9InRuczpMaXN0T2ZBY2N1cmFjeUNsYXNzRW51bWVyYXRpb24iIG5hbWU9Ikxpc
+        3RPZkFjY3VyYWN5Q2xhc3NFbnVtZXJhdGlvbiIgbmlsbGFibGU9InRydWUiLz4KIDx4czpza
+        W1wbGVUeXBlIG5hbWU9IkFjY3VyYWN5RG9tYWluRW51bWVyYXRpb24iPgogIDx4czpyZXN0c
+        mljdGlvbiBiYXNlPSJ4czpzdHJpbmciPgogICA8eHM6ZW51bWVyYXRpb24gdmFsdWU9IkFDQ
+        1VSQUNZX0RPTUFJTl9SRVNFUlZFRF8wIi8+CiAgIDx4czplbnVtZXJhdGlvbiB2YWx1ZT0iQ
+        UNDVVJBQ1lfRE9NQUlOX1BFUkNFTlRfRlVMTF9TQ0FMRV8xIi8+CiAgIDx4czplbnVtZXJhd
+        GlvbiB2YWx1ZT0iQUNDVVJBQ1lfRE9NQUlOX1BFUkNFTlRfQUNUVUFMX1JFQURJTkdfMiIvP
+        gogICA8eHM6ZW51bWVyYXRpb24gdmFsdWU9IkFDQ1VSQUNZX0RPTUFJTl9JRUNfMyIvPgogI
+        CA8eHM6ZW51bWVyYXRpb24gdmFsdWU9IkFDQ1VSQUNZX0RPTUFJTl9FTl80Ii8+CiAgPC94c
+        zpyZXN0cmljdGlvbj4KIDwveHM6c2ltcGxlVHlwZT4KIDx4czplbGVtZW50IHR5cGU9InRuc
+        zpBY2N1cmFjeURvbWFpbkVudW1lcmF0aW9uIiBuYW1lPSJBY2N1cmFjeURvbWFpbkVudW1lc
+        mF0aW9uIi8+CiA8eHM6Y29tcGxleFR5cGUgbmFtZT0iTGlzdE9mQWNjdXJhY3lEb21haW5Fb
+        nVtZXJhdGlvbiI+CiAgPHhzOnNlcXVlbmNlPgogICA8eHM6ZWxlbWVudCBtaW5PY2N1cnM9I
+        jAiIG1heE9jY3Vycz0idW5ib3VuZGVkIiB0eXBlPSJ0bnM6QWNjdXJhY3lEb21haW5FbnVtZ
+        XJhdGlvbiIgbmFtZT0iQWNjdXJhY3lEb21haW5FbnVtZXJhdGlvbiIgbmlsbGFibGU9InRyd
+        WUiLz4KICA8L3hzOnNlcXVlbmNlPgogPC94czpjb21wbGV4VHlwZT4KIDx4czplbGVtZW50I
+        HR5cGU9InRuczpMaXN0T2ZBY2N1cmFjeURvbWFpbkVudW1lcmF0aW9uIiBuYW1lPSJMaXN0T
+        2ZBY2N1cmFjeURvbWFpbkVudW1lcmF0aW9uIiBuaWxsYWJsZT0idHJ1ZSIvPgogPHhzOnNpb
+        XBsZVR5cGUgbmFtZT0iUGVDbGFzc0VudW1lcmF0aW9uIj4KICA8eHM6cmVzdHJpY3Rpb24gY
+        mFzZT0ieHM6c3RyaW5nIj4KICAgPHhzOmVudW1lcmF0aW9uIHZhbHVlPSJQRV9DTEFTUzFfM
+        CIvPgogICA8eHM6ZW51bWVyYXRpb24gdmFsdWU9IlBFX0NMQVNTMl8xIi8+CiAgIDx4czplb
+        nVtZXJhdGlvbiB2YWx1ZT0iUEVfQ0xBU1MzXzIiLz4KICA8L3hzOnJlc3RyaWN0aW9uPgogP
+        C94czpzaW1wbGVUeXBlPgogPHhzOmVsZW1lbnQgdHlwZT0idG5zOlBlQ2xhc3NFbnVtZXJhd
+        GlvbiIgbmFtZT0iUGVDbGFzc0VudW1lcmF0aW9uIi8+CiA8eHM6Y29tcGxleFR5cGUgbmFtZ
+        T0iTGlzdE9mUGVDbGFzc0VudW1lcmF0aW9uIj4KICA8eHM6c2VxdWVuY2U+CiAgIDx4czplb
+        GVtZW50IG1pbk9jY3Vycz0iMCIgbWF4T2NjdXJzPSJ1bmJvdW5kZWQiIHR5cGU9InRuczpQZ
+        UNsYXNzRW51bWVyYXRpb24iIG5hbWU9IlBlQ2xhc3NFbnVtZXJhdGlvbiIgbmlsbGFibGU9I
+        nRydWUiLz4KICA8L3hzOnNlcXVlbmNlPgogPC94czpjb21wbGV4VHlwZT4KIDx4czplbGVtZ
+        W50IHR5cGU9InRuczpMaXN0T2ZQZUNsYXNzRW51bWVyYXRpb24iIG5hbWU9Ikxpc3RPZlBlQ
+        2xhc3NFbnVtZXJhdGlvbiIgbmlsbGFibGU9InRydWUiLz4KIDx4czpzaW1wbGVUeXBlIG5hb
+        WU9IlBlU3ViY2xhc3NFbnVtZXJhdGlvbiI+CiAgPHhzOnJlc3RyaWN0aW9uIGJhc2U9InhzO
+        nN0cmluZyI+CiAgIDx4czplbnVtZXJhdGlvbiB2YWx1ZT0iUEVfU1VCQ0xBU1MxXzAiLz4KI
+        CAgPHhzOmVudW1lcmF0aW9uIHZhbHVlPSJQRV9TVUJDTEFTUzJfMSIvPgogIDwveHM6cmVzd
+        HJpY3Rpb24+CiA8L3hzOnNpbXBsZVR5cGU+CiA8eHM6ZWxlbWVudCB0eXBlPSJ0bnM6UGVTd
+        WJjbGFzc0VudW1lcmF0aW9uIiBuYW1lPSJQZVN1YmNsYXNzRW51bWVyYXRpb24iLz4KIDx4c
+        zpjb21wbGV4VHlwZSBuYW1lPSJMaXN0T2ZQZVN1YmNsYXNzRW51bWVyYXRpb24iPgogIDx4c
+        zpzZXF1ZW5jZT4KICAgPHhzOmVsZW1lbnQgbWluT2NjdXJzPSIwIiBtYXhPY2N1cnM9InVuY
+        m91bmRlZCIgdHlwZT0idG5zOlBlU3ViY2xhc3NFbnVtZXJhdGlvbiIgbmFtZT0iUGVTdWJjb
+        GFzc0VudW1lcmF0aW9uIiBuaWxsYWJsZT0idHJ1ZSIvPgogIDwveHM6c2VxdWVuY2U+CiA8L
+        3hzOmNvbXBsZXhUeXBlPgogPHhzOmVsZW1lbnQgdHlwZT0idG5zOkxpc3RPZlBlU3ViY2xhc
+        3NFbnVtZXJhdGlvbiIgbmFtZT0iTGlzdE9mUGVTdWJjbGFzc0VudW1lcmF0aW9uIiBuaWxsY
+        WJsZT0idHJ1ZSIvPgogPHhzOmNvbXBsZXhUeXBlIG5hbWU9IkFjUGVEYXRhVHlwZSI+CiAgP
+        HhzOnNlcXVlbmNlPgogICA8eHM6ZWxlbWVudCBtaW5PY2N1cnM9IjAiIG1heE9jY3Vycz0iM
+        SIgdHlwZT0ieHM6ZmxvYXQiIG5hbWU9IkEiLz4KICAgPHhzOmVsZW1lbnQgbWluT2NjdXJzP
+        SIwIiBtYXhPY2N1cnM9IjEiIHR5cGU9InhzOmZsb2F0IiBuYW1lPSJCIi8+CiAgIDx4czplb
+        GVtZW50IG1pbk9jY3Vycz0iMCIgbWF4T2NjdXJzPSIxIiB0eXBlPSJ4czpmbG9hdCIgbmFtZ
+        T0iQyIvPgogIDwveHM6c2VxdWVuY2U+CiA8L3hzOmNvbXBsZXhUeXBlPgogPHhzOmVsZW1lb
+        nQgdHlwZT0idG5zOkFjUGVEYXRhVHlwZSIgbmFtZT0iQWNQZURhdGFUeXBlIi8+CiA8eHM6Y
+        29tcGxleFR5cGUgbmFtZT0iTGlzdE9mQWNQZURhdGFUeXBlIj4KICA8eHM6c2VxdWVuY2U+C
+        iAgIDx4czplbGVtZW50IG1pbk9jY3Vycz0iMCIgbWF4T2NjdXJzPSJ1bmJvdW5kZWQiIHR5c
+        GU9InRuczpBY1BlRGF0YVR5cGUiIG5hbWU9IkFjUGVEYXRhVHlwZSIgbmlsbGFibGU9InRyd
+        WUiLz4KICA8L3hzOnNlcXVlbmNlPgogPC94czpjb21wbGV4VHlwZT4KIDx4czplbGVtZW50I
+        HR5cGU9InRuczpMaXN0T2ZBY1BlRGF0YVR5cGUiIG5hbWU9Ikxpc3RPZkFjUGVEYXRhVHlwZ
+        SIgbmlsbGFibGU9InRydWUiLz4KIDx4czpjb21wbGV4VHlwZSBuYW1lPSJBY1BwRGF0YVR5c
+        GUiPgogIDx4czpzZXF1ZW5jZT4KICAgPHhzOmVsZW1lbnQgbWluT2NjdXJzPSIwIiBtYXhPY
+        2N1cnM9IjEiIHR5cGU9InhzOmZsb2F0IiBuYW1lPSJBX2IiLz4KICAgPHhzOmVsZW1lbnQgb
+        WluT2NjdXJzPSIwIiBtYXhPY2N1cnM9IjEiIHR5cGU9InhzOmZsb2F0IiBuYW1lPSJCX2MiL
+        z4KICAgPHhzOmVsZW1lbnQgbWluT2NjdXJzPSIwIiBtYXhPY2N1cnM9IjEiIHR5cGU9InhzO
+        mZsb2F0IiBuYW1lPSJDX2EiLz4KICA8L3hzOnNlcXVlbmNlPgogPC94czpjb21wbGV4VHlwZ
+        T4KIDx4czplbGVtZW50IHR5cGU9InRuczpBY1BwRGF0YVR5cGUiIG5hbWU9IkFjUHBEYXRhV
+        HlwZSIvPgogPHhzOmNvbXBsZXhUeXBlIG5hbWU9Ikxpc3RPZkFjUHBEYXRhVHlwZSI+CiAgP
+        HhzOnNlcXVlbmNlPgogICA8eHM6ZWxlbWVudCBtaW5PY2N1cnM9IjAiIG1heE9jY3Vycz0id
+        W5ib3VuZGVkIiB0eXBlPSJ0bnM6QWNQcERhdGFUeXBlIiBuYW1lPSJBY1BwRGF0YVR5cGUiI
+        G5pbGxhYmxlPSJ0cnVlIi8+CiAgPC94czpzZXF1ZW5jZT4KIDwveHM6Y29tcGxleFR5cGU+C
+        iA8eHM6ZWxlbWVudCB0eXBlPSJ0bnM6TGlzdE9mQWNQcERhdGFUeXBlIiBuYW1lPSJMaXN0T
+        2ZBY1BwRGF0YVR5cGUiIG5pbGxhYmxlPSJ0cnVlIi8+CiA8eHM6Y29tcGxleFR5cGUgbmFtZ
+        T0iRW5lcmd5U3RhdGVJbmZvcm1hdGlvbkRhdGFUeXBlIj4KICA8eHM6c2VxdWVuY2U+CiAgI
+        Dx4czplbGVtZW50IG1pbk9jY3Vycz0iMCIgbWF4T2NjdXJzPSIxIiB0eXBlPSJ4czp1bnNpZ
+        25lZEJ5dGUiIG5hbWU9IklEU291cmNlIi8+CiAgIDx4czplbGVtZW50IG1pbk9jY3Vycz0iM
+        CIgbWF4T2NjdXJzPSIxIiB0eXBlPSJ4czp1bnNpZ25lZEJ5dGUiIG5hbWU9IklERGVzdGluY
+        XRpb24iLz4KICAgPHhzOmVsZW1lbnQgbWluT2NjdXJzPSIwIiBtYXhPY2N1cnM9IjEiIHR5c
+        GU9InhzOmRvdWJsZSIgbmFtZT0iUmVndWxhclRpbWVUb09wZXJhdGUiLz4KICAgPHhzOmVsZ
+        W1lbnQgbWluT2NjdXJzPSIwIiBtYXhPY2N1cnM9IjEiIHR5cGU9InhzOmZsb2F0IiBuYW1lP
+        SJNb2RlUG93ZXJDb25zdW1wdGlvbiIvPgogIDwveHM6c2VxdWVuY2U+CiA8L3hzOmNvbXBsZ
+        XhUeXBlPgogPHhzOmVsZW1lbnQgdHlwZT0idG5zOkVuZXJneVN0YXRlSW5mb3JtYXRpb25EY
+        XRhVHlwZSIgbmFtZT0iRW5lcmd5U3RhdGVJbmZvcm1hdGlvbkRhdGFUeXBlIi8+CiA8eHM6Y
+        29tcGxleFR5cGUgbmFtZT0iTGlzdE9mRW5lcmd5U3RhdGVJbmZvcm1hdGlvbkRhdGFUeXBlI
+        j4KICA8eHM6c2VxdWVuY2U+CiAgIDx4czplbGVtZW50IG1pbk9jY3Vycz0iMCIgbWF4T2Njd
+        XJzPSJ1bmJvdW5kZWQiIHR5cGU9InRuczpFbmVyZ3lTdGF0ZUluZm9ybWF0aW9uRGF0YVR5c
+        GUiIG5hbWU9IkVuZXJneVN0YXRlSW5mb3JtYXRpb25EYXRhVHlwZSIgbmlsbGFibGU9InRyd
+        WUiLz4KICA8L3hzOnNlcXVlbmNlPgogPC94czpjb21wbGV4VHlwZT4KIDx4czplbGVtZW50I
+        HR5cGU9InRuczpMaXN0T2ZFbmVyZ3lTdGF0ZUluZm9ybWF0aW9uRGF0YVR5cGUiIG5hbWU9I
+        kxpc3RPZkVuZXJneVN0YXRlSW5mb3JtYXRpb25EYXRhVHlwZSIgbmlsbGFibGU9InRydWUiL
+        z4KIDx4czpjb21wbGV4VHlwZSBuYW1lPSJQZVZlcnNpb25EYXRhVHlwZSI+CiAgPHhzOnNlc
+        XVlbmNlPgogICA8eHM6ZWxlbWVudCBtaW5PY2N1cnM9IjAiIG1heE9jY3Vycz0iMSIgdHlwZ
+        T0ieHM6dW5zaWduZWRCeXRlIiBuYW1lPSJNYWpvclZlcnNpb24iLz4KICAgPHhzOmVsZW1lb
+        nQgbWluT2NjdXJzPSIwIiBtYXhPY2N1cnM9IjEiIHR5cGU9InhzOnVuc2lnbmVkQnl0ZSIgb
+        mFtZT0iTWlub3JWZXJzaW9uIi8+CiAgIDx4czplbGVtZW50IG1pbk9jY3Vycz0iMCIgbWF4T
+        2NjdXJzPSIxIiB0eXBlPSJ4czp1bnNpZ25lZEJ5dGUiIG5hbWU9IlJldmlzaW9uIi8+CiAgP
+        C94czpzZXF1ZW5jZT4KIDwveHM6Y29tcGxleFR5cGU+CiA8eHM6ZWxlbWVudCB0eXBlPSJ0b
+        nM6UGVWZXJzaW9uRGF0YVR5cGUiIG5hbWU9IlBlVmVyc2lvbkRhdGFUeXBlIi8+CiA8eHM6Y
+        29tcGxleFR5cGUgbmFtZT0iTGlzdE9mUGVWZXJzaW9uRGF0YVR5cGUiPgogIDx4czpzZXF1Z
+        W5jZT4KICAgPHhzOmVsZW1lbnQgbWluT2NjdXJzPSIwIiBtYXhPY2N1cnM9InVuYm91bmRlZ
+        CIgdHlwZT0idG5zOlBlVmVyc2lvbkRhdGFUeXBlIiBuYW1lPSJQZVZlcnNpb25EYXRhVHlwZ
+        SIgbmlsbGFibGU9InRydWUiLz4KICA8L3hzOnNlcXVlbmNlPgogPC94czpjb21wbGV4VHlwZ
+        T4KIDx4czplbGVtZW50IHR5cGU9InRuczpMaXN0T2ZQZVZlcnNpb25EYXRhVHlwZSIgbmFtZ
+        T0iTGlzdE9mUGVWZXJzaW9uRGF0YVR5cGUiIG5pbGxhYmxlPSJ0cnVlIi8+CiA8eHM6Y29tc
+        GxleFR5cGUgbmFtZT0iU3RhbmRieU1vZGVUcmFuc2l0aW9uRGF0YVR5cGUiPgogIDx4czpzZ
+        XF1ZW5jZT4KICAgPHhzOmVsZW1lbnQgbWluT2NjdXJzPSIwIiBtYXhPY2N1cnM9IjEiIHR5c
+        GU9InhzOnVuc2lnbmVkQnl0ZSIgbmFtZT0iSUREZXN0aW5hdGlvbiIvPgogICA8eHM6ZWxlb
+        WVudCBtaW5PY2N1cnM9IjAiIG1heE9jY3Vycz0iMSIgdHlwZT0ieHM6ZG91YmxlIiBuYW1lP
+        SJDdXJyZW50VGltZVRvRGVzdGluYXRpb24iLz4KICAgPHhzOmVsZW1lbnQgbWluT2NjdXJzP
+        SIwIiBtYXhPY2N1cnM9IjEiIHR5cGU9InhzOmRvdWJsZSIgbmFtZT0iQ3VycmVudFRpbWVUb
+        09wZXJhdGUiLz4KICAgPHhzOmVsZW1lbnQgbWluT2NjdXJzPSIwIiBtYXhPY2N1cnM9IjEiI
+        HR5cGU9InhzOmZsb2F0IiBuYW1lPSJFbmVyZ3lDb25zdW1wdGlvblRvRGVzdGluYXRpb24iL
+        z4KICA8L3hzOnNlcXVlbmNlPgogPC94czpjb21wbGV4VHlwZT4KIDx4czplbGVtZW50IHR5c
+        GU9InRuczpTdGFuZGJ5TW9kZVRyYW5zaXRpb25EYXRhVHlwZSIgbmFtZT0iU3RhbmRieU1vZ
+        GVUcmFuc2l0aW9uRGF0YVR5cGUiLz4KIDx4czpjb21wbGV4VHlwZSBuYW1lPSJMaXN0T2ZTd
+        GFuZGJ5TW9kZVRyYW5zaXRpb25EYXRhVHlwZSI+CiAgPHhzOnNlcXVlbmNlPgogICA8eHM6Z
+        WxlbWVudCBtaW5PY2N1cnM9IjAiIG1heE9jY3Vycz0idW5ib3VuZGVkIiB0eXBlPSJ0bnM6U
+        3RhbmRieU1vZGVUcmFuc2l0aW9uRGF0YVR5cGUiIG5hbWU9IlN0YW5kYnlNb2RlVHJhbnNpd
+        GlvbkRhdGFUeXBlIiBuaWxsYWJsZT0idHJ1ZSIvPgogIDwveHM6c2VxdWVuY2U+CiA8L3hzO
+        mNvbXBsZXhUeXBlPgogPHhzOmVsZW1lbnQgdHlwZT0idG5zOkxpc3RPZlN0YW5kYnlNb2RlV
+        HJhbnNpdGlvbkRhdGFUeXBlIiBuYW1lPSJMaXN0T2ZTdGFuZGJ5TW9kZVRyYW5zaXRpb25EY
+        XRhVHlwZSIgbmlsbGFibGU9InRydWUiLz4KPC94czpzY2hlbWE+Cg==</uax:ByteString>
+    </Value>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6004" BrowseName="NamespaceUri" ParentNodeId="ns=1;i=6003" DataType="String">
+    <DisplayName>NamespaceUri</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6003</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+    <Value>
+      <uax:String xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd">http://opcfoundation.org/UA/PNEM/Types.xsd</uax:String>
+    </Value>
+  </UAVariable>
+  <UAReferenceType NodeId="ns=1;i=4004" BrowseName="1:HasEnergyMeasurement">
+    <DisplayName>HasEnergyMeasurement</DisplayName>
+    <Documentation>https://reference.opcfoundation.org/v104/PNEM/v100/docs/11.3</Documentation>
+    <References>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=32</Reference>
+    </References>
+    <InverseName>IsEnergyMeasurementOf</InverseName>
+  </UAReferenceType>
+  <UAReferenceType NodeId="ns=1;i=4005" BrowseName="1:HasEnergyPowerOff">
+    <DisplayName>HasEnergyPowerOff</DisplayName>
+    <Documentation>https://reference.opcfoundation.org/v104/PNEM/v100/docs/11.4</Documentation>
+    <References>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=32</Reference>
+    </References>
+    <InverseName>IsEnergyPowerOffFor</InverseName>
+  </UAReferenceType>
+  <UAReferenceType NodeId="ns=1;i=4003" BrowseName="1:HasEnergyStandbyManagement">
+    <DisplayName>HasEnergyStandbyManagement</DisplayName>
+    <Documentation>https://reference.opcfoundation.org/v104/PNEM/v100/docs/11.2</Documentation>
+    <References>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=32</Reference>
+    </References>
+    <InverseName>IsEnergyStandbyManagementOf</InverseName>
+  </UAReferenceType>
+  <UAReferenceType NodeId="ns=1;i=4002" BrowseName="1:Represents">
+    <DisplayName>Represents</DisplayName>
+    <Documentation>https://reference.opcfoundation.org/v104/PNEM/v100/docs/11.1</Documentation>
+    <References>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=32</Reference>
+    </References>
+    <InverseName>RepresentedBy</InverseName>
+  </UAReferenceType>
+  <UAVariableType NodeId="ns=1;i=2002" BrowseName="1:MeasurementValueType" ValueRank="-2">
+    <DisplayName>MeasurementValueType</DisplayName>
+    <Documentation>https://reference.opcfoundation.org/v104/PNEM/v100/docs/9.1</Documentation>
+    <References>
+      <Reference ReferenceType="HasProperty">ns=1;i=6020</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6019</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6021</Reference>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=63</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6018</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6022</Reference>
+    </References>
+  </UAVariableType>
+  <UAVariable NodeId="ns=1;i=6020" BrowseName="1:AccuracyClass" ParentNodeId="ns=1;i=2002" DataType="AccuracyClassEnumeration">
+    <DisplayName>AccuracyClass</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=2002</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6019" BrowseName="1:AccuracyDomain" ParentNodeId="ns=1;i=2002" DataType="AccuracyDomainEnumeration">
+    <DisplayName>AccuracyDomain</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=2002</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6021" BrowseName="EngineeringUnits" ParentNodeId="ns=1;i=2002" DataType="EUInformation">
+    <DisplayName>EngineeringUnits</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=2002</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6018" BrowseName="1:PeMeasurementID" ParentNodeId="ns=1;i=2002" DataType="UInt16">
+    <DisplayName>PeMeasurementID</DisplayName>
+    <References>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=2002</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6022" BrowseName="1:ValueBeforeReset" ParentNodeId="ns=1;i=2002">
+    <DisplayName>ValueBeforeReset</DisplayName>
+    <References>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=2002</Reference>
+    </References>
+  </UAVariable>
+  <UAObjectType NodeId="ns=1;i=1011" BrowseName="1:IEnergyProfileD0Type" IsAbstract="true">
+    <DisplayName>IEnergyProfileD0Type</DisplayName>
+    <Documentation>https://reference.opcfoundation.org/v104/PNEM/v100/docs/8.2.3/#8.2.3.5</Documentation>
+    <References>
+      <Reference ReferenceType="HasComponent">ns=1;i=6102</Reference>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=17602</Reference>
+    </References>
+  </UAObjectType>
+  <UAVariable NodeId="ns=1;i=6102" BrowseName="1:DcCurrent" ParentNodeId="ns=1;i=1011" DataType="Float" AccessLevel="3">
+    <DisplayName>DcCurrent</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty">ns=1;i=6103</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6104</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=1011</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6105</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasTypeDefinition">ns=1;i=2002</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6168</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6103" BrowseName="1:AccuracyClass" ParentNodeId="ns=1;i=6102" DataType="AccuracyClassEnumeration">
+    <DisplayName>AccuracyClass</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6102</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6104" BrowseName="1:AccuracyDomain" ParentNodeId="ns=1;i=6102" DataType="AccuracyDomainEnumeration">
+    <DisplayName>AccuracyDomain</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6102</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6105" BrowseName="EngineeringUnits" ParentNodeId="ns=1;i=6102" DataType="EUInformation">
+    <DisplayName>EngineeringUnits</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6102</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+    <Value>
+      <uax:ExtensionObject xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd">
+        <uax:TypeId>
+          <uax:Identifier>i=888</uax:Identifier>
+        </uax:TypeId>
+        <uax:Body>
+          <uax:EUInformation>
+            <uax:NamespaceUri>http://www.opcfoundation.org/UA/units/un/cefact</uax:NamespaceUri>
+            <uax:UnitId>4279632</uax:UnitId>
+            <uax:DisplayName>
+              <uax:Text>A</uax:Text>
+            </uax:DisplayName>
+            <uax:Description>
+              <uax:Text>ampere</uax:Text>
+            </uax:Description>
+          </uax:EUInformation>
+        </uax:Body>
+      </uax:ExtensionObject>
+    </Value>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6168" BrowseName="1:PeMeasurementID" ParentNodeId="ns=1;i=6102" DataType="UInt16">
+    <DisplayName>PeMeasurementID</DisplayName>
+    <References>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6102</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAObjectType NodeId="ns=1;i=1007" BrowseName="1:IEnergyProfileE0Type" IsAbstract="true">
+    <DisplayName>IEnergyProfileE0Type</DisplayName>
+    <Documentation>https://reference.opcfoundation.org/v104/PNEM/v100/docs/8.2.3/#8.2.3.1</Documentation>
+    <References>
+      <Reference ReferenceType="HasComponent">ns=1;i=6060</Reference>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=17602</Reference>
+    </References>
+  </UAObjectType>
+  <UAVariable NodeId="ns=1;i=6060" BrowseName="1:AcCurrent" ParentNodeId="ns=1;i=1007" DataType="AcPeDataType" AccessLevel="3">
+    <DisplayName>AcCurrent</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty">ns=1;i=6061</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6062</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=1007</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6063</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasTypeDefinition">ns=1;i=2002</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6153</Reference>
+    </References>
+    <Value>
+      <uax:ExtensionObject xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd">
+        <uax:TypeId>
+          <uax:Identifier>ns=1;i=5011</uax:Identifier>
+        </uax:TypeId>
+        <uax:Body>
+          <AcPeDataType xmlns="http://opcfoundation.org/UA/PNEM/Types.xsd">
+            <A>0</A>
+            <B>0</B>
+            <C>0</C>
+          </AcPeDataType>
+        </uax:Body>
+      </uax:ExtensionObject>
+    </Value>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6061" BrowseName="1:AccuracyClass" ParentNodeId="ns=1;i=6060" DataType="AccuracyClassEnumeration">
+    <DisplayName>AccuracyClass</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6060</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6062" BrowseName="1:AccuracyDomain" ParentNodeId="ns=1;i=6060" DataType="AccuracyDomainEnumeration">
+    <DisplayName>AccuracyDomain</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6060</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6063" BrowseName="EngineeringUnits" ParentNodeId="ns=1;i=6060" DataType="EUInformation">
+    <DisplayName>EngineeringUnits</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6060</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+    <Value>
+      <uax:ExtensionObject xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd">
+        <uax:TypeId>
+          <uax:Identifier>i=888</uax:Identifier>
+        </uax:TypeId>
+        <uax:Body>
+          <uax:EUInformation>
+            <uax:NamespaceUri>http://www.opcfoundation.org/UA/units/un/cefact</uax:NamespaceUri>
+            <uax:UnitId>4279632</uax:UnitId>
+            <uax:DisplayName>
+              <uax:Text>A</uax:Text>
+            </uax:DisplayName>
+            <uax:Description>
+              <uax:Text>ampere</uax:Text>
+            </uax:Description>
+          </uax:EUInformation>
+        </uax:Body>
+      </uax:ExtensionObject>
+    </Value>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6153" BrowseName="1:PeMeasurementID" ParentNodeId="ns=1;i=6060" DataType="UInt16">
+    <DisplayName>PeMeasurementID</DisplayName>
+    <References>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6060</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAObjectType NodeId="ns=1;i=1008" BrowseName="1:IEnergyProfileE1Type" IsAbstract="true">
+    <DisplayName>IEnergyProfileE1Type</DisplayName>
+    <Documentation>https://reference.opcfoundation.org/v104/PNEM/v100/docs/8.2.3/#8.2.3.2</Documentation>
+    <References>
+      <Reference ReferenceType="HasComponent">ns=1;i=6064</Reference>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=17602</Reference>
+    </References>
+  </UAObjectType>
+  <UAVariable NodeId="ns=1;i=6064" BrowseName="1:AcActivePowerTotal" ParentNodeId="ns=1;i=1008" DataType="Float" AccessLevel="3">
+    <DisplayName>AcActivePowerTotal</DisplayName>
+    <References>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=1008</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6065</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6066</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6067</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasTypeDefinition">ns=1;i=2002</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6154</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6065" BrowseName="1:AccuracyClass" ParentNodeId="ns=1;i=6064" DataType="AccuracyClassEnumeration">
+    <DisplayName>AccuracyClass</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6064</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6066" BrowseName="1:AccuracyDomain" ParentNodeId="ns=1;i=6064" DataType="AccuracyDomainEnumeration">
+    <DisplayName>AccuracyDomain</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6064</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6067" BrowseName="EngineeringUnits" ParentNodeId="ns=1;i=6064" DataType="EUInformation">
+    <DisplayName>EngineeringUnits</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6064</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+    <Value>
+      <uax:ExtensionObject xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd">
+        <uax:TypeId>
+          <uax:Identifier>i=888</uax:Identifier>
+        </uax:TypeId>
+        <uax:Body>
+          <uax:EUInformation>
+            <uax:NamespaceUri>http://www.opcfoundation.org/UA/units/un/cefact</uax:NamespaceUri>
+            <uax:UnitId>5723220</uax:UnitId>
+            <uax:DisplayName>
+              <uax:Text>W</uax:Text>
+            </uax:DisplayName>
+            <uax:Description>
+              <uax:Text>watt</uax:Text>
+            </uax:Description>
+          </uax:EUInformation>
+        </uax:Body>
+      </uax:ExtensionObject>
+    </Value>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6154" BrowseName="1:PeMeasurementID" ParentNodeId="ns=1;i=6064" DataType="UInt16">
+    <DisplayName>PeMeasurementID</DisplayName>
+    <References>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6064</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAObjectType NodeId="ns=1;i=1009" BrowseName="1:IEnergyProfileE2Type" IsAbstract="true">
+    <DisplayName>IEnergyProfileE2Type</DisplayName>
+    <Documentation>https://reference.opcfoundation.org/v104/PNEM/v100/docs/8.2.3/#8.2.3.3</Documentation>
+    <References>
+      <Reference ReferenceType="HasComponent">ns=1;i=6076</Reference>
+      <Reference ReferenceType="HasComponent">ns=1;i=6072</Reference>
+      <Reference ReferenceType="HasComponent">ns=1;i=6068</Reference>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=17602</Reference>
+    </References>
+  </UAObjectType>
+  <UAVariable NodeId="ns=1;i=6076" BrowseName="1:AcActiveEnergyTotalExportLp" ParentNodeId="ns=1;i=1009" DataType="Float" AccessLevel="3">
+    <DisplayName>AcActiveEnergyTotalExportLp</DisplayName>
+    <References>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=1009</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6077</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6078</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6079</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasTypeDefinition">ns=1;i=2002</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6157</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6077" BrowseName="1:AccuracyClass" ParentNodeId="ns=1;i=6076" DataType="AccuracyClassEnumeration">
+    <DisplayName>AccuracyClass</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6076</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6078" BrowseName="1:AccuracyDomain" ParentNodeId="ns=1;i=6076" DataType="AccuracyDomainEnumeration">
+    <DisplayName>AccuracyDomain</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6076</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6079" BrowseName="EngineeringUnits" ParentNodeId="ns=1;i=6076" DataType="EUInformation">
+    <DisplayName>EngineeringUnits</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6076</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+    <Value>
+      <uax:ExtensionObject xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd">
+        <uax:TypeId>
+          <uax:Identifier>i=888</uax:Identifier>
+        </uax:TypeId>
+        <uax:Body>
+          <uax:EUInformation>
+            <uax:NamespaceUri>http://www.opcfoundation.org/UA/units/un/cefact</uax:NamespaceUri>
+            <uax:UnitId>5720146</uax:UnitId>
+            <uax:DisplayName>
+              <uax:Text>W·h</uax:Text>
+            </uax:DisplayName>
+            <uax:Description>
+              <uax:Text>watt hour</uax:Text>
+            </uax:Description>
+          </uax:EUInformation>
+        </uax:Body>
+      </uax:ExtensionObject>
+    </Value>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6157" BrowseName="1:PeMeasurementID" ParentNodeId="ns=1;i=6076" DataType="UInt16">
+    <DisplayName>PeMeasurementID</DisplayName>
+    <References>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6076</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6072" BrowseName="1:AcActiveEnergyTotalImportLp" ParentNodeId="ns=1;i=1009" DataType="Float" AccessLevel="3">
+    <DisplayName>AcActiveEnergyTotalImportLp</DisplayName>
+    <References>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=1009</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6073</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6074</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6075</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasTypeDefinition">ns=1;i=2002</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6156</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6073" BrowseName="1:AccuracyClass" ParentNodeId="ns=1;i=6072" DataType="AccuracyClassEnumeration">
+    <DisplayName>AccuracyClass</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6072</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6074" BrowseName="1:AccuracyDomain" ParentNodeId="ns=1;i=6072" DataType="AccuracyDomainEnumeration">
+    <DisplayName>AccuracyDomain</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6072</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6075" BrowseName="EngineeringUnits" ParentNodeId="ns=1;i=6072" DataType="EUInformation">
+    <DisplayName>EngineeringUnits</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6072</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+    <Value>
+      <uax:ExtensionObject xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd">
+        <uax:TypeId>
+          <uax:Identifier>i=888</uax:Identifier>
+        </uax:TypeId>
+        <uax:Body>
+          <uax:EUInformation>
+            <uax:NamespaceUri>http://www.opcfoundation.org/UA/units/un/cefact</uax:NamespaceUri>
+            <uax:UnitId>5720146</uax:UnitId>
+            <uax:DisplayName>
+              <uax:Text>W·h</uax:Text>
+            </uax:DisplayName>
+            <uax:Description>
+              <uax:Text>watt hour</uax:Text>
+            </uax:Description>
+          </uax:EUInformation>
+        </uax:Body>
+      </uax:ExtensionObject>
+    </Value>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6156" BrowseName="1:PeMeasurementID" ParentNodeId="ns=1;i=6072" DataType="UInt16">
+    <DisplayName>PeMeasurementID</DisplayName>
+    <References>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6072</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6068" BrowseName="1:AcActivePowerTotal" ParentNodeId="ns=1;i=1009" DataType="Float" AccessLevel="3">
+    <DisplayName>AcActivePowerTotal</DisplayName>
+    <References>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=1009</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6069</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6070</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6071</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasTypeDefinition">ns=1;i=2002</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6155</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6069" BrowseName="1:AccuracyClass" ParentNodeId="ns=1;i=6068" DataType="AccuracyClassEnumeration">
+    <DisplayName>AccuracyClass</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6068</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6070" BrowseName="1:AccuracyDomain" ParentNodeId="ns=1;i=6068" DataType="AccuracyDomainEnumeration">
+    <DisplayName>AccuracyDomain</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6068</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6071" BrowseName="EngineeringUnits" ParentNodeId="ns=1;i=6068" DataType="EUInformation">
+    <DisplayName>EngineeringUnits</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6068</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+    <Value>
+      <uax:ExtensionObject xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd">
+        <uax:TypeId>
+          <uax:Identifier>i=888</uax:Identifier>
+        </uax:TypeId>
+        <uax:Body>
+          <uax:EUInformation>
+            <uax:NamespaceUri>http://www.opcfoundation.org/UA/units/un/cefact</uax:NamespaceUri>
+            <uax:UnitId>5723220</uax:UnitId>
+            <uax:DisplayName>
+              <uax:Text>W</uax:Text>
+            </uax:DisplayName>
+            <uax:Description>
+              <uax:Text>watt</uax:Text>
+            </uax:Description>
+          </uax:EUInformation>
+        </uax:Body>
+      </uax:ExtensionObject>
+    </Value>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6155" BrowseName="1:PeMeasurementID" ParentNodeId="ns=1;i=6068" DataType="UInt16">
+    <DisplayName>PeMeasurementID</DisplayName>
+    <References>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6068</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAObjectType NodeId="ns=1;i=1010" BrowseName="1:IEnergyProfileE3Type" IsAbstract="true">
+    <DisplayName>IEnergyProfileE3Type</DisplayName>
+    <Documentation>https://reference.opcfoundation.org/v104/PNEM/v100/docs/8.2.3/#8.2.3.4</Documentation>
+    <References>
+      <Reference ReferenceType="HasComponent">ns=1;i=6086</Reference>
+      <Reference ReferenceType="HasComponent">ns=1;i=6082</Reference>
+      <Reference ReferenceType="HasComponent">ns=1;i=6080</Reference>
+      <Reference ReferenceType="HasComponent">ns=1;i=6100</Reference>
+      <Reference ReferenceType="HasComponent">ns=1;i=6101</Reference>
+      <Reference ReferenceType="HasComponent">ns=1;i=6094</Reference>
+      <Reference ReferenceType="HasComponent">ns=1;i=6090</Reference>
+      <Reference ReferenceType="HasComponent">ns=1;i=6081</Reference>
+      <Reference ReferenceType="HasComponent">ns=1;i=6098</Reference>
+      <Reference ReferenceType="HasComponent">ns=1;i=6099</Reference>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=17602</Reference>
+    </References>
+  </UAObjectType>
+  <UAVariable NodeId="ns=1;i=6086" BrowseName="1:AcActiveEnergyTotalExportHp" ParentNodeId="ns=1;i=1010" DataType="Double" AccessLevel="3">
+    <DisplayName>AcActiveEnergyTotalExportHp</DisplayName>
+    <References>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=1010</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6087</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6088</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6089</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasTypeDefinition">ns=1;i=2002</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6161</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6087" BrowseName="1:AccuracyClass" ParentNodeId="ns=1;i=6086" DataType="AccuracyClassEnumeration">
+    <DisplayName>AccuracyClass</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6086</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6088" BrowseName="1:AccuracyDomain" ParentNodeId="ns=1;i=6086" DataType="AccuracyDomainEnumeration">
+    <DisplayName>AccuracyDomain</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6086</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6089" BrowseName="EngineeringUnits" ParentNodeId="ns=1;i=6086" DataType="EUInformation">
+    <DisplayName>EngineeringUnits</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6086</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+    <Value>
+      <uax:ExtensionObject xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd">
+        <uax:TypeId>
+          <uax:Identifier>i=888</uax:Identifier>
+        </uax:TypeId>
+        <uax:Body>
+          <uax:EUInformation>
+            <uax:NamespaceUri>http://www.opcfoundation.org/UA/units/un/cefact</uax:NamespaceUri>
+            <uax:UnitId>5720146</uax:UnitId>
+            <uax:DisplayName>
+              <uax:Text>W·h</uax:Text>
+            </uax:DisplayName>
+            <uax:Description>
+              <uax:Text>watt hour</uax:Text>
+            </uax:Description>
+          </uax:EUInformation>
+        </uax:Body>
+      </uax:ExtensionObject>
+    </Value>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6161" BrowseName="1:PeMeasurementID" ParentNodeId="ns=1;i=6086" DataType="UInt16">
+    <DisplayName>PeMeasurementID</DisplayName>
+    <References>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6086</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6082" BrowseName="1:AcActiveEnergyTotalImportHp" ParentNodeId="ns=1;i=1010" DataType="Double" AccessLevel="3">
+    <DisplayName>AcActiveEnergyTotalImportHp</DisplayName>
+    <References>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=1010</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6083</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6084</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6085</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasTypeDefinition">ns=1;i=2002</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6160</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6083" BrowseName="1:AccuracyClass" ParentNodeId="ns=1;i=6082" DataType="AccuracyClassEnumeration">
+    <DisplayName>AccuracyClass</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6082</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6084" BrowseName="1:AccuracyDomain" ParentNodeId="ns=1;i=6082" DataType="AccuracyDomainEnumeration">
+    <DisplayName>AccuracyDomain</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6082</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6085" BrowseName="EngineeringUnits" ParentNodeId="ns=1;i=6082" DataType="EUInformation">
+    <DisplayName>EngineeringUnits</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6082</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+    <Value>
+      <uax:ExtensionObject xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd">
+        <uax:TypeId>
+          <uax:Identifier>i=888</uax:Identifier>
+        </uax:TypeId>
+        <uax:Body>
+          <uax:EUInformation>
+            <uax:NamespaceUri>http://www.opcfoundation.org/UA/units/un/cefact</uax:NamespaceUri>
+            <uax:UnitId>5720146</uax:UnitId>
+            <uax:DisplayName>
+              <uax:Text>W·h</uax:Text>
+            </uax:DisplayName>
+            <uax:Description>
+              <uax:Text>watt hour</uax:Text>
+            </uax:Description>
+          </uax:EUInformation>
+        </uax:Body>
+      </uax:ExtensionObject>
+    </Value>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6160" BrowseName="1:PeMeasurementID" ParentNodeId="ns=1;i=6082" DataType="UInt16">
+    <DisplayName>PeMeasurementID</DisplayName>
+    <References>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6082</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6080" BrowseName="1:AcActivePower" ParentNodeId="ns=1;i=1010" DataType="AcPeDataType" AccessLevel="3">
+    <DisplayName>AcActivePower</DisplayName>
+    <References>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=1010</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6122</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6123</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6124</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasTypeDefinition">ns=1;i=2002</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6158</Reference>
+    </References>
+    <Value>
+      <uax:ExtensionObject xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd">
+        <uax:TypeId>
+          <uax:Identifier>ns=1;i=5011</uax:Identifier>
+        </uax:TypeId>
+        <uax:Body>
+          <AcPeDataType xmlns="http://opcfoundation.org/UA/PNEM/Types.xsd">
+            <A>0</A>
+            <B>0</B>
+            <C>0</C>
+          </AcPeDataType>
+        </uax:Body>
+      </uax:ExtensionObject>
+    </Value>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6122" BrowseName="1:AccuracyClass" ParentNodeId="ns=1;i=6080" DataType="AccuracyClassEnumeration">
+    <DisplayName>AccuracyClass</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6080</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6123" BrowseName="1:AccuracyDomain" ParentNodeId="ns=1;i=6080" DataType="AccuracyDomainEnumeration">
+    <DisplayName>AccuracyDomain</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6080</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6124" BrowseName="EngineeringUnits" ParentNodeId="ns=1;i=6080" DataType="EUInformation">
+    <DisplayName>EngineeringUnits</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6080</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+    <Value>
+      <uax:ExtensionObject xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd">
+        <uax:TypeId>
+          <uax:Identifier>i=888</uax:Identifier>
+        </uax:TypeId>
+        <uax:Body>
+          <uax:EUInformation>
+            <uax:NamespaceUri>http://www.opcfoundation.org/UA/units/un/cefact</uax:NamespaceUri>
+            <uax:UnitId>5723220</uax:UnitId>
+            <uax:DisplayName>
+              <uax:Text>W</uax:Text>
+            </uax:DisplayName>
+            <uax:Description>
+              <uax:Text>watt</uax:Text>
+            </uax:Description>
+          </uax:EUInformation>
+        </uax:Body>
+      </uax:ExtensionObject>
+    </Value>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6158" BrowseName="1:PeMeasurementID" ParentNodeId="ns=1;i=6080" DataType="UInt16">
+    <DisplayName>PeMeasurementID</DisplayName>
+    <References>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6080</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6100" BrowseName="1:AcCurrent" ParentNodeId="ns=1;i=1010" DataType="AcPeDataType" AccessLevel="3">
+    <DisplayName>AcCurrent</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty">ns=1;i=6125</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6126</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=1010</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6127</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasTypeDefinition">ns=1;i=2002</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6166</Reference>
+    </References>
+    <Value>
+      <uax:ExtensionObject xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd">
+        <uax:TypeId>
+          <uax:Identifier>ns=1;i=5011</uax:Identifier>
+        </uax:TypeId>
+        <uax:Body>
+          <AcPeDataType xmlns="http://opcfoundation.org/UA/PNEM/Types.xsd">
+            <A>0</A>
+            <B>0</B>
+            <C>0</C>
+          </AcPeDataType>
+        </uax:Body>
+      </uax:ExtensionObject>
+    </Value>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6125" BrowseName="1:AccuracyClass" ParentNodeId="ns=1;i=6100" DataType="AccuracyClassEnumeration">
+    <DisplayName>AccuracyClass</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6100</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6126" BrowseName="1:AccuracyDomain" ParentNodeId="ns=1;i=6100" DataType="AccuracyDomainEnumeration">
+    <DisplayName>AccuracyDomain</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6100</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6127" BrowseName="EngineeringUnits" ParentNodeId="ns=1;i=6100" DataType="EUInformation">
+    <DisplayName>EngineeringUnits</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6100</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+    <Value>
+      <uax:ExtensionObject xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd">
+        <uax:TypeId>
+          <uax:Identifier>i=888</uax:Identifier>
+        </uax:TypeId>
+        <uax:Body>
+          <uax:EUInformation>
+            <uax:NamespaceUri>http://www.opcfoundation.org/UA/units/un/cefact</uax:NamespaceUri>
+            <uax:UnitId>4279632</uax:UnitId>
+            <uax:DisplayName>
+              <uax:Text>A</uax:Text>
+            </uax:DisplayName>
+            <uax:Description>
+              <uax:Text>ampere</uax:Text>
+            </uax:Description>
+          </uax:EUInformation>
+        </uax:Body>
+      </uax:ExtensionObject>
+    </Value>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6166" BrowseName="1:PeMeasurementID" ParentNodeId="ns=1;i=6100" DataType="UInt16">
+    <DisplayName>PeMeasurementID</DisplayName>
+    <References>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6100</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6101" BrowseName="1:AcPowerFactor" ParentNodeId="ns=1;i=1010" DataType="AcPeDataType" AccessLevel="3">
+    <DisplayName>AcPowerFactor</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty">ns=1;i=6128</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6129</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=1010</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasTypeDefinition">ns=1;i=2002</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6167</Reference>
+    </References>
+    <Value>
+      <uax:ExtensionObject xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd">
+        <uax:TypeId>
+          <uax:Identifier>ns=1;i=5011</uax:Identifier>
+        </uax:TypeId>
+        <uax:Body>
+          <AcPeDataType xmlns="http://opcfoundation.org/UA/PNEM/Types.xsd">
+            <A>0</A>
+            <B>0</B>
+            <C>0</C>
+          </AcPeDataType>
+        </uax:Body>
+      </uax:ExtensionObject>
+    </Value>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6128" BrowseName="1:AccuracyClass" ParentNodeId="ns=1;i=6101" DataType="AccuracyClassEnumeration">
+    <DisplayName>AccuracyClass</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6101</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6129" BrowseName="1:AccuracyDomain" ParentNodeId="ns=1;i=6101" DataType="AccuracyDomainEnumeration">
+    <DisplayName>AccuracyDomain</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6101</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6167" BrowseName="1:PeMeasurementID" ParentNodeId="ns=1;i=6101" DataType="UInt16">
+    <DisplayName>PeMeasurementID</DisplayName>
+    <References>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6101</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6094" BrowseName="1:AcReactiveEnergyTotalExportHp" ParentNodeId="ns=1;i=1010" DataType="Double" AccessLevel="3">
+    <DisplayName>AcReactiveEnergyTotalExportHp</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty">ns=1;i=6095</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6096</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=1010</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6097</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasTypeDefinition">ns=1;i=2002</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6163</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6095" BrowseName="1:AccuracyClass" ParentNodeId="ns=1;i=6094" DataType="AccuracyClassEnumeration">
+    <DisplayName>AccuracyClass</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6094</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6096" BrowseName="1:AccuracyDomain" ParentNodeId="ns=1;i=6094" DataType="AccuracyDomainEnumeration">
+    <DisplayName>AccuracyDomain</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6094</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6097" BrowseName="EngineeringUnits" ParentNodeId="ns=1;i=6094" DataType="EUInformation">
+    <DisplayName>EngineeringUnits</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6094</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+    <Value>
+      <uax:ExtensionObject xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd">
+        <uax:TypeId>
+          <uax:Identifier>i=888</uax:Identifier>
+        </uax:TypeId>
+        <uax:Body>
+          <uax:EUInformation>
+            <uax:NamespaceUri>http://www.opcfoundation.org/UA/units/un/cefact</uax:NamespaceUri>
+            <uax:UnitId>0</uax:UnitId>
+            <uax:DisplayName />
+            <uax:Description />
+          </uax:EUInformation>
+        </uax:Body>
+      </uax:ExtensionObject>
+    </Value>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6163" BrowseName="1:PeMeasurementID" ParentNodeId="ns=1;i=6094" DataType="UInt16">
+    <DisplayName>PeMeasurementID</DisplayName>
+    <References>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6094</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6090" BrowseName="1:AcReactiveEnergyTotalImportHp" ParentNodeId="ns=1;i=1010" DataType="Double" AccessLevel="3">
+    <DisplayName>AcReactiveEnergyTotalImportHp</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty">ns=1;i=6091</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6092</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=1010</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6093</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasTypeDefinition">ns=1;i=2002</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6162</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6091" BrowseName="1:AccuracyClass" ParentNodeId="ns=1;i=6090" DataType="AccuracyClassEnumeration">
+    <DisplayName>AccuracyClass</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6090</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6092" BrowseName="1:AccuracyDomain" ParentNodeId="ns=1;i=6090" DataType="AccuracyDomainEnumeration">
+    <DisplayName>AccuracyDomain</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6090</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6093" BrowseName="EngineeringUnits" ParentNodeId="ns=1;i=6090" DataType="EUInformation">
+    <DisplayName>EngineeringUnits</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6090</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+    <Value>
+      <uax:ExtensionObject xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd">
+        <uax:TypeId>
+          <uax:Identifier>i=888</uax:Identifier>
+        </uax:TypeId>
+        <uax:Body>
+          <uax:EUInformation>
+            <uax:NamespaceUri>http://www.opcfoundation.org/UA/units/un/cefact</uax:NamespaceUri>
+            <uax:UnitId>0</uax:UnitId>
+            <uax:DisplayName />
+            <uax:Description />
+          </uax:EUInformation>
+        </uax:Body>
+      </uax:ExtensionObject>
+    </Value>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6162" BrowseName="1:PeMeasurementID" ParentNodeId="ns=1;i=6090" DataType="UInt16">
+    <DisplayName>PeMeasurementID</DisplayName>
+    <References>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6090</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6081" BrowseName="1:AcReactivePower" ParentNodeId="ns=1;i=1010" DataType="AcPeDataType" AccessLevel="3">
+    <DisplayName>AcReactivePower</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty">ns=1;i=6131</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6132</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=1010</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6133</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasTypeDefinition">ns=1;i=2002</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6159</Reference>
+    </References>
+    <Value>
+      <uax:ExtensionObject xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd">
+        <uax:TypeId>
+          <uax:Identifier>ns=1;i=5011</uax:Identifier>
+        </uax:TypeId>
+        <uax:Body>
+          <AcPeDataType xmlns="http://opcfoundation.org/UA/PNEM/Types.xsd">
+            <A>0</A>
+            <B>0</B>
+            <C>0</C>
+          </AcPeDataType>
+        </uax:Body>
+      </uax:ExtensionObject>
+    </Value>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6131" BrowseName="1:AccuracyClass" ParentNodeId="ns=1;i=6081" DataType="AccuracyClassEnumeration">
+    <DisplayName>AccuracyClass</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6081</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6132" BrowseName="1:AccuracyDomain" ParentNodeId="ns=1;i=6081" DataType="AccuracyDomainEnumeration">
+    <DisplayName>AccuracyDomain</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6081</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6133" BrowseName="EngineeringUnits" ParentNodeId="ns=1;i=6081" DataType="EUInformation">
+    <DisplayName>EngineeringUnits</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6081</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+    <Value>
+      <uax:ExtensionObject xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd">
+        <uax:TypeId>
+          <uax:Identifier>i=888</uax:Identifier>
+        </uax:TypeId>
+        <uax:Body>
+          <uax:EUInformation>
+            <uax:NamespaceUri>http://www.opcfoundation.org/UA/units/un/cefact</uax:NamespaceUri>
+            <uax:UnitId>4469812</uax:UnitId>
+            <uax:DisplayName>
+              <uax:Text>var</uax:Text>
+            </uax:DisplayName>
+            <uax:Description>
+              <uax:Text>var</uax:Text>
+            </uax:Description>
+          </uax:EUInformation>
+        </uax:Body>
+      </uax:ExtensionObject>
+    </Value>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6159" BrowseName="1:PeMeasurementID" ParentNodeId="ns=1;i=6081" DataType="UInt16">
+    <DisplayName>PeMeasurementID</DisplayName>
+    <References>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6081</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6098" BrowseName="1:AcVoltagePe" ParentNodeId="ns=1;i=1010" DataType="AcPeDataType" AccessLevel="3">
+    <DisplayName>AcVoltagePe</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty">ns=1;i=6134</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6135</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=1010</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6136</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasTypeDefinition">ns=1;i=2002</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6164</Reference>
+    </References>
+    <Value>
+      <uax:ExtensionObject xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd">
+        <uax:TypeId>
+          <uax:Identifier>ns=1;i=5011</uax:Identifier>
+        </uax:TypeId>
+        <uax:Body>
+          <AcPeDataType xmlns="http://opcfoundation.org/UA/PNEM/Types.xsd">
+            <A>0</A>
+            <B>0</B>
+            <C>0</C>
+          </AcPeDataType>
+        </uax:Body>
+      </uax:ExtensionObject>
+    </Value>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6134" BrowseName="1:AccuracyClass" ParentNodeId="ns=1;i=6098" DataType="AccuracyClassEnumeration">
+    <DisplayName>AccuracyClass</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6098</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6135" BrowseName="1:AccuracyDomain" ParentNodeId="ns=1;i=6098" DataType="AccuracyDomainEnumeration">
+    <DisplayName>AccuracyDomain</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6098</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6136" BrowseName="EngineeringUnits" ParentNodeId="ns=1;i=6098" DataType="EUInformation">
+    <DisplayName>EngineeringUnits</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6098</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+    <Value>
+      <uax:ExtensionObject xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd">
+        <uax:TypeId>
+          <uax:Identifier>i=888</uax:Identifier>
+        </uax:TypeId>
+        <uax:Body>
+          <uax:EUInformation>
+            <uax:NamespaceUri>http://www.opcfoundation.org/UA/units/un/cefact</uax:NamespaceUri>
+            <uax:UnitId>5655636</uax:UnitId>
+            <uax:DisplayName>
+              <uax:Text>V</uax:Text>
+            </uax:DisplayName>
+            <uax:Description>
+              <uax:Text>volt</uax:Text>
+            </uax:Description>
+          </uax:EUInformation>
+        </uax:Body>
+      </uax:ExtensionObject>
+    </Value>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6164" BrowseName="1:PeMeasurementID" ParentNodeId="ns=1;i=6098" DataType="UInt16">
+    <DisplayName>PeMeasurementID</DisplayName>
+    <References>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6098</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6099" BrowseName="1:AcVoltagePp" ParentNodeId="ns=1;i=1010" DataType="AcPpDataType" AccessLevel="3">
+    <DisplayName>AcVoltagePp</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty">ns=1;i=6137</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6138</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=1010</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6139</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasTypeDefinition">ns=1;i=2002</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6165</Reference>
+    </References>
+    <Value>
+      <uax:ExtensionObject xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd">
+        <uax:TypeId>
+          <uax:Identifier>ns=1;i=5014</uax:Identifier>
+        </uax:TypeId>
+        <uax:Body>
+          <AcPpDataType xmlns="http://opcfoundation.org/UA/PNEM/Types.xsd">
+            <A_b>0</A_b>
+            <B_c>0</B_c>
+            <C_a>0</C_a>
+          </AcPpDataType>
+        </uax:Body>
+      </uax:ExtensionObject>
+    </Value>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6137" BrowseName="1:AccuracyClass" ParentNodeId="ns=1;i=6099" DataType="AccuracyClassEnumeration">
+    <DisplayName>AccuracyClass</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6099</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6138" BrowseName="1:AccuracyDomain" ParentNodeId="ns=1;i=6099" DataType="AccuracyDomainEnumeration">
+    <DisplayName>AccuracyDomain</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6099</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6139" BrowseName="EngineeringUnits" ParentNodeId="ns=1;i=6099" DataType="EUInformation">
+    <DisplayName>EngineeringUnits</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6099</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+    <Value>
+      <uax:ExtensionObject xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd">
+        <uax:TypeId>
+          <uax:Identifier>i=888</uax:Identifier>
+        </uax:TypeId>
+        <uax:Body>
+          <uax:EUInformation>
+            <uax:NamespaceUri>http://www.opcfoundation.org/UA/units/un/cefact</uax:NamespaceUri>
+            <uax:UnitId>5655636</uax:UnitId>
+            <uax:DisplayName>
+              <uax:Text>V</uax:Text>
+            </uax:DisplayName>
+            <uax:Description>
+              <uax:Text>volt</uax:Text>
+            </uax:Description>
+          </uax:EUInformation>
+        </uax:Body>
+      </uax:ExtensionObject>
+    </Value>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6165" BrowseName="1:PeMeasurementID" ParentNodeId="ns=1;i=6099" DataType="UInt16">
+    <DisplayName>PeMeasurementID</DisplayName>
+    <References>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6099</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAObjectType NodeId="ns=1;i=1012" BrowseName="1:EnergyDevicePowerOffType">
+    <DisplayName>EnergyDevicePowerOffType</DisplayName>
+    <Documentation>https://reference.opcfoundation.org/v104/PNEM/v100/docs/8.3.1</Documentation>
+    <References>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=58</Reference>
+      <Reference ReferenceType="HasComponent">ns=1;i=6108</Reference>
+      <Reference ReferenceType="HasComponent">ns=1;i=6106</Reference>
+      <Reference ReferenceType="HasComponent">ns=1;i=7009</Reference>
+      <Reference ReferenceType="HasComponent">ns=1;i=6107</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6109</Reference>
+    </References>
+  </UAObjectType>
+  <UAVariable NodeId="ns=1;i=6108" BrowseName="1:ModePowerConsumption" ParentNodeId="ns=1;i=1012" DataType="UInt32">
+    <DisplayName>ModePowerConsumption</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=63</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=1012</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6106" BrowseName="1:RegularTimeToOperate" ParentNodeId="ns=1;i=1012" DataType="Duration">
+    <DisplayName>RegularTimeToOperate</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=63</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=1012</Reference>
+    </References>
+  </UAVariable>
+  <UAMethod NodeId="ns=1;i=7009" BrowseName="1:SwitchOffWOL" ParentNodeId="ns=1;i=1012">
+    <DisplayName>SwitchOffWOL</DisplayName>
+    <References>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6110</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=1012</Reference>
+    </References>
+  </UAMethod>
+  <UAVariable NodeId="ns=1;i=6110" BrowseName="OutputArguments" ParentNodeId="ns=1;i=7009" DataType="Argument" ValueRank="1" ArrayDimensions="5">
+    <DisplayName>OutputArguments</DisplayName>
+    <References>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=7009</Reference>
+    </References>
+    <Value>
+      <uax:ListOfExtensionObject xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd">
+        <uax:ExtensionObject>
+          <uax:TypeId>
+            <uax:Identifier>i=297</uax:Identifier>
+          </uax:TypeId>
+          <uax:Body>
+            <uax:Argument>
+              <uax:Name>ModeID</uax:Name>
+              <uax:DataType>
+                <uax:Identifier>i=3</uax:Identifier>
+              </uax:DataType>
+              <uax:ValueRank>-1</uax:ValueRank>
+              <uax:ArrayDimensions />
+              <uax:Description>
+                <uax:Text>ID of the destination energy saving mode (0xFE)  if successful, otherwise unchanged.</uax:Text>
+              </uax:Description>
+            </uax:Argument>
+          </uax:Body>
+        </uax:ExtensionObject>
+        <uax:ExtensionObject>
+          <uax:TypeId>
+            <uax:Identifier>i=297</uax:Identifier>
+          </uax:TypeId>
+          <uax:Body>
+            <uax:Argument>
+              <uax:Name>CurrentTimeToDestination</uax:Name>
+              <uax:DataType>
+                <uax:Identifier>i=290</uax:Identifier>
+              </uax:DataType>
+              <uax:ValueRank>-1</uax:ValueRank>
+              <uax:ArrayDimensions />
+              <uax:Description>
+                <uax:Text>Time needed to reach the energy saving mode if successful, otherwise unchanged.</uax:Text>
+              </uax:Description>
+            </uax:Argument>
+          </uax:Body>
+        </uax:ExtensionObject>
+        <uax:ExtensionObject>
+          <uax:TypeId>
+            <uax:Identifier>i=297</uax:Identifier>
+          </uax:TypeId>
+          <uax:Body>
+            <uax:Argument>
+              <uax:Name>RegularTimeToOperate</uax:Name>
+              <uax:DataType>
+                <uax:Identifier>i=290</uax:Identifier>
+              </uax:DataType>
+              <uax:ValueRank>-1</uax:ValueRank>
+              <uax:ArrayDimensions />
+              <uax:Description>
+                <uax:Text>Time needed to reach PE_ready_to_operate again if the destination energy saving mode will be regularly terminated if successful, otherwise unchanged.</uax:Text>
+              </uax:Description>
+            </uax:Argument>
+          </uax:Body>
+        </uax:ExtensionObject>
+        <uax:ExtensionObject>
+          <uax:TypeId>
+            <uax:Identifier>i=297</uax:Identifier>
+          </uax:TypeId>
+          <uax:Body>
+            <uax:Argument>
+              <uax:Name>TimeMinLengthOfStay</uax:Name>
+              <uax:DataType>
+                <uax:Identifier>i=290</uax:Identifier>
+              </uax:DataType>
+              <uax:ValueRank>-1</uax:ValueRank>
+              <uax:ArrayDimensions />
+              <uax:Description>
+                <uax:Text>Time of minimum stay in the destination energy saving mode if successful, otherwise unchanged.</uax:Text>
+              </uax:Description>
+            </uax:Argument>
+          </uax:Body>
+        </uax:ExtensionObject>
+        <uax:ExtensionObject>
+          <uax:TypeId>
+            <uax:Identifier>i=297</uax:Identifier>
+          </uax:TypeId>
+          <uax:Body>
+            <uax:Argument>
+              <uax:Name>ReturnCode</uax:Name>
+              <uax:DataType>
+                <uax:Identifier>i=3</uax:Identifier>
+              </uax:DataType>
+              <uax:ValueRank>-1</uax:ValueRank>
+              <uax:ArrayDimensions />
+              <uax:Description>
+                <uax:Text>PROFIenergy  return code. See Table 11.
+</uax:Text>
+              </uax:Description>
+            </uax:Argument>
+          </uax:Body>
+        </uax:ExtensionObject>
+      </uax:ListOfExtensionObject>
+    </Value>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6107" BrowseName="1:TimeMinPause" ParentNodeId="ns=1;i=1012" DataType="Duration">
+    <DisplayName>TimeMinPause</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=63</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=1012</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6109" BrowseName="1:WOLMagicPacket" ParentNodeId="ns=1;i=1012" DataType="ByteString">
+    <DisplayName>WOLMagicPacket</DisplayName>
+    <References>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=1012</Reference>
+    </References>
+  </UAVariable>
+  <UAObjectType NodeId="ns=1;i=1006" BrowseName="1:EnergyMeasurementType">
+    <DisplayName>EnergyMeasurementType</DisplayName>
+    <Documentation>https://reference.opcfoundation.org/v104/PNEM/v100/docs/8.2.2</Documentation>
+    <References>
+      <Reference ReferenceType="HasComponent">ns=1;i=6056</Reference>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=58</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6055</Reference>
+      <Reference ReferenceType="HasComponent">ns=1;i=7008</Reference>
+    </References>
+  </UAObjectType>
+  <UAVariable NodeId="ns=1;i=6056" BrowseName="1:&lt;MeasurementValue&gt;" SymbolicName="MeasurementValue" ParentNodeId="ns=1;i=1006" DataType="Number">
+    <DisplayName>&lt;MeasurementValue&gt;</DisplayName>
+    <References>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=1006</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6057</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6058</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6059</Reference>
+      <Reference ReferenceType="HasModellingRule">i=11510</Reference>
+      <Reference ReferenceType="HasTypeDefinition">ns=1;i=2002</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6152</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6057" BrowseName="1:AccuracyClass" ParentNodeId="ns=1;i=6056" DataType="AccuracyClassEnumeration">
+    <DisplayName>AccuracyClass</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6056</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6058" BrowseName="1:AccuracyDomain" ParentNodeId="ns=1;i=6056" DataType="AccuracyDomainEnumeration">
+    <DisplayName>AccuracyDomain</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6056</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6059" BrowseName="EngineeringUnits" ParentNodeId="ns=1;i=6056" DataType="EUInformation">
+    <DisplayName>EngineeringUnits</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6056</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+    <Value>
+      <uax:ExtensionObject xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd">
+        <uax:TypeId>
+          <uax:Identifier>i=888</uax:Identifier>
+        </uax:TypeId>
+        <uax:Body>
+          <uax:EUInformation>
+            <uax:NamespaceUri>http://www.opcfoundation.org/UA/units/un/cefact</uax:NamespaceUri>
+            <uax:UnitId>-1</uax:UnitId>
+            <uax:DisplayName />
+            <uax:Description />
+          </uax:EUInformation>
+        </uax:Body>
+      </uax:ExtensionObject>
+    </Value>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6152" BrowseName="1:PeMeasurementID" ParentNodeId="ns=1;i=6056" DataType="UInt16">
+    <DisplayName>PeMeasurementID</DisplayName>
+    <References>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6056</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6055" BrowseName="1:PeObjectNumber" ParentNodeId="ns=1;i=1006" DataType="UInt16">
+    <DisplayName>PeObjectNumber</DisplayName>
+    <References>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=1006</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAMethod NodeId="ns=1;i=7008" BrowseName="1:ResetEnergyCounter" ParentNodeId="ns=1;i=1006">
+    <DisplayName>ResetEnergyCounter</DisplayName>
+    <References>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=1006</Reference>
+    </References>
+  </UAMethod>
+  <UAObjectType NodeId="ns=1;i=1004" BrowseName="1:EnergySavingModesContainerType">
+    <DisplayName>EnergySavingModesContainerType</DisplayName>
+    <Documentation>https://reference.opcfoundation.org/v104/PNEM/v100/docs/8.1.2</Documentation>
+    <References>
+      <Reference ReferenceType="HasComponent">ns=1;i=5016</Reference>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=58</Reference>
+    </References>
+  </UAObjectType>
+  <UAObject NodeId="ns=1;i=5016" BrowseName="1:&lt;EnergySavingModes&gt;" SymbolicName="EnergySavingModes" ParentNodeId="ns=1;i=1004">
+    <DisplayName>&lt;EnergySavingModes&gt;</DisplayName>
+    <References>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=1004</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6140</Reference>
+      <Reference ReferenceType="HasComponent">ns=1;i=6141</Reference>
+      <Reference ReferenceType="HasComponent">ns=1;i=6143</Reference>
+      <Reference ReferenceType="HasTypeDefinition">ns=1;i=1003</Reference>
+      <Reference ReferenceType="HasModellingRule">i=11510</Reference>
+      <Reference ReferenceType="HasComponent">ns=1;i=6145</Reference>
+      <Reference ReferenceType="HasComponent">ns=1;i=6147</Reference>
+      <Reference ReferenceType="HasComponent">ns=1;i=6148</Reference>
+      <Reference ReferenceType="HasComponent">ns=1;i=6149</Reference>
+      <Reference ReferenceType="HasComponent">ns=1;i=6150</Reference>
+      <Reference ReferenceType="HasComponent">ns=1;i=6151</Reference>
+    </References>
+  </UAObject>
+  <UAVariable NodeId="ns=1;i=6140" BrowseName="1:DynamicData" ParentNodeId="ns=1;i=5016" DataType="Boolean">
+    <DisplayName>DynamicData</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=5016</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6141" BrowseName="1:EnergyConsumptionToOperate" ParentNodeId="ns=1;i=5016" DataType="Float">
+    <DisplayName>EnergyConsumptionToOperate</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=17497</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=5016</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6142</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6142" BrowseName="EngineeringUnits" ParentNodeId="ns=1;i=6141" DataType="EUInformation">
+    <DisplayName>EngineeringUnits</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6141</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6143" BrowseName="1:EnergyConsumptionToPause" ParentNodeId="ns=1;i=5016" DataType="Float">
+    <DisplayName>EnergyConsumptionToPause</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=17497</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=5016</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6144</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6144" BrowseName="EngineeringUnits" ParentNodeId="ns=1;i=6143" DataType="EUInformation">
+    <DisplayName>EngineeringUnits</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6143</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6145" BrowseName="1:ModePowerConsumption" ParentNodeId="ns=1;i=5016" DataType="Float">
+    <DisplayName>ModePowerConsumption</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=17497</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6146</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=5016</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6146" BrowseName="EngineeringUnits" ParentNodeId="ns=1;i=6145" DataType="EUInformation">
+    <DisplayName>EngineeringUnits</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6145</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6147" BrowseName="1:RegularTimeToOperate" ParentNodeId="ns=1;i=5016" DataType="Duration">
+    <DisplayName>RegularTimeToOperate</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=63</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=5016</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6148" BrowseName="1:TimeMaxLengthOfStay" ParentNodeId="ns=1;i=5016" DataType="Duration">
+    <DisplayName>TimeMaxLengthOfStay</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=63</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=5016</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6149" BrowseName="1:TimeMinLengthOfStay" ParentNodeId="ns=1;i=5016" DataType="Duration">
+    <DisplayName>TimeMinLengthOfStay</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=63</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=5016</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6150" BrowseName="1:TimeMinPause" ParentNodeId="ns=1;i=5016" DataType="Duration">
+    <DisplayName>TimeMinPause</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=63</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=5016</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6151" BrowseName="1:TimeToPause" ParentNodeId="ns=1;i=5016" DataType="Duration">
+    <DisplayName>TimeToPause</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=63</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=5016</Reference>
+    </References>
+  </UAVariable>
+  <UAObjectType NodeId="ns=1;i=1002" BrowseName="1:EnergySavingModeStatusType">
+    <DisplayName>EnergySavingModeStatusType</DisplayName>
+    <Documentation>https://reference.opcfoundation.org/v104/PNEM/v100/docs/8.1.3</Documentation>
+    <References>
+      <Reference ReferenceType="HasComponent">ns=1;i=6023</Reference>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=58</Reference>
+      <Reference ReferenceType="HasComponent">ns=1;i=6024</Reference>
+    </References>
+  </UAObjectType>
+  <UAVariable NodeId="ns=1;i=6023" BrowseName="1:CurrentTransitionData" ParentNodeId="ns=1;i=1002" DataType="StandbyModeTransitionDataType">
+    <DisplayName>CurrentTransitionData</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=63</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=1002</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6024" BrowseName="1:StateInformation" ParentNodeId="ns=1;i=1002" DataType="EnergyStateInformationDataType">
+    <DisplayName>StateInformation</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=63</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=1002</Reference>
+    </References>
+    <Value>
+      <uax:ExtensionObject xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd">
+        <uax:TypeId>
+          <uax:Identifier>ns=1;i=5005</uax:Identifier>
+        </uax:TypeId>
+        <uax:Body>
+          <EnergyStateInformationDataType xmlns="http://opcfoundation.org/UA/PNEM/Types.xsd">
+            <IDSource>0</IDSource>
+            <IDDestination>0</IDDestination>
+            <RegularTimeToOperate>0</RegularTimeToOperate>
+            <ModePowerConsumption>0</ModePowerConsumption>
+          </EnergyStateInformationDataType>
+        </uax:Body>
+      </uax:ExtensionObject>
+    </Value>
+  </UAVariable>
+  <UAObjectType NodeId="ns=1;i=1003" BrowseName="1:EnergySavingModeType">
+    <DisplayName>EnergySavingModeType</DisplayName>
+    <Documentation>https://reference.opcfoundation.org/v104/PNEM/v100/docs/8.1.4</Documentation>
+    <References>
+      <Reference ReferenceType="HasProperty">ns=1;i=6026</Reference>
+      <Reference ReferenceType="HasComponent">ns=1;i=6036</Reference>
+      <Reference ReferenceType="HasComponent">ns=1;i=6034</Reference>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=58</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6025</Reference>
+      <Reference ReferenceType="HasComponent">ns=1;i=6032</Reference>
+      <Reference ReferenceType="HasComponent">ns=1;i=6031</Reference>
+      <Reference ReferenceType="HasComponent">ns=1;i=6030</Reference>
+      <Reference ReferenceType="HasComponent">ns=1;i=6029</Reference>
+      <Reference ReferenceType="HasComponent">ns=1;i=6027</Reference>
+      <Reference ReferenceType="HasComponent">ns=1;i=6028</Reference>
+    </References>
+  </UAObjectType>
+  <UAVariable NodeId="ns=1;i=6026" BrowseName="1:DynamicData" ParentNodeId="ns=1;i=1003" DataType="Boolean">
+    <DisplayName>DynamicData</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=1003</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6036" BrowseName="1:EnergyConsumptionToOperate" ParentNodeId="ns=1;i=1003" DataType="Float">
+    <DisplayName>EnergyConsumptionToOperate</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=17497</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=1003</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6037</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6037" BrowseName="EngineeringUnits" ParentNodeId="ns=1;i=6036" DataType="EUInformation">
+    <DisplayName>EngineeringUnits</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6036</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6034" BrowseName="1:EnergyConsumptionToPause" ParentNodeId="ns=1;i=1003" DataType="Float">
+    <DisplayName>EnergyConsumptionToPause</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=17497</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=1003</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6035</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6035" BrowseName="EngineeringUnits" ParentNodeId="ns=1;i=6034" DataType="EUInformation">
+    <DisplayName>EngineeringUnits</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6034</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6025" BrowseName="1:ID" ParentNodeId="ns=1;i=1003" DataType="Byte">
+    <DisplayName>ID</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=1003</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6032" BrowseName="1:ModePowerConsumption" ParentNodeId="ns=1;i=1003" DataType="Float">
+    <DisplayName>ModePowerConsumption</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=17497</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6033</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=1003</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6033" BrowseName="EngineeringUnits" ParentNodeId="ns=1;i=6032" DataType="EUInformation">
+    <DisplayName>EngineeringUnits</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6032</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6031" BrowseName="1:RegularTimeToOperate" ParentNodeId="ns=1;i=1003" DataType="Duration">
+    <DisplayName>RegularTimeToOperate</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=63</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=1003</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6030" BrowseName="1:TimeMaxLengthOfStay" ParentNodeId="ns=1;i=1003" DataType="Duration">
+    <DisplayName>TimeMaxLengthOfStay</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=63</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=1003</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6029" BrowseName="1:TimeMinLengthOfStay" ParentNodeId="ns=1;i=1003" DataType="Duration">
+    <DisplayName>TimeMinLengthOfStay</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=63</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=1003</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6027" BrowseName="1:TimeMinPause" ParentNodeId="ns=1;i=1003" DataType="Duration">
+    <DisplayName>TimeMinPause</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=63</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=1003</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6028" BrowseName="1:TimeToPause" ParentNodeId="ns=1;i=1003" DataType="Duration">
+    <DisplayName>TimeToPause</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=63</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=1003</Reference>
+    </References>
+  </UAVariable>
+  <UAObjectType NodeId="ns=1;i=1005" BrowseName="1:EnergyStandbyManagementType">
+    <DisplayName>EnergyStandbyManagementType</DisplayName>
+    <Documentation>https://reference.opcfoundation.org/v104/PNEM/v100/docs/8.1.1</Documentation>
+    <References>
+      <Reference ReferenceType="HasComponent">ns=1;i=7006</Reference>
+      <Reference ReferenceType="HasComponent">ns=1;i=5018</Reference>
+      <Reference ReferenceType="HasComponent">ns=1;i=5017</Reference>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=58</Reference>
+      <Reference ReferenceType="HasComponent">ns=1;i=5020</Reference>
+      <Reference ReferenceType="HasComponent">ns=1;i=6040</Reference>
+      <Reference ReferenceType="HasComponent">ns=1;i=6016</Reference>
+      <Reference ReferenceType="HasComponent">ns=1;i=7005</Reference>
+      <Reference ReferenceType="HasComponent">ns=1;i=7007</Reference>
+    </References>
+  </UAObjectType>
+  <UAMethod NodeId="ns=1;i=7006" BrowseName="1:EndPause" ParentNodeId="ns=1;i=1005">
+    <DisplayName>EndPause</DisplayName>
+    <References>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=1005</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6054</Reference>
+    </References>
+  </UAMethod>
+  <UAVariable NodeId="ns=1;i=6054" BrowseName="OutputArguments" ParentNodeId="ns=1;i=7006" DataType="Argument" ValueRank="1" ArrayDimensions="2">
+    <DisplayName>OutputArguments</DisplayName>
+    <References>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=7006</Reference>
+    </References>
+    <Value>
+      <uax:ListOfExtensionObject xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd">
+        <uax:ExtensionObject>
+          <uax:TypeId>
+            <uax:Identifier>i=297</uax:Identifier>
+          </uax:TypeId>
+          <uax:Body>
+            <uax:Argument>
+              <uax:Name>CurrentTimeToOperate</uax:Name>
+              <uax:DataType>
+                <uax:Identifier>i=290</uax:Identifier>
+              </uax:DataType>
+              <uax:ValueRank>-1</uax:ValueRank>
+              <uax:ArrayDimensions />
+              <uax:Description>
+                <uax:Text>Time needed to reach PE_ready_to_operate if successful, otherwise unchanged.</uax:Text>
+              </uax:Description>
+            </uax:Argument>
+          </uax:Body>
+        </uax:ExtensionObject>
+        <uax:ExtensionObject>
+          <uax:TypeId>
+            <uax:Identifier>i=297</uax:Identifier>
+          </uax:TypeId>
+          <uax:Body>
+            <uax:Argument>
+              <uax:Name>ReturnCode</uax:Name>
+              <uax:DataType>
+                <uax:Identifier>i=3</uax:Identifier>
+              </uax:DataType>
+              <uax:ValueRank>-1</uax:ValueRank>
+              <uax:ArrayDimensions />
+              <uax:Description>
+                <uax:Text>PROFIenergy  return code. See table Table 11.
+</uax:Text>
+              </uax:Description>
+            </uax:Argument>
+          </uax:Body>
+        </uax:ExtensionObject>
+      </uax:ListOfExtensionObject>
+    </Value>
+  </UAVariable>
+  <UAObject NodeId="ns=1;i=5018" BrowseName="1:EnergySavingModes" ParentNodeId="ns=1;i=1005">
+    <DisplayName>EnergySavingModes</DisplayName>
+    <References>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=1005</Reference>
+      <Reference ReferenceType="HasTypeDefinition">ns=1;i=1004</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+    </References>
+  </UAObject>
+  <UAObject NodeId="ns=1;i=5017" BrowseName="1:EnergySavingModeStatus" ParentNodeId="ns=1;i=1005">
+    <DisplayName>EnergySavingModeStatus</DisplayName>
+    <References>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=1005</Reference>
+      <Reference ReferenceType="HasTypeDefinition">ns=1;i=1002</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasComponent">ns=1;i=6039</Reference>
+    </References>
+  </UAObject>
+  <UAVariable NodeId="ns=1;i=6039" BrowseName="1:StateInformation" ParentNodeId="ns=1;i=5017" DataType="EnergyStateInformationDataType">
+    <DisplayName>StateInformation</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=63</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=5017</Reference>
+    </References>
+    <Value>
+      <uax:ExtensionObject xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd">
+        <uax:TypeId>
+          <uax:Identifier>ns=1;i=5005</uax:Identifier>
+        </uax:TypeId>
+        <uax:Body>
+          <EnergyStateInformationDataType xmlns="http://opcfoundation.org/UA/PNEM/Types.xsd">
+            <IDSource>0</IDSource>
+            <IDDestination>0</IDDestination>
+            <RegularTimeToOperate>0</RegularTimeToOperate>
+            <ModePowerConsumption>0</ModePowerConsumption>
+          </EnergyStateInformationDataType>
+        </uax:Body>
+      </uax:ExtensionObject>
+    </Value>
+  </UAVariable>
+  <UAObject NodeId="ns=1;i=5020" BrowseName="1:Lock" ParentNodeId="ns=1;i=1005">
+    <DisplayName>Lock</DisplayName>
+    <References>
+      <Reference ReferenceType="HasComponent">ns=1;i=7001</Reference>
+      <Reference ReferenceType="HasComponent">ns=1;i=7002</Reference>
+      <Reference ReferenceType="HasComponent">ns=1;i=7003</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=1005</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6045</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6046</Reference>
+      <Reference ReferenceType="HasTypeDefinition">ns=2;i=6388</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6047</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6048</Reference>
+      <Reference ReferenceType="HasComponent">ns=1;i=7004</Reference>
+    </References>
+  </UAObject>
+  <UAMethod NodeId="ns=1;i=7001" BrowseName="2:BreakLock" ParentNodeId="ns=1;i=5020" MethodDeclarationId="ns=2;i=6400">
+    <DisplayName>BreakLock</DisplayName>
+    <References>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=5020</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6041</Reference>
+    </References>
+  </UAMethod>
+  <UAVariable NodeId="ns=1;i=6041" BrowseName="OutputArguments" ParentNodeId="ns=1;i=7001" DataType="Argument" ValueRank="1" ArrayDimensions="0">
+    <DisplayName>OutputArguments</DisplayName>
+    <References>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=7001</Reference>
+    </References>
+    <Value>
+      <uax:ListOfExtensionObject xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd">
+        <uax:ExtensionObject>
+          <uax:TypeId>
+            <uax:Identifier>i=297</uax:Identifier>
+          </uax:TypeId>
+          <uax:Body>
+            <uax:Argument>
+              <uax:Name>BreakLockStatus</uax:Name>
+              <uax:DataType>
+                <uax:Identifier>i=6</uax:Identifier>
+              </uax:DataType>
+              <uax:ValueRank>-1</uax:ValueRank>
+              <uax:ArrayDimensions />
+              <uax:Description />
+            </uax:Argument>
+          </uax:Body>
+        </uax:ExtensionObject>
+      </uax:ListOfExtensionObject>
+    </Value>
+  </UAVariable>
+  <UAMethod NodeId="ns=1;i=7002" BrowseName="2:ExitLock" ParentNodeId="ns=1;i=5020" MethodDeclarationId="ns=2;i=6398">
+    <DisplayName>ExitLock</DisplayName>
+    <References>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=5020</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6042</Reference>
+    </References>
+  </UAMethod>
+  <UAVariable NodeId="ns=1;i=6042" BrowseName="OutputArguments" ParentNodeId="ns=1;i=7002" DataType="Argument" ValueRank="1" ArrayDimensions="0">
+    <DisplayName>OutputArguments</DisplayName>
+    <References>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=7002</Reference>
+    </References>
+    <Value>
+      <uax:ListOfExtensionObject xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd">
+        <uax:ExtensionObject>
+          <uax:TypeId>
+            <uax:Identifier>i=297</uax:Identifier>
+          </uax:TypeId>
+          <uax:Body>
+            <uax:Argument>
+              <uax:Name>ExitLockStatus</uax:Name>
+              <uax:DataType>
+                <uax:Identifier>i=6</uax:Identifier>
+              </uax:DataType>
+              <uax:ValueRank>-1</uax:ValueRank>
+              <uax:ArrayDimensions />
+              <uax:Description />
+            </uax:Argument>
+          </uax:Body>
+        </uax:ExtensionObject>
+      </uax:ListOfExtensionObject>
+    </Value>
+  </UAVariable>
+  <UAMethod NodeId="ns=1;i=7003" BrowseName="2:InitLock" ParentNodeId="ns=1;i=5020" MethodDeclarationId="ns=2;i=6393">
+    <DisplayName>InitLock</DisplayName>
+    <References>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=5020</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6043</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6044</Reference>
+    </References>
+  </UAMethod>
+  <UAVariable NodeId="ns=1;i=6043" BrowseName="InputArguments" ParentNodeId="ns=1;i=7003" DataType="Argument" ValueRank="1" ArrayDimensions="0">
+    <DisplayName>InputArguments</DisplayName>
+    <References>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=7003</Reference>
+    </References>
+    <Value>
+      <uax:ListOfExtensionObject xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd">
+        <uax:ExtensionObject>
+          <uax:TypeId>
+            <uax:Identifier>i=297</uax:Identifier>
+          </uax:TypeId>
+          <uax:Body>
+            <uax:Argument>
+              <uax:Name>Context</uax:Name>
+              <uax:DataType>
+                <uax:Identifier>i=12</uax:Identifier>
+              </uax:DataType>
+              <uax:ValueRank>-1</uax:ValueRank>
+              <uax:ArrayDimensions />
+              <uax:Description />
+            </uax:Argument>
+          </uax:Body>
+        </uax:ExtensionObject>
+      </uax:ListOfExtensionObject>
+    </Value>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6044" BrowseName="OutputArguments" ParentNodeId="ns=1;i=7003" DataType="Argument" ValueRank="1" ArrayDimensions="0">
+    <DisplayName>OutputArguments</DisplayName>
+    <References>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=7003</Reference>
+    </References>
+    <Value>
+      <uax:ListOfExtensionObject xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd">
+        <uax:ExtensionObject>
+          <uax:TypeId>
+            <uax:Identifier>i=297</uax:Identifier>
+          </uax:TypeId>
+          <uax:Body>
+            <uax:Argument>
+              <uax:Name>InitLockStatus</uax:Name>
+              <uax:DataType>
+                <uax:Identifier>i=6</uax:Identifier>
+              </uax:DataType>
+              <uax:ValueRank>-1</uax:ValueRank>
+              <uax:ArrayDimensions />
+              <uax:Description />
+            </uax:Argument>
+          </uax:Body>
+        </uax:ExtensionObject>
+      </uax:ListOfExtensionObject>
+    </Value>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6045" BrowseName="2:Locked" ParentNodeId="ns=1;i=5020" DataType="Boolean">
+    <DisplayName>Locked</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=5020</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6046" BrowseName="2:LockingClient" ParentNodeId="ns=1;i=5020" DataType="String">
+    <DisplayName>LockingClient</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=5020</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6047" BrowseName="2:LockingUser" ParentNodeId="ns=1;i=5020" DataType="String">
+    <DisplayName>LockingUser</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=5020</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6048" BrowseName="2:RemainingLockTime" ParentNodeId="ns=1;i=5020" DataType="Duration">
+    <DisplayName>RemainingLockTime</DisplayName>
+    <References>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=5020</Reference>
+    </References>
+  </UAVariable>
+  <UAMethod NodeId="ns=1;i=7004" BrowseName="2:RenewLock" ParentNodeId="ns=1;i=5020" MethodDeclarationId="ns=2;i=6396">
+    <DisplayName>RenewLock</DisplayName>
+    <References>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6049</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=5020</Reference>
+    </References>
+  </UAMethod>
+  <UAVariable NodeId="ns=1;i=6049" BrowseName="OutputArguments" ParentNodeId="ns=1;i=7004" DataType="Argument" ValueRank="1" ArrayDimensions="0">
+    <DisplayName>OutputArguments</DisplayName>
+    <References>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=7004</Reference>
+    </References>
+    <Value>
+      <uax:ListOfExtensionObject xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd">
+        <uax:ExtensionObject>
+          <uax:TypeId>
+            <uax:Identifier>i=297</uax:Identifier>
+          </uax:TypeId>
+          <uax:Body>
+            <uax:Argument>
+              <uax:Name>RenewLockStatus</uax:Name>
+              <uax:DataType>
+                <uax:Identifier>i=6</uax:Identifier>
+              </uax:DataType>
+              <uax:ValueRank>-1</uax:ValueRank>
+              <uax:ArrayDimensions />
+              <uax:Description />
+            </uax:Argument>
+          </uax:Body>
+        </uax:ExtensionObject>
+      </uax:ListOfExtensionObject>
+    </Value>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6040" BrowseName="1:PauseTime" ParentNodeId="ns=1;i=1005" DataType="Duration">
+    <DisplayName>PauseTime</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=63</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=1005</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6016" BrowseName="1:StandbyManagementStatus" ParentNodeId="ns=1;i=1005" DataType="Byte">
+    <DisplayName>StandbyManagementStatus</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty">ns=1;i=6038</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=2376</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=1005</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6038" BrowseName="EnumStrings" ParentNodeId="ns=1;i=6016" DataType="LocalizedText" ValueRank="1" ArrayDimensions="0">
+    <DisplayName>EnumStrings</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6016</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+    <Value>
+      <uax:ListOfLocalizedText xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd">
+        <uax:LocalizedText>
+          <uax:Text>Energy saving disabled</uax:Text>
+        </uax:LocalizedText>
+        <uax:LocalizedText>
+          <uax:Text>Power Off</uax:Text>
+        </uax:LocalizedText>
+        <uax:LocalizedText>
+          <uax:Text>Ready to operate</uax:Text>
+        </uax:LocalizedText>
+        <uax:LocalizedText>
+          <uax:Text>Moving to Energy Saving Mode</uax:Text>
+        </uax:LocalizedText>
+        <uax:LocalizedText>
+          <uax:Text>Energy saving mode</uax:Text>
+        </uax:LocalizedText>
+        <uax:LocalizedText>
+          <uax:Text>Moving to ready to operate</uax:Text>
+        </uax:LocalizedText>
+        <uax:LocalizedText>
+          <uax:Text>Moving to Sleep mode WOL</uax:Text>
+        </uax:LocalizedText>
+        <uax:LocalizedText>
+          <uax:Text>Sleep mode WOL</uax:Text>
+        </uax:LocalizedText>
+        <uax:LocalizedText>
+          <uax:Text>Wake up WOL</uax:Text>
+        </uax:LocalizedText>
+      </uax:ListOfLocalizedText>
+    </Value>
+  </UAVariable>
+  <UAMethod NodeId="ns=1;i=7005" BrowseName="1:StartPause" ParentNodeId="ns=1;i=1005">
+    <DisplayName>StartPause</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty">ns=1;i=6050</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6051</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=1005</Reference>
+    </References>
+  </UAMethod>
+  <UAVariable NodeId="ns=1;i=6050" BrowseName="InputArguments" ParentNodeId="ns=1;i=7005" DataType="Argument" ValueRank="1" ArrayDimensions="1">
+    <DisplayName>InputArguments</DisplayName>
+    <References>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=7005</Reference>
+    </References>
+    <Value>
+      <uax:ListOfExtensionObject xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd">
+        <uax:ExtensionObject>
+          <uax:TypeId>
+            <uax:Identifier>i=297</uax:Identifier>
+          </uax:TypeId>
+          <uax:Body>
+            <uax:Argument>
+              <uax:Name>PauseTime</uax:Name>
+              <uax:DataType>
+                <uax:Identifier>i=290</uax:Identifier>
+              </uax:DataType>
+              <uax:ValueRank>-1</uax:ValueRank>
+              <uax:ArrayDimensions />
+              <uax:Description>
+                <uax:Text>Requested pause time.</uax:Text>
+              </uax:Description>
+            </uax:Argument>
+          </uax:Body>
+        </uax:ExtensionObject>
+      </uax:ListOfExtensionObject>
+    </Value>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6051" BrowseName="OutputArguments" ParentNodeId="ns=1;i=7005" DataType="Argument" ValueRank="1" ArrayDimensions="5">
+    <DisplayName>OutputArguments</DisplayName>
+    <References>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=7005</Reference>
+    </References>
+    <Value>
+      <uax:ListOfExtensionObject xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd">
+        <uax:ExtensionObject>
+          <uax:TypeId>
+            <uax:Identifier>i=297</uax:Identifier>
+          </uax:TypeId>
+          <uax:Body>
+            <uax:Argument>
+              <uax:Name>ModeID</uax:Name>
+              <uax:DataType>
+                <uax:Identifier>i=3</uax:Identifier>
+              </uax:DataType>
+              <uax:ValueRank>-1</uax:ValueRank>
+              <uax:ArrayDimensions />
+              <uax:Description>
+                <uax:Text>ID of the destination energy saving mode if successful, otherwise unchanged.</uax:Text>
+              </uax:Description>
+            </uax:Argument>
+          </uax:Body>
+        </uax:ExtensionObject>
+        <uax:ExtensionObject>
+          <uax:TypeId>
+            <uax:Identifier>i=297</uax:Identifier>
+          </uax:TypeId>
+          <uax:Body>
+            <uax:Argument>
+              <uax:Name>CurrentTimeToDestination</uax:Name>
+              <uax:DataType>
+                <uax:Identifier>i=290</uax:Identifier>
+              </uax:DataType>
+              <uax:ValueRank>-1</uax:ValueRank>
+              <uax:ArrayDimensions />
+              <uax:Description>
+                <uax:Text>Time needed to reach the energy saving mode if successful, otherwise unchanged.</uax:Text>
+              </uax:Description>
+            </uax:Argument>
+          </uax:Body>
+        </uax:ExtensionObject>
+        <uax:ExtensionObject>
+          <uax:TypeId>
+            <uax:Identifier>i=297</uax:Identifier>
+          </uax:TypeId>
+          <uax:Body>
+            <uax:Argument>
+              <uax:Name>RegularTimeToOperate</uax:Name>
+              <uax:DataType>
+                <uax:Identifier>i=290</uax:Identifier>
+              </uax:DataType>
+              <uax:ValueRank>-1</uax:ValueRank>
+              <uax:ArrayDimensions />
+              <uax:Description>
+                <uax:Text>Time needed to reach PE_ready_to_operate again if the destination energy saving mode will be regularly terminated if successful, otherwise unchanged.</uax:Text>
+              </uax:Description>
+            </uax:Argument>
+          </uax:Body>
+        </uax:ExtensionObject>
+        <uax:ExtensionObject>
+          <uax:TypeId>
+            <uax:Identifier>i=297</uax:Identifier>
+          </uax:TypeId>
+          <uax:Body>
+            <uax:Argument>
+              <uax:Name>TimeMinLengthToStay</uax:Name>
+              <uax:DataType>
+                <uax:Identifier>i=290</uax:Identifier>
+              </uax:DataType>
+              <uax:ValueRank>-1</uax:ValueRank>
+              <uax:ArrayDimensions />
+              <uax:Description>
+                <uax:Text>Time of minimum stay in the destination energy saving mode if successful, otherwise unchanged.</uax:Text>
+              </uax:Description>
+            </uax:Argument>
+          </uax:Body>
+        </uax:ExtensionObject>
+        <uax:ExtensionObject>
+          <uax:TypeId>
+            <uax:Identifier>i=297</uax:Identifier>
+          </uax:TypeId>
+          <uax:Body>
+            <uax:Argument>
+              <uax:Name>ReturnCode</uax:Name>
+              <uax:DataType>
+                <uax:Identifier>i=3</uax:Identifier>
+              </uax:DataType>
+              <uax:ValueRank>-1</uax:ValueRank>
+              <uax:ArrayDimensions />
+              <uax:Description>
+                <uax:Text>PROFIenergy return code. See Table 11.
+</uax:Text>
+              </uax:Description>
+            </uax:Argument>
+          </uax:Body>
+        </uax:ExtensionObject>
+      </uax:ListOfExtensionObject>
+    </Value>
+  </UAVariable>
+  <UAMethod NodeId="ns=1;i=7007" BrowseName="1:SwitchToEnergySavingMode" ParentNodeId="ns=1;i=1005">
+    <DisplayName>SwitchToEnergySavingMode</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty">ns=1;i=6052</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6053</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=1005</Reference>
+    </References>
+  </UAMethod>
+  <UAVariable NodeId="ns=1;i=6052" BrowseName="InputArguments" ParentNodeId="ns=1;i=7007" DataType="Argument" ValueRank="1" ArrayDimensions="1">
+    <DisplayName>InputArguments</DisplayName>
+    <References>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=7007</Reference>
+    </References>
+    <Value>
+      <uax:ListOfExtensionObject xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd">
+        <uax:ExtensionObject>
+          <uax:TypeId>
+            <uax:Identifier>i=297</uax:Identifier>
+          </uax:TypeId>
+          <uax:Body>
+            <uax:Argument>
+              <uax:Name>ModeID</uax:Name>
+              <uax:DataType>
+                <uax:Identifier>i=3</uax:Identifier>
+              </uax:DataType>
+              <uax:ValueRank>-1</uax:ValueRank>
+              <uax:ArrayDimensions />
+              <uax:Description>
+                <uax:Text>ID of the requested energy saving mode.</uax:Text>
+              </uax:Description>
+            </uax:Argument>
+          </uax:Body>
+        </uax:ExtensionObject>
+      </uax:ListOfExtensionObject>
+    </Value>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6053" BrowseName="OutputArguments" ParentNodeId="ns=1;i=7007" DataType="Argument" ValueRank="1" ArrayDimensions="5">
+    <DisplayName>OutputArguments</DisplayName>
+    <References>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=7007</Reference>
+    </References>
+    <Value>
+      <uax:ListOfExtensionObject xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd">
+        <uax:ExtensionObject>
+          <uax:TypeId>
+            <uax:Identifier>i=297</uax:Identifier>
+          </uax:TypeId>
+          <uax:Body>
+            <uax:Argument>
+              <uax:Name>EffectiveModeID</uax:Name>
+              <uax:DataType>
+                <uax:Identifier>i=3</uax:Identifier>
+              </uax:DataType>
+              <uax:ValueRank>-1</uax:ValueRank>
+              <uax:ArrayDimensions />
+              <uax:Description>
+                <uax:Text>ID of the effectively chosen destination energy saving mode if successful, otherwise current mode.</uax:Text>
+              </uax:Description>
+            </uax:Argument>
+          </uax:Body>
+        </uax:ExtensionObject>
+        <uax:ExtensionObject>
+          <uax:TypeId>
+            <uax:Identifier>i=297</uax:Identifier>
+          </uax:TypeId>
+          <uax:Body>
+            <uax:Argument>
+              <uax:Name>CurrentTimeToDestination</uax:Name>
+              <uax:DataType>
+                <uax:Identifier>i=290</uax:Identifier>
+              </uax:DataType>
+              <uax:ValueRank>-1</uax:ValueRank>
+              <uax:ArrayDimensions />
+              <uax:Description>
+                <uax:Text>Time needed to reach the destination energy saving mode if successful, otherwise unchanged.</uax:Text>
+              </uax:Description>
+            </uax:Argument>
+          </uax:Body>
+        </uax:ExtensionObject>
+        <uax:ExtensionObject>
+          <uax:TypeId>
+            <uax:Identifier>i=297</uax:Identifier>
+          </uax:TypeId>
+          <uax:Body>
+            <uax:Argument>
+              <uax:Name>RegularTimeToOperate</uax:Name>
+              <uax:DataType>
+                <uax:Identifier>i=290</uax:Identifier>
+              </uax:DataType>
+              <uax:ValueRank>-1</uax:ValueRank>
+              <uax:ArrayDimensions />
+              <uax:Description>
+                <uax:Text>Time needed to reach PE_ready_to_operate again if the destination energy saving mode will be regularly terminated if successful, otherwise unchanged.</uax:Text>
+              </uax:Description>
+            </uax:Argument>
+          </uax:Body>
+        </uax:ExtensionObject>
+        <uax:ExtensionObject>
+          <uax:TypeId>
+            <uax:Identifier>i=297</uax:Identifier>
+          </uax:TypeId>
+          <uax:Body>
+            <uax:Argument>
+              <uax:Name>TimeMinLengthOfStay</uax:Name>
+              <uax:DataType>
+                <uax:Identifier>i=290</uax:Identifier>
+              </uax:DataType>
+              <uax:ValueRank>-1</uax:ValueRank>
+              <uax:ArrayDimensions />
+              <uax:Description>
+                <uax:Text>Time of minimum stay in the destination energy saving mode if successful, otherwise unchanged.</uax:Text>
+              </uax:Description>
+            </uax:Argument>
+          </uax:Body>
+        </uax:ExtensionObject>
+        <uax:ExtensionObject>
+          <uax:TypeId>
+            <uax:Identifier>i=297</uax:Identifier>
+          </uax:TypeId>
+          <uax:Body>
+            <uax:Argument>
+              <uax:Name>ReturnCode</uax:Name>
+              <uax:DataType>
+                <uax:Identifier>i=3</uax:Identifier>
+              </uax:DataType>
+              <uax:ValueRank>-1</uax:ValueRank>
+              <uax:ArrayDimensions />
+              <uax:Description>
+                <uax:Text>Return code. See table Table 11.
+</uax:Text>
+              </uax:Description>
+            </uax:Argument>
+          </uax:Body>
+        </uax:ExtensionObject>
+      </uax:ListOfExtensionObject>
+    </Value>
+  </UAVariable>
+  <UAObjectType NodeId="ns=1;i=1013" BrowseName="1:PeServiceAccessPointType">
+    <DisplayName>PeServiceAccessPointType</DisplayName>
+    <Documentation>https://reference.opcfoundation.org/v104/PNEM/v100/docs/8.4</Documentation>
+    <References>
+      <Reference ReferenceType="HasProperty">ns=1;i=6112</Reference>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=58</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6113</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6114</Reference>
+    </References>
+  </UAObjectType>
+  <UAVariable NodeId="ns=1;i=6112" BrowseName="1:PeClass" ParentNodeId="ns=1;i=1013" DataType="PeClassEnumeration" AccessLevel="3">
+    <DisplayName>PeClass</DisplayName>
+    <References>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=1013</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6113" BrowseName="1:PeSubclass" ParentNodeId="ns=1;i=1013" DataType="PeSubclassEnumeration" AccessLevel="3">
+    <DisplayName>PeSubclass</DisplayName>
+    <References>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=1013</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6114" BrowseName="1:PeVersion" ParentNodeId="ns=1;i=1013" DataType="PeVersionDataType" AccessLevel="3">
+    <DisplayName>PeVersion</DisplayName>
+    <References>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=1013</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAObject NodeId="ns=1;i=5021" BrowseName="1:http://opcfoundation.org/UA/PNEM/" SymbolicName="http___opcfoundation_org_UA_PNEM_">
+    <DisplayName>http://opcfoundation.org/UA/PNEM/</DisplayName>
+    <Documentation>https://reference.opcfoundation.org/v104/PNEM/v100/docs/13.1</Documentation>
+    <References>
+      <Reference ReferenceType="HasProperty">ns=1;i=6115</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=11616</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">i=11715</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6116</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6117</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6118</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6119</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6120</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6121</Reference>
+    </References>
+  </UAObject>
+  <UAVariable NodeId="ns=1;i=6115" BrowseName="IsNamespaceSubset" ParentNodeId="ns=1;i=5021" DataType="Boolean">
+    <DisplayName>IsNamespaceSubset</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=5021</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+    <Value>
+      <uax:Boolean xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd">false</uax:Boolean>
+    </Value>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6116" BrowseName="NamespacePublicationDate" ParentNodeId="ns=1;i=5021" DataType="DateTime">
+    <DisplayName>NamespacePublicationDate</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=5021</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+    <Value>
+      <uax:DateTime xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd">2021-03-11T00:00:00Z</uax:DateTime>
+    </Value>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6117" BrowseName="NamespaceUri" ParentNodeId="ns=1;i=5021" DataType="String">
+    <DisplayName>NamespaceUri</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=5021</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+    <Value>
+      <uax:String xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd">http://opcfoundation.org/UA/PNEM/</uax:String>
+    </Value>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6118" BrowseName="NamespaceVersion" ParentNodeId="ns=1;i=5021" DataType="String">
+    <DisplayName>NamespaceVersion</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=5021</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+    <Value>
+      <uax:String xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd">1.0.0</uax:String>
+    </Value>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6119" BrowseName="StaticNodeIdTypes" ParentNodeId="ns=1;i=5021" DataType="IdType" ValueRank="1" ArrayDimensions="0">
+    <DisplayName>StaticNodeIdTypes</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=5021</Reference>
+    </References>
+    <Value>
+      <uax:ListOfInt32 xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd">
+        <uax:Int32>0</uax:Int32>
+      </uax:ListOfInt32>
+    </Value>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6120" BrowseName="StaticNumericNodeIdRange" ParentNodeId="ns=1;i=5021" DataType="NumericRange" ValueRank="1" ArrayDimensions="0">
+    <DisplayName>StaticNumericNodeIdRange</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=5021</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6121" BrowseName="StaticStringNodeIdPattern" ParentNodeId="ns=1;i=5021" DataType="String">
+    <DisplayName>StaticStringNodeIdPattern</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=5021</Reference>
+    </References>
+  </UAVariable>
+  <UAObject NodeId="ns=1;i=5001" BrowseName="Default Binary" SymbolicName="DefaultBinary">
+    <DisplayName>Default Binary</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=76</Reference>
+      <Reference ReferenceType="HasEncoding" IsForward="false">ns=1;i=3002</Reference>
+      <Reference ReferenceType="HasDescription">ns=1;i=6005</Reference>
+    </References>
+  </UAObject>
+  <UAObject NodeId="ns=1;i=5002" BrowseName="Default XML" SymbolicName="DefaultXml">
+    <DisplayName>Default XML</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=76</Reference>
+      <Reference ReferenceType="HasEncoding" IsForward="false">ns=1;i=3002</Reference>
+      <Reference ReferenceType="HasDescription">ns=1;i=6006</Reference>
+    </References>
+  </UAObject>
+  <UAObject NodeId="ns=1;i=5003" BrowseName="Default JSON" SymbolicName="DefaultJson">
+    <DisplayName>Default JSON</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=76</Reference>
+      <Reference ReferenceType="HasEncoding" IsForward="false">ns=1;i=3002</Reference>
+    </References>
+  </UAObject>
+  <UAObject NodeId="ns=1;i=5004" BrowseName="Default Binary" SymbolicName="DefaultBinary">
+    <DisplayName>Default Binary</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=76</Reference>
+      <Reference ReferenceType="HasEncoding" IsForward="false">ns=1;i=3003</Reference>
+      <Reference ReferenceType="HasDescription">ns=1;i=6007</Reference>
+    </References>
+  </UAObject>
+  <UAObject NodeId="ns=1;i=5005" BrowseName="Default XML" SymbolicName="DefaultXml">
+    <DisplayName>Default XML</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=76</Reference>
+      <Reference ReferenceType="HasEncoding" IsForward="false">ns=1;i=3003</Reference>
+      <Reference ReferenceType="HasDescription">ns=1;i=6008</Reference>
+    </References>
+  </UAObject>
+  <UAObject NodeId="ns=1;i=5006" BrowseName="Default JSON" SymbolicName="DefaultJson">
+    <DisplayName>Default JSON</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=76</Reference>
+      <Reference ReferenceType="HasEncoding" IsForward="false">ns=1;i=3003</Reference>
+    </References>
+  </UAObject>
+  <UAObject NodeId="ns=1;i=5007" BrowseName="Default Binary" SymbolicName="DefaultBinary">
+    <DisplayName>Default Binary</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=76</Reference>
+      <Reference ReferenceType="HasEncoding" IsForward="false">ns=1;i=3004</Reference>
+      <Reference ReferenceType="HasDescription">ns=1;i=6009</Reference>
+    </References>
+  </UAObject>
+  <UAObject NodeId="ns=1;i=5008" BrowseName="Default XML" SymbolicName="DefaultXml">
+    <DisplayName>Default XML</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=76</Reference>
+      <Reference ReferenceType="HasEncoding" IsForward="false">ns=1;i=3004</Reference>
+      <Reference ReferenceType="HasDescription">ns=1;i=6010</Reference>
+    </References>
+  </UAObject>
+  <UAObject NodeId="ns=1;i=5009" BrowseName="Default JSON" SymbolicName="DefaultJson">
+    <DisplayName>Default JSON</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=76</Reference>
+      <Reference ReferenceType="HasEncoding" IsForward="false">ns=1;i=3004</Reference>
+    </References>
+  </UAObject>
+  <UAObject NodeId="ns=1;i=5010" BrowseName="Default Binary" SymbolicName="DefaultBinary">
+    <DisplayName>Default Binary</DisplayName>
+    <References>
+      <Reference ReferenceType="HasDescription">ns=1;i=6011</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=76</Reference>
+      <Reference ReferenceType="HasEncoding" IsForward="false">ns=1;i=3005</Reference>
+    </References>
+  </UAObject>
+  <UAObject NodeId="ns=1;i=5011" BrowseName="Default XML" SymbolicName="DefaultXml">
+    <DisplayName>Default XML</DisplayName>
+    <References>
+      <Reference ReferenceType="HasDescription">ns=1;i=6012</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=76</Reference>
+      <Reference ReferenceType="HasEncoding" IsForward="false">ns=1;i=3005</Reference>
+    </References>
+  </UAObject>
+  <UAObject NodeId="ns=1;i=5012" BrowseName="Default JSON" SymbolicName="DefaultJson">
+    <DisplayName>Default JSON</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=76</Reference>
+      <Reference ReferenceType="HasEncoding" IsForward="false">ns=1;i=3005</Reference>
+    </References>
+  </UAObject>
+  <UAObject NodeId="ns=1;i=5013" BrowseName="Default Binary" SymbolicName="DefaultBinary">
+    <DisplayName>Default Binary</DisplayName>
+    <References>
+      <Reference ReferenceType="HasDescription">ns=1;i=6013</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=76</Reference>
+      <Reference ReferenceType="HasEncoding" IsForward="false">ns=1;i=3006</Reference>
+    </References>
+  </UAObject>
+  <UAObject NodeId="ns=1;i=5014" BrowseName="Default XML" SymbolicName="DefaultXml">
+    <DisplayName>Default XML</DisplayName>
+    <References>
+      <Reference ReferenceType="HasDescription">ns=1;i=6014</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=76</Reference>
+      <Reference ReferenceType="HasEncoding" IsForward="false">ns=1;i=3006</Reference>
+    </References>
+  </UAObject>
+  <UAObject NodeId="ns=1;i=5015" BrowseName="Default JSON" SymbolicName="DefaultJson">
+    <DisplayName>Default JSON</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=76</Reference>
+      <Reference ReferenceType="HasEncoding" IsForward="false">ns=1;i=3006</Reference>
+    </References>
+  </UAObject>
+</UANodeSet>

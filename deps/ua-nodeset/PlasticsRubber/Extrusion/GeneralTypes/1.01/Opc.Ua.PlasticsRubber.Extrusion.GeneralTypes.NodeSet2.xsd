@@ -1,0 +1,92 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<!--
+ * Copyright (c) 2005-2021 The OPC Foundation, Inc. All rights reserved.
+ *
+ * OPC Foundation MIT License 1.00
+ * 
+ * Permission is hereby granted, free of charge, to any person
+ * obtaining a copy of this software and associated documentation
+ * files (the "Software"), to deal in the Software without
+ * restriction, including without limitation the rights to use,
+ * copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the
+ * Software is furnished to do so, subject to the following
+ * conditions:
+ * 
+ * The above copyright notice and this permission notice shall be
+ * included in all copies or substantial portions of the Software.
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+ * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
+ * OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+ * NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
+ * HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+ * WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+ * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+ * OTHER DEALINGS IN THE SOFTWARE.
+ *
+ * The complete license agreement can be found here:
+ * http://opcfoundation.org/License/MIT/1.00/
+-->
+
+<xs:schema elementFormDefault="qualified" targetNamespace="http://opcfoundation.org/UA/PlasticsRubber/Extrusion/GeneralTypes/Types.xsd" xmlns:tns="http://opcfoundation.org/UA/PlasticsRubber/Extrusion/GeneralTypes/Types.xsd" xmlns:ua="http://opcfoundation.org/UA/2008/02/Types.xsd" xmlns:xs="http://www.w3.org/2001/XMLSchema">
+    <xs:import namespace="http://opcfoundation.org/UA/2008/02/Types.xsd"/>
+    <xs:simpleType name="ComponentStatusEnumeration">
+        <xs:restriction base="xs:string">
+            <xs:enumeration value="OFFLINE_0"/>
+            <xs:enumeration value="IDLE_1"/>
+            <xs:enumeration value="PREPARING_2"/>
+            <xs:enumeration value="READY_TO_RUN_3"/>
+            <xs:enumeration value="MANUAL_RUN_4"/>
+            <xs:enumeration value="CONTROLLED_RUN_5"/>
+            <xs:enumeration value="MALFUNCTION_6"/>
+            <xs:enumeration value="MAINTENANCE_7"/>
+        </xs:restriction>
+    </xs:simpleType>
+    <xs:element type="tns:ComponentStatusEnumeration" name="ComponentStatusEnumeration"/>
+    <xs:complexType name="ListOfComponentStatusEnumeration">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="unbounded" type="tns:ComponentStatusEnumeration" name="ComponentStatusEnumeration" nillable="true"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:ListOfComponentStatusEnumeration" name="ListOfComponentStatusEnumeration" nillable="true"/>
+    <xs:simpleType name="ExtrusionMessageClassificationEnumeration">
+        <xs:restriction base="xs:string">
+            <xs:enumeration value="OTHER_0"/>
+            <xs:enumeration value="LINE_CONTROL_1"/>
+            <xs:enumeration value="MATERIAL_HANDLING_2"/>
+            <xs:enumeration value="PRE_HEATING_3"/>
+            <xs:enumeration value="FEEDING_4"/>
+            <xs:enumeration value="DOSING_5"/>
+            <xs:enumeration value="EXTRUDER_6"/>
+            <xs:enumeration value="VACUUM_STATION_7"/>
+            <xs:enumeration value="FILTER_8"/>
+            <xs:enumeration value="MELT_PUMP_9"/>
+            <xs:enumeration value="DIE_10"/>
+            <xs:enumeration value="COOLING_11"/>
+            <xs:enumeration value="HAUL_OFF_12"/>
+            <xs:enumeration value="CORRUGATOR_13"/>
+            <xs:enumeration value="SAW_14"/>
+            <xs:enumeration value="CALIBRATION_15"/>
+            <xs:enumeration value="ROLL_STACK_16"/>
+            <xs:enumeration value="MDO_17"/>
+            <xs:enumeration value="BIAX_18"/>
+            <xs:enumeration value="CUTTING_19"/>
+            <xs:enumeration value="WINDER_20"/>
+            <xs:enumeration value="PELLETIZING_21"/>
+            <xs:enumeration value="DRYER_22"/>
+            <xs:enumeration value="HANDLING_SYSTEM_23"/>
+            <xs:enumeration value="LAMINATION_SYSTEM_24"/>
+            <xs:enumeration value="MEASURING_SYSTEM_25"/>
+            <xs:enumeration value="QUALITY_SYSTEM_26"/>
+            <xs:enumeration value="MANUAL_INSPECTION_27"/>
+            <xs:enumeration value="MANUAL_OPERATION_28"/>
+        </xs:restriction>
+    </xs:simpleType>
+    <xs:element type="tns:ExtrusionMessageClassificationEnumeration" name="ExtrusionMessageClassificationEnumeration"/>
+    <xs:complexType name="ListOfExtrusionMessageClassificationEnumeration">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="unbounded" type="tns:ExtrusionMessageClassificationEnumeration" name="ExtrusionMessageClassificationEnumeration" nillable="true"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:ListOfExtrusionMessageClassificationEnumeration" name="ListOfExtrusionMessageClassificationEnumeration" nillable="true"/>
+</xs:schema>

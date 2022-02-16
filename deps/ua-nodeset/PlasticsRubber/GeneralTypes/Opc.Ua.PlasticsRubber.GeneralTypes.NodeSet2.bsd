@@ -1,0 +1,278 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<!--
+ * Copyright (c) 2005-2021 The OPC Foundation, Inc. All rights reserved.
+ *
+ * OPC Foundation MIT License 1.00
+ * 
+ * Permission is hereby granted, free of charge, to any person
+ * obtaining a copy of this software and associated documentation
+ * files (the "Software"), to deal in the Software without
+ * restriction, including without limitation the rights to use,
+ * copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the
+ * Software is furnished to do so, subject to the following
+ * conditions:
+ * 
+ * The above copyright notice and this permission notice shall be
+ * included in all copies or substantial portions of the Software.
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+ * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
+ * OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+ * NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
+ * HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+ * WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+ * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+ * OTHER DEALINGS IN THE SOFTWARE.
+ *
+ * The complete license agreement can be found here:
+ * http://opcfoundation.org/License/MIT/1.00/
+-->
+
+<opc:TypeDictionary xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:tns="http://opcfoundation.org/UA/PlasticsRubber/GeneralTypes/" DefaultByteOrder="LittleEndian" xmlns:opc="http://opcfoundation.org/BinarySchema/" xmlns:ua="http://opcfoundation.org/UA/" TargetNamespace="http://opcfoundation.org/UA/PlasticsRubber/GeneralTypes/">
+    <opc:Import Namespace="http://opcfoundation.org/UA/"/>
+    <opc:StructuredType BaseType="ua:ExtensionObject" Name="ActiveErrorDataType">
+        <opc:Documentation>Iinformation about an active error in a device</opc:Documentation>
+        <opc:Field TypeName="opc:CharArray" Name="Id"/>
+        <opc:Field TypeName="opc:UInt16" Name="Severity"/>
+        <opc:Field TypeName="ua:LocalizedText" Name="Message"/>
+    </opc:StructuredType>
+    <opc:StructuredType BaseType="ua:ExtensionObject" Name="ConfigurationParameterType">
+        <opc:Field TypeName="opc:UInt32" Name="Id"/>
+        <opc:Field TypeName="ua:LocalizedText" Name="Description"/>
+        <opc:Field TypeName="ua:Variant" Name="DefaultValue"/>
+        <opc:Field TypeName="ua:EUInformation" Name="Unit"/>
+    </opc:StructuredType>
+    <opc:StructuredType BaseType="ua:ExtensionObject" Name="JobListElementType">
+        <opc:Documentation>Description of a job in a job list</opc:Documentation>
+        <opc:Field TypeName="opc:CharArray" Name="JobName"/>
+        <opc:Field TypeName="opc:CharArray" Name="JobDescription"/>
+        <opc:Field TypeName="opc:CharArray" Name="JobClassification"/>
+        <opc:Field TypeName="opc:CharArray" Name="CustomerName"/>
+        <opc:Field TypeName="opc:CharArray" Name="ProductionDatasetName"/>
+        <opc:Field TypeName="opc:CharArray" Name="ProductionDatasetDescription"/>
+        <opc:Field TypeName="opc:Int32" Name="NoOfMaterial"/>
+        <opc:Field LengthField="NoOfMaterial" TypeName="opc:CharArray" Name="Material"/>
+        <opc:Field TypeName="opc:Int32" Name="NoOfProductName"/>
+        <opc:Field LengthField="NoOfProductName" TypeName="opc:CharArray" Name="ProductName"/>
+        <opc:Field TypeName="opc:Int32" Name="NoOfProductDescription"/>
+        <opc:Field LengthField="NoOfProductDescription" TypeName="opc:CharArray" Name="ProductDescription"/>
+        <opc:Field TypeName="opc:CharArray" Name="JobPriority"/>
+        <opc:Field TypeName="opc:DateTime" Name="PlannedStart"/>
+        <opc:Field TypeName="opc:Double" Name="PlannedProductionTime"/>
+        <opc:Field TypeName="opc:DateTime" Name="LatestEnd"/>
+    </opc:StructuredType>
+    <opc:StructuredType BaseType="tns:JobListElementType" Name="CyclicJobListElementType">
+        <opc:Documentation>Description of a job in a cyclic job list</opc:Documentation>
+        <opc:Field SourceType="tns:JobListElementType" TypeName="opc:CharArray" Name="JobName"/>
+        <opc:Field SourceType="tns:JobListElementType" TypeName="opc:CharArray" Name="JobDescription"/>
+        <opc:Field SourceType="tns:JobListElementType" TypeName="opc:CharArray" Name="JobClassification"/>
+        <opc:Field SourceType="tns:JobListElementType" TypeName="opc:CharArray" Name="CustomerName"/>
+        <opc:Field SourceType="tns:JobListElementType" TypeName="opc:CharArray" Name="ProductionDatasetName"/>
+        <opc:Field SourceType="tns:JobListElementType" TypeName="opc:CharArray" Name="ProductionDatasetDescription"/>
+        <opc:Field SourceType="tns:JobListElementType" TypeName="opc:Int32" Name="NoOfMaterial"/>
+        <opc:Field LengthField="NoOfMaterial" SourceType="tns:JobListElementType" TypeName="opc:CharArray" Name="Material"/>
+        <opc:Field SourceType="tns:JobListElementType" TypeName="opc:Int32" Name="NoOfProductName"/>
+        <opc:Field LengthField="NoOfProductName" SourceType="tns:JobListElementType" TypeName="opc:CharArray" Name="ProductName"/>
+        <opc:Field SourceType="tns:JobListElementType" TypeName="opc:Int32" Name="NoOfProductDescription"/>
+        <opc:Field LengthField="NoOfProductDescription" SourceType="tns:JobListElementType" TypeName="opc:CharArray" Name="ProductDescription"/>
+        <opc:Field SourceType="tns:JobListElementType" TypeName="opc:CharArray" Name="JobPriority"/>
+        <opc:Field SourceType="tns:JobListElementType" TypeName="opc:DateTime" Name="PlannedStart"/>
+        <opc:Field SourceType="tns:JobListElementType" TypeName="opc:Double" Name="PlannedProductionTime"/>
+        <opc:Field SourceType="tns:JobListElementType" TypeName="opc:DateTime" Name="LatestEnd"/>
+        <opc:Field TypeName="opc:UInt64" Name="NominalParts"/>
+        <opc:Field TypeName="opc:UInt64" Name="NominalBoxParts"/>
+        <opc:Field TypeName="opc:Double" Name="ExpectedCycleTime"/>
+        <opc:Field TypeName="opc:CharArray" Name="MouldId"/>
+        <opc:Field TypeName="opc:UInt32" Name="NumCavities"/>
+    </opc:StructuredType>
+    <opc:StructuredType BaseType="ua:ExtensionObject" Name="PageEntryDataType">
+        <opc:Documentation>Information on a page that is implemented in the machine control system and shown on the screen of the machine</opc:Documentation>
+        <opc:Field TypeName="opc:CharArray" Name="Id"/>
+        <opc:Field TypeName="ua:LocalizedText" Name="Title"/>
+    </opc:StructuredType>
+    <opc:StructuredType BaseType="ua:ExtensionObject" Name="ParameterSettingType">
+        <opc:Field TypeName="opc:UInt32" Name="Id"/>
+        <opc:Field TypeName="ua:Variant" Name="Value"/>
+    </opc:StructuredType>
+    <opc:StructuredType BaseType="ua:ExtensionObject" Name="PIDParametersDataType">
+        <opc:Documentation>Structure for storing the parameters of a PID controller</opc:Documentation>
+        <opc:Field TypeName="opc:Double" Name="P"/>
+        <opc:Field TypeName="opc:Double" Name="I"/>
+        <opc:Field TypeName="opc:Double" Name="D"/>
+    </opc:StructuredType>
+    <opc:StructuredType BaseType="ua:ExtensionObject" Name="ProductionDatasetInformationType">
+        <opc:Documentation>Information on a production dataset</opc:Documentation>
+        <opc:Field TypeName="opc:CharArray" Name="Name"/>
+        <opc:Field TypeName="opc:CharArray" Name="Description"/>
+        <opc:Field TypeName="opc:CharArray" Name="MESId"/>
+        <opc:Field TypeName="opc:DateTime" Name="CreationTimestamp"/>
+        <opc:Field TypeName="opc:DateTime" Name="LastModificationTimestamp"/>
+        <opc:Field TypeName="opc:DateTime" Name="LastSaveTimestamp"/>
+        <opc:Field TypeName="opc:CharArray" Name="UserName"/>
+        <opc:Field TypeName="opc:Int32" Name="NoOfComponents"/>
+        <opc:Field LengthField="NoOfComponents" TypeName="opc:UInt16" Name="Components"/>
+        <opc:Field TypeName="opc:CharArray" Name="Manufacturer"/>
+        <opc:Field TypeName="opc:CharArray" Name="SerialNumber"/>
+        <opc:Field TypeName="opc:CharArray" Name="Model"/>
+        <opc:Field TypeName="opc:CharArray" Name="ControllerName"/>
+        <opc:Field TypeName="opc:CharArray" Name="UserMachineName"/>
+        <opc:Field TypeName="opc:CharArray" Name="LocationName"/>
+        <opc:Field TypeName="opc:Int32" Name="NoOfProductName"/>
+        <opc:Field LengthField="NoOfProductName" TypeName="opc:CharArray" Name="ProductName"/>
+        <opc:Field TypeName="opc:CharArray" Name="MouldId"/>
+        <opc:Field TypeName="opc:UInt32" Name="NumCavities"/>
+    </opc:StructuredType>
+    <opc:StructuredType BaseType="ua:ExtensionObject" Name="ProductionDatasetReadOptionsType">
+        <opc:Documentation>Used as GenerateOptions in the Method GenerateFileForRead in ProductionDatasetTransfer</opc:Documentation>
+        <opc:Field TypeName="tns:StorageEnumeration" Name="Storage"/>
+        <opc:Field TypeName="opc:CharArray" Name="Name"/>
+    </opc:StructuredType>
+    <opc:StructuredType BaseType="ua:ExtensionObject" Name="ProductionDatasetWriteOptionsType">
+        <opc:Documentation>Used as GenerateOptions in the Method GenerateFileForWrite in ProductionDatasetTransfer</opc:Documentation>
+        <opc:Field TypeName="tns:StorageEnumeration" Name="Storage"/>
+        <opc:Field TypeName="opc:CharArray" Name="Name"/>
+        <opc:Field TypeName="opc:Int32" Name="NoOfComponents"/>
+        <opc:Field LengthField="NoOfComponents" TypeName="opc:UInt16" Name="Components"/>
+    </opc:StructuredType>
+    <opc:StructuredType BaseType="ua:ExtensionObject" Name="StandstillReasonType">
+        <opc:Documentation>Description of a standstill reason</opc:Documentation>
+        <opc:Field TypeName="opc:CharArray" Name="Id"/>
+        <opc:Field TypeName="ua:LocalizedText" Name="Text"/>
+        <opc:Field TypeName="opc:Boolean" Name="LockedByMES"/>
+    </opc:StructuredType>
+    <opc:EnumeratedType LengthInBits="32" Name="CavityCycleQualityEnumeration">
+        <opc:Documentation>Quality of the cycle for each cavity</opc:Documentation>
+        <opc:EnumeratedValue Name="NO_PART" Value="0"/>
+        <opc:EnumeratedValue Name="GOOD_PART" Value="1"/>
+        <opc:EnumeratedValue Name="BAD_PART" Value="2"/>
+        <opc:EnumeratedValue Name="REWORK" Value="3"/>
+    </opc:EnumeratedType>
+    <opc:EnumeratedType LengthInBits="32" Name="ControlModeEnumeration">
+        <opc:Documentation>Indication how the parameter is currently controlled</opc:Documentation>
+        <opc:EnumeratedValue Name="OTHER" Value="0"/>
+        <opc:EnumeratedValue Name="OFF" Value="1"/>
+        <opc:EnumeratedValue Name="AUTOMATIC" Value="2"/>
+        <opc:EnumeratedValue Name="TUNING" Value="3"/>
+        <opc:EnumeratedValue Name="STANDBY" Value="4"/>
+        <opc:EnumeratedValue Name="OPEN_LOOP" Value="5"/>
+        <opc:EnumeratedValue Name="ONLY_MEASUREMENT" Value="6"/>
+    </opc:EnumeratedType>
+    <opc:EnumeratedType LengthInBits="32" Name="CycleQualityEnumeration">
+        <opc:Documentation>Quality of the whole cycle</opc:Documentation>
+        <opc:EnumeratedValue Name="GOOD_CYCLE" Value="0"/>
+        <opc:EnumeratedValue Name="BAD_CYCLE" Value="1"/>
+        <opc:EnumeratedValue Name="TEST_SAMPLE_CYCLE" Value="2"/>
+        <opc:EnumeratedValue Name="FAILED_CYCLE" Value="3"/>
+    </opc:EnumeratedType>
+    <opc:EnumeratedType LengthInBits="32" Name="DiagnosticsStatusEnumeration">
+        <opc:EnumeratedValue Name="OFF" Value="0"/>
+        <opc:EnumeratedValue Name="ACTIVE_OK" Value="1"/>
+        <opc:EnumeratedValue Name="ACTIVE_ERROR_DETECTED" Value="2"/>
+        <opc:EnumeratedValue Name="COMPLETE" Value="3"/>
+        <opc:EnumeratedValue Name="COMPLETE_ERROR_DETECTED" Value="4"/>
+    </opc:EnumeratedType>
+    <opc:EnumeratedType LengthInBits="32" Name="EventOriginatorEnumeration">
+        <opc:Documentation>Originator of an event</opc:Documentation>
+        <opc:EnumeratedValue Name="OTHER" Value="0"/>
+        <opc:EnumeratedValue Name="MACHINE" Value="1"/>
+        <opc:EnumeratedValue Name="OPERATOR" Value="2"/>
+        <opc:EnumeratedValue Name="MES" Value="3"/>
+        <opc:EnumeratedValue Name="PERIPHERAL_DEVICE" Value="4"/>
+    </opc:EnumeratedType>
+    <opc:EnumeratedType LengthInBits="32" Name="JobStatusEnumeration">
+        <opc:Documentation>Current status of the job</opc:Documentation>
+        <opc:EnumeratedValue Name="OTHER" Value="0"/>
+        <opc:EnumeratedValue Name="TRANSFERRED_ASSIGNED" Value="1"/>
+        <opc:EnumeratedValue Name="SET_UP_ACTIVE" Value="2"/>
+        <opc:EnumeratedValue Name="SET_UP_INTERRUPTED" Value="3"/>
+        <opc:EnumeratedValue Name="SET_UP_FINISHED" Value="4"/>
+        <opc:EnumeratedValue Name="START_UP_ACTIVE" Value="5"/>
+        <opc:EnumeratedValue Name="JOB_IN_PRODUCTION" Value="6"/>
+        <opc:EnumeratedValue Name="JOB_INTERRUPTED" Value="7"/>
+        <opc:EnumeratedValue Name="JOB_FINISHED" Value="8"/>
+        <opc:EnumeratedValue Name="TEAR_DOWN_ACTIVE" Value="9"/>
+        <opc:EnumeratedValue Name="TEAR_DOWN_INTERRUPTED" Value="10"/>
+        <opc:EnumeratedValue Name="TEAR_DOWN_FINISHED" Value="11"/>
+    </opc:EnumeratedType>
+    <opc:EnumeratedType LengthInBits="32" Name="LogbookEventsEnumeration">
+        <opc:Documentation>Information which LogbookEvents are supported by the machine</opc:Documentation>
+        <opc:EnumeratedValue Name="PARAMETER_CHANGE" Value="0"/>
+        <opc:EnumeratedValue Name="USER" Value="1"/>
+        <opc:EnumeratedValue Name="REMOTE_ACCESS" Value="2"/>
+        <opc:EnumeratedValue Name="SEQUENCE_CHANGE" Value="3"/>
+        <opc:EnumeratedValue Name="MACHINE_MODE_CHANGE" Value="4"/>
+        <opc:EnumeratedValue Name="PRODUCTION_STATUS_CHANGE" Value="5"/>
+        <opc:EnumeratedValue Name="PRODUCTION_DATASET_CHANGE" Value="6"/>
+        <opc:EnumeratedValue Name="PRODUCTION_DATASET_FROZEN" Value="7"/>
+        <opc:EnumeratedValue Name="STANDSTILL_REASON" Value="8"/>
+        <opc:EnumeratedValue Name="MESSAGE" Value="9"/>
+        <opc:EnumeratedValue Name="USER_FEEDBACK" Value="10"/>
+    </opc:EnumeratedType>
+    <opc:EnumeratedType LengthInBits="32" Name="MachineModeEnumeration">
+        <opc:Documentation>Current machine mode (as defined by mode selector on the machine)</opc:Documentation>
+        <opc:EnumeratedValue Name="OTHER" Value="0"/>
+        <opc:EnumeratedValue Name="AUTOMATIC" Value="1"/>
+        <opc:EnumeratedValue Name="SEMI_AUTOMATIC" Value="2"/>
+        <opc:EnumeratedValue Name="MANUAL" Value="3"/>
+        <opc:EnumeratedValue Name="SETUP" Value="4"/>
+        <opc:EnumeratedValue Name="SLEEP" Value="5"/>
+    </opc:EnumeratedType>
+    <opc:EnumeratedType LengthInBits="32" Name="MaintenanceStatusEnumeration">
+        <opc:Documentation>Maintenance status of a machine/device/component</opc:Documentation>
+        <opc:EnumeratedValue Name="NOT_DUE" Value="0"/>
+        <opc:EnumeratedValue Name="WARNING" Value="1"/>
+        <opc:EnumeratedValue Name="DUE" Value="2"/>
+    </opc:EnumeratedType>
+    <opc:EnumeratedType LengthInBits="32" Name="MouldStatusEnumeration">
+        <opc:Documentation>Current (physical) status of the mould</opc:Documentation>
+        <opc:EnumeratedValue Name="OTHER" Value="0"/>
+        <opc:EnumeratedValue Name="MOULD_NOT_INSTALLED" Value="1"/>
+        <opc:EnumeratedValue Name="MOULD_CHANGE" Value="2"/>
+        <opc:EnumeratedValue Name="MOULD_INSTALLED" Value="3"/>
+    </opc:EnumeratedType>
+    <opc:EnumeratedType LengthInBits="32" Name="ProductionStatusEnumeration">
+        <opc:Documentation>Production status of the machine</opc:Documentation>
+        <opc:EnumeratedValue Name="OTHER" Value="0"/>
+        <opc:EnumeratedValue Name="NO_PRODUCTION" Value="1"/>
+        <opc:EnumeratedValue Name="START_UP" Value="2"/>
+        <opc:EnumeratedValue Name="READY_FOR_PRODUCTION" Value="3"/>
+        <opc:EnumeratedValue Name="PRODUCTION" Value="4"/>
+        <opc:EnumeratedValue Name="DRY_RUN" Value="5"/>
+    </opc:EnumeratedType>
+    <opc:EnumeratedType LengthInBits="32" Name="SequenceChangeEnumeration">
+        <opc:Documentation>Classification of production sequence change</opc:Documentation>
+        <opc:EnumeratedValue Name="UPDATE" Value="0"/>
+        <opc:EnumeratedValue Name="ADD" Value="1"/>
+        <opc:EnumeratedValue Name="MODIFY" Value="2"/>
+        <opc:EnumeratedValue Name="MOVE" Value="3"/>
+        <opc:EnumeratedValue Name="DELETE" Value="4"/>
+    </opc:EnumeratedType>
+    <opc:EnumeratedType LengthInBits="32" Name="StartEnumeration">
+        <opc:EnumeratedValue Name="NOT_READY_TO_START" Value="0"/>
+        <opc:EnumeratedValue Name="START_BLOCKED_BY_CLIENT" Value="1"/>
+        <opc:EnumeratedValue Name="READY_TO_START" Value="2"/>
+        <opc:EnumeratedValue Name="START_REQUESTED" Value="3"/>
+        <opc:EnumeratedValue Name="STARTED" Value="4"/>
+        <opc:EnumeratedValue Name="STOP_REQUESTED" Value="5"/>
+    </opc:EnumeratedType>
+    <opc:EnumeratedType LengthInBits="32" Name="StorageEnumeration">
+        <opc:Documentation>Indication which parts of the production dataset shall be activated in the machine control after writing</opc:Documentation>
+        <opc:EnumeratedValue Name="PRODUCTION" Value="1"/>
+        <opc:EnumeratedValue Name="PREPARATION" Value="2"/>
+        <opc:EnumeratedValue Name="FILE_SYSTEM" Value="4"/>
+    </opc:EnumeratedType>
+    <opc:EnumeratedType LengthInBits="32" Name="TemperatureZoneClassificationEnumeration">
+        <opc:Documentation>Type of the temperature zone</opc:Documentation>
+        <opc:EnumeratedValue Name="OTHER" Value="0"/>
+        <opc:EnumeratedValue Name="HEATING" Value="1"/>
+        <opc:EnumeratedValue Name="COOLING" Value="2"/>
+        <opc:EnumeratedValue Name="TEMPERATURE_CONTROL" Value="3"/>
+        <opc:EnumeratedValue Name="HOT_RUNNER" Value="4"/>
+        <opc:EnumeratedValue Name="MEASURING" Value="5"/>
+    </opc:EnumeratedType>
+    <opc:EnumeratedType LengthInBits="32" Name="UserChangeEnumeration">
+        <opc:Documentation>Information if a user logs in or off</opc:Documentation>
+        <opc:EnumeratedValue Name="LOG_ON" Value="0"/>
+        <opc:EnumeratedValue Name="LOG_OFF" Value="1"/>
+    </opc:EnumeratedType>
+</opc:TypeDictionary>

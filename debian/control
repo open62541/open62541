@@ -1,0 +1,78 @@
+Source: open62541
+Priority: optional
+Maintainer: open62541 Team <open62541-core@googlegroups.com>
+Build-Depends: debhelper (>= 9),
+ cmake (>= 2.8),
+ python3,
+ python3-sphinx, python3-sphinx-rtd-theme,
+ graphviz,
+ texlive-fonts-recommended,
+ texlive-latex-extra,
+ texlive-plain-generic | texlive-generic-extra,
+ latexmk,
+ libmbedtls-dev
+Standards-Version: 4.4.1
+Section: libs
+Homepage: https://open62541.org/
+Vcs-Git: https://github.com/open62541/open62541.git
+Vcs-Browser: https://github.com/open62541/open62541
+
+Package: libopen62541-1.3
+Architecture: any
+Multi-Arch: same
+Depends: ${shlibs:Depends}, ${misc:Depends}, libmbedtls10 | libmbedtls12
+Description: Open source implementation of OPC UA - shared library
+ open62541 (http://open62541.org) is an open source and free implementation
+ of OPC UA (OPC Unified Architecture) written in the common subset of the
+ C99 and C++98 languages.
+ The library is usable with all major compilers and provides the necessary
+ tools to implement dedicated OPC UA clients and servers, or to integrate
+ OPC UA-based communication into existing applications.
+ .
+ This package provides the open62541 shared library
+
+Package: libopen62541-1.3-dev
+Section: libdevel
+Architecture: any
+Multi-Arch: same
+Depends: libopen62541-1.3 (= ${binary:Version}), ${misc:Depends}, libmbedtls-dev
+Description: Open source implementation of OPC UA - development files
+ open62541 (http://open62541.org) is an open source and free implementation
+ of OPC UA (OPC Unified Architecture) written in the common subset of the
+ C99 and C++98 languages.
+ The library is usable with all major compilers and provides the necessary
+ tools to implement dedicated OPC UA clients and servers, or to integrate
+ OPC UA-based communication into existing applications.
+ .
+ This package provides the open62541 header and development files
+
+Package: libopen62541-1.3-tools
+Section: libdevel
+Architecture: all
+Depends: ${misc:Depends}, python3
+Recommends: libopen62541-1.3-dev
+Description: Open source implementation of OPC UA - tools
+ open62541 (http://open62541.org) is an open source and free implementation
+ of OPC UA (OPC Unified Architecture) written in the common subset of the
+ C99 and C++98 languages.
+ The library is usable with all major compilers and provides the necessary
+ tools to implement dedicated OPC UA clients and servers, or to integrate
+ OPC UA-based communication into existing applications.
+ .
+ This package provides some open62541 tools, e.g. the nodeset compiler
+
+Package: libopen62541-1.3-doc
+Section: doc
+Architecture: all
+Multi-Arch: foreign
+Depends: ${misc:Depends}, ${sphinxdoc:Depends}
+Description: Open source implementation of OPC UA - documentation
+ open62541 (http://open62541.org) is an open source and free implementation
+ of OPC UA (OPC Unified Architecture) written in the common subset of the
+ C99 and C++98 languages.
+ The library is usable with all major compilers and provides the necessary
+ tools to implement dedicated OPC UA clients and servers, or to integrate
+ OPC UA-based communication into existing applications.
+ .
+ This package provides the open62541 documentation as PDF and HTML
+ and example applications
