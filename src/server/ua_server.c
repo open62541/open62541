@@ -16,6 +16,7 @@
  *    Copyright 2018 (c) Hilscher Gesellschaft für Systemautomation mbH (Author: Martin Lang)
  *    Copyright 2019 (c) Kalycito Infotech Private Limited
  *    Copyright 2021 (c) Fraunhofer IOSB (Author: Jan Hermes)
+ *    Copyright 2022 (c) Fraunhofer IOSB (Author: Andreas Ebner)
  */
 
 #include "ua_server_internal.h"
@@ -641,6 +642,13 @@ UA_Server_run_startup(UA_Server *server) {
     if(server->config.mdnsEnabled)
         startMulticastDiscoveryServer(server);
 #endif
+
+    /* Update Endpoint description */
+    for(size_t i = 0; i < server->config.endpointsSize; ++i){
+        UA_ApplicationDescription_clear(&server->config.endpoints[i].server);
+        UA_ApplicationDescription_copy(&server->config.applicationDescription,
+                                       &server->config.endpoints[i].server);
+    }
 
     server->state = UA_SERVERLIFECYCLE_FRESH;
 
