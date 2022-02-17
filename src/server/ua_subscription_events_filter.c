@@ -1099,6 +1099,20 @@ UA_Event_staticSelectClauseValidation(UA_Server *server,
                 break;
             }
         }
+        /* browsPath element is defined in path */
+        UA_BrowsePathResult bpr =
+                browseSimplifiedBrowsePath(server, eventFilter->selectClauses[i].typeDefinitionId,
+                                           eventFilter->selectClauses[i].browsePathSize,
+                                           eventFilter->selectClauses[i].browsePath);
+
+        if(bpr.statusCode != UA_STATUSCODE_GOOD){
+            result[i] = UA_STATUSCODE_BADNODEIDUNKNOWN;
+            UA_BrowsePathResult_clear(&bpr);
+            continue;
+        }
+
+        UA_BrowsePathResult_clear(&bpr);
+
         if(result[i] != UA_STATUSCODE_GOOD)
             continue;
         /*indexRange is defined ? */

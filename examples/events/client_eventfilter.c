@@ -23,8 +23,7 @@
 #define USE_FILTER_OR_TYPEOF
 
 static UA_Boolean running = true;
-const size_t nSelectClauses = 3;
-const size_t nWhereClauses = 1;
+#define SELECT_CLAUSE_FIELD_COUNT 3
 
 /**
  * Setting up SelectClauses
@@ -35,48 +34,30 @@ const size_t nWhereClauses = 1;
  * In this Example we are selecting two SimpleAttributeOperands to be returned, one as a Message and one as Severity.
  */
 static UA_SimpleAttributeOperand *
-setupSelectClauses(void) {
+setupSelectClauses(size_t selectedFieldsSize, UA_QualifiedName *qName) {
     UA_SimpleAttributeOperand *selectClauses = (UA_SimpleAttributeOperand*)
-        UA_Array_new(nSelectClauses, &UA_TYPES[UA_TYPES_SIMPLEATTRIBUTEOPERAND]);
+        UA_Array_new(selectedFieldsSize, &UA_TYPES[UA_TYPES_SIMPLEATTRIBUTEOPERAND]);
     if(!selectClauses)
         return NULL;
-    for(size_t i =0; i<nSelectClauses; ++i) {
+    for(size_t i =0; i<selectedFieldsSize; ++i) {
         UA_SimpleAttributeOperand_init(&selectClauses[i]);
     }
-    //configure Message field
-    selectClauses[0].typeDefinitionId = UA_NODEID_NUMERIC(0, UA_NS0ID_BASEEVENTTYPE);
-    selectClauses[0].browsePathSize = 1;
-    selectClauses[0].browsePath = (UA_QualifiedName*)
-        UA_Array_new(selectClauses[0].browsePathSize, &UA_TYPES[UA_TYPES_QUALIFIEDNAME]);
-    if(!selectClauses[0].browsePath) {
-        UA_SimpleAttributeOperand_delete(selectClauses);
-        return NULL;
-    }
-    selectClauses[0].attributeId = UA_ATTRIBUTEID_VALUE;
-    selectClauses[0].browsePath[0] = UA_QUALIFIEDNAME_ALLOC(0, "Message");
-    //configure Severity field
-    selectClauses[1].typeDefinitionId = UA_NODEID_NUMERIC(0, UA_NS0ID_BASEEVENTTYPE);
-    selectClauses[1].browsePathSize = 1;
-    selectClauses[1].browsePath = (UA_QualifiedName*)
-        UA_Array_new(selectClauses[1].browsePathSize, &UA_TYPES[UA_TYPES_QUALIFIEDNAME]);
-    if(!selectClauses[1].browsePath) {
-        UA_SimpleAttributeOperand_delete(selectClauses);
-        return NULL;
-    }
-    selectClauses[1].attributeId = UA_ATTRIBUTEID_VALUE;
-    selectClauses[1].browsePath[0] = UA_QUALIFIEDNAME_ALLOC(0, "Severity");
-    //configure TypeName
-    selectClauses[2].typeDefinitionId = UA_NODEID_NUMERIC(0, UA_NS0ID_BASEEVENTTYPE);
-    selectClauses[2].browsePathSize = 1;
-    selectClauses[2].browsePath = (UA_QualifiedName*)
-            UA_Array_new(selectClauses[2].browsePathSize, &UA_TYPES[UA_TYPES_QUALIFIEDNAME]);
-    if(!selectClauses[2].browsePath) {
-        UA_SimpleAttributeOperand_delete(selectClauses);
-        return NULL;
-    }
-    selectClauses[2].attributeId = UA_ATTRIBUTEID_VALUE;
-    selectClauses[2].browsePath[0] = UA_QUALIFIEDNAME_ALLOC(0, "EventType");
 
+    for (size_t i = 0; i < selectedFieldsSize; ++i) {
+        selectClauses[i].typeDefinitionId = UA_NODEID_NUMERIC(0, UA_NS0ID_BASEEVENTTYPE);
+        selectClauses[i].browsePathSize = 1;
+        selectClauses[i].browsePath = (UA_QualifiedName*)
+                UA_Array_new(selectClauses[i].browsePathSize, &UA_TYPES[UA_TYPES_QUALIFIEDNAME]);
+        if(!selectClauses[i].browsePath) {
+            UA_SimpleAttributeOperand_delete(selectClauses);
+            return NULL;
+        }
+        selectClauses[i].attributeId = UA_ATTRIBUTEID_VALUE;
+        char fieldName[64];
+        memcpy(fieldName, qName[i].name.data, qName[i].name.length);
+        fieldName[qName[i].name.length] = '\0';
+        selectClauses[i].browsePath[0] = UA_QUALIFIEDNAME_ALLOC(0, fieldName);
+    }
     return selectClauses;
 }
 
@@ -330,7 +311,7 @@ setupWhereClauses(UA_ContentFilter *contentFilter, UA_UInt16 whereClauseSize, UA
 
         UA_Variant literalContent;
         UA_Variant_init(&literalContent);
-        UA_UInt32 literal_value = 400;
+        UA_UInt32 literal_value = 99;
         UA_Variant_setScalarCopy(&literalContent, &literal_value, &UA_TYPES[UA_TYPES_UINT32]);
 
         UA_SimpleAttributeOperand sao;
@@ -366,13 +347,11 @@ handler_events_filter(UA_Client *client, UA_UInt32 subId, void *subContext,
             UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
                         "Message: '%.*s'", (int)lt->text.length, lt->text.data);
         } else if (UA_Variant_hasScalarType(&eventFields[i], &UA_TYPES[UA_TYPES_NODEID])) {
-            UA_NodeId *typeNodeId = (UA_NodeId *) eventFields[i].data;
-            UA_String nodeIdPrint;
-            UA_String_init(&nodeIdPrint);
-            UA_NodeId_print(typeNodeId, &nodeIdPrint);
+            UA_String nodeIdName = UA_STRING_ALLOC("");
+            UA_NodeId_print((UA_NodeId *)eventFields[i].data, &nodeIdName);
             UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
-                        "TypeNodeId: '%.*s'", (int)nodeIdPrint.length, nodeIdPrint.data);
-            UA_String_clear(&nodeIdPrint);
+                        "TypeNodeId: '%.*s'", (int)nodeIdName.length, nodeIdName.data);
+            UA_String_clear(&nodeIdName);
         } else {
 #ifdef UA_ENABLE_TYPEDESCRIPTION
             UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
@@ -430,8 +409,15 @@ int main(int argc, char *argv[]) {
 
     UA_EventFilter filter;
     UA_EventFilter_init(&filter);
-    filter.selectClauses = setupSelectClauses();
-    filter.selectClausesSize = nSelectClauses;
+    UA_QualifiedName qm[SELECT_CLAUSE_FIELD_COUNT];
+    qm[0].namespaceIndex = 0;
+    qm[0].name = UA_STRING("Message");
+    qm[1].namespaceIndex = 0;
+    qm[1].name = UA_STRING("Severity");
+    qm[2].namespaceIndex = 0;
+    qm[2].name = UA_STRING("EventType");
+    filter.selectClauses = setupSelectClauses(SELECT_CLAUSE_FIELD_COUNT, qm);
+    filter.selectClausesSize = SELECT_CLAUSE_FIELD_COUNT;
     retval = setupWhereClauses(&filter.whereClause, 3, 4);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_Client_delete(client);
@@ -466,7 +452,7 @@ int main(int argc, char *argv[]) {
 cleanup:
     UA_MonitoredItemCreateResult_clear(&result);
     UA_Client_Subscriptions_deleteSingle(client, response.subscriptionId);
-    UA_Array_delete(filter.selectClauses, nSelectClauses, &UA_TYPES[UA_TYPES_SIMPLEATTRIBUTEOPERAND]);
+    UA_Array_delete(filter.selectClauses, SELECT_CLAUSE_FIELD_COUNT, &UA_TYPES[UA_TYPES_SIMPLEATTRIBUTEOPERAND]);
     UA_Array_delete(filter.whereClause.elements, filter.whereClause.elementsSize, &UA_TYPES[UA_TYPES_CONTENTFILTERELEMENT]);
 
     UA_Client_disconnect(client);
