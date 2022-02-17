@@ -1182,8 +1182,12 @@ ENCODE_JSON(Variant) {
     /* If type is 0 (NULL) the Variant contains a NULL value and the containing
      * JSON object shall be omitted or replaced by the JSON literal ‘null’ (when
      * an element of a JSON array). */
-    if(!src->type)
+    if(!src->type) {
+        /* Write an empty object if this is the top-level variant */
+        if(ctx->depth == 0)
+            return writeJsonObjStart(ctx) | writeJsonObjEnd(ctx);
         return writeJsonNull(ctx);
+    }
         
     /* Set the content type in the encoding mask */
     const UA_Boolean isBuiltin = (src->type->typeKind <= UA_DATATYPEKIND_DIAGNOSTICINFO);
