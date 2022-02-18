@@ -3167,7 +3167,7 @@ decodeFields(CtxJson *ctx, ParseCtx *parseCtx,
 
             CHECK_TOKEN_BOUNDS;
             if(jsoneq((char*) ctx->pos, &parseCtx->tokenArray[parseCtx->index], 
-                       entries[index].fieldName) != 0)
+                      entries[index].fieldName) != 0)
                 continue;
 
             /* Duplicate key found, abort */
@@ -3176,7 +3176,7 @@ decodeFields(CtxJson *ctx, ParseCtx *parseCtx,
 
             entries[index].found = true;
 
-            parseCtx->index++; /* Go to value */
+            parseCtx->index++; /* Go from key to value */
             CHECK_TOKEN_BOUNDS;
 
             /* An entry that was expected, but shall not be decoded.
