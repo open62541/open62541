@@ -173,8 +173,7 @@ typedef struct {
 
 UA_StatusCode
 decodeFields(CtxJson *ctx, ParseCtx *parseCtx,
-             DecodeEntry *entries, size_t entryCount,
-             const UA_DataType *type);
+             DecodeEntry *entries, size_t entryCount);
 
 UA_StatusCode
 decodeJsonInternal(void *dst, const UA_DataType *type,

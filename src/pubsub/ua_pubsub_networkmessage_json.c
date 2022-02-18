@@ -329,43 +329,33 @@ static status
 DatasetMessage_Payload_decodeJsonInternal(UA_DataSetMessage* dsm, const UA_DataType *type,
                                           CtxJson *ctx, ParseCtx *parseCtx, UA_Boolean moveToken) {
     UA_ConfigurationVersionDataType cvd;
-    UA_UInt16 dataSetWriterId; /* the id is currently not processed */
+    UA_UInt16 dataSetWriterId;
 
     dsm->header.fieldEncoding = UA_FIELDENCODING_DATAVALUE;
 
     DecodeEntry entries[6] = {
-        {UA_DECODEKEY_DATASETWRITERID, &dataSetWriterId,
-         getDecodeSignature(UA_TYPES_UINT16), false, NULL},
-        {UA_DECODEKEY_SEQUENCENUMBER, &dsm->header.dataSetMessageSequenceNr,
-         getDecodeSignature(UA_TYPES_UINT16), false, NULL},
-        {UA_DECODEKEY_METADATAVERSION, &cvd,
-         &MetaDataVersion_decodeJsonInternal, false, NULL},
-        {UA_DECODEKEY_TIMESTAMP, &dsm->header.timestamp,
-         getDecodeSignature(UA_TYPES_DATETIME), false, NULL},
-        {UA_DECODEKEY_DSM_STATUS, &dsm->header.status,
-         getDecodeSignature(UA_TYPES_UINT16), false, NULL},
-        {UA_DECODEKEY_PAYLOAD, dsm,
-         &DataSetPayload_decodeJsonInternal, false, NULL}
+        {UA_DECODEKEY_DATASETWRITERID, &dataSetWriterId, getDecodeSignature(UA_TYPES_UINT16), false, NULL},
+        {UA_DECODEKEY_SEQUENCENUMBER, &dsm->header.dataSetMessageSequenceNr, getDecodeSignature(UA_TYPES_UINT16), false, NULL},
+        {UA_DECODEKEY_METADATAVERSION, &cvd, &MetaDataVersion_decodeJsonInternal, false, NULL},
+        {UA_DECODEKEY_TIMESTAMP, &dsm->header.timestamp, getDecodeSignature(UA_TYPES_DATETIME), false, NULL},
+        {UA_DECODEKEY_DSM_STATUS, &dsm->header.status, getDecodeSignature(UA_TYPES_UINT16), false, NULL},
+        {UA_DECODEKEY_PAYLOAD, dsm, &DataSetPayload_decodeJsonInternal, false, NULL}
     };
+    status ret = decodeFields(ctx, parseCtx, entries, 6);
 
-    status ret = decodeFields(ctx, parseCtx, entries, 6, NULL);
-    if(ret != UA_STATUSCODE_GOOD || !entries[0].found){
-        /* no dataSetwriterid. Is mandatory. Abort. */
+    /* Error or no DatasetWriterId found or no payload found */
+    if(ret != UA_STATUSCODE_GOOD || !entries[0].found || !entries[5].found)
         return UA_STATUSCODE_BADDECODINGERROR;
-    }else{
-        if(parseCtx->custom != NULL){
-            UA_UInt16* dataSetWriterIdsArray = (UA_UInt16*)parseCtx->custom;
 
-            if(parseCtx->currentCustomIndex  < parseCtx->numCustom){
-                 dataSetWriterIdsArray[parseCtx->currentCustomIndex] = dataSetWriterId;
-                 parseCtx->currentCustomIndex++;
-            }else{
-                return UA_STATUSCODE_BADDECODINGERROR;
-            }
-        }else{
-            return UA_STATUSCODE_BADDECODINGERROR;
-        }
-    }
+    /* Set the DatasetWriterId in the context */
+    if(!parseCtx->custom)
+        return UA_STATUSCODE_BADDECODINGERROR;
+    if(parseCtx->currentCustomIndex >= parseCtx->numCustom)
+        return UA_STATUSCODE_BADDECODINGERROR;
+    UA_UInt16* dataSetWriterIdsArray = (UA_UInt16*)parseCtx->custom;
+    dataSetWriterIdsArray[parseCtx->currentCustomIndex] = dataSetWriterId;
+    parseCtx->currentCustomIndex++;
+
     dsm->header.dataSetMessageSequenceNrEnabled = entries[1].found;
     dsm->header.configVersionMajorVersion = cvd.majorVersion;
     dsm->header.configVersionMinorVersion = cvd.minorVersion;
@@ -373,16 +363,12 @@ DatasetMessage_Payload_decodeJsonInternal(UA_DataSetMessage* dsm, const UA_DataT
     dsm->header.configVersionMinorVersionEnabled = entries[2].found;
     dsm->header.timestampEnabled = entries[3].found;
     dsm->header.statusEnabled = entries[4].found;
-    if(!entries[5].found){
-        /* No payload found */
-        return UA_STATUSCODE_BADDECODINGERROR;
-    }
 
     dsm->header.dataSetMessageType = UA_DATASETMESSAGE_DATAKEYFRAME;
     dsm->header.picoSecondsIncluded = UA_FALSE;
     dsm->header.dataSetMessageValid = UA_TRUE;
     dsm->header.fieldEncoding = UA_FIELDENCODING_VARIANT;
-    return ret;
+    return UA_STATUSCODE_GOOD;
 }
 
 static status
@@ -499,7 +485,7 @@ static status NetworkMessage_decodeJsonInternal(UA_NetworkMessage *dst, CtxJson 
     if(publishIdTypeIndex == UA_TYPES_UINT64)
         entries[2].fieldPointer = &dst->publisherId.publisherIdUInt64;
 
-    status ret = decodeFields(ctx, parseCtx, entries, 5, NULL);
+    status ret = decodeFields(ctx, parseCtx, entries, 5);
     if(ret != UA_STATUSCODE_GOOD)
         return ret;
 
