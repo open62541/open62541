@@ -3141,15 +3141,6 @@ decodeFields(CtxJson *ctx, ParseCtx *parseCtx, DecodeEntry *entries,
              size_t entryCount, const UA_DataType *type) {
     CHECK_TOKEN_BOUNDS;
 
-    if(entryCount == 0)
-        return UA_STATUSCODE_BADDECODINGERROR;
-
-    /* One entry with no member name -> decode direct */
-    if(entryCount == 1 && *(entries[0].fieldName) == 0) {
-        return entries[0].function(entries[0].fieldPointer, type,
-                                   ctx, parseCtx, true);
-    }
-
     /* Empty object, nothing to decode */
     size_t objectCount = (size_t)(parseCtx->tokenArray[parseCtx->index].size);
     if(objectCount == 0)
