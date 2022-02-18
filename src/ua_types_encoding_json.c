@@ -2384,44 +2384,6 @@ lookAheadForKey(const char* search, CtxJson *ctx,
     return ret;
 }
 
-/* Function used to jump over an object which cannot be parsed */
-static UA_StatusCode
-jumpOverRec(CtxJson *ctx, ParseCtx *parseCtx) {
-    if(ctx->depth >= UA_JSON_ENCODING_MAX_RECURSION - 1)
-        return UA_STATUSCODE_BADENCODINGERROR;
-
-    CHECK_TOKEN_BOUNDS;
-    size_t count = (size_t)(parseCtx->tokenArray[parseCtx->index].size);
-    if(parseCtx->tokenArray[parseCtx->index].type == JSMN_OBJECT)
-        count = count * 2; /* The size is for both keys and values */
-        
-    ctx->depth++;
-    UA_StatusCode res = UA_STATUSCODE_GOOD;
-    for(size_t i = 0; i < count; i++) {
-        parseCtx->index++;
-        CHECK_TOKEN_BOUNDS;
-        if(parseCtx->tokenArray[parseCtx->index].type == JSMN_OBJECT ||
-           parseCtx->tokenArray[parseCtx->index].type == JSMN_ARRAY) {
-            res |= jumpOverRec(ctx, parseCtx);
-        }
-    }
-    ctx->depth--;
-
-    return res;
-}
-
-/* returns the index */
-static UA_StatusCode
-jumpOverObject(CtxJson *ctx, ParseCtx *parseCtx, size_t *resultIndex) {
-    UA_UInt16 oldIndex = parseCtx->index; /* Save index for later restore */
-    ctx->depth++;
-    UA_StatusCode res = jumpOverRec(ctx, parseCtx);
-    ctx->depth--;
-    *resultIndex = parseCtx->index;
-    parseCtx->index = oldIndex; /* Restore index */
-    return res;
-}
-
 static status
 prepareDecodeNodeIdJson(UA_NodeId *dst, CtxJson *ctx, ParseCtx *parseCtx, 
                         u8 *fieldCount, DecodeEntry *entries) {
@@ -2868,103 +2830,73 @@ DECODE_JSON(ExtensionObject) {
 
         size_t searchTypeIdResult = 0;
         ret = lookAheadForKey(UA_JSONKEY_TYPEID, ctx, parseCtx, &searchTypeIdResult);
-        if(ret != UA_STATUSCODE_GOOD) {
-            /* TYPEID not found, abort */
+        if(ret != UA_STATUSCODE_GOOD)
             return UA_STATUSCODE_BADENCODINGERROR;
-        }
 
-        /* parse the nodeid */
-        /*for restore*/
-        UA_UInt16 index = parseCtx->index;
+        /* Parse the nodeid */
+        UA_UInt16 index = parseCtx->index; /* to restore later */
         parseCtx->index = (UA_UInt16)searchTypeIdResult;
         ret = NodeId_decodeJson(&typeId, &UA_TYPES[UA_TYPES_NODEID], ctx, parseCtx, true);
         if(ret != UA_STATUSCODE_GOOD)
             return ret;
         
-        /*restore*/
+        /* Restore the index to the beginning of the object  */
         parseCtx->index = index;
         const UA_DataType *typeOfBody = UA_findDataType(&typeId);
         if(!typeOfBody) {
-            /*dont decode body: 1. save as bytestring, 2. jump over*/
+            /* Dont decode body: 1. save as bytestring, 2. jump over */
             dst->encoding = UA_EXTENSIONOBJECT_ENCODED_BYTESTRING;
-            UA_NodeId_copy(&typeId, &dst->content.encoded.typeId);
+            dst->content.encoded.typeId = typeId; /* Move the type NodeId */
             
-            /*Check if Object in Extentionobject*/
-            if(getJsmnType(parseCtx) != JSMN_OBJECT) {
-                UA_NodeId_clear(&typeId);
+            /* Check if an object */
+            if(getJsmnType(parseCtx) != JSMN_OBJECT)
                 return UA_STATUSCODE_BADDECODINGERROR;
-            }
             
-            /*Search for Body to save*/
+            /* Search for body to save */
             size_t searchBodyResult = 0;
             ret = lookAheadForKey(UA_JSONKEY_BODY, ctx, parseCtx, &searchBodyResult);
-            if(ret != UA_STATUSCODE_GOOD) {
-                /*No Body*/
-                UA_NodeId_clear(&typeId);
+            if(ret != UA_STATUSCODE_GOOD || searchBodyResult >= (size_t)parseCtx->tokenCount)
                 return UA_STATUSCODE_BADDECODINGERROR;
-            }
-            
-            if(searchBodyResult >= (size_t)parseCtx->tokenCount) {
-                /*index not in Tokenarray*/
-                UA_NodeId_clear(&typeId);
-                return UA_STATUSCODE_BADDECODINGERROR;
-            }
 
             /* Get the size of the Object as a string, not the Object key count! */
-            UA_Int64 sizeOfJsonString =(parseCtx->tokenArray[searchBodyResult].end -
-                    parseCtx->tokenArray[searchBodyResult].start);
+            size_t sizeOfJsonString = (size_t)
+                (parseCtx->tokenArray[searchBodyResult].end -
+                 parseCtx->tokenArray[searchBodyResult].start);
+            if(sizeOfJsonString == 0)
+                return UA_STATUSCODE_BADDECODINGERROR;
             
             char* bodyJsonString = (char*)(ctx->pos + parseCtx->tokenArray[searchBodyResult].start);
             
-            if(sizeOfJsonString <= 0) {
-                UA_NodeId_clear(&typeId);
-                return UA_STATUSCODE_BADDECODINGERROR;
-            }
-            
-            /* Save encoded as bytestring. */
-            ret = UA_ByteString_allocBuffer(&dst->content.encoded.body, (size_t)sizeOfJsonString);
-            if(ret != UA_STATUSCODE_GOOD) {
-                UA_NodeId_clear(&typeId);
+            /* Copy body as bytestring. */
+            ret = UA_ByteString_allocBuffer(&dst->content.encoded.body, sizeOfJsonString);
+            if(ret != UA_STATUSCODE_GOOD)
                 return ret;
-            }
 
-            memcpy(dst->content.encoded.body.data, bodyJsonString, (size_t)sizeOfJsonString);
+            memcpy(dst->content.encoded.body.data, bodyJsonString, sizeOfJsonString);
             
-            size_t tokenAfteExtensionObject = 0;
-            ret = jumpOverObject(ctx, parseCtx, &tokenAfteExtensionObject);
-            if(ret != UA_STATUSCODE_GOOD) {
-                UA_NodeId_clear(&typeId);
-                UA_ByteString_clear(&dst->content.encoded.body);
-                return UA_STATUSCODE_BADDECODINGERROR;
-            }
-            
-            parseCtx->index = (UA_UInt16)tokenAfteExtensionObject;
-            
+            skipObject(parseCtx); /* parseCtx->index is still at the object
+                                   * beginning. Skip. */
             return UA_STATUSCODE_GOOD;
         }
         
-        /*Type id not used anymore, typeOfBody has type*/
+        /* Type id not used anymore, typeOfBody has type */
         UA_NodeId_clear(&typeId);
+
+        /* Allocate */
+        dst->content.decoded.data = UA_new(typeOfBody);
+        if(!dst->content.decoded.data)
+            return UA_STATUSCODE_BADOUTOFMEMORY;
         
-        /*Set Found Type*/
+        /* Set Found Type */
         dst->content.decoded.type = typeOfBody;
         dst->encoding = UA_EXTENSIONOBJECT_DECODED;
-        
-        if(searchTypeIdResult != 0) {
-            dst->content.decoded.data = UA_new(typeOfBody);
-            if(!dst->content.decoded.data)
-                return UA_STATUSCODE_BADOUTOFMEMORY;
 
-            UA_NodeId typeId_dummy;
-            DecodeEntry entries[2] = {
-                {UA_JSONKEY_TYPEID, &typeId_dummy, (decodeJsonSignature) NodeId_decodeJson, false, NULL},
-                {UA_JSONKEY_BODY, dst->content.decoded.data, (decodeJsonSignature) decodeJsonJumpTable[typeOfBody->typeKind], false, typeOfBody}
-            };
-
-            return decodeFields(ctx, parseCtx, entries, 2);
-        } else {
-           return UA_STATUSCODE_BADDECODINGERROR;
-        }
+        /* Decode body */
+        DecodeEntry entries[2] = {
+            {UA_JSONKEY_TYPEID, NULL, NULL, false, NULL},
+            {UA_JSONKEY_BODY, dst->content.decoded.data, (decodeJsonSignature) decodeJsonJumpTable[typeOfBody->typeKind], false, typeOfBody}
+        };
+        return decodeFields(ctx, parseCtx, entries, 2);
     } else { /* UA_JSONKEY_ENCODING found */
         /*Parse the encoding*/
         UA_UInt64 encoding = 0;
