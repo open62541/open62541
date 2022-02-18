@@ -2295,7 +2295,7 @@ DECODE_JSON(LocalizedText) {
         {UA_JSONKEY_TEXT, &dst->text, (decodeJsonSignature) String_decodeJson, false, NULL}
     };
 
-    return decodeFields(ctx, parseCtx, entries, 2, type);
+    return decodeFields(ctx, parseCtx, entries, 2);
 }
 
 DECODE_JSON(QualifiedName) {
@@ -2307,7 +2307,7 @@ DECODE_JSON(QualifiedName) {
         {UA_JSONKEY_URI, &dst->namespaceIndex, (decodeJsonSignature) UInt16_decodeJson, false, NULL}
     };
 
-    return decodeFields(ctx, parseCtx, entries, 2, type);
+    return decodeFields(ctx, parseCtx, entries, 2);
 }
 
 /* Function for searching ahead of the current token. Used for retrieving the
@@ -2518,7 +2518,7 @@ DECODE_JSON(NodeId) {
         dst->namespaceIndex = 0;
     }
 
-    ret = decodeFields(ctx, parseCtx, entries, fieldCount, type);
+    ret = decodeFields(ctx, parseCtx, entries, fieldCount);
     if(ret != UA_STATUSCODE_GOOD)
         UA_NodeId_clear(dst);
     return ret;
@@ -2585,7 +2585,7 @@ DECODE_JSON(ExpandedNodeId) {
         dst->serverIndex = 0;
     }
     
-    return decodeFields(ctx, parseCtx, entries, fieldCount, type);
+    return decodeFields(ctx, parseCtx, entries, fieldCount);
 }
 
 DECODE_JSON(DateTime) {
@@ -2801,32 +2801,33 @@ DECODE_JSON(Variant) {
     if(isArray) {
         DecodeEntry entries[3] = {
             {UA_JSONKEY_TYPE, NULL, NULL, false, NULL},
-            {UA_JSONKEY_BODY, &dst->data, (decodeJsonSignature) Array_decodeJson, false, NULL},
-            {UA_JSONKEY_DIMENSION, &dst->arrayDimensions,
-             (decodeJsonSignature) VariantDimension_decodeJson, false, NULL}};
+            {UA_JSONKEY_BODY, &dst->data, (decodeJsonSignature) Array_decodeJson, false, dst->type},
+            {UA_JSONKEY_DIMENSION, &dst->arrayDimensions, (decodeJsonSignature) VariantDimension_decodeJson, false, NULL}
+        };
         size_t entriesCount = 3;
         if(!hasDimension)
             entriesCount = 2; /* Use the first 2 fields only */
-        return decodeFields(ctx, parseCtx, entries, entriesCount, dst->type);
+        return decodeFields(ctx, parseCtx, entries, entriesCount);
     }
 
     /* Decode a value wrapped in an ExtensionObject */
     if(dst->type->typeKind == UA_DATATYPEKIND_EXTENSIONOBJECT) {
-        DecodeEntry entries[2] =
-            {{UA_JSONKEY_TYPE, NULL, NULL, false, NULL},
-             {UA_JSONKEY_BODY, dst,
-              (decodeJsonSignature)Variant_decodeJsonUnwrapExtensionObject, false, NULL}};
-        return decodeFields(ctx, parseCtx, entries, 2, dst->type);
+        DecodeEntry entries[2] = {
+            {UA_JSONKEY_TYPE, NULL, NULL, false, NULL},
+            {UA_JSONKEY_BODY, dst, (decodeJsonSignature)Variant_decodeJsonUnwrapExtensionObject, false, dst->type}
+        };
+        return decodeFields(ctx, parseCtx, entries, 2);
     }
 
     /* Allocate Memory for Body */
     dst->data = UA_new(dst->type);
     if(!dst->data)
         return UA_STATUSCODE_BADOUTOFMEMORY;
-    DecodeEntry entries[2] =
-        {{UA_JSONKEY_TYPE, NULL, NULL, false, NULL},
-         {UA_JSONKEY_BODY, dst->data, (decodeJsonSignature) decodeJsonInternal, false, NULL}};
-    return decodeFields(ctx, parseCtx, entries, 2, dst->type);
+    DecodeEntry entries[2] = {
+        {UA_JSONKEY_TYPE, NULL, NULL, false, NULL},
+        {UA_JSONKEY_BODY, dst->data, (decodeJsonSignature) decodeJsonInternal, false, dst->type}
+    };
+    return decodeFields(ctx, parseCtx, entries, 2);
 }
 
 DECODE_JSON(DataValue) {
@@ -2953,11 +2954,10 @@ DECODE_JSON(ExtensionObject) {
             UA_NodeId typeId_dummy;
             DecodeEntry entries[2] = {
                 {UA_JSONKEY_TYPEID, &typeId_dummy, (decodeJsonSignature) NodeId_decodeJson, false, NULL},
-                {UA_JSONKEY_BODY, dst->content.decoded.data,
-                 (decodeJsonSignature) decodeJsonJumpTable[typeOfBody->typeKind], false, NULL}
+                {UA_JSONKEY_BODY, dst->content.decoded.data, (decodeJsonSignature) decodeJsonJumpTable[typeOfBody->typeKind], false, typeOfBody}
             };
 
-            return decodeFields(ctx, parseCtx, entries, 2, typeOfBody);
+            return decodeFields(ctx, parseCtx, entries, 2);
         } else {
            return UA_STATUSCODE_BADDECODINGERROR;
         }
@@ -2977,8 +2977,7 @@ DECODE_JSON(ExtensionObject) {
                 {UA_JSONKEY_BODY, &dst->content.encoded.body, (decodeJsonSignature)String_decodeJson, false, NULL},
                 {UA_JSONKEY_TYPEID, &dst->content.encoded.typeId, (decodeJsonSignature)NodeId_decodeJson, false, NULL}
             };
-
-            return decodeFields(ctx, parseCtx, entries, 3, type);
+            return decodeFields(ctx, parseCtx, entries, 3);
         } else if(encoding == 2) {
             /* XmlElement in Json Body */
             dst->encoding = UA_EXTENSIONOBJECT_ENCODED_XML;
@@ -2988,7 +2987,7 @@ DECODE_JSON(ExtensionObject) {
                 {UA_JSONKEY_BODY, &dst->content.encoded.body, (decodeJsonSignature)String_decodeJson, false, NULL},
                 {UA_JSONKEY_TYPEID, &dst->content.encoded.typeId, (decodeJsonSignature)NodeId_decodeJson, false, NULL}
             };
-            return decodeFields(ctx, parseCtx, entries, 3, type);
+            return decodeFields(ctx, parseCtx, entries, 3);
         } else {
             return UA_STATUSCODE_BADDECODINGERROR;
         }
@@ -3066,14 +3065,12 @@ Variant_decodeJsonUnwrapExtensionObject(UA_Variant *dst, const UA_DataType *type
 
         /* Decode the content */
         UA_NodeId nodeIddummy;
-        DecodeEntry entries[3] =
-            {
-             {UA_JSONKEY_TYPEID, &nodeIddummy, (decodeJsonSignature) NodeId_decodeJson, false, NULL},
-             {UA_JSONKEY_BODY, dst->data,
-              (decodeJsonSignature) decodeJsonJumpTable[dst->type->typeKind], false, NULL},
-             {UA_JSONKEY_ENCODING, NULL, NULL, false, NULL}};
-
-        ret = decodeFields(ctx, parseCtx, entries, encodingFound ? 3:2, typeOfBody);
+        DecodeEntry entries[3] = {
+            {UA_JSONKEY_TYPEID, &nodeIddummy, (decodeJsonSignature) NodeId_decodeJson, false, NULL},
+            {UA_JSONKEY_BODY, dst->data, (decodeJsonSignature) decodeJsonJumpTable[dst->type->typeKind], false, typeOfBody},
+            {UA_JSONKEY_ENCODING, NULL, NULL, false, NULL}
+        };
+        ret = decodeFields(ctx, parseCtx, entries, encodingFound ? 3:2);
         if(ret != UA_STATUSCODE_GOOD) {
             UA_delete(dst->data, dst->type);
             dst->data = NULL;
@@ -3115,8 +3112,9 @@ DECODE_JSON(DiagnosticInfo) {
        {UA_JSONKEY_LOCALE, &dst->locale, (decodeJsonSignature) Int32_decodeJson, false, NULL},
        {UA_JSONKEY_ADDITIONALINFO, &dst->additionalInfo, (decodeJsonSignature) String_decodeJson, false, NULL},
        {UA_JSONKEY_INNERSTATUSCODE, &dst->innerStatusCode, (decodeJsonSignature) StatusCode_decodeJson, false, NULL},
-       {UA_JSONKEY_INNERDIAGNOSTICINFO, &dst->innerDiagnosticInfo, (decodeJsonSignature) DiagnosticInfoInner_decodeJson, false, NULL}};
-    status ret = decodeFields(ctx, parseCtx, entries, 7, type);
+       {UA_JSONKEY_INNERDIAGNOSTICINFO, &dst->innerDiagnosticInfo, (decodeJsonSignature) DiagnosticInfoInner_decodeJson, false, NULL}
+    };
+    status ret = decodeFields(ctx, parseCtx, entries, 7);
 
     dst->hasSymbolicId = entries[0].found; dst->hasNamespaceUri = entries[1].found;
     dst->hasLocalizedText = entries[2].found; dst->hasLocale = entries[3].found;
@@ -3137,8 +3135,8 @@ DiagnosticInfoInner_decodeJson(void* dst, const UA_DataType* type,
 }
 
 status 
-decodeFields(CtxJson *ctx, ParseCtx *parseCtx, DecodeEntry *entries,
-             size_t entryCount, const UA_DataType *type) {
+decodeFields(CtxJson *ctx, ParseCtx *parseCtx,
+             DecodeEntry *entries, size_t entryCount) {
     CHECK_TOKEN_BOUNDS;
 
     /* Empty object, nothing to decode */
@@ -3146,51 +3144,46 @@ decodeFields(CtxJson *ctx, ParseCtx *parseCtx, DecodeEntry *entries,
     if(objectCount == 0)
         return UA_STATUSCODE_GOOD;
 
-    parseCtx->index++; /*go to first key*/
+    parseCtx->index++; /* Go to first key */
     CHECK_TOKEN_BOUNDS;
     
     status ret = UA_STATUSCODE_GOOD;
-    for(size_t currentObjectCount = 0; currentObjectCount < objectCount &&
-             parseCtx->index < parseCtx->tokenCount; currentObjectCount++) {
+    for(size_t currObj = 0; currObj < objectCount &&
+            parseCtx->index < parseCtx->tokenCount; currObj++) {
 
-        /* start searching at the index of currentObjectCount */
-        for (size_t i = currentObjectCount; i < entryCount + currentObjectCount; i++) {
-            /* Search for KEY, if found outer loop will be one less. Best case
-             * is objectCount if in order! */
+        /* Start searching at the index of currObj */
+        for(size_t i = currObj; i < entryCount + currObj; i++) {
+            /* Search for key, if found outer loop will be one less. Best case
+             * if objectCount is in order! */
             size_t index = i % entryCount;
-            
+
             CHECK_TOKEN_BOUNDS;
             if(jsoneq((char*) ctx->pos, &parseCtx->tokenArray[parseCtx->index], 
                        entries[index].fieldName) != 0)
                 continue;
 
-            if(entries[index].found) {
-                /*Duplicate Key found, abort.*/
+            /* Duplicate key found, abort */
+            if(entries[index].found)
                 return UA_STATUSCODE_BADDECODINGERROR;
-            }
 
             entries[index].found = true;
 
-            parseCtx->index++; /*goto value*/
+            parseCtx->index++; /* Go to value */
             CHECK_TOKEN_BOUNDS;
-            
-            /* Find the data type.
-             * TODO: get rid of parameter type. Only forward via DecodeEntry.
-             */
-            const UA_DataType *membertype = type;
-            if(entries[index].type)
-                membertype = entries[index].type;
 
-            if(entries[index].function != NULL) {
-                ret = entries[index].function(entries[index].fieldPointer,
-                                              membertype, ctx, parseCtx, true); /*Move Token True*/
-                if(ret != UA_STATUSCODE_GOOD)
-                    return ret;
-            } else {
-                /*overstep single value, this will not work if object or array
-                 Only used not to double parse pre looked up type, but it has to be overstepped*/
+            /* An entry that was expected, but shall not be decoded.
+             * Jump over it.
+             * TODO: Jump over object / array */
+            if(entries[index].function == NULL) {
                 parseCtx->index++;
+                break;
             }
+
+            /* Decode */
+            ret = entries[index].function(entries[index].fieldPointer, entries[index].type,
+                                          ctx, parseCtx, true);
+            if(ret != UA_STATUSCODE_GOOD)
+                return ret;
             break;
         }
     }
@@ -3293,7 +3286,7 @@ decodeJsonStructure(void *dst, const UA_DataType *type, CtxJson *ctx,
         }
     }
     
-    ret = decodeFields(ctx, parseCtx, entries, membersSize, type);
+    ret = decodeFields(ctx, parseCtx, entries, membersSize);
 
     if(ctx->depth == 0)
         return UA_STATUSCODE_BADENCODINGERROR;
