@@ -3140,22 +3140,26 @@ status
 decodeFields(CtxJson *ctx, ParseCtx *parseCtx, DecodeEntry *entries,
              size_t entryCount, const UA_DataType *type) {
     CHECK_TOKEN_BOUNDS;
-    size_t objectCount = (size_t)(parseCtx->tokenArray[parseCtx->index].size);
-    status ret = UA_STATUSCODE_GOOD;
 
-    if(entryCount == 1) {
-        if(*(entries[0].fieldName) == 0) { /*No MemberName*/
-            return entries[0].function(entries[0].fieldPointer, type,
-                                       ctx, parseCtx, true); /*ENCODE DIRECT*/
-        }
-    } else if(entryCount == 0) {
+    if(entryCount == 0)
         return UA_STATUSCODE_BADDECODINGERROR;
+
+    /* One entry with no member name -> decode direct */
+    if(entryCount == 1 && *(entries[0].fieldName) == 0) {
+        return entries[0].function(entries[0].fieldPointer, type,
+                                   ctx, parseCtx, true);
     }
+
+    /* Empty object, nothing to decode */
+    size_t objectCount = (size_t)(parseCtx->tokenArray[parseCtx->index].size);
+    if(objectCount == 0)
+        return UA_STATUSCODE_GOOD;
 
     parseCtx->index++; /*go to first key*/
     CHECK_TOKEN_BOUNDS;
     
-    for (size_t currentObjectCount = 0; currentObjectCount < objectCount &&
+    status ret = UA_STATUSCODE_GOOD;
+    for(size_t currentObjectCount = 0; currentObjectCount < objectCount &&
              parseCtx->index < parseCtx->tokenCount; currentObjectCount++) {
 
         /* start searching at the index of currentObjectCount */
