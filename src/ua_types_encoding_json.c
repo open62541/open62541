@@ -2835,17 +2835,21 @@ DECODE_JSON(DataValue) {
     CHECK_OBJECT;
 
     DecodeEntry entries[6] = {
-       {UA_JSONKEY_VALUE, &dst->value, (decodeJsonSignature) Variant_decodeJson, false, NULL},
-       {UA_JSONKEY_STATUS, &dst->status, (decodeJsonSignature) StatusCode_decodeJson, false, NULL},
-       {UA_JSONKEY_SOURCETIMESTAMP, &dst->sourceTimestamp, (decodeJsonSignature) DateTime_decodeJson, false, NULL},
-       {UA_JSONKEY_SOURCEPICOSECONDS, &dst->sourcePicoseconds, (decodeJsonSignature) UInt16_decodeJson, false, NULL},
-       {UA_JSONKEY_SERVERTIMESTAMP, &dst->serverTimestamp, (decodeJsonSignature) DateTime_decodeJson, false, NULL},
-       {UA_JSONKEY_SERVERPICOSECONDS, &dst->serverPicoseconds, (decodeJsonSignature) UInt16_decodeJson, false, NULL}};
+        {UA_JSONKEY_VALUE, &dst->value, (decodeJsonSignature) Variant_decodeJson, false, NULL},
+        {UA_JSONKEY_STATUS, &dst->status, (decodeJsonSignature) StatusCode_decodeJson, false, NULL},
+        {UA_JSONKEY_SOURCETIMESTAMP, &dst->sourceTimestamp, (decodeJsonSignature) DateTime_decodeJson, false, NULL},
+        {UA_JSONKEY_SOURCEPICOSECONDS, &dst->sourcePicoseconds, (decodeJsonSignature) UInt16_decodeJson, false, NULL},
+        {UA_JSONKEY_SERVERTIMESTAMP, &dst->serverTimestamp, (decodeJsonSignature) DateTime_decodeJson, false, NULL},
+        {UA_JSONKEY_SERVERPICOSECONDS, &dst->serverPicoseconds, (decodeJsonSignature) UInt16_decodeJson, false, NULL}
+    };
 
-    status ret = decodeFields(ctx, parseCtx, entries, 6, type);
-    dst->hasValue = entries[0].found; dst->hasStatus = entries[1].found;
-    dst->hasSourceTimestamp = entries[2].found; dst->hasSourcePicoseconds = entries[3].found;
-    dst->hasServerTimestamp = entries[4].found; dst->hasServerPicoseconds = entries[5].found;
+    status ret = decodeFields(ctx, parseCtx, entries, 6);
+    dst->hasValue = entries[0].found;
+    dst->hasStatus = entries[1].found;
+    dst->hasSourceTimestamp = entries[2].found;
+    dst->hasSourcePicoseconds = entries[3].found;
+    dst->hasServerTimestamp = entries[4].found;
+    dst->hasServerPicoseconds = entries[5].found;
     return ret;
 }
 
@@ -2997,7 +3001,8 @@ DECODE_JSON(ExtensionObject) {
 
 static status
 Variant_decodeJsonUnwrapExtensionObject(UA_Variant *dst, const UA_DataType *type, 
-                                        CtxJson *ctx, ParseCtx *parseCtx, UA_Boolean moveToken) {
+                                        CtxJson *ctx, ParseCtx *parseCtx,
+                                        UA_Boolean moveToken) {
     (void) type, (void) moveToken;
     /*EXTENSIONOBJECT POSITION!*/
     UA_UInt16 old_index = parseCtx->index;
@@ -3116,9 +3121,12 @@ DECODE_JSON(DiagnosticInfo) {
     };
     status ret = decodeFields(ctx, parseCtx, entries, 7);
 
-    dst->hasSymbolicId = entries[0].found; dst->hasNamespaceUri = entries[1].found;
-    dst->hasLocalizedText = entries[2].found; dst->hasLocale = entries[3].found;
-    dst->hasAdditionalInfo = entries[4].found; dst->hasInnerStatusCode = entries[5].found;
+    dst->hasSymbolicId = entries[0].found;
+    dst->hasNamespaceUri = entries[1].found;
+    dst->hasLocalizedText = entries[2].found;
+    dst->hasLocale = entries[3].found;
+    dst->hasAdditionalInfo = entries[4].found;
+    dst->hasInnerStatusCode = entries[5].found;
     dst->hasInnerDiagnosticInfo = entries[6].found;
     return ret;
 }
@@ -3268,20 +3276,18 @@ decodeJsonStructure(void *dst, const UA_DataType *type, CtxJson *ctx,
         const UA_DataType *mt = m->memberType;
 
         entries[i].type = mt;
+        entries[i].fieldName = m->memberName;
+        entries[i].found = false;
         if(!m->isArray) {
             ptr += m->padding;
-            entries[i].fieldName = m->memberName;
             entries[i].fieldPointer = (void*)ptr;
             entries[i].function = decodeJsonJumpTable[mt->typeKind];
-            entries[i].found = false;
             ptr += mt->memSize;
         } else {
             ptr += m->padding;
             ptr += sizeof(size_t);
-            entries[i].fieldName = m->memberName;
             entries[i].fieldPointer = (void*)ptr;
             entries[i].function = (decodeJsonSignature)Array_decodeJson;
-            entries[i].found = false;
             ptr += sizeof(void*);
         }
     }
