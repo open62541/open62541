@@ -3180,10 +3180,9 @@ decodeFields(CtxJson *ctx, ParseCtx *parseCtx,
             CHECK_TOKEN_BOUNDS;
 
             /* An entry that was expected, but shall not be decoded.
-             * Jump over it.
-             * TODO: Jump over object / array */
-            if(entries[index].function == NULL) {
-                parseCtx->index++;
+             * Jump over it. */
+            if(!entries[index].function) {
+                skipObject(parseCtx);
                 break;
             }
 
