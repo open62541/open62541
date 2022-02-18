@@ -3247,7 +3247,7 @@ START_TEST(UA_DataValue_null_json_encode) {
     *bufPos = 0;
     // then
     ck_assert_int_eq(s, UA_STATUSCODE_GOOD);
-    char* result = "null";
+    char* result = "{}";
     ck_assert_str_eq(result, (char*)buf.data);
     UA_ByteString_clear(&buf);
     UA_DataValue_delete(src);

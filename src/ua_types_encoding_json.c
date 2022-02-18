@@ -1291,11 +1291,6 @@ ENCODE_JSON(DataValue) {
     UA_Boolean hasServerTimestamp = src->hasServerTimestamp;
     UA_Boolean hasServerPicoseconds = src->hasServerPicoseconds;
 
-    if(!hasValue && !hasStatus && !hasSourceTimestamp && !hasSourcePicoseconds &&
-       !hasServerTimestamp && !hasServerPicoseconds) {
-        return writeJsonNull(ctx); /*no element, encode as null*/
-    }
-
     status ret = UA_STATUSCODE_GOOD;
     ret |= writeJsonObjStart(ctx);
 
