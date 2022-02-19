@@ -667,6 +667,15 @@ enum MQTTConnectFlags {
     MQTT_CONNECT_WILL_RETAIN = 32u,
     MQTT_CONNECT_PASSWORD = 64u,
     MQTT_CONNECT_USER_NAME = 128u
+#ifdef UA_ENABLE_MQTT_TLS_OPENSSL
+    ,
+    MQTT_CONNECT_CAFILEPATH = 256u,
+    MQTT_CONNECT_CAPATH = 512u,
+    MQTT_CONNECT_CLIENTCERTPATH = 1024u,
+    MQTT_CONNECT_CLIENTKEYPATH = 2048u,
+    MQTT_CONNECT_USETLS = 4096u
+#endif
+        
 };
 
 /**
@@ -1436,6 +1445,13 @@ enum MQTTErrors mqtt_connect(struct mqtt_client *client,
                              size_t will_message_size,
                              const char* user_name,
                              const char* password,
+#ifdef UA_ENABLE_MQTT_TLS_OPENSSL
+                             const char* caFilePath,
+                             const char* caPath,
+                             const char* clientCertPath,
+                             const char* clientKeyPath,
+                             bool useTLS,
+#endif                             
                              uint8_t connect_flags,
                              uint16_t keep_alive);
 
