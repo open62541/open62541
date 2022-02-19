@@ -1340,14 +1340,7 @@ ENCODE_JSON(DataValue) {
 
 /* DiagnosticInfo */
 ENCODE_JSON(DiagnosticInfo) {
-    status ret = UA_STATUSCODE_GOOD;
-    if(!src->hasSymbolicId && !src->hasNamespaceUri && !src->hasLocalizedText &&
-       !src->hasLocale && !src->hasAdditionalInfo && !src->hasInnerDiagnosticInfo &&
-       !src->hasInnerStatusCode) {
-        return writeJsonNull(ctx); /*no element present, encode as null.*/
-    }
-
-    ret |= writeJsonObjStart(ctx);
+    status ret = writeJsonObjStart(ctx);
 
     if(src->hasSymbolicId) {
         ret |= writeJsonKey(ctx, UA_JSONKEY_SYMBOLICID);
@@ -1394,7 +1387,8 @@ ENCODE_JSON(DiagnosticInfo) {
     if(src->hasInnerDiagnosticInfo && src->innerDiagnosticInfo) {
         ret |= writeJsonKey(ctx, UA_JSONKEY_INNERDIAGNOSTICINFO);
         /* Check recursion depth in encodeJsonInternal */
-        ret |= encodeJsonInternal(src->innerDiagnosticInfo, &UA_TYPES[UA_TYPES_DIAGNOSTICINFO], ctx);
+        ret |= encodeJsonInternal(src->innerDiagnosticInfo,
+                                  &UA_TYPES[UA_TYPES_DIAGNOSTICINFO], ctx);
         if(ret != UA_STATUSCODE_GOOD)
             return ret;
     }
