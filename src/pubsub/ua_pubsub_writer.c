@@ -196,6 +196,17 @@ UA_PublishedDataSet_findPDSbyId(UA_Server *server, UA_NodeId identifier) {
     return tmpPDS;
 }
 
+UA_PublishedDataSet *
+UA_PublishedDataSet_findPDSbyName(UA_Server *server, UA_String name) {
+    UA_PublishedDataSet *tmpPDS = NULL;
+    TAILQ_FOREACH(tmpPDS, &server->pubSubManager.publishedDataSets, listEntry) {
+        if(UA_String_equal(&name, &tmpPDS->config.name))
+            break;
+    }
+
+    return tmpPDS;
+}
+
 void
 UA_PublishedDataSetConfig_clear(UA_PublishedDataSetConfig *pdsConfig) {
     //delete pds config

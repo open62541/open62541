@@ -1271,12 +1271,12 @@ ENCODE_JSON(Variant) {
 
 /* DataValue */
 ENCODE_JSON(DataValue) {
-    UA_Boolean hasValue = src->hasValue && src->value.type != NULL;
-    UA_Boolean hasStatus = src->hasStatus && src->status;
-    UA_Boolean hasSourceTimestamp = src->hasSourceTimestamp && src->sourceTimestamp;
-    UA_Boolean hasSourcePicoseconds = src->hasSourcePicoseconds && src->sourcePicoseconds;
-    UA_Boolean hasServerTimestamp = src->hasServerTimestamp && src->serverTimestamp;
-    UA_Boolean hasServerPicoseconds = src->hasServerPicoseconds && src->serverPicoseconds;
+    UA_Boolean hasValue = src->hasValue;
+    UA_Boolean hasStatus = src->hasStatus;
+    UA_Boolean hasSourceTimestamp = src->hasSourceTimestamp;
+    UA_Boolean hasSourcePicoseconds = src->hasSourcePicoseconds;
+    UA_Boolean hasServerTimestamp = src->hasServerTimestamp;
+    UA_Boolean hasServerPicoseconds = src->hasServerPicoseconds;
 
     if(!hasValue && !hasStatus && !hasSourceTimestamp && !hasSourcePicoseconds &&
        !hasServerTimestamp && !hasServerPicoseconds) {
@@ -2173,6 +2173,10 @@ DECODE_JSON(String) {
     while(p < end) {
         /* No escaping */
         if(*p != '\\') {
+            /* In the ASCII range, but not a printable character */
+            if(*p < 32 || *p == 127)
+                goto cleanup;
+
             *(pos++) = *(p++);
             continue;
         }
@@ -2505,7 +2509,10 @@ DECODE_JSON(NodeId) {
     } else {
         dst->namespaceIndex = 0;
     }
+
     ret = decodeFields(ctx, parseCtx, entries, fieldCount, type);
+    if(ret != UA_STATUSCODE_GOOD)
+        UA_NodeId_clear(dst);
     return ret;
 }
 
