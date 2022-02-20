@@ -2210,6 +2210,7 @@ DECODE_JSON(String) {
 
     if(moveToken)
         parseCtx->index++;
+
     return UA_STATUSCODE_GOOD;
 
 cleanup:
@@ -2229,19 +2230,19 @@ DECODE_JSON(ByteString) {
     if(tokenSize == 0) {
         dst->data = (UA_Byte*)UA_EMPTY_ARRAY_SENTINEL;
         dst->length = 0;
-        return UA_STATUSCODE_GOOD;
+    } else {
+        size_t flen = 0;
+        unsigned char* unB64 =
+            UA_unbase64((unsigned char*)tokenData, tokenSize, &flen);
+        if(unB64 == 0)
+            return UA_STATUSCODE_BADDECODINGERROR;
+        dst->data = (u8*)unB64;
+        dst->length = flen;
     }
-
-    size_t flen = 0;
-    unsigned char* unB64 = UA_unbase64((unsigned char*)tokenData, tokenSize, &flen);
-    if(unB64 == 0)
-        return UA_STATUSCODE_BADDECODINGERROR;
-
-    dst->data = (u8*)unB64;
-    dst->length = flen;
 
     if(moveToken)
         parseCtx->index++;
+
     return UA_STATUSCODE_GOOD;
 }
 
