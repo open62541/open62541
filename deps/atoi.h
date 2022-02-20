@@ -7,8 +7,8 @@ extern "C" {
 
 #include <open62541/types.h>
 
-UA_StatusCode atoiUnsigned(const char *s, size_t size, UA_UInt64 *result);
-UA_StatusCode atoiSigned(const char *s, size_t size, UA_Int64 *result);
+size_t atoiUnsigned(const char *pos, size_t size, UA_UInt64 *result);
+size_t atoiSigned(const char *pos, size_t size, UA_Int64 *result);
     
 #ifdef __cplusplus
 }

@@ -69,7 +69,10 @@ endif()
 set(test_plugin_sources
     ${PROJECT_SOURCE_DIR}/arch/network_tcp.c
     ${PROJECT_SOURCE_DIR}/arch/eventloop_posix.c
+    ${PROJECT_SOURCE_DIR}/arch/eventloop_posix_select.c
+    ${PROJECT_SOURCE_DIR}/arch/eventloop_posix_epoll.c
     ${PROJECT_SOURCE_DIR}/arch/eventloop_posix_tcp.c
+    ${PROJECT_SOURCE_DIR}/arch/eventloop_posix_interrupt.c
     ${PROJECT_SOURCE_DIR}/tests/testing-plugins/testing_clock.c
     ${PROJECT_SOURCE_DIR}/plugins/ua_log_stdout.c
     ${PROJECT_SOURCE_DIR}/plugins/ua_config_default.c
@@ -269,6 +272,10 @@ add_test_valgrind(eventloop ${TESTS_BINARY_DIR}/check_eventloop)
 add_executable(check_eventloop_tcp check_eventloop_tcp.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
 target_link_libraries(check_eventloop_tcp ${LIBS})
 add_test_valgrind(eventloop_tcp ${TESTS_BINARY_DIR}/check_eventloop_tcp)
+
+add_executable(check_eventloop_interrupt check_eventloop_interrupt.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
+target_link_libraries(check_eventloop_interrupt ${LIBS})
+add_test_valgrind(eventloop_interrupt ${TESTS_BINARY_DIR}/check_eventloop_interrupt)
 
 # Test Server
 

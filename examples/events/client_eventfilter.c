@@ -92,17 +92,17 @@ setupOperandArrays(UA_ContentFilter *contentFilter){
 }
 
 static void
-setupOrFilter(UA_ContentFilterElement *element){
+setupTwoOperandsFilter(UA_ContentFilterElement *element, UA_UInt32 firstOperandIndex, UA_UInt32 secondOperandIndex){
     element->filterOperands[0].content.decoded.type = &UA_TYPES[UA_TYPES_ELEMENTOPERAND];
     element->filterOperands[0].encoding = UA_EXTENSIONOBJECT_DECODED;
     element->filterOperands[1].content.decoded.type = &UA_TYPES[UA_TYPES_ELEMENTOPERAND];
     element->filterOperands[1].encoding = UA_EXTENSIONOBJECT_DECODED;
     UA_ElementOperand *firstElementOperand = UA_ElementOperand_new();
     UA_ElementOperand_init(firstElementOperand);
-    firstElementOperand->index = 1;
+    firstElementOperand->index = firstOperandIndex;
     UA_ElementOperand *secondElementOperand = UA_ElementOperand_new();
     UA_ElementOperand_init(secondElementOperand);
-    secondElementOperand->index = 2;
+    secondElementOperand->index = secondOperandIndex;
     element->filterOperands[0].content.decoded.data = firstElementOperand;
     element->filterOperands[1].content.decoded.data = secondElementOperand;
 }
@@ -120,6 +120,18 @@ setupOfTypeFilter(UA_ContentFilterElement *element, UA_UInt16 nsIndex, UA_UInt32
     nodeId->identifier.numeric = typeId;
     UA_Variant_setScalar(&literalOperand->value, nodeId, &UA_TYPES[UA_TYPES_NODEID]);
     element->filterOperands[0].content.decoded.data = literalOperand;
+}
+
+static void
+setupLiteralOperand(UA_ContentFilterElement *element, size_t count, UA_Variant *literals){
+    for(size_t i = 0; i < count; ++i) {
+        element->filterOperands[i].content.decoded.type = &UA_TYPES[UA_TYPES_LITERALOPERAND];
+        element->filterOperands[i].encoding = UA_EXTENSIONOBJECT_DECODED;
+        UA_LiteralOperand *literalOperand = UA_LiteralOperand_new();
+        UA_LiteralOperand_init(literalOperand);
+        literalOperand->value = literals[i];
+        element->filterOperands[i].content.decoded.data = literalOperand;
+    }
 }
 
 /**
@@ -155,97 +167,132 @@ setupWhereClauses(UA_ContentFilter *contentFilter, UA_UInt16 whereClauseSize, UA
     }
     UA_StatusCode result = UA_STATUSCODE_GOOD;
     switch(filterSelection) {
-        case 0: {
-            contentFilter->elements[0].filterOperator = UA_FILTEROPERATOR_OR;
-            contentFilter->elements[1].filterOperator = UA_FILTEROPERATOR_OFTYPE;
-            contentFilter->elements[2].filterOperator = UA_FILTEROPERATOR_OFTYPE;
-            contentFilter->elements[0].filterOperandsSize = 2;
-            contentFilter->elements[1].filterOperandsSize = 1;
-            contentFilter->elements[2].filterOperandsSize = 1;
-            /* Setup Operand Arrays */
-            result = setupOperandArrays(contentFilter);
-            if(result != UA_STATUSCODE_GOOD) {
-                UA_ContentFilter_clear(contentFilter);
-                return UA_STATUSCODE_BADCONFIGURATIONERROR;
-            }
-            /* first Element (OR) */
-            setupOrFilter(&contentFilter->elements[0]);
-            /* second Element (OfType) */
-            setupOfTypeFilter(&contentFilter->elements[1], 1, 5003);
-            /* third Element (OfType) */
-            setupOfTypeFilter(&contentFilter->elements[2], 0,
-                              UA_NS0ID_EVENTQUEUEOVERFLOWEVENTTYPE);
-            break;
-        }
-        case 1: {
-            contentFilter->elements[0].filterOperator = UA_FILTEROPERATOR_OFTYPE;
-            UA_UInt32 placeholder_ScanFinishedEvent = 10000;
-            setupOfTypeFilter(&contentFilter->elements[0], 1,
-                              placeholder_ScanFinishedEvent);
-            break;
-        }
-        case 2: {
-            contentFilter->elements[0].filterOperator = UA_FILTEROPERATOR_OR;
-            contentFilter->elements[1].filterOperator = UA_FILTEROPERATOR_OR;
-            contentFilter->elements[2].filterOperator = UA_FILTEROPERATOR_OR;
-            contentFilter->elements[3].filterOperator = UA_FILTEROPERATOR_OR;
-            contentFilter->elements[4].filterOperator = UA_FILTEROPERATOR_OR;
-            contentFilter->elements[5].filterOperator = UA_FILTEROPERATOR_OFTYPE;
-            contentFilter->elements[6].filterOperator = UA_FILTEROPERATOR_OFTYPE;
-            contentFilter->elements[7].filterOperator = UA_FILTEROPERATOR_OFTYPE;
-            contentFilter->elements[8].filterOperator = UA_FILTEROPERATOR_OFTYPE;
-            contentFilter->elements[9].filterOperator = UA_FILTEROPERATOR_OFTYPE;
-            contentFilter->elements[10].filterOperator = UA_FILTEROPERATOR_OFTYPE;
-
-            // init or clauses
-            setupOrFilter(&contentFilter->elements[0]);
-            setupOrFilter(&contentFilter->elements[1]);
-            setupOrFilter(&contentFilter->elements[2]);
-            setupOrFilter(&contentFilter->elements[3]);
-            setupOrFilter(&contentFilter->elements[4]);
-            // init oftype
-            UA_UInt32 placeholder_StartScanEvent = 10000;
-            UA_UInt32 placeholder_DcpScanFinishedEvent = 10001;
-            UA_UInt32 CancelScanEvent = 10003;
-            UA_UInt32 placeholder_CancelScanFinishedEvent = 10004;
-            UA_UInt32 placeholder_ShutdownEvent = 10005;
-            UA_UInt32 placeholder_ShutdownEvent_1 = 10006;
-            setupOfTypeFilter(&contentFilter->elements[5], 1, placeholder_StartScanEvent);
-            setupOfTypeFilter(&contentFilter->elements[6], 1,
-                              placeholder_DcpScanFinishedEvent);
-            setupOfTypeFilter(&contentFilter->elements[7], 1,
-                              placeholder_ShutdownEvent_1);
-            setupOfTypeFilter(&contentFilter->elements[8], 1, CancelScanEvent);
-            setupOfTypeFilter(&contentFilter->elements[9], 1,
-                              placeholder_CancelScanFinishedEvent);
-            setupOfTypeFilter(&contentFilter->elements[10], 1, placeholder_ShutdownEvent);
-            break;
-        }
-        case 3:{
-            UA_UInt32 placeholder_ShutdownEvent_2 = 10000;
-            contentFilter->elements[0].filterOperator = UA_FILTEROPERATOR_OFTYPE;
-            setupOfTypeFilter(&contentFilter->elements[0], 1, placeholder_ShutdownEvent_2);
-            break;
-        }
-        case 4: {
-            contentFilter->elements[0].filterOperator = UA_FILTEROPERATOR_AND;
-            contentFilter->elements[1].filterOperator = UA_FILTEROPERATOR_OFTYPE;
-            contentFilter->elements[2].filterOperator = UA_FILTEROPERATOR_AND;
-            contentFilter->elements[2].filterOperator = UA_FILTEROPERATOR_EQUALS;
-            contentFilter->elements[2].filterOperator = UA_FILTEROPERATOR_EQUALS;
-            break;
-        }
-        default:
+    case 0: {
+        contentFilter->elements[0].filterOperator = UA_FILTEROPERATOR_OR;
+        contentFilter->elements[1].filterOperator = UA_FILTEROPERATOR_OFTYPE;
+        contentFilter->elements[2].filterOperator = UA_FILTEROPERATOR_OFTYPE;
+        contentFilter->elements[0].filterOperandsSize = 2;
+        contentFilter->elements[1].filterOperandsSize = 1;
+        contentFilter->elements[2].filterOperandsSize = 1;
+        /* Setup Operand Arrays */
+        result = setupOperandArrays(contentFilter);
+        if(result != UA_STATUSCODE_GOOD) {
             UA_ContentFilter_clear(contentFilter);
             return UA_STATUSCODE_BADCONFIGURATIONERROR;
+        }
+        /* first Element (OR) */
+        setupTwoOperandsFilter(&contentFilter->elements[0], 1, 2);
+        /* second Element (OfType) */
+        setupOfTypeFilter(&contentFilter->elements[1], 1, 5003);
+        /* third Element (OfType) */
+        setupOfTypeFilter(&contentFilter->elements[2], 0,
+                          UA_NS0ID_EVENTQUEUEOVERFLOWEVENTTYPE);
+        break;
+    }
+    case 1: {
+        contentFilter->elements[0].filterOperator = UA_FILTEROPERATOR_OFTYPE;
+        contentFilter->elements[0].filterOperandsSize = 1;
+        /* Setup Operand Arrays */
+        result = setupOperandArrays(contentFilter);
+        if(result != UA_STATUSCODE_GOOD) {
+            UA_ContentFilter_clear(contentFilter);
+            return UA_STATUSCODE_BADCONFIGURATIONERROR;
+        }
+        setupOfTypeFilter(&contentFilter->elements[0], 1, 5001);
+        break;
+    }
+    case 2: {
+        contentFilter->elements[0].filterOperator = UA_FILTEROPERATOR_OR;
+        contentFilter->elements[1].filterOperator = UA_FILTEROPERATOR_OR;
+        contentFilter->elements[2].filterOperator = UA_FILTEROPERATOR_OR;
+        contentFilter->elements[3].filterOperator = UA_FILTEROPERATOR_OR;
+        contentFilter->elements[4].filterOperator = UA_FILTEROPERATOR_OR;
+        contentFilter->elements[5].filterOperator = UA_FILTEROPERATOR_OFTYPE;
+        contentFilter->elements[6].filterOperator = UA_FILTEROPERATOR_OFTYPE;
+        contentFilter->elements[7].filterOperator = UA_FILTEROPERATOR_OFTYPE;
+        contentFilter->elements[8].filterOperator = UA_FILTEROPERATOR_OFTYPE;
+        contentFilter->elements[9].filterOperator = UA_FILTEROPERATOR_OFTYPE;
+        contentFilter->elements[10].filterOperator = UA_FILTEROPERATOR_OFTYPE;
+
+        contentFilter->elements[0].filterOperandsSize = 2;
+        contentFilter->elements[1].filterOperandsSize = 2;
+        contentFilter->elements[2].filterOperandsSize = 2;
+        contentFilter->elements[3].filterOperandsSize = 2;
+        contentFilter->elements[4].filterOperandsSize = 2;
+        contentFilter->elements[5].filterOperandsSize = 1;
+        contentFilter->elements[6].filterOperandsSize = 1;
+        contentFilter->elements[7].filterOperandsSize = 1;
+        contentFilter->elements[8].filterOperandsSize = 1;
+        contentFilter->elements[9].filterOperandsSize = 1;
+        contentFilter->elements[10].filterOperandsSize = 1;
+
+        /* Setup Operand Arrays */
+        result = setupOperandArrays(contentFilter);
+        if(result != UA_STATUSCODE_GOOD) {
+            UA_ContentFilter_clear(contentFilter);
+            return UA_STATUSCODE_BADCONFIGURATIONERROR;
+        }
+
+        // init or clauses
+        setupTwoOperandsFilter(&contentFilter->elements[0], 1, 2);
+        setupTwoOperandsFilter(&contentFilter->elements[1], 3, 4);
+        setupTwoOperandsFilter(&contentFilter->elements[2], 5, 6);
+        setupTwoOperandsFilter(&contentFilter->elements[3], 7, 8);
+        setupTwoOperandsFilter(&contentFilter->elements[4], 9, 10);
+        // init oftype
+        setupOfTypeFilter(&contentFilter->elements[5], 1, 5000);
+        setupOfTypeFilter(&contentFilter->elements[6], 1, 5001);
+        setupOfTypeFilter(&contentFilter->elements[7], 1, 5002);
+        setupOfTypeFilter(&contentFilter->elements[8], 1, 5003);
+        setupOfTypeFilter(&contentFilter->elements[9], 1, 5004);
+        setupOfTypeFilter(&contentFilter->elements[10], 0, UA_NS0ID_EVENTQUEUEOVERFLOWEVENTTYPE);
+        break;
+    }
+    case 3: {
+        contentFilter->elements[0].filterOperator = UA_FILTEROPERATOR_AND;
+        contentFilter->elements[1].filterOperator = UA_FILTEROPERATOR_OFTYPE;
+        contentFilter->elements[2].filterOperator = UA_FILTEROPERATOR_AND;
+        contentFilter->elements[3].filterOperator = UA_FILTEROPERATOR_EQUALS;
+        contentFilter->elements[4].filterOperator = UA_FILTEROPERATOR_EQUALS;
+
+        contentFilter->elements[0].filterOperandsSize = 2;
+        contentFilter->elements[1].filterOperandsSize = 1;
+        contentFilter->elements[2].filterOperandsSize = 2;
+        contentFilter->elements[3].filterOperandsSize = 2;
+        contentFilter->elements[4].filterOperandsSize = 2;
+
+        /* Setup Operand Arrays */
+        result = setupOperandArrays(contentFilter);
+        if(result != UA_STATUSCODE_GOOD) {
+            UA_ContentFilter_clear(contentFilter);
+            return UA_STATUSCODE_BADCONFIGURATIONERROR;
+        }
+
+        // init clauses
+        setupTwoOperandsFilter(&contentFilter->elements[0], 1, 2);
+        setupTwoOperandsFilter(&contentFilter->elements[2], 3, 4);
+        setupOfTypeFilter(&contentFilter->elements[1], 1, 5000);
+
+        UA_UInt32 literal_value;
+        UA_Variant literalContent[2];
+        memset(literalContent, 0, sizeof(UA_Variant) * 2);
+        UA_Variant_setScalar(&literalContent[0], &literal_value, &UA_TYPES[UA_TYPES_UINT32]);
+        UA_Variant_setScalar(&literalContent[1], &literal_value, &UA_TYPES[UA_TYPES_UINT32]);
+        setupLiteralOperand(&contentFilter->elements[3], 2, literalContent);
+        setupLiteralOperand(&contentFilter->elements[4], 2, literalContent);
+        break;
+    }
+    default:
+        UA_ContentFilter_clear(contentFilter);
+        return UA_STATUSCODE_BADCONFIGURATIONERROR;
     }
     return UA_STATUSCODE_GOOD;
 }
 
 static void
 handler_events_filter(UA_Client *client, UA_UInt32 subId, void *subContext,
-               UA_UInt32 monId, void *monContext,
-               size_t nEventFields, UA_Variant *eventFields) {
+                      UA_UInt32 monId, void *monContext,
+                      size_t nEventFields, UA_Variant *eventFields) {
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "Received Event Notification (Filter passed)");
     for(size_t i = 0; i < nEventFields; ++i) {
         if(UA_Variant_hasScalarType(&eventFields[i], &UA_TYPES[UA_TYPES_UINT16])) {
@@ -314,7 +361,7 @@ int main(int argc, char *argv[]) {
     UA_EventFilter_init(&filter);
     filter.selectClauses = setupSelectClauses();
     filter.selectClausesSize = nSelectClauses;
-    retval = setupWhereClauses(&filter.whereClause, 3, 0);
+    retval = setupWhereClauses(&filter.whereClause, 5, 3);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_Client_delete(client);
         return EXIT_FAILURE;
@@ -345,7 +392,7 @@ int main(int argc, char *argv[]) {
         UA_Client_run_iterate(client, 100);
 
     /* Delete the subscription */
-    cleanup:
+cleanup:
     UA_MonitoredItemCreateResult_clear(&result);
     UA_Client_Subscriptions_deleteSingle(client, response.subscriptionId);
     UA_Array_delete(filter.selectClauses, nSelectClauses, &UA_TYPES[UA_TYPES_SIMPLEATTRIBUTEOPERAND]);

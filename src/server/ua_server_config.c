@@ -28,17 +28,22 @@ UA_ServerConfig_clean(UA_ServerConfig *config) {
 
     /* Custom DataTypes */
     /* nothing to do */
+    for (size_t i = 0; i < config->connectionManagersSize; i++) {
+        UA_ConnectionManager* cm = config->connectionManagers[i];
+        UA_free(cm->initialConnectionContext);
+    }
 
     /* Stop and delete the EventLoop */
-    if(config->eventLoop && !config->externalEventLoop) {
-        if(UA_EventLoop_getState(config->eventLoop) != UA_EVENTLOOPSTATE_FRESH &&
-           UA_EventLoop_getState(config->eventLoop) != UA_EVENTLOOPSTATE_STOPPED) {
-            UA_EventLoop_stop(config->eventLoop);
-            while(UA_EventLoop_getState(config->eventLoop) != UA_EVENTLOOPSTATE_STOPPED) {
-                UA_EventLoop_run(config->eventLoop, 100);
+    UA_EventLoop *el = config->eventLoop;
+    if(el && !config->externalEventLoop) {
+        if(el->state != UA_EVENTLOOPSTATE_FRESH &&
+           el->state != UA_EVENTLOOPSTATE_STOPPED) {
+            el->stop(el);
+            while(el->state != UA_EVENTLOOPSTATE_STOPPED) {
+                el->run(el, 100);
             }
         }
-        UA_EventLoop_delete(config->eventLoop);
+        el->free(el);
         config->eventLoop = NULL;
     }
 

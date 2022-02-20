@@ -540,7 +540,7 @@ isConditionOrBranch(UA_Server *server, const UA_NodeId *condition,
                     const UA_NodeId *conditionSource, UA_Boolean *isCallerAC) {
     UA_Condition *cond = getCondition(server, conditionSource, condition);
     if(!cond) {
-        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_USERLAND,
+        UA_LOG_DEBUG(&server->config.logger, UA_LOGCATEGORY_USERLAND,
                      "Entry not found in list!");
         return false;
     }
@@ -1854,7 +1854,7 @@ doesHasEventSourceReferenceExist(UA_Server *server, const UA_NodeId nodeToCheck)
 static UA_StatusCode
 setStandardConditionFields(UA_Server *server, const UA_NodeId* condition,
                            const UA_NodeId* conditionType, const UA_NodeId* conditionSource,
-                           UA_QualifiedName* conditionName) {
+                           const UA_QualifiedName* conditionName) {
     /* Set Fields */
     /* 1.Set EventType */
     UA_Variant value;
@@ -1864,7 +1864,8 @@ setStandardConditionFields(UA_Server *server, const UA_NodeId* condition,
     CONDITION_ASSERT_RETURN_RETVAL(retval, "Set EventType Field failed",);
 
     /* 2.Set ConditionName */
-    UA_Variant_setScalar(&value, &conditionName->name, &UA_TYPES[UA_TYPES_STRING]);
+    UA_Variant_setScalar(&value, (void*)(uintptr_t)&conditionName->name,
+                         &UA_TYPES[UA_TYPES_STRING]);
     retval = UA_Server_setConditionField(server, *condition, &value,
                                          UA_QUALIFIEDNAME(0,CONDITION_FIELD_CONDITIONNAME));
     CONDITION_ASSERT_RETURN_RETVAL(retval, "Set ConditionName Field failed",);
@@ -2168,8 +2169,10 @@ setStandardConditionCallbacks(UA_Server *server, const UA_NodeId* condition,
 UA_StatusCode
 UA_Server_createCondition(UA_Server *server,
                           const UA_NodeId conditionId, const UA_NodeId conditionType,
-                          UA_QualifiedName conditionName, const UA_NodeId conditionSource,
-                          const UA_NodeId hierarchialReferenceType, UA_NodeId *outNodeId) {
+                          const UA_QualifiedName conditionName,
+                          const UA_NodeId conditionSource,
+                          const UA_NodeId hierarchialReferenceType,
+                          UA_NodeId *outNodeId) {
     if(!outNodeId) {
         UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_USERLAND, "outNodeId cannot be NULL!");
         return UA_STATUSCODE_BADINVALIDARGUMENT;

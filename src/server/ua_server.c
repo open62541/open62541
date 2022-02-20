@@ -51,6 +51,7 @@
  *
  * Therefore one has to set the custom NS1 URI before one of the previously
  * mentioned steps. */
+
 void
 setupNs1Uri(UA_Server *server) {
     if(!server->namespaces[1].data) {
@@ -201,12 +202,16 @@ void UA_Server_delete(UA_Server *server) {
 #endif
 
     /* Stop the EventLoop and iterate until stopped or an error occurs */
-    UA_EventLoop_stop(server->config.eventLoop);
+    if(server->config.eventLoop->state == UA_EVENTLOOPSTATE_STARTED)
+        server->config.eventLoop->stop(server->config.eventLoop);
     UA_StatusCode res = UA_STATUSCODE_GOOD;
-    UA_EventLoopState state = UA_EventLoop_getState(server->config.eventLoop);
-    while(res == UA_STATUSCODE_GOOD && state != UA_EVENTLOOPSTATE_STOPPED) {
-        res = UA_EventLoop_run(server->config.eventLoop, 100);
-        state = UA_EventLoop_getState(server->config.eventLoop);
+    while(res == UA_STATUSCODE_GOOD &&
+          (server->config.eventLoop->state != UA_EVENTLOOPSTATE_FRESH &&
+           server->config.eventLoop->state != UA_EVENTLOOPSTATE_STOPPED)) {
+
+        UA_UNLOCK(&server->serviceMutex);
+        res = server->config.eventLoop->run(server->config.eventLoop, 100);
+        UA_LOCK(&server->serviceMutex);
     }
 
     /* Clean up the Admin Session */
@@ -277,6 +282,7 @@ UA_Server_init(UA_Server *server) {
     server->adminSession.sessionId.identifierType = UA_NODEIDTYPE_GUID;
     server->adminSession.sessionId.identifier.guid.data1 = 1;
     server->adminSession.validTill = UA_INT64_MAX;
+    server->adminSession.sessionName = UA_STRING_ALLOC("Administrator");
 
     /* Create Namespaces 0 and 1
      * Ns1 will be filled later with the uri from the app description */
@@ -345,7 +351,7 @@ UA_Server_newWithConfig(UA_ServerConfig *config) {
     for(size_t i = 0; i < server->config.securityPoliciesSize; i++)
         server->config.securityPolicies[i].logger = &server->config.logger;
 
-    UA_EventLoop_setLogger(server->config.eventLoop, &server->config.logger);
+    server->config.eventLoop->logger = &server->config.logger;
 
     /* Reset the old config */
     memset(config, 0, sizeof(UA_ServerConfig));
@@ -373,22 +379,20 @@ UA_StatusCode
 UA_Server_addTimedCallback(UA_Server *server, UA_ServerCallback callback,
                            void *data, UA_DateTime date, UA_UInt64 *callbackId) {
     UA_LOCK(&server->serviceMutex);
-    UA_StatusCode retval =
-        UA_EventLoop_addTimedCallback(server->config.eventLoop,
-                                      (UA_Callback)callback,
-                                      server, data, date, callbackId);
+    UA_StatusCode retval = server->config.eventLoop->
+        addTimedCallback(server->config.eventLoop, (UA_Callback)callback,
+                         server, data, date, callbackId);
     UA_UNLOCK(&server->serviceMutex);
     return retval;
 }
 
 UA_StatusCode
 addRepeatedCallback(UA_Server *server, UA_ServerCallback callback,
-                              void *data, UA_Double interval_ms,
-                              UA_UInt64 *callbackId) {
-    return UA_EventLoop_addCyclicCallback(server->config.eventLoop, (UA_Callback) callback,
-                                          server, data, interval_ms, NULL,
-                                          UA_TIMER_HANDLE_CYCLEMISS_WITH_CURRENTTIME,
-                                          callbackId);
+                    void *data, UA_Double interval_ms, UA_UInt64 *callbackId) {
+    return server->config.eventLoop->
+        addCyclicCallback(server->config.eventLoop, (UA_Callback) callback,
+                          server, data, interval_ms, NULL,
+                          UA_TIMER_HANDLE_CYCLEMISS_WITH_CURRENTTIME, callbackId);
 }
 
 UA_StatusCode
@@ -405,9 +409,9 @@ UA_Server_addRepeatedCallback(UA_Server *server, UA_ServerCallback callback,
 UA_StatusCode
 changeRepeatedCallbackInterval(UA_Server *server, UA_UInt64 callbackId,
                                UA_Double interval_ms) {
-    return UA_EventLoop_modifyCyclicCallback(server->config.eventLoop, callbackId,
-                                             interval_ms, NULL,
-                                             UA_TIMER_HANDLE_CYCLEMISS_WITH_CURRENTTIME);
+    return server->config.eventLoop->
+        modifyCyclicCallback(server->config.eventLoop, callbackId, interval_ms,
+                             NULL, UA_TIMER_HANDLE_CYCLEMISS_WITH_CURRENTTIME);
 }
 
 UA_StatusCode
@@ -422,7 +426,8 @@ UA_Server_changeRepeatedCallbackInterval(UA_Server *server, UA_UInt64 callbackId
 
 void
 removeCallback(UA_Server *server, UA_UInt64 callbackId) {
-    UA_EventLoop_removeCyclicCallback(server->config.eventLoop, callbackId);
+    server->config.eventLoop->removeCyclicCallback(server->config.eventLoop,
+                                                   callbackId);
 }
 
 void
@@ -523,9 +528,49 @@ verifyServerApplicationURI(const UA_Server *server) {
 }
 #endif
 
-UA_ServerStatistics UA_Server_getStatistics(UA_Server *server)
-{
-   return server->serverStats;
+UA_ServerStatistics
+UA_Server_getStatistics(UA_Server *server) {
+    UA_ServerStatistics stat;
+    stat.ns = server->networkStatistics;
+    stat.scs = server->secureChannelStatistics;
+
+    stat.ss.currentSessionCount =
+        server->serverDiagnosticsSummary.currentSessionCount;
+    stat.ss.cumulatedSessionCount =
+        server->serverDiagnosticsSummary.cumulatedSessionCount;
+    stat.ss.securityRejectedSessionCount =
+        server->serverDiagnosticsSummary.securityRejectedSessionCount;
+    stat.ss.rejectedSessionCount =
+        server->serverDiagnosticsSummary.rejectedSessionCount;
+    stat.ss.sessionTimeoutCount =
+        server->serverDiagnosticsSummary.sessionTimeoutCount;
+    stat.ss.sessionAbortCount =
+        server->serverDiagnosticsSummary.sessionAbortCount;
+    
+    return stat;
+}
+
+/**************************/
+/* Setup Server EventLoop */
+/**************************/
+
+static
+UA_StatusCode
+UA_Server_setupEventLoop(UA_Server *server) {
+    UA_Server_BasicConnectionContext *ctx = (UA_Server_BasicConnectionContext*) UA_malloc(sizeof(UA_Server_BasicConnectionContext));
+    memset(ctx, 0, sizeof(UA_Server_BasicConnectionContext));
+    UA_CHECK_MEM(ctx, return UA_STATUSCODE_BADOUTOFMEMORY);
+
+    ctx->server = server;
+    ctx->isInitial = true;
+
+    /* TODO: map the connection managers to their names instead of "0" for TCP */
+    UA_ConnectionManager *tcpCM = UA_Server_getConfig(server)->connectionManagers[0];
+    ctx->cm = tcpCM;
+    tcpCM->connectionCallback = UA_Server_connectionCallback;
+    tcpCM->initialConnectionContext = ctx;
+
+    return UA_STATUSCODE_GOOD;
 }
 
 /********************/
@@ -553,7 +598,10 @@ UA_Server_run_startup(UA_Server *server) {
                  "This should only be used for specific fuzzing builds.");
 #endif
 
-    UA_StatusCode retVal = UA_EventLoop_start(server->config.eventLoop);
+    UA_StatusCode retVal = UA_Server_setupEventLoop(server);
+    UA_CHECK_STATUS(retVal, return retVal);
+
+    retVal = server->config.eventLoop->start(server->config.eventLoop);
     UA_CHECK_STATUS(retVal, return retVal);
 
     /* ensure that the uri for ns1 is set up from the app description */
@@ -598,7 +646,7 @@ UA_Server_run_startup(UA_Server *server) {
     UA_StatusCode result = UA_STATUSCODE_GOOD;
     for(size_t i = 0; i < server->config.networkLayersSize; ++i) {
         UA_ServerNetworkLayer *nl = &server->config.networkLayers[i];
-        nl->statistics = &server->serverStats.ns;
+        nl->statistics = &server->networkStatistics;
         result |= nl->start(nl, &server->config.logger, &server->config.customHostname);
     }
     UA_CHECK_STATUS(result, return result);
@@ -638,26 +686,8 @@ UA_Server_run_startup(UA_Server *server) {
 
 UA_UInt16
 UA_Server_run_iterate(UA_Server *server, UA_Boolean waitInternal) {
-    /* Process repeated work */
-    UA_DateTime now = UA_DateTime_nowMonotonic();
-    UA_EventLoop_run(server->config.eventLoop, 0);
-    UA_DateTime nextRepeated = UA_EventLoop_nextCyclicTime(server->config.eventLoop);
-    UA_DateTime latest = now + (UA_MAXTIMEOUT * UA_DATETIME_MSEC);
-    if(nextRepeated > latest)
-        nextRepeated = latest;
 
     UA_UInt16 timeout = 0;
-
-    /* round always to upper value to avoid timeout to be set to 0
-    * if(nextRepeated - now) < (UA_DATETIME_MSEC/2) */
-    if(waitInternal)
-        timeout = (UA_UInt16)(((nextRepeated - now) + (UA_DATETIME_MSEC - 1)) / UA_DATETIME_MSEC);
-
-    /* Listen on the networklayer */
-    for(size_t i = 0; i < server->config.networkLayersSize; ++i) {
-        UA_ServerNetworkLayer *nl = &server->config.networkLayers[i];
-        nl->listen(nl, server, timeout);
-    }
 
 #if defined(UA_ENABLE_PUBSUB_MQTT)
     /* Listen on the pubsublayer, but only if the yield function is set */
@@ -669,11 +699,25 @@ UA_Server_run_iterate(UA_Server *server, UA_Boolean waitInternal) {
         }
     }
 #endif
+    /* Process repeated work */
+    UA_DateTime now = UA_DateTime_nowMonotonic();
+    UA_DateTime nextRepeated =
+        server->config.eventLoop->nextCyclicTime(server->config.eventLoop);
+    UA_DateTime latest = now + (UA_MAXTIMEOUT * UA_DATETIME_MSEC);
+    if(nextRepeated > latest)
+        nextRepeated = latest;
+    /* round always to upper value to avoid timeout to be set to 0
+    * if(nextRepeated - now) < (UA_DATETIME_MSEC/2) */
+    if(waitInternal)
+        timeout = (UA_UInt16)(((nextRepeated - now) + (UA_DATETIME_MSEC - 1)) / UA_DATETIME_MSEC);
 
-    UA_LOCK(&server->serviceMutex);
+    server->config.eventLoop->run(server->config.eventLoop, timeout);
 
 #if defined(UA_ENABLE_DISCOVERY_MULTICAST) && (UA_MULTITHREADING < 200)
+
+    UA_LOCK(&server->serviceMutex);
     if(server->config.mdnsEnabled) {
+
         /* TODO multicastNextRepeat does not consider new input data (requests)
          * on the socket. It will be handled on the next call. if needed, we
          * need to use select with timeout on the multicast socket
@@ -684,23 +728,50 @@ UA_Server_run_iterate(UA_Server *server, UA_Boolean waitInternal) {
         if(hasNext == UA_STATUSCODE_GOOD && multicastNextRepeat < nextRepeated)
             nextRepeated = multicastNextRepeat;
     }
+    UA_UNLOCK(&server->serviceMutex);
 #endif
 
-    UA_UNLOCK(&server->serviceMutex);
-
-    now = UA_DateTime_nowMonotonic();
-    timeout = 0;
-    if(nextRepeated > now)
-        timeout = (UA_UInt16)((nextRepeated - now) / UA_DATETIME_MSEC);
     return timeout;
+}
+
+static
+bool
+allEventSourcesStopped(UA_ConnectionManager** sources, size_t count) {
+    UA_Boolean allStopped = true;
+    for (size_t i = 0; i < count; ++i) {
+        UA_ConnectionManager *source = sources[i];
+        allStopped = allStopped && source->eventSource.state == UA_EVENTSOURCESTATE_STOPPED;
+    }
+    return allStopped;
 }
 
 UA_StatusCode
 UA_Server_run_shutdown(UA_Server *server) {
+
     /* Stop the netowrk layer */
     for(size_t i = 0; i < server->config.networkLayersSize; ++i) {
         UA_ServerNetworkLayer *nl = &server->config.networkLayers[i];
         nl->stop(nl, server);
+    }
+
+    for (size_t i = 0; i < server->config.connectionManagersSize; ++i) {
+        UA_ConnectionManager *cm = server->config.connectionManagers[i];
+        if (cm->eventSource.eventLoop != NULL) {
+            cm->eventSource.stop(&cm->eventSource);
+        }
+    }
+
+    UA_DateTime elapsedTime = 0;
+    UA_DateTime startTime = UA_DateTime_nowMonotonic();
+    UA_DateTime timeout = UA_UINT32_MAX / 2;
+
+    UA_EventLoop *el = server->config.eventLoop;
+    while (!allEventSourcesStopped(server->config.connectionManagers,
+                                server->config.connectionManagersSize) &&
+                                elapsedTime < timeout)
+    {
+        el->run(el, 0);
+        elapsedTime = UA_DateTime_nowMonotonic() - startTime;
     }
 
 #ifdef UA_ENABLE_DISCOVERY_MULTICAST
@@ -743,3 +814,4 @@ UA_Server_run(UA_Server *server, const volatile UA_Boolean *running) {
     }
     return UA_Server_run_shutdown(server);
 }
+

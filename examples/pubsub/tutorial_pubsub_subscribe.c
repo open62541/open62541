@@ -5,7 +5,7 @@
  */
 
 /**
- * .. _pubsub-tutorial:
+ * .. _pubsub-subscribe-tutorial:
  *
  * **IMPORTANT ANNOUNCEMENT**
  *
@@ -15,9 +15,10 @@
  *
  * Subscribing Fields
  * ^^^^^^^^^^^^^^^^^^
- * The PubSub subscribe example demonstrates the simplest way to receive information over two transport layers such as
- * UDP and Ethernet, that are published by tutorial_pubsub_publish example and update values in the TargetVariables
- * of Subscriber Information Model.
+ * The PubSub subscribe example demonstrates the simplest way to receive
+ * information over two transport layers such as UDP and Ethernet, that are
+ * published by tutorial_pubsub_publish example and update values in the
+ * TargetVariables of Subscriber Information Model.
  *
  * Run step of the application is as mentioned below:
  *
@@ -26,8 +27,8 @@
  * **Connection handling**
  *
  * PubSubConnections can be created and deleted on runtime. More details about
- * the system preconfiguration and connection can be found in ``tutorial_pubsub_connection.c``.
- */
+ * the system preconfiguration and connection can be found in
+ * ``tutorial_pubsub_connection.c``. */
 
 #include <open62541/plugin/log_stdout.h>
 #include <open62541/plugin/pubsub_udp.h>

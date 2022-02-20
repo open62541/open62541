@@ -137,11 +137,15 @@ setDefaultConfig(UA_ServerConfig *conf) {
 
     /* EventLoop */
     if(conf->eventLoop == NULL) {
-        conf->eventLoop = UA_EventLoop_new(&conf->logger);
+        conf->eventLoop = UA_EventLoop_new_POSIX(&conf->logger);
         conf->externalEventLoop = false;
     }
 
-    /* --> Start setting the default static config <-- */
+    /* Eventsources */
+    conf->connectionManagersSize = 0;
+    /* conf->connectionManagers; */
+
+   /* --> Start setting the default static config <-- */
 
     conf->shutdownDelay = 0.0;
 
@@ -329,6 +333,18 @@ UA_ServerConfig_addNetworkLayerTCP(UA_ServerConfig *conf, UA_UInt16 portNumber,
     if (!conf->networkLayers[conf->networkLayersSize].handle)
         return UA_STATUSCODE_BADOUTOFMEMORY;
     conf->networkLayersSize++;
+
+    /* TCP Eventsource */
+
+    UA_ConnectionManager *tcpCM = UA_ConnectionManager_new_POSIX_TCP(UA_STRING("tcpCM"));
+    conf->connectionManagers[conf->connectionManagersSize] = tcpCM;
+    UA_UInt16 port = portNumber;
+    UA_Variant portVar;
+    UA_Variant_setScalar(&portVar, &port, &UA_TYPES[UA_TYPES_UINT16]);
+    UA_KeyValueMap_set(&tcpCM->eventSource.params, &tcpCM->eventSource.paramsSize, UA_QUALIFIEDNAME(0, "listen-port"), &portVar);
+    conf->connectionManagersSize++;
+
+    conf->eventLoop->registerEventSource(conf->eventLoop, (UA_EventSource *) tcpCM);
 
     return UA_STATUSCODE_GOOD;
 }
@@ -764,7 +780,7 @@ UA_ClientConfig_setDefault(UA_ClientConfig *config) {
 
     /* EventLoop */
     if(config->eventLoop == NULL) {
-        config->eventLoop = UA_EventLoop_new(&config->logger);
+        config->eventLoop = UA_EventLoop_new_POSIX(&config->logger);
         config->externalEventLoop = false;
     }
 
