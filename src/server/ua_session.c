@@ -37,6 +37,10 @@ void UA_Session_clear(UA_Session *session, UA_Server* server) {
     }
 #endif
 
+#ifdef UA_ENABLE_DIAGNOSTICS
+    deleteNode(server, session->sessionId, true);
+#endif
+
     UA_Session_detachFromSecureChannel(session);
     UA_ApplicationDescription_clear(&session->clientDescription);
     UA_NodeId_clear(&session->header.authenticationToken);
@@ -55,6 +59,16 @@ void UA_Session_clear(UA_Session *session, UA_Server* server) {
                     &UA_TYPES[UA_TYPES_KEYVALUEPAIR]);
     session->params = NULL;
     session->paramsSize = 0;
+
+    UA_Array_delete(session->localeIds, session->localeIdsSize,
+                    &UA_TYPES[UA_TYPES_STRING]);
+    session->localeIds = NULL;
+    session->localeIdsSize = 0;
+
+#ifdef UA_ENABLE_DIAGNOSTICS
+    UA_SessionDiagnosticsDataType_clear(&session->diagnostics);
+    UA_SessionSecurityDiagnosticsDataType_clear(&session->securityDiagnostics);
+#endif
 }
 
 void
@@ -101,6 +115,9 @@ UA_Session_generateNonce(UA_Session *session) {
 void UA_Session_updateLifetime(UA_Session *session) {
     session->validTill = UA_DateTime_nowMonotonic() +
         (UA_DateTime)(session->timeout * UA_DATETIME_MSEC);
+#ifdef UA_ENABLE_DIAGNOSTICS
+    session->diagnostics.clientLastContactTime = UA_DateTime_now();
+#endif
 }
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS

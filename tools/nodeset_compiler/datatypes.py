@@ -274,10 +274,21 @@ class Value(object):
                                 t.parseXML(ebodypart)
                                 extobj.value.append(t)
                         elif isinstance(e.member_type, StructType):
+                            # information is_array!
                             structure = Structure()
                             structure.alias = ebodypart.localName
                             structure.value = []
-                            structure.__parseXMLSingleValue(ebodypart, parentDataTypeNode, parent, parser, alias=None, encodingPart=e.member_type)
+                            if e.is_array:
+                                values = []
+                                for el in ebodypart.childNodes:
+                                    if not el.nodeType == el.ELEMENT_NODE:
+                                        continue
+                                    structure.__parseXMLSingleValue(el, parentDataTypeNode, parent, parser, alias=None, encodingPart=e.member_type)
+                                    values.append(structure.value)
+                                    structure.value = []
+                                structure.value = values
+                            else:
+                                structure.__parseXMLSingleValue(ebodypart, parentDataTypeNode, parent, parser, alias=None, encodingPart=e.member_type)
                             extobj.value.append(structure)
                         elif isinstance(e.member_type, EnumerationType):
                             t = self.getTypeByString("Int32", None)
@@ -348,7 +359,7 @@ class Value(object):
                                         self.value.append(t)
                         elif isinstance(e.member_type, StructType):
                             structure = Structure()
-                            structure.alias = ebodypart.localName
+                            structure.alias = e.name
                             structure.value = []
                             structure.__parseXMLSingleValue(childValue, parentDataTypeNode, parent, parser, alias=None, encodingPart=e.member_type)
                             self.value.append(structure)

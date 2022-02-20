@@ -186,6 +186,9 @@ UA_String_fromChars(const char *src) UA_FUNC_ATTR_WARN_UNUSED_RESULT;
 UA_Boolean UA_EXPORT
 UA_String_equal(const UA_String *s1, const UA_String *s2);
 
+UA_Boolean UA_EXPORT
+UA_String_isEmpty(const UA_String *s);
+
 UA_EXPORT extern const UA_String UA_STRING_NULL;
 
 /**
@@ -248,7 +251,7 @@ typedef struct UA_DateTimeStruct {
     UA_UInt16 hour;
     UA_UInt16 day;   /* From 1 to 31 */
     UA_UInt16 month; /* From 1 to 12 */
-    UA_UInt16 year;
+    UA_Int16 year;   /* Can be negative (BC) */
 } UA_DateTimeStruct;
 
 UA_DateTimeStruct UA_EXPORT UA_DateTime_toStruct(UA_DateTime t);
@@ -547,7 +550,7 @@ UA_EXPANDEDNODEID_BYTESTRING_ALLOC(UA_UInt16 nsIndex, const char *chars) {
 
 static UA_INLINE UA_ExpandedNodeId
 UA_EXPANDEDNODEID_NODEID(UA_NodeId nodeId) {
-    UA_ExpandedNodeId id = {0}; id.nodeId = nodeId; return id;
+    UA_ExpandedNodeId id; memset(&id, 0, sizeof(UA_ExpandedNodeId)); id.nodeId = nodeId; return id;
 }
 
 /* Does the ExpandedNodeId point to a local node? That is, are namespaceUri and
@@ -1039,6 +1042,20 @@ typedef struct UA_DataTypeArray {
     const size_t typesSize;
     const UA_DataType *types;
 } UA_DataTypeArray;
+
+/* Returns the offset and type of a structure member. The return value is false
+ * if the member was not found.
+ *
+ * If the member is an array, the offset points to the (size_t) length field.
+ * (The array pointer comes after the length field without any padding.) */
+#ifdef UA_ENABLE_TYPEDESCRIPTION
+UA_Boolean
+UA_DataType_getStructMember(const UA_DataType *type,
+                            const char *memberName,
+                            size_t *outOffset,
+                            const UA_DataType **outMemberType,
+                            UA_Boolean *outIsArray);
+#endif
 
 /* Test if the data type is a numeric builtin data type (via the typeKind field
  * of UA_DataType). This includes integers and floating point numbers. Not

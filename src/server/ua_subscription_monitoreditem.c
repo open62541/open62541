@@ -112,8 +112,15 @@ createEventOverflowNotification(UA_Server *server, UA_Subscription *sub,
             }
         }
     }
+
     ++sub->notificationQueueSize;
     ++sub->eventNotifications;
+
+    /* Update the diagnostics statistics */
+#ifdef UA_ENABLE_DIAGNOSTICS
+    sub->eventQueueOverFlowCount++;
+#endif
+
     return UA_STATUSCODE_GOOD;
 }
 
@@ -220,15 +227,12 @@ UA_Notification_enqueueMon(UA_Server *server, UA_Notification *n) {
      * adding the new Notification. */
     UA_MonitoredItem_ensureQueueSpace(server, mon);
 
-#if UA_LOGLEVEL <= 200
-    UA_Subscription *sub = mon->subscription;
-    UA_LOG_DEBUG_SUBSCRIPTION(&server->config.logger, sub,
+    UA_LOG_DEBUG_SUBSCRIPTION(&server->config.logger, mon->subscription,
                               "MonitoredItem %" PRIi32 " | "
                               "Notification enqueued (Queue size %lu / %lu)",
                               mon->monitoredItemId,
                               (long unsigned)mon->queueSize,
                               (long unsigned)mon->parameters.queueSize);
-#endif
 }
 
 void
@@ -260,30 +264,28 @@ UA_Notification_enqueueSub(UA_Notification *n) {
 
 void
 UA_Notification_enqueueAndTrigger(UA_Server *server, UA_Notification *n) {
-    /* If reporting, enqueue into the Subscription first and then into the
-     * MonitoredItem. Otherwise the reinsertion in
-     * UA_MonitoredItem_ensureQueueSpace might not work. */
     UA_MonitoredItem *mon = n->mon;
+    UA_Subscription *sub = mon->subscription;
+    UA_assert(sub); /* This function is never called for local MonitoredItems */
+
+    /* If reporting or (sampled+triggered), enqueue into the Subscription first
+     * and then into the MonitoredItem. UA_MonitoredItem_ensureQueueSpace
+     * (called within UA_Notification_enqueueMon) assumes the notification is
+     * already in the Subscription's publishing queue. */
     if(mon->monitoringMode == UA_MONITORINGMODE_REPORTING ||
        (mon->monitoringMode == UA_MONITORINGMODE_SAMPLING &&
         mon->triggeredUntil > UA_DateTime_nowMonotonic())) {
         UA_Notification_enqueueSub(n);
         mon->triggeredUntil = UA_INT64_MIN;
-        if(mon->subscription) {
-            UA_LOG_DEBUG_SUBSCRIPTION(&server->config.logger, mon->subscription,
-                                      "Notification enqueued (Queue size %lu)",
-                                      (long unsigned)mon->subscription->notificationQueueSize);
-        }
+        UA_LOG_DEBUG_SUBSCRIPTION(&server->config.logger, mon->subscription,
+                                  "Notification enqueued (Queue size %lu)",
+                                  (long unsigned)mon->subscription->notificationQueueSize);
     }
 
     /* Insert into the MonitoredItem. This checks the queue size and
      * handles overflow. */
     UA_Notification_enqueueMon(server, n);
 
-    UA_Subscription *sub = mon->subscription;
-    if(!sub)
-        return; /* Currently not for local MonitoredItems, as the triggering
-                 * link stays within the Subscription */
     for(size_t i = mon->triggeringLinksSize - 1; i < mon->triggeringLinksSize; i--) {
         /* Get the triggered MonitoredItem. Remove the link if the MI doesn't exist. */
         UA_MonitoredItem *triggeredMon =
@@ -599,7 +601,8 @@ UA_MonitoredItem_delete(UA_Server *server, UA_MonitoredItem *mon) {
     mon->delayedFreePointers.callback = NULL;
     mon->delayedFreePointers.application = server;
     mon->delayedFreePointers.data = NULL;
-    UA_EventLoop_addDelayedCallback(server->config.eventLoop, &mon->delayedFreePointers);
+    server->config.eventLoop->
+        addDelayedCallback(server->config.eventLoop, &mon->delayedFreePointers);
 }
 
 void
@@ -609,12 +612,15 @@ UA_MonitoredItem_ensureQueueSpace(UA_Server *server, UA_MonitoredItem *mon) {
     UA_assert(mon->queueSize >= mon->eventOverflows);
     UA_assert(mon->eventOverflows <= mon->queueSize - mon->eventOverflows + 1);
 
+    /* Always attached to a Subscription (no local MonitoredItem) */
+    UA_Subscription *sub = mon->subscription;
+    UA_assert(sub);
+
     /* Nothing to do */
     if(mon->queueSize - mon->eventOverflows <= mon->parameters.queueSize)
         return;
     
     /* Remove notifications until the required queue size is reached */
-    UA_Subscription *sub = mon->subscription;
     UA_Boolean reporting = false;
     size_t remove = mon->queueSize - mon->eventOverflows - mon->parameters.queueSize;
     while(remove > 0) {
@@ -672,6 +678,11 @@ UA_MonitoredItem_ensureQueueSpace(UA_Server *server, UA_MonitoredItem *mon) {
 
         /* Delete the notification and remove it from the queues */
         UA_Notification_delete(del);
+
+        /* Update the subscription diagnostics statistics */
+#ifdef UA_ENABLE_DIAGNOSTICS
+        sub->monitoringQueueOverflowCount++;
+#endif
 
         /* Assertions to help Clang's scan-analyzer */
         UA_assert(del != TAILQ_FIRST(&mon->queue));

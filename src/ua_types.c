@@ -38,7 +38,7 @@ const UA_String UA_STRING_NULL = {0};
 const UA_ByteString UA_BYTESTRING_NULL = {0};
 const UA_Guid UA_GUID_NULL = {0};
 const UA_NodeId UA_NODEID_NULL = {0};
-const UA_ExpandedNodeId UA_EXPANDEDNODEID_NULL = {0};
+const UA_ExpandedNodeId UA_EXPANDEDNODEID_NULL = { {0}, {0}, 0 };
 
 typedef UA_StatusCode
 (*UA_copySignature)(const void *src, void *dst, const UA_DataType *type);
@@ -134,6 +134,11 @@ UA_String_equal(const UA_String *s1, const UA_String *s2) {
     return (stringOrder(s1, s2, NULL) == UA_ORDER_EQ);
 }
 
+UA_Boolean
+UA_String_isEmpty(const UA_String *s) {
+    return (s->length == 0 || s->data == NULL);
+}
+
 /* Do not expose UA_String_equal_ignorecase to public API as it currently only handles
  * ASCII strings, and not UTF8! */
 UA_Boolean
@@ -192,30 +197,33 @@ UA_QualifiedName_equal(const UA_QualifiedName *qn1,
 /* DateTime */
 UA_DateTimeStruct
 UA_DateTime_toStruct(UA_DateTime t) {
-    /* Calculating the the milli-, micro- and nanoseconds */
-    UA_DateTimeStruct dateTimeStruct;
-    if(t >= 0) {
-        dateTimeStruct.nanoSec  = (u16)((t % 10) * 100);
-        dateTimeStruct.microSec = (u16)((t % 10000) / 10);
-        dateTimeStruct.milliSec = (u16)((t % 10000000) / 10000);
-    } else {
-        dateTimeStruct.nanoSec  = (u16)(((t % 10 + t) % 10) * 100);
-        dateTimeStruct.microSec = (u16)(((t % 10000 + t) % 10000) / 10);
-        dateTimeStruct.milliSec = (u16)(((t % 10000000 + t) % 10000000) / 10000);
-    }
-
-    /* Calculating the unix time with #include <time.h> */
+    /* Divide, then subtract -> avoid underflow. Also, negative numbers are
+     * rounded up, not down. */
     long long secSinceUnixEpoch = (long long)(t / UA_DATETIME_SEC)
         - (long long)(UA_DATETIME_UNIX_EPOCH / UA_DATETIME_SEC);
+
+    /* Negative fractions of a second? Remove one full second from the epoch
+     * distance and allow only a positive fraction. */
+    UA_DateTime frac = t % UA_DATETIME_SEC;
+    if(frac < 0) {
+        secSinceUnixEpoch--;
+        frac += UA_DATETIME_SEC;
+    }
+
     struct mytm ts;
     memset(&ts, 0, sizeof(struct mytm));
     __secs_to_tm(secSinceUnixEpoch, &ts);
-    dateTimeStruct.sec    = (u16)ts.tm_sec;
-    dateTimeStruct.min    = (u16)ts.tm_min;
-    dateTimeStruct.hour   = (u16)ts.tm_hour;
-    dateTimeStruct.day    = (u16)ts.tm_mday;
+
+    UA_DateTimeStruct dateTimeStruct;
+    dateTimeStruct.year   = (i16)(ts.tm_year + 1900);
     dateTimeStruct.month  = (u16)(ts.tm_mon + 1);
-    dateTimeStruct.year   = (u16)(ts.tm_year + 1900);
+    dateTimeStruct.day    = (u16)ts.tm_mday;
+    dateTimeStruct.hour   = (u16)ts.tm_hour;
+    dateTimeStruct.min    = (u16)ts.tm_min;
+    dateTimeStruct.sec    = (u16)ts.tm_sec;
+    dateTimeStruct.milliSec = (u16)((frac % 10000000) / 10000);
+    dateTimeStruct.microSec = (u16)((frac % 10000) / 10);
+    dateTimeStruct.nanoSec  = (u16)((frac % 10) * 100);
     return dateTimeStruct;
 }
 
@@ -1826,6 +1834,49 @@ UA_Array_delete(void *p, size_t size, const UA_DataType *type) {
     }
     UA_free((void*)((uintptr_t)p & ~(uintptr_t)UA_EMPTY_ARRAY_SENTINEL));
 }
+
+#ifdef UA_ENABLE_TYPEDESCRIPTION
+UA_Boolean
+UA_DataType_getStructMember(const UA_DataType *type, const char *memberName,
+                            size_t *outOffset, const UA_DataType **outMemberType,
+                            UA_Boolean *outIsArray) {
+    if(type->typeKind != UA_DATATYPEKIND_STRUCTURE &&
+       type->typeKind != UA_DATATYPEKIND_OPTSTRUCT)
+        return false;
+
+    size_t offset = 0;
+    for(size_t i = 0; i < type->membersSize; ++i) {
+        const UA_DataTypeMember *m = &type->members[i];
+        const UA_DataType *mt = m->memberType;
+        offset += m->padding;
+
+        if(strcmp(memberName, m->memberName) == 0) {
+            *outOffset = offset;
+            *outMemberType = mt;
+            *outIsArray = m->isArray;
+            return true;
+        }
+
+        if(!m->isOptional) {
+            if(!m->isArray) {
+                offset += mt->memSize;
+            } else {
+                offset += sizeof(size_t);
+                offset += sizeof(void*);
+            }
+        } else { /* field is optional */
+            if(!m->isArray) {
+                offset += sizeof(void *);
+            } else {
+                offset += sizeof(size_t);
+                offset += sizeof(void *);
+            }
+        }
+    }
+
+    return false;
+}
+#endif
 
 UA_Boolean
 UA_DataType_isNumeric(const UA_DataType *type) {
