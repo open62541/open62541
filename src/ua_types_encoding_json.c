@@ -1924,8 +1924,11 @@ DECODE_JSON(Float) {
         return UA_STATUSCODE_BADDECODINGERROR;
 
     jsmntype_t tokenType = getJsmnType(parseCtx);
+
+    /* It could be a String with NaN, Infinity */
     if(tokenType == JSMN_STRING) {
-        /*It could be a String with Nan, Infinity*/
+        parseCtx->index++;
+
         if(tokenSize == 8 && memcmp(tokenData, "Infinity", 8) == 0) {
             *dst = (UA_Float)INFINITY;
             return UA_STATUSCODE_GOOD;
@@ -1946,6 +1949,7 @@ DECODE_JSON(Float) {
             *dst = (UA_Float)NAN;
             return UA_STATUSCODE_GOOD;
         }
+
         return UA_STATUSCODE_BADDECODINGERROR;
     }
 
@@ -1993,8 +1997,11 @@ DECODE_JSON(Double) {
         return UA_STATUSCODE_BADDECODINGERROR;
 
     jsmntype_t tokenType = getJsmnType(parseCtx);
+
+    /* It could be a String with Nan, Infinity */
     if(tokenType == JSMN_STRING) {
-        /*It could be a String with Nan, Infinity*/
+        parseCtx->index++;
+
         if(tokenSize == 8 && memcmp(tokenData, "Infinity", 8) == 0) {
             *dst = INFINITY;
             return UA_STATUSCODE_GOOD;
@@ -2015,6 +2022,7 @@ DECODE_JSON(Double) {
             *dst = NAN;
             return UA_STATUSCODE_GOOD;
         }
+
         return UA_STATUSCODE_BADDECODINGERROR;
     }
 
