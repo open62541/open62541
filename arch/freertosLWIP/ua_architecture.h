@@ -24,6 +24,7 @@
 #define UA_LOCK_ASSERT(lock, num)
 #endif
 
+#include <strings.h>
 #define UA_strncasecmp strncasecmp
 
 // freeRTOS does not have getifaddr
