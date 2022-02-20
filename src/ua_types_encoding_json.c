@@ -2780,15 +2780,15 @@ DECODE_JSON(ExtensionObject) {
     CHECK_OBJECT;
 
     /* Search for Encoding */
-    size_t searchEncodingResult = 0;
-    status ret = lookAheadForKey(UA_JSONKEY_ENCODING, ctx, parseCtx, &searchEncodingResult);
+    size_t encodingPos = 0;
+    status ret = lookAheadForKey(UA_JSONKEY_ENCODING, ctx, parseCtx, &encodingPos);
 
     /* UA_JSONKEY_ENCODING found */
     if(ret == UA_STATUSCODE_GOOD) {
         /* Parse the encoding */
         UA_UInt64 encoding = 0;
-        char *extObjEncoding = (char*)(ctx->pos + parseCtx->tokenArray[searchEncodingResult].start);
-        size_t size = (size_t)(parseCtx->tokenArray[searchEncodingResult].end - parseCtx->tokenArray[searchEncodingResult].start);
+        char *extObjEncoding = (char*)(ctx->pos + parseCtx->tokenArray[encodingPos].start);
+        size_t size = (size_t)(parseCtx->tokenArray[encodingPos].end - parseCtx->tokenArray[encodingPos].start);
         atoiUnsigned(extObjEncoding, size, &encoding);
 
         if(encoding == 1) {
