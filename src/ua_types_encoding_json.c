@@ -2040,12 +2040,13 @@ DECODE_JSON(Double) {
     d = (UA_Double)__floatscan(string, 2, 0);
 #else
     char c = 0;
-    /* On success, the function returns the number of variables filled.
-     * In the case of an input failure before any data could be successfully read, EOF is returned. */
+    /* On success, the function returns the number of variables filled. In the
+     * case of an input failure before any data could be successfully read, EOF
+     * is returned. */
     int ret = sscanf(string, "%lf%c", &d, &c);
 
-    /* Exactly one var must be filled. %c acts as a guard for wrong input which is accepted by sscanf.
-    E.g. 1.23.45 is not accepted. */
+    /* Exactly one var must be filled. %c acts as a guard for wrong input which
+    is accepted by sscanf. E.g. 1.23.45 is not accepted. */
     if(ret == EOF || (ret != 1))
         return UA_STATUSCODE_BADDECODINGERROR;
 #endif
@@ -3070,8 +3071,9 @@ decodeFields(CtxJson *ctx, ParseCtx *parseCtx,
             }
 
             /* Decode */
-            ret = entries[index].function(entries[index].fieldPointer, entries[index].type,
-                                          ctx, parseCtx, true);
+            ret = entries[index].function(entries[index].fieldPointer,
+                                          entries[index].type, ctx,
+                                          parseCtx, true);
             if(ret != UA_STATUSCODE_GOOD)
                 return ret;
             break;
@@ -3117,8 +3119,9 @@ Array_decodeJson_internal(void **dst, const UA_DataType *type, CtxJson *ctx,
     /* Decode array members */
     uintptr_t ptr = (uintptr_t)*dst;
     for(size_t i = 0; i < length; ++i) {
-        status ret;
-        ret = decodeJsonJumpTable[type->typeKind]((void*)ptr, type, ctx, parseCtx, true);
+        status ret =
+            decodeJsonJumpTable[type->typeKind]((void*)ptr, type,
+                                                ctx, parseCtx, true);
         if(ret != UA_STATUSCODE_GOOD) {
             UA_Array_delete(*dst, i+1, type);
             *dst = NULL;
@@ -3131,10 +3134,10 @@ Array_decodeJson_internal(void **dst, const UA_DataType *type, CtxJson *ctx,
     return UA_STATUSCODE_GOOD;
 }
 
-/*Wrapper for array with valid decodingStructure.*/
+/* Wrapper for array with valid decodingStructure */
 static status
 Array_decodeJson(void * dst, const UA_DataType *type, CtxJson *ctx,
-        ParseCtx *parseCtx, UA_Boolean moveToken) {
+                 ParseCtx *parseCtx, UA_Boolean moveToken) {
     return Array_decodeJson_internal((void **)dst, type, ctx, parseCtx, moveToken);
 }
 
