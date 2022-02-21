@@ -1109,8 +1109,8 @@ connectSync(UA_Client *client) {
         now = UA_DateTime_nowMonotonic();
         if(maxDate < now) {
             /* set maxDate to now so timeout will be detected when calling
-	     * UA_Client_run_iterate
-	     */
+             * UA_Client_run_iterate
+             */
             maxDate = now;
         }
         retval = UA_Client_run_iterate(client,
