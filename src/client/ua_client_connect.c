@@ -1107,8 +1107,12 @@ connectSync(UA_Client *client) {
         if(client->noSession && client->channel.state == UA_SECURECHANNELSTATE_OPEN)
             break;
         now = UA_DateTime_nowMonotonic();
-        if(maxDate < now)
-            return UA_STATUSCODE_BADTIMEOUT;
+        if(maxDate < now) {
+            /* set maxDate to now so timeout will be detected when calling
+	     * UA_Client_run_iterate
+	     */
+            maxDate = now;
+        }
         retval = UA_Client_run_iterate(client,
                                        (UA_UInt32)((maxDate - now) / UA_DATETIME_MSEC));
     }
