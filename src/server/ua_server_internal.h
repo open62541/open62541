@@ -213,6 +213,10 @@ getNamespaceByName(UA_Server *server, const UA_String namespaceUri,
                    size_t *foundIndex);
 
 UA_StatusCode
+getNamespaceByIndex(UA_Server *server, const size_t namespaceIndex,
+                    UA_String *foundUri);
+
+UA_StatusCode
 getBoundSession(UA_Server *server, const UA_SecureChannel *channel,
                 const UA_NodeId *token, UA_Session **session);
 

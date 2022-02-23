@@ -1666,6 +1666,11 @@ UA_StatusCode UA_EXPORT UA_THREADSAFE
 UA_Server_getNamespaceByName(UA_Server *server, const UA_String namespaceUri,
                              size_t* foundIndex);
 
+/* Get namespace by id from the server. */
+UA_StatusCode UA_EXPORT UA_THREADSAFE
+UA_Server_getNamespaceByIndex(UA_Server *server, const size_t namespaceIndex,
+                              UA_String *foundUri);
+
 /**
 * .. _async-operations:
 *
