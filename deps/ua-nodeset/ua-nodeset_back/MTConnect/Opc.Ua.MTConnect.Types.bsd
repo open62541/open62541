@@ -1,0 +1,511 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<!--
+ * Copyright (c) 2005-2020 The OPC Foundation, Inc. All rights reserved.
+ *
+ * OPC Foundation MIT License 1.00
+ * 
+ * Permission is hereby granted, free of charge, to any person
+ * obtaining a copy of this software and associated documentation
+ * files (the "Software"), to deal in the Software without
+ * restriction, including without limitation the rights to use,
+ * copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the
+ * Software is furnished to do so, subject to the following
+ * conditions:
+ * 
+ * The above copyright notice and this permission notice shall be
+ * included in all copies or substantial portions of the Software.
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+ * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
+ * OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+ * NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
+ * HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+ * WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+ * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+ * OTHER DEALINGS IN THE SOFTWARE.
+ *
+ * The complete license agreement can be found here:
+ * http://opcfoundation.org/License/MIT/1.00/
+-->
+
+<opc:TypeDictionary
+  xmlns:opc="http://opcfoundation.org/BinarySchema/"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xmlns:ua="http://opcfoundation.org/UA/"
+  xmlns:tns="http://opcfoundation.org/UA/MTConnect/"
+  DefaultByteOrder="LittleEndian"
+  TargetNamespace="http://opcfoundation.org/UA/MTConnect/"
+>
+  <opc:Import Namespace="http://opcfoundation.org/UA/" Location="Opc.Ua.BinarySchema.bsd"/>
+
+  <opc:EnumeratedType Name="ActuatorStateTypeEnum" LengthInBits="32">
+    <opc:EnumeratedValue Name="ACTIVE_1" Value="1" />
+    <opc:EnumeratedValue Name="INACTIVE_2" Value="2" />
+  </opc:EnumeratedType>
+
+  <opc:EnumeratedType Name="AlarmStateTypeEnum" LengthInBits="32">
+    <opc:EnumeratedValue Name="ACTIVE_1" Value="1" />
+    <opc:EnumeratedValue Name="CLEARED_2" Value="2" />
+  </opc:EnumeratedType>
+
+  <opc:OpaqueType Name="AssetDescriptionType">
+  </opc:OpaqueType>
+
+  <opc:OpaqueType Name="AssetAttrDataType">
+  </opc:OpaqueType>
+
+  <opc:OpaqueType Name="AssetBufferSizeDataType">
+  </opc:OpaqueType>
+
+  <opc:OpaqueType Name="AssetIdDataType">
+  </opc:OpaqueType>
+
+  <opc:EnumeratedType Name="AvailabilityTypeEnum" LengthInBits="32">
+    <opc:EnumeratedValue Name="AVAILABLE_1" Value="1" />
+    <opc:EnumeratedValue Name="UNAVAILABLE_2" Value="2" />
+  </opc:EnumeratedType>
+
+  <opc:EnumeratedType Name="AxesCouplingTypeEnum" LengthInBits="32">
+    <opc:EnumeratedValue Name="MASTER_1" Value="1" />
+    <opc:EnumeratedValue Name="SLAVE_2" Value="2" />
+    <opc:EnumeratedValue Name="SYCHRONOUS_3" Value="3" />
+    <opc:EnumeratedValue Name="TANDEM_4" Value="4" />
+    <opc:EnumeratedValue Name="UNAVAILABLE_5" Value="5" />
+  </opc:EnumeratedType>
+
+  <opc:OpaqueType Name="AxesListValueDataType">
+  </opc:OpaqueType>
+
+  <opc:OpaqueType Name="BufferSizeDataType">
+  </opc:OpaqueType>
+
+  <opc:OpaqueType Name="CalibrationDateDataType">
+  </opc:OpaqueType>
+
+  <opc:OpaqueType Name="CalibrationInitialsDataType">
+  </opc:OpaqueType>
+
+  <opc:EnumeratedType Name="CategoryTypeEnum" LengthInBits="32">
+    <opc:EnumeratedValue Name="CONDITION_1" Value="1" />
+    <opc:EnumeratedValue Name="EVENT_2" Value="2" />
+    <opc:EnumeratedValue Name="SAMPLE_3" Value="3" />
+  </opc:EnumeratedType>
+
+  <opc:OpaqueType Name="ChannelNumberDataType">
+  </opc:OpaqueType>
+
+  <opc:EnumeratedType Name="ClampStateTypeEnum" LengthInBits="32">
+    <opc:EnumeratedValue Name="CLOSED_1" Value="1" />
+    <opc:EnumeratedValue Name="INDETERMINATE_2" Value="2" />
+    <opc:EnumeratedValue Name="OPEN_3" Value="3" />
+    <opc:EnumeratedValue Name="UNAVAILABLE_4" Value="4" />
+  </opc:EnumeratedType>
+
+  <opc:OpaqueType Name="ConditionDescriptionDataType">
+  </opc:OpaqueType>
+
+  <opc:EnumeratedType Name="ControllerModeTypeEnum" LengthInBits="32">
+    <opc:EnumeratedValue Name="AUTOMATIC_1" Value="1" />
+    <opc:EnumeratedValue Name="MANUAL_2" Value="2" />
+    <opc:EnumeratedValue Name="MANUAL_DATA_INPUT_3" Value="3" />
+    <opc:EnumeratedValue Name="SEMI_AUTOMATIC_4" Value="4" />
+    <opc:EnumeratedValue Name="UNAVAILABLE_5" Value="5" />
+  </opc:EnumeratedType>
+
+  <opc:EnumeratedType Name="CoordinateSystemTypeEnum" LengthInBits="32">
+    <opc:EnumeratedValue Name="MACHINE_1" Value="1" />
+    <opc:EnumeratedValue Name="WORK_2" Value="2" />
+  </opc:EnumeratedType>
+
+  <opc:OpaqueType Name="IDDataType">
+  </opc:OpaqueType>
+
+  <opc:OpaqueType Name="CodeDataType">
+  </opc:OpaqueType>
+
+  <opc:OpaqueType Name="ComponentIdDataType">
+  </opc:OpaqueType>
+
+  <opc:OpaqueType Name="ConnectionCodeMachineSideDataType">
+  </opc:OpaqueType>
+
+  <opc:OpaqueType Name="CountValueDataType">
+  </opc:OpaqueType>
+
+  <opc:OpaqueType Name="CreationTimeDataType">
+  </opc:OpaqueType>
+
+  <opc:EnumeratedType Name="CutterStatusValueTypeEnum" LengthInBits="32">
+    <opc:EnumeratedValue Name="ALLOCATED_1" Value="1" />
+    <opc:EnumeratedValue Name="AVAILABLE_2" Value="2" />
+    <opc:EnumeratedValue Name="BROKEN_3" Value="3" />
+    <opc:EnumeratedValue Name="EXPIRED_4" Value="4" />
+    <opc:EnumeratedValue Name="MEASURED_5" Value="5" />
+    <opc:EnumeratedValue Name="NEW_6" Value="6" />
+    <opc:EnumeratedValue Name="NOT_REGISTERED_7" Value="7" />
+    <opc:EnumeratedValue Name="RECONDITIONED_8" Value="8" />
+    <opc:EnumeratedValue Name="TAGGED_OUT_9" Value="9" />
+    <opc:EnumeratedValue Name="UNALLOCATED_10" Value="10" />
+    <opc:EnumeratedValue Name="UNAVAILABLE_11" Value="11" />
+    <opc:EnumeratedValue Name="UNKNOWN_12" Value="12" />
+    <opc:EnumeratedValue Name="USED_13" Value="13" />
+  </opc:EnumeratedType>
+
+  <opc:StructuredType Name="DataItemEnumDataType" BaseType="ua:ExtensionObject">
+    <opc:Field Name="DataItemEnum" TypeName="tns:DataItemEnumTypeEnum" />
+    <opc:Field Name="DataItemEnumString" TypeName="opc:String" />
+  </opc:StructuredType>
+
+  <opc:EnumeratedType Name="DataItemEnumTypeEnum" LengthInBits="32">
+    <opc:EnumeratedValue Name="ACCELERATION_1" Value="1" />
+    <opc:EnumeratedValue Name="ACCUMULATED_TIME_2" Value="2" />
+    <opc:EnumeratedValue Name="ACTIVE_AXES_3" Value="3" />
+    <opc:EnumeratedValue Name="ACTUATOR_4" Value="4" />
+    <opc:EnumeratedValue Name="ACTUATOR_STATE_5" Value="5" />
+    <opc:EnumeratedValue Name="ALARM_6" Value="6" />
+    <opc:EnumeratedValue Name="AMPERAGE_7" Value="7" />
+    <opc:EnumeratedValue Name="ANGLE_8" Value="8" />
+    <opc:EnumeratedValue Name="ANGULAR_ACCELERATION_9" Value="9" />
+    <opc:EnumeratedValue Name="ANGULAR_VELOCITY_10" Value="10" />
+    <opc:EnumeratedValue Name="ASSET_CHANGED_11" Value="11" />
+    <opc:EnumeratedValue Name="AVAILABILITY_12" Value="12" />
+    <opc:EnumeratedValue Name="AXIS_COUPLING_13" Value="13" />
+    <opc:EnumeratedValue Name="AXIS_FEEDRATE_14" Value="14" />
+    <opc:EnumeratedValue Name="BLOCK_15" Value="15" />
+    <opc:EnumeratedValue Name="CODE_16" Value="16" />
+    <opc:EnumeratedValue Name="COMMUNICATIONS_17" Value="17" />
+    <opc:EnumeratedValue Name="CONCENTRATION_18" Value="18" />
+    <opc:EnumeratedValue Name="CONDUCTIVITY_19" Value="19" />
+    <opc:EnumeratedValue Name="CONTROLLER_MODE_20" Value="20" />
+    <opc:EnumeratedValue Name="COUPLED_AXES_21" Value="21" />
+    <opc:EnumeratedValue Name="DIRECTION_22" Value="22" />
+    <opc:EnumeratedValue Name="DISPLACEMENT_23" Value="23" />
+    <opc:EnumeratedValue Name="DOOR_STATE_24" Value="24" />
+    <opc:EnumeratedValue Name="ELECTRICAL_POWER_25" Value="25" />
+    <opc:EnumeratedValue Name="EMERGENCY_STOP_26" Value="26" />
+    <opc:EnumeratedValue Name="EXECUTION_27" Value="27" />
+    <opc:EnumeratedValue Name="FILL_LEVEL_28" Value="28" />
+    <opc:EnumeratedValue Name="FLOW_29" Value="29" />
+    <opc:EnumeratedValue Name="FREQUENCY_30" Value="30" />
+    <opc:EnumeratedValue Name="HARDWARE_31" Value="31" />
+    <opc:EnumeratedValue Name="LEVEL_32" Value="32" />
+    <opc:EnumeratedValue Name="LINE_33" Value="33" />
+    <opc:EnumeratedValue Name="LINEAR_FORCE_34" Value="34" />
+    <opc:EnumeratedValue Name="LOAD_35" Value="35" />
+    <opc:EnumeratedValue Name="LOGIC_PROGRAM_36" Value="36" />
+    <opc:EnumeratedValue Name="MASS_37" Value="37" />
+    <opc:EnumeratedValue Name="MESSAGE_38" Value="38" />
+    <opc:EnumeratedValue Name="MOTION_PROGRAM_39" Value="39" />
+    <opc:EnumeratedValue Name="PART_COUNT_40" Value="40" />
+    <opc:EnumeratedValue Name="PART_ID_41" Value="41" />
+  </opc:EnumeratedType>
+
+  <opc:OpaqueType Name="DataItemIdDataType">
+  </opc:OpaqueType>
+
+  <opc:StructuredType Name="DataItemStatisticsDataType" BaseType="ua:ExtensionObject">
+    <opc:Field Name="DataItemStatisticsEnum" TypeName="tns:DataItemStatisticsTypeEnum" />
+    <opc:Field Name="DataItemStatisticsString" TypeName="opc:String" />
+  </opc:StructuredType>
+
+  <opc:EnumeratedType Name="DataItemStatisticsTypeEnum" LengthInBits="32">
+    <opc:EnumeratedValue Name="AVERAGE_1" Value="1" />
+    <opc:EnumeratedValue Name="KURTOSIS_2" Value="2" />
+    <opc:EnumeratedValue Name="MAXIMUM_3" Value="3" />
+    <opc:EnumeratedValue Name="MEAN_4" Value="4" />
+    <opc:EnumeratedValue Name="MINIMUM_5" Value="5" />
+    <opc:EnumeratedValue Name="MODE_6" Value="6" />
+    <opc:EnumeratedValue Name="RANGE_7" Value="7" />
+    <opc:EnumeratedValue Name="ROOT_MEAN_SQUARE_8" Value="8" />
+    <opc:EnumeratedValue Name="STANDARD_DEVIATION_9" Value="9" />
+  </opc:EnumeratedType>
+
+  <opc:EnumeratedType Name="DataItemSubEnumTypeEnum" LengthInBits="32">
+    <opc:EnumeratedValue Name="ACTUAL_1" Value="1" />
+    <opc:EnumeratedValue Name="ALL_2" Value="2" />
+    <opc:EnumeratedValue Name="ALTERNATING_3" Value="3" />
+    <opc:EnumeratedValue Name="A_SCALE_4" Value="4" />
+    <opc:EnumeratedValue Name="BAD_5" Value="5" />
+    <opc:EnumeratedValue Name="B_SCALE_6" Value="6" />
+    <opc:EnumeratedValue Name="COMMANDED_7" Value="7" />
+    <opc:EnumeratedValue Name="CONTROL_8" Value="8" />
+    <opc:EnumeratedValue Name="C_SCALE_9" Value="9" />
+    <opc:EnumeratedValue Name="DIRECT_10" Value="10" />
+    <opc:EnumeratedValue Name="DYNAMIC_11" Value="11" />
+    <opc:EnumeratedValue Name="D_SCALE_12" Value="12" />
+    <opc:EnumeratedValue Name="GOOD_13" Value="13" />
+    <opc:EnumeratedValue Name="KINETIC_14" Value="14" />
+    <opc:EnumeratedValue Name="LINE_15" Value="15" />
+    <opc:EnumeratedValue Name="MAXIMUM_16" Value="16" />
+    <opc:EnumeratedValue Name="MINIMUM_17" Value="17" />
+    <opc:EnumeratedValue Name="MOLE_18" Value="18" />
+    <opc:EnumeratedValue Name="NO_SCALE_19" Value="19" />
+    <opc:EnumeratedValue Name="OTHER_20" Value="20" />
+    <opc:EnumeratedValue Name="OVERRIDE_21" Value="21" />
+    <opc:EnumeratedValue Name="PROBE_22" Value="22" />
+    <opc:EnumeratedValue Name="TARGET_23" Value="23" />
+    <opc:EnumeratedValue Name="VOLUME_24" Value="24" />
+    <opc:EnumeratedValue Name="WEIGHT_25" Value="25" />
+  </opc:EnumeratedType>
+
+  <opc:EnumeratedType Name="DefinitionFormatTypeEnum" LengthInBits="32">
+    <opc:EnumeratedValue Name="EXPRESS_1" Value="1" />
+    <opc:EnumeratedValue Name="TEXT_2" Value="2" />
+    <opc:EnumeratedValue Name="UNDEFINED_3" Value="3" />
+    <opc:EnumeratedValue Name="XML_4" Value="4" />
+  </opc:EnumeratedType>
+
+  <opc:OpaqueType Name="DecibelValueDataType">
+  </opc:OpaqueType>
+
+  <opc:OpaqueType Name="DescriptionTextDataType">
+  </opc:OpaqueType>
+
+  <opc:EnumeratedType Name="DirectionTypeEnum" LengthInBits="32">
+    <opc:EnumeratedValue Name="CLOCKWISE_1" Value="1" />
+    <opc:EnumeratedValue Name="COUNTER_CLOCKWISE_2" Value="2" />
+    <opc:EnumeratedValue Name="NEGATIVE_3" Value="3" />
+    <opc:EnumeratedValue Name="POSITIVE_4" Value="4" />
+    <opc:EnumeratedValue Name="UNAVAILABLE_5" Value="5" />
+  </opc:EnumeratedType>
+
+  <opc:EnumeratedType Name="DoorStateTypeEnum" LengthInBits="32">
+    <opc:EnumeratedValue Name="CLOSED_1" Value="1" />
+    <opc:EnumeratedValue Name="INDETERMINATE_2" Value="2" />
+    <opc:EnumeratedValue Name="OPEN_3" Value="3" />
+    <opc:EnumeratedValue Name="UNAVAILABLE_4" Value="4" />
+  </opc:EnumeratedType>
+
+  <opc:OpaqueType Name="DurationTimeDataType">
+  </opc:OpaqueType>
+
+  <opc:OpaqueType Name="DurationValueDataType">
+  </opc:OpaqueType>
+
+  <opc:OpaqueType Name="EdgeCountDataType">
+  </opc:OpaqueType>
+
+  <opc:EnumeratedType Name="EmergencyStopTypeEnum" LengthInBits="32">
+    <opc:EnumeratedValue Name="ARMED_1" Value="1" />
+    <opc:EnumeratedValue Name="TRIGGERED_2" Value="2" />
+    <opc:EnumeratedValue Name="UNAVAILABLE_3" Value="3" />
+  </opc:EnumeratedType>
+
+  <opc:OpaqueType Name="EnergyValueDataType">
+  </opc:OpaqueType>
+
+  <opc:EnumeratedType Name="ExecutionTypeEnum" LengthInBits="32">
+    <opc:EnumeratedValue Name="ACTIVE_1" Value="1" />
+    <opc:EnumeratedValue Name="INTERRUPTED_2" Value="2" />
+    <opc:EnumeratedValue Name="READY_3" Value="3" />
+    <opc:EnumeratedValue Name="STOPPED_4" Value="4" />
+    <opc:EnumeratedValue Name="UNAVAILABLE_5" Value="5" />
+  </opc:EnumeratedType>
+
+  <opc:OpaqueType Name="FeedrateValueDataType">
+  </opc:OpaqueType>
+
+  <opc:OpaqueType Name="FirmwareVersionDataType">
+  </opc:OpaqueType>
+
+  <opc:OpaqueType Name="ForceValueDataType">
+  </opc:OpaqueType>
+
+  <opc:OpaqueType Name="GradeDataType">
+  </opc:OpaqueType>
+
+  <opc:OpaqueType Name="IndexRangeDataType">
+  </opc:OpaqueType>
+
+  <opc:OpaqueType Name="InstanceIdDataType">
+  </opc:OpaqueType>
+
+  <opc:OpaqueType Name="ItemIdDataType">
+  </opc:OpaqueType>
+
+  <opc:EnumeratedType Name="InterfaceStateTypeEnum" LengthInBits="32">
+    <opc:EnumeratedValue Name="ACTIVE_1" Value="1" />
+    <opc:EnumeratedValue Name="COMPLETE_2" Value="2" />
+    <opc:EnumeratedValue Name="FAIL_3" Value="3" />
+    <opc:EnumeratedValue Name="READY_4" Value="4" />
+  </opc:EnumeratedType>
+
+  <opc:OpaqueType Name="ItemSourceDataType">
+  </opc:OpaqueType>
+
+  <opc:OpaqueType Name="LocationSizeDataType">
+  </opc:OpaqueType>
+
+  <opc:OpaqueType Name="LocationValueDataType">
+  </opc:OpaqueType>
+
+  <opc:EnumeratedType Name="LocationsTypeEnum" LengthInBits="32">
+    <opc:EnumeratedValue Name="CRIB_1" Value="1" />
+    <opc:EnumeratedValue Name="POT_2" Value="2" />
+    <opc:EnumeratedValue Name="STATION_3" Value="3" />
+    <opc:EnumeratedValue Name="READY_4" Value="4" />
+  </opc:EnumeratedType>
+
+  <opc:OpaqueType Name="LocusDataType">
+  </opc:OpaqueType>
+
+  <opc:OpaqueType Name="ManufacturersDataType">
+  </opc:OpaqueType>
+
+  <opc:OpaqueType Name="MassValueDataType">
+  </opc:OpaqueType>
+
+  <opc:OpaqueType Name="MaximumCountDataType">
+  </opc:OpaqueType>
+
+  <opc:OpaqueType Name="MaximumDataType">
+  </opc:OpaqueType>
+
+  <opc:OpaqueType Name="MeasurementValueDataType">
+  </opc:OpaqueType>
+
+  <opc:OpaqueType Name="MinimumDataType">
+  </opc:OpaqueType>
+
+  <opc:OpaqueType Name="ModelDataType">
+  </opc:OpaqueType>
+
+  <opc:OpaqueType Name="NameDataType">
+  </opc:OpaqueType>
+
+  <opc:OpaqueType Name="NativeCodeDataType">
+  </opc:OpaqueType>
+
+  <opc:OpaqueType Name="NativeNotifcationCodeDataType">
+  </opc:OpaqueType>
+
+  <opc:OpaqueType Name="NativeScaleDataType">
+  </opc:OpaqueType>
+
+  <opc:OpaqueType Name="NativeSeverityDataType">
+  </opc:OpaqueType>
+
+  <opc:OpaqueType Name="NextCalibrationDateDataType">
+  </opc:OpaqueType>
+
+  <opc:OpaqueType Name="NominalDataType">
+  </opc:OpaqueType>
+
+  <opc:EnumeratedType Name="NotificationCodeTypeEnum" LengthInBits="32">
+    <opc:EnumeratedValue Name="CRASH_1" Value="1" />
+    <opc:EnumeratedValue Name="ESTOP_2" Value="2" />
+    <opc:EnumeratedValue Name="FAILURE_3" Value="3" />
+    <opc:EnumeratedValue Name="FAULT_4" Value="4" />
+    <opc:EnumeratedValue Name="JAM_5" Value="5" />
+    <opc:EnumeratedValue Name="MATERIAL_6" Value="6" />
+    <opc:EnumeratedValue Name="MESSAGE_7" Value="7" />
+    <opc:EnumeratedValue Name="OTHER_8" Value="8" />
+    <opc:EnumeratedValue Name="OVERLOAD_9" Value="9" />
+  </opc:EnumeratedType>
+
+  <opc:OpaqueType Name="NotificationDescriptionDataType">
+  </opc:OpaqueType>
+
+  <opc:OpaqueType Name="OccurrenceTimeDataType">
+  </opc:OpaqueType>
+
+  <opc:OpaqueType Name="OverlapDataType">
+  </opc:OpaqueType>
+
+  <opc:EnumeratedType Name="PathModeTypeEnum" LengthInBits="32">
+    <opc:EnumeratedValue Name="INDEPENDENT_1" Value="1" />
+    <opc:EnumeratedValue Name="MIRROR_2" Value="2" />
+    <opc:EnumeratedValue Name="SYNCHRONOUS_3" Value="3" />
+  </opc:EnumeratedType>
+
+  <opc:EnumeratedType Name="PowerStateTypeEnum" LengthInBits="32">
+    <opc:EnumeratedValue Name="OFF_1" Value="1" />
+    <opc:EnumeratedValue Name="ON_2" Value="2" />
+    <opc:EnumeratedValue Name="UNAVAILABLE_3" Value="3" />
+  </opc:EnumeratedType>
+
+  <opc:OpaqueType Name="ProgramToolNumberDataType">
+  </opc:OpaqueType>
+
+  <opc:EnumeratedType Name="QualifierTypeEnum" LengthInBits="32">
+    <opc:EnumeratedValue Name="HIGH_1" Value="1" />
+    <opc:EnumeratedValue Name="LOW_2" Value="2" />
+  </opc:EnumeratedType>
+
+  <opc:OpaqueType Name="RateDataType">
+  </opc:OpaqueType>
+
+  <opc:OpaqueType Name="ReconditionCountValueDataType">
+  </opc:OpaqueType>
+
+  <opc:EnumeratedType Name="RotaryModeTypeEnum" LengthInBits="32">
+    <opc:EnumeratedValue Name="CONTOUR_1" Value="1" />
+    <opc:EnumeratedValue Name="INDEX_2" Value="2" />
+    <opc:EnumeratedValue Name="SPINDLE_3" Value="3" />
+    <opc:EnumeratedValue Name="UNAVAILABLE_4" Value="4" />
+  </opc:EnumeratedType>
+
+  <opc:OpaqueType Name="SampleRateDataType">
+  </opc:OpaqueType>
+
+  <opc:EnumeratedType Name="SeverityTypeEnum" LengthInBits="32">
+    <opc:EnumeratedValue Name="CRITICAL_1" Value="1" />
+    <opc:EnumeratedValue Name="ERROR_2" Value="2" />
+    <opc:EnumeratedValue Name="INFORMATION_3" Value="3" />
+    <opc:EnumeratedValue Name="WARNING_4" Value="4" />
+  </opc:EnumeratedType>
+
+  <opc:OpaqueType Name="SignificantDigitsValueDataType">
+  </opc:OpaqueType>
+
+  <opc:OpaqueType Name="StationDataType">
+  </opc:OpaqueType>
+
+  <opc:OpaqueType Name="SenderDataType">
+  </opc:OpaqueType>
+
+  <opc:OpaqueType Name="SequenceDataType">
+  </opc:OpaqueType>
+
+  <opc:OpaqueType Name="SerialNumberDataType">
+  </opc:OpaqueType>
+
+  <opc:OpaqueType Name="SpeedDataType">
+  </opc:OpaqueType>
+
+  <opc:OpaqueType Name="TestIndicatorDataType">
+  </opc:OpaqueType>
+
+  <opc:OpaqueType Name="ToolEventValueDataType">
+  </opc:OpaqueType>
+
+  <opc:OpaqueType Name="ToolGroupDataType">
+  </opc:OpaqueType>
+
+  <opc:OpaqueType Name="ToolIdDataType">
+  </opc:OpaqueType>
+
+  <opc:EnumeratedType Name="ToolLifeDirectionTypeEnum" LengthInBits="32">
+    <opc:EnumeratedValue Name="DOWN_1" Value="1" />
+    <opc:EnumeratedValue Name="UP_2" Value="2" />
+  </opc:EnumeratedType>
+
+  <opc:EnumeratedType Name="ToolLifeTypeEnum" LengthInBits="32">
+    <opc:EnumeratedValue Name="MINUTES_1" Value="1" />
+    <opc:EnumeratedValue Name="PART_COUNT_2" Value="2" />
+    <opc:EnumeratedValue Name="WEAR_3" Value="3" />
+  </opc:EnumeratedType>
+
+  <opc:OpaqueType Name="ToolLifeValueDataType">
+  </opc:OpaqueType>
+
+  <opc:OpaqueType Name="UnitsExtDataType">
+  </opc:OpaqueType>
+
+  <opc:OpaqueType Name="VersionDataType">
+  </opc:OpaqueType>
+
+  <opc:OpaqueType Name="VibrationValueDataType">
+  </opc:OpaqueType>
+
+</opc:TypeDictionary>
