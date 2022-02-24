@@ -1099,19 +1099,40 @@ UA_Event_staticSelectClauseValidation(UA_Server *server,
                 break;
             }
         }
-        /* browsPath element is defined in path */
-        UA_BrowsePathResult bpr =
-                browseSimplifiedBrowsePath(server, eventFilter->selectClauses[i].typeDefinitionId,
-                                           eventFilter->selectClauses[i].browsePathSize,
-                                           eventFilter->selectClauses[i].browsePath);
 
-        if(bpr.statusCode != UA_STATUSCODE_GOOD){
-            result[i] = UA_STATUSCODE_BADNODEIDUNKNOWN;
-            UA_BrowsePathResult_clear(&bpr);
+        /* Get the list of Subtypes from current node */
+        UA_ReferenceTypeSet reftypes_interface =
+                UA_REFTYPESET(UA_REFERENCETYPEINDEX_HASSUBTYPE);
+        UA_ExpandedNodeId *chilTypeNodes = NULL;
+        size_t chilTypeNodesSize = 0;
+        UA_StatusCode res;
+        res = browseRecursive(server, 1, &eventFilter->selectClauses[i].typeDefinitionId,
+                        UA_BROWSEDIRECTION_FORWARD, &reftypes_interface, UA_NODECLASS_OBJECTTYPE,
+                        true, &chilTypeNodesSize, &chilTypeNodes);
+        if(res!=UA_STATUSCODE_GOOD){
+            result[i] = UA_STATUSCODE_BADATTRIBUTEIDINVALID;
             continue;
         }
 
-        UA_BrowsePathResult_clear(&bpr);
+        UA_Boolean subTypeContainField = false;
+        for (size_t j = 0; j < chilTypeNodesSize; ++j) {
+            /* browsPath element is defined in path */
+            UA_BrowsePathResult bpr =
+                    browseSimplifiedBrowsePath(server, chilTypeNodes[j].nodeId,
+                                               eventFilter->selectClauses[i].browsePathSize,
+                                               eventFilter->selectClauses[i].browsePath);
+
+            if(bpr.statusCode != UA_STATUSCODE_GOOD){
+                UA_BrowsePathResult_clear(&bpr);
+                continue;
+            }
+            subTypeContainField = true;
+            UA_BrowsePathResult_clear(&bpr);
+        }
+        if(!subTypeContainField)
+            result[i] = UA_STATUSCODE_BADNODEIDUNKNOWN;
+
+        UA_Array_delete(chilTypeNodes, chilTypeNodesSize, &UA_TYPES[UA_TYPES_EXPANDEDNODEID]);
 
         if(result[i] != UA_STATUSCODE_GOOD)
             continue;
