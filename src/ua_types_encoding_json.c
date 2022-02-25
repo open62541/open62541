@@ -238,9 +238,9 @@ writeJsonKey(CtxJson *ctx, const char* key) {
 ENCODE_JSON(Boolean) {
     size_t sizeOfJSONBool;
     if(*src == true) {
-        sizeOfJSONBool = 4; /*"true"*/
+        sizeOfJSONBool = 4; /* true */
     } else {
-        sizeOfJSONBool = 5; /*"false"*/
+        sizeOfJSONBool = 5; /* false */
     }
 
     if(ctx->calcOnly) {
@@ -265,10 +265,6 @@ ENCODE_JSON(Boolean) {
     }
     return UA_STATUSCODE_GOOD;
 }
-
-/*****************/
-/* Integer Types */
-/*****************/
 
 /* Byte */
 ENCODE_JSON(Byte) {
@@ -389,10 +385,6 @@ ENCODE_JSON(Int64) {
     return UA_STATUSCODE_GOOD;
 }
 
-/************************/
-/* Floating Point Types */
-/************************/
-
 ENCODE_JSON(Float) {
     char buffer[200];
     if(*src != *src) {
@@ -458,8 +450,9 @@ encodeJsonArray(CtxJson *ctx, const void *ptr, size_t length,
                 const UA_DataType *type) {
     /* Null-arrays (length -1) are written as JSON 'null'. Empty arrays (length
      * 0) are just an empty array. */
-    if(ptr == NULL)
+    if(!ptr)
         return writeJsonNull(ctx);
+
     encodeJsonSignature encodeType = encodeJsonJumpTable[type->typeKind];
     status ret = writeJsonArrStart(ctx);
     if(ret != UA_STATUSCODE_GOOD)
@@ -476,10 +469,6 @@ encodeJsonArray(CtxJson *ctx, const void *ptr, size_t length,
     ret |= writeJsonArrEnd(ctx);
     return ret;
 }
-
-/*****************/
-/* Builtin Types */
-/*****************/
 
 static const u8 hexmapLower[16] =
     {'0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f'};
@@ -760,7 +749,7 @@ ENCODE_JSON(DateTime) {
 static status
 NodeId_encodeJsonInternal(UA_NodeId const *src, CtxJson *ctx) {
     status ret = UA_STATUSCODE_GOOD;
-    switch (src->identifierType) {
+    switch(src->identifierType) {
     case UA_NODEIDTYPE_NUMERIC:
         ret |= writeJsonKey(ctx, UA_JSONKEY_ID);
         ret |= ENCODE_DIRECT_JSON(&src->identifier.numeric, UInt32);
@@ -1377,6 +1366,7 @@ UA_encodeJson(const void *src, const UA_DataType *type, UA_ByteString *outBuf,
 /************/
 /* CalcSize */
 /************/
+
 size_t
 UA_calcSizeJsonInternal(const void *src, const UA_DataType *type,
                 const UA_String *namespaces, size_t namespaceSize,
@@ -1786,9 +1776,6 @@ static UA_UInt32 hex2int(char ch) {
     return 0;
 }
 
-/* Float
-* Either a JSMN_STRING or JSMN_PRIMITIVE
-*/
 DECODE_JSON(Float) {
     CHECK_TOKEN_BOUNDS;
     size_t tokenSize;
@@ -1803,7 +1790,7 @@ DECODE_JSON(Float) {
 
     jsmntype_t tokenType = getJsmnType(parseCtx);
 
-    /* It could be a String with NaN, Infinity */
+    /* It could be a string with NaN, Infinity */
     if(tokenType == JSMN_STRING) {
         parseCtx->index++;
 
@@ -2532,14 +2519,11 @@ DECODE_JSON(Variant) {
         return UA_STATUSCODE_GOOD;
     }
 
+    /* Parse the type */
     size_t size = ((size_t)parseCtx->tokenArray[searchResultType].end -
                    (size_t)parseCtx->tokenArray[searchResultType].start);
-
-    /* check if size is zero or the type is not a number */
-    if(size < 1 || parseCtx->tokenArray[searchResultType].type != JSMN_PRIMITIVE)
+    if(size == 0 || parseCtx->tokenArray[searchResultType].type != JSMN_PRIMITIVE)
         return UA_STATUSCODE_BADDECODINGERROR;
-
-    /* Parse the type */
     UA_UInt64 idTypeDecoded = 0;
     char *idTypeEncoded = (char*)(ctx->pos + parseCtx->tokenArray[searchResultType].start);
     size_t len = atoiUnsigned(idTypeEncoded, size, &idTypeDecoded);
@@ -2561,10 +2545,8 @@ DECODE_JSON(Variant) {
     /* Search for body */
     size_t searchResultBody = 0;
     ret = lookAheadForKey(UA_JSONKEY_BODY, ctx, parseCtx, &searchResultBody);
-    if(ret != UA_STATUSCODE_GOOD) {
-        /*TODO: no body? set value NULL?*/
+    if(ret != UA_STATUSCODE_GOOD)
         return UA_STATUSCODE_BADDECODINGERROR;
-    }
 
     /* Value is an array? */
     UA_Boolean isArray = false;
@@ -2583,7 +2565,7 @@ DECODE_JSON(Variant) {
     if(ret == UA_STATUSCODE_GOOD)
         hasDimension = (parseCtx->tokenArray[searchResultDim].size > 0);
 
-    /* no array but has dimension. error? */
+    /* No array but has dimension -> error */
     if(!isArray && hasDimension)
         return UA_STATUSCODE_BADDECODINGERROR;
 
