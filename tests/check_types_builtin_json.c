@@ -1417,7 +1417,7 @@ START_TEST(UA_StatusCode_nonReversible_good_json_encode) {
     
     // then
     ck_assert_int_eq(s, UA_STATUSCODE_GOOD);
-    char* result = "null";
+    char* result = "{\"Code\":0,\"Symbol\":\"Good\"}";
     ck_assert_str_eq(result, (char*)buf.data);
     UA_ByteString_clear(&buf); 
     UA_StatusCode_delete(src);
@@ -1900,7 +1900,6 @@ START_TEST(UA_DiagInfo_smallBuffer_json_encode) {
 
     status s = UA_encodeJsonInternal((void *) src, type, &bufPos, &bufEnd, NULL, 0, NULL, 0, true);
 
-    *bufPos = 0;
     // then
     ck_assert_int_eq(s, UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED);
     UA_ByteString_clear(&buf); 

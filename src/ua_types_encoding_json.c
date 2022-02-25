@@ -946,22 +946,17 @@ ENCODE_JSON(QualifiedName) {
 }
 
 ENCODE_JSON(StatusCode) {
-    if(!src)
-        return writeJsonNull(ctx);
-
     if(ctx->useReversible)
         return ENCODE_DIRECT_JSON(src, UInt32);
 
-    if(*src == UA_STATUSCODE_GOOD)
-        return writeJsonNull(ctx);
+    const char *codename = UA_StatusCode_name(*src);
+    UA_String statusDescription = UA_STRING((char*)(uintptr_t)codename);
 
     status ret = UA_STATUSCODE_GOOD;
     ret |= writeJsonObjStart(ctx);
     ret |= writeJsonKey(ctx, UA_JSONKEY_CODE);
     ret |= ENCODE_DIRECT_JSON(src, UInt32);
     ret |= writeJsonKey(ctx, UA_JSONKEY_SYMBOL);
-    const char *codename = UA_StatusCode_name(*src);
-    UA_String statusDescription = UA_STRING((char*)(uintptr_t)codename);
     ret |= ENCODE_DIRECT_JSON(&statusDescription, String);
     ret |= writeJsonObjEnd(ctx);
     return ret;
