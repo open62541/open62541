@@ -1075,12 +1075,8 @@ ENCODE_JSON(Variant) {
     /* If type is 0 (NULL) the Variant contains a NULL value and the containing
      * JSON object shall be omitted or replaced by the JSON literal ‘null’ (when
      * an element of a JSON array). */
-    if(!src->type) {
-        /* Write an empty object if this is the top-level variant */
-        if(ctx->depth == 0)
-            return writeJsonObjStart(ctx) | writeJsonObjEnd(ctx);
-        return writeJsonNull(ctx);
-    }
+    if(!src->type)
+        return writeJsonObjStart(ctx) | writeJsonObjEnd(ctx);
 
     /* Set the content type in the encoding mask */
     const UA_Boolean isBuiltin = (src->type->typeKind <= UA_DATATYPEKIND_DIAGNOSTICINFO);
@@ -1089,84 +1085,60 @@ ENCODE_JSON(Variant) {
     /* Set the array type in the encoding mask */
     const bool isArray = src->arrayLength > 0 || src->data <= UA_EMPTY_ARRAY_SENTINEL;
     const bool hasDimensions = isArray && src->arrayDimensionsSize > 0;
-    status ret = UA_STATUSCODE_GOOD;
+
+    status ret = writeJsonObjStart(ctx);
 
     if(ctx->useReversible) {
-        ret |= writeJsonObjStart(ctx);
-        if(ret != UA_STATUSCODE_GOOD)
-            return ret;
-
-        /* Encode the content */
+        /* Write the NodeId */
+        UA_UInt32 typeId = src->type->typeId.identifier.numeric;
+        if(!isBuiltin && !isEnum)
+            typeId = UA_TYPES[UA_TYPES_EXTENSIONOBJECT].typeId.identifier.numeric;
+        ret |= writeJsonKey(ctx, UA_JSONKEY_TYPE);
+        ret |= ENCODE_DIRECT_JSON(&typeId, UInt32);
+            
+        /* Write the reversible form body */
         if(!isBuiltin && !isEnum) {
-            /* REVERSIBLE:  NOT BUILTIN, can it be encoded? Wrap in extension object.*/
-            ret |= writeJsonKey(ctx, UA_JSONKEY_TYPE);
-            ret |= ENCODE_DIRECT_JSON(&UA_TYPES[UA_TYPES_EXTENSIONOBJECT].typeId.identifier.numeric, UInt32);
             ret |= writeJsonKey(ctx, UA_JSONKEY_BODY);
             ret |= Variant_encodeJsonWrapExtensionObject(src, isArray, ctx);
         } else if(!isArray) {
-            /*REVERSIBLE:  BUILTIN, single value.*/
-            ret |= writeJsonKey(ctx, UA_JSONKEY_TYPE);
-            ret |= ENCODE_DIRECT_JSON(&src->type->typeId.identifier.numeric, UInt32);
             ret |= writeJsonKey(ctx, UA_JSONKEY_BODY);
             ret |= encodeJsonInternal(src->data, src->type, ctx);
         } else {
-            /*REVERSIBLE:   BUILTIN, array.*/
-            ret |= writeJsonKey(ctx, UA_JSONKEY_TYPE);
-            ret |= ENCODE_DIRECT_JSON(&src->type->typeId.identifier.numeric, UInt32);
             ret |= writeJsonKey(ctx, UA_JSONKEY_BODY);
             ret |= encodeJsonArray(ctx, src->data, src->arrayLength, src->type);
         }
 
-        if(ret != UA_STATUSCODE_GOOD)
-            return ret;
-
-        /* REVERSIBLE:  Encode the array dimensions */
-        if(hasDimensions && ret == UA_STATUSCODE_GOOD) {
+        /* Write the dimensions */
+        if(hasDimensions) {
             ret |= writeJsonKey(ctx, UA_JSONKEY_DIMENSION);
             ret |= encodeJsonArray(ctx, src->arrayDimensions, src->arrayDimensionsSize, 
                                    &UA_TYPES[UA_TYPES_INT32]);
-            if(ret != UA_STATUSCODE_GOOD)
-                return ret;
         }
-
-        ret |= writeJsonObjEnd(ctx);
-        return ret;
-    } /* reversible */
-
-    /* NON-REVERSIBLE
-     * For the non-reversible form, Variant values shall be encoded as a JSON object containing only
-     * the value of the Body field. The Type and Dimensions fields are dropped. Multi-dimensional
-     * arrays are encoded as a multi dimensional JSON array as described in 5.4.5.
-     */
-
-    ret |= writeJsonObjStart(ctx);
-    if(!isBuiltin && !isEnum) {
-        /*NON REVERSIBLE:  NOT BUILTIN, can it be encoded? Wrap in extension object.*/
-        if(src->arrayDimensionsSize > 1) {
-            return UA_STATUSCODE_BADNOTIMPLEMENTED;
-        }
-
-        ret |= writeJsonKey(ctx, UA_JSONKEY_BODY);
-        ret |= Variant_encodeJsonWrapExtensionObject(src, isArray, ctx);
-    } else if(!isArray) {
-        /*NON REVERSIBLE:   BUILTIN, single value.*/
-        ret |= writeJsonKey(ctx, UA_JSONKEY_BODY);
-        ret |= encodeJsonInternal(src->data, src->type, ctx);
     } else {
-        /*NON REVERSIBLE:   BUILTIN, array.*/
-        ret |= writeJsonKey(ctx, UA_JSONKEY_BODY);
-
-        size_t dimensionSize = src->arrayDimensionsSize;
-        if(dimensionSize > 1) {
-            /*nonreversible multidimensional array*/
-            size_t index = 0;  size_t dimensionIndex = 0;
-            void *ptr = src->data;
-            const UA_DataType *arraytype = src->type;
-            ret |= addMultiArrayContentJSON(ctx, ptr, arraytype, &index, 
-                    src->arrayDimensions, dimensionIndex, dimensionSize);
+        /* Non-Reversible form. Variant values encoded as a JSON object
+         * containing only the value of the Body field. The Type and Dimensions
+         * fields are dropped. Multi-dimensional arrays are encoded as a multi
+         * dimensional JSON array as described in 5.4.5. */
+        if(!isBuiltin && !isEnum) {
+            /* Not builtin. Can it be encoded? Wrap in extension object. */
+            if(src->arrayDimensionsSize > 1)
+                return UA_STATUSCODE_BADNOTIMPLEMENTED;
+            ret |= writeJsonKey(ctx, UA_JSONKEY_BODY);
+            ret |= Variant_encodeJsonWrapExtensionObject(src, isArray, ctx);
+        } else if(!isArray) {
+            ret |= writeJsonKey(ctx, UA_JSONKEY_BODY);
+            ret |= encodeJsonInternal(src->data, src->type, ctx);
         } else {
-            /*nonreversible simple array*/
-            ret |= encodeJsonArray(ctx, src->data, src->arrayLength, src->type);
+            ret |= writeJsonKey(ctx, UA_JSONKEY_BODY);
+            if(src->arrayDimensionsSize > 1) {
+                size_t index = 0;
+                size_t dimensionIndex = 0;
+                ret |= addMultiArrayContentJSON(ctx, src->data, src->type, &index,
+                                                src->arrayDimensions, dimensionIndex,
+                                                src->arrayDimensionsSize);
+            } else {
+                ret |= encodeJsonArray(ctx, src->data, src->arrayLength, src->type);
+            }
         }
     }
 
