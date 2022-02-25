@@ -162,10 +162,6 @@ struct UA_Server {
 
 extern const struct aa_head refNameTree;
 
-const UA_ReferenceTarget *
-UA_NodeReferenceKind_findTarget(const UA_NodeReferenceKind *rk,
-                                const UA_ExpandedNodeId *targetId);
-
 /**************************/
 /* SecureChannel Handling */
 /**************************/
