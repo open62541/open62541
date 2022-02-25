@@ -1155,53 +1155,39 @@ ENCODE_JSON(DataValue) {
     UA_Boolean hasServerTimestamp = src->hasServerTimestamp;
     UA_Boolean hasServerPicoseconds = src->hasServerPicoseconds;
 
-    status ret = UA_STATUSCODE_GOOD;
-    ret |= writeJsonObjStart(ctx);
+    status ret = writeJsonObjStart(ctx);
 
     if(hasValue) {
         ret |= writeJsonKey(ctx, UA_JSONKEY_VALUE);
         ret |= ENCODE_DIRECT_JSON(&src->value, Variant);
-        if(ret != UA_STATUSCODE_GOOD)
-            return ret;
     }
 
     if(hasStatus) {
         ret |= writeJsonKey(ctx, UA_JSONKEY_STATUS);
         ret |= ENCODE_DIRECT_JSON(&src->status, StatusCode);
-        if(ret != UA_STATUSCODE_GOOD)
-            return ret;
     }
 
     if(hasSourceTimestamp) {
         ret |= writeJsonKey(ctx, UA_JSONKEY_SOURCETIMESTAMP);
         ret |= ENCODE_DIRECT_JSON(&src->sourceTimestamp, DateTime);
-        if(ret != UA_STATUSCODE_GOOD)
-            return ret;
     }
 
     if(hasSourcePicoseconds) {
         ret |= writeJsonKey(ctx, UA_JSONKEY_SOURCEPICOSECONDS);
         ret |= ENCODE_DIRECT_JSON(&src->sourcePicoseconds, UInt16);
-        if(ret != UA_STATUSCODE_GOOD)
-            return ret;
     }
 
     if(hasServerTimestamp) {
         ret |= writeJsonKey(ctx, UA_JSONKEY_SERVERTIMESTAMP);
         ret |= ENCODE_DIRECT_JSON(&src->serverTimestamp, DateTime);
-        if(ret != UA_STATUSCODE_GOOD)
-            return ret;
     }
 
     if(hasServerPicoseconds) {
         ret |= writeJsonKey(ctx, UA_JSONKEY_SERVERPICOSECONDS);
         ret |= ENCODE_DIRECT_JSON(&src->serverPicoseconds, UInt16);
-        if(ret != UA_STATUSCODE_GOOD)
-            return ret;
     }
 
-    ret |= writeJsonObjEnd(ctx);
-    return ret;
+    return ret | writeJsonObjEnd(ctx);
 }
 
 /* DiagnosticInfo */
@@ -1211,56 +1197,40 @@ ENCODE_JSON(DiagnosticInfo) {
     if(src->hasSymbolicId) {
         ret |= writeJsonKey(ctx, UA_JSONKEY_SYMBOLICID);
         ret |= ENCODE_DIRECT_JSON(&src->symbolicId, UInt32);
-        if(ret != UA_STATUSCODE_GOOD)
-            return ret;
     }
 
     if(src->hasNamespaceUri) {
         ret |= writeJsonKey(ctx, UA_JSONKEY_NAMESPACEURI);
         ret |= ENCODE_DIRECT_JSON(&src->namespaceUri, UInt32);
-        if(ret != UA_STATUSCODE_GOOD)
-            return ret;
     }
 
     if(src->hasLocalizedText) {
         ret |= writeJsonKey(ctx, UA_JSONKEY_LOCALIZEDTEXT);
         ret |= ENCODE_DIRECT_JSON(&src->localizedText, UInt32);
-        if(ret != UA_STATUSCODE_GOOD)
-            return ret;
     }
 
     if(src->hasLocale) {
         ret |= writeJsonKey(ctx, UA_JSONKEY_LOCALE);
         ret |= ENCODE_DIRECT_JSON(&src->locale, UInt32);
-        if(ret != UA_STATUSCODE_GOOD)
-            return ret;
     }
 
     if(src->hasAdditionalInfo) {
         ret |= writeJsonKey(ctx, UA_JSONKEY_ADDITIONALINFO);
         ret |= ENCODE_DIRECT_JSON(&src->additionalInfo, String);
-        if(ret != UA_STATUSCODE_GOOD)
-            return ret;
     }
 
     if(src->hasInnerStatusCode) {
         ret |= writeJsonKey(ctx, UA_JSONKEY_INNERSTATUSCODE);
         ret |= ENCODE_DIRECT_JSON(&src->innerStatusCode, StatusCode);
-        if(ret != UA_STATUSCODE_GOOD)
-            return ret;
     }
 
     if(src->hasInnerDiagnosticInfo && src->innerDiagnosticInfo) {
         ret |= writeJsonKey(ctx, UA_JSONKEY_INNERDIAGNOSTICINFO);
-        /* Check recursion depth in encodeJsonInternal */
         ret |= encodeJsonInternal(src->innerDiagnosticInfo,
                                   &UA_TYPES[UA_TYPES_DIAGNOSTICINFO], ctx);
-        if(ret != UA_STATUSCODE_GOOD)
-            return ret;
     }
 
-    ret |= writeJsonObjEnd(ctx);
-    return ret;
+    return ret | writeJsonObjEnd(ctx);
 }
 
 static status
