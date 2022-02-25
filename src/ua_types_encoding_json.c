@@ -824,84 +824,71 @@ ENCODE_JSON(NodeId) {
 /* ExpandedNodeId */
 ENCODE_JSON(ExpandedNodeId) {
     status ret = writeJsonObjStart(ctx);
+
     /* Encode the NodeId */
     ret |= NodeId_encodeJsonInternal(&src->nodeId, ctx);
 
     if(ctx->useReversible) {
-        if(src->namespaceUri.data != NULL && src->namespaceUri.length != 0 &&
+        /* Reversible Case */
+
+        if(src->namespaceUri.length != 0 &&
            (void*) src->namespaceUri.data > UA_EMPTY_ARRAY_SENTINEL) {
-            /* If the NamespaceUri is specified it is encoded as a JSON string in this field. */ 
+            /* If the NamespaceUri is specified it is encoded as a JSON string
+             * in this field */
             ret |= writeJsonKey(ctx, UA_JSONKEY_NAMESPACE);
             ret |= ENCODE_DIRECT_JSON(&src->namespaceUri, String);
-        } else {
-            /* If the NamespaceUri is not specified, the NamespaceIndex is encoded with these rules:
-             * The field is encoded as a JSON number for the reversible encoding.
-             * The field is omitted if the NamespaceIndex equals 0. */
-            if(src->nodeId.namespaceIndex > 0) {
-                ret |= writeJsonKey(ctx, UA_JSONKEY_NAMESPACE);
-                ret |= ENCODE_DIRECT_JSON(&src->nodeId.namespaceIndex, UInt16);
-            }
+        } else if(src->nodeId.namespaceIndex > 0) {
+            /* If the NamespaceUri is not specified, the NamespaceIndex is
+             * encoded. Encoded as a JSON number for the reversible encoding.
+             * Omitted if the NamespaceIndex equals 0. */
+            ret |= writeJsonKey(ctx, UA_JSONKEY_NAMESPACE);
+            ret |= ENCODE_DIRECT_JSON(&src->nodeId.namespaceIndex, UInt16);
         }
 
-        /* Encode the serverIndex/Url 
-         * This field is encoded as a JSON number for the reversible encoding.
-         * This field is omitted if the ServerIndex equals 0. */
+        /* Encode the serverIndex/Url. As a JSON number for the reversible
+         * encoding. Omitted if the ServerIndex equals 0. */
         if(src->serverIndex > 0) {
             ret |= writeJsonKey(ctx, UA_JSONKEY_SERVERURI);
             ret |= ENCODE_DIRECT_JSON(&src->serverIndex, UInt32);
         }
-
-        ret |= writeJsonObjEnd(ctx);
-        return ret;
-    }
-
-    /* NON-Reversible Case */
-
-    /* If the NamespaceUri is not specified, the NamespaceIndex is encoded with these rules:
-     * For the non-reversible encoding the field is the NamespaceUri associated with the
-     * NamespaceIndex encoded as a JSON string.
-     * A NamespaceIndex of 1 is always encoded as a JSON number. */
-
-    if(src->namespaceUri.data != NULL && src->namespaceUri.length != 0) {
-        ret |= writeJsonKey(ctx, UA_JSONKEY_NAMESPACE);
-        ret |= ENCODE_DIRECT_JSON(&src->namespaceUri, String);
-        if(ret != UA_STATUSCODE_GOOD)
-            return ret;
     } else {
-        if(src->nodeId.namespaceIndex == 1) {
+        /* Non-Reversible Case */
+
+        /* If the NamespaceUri is not specified, the NamespaceIndex is encoded
+         * with these rules: For the non-reversible encoding the field is the
+         * NamespaceUri associated with the NamespaceIndex encoded as a JSON
+         * string. A NamespaceIndex of 1 is always encoded as a JSON number. */
+
+        if(src->namespaceUri.data && src->namespaceUri.length != 0) {
             ret |= writeJsonKey(ctx, UA_JSONKEY_NAMESPACE);
-            ret |= ENCODE_DIRECT_JSON(&src->nodeId.namespaceIndex, UInt16);
-            if(ret != UA_STATUSCODE_GOOD)
-                return ret;
+            ret |= ENCODE_DIRECT_JSON(&src->namespaceUri, String);
         } else {
-            ret |= writeJsonKey(ctx, UA_JSONKEY_NAMESPACE);
-
-            /* Check if Namespace given and in range */
-            if(src->nodeId.namespaceIndex < ctx->namespacesSize
-                    && ctx->namespaces != NULL) {
-
-                UA_String namespaceEntry = ctx->namespaces[src->nodeId.namespaceIndex];
-                ret |= ENCODE_DIRECT_JSON(&namespaceEntry, String);
-                if(ret != UA_STATUSCODE_GOOD)
-                    return ret;
+            if(src->nodeId.namespaceIndex == 1) {
+                ret |= writeJsonKey(ctx, UA_JSONKEY_NAMESPACE);
+                ret |= ENCODE_DIRECT_JSON(&src->nodeId.namespaceIndex, UInt16);
             } else {
-                return UA_STATUSCODE_BADNOTFOUND;
+                /* Check if Namespace given and in range */
+                if(src->nodeId.namespaceIndex >= ctx->namespacesSize || !ctx->namespaces)
+                    return UA_STATUSCODE_BADNOTFOUND;
+                UA_String namespaceEntry = ctx->namespaces[src->nodeId.namespaceIndex];
+                ret |= writeJsonKey(ctx, UA_JSONKEY_NAMESPACE);
+                ret |= ENCODE_DIRECT_JSON(&namespaceEntry, String);
             }
         }
-    }
 
-    /* For the non-reversible encoding, this field is the ServerUri associated
-     * with the ServerIndex portion of the ExpandedNodeId, encoded as a JSON
-     * string. */
+        /* For the non-reversible encoding, this field is the ServerUri
+         * associated with the ServerIndex portion of the ExpandedNodeId,
+         * encoded as a JSON string. */
 
-    /* Check if Namespace given and in range */
-    if(src->serverIndex < ctx->serverUrisSize && ctx->serverUris != NULL) {
+        /* Check if server given and in range */
+        if(src->serverIndex >= ctx->serverUrisSize || !ctx->serverUris)
+            return UA_STATUSCODE_BADNOTFOUND;
+
         UA_String serverUriEntry = ctx->serverUris[src->serverIndex];
         ret |= writeJsonKey(ctx, UA_JSONKEY_SERVERURI);
         ret |= ENCODE_DIRECT_JSON(&serverUriEntry, String);
-    } else {
-        return UA_STATUSCODE_BADNOTFOUND;
     }
+
     ret |= writeJsonObjEnd(ctx);
     return ret;
 }
