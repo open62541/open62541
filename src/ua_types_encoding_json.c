@@ -964,91 +964,55 @@ ENCODE_JSON(StatusCode) {
 
 /* ExtensionObject */
 ENCODE_JSON(ExtensionObject) {
-    u8 encoding = (u8) src->encoding;
-    if(encoding == UA_EXTENSIONOBJECT_ENCODED_NOBODY)
-        return writeJsonNull(ctx);
+    status ret = writeJsonObjStart(ctx);
 
-    status ret = UA_STATUSCODE_GOOD;
-    /* already encoded content.*/
-    if(encoding <= UA_EXTENSIONOBJECT_ENCODED_XML) {
-        ret |= writeJsonObjStart(ctx);
-        if(ctx->useReversible) {
-            ret |= writeJsonKey(ctx, UA_JSONKEY_TYPEID);
-            ret |= ENCODE_DIRECT_JSON(&src->content.encoded.typeId, NodeId);
-            if(ret != UA_STATUSCODE_GOOD)
-                return ret;
-        }
+    /* Null ExtensionObject -> empty JSON object */
+    if(src->encoding == UA_EXTENSIONOBJECT_ENCODED_NOBODY)
+        return ret | writeJsonObjEnd(ctx);
 
-        switch (src->encoding) {
-            case UA_EXTENSIONOBJECT_ENCODED_BYTESTRING:
-            {
-                if(ctx->useReversible) {
-                    ret |= writeJsonKey(ctx, UA_JSONKEY_ENCODING);
-                    ret |= writeChar(ctx, '1');
-                }
-                ret |= writeJsonKey(ctx, UA_JSONKEY_BODY);
-                ret |= ENCODE_DIRECT_JSON(&src->content.encoded.body, String);
-                break;
-            }
-            case UA_EXTENSIONOBJECT_ENCODED_XML:
-            {
-                if(ctx->useReversible) {
-                    ret |= writeJsonKey(ctx, UA_JSONKEY_ENCODING);
-                    ret |= writeChar(ctx, '2');
-                }
-                ret |= writeJsonKey(ctx, UA_JSONKEY_BODY);
-                ret |= ENCODE_DIRECT_JSON(&src->content.encoded.body, String);
-                break;
-            }
-            default:
-                ret = UA_STATUSCODE_BADINTERNALERROR;
-        }
-
-        ret |= writeJsonObjEnd(ctx);
-        return ret;
-    } /* encoding <= UA_EXTENSIONOBJECT_ENCODED_XML */
-
-    /* Cannot encode with no type description */
-    if(!src->content.decoded.type)
+    /* Must have a type set if data is decoded */
+    if(src->encoding != UA_EXTENSIONOBJECT_ENCODED_BYTESTRING &&
+       src->encoding != UA_EXTENSIONOBJECT_ENCODED_XML &&
+       !src->content.decoded.type)
         return UA_STATUSCODE_BADENCODINGERROR;
 
-    if(!src->content.decoded.data)
-        return writeJsonNull(ctx);
-
-    UA_NodeId typeId = src->content.decoded.type->typeId;
-    if(typeId.identifierType != UA_NODEIDTYPE_NUMERIC)
-        return UA_STATUSCODE_BADENCODINGERROR;
-
-    ret |= writeJsonObjStart(ctx);
-    const UA_DataType *contentType = src->content.decoded.type;
+    /* Reversible encoding */
     if(ctx->useReversible) {
-        /* REVERSIBLE */
+        /* Write the type NodeId */
         ret |= writeJsonKey(ctx, UA_JSONKEY_TYPEID);
-        ret |= ENCODE_DIRECT_JSON(&typeId, NodeId);
+        if(src->encoding == UA_EXTENSIONOBJECT_ENCODED_BYTESTRING ||
+           src->encoding == UA_EXTENSIONOBJECT_ENCODED_XML)
+            ret |= ENCODE_DIRECT_JSON(&src->content.encoded.typeId, NodeId);
+        else
+            ret |= ENCODE_DIRECT_JSON(&src->content.decoded.type->typeId, NodeId);
 
-        /* Encode the content */
-        ret |= writeJsonKey(ctx, UA_JSONKEY_BODY);
-        ret |= encodeJsonInternal(src->content.decoded.data, contentType, ctx);
-    } else {
-        /* NON-REVERSIBLE
-         * For the non-reversible form, ExtensionObject values 
-         * shall be encoded as a JSON object containing only the 
-         * value of the Body field. The TypeId and Encoding fields are dropped.
-         *
-         * TODO: UA_JSONKEY_BODY key in the ExtensionObject?
-         */
-        ret |= writeJsonKey(ctx, UA_JSONKEY_BODY);
-        ret |= encodeJsonInternal(src->content.decoded.data, contentType, ctx);
+        /* Write the encoding */
+        if(src->encoding == UA_EXTENSIONOBJECT_ENCODED_BYTESTRING) {
+            ret |= writeJsonKey(ctx, UA_JSONKEY_ENCODING);
+            ret |= writeChar(ctx, '1');
+        } else if(src->encoding == UA_EXTENSIONOBJECT_ENCODED_XML) {
+            ret |= writeJsonKey(ctx, UA_JSONKEY_ENCODING);
+            ret |= writeChar(ctx, '2');
+        }
     }
+
+    /* Write the body */
+    ret |= writeJsonKey(ctx, UA_JSONKEY_BODY);
+    if(src->encoding == UA_EXTENSIONOBJECT_ENCODED_BYTESTRING ||
+       src->encoding == UA_EXTENSIONOBJECT_ENCODED_XML)
+        ret |= ENCODE_DIRECT_JSON(&src->content.encoded.body, String);
+    else
+        ret |= encodeJsonInternal(src->content.decoded.data,
+                                  src->content.decoded.type, ctx);
 
     ret |= writeJsonObjEnd(ctx);
     return ret;
 }
 
 static status
-Variant_encodeJsonWrapExtensionObject(const UA_Variant *src, const bool isArray, CtxJson *ctx) {
+Variant_encodeJsonWrapExtensionObject(const UA_Variant *src, const bool isArray,
+                                      CtxJson *ctx) {
     size_t length = 1;
-
     if(isArray) {
         if(src->arrayLength > UA_INT32_MAX)
             return UA_STATUSCODE_BADENCODINGERROR;
@@ -1056,33 +1020,26 @@ Variant_encodeJsonWrapExtensionObject(const UA_Variant *src, const bool isArray,
         length = src->arrayLength;
     }
 
-    /* Set up the ExtensionObject */
+    /* Set up a temporary ExtensionObject to wrap the data */
     UA_ExtensionObject eo;
     UA_ExtensionObject_init(&eo);
     eo.encoding = UA_EXTENSIONOBJECT_DECODED;
     eo.content.decoded.type = src->type;
-    const u16 memSize = src->type->memSize;
-    uintptr_t ptr = (uintptr_t) src->data;
 
     if(isArray) {
+        u16 memSize = src->type->memSize;
+        uintptr_t ptr = (uintptr_t)src->data;
         status ret = writeJsonArrStart(ctx);
-        if(ret != UA_STATUSCODE_GOOD)
-            return ret;
-        ctx->commaNeeded[ctx->depth] = false;
-
-        /* Iterate over the array */
-        for(size_t i = 0; i <  length && ret == UA_STATUSCODE_GOOD; ++i) {
-            eo.content.decoded.data = (void*) ptr;
+        for(size_t i = 0; i < length && ret == UA_STATUSCODE_GOOD; ++i) {
+            eo.content.decoded.data = (void*)ptr;
             ret |= writeJsonArrElm(ctx, &eo, &UA_TYPES[UA_TYPES_EXTENSIONOBJECT]);
             ptr += memSize;
         }
-
-        ret |= writeJsonArrEnd(ctx);
-        return ret;
+        return ret | writeJsonArrEnd(ctx);
     }
 
-    eo.content.decoded.data = (void*) ptr;
-    return encodeJsonInternal(&eo, &UA_TYPES[UA_TYPES_EXTENSIONOBJECT], ctx);
+    eo.content.decoded.data = src->data;
+    return ExtensionObject_encodeJson(&eo, NULL, ctx);
 }
 
 static status
@@ -2757,6 +2714,10 @@ DECODE_JSON(DataValue) {
 DECODE_JSON(ExtensionObject) {
     ALLOW_NULL;
     CHECK_OBJECT;
+
+    /* Empty object -> Null ExtensionObject */
+    if(parseCtx->tokenArray[parseCtx->index].size == 0)
+        return UA_STATUSCODE_GOOD;
 
     /* Search for Encoding */
     size_t encodingPos = 0;
