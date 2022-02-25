@@ -490,11 +490,8 @@ ENCODE_JSON(String) {
     if(!src->data)
         return writeJsonNull(ctx);
 
-    if(src->length == 0) {
-        status retval = writeJsonQuote(ctx);
-        retval |= writeJsonQuote(ctx);
-        return  retval;
-    }
+    if(src->length == 0)
+        return writeJsonQuote(ctx) | writeJsonQuote(ctx);
 
     UA_StatusCode ret = writeJsonQuote(ctx);
 
