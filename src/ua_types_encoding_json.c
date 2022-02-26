@@ -68,9 +68,6 @@
 #define ENCODE_DIRECT_JSON(SRC, TYPE) \
     TYPE##_encodeJson((const UA_##TYPE*)SRC, NULL, ctx)
 
-extern const encodeJsonSignature encodeJsonJumpTable[UA_DATATYPEKINDS];
-extern const decodeJsonSignature decodeJsonJumpTable[UA_DATATYPEKINDS];
-
 /* Forward declarations */
 UA_String UA_DateTime_toJSON(UA_DateTime t);
 ENCODE_JSON(ByteString);
@@ -2556,7 +2553,7 @@ DECODE_JSON(Variant) {
         return UA_STATUSCODE_BADOUTOFMEMORY;
     DecodeEntry entries[2] = {
         {UA_JSONKEY_TYPE, NULL, NULL, false, NULL},
-        {UA_JSONKEY_BODY, dst->data, (decodeJsonSignature) decodeJsonInternal, false, dst->type}
+        {UA_JSONKEY_BODY, dst->data, decodeJsonJumpTable[dst->type->typeKind], false, dst->type}
     };
     return decodeFields(ctx, parseCtx, entries, 2);
 }
@@ -2933,8 +2930,8 @@ Array_decodeJson(void * dst, const UA_DataType *type, CtxJson *ctx,
 }
 
 static status
-decodeJsonStructure(void *dst, const UA_DataType *type, CtxJson *ctx,
-                    ParseCtx *parseCtx) {
+decodeJsonStructure(void *dst, const UA_DataType *type,
+                    CtxJson *ctx, ParseCtx *parseCtx) {
     /* Check the recursion limit */
     if(ctx->depth >= UA_JSON_ENCODING_MAX_RECURSION - 1)
         return UA_STATUSCODE_BADENCODINGERROR;
@@ -3016,10 +3013,6 @@ const decodeJsonSignature decodeJsonJumpTable[UA_DATATYPEKINDS] = {
     (decodeJsonSignature)decodeJsonNotImplemented /* BitfieldCluster */
 };
 
-decodeJsonSignature getDecodeSignature(u8 index) {
-    return decodeJsonJumpTable[index];
-}
-
 status
 tokenize(ParseCtx *parseCtx, CtxJson *ctx, const UA_ByteString *src) {
     /* Set up the context */
@@ -3046,14 +3039,8 @@ tokenize(ParseCtx *parseCtx, CtxJson *ctx, const UA_ByteString *src) {
 }
 
 UA_StatusCode
-decodeJsonInternal(void *dst, const UA_DataType *type,
-                   CtxJson *ctx, ParseCtx *parseCtx) {
-    return decodeJsonJumpTable[type->typeKind](dst, type, ctx, parseCtx);
-}
-
-status UA_FUNC_ATTR_WARN_UNUSED_RESULT
-UA_decodeJsonInternal(const UA_ByteString *src, void *dst, const UA_DataType *type) {
-
+UA_decodeJson(const UA_ByteString *src, void *dst, const UA_DataType *type,
+              const UA_DecodeJsonOptions *options) {
 #ifndef UA_ENABLE_TYPEDESCRIPTION
     return UA_STATUSCODE_BADNOTSUPPORTED;
 #endif
@@ -3105,10 +3092,4 @@ UA_decodeJsonInternal(const UA_ByteString *src, void *dst, const UA_DataType *ty
     if(ret != UA_STATUSCODE_GOOD)
         UA_clear(dst, type); /* Clean up */
     return ret;
-}
-
-UA_StatusCode
-UA_decodeJson(const UA_ByteString *src, void *dst, const UA_DataType *type,
-              const UA_DecodeJsonOptions *options) {
-    return UA_decodeJsonInternal(src, dst, type);
 }
