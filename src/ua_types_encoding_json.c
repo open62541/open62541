@@ -2376,6 +2376,7 @@ DECODE_JSON(ExpandedNodeId) {
 }
 
 DECODE_JSON(DateTime) {
+    ALLOW_NULL;
     CHECK_STRING;
     CHECK_TOKEN_BOUNDS;
     size_t tokenSize;
@@ -2480,6 +2481,7 @@ DECODE_JSON(DateTime) {
 }
 
 DECODE_JSON(StatusCode) {
+    ALLOW_NULL;
     status ret = DECODE_DIRECT_JSON(dst, UInt32);
     if(ret != UA_STATUSCODE_GOOD)
         return ret;
