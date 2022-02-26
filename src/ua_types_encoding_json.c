@@ -1413,9 +1413,11 @@ UA_calcSizeJson(const void *src, const UA_DataType *type,
 
 /* Macro which gets current size and char pointer of current Token. Needs
  * ParseCtx (parseCtx) and CtxJson (ctx). Does NOT increment index of Token. */
-#define GET_TOKEN(data, size) do {                                               \
-    (size) = (size_t)(parseCtx->tokenArray[parseCtx->index].end - parseCtx->tokenArray[parseCtx->index].start); \
-    (data) = (char*)(ctx->pos + parseCtx->tokenArray[parseCtx->index].start); } while(0)
+#define GET_TOKEN                                                             \
+    size_t tokenSize = (size_t)(parseCtx->tokenArray[parseCtx->index].end -   \
+                                parseCtx->tokenArray[parseCtx->index].start); \
+    char* tokenData = (char*)(ctx->pos + parseCtx->tokenArray[parseCtx->index].start); \
+    do {} while(0)
 
 #define ALLOW_NULL do {             \
     if(isJsonNull(ctx, parseCtx)) { \
@@ -1471,14 +1473,6 @@ static status
 Variant_decodeJsonUnwrapExtensionObject(UA_Variant *dst, const UA_DataType *type, 
                                         CtxJson *ctx, ParseCtx *parseCtx);
 
-/* Json decode Helper */
-jsmntype_t
-getJsmnType(const ParseCtx *parseCtx) {
-    if(parseCtx->index >= parseCtx->tokenCount)
-        return JSMN_UNDEFINED;
-    return parseCtx->tokenArray[parseCtx->index].type;
-}
-
 UA_Boolean
 isJsonNull(const CtxJson *ctx, const ParseCtx *parseCtx) {
     if(parseCtx->index >= parseCtx->tokenCount)
@@ -1511,11 +1505,9 @@ static UA_SByte jsoneq(const char *json, jsmntok_t *tok, const char *searchKey) 
 }
 
 DECODE_JSON(Boolean) {
-    CHECK_PRIMITIVE;
     CHECK_TOKEN_BOUNDS;
-    size_t tokenSize;
-    char* tokenData;
-    GET_TOKEN(tokenData, tokenSize);
+    CHECK_PRIMITIVE;
+    GET_TOKEN;
 
     if(tokenSize == 4 &&
        tokenData[0] == 't' && tokenData[1] == 'r' &&
@@ -1636,9 +1628,7 @@ parseSignedInteger(char* inputBuffer, size_t sizeOfBuffer,
 DECODE_JSON(Byte) {
     CHECK_TOKEN_BOUNDS;
     CHECK_PRIMITIVE;
-    size_t tokenSize;
-    char* tokenData;
-    GET_TOKEN(tokenData, tokenSize);
+    GET_TOKEN;
 
     UA_UInt64 out = 0;
     UA_StatusCode s = parseUnsignedInteger(tokenData, tokenSize, &out);
@@ -1651,9 +1641,7 @@ DECODE_JSON(Byte) {
 DECODE_JSON(UInt16) {
     CHECK_TOKEN_BOUNDS;
     CHECK_PRIMITIVE;
-    size_t tokenSize;
-    char* tokenData;
-    GET_TOKEN(tokenData, tokenSize);
+    GET_TOKEN;
 
     UA_UInt64 out = 0;
     UA_StatusCode s = parseUnsignedInteger(tokenData, tokenSize, &out);
@@ -1666,9 +1654,7 @@ DECODE_JSON(UInt16) {
 DECODE_JSON(UInt32) {
     CHECK_TOKEN_BOUNDS;
     CHECK_PRIMITIVE;
-    size_t tokenSize;
-    char* tokenData;
-    GET_TOKEN(tokenData, tokenSize);
+    GET_TOKEN;
 
     UA_UInt64 out = 0;
     UA_StatusCode s = parseUnsignedInteger(tokenData, tokenSize, &out);
@@ -1681,9 +1667,7 @@ DECODE_JSON(UInt32) {
 DECODE_JSON(UInt64) {
     CHECK_TOKEN_BOUNDS;
     CHECK_STRING;
-    size_t tokenSize;
-    char* tokenData;
-    GET_TOKEN(tokenData, tokenSize);
+    GET_TOKEN;
 
     UA_UInt64 out = 0;
     UA_StatusCode s = parseUnsignedInteger(tokenData, tokenSize, &out);
@@ -1696,9 +1680,7 @@ DECODE_JSON(UInt64) {
 DECODE_JSON(SByte) {
     CHECK_TOKEN_BOUNDS;
     CHECK_PRIMITIVE;
-    size_t tokenSize;
-    char* tokenData;
-    GET_TOKEN(tokenData, tokenSize);
+    GET_TOKEN;
 
     UA_Int64 out = 0;
     UA_StatusCode s = parseSignedInteger(tokenData, tokenSize, &out);
@@ -1711,9 +1693,7 @@ DECODE_JSON(SByte) {
 DECODE_JSON(Int16) {
     CHECK_TOKEN_BOUNDS;
     CHECK_PRIMITIVE;
-    size_t tokenSize;
-    char* tokenData;
-    GET_TOKEN(tokenData, tokenSize);
+    GET_TOKEN;
 
     UA_Int64 out = 0;
     UA_StatusCode s = parseSignedInteger(tokenData, tokenSize, &out);
@@ -1726,9 +1706,7 @@ DECODE_JSON(Int16) {
 DECODE_JSON(Int32) {
     CHECK_TOKEN_BOUNDS;
     CHECK_PRIMITIVE;
-    size_t tokenSize;
-    char* tokenData;
-    GET_TOKEN(tokenData, tokenSize);
+    GET_TOKEN;
 
     UA_Int64 out = 0;
     UA_StatusCode s = parseSignedInteger(tokenData, tokenSize, &out);
@@ -1741,9 +1719,7 @@ DECODE_JSON(Int32) {
 DECODE_JSON(Int64) {
     CHECK_TOKEN_BOUNDS;
     CHECK_STRING;
-    size_t tokenSize;
-    char* tokenData;
-    GET_TOKEN(tokenData, tokenSize);
+    GET_TOKEN;
 
     UA_Int64 out = 0;
     UA_StatusCode s = parseSignedInteger(tokenData, tokenSize, &out);
@@ -1765,9 +1741,7 @@ static UA_UInt32 hex2int(char ch) {
 
 DECODE_JSON(Float) {
     CHECK_TOKEN_BOUNDS;
-    size_t tokenSize;
-    char* tokenData;
-    GET_TOKEN(tokenData, tokenSize);
+    GET_TOKEN;
 
     /* https://www.exploringbinary.com/maximum-number-of-decimal-digits-in-binary-floating-point-numbers/
      * Maximum digit counts for select IEEE floating-point formats: 149
@@ -1837,9 +1811,7 @@ DECODE_JSON(Float) {
 /* Either a JSMN_STRING or JSMN_PRIMITIVE */
 DECODE_JSON(Double) {
     CHECK_TOKEN_BOUNDS;
-    size_t tokenSize;
-    char* tokenData;
-    GET_TOKEN(tokenData, tokenSize);
+    GET_TOKEN;
 
     /* https://www.exploringbinary.com/maximum-number-of-decimal-digits-in-binary-floating-point-numbers/
      * Maximum digit counts for select IEEE floating-point formats: 1074
@@ -1934,11 +1906,9 @@ static UA_Guid UA_Guid_fromChars(const char* chars) {
 }
 
 DECODE_JSON(Guid) {
-    CHECK_STRING;
     CHECK_TOKEN_BOUNDS;
-    size_t tokenSize;
-    char* tokenData;
-    GET_TOKEN(tokenData, tokenSize);
+    CHECK_STRING;
+    GET_TOKEN;
 
     if(tokenSize != 36)
         return UA_STATUSCODE_BADDECODINGERROR;
@@ -1960,12 +1930,10 @@ DECODE_JSON(Guid) {
 }
 
 DECODE_JSON(String) {
+    CHECK_TOKEN_BOUNDS;
     ALLOW_NULL;
     CHECK_STRING;
-    CHECK_TOKEN_BOUNDS;
-    size_t tokenSize;
-    char* tokenData;
-    GET_TOKEN(tokenData, tokenSize);
+    GET_TOKEN;
 
     /* Empty string? */
     if(tokenSize == 0) {
@@ -2067,12 +2035,10 @@ cleanup:
 }
 
 DECODE_JSON(ByteString) {
+    CHECK_TOKEN_BOUNDS;
     ALLOW_NULL;
     CHECK_STRING;
-    CHECK_TOKEN_BOUNDS;
-    size_t tokenSize;
-    char* tokenData;
-    GET_TOKEN(tokenData, tokenSize);
+    GET_TOKEN;
 
     /* Empty bytestring? */
     if(tokenSize == 0) {
@@ -2121,9 +2087,8 @@ DECODE_JSON(QualifiedName) {
 static status
 searchObjectForKeyRec(const char *searchKey, CtxJson *ctx, 
                       ParseCtx *parseCtx, size_t *resultIndex, UA_UInt16 depth) {
-    UA_StatusCode ret = UA_STATUSCODE_BADNOTFOUND;
-
     CHECK_TOKEN_BOUNDS;
+    UA_StatusCode ret = UA_STATUSCODE_BADNOTFOUND;
 
     if(parseCtx->tokenArray[parseCtx->index].type == JSMN_OBJECT) {
         size_t objectCount = (size_t)parseCtx->tokenArray[parseCtx->index].size;
@@ -2357,12 +2322,10 @@ DECODE_JSON(ExpandedNodeId) {
 }
 
 DECODE_JSON(DateTime) {
+    CHECK_TOKEN_BOUNDS;
     ALLOW_NULL;
     CHECK_STRING;
-    CHECK_TOKEN_BOUNDS;
-    size_t tokenSize;
-    char* tokenData;
-    GET_TOKEN(tokenData, tokenSize);
+    GET_TOKEN;
 
     /* The last character has to be 'Z'. We can omit some checks later on
      * because we know the atoi functions stop before the 'Z'. */
