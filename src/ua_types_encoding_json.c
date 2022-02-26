@@ -2484,7 +2484,7 @@ DECODE_JSON(Variant) {
 
     /* Set the type */
     UA_NodeId typeNodeId = UA_NODEID_NUMERIC(0, (UA_UInt32)idTypeDecoded);
-    dst->type = UA_findDataType(&typeNodeId);
+    dst->type = UA_findDataTypeWithCustom(&typeNodeId, parseCtx->customTypes);
     if(!dst->type)
         return UA_STATUSCODE_BADDECODINGERROR;
 
@@ -2636,7 +2636,8 @@ DECODE_JSON(ExtensionObject) {
     parseCtx->index = index;
 
     /* If the type is not known, decode the body as an opaque JSON decoding */
-    const UA_DataType *typeOfBody = UA_findDataType(&typeId);
+    const UA_DataType *typeOfBody =
+        UA_findDataTypeWithCustom(&typeId, parseCtx->customTypes);
     if(!typeOfBody) {
         /* Dont decode body: 1. save as bytestring, 2. jump over */
         dst->encoding = UA_EXTENSIONOBJECT_ENCODED_BYTESTRING;
@@ -3045,17 +3046,19 @@ UA_decodeJson(const UA_ByteString *src, void *dst, const UA_DataType *type,
     return UA_STATUSCODE_BADNOTSUPPORTED;
 #endif
 
-    if(dst == NULL || src == NULL || type == NULL) {
+    if(dst == NULL || src == NULL || type == NULL)
         return UA_STATUSCODE_BADARGUMENTSMISSING;
-    }
 
     /* Set up the context */
     CtxJson ctx;
     ParseCtx parseCtx;
+    memset(&parseCtx, 0, sizeof(ParseCtx));
     parseCtx.tokenArray = (jsmntok_t*)
         UA_malloc(sizeof(jsmntok_t) * UA_JSON_MAXTOKENCOUNT);
     if(!parseCtx.tokenArray)
         return UA_STATUSCODE_BADOUTOFMEMORY;
+    if(options)
+        parseCtx.customTypes = options->customTypes;
 
     status ret = tokenize(&parseCtx, &ctx, src);
     if(ret != UA_STATUSCODE_GOOD)

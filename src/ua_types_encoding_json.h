@@ -137,6 +137,8 @@ typedef struct {
     size_t numCustom;
     void * custom;
     size_t currentCustomIndex;
+
+    const UA_DataTypeArray *customTypes;
 } ParseCtx;
 
 typedef UA_StatusCode
