@@ -234,6 +234,15 @@ writeJsonKey(CtxJson *ctx, const char* key) {
     return ret;
 }
 
+static bool
+isNull(const void *p, const UA_DataType *type) {
+    if(UA_DataType_isNumeric(type))
+        return false;
+    UA_STACKARRAY(char, buf, type->memSize);
+    memset(buf, 0, type->memSize);
+    return (UA_order(buf, p, type) == UA_ORDER_EQ);
+}
+
 /* Boolean */
 ENCODE_JSON(Boolean) {
     size_t sizeOfJSONBool;
@@ -460,9 +469,10 @@ encodeJsonArray(CtxJson *ctx, const void *ptr, size_t length,
     uintptr_t uptr = (uintptr_t)ptr;
     for(size_t i = 0; i < length && ret == UA_STATUSCODE_GOOD; ++i) {
         ret |= writeJsonCommaIfNeeded(ctx);
-        ret |= encodeType((const void*)uptr, type, ctx);
-        if(ret != UA_STATUSCODE_GOOD)
-            return ret;
+        if(isNull((const void*)uptr, type))
+            ret |= writeJsonNull(ctx); /* null values are written as "null" */
+        else
+            ret |= encodeType((const void*)uptr, type, ctx);
         ctx->commaNeeded[ctx->depth] = true;
         uptr += type->memSize;
     }
@@ -2897,12 +2907,16 @@ Array_decodeJson_internal(void **dst, const UA_DataType *type, CtxJson *ctx,
     /* Decode array members */
     uintptr_t ptr = (uintptr_t)*dst;
     for(size_t i = 0; i < length; ++i) {
-        status ret =
-            decodeJsonJumpTable[type->typeKind]((void*)ptr, type, ctx, parseCtx);
-        if(ret != UA_STATUSCODE_GOOD) {
-            UA_Array_delete(*dst, i+1, type);
-            *dst = NULL;
-            return ret;
+        if(tokenIsNull(ctx, parseCtx, parseCtx->index)) {
+            parseCtx->index++;
+        } else {
+            status ret =
+                decodeJsonJumpTable[type->typeKind]((void*)ptr, type, ctx, parseCtx);
+            if(ret != UA_STATUSCODE_GOOD) {
+                UA_Array_delete(*dst, i+1, type);
+                *dst = NULL;
+                return ret;
+            }
         }
         ptr += type->memSize;
     }
