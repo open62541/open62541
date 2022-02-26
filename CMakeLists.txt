@@ -156,6 +156,7 @@ option(UA_ENABLE_SUBSCRIPTIONS_EVENTS "Enable event monitoring" ON)
 option(UA_ENABLE_DA "Enable OPC UA DataAccess (Part 8) definitions" ON)
 option(UA_ENABLE_HISTORIZING "Enable basic support for historical access (client and server)" OFF)
 option(UA_ENABLE_DISCOVERY "Enable Discovery Service (LDS)" OFF)
+option(UA_ENABLE_JSON_ENCODING "Enable JSON encoding" OFF)
 
 option(UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS "Enable the use of A&C. (EXPERIMENTAL)" OFF)
 mark_as_advanced(UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS)
@@ -411,9 +412,6 @@ if(UA_ENABLE_PUBSUB_BUFMALLOC)
         message(FATAL_ERROR "PubSub buffer allocation cannot be used without 'UA_ENABLE_MALLOC_SINGLETON' enabled")
     endif()
 endif()
-
-option(UA_ENABLE_JSON_ENCODING "Enable Json encoding (EXPERIMENTAL)" OFF)
-mark_as_advanced(UA_ENABLE_JSON_ENCODING)
 
 option(UA_ENABLE_PUBSUB_MQTT "Enable publish/subscribe with mqtt (experimental)" OFF)
 mark_as_advanced(UA_ENABLE_PUBSUB_MQTT)
