@@ -20,6 +20,11 @@
 # pragma warning(disable: 4146)
 #endif
 
+static UA_INLINE UA_StatusCode
+UA_decodeJsonInternal(const UA_ByteString *src, void *dst, const UA_DataType *type) {
+    return UA_decodeJson(src, dst, type, NULL);
+}
+
 /* Test Boolean */
 START_TEST(UA_Boolean_true_json_encode) {
    

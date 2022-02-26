@@ -50,19 +50,6 @@ UA_encodeJsonInternal(const void *src, const UA_DataType *type, uint8_t **bufPos
                       size_t serverUriSize,
                       UA_Boolean useReversible) UA_FUNC_ATTR_WARN_UNUSED_RESULT;
 
-/* Decodes a scalar value described by type from json encoding.
- *
- * @param src The buffer with the json encoded value. Must not be NULL.
- * @param dst The target value. Must not be NULL. The target is assumed to have
- *        size type->memSize. The value is reset to zero before decoding. If
- *        decoding fails, members are deleted and the value is reset (zeroed)
- *        again.
- * @param type The value type. Must not be NULL.
- * @return Returns a statuscode whether decoding succeeded. */
-UA_StatusCode
-UA_decodeJsonInternal(const UA_ByteString *src, void *dst,
-                      const UA_DataType *type) UA_FUNC_ATTR_WARN_UNUSED_RESULT;
-
 /* Interal Definitions
  *
  * For future by the PubSub encoding */
@@ -175,13 +162,12 @@ UA_StatusCode
 decodeFields(CtxJson *ctx, ParseCtx *parseCtx,
              DecodeEntry *entries, size_t entryCount);
 
-UA_StatusCode
-decodeJsonInternal(void *dst, const UA_DataType *type,
-                   CtxJson *ctx, ParseCtx *parseCtx);
+/* Expose the jump tables and some methods for PubSub JSON decoding */
+extern const encodeJsonSignature encodeJsonJumpTable[UA_DATATYPEKINDS];
+extern const decodeJsonSignature decodeJsonJumpTable[UA_DATATYPEKINDS];
 
-/* workaround: TODO generate functions for UA_xxx_decodeJson */
-decodeJsonSignature getDecodeSignature(u8 index);
-UA_StatusCode lookAheadForKey(const char* search, CtxJson *ctx, ParseCtx *parseCtx, size_t *resultIndex);
+UA_StatusCode lookAheadForKey(const char* search, CtxJson *ctx,
+                              ParseCtx *parseCtx, size_t *resultIndex);
 UA_StatusCode tokenize(ParseCtx *parseCtx, CtxJson *ctx, const UA_ByteString *src);
 UA_Boolean isJsonNull(const CtxJson *ctx, const ParseCtx *parseCtx);
 
