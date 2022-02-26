@@ -177,14 +177,18 @@ decodeFields(CtxJson *ctx, ParseCtx *parseCtx,
 
 UA_StatusCode
 decodeJsonInternal(void *dst, const UA_DataType *type,
-                   CtxJson *ctx, ParseCtx *parseCtx, UA_Boolean moveToken);
+                   CtxJson *ctx, ParseCtx *parseCtx);
 
 /* workaround: TODO generate functions for UA_xxx_decodeJson */
 decodeJsonSignature getDecodeSignature(u8 index);
 UA_StatusCode lookAheadForKey(const char* search, CtxJson *ctx, ParseCtx *parseCtx, size_t *resultIndex);
-jsmntype_t getJsmnType(const ParseCtx *parseCtx);
 UA_StatusCode tokenize(ParseCtx *parseCtx, CtxJson *ctx, const UA_ByteString *src);
 UA_Boolean isJsonNull(const CtxJson *ctx, const ParseCtx *parseCtx);
+
+static UA_INLINE
+jsmntype_t getJsmnType(const ParseCtx *parseCtx) {
+    return parseCtx->tokenArray[parseCtx->index].type;
+}
 
 _UA_END_DECLS
 
