@@ -12,20 +12,20 @@
 #include "ua_types_encoding_json.h"
 
 /* Json keys for dsm */
-const char * UA_DECODEKEY_MESSAGES = ("Messages");
-const char * UA_DECODEKEY_MESSAGETYPE = ("MessageType");
-const char * UA_DECODEKEY_MESSAGEID = ("MessageId");
-const char * UA_DECODEKEY_PUBLISHERID = ("PublisherId");
-const char * UA_DECODEKEY_DATASETCLASSID = ("DataSetClassId");
+const char * UA_DECODEKEY_MESSAGES = "Messages";
+const char * UA_DECODEKEY_MESSAGETYPE = "MessageType";
+const char * UA_DECODEKEY_MESSAGEID = "MessageId";
+const char * UA_DECODEKEY_PUBLISHERID = "PublisherId";
+const char * UA_DECODEKEY_DATASETCLASSID = "DataSetClassId";
 
 /* Json keys for dsm */
-const char * UA_DECODEKEY_DATASETWRITERID = ("DataSetWriterId");
-const char * UA_DECODEKEY_SEQUENCENUMBER = ("SequenceNumber");
-const char * UA_DECODEKEY_METADATAVERSION = ("MetaDataVersion");
-const char * UA_DECODEKEY_TIMESTAMP = ("Timestamp");
-const char * UA_DECODEKEY_DSM_STATUS = ("Status");
-const char * UA_DECODEKEY_PAYLOAD = ("Payload");
-const char * UA_DECODEKEY_DS_TYPE = ("Type");
+const char * UA_DECODEKEY_DATASETWRITERID = "DataSetWriterId";
+const char * UA_DECODEKEY_SEQUENCENUMBER = "SequenceNumber";
+const char * UA_DECODEKEY_METADATAVERSION = "MetaDataVersion";
+const char * UA_DECODEKEY_TIMESTAMP = "Timestamp";
+const char * UA_DECODEKEY_DSM_STATUS = "Status";
+const char * UA_DECODEKEY_PAYLOAD = "Payload";
+const char * UA_DECODEKEY_DS_TYPE = "Type";
 
 /* -- json encoding/decoding -- */
 static UA_StatusCode writeJsonKey_UA_String(CtxJson *ctx, UA_String *in) {
@@ -36,7 +36,8 @@ static UA_StatusCode writeJsonKey_UA_String(CtxJson *ctx, UA_String *in) {
 }
 
 static UA_StatusCode
-UA_DataSetMessage_encodeJson_internal(const UA_DataSetMessage* src, UA_UInt16 dataSetWriterId,
+UA_DataSetMessage_encodeJson_internal(const UA_DataSetMessage* src,
+                                      UA_UInt16 dataSetWriterId,
                                       CtxJson *ctx) {
     status rv = writeJsonObjStart(ctx);
 
@@ -56,7 +57,8 @@ UA_DataSetMessage_encodeJson_internal(const UA_DataSetMessage* src, UA_UInt16 da
     }
 
     /* MetaDataVersion */
-    if(src->header.configVersionMajorVersionEnabled || src->header.configVersionMinorVersionEnabled) {
+    if(src->header.configVersionMajorVersionEnabled ||
+       src->header.configVersionMinorVersionEnabled) {
         UA_ConfigurationVersionDataType cvd;
         cvd.majorVersion = src->header.configVersionMajorVersion;
         cvd.minorVersion = src->header.configVersionMinorVersion;
@@ -188,17 +190,20 @@ UA_NetworkMessage_encodeJson_internal(const UA_NetworkMessage* src, CtxJson *ctx
 
     /* Payload: DataSetMessages */
     UA_Byte count = src->payloadHeader.dataSetPayloadHeader.count;
-    if(count > 0){
-        UA_UInt16 *dataSetWriterIds = src->payloadHeader.dataSetPayloadHeader.dataSetWriterIds;
+    if(count > 0) {
+        UA_UInt16 *dataSetWriterIds =
+            src->payloadHeader.dataSetPayloadHeader.dataSetWriterIds;
         if(!dataSetWriterIds)
             return UA_STATUSCODE_BADENCODINGERROR;
 
         rv |= writeJsonKey(ctx, UA_DECODEKEY_MESSAGES);
         rv |= writeJsonArrStart(ctx); /* start array */
 
+        const UA_DataSetMessage *dataSetMessages =
+            src->payload.dataSetPayload.dataSetMessages;
         for(UA_UInt16 i = 0; i < count; i++) {
             writeJsonCommaIfNeeded(ctx);
-            rv |= UA_DataSetMessage_encodeJson_internal(&src->payload.dataSetPayload.dataSetMessages[i],
+            rv |= UA_DataSetMessage_encodeJson_internal(&dataSetMessages[i],
                                                         dataSetWriterIds[i], ctx);
             if(rv != UA_STATUSCODE_GOOD)
                 return rv;
@@ -214,9 +219,10 @@ UA_NetworkMessage_encodeJson_internal(const UA_NetworkMessage* src, CtxJson *ctx
 
 UA_StatusCode
 UA_NetworkMessage_encodeJson(const UA_NetworkMessage *src,
-                             UA_Byte **bufPos, const UA_Byte **bufEnd, UA_String *namespaces,
-                             size_t namespaceSize, UA_String *serverUris,
-                             size_t serverUriSize, UA_Boolean useReversible) {
+                             UA_Byte **bufPos, const UA_Byte **bufEnd,
+                             UA_String *namespaces, size_t namespaceSize,
+                             UA_String *serverUris, size_t serverUriSize,
+                             UA_Boolean useReversible) {
     /* Set up the context */
     CtxJson ctx;
     memset(&ctx, 0, sizeof(ctx));
@@ -380,8 +386,9 @@ DatasetMessage_Array_decodeJsonInternal(void *UA_RESTRICT dst, const UA_DataType
         return UA_STATUSCODE_GOOD;
 
     /* Allocate memory */
-    UA_DataSetMessage *dsm = (UA_DataSetMessage*)UA_calloc(length, sizeof(UA_DataSetMessage));
-    if(dsm == NULL)
+    UA_DataSetMessage *dsm = (UA_DataSetMessage*)
+        UA_calloc(length, sizeof(UA_DataSetMessage));
+    if(!dsm)
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
     /* Copy new Pointer do dest */
@@ -401,8 +408,9 @@ DatasetMessage_Array_decodeJsonInternal(void *UA_RESTRICT dst, const UA_DataType
     return ret;
 }
 
-static status NetworkMessage_decodeJsonInternal(UA_NetworkMessage *dst, CtxJson *ctx,
-                                                ParseCtx *parseCtx) {
+static status
+NetworkMessage_decodeJsonInternal(UA_NetworkMessage *dst, CtxJson *ctx,
+                                  ParseCtx *parseCtx) {
     memset(dst, 0, sizeof(UA_NetworkMessage));
     dst->chunkMessage = false;
     dst->groupHeaderEnabled = false;
@@ -449,7 +457,8 @@ static status NetworkMessage_decodeJsonInternal(UA_NetworkMessage *dst, CtxJson 
     found = lookAheadForKey(UA_DECODEKEY_MESSAGETYPE, ctx, parseCtx, &searchResultMessageType);
     if(found != UA_STATUSCODE_GOOD)
         return UA_STATUSCODE_BADDECODINGERROR;
-    size_t size = (size_t)(parseCtx->tokenArray[searchResultMessageType].end - parseCtx->tokenArray[searchResultMessageType].start);
+    size_t size = (size_t)(parseCtx->tokenArray[searchResultMessageType].end -
+                           parseCtx->tokenArray[searchResultMessageType].start);
     char* msgType = (char*)(ctx->pos + parseCtx->tokenArray[searchResultMessageType].start);
     if(size == 7) { //ua-data
         if(strncmp(msgType, "ua-data", size) != 0)
@@ -493,7 +502,7 @@ static status NetworkMessage_decodeJsonInternal(UA_NetworkMessage *dst, CtxJson 
     dst->payloadHeaderEnabled = true;
     dst->payloadHeader.dataSetPayloadHeader.count = (UA_Byte)messageCount;
 
-    //Set the dataSetWriterIds. They are filled in the dataSet decoding.
+    /* Set the dataSetWriterIds. They are filled in the dataSet decoding. */
     dst->payloadHeader.dataSetPayloadHeader.dataSetWriterIds = (UA_UInt16*)parseCtx->custom;
     return ret;
 }
@@ -505,7 +514,10 @@ UA_NetworkMessage_decodeJson(UA_NetworkMessage *dst, const UA_ByteString *src) {
     memset(&ctx, 0, sizeof(CtxJson));
     ParseCtx parseCtx;
     memset(&parseCtx, 0, sizeof(ParseCtx));
-    parseCtx.tokenArray = (jsmntok_t*)UA_malloc(sizeof(jsmntok_t) * UA_JSON_MAXTOKENCOUNT);
+    parseCtx.tokenArray = (jsmntok_t*)
+        UA_malloc(sizeof(jsmntok_t) * UA_JSON_MAXTOKENCOUNT);
+    if(!parseCtx.tokenArray)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
     memset(parseCtx.tokenArray, 0, sizeof(jsmntok_t) * UA_JSON_MAXTOKENCOUNT);
     status ret = tokenize(&parseCtx, &ctx, src);
     if(ret != UA_STATUSCODE_GOOD)
