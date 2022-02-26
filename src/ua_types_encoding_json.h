@@ -156,8 +156,8 @@ typedef UA_StatusCode
 (*encodeJsonSignature)(const void *src, const UA_DataType *type, CtxJson *ctx);
 
 typedef UA_StatusCode
-(*decodeJsonSignature)(void *dst, const UA_DataType *type, CtxJson *ctx,
-                       ParseCtx *parseCtx, UA_Boolean moveToken);
+(*decodeJsonSignature)(void *dst, const UA_DataType *type,
+                       CtxJson *ctx, ParseCtx *parseCtx);
 
 /* Map for decoding a Json Object. An array of this is passed to the
  * decodeFields function. If the key "fieldName" is found in the json object
