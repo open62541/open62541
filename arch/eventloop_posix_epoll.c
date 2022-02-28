@@ -100,9 +100,9 @@ UA_EventLoopPOSIX_pollFDs(UA_EventLoopPOSIX *el, UA_DateTime listenTimeout) {
     for(int i = 0; i < events; i++) {
         UA_RegisteredFD *rfd = (UA_RegisteredFD*)epoll_events[i].data.ptr;
         short revent = 0;
-        if(epoll_events[i].events == EPOLLIN) {
+        if((epoll_events[i].events & EPOLLIN) == EPOLLIN) {
             revent = UA_FDEVENT_IN;
-        } else if(epoll_events[i].events == EPOLLOUT) {
+        } else if((epoll_events[i].events & EPOLLOUT) == EPOLLOUT) {
             revent = UA_FDEVENT_OUT;
         } else {
             revent = UA_FDEVENT_ERR;

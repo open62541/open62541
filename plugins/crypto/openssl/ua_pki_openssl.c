@@ -602,11 +602,13 @@ UA_CertificateVerification_VerifyApplicationURI (void *                verificat
 
     pData = certificate->data;
     if (pData == NULL) {
+        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "Error Empty Certificate");
         return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
     }
 
     certificateX509 = UA_OpenSSL_LoadCertificate(certificate);
     if (certificateX509 == NULL) {
+        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "Error loading X509 Certificate");
         return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
     }
 
@@ -614,6 +616,7 @@ UA_CertificateVerification_VerifyApplicationURI (void *                verificat
                                                 NULL, NULL);
     if (pNames == NULL) {
         X509_free (certificateX509);
+        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "Error processing X509 Certificate");
         return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
     }
     for (i = 0; i < sk_GENERAL_NAME_num (pNames); i++) {
@@ -622,6 +625,7 @@ UA_CertificateVerification_VerifyApplicationURI (void *                verificat
              subjectURI.length = (size_t) (value->d.ia5->length);
              subjectURI.data = (UA_Byte *) UA_malloc (subjectURI.length);
              if (subjectURI.data == NULL) {
+                 UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "Error Empty subjectURI");
                  X509_free (certificateX509);
                  sk_GENERAL_NAME_pop_free(pNames, GENERAL_NAME_free);
                  return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
@@ -635,6 +639,7 @@ UA_CertificateVerification_VerifyApplicationURI (void *                verificat
     ret = UA_STATUSCODE_GOOD;
     if (UA_Bstrstr (subjectURI.data, subjectURI.length,
                     applicationURI->data, applicationURI->length) == NULL) {
+        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "Empty comparing subjectURI and applicationURI");
         ret = UA_STATUSCODE_BADCERTIFICATEURIINVALID;
     }
 

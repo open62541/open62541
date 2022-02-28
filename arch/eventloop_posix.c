@@ -120,7 +120,7 @@ UA_EventLoopPOSIX_start(UA_EventLoopPOSIX *el) {
     if(el->epollfd == -1) {
         UA_LOG_SOCKET_ERRNO_WRAP(
            UA_LOG_WARNING(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
-                          "TCP\t| Could not create the epoll socket (%s)",
+                          "Eventloop\t| Could not create the epoll socket (%s)",
                           errno_str));
         return UA_STATUSCODE_BADINTERNALERROR;
     }
