@@ -999,7 +999,13 @@ verifyClientApplicationURI(const UA_Client *client) {
     for(size_t i = 0; i < client->config.securityPoliciesSize; i++) {
         UA_SecurityPolicy *sp = &client->config.securityPolicies[i];
         
-        if(sp->localCertificate.data == NULL) continue;
+        if(sp->localCertificate.data == NULL) 
+        {
+                UA_LOG_WARNING(&client->config.logger, UA_LOGCATEGORY_CLIENT,
+                "skip verifying ApplicationURI for the SecurityPolicy %.*s",
+                (int)sp->policyUri.length, sp->policyUri.data);
+                continue;
+        }
         
         UA_StatusCode retval =
             client->config.certificateVerification.
