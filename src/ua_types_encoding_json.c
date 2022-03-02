@@ -454,16 +454,14 @@ ENCODE_JSON(Double) {
 static status
 encodeJsonArray(CtxJson *ctx, const void *ptr, size_t length,
                 const UA_DataType *type) {
-    /* Null-arrays (length -1) are written as JSON 'null'. Empty arrays (length
-     * 0) are just an empty array. */
-    if(!ptr)
-        return writeJsonNull(ctx);
-
-    encodeJsonSignature encodeType = encodeJsonJumpTable[type->typeKind];
+    /* Null-arrays (length -1) are written as empty arrays '[]'.
+     * TODO: Clarify the difference between length -1 and length 0 in JSON. */
     status ret = writeJsonArrStart(ctx);
-    if(ret != UA_STATUSCODE_GOOD)
-        return ret;
+    if(!ptr)
+        return ret | writeJsonArrEnd(ctx);
+
     uintptr_t uptr = (uintptr_t)ptr;
+    encodeJsonSignature encodeType = encodeJsonJumpTable[type->typeKind];
     for(size_t i = 0; i < length && ret == UA_STATUSCODE_GOOD; ++i) {
         ret |= writeJsonCommaIfNeeded(ctx);
         if(isNull((const void*)uptr, type))
@@ -1922,10 +1920,10 @@ DECODE_JSON(Guid) {
 
     /* check if incorrect chars are present */
     for(size_t i = 0; i < tokenSize; i++) {
-        if(!(tokenData[i] == '-'
-                || (tokenData[i] >= '0' && tokenData[i] <= '9')
-                || (tokenData[i] >= 'A' && tokenData[i] <= 'F')
-                || (tokenData[i] >= 'a' && tokenData[i] <= 'f'))) {
+        if(!(tokenData[i] == '-' ||
+             (tokenData[i] >= '0' && tokenData[i] <= '9') ||
+             (tokenData[i] >= 'A' && tokenData[i] <= 'F') ||
+             (tokenData[i] >= 'a' && tokenData[i] <= 'f'))) {
             return UA_STATUSCODE_BADDECODINGERROR;
         }
     }
@@ -2499,10 +2497,14 @@ DECODE_JSON(Variant) {
     if(parseCtx->tokenArray[searchResultBody].type == JSMN_ARRAY) {
         isArray = true;
         dst->arrayLength = (size_t)parseCtx->tokenArray[searchResultBody].size;
-    } else if(tokenIsNull(ctx, parseCtx, searchResultBody)) {
-        isArray = true;
-        dst->arrayLength = 0;
     }
+
+    /* TODO: Handling of null-arrays (length -1) needs to be clarified
+     *
+     * if(tokenIsNull(ctx, parseCtx, searchResultBody)) {
+     *     isArray = true;
+     *     dst->arrayLength = 0;
+     * } */
 
     /* Has the variant dimension? */
     UA_Boolean hasDimension = false;
@@ -2846,6 +2848,13 @@ decodeFields(CtxJson *ctx, ParseCtx *parseCtx,
              * Jump over it. */
             if(!entries[index].function) {
                 skipObject(parseCtx);
+                break;
+            }
+
+            /* A null-value. Just initialize the type. */
+            if(isJsonNull(ctx, parseCtx) && entries[index].type) {
+                UA_init(entries[index].fieldPointer, entries[index].type);
+                parseCtx->index++;
                 break;
             }
 
