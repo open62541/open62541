@@ -298,8 +298,7 @@ DataSetPayload_decodeJsonInternal(void* dsmP, const UA_DataType *type,
 
     /* iterate over the key/value pairs in the object. Keys are stored in fieldnames. */
     for(size_t i = 0; i < length; ++i) {
-        ret = decodeJsonJumpTable[UA_DATATYPEKIND_STRING]
-            (&fieldNames[i], type, ctx, parseCtx);
+        ret = decodeJsonJumpTable[UA_DATATYPEKIND_STRING](&fieldNames[i], type, ctx, parseCtx);
         if(ret != UA_STATUSCODE_GOOD)
             return ret;
 
@@ -321,7 +320,6 @@ DataSetPayload_decodeJsonInternal(void* dsmP, const UA_DataType *type,
 
         if(ret != UA_STATUSCODE_GOOD)
             return ret;
-
     }
 
     return ret;
@@ -336,11 +334,11 @@ DatasetMessage_Payload_decodeJsonInternal(UA_DataSetMessage* dsm, const UA_DataT
     dsm->header.fieldEncoding = UA_FIELDENCODING_DATAVALUE;
 
     DecodeEntry entries[6] = {
-        {UA_DECODEKEY_DATASETWRITERID, &dataSetWriterId, decodeJsonJumpTable[UA_DATATYPEKIND_UINT16], false, NULL},
-        {UA_DECODEKEY_SEQUENCENUMBER, &dsm->header.dataSetMessageSequenceNr, decodeJsonJumpTable[UA_DATATYPEKIND_UINT16], false, NULL},
+        {UA_DECODEKEY_DATASETWRITERID, &dataSetWriterId, NULL, false, &UA_TYPES[UA_TYPES_UINT16]},
+        {UA_DECODEKEY_SEQUENCENUMBER, &dsm->header.dataSetMessageSequenceNr, NULL, false, &UA_TYPES[UA_TYPES_UINT16]},
         {UA_DECODEKEY_METADATAVERSION, &cvd, &MetaDataVersion_decodeJsonInternal, false, NULL},
-        {UA_DECODEKEY_TIMESTAMP, &dsm->header.timestamp, decodeJsonJumpTable[UA_DATATYPEKIND_DATETIME], false, NULL},
-        {UA_DECODEKEY_DSM_STATUS, &dsm->header.status, decodeJsonJumpTable[UA_DATATYPEKIND_UINT16], false, NULL},
+        {UA_DECODEKEY_TIMESTAMP, &dsm->header.timestamp, NULL, false, &UA_TYPES[UA_TYPES_DATETIME]},
+        {UA_DECODEKEY_DSM_STATUS, &dsm->header.status, NULL, false, &UA_TYPES[UA_TYPES_UINT16]},
         {UA_DECODEKEY_PAYLOAD, dsm, &DataSetPayload_decodeJsonInternal, false, NULL}
     };
     status ret = decodeFields(ctx, parseCtx, entries, 6);
@@ -419,17 +417,16 @@ NetworkMessage_decodeJsonInternal(UA_NetworkMessage *dst, CtxJson *ctx,
     dst->promotedFieldsEnabled = false;
 
     /* Look forward for publisheId, if present check if type if primitve (Number) or String. */
-    u8 publishTypeKind = UA_DATATYPEKIND_STRING;
+    const UA_DataType *pubIdType = &UA_TYPES[UA_TYPES_STRING];
     size_t searchResultPublishIdType = 0;
     status found = lookAheadForKey(UA_DECODEKEY_PUBLISHERID, ctx,
                                    parseCtx, &searchResultPublishIdType);
     if(found == UA_STATUSCODE_GOOD) {
         jsmntok_t publishIdToken = parseCtx->tokenArray[searchResultPublishIdType];
         if(publishIdToken.type == JSMN_PRIMITIVE) {
-            publishTypeKind = UA_DATATYPEKIND_UINT64;
+            pubIdType = &UA_TYPES[UA_TYPES_UINT64];
             dst->publisherIdType = UA_PUBLISHERDATATYPE_UINT64; //store in biggest possible
         } else if(publishIdToken.type == JSMN_STRING) {
-            publishTypeKind = UA_DATATYPEKIND_STRING;
             dst->publisherIdType = UA_PUBLISHERDATATYPE_STRING;
         } else {
             return UA_STATUSCODE_BADDECODINGERROR;
@@ -479,15 +476,15 @@ NetworkMessage_decodeJsonInternal(UA_NetworkMessage *dst, CtxJson *ctx,
     /* Network Message */
     UA_String messageType;
     DecodeEntry entries[5] = {
-        {UA_DECODEKEY_MESSAGEID, &dst->messageId, decodeJsonJumpTable[UA_DATATYPEKIND_STRING], false, NULL},
+        {UA_DECODEKEY_MESSAGEID, &dst->messageId, NULL, false, &UA_TYPES[UA_TYPES_STRING]},
         {UA_DECODEKEY_MESSAGETYPE, &messageType, NULL, false, NULL},
-        {UA_DECODEKEY_PUBLISHERID, &dst->publisherId.publisherIdString, decodeJsonJumpTable[publishTypeKind], false, NULL},
-        {UA_DECODEKEY_DATASETCLASSID, &dst->dataSetClassId, decodeJsonJumpTable[UA_DATATYPEKIND_GUID], false, NULL},
+        {UA_DECODEKEY_PUBLISHERID, &dst->publisherId.publisherIdString, NULL, false, pubIdType},
+        {UA_DECODEKEY_DATASETCLASSID, &dst->dataSetClassId, NULL, false, &UA_TYPES[UA_TYPES_GUID]},
         {UA_DECODEKEY_MESSAGES, &dst->payload.dataSetPayload.dataSetMessages, &DatasetMessage_Array_decodeJsonInternal, false, NULL}
     };
 
     //Store publisherId in correct union
-    if(publishTypeKind == UA_DATATYPEKIND_UINT64)
+    if(pubIdType == &UA_TYPES[UA_TYPES_UINT64])
         entries[2].fieldPointer = &dst->publisherId.publisherIdUInt64;
 
     status ret = decodeFields(ctx, parseCtx, entries, 5);
