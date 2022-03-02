@@ -153,11 +153,13 @@ typedef UA_StatusCode
  * (mark as found and) decode the value with the "function" and write result
  * into "fieldPointer" (destination). */
 typedef struct {
-    const char * fieldName;
-    void * fieldPointer;
+    const char *fieldName;
+    void *fieldPointer;
     decodeJsonSignature function;
     UA_Boolean found;
-    const UA_DataType *type;
+    const UA_DataType *type; /* Must be set for values that can be "null". If
+                              * the function is not set, decode via the
+                              * type->typeKind. */
 } DecodeEntry;
 
 UA_StatusCode
