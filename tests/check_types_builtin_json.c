@@ -2535,15 +2535,8 @@ START_TEST(UA_Variant_Array_UInt16_Null_json_encode) {
     *bufPos = 0;
     // then
     ck_assert_int_eq(s, UA_STATUSCODE_GOOD);
-    char* result = "{\"Type\":5,\"Body\":null}";
+    char* result = "{\"Type\":5,\"Body\":[]}";
     ck_assert_str_eq(result, (char*)buf.data);
-
-    UA_Variant out;
-    UA_Variant_init(&out);
-    s = UA_decodeJsonInternal(&buf, &out, &UA_TYPES[UA_TYPES_VARIANT]);
-    ck_assert_int_eq(s, UA_STATUSCODE_GOOD);
-
-    ck_assert(UA_order(src, &out, &UA_TYPES[UA_TYPES_VARIANT]) == UA_ORDER_EQ);
 
     UA_ByteString_clear(&buf);
     UA_Variant_delete(src);
@@ -3353,7 +3346,7 @@ START_TEST(UA_MessageReadResponse_json_encode) {
     *bufPos = 0;
     // then
     ck_assert_int_eq(s, UA_STATUSCODE_GOOD);
-    char* result = "{\"ResponseHeader\":{\"Timestamp\":\"1970-01-15T06:56:07Z\",\"RequestHandle\":123123,\"ServiceResult\":0,\"ServiceDiagnostics\":{\"AdditionalInfo\":\"serverDiag\"},\"StringTable\":null,\"AdditionalHeader\":{\"TypeId\":{\"Id\":1},\"Body\":false}},\"Results\":[{\"Value\":{\"Type\":1,\"Body\":true},\"Status\":2153250816,\"SourceTimestamp\":\"1970-01-15T06:56:07Z\",\"ServerTimestamp\":\"1970-01-15T06:56:07Z\"}],\"DiagnosticInfos\":[{\"AdditionalInfo\":\"INNER ADDITION INFO\"}]}";
+    char* result = "{\"ResponseHeader\":{\"Timestamp\":\"1970-01-15T06:56:07Z\",\"RequestHandle\":123123,\"ServiceResult\":0,\"ServiceDiagnostics\":{\"AdditionalInfo\":\"serverDiag\"},\"StringTable\":[],\"AdditionalHeader\":{\"TypeId\":{\"Id\":1},\"Body\":false}},\"Results\":[{\"Value\":{\"Type\":1,\"Body\":true},\"Status\":2153250816,\"SourceTimestamp\":\"1970-01-15T06:56:07Z\",\"ServerTimestamp\":\"1970-01-15T06:56:07Z\"}],\"DiagnosticInfos\":[{\"AdditionalInfo\":\"INNER ADDITION INFO\"}]}";
     ck_assert_str_eq(result, (char*)buf.data);
     UA_ByteString_clear(&buf);
     UA_ReadResponse_clear(&src); //TODO
@@ -3542,7 +3535,7 @@ START_TEST(UA_VariableAttributes_json_encode) {
                    "\"WriteMask\":0,\"UserWriteMask\":0,"
                    "\"Value\":{\"Type\":6,\"Body\":42},"
                    "\"DataType\":{\"Id\":6},\"ValueRank\":-2,"
-                   "\"ArrayDimensions\":null,"
+                   "\"ArrayDimensions\":[],"
                    "\"IsAbstract\":true}";
     ck_assert_str_eq(result, (char*)buf.data);
     UA_ByteString_clear(&buf);
