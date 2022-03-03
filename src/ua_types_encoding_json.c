@@ -2542,8 +2542,7 @@ DECODE_JSON(Variant) {
         return UA_STATUSCODE_BADOUTOFMEMORY;
     DecodeEntry entries[2] = {
         {UA_JSONKEY_TYPE, NULL, NULL, false, NULL},
-        {UA_JSONKEY_BODY, dst->data, decodeJsonJumpTable[dst->type->typeKind],
-         false, dst->type}
+        {UA_JSONKEY_BODY, dst->data, NULL, false, dst->type}
     };
     return decodeFields(ctx, parseCtx, entries, 2);
 }
