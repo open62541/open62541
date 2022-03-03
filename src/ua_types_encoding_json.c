@@ -2153,41 +2153,36 @@ lookAheadForKey(const char* search, CtxJson *ctx,
 static status
 prepareDecodeNodeIdJson(UA_NodeId *dst, CtxJson *ctx, ParseCtx *parseCtx, 
                         u8 *fieldCount, DecodeEntry *entries) {
-    /* possible keys: Id, IdType*/
+    /* possible keys: Id, IdType, NamespaceIndex */
     /* Id must always be present */
     entries[*fieldCount].fieldName = UA_JSONKEY_ID;
     entries[*fieldCount].found = false;
     entries[*fieldCount].type = NULL;
+    entries[*fieldCount].function = NULL;
 
     /* IdType */
-    UA_Boolean hasIdType = false;
     size_t searchResult = 0;
     status ret = lookAheadForKey(UA_JSONKEY_IDTYPE, ctx, parseCtx, &searchResult);
-    if(ret == UA_STATUSCODE_GOOD) { /*found*/
-         hasIdType = true;
-    }
-
-    if(hasIdType) {
+    if(ret == UA_STATUSCODE_GOOD) {
         size_t size = (size_t)(parseCtx->tokenArray[searchResult].end -
                                parseCtx->tokenArray[searchResult].start);
-        if(size < 1) {
+        if(size < 1)
             return UA_STATUSCODE_BADDECODINGERROR;
-        }
 
         char *idType = (char*)(ctx->pos + parseCtx->tokenArray[searchResult].start);
 
         if(idType[0] == '2') {
             dst->identifierType = UA_NODEIDTYPE_GUID;
             entries[*fieldCount].fieldPointer = &dst->identifier.guid;
-            entries[*fieldCount].function = (decodeJsonSignature)Guid_decodeJson;
+            entries[*fieldCount].type = &UA_TYPES[UA_TYPES_GUID];
         } else if(idType[0] == '1') {
             dst->identifierType = UA_NODEIDTYPE_STRING;
             entries[*fieldCount].fieldPointer = &dst->identifier.string;
-            entries[*fieldCount].function = (decodeJsonSignature)String_decodeJson;
+            entries[*fieldCount].type = &UA_TYPES[UA_TYPES_STRING];
         } else if(idType[0] == '3') {
             dst->identifierType = UA_NODEIDTYPE_BYTESTRING;
             entries[*fieldCount].fieldPointer = &dst->identifier.byteString;
-            entries[*fieldCount].function = (decodeJsonSignature)ByteString_decodeJson;
+            entries[*fieldCount].type = &UA_TYPES[UA_TYPES_BYTESTRING];
         } else {
             return UA_STATUSCODE_BADDECODINGERROR;
         }
@@ -2206,10 +2201,20 @@ prepareDecodeNodeIdJson(UA_NodeId *dst, CtxJson *ctx, ParseCtx *parseCtx,
     } else {
         dst->identifierType = UA_NODEIDTYPE_NUMERIC;
         entries[*fieldCount].fieldPointer = &dst->identifier.numeric;
-        entries[*fieldCount].function = (decodeJsonSignature)UInt32_decodeJson;
-        entries[*fieldCount].type = NULL;
+        entries[*fieldCount].function = NULL;
+        entries[*fieldCount].found = false;
+        entries[*fieldCount].type = &UA_TYPES[UA_TYPES_UINT32];
         (*fieldCount)++;
     }
+
+    /* NodeId has a NamespaceIndex (the ExpandedNodeId specialization may
+     * overwrite this) */
+    entries[*fieldCount].fieldName = UA_JSONKEY_NAMESPACE;
+    entries[*fieldCount].fieldPointer = &dst->namespaceIndex;
+    entries[*fieldCount].function = NULL;
+    entries[*fieldCount].found = false;
+    entries[*fieldCount].type = &UA_TYPES[UA_TYPES_UINT16];
+    (*fieldCount)++;
 
     return UA_STATUSCODE_GOOD;
 }
@@ -2217,99 +2222,100 @@ prepareDecodeNodeIdJson(UA_NodeId *dst, CtxJson *ctx, ParseCtx *parseCtx,
 DECODE_JSON(NodeId) {
     CHECK_OBJECT;
 
-    /* NameSpace */
-    UA_Boolean hasNamespace = false;
-    size_t searchResultNamespace = 0;
-    status ret = lookAheadForKey(UA_JSONKEY_NAMESPACE, ctx, parseCtx, &searchResultNamespace);
-    if(ret != UA_STATUSCODE_GOOD) {
-        dst->namespaceIndex = 0;
-    } else {
-        hasNamespace = true;
-    }
-
-    /* Keep track over number of keys present, incremented if key found */
     u8 fieldCount = 0;
     DecodeEntry entries[3];
-    ret = prepareDecodeNodeIdJson(dst, ctx, parseCtx, &fieldCount, entries);
+    status ret = prepareDecodeNodeIdJson(dst, ctx, parseCtx, &fieldCount, entries);
     if(ret != UA_STATUSCODE_GOOD)
         return ret;
+    return decodeFields(ctx, parseCtx, entries, fieldCount);
+}
 
-    if(hasNamespace) {
-        entries[fieldCount].fieldName = UA_JSONKEY_NAMESPACE;
-        entries[fieldCount].fieldPointer = &dst->namespaceIndex;
-        entries[fieldCount].function = (decodeJsonSignature) UInt16_decodeJson;
-        entries[fieldCount].found = false;
-        entries[fieldCount].type = NULL;
-        fieldCount++;
-    } else {
-        dst->namespaceIndex = 0;
+static status
+decodeExpandedNodeIdNamespace(void *dst, const UA_DataType *type,
+                              CtxJson *ctx, ParseCtx *parseCtx) {
+    UA_ExpandedNodeId *en = (UA_ExpandedNodeId*)dst;
+
+    /* Parse as a number */
+    UA_UInt16 oldIndex = parseCtx->index;
+    status ret = UInt16_decodeJson(&en->nodeId.namespaceIndex, NULL, ctx, parseCtx);
+    if(ret == UA_STATUSCODE_GOOD)
+        return ret;
+
+    /* Reset the index */
+    parseCtx->index = oldIndex;
+
+    /* Parse as a string and look up */
+    CHECK_TOKEN_BOUNDS;
+    CHECK_STRING;
+    GET_TOKEN;
+
+    UA_String uri = {tokenSize, (UA_Byte*)tokenData};
+    parseCtx->index++;
+    for(size_t i = 0; i < ctx->namespacesSize; i++) {
+        if(UA_String_equal(&uri, &ctx->namespaces[i])) {
+            en->nodeId.namespaceIndex = (UA_UInt16)i;
+            return UA_STATUSCODE_GOOD;
+        }
     }
 
-    ret = decodeFields(ctx, parseCtx, entries, fieldCount);
-    if(ret != UA_STATUSCODE_GOOD)
-        UA_NodeId_clear(dst);
-    return ret;
+    /* Not found, store as URI */
+    return UA_String_copy(&uri, &en->namespaceUri);
+}
+
+static status
+decodeExpandedNodeIdServerUri(void *dst, const UA_DataType *type,
+                              CtxJson *ctx, ParseCtx *parseCtx) {
+    UA_ExpandedNodeId *en = (UA_ExpandedNodeId*)dst;
+
+    /* Parse as a number */
+    UA_UInt16 oldIndex = parseCtx->index;
+    status ret = UInt32_decodeJson(&en->serverIndex, NULL, ctx, parseCtx);
+    if(ret == UA_STATUSCODE_GOOD)
+        return ret;
+
+    /* Reset the index */
+    parseCtx->index = oldIndex;
+
+    /* Parse as a string and look up */
+    CHECK_TOKEN_BOUNDS;
+    CHECK_STRING;
+    GET_TOKEN;
+
+    UA_String uri = {tokenSize, (UA_Byte*)tokenData};
+    parseCtx->index++;
+    for(size_t i = 0; i < ctx->serverUrisSize; i++) {
+        if(UA_String_equal(&uri, &ctx->serverUris[i])) {
+            en->serverIndex = (UA_UInt32)i;
+            return UA_STATUSCODE_GOOD;
+        }
+    }
+
+    return UA_STATUSCODE_BADDECODINGERROR;
 }
 
 DECODE_JSON(ExpandedNodeId) {
     CHECK_OBJECT;
 
-    /* Keep track over number of keys present, incremented if key found */
     u8 fieldCount = 0;
-
-    /* ServerUri */
-    UA_Boolean hasServerUri = false;
-    size_t searchResultServerUri = 0;
-    status ret = lookAheadForKey(UA_JSONKEY_SERVERURI, ctx, parseCtx, &searchResultServerUri);
-    if(ret != UA_STATUSCODE_GOOD) {
-        dst->serverIndex = 0;
-    } else {
-        hasServerUri = true;
-    }
-
-    /* NameSpace */
-    UA_Boolean hasNamespace = false;
-    UA_Boolean isNamespaceString = false;
-    size_t searchResultNamespace = 0;
-    ret = lookAheadForKey(UA_JSONKEY_NAMESPACE, ctx, parseCtx, &searchResultNamespace);
-    if(ret != UA_STATUSCODE_GOOD) {
-        dst->namespaceUri = UA_STRING_NULL;
-    } else {
-        hasNamespace = true;
-        jsmntok_t nsToken = parseCtx->tokenArray[searchResultNamespace];
-        if(nsToken.type == JSMN_STRING)
-            isNamespaceString = true;
-    }
-
     DecodeEntry entries[4];
-    ret = prepareDecodeNodeIdJson(&dst->nodeId, ctx, parseCtx, &fieldCount, entries);
+    status ret = prepareDecodeNodeIdJson(&dst->nodeId, ctx, parseCtx,
+                                         &fieldCount, entries);
     if(ret != UA_STATUSCODE_GOOD)
         return ret;
 
-    if(hasNamespace) {
-        entries[fieldCount].fieldName = UA_JSONKEY_NAMESPACE;
-        if(isNamespaceString) {
-            entries[fieldCount].fieldPointer = &dst->namespaceUri;
-            entries[fieldCount].function = (decodeJsonSignature)String_decodeJson;
-        } else {
-            entries[fieldCount].fieldPointer = &dst->nodeId.namespaceIndex;
-            entries[fieldCount].function = (decodeJsonSignature)UInt16_decodeJson;
-        }
-        entries[fieldCount].found = false;
-        entries[fieldCount].type = NULL;
-        fieldCount++;
-    }
+    /* Overwrite the namespace entry */
+    fieldCount--;
+    entries[fieldCount].fieldPointer = dst;
+    entries[fieldCount].function = decodeExpandedNodeIdNamespace;
+    entries[fieldCount].type = NULL;
+    fieldCount++;
 
-    if(hasServerUri) {
-        entries[fieldCount].fieldName = UA_JSONKEY_SERVERURI;
-        entries[fieldCount].fieldPointer = &dst->serverIndex;
-        entries[fieldCount].function = (decodeJsonSignature)UInt32_decodeJson;
-        entries[fieldCount].found = false;
-        entries[fieldCount].type = NULL;
-        fieldCount++;
-    } else {
-        dst->serverIndex = 0;
-    }
+    entries[fieldCount].fieldName = UA_JSONKEY_SERVERURI;
+    entries[fieldCount].fieldPointer = dst;
+    entries[fieldCount].function = decodeExpandedNodeIdServerUri;
+    entries[fieldCount].found = false;
+    entries[fieldCount].type = NULL;
+    fieldCount++;
 
     return decodeFields(ctx, parseCtx, entries, fieldCount);
 }
@@ -3033,14 +3039,20 @@ UA_decodeJson(const UA_ByteString *src, void *dst, const UA_DataType *type,
 
     /* Set up the context */
     CtxJson ctx;
+    memset(&ctx, 0, sizeof(ctx));
     ParseCtx parseCtx;
     memset(&parseCtx, 0, sizeof(ParseCtx));
     parseCtx.tokenArray = (jsmntok_t*)
         UA_malloc(sizeof(jsmntok_t) * UA_JSON_MAXTOKENCOUNT);
     if(!parseCtx.tokenArray)
         return UA_STATUSCODE_BADOUTOFMEMORY;
-    if(options)
+    if(options) {
+        ctx.namespaces = options->namespaces;
+        ctx.namespacesSize = options->namespacesSize;
+        ctx.serverUris = options->serverUris;
+        ctx.serverUrisSize = options->serverUrisSize;
         parseCtx.customTypes = options->customTypes;
+    }
 
     /* Decode */
     status ret = tokenize(&parseCtx, &ctx, src);
