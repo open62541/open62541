@@ -1073,7 +1073,6 @@ ENCODE_JSON(Variant) {
 
     /* Set the content type in the encoding mask */
     const UA_Boolean isBuiltin = (src->type->typeKind <= UA_DATATYPEKIND_DIAGNOSTICINFO);
-    const UA_Boolean isEnum = (src->type->typeKind == UA_DATATYPEKIND_ENUM);
 
     /* Set the array type in the encoding mask */
     const bool isArray = src->arrayLength > 0 || src->data <= UA_EMPTY_ARRAY_SENTINEL;
@@ -1084,13 +1083,16 @@ ENCODE_JSON(Variant) {
     if(ctx->useReversible) {
         /* Write the NodeId */
         UA_UInt32 typeId = src->type->typeId.identifier.numeric;
-        if(!isBuiltin && !isEnum)
+        if(!isBuiltin)
             typeId = UA_TYPES[UA_TYPES_EXTENSIONOBJECT].typeId.identifier.numeric;
         ret |= writeJsonKey(ctx, UA_JSONKEY_TYPE);
         ret |= ENCODE_DIRECT_JSON(&typeId, UInt32);
             
         /* Write the reversible form body */
-        if(!isBuiltin && !isEnum) {
+        if(!isBuiltin) {
+            /* Not builtin. Can it be encoded? Wrap in extension object. */
+            if(src->arrayDimensionsSize > 1)
+                return UA_STATUSCODE_BADNOTIMPLEMENTED;
             ret |= writeJsonKey(ctx, UA_JSONKEY_BODY);
             ret |= Variant_encodeJsonWrapExtensionObject(src, isArray, ctx);
         } else if(!isArray) {
@@ -1112,7 +1114,7 @@ ENCODE_JSON(Variant) {
          * containing only the value of the Body field. The Type and Dimensions
          * fields are dropped. Multi-dimensional arrays are encoded as a multi
          * dimensional JSON array as described in 5.4.5. */
-        if(!isBuiltin && !isEnum) {
+        if(!isBuiltin) {
             /* Not builtin. Can it be encoded? Wrap in extension object. */
             if(src->arrayDimensionsSize > 1)
                 return UA_STATUSCODE_BADNOTIMPLEMENTED;
