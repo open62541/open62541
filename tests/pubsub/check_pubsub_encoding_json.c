@@ -81,7 +81,7 @@ START_TEST(UA_PubSub_EncodeAllOptionalFields) {
     m.payload.dataSetPayload.dataSetMessages[0].data.keyFrameData.dataSetFields[0].hasValue = true;
 
     size_t size = UA_NetworkMessage_calcSizeJson(&m, NULL, 0, NULL, 0, true);
-    ck_assert_int_eq(size, 342);
+    ck_assert_int_eq(size, 340);
 
     UA_ByteString buffer;
     UA_StatusCode rv = UA_ByteString_allocBuffer(&buffer, size+1);
@@ -97,7 +97,7 @@ START_TEST(UA_PubSub_EncodeAllOptionalFields) {
     // then
     ck_assert_int_eq(rv, UA_STATUSCODE_GOOD);
 
-    char* result = "{\"MessageId\":\"ABCDEFGH\",\"MessageType\":\"ua-data\",\"PublisherId\":65535,\"DataSetClassId\":\"00000001-0002-0003-0000-000000000000\",\"Messages\":[{\"DataSetWriterId\":12345,\"SequenceNumber\":4711,\"MetaDataVersion\":{\"MajorVersion\":42,\"MinorVersion\":7},\"Timestamp\":\"1601-01-13T20:38:31.1111111Z\",\"Status\":2764857,\"Payload\":{\"Field1\":{\"Type\":7,\"Body\":27}}}]}";
+    char* result = "{\"MessageId\":\"ABCDEFGH\",\"MessageType\":\"ua-data\",\"PublisherId\":65535,\"DataSetClassId\":\"00000001-0002-0003-0000-000000000000\",\"Messages\":[{\"DataSetWriterId\":12345,\"SequenceNumber\":4711,\"MetaDataVersion\":{\"MajorVersion\":42,\"MinorVersion\":7},\"Timestamp\":\"1601-01-13T20:38:31.1111111Z\",\"Status\":12345,\"Payload\":{\"Field1\":{\"Type\":7,\"Body\":27}}}]}";
     ck_assert_str_eq(result, (char*)buffer.data);
 
     UA_ByteString_clear(&buffer);

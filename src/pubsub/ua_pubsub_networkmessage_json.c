@@ -79,7 +79,7 @@ UA_DataSetMessage_encodeJson_internal(const UA_DataSetMessage* src,
     /* Status */
     if(src->header.statusEnabled) {
         rv |= writeJsonObjElm(ctx, UA_DECODEKEY_DSM_STATUS,
-                              &src->header.status, &UA_TYPES[UA_TYPES_STATUSCODE]);
+                              &src->header.status, &UA_TYPES[UA_TYPES_UINT16]);
         if(rv != UA_STATUSCODE_GOOD)
             return rv;
     }
