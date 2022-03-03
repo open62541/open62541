@@ -241,6 +241,9 @@ class Value(object):
                     return extobj
 
                 extobj.value = []
+                if enc is None:
+                    logger.warning("DataType is not found in nodeset")
+                    return ExtensionObject()
                 members = enc.members
 
                 # The EncodingMask must be skipped.
@@ -258,8 +261,6 @@ class Value(object):
                         members = []
                         members.append(enc.members[data-1])
                         ebodypart = getNextElementNode(ebodypart)
-
-
                 for e in members:
                     # ebodypart can be None if the field is not set, although the field is not optional.
                     if ebodypart is None:
