@@ -2863,15 +2863,8 @@ Array_decodeJson_internal(void **dst, const UA_DataType *type,
     /* Save the length of the array */
     size_t *size_ptr = (size_t*) dst - 1;
 
-    if(parseCtx->tokenArray[parseCtx->index].type != JSMN_ARRAY) {
-        /* Null array? */
-        if(tokenIsNull(ctx, parseCtx, parseCtx->index)) {
-            *dst = NULL;
-            *size_ptr = 0;
-            return UA_STATUSCODE_GOOD;
-        }
+    if(parseCtx->tokenArray[parseCtx->index].type != JSMN_ARRAY)
         return UA_STATUSCODE_BADDECODINGERROR;
-    }
 
     size_t length = (size_t)parseCtx->tokenArray[parseCtx->index].size;
 
