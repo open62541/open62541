@@ -2507,7 +2507,7 @@ DECODE_JSON(Variant) {
 
     /* Get the datatype of the content. The type must be a builtin data type.
      * All not-builtin types are wrapped in an ExtensionObject. */
-    if(dst->type->typeKind > UA_TYPES_DIAGNOSTICINFO)
+    if(dst->type->typeKind > UA_DATATYPEKIND_DIAGNOSTICINFO)
         return UA_STATUSCODE_BADDECODINGERROR;
 
     /* A variant cannot contain a variant. But it can contain an array of
