@@ -2484,11 +2484,7 @@ DECODE_JSON(Variant) {
         return UA_STATUSCODE_BADDECODINGERROR;
 
     /* Value is an array? */
-    UA_Boolean isArray = false;
-    if(parseCtx->tokenArray[searchResultBody].type == JSMN_ARRAY) {
-        isArray = true;
-        dst->arrayLength = (size_t)parseCtx->tokenArray[searchResultBody].size;
-    }
+    UA_Boolean isArray = (parseCtx->tokenArray[searchResultBody].type == JSMN_ARRAY);
 
     /* TODO: Handling of null-arrays (length -1) needs to be clarified
      *
