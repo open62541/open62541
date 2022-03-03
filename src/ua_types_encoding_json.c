@@ -2885,15 +2885,16 @@ Array_decodeJson_internal(void **dst, const UA_DataType *type,
     /* Decode array members */
     uintptr_t ptr = (uintptr_t)*dst;
     for(size_t i = 0; i < length; ++i) {
-        if(tokenIsNull(ctx, parseCtx, parseCtx->index)) {
+        if(!tokenIsNull(ctx, parseCtx, parseCtx->index)) {
+            status ret =
+                decodeJsonJumpTable[type->typeKind]((void*)ptr, type, ctx, parseCtx);
+            if(ret != UA_STATUSCODE_GOOD) {
+                UA_Array_delete(*dst, i+1, type);
+                *dst = NULL;
+                return ret;
+            }
+        } else {
             parseCtx->index++;
-            continue;
-        }
-        status ret = decodeJsonJumpTable[type->typeKind]((void*)ptr, type, ctx, parseCtx);
-        if(ret != UA_STATUSCODE_GOOD) {
-            UA_Array_delete(*dst, i+1, type);
-            *dst = NULL;
-            return ret;
         }
         ptr += type->memSize;
     }
