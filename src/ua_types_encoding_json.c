@@ -958,17 +958,16 @@ ENCODE_JSON(StatusCode) {
 
 /* ExtensionObject */
 ENCODE_JSON(ExtensionObject) {
-    status ret = writeJsonObjStart(ctx);
-
-    /* Null ExtensionObject -> empty JSON object */
     if(src->encoding == UA_EXTENSIONOBJECT_ENCODED_NOBODY)
-        return ret | writeJsonObjEnd(ctx);
+        return writeJsonNull(ctx);
 
     /* Must have a type set if data is decoded */
     if(src->encoding != UA_EXTENSIONOBJECT_ENCODED_BYTESTRING &&
        src->encoding != UA_EXTENSIONOBJECT_ENCODED_XML &&
        !src->content.decoded.type)
         return UA_STATUSCODE_BADENCODINGERROR;
+
+    status ret = writeJsonObjStart(ctx);
 
     /* Reversible encoding */
     if(ctx->useReversible) {
@@ -2531,7 +2530,7 @@ DECODE_JSON(Variant) {
     if(dst->type->typeKind == UA_DATATYPEKIND_EXTENSIONOBJECT) {
         DecodeEntry entries[2] = {
             {UA_JSONKEY_TYPE, NULL, NULL, false, NULL},
-            {UA_JSONKEY_BODY, dst, Variant_decodeJsonUnwrapExtensionObject, false, dst->type}
+            {UA_JSONKEY_BODY, dst, Variant_decodeJsonUnwrapExtensionObject, false, NULL}
         };
         return decodeFields(ctx, parseCtx, entries, 2);
     }
@@ -2684,7 +2683,15 @@ static status
 Variant_decodeJsonUnwrapExtensionObject(void *p, const UA_DataType *type,
                                         CtxJson *ctx, ParseCtx *parseCtx) {
     (void) type;
+
     UA_Variant *dst = (UA_Variant*)p;
+    if(isJsonNull(ctx, parseCtx)) {
+        dst->data = UA_ExtensionObject_new();
+        dst->type = &UA_TYPES[UA_TYPES_EXTENSIONOBJECT];
+        parseCtx->index++;
+        return UA_STATUSCODE_GOOD;
+    }
+
     UA_UInt16 old_index = parseCtx->index; /* Store the start index of the ExtensionObject */
 
     /* Decode the DataType */
