@@ -1463,11 +1463,8 @@ skipObject(ParseCtx *parseCtx) {
 }
 
 static status
-Array_decodeJson(void *dst, const UA_DataType *type, CtxJson *ctx, ParseCtx *parseCtx);
-
-static status
-Array_decodeJson_internal(void **dst, const UA_DataType *type,
-                          CtxJson *ctx, ParseCtx *parseCtx);
+Array_decodeJson(void **dst, const UA_DataType *type,
+                 CtxJson *ctx, ParseCtx *parseCtx);
 
 static status
 Variant_decodeJsonUnwrapExtensionObject(void *p, const UA_DataType *type,
@@ -2427,11 +2424,11 @@ DECODE_JSON(StatusCode) {
 }
 
 static status
-VariantDimension_decodeJson(void * dst, const UA_DataType *type, 
+VariantDimension_decodeJson(void *dst, const UA_DataType *type,
                             CtxJson *ctx, ParseCtx *parseCtx) {
     (void) type;
     const UA_DataType *dimType = &UA_TYPES[UA_TYPES_UINT32];
-    return Array_decodeJson_internal((void**)dst, dimType, ctx, parseCtx);
+    return Array_decodeJson((void**)dst, dimType, ctx, parseCtx);
 }
 
 static UA_Boolean
@@ -2519,7 +2516,7 @@ DECODE_JSON(Variant) {
     if(isArray) {
         DecodeEntry entries[3] = {
             {UA_JSONKEY_TYPE, NULL, NULL, false, NULL},
-            {UA_JSONKEY_BODY, &dst->data, Array_decodeJson, false, dst->type},
+            {UA_JSONKEY_BODY, &dst->data, (decodeJsonSignature)Array_decodeJson, false, dst->type},
             {UA_JSONKEY_DIMENSION, &dst->arrayDimensions, VariantDimension_decodeJson, false, NULL}
         };
         size_t entriesCount = 3;
@@ -2867,8 +2864,8 @@ decodeFields(CtxJson *ctx, ParseCtx *parseCtx,
 }
 
 static status
-Array_decodeJson_internal(void **dst, const UA_DataType *type,
-                          CtxJson *ctx, ParseCtx *parseCtx) {
+Array_decodeJson(void **dst, const UA_DataType *type,
+                 CtxJson *ctx, ParseCtx *parseCtx) {
     /* Save the length of the array */
     size_t *size_ptr = (size_t*) dst - 1;
 
@@ -2911,13 +2908,6 @@ Array_decodeJson_internal(void **dst, const UA_DataType *type,
 
     *size_ptr = length; /* All good, set the size */
     return UA_STATUSCODE_GOOD;
-}
-
-/* Wrapper for array with valid decodingStructure */
-static status
-Array_decodeJson(void * dst, const UA_DataType *type, CtxJson *ctx,
-                 ParseCtx *parseCtx) {
-    return Array_decodeJson_internal((void **)dst, type, ctx, parseCtx);
 }
 
 static status
