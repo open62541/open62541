@@ -4379,7 +4379,7 @@ END_TEST
 START_TEST(UA_ByteString_bad_json_decode) {
     UA_ByteString out;
     UA_ByteString_init(&out);
-    UA_ByteString buf = UA_STRING("\"\x90!\xc5 c{\",");
+    UA_ByteString buf = UA_STRING("\"\x90!\xc5 c{\"");
     // when
     
     UA_StatusCode retval = UA_decodeJsonInternal(&buf, &out, &UA_TYPES[UA_TYPES_BYTESTRING]);
