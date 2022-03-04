@@ -2768,6 +2768,8 @@ decodeFields(CtxJson *ctx, ParseCtx *parseCtx,
     for(size_t currObj = 0; currObj < objectCount &&
             parseCtx->index < parseCtx->tokenCount; currObj++) {
 
+        UA_assert(getJsmnType(parseCtx) == JSMN_STRING); /* Key must be a string */
+
         /* Start searching at the index of currObj */
         for(size_t i = currObj; i < entryCount + currObj; i++) {
             /* Search for key, if found outer loop will be one less. Best case
@@ -3005,10 +3007,9 @@ UA_decodeJson(const UA_ByteString *src, void *dst, const UA_DataType *type,
     }
 
     /* Sanity check if all Tokens were processed */
-    if(!(parseCtx.index == parseCtx.tokenCount ||
-         parseCtx.index == parseCtx.tokenCount-1)) {
+    if(parseCtx.index != parseCtx.tokenCount &&
+       parseCtx.index != parseCtx.tokenCount - 1)
         ret = UA_STATUSCODE_BADDECODINGERROR;
-    }
 
     UA_free(parseCtx.tokenArray);
     if(ret != UA_STATUSCODE_GOOD)
