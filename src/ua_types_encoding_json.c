@@ -2881,6 +2881,7 @@ Array_decodeJson_internal(void **dst, const UA_DataType *type,
     if(length == 0) {
         *size_ptr = length;
         *dst = UA_EMPTY_ARRAY_SENTINEL;
+        parseCtx->index++; /* Jump over the array token */
         return UA_STATUSCODE_GOOD;
     }
 
@@ -2889,7 +2890,7 @@ Array_decodeJson_internal(void **dst, const UA_DataType *type,
     if(*dst == NULL)
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
-    parseCtx->index++; /* We go to first Array member!*/
+    parseCtx->index++; /* Go to first array member */
 
     /* Decode array members */
     uintptr_t ptr = (uintptr_t)*dst;
