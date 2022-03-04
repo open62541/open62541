@@ -2075,75 +2075,29 @@ DECODE_JSON(QualifiedName) {
     return decodeFields(ctx, parseCtx, entries, 2);
 }
 
-/* Function for searching ahead of the current token. Used for retrieving the
- * OPC UA type of a token */
-static status
-searchObjectForKeyRec(const char *searchKey, CtxJson *ctx, 
-                      ParseCtx *parseCtx, size_t *resultIndex, UA_UInt16 depth) {
-    CHECK_TOKEN_BOUNDS;
-    UA_StatusCode ret = UA_STATUSCODE_BADNOTFOUND;
-
-    if(parseCtx->tokenArray[parseCtx->index].type == JSMN_OBJECT) {
-        size_t objectCount = (size_t)parseCtx->tokenArray[parseCtx->index].size;
-        parseCtx->index++; /*Object to first Key*/
-
-        for(size_t i = 0; i < objectCount; i++) {
-            CHECK_TOKEN_BOUNDS;
-            if(depth == 0) { /* we search only on first layer */
-                if(jsoneq((char*)ctx->pos, &parseCtx->tokenArray[parseCtx->index], searchKey) == 0) {
-                    /*found*/
-                    parseCtx->index++; /*We give back a pointer to the value of the searched key!*/
-                    if (parseCtx->index >= parseCtx->tokenCount)
-                        /* We got invalid json. See https://bugs.chromium.org/p/oss-fuzz/issues/detail?id=14620 */
-                        return UA_STATUSCODE_BADOUTOFRANGE;
-                    *resultIndex = parseCtx->index;
-                    return UA_STATUSCODE_GOOD;
-                }
-            }
-
-            parseCtx->index++; /* value */
-            CHECK_TOKEN_BOUNDS;
-
-            if(parseCtx->tokenArray[parseCtx->index].type == JSMN_OBJECT) {
-               ret = searchObjectForKeyRec(searchKey, ctx, parseCtx, resultIndex,
-                                           (UA_UInt16)(depth + 1));
-            } else if(parseCtx->tokenArray[parseCtx->index].type == JSMN_ARRAY) {
-               ret = searchObjectForKeyRec(searchKey, ctx, parseCtx, resultIndex,
-                                           (UA_UInt16)(depth + 1));
-            } else {
-                /* Only Primitive or string */
-                parseCtx->index++;
-            }
-        }
-    } else if(parseCtx->tokenArray[parseCtx->index].type == JSMN_ARRAY) {
-        size_t arraySize = (size_t)parseCtx->tokenArray[parseCtx->index].size;
-        parseCtx->index++; /*Object to first element*/
-
-        for(size_t i = 0; i < arraySize; i++) {
-            CHECK_TOKEN_BOUNDS;
-            if(parseCtx->tokenArray[parseCtx->index].type == JSMN_OBJECT) {
-               ret = searchObjectForKeyRec(searchKey, ctx, parseCtx, resultIndex,
-                                           (UA_UInt16)(depth + 1));
-            } else if(parseCtx->tokenArray[parseCtx->index].type == JSMN_ARRAY) {
-               ret = searchObjectForKeyRec(searchKey, ctx, parseCtx, resultIndex,
-                                           (UA_UInt16)(depth + 1));
-            } else {
-                /* Only Primitive or string */
-                parseCtx->index++;
-            }
-        }
-    }
-    return ret;
-}
-
 UA_FUNC_ATTR_WARN_UNUSED_RESULT status
-lookAheadForKey(const char* search, CtxJson *ctx,
+lookAheadForKey(const char *key, CtxJson *ctx,
                 ParseCtx *parseCtx, size_t *resultIndex) {
+    status ret = UA_STATUSCODE_BADNOTFOUND;
     UA_UInt16 oldIndex = parseCtx->index; /* Save index for later restore */
+    int end = parseCtx->tokenArray[parseCtx->index].end;
+    parseCtx->index++; /* Move to the first key */
+    while(parseCtx->index < parseCtx->tokenCount &&
+          parseCtx->tokenArray[parseCtx->index].start < end) {
+        UA_assert(getJsmnType(parseCtx) == JSMN_STRING); /* Key must be a string */
 
-    UA_UInt16 depth = 0;
-    UA_StatusCode ret  = searchObjectForKeyRec(search, ctx, parseCtx, resultIndex, depth);
+        parseCtx->index++; /* Move to the value already */
+        UA_assert(parseCtx->index < parseCtx->tokenCount); /* Key followed by a value */
 
+        /* Compare the key */
+        if(jsoneq((char*)ctx->pos, &parseCtx->tokenArray[parseCtx->index-1], key) == 0) {
+            *resultIndex = parseCtx->index; /* Point to the value */
+            ret = UA_STATUSCODE_GOOD;
+            break;
+        }
+
+        skipObject(parseCtx);
+    }
     parseCtx->index = oldIndex; /* Restore index */
     return ret;
 }
