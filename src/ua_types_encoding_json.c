@@ -2755,6 +2755,7 @@ status
 decodeFields(CtxJson *ctx, ParseCtx *parseCtx,
              DecodeEntry *entries, size_t entryCount) {
     CHECK_TOKEN_BOUNDS;
+    CHECK_OBJECT;
 
     /* Empty object, nothing to decode */
     size_t objectCount = (size_t)(parseCtx->tokenArray[parseCtx->index].size);
