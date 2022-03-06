@@ -20,6 +20,11 @@
 # pragma warning(disable: 4146)
 #endif
 
+static UA_INLINE UA_StatusCode
+UA_decodeJsonInternal(const UA_ByteString *src, void *dst, const UA_DataType *type) {
+    return UA_decodeJson(src, dst, type, NULL);
+}
+
 /* Test Boolean */
 START_TEST(UA_Boolean_true_json_encode) {
    
@@ -1417,7 +1422,7 @@ START_TEST(UA_StatusCode_nonReversible_good_json_encode) {
     
     // then
     ck_assert_int_eq(s, UA_STATUSCODE_GOOD);
-    char* result = "null";
+    char* result = "{\"Code\":0,\"Symbol\":\"Good\"}";
     ck_assert_str_eq(result, (char*)buf.data);
     UA_ByteString_clear(&buf); 
     UA_StatusCode_delete(src);
@@ -1863,7 +1868,7 @@ START_TEST(UA_DiagInfo_noFields_json_encode) {
     *bufPos = 0;
     // then
     ck_assert_int_eq(s, UA_STATUSCODE_GOOD);
-    char* result = "null";
+    char* result = "{}";
     ck_assert_str_eq(result, (char*)buf.data);
     UA_ByteString_clear(&buf); 
     UA_DiagnosticInfo_delete(src);
@@ -1900,7 +1905,6 @@ START_TEST(UA_DiagInfo_smallBuffer_json_encode) {
 
     status s = UA_encodeJsonInternal((void *) src, type, &bufPos, &bufEnd, NULL, 0, NULL, 0, true);
 
-    *bufPos = 0;
     // then
     ck_assert_int_eq(s, UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED);
     UA_ByteString_clear(&buf); 
@@ -2506,6 +2510,34 @@ START_TEST(UA_Variant_Array_UInt16_json_encode) {
     ck_assert_int_eq(s, UA_STATUSCODE_GOOD);
     char* result = "{\"Type\":5,\"Body\":[42,43]}";
     ck_assert_str_eq(result, (char*)buf.data);
+    UA_ByteString_clear(&buf);
+    UA_Variant_delete(src);
+}
+END_TEST
+
+START_TEST(UA_Variant_Array_UInt16_Null_json_encode) {
+    UA_Variant *src = UA_Variant_new();
+    UA_Variant_init(src);
+    UA_Variant_setArray(src, NULL, 0, &UA_TYPES[UA_TYPES_UINT16]);
+
+    const UA_DataType *type = &UA_TYPES[UA_TYPES_VARIANT];
+    size_t size = UA_calcSizeJsonInternal((void *) src, type, NULL, 0, NULL, 0, true);
+    UA_ByteString buf;
+
+    UA_ByteString_allocBuffer(&buf, size+1);
+
+    UA_Byte *bufPos = &buf.data[0];
+    const UA_Byte *bufEnd = &buf.data[size+1];
+
+    status s = UA_encodeJsonInternal((void *) src, type, &bufPos, &bufEnd, NULL, 0, NULL, 0, true);
+    ck_assert_int_eq(s, UA_STATUSCODE_GOOD);
+
+    *bufPos = 0;
+    // then
+    ck_assert_int_eq(s, UA_STATUSCODE_GOOD);
+    char* result = "{\"Type\":5,\"Body\":[]}";
+    ck_assert_str_eq(result, (char*)buf.data);
+
     UA_ByteString_clear(&buf);
     UA_Variant_delete(src);
 }
@@ -3212,7 +3244,7 @@ START_TEST(UA_DataValue_null_json_encode) {
     *bufPos = 0;
     // then
     ck_assert_int_eq(s, UA_STATUSCODE_GOOD);
-    char* result = "null";
+    char* result = "{}";
     ck_assert_str_eq(result, (char*)buf.data);
     UA_ByteString_clear(&buf);
     UA_DataValue_delete(src);
@@ -4347,7 +4379,7 @@ END_TEST
 START_TEST(UA_ByteString_bad_json_decode) {
     UA_ByteString out;
     UA_ByteString_init(&out);
-    UA_ByteString buf = UA_STRING("\"\x90!\xc5 c{\",");
+    UA_ByteString buf = UA_STRING("\"\x90!\xc5 c{\"");
     // when
     
     UA_StatusCode retval = UA_decodeJsonInternal(&buf, &out, &UA_TYPES[UA_TYPES_BYTESTRING]);
@@ -4364,9 +4396,6 @@ START_TEST(UA_ByteString_null_json_decode) {
     UA_StatusCode retval = UA_decodeJsonInternal(&buf, &out, &UA_TYPES[UA_TYPES_VARIANT]);
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
     ck_assert_int_eq(out.type->typeKind, UA_DATATYPEKIND_BYTESTRING);
-    UA_ByteString *outData = (UA_ByteString*)out.data;
-    ck_assert_ptr_ne(outData, NULL);
-    ck_assert_ptr_eq(outData->data, NULL);
     UA_Variant_clear(&out);
 }
 END_TEST
@@ -4620,7 +4649,6 @@ START_TEST(UA_QualifiedName_null_json_decode) {
     UA_StatusCode retval = UA_decodeJsonInternal(&buf, &out, &UA_TYPES[UA_TYPES_VARIANT]);
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
     ck_assert_int_eq(out.type->typeKind, UA_DATATYPEKIND_QUALIFIEDNAME);
-    ck_assert_ptr_ne(out.data, NULL);
     UA_Variant_clear(&out);
 }
 END_TEST
@@ -4671,7 +4699,6 @@ START_TEST(UA_LocalizedText_null_json_decode) {
     UA_StatusCode retval = UA_decodeJsonInternal(&buf, &out, &UA_TYPES[UA_TYPES_VARIANT]);
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
     ck_assert_int_eq(out.type->typeKind, UA_DATATYPEKIND_LOCALIZEDTEXT);
-    ck_assert_ptr_ne(out.data, NULL);
     UA_Variant_clear(&out);
 }
 END_TEST
@@ -5016,13 +5043,6 @@ START_TEST(UA_DiagnosticInfo_null_json_decode) {
     UA_StatusCode retval = UA_decodeJsonInternal(&buf, &out, &UA_TYPES[UA_TYPES_VARIANT]);
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
     ck_assert_int_eq(out.type->typeKind, UA_DATATYPEKIND_DIAGNOSTICINFO);
-    ck_assert_uint_eq(((UA_DiagnosticInfo*)out.data)->hasAdditionalInfo, 0);
-    ck_assert_uint_eq(((UA_DiagnosticInfo*)out.data)->hasInnerDiagnosticInfo, 0);
-    ck_assert_uint_eq(((UA_DiagnosticInfo*)out.data)->hasInnerStatusCode, 0);
-    ck_assert_uint_eq(((UA_DiagnosticInfo*)out.data)->hasLocale, 0);
-    ck_assert_uint_eq(((UA_DiagnosticInfo*)out.data)->hasLocalizedText, 0);
-    ck_assert_uint_eq(((UA_DiagnosticInfo*)out.data)->hasNamespaceUri, 0);
-    ck_assert_uint_eq(((UA_DiagnosticInfo*)out.data)->hasSymbolicId, 0);
     UA_Variant_clear(&out);
 }
 END_TEST
@@ -5086,7 +5106,6 @@ START_TEST(UA_DataValue_null_json_decode) {
     UA_ByteString buf = UA_STRING("{\"Type\":23,\"Body\":null}");
     UA_StatusCode retval = UA_decodeJsonInternal(&buf, &out, &UA_TYPES[UA_TYPES_VARIANT]);
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
-    ck_assert_ptr_ne(out.data, NULL);
     UA_Variant_clear(&out);
 }
 END_TEST
@@ -5217,7 +5236,7 @@ START_TEST(UA_VariantBoolNull_json_decode) {
 
     UA_StatusCode retval = UA_decodeJsonInternal(&buf, &out, &UA_TYPES[UA_TYPES_VARIANT]);
     // then
-    ck_assert_int_eq(retval, UA_STATUSCODE_BADDECODINGERROR);
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
     UA_Variant_clear(&out);
 }
 END_TEST
@@ -5844,6 +5863,7 @@ static Suite *testSuite_builtin_json(void) {
     
     //Array
     tcase_add_test(tc_json_encode, UA_Variant_Array_UInt16_json_encode);
+    tcase_add_test(tc_json_encode, UA_Variant_Array_UInt16_Null_json_encode);
     tcase_add_test(tc_json_encode, UA_Variant_Array_Byte_json_encode);
     tcase_add_test(tc_json_encode, UA_Variant_Array_String_json_encode);
     

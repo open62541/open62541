@@ -40,10 +40,10 @@ void UA_debug_dumpCompleteChunk(UA_Server *const server, UA_Connection *const co
 /********************/
 
 UA_StatusCode
-sendServiceFault(UA_SecureChannel *channel, UA_UInt32 requestId, UA_UInt32 requestHandle,
-                 const UA_DataType *responseType, UA_StatusCode statusCode) {
-    UA_Response response;
-    UA_init(&response, responseType);
+sendServiceFault(UA_SecureChannel *channel, UA_UInt32 requestId,
+                 UA_UInt32 requestHandle, UA_StatusCode statusCode) {
+    UA_ServiceFault response;
+    UA_ServiceFault_init(&response);
     UA_ResponseHeader *responseHeader = &response.responseHeader;
     responseHeader->requestHandle = requestHandle;
     responseHeader->timestamp = UA_DateTime_now();
@@ -55,11 +55,12 @@ sendServiceFault(UA_SecureChannel *channel, UA_UInt32 requestId, UA_UInt32 reque
 
     /* Send error message. Message type is MSG and not ERR, since we are on a
      * SecureChannel! */
-    return UA_SecureChannel_sendSymmetricMessage(channel, requestId, UA_MESSAGETYPE_MSG,
-                                                 &response, responseType);
+    return UA_SecureChannel_sendSymmetricMessage(channel, requestId,
+                                                 UA_MESSAGETYPE_MSG, &response,
+                                                 &UA_TYPES[UA_TYPES_SERVICEFAULT]);
 }
 
- /* This is not an ERR message, the connection is not closed afterwards */
+/* This is not an ERR message, the connection is not closed afterwards */
 static UA_StatusCode
 decodeHeaderSendServiceFault(UA_SecureChannel *channel, const UA_ByteString *msg,
                              size_t offset, const UA_DataType *responseType,
@@ -70,8 +71,7 @@ decodeHeaderSendServiceFault(UA_SecureChannel *channel, const UA_ByteString *msg
                                 &UA_TYPES[UA_TYPES_REQUESTHEADER], NULL);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
-    retval = sendServiceFault(channel,  requestId, requestHeader.requestHandle,
-                              responseType, error);
+    retval = sendServiceFault(channel,  requestId, requestHeader.requestHandle, error);
     UA_RequestHeader_clear(&requestHeader);
     return retval;
 }
@@ -454,6 +454,11 @@ sendResponse(UA_Server *server, UA_Session *session, UA_SecureChannel *channel,
     if(!channel)
         return UA_STATUSCODE_BADINTERNALERROR;
 
+    /* If the overall service call failed, answer with a ServiceFault */
+    if(response->responseHeader.serviceResult != UA_STATUSCODE_GOOD)
+        return sendServiceFault(channel, requestId, response->responseHeader.requestHandle,
+                                response->responseHeader.serviceResult);
+
     /* Prepare the ResponseHeader */
     response->responseHeader.timestamp = UA_DateTime_now();
 
@@ -569,7 +574,7 @@ processMSGDecoded(UA_Server *server, UA_SecureChannel *channel, UA_UInt32 reques
        ) {
         serviceRes = UA_STATUSCODE_BADSECURITYPOLICYREJECTED;
         channelRes = sendServiceFault(channel, requestId, requestHeader->requestHandle,
-                                      responseType, UA_STATUSCODE_BADSECURITYPOLICYREJECTED);
+                                      UA_STATUSCODE_BADSECURITYPOLICYREJECTED);
         goto update_statistics;
     }
 
@@ -596,13 +601,14 @@ processMSGDecoded(UA_Server *server, UA_SecureChannel *channel, UA_UInt32 reques
     /* Get the Session bound to the SecureChannel (not necessarily activated) */
     if(!UA_NodeId_isNull(&requestHeader->authenticationToken)) {
         UA_LOCK(&server->serviceMutex);
-        UA_StatusCode retval = getBoundSession(
-            server, channel, &requestHeader->authenticationToken, &session);
+        UA_StatusCode retval =
+            getBoundSession(server, channel,
+                            &requestHeader->authenticationToken, &session);
         UA_UNLOCK(&server->serviceMutex);
         if(retval != UA_STATUSCODE_GOOD) {
             serviceRes = response->responseHeader.serviceResult;
-            channelRes = sendServiceFault(channel, requestId, requestHeader->requestHandle,
-                                          responseType, retval);
+            channelRes = sendServiceFault(channel, requestId,
+                                          requestHeader->requestHandle, retval);
             goto update_statistics;
         }
     }
@@ -622,7 +628,7 @@ processMSGDecoded(UA_Server *server, UA_SecureChannel *channel, UA_UInt32 reques
 #endif
             serviceRes = UA_STATUSCODE_BADSESSIONIDINVALID;
             channelRes = sendServiceFault(channel, requestId, requestHeader->requestHandle,
-                                          responseType, UA_STATUSCODE_BADSESSIONIDINVALID);
+                                          UA_STATUSCODE_BADSESSIONIDINVALID);
             goto update_statistics;
         }
 
@@ -653,7 +659,7 @@ processMSGDecoded(UA_Server *server, UA_SecureChannel *channel, UA_UInt32 reques
         }
         serviceRes = UA_STATUSCODE_BADSESSIONNOTACTIVATED;
         channelRes = sendServiceFault(channel, requestId, requestHeader->requestHandle,
-                                      responseType, UA_STATUSCODE_BADSESSIONNOTACTIVATED);
+                                      UA_STATUSCODE_BADSESSIONNOTACTIVATED);
         goto update_statistics;
     }
 
@@ -786,7 +792,7 @@ processMSG(UA_Server *server, UA_SecureChannel *channel,
                                    "See the 'verifyRequestTimestamp' setting.");
             if(server->config.verifyRequestTimestamp <= UA_RULEHANDLING_ABORT) {
                 retval = sendServiceFault(channel, requestId, requestHeader->requestHandle,
-                                          responseType, UA_STATUSCODE_BADINVALIDTIMESTAMP);
+                                          UA_STATUSCODE_BADINVALIDTIMESTAMP);
                 UA_clear(&request, requestType);
                 return retval;
             }

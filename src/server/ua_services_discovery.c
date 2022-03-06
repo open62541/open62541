@@ -252,6 +252,12 @@ Service_GetEndpoints(UA_Server *server, UA_Session *session,
         for(size_t i = 0; i < clone_times; ++i) {
             retval |= UA_EndpointDescription_copy(&server->config.endpoints[j],
                                                   &response->endpoints[pos]);
+            UA_String_clear(&response->endpoints[pos].endpointUrl);
+            UA_Array_delete(response->endpoints[pos].server.discoveryUrls,
+                            response->endpoints[pos].server.discoveryUrlsSize,
+                            &UA_TYPES[UA_TYPES_STRING]);
+            response->endpoints[pos].server.discoveryUrls = NULL;
+            response->endpoints[pos].server.discoveryUrlsSize = 0;
             if(nl_endpointurl)
                 endpointUrl = &server->config.networkLayers[i].discoveryUrl;
             retval |= UA_String_copy(endpointUrl, &response->endpoints[pos].endpointUrl);
