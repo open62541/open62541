@@ -2759,8 +2759,10 @@ decodeFields(CtxJson *ctx, ParseCtx *parseCtx,
 
     /* Empty object, nothing to decode */
     size_t objectCount = (size_t)(parseCtx->tokenArray[parseCtx->index].size);
-    if(objectCount == 0)
+    if(objectCount == 0) {
+        parseCtx->index++; /* Jump to the element after the empty object */
         return UA_STATUSCODE_GOOD;
+    }
 
     parseCtx->index++; /* Go to first key */
     CHECK_TOKEN_BOUNDS;
