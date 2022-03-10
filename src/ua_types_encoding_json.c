@@ -2366,6 +2366,7 @@ DECODE_JSON(DateTime) {
             denom *= 0.1;
             pos++;
         }
+        frac += 0.00000005; /* Correct rounding when converting to integer */
         dt += (UA_DateTime)(frac * UA_DATETIME_SEC);
     }
 
