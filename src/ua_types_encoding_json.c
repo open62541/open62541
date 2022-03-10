@@ -2084,21 +2084,27 @@ lookAheadForKey(const char *key, CtxJson *ctx,
     parseCtx->index++; /* Move to the first key */
     while(parseCtx->index < parseCtx->tokenCount &&
           parseCtx->tokenArray[parseCtx->index].start < end) {
-        UA_assert(getJsmnType(parseCtx) == JSMN_STRING); /* Key must be a string */
+        /* Key must be a string (TODO: Make this an assert after replacing jsmn) */
+        if(getJsmnType(parseCtx) != JSMN_STRING)
+            return UA_STATUSCODE_BADDECODINGERROR;
 
-        parseCtx->index++; /* Move to the value already */
-        UA_assert(parseCtx->index < parseCtx->tokenCount); /* Key followed by a value */
+        /* Move index to the value */
+        parseCtx->index++;
 
-        /* Compare the key */
+        /* Value for the key must exist (TODO: Make this an assert after replacing jsmn) */
+        if(parseCtx->index >= parseCtx->tokenCount)
+            return UA_STATUSCODE_BADDECODINGERROR;
+
+        /* Compare the key (previous index) */
         if(jsoneq((char*)ctx->pos, &parseCtx->tokenArray[parseCtx->index-1], key) == 0) {
-            *resultIndex = parseCtx->index; /* Point to the value */
+            *resultIndex = parseCtx->index; /* Point result to the current index */
             ret = UA_STATUSCODE_GOOD;
             break;
         }
 
-        skipObject(parseCtx);
+        skipObject(parseCtx); /* Jump over the value (can also be an array or object) */
     }
-    parseCtx->index = oldIndex; /* Restore index */
+    parseCtx->index = oldIndex; /* Restore the old index */
     return ret;
 }
 
@@ -2771,7 +2777,9 @@ decodeFields(CtxJson *ctx, ParseCtx *parseCtx,
     for(size_t currObj = 0; currObj < objectCount &&
             parseCtx->index < parseCtx->tokenCount; currObj++) {
 
-        UA_assert(getJsmnType(parseCtx) == JSMN_STRING); /* Key must be a string */
+        /* Key must be a string (TODO: Convert to assert when jsmn is replaced) */
+        if(getJsmnType(parseCtx) != JSMN_STRING)
+            return UA_STATUSCODE_BADDECODINGERROR;
 
         /* Start searching at the index of currObj */
         for(size_t i = currObj; i < entryCount + currObj; i++) {
