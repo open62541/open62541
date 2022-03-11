@@ -1955,8 +1955,8 @@ DECODE_JSON(String) {
         /* No escaping */
         if(*p != '\\') {
             /* In the ASCII range, but not a printable character */
-            if(*p < 32 || *p == 127)
-                goto cleanup;
+            /* if(*p < 32 || *p == 127) */
+            /*     goto cleanup; */
 
             *(pos++) = *(p++);
             continue;
