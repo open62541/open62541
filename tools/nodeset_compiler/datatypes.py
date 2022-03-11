@@ -347,7 +347,7 @@ class Value(object):
                 
 
             childValue = ebodypart.firstChild
-            if not childValue == ebodypart.ELEMENT_NODE:
+            if not childValue.nodeType == ebodypart.ELEMENT_NODE:
                 childValue = getNextElementNode(childValue)
             for e in members:
                     if isinstance(e, StructMember):
@@ -355,7 +355,7 @@ class Value(object):
                         if isinstance(e.member_type, BuiltinType):
                             if e.is_array:
                                 values = []
-                                for el in ebodypart.childNodes:
+                                for el in childValue.childNodes:
                                     if not el.nodeType == el.ELEMENT_NODE:
                                         continue
                                     t = self.getTypeByString(e.member_type.name, None)
@@ -375,12 +375,13 @@ class Value(object):
                             structure = Structure()
                             structure.alias = e.name
                             structure.value = []
-                            structure.__parseXMLSingleValue(childValue, parentDataTypeNode, parent, parser, alias=None, encodingPart=e.member_type)
+                            if not len(childValue.childNodes) == 0:
+                                structure.__parseXMLSingleValue(childValue, parentDataTypeNode, parent, parser, alias=None, encodingPart=e.member_type)
                             self.value.append(structure)
                             return structure
                         elif isinstance(e.member_type, EnumerationType):
                             t = self.getTypeByString("Int32", None)
-                            t.parseXML(ebodypart)
+                            t.parseXML(childValue)
                             t.alias = e.name
                             self.value.append(t)
                         else:
@@ -846,10 +847,15 @@ class Guid(Value):
     def parseXML(self, xmlvalue):
         self.checkXML(xmlvalue)
 
-        val = getXmlTextTrimmed(xmlvalue.firstChild)
+        # Support GUID in format:
+        # <Guid>
+        #   <String>01234567-89AB-CDEF-ABCD-0123456789AB</String>
+        # </Guid>
+        if len(xmlvalue.getElementsByTagName("String")) != 0:
+            val = getXmlTextTrimmed(xmlvalue.getElementsByTagName("String")[0].firstChild)
 
         if val is None:
-            self.value = [0, 0, 0, 0]  # Catch XML <Guid /> by setting the value to a default
+            self.value = ['00000000', '0000', '0000', '0000', '000000000000']  # Catch XML <Guid /> by setting the value to a default
         else:
             self.value = val
             self.value = self.value.replace("{", "")
@@ -862,9 +868,8 @@ class Guid(Value):
                 except Exception:
                     logger.error("Invalid formatting of Guid. Expected {01234567-89AB-CDEF-ABCD-0123456789AB}, got " + \
                                  unicode(xmlvalue.firstChild.data))
-                    tmp = [0, 0, 0, 0, 0]
+                    self.value = ['00000000', '0000', '0000', '0000', '000000000000']
             if len(tmp) != 5:
                 logger.error("Invalid formatting of Guid. Expected {01234567-89AB-CDEF-ABCD-0123456789AB}, got " + \
                              unicode(xmlvalue.firstChild.data))
-                tmp = [0, 0, 0, 0]
-            self.value = tmp
+                self.value = ['00000000', '0000', '0000', '0000', '000000000000']
