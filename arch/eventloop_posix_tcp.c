@@ -490,6 +490,69 @@ TCP_registerListenSocketDomainName(UA_ConnectionManager *cm, const char *hostnam
     return UA_STATUSCODE_GOOD;
 }
 
+#ifdef _WIN32
+static UA_RegisteredFD *
+findRegisteredFD(TCPConnectionManager *cm, uintptr_t connectionId) {
+    UA_RegisteredFD *rfd;
+    LIST_FOREACH(rfd, &cm->fds, es_pointers) {
+        if(rfd->fd == connectionId) return rfd;
+    }
+    return NULL;
+}
+
+static UA_DelayedCallback
+*createExplicitlyDelayedShutdownCallback(UA_ConnectionManager *cm, UA_RegisteredFD *rfd, UA_Callback callback) {
+    UA_DelayedCallback *explicitlyDelayedShutdownCallback = (UA_DelayedCallback*) UA_malloc(sizeof(UA_DelayedCallback));
+    if(!explicitlyDelayedShutdownCallback) {
+        return NULL;
+    }
+    explicitlyDelayedShutdownCallback->callback = callback;
+    explicitlyDelayedShutdownCallback->application = cm;
+    explicitlyDelayedShutdownCallback->data = (void*) rfd->fd;
+
+    return explicitlyDelayedShutdownCallback;
+}
+
+static UA_INLINE void
+createAndAddDelayedShutdownCallback(UA_ConnectionManager *cm, UA_RegisteredFD *rfd, UA_Callback callback) {
+    UA_DelayedCallback *explicitlyDelayedShutdownCallback = createExplicitlyDelayedShutdownCallback(cm, rfd, callback);
+    if(!explicitlyDelayedShutdownCallback) {
+        UA_LOG_SOCKET_ERRNO_WRAP(
+            UA_LOG_WARNING(cm->eventSource.eventLoop->logger,
+                           UA_LOGCATEGORY_NETWORK,
+                           "TCP %u\t| Warning: Out of memory for creating delayed shutdown callback (%s)",
+                           (unsigned)rfd->fd, errno_str));
+        return;
+    }
+    UA_EventLoop *el = cm->eventSource.eventLoop;
+    el->addDelayedCallback(el, explicitlyDelayedShutdownCallback);
+}
+
+static void
+delayedShutdownCallback(void* application, void* data) {
+
+    UA_ConnectionManager *cm = (UA_ConnectionManager*) application;
+    TCPConnectionManager *tcm = (TCPConnectionManager*)cm;
+    UA_FD fd = (UA_FD) data;
+
+    UA_RegisteredFD* rfd = findRegisteredFD(tcm, fd);
+    if(rfd == NULL) {
+        return;
+    }
+    UA_ByteString response = tcm->rxBuffer;
+    int ret = UA_recv(fd, (char *)response.data, response.length, MSG_DONTWAIT | MSG_PEEK);
+    if(ret == 0 || ret == -1) {
+        cm->connectionCallback(cm, (uintptr_t)fd, &rfd->context,
+                               UA_STATUSCODE_BADCONNECTIONCLOSED,
+                               0, NULL, UA_BYTESTRING_NULL);
+        TCP_close(tcm, rfd);
+    } else {
+        /* add the delayed shutdown callback again because the peeked data will be processed in the next el cycle */
+        createAndAddDelayedShutdownCallback(cm, rfd, delayedShutdownCallback);
+    }
+}
+#endif
+
 static UA_StatusCode
 TCP_shutdownConnection(UA_ConnectionManager *cm, uintptr_t connectionId) {
     UA_LOG_DEBUG(cm->eventSource.eventLoop->logger,
@@ -500,7 +563,11 @@ TCP_shutdownConnection(UA_ConnectionManager *cm, uintptr_t connectionId) {
 #ifndef _WIN32
     int res = UA_shutdown((UA_FD)connectionId, SHUT_RDWR);
 #else
-    int res = UA_shutdown((UA_FD)connectionId, SD_BOTH);
+    int res = UA_shutdown((UA_FD)connectionId, SD_SEND);
+    TCPConnectionManager *tcm = (TCPConnectionManager*)cm;
+    UA_RegisteredFD* rfd = findRegisteredFD(tcm, (UA_FD) connectionId);
+
+    createAndAddDelayedShutdownCallback(cm, rfd, delayedShutdownCallback);
 #endif
     if(res != 0) {
         UA_LOG_SOCKET_ERRNO_WRAP(
