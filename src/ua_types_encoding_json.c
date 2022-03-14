@@ -233,7 +233,7 @@ writeJsonKey(CtxJson *ctx, const char* key) {
 
 static bool
 isNull(const void *p, const UA_DataType *type) {
-    if(UA_DataType_isNumeric(type))
+    if(UA_DataType_isNumeric(type) || type->typeKind == UA_DATATYPEKIND_BOOLEAN)
         return false;
     UA_STACKARRAY(char, buf, type->memSize);
     memset(buf, 0, type->memSize);
