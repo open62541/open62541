@@ -2283,7 +2283,7 @@ DECODE_JSON(DateTime) {
     CHECK_STRING;
     GET_TOKEN;
 
-    /* The last character has to be 'Z'. We can omit some checks later on
+    /* The last character has to be 'Z'. We can omit some length checks later on
      * because we know the atoi functions stop before the 'Z'. */
     if(tokenSize == 0 || tokenData[tokenSize-1] != 'Z')
         return UA_STATUSCODE_BADDECODINGERROR;
@@ -2294,13 +2294,18 @@ DECODE_JSON(DateTime) {
     size_t pos = 0;
     size_t len;
 
-    /* Parse the year. Four digits with an optional plus or minus in front. */
+    /* Parse the year. The ISO standard asks for four digits. But we accept up
+     * to five with an optional plus or minus in front due to the range of the
+     * DateTime 64bit integer. But in that case we require the year and the
+     * month to be separated by a '-'. Otherwise we cannot know where the month
+     * starts. */
     if(tokenData[0] == '-' || tokenData[0] == '+')
         pos++;
     UA_Int64 year = 0;
-    len = atoiSigned(&tokenData[pos], 4, &year);
+    len = atoiSigned(&tokenData[pos], 5, &year);
     pos += len;
-    UA_CHECK(len == 4, return UA_STATUSCODE_BADDECODINGERROR);
+    if(len != 4 && tokenData[pos] != '-')
+        return UA_STATUSCODE_BADDECODINGERROR;
     if(tokenData[0] == '-')
         year = -year;
     dts.tm_year = (UA_Int16)year - 1900;
