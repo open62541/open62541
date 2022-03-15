@@ -2303,9 +2303,9 @@ DECODE_JSON(DateTime) {
         pos++;
     UA_Int64 year = 0;
     len = atoiSigned(&tokenData[pos], 5, &year);
+    pos += len;
     if(len != 4 && tokenData[pos] != '-')
         return UA_STATUSCODE_BADDECODINGERROR;
-    pos += len;
     if(tokenData[0] == '-')
         year = -year;
     dts.tm_year = (UA_Int16)year - 1900;
