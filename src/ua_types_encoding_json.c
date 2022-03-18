@@ -40,7 +40,8 @@
 # pragma warning(disable: 4056)
 #endif
 
-#define UA_JSON_DATETIME_LENGTH 31
+/* Have some slack at the end. E.g. for negative and very long years. */
+#define UA_JSON_DATETIME_LENGTH 40
 
 /* Max length of numbers for the allocation of temp buffers. Don't forget that
  * printf adds an additional \0 at the end!
@@ -2357,8 +2358,23 @@ DECODE_JSON(DateTime) {
 
     /* Compute the seconds since the Unix epoch */
     long long sinceunix = __tm_to_secs(&dts);
+
+    /* Are we within the range that can be represented? */
+    long long sinceunix_min =
+        (long long)(UA_INT64_MIN / UA_DATETIME_SEC) -
+        (long long)(UA_DATETIME_UNIX_EPOCH / UA_DATETIME_SEC) -
+        (long long)1; /* manual correction due to rounding */
+    long long sinceunix_max = (long long)
+        ((UA_INT64_MAX - UA_DATETIME_UNIX_EPOCH) / UA_DATETIME_SEC);
+    if(sinceunix < sinceunix_min || sinceunix > sinceunix_max)
+        return UA_STATUSCODE_BADDECODINGERROR;
+
+    /* Convert to DateTime. Add one extra second here to prevent
+     * underflow/overflow, we will revert that once the fractions have been
+     * added. */
+    sinceunix -= (sinceunix > 0) ? 1 : -1;
     UA_DateTime dt = (UA_DateTime)
-        (sinceunix * UA_DATETIME_SEC) + UA_DATETIME_UNIX_EPOCH;
+        (sinceunix + (UA_DATETIME_UNIX_EPOCH / UA_DATETIME_SEC)) * UA_DATETIME_SEC;
 
     /* Parse the fraction of the second if defined */
     if(tokenData[pos] == ',' || tokenData[pos] == '.') {
@@ -2374,6 +2390,9 @@ DECODE_JSON(DateTime) {
         frac += 0.00000005; /* Correct rounding when converting to integer */
         dt += (UA_DateTime)(frac * UA_DATETIME_SEC);
     }
+
+    /* Remove the underflow/overflow protection */
+    dt += (sinceunix > 0) ? UA_DATETIME_SEC : -UA_DATETIME_SEC;
 
     /* We must be at the end of the string (ending with 'Z' as checked above) */
     if(pos != tokenSize -1)
