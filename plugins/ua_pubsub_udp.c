@@ -191,7 +191,7 @@ UA_PubSubChannelUDPMC_open(const UA_PubSubConnectionConfig *connectionConfig) {
     }
 
     channelDataUDPMC->ai_family = rp->ai_family;
-    channelDataUDPMC->ai_addrlen = rp->ai_addrlen;
+    channelDataUDPMC->ai_addrlen = (socklen_t)rp->ai_addrlen;
     memcpy(&channelDataUDPMC->ai_addr, rp->ai_addr, rp->ai_addrlen);
     newChannel->handle = channelDataUDPMC; /* Link channel and internal channel data */
 
