@@ -40,7 +40,8 @@
 # pragma warning(disable: 4056)
 #endif
 
-#define UA_JSON_DATETIME_LENGTH 31
+/* Have some slack at the end. E.g. for negative and very long years. */
+#define UA_JSON_DATETIME_LENGTH 40
 
 /* Max length of numbers for the allocation of temp buffers. Don't forget that
  * printf adds an additional \0 at the end!
@@ -2199,25 +2200,21 @@ decodeExpandedNodeIdNamespace(void *dst, const UA_DataType *type,
     if(ret == UA_STATUSCODE_GOOD)
         return ret;
 
-    /* Reset the index */
-    parseCtx->index = oldIndex;
+    /* Parse as a string */
+    parseCtx->index = oldIndex; /* Reset the index */
+    ret = String_decodeJson(&en->namespaceUri, NULL, ctx, parseCtx);
+    if(ret != UA_STATUSCODE_GOOD)
+        return ret;
 
-    /* Parse as a string and look up */
-    CHECK_TOKEN_BOUNDS;
-    CHECK_STRING;
-    GET_TOKEN;
-
-    UA_String uri = {tokenSize, (UA_Byte*)tokenData};
-    parseCtx->index++;
+    /* Replace with the index if the URI is found. Otherwise keep the string. */
     for(size_t i = 0; i < ctx->namespacesSize; i++) {
-        if(UA_String_equal(&uri, &ctx->namespaces[i])) {
+        if(UA_String_equal(&en->namespaceUri, &ctx->namespaces[i])) {
+            UA_String_clear(&en->namespaceUri);
             en->nodeId.namespaceIndex = (UA_UInt16)i;
-            return UA_STATUSCODE_GOOD;
+            break;
         }
     }
-
-    /* Not found, store as URI */
-    return UA_String_copy(&uri, &en->namespaceUri);
+    return UA_STATUSCODE_GOOD;
 }
 
 static status
@@ -2231,24 +2228,24 @@ decodeExpandedNodeIdServerUri(void *dst, const UA_DataType *type,
     if(ret == UA_STATUSCODE_GOOD)
         return ret;
 
-    /* Reset the index */
-    parseCtx->index = oldIndex;
+    /* Parse as a string */
+    UA_String uri = UA_STRING_NULL;
+    parseCtx->index = oldIndex; /* Reset the index */
+    ret = String_decodeJson(&en->namespaceUri, NULL, ctx, parseCtx);
+    if(ret != UA_STATUSCODE_GOOD)
+        return ret;
 
-    /* Parse as a string and look up */
-    CHECK_TOKEN_BOUNDS;
-    CHECK_STRING;
-    GET_TOKEN;
-
-    UA_String uri = {tokenSize, (UA_Byte*)tokenData};
-    parseCtx->index++;
+    /* Try to translate the URI into an index */
+    ret = UA_STATUSCODE_BADDECODINGERROR;
     for(size_t i = 0; i < ctx->serverUrisSize; i++) {
         if(UA_String_equal(&uri, &ctx->serverUris[i])) {
             en->serverIndex = (UA_UInt32)i;
-            return UA_STATUSCODE_GOOD;
+            ret = UA_STATUSCODE_GOOD;
+            break;
         }
     }
-
-    return UA_STATUSCODE_BADDECODINGERROR;
+    UA_String_clear(&uri);
+    return ret;
 }
 
 DECODE_JSON(ExpandedNodeId) {
@@ -2357,8 +2354,23 @@ DECODE_JSON(DateTime) {
 
     /* Compute the seconds since the Unix epoch */
     long long sinceunix = __tm_to_secs(&dts);
+
+    /* Are we within the range that can be represented? */
+    long long sinceunix_min =
+        (long long)(UA_INT64_MIN / UA_DATETIME_SEC) -
+        (long long)(UA_DATETIME_UNIX_EPOCH / UA_DATETIME_SEC) -
+        (long long)1; /* manual correction due to rounding */
+    long long sinceunix_max = (long long)
+        ((UA_INT64_MAX - UA_DATETIME_UNIX_EPOCH) / UA_DATETIME_SEC);
+    if(sinceunix < sinceunix_min || sinceunix > sinceunix_max)
+        return UA_STATUSCODE_BADDECODINGERROR;
+
+    /* Convert to DateTime. Add one extra second here to prevent
+     * underflow/overflow, we will revert that once the fractions have been
+     * added. */
+    sinceunix -= (sinceunix > 0) ? 1 : -1;
     UA_DateTime dt = (UA_DateTime)
-        (sinceunix * UA_DATETIME_SEC) + UA_DATETIME_UNIX_EPOCH;
+        (sinceunix + (UA_DATETIME_UNIX_EPOCH / UA_DATETIME_SEC)) * UA_DATETIME_SEC;
 
     /* Parse the fraction of the second if defined */
     if(tokenData[pos] == ',' || tokenData[pos] == '.') {
@@ -2374,6 +2386,9 @@ DECODE_JSON(DateTime) {
         frac += 0.00000005; /* Correct rounding when converting to integer */
         dt += (UA_DateTime)(frac * UA_DATETIME_SEC);
     }
+
+    /* Remove the underflow/overflow protection */
+    dt += (sinceunix > 0) ? UA_DATETIME_SEC : -UA_DATETIME_SEC;
 
     /* We must be at the end of the string (ending with 'Z' as checked above) */
     if(pos != tokenSize -1)
