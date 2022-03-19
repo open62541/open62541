@@ -2200,25 +2200,21 @@ decodeExpandedNodeIdNamespace(void *dst, const UA_DataType *type,
     if(ret == UA_STATUSCODE_GOOD)
         return ret;
 
-    /* Reset the index */
-    parseCtx->index = oldIndex;
+    /* Parse as a string */
+    parseCtx->index = oldIndex; /* Reset the index */
+    ret = String_decodeJson(&en->namespaceUri, NULL, ctx, parseCtx);
+    if(ret != UA_STATUSCODE_GOOD)
+        return ret;
 
-    /* Parse as a string and look up */
-    CHECK_TOKEN_BOUNDS;
-    CHECK_STRING;
-    GET_TOKEN;
-
-    UA_String uri = {tokenSize, (UA_Byte*)tokenData};
-    parseCtx->index++;
+    /* Replace with the index if the URI is found. Otherwise keep the string. */
     for(size_t i = 0; i < ctx->namespacesSize; i++) {
-        if(UA_String_equal(&uri, &ctx->namespaces[i])) {
+        if(UA_String_equal(&en->namespaceUri, &ctx->namespaces[i])) {
+            UA_String_clear(&en->namespaceUri);
             en->nodeId.namespaceIndex = (UA_UInt16)i;
-            return UA_STATUSCODE_GOOD;
+            break;
         }
     }
-
-    /* Not found, store as URI */
-    return UA_String_copy(&uri, &en->namespaceUri);
+    return UA_STATUSCODE_GOOD;
 }
 
 static status
@@ -2232,24 +2228,24 @@ decodeExpandedNodeIdServerUri(void *dst, const UA_DataType *type,
     if(ret == UA_STATUSCODE_GOOD)
         return ret;
 
-    /* Reset the index */
-    parseCtx->index = oldIndex;
+    /* Parse as a string */
+    UA_String uri = UA_STRING_NULL;
+    parseCtx->index = oldIndex; /* Reset the index */
+    ret = String_decodeJson(&en->namespaceUri, NULL, ctx, parseCtx);
+    if(ret != UA_STATUSCODE_GOOD)
+        return ret;
 
-    /* Parse as a string and look up */
-    CHECK_TOKEN_BOUNDS;
-    CHECK_STRING;
-    GET_TOKEN;
-
-    UA_String uri = {tokenSize, (UA_Byte*)tokenData};
-    parseCtx->index++;
+    /* Try to translate the URI into an index */
+    ret = UA_STATUSCODE_BADDECODINGERROR;
     for(size_t i = 0; i < ctx->serverUrisSize; i++) {
         if(UA_String_equal(&uri, &ctx->serverUris[i])) {
             en->serverIndex = (UA_UInt32)i;
-            return UA_STATUSCODE_GOOD;
+            ret = UA_STATUSCODE_GOOD;
+            break;
         }
     }
-
-    return UA_STATUSCODE_BADDECODINGERROR;
+    UA_String_clear(&uri);
+    return ret;
 }
 
 DECODE_JSON(ExpandedNodeId) {
