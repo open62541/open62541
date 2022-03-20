@@ -111,7 +111,7 @@ class ExpandedNodeId:
         s = ""
         if self.val['serverIndex'] > 0:
             s += "svr=%i;" % self.val['serverIndex']
-        if self.val['namespaceUri']['length'] > 0:
+        if self.val['namespaceUri']['data'] > 0:
             s += "nsu=%s;" % self.val['namespaceUri']
         s += NodeId.print(self.val['nodeId'])
         return "UA_ExpandedNodeId(%s)" % s
