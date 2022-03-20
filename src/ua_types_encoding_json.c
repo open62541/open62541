@@ -826,8 +826,7 @@ ENCODE_JSON(ExpandedNodeId) {
     if(ctx->useReversible) {
         /* Reversible Case */
 
-        if(src->namespaceUri.length != 0 &&
-           (void*) src->namespaceUri.data > UA_EMPTY_ARRAY_SENTINEL) {
+        if(src->namespaceUri.data) {
             /* If the NamespaceUri is specified it is encoded as a JSON string
              * in this field */
             ret |= writeJsonKey(ctx, UA_JSONKEY_NAMESPACE);
@@ -854,7 +853,7 @@ ENCODE_JSON(ExpandedNodeId) {
          * NamespaceUri associated with the NamespaceIndex encoded as a JSON
          * string. A NamespaceIndex of 1 is always encoded as a JSON number. */
 
-        if(src->namespaceUri.data && src->namespaceUri.length != 0) {
+        if(src->namespaceUri.data) {
             ret |= writeJsonKey(ctx, UA_JSONKEY_NAMESPACE);
             ret |= ENCODE_DIRECT_JSON(&src->namespaceUri, String);
         } else {
