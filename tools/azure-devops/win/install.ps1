@@ -28,7 +28,7 @@ try {
             exit $LASTEXITCODE
         }
 
-    } elseif ($env:CC_SHORTNAME -eq "vs2015" -or $env:CC_SHORTNAME -eq "vs2017") {
+    } elseif ($env:CC_SHORTNAME -eq "vs2015" -or $env:CC_SHORTNAME -eq "vs2017" -or $env:CC_SHORTNAME -eq "vs2019") {
         Write-Host -ForegroundColor Green "`n### Installing mbedtls via vcpkg ###`n"
         & vcpkg install mbedtls:x86-windows-static
         if ($LASTEXITCODE -and $LASTEXITCODE -ne 0) {
