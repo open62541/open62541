@@ -31,6 +31,12 @@ try {
         $env:CC = "clang --target=x86_64-w64-mingw32"
         $env:CXX = "clang++ --target=x86_64-w64-mingw32"
         clang --version
+    } elseif ($env:CC_SHORTNAME -eq "vs2019") {
+        $vcpkg_toolchain = '-DCMAKE_TOOLCHAIN_FILE="C:/vcpkg/scripts/buildsystems/vcpkg.cmake"'
+        $vcpkg_triplet = '-DVCPKG_TARGET_TRIPLET="x64-windows-static"'
+        # since https://github.com/Microsoft/vcpkg/commit/0334365f516c5f229ff4fcf038c7d0190979a38a#diff-464a170117fa96bf98b2f8d224bf503c
+        # vcpkg need to have  "C:\Tools\vcpkg\installed\x64-windows-static"
+        New-Item -Force -ItemType directory -Path "C:/vcpkg/installed/x64-windows-static"
     } else {
         $vcpkg_toolchain = '-DCMAKE_TOOLCHAIN_FILE="C:/vcpkg/scripts/buildsystems/vcpkg.cmake"'
         $vcpkg_triplet = '-DVCPKG_TARGET_TRIPLET="x86-windows-static"'
