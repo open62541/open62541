@@ -2364,8 +2364,8 @@ DECODE_JSON(DateTime) {
     if(sinceunix < sinceunix_min || sinceunix > sinceunix_max)
         return UA_STATUSCODE_BADDECODINGERROR;
 
-    /* Convert to DateTime. Add one extra second here to prevent
-     * underflow/overflow, we will revert that once the fractions have been
+    /* Convert to DateTime. Add or subtract one extra second here to prevent
+     * underflow/overflow. This is reverted once the fractional part has been
      * added. */
     sinceunix -= (sinceunix > 0) ? 1 : -1;
     UA_DateTime dt = (UA_DateTime)
@@ -2386,11 +2386,19 @@ DECODE_JSON(DateTime) {
         dt += (UA_DateTime)(frac * UA_DATETIME_SEC);
     }
 
-    /* Remove the underflow/overflow protection */
-    dt += (sinceunix > 0) ? UA_DATETIME_SEC : -UA_DATETIME_SEC;
+    /* Remove the underflow/overflow protection (see above) */
+    if(sinceunix > 0) {
+        if(dt > UA_INT64_MAX - UA_DATETIME_SEC)
+            return UA_STATUSCODE_BADDECODINGERROR;
+        dt += UA_DATETIME_SEC;
+    } else {
+        if(dt < UA_INT64_MIN + UA_DATETIME_SEC)
+            return UA_STATUSCODE_BADDECODINGERROR;
+        dt -= UA_DATETIME_SEC;
+    }
 
     /* We must be at the end of the string (ending with 'Z' as checked above) */
-    if(pos != tokenSize -1)
+    if(pos != tokenSize - 1)
         return UA_STATUSCODE_BADDECODINGERROR;
 
     *dst = dt;
