@@ -172,7 +172,8 @@ extern const decodeJsonSignature decodeJsonJumpTable[UA_DATATYPEKINDS];
 
 UA_StatusCode lookAheadForKey(const char* search, CtxJson *ctx,
                               ParseCtx *parseCtx, size_t *resultIndex);
-UA_StatusCode tokenize(ParseCtx *parseCtx, CtxJson *ctx, const UA_ByteString *src);
+UA_StatusCode tokenize(ParseCtx *parseCtx, CtxJson *ctx,
+                       const UA_ByteString *src, size_t tokensSize);
 UA_Boolean isJsonNull(const CtxJson *ctx, const ParseCtx *parseCtx);
 
 static UA_INLINE
