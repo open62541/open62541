@@ -19,7 +19,7 @@
 
 _UA_BEGIN_DECLS
 
-#define UA_JSON_MAXTOKENCOUNT 1000
+#define UA_JSON_MAXTOKENCOUNT 2048
 
 /* Returns the number of bytes the value src takes in json encoding. Returns
  * zero if an error occurs. */
