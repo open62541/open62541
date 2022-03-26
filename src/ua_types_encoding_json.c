@@ -2230,7 +2230,7 @@ decodeExpandedNodeIdServerUri(void *dst, const UA_DataType *type,
     /* Parse as a string */
     UA_String uri = UA_STRING_NULL;
     parseCtx->index = oldIndex; /* Reset the index */
-    ret = String_decodeJson(&en->namespaceUri, NULL, ctx, parseCtx);
+    ret = String_decodeJson(&uri, NULL, ctx, parseCtx);
     if(ret != UA_STATUSCODE_GOOD)
         return ret;
 
