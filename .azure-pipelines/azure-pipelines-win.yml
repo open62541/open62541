@@ -35,7 +35,7 @@ jobs:
 - job: 'win_msys64'
   displayName: 'Windows (msys64)'
   pool:
-    vmImage: 'windows-latest'
+    vmImage: 'windows-2019'
   variables:
     CC_NAME: MinGW Makefiles
     CC_SHORTNAME: mingw
@@ -62,7 +62,7 @@ jobs:
 - job: 'win_clang'
   displayName: 'Windows (clang)'
   pool:
-    vmImage: 'windows-latest'
+    vmImage: 'windows-2019'
   variables:
     CC_NAME: Clang
     CC_SHORTNAME: clang-mingw
