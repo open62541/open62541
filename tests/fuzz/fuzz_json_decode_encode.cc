@@ -39,6 +39,10 @@ LLVMFuzzerTestOneInput(uint8_t *data, size_t size) {
     UA_Variant value2;
     UA_Variant_init(&value2);
     retval = UA_decodeJson(&buf2, &value2, &UA_TYPES[UA_TYPES_VARIANT], NULL);
+    if(retval == UA_STATUSCODE_BADOUTOFMEMORY) {
+        UA_Variant_clear(&value);
+        UA_ByteString_clear(&buf2);
+    }
     UA_assert(retval == UA_STATUSCODE_GOOD);
     /* TODO: Enable this assertion when the binary-JSON-binary roundtrip is complete.
      * Waiting for Mantis issue #7750.

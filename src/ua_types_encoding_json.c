@@ -2230,7 +2230,7 @@ decodeExpandedNodeIdServerUri(void *dst, const UA_DataType *type,
     /* Parse as a string */
     UA_String uri = UA_STRING_NULL;
     parseCtx->index = oldIndex; /* Reset the index */
-    ret = String_decodeJson(&en->namespaceUri, NULL, ctx, parseCtx);
+    ret = String_decodeJson(&uri, NULL, ctx, parseCtx);
     if(ret != UA_STATUSCODE_GOOD)
         return ret;
 
@@ -2364,8 +2364,8 @@ DECODE_JSON(DateTime) {
     if(sinceunix < sinceunix_min || sinceunix > sinceunix_max)
         return UA_STATUSCODE_BADDECODINGERROR;
 
-    /* Convert to DateTime. Add one extra second here to prevent
-     * underflow/overflow, we will revert that once the fractions have been
+    /* Convert to DateTime. Add or subtract one extra second here to prevent
+     * underflow/overflow. This is reverted once the fractional part has been
      * added. */
     sinceunix -= (sinceunix > 0) ? 1 : -1;
     UA_DateTime dt = (UA_DateTime)
@@ -2386,11 +2386,19 @@ DECODE_JSON(DateTime) {
         dt += (UA_DateTime)(frac * UA_DATETIME_SEC);
     }
 
-    /* Remove the underflow/overflow protection */
-    dt += (sinceunix > 0) ? UA_DATETIME_SEC : -UA_DATETIME_SEC;
+    /* Remove the underflow/overflow protection (see above) */
+    if(sinceunix > 0) {
+        if(dt > UA_INT64_MAX - UA_DATETIME_SEC)
+            return UA_STATUSCODE_BADDECODINGERROR;
+        dt += UA_DATETIME_SEC;
+    } else {
+        if(dt < UA_INT64_MIN + UA_DATETIME_SEC)
+            return UA_STATUSCODE_BADDECODINGERROR;
+        dt -= UA_DATETIME_SEC;
+    }
 
     /* We must be at the end of the string (ending with 'Z' as checked above) */
-    if(pos != tokenSize -1)
+    if(pos != tokenSize - 1)
         return UA_STATUSCODE_BADDECODINGERROR;
 
     *dst = dt;
@@ -2979,7 +2987,7 @@ const decodeJsonSignature decodeJsonJumpTable[UA_DATATYPEKINDS] = {
 };
 
 status
-tokenize(ParseCtx *parseCtx, CtxJson *ctx, const UA_ByteString *src) {
+tokenize(ParseCtx *parseCtx, CtxJson *ctx, const UA_ByteString *src, size_t tokensSize) {
     /* Set up the context */
     ctx->pos = &src->data[0];
     ctx->end = &src->data[src->length];
@@ -2987,19 +2995,16 @@ tokenize(ParseCtx *parseCtx, CtxJson *ctx, const UA_ByteString *src) {
     parseCtx->tokenCount = 0;
     parseCtx->index = 0;
 
-    /*Set up tokenizer jsmn*/
+    /* Tokenize */
     jsmn_parser p;
     jsmn_init(&p);
     parseCtx->tokenCount = (UA_Int32)
         jsmn_parse(&p, (char*)src->data, src->length,
-                   parseCtx->tokenArray, UA_JSON_MAXTOKENCOUNT);
-
-    if(parseCtx->tokenCount < 0) {
-        if(parseCtx->tokenCount == JSMN_ERROR_NOMEM)
-            return UA_STATUSCODE_BADOUTOFMEMORY;
+                   parseCtx->tokenArray, (unsigned int)tokensSize);
+    if(parseCtx->tokenCount == JSMN_ERROR_NOMEM)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    if(parseCtx->tokenCount < 0)
         return UA_STATUSCODE_BADDECODINGERROR;
-    }
-
     return UA_STATUSCODE_GOOD;
 }
 
@@ -3014,14 +3019,13 @@ UA_decodeJson(const UA_ByteString *src, void *dst, const UA_DataType *type,
         return UA_STATUSCODE_BADARGUMENTSMISSING;
 
     /* Set up the context */
+    jsmntok_t tokens[UA_JSON_MAXTOKENCOUNT / 8];
     CtxJson ctx;
     memset(&ctx, 0, sizeof(ctx));
     ParseCtx parseCtx;
     memset(&parseCtx, 0, sizeof(ParseCtx));
-    parseCtx.tokenArray = (jsmntok_t*)
-        UA_malloc(sizeof(jsmntok_t) * UA_JSON_MAXTOKENCOUNT);
-    if(!parseCtx.tokenArray)
-        return UA_STATUSCODE_BADOUTOFMEMORY;
+    parseCtx.tokenArray = tokens;
+
     if(options) {
         ctx.namespaces = options->namespaces;
         ctx.namespacesSize = options->namespacesSize;
@@ -3031,7 +3035,17 @@ UA_decodeJson(const UA_ByteString *src, void *dst, const UA_DataType *type,
     }
 
     /* Decode */
-    status ret = tokenize(&parseCtx, &ctx, src);
+    status ret = tokenize(&parseCtx, &ctx, src, UA_JSON_MAXTOKENCOUNT / 8);
+
+    /* Allocate larger token array on the heap and try again */
+    if(ret == UA_STATUSCODE_BADOUTOFMEMORY) {
+        parseCtx.tokenArray = (jsmntok_t*)
+            UA_malloc(sizeof(jsmntok_t) * UA_JSON_MAXTOKENCOUNT);
+        if(!parseCtx.tokenArray)
+            return UA_STATUSCODE_BADOUTOFMEMORY;
+        ret = tokenize(&parseCtx, &ctx, src, UA_JSON_MAXTOKENCOUNT);
+    }
+
     if(ret == UA_STATUSCODE_GOOD) {
         memset(dst, 0, type->memSize); /* Initialize the value */
         ret = decodeJsonJumpTable[type->typeKind](dst, type, &ctx, &parseCtx);
@@ -3042,7 +3056,10 @@ UA_decodeJson(const UA_ByteString *src, void *dst, const UA_DataType *type,
        parseCtx.index != parseCtx.tokenCount - 1)
         ret = UA_STATUSCODE_BADDECODINGERROR;
 
-    UA_free(parseCtx.tokenArray);
+    /* Free token array on the heap */
+    if(parseCtx.tokenArray != tokens)
+        UA_free(parseCtx.tokenArray);
+
     if(ret != UA_STATUSCODE_GOOD)
         UA_clear(dst, type); /* Clean up */
     return ret;
