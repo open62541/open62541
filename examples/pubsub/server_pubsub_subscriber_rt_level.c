@@ -317,6 +317,7 @@ addDataSetReader(UA_Server *server) {
                                                                  (UA_UadpNetworkMessageContentMask) UA_UADPNETWORKMESSAGECONTENTMASK_SEQUENCENUMBER |
                                                                  (UA_UadpNetworkMessageContentMask)UA_UADPNETWORKMESSAGECONTENTMASK_WRITERGROUPID |
                                                                  (UA_UadpNetworkMessageContentMask)UA_UADPNETWORKMESSAGECONTENTMASK_PAYLOADHEADER);
+    dataSetReaderMessage->dataSetMessageContentMask           = (UA_UadpDataSetMessageContentMask)(UA_UADPDATASETMESSAGECONTENTMASK_SEQUENCENUMBER);
     readerConfig.messageSettings.content.decoded.data = dataSetReaderMessage;
 
     readerConfig.dataSetFieldContentMask = UA_DATASETFIELDCONTENTMASK_RAWDATA;
