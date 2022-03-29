@@ -141,6 +141,10 @@ UA_NetworkMessage_updateBufferedNwMessage(UA_NetworkMessageOffsetBuffer *buffer,
             rv = UA_UInt16_decodeBinary(src, &offset, &buffer->nm->groupHeader.sequenceNumber);
             UA_CHECK_STATUS(rv, return rv);
             break;
+        case UA_PUBSUB_OFFSETTYPE_DATASETMESSAGE_SEQUENCENUMBER:
+            rv = UA_UInt16_decodeBinary(src, &offset, &(dsm->header.dataSetMessageSequenceNr));
+            UA_CHECK_STATUS(rv, return rv);
+            break;
         case UA_PUBSUB_OFFSETTYPE_PAYLOAD_DATAVALUE:
             rv = UA_DataValue_decodeBinary(src, &offset,
                                            &(dsm->data.keyFrameData.dataSetFields[payloadCounter]));
