@@ -3049,12 +3049,12 @@ UA_decodeJson(const UA_ByteString *src, void *dst, const UA_DataType *type,
     if(ret == UA_STATUSCODE_GOOD) {
         memset(dst, 0, type->memSize); /* Initialize the value */
         ret = decodeJsonJumpTable[type->typeKind](dst, type, &ctx, &parseCtx);
-    }
 
-    /* Sanity check if all Tokens were processed */
-    if(parseCtx.index != parseCtx.tokenCount &&
-       parseCtx.index != parseCtx.tokenCount - 1)
-        ret = UA_STATUSCODE_BADDECODINGERROR;
+        /* Sanity check if all Tokens were processed */
+        if(parseCtx.index != parseCtx.tokenCount &&
+           parseCtx.index != parseCtx.tokenCount - 1)
+            ret = UA_STATUSCODE_BADDECODINGERROR;
+    }
 
     /* Free token array on the heap */
     if(parseCtx.tokenArray != tokens)
