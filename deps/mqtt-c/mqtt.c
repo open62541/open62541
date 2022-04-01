@@ -240,8 +240,7 @@ enum MQTTErrors mqtt_connect(struct mqtt_client *client,
 #ifdef UA_ENABLE_MQTT_TLS_OPENSSL
     /* try to pack the message */
     MQTT_CLIENT_TRY_PACK(rv, msg, client,
-                         mqtt_pack_connection_request(
-                                                      client->mq.curr, client->mq.curr_sz,
+                         mqtt_pack_connection_request(client->mq.curr, client->mq.curr_sz,
                                                       client_id, will_topic, will_message,
                                                       will_message_size,user_name, password,
                                                       caFilePath, caPath, clientCertPath, clientKeyPath,
@@ -252,14 +251,10 @@ enum MQTTErrors mqtt_connect(struct mqtt_client *client,
 #else
     /* try to pack the message */
     MQTT_CLIENT_TRY_PACK(rv, msg, client,
-                         mqtt_pack_connection_request(
-                                                      client->mq.curr, client->mq.curr_sz,
+                         mqtt_pack_connection_request(client->mq.curr, client->mq.curr_sz,
                                                       client_id, will_topic, will_message,
                                                       will_message_size,user_name, password,
-                                                      connect_flags, keep_alive
-                                                      ),
-                         1
-                         );
+                                                      connect_flags, keep_alive), 1);
 #endif
 
     /* save the control type of the message */
@@ -1176,9 +1171,10 @@ ssize_t mqtt_pack_connection_request(uint8_t* buf, size_t bufsz,
     } else {
         connect_flags &= (uint8_t)~MQTT_CONNECT_PASSWORD;
     }
+
 #ifdef UA_ENABLE_MQTT_TLS_OPENSSL
     if (useTLS) {
-            if (caFilePath != NULL) {
+        if (caFilePath != NULL) {
             /* a caFilePath is present */
             connect_flags |= (uint8_t)MQTT_CONNECT_CAFILEPATH;
             remaining_length += (uint32_t)__mqtt_packed_cstrlen(caFilePath);
@@ -1221,12 +1217,13 @@ ssize_t mqtt_pack_connection_request(uint8_t* buf, size_t bufsz,
             //strncpy(strTLS, "0", 1);
             strTLS[0] = '0';
             strTLS[1] = '\0';
-            
+
         }
         connect_flags |= (uint8_t)MQTT_CONNECT_USETLS;
         remaining_length += (uint32_t)__mqtt_packed_cstrlen(strTLS);
     }
 #endif
+
     /* fixed header length is now calculated*/
     fixed_header.remaining_length = (uint32_t)remaining_length;
 
