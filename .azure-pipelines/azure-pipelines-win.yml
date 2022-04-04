@@ -12,6 +12,7 @@ jobs:
     GENERATOR: Visual Studio 16 2019
     FORCE_CXX: OFF
     vcpkg_cache: C:/vcpkg/installed
+    platform: x86
   steps:
   - checkout: self
     submodules: recursive
