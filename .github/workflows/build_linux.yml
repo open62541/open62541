@@ -9,7 +9,7 @@ jobs:
       matrix:
         include: 
           - build_name: "Debug Build & Unit Tests (gcc)"
-            cmd_deps: ""
+            cmd_deps: sudo apt-get install -y -qq mosquitto
             cmd_action: unit_tests
           - build_name: "Debug Build & Unit Tests without Subscriptions (gcc)"
             cmd_deps: ""
@@ -24,10 +24,10 @@ jobs:
             cmd_deps: ""
             cmd_action: unit_tests_alarms
           - build_name: "Debug Build & Unit Tests (clang)"
-            cmd_deps: sudo apt-get install -y -qq clang-11 clang-tools-11
+            cmd_deps: sudo apt-get install -y -qq clang-11 clang-tools-11 mosquitto
             cmd_action: CC=clang-11 CXX=clang++-11 unit_tests
           - build_name: "Debug Build & Unit Tests (tcc)"
-            cmd_deps: sudo apt-get install -y -qq tcc
+            cmd_deps: sudo apt-get install -y -qq tcc mosquitto
             cmd_action: CC=tcc unit_tests
           - build_name: "Encryption (MbedTLS) Build & Unit Tests (gcc)"
             cmd_deps: sudo apt-get install -y -qq libmbedtls-dev
