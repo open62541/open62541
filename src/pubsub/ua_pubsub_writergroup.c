@@ -188,12 +188,14 @@ UA_Server_freezeWriterGroupConfiguration(UA_Server *server,
         /* PublishedDataSet freezeCounter++ */
         UA_PublishedDataSet *publishedDataSet =
             UA_PublishedDataSet_findPDSbyId(server, dataSetWriter->connectedDataSet);
-        publishedDataSet->configurationFreezeCounter++;
-        publishedDataSet->configurationFrozen = true;
-        /* DataSetFields freeze */
-        UA_DataSetField *dataSetField;
-        TAILQ_FOREACH(dataSetField, &publishedDataSet->fields, listEntry) {
-            dataSetField->configurationFrozen = true;
+        if(publishedDataSet) {
+            publishedDataSet->configurationFreezeCounter++;
+            publishedDataSet->configurationFrozen = true;
+            /* DataSetFields freeze */
+            UA_DataSetField *dataSetField;
+            TAILQ_FOREACH(dataSetField, &publishedDataSet->fields, listEntry) {
+                dataSetField->configurationFrozen = true;
+            }
         }
     }
 
@@ -221,6 +223,20 @@ UA_Server_freezeWriterGroupConfiguration(UA_Server *server,
         UA_PublishedDataSet *pds =
             UA_PublishedDataSet_findPDSbyId(server, dsw->connectedDataSet);
         if(!pds) {
+            if (UA_NodeId_isNull(&dsw->connectedDataSet)) {
+                UA_StatusCode res1 =
+                        UA_DataSetWriter_generateDataSetMessageHeartbeat(server,
+                                &dsmStore[dsmCount], dsw);
+                if (res1 != UA_STATUSCODE_GOOD) {
+                    UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                            "PubSub Publish: Heartbeat DataSetMessage creation failed");
+                    continue;
+                }
+                dsWriterIds[dsmCount] = dsw->config.dataSetWriterId;
+                dsmCount++;
+                continue;
+            }
+
             UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
                            "PubSub Publish: PublishedDataSet not found");
             continue;
@@ -1096,6 +1112,20 @@ UA_WriterGroup_publishCallback(UA_Server *server, UA_WriterGroup *writerGroup) {
         UA_PublishedDataSet *pds =
             UA_PublishedDataSet_findPDSbyId(server, dsw->connectedDataSet);
         if(!pds) {
+            if (UA_NodeId_isNull(&dsw->connectedDataSet)) {
+                UA_StatusCode res1 =
+                        UA_DataSetWriter_generateDataSetMessageHeartbeat(server,
+                                &dsmStore[dsmCount], dsw);
+                if (res1 != UA_STATUSCODE_GOOD) {
+                    UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                            "PubSub Publish: Heartbeat DataSetMessage creation failed");
+                    continue;
+                }
+                dsWriterIds[dsmCount] = dsw->config.dataSetWriterId;
+                dsmCount++;
+                continue;
+            }
+
             UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
                          "PubSub Publish: PublishedDataSet not found");
             UA_DataSetWriter_setPubSubState(server, UA_PUBSUBSTATE_ERROR, dsw);
