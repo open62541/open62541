@@ -11,7 +11,7 @@ if (${_index} GREATER -1 OR "${UA_ARCHITECTURE}" STREQUAL "win32")
     if("${UA_ARCHITECTURE}" STREQUAL "win32")
         ua_architecture_append_to_library(ws2_32)
         ua_architecture_append_to_library(iphlpapi)
-	#append iphlpapi permanently. Problem: PUBSUB Flag is configured after execution.        
+	#append iphlpapi permanently. Problem: PUBSUB Flag is configured after execution.
 	#if(UA_ENABLE_DISCOVERY_MULTICAST OR UA_ENABLE_PUBSUB)
         #    ua_architecture_append_to_library(iphlpapi)
         #endif()
