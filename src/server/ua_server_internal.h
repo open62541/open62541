@@ -80,7 +80,9 @@ typedef struct session_list_entry {
 
 typedef enum {
     UA_SERVERLIFECYCLE_FRESH,
-    UA_SERVERLIFECYLE_RUNNING
+    UA_SERVERLIFECYCLE_STOPPED,
+    UA_SERVERLIFECYCLE_STARTED,
+    UA_SERVERLIFECYCLE_STOPPING
 } UA_ServerLifecycle;
 
 struct UA_Server {
