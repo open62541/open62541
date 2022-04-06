@@ -66,7 +66,6 @@ struct UA_Connection {
     UA_SOCKET sockfd;              /* Most connectivity solutions run on
                                     * sockets. Having the socket id here
                                     * simplifies the design. */
-    UA_DateTime openingDate;       /* The date the connection was created */
     void *handle;                  /* A pointer to internal data */
 
     /* Get a buffer for sending */
