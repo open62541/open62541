@@ -226,6 +226,10 @@ struct UA_ConnectionManager {
      * perspective of the EventLoop. */
     UA_EventSource eventSource;
 
+    /* Name of the protocol supported by the ConnectionManager. For example
+     * "mqtt", "udp", "mqtt". */
+    UA_String protocol;
+
     /* The ConnectionCallback is the only interface from the connection back to
      * the application.
      *
