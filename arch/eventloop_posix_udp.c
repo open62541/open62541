@@ -772,6 +772,8 @@ UDP_eventSourceDelete(UA_ConnectionManager *cm) {
     return UA_STATUSCODE_GOOD;
 }
 
+static const char *udpName = "udp";
+
 UA_ConnectionManager *
 UA_ConnectionManager_new_POSIX_UDP(const UA_String eventSourceName) {
     UDPConnectionManager *cm = (UDPConnectionManager*)
@@ -784,6 +786,7 @@ UA_ConnectionManager_new_POSIX_UDP(const UA_String eventSourceName) {
     cm->cm.eventSource.start = (UA_StatusCode (*)(UA_EventSource *)) UDP_eventSourceStart;
     cm->cm.eventSource.stop = (void (*)(UA_EventSource *))UDP_eventSourceStop;
     cm->cm.eventSource.free = (UA_StatusCode (*)(UA_EventSource *))UDP_eventSourceDelete;
+    cm->cm.protocol = UA_STRING((char*)(uintptr_t)udpName);
     cm->cm.openConnection = UDP_openConnection;
     cm->cm.allocNetworkBuffer = UDP_allocNetworkBuffer;
     cm->cm.freeNetworkBuffer = UDP_freeNetworkBuffer;

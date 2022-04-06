@@ -913,6 +913,8 @@ TCP_eventSourceDelete(UA_ConnectionManager *cm) {
     return UA_STATUSCODE_GOOD;
 }
 
+static const char *tcpName = "tcp";
+
 UA_ConnectionManager *
 UA_ConnectionManager_new_POSIX_TCP(const UA_String eventSourceName) {
     TCPConnectionManager *cm = (TCPConnectionManager*)
@@ -925,6 +927,7 @@ UA_ConnectionManager_new_POSIX_TCP(const UA_String eventSourceName) {
     cm->cm.eventSource.start = (UA_StatusCode (*)(UA_EventSource *)) TCP_eventSourceStart;
     cm->cm.eventSource.stop = (void (*)(UA_EventSource *))TCP_eventSourceStop;
     cm->cm.eventSource.free = (UA_StatusCode (*)(UA_EventSource *))TCP_eventSourceDelete;
+    cm->cm.protocol = UA_STRING((char*)(uintptr_t)tcpName);
     cm->cm.openConnection = TCP_openConnection;
     cm->cm.allocNetworkBuffer = TCP_allocNetworkBuffer;
     cm->cm.freeNetworkBuffer = TCP_freeNetworkBuffer;
