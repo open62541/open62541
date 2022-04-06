@@ -1636,8 +1636,9 @@ if(NOT UA_ENABLE_AMALGAMATION)
 endif()
 
 if("${UA_ARCHITECTURE}" STREQUAL "win32")
-    target_compile_options ( open62541 PUBLIC -m32 )
-    set_target_properties ( open62541 PROPERTIES LINK_FLAGS -m32 )
+    set(CMAKE_C_FLAGS "-m32")
+    set_target_properties(open62541 PROPERTIES LINK_FLAGS -m32)
+    target_link_options(open62541 PRIVATE /machine:x86)
 endif()
 
 # DLL requires linking to dependencies
