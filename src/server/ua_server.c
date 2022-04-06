@@ -557,15 +557,30 @@ UA_Server_getStatistics(UA_Server *server) {
 static
 UA_StatusCode
 UA_Server_setupEventLoop(UA_Server *server) {
-    UA_Server_BasicConnectionContext *ctx = (UA_Server_BasicConnectionContext*) UA_malloc(sizeof(UA_Server_BasicConnectionContext));
+    UA_Server_BasicConnectionContext *ctx = (UA_Server_BasicConnectionContext*)
+        UA_malloc(sizeof(UA_Server_BasicConnectionContext));
     memset(ctx, 0, sizeof(UA_Server_BasicConnectionContext));
     UA_CHECK_MEM(ctx, return UA_STATUSCODE_BADOUTOFMEMORY);
 
     ctx->server = server;
     ctx->isInitial = true;
 
-    /* TODO: map the connection managers to their names instead of "0" for TCP */
-    UA_ConnectionManager *tcpCM = UA_Server_getConfig(server)->connectionManagers[0];
+    /* Choose the first "tcp" ConnectionManager from the config */
+    UA_ServerConfig *config = UA_Server_getConfig(server);
+    UA_ConnectionManager *tcpCM = NULL;
+    UA_String tcpName = UA_STRING("tcp");
+    for(size_t i = 0; i < config->connectionManagersSize; i++) {
+        if(UA_String_equal(&config->connectionManagers[i]->protocol, &tcpName)) {
+            tcpCM = config->connectionManagers[i];
+            break;
+        }
+    }
+    if(!tcpCM) {
+        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                     "No TCP ConnectionManager found in the configuration");
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
+
     ctx->cm = tcpCM;
     tcpCM->connectionCallback = UA_Server_connectionCallback;
     tcpCM->initialConnectionContext = ctx;
