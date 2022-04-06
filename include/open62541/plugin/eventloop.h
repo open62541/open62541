@@ -63,10 +63,10 @@ typedef struct UA_DelayedCallback {
 
 typedef enum {
     UA_EVENTLOOPSTATE_FRESH = 0,
+    UA_EVENTLOOPSTATE_STOPPED,
     UA_EVENTLOOPSTATE_STARTED,
-    UA_EVENTLOOPSTATE_STOPPING, /* stopping in progress, needs EventLoop
-                                 * cycles to finish */
-    UA_EVENTLOOPSTATE_STOPPED
+    UA_EVENTLOOPSTATE_STOPPING /* Stopping in progress, needs EventLoop
+                                * cycles to finish */
 } UA_EventLoopState;
 
 struct UA_EventLoop {
