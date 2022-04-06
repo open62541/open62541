@@ -1,0 +1,197 @@
+<opc:TypeDictionary xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:tns="http://opcfoundation.org/UA/CAS/" DefaultByteOrder="LittleEndian" xmlns:opc="http://opcfoundation.org/BinarySchema/" xmlns:ua="http://opcfoundation.org/UA/" TargetNamespace="http://opcfoundation.org/UA/CAS/">
+    <opc:Import Namespace="http://opcfoundation.org/UA/"/>
+    <opc:StructuredType BaseType="ua:ExtensionObject" Name="FilterClassDataType">
+        <opc:Documentation>information about the used filter class according to ISO 8573-1 of a filter</opc:Documentation>
+        <opc:Field TypeName="tns:FilterClassEnum" Name="A"/>
+        <opc:Field TypeName="tns:FilterClassEnum" Name="B"/>
+        <opc:Field TypeName="tns:FilterClassEnum" Name="C"/>
+    </opc:StructuredType>
+    <opc:StructuredType BaseType="ua:OptionSet" Name="SensorTechnologyOptionSet">
+        <opc:Documentation>flags for the used sensor technologies for a sensor</opc:Documentation>
+        <opc:Field TypeName="opc:ByteString" Name="Value"/>
+        <opc:Field TypeName="opc:ByteString" Name="ValidBits"/>
+    </opc:StructuredType>
+    <opc:EnumeratedType LengthInBits="32" Name="AirnetHealthStateEnum">
+        <opc:EnumeratedValue Name="OK" Value="0"/>
+        <opc:EnumeratedValue Name="Warning" Value="1"/>
+        <opc:EnumeratedValue Name="Error" Value="2"/>
+        <opc:EnumeratedValue Name="Critical" Value="3"/>
+    </opc:EnumeratedType>
+    <opc:EnumeratedType LengthInBits="32" Name="AirnetIntegratedStateEnum">
+        <opc:EnumeratedValue Name="FullyIntegrated" Value="0"/>
+        <opc:EnumeratedValue Name="PartiallyIntegrated" Value="1"/>
+        <opc:EnumeratedValue Name="FullyIsolated" Value="2"/>
+    </opc:EnumeratedType>
+    <opc:EnumeratedType LengthInBits="32" Name="AirnetOperatingStateEnum">
+        <opc:EnumeratedValue Name="Other" Value="0"/>
+        <opc:EnumeratedValue Name="Stopped" Value="1"/>
+        <opc:EnumeratedValue Name="Starting" Value="2"/>
+        <opc:EnumeratedValue Name="Stopping" Value="3"/>
+        <opc:EnumeratedValue Name="Operational" Value="4"/>
+    </opc:EnumeratedType>
+    <opc:EnumeratedType LengthInBits="32" Name="CompressorOperatingStateEnum">
+        <opc:EnumeratedValue Name="Other" Value="0"/>
+        <opc:EnumeratedValue Name="Stopped" Value="1"/>
+        <opc:EnumeratedValue Name="Starting" Value="2"/>
+        <opc:EnumeratedValue Name="Stopping" Value="3"/>
+        <opc:EnumeratedValue Name="Unloaded" Value="4"/>
+        <opc:EnumeratedValue Name="Loading" Value="5"/>
+        <opc:EnumeratedValue Name="Unloading" Value="6"/>
+        <opc:EnumeratedValue Name="Loaded" Value="7"/>
+    </opc:EnumeratedType>
+    <opc:EnumeratedType LengthInBits="32" Name="CompressorTypeEnum">
+        <opc:Documentation>possible compressor types</opc:Documentation>
+        <opc:EnumeratedValue Name="Other" Value="0"/>
+        <opc:EnumeratedValue Name="AxialTurboCompressor" Value="1"/>
+        <opc:EnumeratedValue Name="BellowsCompressor" Value="2"/>
+        <opc:EnumeratedValue Name="DiaphragmCompressor" Value="3"/>
+        <opc:EnumeratedValue Name="LiquidRingCompressor" Value="4"/>
+        <opc:EnumeratedValue Name="PistonCompressor" Value="5"/>
+        <opc:EnumeratedValue Name="RadialTurboCompressor" Value="6"/>
+        <opc:EnumeratedValue Name="RootsCompressor" Value="7"/>
+        <opc:EnumeratedValue Name="ScrewCompressor" Value="8"/>
+        <opc:EnumeratedValue Name="ScrollCompressor" Value="9"/>
+        <opc:EnumeratedValue Name="SideChannelCompressor" Value="10"/>
+        <opc:EnumeratedValue Name="StraightLobeCompressor" Value="11"/>
+        <opc:EnumeratedValue Name="VaneCompressor" Value="12"/>
+    </opc:EnumeratedType>
+    <opc:EnumeratedType LengthInBits="32" Name="ConverterTypeEnum">
+        <opc:Documentation>possible converter types</opc:Documentation>
+        <opc:EnumeratedValue Name="Other" Value="0"/>
+        <opc:EnumeratedValue Name="CatalyticHCConverter" Value="1"/>
+    </opc:EnumeratedType>
+    <opc:EnumeratedType LengthInBits="32" Name="DisplacementTypeEnum">
+        <opc:Documentation>possible displacement types for a compressor</opc:Documentation>
+        <opc:EnumeratedValue Name="PositiveDisplacement" Value="0"/>
+        <opc:EnumeratedValue Name="DynamicDisplacement" Value="1"/>
+    </opc:EnumeratedType>
+    <opc:EnumeratedType LengthInBits="32" Name="DrainTypeEnum">
+        <opc:Documentation>possible condensate drain types</opc:Documentation>
+        <opc:EnumeratedValue Name="Other" Value="0"/>
+        <opc:EnumeratedValue Name="CapacitiveDrain" Value="1"/>
+        <opc:EnumeratedValue Name="LevelControlledDrain" Value="2"/>
+        <opc:EnumeratedValue Name="TimedDrain" Value="3"/>
+    </opc:EnumeratedType>
+    <opc:EnumeratedType LengthInBits="32" Name="DryerOperatingStateEnum">
+        <opc:EnumeratedValue Name="Other" Value="0"/>
+        <opc:EnumeratedValue Name="Stopped" Value="1"/>
+        <opc:EnumeratedValue Name="Running" Value="2"/>
+        <opc:EnumeratedValue Name="RefrigerantCompressorStopped" Value="3"/>
+        <opc:EnumeratedValue Name="RefrigerantCompressorRunning" Value="4"/>
+        <opc:EnumeratedValue Name="PurgeValveClosed" Value="5"/>
+        <opc:EnumeratedValue Name="PurgeValveOpen" Value="6"/>
+        <opc:EnumeratedValue Name="ParallelModeOfBothVessels" Value="7"/>
+        <opc:EnumeratedValue Name="Depressurizing" Value="8"/>
+        <opc:EnumeratedValue Name="Desorbing" Value="9"/>
+        <opc:EnumeratedValue Name="Cooling" Value="10"/>
+        <opc:EnumeratedValue Name="Pressurizing" Value="11"/>
+        <opc:EnumeratedValue Name="RegeneratedVesselInStand-by" Value="12"/>
+    </opc:EnumeratedType>
+    <opc:EnumeratedType LengthInBits="32" Name="DryerTypeEnum">
+        <opc:Documentation>possible dryer types</opc:Documentation>
+        <opc:EnumeratedValue Name="Other" Value="0"/>
+        <opc:EnumeratedValue Name="AbsorptionDryer" Value="1"/>
+        <opc:EnumeratedValue Name="AdsorptionDryer" Value="2"/>
+        <opc:EnumeratedValue Name="MembraneDryer" Value="3"/>
+        <opc:EnumeratedValue Name="RefrigerationDryer" Value="4"/>
+    </opc:EnumeratedType>
+    <opc:EnumeratedType LengthInBits="32" Name="FilterClassEnum">
+        <opc:Documentation>possible filter classes according to ISO 8573-1</opc:Documentation>
+        <opc:EnumeratedValue Name="0" Value="0"/>
+        <opc:EnumeratedValue Name="1" Value="1"/>
+        <opc:EnumeratedValue Name="2" Value="2"/>
+        <opc:EnumeratedValue Name="3" Value="3"/>
+        <opc:EnumeratedValue Name="4" Value="4"/>
+        <opc:EnumeratedValue Name="5" Value="5"/>
+        <opc:EnumeratedValue Name="6" Value="6"/>
+        <opc:EnumeratedValue Name="7" Value="7"/>
+        <opc:EnumeratedValue Name="8" Value="8"/>
+        <opc:EnumeratedValue Name="9" Value="9"/>
+        <opc:EnumeratedValue Name="X" Value="10"/>
+    </opc:EnumeratedType>
+    <opc:EnumeratedType LengthInBits="32" Name="FilterTypeEnum">
+        <opc:Documentation>possible filter types</opc:Documentation>
+        <opc:EnumeratedValue Name="Other" Value="0"/>
+        <opc:EnumeratedValue Name="ActivatedCarbonFilter" Value="1"/>
+        <opc:EnumeratedValue Name="AdsorptionFilter" Value="2"/>
+        <opc:EnumeratedValue Name="CoalescingFilter" Value="3"/>
+        <opc:EnumeratedValue Name="ParticulateFilter" Value="4"/>
+        <opc:EnumeratedValue Name="FabricFilter" Value="5"/>
+        <opc:EnumeratedValue Name="SterileFilter" Value="6"/>
+    </opc:EnumeratedType>
+    <opc:EnumeratedType LengthInBits="32" Name="FluidTypeEnum">
+        <opc:Documentation>possible process fluid types</opc:Documentation>
+        <opc:EnumeratedValue Name="Air" Value="0"/>
+        <opc:EnumeratedValue Name="Condensate" Value="1"/>
+        <opc:EnumeratedValue Name="Oil" Value="2"/>
+        <opc:EnumeratedValue Name="Water" Value="3"/>
+    </opc:EnumeratedType>
+    <opc:EnumeratedType LengthInBits="32" Name="HealthStateEnum">
+        <opc:EnumeratedValue Name="OK" Value="0"/>
+        <opc:EnumeratedValue Name="Warning" Value="1"/>
+        <opc:EnumeratedValue Name="Error" Value="2"/>
+        <opc:EnumeratedValue Name="Critical" Value="3"/>
+    </opc:EnumeratedType>
+    <opc:EnumeratedType LengthInBits="32" Name="IntegratedStateEnum">
+        <opc:EnumeratedValue Name="FullyIntegrated" Value="0"/>
+        <opc:EnumeratedValue Name="PartiallyIntegrated" Value="1"/>
+        <opc:EnumeratedValue Name="FullyIsolated" Value="2"/>
+    </opc:EnumeratedType>
+    <opc:EnumeratedType LengthInBits="32" Name="IpVersionEnum">
+        <opc:EnumeratedValue Name="IPv4" Value="0"/>
+        <opc:EnumeratedValue Name="IPv6" Value="1"/>
+    </opc:EnumeratedType>
+    <opc:EnumeratedType LengthInBits="32" Name="LubricationTypeEnum">
+        <opc:Documentation>possible lubrication types for the compression process of a compressor</opc:Documentation>
+        <opc:EnumeratedValue Name="NoLubrication" Value="0"/>
+        <opc:EnumeratedValue Name="OilLubricated" Value="1"/>
+        <opc:EnumeratedValue Name="WaterLubricated" Value="2"/>
+    </opc:EnumeratedType>
+    <opc:EnumeratedType LengthInBits="32" Name="OperatingStateEnum">
+        <opc:EnumeratedValue Name="Other" Value="0"/>
+        <opc:EnumeratedValue Name="Stopped" Value="1"/>
+        <opc:EnumeratedValue Name="Starting" Value="2"/>
+        <opc:EnumeratedValue Name="Stopping" Value="3"/>
+        <opc:EnumeratedValue Name="Operational" Value="4"/>
+    </opc:EnumeratedType>
+    <opc:EnumeratedType LengthInBits="32" Name="ReceiverTypeEnum">
+        <opc:Documentation>possible receiver types</opc:Documentation>
+        <opc:EnumeratedValue Name="Other" Value="0"/>
+        <opc:EnumeratedValue Name="DryReceiver" Value="1"/>
+        <opc:EnumeratedValue Name="WetReceiver" Value="2"/>
+    </opc:EnumeratedType>
+    <opc:EnumeratedType LengthInBits="32" Name="SensorTypeEnum">
+        <opc:Documentation>possible sensor types</opc:Documentation>
+        <opc:EnumeratedValue Name="Other" Value="0"/>
+        <opc:EnumeratedValue Name="Ammeter" Value="1"/>
+        <opc:EnumeratedValue Name="DewPointSensor" Value="2"/>
+        <opc:EnumeratedValue Name="FlowRateSensor" Value="3"/>
+        <opc:EnumeratedValue Name="FlowSpeedSensor" Value="4"/>
+        <opc:EnumeratedValue Name="HumiditySensor" Value="5"/>
+        <opc:EnumeratedValue Name="OilConcentrationSensor" Value="6"/>
+        <opc:EnumeratedValue Name="ParticleCounter" Value="7"/>
+        <opc:EnumeratedValue Name="PressureSensor" Value="8"/>
+        <opc:EnumeratedValue Name="TemperatureSensor" Value="9"/>
+        <opc:EnumeratedValue Name="Voltmeter" Value="10"/>
+        <opc:EnumeratedValue Name="VolumeSensor" Value="11"/>
+        <opc:EnumeratedValue Name="Wattmeter" Value="12"/>
+    </opc:EnumeratedType>
+    <opc:EnumeratedType LengthInBits="32" Name="SeparatorTypeEnum">
+        <opc:Documentation>possible condensate separator types</opc:Documentation>
+        <opc:EnumeratedValue Name="Other" Value="0"/>
+        <opc:EnumeratedValue Name="CentrifugalOilyWaterSeparator" Value="1"/>
+        <opc:EnumeratedValue Name="EmulsionSplittingSeparator" Value="2"/>
+        <opc:EnumeratedValue Name="FlotationSeparator" Value="3"/>
+        <opc:EnumeratedValue Name="GravityPlateSeparator" Value="4"/>
+        <opc:EnumeratedValue Name="HydrocycloneOilyWaterSeparator" Value="5"/>
+    </opc:EnumeratedType>
+    <opc:EnumeratedType LengthInBits="32" Name="ValveTypeEnum">
+        <opc:Documentation>possible valve types</opc:Documentation>
+        <opc:EnumeratedValue Name="Other" Value="0"/>
+        <opc:EnumeratedValue Name="CheckValve" Value="1"/>
+        <opc:EnumeratedValue Name="ContinuousValve" Value="2"/>
+        <opc:EnumeratedValue Name="FlowControlValve" Value="3"/>
+        <opc:EnumeratedValue Name="PressureValve" Value="4"/>
+        <opc:EnumeratedValue Name="SwitchingValve" Value="5"/>
+    </opc:EnumeratedType>
+</opc:TypeDictionary>

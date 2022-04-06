@@ -1,0 +1,27 @@
+#ifndef _XOPEN_SOURCE
+# define _XOPEN_SOURCE 500
+#endif
+#ifndef _DEFAULT_SOURCE
+# define _DEFAULT_SOURCE 1
+#endif
+
+#if defined __APPLE__
+// required for ip_mreq
+#define _DARWIN_C_SOURCE 1
+#endif
+
+#define MDNSD_free(ptr) free(ptr)
+#define MDNSD_malloc(size) malloc(size)
+#define MDNSD_calloc(num, size) calloc(num, size)
+#define MDNSD_realloc(ptr, size) realloc(ptr, size)
+
+#define MDNSD_LOGLEVEL ${MDNSD_LOGLEVEL}
+
+/**
+ * Inline Functions
+ * ---------------- */
+#ifdef _MSC_VER
+# define MDNSD_INLINE __inline
+#else
+# define MDNSD_INLINE inline
+#endif

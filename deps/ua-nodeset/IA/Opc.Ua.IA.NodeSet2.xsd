@@ -1,0 +1,78 @@
+<xs:schema elementFormDefault="qualified" targetNamespace="http://opcfoundation.org/UA/IA/Types.xsd" xmlns:tns="http://opcfoundation.org/UA/IA/Types.xsd" xmlns:ua="http://opcfoundation.org/UA/2008/02/Types.xsd" xmlns:xs="http://www.w3.org/2001/XMLSchema">
+    <xs:import namespace="http://opcfoundation.org/UA/2008/02/Types.xsd"/>
+    <xs:simpleType name="LevelDisplayMode">
+        <xs:annotation>
+            <xs:documentation>Contains the values used to indicate how a percentual value is displayed if the stacklight unit works in Levelmeter mode.</xs:documentation>
+        </xs:annotation>
+        <xs:restriction base="xs:string">
+            <xs:enumeration value="Dimmed_0"/>
+            <xs:enumeration value="Blinking_1"/>
+            <xs:enumeration value="Other_2"/>
+        </xs:restriction>
+    </xs:simpleType>
+    <xs:element type="tns:LevelDisplayMode" name="LevelDisplayMode"/>
+    <xs:complexType name="ListOfLevelDisplayMode">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="unbounded" type="tns:LevelDisplayMode" name="LevelDisplayMode" nillable="true"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:ListOfLevelDisplayMode" name="ListOfLevelDisplayMode" nillable="true"/>
+    <xs:simpleType name="SignalColor">
+        <xs:annotation>
+            <xs:documentation>Holds the possible colour values for stacklight lamps.</xs:documentation>
+        </xs:annotation>
+        <xs:restriction base="xs:string">
+            <xs:enumeration value="Off_0"/>
+            <xs:enumeration value="Red_1"/>
+            <xs:enumeration value="Green_2"/>
+            <xs:enumeration value="Blue_3"/>
+            <xs:enumeration value="Yellow_4"/>
+            <xs:enumeration value="Purple_5"/>
+            <xs:enumeration value="Cyan_6"/>
+            <xs:enumeration value="White_7"/>
+        </xs:restriction>
+    </xs:simpleType>
+    <xs:element type="tns:SignalColor" name="SignalColor"/>
+    <xs:complexType name="ListOfSignalColor">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="unbounded" type="tns:SignalColor" name="SignalColor" nillable="true"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:ListOfSignalColor" name="ListOfSignalColor" nillable="true"/>
+    <xs:simpleType name="SignalModeLight">
+        <xs:annotation>
+            <xs:documentation>Contains the values used to indicate in what way a lamp behaves when switched on.</xs:documentation>
+        </xs:annotation>
+        <xs:restriction base="xs:string">
+            <xs:enumeration value="Continuous_0"/>
+            <xs:enumeration value="Blinking_1"/>
+            <xs:enumeration value="Flashing_2"/>
+            <xs:enumeration value="Other_3"/>
+        </xs:restriction>
+    </xs:simpleType>
+    <xs:element type="tns:SignalModeLight" name="SignalModeLight"/>
+    <xs:complexType name="ListOfSignalModeLight">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="unbounded" type="tns:SignalModeLight" name="SignalModeLight" nillable="true"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:ListOfSignalModeLight" name="ListOfSignalModeLight" nillable="true"/>
+    <xs:simpleType name="StacklightOperationMode">
+        <xs:annotation>
+            <xs:documentation>Contains the values used to indicate how a stacklight (as a whole unit) is used.</xs:documentation>
+        </xs:annotation>
+        <xs:restriction base="xs:string">
+            <xs:enumeration value="Segmented_0"/>
+            <xs:enumeration value="Levelmeter_1"/>
+            <xs:enumeration value="Running_Light_2"/>
+            <xs:enumeration value="Other_3"/>
+        </xs:restriction>
+    </xs:simpleType>
+    <xs:element type="tns:StacklightOperationMode" name="StacklightOperationMode"/>
+    <xs:complexType name="ListOfStacklightOperationMode">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="unbounded" type="tns:StacklightOperationMode" name="StacklightOperationMode" nillable="true"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:ListOfStacklightOperationMode" name="ListOfStacklightOperationMode" nillable="true"/>
+</xs:schema>

@@ -1,0 +1,45 @@
+<opc:TypeDictionary
+  xmlns:DI="http://opcfoundation.org/UA/DI/"
+  xmlns:opc="http://opcfoundation.org/BinarySchema/"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xmlns:ua="http://opcfoundation.org/UA/"
+  xmlns:tns="http://opcfoundation.org/UA/Robotics/"
+  DefaultByteOrder="LittleEndian"
+  TargetNamespace="http://opcfoundation.org/UA/Robotics/"
+>
+  <opc:Import Namespace="http://opcfoundation.org/UA/DI/" Location="Opc.Ua.Di.BinarySchema.bsd"/>
+  <opc:Import Namespace="http://opcfoundation.org/UA/" Location="Opc.Ua.BinarySchema.bsd"/>
+
+  <opc:EnumeratedType Name="ExecutionModeEnumeration" LengthInBits="32">
+    <opc:EnumeratedValue Name="CYCLE" Value="0" />
+    <opc:EnumeratedValue Name="CONTINUOUS" Value="1" />
+    <opc:EnumeratedValue Name="STEP" Value="2" />
+  </opc:EnumeratedType>
+
+  <opc:EnumeratedType Name="MotionDeviceCategoryEnumeration" LengthInBits="32">
+    <opc:EnumeratedValue Name="OTHER" Value="0" />
+    <opc:EnumeratedValue Name="ARTICULATED_ROBOT" Value="1" />
+    <opc:EnumeratedValue Name="SCARA_ROBOT" Value="2" />
+    <opc:EnumeratedValue Name="CARTESIAN_ROBOT" Value="3" />
+    <opc:EnumeratedValue Name="SPHERICAL_ROBOT" Value="4" />
+    <opc:EnumeratedValue Name="PARALLEL_ROBOT" Value="5" />
+    <opc:EnumeratedValue Name="CYLINDRICAL_ROBOT" Value="6" />
+  </opc:EnumeratedType>
+
+  <opc:EnumeratedType Name="AxisMotionProfileEnumeration" LengthInBits="32">
+    <opc:EnumeratedValue Name="OTHER" Value="0" />
+    <opc:EnumeratedValue Name="ROTARY" Value="1" />
+    <opc:EnumeratedValue Name="ROTARY_ENDLESS" Value="2" />
+    <opc:EnumeratedValue Name="LINEAR" Value="3" />
+    <opc:EnumeratedValue Name="LINEAR_ENDLESS" Value="4" />
+  </opc:EnumeratedType>
+
+  <opc:EnumeratedType Name="OperationalModeEnumeration" LengthInBits="32">
+    <opc:EnumeratedValue Name="OTHER" Value="0" />
+    <opc:EnumeratedValue Name="MANUAL_REDUCED_SPEED" Value="1" />
+    <opc:EnumeratedValue Name="MANUAL_HIGH_SPEED" Value="2" />
+    <opc:EnumeratedValue Name="AUTOMATIC" Value="3" />
+    <opc:EnumeratedValue Name="AUTOMATIC_EXTERNAL" Value="4" />
+  </opc:EnumeratedType>
+
+</opc:TypeDictionary>

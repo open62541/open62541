@@ -1,0 +1,73 @@
+<xs:schema elementFormDefault="qualified" targetNamespace="http://opcfoundation.org/UA/PlasticsRubber/LDS/Types.xsd" xmlns:tns="http://opcfoundation.org/UA/PlasticsRubber/LDS/Types.xsd" xmlns:ua="http://opcfoundation.org/UA/2008/02/Types.xsd" xmlns:xs="http://www.w3.org/2001/XMLSchema">
+    <xs:import namespace="http://opcfoundation.org/UA/2008/02/Types.xsd"/>
+    <xs:simpleType name="AdditiveStatusEnumeration">
+        <xs:annotation>
+            <xs:documentation>Actual status of the additive provides a minimal error handling for devices without event support.</xs:documentation>
+        </xs:annotation>
+        <xs:restriction base="xs:string">
+            <xs:enumeration value="GOOD_0"/>
+            <xs:enumeration value="WARNING_1"/>
+            <xs:enumeration value="ADVANCE_WARNING_ADDITIVE_CHANGE_2"/>
+            <xs:enumeration value="ERROR_EMPTY_3"/>
+            <xs:enumeration value="ERROR_4"/>
+        </xs:restriction>
+    </xs:simpleType>
+    <xs:element type="tns:AdditiveStatusEnumeration" name="AdditiveStatusEnumeration"/>
+    <xs:complexType name="ListOfAdditiveStatusEnumeration">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="unbounded" type="tns:AdditiveStatusEnumeration" name="AdditiveStatusEnumeration" nillable="true"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:ListOfAdditiveStatusEnumeration" name="ListOfAdditiveStatusEnumeration" nillable="true"/>
+    <xs:simpleType name="ComponentStatusEnumeration">
+        <xs:annotation>
+            <xs:documentation>Actual status of the component provides a minimal error handling for devices without event support.</xs:documentation>
+        </xs:annotation>
+        <xs:restriction base="xs:string">
+            <xs:enumeration value="GOOD_0"/>
+            <xs:enumeration value="WARNING_1"/>
+            <xs:enumeration value="WARNING_PRESSURE_TOO_HIGH_2"/>
+            <xs:enumeration value="WARNING_PRESSURE_TOO_LOW_3"/>
+            <xs:enumeration value="ADVANCE_WARNING_DRUM_CHANGE_4"/>
+            <xs:enumeration value="ERROR_DRUM_EMPTY_5"/>
+            <xs:enumeration value="ERROR_6"/>
+        </xs:restriction>
+    </xs:simpleType>
+    <xs:element type="tns:ComponentStatusEnumeration" name="ComponentStatusEnumeration"/>
+    <xs:complexType name="ListOfComponentStatusEnumeration">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="unbounded" type="tns:ComponentStatusEnumeration" name="ComponentStatusEnumeration" nillable="true"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:ListOfComponentStatusEnumeration" name="ListOfComponentStatusEnumeration" nillable="true"/>
+    <xs:simpleType name="MaterialBalanceSystemTypeEnumeration">
+        <xs:restriction base="xs:string">
+            <xs:enumeration value="NOT_AVAILABLE_0"/>
+            <xs:enumeration value="ALWAYS_ACTIVE_1"/>
+            <xs:enumeration value="SELECTABLE_2"/>
+        </xs:restriction>
+    </xs:simpleType>
+    <xs:element type="tns:MaterialBalanceSystemTypeEnumeration" name="MaterialBalanceSystemTypeEnumeration"/>
+    <xs:complexType name="ListOfMaterialBalanceSystemTypeEnumeration">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="unbounded" type="tns:MaterialBalanceSystemTypeEnumeration" name="MaterialBalanceSystemTypeEnumeration" nillable="true"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:ListOfMaterialBalanceSystemTypeEnumeration" name="ListOfMaterialBalanceSystemTypeEnumeration" nillable="true"/>
+    <xs:simpleType name="PurgeStatusEnumeration">
+        <xs:restriction base="xs:string">
+            <xs:enumeration value="OFF_0"/>
+            <xs:enumeration value="COMPONENT_A_1"/>
+            <xs:enumeration value="COMPONENT_B_2"/>
+            <xs:enumeration value="COMPONENT_A_AND_B_3"/>
+            <xs:enumeration value="COMPONENT_A_AND_B_CYCLIC_4"/>
+        </xs:restriction>
+    </xs:simpleType>
+    <xs:element type="tns:PurgeStatusEnumeration" name="PurgeStatusEnumeration"/>
+    <xs:complexType name="ListOfPurgeStatusEnumeration">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="unbounded" type="tns:PurgeStatusEnumeration" name="PurgeStatusEnumeration" nillable="true"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:ListOfPurgeStatusEnumeration" name="ListOfPurgeStatusEnumeration" nillable="true"/>
+</xs:schema>
