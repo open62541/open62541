@@ -1206,6 +1206,7 @@ ssize_t mqtt_pack_connection_request(uint8_t* buf, size_t bufsz,
             connect_flags &= (uint8_t)~MQTT_CONNECT_CLIENTKEYPATH;
         }
 
+        /* Call the strncpy function with a size of two to zero-terminate the strTLS value */
         if (useTLS) /* useTLS = true */
         {
             //strncpy(strTLS, "1", 1);
