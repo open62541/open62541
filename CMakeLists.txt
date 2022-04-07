@@ -425,6 +425,9 @@ if(UA_ENABLE_PUBSUB_MQTT)
     endif()
 endif()
 
+option(UA_ENABLE_MQTT_TLS_OPENSSL "Enable TLS support for publish/subscribe with mqtt (use OpenSSL)" OFF)
+mark_as_advanced(UA_ENABLE_MQTT_TLS_OPENSSL)
+
 option(UA_ENABLE_MQTT_TLS "Enable TLS support for publish/subscribe with mqtt" OFF)
 mark_as_advanced(UA_ENABLE_MQTT_TLS)
 if(UA_ENABLE_MQTT_TLS)
@@ -434,8 +437,6 @@ if(UA_ENABLE_MQTT_TLS)
         set(UA_ENABLE_MQTT_TLS_OPENSSL ON)
 endif()
 
-option(UA_ENABLE_MQTT_TLS_OPENSSL "Enable TLS support for publish/subscribe with mqtt (use OpenSSL)" OFF)
-mark_as_advanced(UA_ENABLE_MQTT_TLS_OPENSSL)
 if(UA_ENABLE_MQTT_TLS_OPENSSL)
     set(UA_ENABLE_MQTT_TLS ON)
 endif()
