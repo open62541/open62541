@@ -227,16 +227,16 @@ class NodeSet(object):
             if r.target == node.id:
                 if r.source not in self.nodes:
                     continue
-                self.nodes[r.source].references = list(filter(
-                    lambda rt: filterRef(r, rt),
-                    self.nodes[r.source].references
+                self.nodes[r.source].references = dict(filter(
+                    lambda rt: filterRef(r, rt[0]),
+                    self.nodes[r.source].references.items()
                 ))
             elif r.source == node.id:
                 if r.target not in self.nodes:
                     continue
-                self.nodes[r.target].references = list(filter(
-                    lambda rt: filterRef(r, rt),
-                    self.nodes[r.target].references
+                self.nodes[r.target].references = dict(filter(
+                    lambda rt: filterRef(r, rt[0]),
+                    self.nodes[r.target].references.items()
                 ))
         del self.nodes[node.id]
 
@@ -382,8 +382,7 @@ class NodeSet(object):
         for u in self.nodes.values():
             for ref in u.references.copy():
                 back = Reference(ref.target, ref.referenceType, ref.source, not ref.isForward)
-                if back not in self.nodes[ref.target].references:  # prevent making a duplicated entry
-                    self.nodes[ref.target].references.append(back)
+                self.nodes[ref.target].references[back] = None # dict key does not make a duplicate entry
 
     def setNodeParent(self):
         parentreftypes = getSubTypesOf(self, self.getNodeByBrowseName("HierarchicalReferences"))
