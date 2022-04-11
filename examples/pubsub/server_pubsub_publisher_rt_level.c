@@ -121,6 +121,7 @@ int main(void) {
     writerGroupMessage.networkMessageContentMask = (UA_UadpNetworkMessageContentMask) ((UA_UadpNetworkMessageContentMask) UA_UADPNETWORKMESSAGECONTENTMASK_PUBLISHERID |
                                                     (UA_UadpNetworkMessageContentMask) UA_UADPNETWORKMESSAGECONTENTMASK_GROUPHEADER |
                                                     (UA_UadpNetworkMessageContentMask) UA_UADPNETWORKMESSAGECONTENTMASK_WRITERGROUPID |
+                                                    (UA_UadpNetworkMessageContentMask) UA_UADPNETWORKMESSAGECONTENTMASK_SEQUENCENUMBER |
                                                     (UA_UadpNetworkMessageContentMask) UA_UADPNETWORKMESSAGECONTENTMASK_PAYLOADHEADER);
     writerGroupConfig.messageSettings.content.decoded.data = &writerGroupMessage;
 #ifdef PUBSUB_CONFIG_FASTPATH_FIXED_OFFSETS
@@ -136,6 +137,13 @@ int main(void) {
     dataSetWriterConfig.name = UA_STRING("Demo DataSetWriter");
     dataSetWriterConfig.dataSetWriterId = 62541;
     dataSetWriterConfig.keyFrameCount = 10;
+
+    UA_UadpDataSetWriterMessageDataType uadpDataSetWriterMessageDataType;
+    UA_UadpDataSetWriterMessageDataType_init(&uadpDataSetWriterMessageDataType);
+    uadpDataSetWriterMessageDataType.dataSetMessageContentMask = (UA_UadpDataSetMessageContentMask) UA_UADPDATASETMESSAGECONTENTMASK_SEQUENCENUMBER;
+    dataSetWriterConfig.messageSettings.encoding             = UA_EXTENSIONOBJECT_DECODED;
+    dataSetWriterConfig.messageSettings.content.decoded.type = &UA_TYPES[UA_TYPES_UADPDATASETWRITERMESSAGEDATATYPE];
+    dataSetWriterConfig.messageSettings.content.decoded.data = &uadpDataSetWriterMessageDataType;
 
     /* Encode fields as RAW-Encoded */
     dataSetWriterConfig.dataSetFieldContentMask = UA_DATASETFIELDCONTENTMASK_RAWDATA;
