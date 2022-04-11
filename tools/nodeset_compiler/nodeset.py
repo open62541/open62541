@@ -228,14 +228,14 @@ class NodeSet(object):
                 if r.source not in self.nodes:
                     continue
                 self.nodes[r.source].references = dict(filter(
-                    lambda rt: filterRef(r, rt[0]),
+                    lambda rt: filterRef(r, rt[0]), # filter only on key of each dict item
                     self.nodes[r.source].references.items()
                 ))
             elif r.source == node.id:
                 if r.target not in self.nodes:
                     continue
                 self.nodes[r.target].references = dict(filter(
-                    lambda rt: filterRef(r, rt[0]),
+                    lambda rt: filterRef(r, rt[0]), # filter only on key of each dict item
                     self.nodes[r.target].references.items()
                 ))
         del self.nodes[node.id]

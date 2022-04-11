@@ -69,7 +69,7 @@ class Node(object):
         self.symbolicName = None
         self.writeMask = None
         self.userWriteMask = None
-        self.references = dict()
+        self.references = dict() # using dict because it retains insertion order
         self.hidden = False
         self.modelUri = None
         self.parent = None
