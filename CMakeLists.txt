@@ -1186,7 +1186,7 @@ if(UA_NAMESPACE_ZERO STREQUAL "FULL" OR UA_NAMESPACE_ZERO STREQUAL "LATEST_1_05"
         # If the "LATEST_1_05" flag is set, it must be checked whether the nodeset NS0 is on the latest version.
         if(UA_NAMESPACE_ZERO STREQUAL "LATEST_1_05")
             file(READ ${UA_FILE_NS0} ver LIMIT 5000)
-            string(REGEX MATCH ".*http:\\/\\/opcfoundation\\.org\\/UA\\/\" Version=\"1\\.05" match ${ver})
+            string(REGEX MATCH ".*http:\\/\\/opcfoundation\\.org\\/UA\\/\" .* Version=\"1\\.05" match ${ver})
             if(NOT match)
                 message(FATAL_ERROR "File ${UA_FILE_NS0} is set incorrectly. You probably need to checkout the git submodule for deps/ua-nodeset to version 1.05. Therefore execute the following command inside the deps/ua-nodeset directory \ngit checkout v1.05")
             endif()
