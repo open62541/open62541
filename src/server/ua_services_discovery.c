@@ -90,22 +90,26 @@ setApplicationDescriptionFromRegisteredServer(const UA_FindServersRequest *reque
 #endif
 
 static UA_StatusCode
-setApplicationDescriptionFromServer(UA_ApplicationDescription *target, const UA_Server *server) {
+setApplicationDescriptionFromServer(UA_ApplicationDescription *target,
+                                    const UA_Server *server) {
     /* Copy ApplicationDescription from the config */
-    UA_StatusCode result = UA_ApplicationDescription_copy(&server->config.applicationDescription, target);
+    UA_StatusCode result =
+        UA_ApplicationDescription_copy(&server->config.applicationDescription, target);
     if(result != UA_STATUSCODE_GOOD)
         return result;
 
     /* Add the discoveryUrls from the networklayers only if discoveryUrl
      * not already present and to avoid redundancy */
     if(!target->discoveryUrlsSize) {
-        size_t discSize = sizeof(UA_String) * (target->discoveryUrlsSize + server->config.networkLayersSize);
-        UA_String* disc = (UA_String *)UA_realloc(target->discoveryUrls, discSize);
-        if(!disc)
-            return UA_STATUSCODE_BADOUTOFMEMORY;
         size_t existing = target->discoveryUrlsSize;
-        target->discoveryUrls = disc;
+        result =
+            UA_Array_resize((void**)&target->discoveryUrls,
+                            &target->discoveryUrlsSize,
+                            target->discoveryUrlsSize + server->config.networkLayersSize,
+                            &UA_TYPES[UA_TYPES_STRING]);
         target->discoveryUrlsSize += server->config.networkLayersSize;
+        if(result != UA_STATUSCODE_GOOD)
+            return result;
 
         for(size_t i = 0; i < server->config.networkLayersSize; i++) {
             UA_ServerNetworkLayer* nl = &server->config.networkLayers[i];
