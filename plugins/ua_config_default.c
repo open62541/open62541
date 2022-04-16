@@ -737,6 +737,16 @@ UA_ClientConfig_setDefault(UA_ClientConfig *config) {
     if(config->eventLoop == NULL) {
         config->eventLoop = UA_EventLoop_new_POSIX(&config->logger);
         config->externalEventLoop = false;
+
+        /* Add the TCP connection manager */
+        UA_ConnectionManager *tcpCM =
+            UA_ConnectionManager_new_POSIX_TCP(UA_STRING("tcp connection manager"));
+        config->eventLoop->registerEventSource(config->eventLoop, (UA_EventSource *)tcpCM);
+
+        /* Add the UDP connection manager */
+        UA_ConnectionManager *udpCM =
+            UA_ConnectionManager_new_POSIX_UDP(UA_STRING("udp connection manager"));
+        config->eventLoop->registerEventSource(config->eventLoop, (UA_EventSource *)udpCM);
     }
 
     if (config->sessionLocaleIdsSize > 0 && config->sessionLocaleIds) {
