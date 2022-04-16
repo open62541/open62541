@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  *
- *    Copyright 2021 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
+ *    Copyright 2021-2022 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
  *    Copyright 2021 (c) Fraunhofer IOSB (Author: Jan Hermes)
  */
 
@@ -17,6 +17,12 @@
 #ifndef MSG_DONTWAIT
 #define MSG_DONTWAIT 0
 #endif
+
+/* A registered file descriptor with an additional method pointer */
+typedef struct {
+    UA_RegisteredFD fd;
+    UA_ConnectionManager_connectionCallback connectionCallback;
+} UDP_FD;
 
 typedef struct {
     UA_ConnectionManager cm;
@@ -101,14 +107,25 @@ UDP_checkStopped(UDPConnectionManager *ucm) {
     }
 }
 
-static UA_StatusCode
+/* This method must not be called from the application directly, but from within
+ * the EventLoop. Otherwise we cannot be sure whether the file descriptor is
+ * still used after calling close. */
+static void
 UDP_close(UDPConnectionManager *ucm, UA_RegisteredFD *rfd) {
+    UDP_FD *udpfd = (UDP_FD*)rfd;
     UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX*)ucm->cm.eventSource.eventLoop;
+
     UA_LOG_DEBUG(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
                  "UDP %u\t| Closing connection", (unsigned)rfd->fd);
 
     /* Deregister from the EventLoop */
     UDPConnectionManager_deregister(ucm, rfd);
+
+    /* Signal closing to the application */
+    udpfd->connectionCallback(&ucm->cm, (uintptr_t)rfd->fd,
+                              rfd->application, &rfd->context,
+                              UA_STATUSCODE_BADCONNECTIONCLOSED,
+                              0, NULL, UA_BYTESTRING_NULL);
 
     /* Close the socket */
     int ret = UA_close(rfd->fd);
@@ -122,31 +139,46 @@ UDP_close(UDPConnectionManager *ucm, UA_RegisteredFD *rfd) {
                           (unsigned)rfd->fd, errno_str));
     }
 
-    /* Free the rfd */
-    UA_free(rfd);
+    /* Don't call free here. This might be done automatically via the delayed
+     * callback that calls UDP_close. */
+    /* UA_free(rfd); */
 
     /* Stop if the ucm is stopping and this was the last open socket */
     UDP_checkStopped(ucm);
+}
 
-    return UA_STATUSCODE_GOOD;
+static void
+UDP_delayedClose(void *application, void *context) {
+    UA_ConnectionManager *cm = (UA_ConnectionManager*)application;
+    UDPConnectionManager *ucm = (UDPConnectionManager*)cm;
+    UA_RegisteredFD* rfd = (UA_RegisteredFD *)context;
+    UA_LOG_DEBUG(cm->eventSource.eventLoop->logger, UA_LOGCATEGORY_EVENTLOOP,
+                 "UDP %u\t| Delayed closing of the connection", (unsigned)rfd->fd);
+    UDP_close(ucm, rfd);
+    /* Don't call free here. This is done automatically via the delayed callback
+     * mechanism. */
 }
 
 /* Gets called when a socket receives data or closes */
 static void
 UDP_connectionSocketCallback(UA_ConnectionManager *cm, UA_RegisteredFD *rfd,
                              short event) {
+    UDP_FD *udpfd = (UDP_FD*)rfd;
     UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX*)cm->eventSource.eventLoop;
+
     UA_LOG_DEBUG(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
                  "UDP %u\t| Activity on the socket", (unsigned)rfd->fd);
 
-    /* Write-Event, a new connection has opened.  */
+    /* Write-Event, a new connection for sending has opened.  */
     if(event == UA_FDEVENT_OUT) {
         UA_LOG_DEBUG(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
                      "UDP %u\t| Opening a new connection", (unsigned)rfd->fd);
 
         /* A new socket has opened. Signal it to the application. */
-        cm->connectionCallback(cm, (uintptr_t)rfd->fd, &rfd->context,
-                               UA_STATUSCODE_GOOD, 0, NULL, UA_BYTESTRING_NULL);
+        udpfd->connectionCallback(cm, (uintptr_t)rfd->fd,
+                                  rfd->application, &rfd->context,
+                                  UA_STATUSCODE_GOOD, 0, NULL,
+                                  UA_BYTESTRING_NULL);
 
         /* Now we are interested in read-events. */
         rfd->listenEvents = UA_FDEVENT_IN;
@@ -170,29 +202,18 @@ UDP_connectionSocketCallback(UA_ConnectionManager *cm, UA_RegisteredFD *rfd,
 
     /* Receive has failed */
     if(ret <= 0) {
-        if(UA_ERRNO == UA_INTERRUPTED) {
-            return; /* Temporary error on an non-blocking socket */
-        }
+        if(UA_ERRNO == UA_INTERRUPTED)
+            return;
 
-        /* For UDP sockets UA_WOULDBLOCK for recv means that we actually do
-         * not receive anything although a signal for EPOLL was received
-         * The signal mus thus be EPOLLERR signaling for the write end of a pipe
-         * that the read end has been closed */
-        UA_assert(UA_ERRNO == UA_WOULDBLOCK || UA_ERRNO == UA_AGAIN);
-
-        /* Orderly shutdown of the socket. Signal to the application and then
-         * close the socket. We end up in this code-path after shutdown was
-         * called on the socket. Here, we then are in the next EventLoop
-         * iteration and the socket is known to be unused. */
-
-        UA_LOG_DEBUG(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
-                     "UDP %u\t| recv signaled the socket was shutdown",
-                     (unsigned)rfd->fd);
-
-        cm->connectionCallback(cm, (uintptr_t)rfd->fd, &rfd->context,
-                               UA_STATUSCODE_BADCONNECTIONCLOSED,
-                               0, NULL, UA_BYTESTRING_NULL);
+        /* Orderly shutdown of the socket. We can immediately close as no method
+         * "below" in the call stack will use the socket in this iteration of
+         * the EventLoop. */
+        UA_LOG_SOCKET_ERRNO_WRAP(
+           UA_LOG_DEBUG(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
+                        "UDP %u\t| recv signaled the socket was shutdown (%s)",
+                        (unsigned)rfd->fd, errno_str));
         UDP_close(ucm, rfd);
+        UA_free(rfd);
         return;
     }
 
@@ -202,12 +223,15 @@ UDP_connectionSocketCallback(UA_ConnectionManager *cm, UA_RegisteredFD *rfd,
 
     /* Callback to the application layer */
     response.length = (size_t)ret; /* Set the length of the received buffer */
-    cm->connectionCallback(cm, (uintptr_t)rfd->fd, &rfd->context,
-                           UA_STATUSCODE_GOOD, 0, NULL, response);
+    udpfd->connectionCallback(cm, (uintptr_t)rfd->fd,
+                              rfd->application, &rfd->context,
+                              UA_STATUSCODE_GOOD, 0, NULL, response);
 }
 
 static void
-UDP_registerListenSocket(UA_ConnectionManager *cm, struct addrinfo *ai) {
+UDP_registerListenSocket(UA_ConnectionManager *cm, struct addrinfo *ai,
+                         void *application, void *context,
+                         UA_ConnectionManager_connectionCallback connectionCallback) {
     UDPConnectionManager *ucm = (UDPConnectionManager*)cm;
     UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX*)cm->eventSource.eventLoop;
 
@@ -303,9 +327,8 @@ UDP_registerListenSocket(UA_ConnectionManager *cm, struct addrinfo *ai) {
     }
 
     /* Allocate the UA_RegisteredFD */
-    UA_RegisteredFD *newrfd = (UA_RegisteredFD*)
-        (UA_RegisteredFD*)UA_malloc(sizeof(UA_RegisteredFD));
-    if(!newrfd) {
+    UDP_FD *newudpfd = (UDP_FD*)UA_calloc(1, sizeof(UDP_FD));
+    if(!newudpfd) {
         UA_LOG_WARNING(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
                        "UDP %u\t| Error allocating memory for the socket, closing",
                        (unsigned)listenSocket);
@@ -313,27 +336,34 @@ UDP_registerListenSocket(UA_ConnectionManager *cm, struct addrinfo *ai) {
         return;
     }
 
-    newrfd->fd = listenSocket;
-    newrfd->es = &cm->eventSource;
-    newrfd->callback = (UA_FDCallback)UDP_connectionSocketCallback;
-    newrfd->context = cm->initialConnectionContext;
-    newrfd->listenEvents = UA_FDEVENT_IN;
+    newudpfd->fd.fd = listenSocket;
+    newudpfd->fd.es = &cm->eventSource;
+    newudpfd->fd.callback = (UA_FDCallback)UDP_connectionSocketCallback;
+    newudpfd->fd.application = application;
+    newudpfd->fd.context = context;
+    newudpfd->fd.listenEvents = UA_FDEVENT_IN;
+    newudpfd->connectionCallback = connectionCallback;
 
     /* Register in the EventLoop */
-    UA_StatusCode res = UDPConnectionManager_register(ucm, newrfd);
+    UA_StatusCode res = UDPConnectionManager_register(ucm, &newudpfd->fd);
     if(res != UA_STATUSCODE_GOOD) {
         UA_LOG_WARNING(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
                        "UDP %u\t| Error registering the socket, closing",
                        (unsigned)listenSocket);
-        UA_free(newrfd);
+        UA_free(newudpfd);
         UA_close(listenSocket);
         return;
     }
+
+    connectionCallback(cm, (uintptr_t)newudpfd->fd.fd,
+                       application, &newudpfd->fd.context,
+                       UA_STATUSCODE_GOOD, 0, NULL, UA_BYTESTRING_NULL);
 }
 
 static UA_StatusCode
-UDP_registerListenSocketDomainName(UA_ConnectionManager *cm, const char *hostname,
-                                   const char *port) {
+UDP_registerListenSockets(UA_ConnectionManager *cm, const char *hostname,
+                          const char *port, void *application, void *context,
+                          UA_ConnectionManager_connectionCallback connectionCallback) {
     /* Get all the interface and IPv4/6 combinations for the configured hostname */
     struct addrinfo hints, *res;
     memset(&hints, 0, sizeof hints);
@@ -363,82 +393,58 @@ UDP_registerListenSocketDomainName(UA_ConnectionManager *cm, const char *hostnam
     /* Add listen sockets */
     struct addrinfo *ai = res;
     while(ai) {
-        UDP_registerListenSocket(cm, ai);
+        UDP_registerListenSocket(cm, ai, application, context, connectionCallback);
         ai = ai->ai_next;
     }
     UA_freeaddrinfo(res);
     return UA_STATUSCODE_GOOD;
 }
 
-#ifdef WIN32
 static
 UA_RegisteredFD *
-findRegisteredFD(UDPConnectionManager *cm, uintptr_t connectionId) {
-    UA_RegisteredFD *rfd, *rfd_tmp;
-    LIST_FOREACH_SAFE(rfd, &cm->fds, es_pointers, rfd_tmp) {
-
-        if (rfd->fd == connectionId) {
+UDP_findRegisteredFD(UDPConnectionManager *ucm, uintptr_t connectionId) {
+    UA_RegisteredFD *rfd;
+    LIST_FOREACH(rfd, &ucm->fds, es_pointers) {
+        if(rfd->fd == (UA_FD)connectionId)
             return rfd;
-        }
     }
     return NULL;
 }
-static
-void delayedShutdownCallback(void* application, void* data) {
 
-    UA_ConnectionManager *cm = (UA_ConnectionManager*) application;
-    UDPConnectionManager *ucm = (UDPConnectionManager*)cm;
-    UA_RegisteredFD* rfd = (UA_RegisteredFD *) data;
-
-    UA_ByteString response = ucm->rxBuffer;
-    int ret = UA_recv(rfd->fd, (char *)response.data, response.length, MSG_DONTWAIT);
-    if(ret == 0 || ret == -1) {
-        cm->connectionCallback(cm, (uintptr_t)rfd->fd, &rfd->context,
-                               UA_STATUSCODE_BADCONNECTIONCLOSED,
-                               0, NULL, UA_BYTESTRING_NULL);
-        UDP_close(ucm, rfd);
-    } else {
-        UA_LOG_SOCKET_ERRNO_WRAP(
-            UA_LOG_ERROR(cm->eventSource.eventLoop->logger,
-                         UA_LOGCATEGORY_NETWORK,
-                         "UDP %u\t| Error shutting down the socket , windows implementation for processing pending data is not implemented (%s)",
-                         (unsigned)rfd->fd, errno_str));
+/* Close the connection via a delayed callback */
+static void
+UDP_shutdown(UA_ConnectionManager *cm, UA_RegisteredFD *rfd) {
+    UA_EventLoop *el = cm->eventSource.eventLoop;
+    if(rfd->dc.callback) {
+        UA_LOG_INFO(el->logger, UA_LOGCATEGORY_NETWORK,
+                    "UDP %u\t| Cannot close - already closing",
+                    (unsigned)rfd->fd);
         return;
     }
+
+    UA_LOG_DEBUG(el->logger, UA_LOGCATEGORY_NETWORK,
+                 "UDP %u\t| Shutdown called", (unsigned)rfd->fd);
+    UA_DelayedCallback *dc = &rfd->dc;
+    dc->callback = UDP_delayedClose;
+    dc->application = cm;
+    dc->context = rfd;
+    el->addDelayedCallback(el, dc);
 }
-#endif
 
 static UA_StatusCode
 UDP_shutdownConnection(UA_ConnectionManager *cm, uintptr_t connectionId) {
-    UA_LOG_DEBUG(cm->eventSource.eventLoop->logger,
-                 UA_LOGCATEGORY_NETWORK,
-                 "UDP %u\t| Shutdown called", (unsigned)connectionId);
-
-   /* Shutdown, will be picked up by the next iteration of the event loop */
-#ifndef _WIN32
-    int res = UA_shutdown((UA_FD)connectionId, SHUT_RDWR);
-#else
-    /* In windows we must let the eventloop call shutdown explicitly as a delayed callback in the next cycle
-     * shutdown(...) will not cause an event for select(...) on the given file descriptor
-     * */
-    int res = UA_shutdown((UA_FD)connectionId, SD_SEND);
-    UDPConnectionManager *ucm = (UDPConnectionManager*)cm;
-    UA_RegisteredFD* rfd = findRegisteredFD(ucm, (UA_FD) connectionId);
     UA_EventLoop *el = cm->eventSource.eventLoop;
-
-    UA_DelayedCallback *explicitlyDelayedShutdownCallback = UA_malloc(sizeof(UA_DelayedCallback));
-    explicitlyDelayedShutdownCallback->callback = delayedShutdownCallback;
-    explicitlyDelayedShutdownCallback->application = cm;
-    explicitlyDelayedShutdownCallback->data = rfd;
-    el->addDelayedCallback(el, explicitlyDelayedShutdownCallback);
-#endif
-    if(res != 0) {
-        UA_LOG_SOCKET_ERRNO_WRAP(
-            UA_LOG_WARNING(cm->eventSource.eventLoop->logger,
-                           UA_LOGCATEGORY_NETWORK,
-                           "UDP %u\t| Error shutting down the socket (%s)",
-                           (unsigned)connectionId, errno_str));
+    UDPConnectionManager *ucm = (UDPConnectionManager*)cm;
+    UA_RegisteredFD *rfd = UDP_findRegisteredFD(ucm, connectionId);
+    if(!rfd) {
+        UA_LOG_WARNING(el->logger, UA_LOGCATEGORY_NETWORK,
+                       "UDP\t| Cannot close UDP connection %u - not found",
+                       (unsigned)connectionId);
+        return UA_STATUSCODE_BADNOTFOUND;
     }
+
+    UDP_shutdown(cm, rfd);
+
     return UA_STATUSCODE_GOOD;
 }
 
@@ -508,9 +514,10 @@ UDP_sendWithConnection(UA_ConnectionManager *cm, uintptr_t connectionId,
 }
 
 static UA_StatusCode
-UDP_openConnection(UA_ConnectionManager *cm,
-                   size_t paramsSize, const UA_KeyValuePair *params,
-                   void *context) {
+UDP_openSendConnection(UA_ConnectionManager *cm,
+                       size_t paramsSize, const UA_KeyValuePair *params,
+                       void *application, void *context,
+                       UA_ConnectionManager_connectionCallback connectionCallback) {
     UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX*)cm->eventSource.eventLoop;
 
     /* Get the connection parameters */
@@ -603,9 +610,8 @@ UDP_openConnection(UA_ConnectionManager *cm,
     }
 
     /* Allocate the UA_RegisteredFD */
-    UA_RegisteredFD *newrfd = (UA_RegisteredFD*)
-        (UA_RegisteredFD*)UA_malloc(sizeof(UA_RegisteredFD));
-    if(!newrfd) {
+    UDP_FD *newudpfd = (UDP_FD*)UA_calloc(1, sizeof(UDP_FD));
+    if(!newudpfd) {
         UA_LOG_WARNING(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
                        "UDP %u\t| Error allocating memory for the socket, closing",
                        (unsigned)newSock);
@@ -613,21 +619,23 @@ UDP_openConnection(UA_ConnectionManager *cm,
         return UA_STATUSCODE_BADOUTOFMEMORY;
     }
 
-    newrfd->fd = newSock;
-    newrfd->es = &cm->eventSource;
-    newrfd->callback = (UA_FDCallback)UDP_connectionSocketCallback;
-    newrfd->context = context;
-    newrfd->listenEvents = UA_FDEVENT_OUT; /* Switched to _IN once the
-                                            * connection is open */
+    newudpfd->fd.fd = newSock;
+    newudpfd->fd.es = &cm->eventSource;
+    newudpfd->fd.callback = (UA_FDCallback)UDP_connectionSocketCallback;
+    newudpfd->fd.application = application;
+    newudpfd->fd.context = context;
+    newudpfd->fd.listenEvents = UA_FDEVENT_OUT; /* Switched to _IN once the
+                                                 * connection is open */
+    newudpfd->connectionCallback = connectionCallback;
 
     /* Register the fd to trigger when output is possible (the connection is open) */
     UDPConnectionManager *ucm = (UDPConnectionManager*)cm;
-    res = UDPConnectionManager_register(ucm, newrfd);
+    res = UDPConnectionManager_register(ucm, &newudpfd->fd);
     if(res != UA_STATUSCODE_GOOD) {
         UA_LOG_WARNING(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
                        "UDP\t| Registering the socket for %s failed", hostname);
         UA_close(newSock);
-        UA_free(newrfd);
+        UA_free(newudpfd);
         return res;
     }
 
@@ -635,7 +643,93 @@ UDP_openConnection(UA_ConnectionManager *cm,
                 "UDP %u\t| New connection to \"%s\" on port %s",
                 (unsigned)newSock, hostname, portStr);
 
+    /* Don't signal the application that the connection has opened. This will
+     * happen in the next iteration of the EventLoop. */
+    /* connectionCallback(cm, (uintptr_t)newSock, application, &newudpfd->fd.context,
+                          UA_STATUSCODE_GOOD, 0, NULL, UA_BYTESTRING_NULL); */
+
     return UA_STATUSCODE_GOOD;
+}
+
+static UA_StatusCode
+UDP_openReceiveConnection(UA_ConnectionManager *cm,
+                          size_t paramsSize, const UA_KeyValuePair *params,
+                          void *application, void *context,
+                          UA_ConnectionManager_connectionCallback connectionCallback) {
+    UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX*)cm->eventSource.eventLoop;
+
+    /* Get the socket */
+    char portno[6];
+    const UA_UInt16 *port = (const UA_UInt16*)
+        UA_KeyValueMap_getScalar(params, paramsSize,
+                                 UA_QUALIFIEDNAME(0, "listen-port"),
+                                 &UA_TYPES[UA_TYPES_UINT16]);
+    if(!port) {
+        UA_LOG_WARNING(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
+                     "UDP\t| Port information required for UDP listening");
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
+    UA_snprintf(portno, 6, "%d", *port);
+
+    /* Get the hostnames configuration */
+    const UA_Variant *hostNames =
+        UA_KeyValueMap_get(params, paramsSize,
+                           UA_QUALIFIEDNAME(0, "listen-hostnames"));
+    if(!hostNames) {
+        /* No hostnames configured -> listen on all interfaces*/
+        UA_LOG_INFO(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
+                    "UDP\t| Listening on all interfaces");
+        return UDP_registerListenSockets(cm, NULL, portno, application,
+                                         context, connectionCallback);
+    }
+
+    /* Correct datatype for the hostnames? */
+    if(hostNames->type != &UA_TYPES[UA_TYPES_STRING] ||
+       UA_Variant_isScalar(hostNames)) {
+        UA_LOG_ERROR(el->eventLoop.logger, UA_LOGCATEGORY_EVENTLOOP,
+                     "UDP\t| The hostnames have to be an array of string");
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
+    
+    size_t interfaces = hostNames->arrayLength;
+    if(interfaces == 0) {
+        UA_LOG_ERROR(el->eventLoop.logger, UA_LOGCATEGORY_EVENTLOOP,
+                     "UDP\t| Listening on all interfaces");
+        return UDP_registerListenSockets(cm, NULL, portno, application,
+                                         context, connectionCallback);
+    }
+    
+    /* Iterate over the configured hostnames */
+    UA_String *hostStrings = (UA_String*)hostNames->data;
+    for(size_t i = 0; i < hostNames->arrayLength; i++) {
+        char hostname[512];
+        if(hostStrings[i].length >= sizeof(hostname))
+            continue;
+        memcpy(hostname, hostStrings[i].data, hostStrings->length);
+        hostname[hostStrings->length] = '\0';
+        UDP_registerListenSockets(cm, hostname, portno, application,
+                                  context, connectionCallback);
+    }
+
+    return UA_STATUSCODE_GOOD;
+}
+
+static UA_StatusCode
+UDP_openConnection(UA_ConnectionManager *cm,
+                   size_t paramsSize, const UA_KeyValuePair *params,
+                   void *application, void *context,
+                   UA_ConnectionManager_connectionCallback connectionCallback) {
+    /* If the "port"-parameter is defined, then try to open a send connection.
+     * Otherwise try to open a socket that listens for incoming TCP
+     * connections. */
+    const UA_Variant *val = UA_KeyValueMap_get(params, paramsSize,
+                                               UA_QUALIFIEDNAME(0, "port"));
+    if(val)
+        return UDP_openSendConnection(cm, paramsSize, params,
+                                      application, context, connectionCallback);
+    else
+        return UDP_openReceiveConnection(cm, paramsSize, params,
+                                         application, context, connectionCallback);
 }
 
 /* Asynchronously register the listenSocket */
@@ -651,73 +745,14 @@ UDP_eventSourceStart(UA_ConnectionManager *cm) {
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
-    /* Initialize networking */
-#ifdef _WIN32
-    WSADATA wsaData;
-    WSAStartup(MAKEWORD(2, 2), &wsaData);
-#endif
-
-    /* Listening on a socket? */
-    const UA_UInt16 *port = (const UA_UInt16*)
-        UA_KeyValueMap_getScalar(cm->eventSource.params,
-                                 cm->eventSource.paramsSize,
-                                 UA_QUALIFIEDNAME(0, "listen-port"),
-                                 &UA_TYPES[UA_TYPES_UINT16]);
-    if(!port) {
-        UA_LOG_WARNING(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
-                     "UDP\t| No port configured, don't accept connections");
-        return UA_STATUSCODE_GOOD;
-    }
-
-    /* Prepare the port parameter as a string */
-    char portno[6];
-    UA_snprintf(portno, 6, "%d", *port);
-
-    /* Get the hostnames configuration */
-    const UA_Variant *hostNames =
-        UA_KeyValueMap_get(cm->eventSource.params,
-                           cm->eventSource.paramsSize,
-                           UA_QUALIFIEDNAME(0, "listen-hostnames"));
-    if(!hostNames) {
-        /* No hostnames configured */
-        UA_LOG_INFO(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
-                    "UDP\t| Listening on all interfaces");
-        UDP_registerListenSocketDomainName(cm, NULL, portno);
-    } else if(hostNames->type != &UA_TYPES[UA_TYPES_STRING]) {
-        /* Wrong datatype */
-           UA_LOG_ERROR(el->eventLoop.logger, UA_LOGCATEGORY_EVENTLOOP,
-                        "UDP\t| The hostnames have to be strings");
-           return UA_STATUSCODE_BADINTERNALERROR;
-    } else {
-        size_t interfaces = hostNames->arrayLength;
-        if(UA_Variant_isScalar(hostNames))
-            interfaces = 1;
-        if(interfaces == 0) {
-            UA_LOG_ERROR(el->eventLoop.logger, UA_LOGCATEGORY_EVENTLOOP,
-                         "UDP\t| Listening on all interfaces");
-            UDP_registerListenSocketDomainName(cm, NULL, portno);
-        } else {
-            /* Iterate over the configured hostnames */
-            UA_String *hostStrings = (UA_String*)hostNames->data;
-            for(size_t i = 0; i < hostNames->arrayLength; i++) {
-                char hostname[512];
-                if(hostStrings[i].length >= sizeof(hostname))
-                    continue;
-                memcpy(hostname, hostStrings[i].data, hostStrings->length);
-                hostname[hostStrings->length] = '\0';
-                UDP_registerListenSocketDomainName(cm, hostname, portno);
-            }
-        }
-    }
-
     /* The receive buffersize was configured? */
     UDPConnectionManager *ucm = (UDPConnectionManager*)cm;
-    UA_UInt16 rxBufSize = 2u << 14; /* The default is 16kb */
-    const UA_UInt16 *configRxBufSize = (const UA_UInt16*)
+    UA_UInt32 rxBufSize = 2u << 16; /* The default is 64kb */
+    const UA_UInt32 *configRxBufSize = (const UA_UInt32*)
         UA_KeyValueMap_getScalar(cm->eventSource.params,
                                  cm->eventSource.paramsSize,
                                  UA_QUALIFIEDNAME(0, "recv-bufsize"),
-                                 &UA_TYPES[UA_TYPES_UINT16]);
+                                 &UA_TYPES[UA_TYPES_UINT32]);
     if(configRxBufSize)
         rxBufSize = *configRxBufSize;
     UA_StatusCode res = UA_ByteString_allocBuffer(&ucm->rxBuffer, rxBufSize);
@@ -726,39 +761,37 @@ UDP_eventSourceStart(UA_ConnectionManager *cm) {
     
     /* Set the EventSource to the started state */
     cm->eventSource.state = UA_EVENTSOURCESTATE_STARTED;
+
     return UA_STATUSCODE_GOOD;
 }
 
 static void
 UDP_eventSourceStop(UA_ConnectionManager *cm) {
     UDPConnectionManager *ucm = (UDPConnectionManager*)cm;
-    UA_LOG_INFO(cm->eventSource.eventLoop->logger,
-                UA_LOGCATEGORY_NETWORK, "UDP\t| Shutting down the ConnectionManager");
+    UA_LOG_INFO(cm->eventSource.eventLoop->logger, UA_LOGCATEGORY_NETWORK,
+                "UDP\t| Shutting down the ConnectionManager");
 
     cm->eventSource.state = UA_EVENTSOURCESTATE_STOPPING;
 
     /* Shut down all registered fd. The cm is set to "stopped" when the last fd
-     * is closed and deregistered in the callback from the EventLoop. */
-    UA_RegisteredFD *rfd, *rfd_tmp;
-    LIST_FOREACH_SAFE(rfd, &ucm->fds, es_pointers, rfd_tmp) {
-        UDP_close(ucm, rfd);
-        // UDP_shutdownConnection(cm, (uintptr_t)rfd->fd);
+     * is closed (from within UDP_close). */
+    UA_RegisteredFD *rfd;
+    LIST_FOREACH(rfd, &ucm->fds, es_pointers) {
+        UDP_shutdown(cm, rfd);
     }
 
-    /* All sockets closed? Otherwise iterate some more. */
+    /* Check if stopped once more (also checking inside UDP_close, but there we
+     * don't check if there is no rfd at all) */
     UDP_checkStopped(ucm);
 }
 
 static UA_StatusCode
 UDP_eventSourceDelete(UA_ConnectionManager *cm) {
     if(cm->eventSource.state >= UA_EVENTSOURCESTATE_STARTING) {
-        UA_LOG_ERROR(cm->eventSource.eventLoop->logger,
-                     UA_LOGCATEGORY_EVENTLOOP,
+        UA_LOG_ERROR(cm->eventSource.eventLoop->logger, UA_LOGCATEGORY_EVENTLOOP,
                      "UDP\t| The EventSource must be stopped before it can be deleted");
         return UA_STATUSCODE_BADINTERNALERROR;
     }
-
-    UA_deinitialize_architecture_network();
 
     /* Delete the parameters */
     UA_Array_delete(cm->eventSource.params,

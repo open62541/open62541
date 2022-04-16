@@ -92,7 +92,7 @@ UA_Server_removeSession(UA_Server *server, session_list_entry *sentry,
      * scheduled jobs have completed */
     sentry->cleanupCallback.callback = (UA_Callback)removeSessionCallback;
     sentry->cleanupCallback.application = server;
-    sentry->cleanupCallback.data = sentry;
+    sentry->cleanupCallback.context = sentry;
     server->config.eventLoop->
         addDelayedCallback(server->config.eventLoop, &sentry->cleanupCallback);
 }

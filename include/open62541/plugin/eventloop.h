@@ -58,7 +58,7 @@ typedef struct UA_DelayedCallback {
     struct UA_DelayedCallback *next; /* Singly-linked list */
     UA_Callback callback;
     void *application;
-    void *data;
+    void *context;
 } UA_DelayedCallback;
 
 typedef enum {
@@ -199,7 +199,6 @@ struct UA_EventSource {
      * ~~~~~~~~~~~~~ */
     UA_String name;                 /* Unique name of the ES */
     UA_EventLoop *eventLoop;        /* EventLoop where the ES is registered */
-    void *application;              /* Application to which the ES belongs */
     size_t paramsSize;              /* Configuration parameters */
     UA_KeyValuePair *params;
 
@@ -221,6 +220,33 @@ struct UA_EventSource {
  * it can keep a session to an MQTT broker open which is used by individual
  * connections that are each bound to an MQTT topic. */
 
+/* The ConnectionCallback is the only interface from the connection back to
+ * the application.
+ *
+ * - The connectionId is initially unknown to the target application and
+ *   "announced" to the application when first used first in this callback.
+ *
+ * - The context is attached to the connection. Initially a default context
+ *   is set. The context can be replaced within the callback (via the
+ *   double-pointer).
+ *
+ * - The status indicates whether the connection is closing down. If status
+ *   != GOOD, then the application should clean up the context, as this is
+ *   the last time the callback will be called for this connection.
+ *
+ * - The parameters are a key-value list with additional information. The
+ *   possible keys and their meaning are documented for the individual
+ *   ConnectionManager implementations.
+ *
+ * - The msg ByteString is the message (or packet) received on the
+ *   connection. Can be empty. */
+typedef void
+(*UA_ConnectionManager_connectionCallback)
+     (UA_ConnectionManager *cm, uintptr_t connectionId,
+      void *application, void **connectionContext, UA_StatusCode status,
+      size_t paramsSize, const UA_KeyValuePair *params,
+      UA_ByteString msg);
+
 struct UA_ConnectionManager {
     /* Every ConnectionManager is treated like an EventSource from the
      * perspective of the EventLoop. */
@@ -230,70 +256,60 @@ struct UA_ConnectionManager {
      * "mqtt", "udp", "mqtt". */
     UA_String protocol;
 
-    /* The ConnectionCallback is the only interface from the connection back to
-     * the application.
+    /* Open a Connection
+     * ~~~~~~~~~~~~~~~~~
+     * Connecting is asynchronous. The connection-callback is called when the
+     * connection is open (status=GOOD) or aborted (status!=GOOD) when
+     * connecting failed.
      *
-     * - The connectionId is initially unknown to the target application and
-     *   "announced" to the application when first used first in this callback.
-     *
-     * - The context is attached to the connection. Initially a default context
-     *   is set. The context can be replaced within the callback (via the
-     *   double-pointer).
-     *
-     * - The status indicates whether the connection is closing down. If status
-     *   != GOOD, then the application should clean up the context, as this is
-     *   the last time the callback will be called for this connection.
-     *
-     * - The parameters are a key-value list with additional information. The
-     *   possible keys and their meaning are documented for the individual
-     *   ConnectionManager implementations.
-     *
-     * - The msg ByteString is the message (or packet) received on the
-     *   connection. Can be empty. */
-    void
-    (*connectionCallback)(UA_ConnectionManager *cm, uintptr_t connectionId,
-                          void **connectionContext, UA_StatusCode status,
-                          size_t paramsSize, const UA_KeyValuePair *params,
-                          UA_ByteString msg);
-
-    /* Passively listen for new connections
-     * ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-     * Some ConnectionManagers passively listen to open new Connections. The
-     * configuration parameters stored in the EventSource are used during
-     * 'start' of the EventSource to set this up. The 'connectionCallback'
-     * callback is used to indicate that a new connection has been are created
-     * (status==Good, msg=empty).
-     *
-     * The context an internally created new connection is initialized with.
-     * Before calling the 'connectionCallback' for it the first time. */
-    void *initialConnectionContext;
-
-    /* Actively Open a Connection
-     * ~~~~~~~~~~~~~~~~~~~~~~~~~~
-     * Some ConnectionManagers can actively open a new Connection. Connecting is
-     * asynchronous. cm->connectionCallback is called when the connection is
-     * open (status=GOOD) or aborted (status!=GOOD) when connecting failed.
+     * Some ConnectionManagers can also passively listen for new connections.
+     * Configuration parameters for this are passed via the key-value list. The
+     * `context` pointer of the listening connection is also set as the initial
+     * context of newly opened connections.
      *
      * The parameters describe the connection. For example hostname and port
      * (for TCP). Other protocols (e.g. MQTT, AMQP, etc.) may required
-     * additional arguments to open a connection.
+     * additional arguments to open a connection in the key-value list.
      *
      * The provided context is set as the initial context attached to this
      * connection. It is already set before the first call to
-     * cm->connectionCallback.
+     * connectionCallback.
      *
-     * The connection is opened asynchronously. The ConnectionCallback is
+     * The connection is opened asynchronously. The connection-callback is
      * triggered when the connection is fully opened (UA_STATUSCODE_GOOD) or has
      * failed (with an error code). */
     UA_StatusCode
     (*openConnection)(UA_ConnectionManager *cm,
                       size_t paramsSize, const UA_KeyValuePair *params,
-                      void *context);
+                      void *application, void *context,
+                      UA_ConnectionManager_connectionCallback connectionCallback);
 
-    /* Connection Activities
-     * ~~~~~~~~~~~~~~~~~~~~~
-     * The following are activities to be performed on an open connection.
+    /* Send a message over a Connection
+     * ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+     * Sending is asynchronous. That is, the function returns before the message
+     * is ACKed from remote. The memory for the buffer is expected to be
+     * allocated with allocNetworkBuffer and is released internally (also if
+     * sending fails).
      *
+     * Some ConnectionManagers can accept additional parameters for sending. For
+     * example a tx-time for sending in time-synchronized TSN settings. */
+    UA_StatusCode
+    (*sendWithConnection)(UA_ConnectionManager *cm, uintptr_t connectionId,
+                          size_t paramsSize, const UA_KeyValuePair *params,
+                          UA_ByteString *buf);
+
+    /* Close a Connection
+     * ~~~~~~~~~~~~~~~~~~
+     * When a connection is closed its `connectionCallback` is called with
+     * (status=BadConnectionClosed, msg=empty). Then the connection is cleared
+     * up inside the ConnectionManager. This is the case both for connections
+     * that are actively closed and those that are closed remotely. The return
+     * code is non-good only if the connection is already closed. */
+    UA_StatusCode
+    (*closeConnection)(UA_ConnectionManager *cm, uintptr_t connectionId);
+
+    /* Buffer Management
+     * ~~~~~~~~~~~~~~~~~
      * Each ConnectionManager allocates and frees his own memory for the network
      * buffers. This enables, for example, zero-copy neworking mechanisms. The
      * connectionId is part of the API to enable cases where memory is
@@ -304,26 +320,6 @@ struct UA_ConnectionManager {
     void
     (*freeNetworkBuffer)(UA_ConnectionManager *cm, uintptr_t connectionId,
                          UA_ByteString *buf);
-
-    /* Send a message. Sending is asynchronous. That is, the function returns
-     * before the message is ACKed from remote. The memory for the buffer is
-     * expected to be allocated with allocNetworkBuffer and is released
-     * internally (also if sending fails).
-     *
-     * Some ConnectionManagers can accept additional parameters for sending. For
-     * example a tx-time for sending in time-synchronized TSN settings. */
-    UA_StatusCode
-    (*sendWithConnection)(UA_ConnectionManager *cm, uintptr_t connectionId,
-                          size_t paramsSize, const UA_KeyValuePair *params,
-                          UA_ByteString *buf);
-
-    /* When a connection is closed, cm->connectionCallback is called with
-     * (status=BadConnectionClosed, msg=empty). Then the connection is cleared
-     * up inside the ConnectionManager. This is the case both for connections
-     * that are actively closed and those that are closed remotely. The return
-     * code is non-good only if the connection is already closed. */
-    UA_StatusCode
-    (*closeConnection)(UA_ConnectionManager *cm, uintptr_t connectionId);
 };
 
 /**
@@ -397,17 +393,17 @@ UA_EventLoop_new_POSIX(const UA_Logger *logger);
  * effect.
  *
  * Configuration Parameters:
- * - 0:listen-port [uint16]: Port to listen for new connections (default: do not
- *                           listen on any port).
- * - 0:listen-hostnames [string | string array]: Hostnames of the devices to
- *                                               listen on (default: listen on
- *                                               all devices).
- * - 0:recv-bufsize [uint16]: Size of the buffer that is allocated for receiving
- *                            messages (default 16kB).
+ * - 0:recv-bufsize [uint32]: Size of the buffer that is allocated for receiving
+ *                            messages (default 64kB).
  *
  * Open Connection Parameters:
- * - 0:hostname [string]: Hostname (or IPv4/v6 address) to connect to (required).
- * - 0:port [uint16]: Port of the target host (required).
+ * - Active Connection
+ *   - 0:hostname [string]: Hostname (or IPv4/v6 address) to connect to (required).
+ *   - 0:port [uint16]: Port of the target host (required).
+ * - Passive Connection (Listening on a port for incoming connections)
+ *   - 0:listen-port [uint16]: Port to listen for new connections (required).
+ *   - 0:listen-hostnames [string array]: Hostnames of the devices to listen on
+ *                                        (default: listen on all devices).
  *
  * Connection Callback Paramters:
  * - 0:remote-hostname [string]: When a new connection is opened by listening on
@@ -434,8 +430,8 @@ UA_ConnectionManager_new_POSIX_TCP(const UA_String eventSourceName);
  * - 0:listen-hostnames [string | string array]: Hostnames of the devices to
  *                                               listen on (default: listen on
  *                                               all devices).
- * - 0:recv-bufsize [uint16]: Size of the buffer that is allocated for receiving
- *                            messages (default 16kB).
+ * - 0:recv-bufsize [uint32]: Size of the buffer that is allocated for receiving
+ *                            messages (default 64kB).
  *
  * Open Connection Parameters:
  * - 0:hostname [string]: Hostname (or IPv4/v6 address) to connect to (required).

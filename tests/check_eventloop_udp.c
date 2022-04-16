@@ -11,60 +11,34 @@
 #include <time.h>
 #include <check.h>
 
-#define N_EVENTS 10000
-
-UA_EventLoop *el;
-
-static void noopCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
-                         void **connectionContext, UA_StatusCode status,
-                         size_t paramsSize, const UA_KeyValuePair *params,
-                         UA_ByteString msg) {}
-
-START_TEST(listenUDP) {
-    el = UA_EventLoop_new_POSIX(UA_Log_Stdout);
-
-    UA_UInt16 port = 4840;
-    UA_Variant portVar;
-    UA_Variant_setScalar(&portVar, &port, &UA_TYPES[UA_TYPES_UINT16]);
-    UA_ConnectionManager *cm = UA_ConnectionManager_new_POSIX_UDP(UA_STRING("udpCM"));
-    cm->connectionCallback = noopCallback;
-    UA_KeyValueMap_set(&cm->eventSource.params,
-                       &cm->eventSource.paramsSize,
-                       UA_QUALIFIEDNAME(0, "listen-port"), &portVar);
-    el->registerEventSource(el, &cm->eventSource);
-
-    el->start(el);
-
-    for(size_t i = 0; i < 10; i++) {
-        UA_DateTime next = el->run(el, 1);
-        UA_fakeSleep((UA_UInt32)((next - UA_DateTime_now()) / UA_DATETIME_MSEC));
-    }
-    int max_stop_iteration_count = 1000;
-    int iteration = 0;
-    /* Stop the EventLoop */
-    el->stop(el);
-    while(el->state != UA_EVENTLOOPSTATE_STOPPED && iteration < max_stop_iteration_count) {
-        UA_DateTime next = el->run(el, 1);
-        UA_fakeSleep((UA_UInt32)((next - UA_DateTime_now()) / UA_DATETIME_MSEC));
-        iteration++;
-    }
-    el->free(el);
-    el = NULL;
-} END_TEST
-
+static UA_EventLoop *el;
 static unsigned connCount;
 static char *testMsg = "open62541";
 static uintptr_t clientId;
 static UA_Boolean received;
+
 static void
 connectionCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
-                   void **connectionContext, UA_StatusCode status,
+                   void *application, void **connectionContext,
+                   UA_StatusCode status,
                    size_t paramsSize, const UA_KeyValuePair *params,
                    UA_ByteString msg) {
-    if(*connectionContext != NULL)
-        clientId = connectionId;
+    if(status != UA_STATUSCODE_GOOD) {
+        UA_LOG_DEBUG(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
+                     "Closing connection %u", (unsigned)connectionId);
+    } else {
+        if(msg.length == 0) {
+            UA_LOG_DEBUG(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
+                         "Opening connection %u", (unsigned)connectionId);
+        } else {
+            UA_LOG_DEBUG(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
+                         "Received a message of length %u", (unsigned)msg.length);
+        }
+    }
+
     if(msg.length == 0 && status == UA_STATUSCODE_GOOD) {
         connCount++;
+        clientId = connectionId;
 
         /* The remote-hostname is set during the first callback */
         if(paramsSize > 0) {
@@ -87,87 +61,45 @@ connectionCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
 }
 
 static void
-illegalConnectionCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
-                          void **connectionContext, UA_StatusCode status,
+reenterConnectionCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
+                          void *application, void **connectionContext,
+                          UA_StatusCode status,
                           size_t paramsSize, const UA_KeyValuePair *params,
                           UA_ByteString msg) {
+    /* Try to reenter the eventloop. Must fail. */
     UA_StatusCode rv = el->run(el, 1);
     ck_assert_uint_eq(rv, UA_STATUSCODE_BADINTERNALERROR);
-    if(*connectionContext != NULL)
-        clientId = connectionId;
-    if(msg.length == 0 && status == UA_STATUSCODE_GOOD)
-        connCount++;
-    if(status != UA_STATUSCODE_GOOD)
-        connCount--;
-    if(msg.length > 0) {
-        UA_ByteString rcv = UA_BYTESTRING(testMsg);
-        ck_assert(UA_String_equal(&msg, &rcv));
-        received = true;
-    }
+
+    connectionCallback(cm, connectionId, application, connectionContext,
+                       status, paramsSize, params, msg);
 }
 
-START_TEST(runEventloopFailsIfCalledFromCallback) {
+START_TEST(listenUDP) {
+    UA_ConnectionManager *cm = UA_ConnectionManager_new_POSIX_UDP(UA_STRING("udpCM"));
     el = UA_EventLoop_new_POSIX(UA_Log_Stdout);
+    el->registerEventSource(el, &cm->eventSource);
+    el->start(el);
 
     UA_UInt16 port = 4840;
     UA_Variant portVar;
     UA_Variant_setScalar(&portVar, &port, &UA_TYPES[UA_TYPES_UINT16]);
-    UA_ConnectionManager *cm = UA_ConnectionManager_new_POSIX_UDP(UA_STRING("udpCM"));
-    cm->connectionCallback = illegalConnectionCallback;
-    UA_KeyValueMap_set(&cm->eventSource.params,
-                       &cm->eventSource.paramsSize,
-                       UA_QUALIFIEDNAME(0, "listen-port"), &portVar);
-    el->registerEventSource(el, &cm->eventSource);
 
-    connCount = 0;
-    el->start(el);
-
-    /* Open a client connection */
-    clientId = 0;
-
-    UA_String targetHost = UA_STRING("localhost");
-    UA_KeyValuePair params[2];
-    params[0].key = UA_QUALIFIEDNAME(0, "port");
+    UA_KeyValuePair params[1];
+    params[0].key = UA_QUALIFIEDNAME(0, "listen-port");
     params[0].value = portVar;
-    params[1].key = UA_QUALIFIEDNAME(0, "hostname");
-    UA_Variant_setScalar(&params[1].value, &targetHost, &UA_TYPES[UA_TYPES_STRING]);
 
-    UA_StatusCode retval = cm->openConnection(cm, 2, params, (void*)0x01);
-    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    cm->openConnection(cm, 1, params, NULL, NULL, connectionCallback);
+
+    ck_assert(connCount > 0);
+
     for(size_t i = 0; i < 10; i++) {
         UA_DateTime next = el->run(el, 1);
         UA_fakeSleep((UA_UInt32)((next - UA_DateTime_now()) / UA_DATETIME_MSEC));
     }
-    ck_assert(clientId != 0);
-    ck_assert_uint_eq(connCount, 1);
 
-    /* Send a message from the client */
-    received = false;
-    UA_ByteString snd;
-    retval = cm->allocNetworkBuffer(cm, clientId, &snd, strlen(testMsg));
-    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
-    memcpy(snd.data, testMsg, strlen(testMsg));
-    retval = cm->sendWithConnection(cm, clientId, 0, NULL, &snd);
-    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
-    for(size_t i = 0; i < 10; i++) {
-        UA_DateTime next = el->run(el, 1);
-        UA_fakeSleep((UA_UInt32)((next - UA_DateTime_now()) / UA_DATETIME_MSEC));
-    }
-    ck_assert(received);
-
-    /* Close the connection */
-    retval = cm->closeConnection(cm, clientId);
-    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
-    ck_assert_uint_eq(connCount, 1);
-    for(size_t i = 0; i < 10; i++) {
-        UA_DateTime next = el->run(el, 1);
-        UA_fakeSleep((UA_UInt32)((next - UA_DateTime_now()) / UA_DATETIME_MSEC));
-    }
-    ck_assert_uint_eq(connCount, 0);
-
+    /* Stop the EventLoop */
     int max_stop_iteration_count = 1000;
     int iteration = 0;
-    /* Stop the EventLoop */
     el->stop(el);
     while(el->state != UA_EVENTLOOPSTATE_STOPPED &&
           iteration < max_stop_iteration_count) {
@@ -177,42 +109,48 @@ START_TEST(runEventloopFailsIfCalledFromCallback) {
     }
     el->free(el);
     el = NULL;
+
+    ck_assert_uint_eq(connCount, 0);
 } END_TEST
 
-START_TEST(connectUDP) {
-    el = UA_EventLoop_new_POSIX(UA_Log_Stdout);
-
-    UA_UInt16 port = 30000;
-    UA_Variant portVar;
-    UA_Variant_setScalar(&portVar, &port, &UA_TYPES[UA_TYPES_UINT16]);
+START_TEST(runEventloopFailsIfCalledFromCallback) {
     UA_ConnectionManager *cm = UA_ConnectionManager_new_POSIX_UDP(UA_STRING("udpCM"));
-    cm->connectionCallback = connectionCallback;
-    UA_KeyValueMap_set(&cm->eventSource.params,
-                       &cm->eventSource.paramsSize,
-                       UA_QUALIFIEDNAME(0, "listen-port"), &portVar);
+    el = UA_EventLoop_new_POSIX(UA_Log_Stdout);
     el->registerEventSource(el, &cm->eventSource);
+    el->start(el);
 
     connCount = 0;
-    el->start(el);
+
+    UA_UInt16 port = 4840;
+    UA_Variant portVar;
+    UA_Variant_setScalar(&portVar, &port, &UA_TYPES[UA_TYPES_UINT16]);
+
+    UA_KeyValuePair params[2];
+    params[0].key = UA_QUALIFIEDNAME(0, "listen-port");
+    params[0].value = portVar;
+
+    cm->openConnection(cm, 1, params, NULL, NULL, connectionCallback);
+
+    size_t listenSockets = connCount;
 
     /* Open a client connection */
     clientId = 0;
 
     UA_String targetHost = UA_STRING("localhost");
-    UA_KeyValuePair params[2];
     params[0].key = UA_QUALIFIEDNAME(0, "port");
     params[0].value = portVar;
     params[1].key = UA_QUALIFIEDNAME(0, "hostname");
     UA_Variant_setScalar(&params[1].value, &targetHost, &UA_TYPES[UA_TYPES_STRING]);
 
-    UA_StatusCode retval = cm->openConnection(cm, 2, params, (void*)0x01);
+    UA_StatusCode retval = cm->openConnection(cm, 2, params, NULL, (void*)0x01,
+                                              reenterConnectionCallback);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
-    for(size_t i = 0; i < 2; i++) {
+    for(size_t i = 0; i < 10; i++) {
         UA_DateTime next = el->run(el, 1);
         UA_fakeSleep((UA_UInt32)((next - UA_DateTime_now()) / UA_DATETIME_MSEC));
     }
     ck_assert(clientId != 0);
-    ck_assert_uint_eq(connCount, 1);
+    ck_assert_uint_eq(connCount, listenSockets + 1);
 
     /* Send a message from the client */
     received = false;
@@ -231,17 +169,95 @@ START_TEST(connectUDP) {
     /* Close the connection */
     retval = cm->closeConnection(cm, clientId);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
-    ck_assert_uint_eq(connCount, 1);
+    ck_assert_uint_eq(connCount, listenSockets + 1);
     for(size_t i = 0; i < 2; i++) {
         UA_DateTime next = el->run(el, 1);
         UA_fakeSleep((UA_UInt32)((next - UA_DateTime_now()) / UA_DATETIME_MSEC));
     }
+    ck_assert_uint_eq(connCount, listenSockets);
+
+    /* Stop the EventLoop */
+    el->stop(el);
+    int max_stop_iteration_count = 1000;
+    int iteration = 0;
+    while(el->state != UA_EVENTLOOPSTATE_STOPPED &&
+          iteration < max_stop_iteration_count) {
+        UA_DateTime next = el->run(el, 1);
+        UA_fakeSleep((UA_UInt32)((next - UA_DateTime_now()) / UA_DATETIME_MSEC));
+        iteration++;
+    }
+    el->free(el);
+    el = NULL;
+
     ck_assert_uint_eq(connCount, 0);
+} END_TEST
+
+START_TEST(connectUDP) {
+    UA_ConnectionManager *cm = UA_ConnectionManager_new_POSIX_UDP(UA_STRING("udpCM"));
+    el = UA_EventLoop_new_POSIX(UA_Log_Stdout);
+    el->registerEventSource(el, &cm->eventSource);
+    el->start(el);
+
+    UA_UInt16 port = 30000;
+    UA_Variant portVar;
+    UA_Variant_setScalar(&portVar, &port, &UA_TYPES[UA_TYPES_UINT16]);
+
+    UA_KeyValuePair params[2];
+    params[0].key = UA_QUALIFIEDNAME(0, "listen-port");
+    params[0].value = portVar;
+
+    connCount = 0;
+
+    UA_StatusCode retval =
+        cm->openConnection(cm, 1, params, NULL, (void*)0x01, connectionCallback);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    size_t listenSockets = connCount;
+
+    /* Open a client connection */
+    clientId = 0;
+    UA_String targetHost = UA_STRING("localhost");
+    params[0].key = UA_QUALIFIEDNAME(0, "port");
+    params[0].value = portVar;
+    params[1].key = UA_QUALIFIEDNAME(0, "hostname");
+    UA_Variant_setScalar(&params[1].value, &targetHost, &UA_TYPES[UA_TYPES_STRING]);
+
+    retval = cm->openConnection(cm, 2, params, NULL, (void*)0x01, connectionCallback);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    for(size_t i = 0; i < 2; i++) {
+        UA_DateTime next = el->run(el, 1);
+        UA_fakeSleep((UA_UInt32)((next - UA_DateTime_now()) / UA_DATETIME_MSEC));
+    }
+    ck_assert(clientId != 0);
+    ck_assert_uint_eq(connCount, listenSockets + 1);
+
+    /* Send a message from the client */
+    received = false;
+    UA_ByteString snd;
+    retval = cm->allocNetworkBuffer(cm, clientId, &snd, strlen(testMsg));
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    memcpy(snd.data, testMsg, strlen(testMsg));
+    retval = cm->sendWithConnection(cm, clientId, 0, NULL, &snd);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    for(size_t i = 0; i < 2; i++) {
+        UA_DateTime next = el->run(el, 1);
+        UA_fakeSleep((UA_UInt32)((next - UA_DateTime_now()) / UA_DATETIME_MSEC));
+    }
+    ck_assert(received);
+
+    /* Close the connection */
+    retval = cm->closeConnection(cm, clientId);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(connCount, listenSockets + 1);
+    for(size_t i = 0; i < 2; i++) {
+        UA_DateTime next = el->run(el, 1);
+        UA_fakeSleep((UA_UInt32)((next - UA_DateTime_now()) / UA_DATETIME_MSEC));
+    }
+    ck_assert_uint_eq(connCount, listenSockets);
 
     /* Stop the EventLoop */
     int max_stop_iteration_count = 10;
     int iteration = 0;
-    /* Stop the EventLoop */
     el->stop(el);
     while(el->state != UA_EVENTLOOPSTATE_STOPPED &&
           iteration < max_stop_iteration_count) {
@@ -255,115 +271,110 @@ START_TEST(connectUDP) {
 } END_TEST
 
 START_TEST(udpTalkerAndListener) {
+    /* create listener eventloop */
+    UA_EventLoop *elListener = UA_EventLoop_new_POSIX(UA_Log_Stdout);
+    UA_ConnectionManager *cmListener = UA_ConnectionManager_new_POSIX_UDP(UA_STRING("udpCM"));
+    elListener->registerEventSource(elListener, &cmListener->eventSource);
+    elListener->start(elListener);
 
-        /* create listener eventloop */
-        UA_EventLoop *elListener = UA_EventLoop_new_POSIX(UA_Log_Stdout);
+    UA_EventLoop *elTalker = UA_EventLoop_new_POSIX(UA_Log_Stdout);
+    UA_ConnectionManager *cmTalker = UA_ConnectionManager_new_POSIX_UDP(UA_STRING("udpCM"));
+    elTalker->registerEventSource(elTalker, &cmTalker->eventSource);
+    elTalker->start(elTalker);
 
-        /* open a listener connection */
-        UA_UInt16 port = 30000;
-        UA_Variant portVar;
-        UA_Variant_setScalar(&portVar, &port, &UA_TYPES[UA_TYPES_UINT16]);
-        UA_ConnectionManager *cmListener = UA_ConnectionManager_new_POSIX_UDP(UA_STRING("udpCM"));
-        cmListener->connectionCallback = connectionCallback;
-        UA_KeyValueMap_set(&cmListener->eventSource.params,
-                           &cmListener->eventSource.paramsSize,
-                           UA_QUALIFIEDNAME(0, "listen-port"), &portVar);
-        elListener->registerEventSource(elListener, &cmListener->eventSource);
+    /* Open a listener connection */
+    UA_UInt16 port = 30000;
+    UA_Variant portVar;
+    UA_Variant_setScalar(&portVar, &port, &UA_TYPES[UA_TYPES_UINT16]);
+    UA_KeyValuePair params[2];
+    params[0].key = UA_QUALIFIEDNAME(0, "listen-port");
+    params[0].value = portVar;
+    
+    connCount = 0;
 
-        connCount = 0;
-        elListener->start(elListener);
+    UA_StatusCode retval =
+        cmListener->openConnection(cmListener, 1, params, NULL, (void*)0x01,
+                                   connectionCallback);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
-        /* Open a talker connection */
-        /* create talker eventloop */
-        UA_EventLoop *elTalker = UA_EventLoop_new_POSIX(UA_Log_Stdout);
-        clientId = 0;
+    size_t listenSockets = connCount;
+    
+    /* Open a talker connection */
+    clientId = 0;
+    
+    UA_String targetHost = UA_STRING("localhost");
+    params[0].key = UA_QUALIFIEDNAME(0, "port");
+    params[0].value = portVar;
+    params[1].key = UA_QUALIFIEDNAME(0, "hostname");
+    UA_Variant_setScalar(&params[1].value, &targetHost, &UA_TYPES[UA_TYPES_STRING]);
+    
+    retval = cmTalker->openConnection(cmTalker, 2, params, NULL, (void*)0x01,
+                                      connectionCallback);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    
+    /* The talker el should receive a signal "ready to be written on" */
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    for(size_t i = 0; i < 2; i++) {
+        UA_DateTime next = elTalker->run(elTalker, 1);
+        UA_fakeSleep((UA_UInt32)((next - UA_DateTime_now()) / UA_DATETIME_MSEC));
+    }
+    ck_assert_uint_ne(clientId, 0);
+    ck_assert_uint_eq(connCount, listenSockets + 1);
+    
+    /* Send a message from the talker */
+    received = false;
+    UA_ByteString snd;
+    retval = cmTalker->allocNetworkBuffer(cmTalker, clientId, &snd, strlen(testMsg));
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    memcpy(snd.data, testMsg, strlen(testMsg));
+    retval = cmTalker->sendWithConnection(cmTalker, clientId, 0, NULL, &snd);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    for(size_t i = 0; i < 2; i++) {
+        UA_DateTime next = elListener->run(elListener, 1);
+        UA_fakeSleep((UA_UInt32)((next - UA_DateTime_now()) / UA_DATETIME_MSEC));
+    }
+    ck_assert(received);
+    
+    /* Close the connection */
+    retval = cmTalker->closeConnection(cmTalker, clientId);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(connCount, listenSockets + 1);
+    for(size_t i = 0; i < 2; i++) {
+        UA_DateTime next = elTalker->run(elTalker, 1);
+        UA_fakeSleep((UA_UInt32)((next - UA_DateTime_now()) / UA_DATETIME_MSEC));
+    }
+    ck_assert_uint_eq(connCount, listenSockets);
+    
+    /* Stop the Talker EventLoop */
+    int max_stop_iteration_count = 10;
+    int iteration = 0;
+    elTalker->stop(elTalker);
+    while(elTalker->state != UA_EVENTLOOPSTATE_STOPPED &&
+          iteration < max_stop_iteration_count) {
+        UA_DateTime next = elTalker->run(elTalker, 1);
+        UA_fakeSleep((UA_UInt32)((next - UA_DateTime_now()) / UA_DATETIME_MSEC));
+        iteration++;
+    }
+    ck_assert_int_eq(elTalker->state, UA_EVENTLOOPSTATE_STOPPED);
+    elTalker->free(elTalker);
+    elTalker = NULL;
+    
+    /* Stop the Listener EventLoop */
+    max_stop_iteration_count = 10;
+    iteration = 0;
+    elListener->stop(elListener);
+    while(elListener->state != UA_EVENTLOOPSTATE_STOPPED &&
+          iteration < max_stop_iteration_count) {
+        UA_DateTime next = elListener->run(elListener, 1);
+        UA_fakeSleep((UA_UInt32)((next - UA_DateTime_now()) / UA_DATETIME_MSEC));
+        iteration++;
+    }
+    ck_assert(elListener->state == UA_EVENTLOOPSTATE_STOPPED);
+    elListener->free(elListener);
+    elListener = NULL;
 
-        UA_String targetHost = UA_STRING("localhost");
-        UA_KeyValuePair params[2];
-        params[0].key = UA_QUALIFIEDNAME(0, "port");
-        params[0].value = portVar;
-        params[1].key = UA_QUALIFIEDNAME(0, "hostname");
-        UA_Variant_setScalar(&params[1].value, &targetHost, &UA_TYPES[UA_TYPES_STRING]);
-
-        UA_ConnectionManager *cmTalker = UA_ConnectionManager_new_POSIX_UDP(UA_STRING("udpCM"));
-
-        /* the cm talker should not need a connection callback */
-        cmTalker->connectionCallback = connectionCallback;
-        elTalker->registerEventSource(elTalker, &cmTalker->eventSource);
-        elTalker->start(elTalker);
-        UA_StatusCode retval = cmTalker->openConnection(cmTalker, 2, params, (void*)0x01);
-
-        ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
-        for(size_t i = 0; i < 2; i++) {
-            UA_DateTime next = elListener->run(elListener, 1);
-            UA_fakeSleep((UA_UInt32)((next - UA_DateTime_now()) / UA_DATETIME_MSEC));
-        }
-        /* The listener el should not generate any connections */
-        ck_assert_uint_eq(connCount, 0);
-
-        /* The talker el should receive a signal "ready to be written on" */
-        ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
-        for(size_t i = 0; i < 2; i++) {
-            UA_DateTime next = elTalker->run(elTalker, 1);
-            UA_fakeSleep((UA_UInt32)((next - UA_DateTime_now()) / UA_DATETIME_MSEC));
-        }
-        ck_assert_uint_eq(connCount, 1);
-
-        /* Send a message from the talker */
-        received = false;
-        UA_ByteString snd;
-        retval = cmTalker->allocNetworkBuffer(cmTalker, clientId, &snd, strlen(testMsg));
-        ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
-        memcpy(snd.data, testMsg, strlen(testMsg));
-        retval = cmTalker->sendWithConnection(cmTalker, clientId, 0, NULL, &snd);
-        ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
-        for(size_t i = 0; i < 2; i++) {
-            UA_DateTime next = elListener->run(elListener, 1);
-            UA_fakeSleep((UA_UInt32)((next - UA_DateTime_now()) / UA_DATETIME_MSEC));
-        }
-        ck_assert(received);
-
-        /* Close the connection */
-        retval = cmTalker->closeConnection(cmTalker, clientId);
-        ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
-        ck_assert_uint_eq(connCount, 1);
-        for(size_t i = 0; i < 2; i++) {
-            UA_DateTime next = elTalker->run(elTalker, 1);
-            UA_fakeSleep((UA_UInt32)((next - UA_DateTime_now()) / UA_DATETIME_MSEC));
-        }
-        ck_assert_uint_eq(connCount, 0);
-
-        /* Stop the Talker EventLoop */
-        int max_stop_iteration_count = 10;
-        int iteration = 0;
-        /* Stop the EventLoop */
-        elTalker->stop(elTalker);
-        while(elTalker->state != UA_EVENTLOOPSTATE_STOPPED &&
-              iteration < max_stop_iteration_count) {
-            UA_DateTime next = elTalker->run(elTalker, 1);
-            UA_fakeSleep((UA_UInt32)((next - UA_DateTime_now()) / UA_DATETIME_MSEC));
-            iteration++;
-        }
-        ck_assert(elTalker->state == UA_EVENTLOOPSTATE_STOPPED);
-        elTalker->free(elTalker);
-        elTalker = NULL;
-
-        /* Stop the Listener EventLoop */
-        max_stop_iteration_count = 10;
-        iteration = 0;
-        /* Stop the EventLoop */
-        elListener->stop(elListener);
-        while(elListener->state != UA_EVENTLOOPSTATE_STOPPED &&
-              iteration < max_stop_iteration_count) {
-            UA_DateTime next = elListener->run(elListener, 1);
-            UA_fakeSleep((UA_UInt32)((next - UA_DateTime_now()) / UA_DATETIME_MSEC));
-            iteration++;
-        }
-        ck_assert(elListener->state == UA_EVENTLOOPSTATE_STOPPED);
-        elListener->free(elListener);
-        elListener = NULL;
-
-    } END_TEST
+    ck_assert_uint_eq(connCount, 0);
+} END_TEST
 
 int main(void) {
     Suite *s  = suite_create("Test UDP EventLoop");
