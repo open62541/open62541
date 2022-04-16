@@ -85,14 +85,38 @@ typedef enum {
     UA_SERVERLIFECYCLE_STOPPING
 } UA_ServerLifecycle;
 
+typedef enum {
+    UA_SERVERCONNECTIONSTATE_FRESH,
+    UA_SERVERCONNECTIONSTATE_STOPPED,
+    UA_SERVERCONNECTIONSTATE_STARTING,
+    UA_SERVERCONNECTIONSTATE_STARTED,
+    UA_SERVERCONNECTIONSTATE_STOPPING
+} UA_ServerConnectionState;
+
+/* Maximum numbers of sockets to listen on */
+#define UA_MAXSERVERCONNECTIONS 16
+
+typedef struct {
+    UA_ServerConnectionState state;
+    uintptr_t connectionId;
+    UA_ConnectionManager *connectionManager;
+} UA_ServerConnection;
+
 struct UA_Server {
     /* Config */
     UA_ServerConfig config;
+
+    /* Runtime state */
     UA_DateTime startTime;
     UA_DateTime endTime; /* Zeroed out. If a time is set, then the server shuts
                           * down once the time has been reached */
 
     UA_ServerLifecycle state;
+    UA_ServerConnection serverConnections[UA_MAXSERVERCONNECTIONS];
+    size_t serverConnectionsSize;
+
+    UA_ConnectionConfig tcpConnectionConfig; /* Extracted from the server config
+                                              * parameters */
 
     /* SecureChannels */
     TAILQ_HEAD(, channel_entry) channels;

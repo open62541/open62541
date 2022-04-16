@@ -156,17 +156,14 @@ struct UA_ServerConfig {
     UA_EventLoop *eventLoop;
     UA_Boolean externalEventLoop; /* The EventLoop is not deleted with the config */
 
-    size_t connectionManagersSize;
-    UA_ConnectionManager *connectionManagers[10];
-
     /**
      * Networking
      * ^^^^^^^^^^ */
-    size_t networkLayersSize;
-    UA_ServerNetworkLayer *networkLayers;
-    UA_String customHostname;
+    size_t connectionManagersSize;
+    UA_ConnectionManager *connectionManagers[10];
 
-    /* TCP server socket parameters*/
+    /* TCP server socket parameters */
+    /* TODO: UA_String *tcpListenHostnames; */
     UA_UInt16 tcpListenPort; /* Port to listen for new connections (default: 4840) */
     UA_UInt32 tcpBufSize;    /* Maximum size of sent and received chunks (default: 64kB) */
     UA_UInt32 tcpMaxMsgSize; /* Maximum size of messages (default: 0 -> unbounded) */
