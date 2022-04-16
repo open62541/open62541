@@ -162,10 +162,15 @@ struct UA_ServerConfig {
     /**
      * Networking
      * ^^^^^^^^^^ */
-
     size_t networkLayersSize;
     UA_ServerNetworkLayer *networkLayers;
     UA_String customHostname;
+
+    /* TCP server socket parameters*/
+    UA_UInt16 tcpListenPort; /* Port to listen for new connections (default: 4840) */
+    UA_UInt32 tcpBufSize;    /* Maximum size of sent and received chunks (default: 64kB) */
+    UA_UInt32 tcpMaxMsgSize; /* Maximum size of messages (default: 0 -> unbounded) */
+    UA_UInt32 tcpMaxChunks;  /* Maximum size of sent message (default: 0 -> unbounded) */
 
     /**
      * Security and Encryption
