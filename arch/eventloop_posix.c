@@ -84,6 +84,9 @@ UA_EventLoopPOSIX_addDelayedCallback(UA_EventLoop *public_el,
 /* Process and then free registered delayed callbacks */
 static void
 processDelayed(UA_EventLoopPOSIX *el) {
+    UA_LOG_DEBUG(el->eventLoop.logger, UA_LOGCATEGORY_EVENTLOOP,
+                 "Process delayed callbacks");
+
     UA_LOCK_ASSERT(&el->elMutex, 1);
     while(el->delayedCallbacks) {
         UA_DelayedCallback *dc = el->delayedCallbacks;
@@ -199,9 +202,6 @@ static UA_StatusCode
 UA_EventLoopPOSIX_run(UA_EventLoopPOSIX *el, UA_UInt32 timeout) {
     UA_LOCK(&el->elMutex);
 
-    UA_LOG_TRACE(el->eventLoop.logger, UA_LOGCATEGORY_EVENTLOOP,
-                 "Iterate the EventLoop");
-
     if(el->executing) {
         UA_LOG_ERROR(el->eventLoop.logger,
                      UA_LOGCATEGORY_EVENTLOOP,
@@ -221,6 +221,9 @@ UA_EventLoopPOSIX_run(UA_EventLoopPOSIX *el, UA_UInt32 timeout) {
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
+    UA_LOG_TRACE(el->eventLoop.logger, UA_LOGCATEGORY_EVENTLOOP,
+                 "Iterate the EventLoop");
+
     /* Process cyclic callbacks */
     UA_DateTime dateBefore =
         el->eventLoop.dateTime_nowMonotonic(&el->eventLoop);
@@ -230,6 +233,9 @@ UA_EventLoopPOSIX_run(UA_EventLoopPOSIX *el, UA_UInt32 timeout) {
         UA_Timer_process(&el->timer, dateBefore,
                          timerExecutionTrampoline, NULL);
     UA_LOCK(&el->elMutex);
+
+    processDelayed(el); /* Process delayed callbacks. Remove closed sockets
+                         * already here instead of calling select for them. */
 
     /* Compute the remaining time */
     UA_DateTime maxDate = dateBefore + (timeout * UA_DATETIME_MSEC);
@@ -244,8 +250,7 @@ UA_EventLoopPOSIX_run(UA_EventLoopPOSIX *el, UA_UInt32 timeout) {
      * ConnectionManagers */
     UA_StatusCode rv = UA_EventLoopPOSIX_pollFDs(el, listenTimeout);
 
-    /* Process and then free registered delayed callbacks */
-    processDelayed(el);
+    processDelayed(el); /* Process delayed callbacks */
 
     /* Check if the last EventSource was successfully stopped */
     if(el->eventLoop.state == UA_EVENTLOOPSTATE_STOPPING)
