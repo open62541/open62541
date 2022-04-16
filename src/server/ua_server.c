@@ -836,16 +836,6 @@ UA_Server_run_iterate(UA_Server *server, UA_Boolean waitInternal) {
     return timeout;
 }
 
-static bool
-allEventSourcesStopped(UA_ConnectionManager** sources, size_t count) {
-    UA_Boolean allStopped = true;
-    for (size_t i = 0; i < count; ++i) {
-        UA_ConnectionManager *source = sources[i];
-        allStopped = allStopped && source->eventSource.state == UA_EVENTSOURCESTATE_STOPPED;
-    }
-    return allStopped;
-}
-
 UA_StatusCode
 UA_Server_run_shutdown(UA_Server *server) {
     /* Stop all SecureChannels */
@@ -859,24 +849,14 @@ UA_Server_run_shutdown(UA_Server *server) {
                 closeConnection(sc->connectionManager, sc->connectionId);
     }
 
-    /* Stop the eventsources associated with the server */
-    for(size_t i = 0; i < server->config.connectionManagersSize; ++i) {
-        UA_ConnectionManager *cm = server->config.connectionManagers[i];
-        if(cm->eventSource.eventLoop != NULL) {
-            cm->eventSource.stop(&cm->eventSource);
-        }
-    }
-
-    UA_DateTime elapsedTime = 0;
-    UA_DateTime startTime = UA_DateTime_nowMonotonic();
-    UA_DateTime timeout = UA_UINT32_MAX / 2;
-
     UA_EventLoop *el = server->config.eventLoop;
-    while(!allEventSourcesStopped(server->config.connectionManagers,
-                                  server->config.connectionManagersSize) &&
-          elapsedTime < timeout) {
-        el->run(el, 0);
-        elapsedTime = UA_DateTime_nowMonotonic() - startTime;
+    if(server->config.externalEventLoop) {
+        el->run(el, 0); /* Run one iteration of the eventloop with a zero
+                         * timeout. This closes the connections fully. */
+    } else {
+        el->stop(el);
+        while(el->state != UA_EVENTLOOPSTATE_STOPPED)
+            el->run(el, 100); /* Iterate until stopped */
     }
 
 #ifdef UA_ENABLE_DISCOVERY_MULTICAST

@@ -139,13 +139,19 @@ setDefaultConfig(UA_ServerConfig *conf) {
     if(conf->eventLoop == NULL) {
         conf->eventLoop = UA_EventLoop_new_POSIX(&conf->logger);
         conf->externalEventLoop = false;
+
+        /* Add the TCP connection manager */
+        UA_ConnectionManager *tcpCM =
+            UA_ConnectionManager_new_POSIX_TCP(UA_STRING("tcp connection manager"));
+        conf->eventLoop->registerEventSource(conf->eventLoop, (UA_EventSource *)tcpCM);
+
+        /* Add the UDP connection manager */
+        UA_ConnectionManager *udpCM =
+            UA_ConnectionManager_new_POSIX_UDP(UA_STRING("udp connection manager"));
+        conf->eventLoop->registerEventSource(conf->eventLoop, (UA_EventSource *)udpCM);
     }
 
-    /* Eventsources */
-    conf->connectionManagersSize = 0;
-    /* conf->connectionManagers; */
-
-   /* --> Start setting the default static config <-- */
+    /* --> Start setting the default static config <-- */
 
     conf->shutdownDelay = 0.0;
 
@@ -306,23 +312,6 @@ UA_ServerConfig_addNetworkLayerWS(UA_ServerConfig *conf, UA_UInt16 portNumber,
 #endif
 
 UA_EXPORT UA_StatusCode
-UA_ServerConfig_addNetworkLayerTCP(UA_ServerConfig *conf, UA_UInt16 portNumber,
-                                   UA_UInt32 sendBufferSize, UA_UInt32 recvBufferSize) {
-    /* Create the TCP Eventsource */
-    UA_ConnectionManager *tcpCM = UA_ConnectionManager_new_POSIX_TCP(UA_STRING("tcpCM"));
-    conf->connectionManagers[conf->connectionManagersSize] = tcpCM;
-    conf->connectionManagersSize++;
-
-    conf->tcpBufSize = recvBufferSize;
-    conf->tcpListenPort = portNumber;
-
-    /* Register (and possibly start) the event source */
-    conf->eventLoop->registerEventSource(conf->eventLoop, (UA_EventSource *) tcpCM);
-
-    return UA_STATUSCODE_GOOD;
-}
-
-UA_EXPORT UA_StatusCode
 UA_ServerConfig_addSecurityPolicyNone(UA_ServerConfig *config, 
                                       const UA_ByteString *certificate) {
     /* Allocate the SecurityPolicies */
@@ -441,12 +430,8 @@ UA_ServerConfig_setMinimalCustomBuffer(UA_ServerConfig *config, UA_UInt16 portNu
         return retval;
     }
 
-    retval = UA_ServerConfig_addNetworkLayerTCP(config, portNumber,
-                                                sendBufferSize, recvBufferSize);
-    if(retval != UA_STATUSCODE_GOOD) {
-        UA_ServerConfig_clean(config);
-        return retval;
-    }
+    config->tcpBufSize = recvBufferSize;
+    config->tcpListenPort = portNumber;
 
     /* Allocate the SecurityPolicies */
     retval = UA_ServerConfig_addSecurityPolicyNone(config, certificate);
@@ -692,11 +677,7 @@ UA_ServerConfig_setDefaultWithSecurityPolicies(UA_ServerConfig *conf,
     if (retval != UA_STATUSCODE_GOOD)
         return retval;
 
-    retval = UA_ServerConfig_addNetworkLayerTCP(conf, portNumber, 0, 0);
-    if(retval != UA_STATUSCODE_GOOD) {
-        UA_ServerConfig_clean(conf);
-        return retval;
-    }
+    config->tcpListenPort = portNumber;
 
     retval = UA_ServerConfig_addAllSecurityPolicies(conf, certificate, privateKey);
     if(retval != UA_STATUSCODE_GOOD) {

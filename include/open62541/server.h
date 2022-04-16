@@ -159,8 +159,6 @@ struct UA_ServerConfig {
     /**
      * Networking
      * ^^^^^^^^^^ */
-    size_t connectionManagersSize;
-    UA_ConnectionManager *connectionManagers[10];
 
     /* TCP server socket parameters */
     /* TODO: UA_String *tcpListenHostnames; */
