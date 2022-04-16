@@ -147,8 +147,15 @@ struct UA_EventLoop {
 
     void (*addDelayedCallback)(UA_EventLoop *el, UA_DelayedCallback *dc);
 
-    /* Manage EventSources
-     * ~~~~~~~~~~~~~~~~~~~ */
+    /* EventSources
+     * ~~~~~~~~~~~~
+     * EventSources are stored in a singly-linked list for direct access. But
+     * only the below methods shall be used for adding and removing - this
+     * impacts the lifecycle of the EventSource. For example it may be
+     * auto-started if the EventLoop is already running. */
+
+    /* Linked list of EventSources */
+    UA_EventSource *eventSources;
 
     /* Register the ES. Immediately starts the ES if the EventLoop is already
      * started. Otherwise the ES is started together with the EventLoop. */
@@ -158,11 +165,6 @@ struct UA_EventLoop {
     /* Stops the EventSource before deregistrering it */
     UA_StatusCode
     (*deregisterEventSource)(UA_EventLoop *el, UA_EventSource *es);
-
-    /* Look up the EventSource by name. Returns the first EventSource of that
-     * name (duplicates should be avoided). */
-    UA_EventSource *
-    (*findEventSource)(UA_EventLoop *el, const UA_String name);
 };
 
 /**
