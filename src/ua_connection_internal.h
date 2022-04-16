@@ -46,6 +46,13 @@ UA_StatusCode UA_Server_Connection_send(UA_Connection *connection, UA_ByteString
 void UA_Server_Connection_releaseBuffer (UA_Connection *connection, UA_ByteString *buf);
 void UA_Server_Connection_close(UA_Connection *connection);
 
+/* Process a binary message (TCP packet). The message can contain partial
+ * chunks. (TCP is a streaming protocol and packets may be split/merge during
+ * transport.) After processing, the message is freed with
+ * connection->releaseRecvBuffer. */
+void UA_Server_processBinaryMessage(UA_Server *server, UA_Connection *connection,
+                                    UA_ByteString *message);
+
 _UA_END_DECLS
 
 #endif /* UA_CONNECTION_INTERNAL_H_ */

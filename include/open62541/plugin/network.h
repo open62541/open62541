@@ -132,14 +132,6 @@ struct UA_Connection {
  * positive duration for blocking listening, the server's main loop will block
  * until a message is received or the duration times out. */
 
-/* Process a binary message (TCP packet). The message can contain partial
- * chunks. (TCP is a streaming protocol and packets may be split/merge during
- * transport.) After processing, the message is freed with
- * connection->releaseRecvBuffer. */
-void UA_EXPORT
-UA_Server_processBinaryMessage(UA_Server *server, UA_Connection *connection,
-                               UA_ByteString *message);
-
 struct UA_ServerNetworkLayer {
     void *handle; /* Internal data */
 
