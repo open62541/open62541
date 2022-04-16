@@ -188,9 +188,6 @@ UA_EventLoopPOSIX_stop(UA_EventLoopPOSIX *el) {
         es = es->next;
     }
 
-    UA_LOG_DEBUG(el->eventLoop.logger, UA_LOGCATEGORY_EVENTLOOP,
-                 "All EventSources are stopped");
-
     *(UA_EventLoopState*)(uintptr_t)&el->eventLoop.state =
         UA_EVENTLOOPSTATE_STOPPING;
     checkClosed(el);
