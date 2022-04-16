@@ -130,7 +130,7 @@ UA_EventLoopPOSIX_start(UA_EventLoopPOSIX *el) {
 #endif
 
     UA_StatusCode res = UA_STATUSCODE_GOOD;
-    UA_EventSource *es = el->eventSources;
+    UA_EventSource *es = el->eventLoop.eventSources;
     while(es) {
         UA_UNLOCK(&el->elMutex);
         res |= es->start(es);
@@ -148,7 +148,7 @@ UA_EventLoopPOSIX_start(UA_EventLoopPOSIX *el) {
 
 static void
 checkClosed(UA_EventLoopPOSIX *el) {
-    UA_EventSource *es = el->eventSources;
+    UA_EventSource *es = el->eventLoop.eventSources;
     while(es) {
         if(es->state != UA_EVENTSOURCESTATE_STOPPED)
             return;
@@ -183,7 +183,7 @@ UA_EventLoopPOSIX_stop(UA_EventLoopPOSIX *el) {
                 "Stopping the EventLoop");
 
     /* Shutdown all event sources. This closes open connections. */
-    UA_EventSource *es = el->eventSources;
+    UA_EventSource *es = el->eventLoop.eventSources;
     while(es) {
         if(es->state == UA_EVENTSOURCESTATE_STARTING ||
            es->state == UA_EVENTSOURCESTATE_STARTED)
@@ -279,8 +279,8 @@ UA_EventLoopPOSIX_registerEventSource(UA_EventLoopPOSIX *el,
 
     /* Add to linked list */
     UA_LOCK(&el->elMutex);
-    es->next = el->eventSources;
-    el->eventSources = es;
+    es->next = el->eventLoop.eventSources;
+    el->eventLoop.eventSources = es;
     UA_UNLOCK(&el->elMutex);
 
     es->eventLoop = &el->eventLoop;
@@ -305,7 +305,7 @@ UA_EventLoopPOSIX_deregisterEventSource(UA_EventLoopPOSIX *el,
 
     /* Remove from the linked list */
     UA_LOCK(&el->elMutex);
-    UA_EventSource **s = &el->eventSources;
+    UA_EventSource **s = &el->eventLoop.eventSources;
     while(*s) {
         if(*s == es) {
             *s = es->next;
@@ -319,20 +319,6 @@ UA_EventLoopPOSIX_deregisterEventSource(UA_EventLoopPOSIX *el,
     es->state = UA_EVENTSOURCESTATE_FRESH;
 
     return UA_STATUSCODE_GOOD;
-}
-
-static UA_EventSource *
-UA_EventLoopPOSIX_findEventSource(UA_EventLoopPOSIX *el,
-                                  const UA_String name) {
-    UA_LOCK(&el->elMutex);
-    UA_EventSource *s = el->eventSources;
-    while(s) {
-        if(UA_String_equal(&name, &s->name))
-            break;
-        s = s->next;
-    }
-    UA_UNLOCK(&el->elMutex);
-    return s;
 }
 
 /***************/
@@ -375,8 +361,8 @@ UA_EventLoopPOSIX_free(UA_EventLoopPOSIX *el) {
     }
 
     /* Deregister and delete all the EventSources */
-    while(el->eventSources) {
-        UA_EventSource *es = el->eventSources;
+    while(el->eventLoop.eventSources) {
+        UA_EventSource *es = el->eventLoop.eventSources;
         UA_UNLOCK(&el->elMutex);
         UA_EventLoopPOSIX_deregisterEventSource(el, es);
         UA_LOCK(&el->elMutex);
@@ -444,9 +430,6 @@ UA_EventLoop_new_POSIX(const UA_Logger *logger) {
     el->eventLoop.deregisterEventSource =
         (UA_StatusCode (*)(UA_EventLoop*, UA_EventSource*))
         UA_EventLoopPOSIX_deregisterEventSource;
-    el->eventLoop.findEventSource =
-        (UA_EventSource* (*)(UA_EventLoop*, const UA_String))
-        UA_EventLoopPOSIX_findEventSource;
 
     return &el->eventLoop;
 }

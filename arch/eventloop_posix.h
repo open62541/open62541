@@ -68,9 +68,6 @@ typedef struct {
     /* Linked List of Delayed Callbacks */
     UA_DelayedCallback *delayedCallbacks;
 
-    /* Pointers to registered EventSources */
-    UA_EventSource *eventSources;
-
     /* Flag determining whether the eventloop is currently within the
      * "run" method */
     UA_Boolean executing;
