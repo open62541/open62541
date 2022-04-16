@@ -23,7 +23,8 @@ setApplicationDescriptionFromRegisteredServer(const UA_FindServersRequest *reque
                                               UA_ApplicationDescription *target,
                                               const UA_RegisteredServer *registeredServer) {
     UA_ApplicationDescription_init(target);
-    UA_StatusCode retval = UA_String_copy(&registeredServer->serverUri, &target->applicationUri);
+    UA_StatusCode retval =
+        UA_String_copy(&registeredServer->serverUri, &target->applicationUri);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
@@ -36,7 +37,8 @@ setApplicationDescriptionFromRegisteredServer(const UA_FindServersRequest *reque
         UA_Boolean appNameFound = false;
         for(size_t i =0; i<request->localeIdsSize && !appNameFound; i++) {
             for(size_t j =0; j<registeredServer->serverNamesSize; j++) {
-                if(UA_String_equal(&request->localeIds[i], &registeredServer->serverNames[j].locale)) {
+                if(UA_String_equal(&request->localeIds[i],
+                                   &registeredServer->serverNames[j].locale)) {
                     retval = UA_LocalizedText_copy(&registeredServer->serverNames[j],
                                                    &target->applicationName);
                     if(retval != UA_STATUSCODE_GOOD)
@@ -57,7 +59,8 @@ setApplicationDescriptionFromRegisteredServer(const UA_FindServersRequest *reque
         }
     } else if(registeredServer->serverNamesSize) {
         // just take the first name
-        retval = UA_LocalizedText_copy(&registeredServer->serverNames[0], &target->applicationName);
+        retval = UA_LocalizedText_copy(&registeredServer->serverNames[0],
+                                       &target->applicationName);
         if(retval != UA_STATUSCODE_GOOD)
             return retval;
     }
@@ -75,7 +78,8 @@ setApplicationDescriptionFromRegisteredServer(const UA_FindServersRequest *reque
         if(!target->discoveryUrls)
             return UA_STATUSCODE_BADOUTOFMEMORY;
         for(size_t i = 0; i < registeredServer->discoveryUrlsSize; i++) {
-            retval = UA_String_copy(&registeredServer->discoveryUrls[i], &target->discoveryUrls[i]);
+            retval = UA_String_copy(&registeredServer->discoveryUrls[i],
+                                    &target->discoveryUrls[i]);
             if(retval != UA_STATUSCODE_GOOD)
                 return retval;
         }
@@ -157,7 +161,8 @@ void Service_FindServers(UA_Server *server, UA_Session *session,
 
     /* Allocate enough memory, including memory for the "self" response */
     size_t maxResults = server->discoveryManager.registeredServersSize + 1;
-    response->servers = (UA_ApplicationDescription*)UA_Array_new(maxResults, &UA_TYPES[UA_TYPES_APPLICATIONDESCRIPTION]);
+    response->servers = (UA_ApplicationDescription*)
+        UA_Array_new(maxResults, &UA_TYPES[UA_TYPES_APPLICATIONDESCRIPTION]);
     if(!response->servers) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
         return;

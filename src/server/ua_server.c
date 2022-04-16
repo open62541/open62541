@@ -756,8 +756,7 @@ UA_Server_run_iterate(UA_Server *server, UA_Boolean waitInternal) {
     return timeout;
 }
 
-static
-bool
+static bool
 allEventSourcesStopped(UA_ConnectionManager** sources, size_t count) {
     UA_Boolean allStopped = true;
     for (size_t i = 0; i < count; ++i) {
@@ -776,9 +775,9 @@ UA_Server_run_shutdown(UA_Server *server) {
         nl->stop(nl, server);
     }
 
-    for (size_t i = 0; i < server->config.connectionManagersSize; ++i) {
+    for(size_t i = 0; i < server->config.connectionManagersSize; ++i) {
         UA_ConnectionManager *cm = server->config.connectionManagers[i];
-        if (cm->eventSource.eventLoop != NULL) {
+        if(cm->eventSource.eventLoop != NULL) {
             cm->eventSource.stop(&cm->eventSource);
         }
     }
@@ -788,10 +787,9 @@ UA_Server_run_shutdown(UA_Server *server) {
     UA_DateTime timeout = UA_UINT32_MAX / 2;
 
     UA_EventLoop *el = server->config.eventLoop;
-    while (!allEventSourcesStopped(server->config.connectionManagers,
-                                server->config.connectionManagersSize) &&
-                                elapsedTime < timeout)
-    {
+    while(!allEventSourcesStopped(server->config.connectionManagers,
+                                  server->config.connectionManagersSize) &&
+          elapsedTime < timeout) {
         el->run(el, 0);
         elapsedTime = UA_DateTime_nowMonotonic() - startTime;
     }
