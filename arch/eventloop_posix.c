@@ -92,7 +92,7 @@ processDelayed(UA_EventLoopPOSIX *el) {
          * we want to do is free the memory */
         if(dc->callback) {
             UA_UNLOCK(&el->elMutex);
-            dc->callback(dc->application, dc->data);
+            dc->callback(dc->application, dc->context);
             UA_LOCK(&el->elMutex);
         }
         UA_free(dc);

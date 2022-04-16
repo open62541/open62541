@@ -582,8 +582,6 @@ UA_Server_setupEventLoop(UA_Server *server) {
     }
 
     ctx->cm = tcpCM;
-    tcpCM->connectionCallback = UA_Server_connectionCallback;
-    tcpCM->initialConnectionContext = ctx;
 
     return UA_STATUSCODE_GOOD;
 }
