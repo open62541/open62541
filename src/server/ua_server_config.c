@@ -26,9 +26,6 @@ UA_ServerConfig_clean(UA_ServerConfig *config) {
 # endif
 #endif
 
-    /* Custom DataTypes */
-    /* nothing to do */
-
     /* Stop and delete the EventLoop */
     UA_EventLoop *el = config->eventLoop;
     if(el && !config->externalEventLoop) {
@@ -42,15 +39,6 @@ UA_ServerConfig_clean(UA_ServerConfig *config) {
         el->free(el);
         config->eventLoop = NULL;
     }
-
-    /* Networking */
-    for(size_t i = 0; i < config->networkLayersSize; ++i)
-        config->networkLayers[i].clear(&config->networkLayers[i]);
-    UA_free(config->networkLayers);
-    config->networkLayers = NULL;
-    config->networkLayersSize = 0;
-    UA_String_clear(&config->customHostname);
-    config->customHostname = UA_STRING_NULL;
 
     for(size_t i = 0; i < config->securityPoliciesSize; ++i) {
         UA_SecurityPolicy *policy = &config->securityPolicies[i];

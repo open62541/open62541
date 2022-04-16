@@ -100,22 +100,22 @@ setApplicationDescriptionFromServer(UA_ApplicationDescription *target,
 
     /* Add the discoveryUrls from the networklayers only if discoveryUrl
      * not already present and to avoid redundancy */
-    if(!target->discoveryUrlsSize) {
-        size_t existing = target->discoveryUrlsSize;
-        result =
-            UA_Array_resize((void**)&target->discoveryUrls,
-                            &target->discoveryUrlsSize,
-                            target->discoveryUrlsSize + server->config.networkLayersSize,
-                            &UA_TYPES[UA_TYPES_STRING]);
-        target->discoveryUrlsSize += server->config.networkLayersSize;
-        if(result != UA_STATUSCODE_GOOD)
-            return result;
+    /* if(!target->discoveryUrlsSize) { */
+    /*     size_t existing = target->discoveryUrlsSize; */
+    /*     result = */
+    /*         UA_Array_resize((void**)&target->discoveryUrls, */
+    /*                         &target->discoveryUrlsSize, */
+    /*                         target->discoveryUrlsSize + server->config.networkLayersSize, */
+    /*                         &UA_TYPES[UA_TYPES_STRING]); */
+    /*     target->discoveryUrlsSize += server->config.networkLayersSize; */
+    /*     if(result != UA_STATUSCODE_GOOD) */
+    /*         return result; */
 
-        for(size_t i = 0; i < server->config.networkLayersSize; i++) {
-            UA_ServerNetworkLayer* nl = &server->config.networkLayers[i];
-            UA_String_copy(&nl->discoveryUrl, &target->discoveryUrls[existing + i]);
-        }
-    }
+    /*     for(size_t i = 0; i < server->config.networkLayersSize; i++) { */
+    /*         UA_ServerNetworkLayer* nl = &server->config.networkLayers[i]; */
+    /*         UA_String_copy(&nl->discoveryUrl, &target->discoveryUrls[existing + i]); */
+    /*     } */
+    /* } */
 
     return UA_STATUSCODE_GOOD;
 }
@@ -225,11 +225,11 @@ Service_GetEndpoints(UA_Server *server, UA_Session *session,
 
     /* Clone the endpoint for each networklayer? */
     size_t clone_times = 1;
-    UA_Boolean nl_endpointurl = false;
-    if(endpointUrl->length == 0) {
-        clone_times = server->config.networkLayersSize;
-        nl_endpointurl = true;
-    }
+    /* UA_Boolean nl_endpointurl = false; */
+    /* if(endpointUrl->length == 0) { */
+    /*     clone_times = server->config.networkLayersSize; */
+    /*     nl_endpointurl = true; */
+    /* } */
 
     /* Allocate enough memory */
     response->endpoints = (UA_EndpointDescription*)
@@ -267,8 +267,8 @@ Service_GetEndpoints(UA_Server *server, UA_Session *session,
                             &UA_TYPES[UA_TYPES_STRING]);
             response->endpoints[pos].server.discoveryUrls = NULL;
             response->endpoints[pos].server.discoveryUrlsSize = 0;
-            if(nl_endpointurl)
-                endpointUrl = &server->config.networkLayers[i].discoveryUrl;
+            /* if(nl_endpointurl) */
+            /*     endpointUrl = &server->config.networkLayers[i].discoveryUrl; */
             retval |= UA_String_copy(endpointUrl, &response->endpoints[pos].endpointUrl);
             retval |= UA_Array_copy(endpointUrl, 1,
                                     (void**)&response->endpoints[pos].server.discoveryUrls,

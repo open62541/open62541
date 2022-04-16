@@ -308,36 +308,15 @@ UA_ServerConfig_addNetworkLayerWS(UA_ServerConfig *conf, UA_UInt16 portNumber,
 UA_EXPORT UA_StatusCode
 UA_ServerConfig_addNetworkLayerTCP(UA_ServerConfig *conf, UA_UInt16 portNumber,
                                    UA_UInt32 sendBufferSize, UA_UInt32 recvBufferSize) {
-    /* Add a network layer */
-    UA_ServerNetworkLayer *tmp = (UA_ServerNetworkLayer *)
-        UA_realloc(conf->networkLayers,
-                   sizeof(UA_ServerNetworkLayer) * (1 + conf->networkLayersSize));
-    if(!tmp)
-        return UA_STATUSCODE_BADOUTOFMEMORY;
-    conf->networkLayers = tmp;
-
-    UA_ConnectionConfig config = UA_ConnectionConfig_default;
-    if (sendBufferSize > 0)
-        config.sendBufferSize = sendBufferSize;
-    if (recvBufferSize > 0)
-        config.recvBufferSize = recvBufferSize;
-
-    conf->networkLayers[conf->networkLayersSize] =
-        UA_ServerNetworkLayerTCP(config, portNumber, 0);
-    if (!conf->networkLayers[conf->networkLayersSize].handle)
-        return UA_STATUSCODE_BADOUTOFMEMORY;
-    conf->networkLayersSize++;
-
-    /* TCP Eventsource */
-
+    /* Create the TCP Eventsource */
     UA_ConnectionManager *tcpCM = UA_ConnectionManager_new_POSIX_TCP(UA_STRING("tcpCM"));
     conf->connectionManagers[conf->connectionManagersSize] = tcpCM;
-    UA_UInt16 port = portNumber;
-    UA_Variant portVar;
-    UA_Variant_setScalar(&portVar, &port, &UA_TYPES[UA_TYPES_UINT16]);
-    UA_KeyValueMap_set(&tcpCM->eventSource.params, &tcpCM->eventSource.paramsSize, UA_QUALIFIEDNAME(0, "listen-port"), &portVar);
     conf->connectionManagersSize++;
 
+    conf->tcpBufSize = recvBufferSize;
+    conf->tcpListenPort = portNumber;
+
+    /* Register (and possibly start) the event source */
     conf->eventLoop->registerEventSource(conf->eventLoop, (UA_EventSource *) tcpCM);
 
     return UA_STATUSCODE_GOOD;
