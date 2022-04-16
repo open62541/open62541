@@ -928,9 +928,3 @@ UA_Server_processBinaryMessage(UA_Server *server, UA_Connection *connection,
     UA_Connection_sendError(connection, &error);
     connection->close(connection);
 }
-
-void
-UA_Server_removeConnection(UA_Server *server, UA_Connection *connection) {
-    UA_Connection_detachSecureChannel(connection);
-    connection->free(connection);
-}
