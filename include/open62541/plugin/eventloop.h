@@ -391,10 +391,21 @@ UA_EventLoop_new_POSIX(const UA_Logger *logger);
  * Listens on the network and manages TCP connections. This should be available
  * for all architectures.
  *
- * The configuration parameters have to set before calling _start to take
- * effect.
+ * The `openConnection` callback is used to create both client and server
+ * sockets. A server socket listens and accepts incoming connections (creates an
+ * active connection). This is distinguished by the key-value parameters passed
+ * to `openConnection`. Note that a single call to `openConnection` for a server
+ * connection may actually create multiple connections (one per hostname /
+ * device).
  *
- * Configuration Parameters:
+ * The `connectionCallback` of the server socket and `context` of the server
+ * socket is reused for each new connection. But the key-value parameters for
+ * the first callback are different between server and client connections.
+ *
+ * The following list defines the parameters and their type. Note that some
+ * parameters are only set for the first callback when a new connection opens.
+ *
+ * Configuration parameters for the entire ConnectionManager:
  * - 0:recv-bufsize [uint32]: Size of the buffer that is allocated for receiving
  *                            messages (default 64kB).
  *
@@ -407,10 +418,13 @@ UA_EventLoop_new_POSIX(const UA_Logger *logger);
  *   - 0:listen-hostnames [string array]: Hostnames of the devices to listen on
  *                                        (default: listen on all devices).
  *
- * Connection Callback Paramters:
- * - 0:remote-hostname [string]: When a new connection is opened by listening on
- *                               a port, the first callback contains the remote
- *                               hostname parameter.
+ * Connection Callback Parameters (first callback only):
+ * - Active Connection
+ *   - 0:remote-hostname [string]: Hostname of the remote connection.
+ * - Passive Connection
+ *   - 0:listen-hostname [string]: Local hostname for that particular
+ *                                 listen-connection.
+ *   - 0:listen-port [uint16]: Port on which the connection listens.
  *
  * Send Parameters:
  * No additional parameters for sending over an established TCP socket defined. */

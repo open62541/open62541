@@ -341,30 +341,22 @@ TCP_listenSocketCallback(UA_ConnectionManager *cm, UA_RegisteredFD *rfd, short e
 
 static UA_StatusCode
 TCP_registerListenSocket(UA_ConnectionManager *cm, struct addrinfo *ai,
-                         void *application, void *context,
+                         UA_UInt16 port, void *application, void *context,
                          UA_ConnectionManager_connectionCallback connectionCallback) {
     TCPConnectionManager *tcm = (TCPConnectionManager*)cm;
     UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX*)cm->eventSource.eventLoop;
 
-    /* Get logging information */
+    /* Get the hostname information */
     char hoststr[256];
-    char portstr[16];
     int get_res = UA_getnameinfo(ai->ai_addr, ai->ai_addrlen,
                                  hoststr, sizeof(hoststr),
-                                 portstr, sizeof(portstr), NI_NUMERICSERV);
+                                 NULL, 0, 0);
     if(get_res != 0) {
-        get_res = UA_getnameinfo(ai->ai_addr, ai->ai_addrlen,
-                                 hoststr, sizeof(hoststr),
-                                 portstr, sizeof(portstr),
-                                 NI_NUMERICHOST | NI_NUMERICSERV);
-        if(get_res != 0) {
-            hoststr[0] = 0;
-            portstr[0] = 0;
-            UA_LOG_SOCKET_ERRNO_WRAP(
-                UA_LOG_WARNING(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
-                               "TCP\t| getnameinfo(...) could not resolve the "
-                               "hostname (%s)", errno_str));
-        }
+        hoststr[0] = 0;
+        UA_LOG_SOCKET_ERRNO_WRAP(
+           UA_LOG_WARNING(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
+                          "TCP\t| getnameinfo(...) could not resolve the "
+                          "hostname (%s)", errno_str));
     }
     
     /* Create the server socket */
@@ -373,14 +365,14 @@ TCP_registerListenSocket(UA_ConnectionManager *cm, struct addrinfo *ai,
         UA_LOG_SOCKET_ERRNO_WRAP(
            UA_LOG_WARNING(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
                           "TCP %u\t| Error opening the listen socket for "
-                          "\"%s\" on port %s(%s)",
-                          (unsigned)listenSocket, hoststr, portstr, errno_str));
+                          "\"%s\" on port %u (%s)",
+                          (unsigned)listenSocket, hoststr, port, errno_str));
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
     UA_LOG_INFO(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
-                "TCP %u\t| New server socket for \"%s\" on port %s",
-                (unsigned)listenSocket, hoststr, portstr);
+                "TCP %u\t| New server socket for \"%s\" on port %u",
+                (unsigned)listenSocket, hoststr, port);
 
     /* Some Linux distributions have net.ipv6.bindv6only not activated. So
      * sockets can double-bind to IPv4 and IPv6. This leads to problems. Use
@@ -476,17 +468,35 @@ TCP_registerListenSocket(UA_ConnectionManager *cm, struct addrinfo *ai,
         return res;
     }
 
-    connectionCallback(cm, (uintptr_t)listenSocket,
-                       application, &newtcpfd->fd.context,
-                       UA_STATUSCODE_GOOD, 0, NULL, UA_BYTESTRING_NULL);
+    /* Set up the callback parameters */
+    UA_KeyValuePair params[2];
+    params[0].key = UA_QUALIFIEDNAME(0, "listen-hostname");
+    params[1].key = UA_QUALIFIEDNAME(0, "listen-port");
+    UA_String hostname;
+    size_t paramsSize = 0;
+    if(hoststr[0] != 0) {
+        paramsSize = 2;
+        hostname = UA_STRING(hoststr);
+        UA_Variant_setScalar(&params[0].value, &hostname, &UA_TYPES[UA_TYPES_STRING]);
+        UA_Variant_setScalar(&params[1].value, &port, &UA_TYPES[UA_TYPES_UINT16]);
+    }
+
+    /* Announce the listen-socket in the application */
+    connectionCallback(cm, (uintptr_t)listenSocket, application,
+                       &newtcpfd->fd.context, UA_STATUSCODE_GOOD,
+                       paramsSize, params, UA_BYTESTRING_NULL);
 
     return UA_STATUSCODE_GOOD;
 }
 
 static UA_StatusCode
 TCP_registerListenSockets(UA_ConnectionManager *cm, const char *hostname,
-                          const char *port, void *application, void *context,
+                          UA_UInt16 port, void *application, void *context,
                           UA_ConnectionManager_connectionCallback connectionCallback) {
+    /* Create a string for the port */
+    char portstr[6];
+    UA_snprintf(portstr, sizeof(portstr), "%d", port);
+
     /* Get all the interface and IPv4/6 combinations for the configured hostname */
     struct addrinfo hints, *res;
     memset(&hints, 0, sizeof hints);
@@ -503,11 +513,11 @@ TCP_registerListenSockets(UA_ConnectionManager *cm, const char *hostname,
                                       * such address is configured */
 #endif
 
-    int retcode = UA_getaddrinfo(hostname, port, &hints, &res);
+    int retcode = UA_getaddrinfo(hostname, portstr, &hints, &res);
     if(retcode != 0) {
         UA_LOG_SOCKET_ERRNO_GAI_WRAP(
            UA_LOG_WARNING(cm->eventSource.eventLoop->logger, UA_LOGCATEGORY_NETWORK,
-                          "TCP\t| getaddrinfo lookup for \"%s\" on port %s failed (%s)",
+                          "TCP\t| getaddrinfo lookup for \"%s\" on port %u failed (%s)",
                           hostname, port, errno_str));
         return UA_STATUSCODE_BADINTERNALERROR;
     }
@@ -517,17 +527,11 @@ TCP_registerListenSockets(UA_ConnectionManager *cm, const char *hostname,
     UA_StatusCode total_result = UA_INT32_MAX;
     struct addrinfo *ai = res;
     while(ai) {
-        total_result &= TCP_registerListenSocket(cm, ai, application, context,
+        total_result &= TCP_registerListenSocket(cm, ai, port, application, context,
                                                  connectionCallback);
         ai = ai->ai_next;
     }
     UA_freeaddrinfo(res);
-
-    if(total_result != UA_STATUSCODE_GOOD) {
-        UA_LOG_WARNING(cm->eventSource.eventLoop->logger, UA_LOGCATEGORY_NETWORK,
-                       "TCP\t| Could not create a listen socket for hostname \"%s\" "
-                       "on port %s", hostname, port);
-    }
 
     return total_result;
 }
@@ -652,8 +656,7 @@ TCP_openPassiveConnection(UA_ConnectionManager *cm,
                           UA_ConnectionManager_connectionCallback connectionCallback) {
     UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX*)cm->eventSource.eventLoop;
 
-    /* Get the port information */
-    char portno[6];
+    /* Get the port parameter */
     const UA_UInt16 *port = (const UA_UInt16*)
         UA_KeyValueMap_getScalar(params, paramsSize,
                                  UA_QUALIFIEDNAME(0, "listen-port"),
@@ -663,17 +666,16 @@ TCP_openPassiveConnection(UA_ConnectionManager *cm,
                      "TCP\t| The listen-port was not correctly configured");
         return UA_STATUSCODE_BADINTERNALERROR;
     }
-    UA_snprintf(portno, 6, "%d", *port);
 
-    /* Get the hostnames configuration */
+    /* Get the hostnames parameter */
     const UA_Variant *hostNames =
         UA_KeyValueMap_get(params, paramsSize, UA_QUALIFIEDNAME(0, "listen-hostnames"));
     if(!hostNames) {
         /* No listen-hostnames parameter -> listen on all interfaces */
         UA_LOG_INFO(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
                     "TCP\t| Listening on all interfaces");
-        return TCP_registerListenSockets(cm, NULL, portno,
-                                         application, context, connectionCallback);
+        return TCP_registerListenSockets(cm, NULL, *port, application,
+                                         context, connectionCallback);
     }
 
     /* Wrong datatype for the hostnames */
@@ -689,8 +691,8 @@ TCP_openPassiveConnection(UA_ConnectionManager *cm,
     if(interfaces == 0) {
         UA_LOG_INFO(el->eventLoop.logger, UA_LOGCATEGORY_EVENTLOOP,
                      "TCP\t| Listening on all interfaces");
-        return TCP_registerListenSockets(cm, NULL, portno,
-                                         application, context, connectionCallback);
+        return TCP_registerListenSockets(cm, NULL, *port, application,
+                                         context, connectionCallback);
     }
 
     /* Iterate over the configured hostnames */
@@ -701,8 +703,8 @@ TCP_openPassiveConnection(UA_ConnectionManager *cm,
             continue;
         memcpy(hostname, hostStrings[i].data, hostStrings->length);
         hostname[hostStrings->length] = '\0';
-        TCP_registerListenSockets(cm, hostname, portno, application, context,
-                                  connectionCallback);
+        TCP_registerListenSockets(cm, hostname, *port, application,
+                                  context, connectionCallback);
     }
 
     return UA_STATUSCODE_GOOD;
