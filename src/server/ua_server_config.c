@@ -40,6 +40,13 @@ UA_ServerConfig_clean(UA_ServerConfig *config) {
         config->eventLoop = NULL;
     }
 
+    /* Networking */
+    UA_Array_delete(config->serverUrls, config->serverUrlsSize,
+                    &UA_TYPES[UA_TYPES_STRING]);
+    config->serverUrls = NULL;
+    config->serverUrlsSize = 0;
+
+    /* Security Policies */
     for(size_t i = 0; i < config->securityPoliciesSize; ++i) {
         UA_SecurityPolicy *policy = &config->securityPolicies[i];
         policy->clear(policy);

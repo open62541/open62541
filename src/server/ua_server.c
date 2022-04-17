@@ -634,6 +634,58 @@ UA_Server_networkCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
     UA_Server_processBinaryMessage(server, conn, &msg);
 }
 
+static UA_StatusCode
+UA_Server_createServerConnection(UA_Server *server, const UA_String *serverUrl) {
+    UA_ServerConfig *config = &server->config;
+
+    /* Extract the protocol, hostname and port from the url */
+    UA_String hostname = UA_STRING_NULL;
+    UA_String path = UA_STRING_NULL;
+    UA_UInt16 port = 4840; /* default */
+    UA_StatusCode res = UA_parseEndpointUrl(serverUrl, &hostname, &port, &path);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
+
+    UA_String tcpString = UA_STRING("tcp");
+    for(UA_EventSource *es = config->eventLoop->eventSources;
+        es != NULL; es = es->next) {
+        /* Is this a usable connection manager? */
+        if(es->eventSourceType != UA_EVENTSOURCETYPE_CONNECTIONMANAGER)
+            continue;
+        UA_ConnectionManager *cm = (UA_ConnectionManager*)es;
+        if(!UA_String_equal(&tcpString, &cm->protocol))
+            continue;
+
+        /* Set up the parameters */
+        UA_KeyValuePair params[3];
+        size_t paramsSize = 2;
+
+        params[0].key = UA_QUALIFIEDNAME(0, "listen-port");
+        UA_Variant_setScalar(&params[0].value, &port, &UA_TYPES[UA_TYPES_UINT16]);
+
+        UA_UInt32 bufSize = config->tcpBufSize;
+        if(bufSize == 0)
+            bufSize = 1 << 16; /* 64kB */
+        params[1].key = UA_QUALIFIEDNAME(0, "recv-bufsize");
+        UA_Variant_setScalar(&params[1].value, &bufSize, &UA_TYPES[UA_TYPES_UINT32]);
+
+        /* If the hostname is non-empty */
+        if(hostname.length > 0) {
+            params[2].key = UA_QUALIFIEDNAME(0, "listen-hostnames");
+            UA_Variant_setArray(&params[2].value, &hostname, 1, &UA_TYPES[UA_TYPES_STRING]);
+            paramsSize = 3;
+        }
+
+        /* Open the server connection */
+        res = cm->openConnection(cm, paramsSize, params, server, NULL,
+                                 UA_Server_networkCallback);
+        if(res == UA_STATUSCODE_GOOD)
+            return res;
+    }
+
+    return UA_STATUSCODE_BADINTERNALERROR;
+}
+
 /********************/
 /* Main Server Loop */
 /********************/
@@ -665,39 +717,19 @@ UA_Server_run_startup(UA_Server *server) {
     UA_StatusCode retVal = config->eventLoop->start(config->eventLoop);
     UA_CHECK_STATUS(retVal, return retVal);
 
-    /* Open a server connection. Try all "tcp" ConnectionManagers until the
-     * first one that works. */
-    UA_String tcpString = UA_STRING("tcp");
+    /* Open server sockets */
     UA_Boolean haveServerSocket = false;
-    for(UA_EventSource *es = config->eventLoop->eventSources;
-        es != NULL; es = es->next) {
-        /* Is this a usable connection manager? */
-        if(es->eventSourceType != UA_EVENTSOURCETYPE_CONNECTIONMANAGER)
-            continue;
-        UA_ConnectionManager *cm = (UA_ConnectionManager*)es;
-        if(!UA_String_equal(&tcpString, &cm->protocol))
-            continue;
-
-        /* Set up the parameters */
-        UA_KeyValuePair params[2];
-
-        UA_UInt16 listenPort = config->tcpListenPort;
-        if(listenPort == 0)
-            listenPort = 4840;
-        params[0].key = UA_QUALIFIEDNAME(0, "listen-port");
-        UA_Variant_setScalar(&params[0].value, &listenPort, &UA_TYPES[UA_TYPES_UINT16]);
-
-        UA_UInt32 bufSize = config->tcpBufSize;
-        if(bufSize == 0)
-            bufSize = 1 << 16; /* 64kB */
-        params[1].key = UA_QUALIFIEDNAME(0, "recv-bufsize");
-        UA_Variant_setScalar(&params[1].value, &bufSize, &UA_TYPES[UA_TYPES_UINT32]);
-
-        /* Open the server connection */
-        retVal = cm->openConnection(cm, 2, params, server, NULL, UA_Server_networkCallback);
-        if(retVal == UA_STATUSCODE_GOOD) {
+    if(config->serverUrlsSize == 0) {
+        /* Empty hostname -> listen on all devices */
+        UA_String defaultUrl = UA_STRING("opc.tcp://:4840");
+        retVal = UA_Server_createServerConnection(server, &defaultUrl);
+        if(retVal == UA_STATUSCODE_GOOD)
             haveServerSocket = true;
-            break;
+    } else {
+        for(size_t i = 0; i < config->serverUrlsSize; i++) {
+            retVal = UA_Server_createServerConnection(server, &config->serverUrls[i]);
+            if(retVal == UA_STATUSCODE_GOOD)
+                haveServerSocket = true;
         }
     }
 
@@ -745,28 +777,23 @@ UA_Server_run_startup(UA_Server *server) {
                          UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_STARTTIME),
                          var);
 
-    /* Update the application description to match the previously added
-     * discovery urls. We can only do this after the network layer is started
-     * since it inits the discovery url */
-    if(server->config.applicationDescription.discoveryUrlsSize != 0) {
-        UA_Array_delete(server->config.applicationDescription.discoveryUrls,
-                        server->config.applicationDescription.discoveryUrlsSize,
-                        &UA_TYPES[UA_TYPES_STRING]);
-        server->config.applicationDescription.discoveryUrlsSize = 0;
+    /* Update the application description to include the server urls for
+     * discovery. Don't add the urls with an empty host (listening on all
+     * interfaces) */
+    for(size_t i = 0; i < server->config.serverUrlsSize; i++) {
+        UA_String hostname = UA_STRING_NULL;
+        UA_String path = UA_STRING_NULL;
+        UA_UInt16 port = 0;
+        retVal = UA_parseEndpointUrl(&server->config.serverUrls[i],
+                                     &hostname, &port, &path);
+        if(retVal != UA_STATUSCODE_GOOD || hostname.length == 0)
+            continue;
+        retVal =
+            UA_Array_appendCopy((void**)&server->config.applicationDescription.discoveryUrls,
+                                &server->config.applicationDescription.discoveryUrlsSize,
+                                &server->config.serverUrls[i], &UA_TYPES[UA_TYPES_STRING]);
+        UA_CHECK_STATUS(retVal, return retVal);
     }
-
-    /* server->config.applicationDescription.discoveryUrls = (UA_String *) */
-    /*     UA_Array_new(server->config.networkLayersSize, &UA_TYPES[UA_TYPES_STRING]); */
-    /* UA_CHECK_MEM(server->config.applicationDescription.discoveryUrls, */
-    /*          return UA_STATUSCODE_BADOUTOFMEMORY); */
-
-    /* server->config.applicationDescription.discoveryUrlsSize = */
-    /*     server->config.networkLayersSize; */
-    /* for(size_t i = 0; i < server->config.applicationDescription.discoveryUrlsSize; i++) { */
-    /*     UA_ServerNetworkLayer *nl = &server->config.networkLayers[i]; */
-    /*     UA_String_copy(&nl->discoveryUrl, */
-    /*                    &server->config.applicationDescription.discoveryUrls[i]); */
-    /* } */
 
     /* Start the multicast discovery server */
 #ifdef UA_ENABLE_DISCOVERY_MULTICAST
@@ -775,7 +802,7 @@ UA_Server_run_startup(UA_Server *server) {
 #endif
 
     /* Update Endpoint description */
-    for(size_t i = 0; i < server->config.endpointsSize; ++i){
+    for(size_t i = 0; i < server->config.endpointsSize; ++i) {
         UA_ApplicationDescription_clear(&server->config.endpoints[i].server);
         UA_ApplicationDescription_copy(&server->config.applicationDescription,
                                        &server->config.endpoints[i].server);
@@ -855,8 +882,11 @@ UA_Server_run_shutdown(UA_Server *server) {
                          * timeout. This closes the connections fully. */
     } else {
         el->stop(el);
-        while(el->state != UA_EVENTLOOPSTATE_STOPPED)
-            el->run(el, 100); /* Iterate until stopped */
+        UA_StatusCode res = UA_STATUSCODE_GOOD;
+        while(el->state != UA_EVENTLOOPSTATE_STOPPED &&
+              el->state != UA_EVENTLOOPSTATE_FRESH &&
+              res == UA_STATUSCODE_GOOD)
+            res = el->run(el, 100); /* Iterate until stopped */
     }
 
 #ifdef UA_ENABLE_DISCOVERY_MULTICAST
