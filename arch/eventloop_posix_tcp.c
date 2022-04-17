@@ -275,15 +275,10 @@ TCP_listenSocketCallback(UA_ConnectionManager *cm, UA_RegisteredFD *rfd, short e
     int get_res = UA_getnameinfo((struct sockaddr *)&remote, sizeof(remote),
                                  hoststr, sizeof(hoststr), NULL, 0, 0);
     if(get_res != 0) {
-        get_res = UA_getnameinfo((struct sockaddr *)&remote, sizeof(remote),
-                                 hoststr, sizeof(hoststr), NULL, 0, NI_NUMERICHOST);
-        if(get_res != 0) {
-            hoststr[0] = 0;
-            UA_LOG_SOCKET_ERRNO_WRAP(
-                UA_LOG_WARNING(cm->eventSource.eventLoop->logger, UA_LOGCATEGORY_NETWORK,
-                               "TCP %u\t| getnameinfo(...) could not resolve the "
-                               "hostname (%s)", (unsigned)rfd->fd, errno_str));
-        }
+        UA_LOG_SOCKET_ERRNO_WRAP(
+           UA_LOG_WARNING(cm->eventSource.eventLoop->logger, UA_LOGCATEGORY_NETWORK,
+                          "TCP %u\t| getnameinfo(...) could not resolve the "
+                          "hostname (%s)", (unsigned)rfd->fd, errno_str));
     }
     UA_LOG_INFO(cm->eventSource.eventLoop->logger, UA_LOGCATEGORY_NETWORK,
                 "TCP %u\t| Connection opened from \"%s\" via the server socket %u",
