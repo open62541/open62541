@@ -143,12 +143,14 @@ setDefaultConfig(UA_ServerConfig *conf) {
         /* Add the TCP connection manager */
         UA_ConnectionManager *tcpCM =
             UA_ConnectionManager_new_POSIX_TCP(UA_STRING("tcp connection manager"));
-        conf->eventLoop->registerEventSource(conf->eventLoop, (UA_EventSource *)tcpCM);
+        if(tcpCM)
+            conf->eventLoop->registerEventSource(conf->eventLoop, (UA_EventSource *)tcpCM);
 
         /* Add the UDP connection manager */
         UA_ConnectionManager *udpCM =
             UA_ConnectionManager_new_POSIX_UDP(UA_STRING("udp connection manager"));
-        conf->eventLoop->registerEventSource(conf->eventLoop, (UA_EventSource *)udpCM);
+        if(udpCM)
+            conf->eventLoop->registerEventSource(conf->eventLoop, (UA_EventSource *)udpCM);
     }
 
     /* --> Start setting the default static config <-- */
@@ -431,7 +433,6 @@ UA_ServerConfig_setMinimalCustomBuffer(UA_ServerConfig *config, UA_UInt16 portNu
     }
 
     config->tcpBufSize = recvBufferSize;
-    config->tcpListenPort = portNumber;
 
     /* Allocate the SecurityPolicies */
     retval = UA_ServerConfig_addSecurityPolicyNone(config, certificate);

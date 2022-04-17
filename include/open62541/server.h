@@ -158,14 +158,26 @@ struct UA_ServerConfig {
 
     /**
      * Networking
-     * ^^^^^^^^^^ */
+     * ^^^^^^^^^^
+     * The `severUrls` array contains the server URLs like
+     * `opc.tcp://my-server:4840` or `opc.wss://localhost:443`. The URLs are
+     * used both for discovery and to set up the server sockets based on the
+     * defined hostnames (and ports).
+     *
+     * - If the list is empty: Listen on all network interfaces with TCP port 4840.
+     * - If the hostname of a URL is empty: Use the define protocol and port and
+     *   listen on all interfaces. */
+    UA_String *serverUrls;
+    size_t serverUrlsSize;
 
-    /* TCP server socket parameters */
-    /* TODO: UA_String *tcpListenHostnames; */
-    UA_UInt16 tcpListenPort; /* Port to listen for new connections (default: 4840) */
-    UA_UInt32 tcpBufSize;    /* Maximum size of sent and received chunks (default: 64kB) */
-    UA_UInt32 tcpMaxMsgSize; /* Maximum size of messages (default: 0 -> unbounded) */
-    UA_UInt32 tcpMaxChunks;  /* Maximum size of sent message (default: 0 -> unbounded) */
+    /**
+     * The following settings are specific to OPC UA with TCP transport. */
+    UA_UInt32 tcpBufSize;    /* Max length of sent and received chunks (packets)
+                              * (default: 64kB) */
+    UA_UInt32 tcpMaxMsgSize; /* Max length of messages
+                              * (default: 0 -> unbounded) */
+    UA_UInt32 tcpMaxChunks;  /* Max number of chunks per message
+                              * (default: 0 -> unbounded) */
 
     /**
      * Security and Encryption
