@@ -273,7 +273,8 @@ TCP_listenSocketCallback(UA_ConnectionManager *cm, UA_RegisteredFD *rfd, short e
     /* Log the name of the remote host */
     char hoststr[256];
     int get_res = UA_getnameinfo((struct sockaddr *)&remote, sizeof(remote),
-                                 hoststr, sizeof(hoststr), NULL, 0, 0);
+                                 hoststr, sizeof(hoststr),
+                                 NULL, 0, NI_NUMERICHOST);
     if(get_res != 0) {
         UA_LOG_SOCKET_ERRNO_WRAP(
            UA_LOG_WARNING(cm->eventSource.eventLoop->logger, UA_LOGCATEGORY_NETWORK,
@@ -350,7 +351,7 @@ TCP_registerListenSocket(UA_ConnectionManager *cm, struct addrinfo *ai,
     char hoststr[256];
     int get_res = UA_getnameinfo(ai->ai_addr, ai->ai_addrlen,
                                  hoststr, sizeof(hoststr),
-                                 NULL, 0, 0);
+                                 NULL, 0, NI_NUMERICHOST);
     if(get_res != 0) {
         hoststr[0] = 0;
         UA_LOG_SOCKET_ERRNO_WRAP(
@@ -506,8 +507,8 @@ TCP_registerListenSockets(UA_ConnectionManager *cm, const char *hostname,
     hints.ai_family = AF_INET;   /* IPv4 only */
 #endif
     hints.ai_socktype = SOCK_STREAM;
-    hints.ai_flags = AI_PASSIVE;
     hints.ai_protocol = IPPROTO_TCP;
+    hints.ai_flags = AI_PASSIVE | AI_NUMERICHOST;
 #ifdef AI_ADDRCONFIG
     hints.ai_flags |= AI_ADDRCONFIG; /* Only return IPv4/IPv6 if at least one
                                       * such address is configured */
