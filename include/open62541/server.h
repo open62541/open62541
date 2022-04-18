@@ -149,7 +149,10 @@ struct UA_ServerConfig {
 
     /**
      * EventLoop
-     * ^^^^^^^^^ */
+     * ^^^^^^^^^
+     * The sever can be plugged into an external EventLoop. Otherwise the
+     * EventLoop is considered to be attached to the server's lifecycle and will
+     * be destroyed when the config is cleaned up. */
     UA_EventLoop *eventLoop;
     UA_Boolean externalEventLoop; /* The EventLoop is not deleted with the config */
 
