@@ -229,31 +229,22 @@ UDP_connectionSocketCallback(UA_ConnectionManager *cm, UA_RegisteredFD *rfd,
 }
 
 static void
-UDP_registerListenSocket(UA_ConnectionManager *cm, struct addrinfo *ai,
-                         void *application, void *context,
+UDP_registerListenSocket(UA_ConnectionManager *cm, UA_UInt16 port,
+                         struct addrinfo *ai, void *application, void *context,
                          UA_ConnectionManager_connectionCallback connectionCallback) {
     UDPConnectionManager *ucm = (UDPConnectionManager*)cm;
     UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX*)cm->eventSource.eventLoop;
 
     /* Get logging information */
     char hoststr[256];
-    char portstr[16];
     int get_res = UA_getnameinfo(ai->ai_addr, ai->ai_addrlen,
-                                 hoststr, sizeof(hoststr),
-                                 portstr, sizeof(portstr), NI_NUMERICSERV);
+                                 hoststr, sizeof(hoststr), NULL, 0, 0);
     if(get_res != 0) {
-        get_res = UA_getnameinfo(ai->ai_addr, ai->ai_addrlen,
-                                 hoststr, sizeof(hoststr),
-                                 portstr, sizeof(portstr),
-                                 NI_NUMERICHOST | NI_NUMERICSERV);
-        if(get_res != 0) {
-            hoststr[0] = 0;
-            portstr[0] = 0;
-            UA_LOG_SOCKET_ERRNO_WRAP(
-                UA_LOG_WARNING(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
-                               "UDP\t| getnameinfo(...) could not resolve the hostname (%s)",
-                               errno_str));
-        }
+        hoststr[0] = 0;
+        UA_LOG_SOCKET_ERRNO_WRAP(
+           UA_LOG_WARNING(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
+                          "UDP\t| getnameinfo(...) could not resolve the hostname (%s)",
+                          errno_str));
     }
     
     /* Create the server socket */
@@ -262,14 +253,14 @@ UDP_registerListenSocket(UA_ConnectionManager *cm, struct addrinfo *ai,
         UA_LOG_SOCKET_ERRNO_WRAP(
            UA_LOG_WARNING(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
                           "UDP %u\t| Error opening the listen socket for "
-                          "\"%s\" on port %s(%s)",
-                          (unsigned)listenSocket, hoststr, portstr, errno_str));
+                          "\"%s\" on port %u (%s)",
+                          (unsigned)listenSocket, hoststr, port, errno_str));
         return;
     }
 
     UA_LOG_INFO(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
-                "UDP %u\t| New server socket for \"%s\" on port %s",
-                (unsigned)listenSocket, hoststr, portstr);
+                "UDP %u\t| New server socket for \"%s\" on port %u",
+                (unsigned)listenSocket, hoststr, port);
 
     /* Some Linux distributions have net.ipv6.bindv6only not activated. So
      * sockets can double-bind to IPv4 and IPv6. This leads to problems. Use
@@ -362,7 +353,7 @@ UDP_registerListenSocket(UA_ConnectionManager *cm, struct addrinfo *ai,
 
 static UA_StatusCode
 UDP_registerListenSockets(UA_ConnectionManager *cm, const char *hostname,
-                          const char *port, void *application, void *context,
+                          UA_UInt16 port, void *application, void *context,
                           UA_ConnectionManager_connectionCallback connectionCallback) {
     /* Get all the interface and IPv4/6 combinations for the configured hostname */
     struct addrinfo hints, *res;
@@ -380,12 +371,16 @@ UDP_registerListenSockets(UA_ConnectionManager *cm, const char *hostname,
                                       * such address is configured */
 #endif
 
-    int retcode = UA_getaddrinfo(hostname, port, &hints, &res);
+    /* Set up the port string */
+    char portstr[6];
+    UA_snprintf(portstr, 6, "%d", port);
+
+    int retcode = UA_getaddrinfo(hostname, portstr, &hints, &res);
     if(retcode != 0) {
         UA_LOG_SOCKET_ERRNO_GAI_WRAP(
            UA_LOG_WARNING(cm->eventSource.eventLoop->logger,
                           UA_LOGCATEGORY_NETWORK,
-                          "UDP\t| getaddrinfo lookup for \"%s\" on port %s failed (%s)",
+                          "UDP\t| getaddrinfo lookup for \"%s\" on port %u failed (%s)",
                           hostname, port, errno_str));
         return UA_STATUSCODE_BADINTERNALERROR;
     }
@@ -393,7 +388,7 @@ UDP_registerListenSockets(UA_ConnectionManager *cm, const char *hostname,
     /* Add listen sockets */
     struct addrinfo *ai = res;
     while(ai) {
-        UDP_registerListenSocket(cm, ai, application, context, connectionCallback);
+        UDP_registerListenSocket(cm, port, ai, application, context, connectionCallback);
         ai = ai->ai_next;
     }
     UA_freeaddrinfo(res);
@@ -424,6 +419,7 @@ UDP_shutdown(UA_ConnectionManager *cm, UA_RegisteredFD *rfd) {
 
     UA_LOG_DEBUG(el->logger, UA_LOGCATEGORY_NETWORK,
                  "UDP %u\t| Shutdown called", (unsigned)rfd->fd);
+
     UA_DelayedCallback *dc = &rfd->dc;
     dc->callback = UDP_delayedClose;
     dc->application = cm;
@@ -659,7 +655,6 @@ UDP_openReceiveConnection(UA_ConnectionManager *cm,
     UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX*)cm->eventSource.eventLoop;
 
     /* Get the socket */
-    char portno[6];
     const UA_UInt16 *port = (const UA_UInt16*)
         UA_KeyValueMap_getScalar(params, paramsSize,
                                  UA_QUALIFIEDNAME(0, "listen-port"),
@@ -669,7 +664,6 @@ UDP_openReceiveConnection(UA_ConnectionManager *cm,
                      "UDP\t| Port information required for UDP listening");
         return UA_STATUSCODE_BADINTERNALERROR;
     }
-    UA_snprintf(portno, 6, "%d", *port);
 
     /* Get the hostnames configuration */
     const UA_Variant *hostNames =
@@ -679,7 +673,7 @@ UDP_openReceiveConnection(UA_ConnectionManager *cm,
         /* No hostnames configured -> listen on all interfaces*/
         UA_LOG_INFO(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
                     "UDP\t| Listening on all interfaces");
-        return UDP_registerListenSockets(cm, NULL, portno, application,
+        return UDP_registerListenSockets(cm, NULL, *port, application,
                                          context, connectionCallback);
     }
 
@@ -695,7 +689,7 @@ UDP_openReceiveConnection(UA_ConnectionManager *cm,
     if(interfaces == 0) {
         UA_LOG_ERROR(el->eventLoop.logger, UA_LOGCATEGORY_EVENTLOOP,
                      "UDP\t| Listening on all interfaces");
-        return UDP_registerListenSockets(cm, NULL, portno, application,
+        return UDP_registerListenSockets(cm, NULL, *port, application,
                                          context, connectionCallback);
     }
     
@@ -707,7 +701,7 @@ UDP_openReceiveConnection(UA_ConnectionManager *cm,
             continue;
         memcpy(hostname, hostStrings[i].data, hostStrings->length);
         hostname[hostStrings->length] = '\0';
-        UDP_registerListenSockets(cm, hostname, portno, application,
+        UDP_registerListenSockets(cm, hostname, *port, application,
                                   context, connectionCallback);
     }
 
