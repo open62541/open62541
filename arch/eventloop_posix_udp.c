@@ -238,7 +238,8 @@ UDP_registerListenSocket(UA_ConnectionManager *cm, UA_UInt16 port,
     /* Get logging information */
     char hoststr[256];
     int get_res = UA_getnameinfo(ai->ai_addr, ai->ai_addrlen,
-                                 hoststr, sizeof(hoststr), NULL, 0, 0);
+                                 hoststr, sizeof(hoststr),
+                                 NULL, 0, NI_NUMERICHOST);
     if(get_res != 0) {
         hoststr[0] = 0;
         UA_LOG_SOCKET_ERRNO_WRAP(
@@ -364,8 +365,8 @@ UDP_registerListenSockets(UA_ConnectionManager *cm, const char *hostname,
     hints.ai_family = AF_INET;   /* IPv4 only */
 #endif
     hints.ai_socktype = SOCK_DGRAM;
-    hints.ai_flags = AI_PASSIVE;
     hints.ai_protocol = IPPROTO_UDP;
+    hints.ai_flags = AI_PASSIVE | AI_NUMERICHOST;
 #ifdef AI_ADDRCONFIG
     hints.ai_flags |= AI_ADDRCONFIG; /* Only return IPv4/IPv6 if at least one
                                       * such address is configured */
