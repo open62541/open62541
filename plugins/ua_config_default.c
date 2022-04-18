@@ -432,6 +432,51 @@ UA_ServerConfig_setMinimalCustomBuffer(UA_ServerConfig *config, UA_UInt16 portNu
         return retval;
     }
 
+    /* Set up the local ServerUrls. They are used during startup to initialize
+     * the server sockets. */
+    UA_String serverUrls[2];
+    size_t serverUrlsSize = 0;
+    char hostnamestr[256];
+    char serverUrlBuffer[2][512];
+
+    /* 1) Listen on all interfaces (also external). This must be the first entry
+     * if this is desired. Otherwise some interfaces may be blocked (already in
+     * use) with a hostname that is only locally reachable.*/
+    UA_snprintf(serverUrlBuffer[0], sizeof(serverUrlBuffer[0]),
+                "opc.tcp://:%u", portNumber);
+    serverUrls[serverUrlsSize] = UA_STRING(serverUrlBuffer[0]);
+    serverUrlsSize++;
+
+    /* 2) Based on the local hostname. For that temporarily initialize the
+     * Winsock API on Win32. */
+
+#ifdef _WIN32
+    WSADATA wsaData;
+    WSAStartup(MAKEWORD(2, 2), &wsaData);
+#endif
+    int err = UA_gethostname(hostnamestr, sizeof(hostnamestr));
+#ifdef _WIN32
+    WSACleanup();
+#endif
+
+    if(err == 0) {
+        UA_snprintf(serverUrlBuffer[1], sizeof(serverUrlBuffer[1]),
+                    "opc.tcp://%s:%u", hostnamestr, portNumber);
+        serverUrls[serverUrlsSize] = UA_STRING(serverUrlBuffer[1]);
+        serverUrlsSize++;
+    }
+
+    /* 3) Add to the config */
+    retval =
+        UA_Array_copy(serverUrls, serverUrlsSize,
+                      (void**)&config->serverUrls, &UA_TYPES[UA_TYPES_STRING]);
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_ServerConfig_clean(config);
+        return retval;
+    }
+    config->serverUrlsSize = serverUrlsSize;
+
+    /* Set the TCP settings */
     config->tcpBufSize = recvBufferSize;
 
     /* Allocate the SecurityPolicies */
@@ -677,8 +722,6 @@ UA_ServerConfig_setDefaultWithSecurityPolicies(UA_ServerConfig *conf,
                                                   revocationList, revocationListSize);
     if (retval != UA_STATUSCODE_GOOD)
         return retval;
-
-    config->tcpListenPort = portNumber;
 
     retval = UA_ServerConfig_addAllSecurityPolicies(conf, certificate, privateKey);
     if(retval != UA_STATUSCODE_GOOD) {
