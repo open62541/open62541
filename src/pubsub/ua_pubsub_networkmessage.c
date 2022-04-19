@@ -1431,7 +1431,7 @@ UA_DataSetMessage_encodeBinary(const UA_DataSetMessage* src, UA_Byte **bufPos,
     UA_CHECK_STATUS(rv, return rv);
 
     if(src->data.keyFrameData.fieldCount == 0) {
-        // That's a heartbeat - nothing more to encode.
+        /* That's a heartbeat - nothing more to encode */
         return rv;
     }
 
@@ -1500,9 +1500,10 @@ UA_DataSetMessage_decodeBinary(const UA_ByteString *src, size_t *offset, UA_Data
 
     if(dst->header.dataSetMessageType == UA_DATASETMESSAGE_DATAKEYFRAME) {
         if(*offset == src->length) {
-            // Message ends after the header, that's a heartbeat
+            /* Message ends after the header, that's a heartbeat */
             return rv;
         }
+        
         switch(dst->header.fieldEncoding) {
             case UA_FIELDENCODING_VARIANT:
             {
@@ -1647,6 +1648,7 @@ UA_DataSetMessage_calcSizeBinary(UA_DataSetMessage* p, UA_NetworkMessageOffsetBu
     if(p->header.configVersionMinorVersionEnabled)
         size += UA_UInt32_calcSizeBinary(&p->header.configVersionMinorVersion);
 
+    /* Keyframe with no fields is a heartbeat, stop counting then */
     if(p->header.dataSetMessageType == UA_DATASETMESSAGE_DATAKEYFRAME && p->data.keyFrameData.fieldCount != 0) {
         if(p->header.fieldEncoding != UA_FIELDENCODING_RAWDATA){
             size += UA_calcSizeBinary(&p->data.keyFrameData.fieldCount, &UA_TYPES[UA_TYPES_UINT16]);
@@ -1703,7 +1705,7 @@ UA_DataSetMessage_calcSizeBinary(UA_DataSetMessage* p, UA_NetworkMessageOffsetBu
                 size += UA_calcSizeBinary(&p->data.keyFrameData.dataSetFields[i], &UA_TYPES[UA_TYPES_DATAVALUE]);
             }
         }
-    } else if(p->header.dataSetMessageType == UA_DATASETMESSAGE_DATADELTAFRAME && p->data.deltaFrameData.fieldCount != 0) {
+    } else if(p->header.dataSetMessageType == UA_DATASETMESSAGE_DATADELTAFRAME) {
         //TODO clarify how to handle DATADELTAFRAME messages with RT
         if(p->header.fieldEncoding != UA_FIELDENCODING_RAWDATA)
             size += UA_calcSizeBinary(&p->data.deltaFrameData.fieldCount, &UA_TYPES[UA_TYPES_UINT16]);
