@@ -10,6 +10,7 @@ jobs:
     CC_NAME: Visual Studio 16 2019
     CC_SHORTNAME: VS2019
     GENERATOR: Visual Studio 16 2019
+    ARCH: Win32
     FORCE_CXX: OFF
     vcpkg_cache: C:/vcpkg/installed
     platform: x86
