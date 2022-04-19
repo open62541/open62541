@@ -50,6 +50,7 @@ try {
     # Only execute unit tests on vs2019 to save compilation time
     if ($env:CC_SHORTNAME -eq "vs2019") {
         Write-Host -ForegroundColor Green "`n###################################################################"
+        Write-Host -ForegroundColor Green "`n##### On Generator $env:GENERATOR #####`n"
         Write-Host -ForegroundColor Green "`n##### Testing $env:CC_NAME with unit tests #####`n"
         New-Item -ItemType directory -Path "build"
         cd build
