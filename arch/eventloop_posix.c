@@ -186,8 +186,11 @@ UA_EventLoopPOSIX_stop(UA_EventLoopPOSIX *el) {
     UA_EventSource *es = el->eventLoop.eventSources;
     while(es) {
         if(es->state == UA_EVENTSOURCESTATE_STARTING ||
-           es->state == UA_EVENTSOURCESTATE_STARTED)
+           es->state == UA_EVENTSOURCESTATE_STARTED) {
+            UA_UNLOCK(&el->elMutex);
             es->stop(es);
+            UA_LOCK(&el->elMutex);
+        }
         es = es->next;
     }
 
