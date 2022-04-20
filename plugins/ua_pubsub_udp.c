@@ -127,13 +127,12 @@ setConnectionConfigurationProperties(UA_PubSubChannelDataUDPMC *channelDataUDPMC
                                      const UA_KeyValuePair *connectionProperties,
                                      const size_t connectionPropertiesSize) {
     /* Set default values */
-    UA_PubSubChannelDataUDPMC defaultValues = {
-        .ai_family = 0, .ai_addr = {.ss_family = 0},
-        .ai_addrlen =0, .intf_addr = {.ss_family = 0},
-        .messageTTL = 255, .enableLoopback = true,
-        .enableReuse = true, .isMulticast = true
-    };
-    memcpy(channelDataUDPMC, &defaultValues, sizeof(UA_PubSubChannelDataUDPMC));
+    memset(channelDataUDPMC, 0, sizeof(UA_PubSubChannelDataUDPMC));
+    channelDataUDPMC->messageTTL = 255;
+    channelDataUDPMC->enableLoopback = true;
+    channelDataUDPMC->enableReuse = true;
+    channelDataUDPMC->isMulticast = true;
+
     /* Iterate over the given KeyValuePair parameters */
     UA_String ttlParam = UA_STRING("ttl");
     UA_String loopbackParam = UA_STRING("loopback");
