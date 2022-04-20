@@ -26,6 +26,13 @@
 
 static UA_THREAD_LOCAL UA_Byte ReceiveMsgBufferUDP[RECEIVE_MSG_BUFFER_SIZE];
 
+typedef union {
+    struct ip_mreq ipv4;
+#if UA_IPV6
+    struct ipv6_mreq ipv6;
+#endif
+} IpMulticastRequest;
+
 /* UDP multicast network layer specific internal data */
 typedef struct {
     int ai_family;                   /* Protocol family for socket. IPv4/IPv6 */
@@ -39,12 +46,7 @@ typedef struct {
 #ifdef __linux__
     UA_UInt32* socketPriority;
 #endif
-    union {
-        struct ip_mreq ipv4;
-#if UA_IPV6
-        struct ipv6_mreq ipv6;
-#endif
-    } ipMulticastRequest;
+    IpMulticastRequest ipMulticastRequest;
 } UA_PubSubChannelDataUDPMC;
 
 #define MAX_URL_LENGTH 512
@@ -348,23 +350,24 @@ error:
 
 static UA_INLINE UA_StatusCode
 setLoopBackData(UA_SOCKET *sockfd,
-                UA_PubSubChannelDataUDPMC *channelDataUDPMC) {
+                UA_Boolean enableLoopback,
+                int ai_family) {
     /* Set loop back data to your host */
 #if UA_IPV6
     /* The Linux Kernel IPv6 socket code checks for optlen to be at least the
      * size of an integer. However, channelDataUDPMC->enableLoopback is a
      * boolean. In order for the code to work for IPv4 and IPv6 propagate it to
-     * an temporary integer here. */
-    UA_Int32 enable = channelDataUDPMC->enableLoopback;
+     * a temporary integer here. */
+    UA_Int32 enable = enableLoopback;
     if(UA_setsockopt(*sockfd,
-                     channelDataUDPMC->ai_family == AF_INET6 ? IPPROTO_IPV6 : IPPROTO_IP,
-                     channelDataUDPMC->ai_family == AF_INET6 ? IPV6_MULTICAST_LOOP : IP_MULTICAST_LOOP,
+                     ai_family == AF_INET6 ? IPPROTO_IPV6 : IPPROTO_IP,
+                     ai_family == AF_INET6 ? IPV6_MULTICAST_LOOP : IP_MULTICAST_LOOP,
                      (const char *)&enable,
                      sizeof (enable)) < 0)
 #else
     if(UA_setsockopt(*sockfd, IPPROTO_IP, IP_MULTICAST_LOOP,
-                     (const char *)&channelDataUDPMC->enableLoopback,
-                     sizeof (channelDataUDPMC->enableLoopback)) < 0)
+                     (const char *)&enable,
+                     sizeof (enable)) < 0)
 #endif
     {
         UA_LOG_SOCKET_ERRNO_WRAP(
@@ -379,17 +382,19 @@ setLoopBackData(UA_SOCKET *sockfd,
 
 static UA_INLINE void
 setTimeToLive(UA_SOCKET *sockfd,
-              const UA_PubSubChannelDataUDPMC *channelDataUDPMC) {/* Set Time to live (TTL). Value of 1 prevent forward beyond the local network. */
+              UA_UInt32 messageTTL,
+              int ai_family) {
+    /* Set Time to live (TTL). Value of 1 prevent forward beyond the local network. */
 #if UA_IPV6
     if(UA_setsockopt(*sockfd,
-                     channelDataUDPMC->ai_family == PF_INET6 ? IPPROTO_IPV6 : IPPROTO_IP,
-                     channelDataUDPMC->ai_family == PF_INET6 ? IPV6_MULTICAST_HOPS : IP_MULTICAST_TTL,
-                     (const char *)&channelDataUDPMC->messageTTL,
-                     sizeof(channelDataUDPMC->messageTTL)) < 0)
+                     ai_family == PF_INET6 ? IPPROTO_IPV6 : IPPROTO_IP,
+                     ai_family == PF_INET6 ? IPV6_MULTICAST_HOPS : IP_MULTICAST_TTL,
+                     (const char *)&messageTTL,
+                     sizeof(messageTTL)) < 0)
 #else
     if(UA_setsockopt(*sockfd, IPPROTO_IP, IP_MULTICAST_TTL,
-                     (const char *)&channelDataUDPMC->messageTTL,
-                     sizeof(channelDataUDPMC->messageTTL)) < 0)
+                     (const char *)&messageTTL,
+                     sizeof(messageTTL)) < 0)
 #endif
     {
         UA_LOG_SOCKET_ERRNO_WRAP(
@@ -401,12 +406,13 @@ setTimeToLive(UA_SOCKET *sockfd,
 }
 
 static UA_INLINE void
-setReuseAddress(UA_SOCKET *sockfd, const UA_PubSubChannelDataUDPMC *channelDataUDPMC) {/* Set reuse address -> enables sharing of the same listening address on
- * different sockets */
-    if(channelDataUDPMC->enableReuse){
-        int enableReuse = 1;
+setReuseAddress(UA_SOCKET *sockfd, UA_Boolean enableReuse) {
+    /* Set reuse address -> enables sharing of the same listening address on
+    * different sockets */
+    if(enableReuse){
+        int enableReuseVal = 1;
         if(UA_setsockopt(*sockfd, SOL_SOCKET, SO_REUSEADDR,
-                         (const char*)&enableReuse, sizeof(enableReuse)) < 0) {
+                         (const char*)&enableReuseVal, sizeof(enableReuseVal)) < 0) {
             UA_LOG_SOCKET_ERRNO_WRAP(
                 UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_NETWORK,
                                "PubSub Connection creation problem. Reuse address setup failed: "
@@ -418,10 +424,10 @@ setReuseAddress(UA_SOCKET *sockfd, const UA_PubSubChannelDataUDPMC *channelDataU
 
 #ifdef __linux__
 static UA_StatusCode
-setSocketPriority(UA_SOCKET *sockfd, const UA_PubSubChannelDataUDPMC *channelDataUDPMC) {/* Setting the socket priority to the socket */
-    if(channelDataUDPMC->socketPriority != NULL) {
+setSocketPriority(UA_SOCKET *sockfd, UA_UInt32 *socketPriority) {/* Setting the socket priority to the socket */
+    if(socketPriority != NULL) {
         if (UA_setsockopt(*sockfd, SOL_SOCKET, SO_PRIORITY,
-                          channelDataUDPMC->socketPriority, sizeof(int)) < 0) {
+                          socketPriority, sizeof(*socketPriority)) < 0) {
             UA_LOG_SOCKET_ERRNO_WRAP(
                 UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_NETWORK,
                              "PubSub Connection creation problem. Priority setup failed: "
@@ -471,13 +477,13 @@ bindChannelSocket(UA_SOCKET *sockfd, struct sockaddr_storage *ai_addr, int ai_fa
 }
 
 static UA_StatusCode
-setMulticastOption(UA_SOCKET *sockfd, const UA_PubSubChannelDataUDPMC *channelDataUDPMC) {
+setMulticastOption(UA_SOCKET *sockfd, IpMulticastRequest ipMulticastRequest, int ai_family) {
 #if UA_IPV6
     if(UA_setsockopt(*sockfd,
-                     channelDataUDPMC->ai_family == AF_INET6 ? IPPROTO_IPV6 : IPPROTO_IP,
-                     channelDataUDPMC->ai_family == AF_INET6 ? IPV6_MULTICAST_IF : IP_MULTICAST_IF,
-                     channelDataUDPMC->ai_family == AF_INET6 ? (const void *) &channelDataUDPMC->ipMulticastRequest.ipv6.ipv6mr_interface : &channelDataUDPMC->ipMulticastRequest.ipv4.imr_interface,
-                     channelDataUDPMC->ai_family == AF_INET6 ? sizeof(channelDataUDPMC->ipMulticastRequest.ipv6.ipv6mr_interface) : sizeof(struct in_addr)) < 0)
+                     ai_family == AF_INET6 ? IPPROTO_IPV6 : IPPROTO_IP,
+                     ai_family == AF_INET6 ? IPV6_MULTICAST_IF : IP_MULTICAST_IF,
+                     ai_family == AF_INET6 ? (const void *) &ipMulticastRequest.ipv6.ipv6mr_interface : &ipMulticastRequest.ipv4.imr_interface,
+                     ai_family == AF_INET6 ? sizeof(ipMulticastRequest.ipv6.ipv6mr_interface) : sizeof(struct in_addr)) < 0)
 #else
     if(UA_setsockopt(*sockfd, IPPROTO_IP, IP_MULTICAST_IF,
                      &ipMulticastRequest.ipv4.imr_interface, sizeof(struct in_addr)) < 0)
@@ -490,6 +496,28 @@ setMulticastOption(UA_SOCKET *sockfd, const UA_PubSubChannelDataUDPMC *channelDa
                          errno_str));
         return UA_STATUSCODE_BADINTERNALERROR;
     }
+    return UA_STATUSCODE_GOOD;
+}
+
+static UA_StatusCode
+setSocketOptionsAndBind(UA_SOCKET *sockfd, UA_PubSubChannelDataUDPMC *channelDataUDPMC) {
+    UA_StatusCode res = setLoopBackData(sockfd, channelDataUDPMC->enableLoopback, channelDataUDPMC->ai_family);
+    if (res != UA_STATUSCODE_GOOD) return res;
+
+    setTimeToLive(sockfd, channelDataUDPMC->messageTTL, channelDataUDPMC->ai_family);
+    setReuseAddress(sockfd, channelDataUDPMC->enableReuse);
+
+    res = setMulticastOption(sockfd, channelDataUDPMC->ipMulticastRequest, channelDataUDPMC->ai_family);
+    if(res != UA_STATUSCODE_GOOD) return res;
+
+    res = bindChannelSocket(sockfd, &channelDataUDPMC->ai_addr, channelDataUDPMC->ai_family);
+    if(res != UA_STATUSCODE_GOOD) return res;
+
+#ifdef __linux__
+    res = setSocketPriority(sockfd, channelDataUDPMC->socketPriority);
+    if(res != UA_STATUSCODE_GOOD) return res;
+#endif
+
     return UA_STATUSCODE_GOOD;
 }
 
@@ -522,27 +550,10 @@ UA_PubSubChannelUDPMC_open(const UA_PubSubConnectionConfig *connectionConfig) {
         goto cleanup;
     }
     newChannel->handle = channelDataUDPMC; /* Link channel and internal channel data */
-    UA_StatusCode res = setLoopBackData(&newChannel->sockfd, channelDataUDPMC);
-    if (res != UA_STATUSCODE_GOOD) {
-        goto cleanup_after_channel_data;
-    }
-    setTimeToLive(&newChannel->sockfd, channelDataUDPMC);
-    setReuseAddress(&newChannel->sockfd, channelDataUDPMC);
-
-    res = setMulticastOption(&newChannel->sockfd, channelDataUDPMC);
+    UA_StatusCode res = setSocketOptionsAndBind(&newChannel->sockfd, channelDataUDPMC);
     if(res != UA_STATUSCODE_GOOD) {
         goto cleanup_after_channel_data;
     }
-    res = bindChannelSocket(&newChannel->sockfd, &channelDataUDPMC->ai_addr, channelDataUDPMC->ai_family);
-    if(res != UA_STATUSCODE_GOOD) {
-        goto cleanup_after_channel_data;
-    }
-#ifdef __linux__
-    res = setSocketPriority(&newChannel->sockfd, channelDataUDPMC);
-    if(res != UA_STATUSCODE_GOOD) {
-        goto cleanup_after_channel_data;
-    }
-#endif
     newChannel->state = UA_PUBSUB_CHANNEL_PUB;
     return newChannel;
 
