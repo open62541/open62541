@@ -209,10 +209,11 @@ setupNetworkInterface(UA_PubSubChannelDataUDPMC *channelDataUDPMC,
     return UA_STATUSCODE_GOOD;
 }
 
-static UA_StatusCode
-setMulticastInfo(UA_PubSubChannelDataUDPMC *channelDataUDPMC, const char *addressAsChar) {
+#ifdef UA_IPV6
+static UA_INLINE UA_StatusCode
+setMulticastInfoIPV6(UA_PubSubChannelDataUDPMC *channelDataUDPMC, const char *addressAsChar) {
     int convertTextAddressToBinarySuccessful = UA_inet_pton(AF_INET6, addressAsChar,
-                                                        &channelDataUDPMC->ipMulticastRequest.ipv6.ipv6mr_multiaddr);
+                                                            &channelDataUDPMC->ipMulticastRequest.ipv6.ipv6mr_multiaddr);
     if(convertTextAddressToBinarySuccessful != 1) {
         return UA_STATUSCODE_BADINTERNALERROR;
     }
@@ -226,36 +227,45 @@ setMulticastInfo(UA_PubSubChannelDataUDPMC *channelDataUDPMC, const char *addres
     }
     return UA_STATUSCODE_GOOD;
 }
+#endif
+
+static UA_INLINE UA_StatusCode
+setMulticastInfoIPv4(UA_PubSubChannelDataUDPMC *channelDataUDPMC, const char *addressAsChar) {
+    int convertTextAddressToBinarySuccessful = UA_inet_pton(AF_INET, addressAsChar,
+                                                        &channelDataUDPMC->ipMulticastRequest.ipv4.imr_multiaddr);
+    if(convertTextAddressToBinarySuccessful != 1) {
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
+    uint32_t masked = UA_ntohl(channelDataUDPMC->ipMulticastRequest.ipv4.imr_multiaddr.s_addr) & IPV4_PREFIX_MASK;
+    if(masked != IPV4_MULTICAST_PREFIX) {
+        UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
+                       "PubSub Connection is created for a unicast address (IPv4)");
+        channelDataUDPMC->isMulticast = false;
+    } else {
+        channelDataUDPMC->isMulticast = true;
+        /* default configuration: multihomed hosts can join several groups on
+         * different IF, INADDR_ANY -> kernel decides */
+        channelDataUDPMC->ipMulticastRequest.ipv4.imr_interface.s_addr = UA_htonl(INADDR_ANY);
+    }
+    return UA_STATUSCODE_GOOD;
+}
 
 static UA_StatusCode
 configureMulticast(UA_PubSubChannelDataUDPMC *channelDataUDPMC,
                    UA_String networkInterface,
                    const char *addressAsChar) {
+
+    UA_StatusCode res = UA_STATUSCODE_GOOD;
     /* Prepare for following socket options:
      * - Set the physical interface for in- and outgoing traffic (if configured)
      * - Join multicast group */
     memset(&channelDataUDPMC->ipMulticastRequest, 0, sizeof(channelDataUDPMC->ipMulticastRequest));
     /* Check if the ip address is a multicast address */
     if(channelDataUDPMC->ai_family == AF_INET) {
-        int convertTextAddressToBinarySuccessful = UA_inet_pton(AF_INET, addressAsChar,
-                                                                &channelDataUDPMC->ipMulticastRequest.ipv4.imr_multiaddr);
-        if(convertTextAddressToBinarySuccessful != 1) {
-            return UA_STATUSCODE_BADINTERNALERROR;
-        }
-        uint32_t masked = UA_ntohl(channelDataUDPMC->ipMulticastRequest.ipv4.imr_multiaddr.s_addr) & IPV4_PREFIX_MASK;
-        if(masked != IPV4_MULTICAST_PREFIX) {
-            UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
-                           "PubSub Connection is created for a unicast address (IPv4)");
-            channelDataUDPMC->isMulticast = false;
-        } else {
-            channelDataUDPMC->isMulticast = true;
-            /* default configuration: multihomed hosts can join several groups on
-             * different IF, INADDR_ANY -> kernel decides */
-            channelDataUDPMC->ipMulticastRequest.ipv4.imr_interface.s_addr = UA_htonl(INADDR_ANY);
-        }
+        res = setMulticastInfoIPv4(channelDataUDPMC, addressAsChar);
 #ifdef UA_IPV6
     } else if(channelDataUDPMC->ai_family == AF_INET6) {
-        setMulticastInfo(channelDataUDPMC, addressAsChar);
+        res = setMulticastInfoIPV6(channelDataUDPMC, addressAsChar);
 #endif
     } else {
         UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_NETWORK,
@@ -263,8 +273,13 @@ configureMulticast(UA_PubSubChannelDataUDPMC *channelDataUDPMC,
                      "unknown address family");
         return UA_STATUSCODE_BADINTERNALERROR;
     }
+    if(res != UA_STATUSCODE_GOOD) {
+        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_NETWORK,
+                     "PubSub Connection creation failed. Multicast setup failed.");
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
     if(networkInterface.length > 0) {
-        UA_StatusCode res = setupNetworkInterface(channelDataUDPMC, &networkInterface);
+        res = setupNetworkInterface(channelDataUDPMC, &networkInterface);
         if(res != UA_STATUSCODE_GOOD) {
             return UA_STATUSCODE_BADINTERNALERROR;
         }
