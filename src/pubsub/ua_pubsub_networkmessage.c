@@ -845,18 +845,18 @@ UA_NetworkMessage_decodePayload(const UA_ByteString *src, size_t *offset, UA_Net
     UA_CHECK_MEM(dst->payload.dataSetPayload.dataSetMessages,
                  return UA_STATUSCODE_BADOUTOFMEMORY);
 
-    for(UA_Byte i = 0; i < count; i++) {
-        if(&dst->payload.dataSetPayload.sizes[i] == NULL){
-            rv = UA_DataSetMessage_decodeBinary(src, offset,
-                                                &(dst->payload.dataSetPayload.dataSetMessages[i]),
-                                                0);
-        } else {
+    if(count == 1)
+        rv = UA_DataSetMessage_decodeBinary(src, offset,
+                                            &(dst->payload.dataSetPayload.dataSetMessages[0]),
+                                            0);
+    else {
+        for(UA_Byte i = 0; i < count; i++) {
             rv = UA_DataSetMessage_decodeBinary(src, offset,
                                                 &(dst->payload.dataSetPayload.dataSetMessages[i]),
                                                 dst->payload.dataSetPayload.sizes[i]);
         }
-        UA_CHECK_STATUS(rv, return rv);
     }
+    UA_CHECK_STATUS(rv, return rv);
 
     return UA_STATUSCODE_GOOD;
 

@@ -10,13 +10,14 @@
 #include <open62541/server.h>
 #include <open62541/server_config_default.h>
 
-#include "ua_network_pubsub_mqtt.h"
+#include <open62541/plugin/pubsub_mqtt.h>
+
 #include "ua_server_internal.h"
 
 #include <check.h>
 
-//#define TEST_MQTT_SERVER "opc.mqtt://test.mosquitto.org:1883/"
-#define TEST_MQTT_SERVER "opc.mqtt://localhost:1883/"
+//#define TEST_MQTT_SERVER "opc.mqtt://test.mosquitto.org:1883"
+#define TEST_MQTT_SERVER "opc.mqtt://localhost:1883"
 
 UA_Server *server = NULL;
 UA_ServerConfig *config = NULL;
