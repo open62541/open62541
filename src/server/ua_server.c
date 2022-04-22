@@ -815,52 +815,37 @@ UA_Server_run_startup(UA_Server *server) {
 
 UA_UInt16
 UA_Server_run_iterate(UA_Server *server, UA_Boolean waitInternal) {
-
-    UA_UInt16 timeout = 0;
-
+    /* Listen on the pubsublayer, but only if the yield function is set.
+     * TODO: Integrate into the EventLoop */
 #if defined(UA_ENABLE_PUBSUB_MQTT)
-    /* Listen on the pubsublayer, but only if the yield function is set */
     UA_PubSubConnection *connection;
     TAILQ_FOREACH(connection, &server->pubSubManager.connections, listEntry){
         UA_PubSubConnection *ps = connection;
         if(ps && ps->channel->yield){
-            ps->channel->yield(ps->channel, timeout);
+            ps->channel->yield(ps->channel, 0);
         }
     }
 #endif
-    /* Process repeated work */
-    UA_DateTime now = UA_DateTime_nowMonotonic();
-    UA_DateTime nextRepeated =
-        server->config.eventLoop->nextCyclicTime(server->config.eventLoop);
-    UA_DateTime latest = now + (UA_MAXTIMEOUT * UA_DATETIME_MSEC);
-    if(nextRepeated > latest)
-        nextRepeated = latest;
-    /* round always to upper value to avoid timeout to be set to 0
-    * if(nextRepeated - now) < (UA_DATETIME_MSEC/2) */
-    if(waitInternal)
-        timeout = (UA_UInt16)(((nextRepeated - now) + (UA_DATETIME_MSEC - 1)) / UA_DATETIME_MSEC);
 
-    server->config.eventLoop->run(server->config.eventLoop, timeout);
+    /* Process timed and network events in the EventLoop */
+    server->config.eventLoop->run(server->config.eventLoop, UA_MAXTIMEOUT);
 
 #if defined(UA_ENABLE_DISCOVERY_MULTICAST) && (UA_MULTITHREADING < 200)
-
     UA_LOCK(&server->serviceMutex);
     if(server->config.mdnsEnabled) {
-
         /* TODO multicastNextRepeat does not consider new input data (requests)
          * on the socket. It will be handled on the next call. if needed, we
          * need to use select with timeout on the multicast socket
          * server->mdnsSocket (see example in mdnsd library) on higher level. */
         UA_DateTime multicastNextRepeat = 0;
-        UA_StatusCode hasNext =
-            iterateMulticastDiscoveryServer(server, &multicastNextRepeat, true);
-        if(hasNext == UA_STATUSCODE_GOOD && multicastNextRepeat < nextRepeated)
-            nextRepeated = multicastNextRepeat;
+        iterateMulticastDiscoveryServer(server, &multicastNextRepeat, true);
     }
     UA_UNLOCK(&server->serviceMutex);
 #endif
 
-    return timeout;
+    /* Return the time until the next scheduled callback */
+    return (UA_UInt16)((server->config.eventLoop->nextCyclicTime(server->config.eventLoop)
+                        - UA_DateTime_nowMonotonic()) / UA_DATETIME_MSEC);
 }
 
 UA_StatusCode
