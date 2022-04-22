@@ -78,7 +78,7 @@ asym_verify_sp_basic256sha256(Basic256Sha256_ChannelContext *cc,
         return UA_STATUSCODE_BADINTERNALERROR;
 
     unsigned char hash[UA_SHA256_LENGTH];
-#if MBEDTLS_VERSION_NUMBER >= 0x02070000
+#if MBEDTLS_VERSION_NUMBER >= 0x02070000 && MBEDTLS_VERSION_NUMBER < 0x03000000
     // TODO check return status
     mbedtls_sha256_ret(message->data, message->length, hash, 0);
 #else
@@ -113,7 +113,7 @@ asym_sign_sp_basic256sha256(Basic256Sha256_ChannelContext *cc,
         return UA_STATUSCODE_BADINTERNALERROR;
 
     unsigned char hash[UA_SHA256_LENGTH];
-#if MBEDTLS_VERSION_NUMBER >= 0x02070000
+#if MBEDTLS_VERSION_NUMBER >= 0x02070000 && MBEDTLS_VERSION_NUMBER < 0x03000000
     // TODO check return status
     mbedtls_sha256_ret(message->data, message->length, hash, 0);
 #else
@@ -131,6 +131,9 @@ asym_sign_sp_basic256sha256(Basic256Sha256_ChannelContext *cc,
     int mbedErr = mbedtls_pk_sign(&pc->localPrivateKey,
                                   MBEDTLS_MD_SHA256, hash,
                                   UA_SHA256_LENGTH, signature->data,
+#if MBEDTLS_VERSION_NUMBER >= 0x03000000
+                                  signature->length,
+#endif
                                   &sigLen, mbedtls_ctr_drbg_random,
                                   &pc->drbgContext);
     if(mbedErr)
@@ -142,28 +145,29 @@ static size_t
 asym_getLocalSignatureSize_sp_basic256sha256(const Basic256Sha256_ChannelContext *cc) {
     if(cc == NULL)
         return 0;
-
-    return mbedtls_pk_rsa(cc->policyContext->localPrivateKey)->len;
+    return mbedtls_rsa_get_len(mbedtls_pk_rsa(cc->policyContext->localPrivateKey));
 }
 
 static size_t
 asym_getRemoteSignatureSize_sp_basic256sha256(const Basic256Sha256_ChannelContext *cc) {
     if(cc == NULL)
         return 0;
-
-    return mbedtls_pk_rsa(cc->remoteCertificate.pk)->len;
+    return mbedtls_rsa_get_len(mbedtls_pk_rsa(cc->remoteCertificate.pk));
 }
 
 static size_t
 asym_getRemoteBlockSize_sp_basic256sha256(const Basic256Sha256_ChannelContext *cc) {
-    mbedtls_rsa_context *const rsaContext = mbedtls_pk_rsa(cc->remoteCertificate.pk);
-    return rsaContext->len;
+    if(cc == NULL)
+        return 0;
+    return mbedtls_rsa_get_len(mbedtls_pk_rsa(cc->remoteCertificate.pk));
 }
 
 static size_t
 asym_getRemotePlainTextBlockSize_sp_basic256sha256(const Basic256Sha256_ChannelContext *cc) {
-    mbedtls_rsa_context *const rsaContext = mbedtls_pk_rsa(cc->remoteCertificate.pk);
-    return rsaContext->len - UA_SECURITYPOLICY_BASIC256SHA256_RSAPADDING_LEN;
+    if(cc == NULL)
+        return 0;
+    return mbedtls_rsa_get_len(mbedtls_pk_rsa(cc->remoteCertificate.pk)) -
+        UA_SECURITYPOLICY_BASIC256SHA256_RSAPADDING_LEN;
 }
 
 
@@ -391,9 +395,9 @@ parseRemoteCertificate_sp_basic256sha256(Basic256Sha256_ChannelContext *cc,
         return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
 
     /* Check the key length */
-    mbedtls_rsa_context *rsaContext = mbedtls_pk_rsa(cc->remoteCertificate.pk);
-    if(rsaContext->len < UA_SECURITYPOLICY_BASIC256SHA256_MINASYMKEYLENGTH ||
-       rsaContext->len > UA_SECURITYPOLICY_BASIC256SHA256_MAXASYMKEYLENGTH)
+    size_t keylen = mbedtls_rsa_get_len(mbedtls_pk_rsa(cc->remoteCertificate.pk));
+    if(keylen < UA_SECURITYPOLICY_BASIC256SHA256_MINASYMKEYLENGTH ||
+       keylen > UA_SECURITYPOLICY_BASIC256SHA256_MAXASYMKEYLENGTH)
         return UA_STATUSCODE_BADCERTIFICATEUSENOTALLOWED;
 
     return UA_STATUSCODE_GOOD;
@@ -582,7 +586,7 @@ updateCertificateAndPrivateKey_sp_basic256sha256(UA_SecurityPolicy *securityPoli
     /* Set the new private key */
     mbedtls_pk_free(&pc->localPrivateKey);
     mbedtls_pk_init(&pc->localPrivateKey);
-    int mbedErr = UA_mbedTLS_LoadPrivateKey(&newPrivateKey, &pc->localPrivateKey);
+    int mbedErr = UA_mbedTLS_LoadPrivateKey(&newPrivateKey, &pc->localPrivateKey, &pc->entropyContext);
     if(mbedErr) {
         retval = UA_STATUSCODE_BADSECURITYCHECKSFAILED;
         goto error;
@@ -658,7 +662,7 @@ policyContext_newContext_sp_basic256sha256(UA_SecurityPolicy *securityPolicy,
     }
 
     /* Set the private key */
-    mbedErr = UA_mbedTLS_LoadPrivateKey(&localPrivateKey, &pc->localPrivateKey);
+    mbedErr = UA_mbedTLS_LoadPrivateKey(&localPrivateKey, &pc->localPrivateKey, &pc->entropyContext);
     if(mbedErr) {
         retval = UA_STATUSCODE_BADSECURITYCHECKSFAILED;
         goto error;

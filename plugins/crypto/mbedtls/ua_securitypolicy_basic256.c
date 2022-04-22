@@ -96,20 +96,22 @@ static size_t
 asym_getLocalSignatureSize_sp_basic256(const Basic256_ChannelContext *cc) {
     if(cc == NULL)
         return 0;
-    return mbedtls_pk_rsa(cc->policyContext->localPrivateKey)->len;
+    return mbedtls_rsa_get_len(mbedtls_pk_rsa(cc->policyContext->localPrivateKey));
 }
 
 static size_t
 asym_getRemoteSignatureSize_sp_basic256(const Basic256_ChannelContext *cc) {
     if(cc == NULL)
         return 0;
-    return mbedtls_pk_rsa(cc->remoteCertificate.pk)->len;
+    return mbedtls_rsa_get_len(mbedtls_pk_rsa(cc->remoteCertificate.pk));
 }
 
 static size_t
 asym_getRemotePlainTextBlockSize_sp_basic256(const Basic256_ChannelContext *cc) {
-    mbedtls_rsa_context *const rsaContext = mbedtls_pk_rsa(cc->remoteCertificate.pk);
-    return rsaContext->len - UA_SECURITYPOLICY_BASIC256SHA1_RSAPADDING_LEN;
+    if(cc == NULL)
+        return 0;
+    return mbedtls_rsa_get_len(mbedtls_pk_rsa(cc->remoteCertificate.pk)) -
+        UA_SECURITYPOLICY_BASIC256SHA1_RSAPADDING_LEN;
 }
 
 /* AsymmetricEncryptionAlgorithm_RSA-OAEP-SHA1 */
@@ -150,8 +152,9 @@ asym_getRemoteEncryptionKeyLength_sp_basic256(const Basic256_ChannelContext *cc)
 
 static size_t
 asym_getRemoteBlockSize_sp_basic256(const Basic256_ChannelContext *cc) {
-    mbedtls_rsa_context *const rsaContext = mbedtls_pk_rsa(cc->remoteCertificate.pk);
-    return rsaContext->len;
+    if(cc == NULL)
+        return 0;
+    return mbedtls_rsa_get_len(mbedtls_pk_rsa(cc->remoteCertificate.pk));
 }
 
 static UA_StatusCode
@@ -341,9 +344,9 @@ parseRemoteCertificate_sp_basic256(Basic256_ChannelContext *cc,
         return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
 
     /* Check the key length */
-    mbedtls_rsa_context *rsaContext = mbedtls_pk_rsa(cc->remoteCertificate.pk);
-    if(rsaContext->len < UA_SECURITYPOLICY_BASIC256_MINASYMKEYLENGTH ||
-       rsaContext->len > UA_SECURITYPOLICY_BASIC256_MAXASYMKEYLENGTH)
+    size_t keylen = mbedtls_rsa_get_len(mbedtls_pk_rsa(cc->remoteCertificate.pk));
+    if(keylen < UA_SECURITYPOLICY_BASIC256_MINASYMKEYLENGTH ||
+       keylen > UA_SECURITYPOLICY_BASIC256_MAXASYMKEYLENGTH)
         return UA_STATUSCODE_BADCERTIFICATEUSENOTALLOWED;
 
     return UA_STATUSCODE_GOOD;
@@ -533,7 +536,7 @@ updateCertificateAndPrivateKey_sp_basic256(UA_SecurityPolicy *securityPolicy,
     mbedtls_pk_free(&pc->localPrivateKey);
     mbedtls_pk_init(&pc->localPrivateKey);
 
-    int mbedErr = UA_mbedTLS_LoadPrivateKey(&newPrivateKey, &pc->localPrivateKey);
+    int mbedErr = UA_mbedTLS_LoadPrivateKey(&newPrivateKey, &pc->localPrivateKey, &pc->entropyContext);
 
     if(mbedErr) {
         retval = UA_STATUSCODE_BADSECURITYCHECKSFAILED;
@@ -610,7 +613,7 @@ policyContext_newContext_sp_basic256(UA_SecurityPolicy *securityPolicy,
     }
 
     /* Set the private key */
-    mbedErr = UA_mbedTLS_LoadPrivateKey(&localPrivateKey, &pc->localPrivateKey);
+    mbedErr = UA_mbedTLS_LoadPrivateKey(&localPrivateKey, &pc->localPrivateKey, &pc->entropyContext);
     if(mbedErr) {
         retval = UA_STATUSCODE_BADSECURITYCHECKSFAILED;
         goto error;
