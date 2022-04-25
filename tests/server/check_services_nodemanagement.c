@@ -591,7 +591,7 @@ START_TEST(InstantiateObjectType) {
 } END_TEST
 
 START_TEST(ObjectWithDynamicVariableChild) {
-    /* Add a ModellingRuleType object */
+    /* Add a ServerRedundancyType object */
     UA_ObjectAttributes attr = UA_ObjectAttributes_default;
     attr.displayName = UA_LOCALIZEDTEXT("en-US","my object with variable child");
 
@@ -601,7 +601,7 @@ START_TEST(ObjectWithDynamicVariableChild) {
     UA_StatusCode res = UA_Server_addObjectNode(server, UA_NODEID_NULL,
                                   UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
                                   UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
-                                  UA_QUALIFIEDNAME(0, "MyObjectWithVariableChild"), UA_NODEID_NUMERIC(0, UA_NS0ID_MODELLINGRULETYPE),
+                                  UA_QUALIFIEDNAME(0, "MyObjectWithVariableChild"), UA_NODEID_NUMERIC(0, UA_NS0ID_SERVERREDUNDANCYTYPE),
                                   attr, NULL, &newObjectId);
     ck_assert_int_eq(res, UA_STATUSCODE_GOOD);
 
@@ -612,7 +612,7 @@ START_TEST(ObjectWithDynamicVariableChild) {
 
     UA_RelativePathElement bpe;
     UA_RelativePathElement_init(&bpe);
-    bpe.targetName = UA_QUALIFIEDNAME(0, "NamingRule");
+    bpe.targetName = UA_QUALIFIEDNAME(0, "RedundancySupport");
     bpe.referenceTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY);
     bp.relativePath.elements = &bpe;
 

@@ -516,6 +516,8 @@ readDiagnostics(UA_Server *server, const UA_NodeId *sessionId, void *sessionCont
 
     switch(nodeId->identifier.numeric) {
     case UA_NS0ID_SERVER_SERVERDIAGNOSTICS_SERVERDIAGNOSTICSSUMMARY:
+        server->serverDiagnosticsSummary.currentSessionCount =
+            server->activeSessionCount;
         data = &server->serverDiagnosticsSummary;
         type = &UA_TYPES[UA_TYPES_SERVERDIAGNOSTICSSUMMARYDATATYPE];
         break;
@@ -523,7 +525,7 @@ readDiagnostics(UA_Server *server, const UA_NodeId *sessionId, void *sessionCont
         data = &server->serverDiagnosticsSummary.serverViewCount;
         break;
     case UA_NS0ID_SERVER_SERVERDIAGNOSTICS_SERVERDIAGNOSTICSSUMMARY_CURRENTSESSIONCOUNT:
-        data = &server->serverDiagnosticsSummary.currentSessionCount;
+        data = &server->activeSessionCount;
         break;
     case UA_NS0ID_SERVER_SERVERDIAGNOSTICS_SERVERDIAGNOSTICSSUMMARY_CUMULATEDSESSIONCOUNT:
         data = &server->serverDiagnosticsSummary.cumulatedSessionCount;

@@ -116,7 +116,7 @@ UA_Subscription_delete(UA_Server *server, UA_Subscription *sub) {
      * the call stack. */
     sub->delayedFreePointers.callback = NULL;
     sub->delayedFreePointers.application = server;
-    sub->delayedFreePointers.data = NULL;
+    sub->delayedFreePointers.context = NULL;
     server->config.eventLoop->
         addDelayedCallback(server->config.eventLoop, &sub->delayedFreePointers);
 }
