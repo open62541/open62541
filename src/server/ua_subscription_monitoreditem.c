@@ -600,7 +600,7 @@ UA_MonitoredItem_delete(UA_Server *server, UA_MonitoredItem *mon) {
      * remove itself in the callback. */
     mon->delayedFreePointers.callback = NULL;
     mon->delayedFreePointers.application = server;
-    mon->delayedFreePointers.data = NULL;
+    mon->delayedFreePointers.context = NULL;
     server->config.eventLoop->
         addDelayedCallback(server->config.eventLoop, &mon->delayedFreePointers);
 }

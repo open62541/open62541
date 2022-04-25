@@ -134,6 +134,11 @@ UA_String_equal(const UA_String *s1, const UA_String *s2) {
     return (stringOrder(s1, s2, NULL) == UA_ORDER_EQ);
 }
 
+UA_Boolean
+UA_String_isEmpty(const UA_String *s) {
+    return (s->length == 0 || s->data == NULL);
+}
+
 /* Do not expose UA_String_equal_ignorecase to public API as it currently only handles
  * ASCII strings, and not UTF8! */
 UA_Boolean

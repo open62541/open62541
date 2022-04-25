@@ -54,6 +54,9 @@ UA_PublishedDataSetConfig_copy(const UA_PublishedDataSetConfig *src,
 UA_PublishedDataSet *
 UA_PublishedDataSet_findPDSbyId(UA_Server *server, UA_NodeId identifier);
 
+UA_PublishedDataSet *
+UA_PublishedDataSet_findPDSbyName(UA_Server *server, UA_String name);
+
 void
 UA_PublishedDataSet_clear(UA_Server *server,
                           UA_PublishedDataSet *publishedDataSet);

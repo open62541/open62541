@@ -45,13 +45,17 @@ typedef struct UA_RegisteredFD UA_RegisteredFD;
 typedef void (*UA_FDCallback)(UA_EventSource *es, UA_RegisteredFD *rfd, short event);
 
 struct UA_RegisteredFD {
-    LIST_ENTRY(UA_RegisteredFD) es_pointers; /* Register FD in the EventSource */
+    UA_DelayedCallback dc; /* Used for async closing. Must be the first member
+                            * because the rfd is freed by the delayed callback
+                            * mechanism. */
 
+    LIST_ENTRY(UA_RegisteredFD) es_pointers; /* Register FD in the EventSource */
     UA_FD fd;
     short listenEvents; /* UA_FDEVENT_IN | UA_FDEVENT_OUT*/
 
     UA_EventSource *es; /* Backpointer to the EventSource */
     UA_FDCallback callback;
+    void *application;
     void *context;
 };
 
@@ -63,9 +67,6 @@ typedef struct {
 
     /* Linked List of Delayed Callbacks */
     UA_DelayedCallback *delayedCallbacks;
-
-    /* Pointers to registered EventSources */
-    UA_EventSource *eventSources;
 
     /* Flag determining whether the eventloop is currently within the
      * "run" method */

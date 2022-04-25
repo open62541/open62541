@@ -57,13 +57,15 @@ UA_Server_removeSession(UA_Server *server, session_list_entry *sentry,
     UA_Session_detachFromSecureChannel(session);
 
     /* Deactivate the session */
-    sentry->session.activated = false;
+    if(sentry->session.activated) {
+        sentry->session.activated = false;
+        server->activeSessionCount--;
+    }
 
     /* Detach the session from the session manager and make the capacity
      * available */
     LIST_REMOVE(sentry, pointers);
     server->sessionCount--;
-    server->serverDiagnosticsSummary.currentSessionCount--;
 
     switch(event) {
     case UA_DIAGNOSTICEVENT_CLOSE:
@@ -90,7 +92,7 @@ UA_Server_removeSession(UA_Server *server, session_list_entry *sentry,
      * scheduled jobs have completed */
     sentry->cleanupCallback.callback = (UA_Callback)removeSessionCallback;
     sentry->cleanupCallback.application = server;
-    sentry->cleanupCallback.data = sentry;
+    sentry->cleanupCallback.context = sentry;
     server->config.eventLoop->
         addDelayedCallback(server->config.eventLoop, &sentry->cleanupCallback);
 }
@@ -217,31 +219,36 @@ UA_Server_createSession(UA_Server *server, UA_SecureChannel *channel,
                         const UA_CreateSessionRequest *request, UA_Session **session) {
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
 
-    if(server->sessionCount >= server->config.maxSessions)
+    if(server->sessionCount >= server->config.maxSessions) {
+        UA_LOG_WARNING_CHANNEL(&server->config.logger, channel,
+                               "Could not create a Session - Server limits reached");
         return UA_STATUSCODE_BADTOOMANYSESSIONS;
+    }
 
     session_list_entry *newentry = (session_list_entry*)
         UA_malloc(sizeof(session_list_entry));
     if(!newentry)
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
-    UA_atomic_addUInt32(&server->sessionCount, 1);
+    /* Initialize the Session */
     UA_Session_init(&newentry->session);
     newentry->session.sessionId = UA_NODEID_GUID(1, UA_Guid_random());
     newentry->session.header.authenticationToken = UA_NODEID_GUID(1, UA_Guid_random());
 
+    newentry->session.timeout = server->config.maxSessionTimeout;
     if(request->requestedSessionTimeout <= server->config.maxSessionTimeout &&
        request->requestedSessionTimeout > 0)
         newentry->session.timeout = request->requestedSessionTimeout;
-    else
-        newentry->session.timeout = server->config.maxSessionTimeout;
 
     /* Attach the session to the channel. But don't activate for now. */
     if(channel)
         UA_Session_attachToSecureChannel(&newentry->session, channel);
     UA_Session_updateLifetime(&newentry->session);
 
+    /* Add to the server */
     LIST_INSERT_HEAD(&server->sessions, newentry, pointers);
+    server->sessionCount++;
+
     *session = &newentry->session;
     return UA_STATUSCODE_GOOD;
 }
@@ -843,7 +850,7 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
     /* Activate the session */
     if(!session->activated) {
         session->activated = true;
-        server->serverDiagnosticsSummary.currentSessionCount++;
+        server->activeSessionCount++;
         server->serverDiagnosticsSummary.cumulatedSessionCount++;
     }
 

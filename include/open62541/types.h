@@ -186,6 +186,9 @@ UA_String_fromChars(const char *src) UA_FUNC_ATTR_WARN_UNUSED_RESULT;
 UA_Boolean UA_EXPORT
 UA_String_equal(const UA_String *s1, const UA_String *s2);
 
+UA_Boolean UA_EXPORT
+UA_String_isEmpty(const UA_String *s);
+
 UA_EXPORT extern const UA_String UA_STRING_NULL;
 
 /**
@@ -1224,6 +1227,10 @@ UA_encodeJson(const void *src, const UA_DataType *type, UA_ByteString *outBuf,
  * Zero-out the entire structure initially to ensure code-compatibility when
  * more fields are added in a later release. */
 typedef struct {
+    const UA_String *namespaces;
+    size_t namespacesSize;
+    const UA_String *serverUris;
+    size_t serverUrisSize;
     const UA_DataTypeArray *customTypes; /* Begin of a linked list with custom
                                           * datatype definitions */
 } UA_DecodeJsonOptions;

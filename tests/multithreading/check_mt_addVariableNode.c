@@ -28,7 +28,7 @@ void checkServer(void) {
         UA_ReadValueId rvi;
         UA_ReadValueId_init(&rvi);
         char string_buf[20];
-        snprintf(string_buf, sizeof(string_buf), "Server %zu", i);
+        snprintf(string_buf, sizeof(string_buf), "Server %u", (unsigned)i);
         rvi.nodeId = UA_NODEID_STRING(1, string_buf);
         rvi.attributeId = UA_ATTRIBUTEID_VALUE;
 
@@ -45,7 +45,7 @@ void checkServer(void) {
         UA_ReadValueId rvi;
         UA_ReadValueId_init(&rvi);
         char string_buf[20];
-        snprintf(string_buf, sizeof(string_buf), "Client %zu", i);
+        snprintf(string_buf, sizeof(string_buf), "Client %u", (unsigned)i);
         rvi.nodeId = UA_NODEID_STRING(1, string_buf);
         rvi.attributeId = UA_ATTRIBUTEID_VALUE;
 
@@ -66,7 +66,7 @@ void server_addVariable(void* value) {
         size_t offset = tmp.index * tmp.upperBound;
         size_t number = offset + tmp.counter;
         char string_buf[20];
-        snprintf(string_buf, sizeof(string_buf), "Server %zu", number);
+        snprintf(string_buf, sizeof(string_buf), "Server %u", (unsigned)number);
         UA_VariableAttributes attr = UA_VariableAttributes_default;
         UA_Int32 myInteger = 42;
         UA_Variant_setScalar(&attr.value, &myInteger, &UA_TYPES[UA_TYPES_INT32]);
@@ -91,7 +91,7 @@ void client_addVariable(void* value){
     size_t offset = tmp.index * tmp.upperBound;
     size_t number = offset + tmp.counter;
     char string_buf[20];
-    snprintf(string_buf, sizeof(string_buf), "Client %zu", number);
+    snprintf(string_buf, sizeof(string_buf), "Client %u", (unsigned)number);
     UA_VariableAttributes attr = UA_VariableAttributes_default;
     attr.description = UA_LOCALIZEDTEXT("en-US", string_buf);
     attr.displayName = UA_LOCALIZEDTEXT("en-US", string_buf);
