@@ -1,6 +1,9 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
 *  License, v. 2.0. If a copy of the MPL was not distributed with this
-*  file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+*  file, You can obtain one at http://mozilla.org/MPL/2.0/.
+*
+*  Copyright 2022 (c) Linutronix GmbH (Author: Muddasir Shakil)
+*/
 
 #include <open62541/client.h>
 #include <open62541/client_config_default.h>
@@ -9,6 +12,7 @@
 #include "server/ua_server_internal.h"
 
 #include <fcntl.h>
+#include <ifaddrs.h>
 
 #include "testing_clock.h"
 #include "thread_wrapper.h"
@@ -648,6 +652,258 @@ START_TEST(Server_registerFindServers) {
 END_TEST
 #endif
 
+#ifdef UA_ENABLE_DISCOVERY_MULTICAST
+
+static char *
+getValidIntefaceIp(int ipVersion) {
+    struct ifaddrs *ifaceAddr;
+    if(getifaddrs(&ifaceAddr) < 0) {
+        return 0;
+    }
+    socklen_t sockAddrLen = ipVersion == AF_INET6 ? INET6_ADDRSTRLEN : INET_ADDRSTRLEN;
+    char *ifaceAddrAsChar = (char *)UA_malloc(sockAddrLen + 1);
+
+    for(struct ifaddrs *ifa = ifaceAddr; ifa != NULL; ifa = ifa->ifa_next) {
+        if(ifa->ifa_addr == NULL || (strcmp("lo", ifa->ifa_name) == 0 ))
+            continue;
+        if(ipVersion == ifa->ifa_addr->sa_family) {
+            if(ipVersion == AF_INET6) {
+                inet_ntop(ipVersion, &((struct sockaddr_in6 *)ifa->ifa_addr)->sin6_addr,
+                          ifaceAddrAsChar, INET6_ADDRSTRLEN);
+            } else {
+                inet_ntop(ipVersion, &((struct sockaddr_in *)ifa->ifa_addr)->sin_addr,
+                          ifaceAddrAsChar, INET_ADDRSTRLEN);
+            }
+            freeifaddrs(ifaceAddr);
+            return ifaceAddrAsChar;
+        }
+    }
+    freeifaddrs(ifaceAddr);
+    return 0;
+}
+
+static void
+setOutboundMdnsInterface(char *InterfaceIpAddr) {
+    running_lds = UA_Boolean_new();
+    *running_lds = true;
+    server_lds = UA_Server_new();
+    configure_lds_server(server_lds);
+    UA_ServerConfig *config = UA_Server_getConfig(server_lds);
+    if(InterfaceIpAddr != NULL)
+        config->mdnsInterfaceIP = UA_String_fromChars(InterfaceIpAddr);
+}
+
+static UA_StatusCode
+testMdnsInterfaceSelection(UA_Server *server, char *iFaceAddrAsChar) {
+    UA_StatusCode retval = UA_STATUSCODE_BAD;
+    UA_SOCKET sock = server->discoveryManager.mdnsSocket;
+    socklen_t addrLength = sizeof(struct sockaddr_storage);
+    struct sockaddr_storage addrStorage;
+    struct sockaddr *sockAddr = (struct sockaddr *)&addrStorage;
+    memset(sockAddr, 0, addrLength);
+    socklen_t addrSize;
+    UA_getsockname(sock, sockAddr, &addrLength);
+    char *sockAddrAsChar = (char *)UA_malloc(addrLength + 1);
+    memset(sockAddrAsChar, 0, addrLength +1);
+    char *tmpAddr = iFaceAddrAsChar;
+    if(sockAddr->sa_family == AF_INET) {
+        struct in_addr interface_addr;
+        addrSize = sizeof(struct in_addr);
+        memset(&interface_addr, 0, addrSize);
+        UA_getsockopt(sock, IPPROTO_IP, IP_MULTICAST_IF,
+                    (char *)&interface_addr, &addrSize);
+        inet_ntop(sockAddr->sa_family, &interface_addr, sockAddrAsChar,
+                  INET_ADDRSTRLEN);
+    }
+#if UA_IPV6
+    else {
+        unsigned int ifIndex6 = 0;
+        addrSize = sizeof(ifIndex6);
+        if(strcmp(iFaceAddrAsChar, "::") == 0) {
+            tmpAddr = getValidIntefaceIp(AF_INET6);
+            /*lo is 1 and default Interface is 2*/
+            ifIndex6 = 2;
+        } else {
+            UA_getsockopt(sock, IPPROTO_IPV6, IPV6_MULTICAST_IF, (char *)&ifIndex6,
+                          &addrSize);
+        }
+        struct ifaddrs *ifaceAddr;
+        if(getifaddrs(&ifaceAddr) < 0) {
+            return UA_STATUSCODE_BAD;
+        }
+        for(struct ifaddrs *ifa = ifaceAddr; ifa != NULL; ifa = ifa->ifa_next) {
+            if(ifa->ifa_addr == NULL)
+                continue;
+            if(ifa->ifa_addr->sa_family == AF_INET6 &&
+               UA_if_nametoindex(ifa->ifa_name) == ifIndex6) {
+                struct sockaddr_in6 *sa = (struct sockaddr_in6 *)ifa->ifa_addr;
+                inet_ntop(AF_INET6, &(sa->sin6_addr), sockAddrAsChar, INET6_ADDRSTRLEN);
+            }
+        }
+        freeifaddrs(ifaceAddr);
+    }
+#endif
+    sockAddrAsChar[addrLength] = '\0';
+    if(strcmp(sockAddrAsChar, tmpAddr) == 0) {
+        retval = UA_STATUSCODE_GOOD;
+    }
+    /* because it gets reallocated getValidIntefaceIp */
+    if(strcmp(iFaceAddrAsChar, "::") == 0)
+        UA_free(tmpAddr);
+
+    UA_free(sockAddrAsChar);
+    return retval;
+}
+
+static void
+cleanup(UA_Server *server) {
+    *running_lds = false;
+    UA_Server_run_shutdown(server);
+    UA_Boolean_delete(running_lds);
+    UA_Server_delete(server);
+}
+
+START_TEST(No_mdns_interface_selection) {
+    char *defaultIfaceIPv4 = "0.0.0.0";
+    setOutboundMdnsInterface(NULL);
+    UA_Server_run_startup(server_lds);
+    if(server_lds->discoveryManager.mdnsSocket == UA_INVALID_SOCKET) {
+        cleanup(server_lds);
+        ck_abort_msg("Expected a valid socket");
+    }
+    if(testMdnsInterfaceSelection(server_lds, defaultIfaceIPv4) != UA_STATUSCODE_GOOD) {
+        cleanup(server_lds);
+        ck_abort_msg(
+            "Expected IP_MULTICAST_IF address to be equal to requested IP address");
+    }
+    cleanup(server_lds);
+}
+END_TEST
+
+START_TEST(Add_interface_with_valid_ipv4_address) {
+    char *ipAddrAsChar = getValidIntefaceIp(AF_INET);
+    setOutboundMdnsInterface(ipAddrAsChar);
+    UA_Server_run_startup(server_lds);
+    if(server_lds->discoveryManager.mdnsSocket == UA_INVALID_SOCKET) {
+        cleanup(server_lds);
+        ck_abort_msg("Expected a valid socket");
+    }
+    if(testMdnsInterfaceSelection(server_lds, ipAddrAsChar) != UA_STATUSCODE_GOOD) {
+        cleanup(server_lds);
+        ck_abort_msg(
+            "Expected IP_MULTICAST_IF address to be equal to requested IP address");
+    }
+    cleanup(server_lds);
+    UA_free(ipAddrAsChar);
+}
+END_TEST
+
+START_TEST(Add_interface_with_invalid_ipv4_address) {
+    char *ipAddrAsChar = "99.99.99:99";
+    setOutboundMdnsInterface(ipAddrAsChar);
+    UA_Server_run_startup(server_lds);
+    if(server_lds->discoveryManager.mdnsSocket != UA_INVALID_SOCKET) {
+        cleanup(server_lds);
+        ck_abort_msg("Expected an invalid socket");
+    }
+    if(testMdnsInterfaceSelection(server_lds, ipAddrAsChar) != UA_STATUSCODE_BAD) {
+        cleanup(server_lds);
+        ck_abort_msg(
+            "Expected IP_MULTICAST_IF address not to be equal to the requested address");
+    }
+    cleanup(server_lds);
+}
+END_TEST
+
+START_TEST(Add_interface_with_wrong_ipv4_address) {
+    char *ipAddrAsChar = "99.99.99.99";
+    setOutboundMdnsInterface(ipAddrAsChar);
+    UA_Server_run_startup(server_lds);
+    if(server_lds->discoveryManager.mdnsSocket != UA_INVALID_SOCKET) {
+        cleanup(server_lds);
+        ck_abort_msg("Expected an invalid socket");
+    }
+    if(testMdnsInterfaceSelection(server_lds, ipAddrAsChar) != UA_STATUSCODE_BAD) {
+        cleanup(server_lds);
+        ck_abort_msg("Expected IP_MULTICAST_IF address not to be equal to the assigned "
+                     "IP address");
+    }
+    cleanup(server_lds);
+}
+END_TEST
+
+#if UA_IPV6
+START_TEST(Add_interface_with_valid_ipv6_address) {
+    char *ipAddrAsChar = getValidIntefaceIp(AF_INET6);
+    setOutboundMdnsInterface(ipAddrAsChar);
+    UA_Server_run_startup(server_lds);
+    if(server_lds->discoveryManager.mdnsSocket == UA_INVALID_SOCKET) {
+        cleanup(server_lds);
+        ck_abort_msg("Expected an valid socket");
+    }
+    if(testMdnsInterfaceSelection(server_lds, ipAddrAsChar) != UA_STATUSCODE_GOOD) {
+        cleanup(server_lds);
+        ck_abort_msg(
+            "Expected IPV6_MULTICAST_IF address to be equal to the assigned IP address");
+    }
+    cleanup(server_lds);
+    free(ipAddrAsChar);
+}
+END_TEST
+
+START_TEST(Add_interface_with_invalid_ipv6_address) {
+    char *ipAddrAsChar = "56FE::2159:5BBC::6594";
+    setOutboundMdnsInterface(ipAddrAsChar);
+    UA_Server_run_startup(server_lds);
+    if(server_lds->discoveryManager.mdnsSocket != UA_INVALID_SOCKET) {
+        cleanup(server_lds);
+        ck_abort_msg("Expected an invalid socket");
+    }
+    if(testMdnsInterfaceSelection(server_lds, ipAddrAsChar) != UA_STATUSCODE_BAD) {
+        cleanup(server_lds);
+        ck_abort_msg("Expected IPV6_MULTICAST_IF address not to be equal to the assigned "
+                     "IP address");
+    }
+    cleanup(server_lds);
+}
+END_TEST
+
+START_TEST(Add_interface_with_wrong_ipv6_address) {
+    char *ipAddrAsChar = "fe80::646c";
+    setOutboundMdnsInterface(ipAddrAsChar);
+    UA_Server_run_startup(server_lds);
+    if(server_lds->discoveryManager.mdnsSocket != UA_INVALID_SOCKET) {
+        cleanup(server_lds);
+        ck_abort_msg("Expected an invalid socket");
+    }
+    if(testMdnsInterfaceSelection(server_lds, ipAddrAsChar) != UA_STATUSCODE_BAD) {
+        cleanup(server_lds);
+        ck_abort_msg("Expected IPV6_MULTICAST_IF address not to be equal to the assigned "
+                     "IP address");
+    }
+    cleanup(server_lds);
+}
+END_TEST
+
+START_TEST(Add_default_interface_ipv6) {
+    char *ipAddrAsChar = "::";
+    setOutboundMdnsInterface(ipAddrAsChar);
+    UA_Server_run_startup(server_lds);
+    if(server_lds->discoveryManager.mdnsSocket == UA_INVALID_SOCKET) {
+        cleanup(server_lds);
+        ck_abort_msg("Expected an valid socket");
+    }
+    if(testMdnsInterfaceSelection(server_lds, ipAddrAsChar) == UA_STATUSCODE_BAD) {
+        cleanup(server_lds);
+        ck_abort_msg("Expected IPV6_MULTICAST_IF address to be equal to the requested "
+                     "IP address");
+    }
+    cleanup(server_lds);
+}
+END_TEST
+#endif /*endif UA_IPV6*/
+#endif  // End #ifdef UA_ENABLE_DISCOVERY_MULTICAST
+
 static Suite* testSuite_Client(void) {
     Suite *s = suite_create("Register Server and Client");
 
@@ -683,6 +939,21 @@ static Suite* testSuite_Client(void) {
     tcase_set_timeout(tc_register_timeout, checkWait+2);
     tcase_add_test(tc_register_timeout, Server_registerTimeout);
     suite_add_tcase(s,tc_register_timeout);
+#ifdef UA_ENABLE_DISCOVERY_MULTICAST
+    TCase *tc_mdns_interface_selection = tcase_create("MDNS Interface Selection");
+    // test mdns socket
+    tcase_add_test(tc_mdns_interface_selection, No_mdns_interface_selection);
+    tcase_add_test(tc_mdns_interface_selection, Add_interface_with_valid_ipv4_address);
+    tcase_add_test(tc_mdns_interface_selection, Add_interface_with_invalid_ipv4_address);
+    tcase_add_test(tc_mdns_interface_selection, Add_interface_with_wrong_ipv4_address);
+#if UA_IPV6
+    tcase_add_test(tc_mdns_interface_selection, Add_interface_with_valid_ipv6_address);
+    tcase_add_test(tc_mdns_interface_selection, Add_interface_with_invalid_ipv6_address);
+    tcase_add_test(tc_mdns_interface_selection, Add_interface_with_wrong_ipv6_address);
+    tcase_add_test(tc_mdns_interface_selection, Add_default_interface_ipv6);
+    suite_add_tcase(s, tc_mdns_interface_selection);
+#endif
+#endif
     return s;
 }
 
