@@ -4,6 +4,7 @@
  *
  *    Copyright 2021-2022 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
  *    Copyright 2021 (c) Fraunhofer IOSB (Author: Jan Hermes)
+ *    Copyright 2022 (c) Linutronix GmbH (Author: Muddasir Shakil)
  */
 
 #include "eventloop_posix.h"
@@ -778,7 +779,42 @@ TCP_openActiveConnection(UA_ConnectionManager *cm, const UA_KeyValueMap *params,
                        "TCP\t| Lookup of %s failed (%s)",
                        hostname, gai_strerror(error));
 #endif
+
+#if defined(UA_ENABLE_DISCOVERY) && defined(UA_ENABLE_DISCOVERY_MULTICAST)
+        char *domain = ".local";
+        size_t len = strlen(domain);
+        char *localdomainhostname = (char *)UA_malloc(len + addr->length + 1);
+
+        if(!localdomainhostname) {
+            UA_LOG_ERROR(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
+                         "Cannot alloc memory for localdomainhostname");
+            return UA_STATUSCODE_BADINTERNALERROR;
+        }
+
+        UA_snprintf(localdomainhostname, len + addr->length + 1, "%s%s", hostname,
+                    domain);
+        localdomainhostname[len + addr->length + 1] = '\0';
+
+        UA_LOG_INFO(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
+                    "TCP\t| Trying mDNS lookup for %s", localdomainhostname);
+        error = getaddrinfo(localdomainhostname, portStr, &hints, &info);
+        UA_free(localdomainhostname);
+
+        if(error != 0) {
+#ifdef _WIN32
+            UA_LOG_SOCKET_ERRNO_WRAP(UA_LOG_WARNING(
+                el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
+                "TCP\t| mDNS Lookup of %s failed (%s)", localdomainhostname, errno_str));
+#else
+            UA_LOG_WARNING(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
+                           "TCP\t| mDNS Lookup of %s failed (%s)", localdomainhostname,
+                           gai_strerror(error));
+            return UA_STATUSCODE_BADINTERNALERROR;
+#endif
+        }
+#else
         return UA_STATUSCODE_BADINTERNALERROR;
+#endif /* UA_ENABLE_DISCOVERY_MULTICAST && UA_ENABLE_DISCOVERY */
     }
 
     /* Create a socket */
