@@ -268,7 +268,7 @@ setMulticastInterface(UA_Server *server, UA_SOCKET sock,
 static UA_SOCKET
 bindMdnsSocket(UA_SOCKET mdnsSocket, UA_Int32 ipVersion) {
     struct sockaddr_storage mdnsBindAddr;
-    memset(&mdnsBindAddr,0, sizeof(struct sockaddr_storage));
+    memset(&mdnsBindAddr, 0, sizeof(struct sockaddr_storage));
     UA_UInt16 mDNSPort = htons(5353);
     if(ipVersion == AF_INET) {
         struct sockaddr_in *in = (struct sockaddr_in *)&mdnsBindAddr;

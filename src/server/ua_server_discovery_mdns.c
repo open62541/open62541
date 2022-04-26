@@ -4,6 +4,8 @@
  *
  *    Copyright 2017 (c) Stefan Profanter, fortiss GmbH
  *    Copyright 2017 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
+ *    Copyright 2022 (c) Linutronix GmbH (Author: Muddasir Shakil)
+ *
  */
 
 #include "ua_server_internal.h"
@@ -492,12 +494,17 @@ mdns_find_record(mdns_daemon_t *mdnsDaemon, unsigned short type,
 static void
 mdns_set_address_record_if(UA_DiscoveryManager *dm, const char *fullServiceDomain,
                            const char *localDomain, char *addr, UA_UInt16 addr_len) {
+
+    unsigned short record_type = QTYPE_A;
+    if (addr_len ==16){
+        record_type = QTYPE_AAAA;
+    }
     /* [servername]-[hostname]._opcua-tcp._tcp.local. A [ip]. */
-    mdns_record_t *r = mdnsd_shared(dm->mdnsDaemon, fullServiceDomain, QTYPE_A, 600);
+    mdns_record_t *r = mdnsd_shared(dm->mdnsDaemon, fullServiceDomain, record_type, 600);
     mdnsd_set_raw(dm->mdnsDaemon, r, addr, addr_len);
 
     /* [hostname]. A [ip]. */
-    r = mdnsd_shared(dm->mdnsDaemon, localDomain, QTYPE_A, 600);
+    r = mdnsd_shared(dm->mdnsDaemon, localDomain, record_type, 600);
     mdnsd_set_raw(dm->mdnsDaemon, r, addr, addr_len);
 }
 
@@ -589,8 +596,14 @@ mdns_set_address_record(UA_Server *server, const char *fullServiceDomain,
             mdns_set_address_record_if(&server->discoveryManager, fullServiceDomain,
                                        localDomain, (char*)&sa->sin_addr.s_addr, 4);
         }
-
-        /* IPv6 not implemented yet */
+#ifdef UA_IPV6
+        /* IPv6 record */
+        if(ifa->ifa_addr->sa_family == AF_INET6) {
+            struct sockaddr_in6* sa = (struct sockaddr_in6*) ifa->ifa_addr;
+            mdns_set_address_record_if(&server->discoveryManager, fullServiceDomain,
+                                       localDomain,(char*)&sa->sin6_addr ,16);
+        }
+#endif /*UA_IPV6*/
     }
 
     /* Clean up */
