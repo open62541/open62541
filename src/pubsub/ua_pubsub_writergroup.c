@@ -226,7 +226,7 @@ UA_Server_freezeWriterGroupConfiguration(UA_Server *server,
         if(!pds) {
             if (UA_NodeId_isNull(&dsw->connectedDataSet)) {
                 UA_StatusCode res1 =
-                        UA_DataSetWriter_generateDataSetMessageHeartbeat(server,
+                        UA_DataSetWriter_generateDataSetMessage(server,
                                 &dsmStore[dsmCount], dsw);
                 if (res1 != UA_STATUSCODE_GOOD) {
                     UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
@@ -281,11 +281,7 @@ UA_Server_freezeWriterGroupConfiguration(UA_Server *server,
         }
 
         /* Generate the DSM */
-        if(!pds) {
-            res = UA_DataSetWriter_generateDataSetMessageHeartbeat(server, &dsmStore[dsmCount], dsw);
-        } else {
-            res = UA_DataSetWriter_generateDataSetMessage(server, &dsmStore[dsmCount], dsw);
-        }
+        res = UA_DataSetWriter_generateDataSetMessage(server, &dsmStore[dsmCount], dsw);
         if(res != UA_STATUSCODE_GOOD) {
             UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
                            "PubSub RT Offset calculation: DataSetMessage buffering failed");
