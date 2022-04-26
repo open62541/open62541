@@ -154,11 +154,6 @@ UA_StatusCode
 UA_DataSetWriter_remove(UA_Server *server, UA_WriterGroup *linkedWriterGroup,
                         UA_DataSetWriter *dataSetWriter);
 
-UA_StatusCode
-UA_DataSetWriter_generateDataSetMessageHeartbeat(UA_Server *server,
-                                                 UA_DataSetMessage *dataSetMessage,
-                                                 UA_DataSetWriter *dataSetWriter);
-
 /**********************************************/
 /*               WriterGroup                  */
 /**********************************************/

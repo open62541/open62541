@@ -1431,7 +1431,7 @@ UA_DataSetMessage_encodeBinary(const UA_DataSetMessage* src, UA_Byte **bufPos,
     UA_CHECK_STATUS(rv, return rv);
 
     if(src->data.keyFrameData.fieldCount == 0) {
-        /* That's a heartbeat - nothing more to encode */
+        /* Heartbeat: "DataSetMessage is a key frame that only contains header information" */
         return rv;
     }
 
@@ -1500,10 +1500,10 @@ UA_DataSetMessage_decodeBinary(const UA_ByteString *src, size_t *offset, UA_Data
 
     if(dst->header.dataSetMessageType == UA_DATASETMESSAGE_DATAKEYFRAME) {
         if(*offset == src->length) {
-            /* Message ends after the header, that's a heartbeat */
+            /* Messages ends after the header --> Heartbeat */
             return rv;
         }
-        
+
         switch(dst->header.fieldEncoding) {
             case UA_FIELDENCODING_VARIANT:
             {
