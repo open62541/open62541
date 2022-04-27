@@ -3,6 +3,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  *
  * Copyright (c) 2019 Kalycito Infotech Private Limited
+ * Copyright (c) 2022 Fraunhofer IOSB (Author: Andreas Ebner)
  */
 
 #include <open62541/plugin/pubsub_udp.h>
@@ -620,7 +621,6 @@ START_TEST(SinglePublishSubscribeDateTime) {
         writerGroupConfig.writerGroupId = WRITER_GROUP_ID;
         writerGroupConfig.encodingMimeType = UA_PUBSUB_ENCODING_UADP;
         retVal |= UA_Server_addWriterGroup(server, connectionId, &writerGroupConfig, &writerGroup);
-        UA_Server_setWriterGroupOperational(server, writerGroup);
         /* DataSetWriter */
         UA_DataSetWriterConfig dataSetWriterConfig;
         memset(&dataSetWriterConfig, 0, sizeof(dataSetWriterConfig));
@@ -636,7 +636,6 @@ START_TEST(SinglePublishSubscribeDateTime) {
         readerGroupConfig.name = UA_STRING ("ReaderGroup Test");
         retVal |=  UA_Server_addReaderGroup (server, connectionId, &readerGroupConfig, &readerGroupId);
         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
-        UA_Server_setReaderGroupOperational(server, readerGroupId);
         /* Data Set Reader */
         memset (&readerConfig, 0, sizeof (UA_DataSetReaderConfig));
         readerConfig.name = UA_STRING ("DataSetReader Test");
@@ -671,10 +670,10 @@ START_TEST(SinglePublishSubscribeDateTime) {
         UA_free(readerConfig.subscribedDataSet.subscribedDataSetTarget.targetVariables);
 
         /* run server - publisher and subscriber */
-        UA_fakeSleep(PUBLISH_INTERVAL + 1);
-        UA_Server_run_iterate(server,true);
-        UA_fakeSleep(PUBLISH_INTERVAL + 1);
-        UA_Server_run_iterate(server,true);
+        retVal |= UA_Server_setWriterGroupOperational(server, writerGroup);
+        ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+        UA_Server_setReaderGroupOperational(server, readerGroupId);
+        ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
         UA_free(pMetaData->fields);
 }END_TEST
 
@@ -710,7 +709,6 @@ START_TEST(SinglePublishSubscribeDateTimeRaw) {
         writerGroupConfig.writerGroupId = WRITER_GROUP_ID;
         writerGroupConfig.encodingMimeType = UA_PUBSUB_ENCODING_UADP;
         retVal |= UA_Server_addWriterGroup(server, connectionId, &writerGroupConfig, &writerGroup);
-        UA_Server_setWriterGroupOperational(server, writerGroup);
         /* DataSetWriter */
         UA_DataSetWriterConfig dataSetWriterConfig;
         memset(&dataSetWriterConfig, 0, sizeof(dataSetWriterConfig));
@@ -727,7 +725,6 @@ START_TEST(SinglePublishSubscribeDateTimeRaw) {
         readerGroupConfig.name = UA_STRING ("ReaderGroup Test");
         retVal |=  UA_Server_addReaderGroup (server, connectionId, &readerGroupConfig, &readerGroupId);
         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
-        UA_Server_setReaderGroupOperational(server, readerGroupId);
         /* Data Set Reader */
         memset (&readerConfig, 0, sizeof (UA_DataSetReaderConfig));
         readerConfig.name = UA_STRING ("DataSetReader Test");
@@ -762,10 +759,10 @@ START_TEST(SinglePublishSubscribeDateTimeRaw) {
         UA_free(readerConfig.subscribedDataSet.subscribedDataSetTarget.targetVariables);
 
         /* run server - publisher and subscriber */
-        UA_fakeSleep(PUBLISH_INTERVAL + 1);
-        UA_Server_run_iterate(server,true);
-        UA_fakeSleep(PUBLISH_INTERVAL + 1);
-        UA_Server_run_iterate(server,true);
+        retVal |= UA_Server_setWriterGroupOperational(server, writerGroup);
+        ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+        UA_Server_setReaderGroupOperational(server, readerGroupId);
+        ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
         UA_free(pMetaData->fields);
 }END_TEST
 
@@ -831,7 +828,6 @@ START_TEST(SinglePublishSubscribeInt32) {
             (UA_UadpNetworkMessageContentMask)UA_UADPNETWORKMESSAGECONTENTMASK_PAYLOADHEADER;
         writerGroupConfig.messageSettings.content.decoded.data = writerGroupMessage;
         retVal |= UA_Server_addWriterGroup(server, connectionId, &writerGroupConfig, &writerGroup);
-        UA_Server_setWriterGroupOperational(server, writerGroup);
         UA_UadpWriterGroupMessageDataType_delete(writerGroupMessage);
         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
 
@@ -850,7 +846,6 @@ START_TEST(SinglePublishSubscribeInt32) {
         memset (&readerGroupConfig, 0, sizeof (UA_ReaderGroupConfig));
         readerGroupConfig.name = UA_STRING ("ReaderGroup Test");
         retVal |=  UA_Server_addReaderGroup(server, connectionId, &readerGroupConfig, &readerGroupId);
-        UA_Server_setReaderGroupOperational(server, readerGroupId);
         /* Data Set Reader */
         /* Parameters to filter received NetworkMessage */
         memset (&readerConfig, 0, sizeof (UA_DataSetReaderConfig));
@@ -904,10 +899,10 @@ START_TEST(SinglePublishSubscribeInt32) {
         UA_free(pMetaData->fields);
 
         /* run server - publisher and subscriber */
-        UA_fakeSleep(PUBLISH_INTERVAL + 1);
-        UA_Server_run_iterate(server,true);
-        UA_fakeSleep(PUBLISH_INTERVAL + 1);
-        UA_Server_run_iterate(server,true);
+        retVal |= UA_Server_setWriterGroupOperational(server, writerGroup);
+        ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+        UA_Server_setReaderGroupOperational(server, readerGroupId);
+        ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
 
         checkReceived();
 } END_TEST
@@ -974,7 +969,6 @@ START_TEST(SinglePublishSubscribeInt64) {
             (UA_UadpNetworkMessageContentMask)UA_UADPNETWORKMESSAGECONTENTMASK_PAYLOADHEADER;
         writerGroupConfig.messageSettings.content.decoded.data = writerGroupMessage;
         retVal |= UA_Server_addWriterGroup(server, connectionId, &writerGroupConfig, &writerGroup);
-        UA_Server_setWriterGroupOperational(server, writerGroup);
         UA_UadpWriterGroupMessageDataType_delete(writerGroupMessage);
         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
 
@@ -994,7 +988,6 @@ START_TEST(SinglePublishSubscribeInt64) {
         readerGroupConfig.name = UA_STRING ("ReaderGroup Test");
         retVal |=  UA_Server_addReaderGroup(server, connectionId,
                                             &readerGroupConfig, &readerGroupId);
-        UA_Server_setReaderGroupOperational(server, readerGroupId);
         /* Data Set Reader */
         /* Parameters to filter received NetworkMessage */
         memset (&readerConfig, 0, sizeof (UA_DataSetReaderConfig));
@@ -1051,10 +1044,10 @@ START_TEST(SinglePublishSubscribeInt64) {
         UA_free(pMetaData->fields);
 
         /* run server - publisher and subscriber */
-        UA_fakeSleep(PUBLISH_INTERVAL + 1);
-        UA_Server_run_iterate(server,true);
-        UA_fakeSleep(PUBLISH_INTERVAL + 1);
-        UA_Server_run_iterate(server,true);
+        retVal |= UA_Server_setWriterGroupOperational(server, writerGroup);
+        ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+        UA_Server_setReaderGroupOperational(server, readerGroupId);
+        ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
 
         checkReceived();
 } END_TEST
@@ -1122,7 +1115,6 @@ START_TEST(SinglePublishSubscribeBool) {
         writerGroupConfig.messageSettings.content.decoded.data = writerGroupMessage;
         retVal |= UA_Server_addWriterGroup(server, connectionId, &writerGroupConfig, &writerGroup);
         UA_UadpWriterGroupMessageDataType_delete(writerGroupMessage);
-        UA_Server_setWriterGroupOperational(server, writerGroup);
         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
 
         /* DataSetWriter */
@@ -1141,7 +1133,6 @@ START_TEST(SinglePublishSubscribeBool) {
         readerGroupConfig.name = UA_STRING ("ReaderGroup Test");
         retVal |=  UA_Server_addReaderGroup(server, connectionId,
                                             &readerGroupConfig, &readerGroupId);
-        UA_Server_setReaderGroupOperational(server, readerGroupId);
         /* Data Set Reader */
         /* Parameters to filter received NetworkMessage */
         memset (&readerConfig, 0, sizeof (UA_DataSetReaderConfig));
@@ -1198,10 +1189,10 @@ START_TEST(SinglePublishSubscribeBool) {
         UA_free(pMetaData->fields);
 
         /* run server - publisher and subscriber */
-        UA_fakeSleep(PUBLISH_INTERVAL + 1);
-        UA_Server_run_iterate(server,true);
-        UA_fakeSleep(PUBLISH_INTERVAL + 1);
-        UA_Server_run_iterate(server,true);
+        retVal |= UA_Server_setWriterGroupOperational(server, writerGroup);
+        ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+        UA_Server_setReaderGroupOperational(server, readerGroupId);
+        ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
 
         checkReceived();
 } END_TEST
@@ -1270,7 +1261,7 @@ START_TEST(SinglePublishSubscribewithValidIdentifiers) {
             (UA_UadpNetworkMessageContentMask)UA_UADPNETWORKMESSAGECONTENTMASK_PAYLOADHEADER;
         writerGroupConfig.messageSettings.content.decoded.data = writerGroupMessage;
         retVal |= UA_Server_addWriterGroup(server, connectionId, &writerGroupConfig, &writerGroup);
-        UA_Server_setWriterGroupOperational(server, writerGroup);
+        ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
         UA_UadpWriterGroupMessageDataType_delete(writerGroupMessage);
         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
 
@@ -1289,7 +1280,6 @@ START_TEST(SinglePublishSubscribewithValidIdentifiers) {
         memset (&readerGroupConfig, 0, sizeof (UA_ReaderGroupConfig));
         readerGroupConfig.name = UA_STRING ("ReaderGroup Test");
         retVal |=  UA_Server_addReaderGroup(server, connectionId, &readerGroupConfig, &readerGroupId);
-        UA_Server_setReaderGroupOperational(server, readerGroupId);
         /* Data Set Reader */
         /* Parameters to filter received NetworkMessage */
         memset (&readerConfig, 0, sizeof (UA_DataSetReaderConfig));
@@ -1327,6 +1317,7 @@ START_TEST(SinglePublishSubscribewithValidIdentifiers) {
         vAttr.displayName.locale    = UA_STRING ("en-US");
         vAttr.displayName.text      = UA_STRING ("Subscribed Integer");
         vAttr.valueRank             = -1;
+        vAttr.dataType    = UA_TYPES[UA_TYPES_UINT32].typeId;
         retVal = UA_Server_addVariableNode(server, UA_NODEID_NUMERIC(1, SUBSCRIBEVARIABLE_NODEID), folderId,
                                            UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
                                            UA_QUALIFIEDNAME(1, "Subscribed Integer"),
@@ -1346,12 +1337,91 @@ START_TEST(SinglePublishSubscribewithValidIdentifiers) {
         UA_free(pMetaData->fields);
 
         /* run server - publisher and subscriber */
-        UA_fakeSleep(PUBLISH_INTERVAL + 1);
-        UA_Server_run_iterate(server,true);
-        UA_fakeSleep(PUBLISH_INTERVAL + 1);
-        UA_Server_run_iterate(server,true);
+        retVal |= UA_Server_setWriterGroupOperational(server, writerGroup);
+        ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+        UA_Server_setReaderGroupOperational(server, readerGroupId);
+        ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
 
         checkReceived();
+} END_TEST
+
+START_TEST(SinglePublishSubscribeHeartbeat) {
+    UA_StatusCode retVal = UA_STATUSCODE_GOOD;
+    UA_NodeId dataSetWriter;
+    UA_NodeId readerIdentifier;
+    UA_NodeId writerGroup;
+    UA_DataSetReaderConfig readerConfig;
+
+    UA_WriterGroupConfig writerGroupConfig;
+    memset(&writerGroupConfig, 0, sizeof(writerGroupConfig));
+    writerGroupConfig.name               = UA_STRING("WriterGroup Test");
+    writerGroupConfig.publishingInterval = PUBLISH_INTERVAL;
+    writerGroupConfig.enabled            = UA_FALSE;
+    writerGroupConfig.writerGroupId      = WRITER_GROUP_ID;
+    writerGroupConfig.encodingMimeType   = UA_PUBSUB_ENCODING_UADP;
+    writerGroupConfig.messageSettings.encoding             = UA_EXTENSIONOBJECT_DECODED;
+    writerGroupConfig.messageSettings.content.decoded.type = &UA_TYPES[UA_TYPES_UADPWRITERGROUPMESSAGEDATATYPE];
+    UA_UadpWriterGroupMessageDataType *writerGroupMessage  = UA_UadpWriterGroupMessageDataType_new();
+    writerGroupMessage->networkMessageContentMask =
+        (UA_UadpNetworkMessageContentMask)UA_UADPNETWORKMESSAGECONTENTMASK_PUBLISHERID |
+        (UA_UadpNetworkMessageContentMask)UA_UADPNETWORKMESSAGECONTENTMASK_GROUPHEADER |
+        (UA_UadpNetworkMessageContentMask)UA_UADPNETWORKMESSAGECONTENTMASK_WRITERGROUPID |
+        (UA_UadpNetworkMessageContentMask)UA_UADPNETWORKMESSAGECONTENTMASK_PAYLOADHEADER;
+    writerGroupConfig.messageSettings.content.decoded.data = writerGroupMessage;
+    retVal |= UA_Server_addWriterGroup(server, connectionId, &writerGroupConfig, &writerGroup);
+
+    UA_UadpWriterGroupMessageDataType_delete(writerGroupMessage);
+    ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+
+    UA_DataSetWriterConfig dataSetWriterConfig;
+    memset(&dataSetWriterConfig, 0, sizeof(dataSetWriterConfig));
+    dataSetWriterConfig.name            = UA_STRING("DataSetWriter Test");
+    dataSetWriterConfig.dataSetWriterId = DATASET_WRITER_ID;
+    dataSetWriterConfig.keyFrameCount   = 1;
+    retVal |= UA_Server_addDataSetWriter(server, writerGroup, UA_NODEID_NULL,
+                                         &dataSetWriterConfig, &dataSetWriter);
+    ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+
+    UA_ReaderGroupConfig readerGroupConfig;
+    memset (&readerGroupConfig, 0, sizeof (UA_ReaderGroupConfig));
+    readerGroupConfig.name = UA_STRING ("ReaderGroup Test");
+    retVal |=  UA_Server_addReaderGroup(server, connectionId, &readerGroupConfig, &readerGroupId);
+
+    memset (&readerConfig, 0, sizeof (UA_DataSetReaderConfig));
+    readerConfig.name             = UA_STRING ("DataSetReader Test");
+    UA_UInt16 publisherIdentifier = PUBLISHER_ID;
+    readerConfig.publisherId.type = &UA_TYPES[UA_TYPES_UINT16];
+    readerConfig.publisherId.data = &publisherIdentifier;
+    readerConfig.writerGroupId    = WRITER_GROUP_ID;
+    readerConfig.dataSetWriterId  = DATASET_WRITER_ID;
+    /* Setting up Meta data configuration in DataSetReader */
+    UA_DataSetMetaDataType *pMetaData = &readerConfig.dataSetMetaData;
+    /* FilltestMetadata function in subscriber implementation */
+    UA_DataSetMetaDataType_init (pMetaData);
+    pMetaData->name       = UA_STRING ("DataSet Test 2");
+    /* Static definition of number of fields size to 1 to create one targetVariable */
+    pMetaData->fieldsSize = 0;
+    pMetaData->fields     = NULL;
+    retVal |= UA_Server_addDataSetReader(server, readerGroupId, &readerConfig,
+                                         &readerIdentifier);
+    ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+    ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+    UA_FieldTargetVariable targetVar;
+    memset(&targetVar, 0, sizeof(UA_FieldTargetVariable));
+    /* For creating Targetvariable */
+/*    UA_FieldTargetDataType_init(&targetVar.targetVariable);
+    targetVar.targetVariable.attributeId  = UA_ATTRIBUTEID_VALUE;
+    targetVar.targetVariable.targetNodeId = newnodeId;
+    retVal |= UA_Server_DataSetReader_createTargetVariables(server, readerIdentifier,
+                                                            1, &targetVar);*/
+    ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+    //UA_FieldTargetDataType_clear(&targetVar.targetVariable);
+    UA_free(pMetaData->fields);
+    retVal |= UA_Server_setWriterGroupOperational(server, writerGroup);
+    ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+    UA_Server_setReaderGroupOperational(server, readerGroupId);
+    ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+
 } END_TEST
 
 /* Have two readers listening for the same writer */
@@ -1416,7 +1486,6 @@ START_TEST(MultiPublishSubscribeInt32) {
         (UA_UadpNetworkMessageContentMask)UA_UADPNETWORKMESSAGECONTENTMASK_PAYLOADHEADER;
     writerGroupConfig.messageSettings.content.decoded.data = writerGroupMessage;
     retVal |= UA_Server_addWriterGroup(server, connectionId, &writerGroupConfig, &writerGroup);
-    UA_Server_setWriterGroupOperational(server, writerGroup);
     UA_UadpWriterGroupMessageDataType_delete(writerGroupMessage);
     ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
 
@@ -1435,7 +1504,6 @@ START_TEST(MultiPublishSubscribeInt32) {
     memset (&readerGroupConfig, 0, sizeof (UA_ReaderGroupConfig));
     readerGroupConfig.name = UA_STRING ("ReaderGroup Test");
     retVal |=  UA_Server_addReaderGroup(server, connectionId, &readerGroupConfig, &readerGroupId);
-    UA_Server_setReaderGroupOperational(server, readerGroupId);
 
     /* Data Set Reader */
     /* Parameters to filter received NetworkMessage */
@@ -1512,12 +1580,11 @@ START_TEST(MultiPublishSubscribeInt32) {
     ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
     UA_FieldTargetDataType_clear(&targetVar.targetVariable);
     UA_free(pMetaData->fields);
-
     /* run server - publisher and subscriber */
-    UA_fakeSleep(PUBLISH_INTERVAL + 1);
-    UA_Server_run_iterate(server, true);
-    UA_fakeSleep(PUBLISH_INTERVAL + 1);
-    UA_Server_run_iterate(server, true);
+    retVal |= UA_Server_setWriterGroupOperational(server, writerGroup);
+    ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+    UA_Server_setReaderGroupOperational(server, readerGroupId);
+    ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
 
     checkReceived();
 
@@ -1578,6 +1645,7 @@ int main(void) {
     tcase_add_test(tc_pubsub_publish_subscribe, SinglePublishSubscribeInt64);
     tcase_add_test(tc_pubsub_publish_subscribe, SinglePublishSubscribeBool);
     tcase_add_test(tc_pubsub_publish_subscribe, SinglePublishSubscribewithValidIdentifiers);
+    tcase_add_test(tc_pubsub_publish_subscribe, SinglePublishSubscribeHeartbeat);
 
     /* Test cases with several readers */
     tcase_add_test(tc_pubsub_publish_subscribe, MultiPublishSubscribeInt32);

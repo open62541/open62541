@@ -387,15 +387,17 @@ UA_Server_unfreezeWriterGroupConfiguration(UA_Server *server,
         UA_PublishedDataSet *publishedDataSet =
             UA_PublishedDataSet_findPDSbyId(server, dataSetWriter->connectedDataSet);
         //PublishedDataSet freezeCounter--
-        publishedDataSet->configurationFreezeCounter--;
-        if(publishedDataSet->configurationFreezeCounter == 0){
-            publishedDataSet->configurationFrozen = UA_FALSE;
-            UA_DataSetField *dataSetField;
-            TAILQ_FOREACH(dataSetField, &publishedDataSet->fields, listEntry){
-                dataSetField->configurationFrozen = UA_FALSE;
+        if(publishedDataSet != NULL){ /* This means the DSW is a heartbeat configuration */
+            publishedDataSet->configurationFreezeCounter--;
+            if(publishedDataSet->configurationFreezeCounter == 0){
+                publishedDataSet->configurationFrozen = UA_FALSE;
+                UA_DataSetField *dataSetField;
+                TAILQ_FOREACH(dataSetField, &publishedDataSet->fields, listEntry){
+                    dataSetField->configurationFrozen = UA_FALSE;
+                }
             }
+            dataSetWriter->configurationFrozen = UA_FALSE;
         }
-        dataSetWriter->configurationFrozen = UA_FALSE;
     }
     if(wg->config.rtLevel == UA_PUBSUB_RT_FIXED_SIZE) {
         UA_ByteString_clear(&wg->bufferedMessage.buffer);
@@ -1142,6 +1144,14 @@ sendOrCollectDataSetMessage(UA_Server *server, UA_WriterGroup *writerGroup, UA_D
     UA_StatusCode res = UA_DataSetWriter_generateDataSetMessage(server, dataSetMessage, writer);
     UA_CHECK_STATUS_ERROR(res, goto error, &server->config.logger, UA_LOGCATEGORY_SERVER,
                           "PubSub Publish: DataSetMessage creation failed");
+
+    /* Check if the message is a Heartbeat */
+    if(UA_NodeId_isNull(&writer->connectedDataSet)){
+        res = sendNetworkMessageAndCleanup(writerGroup, connection, dataSetMessage, writer);
+        UA_CHECK_STATUS_ERROR(res, goto error, &server->config.logger, UA_LOGCATEGORY_SERVER,
+                              "PubSub Publish: Could not send a NetworkMessage");
+        return 0;
+    }
 
     UA_PublishedDataSet *publishedDataSet =
         UA_PublishedDataSet_findPDSbyId(server, writer->connectedDataSet);
