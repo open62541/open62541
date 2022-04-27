@@ -8,6 +8,7 @@
         <Alias Alias="Int32">i=6</Alias>
         <Alias Alias="UInt32">i=7</Alias>
         <Alias Alias="Double">i=11</Alias>
+        <Alias Alias="Guid">i=14</Alias>
         <Alias Alias="Organizes">i=35</Alias>
         <Alias Alias="HasModellingRule">i=37</Alias>
         <Alias Alias="HasEncoding">i=38</Alias>
@@ -21,6 +22,7 @@
         <Alias Alias="SelfContainingUnion">ns=1;i=4002</Alias>
         <Alias Alias="TestDataType">ns=1;i=3006</Alias>
         <Alias Alias="TestObjectType">ns=1;i=1003</Alias>
+        <Alias Alias="DataSetMetaDataType">i=14523</Alias>
     </Aliases>
     <Extensions>
         <Extension>
@@ -600,4 +602,87 @@
             </Field>
         </Definition>
     </UADataType>
+    <UAVariable DataType="Guid" ParentNodeId="ns=1;i=5100" NodeId="ns=1;i=7051" BrowseName="1:TestGuidScalar" AccessLevel="3">
+        <DisplayName>TestGuidScalar</DisplayName>
+        <References>
+            <Reference ReferenceType="HasTypeDefinition">i=63</Reference>
+            <Reference ReferenceType="Organizes" IsForward="false">ns=1;i=5100</Reference>
+        </References>
+        <Value>
+            <uax:Guid>
+                <uax:String>7822a391-de79-4a59-b08d-b70bc63fecec</uax:String>
+            </uax:Guid>
+        </Value>
+    </UAVariable>
+    <UAVariable DataType="Guid" ParentNodeId="ns=1;i=5100" ValueRank="1" NodeId="ns=1;i=7052" ArrayDimensions="0" BrowseName="1:TestGuidArray" AccessLevel="3">
+        <DisplayName>TestGuidArray</DisplayName>
+        <References>
+            <Reference ReferenceType="HasTypeDefinition">i=63</Reference>
+            <Reference ReferenceType="Organizes" IsForward="false">ns=1;i=5100</Reference>
+        </References>
+		<Value>
+            <uax:ListOfString>
+                <uax:Guid>
+					<uax:String>7822a391-1111-4a59-b08d-b70bc63fecec</uax:String>
+				</uax:Guid>
+					<uax:Guid>
+					<uax:String>7822a391-2222-4a59-b08d-b70bc63fecec</uax:String>
+				</uax:Guid>
+					<uax:Guid>
+					<uax:String>7822a391-3333-4a59-b08d-b70bc63fecec</uax:String>
+				</uax:Guid>
+            </uax:ListOfString>
+        </Value>
+    </UAVariable>
+    <UAVariable DataType="DataSetMetaDataType" ParentNodeId="ns=1;i=5001" NodeId="ns=1;i=6021" BrowseName="TestDataSetMetaData">
+        <DisplayName>TestDataSetMetaData</DisplayName>
+        <References>
+            <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=5001</Reference>
+            <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+        </References>
+        <Value>
+            <uax:ExtensionObject>
+                <uax:TypeId>
+                    <uax:Identifier>i=14794</uax:Identifier>
+                </uax:TypeId>
+                <uax:Body>
+                    <DataSetMetaDataType xmlns="http://opcfoundation.org/UA/2008/02/Types.xsd">
+                        <Namespaces>
+                            <String></String>
+                        </Namespaces>
+                        <StructureDataTypes/>
+                        <EnumDataTypes/>
+                        <SimpleDataTypes/>
+                        <Name>DataSetName</Name>
+                        <Description/>
+                        <Fields>
+                            <FieldMetaData>
+                                <Name>FieldName</Name>
+                                <Description/>
+                                <FieldFlags>0</FieldFlags>
+                                <BuiltInType>10</BuiltInType>
+                                <DataType>
+                                    <Identifier>i=10</Identifier>
+                                </DataType>
+                                <ValueRank>-1</ValueRank>
+                                <ArrayDimensions/>
+                                <MaxStringLength>0</MaxStringLength>
+                                <DataSetFieldId>
+                                    <String>10000000-2000-3000-4000-500000000000</String>
+                                </DataSetFieldId>
+                                <Properties/>
+                            </FieldMetaData>
+                        </Fields>
+                        <DataSetClassId>
+                            <String>10000000-2000-3000-4000-500000000000</String>
+                        </DataSetClassId>
+                        <ConfigurationVersion>
+                            <MajorVersion>1</MajorVersion>
+                            <MinorVersion>1</MinorVersion>
+                        </ConfigurationVersion>
+                    </DataSetMetaDataType>
+                </uax:Body>
+            </uax:ExtensionObject>
+        </Value>
+    </UAVariable>    
 </UANodeSet>

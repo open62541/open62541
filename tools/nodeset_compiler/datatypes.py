@@ -241,12 +241,26 @@ class Value(object):
                     return extobj
 
                 extobj.value = []
+                members = enc.members
 
                 # The EncodingMask must be skipped.
                 if ebodypart.localName == "EncodingMask":
                     ebodypart = getNextElementNode(ebodypart)
 
-                for e in enc.members:
+                # The SwitchField must be checked.
+                if ebodypart.localName == "SwitchField":
+                    # The switch field is the index of the available union fields starting with 1
+                    data = int(ebodypart.firstChild.data)
+                    if data == 0:
+                        # If the switch field is 0 then no field is present. A Union with no fields present has the same meaning as a NULL value.
+                        members = []
+                    else:
+                        members = []
+                        members.append(enc.members[data-1])
+                        ebodypart = getNextElementNode(ebodypart)
+
+
+                for e in members:
                     # ebodypart can be None if the field is not set, although the field is not optional.
                     if ebodypart is None:
                         if not e.is_optional:
@@ -274,10 +288,21 @@ class Value(object):
                                 t.parseXML(ebodypart)
                                 extobj.value.append(t)
                         elif isinstance(e.member_type, StructType):
+                            # information is_array!
                             structure = Structure()
                             structure.alias = ebodypart.localName
                             structure.value = []
-                            structure.__parseXMLSingleValue(ebodypart, parentDataTypeNode, parent, parser, alias=None, encodingPart=e.member_type)
+                            if e.is_array:
+                                values = []
+                                for el in ebodypart.childNodes:
+                                    if not el.nodeType == el.ELEMENT_NODE:
+                                        continue
+                                    structure.__parseXMLSingleValue(el, parentDataTypeNode, parent, parser, alias=None, encodingPart=e.member_type)
+                                    values.append(structure.value)
+                                    structure.value = []
+                                structure.value = values
+                            else:
+                                structure.__parseXMLSingleValue(ebodypart, parentDataTypeNode, parent, parser, alias=None, encodingPart=e.member_type)
                             extobj.value.append(structure)
                         elif isinstance(e.member_type, EnumerationType):
                             t = self.getTypeByString("Int32", None)
@@ -315,14 +340,14 @@ class Value(object):
                     else:
                         members = []
                         members.append(enc.members[data-1])
-                        ebodypart =  getNextElementNode(body)
+                        ebodypart = getNextElementNode(body)
                 else:
                     logger.error(str(parent.id) + ": Could not parse <SwitchFiled> for Union.")
                     return self
                 
 
             childValue = ebodypart.firstChild
-            if not childValue == ebodypart.ELEMENT_NODE:
+            if not childValue.nodeType == ebodypart.ELEMENT_NODE:
                 childValue = getNextElementNode(childValue)
             for e in members:
                     if isinstance(e, StructMember):
@@ -330,7 +355,7 @@ class Value(object):
                         if isinstance(e.member_type, BuiltinType):
                             if e.is_array:
                                 values = []
-                                for el in ebodypart.childNodes:
+                                for el in childValue.childNodes:
                                     if not el.nodeType == el.ELEMENT_NODE:
                                         continue
                                     t = self.getTypeByString(e.member_type.name, None)
@@ -348,14 +373,15 @@ class Value(object):
                                         self.value.append(t)
                         elif isinstance(e.member_type, StructType):
                             structure = Structure()
-                            structure.alias = ebodypart.localName
+                            structure.alias = e.name
                             structure.value = []
-                            structure.__parseXMLSingleValue(childValue, parentDataTypeNode, parent, parser, alias=None, encodingPart=e.member_type)
+                            if not len(childValue.childNodes) == 0:
+                                structure.__parseXMLSingleValue(childValue, parentDataTypeNode, parent, parser, alias=None, encodingPart=e.member_type)
                             self.value.append(structure)
                             return structure
                         elif isinstance(e.member_type, EnumerationType):
                             t = self.getTypeByString("Int32", None)
-                            t.parseXML(ebodypart)
+                            t.parseXML(childValue)
                             t.alias = e.name
                             self.value.append(t)
                         else:
@@ -821,10 +847,15 @@ class Guid(Value):
     def parseXML(self, xmlvalue):
         self.checkXML(xmlvalue)
 
-        val = getXmlTextTrimmed(xmlvalue.firstChild)
+        # Support GUID in format:
+        # <Guid>
+        #   <String>01234567-89AB-CDEF-ABCD-0123456789AB</String>
+        # </Guid>
+        if len(xmlvalue.getElementsByTagName("String")) != 0:
+            val = getXmlTextTrimmed(xmlvalue.getElementsByTagName("String")[0].firstChild)
 
         if val is None:
-            self.value = [0, 0, 0, 0]  # Catch XML <Guid /> by setting the value to a default
+            self.value = ['00000000', '0000', '0000', '0000', '000000000000']  # Catch XML <Guid /> by setting the value to a default
         else:
             self.value = val
             self.value = self.value.replace("{", "")
@@ -837,9 +868,8 @@ class Guid(Value):
                 except Exception:
                     logger.error("Invalid formatting of Guid. Expected {01234567-89AB-CDEF-ABCD-0123456789AB}, got " + \
                                  unicode(xmlvalue.firstChild.data))
-                    tmp = [0, 0, 0, 0, 0]
+                    self.value = ['00000000', '0000', '0000', '0000', '000000000000']
             if len(tmp) != 5:
                 logger.error("Invalid formatting of Guid. Expected {01234567-89AB-CDEF-ABCD-0123456789AB}, got " + \
                              unicode(xmlvalue.firstChild.data))
-                tmp = [0, 0, 0, 0]
-            self.value = tmp
+                self.value = ['00000000', '0000', '0000', '0000', '000000000000']

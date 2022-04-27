@@ -76,16 +76,16 @@ multicastListenStop(UA_Server* server) {
 
 static UA_StatusCode
 addMdnsRecordForNetworkLayer(UA_Server *server, const UA_String *appName,
-                             const UA_ServerNetworkLayer* nl) {
+                             const UA_String *discoveryUrl) {
     UA_String hostname = UA_STRING_NULL;
     UA_UInt16 port = 4840;
     UA_String path = UA_STRING_NULL;
-    UA_StatusCode retval = UA_parseEndpointUrl(&nl->discoveryUrl, &hostname,
+    UA_StatusCode retval = UA_parseEndpointUrl(discoveryUrl, &hostname,
                                                &port, &path);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_NETWORK,
                        "Server url is invalid: %.*s",
-                       (int)nl->discoveryUrl.length, nl->discoveryUrl.data);
+                       (int)discoveryUrl->length, discoveryUrl->data);
         return retval;
     }
 
@@ -105,8 +105,8 @@ addMdnsRecordForNetworkLayer(UA_Server *server, const UA_String *appName,
 
 void startMulticastDiscoveryServer(UA_Server *server) {
     UA_String *appName = &server->config.mdnsConfig.mdnsServerName;
-    for(size_t i = 0; i < server->config.networkLayersSize; i++)
-        addMdnsRecordForNetworkLayer(server, appName, &server->config.networkLayers[i]);
+    for(size_t i = 0; i < server->config.serverUrlsSize; i++)
+        addMdnsRecordForNetworkLayer(server, appName, &server->config.serverUrls[i]);
 
     /* find any other server on the net */
     UA_Discovery_multicastQuery(server);
@@ -118,24 +118,23 @@ void startMulticastDiscoveryServer(UA_Server *server) {
 
 void
 stopMulticastDiscoveryServer(UA_Server *server) {
-    if (!server->discoveryManager.mdnsDaemon)
+    if(!server->discoveryManager.mdnsDaemon)
         return;
 
-    for (size_t i=0; i<server->config.networkLayersSize; i++) {
-
+    for(size_t i = 0; i < server->config.serverUrlsSize; i++) {
         UA_String hostname = UA_STRING_NULL;
         UA_String path = UA_STRING_NULL;
         UA_UInt16 port = 0;
 
-        UA_StatusCode retval = UA_parseEndpointUrl(&server->config.networkLayers[i].discoveryUrl, &hostname,
-                                                   &port, &path);
+        UA_StatusCode retval =
+            UA_parseEndpointUrl(&server->config.serverUrls[i],
+                                &hostname, &port, &path);
 
-        if (retval != UA_STATUSCODE_GOOD)
+        if(retval != UA_STATUSCODE_GOOD || hostname.length == 0)
             continue;
 
         UA_Discovery_removeRecord(server, &server->config.mdnsConfig.mdnsServerName,
                                   &hostname, port, true);
-
     }
 
 #if UA_MULTITHREADING >= 100

@@ -380,6 +380,12 @@ UA_EXPORT const UA_ReferenceTarget *
 UA_NodeReferenceKind_iterate(const UA_NodeReferenceKind *rk,
                              const UA_ReferenceTarget *prev);
 
+/* Returns the entry for the targetId or NULL if not found. This can be much
+ * faster than _iterate if the references are in the tree-structure. */
+UA_EXPORT const UA_ReferenceTarget *
+UA_NodeReferenceKind_findTarget(const UA_NodeReferenceKind *rk,
+                                const UA_ExpandedNodeId *targetId);
+
 /* Switch between array and tree representation. Does nothing upon error (e.g.
  * out-of-memory). */
 UA_EXPORT UA_StatusCode
@@ -463,13 +469,17 @@ struct UA_NodeHead {
  * exact length in each dimensions can be further constrained with this
  * attribute.
  *
- * - For positive lengths, the variable value is guaranteed to be of the same
- *   length in this dimension.
+ * - For positive lengths, the variable value must have a dimension length less
+ *   or equal to the array dimension length defined in the VariableNode.
  * - The dimension length zero is a wildcard and the actual value may have any
- *   length in this dimension.
+ *   length in this dimension. Note that a value (variant) must have array
+ *   dimensions that are positive (not zero).
  *
  * Consistency between the array dimensions attribute in the variable and its
- * :ref:`variabletypenode` is ensured. */
+ * :ref:`variabletypenode` is ensured. However, we consider that an array of
+ * length zero (can also be a null-array with undefined length) has implicit
+ * array dimensions ``[0,0,...]``. These always match the required array
+ * dimensions. */
 
 /* Indicates whether a variable contains data inline or whether it points to an
  * external data source */

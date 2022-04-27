@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  *
- *    Copyright 2015-2018, 2021 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
+ *    Copyright 2015-2018, 2021-2022 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
  *    Copyright 2015 (c) Chris Iatrou
  *    Copyright 2015-2016 (c) Sten Grüner
  *    Copyright 2015 (c) Oleksiy Vasylyev
@@ -116,12 +116,13 @@ struct UA_MonitoredItem {
     UA_TimestampsToReturn timestampsToReturn;
     UA_Boolean sampleCallbackIsRegistered;
     UA_Boolean registered; /* Registered in the server / Subscription */
-    UA_DateTime triggeredUntil;  /* If the MonitoringMode is SAMPLING, a
-                                  * triggered MonitoredItem puts the next
-                                  * Notification into the global queue (of the
-                                  * Subscription) for publishing. But triggering
-                                  * is only active for the duration of one
-                                  * publishin cycle. */
+    UA_DateTime triggeredUntil;  /* If the MonitoringMode is SAMPLING,
+                                  * triggering the MonitoredItem puts the latest
+                                  * Notification into the publishing queue (of
+                                  * the Subscription). In addition, the first
+                                  * new sample is also published (and not just
+                                  * sampled) if it occurs within the duration of
+                                  * one publishing cycle after the triggering. */
 
     /* If the filter is a UA_DataChangeFilter: The DataChangeFilter always
      * contains an absolute deadband definition. Part 8, §6.2 gives the
@@ -279,15 +280,30 @@ struct UA_Subscription {
     UA_UInt32 dataChangeNotifications;
     UA_UInt32 eventNotifications;
 
-    /* Notifications to be sent out now (already late). In a regular publish
-     * callback, all queued notifications are sent out. In a late publish
-     * response, only the notifications left from the last regular publish
-     * callback are sent. */
-    UA_UInt32 readyNotifications;
-
     /* Retransmission Queue */
     NotificationMessageQueue retransmissionQueue;
     size_t retransmissionQueueSize;
+
+    /* Statistics for the server diagnostics. The fields are defined according
+     * to the SubscriptionDiagnosticsDataType (Part 5, §12.15). */
+#ifdef UA_ENABLE_DIAGNOSTICS
+    UA_UInt32 modifyCount;
+    UA_UInt32 enableCount;
+    UA_UInt32 disableCount;
+    UA_UInt32 republishRequestCount;
+    UA_UInt32 republishMessageCount;
+    UA_UInt32 transferRequestCount;
+    UA_UInt32 transferredToAltClientCount;
+    UA_UInt32 transferredToSameClientCount;
+    UA_UInt32 publishRequestCount;
+    UA_UInt32 dataChangeNotificationsCount;
+    UA_UInt32 eventNotificationsCount;
+    UA_UInt32 notificationsCount;
+    UA_UInt32 latePublishRequestCount;
+    UA_UInt32 discardedMessageCount;
+    UA_UInt32 monitoringQueueOverflowCount;
+    UA_UInt32 eventQueueOverFlowCount;
+#endif
 };
 
 UA_Subscription * UA_Subscription_new(void);
@@ -343,22 +359,18 @@ UA_Server_evaluateWhereClauseContentFilter(UA_Server *server, UA_Session *sessio
 
 /* Logging
  * See a description of the tricks used in ua_session.h */
-#define UA_LOG_SUBSCRIPTION_INTERNAL(LOGGER, LEVEL, SUB, MSG, ...) do { \
-    UA_String idString = UA_STRING_NULL;                                \
-    if((SUB) && (SUB)->session) {                                       \
-        UA_NodeId_print(&(SUB)->session->sessionId, &idString);         \
-        UA_LOG_##LEVEL(LOGGER, UA_LOGCATEGORY_SESSION,                  \
-                       "SecureChannel %" PRIu32 " | Session %.*s | Subscription %" PRIu32 " | " MSG "%.0s", \
-                       ((SUB)->session->header.channel ?                \
-                        (SUB)->session->header.channel->securityToken.channelId : 0), \
-                       (int)idString.length, idString.data, (SUB)->subscriptionId, __VA_ARGS__); \
-        UA_String_clear(&idString);                                     \
-    } else {                                                            \
-        UA_LOG_##LEVEL(LOGGER, UA_LOGCATEGORY_SERVER,                   \
-                       "Subscription %" PRIu32 " | " MSG "%.0s",        \
-                       (SUB) ? (SUB)->subscriptionId : 0, __VA_ARGS__); \
-    }                                                                   \
-} while(0)
+#define UA_LOG_SUBSCRIPTION_INTERNAL(LOGGER, LEVEL, SUB, MSG, ...)      \
+    do {                                                                \
+        if((SUB) && (SUB)->session) {                                   \
+            UA_LOG_##LEVEL##_SESSION(LOGGER, (SUB)->session,            \
+                                     "Subscription %" PRIu32 " | " MSG "%.0s", \
+                                     (SUB)->subscriptionId, __VA_ARGS__); \
+        } else {                                                        \
+            UA_LOG_##LEVEL(LOGGER, UA_LOGCATEGORY_SERVER,               \
+                           "Subscription %" PRIu32 " | " MSG "%.0s",    \
+                           (SUB) ? (SUB)->subscriptionId : 0, __VA_ARGS__); \
+        }                                                               \
+    } while(0)
 
 #if UA_LOGLEVEL <= 100
 # define UA_LOG_TRACE_SUBSCRIPTION(LOGGER, SUB, ...)                     \
