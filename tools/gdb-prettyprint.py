@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 # Load into gdb with 'source <path-to>/tools/gdb-prettyprint.py'
 # Make sure to have 'set print pretty on' to get nice structure printouts
@@ -111,7 +111,7 @@ class ExpandedNodeId:
         s = ""
         if self.val['serverIndex'] > 0:
             s += "svr=%i;" % self.val['serverIndex']
-        if self.val['namespaceUri']['length'] > 0:
+        if self.val['namespaceUri']['data'] > 0:
             s += "nsu=%s;" % self.val['namespaceUri']
         s += NodeId.print(self.val['nodeId'])
         return "UA_ExpandedNodeId(%s)" % s

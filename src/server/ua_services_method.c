@@ -76,10 +76,11 @@ typeCheckArguments(UA_Server *server, UA_Session *session,
     /* Type-check every argument against the definition */
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     UA_Argument *argReqs = (UA_Argument*)argRequirements->value.data.value.value.data;
+    const char *reason;
     for(size_t i = 0; i < argReqsSize; ++i) {
         if(compatibleValue(server, session, &argReqs[i].dataType, argReqs[i].valueRank,
-                            argReqs[i].arrayDimensionsSize, argReqs[i].arrayDimensions,
-                            &args[i], NULL))
+                           argReqs[i].arrayDimensionsSize, argReqs[i].arrayDimensions,
+                           &args[i], NULL, &reason))
             continue;
 
         /* Incompatible value. Try to correct the type if possible. */
@@ -88,7 +89,7 @@ typeCheckArguments(UA_Server *server, UA_Session *session,
         /* Recheck */
         if(!compatibleValue(server, session, &argReqs[i].dataType, argReqs[i].valueRank,
                             argReqs[i].arrayDimensionsSize, argReqs[i].arrayDimensions,
-                            &args[i], NULL)) {
+                            &args[i], NULL, &reason)) {
             inputArgumentResults[i] = UA_STATUSCODE_BADTYPEMISMATCH;
             retval = UA_STATUSCODE_BADINVALIDARGUMENT;
         }

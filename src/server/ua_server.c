@@ -16,6 +16,7 @@
  *    Copyright 2018 (c) Hilscher Gesellschaft für Systemautomation mbH (Author: Martin Lang)
  *    Copyright 2019 (c) Kalycito Infotech Private Limited
  *    Copyright 2021 (c) Fraunhofer IOSB (Author: Jan Hermes)
+ *    Copyright 2022 (c) Fraunhofer IOSB (Author: Andreas Ebner)
  */
 
 #include "ua_server_internal.h"
@@ -51,6 +52,7 @@
  *
  * Therefore one has to set the custom NS1 URI before one of the previously
  * mentioned steps. */
+
 void
 setupNs1Uri(UA_Server *server) {
     if(!server->namespaces[1].data) {
@@ -64,7 +66,7 @@ UA_UInt16 addNamespace(UA_Server *server, const UA_String name) {
     setupNs1Uri(server);
 
     /* Check if the namespace already exists in the server's namespace array */
-    for(UA_UInt16 i = 0; i < server->namespacesSize; ++i) {
+    for(size_t i = 0; i < server->namespacesSize; ++i) {
         if(UA_String_equal(&name, &server->namespaces[i]))
             return (UA_UInt16) i;
     }
@@ -201,12 +203,16 @@ void UA_Server_delete(UA_Server *server) {
 #endif
 
     /* Stop the EventLoop and iterate until stopped or an error occurs */
-    UA_EventLoop_stop(server->config.eventLoop);
+    if(server->config.eventLoop->state == UA_EVENTLOOPSTATE_STARTED)
+        server->config.eventLoop->stop(server->config.eventLoop);
     UA_StatusCode res = UA_STATUSCODE_GOOD;
-    UA_EventLoopState state = UA_EventLoop_getState(server->config.eventLoop);
-    while(res == UA_STATUSCODE_GOOD && state != UA_EVENTLOOPSTATE_STOPPED) {
-        res = UA_EventLoop_run(server->config.eventLoop, 100);
-        state = UA_EventLoop_getState(server->config.eventLoop);
+    while(res == UA_STATUSCODE_GOOD &&
+          (server->config.eventLoop->state != UA_EVENTLOOPSTATE_FRESH &&
+           server->config.eventLoop->state != UA_EVENTLOOPSTATE_STOPPED)) {
+
+        UA_UNLOCK(&server->serviceMutex);
+        res = server->config.eventLoop->run(server->config.eventLoop, 100);
+        UA_LOCK(&server->serviceMutex);
     }
 
     /* Clean up the Admin Session */
@@ -277,6 +283,7 @@ UA_Server_init(UA_Server *server) {
     server->adminSession.sessionId.identifierType = UA_NODEIDTYPE_GUID;
     server->adminSession.sessionId.identifier.guid.data1 = 1;
     server->adminSession.validTill = UA_INT64_MAX;
+    server->adminSession.sessionName = UA_STRING_ALLOC("Administrator");
 
     /* Create Namespaces 0 and 1
      * Ns1 will be filled later with the uri from the app description */
@@ -345,7 +352,7 @@ UA_Server_newWithConfig(UA_ServerConfig *config) {
     for(size_t i = 0; i < server->config.securityPoliciesSize; i++)
         server->config.securityPolicies[i].logger = &server->config.logger;
 
-    UA_EventLoop_setLogger(server->config.eventLoop, &server->config.logger);
+    server->config.eventLoop->logger = &server->config.logger;
 
     /* Reset the old config */
     memset(config, 0, sizeof(UA_ServerConfig));
@@ -373,22 +380,20 @@ UA_StatusCode
 UA_Server_addTimedCallback(UA_Server *server, UA_ServerCallback callback,
                            void *data, UA_DateTime date, UA_UInt64 *callbackId) {
     UA_LOCK(&server->serviceMutex);
-    UA_StatusCode retval =
-        UA_EventLoop_addTimedCallback(server->config.eventLoop,
-                                      (UA_Callback)callback,
-                                      server, data, date, callbackId);
+    UA_StatusCode retval = server->config.eventLoop->
+        addTimedCallback(server->config.eventLoop, (UA_Callback)callback,
+                         server, data, date, callbackId);
     UA_UNLOCK(&server->serviceMutex);
     return retval;
 }
 
 UA_StatusCode
 addRepeatedCallback(UA_Server *server, UA_ServerCallback callback,
-                              void *data, UA_Double interval_ms,
-                              UA_UInt64 *callbackId) {
-    return UA_EventLoop_addCyclicCallback(server->config.eventLoop, (UA_Callback) callback,
-                                          server, data, interval_ms, NULL,
-                                          UA_TIMER_HANDLE_CYCLEMISS_WITH_CURRENTTIME,
-                                          callbackId);
+                    void *data, UA_Double interval_ms, UA_UInt64 *callbackId) {
+    return server->config.eventLoop->
+        addCyclicCallback(server->config.eventLoop, (UA_Callback) callback,
+                          server, data, interval_ms, NULL,
+                          UA_TIMER_HANDLE_CYCLEMISS_WITH_CURRENTTIME, callbackId);
 }
 
 UA_StatusCode
@@ -405,9 +410,9 @@ UA_Server_addRepeatedCallback(UA_Server *server, UA_ServerCallback callback,
 UA_StatusCode
 changeRepeatedCallbackInterval(UA_Server *server, UA_UInt64 callbackId,
                                UA_Double interval_ms) {
-    return UA_EventLoop_modifyCyclicCallback(server->config.eventLoop, callbackId,
-                                             interval_ms, NULL,
-                                             UA_TIMER_HANDLE_CYCLEMISS_WITH_CURRENTTIME);
+    return server->config.eventLoop->
+        modifyCyclicCallback(server->config.eventLoop, callbackId, interval_ms,
+                             NULL, UA_TIMER_HANDLE_CYCLEMISS_WITH_CURRENTTIME);
 }
 
 UA_StatusCode
@@ -422,7 +427,8 @@ UA_Server_changeRepeatedCallbackInterval(UA_Server *server, UA_UInt64 callbackId
 
 void
 removeCallback(UA_Server *server, UA_UInt64 callbackId) {
-    UA_EventLoop_removeCyclicCallback(server->config.eventLoop, callbackId);
+    server->config.eventLoop->removeCyclicCallback(server->config.eventLoop,
+                                                   callbackId);
 }
 
 void
@@ -523,9 +529,161 @@ verifyServerApplicationURI(const UA_Server *server) {
 }
 #endif
 
-UA_ServerStatistics UA_Server_getStatistics(UA_Server *server)
-{
-   return server->serverStats;
+UA_ServerStatistics
+UA_Server_getStatistics(UA_Server *server) {
+    UA_ServerStatistics stat;
+    stat.ns = server->networkStatistics;
+    stat.scs = server->secureChannelStatistics;
+
+    stat.ss.currentSessionCount = server->activeSessionCount;
+    stat.ss.cumulatedSessionCount =
+        server->serverDiagnosticsSummary.cumulatedSessionCount;
+    stat.ss.securityRejectedSessionCount =
+        server->serverDiagnosticsSummary.securityRejectedSessionCount;
+    stat.ss.rejectedSessionCount =
+        server->serverDiagnosticsSummary.rejectedSessionCount;
+    stat.ss.sessionTimeoutCount =
+        server->serverDiagnosticsSummary.sessionTimeoutCount;
+    stat.ss.sessionAbortCount =
+        server->serverDiagnosticsSummary.sessionAbortCount;
+    
+    return stat;
+}
+
+/* Callback of a TCP socket (server socket or an active connection) */
+static void
+UA_Server_networkCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
+                          void *application, void **connectionContext,
+                          UA_StatusCode state,
+                          size_t paramsSize, const UA_KeyValuePair *params,
+                          UA_ByteString msg) {
+    UA_Server *server = (UA_Server*)application;
+
+    /* A server socket that is not registered in the server */
+    if(*connectionContext == NULL) {
+        if(state != UA_STATUSCODE_GOOD)
+            return; /* Closing an unregistered server socket */
+
+        /* Cannot register */
+        if(server->serverConnectionsSize >= UA_MAXSERVERCONNECTIONS) {
+            UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                           "Cannot register server socket - too many already open");
+            cm->closeConnection(cm, connectionId);
+            return;
+        }
+
+        /* Find and use a free connection slot */
+        server->serverConnectionsSize++;
+        UA_ServerConnection *sc = server->serverConnections;
+        while(sc->connectionId != 0)
+            sc++;
+        sc->state = UA_SERVERCONNECTIONSTATE_STARTED;
+        sc->connectionId = connectionId;
+        sc->connectionManager = cm;
+        *connectionContext = (void*)sc; /* Set the context pointer in the connection */
+        return;
+    }
+
+    UA_ServerConnection *sc = (UA_ServerConnection*)*connectionContext;
+    UA_Connection *conn = (UA_Connection*)*connectionContext;
+    UA_Boolean serverSocket = (sc >= server->serverConnections &&
+                               sc < &server->serverConnections[UA_MAXSERVERCONNECTIONS]);
+
+    if(state != UA_STATUSCODE_GOOD) {
+        if(serverSocket) {
+            /* A server socket is closing */
+            sc->state = UA_SERVERCONNECTIONSTATE_FRESH;
+            sc->connectionId = 0;
+            server->serverConnectionsSize--;
+        } else {
+            /* A normal connection is closing */
+            if(conn->channel)
+                UA_SecureChannel_close(conn->channel);
+            UA_free(conn);
+        }
+        return;
+    }
+
+    /* A new connection is opening - still has the pointer to the serversocket */
+    if(serverSocket) {
+        conn = (UA_Connection*)UA_malloc(sizeof(UA_Connection));
+        if(!conn) {
+            UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                           "Could not accept the connection - out of memory");
+            cm->closeConnection(cm, connectionId);
+            return;
+        }
+
+        conn->state = UA_CONNECTIONSTATE_OPENING;
+        conn->channel = NULL;
+        conn->sockfd = (UA_SOCKET)connectionId;
+        conn->handle = cm;
+        conn->getSendBuffer = UA_Server_Connection_getSendBuffer;
+        conn->releaseSendBuffer = UA_Server_Connection_releaseBuffer;
+        conn->send = UA_Server_Connection_send;
+        conn->recv = NULL;
+        conn->releaseRecvBuffer = UA_Server_Connection_releaseBuffer;
+        conn->close = UA_Server_Connection_close;
+        conn->free = NULL;
+
+        *connectionContext = (void*)conn;
+        return;
+    }
+
+    /* Received a message on a normal connection */
+    UA_Server_processBinaryMessage(server, conn, &msg);
+}
+
+static UA_StatusCode
+UA_Server_createServerConnection(UA_Server *server, const UA_String *serverUrl) {
+    UA_ServerConfig *config = &server->config;
+
+    /* Extract the protocol, hostname and port from the url */
+    UA_String hostname = UA_STRING_NULL;
+    UA_String path = UA_STRING_NULL;
+    UA_UInt16 port = 4840; /* default */
+    UA_StatusCode res = UA_parseEndpointUrl(serverUrl, &hostname, &port, &path);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
+
+    UA_String tcpString = UA_STRING("tcp");
+    for(UA_EventSource *es = config->eventLoop->eventSources;
+        es != NULL; es = es->next) {
+        /* Is this a usable connection manager? */
+        if(es->eventSourceType != UA_EVENTSOURCETYPE_CONNECTIONMANAGER)
+            continue;
+        UA_ConnectionManager *cm = (UA_ConnectionManager*)es;
+        if(!UA_String_equal(&tcpString, &cm->protocol))
+            continue;
+
+        /* Set up the parameters */
+        UA_KeyValuePair params[3];
+        size_t paramsSize = 2;
+
+        params[0].key = UA_QUALIFIEDNAME(0, "listen-port");
+        UA_Variant_setScalar(&params[0].value, &port, &UA_TYPES[UA_TYPES_UINT16]);
+
+        UA_UInt32 bufSize = config->tcpBufSize;
+        if(bufSize == 0)
+            bufSize = 1 << 16; /* 64kB */
+        params[1].key = UA_QUALIFIEDNAME(0, "recv-bufsize");
+        UA_Variant_setScalar(&params[1].value, &bufSize, &UA_TYPES[UA_TYPES_UINT32]);
+
+        /* If the hostname is non-empty */
+        if(hostname.length > 0) {
+            params[2].key = UA_QUALIFIEDNAME(0, "listen-hostnames");
+            UA_Variant_setArray(&params[2].value, &hostname, 1, &UA_TYPES[UA_TYPES_STRING]);
+            paramsSize = 3;
+        }
+
+        /* Open the server connection */
+        res = cm->openConnection(cm, paramsSize, params, server, NULL,
+                                 UA_Server_networkCallback);
+        if(res == UA_STATUSCODE_GOOD)
+            return res;
+    }
+
+    return UA_STATUSCODE_BADINTERNALERROR;
 }
 
 /********************/
@@ -543,18 +701,43 @@ UA_ServerStatistics UA_Server_getStatistics(UA_Server *server)
 
 UA_StatusCode
 UA_Server_run_startup(UA_Server *server) {
+    UA_ServerConfig *config = &server->config;
 
 #ifdef FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
-    /* Prominently warn user that fuzzing build is enabled. This will tamper with authentication tokens and other important variables
-     * E.g. if fuzzing is enabled, and two clients are connected, subscriptions do not work properly,
-     * since the tokens will be overridden to allow easier fuzzing. */
+    /* Prominently warn user that fuzzing build is enabled. This will tamper
+     * with authentication tokens and other important variables E.g. if fuzzing
+     * is enabled, and two clients are connected, subscriptions do not work
+     * properly, since the tokens will be overridden to allow easier fuzzing. */
     UA_LOG_FATAL(&server->config.logger, UA_LOGCATEGORY_SERVER,
                  "Server was built with unsafe fuzzing mode. "
                  "This should only be used for specific fuzzing builds.");
 #endif
 
-    UA_StatusCode retVal = UA_EventLoop_start(server->config.eventLoop);
+    /* Start the EventLoop */
+    UA_StatusCode retVal = config->eventLoop->start(config->eventLoop);
     UA_CHECK_STATUS(retVal, return retVal);
+
+    /* Open server sockets */
+    UA_Boolean haveServerSocket = false;
+    if(config->serverUrlsSize == 0) {
+        /* Empty hostname -> listen on all devices */
+        UA_String defaultUrl = UA_STRING("opc.tcp://:4840");
+        retVal = UA_Server_createServerConnection(server, &defaultUrl);
+        if(retVal == UA_STATUSCODE_GOOD)
+            haveServerSocket = true;
+    } else {
+        for(size_t i = 0; i < config->serverUrlsSize; i++) {
+            retVal = UA_Server_createServerConnection(server, &config->serverUrls[i]);
+            if(retVal == UA_STATUSCODE_GOOD)
+                haveServerSocket = true;
+        }
+    }
+
+    /* Warn if no socket available */
+    if(!haveServerSocket) {
+        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                     "The server has no server socket");
+    }
 
     /* ensure that the uri for ns1 is set up from the app description */
     setupNs1Uri(server);
@@ -594,35 +777,22 @@ UA_Server_run_startup(UA_Server *server) {
                          UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_STARTTIME),
                          var);
 
-    /* Start the networklayers */
-    UA_StatusCode result = UA_STATUSCODE_GOOD;
-    for(size_t i = 0; i < server->config.networkLayersSize; ++i) {
-        UA_ServerNetworkLayer *nl = &server->config.networkLayers[i];
-        nl->statistics = &server->serverStats.ns;
-        result |= nl->start(nl, &server->config.logger, &server->config.customHostname);
-    }
-    UA_CHECK_STATUS(result, return result);
-
-    /* Update the application description to match the previously added
-     * discovery urls. We can only do this after the network layer is started
-     * since it inits the discovery url */
-    if(server->config.applicationDescription.discoveryUrlsSize != 0) {
-        UA_Array_delete(server->config.applicationDescription.discoveryUrls,
-                        server->config.applicationDescription.discoveryUrlsSize,
-                        &UA_TYPES[UA_TYPES_STRING]);
-        server->config.applicationDescription.discoveryUrlsSize = 0;
-    }
-    server->config.applicationDescription.discoveryUrls = (UA_String *)
-        UA_Array_new(server->config.networkLayersSize, &UA_TYPES[UA_TYPES_STRING]);
-    UA_CHECK_MEM(server->config.applicationDescription.discoveryUrls,
-             return UA_STATUSCODE_BADOUTOFMEMORY);
-
-    server->config.applicationDescription.discoveryUrlsSize =
-        server->config.networkLayersSize;
-    for(size_t i = 0; i < server->config.applicationDescription.discoveryUrlsSize; i++) {
-        UA_ServerNetworkLayer *nl = &server->config.networkLayers[i];
-        UA_String_copy(&nl->discoveryUrl,
-                       &server->config.applicationDescription.discoveryUrls[i]);
+    /* Update the application description to include the server urls for
+     * discovery. Don't add the urls with an empty host (listening on all
+     * interfaces) */
+    for(size_t i = 0; i < server->config.serverUrlsSize; i++) {
+        UA_String hostname = UA_STRING_NULL;
+        UA_String path = UA_STRING_NULL;
+        UA_UInt16 port = 0;
+        retVal = UA_parseEndpointUrl(&server->config.serverUrls[i],
+                                     &hostname, &port, &path);
+        if(retVal != UA_STATUSCODE_GOOD || hostname.length == 0)
+            continue;
+        retVal =
+            UA_Array_appendCopy((void**)&server->config.applicationDescription.discoveryUrls,
+                                &server->config.applicationDescription.discoveryUrlsSize,
+                                &server->config.serverUrls[i], &UA_TYPES[UA_TYPES_STRING]);
+        UA_CHECK_STATUS(retVal, return retVal);
     }
 
     /* Start the multicast discovery server */
@@ -631,33 +801,22 @@ UA_Server_run_startup(UA_Server *server) {
         startMulticastDiscoveryServer(server);
 #endif
 
+    /* Update Endpoint description */
+    for(size_t i = 0; i < server->config.endpointsSize; ++i) {
+        UA_ApplicationDescription_clear(&server->config.endpoints[i].server);
+        UA_ApplicationDescription_copy(&server->config.applicationDescription,
+                                       &server->config.endpoints[i].server);
+    }
+
     server->state = UA_SERVERLIFECYCLE_FRESH;
 
-    return result;
+    return UA_STATUSCODE_GOOD;
 }
 
 UA_UInt16
 UA_Server_run_iterate(UA_Server *server, UA_Boolean waitInternal) {
-    /* Process repeated work */
-    UA_DateTime now = UA_DateTime_nowMonotonic();
-    UA_EventLoop_run(server->config.eventLoop, 0);
-    UA_DateTime nextRepeated = UA_EventLoop_nextCyclicTime(server->config.eventLoop);
-    UA_DateTime latest = now + (UA_MAXTIMEOUT * UA_DATETIME_MSEC);
-    if(nextRepeated > latest)
-        nextRepeated = latest;
 
     UA_UInt16 timeout = 0;
-
-    /* round always to upper value to avoid timeout to be set to 0
-    * if(nextRepeated - now) < (UA_DATETIME_MSEC/2) */
-    if(waitInternal)
-        timeout = (UA_UInt16)(((nextRepeated - now) + (UA_DATETIME_MSEC - 1)) / UA_DATETIME_MSEC);
-
-    /* Listen on the networklayer */
-    for(size_t i = 0; i < server->config.networkLayersSize; ++i) {
-        UA_ServerNetworkLayer *nl = &server->config.networkLayers[i];
-        nl->listen(nl, server, timeout);
-    }
 
 #if defined(UA_ENABLE_PUBSUB_MQTT)
     /* Listen on the pubsublayer, but only if the yield function is set */
@@ -669,11 +828,25 @@ UA_Server_run_iterate(UA_Server *server, UA_Boolean waitInternal) {
         }
     }
 #endif
+    /* Process repeated work */
+    UA_DateTime now = UA_DateTime_nowMonotonic();
+    UA_DateTime nextRepeated =
+        server->config.eventLoop->nextCyclicTime(server->config.eventLoop);
+    UA_DateTime latest = now + (UA_MAXTIMEOUT * UA_DATETIME_MSEC);
+    if(nextRepeated > latest)
+        nextRepeated = latest;
+    /* round always to upper value to avoid timeout to be set to 0
+    * if(nextRepeated - now) < (UA_DATETIME_MSEC/2) */
+    if(waitInternal)
+        timeout = (UA_UInt16)(((nextRepeated - now) + (UA_DATETIME_MSEC - 1)) / UA_DATETIME_MSEC);
 
-    UA_LOCK(&server->serviceMutex);
+    server->config.eventLoop->run(server->config.eventLoop, timeout);
 
 #if defined(UA_ENABLE_DISCOVERY_MULTICAST) && (UA_MULTITHREADING < 200)
+
+    UA_LOCK(&server->serviceMutex);
     if(server->config.mdnsEnabled) {
+
         /* TODO multicastNextRepeat does not consider new input data (requests)
          * on the socket. It will be handled on the next call. if needed, we
          * need to use select with timeout on the multicast socket
@@ -684,23 +857,36 @@ UA_Server_run_iterate(UA_Server *server, UA_Boolean waitInternal) {
         if(hasNext == UA_STATUSCODE_GOOD && multicastNextRepeat < nextRepeated)
             nextRepeated = multicastNextRepeat;
     }
+    UA_UNLOCK(&server->serviceMutex);
 #endif
 
-    UA_UNLOCK(&server->serviceMutex);
-
-    now = UA_DateTime_nowMonotonic();
-    timeout = 0;
-    if(nextRepeated > now)
-        timeout = (UA_UInt16)((nextRepeated - now) / UA_DATETIME_MSEC);
     return timeout;
 }
 
 UA_StatusCode
 UA_Server_run_shutdown(UA_Server *server) {
-    /* Stop the netowrk layer */
-    for(size_t i = 0; i < server->config.networkLayersSize; ++i) {
-        UA_ServerNetworkLayer *nl = &server->config.networkLayers[i];
-        nl->stop(nl, server);
+    /* Stop all SecureChannels */
+    UA_Server_deleteSecureChannels(server);
+
+    /* Stop all server sockets */
+    for(size_t i = 0; i < UA_MAXSERVERCONNECTIONS; i++) {
+        UA_ServerConnection *sc = &server->serverConnections[i];
+        if(sc->connectionId > 0)
+            sc->connectionManager->
+                closeConnection(sc->connectionManager, sc->connectionId);
+    }
+
+    UA_EventLoop *el = server->config.eventLoop;
+    if(server->config.externalEventLoop) {
+        el->run(el, 0); /* Run one iteration of the eventloop with a zero
+                         * timeout. This closes the connections fully. */
+    } else {
+        el->stop(el);
+        UA_StatusCode res = UA_STATUSCODE_GOOD;
+        while(el->state != UA_EVENTLOOPSTATE_STOPPED &&
+              el->state != UA_EVENTLOOPSTATE_FRESH &&
+              res == UA_STATUSCODE_GOOD)
+            res = el->run(el, 100); /* Iterate until stopped */
     }
 
 #ifdef UA_ENABLE_DISCOVERY_MULTICAST
@@ -743,3 +929,4 @@ UA_Server_run(UA_Server *server, const volatile UA_Boolean *running) {
     }
     return UA_Server_run_shutdown(server);
 }
+

@@ -19,8 +19,6 @@
 #include "thread_wrapper.h"
 
 UA_Server *server;
-UA_ServerNetworkLayer nl;
-
 UA_Boolean connected = false;
 
 static void

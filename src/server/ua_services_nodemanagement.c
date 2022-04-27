@@ -73,14 +73,24 @@ editNodeContext(UA_Server *server, UA_Session* session,
 }
 
 UA_StatusCode
+setNodeContext(UA_Server *server, UA_NodeId nodeId,
+               void *nodeContext) {
+    return UA_Server_editNode(server, &server->adminSession, &nodeId,
+                              (UA_EditNodeCallback)editNodeContext, nodeContext);
+}
+
+UA_StatusCode
 UA_Server_setNodeContext(UA_Server *server, UA_NodeId nodeId,
                          void *nodeContext) {
     UA_LOCK(&server->serviceMutex);
-    UA_StatusCode retval = UA_Server_editNode(server, &server->adminSession, &nodeId,
-                              (UA_EditNodeCallback)editNodeContext, nodeContext);
+    UA_StatusCode retval = setNodeContext(server, nodeId, nodeContext);
     UA_UNLOCK(&server->serviceMutex);
     return retval;
 }
+
+static UA_StatusCode
+checkSetIsDynamicVariable(UA_Server *server, UA_Session *session,
+                          const UA_NodeId *nodeId);
 
 /**********************/
 /* Consistency Checks */
@@ -185,6 +195,7 @@ checkParentReference(UA_Server *server, UA_Session *session, const UA_NodeHead *
     return UA_STATUSCODE_GOOD;
 }
 
+/* Only BaseDataType can have empty values. Generate a default value. */
 static UA_StatusCode
 setDefaultValue(UA_Server *server, const UA_VariableNode *node) {
     /* Get the DataType */
@@ -234,35 +245,27 @@ setDefaultValue(UA_Server *server, const UA_VariableNode *node) {
         if(!data)
             return UA_STATUSCODE_BADOUTOFMEMORY;
         UA_Variant_setScalar(&val, data, type);
-    } else if(node->valueRank == 0) {
-        /* Use an empty array of one dimension */
-        UA_Variant_setArray(&val, NULL, 0, type);
     } else {
-        /* Write an array that matches the ArrayDimensions */
-        res = UA_Array_copy(node->arrayDimensions, node->arrayDimensionsSize,
-                            (void**)&val.arrayDimensions, &UA_TYPES[UA_TYPES_UINT32]);
-        if(res != UA_STATUSCODE_GOOD)
-            return res;
-        val.arrayDimensionsSize = node->arrayDimensionsSize;
-
-        /* No length restriction in the ArrayDimension -> use length 1 */
-        size_t size = 1;
-        for(size_t i = 0; i < val.arrayDimensionsSize; i++) {
-            if(val.arrayDimensions[i] == 0)
-                val.arrayDimensions[i] = 1;
-            size *= val.arrayDimensions[i];
-        }
-
-        /* Create the content array */
-        void *data = UA_Array_new(size, type);
-        if(!data) {
-            UA_Variant_clear(&val);
-            return UA_STATUSCODE_BADOUTOFMEMORY;
-        }
-
-        val.data = data;
-        val.arrayLength = size;
-        val.type = type;
+        /* Set an array
+         *
+         * https://reference.opcfoundation.org/v104/Core/docs/Part3/5.6.2/#Table13
+         * specifies ArrayDimensions as follows: This Attribute specifies the
+         * maximum supported length of each dimension. If the maximum is unknown
+         * the value shall be 0. The number of elements shall be equal to the
+         * value of the ValueRank Attribute. This Attribute shall be null if
+         * ValueRank <= 0.
+         *
+         * The (variant) values themselves cannot have ArrayDimensions with a
+         * dimension length of zero. We however consider that empty arrays
+         * (null-array or length zero) have implicit array dimensions [0,0,...].
+         * With the appropriate number of dimensions. So they always match.
+         *
+         * We automatically create a null array during the node creation when
+         * required for the type-checking..
+         *
+         * Also see the method 'compatibleValueArrayDimensions' where the
+         * compatibility of the ArrayDimensions is checked. */
+        UA_Variant_setArray(&val, NULL, 0, type);
     }
 
     /* Write the value */
@@ -361,9 +364,10 @@ typeCheckVariableNode(UA_Server *server, UA_Session *session,
 
     /* Perform the value typecheck. If this fails, write the current value
      * again. The write-service tries to convert to the correct type... */
+    const char *reason;
     if(!compatibleValue(server, session, &node->dataType, node->valueRank,
                         node->arrayDimensionsSize, node->arrayDimensions,
-                        &value.value, NULL)) {
+                        &value.value, NULL, &reason)) {
         retval = writeValueAttribute(server, session, &node->head.nodeId, &value.value);
         if(retval != UA_STATUSCODE_GOOD) {
             logAddNode(&server->config.logger, session, &node->head.nodeId,
@@ -527,16 +531,16 @@ static void
 Operation_addReference(UA_Server *server, UA_Session *session, void *context,
                        const UA_AddReferencesItem *item, UA_StatusCode *retval);
 
-static UA_StatusCode
-addRef(UA_Server *server, UA_Session *session, const UA_NodeId *nodeId,
-       const UA_NodeId *referenceTypeId, const UA_NodeId *parentNodeId,
+UA_StatusCode
+addRef(UA_Server *server, UA_Session *session, const UA_NodeId *sourceId,
+       const UA_NodeId *referenceTypeId, const UA_NodeId *targetId,
        UA_Boolean forward) {
     UA_AddReferencesItem ref_item;
     UA_AddReferencesItem_init(&ref_item);
-    ref_item.sourceNodeId = *nodeId;
+    ref_item.sourceNodeId = *sourceId;
     ref_item.referenceTypeId = *referenceTypeId;
     ref_item.isForward = forward;
-    ref_item.targetNodeId.nodeId = *parentNodeId;
+    ref_item.targetNodeId.nodeId = *targetId;
 
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     Operation_addReference(server, session, NULL, &ref_item, &retval);
@@ -696,6 +700,15 @@ copyChild(UA_Server *server, UA_Session *session,
             UA_NODESTORE_REMOVE(server, &newNodeId);
             UA_NodeId_clear(&newNodeId);
             return retval;
+        }
+
+        if (rd->nodeClass == UA_NODECLASS_VARIABLE) {
+            retval = checkSetIsDynamicVariable(server, session, &newNodeId);
+
+            if(retval != UA_STATUSCODE_GOOD) {
+                UA_NODESTORE_REMOVE(server, &newNodeId);
+                return retval;
+            }
         }
 
         /* For the new child, recursively copy the members of the original. No
@@ -2078,7 +2091,11 @@ Operation_addReference(UA_Server *server, UA_Session *session, void *context,
     if(*retval == UA_STATUSCODE_BADDUPLICATEREFERENCENOTALLOWED) {
         /* Calculate common duplicate reference not allowed result and set bad
          * result if BOTH directions already existed */
-        if(firstExisted) {
+        if(UA_NodeId_equal(&item->sourceNodeId, &item->targetNodeId.nodeId)) {
+            *retval = UA_STATUSCODE_GOOD;
+            UA_LOG_INFO_SESSION(&server->config.logger, session, "The source node and the target node are identical. The check for duplicate references is skipped.");
+        }
+        else if(firstExisted) {
             *retval = UA_STATUSCODE_BADDUPLICATEREFERENCENOTALLOWED;
             return;
         }

@@ -13,6 +13,7 @@
 #include <open62541/types.h>
 
 #include "ua_server_internal.h"
+#include "ua_connection_internal.h"
 
 #include "testing_networklayers.h"
 

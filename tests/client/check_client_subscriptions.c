@@ -21,7 +21,6 @@
 
 UA_Server *server;
 UA_Boolean running;
-UA_ServerNetworkLayer nl;
 THREAD_HANDLE server_thread;
 static UA_Boolean noNewSubscription; /* Don't create a subscription when the
                                         session activates */

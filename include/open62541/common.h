@@ -130,6 +130,8 @@ typedef enum {
 #define UA_EVENTNOTIFIER_HISTORY_WRITE      (0x01u << 3u)
 
 /**
+ * .. _rule-handling:
+ *
  * Rule Handling
  * -------------
  *

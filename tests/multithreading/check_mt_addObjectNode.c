@@ -28,7 +28,7 @@ static
 void checkServer(void) {
     for (size_t i = 0; i < NUMBER_OF_WORKERS * ITERATIONS_PER_WORKER; i++) {
         char string_buf[20];
-        snprintf(string_buf, sizeof(string_buf), "Server %zu", i);
+        snprintf(string_buf, sizeof(string_buf), "Server %u", (unsigned)i);
         UA_NodeId reqNodeId = UA_NODEID_STRING(1, string_buf);
         UA_NodeId resNodeId;
         UA_StatusCode ret = UA_Server_readNodeId(tc.server, reqNodeId, &resNodeId);
@@ -40,7 +40,7 @@ void checkServer(void) {
 
     for (size_t i = 0; i < NUMBER_OF_CLIENTS * ITERATIONS_PER_CLIENT; i++) {
         char string_buf[20];
-        snprintf(string_buf, sizeof(string_buf), "Client %zu", i);
+        snprintf(string_buf, sizeof(string_buf), "Client %u", (unsigned)i);
         UA_NodeId reqNodeId = UA_NODEID_STRING(1, string_buf);
         UA_NodeId resNodeId;
         UA_StatusCode ret = UA_Server_readNodeId(tc.server, reqNodeId, &resNodeId);
@@ -57,7 +57,7 @@ void server_addObject(void* value) {
     size_t offset = tmp.index * tmp.upperBound;
     size_t number = offset + tmp.counter;
     char string_buf[20];
-    snprintf(string_buf, sizeof(string_buf), "Server %zu", number);
+    snprintf(string_buf, sizeof(string_buf), "Server %u", (unsigned)number);
     UA_NodeId reqId = UA_NODEID_STRING(1, string_buf);
     UA_ObjectAttributes oAttr = UA_ObjectAttributes_default;
     oAttr.displayName = UA_LOCALIZEDTEXT("en-US", string_buf);
@@ -77,7 +77,7 @@ void client_addObject(void* value){
     size_t offset = tmp.index * tmp.upperBound;
     size_t number = offset + tmp.counter;
     char string_buf[20];
-    snprintf(string_buf, sizeof(string_buf), "Client %zu", number);
+    snprintf(string_buf, sizeof(string_buf), "Client %u", (unsigned)number);
     UA_NodeId reqId = UA_NODEID_STRING(1, string_buf);
     UA_ObjectAttributes oAttr = UA_ObjectAttributes_default;
     oAttr.displayName = UA_LOCALIZEDTEXT("en-US", string_buf);

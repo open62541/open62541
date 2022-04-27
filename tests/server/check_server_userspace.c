@@ -144,39 +144,39 @@ START_TEST(Server_forEachChildNodeCall) {
 } END_TEST
 
 
-START_TEST(Server_set_customHostname) {
-    UA_String customHost = UA_STRING("localhost");
-    UA_UInt16 port = 10042;
+/* START_TEST(Server_set_customHostname) { */
+/*     UA_String customHost = UA_STRING("localhost"); */
+/*     UA_UInt16 port = 10042; */
 
-    UA_Server *server = UA_Server_new();
-    UA_ServerConfig *config = UA_Server_getConfig(server);
-    UA_ServerConfig_setMinimal(config, port, NULL);
-    UA_String_clear(&config->customHostname);
-    UA_String_copy(&customHost, &config->customHostname);
+/*     UA_Server *server = UA_Server_new(); */
+/*     UA_ServerConfig *config = UA_Server_getConfig(server); */
+/*     UA_ServerConfig_setMinimal(config, port, NULL); */
+/*     UA_String_clear(&config->customHostname); */
+/*     UA_String_copy(&customHost, &config->customHostname); */
 
-    UA_StatusCode retval = UA_Server_run_startup(server);
-    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+/*     UA_StatusCode retval = UA_Server_run_startup(server); */
+/*     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD); */
 
-    // TODO when we have more network layers, extend this
-    ck_assert_uint_ge(config->networkLayersSize, 1);
-    ck_assert_uint_eq(config->applicationDescription.discoveryUrlsSize, config->networkLayersSize);
+/*     // TODO when we have more network layers, extend this */
+/*     ck_assert_uint_ge(config->networkLayersSize, 1); */
+/*     ck_assert_uint_eq(config->applicationDescription.discoveryUrlsSize, config->networkLayersSize); */
 
 
-    for (size_t i=0; i<config->networkLayersSize; i++) {
-        const UA_ServerNetworkLayer *nl = &config->networkLayers[i];
-        char discoveryUrl[256];
-        unsigned int len = (unsigned int)
-            snprintf(discoveryUrl, 255, "opc.tcp://%.*s:%d/",
-                     (int)customHost.length, customHost.data, port);
-        ck_assert_uint_eq(nl->discoveryUrl.length, len);
-        ck_assert_uint_eq(config->applicationDescription.discoveryUrls[i].length, len);
-        ck_assert(strncmp(discoveryUrl, (char*)nl->discoveryUrl.data, len)==0);
-        ck_assert(strncmp(discoveryUrl, (char*)config->applicationDescription.discoveryUrls[i].data, len)==0);
-    }
-    UA_Server_run_shutdown(server);
-    UA_Server_delete(server);
-}
-END_TEST
+/*     for (size_t i=0; i<config->networkLayersSize; i++) { */
+/*         const UA_ServerNetworkLayer *nl = &config->networkLayers[i]; */
+/*         char discoveryUrl[256]; */
+/*         unsigned int len = (unsigned int) */
+/*             snprintf(discoveryUrl, 255, "opc.tcp://%.*s:%d/", */
+/*                      (int)customHost.length, customHost.data, port); */
+/*         ck_assert_uint_eq(nl->discoveryUrl.length, len); */
+/*         ck_assert_uint_eq(config->applicationDescription.discoveryUrls[i].length, len); */
+/*         ck_assert(strncmp(discoveryUrl, (char*)nl->discoveryUrl.data, len)==0); */
+/*         ck_assert(strncmp(discoveryUrl, (char*)config->applicationDescription.discoveryUrls[i].data, len)==0); */
+/*     } */
+/*     UA_Server_run_shutdown(server); */
+/*     UA_Server_delete(server); */
+/* } */
+/* END_TEST */
 
 static Suite* testSuite_ServerUserspace(void) {
     Suite *s = suite_create("ServerUserspace");
@@ -184,7 +184,7 @@ static Suite* testSuite_ServerUserspace(void) {
     tcase_add_test(tc_core, Server_addNamespace_ShallWork);
     tcase_add_test(tc_core, Server_addNamespace_writeService);
     tcase_add_test(tc_core, Server_forEachChildNodeCall);
-    tcase_add_test(tc_core, Server_set_customHostname);
+    //tcase_add_test(tc_core, Server_set_customHostname);
 
     suite_add_tcase(s,tc_core);
     return s;

@@ -11,10 +11,6 @@
 #ifndef PLUGINS_ARCH_WIN32_UA_ARCHITECTURE_H_
 #define PLUGINS_ARCH_WIN32_UA_ARCHITECTURE_H_
 
-#ifndef _BSD_SOURCE
-# define _BSD_SOURCE
-#endif
-
 /* Disable some security warnings on MSVC */
 #if defined(_MSC_VER) && !defined(_CRT_SECURE_NO_WARNINGS)
 # define _CRT_SECURE_NO_WARNINGS
@@ -68,20 +64,15 @@ void UA_sleep_ms(unsigned long ms);
 // #define UA_ENABLE_LOG_COLORS
 
 #define UA_IPV6 1
-
-#if defined(__MINGW32__) && !defined(__clang__) //mingw defines SOCKET as long long unsigned int, giving errors in logging and when comparing with UA_Int32
-# define UA_SOCKET int
-# define UA_INVALID_SOCKET -1
-#else
-# define UA_SOCKET SOCKET
-# define UA_INVALID_SOCKET INVALID_SOCKET
-#endif
+#define UA_SOCKET SOCKET
+#define UA_INVALID_SOCKET INVALID_SOCKET
 #define UA_ERRNO WSAGetLastError()
 #define UA_INTERRUPTED WSAEINTR
-#define UA_AGAIN WSAEWOULDBLOCK
-#define UA_EAGAIN EAGAIN
+#define UA_AGAIN EAGAIN /* the same as wouldblock on nearly every system */
+#define UA_INPROGRESS WSAEINPROGRESS
 #define UA_WOULDBLOCK WSAEWOULDBLOCK
-#define UA_ERR_CONNECTION_PROGRESS WSAEWOULDBLOCK
+#define UA_POLLIN POLLRDNORM
+#define UA_POLLOUT POLLWRNORM
 
 #define UA_fd_set(fd, fds) FD_SET((UA_SOCKET)fd, fds)
 #define UA_fd_isset(fd, fds) FD_ISSET((UA_SOCKET)fd, fds)
@@ -92,6 +83,7 @@ void UA_sleep_ms(unsigned long ms);
 
 #define UA_getnameinfo(sa, salen, host, hostlen, serv, servlen, flags) \
     getnameinfo(sa, (socklen_t)salen, host, (DWORD)hostlen, serv, (DWORD)servlen, flags)
+#define UA_poll(fds,nfds,timeout) WSAPoll((LPWSAPOLLFD)fds, nfds, timeout)
 #define UA_send(sockfd, buf, len, flags) send(sockfd, buf, (int)(len), flags)
 #define UA_recv(sockfd, buf, len, flags) recv(sockfd, buf, (int)(len), flags)
 #define UA_sendto(sockfd, buf, len, flags, dest_addr, addrlen) sendto(sockfd, (const char*)(buf), (int)(len), flags, dest_addr, (int) (addrlen))
