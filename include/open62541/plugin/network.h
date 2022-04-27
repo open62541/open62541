@@ -21,9 +21,6 @@ typedef struct UA_Connection UA_Connection;
 struct UA_SecureChannel;
 typedef struct UA_SecureChannel UA_SecureChannel;
 
-struct UA_ServerNetworkLayer;
-typedef struct UA_ServerNetworkLayer UA_ServerNetworkLayer;
-
 /**
  * .. _networking:
  *
@@ -66,7 +63,6 @@ struct UA_Connection {
     UA_SOCKET sockfd;              /* Most connectivity solutions run on
                                     * sockets. Having the socket id here
                                     * simplifies the design. */
-    UA_DateTime openingDate;       /* The date the connection was created */
     void *handle;                  /* A pointer to internal data */
 
     /* Get a buffer for sending */
@@ -113,81 +109,6 @@ struct UA_Connection {
     /* To be called only from within the server (and not the network layer).
      * Frees up the connection's memory. */
     void (*free)(UA_Connection *connection);
-};
-
-/**
- * Server Network Layer
- * --------------------
- * The server exposes two functions to interact with remote clients:
- * `processBinaryMessage` and `removeConnection`. These functions are called by
- * the server network layer.
- *
- * It is the job of the server network layer to listen on a TCP socket, to
- * accept new connections, to call the server with received messages and to
- * signal closed connections to the server.
- *
- * The network layer is part of the server config. So users can provide a custom
- * implementation if the provided example does not fit their architecture. The
- * network layer is invoked only from the server's main loop. So the network
- * layer does not need to be thread-safe. If the network layer receives a
- * positive duration for blocking listening, the server's main loop will block
- * until a message is received or the duration times out. */
-
-/* Process a binary message (TCP packet). The message can contain partial
- * chunks. (TCP is a streaming protocol and packets may be split/merge during
- * transport.) After processing, the message is freed with
- * connection->releaseRecvBuffer. */
-void UA_EXPORT
-UA_Server_processBinaryMessage(UA_Server *server, UA_Connection *connection,
-                               UA_ByteString *message);
-
-/* The server internally cleans up the connection and then calls
- * connection->free. */
-void UA_EXPORT
-UA_Server_removeConnection(UA_Server *server, UA_Connection *connection);
-
-struct UA_ServerNetworkLayer {
-    void *handle; /* Internal data */
-
-    /* Points to external memory, i.e. handled by server or client */
-    UA_NetworkStatistics *statistics;
-
-    UA_String discoveryUrl;
-
-    UA_ConnectionConfig localConnectionConfig;
-
-    /* Start listening on the network layer.
-     *
-     * @param nl The network layer
-     * @return Returns UA_STATUSCODE_GOOD or an error code. */
-    UA_StatusCode (*start)(UA_ServerNetworkLayer *nl, const UA_Logger *logger,
-                           const UA_String *customHostname);
-
-    /* Listen for new and closed connections and arriving packets. Calls
-     * UA_Server_processBinaryMessage for the arriving packets. Closed
-     * connections are picked up here and forwarded to
-     * UA_Server_removeConnection where they are cleaned up and freed.
-     *
-     * @param nl The network layer
-     * @param server The server for processing the incoming packets and for
-     *               closing connections.
-     * @param timeout The timeout during which an event must arrive in
-     *                milliseconds
-     * @return A statuscode for the status of the network layer. */
-    UA_StatusCode (*listen)(UA_ServerNetworkLayer *nl, UA_Server *server,
-                            UA_UInt16 timeout);
-
-    /* Close the network socket and all open connections. Afterwards, the
-     * network layer can be safely deleted.
-     *
-     * @param nl The network layer
-     * @param server The server that processes the incoming packets and for
-     *               closing connections before deleting them.
-     * @return A statuscode for the status of the closing operation. */
-    void (*stop)(UA_ServerNetworkLayer *nl, UA_Server *server);
-
-    /* Deletes the network layer context. Call only after stopping. */
-    void (*clear)(UA_ServerNetworkLayer *nl);
 };
 
 /**

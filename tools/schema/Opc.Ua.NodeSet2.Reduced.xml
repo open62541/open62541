@@ -651,6 +651,60 @@
       <Int32 xmlns="http://opcfoundation.org/UA/2008/02/Types.xsd">2</Int32>
     </Value>
   </UAVariable>
+  <UAObject NodeId="i=83" BrowseName="ExposesItsArray" SymbolicName="ModellingRule_ExposesItsArray">
+    <DisplayName>ExposesItsArray</DisplayName>
+    <Documentation>https://reference.opcfoundation.org/v104/Core/docs/Part5/8.4.1</Documentation>
+    <References>
+      <Reference ReferenceType="HasProperty">i=114</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=77</Reference>
+    </References>
+  </UAObject>
+  <UAVariable NodeId="i=114" BrowseName="NamingRule" ParentNodeId="i=83" DataType="i=120">
+    <DisplayName>NamingRule</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">i=83</Reference>
+    </References>
+    <Value>
+      <Int32 xmlns="http://opcfoundation.org/UA/2008/02/Types.xsd">3</Int32>
+    </Value>
+  </UAVariable>
+  <UAObject NodeId="i=11508" BrowseName="OptionalPlaceholder" SymbolicName="ModellingRule_OptionalPlaceholder">
+    <DisplayName>OptionalPlaceholder</DisplayName>
+    <Documentation>https://reference.opcfoundation.org/v104/Core/docs/Part5/8.4.4</Documentation>
+    <References>
+      <Reference ReferenceType="HasProperty">i=11509</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=77</Reference>
+    </References>
+  </UAObject>
+  <UAVariable NodeId="i=11509" BrowseName="NamingRule" ParentNodeId="i=11508" DataType="i=120">
+    <DisplayName>NamingRule</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">i=11508</Reference>
+    </References>
+    <Value>
+      <Int32 xmlns="http://opcfoundation.org/UA/2008/02/Types.xsd">2</Int32>
+    </Value>
+  </UAVariable>
+  <UAObject NodeId="i=11510" BrowseName="MandatoryPlaceholder" SymbolicName="ModellingRule_MandatoryPlaceholder">
+    <DisplayName>MandatoryPlaceholder</DisplayName>
+    <Documentation>https://reference.opcfoundation.org/v104/Core/docs/Part5/8.4.5</Documentation>
+    <References>
+      <Reference ReferenceType="HasProperty">i=11511</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=77</Reference>
+    </References>
+  </UAObject>
+  <UAVariable NodeId="i=11511" BrowseName="NamingRule" ParentNodeId="i=11510" DataType="i=120">
+    <DisplayName>NamingRule</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">i=11510</Reference>
+    </References>
+    <Value>
+      <Int32 xmlns="http://opcfoundation.org/UA/2008/02/Types.xsd">1</Int32>
+    </Value>
+  </UAVariable>
   <UAObject NodeId="i=84" BrowseName="Root" SymbolicName="RootFolder">
     <DisplayName>Root</DisplayName>
     <References>
@@ -869,120 +923,6 @@
       <Reference ReferenceType="HasSubtype" IsForward="false">i=63</Reference>
     </References>
   </UAVariableType>
-  <UAVariableType NodeId="i=2150" BrowseName="ServerDiagnosticsSummaryType" DataType="i=859">
-    <DisplayName>ServerDiagnosticsSummaryType</DisplayName>
-    <References>
-      <Reference ReferenceType="HasComponent">i=2151</Reference>
-      <Reference ReferenceType="HasComponent">i=2152</Reference>
-      <Reference ReferenceType="HasComponent">i=2153</Reference>
-      <Reference ReferenceType="HasComponent">i=2154</Reference>
-      <Reference ReferenceType="HasComponent">i=2155</Reference>
-      <Reference ReferenceType="HasComponent">i=2156</Reference>
-      <Reference ReferenceType="HasComponent">i=2157</Reference>
-      <Reference ReferenceType="HasComponent">i=2159</Reference>
-      <Reference ReferenceType="HasComponent">i=2160</Reference>
-      <Reference ReferenceType="HasComponent">i=2161</Reference>
-      <Reference ReferenceType="HasComponent">i=2162</Reference>
-      <Reference ReferenceType="HasComponent">i=2163</Reference>
-      <Reference ReferenceType="HasSubtype" IsForward="false">i=63</Reference>
-    </References>
-  </UAVariableType>
-  <UAVariable NodeId="i=2151" BrowseName="ServerViewCount" ParentNodeId="i=2150" DataType="UInt32">
-    <DisplayName>ServerViewCount</DisplayName>
-    <References>
-      <Reference ReferenceType="HasTypeDefinition">i=63</Reference>
-      <Reference ReferenceType="HasModellingRule">i=78</Reference>
-      <Reference ReferenceType="HasComponent" IsForward="false">i=2150</Reference>
-    </References>
-  </UAVariable>
-  <UAVariable NodeId="i=2152" BrowseName="CurrentSessionCount" ParentNodeId="i=2150" DataType="UInt32">
-    <DisplayName>CurrentSessionCount</DisplayName>
-    <References>
-      <Reference ReferenceType="HasTypeDefinition">i=63</Reference>
-      <Reference ReferenceType="HasModellingRule">i=78</Reference>
-      <Reference ReferenceType="HasComponent" IsForward="false">i=2150</Reference>
-    </References>
-  </UAVariable>
-  <UAVariable NodeId="i=2153" BrowseName="CumulatedSessionCount" ParentNodeId="i=2150" DataType="UInt32">
-    <DisplayName>CumulatedSessionCount</DisplayName>
-    <References>
-      <Reference ReferenceType="HasTypeDefinition">i=63</Reference>
-      <Reference ReferenceType="HasModellingRule">i=78</Reference>
-      <Reference ReferenceType="HasComponent" IsForward="false">i=2150</Reference>
-    </References>
-  </UAVariable>
-  <UAVariable NodeId="i=2154" BrowseName="SecurityRejectedSessionCount" ParentNodeId="i=2150" DataType="UInt32">
-    <DisplayName>SecurityRejectedSessionCount</DisplayName>
-    <References>
-      <Reference ReferenceType="HasTypeDefinition">i=63</Reference>
-      <Reference ReferenceType="HasModellingRule">i=78</Reference>
-      <Reference ReferenceType="HasComponent" IsForward="false">i=2150</Reference>
-    </References>
-  </UAVariable>
-  <UAVariable NodeId="i=2155" BrowseName="RejectedSessionCount" ParentNodeId="i=2150" DataType="UInt32">
-    <DisplayName>RejectedSessionCount</DisplayName>
-    <References>
-      <Reference ReferenceType="HasTypeDefinition">i=63</Reference>
-      <Reference ReferenceType="HasModellingRule">i=78</Reference>
-      <Reference ReferenceType="HasComponent" IsForward="false">i=2150</Reference>
-    </References>
-  </UAVariable>
-  <UAVariable NodeId="i=2156" BrowseName="SessionTimeoutCount" ParentNodeId="i=2150" DataType="UInt32">
-    <DisplayName>SessionTimeoutCount</DisplayName>
-    <References>
-      <Reference ReferenceType="HasTypeDefinition">i=63</Reference>
-      <Reference ReferenceType="HasModellingRule">i=78</Reference>
-      <Reference ReferenceType="HasComponent" IsForward="false">i=2150</Reference>
-    </References>
-  </UAVariable>
-  <UAVariable NodeId="i=2157" BrowseName="SessionAbortCount" ParentNodeId="i=2150" DataType="UInt32">
-    <DisplayName>SessionAbortCount</DisplayName>
-    <References>
-      <Reference ReferenceType="HasTypeDefinition">i=63</Reference>
-      <Reference ReferenceType="HasModellingRule">i=78</Reference>
-      <Reference ReferenceType="HasComponent" IsForward="false">i=2150</Reference>
-    </References>
-  </UAVariable>
-  <UAVariable NodeId="i=2159" BrowseName="PublishingIntervalCount" ParentNodeId="i=2150" DataType="UInt32">
-    <DisplayName>PublishingIntervalCount</DisplayName>
-    <References>
-      <Reference ReferenceType="HasTypeDefinition">i=63</Reference>
-      <Reference ReferenceType="HasModellingRule">i=78</Reference>
-      <Reference ReferenceType="HasComponent" IsForward="false">i=2150</Reference>
-    </References>
-  </UAVariable>
-  <UAVariable NodeId="i=2160" BrowseName="CurrentSubscriptionCount" ParentNodeId="i=2150" DataType="UInt32">
-    <DisplayName>CurrentSubscriptionCount</DisplayName>
-    <References>
-      <Reference ReferenceType="HasTypeDefinition">i=63</Reference>
-      <Reference ReferenceType="HasModellingRule">i=78</Reference>
-      <Reference ReferenceType="HasComponent" IsForward="false">i=2150</Reference>
-    </References>
-  </UAVariable>
-  <UAVariable NodeId="i=2161" BrowseName="CumulatedSubscriptionCount" ParentNodeId="i=2150" DataType="UInt32">
-    <DisplayName>CumulatedSubscriptionCount</DisplayName>
-    <References>
-      <Reference ReferenceType="HasTypeDefinition">i=63</Reference>
-      <Reference ReferenceType="HasModellingRule">i=78</Reference>
-      <Reference ReferenceType="HasComponent" IsForward="false">i=2150</Reference>
-    </References>
-  </UAVariable>
-  <UAVariable NodeId="i=2162" BrowseName="SecurityRejectedRequestsCount" ParentNodeId="i=2150" DataType="UInt32">
-    <DisplayName>SecurityRejectedRequestsCount</DisplayName>
-    <References>
-      <Reference ReferenceType="HasTypeDefinition">i=63</Reference>
-      <Reference ReferenceType="HasModellingRule">i=78</Reference>
-      <Reference ReferenceType="HasComponent" IsForward="false">i=2150</Reference>
-    </References>
-  </UAVariable>
-  <UAVariable NodeId="i=2163" BrowseName="RejectedRequestsCount" ParentNodeId="i=2150" DataType="UInt32">
-    <DisplayName>RejectedRequestsCount</DisplayName>
-    <References>
-      <Reference ReferenceType="HasTypeDefinition">i=63</Reference>
-      <Reference ReferenceType="HasModellingRule">i=78</Reference>
-      <Reference ReferenceType="HasComponent" IsForward="false">i=2150</Reference>
-    </References>
-  </UAVariable>
   <UAObject NodeId="i=2253" BrowseName="Server" EventNotifier="1">
     <DisplayName>Server</DisplayName>
     <References>
@@ -1281,115 +1221,11 @@
   <UAObject NodeId="i=2274" BrowseName="ServerDiagnostics" ParentNodeId="i=2253">
     <DisplayName>ServerDiagnostics</DisplayName>
     <References>
-      <Reference ReferenceType="HasComponent">i=2275</Reference>
       <Reference ReferenceType="HasProperty">i=2294</Reference>
       <Reference ReferenceType="HasTypeDefinition">i=2020</Reference>
       <Reference ReferenceType="HasComponent" IsForward="false">i=2253</Reference>
     </References>
   </UAObject>
-  <UAVariable NodeId="i=2275" BrowseName="ServerDiagnosticsSummary" ParentNodeId="i=2274" DataType="i=859">
-    <DisplayName>ServerDiagnosticsSummary</DisplayName>
-    <References>
-      <Reference ReferenceType="HasComponent">i=2276</Reference>
-      <Reference ReferenceType="HasComponent">i=2277</Reference>
-      <Reference ReferenceType="HasComponent">i=2278</Reference>
-      <Reference ReferenceType="HasComponent">i=2279</Reference>
-      <Reference ReferenceType="HasComponent">i=3705</Reference>
-      <Reference ReferenceType="HasComponent">i=2281</Reference>
-      <Reference ReferenceType="HasComponent">i=2282</Reference>
-      <Reference ReferenceType="HasComponent">i=2284</Reference>
-      <Reference ReferenceType="HasComponent">i=2285</Reference>
-      <Reference ReferenceType="HasComponent">i=2286</Reference>
-      <Reference ReferenceType="HasComponent">i=2287</Reference>
-      <Reference ReferenceType="HasComponent">i=2288</Reference>
-      <Reference ReferenceType="HasTypeDefinition">i=2150</Reference>
-      <Reference ReferenceType="HasComponent" IsForward="false">i=2274</Reference>
-    </References>
-  </UAVariable>
-  <UAVariable NodeId="i=2276" BrowseName="ServerViewCount" ParentNodeId="i=2275" DataType="UInt32">
-    <DisplayName>ServerViewCount</DisplayName>
-    <References>
-      <Reference ReferenceType="HasTypeDefinition">i=63</Reference>
-      <Reference ReferenceType="HasComponent" IsForward="false">i=2275</Reference>
-    </References>
-  </UAVariable>
-  <UAVariable NodeId="i=2277" BrowseName="CurrentSessionCount" ParentNodeId="i=2275" DataType="UInt32">
-    <DisplayName>CurrentSessionCount</DisplayName>
-    <References>
-      <Reference ReferenceType="HasTypeDefinition">i=63</Reference>
-      <Reference ReferenceType="HasComponent" IsForward="false">i=2275</Reference>
-    </References>
-  </UAVariable>
-  <UAVariable NodeId="i=2278" BrowseName="CumulatedSessionCount" ParentNodeId="i=2275" DataType="UInt32">
-    <DisplayName>CumulatedSessionCount</DisplayName>
-    <References>
-      <Reference ReferenceType="HasTypeDefinition">i=63</Reference>
-      <Reference ReferenceType="HasComponent" IsForward="false">i=2275</Reference>
-    </References>
-  </UAVariable>
-  <UAVariable NodeId="i=2279" BrowseName="SecurityRejectedSessionCount" ParentNodeId="i=2275" DataType="UInt32">
-    <DisplayName>SecurityRejectedSessionCount</DisplayName>
-    <References>
-      <Reference ReferenceType="HasTypeDefinition">i=63</Reference>
-      <Reference ReferenceType="HasComponent" IsForward="false">i=2275</Reference>
-    </References>
-  </UAVariable>
-  <UAVariable NodeId="i=3705" BrowseName="RejectedSessionCount" ParentNodeId="i=2275" DataType="UInt32">
-    <DisplayName>RejectedSessionCount</DisplayName>
-    <References>
-      <Reference ReferenceType="HasTypeDefinition">i=63</Reference>
-      <Reference ReferenceType="HasComponent" IsForward="false">i=2275</Reference>
-    </References>
-  </UAVariable>
-  <UAVariable NodeId="i=2281" BrowseName="SessionTimeoutCount" ParentNodeId="i=2275" DataType="UInt32">
-    <DisplayName>SessionTimeoutCount</DisplayName>
-    <References>
-      <Reference ReferenceType="HasTypeDefinition">i=63</Reference>
-      <Reference ReferenceType="HasComponent" IsForward="false">i=2275</Reference>
-    </References>
-  </UAVariable>
-  <UAVariable NodeId="i=2282" BrowseName="SessionAbortCount" ParentNodeId="i=2275" DataType="UInt32">
-    <DisplayName>SessionAbortCount</DisplayName>
-    <References>
-      <Reference ReferenceType="HasTypeDefinition">i=63</Reference>
-      <Reference ReferenceType="HasComponent" IsForward="false">i=2275</Reference>
-    </References>
-  </UAVariable>
-  <UAVariable NodeId="i=2284" BrowseName="PublishingIntervalCount" ParentNodeId="i=2275" DataType="UInt32">
-    <DisplayName>PublishingIntervalCount</DisplayName>
-    <References>
-      <Reference ReferenceType="HasTypeDefinition">i=63</Reference>
-      <Reference ReferenceType="HasComponent" IsForward="false">i=2275</Reference>
-    </References>
-  </UAVariable>
-  <UAVariable NodeId="i=2285" BrowseName="CurrentSubscriptionCount" ParentNodeId="i=2275" DataType="UInt32">
-    <DisplayName>CurrentSubscriptionCount</DisplayName>
-    <References>
-      <Reference ReferenceType="HasTypeDefinition">i=63</Reference>
-      <Reference ReferenceType="HasComponent" IsForward="false">i=2275</Reference>
-    </References>
-  </UAVariable>
-  <UAVariable NodeId="i=2286" BrowseName="CumulatedSubscriptionCount" ParentNodeId="i=2275" DataType="UInt32">
-    <DisplayName>CumulatedSubscriptionCount</DisplayName>
-    <References>
-      <Reference ReferenceType="HasTypeDefinition">i=63</Reference>
-      <Reference ReferenceType="HasComponent" IsForward="false">i=2275</Reference>
-    </References>
-  </UAVariable>
-  <UAVariable NodeId="i=2287" BrowseName="SecurityRejectedRequestsCount" ParentNodeId="i=2275" DataType="UInt32">
-    <DisplayName>SecurityRejectedRequestsCount</DisplayName>
-    <References>
-      <Reference ReferenceType="HasTypeDefinition">i=63</Reference>
-      <Reference ReferenceType="HasComponent" IsForward="false">i=2275</Reference>
-    </References>
-  </UAVariable>
-  <UAVariable NodeId="i=2288" BrowseName="RejectedRequestsCount" ParentNodeId="i=2275" DataType="UInt32">
-    <DisplayName>RejectedRequestsCount</DisplayName>
-    <References>
-      <Reference ReferenceType="HasTypeDefinition">i=63</Reference>
-      <Reference ReferenceType="HasComponent" IsForward="false">i=2275</Reference>
-    </References>
-  </UAVariable>
   <UAVariable NodeId="i=2294" BrowseName="EnabledFlag" ParentNodeId="i=2274" DataType="Boolean" AccessLevel="3">
     <DisplayName>EnabledFlag</DisplayName>
     <References>
@@ -1656,26 +1492,6 @@
       <Field Name="Test" Value="5" />
       <Field Name="CommunicationFault" Value="6" />
       <Field Name="Unknown" Value="7" />
-    </Definition>
-  </UADataType>
-  <UADataType NodeId="i=859" BrowseName="ServerDiagnosticsSummaryDataType">
-    <DisplayName>ServerDiagnosticsSummaryDataType</DisplayName>
-    <References>
-      <Reference ReferenceType="HasSubtype" IsForward="false">i=22</Reference>
-    </References>
-    <Definition Name="ServerDiagnosticsSummaryDataType">
-      <Field Name="ServerViewCount" DataType="i=7" />
-      <Field Name="CurrentSessionCount" DataType="i=7" />
-      <Field Name="CumulatedSessionCount" DataType="i=7" />
-      <Field Name="SecurityRejectedSessionCount" DataType="i=7" />
-      <Field Name="RejectedSessionCount" DataType="i=7" />
-      <Field Name="SessionTimeoutCount" DataType="i=7" />
-      <Field Name="SessionAbortCount" DataType="i=7" />
-      <Field Name="CurrentSubscriptionCount" DataType="i=7" />
-      <Field Name="CumulatedSubscriptionCount" DataType="i=7" />
-      <Field Name="PublishingIntervalCount" DataType="i=7" />
-      <Field Name="SecurityRejectedRequestsCount" DataType="i=7" />
-      <Field Name="RejectedRequestsCount" DataType="i=7" />
     </Definition>
   </UADataType>
   <UADataType NodeId="i=862" BrowseName="ServerStatusDataType">

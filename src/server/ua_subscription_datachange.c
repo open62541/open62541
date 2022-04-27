@@ -144,10 +144,8 @@ UA_MonitoredItem_createDataChangeNotification(UA_Server *server, UA_Subscription
     }
 
     /* Enqueue the notification */
+    UA_assert(sub);
     UA_Notification_enqueueAndTrigger(server, newNotification);
-    UA_LOG_DEBUG_SUBSCRIPTION(&server->config.logger, sub,
-                              "MonitoredItem %" PRIi32 " | "
-                              "Enqueued a new notification", mon->monitoredItemId);
     return UA_STATUSCODE_GOOD;
 }
 

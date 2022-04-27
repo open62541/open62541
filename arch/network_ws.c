@@ -155,7 +155,6 @@ callback_opcua(struct lws *wsi, enum lws_callback_reasons reason, void *user, vo
             c->releaseRecvBuffer = connection_ws_releaserecvbuffer;
             // stack sets the connection to established
             c->state = UA_CONNECTIONSTATE_OPENING;
-            c->openingDate = UA_DateTime_nowMonotonic();
             pss->connection = c;
             break;
 

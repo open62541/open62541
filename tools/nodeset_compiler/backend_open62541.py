@@ -142,7 +142,7 @@ def generateOpen62541Code(nodeset, outfilename, internal_headers=False, typesArr
 
     additionalHeaders = ""
     if len(typesArray) > 0:
-        for arr in set(typesArray):
+        for arr in typesArray:
             if arr == "UA_TYPES":
                 continue
             # remove ua_ prefix if exists
@@ -226,7 +226,7 @@ _UA_END_DECLS
     functionNumber = 0
 
     printed_ids = set()
-    reftypes_functionNumbers = set()
+    reftypes_functionNumbers = list()
     for node in sorted_nodes:
         printed_ids.add(node.id)
 
@@ -243,7 +243,7 @@ _UA_END_DECLS
                     writec("\n".join(code_global))
                     writec("\n")
                 writec("\nstatic UA_StatusCode function_" + outfilebase + "_" + str(functionNumber) + "_begin(UA_Server *server, UA_UInt16* ns) {")
-                if isinstance(node, MethodNode):
+                if isinstance(node, MethodNode) or isinstance(node.parent, MethodNode):
                     writec("#ifdef UA_ENABLE_METHODCALLS")
                 writec(code)
 
@@ -264,7 +264,7 @@ _UA_END_DECLS
 
         writec("return retVal;")
 
-        if isinstance(node, MethodNode):
+        if isinstance(node, MethodNode) or isinstance(node.parent, MethodNode):
             writec("#else")
             writec("return UA_STATUSCODE_GOOD;")
             writec("#endif /* UA_ENABLE_METHODCALLS */")
@@ -272,10 +272,10 @@ _UA_END_DECLS
 
         writec("\nstatic UA_StatusCode function_" + outfilebase + "_" + str(functionNumber) + "_finish(UA_Server *server, UA_UInt16* ns) {")
 
-        if isinstance(node, MethodNode):
+        if isinstance(node, MethodNode) or isinstance(node.parent, MethodNode):
             writec("#ifdef UA_ENABLE_METHODCALLS")
         writec("return " + generateNodeCode_finish(node))
-        if isinstance(node, MethodNode):
+        if isinstance(node, MethodNode) or isinstance(node.parent, MethodNode):
             writec("#else")
             writec("return UA_STATUSCODE_GOOD;")
             writec("#endif /* UA_ENABLE_METHODCALLS */")
@@ -285,13 +285,13 @@ _UA_END_DECLS
         # of other nodes might depend on the subtyping information of the
         # referencetype to be complete.
         if isinstance(node, ReferenceTypeNode):
-            reftypes_functionNumbers.add(functionNumber)
+            reftypes_functionNumbers.append(functionNumber)
 
         functionNumber = functionNumber + 1
 
 
     # Load generated types
-    for arr in set(typesArray):
+    for arr in typesArray:
         if arr == "UA_TYPES":
             continue
         writec("\nstatic UA_DataTypeArray custom" + arr + " = {")
@@ -312,7 +312,7 @@ UA_StatusCode retVal = UA_STATUSCODE_GOOD;""" % (outfilebase))
 
     # Add generated types to the server
     writec("\n/* Load custom datatype definitions into the server */")
-    for arr in set(typesArray):
+    for arr in typesArray:
         if arr == "UA_TYPES":
             continue
         writec("if(" + arr + "_COUNT > 0) {")

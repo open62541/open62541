@@ -71,15 +71,16 @@ UA_ClientConfig_clear(UA_ClientConfig *config) {
     config->securityPolicies = 0;
 
     /* Stop and delete the EventLoop */
-    if(config->eventLoop && !config->externalEventLoop) {
-        if(UA_EventLoop_getState(config->eventLoop) != UA_EVENTLOOPSTATE_FRESH &&
-           UA_EventLoop_getState(config->eventLoop) != UA_EVENTLOOPSTATE_STOPPED) {
-            UA_EventLoop_stop(config->eventLoop);
-            while(UA_EventLoop_getState(config->eventLoop) != UA_EVENTLOOPSTATE_STOPPED) {
-                UA_EventLoop_run(config->eventLoop, 100);
+    UA_EventLoop *el = config->eventLoop;
+    if(el && !config->externalEventLoop) {
+        if(el->state != UA_EVENTLOOPSTATE_FRESH &&
+           el->state != UA_EVENTLOOPSTATE_STOPPED) {
+            el->stop(el);
+            while(el->state != UA_EVENTLOOPSTATE_STOPPED) {
+                el->run(el, 100);
             }
         }
-        UA_EventLoop_delete(config->eventLoop);
+        el->free(el);
         config->eventLoop = NULL;
     }
 
@@ -603,29 +604,33 @@ UA_Client_sendAsyncRequest(UA_Client *client, const void *request,
 UA_StatusCode UA_EXPORT
 UA_Client_addTimedCallback(UA_Client *client, UA_ClientCallback callback,
                            void *data, UA_DateTime date, UA_UInt64 *callbackId) {
-    return UA_EventLoop_addTimedCallback(client->config.eventLoop, (UA_Callback)callback,
-                                     client, data, date, callbackId);
+    return client->config.eventLoop->
+        addTimedCallback(client->config.eventLoop, (UA_Callback)callback,
+                         client, data, date, callbackId);
 }
 
 UA_StatusCode
 UA_Client_addRepeatedCallback(UA_Client *client, UA_ClientCallback callback,
                               void *data, UA_Double interval_ms, UA_UInt64 *callbackId) {
 
-    return UA_EventLoop_addCyclicCallback(
-        client->config.eventLoop, (UA_Callback)callback, client, data,
-        interval_ms, NULL, UA_TIMER_HANDLE_CYCLEMISS_WITH_CURRENTTIME, callbackId);
+    return client->config.eventLoop->
+        addCyclicCallback(client->config.eventLoop, (UA_Callback)callback,
+                          client, data, interval_ms, NULL,
+                          UA_TIMER_HANDLE_CYCLEMISS_WITH_CURRENTTIME, callbackId);
 }
 
 UA_StatusCode
 UA_Client_changeRepeatedCallbackInterval(UA_Client *client, UA_UInt64 callbackId,
                                          UA_Double interval_ms) {
-    return UA_EventLoop_modifyCyclicCallback(client->config.eventLoop, callbackId,
-                                             interval_ms, NULL, UA_TIMER_HANDLE_CYCLEMISS_WITH_CURRENTTIME);
+    return client->config.eventLoop->
+        modifyCyclicCallback(client->config.eventLoop, callbackId, interval_ms,
+                             NULL, UA_TIMER_HANDLE_CYCLEMISS_WITH_CURRENTTIME);
 }
 
 void
 UA_Client_removeCallback(UA_Client *client, UA_UInt64 callbackId) {
-    UA_EventLoop_removeCyclicCallback(client->config.eventLoop, callbackId);
+    client->config.eventLoop->
+        removeCyclicCallback(client->config.eventLoop, callbackId);
 }
 
 static void
@@ -688,20 +693,22 @@ UA_Client_backgroundConnectivity(UA_Client *client) {
 UA_StatusCode
 UA_Client_run_iterate(UA_Client *client, UA_UInt32 timeout) {
     UA_ClientConfig *cc = UA_Client_getConfig(client);
-    UA_CHECK_ERROR(UA_EventLoop_getState(cc->eventLoop) != UA_EVENTLOOPSTATE_STOPPED,
-                   return UA_STATUSCODE_BAD, &client->config.logger, UA_LOGCATEGORY_CLIENT,
+    UA_EventLoop *el = cc->eventLoop;
+    UA_CHECK_ERROR(el->state != UA_EVENTLOOPSTATE_STOPPED,
+                   return UA_STATUSCODE_BAD,
+                   &client->config.logger, UA_LOGCATEGORY_CLIENT,
                    "Eventloop was explicitly stopped.");
 
     UA_StatusCode rv = UA_STATUSCODE_GOOD;
-    if(UA_EventLoop_getState(cc->eventLoop) == UA_EVENTLOOPSTATE_FRESH) {
-        rv = UA_EventLoop_start(cc->eventLoop);
+    if(el->state == UA_EVENTLOOPSTATE_FRESH) {
+        rv = el->start(el);
         UA_CHECK_STATUS(rv, return rv);
     }
 
     /* Process timed (repeated) jobs */
     UA_DateTime now = UA_DateTime_nowMonotonic();
-    UA_EventLoop_run(client->config.eventLoop, 0);
-    UA_DateTime maxDate = UA_EventLoop_nextCyclicTime(client->config.eventLoop);
+    el->run(el, 0);
+    UA_DateTime maxDate = el->nextCyclicTime(el);
     if(maxDate > now + ((UA_DateTime)timeout * UA_DATETIME_MSEC))
         maxDate = now + ((UA_DateTime)timeout * UA_DATETIME_MSEC);
 
