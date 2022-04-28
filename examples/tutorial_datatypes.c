@@ -130,11 +130,62 @@ variables_variants(void) {
     UA_Variant_clear(&v3);
 }
 
+#ifdef UA_ENABLE_TYPEDESCRIPTION
+static void
+prettyprint(void) {
+    UA_ReadRequest rr;
+    UA_ReadRequest_init(&rr);
+    UA_ReadValueId rvi[2];
+    UA_ReadValueId_init(rvi);
+    UA_ReadValueId_init(&rvi[1]);
+    rr.nodesToRead = rvi;
+    rr.nodesToReadSize = 2;
+    UA_String out = UA_STRING_NULL;
+    UA_print(&rr, &UA_TYPES[UA_TYPES_READREQUEST], &out);
+
+    printf("%.*s\n", (int)out.length, out.data);
+    UA_String_clear(&out);
+
+    UA_ReadResponse resp;
+    UA_ReadResponse_init(&resp);
+    UA_print(&resp, &UA_TYPES[UA_TYPES_READRESPONSE], &out);
+
+    printf("%.*s\n", (int)out.length, out.data);
+    UA_String_clear(&out);
+
+    UA_ReferenceDescription br;
+    UA_ReferenceDescription_init(&br);
+    br.nodeClass = (UA_NodeClass)5;
+    UA_print(&br, &UA_TYPES[UA_TYPES_REFERENCEDESCRIPTION], &out);
+    printf("%.*s\n", (int)out.length, out.data);
+    UA_String_clear(&out);
+
+    UA_Float matrix[4] = {1.0, 2.0, 3.0, 4.0};
+    UA_UInt32 matrix_dims[2] = {2, 2};
+    UA_DataValue dv;
+    UA_DataValue_init(&dv);
+    UA_Variant_setArray(&dv.value, &matrix, 4, &UA_TYPES[UA_TYPES_FLOAT]);
+    dv.value.arrayDimensions = matrix_dims;
+    dv.value.arrayDimensionsSize = 2;
+    dv.hasValue = true;
+    dv.hasStatus = true;
+    dv.hasServerTimestamp = true;
+    dv.hasSourcePicoseconds = true;
+    UA_print(&dv, &UA_TYPES[UA_TYPES_DATAVALUE], &out);
+    printf("%.*s\n", (int)out.length, out.data);
+    UA_String_clear(&out);
+}
+#endif
+
 /** It follows the main function, making use of the above definitions. */
 
 int main(void) {
     variables_basic();
     variables_nodeids();
     variables_variants();
+#ifdef UA_ENABLE_TYPEDESCRIPTION
+    prettyprint();
+#endif
+
     return EXIT_SUCCESS;
 }

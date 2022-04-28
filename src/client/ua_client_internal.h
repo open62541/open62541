@@ -20,7 +20,9 @@
 
 #include "open62541_queue.h"
 #include "ua_securechannel.h"
-#include "ua_timer.h"
+#include "common/ua_timer.h"
+#include "ua_util_internal.h"
+#include "ziptree.h"
 
 _UA_BEGIN_DECLS
 
@@ -35,8 +37,11 @@ typedef struct UA_Client_NotificationsAckNumber {
     UA_SubscriptionAcknowledgement subAck;
 } UA_Client_NotificationsAckNumber;
 
-typedef struct UA_Client_MonitoredItem {
-    LIST_ENTRY(UA_Client_MonitoredItem) listEntry;
+struct UA_Client_MonitoredItem;
+typedef struct UA_Client_MonitoredItem UA_Client_MonitoredItem;
+
+struct UA_Client_MonitoredItem {
+    ZIP_ENTRY(UA_Client_MonitoredItem) zipfields;
     UA_UInt32 monitoredItemId;
     UA_UInt32 clientHandle;
     void *context;
@@ -46,7 +51,10 @@ typedef struct UA_Client_MonitoredItem {
         UA_Client_EventNotificationCallback eventCallback;
     } handler;
     UA_Boolean isEventMonitoredItem; /* Otherwise a DataChange MoniitoredItem */
-} UA_Client_MonitoredItem;
+};
+
+ZIP_HEAD(MonitorItemsTree, UA_Client_MonitoredItem);
+typedef struct MonitorItemsTree MonitorItemsTree;
 
 typedef struct UA_Client_Subscription {
     LIST_ENTRY(UA_Client_Subscription) listEntry;
@@ -58,8 +66,14 @@ typedef struct UA_Client_Subscription {
     UA_Client_DeleteSubscriptionCallback deleteCallback;
     UA_UInt32 sequenceNumber;
     UA_DateTime lastActivity;
-    LIST_HEAD(, UA_Client_MonitoredItem) monitoredItems;
+    MonitorItemsTree monitoredItems;
 } UA_Client_Subscription;
+
+struct UA_Client_MonitoredItem_ForDelete {
+    UA_Client *client;
+    UA_Client_Subscription *sub;
+    UA_UInt32 *monitoredItemId;
+};
 
 void
 UA_Client_Subscriptions_clean(UA_Client *client);
@@ -99,19 +113,16 @@ void
 UA_Client_AsyncService_removeAll(UA_Client *client, UA_StatusCode statusCode);
 
 typedef struct CustomCallback {
-    LIST_ENTRY(CustomCallback) pointers;
     UA_UInt32 callbackId;
 
     UA_ClientAsyncServiceCallback userCallback;
     void *userData;
 
-    bool isAsync;
     void *clientData;
 } CustomCallback;
 
 struct UA_Client {
     UA_ClientConfig config;
-    UA_Timer timer;
 
     /* Overall connection status */
     UA_StatusCode connectStatus;
@@ -146,7 +157,6 @@ struct UA_Client {
 
     /* Async Service */
     LIST_HEAD(, AsyncServiceCall) asyncServiceCalls;
-    LIST_HEAD(, CustomCallback) customCallbacks;
 
     /* Subscriptions */
 #ifdef UA_ENABLE_SUBSCRIPTIONS

@@ -33,6 +33,7 @@ int main(int argc, char **argv)
 
     config->customDataTypes = &customTypesArray;
 
+
     UA_StatusCode retval;
     /* create nodes from nodeset */
     if(namespace_testnodeset_generated(server) != UA_STATUSCODE_GOOD) {

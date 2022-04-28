@@ -71,7 +71,7 @@ Building on OS X
 
   - Xcode: https://itunes.apple.com/us/app/xcode/id497799835?ls=1&mt=12
   - Homebrew: http://brew.sh/
-  - Pip (a package manager for python, may be preinstalled): ``sudo easy_install pip``
+  - Pip (a package manager for Python, may be preinstalled): ``sudo easy_install pip``
 
 - Run the following in a shell
 
@@ -92,13 +92,13 @@ The procedure below works on OpenBSD 5.8 with gcc version 4.8.4, cmake version 3
 - Install a recent gcc, python and cmake:
 
 .. code-block:: bash
-   
+
    pkg_add gcc python cmake
 
-- Tell the system to actually use the recent gcc (it gets installed as egcc on OpenBSD): 
+- Tell the system to actually use the recent gcc (it gets installed as egcc on OpenBSD):
 
 .. code-block:: bash
-   
+
    export CC=egcc CXX=eg++
 
 - Now procede as described for Ubuntu/Debian:
@@ -145,7 +145,7 @@ Make a local copy of the open62541 git repo and checkout a pack branch
 
 .. code-block:: bash
 
-   # make a local copy of the open62541 git repo (e.g. in the home directory) 
+   # make a local copy of the open62541 git repo (e.g. in the home directory)
    # and checkout a pack branch (e.g. pack/1.0)
    cd ~
    git clone https://github.com/open62541/open62541.git
@@ -158,10 +158,10 @@ Now it's all set to build Debian/Ubuntu open62541 packages
 
    # goto local developmet path
    cd ~/development
-   
+
    # make a local output directory for the builder where the packages can be placed after build
    mkdir output
-   
+
    # build Debian/Ubuntu packages inside Docker container (e.g. Ubuntu-18.04)
    ./build -i docker-deb-builder:18.04 -o output ~/open62541
 
@@ -174,7 +174,7 @@ If the open62541 library will be build as a Debian package using a pack branch (
 then altering or adding CMake build options should be done inside the :file:`debian/rules` file respectively in
 the :file:`debian/rules-template` file if working with a development branch (e.g. master or 1.0).
 
-The section in :file:`debian/rules` where the CMake build options are defined is 
+The section in :file:`debian/rules` where the CMake build options are defined is
 
 .. code-block:: bash
 
@@ -222,12 +222,10 @@ Main Build Options
 **UA_MULTITHREADING**
    Level of multi-threading support. The supported levels are currently as follows:
 
-  - 0-199: Multithreading support disabled.
-  - 100-199: API functions marked with the UA_THREADSAFE-macro are protected internally with mutexes.
+  - 0-99: Multithreading support disabled.
+  - >=100: API functions marked with the UA_THREADSAFE-macro are protected internally with mutexes.
     Multiple threads are allowed to call these functions of the SDK at the same time without causing race conditions.
     Furthermore, this level support the handling of asynchronous method calls from external worker threads.
-  - >=200: Work is distributed to a number of internal worker threads. Those worker threads are created within the SDK.
-    (EXPERIMENTAL FEATURE! Expect bugs.)
 
 Select build artefacts
 ^^^^^^^^^^^^^^^^^^^^^^
@@ -274,8 +272,7 @@ Detailed SDK Features
    Nodes in the information model are not edited but copied and replaced. The
    replacement is done with atomic operations so that the information model is
    always consistent and can be accessed from an interrupt or parallel thread
-   (depends on the node storage plugin implementation). This feature is a
-   prerequisite for ``UA_MULTITHREADING``.
+   (depends on the node storage plugin implementation).
 
 **UA_ENABLE_COVERAGE**
    Measure the coverage of unit tests
@@ -285,6 +282,17 @@ Detailed SDK Features
    Enable Discovery Service with multicast support (LDS-ME)
 **UA_ENABLE_DISCOVERY_SEMAPHORE**
    Enable Discovery Semaphore support
+**UA_ENABLE_ENCRYPTION**
+   Enable encryption support and specify the used encryption backend. The possible
+   options are:
+   - ``OFF`` No encryption support. (default)
+   - ``MBEDTLS`` Encryption support using mbed TLS
+   - ``OPENSSL`` Encryption support using OpenSSL
+   - ``LIBRESSL`` EXPERIMENTAL: Encryption support using LibreSSL
+**UA_ENABLE_ENCRYPTION_TPM2**
+   Enable TPM hardware for encryption. The possible options are:
+      - ``OFF`` No TPM encryption support. (default)
+      - ``ON`` TPM encryption support
 
 **UA_NAMESPACE_ZERO**
 
@@ -312,6 +320,42 @@ be visible in the cmake GUIs.
    Use the full NS0 instead of a minimal Namespace 0 nodeset
    ``UA_FILE_NS0`` is used to specify the file for NS0 generation from namespace0 folder. Default value is ``Opc.Ua.NodeSet2.xml``
 
+PubSub Build Options
+^^^^^^^^^^^^^^^^^^^^
+
+**UA_ENABLE_PUBSUB**
+   Enable the experimental OPC UA PubSub support. The option will include the
+   PubSub UDP multicast plugin. Disabled by default.
+
+**UA_ENABLE_PUBSUB_DELTAFRAMES**
+   The PubSub messages differentiate between keyframe (all published values
+   contained) and deltaframe (only changed values contained) messages.
+   Deltaframe messages creation consumes some additional resources and can be
+   disabled with this flag. Disabled by default.
+
+**UA_ENABLE_PUBSUB_FILE_CONFIG**
+   Enable loading OPC UA PubSub configuration from File/ByteString. Enabling
+   PubSub informationmodel methods also will add a method to the
+   Publish/Subscribe object which allows configuring PubSub at runtime.
+
+**UA_ENABLE_PUBSUB_INFORMATIONMODEL**
+   Enable the information model representation of the PubSub configuration. For
+   more details take a look at the following section `PubSub Information Model
+   Representation`. Disabled by default.
+
+**UA_ENABLE_PUBSUB_MONITORING**
+   Enable the experimental PubSub monitoring. This feature provides a basic
+   framework to implement monitoring/timeout checks for PubSub components.
+   Initially the MessageReceiveTimeout check of a DataSetReader is provided. It
+   uses the internal server callback implementation. The monitoring backend can
+   be changed by the application to satisfy realtime requirements. Disabled by
+   default.
+
+**UA_ENABLE_PUBSUB_ETH_UADP**
+   Enable the OPC UA Ethernet PubSub support to transport UADP NetworkMessages
+   as payload of Ethernet II frame without IP or UDP headers. This option will
+   include Publish and Subscribe based on EtherType B62C. Disabled by default.
+
 Debug Build Options
 ^^^^^^^^^^^^^^^^^^^
 
@@ -337,7 +381,7 @@ Minimizing the binary size
 ^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 The size of the generated binary can be reduced considerably by adjusting the
-build configuration. With open2541, it is possible to configure minimal servers
+build configuration. With open62541, it is possible to configure minimal servers
 that require less than 100kB of RAM and ROM.
 
 The following options influence the ROM requirements:

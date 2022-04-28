@@ -11,7 +11,6 @@
 #include <open62541/util.h>
 
 #include "ua_util_internal.h"
-
 #include "base64.h"
 
 size_t
@@ -45,6 +44,8 @@ UA_readNumber(const UA_Byte *buf, size_t buflen, UA_UInt32 *number) {
 UA_StatusCode
 UA_parseEndpointUrl(const UA_String *endpointUrl, UA_String *outHostname,
                     u16 *outPort, UA_String *outPath) {
+    UA_Boolean ipv6 = false;
+
     /* Url must begin with "opc.tcp://" or opc.udp:// (if pubsub enabled) */
     if(endpointUrl->length < 11) {
         return UA_STATUSCODE_BADTCPENDPOINTURLINVALID;
@@ -71,6 +72,7 @@ UA_parseEndpointUrl(const UA_String *endpointUrl, UA_String *outHostname,
         if(curr == endpointUrl->length)
             return UA_STATUSCODE_BADTCPENDPOINTURLINVALID;
         curr++;
+        ipv6 = true;
     } else {
         /* IPv4 or hostname: opc.tcp://something.something:1234/path */
         for(; curr < endpointUrl->length; ++curr) {
@@ -80,8 +82,19 @@ UA_parseEndpointUrl(const UA_String *endpointUrl, UA_String *outHostname,
     }
 
     /* Set the hostname */
-    outHostname->data = &endpointUrl->data[10];
-    outHostname->length = curr - 10;
+    if(ipv6) {
+        /* Skip the ipv6 '[]' container for getaddrinfo() later */
+        outHostname->data = &endpointUrl->data[11];
+        outHostname->length = curr - 12;
+    } else {
+        outHostname->data = &endpointUrl->data[10];
+        outHostname->length = curr - 10;
+    }
+
+    /* Empty string? */
+    if(outHostname->length == 0)
+        outHostname->data = NULL;
+
     if(curr == endpointUrl->length)
         return UA_STATUSCODE_GOOD;
 
@@ -90,7 +103,8 @@ UA_parseEndpointUrl(const UA_String *endpointUrl, UA_String *outHostname,
         if(++curr == endpointUrl->length)
             return UA_STATUSCODE_BADTCPENDPOINTURLINVALID;
         u32 largeNum;
-        size_t progress = UA_readNumber(&endpointUrl->data[curr], endpointUrl->length - curr, &largeNum);
+        size_t progress = UA_readNumber(&endpointUrl->data[curr],
+                                        endpointUrl->length - curr, &largeNum);
         if(progress == 0 || largeNum > 65535)
             return UA_STATUSCODE_BADTCPENDPOINTURLINVALID;
         /* Test if the end of a valid port was reached */
@@ -113,6 +127,10 @@ UA_parseEndpointUrl(const UA_String *endpointUrl, UA_String *outHostname,
     /* Remove trailing slash from the path */
     if(endpointUrl->data[endpointUrl->length - 1] == '/')
         outPath->length--;
+
+    /* Empty string? */
+    if(outPath->length == 0)
+        outPath->data = NULL;
 
     return UA_STATUSCODE_GOOD;
 }
@@ -193,7 +211,7 @@ UA_ByteString_toBase64(const UA_ByteString *byteString,
     return UA_STATUSCODE_GOOD;
 }
 
-UA_StatusCode UA_EXPORT
+UA_StatusCode
 UA_ByteString_fromBase64(UA_ByteString *bs,
                          const UA_String *input) {
     UA_ByteString_init(bs);
@@ -207,93 +225,82 @@ UA_ByteString_fromBase64(UA_ByteString *bs,
     return UA_STATUSCODE_GOOD;
 }
 
+/* Key Value Map */
+
 UA_StatusCode
-UA_NodeId_print(const UA_NodeId *id, UA_String *output) {
-    UA_String_clear(output);
-    if(!id)
+UA_KeyValueMap_set(UA_KeyValuePair **map, size_t *mapSize,
+                   const UA_QualifiedName key,
+                   const UA_Variant *value) {
+    /* Parameter exists already */
+    const UA_Variant *v = UA_KeyValueMap_get(*map, *mapSize, key);
+    if(v) {
+        UA_Variant copyV;
+        UA_StatusCode res = UA_Variant_copy(v, &copyV);
+        if(res != UA_STATUSCODE_GOOD)
+            return res;
+        UA_Variant *target = (UA_Variant*)(uintptr_t)v;
+        UA_Variant_clear(target);
+        *target = copyV;
         return UA_STATUSCODE_GOOD;
+    }
 
-    char *nsStr = NULL;
-    long snprintfLen = 0;
-    size_t nsLen = 0;
-    if(id->namespaceIndex != 0) {
-        nsStr = (char*)UA_malloc(9+1); // strlen("ns=XXXXX;") = 9 + Nullbyte
-        snprintfLen = UA_snprintf(nsStr, 10, "ns=%d;", id->namespaceIndex);
-        if(snprintfLen < 0 || snprintfLen >= 10) {
-            UA_free(nsStr);
-            return UA_STATUSCODE_BADINTERNALERROR;
+    /* Append to the array */
+    UA_KeyValuePair pair;
+    pair.key = key;
+    pair.value = *value;
+    return UA_Array_appendCopy((void**)map, mapSize, &pair,
+                               &UA_TYPES[UA_TYPES_KEYVALUEPAIR]);
+}
+
+const UA_Variant *
+UA_KeyValueMap_get(const UA_KeyValuePair *map, size_t mapSize,
+                   const UA_QualifiedName key) {
+    for(size_t i = 0; i < mapSize; i++) {
+        if(map[i].key.namespaceIndex == key.namespaceIndex &&
+           UA_String_equal(&map[i].key.name, &key.name))
+            return &map[i].value;
+
+    }
+    return NULL;
+}
+
+/* Returns NULL if the parameter is not defined or not of the right datatype */
+const void *
+UA_KeyValueMap_getScalar(const UA_KeyValuePair *map, size_t mapSize,
+                         const UA_QualifiedName key,
+                         const UA_DataType *type) {
+    const UA_Variant *v = UA_KeyValueMap_get(map, mapSize, key);
+    if(!v || !UA_Variant_hasScalarType(v, type))
+        return NULL;
+    return v->data;
+}
+
+void
+UA_KeyValueMap_delete(UA_KeyValuePair **map, size_t *mapSize,
+                      const UA_QualifiedName key) {
+    UA_KeyValuePair *m = *map;
+    size_t s = *mapSize;
+    for(size_t i = 0; i < s; i++) {
+        if(m[i].key.namespaceIndex != key.namespaceIndex ||
+           !UA_String_equal(&m[i].key.name, &key.name))
+            continue;
+
+        /* Clean the pair */
+        UA_KeyValuePair_clear(&m[i]);
+
+        /* Move the last pair to fill the empty slot */
+        if(s > 1 && i < s - 1) {
+            m[i] = m[s-1];
+            UA_KeyValuePair_init(&m[s-1]);
         }
-        nsLen = (size_t)(snprintfLen);
-    }
 
-    UA_ByteString byteStr = UA_BYTESTRING_NULL;
-    switch (id->identifierType) {
-        case UA_NODEIDTYPE_NUMERIC:
-            /* ns (2 byte, 65535) = 5 chars, numeric (4 byte, 4294967295) = 10
-             * chars, delim = 1 , nullbyte = 1-> 17 chars */
-            output->length = nsLen + 2 + 10 + 1;
-            output->data = (UA_Byte*)UA_malloc(output->length);
-            if(output->data == NULL) {
-                output->length = 0;
-                UA_free(nsStr);
-                return UA_STATUSCODE_BADOUTOFMEMORY;
-            }
-            snprintfLen = UA_snprintf((char*)output->data, output->length, "%si=%lu",
-                                      nsLen > 0 ? nsStr : "",
-                                      (unsigned long )id->identifier.numeric);
-            break;
-        case UA_NODEIDTYPE_STRING:
-            /* ns (16bit) = 5 chars, strlen + nullbyte */
-            output->length = nsLen + 2 + id->identifier.string.length + 1;
-            output->data = (UA_Byte*)UA_malloc(output->length);
-            if(output->data == NULL) {
-                output->length = 0;
-                UA_free(nsStr);
-                return UA_STATUSCODE_BADOUTOFMEMORY;
-            }
-            snprintfLen = UA_snprintf((char*)output->data, output->length, "%ss=%.*s",
-                                      nsLen > 0 ? nsStr : "", (int)id->identifier.string.length,
-                                      id->identifier.string.data);
-            break;
-        case UA_NODEIDTYPE_GUID:
-            /* ns (16bit) = 5 chars + strlen(A123456C-0ABC-1A2B-815F-687212AAEE1B)=36 + nullbyte */
-            output->length = nsLen + 2 + 36 + 1;
-            output->data = (UA_Byte*)UA_malloc(output->length);
-            if(output->data == NULL) {
-                output->length = 0;
-                UA_free(nsStr);
-                return UA_STATUSCODE_BADOUTOFMEMORY;
-            }
-            snprintfLen = UA_snprintf((char*)output->data, output->length,
-                                      "%sg=" UA_PRINTF_GUID_FORMAT, nsLen > 0 ? nsStr : "",
-                                      UA_PRINTF_GUID_DATA(id->identifier.guid));
-            break;
-        case UA_NODEIDTYPE_BYTESTRING:
-            UA_ByteString_toBase64(&id->identifier.byteString, &byteStr);
-            /* ns (16bit) = 5 chars + LEN + nullbyte */
-            output->length = nsLen + 2 + byteStr.length + 1;
-            output->data = (UA_Byte*)UA_malloc(output->length);
-            if(output->data == NULL) {
-                output->length = 0;
-                UA_String_deleteMembers(&byteStr);
-                UA_free(nsStr);
-                return UA_STATUSCODE_BADOUTOFMEMORY;
-            }
-            snprintfLen = UA_snprintf((char*)output->data, output->length, "%sb=%.*s",
-                                      nsLen > 0 ? nsStr : "",
-                                      (int)byteStr.length, byteStr.data);
-            UA_String_deleteMembers(&byteStr);
-            break;
+        UA_StatusCode res = UA_Array_resize((void**)map, mapSize, *mapSize-1,
+                                            &UA_TYPES[UA_TYPES_KEYVALUEPAIR]);
+        (void)res;
+        *mapSize = s - 1; /* In case resize fails, keep the longer original
+                           * array around. Resize never fails when reducing
+                           * the size to zero. Reduce the size integer in
+                           * any case. */
+        break;
     }
-    UA_free(nsStr);
-
-    if(snprintfLen < 0 || snprintfLen >= (long) output->length) {
-        UA_free(output->data);
-        output->data = NULL;
-        output->length = 0;
-        return UA_STATUSCODE_BADINTERNALERROR;
-    }
-    output->length = (size_t)snprintfLen;
-
-    return UA_STATUSCODE_GOOD;
 }

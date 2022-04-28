@@ -174,14 +174,6 @@ UA_Client *getRegisterClient(UA_EndpointDescription *endpointRegister, int argc,
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
                 "Using LDS endpoint with security SignAndEncrypt");
 
-    UA_ByteString certificate = UA_BYTESTRING_NULL;
-    UA_ByteString privateKey = UA_BYTESTRING_NULL;
-    UA_ByteString *trustList = NULL;
-    size_t trustListSize = 0;
-    UA_ByteString *revocationList = NULL;
-    size_t revocationListSize = 0;
-
-
     if(argc < 3) {
         UA_LOG_FATAL(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
                      "The Certificate and key is missing."
@@ -190,23 +182,20 @@ UA_Client *getRegisterClient(UA_EndpointDescription *endpointRegister, int argc,
                          "[<trustlist1.crl>, ...]");
         return NULL;
     }
-    certificate = loadFile(argv[1]);
-    privateKey = loadFile(argv[2]);
 
-    /* Load the trustList. Load revocationList is not supported now */
-    if(argc > 3) {
+    /* Load certificate and key */
+    UA_ByteString certificate = loadFile(argv[1]);
+    UA_ByteString privateKey = loadFile(argv[2]);
+
+    /* Load the trustList */
+    UA_ByteString *revocationList = NULL;
+    size_t revocationListSize = 0;
+    size_t trustListSize = 0;
+    if(argc > 3)
         trustListSize = (size_t) argc - 3;
-        UA_StatusCode retval = UA_ByteString_allocBuffer(trustList, trustListSize);
-        if(retval != UA_STATUSCODE_GOOD) {
-            UA_ByteString_clear(&certificate);
-            UA_ByteString_clear(&privateKey);
-            return NULL;
-        }
-
-        for(size_t trustListCount = 0; trustListCount < trustListSize; trustListCount++) {
-            trustList[trustListCount] = loadFile(argv[trustListCount + 3]);
-        }
-    }
+    UA_STACKARRAY(UA_ByteString, trustList, trustListSize+1);
+    for(size_t trustListCount = 0; trustListCount < trustListSize; trustListCount++)
+        trustList[trustListCount] = loadFile(argv[trustListCount + 3]);
 
     /* Secure client initialization */
     UA_Client *clientRegister = UA_Client_new();

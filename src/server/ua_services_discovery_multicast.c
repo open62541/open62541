@@ -12,7 +12,7 @@
 
 #if defined(UA_ENABLE_DISCOVERY) && defined(UA_ENABLE_DISCOVERY_MULTICAST)
 
-#if UA_MULTITHREADING >= 200
+#if UA_MULTITHREADING >= 100
 
 static void *
 multicastWorkerLoop(UA_Server *server) {
@@ -76,16 +76,16 @@ multicastListenStop(UA_Server* server) {
 
 static UA_StatusCode
 addMdnsRecordForNetworkLayer(UA_Server *server, const UA_String *appName,
-                             const UA_ServerNetworkLayer* nl) {
+                             const UA_String *discoveryUrl) {
     UA_String hostname = UA_STRING_NULL;
     UA_UInt16 port = 4840;
     UA_String path = UA_STRING_NULL;
-    UA_StatusCode retval = UA_parseEndpointUrl(&nl->discoveryUrl, &hostname,
+    UA_StatusCode retval = UA_parseEndpointUrl(discoveryUrl, &hostname,
                                                &port, &path);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_NETWORK,
                        "Server url is invalid: %.*s",
-                       (int)nl->discoveryUrl.length, nl->discoveryUrl.data);
+                       (int)discoveryUrl->length, discoveryUrl->data);
         return retval;
     }
 
@@ -105,40 +105,39 @@ addMdnsRecordForNetworkLayer(UA_Server *server, const UA_String *appName,
 
 void startMulticastDiscoveryServer(UA_Server *server) {
     UA_String *appName = &server->config.mdnsConfig.mdnsServerName;
-    for(size_t i = 0; i < server->config.networkLayersSize; i++)
-        addMdnsRecordForNetworkLayer(server, appName, &server->config.networkLayers[i]);
+    for(size_t i = 0; i < server->config.serverUrlsSize; i++)
+        addMdnsRecordForNetworkLayer(server, appName, &server->config.serverUrls[i]);
 
     /* find any other server on the net */
     UA_Discovery_multicastQuery(server);
 
-#if UA_MULTITHREADING >= 200
+#if UA_MULTITHREADING >= 100
     multicastListenStart(server);
 # endif
 }
 
 void
 stopMulticastDiscoveryServer(UA_Server *server) {
-    if (!server->discoveryManager.mdnsDaemon)
+    if(!server->discoveryManager.mdnsDaemon)
         return;
 
-    for (size_t i=0; i<server->config.networkLayersSize; i++) {
-
+    for(size_t i = 0; i < server->config.serverUrlsSize; i++) {
         UA_String hostname = UA_STRING_NULL;
         UA_String path = UA_STRING_NULL;
         UA_UInt16 port = 0;
 
-        UA_StatusCode retval = UA_parseEndpointUrl(&server->config.networkLayers[i].discoveryUrl, &hostname,
-                                                   &port, &path);
+        UA_StatusCode retval =
+            UA_parseEndpointUrl(&server->config.serverUrls[i],
+                                &hostname, &port, &path);
 
-        if (retval != UA_STATUSCODE_GOOD)
+        if(retval != UA_STATUSCODE_GOOD || hostname.length == 0)
             continue;
 
         UA_Discovery_removeRecord(server, &server->config.mdnsConfig.mdnsServerName,
                                   &hostname, port, true);
-
     }
 
-#if UA_MULTITHREADING >= 200
+#if UA_MULTITHREADING >= 100
     multicastListenStop(server);
 # else
     // send out last package with TTL = 0
@@ -174,7 +173,7 @@ entryMatchesCapabilityFilter(size_t serverCapabilityFilterSize, UA_String *serve
 void Service_FindServersOnNetwork(UA_Server *server, UA_Session *session,
                                   const UA_FindServersOnNetworkRequest *request,
                                   UA_FindServersOnNetworkResponse *response) {
-    UA_LOCK_ASSERT(server->serviceMutex, 1);
+    UA_LOCK_ASSERT(&server->serviceMutex, 1);
 
     if (!server->config.mdnsEnabled) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADNOTIMPLEMENTED;
@@ -278,10 +277,10 @@ void
 UA_Server_setServerOnNetworkCallback(UA_Server *server,
                                      UA_Server_serverOnNetworkCallback cb,
                                      void* data) {
-    UA_LOCK(server->serviceMutex);
+    UA_LOCK(&server->serviceMutex);
     server->discoveryManager.serverOnNetworkCallback = cb;
     server->discoveryManager.serverOnNetworkCallbackData = data;
-    UA_UNLOCK(server->serviceMutex);
+    UA_UNLOCK(&server->serviceMutex);
 }
 
 static void

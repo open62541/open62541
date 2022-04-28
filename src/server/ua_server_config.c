@@ -14,8 +14,8 @@ UA_ServerConfig_clean(UA_ServerConfig *config) {
         return;
 
     /* Server Description */
-    UA_BuildInfo_deleteMembers(&config->buildInfo);
-    UA_ApplicationDescription_deleteMembers(&config->applicationDescription);
+    UA_BuildInfo_clear(&config->buildInfo);
+    UA_ApplicationDescription_clear(&config->applicationDescription);
 #ifdef UA_ENABLE_DISCOVERY_MULTICAST
     UA_MdnsDiscoveryConfiguration_clear(&config->mdnsConfig);
     UA_String_clear(&config->mdnsInterfaceIP);
@@ -26,18 +26,27 @@ UA_ServerConfig_clean(UA_ServerConfig *config) {
 # endif
 #endif
 
-    /* Custom DataTypes */
-    /* nothing to do */
+    /* Stop and delete the EventLoop */
+    UA_EventLoop *el = config->eventLoop;
+    if(el && !config->externalEventLoop) {
+        if(el->state != UA_EVENTLOOPSTATE_FRESH &&
+           el->state != UA_EVENTLOOPSTATE_STOPPED) {
+            el->stop(el);
+            while(el->state != UA_EVENTLOOPSTATE_STOPPED) {
+                el->run(el, 100);
+            }
+        }
+        el->free(el);
+        config->eventLoop = NULL;
+    }
 
     /* Networking */
-    for(size_t i = 0; i < config->networkLayersSize; ++i)
-        config->networkLayers[i].clear(&config->networkLayers[i]);
-    UA_free(config->networkLayers);
-    config->networkLayers = NULL;
-    config->networkLayersSize = 0;
-    UA_String_deleteMembers(&config->customHostname);
-    config->customHostname = UA_STRING_NULL;
+    UA_Array_delete(config->serverUrls, config->serverUrlsSize,
+                    &UA_TYPES[UA_TYPES_STRING]);
+    config->serverUrls = NULL;
+    config->serverUrlsSize = 0;
 
+    /* Security Policies */
     for(size_t i = 0; i < config->securityPoliciesSize; ++i) {
         UA_SecurityPolicy *policy = &config->securityPolicies[i];
         policy->clear(policy);
@@ -47,7 +56,7 @@ UA_ServerConfig_clean(UA_ServerConfig *config) {
     config->securityPoliciesSize = 0;
 
     for(size_t i = 0; i < config->endpointsSize; ++i)
-        UA_EndpointDescription_deleteMembers(&config->endpoints[i]);
+        UA_EndpointDescription_clear(&config->endpoints[i]);
 
     UA_free(config->endpoints);
     config->endpoints = NULL;
@@ -78,6 +87,19 @@ UA_ServerConfig_clean(UA_ServerConfig *config) {
         config->logger.clear(config->logger.context);
     config->logger.log = NULL;
     config->logger.clear = NULL;
+
+#ifdef UA_ENABLE_PUBSUB
+#ifdef UA_ENABLE_PUBSUB_ENCRYPTION
+    if(config->pubSubConfig.securityPolicies != NULL) {
+        for(size_t i = 0; i < config->pubSubConfig.securityPoliciesSize; i++) {
+            config->pubSubConfig.securityPolicies[i].clear(&config->pubSubConfig.securityPolicies[i]);
+        }
+        UA_free(config->pubSubConfig.securityPolicies);
+        config->pubSubConfig.securityPolicies = NULL;
+        config->pubSubConfig.securityPoliciesSize = 0;
+    }
+#endif
+#endif /* UA_ENABLE_PUBSUB */
 }
 
 #ifdef UA_ENABLE_PUBSUB
@@ -85,24 +107,17 @@ UA_ServerConfig_clean(UA_ServerConfig *config) {
  * demand. */
 UA_StatusCode
 UA_ServerConfig_addPubSubTransportLayer(UA_ServerConfig *config,
-        UA_PubSubTransportLayer *pubsubTransportLayer) {
-
-    if(config->pubsubTransportLayersSize == 0) {
-        config->pubsubTransportLayers = (UA_PubSubTransportLayer *)
-                UA_malloc(sizeof(UA_PubSubTransportLayer));
-    } else {
-        config->pubsubTransportLayers = (UA_PubSubTransportLayer*)
-                UA_realloc(config->pubsubTransportLayers,
-                sizeof(UA_PubSubTransportLayer) * (config->pubsubTransportLayersSize + 1));
-    }
-
-    if(config->pubsubTransportLayers == NULL)
+                                        UA_PubSubTransportLayer pubsubTransportLayer) {
+    UA_PubSubTransportLayer *tmpLayers = (UA_PubSubTransportLayer*)
+        UA_realloc(config->pubSubConfig.transportLayers,
+                   sizeof(UA_PubSubTransportLayer) *
+                   (config->pubSubConfig.transportLayersSize + 1));
+    if(tmpLayers == NULL)
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
-    memcpy(&config->pubsubTransportLayers[config->pubsubTransportLayersSize],
-            pubsubTransportLayer, sizeof(UA_PubSubTransportLayer));
-    config->pubsubTransportLayersSize++;
-
+    config->pubSubConfig.transportLayers = tmpLayers;
+    config->pubSubConfig.transportLayers[config->pubSubConfig.transportLayersSize] = pubsubTransportLayer;
+    config->pubSubConfig.transportLayersSize++;
     return UA_STATUSCODE_GOOD;
 }
 #endif /* UA_ENABLE_PUBSUB */

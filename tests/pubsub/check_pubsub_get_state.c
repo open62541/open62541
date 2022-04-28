@@ -1,12 +1,11 @@
-#include <check.h>
-#include <assert.h>
-
 #include <open62541/plugin/pubsub_udp.h>
 #include <open62541/server_config_default.h>
 #include <open62541/server_pubsub.h>
 #include <open62541/plugin/log_stdout.h>
 
 #include "ua_pubsub.h"
+#include <check.h>
+#include <assert.h>
 
 static UA_Server *server = NULL;
 
@@ -19,13 +18,7 @@ static void setup(void) {
     assert(server != 0);
     UA_ServerConfig *config = UA_Server_getConfig(server);
     UA_ServerConfig_setDefault(config);
-
-    config->pubsubTransportLayers = (UA_PubSubTransportLayer*)
-        UA_malloc(sizeof(UA_PubSubTransportLayer));
-    assert(config->pubsubTransportLayers != 0);
-    config->pubsubTransportLayers[0] = UA_PubSubTransportLayerUDPMP();
-    config->pubsubTransportLayersSize++;
-
+    UA_ServerConfig_addPubSubTransportLayer(config, UA_PubSubTransportLayerUDPMP());
     UA_Server_run_startup(server);
 }
 

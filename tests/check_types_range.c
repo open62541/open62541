@@ -12,7 +12,7 @@
 START_TEST(parseRange) {
     UA_NumericRange range;
     UA_String str = UA_STRING("1:2,0:3,5");
-    UA_StatusCode retval = UA_NumericRange_parseFromString(&range, &str);
+    UA_StatusCode retval = UA_NumericRange_parse(&range, str);
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(range.dimensionsSize,3);
     ck_assert_uint_eq(range.dimensions[0].min,1);
@@ -27,7 +27,7 @@ START_TEST(parseRange) {
 START_TEST(parseRangeMinEqualMax) {
     UA_NumericRange range;
     UA_String str = UA_STRING("1:2,1");
-    UA_StatusCode retval = UA_NumericRange_parseFromString(&range, &str);
+    UA_StatusCode retval = UA_NumericRange_parse(&range, str);
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(range.dimensionsSize,2);
     ck_assert_uint_eq(range.dimensions[0].min,1);
@@ -46,7 +46,7 @@ START_TEST(copySimpleArrayRange) {
 
     UA_NumericRange r;
     UA_String sr = UA_STRING("1:3");
-    UA_StatusCode retval = UA_NumericRange_parseFromString(&r, &sr);
+    UA_StatusCode retval = UA_NumericRange_parse(&r, sr);
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
 
     retval = UA_Variant_copyRange(&v, &v2, r);
@@ -54,7 +54,7 @@ START_TEST(copySimpleArrayRange) {
     ck_assert_uint_eq(3, v2.arrayLength);
     ck_assert_uint_eq(2, *(UA_UInt32*)v2.data);
 
-    UA_Variant_deleteMembers(&v2);
+    UA_Variant_clear(&v2);
     UA_free(r.dimensions);
 }
 END_TEST
@@ -70,7 +70,7 @@ START_TEST(copyIntoStringArrayRange) {
 
     UA_NumericRange r;
     UA_String sr = UA_STRING("0:1,1:2");
-    UA_StatusCode retval = UA_NumericRange_parseFromString(&r, &sr);
+    UA_StatusCode retval = UA_NumericRange_parse(&r, sr);
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
 
     retval = UA_Variant_copyRange(&v, &v2, r);
@@ -83,7 +83,7 @@ START_TEST(copyIntoStringArrayRange) {
     ck_assert(UA_String_equal(&arr2[0], &s1));
     ck_assert(UA_String_equal(&arr2[1], &s2));
 
-    UA_Variant_deleteMembers(&v2);
+    UA_Variant_clear(&v2);
     UA_free(r.dimensions);
 }
 END_TEST

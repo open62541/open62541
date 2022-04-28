@@ -34,8 +34,6 @@ removeSecureChannel(UA_Server *server, channel_entry *entry,
 
     /* Detach from the connection and close the connection */
     if(entry->channel.connection) {
-        if(entry->channel.connection->state != UA_CONNECTIONSTATE_CLOSED)
-            entry->channel.connection->close(entry->channel.connection);
         UA_Connection_detachSecureChannel(entry->channel.connection);
     }
 
@@ -43,7 +41,7 @@ removeSecureChannel(UA_Server *server, channel_entry *entry,
     TAILQ_REMOVE(&server->channels, entry, pointers);
 
     /* Update the statistics */
-    UA_SecureChannelStatistics *scs = &server->serverStats.scs;
+    UA_SecureChannelStatistics *scs = &server->secureChannelStatistics;
     UA_atomic_subSize(&scs->currentChannelCount, 1);
     switch(event) {
     case UA_DIAGNOSTICEVENT_CLOSE:
@@ -68,10 +66,11 @@ removeSecureChannel(UA_Server *server, channel_entry *entry,
 
     /* Add a delayed callback to remove the channel when the currently
      * scheduled jobs have completed */
-    entry->cleanupCallback.callback = (UA_ApplicationCallback)removeSecureChannelCallback;
+    entry->cleanupCallback.callback = (UA_Callback)removeSecureChannelCallback;
     entry->cleanupCallback.application = NULL;
-    entry->cleanupCallback.data = entry;
-    UA_WorkQueue_enqueueDelayed(&server->workQueue, &entry->cleanupCallback);
+    entry->cleanupCallback.context = entry;
+    server->config.eventLoop->
+        addDelayedCallback(server->config.eventLoop, &entry->cleanupCallback);
 }
 
 void
@@ -92,6 +91,12 @@ UA_Server_cleanupTimedOutSecureChannels(UA_Server *server,
            !entry->channel.connection) {
             removeSecureChannel(server, entry, UA_DIAGNOSTICEVENT_CLOSE);
             continue;
+        }
+
+        /* Is the SecurityToken already created? */
+        if(entry->channel.securityToken.createdAt == 0) {
+        	/* No -> channel is still in progress of being opened, do not remove */
+        	continue;
         }
 
         /* Has the SecurityToken timed out? */
@@ -149,10 +154,13 @@ UA_Server_createSecureChannel(UA_Server *server, UA_Connection *connection) {
     if(connection->channel != NULL)
         return UA_STATUSCODE_BADINTERNALERROR;
 
+    UA_ServerConfig *config = &server->config;
+
     /* Check if there exists a free SC, otherwise try to purge one SC without a
      * session the purge has been introduced to pass CTT, it is not clear what
      * strategy is expected here */
-    if(server->serverStats.scs.currentChannelCount >= server->config.maxSecureChannels &&
+    if((server->secureChannelStatistics.currentChannelCount >=
+        config->maxSecureChannels) &&
        !purgeFirstChannelWithoutSession(server))
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
@@ -160,16 +168,30 @@ UA_Server_createSecureChannel(UA_Server *server, UA_Connection *connection) {
     if(!entry)
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
+    /* Set up the initial connection config */
+    UA_ConnectionConfig connConfig;
+    connConfig.protocolVersion = 0;
+    connConfig.recvBufferSize = config->tcpBufSize;
+    connConfig.sendBufferSize = config->tcpBufSize;
+    connConfig.localMaxMessageSize = config->tcpMaxMsgSize;
+    connConfig.remoteMaxMessageSize = config->tcpMaxMsgSize;
+    connConfig.localMaxChunkCount = config->tcpMaxChunks;
+    connConfig.remoteMaxChunkCount = config->tcpMaxChunks;
+
+    if(connConfig.recvBufferSize == 0)
+        connConfig.recvBufferSize = 1 << 16; /* 64kB */
+    if(connConfig.sendBufferSize == 0)
+        connConfig.sendBufferSize = 1 << 16; /* 64kB */
+
     /* Channel state is closed (0) */
-    /* TODO: Use the connection config from the correct network layer */
-    UA_SecureChannel_init(&entry->channel, &server->config.networkLayers[0].localConnectionConfig);
-    entry->channel.certificateVerification = &server->config.certificateVerification;
+    UA_SecureChannel_init(&entry->channel, &connConfig);
+    entry->channel.certificateVerification = &config->certificateVerification;
     entry->channel.processOPNHeader = UA_Server_configSecureChannel;
 
     TAILQ_INSERT_TAIL(&server->channels, entry, pointers);
     UA_Connection_attachSecureChannel(connection, &entry->channel);
-    UA_atomic_addSize(&server->serverStats.scs.currentChannelCount, 1);
-    UA_atomic_addSize(&server->serverStats.scs.cumulatedChannelCount, 1);
+    server->secureChannelStatistics.currentChannelCount++;
+    server->secureChannelStatistics.cumulatedChannelCount++;
     return UA_STATUSCODE_GOOD;
 }
 
@@ -251,7 +273,7 @@ UA_SecureChannelManager_open(UA_Server *server, UA_SecureChannel *channel,
      * first symmetric messages is received. */
     response->securityToken = channel->securityToken;
     response->securityToken.createdAt = UA_DateTime_now(); /* Only for sending */
-    response->responseHeader.timestamp = UA_DateTime_now();
+    response->responseHeader.timestamp = response->securityToken.createdAt;
     response->responseHeader.requestHandle = request->requestHeader.requestHandle;
     retval = UA_ByteString_copy(&channel->localNonce, &response->serverNonce);
     if(retval != UA_STATUSCODE_GOOD)

@@ -353,7 +353,7 @@ FindOnNetworkAndCheck(UA_String expectedServerNames[], size_t expectedServerName
                                         &expectedServerNames[i]);
             }
             ck_assert_msg(expectedServerNameInServerOnNetwork, "Expected %.*s in serverOnNetwork list, but not found",
-                expectedServerNames[i].length, expectedServerNames[i].data);
+                          (int)expectedServerNames[i].length, expectedServerNames[i].data);
         }
     }
 

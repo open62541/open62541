@@ -7,6 +7,7 @@
  *    Copyright 2018 (c) Ari Breitkreuz, fortiss GmbH
  *    Copyright 2018 (c) Thomas Stalder, Blue Time Concept SA
  *    Copyright 2018 (c) Fabian Arndt, Root-Core
+ *    Copyright 2020-2021 (c) Christian von Arnim, ISW University of Stuttgart (for VDW and umati)
  */
 
 #include "ua_server_internal.h"
@@ -20,27 +21,8 @@
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
 
-static const UA_NodeId overflowEventType =
+static const UA_NodeId eventQueueOverflowEventType =
     {0, UA_NODEIDTYPE_NUMERIC, {UA_NS0ID_EVENTQUEUEOVERFLOWEVENTTYPE}};
-static const UA_NodeId simpleOverflowEventType =
-    {0, UA_NODEIDTYPE_NUMERIC, {UA_NS0ID_SIMPLEOVERFLOWEVENTTYPE}};
-
-static UA_Boolean
-UA_Notification_isOverflowEvent(UA_Server *server, UA_Notification *n) {
-    UA_MonitoredItem *mon = n->mon;
-    if(mon->attributeId != UA_ATTRIBUTEID_EVENTNOTIFIER)
-        return false;
-
-    UA_EventFieldList *efl = &n->data.event;
-    if(efl->eventFieldsSize >= 1 &&
-       efl->eventFields[0].type == &UA_TYPES[UA_TYPES_NODEID] &&
-       isNodeInTree_singleRef(server, (const UA_NodeId *)efl->eventFields[0].data,
-                    &overflowEventType, UA_REFERENCETYPEINDEX_HASSUBTYPE)) {
-        return true;
-    }
-
-    return false;
-}
 
 /* The specification states in Part 4 5.12.1.5 that an EventQueueOverflowEvent
  * "is generated when the first Event has to be discarded [...] without
@@ -50,18 +32,18 @@ createEventOverflowNotification(UA_Server *server, UA_Subscription *sub,
                                 UA_MonitoredItem *mon) {
     /* Avoid creating two adjacent overflow events */
     UA_Notification *indicator = NULL;
-    if(mon->discardOldest) {
+    if(mon->parameters.discardOldest) {
         indicator = TAILQ_FIRST(&mon->queue);
         UA_assert(indicator); /* must exist */
-        if(UA_Notification_isOverflowEvent(server, indicator))
+        if(indicator->isOverflowEvent)
             return UA_STATUSCODE_GOOD;
     } else {
         indicator = TAILQ_LAST(&mon->queue, NotificationQueue);
         UA_assert(indicator); /* must exist */
         /* Skip the last element. It is the recently added notification that
          * shall be kept. We know it is not an OverflowEvent. */
-        UA_Notification *before = TAILQ_PREV(indicator, NotificationQueue, listEntry);
-        if(before && UA_Notification_isOverflowEvent(server, before))
+        UA_Notification *before = TAILQ_PREV(indicator, NotificationQueue, localEntry);
+        if(before && before->isOverflowEvent)
             return UA_STATUSCODE_GOOD;
     }
 
@@ -74,7 +56,9 @@ createEventOverflowNotification(UA_Server *server, UA_Subscription *sub,
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
     /* Set the notification fields */
+    overflowNotification->isOverflowEvent = true;
     overflowNotification->mon = mon;
+    overflowNotification->data.event.clientHandle = mon->parameters.clientHandle;
     overflowNotification->data.event.eventFields = UA_Variant_new();
     if(!overflowNotification->data.event.eventFields) {
         UA_free(overflowNotification);
@@ -83,9 +67,9 @@ createEventOverflowNotification(UA_Server *server, UA_Subscription *sub,
     overflowNotification->data.event.eventFieldsSize = 1;
     UA_StatusCode retval =
         UA_Variant_setScalarCopy(overflowNotification->data.event.eventFields,
-                                 &simpleOverflowEventType, &UA_TYPES[UA_TYPES_NODEID]);
+                                 &eventQueueOverflowEventType, &UA_TYPES[UA_TYPES_NODEID]);
     if(retval != UA_STATUSCODE_GOOD) {
-        UA_Notification_delete(server, overflowNotification);
+        UA_Notification_delete(overflowNotification);
         return retval;
     }
 
@@ -95,23 +79,27 @@ createEventOverflowNotification(UA_Server *server, UA_Subscription *sub,
      *
      * Ensure that the following is consistent with UA_Notification_enqueueMon
      * and UA_Notification_enqueueSub! */
-    TAILQ_INSERT_BEFORE(indicator, overflowNotification, listEntry);
+    TAILQ_INSERT_BEFORE(indicator, overflowNotification, localEntry);
     ++mon->eventOverflows;
     ++mon->queueSize;
+
+    /* Test for consistency */
+    UA_assert(mon->queueSize >= mon->eventOverflows);
+    UA_assert(mon->eventOverflows <= mon->queueSize - mon->eventOverflows + 1);
 
     if(TAILQ_NEXT(indicator, globalEntry) != UA_SUBSCRIPTION_QUEUE_SENTINEL) {
         /* Insert just before the indicator */
         TAILQ_INSERT_BEFORE(indicator, overflowNotification, globalEntry);
     } else {
         /* The indicator was not reporting or not added yet. */
-        if(!mon->discardOldest) {
+        if(!mon->parameters.discardOldest) {
             /* Add last to the per-Subscription queue */
             TAILQ_INSERT_TAIL(&mon->subscription->notificationQueue,
                               overflowNotification, globalEntry);
         } else {
             /* Find the oldest reported element. Add before that. */
             while(indicator) {
-                indicator = TAILQ_PREV(indicator, NotificationQueue, listEntry);
+                indicator = TAILQ_PREV(indicator, NotificationQueue, localEntry);
                 if(!indicator) {
                     TAILQ_INSERT_TAIL(&mon->subscription->notificationQueue,
                                       overflowNotification, globalEntry);
@@ -124,8 +112,15 @@ createEventOverflowNotification(UA_Server *server, UA_Subscription *sub,
             }
         }
     }
+
     ++sub->notificationQueueSize;
     ++sub->eventNotifications;
+
+    /* Update the diagnostics statistics */
+#ifdef UA_ENABLE_DIAGNOSTICS
+    sub->eventQueueOverFlowCount++;
+#endif
+
     return UA_STATUSCODE_GOOD;
 }
 
@@ -135,11 +130,11 @@ createEventOverflowNotification(UA_Server *server, UA_Subscription *sub,
 static void
 setOverflowInfoBits(UA_MonitoredItem *mon) {
     /* Only for queues with more than one element */
-    if(mon->maxQueueSize == 1)
+    if(mon->parameters.queueSize == 1)
         return;
 
     UA_Notification *indicator = NULL;
-    if(mon->discardOldest) {
+    if(mon->parameters.discardOldest) {
         indicator = TAILQ_FIRST(&mon->queue);
     } else {
         indicator = TAILQ_LAST(&mon->queue, NotificationQueue);
@@ -151,26 +146,53 @@ setOverflowInfoBits(UA_MonitoredItem *mon) {
         (UA_STATUSCODE_INFOTYPE_DATAVALUE | UA_STATUSCODE_INFOBITS_OVERFLOW);
 }
 
+/* Remove the InfoBits when the queueSize was reduced to 1 */
+void
+UA_MonitoredItem_removeOverflowInfoBits(UA_MonitoredItem *mon) {
+    /* Don't consider queue size > 1 and Event MonitoredItems */
+    if(mon->parameters.queueSize > 1 ||
+       mon->itemToMonitor.attributeId == UA_ATTRIBUTEID_EVENTNOTIFIER)
+        return;
+
+    /* Get the first notification */
+    UA_Notification *n = TAILQ_FIRST(&mon->queue);
+    if(!n)
+        return;
+
+    /* Assertion that at most one notification is in the queue */
+    UA_assert(n == TAILQ_LAST(&mon->queue, NotificationQueue));
+
+    /* Remve the Infobits */
+    n->data.dataChange.value.status &= ~(UA_StatusCode)
+        (UA_STATUSCODE_INFOTYPE_DATAVALUE | UA_STATUSCODE_INFOBITS_OVERFLOW);
+}
+
 UA_Notification *
 UA_Notification_new(void) {
     UA_Notification *n = (UA_Notification*)UA_calloc(1, sizeof(UA_Notification));
-    /* Set the sentinel for a notification that is not enqueued */
-    TAILQ_NEXT(n, globalEntry) = UA_SUBSCRIPTION_QUEUE_SENTINEL;
-    TAILQ_NEXT(n, listEntry) = UA_SUBSCRIPTION_QUEUE_SENTINEL;
+    if(n) {
+        /* Set the sentinel for a notification that is not enqueued */
+        TAILQ_NEXT(n, globalEntry) = UA_SUBSCRIPTION_QUEUE_SENTINEL;
+        TAILQ_NEXT(n, localEntry) = UA_SUBSCRIPTION_QUEUE_SENTINEL;
+    }
     return n;
 }
 
+static void UA_Notification_dequeueMon(UA_Notification *n);
+static void UA_Notification_enqueueSub(UA_Notification *n);
+static void UA_Notification_dequeueSub(UA_Notification *n);
+
 void
-UA_Notification_delete(UA_Server *server, UA_Notification *n) {
+UA_Notification_delete(UA_Notification *n) {
     UA_assert(n != UA_SUBSCRIPTION_QUEUE_SENTINEL);
-    if(n->mon != NULL)
-    {
-        UA_Notification_dequeueMon(server, n);
+    if(n->mon) {
+        UA_Notification_dequeueMon(n);
         UA_Notification_dequeueSub(n);
-        switch(n->mon->attributeId) {
+        switch(n->mon->itemToMonitor.attributeId) {
 #ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
         case UA_ATTRIBUTEID_EVENTNOTIFIER:
             UA_EventFieldList_clear(&n->data.event);
+            UA_EventFilterResult_clear(&n->result);
             break;
 #endif
         default:
@@ -181,25 +203,36 @@ UA_Notification_delete(UA_Server *server, UA_Notification *n) {
     UA_free(n);
 }
 
-void
+/* Add to the MonitoredItem queue, update all counters and then handle overflow */
+static void
 UA_Notification_enqueueMon(UA_Server *server, UA_Notification *n) {
     UA_MonitoredItem *mon = n->mon;
     UA_assert(mon);
-    UA_assert(TAILQ_NEXT(n, listEntry) == UA_SUBSCRIPTION_QUEUE_SENTINEL);
+    UA_assert(TAILQ_NEXT(n, localEntry) == UA_SUBSCRIPTION_QUEUE_SENTINEL);
 
     /* Add to the MonitoredItem */
-    TAILQ_INSERT_TAIL(&mon->queue, n, listEntry);
+    TAILQ_INSERT_TAIL(&mon->queue, n, localEntry);
     ++mon->queueSize;
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
-    if(n->mon->attributeId == UA_ATTRIBUTEID_EVENTNOTIFIER &&
-       UA_Notification_isOverflowEvent(server, n))
+    if(n->isOverflowEvent)
         ++mon->eventOverflows;
 #endif
+
+    /* Test for consistency */
+    UA_assert(mon->queueSize >= mon->eventOverflows);
+    UA_assert(mon->eventOverflows <= mon->queueSize - mon->eventOverflows + 1);
 
     /* Ensure enough space is available in the MonitoredItem. Do this only after
      * adding the new Notification. */
     UA_MonitoredItem_ensureQueueSpace(server, mon);
+
+    UA_LOG_DEBUG_SUBSCRIPTION(&server->config.logger, mon->subscription,
+                              "MonitoredItem %" PRIi32 " | "
+                              "Notification enqueued (Queue size %lu / %lu)",
+                              mon->monitoredItemId,
+                              (long unsigned)mon->queueSize,
+                              (long unsigned)mon->parameters.queueSize);
 }
 
 void
@@ -210,13 +243,14 @@ UA_Notification_enqueueSub(UA_Notification *n) {
     UA_Subscription *sub = mon->subscription;
     UA_assert(sub);
 
-    UA_assert(TAILQ_NEXT(n, globalEntry) == UA_SUBSCRIPTION_QUEUE_SENTINEL);
+    if(TAILQ_NEXT(n, globalEntry) != UA_SUBSCRIPTION_QUEUE_SENTINEL)
+        return;
 
     /* Add to the subscription if reporting is enabled */
     TAILQ_INSERT_TAIL(&sub->notificationQueue, n, globalEntry);
     ++sub->notificationQueueSize;
 
-    switch(mon->attributeId) {
+    switch(mon->itemToMonitor.attributeId) {
 #ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
     case UA_ATTRIBUTEID_EVENTNOTIFIER:
         ++sub->eventNotifications;
@@ -231,13 +265,29 @@ UA_Notification_enqueueSub(UA_Notification *n) {
 void
 UA_Notification_enqueueAndTrigger(UA_Server *server, UA_Notification *n) {
     UA_MonitoredItem *mon = n->mon;
-    if(mon->monitoringMode == UA_MONITORINGMODE_REPORTING)
+    UA_Subscription *sub = mon->subscription;
+    UA_assert(sub); /* This function is never called for local MonitoredItems */
+
+    /* If reporting or (sampled+triggered), enqueue into the Subscription first
+     * and then into the MonitoredItem. UA_MonitoredItem_ensureQueueSpace
+     * (called within UA_Notification_enqueueMon) assumes the notification is
+     * already in the Subscription's publishing queue. */
+    if(mon->monitoringMode == UA_MONITORINGMODE_REPORTING ||
+       (mon->monitoringMode == UA_MONITORINGMODE_SAMPLING &&
+        mon->triggeredUntil > UA_DateTime_nowMonotonic())) {
         UA_Notification_enqueueSub(n);
+        mon->triggeredUntil = UA_INT64_MIN;
+        UA_LOG_DEBUG_SUBSCRIPTION(&server->config.logger, mon->subscription,
+                                  "Notification enqueued (Queue size %lu)",
+                                  (long unsigned)mon->subscription->notificationQueueSize);
+    }
+
+    /* Insert into the MonitoredItem. This checks the queue size and
+     * handles overflow. */
     UA_Notification_enqueueMon(server, n);
 
-    UA_Subscription *sub = mon->subscription;
     for(size_t i = mon->triggeringLinksSize - 1; i < mon->triggeringLinksSize; i--) {
-        /* Get the triggered MonitoredItem. Remove if it doesn't exist. */
+        /* Get the triggered MonitoredItem. Remove the link if the MI doesn't exist. */
         UA_MonitoredItem *triggeredMon =
             UA_Subscription_getMonitoredItem(sub, mon->triggeringLinks[i]);
         if(!triggeredMon) {
@@ -245,51 +295,55 @@ UA_Notification_enqueueAndTrigger(UA_Server *server, UA_Notification *n) {
             continue;
         }
 
-        /* Get the latest sampled Notification from that MonitoredItem. Report
-         * it if not already done so. */
+        /* Only sampling MonitoredItems receive a trigger. Reporting
+         * MonitoredItems send out Notifications anyway and disabled
+         * MonitoredItems don't create samples to send. */
+        if(triggeredMon->monitoringMode != UA_MONITORINGMODE_SAMPLING)
+            continue;
+
+        /* Get the latest sampled Notification from the triggered MonitoredItem.
+         * Enqueue for publication. */
         UA_Notification *n2 = TAILQ_LAST(&triggeredMon->queue, NotificationQueue);
-        if(!n2) {
-            /* No Notification ready in the target MonitoredItem. This can happen,
-             * for example, if all samples from the target MonitoredItem are already
-             * sent out. Add sample "out of sync". */
-            monitoredItem_sampleCallback(server, triggeredMon);
-            n2 = TAILQ_LAST(&triggeredMon->queue, NotificationQueue);
-        }
-        if(n2 && TAILQ_NEXT(n2, globalEntry) == UA_SUBSCRIPTION_QUEUE_SENTINEL) {
-            UA_LOG_DEBUG_SUBSCRIPTION(&server->config.logger, sub,
-                                      "MonitoredItem %u triggers MonitoredItem %u",
-                                      mon->monitoredItemId, triggeredMon->monitoredItemId);
+        if(n2)
             UA_Notification_enqueueSub(n2);
-        } else {
-            UA_LOG_DEBUG_SUBSCRIPTION(&server->config.logger, sub,
-                                      "MonitoredItem %u triggers MonitoredItem %u, "
-                                      "but no Notification awaits reporting",
-                                      mon->monitoredItemId, triggeredMon->monitoredItemId);
-        }
+
+        /* The next Notification within the publishing interval is going to be
+         * published as well. (Falsely) assume that the publishing cycle has
+         * started right now, so that we don't have to loop over MonitoredItems
+         * to deactivate the triggering after the publishing cycle. */
+        triggeredMon->triggeredUntil = UA_DateTime_nowMonotonic() +
+            (UA_DateTime)(sub->publishingInterval * (UA_Double)UA_DATETIME_MSEC);
+
+        UA_LOG_DEBUG_SUBSCRIPTION(&server->config.logger, sub,
+                                  "MonitoredItem %u triggers MonitoredItem %u",
+                                  mon->monitoredItemId, triggeredMon->monitoredItemId);
     }
 }
 
-void
-UA_Notification_dequeueMon(UA_Server *server, UA_Notification *n) {
+/* Remove from the MonitoredItem queue and adjust all counters */
+static void
+UA_Notification_dequeueMon(UA_Notification *n) {
     UA_MonitoredItem *mon = n->mon;
     UA_assert(mon);
 
-    if(TAILQ_NEXT(n, listEntry) == UA_SUBSCRIPTION_QUEUE_SENTINEL)
+    if(TAILQ_NEXT(n, localEntry) == UA_SUBSCRIPTION_QUEUE_SENTINEL)
         return;
 
     /* Remove from the MonitoredItem queue */
 #ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
-    if(mon->attributeId == UA_ATTRIBUTEID_EVENTNOTIFIER &&
-       UA_Notification_isOverflowEvent(server, n)) {
+    if(n->isOverflowEvent)
         --mon->eventOverflows;
-    }
 #endif
 
-    TAILQ_REMOVE(&mon->queue, n, listEntry);
+    TAILQ_REMOVE(&mon->queue, n, localEntry);
     --mon->queueSize;
 
+    /* Test for consistency */
+    UA_assert(mon->queueSize >= mon->eventOverflows);
+    UA_assert(mon->eventOverflows <= mon->queueSize - mon->eventOverflows + 1);
+
     /* Reset the sentintel */
-    TAILQ_NEXT(n, listEntry) = UA_SUBSCRIPTION_QUEUE_SENTINEL;
+    TAILQ_NEXT(n, localEntry) = UA_SUBSCRIPTION_QUEUE_SENTINEL;
 }
 
 void
@@ -302,7 +356,7 @@ UA_Notification_dequeueSub(UA_Notification *n) {
     UA_Subscription *sub = mon->subscription;
     UA_assert(sub);
 
-    switch(mon->attributeId) {
+    switch(mon->itemToMonitor.attributeId) {
 #ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
     case UA_ATTRIBUTEID_EVENTNOTIFIER:
         --sub->eventNotifications;
@@ -325,84 +379,230 @@ UA_Notification_dequeueSub(UA_Notification *n) {
 /*****************/
 
 void
-UA_MonitoredItem_init(UA_MonitoredItem *mon, UA_Subscription *sub) {
+UA_MonitoredItem_init(UA_MonitoredItem *mon) {
     memset(mon, 0, sizeof(UA_MonitoredItem));
-    mon->subscription = sub;
+    mon->next = (UA_MonitoredItem*)~0; /* Not added to a node */
     TAILQ_INIT(&mon->queue);
+    mon->triggeredUntil = UA_INT64_MIN;
 }
 
-void
-UA_MonitoredItem_delete(UA_Server *server, UA_MonitoredItem *monitoredItem) {
-    UA_LOCK_ASSERT(server->serviceMutex, 1);
+static UA_StatusCode
+addMonitoredItemBackpointer(UA_Server *server, UA_Session *session,
+                            UA_Node *node, void *data) {
+    UA_MonitoredItem *mon = (UA_MonitoredItem*)data;
+    UA_assert(mon != (UA_MonitoredItem*)~0);
+    mon->next = node->head.monitoredItems;
+    node->head.monitoredItems = mon;
+    return UA_STATUSCODE_GOOD;
+}
 
-    /* Remove the sampling callback */
-    UA_MonitoredItem_unregisterSampleCallback(server, monitoredItem);
+static UA_StatusCode
+removeMonitoredItemBackPointer(UA_Server *server, UA_Session *session,
+                               UA_Node *node, void *data) {
+    if(!node->head.monitoredItems)
+        return UA_STATUSCODE_GOOD;
 
-    /* Remove the TriggeringLinks */
-    if(monitoredItem->triggeringLinksSize > 0) {
-        UA_free(monitoredItem->triggeringLinks);
-        monitoredItem->triggeringLinks = NULL;
-        monitoredItem->triggeringLinksSize = 0;
+    /* Edge case that it's the first element */
+    UA_MonitoredItem *remove = (UA_MonitoredItem*)data;
+    if(node->head.monitoredItems == remove) {
+        node->head.monitoredItems = remove->next;
+        remove->next = (UA_MonitoredItem*)~0;
+        return UA_STATUSCODE_GOOD;
     }
 
-    /* Remove the queued notifications if attached to a subscription (not a
-     * local MonitoredItem) */
-    if(monitoredItem->subscription) {
-        UA_Notification *notification, *notification_tmp;
-        TAILQ_FOREACH_SAFE(notification, &monitoredItem->queue,
-                           listEntry, notification_tmp) {
-            /* Remove the item from the queues and free the memory */
-            UA_Notification_delete(server, notification);
+    UA_MonitoredItem *prev = node->head.monitoredItems;
+    UA_MonitoredItem *entry = prev->next;
+    for(; entry != NULL; prev = entry, entry = entry->next) {
+        if(entry == remove) {
+            prev->next = entry->next;
+            remove->next = (UA_MonitoredItem*)~0;
+            break;
         }
     }
 
-#ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
-    if(monitoredItem->attributeId == UA_ATTRIBUTEID_EVENTNOTIFIER) {
-        /* Remove the monitored item from the node queue */
-        UA_Server_editNode(server, NULL, &monitoredItem->monitoredNodeId,
-                           UA_MonitoredItem_removeNodeEventCallback, monitoredItem);
-        UA_EventFilter_clear(&monitoredItem->filter.eventFilter);
-    } else
-#endif
-    {
-        /* UA_DataChangeFilter does not hold dynamic content we need to free */
-        /* UA_DataChangeFilter_clear(&monitoredItem->filter.dataChangeFilter); */
+    return UA_STATUSCODE_GOOD;
+}
+
+void
+UA_Server_registerMonitoredItem(UA_Server *server, UA_MonitoredItem *mon) {
+    if(mon->registered)
+        return;
+
+    /* Register in Subscription and Server */
+    UA_Subscription *sub = mon->subscription;
+    if(sub) {
+        mon->monitoredItemId = ++sub->lastMonitoredItemId;
+        mon->subscription = sub;
+        sub->monitoredItemsSize++;
+        LIST_INSERT_HEAD(&sub->monitoredItems, mon, listEntry);
+    } else {
+        mon->monitoredItemId = ++server->lastLocalMonitoredItemId;
+        LIST_INSERT_HEAD(&server->localMonitoredItems, mon, listEntry);
     }
+    server->monitoredItemsSize++;
 
-    /* Deregister MonitoredItem in userland */
-    if(server->config.monitoredItemRegisterCallback && monitoredItem->registered) {
-        /* Get the session context. Local MonitoredItems don't have a subscription. */
-        UA_Session *session = NULL;
-        if(monitoredItem->subscription)
-            session = monitoredItem->subscription->session;
-        else
-            session = &server->adminSession;
+    /* Register the MonitoredItem in userland */
+    if(server->config.monitoredItemRegisterCallback) {
+        UA_Session *session = &server->adminSession;
+        if(sub)
+            session = sub->session;
 
-        /* Get the node context */
         void *targetContext = NULL;
-        getNodeContext(server, monitoredItem->monitoredNodeId, &targetContext);
-
-        /* Deregister */
-        UA_UNLOCK(server->serviceMutex);
+        getNodeContext(server, mon->itemToMonitor.nodeId, &targetContext);
+        UA_UNLOCK(&server->serviceMutex);
         server->config.monitoredItemRegisterCallback(server,
                                                      session ? &session->sessionId : NULL,
                                                      session ? session->sessionHandle : NULL,
-                                                     &monitoredItem->monitoredNodeId,
-                                                     targetContext, monitoredItem->attributeId, true);
-        UA_LOCK(server->serviceMutex);
+                                                     &mon->itemToMonitor.nodeId,
+                                                     targetContext,
+                                                     mon->itemToMonitor.attributeId, false);
+        UA_LOCK(&server->serviceMutex);
     }
 
-    /* Remove the monitored item */
-    if(monitoredItem->listEntry.le_prev != NULL)
-        LIST_REMOVE(monitoredItem, listEntry);
-    UA_String_clear(&monitoredItem->indexRange);
-    UA_ByteString_clear(&monitoredItem->lastSampledValue);
-    UA_DataValue_clear(&monitoredItem->lastValue);
-    UA_NodeId_clear(&monitoredItem->monitoredNodeId);
+    mon->registered = true;
+}
 
-    /* No actual callback, just remove the structure */
-    monitoredItem->delayedFreePointers.callback = NULL;
-    UA_WorkQueue_enqueueDelayed(&server->workQueue, &monitoredItem->delayedFreePointers);
+static void
+UA_Server_unregisterMonitoredItem(UA_Server *server, UA_MonitoredItem *mon) {
+    if(!mon->registered)
+        return;
+
+    UA_Subscription *sub = mon->subscription;
+    UA_LOG_INFO_SUBSCRIPTION(&server->config.logger, sub,
+                             "MonitoredItem %" PRIi32 " | Deleting the MonitoredItem",
+                             mon->monitoredItemId);
+
+    /* Deregister MonitoredItem in userland */
+    if(server->config.monitoredItemRegisterCallback) {
+        UA_Session *session = &server->adminSession;
+        if(sub)
+            session = sub->session;
+
+        void *targetContext = NULL;
+        getNodeContext(server, mon->itemToMonitor.nodeId, &targetContext);
+        UA_UNLOCK(&server->serviceMutex);
+        server->config.monitoredItemRegisterCallback(server,
+                                                     session ? &session->sessionId : NULL,
+                                                     session ? session->sessionHandle : NULL,
+                                                     &mon->itemToMonitor.nodeId,
+                                                     targetContext,
+                                                     mon->itemToMonitor.attributeId, true);
+        UA_LOCK(&server->serviceMutex);
+    }
+
+    /* Deregister in Subscription and server */
+    if(sub)
+        sub->monitoredItemsSize--;
+    LIST_REMOVE(mon, listEntry); /* Also for LocalMonitoredItems */
+    server->monitoredItemsSize--;
+
+    mon->registered = false;
+}
+
+UA_StatusCode
+UA_MonitoredItem_setMonitoringMode(UA_Server *server, UA_MonitoredItem *mon,
+                                   UA_MonitoringMode monitoringMode) {
+    /* Check if the MonitoringMode is valid or not */
+    if(monitoringMode > UA_MONITORINGMODE_REPORTING)
+        return UA_STATUSCODE_BADMONITORINGMODEINVALID;
+
+    /* Set the MonitoringMode, store the old mode */
+    UA_MonitoringMode oldMode = mon->monitoringMode;
+    mon->monitoringMode = monitoringMode;
+
+    UA_Notification *notification;
+    /* Reporting is disabled. This causes all Notifications to be dequeued and
+     * deleted. Also remove the last samples so that we immediately generate a
+     * Notification when re-activated. */
+    if(mon->monitoringMode == UA_MONITORINGMODE_DISABLED) {
+        UA_Notification *notification_tmp;
+        UA_MonitoredItem_unregisterSampling(server, mon);
+        TAILQ_FOREACH_SAFE(notification, &mon->queue, localEntry, notification_tmp) {
+            UA_Notification_delete(notification);
+        }
+        UA_DataValue_clear(&mon->lastValue);
+        return UA_STATUSCODE_GOOD;
+    }
+
+    /* When reporting is enabled, put all notifications that were already
+     * sampled into the global queue of the subscription. When sampling is
+     * enabled, remove all notifications from the global queue. !!! This needs
+     * to be the same operation as in UA_Notification_enqueue !!! */
+    if(mon->monitoringMode == UA_MONITORINGMODE_REPORTING) {
+        /* Make all notifications reporting. Re-enqueue to ensure they have the
+         * right order if some notifications are already reported by a trigger
+         * link. */
+        TAILQ_FOREACH(notification, &mon->queue, localEntry) {
+            UA_Notification_dequeueSub(notification);
+            UA_Notification_enqueueSub(notification);
+        }
+    } else /* mon->monitoringMode == UA_MONITORINGMODE_SAMPLING */ {
+        /* Make all notifications non-reporting */
+        TAILQ_FOREACH(notification, &mon->queue, localEntry)
+            UA_Notification_dequeueSub(notification);
+    }
+
+    /* Register the sampling callback with an interval. If registering the
+     * sampling callback failed, set to disabled. But don't delete the current
+     * notifications. */
+    UA_StatusCode res = UA_MonitoredItem_registerSampling(server, mon);
+    if(res != UA_STATUSCODE_GOOD) {
+        mon->monitoringMode = UA_MONITORINGMODE_DISABLED;
+        return res;
+    }
+
+    /* Manually create the first sample if the MonitoredItem was disabled, the
+     * MonitoredItem is now sampling (or reporting) and it is not an
+     * Event-MonitoredItem */
+    if(oldMode == UA_MONITORINGMODE_DISABLED &&
+       mon->monitoringMode > UA_MONITORINGMODE_DISABLED &&
+       mon->itemToMonitor.attributeId != UA_ATTRIBUTEID_EVENTNOTIFIER)
+        monitoredItem_sampleCallback(server, mon);
+
+    return UA_STATUSCODE_GOOD;
+}
+
+void
+UA_MonitoredItem_delete(UA_Server *server, UA_MonitoredItem *mon) {
+    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+
+    /* Remove the sampling callback */
+    UA_MonitoredItem_unregisterSampling(server, mon);
+
+    UA_assert(mon->next == (UA_MonitoredItem*)~0); /* Not attached to any node */
+
+    /* Deregister in Server and Subscription */
+    if(mon->registered)
+        UA_Server_unregisterMonitoredItem(server, mon);
+
+    /* Remove the TriggeringLinks */
+    if(mon->triggeringLinksSize > 0) {
+        UA_free(mon->triggeringLinks);
+        mon->triggeringLinks = NULL;
+        mon->triggeringLinksSize = 0;
+    }
+
+    /* Remove the queued notifications attached to the subscription */
+    UA_Notification *notification, *notification_tmp;
+    TAILQ_FOREACH_SAFE(notification, &mon->queue, localEntry, notification_tmp) {
+        UA_Notification_delete(notification);
+    }
+
+    /* Remove the settings */
+    UA_ReadValueId_clear(&mon->itemToMonitor);
+    UA_MonitoringParameters_clear(&mon->parameters);
+
+    /* Remove the last samples */
+    UA_DataValue_clear(&mon->lastValue);
+
+    /* Add a delayed callback to remove the MonitoredItem when the current jobs
+     * have completed. This is needed to allow that a local MonitoredItem can
+     * remove itself in the callback. */
+    mon->delayedFreePointers.callback = NULL;
+    mon->delayedFreePointers.application = server;
+    mon->delayedFreePointers.context = NULL;
+    server->config.eventLoop->
+        addDelayedCallback(server->config.eventLoop, &mon->delayedFreePointers);
 }
 
 void
@@ -412,14 +612,17 @@ UA_MonitoredItem_ensureQueueSpace(UA_Server *server, UA_MonitoredItem *mon) {
     UA_assert(mon->queueSize >= mon->eventOverflows);
     UA_assert(mon->eventOverflows <= mon->queueSize - mon->eventOverflows + 1);
 
+    /* Always attached to a Subscription (no local MonitoredItem) */
+    UA_Subscription *sub = mon->subscription;
+    UA_assert(sub);
+
     /* Nothing to do */
-    if(mon->queueSize - mon->eventOverflows <= mon->maxQueueSize)
+    if(mon->queueSize - mon->eventOverflows <= mon->parameters.queueSize)
         return;
     
     /* Remove notifications until the required queue size is reached */
-    UA_Subscription *sub = mon->subscription;
     UA_Boolean reporting = false;
-    size_t remove = mon->queueSize - mon->eventOverflows - mon->maxQueueSize;
+    size_t remove = mon->queueSize - mon->eventOverflows - mon->parameters.queueSize;
     while(remove > 0) {
         /* The minimum queue size (without EventOverflows) is 1. At least two
          * notifications that are not EventOverflows are in the queue. */
@@ -427,21 +630,21 @@ UA_MonitoredItem_ensureQueueSpace(UA_Server *server, UA_MonitoredItem *mon) {
 
         /* Select the next notification to delete. Skip over overflow events. */
         UA_Notification *del = NULL;
-        if(mon->discardOldest) {
+        if(mon->parameters.discardOldest) {
             /* Remove the oldest */
             del = TAILQ_FIRST(&mon->queue);
-#ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
-            while(UA_Notification_isOverflowEvent(server, del))
-                del = TAILQ_NEXT(del, listEntry); /* skip overflow events */
+#if defined(UA_ENABLE_SUBSCRIPTIONS_EVENTS) && !defined(__clang_analyzer__)
+            while(del->isOverflowEvent)
+                del = TAILQ_NEXT(del, localEntry); /* skip overflow events */
 #endif
         } else {
             /* Remove the second newest (to keep the up-to-date notification).
              * The last entry is not an OverflowEvent -- we just added it. */
             del = TAILQ_LAST(&mon->queue, NotificationQueue);
-            del = TAILQ_PREV(del, NotificationQueue, listEntry);
-#ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
-            while(UA_Notification_isOverflowEvent(server, del))
-                del = TAILQ_PREV(del, NotificationQueue, listEntry); /* skip overflow events */
+            del = TAILQ_PREV(del, NotificationQueue, localEntry);
+#if defined(UA_ENABLE_SUBSCRIPTIONS_EVENTS) && !defined(__clang_analyzer__)
+            while(del->isOverflowEvent)
+                del = TAILQ_PREV(del, NotificationQueue, localEntry); /* skip overflow events */
 #endif
         }
 
@@ -463,7 +666,7 @@ UA_MonitoredItem_ensureQueueSpace(UA_Server *server, UA_MonitoredItem *mon) {
          * For the reinsertion to work, first insert into the per-Subscription
          * queue. */
         if(TAILQ_NEXT(del, globalEntry) != UA_SUBSCRIPTION_QUEUE_SENTINEL) {
-            UA_Notification *after_del = TAILQ_NEXT(del, listEntry);
+            UA_Notification *after_del = TAILQ_NEXT(del, localEntry);
             UA_assert(after_del); /* There must be one remaining element after del */
             if(TAILQ_NEXT(after_del, globalEntry) != UA_SUBSCRIPTION_QUEUE_SENTINEL) {
                 TAILQ_REMOVE(&sub->notificationQueue, after_del, globalEntry);
@@ -474,19 +677,24 @@ UA_MonitoredItem_ensureQueueSpace(UA_Server *server, UA_MonitoredItem *mon) {
         remove--;
 
         /* Delete the notification and remove it from the queues */
-        UA_Notification_delete(server, del);
+        UA_Notification_delete(del);
+
+        /* Update the subscription diagnostics statistics */
+#ifdef UA_ENABLE_DIAGNOSTICS
+        sub->monitoringQueueOverflowCount++;
+#endif
 
         /* Assertions to help Clang's scan-analyzer */
         UA_assert(del != TAILQ_FIRST(&mon->queue));
         UA_assert(del != TAILQ_LAST(&mon->queue, NotificationQueue));
         UA_assert(del != TAILQ_PREV(TAILQ_LAST(&mon->queue, NotificationQueue),
-                                    NotificationQueue, listEntry));
+                                    NotificationQueue, localEntry));
     }
 
         /* Leave an entry to indicate that notifications were removed */
     if(reporting) {
 #ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
-        if(mon->attributeId == UA_ATTRIBUTEID_EVENTNOTIFIER)
+        if(mon->itemToMonitor.attributeId == UA_ATTRIBUTEID_EVENTNOTIFIER)
             createEventOverflowNotification(server, sub, mon);
         else
 #endif
@@ -495,30 +703,59 @@ UA_MonitoredItem_ensureQueueSpace(UA_Server *server, UA_MonitoredItem *mon) {
 }
 
 UA_StatusCode
-UA_MonitoredItem_registerSampleCallback(UA_Server *server, UA_MonitoredItem *mon) {
-    UA_LOCK_ASSERT(server->serviceMutex, 1);
+UA_MonitoredItem_registerSampling(UA_Server *server, UA_MonitoredItem *mon) {
+    UA_LOCK_ASSERT(&server->serviceMutex, 1);
     if(mon->sampleCallbackIsRegistered)
         return UA_STATUSCODE_GOOD;
 
-    /* Only DataChange MonitoredItems have a callback with a sampling interval */
-    if(mon->attributeId == UA_ATTRIBUTEID_EVENTNOTIFIER)
-        return UA_STATUSCODE_GOOD;
+    UA_assert(mon->next == (UA_MonitoredItem*)~0); /* Not registered in a node */
 
-    UA_StatusCode retval =
-        addRepeatedCallback(server, (UA_ServerCallback)UA_MonitoredItem_sampleCallback,
-                            mon, mon->samplingInterval, &mon->sampleCallbackId);
-    if(retval == UA_STATUSCODE_GOOD)
+    /* Only DataChange MonitoredItems with a positive sampling interval have a
+     * repeated callback. Other MonitoredItems are attached to the Node in a
+     * linked list of backpointers. */
+    UA_StatusCode res;
+    if(mon->itemToMonitor.attributeId == UA_ATTRIBUTEID_EVENTNOTIFIER ||
+       mon->parameters.samplingInterval == 0.0) {
+        UA_Subscription *sub = mon->subscription;
+        UA_Session *session = &server->adminSession;
+        if(sub)
+            session = sub->session;
+        res = UA_Server_editNode(server, session, &mon->itemToMonitor.nodeId,
+                                 addMonitoredItemBackpointer, mon);
+    } else {
+        res = addRepeatedCallback(server,
+                                  (UA_ServerCallback)UA_MonitoredItem_sampleCallback,
+                                  mon, mon->parameters.samplingInterval,
+                                  &mon->sampleCallbackId);
+    }
+
+    if(res == UA_STATUSCODE_GOOD)
         mon->sampleCallbackIsRegistered = true;
-    return retval;
+    return res;
 }
 
 void
-UA_MonitoredItem_unregisterSampleCallback(UA_Server *server, UA_MonitoredItem *mon) {
-    UA_LOCK_ASSERT(server->serviceMutex, 1);
+UA_MonitoredItem_unregisterSampling(UA_Server *server, UA_MonitoredItem *mon) {
+    UA_LOCK_ASSERT(&server->serviceMutex, 1);
     if(!mon->sampleCallbackIsRegistered)
         return;
-    removeCallback(server, mon->sampleCallbackId);
+
     mon->sampleCallbackIsRegistered = false;
+
+    /* Check for mon->next and not the samplingInterval. Because that might
+     * currently be changed. */
+    if(mon->next != (UA_MonitoredItem*)~0) {
+        /* Added to a node */
+        UA_Subscription *sub = mon->subscription;
+        UA_Session *session = &server->adminSession;
+        if(sub)
+            session = sub->session;
+        UA_Server_editNode(server, session, &mon->itemToMonitor.nodeId,
+                           removeMonitoredItemBackPointer, mon);
+    } else {
+        /* Registered with a repeated callback */
+        removeCallback(server, mon->sampleCallbackId);
+    }
 }
 
 UA_StatusCode

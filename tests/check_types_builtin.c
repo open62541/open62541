@@ -4,11 +4,10 @@
 
 #include <open62541/types.h>
 #include <open62541/types_generated.h>
-#include <open62541/types_generated_encoding_binary.h>
 #include <open62541/types_generated_handling.h>
 #include <open62541/util.h>
 
-#include "ua_types_encoding_binary.h"
+#include "ua_util_internal.h"
 
 #include <check.h>
 #include <float.h>
@@ -196,7 +195,7 @@ END_TEST
 START_TEST(UA_Int64_decodeShallRespectSign) {
     // given
     UA_ByteString rawMessage;
-    UA_Int64 expectedVal = (UA_Int64)0xFF << 56;
+    UA_UInt64 expectedVal = ((UA_UInt64)0xFF) << 56;
     UA_Byte  mem[8]      = { 00, 00, 00, 00, 0x00, 0x00, 0x00, 0xFF };
     rawMessage.data   = mem;
     rawMessage.length = 8;
@@ -305,7 +304,7 @@ START_TEST(UA_String_decodeShallAllocateMemoryAndCopyString) {
     ck_assert_int_eq(dst.data[3], 'L');
     ck_assert_uint_eq(pos, UA_calcSizeBinary(&dst, &UA_TYPES[UA_TYPES_STRING]));
     // finally
-    UA_String_deleteMembers(&dst);
+    UA_String_clear(&dst);
 }
 END_TEST
 
@@ -394,7 +393,7 @@ START_TEST(UA_NodeId_decodeStringShallAllocateMemory) {
     ck_assert_uint_eq(dst.identifier.string.length, 3);
     ck_assert_int_eq(dst.identifier.string.data[1], 'L');
     // finally
-    UA_NodeId_deleteMembers(&dst);
+    UA_NodeId_clear(&dst);
 }
 END_TEST
 
@@ -417,7 +416,7 @@ START_TEST(UA_Variant_decodeWithOutArrayFlagSetShallSetVTAndAllocateMemoryForArr
     UA_assert(dst.data != NULL); /* repeat the previous argument so that clang-analyzer is happy */
     ck_assert_int_eq(*(UA_Int32 *)dst.data, 255);
     // finally
-    UA_Variant_deleteMembers(&dst);
+    UA_Variant_clear(&dst);
 }
 END_TEST
 
@@ -442,7 +441,7 @@ START_TEST(UA_Variant_decodeWithArrayFlagSetShallSetVTAndAllocateMemoryForArray)
     ck_assert_int_eq(((UA_Int32 *)dst.data)[0], 255);
     ck_assert_int_eq(((UA_Int32 *)dst.data)[1], -1);
     // finally
-    UA_Variant_deleteMembers(&dst);
+    UA_Variant_clear(&dst);
 }
 END_TEST
 
@@ -495,9 +494,9 @@ START_TEST(UA_Variant_decodeSingleExtensionObjectShallSetVTAndAllocateMemory){
 
 
     /* // finally */
-    /* UA_Variant_deleteMembers(&dst); */
-    /* UA_ByteString_deleteMembers(&srcByteString); */
-    /* UA_ExtensionObject_deleteMembers(&tmpExtensionObject); */
+    /* UA_Variant_clear(&dst); */
+    /* UA_ByteString_clear(&srcByteString); */
+    /* UA_ExtensionObject_clear(&tmpExtensionObject); */
 
 }
 END_TEST
@@ -515,7 +514,7 @@ START_TEST(UA_Variant_decodeWithOutDeleteMembersShallFailInCheckMem) {
     // then
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
     // finally
-    UA_Variant_deleteMembers(&dst);
+    UA_Variant_clear(&dst);
 }
 END_TEST
 
@@ -533,7 +532,7 @@ START_TEST(UA_Variant_decodeWithTooSmallSourceShallReturnWithError) {
     // then
     ck_assert_int_ne(retval, UA_STATUSCODE_GOOD);
     // finally
-    UA_Variant_deleteMembers(&dst);
+    UA_Variant_clear(&dst);
 }
 END_TEST
 
@@ -810,8 +809,8 @@ START_TEST(UA_Float_encodeShallWorkOnExample) {
         {0x00, 0x00, 0x80, 0x7F}, // INF
         {0x00, 0x00, 0x80, 0xFF} // -INF
     };
-#if defined(_MSC_VER) || defined(__TINYC__)
-    /* On Visual Studio or TinyCC -NAN is encoded differently */
+#if defined(_MSC_VER)
+    /* On Visual Studio, -NAN is encoded differently */
     result[4][3] = 127;
 #endif
 
@@ -1079,8 +1078,8 @@ START_TEST(UA_ExtensionObject_copyShallWorkOnExample) {
 
     /* //finally */
     /* value.body.data = NULL; // we cannot free the static string */
-    /* UA_ExtensionObject_deleteMembers(&value); */
-    /* UA_ExtensionObject_deleteMembers(&valueCopied); */
+    /* UA_ExtensionObject_clear(&value); */
+    /* UA_ExtensionObject_clear(&valueCopied); */
 }
 END_TEST
 
@@ -1107,7 +1106,7 @@ START_TEST(UA_Array_copyByteArrayShallWorkOnExample) {
         ck_assert_int_eq(testString.data[i], dstArray[i]);
 
     //finally
-    UA_String_deleteMembers(&testString);
+    UA_String_clear(&testString);
     UA_free((void *)dstArray);
 
 }
@@ -1169,8 +1168,8 @@ START_TEST(UA_DiagnosticInfo_copyShallWorkOnExample) {
     //finally
     value.additionalInfo.data = NULL; // do not delete the static string
     value.innerDiagnosticInfo = NULL; // do not delete the static innerdiagnosticinfo
-    UA_DiagnosticInfo_deleteMembers(&value);
-    UA_DiagnosticInfo_deleteMembers(&copiedValue);
+    UA_DiagnosticInfo_clear(&value);
+    UA_DiagnosticInfo_clear(&copiedValue);
 
 }
 END_TEST
@@ -1225,8 +1224,8 @@ START_TEST(UA_ApplicationDescription_copyShallWorkOnExample) {
     ck_assert_uint_eq(copiedValue.discoveryUrlsSize, value.discoveryUrlsSize);
 
     //finally
-    // UA_ApplicationDescription_deleteMembers(&value); // do not free the members as they are statically allocated
-    UA_ApplicationDescription_deleteMembers(&copiedValue);
+    // UA_ApplicationDescription_clear(&value); // do not free the members as they are statically allocated
+    UA_ApplicationDescription_clear(&copiedValue);
 }
 END_TEST
 
@@ -1244,7 +1243,7 @@ START_TEST(UA_QualifiedName_copyShallWorkOnInputExample) {
     ck_assert_uint_eq(8, dst.name.length);
     ck_assert_int_eq(5, dst.namespaceIndex);
     // finally
-    UA_QualifiedName_deleteMembers(&dst);
+    UA_QualifiedName_clear(&dst);
 }
 END_TEST
 
@@ -1326,8 +1325,8 @@ START_TEST(UA_Variant_copyShallWorkOnSingleValueExample) {
 
     //finally
     ((UA_String*)value.data)->data = NULL; // the string is statically allocated. do not free it.
-    UA_Variant_deleteMembers(&value);
-    UA_Variant_deleteMembers(&copiedValue);
+    UA_Variant_clear(&value);
+    UA_Variant_clear(&copiedValue);
 }
 END_TEST
 
@@ -1344,7 +1343,7 @@ START_TEST(UA_Variant_copyShallWorkOnByteStringIndexRange) {
     UA_Variant dst;
     UA_StatusCode retval = UA_Variant_copyRange(&src, &dst, nr);
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
-    UA_Variant_deleteMembers(&dst);
+    UA_Variant_clear(&dst);
 }
 END_TEST
 
@@ -1391,8 +1390,8 @@ START_TEST(UA_Variant_copyShallWorkOn1DArrayExample) {
     ck_assert_uint_eq(value.arrayLength, copiedValue.arrayLength);
 
     //finally
-    UA_Variant_deleteMembers(&value);
-    UA_Variant_deleteMembers(&copiedValue);
+    UA_Variant_clear(&value);
+    UA_Variant_clear(&copiedValue);
 }
 END_TEST
 
@@ -1451,8 +1450,8 @@ START_TEST(UA_Variant_copyShallWorkOn2DArrayExample) {
     ck_assert_uint_eq(value.arrayLength, copiedValue.arrayLength);
 
     //finally
-    UA_Variant_deleteMembers(&value);
-    UA_Variant_deleteMembers(&copiedValue);
+    UA_Variant_clear(&value);
+    UA_Variant_clear(&copiedValue);
 }
 END_TEST
 
@@ -1470,7 +1469,7 @@ START_TEST(UA_ExtensionObject_encodeDecodeShallWorkOnExtensionObject) {
     /* varAttr.specifiedAttributes |= UA_NODEATTRIBUTESMASK_VALUE; */
     /* varAttr.specifiedAttributes |= UA_NODEATTRIBUTESMASK_USERWRITEMASK; */
 
-    /* /\* wrap it into a extension object attributes *\/ */
+    /* /\* wrap it into an extension object attributes *\/ */
     /* UA_ExtensionObject extensionObject; */
     /* UA_ExtensionObject_init(&extensionObject); */
     /* extensionObject.typeId = UA_TYPES[UA_TYPES_VARIABLEATTRIBUTES].typeId; */
@@ -1502,8 +1501,8 @@ START_TEST(UA_ExtensionObject_encodeDecodeShallWorkOnExtensionObject) {
     /* ck_assert_uint_eq(-1, varAttrDecoded.value.arrayLength); */
 
     /* // finally */
-    /* UA_ExtensionObject_deleteMembers(&extensionObjectDecoded); */
-    /* UA_Variant_deleteMembers(&varAttrDecoded.value); */
+    /* UA_ExtensionObject_clear(&extensionObjectDecoded); */
+    /* UA_Variant_clear(&varAttrDecoded.value); */
 }
 END_TEST
 

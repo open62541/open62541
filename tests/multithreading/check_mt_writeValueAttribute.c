@@ -53,7 +53,7 @@ static void checkServer(void) {
     UA_StatusCode ret = UA_Server_readValue(tc.server, pumpTypeId, &var);
     ck_assert_int_eq(42, *(UA_Int32 *)var.data);
     ck_assert_int_eq(UA_STATUSCODE_GOOD, ret);
-    UA_Variant_deleteMembers(&var);
+    UA_Variant_clear(&var);
 }
 
 static

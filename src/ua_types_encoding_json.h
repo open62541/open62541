@@ -19,24 +19,36 @@
 
 _UA_BEGIN_DECLS
 
-#define UA_JSON_MAXTOKENCOUNT 1000
-    
+#define UA_JSON_MAXTOKENCOUNT 2048
+
+/* Returns the number of bytes the value src takes in json encoding. Returns
+ * zero if an error occurs. */
 size_t
-UA_calcSizeJson(const void *src, const UA_DataType *type,
-                UA_String *namespaces, size_t namespaceSize,
-                UA_String *serverUris, size_t serverUriSize,
-                UA_Boolean useReversible) UA_FUNC_ATTR_WARN_UNUSED_RESULT;
+UA_calcSizeJsonInternal(const void *src, const UA_DataType *type,
+                        const UA_String *namespaces, size_t namespaceSize,
+                        const UA_String *serverUris, size_t serverUriSize,
+                        UA_Boolean useReversible) UA_FUNC_ATTR_WARN_UNUSED_RESULT;
 
+/* Encodes the scalar value described by type to json encoding.
+ *
+ * @param src The value. Must not be NULL.
+ * @param type The value type. Must not be NULL.
+ * @param bufPos Points to a pointer to the current position in the encoding
+ *        buffer. Must not be NULL.
+ * @param bufEnd Points to a pointer to the end of the encoding buffer (encoding
+ *        always stops before *buf_end). Must not be NULL.
+ * @param namespaces An array of namespaces
+ * @param namespaceSize The size of the namespaces array
+ * @param serverUris An array of serverUris
+ * @param serverUriSize The size of the serverUris array
+ * @param useReversible preserve datatypes in json encoding
+ * @return Returns a statuscode whether encoding succeeded. */
 UA_StatusCode
-UA_encodeJson(const void *src, const UA_DataType *type,
-              uint8_t **bufPos, const uint8_t **bufEnd,
-              UA_String *namespaces, size_t namespaceSize,
-              UA_String *serverUris, size_t serverUriSize,
-              UA_Boolean useReversible) UA_FUNC_ATTR_WARN_UNUSED_RESULT;
-
-UA_StatusCode
-UA_decodeJson(const UA_ByteString *src, void *dst,
-              const UA_DataType *type) UA_FUNC_ATTR_WARN_UNUSED_RESULT;
+UA_encodeJsonInternal(const void *src, const UA_DataType *type, uint8_t **bufPos,
+                      const uint8_t **bufEnd, const UA_String *namespaces,
+                      size_t namespaceSize, const UA_String *serverUris,
+                      size_t serverUriSize,
+                      UA_Boolean useReversible) UA_FUNC_ATTR_WARN_UNUSED_RESULT;
 
 /* Interal Definitions
  *
@@ -53,10 +65,10 @@ typedef struct {
     UA_Boolean calcOnly; /* Only compute the length of the decoding */
 
     size_t namespacesSize;
-    UA_String *namespaces;
+    const UA_String *namespaces;
     
     size_t serverUrisSize;
-    UA_String *serverUris;
+    const UA_String *serverUris;
 } CtxJson;
 
 UA_StatusCode writeJsonObjStart(CtxJson *ctx);
@@ -124,43 +136,50 @@ typedef struct {
      * Currently only used for dataSetWriterIds */
     size_t numCustom;
     void * custom;
-    size_t* currentCustomIndex;
+    size_t currentCustomIndex;
+
+    const UA_DataTypeArray *customTypes;
 } ParseCtx;
 
 typedef UA_StatusCode
 (*encodeJsonSignature)(const void *src, const UA_DataType *type, CtxJson *ctx);
 
 typedef UA_StatusCode
-(*decodeJsonSignature)(void *dst, const UA_DataType *type, CtxJson *ctx,
-                       ParseCtx *parseCtx, UA_Boolean moveToken);
+(*decodeJsonSignature)(void *dst, const UA_DataType *type,
+                       CtxJson *ctx, ParseCtx *parseCtx);
 
 /* Map for decoding a Json Object. An array of this is passed to the
  * decodeFields function. If the key "fieldName" is found in the json object
  * (mark as found and) decode the value with the "function" and write result
  * into "fieldPointer" (destination). */
 typedef struct {
-    const char * fieldName;
-    void * fieldPointer;
+    const char *fieldName;
+    void *fieldPointer;
     decodeJsonSignature function;
     UA_Boolean found;
-    const UA_DataType *type;
+    const UA_DataType *type; /* Must be set for values that can be "null". If
+                              * the function is not set, decode via the
+                              * type->typeKind. */
 } DecodeEntry;
 
 UA_StatusCode
 decodeFields(CtxJson *ctx, ParseCtx *parseCtx,
-             DecodeEntry *entries, size_t entryCount,
-             const UA_DataType *type);
+             DecodeEntry *entries, size_t entryCount);
 
-UA_StatusCode
-decodeJsonInternal(void *dst, const UA_DataType *type,
-                   CtxJson *ctx, ParseCtx *parseCtx, UA_Boolean moveToken);
+/* Expose the jump tables and some methods for PubSub JSON decoding */
+extern const encodeJsonSignature encodeJsonJumpTable[UA_DATATYPEKINDS];
+extern const decodeJsonSignature decodeJsonJumpTable[UA_DATATYPEKINDS];
 
-/* workaround: TODO generate functions for UA_xxx_decodeJson */
-decodeJsonSignature getDecodeSignature(u8 index);
-UA_StatusCode lookAheadForKey(const char* search, CtxJson *ctx, ParseCtx *parseCtx, size_t *resultIndex);
-jsmntype_t getJsmnType(const ParseCtx *parseCtx);
-UA_StatusCode tokenize(ParseCtx *parseCtx, CtxJson *ctx, const UA_ByteString *src);
+UA_StatusCode lookAheadForKey(const char* search, CtxJson *ctx,
+                              ParseCtx *parseCtx, size_t *resultIndex);
+UA_StatusCode tokenize(ParseCtx *parseCtx, CtxJson *ctx,
+                       const UA_ByteString *src, size_t tokensSize);
 UA_Boolean isJsonNull(const CtxJson *ctx, const ParseCtx *parseCtx);
+
+static UA_INLINE
+jsmntype_t getJsmnType(const ParseCtx *parseCtx) {
+    return parseCtx->tokenArray[parseCtx->index].type;
+}
 
 _UA_END_DECLS
 

@@ -34,16 +34,17 @@
 #define UA_INVALID_SOCKET -1
 #define UA_ERRNO errno
 #define UA_INTERRUPTED EINTR
-#define UA_AGAIN EAGAIN
-#define UA_EAGAIN EAGAIN
+#define UA_AGAIN EAGAIN /* the same as wouldblock on nearly every system */
+#define UA_INPROGRESS EINPROGRESS
 #define UA_WOULDBLOCK EWOULDBLOCK
-#define UA_ERR_CONNECTION_PROGRESS EINPROGRESS
 
-#define UA_getnameinfo getnameinfo
+#define UA_getnameinfo(sa, salen, host, hostlen, serv, servlen, flags) \
+    getnameinfo(sa, salen, host, hostlen, serv, servlen, flags)
 #define UA_send send
 #define UA_recv recv
 #define UA_sendto sendto
 #define UA_recvfrom recvfrom
+#define UA_recvmsg recvmsg
 #define UA_htonl htonl
 #define UA_ntohl ntohl
 #define UA_close close
@@ -57,6 +58,7 @@
 #define UA_getaddrinfo getaddrinfo
 #define UA_getsockopt getsockopt
 #define UA_setsockopt setsockopt
+#define UA_ioctl ioctl
 #define UA_freeaddrinfo freeaddrinfo
 #define UA_gethostname gethostname_ecos
 #define UA_getsockname getsockname
@@ -87,13 +89,11 @@ int gethostname_ecos(char* name, size_t len);
 #if UA_MULTITHREADING >= 100
 #error Multithreading unsupported
 #else
-#define UA_LOCK_TYPE(mutexName)
-#define UA_LOCK_TYPE_POINTER(mutexName)
-#define UA_LOCK_INIT(mutexName)
-#define UA_LOCK_DESTROY(mutexName)
-#define UA_LOCK(mutexName)
-#define UA_UNLOCK(mutexName)
-#define UA_LOCK_ASSERT(mutexName, num)
+#define UA_LOCK_INIT(lock)
+#define UA_LOCK_DESTROY(lock)
+#define UA_LOCK(lock)
+#define UA_UNLOCK(lock)
+#define UA_LOCK_ASSERT(lock, num)
 #endif
 
 #include <open62541/architecture_functions.h>

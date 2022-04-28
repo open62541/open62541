@@ -11,6 +11,19 @@
 
 _UA_BEGIN_DECLS
 
+/**
+ * EthernetWriterGroupTransportDataType
+ * ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ */
+/* TODO: This can be removed once publishingOffset parameter set in place
+ * and normal DatagramWriterGroupTransportDataType can be used */
+typedef struct {
+    UA_Byte messageRepeatCount;
+    UA_Double messageRepeatDelay;
+    /* ETF related param - txtime to be published */
+    UA_UInt64  transmission_time;
+} UA_EthernetWriterGroupTransportDataType;
+
 UA_PubSubTransportLayer UA_EXPORT
 UA_PubSubTransportLayerEthernet(void);
 

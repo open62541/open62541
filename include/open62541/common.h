@@ -118,6 +118,20 @@ typedef enum {
 #define UA_VALUERANK_THREE_DIMENSIONS          3
 
 /**
+ * EventNotifier
+ * -------------
+ * The following are the available EventNotifier used for Nodes.
+ * The EventNotifier Attribute is used to indicate if the Node can be used
+ * to subscribe to Events or to read / write historic Events.
+ * Part 3: 5.4 Table 10 */
+
+#define UA_EVENTNOTIFIER_SUBSCRIBE_TO_EVENT (0x01u << 0u)
+#define UA_EVENTNOTIFIER_HISTORY_READ       (0x01u << 2u)
+#define UA_EVENTNOTIFIER_HISTORY_WRITE      (0x01u << 3u)
+
+/**
+ * .. _rule-handling:
+ *
  * Rule Handling
  * -------------
  *
@@ -151,14 +165,15 @@ typedef enum {
  * ---------------- */
 
 typedef enum {
-    UA_SECURECHANNELSTATE_CLOSED,
+    UA_SECURECHANNELSTATE_FRESH = 0,
     UA_SECURECHANNELSTATE_HEL_SENT,
     UA_SECURECHANNELSTATE_HEL_RECEIVED,
     UA_SECURECHANNELSTATE_ACK_SENT,
     UA_SECURECHANNELSTATE_ACK_RECEIVED,
     UA_SECURECHANNELSTATE_OPN_SENT,
     UA_SECURECHANNELSTATE_OPEN,
-    UA_SECURECHANNELSTATE_CLOSING
+    UA_SECURECHANNELSTATE_CLOSING,
+    UA_SECURECHANNELSTATE_CLOSED
 } UA_SecureChannelState;
 
 typedef enum {
@@ -174,7 +189,7 @@ typedef enum {
  * Statistic counters
  * ------------------
  *
- * The stack manage statistic counter for the following layers:
+ * The stack manages statistic counters for the following layers:
  *
  * - Network
  * - Secure channel
@@ -182,7 +197,7 @@ typedef enum {
  *
  * The session layer counters are matching the counters of the
  * ServerDiagnosticsSummaryDataType that are defined in the OPC UA Part 5
- * specification. Counter of the other layers are not specified by OPC UA but
+ * specification. Counters of the other layers are not specified by OPC UA but
  * are harmonized with the session layer counters if possible. */
 
 typedef struct {

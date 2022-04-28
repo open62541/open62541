@@ -105,7 +105,7 @@ START_TEST(callMethodAndObjectExistsButMethodHasWrongNodeClass) {
 
 START_TEST(callMethodOnUnrelatedObject) {
     /* Minimal nodeset does not add any method nodes we may call here */
-#ifdef UA_GENERATED_NAMESPACE_ZERO
+#if defined(UA_GENERATED_NAMESPACE_ZERO) && defined(UA_ENABLE_SUBSCRIPTIONS)
     UA_CallMethodRequest callMethodRequest;
     UA_CallMethodRequest_init(&callMethodRequest);
     callMethodRequest.methodId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_GETMONITOREDITEMS);
@@ -144,7 +144,7 @@ START_TEST(callMethodNonExecutable) {
 
 START_TEST(callMethodWithMissingArguments) {
 /* Minimal nodeset does not add any method nodes we may call here */
-#ifdef UA_GENERATED_NAMESPACE_ZERO
+#if defined(UA_GENERATED_NAMESPACE_ZERO) && defined(UA_ENABLE_SUBSCRIPTIONS)
     UA_CallMethodRequest callMethodRequest;
     UA_CallMethodRequest_init(&callMethodRequest);
     callMethodRequest.methodId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_GETMONITOREDITEMS);
@@ -159,7 +159,7 @@ START_TEST(callMethodWithMissingArguments) {
 
 START_TEST(callMethodWithTooManyArguments) {
 /* Minimal nodeset does not add any method nodes we may call here */
-#ifdef UA_GENERATED_NAMESPACE_ZERO
+#if defined(UA_GENERATED_NAMESPACE_ZERO) && defined(UA_ENABLE_SUBSCRIPTIONS)
     UA_Variant inputArguments[2];
     UA_Variant_init(&inputArguments[0]);
     UA_Variant_init(&inputArguments[1]);
@@ -180,11 +180,36 @@ START_TEST(callMethodWithTooManyArguments) {
 
 START_TEST(callMethodWithWronglyTypedArguments) {
 /* Minimal nodeset does not add any method nodes we may call here */
-#ifdef UA_GENERATED_NAMESPACE_ZERO
+#if defined(UA_GENERATED_NAMESPACE_ZERO) && defined(UA_ENABLE_SUBSCRIPTIONS)
     UA_Variant inputArgument;
     UA_Variant_init(&inputArgument);
     UA_Double wrongType = 1.0;
     UA_Variant_setScalar(&inputArgument, &wrongType, &UA_TYPES[UA_TYPES_DOUBLE]);  // UA_UInt32 would be correct
+
+    UA_CallMethodRequest callMethodRequest;
+    UA_CallMethodRequest_init(&callMethodRequest);
+    callMethodRequest.inputArgumentsSize = 1;
+    callMethodRequest.inputArguments = &inputArgument;
+    callMethodRequest.methodId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_GETMONITOREDITEMS);
+    callMethodRequest.objectId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER);
+
+    UA_CallMethodResult result;
+    UA_CallMethodResult_init(&result);
+    result = UA_Server_call(server, &callMethodRequest);
+
+    ck_assert_uint_gt(result.inputArgumentResultsSize, 0);
+    ck_assert_int_eq(result.inputArgumentResults[0], UA_STATUSCODE_BADTYPEMISMATCH);
+    ck_assert_int_eq(result.statusCode, UA_STATUSCODE_BADINVALIDARGUMENT);
+
+    UA_Array_delete(result.inputArgumentResults, result.inputArgumentResultsSize, &UA_TYPES[UA_TYPES_STATUSCODE]);
+#endif
+} END_TEST
+
+START_TEST(callMethodWithEmptyArgument) {
+/* Minimal nodeset does not add any method nodes we may call here */
+#if defined(UA_GENERATED_NAMESPACE_ZERO) && defined(UA_ENABLE_SUBSCRIPTIONS)
+    UA_Variant inputArgument;
+    UA_Variant_init(&inputArgument);
 
     UA_CallMethodRequest callMethodRequest;
     UA_CallMethodRequest_init(&callMethodRequest);
@@ -219,6 +244,7 @@ int main(void) {
     tcase_add_test(tc_call, callMethodWithMissingArguments);
     tcase_add_test(tc_call, callMethodWithTooManyArguments);
     tcase_add_test(tc_call, callMethodWithWronglyTypedArguments);
+    tcase_add_test(tc_call, callMethodWithEmptyArgument);
     suite_add_tcase(s, tc_call);
 
     SRunner *sr = srunner_create(s);

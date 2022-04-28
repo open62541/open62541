@@ -41,15 +41,17 @@ UA_DURATIONRANGE(UA_Duration min, UA_Duration max) {
     return range;
 }
 
+static UA_StatusCode
+setDefaultConfig(UA_ServerConfig *conf);
+
 UA_Server *
 UA_Server_new() {
     UA_ServerConfig config;
     memset(&config, 0, sizeof(UA_ServerConfig));
-    /* Set a default logger and NodeStore for the initialization */
-    config.logger = UA_Log_Stdout_;
-    if(UA_STATUSCODE_GOOD != UA_Nodestore_HashMap(&config.nodestore)) {
+
+    UA_StatusCode res = setDefaultConfig(&config);
+    if(res != UA_STATUSCODE_GOOD)
         return NULL;
-    }
 
     return UA_Server_newWithConfig(&config);
 }
@@ -122,16 +124,36 @@ static UA_UsernamePasswordLogin usernamePasswords[2] = {
 
 static UA_StatusCode
 setDefaultConfig(UA_ServerConfig *conf) {
-    if (!conf)
+    if(!conf)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
 
+    /* NodeStore */
     if(conf->nodestore.context == NULL)
         UA_Nodestore_HashMap(&conf->nodestore);
 
-    /* --> Start setting the default static config <-- */
-    /* Allow user to set his own logger */
-    if (!conf->logger.log)
+    /* Logging */
+    if(!conf->logger.log)
         conf->logger = UA_Log_Stdout_;
+
+    /* EventLoop */
+    if(conf->eventLoop == NULL) {
+        conf->eventLoop = UA_EventLoop_new_POSIX(&conf->logger);
+        conf->externalEventLoop = false;
+
+        /* Add the TCP connection manager */
+        UA_ConnectionManager *tcpCM =
+            UA_ConnectionManager_new_POSIX_TCP(UA_STRING("tcp connection manager"));
+        if(tcpCM)
+            conf->eventLoop->registerEventSource(conf->eventLoop, (UA_EventSource *)tcpCM);
+
+        /* Add the UDP connection manager */
+        UA_ConnectionManager *udpCM =
+            UA_ConnectionManager_new_POSIX_UDP(UA_STRING("udp connection manager"));
+        if(udpCM)
+            conf->eventLoop->registerEventSource(conf->eventLoop, (UA_EventSource *)udpCM);
+    }
+
+    /* --> Start setting the default static config <-- */
 
     conf->shutdownDelay = 0.0;
 
@@ -143,11 +165,11 @@ setDefaultConfig(UA_ServerConfig *conf) {
     conf->buildInfo.softwareVersion =
         UA_STRING_ALLOC(VERSION(UA_OPEN62541_VER_MAJOR, UA_OPEN62541_VER_MINOR,
                                 UA_OPEN62541_VER_PATCH, UA_OPEN62541_VER_LABEL));
-    #ifdef UA_PACK_DEBIAN
+#ifdef UA_PACK_DEBIAN
     conf->buildInfo.buildNumber = UA_STRING_ALLOC("deb");
-    #else
+#else
     conf->buildInfo.buildNumber = UA_STRING_ALLOC(__DATE__ " " __TIME__);
-    #endif
+#endif
     conf->buildInfo.buildDate = UA_DateTime_now();
 
     UA_ApplicationDescription_clear(&conf->applicationDescription);
@@ -191,9 +213,7 @@ setDefaultConfig(UA_ServerConfig *conf) {
     /* conf->nodeLifecycle.destructor = NULL; */
     /* conf->nodeLifecycle.createOptionalChild = NULL; */
     /* conf->nodeLifecycle.generateChildNodeId = NULL; */
-
-    /* Relax constraints for the InformationModel */
-    conf->relaxEmptyValueConstraint = true; /* Allow empty values */
+    conf->modellingRulesOnInstances = UA_TRUE;
 
     /* Limits for SecureChannels */
     conf->maxSecureChannels = 40;
@@ -251,10 +271,6 @@ setDefaultConfig(UA_ServerConfig *conf) {
     conf->asyncOperationTimeout = 120000; /* Async Operation Timeout in ms (2 minutes) */
 #endif
 
-#if UA_MULTITHREADING >= 200
-    conf->nThreads = 1;
-#endif
-
     /* --> Finish setting the default static config <-- */
 
     return UA_STATUSCODE_GOOD;
@@ -267,12 +283,6 @@ UA_ServerConfig_setBasics(UA_ServerConfig* conf) {
                    "AcceptAll Certificate Verification. "
                    "Any remote certificate will be accepted.");
     return res;
-}
-
-static UA_StatusCode
-addDefaultNetworkLayers(UA_ServerConfig *conf, UA_UInt16 portNumber,
-                        UA_UInt32 sendBufferSize, UA_UInt32 recvBufferSize) {
-    return UA_ServerConfig_addNetworkLayerTCP(conf, portNumber, sendBufferSize, recvBufferSize);
 }
 
 #ifdef UA_ENABLE_WEBSOCKET_SERVER
@@ -288,46 +298,20 @@ UA_ServerConfig_addNetworkLayerWS(UA_ServerConfig *conf, UA_UInt16 portNumber,
     conf->networkLayers = tmp;
 
     UA_ConnectionConfig config = UA_ConnectionConfig_default;
-    if (sendBufferSize > 0)
+    if(sendBufferSize > 0)
         config.sendBufferSize = sendBufferSize;
-    if (recvBufferSize > 0)
+    if(recvBufferSize > 0)
         config.recvBufferSize = recvBufferSize;
 
     conf->networkLayers[conf->networkLayersSize] =
-        UA_ServerNetworkLayerWS(config, portNumber, &conf->logger, certificate, privateKey);
-    if (!conf->networkLayers[conf->networkLayersSize].handle)
+        UA_ServerNetworkLayerWS(config, portNumber, certificate, privateKey);
+    if(!conf->networkLayers[conf->networkLayersSize].handle)
         return UA_STATUSCODE_BADOUTOFMEMORY;
     conf->networkLayersSize++;
 
     return UA_STATUSCODE_GOOD;
 }
 #endif
-
-UA_EXPORT UA_StatusCode
-UA_ServerConfig_addNetworkLayerTCP(UA_ServerConfig *conf, UA_UInt16 portNumber,
-                                   UA_UInt32 sendBufferSize, UA_UInt32 recvBufferSize) {
-    /* Add a network layer */
-    UA_ServerNetworkLayer *tmp = (UA_ServerNetworkLayer *)
-        UA_realloc(conf->networkLayers,
-                   sizeof(UA_ServerNetworkLayer) * (1 + conf->networkLayersSize));
-    if(!tmp)
-        return UA_STATUSCODE_BADOUTOFMEMORY;
-    conf->networkLayers = tmp;
-
-    UA_ConnectionConfig config = UA_ConnectionConfig_default;
-    if (sendBufferSize > 0)
-        config.sendBufferSize = sendBufferSize;
-    if (recvBufferSize > 0)
-        config.recvBufferSize = recvBufferSize;
-
-    conf->networkLayers[conf->networkLayersSize] =
-        UA_ServerNetworkLayerTCP(config, portNumber, 0, &conf->logger);
-    if (!conf->networkLayers[conf->networkLayersSize].handle)
-        return UA_STATUSCODE_BADOUTOFMEMORY;
-    conf->networkLayersSize++;
-
-    return UA_STATUSCODE_GOOD;
-}
 
 UA_EXPORT UA_StatusCode
 UA_ServerConfig_addSecurityPolicyNone(UA_ServerConfig *config, 
@@ -448,11 +432,52 @@ UA_ServerConfig_setMinimalCustomBuffer(UA_ServerConfig *config, UA_UInt16 portNu
         return retval;
     }
 
-    retval = addDefaultNetworkLayers(config, portNumber, sendBufferSize, recvBufferSize);
+    /* Set up the local ServerUrls. They are used during startup to initialize
+     * the server sockets. */
+    UA_String serverUrls[2];
+    size_t serverUrlsSize = 0;
+    char hostnamestr[256];
+    char serverUrlBuffer[2][512];
+
+    /* 1) Listen on all interfaces (also external). This must be the first entry
+     * if this is desired. Otherwise some interfaces may be blocked (already in
+     * use) with a hostname that is only locally reachable.*/
+    UA_snprintf(serverUrlBuffer[0], sizeof(serverUrlBuffer[0]),
+                "opc.tcp://:%u", portNumber);
+    serverUrls[serverUrlsSize] = UA_STRING(serverUrlBuffer[0]);
+    serverUrlsSize++;
+
+    /* 2) Based on the local hostname. For that temporarily initialize the
+     * Winsock API on Win32. */
+
+#ifdef _WIN32
+    WSADATA wsaData;
+    WSAStartup(MAKEWORD(2, 2), &wsaData);
+#endif
+    int err = UA_gethostname(hostnamestr, sizeof(hostnamestr));
+#ifdef _WIN32
+    WSACleanup();
+#endif
+
+    if(err == 0) {
+        UA_snprintf(serverUrlBuffer[1], sizeof(serverUrlBuffer[1]),
+                    "opc.tcp://%s:%u", hostnamestr, portNumber);
+        serverUrls[serverUrlsSize] = UA_STRING(serverUrlBuffer[1]);
+        serverUrlsSize++;
+    }
+
+    /* 3) Add to the config */
+    retval =
+        UA_Array_copy(serverUrls, serverUrlsSize,
+                      (void**)&config->serverUrls, &UA_TYPES[UA_TYPES_STRING]);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_ServerConfig_clean(config);
         return retval;
     }
+    config->serverUrlsSize = serverUrlsSize;
+
+    /* Set the TCP settings */
+    config->tcpBufSize = recvBufferSize;
 
     /* Allocate the SecurityPolicies */
     retval = UA_ServerConfig_addSecurityPolicyNone(config, certificate);
@@ -462,9 +487,9 @@ UA_ServerConfig_setMinimalCustomBuffer(UA_ServerConfig *config, UA_UInt16 portNu
     }
 
     /* Initialize the Access Control plugin */
-    retval = UA_AccessControl_default(config, true,
-                &config->securityPolicies[config->securityPoliciesSize-1].policyUri,
-                usernamePasswordsSize, usernamePasswords);
+    retval = UA_AccessControl_default(config, true, NULL,
+                                      &config->securityPolicies[config->securityPoliciesSize-1].policyUri,
+                                      usernamePasswordsSize, usernamePasswords);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_ServerConfig_clean(config);
         return retval;
@@ -698,19 +723,18 @@ UA_ServerConfig_setDefaultWithSecurityPolicies(UA_ServerConfig *conf,
     if (retval != UA_STATUSCODE_GOOD)
         return retval;
 
-    retval = addDefaultNetworkLayers(conf, portNumber, 0, 0);
-    if(retval != UA_STATUSCODE_GOOD) {
-        UA_ServerConfig_clean(conf);
-        return retval;
-    }
-
     retval = UA_ServerConfig_addAllSecurityPolicies(conf, certificate, privateKey);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_ServerConfig_clean(conf);
         return retval;
     }
 
-    retval = UA_AccessControl_default(conf, true,
+    UA_CertificateVerification accessControlVerification;
+    retval = UA_CertificateVerification_Trustlist(&accessControlVerification,
+                                                  trustList, trustListSize,
+                                                  issuerList, issuerListSize,
+                                                  revocationList, revocationListSize);
+    retval |= UA_AccessControl_default(conf, true, &accessControlVerification,
                 &conf->securityPolicies[conf->securityPoliciesSize-1].policyUri,
                 usernamePasswordsSize, usernamePasswords);
     if(retval != UA_STATUSCODE_GOOD) {
@@ -752,6 +776,28 @@ UA_ClientConfig_setDefault(UA_ClientConfig *config) {
        config->logger.context = NULL;
        config->logger.clear = UA_Log_Stdout_clear;
     }
+
+    /* EventLoop */
+    if(config->eventLoop == NULL) {
+        config->eventLoop = UA_EventLoop_new_POSIX(&config->logger);
+        config->externalEventLoop = false;
+
+        /* Add the TCP connection manager */
+        UA_ConnectionManager *tcpCM =
+            UA_ConnectionManager_new_POSIX_TCP(UA_STRING("tcp connection manager"));
+        config->eventLoop->registerEventSource(config->eventLoop, (UA_EventSource *)tcpCM);
+
+        /* Add the UDP connection manager */
+        UA_ConnectionManager *udpCM =
+            UA_ConnectionManager_new_POSIX_UDP(UA_STRING("udp connection manager"));
+        config->eventLoop->registerEventSource(config->eventLoop, (UA_EventSource *)udpCM);
+    }
+
+    if (config->sessionLocaleIdsSize > 0 && config->sessionLocaleIds) {
+        UA_Array_delete(config->sessionLocaleIds, config->sessionLocaleIdsSize, &UA_TYPES[UA_TYPES_LOCALEID]);
+    }
+    config->sessionLocaleIds = NULL;
+    config->sessionLocaleIds = 0;
 
     config->localConnectionConfig = UA_ConnectionConfig_default;
 

@@ -3,6 +3,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  *
  *    Copyright 2018 (c) basysKom GmbH <opensource@basyskom.com> (Author: Peter Rustler)
+ *    Copyright 2021 (c) luibass92 <luibass92@live.it> (Author: Luigi Bassetta)
  */
 
 #include <open62541/client_subscriptions.h>
@@ -129,6 +130,7 @@ registerNodeId_gathering_default(UA_Server *server,
             ctx->storeSize = 0;
             return UA_STATUSCODE_BADOUTOFMEMORY;
         }
+        memset(&ctx->dataStore[ctx->storeSize], 0, (newStoreSize - ctx->storeSize) * sizeof(UA_NodeIdStoreContextItem_gathering_default));
         ctx->storeSize = newStoreSize;
     }
     UA_NodeId_copy(nodeId, &ctx->dataStore[ctx->storeEnd].nodeId);
@@ -158,7 +160,7 @@ deleteMembers_gathering_default(UA_HistoryDataGathering *gathering)
         return;
     UA_NodeIdStoreContext *ctx = (UA_NodeIdStoreContext*)gathering->context;
     for (size_t i = 0; i < ctx->storeEnd; ++i) {
-        UA_NodeId_deleteMembers(&ctx->dataStore[i].nodeId);
+        UA_NodeId_clear(&ctx->dataStore[i].nodeId);
         // There is still a monitored item present for this gathering
         // You need to remove it with UA_Server_deleteMonitoredItem
         UA_assert(ctx->dataStore[i].monitoredResult.monitoredItemId == 0);
@@ -225,5 +227,32 @@ UA_HistoryDataGathering_Default(size_t initialNodeIdStoreSize)
     context->storeSize = initialNodeIdStoreSize;
     context->dataStore = (UA_NodeIdStoreContextItem_gathering_default*)UA_calloc(initialNodeIdStoreSize, sizeof(UA_NodeIdStoreContextItem_gathering_default));
     gathering.context = context;
+    return gathering;
+}
+
+/* Circular buffer implementation */
+
+static UA_StatusCode
+registerNodeId_gathering_circular(UA_Server *server, void *context,
+                                  const UA_NodeId *nodeId,
+                                  const UA_HistorizingNodeIdSettings setting) {
+    UA_NodeIdStoreContext *ctx = (UA_NodeIdStoreContext *)context;
+    if(getNodeIdStoreContextItem_gathering_default(ctx, nodeId)) {
+        return UA_STATUSCODE_BADNODEIDEXISTS;
+    }
+    if(ctx->storeEnd >= ctx->storeSize || !ctx->dataStore) {
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    }
+    UA_NodeId_copy(nodeId, &ctx->dataStore[ctx->storeEnd].nodeId);
+    size_t current = ctx->storeEnd;
+    ctx->dataStore[current].setting = setting;
+    ++ctx->storeEnd;
+    return UA_STATUSCODE_GOOD;
+}
+
+UA_HistoryDataGathering
+UA_HistoryDataGathering_Circular(size_t initialNodeIdStoreSize) {
+    UA_HistoryDataGathering gathering = UA_HistoryDataGathering_Default(initialNodeIdStoreSize);
+    gathering.registerNodeId = &registerNodeId_gathering_circular;
     return gathering;
 }

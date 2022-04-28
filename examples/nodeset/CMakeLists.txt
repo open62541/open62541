@@ -63,10 +63,10 @@ endif()
 ###################
 
 if(NOT CMAKE_PROJECT_NAME STREQUAL PROJECT_NAME)
-    set(FILE_CSV_DIRPREFIX ${CMAKE_SOURCE_DIR}/deps/ua-nodeset)
-    set(FILE_BSD_PLCOPEN_DIRPREFIX ${CMAKE_SOURCE_DIR}/deps/ua-nodeset)
+    set(FILE_CSV_DIRPREFIX ${open62541_NODESET_DIR})
+    set(FILE_BSD_PLCOPEN_DIRPREFIX ${open62541_NODESET_DIR})
     set(FILE_BSD_POWERLINK_DIRPREFIX ${PROJECT_SOURCE_DIR}/nodeset)
-    set(FILE_NS_DIRPREFIX ${CMAKE_SOURCE_DIR}/deps/ua-nodeset)
+    set(FILE_NS_DIRPREFIX ${open62541_NODESET_DIR})
 else()
     set(FILE_CSV_DIRPREFIX ${UA_NODESET_DIR})
     set(FILE_BSD_PLCOPEN_DIRPREFIX ${UA_NODESET_DIR})
@@ -91,7 +91,7 @@ if(UA_NAMESPACE_ZERO STREQUAL "FULL")
     ua_generate_nodeset_and_datatypes(
         NAME "plc"
         # PLCopen does not define custom types. Only generate the nodeset
-        FILE_NS "${FILE_NS_DIRPREFIX}/PLCopen/Opc.Ua.Plc.NodeSet2.xml"
+        FILE_NS "${FILE_NS_DIRPREFIX}/PLCopen/Opc.Ua.PLCopen.NodeSet2_V1.02.xml"
         # PLCopen depends on the di nodeset, which must be generated before
         DEPENDS "di"
         INTERNAL

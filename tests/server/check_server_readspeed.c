@@ -24,10 +24,7 @@ static UA_Server *server;
 static UA_NodeId readNodeIds[READNODES];
 
 static void setup(void) {
-    UA_ServerConfig config;
-    memset(&config, 0, sizeof(UA_ServerConfig));
-    UA_Nodestore_HashMap(&config.nodestore);
-    server = UA_Server_newWithConfig(&config);
+    server = UA_Server_new();
 }
 
 static void teardown(void) {
@@ -81,9 +78,9 @@ START_TEST(readSpeed) {
         /* Set the NodeId */
         rvi.nodeId = readNodeIds[i % READNODES];
 
-        UA_LOCK(server->serviceMutex);
+        UA_LOCK(&server->serviceMutex);
         Service_Read(server, &server->adminSession, &request, &res);
-        UA_UNLOCK(server->serviceMutex);
+        UA_UNLOCK(&server->serviceMutex);
 
         UA_ReadResponse_clear(&res);
     }
@@ -154,20 +151,20 @@ START_TEST(readSpeedWithEncoding) {
         /* Encode the request */
         UA_Byte *pos = request_msg.data;
         const UA_Byte *end = &request_msg.data[request_msg.length];
-        retval |= UA_encodeBinary(&request, &UA_TYPES[UA_TYPES_READREQUEST], &pos, &end, NULL, NULL);
+        retval |= UA_encodeBinaryInternal(&request, &UA_TYPES[UA_TYPES_READREQUEST], &pos, &end, NULL, NULL);
         ck_assert(retval == UA_STATUSCODE_GOOD);
 
         /* Decode the request */
         size_t offset = 0;
-        retval |= UA_decodeBinary(&request_msg, &offset, &req, &UA_TYPES[UA_TYPES_READREQUEST], NULL);
+        retval |= UA_decodeBinaryInternal(&request_msg, &offset, &req, &UA_TYPES[UA_TYPES_READREQUEST], NULL);
 
-        UA_LOCK(server->serviceMutex);
+        UA_LOCK(&server->serviceMutex);
         Service_Read(server, &server->adminSession, &req, &res);
-        UA_UNLOCK(server->serviceMutex);
+        UA_UNLOCK(&server->serviceMutex);
 
         UA_Byte *rpos = response_msg.data;
         const UA_Byte *rend = &response_msg.data[response_msg.length];
-        retval |= UA_encodeBinary(&res, &UA_TYPES[UA_TYPES_READRESPONSE],
+        retval |= UA_encodeBinaryInternal(&res, &UA_TYPES[UA_TYPES_READRESPONSE],
                                   &rpos, &rend, NULL, NULL);
 
         UA_ReadRequest_clear(&req);

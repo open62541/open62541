@@ -22,14 +22,20 @@ static const UA_VariableNode *
 getArgumentsVariableNode(UA_Server *server, const UA_NodeHead *head,
                          UA_String withBrowseName) {
     for(size_t i = 0; i < head->referencesSize; ++i) {
-        UA_NodeReferenceKind *rk = &head->references[i];
-        if(rk->isInverse != false)
+        const UA_NodeReferenceKind *rk = &head->references[i];
+        if(rk->isInverse)
             continue;
         if(rk->referenceTypeIndex != UA_REFERENCETYPEINDEX_HASPROPERTY)
             continue;
-        UA_ReferenceTarget *target;
-        TAILQ_FOREACH(target, &rk->queueHead, queuePointers) {
-            const UA_Node *refTarget = UA_NODESTORE_GET(server, &target->targetId.nodeId);
+        const UA_ReferenceTarget *t = NULL;
+        while((t = UA_NodeReferenceKind_iterate(rk, t))) {
+            /* Get only the NodeClass and Value attributes, no references */
+            const UA_Node *refTarget =
+                UA_NODESTORE_GETFROMREF_SELECTIVE(server, t->targetId,
+                                                  UA_NODEATTRIBUTESMASK_NODECLASS |
+                                                  UA_NODEATTRIBUTESMASK_VALUE,
+                                                  UA_REFERENCETYPESET_NONE,
+                                                  UA_BROWSEDIRECTION_INVALID);
             if(!refTarget)
                 continue;
             if(refTarget->head.nodeClass == UA_NODECLASS_VARIABLE &&
@@ -70,10 +76,20 @@ typeCheckArguments(UA_Server *server, UA_Session *session,
     /* Type-check every argument against the definition */
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     UA_Argument *argReqs = (UA_Argument*)argRequirements->value.data.value.value.data;
+    const char *reason;
     for(size_t i = 0; i < argReqsSize; ++i) {
+        if(compatibleValue(server, session, &argReqs[i].dataType, argReqs[i].valueRank,
+                           argReqs[i].arrayDimensionsSize, argReqs[i].arrayDimensions,
+                           &args[i], NULL, &reason))
+            continue;
+
+        /* Incompatible value. Try to correct the type if possible. */
+        adjustValueType(server, &args[i], &argReqs[i].dataType);
+
+        /* Recheck */
         if(!compatibleValue(server, session, &argReqs[i].dataType, argReqs[i].valueRank,
                             argReqs[i].arrayDimensionsSize, argReqs[i].arrayDimensions,
-                            &args[i], NULL)) {
+                            &args[i], NULL, &reason)) {
             inputArgumentResults[i] = UA_STATUSCODE_BADTYPEMISMATCH;
             retval = UA_STATUSCODE_BADINVALIDARGUMENT;
         }
@@ -135,6 +151,8 @@ callWithMethodAndObject(UA_Server *server, UA_Session *session,
         return;
     }
 
+    UA_NodePointer methodP = UA_NodePointer_fromNodeId(&request->methodId);
+
     /* Verify method/object relations. Object must have a hasComponent or a
      * subtype of hasComponent reference to the method node. Therefore, check
      * every reference between the parent object and the method node if there is
@@ -144,16 +162,17 @@ callWithMethodAndObject(UA_Server *server, UA_Session *session,
         referenceTypeIndices(server, &hasComponentNodeId, &hasComponentRefs, true);
     if(result->statusCode != UA_STATUSCODE_GOOD)
         return;
+
     UA_Boolean found = false;
     for(size_t i = 0; i < object->head.referencesSize && !found; ++i) {
-        UA_NodeReferenceKind *rk = &object->head.references[i];
+        const UA_NodeReferenceKind *rk = &object->head.references[i];
         if(rk->isInverse)
             continue;
         if(!UA_ReferenceTypeSet_contains(&hasComponentRefs, rk->referenceTypeIndex))
             continue;
-        UA_ReferenceTarget *target;
-        TAILQ_FOREACH(target, &rk->queueHead, queuePointers) {
-            if(UA_NodeId_equal(&target->targetId.nodeId, &request->methodId)) {
+        const UA_ReferenceTarget *t = NULL;
+        while((t = UA_NodeReferenceKind_iterate(rk, t))) {
+            if(UA_NodePointer_equal(t->targetId, methodP)) {
                 found = true;
                 break;
             }
@@ -190,7 +209,7 @@ callWithMethodAndObject(UA_Server *server, UA_Session *session,
 
         /* Search for a HasTypeDefinition (or sub-) reference in the parent object */
         for(size_t i = 0; i < object->head.referencesSize && !found; ++i) {
-            UA_NodeReferenceKind *rk = &object->head.references[i];
+            const UA_NodeReferenceKind *rk = &object->head.references[i];
             if(rk->isInverse)
                 continue;
             if(!UA_ReferenceTypeSet_contains(&hasTypeDefinitionRefs, rk->referenceTypeIndex))
@@ -198,18 +217,20 @@ callWithMethodAndObject(UA_Server *server, UA_Session *session,
             
             /* Verify that the HasTypeDefinition is equal to FunctionGroupType
              * (or sub-type) from the DI model */
-            UA_ReferenceTarget *target, *target2;
-            TAILQ_FOREACH(target, &rk->queueHead, queuePointers) {
-                if(found)
-                    break;
-                if(!isNodeInTree_singleRef(server, &target->targetId.nodeId,
-                                           &functionGroupNodeId, UA_REFERENCETYPEINDEX_HASSUBTYPE))
+            const UA_ReferenceTarget *t = NULL;
+            while((t = UA_NodeReferenceKind_iterate(rk, t))) {
+                if(!UA_NodePointer_isLocal(t->targetId))
                     continue;
                 
+                UA_NodeId tmpId = UA_NodePointer_toNodeId(t->targetId);
+                if(!isNodeInTree_singleRef(server, &tmpId, &functionGroupNodeId,
+                                           UA_REFERENCETYPEINDEX_HASSUBTYPE))
+                    continue;
+
                 /* Search for the called method with reference Organize (or
                  * sub-type) from the parent object */
                 for(size_t k = 0; k < object->head.referencesSize && !found; ++k) {
-                    UA_NodeReferenceKind *rkInner = &object->head.references[k];
+                    const UA_NodeReferenceKind *rkInner = &object->head.references[k];
                     if(rkInner->isInverse)
                         continue;
                     const UA_NodeId * refId = 
@@ -218,8 +239,9 @@ callWithMethodAndObject(UA_Server *server, UA_Session *session,
                                                UA_REFERENCETYPEINDEX_HASSUBTYPE))
                         continue;
                     
-                    TAILQ_FOREACH(target2, &rkInner->queueHead, queuePointers) {
-                        if(UA_NodeId_equal(&target2->targetId.nodeId, &request->methodId)) {
+                    const UA_ReferenceTarget *t2 = NULL;
+                    while((t2 = UA_NodeReferenceKind_iterate(rkInner, t2))) {
+                        if(UA_NodePointer_equal(t2->targetId, methodP)) {
                             found = true;
                             break;
                         }
@@ -236,12 +258,12 @@ callWithMethodAndObject(UA_Server *server, UA_Session *session,
     /* Verify access rights */
     UA_Boolean executable = method->executable;
     if(session != &server->adminSession) {
-        UA_UNLOCK(server->serviceMutex);
+        UA_UNLOCK(&server->serviceMutex);
         executable = executable && server->config.accessControl.
             getUserExecutableOnObject(server, &server->config.accessControl, &session->sessionId,
                                       session->sessionHandle, &request->methodId, method->head.context,
                                       &request->objectId, object->head.context);
-        UA_LOCK(server->serviceMutex);
+        UA_LOCK(&server->serviceMutex);
     }
 
     if(!executable) {
@@ -294,13 +316,13 @@ callWithMethodAndObject(UA_Server *server, UA_Session *session,
     UA_NODESTORE_RELEASE(server, (const UA_Node*)outputArguments);
 
     /* Call the method */
-    UA_UNLOCK(server->serviceMutex);
+    UA_UNLOCK(&server->serviceMutex);
     result->statusCode = method->method(server, &session->sessionId, session->sessionHandle,
                                         &method->head.nodeId, method->head.context,
                                         &object->head.nodeId, object->head.context,
                                         request->inputArgumentsSize, request->inputArguments,
                                         result->outputArgumentsSize, result->outputArguments);
-    UA_LOCK(server->serviceMutex);
+    UA_LOCK(&server->serviceMutex);
     /* TODO: Verify Output matches the argument definition */
 }
 
@@ -311,15 +333,29 @@ Operation_CallMethodAsync(UA_Server *server, UA_Session *session, UA_UInt32 requ
                           UA_UInt32 requestHandle, size_t opIndex,
                           UA_CallMethodRequest *opRequest, UA_CallMethodResult *opResult,
                           UA_AsyncResponse **ar) {
-    /* Get the method node */
-    const UA_Node *method = UA_NODESTORE_GET(server, &opRequest->methodId);
+    /* Get the method node. We only need the nodeClass and executable attribute.
+     * Take all forward hasProperty references to get the input/output argument
+     * definition variables. */
+    const UA_Node *method =
+        UA_NODESTORE_GET_SELECTIVE(server, &opRequest->methodId,
+                                   UA_NODEATTRIBUTESMASK_NODECLASS |
+                                   UA_NODEATTRIBUTESMASK_EXECUTABLE,
+                                   UA_REFTYPESET(UA_REFERENCETYPEINDEX_HASPROPERTY),
+                                   UA_BROWSEDIRECTION_FORWARD);
     if(!method) {
         opResult->statusCode = UA_STATUSCODE_BADNODEIDUNKNOWN;
         return;
     }
 
-    /* Get the object node */
-    const UA_Node *object = UA_NODESTORE_GET(server, &opRequest->objectId);
+    /* Get the object node. We only need the NodeClass attribute. But take all
+     * references for now.
+     *
+     * TODO: Which references do we need actually? */
+    const UA_Node *object =
+        UA_NODESTORE_GET_SELECTIVE(server, &opRequest->objectId,
+                                   UA_NODEATTRIBUTESMASK_NODECLASS,
+                                   UA_REFERENCETYPESET_ALL,
+                                   UA_BROWSEDIRECTION_BOTH);
     if(!object) {
         opResult->statusCode = UA_STATUSCODE_BADNODEIDUNKNOWN;
         UA_NODESTORE_RELEASE(server, method);
@@ -394,15 +430,29 @@ Service_CallAsync(UA_Server *server, UA_Session *session, UA_UInt32 requestId,
 static void
 Operation_CallMethod(UA_Server *server, UA_Session *session, void *context,
                      const UA_CallMethodRequest *request, UA_CallMethodResult *result) {
-    /* Get the method node */
-    const UA_Node *method = UA_NODESTORE_GET(server, &request->methodId);
+    /* Get the method node. We only need the nodeClass and executable attribute.
+     * Take all forward hasProperty references to get the input/output argument
+     * definition variables. */
+    const UA_Node *method =
+        UA_NODESTORE_GET_SELECTIVE(server, &request->methodId,
+                                   UA_NODEATTRIBUTESMASK_NODECLASS |
+                                   UA_NODEATTRIBUTESMASK_EXECUTABLE,
+                                   UA_REFTYPESET(UA_REFERENCETYPEINDEX_HASPROPERTY),
+                                   UA_BROWSEDIRECTION_FORWARD);
     if(!method) {
         result->statusCode = UA_STATUSCODE_BADNODEIDUNKNOWN;
         return;
     }
 
-    /* Get the object node */
-    const UA_Node *object = UA_NODESTORE_GET(server, &request->objectId);
+    /* Get the object node. We only need the NodeClass attribute. But take all
+     * references for now.
+     *
+     * TODO: Which references do we need actually? */
+    const UA_Node *object =
+        UA_NODESTORE_GET_SELECTIVE(server, &request->objectId,
+                                   UA_NODEATTRIBUTESMASK_NODECLASS,
+                                   UA_REFERENCETYPESET_ALL,
+                                   UA_BROWSEDIRECTION_BOTH);
     if(!object) {
         result->statusCode = UA_STATUSCODE_BADNODEIDUNKNOWN;
         UA_NODESTORE_RELEASE(server, method);
@@ -421,7 +471,7 @@ Operation_CallMethod(UA_Server *server, UA_Session *session, void *context,
 void Service_Call(UA_Server *server, UA_Session *session,
                   const UA_CallRequest *request, UA_CallResponse *response) {
     UA_LOG_DEBUG_SESSION(&server->config.logger, session, "Processing CallRequest");
-    UA_LOCK_ASSERT(server->serviceMutex, 1);
+    UA_LOCK_ASSERT(&server->serviceMutex, 1);
 
     if(server->config.maxNodesPerMethodCall != 0 &&
        request->methodsToCallSize > server->config.maxNodesPerMethodCall) {
@@ -440,9 +490,9 @@ UA_CallMethodResult
 UA_Server_call(UA_Server *server, const UA_CallMethodRequest *request) {
     UA_CallMethodResult result;
     UA_CallMethodResult_init(&result);
-    UA_LOCK(server->serviceMutex);
+    UA_LOCK(&server->serviceMutex);
     Operation_CallMethod(server, &server->adminSession, NULL, request, &result);
-    UA_UNLOCK(server->serviceMutex);
+    UA_UNLOCK(&server->serviceMutex);
     return result;
 }
 

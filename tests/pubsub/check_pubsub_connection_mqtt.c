@@ -7,12 +7,13 @@
  * Copyright (c) 2019 Kalycito Infotech Private Limited
  */
 
-#include "open62541/server.h"
-#include "open62541/types_generated_encoding_binary.h"
-#include "open62541/server_config_default.h"
+#include <open62541/server.h>
+#include <open62541/server_config_default.h>
+
 #include "ua_network_pubsub_mqtt.h"
 #include "ua_server_internal.h"
-#include "check.h"
+
+#include <check.h>
 
 //#define TEST_MQTT_SERVER "opc.mqtt://test.mosquitto.org:1883/"
 #define TEST_MQTT_SERVER "opc.mqtt://broker.hivemq.com:1883/"
@@ -23,13 +24,8 @@ UA_ServerConfig *config = NULL;
 static void setup(void) {
     server = UA_Server_new();
     config = UA_Server_getConfig(server);
-    config->pubsubTransportLayers = (UA_PubSubTransportLayer *)
-        UA_malloc(1 * sizeof(UA_PubSubTransportLayer));
-    if(!config->pubsubTransportLayers) {
-        UA_Server_delete(server);
-    }
-    config->pubsubTransportLayers[0] = UA_PubSubTransportLayerMQTT();
-    config->pubsubTransportLayersSize++;
+    UA_ServerConfig_setDefault(config);
+    UA_ServerConfig_addPubSubTransportLayer(config, UA_PubSubTransportLayerMQTT());
     UA_Server_run_startup(server);
 }
 
@@ -194,7 +190,8 @@ START_TEST(GetMaximalConnectionConfigurationAndCompareValues){
     ck_assert(UA_String_equal(&connectionConfig.name, &connectionConf.name) == UA_TRUE);
     ck_assert(UA_String_equal(&connectionConfig.transportProfileUri, &connectionConf.transportProfileUri) == UA_TRUE);
     UA_NetworkAddressUrlDataType networkAddressUrlDataCopy = *((UA_NetworkAddressUrlDataType *)connectionConfig.address.data);
-    ck_assert(UA_NetworkAddressUrlDataType_calcSizeBinary(&networkAddressUrlDataCopy) == UA_NetworkAddressUrlDataType_calcSizeBinary(&networkAddressUrlData));
+    ck_assert(UA_calcSizeBinary(&networkAddressUrlDataCopy, &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]) ==
+              UA_calcSizeBinary(&networkAddressUrlData, &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]));
     for(size_t i = 0; i < connectionConfig.connectionPropertiesSize; i++){
         ck_assert(UA_String_equal(&connectionConfig.connectionProperties[i].key.name, &connectionConf.connectionProperties[i].key.name) == UA_TRUE);
         ck_assert(UA_Variant_calcSizeBinary(&connectionConfig.connectionProperties[i].value) == UA_Variant_calcSizeBinary(&connectionConf.connectionProperties[i].value));

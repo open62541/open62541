@@ -71,7 +71,6 @@ endfunction()
 # The resulting files will be put into OUTPUT_DIR with the names:
 # - NAME_generated.c
 # - NAME_generated.h
-# - NAME_generated_encoding_binary.h
 # - NAME_generated_handling.h
 #
 # The cmake resulting cmake target will be named like this:
@@ -183,12 +182,18 @@ function(ua_generate_datatypes)
     # Replace dash with underscore to make valid c literal
     string(REPLACE "-" "_" UA_GEN_DT_NAME ${UA_GEN_DT_NAME})
 
+    if((MINGW) AND (DEFINED ENV{SHELL}))
+        # fix issue 4156 that MINGW will do automatic Windows Path Conversion
+        # powershell handles Windows Path correctly
+        # MINGW SHELL only accept environment variable with "env"
+        set(ARG_CONV_EXCL_ENV env MSYS2_ARG_CONV_EXCL=--import)
+    endif()
+
     add_custom_command(OUTPUT ${UA_GEN_DT_OUTPUT_DIR}/${UA_GEN_DT_NAME}_generated.c
         ${UA_GEN_DT_OUTPUT_DIR}/${UA_GEN_DT_NAME}_generated.h
         ${UA_GEN_DT_OUTPUT_DIR}/${UA_GEN_DT_NAME}_generated_handling.h
-        ${UA_GEN_DT_OUTPUT_DIR}/${UA_GEN_DT_NAME}_generated_encoding_binary.h
         PRE_BUILD
-        COMMAND ${PYTHON_EXECUTABLE} ${open62541_TOOLS_DIR}/generate_datatypes.py
+        COMMAND ${ARG_CONV_EXCL_ENV} ${PYTHON_EXECUTABLE} ${open62541_TOOLS_DIR}/generate_datatypes.py
         ${NAMESPACE_MAP_TMP}
         ${SELECTED_TYPES_TMP}
         ${BSD_FILES_TMP}
@@ -205,12 +210,11 @@ function(ua_generate_datatypes)
         ${UA_GEN_DT_OUTPUT_DIR}/${UA_GEN_DT_NAME}_generated.c
         ${UA_GEN_DT_OUTPUT_DIR}/${UA_GEN_DT_NAME}_generated.h
         ${UA_GEN_DT_OUTPUT_DIR}/${UA_GEN_DT_NAME}_generated_handling.h
-        ${UA_GEN_DT_OUTPUT_DIR}/${UA_GEN_DT_NAME}_generated_encoding_binary.h
         )
 
     string(TOUPPER "${UA_GEN_DT_NAME}" GEN_NAME_UPPER)
     set(UA_${GEN_NAME_UPPER}_SOURCES "${UA_GEN_DT_OUTPUT_DIR}/${UA_GEN_DT_NAME}_generated.c" CACHE INTERNAL "${UA_GEN_DT_NAME} source files")
-    set(UA_${GEN_NAME_UPPER}_HEADERS "${UA_GEN_DT_OUTPUT_DIR}/${UA_GEN_DT_NAME}_generated.h;${UA_GEN_DT_OUTPUT_DIR}/${UA_GEN_DT_NAME}_generated_handling.h;${UA_GEN_DT_OUTPUT_DIR}/${UA_GEN_DT_NAME}_generated_encoding_binary.h"
+    set(UA_${GEN_NAME_UPPER}_HEADERS "${UA_GEN_DT_OUTPUT_DIR}/${UA_GEN_DT_NAME}_generated.h;${UA_GEN_DT_OUTPUT_DIR}/${UA_GEN_DT_NAME}_generated_handling.h"
         CACHE INTERNAL "${UA_GEN_DT_NAME} header files")
 
     if(UA_FORCE_CPP)
@@ -259,7 +263,7 @@ endfunction()
 function(ua_generate_nodeset)
 
     set(options INTERNAL )
-    set(oneValueArgs NAME TYPES_ARRAY OUTPUT_DIR IGNORE TARGET_PREFIX BLACKLIST)
+    set(oneValueArgs NAME TYPES_ARRAY OUTPUT_DIR IGNORE TARGET_PREFIX BLACKLIST FILES_BSD)
     set(multiValueArgs FILE DEPENDS_TYPES DEPENDS_NS DEPENDS_TARGET)
     cmake_parse_arguments(UA_GEN_NS "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN} )
 
@@ -287,12 +291,23 @@ function(ua_generate_nodeset)
         set(UA_GEN_NS_TARGET_PREFIX "open62541-generator")
     endif()
 
+
     # Set blacklist file
     set(GEN_BLACKLIST "")
     set(GEN_BLACKLIST_DEPENDS "")
     if(UA_GEN_NS_BLACKLIST)
         set(GEN_BLACKLIST "--blacklist=${UA_GEN_NS_BLACKLIST}")
         set(GEN_BLACKLIST_DEPENDS "${UA_GEN_NS_BLACKLIST}")
+    endif()
+
+    # Set bsd files
+    set(GEN_BSB "")
+    set(GEN_BSD_DEPENDS "")
+    if(UA_GEN_NS_FILES_BSD)
+        foreach(f ${UA_GEN_NS_FILES_BSD})
+            set(GEN_BSD ${GEN_BSD} "--bsd=${f}")
+        endforeach()
+        set(GEN_BSD_DEPENDS "${UA_GEN_NS_FILES_BSD}")
     endif()
 
     # ------ Add custom command and target -----
@@ -353,6 +368,7 @@ function(ua_generate_nodeset)
                        ${GEN_BIN_SIZE}
                        ${GEN_IGNORE}
                        ${GEN_BLACKLIST}
+                       ${GEN_BSD}
                        ${TYPES_ARRAY_LIST}
                        ${DEPENDS_FILE_LIST}
                        ${FILE_LIST}
@@ -368,6 +384,7 @@ function(ua_generate_nodeset)
                        ${UA_GEN_NS_FILE}
                        ${UA_GEN_NS_DEPENDS_NS}
                        ${GEN_BLACKLIST_DEPENDS}
+                       ${GEN_BSD_DEPENDS}
                        )
 
     add_custom_target(${UA_GEN_NS_TARGET_PREFIX}-${TARGET_SUFFIX}
@@ -428,12 +445,6 @@ endfunction()
 #   [FILE_CSV]      Optional path to the .csv file containing the node ids, e.g. 'OpcUaDiModel.csv'
 #   [FILE_BSD]      Optional path to the .bsd file containing the type definitions, e.g. 'Opc.Ua.Di.Types.bsd'. Multiple files can be
 #                   passed which will all combined to one resulting code.
-#   [IMPORT_BSD]    Optional combination of types array and path to the .bsd file containing additional type definitions referenced by
-#                   the FILES_BSD files. The value is separated with a hash sign, i.e.
-#                   'UA_TYPES#${PROJECT_SOURCE_DIR}/deps/ua-nodeset/Schema/Opc.Ua.Types.bsd'
-#                   Multiple files can be passed which will all be imported.
-#   [NAMESPACE_MAP] Array of Namespace index mappings to indicate the final namespace index of a namespace uri when the server is started.
-#                   This parameter is mandatory if FILE_CSV or FILE_BSD is set.
 #   [BLACKLIST]     Blacklist file passed as --blacklist to the nodeset compiler. All the given nodes will be removed from the generated
 #                   nodeset, including all the references to and from that node. The format is a node id per line.
 #                   Supported formats: "i=123" (for NS0), "ns=2;s=asdf" (matches NS2 in that specific file), or recommended
@@ -441,6 +452,12 @@ endfunction()
 #   [TARGET_PREFIX] Optional prefix for the resulting targets. Default `open62541-generator`
 #
 #   Arguments taking multiple values:
+#   [NAMESPACE_MAP] Array of Namespace index mappings to indicate the final namespace index of a namespace uri when the server is started.
+#                   This parameter is mandatory if FILE_CSV or FILE_BSD is set.
+#   [IMPORT_BSD]    Optional combination of types array and path to the .bsd file containing additional type definitions referenced by
+#                   the FILES_BSD files. The value is separated with a hash sign, i.e.
+#                   'UA_TYPES#${PROJECT_SOURCE_DIR}/deps/ua-nodeset/Schema/Opc.Ua.Types.bsd'
+#                   Multiple files can be passed which will all be imported.
 #   [DEPENDS]       Optional list of nodeset names on which this nodeset depends. These names must match any name from a previous
 #                   call to this funtion. E.g. 'di' if you are generating the 'plcopen' nodeset
 #
@@ -448,8 +465,8 @@ endfunction()
 function(ua_generate_nodeset_and_datatypes)
 
     set(options INTERNAL)
-    set(oneValueArgs NAME FILE_NS FILE_CSV FILE_BSD IMPORT_BSD OUTPUT_DIR TARGET_PREFIX BLACKLIST)
-    set(multiValueArgs DEPENDS NAMESPACE_MAP)
+    set(oneValueArgs NAME FILE_NS FILE_CSV FILE_BSD OUTPUT_DIR TARGET_PREFIX BLACKLIST)
+    set(multiValueArgs DEPENDS IMPORT_BSD NAMESPACE_MAP)
     cmake_parse_arguments(UA_GEN "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN} )
 
     if(NOT DEFINED open62541_TOOLS_DIR)
@@ -511,6 +528,7 @@ function(ua_generate_nodeset_and_datatypes)
                 string(REPLACE "-" "_" DEPENDS_NAME "${f}")
                 string(TOUPPER "${DEPENDS_NAME}" DEPENDS_NAME)
                 get_property(DEPENDS_NAMESPACE_MAP GLOBAL PROPERTY "UA_GEN_DT_DEPENDS_NAMESPACE_MAP_${DEPENDS_NAME}")
+
                 if(NOT DEPENDS_NAMESPACE_MAP OR "${DEPENDS_NAMESPACE_MAP}" STREQUAL "")
                     message(FATAL_ERROR "Nodeset dependency ${f} needs to be generated before ${UA_GEN_NAME}")
                 endif()
@@ -544,6 +562,23 @@ function(ua_generate_nodeset_and_datatypes)
             TARGET_SUFFIX "ids-${UA_GEN_NAME}"
         )
         set(NODESET_DEPENDS_TARGET ${NODESET_DEPENDS_TARGET} "${UA_GEN_TARGET_PREFIX}-ids-${UA_GEN_NAME}")
+    else() # Handle nodesets without types in the dependency chain
+        if (UA_GEN_DEPENDS AND NOT "${UA_GEN_DEPENDS}" STREQUAL "")
+            foreach(f ${UA_GEN_DEPENDS})
+                string(REPLACE "-" "_" DEPENDS_NAME "${f}")
+                string(TOUPPER "${DEPENDS_NAME}" DEPENDS_NAME)
+                get_property(DEPENDS_NAMESPACE_MAP GLOBAL PROPERTY "UA_GEN_DT_DEPENDS_NAMESPACE_MAP_${DEPENDS_NAME}")
+
+                set(NAMESPACE_MAP_DEPENDS ${NAMESPACE_MAP_DEPENDS} "${DEPENDS_NAMESPACE_MAP}")
+            endforeach()
+        endif()
+
+        # Use namespace 0 as default value
+        if (NOT NAMESPACE_MAP_DEPENDS OR "${NAMESPACE_MAP_DEPENDS}" STREQUAL "")
+            set(NAMESPACE_MAP_DEPENDS "0:http://opcfoundation.org/UA/")
+        endif()
+
+        set_property(GLOBAL PROPERTY "UA_GEN_DT_DEPENDS_NAMESPACE_MAP_${GEN_NAME_UPPER}" ${NAMESPACE_MAP_DEPENDS})
     endif()
 
     # Create a list of nodesets on which this nodeset depends on
@@ -584,6 +619,7 @@ function(ua_generate_nodeset_and_datatypes)
         FILE "${UA_GEN_FILE_NS}"
         TYPES_ARRAY "${NODESET_TYPES_ARRAY}"
         BLACKLIST "${UA_GEN_BLACKLIST}"
+        FILES_BSD "${UA_GEN_FILE_BSD}"
         ${NODESET_INTERNAL}
         DEPENDS_TYPES ${TYPES_DEPENDS}
         DEPENDS_NS ${NODESET_DEPENDS}

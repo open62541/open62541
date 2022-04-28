@@ -124,8 +124,10 @@ START_TEST(Async_call) {
     /* Process the async method call for the server */
     UA_AsyncOperationType aot;
     const UA_AsyncOperationRequest *request;
-    void *context;
-    UA_Boolean haveAsync = UA_Server_getAsyncOperation(server, &aot, &request, &context);
+    void *context = NULL;
+    UA_DateTime timeout = 0;
+    UA_Boolean haveAsync =
+        UA_Server_getAsyncOperationNonBlocking(server, &aot, &request, &context, &timeout);
     ck_assert_uint_eq(haveAsync, true);
     UA_AsyncOperationResponse response;
     UA_CallMethodResult_init(&response.callMethodResult);
@@ -174,7 +176,7 @@ START_TEST(Async_timeout) {
     UA_Client_run_iterate(client, 0);
     ck_assert_uint_eq(clientCounter, 0);
 
-    UA_fakeSleep(1000 * 1.5);
+    UA_fakeSleep((UA_UInt32)(1000 * 1.5));
 
     /* We expect to receive the timeout not yet*/
     UA_Server_run_iterate(server, true);
@@ -220,8 +222,10 @@ START_TEST(Async_timeout_worker) {
     /* Process the async method call for the server */
     UA_AsyncOperationType aot;
     const UA_AsyncOperationRequest *request;
-    void *context;
-    UA_Boolean haveAsync = UA_Server_getAsyncOperation(server, &aot, &request, &context);
+    void *context = NULL;
+    UA_DateTime timeout = 0;
+    UA_Boolean haveAsync =
+        UA_Server_getAsyncOperationNonBlocking(server, &aot, &request, &context, &timeout);
     ck_assert_uint_eq(haveAsync, true);
     UA_AsyncOperationResponse response;
     UA_CallMethodResult_init(&response.callMethodResult);

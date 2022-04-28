@@ -7,39 +7,39 @@
 
 #include <open62541/plugin/securitypolicy_default.h>
 
+#ifdef UA_ENABLE_ENCRYPTION_MBEDTLS
+#include "mbedtls/securitypolicy_mbedtls_common.h"
+#endif
+
+#if defined(UA_ENABLE_ENCRYPTION_OPENSSL) || defined(UA_ENABLE_ENCRYPTION_LIBRESSL)
+#include "openssl/securitypolicy_openssl_common.h"
+#endif
+
 static UA_StatusCode
-verify_none(const UA_SecurityPolicy *securityPolicy,
-            void *channelContext,
+verify_none(void *channelContext,
             const UA_ByteString *message,
             const UA_ByteString *signature) {
     return UA_STATUSCODE_GOOD;
 }
 
 static UA_StatusCode
-sign_none(const UA_SecurityPolicy *securityPolicy,
-          void *channelContext,
-          const UA_ByteString *message,
+sign_none(void *channelContext, const UA_ByteString *message,
           UA_ByteString *signature) {
     return UA_STATUSCODE_GOOD;
 }
 
 static size_t
-length_none(const UA_SecurityPolicy *securityPolicy,
-            const void *channelContext) {
+length_none(const void *channelContext) {
     return 0;
 }
 
 static UA_StatusCode
-encrypt_none(const UA_SecurityPolicy *securityPolicy,
-             void *channelContext,
-             UA_ByteString *data) {
+encrypt_none(void *channelContext, UA_ByteString *data) {
     return UA_STATUSCODE_GOOD;
 }
 
 static UA_StatusCode
-decrypt_none(const UA_SecurityPolicy *securityPolicy,
-             void *channelContext,
-             UA_ByteString *data) {
+decrypt_none(void *channelContext, UA_ByteString *data) {
     return UA_STATUSCODE_GOOD;
 }
 
@@ -57,17 +57,15 @@ compareThumbprint_none(const UA_SecurityPolicy *securityPolicy,
 }
 
 static UA_StatusCode
-generateKey_none(const UA_SecurityPolicy *securityPolicy,
-                 const UA_ByteString *secret,
-                 const UA_ByteString *seed,
-                 UA_ByteString *out) {
+generateKey_none(void *policyContext, const UA_ByteString *secret,
+                 const UA_ByteString *seed, UA_ByteString *out) {
     return UA_STATUSCODE_GOOD;
 }
 
 /* Use the non-cryptographic RNG to set the nonce */
 static UA_StatusCode
-generateNonce_none(const UA_SecurityPolicy *securityPolicy, UA_ByteString *out) {
-    if(securityPolicy == NULL || out == NULL)
+generateNonce_none(void *policyContext, UA_ByteString *out) {
+    if(out == NULL)
         return UA_STATUSCODE_BADINTERNALERROR;
 
     if(out->length == 0)
@@ -132,7 +130,14 @@ UA_SecurityPolicy_None(UA_SecurityPolicy *policy, const UA_ByteString localCerti
     policy->policyContext = (void *)(uintptr_t)logger;
     policy->policyUri = UA_STRING("http://opcfoundation.org/UA/SecurityPolicy#None");
     policy->logger = logger;
+
+#ifdef UA_ENABLE_ENCRYPTION_MBEDTLS
+    UA_mbedTLS_LoadLocalCertificate(&localCertificate, &policy->localCertificate);
+#elif defined(UA_ENABLE_ENCRYPTION_OPENSSL) || defined(UA_ENABLE_ENCRYPTION_LIBRESSL)
+    UA_OpenSSL_LoadLocalCertificate(&localCertificate, &policy->localCertificate);
+#else
     UA_ByteString_copy(&localCertificate, &policy->localCertificate);
+#endif
 
     policy->symmetricModule.generateKey = generateKey_none;
     policy->symmetricModule.generateNonce = generateNonce_none;
@@ -154,9 +159,7 @@ UA_SecurityPolicy_None(UA_SecurityPolicy *policy, const UA_ByteString localCerti
     sym_encryptionAlgorithm->decrypt = decrypt_none;
     sym_encryptionAlgorithm->getLocalKeyLength = length_none;
     sym_encryptionAlgorithm->getRemoteKeyLength = length_none;
-    sym_encryptionAlgorithm->getLocalBlockSize = length_none;
     sym_encryptionAlgorithm->getRemoteBlockSize = length_none;
-    sym_encryptionAlgorithm->getLocalPlainTextBlockSize = length_none;
     sym_encryptionAlgorithm->getRemotePlainTextBlockSize = length_none;
     policy->symmetricModule.secureChannelNonceLength = 0;
 

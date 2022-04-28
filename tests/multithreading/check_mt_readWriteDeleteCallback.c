@@ -22,7 +22,7 @@
 UA_NodeId pumpTypeId = {1, UA_NODEIDTYPE_NUMERIC, {1001}};
 UA_Int32 temperature = 42;
 
-UA_LOCK_TYPE(mu)
+UA_Lock mu;
 
 static UA_StatusCode
 readTemperature(UA_Server *tmpServer,
@@ -30,9 +30,9 @@ readTemperature(UA_Server *tmpServer,
                 const UA_NodeId *nodeId, void *nodeContext,
                 UA_Boolean sourceTimeStamp, const UA_NumericRange *range,
                 UA_DataValue *dataValue) {
-    UA_LOCK(mu);
+    UA_LOCK(&mu);
     UA_Variant_setScalarCopy(&dataValue->value, &temperature, &UA_TYPES[UA_TYPES_INT32]);
-    UA_UNLOCK(mu);
+    UA_UNLOCK(&mu);
     dataValue->hasValue = true;
     return UA_STATUSCODE_GOOD;
 }
@@ -42,9 +42,9 @@ writeTemperature(UA_Server *tmpServer,
                  const UA_NodeId *sessionId, void *sessionContext,
                  const UA_NodeId *nodeId, void *nodeContext,
                  const UA_NumericRange *range, const UA_DataValue *data) {
-    UA_LOCK(mu);
+    UA_LOCK(&mu);
     temperature = *(UA_Int32 *) data->value.data;
-    UA_UNLOCK(mu);
+    UA_UNLOCK(&mu);
     return UA_STATUSCODE_GOOD;
 }
 
@@ -93,7 +93,7 @@ void server_readValue(void *value) {
     if (retval == UA_STATUSCODE_GOOD) {
         ck_assert_int_eq(42, *(UA_Int32 *)var.data);
         ck_assert_int_eq(UA_STATUSCODE_GOOD, retval);
-        UA_Variant_deleteMembers(&var);
+        UA_Variant_clear(&var);
     }
     else {
         ck_assert_int_eq(retval, UA_STATUSCODE_BADNODEIDUNKNOWN);
@@ -131,7 +131,7 @@ void client_readValue(void *value) {
     UA_StatusCode retval = UA_Client_readValueAttribute(tc.clients[tmp.index], nodeId, &val);
     if (retval == UA_STATUSCODE_GOOD) {
         ck_assert_int_eq(42, *(UA_Int32 *)val.data);
-        UA_Variant_deleteMembers(&val);
+        UA_Variant_clear(&val);
     }
     else {
         ck_assert_int_eq(retval, UA_STATUSCODE_BADNODEIDUNKNOWN);
@@ -141,7 +141,7 @@ void client_readValue(void *value) {
 
 static
 void initTest(void) {
-    UA_LOCK_INIT(mu);
+    UA_LOCK_INIT(&mu);
 
     initThreadContext(NUMBER_OF_READ_WORKERS + NUMBER_OF_WRITE_WORKERS + 1, NUMBER_OF_READ_CLIENTS + NUMBER_OF_WRITE_CLIENTS, NULL);
 

@@ -12,6 +12,7 @@
  *    Copyright 2017 (c) Mark Giraud, Fraunhofer IOSB
  *    Copyright 2018 (c) Thomas Stalder, Blue Time Concept SA
  *    Copyright 2018 (c) Kalycito Infotech Private Limited
+ *    Copyright 2020 (c) Christian von Arnim, ISW University of Stuttgart
  */
 
 #ifndef UA_CLIENT_H_
@@ -26,6 +27,7 @@
 #include <open62541/plugin/log.h>
 #include <open62541/plugin/network.h>
 #include <open62541/plugin/securitypolicy.h>
+#include <open62541/plugin/eventloop.h>
 
 _UA_BEGIN_DECLS
 
@@ -69,17 +71,23 @@ _UA_BEGIN_DECLS
  * The :ref:`tutorials` provide a good starting point for this. */
 
 typedef struct {
-    /* Basic client configuration */
-    void *clientContext; /* User-defined data attached to the client */
-    UA_Logger logger;   /* Logger used by the client */
-    UA_UInt32 timeout;  /* Response timeout in ms */
+    void *clientContext; /* User-defined pointer attached to the client */
+    UA_Logger logger;    /* Logger used by the client */
+    UA_UInt32 timeout;   /* Response timeout in ms */
 
     /* The description must be internally consistent.
      * - The ApplicationUri set in the ApplicationDescription must match the
-     *   URI set in the server certificate */
+     *   URI set in the certificate */
     UA_ApplicationDescription clientDescription;
 
-    /* Basic connection configuration */
+    /**
+     * Connection configuration
+     * ~~~~~~~~~~~~~~~~~~~~~~~~
+     *
+     * The following configuration elements reduce the "degrees of freedom" the
+     * client has when connecting to a server. If no connection can be made
+     * under these restrictions, then the connection will abort with an error
+     * message. */
     UA_ExtensionObject userIdentityToken; /* Configured User-Identity Token */
     UA_MessageSecurityMode securityMode;  /* None, Sign, SignAndEncrypt. The
                                            * default is invalid. This indicates
@@ -89,8 +97,7 @@ typedef struct {
                                   * empty string indicates the client to select
                                   * any matching SecurityPolicy. */
 
-    /* Advanced connection configuration
-     *
+    /**
      * If either endpoint or userTokenPolicy has been set (at least one non-zero
      * byte in either structure), then the selected Endpoint and UserTokenPolicy
      * overwrite the settings in the basic connection configuration. The
@@ -105,7 +112,22 @@ typedef struct {
     UA_EndpointDescription endpoint;
     UA_UserTokenPolicy userTokenPolicy;
 
-    /* Advanced client configuration */
+    /**
+     * Custom Data Types
+     * ~~~~~~~~~~~~~~~~~
+     * The following is a linked list of arrays with custom data types. All data
+     * types that are accessible from here are automatically considered for the
+     * decoding of received messages. Custom data types are not cleaned up
+     * together with the configuration. So it is possible to allocate them on
+     * ROM.
+     *
+     * See the section on :ref:`generic-types`. Examples for working with custom
+     * data types are provided in ``/examples/custom_datatype/``. */
+    const UA_DataTypeArray *customDataTypes;
+
+    /**
+     * Advanced Client Configuration
+     * ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ */
 
     UA_UInt32 secureChannelLifeTime; /* Lifetime in ms (then the channel needs
                                         to be renewed) */
@@ -113,11 +135,10 @@ typedef struct {
     UA_ConnectionConfig localConnectionConfig;
     UA_UInt32 connectivityCheckInterval;     /* Connectivity check interval in ms.
                                               * 0 = background task disabled */
-    const UA_DataTypeArray *customDataTypes; /* Custom DataTypes. Attention!
-                                              * Custom datatypes are not cleaned
-                                              * up together with the
-                                              * configuration. So it is possible
-                                              * to allocate them on ROM. */
+
+    /* EventLoop */
+    UA_EventLoop *eventLoop;
+    UA_Boolean externalEventLoop; /* The EventLoop is not deleted with the config */
 
     /* Available SecurityPolicies */
     size_t securityPoliciesSize;
@@ -143,7 +164,7 @@ typedef struct {
                           UA_StatusCode connectStatus);
 
     /* When connectivityCheckInterval is greater than 0, every
-     * connectivityCheckInterval (in ms), a async read request is performed on
+     * connectivityCheckInterval (in ms), an async read request is performed on
      * the server. inactivityCallback is called when the client receive no
      * response for this read request The connection can be closed, this in an
      * attempt to recreate a healthy connection. */
@@ -161,6 +182,9 @@ typedef struct {
                                            UA_UInt32 subscriptionId,
                                            void *subContext);
 #endif
+
+    UA_LocaleId *sessionLocaleIds;
+    size_t sessionLocaleIdsSize;
 } UA_ClientConfig;
 
  /**
@@ -574,7 +598,7 @@ UA_Client_Service_queryNext(UA_Client *client,
  * The userdata and requestId arguments can be NULL. */
 
 typedef void (*UA_ClientAsyncServiceCallback)(UA_Client *client, void *userdata,
-        UA_UInt32 requestId, void *response);
+                                              UA_UInt32 requestId, void *response);
 
 UA_StatusCode UA_EXPORT
 __UA_Client_AsyncService(UA_Client *client, const void *request,
@@ -587,6 +611,19 @@ UA_StatusCode UA_EXPORT
 UA_Client_sendAsyncRequest(UA_Client *client, const void *request,
         const UA_DataType *requestType, UA_ClientAsyncServiceCallback callback,
         const UA_DataType *responseType, void *userdata, UA_UInt32 *requestId);
+
+/* Set new userdata and callback for an existing request.
+ *
+ * @param client Pointer to the UA_Client
+ * @param requestId RequestId of the request, which was returned by
+ *        UA_Client_sendAsyncRequest before
+ * @param userdata The new userdata.
+ * @param callback The new callback
+ * @return UA_StatusCode UA_STATUSCODE_GOOD on success
+ *         UA_STATUSCODE_BADNOTFOUND when no request with requestId is found. */
+UA_StatusCode UA_EXPORT
+UA_Client_modifyAsyncCallback(UA_Client *client, UA_UInt32 requestId,
+        void *userdata, UA_ClientAsyncServiceCallback callback);
 
 /* Listen on the network and process arriving asynchronous responses in the
  * background. Internal housekeeping, renewal of SecureChannels and subscription
@@ -683,6 +720,15 @@ UA_Client_changeRepeatedCallbackInterval(UA_Client *client,
 
 void UA_EXPORT
 UA_Client_removeCallback(UA_Client *client, UA_UInt64 callbackId);
+
+/**
+ * Client Utility Functions
+ * ------------------------ */
+
+/* Lookup a datatype by its NodeId. Takes the custom types in the client
+ * configuration into account. Return NULL if none found. */
+UA_EXPORT const UA_DataType *
+UA_Client_findDataType(UA_Client *client, const UA_NodeId *typeId);
 
 /**
  * .. toctree::

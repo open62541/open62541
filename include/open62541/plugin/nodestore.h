@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  *
- *    Copyright 2017 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
+ *    Copyright 2017, 2021 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
  *    Copyright 2017 (c) Julian Grothoff
  *    Copyright 2017 (c) Stefan Profanter, fortiss GmbH
  */
@@ -18,13 +18,14 @@
  * / OPC UA services to interact with the information model. */
 
 #include <open62541/util.h>
-#include "ziptree.h"
+#include "aa_tree.h"
 
 _UA_BEGIN_DECLS
 
 /* Forward declaration */
-#ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
+#ifdef UA_ENABLE_SUBSCRIPTIONS
 struct UA_MonitoredItem;
+typedef struct UA_MonitoredItem UA_MonitoredItem;
 #endif
 
 /**
@@ -183,7 +184,7 @@ typedef struct {
  * ReferenceTypes.
  *
  * Every ReferenceTypeNode contains a bitfield with the set of all its subtypes.
- * This speeds up the the Browse services substantially.
+ * This speeds up the Browse services substantially.
  *
  * The following ReferenceTypes have a fixed index. The NS0 bootstrapping
  * creates these ReferenceTypes in-order. */
@@ -208,16 +209,16 @@ typedef struct {
 
 /* The maximum number of ReferrenceTypes. Must be a multiple of 32. */
 #define UA_REFERENCETYPESET_MAX 128
-typedef struct { UA_UInt32 bits[UA_REFERENCETYPESET_MAX / 32]; } UA_ReferenceTypeSet;
+typedef struct {
+    UA_UInt32 bits[UA_REFERENCETYPESET_MAX / 32];
+} UA_ReferenceTypeSet;
+
+UA_EXPORT extern const UA_ReferenceTypeSet UA_REFERENCETYPESET_NONE;
+UA_EXPORT extern const UA_ReferenceTypeSet UA_REFERENCETYPESET_ALL;
 
 static UA_INLINE void
 UA_ReferenceTypeSet_init(UA_ReferenceTypeSet *set) {
     memset(set, 0, sizeof(UA_ReferenceTypeSet));
-}
-
-static UA_INLINE void
-UA_ReferenceTypeSet_any(UA_ReferenceTypeSet *set) {
-    memset(set, -1, sizeof(UA_ReferenceTypeSet));
 }
 
 static UA_INLINE UA_ReferenceTypeSet
@@ -245,6 +246,81 @@ UA_ReferenceTypeSet_contains(const UA_ReferenceTypeSet *set, UA_Byte index) {
 }
 
 /**
+ * Node Pointer
+ * ============
+ *
+ * The "native" format for reference between nodes is the ExpandedNodeId. That
+ * is, references can also point to external servers. In practice, most
+ * references point to local nodes using numerical NodeIds from the
+ * standard-defined namespace zero. In order to save space (and time),
+ * pointer-tagging is used for compressed "NodePointer" representations.
+ * Numerical NodeIds are immediately contained in the pointer. Full NodeIds and
+ * ExpandedNodeIds are behind a pointer indirection. If the Nodestore supports
+ * it, a NodePointer can also be an actual pointer to the target node.
+ *
+ * Depending on the processor architecture, some numerical NodeIds don't fit
+ * into an immediate encoding and are kept as pointers. ExpandedNodeIds may be
+ * internally translated to "normal" NodeIds. Use the provided functions to
+ * generate NodePointers that fit the assumptions for the local architecture. */
+
+/* Forward declaration. All node structures begin with the NodeHead. */
+struct UA_NodeHead;
+typedef struct UA_NodeHead UA_NodeHead;
+
+/* Tagged Pointer structure. */
+typedef union {
+    uintptr_t immediate;                 /* 00: Small numerical NodeId */
+    const UA_NodeId *id;                 /* 01: Pointer to NodeId */
+    const UA_ExpandedNodeId *expandedId; /* 10: Pointer to ExternalNodeId */
+    const UA_NodeHead *node;             /* 11: Pointer to a node */
+} UA_NodePointer;
+
+/* Sets the pointer to an immediate NodeId "ns=0;i=0" similar to a freshly
+ * initialized UA_NodeId */
+static UA_INLINE void
+UA_NodePointer_init(UA_NodePointer *np) { np->immediate = 0; }
+
+/* NodeId and ExpandedNodeId targets are freed */
+void UA_EXPORT
+UA_NodePointer_clear(UA_NodePointer *np);
+
+/* Makes a deep copy */
+UA_StatusCode UA_EXPORT
+UA_NodePointer_copy(UA_NodePointer in, UA_NodePointer *out);
+
+/* Test if an ExpandedNodeId or a local NodeId */
+UA_Boolean UA_EXPORT
+UA_NodePointer_isLocal(UA_NodePointer np);
+
+UA_Order UA_EXPORT
+UA_NodePointer_order(UA_NodePointer p1, UA_NodePointer p2);
+
+static UA_INLINE UA_Boolean
+UA_NodePointer_equal(UA_NodePointer p1, UA_NodePointer p2) {
+    return (UA_NodePointer_order(p1, p2) == UA_ORDER_EQ);
+}
+
+/* Cannot fail. The resulting NodePointer can point to the memory from the
+ * NodeId. Make a deep copy if required. */
+UA_NodePointer UA_EXPORT
+UA_NodePointer_fromNodeId(const UA_NodeId *id);
+
+/* Cannot fail. The resulting NodePointer can point to the memory from the
+ * ExpandedNodeId. Make a deep copy if required. */
+UA_NodePointer UA_EXPORT
+UA_NodePointer_fromExpandedNodeId(const UA_ExpandedNodeId *id);
+
+/* Can point to the memory from the NodePointer */
+UA_ExpandedNodeId UA_EXPORT
+UA_NodePointer_toExpandedNodeId(UA_NodePointer np);
+
+/* Can point to the memory from the NodePointer. Discards the ServerIndex and
+ * NamespaceUri of a potential ExpandedNodeId inside the NodePointer. Test
+ * before if the NodePointer is local. */
+UA_NodeId UA_EXPORT
+UA_NodePointer_toNodeId(UA_NodePointer np);
+
+/**
  * Base Node Attributes
  * --------------------
  *
@@ -257,49 +333,66 @@ UA_ReferenceTypeSet_contains(const UA_ReferenceTypeSet *set, UA_Byte index) {
  * not known or not important. The ``nodeClass`` attribute is used to ensure the
  * correctness of casting from ``UA_Node`` to a specific node type. */
 
-/* Ordered tree structure for fast member check */
-typedef struct UA_ReferenceTarget {
-    /* Zip-Tree for fast lookup */
-    ZIP_ENTRY(UA_ReferenceTarget) idTreeFields; /* Must be the first member */
-    ZIP_ENTRY(UA_ReferenceTarget) nameTreeFields;
-    UA_UInt32 targetIdHash;   /* Hash of the target's NodeId */
-    UA_UInt32 targetNameHash; /* Hash of the target's BrowseName */
-
-    /* Emulate the queue.h structure so we don't have to include it in the
-     * public API */
-    struct {
-        struct UA_ReferenceTarget *tqe_next;
-        struct UA_ReferenceTarget **tqe_prev;
-    } queuePointers;
-
-    UA_ExpandedNodeId targetId;
+typedef struct {
+    UA_NodePointer targetId;  /* Has to be the first entry */
+    UA_UInt32 targetNameHash; /* Hash of the target's BrowseName. Set to zero
+                               * if the target is remote. */
 } UA_ReferenceTarget;
 
-ZIP_HEAD(UA_ReferenceTargetIdTree, UA_ReferenceTarget);
-typedef struct UA_ReferenceTargetIdTree UA_ReferenceTargetIdTree;
-ZIP_PROTOTYPE(UA_ReferenceTargetIdTree, UA_ReferenceTarget, UA_ReferenceTarget)
-
-ZIP_HEAD(UA_ReferenceTargetNameTree, UA_ReferenceTarget);
-typedef struct UA_ReferenceTargetNameTree UA_ReferenceTargetNameTree;
-ZIP_PROTOTYPE(UA_ReferenceTargetNameTree, UA_ReferenceTarget, UA_UInt32)
-
-/* List of reference targets with the same reference type and direction */
 typedef struct {
+    UA_ReferenceTarget target;   /* Has to be the first entry */
+    UA_UInt32 targetIdHash;      /* Hash of the targetId */
+    struct aa_entry idTreeEntry; /* Binary-Tree for fast lookup */
+    struct aa_entry nameTreeEntry;
+} UA_ReferenceTargetTreeElem;
+
+/* List of reference targets with the same reference type and direction. Uses
+ * either an array or a tree structure. The SDK will not change the type of
+ * reference target structure internally. The nodestore implementations may
+ * switch internally when a node is updated.
+ *
+ * The recommendation is to switch to a tree once the number of refs > 8. */
+typedef struct {
+    union {
+        /* Organize the references in an array. Uses less memory, but incurs
+         * lookups in linear time. Recommended if the number of references is
+         * known to be small. */
+        UA_ReferenceTarget *array;
+
+        /* Organize the references in a tree for fast lookup */
+        struct {
+            struct aa_entry *idTreeRoot;   /* Fast lookup based on the target id */
+            struct aa_entry *nameTreeRoot; /* Fast lookup based on the target browseName*/
+        } tree;
+    } targets;
+    size_t targetsSize;
+    UA_Boolean hasRefTree; /* RefTree or RefArray? */
     UA_Byte referenceTypeIndex;
     UA_Boolean isInverse;
-
-    /* Emulate the queue.h structure so we don't have to include it in the
-     * public API */
-    struct {
-        struct UA_ReferenceTarget *tqh_first;
-        struct UA_ReferenceTarget **tqh_last;
-    } queueHead;
-    UA_ReferenceTargetIdTree refTargetsIdTree;
-    UA_ReferenceTargetNameTree refTargetsNameTree;
 } UA_NodeReferenceKind;
 
+/* Iterate over the references. Assumes that "prev" points to a
+ * NodeReferenceKind. If prev == NULL, the first element is returned. At the end
+ * of the iteration, NULL is returned.
+ *
+ * Do not continue the iteration after the rk was modified. */
+UA_EXPORT const UA_ReferenceTarget *
+UA_NodeReferenceKind_iterate(const UA_NodeReferenceKind *rk,
+                             const UA_ReferenceTarget *prev);
+
+/* Returns the entry for the targetId or NULL if not found. This can be much
+ * faster than _iterate if the references are in the tree-structure. */
+UA_EXPORT const UA_ReferenceTarget *
+UA_NodeReferenceKind_findTarget(const UA_NodeReferenceKind *rk,
+                                const UA_ExpandedNodeId *targetId);
+
+/* Switch between array and tree representation. Does nothing upon error (e.g.
+ * out-of-memory). */
+UA_EXPORT UA_StatusCode
+UA_NodeReferenceKind_switch(UA_NodeReferenceKind *rk);
+
 /* Every Node starts with these attributes */
-typedef struct {
+struct UA_NodeHead {
     UA_NodeId nodeId;
     UA_NodeClass nodeClass;
     UA_QualifiedName browseName;
@@ -312,7 +405,11 @@ typedef struct {
     /* Members specific to open62541 */
     void *context;
     UA_Boolean constructed; /* Constructors were called */
-} UA_NodeHead;
+#ifdef UA_ENABLE_SUBSCRIPTIONS
+    UA_MonitoredItem *monitoredItems; /* MonitoredItems for Events and immediate
+                                       * DataChanges (no sampling interval). */
+#endif
+};
 
 /**
  * VariableNode
@@ -333,7 +430,7 @@ typedef struct {
  * attributes.
  *
  * Data Type
- * ^^^^^^^^^
+ * ~~~~~~~~~
  *
  * The (scalar) data type of the variable is constrained to be of a specific
  * type or one of its children in the type hierarchy. The data type is given as
@@ -350,7 +447,7 @@ typedef struct {
  * :ref:`VariableTypeNode` is ensured.
  *
  * Value Rank
- * ^^^^^^^^^^
+ * ~~~~~~~~~~
  *
  * This attribute indicates whether the value attribute of the variable is an
  * array and how many dimensions the array has. It may have the following
@@ -366,19 +463,23 @@ typedef struct {
  * :ref:`variabletypenode` is ensured.
  *
  * Array Dimensions
- * ^^^^^^^^^^^^^^^^
+ * ~~~~~~~~~~~~~~~~
  *
  * If the value rank permits the value to be a (multi-dimensional) array, the
  * exact length in each dimensions can be further constrained with this
  * attribute.
  *
- * - For positive lengths, the variable value is guaranteed to be of the same
- *   length in this dimension.
+ * - For positive lengths, the variable value must have a dimension length less
+ *   or equal to the array dimension length defined in the VariableNode.
  * - The dimension length zero is a wildcard and the actual value may have any
- *   length in this dimension.
+ *   length in this dimension. Note that a value (variant) must have array
+ *   dimensions that are positive (not zero).
  *
  * Consistency between the array dimensions attribute in the variable and its
- * :ref:`variabletypenode` is ensured. */
+ * :ref:`variabletypenode` is ensured. However, we consider that an array of
+ * length zero (can also be a null-array with undefined length) has implicit
+ * array dimensions ``[0,0,...]``. These always match the required array
+ * dimensions. */
 
 /* Indicates whether a variable contains data inline or whether it points to an
  * external data source */
@@ -492,7 +593,7 @@ typedef struct {
  * .. _value-callback:
  *
  * Value Callback
- * ^^^^^^^^^^^^^^
+ * ~~~~~~~~~~~~~~
  * Value Callbacks can be attached to variable and variable type nodes. If
  * not ``NULL``, they are called before reading and after writing respectively. */
 typedef struct {
@@ -571,6 +672,13 @@ typedef struct {
     UA_Byte accessLevel;
     UA_Double minimumSamplingInterval;
     UA_Boolean historizing;
+
+    /* Members specific to open62541 */
+    UA_Boolean isDynamic; /* Some variables are "static" in the sense that they
+                           * are not attached to a dynamic process in the
+                           * background. Only dynamic variables conserve source
+                           * and server timestamp for the value attribute.
+                           * Static variables have timestamps of "now". */
 } UA_VariableNode;
 
 /**
@@ -603,7 +711,7 @@ typedef struct {
  *
  * Methods define callable functions and are invoked using the :ref:`Call
  * <method-services>` service. MethodNodes may have special properties (variable
- * childen with a ``hasProperty`` reference) with the :ref:`qualifiedname` ``(0,
+ * children with a ``hasProperty`` reference) with the :ref:`qualifiedname` ``(0,
  * "InputArguments")`` and ``(0, "OutputArguments")``. The input and output
  * arguments are both described via an array of ``UA_Argument``. While the Call
  * service uses a generic array of :ref:`variant` for input and output, the
@@ -643,9 +751,6 @@ typedef struct {
 
 typedef struct {
     UA_NodeHead head;
-#ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
-    struct UA_MonitoredItem *monitoredItemQueue;
-#endif
     UA_Byte eventNotifier;
 } UA_ObjectNode;
 
@@ -864,10 +969,35 @@ typedef struct {
 
     void (*deleteNode)(void *nsCtx, UA_Node *node);
 
-    /* ``Get`` returns a pointer to an immutable node. ``Release`` indicates
-     * that the pointer is no longer accessed afterwards. */
-    const UA_Node * (*getNode)(void *nsCtx, const UA_NodeId *nodeId);
+    /* ``Get`` returns a pointer to an immutable node. Call ``releaseNode`` to
+     * indicate when the pointer is no longer accessed.
+     *
+     * It can be indicated if only a subset of the attributes and referencs need
+     * to be accessed. That is relevant when the nodestore accesses a slow
+     * storage backend for the attributes. The attribute mask is a bitfield with
+     * ORed entries from UA_NodeAttributesMask.
+     *
+     * The returned node always contains the context-pointer and other fields
+     * specific to open626541 (not official attributes).
+     *
+     * The NodeStore does not complain if attributes and references that don't
+     * exist (for that node) are requested. Attributes and references in
+     * addition to those specified can be returned. For example, if the full
+     * node already is kept in memory by the Nodestore. */
+    const UA_Node * (*getNode)(void *nsCtx, const UA_NodeId *nodeId,
+                               UA_UInt32 attributeMask,
+                               UA_ReferenceTypeSet references,
+                               UA_BrowseDirection referenceDirections);
 
+    /* Similar to the normal ``getNode``. But it can take advantage of the
+     * NodePointer structure, e.g. if it contains a direct pointer. */
+    const UA_Node * (*getNodeFromPtr)(void *nsCtx, UA_NodePointer ptr,
+                                      UA_UInt32 attributeMask,
+                                      UA_ReferenceTypeSet references,
+                                      UA_BrowseDirection referenceDirections);
+
+    /* Release a node that has been retrieved with ``getNode`` or
+     * ``getNodeFromPtr``. */
     void (*releaseNode)(void *nsCtx, const UA_Node *node);
 
     /* Returns an editable copy of a node (needs to be deleted with the

@@ -17,7 +17,7 @@ _UA_BEGIN_DECLS
 /**
  * Forward Declarations
  * --------------------
- * Opaque oointers used by the plugins. */
+ * Opaque pointers used by the plugins. */
 
 struct UA_Server;
 typedef struct UA_Server UA_Server;
@@ -25,8 +25,48 @@ typedef struct UA_Server UA_Server;
 struct UA_ServerConfig;
 typedef struct UA_ServerConfig UA_ServerConfig;
 
+typedef void (*UA_ServerCallback)(UA_Server *server, void *data);
+
 struct UA_Client;
 typedef struct UA_Client UA_Client;
+
+/* Timer policy to handle cycle misses */
+typedef enum {
+    UA_TIMER_HANDLE_CYCLEMISS_WITH_CURRENTTIME,
+    UA_TIMER_HANDLE_CYCLEMISS_WITH_BASETIME
+} UA_TimerPolicy;
+
+/**
+ * Key Value Map
+ * -------------
+ * Helper functions to work with configuration parameters in an array of
+ * UA_KeyValuePair. Lookup is linear. So this is for small numbers of
+ * keys. */
+
+/* Makes a copy of the value. Can reallocate the underlying array. This
+ * invalidates pointers into the previous array. If the key exists already, the
+ * value is overwritten. */
+UA_EXPORT UA_StatusCode
+UA_KeyValueMap_set(UA_KeyValuePair **map, size_t *mapSize,
+                   const UA_QualifiedName key,
+                   const UA_Variant *value);
+
+/* Returns a pointer to the value or NULL if the key is not found.*/
+UA_EXPORT const UA_Variant *
+UA_KeyValueMap_get(const UA_KeyValuePair *map, size_t mapSize,
+                   const UA_QualifiedName key);
+
+/* Returns NULL if the value for the key is not defined or not of the right
+ * datatype and scalar/array */
+UA_EXPORT const void *
+UA_KeyValueMap_getScalar(const UA_KeyValuePair *map, size_t mapSize,
+                         const UA_QualifiedName key,
+                         const UA_DataType *type);
+
+/* Remove a single entry. To delete the entire map, use UA_Array_delete. */
+UA_EXPORT void
+UA_KeyValueMap_delete(UA_KeyValuePair **map, size_t *mapSize,
+                      const UA_QualifiedName key);
 
 /**
  * Endpoint URL Parser
@@ -81,11 +121,11 @@ UA_readNumberWithBase(const UA_Byte *buf, size_t buflen,
                       UA_UInt32 *number, UA_Byte base);
 
 #ifndef UA_MIN
-#define UA_MIN(A,B) (A > B ? B : A)
+#define UA_MIN(A, B) ((A) > (B) ? (B) : (A))
 #endif
 
 #ifndef UA_MAX
-#define UA_MAX(A,B) (A > B ? A : B)
+#define UA_MAX(A, B) ((A) > (B) ? (A) : (B))
 #endif
 
 /**
@@ -133,7 +173,8 @@ UA_RelativePath_parse(UA_RelativePath *rp, const UA_String str);
 /**
  * Convenience macros for complex types
  * ------------------------------------ */
-#define UA_PRINTF_GUID_FORMAT "%08x-%04x-%04x-%02x%02x-%02x%02x%02x%02x%02x%02x"
+#define UA_PRINTF_GUID_FORMAT "%08" PRIx32 "-%04" PRIx16 "-%04" PRIx16 \
+    "-%02" PRIx8 "%02" PRIx8 "-%02" PRIx8 "%02" PRIx8 "%02" PRIx8 "%02" PRIx8 "%02" PRIx8 "%02" PRIx8
 #define UA_PRINTF_GUID_DATA(GUID) (GUID).data1, (GUID).data2, (GUID).data3, \
         (GUID).data4[0], (GUID).data4[1], (GUID).data4[2], (GUID).data4[3], \
         (GUID).data4[4], (GUID).data4[5], (GUID).data4[6], (GUID).data4[7]
@@ -144,24 +185,6 @@ UA_RelativePath_parse(UA_RelativePath *rp, const UA_String str);
 /**
  * Helper functions for converting data types
  * ------------------------------------------ */
-
-/* Converts a bytestring to the corresponding base64 representation */
-UA_DEPRECATED static UA_INLINE UA_StatusCode
-UA_ByteString_toBase64String(const UA_ByteString *byteString,
-                             UA_String *str) {
-    return UA_ByteString_toBase64(byteString, str);
-}
-
-/* Converts a node id to the corresponding string representation.
- * It can be one of:
- * - Numeric: ns=0;i=123
- * - String: ns=0;s=Some String
- * - Guid: ns=0;g=A123456C-0ABC-1A2B-815F-687212AAEE1B
- * - ByteString: ns=0;b=AA== */
-UA_DEPRECATED static UA_INLINE UA_StatusCode
-UA_NodeId_toString(const UA_NodeId *nodeId, UA_String *nodeIdStr) {
-    return UA_NodeId_print(nodeId, nodeIdStr);
-}
 
 /* Compare memory in constant time to mitigate timing attacks.
  * Returns true if ptr1 and ptr2 are equal for length bytes. */

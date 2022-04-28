@@ -1,6 +1,10 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/.
+ * 
+ *    Copyright 2020-2021 (c) Christian von Arnim, ISW University of Stuttgart (for VDW and umati)
+ *    Copyright 2021 (c) Fraunhofer IOSB (Author: Andreas Ebner)
+ */
 
 #include <open62541/client_config_default.h>
 #include <open62541/client_subscriptions.h>
@@ -31,7 +35,7 @@ static UA_UInt32 monitoredItemId;
 static UA_NodeId eventType;
 static size_t nSelectClauses = 4;
 static UA_Boolean notificationReceived;
-static UA_Boolean overflowNotificationReceived;
+static UA_Boolean overflowNotificationReceived = false;
 static UA_SimpleAttributeOperand *selectClauses;
 
 UA_Double publishingInterval = 500.0;
@@ -144,10 +148,10 @@ removeSubscription(void) {
 
     UA_DeleteSubscriptionsResponse deleteSubscriptionsResponse;
     UA_DeleteSubscriptionsResponse_init(&deleteSubscriptionsResponse);
-    UA_LOCK(server->serviceMutex);
+    UA_LOCK(&server->serviceMutex);
     Service_DeleteSubscriptions(server, &server->adminSession, &deleteSubscriptionsRequest,
                                 &deleteSubscriptionsResponse);
-    UA_UNLOCK(server->serviceMutex);
+    UA_UNLOCK(&server->serviceMutex);
     UA_DeleteSubscriptionsResponse_clear(&deleteSubscriptionsResponse);
 }
 
@@ -362,7 +366,7 @@ START_TEST(generateEvents) {
     sleepUntilAnswer(publishingInterval + 100);
     retval = UA_Client_run_iterate(client, 0);
     sleepUntilAnswer(publishingInterval + 100);
-    retval = UA_Client_run_iterate(client, 0);
+    retval |= UA_Client_run_iterate(client, 0);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(notificationReceived, true);
     ck_assert_uint_eq(createResult.revisedQueueSize, 1);
@@ -527,7 +531,7 @@ handler_events_overflow(UA_Client *lclient, UA_UInt32 subId, void *subContext,
     if(nEventFields == 1) {
         /* overflow was received */
         ck_assert(eventFields->type == &UA_TYPES[UA_TYPES_NODEID]);
-        UA_NodeId comp = UA_NODEID_NUMERIC(0, UA_NS0ID_SIMPLEOVERFLOWEVENTTYPE);
+        UA_NodeId comp = UA_NODEID_NUMERIC(0, UA_NS0ID_EVENTQUEUEOVERFLOWEVENTTYPE);
         ck_assert((UA_NodeId_equal((UA_NodeId *) eventFields->data, &comp)));
         overflowNotificationReceived = UA_TRUE;
     } else if(nEventFields == 4) {
@@ -555,7 +559,7 @@ START_TEST(eventOverflow) {
 
     // fetch the events, ensure both the overflow and the original event are received
     notificationReceived = false;
-    overflowNotificationReceived = true;
+    overflowNotificationReceived = false;
     sleepUntilAnswer(publishingInterval + 100);
     retval = UA_Client_run_iterate(client, 0);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
@@ -703,28 +707,123 @@ START_TEST(evaluateWhereClause) {
     /* Everything is on the stack, so no memory cleaning required.*/
     UA_NodeId eventNodeId;
     UA_StatusCode retval = eventSetup(&eventNodeId);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    //test empty filter
     UA_ContentFilter contentFilter;
     UA_ContentFilter_init(&contentFilter);
-    /* Empty Filter */
-    retval = UA_Server_evaluateWhereClauseContentFilter(server, &eventNodeId, &contentFilter);
+    UA_ContentFilterResult contentFilterResult;
+    UA_ContentFilterResult_init(&contentFilterResult);
+    contentFilterResult.elementResultsSize = contentFilter.elementsSize;
+    contentFilterResult.elementResults = (UA_ContentFilterElementResult *)
+        UA_Array_new(contentFilter.elementsSize,
+                     &UA_TYPES[UA_TYPES_CONTENTFILTERELEMENTRESULT]);
+    if(!contentFilterResult.elementResults) {
+        ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    }
+    for(size_t i = 0; i < contentFilterResult.elementResultsSize; ++i) {
+        contentFilterResult.elementResults[i].operandStatusCodesSize =
+            contentFilter.elements->filterOperandsSize;
+        contentFilterResult.elementResults[i].operandStatusCodes =
+            (UA_StatusCode *)UA_Array_new(
+                contentFilter.elements->filterOperandsSize,
+                &UA_TYPES[UA_TYPES_STATUSCODE]);
+        if(!contentFilterResult.elementResults[i].operandStatusCodes) {
+            ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+        }
+    }
+    UA_LOCK(&server->serviceMutex);
+    retval = UA_Server_evaluateWhereClauseContentFilter(server, &server->adminSession,
+                                                        &eventNodeId, &contentFilter, &contentFilterResult);
+    UA_UNLOCK(&server->serviceMutex);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    UA_ContentFilterResult_clear(&contentFilterResult);
+
+    /* Illegal filter operators */
     UA_ContentFilterElement contentFilterElement;
     UA_ContentFilterElement_init(&contentFilterElement);
     contentFilter.elements = &contentFilterElement;
     contentFilter.elementsSize = 1;
-
-    /* Illegal filter operators */
+    contentFilter.elements->filterOperandsSize = 6;
     contentFilterElement.filterOperator = UA_FILTEROPERATOR_RELATEDTO;
-    retval = UA_Server_evaluateWhereClauseContentFilter(server, &eventNodeId, &contentFilter);
+
+    UA_ContentFilterResult_init(&contentFilterResult);
+    contentFilterResult.elementResultsSize = contentFilter.elementsSize;
+    contentFilterResult.elementResults = (UA_ContentFilterElementResult *)
+        UA_Array_new(contentFilterResult.elementResultsSize,
+                     &UA_TYPES[UA_TYPES_CONTENTFILTERELEMENTRESULT]);
+    if(!contentFilterResult.elementResults) {
+        ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    }
+    for(size_t i = 0; i < contentFilterResult.elementResultsSize; ++i) {
+        ck_assert(contentFilterResult.elementResults != NULL);
+        contentFilterResult.elementResults[i].operandStatusCodesSize =
+            contentFilter.elements[i].filterOperandsSize;
+        contentFilterResult.elementResults[i].operandStatusCodes =
+            (UA_StatusCode *)UA_Array_new(
+                contentFilter.elements->filterOperandsSize,
+                &UA_TYPES[UA_TYPES_STATUSCODE]);
+        if(!contentFilterResult.elementResults[i].operandStatusCodes) {
+            ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+        }
+    }
+    UA_LOCK(&server->serviceMutex);
+    retval = UA_Server_evaluateWhereClauseContentFilter(server, &server->adminSession, &eventNodeId, &contentFilter, &contentFilterResult);
+    UA_UNLOCK(&server->serviceMutex);
     ck_assert_uint_eq(retval, UA_STATUSCODE_BADEVENTFILTERINVALID);
+    UA_ContentFilterResult_clear(&contentFilterResult);
+
     contentFilterElement.filterOperator = UA_FILTEROPERATOR_INVIEW;
-    retval = UA_Server_evaluateWhereClauseContentFilter(server, &eventNodeId, &contentFilter);
+    UA_ContentFilterResult_init(&contentFilterResult);
+    contentFilterResult.elementResultsSize = contentFilter.elementsSize;
+    contentFilterResult.elementResults = (UA_ContentFilterElementResult *)
+        UA_Array_new(contentFilter.elementsSize,
+                     &UA_TYPES[UA_TYPES_CONTENTFILTERELEMENTRESULT]);
+    if(!contentFilterResult.elementResults) {
+        ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    }
+    for(size_t i = 0; i < contentFilterResult.elementResultsSize; ++i) {
+        contentFilterResult.elementResults[i].operandStatusCodesSize =
+            contentFilter.elements->filterOperandsSize;
+        contentFilterResult.elementResults[i].operandStatusCodes =
+            (UA_StatusCode *)UA_Array_new(
+                contentFilter.elements->filterOperandsSize,
+                &UA_TYPES[UA_TYPES_STATUSCODE]);
+        if(!contentFilterResult.elementResults[i].operandStatusCodes) {
+            ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+        }
+    }
+    UA_LOCK(&server->serviceMutex);
+    retval = UA_Server_evaluateWhereClauseContentFilter(server, &server->adminSession, &eventNodeId, &contentFilter, &contentFilterResult);
+    UA_UNLOCK(&server->serviceMutex);
     ck_assert_uint_eq(retval, UA_STATUSCODE_BADEVENTFILTERINVALID);
+    UA_ContentFilterResult_clear(&contentFilterResult);
 
     /* No operand provided */
     contentFilterElement.filterOperator = UA_FILTEROPERATOR_OFTYPE;
-    retval = UA_Server_evaluateWhereClauseContentFilter(server, &eventNodeId, &contentFilter);
+    UA_ContentFilterResult_init(&contentFilterResult);
+    contentFilterResult.elementResultsSize = contentFilter.elementsSize;
+    contentFilterResult.elementResults = (UA_ContentFilterElementResult *)
+        UA_Array_new(contentFilter.elementsSize,
+                     &UA_TYPES[UA_TYPES_CONTENTFILTERELEMENTRESULT]);
+    if(!contentFilterResult.elementResults) {
+        ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    }
+    for(size_t i = 0; i < contentFilterResult.elementResultsSize; ++i) {
+        contentFilterResult.elementResults[i].operandStatusCodesSize =
+            contentFilter.elements->filterOperandsSize;
+        contentFilterResult.elementResults[i].operandStatusCodes =
+            (UA_StatusCode *)UA_Array_new(
+                contentFilter.elements->filterOperandsSize,
+                &UA_TYPES[UA_TYPES_STATUSCODE]);
+        if(!contentFilterResult.elementResults[i].operandStatusCodes) {
+            ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+        }
+    }
+    UA_LOCK(&server->serviceMutex);
+    retval = UA_Server_evaluateWhereClauseContentFilter(server, &server->adminSession, &eventNodeId, &contentFilter, &contentFilterResult);
+    UA_UNLOCK(&server->serviceMutex);
     ck_assert_uint_eq(retval, UA_STATUSCODE_BADFILTEROPERANDCOUNTMISMATCH);
+    UA_ContentFilterResult_clear(&contentFilterResult);
 
     UA_ExtensionObject filterOperandExObj;
     UA_ExtensionObject_init(&filterOperandExObj);
@@ -737,19 +836,87 @@ START_TEST(evaluateWhereClause) {
 
     /* Same type*/
     UA_Variant_setScalar(&literalOperand.value, &eventType, &UA_TYPES[UA_TYPES_NODEID]);
-    retval = UA_Server_evaluateWhereClauseContentFilter(server, &eventNodeId, &contentFilter);
+    UA_ContentFilterResult_init(&contentFilterResult);
+    contentFilterResult.elementResultsSize = contentFilter.elementsSize;
+    contentFilterResult.elementResults = (UA_ContentFilterElementResult *)
+        UA_Array_new(contentFilter.elementsSize,
+                     &UA_TYPES[UA_TYPES_CONTENTFILTERELEMENTRESULT]);
+    if(!contentFilterResult.elementResults) {
+        ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    }
+    for(size_t i = 0; i < contentFilterResult.elementResultsSize; ++i) {
+        contentFilterResult.elementResults[i].operandStatusCodesSize =
+            contentFilter.elements->filterOperandsSize;
+        contentFilterResult.elementResults[i].operandStatusCodes =
+            (UA_StatusCode *)UA_Array_new(
+                contentFilter.elements->filterOperandsSize,
+                &UA_TYPES[UA_TYPES_STATUSCODE]);
+        if(!contentFilterResult.elementResults[i].operandStatusCodes) {
+            ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+        }
+    }
+    UA_LOCK(&server->serviceMutex);
+    retval = UA_Server_evaluateWhereClauseContentFilter(server, &server->adminSession, &eventNodeId, &contentFilter, &contentFilterResult);
+    UA_UNLOCK(&server->serviceMutex);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    UA_ContentFilterResult_clear(&contentFilterResult);
 
     /* Base type*/
     UA_NodeId nodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_BASEEVENTTYPE);
     UA_Variant_setScalar(&literalOperand.value, &nodeId, &UA_TYPES[UA_TYPES_NODEID]);
-    retval = UA_Server_evaluateWhereClauseContentFilter(server, &eventNodeId, &contentFilter);
+    UA_ContentFilterResult_init(&contentFilterResult);
+    contentFilterResult.elementResultsSize = contentFilter.elementsSize;
+    contentFilterResult.elementResults = (UA_ContentFilterElementResult *)
+        UA_Array_new(contentFilter.elementsSize,
+                     &UA_TYPES[UA_TYPES_CONTENTFILTERELEMENTRESULT]);
+    if(!contentFilterResult.elementResults) {
+        ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    }
+    for(size_t i = 0; i < contentFilterResult.elementResultsSize; ++i) {
+        ck_assert(contentFilterResult.elementResults != NULL);
+        contentFilterResult.elementResults[i].operandStatusCodesSize =
+            contentFilter.elements->filterOperandsSize;
+        contentFilterResult.elementResults[i].operandStatusCodes =
+            (UA_StatusCode *)UA_Array_new(
+                contentFilter.elements->filterOperandsSize,
+                &UA_TYPES[UA_TYPES_STATUSCODE]);
+        if(!contentFilterResult.elementResults[i].operandStatusCodes) {
+            ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+        }
+    }
+    UA_LOCK(&server->serviceMutex);
+    retval = UA_Server_evaluateWhereClauseContentFilter(server, &server->adminSession, &eventNodeId, &contentFilter, &contentFilterResult);
+    UA_UNLOCK(&server->serviceMutex);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    UA_ContentFilterResult_clear(&contentFilterResult);
 
     /* Other type*/
     nodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_BASEMODELCHANGEEVENTTYPE);
-    retval = UA_Server_evaluateWhereClauseContentFilter(server, &eventNodeId, &contentFilter);
+    UA_ContentFilterResult_init(&contentFilterResult);
+    contentFilterResult.elementResultsSize = contentFilter.elementsSize;
+    contentFilterResult.elementResults = (UA_ContentFilterElementResult *)
+        UA_Array_new(contentFilter.elementsSize,
+                     &UA_TYPES[UA_TYPES_CONTENTFILTERELEMENTRESULT]);
+    if(!contentFilterResult.elementResults) {
+        ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    }
+    for(size_t i = 0; i < contentFilterResult.elementResultsSize; ++i) {
+        ck_assert(contentFilterResult.elementResults != NULL);
+        contentFilterResult.elementResults[i].operandStatusCodesSize =
+            contentFilter.elements->filterOperandsSize;
+        contentFilterResult.elementResults[i].operandStatusCodes =
+            (UA_StatusCode *)UA_Array_new(
+                contentFilter.elements->filterOperandsSize,
+                &UA_TYPES[UA_TYPES_STATUSCODE]);
+        if(!contentFilterResult.elementResults[i].operandStatusCodes) {
+            ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+        }
+    }
+    UA_LOCK(&server->serviceMutex);
+    retval = UA_Server_evaluateWhereClauseContentFilter(server, &server->adminSession, &eventNodeId, &contentFilter, &contentFilterResult);
+    UA_UNLOCK(&server->serviceMutex);
     ck_assert_uint_eq(retval, UA_STATUSCODE_BADNOMATCH);
+    UA_ContentFilterResult_clear(&contentFilterResult);
 }
 END_TEST
 

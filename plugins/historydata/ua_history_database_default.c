@@ -290,7 +290,7 @@ getHistoryData_service_default(const UA_HistoryDataBackend* backend,
         if(backendOutContinuationPoint.length > 0)
             memcpy(outContinuationPoint->data + sizeof(size_t), backendOutContinuationPoint.data, backendOutContinuationPoint.length);
     }
-    UA_ByteString_deleteMembers(&backendOutContinuationPoint);
+    UA_ByteString_clear(&backendOutContinuationPoint);
     return UA_STATUSCODE_GOOD;
 }
 
@@ -331,15 +331,14 @@ updateData_service_default(UA_Server *server,
         return;
     }
 
+    UA_ServerConfig *config = UA_Server_getConfig(server);
     result->operationResultsSize = details->updateValuesSize;
     result->operationResults = (UA_StatusCode*)UA_Array_new(result->operationResultsSize, &UA_TYPES[UA_TYPES_STATUSCODE]);
     for (size_t i = 0; i < details->updateValuesSize; ++i) {
-        if (!UA_Server_AccessControl_allowHistoryUpdateUpdateData(server,
-                                                                  sessionId,
-                                                                  sessionContext,
-                                                                  &details->nodeId,
-                                                                  details->performInsertReplace,
-                                                                  &details->updateValues[i])) {
+        if (config->accessControl.allowHistoryUpdateUpdateData &&
+            !config->accessControl.allowHistoryUpdateUpdateData(server, &config->accessControl, sessionId, sessionContext,
+                                                                &details->nodeId, details->performInsertReplace,
+                                                                &details->updateValues[i])) {
             result->operationResults[i] = UA_STATUSCODE_BADUSERACCESSDENIED;
             continue;
         }
@@ -436,13 +435,11 @@ deleteRawModified_service_default(UA_Server *server,
         return;
     }
 
-    if (!UA_Server_AccessControl_allowHistoryUpdateDeleteRawModified(server,
-                                                                     sessionId,
-                                                                     sessionContext,
-                                                                     &details->nodeId,
-                                                                     details->startTime,
-                                                                     details->endTime,
-                                                                     details->isDeleteModified)) {
+    UA_ServerConfig *config = UA_Server_getConfig(server);
+    if (config->accessControl.allowHistoryUpdateDeleteRawModified &&
+        !config->accessControl.allowHistoryUpdateDeleteRawModified(server,
+                 &config->accessControl, sessionId, sessionContext, &details->nodeId,
+                 details->startTime, details->endTime, details->isDeleteModified)) {
         result->statusCode = UA_STATUSCODE_BADUSERACCESSDENIED;
         return;
     }
