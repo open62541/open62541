@@ -5,10 +5,17 @@
  *    Copyright 2017 (c) Stefan Profanter, fortiss GmbH
  *    Copyright 2017 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
  *    Copyright 2017 (c) Thomas Stalder, Blue Time Concept SA
+ *    Copyright 2022 (c) Linutronix GmbH (Author: Muddasir Shakil)
  */
 
 #include "ua_server_internal.h"
 #include "ua_services.h"
+
+#ifndef _WIN32
+#if defined(UA_HAS_GETIFADDR)
+#include <ifaddrs.h>
+#endif /* UA_HAS_GETIFADDR */
+#endif
 
 #if defined(UA_ENABLE_DISCOVERY) && defined(UA_ENABLE_DISCOVERY_MULTICAST)
 
@@ -101,83 +108,269 @@ addMdnsRecordForNetworkLayer(UA_Server *server, const UA_String *appName,
 #define IN_ZERONET(addr) ((addr & IN_CLASSA_NET) == 0)
 #endif
 
-/* Create multicast 224.0.0.251:5353 socket */
-static UA_SOCKET
-discovery_createMulticastSocket(UA_Server* server) {
-    int flag = 1, ittl = 255;
-    struct sockaddr_in in;
-    struct ip_mreq mc;
-    char ttl = (char)255; // publish to complete net, not only subnet. See:
-                          // https://docs.oracle.com/cd/E23824_01/html/821-1602/sockets-137.html
-
-    memset(&in, 0, sizeof(in));
-    in.sin_family = AF_INET;
-    in.sin_port = htons(5353);
-    in.sin_addr.s_addr = 0;
-
-    UA_SOCKET s = UA_socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
-    if(s == UA_INVALID_SOCKET)
-        return UA_INVALID_SOCKET;
-
-#ifdef SO_REUSEPORT
-    UA_setsockopt(s, SOL_SOCKET, SO_REUSEPORT, (char *)&flag, sizeof(flag));
-#endif
-    UA_setsockopt(s, SOL_SOCKET, SO_REUSEADDR, (char *)&flag, sizeof(flag));
-    if(UA_bind(s, (struct sockaddr *)&in, sizeof(in))) {
-        UA_close(s);
-        return UA_INVALID_SOCKET;
-    }
-
-    /* Custom outbound multicast interface */
+static struct addrinfo *
+getMdnsInterfaceAddressInfo(UA_Server *server) {
+    char *addrAsChar = NULL;
+    struct addrinfo hints;
+    struct addrinfo *requestResult = NULL;
     size_t length = server->config.mdnsInterfaceIP.length;
-    if(length > 0){
-        char* interfaceName = (char*)UA_malloc(length+1);
-        if(!interfaceName) {
-            UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_DISCOVERY,
-                         "Multicast DNS: cannot alloc memory for iface name");
-            return 0;
-        }
-        struct in_addr ina;
-        memset(&ina, 0, sizeof(ina));
-        memcpy(interfaceName, server->config.mdnsInterfaceIP.data, length);
-        interfaceName[length] = '\0';
-        inet_pton(AF_INET, interfaceName, &ina);
-        UA_free(interfaceName);
-        /* Set interface for outbound multicast */
-        if(setsockopt(s, IPPROTO_IP, IP_MULTICAST_IF, (char*)&ina, sizeof(ina)) < 0)
-            UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_DISCOVERY,
-                         "Multicast DNS: failed setting IP_MULTICAST_IF to %s: %s",
-                         inet_ntoa(ina), strerror(errno));
+    if (length == 0) {
+        goto cleanup;
     }
 
-    /* Check outbound multicast interface parameters */
-    struct in_addr interface_addr;
-    socklen_t addr_size = sizeof(struct in_addr);
-    if(getsockopt(s, IPPROTO_IP, IP_MULTICAST_IF, (char*)&interface_addr, &addr_size) <  0) {
-        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_DISCOVERY,
-                     "Multicast DNS: getsockopt(IP_MULTICAST_IF) failed");
+    addrAsChar = (char *)UA_malloc(length + 1);
+    if(!addrAsChar) {
+        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_NETWORK,
+                     "Multicast DNS: failed to allocate memory");
+        goto cleanup;
+    }
+    memcpy(addrAsChar, server->config.mdnsInterfaceIP.data, length);
+    addrAsChar[length] = '\0';
+
+    memset(&hints, 0, sizeof hints);
+    hints.ai_family = AF_UNSPEC;
+    hints.ai_socktype = SOCK_DGRAM;
+    hints.ai_flags = 0;
+    hints.ai_protocol = 0;
+    if(UA_getaddrinfo(addrAsChar, NULL, &hints, &requestResult) != 0) {
+        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_NETWORK,
+                     "Multicast DNS: getaddrinfo failed with Error: %s", strerror(errno));
+        goto cleanup;
     }
 
-    if(IN_ZERONET(ntohl(interface_addr.s_addr))) {
-        UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_DISCOVERY,
-                       "Multicast DNS: outbound interface 0.0.0.0, it means that "
-                       "the first OS interface is used (you can explicitly set the "
-                       "interface by using 'discovery.mdnsInterfaceIP' config parameter)");
+cleanup:
+    if(addrAsChar)
+        UA_free(addrAsChar);
+
+    return requestResult;
+}
+
+static UA_SOCKET
+joinMdnsGroup(UA_SOCKET mdnsSocket, UA_Int32 ipVersion) {
+    struct ipv6_mreq mc6;
+    struct ip_mreq mc;
+    if(ipVersion == AF_INET6) {
+        memset(&mc6, 0, sizeof(mc6));
+        mc6.ipv6mr_multiaddr.s6_addr[0] = 0xFF;
+        mc6.ipv6mr_multiaddr.s6_addr[1] = 0x02;
+        mc6.ipv6mr_multiaddr.s6_addr[15] = 0xFB;
+        mc6.ipv6mr_interface = 0;
     } else {
-        char buf[16];
-        inet_ntop(AF_INET, &interface_addr, buf, 16);
-        UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_DISCOVERY,
-                    "Multicast DNS: outbound interface is %s", buf);
+        memset(&mc, 0, sizeof(mc));
+        mc.imr_multiaddr.s_addr = inet_addr("224.0.0.251");
+        mc.imr_interface.s_addr = htonl(INADDR_ANY);
+    }
+    if(UA_setsockopt(mdnsSocket, ipVersion == AF_INET6 ? IPPROTO_IPV6 : IPPROTO_IP,
+                     ipVersion == AF_INET6 ? IPV6_ADD_MEMBERSHIP : IP_ADD_MEMBERSHIP,
+                     ipVersion == AF_INET6 ? (char *)&mc6 : (char *)&mc,
+                     ipVersion == AF_INET6 ? sizeof(mc6) : sizeof(mc)) < 0)
+        return UA_INVALID_SOCKET;
+
+    return mdnsSocket;
+}
+
+#if UA_IPV6
+static UA_StatusCode
+getInterfaceIndex(UA_UInt32 *index, struct sockaddr_storage *interfaceAddr) {
+    UA_StatusCode ret = UA_STATUSCODE_BADINTERNALERROR;
+    struct ifaddrs *ifaceAddr;
+    const UA_UInt32 defaultIfaceIndex = 0;
+
+    struct sockaddr_in6 *in6Addr = (struct sockaddr_in6 *)interfaceAddr;
+    if(memcmp(&in6Addr->sin6_addr, &in6addr_any, sizeof(in6Addr->sin6_addr)) == 0) {
+        *index = defaultIfaceIndex;
+        return UA_STATUSCODE_GOOD;
     }
 
-    mc.imr_multiaddr.s_addr = inet_addr("224.0.0.251");
-    mc.imr_interface.s_addr = htonl(INADDR_ANY);
-    UA_setsockopt(s, IPPROTO_IP, IP_ADD_MEMBERSHIP, (char*)&mc, sizeof(mc));
-    UA_setsockopt(s, IPPROTO_IP, IP_MULTICAST_TTL, (char*)&ttl, sizeof(ttl));
-    UA_setsockopt(s, IPPROTO_IP, IP_MULTICAST_TTL, (char*)&ittl, sizeof(ittl));
+    if(getifaddrs(&ifaceAddr) < 0) {
+        return ret;
+    }
 
-    UA_socket_set_nonblocking(s); //TODO: check return value
-    return s;
+    for(struct ifaddrs *ifa = ifaceAddr; ifa != NULL; ifa = ifa->ifa_next) {
+        if(ifa->ifa_addr == NULL)
+            continue;
+        if(ifa->ifa_addr->sa_family == interfaceAddr->ss_family) {
+            if(memcmp(&in6Addr->sin6_addr,
+                      &((struct sockaddr_in6 *)ifa->ifa_addr)->sin6_addr,
+                      sizeof(in6Addr->sin6_addr)) == 0) {
+                *index = UA_if_nametoindex(ifa->ifa_name);
+                ret = UA_STATUSCODE_GOOD;
+                break;
+            }
+        }
+    }
+
+    freeifaddrs(ifaceAddr);
+    return ret;
+}
+
+/*
+ * Set the custom outbound IPV6 multicast interface.
+ */
+static UA_StatusCode
+setMulticastInterfaceIpv6(UA_Server *server, UA_SOCKET socket,
+                          struct sockaddr_storage *mdnsSockAddr) {
+    UA_StatusCode retval = UA_STATUSCODE_BADINTERNALERROR;
+    UA_UInt32 interface = 0;
+
+    if(server->config.mdnsInterfaceIP.length > 0) {
+        retval = getInterfaceIndex(&interface, mdnsSockAddr);
+        if(retval != UA_STATUSCODE_GOOD)
+            return retval;
+    }
+
+    if(UA_setsockopt(socket, IPPROTO_IPV6, IPV6_MULTICAST_IF, &interface,
+                     sizeof(interface)) < 0) {
+        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                     "Multicast DNS: failed setting IPV6_MULTICAST_IF %s",
+                     strerror(errno));
+        return retval;
+    }
+    return UA_STATUSCODE_GOOD;
+}
+#endif
+
+static UA_StatusCode
+setMulticastInterfaceIpv4(UA_Server *server, UA_SOCKET socket,
+                          struct sockaddr_storage *mdnsSockAddr) {
+    if(UA_setsockopt(socket, IPPROTO_IP, IP_MULTICAST_IF,
+                     &((struct sockaddr_in *)mdnsSockAddr)->sin_addr,
+                     sizeof(struct in_addr)) < 0) {
+        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                     "Multicast DNS: failed setting IP_MULTICAST_IF %s", strerror(errno));
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
+    return UA_STATUSCODE_GOOD;
+}
+
+static UA_StatusCode
+setMulticastInterface(UA_Server *server, UA_SOCKET sock,
+                      struct sockaddr_storage *mcSockAddr) {
+    if(!mcSockAddr)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+
+    UA_StatusCode retval = UA_STATUSCODE_BAD;
+    if(mcSockAddr->ss_family == AF_INET) {
+        retval = setMulticastInterfaceIpv4(server, sock, mcSockAddr);
+#if UA_IPV6
+    } else if(mcSockAddr->ss_family == AF_INET6) {
+        retval = setMulticastInterfaceIpv6(server, sock, mcSockAddr);
+#endif
+    } else {
+        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_NETWORK,
+                     "Multicast DNS: Multicast setup failed: "
+                     "unknown address family");
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
+    return retval;
+}
+
+static UA_SOCKET
+bindMdnsSocket(UA_SOCKET mdnsSocket, UA_Int32 ipVersion) {
+    struct sockaddr_storage mdnsBindAddr;
+    memset(&mdnsBindAddr,0, sizeof(struct sockaddr_storage));
+    UA_UInt16 mDNSPort = htons(5353);
+    if(ipVersion == AF_INET) {
+        struct sockaddr_in *in = (struct sockaddr_in *)&mdnsBindAddr;
+        in->sin_family = AF_INET;
+        in->sin_addr.s_addr = INADDR_ANY;
+        in->sin_port = mDNSPort;
+    } else {
+        struct sockaddr_in6 *in6 = (struct sockaddr_in6 *)&mdnsBindAddr;
+        in6->sin6_family = AF_INET6;
+        in6->sin6_addr = in6addr_any;
+        in6->sin6_port = mDNSPort;
+    }
+    if(UA_bind(mdnsSocket, (struct sockaddr *)&mdnsBindAddr, sizeof(mdnsBindAddr))) {
+        UA_close(mdnsSocket);
+        return UA_INVALID_SOCKET;
+    }
+    return mdnsSocket;
+}
+
+/* Create multicast ff02::fb:5353 Or 224.0.0.251:5353 socket */
+static UA_SOCKET
+discovery_createMulticastSocket(UA_Server *server) {
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+    UA_Int32 ipVersion = AF_INET;
+    UA_SOCKET sockFd;
+    struct addrinfo *ai = NULL;
+    const int hops = 1, loops = 1, flag = 1;
+    size_t length = server->config.mdnsInterfaceIP.length;
+    if(length > 0) {
+        ai = getMdnsInterfaceAddressInfo(server);
+        if(ai == NULL) {
+            return UA_INVALID_SOCKET;
+        }
+        ipVersion = ai->ai_family;
+    }
+    /*create ipv6/ipv4 socket*/
+    if((sockFd = UA_socket(ipVersion, SOCK_DGRAM, IPPROTO_UDP)) == UA_INVALID_SOCKET) {
+        retval = UA_STATUSCODE_BADINTERNALERROR;
+        goto cleanup;
+    }
+#ifdef SO_REUSEPORT
+    if(UA_setsockopt(sockFd, SOL_SOCKET, SO_REUSEPORT, (const char *)&flag, sizeof(flag)) < 0) {
+        retval = UA_STATUSCODE_BADINTERNALERROR;
+        goto cleanup;
+    }
+#endif
+    if(UA_setsockopt(sockFd, SOL_SOCKET, SO_REUSEADDR, (const char *)&flag, sizeof(flag))) {
+        retval = UA_STATUSCODE_BADINTERNALERROR;
+        goto cleanup;
+    }
+
+    if(UA_setsockopt(sockFd,
+                    ipVersion == AF_INET6 ? IPPROTO_IPV6 : IPPROTO_IP,
+                    ipVersion == AF_INET6 ? IPV6_MULTICAST_HOPS : IP_MULTICAST_TTL,
+                    (const char *)&hops, sizeof(hops)) < 0) {
+        retval = UA_STATUSCODE_BADINTERNALERROR;
+        goto cleanup;
+    }
+
+    if(UA_setsockopt(sockFd,
+                    ipVersion == AF_INET6 ? IPPROTO_IPV6 : IPPROTO_IP,
+                    ipVersion == AF_INET6 ? IPV6_MULTICAST_LOOP : IP_MULTICAST_LOOP,
+                    (const char *)&loops, sizeof(loops)) < 0) {
+        retval = UA_STATUSCODE_BADINTERNALERROR;
+        goto cleanup;
+    }
+
+    if(joinMdnsGroup(sockFd, ipVersion) == UA_INVALID_SOCKET) {
+        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                     "Multicast DNS: IP membership setup failed: "
+                     "Cannot set socket option IP_ADD_MEMBERSHIP. Error: %sockFd",
+                     strerror(errno));
+        retval = UA_STATUSCODE_BADINTERNALERROR;
+        goto cleanup;
+    }
+
+    if(length > 0) {
+        if(setMulticastInterface(server, sockFd, (struct sockaddr_storage *)ai->ai_addr) != UA_STATUSCODE_GOOD) {
+            retval = UA_STATUSCODE_BADINTERNALERROR;
+            goto cleanup;
+           }
+    }
+
+    if(bindMdnsSocket(sockFd, ipVersion) == UA_INVALID_SOCKET) {
+        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                     "Multicast DNS: binding socket failed with Error: %sockFd ",
+                     strerror(errno));
+        retval = UA_STATUSCODE_BADINTERNALERROR;
+        goto cleanup;
+    }
+
+    if(UA_socket_set_nonblocking(sockFd) != UA_STATUSCODE_GOOD)
+        retval = UA_STATUSCODE_BADINTERNALERROR;
+
+cleanup:
+    if(ai)
+        UA_freeaddrinfo(ai);
+    if(retval != UA_STATUSCODE_GOOD){
+        UA_close(sockFd);
+        sockFd = UA_INVALID_SOCKET;
+    }
+    return sockFd;
 }
 
 void
