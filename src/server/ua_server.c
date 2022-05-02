@@ -721,6 +721,9 @@ UA_Server_run_startup(UA_Server *server) {
     UA_Boolean haveServerSocket = false;
     if(config->serverUrlsSize == 0) {
         /* Empty hostname -> listen on all devices */
+        UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                       "No Server URL configured. Using \"opc.tcp://:4840\" "
+                       "to configure the listen socket.");
         UA_String defaultUrl = UA_STRING("opc.tcp://:4840");
         retVal = UA_Server_createServerConnection(server, &defaultUrl);
         if(retVal == UA_STATUSCODE_GOOD)
