@@ -145,6 +145,7 @@ function unit_tests {
           -DUA_ENABLE_PUBSUB_DELTAFRAMES=ON \
           -DUA_ENABLE_PUBSUB_INFORMATIONMODEL=ON \
           -DUA_ENABLE_PUBSUB_MONITORING=ON \
+          -DUA_ENABLE_PUBSUB_MQTT=ON \
           ..
     make ${MAKEOPTS}
     set_capabilities
