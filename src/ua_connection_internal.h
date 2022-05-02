@@ -40,25 +40,18 @@ void UA_Connection_attachSecureChannel(UA_Connection *connection,
 /* In this example, we integrate the server into an external "mainloop". This
    can be for example the event-loop used in GUI toolkits, such as Qt or GTK. */
 
-typedef struct {
-    UA_Boolean isInitial;
-    UA_ConnectionManager *cm;
-    UA_Server *server;
-} UA_Server_BasicConnectionContext;
-
-typedef struct {
-    UA_Server_BasicConnectionContext base;
-    uintptr_t connectionId;
-    UA_Connection connection;
-} UA_Server_ConnectionContext;
-
 UA_StatusCode UA_Server_Connection_getSendBuffer(UA_Connection *connection, size_t length,
                                                         UA_ByteString *buf);
 UA_StatusCode UA_Server_Connection_send(UA_Connection *connection, UA_ByteString *buf);
 void UA_Server_Connection_releaseBuffer (UA_Connection *connection, UA_ByteString *buf);
 void UA_Server_Connection_close(UA_Connection *connection);
-void UA_Server_connectionCallback(UA_ConnectionManager *cm, uintptr_t connectionId, void **connectionContext,
-                                  UA_StatusCode stat, size_t paramsSize, const UA_KeyValuePair *params, UA_ByteString msg);
+
+/* Process a binary message (TCP packet). The message can contain partial
+ * chunks. (TCP is a streaming protocol and packets may be split/merge during
+ * transport.) After processing, the message is freed with
+ * connection->releaseRecvBuffer. */
+void UA_Server_processBinaryMessage(UA_Server *server, UA_Connection *connection,
+                                    UA_ByteString *message);
 
 _UA_END_DECLS
 

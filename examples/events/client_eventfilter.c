@@ -2,12 +2,7 @@
  * See http://creativecommons.org/publicdomain/zero/1.0/ for more information. */
 
 /**
- *
- * Attention! WIP: The event-filter mechanism is currently "Work in progress" and will be completed
- * soon. Some of the below defined filters are currently not working and will be completed
- * in on of the next event-filter-batches.
- *
- * When using events, the client is mostly only interested in a small selection of events.
+ * When using events, the client is most often only interested in a small selection of events.
  * To avoid unnecessary event transmission, the client can configure filters. These filters
  * are part of the event-subscription configuration.
  *
@@ -28,8 +23,7 @@
 #define USE_FILTER_OR_TYPEOF
 
 static UA_Boolean running = true;
-const size_t nSelectClauses = 2;
-const size_t nWhereClauses = 1;
+#define SELECT_CLAUSE_FIELD_COUNT 3
 
 /**
  * Setting up SelectClauses
@@ -40,37 +34,30 @@ const size_t nWhereClauses = 1;
  * In this Example we are selecting two SimpleAttributeOperands to be returned, one as a Message and one as Severity.
  */
 static UA_SimpleAttributeOperand *
-setupSelectClauses(void) {
+setupSelectClauses(size_t selectedFieldsSize, UA_QualifiedName *qName) {
     UA_SimpleAttributeOperand *selectClauses = (UA_SimpleAttributeOperand*)
-        UA_Array_new(nSelectClauses, &UA_TYPES[UA_TYPES_SIMPLEATTRIBUTEOPERAND]);
+        UA_Array_new(selectedFieldsSize, &UA_TYPES[UA_TYPES_SIMPLEATTRIBUTEOPERAND]);
     if(!selectClauses)
         return NULL;
-    for(size_t i =0; i<nSelectClauses; ++i) {
+    for(size_t i =0; i<selectedFieldsSize; ++i) {
         UA_SimpleAttributeOperand_init(&selectClauses[i]);
     }
-    //configure Message field
-    selectClauses[0].typeDefinitionId = UA_NODEID_NUMERIC(0, UA_NS0ID_BASEEVENTTYPE);
-    selectClauses[0].browsePathSize = 1;
-    selectClauses[0].browsePath = (UA_QualifiedName*)
-        UA_Array_new(selectClauses[0].browsePathSize, &UA_TYPES[UA_TYPES_QUALIFIEDNAME]);
-    if(!selectClauses[0].browsePath) {
-        UA_SimpleAttributeOperand_delete(selectClauses);
-        return NULL;
-    }
-    selectClauses[0].attributeId = UA_ATTRIBUTEID_VALUE;
-    selectClauses[0].browsePath[0] = UA_QUALIFIEDNAME_ALLOC(0, "Message");
-    //configure Severity field
-    selectClauses[1].typeDefinitionId = UA_NODEID_NUMERIC(0, UA_NS0ID_BASEEVENTTYPE);
-    selectClauses[1].browsePathSize = 1;
-    selectClauses[1].browsePath = (UA_QualifiedName*)
-        UA_Array_new(selectClauses[1].browsePathSize, &UA_TYPES[UA_TYPES_QUALIFIEDNAME]);
-    if(!selectClauses[1].browsePath) {
-        UA_SimpleAttributeOperand_delete(selectClauses);
-        return NULL;
-    }
-    selectClauses[1].attributeId = UA_ATTRIBUTEID_VALUE;
-    selectClauses[1].browsePath[0] = UA_QUALIFIEDNAME_ALLOC(0, "Severity");
 
+    for (size_t i = 0; i < selectedFieldsSize; ++i) {
+        selectClauses[i].typeDefinitionId = UA_NODEID_NUMERIC(0, UA_NS0ID_BASEEVENTTYPE);
+        selectClauses[i].browsePathSize = 1;
+        selectClauses[i].browsePath = (UA_QualifiedName*)
+                UA_Array_new(selectClauses[i].browsePathSize, &UA_TYPES[UA_TYPES_QUALIFIEDNAME]);
+        if(!selectClauses[i].browsePath) {
+            UA_SimpleAttributeOperand_delete(selectClauses);
+            return NULL;
+        }
+        selectClauses[i].attributeId = UA_ATTRIBUTEID_VALUE;
+        char fieldName[64];
+        memcpy(fieldName, qName[i].name.data, qName[i].name.length);
+        fieldName[qName[i].name.length] = '\0';
+        selectClauses[i].browsePath[0] = UA_QUALIFIEDNAME_ALLOC(0, fieldName);
+    }
     return selectClauses;
 }
 
@@ -123,15 +110,22 @@ setupOfTypeFilter(UA_ContentFilterElement *element, UA_UInt16 nsIndex, UA_UInt32
 }
 
 static void
-setupLiteralOperand(UA_ContentFilterElement *element, size_t count, UA_Variant *literals){
-    for(size_t i = 0; i < count; ++i) {
-        element->filterOperands[i].content.decoded.type = &UA_TYPES[UA_TYPES_LITERALOPERAND];
-        element->filterOperands[i].encoding = UA_EXTENSIONOBJECT_DECODED;
-        UA_LiteralOperand *literalOperand = UA_LiteralOperand_new();
-        UA_LiteralOperand_init(literalOperand);
-        literalOperand->value = literals[i];
-        element->filterOperands[i].content.decoded.data = literalOperand;
-    }
+setupLiteralOperand(UA_ContentFilterElement *element, size_t operandIndex, UA_Variant literal){
+    element->filterOperands[operandIndex].content.decoded.type = &UA_TYPES[UA_TYPES_LITERALOPERAND];
+    element->filterOperands[operandIndex].encoding = UA_EXTENSIONOBJECT_DECODED;
+    UA_LiteralOperand *literalOperand = UA_LiteralOperand_new();
+    UA_LiteralOperand_init(literalOperand);
+    literalOperand->value = literal;
+    element->filterOperands[operandIndex].content.decoded.data = literalOperand;
+}
+
+static void
+setupSimpleAttributeOperand(UA_ContentFilterElement *element, size_t operandIndex, UA_SimpleAttributeOperand attributeOperand){
+    element->filterOperands[operandIndex].content.decoded.type = &UA_TYPES[UA_TYPES_SIMPLEATTRIBUTEOPERAND];
+    element->filterOperands[operandIndex].encoding = UA_EXTENSIONOBJECT_DECODED;
+    UA_SimpleAttributeOperand *simpleAttributeOperand = UA_SimpleAttributeOperand_new();
+    *simpleAttributeOperand = attributeOperand;
+    element->filterOperands[operandIndex].content.decoded.data = simpleAttributeOperand;
 }
 
 /**
@@ -152,6 +146,8 @@ setupLiteralOperand(UA_ContentFilterElement *element, size_t count, UA_Variant *
  *        (EventTypeId == NodeID("CancelScanEvent")         ||
  *        (EventTypeId == NodeID("CancelScanFinishedEvent") ||
  *        (EventTypeId == NodeID("ShutdownEvent"))
+ * filterSelection 3:
+ *      ((OfType 5003 ) (and) ((Equal 99 == 99) (and) (Equal Event-Field "servity" > 99))
  *
  */
 static UA_StatusCode
@@ -253,7 +249,7 @@ setupWhereClauses(UA_ContentFilter *contentFilter, UA_UInt16 whereClauseSize, UA
         contentFilter->elements[1].filterOperator = UA_FILTEROPERATOR_OFTYPE;
         contentFilter->elements[2].filterOperator = UA_FILTEROPERATOR_AND;
         contentFilter->elements[3].filterOperator = UA_FILTEROPERATOR_EQUALS;
-        contentFilter->elements[4].filterOperator = UA_FILTEROPERATOR_EQUALS;
+        contentFilter->elements[4].filterOperator = UA_FILTEROPERATOR_GREATERTHAN;
 
         contentFilter->elements[0].filterOperandsSize = 2;
         contentFilter->elements[1].filterOperandsSize = 1;
@@ -273,13 +269,61 @@ setupWhereClauses(UA_ContentFilter *contentFilter, UA_UInt16 whereClauseSize, UA
         setupTwoOperandsFilter(&contentFilter->elements[2], 3, 4);
         setupOfTypeFilter(&contentFilter->elements[1], 1, 5000);
 
-        UA_UInt32 literal_value;
-        UA_Variant literalContent[2];
-        memset(literalContent, 0, sizeof(UA_Variant) * 2);
-        UA_Variant_setScalar(&literalContent[0], &literal_value, &UA_TYPES[UA_TYPES_UINT32]);
-        UA_Variant_setScalar(&literalContent[1], &literal_value, &UA_TYPES[UA_TYPES_UINT32]);
-        setupLiteralOperand(&contentFilter->elements[3], 2, literalContent);
-        setupLiteralOperand(&contentFilter->elements[4], 2, literalContent);
+        UA_Variant literalContent;
+        UA_Variant_init(&literalContent);
+        UA_UInt32 literal_value = 99;
+        UA_Variant_setScalarCopy(&literalContent, &literal_value, &UA_TYPES[UA_TYPES_UINT32]);
+
+        setupLiteralOperand(&contentFilter->elements[3], 0, literalContent);
+        setupLiteralOperand(&contentFilter->elements[3], 1, literalContent);
+
+        UA_SimpleAttributeOperand sao;
+        UA_SimpleAttributeOperand_init(&sao);
+        sao.attributeId = UA_ATTRIBUTEID_VALUE;
+        sao.typeDefinitionId = UA_NODEID_NUMERIC(0, 5000);
+        sao.browsePathSize = 1;
+        UA_QualifiedName *qn = UA_QualifiedName_new();
+        *qn = UA_QUALIFIEDNAME_ALLOC(0, "Severity");
+        sao.browsePath = qn;
+        setupSimpleAttributeOperand(&contentFilter->elements[4], 0, sao);
+        setupLiteralOperand(&contentFilter->elements[4], 1, literalContent);
+        break;
+    }
+    case 4: {
+        contentFilter->elements[0].filterOperator = UA_FILTEROPERATOR_AND;
+        contentFilter->elements[1].filterOperator = UA_FILTEROPERATOR_OFTYPE;
+        contentFilter->elements[2].filterOperator = UA_FILTEROPERATOR_GREATERTHAN;
+
+        contentFilter->elements[0].filterOperandsSize = 2;
+        contentFilter->elements[1].filterOperandsSize = 1;
+        contentFilter->elements[2].filterOperandsSize = 2;
+
+        /* Setup Operand Arrays */
+        result = setupOperandArrays(contentFilter);
+        if(result != UA_STATUSCODE_GOOD) {
+            UA_ContentFilter_clear(contentFilter);
+            return UA_STATUSCODE_BADCONFIGURATIONERROR;
+        }
+
+        // init clauses
+        setupTwoOperandsFilter(&contentFilter->elements[0], 1, 2);
+        setupOfTypeFilter(&contentFilter->elements[1], 1, 5000);
+
+        UA_Variant literalContent;
+        UA_Variant_init(&literalContent);
+        UA_UInt32 literal_value = 99;
+        UA_Variant_setScalarCopy(&literalContent, &literal_value, &UA_TYPES[UA_TYPES_UINT32]);
+
+        UA_SimpleAttributeOperand sao;
+        UA_SimpleAttributeOperand_init(&sao);
+        sao.attributeId = UA_ATTRIBUTEID_VALUE;
+        sao.typeDefinitionId = UA_NODEID_NUMERIC(0, UA_NS0ID_BASEEVENTTYPE);
+        sao.browsePathSize = 1;
+        UA_QualifiedName *qn = UA_QualifiedName_new();
+        *qn = UA_QUALIFIEDNAME_ALLOC(0, "Severity");
+        sao.browsePath = qn;
+        setupSimpleAttributeOperand(&contentFilter->elements[2], 0, sao);
+        setupLiteralOperand(&contentFilter->elements[2], 1, literalContent);
         break;
     }
     default:
@@ -302,6 +346,12 @@ handler_events_filter(UA_Client *client, UA_UInt32 subId, void *subContext,
             UA_LocalizedText *lt = (UA_LocalizedText *)eventFields[i].data;
             UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
                         "Message: '%.*s'", (int)lt->text.length, lt->text.data);
+        } else if (UA_Variant_hasScalarType(&eventFields[i], &UA_TYPES[UA_TYPES_NODEID])) {
+            UA_String nodeIdName = UA_STRING_ALLOC("");
+            UA_NodeId_print((UA_NodeId *)eventFields[i].data, &nodeIdName);
+            UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
+                        "TypeNodeId: '%.*s'", (int)nodeIdName.length, nodeIdName.data);
+            UA_String_clear(&nodeIdName);
         } else {
 #ifdef UA_ENABLE_TYPEDESCRIPTION
             UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
@@ -325,7 +375,7 @@ int main(int argc, char *argv[]) {
     signal(SIGTERM, stopHandler);
 
     if(argc < 2) {
-        printf("Usage: tutorial_client_events <opc.tcp://server-url>\n");
+        printf("Usage: tutorial_client_event_filter <opc.tcp://server-url>\n");
         return EXIT_FAILURE;
     }
 
@@ -359,9 +409,16 @@ int main(int argc, char *argv[]) {
 
     UA_EventFilter filter;
     UA_EventFilter_init(&filter);
-    filter.selectClauses = setupSelectClauses();
-    filter.selectClausesSize = nSelectClauses;
-    retval = setupWhereClauses(&filter.whereClause, 5, 3);
+    UA_QualifiedName qm[SELECT_CLAUSE_FIELD_COUNT];
+    qm[0].namespaceIndex = 0;
+    qm[0].name = UA_STRING("Message");
+    qm[1].namespaceIndex = 0;
+    qm[1].name = UA_STRING("Severity");
+    qm[2].namespaceIndex = 0;
+    qm[2].name = UA_STRING("EventType");
+    filter.selectClauses = setupSelectClauses(SELECT_CLAUSE_FIELD_COUNT, qm);
+    filter.selectClausesSize = SELECT_CLAUSE_FIELD_COUNT;
+    retval = setupWhereClauses(&filter.whereClause, 3, 4);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_Client_delete(client);
         return EXIT_FAILURE;
@@ -395,7 +452,7 @@ int main(int argc, char *argv[]) {
 cleanup:
     UA_MonitoredItemCreateResult_clear(&result);
     UA_Client_Subscriptions_deleteSingle(client, response.subscriptionId);
-    UA_Array_delete(filter.selectClauses, nSelectClauses, &UA_TYPES[UA_TYPES_SIMPLEATTRIBUTEOPERAND]);
+    UA_Array_delete(filter.selectClauses, SELECT_CLAUSE_FIELD_COUNT, &UA_TYPES[UA_TYPES_SIMPLEATTRIBUTEOPERAND]);
     UA_Array_delete(filter.whereClause.elements, filter.whereClause.elementsSize, &UA_TYPES[UA_TYPES_CONTENTFILTERELEMENT]);
 
     UA_Client_disconnect(client);

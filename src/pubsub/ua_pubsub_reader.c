@@ -1002,6 +1002,24 @@ UA_DataSetReader_process(UA_Server *server, UA_ReaderGroup *rg,
     if(!dsr || !rg || !msg || !server)
         return;
 
+    /* Check the metadata, to see if this reader is configured for a heartbeat */
+    if(dsr->config.dataSetMetaData.fieldsSize == 0 &&
+       dsr->config.dataSetMetaData.configurationVersion.majorVersion == 0 &&
+       dsr->config.dataSetMetaData.configurationVersion.minorVersion == 0) {
+        /* Expecting a heartbeat, check the message */
+        if(msg->header.dataSetMessageType != UA_DATASETMESSAGE_DATAKEYFRAME ||
+            msg->header.configVersionMajorVersion != 0 ||
+            msg->header.configVersionMinorVersion != 0 ||
+            msg->data.keyFrameData.fieldCount != 0) {
+                UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                            "This DSR expects heartbeat, but the received message doesn't seem to be so.");
+        }
+#ifdef UA_ENABLE_PUBSUB_MONITORING
+        UA_DataSetReader_checkMessageReceiveTimeout(server, dsr);
+#endif
+        return;
+    }
+
     UA_LOG_DEBUG(&server->config.logger, UA_LOGCATEGORY_SERVER,
                  "DataSetReader '%.*s': received a network message",
                  (int) dsr->config.name.length, dsr->config.name.data);

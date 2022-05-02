@@ -12,12 +12,10 @@
 
 #include "thread_wrapper.h"
 
+UA_Client *client;
 UA_Server *server;
 UA_Boolean running;
-UA_ServerNetworkLayer nl;
 THREAD_HANDLE server_thread;
-
-UA_Client *client;
 
 #define CUSTOM_NS "http://open62541.org/ns/test"
 #define CUSTOM_NS_UPPER "http://open62541.org/ns/Test"

@@ -2,7 +2,7 @@ from datatypes import  Boolean, Byte, SByte, \
                         Int16, UInt16, Int32, UInt32, Int64, UInt64, Float, Double, \
                         String, XmlElement, ByteString, Structure, ExtensionObject, LocalizedText, \
                         NodeId, ExpandedNodeId, DateTime, QualifiedName, StatusCode, \
-                        DiagnosticInfo, Guid, BuiltinType
+                        DiagnosticInfo, Guid, BuiltinType, EnumerationType
 import datetime
 import re
 
@@ -85,6 +85,12 @@ def generateQualifiedNameCode(value, alloc=False,):
     return u"UA_QUALIFIEDNAME{}(ns[{}], {})".format("_ALLOC" if alloc else "",
                                                      str(value.ns), splitStringLiterals(vn))
 
+def generateGuidCode(value):
+    if not value or len(value) != 5:
+        return "UA_GUID_NULL"
+    else:
+        return "UA_GUID(\"{}\")".format('-'.join(value))
+
 def generateNodeIdCode(value):
     if not value:
         return "UA_NODEID_NUMERIC(0, 0)"
@@ -121,7 +127,7 @@ def generateNodeValueCode(prepend , node, instanceName, valueName, global_var_co
                 node.value = 0.0
             else: 
                 node.value = 0
-        if encRule is None:
+        if encRule is None or isinstance(encRule.member_type, EnumerationType):
             return prepend + " = (UA_" + node.__class__.__name__ + ") " + str(node.value) + ";"
         else:
             return prepend + " = (UA_" + encRule.member_type.name + ") " + str(node.value) + ";"
@@ -130,6 +136,10 @@ def generateNodeValueCode(prepend , node, instanceName, valueName, global_var_co
     elif isinstance(node, XmlElement):
         return prepend + " = " + generateXmlElementCode(node.value, alloc=asIndirect) + ";"
     elif isinstance(node, ByteString):
+        # Basically the prepend must be passed to the generateByteStrongCode function so that the nested structures are
+        # generated correctly. In case of a pointer the valueName is used. This is for example the case with NS0
+        # (ns=0;i=8252)
+        valueName = valueName if prepend[0] == '*' else prepend
         # replace whitespaces between tags and remove newlines
         return prepend + " = UA_BYTESTRING_NULL;" if not node.value else generateByteStringCode(
             node.value, valueName, global_var_code, isPointer=asIndirect)
@@ -150,7 +160,7 @@ def generateNodeValueCode(prepend , node, instanceName, valueName, global_var_co
     elif isinstance(node, DiagnosticInfo):
         raise Exception("generateNodeValueCode for type " + node.__class__.name + " not implemented")
     elif isinstance(node, Guid):
-        raise Exception("generateNodeValueCode for type " + node.__class__.name + " not implemented")
+        return prepend + " = " + generateGuidCode(node.value) + ";"
     elif isinstance(node, ExtensionObject):
         if asIndirect == False:
             return prepend + " = *" + str(instanceName) + ";"
@@ -159,6 +169,8 @@ def generateNodeValueCode(prepend , node, instanceName, valueName, global_var_co
         code = []
         if idxList is None:
             raise Exception("No index was passed and the code generation cannot generate the array element")
+        if len(node) == 0:
+            return "\n".join(code)
         # Code generation for structure arrays with fields of type Buildin.
         # Example:
         #   Structure []
@@ -170,6 +182,10 @@ def generateNodeValueCode(prepend , node, instanceName, valueName, global_var_co
             typeOfArray = encRule.member_type.name
             arrayName = encRule.name
             code.append("UA_STACKARRAY(UA_" + typeOfArray + ", " + arrayName+", {0});".format(len(node)))
+            # memset is used here instead of UA_Init. Finding the dataType nodeID (to get the type array)
+            # would require searching whole nodeset to match the type name
+            code.append("memset({arrayName}, 0, sizeof(UA_{typeOfArray}) * {arrayLength});".format(arrayName=arrayName, typeOfArray=typeOfArray, 
+                                                                                                   arrayLength=len(node)))
             for idx,subv in enumerate(node):
                 code.append(generateNodeValueCode(arrayName + "[" + str(idx) + "]", subv, instanceName, valueName, global_var_code, asIndirect, encRule=encRule, idxList=idx))
             code.append(prepend + "Size = {0};".format(len(node)))
@@ -197,6 +213,10 @@ def generateNodeValueCode(prepend , node, instanceName, valueName, global_var_co
             typeOfArray = encRule.member_type.name
             arrayName = encRule.name
             code.append("UA_STACKARRAY(UA_" + typeOfArray + ", " + arrayName+", {0});".format(len(node.value)))
+            # memset is used here instead of UA_Init. Finding the dataType nodeID (to get the type array)
+            # would require searching whole nodeset to match the type name
+            code.append("memset({arrayName}, 0, sizeof(UA_{typeOfArray}) * {arrayLength});".format(arrayName=arrayName, typeOfArray=typeOfArray, 
+                                                                                                   arrayLength=len(node.value)))
             # Values is a list of lists
             # The current index must be passed so that the code path for evaluating lists has the current index value and can generate the code correctly.
             for idx,subv in enumerate(node.value):
