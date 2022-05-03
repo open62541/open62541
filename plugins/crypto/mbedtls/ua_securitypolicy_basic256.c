@@ -96,22 +96,36 @@ static size_t
 asym_getLocalSignatureSize_sp_basic256(const Basic256_ChannelContext *cc) {
     if(cc == NULL)
         return 0;
+#if MBEDTLS_VERSION_NUMBER >= 0x02060000 && MBEDTLS_VERSION_NUMBER < 0x03000000
+    return mbedtls_pk_rsa(cc->policyContext->localPrivateKey)->len;
+#else
     return mbedtls_rsa_get_len(mbedtls_pk_rsa(cc->policyContext->localPrivateKey));
+
+#endif
 }
 
 static size_t
 asym_getRemoteSignatureSize_sp_basic256(const Basic256_ChannelContext *cc) {
     if(cc == NULL)
         return 0;
+#if MBEDTLS_VERSION_NUMBER >= 0x02060000 && MBEDTLS_VERSION_NUMBER < 0x03000000
+    return mbedtls_pk_rsa(cc->remoteCertificate.pk)->len;
+#else
     return mbedtls_rsa_get_len(mbedtls_pk_rsa(cc->remoteCertificate.pk));
+#endif
 }
 
 static size_t
 asym_getRemotePlainTextBlockSize_sp_basic256(const Basic256_ChannelContext *cc) {
+#if MBEDTLS_VERSION_NUMBER >= 0x02060000 && MBEDTLS_VERSION_NUMBER < 0x03000000
+    mbedtls_rsa_context *const rsaContext = mbedtls_pk_rsa(cc->remoteCertificate.pk);
+    return rsaContext->len - UA_SECURITYPOLICY_BASIC256SHA1_RSAPADDING_LEN;
+#else
     if(cc == NULL)
         return 0;
     return mbedtls_rsa_get_len(mbedtls_pk_rsa(cc->remoteCertificate.pk)) -
         UA_SECURITYPOLICY_BASIC256SHA1_RSAPADDING_LEN;
+#endif
 }
 
 /* AsymmetricEncryptionAlgorithm_RSA-OAEP-SHA1 */
@@ -152,9 +166,14 @@ asym_getRemoteEncryptionKeyLength_sp_basic256(const Basic256_ChannelContext *cc)
 
 static size_t
 asym_getRemoteBlockSize_sp_basic256(const Basic256_ChannelContext *cc) {
+#if MBEDTLS_VERSION_NUMBER >= 0x02060000 && MBEDTLS_VERSION_NUMBER < 0x03000000
+    mbedtls_rsa_context *const rsaContext = mbedtls_pk_rsa(cc->remoteCertificate.pk);
+    return rsaContext->len;
+#else
     if(cc == NULL)
         return 0;
     return mbedtls_rsa_get_len(mbedtls_pk_rsa(cc->remoteCertificate.pk));
+#endif
 }
 
 static UA_StatusCode
@@ -344,9 +363,15 @@ parseRemoteCertificate_sp_basic256(Basic256_ChannelContext *cc,
         return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
 
     /* Check the key length */
+#if MBEDTLS_VERSION_NUMBER >= 0x02060000 && MBEDTLS_VERSION_NUMBER < 0x03000000
+    mbedtls_rsa_context *rsaContext = mbedtls_pk_rsa(cc->remoteCertificate.pk);
+    if(rsaContext->len < UA_SECURITYPOLICY_BASIC256_MINASYMKEYLENGTH ||
+       rsaContext->len > UA_SECURITYPOLICY_BASIC256_MAXASYMKEYLENGTH)
+#else
     size_t keylen = mbedtls_rsa_get_len(mbedtls_pk_rsa(cc->remoteCertificate.pk));
     if(keylen < UA_SECURITYPOLICY_BASIC256_MINASYMKEYLENGTH ||
        keylen > UA_SECURITYPOLICY_BASIC256_MAXASYMKEYLENGTH)
+#endif
         return UA_STATUSCODE_BADCERTIFICATEUSENOTALLOWED;
 
     return UA_STATUSCODE_GOOD;
