@@ -460,6 +460,39 @@ setupLiteralOperand(UA_ContentFilterElement *element, size_t count, UA_Variant *
     }
 }
 
+START_TEST(selectFilterValidation) {
+    /* setup event filter */
+    UA_EventFilter filter;
+    UA_EventFilter_init(&filter);
+    filter.whereClause.elementsSize = 0;
+    filter.whereClause.elements = NULL;
+    filter.selectClauses = UA_SimpleAttributeOperand_new();
+    filter.selectClausesSize = 1;
+    UA_SimpleAttributeOperand_init(filter.selectClauses);
+    filter.selectClauses->typeDefinitionId = UA_NODEID_NUMERIC(0, UA_NS0ID_BASEEVENTTYPE);
+    filter.selectClauses->browsePathSize = 1;
+    filter.selectClauses->browsePath = (UA_QualifiedName*)
+            UA_Array_new(filter.selectClauses->browsePathSize, &UA_TYPES[UA_TYPES_QUALIFIEDNAME]);
+    filter.selectClauses->attributeId = UA_ATTRIBUTEID_VALUE;
+
+    filter.selectClauses->browsePath[0] = UA_QUALIFIEDNAME_ALLOC(0, "FOOBAR");
+    UA_MonitoredItemCreateResult createResult;
+    createResult = addMonitoredItem(handler_events_simple, &filter, true);
+    ck_assert_uint_eq(createResult.statusCode, UA_STATUSCODE_BADNODEIDUNKNOWN);
+    UA_QualifiedName_clear(&filter.selectClauses->browsePath[0]);
+
+    filter.selectClauses->browsePath[0] = UA_QUALIFIEDNAME_ALLOC(0, "");
+    createResult = addMonitoredItem(handler_events_simple, &filter, true);
+    ck_assert_uint_eq(createResult.statusCode, UA_STATUSCODE_BADNODEIDUNKNOWN);
+
+    UA_QualifiedName_delete(&filter.selectClauses->browsePath[0]);
+    filter.selectClauses->browsePath = NULL;
+    filter.selectClauses->browsePathSize = 0;
+    createResult = addMonitoredItem(handler_events_simple, &filter, true);
+    ck_assert_uint_eq(createResult.statusCode, UA_STATUSCODE_BADBROWSENAMEINVALID);
+    UA_EventFilter_clear(&filter);
+} END_TEST
+
 /* Test Case "not-Operator" Description:
  Phase 1:
   Action -> Fire default "EventType_A_Layer_1" Event
@@ -775,6 +808,7 @@ static Suite *testSuite_Client(void) {
     Suite *s = suite_create("Server Subscription Event Filters");
     TCase *tc_server = tcase_create("Basic Event Filters");
     tcase_add_unchecked_fixture(tc_server, setup, teardown);
+    tcase_add_test(tc_server, selectFilterValidation);
     tcase_add_test(tc_server, notOperatorValidation);
     tcase_add_test(tc_server, ofTypeOperatorValidation);
     tcase_add_test(tc_server, orTypeOperatorValidation);

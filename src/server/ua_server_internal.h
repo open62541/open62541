@@ -80,17 +80,43 @@ typedef struct session_list_entry {
 
 typedef enum {
     UA_SERVERLIFECYCLE_FRESH,
-    UA_SERVERLIFECYLE_RUNNING
+    UA_SERVERLIFECYCLE_STOPPED,
+    UA_SERVERLIFECYCLE_STARTED,
+    UA_SERVERLIFECYCLE_STOPPING
 } UA_ServerLifecycle;
+
+typedef enum {
+    UA_SERVERCONNECTIONSTATE_FRESH,
+    UA_SERVERCONNECTIONSTATE_STOPPED,
+    UA_SERVERCONNECTIONSTATE_STARTING,
+    UA_SERVERCONNECTIONSTATE_STARTED,
+    UA_SERVERCONNECTIONSTATE_STOPPING
+} UA_ServerConnectionState;
+
+/* Maximum numbers of sockets to listen on */
+#define UA_MAXSERVERCONNECTIONS 16
+
+typedef struct {
+    UA_ServerConnectionState state;
+    uintptr_t connectionId;
+    UA_ConnectionManager *connectionManager;
+} UA_ServerConnection;
 
 struct UA_Server {
     /* Config */
     UA_ServerConfig config;
+
+    /* Runtime state */
     UA_DateTime startTime;
     UA_DateTime endTime; /* Zeroed out. If a time is set, then the server shuts
                           * down once the time has been reached */
 
     UA_ServerLifecycle state;
+    UA_ServerConnection serverConnections[UA_MAXSERVERCONNECTIONS];
+    size_t serverConnectionsSize;
+
+    UA_ConnectionConfig tcpConnectionConfig; /* Extracted from the server config
+                                              * parameters */
 
     /* SecureChannels */
     TAILQ_HEAD(, channel_entry) channels;
@@ -104,6 +130,7 @@ struct UA_Server {
     /* Session Management */
     LIST_HEAD(session_list, session_list_entry) sessions;
     UA_UInt32 sessionCount;
+    UA_UInt32 activeSessionCount;
     UA_Session adminSession; /* Local access to the services (for startup and
                               * maintenance) uses this Session with all possible
                               * access rights (Session Id: 1) */
@@ -162,10 +189,6 @@ struct UA_Server {
 
 extern const struct aa_head refNameTree;
 
-const UA_ReferenceTarget *
-UA_NodeReferenceKind_findTarget(const UA_NodeReferenceKind *rk,
-                                const UA_ExpandedNodeId *targetId);
-
 /**************************/
 /* SecureChannel Handling */
 /**************************/
@@ -187,8 +210,8 @@ UA_Server_configSecureChannel(void *application, UA_SecureChannel *channel,
                               const UA_AsymmetricAlgorithmSecurityHeader *asymHeader);
 
 UA_StatusCode
-sendServiceFault(UA_SecureChannel *channel, UA_UInt32 requestId, UA_UInt32 requestHandle,
-                 const UA_DataType *responseType, UA_StatusCode statusCode);
+sendServiceFault(UA_SecureChannel *channel, UA_UInt32 requestId,
+                 UA_UInt32 requestHandle, UA_StatusCode statusCode);
 
 void
 UA_Server_closeSecureChannel(UA_Server *server, UA_SecureChannel *channel,

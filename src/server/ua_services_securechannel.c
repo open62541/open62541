@@ -68,7 +68,7 @@ removeSecureChannel(UA_Server *server, channel_entry *entry,
      * scheduled jobs have completed */
     entry->cleanupCallback.callback = (UA_Callback)removeSecureChannelCallback;
     entry->cleanupCallback.application = NULL;
-    entry->cleanupCallback.data = entry;
+    entry->cleanupCallback.context = entry;
     server->config.eventLoop->
         addDelayedCallback(server->config.eventLoop, &entry->cleanupCallback);
 }
@@ -154,11 +154,13 @@ UA_Server_createSecureChannel(UA_Server *server, UA_Connection *connection) {
     if(connection->channel != NULL)
         return UA_STATUSCODE_BADINTERNALERROR;
 
+    UA_ServerConfig *config = &server->config;
+
     /* Check if there exists a free SC, otherwise try to purge one SC without a
      * session the purge has been introduced to pass CTT, it is not clear what
      * strategy is expected here */
     if((server->secureChannelStatistics.currentChannelCount >=
-        server->config.maxSecureChannels) &&
+        config->maxSecureChannels) &&
        !purgeFirstChannelWithoutSession(server))
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
@@ -166,11 +168,24 @@ UA_Server_createSecureChannel(UA_Server *server, UA_Connection *connection) {
     if(!entry)
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
+    /* Set up the initial connection config */
+    UA_ConnectionConfig connConfig;
+    connConfig.protocolVersion = 0;
+    connConfig.recvBufferSize = config->tcpBufSize;
+    connConfig.sendBufferSize = config->tcpBufSize;
+    connConfig.localMaxMessageSize = config->tcpMaxMsgSize;
+    connConfig.remoteMaxMessageSize = config->tcpMaxMsgSize;
+    connConfig.localMaxChunkCount = config->tcpMaxChunks;
+    connConfig.remoteMaxChunkCount = config->tcpMaxChunks;
+
+    if(connConfig.recvBufferSize == 0)
+        connConfig.recvBufferSize = 1 << 16; /* 64kB */
+    if(connConfig.sendBufferSize == 0)
+        connConfig.sendBufferSize = 1 << 16; /* 64kB */
+
     /* Channel state is closed (0) */
-    /* TODO: Use the connection config from the correct network layer */
-    UA_SecureChannel_init(&entry->channel,
-                          &server->config.networkLayers[0].localConnectionConfig);
-    entry->channel.certificateVerification = &server->config.certificateVerification;
+    UA_SecureChannel_init(&entry->channel, &connConfig);
+    entry->channel.certificateVerification = &config->certificateVerification;
     entry->channel.processOPNHeader = UA_Server_configSecureChannel;
 
     TAILQ_INSERT_TAIL(&server->channels, entry, pointers);

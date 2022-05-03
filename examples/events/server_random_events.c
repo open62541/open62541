@@ -198,7 +198,7 @@ generateRandomEventMethodCallback(UA_Server *server,
     UA_UInt32 random = (UA_UInt32) UA_UInt32_random() % SAMPLE_EVENT_TYPES_COUNT;
     /* set up event */
     UA_NodeId eventNodeId;
-    UA_StatusCode retval = setUpEvent(server, &eventNodeId, eventTypes[random], true,random);
+    UA_StatusCode retval = setUpEvent(server, &eventNodeId, eventTypes[random], true, random);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
                        "Creating event failed. StatusCode %s", UA_StatusCode_name(retval));
@@ -211,6 +211,37 @@ generateRandomEventMethodCallback(UA_Server *server,
         UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
                        "Triggering event failed. StatusCode %s", UA_StatusCode_name(retval));
     return retval;
+}
+
+static UA_StatusCode
+generateCustomizedEventMethodCallback(UA_Server *server,
+                                      const UA_NodeId *sessionId, void *sessionHandle,
+                                      const UA_NodeId *methodId, void *methodContext,
+                                      const UA_NodeId *objectId, void *objectContext,
+                                      size_t inputSize, const UA_Variant *input,
+                                      size_t outputSize, UA_Variant *output) {
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "Creating customized event");
+    UA_UInt16 *severity = (UA_UInt16*)input->data;
+    UA_UInt32 random = (UA_UInt32) UA_UInt32_random() % SAMPLE_EVENT_TYPES_COUNT;
+    UA_NodeId eventNodeId;
+    UA_StatusCode retval = setUpEvent(server, &eventNodeId, eventTypes[random], true, random);
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
+                       "Creating event failed. StatusCode %s", UA_StatusCode_name(retval));
+        return retval;
+    }
+    //Overwrite severity
+    UA_Server_writeObjectProperty_scalar(server, eventNodeId,
+                                         UA_QUALIFIEDNAME(0, "Severity"),
+                                         severity, &UA_TYPES[UA_TYPES_UINT16]);
+    retval = UA_Server_triggerEvent(server, eventNodeId,
+                                    UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER),
+                                    NULL, UA_TRUE);
+    if(retval != UA_STATUSCODE_GOOD)
+        UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
+                       "Triggering event failed. StatusCode %s", UA_StatusCode_name(retval));
+
+    return UA_STATUSCODE_GOOD;
 }
 
 static void
@@ -243,6 +274,28 @@ addGenerateSingleRandomEventMethod(UA_Server *server) {
                             0, NULL, 0, NULL, NULL, NULL);
 }
 
+static void
+addGenerateSingleCustomizedEventMethod(UA_Server *server) {
+    UA_Argument inputArgument;
+    UA_Argument_init(&inputArgument);
+    inputArgument.description = UA_LOCALIZEDTEXT("en-US", "Severity");
+    inputArgument.name = UA_STRING("Severity");
+    inputArgument.dataType = UA_TYPES[UA_TYPES_UINT16].typeId;
+    inputArgument.valueRank = UA_VALUERANK_SCALAR;
+
+    UA_MethodAttributes generateAttr = UA_MethodAttributes_default;
+    generateAttr.description = UA_LOCALIZEDTEXT("en-US","Generate a customized event.");
+    generateAttr.displayName = UA_LOCALIZEDTEXT("en-US","Generate customized event");
+    generateAttr.executable = true;
+    generateAttr.userExecutable = true;
+    UA_Server_addMethodNode(server, UA_NODEID_NUMERIC(1, 65002),
+                            UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
+                            UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
+                            UA_QUALIFIEDNAME(1, "Generate customized Event"),
+                            generateAttr, &generateCustomizedEventMethodCallback,
+                            1, &inputArgument, 0, NULL, NULL, NULL);
+}
+
 static void stopHandler(int sig) {
     running = false;
 }
@@ -259,6 +312,7 @@ int main(int argc, char *argv[]) {
     addSampleEventTypes(server);
     addGenerateSampleEventsMethod(server);
     addGenerateSingleRandomEventMethod(server);
+    addGenerateSingleCustomizedEventMethod(server);
 
     UA_StatusCode retval = UA_Server_run(server, &running);
 
