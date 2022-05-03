@@ -89,13 +89,13 @@ jobs:
             cmd_deps: ""
             cmd_action: build_amalgamation_mt
           - build_name: "Valgrind Build & Unit Tests with MbedTLS (gcc)"
-            cmd_deps: sudo apt-get install -y -qq valgrind libmbedtls-dev
+            cmd_deps: sudo apt-get install -y -qq valgrind libmbedtls-dev mosquitto
             cmd_action: unit_tests_valgrind MBEDTLS
           - build_name: "Valgrind Build & Unit Tests with OpenSSL (gcc)"
-            cmd_deps: sudo apt-get install -y -qq valgrind openssl
+            cmd_deps: sudo apt-get install -y -qq valgrind openssl mosquitto
             cmd_action: unit_tests_valgrind OPENSSL
           - build_name: "Clang Static Analyzer"
-            cmd_deps: sudo apt-get install -y -qq clang-11 clang-tools-11 libmbedtls-dev
+            cmd_deps: sudo apt-get install -y -qq clang-11 clang-tools-11 libmbedtls-dev mosquitto
             cmd_action: build_clang_analyzer
     name: ${{matrix.build_name}}
     runs-on: ubuntu-20.04
