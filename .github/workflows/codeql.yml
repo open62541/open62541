@@ -35,7 +35,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y -qq python3-sphinx graphviz check
-          sudo apt-get install -y -qq tcc clang-11 clang-tools-11 valgrind
+          sudo apt-get install -y -qq tcc clang-11 clang-tools-11 valgrind mosquitto
           sudo apt-get install -y -qq libmbedtls-dev openssl
 
       - name: Initialize CodeQL
