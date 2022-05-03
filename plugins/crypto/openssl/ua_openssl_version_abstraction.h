@@ -22,7 +22,7 @@
 #endif
 
 #if OPENSSL_VERSION_NUMBER < 0x1010000fL || defined(LIBRESSL_VERSION_NUMBER)
-#define X509_STORE_CTX_get_check_issued(STORE_CTX) storeCtx->check_issued
+#define X509_STORE_CTX_get_check_issued(STORE_CTX) STORE_CTX->check_issued
 #endif
 
 #if OPENSSL_VERSION_NUMBER < 0x1010000fL || defined(LIBRESSL_VERSION_NUMBER)
