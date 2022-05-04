@@ -380,6 +380,12 @@ UA_EXPORT const UA_ReferenceTarget *
 UA_NodeReferenceKind_iterate(const UA_NodeReferenceKind *rk,
                              const UA_ReferenceTarget *prev);
 
+/* Returns the entry for the targetId or NULL if not found. This can be much
+ * faster than _iterate if the references are in the tree-structure. */
+UA_EXPORT const UA_ReferenceTarget *
+UA_NodeReferenceKind_findTarget(const UA_NodeReferenceKind *rk,
+                                const UA_ExpandedNodeId *targetId);
+
 /* Switch between array and tree representation. Does nothing upon error (e.g.
  * out-of-memory). */
 UA_EXPORT UA_StatusCode

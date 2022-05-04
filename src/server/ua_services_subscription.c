@@ -130,6 +130,10 @@ Service_CreateSubscription(UA_Server *server, UA_Session *session,
     response->revisedLifetimeCount = sub->lifeTimeCount;
     response->revisedMaxKeepAliveCount = sub->maxKeepAliveCount;
 
+#ifdef UA_ENABLE_DIAGNOSTICS
+    createSubscriptionObject(server, session, sub);
+#endif
+
     UA_LOG_INFO_SUBSCRIPTION(&server->config.logger, sub,
                              "Subscription created (Publishing interval %.2fms, "
                              "max %lu notifications per publish)",
@@ -233,7 +237,6 @@ Service_Publish(UA_Server *server, UA_Session *session,
     if(TAILQ_EMPTY(&session->subscriptions)) {
         sendServiceFault(session->header.channel, requestId,
                          request->requestHeader.requestHandle,
-                         &UA_TYPES[UA_TYPES_PUBLISHRESPONSE],
                          UA_STATUSCODE_BADNOSUBSCRIPTION);
         return UA_STATUSCODE_BADNOSUBSCRIPTION;
     }
@@ -246,7 +249,6 @@ Service_Publish(UA_Server *server, UA_Session *session,
         if(!UA_Session_reachedPublishReqLimit(server, session)) {
             sendServiceFault(session->header.channel, requestId,
                              request->requestHeader.requestHandle,
-                             &UA_TYPES[UA_TYPES_PUBLISHRESPONSE],
                              UA_STATUSCODE_BADINTERNALERROR);
             return UA_STATUSCODE_BADINTERNALERROR;
         }
@@ -258,7 +260,6 @@ Service_Publish(UA_Server *server, UA_Session *session,
     if(!entry) {
         sendServiceFault(session->header.channel, requestId,
                          request->requestHeader.requestHandle,
-                         &UA_TYPES[UA_TYPES_PUBLISHRESPONSE],
                          UA_STATUSCODE_BADOUTOFMEMORY);
         return UA_STATUSCODE_BADOUTOFMEMORY;
     }
@@ -278,7 +279,6 @@ Service_Publish(UA_Server *server, UA_Session *session,
             UA_free(entry);
             sendServiceFault(session->header.channel, requestId,
                              request->requestHeader.requestHandle,
-                             &UA_TYPES[UA_TYPES_PUBLISHRESPONSE],
                              UA_STATUSCODE_BADOUTOFMEMORY);
             return UA_STATUSCODE_BADOUTOFMEMORY;
         }

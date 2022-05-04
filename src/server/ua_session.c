@@ -37,6 +37,10 @@ void UA_Session_clear(UA_Session *session, UA_Server* server) {
     }
 #endif
 
+#ifdef UA_ENABLE_DIAGNOSTICS
+    deleteNode(server, session->sessionId, true);
+#endif
+
     UA_Session_detachFromSecureChannel(session);
     UA_ApplicationDescription_clear(&session->clientDescription);
     UA_NodeId_clear(&session->header.authenticationToken);

@@ -787,6 +787,10 @@ setInformationModel(UA_Server *server) {
 #ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
     /* Create the reusable event instance */
     UA_Server_createEvent(server, UA_NODEID_NUMERIC(0, UA_NS0ID_BASEEVENTTYPE), &eventId);
+    UA_UInt16 eventSeverity = 500;
+    UA_Server_writeObjectProperty_scalar(server, eventId,
+                                         UA_QUALIFIEDNAME(0, "Severity"),
+                                         &eventSeverity, &UA_TYPES[UA_TYPES_UINT16]);
 
     /* Trigger the event from two variables */
     UA_ValueCallback eventTriggerValueBackend;
@@ -1278,6 +1282,13 @@ int main(int argc, char **argv) {
     if(!enableAnon)
         disableAnonymous(&config);
 
+    /* Limit the number of SecureChannels and Sessions */
+    config.maxSecureChannels = 10;
+    config.maxSessions = 20;
+
+    /* Revolve the SecureChannel token every 300 seconds */
+    config.maxSecurityTokenLifetime = 300000;
+
     /* Set operation limits */
     config.maxNodesPerRead = MAX_OPERATION_LIMIT;
     config.maxNodesPerWrite = MAX_OPERATION_LIMIT;
@@ -1290,7 +1301,7 @@ int main(int argc, char **argv) {
 
     /* Set Subscription limits */
 #ifdef UA_ENABLE_SUBSCRIPTIONS
-    config.maxSubscriptions = 100;
+    config.maxSubscriptions = 20;
 #endif
 
     /* If RequestTimestamp is '0', log the warning and proceed */

@@ -50,6 +50,33 @@ UA_Subscription_delete(UA_Server *server, UA_Subscription *sub) {
     /* Unregister the publish callback */
     Subscription_unregisterPublishCallback(server, sub);
 
+    /* Remove the diagnostics object for the subscription */
+#ifdef UA_ENABLE_DIAGNOSTICS
+    if(sub->session) {
+        /* Use a browse path to find the node */
+        char subIdStr[32];
+        snprintf(subIdStr, 32, "%u", sub->subscriptionId);
+        UA_BrowsePath bp;
+        UA_BrowsePath_init(&bp);
+        bp.startingNode = sub->session->sessionId;
+        UA_RelativePathElement rpe[2];
+        memset(rpe, 0, sizeof(UA_RelativePathElement) * 2);
+        rpe[0].targetName = UA_QUALIFIEDNAME(0, "SubscriptionDiagnosticsArray");
+        rpe[1].targetName = UA_QUALIFIEDNAME(0, subIdStr);
+        bp.relativePath.elements = rpe;
+        bp.relativePath.elementsSize = 2;
+        UA_BrowsePathResult bpr = translateBrowsePathToNodeIds(server, &bp);
+
+        /* Delete all nodes matching the browse path */
+        for(size_t i = 0; i < bpr.targetsSize; i++) {
+            if(bpr.targets[i].remainingPathIndex < UA_UINT32_MAX)
+                continue;
+            deleteNode(server, bpr.targets[i].targetId.nodeId, true);
+        }
+        UA_BrowsePathResult_clear(&bpr);
+    }
+#endif
+
     UA_LOG_INFO_SUBSCRIPTION(&server->config.logger, sub, "Subscription deleted");
 
     /* Detach from the session if necessary */
@@ -89,7 +116,7 @@ UA_Subscription_delete(UA_Server *server, UA_Subscription *sub) {
      * the call stack. */
     sub->delayedFreePointers.callback = NULL;
     sub->delayedFreePointers.application = server;
-    sub->delayedFreePointers.data = NULL;
+    sub->delayedFreePointers.context = NULL;
     server->config.eventLoop->
         addDelayedCallback(server->config.eventLoop, &sub->delayedFreePointers);
 }

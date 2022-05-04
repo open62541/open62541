@@ -114,6 +114,12 @@ ns = NodeSet()
 nsCount = 0
 loadedFiles = list()
 
+# Remove duplicate entries in typesArray, which occur when a nodeset has more than one depend.
+tmp_list = []
+for e in args.typesArray:
+    if e not in tmp_list:
+        tmp_list.append(e)
+args.typesArray = tmp_list
 def getTypesArray(nsIdx):
     if nsIdx < len(args.typesArray):
         return args.typesArray[nsIdx]
@@ -123,7 +129,6 @@ def getTypesArray(nsIdx):
 for xmlfile in args.existing:
     if xmlfile.name in loadedFiles:
         logger.info("Skipping Nodeset since it is already loaded: {} ".format(xmlfile.name))
-        nsCount +=1
         continue
     loadedFiles.append(xmlfile.name)
     logger.info("Preprocessing (existing) " + str(xmlfile.name))
@@ -132,7 +137,6 @@ for xmlfile in args.existing:
 for xmlfile in args.infiles:
     if xmlfile.name in loadedFiles:
         logger.info("Skipping Nodeset since it is already loaded: {} ".format(xmlfile.name))
-        nsCount +=1
         continue
     loadedFiles.append(xmlfile.name)
     logger.info("Preprocessing " + str(xmlfile.name))

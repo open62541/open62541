@@ -125,6 +125,7 @@ set(ua_architecture_sources ${ua_architecture_sources}
     ${PROJECT_SOURCE_DIR}/arch/eventloop_posix_select.c
     ${PROJECT_SOURCE_DIR}/arch/eventloop_posix_epoll.c
     ${PROJECT_SOURCE_DIR}/arch/eventloop_posix_tcp.c
+    ${PROJECT_SOURCE_DIR}/arch/eventloop_posix_udp.c
     ${PROJECT_SOURCE_DIR}/arch/eventloop_posix_interrupt.c
 )
 
@@ -165,6 +166,7 @@ option(UA_ENABLE_SUBSCRIPTIONS_EVENTS "Enable event monitoring" ON)
 option(UA_ENABLE_DA "Enable OPC UA DataAccess (Part 8) definitions" ON)
 option(UA_ENABLE_HISTORIZING "Enable basic support for historical access (client and server)" OFF)
 option(UA_ENABLE_DISCOVERY "Enable Discovery Service (LDS)" OFF)
+option(UA_ENABLE_JSON_ENCODING "Enable JSON encoding" OFF)
 
 option(UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS "Enable the use of A&C. (EXPERIMENTAL)" OFF)
 mark_as_advanced(UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS)
@@ -256,8 +258,8 @@ if(UA_ENABLE_TPM2_KEYSTORE)
 endif()
 
 # Namespace Zero
-set(UA_NAMESPACE_ZERO "REDUCED" CACHE STRING "Completeness of the generated namespace zero (minimal/reduced/full)")
-SET_PROPERTY(CACHE UA_NAMESPACE_ZERO PROPERTY STRINGS "MINIMAL" "REDUCED" "FULL")
+set(UA_NAMESPACE_ZERO "REDUCED" CACHE STRING "Completeness of the generated namespace zero (minimal/reduced/full/latest_1_05)")
+SET_PROPERTY(CACHE UA_NAMESPACE_ZERO PROPERTY STRINGS "MINIMAL" "REDUCED" "FULL" "LATEST_1_05")
 if(UA_NAMESPACE_ZERO STREQUAL "MINIMAL")
     set(UA_GENERATED_NAMESPACE_ZERO OFF)
 else()
@@ -268,6 +270,12 @@ if(UA_NAMESPACE_ZERO STREQUAL "FULL")
     set(UA_GENERATED_NAMESPACE_ZERO_FULL ON)
 else()
     set(UA_GENERATED_NAMESPACE_ZERO_FULL OFF)
+endif()
+
+if(UA_NAMESPACE_ZERO STREQUAL "LATEST_1_05")
+    set(UA_GENERATED_NAMESPACE_ZERO_LATEST_1_05 ON)
+else()
+    set(UA_GENERATED_NAMESPACE_ZERO_LATEST_1_05 OFF)
 endif()
 
 if(MSVC AND UA_NAMESPACE_ZERO STREQUAL "FULL")
@@ -416,9 +424,6 @@ if(UA_ENABLE_PUBSUB_BUFMALLOC)
     endif()
 endif()
 
-option(UA_ENABLE_JSON_ENCODING "Enable Json encoding (EXPERIMENTAL)" OFF)
-mark_as_advanced(UA_ENABLE_JSON_ENCODING)
-
 option(UA_ENABLE_PUBSUB_MQTT "Enable publish/subscribe with mqtt (experimental)" OFF)
 mark_as_advanced(UA_ENABLE_PUBSUB_MQTT)
 if(UA_ENABLE_PUBSUB_MQTT)
@@ -431,6 +436,9 @@ if(UA_ENABLE_PUBSUB_MQTT)
     endif()
 endif()
 
+option(UA_ENABLE_MQTT_TLS_OPENSSL "Enable TLS support for publish/subscribe with mqtt (use OpenSSL)" OFF)
+mark_as_advanced(UA_ENABLE_MQTT_TLS_OPENSSL)
+
 option(UA_ENABLE_MQTT_TLS "Enable TLS support for publish/subscribe with mqtt" OFF)
 mark_as_advanced(UA_ENABLE_MQTT_TLS)
 if(UA_ENABLE_MQTT_TLS)
@@ -440,8 +448,6 @@ if(UA_ENABLE_MQTT_TLS)
         set(UA_ENABLE_MQTT_TLS_OPENSSL ON)
 endif()
 
-option(UA_ENABLE_MQTT_TLS_OPENSSL "Enable TLS support for publish/subscribe with mqtt (use OpenSSL)" OFF)
-mark_as_advanced(UA_ENABLE_MQTT_TLS_OPENSSL)
 if(UA_ENABLE_MQTT_TLS_OPENSSL)
     set(UA_ENABLE_MQTT_TLS ON)
 endif()
@@ -924,6 +930,7 @@ set(lib_sources ${PROJECT_SOURCE_DIR}/src/ua_types.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_nodes.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_server.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_server_ns0.c
+                ${PROJECT_SOURCE_DIR}/src/server/ua_server_ns0_diagnostics.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_server_config.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_server_binary.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_server_utils.c
@@ -1169,7 +1176,7 @@ endif()
 # List of nodeset files combined into NS0 generated file
 set(UA_FILE_NODESETS)
 
-if(UA_NAMESPACE_ZERO STREQUAL "FULL")
+if(UA_NAMESPACE_ZERO STREQUAL "FULL" OR UA_NAMESPACE_ZERO STREQUAL "LATEST_1_05")
     if(NOT UA_FILE_NS0)
         set(UA_FILE_NS0 ${open62541_NODESET_DIR}/Schema/Opc.Ua.NodeSet2.xml)
     endif()
@@ -1177,7 +1184,17 @@ if(UA_NAMESPACE_ZERO STREQUAL "FULL")
 
     if(NOT EXISTS "${UA_FILE_NS0}")
         message(FATAL_ERROR "File ${UA_FILE_NS0} not found. You probably need to initialize the git submodule for deps/ua-nodeset or set open62541_NODESET_DIR.")
+    else()
+        # If the "LATEST_1_05" flag is set, it must be checked whether the nodeset NS0 is on the latest version.
+        if(UA_NAMESPACE_ZERO STREQUAL "LATEST_1_05")
+            file(READ ${UA_FILE_NS0} ver LIMIT 5000)
+            string(REGEX MATCH ".*http:\\/\\/opcfoundation\\.org\\/UA\\/\" .* Version=\"1\\.05" match ${ver})
+            if(NOT match)
+                message(FATAL_ERROR "File ${UA_FILE_NS0} is set incorrectly. You probably need to checkout the git submodule for deps/ua-nodeset to version 1.05. Therefore execute the following command inside the deps/ua-nodeset directory \ngit checkout v1.05")
+            endif()
+        endif()
     endif()
+
 
     set(UA_FILE_NODEIDS ${open62541_NODESET_DIR}/Schema/NodeIds.csv)
     set(UA_FILE_STATUSCODES ${open62541_NODESET_DIR}/Schema/StatusCode.csv)

@@ -285,10 +285,10 @@ Detailed SDK Features
 **UA_ENABLE_ENCRYPTION**
    Enable encryption support and specify the used encryption backend. The possible
    options are:
-      - ``OFF`` No encryption support. (default)
-      - ``MBEDTLS`` Encryption support using mbed TLS
-      - ``OPENSSL`` Encryption support using OpenSSL
-      - ``LIBRESSL`` EXPERIMENTAL: Encryption support using LibreSSL
+   - ``OFF`` No encryption support. (default)
+   - ``MBEDTLS`` Encryption support using mbed TLS
+   - ``OPENSSL`` Encryption support using OpenSSL
+   - ``LIBRESSL`` EXPERIMENTAL: Encryption support using LibreSSL
 **UA_ENABLE_ENCRYPTION_TPM2**
    Enable TPM hardware for encryption. The possible options are:
       - ``OFF`` No TPM encryption support. (default)

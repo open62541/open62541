@@ -316,6 +316,50 @@ implicitNumericVariantTransformation(UA_Variant *variant, void *data){
     return UA_STATUSCODE_GOOD;
 }
 
+static UA_StatusCode
+implicitNumericVariantTransformationUnsingedToSigned(UA_Variant *variant, void *data){
+    if(variant->type == &UA_TYPES[UA_TYPES_UINT64]){
+        if(*(UA_UInt64 *)variant->data > UA_INT64_MAX)
+            return UA_STATUSCODE_BADTYPEMISMATCH;
+        *(UA_Int64 *)data = *(UA_Int64 *)variant->data;
+        UA_Variant_setScalar(variant, data, &UA_TYPES[UA_TYPES_INT64]);
+    } else if(variant->type == &UA_TYPES[UA_TYPES_UINT32]){
+        *(UA_Int64 *)data = *(UA_Int32 *)variant->data;
+        UA_Variant_setScalar(variant, data, &UA_TYPES[UA_TYPES_INT64]);
+    } else if(variant->type == &UA_TYPES[UA_TYPES_UINT16]){
+        *(UA_Int64 *)data = *(UA_Int16 *)variant->data;
+        UA_Variant_setScalar(variant, data, &UA_TYPES[UA_TYPES_INT64]);
+    } else if(variant->type == &UA_TYPES[UA_TYPES_BYTE]){
+        *(UA_Int64 *)data = *(UA_Byte *)variant->data;
+        UA_Variant_setScalar(variant, data, &UA_TYPES[UA_TYPES_INT64]);
+    } else {
+        return UA_STATUSCODE_BADTYPEMISMATCH;
+    }
+    return UA_STATUSCODE_GOOD;
+}
+
+static UA_StatusCode
+implicitNumericVariantTransformationSignedToUnSigned(UA_Variant *variant, void *data){
+    if(*(UA_Int64 *)variant->data < 0)
+        return UA_STATUSCODE_BADTYPEMISMATCH;
+    if(variant->type == &UA_TYPES[UA_TYPES_INT64]){
+        *(UA_UInt64 *)data = *(UA_UInt64 *)variant->data;
+        UA_Variant_setScalar(variant, data, &UA_TYPES[UA_TYPES_UINT64]);
+    } else if(variant->type == &UA_TYPES[UA_TYPES_INT32]){
+        *(UA_UInt64 *)data = *(UA_UInt32 *)variant->data;
+        UA_Variant_setScalar(variant, data, &UA_TYPES[UA_TYPES_UINT64]);
+    } else if(variant->type == &UA_TYPES[UA_TYPES_INT16]){
+        *(UA_UInt64 *)data = *(UA_UInt16 *)variant->data;
+        UA_Variant_setScalar(variant, data, &UA_TYPES[UA_TYPES_UINT64]);
+    } else if(variant->type == &UA_TYPES[UA_TYPES_SBYTE]){
+        *(UA_UInt64 *)data = *(UA_Byte *)variant->data;
+        UA_Variant_setScalar(variant, data, &UA_TYPES[UA_TYPES_UINT64]);
+    } else {
+        return UA_STATUSCODE_BADTYPEMISMATCH;
+    }
+    return UA_STATUSCODE_GOOD;
+}
+
 /* 0 -> Same Type, 1 -> Implicit Cast, 2 -> Only explicit Cast, -1 -> cast invalid */
 static UA_SByte convertLookup[21][21] = {
     { 0, 1,-1,-1, 1,-1, 1,-1, 1, 1, 1,-1, 1,-1, 2,-1,-1, 1, 1, 1,-1},
@@ -416,7 +460,9 @@ compareOperation(UA_Variant *firstOperand, UA_Variant *secondOperand, UA_FilterO
         UA_TYPES_DIFFERENT_NUMERIC_FLOATING_POINT,
         UA_TYPES_DIFFERENT_TEXT,
         UA_TYPES_DIFFERENT_COMPARE_FORBIDDEN,
-        UA_TYPES_DIFFERENT_COMPARE_EXPLIC
+        UA_TYPES_DIFFERENT_COMPARE_EXPLIC,
+        UA_TYPES_DIFFERENT_SIGNEDNESS_CAST_TO_SIGNED,
+        UA_TYPES_DIFFERENT_SIGNEDNESS_CAST_TO_UNSIGNED
     } compareHandlingRuleEnum;
 
     if(castRule == 0 &&
@@ -445,6 +491,14 @@ compareOperation(UA_Variant *firstOperand, UA_Variant *secondOperand, UA_FilterO
               isStringType(firstOperand->type->typeKind)&&
               isStringType(secondOperand->type->typeKind)){
         compareHandlingRuleEnum = UA_TYPES_DIFFERENT_TEXT;
+    } else if(castRule == 1 &&
+              isNumericSigned(firstOperand->type->typeKind) &&
+              isNumericUnsigned(secondOperand->type->typeKind)){
+        compareHandlingRuleEnum = UA_TYPES_DIFFERENT_SIGNEDNESS_CAST_TO_SIGNED;
+    } else if(castRule == 1 &&
+              isNumericSigned(secondOperand->type->typeKind) &&
+              isNumericUnsigned(firstOperand->type->typeKind)){
+        compareHandlingRuleEnum = UA_TYPES_DIFFERENT_SIGNEDNESS_CAST_TO_UNSIGNED;
     } else if(castRule == -1 || castRule == 2){
         compareHandlingRuleEnum = UA_TYPES_DIFFERENT_COMPARE_EXPLIC;
     } else {
@@ -467,6 +521,12 @@ compareOperation(UA_Variant *firstOperand, UA_Variant *secondOperand, UA_FilterO
            compareHandlingRuleEnum == UA_TYPES_DIFFERENT_NUMERIC_FLOATING_POINT) {
             implicitNumericVariantTransformation(firstCompareOperand, variantContent);
             implicitNumericVariantTransformation(secondCompareOperand, &variantContent[8]);
+        } else if(compareHandlingRuleEnum == UA_TYPES_DIFFERENT_SIGNEDNESS_CAST_TO_SIGNED) {
+            implicitNumericVariantTransformation(firstCompareOperand, variantContent);
+            implicitNumericVariantTransformationUnsingedToSigned(secondCompareOperand, &variantContent[8]);
+        } else if(compareHandlingRuleEnum == UA_TYPES_DIFFERENT_SIGNEDNESS_CAST_TO_UNSIGNED) {
+            implicitNumericVariantTransformation(firstCompareOperand, variantContent);
+            implicitNumericVariantTransformationSignedToUnSigned(secondCompareOperand, &variantContent[8]);
         } else if(compareHandlingRuleEnum == UA_TYPES_DIFFERENT_TEXT) {
             firstCompareOperand->type = &UA_TYPES[UA_TYPES_STRING];
             secondCompareOperand->type = &UA_TYPES[UA_TYPES_STRING];
@@ -479,12 +539,18 @@ compareOperation(UA_Variant *firstOperand, UA_Variant *secondOperand, UA_FilterO
         }
     } else {
         UA_Byte variantContent[16];
+        memset(&variantContent, 0, sizeof(UA_Byte) * 16);
         if(compareHandlingRuleEnum == UA_TYPES_DIFFERENT_NUMERIC_SIGNED ||
            compareHandlingRuleEnum == UA_TYPES_DIFFERENT_NUMERIC_UNSIGNED ||
            compareHandlingRuleEnum == UA_TYPES_DIFFERENT_NUMERIC_FLOATING_POINT) {
-            memset(&variantContent, 0, sizeof(UA_Byte) * 16);
             implicitNumericVariantTransformation(firstCompareOperand, variantContent);
             implicitNumericVariantTransformation(secondCompareOperand, &variantContent[8]);
+        } else if(compareHandlingRuleEnum == UA_TYPES_DIFFERENT_SIGNEDNESS_CAST_TO_SIGNED) {
+            implicitNumericVariantTransformation(firstCompareOperand, variantContent);
+            implicitNumericVariantTransformationUnsingedToSigned(secondCompareOperand, &variantContent[8]);
+        } else if(compareHandlingRuleEnum == UA_TYPES_DIFFERENT_SIGNEDNESS_CAST_TO_UNSIGNED) {
+            implicitNumericVariantTransformation(firstCompareOperand, variantContent);
+            implicitNumericVariantTransformationSignedToUnSigned(secondCompareOperand, &variantContent[8]);
         } else if(compareHandlingRuleEnum == UA_TYPES_DIFFERENT_TEXT) {
             firstCompareOperand->type = &UA_TYPES[UA_TYPES_STRING];
             secondCompareOperand->type = &UA_TYPES[UA_TYPES_STRING];
@@ -519,6 +585,7 @@ compareOperation(UA_Variant *firstOperand, UA_Variant *secondOperand, UA_FilterO
 
 static UA_StatusCode
 compareOperator(UA_FilterOperatorContext *ctx) {
+    ctx->valueResult[ctx->index].type = &UA_TYPES[UA_TYPES_BOOLEAN];
     UA_Variant firstOperand = resolveOperand(ctx, 0);
     if(UA_Variant_isEmpty(&firstOperand))
         return UA_STATUSCODE_BADFILTEROPERANDINVALID;
@@ -1032,6 +1099,41 @@ UA_Event_staticSelectClauseValidation(UA_Server *server,
                 break;
             }
         }
+
+        /* Get the list of Subtypes from current node */
+        UA_ReferenceTypeSet reftypes_interface =
+                UA_REFTYPESET(UA_REFERENCETYPEINDEX_HASSUBTYPE);
+        UA_ExpandedNodeId *chilTypeNodes = NULL;
+        size_t chilTypeNodesSize = 0;
+        UA_StatusCode res;
+        res = browseRecursive(server, 1, &eventFilter->selectClauses[i].typeDefinitionId,
+                        UA_BROWSEDIRECTION_FORWARD, &reftypes_interface, UA_NODECLASS_OBJECTTYPE,
+                        true, &chilTypeNodesSize, &chilTypeNodes);
+        if(res!=UA_STATUSCODE_GOOD){
+            result[i] = UA_STATUSCODE_BADATTRIBUTEIDINVALID;
+            continue;
+        }
+
+        UA_Boolean subTypeContainField = false;
+        for (size_t j = 0; j < chilTypeNodesSize; ++j) {
+            /* browsPath element is defined in path */
+            UA_BrowsePathResult bpr =
+                    browseSimplifiedBrowsePath(server, chilTypeNodes[j].nodeId,
+                                               eventFilter->selectClauses[i].browsePathSize,
+                                               eventFilter->selectClauses[i].browsePath);
+
+            if(bpr.statusCode != UA_STATUSCODE_GOOD){
+                UA_BrowsePathResult_clear(&bpr);
+                continue;
+            }
+            subTypeContainField = true;
+            UA_BrowsePathResult_clear(&bpr);
+        }
+        if(!subTypeContainField)
+            result[i] = UA_STATUSCODE_BADNODEIDUNKNOWN;
+
+        UA_Array_delete(chilTypeNodes, chilTypeNodesSize, &UA_TYPES[UA_TYPES_EXPANDEDNODEID]);
+
         if(result[i] != UA_STATUSCODE_GOOD)
             continue;
         /*indexRange is defined ? */
