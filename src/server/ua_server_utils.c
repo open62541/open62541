@@ -153,7 +153,8 @@ getParentTypeAndInterfaceHierarchy(UA_Server *server, const UA_NodeId *typeNode,
 UA_StatusCode
 getAllInterfaceChildNodeIds(UA_Server *server, const UA_NodeId *objectNode,
                             const UA_NodeId *objectTypeNode,
-                            UA_NodeId **interfaceChildNodes, size_t *interfaceChildNodesSize) {
+                            UA_NodeId **interfaceChildNodes,
+                            size_t *interfaceChildNodesSize) {
     if(interfaceChildNodesSize == NULL || interfaceChildNodes == NULL)
         return UA_STATUSCODE_BADINTERNALERROR;
     *interfaceChildNodesSize = 0;
@@ -164,23 +165,23 @@ getAllInterfaceChildNodeIds(UA_Server *server, const UA_NodeId *objectNode,
     UA_ReferenceTypeSet reftypes_subtype =
         UA_REFTYPESET(UA_REFERENCETYPEINDEX_HASSUBTYPE);
 
-    /* Don't include the start node */
-    UA_StatusCode retval = browseRecursive(server, 1, objectTypeNode, UA_BROWSEDIRECTION_INVERSE,
-                                           &reftypes_subtype, UA_NODECLASS_OBJECTTYPE,
-                                           false, &hasInterfaceCandidatesSize,
-                                           &hasInterfaceCandidates);
+    UA_StatusCode retval =
+        browseRecursive(server, 1, objectTypeNode, UA_BROWSEDIRECTION_INVERSE,
+                        &reftypes_subtype, UA_NODECLASS_OBJECTTYPE,
+                        true, &hasInterfaceCandidatesSize,
+                        &hasInterfaceCandidates);
 
-    if (retval != UA_STATUSCODE_GOOD)
+    if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
     /* The interface could also have been added manually before calling UA_Server_addNode_finish
      * This can be handled by adding the object node as a start node for the HasInterface lookup */
-    UA_ExpandedNodeId *resizedHasInterfaceCandidates =
-            (UA_ExpandedNodeId*)UA_realloc(hasInterfaceCandidates,
-                                           (hasInterfaceCandidatesSize + 1) * sizeof(UA_ExpandedNodeId));
+    UA_ExpandedNodeId *resizedHasInterfaceCandidates = (UA_ExpandedNodeId*)
+        UA_realloc(hasInterfaceCandidates,
+                   (hasInterfaceCandidatesSize + 1) * sizeof(UA_ExpandedNodeId));
 
-    if (!resizedHasInterfaceCandidates) {
-        if (hasInterfaceCandidates)
+    if(!resizedHasInterfaceCandidates) {
+        if(hasInterfaceCandidates)
             UA_Array_delete(hasInterfaceCandidates, hasInterfaceCandidatesSize,
                             &UA_TYPES[UA_TYPES_EXPANDEDNODEID]);
         return UA_STATUSCODE_BADOUTOFMEMORY;
@@ -195,7 +196,7 @@ getAllInterfaceChildNodeIds(UA_Server *server, const UA_NodeId *objectNode,
 
     size_t outputIndex = 0;
 
-    for (size_t i = 0; i < hasInterfaceCandidatesSize; ++i) {
+    for(size_t i = 0; i < hasInterfaceCandidatesSize; ++i) {
         UA_ReferenceTypeSet reftypes_interface =
             UA_REFTYPESET(UA_REFERENCETYPEINDEX_HASINTERFACE);
         UA_ExpandedNodeId *interfaceChildren = NULL;
@@ -207,7 +208,7 @@ getAllInterfaceChildNodeIds(UA_Server *server, const UA_NodeId *objectNode,
         if(retval != UA_STATUSCODE_GOOD) {
             UA_Array_delete(hasInterfaceCandidates, hasInterfaceCandidatesSize,
                             &UA_TYPES[UA_TYPES_EXPANDEDNODEID]);
-            if (*interfaceChildNodesSize) {
+            if(*interfaceChildNodesSize) {
                 UA_Array_delete(*interfaceChildNodes, *interfaceChildNodesSize,
                                 &UA_TYPES[UA_TYPES_NODEID]);
                 *interfaceChildNodesSize = 0;
@@ -217,11 +218,11 @@ getAllInterfaceChildNodeIds(UA_Server *server, const UA_NodeId *objectNode,
 
         UA_assert(interfacesChildrenSize < 1000);
 
-        if (interfacesChildrenSize == 0) {
+        if(interfacesChildrenSize == 0) {
             continue;
         }
 
-        if (!*interfaceChildNodes) {
+        if(!*interfaceChildNodes) {
             *interfaceChildNodes = (UA_NodeId*)
                 UA_calloc(interfacesChildrenSize, sizeof(UA_NodeId));
             *interfaceChildNodesSize = interfacesChildrenSize;
@@ -234,11 +235,11 @@ getAllInterfaceChildNodeIds(UA_Server *server, const UA_NodeId *objectNode,
                 return UA_STATUSCODE_BADOUTOFMEMORY;
             }
         } else {
-            UA_NodeId *resizedInterfaceChildNodes =
-                    (UA_NodeId*)UA_realloc(*interfaceChildNodes,
-                                           ((*interfaceChildNodesSize + interfacesChildrenSize) * sizeof(UA_NodeId)));
+            UA_NodeId *resizedInterfaceChildNodes = (UA_NodeId*)
+                UA_realloc(*interfaceChildNodes,
+                           ((*interfaceChildNodesSize + interfacesChildrenSize) * sizeof(UA_NodeId)));
 
-            if (!resizedInterfaceChildNodes) {
+            if(!resizedInterfaceChildNodes) {
                 UA_Array_delete(hasInterfaceCandidates, hasInterfaceCandidatesSize,
                                 &UA_TYPES[UA_TYPES_EXPANDEDNODEID]);
                 UA_Array_delete(interfaceChildren, interfacesChildrenSize,
@@ -250,7 +251,7 @@ getAllInterfaceChildNodeIds(UA_Server *server, const UA_NodeId *objectNode,
             *interfaceChildNodesSize += interfacesChildrenSize;
             *interfaceChildNodes = resizedInterfaceChildNodes;
 
-            for (size_t j = oldSize; j < *interfaceChildNodesSize; ++j)
+            for(size_t j = oldSize; j < *interfaceChildNodesSize; ++j)
                 UA_NodeId_init(&(*interfaceChildNodes)[j]);
         }
 

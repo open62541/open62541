@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 # This Source Code Form is subject to the terms of the Mozilla Public
 # License, v. 2.0. If a copy of the MPL was not distributed with this 
@@ -51,6 +51,18 @@ printh(u'''/**********************************
 
 for row in rows:
     printh(u"/* %s */\n#define UA_STATUSCODE_%s %s\n" % (row[2], row[0].upper(), row[1]))
+
+printh(u'''/* Depending on the version of the schema, the following might be already defined: */
+#ifndef UA_STATUSCODE_GOOD
+# define UA_STATUSCODE_GOOD 0x00000000
+#endif
+#ifndef UA_STATUSCODE_UNCERTAIN
+# define UA_STATUSCODE_UNCERTAIN 0x40000000
+#endif
+#ifndef UA_STATUSCODE_BAD
+# define UA_STATUSCODE_BAD 0x80000000
+#endif
+''')
 
 #########################
 # Print the source file #

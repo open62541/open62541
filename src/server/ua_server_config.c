@@ -26,18 +26,27 @@ UA_ServerConfig_clean(UA_ServerConfig *config) {
 # endif
 #endif
 
-    /* Custom DataTypes */
-    /* nothing to do */
+    /* Stop and delete the EventLoop */
+    UA_EventLoop *el = config->eventLoop;
+    if(el && !config->externalEventLoop) {
+        if(el->state != UA_EVENTLOOPSTATE_FRESH &&
+           el->state != UA_EVENTLOOPSTATE_STOPPED) {
+            el->stop(el);
+            while(el->state != UA_EVENTLOOPSTATE_STOPPED) {
+                el->run(el, 100);
+            }
+        }
+        el->free(el);
+        config->eventLoop = NULL;
+    }
 
     /* Networking */
-    for(size_t i = 0; i < config->networkLayersSize; ++i)
-        config->networkLayers[i].clear(&config->networkLayers[i]);
-    UA_free(config->networkLayers);
-    config->networkLayers = NULL;
-    config->networkLayersSize = 0;
-    UA_String_clear(&config->customHostname);
-    config->customHostname = UA_STRING_NULL;
+    UA_Array_delete(config->serverUrls, config->serverUrlsSize,
+                    &UA_TYPES[UA_TYPES_STRING]);
+    config->serverUrls = NULL;
+    config->serverUrlsSize = 0;
 
+    /* Security Policies */
     for(size_t i = 0; i < config->securityPoliciesSize; ++i) {
         UA_SecurityPolicy *policy = &config->securityPolicies[i];
         policy->clear(policy);

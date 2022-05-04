@@ -10,19 +10,6 @@
 #ifndef PLUGINS_ARCH_POSIX_UA_ARCHITECTURE_H_
 #define PLUGINS_ARCH_POSIX_UA_ARCHITECTURE_H_
 
-/* Enable POSIX features */
-#if !defined(_XOPEN_SOURCE)
-# define _XOPEN_SOURCE 600
-#endif
-#ifndef _DEFAULT_SOURCE
-# define _DEFAULT_SOURCE
-#endif
-/* On older systems we need to define _BSD_SOURCE.
- * _DEFAULT_SOURCE is an alias for that. */
-#ifndef _BSD_SOURCE
-# define _BSD_SOURCE
-#endif
-
 #include <open62541/architecture_definitions.h>
 
 #include <errno.h>
@@ -33,6 +20,7 @@
 #include <sys/select.h>
 #include <sys/types.h>
 #include <net/if.h>
+#include <poll.h>
 #ifdef UA_sleep_ms
 void UA_sleep_ms(unsigned long ms);
 #else
@@ -78,14 +66,18 @@ void UA_sleep_ms(unsigned long ms);
 #define UA_INVALID_SOCKET -1
 #define UA_ERRNO errno
 #define UA_INTERRUPTED EINTR
-#define UA_AGAIN EAGAIN
-#define UA_EAGAIN EAGAIN
+#define UA_AGAIN EAGAIN /* the same as wouldblock on nearly every system */
+#define UA_INPROGRESS EINPROGRESS
 #define UA_WOULDBLOCK EWOULDBLOCK
-#define UA_ERR_CONNECTION_PROGRESS EINPROGRESS
+
+#define UA_POLLIN POLLIN
+#define UA_POLLOUT POLLOUT
 
 #define UA_ENABLE_LOG_COLORS
 
-#define UA_getnameinfo getnameinfo
+#define UA_getnameinfo(sa, salen, host, hostlen, serv, servlen, flags) \
+    getnameinfo(sa, salen, host, hostlen, serv, servlen, flags)
+#define UA_poll poll
 #define UA_send send
 #define UA_recv recv
 #define UA_sendto sendto
@@ -127,7 +119,7 @@ void UA_sleep_ms(unsigned long ms);
 #define UA_snprintf snprintf
 #define UA_strncasecmp strncasecmp
 
-#define UA_clean_errno(STR_FUN) (errno == 0 ? "None" : (STR_FUN)(errno))
+#define UA_clean_errno(STR_FUN) (errno == 0 ? (char*) "None" : (STR_FUN)(errno))
 
 #define UA_LOG_SOCKET_ERRNO_WRAP(LOG) { \
     char *errno_str = UA_clean_errno(strerror); \

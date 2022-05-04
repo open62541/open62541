@@ -12,15 +12,14 @@ endif()
 string(TOLOWER "${CMAKE_BUILD_TYPE}" BUILD_TYPE_LOWER_CASE)
 
 set(CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/tools/cmake")
+if(${CMAKE_VERSION} VERSION_LESS 3.12)
+    set(CMAKE_MODULE_PATH "${CMAKE_MODULE_PATH};${PROJECT_SOURCE_DIR}/tools/cmake3.12")
+endif()
 find_package(Python3 REQUIRED)
 set(PYTHON_EXECUTABLE ${Python3_EXECUTABLE})
 find_package(Git)
 include(AssignSourceGroup)
 include(GNUInstallDirs)
-if(UA_ENABLE_TPM2_PKCS11)
-    find_library(TPM2_LIB tpm2_pkcs11)
-    message(${TPM2_LIB})
-endif()
 
 # Set when installed via make install
 set(open62541_TOOLS_DIR ${PROJECT_SOURCE_DIR}/tools)
@@ -121,6 +120,13 @@ GET_PROPERTY(ua_architecture_sources GLOBAL PROPERTY UA_ARCHITECTURE_SOURCES)
 
 set(ua_architecture_sources ${ua_architecture_sources}
     ${PROJECT_SOURCE_DIR}/arch/network_tcp.c
+    ${PROJECT_SOURCE_DIR}/arch/eventloop_posix.h
+    ${PROJECT_SOURCE_DIR}/arch/eventloop_posix.c
+    ${PROJECT_SOURCE_DIR}/arch/eventloop_posix_select.c
+    ${PROJECT_SOURCE_DIR}/arch/eventloop_posix_epoll.c
+    ${PROJECT_SOURCE_DIR}/arch/eventloop_posix_tcp.c
+    ${PROJECT_SOURCE_DIR}/arch/eventloop_posix_udp.c
+    ${PROJECT_SOURCE_DIR}/arch/eventloop_posix_interrupt.c
 )
 
 set(ua_architecture_headers ${ua_architecture_headers}
@@ -153,17 +159,29 @@ endforeach(arch_ ${architectures})
 option(BUILD_SHARED_LIBS "Enable building of shared libraries (dll/so)" OFF)
 set(UA_LOGLEVEL 300 CACHE STRING "Level at which logs shall be reported")
 set(UA_MULTITHREADING 0 CACHE STRING "Level of multithreading (0-99: No Multithreading, >=100: Thread-Safe API")
-option(UA_ENABLE_HISTORIZING "Enable basic support for historical access (client and server)" OFF)
+option(UA_ENABLE_DIAGNOSTICS "Enable diagnostics information exposed by the server" OFF)
 option(UA_ENABLE_METHODCALLS "Enable the Method service set" ON)
-option(UA_ENABLE_NODEMANAGEMENT "Enable dynamic addition and removal of nodes at runtime" ON)
-option(UA_ENABLE_SUBSCRIPTIONS "Enable subscriptions support." ON)
-option(UA_ENABLE_SUBSCRIPTIONS_EVENTS "Enable the use of event subscriptions" OFF)
-option(UA_ENABLE_DISCOVERY "Enable Discovery Service (LDS)" OFF)
-option(UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS "Enable the use of A&C. (EXPERIMENTAL)" OFF)
-option(UA_ENABLE_DISCOVERY_MULTICAST "Enable Discovery Service with multicast support (LDS-ME)" OFF)
-option(UA_ENABLE_PARSING "Utility functions that require parsing (e.g. NodeId expressions)" ON)
+option(UA_ENABLE_SUBSCRIPTIONS "Enable subscriptions support" ON)
+option(UA_ENABLE_SUBSCRIPTIONS_EVENTS "Enable event monitoring" ON)
 option(UA_ENABLE_DA "Enable OPC UA DataAccess (Part 8) definitions" ON)
+option(UA_ENABLE_HISTORIZING "Enable basic support for historical access (client and server)" OFF)
+option(UA_ENABLE_DISCOVERY "Enable Discovery Service (LDS)" OFF)
+option(UA_ENABLE_JSON_ENCODING "Enable JSON encoding" OFF)
+
+option(UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS "Enable the use of A&C. (EXPERIMENTAL)" OFF)
+mark_as_advanced(UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS)
+
+option(UA_ENABLE_NODEMANAGEMENT "Enable dynamic addition and removal of nodes at runtime" ON)
+mark_as_advanced(UA_ENABLE_NODEMANAGEMENT)
+
+option(UA_ENABLE_PARSING "Utility functions that require parsing (e.g. NodeId expressions)" ON)
+mark_as_advanced(UA_ENABLE_PARSING)
+
+option(UA_ENABLE_DISCOVERY_MULTICAST "Enable Discovery Service with multicast support (LDS-ME)" OFF)
+mark_as_advanced(UA_ENABLE_DISCOVERY_MULTICAST)
+
 option(UA_ENABLE_WEBSOCKET_SERVER "Enable websocket support (uses libwebsockets)" OFF)
+mark_as_advanced(UA_ENABLE_WEBSOCKET_SERVER)
 
 # security provider
 set(UA_ENCRYPTION_PLUGINS "MBEDTLS" "OPENSSL" "LIBRESSL")
@@ -204,9 +222,44 @@ else()
     endif()
 endif()
 
+# TPM Security
+set(UA_ENABLE_ENCRYPTION_TPM2 "OFF" CACHE STRING "TPM encryption support")
+SET_PROPERTY(CACHE UA_ENABLE_ENCRYPTION_TPM2 PROPERTY STRINGS "ON" "OFF")
+
+if(UA_ENABLE_ENCRYPTION_TPM2 STREQUAL "OFF")
+    set(UA_ENABLE_TPM2_SECURITY OFF)
+    set(UA_ENABLE_TPM2_KEYSTORE OFF)
+else()
+    set(UA_ENABLE_TPM2_SECURITY ON)
+    set(UA_ENABLE_TPM2_KEYSTORE ON)
+endif()
+
+if(UA_ENABLE_TPM2_SECURITY)
+    find_library(TPM2_LIB tpm2_pkcs11)
+    message(${TPM2_LIB})
+endif()
+
+if(UA_ENABLE_TPM2_SECURITY)
+    if(NOT UA_ENABLE_PUBSUB_ENCRYPTION)
+        message(FATAL_ERROR "TPM2 encryption cannot be used with disabled UA_ENABLE_PUBSUB_ENCRYPTION")
+    endif()
+endif()
+
+if(UA_ENABLE_TPM2_KEYSTORE)
+    if(UA_ENABLE_PUBSUB)
+        if(NOT UA_ENABLE_PUBSUB_ENCRYPTION)
+            message(FATAL_ERROR "TPM2 Keystore for PubSub cannot be used with disabled UA_ENABLE_PUBSUB_ENCRYPTION")
+        endif()
+    else()
+        if(NOT UA_ENABLE_ENCRYPTION)
+            message(FATAL_ERROR "TPM2 Keystore cannot be used with disabled UA_ENABLE_ENCRYPTION")
+        endif()
+    endif()
+endif()
+
 # Namespace Zero
-set(UA_NAMESPACE_ZERO "REDUCED" CACHE STRING "Completeness of the generated namespace zero (minimal/reduced/full)")
-SET_PROPERTY(CACHE UA_NAMESPACE_ZERO PROPERTY STRINGS "MINIMAL" "REDUCED" "FULL")
+set(UA_NAMESPACE_ZERO "REDUCED" CACHE STRING "Completeness of the generated namespace zero (minimal/reduced/full/latest_1_05)")
+SET_PROPERTY(CACHE UA_NAMESPACE_ZERO PROPERTY STRINGS "MINIMAL" "REDUCED" "FULL" "LATEST_1_05")
 if(UA_NAMESPACE_ZERO STREQUAL "MINIMAL")
     set(UA_GENERATED_NAMESPACE_ZERO OFF)
 else()
@@ -217,6 +270,12 @@ if(UA_NAMESPACE_ZERO STREQUAL "FULL")
     set(UA_GENERATED_NAMESPACE_ZERO_FULL ON)
 else()
     set(UA_GENERATED_NAMESPACE_ZERO_FULL OFF)
+endif()
+
+if(UA_NAMESPACE_ZERO STREQUAL "LATEST_1_05")
+    set(UA_GENERATED_NAMESPACE_ZERO_LATEST_1_05 ON)
+else()
+    set(UA_GENERATED_NAMESPACE_ZERO_LATEST_1_05 OFF)
 endif()
 
 if(MSVC AND UA_NAMESPACE_ZERO STREQUAL "FULL")
@@ -230,7 +289,7 @@ if(UA_BUILD_FUZZING OR UA_BUILD_OSS_FUZZ OR UA_BUILD_FUZZING_CORPUS)
     set(UA_ENABLE_DISCOVERY ON CACHE STRING "" FORCE)
     set(UA_ENABLE_DISCOVERY_MULTICAST ON CACHE STRING "" FORCE)
     set(UA_ENABLE_ENCRYPTION ON CACHE STRING "OFF" FORCE)
-    set(UA_ENABLE_ENCRYPTION_MBEDTLS ON CACHE STRING "" FORCE)    
+    set(UA_ENABLE_ENCRYPTION_MBEDTLS ON CACHE STRING "" FORCE)
     set(UA_ENABLE_HISTORIZING ON CACHE STRING "" FORCE)
     set(UA_ENABLE_JSON_ENCODING ON CACHE STRING "" FORCE)
     set(UA_ENABLE_SUBSCRIPTIONS ON CACHE STRING "" FORCE)
@@ -248,8 +307,9 @@ if((UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS) AND (NOT (UA_ENABLE_SUBSCRIPTIONS
 endif()
 
 if(UA_ENABLE_COVERAGE)
-  set(CMAKE_BUILD_TYPE DEBUG)
-  set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -g -O0 -fprofile-arcs -ftest-coverage")
+  # We are using the scripts provided at for coverage testing: https://github.com/RWTH-HPC/CMake-codecov
+  set(ENABLE_COVERAGE ON)
+  find_package(codecov REQUIRED)
   set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -fprofile-arcs -ftest-coverage -lgcov")
   set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -fprofile-arcs -ftest-coverage")
 endif()
@@ -296,16 +356,13 @@ if(UA_FORCE_CPP)
     add_definitions(-D__STDC_CONSTANT_MACROS) # We need the UINT32_C define
 endif()
 
-option(UA_FORCE_WERROR "Force compilation with -Werror" ON)
+option(UA_FORCE_WERROR "Force compilation with -Werror (or /WX on MSVC)" ON)
 
 #General PubSub setup
 option(UA_ENABLE_PUBSUB "Enable the PubSub protocol" OFF)
 
 option(UA_ENABLE_PUBSUB_ENCRYPTION "Enable encryption of the PubSub payload" OFF)
 mark_as_advanced(UA_ENABLE_PUBSUB_ENCRYPTION)
-
-option(UA_ENABLE_TPM2_PKCS11 "Enable for encryption of the PubSub payload using TPM hardware" OFF)
-mark_as_advanced(UA_ENABLE_TPM2_PKCS11)
 
 option(UA_ENABLE_PUBSUB_INFORMATIONMODEL "Enable PubSub information model twin" OFF)
 
@@ -367,9 +424,6 @@ if(UA_ENABLE_PUBSUB_BUFMALLOC)
     endif()
 endif()
 
-option(UA_ENABLE_JSON_ENCODING "Enable Json encoding (EXPERIMENTAL)" OFF)
-mark_as_advanced(UA_ENABLE_JSON_ENCODING)
-
 option(UA_ENABLE_PUBSUB_MQTT "Enable publish/subscribe with mqtt (experimental)" OFF)
 mark_as_advanced(UA_ENABLE_PUBSUB_MQTT)
 if(UA_ENABLE_PUBSUB_MQTT)
@@ -382,6 +436,9 @@ if(UA_ENABLE_PUBSUB_MQTT)
     endif()
 endif()
 
+option(UA_ENABLE_MQTT_TLS_OPENSSL "Enable TLS support for publish/subscribe with mqtt (use OpenSSL)" OFF)
+mark_as_advanced(UA_ENABLE_MQTT_TLS_OPENSSL)
+
 option(UA_ENABLE_MQTT_TLS "Enable TLS support for publish/subscribe with mqtt" OFF)
 mark_as_advanced(UA_ENABLE_MQTT_TLS)
 if(UA_ENABLE_MQTT_TLS)
@@ -391,8 +448,6 @@ if(UA_ENABLE_MQTT_TLS)
         set(UA_ENABLE_MQTT_TLS_OPENSSL ON)
 endif()
 
-option(UA_ENABLE_MQTT_TLS_OPENSSL "Enable TLS support for publish/subscribe with mqtt (use OpenSSL)" OFF)
-mark_as_advanced(UA_ENABLE_MQTT_TLS_OPENSSL)
 if(UA_ENABLE_MQTT_TLS_OPENSSL)
     set(UA_ENABLE_MQTT_TLS ON)
 endif()
@@ -515,6 +570,11 @@ if(UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS)
     MESSAGE(WARNING "UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS is enabled. The feature is under development and marked as EXPERIMENTAL")
 endif()
 
+if(UA_ENABLE_SUBSCRIPTIONS_EVENTS AND (NOT UA_ENABLE_SUBSCRIPTIONS))
+    MESSAGE(WARNING "UA_ENABLE_SUBSCRIPTIONS_EVENTS needs Subscriptions enabled")
+    set(UA_ENABLE_SUBSCRIPTIONS_EVENTS OFF)
+endif()
+
 ########################
 # Linting during build #
 ########################
@@ -533,7 +593,7 @@ if(UA_ENABLE_ENCRYPTION_OPENSSL OR UA_ENABLE_MQTT_TLS_OPENSSL)
     find_package(OpenSSL REQUIRED)
     list(APPEND open62541_LIBRARIES ${OPENSSL_LIBRARIES})
     endif ()
-    
+
 if(UA_ENABLE_ENCRYPTION_LIBRESSL)
     # See https://github.com/libressl-portable/portable/blob/master/FindLibreSSL.cmake
     find_package(LibreSSL REQUIRED)
@@ -552,7 +612,7 @@ if(UA_ENABLE_ENCRYPTION_MBEDTLS OR UA_ENABLE_PUBSUB_ENCRYPTION)
     list(APPEND open62541_LIBRARIES ${MBEDTLS_LIBRARIES})
 endif()
 
-if(UA_ENABLE_TPM2_PKCS11)
+if(UA_ENABLE_TPM2_SECURITY)
     list(APPEND open62541_LIBRARIES ${TPM2_LIB})
 endif()
 
@@ -635,7 +695,10 @@ if(NOT UA_FORCE_CPP AND (CMAKE_COMPILER_IS_GNUCC OR "x${CMAKE_C_COMPILER_ID}" ST
 
     # Force 32bit build
     if(UA_FORCE_32BIT)
-	check_add_cc_flag("-m32")
+      if(MSVC)
+        message(FATAL_ERROR "Select the 32bit (cross-) compiler instead of forcing compiler options")
+      endif()
+      set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -m32") # GCC and Clang, possibly more
     endif()
 
     if(NOT MINGW AND NOT UA_BUILD_OSS_FUZZ)
@@ -730,7 +793,10 @@ if(APPLE)
 endif()
 
 if(MSVC)
-  set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /W3 /WX /w44996") # Compiler warnings, error on warning
+  set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /W3 /w44996")
+  if(UA_FORCE_WERROR)
+      set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /WX") # Compiler warnings, error on warning
+  endif()
 
   if(UA_MSVC_FORCE_STATIC_CRT AND NOT BUILD_SHARED_LIBS)
     set(CompilerFlags CMAKE_CXX_FLAGS CMAKE_CXX_FLAGS_DEBUG CMAKE_CXX_FLAGS_RELEASE CMAKE_C_FLAGS
@@ -779,10 +845,7 @@ if(UA_ENABLE_DISCOVERY_MULTICAST)
       CUSTOM_CONTENT_FROM_VARIABLE MDNSD_CONFIG_EXTRA)
 endif()
 
-set(exported_headers ${exported_headers}
-                     ${PROJECT_BINARY_DIR}/src_generated/open62541/config.h
-                     ${ua_architecture_headers_beginning}
-                     )
+set(exported_headers ${ua_architecture_headers_beginning})
 
 if(NOT "${UA_AMALGAMATION_ARCHITECTURES}" STREQUAL "")
     foreach(arch ${UA_AMALGAMATION_ARCHITECTURES})
@@ -799,9 +862,10 @@ if(UA_ENABLE_HISTORIZING)
          ${PROJECT_SOURCE_DIR}/include/open62541/plugin/historydatabase.h)
 endif()
 
-set(exported_headers ${exported_headers}
+set(exported_headers ${PROJECT_BINARY_DIR}/src_generated/open62541/config.h
                      ${PROJECT_SOURCE_DIR}/deps/ms_stdint.h
                      ${PROJECT_SOURCE_DIR}/include/open62541/architecture_definitions.h
+                     ${exported_headers}
                      ${PROJECT_BINARY_DIR}/src_generated/open62541/statuscodes.h
                      ${PROJECT_BINARY_DIR}/src_generated/open62541/nodeids.h
                      ${PROJECT_SOURCE_DIR}/include/open62541/common.h
@@ -817,6 +881,7 @@ set(exported_headers ${exported_headers}
                      ${PROJECT_SOURCE_DIR}/include/open62541/plugin/pubsub.h
                      ${PROJECT_SOURCE_DIR}/deps/ziptree.h
                      ${PROJECT_SOURCE_DIR}/deps/aa_tree.h
+                     ${PROJECT_SOURCE_DIR}/include/open62541/plugin/eventloop.h
                      ${PROJECT_SOURCE_DIR}/include/open62541/plugin/nodestore.h
                      ${historizing_exported_headers}
                      ${PROJECT_SOURCE_DIR}/include/open62541/server_pubsub.h
@@ -836,7 +901,7 @@ set(internal_headers ${PROJECT_SOURCE_DIR}/deps/open62541_queue.h
                      ${PROJECT_BINARY_DIR}/src_generated/open62541/transport_generated_handling.h
                      ${PROJECT_SOURCE_DIR}/src/ua_connection_internal.h
                      ${PROJECT_SOURCE_DIR}/src/ua_securechannel.h
-                     ${PROJECT_SOURCE_DIR}/src/ua_timer.h
+                     ${PROJECT_SOURCE_DIR}/arch/common/ua_timer.h
                      ${PROJECT_SOURCE_DIR}/src/server/ua_session.h
                      ${PROJECT_SOURCE_DIR}/src/server/ua_subscription.h
                      ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_networkmessage.h
@@ -857,7 +922,7 @@ set(lib_sources ${PROJECT_SOURCE_DIR}/src/ua_types.c
                 ${PROJECT_BINARY_DIR}/src_generated/open62541/transport_generated.c
                 ${PROJECT_BINARY_DIR}/src_generated/open62541/statuscodes.c
                 ${PROJECT_SOURCE_DIR}/src/ua_util.c
-                ${PROJECT_SOURCE_DIR}/src/ua_timer.c
+                ${PROJECT_SOURCE_DIR}/arch/common/ua_timer.c
                 ${PROJECT_SOURCE_DIR}/src/ua_connection.c
                 ${PROJECT_SOURCE_DIR}/src/ua_securechannel.c
                 ${PROJECT_SOURCE_DIR}/src/ua_securechannel_crypto.c
@@ -865,6 +930,7 @@ set(lib_sources ${PROJECT_SOURCE_DIR}/src/ua_types.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_nodes.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_server.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_server_ns0.c
+                ${PROJECT_SOURCE_DIR}/src/server/ua_server_ns0_diagnostics.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_server_config.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_server_binary.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_server_utils.c
@@ -900,7 +966,8 @@ set(lib_sources ${PROJECT_SOURCE_DIR}/src/ua_types.c
                 ${PROJECT_SOURCE_DIR}/deps/pcg_basic.c
                 ${PROJECT_SOURCE_DIR}/deps/base64.c
                 ${PROJECT_SOURCE_DIR}/deps/aa_tree.c
-                
+                ${PROJECT_SOURCE_DIR}/deps/ziptree.c
+
                 ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_config.c)
 
 set(default_plugin_headers ${PROJECT_SOURCE_DIR}/plugins/include/open62541/plugin/accesscontrol_default.h
@@ -967,7 +1034,7 @@ list(INSERT default_plugin_sources 1
      ${PROJECT_SOURCE_DIR}/plugins/crypto/mbedtls/ua_pki_mbedtls.c)
 endif()
 
-if(UA_ENABLE_TPM2_PKCS11)
+if(UA_ENABLE_TPM2_SECURITY)
 list(INSERT default_plugin_sources 0
      ${PROJECT_SOURCE_DIR}/plugins/crypto/pkcs11/securitypolicy_pubsub_aes128ctr_tpm.c
      ${PROJECT_SOURCE_DIR}/plugins/crypto/pkcs11/securitypolicy_pubsub_aes256ctr_tpm.c)
@@ -1068,10 +1135,10 @@ if(UA_ENABLE_SUBSCRIPTIONS)
             message(FATAL_ERROR "Events require at least the reduced Namespace Zero")
         endif()
         list(APPEND lib_sources
-             ${PROJECT_SOURCE_DIR}/src/server/ua_subscription_events.c)
+                    ${PROJECT_SOURCE_DIR}/src/server/ua_subscription_events.c
+                    ${PROJECT_SOURCE_DIR}/src/server/ua_subscription_events_filter.c)
         if(UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS)
-            list(APPEND lib_sources
-                 ${PROJECT_SOURCE_DIR}/src/server/ua_subscription_alarms_conditions.c)
+            list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/src/server/ua_subscription_alarms_conditions.c)
         endif()
     endif()
 endif()
@@ -1109,7 +1176,7 @@ endif()
 # List of nodeset files combined into NS0 generated file
 set(UA_FILE_NODESETS)
 
-if(UA_NAMESPACE_ZERO STREQUAL "FULL")
+if(UA_NAMESPACE_ZERO STREQUAL "FULL" OR UA_NAMESPACE_ZERO STREQUAL "LATEST_1_05")
     if(NOT UA_FILE_NS0)
         set(UA_FILE_NS0 ${open62541_NODESET_DIR}/Schema/Opc.Ua.NodeSet2.xml)
     endif()
@@ -1117,7 +1184,17 @@ if(UA_NAMESPACE_ZERO STREQUAL "FULL")
 
     if(NOT EXISTS "${UA_FILE_NS0}")
         message(FATAL_ERROR "File ${UA_FILE_NS0} not found. You probably need to initialize the git submodule for deps/ua-nodeset or set open62541_NODESET_DIR.")
+    else()
+        # If the "LATEST_1_05" flag is set, it must be checked whether the nodeset NS0 is on the latest version.
+        if(UA_NAMESPACE_ZERO STREQUAL "LATEST_1_05")
+            file(READ ${UA_FILE_NS0} ver LIMIT 5000)
+            string(REGEX MATCH ".*http:\\/\\/opcfoundation\\.org\\/UA\\/\" .* Version=\"1\\.05" match ${ver})
+            if(NOT match)
+                message(FATAL_ERROR "File ${UA_FILE_NS0} is set incorrectly. You probably need to checkout the git submodule for deps/ua-nodeset to version 1.05. Therefore execute the following command inside the deps/ua-nodeset directory \ngit checkout v1.05")
+            endif()
+        endif()
     endif()
+
 
     set(UA_FILE_NODEIDS ${open62541_NODESET_DIR}/Schema/NodeIds.csv)
     set(UA_FILE_STATUSCODES ${open62541_NODESET_DIR}/Schema/StatusCode.csv)
@@ -1135,6 +1212,11 @@ else()
 
     if(UA_ENABLE_METHODCALLS)
         list(APPEND UA_FILE_DATATYPES ${PROJECT_SOURCE_DIR}/tools/schema/datatypes_method.txt)
+    endif()
+
+    if(UA_ENABLE_DIAGNOSTICS)
+        list(APPEND UA_FILE_DATATYPES ${PROJECT_SOURCE_DIR}/tools/schema/datatypes_diagnostics.txt)
+        list(APPEND UA_FILE_NODESETS ${PROJECT_SOURCE_DIR}/tools/schema/Opc.Ua.NodeSet2.DiagnosticsMinimal.xml)
     endif()
 
     if(UA_ENABLE_SUBSCRIPTIONS)
@@ -1322,8 +1404,11 @@ else()
                       open62541-generator-statuscode
                       open62541-generator-namespace
                       )
-
+    if(UA_ENABLE_COVERAGE)
+        add_coverage(open62541-object)
+    endif()
     target_include_directories(open62541-object PRIVATE ${PROJECT_SOURCE_DIR}/src)
+    target_include_directories(open62541-object PRIVATE ${PROJECT_SOURCE_DIR}/arch) # TODO: Remove once the EventLoop is integrated
 
     add_library(open62541-plugins OBJECT ${default_plugin_sources} ${ua_architecture_sources} ${exported_headers})
     add_dependencies(open62541-plugins open62541-generator-types open62541-generator-transport open62541-generator-namespace)
@@ -1464,6 +1549,9 @@ if(UA_BUILD_TOOLS)
     add_subdirectory(tools/ua-tool)
     if(UA_ENABLE_JSON_ENCODING)
         add_subdirectory(tools/ua2json)
+    endif()
+    if(UA_ENABLE_TPM2_KEYSTORE)
+        add_subdirectory(tools/tpm_keystore)
     endif()
 endif()
 
@@ -1606,8 +1694,8 @@ set(UA_install_tools_files "tools/generate_datatypes.py"
     "tools/generate_nodeid_header.py"
     "tools/generate_statuscode_descriptions.py")
 
-install(DIRECTORY ${UA_install_tools_dirs} 
-    DESTINATION ${open62541_install_tools_dir} 
+install(DIRECTORY ${UA_install_tools_dirs}
+    DESTINATION ${open62541_install_tools_dir}
     USE_SOURCE_PERMISSIONS
     FILES_MATCHING
     PATTERN "*"
@@ -1652,16 +1740,17 @@ if(NOT UA_ENABLE_AMALGAMATION)
         string(REPLACE ${BASE_PATH_GENERATED} "" file ${file})
         string(REPLACE ${BASE_PATH_DEPS} "" file ${file})
 
-        get_filename_component( dir ${file} DIRECTORY )
-        if(${full_path} MATCHES ${BASE_PATH_DEPS})
-            install( FILES ${full_path} DESTINATION include${dir} )
+        get_filename_component(dir ${file} DIRECTORY)
+
+        string(FIND "${full_path}" "${BASE_PATH_DEPS}" has_base_path)
+        if("${has_base_path}" EQUAL 0)
+            install(FILES ${full_path} DESTINATION include${dir})
         else()
-            install( FILES ${full_path} DESTINATION include/open62541${dir} )
+            install(FILES ${full_path} DESTINATION include/open62541${dir})
         endif()
     endforeach()
-
 else()
-    # Export amalgamated header open62541.h which is generated due to build of 
+    # Export amalgamated header open62541.h which is generated due to build of
     # open62541-object
     install(FILES ${PROJECT_BINARY_DIR}/open62541.h DESTINATION include)
 endif()

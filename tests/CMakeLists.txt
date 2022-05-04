@@ -23,6 +23,7 @@ include_directories(${open62541_BUILD_INCLUDE_DIRS})
 # ua_server_internal.h
 include_directories("${PROJECT_SOURCE_DIR}/src")
 include_directories("${PROJECT_SOURCE_DIR}/src/server")
+include_directories("${PROJECT_SOURCE_DIR}/arch/common")
 # testing_clock.h
 include_directories("${CMAKE_CURRENT_SOURCE_DIR}/testing-plugins")
 # #include <src_generated/<...>.h>
@@ -65,7 +66,14 @@ endif()
 
 
 # Use different plugins for testing
-set(test_plugin_sources ${PROJECT_SOURCE_DIR}/arch/network_tcp.c
+set(test_plugin_sources
+    ${PROJECT_SOURCE_DIR}/arch/network_tcp.c
+    ${PROJECT_SOURCE_DIR}/arch/eventloop_posix.c
+    ${PROJECT_SOURCE_DIR}/arch/eventloop_posix_select.c
+    ${PROJECT_SOURCE_DIR}/arch/eventloop_posix_epoll.c
+    ${PROJECT_SOURCE_DIR}/arch/eventloop_posix_tcp.c
+    ${PROJECT_SOURCE_DIR}/arch/eventloop_posix_udp.c
+    ${PROJECT_SOURCE_DIR}/arch/eventloop_posix_interrupt.c
     ${PROJECT_SOURCE_DIR}/tests/testing-plugins/testing_clock.c
     ${PROJECT_SOURCE_DIR}/plugins/ua_log_stdout.c
     ${PROJECT_SOURCE_DIR}/plugins/ua_config_default.c
@@ -141,13 +149,25 @@ if(UA_ENABLE_PUBSUB)
     endif()
 endif()
 
+if(UA_NAMESPACE_ZERO STREQUAL "FULL")
+    set(NODESET_COMPILER_OUTPUT_DIR "${CMAKE_BINARY_DIR}/src_generated/tests")
+
+    # Generate namespace for interfaces test
+    ua_generate_nodeset_and_datatypes(
+        NAME "tests-interfaces"
+        OUTPUT_DIR "${NODESET_COMPILER_OUTPUT_DIR}"
+        FILE_NS "${CMAKE_CURRENT_SOURCE_DIR}/server/interface-testmodel.xml"
+        INTERNAL
+    )
+endif()
+
 add_library(open62541-testplugins OBJECT ${test_plugin_sources} ${PROJECT_SOURCE_DIR}/arch/${UA_ARCHITECTURE}/ua_architecture_functions.c)
 add_dependencies(open62541-testplugins open62541)
 target_compile_definitions(open62541-testplugins PRIVATE -DUA_DYNAMIC_LINKING_EXPORT)
-
-if(NOT MSVC)
-    add_definitions(-Wno-deprecated-declarations)
+if(UA_ENABLE_COVERAGE)
+    add_coverage(open62541-testplugins)
 endif()
+
 # Workaround some clang warnings in the uni tests
 if((NOT ${CMAKE_SYSTEM_NAME} MATCHES "OpenBSD") AND (CMAKE_COMPILER_IS_GNUCC OR "x${CMAKE_C_COMPILER_ID}" STREQUAL "xClang"))
     add_definitions(-Wno-sign-conversion)
@@ -246,6 +266,22 @@ add_executable(check_timer check_timer.c $<TARGET_OBJECTS:open62541-object> $<TA
 target_link_libraries(check_timer ${LIBS})
 add_test_valgrind(timer ${TESTS_BINARY_DIR}/check_timer)
 
+add_executable(check_eventloop check_eventloop.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
+target_link_libraries(check_eventloop ${LIBS})
+add_test_valgrind(eventloop ${TESTS_BINARY_DIR}/check_eventloop)
+
+add_executable(check_eventloop_tcp check_eventloop_tcp.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
+target_link_libraries(check_eventloop_tcp ${LIBS})
+add_test_valgrind(eventloop_tcp ${TESTS_BINARY_DIR}/check_eventloop_tcp)
+
+add_executable(check_eventloop_udp check_eventloop_udp.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
+target_link_libraries(check_eventloop_udp ${LIBS})
+add_test_valgrind(eventloop_udp ${TESTS_BINARY_DIR}/check_eventloop_udp)
+
+add_executable(check_eventloop_interrupt check_eventloop_interrupt.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
+target_link_libraries(check_eventloop_interrupt ${LIBS})
+add_test_valgrind(eventloop_interrupt ${TESTS_BINARY_DIR}/check_eventloop_interrupt)
+
 # Test Server
 
 add_executable(check_accesscontrol server/check_accesscontrol.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
@@ -324,6 +360,10 @@ if(UA_ENABLE_SUBSCRIPTIONS)
   add_executable(check_subscription_events server/check_subscription_events.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
   target_link_libraries(check_subscription_events ${LIBS})
   add_test_valgrind(subscription_events ${TESTS_BINARY_DIR}/check_subscription_events)
+
+  add_executable(check_subscription_event_filter server/check_subscription_event_filter.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
+  target_link_libraries(check_subscription_event_filter ${LIBS})
+  add_test_valgrind(check_subscription_event_filter ${TESTS_BINARY_DIR}/check_subscription_event_filter)
 endif()
 
 add_executable(check_nodestore server/check_nodestore.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
@@ -334,6 +374,10 @@ if(UA_ENABLE_HISTORIZING)
     add_executable(check_server_historical_data server/check_server_historical_data.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
     target_link_libraries(check_server_historical_data ${LIBS})
     add_test_valgrind(server_historical_data ${TESTS_BINARY_DIR}/check_server_historical_data)
+
+    add_executable(check_server_historical_data_circular server/check_server_historical_data_circular.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
+    target_link_libraries(check_server_historical_data_circular ${LIBS})
+    add_test_valgrind(server_historical_data_circular ${TESTS_BINARY_DIR}/check_server_historical_data_circular)
 endif()
 
 add_executable(check_session server/check_session.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
@@ -438,14 +482,22 @@ if(UA_ENABLE_PUBSUB)
                 $<TARGET_OBJECTS:open62541-testplugins>)
         target_link_libraries(check_pubsub_subscribe_encrypted ${LIBS})
         add_test_valgrind(check_pubsub_subscribe_encrypted ${TESTS_BINARY_DIR}/check_pubsub_subscribe_encrypted)
+
+        add_executable(check_pubsub_encrypted_rt_levels pubsub/check_pubsub_encrypted_rt_levels.c
+                $<TARGET_OBJECTS:open62541-object>
+                $<TARGET_OBJECTS:open62541-testplugins>)
+        target_link_libraries(check_pubsub_encrypted_rt_levels ${LIBS})
+        add_test_valgrind(check_pubsub_encrypted_rt_levels ${TESTS_BINARY_DIR}/check_pubsub_encrypted_rt_levels)
     endif()
 
     if (UA_ENABLE_PUBSUB_MONITORING)
-        add_executable(check_pubsub_subscribe_msgrcvtimeout pubsub/check_pubsub_subscribe_msgrcvtimeout.c 
-            $<TARGET_OBJECTS:open62541-object>
-            $<TARGET_OBJECTS:open62541-testplugins>)
-        target_link_libraries(check_pubsub_subscribe_msgrcvtimeout ${LIBS})
-        add_test_valgrind(check_pubsub_subscribe_msgrcvtimeout ${TESTS_BINARY_DIR}/check_pubsub_subscribe_msgrcvtimeout)
+        if(NOT UA_ENABLE_PUBSUB_ENCRYPTION) #ToDO: Multiple Receive handling for PubsubEncryption
+            add_executable(check_pubsub_subscribe_msgrcvtimeout pubsub/check_pubsub_subscribe_msgrcvtimeout.c 
+                    $<TARGET_OBJECTS:open62541-object>
+                    $<TARGET_OBJECTS:open62541-testplugins>)
+            target_link_libraries(check_pubsub_subscribe_msgrcvtimeout ${LIBS})
+            add_test_valgrind(check_pubsub_subscribe_msgrcvtimeout ${TESTS_BINARY_DIR}/check_pubsub_subscribe_msgrcvtimeout)
+        endif()
     endif()
 
     if(UA_ENABLE_PUBSUB_ETH_UADP)
@@ -597,3 +649,11 @@ endif()
 
 # Tests for Nodeset Compiler
 add_subdirectory(nodeset-compiler)
+
+# Tests for interfaces
+if(UA_NAMESPACE_ZERO STREQUAL "FULL")
+    add_executable(check_interfaces server/check_interfaces.c ${NODESET_COMPILER_OUTPUT_DIR}/namespace_tests_interfaces_generated.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
+    target_include_directories(check_interfaces PRIVATE ${NODESET_COMPILER_OUTPUT_DIR})
+    target_link_libraries(check_interfaces ${LIBS})
+    add_test_valgrind(check_interfaces ${TESTS_BINARY_DIR}/check_interfaces)
+endif()

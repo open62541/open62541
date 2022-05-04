@@ -259,7 +259,7 @@ UA_Client_call(UA_Client *client, const UA_NodeId objectId,
         else
             retval = UA_STATUSCODE_BADUNEXPECTEDERROR;
     }
-    if(retval != UA_STATUSCODE_GOOD) {
+    if(UA_StatusCode_isBad(retval)) {
         UA_CallResponse_clear(&response);
         return retval;
     }
@@ -839,20 +839,13 @@ UA_StatusCode __UA_Client_call_async(UA_Client *client,
 }
 #endif
 
-UA_StatusCode __UA_Client_translateBrowsePathsToNodeIds_async(UA_Client *client,
-        char *paths[], UA_UInt32 ids[], size_t pathSize,
-        UA_ClientAsyncServiceCallback callback, void *userdata,
-        UA_UInt32 *reqId) {
-    return UA_STATUSCODE_BADNOTIMPLEMENTED;
-}
-
-UA_StatusCode
-UA_Cient_translateBrowsePathsToNodeIds_async(UA_Client *client, char **paths,
-                                             UA_UInt32 *ids, size_t pathSize,
-                                             UA_ClientAsyncTranslateCallback callback,
-                                             void *userdata, UA_UInt32 *reqId) {
-    return UA_STATUSCODE_BADNOTIMPLEMENTED;
-}
+/* UA_StatusCode */
+/* UA_Cient_translateBrowsePathsToNodeIds_async(UA_Client *client, char **paths, */
+/*                                              UA_UInt32 *ids, size_t pathSize, */
+/*                                              UA_ClientAsyncTranslateCallback callback, */
+/*                                              void *userdata, UA_UInt32 *reqId) { */
+/*     return UA_STATUSCODE_BADNOTIMPLEMENTED; */
+/* } */
 
 /*************************/
 /* Read Single Attribute */

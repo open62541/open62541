@@ -18,6 +18,7 @@
 #define UA_INTERNAL
 #include <open62541/types.h>
 #include <open62541/util.h>
+#include <open62541/statuscodes.h>
 
 #include "ua_types_encoding_binary.h"
 
@@ -184,6 +185,9 @@ isTrue(uint8_t expr) {
 #define UA_CHECK_STATUS_INFO(STATUSCODE, EVAL, LOGGER, CAT, ...)                         \
     UA_MACRO_EXPAND(                                                                     \
         UA_CHECK_STATUS_LOG(STATUSCODE, EVAL, INFO, LOGGER, CAT, __VA_ARGS__))
+#define UA_CHECK_STATUS_DEBUG(STATUSCODE, EVAL, LOGGER, CAT, ...)                         \
+    UA_MACRO_EXPAND(                                                                     \
+        UA_CHECK_STATUS_LOG(STATUSCODE, EVAL, DEBUG, LOGGER, CAT, __VA_ARGS__))
 
 #define UA_CHECK_MEM_FATAL(PTR, EVAL, LOGGER, CAT, ...)                        \
     UA_MACRO_EXPAND(                                                                     \
@@ -215,6 +219,12 @@ getCountOfOptionalFields(const UA_DataType *type);
 void UA_EXPORT
 UA_dump_hex_pkg(UA_Byte* buffer, size_t bufferLen);
 #endif
+
+/* Chunked for loop */
+#define FOR_EACH_CHUNK(CURSOR, SIZE, chunkSize, arraySize) \
+        for((CURSOR) = 0, (SIZE) = (arraySize) <= (chunkSize) ? (arraySize) : (chunkSize); \
+            (CURSOR) < (arraySize); \
+            (CURSOR) = (CURSOR) + (chunkSize), (SIZE) = (arraySize) - (CURSOR) <= (chunkSize) ? (arraySize) - (CURSOR) : (chunkSize))
 
 /* Unions that represent any of the supported request or response message */
 typedef union {

@@ -67,8 +67,9 @@ UA_String_chr(const UA_String *pUaStr, char needl) {
     return -1;
 }
 
+/* char *value cannot be const due to openssl 1.0 compatibility */
 static UA_StatusCode
-add_x509V3ext(X509 *x509, int nid, const char *value) {
+add_x509V3ext(X509 *x509, int nid, char *value) {
     X509_EXTENSION *ex;
     X509V3_CTX ctx;
     X509V3_set_ctx_nodb(&ctx);
@@ -261,7 +262,7 @@ UA_CreateCertificate(const UA_Logger *logger,
         goto cleanup;
     }
 
-    errRet = add_x509V3ext(x509, NID_subject_alt_name, (const char*) fullAltSubj.data);
+    errRet = add_x509V3ext(x509, NID_subject_alt_name, (char*) fullAltSubj.data);
     if(errRet != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(logger, UA_LOGCATEGORY_SECURECHANNEL,
                      "Create Certificate: Setting 'Subject Alternative Name:' failed.");

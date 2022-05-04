@@ -3,6 +3,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  * 
  *    Copyright 2020-2021 (c) Christian von Arnim, ISW University of Stuttgart (for VDW and umati)
+ *    Copyright 2021 (c) Fraunhofer IOSB (Author: Andreas Ebner)
  */
 
 #include <open62541/client_config_default.h>
@@ -707,36 +708,122 @@ START_TEST(evaluateWhereClause) {
     UA_NodeId eventNodeId;
     UA_StatusCode retval = eventSetup(&eventNodeId);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    //test empty filter
     UA_ContentFilter contentFilter;
     UA_ContentFilter_init(&contentFilter);
-    /* Empty Filter */
+    UA_ContentFilterResult contentFilterResult;
+    UA_ContentFilterResult_init(&contentFilterResult);
+    contentFilterResult.elementResultsSize = contentFilter.elementsSize;
+    contentFilterResult.elementResults = (UA_ContentFilterElementResult *)
+        UA_Array_new(contentFilter.elementsSize,
+                     &UA_TYPES[UA_TYPES_CONTENTFILTERELEMENTRESULT]);
+    if(!contentFilterResult.elementResults) {
+        ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    }
+    for(size_t i = 0; i < contentFilterResult.elementResultsSize; ++i) {
+        contentFilterResult.elementResults[i].operandStatusCodesSize =
+            contentFilter.elements->filterOperandsSize;
+        contentFilterResult.elementResults[i].operandStatusCodes =
+            (UA_StatusCode *)UA_Array_new(
+                contentFilter.elements->filterOperandsSize,
+                &UA_TYPES[UA_TYPES_STATUSCODE]);
+        if(!contentFilterResult.elementResults[i].operandStatusCodes) {
+            ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+        }
+    }
     UA_LOCK(&server->serviceMutex);
-    retval = UA_Server_evaluateWhereClauseContentFilter(server, &eventNodeId, &contentFilter);
+    retval = UA_Server_evaluateWhereClauseContentFilter(server, &server->adminSession,
+                                                        &eventNodeId, &contentFilter, &contentFilterResult);
     UA_UNLOCK(&server->serviceMutex);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    UA_ContentFilterResult_clear(&contentFilterResult);
+
+    /* Illegal filter operators */
     UA_ContentFilterElement contentFilterElement;
     UA_ContentFilterElement_init(&contentFilterElement);
     contentFilter.elements = &contentFilterElement;
     contentFilter.elementsSize = 1;
-
-    /* Illegal filter operators */
+    contentFilter.elements->filterOperandsSize = 6;
     contentFilterElement.filterOperator = UA_FILTEROPERATOR_RELATEDTO;
+
+    UA_ContentFilterResult_init(&contentFilterResult);
+    contentFilterResult.elementResultsSize = contentFilter.elementsSize;
+    contentFilterResult.elementResults = (UA_ContentFilterElementResult *)
+        UA_Array_new(contentFilterResult.elementResultsSize,
+                     &UA_TYPES[UA_TYPES_CONTENTFILTERELEMENTRESULT]);
+    if(!contentFilterResult.elementResults) {
+        ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    }
+    for(size_t i = 0; i < contentFilterResult.elementResultsSize; ++i) {
+        ck_assert(contentFilterResult.elementResults != NULL);
+        contentFilterResult.elementResults[i].operandStatusCodesSize =
+            contentFilter.elements[i].filterOperandsSize;
+        contentFilterResult.elementResults[i].operandStatusCodes =
+            (UA_StatusCode *)UA_Array_new(
+                contentFilter.elements->filterOperandsSize,
+                &UA_TYPES[UA_TYPES_STATUSCODE]);
+        if(!contentFilterResult.elementResults[i].operandStatusCodes) {
+            ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+        }
+    }
     UA_LOCK(&server->serviceMutex);
-    retval = UA_Server_evaluateWhereClauseContentFilter(server, &eventNodeId, &contentFilter);
+    retval = UA_Server_evaluateWhereClauseContentFilter(server, &server->adminSession, &eventNodeId, &contentFilter, &contentFilterResult);
     UA_UNLOCK(&server->serviceMutex);
     ck_assert_uint_eq(retval, UA_STATUSCODE_BADEVENTFILTERINVALID);
+    UA_ContentFilterResult_clear(&contentFilterResult);
+
     contentFilterElement.filterOperator = UA_FILTEROPERATOR_INVIEW;
+    UA_ContentFilterResult_init(&contentFilterResult);
+    contentFilterResult.elementResultsSize = contentFilter.elementsSize;
+    contentFilterResult.elementResults = (UA_ContentFilterElementResult *)
+        UA_Array_new(contentFilter.elementsSize,
+                     &UA_TYPES[UA_TYPES_CONTENTFILTERELEMENTRESULT]);
+    if(!contentFilterResult.elementResults) {
+        ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    }
+    for(size_t i = 0; i < contentFilterResult.elementResultsSize; ++i) {
+        contentFilterResult.elementResults[i].operandStatusCodesSize =
+            contentFilter.elements->filterOperandsSize;
+        contentFilterResult.elementResults[i].operandStatusCodes =
+            (UA_StatusCode *)UA_Array_new(
+                contentFilter.elements->filterOperandsSize,
+                &UA_TYPES[UA_TYPES_STATUSCODE]);
+        if(!contentFilterResult.elementResults[i].operandStatusCodes) {
+            ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+        }
+    }
     UA_LOCK(&server->serviceMutex);
-    retval = UA_Server_evaluateWhereClauseContentFilter(server, &eventNodeId, &contentFilter);
+    retval = UA_Server_evaluateWhereClauseContentFilter(server, &server->adminSession, &eventNodeId, &contentFilter, &contentFilterResult);
     UA_UNLOCK(&server->serviceMutex);
     ck_assert_uint_eq(retval, UA_STATUSCODE_BADEVENTFILTERINVALID);
+    UA_ContentFilterResult_clear(&contentFilterResult);
 
     /* No operand provided */
     contentFilterElement.filterOperator = UA_FILTEROPERATOR_OFTYPE;
+    UA_ContentFilterResult_init(&contentFilterResult);
+    contentFilterResult.elementResultsSize = contentFilter.elementsSize;
+    contentFilterResult.elementResults = (UA_ContentFilterElementResult *)
+        UA_Array_new(contentFilter.elementsSize,
+                     &UA_TYPES[UA_TYPES_CONTENTFILTERELEMENTRESULT]);
+    if(!contentFilterResult.elementResults) {
+        ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    }
+    for(size_t i = 0; i < contentFilterResult.elementResultsSize; ++i) {
+        contentFilterResult.elementResults[i].operandStatusCodesSize =
+            contentFilter.elements->filterOperandsSize;
+        contentFilterResult.elementResults[i].operandStatusCodes =
+            (UA_StatusCode *)UA_Array_new(
+                contentFilter.elements->filterOperandsSize,
+                &UA_TYPES[UA_TYPES_STATUSCODE]);
+        if(!contentFilterResult.elementResults[i].operandStatusCodes) {
+            ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+        }
+    }
     UA_LOCK(&server->serviceMutex);
-    retval = UA_Server_evaluateWhereClauseContentFilter(server, &eventNodeId, &contentFilter);
+    retval = UA_Server_evaluateWhereClauseContentFilter(server, &server->adminSession, &eventNodeId, &contentFilter, &contentFilterResult);
     UA_UNLOCK(&server->serviceMutex);
     ck_assert_uint_eq(retval, UA_STATUSCODE_BADFILTEROPERANDCOUNTMISMATCH);
+    UA_ContentFilterResult_clear(&contentFilterResult);
 
     UA_ExtensionObject filterOperandExObj;
     UA_ExtensionObject_init(&filterOperandExObj);
@@ -749,25 +836,87 @@ START_TEST(evaluateWhereClause) {
 
     /* Same type*/
     UA_Variant_setScalar(&literalOperand.value, &eventType, &UA_TYPES[UA_TYPES_NODEID]);
+    UA_ContentFilterResult_init(&contentFilterResult);
+    contentFilterResult.elementResultsSize = contentFilter.elementsSize;
+    contentFilterResult.elementResults = (UA_ContentFilterElementResult *)
+        UA_Array_new(contentFilter.elementsSize,
+                     &UA_TYPES[UA_TYPES_CONTENTFILTERELEMENTRESULT]);
+    if(!contentFilterResult.elementResults) {
+        ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    }
+    for(size_t i = 0; i < contentFilterResult.elementResultsSize; ++i) {
+        contentFilterResult.elementResults[i].operandStatusCodesSize =
+            contentFilter.elements->filterOperandsSize;
+        contentFilterResult.elementResults[i].operandStatusCodes =
+            (UA_StatusCode *)UA_Array_new(
+                contentFilter.elements->filterOperandsSize,
+                &UA_TYPES[UA_TYPES_STATUSCODE]);
+        if(!contentFilterResult.elementResults[i].operandStatusCodes) {
+            ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+        }
+    }
     UA_LOCK(&server->serviceMutex);
-    retval = UA_Server_evaluateWhereClauseContentFilter(server, &eventNodeId, &contentFilter);
+    retval = UA_Server_evaluateWhereClauseContentFilter(server, &server->adminSession, &eventNodeId, &contentFilter, &contentFilterResult);
     UA_UNLOCK(&server->serviceMutex);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    UA_ContentFilterResult_clear(&contentFilterResult);
 
     /* Base type*/
     UA_NodeId nodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_BASEEVENTTYPE);
     UA_Variant_setScalar(&literalOperand.value, &nodeId, &UA_TYPES[UA_TYPES_NODEID]);
+    UA_ContentFilterResult_init(&contentFilterResult);
+    contentFilterResult.elementResultsSize = contentFilter.elementsSize;
+    contentFilterResult.elementResults = (UA_ContentFilterElementResult *)
+        UA_Array_new(contentFilter.elementsSize,
+                     &UA_TYPES[UA_TYPES_CONTENTFILTERELEMENTRESULT]);
+    if(!contentFilterResult.elementResults) {
+        ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    }
+    for(size_t i = 0; i < contentFilterResult.elementResultsSize; ++i) {
+        ck_assert(contentFilterResult.elementResults != NULL);
+        contentFilterResult.elementResults[i].operandStatusCodesSize =
+            contentFilter.elements->filterOperandsSize;
+        contentFilterResult.elementResults[i].operandStatusCodes =
+            (UA_StatusCode *)UA_Array_new(
+                contentFilter.elements->filterOperandsSize,
+                &UA_TYPES[UA_TYPES_STATUSCODE]);
+        if(!contentFilterResult.elementResults[i].operandStatusCodes) {
+            ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+        }
+    }
     UA_LOCK(&server->serviceMutex);
-    retval = UA_Server_evaluateWhereClauseContentFilter(server, &eventNodeId, &contentFilter);
+    retval = UA_Server_evaluateWhereClauseContentFilter(server, &server->adminSession, &eventNodeId, &contentFilter, &contentFilterResult);
     UA_UNLOCK(&server->serviceMutex);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    UA_ContentFilterResult_clear(&contentFilterResult);
 
     /* Other type*/
     nodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_BASEMODELCHANGEEVENTTYPE);
+    UA_ContentFilterResult_init(&contentFilterResult);
+    contentFilterResult.elementResultsSize = contentFilter.elementsSize;
+    contentFilterResult.elementResults = (UA_ContentFilterElementResult *)
+        UA_Array_new(contentFilter.elementsSize,
+                     &UA_TYPES[UA_TYPES_CONTENTFILTERELEMENTRESULT]);
+    if(!contentFilterResult.elementResults) {
+        ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    }
+    for(size_t i = 0; i < contentFilterResult.elementResultsSize; ++i) {
+        ck_assert(contentFilterResult.elementResults != NULL);
+        contentFilterResult.elementResults[i].operandStatusCodesSize =
+            contentFilter.elements->filterOperandsSize;
+        contentFilterResult.elementResults[i].operandStatusCodes =
+            (UA_StatusCode *)UA_Array_new(
+                contentFilter.elements->filterOperandsSize,
+                &UA_TYPES[UA_TYPES_STATUSCODE]);
+        if(!contentFilterResult.elementResults[i].operandStatusCodes) {
+            ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+        }
+    }
     UA_LOCK(&server->serviceMutex);
-    retval = UA_Server_evaluateWhereClauseContentFilter(server, &eventNodeId, &contentFilter);
+    retval = UA_Server_evaluateWhereClauseContentFilter(server, &server->adminSession, &eventNodeId, &contentFilter, &contentFilterResult);
     UA_UNLOCK(&server->serviceMutex);
     ck_assert_uint_eq(retval, UA_STATUSCODE_BADNOMATCH);
+    UA_ContentFilterResult_clear(&contentFilterResult);
 }
 END_TEST
 

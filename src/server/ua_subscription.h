@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  *
- *    Copyright 2015-2018, 2021 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
+ *    Copyright 2015-2018, 2021-2022 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
  *    Copyright 2015 (c) Chris Iatrou
  *    Copyright 2015-2016 (c) Sten Grüner
  *    Copyright 2015 (c) Oleksiy Vasylyev
@@ -11,6 +11,8 @@
  *    Copyright 2017 (c) Mattias Bornhager
  *    Copyright 2019 (c) HMS Industrial Networks AB (Author: Jonas Green)
  *    Copyright 2020 (c) Christian von Arnim, ISW University of Stuttgart (for VDW and umati)
+ *    Copyright 2021 (c) Fraunhofer IOSB (Author: Andreas Ebner)
+ *    Copyright 2021 (c) Fraunhofer IOSB (Author: Jan Hermes)
  */
 
 #ifndef UA_SUBSCRIPTION_H_
@@ -21,15 +23,12 @@
 #include <open62541/plugin/nodestore.h>
 
 #include "ua_session.h"
-#include "ua_timer.h"
+#include "common/ua_timer.h"
 #include "ua_util_internal.h"
 
 _UA_BEGIN_DECLS
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS
-
-struct UA_MonitoredItem;
-typedef struct UA_MonitoredItem UA_MonitoredItem;
 
 /* MonitoredItems create Notifications. Subscriptions collect Notifications from
  * (several) MonitoredItems and publish them to the client.
@@ -50,7 +49,7 @@ typedef struct UA_MonitoredItem UA_MonitoredItem;
 #define UA_SUBSCRIPTION_QUEUE_SENTINEL ((UA_Notification*)0x01)
 
 typedef struct UA_Notification {
-    TAILQ_ENTRY(UA_Notification) listEntry;   /* Notification list for the MonitoredItem */
+    TAILQ_ENTRY(UA_Notification) localEntry;  /* Notification list for the MonitoredItem */
     TAILQ_ENTRY(UA_Notification) globalEntry; /* Notification list for the Subscription */
     UA_MonitoredItem *mon; /* Always set */
 
@@ -64,6 +63,7 @@ typedef struct UA_Notification {
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
     UA_Boolean isOverflowEvent; /* Counted manually */
+    UA_EventFilterResult result;
 #endif
 } UA_Notification;
 
@@ -83,7 +83,7 @@ void UA_Notification_enqueueAndTrigger(UA_Server *server,
                                        UA_Notification *n);
 
 /* Dequeue and delete the notification */
-void UA_Notification_delete(UA_Server *server, UA_Notification *n);
+void UA_Notification_delete(UA_Notification *n);
 
 /* A NotificationMessage contains an array of notifications.
  * Sent NotificationMessages are stored for the republish service. */
@@ -102,12 +102,11 @@ typedef TAILQ_HEAD(NotificationMessageQueue, UA_NotificationMessageEntry)
 /*****************/
 
 struct UA_MonitoredItem {
-    UA_TimerEntry delayedFreePointers;
+    UA_DelayedCallback delayedFreePointers;
     LIST_ENTRY(UA_MonitoredItem) listEntry; /* Linked list in the Subscription */
-#ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
     UA_MonitoredItem *next; /* Linked list of MonitoredItems directly attached
-                             * to a Node */
-#endif
+                             * to a Node. Initialized to ~0 to indicate that the
+                             * MonitoredItem is not added to a node. */
     UA_Subscription *subscription; /* If NULL, then this is a Local MonitoredItem */
     UA_UInt32 monitoredItemId;
 
@@ -117,6 +116,13 @@ struct UA_MonitoredItem {
     UA_TimestampsToReturn timestampsToReturn;
     UA_Boolean sampleCallbackIsRegistered;
     UA_Boolean registered; /* Registered in the server / Subscription */
+    UA_DateTime triggeredUntil;  /* If the MonitoringMode is SAMPLING,
+                                  * triggering the MonitoredItem puts the latest
+                                  * Notification into the publishing queue (of
+                                  * the Subscription). In addition, the first
+                                  * new sample is also published (and not just
+                                  * sampled) if it occurs within the duration of
+                                  * one publishing cycle after the triggering. */
 
     /* If the filter is a UA_DataChangeFilter: The DataChangeFilter always
      * contains an absolute deadband definition. Part 8, §6.2 gives the
@@ -134,7 +140,6 @@ struct UA_MonitoredItem {
 
     /* Sampling Callback */
     UA_UInt64 sampleCallbackId;
-    UA_ByteString lastSampledValue;
     UA_DataValue lastValue;
 
     /* Triggering Links */
@@ -154,12 +159,20 @@ void UA_MonitoredItem_init(UA_MonitoredItem *mon);
 void
 UA_MonitoredItem_delete(UA_Server *server, UA_MonitoredItem *monitoredItem);
 
-UA_StatusCode
-UA_Server_registerMonitoredItem(UA_Server *server, UA_MonitoredItem *mon);
+void
+UA_MonitoredItem_removeOverflowInfoBits(UA_MonitoredItem *mon);
 
 void
-UA_MonitoredItem_unregisterSampleCallback(UA_Server *server,
-                                          UA_MonitoredItem *mon);
+UA_Server_registerMonitoredItem(UA_Server *server, UA_MonitoredItem *mon);
+
+/* Register sampling. Either by adding a repeated callback or by adding the
+ * MonitoredItem to a linked list in the node. */
+UA_StatusCode
+UA_MonitoredItem_registerSampling(UA_Server *server, UA_MonitoredItem *mon);
+
+void
+UA_MonitoredItem_unregisterSampling(UA_Server *server,
+                                    UA_MonitoredItem *mon);
 
 UA_StatusCode
 UA_MonitoredItem_setMonitoringMode(UA_Server *server, UA_MonitoredItem *mon,
@@ -170,8 +183,8 @@ UA_MonitoredItem_sampleCallback(UA_Server *server,
                                 UA_MonitoredItem *monitoredItem);
 
 UA_StatusCode
-UA_MonitoredItem_registerSampleCallback(UA_Server *server,
-                                        UA_MonitoredItem *mon);
+sampleCallbackWithValue(UA_Server *server, UA_Subscription *sub,
+                        UA_MonitoredItem *mon, UA_DataValue *value);
 
 UA_StatusCode
 UA_MonitoredItem_removeLink(UA_Subscription *sub, UA_MonitoredItem *mon,
@@ -193,6 +206,16 @@ UA_Event_addEventToMonitoredItem(UA_Server *server, const UA_NodeId *event,
 
 UA_StatusCode
 UA_Event_generateEventId(UA_ByteString *generatedId);
+
+void
+UA_Event_staticSelectClauseValidation(UA_Server *server,
+                                      const UA_EventFilter *eventFilter,
+                                      UA_StatusCode *result);
+
+UA_StatusCode
+UA_Event_staticWhereClauseValidation(UA_Server *server,
+                                     const UA_ContentFilter *filter,
+                                     UA_ContentFilterResult *);
 
 /* Remove entries until mon->maxQueueSize is reached. Sets infobits for lost
  * data if required. */
@@ -218,9 +241,11 @@ typedef enum {
  * may keep Subscriptions intact beyond the Session lifetime. They can then be
  * re-bound to a new Session with the TransferSubscription Service. */
 struct UA_Subscription {
-    UA_TimerEntry delayedFreePointers;
+    UA_DelayedCallback delayedFreePointers;
     LIST_ENTRY(UA_Subscription) serverListEntry;
-    TAILQ_ENTRY(UA_Subscription) sessionListEntry; /* Only set if session != NULL */
+    /* Ordered according to the priority byte and round-robin scheduling for
+     * late subscriptions. See ua_session.h. Only set if session != NULL. */
+    TAILQ_ENTRY(UA_Subscription) sessionListEntry;
     UA_Session *session; /* May be NULL if no session is attached. */
     UA_UInt32 subscriptionId;
 
@@ -230,7 +255,7 @@ struct UA_Subscription {
     UA_Double publishingInterval; /* in ms */
     UA_UInt32 notificationsPerPublish;
     UA_Boolean publishingEnabled;
-    UA_UInt32 priority;
+    UA_Byte priority;
 
     /* Runtime information */
     UA_SubscriptionState state;
@@ -255,15 +280,30 @@ struct UA_Subscription {
     UA_UInt32 dataChangeNotifications;
     UA_UInt32 eventNotifications;
 
-    /* Notifications to be sent out now (already late). In a regular publish
-     * callback, all queued notifications are sent out. In a late publish
-     * response, only the notifications left from the last regular publish
-     * callback are sent. */
-    UA_UInt32 readyNotifications;
-
     /* Retransmission Queue */
     NotificationMessageQueue retransmissionQueue;
     size_t retransmissionQueueSize;
+
+    /* Statistics for the server diagnostics. The fields are defined according
+     * to the SubscriptionDiagnosticsDataType (Part 5, §12.15). */
+#ifdef UA_ENABLE_DIAGNOSTICS
+    UA_UInt32 modifyCount;
+    UA_UInt32 enableCount;
+    UA_UInt32 disableCount;
+    UA_UInt32 republishRequestCount;
+    UA_UInt32 republishMessageCount;
+    UA_UInt32 transferRequestCount;
+    UA_UInt32 transferredToAltClientCount;
+    UA_UInt32 transferredToSameClientCount;
+    UA_UInt32 publishRequestCount;
+    UA_UInt32 dataChangeNotificationsCount;
+    UA_UInt32 eventNotificationsCount;
+    UA_UInt32 notificationsCount;
+    UA_UInt32 latePublishRequestCount;
+    UA_UInt32 discardedMessageCount;
+    UA_UInt32 monitoringQueueOverflowCount;
+    UA_UInt32 eventQueueOverFlowCount;
+#endif
 };
 
 UA_Subscription * UA_Subscription_new(void);
@@ -304,11 +344,12 @@ typedef struct UA_ConditionSource UA_ConditionSource;
 /* Evaluate content filter, Only for unit testing */
 #ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
 UA_StatusCode
-UA_Server_evaluateWhereClauseContentFilter(UA_Server *server,
+UA_Server_evaluateWhereClauseContentFilter(UA_Server *server, UA_Session *session,
                                            const UA_NodeId *eventNode,
-                                           const UA_ContentFilter *contentFilter);
+                                           const UA_ContentFilter *contentFilter,
+                                           UA_ContentFilterResult *contentFilterResult);
 #endif
- 
+
 /* Setting an integer value within bounds */
 #define UA_BOUNDEDVALUE_SETWBOUNDS(BOUNDS, SRC, DST) { \
         if(SRC > BOUNDS.max) DST = BOUNDS.max;         \
@@ -318,22 +359,18 @@ UA_Server_evaluateWhereClauseContentFilter(UA_Server *server,
 
 /* Logging
  * See a description of the tricks used in ua_session.h */
-#define UA_LOG_SUBSCRIPTION_INTERNAL(LOGGER, LEVEL, SUB, MSG, ...) do { \
-    UA_String idString = UA_STRING_NULL;                                \
-    if((SUB) && (SUB)->session) {                                       \
-        UA_NodeId_print(&(SUB)->session->sessionId, &idString);         \
-        UA_LOG_##LEVEL(LOGGER, UA_LOGCATEGORY_SESSION,                  \
-                       "SecureChannel %i | Session %.*s | Subscription %" PRIu32 " | " MSG "%.0s", \
-                       ((SUB)->session->header.channel ?                \
-                        (SUB)->session->header.channel->securityToken.channelId : 0), \
-                       (int)idString.length, idString.data, (SUB)->subscriptionId, __VA_ARGS__); \
-        UA_String_clear(&idString);                                     \
-    } else {                                                            \
-        UA_LOG_##LEVEL(LOGGER, UA_LOGCATEGORY_SERVER,                   \
-                       "Subscription %" PRIu32 " | " MSG "%.0s",        \
-                       (SUB) ? (SUB)->subscriptionId : 0, __VA_ARGS__); \
-    }                                                                   \
-} while(0)
+#define UA_LOG_SUBSCRIPTION_INTERNAL(LOGGER, LEVEL, SUB, MSG, ...)      \
+    do {                                                                \
+        if((SUB) && (SUB)->session) {                                   \
+            UA_LOG_##LEVEL##_SESSION(LOGGER, (SUB)->session,            \
+                                     "Subscription %" PRIu32 " | " MSG "%.0s", \
+                                     (SUB)->subscriptionId, __VA_ARGS__); \
+        } else {                                                        \
+            UA_LOG_##LEVEL(LOGGER, UA_LOGCATEGORY_SERVER,               \
+                           "Subscription %" PRIu32 " | " MSG "%.0s",    \
+                           (SUB) ? (SUB)->subscriptionId : 0, __VA_ARGS__); \
+        }                                                               \
+    } while(0)
 
 #if UA_LOGLEVEL <= 100
 # define UA_LOG_TRACE_SUBSCRIPTION(LOGGER, SUB, ...)                     \

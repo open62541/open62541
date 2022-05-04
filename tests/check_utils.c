@@ -302,7 +302,7 @@ static void assertNodeIdString(const UA_String *gotStr, const char* expectedStr)
 
 START_TEST(idToStringNull) {
     UA_String str = UA_STRING_NULL;
-    ck_assert_int_eq(UA_NodeId_toString(NULL, &str), UA_STATUSCODE_GOOD);
+    ck_assert_int_eq(UA_NodeId_print(NULL, &str), UA_STATUSCODE_GOOD);
 } END_TEST
 
 START_TEST(idToStringNumeric) {
@@ -310,15 +310,15 @@ START_TEST(idToStringNumeric) {
     UA_String str = UA_STRING_NULL;
 
     n = UA_NODEID_NUMERIC(0,0);
-    UA_NodeId_toString(&n, &str);
+    UA_NodeId_print(&n, &str);
     assertNodeIdString(&str, "i=0");
 
     n = UA_NODEID_NUMERIC(12345,1234567890);
-    UA_NodeId_toString(&n, &str);
+    UA_NodeId_print(&n, &str);
     assertNodeIdString(&str, "ns=12345;i=1234567890");
 
     n = UA_NODEID_NUMERIC(0xFFFF,0xFFFFFFFF);
-    UA_NodeId_toString(&n, &str);
+    UA_NodeId_print(&n, &str);
     assertNodeIdString(&str, "ns=65535;i=4294967295");
 
     UA_String_clear(&str);
@@ -329,15 +329,15 @@ START_TEST(idToStringString) {
     UA_String str = UA_STRING_NULL;
 
     n = UA_NODEID_STRING(0,"");
-    UA_NodeId_toString(&n, &str);
+    UA_NodeId_print(&n, &str);
     assertNodeIdString(&str, "s=");
 
     n = UA_NODEID_STRING(54321,"Some String");
-    UA_NodeId_toString(&n, &str);
+    UA_NodeId_print(&n, &str);
     assertNodeIdString(&str, "ns=54321;s=Some String");
 
     n = UA_NODEID_STRING(0,"Some String");
-    UA_NodeId_toString(&n, &str);
+    UA_NodeId_print(&n, &str);
     assertNodeIdString(&str, "s=Some String");
 
     UA_String_clear(&str);
@@ -350,7 +350,7 @@ START_TEST(idToStringGuid) {
     UA_Guid g = UA_GUID_NULL;
 
     n = UA_NODEID_GUID(0,UA_GUID_NULL);
-    UA_NodeId_toString(&n, &str);
+    UA_NodeId_print(&n, &str);
     assertNodeIdString(&str, "g=00000000-0000-0000-0000-000000000000");
 
     g.data1 = 0xA123456C;
@@ -366,7 +366,7 @@ START_TEST(idToStringGuid) {
     g.data4[7] = 0x1B;
 
     n = UA_NODEID_GUID(65535,g);
-    UA_NodeId_toString(&n, &str);
+    UA_NodeId_print(&n, &str);
     assertNodeIdString(&str, "ns=65535;g=a123456c-0abc-1a2b-815f-687212aaee1b");
 
     g.data1 = 0xFFFFFFFF;
@@ -382,7 +382,7 @@ START_TEST(idToStringGuid) {
     g.data4[7] = 0xFF;
 
     n = UA_NODEID_GUID(65535,g);
-    UA_NodeId_toString(&n, &str);
+    UA_NodeId_print(&n, &str);
     assertNodeIdString(&str, "ns=65535;g=ffffffff-ffff-ffff-ffff-ffffffffffff");
 
     UA_String_clear(&str);
@@ -396,7 +396,7 @@ START_TEST(idToStringByte) {
     n.identifierType = UA_NODEIDTYPE_BYTESTRING;
     n.identifier.byteString.data = NULL;
     n.identifier.byteString.length = 0;
-    UA_NodeId_toString(&n, &str);
+    UA_NodeId_print(&n, &str);
     assertNodeIdString(&str, "b=");
 
     UA_ByteString bs = UA_BYTESTRING_NULL;
@@ -406,7 +406,7 @@ START_TEST(idToStringByte) {
     bs.data[0] = 0x00;
     n.identifier.byteString = bs;
     n.namespaceIndex = 123;
-    UA_NodeId_toString(&n, &str);
+    UA_NodeId_print(&n, &str);
     assertNodeIdString(&str, "ns=123;b=AA==");
     UA_free(bs.data);
 
@@ -415,7 +415,7 @@ START_TEST(idToStringByte) {
     bs.data[0] = 0x2C;
     n.identifier.byteString = bs;
     n.namespaceIndex = 123;
-    UA_NodeId_toString(&n, &str);
+    UA_NodeId_print(&n, &str);
     assertNodeIdString(&str, "ns=123;b=LA==");
     UA_free(bs.data);
 
@@ -428,7 +428,7 @@ START_TEST(idToStringByte) {
     bs.data[4] = 0x78;
     n.identifier.byteString = bs;
     n.namespaceIndex = 599;
-    UA_NodeId_toString(&n, &str);
+    UA_NodeId_print(&n, &str);
     assertNodeIdString(&str, "ns=599;b=IYPgVHg=");
     UA_free(bs.data);
 
@@ -556,8 +556,8 @@ START_TEST(idOrderString) {
     UA_NodeId id_str_b = UA_NODEID_STRING(1, "baa");
 
     ck_assert(UA_NodeId_order(&id_str_a, &id_str_a) == UA_ORDER_EQ);
-    ck_assert(UA_NodeId_order(&id_str_a, &id_str_b) == UA_ORDER_LESS);
-    ck_assert(UA_NodeId_order(&id_str_b, &id_str_a) == UA_ORDER_MORE);
+    ck_assert(UA_NodeId_order(&id_str_a, &id_str_b) == UA_ORDER_MORE);
+    ck_assert(UA_NodeId_order(&id_str_b, &id_str_a) == UA_ORDER_LESS);
 
     UA_NodeId id_str_c = UA_NODEID_STRING(1, "cddd");
     UA_NodeId id_str_d = UA_NODEID_STRING(1, "dddd");
@@ -567,6 +567,59 @@ START_TEST(idOrderString) {
     ck_assert(UA_NodeId_order(&id_str_d, &id_str_c) == UA_ORDER_MORE);
 } END_TEST
 
+START_TEST(chunkForLoopFitting) {
+    size_t validator[8] = {0, 0, 0, 0, 0, 0, 0, 0};
+    size_t start, size;
+    FOR_EACH_CHUNK(start, size, 2, 8) {
+        for(size_t i = start; i < start + size; i++) {
+            validator[i]++;
+        }
+    }
+    for(size_t i = 0; i < 8; i++) {
+        ck_assert_uint_eq(validator[i], 1);
+    }
+} END_TEST
+
+START_TEST(chunkForLoopUndersize) {
+    size_t validator[4] = {0, 0, 0, 0};
+    size_t start, size;
+
+    FOR_EACH_CHUNK(start, size, 6, 4) {
+        for(size_t i = start; i < start + size; i++) {
+            validator[i]++;
+        }
+    }
+    for(size_t i = 0; i < 4; i++) {
+        ck_assert_uint_eq(validator[i], 1);
+    }
+} END_TEST
+
+START_TEST(chunkForLoopWithRemainder) {
+    size_t validator[7] = {0, 0, 0, 0, 0, 0, 0};
+    size_t start, size;
+    FOR_EACH_CHUNK(start, size, 2, 7) {
+        for(size_t i = start; i < start + size; i++) {
+            validator[i]++;
+        }
+    }
+    for(size_t i = 0; i < 7; i++) {
+        ck_assert_uint_eq(validator[i], 1);
+    }
+} END_TEST
+
+START_TEST(chunkForLoopOneChunk) {
+    size_t validator[8] = {0, 0, 0, 0, 0, 0, 0, 0};
+    size_t start, size;
+
+    FOR_EACH_CHUNK(start, size, 8, 8) {
+        for(size_t i = start; i < start + size; i++) {
+            validator[i]++;
+        }
+    }
+    for(size_t i = 0; i < 8; i++) {
+        ck_assert_uint_eq(validator[i], 1);
+    }
+} END_TEST
 
 static Suite* testSuite_Utils(void) {
     Suite *s = suite_create("Utils");
@@ -599,6 +652,13 @@ static Suite* testSuite_Utils(void) {
     tcase_add_test(tc1, idOrderGuid);
     tcase_add_test(tc1, idOrderString);
     suite_add_tcase(s, tc2);
+
+    TCase *tc3 = tcase_create("test chunk for loop");
+    tcase_add_test(tc3, chunkForLoopFitting);
+    tcase_add_test(tc3, chunkForLoopUndersize);
+    tcase_add_test(tc3, chunkForLoopWithRemainder);
+    tcase_add_test(tc3, chunkForLoopOneChunk);
+    suite_add_tcase(s, tc3);
 
     return s;
 }

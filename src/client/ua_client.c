@@ -16,6 +16,7 @@
  *    Copyright 2017 (c) Mark Giraud, Fraunhofer IOSB
  *    Copyright 2018 (c) Kalycito Infotech Private Limited
  *    Copyright 2020 (c) Christian von Arnim, ISW University of Stuttgart
+ *    Copyright 2021 (c) Fraunhofer IOSB (Author: Jan Hermes)
  */
 
 #include <open62541/transport_generated.h>
@@ -32,7 +33,6 @@ static void
 UA_Client_init(UA_Client* client) {
     UA_SecureChannel_init(&client->channel, &client->config.localConnectionConfig);
     client->connectStatus = UA_STATUSCODE_GOOD;
-    UA_Timer_init(&client->timer);
     notifyClientState(client);
 }
 
@@ -70,6 +70,20 @@ UA_ClientConfig_clear(UA_ClientConfig *config) {
     UA_free(config->securityPolicies);
     config->securityPolicies = 0;
 
+    /* Stop and delete the EventLoop */
+    UA_EventLoop *el = config->eventLoop;
+    if(el && !config->externalEventLoop) {
+        if(el->state != UA_EVENTLOOPSTATE_FRESH &&
+           el->state != UA_EVENTLOOPSTATE_STOPPED) {
+            el->stop(el);
+            while(el->state != UA_EVENTLOOPSTATE_STOPPED) {
+                el->run(el, 100);
+            }
+        }
+        el->free(el);
+        config->eventLoop = NULL;
+    }
+
     /* Logger */
     if(config->logger.clear)
         config->logger.clear(config->logger.context);
@@ -99,8 +113,6 @@ UA_Client_clear(UA_Client *client) {
     UA_Client_Subscriptions_clean(client);
 #endif
 
-    /* Delete the timed work */
-    UA_Timer_clear(&client->timer);
 }
 
 void
@@ -216,7 +228,7 @@ sendSymmetricServiceRequest(UA_Client *client, const void *request,
                          (unsigned)rqId, requestType->typeName);
 #else
     UA_LOG_DEBUG_CHANNEL(&client->config.logger, &client->channel,
-                         "Sending request with RequestId %u of type %" PRIi16,
+                         "Sending request with RequestId %u of type %" PRIu32,
                          (unsigned)rqId, requestType->binaryEncodingId.identifier.numeric);
 #endif
 
@@ -283,7 +295,7 @@ processAsyncResponse(UA_Client *client, UA_UInt32 requestId, const UA_NodeId *re
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_INFO(&client->config.logger, UA_LOGCATEGORY_CLIENT,
                     "Could not decode the response with id %u due to %s",
-                    requestId, UA_StatusCode_name(retval));
+                    (unsigned)requestId, UA_StatusCode_name(retval));
         response.responseHeader.serviceResult = retval;
     } else if(response.responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
         /* Decode as a ServiceFault, i.e. only the response header */
@@ -592,27 +604,33 @@ UA_Client_sendAsyncRequest(UA_Client *client, const void *request,
 UA_StatusCode UA_EXPORT
 UA_Client_addTimedCallback(UA_Client *client, UA_ClientCallback callback,
                            void *data, UA_DateTime date, UA_UInt64 *callbackId) {
-    return UA_Timer_addTimedCallback(&client->timer, (UA_ApplicationCallback)callback,
-                                     client, data, date, callbackId);
+    return client->config.eventLoop->
+        addTimedCallback(client->config.eventLoop, (UA_Callback)callback,
+                         client, data, date, callbackId);
 }
 
 UA_StatusCode
 UA_Client_addRepeatedCallback(UA_Client *client, UA_ClientCallback callback,
                               void *data, UA_Double interval_ms, UA_UInt64 *callbackId) {
-    return UA_Timer_addRepeatedCallback(&client->timer, (UA_ApplicationCallback)callback,
-                                        client, data, interval_ms, NULL,
-                                        UA_TIMER_HANDLE_CYCLEMISS_WITH_CURRENTTIME, callbackId);
+
+    return client->config.eventLoop->
+        addCyclicCallback(client->config.eventLoop, (UA_Callback)callback,
+                          client, data, interval_ms, NULL,
+                          UA_TIMER_HANDLE_CYCLEMISS_WITH_CURRENTTIME, callbackId);
 }
 
 UA_StatusCode
 UA_Client_changeRepeatedCallbackInterval(UA_Client *client, UA_UInt64 callbackId,
                                          UA_Double interval_ms) {
-    return UA_Timer_changeRepeatedCallback(&client->timer, callbackId, interval_ms, NULL, UA_TIMER_HANDLE_CYCLEMISS_WITH_CURRENTTIME);
+    return client->config.eventLoop->
+        modifyCyclicCallback(client->config.eventLoop, callbackId, interval_ms,
+                             NULL, UA_TIMER_HANDLE_CYCLEMISS_WITH_CURRENTTIME);
 }
 
 void
 UA_Client_removeCallback(UA_Client *client, UA_UInt64 callbackId) {
-    UA_Timer_removeCallback(&client->timer, callbackId);
+    client->config.eventLoop->
+        removeCyclicCallback(client->config.eventLoop, callbackId);
 }
 
 static void
@@ -672,19 +690,25 @@ UA_Client_backgroundConnectivity(UA_Client *client) {
         client->pendingConnectivityCheck = true;
 }
 
-static void
-clientExecuteRepeatedCallback(void *executionApplication, UA_ApplicationCallback cb,
-                              void *callbackApplication, void *data) {
-    cb(callbackApplication, data);
-}
-
 UA_StatusCode
 UA_Client_run_iterate(UA_Client *client, UA_UInt32 timeout) {
+    UA_ClientConfig *cc = UA_Client_getConfig(client);
+    UA_EventLoop *el = cc->eventLoop;
+    UA_CHECK_ERROR(el->state != UA_EVENTLOOPSTATE_STOPPED,
+                   return UA_STATUSCODE_BAD,
+                   &client->config.logger, UA_LOGCATEGORY_CLIENT,
+                   "Eventloop was explicitly stopped.");
+
+    UA_StatusCode rv = UA_STATUSCODE_GOOD;
+    if(el->state == UA_EVENTLOOPSTATE_FRESH) {
+        rv = el->start(el);
+        UA_CHECK_STATUS(rv, return rv);
+    }
+
     /* Process timed (repeated) jobs */
     UA_DateTime now = UA_DateTime_nowMonotonic();
-    UA_DateTime maxDate =
-        UA_Timer_process(&client->timer, now, (UA_TimerExecutionCallback)
-                         clientExecuteRepeatedCallback, client);
+    el->run(el, 0);
+    UA_DateTime maxDate = el->nextCyclicTime(el);
     if(maxDate > now + ((UA_DateTime)timeout * UA_DATETIME_MSEC))
         maxDate = now + ((UA_DateTime)timeout * UA_DATETIME_MSEC);
 

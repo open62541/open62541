@@ -22,8 +22,6 @@
 
 _UA_BEGIN_DECLS
 
-#define UA_BUILTIN_TYPES_COUNT 25U
-
 /**
  * .. _types:
  *
@@ -134,7 +132,17 @@ typedef double UA_Double;
  * ^^^^^^^^^^
  * A numeric identifier for an error or condition that is associated with a
  * value or an operation. See the section :ref:`statuscodes` for the meaning of
- * a specific code. */
+ * a specific code.
+ *
+ * Each StatusCode has one of three "severity" bit-flags:
+ * Good, Uncertain, Bad. An additional reason is indicated by the SubCode
+ * bitfield.
+ *
+ * - A StatusCode with severity Good means that the value is of good quality.
+ * - A StatusCode with severity Uncertain means that the quality of the value is
+ *   uncertain for reasons indicated by the SubCode.
+ * - A StatusCode with severity Bad means that the value is not usable for
+ *   reasons indicated by the SubCode. */
 typedef uint32_t UA_StatusCode;
 
 /* Returns the human-readable name of the StatusCode. If no matching StatusCode
@@ -144,6 +152,23 @@ typedef uint32_t UA_StatusCode;
  * empty string for every StatusCode. */
 UA_EXPORT const char *
 UA_StatusCode_name(UA_StatusCode code);
+
+/* Extracts the severity from a StatusCode. See Part 4, Section 7.34 for
+ * details. */
+static UA_INLINE UA_Boolean
+UA_StatusCode_isBad(UA_StatusCode code) {
+    return ((code >> 30) >= 0x02);
+}
+
+static UA_INLINE UA_Boolean
+UA_StatusCode_isUncertain(UA_StatusCode code) {
+    return ((code >> 30) == 0x01);
+}
+
+static UA_INLINE UA_Boolean
+UA_StatusCode_isGood(UA_StatusCode code) {
+    return ((code >> 30) == 0x00);
+}
 
 /**
  * String
@@ -160,6 +185,9 @@ UA_String_fromChars(const char *src) UA_FUNC_ATTR_WARN_UNUSED_RESULT;
 
 UA_Boolean UA_EXPORT
 UA_String_equal(const UA_String *s1, const UA_String *s2);
+
+UA_Boolean UA_EXPORT
+UA_String_isEmpty(const UA_String *s);
 
 UA_EXPORT extern const UA_String UA_STRING_NULL;
 
@@ -223,7 +251,7 @@ typedef struct UA_DateTimeStruct {
     UA_UInt16 hour;
     UA_UInt16 day;   /* From 1 to 31 */
     UA_UInt16 month; /* From 1 to 12 */
-    UA_UInt16 year;
+    UA_Int16 year;   /* Can be negative (BC) */
 } UA_DateTimeStruct;
 
 UA_DateTimeStruct UA_EXPORT UA_DateTime_toStruct(UA_DateTime t);
@@ -522,7 +550,7 @@ UA_EXPANDEDNODEID_BYTESTRING_ALLOC(UA_UInt16 nsIndex, const char *chars) {
 
 static UA_INLINE UA_ExpandedNodeId
 UA_EXPANDEDNODEID_NODEID(UA_NodeId nodeId) {
-    UA_ExpandedNodeId id = {0}; id.nodeId = nodeId; return id;
+    UA_ExpandedNodeId id; memset(&id, 0, sizeof(UA_ExpandedNodeId)); id.nodeId = nodeId; return id;
 }
 
 /* Does the ExpandedNodeId point to a local node? That is, are namespaceUri and
@@ -605,12 +633,6 @@ UA_LOCALIZEDTEXT_ALLOC(const char *locale, const char *text) {
     lt.text = UA_STRING_ALLOC(text); return lt;
 }
 
-/* 
- * Check if the StatusCode is bad.
- * @return Returns UA_TRUE if StatusCode is bad, else UA_FALSE. */
-UA_EXPORT UA_Boolean
-UA_StatusCode_isBad(const UA_StatusCode code);
-
 /**
  * .. _numericrange:
  *
@@ -639,11 +661,6 @@ static UA_INLINE UA_NumericRange
 UA_NUMERICRANGE(const char *s) {
     UA_NumericRange nr; nr.dimensionsSize = 0; nr.dimensions = NULL;
     UA_NumericRange_parse(&nr, UA_STRING((char*)(uintptr_t)s)); return nr;
-}
-
-UA_DEPRECATED static UA_INLINE UA_StatusCode
-UA_NumericRange_parseFromString(UA_NumericRange *range, const UA_String *str) {
-    return UA_NumericRange_parse(range, *str);
 }
 
 /**
@@ -1026,11 +1043,30 @@ typedef struct UA_DataTypeArray {
     const UA_DataType *types;
 } UA_DataTypeArray;
 
-/* Test if the data type is a numeric builtin data type. This includes Boolean,
- * integers and floating point numbers. Not included are DateTime and
- * StatusCode. */
+/* Returns the offset and type of a structure member. The return value is false
+ * if the member was not found.
+ *
+ * If the member is an array, the offset points to the (size_t) length field.
+ * (The array pointer comes after the length field without any padding.) */
+#ifdef UA_ENABLE_TYPEDESCRIPTION
+UA_Boolean
+UA_DataType_getStructMember(const UA_DataType *type,
+                            const char *memberName,
+                            size_t *outOffset,
+                            const UA_DataType **outMemberType,
+                            UA_Boolean *outIsArray);
+#endif
+
+/* Test if the data type is a numeric builtin data type (via the typeKind field
+ * of UA_DataType). This includes integers and floating point numbers. Not
+ * included are Boolean, DateTime, StatusCode and Enums. */
 UA_Boolean
 UA_DataType_isNumeric(const UA_DataType *type);
+
+/* Return the Data Type Precedence-Rank defined in Part 4.
+ * If there is no Precedence-Rank assigned with the type -1 is returned.*/
+UA_Int16
+UA_DataType_getPrecedence(const UA_DataType *type);
 
 /**
  * Builtin data types can be accessed as UA_TYPES[UA_TYPES_XXX], where XXX is
@@ -1088,21 +1124,47 @@ void UA_EXPORT UA_clear(void *p, const UA_DataType *type);
  * @param type The datatype description of the variable */
 void UA_EXPORT UA_delete(void *p, const UA_DataType *type);
 
-#ifdef UA_ENABLE_TYPEDESCRIPTION
 /* Pretty-print the value from the datatype.
  *
  * @param p The memory location of the variable
  * @param type The datatype description of the variable
- * @param output A string that is memory-allocated for the pretty-printed output
+ * @param output A string that is used for the pretty-printed output. If the
+ *        memory for string is already allocated, we try to use the existing
+ *        string (the length is adjusted). If the string is empty, memory
+ *        is allocated for it.
  * @return Indicates whether the operation succeeded*/
+#ifdef UA_ENABLE_TYPEDESCRIPTION
 UA_StatusCode UA_EXPORT
 UA_print(const void *p, const UA_DataType *type, UA_String *output);
 #endif
 
+/* Compare two variables and return their order. This can also be used to test
+ * for equality of two values.
+ *
+ * For numerical types (including StatusCodes and Enums), their natural order is
+ * used. NaN is the "smallest" value for floating point values. Different bit
+ * representations of NaN are considered identical.
+ *
+ * All other types have *some* absolute ordering so that a < b, b < c -> a < c.
+ *
+ * The ordering of arrays (also strings) is in "shortlex": A shorter array is
+ * always smaller than a longer array. Otherwise the first different element
+ * defines the order.
+ *
+ * When members of different types are permitted (in Variants and
+ * ExtensionObjects), the memory address in the "UA_DataType*" pointer
+ * determines which variable is smaller.
+ *
+ * @param p1 The memory location of the first value
+ * @param p2 The memory location of the first value
+ * @param type The datatype description of both values */
+UA_Order UA_EXPORT
+UA_order(const void *p1, const void *p2, const UA_DataType *type);
+
 /**
- * Encodeing/Decoding
+ * Encoding/Decoding
  * ^^^^^^^^^^^^^^^^^^
- * Encodeing and decoding routines for the available formats. For all formats
+ * Encoding and decoding routines for the available formats. For all formats
  * the _calcSize, _encode and _decode methods are provided. */
 
 /* Returns the number of bytes the value p takes in binary encoding. Returns
@@ -1134,6 +1196,8 @@ UA_decodeBinary(const UA_ByteString *inBuf,
                 void *p, const UA_DataType *type,
                 const UA_DecodeBinaryOptions *options);
 
+#ifdef UA_ENABLE_JSON_ENCODING
+
 typedef struct {
     const UA_String *namespaces;
     size_t namespacesSize;
@@ -1152,8 +1216,8 @@ UA_calcSizeJson(const void *src, const UA_DataType *type,
  *
  * @param src The value. Must not be NULL.
  * @param type The value type. Must not be NULL.
- * @param outBuf Pointer to ByteString containing the result if the encoding was
- * successful
+ * @param outBuf Pointer to ByteString containing the result if the encoding
+ *        was successful
  * @return Returns a statuscode whether encoding succeeded. */
 UA_StatusCode UA_EXPORT
 UA_encodeJson(const void *src, const UA_DataType *type, UA_ByteString *outBuf,
@@ -1163,6 +1227,10 @@ UA_encodeJson(const void *src, const UA_DataType *type, UA_ByteString *outBuf,
  * Zero-out the entire structure initially to ensure code-compatibility when
  * more fields are added in a later release. */
 typedef struct {
+    const UA_String *namespaces;
+    size_t namespacesSize;
+    const UA_String *serverUris;
+    size_t serverUrisSize;
     const UA_DataTypeArray *customTypes; /* Begin of a linked list with custom
                                           * datatype definitions */
 } UA_DecodeJsonOptions;
@@ -1180,6 +1248,9 @@ typedef struct {
 UA_StatusCode UA_EXPORT
 UA_decodeJson(const UA_ByteString *src, void *dst, const UA_DataType *type,
               const UA_DecodeJsonOptions *options);
+
+#endif /* UA_ENABLE_JSON_ENCODING */
+
 /**
  * .. _array-handling:
  *
@@ -1198,7 +1269,7 @@ UA_decodeJson(const UA_ByteString *src, void *dst, const UA_DataType *type,
  * @param size The requested array length
  * @param type The datatype description
  * @return Returns the memory location of the variable or NULL if no memory
-           could be allocated */
+ *         could be allocated */
 void UA_EXPORT *
 UA_Array_new(size_t size, const UA_DataType *type) UA_FUNC_ATTR_MALLOC;
 
@@ -1217,13 +1288,13 @@ UA_Array_copy(const void *src, size_t size, void **dst,
  * if the array length is increased. If the array length is decreased, the last
  * entries are removed if the size is decreased.
  *
- * @param p Double pointer to the array memory. Can be overwritten by the result of a
- *          realloc.
+ * @param p Double pointer to the array memory. Can be overwritten by the result
+ *          of a realloc.
  * @param size The current size of the array. Overwritten in case of success.
  * @param newSize The new size of the array
  * @param type The datatype of the array members
- * @return Returns UA_STATUSCODE_GOOD or UA_STATUSCODE_BADOUTOFMEMORY. The original array
- *         is left untouched in the failure case. */
+ * @return Returns UA_STATUSCODE_GOOD or UA_STATUSCODE_BADOUTOFMEMORY. The
+ *         original array is left untouched in the failure case. */
 UA_StatusCode UA_EXPORT
 UA_Array_resize(void **p, size_t *size, size_t newSize,
                 const UA_DataType *type) UA_FUNC_ATTR_WARN_UNUSED_RESULT;
@@ -1232,26 +1303,27 @@ UA_Array_resize(void **p, size_t *size, size_t newSize,
  * (shallow copy) and the original memory is _init'ed if appending is
  * successful.
  *
- * @param p Double pointer to the array memory. Can be overwritten by the result of a
- *          realloc.
+ * @param p Double pointer to the array memory. Can be overwritten by the result
+ *          of a realloc.
  * @param size The current size of the array. Overwritten in case of success.
  * @param newElem The element to be appended. The memory is reset upon success.
  * @param type The datatype of the array members
- * @return Returns UA_STATUSCODE_GOOD or UA_STATUSCODE_BADOUTOFMEMORY. The original array
- *         is left untouched in the failure case. */
+ * @return Returns UA_STATUSCODE_GOOD or UA_STATUSCODE_BADOUTOFMEMORY. The
+ *         original array is left untouched in the failure case. */
 UA_StatusCode UA_EXPORT
 UA_Array_append(void **p, size_t *size, void *newElem,
                 const UA_DataType *type) UA_FUNC_ATTR_WARN_UNUSED_RESULT;
 
 /* Append a copy of the given element at the end of the array.
  *
- * @param p Double pointer to the array memory. Can be overwritten by the result of a
- *          realloc.
+ * @param p Double pointer to the array memory. Can be overwritten by the result
+ *          of a realloc.
  * @param size The current size of the array. Overwritten in case of success.
  * @param newElem The element to be appended.
  * @param type The datatype of the array members
- * @return Returns UA_STATUSCODE_GOOD or UA_STATUSCODE_BADOUTOFMEMORY. The original array
- *         is left untouched in the failure case. */
+ * @return Returns UA_STATUSCODE_GOOD or UA_STATUSCODE_BADOUTOFMEMORY. The
+ *         original array is left untouched in the failure case. */
+
 UA_StatusCode UA_EXPORT
 UA_Array_appendCopy(void **p, size_t *size, const void *newElem,
                     const UA_DataType *type) UA_FUNC_ATTR_WARN_UNUSED_RESULT;

@@ -26,14 +26,11 @@
 static const unsigned char *
 bstrchr(const unsigned char *s, const unsigned char ch, size_t l) {
     /* find first occurrence of c in char s[] for length l*/
-    /* handle special case */
-    if(l == 0)
-        return (NULL);
-
-    for(; *s != ch; ++s, --l)
-        if(l == 0)
-            return (NULL);
-    return s;
+    for(; l > 0; ++s, --l) {
+        if(*s == ch)
+            return s;
+    }
+    return NULL;
 }
 
 static const unsigned char *
@@ -605,11 +602,13 @@ UA_CertificateVerification_VerifyApplicationURI (void *                verificat
 
     pData = certificate->data;
     if (pData == NULL) {
+        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "Error Empty Certificate");
         return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
     }
 
     certificateX509 = UA_OpenSSL_LoadCertificate(certificate);
     if (certificateX509 == NULL) {
+        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "Error loading X509 Certificate");
         return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
     }
 
@@ -617,6 +616,7 @@ UA_CertificateVerification_VerifyApplicationURI (void *                verificat
                                                 NULL, NULL);
     if (pNames == NULL) {
         X509_free (certificateX509);
+        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "Error processing X509 Certificate");
         return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
     }
     for (i = 0; i < sk_GENERAL_NAME_num (pNames); i++) {
@@ -625,6 +625,7 @@ UA_CertificateVerification_VerifyApplicationURI (void *                verificat
              subjectURI.length = (size_t) (value->d.ia5->length);
              subjectURI.data = (UA_Byte *) UA_malloc (subjectURI.length);
              if (subjectURI.data == NULL) {
+                 UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "Error Empty subjectURI");
                  X509_free (certificateX509);
                  sk_GENERAL_NAME_pop_free(pNames, GENERAL_NAME_free);
                  return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
@@ -638,6 +639,7 @@ UA_CertificateVerification_VerifyApplicationURI (void *                verificat
     ret = UA_STATUSCODE_GOOD;
     if (UA_Bstrstr (subjectURI.data, subjectURI.length,
                     applicationURI->data, applicationURI->length) == NULL) {
+        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "Empty comparing subjectURI and applicationURI");
         ret = UA_STATUSCODE_BADCERTIFICATEURIINVALID;
     }
 
@@ -734,7 +736,13 @@ UA_CertificateVerification_CertFolders(UA_CertificateVerification * cv,
     cv->verifyApplicationURI = UA_CertificateVerification_VerifyApplicationURI;
     cv->clear = UA_CertificateVerification_clear;
     cv->context = context;
-    cv->verifyCertificate = UA_CertificateVerification_Verify;
+    if(trustListFolder == NULL &&
+       issuerListFolder == NULL &&
+       revocationListFolder == NULL) {
+        cv->verifyCertificate = UA_VerifyCertificateAllowAll;
+    } else {
+        cv->verifyCertificate = UA_CertificateVerification_Verify;
+    }
 
     /* Only set the folder paths. They will be reloaded during runtime. */
 

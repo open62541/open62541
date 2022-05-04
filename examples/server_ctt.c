@@ -294,6 +294,27 @@ readByteString (UA_Server *server,
    return UA_STATUSCODE_GOOD;
 }
 
+#ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
+static UA_NodeId eventId;
+static void
+writeEventTrigger(UA_Server *server, const UA_NodeId *sessionId,
+                  void *sessionContext, const UA_NodeId *nodeId,
+                  void *nodeContext, const UA_NumericRange *range,
+                  const UA_DataValue *data) {
+    UA_Server_triggerEvent(server, eventId,
+                           UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER),
+                           NULL, false);
+}
+
+static void
+cyclicEventTriger(UA_Server *server, void *data) {
+    (void)data;
+    UA_Server_triggerEvent(server, eventId,
+                           UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER),
+                           NULL, false);
+}
+#endif
+
 /* Method Node Example */
 #ifdef UA_ENABLE_METHODCALLS
 
@@ -762,6 +783,51 @@ setInformationModel(UA_Server *server) {
                             &outargMethod, /* callback of the method node */
                             1, &inputArguments, 1, &outputArguments, NULL, NULL);
 #endif
+
+#ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
+    /* Create the reusable event instance */
+    UA_Server_createEvent(server, UA_NODEID_NUMERIC(0, UA_NS0ID_BASEEVENTTYPE), &eventId);
+    UA_UInt16 eventSeverity = 500;
+    UA_Server_writeObjectProperty_scalar(server, eventId,
+                                         UA_QUALIFIEDNAME(0, "Severity"),
+                                         &eventSeverity, &UA_TYPES[UA_TYPES_UINT16]);
+
+    /* Trigger the event from two variables */
+    UA_ValueCallback eventTriggerValueBackend;
+    eventTriggerValueBackend.onRead = NULL;
+    eventTriggerValueBackend.onWrite = writeEventTrigger;
+
+    UA_VariableAttributes_init(&myVar);
+    myVar.description = UA_LOCALIZEDTEXT("en-US", "event trigger 1");
+    myVar.displayName = UA_LOCALIZEDTEXT("en-US", "event trigger 1");
+    myVar.accessLevel = UA_ACCESSLEVELMASK_READ | UA_ACCESSLEVELMASK_WRITE;
+    myVar.dataType = UA_TYPES[UA_TYPES_INT32].typeId;
+    myVar.valueRank = UA_VALUERANK_SCALAR;
+    myInteger = 0;
+    UA_Variant_setScalar(&myVar.value, &myInteger, &UA_TYPES[UA_TYPES_INT32]);
+    parentNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER);
+    parentReferenceNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES);
+    UA_Server_addVariableNode(server, UA_NODEID_STRING(1, "event-trigger-1"),
+                              parentNodeId, parentReferenceNodeId,
+                              UA_QUALIFIEDNAME(1, "event trigger 1"),
+                              baseDataVariableType, myVar, NULL, NULL);
+    UA_Server_setVariableNode_valueCallback(server,
+                                            UA_NODEID_STRING(1, "event-trigger-1"),
+                                            eventTriggerValueBackend);
+
+    myVar.description = UA_LOCALIZEDTEXT("en-US", "event trigger 2");
+    myVar.displayName = UA_LOCALIZEDTEXT("en-US", "event trigger 2");
+    UA_Server_addVariableNode(server, UA_NODEID_STRING(1, "event-trigger-2"),
+                              parentNodeId, parentReferenceNodeId,
+                              UA_QUALIFIEDNAME(1, "event trigger 2"),
+                              baseDataVariableType, myVar, NULL, NULL);
+    UA_Server_setVariableNode_valueCallback(server,
+                                            UA_NODEID_STRING(1, "event-trigger-2"),
+                                            eventTriggerValueBackend);
+
+    /* Auto-trigger the event every 500 ms */
+    UA_Server_addRepeatedCallback(server, cyclicEventTriger, NULL, 500.0, NULL);
+#endif
 }
 
 static void
@@ -1216,6 +1282,13 @@ int main(int argc, char **argv) {
     if(!enableAnon)
         disableAnonymous(&config);
 
+    /* Limit the number of SecureChannels and Sessions */
+    config.maxSecureChannels = 10;
+    config.maxSessions = 20;
+
+    /* Revolve the SecureChannel token every 300 seconds */
+    config.maxSecurityTokenLifetime = 300000;
+
     /* Set operation limits */
     config.maxNodesPerRead = MAX_OPERATION_LIMIT;
     config.maxNodesPerWrite = MAX_OPERATION_LIMIT;
@@ -1225,6 +1298,11 @@ int main(int argc, char **argv) {
     config.maxNodesPerTranslateBrowsePathsToNodeIds = MAX_OPERATION_LIMIT;
     config.maxNodesPerNodeManagement = MAX_OPERATION_LIMIT;
     config.maxMonitoredItemsPerCall = MAX_OPERATION_LIMIT;
+
+    /* Set Subscription limits */
+#ifdef UA_ENABLE_SUBSCRIPTIONS
+    config.maxSubscriptions = 20;
+#endif
 
     /* If RequestTimestamp is '0', log the warning and proceed */
     config.verifyRequestTimestamp = UA_RULEHANDLING_WARN;

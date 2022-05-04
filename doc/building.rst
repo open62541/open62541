@@ -92,13 +92,13 @@ The procedure below works on OpenBSD 5.8 with gcc version 4.8.4, cmake version 3
 - Install a recent gcc, python and cmake:
 
 .. code-block:: bash
-   
+
    pkg_add gcc python cmake
 
-- Tell the system to actually use the recent gcc (it gets installed as egcc on OpenBSD): 
+- Tell the system to actually use the recent gcc (it gets installed as egcc on OpenBSD):
 
 .. code-block:: bash
-   
+
    export CC=egcc CXX=eg++
 
 - Now procede as described for Ubuntu/Debian:
@@ -145,7 +145,7 @@ Make a local copy of the open62541 git repo and checkout a pack branch
 
 .. code-block:: bash
 
-   # make a local copy of the open62541 git repo (e.g. in the home directory) 
+   # make a local copy of the open62541 git repo (e.g. in the home directory)
    # and checkout a pack branch (e.g. pack/1.0)
    cd ~
    git clone https://github.com/open62541/open62541.git
@@ -158,10 +158,10 @@ Now it's all set to build Debian/Ubuntu open62541 packages
 
    # goto local developmet path
    cd ~/development
-   
+
    # make a local output directory for the builder where the packages can be placed after build
    mkdir output
-   
+
    # build Debian/Ubuntu packages inside Docker container (e.g. Ubuntu-18.04)
    ./build -i docker-deb-builder:18.04 -o output ~/open62541
 
@@ -174,7 +174,7 @@ If the open62541 library will be build as a Debian package using a pack branch (
 then altering or adding CMake build options should be done inside the :file:`debian/rules` file respectively in
 the :file:`debian/rules-template` file if working with a development branch (e.g. master or 1.0).
 
-The section in :file:`debian/rules` where the CMake build options are defined is 
+The section in :file:`debian/rules` where the CMake build options are defined is
 
 .. code-block:: bash
 
@@ -285,10 +285,14 @@ Detailed SDK Features
 **UA_ENABLE_ENCRYPTION**
    Enable encryption support and specify the used encryption backend. The possible
    options are:
-      - ``OFF`` No encryption support. (default)
-      - ``MBEDTLS`` Encryption support using mbed TLS
-      - ``OPENSSL`` Encryption support using OpenSSL
-      - ``LIBRESSL`` EXPERIMENTAL: Encryption support using LibreSSL
+   - ``OFF`` No encryption support. (default)
+   - ``MBEDTLS`` Encryption support using mbed TLS
+   - ``OPENSSL`` Encryption support using OpenSSL
+   - ``LIBRESSL`` EXPERIMENTAL: Encryption support using LibreSSL
+**UA_ENABLE_ENCRYPTION_TPM2**
+   Enable TPM hardware for encryption. The possible options are:
+      - ``OFF`` No TPM encryption support. (default)
+      - ``ON`` TPM encryption support
 
 **UA_NAMESPACE_ZERO**
 
@@ -377,7 +381,7 @@ Minimizing the binary size
 ^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 The size of the generated binary can be reduced considerably by adjusting the
-build configuration. With open2541, it is possible to configure minimal servers
+build configuration. With open62541, it is possible to configure minimal servers
 that require less than 100kB of RAM and ROM.
 
 The following options influence the ROM requirements:

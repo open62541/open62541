@@ -15,6 +15,7 @@
 #include <mbedtls/x509.h>
 #include <mbedtls/x509_crt.h>
 #include <mbedtls/error.h>
+#include <mbedtls/version.h>
 
 #define REMOTECERTIFICATETRUSTED 1
 #define ISSUERKNOWN              2
@@ -27,14 +28,11 @@
 static const unsigned char *
 bstrchr(const unsigned char *s, const unsigned char ch, size_t l) {
     /* find first occurrence of c in char s[] for length l*/
-    /* handle special case */
-    if(l == 0)
-        return (NULL);
-
-    for(; *s != ch; ++s, --l)
-        if(l == 0)
-            return (NULL);
-    return s;
+    for(; l > 0; ++s, --l) {
+        if(*s == ch)
+            return s;
+    }
+    return NULL;
 }
 
 static const unsigned char *
@@ -441,10 +439,18 @@ certificateVerification_verify(void *verificationContext,
      * shall be condidered as CA Certificate and cannot be used to establish a
      * connection. Refer the test case CTT/Security/Security Certificate Validation/029.js
      * for more details */
+#if MBEDTLS_VERSION_NUMBER >= 0x02060000 && MBEDTLS_VERSION_NUMBER < 0x03000000
     if((remoteCertificate.key_usage & MBEDTLS_X509_KU_KEY_CERT_SIGN) &&
        (remoteCertificate.key_usage & MBEDTLS_X509_KU_CRL_SIGN)) {
         return UA_STATUSCODE_BADCERTIFICATEUSENOTALLOWED;
     }
+#else
+    if((remoteCertificate.private_key_usage & MBEDTLS_X509_KU_KEY_CERT_SIGN) &&
+       (remoteCertificate.private_key_usage & MBEDTLS_X509_KU_CRL_SIGN)) {
+        return UA_STATUSCODE_BADCERTIFICATEUSENOTALLOWED;
+    }
+#endif
+
 
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     if(mbedErr) {

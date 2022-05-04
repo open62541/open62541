@@ -35,6 +35,7 @@
 #cmakedefine UA_ENABLE_PUBSUB_INFORMATIONMODEL
 #cmakedefine UA_ENABLE_PUBSUB_INFORMATIONMODEL_METHODS
 #cmakedefine UA_ENABLE_DA
+#cmakedefine UA_ENABLE_DIAGNOSTICS
 #cmakedefine UA_ENABLE_HISTORIZING
 #cmakedefine UA_ENABLE_PARSING
 #cmakedefine UA_ENABLE_EXPERIMENTAL_HISTORIZING
@@ -44,7 +45,7 @@
 #cmakedefine UA_ENABLE_MQTT_TLS
 #cmakedefine UA_ENABLE_MQTT_TLS_OPENSSL
 #cmakedefine UA_ENABLE_ENCRYPTION_MBEDTLS
-#cmakedefine UA_ENABLE_TPM2_PKCS11
+#cmakedefine UA_ENABLE_TPM2_SECURITY
 #cmakedefine UA_ENABLE_ENCRYPTION_OPENSSL
 #cmakedefine UA_ENABLE_ENCRYPTION_LIBRESSL
 #if defined(UA_ENABLE_ENCRYPTION_MBEDTLS) || defined(UA_ENABLE_ENCRYPTION_OPENSSL) || defined(UA_ENABLE_ENCRYPTION_LIBRESSL)
@@ -111,6 +112,32 @@
 #  define UA_ARCHITECTURE_WIN32
 # else
 #  define UA_ARCHITECTURE_POSIX
+# endif
+#endif
+
+/**
+ * POSIX Feature Flags
+ * -------------------
+ * These feature flags have to be set before including the first POSIX
+ * header. */
+#ifdef UA_ARCHITECTURE_POSIX
+# if !defined(_XOPEN_SOURCE)
+#  define _XOPEN_SOURCE 600
+# endif
+# ifndef _DEFAULT_SOURCE
+#  define _DEFAULT_SOURCE
+# endif
+
+/* On older systems we need to define _BSD_SOURCE.
+ * _DEFAULT_SOURCE is an alias for that. */
+# ifndef _BSD_SOURCE
+#  define _BSD_SOURCE
+# endif
+
+/* Define _GNU_SOURCE to get functions like ppoll. Comment this out to
+ * only use standard POSIX definitions. */
+# ifndef _GNU_SOURCE
+#  define _GNU_SOURCE
 # endif
 #endif
 

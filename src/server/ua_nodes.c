@@ -15,6 +15,37 @@
 #include "ua_types_encoding_binary.h"
 #include "aa_tree.h"
 
+/*********************/
+/* ReferenceType Set */
+/*********************/
+
+#define UA_REFTYPES_ALL_MASK (~(UA_UInt32)0)
+#define UA_REFTYPES_ALL_MASK2 UA_REFTYPES_ALL_MASK, UA_REFTYPES_ALL_MASK
+#define UA_REFTYPES_ALL_MASK4 UA_REFTYPES_ALL_MASK2, UA_REFTYPES_ALL_MASK2
+#if (UA_REFERENCETYPESET_MAX) / 32 > 8
+# error Adjust macros to support than 256 reference types
+#elif (UA_REFERENCETYPESET_MAX) / 32 == 8
+# define UA_REFTYPES_ALL_ARRAY UA_REFTYPES_ALL_MASK4, UA_REFTYPES_ALL_MASK4
+#elif (UA_REFERENCETYPESET_MAX) / 32 == 7
+# define UA_REFTYPES_ALL_ARRAY                                          \
+    UA_REFTYPES_ALL_MASK4, UA_REFTYPES_ALL_MASK2, UA_REFTYPES_ALL_MASK
+#elif (UA_REFERENCETYPESET_MAX) / 32 == 6
+# define UA_REFTYPES_ALL_ARRAY UA_REFTYPES_ALL_MASK4, UA_REFTYPES_ALL_MASK2
+#elif (UA_REFERENCETYPESET_MAX) / 32 == 5
+# define UA_REFTYPES_ALL_ARRAY UA_REFTYPES_ALL_MASK4, UA_REFTYPES_ALL_MASK
+#elif (UA_REFERENCETYPESET_MAX) / 32 == 4
+# define UA_REFTYPES_ALL_ARRAY UA_REFTYPES_ALL_MASK4
+#elif (UA_REFERENCETYPESET_MAX) / 32 == 3
+# define UA_REFTYPES_ALL_ARRAY UA_REFTYPES_ALL_MASK2, UA_REFTYPES_ALL_MASK
+#elif (UA_REFERENCETYPESET_MAX) / 32 == 2
+# define UA_REFTYPES_ALL_ARRAY UA_REFTYPES_ALL_MASK2
+#else
+# define UA_REFTYPES_ALL_ARRAY UA_REFTYPES_ALL_MASK
+#endif
+
+const UA_ReferenceTypeSet UA_REFERENCETYPESET_NONE = {{0}};
+const UA_ReferenceTypeSet UA_REFERENCETYPESET_ALL  = {{UA_REFTYPES_ALL_ARRAY}};
+
 /*****************/
 /* Node Pointers */
 /*****************/
@@ -146,8 +177,8 @@ UA_NodePointer_fromNodeId(const UA_NodeId *id) {
      *        + 2 Bit for the tagging bit (zero) */
     if(id->namespaceIndex < (0x01 << 6) &&
        id->identifier.numeric < (0x01 << 24)) {
-        np.immediate  = id->identifier.numeric << 8;
-        np.immediate |= ((UA_Byte)id->namespaceIndex) << 2;
+        np.immediate  = ((uintptr_t)id->identifier.numeric) << 8;
+        np.immediate |= ((uintptr_t)id->namespaceIndex) << 2;
     } else {
         np.id = id;
         np.immediate |= UA_NODEPOINTER_TAG_NODEID;
@@ -358,14 +389,6 @@ UA_NodeReferenceKind_findTarget(const UA_NodeReferenceKind *rk,
     return NULL;
 }
 
-const UA_Node *
-UA_NODESTORE_GETFROMREF(UA_Server *server, UA_NodePointer target) {
-    if(!UA_NodePointer_isLocal(target))
-        return NULL;
-    UA_NodeId id = UA_NodePointer_toNodeId(target);
-    return UA_NODESTORE_GET(server, &id);
-}
-
 /* General node handling methods. There is no UA_Node_new() method here.
  * Creating nodes is part of the Nodestore layer */
 
@@ -511,6 +534,9 @@ UA_Node_copy(const UA_Node *src, UA_Node *dst) {
     dsthead->writeMask = srchead->writeMask;
     dsthead->context = srchead->context;
     dsthead->constructed = srchead->constructed;
+#ifdef UA_ENABLE_SUBSCRIPTIONS
+    dsthead->monitoredItems = srchead->monitoredItems;
+#endif
     if(retval != UA_STATUSCODE_GOOD) {
         UA_Node_clear(dst);
         return retval;

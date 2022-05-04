@@ -2,25 +2,28 @@
  * See http://creativecommons.org/publicdomain/zero/1.0/ for more information. */
 
 /**
- * .. _pubsub-tutorial:
+ * .. _pubsub-nodeset-tutorial:
  *
  * Publisher Realtime example using custom nodes
  * ---------------------------------------------
  *
  * The purpose of this example file is to use the custom nodes of the XML
- * file(pubDataModel.xml) for publisher.
- * This Publisher example uses the two custom nodes (PublisherCounterVariable and Pressure)
- * created using the XML file(pubDataModel.xml) for publishing the packet.
- * The pubDataModel.csv will contain the nodeids of custom nodes(object and variables) and
- * the nodeids of the custom nodes are harcoded inside the addDataSetField API.
- * This example uses two threads namely the Publisher and UserApplication. The Publisher thread is used to publish data at every cycle.
- * The UserApplication thread serves the functionality of the Control loop, which increments the counterdata to be published
- * by the Publisher and also writes the published data in a csv along with transmission timestamp.
+ * file(pubDataModel.xml) for publisher. This Publisher example uses the two
+ * custom nodes (PublisherCounterVariable and Pressure) created using the XML
+ * file(pubDataModel.xml) for publishing the packet. The pubDataModel.csv will
+ * contain the nodeids of custom nodes(object and variables) and the nodeids of
+ * the custom nodes are harcoded inside the addDataSetField API. This example
+ * uses two threads namely the Publisher and UserApplication. The Publisher
+ * thread is used to publish data at every cycle. The UserApplication thread
+ * serves the functionality of the Control loop, which increments the
+ * counterdata to be published by the Publisher and also writes the published
+ * data in a csv along with transmission timestamp.
  *
  * Run steps of the Publisher application as mentioned below:
  *
- * ./bin/examples/pubsub_nodeset_rt_publisher -i <iface>
- * For more information run ./bin/examples/pubsub_nodeset_rt_publisher -h */
+ * ``./bin/examples/pubsub_nodeset_rt_publisher -i <iface>``
+ *
+ * For more information run ``./bin/examples/pubsub_nodeset_rt_publisher -h``. */
 
 #define _GNU_SOURCE
 
@@ -206,9 +209,9 @@ changePubSubApplicationCallback(UA_Server *server, UA_NodeId identifier,
 /* Remove the callback added for cyclic repetition */
 static void
 removePubSubApplicationCallback(UA_Server *server, UA_NodeId identifier, UA_UInt64 callbackId){
-    if(callbackId && (pthread_join(callbackId, NULL) != 0))
+    if(callbackId && (pthread_join((pthread_t)callbackId, NULL) != 0))
         UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
-                       "Pthread Join Failed thread: %ld\n", callbackId);
+                       "Pthread Join Failed thread: %lu\n", (long unsigned)callbackId);
 }
 
 /**
@@ -705,8 +708,8 @@ int main(int argc, char **argv) {
         size_t pubLoopVariable               = 0;
         for (pubLoopVariable = 0; pubLoopVariable < measurementsPublisher;
              pubLoopVariable++) {
-            fprintf(fpPublisher, "%ld,%ld.%09ld,%lf\n",
-                    publishCounterValue[pubLoopVariable],
+            fprintf(fpPublisher, "%lu,%ld.%09ld,%lf\n",
+                    (long unsigned)publishCounterValue[pubLoopVariable],
                     publishTimestamp[pubLoopVariable].tv_sec,
                     publishTimestamp[pubLoopVariable].tv_nsec,
                     pressureValues[pubLoopVariable]);
@@ -717,8 +720,8 @@ int main(int argc, char **argv) {
         size_t pubLoopVariable               = 0;
         for (pubLoopVariable = 0; pubLoopVariable < measurementsPublisher;
              pubLoopVariable++) {
-             printf("%ld,%ld.%09ld,%lf\n",
-                    publishCounterValue[pubLoopVariable],
+             printf("%lu,%ld.%09ld,%lf\n",
+                    (long unsigned)publishCounterValue[pubLoopVariable],
                     publishTimestamp[pubLoopVariable].tv_sec,
                     publishTimestamp[pubLoopVariable].tv_nsec,
                     pressureValues[pubLoopVariable]);

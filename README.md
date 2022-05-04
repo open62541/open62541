@@ -10,19 +10,16 @@ The library is [available](https://github.com/open62541/open62541/releases) in s
 
 Build Status:
 
-[![Build Status](https://img.shields.io/travis/open62541/open62541/master.svg)](https://travis-ci.org/open62541/open62541)
 [![Build Status](https://dev.azure.com/open62541/open62541/_apis/build/status/open62541.open62541?branchName=master)](https://dev.azure.com/open62541/open62541/_build/latest?definitionId=1&branchName=master)
 [![Build Status](https://ci.appveyor.com/api/projects/status/github/open62541/open62541?branch=master&svg=true)](https://ci.appveyor.com/project/open62541/open62541/branch/master)
-[![Build Status](https://img.shields.io/docker/cloud/build/open62541/open62541)](https://cloud.docker.com/u/open62541/repository/docker/open62541/open62541)
 
 Code Quality:
 
-[![Fuzzing Status](https://oss-fuzz-build-logs.storage.googleapis.com/badges/open62541.svg)](https://bugs.chromium.org/p/oss-fuzz/issues/list?sort=-opened&can=1&q=proj:open62541)
-[![Codacy Badge](https://api.codacy.com/project/badge/Grade/68ad08e897624c77a64fc2be66ca7b50)](https://www.codacy.com/app/open62541/open62541?utm_source=github.com&amp;utm_medium=referral&amp;utm_content=open62541/open62541&amp;utm_campaign=Badge_Grade)
+[![Code Quality: Cpp](https://img.shields.io/lgtm/grade/cpp/g/open62541/open62541.svg?logo=lgtm&logoWidth=18)](https://lgtm.com/projects/g/open62541/open62541/context:cpp)
 [![Total Alerts](https://img.shields.io/lgtm/alerts/g/open62541/open62541.svg?logo=lgtm&logoWidth=18)](https://lgtm.com/projects/g/open62541/open62541/alerts)
 [![Coverage Status](https://img.shields.io/coveralls/open62541/open62541/master.svg)](https://coveralls.io/r/open62541/open62541?branch=master)
 [![codecov](https://codecov.io/gh/open62541/open62541/branch/master/graph/badge.svg)](https://codecov.io/gh/open62541/open62541)
-[![Code Quality: Cpp](https://img.shields.io/lgtm/grade/cpp/g/open62541/open62541.svg?logo=lgtm&logoWidth=18)](https://lgtm.com/projects/g/open62541/open62541/context:cpp)
+[![Fuzzing Status](https://oss-fuzz-build-logs.storage.googleapis.com/badges/open62541.svg)](https://bugs.chromium.org/p/oss-fuzz/issues/list?sort=-opened&can=1&q=proj:open62541)
 
 General Project Info:
 

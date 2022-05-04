@@ -9,7 +9,7 @@
 #include <open62541/util.h>
 #include <open62541/types.h>
 
-#ifdef UA_ENABLE_TPM2_PKCS11
+#ifdef UA_ENABLE_TPM2_SECURITY
 #include <pkcs11.h>
 
 #if UA_MULTITHREADING >= 100
@@ -152,7 +152,7 @@ static UA_StatusCode getSessionHandle(unsigned long *session,
                  UA_LOG_ERROR(policy->securityPolicy->logger, UA_LOGCATEGORY_SECURITYPOLICY,
                               "Failed to fetch token info 0x%.8lX", (long unsigned int)rv);
             }
-
+            UA_free(pSlotList);
             break;
         }
 

@@ -23,8 +23,9 @@
 _UA_BEGIN_DECLS
 
 /* Forward declaration */
-#ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
+#ifdef UA_ENABLE_SUBSCRIPTIONS
 struct UA_MonitoredItem;
+typedef struct UA_MonitoredItem UA_MonitoredItem;
 #endif
 
 /**
@@ -208,16 +209,16 @@ typedef struct {
 
 /* The maximum number of ReferrenceTypes. Must be a multiple of 32. */
 #define UA_REFERENCETYPESET_MAX 128
-typedef struct { UA_UInt32 bits[UA_REFERENCETYPESET_MAX / 32]; } UA_ReferenceTypeSet;
+typedef struct {
+    UA_UInt32 bits[UA_REFERENCETYPESET_MAX / 32];
+} UA_ReferenceTypeSet;
+
+UA_EXPORT extern const UA_ReferenceTypeSet UA_REFERENCETYPESET_NONE;
+UA_EXPORT extern const UA_ReferenceTypeSet UA_REFERENCETYPESET_ALL;
 
 static UA_INLINE void
 UA_ReferenceTypeSet_init(UA_ReferenceTypeSet *set) {
     memset(set, 0, sizeof(UA_ReferenceTypeSet));
-}
-
-static UA_INLINE void
-UA_ReferenceTypeSet_any(UA_ReferenceTypeSet *set) {
-    memset(set, -1, sizeof(UA_ReferenceTypeSet));
 }
 
 static UA_INLINE UA_ReferenceTypeSet
@@ -379,6 +380,12 @@ UA_EXPORT const UA_ReferenceTarget *
 UA_NodeReferenceKind_iterate(const UA_NodeReferenceKind *rk,
                              const UA_ReferenceTarget *prev);
 
+/* Returns the entry for the targetId or NULL if not found. This can be much
+ * faster than _iterate if the references are in the tree-structure. */
+UA_EXPORT const UA_ReferenceTarget *
+UA_NodeReferenceKind_findTarget(const UA_NodeReferenceKind *rk,
+                                const UA_ExpandedNodeId *targetId);
+
 /* Switch between array and tree representation. Does nothing upon error (e.g.
  * out-of-memory). */
 UA_EXPORT UA_StatusCode
@@ -398,6 +405,10 @@ struct UA_NodeHead {
     /* Members specific to open62541 */
     void *context;
     UA_Boolean constructed; /* Constructors were called */
+#ifdef UA_ENABLE_SUBSCRIPTIONS
+    UA_MonitoredItem *monitoredItems; /* MonitoredItems for Events and immediate
+                                       * DataChanges (no sampling interval). */
+#endif
 };
 
 /**
@@ -458,13 +469,17 @@ struct UA_NodeHead {
  * exact length in each dimensions can be further constrained with this
  * attribute.
  *
- * - For positive lengths, the variable value is guaranteed to be of the same
- *   length in this dimension.
+ * - For positive lengths, the variable value must have a dimension length less
+ *   or equal to the array dimension length defined in the VariableNode.
  * - The dimension length zero is a wildcard and the actual value may have any
- *   length in this dimension.
+ *   length in this dimension. Note that a value (variant) must have array
+ *   dimensions that are positive (not zero).
  *
  * Consistency between the array dimensions attribute in the variable and its
- * :ref:`variabletypenode` is ensured. */
+ * :ref:`variabletypenode` is ensured. However, we consider that an array of
+ * length zero (can also be a null-array with undefined length) has implicit
+ * array dimensions ``[0,0,...]``. These always match the required array
+ * dimensions. */
 
 /* Indicates whether a variable contains data inline or whether it points to an
  * external data source */
@@ -736,9 +751,6 @@ typedef struct {
 
 typedef struct {
     UA_NodeHead head;
-#ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
-    struct UA_MonitoredItem *monitoredItemQueue;
-#endif
     UA_Byte eventNotifier;
 } UA_ObjectNode;
 
@@ -957,10 +969,35 @@ typedef struct {
 
     void (*deleteNode)(void *nsCtx, UA_Node *node);
 
-    /* ``Get`` returns a pointer to an immutable node. ``Release`` indicates
-     * that the pointer is no longer accessed afterwards. */
-    const UA_Node * (*getNode)(void *nsCtx, const UA_NodeId *nodeId);
+    /* ``Get`` returns a pointer to an immutable node. Call ``releaseNode`` to
+     * indicate when the pointer is no longer accessed.
+     *
+     * It can be indicated if only a subset of the attributes and referencs need
+     * to be accessed. That is relevant when the nodestore accesses a slow
+     * storage backend for the attributes. The attribute mask is a bitfield with
+     * ORed entries from UA_NodeAttributesMask.
+     *
+     * The returned node always contains the context-pointer and other fields
+     * specific to open626541 (not official attributes).
+     *
+     * The NodeStore does not complain if attributes and references that don't
+     * exist (for that node) are requested. Attributes and references in
+     * addition to those specified can be returned. For example, if the full
+     * node already is kept in memory by the Nodestore. */
+    const UA_Node * (*getNode)(void *nsCtx, const UA_NodeId *nodeId,
+                               UA_UInt32 attributeMask,
+                               UA_ReferenceTypeSet references,
+                               UA_BrowseDirection referenceDirections);
 
+    /* Similar to the normal ``getNode``. But it can take advantage of the
+     * NodePointer structure, e.g. if it contains a direct pointer. */
+    const UA_Node * (*getNodeFromPtr)(void *nsCtx, UA_NodePointer ptr,
+                                      UA_UInt32 attributeMask,
+                                      UA_ReferenceTypeSet references,
+                                      UA_BrowseDirection referenceDirections);
+
+    /* Release a node that has been retrieved with ``getNode`` or
+     * ``getNodeFromPtr``. */
     void (*releaseNode)(void *nsCtx, const UA_Node *node);
 
     /* Returns an editable copy of a node (needs to be deleted with the
