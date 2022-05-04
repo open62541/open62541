@@ -258,8 +258,8 @@ if(UA_ENABLE_TPM2_KEYSTORE)
 endif()
 
 # Namespace Zero
-set(UA_NAMESPACE_ZERO "REDUCED" CACHE STRING "Completeness of the generated namespace zero (minimal/reduced/full/latest_1_05)")
-SET_PROPERTY(CACHE UA_NAMESPACE_ZERO PROPERTY STRINGS "MINIMAL" "REDUCED" "FULL" "LATEST_1_05")
+set(UA_NAMESPACE_ZERO "REDUCED" CACHE STRING "Completeness of the generated namespace zero (minimal/reduced/full)")
+SET_PROPERTY(CACHE UA_NAMESPACE_ZERO PROPERTY STRINGS "MINIMAL" "REDUCED" "FULL")
 if(UA_NAMESPACE_ZERO STREQUAL "MINIMAL")
     set(UA_GENERATED_NAMESPACE_ZERO OFF)
 else()
@@ -270,12 +270,6 @@ if(UA_NAMESPACE_ZERO STREQUAL "FULL")
     set(UA_GENERATED_NAMESPACE_ZERO_FULL ON)
 else()
     set(UA_GENERATED_NAMESPACE_ZERO_FULL OFF)
-endif()
-
-if(UA_NAMESPACE_ZERO STREQUAL "LATEST_1_05")
-    set(UA_GENERATED_NAMESPACE_ZERO_LATEST_1_05 ON)
-else()
-    set(UA_GENERATED_NAMESPACE_ZERO_LATEST_1_05 OFF)
 endif()
 
 if(MSVC AND UA_NAMESPACE_ZERO STREQUAL "FULL")
@@ -1176,7 +1170,7 @@ endif()
 # List of nodeset files combined into NS0 generated file
 set(UA_FILE_NODESETS)
 
-if(UA_NAMESPACE_ZERO STREQUAL "FULL" OR UA_NAMESPACE_ZERO STREQUAL "LATEST_1_05")
+if(UA_NAMESPACE_ZERO STREQUAL "FULL")
     if(NOT UA_FILE_NS0)
         set(UA_FILE_NS0 ${open62541_NODESET_DIR}/Schema/Opc.Ua.NodeSet2.xml)
     endif()
@@ -1184,17 +1178,7 @@ if(UA_NAMESPACE_ZERO STREQUAL "FULL" OR UA_NAMESPACE_ZERO STREQUAL "LATEST_1_05"
 
     if(NOT EXISTS "${UA_FILE_NS0}")
         message(FATAL_ERROR "File ${UA_FILE_NS0} not found. You probably need to initialize the git submodule for deps/ua-nodeset or set open62541_NODESET_DIR.")
-    else()
-        # If the "LATEST_1_05" flag is set, it must be checked whether the nodeset NS0 is on the latest version.
-        if(UA_NAMESPACE_ZERO STREQUAL "LATEST_1_05")
-            file(READ ${UA_FILE_NS0} ver LIMIT 5000)
-            string(REGEX MATCH ".*http:\\/\\/opcfoundation\\.org\\/UA\\/\" .* Version=\"1\\.05" match ${ver})
-            if(NOT match)
-                message(FATAL_ERROR "File ${UA_FILE_NS0} is set incorrectly. You probably need to checkout the git submodule for deps/ua-nodeset to version 1.05. Therefore execute the following command inside the deps/ua-nodeset directory \ngit checkout v1.05")
-            endif()
-        endif()
     endif()
-
 
     set(UA_FILE_NODEIDS ${open62541_NODESET_DIR}/Schema/NodeIds.csv)
     set(UA_FILE_STATUSCODES ${open62541_NODESET_DIR}/Schema/StatusCode.csv)
