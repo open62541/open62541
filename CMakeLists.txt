@@ -1087,11 +1087,11 @@ if(UA_ENABLE_PUBSUB)
         else()
             list(APPEND default_plugin_headers ${PROJECT_SOURCE_DIR}/deps/mqtt-c/mqtt_pal.h
                                                ${PROJECT_SOURCE_DIR}/deps/mqtt-c/mqtt.h
-                                               ${PROJECT_SOURCE_DIR}/plugins/ua_network_pubsub_mqtt.h
+                                               ${PROJECT_SOURCE_DIR}/plugins/include/open62541/plugin/ua_pubsub_mqtt.h
                                                ${PROJECT_SOURCE_DIR}/plugins/mqtt/ua_mqtt_adapter.h)
             list(APPEND default_plugin_sources ${PROJECT_SOURCE_DIR}/plugins/mqtt/ua_mqtt_pal.c
                                                ${PROJECT_SOURCE_DIR}/deps/mqtt-c/mqtt.c
-                                               ${PROJECT_SOURCE_DIR}/plugins/ua_network_pubsub_mqtt.c
+                                               ${PROJECT_SOURCE_DIR}/plugins/ua_pubsub_mqtt.c
                                                ${PROJECT_SOURCE_DIR}/plugins/mqtt/ua_mqtt_adapter.c)
         endif()
     endif()

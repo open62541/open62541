@@ -16,9 +16,45 @@
 
 #include <open62541/server_pubsub.h>
 #include <open62541/util.h>
+#include <open62541/network_tcp.h>
+
+#include <open62541/plugin/log_stdout.h>
+#include <open62541/plugin/pubsub_mqtt.h>
+
+#ifdef UA_ENABLE_MQTT_TLS
+#include <openssl/ssl.h>
+#endif
 
 #include "mqtt/ua_mqtt_adapter.h"
-#include "open62541/plugin/log_stdout.h"
+
+/* mqtt network layer specific internal data */
+typedef struct {
+    UA_NetworkAddressUrlDataType address;
+    UA_UInt32 mqttRecvBufferSize;
+    UA_UInt32 mqttSendBufferSize;
+    uint8_t *mqttSendBuffer; 
+    uint8_t *mqttRecvBuffer; 
+    UA_String *mqttClientId;
+    UA_Connection *connection;
+#ifdef UA_ENABLE_MQTT_TLS_OPENSSL
+    SSL *ssl;
+#endif
+    void * mqttClient;
+    void (*callback)(UA_ByteString *encodedBuffer, UA_ByteString *topic);
+    UA_String mqttUsername;
+    UA_String mqttPassword;
+    UA_String mqttCaFilePath;
+    UA_String mqttCaPath;
+    UA_String mqttClientCertPath;
+    UA_String mqttClientKeyPath;
+    UA_Boolean mqttUseTLS;
+} UA_PubSubChannelDataMQTT;
+/* TODO:
+ * will topic,
+ * will message,
+ * keep alive
+ * ssl: flag
+ */    
 
 static UA_StatusCode
 UA_uaQos_toMqttQos(UA_BrokerTransportQualityOfService uaQos, UA_Byte *qos){
