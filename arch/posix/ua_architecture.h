@@ -145,7 +145,6 @@ typedef struct {
 static UA_INLINE void
 UA_LOCK_INIT(UA_Lock *lock) {
     pthread_mutexattr_init(&lock->mutexAttr);
-    pthread_mutexattr_settype(&lock->mutexAttr, PTHREAD_MUTEX_RECURSIVE_NP);
     pthread_mutex_init(&lock->mutex, &lock->mutexAttr);
     lock->mutexCounter = 0;
 }
