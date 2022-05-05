@@ -499,6 +499,11 @@ responseActivateSession(UA_Client *client, void *userdata, UA_UInt32 requestId,
         return;
     }
 
+    /* Replace the nonce */
+    UA_ByteString_clear(&client->remoteNonce);
+    client->remoteNonce = activateResponse->serverNonce;
+    UA_ByteString_init(&activateResponse->serverNonce);
+
     client->sessionState = UA_SESSIONSTATE_ACTIVATED;
     notifyClientState(client);
 }
