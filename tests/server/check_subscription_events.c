@@ -175,6 +175,7 @@ THREAD_CALLBACK(serverloop) {
         UA_Server_run_iterate(server, false);
         serverIterations++;
         serverMutexUnlock();
+        UA_realSleep(1);
     }
     return 0;
 }

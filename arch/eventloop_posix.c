@@ -253,8 +253,6 @@ UA_EventLoopPOSIX_run(UA_EventLoopPOSIX *el, UA_UInt32 timeout) {
      * ConnectionManagers */
     UA_StatusCode rv = UA_EventLoopPOSIX_pollFDs(el, listenTimeout);
 
-    processDelayed(el); /* Process delayed callbacks */
-
     /* Check if the last EventSource was successfully stopped */
     if(el->eventLoop.state == UA_EVENTLOOPSTATE_STOPPING)
         checkClosed(el);
