@@ -1,6 +1,20 @@
 This changelog reports changes visible through the public API. Internal refactorings and bug
 fixes are not reported here.
 
+2022-05-04 Julius Pfrommer <julius.pfrommer at iosb.fraunhofer.de>
+
+ * Server port and hostname configuration
+
+   Instead of configuring the port number in the server's
+   "NetworkLayer", the server configuration now takes a list of
+   ServerURLs like `opc.tcp://my-server:4840` or
+   `opc.wss://localhost:443`. The URLs are used both for discovery
+   and to set up the server sockets based on the defined hostnames
+   (and ports).
+
+   The default is to listen on all interfaces with port 4840 for
+   incoming TCP connections.
+
 2022-01-12 Mark Giraud <mark.giraud at iosb.fraunhofer.de>
 
  * Empty arrays always match the array dimensions
