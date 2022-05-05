@@ -49,7 +49,7 @@ typedef struct {
  */    
 
 
-UA_PubSubTransportLayer
+UA_PubSubTransportLayer UA_EXPORT
 UA_PubSubTransportLayerMQTT(void);
 
 

@@ -16,7 +16,7 @@
 #include <check.h>
 
 //#define TEST_MQTT_SERVER "opc.mqtt://test.mosquitto.org:1883/"
-#define TEST_MQTT_SERVER "opc.mqtt://broker.hivemq.com:1883/"
+#define TEST_MQTT_SERVER "opc.mqtt://localhost:1883/"
 
 UA_Server *server = NULL;
 UA_ServerConfig *config = NULL;
@@ -189,32 +189,47 @@ START_TEST(GetMaximalConnectionConfigurationAndCompareValues){
     ck_assert(connectionConfig.connectionPropertiesSize == connectionConf.connectionPropertiesSize);
     ck_assert(UA_String_equal(&connectionConfig.name, &connectionConf.name) == UA_TRUE);
     ck_assert(UA_String_equal(&connectionConfig.transportProfileUri, &connectionConf.transportProfileUri) == UA_TRUE);
-    UA_NetworkAddressUrlDataType networkAddressUrlDataCopy = *((UA_NetworkAddressUrlDataType *)connectionConfig.address.data);
-    ck_assert(UA_calcSizeBinary(&networkAddressUrlDataCopy, &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]) ==
-              UA_calcSizeBinary(&networkAddressUrlData, &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]));
+    UA_NetworkAddressUrlDataType networkAddressUrlDataCopy =
+        *((UA_NetworkAddressUrlDataType *)connectionConfig.address.data);
+    ck_assert(UA_calcSizeBinary(&networkAddressUrlDataCopy,
+                                &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]) ==
+              UA_calcSizeBinary(&networkAddressUrlData,
+                                &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]));
     for(size_t i = 0; i < connectionConfig.connectionPropertiesSize; i++){
-        ck_assert(UA_String_equal(&connectionConfig.connectionProperties[i].key.name, &connectionConf.connectionProperties[i].key.name) == UA_TRUE);
-        ck_assert(UA_Variant_calcSizeBinary(&connectionConfig.connectionProperties[i].value) == UA_Variant_calcSizeBinary(&connectionConf.connectionProperties[i].value));
+        ck_assert(UA_String_equal(&connectionConfig.connectionProperties[i].key.name,
+                                  &connectionConf.connectionProperties[i].key.name) == UA_TRUE);
+        ck_assert(UA_Variant_calcSizeBinary(&connectionConfig.connectionProperties[i].value) ==
+                  UA_Variant_calcSizeBinary(&connectionConf.connectionProperties[i].value));
     }
     UA_PubSubConnectionConfig_clear(&connectionConfig);
-    } END_TEST
+} END_TEST
 
 int main(void) {
-    TCase *tc_add_pubsub_connections_minimal_config = tcase_create("Create PubSub Mqtt Connections with minimal valid config");
+    TCase *tc_add_pubsub_connections_minimal_config =
+        tcase_create("Create PubSub Mqtt Connections with minimal valid config");
     tcase_add_checked_fixture(tc_add_pubsub_connections_minimal_config, setup, teardown);
-    tcase_add_test(tc_add_pubsub_connections_minimal_config, AddConnectionsWithMinimalValidConfiguration);
-    tcase_add_test(tc_add_pubsub_connections_minimal_config, AddRemoveAddConnectionWithMinimalValidConfiguration);
+    tcase_add_test(tc_add_pubsub_connections_minimal_config,
+                   AddConnectionsWithMinimalValidConfiguration);
+    tcase_add_test(tc_add_pubsub_connections_minimal_config,
+                   AddRemoveAddConnectionWithMinimalValidConfiguration);
 
-    TCase *tc_add_pubsub_connections_invalid_config = tcase_create("Create PubSub Mqtt Connections with invalid configurations");
+    TCase *tc_add_pubsub_connections_invalid_config =
+        tcase_create("Create PubSub Mqtt Connections with invalid configurations");
     tcase_add_checked_fixture(tc_add_pubsub_connections_invalid_config, setup, teardown);
-    tcase_add_test(tc_add_pubsub_connections_invalid_config, AddConnectionWithInvalidAddress);
-    tcase_add_test(tc_add_pubsub_connections_invalid_config, AddConnectionWithUnknownTransportURL);
-    tcase_add_test(tc_add_pubsub_connections_invalid_config, AddConnectionWithNullConfig);
+    tcase_add_test(tc_add_pubsub_connections_invalid_config,
+                   AddConnectionWithInvalidAddress);
+    tcase_add_test(tc_add_pubsub_connections_invalid_config,
+                   AddConnectionWithUnknownTransportURL);
+    tcase_add_test(tc_add_pubsub_connections_invalid_config,
+                   AddConnectionWithNullConfig);
 
-    TCase *tc_add_pubsub_connections_maximal_config = tcase_create("Create PubSub Mqtt Connections with maximal valid config");
+    TCase *tc_add_pubsub_connections_maximal_config =
+        tcase_create("Create PubSub Mqtt Connections with maximal valid config");
     tcase_add_checked_fixture(tc_add_pubsub_connections_maximal_config, setup, teardown);
-    tcase_add_test(tc_add_pubsub_connections_maximal_config, AddSingleConnectionWithMaximalConfiguration);
-    tcase_add_test(tc_add_pubsub_connections_maximal_config, GetMaximalConnectionConfigurationAndCompareValues);
+    tcase_add_test(tc_add_pubsub_connections_maximal_config,
+                   AddSingleConnectionWithMaximalConfiguration);
+    tcase_add_test(tc_add_pubsub_connections_maximal_config,
+                   GetMaximalConnectionConfigurationAndCompareValues);
 
     Suite *s = suite_create("PubSub Mqtt connection creation");
     suite_add_tcase(s, tc_add_pubsub_connections_minimal_config);

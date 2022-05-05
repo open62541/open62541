@@ -11,6 +11,7 @@
 #include <check.h>
 #include <time.h>
 
+#include "testing_clock.h"
 #include "open62541/types_generated_handling.h"
 #include "ua_pubsub.h"
 #include "ua_server_internal.h"
@@ -135,8 +136,10 @@ static void checkReceived(void) {
     ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
 
     /* Check if data sent from Publisher is being received by Subscriber */
-    ck_assert_int_eq(*(UA_UInt32 *)publishedNodeData.data,
-                     *(UA_UInt32 *)subscribedNodeData.data);
+    ck_assert(publishedNodeData.type == subscribedNodeData.type);
+    ck_assert(UA_order(publishedNodeData.data,
+                       subscribedNodeData.data,
+                       subscribedNodeData.type) == UA_ORDER_EQ);
     UA_Variant_clear(&subscribedNodeData);
     UA_Variant_clear(&publishedNodeData);
 }
@@ -662,7 +665,9 @@ START_TEST(SinglePublishSubscribeDateTime) {
         UA_free(readerConfig.subscribedDataSet.subscribedDataSetTarget.targetVariables);
 
         /* run server - publisher and subscriber */
+        UA_fakeSleep(PUBLISH_INTERVAL + 1);
         UA_Server_run_iterate(server,true);
+        UA_fakeSleep(PUBLISH_INTERVAL + 1);
         UA_Server_run_iterate(server,true);
         UA_free(pMetaData->fields);
 }END_TEST
@@ -751,7 +756,9 @@ START_TEST(SinglePublishSubscribeDateTimeRaw) {
         UA_free(readerConfig.subscribedDataSet.subscribedDataSetTarget.targetVariables);
 
         /* run server - publisher and subscriber */
+        UA_fakeSleep(PUBLISH_INTERVAL + 1);
         UA_Server_run_iterate(server,true);
+        UA_fakeSleep(PUBLISH_INTERVAL + 1);
         UA_Server_run_iterate(server,true);
         UA_free(pMetaData->fields);
 }END_TEST
@@ -889,8 +896,11 @@ START_TEST(SinglePublishSubscribeInt32) {
         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
         UA_FieldTargetDataType_clear(&targetVar.targetVariable);
         UA_free(pMetaData->fields);
+
         /* run server - publisher and subscriber */
+        UA_fakeSleep(PUBLISH_INTERVAL + 1);
         UA_Server_run_iterate(server,true);
+        UA_fakeSleep(PUBLISH_INTERVAL + 1);
         UA_Server_run_iterate(server,true);
 
         checkReceived();
@@ -1033,8 +1043,11 @@ START_TEST(SinglePublishSubscribeInt64) {
         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
         UA_FieldTargetDataType_clear(&targetVar.targetVariable);
         UA_free(pMetaData->fields);
+
         /* run server - publisher and subscriber */
+        UA_fakeSleep(PUBLISH_INTERVAL + 1);
         UA_Server_run_iterate(server,true);
+        UA_fakeSleep(PUBLISH_INTERVAL + 1);
         UA_Server_run_iterate(server,true);
 
         checkReceived();
@@ -1177,8 +1190,11 @@ START_TEST(SinglePublishSubscribeBool) {
         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
         UA_FieldTargetDataType_clear(&targetVar.targetVariable);
         UA_free(pMetaData->fields);
+
         /* run server - publisher and subscriber */
+        UA_fakeSleep(PUBLISH_INTERVAL + 1);
         UA_Server_run_iterate(server,true);
+        UA_fakeSleep(PUBLISH_INTERVAL + 1);
         UA_Server_run_iterate(server,true);
 
         checkReceived();
@@ -1322,8 +1338,11 @@ START_TEST(SinglePublishSubscribewithValidIdentifiers) {
         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
         UA_FieldTargetDataType_clear(&targetVar.targetVariable);
         UA_free(pMetaData->fields);
+
         /* run server - publisher and subscriber */
+        UA_fakeSleep(PUBLISH_INTERVAL + 1);
         UA_Server_run_iterate(server,true);
+        UA_fakeSleep(PUBLISH_INTERVAL + 1);
         UA_Server_run_iterate(server,true);
 
         checkReceived();
@@ -1486,10 +1505,12 @@ START_TEST(MultiPublishSubscribeInt32) {
 
     ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
     UA_FieldTargetDataType_clear(&targetVar.targetVariable);
+    UA_free(pMetaData->fields);
 
     /* run server - publisher and subscriber */
-    UA_free(pMetaData->fields);
+    UA_fakeSleep(PUBLISH_INTERVAL + 1);
     UA_Server_run_iterate(server, true);
+    UA_fakeSleep(PUBLISH_INTERVAL + 1);
     UA_Server_run_iterate(server, true);
 
     checkReceived();
