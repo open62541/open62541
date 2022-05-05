@@ -1744,7 +1744,9 @@ else()
     install(FILES ${PROJECT_BINARY_DIR}/open62541.h DESTINATION include)
 endif()
 
-add_subdirectory(tools/packaging)
+if (UA_PACK_DEBIAN)
+    add_subdirectory(tools/packaging)
+endif()
 
 ##################################
 # Visual studio solution folders #
