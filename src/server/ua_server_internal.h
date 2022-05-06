@@ -112,6 +112,8 @@ struct UA_Server {
                           * down once the time has been reached */
 
     UA_ServerLifecycle state;
+    UA_UInt64 houseKeepingCallbackId;
+
     UA_ServerConnection serverConnections[UA_MAXSERVERCONNECTIONS];
     size_t serverConnectionsSize;
 

@@ -253,9 +253,10 @@ void UA_Server_delete(UA_Server *server) {
     UA_free(server);
 }
 
-/* Recurring cleanup. Removing unused and timed-out channels and sessions */
+/* Regular house-keeping tasks. Removing unused and timed-out channels and
+ * sessions. */
 static void
-UA_Server_cleanup(UA_Server *server, void *_) {
+serverHouseKeeping(UA_Server *server, void *_) {
     UA_LOCK(&server->serviceMutex);
     UA_DateTime nowMonotonic = UA_DateTime_nowMonotonic();
     UA_Server_cleanupSessions(server, nowMonotonic);
@@ -278,12 +279,10 @@ UA_Boolean UA_Server_NodestoreIsConfigured(UA_Server *server) {
 
 static UA_Server *
 UA_Server_init(UA_Server *server) {
-
     UA_StatusCode res = UA_STATUSCODE_GOOD;
     UA_CHECK_FATAL(UA_Server_NodestoreIsConfigured(server), goto cleanup,
-                    &server->config.logger, UA_LOGCATEGORY_SERVER,
-                    "No Nodestore configured in the server"
-                   );
+                   &server->config.logger, UA_LOGCATEGORY_SERVER,
+                   "No Nodestore configured in the server");
 
     /* Init start time to zero, the actual start time will be sampled in
      * UA_Server_run_startup() */
@@ -328,10 +327,6 @@ UA_Server_init(UA_Server *server) {
 #if UA_MULTITHREADING >= 100
     UA_AsyncManager_init(&server->asyncManager, server);
 #endif
-
-    /* Add a regular callback for cleanup and maintenance. With a 10s interval. */
-    UA_Server_addRepeatedCallback(server, (UA_ServerCallback)UA_Server_cleanup, NULL,
-                                  10000.0, NULL);
 
     /* Initialize namespace 0*/
     res = UA_Server_initNS0(server);
@@ -734,6 +729,12 @@ UA_Server_run_startup(UA_Server *server) {
                  "This should only be used for specific fuzzing builds.");
 #endif
 
+    /* Add a regular callback for housekeeping tasks. With a 1s interval. */
+    if(server->houseKeepingCallbackId == 0) {
+        UA_Server_addRepeatedCallback(server, (UA_ServerCallback)serverHouseKeeping,
+                                      NULL, 1000.0, &server->houseKeepingCallbackId);
+    }
+
     /* Start the EventLoop */
     UA_StatusCode retVal = config->eventLoop->start(config->eventLoop);
     UA_CHECK_STATUS(retVal, return retVal);
@@ -874,6 +875,10 @@ UA_Server_run_iterate(UA_Server *server, UA_Boolean waitInternal) {
 
 UA_StatusCode
 UA_Server_run_shutdown(UA_Server *server) {
+    /* Stop the regular housekeeping tasks */
+    UA_Server_removeCallback(server, server->houseKeepingCallbackId);
+    server->houseKeepingCallbackId = 0;
+
     /* Stop all SecureChannels */
     UA_Server_deleteSecureChannels(server);
 
