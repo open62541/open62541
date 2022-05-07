@@ -607,6 +607,12 @@ endif()
 
 # Test Encryption
 
+if(UA_ENABLE_ENCRYPTION)
+    add_executable(check_client_encryption client/check_client_encryption.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
+    target_link_libraries(check_client_encryption ${LIBS})
+    add_test_valgrind(client_encryption ${TESTS_BINARY_DIR}/check_client_encryption)
+endif()
+
 if(UA_ENABLE_ENCRYPTION_MBEDTLS)
     add_executable(check_encryption_basic128rsa15 encryption/check_encryption_basic128rsa15.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
     target_link_libraries(check_encryption_basic128rsa15 ${LIBS})

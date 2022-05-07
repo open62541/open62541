@@ -243,11 +243,10 @@ enum MQTTErrors mqtt_connect(struct mqtt_client *client,
                          mqtt_pack_connection_request(client->mq.curr, client->mq.curr_sz,
                                                       client_id, will_topic, will_message,
                                                       will_message_size,user_name, password,
-                                                      caFilePath, caPath, clientCertPath, clientKeyPath,
-                                                      connect_flags, keep_alive
-                                                      ),
-                         1
-                         );
+                                                      caFilePath, caPath,
+                                                      clientCertPath, clientKeyPath,
+                                                      useTLS,
+                                                      connect_flags, keep_alive), 1);
 #else
     /* try to pack the message */
     MQTT_CLIENT_TRY_PACK(rv, msg, client,
@@ -1208,18 +1207,9 @@ ssize_t mqtt_pack_connection_request(uint8_t* buf, size_t bufsz,
 
         /* Call the strncpy function with a size of two to zero-terminate the strTLS value */
         if (useTLS) /* useTLS = true */
-        {
-            //strncpy(strTLS, "1", 1);
-            strTLS[0] = '1';
-            strTLS[1] = '\0';
-        }
+            strncpy(strTLS, "1", 2);
         else
-        {
-            //strncpy(strTLS, "0", 1);
-            strTLS[0] = '0';
-            strTLS[1] = '\0';
-
-        }
+            strncpy(strTLS, "0", 2);
         connect_flags |= (uint8_t)MQTT_CONNECT_USETLS;
         remaining_length += (uint32_t)__mqtt_packed_cstrlen(strTLS);
     }
