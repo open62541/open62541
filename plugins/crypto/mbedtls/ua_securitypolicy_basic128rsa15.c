@@ -98,21 +98,17 @@ asym_getLocalSignatureSize_sp_basic128rsa15(const Basic128Rsa15_ChannelContext *
 #else
     return mbedtls_rsa_get_len(mbedtls_pk_rsa(cc->policyContext->localPrivateKey));
 #endif
-
-
 }
 
 static size_t
 asym_getRemoteSignatureSize_sp_basic128rsa15(const Basic128Rsa15_ChannelContext *cc) {
     if(cc == NULL)
         return 0;
-
 #if MBEDTLS_VERSION_NUMBER >= 0x02060000 && MBEDTLS_VERSION_NUMBER < 0x03000000
     return mbedtls_pk_rsa(cc->remoteCertificate.pk)->len;
 #else
     return mbedtls_rsa_get_len(mbedtls_pk_rsa(cc->remoteCertificate.pk));
 #endif
-
 }
 
 static UA_StatusCode
@@ -131,7 +127,6 @@ asym_encrypt_sp_basic128rsa15(Basic128Rsa15_ChannelContext *cc,
     size_t plainTextBlockSize = mbedtls_rsa_get_len(remoteRsaContext) -
         UA_SECURITYPOLICY_BASIC128RSA15_RSAPADDING_LEN;
 #endif
-
     if(data->length % plainTextBlockSize != 0)
         return UA_STATUSCODE_BADINTERNALERROR;
 
@@ -182,13 +177,12 @@ asym_decrypt_sp_basic128rsa15(Basic128Rsa15_ChannelContext *cc,
     mbedtls_rsa_context *rsaContext = mbedtls_pk_rsa(cc->policyContext->localPrivateKey);
     mbedtls_rsa_set_padding(rsaContext, MBEDTLS_RSA_PKCS_V15, MBEDTLS_MD_NONE);
 #if MBEDTLS_VERSION_NUMBER >= 0x02060000 && MBEDTLS_VERSION_NUMBER < 0x03000000
-    if(data->length % rsaContext->len != 0)
-            return UA_STATUSCODE_BADINTERNALERROR;
+    size_t keylen = rsaContext->len;
 #else
     size_t keylen = mbedtls_rsa_get_len(rsaContext);
-        if(data->length % keylen != 0)
-        return UA_STATUSCODE_BADINTERNALERROR;
 #endif
+    if(data->length % keylen != 0)
+        return UA_STATUSCODE_BADINTERNALERROR;
 
     size_t inOffset = 0;
     size_t outOffset = 0;
@@ -196,25 +190,14 @@ asym_decrypt_sp_basic128rsa15(Basic128Rsa15_ChannelContext *cc,
     unsigned char buf[512];
 
     while(inOffset < data->length) {
-#if MBEDTLS_VERSION_NUMBER >= 0x02060000 && MBEDTLS_VERSION_NUMBER < 0x03000000
-        int mbedErr = mbedtls_pk_decrypt(&cc->policyContext->localPrivateKey,
-                                         data->data + inOffset, rsaContext->len,
-                                         buf, &outLength, 512, NULL, NULL);
-#else
         int mbedErr = mbedtls_pk_decrypt(&cc->policyContext->localPrivateKey,
                                          data->data + inOffset, keylen,
                                          buf, &outLength, 512, NULL, NULL);
-#endif
-
         if(mbedErr)
             return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
 
         memcpy(data->data + outOffset, buf, outLength);
-#if MBEDTLS_VERSION_NUMBER >= 0x02060000 && MBEDTLS_VERSION_NUMBER < 0x03000000
-        inOffset += rsaContext->len;
-#else
         inOffset += keylen;
-#endif
         outOffset += outLength;
     }
 
@@ -224,12 +207,12 @@ asym_decrypt_sp_basic128rsa15(Basic128Rsa15_ChannelContext *cc,
 
 static size_t
 asym_getLocalEncryptionKeyLength_sp_basic128rsa15(const Basic128Rsa15_ChannelContext *cc) {
+    if(cc == NULL)
+        return 0;
 #if MBEDTLS_VERSION_NUMBER >= 0x02060000 && MBEDTLS_VERSION_NUMBER < 0x03000000
     mbedtls_rsa_context *const rsaContext = mbedtls_pk_rsa(cc->remoteCertificate.pk);
     return rsaContext->len;
 #else
-    if(cc == NULL)
-        return 0;
     return mbedtls_rsa_get_len(mbedtls_pk_rsa(cc->remoteCertificate.pk));
 #endif
 }
@@ -241,24 +224,24 @@ asym_getRemoteEncryptionKeyLength_sp_basic128rsa15(const Basic128Rsa15_ChannelCo
 
 static size_t
 asym_getRemoteBlockSize_sp_basic128rsa15(const Basic128Rsa15_ChannelContext *cc) {
+    if(cc == NULL)
+        return 0;
 #if MBEDTLS_VERSION_NUMBER >= 0x02060000 && MBEDTLS_VERSION_NUMBER < 0x03000000
     mbedtls_rsa_context *const rsaContext = mbedtls_pk_rsa(cc->remoteCertificate.pk);
     return rsaContext->len;
 #else
-    if(cc == NULL)
-        return 0;
     return mbedtls_rsa_get_len(mbedtls_pk_rsa(cc->remoteCertificate.pk));
 #endif
 }
 
 static size_t
 asym_getRemotePlainTextBlockSize_sp_basic128rsa15(const Basic128Rsa15_ChannelContext *cc) {
+    if(cc == NULL)
+        return 0;
 #if MBEDTLS_VERSION_NUMBER >= 0x02060000 && MBEDTLS_VERSION_NUMBER < 0x03000000
     mbedtls_rsa_context *const rsaContext = mbedtls_pk_rsa(cc->remoteCertificate.pk);
     return rsaContext->len - UA_SECURITYPOLICY_BASIC128RSA15_RSAPADDING_LEN;
 #else
-    if(cc == NULL)
-        return 0;
     return mbedtls_rsa_get_len(mbedtls_pk_rsa(cc->remoteCertificate.pk)) -
         UA_SECURITYPOLICY_BASIC128RSA15_RSAPADDING_LEN;
 #endif

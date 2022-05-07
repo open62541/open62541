@@ -35,6 +35,10 @@
 #define UA_AGAIN EAGAIN /* the same as wouldblock on nearly every system */
 #define UA_WOULDBLOCK EWOULDBLOCK
 
+#define UA_POLLIN POLLIN
+#define UA_POLLOUT POLLOUT
+
+#define UA_poll lwip_poll
 #define UA_send lwip_send
 #define UA_recv lwip_recv
 #define UA_sendto lwip_sendto
