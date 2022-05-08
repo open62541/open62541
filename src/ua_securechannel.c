@@ -909,20 +909,3 @@ UA_SecureChannel_processBuffer(UA_SecureChannel *channel, void *application,
     UA_ByteString_clear(&appended);
     return res;
 }
-
-UA_StatusCode
-UA_SecureChannel_receive(UA_SecureChannel *channel, void *application,
-                         UA_ProcessMessageCallback callback, UA_UInt32 timeout) {
-    UA_Connection *connection = channel->connection;
-    UA_CHECK_MEM(connection, return UA_STATUSCODE_BADINTERNALERROR);
-
-    /* Listen for messages to arrive */
-    UA_ByteString buffer = UA_BYTESTRING_NULL;
-    UA_StatusCode res = connection->recv(connection, &buffer, timeout);
-    UA_CHECK_STATUS(res, return res);
-
-    /* Try to process one complete chunk */
-    res = UA_SecureChannel_processBuffer(channel, application, callback, &buffer);
-    connection->releaseRecvBuffer(connection, &buffer);
-    return res;
-}

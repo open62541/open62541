@@ -267,20 +267,6 @@ UA_SecureChannel_processBuffer(UA_SecureChannel *channel, void *application,
                                UA_ProcessMessageCallback callback,
                                const UA_ByteString *buffer);
 
-/* Try to receive at least one complete chunk on the connection. This blocks the
- * current thread up to the given timeout. It will return once the first buffer
- * has been received (and possibly processed when the message is complete).
- *
- * @param channel The SecureChannel
- * @param application The client or server application
- * @param callback The function pointer for processing complete messages
- * @param timeout The timeout (in milliseconds) the method will block at most.
- * @return Returns UA_STATUSCODE_GOOD or an error code. A timeout does not
- *         create an error. */
-UA_StatusCode
-UA_SecureChannel_receive(UA_SecureChannel *channel, void *application,
-                         UA_ProcessMessageCallback callback, UA_UInt32 timeout);
-
 /* Internal methods in ua_securechannel_crypto.h */
 
 void
