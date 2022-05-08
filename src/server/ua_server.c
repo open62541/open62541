@@ -639,12 +639,12 @@ UA_Server_networkCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
         conn->channel = NULL;
         conn->sockfd = (UA_SOCKET)connectionId;
         conn->handle = cm;
-        conn->getSendBuffer = UA_Server_Connection_getSendBuffer;
-        conn->releaseSendBuffer = UA_Server_Connection_releaseBuffer;
-        conn->send = UA_Server_Connection_send;
+        conn->getSendBuffer = UA_Connection_getSendBuffer;
+        conn->releaseSendBuffer = UA_Connection_releaseBuffer;
+        conn->send = UA_Connection_send;
         conn->recv = NULL;
-        conn->releaseRecvBuffer = UA_Server_Connection_releaseBuffer;
-        conn->close = UA_Server_Connection_close;
+        conn->releaseRecvBuffer = UA_Connection_releaseBuffer;
+        conn->close = UA_Connection_close;
         conn->free = NULL;
 
         *connectionContext = (void*)conn;

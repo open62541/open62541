@@ -40,11 +40,11 @@ void UA_Connection_attachSecureChannel(UA_Connection *connection,
 /* In this example, we integrate the server into an external "mainloop". This
    can be for example the event-loop used in GUI toolkits, such as Qt or GTK. */
 
-UA_StatusCode UA_Server_Connection_getSendBuffer(UA_Connection *connection, size_t length,
-                                                        UA_ByteString *buf);
-UA_StatusCode UA_Server_Connection_send(UA_Connection *connection, UA_ByteString *buf);
-void UA_Server_Connection_releaseBuffer (UA_Connection *connection, UA_ByteString *buf);
-void UA_Server_Connection_close(UA_Connection *connection);
+UA_StatusCode UA_Connection_getSendBuffer(UA_Connection *connection, size_t length,
+                                          UA_ByteString *buf);
+UA_StatusCode UA_Connection_send(UA_Connection *connection, UA_ByteString *buf);
+void UA_Connection_releaseBuffer (UA_Connection *connection, UA_ByteString *buf);
+void UA_Connection_close(UA_Connection *connection);
 
 /* Process a binary message (TCP packet). The message can contain partial
  * chunks. (TCP is a streaming protocol and packets may be split/merge during
