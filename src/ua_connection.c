@@ -65,7 +65,8 @@ UA_Connection_sendError(UA_Connection *connection, UA_TcpErrorMessage *error) {
     connection->send(connection, &msg);
 }
 
-void UA_Connection_detachSecureChannel(UA_Connection *connection) {
+void
+UA_Connection_detachSecureChannel(UA_Connection *connection) {
     UA_SecureChannel *channel = connection->channel;
     /* only replace when the channel points to this connection */
     if(channel && channel->connection == connection)
@@ -73,7 +74,6 @@ void UA_Connection_detachSecureChannel(UA_Connection *connection) {
     connection->channel = NULL;
 }
 
-// TODO: Return an error code
 void
 UA_Connection_attachSecureChannel(UA_Connection *connection, UA_SecureChannel *channel) {
     if(channel->connection == NULL) {
@@ -83,25 +83,26 @@ UA_Connection_attachSecureChannel(UA_Connection *connection, UA_SecureChannel *c
 }
 
 UA_StatusCode
-UA_Server_Connection_getSendBuffer(UA_Connection *connection, size_t length,
+UA_Connection_getSendBuffer(UA_Connection *connection, size_t length,
                                    UA_ByteString *buf) {
     UA_ConnectionManager *cm = (UA_ConnectionManager*)connection->handle;
     return cm->allocNetworkBuffer(cm, (uintptr_t)connection->sockfd, buf, length);
 }
 
 UA_StatusCode
-UA_Server_Connection_send(UA_Connection *connection, UA_ByteString *buf) {
+UA_Connection_send(UA_Connection *connection, UA_ByteString *buf) {
     UA_ConnectionManager *cm = (UA_ConnectionManager*)connection->handle;
     return cm->sendWithConnection(cm, (uintptr_t)connection->sockfd, 0, NULL, buf);
 }
 
 void
-UA_Server_Connection_releaseBuffer (UA_Connection *connection, UA_ByteString *buf) {
+UA_Connection_releaseBuffer (UA_Connection *connection, UA_ByteString *buf) {
     UA_ConnectionManager *cm = (UA_ConnectionManager*)connection->handle;
     cm->freeNetworkBuffer(cm, (uintptr_t)connection->sockfd, buf);
 }
 
-void UA_Server_Connection_close(UA_Connection *connection) {
+void
+UA_Connection_close(UA_Connection *connection) {
     UA_ConnectionManager *cm = (UA_ConnectionManager*)connection->handle;
     cm->closeConnection(cm, (uintptr_t)connection->sockfd);
 }
