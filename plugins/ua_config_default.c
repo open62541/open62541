@@ -45,7 +45,7 @@ static UA_StatusCode
 setDefaultConfig(UA_ServerConfig *conf);
 
 UA_Server *
-UA_Server_new() {
+UA_Server_new(void) {
     UA_ServerConfig config;
     memset(&config, 0, sizeof(UA_ServerConfig));
 
@@ -757,7 +757,7 @@ UA_ServerConfig_setDefaultWithSecurityPolicies(UA_ServerConfig *conf,
 /* Default Client Settings */
 /***************************/
 
-UA_Client * UA_Client_new() {
+UA_Client * UA_Client_new(void) {
     UA_ClientConfig config;
     memset(&config, 0, sizeof(UA_ClientConfig));
     config.logger.log = UA_Log_Stdout_log;
