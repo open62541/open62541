@@ -10,7 +10,7 @@
  *    Copyright 2015-2016 (c) Oleksiy Vasylyev
  *    Copyright 2016-2017 (c) Stefan Profanter, fortiss GmbH
  *    Copyright 2017 (c) Julian Grothoff
- *    Copyright 2019 (c) Kalycito Infotech Private Limited
+ *    Copyright 2019-2021 (c) Kalycito Infotech Private Limited
  *    Copyright 2019 (c) HMS Industrial Networks AB (Author: Jonas Green)
  *    Copyright 2021 (c) Fraunhofer IOSB (Author: Andreas Ebner)
  */
@@ -65,6 +65,26 @@ typedef enum {
     UA_DIAGNOSTICEVENT_ABORT,
     UA_DIAGNOSTICEVENT_PURGE
 } UA_DiagnosticEvent;
+
+#ifdef UA_ENABLE_FILETYPE_OBJECT_SUPPORT
+typedef struct UA_FileInfo {
+    LIST_ENTRY(UA_FileInfo) listEntry;
+    UA_file *file;
+    UA_UInt32 filehandle;
+    UA_Byte openFileMode;
+}UA_FileInfo;
+
+typedef struct UA_FileType {
+    LIST_ENTRY(UA_FileType) listEntry;
+    UA_NodeId fileNodeId;
+    UA_String filePath;
+    UA_UInt16 openCount;
+    UA_UInt64 fileSize;
+    bool writable;
+    bool userWritable;
+    LIST_HEAD(, UA_FileInfo)fileInfo;
+}UA_FileType;
+#endif
 
 typedef struct channel_entry {
     UA_DelayedCallback cleanupCallback;
@@ -165,6 +185,10 @@ struct UA_Server {
     LIST_HEAD(, UA_ConditionSource) conditionSources;
 # endif
 
+#endif
+
+#ifdef UA_ENABLE_FILETYPE_OBJECT_SUPPORT
+    LIST_HEAD(, UA_FileType) fileObjects;
 #endif
 
     /* Publish/Subscribe */
@@ -611,6 +635,18 @@ AddNode_addRefs(UA_Server *server, UA_Session *session, const UA_NodeId *nodeId,
 UA_StatusCode
 AddNode_finish(UA_Server *server, UA_Session *session, const UA_NodeId *nodeId);
 
+/******************************/
+/* Methods for file operation */
+/******************************/
+#ifdef UA_ENABLE_FILETYPE_OBJECT_SUPPORT
+
+UA_StatusCode
+setFileTypeInfo(UA_Server *server, const UA_NodeId fileNodeId, UA_String filePath);
+
+UA_StatusCode
+setFileMethodCallbacks(UA_Server *server, const UA_NodeId fileNodeId);
+
+#endif
 /**********************/
 /* Create Namespace 0 */
 /**********************/

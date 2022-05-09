@@ -242,7 +242,7 @@ static void
 addPumpObjectInstance(UA_Server *server, char *name) {
     UA_ObjectAttributes oAttr = UA_ObjectAttributes_default;
     oAttr.displayName = UA_LOCALIZEDTEXT("en-US", name);
-    UA_Server_addObjectNode(server, UA_NODEID_NULL,
+    UA_Server_addObjectNode(server, UA_NODEID_NUMERIC(1, 1000),
                             UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
                             UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
                             UA_QUALIFIEDNAME(1, name),
@@ -299,10 +299,18 @@ pumpTypeConstructor(UA_Server *server,
 }
 
 static void
+pumpTypeDstr(UA_Server *server,
+                    const UA_NodeId *sessionId, void *sessionContext,
+                    const UA_NodeId *typeId, void *typeContext,
+                    const UA_NodeId *nodeId, void **nodeContext) {
+                    printf("\ntest\n");
+                    }
+
+static void
 addPumpTypeConstructor(UA_Server *server) {
     UA_NodeTypeLifecycle lifecycle;
     lifecycle.constructor = pumpTypeConstructor;
-    lifecycle.destructor = NULL;
+    lifecycle.destructor = pumpTypeDstr;
     UA_Server_setNodeTypeLifecycle(server, pumpTypeId, lifecycle);
 }
 
@@ -331,6 +339,7 @@ int main(void) {
 
     UA_StatusCode retval = UA_Server_run(server, &running);
 
+    UA_Server_deleteNode(server,  UA_NODEID_NUMERIC(1, 1000), true);
     UA_Server_delete(server);
     return retval == UA_STATUSCODE_GOOD ? EXIT_SUCCESS : EXIT_FAILURE;
 }

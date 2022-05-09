@@ -41,8 +41,9 @@ try {
             -DUA_ENABLE_PUBSUB_INFORMATIONMODEL:BOOL=ON `
             -DUA_ENABLE_SUBSCRIPTIONS_EVENTS:BOOL=ON `
             -DUA_ENABLE_PUBSUB_MQTT:BOOL=ON `
-            -DUA_NAMESPACE_ZERO:STRING=REDUCED ..
-    & cmake --build . --config RelWithDebInfo
+            -DUA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS:BOOL=ON `
+            -DUA_ENABLE_FILETYPE_OBJECT_SUPPORT:BOOL=ON `
+            -DUA_NAMESPACE_ZERO:STRING=FULL ..    & cmake --build . --config RelWithDebInfo
     if ($LASTEXITCODE -and $LASTEXITCODE -ne 0) {
         Write-Host -ForegroundColor Red "`n`n*** Make failed. Exiting ... ***"
         exit $LASTEXITCODE
