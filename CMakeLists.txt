@@ -416,6 +416,11 @@ if(UA_ENABLE_PUBSUB_BUFMALLOC)
     if(NOT UA_ENABLE_MALLOC_SINGLETON)
         message(FATAL_ERROR "PubSub buffer allocation cannot be used without 'UA_ENABLE_MALLOC_SINGLETON' enabled")
     endif()
+    if(UA_ENABLE_PUBSUB_MONITORING)
+        message(WARNING "PubSub monitoring option 'UA_ENABLE_PUBSUB_MONITORING' can only be used with option 'UA_ENABLE_PUBSUB_BUFMALLOC' if "
+            "a custom monitoring interface is provided, which does not allocate/deallocate memory at start/stopMonitoring callback. "
+            "It can't be used with the built-in ua_timer implementation, because this leads to memory deallocation problems.")
+    endif()
 endif()
 
 option(UA_ENABLE_PUBSUB_MQTT "Enable publish/subscribe with mqtt (experimental)" OFF)
