@@ -133,7 +133,7 @@ setDefaultConfig(UA_ServerConfig *conf, UA_UInt16 portNumber) {
 
     /* Logging */
     if(!conf->logger.log)
-        conf->logger = UA_Log_Stdout_withLevel(UA_LOGLEVEL_INFO);
+        conf->logger = UA_Log_Stdout_withLevel(UA_LOGLEVEL_TRACE);
 
     /* EventLoop */
     if(conf->eventLoop == NULL) {
@@ -768,7 +768,33 @@ UA_Client * UA_Client_new(void) {
     UA_ClientConfig config;
     memset(&config, 0, sizeof(UA_ClientConfig));
     config.logger = UA_Log_Stdout_withLevel(UA_LOGLEVEL_INFO);
-    return UA_Client_newWithConfig(&config);
+
+    /* EventLoop */
+    if(config.eventLoop == NULL) {
+        config.eventLoop = UA_EventLoop_new_POSIX(&config.logger);
+        config.externalEventLoop = false;
+
+        /* Add the TCP connection manager */
+        UA_ConnectionManager *tcpCM =
+            UA_ConnectionManager_new_POSIX_TCP(UA_STRING("tcp connection manager"));
+        config.eventLoop->registerEventSource(config.eventLoop, (UA_EventSource *)tcpCM);
+
+        /* Add the UDP connection manager */
+        UA_ConnectionManager *udpCM =
+            UA_ConnectionManager_new_POSIX_UDP(UA_STRING("udp connection manager"));
+        config.eventLoop->registerEventSource(config.eventLoop, (UA_EventSource *)udpCM);
+    }
+
+    UA_Client *c = UA_Client_newWithConfig(&config);
+
+    if(c) {
+        /* Update the EventLoop to the logger in the new location inside the
+         * client */
+        UA_ClientConfig *cc = UA_Client_getConfig(c);
+        cc->eventLoop->logger = &cc->logger;
+    }
+
+    return c;
 }
 
 UA_StatusCode
@@ -796,8 +822,9 @@ UA_ClientConfig_setDefault(UA_ClientConfig *config) {
         config->eventLoop->registerEventSource(config->eventLoop, (UA_EventSource *)udpCM);
     }
 
-    if (config->sessionLocaleIdsSize > 0 && config->sessionLocaleIds) {
-        UA_Array_delete(config->sessionLocaleIds, config->sessionLocaleIdsSize, &UA_TYPES[UA_TYPES_LOCALEID]);
+    if(config->sessionLocaleIdsSize > 0 && config->sessionLocaleIds) {
+        UA_Array_delete(config->sessionLocaleIds,
+                        config->sessionLocaleIdsSize, &UA_TYPES[UA_TYPES_LOCALEID]);
     }
     config->sessionLocaleIds = NULL;
     config->sessionLocaleIds = 0;
