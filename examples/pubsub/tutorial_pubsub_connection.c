@@ -36,7 +36,7 @@ int main(void) {
      * It is possible to use multiple PubSubTransportLayers on runtime. The
      * correct factory is selected on runtime by the standard defined PubSub
      * TransportProfileUri's. */
-    UA_ServerConfig_addPubSubTransportLayer(config, UA_PubSubTransportLayerUDPMP());
+    UA_ServerConfig_addPubSubTransportLayer(config, UA_PubSubTransportLayerUDP());
 
     /* Create a new ConnectionConfig. The addPubSubConnection function takes the
      * config and create a new connection. The Connection identifier is
