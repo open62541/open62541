@@ -601,9 +601,11 @@ UA_Client_sendAsyncRequest(UA_Client *client, const void *request,
                                     responseType, userdata, requestId);
 }
 
-UA_StatusCode UA_EXPORT
+UA_StatusCode
 UA_Client_addTimedCallback(UA_Client *client, UA_ClientCallback callback,
                            void *data, UA_DateTime date, UA_UInt64 *callbackId) {
+    if(!client->config.eventLoop)
+        return UA_STATUSCODE_BADINTERNALERROR;
     return client->config.eventLoop->
         addTimedCallback(client->config.eventLoop, (UA_Callback)callback,
                          client, data, date, callbackId);
@@ -612,7 +614,8 @@ UA_Client_addTimedCallback(UA_Client *client, UA_ClientCallback callback,
 UA_StatusCode
 UA_Client_addRepeatedCallback(UA_Client *client, UA_ClientCallback callback,
                               void *data, UA_Double interval_ms, UA_UInt64 *callbackId) {
-
+    if(!client->config.eventLoop)
+        return UA_STATUSCODE_BADINTERNALERROR;
     return client->config.eventLoop->
         addCyclicCallback(client->config.eventLoop, (UA_Callback)callback,
                           client, data, interval_ms, NULL,
@@ -622,6 +625,8 @@ UA_Client_addRepeatedCallback(UA_Client *client, UA_ClientCallback callback,
 UA_StatusCode
 UA_Client_changeRepeatedCallbackInterval(UA_Client *client, UA_UInt64 callbackId,
                                          UA_Double interval_ms) {
+    if(!client->config.eventLoop)
+        return UA_STATUSCODE_BADINTERNALERROR;
     return client->config.eventLoop->
         modifyCyclicCallback(client->config.eventLoop, callbackId, interval_ms,
                              NULL, UA_TIMER_HANDLE_CYCLEMISS_WITH_CURRENTTIME);
@@ -629,6 +634,8 @@ UA_Client_changeRepeatedCallbackInterval(UA_Client *client, UA_UInt64 callbackId
 
 void
 UA_Client_removeCallback(UA_Client *client, UA_UInt64 callbackId) {
+    if(!client->config.eventLoop)
+        return;
     client->config.eventLoop->
         removeCyclicCallback(client->config.eventLoop, callbackId);
 }
