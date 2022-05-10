@@ -182,11 +182,18 @@ function(ua_generate_datatypes)
     # Replace dash with underscore to make valid c literal
     string(REPLACE "-" "_" UA_GEN_DT_NAME ${UA_GEN_DT_NAME})
 
+    if((MINGW) AND (DEFINED ENV{SHELL}))
+        # fix issue 4156 that MINGW will do automatic Windows Path Conversion
+        # powershell handles Windows Path correctly
+        # MINGW SHELL only accept environment variable with "env"
+        set(ARG_CONV_EXCL_ENV env MSYS2_ARG_CONV_EXCL=--import)
+    endif()
+
     add_custom_command(OUTPUT ${UA_GEN_DT_OUTPUT_DIR}/${UA_GEN_DT_NAME}_generated.c
         ${UA_GEN_DT_OUTPUT_DIR}/${UA_GEN_DT_NAME}_generated.h
         ${UA_GEN_DT_OUTPUT_DIR}/${UA_GEN_DT_NAME}_generated_handling.h
         PRE_BUILD
-        COMMAND ${PYTHON_EXECUTABLE} ${open62541_TOOLS_DIR}/generate_datatypes.py
+        COMMAND ${ARG_CONV_EXCL_ENV} ${PYTHON_EXECUTABLE} ${open62541_TOOLS_DIR}/generate_datatypes.py
         ${NAMESPACE_MAP_TMP}
         ${SELECTED_TYPES_TMP}
         ${BSD_FILES_TMP}

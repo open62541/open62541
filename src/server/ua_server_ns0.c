@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  *
- *    Copyright 2017-2020 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
+ *    Copyright 2017-2022 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
  *    Copyright 2017 (c) Stefan Profanter, fortiss GmbH
  *    Copyright 2017 (c) Thomas Bender
  *    Copyright 2017 (c) Julian Grothoff
@@ -585,10 +585,16 @@ readMonitoredItems(UA_Server *server, const UA_NodeId *sessionId, void *sessionC
 
     /* Get the Subscription */
     UA_UInt32 subscriptionId = *((UA_UInt32*)(input[0].data));
-    UA_Subscription *subscription = UA_Session_getSubscriptionById(session, subscriptionId);
+    UA_Subscription *subscription = UA_Server_getSubscriptionById(server, subscriptionId);
     if(!subscription) {
         UA_UNLOCK(&server->serviceMutex);
         return UA_STATUSCODE_BADSUBSCRIPTIONIDINVALID;
+    }
+
+    /* The Subscription is not attached to this Session */
+    if(subscription->session != session) {
+        UA_UNLOCK(&server->serviceMutex);
+        return UA_STATUSCODE_BADUSERACCESSDENIED;
     }
 
     /* Count the MonitoredItems */
@@ -893,15 +899,12 @@ UA_Server_initNS0(UA_Server *server) {
     retVal |= UA_Server_setVariableNode_dataSource(server,
                         UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVICELEVEL), serviceLevel);
 
-    /* ServerDiagnostics - ServerDiagnosticsSummary */
-    UA_ServerDiagnosticsSummaryDataType serverDiagnosticsSummary;
-    UA_ServerDiagnosticsSummaryDataType_init(&serverDiagnosticsSummary);
-    retVal |= writeNs0Variable(server, UA_NS0ID_SERVER_SERVERDIAGNOSTICS_SERVERDIAGNOSTICSSUMMARY,
-                               &serverDiagnosticsSummary,
-                               &UA_TYPES[UA_TYPES_SERVERDIAGNOSTICSSUMMARYDATATYPE]);
-
     /* ServerDiagnostics - EnabledFlag */
+#ifdef UA_ENABLE_DIAGNOSTICS
+    UA_Boolean enabledFlag = true;
+#else
     UA_Boolean enabledFlag = false;
+#endif
     retVal |= writeNs0Variable(server, UA_NS0ID_SERVER_SERVERDIAGNOSTICS_ENABLEDFLAG,
                                &enabledFlag, &UA_TYPES[UA_TYPES_BOOLEAN]);
 
@@ -1019,14 +1022,87 @@ UA_Server_initNS0(UA_Server *server) {
     UA_Server_deleteNode(server, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVERCONFIGURATION), true);
     UA_Server_deleteNode(server, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SETSUBSCRIPTIONDURABLE), true);
 
-    /* Remove unused diagnostics */
+#ifdef UA_ENABLE_DIAGNOSTICS
+    /* ServerDiagnostics - ServerDiagnosticsSummary */
+    UA_DataSource serverDiagSummary = {readDiagnostics, NULL};
+    retVal |= UA_Server_setVariableNode_dataSource(server,
+                        UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERDIAGNOSTICS_SERVERDIAGNOSTICSSUMMARY), serverDiagSummary);
+
+    /* ServerDiagnostics - ServerDiagnosticsSummary - ServerViewCount */
+    retVal |= UA_Server_setVariableNode_dataSource(server,
+                        UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERDIAGNOSTICS_SERVERDIAGNOSTICSSUMMARY_SERVERVIEWCOUNT), serverDiagSummary);
+
+    /* ServerDiagnostics - ServerDiagnosticsSummary - CurrentSessionCount */
+    retVal |= UA_Server_setVariableNode_dataSource(server,
+                        UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERDIAGNOSTICS_SERVERDIAGNOSTICSSUMMARY_CURRENTSESSIONCOUNT), serverDiagSummary);
+
+    /* ServerDiagnostics - ServerDiagnosticsSummary - CumulatedSessionCount */
+    retVal |= UA_Server_setVariableNode_dataSource(server,
+                        UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERDIAGNOSTICS_SERVERDIAGNOSTICSSUMMARY_CUMULATEDSESSIONCOUNT), serverDiagSummary);
+
+    /* ServerDiagnostics - ServerDiagnosticsSummary - SecurityRejectedSessionCount */
+    retVal |= UA_Server_setVariableNode_dataSource(server,
+                        UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERDIAGNOSTICS_SERVERDIAGNOSTICSSUMMARY_SECURITYREJECTEDSESSIONCOUNT), serverDiagSummary);
+
+    /* ServerDiagnostics - ServerDiagnosticsSummary - RejectedSessionCount */
+    retVal |= UA_Server_setVariableNode_dataSource(server,
+                        UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERDIAGNOSTICS_SERVERDIAGNOSTICSSUMMARY_REJECTEDSESSIONCOUNT), serverDiagSummary);
+
+    /* ServerDiagnostics - ServerDiagnosticsSummary - SessionTimeoutCount */
+    retVal |= UA_Server_setVariableNode_dataSource(server,
+                        UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERDIAGNOSTICS_SERVERDIAGNOSTICSSUMMARY_SESSIONTIMEOUTCOUNT), serverDiagSummary);
+
+    /* ServerDiagnostics - ServerDiagnosticsSummary - SessionAbortCount */
+    retVal |= UA_Server_setVariableNode_dataSource(server,
+                        UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERDIAGNOSTICS_SERVERDIAGNOSTICSSUMMARY_SESSIONABORTCOUNT), serverDiagSummary);
+
+    /* ServerDiagnostics - ServerDiagnosticsSummary - CurrentSubscriptionCount */
+    retVal |= UA_Server_setVariableNode_dataSource(server,
+                        UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERDIAGNOSTICS_SERVERDIAGNOSTICSSUMMARY_CURRENTSUBSCRIPTIONCOUNT), serverDiagSummary);
+
+    /* ServerDiagnostics - ServerDiagnosticsSummary - CumulatedSubscriptionCount */
+    retVal |= UA_Server_setVariableNode_dataSource(server,
+                        UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERDIAGNOSTICS_SERVERDIAGNOSTICSSUMMARY_CUMULATEDSUBSCRIPTIONCOUNT), serverDiagSummary);
+
+    /* ServerDiagnostics - ServerDiagnosticsSummary - PublishingIntervalCount */
+    retVal |= UA_Server_setVariableNode_dataSource(server,
+                        UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERDIAGNOSTICS_SERVERDIAGNOSTICSSUMMARY_PUBLISHINGINTERVALCOUNT), serverDiagSummary);
+
+    /* ServerDiagnostics - ServerDiagnosticsSummary - SecurityRejectedRequestsCount */
+    retVal |= UA_Server_setVariableNode_dataSource(server,
+                        UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERDIAGNOSTICS_SERVERDIAGNOSTICSSUMMARY_SECURITYREJECTEDREQUESTSCOUNT), serverDiagSummary);
+
+    /* ServerDiagnostics - ServerDiagnosticsSummary - RejectedRequestsCount */
+    retVal |= UA_Server_setVariableNode_dataSource(server,
+                        UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERDIAGNOSTICS_SERVERDIAGNOSTICSSUMMARY_REJECTEDREQUESTSCOUNT), serverDiagSummary);
+
+    /* ServerDiagnostics - SubscriptionDiagnosticsArray */
+#ifdef UA_ENABLE_SUBSCRIPTIONS
+    UA_DataSource serverSubDiagSummary = {readSubscriptionDiagnosticsArray, NULL};
+    retVal |= UA_Server_setVariableNode_dataSource(server,
+                        UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERDIAGNOSTICS_SUBSCRIPTIONDIAGNOSTICSARRAY), serverSubDiagSummary);
+#endif
+
+    /* ServerDiagnostics - SessionDiagnosticsSummary - SessionDiagnosticsArray */
+    UA_DataSource sessionDiagSummary = {readSessionDiagnosticsArray, NULL};
+    retVal |= UA_Server_setVariableNode_dataSource(server,
+                        UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERDIAGNOSTICS_SESSIONSDIAGNOSTICSSUMMARY_SESSIONDIAGNOSTICSARRAY), sessionDiagSummary);
+
+    /* ServerDiagnostics - SessionDiagnosticsSummary - SessionSecurityDiagnosticsArray */
+    UA_DataSource sessionSecDiagSummary = {readSessionSecurityDiagnostics, NULL};
+    retVal |= UA_Server_setVariableNode_dataSource(server,
+                        UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERDIAGNOSTICS_SESSIONSDIAGNOSTICSSUMMARY_SESSIONSECURITYDIAGNOSTICSARRAY), sessionSecDiagSummary);
+
+#else
+    /* Removing these NodeIds make Server Object to be non-complaint with UA
+     * 1.03 in CTT (Base Inforamtion/Base Info Core Structure/ 001.js) In the
+     * 1.04 specification this has been resolved by allowing to remove these
+     * static nodes as well */
     UA_Server_deleteNode(server, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERDIAGNOSTICS_SAMPLINGINTERVALDIAGNOSTICSARRAY), true);
     UA_Server_deleteNode(server, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERDIAGNOSTICS_SESSIONSDIAGNOSTICSSUMMARY), true);
-
-    /* Removing these NodeIds make Server Object to be non-complaint with UA 1.03  in CTT (Base Inforamtion/Base Info Core Structure/ 001.js)
-     * In the 1.04 specification this has been resolved by allowing to remove these static nodes as well */
     UA_Server_deleteNode(server, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERDIAGNOSTICS_SERVERDIAGNOSTICSSUMMARY), true);
     UA_Server_deleteNode(server, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERDIAGNOSTICS_SUBSCRIPTIONDIAGNOSTICSARRAY), true);
+#endif
 
 #ifndef UA_ENABLE_PUBSUB
     UA_Server_deleteNode(server, UA_NODEID_NUMERIC(0, UA_NS0ID_PUBLISHSUBSCRIBE), true);

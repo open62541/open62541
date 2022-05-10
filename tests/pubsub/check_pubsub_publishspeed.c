@@ -16,8 +16,7 @@
 #include <time.h>
 
 UA_Server *server = NULL;
-UA_NodeId connection1, connection2, writerGroup1, writerGroup2, writerGroup3,
-        publishedDataSet1, publishedDataSet2, dataSetWriter1, dataSetWriter2, dataSetWriter3;
+UA_NodeId connection1, writerGroup1, publishedDataSet1, dataSetWriter1;
 
 static void setup(void) {
     server = UA_Server_new();
@@ -67,7 +66,7 @@ START_TEST(PublishSpeedTest) {
     dataSetFieldConfig.dataSetFieldType = UA_PUBSUB_DATASETFIELD_VARIABLE;
     dataSetFieldConfig.field.variable.fieldNameAlias = UA_STRING("Server localtime");
     dataSetFieldConfig.field.variable.promotedField = UA_FALSE;
-    dataSetFieldConfig.field.variable.publishParameters.publishedVariable = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_STATE);
+    dataSetFieldConfig.field.variable.publishParameters.publishedVariable = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_LOCALTIME);
     dataSetFieldConfig.field.variable.publishParameters.attributeId = UA_ATTRIBUTEID_VALUE;
     UA_Server_addDataSetField(server, publishedDataSet1, &dataSetFieldConfig, NULL);
 

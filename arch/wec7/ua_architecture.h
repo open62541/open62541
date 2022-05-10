@@ -62,19 +62,13 @@ void UA_sleep_ms(unsigned long ms);
 // Windows does not support ansi colors
 // #define UA_ENABLE_LOG_COLORS
 
-#if defined(__MINGW32__) //mingw defines SOCKET as long long unsigned int, giving errors in logging and when comparing with UA_Int32
-# define UA_SOCKET int
-# define UA_INVALID_SOCKET -1
-#else
-# define UA_SOCKET SOCKET
-# define UA_INVALID_SOCKET INVALID_SOCKET
-#endif
+#define UA_SOCKET SOCKET
+#define UA_INVALID_SOCKET INVALID_SOCKET
 #define UA_ERRNO WSAGetLastError()
 #define UA_INTERRUPTED WSAEINTR
-#define UA_AGAIN WSAEWOULDBLOCK
-#define UA_EAGAIN EAGAIN
+#define UA_AGAIN EAGAIN /* the same as wouldblock on nearly every system */
+#define UA_INPROGRESS EINPROGRESS
 #define UA_WOULDBLOCK WSAEWOULDBLOCK
-#define UA_ERR_CONNECTION_PROGRESS WSAEWOULDBLOCK
 
 #define UA_fd_set(fd, fds) FD_SET((UA_SOCKET)fd, fds)
 #define UA_fd_isset(fd, fds) FD_ISSET((UA_SOCKET)fd, fds)

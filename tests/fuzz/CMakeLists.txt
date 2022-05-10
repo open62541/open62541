@@ -62,6 +62,12 @@ link_libraries("-fsanitize=fuzzer")
 
 # Use different plugins for testing
 set(fuzzing_plugin_sources ${PROJECT_SOURCE_DIR}/arch/network_tcp.c
+    ${PROJECT_SOURCE_DIR}/arch/eventloop_posix.c
+    ${PROJECT_SOURCE_DIR}/arch/eventloop_posix_select.c
+    ${PROJECT_SOURCE_DIR}/arch/eventloop_posix_epoll.c
+    ${PROJECT_SOURCE_DIR}/arch/eventloop_posix_tcp.c
+    ${PROJECT_SOURCE_DIR}/arch/eventloop_posix_udp.c
+    ${PROJECT_SOURCE_DIR}/arch/eventloop_posix_interrupt.c
     ${PROJECT_SOURCE_DIR}/tests/testing-plugins/testing_clock.c
     ${PROJECT_SOURCE_DIR}/tests/testing-plugins/testing_networklayers.c
     ${PROJECT_SOURCE_DIR}/plugins/ua_log_stdout.c

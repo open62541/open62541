@@ -16,11 +16,17 @@
 #  BSD license.
 #  For details see the accompanying COPYING-CMAKE-SCRIPTS file.
 
-
-find_package(PkgConfig REQUIRED)
-
-# Take care about check.pc settings
-PKG_SEARCH_MODULE( CHECK check )
+if(WIN32)
+  # Manually define CHECK_INSTALL_DIR if vcpkg is not used
+  if(DEFINED VCPKG_INSTALLED_DIR)
+    set(CHECK_INSTALL_DIR "${VCPKG_INSTALLED_DIR}/${VCPKG_TARGET_TRIPLET}")
+    # find_package(check CONFIG REQUIRED)
+  endif()
+else()
+    # Take care about check.pc settings
+    find_package(PkgConfig REQUIRED)
+    PKG_SEARCH_MODULE( CHECK check )
+endif()
 
 # Look for CHECK include dir and libraries
 IF( NOT CHECK_FOUND )

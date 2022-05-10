@@ -23,7 +23,8 @@ setApplicationDescriptionFromRegisteredServer(const UA_FindServersRequest *reque
                                               UA_ApplicationDescription *target,
                                               const UA_RegisteredServer *registeredServer) {
     UA_ApplicationDescription_init(target);
-    UA_StatusCode retval = UA_String_copy(&registeredServer->serverUri, &target->applicationUri);
+    UA_StatusCode retval =
+        UA_String_copy(&registeredServer->serverUri, &target->applicationUri);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
@@ -36,7 +37,8 @@ setApplicationDescriptionFromRegisteredServer(const UA_FindServersRequest *reque
         UA_Boolean appNameFound = false;
         for(size_t i =0; i<request->localeIdsSize && !appNameFound; i++) {
             for(size_t j =0; j<registeredServer->serverNamesSize; j++) {
-                if(UA_String_equal(&request->localeIds[i], &registeredServer->serverNames[j].locale)) {
+                if(UA_String_equal(&request->localeIds[i],
+                                   &registeredServer->serverNames[j].locale)) {
                     retval = UA_LocalizedText_copy(&registeredServer->serverNames[j],
                                                    &target->applicationName);
                     if(retval != UA_STATUSCODE_GOOD)
@@ -57,7 +59,8 @@ setApplicationDescriptionFromRegisteredServer(const UA_FindServersRequest *reque
         }
     } else if(registeredServer->serverNamesSize) {
         // just take the first name
-        retval = UA_LocalizedText_copy(&registeredServer->serverNames[0], &target->applicationName);
+        retval = UA_LocalizedText_copy(&registeredServer->serverNames[0],
+                                       &target->applicationName);
         if(retval != UA_STATUSCODE_GOOD)
             return retval;
     }
@@ -75,7 +78,8 @@ setApplicationDescriptionFromRegisteredServer(const UA_FindServersRequest *reque
         if(!target->discoveryUrls)
             return UA_STATUSCODE_BADOUTOFMEMORY;
         for(size_t i = 0; i < registeredServer->discoveryUrlsSize; i++) {
-            retval = UA_String_copy(&registeredServer->discoveryUrls[i], &target->discoveryUrls[i]);
+            retval = UA_String_copy(&registeredServer->discoveryUrls[i],
+                                    &target->discoveryUrls[i]);
             if(retval != UA_STATUSCODE_GOOD)
                 return retval;
         }
@@ -84,33 +88,6 @@ setApplicationDescriptionFromRegisteredServer(const UA_FindServersRequest *reque
     return retval;
 }
 #endif
-
-static UA_StatusCode
-setApplicationDescriptionFromServer(UA_ApplicationDescription *target, const UA_Server *server) {
-    /* Copy ApplicationDescription from the config */
-    UA_StatusCode result = UA_ApplicationDescription_copy(&server->config.applicationDescription, target);
-    if(result != UA_STATUSCODE_GOOD)
-        return result;
-
-    /* Add the discoveryUrls from the networklayers only if discoveryUrl
-     * not already present and to avoid redundancy */
-    if(!target->discoveryUrlsSize) {
-        size_t discSize = sizeof(UA_String) * (target->discoveryUrlsSize + server->config.networkLayersSize);
-        UA_String* disc = (UA_String *)UA_realloc(target->discoveryUrls, discSize);
-        if(!disc)
-            return UA_STATUSCODE_BADOUTOFMEMORY;
-        size_t existing = target->discoveryUrlsSize;
-        target->discoveryUrls = disc;
-        target->discoveryUrlsSize += server->config.networkLayersSize;
-
-        for(size_t i = 0; i < server->config.networkLayersSize; i++) {
-            UA_ServerNetworkLayer* nl = &server->config.networkLayers[i];
-            UA_String_copy(&nl->discoveryUrl, &target->discoveryUrls[existing + i]);
-        }
-    }
-
-    return UA_STATUSCODE_GOOD;
-}
 
 void Service_FindServers(UA_Server *server, UA_Session *session,
                          const UA_FindServersRequest *request,
@@ -133,31 +110,25 @@ void Service_FindServers(UA_Server *server, UA_Session *session,
     }
 
 #ifndef UA_ENABLE_DISCOVERY
+
     if(!foundSelf)
         return;
 
-    UA_ApplicationDescription *ad = UA_ApplicationDescription_new();
-    if(!ad) {
-        response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
+    response->responseHeader.serviceResult =
+        UA_Array_copy(&server->config.applicationDescription, 1,
+                      (void**)&response->servers,
+                      &UA_TYPES[UA_TYPES_APPLICATIONDESCRIPTION]);
+    if(response->responseHeader.serviceResult != UA_STATUSCODE_GOOD)
         return;
-    }
 
-    UA_StatusCode retval = setApplicationDescriptionFromServer(ad, server);
-    if(retval != UA_STATUSCODE_GOOD) {
-        UA_ApplicationDescription_delete(ad);
-        response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
-        return;
-    }
-
-    response->servers = ad;
     response->serversSize = 1;
-    return;
 
 #else
 
     /* Allocate enough memory, including memory for the "self" response */
     size_t maxResults = server->discoveryManager.registeredServersSize + 1;
-    response->servers = (UA_ApplicationDescription*)UA_Array_new(maxResults, &UA_TYPES[UA_TYPES_APPLICATIONDESCRIPTION]);
+    response->servers = (UA_ApplicationDescription*)
+        UA_Array_new(maxResults, &UA_TYPES[UA_TYPES_APPLICATIONDESCRIPTION]);
     if(!response->servers) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
         return;
@@ -166,7 +137,8 @@ void Service_FindServers(UA_Server *server, UA_Session *session,
     /* Copy into the response. TODO: Evaluate return codes */
     size_t pos = 0;
     if(foundSelf)
-        setApplicationDescriptionFromServer(&response->servers[pos++], server);
+        UA_ApplicationDescription_copy(&server->config.applicationDescription,
+                                       &response->servers[pos++]);
 
     registeredServer_list_entry* current;
     LIST_FOREACH(current, &server->discoveryManager.registeredServers, pointers) {
@@ -174,7 +146,8 @@ void Service_FindServers(UA_Server *server, UA_Session *session,
         if(!usable) {
             /* If client only requested a specific set of servers */
             for(size_t i = 0; i < request->serverUrisSize; i++) {
-                if(UA_String_equal(&current->registeredServer.serverUri, &request->serverUris[i])) {
+                if(UA_String_equal(&current->registeredServer.serverUri,
+                                   &request->serverUris[i])) {
                     usable = true;
                     break;
                 }
@@ -216,10 +189,10 @@ Service_GetEndpoints(UA_Server *server, UA_Session *session,
 
     /* Clone the endpoint for each networklayer? */
     size_t clone_times = 1;
-    UA_Boolean nl_endpointurl = false;
+    UA_Boolean use_discovery = false;
     if(endpointUrl->length == 0) {
-        clone_times = server->config.networkLayersSize;
-        nl_endpointurl = true;
+        clone_times = server->config.applicationDescription.discoveryUrlsSize;
+        use_discovery = true;
     }
 
     /* Allocate enough memory */
@@ -252,25 +225,29 @@ Service_GetEndpoints(UA_Server *server, UA_Session *session,
         for(size_t i = 0; i < clone_times; ++i) {
             retval |= UA_EndpointDescription_copy(&server->config.endpoints[j],
                                                   &response->endpoints[pos]);
-            if(nl_endpointurl)
-                endpointUrl = &server->config.networkLayers[i].discoveryUrl;
-            retval |= UA_String_copy(endpointUrl, &response->endpoints[pos].endpointUrl);
-            retval |= UA_Array_copy(endpointUrl, 1,
-                                    (void**)&response->endpoints[pos].server.discoveryUrls,
-                                    &UA_TYPES[UA_TYPES_STRING]);
+            UA_String_clear(&response->endpoints[pos].endpointUrl);
+            if(use_discovery) {
+                retval |=
+                    UA_String_copy(&server->config.applicationDescription.discoveryUrls[i],
+                                   &response->endpoints[pos].endpointUrl);
+            } else {
+                /* Mirror back the requested EndpointUrl and also add it to the
+                 * array of discovery urls */
+                retval |= UA_String_copy(endpointUrl, &response->endpoints[pos].endpointUrl);
+                retval |=
+                    UA_Array_appendCopy((void**)&response->endpoints[pos].server.discoveryUrls,
+                                        &response->endpoints[pos].server.discoveryUrlsSize,
+                                        endpointUrl, &UA_TYPES[UA_TYPES_STRING]);
+            }
             if(retval != UA_STATUSCODE_GOOD)
                 goto error;
-            response->endpoints[pos].server.discoveryUrlsSize = 1;
             pos++;
         }
     }
 
     UA_assert(pos <= server->config.endpointsSize * clone_times);
     response->endpointsSize = pos;
-
-    /* Clean up the memory of there are no usable results */
-    if(pos > 0)
-        return;
+    return;
 
 error:
     response->responseHeader.serviceResult = retval;

@@ -76,10 +76,11 @@ typeCheckArguments(UA_Server *server, UA_Session *session,
     /* Type-check every argument against the definition */
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     UA_Argument *argReqs = (UA_Argument*)argRequirements->value.data.value.value.data;
+    const char *reason;
     for(size_t i = 0; i < argReqsSize; ++i) {
         if(compatibleValue(server, session, &argReqs[i].dataType, argReqs[i].valueRank,
-                            argReqs[i].arrayDimensionsSize, argReqs[i].arrayDimensions,
-                            &args[i], NULL))
+                           argReqs[i].arrayDimensionsSize, argReqs[i].arrayDimensions,
+                           &args[i], NULL, &reason))
             continue;
 
         /* Incompatible value. Try to correct the type if possible. */
@@ -88,7 +89,7 @@ typeCheckArguments(UA_Server *server, UA_Session *session,
         /* Recheck */
         if(!compatibleValue(server, session, &argReqs[i].dataType, argReqs[i].valueRank,
                             argReqs[i].arrayDimensionsSize, argReqs[i].arrayDimensions,
-                            &args[i], NULL)) {
+                            &args[i], NULL, &reason)) {
             inputArgumentResults[i] = UA_STATUSCODE_BADTYPEMISMATCH;
             retval = UA_STATUSCODE_BADINVALIDARGUMENT;
         }
@@ -124,6 +125,7 @@ static const UA_NodeId hasComponentNodeId = {0, UA_NODEIDTYPE_NUMERIC, {UA_NS0ID
 static const UA_NodeId organizedByNodeId = {0, UA_NODEIDTYPE_NUMERIC, {UA_NS0ID_ORGANIZES}};
 static const UA_String namespaceDiModel = UA_STRING_STATIC("http://opcfoundation.org/UA/DI/");
 static const UA_NodeId hasTypeDefinitionNodeId = {0, UA_NODEIDTYPE_NUMERIC, {UA_NS0ID_HASTYPEDEFINITION}};
+static const UA_NodeId hasSubTypeNodeId = {0, UA_NODEIDTYPE_NUMERIC, {UA_NS0ID_HASSUBTYPE}};
 // ns=0 will be replace dynamically. DI-Spec. 1.01: <UAObjectType NodeId="ns=1;i=1005" BrowseName="1:FunctionalGroupType">
 static UA_NodeId functionGroupNodeId = {0, UA_NODEIDTYPE_NUMERIC, {1005}};
 
@@ -175,6 +177,64 @@ callWithMethodAndObject(UA_Server *server, UA_Session *session,
                 found = true;
                 break;
             }
+        }
+    }
+    if(!found) {
+        /* If the object doesn't have a hasComponent reference to the method node,
+         * check its objectType (and its supertypes). Invoked method can be a component
+         * of objectType and be invoked on this objectType's instance (or on a instance
+         * of one of its subtypes). */
+
+        /* Get the ObjectType */
+        const UA_Node *objectType = NULL;
+        bool releaseType = true;
+        if(object->head.nodeClass == UA_NODECLASS_OBJECT) {
+            objectType = getNodeType(server, &object->head);
+            if(!objectType) {
+                result->statusCode = UA_STATUSCODE_BADMETHODINVALID;
+                return;
+            }
+        }
+        else {
+            /* If the method was invoked on objectType use the provided node and don't 
+             * release it later, it's done in calling function */
+            objectType = (const UA_Node *)object;
+            releaseType = false;
+        }
+
+        UA_ReferenceTypeSet hasSubTypeRefs;
+        result->statusCode = referenceTypeIndices(server, &hasSubTypeNodeId,
+                                                  &hasSubTypeRefs, true);
+        if(result->statusCode != UA_STATUSCODE_GOOD)
+            return;
+
+        UA_ExpandedNodeId methodExpId = UA_EXPANDEDNODEID_NODEID(request->methodId);
+        while(objectType && !found) {
+            /* Check if this objectType references the method node with hasComponent (or its subtype) */
+            for(size_t i = 0; i < objectType->head.referencesSize && !found; ++i) {
+                const UA_NodeReferenceKind *rk = &objectType->head.references[i];
+                if(rk->isInverse)
+                    continue;
+                if(!UA_ReferenceTypeSet_contains(&hasComponentRefs, rk->referenceTypeIndex))
+                    continue;
+                if(UA_NodeReferenceKind_findTarget(rk, &methodExpId)) {
+                    found = true;
+                    break;
+                }
+            }
+            if(found)
+                break;
+            
+            /* Reference was not found - next iteration check supertype */
+            const UA_Node *superType = getNodeType(server, &objectType->head);
+            if(objectType && releaseType) {
+                UA_NODESTORE_RELEASE(server, objectType);
+            }
+            objectType = superType;
+            releaseType = true;
+        }
+        if(objectType && releaseType) {
+            UA_NODESTORE_RELEASE(server, objectType);
         }
     }
 

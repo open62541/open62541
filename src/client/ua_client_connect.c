@@ -508,6 +508,11 @@ responseActivateSession(UA_Client *client, void *userdata, UA_UInt32 requestId,
         return;
     }
 
+    /* Replace the nonce */
+    UA_ByteString_clear(&client->remoteNonce);
+    client->remoteNonce = activateResponse->serverNonce;
+    UA_ByteString_init(&activateResponse->serverNonce);
+
     client->sessionState = UA_SESSIONSTATE_ACTIVATED;
     notifyClientState(client);
 }
@@ -998,6 +1003,15 @@ verifyClientApplicationURI(const UA_Client *client) {
 #if defined(UA_ENABLE_ENCRYPTION) && (UA_LOGLEVEL <= 400)
     for(size_t i = 0; i < client->config.securityPoliciesSize; i++) {
         UA_SecurityPolicy *sp = &client->config.securityPolicies[i];
+        
+        if(sp->localCertificate.data == NULL) 
+        {
+                UA_LOG_WARNING(&client->config.logger, UA_LOGCATEGORY_CLIENT,
+                "skip verifying ApplicationURI for the SecurityPolicy %.*s",
+                (int)sp->policyUri.length, sp->policyUri.data);
+                continue;
+        }
+        
         UA_StatusCode retval =
             client->config.certificateVerification.
             verifyApplicationURI(client->config.certificateVerification.context,

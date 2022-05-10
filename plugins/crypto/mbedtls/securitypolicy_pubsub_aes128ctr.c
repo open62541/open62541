@@ -14,7 +14,6 @@
 #include <mbedtls/aes.h>
 #include <mbedtls/ctr_drbg.h>
 #include <mbedtls/entropy.h>
-#include <mbedtls/entropy_poll.h>
 #include <mbedtls/error.h>
 #include <mbedtls/md.h>
 #include <mbedtls/sha1.h>
@@ -299,9 +298,8 @@ policyContext_newContext_sp_pubsub_aes128ctr(UA_PubSubSecurityPolicy *securityPo
         goto error;
     }
 
-    /* Add the system entropy source */
-    mbedErr = mbedtls_entropy_add_source(&pc->entropyContext, mbedtls_platform_entropy_poll,
-                                         NULL, 0, MBEDTLS_ENTROPY_SOURCE_STRONG);
+    mbedErr = mbedtls_entropy_self_test(0);
+
     if(mbedErr) {
         retval = UA_STATUSCODE_BADSECURITYCHECKSFAILED;
         goto error;

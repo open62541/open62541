@@ -20,6 +20,7 @@
 #include <sys/select.h>
 #include <sys/types.h>
 #include <net/if.h>
+#include <poll.h>
 #ifdef UA_sleep_ms
 void UA_sleep_ms(unsigned long ms);
 #else
@@ -65,15 +66,18 @@ void UA_sleep_ms(unsigned long ms);
 #define UA_INVALID_SOCKET -1
 #define UA_ERRNO errno
 #define UA_INTERRUPTED EINTR
-#define UA_AGAIN EAGAIN
-#define UA_EAGAIN EAGAIN
+#define UA_AGAIN EAGAIN /* the same as wouldblock on nearly every system */
+#define UA_INPROGRESS EINPROGRESS
 #define UA_WOULDBLOCK EWOULDBLOCK
-#define UA_ERR_CONNECTION_PROGRESS EINPROGRESS
+
+#define UA_POLLIN POLLIN
+#define UA_POLLOUT POLLOUT
 
 #define UA_ENABLE_LOG_COLORS
 
 #define UA_getnameinfo(sa, salen, host, hostlen, serv, servlen, flags) \
     getnameinfo(sa, salen, host, hostlen, serv, servlen, flags)
+#define UA_poll poll
 #define UA_send send
 #define UA_recv recv
 #define UA_sendto sendto
@@ -141,7 +145,6 @@ typedef struct {
 static UA_INLINE void
 UA_LOCK_INIT(UA_Lock *lock) {
     pthread_mutexattr_init(&lock->mutexAttr);
-    pthread_mutexattr_settype(&lock->mutexAttr, PTHREAD_MUTEX_RECURSIVE);
     pthread_mutex_init(&lock->mutex, &lock->mutexAttr);
     lock->mutexCounter = 0;
 }
