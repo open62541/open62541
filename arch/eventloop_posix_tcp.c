@@ -582,7 +582,7 @@ TCP_shutdownConnection(UA_ConnectionManager *cm, uintptr_t connectionId) {
     UA_RegisteredFD *rfd = TCP_findRegisteredFD(tcm, connectionId);
     if(!rfd) {
         UA_LOG_WARNING(el->logger, UA_LOGCATEGORY_NETWORK,
-                       "TCP\t| Cannot close UDP connection %u - not found",
+                       "TCP\t| Cannot close TCP connection %u - not found",
                        (unsigned)connectionId);
         return UA_STATUSCODE_BADNOTFOUND;
     }
