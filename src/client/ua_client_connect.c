@@ -844,54 +844,53 @@ responseSessionCallback(UA_Client *client, void *userdata,
 
 static UA_StatusCode
 createSessionAsync(UA_Client *client) {
-    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+    /* Generate the local nonce for the session */
+    UA_StatusCode res = UA_STATUSCODE_GOOD;
     if(client->channel.securityMode == UA_MESSAGESECURITYMODE_SIGN ||
        client->channel.securityMode == UA_MESSAGESECURITYMODE_SIGNANDENCRYPT) {
         if(client->localNonce.length != UA_SESSION_LOCALNONCELENGTH) {
            UA_ByteString_clear(&client->localNonce);
-            retval = UA_ByteString_allocBuffer(&client->localNonce,
-                                               UA_SESSION_LOCALNONCELENGTH);
-            if(retval != UA_STATUSCODE_GOOD)
-                return retval;
+            res = UA_ByteString_allocBuffer(&client->localNonce,
+                                            UA_SESSION_LOCALNONCELENGTH);
+            if(res != UA_STATUSCODE_GOOD)
+                return res;
         }
-        retval = client->channel.securityPolicy->symmetricModule.
+        res = client->channel.securityPolicy->symmetricModule.
                  generateNonce(client->channel.securityPolicy->policyContext,
                                &client->localNonce);
-        if(retval != UA_STATUSCODE_GOOD)
-            return retval;
+        if(res != UA_STATUSCODE_GOOD)
+            return res;
     }
 
+    /* Prepare and send the request */
     UA_CreateSessionRequest request;
     UA_CreateSessionRequest_init(&request);
     request.requestHeader.requestHandle = ++client->requestHandle;
     request.requestHeader.timestamp = UA_DateTime_now();
     request.requestHeader.timeoutHint = 10000;
-    UA_ByteString_copy(&client->localNonce, &request.clientNonce);
+    request.clientNonce = client->localNonce;
     request.requestedSessionTimeout = client->config.requestedSessionTimeout;
     request.maxResponseMessageSize = UA_INT32_MAX;
-    UA_String_copy(&client->config.endpoint.endpointUrl, &request.endpointUrl);
-    UA_ApplicationDescription_copy(&client->config.clientDescription,
-                                   &request.clientDescription);
-
+    request.endpointUrl = client->config.endpoint.endpointUrl;
+    request.clientDescription = client->config.clientDescription;
     if(client->channel.securityMode == UA_MESSAGESECURITYMODE_SIGN ||
        client->channel.securityMode == UA_MESSAGESECURITYMODE_SIGNANDENCRYPT) {
-        UA_ByteString_copy(&client->channel.securityPolicy->localCertificate,
-                           &request.clientCertificate);
+        request.clientCertificate = client->channel.securityPolicy->localCertificate;
     }
 
-    retval = UA_Client_sendAsyncRequest(client, &request, &UA_TYPES[UA_TYPES_CREATESESSIONREQUEST],
-                                        (UA_ClientAsyncServiceCallback)responseSessionCallback,
-                                        &UA_TYPES[UA_TYPES_CREATESESSIONRESPONSE], NULL, NULL);
-    UA_CreateSessionRequest_clear(&request);
+    res = UA_Client_sendAsyncRequest(client, &request,
+                                     &UA_TYPES[UA_TYPES_CREATESESSIONREQUEST],
+                                     (UA_ClientAsyncServiceCallback)responseSessionCallback,
+                                     &UA_TYPES[UA_TYPES_CREATESESSIONRESPONSE], NULL, NULL);
 
-    if(retval == UA_STATUSCODE_GOOD)
+    if(res == UA_STATUSCODE_GOOD)
         client->sessionState = UA_SESSIONSTATE_CREATE_REQUESTED;
     else
         UA_LOG_ERROR(&client->config.logger, UA_LOGCATEGORY_CLIENT,
-                           "CreateSession failed when sending the request with error code %s",
-                           UA_StatusCode_name(retval));
+                     "CreateSession failed when sending the request with "
+                     "error code %s", UA_StatusCode_name(res));
 
-    return retval;
+    return res;
 }
 
 static UA_StatusCode
