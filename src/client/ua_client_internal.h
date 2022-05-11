@@ -124,6 +124,9 @@ typedef struct CustomCallback {
 struct UA_Client {
     UA_ClientConfig config;
 
+    /* Callback ID to remove it from the EventLoop */
+    UA_UInt64 houseKeepingCallbackId;
+
     /* Overall connection status */
     UA_StatusCode connectStatus;
 
