@@ -534,8 +534,9 @@ void UA_Client_AsyncService_removeAll(UA_Client *client, UA_StatusCode statusCod
     }
 }
 
-UA_StatusCode UA_Client_modifyAsyncCallback(UA_Client *client, UA_UInt32 requestId,
-        void *userdata, UA_ClientAsyncServiceCallback callback) {
+UA_StatusCode
+UA_Client_modifyAsyncCallback(UA_Client *client, UA_UInt32 requestId,
+                              void *userdata, UA_ClientAsyncServiceCallback callback) {
     AsyncServiceCall *ac;
     LIST_FOREACH(ac, &client->asyncServiceCalls, pointers) {
         if(ac->requestId == requestId) {
@@ -610,6 +611,10 @@ UA_Client_sendAsyncRequest(UA_Client *client, const void *request,
                                     responseType, userdata, requestId);
 }
 
+/*******************/
+/* Timed Callbacks */
+/*******************/
+
 UA_StatusCode
 UA_Client_addTimedCallback(UA_Client *client, UA_ClientCallback callback,
                            void *data, UA_DateTime date, UA_UInt64 *callbackId) {
@@ -648,6 +653,10 @@ UA_Client_removeCallback(UA_Client *client, UA_UInt64 callbackId) {
     client->config.eventLoop->
         removeCyclicCallback(client->config.eventLoop, callbackId);
 }
+
+/**********************/
+/* Housekeeping Tasks */
+/**********************/
 
 static void
 asyncServiceTimeoutCheck(UA_Client *client) {
