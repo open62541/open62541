@@ -25,16 +25,12 @@
 #include "ua_connection_internal.h"
 #include "ua_types_encoding_binary.h"
 
+static void
+clientHouseKeeping(UA_Client *client, void *_);
+
 /********************/
 /* Client Lifecycle */
 /********************/
-
-static void
-UA_Client_init(UA_Client* client) {
-    UA_SecureChannel_init(&client->channel, &client->config.localConnectionConfig);
-    client->connectStatus = UA_STATUSCODE_GOOD;
-    notifyClientState(client);
-}
 
 UA_Client *
 UA_Client_newWithConfig(const UA_ClientConfig *config) {
@@ -45,7 +41,19 @@ UA_Client_newWithConfig(const UA_ClientConfig *config) {
         return NULL;
     memset(client, 0, sizeof(UA_Client));
     client->config = *config;
-    UA_Client_init(client);
+
+    UA_SecureChannel_init(&client->channel, &client->config.localConnectionConfig);
+    client->connectStatus = UA_STATUSCODE_GOOD;
+
+    /* Set up the regular callback for checking the internal state */
+    UA_StatusCode res =
+        UA_Client_addRepeatedCallback(client,
+                                      (UA_ClientCallback)clientHouseKeeping,
+                                      NULL, 1000.0, &client->houseKeepingCallbackId);
+    if(res != UA_STATUSCODE_GOOD) {
+        UA_Client_delete(client);
+        return NULL;
+    }
     return client;
 }
 
@@ -114,6 +122,9 @@ UA_Client_clear(UA_Client *client) {
     UA_Client_Subscriptions_clean(client);
 #endif
 
+    /* Remove the internal regular callback */
+    UA_Client_removeCallback(client, client->houseKeepingCallbackId);
+    client->houseKeepingCallbackId = 0;
 }
 
 void
@@ -695,62 +706,24 @@ UA_Client_backgroundConnectivity(UA_Client *client) {
         client->pendingConnectivityCheck = true;
 }
 
-UA_StatusCode
-UA_Client_run_iterate(UA_Client *client, UA_UInt32 timeout) {
-    UA_ClientConfig *cc = UA_Client_getConfig(client);
-    UA_EventLoop *el = cc->eventLoop;
-    UA_CHECK_ERROR(el->state != UA_EVENTLOOPSTATE_STOPPED,
-                   return UA_STATUSCODE_BAD,
-                   &client->config.logger, UA_LOGCATEGORY_CLIENT,
-                   "Eventloop was explicitly stopped.");
-
-    UA_StatusCode rv = UA_STATUSCODE_GOOD;
-    if(el->state == UA_EVENTLOOPSTATE_FRESH) {
-        rv = el->start(el);
-        UA_CHECK_STATUS(rv, return rv);
-    }
-
-    /* Process timed (repeated) jobs */
-    UA_DateTime now = UA_DateTime_nowMonotonic();
-    el->run(el, 0);
-    UA_DateTime maxDate = el->nextCyclicTime(el);
-    if(maxDate > now + ((UA_DateTime)timeout * UA_DATETIME_MSEC))
-        maxDate = now + ((UA_DateTime)timeout * UA_DATETIME_MSEC);
-
-    /* Make sure we have an open channel */
-    UA_StatusCode retval = UA_STATUSCODE_GOOD;
-    if((client->noSession && client->channel.state != UA_SECURECHANNELSTATE_OPEN) ||
-       client->sessionState < UA_SESSIONSTATE_ACTIVATED) {
-        retval = connectIterate(client, timeout);
-        notifyClientState(client);
-        return retval;
-    }
+/* Regular housekeeping activities in the client -- called via a cyclic callback */
+static void
+clientHouseKeeping(UA_Client *client, void *_) {
+    UA_LOG_DEBUG(&client->config.logger, UA_LOGCATEGORY_CLIENT,
+                 "Internally check the the client state and "
+                 "required activities");
 
     /* Renew Secure Channel */
     UA_Client_renewSecureChannel(client);
-    if(client->connectStatus != UA_STATUSCODE_GOOD)
-        return client->connectStatus;
-
-    /* Feed the server PublishRequests for the Subscriptions */
-#ifdef UA_ENABLE_SUBSCRIPTIONS
-    UA_Client_Subscriptions_backgroundPublish(client);
-#endif
 
     /* Send read requests from time to time to test the connectivity */
     UA_Client_backgroundConnectivity(client);
 
-    /* Listen on the network for the given timeout */
-    retval = receiveResponse(client, NULL, NULL, maxDate, NULL);
-    if(retval == UA_STATUSCODE_GOODNONCRITICALTIMEOUT)
-        retval = UA_STATUSCODE_GOOD;
-    if(retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_WARNING_CHANNEL(&client->config.logger, &client->channel,
-                               "Could not receive with StatusCode %s",
-                               UA_StatusCode_name(retval));
-    }
-
 #ifdef UA_ENABLE_SUBSCRIPTIONS
-    /* The inactivity check must be done after receiveServiceResponse*/
+    /* Feed the server PublishRequests for the Subscriptions */
+    UA_Client_Subscriptions_backgroundPublish(client);
+
+    /* Check for inactive Subscriptions */
     UA_Client_Subscriptions_backgroundPublishInactivityCheck(client);
 #endif
 
@@ -759,6 +732,26 @@ UA_Client_run_iterate(UA_Client *client, UA_UInt32 timeout) {
 
     /* Log and notify user if the client state has changed */
     notifyClientState(client);
+}
+
+UA_StatusCode
+UA_Client_run_iterate(UA_Client *client, UA_UInt32 timeout) {
+    UA_ClientConfig *cc = UA_Client_getConfig(client);
+    UA_EventLoop *el = cc->eventLoop;
+    UA_CHECK_ERROR(el != NULL, return UA_STATUSCODE_BADINTERNALERROR,
+                   &client->config.logger, UA_LOGCATEGORY_CLIENT,
+                   "No EventLoop configured");
+
+    /* Start the EventLoop? */
+    UA_StatusCode rv = UA_STATUSCODE_GOOD;
+    if(el->state == UA_EVENTLOOPSTATE_FRESH) {
+        rv = el->start(el);
+        UA_CHECK_STATUS(rv, return rv);
+    }
+
+    /* Process timed and network events in the EventLoop */
+    rv = el->run(el, timeout);
+    UA_CHECK_STATUS(rv, return rv);
 
     return client->connectStatus;
 }
