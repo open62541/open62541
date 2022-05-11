@@ -1408,12 +1408,7 @@ START_TEST(SinglePublishSubscribeHeartbeat) {
     ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
     UA_FieldTargetVariable targetVar;
     memset(&targetVar, 0, sizeof(UA_FieldTargetVariable));
-    /* For creating Targetvariable */
-/*    UA_FieldTargetDataType_init(&targetVar.targetVariable);
-    targetVar.targetVariable.attributeId  = UA_ATTRIBUTEID_VALUE;
-    targetVar.targetVariable.targetNodeId = newnodeId;
-    retVal |= UA_Server_DataSetReader_createTargetVariables(server, readerIdentifier,
-                                                            1, &targetVar);*/
+
     ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
     //UA_FieldTargetDataType_clear(&targetVar.targetVariable);
     UA_free(pMetaData->fields);
@@ -1421,6 +1416,14 @@ START_TEST(SinglePublishSubscribeHeartbeat) {
     ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
     UA_Server_setReaderGroupOperational(server, readerGroupId);
     ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+
+    UA_DataSetReader *dsr = UA_ReaderGroup_findDSRbyId(server, readerIdentifier);
+    ck_assert_ptr_ne(dsr, NULL);
+    /* since the test cases are using a fake timer with a static timestamp,
+     * we compare the lastHeartbeatReceived with the static timestamp
+     * (given by UA_DateTime_nowMonotonic()). If the timestamps are equal,
+     * the code path was executed and the lastHeartbeatReceived set correctly */
+    ck_assert(UA_DateTime_nowMonotonic() == dsr->lastHeartbeatReceived);
 
 } END_TEST
 

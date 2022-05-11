@@ -1350,11 +1350,13 @@ addDataSetWriterRepresentation(UA_Server *server, UA_DataSetWriter *dataSetWrite
                                    UA_QUALIFIEDNAME(0, dswName),
                                    UA_NODEID_NUMERIC(0, UA_NS0ID_DATASETWRITERTYPE),
                                    object_attr, NULL, &dataSetWriter->identifier);
-
-    retVal |= UA_Server_addReference(server, dataSetWriter->connectedDataSet,
-                                     UA_NODEID_NUMERIC(0, UA_NS0ID_DATASETTOWRITER),
-                                     UA_EXPANDEDNODEID_NODEID(dataSetWriter->identifier),
-                                     true);
+    //if connected dataset is null this means it's configured for heartbeats
+    if(!UA_NodeId_isNull(&dataSetWriter->connectedDataSet)){
+        retVal |= UA_Server_addReference(server, dataSetWriter->connectedDataSet,
+                                         UA_NODEID_NUMERIC(0, UA_NS0ID_DATASETTOWRITER),
+                                         UA_EXPANDEDNODEID_NODEID(dataSetWriter->identifier),
+                                         true);
+    }
 
     UA_NodeId dataSetWriterIdNode =
         findSingleChildNode(server, UA_QUALIFIEDNAME(0, "DataSetWriterId"),
