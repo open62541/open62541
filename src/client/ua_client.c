@@ -315,10 +315,7 @@ processAsyncResponse(UA_Client *client, UA_UInt32 requestId, const UA_NodeId *re
     return retval;
 }
 
-/* Processes the received service response. Either with an async callback or by
- * decoding the message and returning it "upwards" in the
- * SyncResponseDescription. */
-static UA_StatusCode
+UA_StatusCode
 processServiceResponse(void *application, UA_SecureChannel *channel,
                        UA_MessageType messageType, UA_UInt32 requestId,
                        UA_ByteString *message) {
