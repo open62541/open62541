@@ -36,7 +36,7 @@ UA_Client_init(UA_Client* client) {
     notifyClientState(client);
 }
 
-UA_Client UA_EXPORT *
+UA_Client *
 UA_Client_newWithConfig(const UA_ClientConfig *config) {
     if(!config)
         return NULL;
