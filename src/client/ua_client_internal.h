@@ -173,6 +173,7 @@ processServiceResponse(void *application, UA_SecureChannel *channel,
                        UA_MessageType messageType, UA_UInt32 requestId,
                        UA_ByteString *message);
 
+void connectSync(UA_Client *client);
 void notifyClientState(UA_Client *client);
 void processERRResponse(UA_Client *client, const UA_ByteString *chunk);
 void processACKResponse(UA_Client *client, const UA_ByteString *chunk);

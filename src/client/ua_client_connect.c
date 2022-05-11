@@ -1255,7 +1255,7 @@ UA_Client_connectSecureChannelAsync(UA_Client *client, const char *endpointUrl) 
     return client->connectStatus;
 }
 
-static UA_StatusCode
+void
 connectSync(UA_Client *client) {
     UA_DateTime now = UA_DateTime_nowMonotonic();
     UA_DateTime maxDate = now + ((UA_DateTime)client->config.timeout * UA_DATETIME_MSEC);
@@ -1264,7 +1264,7 @@ connectSync(UA_Client *client) {
     initConnect(client);
     notifyClientState(client);
     if(client->connectStatus != UA_STATUSCODE_GOOD)
-        return client->connectStatus;
+        return;
 
     /* Run the EventLoop until connected, connect fail or timeout. Write the
      * iterate result to the connectStatus. So we do not attempt to restore a
@@ -1275,14 +1275,15 @@ connectSync(UA_Client *client) {
         if(client->noSession && client->channel.state == UA_SECURECHANNELSTATE_OPEN)
             break;
         now = UA_DateTime_nowMonotonic();
-        if(maxDate < now)
-            return UA_STATUSCODE_BADTIMEOUT;
+        if(maxDate < now) {
+            /* TODO: Close the SecureChannel properly */
+            client->connectStatus = UA_STATUSCODE_BADTIMEOUT;
+            return;
+        }
         client->connectStatus =
             UA_Client_run_iterate(client,
                                   (UA_UInt32)((maxDate - now) / UA_DATETIME_MSEC));
     }
-
-    return client->connectStatus;
 }
 
 UA_StatusCode
@@ -1295,7 +1296,8 @@ UA_Client_connect(UA_Client *client, const char *endpointUrl) {
     client->noSession = false;
 
     /* Connect Synchronous */
-    return connectSync(client);
+    connectSync(client);
+    return client->connectStatus;
 }
 
 UA_StatusCode
@@ -1308,7 +1310,8 @@ UA_Client_connectSecureChannel(UA_Client *client, const char *endpointUrl) {
     client->noSession = true;
 
     /* Connect Synchronous */
-    return connectSync(client);
+    connectSync(client);
+    return client->connectStatus;
 }
 
 /************************/
