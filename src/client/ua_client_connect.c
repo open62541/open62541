@@ -1102,7 +1102,9 @@ UA_Client_connectAsync(UA_Client *client, const char *endpointUrl) {
     client->noSession = false;
 
     /* Connect Async */
-    return initConnect(client);
+    initConnect(client);
+    notifyClientState(client);
+    return client->connectStatus;
 }
 
 UA_StatusCode
@@ -1115,7 +1117,9 @@ UA_Client_connectSecureChannelAsync(UA_Client *client, const char *endpointUrl) 
     client->noSession = true;
 
     /* Connect Async */
-    return initConnect(client);
+    initConnect(client);
+    notifyClientState(client);
+    return client->connectStatus;
 }
 
 static UA_StatusCode
@@ -1123,11 +1127,16 @@ connectSync(UA_Client *client) {
     UA_DateTime now = UA_DateTime_nowMonotonic();
     UA_DateTime maxDate = now + ((UA_DateTime)client->config.timeout * UA_DATETIME_MSEC);
 
-    UA_StatusCode retval = initConnect(client);
-    if(retval != UA_STATUSCODE_GOOD)
-        return retval;
+    /* Initialize the connection */
+    initConnect(client);
+    notifyClientState(client);
+    if(client->connectStatus != UA_STATUSCODE_GOOD)
+        return client->connectStatus;
 
-    while(retval == UA_STATUSCODE_GOOD) {
+    /* Run the EventLoop until connected, connect fail or timeout. Write the
+     * iterate result to the connectStatus. So we do not attempt to restore a
+     * failed connection during the sync connect. */
+    while(client->connectStatus == UA_STATUSCODE_GOOD) {
         if(client->sessionState == UA_SESSIONSTATE_ACTIVATED)
             break;
         if(client->noSession && client->channel.state == UA_SECURECHANNELSTATE_OPEN)
@@ -1135,11 +1144,12 @@ connectSync(UA_Client *client) {
         now = UA_DateTime_nowMonotonic();
         if(maxDate < now)
             return UA_STATUSCODE_BADTIMEOUT;
-        retval = UA_Client_run_iterate(client,
-                                       (UA_UInt32)((maxDate - now) / UA_DATETIME_MSEC));
+        client->connectStatus =
+            UA_Client_run_iterate(client,
+                                  (UA_UInt32)((maxDate - now) / UA_DATETIME_MSEC));
     }
 
-    return retval;
+    return client->connectStatus;
 }
 
 UA_StatusCode
