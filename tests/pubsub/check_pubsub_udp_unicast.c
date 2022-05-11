@@ -247,7 +247,7 @@ static void setup(void) {
     /*Add setup by creating new server with valid configuration */
     setupPubSubServer(&serverPublisher, &configPublisher, UA_PUBLISHER_PORT);
     UA_NodeId publisherConnectionId;
-    addUDPConnection(serverPublisher, NULL, 0, &publisherConnectionId);
+    addUDPConnection(serverPublisher, "localhost", UA_PUBLISHER_PORT, &publisherConnectionId);
     setupPublishingUnicast(serverPublisher, publisherConnectionId, "127.0.0.1", UA_SUBSCRIBER_PORT,
                            PUBLISHVARIABLE_NODEID);
 
