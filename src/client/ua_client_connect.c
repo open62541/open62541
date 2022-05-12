@@ -1351,9 +1351,6 @@ closeSecureChannel(UA_Client *client) {
 
 static void
 sendCloseSession(UA_Client *client) {
-    /* Set before sending the message to prevent recursion */
-    client->sessionState = UA_SESSIONSTATE_CLOSING;
-
     UA_CloseSessionRequest request;
     UA_CloseSessionRequest_init(&request);
     request.requestHeader.timestamp = UA_DateTime_now();
@@ -1364,6 +1361,11 @@ sendCloseSession(UA_Client *client) {
                         &response, &UA_TYPES[UA_TYPES_CLOSESESSIONRESPONSE]);
     UA_CloseSessionRequest_clear(&request);
     UA_CloseSessionResponse_clear(&response);
+
+    /* Set after sending the message to prevent immediate reoping during the
+     * service call */
+    client->sessionState = UA_SESSIONSTATE_CLOSING;
+
 }
 
 static void
