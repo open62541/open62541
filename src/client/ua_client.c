@@ -376,12 +376,20 @@ __UA_Client_Service(UA_Client *client, const void *request,
 		return;
     }
 
-    /* Check that the SecureChannel is open */
-    if(client->channel.state != UA_SECURECHANNELSTATE_OPEN) {
+    /* Store the time until which the request has to be answered */
+    UA_DateTime maxDate = UA_DateTime_nowMonotonic() +
+        ((UA_DateTime)client->config.timeout * UA_DATETIME_MSEC);
+
+    /* Check that the SecureChannel is open. Otherwise reopen. */
+    if((client->sessionState != UA_SESSIONSTATE_ACTIVATED && !client->noSession) ||
+       client->channel.state != UA_SECURECHANNELSTATE_OPEN) {
         UA_LOG_INFO(&client->config.logger, UA_LOGCATEGORY_CLIENT,
-                    "SecureChannel must be connected before sending requests");
-        respHeader->serviceResult = UA_STATUSCODE_BADCONNECTIONCLOSED;
-		return;
+                    "Re-establish the connction for the synchronous service call");
+        connectSync(client);
+        if(client->connectStatus != UA_STATUSCODE_GOOD) {
+            respHeader->serviceResult = client->connectStatus;
+            return;
+        }
     }
 
     AsyncServiceCall ac;
@@ -396,6 +404,7 @@ __UA_Client_Service(UA_Client *client, const void *request,
     if(retval != UA_STATUSCODE_GOOD) {
         closeSecureChannel(client);
         notifyClientState(client);
+        respHeader->serviceResult = retval;
         return;
     }
 
@@ -407,8 +416,6 @@ __UA_Client_Service(UA_Client *client, const void *request,
 
     /* Run the EventLoop until the request was processed, the request has timed
      * out or the client connection fails */
-    UA_DateTime maxDate = UA_DateTime_nowMonotonic() +
-        ((UA_DateTime)client->config.timeout * UA_DATETIME_MSEC);
     while(true) {
         /* Compute the remaining timeout and run the EventLoop */
         UA_DateTime now = UA_DateTime_nowMonotonic();
@@ -423,7 +430,10 @@ __UA_Client_Service(UA_Client *client, const void *request,
         if(ac.syncResponse == NULL)
             return;
 
-        /* Check the status */
+        /* Check the status. Do not try to resend if the connection breaks.
+         * Leave this to the application-level user. For example, we do not want
+         * to call a method twice is the connection broke after sending the
+         * request. */
         if(retval != UA_STATUSCODE_GOOD)
             break;
         retval = client->connectStatus;
