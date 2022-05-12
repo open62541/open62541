@@ -150,17 +150,18 @@ START_TEST(SecureChannel_networkfail) {
     rq.nodesToRead = &rvi;
     rq.nodesToReadSize = 1;
 
-    /* Forward the clock after recv in the client */
-    UA_ClientConfig *cconfig = UA_Client_getConfig(client);
-    UA_Client_recv = client->connection.recv;
-    client->connection.recv = UA_Client_recvTesting;
-    UA_Client_recvSleepDuration = cconfig->secureChannelLifeTime + 1;
+    /* Manually close the TCP connection */
+    UA_ConnectionManager *cm = (UA_ConnectionManager*)client->connection.handle;
+    cm->closeConnection(cm, (uintptr_t)client->connection.sockfd);
+    UA_EventLoop *el = client->config.eventLoop;
+    el->run(el, 0);
 
+    /* The connection is re-established automatically */
     UA_Variant val;
     UA_Variant_init(&val);
     UA_NodeId nodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_STATE);
     retval = UA_Client_readValueAttribute(client, nodeId, &val);
-    ck_assert(retval == UA_STATUSCODE_BADCONNECTIONCLOSED);
+    ck_assert(retval == UA_STATUSCODE_GOOD);
 
     UA_Client_disconnect(client);
     UA_Client_delete(client);
