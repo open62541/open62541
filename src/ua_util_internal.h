@@ -95,11 +95,6 @@ typedef UA_StatusCode status;
  */
 
 static UA_INLINE UA_Boolean
-isGood(UA_StatusCode code) {
-    return code == UA_STATUSCODE_GOOD;
-}
-
-static UA_INLINE UA_Boolean
 isNonNull(const void *ptr) {
     return ptr != NULL;
 }
@@ -117,7 +112,7 @@ isTrue(uint8_t expr) {
     } while(0)
 
 #define UA_CHECK_STATUS(STATUSCODE, EVAL_ON_ERROR)                                       \
-    UA_CHECK(isGood(STATUSCODE), EVAL_ON_ERROR)
+    UA_CHECK(UA_StatusCode_isGood(STATUSCODE), EVAL_ON_ERROR)
 
 #define UA_CHECK_MEM(STATUSCODE, EVAL_ON_ERROR)                                       \
     UA_CHECK(isNonNull(STATUSCODE), EVAL_ON_ERROR)
@@ -141,7 +136,7 @@ isTrue(uint8_t expr) {
                                           LOGGER, CAT, __VA_ARGS__, ""))
 
 #define UA_CHECK_STATUS_LOG(STATUSCODE, EVAL, LEVEL, LOGGER, CAT, ...)                   \
-    UA_MACRO_EXPAND(UA_CHECK_LOG_INTERNAL(isGood(STATUSCODE), STATUSCODE,  \
+    UA_MACRO_EXPAND(UA_CHECK_LOG_INTERNAL(UA_StatusCode_isGood(STATUSCODE), STATUSCODE,  \
                                           EVAL, UA_LOG_##LEVEL, LOGGER, CAT,             \
                                           __VA_ARGS__, ""))
 
