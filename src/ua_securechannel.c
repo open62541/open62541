@@ -911,8 +911,8 @@ UA_SecureChannel_receive(UA_SecureChannel *channel, void *application,
     /* Listen for messages to arrive */
     UA_ByteString buffer = UA_BYTESTRING_NULL;
     UA_StatusCode res = connection->recv(connection, &buffer, timeout);
-    UA_CHECK_STATUS(res, return res);
-
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
     /* Try to process one complete chunk */
     res = UA_SecureChannel_processBuffer(channel, application, callback, &buffer);
     connection->releaseRecvBuffer(connection, &buffer);
