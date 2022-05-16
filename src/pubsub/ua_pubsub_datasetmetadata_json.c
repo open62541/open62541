@@ -34,12 +34,27 @@ UA_DataSetMetaData_encodeJson_internal(const UA_DataSetMetaData *src, void *c) {
 
     /* PublisherId */
     switch(src->publisherIdType) {
-        case UA_PUBLISHERDATATYPE_UINT32:
+        case UA_PUBLISHERIDTYPE_BYTE:
+            rv = writeJsonKey(ctx, UA_DECODEKEY_PUBLISHERID);
+            rv |= encodeJsonInternal(&src->publisherId.publisherIdByte,
+                                     &UA_TYPES[UA_TYPES_BYTE], ctx);
+            break;
+        case UA_PUBLISHERIDTYPE_UINT16:
+            rv = writeJsonKey(ctx, UA_DECODEKEY_PUBLISHERID);
+            rv |= encodeJsonInternal(&src->publisherId.publisherIdUInt16,
+                                     &UA_TYPES[UA_TYPES_UINT16], ctx);
+            break;
+        case UA_PUBLISHERIDTYPE_UINT32:
             rv = writeJsonKey(ctx, UA_DECODEKEY_PUBLISHERID);
             rv |= encodeJsonInternal(&src->publisherId.publisherIdUInt32,
                                      &UA_TYPES[UA_TYPES_UINT32], ctx);
             break;
-        case UA_PUBLISHERDATATYPE_STRING:
+        case UA_PUBLISHERIDTYPE_UINT64:
+            rv = writeJsonKey(ctx, UA_DECODEKEY_PUBLISHERID);
+            rv |= encodeJsonInternal(&src->publisherId.publisherIdUInt64,
+                                     &UA_TYPES[UA_TYPES_UINT64], ctx);
+            break;
+        case UA_PUBLISHERIDTYPE_STRING:
             rv = writeJsonKey(ctx, UA_DECODEKEY_PUBLISHERID);
             rv |= encodeJsonInternal(&src->publisherId.publisherIdString,
                                      &UA_TYPES[UA_TYPES_STRING], ctx);

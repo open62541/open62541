@@ -4,6 +4,7 @@
  *
  * Copyright (c) 2017 - 2018 Fraunhofer IOSB (Author: Tino Bischoff)
  * Copyright (c) 2019 Fraunhofer IOSB (Author: Andreas Ebner)
+ * Copyright (c) 2022 ISW (for umati and VDW e.V.) (Author: Moritz Walker)
  */
 
 #include <open62541/types_generated_handling.h>
