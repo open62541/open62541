@@ -4,6 +4,7 @@
  *
  * Copyright (c) 2018 Fraunhofer IOSB (Author: Lukas Meling)
  * Copyright (c) 2020 basysKom GmbH
+ * Copyright (c) 2022 ISW (for umati and VDW e.V.) (Author: Moritz Walker)
  */
 
 /**
@@ -277,7 +278,8 @@ UA_PubSubChannelMQTT_send(UA_PubSubChannel *channel, UA_ExtensionObject *transpo
 
     if(transportSettings == NULL ||
        transportSettings->encoding != UA_EXTENSIONOBJECT_DECODED ||
-       transportSettings->content.decoded.type != &UA_TYPES[UA_TYPES_BROKERWRITERGROUPTRANSPORTDATATYPE]) {
+       (transportSettings->content.decoded.type != &UA_TYPES[UA_TYPES_BROKERWRITERGROUPTRANSPORTDATATYPE] &&
+        transportSettings->content.decoded.type != &UA_TYPES[UA_TYPES_BROKERDATASETWRITERTRANSPORTDATATYPE])) {
         UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "PubSub MQTT: Transport settings not found.");
         return UA_STATUSCODE_BADINTERNALERROR;
     }
