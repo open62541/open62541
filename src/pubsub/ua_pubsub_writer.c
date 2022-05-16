@@ -8,6 +8,7 @@
  * Copyright (c) 2020 Yannick Wallerer, Siemens AG
  * Copyright (c) 2020 Thomas Fischer, Siemens AG
  * Copyright (c) 2021 Fraunhofer IOSB (Author: Jan Hermes)
+ * Copyright (c) 2022 ISW (for umati and VDW e.V.) (Author: Moritz Walker)
  */
 
 #include <open62541/server_pubsub.h>
@@ -134,6 +135,7 @@ UA_StatusCode
 UA_PublishedDataSetConfig_copy(const UA_PublishedDataSetConfig *src,
                                UA_PublishedDataSetConfig *dst) {
     UA_StatusCode res = UA_STATUSCODE_GOOD;
+    dst->sendViaWriterGroupTopic = src->sendViaWriterGroupTopic;
     memcpy(dst, src, sizeof(UA_PublishedDataSetConfig));
     res |= UA_String_copy(&src->name, &dst->name);
     switch(src->publishedDataSetType) {

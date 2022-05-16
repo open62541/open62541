@@ -8,6 +8,7 @@
  * Copyright (c) 2020 Yannick Wallerer, Siemens AG
  * Copyright (c) 2020 Thomas Fischer, Siemens AG
  * Copyright (c) 2021 Fraunhofer IOSB (Author: Jan Hermes)
+ * Copyright (c) 2022 ISW (for umati and VDW e.V.) (Author: Moritz Walker)
  */
 
 #include <open62541/server_pubsub.h>
