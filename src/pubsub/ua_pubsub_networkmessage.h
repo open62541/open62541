@@ -4,6 +4,7 @@
  *
  * Copyright (c) 2017 - 2018 Fraunhofer IOSB (Author: Tino Bischoff)
  * Copyright (c) 2017-2019 Fraunhofer IOSB (Author: Andreas Ebner)
+ * Copyright (c) 2022 ISW (for umati and VDW e.V.) (Author: Moritz Walker)
  */
 
 #ifndef UA_PUBSUB_NETWORKMESSAGE_H_
@@ -99,8 +100,43 @@ typedef struct {
 typedef enum {
     UA_NETWORKMESSAGE_DATASET = 0,
     UA_NETWORKMESSAGE_DISCOVERY_REQUEST = 1,
-    UA_NETWORKMESSAGE_DISCOVERY_RESPONSE = 2
+    UA_NETWORKMESSAGE_DISCOVERY_RESPONSE = 2,
+    UA_NETWORKMESSAGE_DATASETMETADATA = 3
 } UA_NetworkMessageType;
+
+#ifdef UA_ENABLE_PUBSUB_MQTT_METADATA
+/** 
+ * DataSetMetaData
+ * ^^^^^^^^^^^^^^^ */
+typedef struct {
+    UA_String messageId;
+    UA_String messageType;
+    UA_UInt16 dataSetWriterId;
+
+    UA_PublisherIdDatatype publisherIdType;
+    union {
+        UA_Byte publisherIdByte;
+        UA_UInt16 publisherIdUInt16;
+        UA_UInt32 publisherIdUInt32;
+        UA_UInt64 publisherIdUInt64;
+        UA_Guid publisherIdGuid;
+        UA_String publisherIdString;
+    } publisherId;
+    
+    UA_DataSetMetaDataType dataSetMetaData;
+    UA_String dataSetWriterName;
+
+} UA_DataSetMetaData;
+
+typedef struct {
+    UA_UInt16* _notUsed;
+    UA_DataSetMetaData* dataSetMetaData;
+} UA_DataSetMetaDataPayload;
+
+UA_StatusCode UA_DataSetMetaData_encodeJson_internal(const UA_DataSetMetaData* src, void *ctx);
+
+void UA_DataSetMetaData_clear(const UA_DataSetMetaData* p);
+#endif /* UA_ENABLE_PUBSUB_MQTT_METADATA */
 
 /**
  * UA_NetworkMessageGroupHeader
@@ -166,6 +202,9 @@ typedef struct {
 
     union {
         UA_DataSetPayload dataSetPayload;
+#ifdef UA_ENABLE_PUBSUB_MQTT_METADATA
+        UA_DataSetMetaDataPayload metaDataPayload;
+#endif
     } payload;
 
     UA_ByteString securityFooter;

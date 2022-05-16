@@ -1788,6 +1788,13 @@ UA_NetworkMessageOffsetBuffer_clear(UA_NetworkMessageOffsetBuffer *nmob) {
     memset(nmob, 0, sizeof(UA_NetworkMessageOffsetBuffer));
 }
 
+void
+UA_DataSetMetaData_clear(const UA_DataSetMetaData* metadata) {
+    if(metadata->dataSetMetaData.fields != NULL) {
+        UA_Array_delete(metadata->dataSetMetaData.fields, 
+            metadata->dataSetMetaData.fieldsSize, &UA_TYPES[UA_TYPES_FIELDMETADATA]);
+    }
+}
 
 #endif /* UA_ENABLE_PUBSUB */
 

@@ -1489,4 +1489,42 @@ UA_DataSetWriter_generateDataSetMessage(UA_Server *server,
                                                           dataSetWriter);
 }
 
+UA_StatusCode
+UA_DataSetWriter_generateDataSetMetaData(UA_Server *server,
+                                        UA_DataSetMetaData *dataSetMetaData,
+                                        UA_DataSetMetaDataType *dataSetMetaDataType,
+                                        UA_DataSetWriter *dataSetWriter,
+                                        UA_Boolean ignoreVersion) {
+    UA_PublishedDataSet *currentDataSet =
+        UA_PublishedDataSet_findPDSbyId(server, dataSetWriter->connectedDataSet);
+    if(!currentDataSet)
+        return UA_STATUSCODE_BADNOTFOUND;
+
+    if (dataSetWriter->connectedDataSetVersion.majorVersion == 
+        currentDataSet->dataSetMetaData.configurationVersion.majorVersion &&
+        dataSetWriter->connectedDataSetVersion.minorVersion ==
+        currentDataSet->dataSetMetaData.configurationVersion.minorVersion &&
+        !ignoreVersion)
+        return UA_STATUSCODE_BADNOTFOUND;
+
+    /* Reset the message */
+    memset(dataSetMetaData, 0, sizeof(UA_DataSetMetaData));
+   
+    UA_DataSetMetaDataType_copy(dataSetMetaDataType, &dataSetMetaData->dataSetMetaData);
+    dataSetMetaData->dataSetWriterId = dataSetWriter->config.dataSetWriterId;
+    dataSetMetaData->dataSetWriterName = UA_STRING_ALLOC("");
+    dataSetMetaData->messageType = UA_STRING_ALLOC("ua-metadata");
+    dataSetMetaData->dataSetWriterName = dataSetWriter->config.name;
+
+    UA_DataSetField *dsf;
+    size_t dsfnumber = 0;
+    TAILQ_FOREACH(dsf, &currentDataSet->fields, listEntry) {
+        UA_KeyValuePair *properties;
+        size_t propertiesCount = UA_PubSubDataSetField_sampleProperties(server, dsf, &properties);
+        dataSetMetaData->dataSetMetaData.fields[dsfnumber].properties = properties;
+        dataSetMetaData->dataSetMetaData.fields[dsfnumber].propertiesSize = propertiesCount;
+        dsfnumber++;
+    }
+    return UA_STATUSCODE_GOOD;
+}
 #endif /* UA_ENABLE_PUBSUB */
