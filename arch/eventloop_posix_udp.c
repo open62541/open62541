@@ -9,6 +9,8 @@
 #include "eventloop_posix.h"
 
 #define UA_MAXBACKLOG 100
+#define UA_MAXHOSTNAME_LENGTH 256
+#define UA_MAXPORTSTR_LENGTH 6
 
 #ifndef MSG_NOSIGNAL
 #define MSG_NOSIGNAL 0
@@ -236,7 +238,7 @@ UDP_registerListenSocket(UA_ConnectionManager *cm, UA_UInt16 port,
     UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX*)cm->eventSource.eventLoop;
 
     /* Get logging information */
-    char hoststr[256];
+    char hoststr[UA_MAXHOSTNAME_LENGTH];
     int get_res = UA_getnameinfo(ai->ai_addr, ai->ai_addrlen,
                                  hoststr, sizeof(hoststr),
                                  NULL, 0, NI_NUMERICHOST);
@@ -445,6 +447,83 @@ UDP_shutdownConnection(UA_ConnectionManager *cm, uintptr_t connectionId) {
     return UA_STATUSCODE_GOOD;
 }
 
+/**
+ * Retrieves hostname and port from given key value parameters.
+ * @param[in] paramsSize the size of the parameter list
+ * @param[in] params the parameter list to retrieve from
+ * @param[out] hostname the retrieved hostname when present, NULL otherwise
+ * @param[out] portStr the retrieved port when present, NULL otherwise
+ * @param[in] logger the logger to log information
+ * @return -1 upon error, 0 if there was no host or port parameter, 1 if
+ *         host and port are present
+ */
+static int
+getHostAndPortFromParams(size_t paramsSize, const UA_KeyValuePair *params,
+                         char *hostname, char *portStr, const UA_Logger *logger) {
+    /* Prepare the port parameter as a string */
+    const UA_UInt16 *port = (const UA_UInt16*)
+        UA_KeyValueMap_getScalar(params, paramsSize,
+                                 UA_QUALIFIEDNAME(0, "port"),
+                                 &UA_TYPES[UA_TYPES_UINT16]);
+    if(!port) {
+        UA_LOG_DEBUG(logger, UA_LOGCATEGORY_NETWORK,
+                     "UDP\t| No port found");
+        return 0;
+    }
+    UA_snprintf(portStr, UA_MAXPORTSTR_LENGTH, "%d", *port);
+
+    /* Prepare the hostname string */
+    const UA_String *host = (const UA_String*)
+        UA_KeyValueMap_getScalar(params, paramsSize,
+                                 UA_QUALIFIEDNAME(0, "hostname"),
+                                 &UA_TYPES[UA_TYPES_STRING]);
+    if(!host) {
+        UA_LOG_DEBUG(logger, UA_LOGCATEGORY_NETWORK,
+                     "UDP\t| No hostname found");
+        return 0;
+    }
+    if(host->length >= UA_MAXHOSTNAME_LENGTH) {
+        UA_LOG_ERROR(logger, UA_LOGCATEGORY_EVENTLOOP,
+                     "UDP\t| Open UDP Connection: Hostname too long, aborting");
+        return -1;
+    }
+    strncpy(hostname, (const char*)host->data, host->length);
+    hostname[host->length] = 0;
+    return 1;
+}
+
+static int
+getConnectionInfoFromParams(size_t paramsSize, const UA_KeyValuePair *params, char *hostname, char *portStr,
+                            struct addrinfo **info, const UA_Logger *logger) {
+
+    int foundParams = getHostAndPortFromParams(paramsSize, params, hostname, portStr, logger);
+    if (foundParams < 0) {
+        UA_LOG_ERROR(logger, UA_LOGCATEGORY_EVENTLOOP,
+                     "UDP\t| Failed retrieving host and port parameters");
+        return -1;
+    }
+    if(foundParams == 0) {
+        UA_LOG_DEBUG(logger, UA_LOGCATEGORY_EVENTLOOP,
+                     "UDP\t| Hostname or Port not present");
+        return 0;
+    }
+    /* Create the socket description from the connectString
+    * TODO: Make this non-blocking */
+    struct addrinfo hints;
+    memset(&hints, 0, sizeof(struct addrinfo));
+    hints.ai_family = AF_UNSPEC;
+    hints.ai_socktype = SOCK_DGRAM;
+    int error = getaddrinfo(hostname, portStr, &hints, info);
+    if(error != 0) {
+        UA_LOG_SOCKET_ERRNO_GAI_WRAP(
+            UA_LOG_WARNING(logger, UA_LOGCATEGORY_NETWORK,
+                           "UDP\t| Lookup of %s failed with error %d - %s",
+                           hostname, error, errno_str));
+        return -1;
+    }
+    return 1;
+}
+
 static UA_StatusCode
 UDP_sendWithConnection(UA_ConnectionManager *cm, uintptr_t connectionId,
                        size_t paramsSize, const UA_KeyValuePair *params,
@@ -510,6 +589,7 @@ UDP_sendWithConnection(UA_ConnectionManager *cm, uintptr_t connectionId,
     return UA_STATUSCODE_GOOD;
 }
 
+
 static UA_StatusCode
 UDP_openSendConnection(UA_ConnectionManager *cm,
                        size_t paramsSize, const UA_KeyValuePair *params,
@@ -518,56 +598,17 @@ UDP_openSendConnection(UA_ConnectionManager *cm,
     UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX*)cm->eventSource.eventLoop;
 
     /* Get the connection parameters */
-    char hostname[256];
-    char portStr[16];
-
-    /* Prepare the port parameter as a string */
-    const UA_UInt16 *port = (const UA_UInt16*)
-        UA_KeyValueMap_getScalar(params, paramsSize,
-                                 UA_QUALIFIEDNAME(0, "port"),
-                                 &UA_TYPES[UA_TYPES_UINT16]);
-    if(!port) {
+    char hostname[UA_MAXHOSTNAME_LENGTH];
+    char portStr[UA_MAXPORTSTR_LENGTH];
+    struct addrinfo *info = NULL;
+    int error = getConnectionInfoFromParams(paramsSize, params, hostname, portStr, &info, el->eventLoop.logger);
+    if(error <= 0) {
         UA_LOG_ERROR(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
-                     "UDP\t| Open UDP Connection: No port defined, aborting");
+                     "UDP\t| Opening a connection failed");
         return UA_STATUSCODE_BADINTERNALERROR;
     }
-    UA_snprintf(portStr, 6, "%d", *port);
-
-    /* Prepare the hostname string */
-    const UA_String *host = (const UA_String*)
-        UA_KeyValueMap_getScalar(params, paramsSize,
-                                 UA_QUALIFIEDNAME(0, "hostname"),
-                                 &UA_TYPES[UA_TYPES_STRING]);
-    if(!host) {
-        UA_LOG_ERROR(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
-                     "UDP\t| Open UDP Connection: No hostname defined, aborting");
-        return UA_STATUSCODE_BADINTERNALERROR;
-    }
-    if(host->length >= 256) {
-        UA_LOG_ERROR(el->eventLoop.logger, UA_LOGCATEGORY_EVENTLOOP,
-                     "UDP\t| Open UDP Connection: Hostname too long, aborting");
-        return UA_STATUSCODE_BADINTERNALERROR;
-    }
-    strncpy(hostname, (const char*)host->data, host->length);
-    hostname[host->length] = 0;
-
     UA_LOG_DEBUG(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
                  "UDP\t| Open a connection to \"%s\" on port %s", hostname, portStr);
-
-    /* Create the socket description from the connectString
-     * TODO: Make this non-blocking */
-    struct addrinfo hints, *info;
-    memset(&hints, 0, sizeof(struct addrinfo));
-    hints.ai_family = AF_UNSPEC;
-    hints.ai_socktype = SOCK_DGRAM;
-    int error = getaddrinfo(hostname, portStr, &hints, &info);
-    if(error != 0) {
-        UA_LOG_SOCKET_ERRNO_GAI_WRAP(
-        UA_LOG_WARNING(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
-                       "UDP\t| Lookup of %s failed with error %d - %s",
-                       hostname, error, errno_str));
-        return UA_STATUSCODE_BADINTERNALERROR;
-    }
 
     /* Create a socket */
     UA_FD newSock = socket(info->ai_family, info->ai_socktype, info->ai_protocol);
@@ -580,7 +621,12 @@ UDP_openSendConnection(UA_ConnectionManager *cm,
         return UA_STATUSCODE_BADDISCONNECT;
     }
 
-    /* Set the socket options */
+    /* Set the socket options
+     * also there might be external requirements for socket options
+     * how to handle and set those
+     * either via: passed in parameters
+     * or via: specific callback that gives access to the allocated socket
+     * */
     UA_StatusCode res = UA_STATUSCODE_GOOD;
     res |= UDP_setNonBlocking(newSock);
     res |= UDP_setNoSigPipe(newSock);
@@ -685,10 +731,10 @@ UDP_openReceiveConnection(UA_ConnectionManager *cm,
                      "UDP\t| The hostnames have to be an array of string");
         return UA_STATUSCODE_BADINTERNALERROR;
     }
-    
+
     size_t interfaces = hostNames->arrayLength;
     if(interfaces == 0) {
-        UA_LOG_ERROR(el->eventLoop.logger, UA_LOGCATEGORY_EVENTLOOP,
+        UA_LOG_WARNING(el->eventLoop.logger, UA_LOGCATEGORY_EVENTLOOP,
                      "UDP\t| Listening on all interfaces");
         return UDP_registerListenSockets(cm, NULL, *port, application,
                                          context, connectionCallback);
@@ -719,12 +765,13 @@ UDP_openConnection(UA_ConnectionManager *cm,
      * connections. */
     const UA_Variant *val = UA_KeyValueMap_get(params, paramsSize,
                                                UA_QUALIFIEDNAME(0, "port"));
-    if(val)
+    if(val) {
         return UDP_openSendConnection(cm, paramsSize, params,
                                       application, context, connectionCallback);
-    else
+    } else {
         return UDP_openReceiveConnection(cm, paramsSize, params,
                                          application, context, connectionCallback);
+    }
 }
 
 /* Asynchronously register the listenSocket */
