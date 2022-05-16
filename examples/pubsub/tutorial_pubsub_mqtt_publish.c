@@ -272,7 +272,7 @@ addWriterGroup(UA_Server *server, char *topic, int interval) {
     transportSettings.content.decoded.type = &UA_TYPES[UA_TYPES_BROKERWRITERGROUPTRANSPORTDATATYPE];
     transportSettings.content.decoded.data = &brokerTransportSettings;
 
-    writerGroupConfig.transportSettings = transportSettings;
+    UA_ExtensionObject_copy(&transportSettings, &writerGroupConfig.transportSettings);
     retval = UA_Server_addWriterGroup(server, connectionIdent, &writerGroupConfig, &writerGroupIdent);
 
     if (retval == UA_STATUSCODE_GOOD)
@@ -351,7 +351,7 @@ addDataSetWriter(UA_Server *server, char *topic) {
     transportSettings.content.decoded.type = &UA_TYPES[UA_TYPES_BROKERDATASETWRITERTRANSPORTDATATYPE];
     transportSettings.content.decoded.data = &brokerTransportSettings;
 
-    dataSetWriterConfig.transportSettings = transportSettings;
+    UA_ExtensionObject_copy(&transportSettings, &dataSetWriterConfig.transportSettings);
     UA_Server_addDataSetWriter(server, writerGroupIdent, publishedDataSetIdent,
                                &dataSetWriterConfig, &dataSetWriterIdent);
 }
