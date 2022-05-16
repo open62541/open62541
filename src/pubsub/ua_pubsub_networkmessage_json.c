@@ -120,7 +120,16 @@ UA_DataSetMessage_encodeJson_internal(const UA_DataSetMessage* src,
         }
     } else {
         /* RawData */
-        return UA_STATUSCODE_BADNOTIMPLEMENTED;
+        for (UA_UInt16 i = 0; i < src->data.keyFrameData.fieldCount; i++) {
+            if(src->data.keyFrameData.fieldNames)
+                rv |= writeJsonKey_UA_String(ctx, &src->data.keyFrameData.fieldNames[i]);
+            else
+                rv |= writeJsonKey(ctx, "");
+            rv |= encodeJsonInternal(&src->data.keyFrameData.dataSetFields[i],
+                                    &UA_TYPES[UA_TYPES_VARIANT], ctx);
+            if(rv != UA_STATUSCODE_GOOD)
+                return rv;
+        }
     }
     rv |= writeJsonObjEnd(ctx); /* Payload */
     rv |= writeJsonObjEnd(ctx); /* DataSetMessage */
