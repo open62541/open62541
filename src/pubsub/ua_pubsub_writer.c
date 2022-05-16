@@ -975,13 +975,14 @@ addDataSetWriter(UA_Server *server,
                 default:
                     break;
             }
-
+#ifdef UA_ENABLE_JSON_ENCODING
             res = sendNetworkMessageMetadataJson(connection, &dataSetMetaData, &newDataSetWriter->config.dataSetWriterId, 1, &newDataSetWriter->config.transportSettings);
             if(res != UA_STATUSCODE_GOOD) {
                 UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
                             "PubSub: DataSetMessageMetaData sending failed");
             }
-            UA_DataSetMetaData_clear(&dataSetMetaData);            
+#endif /* UA_ENABLE_JSON_ENCODING */
+            UA_DataSetMetaData_clear(&dataSetMetaData);
         }
     }
 #endif /* UA_ENABLE_PUBSUB_MQTT_METADATA */
@@ -1201,6 +1202,7 @@ UA_PubSubDataSetField_sampleValue(UA_Server *server, UA_DataSetField *field,
     }
 }
 
+#ifdef UA_ENABLE_PUBSUB_MQTT_METADATA
 static size_t
 UA_PubSubDataSetField_sampleProperties(UA_Server *server, UA_DataSetField *field,
                                   UA_KeyValuePair **browseNameAndValues) {
@@ -1229,6 +1231,7 @@ UA_PubSubDataSetField_sampleProperties(UA_Server *server, UA_DataSetField *field
     }
     return noOfProps;
 }
+#endif /* UA_ENABLE_PUBSUB_MQTT_METADATA */
 
 static UA_StatusCode
 UA_PubSubDataSetWriter_generateKeyFrameMessage(UA_Server *server,
