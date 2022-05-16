@@ -848,7 +848,7 @@ TransportLayerUDPMC_addChannel(UA_PubSubConnectionConfig *connectionConfig) {
 
 //UDPMC channel factory
 UA_PubSubTransportLayer
-UA_PubSubTransportLayerUDPMP() {
+UA_PubSubTransportLayerUDPMP(void) {
     UA_PubSubTransportLayer pubSubTransportLayer;
     pubSubTransportLayer.transportProfileUri =
         UA_STRING("http://opcfoundation.org/UA-Profile/Transport/pubsub-udp-uadp");

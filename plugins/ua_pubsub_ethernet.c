@@ -1321,7 +1321,7 @@ TransportLayerEthernet_addChannel(UA_PubSubConnectionConfig *connectionConfig) {
 }
 
 UA_PubSubTransportLayer
-UA_PubSubTransportLayerEthernet() {
+UA_PubSubTransportLayerEthernet(void) {
     UA_PubSubTransportLayer pubSubTransportLayer;
     pubSubTransportLayer.transportProfileUri =
         UA_STRING("http://opcfoundation.org/UA-Profile/Transport/pubsub-eth-uadp");

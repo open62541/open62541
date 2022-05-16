@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.0...3.12)
+cmake_minimum_required(VERSION 3.1...3.12)
 if(UA_BUILD_FUZZING OR UA_BUILD_OSS_FUZZ OR UA_BUILD_FUZZING_CORPUS)
     project(open62541) # We need to have C++ support configured for fuzzing
 else()
@@ -309,7 +309,7 @@ if(UA_ENABLE_COVERAGE)
 endif()
 
 if(UA_ENABLE_CLANG_COV)
-    if(NOT "x${CMAKE_C_COMPILER_ID}" STREQUAL "xClang")
+    if(NOT CMAKE_C_COMPILER_ID STREQUAL "Clang")
         message(FATAL_ERROR "Compiler must be clang when compiling for llvm-cov")
     endif()
     if(UA_ENABLE_COVERAGE)
@@ -415,6 +415,11 @@ if(UA_ENABLE_PUBSUB_BUFMALLOC)
     endif()
     if(NOT UA_ENABLE_MALLOC_SINGLETON)
         message(FATAL_ERROR "PubSub buffer allocation cannot be used without 'UA_ENABLE_MALLOC_SINGLETON' enabled")
+    endif()
+    if(UA_ENABLE_PUBSUB_MONITORING)
+        message(WARNING "PubSub monitoring option 'UA_ENABLE_PUBSUB_MONITORING' can only be used with option 'UA_ENABLE_PUBSUB_BUFMALLOC' if "
+            "a custom monitoring interface is provided, which does not allocate/deallocate memory at start/stopMonitoring callback. "
+            "It can't be used with the built-in ua_timer implementation, because this leads to memory deallocation problems.")
     endif()
 endif()
 
@@ -645,7 +650,7 @@ function(check_add_cc_flag CC_FLAG)
     endif()
 endfunction()
 
-if(NOT UA_FORCE_CPP AND (CMAKE_COMPILER_IS_GNUCC OR "x${CMAKE_C_COMPILER_ID}" STREQUAL "xClang"))
+if(NOT UA_FORCE_CPP AND (CMAKE_COMPILER_IS_GNUCC OR CMAKE_C_COMPILER_ID STREQUAL "Clang"))
     check_add_cc_flag("-std=c99")   # C99 mode
     check_add_cc_flag("-pipe")      # Avoid writing temporary files (for compiler speed)
     check_add_cc_flag("-Wall")      # Warnings
@@ -734,7 +739,7 @@ if(NOT UA_FORCE_CPP AND (CMAKE_COMPILER_IS_GNUCC OR "x${CMAKE_C_COMPILER_ID}" ST
 
     # Debug
     if(BUILD_TYPE_LOWER_CASE STREQUAL "debug" AND UNIX AND NOT UA_BUILD_OSS_FUZZ AND
-       "x${CMAKE_C_COMPILER_ID}" STREQUAL "xClang" AND NOT UA_ENABLE_UNIT_TESTS_MEMCHECK)
+       CMAKE_C_COMPILER_ID STREQUAL "Clang" AND NOT UA_ENABLE_UNIT_TESTS_MEMCHECK)
         # Add default sanitizer settings when using clang and Debug build.
         # This allows e.g. CLion to find memory locations for SegFaults
         message(STATUS "Sanitizer enabled")
@@ -1739,7 +1744,9 @@ else()
     install(FILES ${PROJECT_BINARY_DIR}/open62541.h DESTINATION include)
 endif()
 
-add_subdirectory(tools/packaging)
+if (UA_PACK_DEBIAN)
+    add_subdirectory(tools/packaging)
+endif()
 
 ##################################
 # Visual studio solution folders #

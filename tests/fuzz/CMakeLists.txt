@@ -30,7 +30,7 @@ remove_definitions(-std=c99 -Wmissing-prototypes -Wstrict-prototypes)
 set(CMAKE_CXX_STANDARD 11)
 
 if(NOT UA_BUILD_OSS_FUZZ)
-    if(NOT "x${CMAKE_C_COMPILER_ID}" STREQUAL "xClang")
+    if(NOT CMAKE_C_COMPILER_ID STREQUAL "Clang")
         MESSAGE(FATAL_ERROR "To build fuzzing, you need to use Clang as the compiler")
     endif()
 

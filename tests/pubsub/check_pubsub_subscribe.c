@@ -443,6 +443,7 @@ START_TEST(UpdateDataSetReaderConfigWithInvalidId) {
                                             &readerGroupConfig, &localreaderGroup);
         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
         memset(&dataSetreaderConfig, 0, sizeof(dataSetreaderConfig));
+        dataSetreaderConfig.name       = UA_STRING("DataSet Reader 1");
         retVal |= UA_Server_addDataSetReader(server, localreaderGroup,
                                              &dataSetreaderConfig, &localDataSetreader);
         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
@@ -463,10 +464,12 @@ START_TEST(GetDataSetReaderConfigWithValidConfiguration) {
         retVal |=  UA_Server_addReaderGroup(server, connectionId, &readerGroupConfig, &localreaderGroup);
         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
         memset(&dataSetreaderConfig, 0, sizeof(dataSetreaderConfig));
+        dataSetreaderConfig.name       = UA_STRING("DataSet Reader 1");
         retVal |= UA_Server_addDataSetReader(server, localreaderGroup, &dataSetreaderConfig, &localDataSetreader);
         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
         retVal |= UA_Server_DataSetReader_getConfig(server, localDataSetreader, &dataSetreaderConfig);
         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+        UA_String_clear(&dataSetreaderConfig.name);
 } END_TEST
 
 START_TEST(GetDataSetReaderConfigWithInvalidConfiguration) {
@@ -481,6 +484,7 @@ START_TEST(GetDataSetReaderConfigWithInvalidConfiguration) {
         retVal |=  UA_Server_addReaderGroup(server, connectionId, &readerGroupConfig, &localreaderGroup);
         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
         memset(&dataSetreaderConfig, 0, sizeof(dataSetreaderConfig));
+        dataSetreaderConfig.name       = UA_STRING("DataSet Reader 1");
         retVal |= UA_Server_addDataSetReader(server, localreaderGroup, &dataSetreaderConfig, &localDataSetreader);
         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
         retVal |= UA_Server_DataSetReader_getConfig(server, localDataSetreader, NULL);
@@ -499,6 +503,7 @@ START_TEST(GetDataSetReaderConfigWithInvalidIdentifier) {
         retVal |=  UA_Server_addReaderGroup(server, connectionId, &readerGroupConfig, &localreaderGroup);
         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
         memset(&dataSetreaderConfig, 0, sizeof(dataSetreaderConfig));
+        dataSetreaderConfig.name       = UA_STRING("DataSet Reader 1");
         retVal |= UA_Server_addDataSetReader(server, localreaderGroup, &dataSetreaderConfig, &localDataSetreader);
         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
         retVal |= UA_Server_DataSetReader_getConfig(server, UA_NODEID_NUMERIC(0, UA_UINT32_MAX), &dataSetreaderConfig);
@@ -574,6 +579,7 @@ START_TEST(CreateTargetVariableWithInvalidConfiguration) {
         retVal |=  UA_Server_addReaderGroup(server, connectionId, &readerGroupConfig, &localreaderGroup);
         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
         memset(&dataSetreaderConfig, 0, sizeof(dataSetreaderConfig));
+        dataSetreaderConfig.name       = UA_STRING("DataSet Reader 1");
         retVal |= UA_Server_addDataSetReader(server, localreaderGroup, &dataSetreaderConfig, &localDataSetreader);
         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
         retVal |= UA_Server_DataSetReader_createTargetVariables(server,
