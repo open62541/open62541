@@ -173,7 +173,7 @@ addPublishedDataSet(UA_Server *server) {
  * The DataSetField (DSF) is part of the PDS and describes exactly one published field.
  */
 static void
-addDataSetField(UA_Server *server) {
+addDataSetField(UA_Server *server, UA_NodeId *fieldNodeId) {
     /* Add a field to the previous created PublishedDataSet */
     UA_DataSetFieldConfig dataSetFieldConfig;
     memset(&dataSetFieldConfig, 0, sizeof(UA_DataSetFieldConfig));
@@ -184,7 +184,7 @@ addDataSetField(UA_Server *server) {
     dataSetFieldConfig.field.variable.publishParameters.publishedVariable =
         UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_CURRENTTIME);
     dataSetFieldConfig.field.variable.publishParameters.attributeId = UA_ATTRIBUTEID_VALUE;
-    UA_Server_addDataSetField(server, publishedDataSetIdent, &dataSetFieldConfig, NULL);
+    UA_Server_addDataSetField(server, publishedDataSetIdent, &dataSetFieldConfig, fieldNodeId);
 }
 
 /**
@@ -459,10 +459,12 @@ int main(int argc, char **argv) {
      * the pubsub connection tutorial */
     UA_ServerConfig_setDefault(config);
     UA_ServerConfig_addPubSubTransportLayer(config, UA_PubSubTransportLayerMQTT());
-
+    
+    UA_NodeId fieldNodeId;
+    memset(&fieldNodeId, 0, sizeof(UA_NodeId));
     addPubSubConnection(server, addressUrl);
     addPublishedDataSet(server);
-    addDataSetField(server);
+    addDataSetField(server, &fieldNodeId);
     retval = addWriterGroup(server, topic, interval);
     if (UA_STATUSCODE_GOOD != retval)
     {
@@ -471,7 +473,20 @@ int main(int argc, char **argv) {
     }
     addDataSetWriter(server, topic);
 
-    UA_Server_run(server, &running);
+    UA_Server_run_startup(server);
+    size_t iteration = 0;
+    while(running) {
+        iteration++;
+        UA_Server_run_iterate(server, true);
+        if(iteration % 100 == 0) {
+            /* Trigger publishing of DataSetMetaData. In a real application we would have made 
+             * changes to the properties of the corresponding node at this point, 
+             * which results in an update of the MinorVersion of the DataSetMetaData's ConfigurationVersion
+             * and thus, a new DataSetMetaData message is sent. */ 
+            UA_Server_updateDataSetField(server, fieldNodeId);
+        }
+    }
+    UA_Server_run_shutdown(server);
     UA_Server_delete(server);
     return 0;
 }
