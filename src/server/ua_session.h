@@ -3,6 +3,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. 
  *
  *    Copyright 2018 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
+ *    Copyright 2019 (c) HMS Industrial Networks AB (Author: Jonas Green)
  */
 
 #ifndef UA_SESSION_H_
@@ -39,23 +40,41 @@ typedef struct {
     UA_ApplicationDescription clientDescription;
     UA_String         sessionName;
     UA_Boolean        activated;
-    void             *sessionHandle; // pointer assigned in userland-callback
+    void             *sessionHandle; /* pointer assigned in userland-callback */
     UA_NodeId         sessionId;
     UA_UInt32         maxRequestMessageSize;
     UA_UInt32         maxResponseMessageSize;
-    UA_Double         timeout; // [ms]
+    UA_Double         timeout; /* in ms */
     UA_DateTime       validTill;
     UA_ByteString     serverNonce;
-    UA_UInt16 availableContinuationPoints;
+
+    UA_UInt16         availableContinuationPoints;
     ContinuationPoint *continuationPoints;
+
+    size_t paramsSize;
+    UA_KeyValuePair *params;
+
+    /* Localization information */
+    size_t localeIdsSize;
+    UA_String *localeIds;
+
 #ifdef UA_ENABLE_SUBSCRIPTIONS
-    UA_UInt32 lastSubscriptionId;
-    UA_UInt32 lastSeenSubscriptionId;
-    LIST_HEAD(UA_ListOfUASubscriptions, UA_Subscription) serverSubscriptions;
-    SIMPLEQ_HEAD(UA_ListOfQueuedPublishResponses, UA_PublishResponseEntry) responseQueue;
-    UA_UInt32        numSubscriptions;
-    UA_UInt32        numPublishReq;
-    size_t           totalRetransmissionQueueSize; /* Retransmissions of all subscriptions */
+    /* The queue is ordered according to the priority byte (higher bytes come
+     * first). When a late subscription finally publishes, then it is pushed to
+     * the back within the sub-set of subscriptions that has the same priority
+     * (round-robin scheduling). */
+    size_t subscriptionsSize;
+    TAILQ_HEAD(, UA_Subscription) subscriptions;
+
+    size_t responseQueueSize;
+    SIMPLEQ_HEAD(, UA_PublishResponseEntry) responseQueue;
+
+    size_t totalRetransmissionQueueSize; /* Retransmissions of all subscriptions */
+#endif
+
+#ifdef UA_ENABLE_DIAGNOSTICS
+    UA_SessionSecurityDiagnosticsDataType securityDiagnostics;
+    UA_SessionDiagnosticsDataType diagnostics;
 #endif
 } UA_Session;
 
@@ -64,7 +83,7 @@ typedef struct {
  * ----------------- */
 
 void UA_Session_init(UA_Session *session);
-void UA_Session_deleteMembersCleanup(UA_Session *session, UA_Server *server);
+void UA_Session_clear(UA_Session *session, UA_Server *server);
 void UA_Session_attachToSecureChannel(UA_Session *session, UA_SecureChannel *channel);
 void UA_Session_detachFromSecureChannel(UA_Session *session);
 UA_StatusCode UA_Session_generateNonce(UA_Session *session);
@@ -79,17 +98,19 @@ void UA_Session_updateLifetime(UA_Session *session);
 #ifdef UA_ENABLE_SUBSCRIPTIONS
 
 void
-UA_Session_addSubscription(UA_Server *server,
-                           UA_Session *session,
-                           UA_Subscription *newSubscription);
+UA_Session_attachSubscription(UA_Session *session, UA_Subscription *sub);
+
+/* If releasePublishResponses is true and the last subscription is removed, all
+ * outstanding PublishResponse are sent with a StatusCode. But we don't do that
+ * if a Subscription is only detached for modification. */
+void
+UA_Session_detachSubscription(UA_Server *server, UA_Session *session,
+                              UA_Subscription *sub, UA_Boolean releasePublishResponses);
 
 UA_Subscription *
 UA_Session_getSubscriptionById(UA_Session *session,
                                UA_UInt32 subscriptionId);
 
-UA_StatusCode
-UA_Session_deleteSubscription(UA_Server *server, UA_Session *session,
-                              UA_UInt32 subscriptionId);
 
 void
 UA_Session_queuePublishReq(UA_Session *session,
@@ -109,60 +130,58 @@ UA_Session_dequeuePublishReq(UA_Session *session);
  * zero arguments. So we add a dummy argument that is not printed (%.0s is
  * string of length zero). */
 
-#define UA_LOG_SESSION_INTERNAL(LOGGER, LEVEL, SESSION, MSG, ...) do {  \
-        UA_String idString = UA_STRING_NULL;                            \
-        UA_NodeId_toString(&(SESSION)->sessionId, &idString);           \
+#define UA_LOG_SESSION_INTERNAL(LOGGER, LEVEL, SESSION, MSG, ...)       \
+    do {                                                                \
+        int nameLen = (SESSION) ? (int)(SESSION)->sessionName.length : 0; \
+        const char *nameStr = (SESSION) ?                               \
+            (const char*)(SESSION)->sessionName.data : NULL;            \
+        UA_UInt32 chanId = ((SESSION) && (SESSION)->header.channel) ?   \
+            (SESSION)->header.channel->securityToken.channelId : 0;     \
         UA_LOG_##LEVEL(LOGGER, UA_LOGCATEGORY_SESSION,                  \
-                       "Connection %i | SecureChannel %i | Session %.*s | " MSG "%.0s", \
-                       ((SESSION)->header.channel ?                     \
-                        ((SESSION)->header.channel->connection ?        \
-                         (int)((SESSION)->header.channel->connection->sockfd) : 0) : 0), \
-                       ((SESSION)->header.channel ?                     \
-                        (SESSION)->header.channel->securityToken.channelId : 0), \
-                       (int)idString.length, idString.data, __VA_ARGS__); \
-        UA_String_deleteMembers(&idString);                             \
+                       "SecureChannel %" PRIu32 " | Session \"%.*s\" | " MSG "%.0s", \
+                       chanId, nameLen, nameStr, __VA_ARGS__);          \
     } while(0)
 
 #if UA_LOGLEVEL <= 100
-#define UA_LOG_TRACE_SESSION(LOGGER, SESSION, ...)                      \
+# define UA_LOG_TRACE_SESSION(LOGGER, SESSION, ...)                     \
     UA_MACRO_EXPAND(UA_LOG_SESSION_INTERNAL(LOGGER, TRACE, SESSION, __VA_ARGS__, ""))
 #else
-#define UA_LOG_TRACE_SESSION(LOGGER, SESSION, ...) do {} while(0)
+# define UA_LOG_TRACE_SESSION(LOGGER, SESSION, ...)
 #endif
 
 #if UA_LOGLEVEL <= 200
-#define UA_LOG_DEBUG_SESSION(LOGGER, SESSION, ...)                      \
+# define UA_LOG_DEBUG_SESSION(LOGGER, SESSION, ...)                     \
     UA_MACRO_EXPAND(UA_LOG_SESSION_INTERNAL(LOGGER, DEBUG, SESSION, __VA_ARGS__, ""))
 #else
-#define UA_LOG_DEBUG_SESSION(LOGGER, SESSION, ...) do {} while(0)
+# define UA_LOG_DEBUG_SESSION(LOGGER, SESSION, ...)
 #endif
 
 #if UA_LOGLEVEL <= 300
-#define UA_LOG_INFO_SESSION(LOGGER, SESSION, ...)                      \
+# define UA_LOG_INFO_SESSION(LOGGER, SESSION, ...)                      \
     UA_MACRO_EXPAND(UA_LOG_SESSION_INTERNAL(LOGGER, INFO, SESSION, __VA_ARGS__, ""))
 #else
-#define UA_LOG_INFO_SESSION(LOGGER, SESSION, ...) do {} while(0)
+# define UA_LOG_INFO_SESSION(LOGGER, SESSION, ...)
 #endif
 
 #if UA_LOGLEVEL <= 400
-#define UA_LOG_WARNING_SESSION(LOGGER, SESSION, ...)                      \
+# define UA_LOG_WARNING_SESSION(LOGGER, SESSION, ...)                    \
     UA_MACRO_EXPAND(UA_LOG_SESSION_INTERNAL(LOGGER, WARNING, SESSION, __VA_ARGS__, ""))
 #else
-#define UA_LOG_WARNING_SESSION(LOGGER, SESSION, ...) do {} while(0)
+# define UA_LOG_WARNING_SESSION(LOGGER, SESSION, ...)
 #endif
 
 #if UA_LOGLEVEL <= 500
-#define UA_LOG_ERROR_SESSION(LOGGER, SESSION, ...)                      \
+# define UA_LOG_ERROR_SESSION(LOGGER, SESSION, ...)                      \
     UA_MACRO_EXPAND(UA_LOG_SESSION_INTERNAL(LOGGER, ERROR, SESSION, __VA_ARGS__, ""))
 #else
-#define UA_LOG_ERROR_SESSION(LOGGER, SESSION, ...) do {} while(0)
+# define UA_LOG_ERROR_SESSION(LOGGER, SESSION, ...)
 #endif
 
 #if UA_LOGLEVEL <= 600
-#define UA_LOG_FATAL_SESSION(LOGGER, SESSION, ...)                      \
+# define UA_LOG_FATAL_SESSION(LOGGER, SESSION, ...)                      \
     UA_MACRO_EXPAND(UA_LOG_SESSION_INTERNAL(LOGGER, FATAL, SESSION, __VA_ARGS__, ""))
 #else
-#define UA_LOG_FATAL_SESSION(LOGGER, SESSION, ...) do {} while(0)
+# define UA_LOG_FATAL_SESSION(LOGGER, SESSION, ...)
 #endif
 
 _UA_END_DECLS

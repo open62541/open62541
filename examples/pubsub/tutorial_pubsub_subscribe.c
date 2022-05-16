@@ -5,11 +5,31 @@
  */
 
 /**
- * IMPORTANT ANNOUNCEMENT
- * The PubSub Subscriber API is currently not finished. This example can be used
- * to receive and display values that are published by tutorial_pubsub_publish
- * example in the TargetVariables of Subscriber Information Model .
- */
+ * .. _pubsub-subscribe-tutorial:
+ *
+ * **IMPORTANT ANNOUNCEMENT**
+ *
+ * The PubSub Subscriber API is currently not finished. This Tutorial will be
+ * continuously extended during the next PubSub batches. More details about the
+ * PubSub extension and corresponding open62541 API are located here: :ref:`pubsub`.
+ *
+ * Subscribing Fields
+ * ^^^^^^^^^^^^^^^^^^
+ * The PubSub subscribe example demonstrates the simplest way to receive
+ * information over two transport layers such as UDP and Ethernet, that are
+ * published by tutorial_pubsub_publish example and update values in the
+ * TargetVariables of Subscriber Information Model.
+ *
+ * Run step of the application is as mentioned below:
+ *
+ * ./bin/examples/tutorial_pubsub_subscribe
+ *
+ * **Connection handling**
+ *
+ * PubSubConnections can be created and deleted on runtime. More details about
+ * the system preconfiguration and connection can be found in
+ * ``tutorial_pubsub_connection.c``. */
+
 #include <open62541/plugin/log_stdout.h>
 #include <open62541/plugin/pubsub_udp.h>
 #include <open62541/server.h>
@@ -18,7 +38,7 @@
 
 #include "ua_pubsub.h"
 
-#ifdef UA_ENABLE_PUBSUB_ETH_UADP
+#if defined (UA_ENABLE_PUBSUB_ETH_UADP)
 #include <open62541/plugin/pubsub_ethernet.h>
 #endif
 
@@ -57,10 +77,16 @@ addPubSubConnection(UA_Server *server, UA_String *transportProfile,
     if (retval != UA_STATUSCODE_GOOD) {
         return retval;
     }
-    retval |= UA_PubSubConnection_regist(server, &connectionIdentifier);
+
     return retval;
 }
 
+/**
+ * **ReaderGroup**
+ *
+ * ReaderGroup is used to group a list of DataSetReaders. All ReaderGroups are
+ * created within a PubSubConnection and automatically deleted if the connection
+ * is removed. All network message related filters are only available in the DataSetReader. */
 /* Add ReaderGroup to the created connection */
 static UA_StatusCode
 addReaderGroup(UA_Server *server) {
@@ -74,9 +100,18 @@ addReaderGroup(UA_Server *server) {
     readerGroupConfig.name = UA_STRING("ReaderGroup1");
     retval |= UA_Server_addReaderGroup(server, connectionIdentifier, &readerGroupConfig,
                                        &readerGroupIdentifier);
+    UA_Server_setReaderGroupOperational(server, readerGroupIdentifier);
     return retval;
 }
 
+/**
+ * **DataSetReader**
+ *
+ * DataSetReader can receive NetworkMessages with the DataSetMessage
+ * of interest sent by the Publisher. DataSetReader provides
+ * the configuration necessary to receive and process DataSetMessages
+ * on the Subscriber side. DataSetReader must be linked with a
+ * SubscribedDataSet and be contained within a ReaderGroup. */
 /* Add DataSetReader to the ReaderGroup */
 static UA_StatusCode
 addDataSetReader(UA_Server *server) {
@@ -100,18 +135,21 @@ addDataSetReader(UA_Server *server) {
 
     /* Setting up Meta data configuration in DataSetReader */
     fillTestDataSetMetaData(&readerConfig.dataSetMetaData);
+
     retval |= UA_Server_addDataSetReader(server, readerGroupIdentifier, &readerConfig,
                                          &readerIdentifier);
     return retval;
 }
 
-/* Set SubscribedDataSet type to TargetVariables data type
+/**
+ * **SubscribedDataSet**
+ *
+ * Set SubscribedDataSet type to TargetVariables data type.
  * Add subscribedvariables to the DataSetReader */
 static UA_StatusCode
 addSubscribedVariables (UA_Server *server, UA_NodeId dataSetReaderId) {
-    if(server == NULL) {
+    if(server == NULL)
         return UA_STATUSCODE_BADINTERNALERROR;
-    }
 
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     UA_NodeId folderId;
@@ -135,13 +173,55 @@ addSubscribedVariables (UA_Server *server, UA_NodeId dataSetReaderId) {
                              folderBrowseName, UA_NODEID_NUMERIC (0,
                              UA_NS0ID_BASEOBJECTTYPE), oAttr, NULL, &folderId);
 
-    retval |= UA_Server_DataSetReader_addTargetVariables (server, &folderId,
-                                                          dataSetReaderId,
-                                                          UA_PUBSUB_SDS_TARGET);
+/**
+ * **TargetVariables**
+ *
+ * The SubscribedDataSet option TargetVariables defines a list of Variable mappings between
+ * received DataSet fields and target Variables in the Subscriber AddressSpace.
+ * The values subscribed from the Publisher are updated in the value field of these variables */
+    /* Create the TargetVariables with respect to DataSetMetaData fields */
+    UA_FieldTargetVariable *targetVars = (UA_FieldTargetVariable *)
+            UA_calloc(readerConfig.dataSetMetaData.fieldsSize, sizeof(UA_FieldTargetVariable));
+    for(size_t i = 0; i < readerConfig.dataSetMetaData.fieldsSize; i++) {
+        /* Variable to subscribe data */
+        UA_VariableAttributes vAttr = UA_VariableAttributes_default;
+        UA_LocalizedText_copy(&readerConfig.dataSetMetaData.fields[i].description,
+                              &vAttr.description);
+        vAttr.displayName.locale = UA_STRING("en-US");
+        vAttr.displayName.text = readerConfig.dataSetMetaData.fields[i].name;
+        vAttr.dataType = readerConfig.dataSetMetaData.fields[i].dataType;
+
+        UA_NodeId newNode;
+        retval |= UA_Server_addVariableNode(server, UA_NODEID_NUMERIC(1, (UA_UInt32)i + 50000),
+                                           folderId,
+                                           UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
+                                           UA_QUALIFIEDNAME(1, (char *)readerConfig.dataSetMetaData.fields[i].name.data),
+                                           UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
+                                           vAttr, NULL, &newNode);
+
+        /* For creating Targetvariables */
+        UA_FieldTargetDataType_init(&targetVars[i].targetVariable);
+        targetVars[i].targetVariable.attributeId  = UA_ATTRIBUTEID_VALUE;
+        targetVars[i].targetVariable.targetNodeId = newNode;
+    }
+
+    retval = UA_Server_DataSetReader_createTargetVariables(server, dataSetReaderId,
+                                                           readerConfig.dataSetMetaData.fieldsSize, targetVars);
+    for(size_t i = 0; i < readerConfig.dataSetMetaData.fieldsSize; i++)
+        UA_FieldTargetDataType_clear(&targetVars[i].targetVariable);
+
+    UA_free(targetVars);
     UA_free(readerConfig.dataSetMetaData.fields);
     return retval;
 }
 
+/**
+ * **DataSetMetaData**
+ *
+ * The DataSetMetaData describes the content of a DataSet. It provides the information necessary to decode
+ * DataSetMessages on the Subscriber side. DataSetMessages received from the Publisher are decoded into
+ * DataSet and each field is updated in the Subscriber based on datatype match of TargetVariable fields of Subscriber
+ * and PublishedDataSetFields of Publisher */
 /* Define MetaData for TargetVariables */
 static void fillTestDataSetMetaData(UA_DataSetMetaDataType *pMetaData) {
     if(pMetaData == NULL) {
@@ -191,6 +271,8 @@ static void fillTestDataSetMetaData(UA_DataSetMetaDataType *pMetaData) {
     pMetaData->fields[3].valueRank = -1; /* scalar */
 }
 
+/**
+ * Followed by the main server code, making use of the above definitions */
 UA_Boolean running = true;
 static void stopHandler(int sign) {
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "received ctrl-c");
@@ -211,18 +293,9 @@ run(UA_String *transportProfile, UA_NetworkAddressUrlDataType *networkAddressUrl
      * The TransportLayer is acting as factory to create new connections
      * on runtime. Details about the PubSubTransportLayer can be found inside the
      * tutorial_pubsub_connection */
-    config->pubsubTransportLayers = (UA_PubSubTransportLayer *)
-        UA_calloc(2, sizeof(UA_PubSubTransportLayer));
-    if(!config->pubsubTransportLayers) {
-        UA_Server_delete(server);
-        return EXIT_FAILURE;
-    }
-
-    config->pubsubTransportLayers[0] = UA_PubSubTransportLayerUDPMP();
-    config->pubsubTransportLayersSize++;
+    UA_ServerConfig_addPubSubTransportLayer(config, UA_PubSubTransportLayerUDPMP());
 #ifdef UA_ENABLE_PUBSUB_ETH_UADP
-    config->pubsubTransportLayers[1] = UA_PubSubTransportLayerEthernet();
-    config->pubsubTransportLayersSize++;
+    UA_ServerConfig_addPubSubTransportLayer(config, UA_PubSubTransportLayerEthernet());
 #endif
 
     /* API calls */

@@ -29,7 +29,7 @@ createEvents(UA_Timer *t, UA_UInt32 events) {
     for(size_t i = 0; i < events; i++) {
         UA_Double interval = (UA_Double)i+1;
         UA_StatusCode retval =
-            UA_Timer_addRepeatedCallback(t, timerCallback, NULL, NULL, interval, NULL);
+            UA_Timer_addRepeatedCallback(t, timerCallback, NULL, NULL, interval, NULL, UA_TIMER_HANDLE_CYCLEMISS_WITH_CURRENTTIME, NULL);
         ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
     }
 }
@@ -54,7 +54,7 @@ START_TEST(benchmarkTimer) {
     printf("duration was %f s\n", time_spent);
     printf("%lu callbacks\n", (unsigned long)count);
 
-    UA_Timer_deleteMembers(&timer);
+    UA_Timer_clear(&timer);
 } END_TEST
 
 int main(void) {

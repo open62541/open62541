@@ -35,7 +35,7 @@ int main(int argc, char* argv[]) {
     size_t trustListSize = 0;
     if(argc > MIN_ARGS)
         trustListSize = (size_t)argc-MIN_ARGS;
-    UA_STACKARRAY(UA_ByteString, trustList, trustListSize);
+    UA_STACKARRAY(UA_ByteString, trustList, trustListSize+1);
     for(size_t trustListCount = 0; trustListCount < trustListSize; trustListCount++)
         trustList[trustListCount] = loadFile(argv[trustListCount+4]);
 
@@ -55,7 +55,7 @@ int main(int argc, char* argv[]) {
         UA_ByteString_clear(&trustList[deleteCount]);
     }
 
-    UA_StatusCode retval = UA_Client_connect_username(client, endpointUrl, "paula", "paula123");
+    UA_StatusCode retval = UA_Client_connectUsername(client, endpointUrl, "paula", "paula123");
     if(retval != UA_STATUSCODE_GOOD) {
         UA_Client_delete(client);
         return EXIT_FAILURE;

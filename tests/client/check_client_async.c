@@ -44,8 +44,9 @@ static void teardown(void) {
     UA_Server_delete(server);
 }
 
-static void asyncReadCallback(UA_Client *client, void *userdata,
-        UA_UInt32 requestId, const UA_ReadResponse *response) {
+static void
+asyncReadCallback(UA_Client *client, void *userdata,
+                  UA_UInt32 requestId, const UA_ReadResponse *response) {
     UA_UInt16 *asyncCounter = (UA_UInt16*) userdata;
     if (response->responseHeader.serviceResult == UA_STATUSCODE_BADTIMEOUT) {
         (*asyncCounter) = 9999;
@@ -56,8 +57,10 @@ static void asyncReadCallback(UA_Client *client, void *userdata,
     }
 }
 
-static void asyncReadValueAtttributeCallback(UA_Client *client, void *userdata,
-        UA_UInt32 requestId, UA_Variant *var) {
+static void
+asyncReadValueAtttributeCallback(UA_Client *client, void *userdata,
+                                 UA_UInt32 requestId, UA_StatusCode opstatus,
+                                 UA_DataValue *value) {
     UA_UInt16 *asyncCounter = (UA_UInt16*) userdata;
     (*asyncCounter)++;
     UA_fakeSleep(10);

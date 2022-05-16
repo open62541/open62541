@@ -22,9 +22,11 @@ UA_AsyncManager_sendAsyncResponse(UA_AsyncManager *am, UA_Server *server,
                                   UA_AsyncResponse *ar) {
     /* Get the session */
     UA_StatusCode res = UA_STATUSCODE_GOOD;
-    UA_LOCK(server->serviceMutex);
+    UA_LOCK(&server->serviceMutex);
     UA_Session* session = UA_Server_getSessionById(server, &ar->sessionId);
-    UA_UNLOCK(server->serviceMutex);
+    UA_UNLOCK(&server->serviceMutex);
+    UA_SecureChannel* channel = NULL;
+    UA_ResponseHeader *responseHeader = NULL;
     if(!session) {
         res = UA_STATUSCODE_BADSESSIONIDINVALID;
         UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
@@ -33,7 +35,7 @@ UA_AsyncManager_sendAsyncResponse(UA_AsyncManager *am, UA_Server *server,
     }
 
     /* Check the channel */
-    UA_SecureChannel* channel = session->header.channel;
+    channel = session->header.channel;
     if(!channel) {
         res = UA_STATUSCODE_BADSECURECHANNELCLOSED;
         UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
@@ -42,9 +44,11 @@ UA_AsyncManager_sendAsyncResponse(UA_AsyncManager *am, UA_Server *server,
     }
 
     /* Okay, here we go, send the UA_CallResponse */
-    res = sendResponse(channel, ar->requestId, ar->requestHandle,
-                       (UA_ResponseHeader*)&ar->response.callResponse.responseHeader,
-                       &UA_TYPES[UA_TYPES_CALLRESPONSE]);
+    responseHeader = (UA_ResponseHeader*)
+        &ar->response.callResponse.responseHeader;
+    responseHeader->requestHandle = ar->requestHandle;
+    res = sendResponse(server, session, channel, ar->requestId,
+                       (UA_Response*)&ar->response, &UA_TYPES[UA_TYPES_CALLRESPONSE]);
     UA_LOG_DEBUG(&server->config.logger, UA_LOGCATEGORY_SERVER,
                  "UA_Server_SendResponse: Response for Req# %" PRIu32 " sent", ar->requestId);
 
@@ -84,11 +88,11 @@ static void
 processAsyncResults(UA_Server *server, void *data) {
     UA_AsyncManager *am = &server->asyncManager;
     while(true) {
-        UA_LOCK(am->queueLock);
+        UA_LOCK(&am->queueLock);
         UA_AsyncOperation *ao = TAILQ_FIRST(&am->resultQueue);
         if(ao)
             TAILQ_REMOVE(&am->resultQueue, ao, pointers);
-        UA_UNLOCK(am->queueLock);
+        UA_UNLOCK(&am->queueLock);
         if(!ao)
             break;
         UA_LOG_DEBUG(&server->config.logger, UA_LOGCATEGORY_SERVER,
@@ -109,7 +113,7 @@ checkTimeouts(UA_Server *server, void *_) {
     UA_AsyncManager *am = &server->asyncManager;
     const UA_DateTime tNow = UA_DateTime_now();
 
-    UA_LOCK(am->queueLock);
+    UA_LOCK(&am->queueLock);
 
     /* Loop over the queue of dispatched ops */
     UA_AsyncOperation *op = NULL, *op_tmp = NULL;
@@ -140,7 +144,7 @@ checkTimeouts(UA_Server *server, void *_) {
                        "Operation was removed due to a timeout");
     }
 
-    UA_UNLOCK(am->queueLock);
+    UA_UNLOCK(&am->queueLock);
 
     /* Integrate async results and send out complete responses */
     processAsyncResults(server, NULL);
@@ -153,7 +157,7 @@ UA_AsyncManager_init(UA_AsyncManager *am, UA_Server *server) {
     TAILQ_INIT(&am->newQueue);
     TAILQ_INIT(&am->dispatchedQueue);
     TAILQ_INIT(&am->resultQueue);
-    UA_LOCK_INIT(am->queueLock);
+    UA_LOCK_INIT(&am->queueLock);
 
     /* Add a regular callback for cleanup and sending finished responses at a
      * 100s interval. */
@@ -163,12 +167,12 @@ UA_AsyncManager_init(UA_AsyncManager *am, UA_Server *server) {
 
 void
 UA_AsyncManager_clear(UA_AsyncManager *am, UA_Server *server) {
-    UA_Server_removeCallback(server, am->checkTimeoutCallbackId);
+    removeCallback(server, am->checkTimeoutCallbackId);
 
     UA_AsyncOperation *ar;
 
     /* Clean up queues */
-    UA_LOCK(am->queueLock);
+    UA_LOCK(&am->queueLock);
     while((ar = TAILQ_FIRST(&am->newQueue))) {
         TAILQ_REMOVE(&am->resultQueue, ar, pointers);
         UA_AsyncOperation_delete(ar);
@@ -181,7 +185,7 @@ UA_AsyncManager_clear(UA_AsyncManager *am, UA_Server *server) {
         TAILQ_REMOVE(&am->resultQueue, ar, pointers);
         UA_AsyncOperation_delete(ar);
     }
-    UA_UNLOCK(am->queueLock);
+    UA_UNLOCK(&am->queueLock);
 
     /* Remove responses */
     UA_AsyncResponse *current, *temp;
@@ -190,7 +194,7 @@ UA_AsyncManager_clear(UA_AsyncManager *am, UA_Server *server) {
     }
 
     /* Delete all locks */
-    UA_LOCK_DESTROY(am->queueLock);
+    UA_LOCK_DESTROY(&am->queueLock);
 }
 
 UA_StatusCode
@@ -264,11 +268,11 @@ UA_AsyncManager_createAsyncOp(UA_AsyncManager *am, UA_Server *server,
     ao->index = opIndex;
     ao->parent = ar;
 
-    UA_LOCK(am->queueLock);
+    UA_LOCK(&am->queueLock);
     TAILQ_INSERT_TAIL(&am->newQueue, ao, pointers);
     am->opsCount++;
     ar->opCountdown++;
-    UA_UNLOCK(am->queueLock);
+    UA_UNLOCK(&am->queueLock);
 
     if(server->config.asyncOperationNotifyCallback)
         server->config.asyncOperationNotifyCallback(server);
@@ -285,7 +289,7 @@ UA_Server_getAsyncOperationNonBlocking(UA_Server *server, UA_AsyncOperationType 
 
     UA_Boolean bRV = false;
     *type = UA_ASYNCOPERATIONTYPE_INVALID;
-    UA_LOCK(am->queueLock);
+    UA_LOCK(&am->queueLock);
     UA_AsyncOperation *ao = TAILQ_FIRST(&am->newQueue);
     if(ao) {
         TAILQ_REMOVE(&am->newQueue, ao, pointers);
@@ -297,16 +301,9 @@ UA_Server_getAsyncOperationNonBlocking(UA_Server *server, UA_AsyncOperationType 
             *timeout = ao->parent->timeout;
         bRV = true;
     }
-    UA_UNLOCK(am->queueLock);
+    UA_UNLOCK(&am->queueLock);
 
     return bRV;
-}
-
-UA_Boolean
-UA_Server_getAsyncOperation(UA_Server *server, UA_AsyncOperationType *type,
-                            const UA_AsyncOperationRequest **request,
-                            void **context) {
-    return UA_Server_getAsyncOperationNonBlocking(server, type, request, context, NULL);
 }
 
 /* Worker submits Method Call Response */
@@ -324,7 +321,7 @@ UA_Server_setAsyncOperationResult(UA_Server *server,
         return;
     }
 
-    UA_LOCK(am->queueLock);
+    UA_LOCK(&am->queueLock);
 
     /* See if the operation is still in the dispatched queue. Otherwise it has
      * been removed due to a timeout.
@@ -343,7 +340,7 @@ UA_Server_setAsyncOperationResult(UA_Server *server,
     if(!found) {
         UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
                        "UA_Server_SetAsyncMethodResult: The operation has timed out");
-        UA_UNLOCK(am->queueLock);
+        UA_UNLOCK(&am->queueLock);
         return;
     }
 
@@ -360,7 +357,7 @@ UA_Server_setAsyncOperationResult(UA_Server *server,
     TAILQ_REMOVE(&am->dispatchedQueue, ao, pointers);
     TAILQ_INSERT_TAIL(&am->resultQueue, ao, pointers);
 
-    UA_UNLOCK(am->queueLock);
+    UA_UNLOCK(&am->queueLock);
 
     UA_LOG_DEBUG(&server->config.logger, UA_LOGCATEGORY_SERVER,
                  "Set the result from the worker thread");
@@ -373,10 +370,9 @@ UA_Server_setAsyncOperationResult(UA_Server *server,
 static UA_StatusCode
 setMethodNodeAsync(UA_Server *server, UA_Session *session,
                    UA_Node *node, UA_Boolean *isAsync) {
-    UA_MethodNode *method = (UA_MethodNode*)node;
-    if(method->nodeClass != UA_NODECLASS_METHOD)
+    if(node->head.nodeClass != UA_NODECLASS_METHOD)
         return UA_STATUSCODE_BADNODECLASSINVALID;
-    method->async = *isAsync;
+    node->methodNode.async = *isAsync;
     return UA_STATUSCODE_GOOD;
 }
 

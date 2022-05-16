@@ -16,19 +16,30 @@ _UA_BEGIN_DECLS
 
 #ifdef UA_ENABLE_PUBSUB /* conditional compilation */
 
-typedef struct UA_PubSubManager{
-    //Connections and PublishedDataSets can exist alone (own lifecycle) -> top level components
+typedef struct UA_PubSubManager {
+    /* Connections and PublishedDataSets can exist alone (own lifecycle) -> top
+     * level components */
     size_t connectionsSize;
     TAILQ_HEAD(UA_ListOfPubSubConnection, UA_PubSubConnection) connections;
+
     size_t publishedDataSetsSize;
     TAILQ_HEAD(UA_ListOfPublishedDataSet, UA_PublishedDataSet) publishedDataSets;
+
+#ifndef UA_ENABLE_PUBSUB_INFORMATIONMODEL
+    UA_UInt32 uniqueIdCount;
+#endif
 } UA_PubSubManager;
 
 void
 UA_PubSubManager_delete(UA_Server *server, UA_PubSubManager *pubSubManager);
 
+#ifndef UA_ENABLE_PUBSUB_INFORMATIONMODEL
 void
-UA_PubSubManager_generateUniqueNodeId(UA_Server *server, UA_NodeId *nodeId);
+UA_PubSubManager_generateUniqueNodeId(UA_PubSubManager *psm, UA_NodeId *nodeId);
+#endif
+
+UA_Guid
+UA_PubSubManager_generateUniqueGuid(UA_Server *server);
 
 UA_UInt32
 UA_PubSubConfigurationVersionTimeDifference(void);
@@ -38,12 +49,25 @@ UA_PubSubConfigurationVersionTimeDifference(void);
 /***********************************/
 UA_StatusCode
 UA_PubSubManager_addRepeatedCallback(UA_Server *server, UA_ServerCallback callback,
-                                     void *data, UA_Double interval_ms, UA_UInt64 *callbackId);
+                                     void *data, UA_Double interval_ms, UA_DateTime *baseTime,
+                                     UA_TimerPolicy timerPolicy, UA_UInt64 *callbackId);
 UA_StatusCode
-UA_PubSubManager_changeRepeatedCallbackInterval(UA_Server *server, UA_UInt64 callbackId,
-                                                UA_Double interval_ms);
+UA_PubSubManager_changeRepeatedCallback(UA_Server *server, UA_UInt64 callbackId,
+                                        UA_Double interval_ms, UA_DateTime *baseTime,
+                                        UA_TimerPolicy timerPolicy);
 void
 UA_PubSubManager_removeRepeatedPubSubCallback(UA_Server *server, UA_UInt64 callbackId);
+
+/*************************************************/
+/*      PubSub component monitoring              */
+/*************************************************/
+
+#ifdef UA_ENABLE_PUBSUB_MONITORING
+
+UA_StatusCode
+UA_PubSubManager_setDefaultMonitoringCallbacks(UA_PubSubMonitoringInterface *monitoringInterface);
+
+#endif /* UA_ENABLE_PUBSUB_MONITORING */
 
 #endif /* UA_ENABLE_PUBSUB */
 

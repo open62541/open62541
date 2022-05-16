@@ -117,7 +117,7 @@ int main(int argc, char *argv[]) {
     /* Connect to the server */
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     if(username)
-        retval = UA_Client_connect_username(client, serverurl, username, password);
+        retval = UA_Client_connectUsername(client, serverurl, username, password);
     else
         retval = UA_Client_connect(client, serverurl);
     if(retval != UA_STATUSCODE_GOOD) {

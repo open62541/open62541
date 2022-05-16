@@ -39,7 +39,6 @@ static void setup(void) {
 
 static void teardown(void) {
     UA_SecureChannel_close(&testChannel);
-    UA_SecureChannel_deleteMembers(&testChannel);
     dummyPolicy.clear(&dummyPolicy);
     testingConnection.close(&testingConnection);
     UA_Server_delete(server);
@@ -58,7 +57,7 @@ START_TEST(addVariable) {
 
     clock_t begin, finish;
     begin = clock();
-    for(int i = 0; i < 10000; i++) {
+    for(int i = 0; i < 3000; i++) {
         UA_Server_addVariableNode(server, UA_NODEID_NULL, parentNodeId,
                                   parentReferenceNodeId, myIntegerName,
                                   UA_NODEID_NULL, attr, NULL, NULL);

@@ -5,6 +5,8 @@
 #include <open62541/types.h>
 #include <open62541/util.h>
 #include <open62541/plugin/nodestore_default.h>
+#include "open62541/plugin/nodestore.h"
+#include "open62541/types_generated.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -36,12 +38,12 @@ static void checkZeroVisitor(void *context, const UA_Node* node) {
     if (node == NULL) zeroCnt++;
 }
 
-static UA_Node* createNode(UA_Int16 nsid, UA_Int32 id) {
+static UA_Node* createNode(UA_UInt16 nsid, UA_UInt32 id) {
     UA_Node *p = ns.newNode(&ns.context, UA_NODECLASS_VARIABLE);
-    p->nodeId.identifierType = UA_NODEIDTYPE_NUMERIC;
-    p->nodeId.namespaceIndex = nsid;
-    p->nodeId.identifier.numeric = id;
-    p->nodeClass = UA_NODECLASS_VARIABLE;
+    p->head.nodeId.identifierType = UA_NODEIDTYPE_NUMERIC;
+    p->head.nodeId.namespaceIndex = nsid;
+    p->head.nodeId.identifier.numeric = id;
+    p->head.nodeClass = UA_NODECLASS_VARIABLE;
     return p;
 }
 
@@ -79,8 +81,9 @@ START_TEST(findNodeInUA_NodeStoreWithSingleEntry) {
     UA_Node* n1 = createNode(0,2253);
     ns.insertNode(ns.context, n1, NULL);
     UA_NodeId in1 = UA_NODEID_NUMERIC(0,2253);
-    const UA_Node* nr = ns.getNode(ns.context, &in1);
-    ck_assert_int_eq((uintptr_t)n1, (uintptr_t)nr);
+    const UA_Node* nr = ns.getNode(ns.context, &in1, ~(UA_UInt32)0,
+                                   UA_REFERENCETYPESET_ALL, UA_BROWSEDIRECTION_BOTH);
+    ck_assert_uint_eq((uintptr_t)n1, (uintptr_t)nr);
     ns.releaseNode(ns.context, nr);
 }
 END_TEST
@@ -89,8 +92,9 @@ START_TEST(failToFindNodeInOtherUA_NodeStore) {
     UA_Node* n1 = createNode(0,2255);
     ns.insertNode(ns.context, n1, NULL);
     UA_NodeId in1 = UA_NODEID_NUMERIC(1, 2255);
-    const UA_Node* nr = ns.getNode(ns.context, &in1);
-    ck_assert_int_eq((uintptr_t)nr, 0);
+    const UA_Node* nr = ns.getNode(ns.context, &in1, ~(UA_UInt32)0,
+                                   UA_REFERENCETYPESET_ALL, UA_BROWSEDIRECTION_BOTH);
+    ck_assert_uint_eq((uintptr_t)nr, 0);
 }
 END_TEST
 
@@ -109,8 +113,9 @@ START_TEST(findNodeInUA_NodeStoreWithSeveralEntries) {
     ns.insertNode(ns.context, n6, NULL);
 
     UA_NodeId in3 = UA_NODEID_NUMERIC(0, 2257);
-    const UA_Node* nr = ns.getNode(ns.context, &in3);
-    ck_assert_int_eq((uintptr_t)nr, (uintptr_t)n3);
+    const UA_Node* nr = ns.getNode(ns.context, &in3, ~(UA_UInt32)0,
+                                   UA_REFERENCETYPESET_ALL, UA_BROWSEDIRECTION_BOTH);
+    ck_assert_uint_eq((uintptr_t)nr, (uintptr_t)n3);
     ns.releaseNode(ns.context, nr);
 }
 END_TEST
@@ -144,8 +149,9 @@ START_TEST(findNodeInExpandedNamespace) {
     }
     // when
     UA_Node *n2 = createNode(0,25);
-    const UA_Node* nr = ns.getNode(ns.context, &n2->nodeId);
-    ck_assert_int_eq(nr->nodeId.identifier.numeric, n2->nodeId.identifier.numeric);
+    const UA_Node* nr = ns.getNode(ns.context, &n2->head.nodeId, ~(UA_UInt32)0,
+                                   UA_REFERENCETYPESET_ALL, UA_BROWSEDIRECTION_BOTH);
+    ck_assert_int_eq(nr->head.nodeId.identifier.numeric, n2->head.nodeId.identifier.numeric);
     ns.releaseNode(ns.context, nr);
     ns.deleteNode(ns.context, n2);
 }
@@ -179,8 +185,9 @@ START_TEST(failToFindNonExistentNodeInUA_NodeStoreWithSeveralEntries) {
     ns.insertNode(ns.context, n5, NULL);
 
     UA_NodeId id = UA_NODEID_NUMERIC(0, 12);
-    const UA_Node* nr = ns.getNode(ns.context, &id);
-    ck_assert_int_eq((uintptr_t)nr, 0);
+    const UA_Node* nr = ns.getNode(ns.context, &id, ~(UA_UInt32)0,
+                                   UA_REFERENCETYPESET_ALL, UA_BROWSEDIRECTION_BOTH);
+    ck_assert_uint_eq((uintptr_t)nr, 0);
 }
 END_TEST
 
@@ -203,7 +210,8 @@ static void *profileGetThread(void *arg) {
     for(UA_Int32 x = 0; x<test->rounds; x++) {
         for(UA_Int32 i=test->min_val; i<max_val; i++) {
             id.identifier.numeric = i+1;
-            const UA_Node *n = ns.getNode(ns.context, &id);
+            const UA_Node* n = ns.getNode(ns.context, &id, ~(UA_UInt32)0,
+                                          UA_REFERENCETYPESET_ALL, UA_BROWSEDIRECTION_BOTH);
             ns.releaseNode(ns.context, n);
         }
     }
@@ -238,7 +246,8 @@ START_TEST(profileGetDelete) {
     UA_NodeId id = UA_NODEID_NULL;
     for(size_t i = 0; i < N; i++) {
         id.identifier.numeric = (UA_UInt32)i+1;
-        const UA_Node *node = ns.getNode(ns.context, &id);
+        const UA_Node *node = ns.getNode(ns.context, &id, ~(UA_UInt32)0,
+                                         UA_REFERENCETYPESET_ALL, UA_BROWSEDIRECTION_BOTH);
         ns.releaseNode(ns.context, node);
     }
     end = clock();

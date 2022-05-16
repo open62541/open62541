@@ -13,12 +13,16 @@
 #include <time.h>
 
 static UA_Server *server = NULL;
+static void *sessionCalled = (void *)1;
+static void *nodeCalled = (void *)2;
 static UA_Int32 handleCalled = 0;
 
 static UA_StatusCode
 globalInstantiationMethod(UA_Server *server_,
                           const UA_NodeId *sessionId, void *sessionContext,
                           const UA_NodeId *nodeId, void **nodeContext) {
+    sessionCalled = sessionContext;
+    nodeCalled = *nodeContext;
     handleCalled++;
     return UA_STATUSCODE_GOOD;
 }
@@ -34,6 +38,7 @@ static void setup(void) {
     lifecycle.createOptionalChild = NULL;
     lifecycle.generateChildNodeId = NULL;
     config->nodeLifecycle = lifecycle;
+    UA_Server_setAdminSessionContext(server, (void *)0x3);
 }
 
 static void teardown(void) {
@@ -51,12 +56,66 @@ START_TEST(AddVariableNode) {
     UA_QualifiedName myIntegerName = UA_QUALIFIEDNAME(1, "the answer");
     UA_NodeId parentNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER);
     UA_NodeId parentReferenceNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES);
+    ck_assert_ptr_eq(sessionCalled, (void *)1);
+    ck_assert_ptr_eq(nodeCalled, (void *)2);
     UA_StatusCode res =
         UA_Server_addVariableNode(server, myIntegerNodeId, parentNodeId,
                                   parentReferenceNodeId, myIntegerName,
                                   UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
+                                  attr, (void *)4, NULL);
+    ck_assert_int_eq(UA_STATUSCODE_GOOD, res);
+    ck_assert_ptr_eq(sessionCalled, (void *)3);
+    ck_assert_ptr_eq(nodeCalled, (void *)4);
+} END_TEST
+
+START_TEST(AddVariableNode_ValueRankZero) {
+    UA_VariableAttributes attr = UA_VariableAttributes_default;
+    attr.displayName = UA_LOCALIZEDTEXT("en-US", "Array ValueRank 0");
+    attr.accessLevel = UA_ACCESSLEVELMASK_READ | UA_ACCESSLEVELMASK_WRITE;
+
+    /* Set the variable value constraints */
+    attr.dataType = UA_TYPES[UA_TYPES_DOUBLE].typeId;
+    attr.valueRank = UA_VALUERANK_ONE_OR_MORE_DIMENSIONS;
+
+    /* Set the value */
+    UA_UInt32 arrayDims[1] = {2};
+    UA_Double zero[2] = {0.0, 0.0};
+    UA_Variant_setArray(&attr.value, zero, 2, &UA_TYPES[UA_TYPES_DOUBLE]);
+    attr.value.arrayDimensions = arrayDims;
+    attr.value.arrayDimensionsSize = 1;
+
+    UA_NodeId myNodeId = UA_NODEID_STRING(1, "array0");
+    UA_QualifiedName myName = UA_QUALIFIEDNAME(1, "array0");
+    UA_NodeId parentNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER);
+    UA_NodeId parentReferenceNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES);
+    UA_StatusCode res =
+        UA_Server_addVariableNode(server, myNodeId, parentNodeId,
+                                  parentReferenceNodeId, myName,
+                                  UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
                                   attr, NULL, NULL);
     ck_assert_int_eq(UA_STATUSCODE_GOOD, res);
+} END_TEST
+
+START_TEST(AddVariableNode_EmptyValueWithNonZeroValueRank) {
+    UA_VariableAttributes vattr = UA_VariableAttributes_default;
+    /* VariableNode with zero (unlimited dimensions */
+    vattr = UA_VariableAttributes_default;
+    UA_Variant_clear(&vattr.value);
+    vattr.valueRank = 2;
+    UA_UInt32 myIntegerDimensions2[2] = {0, 2};
+    vattr.arrayDimensions = myIntegerDimensions2;
+    vattr.arrayDimensionsSize = 2;
+    vattr.dataType = UA_NODEID_NUMERIC(0, UA_NS0ID_INT32);
+    vattr.displayName = UA_LOCALIZEDTEXT("en-US", "myarraydims");
+    UA_QualifiedName myIntegerName = UA_QUALIFIEDNAME(1, "myarraydims");
+    UA_NodeId myIntegerNodeId = UA_NODEID_STRING(1, "myarraydims");
+    UA_NodeId parentNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER);
+    UA_NodeId parentReferenceNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES);
+    UA_StatusCode retval = UA_Server_addVariableNode(server, myIntegerNodeId, parentNodeId,
+                                                     parentReferenceNodeId, myIntegerName,
+                                                     UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
+                                                     vattr, NULL, NULL);
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
 } END_TEST
 
 START_TEST(AddVariableNode_Matrix) {
@@ -67,7 +126,7 @@ START_TEST(AddVariableNode_Matrix) {
 
     attr.dataType = UA_TYPES[UA_TYPES_DOUBLE].typeId;
     attr.valueRank = UA_VALUERANK_TWO_DIMENSIONS;
-    UA_UInt32 arrayDims[2] = {2,2};
+    UA_UInt32 arrayDims[2] = {2, 2};
     attr.arrayDimensions = arrayDims;
     attr.arrayDimensionsSize = 2;
     UA_Double zero[4] = {0.0, 0.0, 0.0, 0.0};
@@ -168,7 +227,7 @@ START_TEST(InstantiateVariableTypeNode) {
     UA_Server_readValue(server, pointVariableId, &val);
     ck_assert(val.type != NULL);
 
-    UA_Variant_deleteMembers(&val);
+    UA_Variant_clear(&val);
 } END_TEST
 
 START_TEST(InstantiateVariableTypeNodeWrongDims) {
@@ -199,7 +258,8 @@ START_TEST(InstantiateVariableTypeNodeLessDims) {
     addVariableTypeNode();
     
     /* Prepare the node attributes */
-    UA_UInt32 arrayDims[1] = {1}; /* This will match as the dimension constraints are an upper bound */
+    UA_UInt32 arrayDims[1] = {1}; /* This will match as the dimension
+                                   * constraints are an upper bound */
     UA_VariableAttributes vAttr = UA_VariableAttributes_default;
     vAttr.dataType = UA_TYPES[UA_TYPES_DOUBLE].typeId;
     vAttr.valueRank = UA_VALUERANK_ONE_DIMENSION;
@@ -207,7 +267,11 @@ START_TEST(InstantiateVariableTypeNodeLessDims) {
     vAttr.arrayDimensionsSize = 1;
     vAttr.displayName = UA_LOCALIZEDTEXT("en-US", "2DPoint Variable");
     vAttr.accessLevel = UA_ACCESSLEVELMASK_READ | UA_ACCESSLEVELMASK_WRITE;
-    /* vAttr.value is left empty, the server instantiates with the default value */
+
+    /* vAttr.value is left empty, the server tries to instantiate with the
+     * default value from the VariableType. This will fail. Then the server
+     * tries to auto-generate a matching zero-value of the correct
+     * dimensions. */
 
     /* Add the node */
     UA_StatusCode res =
@@ -216,7 +280,7 @@ START_TEST(InstantiateVariableTypeNodeLessDims) {
                                   UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
                                   UA_QUALIFIEDNAME(1, "2DPoint Type"), pointTypeId,
                                   vAttr, NULL, NULL);
-    ck_assert_int_eq(UA_STATUSCODE_BADTYPEMISMATCH, res);
+    ck_assert_int_eq(UA_STATUSCODE_GOOD, res);
 } END_TEST
 
 START_TEST(AddComplexTypeWithInheritance) {
@@ -386,8 +450,8 @@ START_TEST(DeleteObjectAndReferences) {
         if(UA_NodeId_equal(&br.references[i].nodeId.nodeId, &objectid))
             refCount++;
     }
-    ck_assert_int_eq(refCount, 1);
-    UA_BrowseResult_deleteMembers(&br);
+    ck_assert_uint_eq(refCount, 1);
+    UA_BrowseResult_clear(&br);
 
     /* Delete the object */
     UA_Server_deleteNode(server, objectid, true);
@@ -400,8 +464,8 @@ START_TEST(DeleteObjectAndReferences) {
         if(UA_NodeId_equal(&br.references[i].nodeId.nodeId, &objectid))
             refCount++;
     }
-    ck_assert_int_eq(refCount, 0);
-    UA_BrowseResult_deleteMembers(&br);
+    ck_assert_uint_eq(refCount, 0);
+    UA_BrowseResult_clear(&br);
 
     /* Add an object the second time */
     attr = UA_ObjectAttributes_default;
@@ -423,8 +487,8 @@ START_TEST(DeleteObjectAndReferences) {
         if(UA_NodeId_equal(&br.references[i].nodeId.nodeId, &objectid))
             refCount++;
     }
-    ck_assert_int_eq(refCount, 1);
-    UA_BrowseResult_deleteMembers(&br);
+    ck_assert_uint_eq(refCount, 1);
+    UA_BrowseResult_clear(&br);
 } END_TEST
 
 
@@ -526,6 +590,61 @@ START_TEST(InstantiateObjectType) {
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
 } END_TEST
 
+START_TEST(ObjectWithDynamicVariableChild) {
+    /* Add a ServerRedundancyType object */
+    UA_ObjectAttributes attr = UA_ObjectAttributes_default;
+    attr.displayName = UA_LOCALIZEDTEXT("en-US","my object with variable child");
+
+    UA_NodeId newObjectId;
+    UA_NodeId_init(&newObjectId);
+
+    UA_StatusCode res = UA_Server_addObjectNode(server, UA_NODEID_NULL,
+                                  UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
+                                  UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
+                                  UA_QUALIFIEDNAME(0, "MyObjectWithVariableChild"), UA_NODEID_NUMERIC(0, UA_NS0ID_SERVERREDUNDANCYTYPE),
+                                  attr, NULL, &newObjectId);
+    ck_assert_int_eq(res, UA_STATUSCODE_GOOD);
+
+    UA_BrowsePath bp;
+    UA_BrowsePath_init(&bp);
+    bp.startingNode = newObjectId;
+    bp.relativePath.elementsSize = 1;
+
+    UA_RelativePathElement bpe;
+    UA_RelativePathElement_init(&bpe);
+    bpe.targetName = UA_QUALIFIEDNAME(0, "RedundancySupport");
+    bpe.referenceTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY);
+    bp.relativePath.elements = &bpe;
+
+    UA_BrowsePathResult bpr = UA_Server_translateBrowsePathToNodeIds(server, &bp);
+
+    ck_assert_int_eq(bpr.targetsSize, 1);
+
+    UA_WriteValue wv;
+    UA_WriteValue_init(&wv);
+    wv.nodeId = bpr.targets->targetId.nodeId;
+    wv.attributeId = UA_ATTRIBUTEID_VALUE;
+    wv.value.hasValue = UA_TRUE;
+    UA_Int32 rt = 1;
+    UA_Variant_setScalar(&wv.value.value, &rt, &UA_TYPES[UA_TYPES_INT32]);
+    wv.value.hasSourceTimestamp = UA_TRUE;
+    wv.value.sourceTimestamp = 12345;
+
+    res = UA_Server_write(server, &wv);
+    ck_assert_int_eq(res, UA_STATUSCODE_GOOD);
+
+    UA_ReadValueId rvi;
+    UA_ReadValueId_init(&rvi);
+    rvi.nodeId = bpr.targets->targetId.nodeId;
+    rvi.attributeId = UA_ATTRIBUTEID_VALUE;
+    UA_DataValue dv = UA_Server_read(server, &rvi, UA_TIMESTAMPSTORETURN_BOTH);
+    ck_assert(dv.hasSourceTimestamp == UA_TRUE);
+    ck_assert_int_eq(dv.sourceTimestamp, 12345);
+
+    UA_BrowsePathResult_clear(&bpr);
+    UA_DataValue_clear(&dv);
+} END_TEST
+
 static UA_NodeId
 findReference(const UA_NodeId sourceId, const UA_NodeId refTypeId) {
 	UA_BrowseDescription * bDesc = UA_BrowseDescription_new();
@@ -545,9 +664,9 @@ findReference(const UA_NodeId sourceId, const UA_NodeId refTypeId) {
         }
     }
 
-	UA_BrowseDescription_deleteMembers(bDesc);
+	UA_BrowseDescription_clear(bDesc);
 	UA_BrowseDescription_delete(bDesc);
-	UA_BrowseResult_deleteMembers(&bRes);
+	UA_BrowseResult_clear(&bRes);
 	return outNodeId;
 }
 
@@ -622,6 +741,8 @@ int main(void) {
     TCase *tc_addnodes = tcase_create("addnodes");
     tcase_add_checked_fixture(tc_addnodes, setup, teardown);
     tcase_add_test(tc_addnodes, AddVariableNode);
+    tcase_add_test(tc_addnodes, AddVariableNode_ValueRankZero);
+    tcase_add_test(tc_addnodes, AddVariableNode_EmptyValueWithNonZeroValueRank);
     tcase_add_test(tc_addnodes, AddVariableNode_Matrix);
     tcase_add_test(tc_addnodes, AddVariableNode_ExtensionObject);
     tcase_add_test(tc_addnodes, InstantiateVariableTypeNode);
@@ -631,6 +752,7 @@ int main(void) {
     tcase_add_test(tc_addnodes, AddNodeTwiceGivesError);
     tcase_add_test(tc_addnodes, AddObjectWithConstructor);
     tcase_add_test(tc_addnodes, InstantiateObjectType);
+    tcase_add_test(tc_addnodes, ObjectWithDynamicVariableChild);
     suite_add_tcase(s, tc_addnodes);
 
     TCase *tc_deletenodes = tcase_create("deletenodes");

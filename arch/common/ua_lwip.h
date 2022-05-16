@@ -32,11 +32,13 @@
 #define UA_INVALID_SOCKET -1
 #define UA_ERRNO errno
 #define UA_INTERRUPTED EINTR
-#define UA_AGAIN EAGAIN
-#define UA_EAGAIN EAGAIN
+#define UA_AGAIN EAGAIN /* the same as wouldblock on nearly every system */
 #define UA_WOULDBLOCK EWOULDBLOCK
-#define UA_ERR_CONNECTION_PROGRESS EINPROGRESS
 
+#define UA_POLLIN POLLIN
+#define UA_POLLOUT POLLOUT
+
+#define UA_poll lwip_poll
 #define UA_send lwip_send
 #define UA_recv lwip_recv
 #define UA_sendto lwip_sendto
@@ -54,9 +56,22 @@
 #define UA_getsockopt lwip_getsockopt
 #define UA_setsockopt lwip_setsockopt
 #define UA_freeaddrinfo lwip_freeaddrinfo
+#ifndef UA_gethostname
 #define UA_gethostname gethostname_lwip
+#else
+extern int UA_gethostname(char* name, size_t len);
+#endif
+#ifndef UA_getsockname
 #define UA_getsockname lwip_getsockname
+#else
+extern int UA_getsockname((int s, struct sockaddr *name, socklen_t *namelen);
+#endif
+#ifndef UA_getaddrinfo
 #define UA_getaddrinfo lwip_getaddrinfo
+#else
+extern int UA_getaddrinfo(const char *nodename, const char *servname,
+                 const struct addrinfo *hints, struct addrinfo **res);
+#endif
 
 #if UA_IPV6
 # define UA_inet_pton(af, src, dst) \
@@ -75,7 +90,7 @@ unsigned int lwip_if_nametoindex(const char *ifname);
 # endif
 #endif
 
-int gethostname_lwip(char* name, size_t len); //gethostname is not present in LwIP. We implement here a dummy. See ../freertosLWIP/ua_architecture_functions.c
+int gethostname_lwip(char* name, size_t len);
 
 #define UA_LOG_SOCKET_ERRNO_GAI_WRAP UA_LOG_SOCKET_ERRNO_WRAP
 

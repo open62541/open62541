@@ -9,7 +9,6 @@
 #ifndef UA_CLIENT_CONFIG_DEFAULT_H_
 #define UA_CLIENT_CONFIG_DEFAULT_H_
 
-#include <open62541/client_config.h>
 #include <open62541/client.h>
 
 _UA_BEGIN_DECLS

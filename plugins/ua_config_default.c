@@ -9,8 +9,11 @@
  *    Copyright 2018 (c) Daniel Feist, Precitec GmbH & Co. KG
  *    Copyright 2018 (c) Fabian Arndt, Root-Core
  *    Copyright 2019 (c) Kalycito Infotech Private Limited
+ *    Copyright 2017-2020 (c) HMS Industrial Networks AB (Author: Jonas Green)
+ *    Copyright 2020 (c) Wind River Systems, Inc.
  */
 
+#include <open62541/client.h>
 #include <open62541/client_config_default.h>
 #include <open62541/network_tcp.h>
 #ifdef UA_ENABLE_WEBSOCKET_SERVER
@@ -38,13 +41,18 @@ UA_DURATIONRANGE(UA_Duration min, UA_Duration max) {
     return range;
 }
 
+static UA_StatusCode
+setDefaultConfig(UA_ServerConfig *conf);
+
 UA_Server *
-UA_Server_new() {
+UA_Server_new(void) {
     UA_ServerConfig config;
     memset(&config, 0, sizeof(UA_ServerConfig));
-    /* Set a default logger and NodeStore for the initialization */
-    config.logger = UA_Log_Stdout_;
-    UA_Nodestore_HashMap(&config.nodestore);
+
+    UA_StatusCode res = setDefaultConfig(&config);
+    if(res != UA_STATUSCODE_GOOD)
+        return NULL;
+
     return UA_Server_newWithConfig(&config);
 }
 
@@ -96,8 +104,11 @@ createEndpoint(UA_ServerConfig *conf, UA_EndpointDescription *endpoint,
                                          conf->accessControl.userTokenPoliciesSize,
                                          (void **)&endpoint->userIdentityTokens,
                                          &UA_TYPES[UA_TYPES_USERTOKENPOLICY]);
-    if(retval != UA_STATUSCODE_GOOD)
+    if(retval != UA_STATUSCODE_GOOD){
+        UA_String_clear(&endpoint->securityPolicyUri);
+        UA_String_clear(&endpoint->transportProfileUri);
         return retval;
+    }
     endpoint->userIdentityTokensSize = conf->accessControl.userTokenPoliciesSize;
 
     UA_String_copy(&securityPolicy->localCertificate, &endpoint->serverCertificate);
@@ -113,18 +124,36 @@ static UA_UsernamePasswordLogin usernamePasswords[2] = {
 
 static UA_StatusCode
 setDefaultConfig(UA_ServerConfig *conf) {
-    if (!conf)
+    if(!conf)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
 
+    /* NodeStore */
     if(conf->nodestore.context == NULL)
         UA_Nodestore_HashMap(&conf->nodestore);
 
-    /* --> Start setting the default static config <-- */
-    conf->nThreads = 1;
-
-    /* Allow user to set his own logger */
-    if (!conf->logger.log)
+    /* Logging */
+    if(!conf->logger.log)
         conf->logger = UA_Log_Stdout_;
+
+    /* EventLoop */
+    if(conf->eventLoop == NULL) {
+        conf->eventLoop = UA_EventLoop_new_POSIX(&conf->logger);
+        conf->externalEventLoop = false;
+
+        /* Add the TCP connection manager */
+        UA_ConnectionManager *tcpCM =
+            UA_ConnectionManager_new_POSIX_TCP(UA_STRING("tcp connection manager"));
+        if(tcpCM)
+            conf->eventLoop->registerEventSource(conf->eventLoop, (UA_EventSource *)tcpCM);
+
+        /* Add the UDP connection manager */
+        UA_ConnectionManager *udpCM =
+            UA_ConnectionManager_new_POSIX_UDP(UA_STRING("udp connection manager"));
+        if(udpCM)
+            conf->eventLoop->registerEventSource(conf->eventLoop, (UA_EventSource *)udpCM);
+    }
+
+    /* --> Start setting the default static config <-- */
 
     conf->shutdownDelay = 0.0;
 
@@ -136,11 +165,11 @@ setDefaultConfig(UA_ServerConfig *conf) {
     conf->buildInfo.softwareVersion =
         UA_STRING_ALLOC(VERSION(UA_OPEN62541_VER_MAJOR, UA_OPEN62541_VER_MINOR,
                                 UA_OPEN62541_VER_PATCH, UA_OPEN62541_VER_LABEL));
-    #ifdef UA_PACK_DEBIAN
+#ifdef UA_PACK_DEBIAN
     conf->buildInfo.buildNumber = UA_STRING_ALLOC("deb");
-    #else
+#else
     conf->buildInfo.buildNumber = UA_STRING_ALLOC(__DATE__ " " __TIME__);
-    #endif
+#endif
     conf->buildInfo.buildDate = UA_DateTime_now();
 
     UA_ApplicationDescription_clear(&conf->applicationDescription);
@@ -155,11 +184,11 @@ setDefaultConfig(UA_ServerConfig *conf) {
     /* conf->applicationDescription.discoveryUrls = NULL; */
 
 #ifdef UA_ENABLE_DISCOVERY_MULTICAST
-    UA_MdnsDiscoveryConfiguration_clear(&conf->discovery.mdns);
-    conf->discovery.mdnsInterfaceIP = UA_STRING_NULL;
+    UA_MdnsDiscoveryConfiguration_clear(&conf->mdnsConfig);
+    conf->mdnsInterfaceIP = UA_STRING_NULL;
 # if !defined(UA_HAS_GETIFADDR)
-    conf->discovery.ipAddressList = NULL;
-    conf->discovery.ipAddressListSize = 0;
+    conf->mdnsIpAddressList = NULL;
+    conf->mdnsIpAddressListSize = 0;
 # endif
 #endif
 
@@ -184,9 +213,7 @@ setDefaultConfig(UA_ServerConfig *conf) {
     /* conf->nodeLifecycle.destructor = NULL; */
     /* conf->nodeLifecycle.createOptionalChild = NULL; */
     /* conf->nodeLifecycle.generateChildNodeId = NULL; */
-
-    /* Relax constraints for the InformationModel */
-    conf->relaxEmptyValueConstraint = true; /* Allow empty values */
+    conf->modellingRulesOnInstances = UA_TRUE;
 
     /* Limits for SecureChannels */
     conf->maxSecureChannels = 40;
@@ -196,6 +223,7 @@ setDefaultConfig(UA_ServerConfig *conf) {
     conf->maxSessions = 100;
     conf->maxSessionTimeout = 60.0 * 60.0 * 1000.0; /* 1h */
 
+#ifdef UA_ENABLE_SUBSCRIPTIONS
     /* Limits for Subscriptions */
     conf->publishingIntervalLimits = UA_DURATIONRANGE(100.0, 3600.0 * 1000.0);
     conf->lifeTimeCountLimits = UA_UINT32RANGE(3, 15000);
@@ -203,16 +231,17 @@ setDefaultConfig(UA_ServerConfig *conf) {
     conf->maxNotificationsPerPublish = 1000;
     conf->enableRetransmissionQueue = true;
     conf->maxRetransmissionQueueSize = 0; /* unlimited */
-#ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
+# ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
     conf->maxEventsPerNode = 0; /* unlimited */
-#endif
+# endif
 
     /* Limits for MonitoredItems */
     conf->samplingIntervalLimits = UA_DURATIONRANGE(50.0, 24.0 * 3600.0 * 1000.0);
     conf->queueSizeLimits = UA_UINT32RANGE(1, 100);
+#endif
 
 #ifdef UA_ENABLE_DISCOVERY
-    conf->discovery.cleanupTimeout = 60 * 60;
+    conf->discoveryCleanupTimeout = 60 * 60;
 #endif
 
 #ifdef UA_ENABLE_HISTORIZING
@@ -256,16 +285,10 @@ UA_ServerConfig_setBasics(UA_ServerConfig* conf) {
     return res;
 }
 
-static UA_StatusCode
-addDefaultNetworkLayers(UA_ServerConfig *conf, UA_UInt16 portNumber,
-                        UA_UInt32 sendBufferSize, UA_UInt32 recvBufferSize) {
-    return UA_ServerConfig_addNetworkLayerTCP(conf, portNumber, sendBufferSize, recvBufferSize);
-}
-
 #ifdef UA_ENABLE_WEBSOCKET_SERVER
 UA_EXPORT UA_StatusCode
 UA_ServerConfig_addNetworkLayerWS(UA_ServerConfig *conf, UA_UInt16 portNumber,
-                                   UA_UInt32 sendBufferSize, UA_UInt32 recvBufferSize) {
+                                   UA_UInt32 sendBufferSize, UA_UInt32 recvBufferSize, const UA_ByteString* certificate, const UA_ByteString* privateKey) {
     /* Add a network layer */
     UA_ServerNetworkLayer *tmp = (UA_ServerNetworkLayer *)
         UA_realloc(conf->networkLayers,
@@ -275,46 +298,20 @@ UA_ServerConfig_addNetworkLayerWS(UA_ServerConfig *conf, UA_UInt16 portNumber,
     conf->networkLayers = tmp;
 
     UA_ConnectionConfig config = UA_ConnectionConfig_default;
-    if (sendBufferSize > 0)
+    if(sendBufferSize > 0)
         config.sendBufferSize = sendBufferSize;
-    if (recvBufferSize > 0)
+    if(recvBufferSize > 0)
         config.recvBufferSize = recvBufferSize;
 
     conf->networkLayers[conf->networkLayersSize] =
-        UA_ServerNetworkLayerWS(config, portNumber, &conf->logger);
-    if (!conf->networkLayers[conf->networkLayersSize].handle)
+        UA_ServerNetworkLayerWS(config, portNumber, certificate, privateKey);
+    if(!conf->networkLayers[conf->networkLayersSize].handle)
         return UA_STATUSCODE_BADOUTOFMEMORY;
     conf->networkLayersSize++;
 
     return UA_STATUSCODE_GOOD;
 }
 #endif
-
-UA_EXPORT UA_StatusCode
-UA_ServerConfig_addNetworkLayerTCP(UA_ServerConfig *conf, UA_UInt16 portNumber,
-                                   UA_UInt32 sendBufferSize, UA_UInt32 recvBufferSize) {
-    /* Add a network layer */
-    UA_ServerNetworkLayer *tmp = (UA_ServerNetworkLayer *)
-        UA_realloc(conf->networkLayers,
-                   sizeof(UA_ServerNetworkLayer) * (1 + conf->networkLayersSize));
-    if(!tmp)
-        return UA_STATUSCODE_BADOUTOFMEMORY;
-    conf->networkLayers = tmp;
-
-    UA_ConnectionConfig config = UA_ConnectionConfig_default;
-    if (sendBufferSize > 0)
-        config.sendBufferSize = sendBufferSize;
-    if (recvBufferSize > 0)
-        config.recvBufferSize = recvBufferSize;
-
-    conf->networkLayers[conf->networkLayersSize] =
-        UA_ServerNetworkLayerTCP(config, portNumber, &conf->logger);
-    if (!conf->networkLayers[conf->networkLayersSize].handle)
-        return UA_STATUSCODE_BADOUTOFMEMORY;
-    conf->networkLayersSize++;
-
-    return UA_STATUSCODE_GOOD;
-}
 
 UA_EXPORT UA_StatusCode
 UA_ServerConfig_addSecurityPolicyNone(UA_ServerConfig *config, 
@@ -334,10 +331,15 @@ UA_ServerConfig_addSecurityPolicyNone(UA_ServerConfig *config,
     UA_StatusCode retval =
         UA_SecurityPolicy_None(&config->securityPolicies[config->securityPoliciesSize],
                                localCertificate, &config->logger);
-    if(retval != UA_STATUSCODE_GOOD)
+    if(retval != UA_STATUSCODE_GOOD) {
+        if(config->securityPoliciesSize == 0) {
+            UA_free(config->securityPolicies);
+            config->securityPolicies = NULL;
+        }
         return retval;
-    config->securityPoliciesSize++;
+    }
 
+    config->securityPoliciesSize++;
     return UA_STATUSCODE_GOOD;
 }
 
@@ -430,11 +432,52 @@ UA_ServerConfig_setMinimalCustomBuffer(UA_ServerConfig *config, UA_UInt16 portNu
         return retval;
     }
 
-    retval = addDefaultNetworkLayers(config, portNumber, sendBufferSize, recvBufferSize);
+    /* Set up the local ServerUrls. They are used during startup to initialize
+     * the server sockets. */
+    UA_String serverUrls[2];
+    size_t serverUrlsSize = 0;
+    char hostnamestr[256];
+    char serverUrlBuffer[2][512];
+
+    /* 1) Listen on all interfaces (also external). This must be the first entry
+     * if this is desired. Otherwise some interfaces may be blocked (already in
+     * use) with a hostname that is only locally reachable.*/
+    UA_snprintf(serverUrlBuffer[0], sizeof(serverUrlBuffer[0]),
+                "opc.tcp://:%u", portNumber);
+    serverUrls[serverUrlsSize] = UA_STRING(serverUrlBuffer[0]);
+    serverUrlsSize++;
+
+    /* 2) Based on the local hostname. For that temporarily initialize the
+     * Winsock API on Win32. */
+
+#ifdef _WIN32
+    WSADATA wsaData;
+    WSAStartup(MAKEWORD(2, 2), &wsaData);
+#endif
+    int err = UA_gethostname(hostnamestr, sizeof(hostnamestr));
+#ifdef _WIN32
+    WSACleanup();
+#endif
+
+    if(err == 0) {
+        UA_snprintf(serverUrlBuffer[1], sizeof(serverUrlBuffer[1]),
+                    "opc.tcp://%s:%u", hostnamestr, portNumber);
+        serverUrls[serverUrlsSize] = UA_STRING(serverUrlBuffer[1]);
+        serverUrlsSize++;
+    }
+
+    /* 3) Add to the config */
+    retval =
+        UA_Array_copy(serverUrls, serverUrlsSize,
+                      (void**)&config->serverUrls, &UA_TYPES[UA_TYPES_STRING]);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_ServerConfig_clean(config);
         return retval;
     }
+    config->serverUrlsSize = serverUrlsSize;
+
+    /* Set the TCP settings */
+    config->tcpBufSize = recvBufferSize;
 
     /* Allocate the SecurityPolicies */
     retval = UA_ServerConfig_addSecurityPolicyNone(config, certificate);
@@ -444,9 +487,9 @@ UA_ServerConfig_setMinimalCustomBuffer(UA_ServerConfig *config, UA_UInt16 portNu
     }
 
     /* Initialize the Access Control plugin */
-    retval = UA_AccessControl_default(config, true,
-                &config->securityPolicies[config->securityPoliciesSize-1].policyUri,
-                usernamePasswordsSize, usernamePasswords);
+    retval = UA_AccessControl_default(config, true, NULL,
+                                      &config->securityPolicies[config->securityPoliciesSize-1].policyUri,
+                                      usernamePasswordsSize, usernamePasswords);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_ServerConfig_clean(config);
         return retval;
@@ -491,10 +534,15 @@ UA_ServerConfig_addSecurityPolicyBasic128Rsa15(UA_ServerConfig *config,
     UA_StatusCode retval =
         UA_SecurityPolicy_Basic128Rsa15(&config->securityPolicies[config->securityPoliciesSize],
                                         localCertificate, localPrivateKey, &config->logger);
-    if(retval != UA_STATUSCODE_GOOD)
+    if(retval != UA_STATUSCODE_GOOD) {
+        if(config->securityPoliciesSize == 0) {
+            UA_free(config->securityPolicies);
+            config->securityPolicies = NULL;
+        }
         return retval;
-    config->securityPoliciesSize++;
+    }
 
+    config->securityPoliciesSize++;
     return UA_STATUSCODE_GOOD;
 }
 
@@ -520,10 +568,15 @@ UA_ServerConfig_addSecurityPolicyBasic256(UA_ServerConfig *config,
     UA_StatusCode retval =
         UA_SecurityPolicy_Basic256(&config->securityPolicies[config->securityPoliciesSize],
                                    localCertificate, localPrivateKey, &config->logger);
-    if(retval != UA_STATUSCODE_GOOD)
+    if(retval != UA_STATUSCODE_GOOD) {
+        if(config->securityPoliciesSize == 0) {
+            UA_free(config->securityPolicies);
+            config->securityPolicies = NULL;
+        }
         return retval;
-    config->securityPoliciesSize++;
+    }
 
+    config->securityPoliciesSize++;
     return UA_STATUSCODE_GOOD;
 }
 
@@ -549,21 +602,26 @@ UA_ServerConfig_addSecurityPolicyBasic256Sha256(UA_ServerConfig *config,
     UA_StatusCode retval =
         UA_SecurityPolicy_Basic256Sha256(&config->securityPolicies[config->securityPoliciesSize],
                                          localCertificate, localPrivateKey, &config->logger);
-    if(retval != UA_STATUSCODE_GOOD)
+    if(retval != UA_STATUSCODE_GOOD) {
+        if(config->securityPoliciesSize == 0) {
+            UA_free(config->securityPolicies);
+            config->securityPolicies = NULL;
+        }
         return retval;
-    config->securityPoliciesSize++;
+    }
 
+    config->securityPoliciesSize++;
     return UA_STATUSCODE_GOOD;
 }
 
 UA_EXPORT UA_StatusCode
-UA_ServerConfig_addAllSecurityPolicies(UA_ServerConfig *config,
-                                       const UA_ByteString *certificate,
-                                       const UA_ByteString *privateKey) {
+UA_ServerConfig_addSecurityPolicyAes128Sha256RsaOaep(UA_ServerConfig *config, 
+                                                const UA_ByteString *certificate,
+                                                const UA_ByteString *privateKey) {
     /* Allocate the SecurityPolicies */
     UA_SecurityPolicy *tmp = (UA_SecurityPolicy *)
         UA_realloc(config->securityPolicies,
-                   sizeof(UA_SecurityPolicy) * (4 + config->securityPoliciesSize));
+                   sizeof(UA_SecurityPolicy) * (1 + config->securityPoliciesSize));
     if(!tmp)
         return UA_STATUSCODE_BADOUTOFMEMORY;
     config->securityPolicies = tmp;
@@ -575,33 +633,70 @@ UA_ServerConfig_addAllSecurityPolicies(UA_ServerConfig *config,
         localCertificate = *certificate;
     if(privateKey)
        localPrivateKey = *privateKey;
-
     UA_StatusCode retval =
-        UA_SecurityPolicy_None(&config->securityPolicies[config->securityPoliciesSize],
-                               localCertificate, &config->logger);
-    if(retval != UA_STATUSCODE_GOOD)
-        return retval;
-    config->securityPoliciesSize++;
-
-    retval = UA_SecurityPolicy_Basic128Rsa15(&config->securityPolicies[config->securityPoliciesSize],
-                                             localCertificate, localPrivateKey, &config->logger);
-    if(retval != UA_STATUSCODE_GOOD)
-        return retval;
-    config->securityPoliciesSize++;
-
-    retval = UA_SecurityPolicy_Basic256(&config->securityPolicies[config->securityPoliciesSize],
-                                        localCertificate, localPrivateKey, &config->logger);
-    if(retval != UA_STATUSCODE_GOOD)
-        return retval;
-    config->securityPoliciesSize++;
-
-    retval = UA_SecurityPolicy_Basic256Sha256(&config->securityPolicies[config->securityPoliciesSize],
+        UA_SecurityPolicy_Aes128Sha256RsaOaep(&config->securityPolicies[config->securityPoliciesSize],
                                               localCertificate, localPrivateKey, &config->logger);
-    if(retval != UA_STATUSCODE_GOOD)
+    if(retval != UA_STATUSCODE_GOOD) {
+        if(config->securityPoliciesSize == 0) {
+            UA_free(config->securityPolicies);
+            config->securityPolicies = NULL;
+        }
         return retval;
-    config->securityPoliciesSize++;
+    }
 
-    return retval;
+    config->securityPoliciesSize++;
+    return UA_STATUSCODE_GOOD;
+}
+
+/* Always returns UA_STATUSCODE_GOOD. Logs a warning if policies could not be added. */
+UA_EXPORT UA_StatusCode
+UA_ServerConfig_addAllSecurityPolicies(UA_ServerConfig *config,
+                                       const UA_ByteString *certificate,
+                                       const UA_ByteString *privateKey) {
+    /* Populate the SecurityPolicies */
+    UA_ByteString localCertificate = UA_BYTESTRING_NULL;
+    UA_ByteString localPrivateKey  = UA_BYTESTRING_NULL;
+    if(certificate)
+        localCertificate = *certificate;
+    if(privateKey)
+       localPrivateKey = *privateKey;
+
+    UA_StatusCode retval = UA_ServerConfig_addSecurityPolicyNone(config, &localCertificate);
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_LOG_WARNING(&config->logger, UA_LOGCATEGORY_USERLAND,
+                       "Could not add SecurityPolicy#None with error code %s",
+                       UA_StatusCode_name(retval));
+    }
+
+    retval = UA_ServerConfig_addSecurityPolicyBasic128Rsa15(config, &localCertificate, &localPrivateKey);
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_LOG_WARNING(&config->logger, UA_LOGCATEGORY_USERLAND,
+                       "Could not add SecurityPolicy#Basic128Rsa15 with error code %s",
+                       UA_StatusCode_name(retval));
+    }
+
+    retval = UA_ServerConfig_addSecurityPolicyBasic256(config, &localCertificate, &localPrivateKey);
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_LOG_WARNING(&config->logger, UA_LOGCATEGORY_USERLAND,
+                       "Could not add SecurityPolicy#Basic256 with error code %s",
+                       UA_StatusCode_name(retval));
+    }
+
+    retval = UA_ServerConfig_addSecurityPolicyBasic256Sha256(config, &localCertificate, &localPrivateKey);
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_LOG_WARNING(&config->logger, UA_LOGCATEGORY_USERLAND,
+                       "Could not add SecurityPolicy#Basic256Sha256 with error code %s",
+                       UA_StatusCode_name(retval));
+    }
+
+    retval = UA_ServerConfig_addSecurityPolicyAes128Sha256RsaOaep(config, &localCertificate, &localPrivateKey);
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_LOG_WARNING(&config->logger, UA_LOGCATEGORY_USERLAND,
+                       "Could not add SecurityPolicy#Aes128Sha256RsaOaep with error code %s",
+                       UA_StatusCode_name(retval));
+    }
+
+    return UA_STATUSCODE_GOOD;
 }
 
 UA_EXPORT UA_StatusCode
@@ -628,19 +723,18 @@ UA_ServerConfig_setDefaultWithSecurityPolicies(UA_ServerConfig *conf,
     if (retval != UA_STATUSCODE_GOOD)
         return retval;
 
-    retval = addDefaultNetworkLayers(conf, portNumber, 0, 0);
-    if(retval != UA_STATUSCODE_GOOD) {
-        UA_ServerConfig_clean(conf);
-        return retval;
-    }
-
     retval = UA_ServerConfig_addAllSecurityPolicies(conf, certificate, privateKey);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_ServerConfig_clean(conf);
         return retval;
     }
 
-    retval = UA_AccessControl_default(conf, true,
+    UA_CertificateVerification accessControlVerification;
+    retval = UA_CertificateVerification_Trustlist(&accessControlVerification,
+                                                  trustList, trustListSize,
+                                                  issuerList, issuerListSize,
+                                                  revocationList, revocationListSize);
+    retval |= UA_AccessControl_default(conf, true, &accessControlVerification,
                 &conf->securityPolicies[conf->securityPoliciesSize-1].policyUri,
                 usernamePasswordsSize, usernamePasswords);
     if(retval != UA_STATUSCODE_GOOD) {
@@ -663,18 +757,13 @@ UA_ServerConfig_setDefaultWithSecurityPolicies(UA_ServerConfig *conf,
 /* Default Client Settings */
 /***************************/
 
-UA_Client * UA_Client_new() {
+UA_Client * UA_Client_new(void) {
     UA_ClientConfig config;
     memset(&config, 0, sizeof(UA_ClientConfig));
     config.logger.log = UA_Log_Stdout_log;
     config.logger.context = NULL;
     config.logger.clear = UA_Log_Stdout_clear;
     return UA_Client_newWithConfig(&config);
-}
-
-static UA_INLINE void
-UA_ClientConnectionTCP_poll_callback(UA_Client *client, void *data) {
-    UA_ClientConnectionTCP_poll(client, data);
 }
 
 UA_StatusCode
@@ -687,6 +776,28 @@ UA_ClientConfig_setDefault(UA_ClientConfig *config) {
        config->logger.context = NULL;
        config->logger.clear = UA_Log_Stdout_clear;
     }
+
+    /* EventLoop */
+    if(config->eventLoop == NULL) {
+        config->eventLoop = UA_EventLoop_new_POSIX(&config->logger);
+        config->externalEventLoop = false;
+
+        /* Add the TCP connection manager */
+        UA_ConnectionManager *tcpCM =
+            UA_ConnectionManager_new_POSIX_TCP(UA_STRING("tcp connection manager"));
+        config->eventLoop->registerEventSource(config->eventLoop, (UA_EventSource *)tcpCM);
+
+        /* Add the UDP connection manager */
+        UA_ConnectionManager *udpCM =
+            UA_ConnectionManager_new_POSIX_UDP(UA_STRING("udp connection manager"));
+        config->eventLoop->registerEventSource(config->eventLoop, (UA_EventSource *)udpCM);
+    }
+
+    if (config->sessionLocaleIdsSize > 0 && config->sessionLocaleIds) {
+        UA_Array_delete(config->sessionLocaleIds, config->sessionLocaleIdsSize, &UA_TYPES[UA_TYPES_LOCALEID]);
+    }
+    config->sessionLocaleIds = NULL;
+    config->sessionLocaleIds = 0;
 
     config->localConnectionConfig = UA_ConnectionConfig_default;
 
@@ -720,9 +831,8 @@ UA_ClientConfig_setDefault(UA_ClientConfig *config) {
     }
     config->securityPoliciesSize = 1;
 
-    config->connectionFunc = UA_ClientConnectionTCP;
     config->initConnectionFunc = UA_ClientConnectionTCP_init; /* for async client */
-    config->pollConnectionFunc = UA_ClientConnectionTCP_poll_callback; /* for async connection */
+    config->pollConnectionFunc = UA_ClientConnectionTCP_poll; /* for async connection */
 
     config->customDataTypes = NULL;
     config->stateCallback = NULL;
@@ -760,28 +870,55 @@ UA_ClientConfig_setDefaultEncryption(UA_ClientConfig *config,
 
     /* Populate SecurityPolicies */
     UA_SecurityPolicy *sp = (UA_SecurityPolicy*)
-        UA_realloc(config->securityPolicies, sizeof(UA_SecurityPolicy) * 4);
+        UA_realloc(config->securityPolicies, sizeof(UA_SecurityPolicy) * 5);
     if(!sp)
         return UA_STATUSCODE_BADOUTOFMEMORY;
     config->securityPolicies = sp;
-
-    retval = UA_SecurityPolicy_Basic128Rsa15(&config->securityPolicies[1],
+                  
+    retval = UA_SecurityPolicy_Basic128Rsa15(&config->securityPolicies[config->securityPoliciesSize],
                                              localCertificate, privateKey, &config->logger);
-    if(retval != UA_STATUSCODE_GOOD)
-        return retval;
-    ++config->securityPoliciesSize;
+    if(retval == UA_STATUSCODE_GOOD) {
+        ++config->securityPoliciesSize;
+    } else {
+        UA_LOG_WARNING(&config->logger, UA_LOGCATEGORY_USERLAND,
+                       "Could not add SecurityPolicy#Basic128Rsa15 with error code %s",
+                       UA_StatusCode_name(retval));
+    }
 
-    retval = UA_SecurityPolicy_Basic256(&config->securityPolicies[2],
+    retval = UA_SecurityPolicy_Basic256(&config->securityPolicies[config->securityPoliciesSize],
                                         localCertificate, privateKey, &config->logger);
-    if(retval != UA_STATUSCODE_GOOD)
-        return retval;
-    ++config->securityPoliciesSize;
+    if(retval == UA_STATUSCODE_GOOD) {
+        ++config->securityPoliciesSize;
+    } else {
+        UA_LOG_WARNING(&config->logger, UA_LOGCATEGORY_USERLAND,
+                       "Could not add SecurityPolicy#Basic256 with error code %s",
+                       UA_StatusCode_name(retval));
+    }
 
-    retval = UA_SecurityPolicy_Basic256Sha256(&config->securityPolicies[3],
+    retval = UA_SecurityPolicy_Basic256Sha256(&config->securityPolicies[config->securityPoliciesSize],
                                               localCertificate, privateKey, &config->logger);
-    if(retval != UA_STATUSCODE_GOOD)
-        return retval;
-    ++config->securityPoliciesSize;
+    if(retval == UA_STATUSCODE_GOOD) {
+        ++config->securityPoliciesSize;
+    } else {
+        UA_LOG_WARNING(&config->logger, UA_LOGCATEGORY_USERLAND,
+                       "Could not add SecurityPolicy#Basic256Sha256 with error code %s",
+                       UA_StatusCode_name(retval));
+    }
+
+    retval = UA_SecurityPolicy_Aes128Sha256RsaOaep(&config->securityPolicies[config->securityPoliciesSize],
+                                                   localCertificate, privateKey, &config->logger);
+    if(retval == UA_STATUSCODE_GOOD) {
+        ++config->securityPoliciesSize;
+    } else {
+        UA_LOG_WARNING(&config->logger, UA_LOGCATEGORY_USERLAND,
+                       "Could not add SecurityPolicy#Aes128Sha256RsaOaep with error code %s",
+                       UA_StatusCode_name(retval));
+    }
+
+    if(config->securityPoliciesSize == 0) {
+        UA_free(config->securityPolicies);
+        config->securityPolicies = NULL;
+    }
 
     return UA_STATUSCODE_GOOD;
 }

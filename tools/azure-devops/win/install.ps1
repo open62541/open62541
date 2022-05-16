@@ -1,33 +1,56 @@
-$ErrorActionPreference = "Stop"
-
 try {
 
     Write-Host -ForegroundColor Green "`n### Installing sphinx ###`n"
     & choco install -y sphinx --no-progress --source python
+    if ($LASTEXITCODE -and $LASTEXITCODE -ne 0) {
+        Write-Host -ForegroundColor Red "`n`n*** Install failed. Exiting ... ***"
+        exit $LASTEXITCODE
+    }
 
     if ($env:CC_SHORTNAME -eq "mingw" -or $env:CC_SHORTNAME -eq "clang-mingw") {
         Write-Host -ForegroundColor Green "`n### Installing msys64 ###`n"
-        # Install specific version of msys2. See https://github.com/open62541/open62541/issues/3233
-        & choco install -y msys2 --version 20180531.0.0 --no-progress --params="/InstallDir:$env:MSYS2_ROOT /NoUpdate /NoPath"
-
-        Write-Host -ForegroundColor Green "`n### Installing mbedtls via PacMan ###`n"
+        & choco install -y msys2 --no-progress --params="/InstallDir:$env:MSYS2_ROOT /NoPath"
+        if ($LASTEXITCODE -and $LASTEXITCODE -ne 0) {
+            Write-Host -ForegroundColor Red "`n`n*** Install failed. Exiting ... ***"
+            exit $LASTEXITCODE
+        }
         # pacman may complain that the directory does not exist, thus create it.
         # See https://github.com/open62541/open62541/issues/2068
         & C:\msys64\usr\bin\mkdir -p /var/cache/pacman/pkg
-        & C:\msys64\usr\bin\pacman --noconfirm -S mingw-w64-x86_64-mbedtls
+        # Update all packages. Ensure that we have up-to-date clang version.
+        # Otherwise we run into issue: https://github.com/msys2/MINGW-packages/issues/6576
+        & C:\msys64\usr\bin\pacman -Syu
 
-        Write-Host -ForegroundColor Green "`n### Installing clang via PacMan ###`n"
-        & C:\msys64\usr\bin\pacman --noconfirm -S mingw-w64-x86_64-clang mingw-w64-i686-clang
+        Write-Host -ForegroundColor Green "`n### Installing mbedtls via PacMan ###`n"
+        & C:\msys64\usr\bin\pacman --noconfirm --needed -S mingw-w64-x86_64-mbedtls
+        if ($LASTEXITCODE -and $LASTEXITCODE -ne 0) {
+            Write-Host -ForegroundColor Red "`n`n*** Install failed. Exiting ... ***"
+            exit $LASTEXITCODE
+        }
+
     } elseif ($env:CC_SHORTNAME -eq "vs2015" -or $env:CC_SHORTNAME -eq "vs2017") {
         Write-Host -ForegroundColor Green "`n### Installing mbedtls via vcpkg ###`n"
         & vcpkg install mbedtls:x86-windows-static
+        if ($LASTEXITCODE -and $LASTEXITCODE -ne 0) {
+            Write-Host -ForegroundColor Red "`n`n*** Install failed. Exiting ... ***"
+            exit $LASTEXITCODE
+        }
 
         Write-Host -ForegroundColor Green "`n### Installing libcheck via vcpkg ###`n"
         & vcpkg install check:x86-windows-static
+        if ($LASTEXITCODE -and $LASTEXITCODE -ne 0) {
+            Write-Host -ForegroundColor Red "`n`n*** Install failed. Exiting ... ***"
+            exit $LASTEXITCODE
+        }
 
         Write-Host -ForegroundColor Green "`n### Installing DrMemory ###`n"
         & choco install -y --no-progress drmemory.portable
-        $env:Path = 'C:\Program Files (x86)\Dr. Memory\bin;' + $env:Path        
+        if ($LASTEXITCODE -and $LASTEXITCODE -ne 0) {
+            Write-Host -ForegroundColor Red "`n`n*** Install failed. Exiting ... ***"
+            exit $LASTEXITCODE
+        }
+        #$env:Path = 'C:\Program Files (x86)\Dr. Memory\bin;' + $env:Path
+        #[System.Environment]::SetEnvironmentVariable('Path', $path, 'Machine')
     }
 
     if ($LASTEXITCODE -and $LASTEXITCODE -ne 0) {

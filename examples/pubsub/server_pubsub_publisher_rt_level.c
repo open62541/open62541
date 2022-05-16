@@ -13,7 +13,7 @@
 /* possible options: PUBSUB_CONFIG_FASTPATH_NONE, PUBSUB_CONFIG_FASTPATH_FIXED_OFFSETS, PUBSUB_CONFIG_FASTPATH_STATIC_VALUES */
 #define PUBSUB_CONFIG_FASTPATH_FIXED_OFFSETS
 #define PUBSUB_CONFIG_PUBLISH_CYCLE_MS 100
-#define PUBSUB_CONFIG_PUBLISH_CYCLES 100
+#define PUBSUB_CONFIG_PUBLISH_CYCLES 1000000
 #define PUBSUB_CONFIG_FIELD_COUNT 10
 
 /**
@@ -30,6 +30,7 @@
  * PUBSUB_CONFIG_FASTPATH_FIXED_OFFSETS -> The published fields are not visible in the information model. After the PubSub-configuration
  * freeze, the NetworkMessages and DataSetMessages will be calculated and buffered. During the publish cycle these buffers will only be updated.
  */
+
 
 UA_NodeId publishedDataSetIdent, dataSetFieldIdent, writerGroupIdent, connectionIdentifier;
 UA_UInt32 *valueStore[PUBSUB_CONFIG_FIELD_COUNT];
@@ -51,7 +52,7 @@ addMinimalPubSubConfiguration(UA_Server * server){
     connectionConfig.enabled = UA_TRUE;
     UA_NetworkAddressUrlDataType networkAddressUrl = {UA_STRING_NULL , UA_STRING("opc.udp://224.0.0.22:4840/")};
     UA_Variant_setScalar(&connectionConfig.address, &networkAddressUrl, &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
-    connectionConfig.publisherId.numeric = UA_UInt32_random();
+    connectionConfig.publisherId.numeric = 2234;
     UA_Server_addPubSubConnection(server, &connectionConfig, &connectionIdentifier);
     /* Add one PublishedDataSet */
     UA_PublishedDataSetConfig publishedDataSetConfig;
@@ -86,7 +87,7 @@ valueUpdateCallback(UA_Server *server, void *data) {
         }
         if(i == 0 && *intValue  > PUBSUB_CONFIG_PUBLISH_CYCLES)
             running = false;
-        UA_Variant_deleteMembers(&value);
+        UA_Variant_clear(&value);
     }
 #endif
 }
@@ -98,14 +99,7 @@ int main(void) {
     UA_Server *server = UA_Server_new();
     UA_ServerConfig *config = UA_Server_getConfig(server);
     UA_ServerConfig_setDefault(config);
-
-    config->pubsubTransportLayers = (UA_PubSubTransportLayer *) UA_malloc(sizeof(UA_PubSubTransportLayer));
-    if(!config->pubsubTransportLayers) {
-        UA_Server_delete(server);
-        return -1;
-    }
-    config->pubsubTransportLayers[0] = UA_PubSubTransportLayerUDPMP();
-    config->pubsubTransportLayersSize++;
+    UA_ServerConfig_addPubSubTransportLayer(config, UA_PubSubTransportLayerUDPMP());
 
     /*Add standard PubSub configuration (no difference to the std. configuration)*/
     addMinimalPubSubConfiguration(server);
@@ -127,6 +121,7 @@ int main(void) {
     writerGroupMessage.networkMessageContentMask = (UA_UadpNetworkMessageContentMask) ((UA_UadpNetworkMessageContentMask) UA_UADPNETWORKMESSAGECONTENTMASK_PUBLISHERID |
                                                     (UA_UadpNetworkMessageContentMask) UA_UADPNETWORKMESSAGECONTENTMASK_GROUPHEADER |
                                                     (UA_UadpNetworkMessageContentMask) UA_UADPNETWORKMESSAGECONTENTMASK_WRITERGROUPID |
+                                                    (UA_UadpNetworkMessageContentMask) UA_UADPNETWORKMESSAGECONTENTMASK_SEQUENCENUMBER |
                                                     (UA_UadpNetworkMessageContentMask) UA_UADPNETWORKMESSAGECONTENTMASK_PAYLOADHEADER);
     writerGroupConfig.messageSettings.content.decoded.data = &writerGroupMessage;
 #ifdef PUBSUB_CONFIG_FASTPATH_FIXED_OFFSETS
@@ -142,10 +137,22 @@ int main(void) {
     dataSetWriterConfig.name = UA_STRING("Demo DataSetWriter");
     dataSetWriterConfig.dataSetWriterId = 62541;
     dataSetWriterConfig.keyFrameCount = 10;
+
+    UA_UadpDataSetWriterMessageDataType uadpDataSetWriterMessageDataType;
+    UA_UadpDataSetWriterMessageDataType_init(&uadpDataSetWriterMessageDataType);
+    uadpDataSetWriterMessageDataType.dataSetMessageContentMask = (UA_UadpDataSetMessageContentMask) UA_UADPDATASETMESSAGECONTENTMASK_SEQUENCENUMBER;
+    dataSetWriterConfig.messageSettings.encoding             = UA_EXTENSIONOBJECT_DECODED;
+    dataSetWriterConfig.messageSettings.content.decoded.type = &UA_TYPES[UA_TYPES_UADPDATASETWRITERMESSAGEDATATYPE];
+    dataSetWriterConfig.messageSettings.content.decoded.data = &uadpDataSetWriterMessageDataType;
+
+    /* Encode fields as RAW-Encoded */
+    dataSetWriterConfig.dataSetFieldContentMask = UA_DATASETFIELDCONTENTMASK_RAWDATA;
+
     UA_Server_addDataSetWriter(server, writerGroupIdent, publishedDataSetIdent, &dataSetWriterConfig, &dataSetWriterIdent);
 
 #if defined PUBSUB_CONFIG_FASTPATH_FIXED_OFFSETS || defined PUBSUB_CONFIG_FASTPATH_STATIC_VALUES
     /* Add one DataSetField with static value source to PDS */
+    UA_DataValue *staticValueSource = UA_DataValue_new();
     UA_DataSetFieldConfig dsfConfig;
     for(size_t i = 0; i < PUBSUB_CONFIG_FIELD_COUNT; i++){
         memset(&dsfConfig, 0, sizeof(UA_DataSetFieldConfig));
@@ -153,14 +160,9 @@ int main(void) {
         UA_UInt32 *intValue = UA_UInt32_new();
         *intValue = (UA_UInt32) i * 1000;
         valueStore[i] = intValue;
-        UA_Variant variant;
-        memset(&variant, 0, sizeof(UA_Variant));
-        UA_Variant_setScalar(&variant, intValue, &UA_TYPES[UA_TYPES_UINT32]);
-        UA_DataValue staticValueSource;
-        memset(&staticValueSource, 0, sizeof(staticValueSource));
-        staticValueSource.value = variant;
-        dsfConfig.field.variable.staticValueSourceEnabled = UA_TRUE;
-        dsfConfig.field.variable.staticValueSource.value = variant;
+        UA_Variant_setScalar(&staticValueSource->value, intValue, &UA_TYPES[UA_TYPES_UINT32]);
+        dsfConfig.field.variable.rtValueSource.rtFieldSourceEnabled = UA_TRUE;
+        dsfConfig.field.variable.rtValueSource.staticValueSource = &staticValueSource;
         UA_Server_addDataSetField(server, publishedDataSetIdent, &dsfConfig, &dataSetFieldIdent);
     }
 #endif
@@ -200,6 +202,9 @@ int main(void) {
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     retval |= UA_Server_run(server, &running);
 
+#if defined PUBSUB_CONFIG_FASTPATH_FIXED_OFFSETS || defined PUBSUB_CONFIG_FASTPATH_STATIC_VALUES
+    UA_DataValue_delete(staticValueSource);
+#endif
     UA_Server_delete(server);
     return retval == UA_STATUSCODE_GOOD ? EXIT_SUCCESS : EXIT_FAILURE;
 }

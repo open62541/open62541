@@ -1,0 +1,115 @@
+name: Linux Build & Test
+
+on: [push, pull_request]
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include: 
+          - build_name: "Debug Build & Unit Tests (gcc)"
+            cmd_deps: sudo apt-get install -y -qq mosquitto
+            cmd_action: unit_tests
+          - build_name: "Debug Build & Unit Tests (gcc, 32bit)"
+            cmd_deps: |
+                sudo dpkg --add-architecture i386
+                sudo apt-get update
+                sudo apt-get install -y -qq gcc-multilib libsubunit-dev:i386 check:i386
+            cmd_action: unit_tests_32
+          - build_name: "Debug Build & Unit Tests without Subscriptions (gcc)"
+            cmd_deps: ""
+            cmd_action: unit_tests_nosub
+          - build_name: "Debug Build & Unit Tests with Diagnostics (gcc)"
+            cmd_deps: ""
+            cmd_action: unit_tests_diag
+          - build_name: "Debug Build & Unit Tests with multithreading (gcc)"
+            cmd_deps: ""
+            cmd_action: unit_tests_mt
+          - build_name: "Debug Build & Unit Tests with Alarms&Conditions (gcc)"
+            cmd_deps: ""
+            cmd_action: unit_tests_alarms
+          - build_name: "Debug Build & Unit Tests (clang)"
+            cmd_deps: sudo apt-get install -y -qq clang-11 clang-tools-11 mosquitto
+            cmd_action: CC=clang-11 CXX=clang++-11 unit_tests
+          - build_name: "Debug Build & Unit Tests (tcc)"
+            cmd_deps: sudo apt-get install -y -qq tcc mosquitto
+            cmd_action: CC=tcc unit_tests
+          - build_name: "Encryption (MbedTLS) Build & Unit Tests (gcc)"
+            cmd_deps: sudo apt-get install -y -qq libmbedtls-dev
+            cmd_action: unit_tests_encryption MBEDTLS
+          - build_name: "PubSub Encryption (MbedTLS) Build & Unit Tests (gcc)"
+            cmd_deps: sudo apt-get install -y -qq libmbedtls-dev
+            cmd_action: unit_tests_encryption_mbedtls_pubsub
+          - build_name: "Encryption (OpenSSL) Build & Unit Tests (gcc)"
+            cmd_deps: sudo apt-get install -y -qq openssl
+            cmd_action: unit_tests_encryption OPENSSL
+          - build_name: "Encryption (LibreSSL) Build & Unit Tests (gcc)"
+            cmd_deps: |
+                sudo apt-get install -y -qq curl
+                curl https://ftp.openbsd.org/pub/OpenBSD/LibreSSL/libressl-3.4.3.tar.gz --output libressl.tar.gz
+                tar -xvz -f libressl.tar.gz
+                cd libressl-3.4.3
+                ./configure
+                sudo make install
+            cmd_action: unit_tests_encryption LIBRESSL
+          - build_name: "TPM Tool Build"
+            cmd_deps: |
+                sudo apt-get install -y -qq acl autoconf autoconf-archive automake build-essential cmake doxygen gcc git iproute2 libcurl4-openssl-dev libjson-c-dev libcmocka0 libcmocka-dev libgcrypt20-dev libglib2.0-dev libini-config-dev libmbedtls-dev libssl-dev libsqlite3-dev libtool libyaml-dev pkg-config procps python3-pip sqlite3 udev uthash-dev
+                cd ${HOME}
+                git clone https://github.com/tpm2-software/tpm2-tss.git
+                cd ${HOME}/tpm2-tss
+                git checkout 2.4.6
+                ./bootstrap && ./configure --with-udevrulesdir=/etc/udev/rules.d --with-udevrulesprefix=70-
+                make -j$(nproc)
+                sudo make install
+                sudo ldconfig
+                sudo udevadm control --reload-rules && sudo udevadm trigger
+                sudo apt-get install -y -qq tpm2-tools opensc
+                cd ${HOME}
+                git clone https://github.com/tpm2-software/tpm2-pkcs11.git
+                cd ${HOME}/tpm2-pkcs11
+                git checkout 1.6.0
+                ./bootstrap && ./configure
+                make -j$(nproc)
+                sudo make install
+                sudo ldconfig
+                sudo cp ${HOME}/tpm2-pkcs11/src/pkcs11.h /usr/include
+                cd ${HOME}/tpm2-pkcs11/tools/
+                sudo pip3 install pyasn1_modules
+                pip3 install .
+            cmd_action: build_tpm_tool
+          - build_name: "Release Build"
+            cmd_deps: sudo apt-get install -y -qq libmbedtls-dev
+            cmd_action: build_release
+          - build_name: Amalgamation Build
+            cmd_deps: ""
+            cmd_action: build_amalgamation
+          - build_name: Amalgamation Build with Multithreading
+            cmd_deps: ""
+            cmd_action: build_amalgamation_mt
+          - build_name: "Valgrind Build & Unit Tests with MbedTLS (gcc)"
+            cmd_deps: sudo apt-get install -y -qq valgrind libmbedtls-dev mosquitto
+            cmd_action: unit_tests_valgrind MBEDTLS
+          - build_name: "Valgrind Build & Unit Tests with OpenSSL (gcc)"
+            cmd_deps: sudo apt-get install -y -qq valgrind openssl mosquitto
+            cmd_action: unit_tests_valgrind OPENSSL
+          - build_name: "Clang Static Analyzer"
+            cmd_deps: sudo apt-get install -y -qq clang-11 clang-tools-11 libmbedtls-dev mosquitto
+            cmd_action: build_clang_analyzer
+    name: ${{matrix.build_name}}
+    runs-on: ubuntu-20.04
+    steps:
+    - uses: actions/checkout@v2
+      with:
+        submodules: true
+    - name: Install Dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y -qq python3-sphinx graphviz check
+        ${{ matrix.cmd_deps }}
+    - name: ${{matrix.build_name}}
+      run: source tools/ci.sh && ${{matrix.cmd_action}}
+      env:
+        ETHERNET_INTERFACE: eth0
+

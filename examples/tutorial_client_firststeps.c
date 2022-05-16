@@ -70,4 +70,4 @@ int main(void) {
  *   an ``Int32`` from the example server (which is built in
  *   :doc:`tutorial_server_firststeps`) using "UA_Client_write" function. The
  *   example server needs some more modifications, i.e., changing request types.
- *   The answer can be found in "examples/client.c". */
+ *   The answer can be found in ``examples/client.c``. */

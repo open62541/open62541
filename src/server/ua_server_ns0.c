@@ -2,13 +2,14 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  *
- *    Copyright 2017 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
+ *    Copyright 2017-2022 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
  *    Copyright 2017 (c) Stefan Profanter, fortiss GmbH
  *    Copyright 2017 (c) Thomas Bender
  *    Copyright 2017 (c) Julian Grothoff
  *    Copyright 2017 (c) Henrik Norrman
  *    Copyright 2018 (c) Fabian Arndt, Root-Core
  *    Copyright 2019 (c) Kalycito Infotech Private Limited
+ *    Copyright 2021 (c) Christian von Arnim, ISW University of Stuttgart (for VDW and umati)
  */
 
 #include "open62541/namespace0_generated.h"
@@ -26,9 +27,8 @@ addNode_raw(UA_Server *server, UA_NodeClass nodeClass,
     item.nodeClass = nodeClass;
     item.requestedNewNodeId.nodeId = UA_NODEID_NUMERIC(0, nodeId);
     item.browseName = UA_QUALIFIEDNAME(0, name);
-    item.nodeAttributes.encoding = UA_EXTENSIONOBJECT_DECODED_NODELETE;
-    item.nodeAttributes.content.decoded.data = attributes;
-    item.nodeAttributes.content.decoded.type = attributesType;
+    UA_ExtensionObject_setValueNoDelete(&item.nodeAttributes,
+                                        attributes, attributesType);
     return AddNode_raw(server, &server->adminSession, NULL, &item, NULL);
 }
 
@@ -39,7 +39,7 @@ addNode_finish(UA_Server *server, UA_UInt32 nodeId,
     const UA_NodeId refTypeId = UA_NODEID_NUMERIC(0, referenceTypeId);
     const UA_ExpandedNodeId targetId = UA_EXPANDEDNODEID_NUMERIC(0, parentNodeId);
     UA_StatusCode retval = UA_Server_addReference(server, sourceId, refTypeId, targetId, false);
-    if (retval != UA_STATUSCODE_GOOD)
+    if(retval != UA_STATUSCODE_GOOD)
         return retval;
     return AddNode_finish(server, &server->adminSession, &sourceId);
 }
@@ -80,7 +80,10 @@ addReferenceTypeNode(UA_Server *server, char* name, char *inverseName, UA_UInt32
  * compiler. */
 static UA_StatusCode
 UA_Server_createNS0_base(UA_Server *server) {
-    /* Bootstrap References and HasSubtype */
+    /* Bootstrap ReferenceTypes. The order of these is important for the
+     * ReferenceTypeIndex. The ReferenceTypeIndex is created with the raw node.
+     * The ReferenceTypeSet of subtypes for every ReferenceType is created
+     * during the call to AddNode_finish. */
     UA_StatusCode ret = UA_STATUSCODE_GOOD;
     UA_ReferenceTypeAttributes references_attr = UA_ReferenceTypeAttributes_default;
     references_attr.displayName = UA_LOCALIZEDTEXT("", "References");
@@ -153,6 +156,9 @@ UA_Server_createNS0_base(UA_Server *server) {
 
     ret |= addReferenceTypeNode(server, "HasOrderedComponent", "OrderedComponentOf",
                          UA_NS0ID_HASORDEREDCOMPONENT, false, false, UA_NS0ID_HASCOMPONENT);
+
+    ret |= addReferenceTypeNode(server, "HasInterface", "InterfaceOf",
+                         UA_NS0ID_HASINTERFACE, false, false, UA_NS0ID_NONHIERARCHICALREFERENCES);
 
     /**************/
     /* Data Types */
@@ -249,6 +255,14 @@ UA_Server_createNS0_base(UA_Server *server) {
     ret |= addObjectNode(server, "Views", UA_NS0ID_VIEWSFOLDER, UA_NS0ID_ROOTFOLDER,
                   UA_NS0ID_ORGANIZES, UA_NS0ID_FOLDERTYPE);
 
+    /* Add BaseEventType */
+    UA_ObjectTypeAttributes eventtype_attr = UA_ObjectTypeAttributes_default;
+    eventtype_attr.displayName = UA_LOCALIZEDTEXT("", "BaseEventType");
+    ret |= addNode_raw(server, UA_NODECLASS_OBJECTTYPE, UA_NS0ID_BASEEVENTTYPE, "BaseEventType",
+                       &eventtype_attr, &UA_TYPES[UA_TYPES_OBJECTTYPEATTRIBUTES]);
+    ret |= addNode_finish(server, UA_NS0ID_BASEEVENTTYPE, UA_NS0ID_EVENTTYPESFOLDER,
+                   UA_NS0ID_ORGANIZES);
+
     if(ret != UA_STATUSCODE_GOOD)
         ret = UA_STATUSCODE_BADINTERNALERROR;
 
@@ -314,7 +328,8 @@ readStatus(UA_Server *server, const UA_NodeId *sessionId, void *sessionContext,
         statustype->secondsTillShutdown = 0;
         if(server->endTime != 0) {
             statustype->state = UA_SERVERSTATE_SHUTDOWN;
-            statustype->secondsTillShutdown = (UA_UInt32)((server->endTime - UA_DateTime_now()) / UA_DATETIME_SEC);
+            statustype->secondsTillShutdown = (UA_UInt32)
+                ((server->endTime - UA_DateTime_now()) / UA_DATETIME_SEC);
         }
 
         value->value.data = statustype;
@@ -526,9 +541,13 @@ readMinSamplingInterval(UA_Server *server, const UA_NodeId *sessionId, void *ses
     }
 
     UA_StatusCode retval;
-    retval = UA_Variant_setScalarCopy(&value->value,
-                                      &server->config.samplingIntervalLimits.min,
-                                      &UA_TYPES[UA_TYPES_DURATION]);
+    UA_Duration minInterval;
+#ifdef UA_ENABLE_SUBSCRIPTIONS
+    minInterval = server->config.samplingIntervalLimits.min;
+#else
+    minInterval = 0.0;
+#endif
+    retval = UA_Variant_setScalarCopy(&value->value, &minInterval, &UA_TYPES[UA_TYPES_DURATION]);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
     value->hasValue = true;
@@ -544,53 +563,77 @@ readMinSamplingInterval(UA_Server *server, const UA_NodeId *sessionId, void *ses
 static UA_StatusCode
 readMonitoredItems(UA_Server *server, const UA_NodeId *sessionId, void *sessionContext,
                    const UA_NodeId *methodId, void *methodContext, const UA_NodeId *objectId,
-                   void *objectContext, size_t inputSize,
-                   const UA_Variant *input, size_t outputSize,
-                   UA_Variant *output) {
-    UA_LOCK(server->serviceMutex);
+                   void *objectContext, size_t inputSize, const UA_Variant *input,
+                   size_t outputSize, UA_Variant *output) {
+    /* Return two empty arrays by default */
+    UA_Variant_setArray(&output[0], UA_Array_new(0, &UA_TYPES[UA_TYPES_UINT32]),
+                        0, &UA_TYPES[UA_TYPES_UINT32]);
+    UA_Variant_setArray(&output[1], UA_Array_new(0, &UA_TYPES[UA_TYPES_UINT32]),
+                        0, &UA_TYPES[UA_TYPES_UINT32]);
+
+    /* Get the Session */
+    UA_LOCK(&server->serviceMutex);
     UA_Session *session = UA_Server_getSessionById(server, sessionId);
-    UA_UNLOCK(server->serviceMutex);
-    if(!session)
+    if(!session) {
+        UA_UNLOCK(&server->serviceMutex);
         return UA_STATUSCODE_BADINTERNALERROR;
-    if (inputSize == 0 || !input[0].data)
-        return UA_STATUSCODE_BADSUBSCRIPTIONIDINVALID;
-    UA_UInt32 subscriptionId = *((UA_UInt32*)(input[0].data));
-    UA_LOCK(server->serviceMutex);
-    UA_Subscription* subscription = UA_Session_getSubscriptionById(session, subscriptionId);
-    UA_UNLOCK(server->serviceMutex);
-    if(!subscription)
-    {
-        if(LIST_EMPTY(&session->serverSubscriptions))
-        {
-          UA_Variant_setArray(&output[0], UA_Array_new(0, &UA_TYPES[UA_TYPES_UINT32]),
-                              0, &UA_TYPES[UA_TYPES_UINT32]);
-          UA_Variant_setArray(&output[1], UA_Array_new(0, &UA_TYPES[UA_TYPES_UINT32]),
-                              0, &UA_TYPES[UA_TYPES_UINT32]);
-
-          return UA_STATUSCODE_BADNOMATCH;
-        }
-
+    }
+    if(inputSize == 0 || !input[0].data) {
+        UA_UNLOCK(&server->serviceMutex);
         return UA_STATUSCODE_BADSUBSCRIPTIONIDINVALID;
     }
 
+    /* Get the Subscription */
+    UA_UInt32 subscriptionId = *((UA_UInt32*)(input[0].data));
+    UA_Subscription *subscription = UA_Server_getSubscriptionById(server, subscriptionId);
+    if(!subscription) {
+        UA_UNLOCK(&server->serviceMutex);
+        return UA_STATUSCODE_BADSUBSCRIPTIONIDINVALID;
+    }
+
+    /* The Subscription is not attached to this Session */
+    if(subscription->session != session) {
+        UA_UNLOCK(&server->serviceMutex);
+        return UA_STATUSCODE_BADUSERACCESSDENIED;
+    }
+
+    /* Count the MonitoredItems */
     UA_UInt32 sizeOfOutput = 0;
     UA_MonitoredItem* monitoredItem;
     LIST_FOREACH(monitoredItem, &subscription->monitoredItems, listEntry) {
         ++sizeOfOutput;
     }
-    if(sizeOfOutput==0)
+    if(sizeOfOutput == 0) {
+        UA_UNLOCK(&server->serviceMutex);
         return UA_STATUSCODE_GOOD;
+    }
 
-    UA_UInt32* clientHandles = (UA_UInt32 *)UA_Array_new(sizeOfOutput, &UA_TYPES[UA_TYPES_UINT32]);
-    UA_UInt32* serverHandles = (UA_UInt32 *)UA_Array_new(sizeOfOutput, &UA_TYPES[UA_TYPES_UINT32]);
+    /* Allocate the output arrays */
+    UA_UInt32 *clientHandles = (UA_UInt32*)
+        UA_Array_new(sizeOfOutput, &UA_TYPES[UA_TYPES_UINT32]);
+    if(!clientHandles) {
+        UA_UNLOCK(&server->serviceMutex);
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    }
+    UA_UInt32 *serverHandles = (UA_UInt32*)
+        UA_Array_new(sizeOfOutput, &UA_TYPES[UA_TYPES_UINT32]);
+    if(!serverHandles) {
+        UA_UNLOCK(&server->serviceMutex);
+        UA_free(clientHandles);
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    }
+
+    /* Fill the array */
     UA_UInt32 i = 0;
     LIST_FOREACH(monitoredItem, &subscription->monitoredItems, listEntry) {
-        clientHandles[i] = monitoredItem->clientHandle;
+        clientHandles[i] = monitoredItem->parameters.clientHandle;
         serverHandles[i] = monitoredItem->monitoredItemId;
         ++i;
     }
     UA_Variant_setArray(&output[0], serverHandles, sizeOfOutput, &UA_TYPES[UA_TYPES_UINT32]);
     UA_Variant_setArray(&output[1], clientHandles, sizeOfOutput, &UA_TYPES[UA_TYPES_UINT32]);
+
+    UA_UNLOCK(&server->serviceMutex);
     return UA_STATUSCODE_GOOD;
 }
 #endif /* defined(UA_ENABLE_METHODCALLS) && defined(UA_ENABLE_SUBSCRIPTIONS) */
@@ -633,6 +676,7 @@ UA_Server_minimalServerObject(UA_Server *server) {
     retval |= addVariableNode(server, "ServerArray", UA_NS0ID_SERVER_SERVERARRAY,
                               UA_NS0ID_SERVER, UA_NS0ID_HASPROPERTY,
                               UA_VALUERANK_ANY, UA_NS0ID_BASEDATATYPE);
+
     retval |= addVariableNode(server, "NamespaceArray", UA_NS0ID_SERVER_NAMESPACEARRAY,
                               UA_NS0ID_SERVER, UA_NS0ID_HASPROPERTY,
                               UA_VALUERANK_ANY, UA_NS0ID_BASEDATATYPE);
@@ -749,27 +793,25 @@ addModellingRules(UA_Server *server) {
  * example server time. */
 UA_StatusCode
 UA_Server_initNS0(UA_Server *server) {
-
     /* Initialize base nodes which are always required an cannot be created
      * through the NS compiler */
     server->bootstrapNS0 = true;
     UA_StatusCode retVal = UA_Server_createNS0_base(server);
-    server->bootstrapNS0 = false;
-    if(retVal != UA_STATUSCODE_GOOD)
-        return retVal;
 
 #ifdef UA_GENERATED_NAMESPACE_ZERO
     /* Load nodes and references generated from the XML ns0 definition */
-    retVal = namespace0_generated(server);
+    retVal |= namespace0_generated(server);
 #else
     /* Create a minimal server object */
-    retVal = UA_Server_minimalServerObject(server);
+    retVal |= UA_Server_minimalServerObject(server);
 #endif
+
+    server->bootstrapNS0 = false;
 
     if(retVal != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
-                     "Initialization of Namespace 0 (before bootstrapping) "
-                     "failed with %s. See previous outputs for any error messages.",
+                     "Initialization of Namespace 0 failed with %s. "
+                     "See previous outputs for any error messages.",
                      UA_StatusCode_name(retVal));
         return UA_STATUSCODE_BADINTERNALERROR;
     }
@@ -796,8 +838,9 @@ UA_Server_initNS0(UA_Server *server) {
 
     /* CurrentTime */
     UA_DataSource currentTime = {readCurrentTime, NULL};
-    retVal |= UA_Server_setVariableNode_dataSource(server,
-                 UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_CURRENTTIME), currentTime);
+    UA_NodeId currTime = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_CURRENTTIME);
+    retVal |= UA_Server_setVariableNode_dataSource(server, currTime, currentTime);
+    retVal |= UA_Server_writeMinimumSamplingInterval(server, currTime, 100.0);
 
     /* State */
     retVal |= UA_Server_setVariableNode_dataSource(server,
@@ -856,15 +899,12 @@ UA_Server_initNS0(UA_Server *server) {
     retVal |= UA_Server_setVariableNode_dataSource(server,
                         UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVICELEVEL), serviceLevel);
 
-    /* ServerDiagnostics - ServerDiagnosticsSummary */
-    UA_ServerDiagnosticsSummaryDataType serverDiagnosticsSummary;
-    UA_ServerDiagnosticsSummaryDataType_init(&serverDiagnosticsSummary);
-    retVal |= writeNs0Variable(server, UA_NS0ID_SERVER_SERVERDIAGNOSTICS_SERVERDIAGNOSTICSSUMMARY,
-                               &serverDiagnosticsSummary,
-                               &UA_TYPES[UA_TYPES_SERVERDIAGNOSTICSSUMMARYDATATYPE]);
-
     /* ServerDiagnostics - EnabledFlag */
+#ifdef UA_ENABLE_DIAGNOSTICS
+    UA_Boolean enabledFlag = true;
+#else
     UA_Boolean enabledFlag = false;
+#endif
     retVal |= writeNs0Variable(server, UA_NS0ID_SERVER_SERVERDIAGNOSTICS_ENABLEDFLAG,
                                &enabledFlag, &UA_TYPES[UA_TYPES_BOOLEAN]);
 
@@ -964,7 +1004,6 @@ UA_Server_initNS0(UA_Server *server) {
     retVal |= writeNs0Variable(server, UA_NS0ID_SERVER_SERVERCAPABILITIES_OPERATIONLIMITS_MAXMONITOREDITEMSPERCALL,
                                &server->config.maxMonitoredItemsPerCall, &UA_TYPES[UA_TYPES_UINT32]);
 
-#ifdef UA_ENABLE_MICRO_EMB_DEV_PROFILE
     /* Remove unused operation limit components */
     UA_Server_deleteNode(server, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERCAPABILITIES_OPERATIONLIMITS_MAXNODESPERHISTORYREADDATA), true);
     UA_Server_deleteNode(server, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERCAPABILITIES_OPERATIONLIMITS_MAXNODESPERHISTORYREADEVENTS), true);
@@ -975,24 +1014,98 @@ UA_Server_initNS0(UA_Server *server) {
     UA_Server_deleteNode(server, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERCAPABILITIES_MAXARRAYLENGTH), true);
     UA_Server_deleteNode(server, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERCAPABILITIES_MAXBYTESTRINGLENGTH), true);
 
-    /* Remove not supported Server Instance */
-    UA_Server_deleteNode(server, UA_NODEID_NUMERIC(0, UA_NS0ID_DICTIONARIES), true);
+    /* Remove not supported server configurations */
     UA_Server_deleteNode(server, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_ESTIMATEDRETURNTIME), true);
     UA_Server_deleteNode(server, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_LOCALTIME), true);
-    UA_Server_deleteNode(server, UA_NODEID_NUMERIC(0, UA_NS0ID_PUBLISHSUBSCRIBE), true);
-    UA_Server_deleteNode(server, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_NAMESPACES), true);
     UA_Server_deleteNode(server, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_REQUESTSERVERSTATECHANGE), true);
     UA_Server_deleteNode(server, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_RESENDDATA), true);
     UA_Server_deleteNode(server, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVERCONFIGURATION), true);
     UA_Server_deleteNode(server, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SETSUBSCRIPTIONDURABLE), true);
 
+#ifdef UA_ENABLE_DIAGNOSTICS
+    /* ServerDiagnostics - ServerDiagnosticsSummary */
+    UA_DataSource serverDiagSummary = {readDiagnostics, NULL};
+    retVal |= UA_Server_setVariableNode_dataSource(server,
+                        UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERDIAGNOSTICS_SERVERDIAGNOSTICSSUMMARY), serverDiagSummary);
+
+    /* ServerDiagnostics - ServerDiagnosticsSummary - ServerViewCount */
+    retVal |= UA_Server_setVariableNode_dataSource(server,
+                        UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERDIAGNOSTICS_SERVERDIAGNOSTICSSUMMARY_SERVERVIEWCOUNT), serverDiagSummary);
+
+    /* ServerDiagnostics - ServerDiagnosticsSummary - CurrentSessionCount */
+    retVal |= UA_Server_setVariableNode_dataSource(server,
+                        UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERDIAGNOSTICS_SERVERDIAGNOSTICSSUMMARY_CURRENTSESSIONCOUNT), serverDiagSummary);
+
+    /* ServerDiagnostics - ServerDiagnosticsSummary - CumulatedSessionCount */
+    retVal |= UA_Server_setVariableNode_dataSource(server,
+                        UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERDIAGNOSTICS_SERVERDIAGNOSTICSSUMMARY_CUMULATEDSESSIONCOUNT), serverDiagSummary);
+
+    /* ServerDiagnostics - ServerDiagnosticsSummary - SecurityRejectedSessionCount */
+    retVal |= UA_Server_setVariableNode_dataSource(server,
+                        UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERDIAGNOSTICS_SERVERDIAGNOSTICSSUMMARY_SECURITYREJECTEDSESSIONCOUNT), serverDiagSummary);
+
+    /* ServerDiagnostics - ServerDiagnosticsSummary - RejectedSessionCount */
+    retVal |= UA_Server_setVariableNode_dataSource(server,
+                        UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERDIAGNOSTICS_SERVERDIAGNOSTICSSUMMARY_REJECTEDSESSIONCOUNT), serverDiagSummary);
+
+    /* ServerDiagnostics - ServerDiagnosticsSummary - SessionTimeoutCount */
+    retVal |= UA_Server_setVariableNode_dataSource(server,
+                        UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERDIAGNOSTICS_SERVERDIAGNOSTICSSUMMARY_SESSIONTIMEOUTCOUNT), serverDiagSummary);
+
+    /* ServerDiagnostics - ServerDiagnosticsSummary - SessionAbortCount */
+    retVal |= UA_Server_setVariableNode_dataSource(server,
+                        UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERDIAGNOSTICS_SERVERDIAGNOSTICSSUMMARY_SESSIONABORTCOUNT), serverDiagSummary);
+
+    /* ServerDiagnostics - ServerDiagnosticsSummary - CurrentSubscriptionCount */
+    retVal |= UA_Server_setVariableNode_dataSource(server,
+                        UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERDIAGNOSTICS_SERVERDIAGNOSTICSSUMMARY_CURRENTSUBSCRIPTIONCOUNT), serverDiagSummary);
+
+    /* ServerDiagnostics - ServerDiagnosticsSummary - CumulatedSubscriptionCount */
+    retVal |= UA_Server_setVariableNode_dataSource(server,
+                        UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERDIAGNOSTICS_SERVERDIAGNOSTICSSUMMARY_CUMULATEDSUBSCRIPTIONCOUNT), serverDiagSummary);
+
+    /* ServerDiagnostics - ServerDiagnosticsSummary - PublishingIntervalCount */
+    retVal |= UA_Server_setVariableNode_dataSource(server,
+                        UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERDIAGNOSTICS_SERVERDIAGNOSTICSSUMMARY_PUBLISHINGINTERVALCOUNT), serverDiagSummary);
+
+    /* ServerDiagnostics - ServerDiagnosticsSummary - SecurityRejectedRequestsCount */
+    retVal |= UA_Server_setVariableNode_dataSource(server,
+                        UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERDIAGNOSTICS_SERVERDIAGNOSTICSSUMMARY_SECURITYREJECTEDREQUESTSCOUNT), serverDiagSummary);
+
+    /* ServerDiagnostics - ServerDiagnosticsSummary - RejectedRequestsCount */
+    retVal |= UA_Server_setVariableNode_dataSource(server,
+                        UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERDIAGNOSTICS_SERVERDIAGNOSTICSSUMMARY_REJECTEDREQUESTSCOUNT), serverDiagSummary);
+
+    /* ServerDiagnostics - SubscriptionDiagnosticsArray */
+#ifdef UA_ENABLE_SUBSCRIPTIONS
+    UA_DataSource serverSubDiagSummary = {readSubscriptionDiagnosticsArray, NULL};
+    retVal |= UA_Server_setVariableNode_dataSource(server,
+                        UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERDIAGNOSTICS_SUBSCRIPTIONDIAGNOSTICSARRAY), serverSubDiagSummary);
+#endif
+
+    /* ServerDiagnostics - SessionDiagnosticsSummary - SessionDiagnosticsArray */
+    UA_DataSource sessionDiagSummary = {readSessionDiagnosticsArray, NULL};
+    retVal |= UA_Server_setVariableNode_dataSource(server,
+                        UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERDIAGNOSTICS_SESSIONSDIAGNOSTICSSUMMARY_SESSIONDIAGNOSTICSARRAY), sessionDiagSummary);
+
+    /* ServerDiagnostics - SessionDiagnosticsSummary - SessionSecurityDiagnosticsArray */
+    UA_DataSource sessionSecDiagSummary = {readSessionSecurityDiagnostics, NULL};
+    retVal |= UA_Server_setVariableNode_dataSource(server,
+                        UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERDIAGNOSTICS_SESSIONSDIAGNOSTICSSUMMARY_SESSIONSECURITYDIAGNOSTICSARRAY), sessionSecDiagSummary);
+
+#else
+    /* Removing these NodeIds make Server Object to be non-complaint with UA
+     * 1.03 in CTT (Base Inforamtion/Base Info Core Structure/ 001.js) In the
+     * 1.04 specification this has been resolved by allowing to remove these
+     * static nodes as well */
     UA_Server_deleteNode(server, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERDIAGNOSTICS_SAMPLINGINTERVALDIAGNOSTICSARRAY), true);
     UA_Server_deleteNode(server, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERDIAGNOSTICS_SESSIONSDIAGNOSTICSSUMMARY), true);
-
-    /* Removing these NodeIds make Server Object to be non-complaint with UA 1.03  in CTT (Base Inforamtion/Base Info Core Structure/ 001.js)
-     * In the 1.04 specification this has been resolved by allowing to remove these static nodes as well */
     UA_Server_deleteNode(server, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERDIAGNOSTICS_SERVERDIAGNOSTICSSUMMARY), true);
     UA_Server_deleteNode(server, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERDIAGNOSTICS_SUBSCRIPTIONDIAGNOSTICSARRAY), true);
+#endif
+
+#ifndef UA_ENABLE_PUBSUB
+    UA_Server_deleteNode(server, UA_NODEID_NUMERIC(0, UA_NS0ID_PUBLISHSUBSCRIBE), true);
 #endif
 
 #ifndef UA_ENABLE_HISTORIZING
@@ -1056,7 +1169,7 @@ UA_Server_initNS0(UA_Server *server) {
 #endif
 
 #if defined(UA_ENABLE_METHODCALLS) && defined(UA_ENABLE_SUBSCRIPTIONS)
-    retVal |= UA_Server_setMethodNode_callback(server,
+    retVal |= UA_Server_setMethodNodeCallback(server,
                         UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_GETMONITOREDITEMS), readMonitoredItems);
 #endif
 
@@ -1065,21 +1178,6 @@ UA_Server_initNS0(UA_Server *server) {
     addModellingRules(server);
 
 #endif /* UA_GENERATED_NAMESPACE_ZERO */
-
-    /* create the OverFlowEventType
-     * The EventQueueOverflowEventType is defined as abstract, therefore we can not create an instance of that type
-     * directly, but need to create a subtype. This is already posted on the OPC Foundation bug tracker under the
-     * following link for clarification: https://opcfoundation-onlineapplications.org/mantis/view.php?id=4206 */
-#ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
-    UA_ObjectTypeAttributes overflowAttr = UA_ObjectTypeAttributes_default;
-    overflowAttr.description = UA_LOCALIZEDTEXT("en-US", "A simple event for indicating a queue overflow.");
-    overflowAttr.displayName = UA_LOCALIZEDTEXT("en-US", "SimpleOverflowEventType");
-    retVal |= UA_Server_addObjectTypeNode(server, UA_NODEID_NUMERIC(0, UA_NS0ID_SIMPLEOVERFLOWEVENTTYPE),
-                                          UA_NODEID_NUMERIC(0, UA_NS0ID_EVENTQUEUEOVERFLOWEVENTTYPE),
-                                          UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE),
-                                          UA_QUALIFIEDNAME(0, "SimpleOverflowEventType"),
-                                          overflowAttr, NULL, NULL);
-#endif
 
     if(retVal != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,

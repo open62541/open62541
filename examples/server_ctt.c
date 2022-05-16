@@ -219,7 +219,7 @@ readRandomStringData (UA_Server *server,
         return UA_STATUSCODE_GOOD;
     }
     char randomName[12];
-    UA_snprintf(randomName, 12, "Random%d", UA_UInt32_random());
+    UA_snprintf(randomName, 12, "Random%u", UA_UInt32_random());
     UA_String toggle = UA_STRING(randomName);
     UA_Variant_setScalarCopy(&value->value, &toggle, &UA_TYPES[UA_TYPES_STRING]);
     value->hasValue = true;
@@ -283,7 +283,7 @@ readByteString (UA_Server *server,
         return UA_STATUSCODE_GOOD;
     }
     char randomName[8];
-    UA_snprintf(randomName, 8, "%d%d", UA_UInt32_random(), UA_UInt32_random());
+    UA_snprintf(randomName, 8, "%u%u", UA_UInt32_random(), UA_UInt32_random());
     UA_ByteString randomByte = UA_BYTESTRING(randomName);
     UA_Variant_setScalarCopy(&value->value, &randomByte, &UA_TYPES[UA_TYPES_BYTESTRING]);
     value->hasValue = true;
@@ -293,6 +293,27 @@ readByteString (UA_Server *server,
     }
    return UA_STATUSCODE_GOOD;
 }
+
+#ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
+static UA_NodeId eventId;
+static void
+writeEventTrigger(UA_Server *server, const UA_NodeId *sessionId,
+                  void *sessionContext, const UA_NodeId *nodeId,
+                  void *nodeContext, const UA_NumericRange *range,
+                  const UA_DataValue *data) {
+    UA_Server_triggerEvent(server, eventId,
+                           UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER),
+                           NULL, false);
+}
+
+static void
+cyclicEventTriger(UA_Server *server, void *data) {
+    (void)data;
+    UA_Server_triggerEvent(server, eventId,
+                           UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER),
+                           NULL, false);
+}
+#endif
 
 /* Method Node Example */
 #ifdef UA_ENABLE_METHODCALLS
@@ -586,7 +607,7 @@ setInformationModel(UA_Server *server) {
     id = DEPTHID; // running id in namespace 0 - Start with Matrix NODE
     for(UA_UInt32 i = 1; i <= 20; i++) {
         char name[15];
-        UA_snprintf(name, 15, "depth%i", i);
+        UA_snprintf(name, 15, "depth%u", i);
         object_attr.description = UA_LOCALIZEDTEXT("en-US", name);
         object_attr.displayName = UA_LOCALIZEDTEXT("en-US", name);
         UA_Server_addObjectNode(server, UA_NODEID_NUMERIC(1, id + i),
@@ -613,51 +634,51 @@ setInformationModel(UA_Server *server) {
         attr.writeMask = UA_WRITEMASK_DISPLAYNAME | UA_WRITEMASK_DESCRIPTION;
         attr.userWriteMask = UA_WRITEMASK_DISPLAYNAME | UA_WRITEMASK_DESCRIPTION;
         attr.valueRank = UA_VALUERANK_SCALAR;
-        switch(UA_TYPES[type].typeIndex) {
-            case UA_TYPES_BOOLEAN: {
+        switch(UA_TYPES[type].typeKind) {
+            case UA_DATATYPEKIND_BOOLEAN: {
                 scaleTestDataSource.read = readRandomBoolData;
                 break;
             }
-            case UA_TYPES_INT16: {
+            case UA_DATATYPEKIND_INT16: {
                 scaleTestDataSource.read = readRandomInt16Data;
                 break;
             }
-            case UA_TYPES_UINT16: {
+            case UA_DATATYPEKIND_UINT16: {
                 scaleTestDataSource.read = readRandomUInt16Data;
                 break;
             }
-            case UA_TYPES_INT32: {
+            case UA_DATATYPEKIND_INT32: {
                 scaleTestDataSource.read = readRandomInt32Data;
                 break;
             }
-            case UA_TYPES_UINT32: {
+            case UA_DATATYPEKIND_UINT32: {
                 scaleTestDataSource.read = readRandomUInt32Data;
                 break;
             }
-            case UA_TYPES_INT64: {
+            case UA_DATATYPEKIND_INT64: {
                 scaleTestDataSource.read = readRandomInt64Data;
                 break;
             }
-            case UA_TYPES_UINT64: {
+            case UA_DATATYPEKIND_UINT64: {
                 scaleTestDataSource.read = readRandomUInt64Data;
                 break;
             }
-            case UA_TYPES_STRING: {
+            case UA_DATATYPEKIND_STRING: {
                 scaleTestDataSource.read = readRandomStringData;
                 break;
             }
-            case UA_TYPES_FLOAT: {
+            case UA_DATATYPEKIND_FLOAT: {
                 scaleTestDataSource.read = readRandomFloatData;
                 break;
             }
-            case UA_TYPES_DOUBLE: {
+            case UA_DATATYPEKIND_DOUBLE: {
                 scaleTestDataSource.read = readRandomDoubleData;
                 break;
             }
-            case UA_TYPES_DATETIME:
+            case UA_DATATYPEKIND_DATETIME:
                 scaleTestDataSource.read = readTimeData;
                 break;
-            case UA_TYPES_BYTESTRING:
+            case UA_DATATYPEKIND_BYTESTRING:
                 scaleTestDataSource.read = readByteString;
                 break;
             default:
@@ -761,6 +782,51 @@ setInformationModel(UA_Server *server) {
                             UA_QUALIFIEDNAME(1, "inoutarg"), addmethodattributes,
                             &outargMethod, /* callback of the method node */
                             1, &inputArguments, 1, &outputArguments, NULL, NULL);
+#endif
+
+#ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
+    /* Create the reusable event instance */
+    UA_Server_createEvent(server, UA_NODEID_NUMERIC(0, UA_NS0ID_BASEEVENTTYPE), &eventId);
+    UA_UInt16 eventSeverity = 500;
+    UA_Server_writeObjectProperty_scalar(server, eventId,
+                                         UA_QUALIFIEDNAME(0, "Severity"),
+                                         &eventSeverity, &UA_TYPES[UA_TYPES_UINT16]);
+
+    /* Trigger the event from two variables */
+    UA_ValueCallback eventTriggerValueBackend;
+    eventTriggerValueBackend.onRead = NULL;
+    eventTriggerValueBackend.onWrite = writeEventTrigger;
+
+    UA_VariableAttributes_init(&myVar);
+    myVar.description = UA_LOCALIZEDTEXT("en-US", "event trigger 1");
+    myVar.displayName = UA_LOCALIZEDTEXT("en-US", "event trigger 1");
+    myVar.accessLevel = UA_ACCESSLEVELMASK_READ | UA_ACCESSLEVELMASK_WRITE;
+    myVar.dataType = UA_TYPES[UA_TYPES_INT32].typeId;
+    myVar.valueRank = UA_VALUERANK_SCALAR;
+    myInteger = 0;
+    UA_Variant_setScalar(&myVar.value, &myInteger, &UA_TYPES[UA_TYPES_INT32]);
+    parentNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER);
+    parentReferenceNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES);
+    UA_Server_addVariableNode(server, UA_NODEID_STRING(1, "event-trigger-1"),
+                              parentNodeId, parentReferenceNodeId,
+                              UA_QUALIFIEDNAME(1, "event trigger 1"),
+                              baseDataVariableType, myVar, NULL, NULL);
+    UA_Server_setVariableNode_valueCallback(server,
+                                            UA_NODEID_STRING(1, "event-trigger-1"),
+                                            eventTriggerValueBackend);
+
+    myVar.description = UA_LOCALIZEDTEXT("en-US", "event trigger 2");
+    myVar.displayName = UA_LOCALIZEDTEXT("en-US", "event trigger 2");
+    UA_Server_addVariableNode(server, UA_NODEID_STRING(1, "event-trigger-2"),
+                              parentNodeId, parentReferenceNodeId,
+                              UA_QUALIFIEDNAME(1, "event trigger 2"),
+                              baseDataVariableType, myVar, NULL, NULL);
+    UA_Server_setVariableNode_valueCallback(server,
+                                            UA_NODEID_STRING(1, "event-trigger-2"),
+                                            eventTriggerValueBackend);
+
+    /* Auto-trigger the event every 500 ms */
+    UA_Server_addRepeatedCallback(server, cyclicEventTriger, NULL, 500.0, NULL);
 #endif
 }
 
@@ -1216,6 +1282,13 @@ int main(int argc, char **argv) {
     if(!enableAnon)
         disableAnonymous(&config);
 
+    /* Limit the number of SecureChannels and Sessions */
+    config.maxSecureChannels = 10;
+    config.maxSessions = 20;
+
+    /* Revolve the SecureChannel token every 300 seconds */
+    config.maxSecurityTokenLifetime = 300000;
+
     /* Set operation limits */
     config.maxNodesPerRead = MAX_OPERATION_LIMIT;
     config.maxNodesPerWrite = MAX_OPERATION_LIMIT;
@@ -1225,6 +1298,11 @@ int main(int argc, char **argv) {
     config.maxNodesPerTranslateBrowsePathsToNodeIds = MAX_OPERATION_LIMIT;
     config.maxNodesPerNodeManagement = MAX_OPERATION_LIMIT;
     config.maxMonitoredItemsPerCall = MAX_OPERATION_LIMIT;
+
+    /* Set Subscription limits */
+#ifdef UA_ENABLE_SUBSCRIPTIONS
+    config.maxSubscriptions = 20;
+#endif
 
     /* If RequestTimestamp is '0', log the warning and proceed */
     config.verifyRequestTimestamp = UA_RULEHANDLING_WARN;

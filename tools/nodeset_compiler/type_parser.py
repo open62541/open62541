@@ -2,15 +2,18 @@ import abc
 import csv
 import json
 import xml.etree.ElementTree as etree
+import copy
 import re
 from collections import OrderedDict
 import sys
 
 if sys.version_info[0] >= 3:
-    from nodeset_compiler.opaque_type_mapping import get_base_type_for_opaque as get_base_type_for_opaque_ns0
+    try:
+        from opaque_type_mapping import get_base_type_for_opaque as get_base_type_for_opaque_ns0
+    except ImportError:
+        from nodeset_compiler.opaque_type_mapping import get_base_type_for_opaque as get_base_type_for_opaque_ns0
 else:
     from opaque_type_mapping import get_base_type_for_opaque as get_base_type_for_opaque_ns0
-    # import opaque_type_mapping
 
 builtin_types = ["Boolean", "SByte", "Byte", "Int16", "UInt16", "Int32", "UInt32",
                  "Int64", "UInt64", "Float", "Double", "String", "DateTime", "Guid",
@@ -18,22 +21,28 @@ builtin_types = ["Boolean", "SByte", "Byte", "Int16", "UInt16", "Int32", "UInt32
                  "QualifiedName", "LocalizedText", "ExtensionObject", "DataValue",
                  "Variant", "DiagnosticInfo"]
 
-excluded_types = ["NodeIdType", "InstanceNode", "TypeNode", "Node", "ObjectNode",
-                  "ObjectTypeNode", "VariableNode", "VariableTypeNode", "ReferenceTypeNode",
-                  "MethodNode", "ViewNode", "DataTypeNode",
-                  "NumericRange", "NumericRangeDimensions",
-                  "UA_ServerDiagnosticsSummaryDataType", "UA_SamplingIntervalDiagnosticsDataType",
-                  "UA_SessionSecurityDiagnosticsDataType", "UA_SubscriptionDiagnosticsDataType",
-                  "UA_SessionDiagnosticsDataType"]
+builtin_pointerfree = ["Boolean", "SByte", "Byte", "Int16", "UInt16",
+                       "Int32", "UInt32", "Int64", "UInt64", "Float", "Double",
+                       "DateTime", "StatusCode", "Guid"]
 
-builtin_overlayable = ["Boolean", "SByte", "Byte", "Int16", "UInt16", "Int32", "UInt32", "Int64", "UInt64", "Float",
-                       "Double", "DateTime", "StatusCode", "Guid"]
+# DataTypes that are ignored/not generated
+excluded_types = [
+    # NodeId Types
+    "NodeIdType", "TwoByteNodeId", "FourByteNodeId", "NumericNodeId",
+    "StringNodeId", "GuidNodeId", "ByteStringNodeId",
+    # Node Types
+    "InstanceNode", "TypeNode", "Node", "ObjectNode", "ObjectTypeNode", "VariableNode",
+    "VariableTypeNode", "ReferenceTypeNode", "MethodNode", "ViewNode", "DataTypeNode"]
+
+rename_types = {"NumericRange": "OpaqueNumericRange"}
 
 # Type aliases
 type_aliases = {"CharArray": "String"}
 
 user_opaque_type_mapping = {}  # contains user defined opaque type mapping
 
+class TypeNotDefinedException(Exception):
+    pass
 
 def get_base_type_for_opaque(name):
     if name in user_opaque_type_mapping:
@@ -41,23 +50,36 @@ def get_base_type_for_opaque(name):
     else:
         return get_base_type_for_opaque_ns0(name)
 
-
 def get_type_name(xml_type_name):
-    type_name = xml_type_name[xml_type_name.find(":") + 1:]
-    return type_aliases.get(type_name, type_name)
+    [namespace, type_name] = xml_type_name.split(':', 1)
+    return [namespace, type_aliases.get(type_name, type_name)]
+
+def get_type_for_name(xml_type_name, types, xmlNamespaces):
+    [member_type_name_ns, member_type_name] = get_type_name(xml_type_name)
+    resultNs = xmlNamespaces[member_type_name_ns]
+    if resultNs == 'http://opcfoundation.org/BinarySchema/':
+        resultNs = 'http://opcfoundation.org/UA/'
+    if resultNs not in types:
+        raise TypeNotDefinedException("Unknown namespace: '{resultNs}'".format(
+            resultNs=resultNs))
+    if member_type_name not in types[resultNs]:
+        raise TypeNotDefinedException("Unknown type: '{type}'".format(
+            type=member_type_name))
+    return types[resultNs][member_type_name]
 
 
 class Type(object):
-    def __init__(self, outname, xml, namespace):
+    def __init__(self, outname, xml, namespaceUri):
         self.name = None
         if xml is not None:
             self.name = xml.get("Name")
         self.outname = outname
-        self.namespace = namespace
+        self.namespaceUri = namespaceUri
         self.pointerfree = False
         self.members = []
         self.description = ""
-        self.ns0 = (namespace == 0)
+        self.nodeId = None
+        self.binaryEncodingId = None
         if xml is not None:
             for child in xml:
                 if child.tag == "{http://opcfoundation.org/BinarySchema/}Documentation":
@@ -67,10 +89,9 @@ class Type(object):
 
 class BuiltinType(Type):
     def __init__(self, name):
-        Type.__init__(self, "types", None, 0)
+        Type.__init__(self, "types", None, "http://opcfoundation.org/UA/")
         self.name = name
-        if self.name in builtin_overlayable:
-            self.pointerfree = True
+        self.pointerfree = self.name in builtin_pointerfree
 
 
 class EnumerationType(Type):
@@ -126,53 +147,76 @@ class OpaqueType(Type):
 
 
 class StructMember(object):
-    def __init__(self, name, member_type, is_array):
+    def __init__(self, name, member_type, is_array, is_optional):
         self.name = name
         self.member_type = member_type
         self.is_array = is_array
+        self.is_optional = is_optional
 
 
 class StructType(Type):
-    def __init__(self, outname, xml, namespace, types):
+    def __init__(self, outname, xml, namespace, types, xmlNamespaces):
         Type.__init__(self, outname, xml, namespace)
         length_fields = []
+        optional_fields = []
+        switch_fields = []
+        self.is_recursive = False
 
+        typename = type_aliases.get(xml.get("Name"), xml.get("Name"))
+
+        bt = xml.get("BaseType")
+        self.is_union = True if bt and get_type_name(bt)[1] == "Union" else False
         for child in xml:
             length_field = child.get("LengthField")
             if length_field:
                 length_fields.append(length_field)
-
+        for child in xml:
+            switch_field = child.get("SwitchField")
+            if switch_field:
+                switch_fields.append(switch_field)
+        for child in xml:
+            child_type = child.get("TypeName")
+            if child_type and get_type_name(child_type)[1] == "Bit":
+                optional_fields.append(child.get("Name"))
         for child in xml:
             if not child.tag == "{http://opcfoundation.org/BinarySchema/}Field":
                 continue
             if child.get("Name") in length_fields:
                 continue
+            if get_type_name(child.get("TypeName"))[1] == "Bit":
+                continue
+            if self.is_union and child.get("Name") in switch_fields:
+                continue
+            switch_field = child.get("SwitchField")
+            if switch_field and switch_field in optional_fields:
+                member_is_optional = True
+            else:
+                member_is_optional = False
             member_name = child.get("Name")
             member_name = member_name[:1].lower() + member_name[1:]
-            member_type_name = get_type_name(child.get("TypeName"))
-            member_type = types[member_type_name]
             is_array = True if child.get("LengthField") else False
-            self.members.append(StructMember(member_name, member_type, is_array))
+
+            member_type_name = get_type_name(child.get("TypeName"))[1]
+            if member_type_name == typename: # If a type contains itself, use self as member_type
+                if not is_array:
+                    raise RuntimeError("Type " + typename +  " contains itself as a non-array member")
+                member_type = self
+                self.is_recursive = True
+            else:
+                member_type = get_type_for_name(child.get("TypeName"), types, xmlNamespaces)
+
+            self.members.append(StructMember(member_name, member_type, is_array, member_is_optional))
 
         self.pointerfree = True
         for m in self.members:
-            if m.is_array or not m.member_type.pointerfree:
+            if m.is_array or m.is_optional or not m.member_type.pointerfree:
                 self.pointerfree = False
-
-
-class TypeDescription(object):
-    def __init__(self, name, nodeid, namespaceid):
-        self.name = name
-        self.nodeid = nodeid
-        self.namespaceid = namespaceid
-        self.xmlEncodingId = "0"
-        self.binaryEncodingId = "0"
 
 
 class TypeParser():
     __metaclass__ = abc.ABCMeta
 
-    def __init__(self, opaque_map, selected_types, no_builtin, outname, namespace):
+    def __init__(self, opaque_map, selected_types, no_builtin, outname, namespaceIndexMap):
         self.selected_types = []
         self.fh = None
         self.ff = None
@@ -182,8 +226,8 @@ class TypeParser():
         self.selected_types = selected_types
         self.no_builtin = no_builtin
         self.outname = outname
-        self.namespace = namespace
         self.types = OrderedDict()
+        self.namespaceIndexMap = namespaceIndexMap
 
     @staticmethod
     def merge_dicts(*dict_args):
@@ -196,35 +240,82 @@ class TypeParser():
             result.update(dictionary)
         return result
 
-    def parseTypeDefinitions(self, outname, xmlDescription, namespace, addToTypes=None):
-        def typeReady(element):
+    def parseTypeDefinitions(self, outname, xmlDescription):
+        def typeReady(element, types, xmlNamespaces):
             "Are all member types defined?"
+            parentname = type_aliases.get(element.get("Name"), element.get("Name")) # If a type contains itself, declare that type as available
             for child in element:
                 if child.tag == "{http://opcfoundation.org/BinarySchema/}Field":
-                    childname = get_type_name(child.get("TypeName"))
-                    if childname not in self.types:
-                        return False
+                    childname = get_type_name(child.get("TypeName"))[1]
+                    if childname != "Bit" and childname != parentname:
+                        try:
+                            get_type_for_name(child.get("TypeName"), types, xmlNamespaces)
+                        except TypeNotDefinedException:
+                            # Type is using other types which are not yet loaded, try later
+                            return False
             return True
 
-        def unknownTypes(element):
-            "Return all unknown types"
+        def unknownTypes(element, types, xmlNamespaces):
+            "Return all unknown types (for debugging)"
             unknowns = []
             for child in element:
                 if child.tag == "{http://opcfoundation.org/BinarySchema/}Field":
-                    childname = get_type_name(child.get("TypeName"))
-                    if childname not in self.types:
-                        unknowns.append(childname)
+                    try:
+                        get_type_for_name(child.get("TypeName"), types, xmlNamespaces)
+                    except TypeNotDefinedException:
+                        # Type is using other types which are not yet loaded, try later
+                        unknowns.append(child.get("TypeName"))
             return unknowns
 
-        def skipType(name):
-            if name in excluded_types:
-                return True
-            if re.search("NodeId$", name) != None:
-                return True
+        def structWithOptionalFields(element):
+            "Is this a structure with optional fields?"
+            opt_fields = []
+            for child in element:
+                if child.tag != "{http://opcfoundation.org/BinarySchema/}Field":
+                    continue
+                typename = child.get("TypeName")
+                if typename and get_type_name(typename)[1] == "Bit":
+                    if re.match(re.compile('.+Specified'), child.get("Name")):
+                        opt_fields.append(child.get("Name"))
+                    elif child.get("Name") == "Reserved1":
+                        if len(opt_fields) + int(child.get("Length")) != 32:
+                            return False
+                        else:
+                            break
+                    else:
+                        return False
+                else:
+                    return False
+            for child in element:
+                switchfield = child.get("SwitchField")
+                if switchfield and switchfield in opt_fields:
+                    opt_fields.remove(switchfield)
+            return len(opt_fields) == 0
+
+        def structWithBitFields(element):
+            "Is this a structure with bitfields?"
+            for child in element:
+                typename = child.get("TypeName")
+                if typename and get_type_name(typename)[1] == "Bit":
+                    return True
             return False
 
-        snippets = {}
-        for typeXml in etree.parse(xmlDescription).getroot():
+        snippets = OrderedDict()
+        xmlDoc = etree.iterparse(
+            xmlDescription, events=['start-ns']
+        )
+        xmlNamespaces = dict([
+            node for _, node in xmlDoc
+        ])
+        if xmlDoc.root.get("TargetNamespace"):
+            targetNamespace = xmlDoc.root.get("TargetNamespace")
+            if not targetNamespace in self.namespaceIndexMap:
+                raise RuntimeError("TargetNamespace '{targetNs}' is not listed in namespace index mapping. "
+                                   "Use the following option to define the mapping (can be used multiple times). "
+                                   "--namespaceMap=X:{targetNs} where X is the resulting namespace index in the server.".format(targetNs=targetNamespace))
+        else:
+            raise RuntimeError("TargetNamespace Attribute not defined in BSD file.")
+        for typeXml in xmlDoc.root:
             if not typeXml.get("Name"):
                 continue
             name = typeXml.get("Name")
@@ -234,40 +325,58 @@ class TypeParser():
         while len(snippets) > 0:
             if detectLoop == len(snippets):
                 name, typeXml = snippets.popitem()
-                raise RuntimeError("Infinite loop detected or type not found while processing types " + name + ": unknonwn subtype " +
-                                   str(unknownTypes(typeXml)) + " Maybe you need to import additional types with the --import flag. " +
-                                   "E.g. '--import==UA_TYPES#/path/to/deps/ua-nodeset/Schema/Opc.Ua.Types.bsd'")
+                raise RuntimeError("Infinite loop detected or type not found while processing types " +
+                                   name + ": unknonwn subtype " + str(unknownTypes(typeXml, self.types, xmlNamespaces)) +
+                                   ". If the unknown subtype is 'Bit', then maybe a struct with " +
+                                   "optional fields is defined wrong in the .bsd-file. If not, maybe " +
+                                   "you need to import additional types with the --import flag. " +
+                                   "E.g. '--import=UA_TYPES#/path/to/deps/ua-nodeset/Schema/" +
+                                   "Opc.Ua.Types.bsd'")
             detectLoop = len(snippets)
             for name, typeXml in list(snippets.items()):
-                if name in self.types or skipType(name):
+                if (targetNamespace in self.types and name in self.types[targetNamespace]) or name in excluded_types:
                     del snippets[name]
                     continue
-                if not typeReady(typeXml):
+                if not typeReady(typeXml, self.types, xmlNamespaces):
+                    continue
+                if structWithBitFields(typeXml) and not structWithOptionalFields(typeXml):
                     continue
                 if name in builtin_types:
                     new_type = BuiltinType(name)
                 elif typeXml.tag == "{http://opcfoundation.org/BinarySchema/}EnumeratedType":
-                    new_type = EnumerationType(outname, typeXml, namespace)
+                    new_type = EnumerationType(outname, typeXml, targetNamespace)
                 elif typeXml.tag == "{http://opcfoundation.org/BinarySchema/}OpaqueType":
-                    new_type = OpaqueType(outname, typeXml, namespace, get_base_type_for_opaque(name)['name'])
+                    new_type = OpaqueType(outname, typeXml, targetNamespace,
+                                          get_base_type_for_opaque(name)['name'])
                 elif typeXml.tag == "{http://opcfoundation.org/BinarySchema/}StructuredType":
-                    new_type = StructType(outname, typeXml, namespace, self.types)
+                    try:
+                        new_type = StructType(outname, typeXml, targetNamespace, self.types, xmlNamespaces)
+                    except TypeNotDefinedException:
+                        # Type is using other types which are not yet loaded, try later
+                        continue
                 else:
                     raise Exception("Type not known")
 
-                self.types[name] = new_type
-                if addToTypes is not None:
-                    addToTypes[name] = new_type
-
+                self.insert_type(new_type)
                 del snippets[name]
 
     @abc.abstractmethod
     def parse_types(self):
         pass
 
+    def insert_type(self, typeObject):
+        if typeObject.namespaceUri not in self.types:
+            self.types[typeObject.namespaceUri] = OrderedDict()
+
+        if typeObject.name in rename_types:
+            typeObject.name = rename_types[typeObject.name]
+
+        if typeObject.name not in self.types[typeObject.namespaceUri]:
+            self.types[typeObject.namespaceUri][typeObject.name] = typeObject
+
     def create_types(self):
         for builtin in builtin_types:
-            self.types[builtin] = BuiltinType(builtin)
+            self.insert_type(BuiltinType(builtin))
 
         for f in self.opaque_map:
             user_opaque_type_mapping.update(json.load(f))
@@ -279,75 +388,75 @@ class TypeParser():
         self.selected_types = []
         for f in arg_selected_types:
             self.selected_types += list(filter(len, [line.strip() for line in f]))
-        # Use all types if none are selected
-        if len(self.selected_types) == 0:
-            self.selected_types = self.types.keys()
 
 
 class CSVBSDTypeParser(TypeParser):
-    def __init__(self, opaque_map, selected_types, no_builtin, outname, namespace, import_bsd,
-                 type_bsd, type_csv):
-        TypeParser.__init__(self, opaque_map, selected_types, no_builtin, outname, namespace)
-        self.typedescriptions = {}
-        self.import_bsd = import_bsd
-        self.type_bsd = type_bsd
-        self.type_csv = type_csv
-        self.types_imported = {}
+    def __init__(self, opaque_map, selected_types, no_builtin, outname,
+                 existing_bsd, type_bsd, type_csv, namespaceIndexMap):
+        TypeParser.__init__(self, opaque_map, selected_types, no_builtin, outname, namespaceIndexMap)
+        self.existing_bsd = existing_bsd # bsd files with existing types that shall not be printed again
+        self.existing_types_array = set() # existing TYPE_ARRAY from existing_bsd
+        self.type_bsd = type_bsd # bsd files with new types
+        self.type_csv = type_csv # csv files with nodeids, etc.
+        self.existing_types = [] # existing types that shall not be printed
 
     def parse_types(self):
-        for i in self.import_bsd:
+        # parse existing types
+        for i in self.existing_bsd:
             (outname_import, file_import) = i.split("#")
+            self.existing_types_array.add(outname_import)
             outname_import = outname_import.lower()
             if outname_import.startswith("ua_"):
                 outname_import = outname_import[3:]
-            self.parseTypeDefinitions(outname_import, file_import, self.namespace, addToTypes=self.types_imported)
+            self.parseTypeDefinitions(outname_import, file_import)
 
+        # all types loaded up to now should be assumed as existing types and therefore
+        # no code should be generated
+        self.existing_types = copy.deepcopy(self.types)
+        # if outname is types (generate typedefinitions for NS0), we still need the BuiltinType
+        # therefore remove them from the existing array
+        if self.outname == "types":
+            for ns in self.types:
+                for t in self.types[ns]:
+                    if isinstance(self.types[ns][t], BuiltinType):
+                       del self.existing_types[ns][t]
+
+        # parse the new types
         for f in self.type_bsd:
-            self.parseTypeDefinitions(self.outname, f, self.namespace)
+            self.parseTypeDefinitions(self.outname, f)
 
+        # extend the type definitions with nodeids, etc. from the csv file
         for f in self.type_csv:
-            self.typedescriptions = self.merge_dicts(self.typedescriptions,
-                                                     self.parseTypeDescriptions(f, self.namespace))
+            self.parseTypeDescriptions(f)
 
-    def parseTypeDescriptions(self, f, namespaceid):
-        definitions = {}
-
+    def parseTypeDescriptions(self, f):
         csvreader = csv.reader(f, delimiter=',')
-        delay_init = []
-
         for row in csvreader:
             if len(row) < 3:
                 continue
             if row[2] == "Object":
-                # Check if node name ends with _Encoding_(DefaultXml|DefaultBinary) and store the node id in the
-                # corresponding DataType
-                m = re.match('(.*?)_Encoding_Default(Xml|Binary)$', row[0])
+                # Check if node name ends with _Encoding_DefaultBinary and store
+                # the node id in the corresponding DataType
+                m = re.match('(.*?)_Encoding_DefaultBinary$', row[0])
                 if m:
                     baseType = m.group(1)
-                    if baseType not in self.types:
-                        continue
-
-                    delay_init.append({
-                        "baseType": baseType,
-                        "encoding": m.group(2),
-                        "id": row[1]
-                    })
+                    for ns in self.types:
+                        if baseType in self.types[ns]:
+                            self.types[ns][baseType].binaryEncodingId = row[1]
+                            break
                 continue
+
             if row[2] != "DataType":
                 continue
-            if row[0] == "BaseDataType":
-                definitions["Variant"] = TypeDescription(row[0], row[1], namespaceid)
-            elif row[0] == "Structure":
-                definitions["ExtensionObject"] = TypeDescription(row[0], row[1], namespaceid)
-            elif row[0] not in self.types:
-                continue
-            else:
-                definitions[row[0]] = TypeDescription(row[0], row[1], namespaceid)
-        for i in delay_init:
-            if i["baseType"] not in definitions:
-                raise Exception("Type {} not found in definitions file.".format(i["baseType"]))
-            if i["encoding"] == "Xml":
-                definitions[i["baseType"]].xmlEncodingId = i["id"]
-            else:
-                definitions[i["baseType"]].binaryEncodingId = i["id"]
-        return definitions
+
+            typeName = row[0]
+            if typeName == "BaseDataType":
+                typeName = "Variant"
+            elif typeName == "Structure":
+                typeName = "ExtensionObject"
+            if typeName in rename_types:
+                typeName = rename_types[typeName]
+            for ns in self.types:
+                if typeName in self.types[ns]:
+                    self.types[ns][typeName].nodeId = row[1]
+                    break

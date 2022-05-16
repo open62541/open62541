@@ -14,9 +14,12 @@
 int counter  = 0;
 UA_Server *server;
 UA_Boolean running;
-UA_ServerNetworkLayer nl;
 UA_NodeId temperatureNodeId = {1, UA_NODEIDTYPE_NUMERIC, {1001}};
 UA_Int32 temperature;
+UA_NodeId pressureNodeId = {1, UA_NODEIDTYPE_NUMERIC, {1002}};
+UA_NodeId pressureNodeIdNoAccess = {1, UA_NODEIDTYPE_NUMERIC, {1003}};
+UA_DataValue pressure;
+UA_DataValue *pPressure = &pressure;
 UA_Boolean deleteNodeWhileWriting;
 THREAD_HANDLE server_thread;
 
@@ -101,6 +104,52 @@ writeTemperature(UA_Server *tmpServer,
     return UA_STATUSCODE_GOOD;
 }
 
+static UA_StatusCode
+writePressureNoAccess(
+   UA_Server *tmpServer,
+   const UA_NodeId *sessionId,
+   void *sessionContext,
+   const UA_NodeId *nodeId,
+   void *nodeContext,
+   const UA_NumericRange *range,
+   const UA_DataValue *data) {
+      return UA_STATUSCODE_BADUSERACCESSDENIED;
+}
+
+static UA_StatusCode
+writePressure(
+   UA_Server *tmpServer,
+   const UA_NodeId *sessionId,
+   void *sessionContext,
+   const UA_NodeId *nodeId,
+   void *nodeContext,
+   const UA_NumericRange *range,
+   const UA_DataValue *data) {
+      return UA_STATUSCODE_GOOD;
+}
+
+static UA_StatusCode 
+readPressureNoAccess(
+   UA_Server *tmpServer,
+   const UA_NodeId *sessionId,
+   void *sessionContext,
+   const UA_NodeId *nodeId,
+   void *nodeContext,
+   const UA_NumericRange *range) {
+      return UA_STATUSCODE_BADUSERACCESSDENIED;
+}
+
+static UA_StatusCode 
+readPressure(
+   UA_Server *tmpServer,
+   const UA_NodeId *sessionId,
+   void *sessionContext,
+   const UA_NodeId *nodeId,
+   void *nodeContext,
+   const UA_NumericRange *range) {
+      return UA_STATUSCODE_GOOD;
+}
+
 static void
 addDataSourceVariable(void) {
     UA_VariableAttributes attr = UA_VariableAttributes_default;
@@ -118,6 +167,53 @@ addDataSourceVariable(void) {
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
 }
 
+static void
+addValueBackendVariable(void) {
+    UA_VariableAttributes attr = UA_VariableAttributes_default;
+    attr.displayName = UA_LOCALIZEDTEXT("en-US", "Pressure");
+    attr.accessLevel = UA_ACCESSLEVELMASK_READ | UA_ACCESSLEVELMASK_WRITE;
+
+    UA_ValueBackend pressureValueBackend;
+    pressureValueBackend.backendType = UA_VALUEBACKENDTYPE_EXTERNAL;
+
+    pressureValueBackend.backend.external.value = &pPressure;
+    pressureValueBackend.backend.external.callback.userWrite = writePressure ;
+    pressureValueBackend.backend.external.callback.notificationRead = readPressure;
+    
+    UA_StatusCode retval = UA_Server_addVariableNode(server, pressureNodeId, UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
+                                        UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES), UA_QUALIFIEDNAME(1, "Pressure"),
+                                        UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE), attr,
+                                        NULL, NULL);
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+    
+    retval = UA_Server_setVariableNode_valueBackend(server, pressureNodeId, pressureValueBackend);
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+}
+
+static void
+addValueBackendVariableNoAccess(void) {
+    UA_VariableAttributes attr = UA_VariableAttributes_default;
+    attr.displayName = UA_LOCALIZEDTEXT("en-US", "Pressure");
+    attr.accessLevel = UA_ACCESSLEVELMASK_READ | UA_ACCESSLEVELMASK_WRITE;
+
+    UA_ValueBackend pressureValueBackend;
+    pressureValueBackend.backendType = UA_VALUEBACKENDTYPE_EXTERNAL;
+
+    pressureValueBackend.backend.external.value = &pPressure;
+    pressureValueBackend.backend.external.callback.userWrite = writePressureNoAccess ;
+    pressureValueBackend.backend.external.callback.notificationRead = readPressureNoAccess;
+    
+    UA_StatusCode retval = UA_Server_addVariableNode(server, pressureNodeIdNoAccess, UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
+                                        UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES), UA_QUALIFIEDNAME(1, "Pressure_noAccess"),
+                                        UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE), attr,
+                                        NULL, NULL);
+
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+    
+    retval = UA_Server_setVariableNode_valueBackend(server, pressureNodeIdNoAccess, pressureValueBackend);
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+}
+
 THREAD_CALLBACK(serverloop) {
     while(running)
         UA_Server_run_iterate(server, true);
@@ -131,6 +227,8 @@ static void setup(void) {
     addCurrentTimeVariable();
     addValueCallbackToCurrentTimeVariable();
     addDataSourceVariable();
+    addValueBackendVariable();
+    addValueBackendVariableNoAccess();
     THREAD_CREATE(server_thread, serverloop);
 }
 
@@ -153,7 +251,7 @@ START_TEST(client_readValueCallbackAttribute) {
         UA_NodeId nodeId = UA_NODEID_STRING(1, "current-time-value-callback");
         retval = UA_Client_readValueAttribute(client, nodeId, &val);
         ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
-        UA_Variant_deleteMembers(&val);
+        UA_Variant_clear(&val);
 
         UA_Client_disconnect(client);
         UA_Client_delete(client);
@@ -188,12 +286,12 @@ START_TEST(client_readMultipleAttributes) {
         retval = response.responseHeader.serviceResult;
         ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
-        ck_assert_int_eq(response.resultsSize, 3);
+        ck_assert_uint_eq(response.resultsSize, 3);
         ck_assert_uint_eq(response.results[0].status, UA_STATUSCODE_GOOD);
         ck_assert_uint_eq(response.results[1].status, UA_STATUSCODE_GOOD);
         ck_assert_uint_eq(response.results[2].status, UA_STATUSCODE_BADNODEIDUNKNOWN);
 
-        UA_ReadResponse_deleteMembers(&response);
+        UA_ReadResponse_clear(&response);
 
         UA_Client_disconnect(client);
         UA_Client_delete(client);
@@ -264,6 +362,53 @@ START_TEST(client_writeMultipleAttributes) {
     }
 END_TEST
 
+START_TEST(client_writePressureNoAccess) {
+        UA_Client *client = UA_Client_new();
+        UA_ClientConfig_setDefault(UA_Client_getConfig(client));
+        UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
+        ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+        
+        UA_Variant value;
+        UA_Variant_init(&value);
+        
+        UA_UInt32 pressureVal = 1000;
+        UA_Variant_setScalarCopy(&value, &pressureVal, &UA_TYPES[UA_TYPES_UINT32]);
+        
+        retval = UA_Client_writeValueAttribute(client, pressureNodeId, &value);
+        ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+        
+        retval = UA_Client_writeValueAttribute(client, pressureNodeIdNoAccess, &value);
+        ck_assert_uint_eq(retval, UA_STATUSCODE_BADUSERACCESSDENIED);
+
+        UA_Variant_clear(&value);
+        
+        UA_Client_disconnect(client);
+        UA_Client_delete(client);
+    }
+END_TEST
+
+START_TEST(client_readPressureNoAccess) {
+        UA_Client *client = UA_Client_new();
+        UA_ClientConfig_setDefault(UA_Client_getConfig(client));
+        UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
+        ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+        
+        UA_Variant value;
+        UA_Variant_init(&value);
+        
+        retval = UA_Client_readValueAttribute(client, pressureNodeId, &value);
+        ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+        
+        retval = UA_Client_readValueAttribute(client, pressureNodeIdNoAccess, &value);
+        ck_assert_uint_eq(retval, UA_STATUSCODE_BADUSERACCESSDENIED);
+
+        UA_Variant_clear(&value);
+        
+        UA_Client_disconnect(client);
+        UA_Client_delete(client);
+    }
+END_TEST
+
 static Suite* testSuite_immutableNodes(void) {
     Suite *s = suite_create("Immutable Nodes");
     TCase *valueCallback = tcase_create("ValueCallback");
@@ -276,6 +421,8 @@ static Suite* testSuite_immutableNodes(void) {
     deleteNodeWhileWriting = UA_TRUE;
     tcase_add_test(valueCallback, client_writeValueCallbackAttribute);
     tcase_add_test(valueCallback, client_writeMultipleAttributes);
+    tcase_add_test(valueCallback, client_writePressureNoAccess);
+    tcase_add_test(valueCallback, client_readPressureNoAccess);
     suite_add_tcase(s,valueCallback);
     return s;
 }

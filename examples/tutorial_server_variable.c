@@ -143,7 +143,7 @@ int main(void) {
     UA_ServerConfig* config = UA_Server_getConfig(server);
     config->verifyRequestTimestamp = UA_RULEHANDLING_ACCEPT;
 #ifdef UA_ENABLE_WEBSOCKET_SERVER
-    UA_ServerConfig_addNetworkLayerWS(UA_Server_getConfig(server), 7681, 0, 0);
+    UA_ServerConfig_addNetworkLayerWS(UA_Server_getConfig(server), 7681, 0, 0, NULL, NULL);
 #endif
 
     addVariable(server);

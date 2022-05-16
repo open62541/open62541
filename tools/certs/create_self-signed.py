@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 # This Source Code Form is subject to the terms of the Mozilla Public
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
@@ -109,7 +109,7 @@ os.system("""openssl req \
      -x509 -sha256  \
      -newkey rsa:{} \
      -keyout localhost.key -days 365 \
-     -subj "/C=DE/O=open62541/CN=open62541Server@localhost"\
+     -subj "/C=DE/L=Here/O=open62541/CN=open62541Server@localhost"\
      -out localhost.crt""".format(openssl_conf, keysize))
 os.system("openssl x509 -in localhost.crt -outform der -out %s_cert.der" % (certificatename))
 os.system("openssl rsa -inform PEM -in localhost.key -outform DER -out %s_key.der"% (certificatename))

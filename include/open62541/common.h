@@ -17,10 +17,10 @@
 _UA_BEGIN_DECLS
 
 /**
- * Standard-Defined Constants
- * ==========================
- * This section contains numerical and string constants that are defined in the
- * OPC UA standard.
+ * Common Definitions
+ * ==================
+ *
+ * Common definitions for Client, Server and PubSub.
  *
  * .. _attribute-id:
  *
@@ -52,7 +52,11 @@ typedef enum {
     UA_ATTRIBUTEID_HISTORIZING             = 20,
     UA_ATTRIBUTEID_EXECUTABLE              = 21,
     UA_ATTRIBUTEID_USEREXECUTABLE          = 22,
-    UA_ATTRIBUTEID_DATATYPEDEFINITION      = 23
+    UA_ATTRIBUTEID_DATATYPEDEFINITION      = 23,
+    UA_ATTRIBUTEID_ROLEPERMISSIONS         = 24,
+    UA_ATTRIBUTEID_USERROLEPERMISSIONS     = 25,
+    UA_ATTRIBUTEID_ACCESSRESTRICTIONS      = 26,
+    UA_ATTRIBUTEID_ACCESSLEVELEX           = 27
 } UA_AttributeId;
 
 /**
@@ -114,8 +118,19 @@ typedef enum {
 #define UA_VALUERANK_THREE_DIMENSIONS          3
 
 /**
- * Internal Definitions
- * ====================
+ * EventNotifier
+ * -------------
+ * The following are the available EventNotifier used for Nodes.
+ * The EventNotifier Attribute is used to indicate if the Node can be used
+ * to subscribe to Events or to read / write historic Events.
+ * Part 3: 5.4 Table 10 */
+
+#define UA_EVENTNOTIFIER_SUBSCRIBE_TO_EVENT (0x01u << 0u)
+#define UA_EVENTNOTIFIER_HISTORY_READ       (0x01u << 2u)
+#define UA_EVENTNOTIFIER_HISTORY_WRITE      (0x01u << 3u)
+
+/**
+ * .. _rule-handling:
  *
  * Rule Handling
  * -------------
@@ -146,17 +161,43 @@ typedef enum {
 } UA_Order;
 
 /**
+ * Connection State
+ * ---------------- */
+
+typedef enum {
+    UA_SECURECHANNELSTATE_FRESH = 0,
+    UA_SECURECHANNELSTATE_HEL_SENT,
+    UA_SECURECHANNELSTATE_HEL_RECEIVED,
+    UA_SECURECHANNELSTATE_ACK_SENT,
+    UA_SECURECHANNELSTATE_ACK_RECEIVED,
+    UA_SECURECHANNELSTATE_OPN_SENT,
+    UA_SECURECHANNELSTATE_OPEN,
+    UA_SECURECHANNELSTATE_CLOSING,
+    UA_SECURECHANNELSTATE_CLOSED
+} UA_SecureChannelState;
+
+typedef enum {
+    UA_SESSIONSTATE_CLOSED,
+    UA_SESSIONSTATE_CREATE_REQUESTED,
+    UA_SESSIONSTATE_CREATED,
+    UA_SESSIONSTATE_ACTIVATE_REQUESTED,
+    UA_SESSIONSTATE_ACTIVATED,
+    UA_SESSIONSTATE_CLOSING
+} UA_SessionState;
+
+/**
  * Statistic counters
  * ------------------
  *
- * The stack manage statistic counter for the following layers:
+ * The stack manages statistic counters for the following layers:
+ *
  * - Network
  * - Secure channel
  * - Session
  *
  * The session layer counters are matching the counters of the
  * ServerDiagnosticsSummaryDataType that are defined in the OPC UA Part 5
- * specification. Counter of the other layers are not specified by OPC UA but
+ * specification. Counters of the other layers are not specified by OPC UA but
  * are harmonized with the session layer counters if possible. */
 
 typedef struct {
@@ -184,6 +225,9 @@ typedef struct {
     size_t sessionTimeoutCount;          /* only used by servers */
     size_t sessionAbortCount;            /* only used by servers */
 } UA_SessionStatistics;
+
+/**
+ * .. include:: util.rst */
 
 _UA_END_DECLS
 
