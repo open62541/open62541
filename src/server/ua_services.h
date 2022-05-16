@@ -47,6 +47,9 @@ _UA_BEGIN_DECLS
 typedef void (*UA_Service)(UA_Server*, UA_Session*,
                            const void *request, void *response);
 
+typedef void (*UA_ChannelService)(UA_Server*, UA_SecureChannel*,
+                                  const void *request, void *response);
+
 /**
  * Discovery Service Set
  * ---------------------
@@ -153,7 +156,6 @@ void Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
  * any other Service request after CreateSession. Failure to do so shall cause
  * the Server to close the Session. */
 void Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
-                             UA_Session *session,
                              const UA_ActivateSessionRequest *request,
                              UA_ActivateSessionResponse *response);
 
@@ -161,7 +163,7 @@ void Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
  * CloseSession
  * ^^^^^^^^^^^^
  * Used to terminate a Session. */
-void Service_CloseSession(UA_Server *server, UA_Session *session,
+void Service_CloseSession(UA_Server *server, UA_SecureChannel *channel,
                           const UA_CloseSessionRequest *request,
                           UA_CloseSessionResponse *response);
 
@@ -182,7 +184,11 @@ void Service_CloseSession(UA_Server *server, UA_Session *session,
  *
  * AddNodes Service
  * ^^^^^^^^^^^^^^^^
- * Used to add one or more Nodes into the AddressSpace hierarchy. */
+ * Used to add one or more Nodes into the AddressSpace hierarchy.
+ * If the type or one of the supertypes has any HasInterface references
+ * (see OPC 10001-7 - Amendment 7, 4.9.2), the child nodes of the interfaces
+ * are added to the new object.
+*/
 void Service_AddNodes(UA_Server *server, UA_Session *session,
                       const UA_AddNodesRequest *request,
                       UA_AddNodesResponse *response);
@@ -190,7 +196,7 @@ void Service_AddNodes(UA_Server *server, UA_Session *session,
 /**
  * AddReferences Service
  * ^^^^^^^^^^^^^^^^^^^^^
- * Used to add one or more References to one or more Nodes. */
+ * Used to add one or more References to one or more Nodes.*/
 void Service_AddReferences(UA_Server *server, UA_Session *session,
                            const UA_AddReferencesRequest *request,
                            UA_AddReferencesResponse *response);
@@ -303,7 +309,8 @@ void Service_UnregisterNodes(UA_Server *server, UA_Session *session,
  * the entire set of indexed values as a composite, to read individual elements
  * or to read ranges of elements of the composite. */
 void Service_Read(UA_Server *server, UA_Session *session,
-                  const UA_ReadRequest *request, UA_ReadResponse *response);
+                  const UA_ReadRequest *request,
+                  UA_ReadResponse *response);
 
 /**
  * Write Service
@@ -313,7 +320,8 @@ void Service_Read(UA_Server *server, UA_Session *session,
  * the entire set of indexed values as a composite, to write individual elements
  * or to write ranges of elements of the composite. */
 void Service_Write(UA_Server *server, UA_Session *session,
-                   const UA_WriteRequest *request, UA_WriteResponse *response);
+                   const UA_WriteRequest *request,
+                   UA_WriteResponse *response);
 
 /**
  * HistoryRead Service
@@ -358,9 +366,9 @@ void Service_Call(UA_Server *server, UA_Session *session,
                   UA_CallResponse *response);
 
 # if UA_MULTITHREADING >= 100
-void Service_CallAsync(UA_Server *server, UA_Session *session, UA_SecureChannel* channel,
-                       UA_UInt32 requestId, const UA_CallRequest *request,
-                       UA_CallResponse *response);
+void Service_CallAsync(UA_Server *server, UA_Session *session, UA_UInt32 requestId,
+                       const UA_CallRequest *request, UA_CallResponse *response,
+                       UA_Boolean *finished);
 #endif
 #endif
 
@@ -420,7 +428,9 @@ void Service_SetMonitoringMode(UA_Server *server, UA_Session *session,
  * SetTriggering Service
  * ^^^^^^^^^^^^^^^^^^^^^
  * Used to create and delete triggering links for a triggering item. */
-/* Not Implemented */
+void Service_SetTriggering(UA_Server *server, UA_Session *session,
+                           const UA_SetTriggeringRequest *request,
+                           UA_SetTriggeringResponse *response);
 
 /**
  * Subscription Service Set
@@ -462,9 +472,13 @@ void Service_SetPublishingMode(UA_Server *server, UA_Session *session,
  *
  * Note that the service signature is an exception and does not contain a
  * pointer to a PublishResponse. That is because the service queues up publish
- * requests internally and sends responses asynchronously based on timeouts. */
-void Service_Publish(UA_Server *server, UA_Session *session,
-                     const UA_PublishRequest *request, UA_UInt32 requestId);
+ * requests internally and sends responses asynchronously based on timeouts.
+ *
+ * Also, this is the only service method that returns a StatusCode. This
+ * simplifies keeping track of the diagnostics statistics. */
+UA_StatusCode
+Service_Publish(UA_Server *server, UA_Session *session,
+                const UA_PublishRequest *request, UA_UInt32 requestId);
 
 /**
  * Republish Service
@@ -492,7 +506,9 @@ void Service_DeleteSubscriptions(UA_Server *server, UA_Session *session,
  * its Subscriptions to that Session. It may also be used by one Client to take
  * over a Subscription from another Client by transferring the Subscription to
  * its Session. */
-/* Not Implemented */
+void Service_TransferSubscriptions(UA_Server *server, UA_Session *session,
+                                   const UA_TransferSubscriptionsRequest *request,
+                                   UA_TransferSubscriptionsResponse *response);
 
 #endif /* UA_ENABLE_SUBSCRIPTIONS */
 

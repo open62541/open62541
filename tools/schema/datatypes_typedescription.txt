@@ -1,3 +1,5 @@
 StructureDefinition
 StructureField
 StructureType
+EnumDefinition
+EnumField

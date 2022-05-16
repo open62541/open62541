@@ -80,7 +80,7 @@ addVariable(UA_Server *server) {
 /**
  * The constraints of the variable type are enforced when creating new variable
  * instances of the type. In the following function, adding a variable of
- * *2DPoint* type with a string value fails because The value does not match the
+ * *2DPoint* type with a string value fails because the value does not match the
  * variable type constraints. */
 
 static void

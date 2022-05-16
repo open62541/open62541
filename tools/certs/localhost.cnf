@@ -6,7 +6,7 @@
 # This definition stops the following lines choking if HOME isn't
 # defined.
 HOME			= .
-RANDFILE		= $ENV::HOME/.rnd
+#RANDFILE		= $ENV::HOME/.rnd
 
 # Extra OBJECT IDENTIFIER info:
 #oid_file		= $ENV::HOME/.oid
@@ -15,6 +15,7 @@ oid_section		= new_oids
 hostname = ${ENV::HOSTNAME}
 ipaddress1 = ${ENV::IPADDRESS1}
 ipaddress2 = ${ENV::IPADDRESS2}
+uri1 = ${ENV::URI1}
 
 # To use this configuration file with the "-extfile" option of the
 # "openssl x509" utility, name here the section containing the
@@ -57,7 +58,7 @@ crlnumber	= $dir/crlnumber	# the current crl number
 					# must be commented out to leave a V1 CRL
 crl		= $dir/crl.pem 		# The current CRL
 private_key	= $dir/ca.key 		# The private key
-RANDFILE	= $dir/.rand		# private random number file
+#RANDFILE	= $dir/.rand		# private random number file
 
 x509_extensions	= usr_cert		# The extensions to add to the cert
 
@@ -231,7 +232,7 @@ DNS.1 = ${hostname}
 DNS.2 = ${hostname}
 IP.1 = ${ipaddress1}
 IP.2 = ${ipaddress2}
-URI.1 = urn:open62541.server.application
+URI.1 = ${uri1}
 
 [ v3_ca ]
 

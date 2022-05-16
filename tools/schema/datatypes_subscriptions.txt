@@ -50,3 +50,8 @@ RepublishRequest
 RepublishResponse
 DeleteSubscriptionsRequest
 DeleteSubscriptionsResponse
+TransferResult
+TransferSubscriptionsRequest
+TransferSubscriptionsResponse
+SetTriggeringRequest
+SetTriggeringResponse

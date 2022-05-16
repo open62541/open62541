@@ -84,12 +84,13 @@ readRawModified(const UA_HistoryModifiedData *data) {
     printf("readRawModified Value count: %lu\n", (long unsigned)data->dataValuesSize);
 
     /* Iterate over all values */
-    for (size_t i = 0; i < data->dataValuesSize; ++i) {
+    for(size_t i = 0; i < data->dataValuesSize; ++i) {
         printDataValue(&data->dataValues[i]);
     }
-    printf("Modificaton Value count: %lu\n", data->modificationInfosSize);
-    for (size_t j = 0; j < data->modificationInfosSize; ++j) {
-        if (data->modificationInfos[j].userName.data)
+    printf("Modificaton Value count: %llu\n",
+           (long long unsigned)data->modificationInfosSize);
+    for(size_t j = 0; j < data->modificationInfosSize; ++j) {
+        if(data->modificationInfos[j].userName.data)
             printf("Username: %s, ", data->modificationInfos[j].userName.data);
 
         printTimestamp("Modtime", data->modificationInfos[j].modificationTime);

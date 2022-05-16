@@ -1,0 +1,5 @@
+StructWithBitsWithoutOF,3001,DataType
+StructWithOFBitsNotAtBeginning,3002,DataType
+StructWithOFWithoutSpecified,3003,DataType
+StructWithOFWithoutSwitchField,3004,DataType
+StructWithOFWithoutReserved1,3005,DataType

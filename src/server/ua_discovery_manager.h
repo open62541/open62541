@@ -23,9 +23,6 @@ _UA_BEGIN_DECLS
 #ifdef UA_ENABLE_DISCOVERY
 
 typedef struct registeredServer_list_entry {
-#if UA_MULTITHREADING >= 200
-    UA_DelayedCallback delayedCleanup;
-#endif
     LIST_ENTRY(registeredServer_list_entry) pointers;
     UA_RegisteredServer registeredServer;
     UA_DateTime lastSeen;
@@ -41,9 +38,6 @@ struct PeriodicServerRegisterCallback {
 };
 
 typedef struct periodicServerRegisterCallback_entry {
-#if UA_MULTITHREADING >= 200
-    UA_DelayedCallback delayedCleanup;
-#endif
     LIST_ENTRY(periodicServerRegisterCallback_entry) pointers;
     struct PeriodicServerRegisterCallback *callback;
 } periodicServerRegisterCallback_entry;
@@ -62,9 +56,6 @@ typedef struct periodicServerRegisterCallback_entry {
  */
 
 typedef struct serverOnNetwork_list_entry {
-#if UA_MULTITHREADING >= 200
-    UA_DelayedCallback delayedCleanup;
-#endif
     LIST_ENTRY(serverOnNetwork_list_entry) pointers;
     UA_ServerOnNetwork serverOnNetwork;
     UA_DateTime created;
@@ -74,7 +65,7 @@ typedef struct serverOnNetwork_list_entry {
     char* pathTmp;
 } serverOnNetwork_list_entry;
 
-#define SERVER_ON_NETWORK_HASH_PRIME 1009
+#define SERVER_ON_NETWORK_HASH_SIZE 1000
 typedef struct serverOnNetwork_hash_entry {
     serverOnNetwork_list_entry* entry;
     struct serverOnNetwork_hash_entry* next;
@@ -94,19 +85,21 @@ typedef struct {
     UA_SOCKET mdnsSocket;
     UA_Boolean mdnsMainSrvAdded;
 
+    /* Full Domain Name of server itself. Used to detect if received mDNS message was from itself */
+    UA_String selfFqdnMdnsRecord;
+
     LIST_HEAD(, serverOnNetwork_list_entry) serverOnNetwork;
-    size_t serverOnNetworkSize;
 
     UA_UInt32 serverOnNetworkRecordIdCounter;
     UA_DateTime serverOnNetworkRecordIdLastReset;
 
     /* hash mapping domain name to serverOnNetwork list entry */
-    struct serverOnNetwork_hash_entry* serverOnNetworkHash[SERVER_ON_NETWORK_HASH_PRIME];
+    struct serverOnNetwork_hash_entry* serverOnNetworkHash[SERVER_ON_NETWORK_HASH_SIZE];
 
     UA_Server_serverOnNetworkCallback serverOnNetworkCallback;
     void* serverOnNetworkCallbackData;
 
-#if UA_MULTITHREADING >= 200
+#if UA_MULTITHREADING >= 100
     pthread_t mdnsThread;
     UA_Boolean mdnsRunning;
 #  endif
@@ -114,7 +107,7 @@ typedef struct {
 } UA_DiscoveryManager;
 
 void UA_DiscoveryManager_init(UA_DiscoveryManager *dm, UA_Server *server);
-void UA_DiscoveryManager_deleteMembers(UA_DiscoveryManager *dm, UA_Server *server);
+void UA_DiscoveryManager_clear(UA_DiscoveryManager *dm, UA_Server *server);
 
 /* Checks if a registration timed out and removes that registration.
  * Should be called periodically in main loop */
@@ -122,6 +115,14 @@ void UA_Discovery_cleanupTimedOut(UA_Server *server, UA_DateTime nowMonotonic);
 
 #ifdef UA_ENABLE_DISCOVERY_MULTICAST
 
+/**
+ * Sends out a new mDNS package for the given server data.
+ * This Method is normally called when another server calls the RegisterServer Service on this server.
+ * Then this server is responsible to send out a new mDNS package to announce it.
+ *
+ * Additionally this method also adds the given server to the internal serversOnNetwork list so that
+ * a client finds it when calling FindServersOnNetwork.
+ */
 void
 UA_Server_updateMdnsForDiscoveryUrl(UA_Server *server, const UA_String *serverName,
                                     const UA_MdnsDiscoveryConfiguration *mdnsConfig,
@@ -160,16 +161,41 @@ typedef enum {
 UA_StatusCode
 UA_Discovery_multicastQuery(UA_Server* server);
 
+/**
+ * Create a mDNS Record for the given server info and adds it to the mDNS output queue.
+ *
+ * Additionally this method also adds the given server to the internal serversOnNetwork list so that
+ * a client finds it when calling FindServersOnNetwork.
+ */
 UA_StatusCode
 UA_Discovery_addRecord(UA_Server *server, const UA_String *servername,
                        const UA_String *hostname, UA_UInt16 port,
                        const UA_String *path, const UA_DiscoveryProtocol protocol,
                        UA_Boolean createTxt, const UA_String* capabilites,
-                       const size_t capabilitiesSize);
+                       const size_t capabilitiesSize,
+                       UA_Boolean isSelf);
+
+
+UA_StatusCode
+UA_DiscoveryManager_addEntryToServersOnNetwork(UA_Server *server, const char *fqdnMdnsRecord, const char *serverName,
+                                               size_t serverNameLen, struct serverOnNetwork_list_entry **addedEntry);
+
+/**
+ * Create a mDNS Record for the given server info with TTL=0 and adds it to the mDNS output queue.
+ *
+ * Additionally this method also removes the given server from the internal serversOnNetwork list so that
+ * a client gets the updated data when calling FindServersOnNetwork.
+ */
 UA_StatusCode
 UA_Discovery_removeRecord(UA_Server *server, const UA_String *servername,
                           const UA_String *hostname, UA_UInt16 port,
                           UA_Boolean removeTxt);
+
+
+UA_StatusCode
+UA_DiscoveryManager_removeEntryFromServersOnNetwork(UA_Server *server, const char *fqdnMdnsRecord, const char *serverName,
+                                                    size_t serverNameLen);
+
 
 #endif /* UA_ENABLE_DISCOVERY_MULTICAST */
 

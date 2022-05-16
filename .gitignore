@@ -78,9 +78,14 @@ Makefile
 /exampleClient_legacy
 /src_generated/
 /build
-/.idea
 /cmake-build*
 /tools/certs/certs/*
 Pipfile
 Pipfile.lock
 .vscode
+
+# clangd cache
+.cache/
+
+# project local vim settings
+.vim/

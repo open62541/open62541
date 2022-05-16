@@ -1,1 +1,7 @@
 Range
+EUInformation
+AxisScaleEnumeration
+ComplexNumberType
+DoubleComplexNumberType
+AxisInformation
+XVType

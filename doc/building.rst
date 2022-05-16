@@ -71,7 +71,7 @@ Building on OS X
 
   - Xcode: https://itunes.apple.com/us/app/xcode/id497799835?ls=1&mt=12
   - Homebrew: http://brew.sh/
-  - Pip (a package manager for python, may be preinstalled): ``sudo easy_install pip``
+  - Pip (a package manager for Python, may be preinstalled): ``sudo easy_install pip``
 
 - Run the following in a shell
 
@@ -92,13 +92,13 @@ The procedure below works on OpenBSD 5.8 with gcc version 4.8.4, cmake version 3
 - Install a recent gcc, python and cmake:
 
 .. code-block:: bash
-   
+
    pkg_add gcc python cmake
 
-- Tell the system to actually use the recent gcc (it gets installed as egcc on OpenBSD): 
+- Tell the system to actually use the recent gcc (it gets installed as egcc on OpenBSD):
 
 .. code-block:: bash
-   
+
    export CC=egcc CXX=eg++
 
 - Now procede as described for Ubuntu/Debian:
@@ -111,6 +111,79 @@ The procedure below works on OpenBSD 5.8 with gcc version 4.8.4, cmake version 3
    cmake ..
    make
 
+Building Debian Packages inside Docker Container with CMake on Ubuntu or Debian
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Here is an example howto build the library as Debian package inside a Docker container
+
+- Download and install
+
+  - Docker Engine: https://docs.docker.com/install/linux/docker-ce/debian/
+  - docker-deb-builder: https://github.com/tsaarni/docker-deb-builder.git
+  - open62541: https://github.com/open62541/open62541.git
+
+Install Docker as described at https://docs.docker.com/install/linux/docker-ce/debian/ .
+
+Get the docker-deb-builder utility from github and make Docker images for the needed
+Debian and/or Ubuntu relases
+
+.. code-block:: bash
+
+   # make and goto local development path (e.g. ~/development)
+   mkdir ~/development
+   cd ~/development
+
+   # clone docker-deb-builder utility from github and change into builder directory
+   git clone https://github.com/tsaarni/docker-deb-builder.git
+   cd docker-deb-builder
+
+   # make Docker builder images (e.g. Ubuntu 18.04 and 17.04)
+   docker build -t docker-deb-builder:18.04 -f Dockerfile-ubuntu-18.04 .
+   docker build -t docker-deb-builder:17.04 -f Dockerfile-ubuntu-17.04 .
+
+Make a local copy of the open62541 git repo and checkout a pack branch
+
+.. code-block:: bash
+
+   # make a local copy of the open62541 git repo (e.g. in the home directory)
+   # and checkout a pack branch (e.g. pack/1.0)
+   cd ~
+   git clone https://github.com/open62541/open62541.git
+   cd ~/open62541
+   git checkout pack/1.0
+
+Now it's all set to build Debian/Ubuntu open62541 packages
+
+.. code-block:: bash
+
+   # goto local developmet path
+   cd ~/development
+
+   # make a local output directory for the builder where the packages can be placed after build
+   mkdir output
+
+   # build Debian/Ubuntu packages inside Docker container (e.g. Ubuntu-18.04)
+   ./build -i docker-deb-builder:18.04 -o output ~/open62541
+
+After a successfull build the Debian/Ubuntu packages can be found at :file:`~/development/docker-deb-builder/output`
+
+CMake Build Options and Debian Packaging
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+If the open62541 library will be build as a Debian package using a pack branch (e.g. pack/master or pack/1.0)
+then altering or adding CMake build options should be done inside the :file:`debian/rules` file respectively in
+the :file:`debian/rules-template` file if working with a development branch (e.g. master or 1.0).
+
+The section in :file:`debian/rules` where the CMake build options are defined is
+
+.. code-block:: bash
+
+   ...
+   override_dh_auto_configure:
+       dh_auto_configure -- -DBUILD_SHARED_LIBS=ON -DCMAKE_BUILD_TYPE=RelWithDebInfo -DUA_NAMESPACE_ZERO=FULL -DUA_ENABLE_AMALGAMATION=OFF -DUA_PACK_DEBIAN=ON
+   ...
+
+This CMake build options will be passed as command line variables to CMake during Debian packaging.
 
 .. _build_options:
 
@@ -139,12 +212,20 @@ Main Build Options
    The SDK logs events of the level defined in ``UA_LOGLEVEL`` and above only.
    The logging event levels are as follows:
 
-     - 600: Fatal
-     - 500: Error
-     - 400: Warning
-     - 300: Info
-     - 200: Debug
-     - 100: Trace
+   - 600: Fatal
+   - 500: Error
+   - 400: Warning
+   - 300: Info
+   - 200: Debug
+   - 100: Trace
+
+**UA_MULTITHREADING**
+   Level of multi-threading support. The supported levels are currently as follows:
+
+  - 0-99: Multithreading support disabled.
+  - >=100: API functions marked with the UA_THREADSAFE-macro are protected internally with mutexes.
+    Multiple threads are allowed to call these functions of the SDK at the same time without causing race conditions.
+    Furthermore, this level support the handling of asynchronous method calls from external worker threads.
 
 Select build artefacts
 ^^^^^^^^^^^^^^^^^^^^^^
@@ -171,8 +252,15 @@ Detailed SDK Features
 **UA_ENABLE_SUBSCRIPTIONS_EVENTS (EXPERIMENTAL)**
     Enable the use of events for subscriptions. This is a new feature and currently marked as EXPERIMENTAL.
 
+**UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS (EXPERIMENTAL)**
+    Enable the use of A&C for subscriptions. This is a new feature build upon events and currently marked as EXPERIMENTAL.
+
 **UA_ENABLE_METHODCALLS**
    Enable the Method service set
+
+**UA_ENABLE_PARSING**
+   Enable parsing human readable formats of builtin data types (Guid, NodeId, etc.).
+   Utility functions that are not essential to the SDK.
 
 **UA_ENABLE_NODEMANAGEMENT**
    Enable dynamic addition and removal of nodes at runtime
@@ -180,22 +268,11 @@ Detailed SDK Features
 **UA_ENABLE_AMALGAMATION**
    Compile a single-file release into the files :file:`open62541.c` and :file:`open62541.h`. Not recommended for installation.
 
-**UA_MULTITHREADING (EXPERIMENTAL)**
-   Enable multi-threading support. This is a new feature and currently marked as EXPERIMENTAL.
-   The supported levels are as follows:
-
-        - 0: Multithreading support disabled.
-        - 100: Functions marked with the UA_THREADSAFE-macro are protected with a lock-based enhancement using mutexes.
-        Multiple threads are allowed to call these functions of the SDK at the same time without causing race conditions.
-        Furthermore, this level supports the feature of adding async methods to objects.
-        - 200: Work is distributed to a number of worker threads. Those worker threads are created within the SDK.
-
 **UA_ENABLE_IMMUTABLE_NODES**
    Nodes in the information model are not edited but copied and replaced. The
    replacement is done with atomic operations so that the information model is
    always consistent and can be accessed from an interrupt or parallel thread
-   (depends on the node storage plugin implementation). This feature is a
-   prerequisite for ``UA_MULTITHREADING``.
+   (depends on the node storage plugin implementation).
 
 **UA_ENABLE_COVERAGE**
    Measure the coverage of unit tests
@@ -205,6 +282,17 @@ Detailed SDK Features
    Enable Discovery Service with multicast support (LDS-ME)
 **UA_ENABLE_DISCOVERY_SEMAPHORE**
    Enable Discovery Semaphore support
+**UA_ENABLE_ENCRYPTION**
+   Enable encryption support and specify the used encryption backend. The possible
+   options are:
+   - ``OFF`` No encryption support. (default)
+   - ``MBEDTLS`` Encryption support using mbed TLS
+   - ``OPENSSL`` Encryption support using OpenSSL
+   - ``LIBRESSL`` EXPERIMENTAL: Encryption support using LibreSSL
+**UA_ENABLE_ENCRYPTION_TPM2**
+   Enable TPM hardware for encryption. The possible options are:
+      - ``OFF`` No TPM encryption support. (default)
+      - ``ON`` TPM encryption support
 
 **UA_NAMESPACE_ZERO**
 
@@ -232,6 +320,42 @@ be visible in the cmake GUIs.
    Use the full NS0 instead of a minimal Namespace 0 nodeset
    ``UA_FILE_NS0`` is used to specify the file for NS0 generation from namespace0 folder. Default value is ``Opc.Ua.NodeSet2.xml``
 
+PubSub Build Options
+^^^^^^^^^^^^^^^^^^^^
+
+**UA_ENABLE_PUBSUB**
+   Enable the experimental OPC UA PubSub support. The option will include the
+   PubSub UDP multicast plugin. Disabled by default.
+
+**UA_ENABLE_PUBSUB_DELTAFRAMES**
+   The PubSub messages differentiate between keyframe (all published values
+   contained) and deltaframe (only changed values contained) messages.
+   Deltaframe messages creation consumes some additional resources and can be
+   disabled with this flag. Disabled by default.
+
+**UA_ENABLE_PUBSUB_FILE_CONFIG**
+   Enable loading OPC UA PubSub configuration from File/ByteString. Enabling
+   PubSub informationmodel methods also will add a method to the
+   Publish/Subscribe object which allows configuring PubSub at runtime.
+
+**UA_ENABLE_PUBSUB_INFORMATIONMODEL**
+   Enable the information model representation of the PubSub configuration. For
+   more details take a look at the following section `PubSub Information Model
+   Representation`. Disabled by default.
+
+**UA_ENABLE_PUBSUB_MONITORING**
+   Enable the experimental PubSub monitoring. This feature provides a basic
+   framework to implement monitoring/timeout checks for PubSub components.
+   Initially the MessageReceiveTimeout check of a DataSetReader is provided. It
+   uses the internal server callback implementation. The monitoring backend can
+   be changed by the application to satisfy realtime requirements. Disabled by
+   default.
+
+**UA_ENABLE_PUBSUB_ETH_UADP**
+   Enable the OPC UA Ethernet PubSub support to transport UADP NetworkMessages
+   as payload of Ethernet II frame without IP or UDP headers. This option will
+   include Publish and Subscribe based on EtherType B62C. Disabled by default.
+
 Debug Build Options
 ^^^^^^^^^^^^^^^^^^^
 
@@ -257,7 +381,7 @@ Minimizing the binary size
 ^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 The size of the generated binary can be reduced considerably by adjusting the
-build configuration. With open2541, it is possible to configure minimal servers
+build configuration. With open62541, it is possible to configure minimal servers
 that require less than 100kB of RAM and ROM.
 
 The following options influence the ROM requirements:

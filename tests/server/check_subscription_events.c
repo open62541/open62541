@@ -1,6 +1,10 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/.
+ * 
+ *    Copyright 2020-2021 (c) Christian von Arnim, ISW University of Stuttgart (for VDW and umati)
+ *    Copyright 2021 (c) Fraunhofer IOSB (Author: Andreas Ebner)
+ */
 
 #include <open62541/client_config_default.h>
 #include <open62541/client_subscriptions.h>
@@ -31,7 +35,7 @@ static UA_UInt32 monitoredItemId;
 static UA_NodeId eventType;
 static size_t nSelectClauses = 4;
 static UA_Boolean notificationReceived;
-static UA_Boolean overflowNotificationReceived;
+static UA_Boolean overflowNotificationReceived = false;
 static UA_SimpleAttributeOperand *selectClauses;
 
 UA_Double publishingInterval = 500.0;
@@ -47,8 +51,8 @@ addNewEventType(void) {
                                 UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE),
                                 UA_QUALIFIEDNAME(0, "SimpleEventType"),
                                 attr, NULL, &eventType);
-    UA_LocalizedText_deleteMembers(&attr.displayName);
-    UA_LocalizedText_deleteMembers(&attr.description);
+    UA_LocalizedText_clear(&attr.displayName);
+    UA_LocalizedText_clear(&attr.description);
 }
 
 static void
@@ -144,11 +148,11 @@ removeSubscription(void) {
 
     UA_DeleteSubscriptionsResponse deleteSubscriptionsResponse;
     UA_DeleteSubscriptionsResponse_init(&deleteSubscriptionsResponse);
-    UA_LOCK(server->serviceMutex);
+    UA_LOCK(&server->serviceMutex);
     Service_DeleteSubscriptions(server, &server->adminSession, &deleteSubscriptionsRequest,
                                 &deleteSubscriptionsResponse);
-    UA_UNLOCK(server->serviceMutex);
-    UA_DeleteSubscriptionsResponse_deleteMembers(&deleteSubscriptionsResponse);
+    UA_UNLOCK(&server->serviceMutex);
+    UA_DeleteSubscriptionsResponse_clear(&deleteSubscriptionsResponse);
 }
 
 static void serverMutexLock(void) {
@@ -171,6 +175,7 @@ THREAD_CALLBACK(serverloop) {
         UA_Server_run_iterate(server, false);
         serverIterations++;
         serverMutexUnlock();
+        UA_realSleep(1);
     }
     return 0;
 }
@@ -283,7 +288,7 @@ eventSetup(UA_NodeId *eventNodeId) {
     retval = UA_Server_writeValue(server, bpr.targets[0].targetId.nodeId, value);
     serverMutexUnlock();
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
-    UA_BrowsePathResult_deleteMembers(&bpr);
+    UA_BrowsePathResult_clear(&bpr);
 
     //add a message to the event
     rpe.targetName = UA_QUALIFIEDNAME(0, "Message");
@@ -297,13 +302,13 @@ eventSetup(UA_NodeId *eventNodeId) {
     retval = UA_Server_writeValue(server, bpr.targets[0].targetId.nodeId, value);
     serverMutexUnlock();
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
-    UA_BrowsePathResult_deleteMembers(&bpr);
+    UA_BrowsePathResult_clear(&bpr);
 
     return retval;
 }
 
 static UA_MonitoredItemCreateResult
-addMonitoredItem(UA_Client_EventNotificationCallback handler, bool setFilter) {
+addMonitoredItem(UA_Client_EventNotificationCallback handler, bool setFilter, bool discardOldest) {
     UA_MonitoredItemCreateRequest item;
     UA_MonitoredItemCreateRequest_init(&item);
     item.itemToMonitor.nodeId = UA_NODEID_NUMERIC(0, 2253); // Root->Objects->Server
@@ -322,7 +327,7 @@ addMonitoredItem(UA_Client_EventNotificationCallback handler, bool setFilter) {
     }
 
     item.requestedParameters.queueSize = 1;
-    item.requestedParameters.discardOldest = true;
+    item.requestedParameters.discardOldest = discardOldest;
 
     return UA_Client_MonitoredItems_createEvent(client, subscriptionId,
                                                 UA_TIMESTAMPSTORETURN_BOTH, item,
@@ -338,7 +343,7 @@ START_TEST(generateEventEmptyFilter) {
         ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
         // add a monitored item
-        UA_MonitoredItemCreateResult createResult = addMonitoredItem(handler_events_simple, false);
+        UA_MonitoredItemCreateResult createResult = addMonitoredItem(handler_events_simple, false, true);
         ck_assert_uint_eq(createResult.statusCode, UA_STATUSCODE_BADEVENTFILTERINVALID);
 } END_TEST
 
@@ -350,7 +355,7 @@ START_TEST(generateEvents) {
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
     // add a monitored item
-    UA_MonitoredItemCreateResult createResult = addMonitoredItem(handler_events_simple, true);
+    UA_MonitoredItemCreateResult createResult = addMonitoredItem(handler_events_simple, true, true);
     ck_assert_uint_eq(createResult.statusCode, UA_STATUSCODE_GOOD);
     monitoredItemId = createResult.monitoredItemId;
     // trigger the event
@@ -362,7 +367,7 @@ START_TEST(generateEvents) {
     sleepUntilAnswer(publishingInterval + 100);
     retval = UA_Client_run_iterate(client, 0);
     sleepUntilAnswer(publishingInterval + 100);
-    retval = UA_Client_run_iterate(client, 0);
+    retval |= UA_Client_run_iterate(client, 0);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(notificationReceived, true);
     ck_assert_uint_eq(createResult.revisedQueueSize, 1);
@@ -382,7 +387,7 @@ START_TEST(generateEvents) {
     ck_assert_uint_eq(deleteResponse.resultsSize, 1);
     ck_assert_uint_eq(*(deleteResponse.results), UA_STATUSCODE_GOOD);
 
-    UA_DeleteMonitoredItemsResponse_deleteMembers(&deleteResponse);
+    UA_DeleteMonitoredItemsResponse_clear(&deleteResponse);
 } END_TEST
 
 static bool hasBaseModelChangeEventType(void) {
@@ -390,7 +395,7 @@ static bool hasBaseModelChangeEventType(void) {
     UA_QualifiedName readBrowsename;
     UA_QualifiedName_init(&readBrowsename);
     UA_StatusCode retval = UA_Server_readBrowseName(server, UA_NODEID_NUMERIC(0, UA_NS0ID_BASEMODELCHANGEEVENTTYPE), &readBrowsename);
-    UA_QualifiedName_deleteMembers(&readBrowsename);
+    UA_QualifiedName_clear(&readBrowsename);
     return !(retval == UA_STATUSCODE_BADNODEIDUNKNOWN);
 }
 
@@ -486,7 +491,7 @@ START_TEST(uppropagation) {
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
     //add a monitored item
-    UA_MonitoredItemCreateResult createResult = addMonitoredItem(handler_events_propagate, true);
+    UA_MonitoredItemCreateResult createResult = addMonitoredItem(handler_events_propagate, true, true);
     ck_assert_uint_eq(createResult.statusCode, UA_STATUSCODE_GOOD);
     monitoredItemId = createResult.monitoredItemId;
     // trigger the event on a child of server, using namespaces in this case (no reason in particular)
@@ -516,7 +521,7 @@ START_TEST(uppropagation) {
     ck_assert_uint_eq(deleteResponse.resultsSize, 1);
     ck_assert_uint_eq(*(deleteResponse.results), UA_STATUSCODE_GOOD);
 
-    UA_DeleteMonitoredItemsResponse_deleteMembers(&deleteResponse);
+    UA_DeleteMonitoredItemsResponse_clear(&deleteResponse);
 } END_TEST
 
 static void
@@ -527,7 +532,7 @@ handler_events_overflow(UA_Client *lclient, UA_UInt32 subId, void *subContext,
     if(nEventFields == 1) {
         /* overflow was received */
         ck_assert(eventFields->type == &UA_TYPES[UA_TYPES_NODEID]);
-        UA_NodeId comp = UA_NODEID_NUMERIC(0, UA_NS0ID_SIMPLEOVERFLOWEVENTTYPE);
+        UA_NodeId comp = UA_NODEID_NUMERIC(0, UA_NS0ID_EVENTQUEUEOVERFLOWEVENTTYPE);
         ck_assert((UA_NodeId_equal((UA_NodeId *) eventFields->data, &comp)));
         overflowNotificationReceived = UA_TRUE;
     } else if(nEventFields == 4) {
@@ -540,7 +545,7 @@ handler_events_overflow(UA_Client *lclient, UA_UInt32 subId, void *subContext,
 /* Ensures an eventQueueOverflowEvent is published when appropriate */
 START_TEST(eventOverflow) {
     // add a monitored item
-    UA_MonitoredItemCreateResult createResult = addMonitoredItem(handler_events_overflow, true);
+    UA_MonitoredItemCreateResult createResult = addMonitoredItem(handler_events_overflow, true, true);
     ck_assert_uint_eq(createResult.statusCode, UA_STATUSCODE_GOOD);
     monitoredItemId = createResult.monitoredItemId;
 
@@ -555,7 +560,7 @@ START_TEST(eventOverflow) {
 
     // fetch the events, ensure both the overflow and the original event are received
     notificationReceived = false;
-    overflowNotificationReceived = true;
+    overflowNotificationReceived = false;
     sleepUntilAnswer(publishingInterval + 100);
     retval = UA_Client_run_iterate(client, 0);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
@@ -577,13 +582,13 @@ START_TEST(eventOverflow) {
     ck_assert_uint_eq(deleteResponse.resultsSize, 1);
     ck_assert_uint_eq(*(deleteResponse.results), UA_STATUSCODE_GOOD);
 
-    UA_DeleteMonitoredItemsResponse_deleteMembers(&deleteResponse);
+    UA_DeleteMonitoredItemsResponse_clear(&deleteResponse);
 } END_TEST
 
 START_TEST(multipleMonitoredItemsOneNode) {
     UA_UInt32 monitoredItemIdAr[3];
 
-    /* set up monitored items */
+    // set up monitored items
     UA_MonitoredItemCreateRequest item;
     UA_MonitoredItemCreateRequest_init(&item);
     item.itemToMonitor.nodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER); // Root->Objects->Server
@@ -623,13 +628,13 @@ START_TEST(multipleMonitoredItemsOneNode) {
         ck_assert_uint_eq(deleteResponse.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
         ck_assert_uint_eq(deleteResponse.resultsSize, 1);
         ck_assert_uint_eq(*(deleteResponse.results), UA_STATUSCODE_GOOD);
-        UA_DeleteMonitoredItemsResponse_deleteMembers(&deleteResponse);
+        UA_DeleteMonitoredItemsResponse_clear(&deleteResponse);
     }
 } END_TEST
 
-START_TEST(eventStressing) {
+START_TEST(discardNewestOverflow) {
     // add a monitored item
-    UA_MonitoredItemCreateResult createResult = addMonitoredItem(handler_events_overflow, true);
+    UA_MonitoredItemCreateResult createResult = addMonitoredItem(handler_events_overflow, true, false);
     ck_assert_uint_eq(createResult.statusCode, UA_STATUSCODE_GOOD);
     monitoredItemId = createResult.monitoredItemId;
 
@@ -637,8 +642,43 @@ START_TEST(eventStressing) {
     UA_NodeId eventNodeId;
     UA_StatusCode retval = eventSetup(&eventNodeId);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
-    for(size_t i = 0; i < 20; i++) {
-        for(size_t j = 0; j < 5; j++) {
+    for(size_t j = 0; j < 3; j++) {
+        retval = triggerEventLocked(eventNodeId,
+                                    UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER), NULL, UA_FALSE);
+        ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    }
+    retval = UA_Client_run_iterate(client, 0);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    // delete the monitoredItem
+    UA_DeleteMonitoredItemsRequest deleteRequest;
+    UA_DeleteMonitoredItemsRequest_init(&deleteRequest);
+    deleteRequest.subscriptionId = subscriptionId;
+    deleteRequest.monitoredItemIds = &monitoredItemId;
+    deleteRequest.monitoredItemIdsSize = 1;
+
+    UA_DeleteMonitoredItemsResponse deleteResponse =
+            UA_Client_MonitoredItems_delete(client, deleteRequest);
+
+    ck_assert_uint_eq(deleteResponse.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(deleteResponse.resultsSize, 1);
+    ck_assert_uint_eq(*(deleteResponse.results), UA_STATUSCODE_GOOD);
+
+    UA_DeleteMonitoredItemsResponse_clear(&deleteResponse);
+} END_TEST
+
+START_TEST(eventStressing) {
+    // add a monitored item
+    UA_MonitoredItemCreateResult createResult = addMonitoredItem(handler_events_overflow, true, true);
+    ck_assert_uint_eq(createResult.statusCode, UA_STATUSCODE_GOOD);
+    monitoredItemId = createResult.monitoredItemId;
+
+    // trigger a large amount of events, ensure the server doesnt crash because of it
+    UA_NodeId eventNodeId;
+    UA_StatusCode retval = eventSetup(&eventNodeId);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    for(size_t i = 0; i < 2; i++) {
+        for(size_t j = 0; j < 3; j++) {
             retval = triggerEventLocked(eventNodeId,
                                             UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER), NULL, UA_FALSE);
             ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
@@ -661,8 +701,225 @@ START_TEST(eventStressing) {
     ck_assert_uint_eq(deleteResponse.resultsSize, 1);
     ck_assert_uint_eq(*(deleteResponse.results), UA_STATUSCODE_GOOD);
 
-    UA_DeleteMonitoredItemsResponse_deleteMembers(&deleteResponse);
+    UA_DeleteMonitoredItemsResponse_clear(&deleteResponse);
 } END_TEST
+
+START_TEST(evaluateWhereClause) {
+    /* Everything is on the stack, so no memory cleaning required.*/
+    UA_NodeId eventNodeId;
+    UA_StatusCode retval = eventSetup(&eventNodeId);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    //test empty filter
+    UA_ContentFilter contentFilter;
+    UA_ContentFilter_init(&contentFilter);
+    UA_ContentFilterResult contentFilterResult;
+    UA_ContentFilterResult_init(&contentFilterResult);
+    contentFilterResult.elementResultsSize = contentFilter.elementsSize;
+    contentFilterResult.elementResults = (UA_ContentFilterElementResult *)
+        UA_Array_new(contentFilter.elementsSize,
+                     &UA_TYPES[UA_TYPES_CONTENTFILTERELEMENTRESULT]);
+    if(!contentFilterResult.elementResults) {
+        ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    }
+    for(size_t i = 0; i < contentFilterResult.elementResultsSize; ++i) {
+        contentFilterResult.elementResults[i].operandStatusCodesSize =
+            contentFilter.elements->filterOperandsSize;
+        contentFilterResult.elementResults[i].operandStatusCodes =
+            (UA_StatusCode *)UA_Array_new(
+                contentFilter.elements->filterOperandsSize,
+                &UA_TYPES[UA_TYPES_STATUSCODE]);
+        if(!contentFilterResult.elementResults[i].operandStatusCodes) {
+            ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+        }
+    }
+    UA_LOCK(&server->serviceMutex);
+    retval = UA_Server_evaluateWhereClauseContentFilter(server, &server->adminSession,
+                                                        &eventNodeId, &contentFilter, &contentFilterResult);
+    UA_UNLOCK(&server->serviceMutex);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    UA_ContentFilterResult_clear(&contentFilterResult);
+
+    /* Illegal filter operators */
+    UA_ContentFilterElement contentFilterElement;
+    UA_ContentFilterElement_init(&contentFilterElement);
+    contentFilter.elements = &contentFilterElement;
+    contentFilter.elementsSize = 1;
+    contentFilter.elements->filterOperandsSize = 6;
+    contentFilterElement.filterOperator = UA_FILTEROPERATOR_RELATEDTO;
+
+    UA_ContentFilterResult_init(&contentFilterResult);
+    contentFilterResult.elementResultsSize = contentFilter.elementsSize;
+    contentFilterResult.elementResults = (UA_ContentFilterElementResult *)
+        UA_Array_new(contentFilterResult.elementResultsSize,
+                     &UA_TYPES[UA_TYPES_CONTENTFILTERELEMENTRESULT]);
+    if(!contentFilterResult.elementResults) {
+        ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    }
+    for(size_t i = 0; i < contentFilterResult.elementResultsSize; ++i) {
+        ck_assert(contentFilterResult.elementResults != NULL);
+        contentFilterResult.elementResults[i].operandStatusCodesSize =
+            contentFilter.elements[i].filterOperandsSize;
+        contentFilterResult.elementResults[i].operandStatusCodes =
+            (UA_StatusCode *)UA_Array_new(
+                contentFilter.elements->filterOperandsSize,
+                &UA_TYPES[UA_TYPES_STATUSCODE]);
+        if(!contentFilterResult.elementResults[i].operandStatusCodes) {
+            ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+        }
+    }
+    UA_LOCK(&server->serviceMutex);
+    retval = UA_Server_evaluateWhereClauseContentFilter(server, &server->adminSession, &eventNodeId, &contentFilter, &contentFilterResult);
+    UA_UNLOCK(&server->serviceMutex);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADEVENTFILTERINVALID);
+    UA_ContentFilterResult_clear(&contentFilterResult);
+
+    contentFilterElement.filterOperator = UA_FILTEROPERATOR_INVIEW;
+    UA_ContentFilterResult_init(&contentFilterResult);
+    contentFilterResult.elementResultsSize = contentFilter.elementsSize;
+    contentFilterResult.elementResults = (UA_ContentFilterElementResult *)
+        UA_Array_new(contentFilter.elementsSize,
+                     &UA_TYPES[UA_TYPES_CONTENTFILTERELEMENTRESULT]);
+    if(!contentFilterResult.elementResults) {
+        ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    }
+    for(size_t i = 0; i < contentFilterResult.elementResultsSize; ++i) {
+        contentFilterResult.elementResults[i].operandStatusCodesSize =
+            contentFilter.elements->filterOperandsSize;
+        contentFilterResult.elementResults[i].operandStatusCodes =
+            (UA_StatusCode *)UA_Array_new(
+                contentFilter.elements->filterOperandsSize,
+                &UA_TYPES[UA_TYPES_STATUSCODE]);
+        if(!contentFilterResult.elementResults[i].operandStatusCodes) {
+            ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+        }
+    }
+    UA_LOCK(&server->serviceMutex);
+    retval = UA_Server_evaluateWhereClauseContentFilter(server, &server->adminSession, &eventNodeId, &contentFilter, &contentFilterResult);
+    UA_UNLOCK(&server->serviceMutex);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADEVENTFILTERINVALID);
+    UA_ContentFilterResult_clear(&contentFilterResult);
+
+    /* No operand provided */
+    contentFilterElement.filterOperator = UA_FILTEROPERATOR_OFTYPE;
+    UA_ContentFilterResult_init(&contentFilterResult);
+    contentFilterResult.elementResultsSize = contentFilter.elementsSize;
+    contentFilterResult.elementResults = (UA_ContentFilterElementResult *)
+        UA_Array_new(contentFilter.elementsSize,
+                     &UA_TYPES[UA_TYPES_CONTENTFILTERELEMENTRESULT]);
+    if(!contentFilterResult.elementResults) {
+        ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    }
+    for(size_t i = 0; i < contentFilterResult.elementResultsSize; ++i) {
+        contentFilterResult.elementResults[i].operandStatusCodesSize =
+            contentFilter.elements->filterOperandsSize;
+        contentFilterResult.elementResults[i].operandStatusCodes =
+            (UA_StatusCode *)UA_Array_new(
+                contentFilter.elements->filterOperandsSize,
+                &UA_TYPES[UA_TYPES_STATUSCODE]);
+        if(!contentFilterResult.elementResults[i].operandStatusCodes) {
+            ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+        }
+    }
+    UA_LOCK(&server->serviceMutex);
+    retval = UA_Server_evaluateWhereClauseContentFilter(server, &server->adminSession, &eventNodeId, &contentFilter, &contentFilterResult);
+    UA_UNLOCK(&server->serviceMutex);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADFILTEROPERANDCOUNTMISMATCH);
+    UA_ContentFilterResult_clear(&contentFilterResult);
+
+    UA_ExtensionObject filterOperandExObj;
+    UA_ExtensionObject_init(&filterOperandExObj);
+    contentFilterElement.filterOperandsSize = 1;
+    contentFilterElement.filterOperands = &filterOperandExObj;
+    filterOperandExObj.content.decoded.type = &UA_TYPES[UA_TYPES_LITERALOPERAND];
+    UA_LiteralOperand literalOperand;
+    UA_LiteralOperand_init(&literalOperand);
+    filterOperandExObj.content.decoded.data = &literalOperand;
+
+    /* Same type*/
+    UA_Variant_setScalar(&literalOperand.value, &eventType, &UA_TYPES[UA_TYPES_NODEID]);
+    UA_ContentFilterResult_init(&contentFilterResult);
+    contentFilterResult.elementResultsSize = contentFilter.elementsSize;
+    contentFilterResult.elementResults = (UA_ContentFilterElementResult *)
+        UA_Array_new(contentFilter.elementsSize,
+                     &UA_TYPES[UA_TYPES_CONTENTFILTERELEMENTRESULT]);
+    if(!contentFilterResult.elementResults) {
+        ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    }
+    for(size_t i = 0; i < contentFilterResult.elementResultsSize; ++i) {
+        contentFilterResult.elementResults[i].operandStatusCodesSize =
+            contentFilter.elements->filterOperandsSize;
+        contentFilterResult.elementResults[i].operandStatusCodes =
+            (UA_StatusCode *)UA_Array_new(
+                contentFilter.elements->filterOperandsSize,
+                &UA_TYPES[UA_TYPES_STATUSCODE]);
+        if(!contentFilterResult.elementResults[i].operandStatusCodes) {
+            ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+        }
+    }
+    UA_LOCK(&server->serviceMutex);
+    retval = UA_Server_evaluateWhereClauseContentFilter(server, &server->adminSession, &eventNodeId, &contentFilter, &contentFilterResult);
+    UA_UNLOCK(&server->serviceMutex);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    UA_ContentFilterResult_clear(&contentFilterResult);
+
+    /* Base type*/
+    UA_NodeId nodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_BASEEVENTTYPE);
+    UA_Variant_setScalar(&literalOperand.value, &nodeId, &UA_TYPES[UA_TYPES_NODEID]);
+    UA_ContentFilterResult_init(&contentFilterResult);
+    contentFilterResult.elementResultsSize = contentFilter.elementsSize;
+    contentFilterResult.elementResults = (UA_ContentFilterElementResult *)
+        UA_Array_new(contentFilter.elementsSize,
+                     &UA_TYPES[UA_TYPES_CONTENTFILTERELEMENTRESULT]);
+    if(!contentFilterResult.elementResults) {
+        ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    }
+    for(size_t i = 0; i < contentFilterResult.elementResultsSize; ++i) {
+        ck_assert(contentFilterResult.elementResults != NULL);
+        contentFilterResult.elementResults[i].operandStatusCodesSize =
+            contentFilter.elements->filterOperandsSize;
+        contentFilterResult.elementResults[i].operandStatusCodes =
+            (UA_StatusCode *)UA_Array_new(
+                contentFilter.elements->filterOperandsSize,
+                &UA_TYPES[UA_TYPES_STATUSCODE]);
+        if(!contentFilterResult.elementResults[i].operandStatusCodes) {
+            ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+        }
+    }
+    UA_LOCK(&server->serviceMutex);
+    retval = UA_Server_evaluateWhereClauseContentFilter(server, &server->adminSession, &eventNodeId, &contentFilter, &contentFilterResult);
+    UA_UNLOCK(&server->serviceMutex);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    UA_ContentFilterResult_clear(&contentFilterResult);
+
+    /* Other type*/
+    nodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_BASEMODELCHANGEEVENTTYPE);
+    UA_ContentFilterResult_init(&contentFilterResult);
+    contentFilterResult.elementResultsSize = contentFilter.elementsSize;
+    contentFilterResult.elementResults = (UA_ContentFilterElementResult *)
+        UA_Array_new(contentFilter.elementsSize,
+                     &UA_TYPES[UA_TYPES_CONTENTFILTERELEMENTRESULT]);
+    if(!contentFilterResult.elementResults) {
+        ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    }
+    for(size_t i = 0; i < contentFilterResult.elementResultsSize; ++i) {
+        ck_assert(contentFilterResult.elementResults != NULL);
+        contentFilterResult.elementResults[i].operandStatusCodesSize =
+            contentFilter.elements->filterOperandsSize;
+        contentFilterResult.elementResults[i].operandStatusCodes =
+            (UA_StatusCode *)UA_Array_new(
+                contentFilter.elements->filterOperandsSize,
+                &UA_TYPES[UA_TYPES_STATUSCODE]);
+        if(!contentFilterResult.elementResults[i].operandStatusCodes) {
+            ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+        }
+    }
+    UA_LOCK(&server->serviceMutex);
+    retval = UA_Server_evaluateWhereClauseContentFilter(server, &server->adminSession, &eventNodeId, &contentFilter, &contentFilterResult);
+    UA_UNLOCK(&server->serviceMutex);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADNOMATCH);
+    UA_ContentFilterResult_clear(&contentFilterResult);
+}
+END_TEST
 
 #endif /* UA_ENABLE_SUBSCRIPTIONS_EVENTS */
 
@@ -680,7 +937,9 @@ static Suite *testSuite_Client(void) {
     tcase_add_test(tc_server, uppropagation);
     tcase_add_test(tc_server, eventOverflow);
     tcase_add_test(tc_server, multipleMonitoredItemsOneNode);
+    tcase_add_test(tc_server, discardNewestOverflow);
     tcase_add_test(tc_server, eventStressing);
+    tcase_add_test(tc_server, evaluateWhereClause);
 #endif /* UA_ENABLE_SUBSCRIPTIONS_EVENTS */
     suite_add_tcase(s, tc_server);
 

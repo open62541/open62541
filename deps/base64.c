@@ -67,7 +67,8 @@ static const uint32_t from_b64[256] = {
 
 unsigned char *
 UA_unbase64(const unsigned char *src, size_t len, size_t *out_len) {
-    if(len == 0) {
+    // we need a minimum length
+    if(len <= 2) {
         *out_len = 0;
         return (unsigned char*)UA_EMPTY_ARRAY_SENTINEL;
     }
@@ -91,9 +92,19 @@ UA_unbase64(const unsigned char *src, size_t len, size_t *out_len) {
     }
 
     if(pad1) {
+        if (last + 1 >= len) {
+            UA_free(str);
+            *out_len = 0;
+            return (unsigned char*)UA_EMPTY_ARRAY_SENTINEL;
+        }
         uint32_t n = from_b64[p[last]] << 18 | from_b64[p[last + 1]] << 12;
         *pos++ = (unsigned char)(n >> 16);
         if(pad2) {
+            if (last + 2 >= len) {
+                UA_free(str);
+                *out_len = 0;
+                return (unsigned char*)UA_EMPTY_ARRAY_SENTINEL;
+            }
             n |= from_b64[p[last + 2]] << 6;
             *pos++ = (unsigned char)(n >> 8 & 0xFF);
         }

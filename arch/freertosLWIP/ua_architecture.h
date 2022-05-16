@@ -17,14 +17,24 @@
 #if UA_MULTITHREADING >= 100
 #error Multithreading unsupported
 #else
-#define UA_LOCK_TYPE_NAME
-#define UA_LOCK_TYPE(mutexName)
-#define UA_LOCK_TYPE_POINTER(mutexName)
-#define UA_LOCK_INIT(mutexName)
-#define UA_LOCK_DESTROY(mutexName)
-#define UA_LOCK(mutexName)
-#define UA_UNLOCK(mutexName)
-#define UA_LOCK_ASSERT(mutexName, num)
+#define UA_LOCK_INIT(lock)
+#define UA_LOCK_DESTROY(lock)
+#define UA_LOCK(lock)
+#define UA_UNLOCK(lock)
+#define UA_LOCK_ASSERT(lock, num)
+#endif
+
+#define UA_strncasecmp strncasecmp
+
+// freeRTOS does not have getifaddr
+#undef UA_HAS_GETIFADDR
+
+#ifndef IN6_IS_ADDR_UNSPECIFIED
+# define IN6_IS_ADDR_UNSPECIFIED(a) \
+        (((const uint32_t *) (a))[0] == 0                                      \
+         && ((const uint32_t *) (a))[1] == 0                                      \
+         && ((const uint32_t *) (a))[2] == 0                                      \
+         && ((const uint32_t *) (a))[3] == 0)
 #endif
 
 #include <open62541/architecture_functions.h>

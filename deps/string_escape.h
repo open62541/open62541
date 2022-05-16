@@ -12,7 +12,7 @@
 extern "C" {
 #endif
 
-#include <open62541/architecture_definitions.h>
+#include <open62541/config.h>
 #include <string.h>
     
 /* Locale independent versions of isxxx() functions */

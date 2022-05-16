@@ -4,7 +4,14 @@
  *    Copyright 2018-2019 (c) Kalycito Infotech
  *    Copyright 2019 (c) Fraunhofer IOSB (Author: Andreas Ebner)
  *    Copyright 2019 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
+ *    Copyright (c) 2020 Wind River Systems, Inc.
  */
+
+#if __STDC_VERSION__ >= 199901L
+#define _XOPEN_SOURCE 600
+#else
+#define _XOPEN_SOURCE 500
+#endif /* __STDC_VERSION__ */
 
 #include <signal.h>
 #include <stdio.h>
@@ -12,8 +19,8 @@
 #include <open62541/server.h>
 #include <open62541/server_config_default.h>
 #include <open62541/plugin/log_stdout.h>
+#include <open62541/server_pubsub.h>
 #include <open62541/plugin/pubsub_ethernet.h>
-#include "bufmalloc.h"
 
 #define ETH_PUBLISH_ADDRESS      "opc.eth://0a-00-27-00-00-08"
 #define ETH_INTERFACE            "enp0s8"
@@ -26,6 +33,10 @@
 #define DATA_SET_WRITER_ID       62541
 #define MEASUREMENT_OUTPUT       "publisher_measurement.csv"
 
+/* The RT level of the publisher */
+/* possible options: PUBSUB_CONFIG_FASTPATH_NONE, PUBSUB_CONFIG_FASTPATH_FIXED_OFFSETS, PUBSUB_CONFIG_FASTPATH_STATIC_VALUES */
+#define PUBSUB_CONFIG_FASTPATH_FIXED_OFFSETS
+
 UA_NodeId counterNodePublisher = {1, UA_NODEIDTYPE_NUMERIC, {1234}};
 UA_Int64 pubIntervalNs;
 UA_ServerCallback pubCallback = NULL; /* Sentinel if a timer is active */
@@ -36,6 +47,10 @@ timer_t pubEventTimer;
 struct sigevent pubEvent;
 struct sigaction signalAction;
 
+#if defined(PUBSUB_CONFIG_FASTPATH_FIXED_OFFSETS) || (PUBSUB_CONFIG_FASTPATH_STATIC_VALUES)
+UA_DataValue *staticValueSource = NULL;
+#endif
+
 /* Arrays to store measurement data */
 UA_Int32 currentPublishCycleTime[MAX_MEASUREMENTS+1];
 struct timespec calculatedCycleStartTime[MAX_MEASUREMENTS+1];
@@ -44,7 +59,6 @@ struct timespec cycleDuration[MAX_MEASUREMENTS+1];
 size_t publisherMeasurementsCounter  = 0;
 
 /* The value to published */
-#define UA_ENABLE_STATICVALUESOURCE
 static UA_UInt64 publishValue = 62541;
 
 static UA_StatusCode
@@ -91,16 +105,14 @@ publishInterrupt(int sig, siginfo_t* si, void* uc) {
     /* Execute the publish callback in the interrupt */
     struct timespec begin, end;
     clock_gettime(CLOCKID, &begin);
-    useMembufAlloc();
     pubCallback(pubServer, pubData);
-    useNormalAlloc();
     clock_gettime(CLOCKID, &end);
 
     if(publisherMeasurementsCounter >= MAX_MEASUREMENTS)
         return;
 
     /* Save current configured publish interval */
-    currentPublishCycleTime[publisherMeasurementsCounter] = pubIntervalNs;
+    currentPublishCycleTime[publisherMeasurementsCounter] = (UA_Int32)pubIntervalNs;
 
     /* Save the difference to the calculated time */
     timespec_diff(&calculatedCycleStartTime[publisherMeasurementsCounter],
@@ -144,11 +156,12 @@ publishInterrupt(int sig, siginfo_t* si, void* uc) {
  * use system interrupts instead if time-triggered callbacks in the OPC UA
  * server control flow. */
 
-UA_StatusCode
-UA_PubSubManager_addRepeatedCallback(UA_Server *server,
-                                     UA_ServerCallback callback,
-                                     void *data, UA_Double interval_ms,
-                                     UA_UInt64 *callbackId) {
+static UA_StatusCode
+addPubSubApplicationCallback(UA_Server *server, UA_NodeId identifier,
+                             UA_ServerCallback callback,
+                             void *data, UA_Double interval_ms,
+                             UA_DateTime *baseTime, UA_TimerPolicy timerPolicy,
+                             UA_UInt64 *callbackId) {
     if(pubCallback) {
         UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
                        "At most one publisher can be registered for interrupt callbacks");
@@ -177,7 +190,8 @@ UA_PubSubManager_addRepeatedCallback(UA_Server *server,
     resultTimerCreate = timer_create(CLOCKID, &pubEvent, &pubEventTimer);
     if(resultTimerCreate != 0) {
         UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
-                       "Failed to create a system event with code %i", resultTimerCreate);
+                       "Failed to create a system event with code %s",
+                       strerror(errno));
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
@@ -209,17 +223,17 @@ UA_PubSubManager_addRepeatedCallback(UA_Server *server,
     return UA_STATUSCODE_GOOD;
 }
 
-UA_StatusCode
-UA_PubSubManager_changeRepeatedCallbackInterval(UA_Server *server,
-                                                UA_UInt64 callbackId,
-                                                UA_Double interval_ms) {
+static UA_StatusCode
+changePubSubApplicationCallback(UA_Server *server, UA_NodeId identifier,
+                                UA_UInt64 callbackId, UA_Double interval_ms,
+                                UA_DateTime *baseTime, UA_TimerPolicy timerPolicy) {
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
                 "Switching the publisher cycle to %lf milliseconds", interval_ms);
 
     struct itimerspec timerspec;
     int resultTimerCreate = 0;
     pubIntervalNs = (UA_Int64) (interval_ms * MILLI_AS_NANO_SECONDS);
-    timerspec.it_interval.tv_sec = (long int) (pubIntervalNs % SECONDS_AS_NANO_SECONDS);
+    timerspec.it_interval.tv_sec = (long int) (pubIntervalNs / SECONDS_AS_NANO_SECONDS);
     timerspec.it_interval.tv_nsec = (long int) (pubIntervalNs % SECONDS_AS_NANO_SECONDS);
     timerspec.it_value.tv_sec = (long int) (pubIntervalNs / (SECONDS_AS_NANO_SECONDS));
     timerspec.it_value.tv_nsec = (long int) (pubIntervalNs % SECONDS_AS_NANO_SECONDS);
@@ -238,8 +252,8 @@ UA_PubSubManager_changeRepeatedCallbackInterval(UA_Server *server,
     return UA_STATUSCODE_GOOD;
 }
 
-void
-UA_PubSubManager_removeRepeatedPubSubCallback(UA_Server *server, UA_UInt64 callbackId) {
+static void
+removePubSubApplicationCallback(UA_Server *server, UA_NodeId identifier, UA_UInt64 callbackId) {
     if(!pubCallback)
         return;
     timer_delete(pubEventTimer);
@@ -280,12 +294,12 @@ addPubSubConfiguration(UA_Server* server) {
     counterValue.field.variable.promotedField = UA_FALSE;
     counterValue.field.variable.publishParameters.publishedVariable = counterNodePublisher;
     counterValue.field.variable.publishParameters.attributeId = UA_ATTRIBUTEID_VALUE;
-#ifdef UA_ENABLE_STATICVALUESOURCE
-    counterValue.field.variable.staticValueSourceEnabled = true;
-    UA_DataValue_init(&counterValue.field.variable.staticValueSource);
-    UA_Variant_setScalar(&counterValue.field.variable.staticValueSource.value,
-                         &publishValue, &UA_TYPES[UA_TYPES_UINT64]);
-    counterValue.field.variable.staticValueSource.value.storageType = UA_VARIANT_DATA_NODELETE;
+
+#if defined(PUBSUB_CONFIG_FASTPATH_FIXED_OFFSETS) || (PUBSUB_CONFIG_FASTPATH_STATIC_VALUES)
+    staticValueSource = UA_DataValue_new();
+    UA_Variant_setScalar(&staticValueSource->value, &publishValue, &UA_TYPES[UA_TYPES_UINT64]);
+    counterValue.field.variable.rtValueSource.rtFieldSourceEnabled = UA_TRUE;
+    counterValue.field.variable.rtValueSource.staticValueSource = &staticValueSource;
 #endif
     UA_Server_addDataSetField(server, publishedDataSetIdent, &counterValue,
                               &dataSetFieldIdentCounter);
@@ -296,6 +310,10 @@ addPubSubConfiguration(UA_Server* server) {
     writerGroupConfig.publishingInterval = PUB_INTERVAL;
     writerGroupConfig.enabled = UA_FALSE;
     writerGroupConfig.encodingMimeType = UA_PUBSUB_ENCODING_UADP;
+    writerGroupConfig.rtLevel = UA_PUBSUB_RT_FIXED_SIZE;
+    writerGroupConfig.pubsubManagerCallback.addCustomCallback = addPubSubApplicationCallback;
+    writerGroupConfig.pubsubManagerCallback.changeCustomCallback = changePubSubApplicationCallback;
+    writerGroupConfig.pubsubManagerCallback.removeCustomCallback = removePubSubApplicationCallback;
     UA_Server_addWriterGroup(server, connectionIdent,
                              &writerGroupConfig, &writerGroupIdent);
 
@@ -314,9 +332,9 @@ addPubSubConfiguration(UA_Server* server) {
 
 static void
 addServerNodes(UA_Server* server) {
-    UA_UInt64 publishValue = 0;
+    UA_UInt64 value = 0;
     UA_VariableAttributes publisherAttr = UA_VariableAttributes_default;
-    UA_Variant_setScalar(&publisherAttr.value, &publishValue, &UA_TYPES[UA_TYPES_UINT64]);
+    UA_Variant_setScalar(&publisherAttr.value, &value, &UA_TYPES[UA_TYPES_UINT64]);
     publisherAttr.displayName = UA_LOCALIZEDTEXT("en-US", "Publisher Counter");
     publisherAttr.accessLevel = UA_ACCESSLEVELMASK_READ | UA_ACCESSLEVELMASK_WRITE;
     UA_DataSource dataSource;
@@ -344,16 +362,18 @@ int main(void) {
     UA_ServerConfig *config = UA_Server_getConfig(server);
     UA_ServerConfig_setDefault(config);
 
-    config->pubsubTransportLayers = (UA_PubSubTransportLayer *)
-        UA_malloc(sizeof(UA_PubSubTransportLayer));
-    config->pubsubTransportLayers[0] = UA_PubSubTransportLayerEthernet();
-    config->pubsubTransportLayersSize++;
+    UA_ServerConfig_addPubSubTransportLayer(config, UA_PubSubTransportLayerEthernet());
 
     addServerNodes(server);
     addPubSubConfiguration(server);
 
     /* Run the server */
     UA_StatusCode retval = UA_Server_run(server, &running);
+#if defined(PUBSUB_CONFIG_FASTPATH_FIXED_OFFSETS) || (PUBSUB_CONFIG_FASTPATH_STATIC_VALUES)
+    if(staticValueSource != NULL) {
+        UA_DataValue_delete(staticValueSource);
+    }
+#endif
     UA_Server_delete(server);
 
     return (int)retval;

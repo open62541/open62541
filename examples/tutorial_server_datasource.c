@@ -21,7 +21,7 @@
  * ^^^^^^^^^^^^^^^^^^^^^^^^^^^
  * As a starting point, assume that a variable for a value of type
  * :ref:`datetime` has been created in the server with the identifier
- * "ns=1,s=current-time". Assuming that our applications gets triggered when a
+ * "ns=1,s=current-time". Assuming that our application gets triggered when a
  * new value arrives from the underlying process, we can just write into the
  * variable. */
 
@@ -104,8 +104,8 @@ addValueCallbackToCurrentTimeVariable(UA_Server *server) {
  * With value callbacks, the value is still stored in the variable node.
  * So-called data sources go one step further. The server redirects every read
  * and write request to a callback function. Upon reading, the callback provides
- * copy of the current value. Internally, the data source needs to implement its
- * own memory management. */
+ * a copy of the current value. Internally, the data source needs to implement
+ * its own memory management. */
 
 static UA_StatusCode
 readCurrentTime(UA_Server *server,
@@ -151,6 +151,19 @@ addCurrentTimeDataSourceVariable(UA_Server *server) {
                                         timeDataSource, NULL, NULL);
 }
 
+static UA_DataValue *externalValue;
+
+static void
+addCurrentTimeExternalDataSource(UA_Server *server) {
+    UA_NodeId currentNodeId = UA_NODEID_STRING(1, "current-time-external-source");
+
+    UA_ValueBackend valueBackend;
+    valueBackend.backendType = UA_VALUEBACKENDTYPE_EXTERNAL;
+    valueBackend.backend.external.value = &externalValue;
+
+    UA_Server_setVariableNode_valueBackend(server, currentNodeId, valueBackend);
+}
+
 /** It follows the main server code, making use of the above definitions. */
 
 static volatile UA_Boolean running = true;
@@ -169,6 +182,8 @@ int main(void) {
     addCurrentTimeVariable(server);
     addValueCallbackToCurrentTimeVariable(server);
     addCurrentTimeDataSourceVariable(server);
+
+    addCurrentTimeExternalDataSource(server);
 
     UA_StatusCode retval = UA_Server_run(server, &running);
 

@@ -2,6 +2,7 @@
  * See http://creativecommons.org/publicdomain/zero/1.0/ for more information. 
  *
  *    Copyright 2016 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
+ *    Copyright 2020 (c) HMS Industrial Networks AB (Author: Jonas Green)
  */
 
 #ifndef UA_NETWORK_TCP_H_
@@ -13,19 +14,19 @@
 
 _UA_BEGIN_DECLS
 
-UA_ServerNetworkLayer UA_EXPORT
-UA_ServerNetworkLayerTCP(UA_ConnectionConfig config, UA_UInt16 port, UA_Logger *logger);
-
-UA_Connection UA_EXPORT
-UA_ClientConnectionTCP(UA_ConnectionConfig config, const UA_String endpointUrl,
-                       UA_UInt32 timeout, UA_Logger *logger);
-
-UA_StatusCode UA_EXPORT
-UA_ClientConnectionTCP_poll(UA_Client *client, void *data);
-
+/* Open a non-blocking client TCP socket. The connection might not be fully
+ * opened yet. Drop into the _poll function withe a timeout to complete the
+ * connection. */
 UA_Connection UA_EXPORT
 UA_ClientConnectionTCP_init(UA_ConnectionConfig config, const UA_String endpointUrl,
-                            UA_UInt32 timeout, UA_Logger *logger);
+                            UA_UInt32 timeout, const UA_Logger *logger);
+
+/* Wait for a half-opened connection to fully open. Returns UA_STATUSCODE_GOOD
+ * even if the timeout was hit. Returns UA_STATUSCODE_BADDISCONNECT if the
+ * connection is lost. */
+UA_StatusCode UA_EXPORT
+UA_ClientConnectionTCP_poll(UA_Connection *connection, UA_UInt32 timeout,
+                            const UA_Logger *logger);
 
 _UA_END_DECLS
 

@@ -150,13 +150,13 @@ teardown(void)
 {
     /* cleanup */
 #ifdef UA_ENABLE_HISTORIZING
-    UA_HistoryDataBackend_Memory_deleteMembers(&serverBackend);
+    UA_HistoryDataBackend_Memory_clear(&serverBackend);
 #endif
     UA_Client_disconnect(client);
     UA_Client_delete(client);
-    UA_NodeId_deleteMembers(&parentNodeId);
-    UA_NodeId_deleteMembers(&parentReferenceNodeId);
-    UA_NodeId_deleteMembers(&outNodeId);
+    UA_NodeId_clear(&parentNodeId);
+    UA_NodeId_clear(&parentReferenceNodeId);
+    UA_NodeId_clear(&outNodeId);
     running = false;
     THREAD_JOIN(server_thread);
     UA_Server_run_shutdown(server);
@@ -181,10 +181,10 @@ fillHistoricalDataBackend(UA_HistoryDataBackend backend)
         fillInt64DataValue(testData[i], testData[i], &value);
         if (backend.serverSetHistoryData(server, backend.context, NULL, NULL, &outNodeId, UA_FALSE, &value) != UA_STATUSCODE_GOOD) {
             fprintf(stderr, "\n");
-            UA_DataValue_deleteMembers(&value);
+            UA_DataValue_clear(&value);
             return false;
         }
-        UA_DataValue_deleteMembers(&value);
+        UA_DataValue_clear(&value);
     }
     fprintf(stderr, "\n");
     return true;
@@ -374,7 +374,7 @@ START_TEST(Client_HistorizingInsertRawSuccess)
         fillInt64DataValue(testInsertDataSuccess[i], 0, &value);
         ret = UA_Client_HistoryUpdate_insert(client, &outNodeId, &value);
         ck_assert_str_eq(UA_StatusCode_name(ret), UA_StatusCode_name(UA_STATUSCODE_GOOD));
-        UA_DataValue_deleteMembers(&value);
+        UA_DataValue_clear(&value);
     }
     // check result
     ret = UA_Client_HistoryRead_raw(client,
@@ -417,7 +417,7 @@ START_TEST(Client_HistorizingReplaceRawSuccess)
         fillInt64DataValue(testReplaceDataSuccess[i], 0, &value);
         ret = UA_Client_HistoryUpdate_replace(client, &outNodeId, &value);
         ck_assert_str_eq(UA_StatusCode_name(ret), UA_StatusCode_name(UA_STATUSCODE_GOOD));
-        UA_DataValue_deleteMembers(&value);
+        UA_DataValue_clear(&value);
     }
     // check result
     ret = UA_Client_HistoryRead_raw(client,
@@ -460,7 +460,7 @@ START_TEST(Client_HistorizingUpdateRawSuccess)
         fillInt64DataValue(testInsertDataSuccess[i], 0, &value);
         ret = UA_Client_HistoryUpdate_update(client, &outNodeId, &value);
         ck_assert_str_eq(UA_StatusCode_name(ret), UA_StatusCode_name(UA_STATUSCODE_GOODENTRYINSERTED));
-        UA_DataValue_deleteMembers(&value);
+        UA_DataValue_clear(&value);
     }
     // replace values to the database
     for (size_t i = 0; i < testReplaceDataSuccessSize; ++i) {
@@ -468,7 +468,7 @@ START_TEST(Client_HistorizingUpdateRawSuccess)
         fillInt64DataValue(testReplaceDataSuccess[i], 0, &value);
         ret = UA_Client_HistoryUpdate_update(client, &outNodeId, &value);
         ck_assert_str_eq(UA_StatusCode_name(ret), UA_StatusCode_name(UA_STATUSCODE_GOODENTRYREPLACED));
-        UA_DataValue_deleteMembers(&value);
+        UA_DataValue_clear(&value);
     }
     // check result
     ret = UA_Client_HistoryRead_raw(client,
@@ -570,7 +570,7 @@ START_TEST(Client_HistorizingInsertRawFail)
         fillInt64DataValue(testReplaceDataSuccess[i], 0, &value);
         ret = UA_Client_HistoryUpdate_insert(client, &outNodeId, &value);
         ck_assert_str_eq(UA_StatusCode_name(ret), UA_StatusCode_name(UA_STATUSCODE_BADENTRYEXISTS));
-        UA_DataValue_deleteMembers(&value);
+        UA_DataValue_clear(&value);
     }
     // check result
     ret = UA_Client_HistoryRead_raw(client,
@@ -613,7 +613,7 @@ START_TEST(Client_HistorizingReplaceRawFail)
         fillInt64DataValue(testInsertDataSuccess[i], 0, &value);
         ret = UA_Client_HistoryUpdate_replace(client, &outNodeId, &value);
         ck_assert_str_eq(UA_StatusCode_name(ret), UA_StatusCode_name(UA_STATUSCODE_BADNOENTRYEXISTS));
-        UA_DataValue_deleteMembers(&value);
+        UA_DataValue_clear(&value);
     }
     // check result
     ret = UA_Client_HistoryRead_raw(client,

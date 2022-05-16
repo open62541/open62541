@@ -49,7 +49,7 @@ discovery_createMulticastSocket(UA_Server* server) {
     }
 
     /* Custom outbound multicast interface */
-    size_t length = server->config.discovery.mdnsInterfaceIP.length;
+    size_t length = server->config.mdnsInterfaceIP.length;
     if(length > 0){
         char* interfaceName = (char*)UA_malloc(length+1);
         if (!interfaceName) {
@@ -58,7 +58,7 @@ discovery_createMulticastSocket(UA_Server* server) {
         }
         struct in_addr ina;
         memset(&ina, 0, sizeof(ina));
-        memcpy(interfaceName, server->config.discovery.mdnsInterfaceIP.data, length);
+        memcpy(interfaceName, server->config.mdnsInterfaceIP.data, length);
         interfaceName[length] = '\0';
         inet_pton(AF_INET, interfaceName, &ina);
         UA_free(interfaceName);
@@ -100,7 +100,7 @@ initMulticastDiscoveryServer(UA_DiscoveryManager *dm, UA_Server* server) {
     if((server->discoveryManager.mdnsSocket = discovery_createMulticastSocket(server)) == UA_INVALID_SOCKET) {
         UA_LOG_SOCKET_ERRNO_WRAP(
                 UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
-                     "Could not create multicast socket. Error: %s", errno_str));
+                     "Could not create multicast socket. Error: %d - %s", errno, errno_str));
         return UA_STATUSCODE_BADUNEXPECTEDERROR;
     }
     mdnsd_register_receive_callback(server->discoveryManager.mdnsDaemon,
@@ -136,15 +136,16 @@ UA_DiscoveryManager_init(UA_DiscoveryManager *dm, UA_Server *server) {
     dm->mdnsDaemon = NULL;
     dm->mdnsSocket = UA_INVALID_SOCKET;
     dm->mdnsMainSrvAdded = false;
-    if(server->config.discovery.mdnsEnable)
+    if(server->config.mdnsEnabled)
         initMulticastDiscoveryServer(dm, server);
 
+    dm->selfFqdnMdnsRecord = UA_STRING_NULL;
+
     LIST_INIT(&dm->serverOnNetwork);
-    dm->serverOnNetworkSize = 0;
     dm->serverOnNetworkRecordIdCounter = 0;
     dm->serverOnNetworkRecordIdLastReset = UA_DateTime_now();
     memset(dm->serverOnNetworkHash, 0,
-           sizeof(struct serverOnNetwork_hash_entry*) * SERVER_ON_NETWORK_HASH_PRIME);
+           sizeof(struct serverOnNetwork_hash_entry*) * SERVER_ON_NETWORK_HASH_SIZE);
 
     dm->serverOnNetworkCallback = NULL;
     dm->serverOnNetworkCallbackData = NULL;
@@ -152,7 +153,7 @@ UA_DiscoveryManager_init(UA_DiscoveryManager *dm, UA_Server *server) {
 }
 
 void
-UA_DiscoveryManager_deleteMembers(UA_DiscoveryManager *dm, UA_Server *server) {
+UA_DiscoveryManager_clear(UA_DiscoveryManager *dm, UA_Server *server) {
     registeredServer_list_entry *rs, *rs_tmp;
     LIST_FOREACH_SAFE(rs, &dm->registeredServers, pointers, rs_tmp) {
         LIST_REMOVE(rs, pointers);
@@ -169,7 +170,7 @@ UA_DiscoveryManager_deleteMembers(UA_DiscoveryManager *dm, UA_Server *server) {
     }
 
 # ifdef UA_ENABLE_DISCOVERY_MULTICAST
-    if(server->config.discovery.mdnsEnable)
+    if(server->config.mdnsEnabled)
         destroyMulticastDiscoveryServer(dm);
 
     serverOnNetwork_list_entry *son, *son_tmp;
@@ -181,7 +182,9 @@ UA_DiscoveryManager_deleteMembers(UA_DiscoveryManager *dm, UA_Server *server) {
         UA_free(son);
     }
 
-    for(size_t i = 0; i < SERVER_ON_NETWORK_HASH_PRIME; i++) {
+    UA_String_clear(&dm->selfFqdnMdnsRecord);
+
+    for(size_t i = 0; i < SERVER_ON_NETWORK_HASH_SIZE; i++) {
         serverOnNetwork_hash_entry* currHash = dm->serverOnNetworkHash[i];
         while(currHash) {
             serverOnNetwork_hash_entry* nextHash = currHash->next;

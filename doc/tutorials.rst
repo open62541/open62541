@@ -14,5 +14,11 @@ Tutorials
    tutorial_server_method.rst
    tutorial_server_monitoreditems.rst
    tutorial_server_events.rst
+   tutorial_server_alarms_conditions.rst
    tutorial_client_firststeps.rst
    tutorial_pubsub_publish.rst
+   tutorial_pubsub_subscribe.rst
+   pubsub_TSN_publisher.rst
+   pubsub_TSN_loopback.rst
+   pubsub_nodeset_rt_publisher.rst
+   pubsub_nodeset_rt_subscriber.rst

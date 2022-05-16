@@ -19,9 +19,7 @@
 #include "thread_wrapper.h"
 
 UA_Server *server;
-UA_ServerConfig *config;
 UA_Boolean running;
-UA_ServerNetworkLayer nl;
 THREAD_HANDLE server_thread;
 
 THREAD_CALLBACK(serverloop) {
@@ -46,8 +44,9 @@ static void teardown(void) {
     UA_Server_delete(server);
 }
 
-static void asyncReadCallback(UA_Client *client, void *userdata,
-        UA_UInt32 requestId, const UA_ReadResponse *response) {
+static void
+asyncReadCallback(UA_Client *client, void *userdata,
+                  UA_UInt32 requestId, const UA_ReadResponse *response) {
     UA_UInt16 *asyncCounter = (UA_UInt16*) userdata;
     if (response->responseHeader.serviceResult == UA_STATUSCODE_BADTIMEOUT) {
         (*asyncCounter) = 9999;
@@ -58,8 +57,10 @@ static void asyncReadCallback(UA_Client *client, void *userdata,
     }
 }
 
-static void asyncReadValueAtttributeCallback(UA_Client *client, void *userdata,
-        UA_UInt32 requestId, UA_Variant *var) {
+static void
+asyncReadValueAtttributeCallback(UA_Client *client, void *userdata,
+                                 UA_UInt32 requestId, UA_StatusCode opstatus,
+                                 UA_DataValue *value) {
     UA_UInt16 *asyncCounter = (UA_UInt16*) userdata;
     (*asyncCounter)++;
     UA_fakeSleep(10);
@@ -69,7 +70,9 @@ START_TEST(Client_highlevel_async_readValue) {
         UA_Client *client = UA_Client_new();
         UA_ClientConfig *clientConfig = UA_Client_getConfig(client);
         UA_ClientConfig_setDefault(clientConfig);
+#ifdef UA_ENABLE_SUBSCRIPTIONS
         clientConfig->outStandingPublishRequests = 0;
+#endif
 
         UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
         ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
@@ -132,9 +135,9 @@ START_TEST(Client_read_async) {
         }
 
         /* Process async responses during 1s */
-        retval = UA_Client_run_iterate(client, 999);
+        while(asyncCounter < 100)
+            retval |= UA_Client_run_iterate(client, 999);
         ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
-        ck_assert_uint_eq(asyncCounter, 100);
 
         UA_Client_disconnect(client);
         UA_Client_delete(client);
@@ -144,7 +147,9 @@ START_TEST(Client_read_async_timed) {
         UA_Client *client = UA_Client_new();
         UA_ClientConfig *clientConfig = UA_Client_getConfig(client);
         UA_ClientConfig_setDefault(clientConfig);
+#ifdef UA_ENABLE_SUBSCRIPTIONS
         clientConfig->outStandingPublishRequests = 0;
+#endif
 
         UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
         ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
@@ -203,7 +208,9 @@ START_TEST(Client_connectivity_check) {
         UA_Client *client = UA_Client_new();
         UA_ClientConfig *clientConfig = UA_Client_getConfig(client);
         UA_ClientConfig_setDefault(clientConfig);
+#ifdef UA_ENABLE_SUBSCRIPTIONS
         clientConfig->outStandingPublishRequests = 0;
+#endif
         clientConfig->inactivityCallback = inactivityCallback;
         clientConfig->connectivityCheckInterval = 1000;
 
@@ -220,12 +227,21 @@ START_TEST(Client_connectivity_check) {
         ck_assert_uint_eq(inactivityCallbackTriggered, false);
 
         /* Simulate network cable unplugged (no response from server) */
-        UA_Client_recvTesting_result = UA_STATUSCODE_GOODNONCRITICALTIMEOUT;
+        running = false;
+        THREAD_JOIN(server_thread);
 
-        retval = UA_Client_run_iterate(client,
-                (UA_UInt16) (1000 + 1 + clientConfig->timeout));
+        UA_fakeSleep(1000 + 1 + clientConfig->connectivityCheckInterval);
+        retval = UA_Client_run_iterate(client, 1);
+        ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+        UA_fakeSleep(1000 + 1 + clientConfig->timeout);
+        retval = UA_Client_run_iterate(client, 1);
         ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
         ck_assert_uint_eq(inactivityCallbackTriggered, true);
+
+        /* Get the server back up */
+        running = true;
+        THREAD_CREATE(server_thread, serverloop);
 
         UA_Client_disconnect(client);
         UA_Client_delete(client);

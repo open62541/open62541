@@ -32,16 +32,11 @@ int main(void) {
      * The PubSubTransportLayer is a factory to create new connections
      * on runtime. The UA_PubSubTransportLayer is used for all kinds of
      * concrete connections e.g. UDP, MQTT, AMQP...
-     */
-    config->pubsubTransportLayers = (UA_PubSubTransportLayer *) UA_malloc(sizeof(UA_PubSubTransportLayer));
-    if(!config->pubsubTransportLayers) {
-        UA_Server_delete(server);
-        return -1;
-    }
-    /* It is possible to use multiple PubSubTransportLayers on runtime. The correct factory
-     * is selected on runtime by the standard defined PubSub TransportProfileUri's. */
-    config->pubsubTransportLayers[0] = UA_PubSubTransportLayerUDPMP();
-    config->pubsubTransportLayersSize++;
+     *
+     * It is possible to use multiple PubSubTransportLayers on runtime. The
+     * correct factory is selected on runtime by the standard defined PubSub
+     * TransportProfileUri's. */
+    UA_ServerConfig_addPubSubTransportLayer(config, UA_PubSubTransportLayerUDPMP());
 
     /* Create a new ConnectionConfig. The addPubSubConnection function takes the
      * config and create a new connection. The Connection identifier is
@@ -64,10 +59,10 @@ int main(void) {
     UA_Variant_setScalar(&connectionOptions[0].value, &ttl, &UA_TYPES[UA_TYPES_UINT32]);
     connectionOptions[1].key = UA_QUALIFIEDNAME(0, "loopback");
     UA_Boolean loopback = UA_FALSE;
-    UA_Variant_setScalar(&connectionOptions[1].value, &loopback, &UA_TYPES[UA_TYPES_UINT32]);
+    UA_Variant_setScalar(&connectionOptions[1].value, &loopback, &UA_TYPES[UA_TYPES_BOOLEAN]);
     connectionOptions[2].key = UA_QUALIFIEDNAME(0, "reuse");
     UA_Boolean reuse = UA_TRUE;
-    UA_Variant_setScalar(&connectionOptions[2].value, &reuse, &UA_TYPES[UA_TYPES_UINT32]);
+    UA_Variant_setScalar(&connectionOptions[2].value, &reuse, &UA_TYPES[UA_TYPES_BOOLEAN]);
     connectionConfig.connectionProperties = connectionOptions;
     connectionConfig.connectionPropertiesSize = 3;
     /* Create a new concrete connection and add the connection

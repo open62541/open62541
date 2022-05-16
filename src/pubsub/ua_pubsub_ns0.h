@@ -52,6 +52,9 @@ addDataSetReaderRepresentation(UA_Server *server, UA_DataSetReader *dataSetReade
 UA_StatusCode
 removeDataSetReaderRepresentation(UA_Server *server, UA_DataSetReader *dataSetReader);
 
+UA_StatusCode
+removeReaderGroupRepresentation(UA_Server *server, UA_ReaderGroup *readerGroup);
+
 #endif /* UA_ENABLE_PUBSUB_INFORMATIONMODEL */
 
 _UA_END_DECLS

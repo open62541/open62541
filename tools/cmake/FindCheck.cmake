@@ -16,34 +16,28 @@
 #  BSD license.
 #  For details see the accompanying COPYING-CMAKE-SCRIPTS file.
 
-
-INCLUDE( FindPkgConfig )
-
-# Take care about check.pc settings
-PKG_SEARCH_MODULE( CHECK check )
+if(WIN32)
+  # Manually define CHECK_INSTALL_DIR if vcpkg is not used
+  if(DEFINED VCPKG_INSTALLED_DIR)
+    set(CHECK_INSTALL_DIR "${VCPKG_INSTALLED_DIR}/${VCPKG_TARGET_TRIPLET}")
+    # find_package(check CONFIG REQUIRED)
+  endif()
+else()
+    # Take care about check.pc settings
+    find_package(PkgConfig REQUIRED)
+    PKG_SEARCH_MODULE( CHECK check )
+endif()
 
 # Look for CHECK include dir and libraries
 IF( NOT CHECK_FOUND )
 	IF ( CHECK_INSTALL_DIR )
 		MESSAGE ( STATUS "Using override CHECK_INSTALL_DIR to find check" )
 		SET ( CHECK_INCLUDE_DIR  "${CHECK_INSTALL_DIR}/include" )
-		FIND_LIBRARY( CHECK_LIBRARY NAMES check PATHS "${CHECK_INSTALL_DIR}/lib" )
-        IF (WIN32)
-		    FIND_LIBRARY( COMPAT_LIBRARY NAMES compat PATHS "${CHECK_INSTALL_DIR}/lib" )
-        ENDIF (WIN32)
+		FIND_LIBRARY( CHECK_LIBRARIES NAMES check PATHS "${CHECK_INSTALL_DIR}/lib" )
 	ELSE ( CHECK_INSTALL_DIR )
 		FIND_PATH( CHECK_INCLUDE_DIR check.h )
-		FIND_LIBRARY( CHECK_LIBRARY NAMES check )
-        IF (WIN32)
-		    FIND_LIBRARY( COMPAT_LIBRARY NAMES compat )
-        ENDIF (WIN32)
+		FIND_LIBRARY( CHECK_LIBRARIES NAMES check )
 	ENDIF ( CHECK_INSTALL_DIR )
-
-    IF (WIN32)
-        SET ( CHECK_LIBRARIES "${CHECK_LIBRARY}" "${COMPAT_LIBRARY}" )
-    ELSE ( WIN32)
-        SET ( CHECK_LIBRARIES "${CHECK_LIBRARY}" )
-    ENDIF (WIN32)
 
 	IF ( CHECK_INCLUDE_DIR AND CHECK_LIBRARIES )
 		SET( CHECK_FOUND 1 )
@@ -62,7 +56,4 @@ IF( NOT CHECK_FOUND )
 ENDIF( NOT CHECK_FOUND )
 
 # Hide advanced variables from CMake GUIs
-MARK_AS_ADVANCED( CHECK_INCLUDE_DIR CHECK_LIBRARIES CHECK_LIBRARY)
-IF( WIN32 )
-    MARK_AS_ADVANCED( COMPAT_LIBRARY)
-ENDIF()
+MARK_AS_ADVANCED( CHECK_INCLUDE_DIR CHECK_LIBRARIES )

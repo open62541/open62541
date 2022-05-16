@@ -252,9 +252,9 @@ addPumpObjectInstance(UA_Server *server, char *name) {
 }
 
 /**
- * Often times, we want to run a constructor function on a new object. This is
+ * Often we want to run a constructor function on a new object. This is
  * especially useful when an object is instantiated at runtime (with the
- * AddNodes service) and the integration with an underlying process canot be
+ * AddNodes service) and the integration with an underlying process cannot be
  * manually defined. In the following constructor example, we simply set the
  * pump status to on.
  */

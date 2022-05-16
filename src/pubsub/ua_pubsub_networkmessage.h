@@ -3,6 +3,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  *
  * Copyright (c) 2017 - 2018 Fraunhofer IOSB (Author: Tino Bischoff)
+ * Copyright (c) 2017-2019 Fraunhofer IOSB (Author: Andreas Ebner)
  */
 
 #ifndef UA_PUBSUB_NETWORKMESSAGE_H_
@@ -10,6 +11,7 @@
 
 #include <open62541/types.h>
 #include <open62541/types_generated.h>
+#include <open62541/plugin/securitypolicy.h>
 
 _UA_BEGIN_DECLS
 
@@ -21,16 +23,17 @@ typedef struct {
 
 /* FieldEncoding Enum  */
 typedef enum {
-    UA_FIELDENCODING_VARIANT = 0, 
+    UA_FIELDENCODING_VARIANT = 0,
     UA_FIELDENCODING_RAWDATA = 1,
-    UA_FIELDENCODING_DATAVALUE = 2
+    UA_FIELDENCODING_DATAVALUE = 2,
+    UA_FIELDENCODING_UNKNOWN = 3
 } UA_FieldEncoding;
 
 /* DataSetMessage Type */
 typedef enum {
     UA_DATASETMESSAGE_DATAKEYFRAME = 0,
     UA_DATASETMESSAGE_DATADELTAFRAME = 1,
-    UA_DATASETMESSAGE_EVENT = 2, 
+    UA_DATASETMESSAGE_EVENT = 2,
     UA_DATASETMESSAGE_KEEPALIVE = 3
 } UA_DataSetMessageType;
 
@@ -53,17 +56,6 @@ typedef struct {
     UA_UInt32 configVersionMinorVersion;
 } UA_DataSetMessageHeader;
 
-UA_StatusCode
-UA_DataSetMessageHeader_encodeBinary(const UA_DataSetMessageHeader* src,
-                                     UA_Byte **bufPos, const UA_Byte *bufEnd);
-
-UA_StatusCode
-UA_DataSetMessageHeader_decodeBinary(const UA_ByteString *src, size_t *offset,
-                                     UA_DataSetMessageHeader* dst);
-
-size_t
-UA_DataSetMessageHeader_calcSizeBinary(const UA_DataSetMessageHeader* p);
-
 /**
  * DataSetMessage
  * ^^^^^^^^^^^^^^ */
@@ -71,6 +63,7 @@ UA_DataSetMessageHeader_calcSizeBinary(const UA_DataSetMessageHeader* p);
 typedef struct {
     UA_UInt16 fieldCount;
     UA_DataValue* dataSetFields;
+    UA_ByteString rawFields;
     /* Json keys for the dataSetFields: TODO: own dataSetMessageType for json? */
     UA_String* fieldNames;
 } UA_DataSetMessage_DataKeyFrameData;
@@ -92,19 +85,6 @@ typedef struct {
         UA_DataSetMessage_DataDeltaFrameData deltaFrameData;
     } data;
 } UA_DataSetMessage;
-
-UA_StatusCode
-UA_DataSetMessage_encodeBinary(const UA_DataSetMessage* src, UA_Byte **bufPos,
-                               const UA_Byte *bufEnd);
-
-UA_StatusCode
-UA_DataSetMessage_decodeBinary(const UA_ByteString *src, size_t *offset,
-                               UA_DataSetMessage* dst);
-
-size_t
-UA_DataSetMessage_calcSizeBinary(const UA_DataSetMessage* p);
-
-void UA_DataSetMessage_free(const UA_DataSetMessage* p);
 
 typedef struct {
     UA_UInt16* sizes;
@@ -148,7 +128,6 @@ typedef struct {
     UA_Boolean securityFooterEnabled;
     UA_Boolean forceKeyReset;
     UA_UInt32 securityTokenId;      // spec: IntegerId
-    UA_Byte nonceLength;
     UA_ByteString messageNonce;
     UA_UInt16 securityFooterSize;
 } UA_NetworkMessageSecurityHeader;
@@ -199,24 +178,155 @@ typedef struct {
     } payload;
     
     UA_ByteString securityFooter;
-    UA_ByteString signature;
 } UA_NetworkMessage;
 
+/**********************************************/
+/*          Network Message Offsets           */
+/**********************************************/
+
+/* Offsets for buffered messages in the PubSub fast path. */
+typedef enum {
+    UA_PUBSUB_OFFSETTYPE_DATASETMESSAGE_SEQUENCENUMBER,
+    UA_PUBSUB_OFFSETTYPE_NETWORKMESSAGE_SEQUENCENUMBER,
+    UA_PUBSUB_OFFSETTYPE_NETWORKMESSAGE_FIELDENCDODING,
+    UA_PUBSUB_OFFSETTYPE_TIMESTAMP_PICOSECONDS,
+    UA_PUBSUB_OFFSETTYPE_TIMESTAMP,     /* source pointer */
+    UA_PUBSUB_OFFSETTYPE_TIMESTAMP_NOW, /* no source */
+    UA_PUBSUB_OFFSETTYPE_PAYLOAD_DATAVALUE,
+    UA_PUBSUB_OFFSETTYPE_PAYLOAD_VARIANT,
+    UA_PUBSUB_OFFSETTYPE_PAYLOAD_RAW,
+    /* For subscriber RT */
+    UA_PUBSUB_OFFSETTYPE_PUBLISHERID,
+    UA_PUBSUB_OFFSETTYPE_WRITERGROUPID,
+    UA_PUBSUB_OFFSETTYPE_DATASETWRITERID
+    /* Add more offset types as needed */
+} UA_NetworkMessageOffsetType;
+
+typedef struct {
+    UA_NetworkMessageOffsetType contentType;
+    union {
+        struct {
+            UA_DataValue *value;
+            size_t valueBinarySize;
+        } value;
+        UA_DateTime *timestamp;
+    } offsetData;
+    size_t offset;
+} UA_NetworkMessageOffset;
+
+typedef struct {
+    UA_ByteString buffer; /* The precomputed message buffer */
+    UA_NetworkMessageOffset *offsets; /* Offsets for changes in the message buffer */
+    size_t offsetsSize;
+    UA_Boolean RTsubscriberEnabled; /* Addtional offsets computation like publisherId, WGId if this bool enabled */
+    UA_NetworkMessage *nm; /* The precomputed NetworkMessage for subscriber */
+    size_t rawMessageLength;
+#ifdef UA_ENABLE_PUBSUB_ENCRYPTION
+    UA_ByteString encryptBuffer; /* The precomputed message buffer is copied into the encrypt buffer for encryption and signing*/
+    UA_Byte *payloadPosition; /* Payload Position of the message to encrypt*/
+#endif
+} UA_NetworkMessageOffsetBuffer;
+
+/**
+ * DataSetMessage
+ * ^^^^^^^^^^^^^^ */
+
+UA_StatusCode
+UA_DataSetMessageHeader_encodeBinary(const UA_DataSetMessageHeader* src,
+                                     UA_Byte **bufPos, const UA_Byte *bufEnd);
+
+UA_StatusCode
+UA_DataSetMessageHeader_decodeBinary(const UA_ByteString *src, size_t *offset,
+                                     UA_DataSetMessageHeader* dst);
+
+size_t
+UA_DataSetMessageHeader_calcSizeBinary(const UA_DataSetMessageHeader* p);
+
+UA_StatusCode
+UA_DataSetMessage_encodeBinary(const UA_DataSetMessage* src, UA_Byte **bufPos,
+                               const UA_Byte *bufEnd);
+
+UA_StatusCode
+UA_DataSetMessage_decodeBinary(const UA_ByteString *src, size_t *offset,
+                               UA_DataSetMessage* dst, UA_UInt16 dsmSize);
+
+size_t
+UA_DataSetMessage_calcSizeBinary(UA_DataSetMessage *p, UA_NetworkMessageOffsetBuffer *offsetBuffer,
+                                 size_t currentOffset);
+
+void UA_DataSetMessage_clear(const UA_DataSetMessage* p);
+
+/**
+ * NetworkMessage
+ * ^^^^^^^^^^^^^^ */
+
+UA_StatusCode
+UA_NetworkMessage_updateBufferedMessage(UA_NetworkMessageOffsetBuffer *buffer);
+
+UA_StatusCode
+UA_NetworkMessage_updateBufferedNwMessage(UA_NetworkMessageOffsetBuffer *buffer,
+                                          const UA_ByteString *src, size_t *bufferPosition);
+
+
+/**
+ * NetworkMessage Encoding
+ * ^^^^^^^^^^^^^^^^^^^^^^^ */
+
+/* If dataToEncryptStart not-NULL, then it will be set to the start-position of
+ * the payload in the buffer. */
 UA_StatusCode
 UA_NetworkMessage_encodeBinary(const UA_NetworkMessage* src,
+                               UA_Byte **bufPos, const UA_Byte *bufEnd,
+                               UA_Byte **dataToEncryptStart);
+
+UA_StatusCode
+UA_NetworkMessage_encodeHeaders(const UA_NetworkMessage* src,
                                UA_Byte **bufPos, const UA_Byte *bufEnd);
+
+UA_StatusCode
+UA_NetworkMessage_encodePayload(const UA_NetworkMessage* src,
+                               UA_Byte **bufPos, const UA_Byte *bufEnd);
+
+UA_StatusCode
+UA_NetworkMessage_encodeFooters(const UA_NetworkMessage* src,
+                               UA_Byte **bufPos, const UA_Byte *bufEnd);
+
+/**
+ * NetworkMessage Decoding
+ * ^^^^^^^^^^^^^^^^^^^^^^^ */
+
+UA_StatusCode
+UA_NetworkMessage_decodeHeaders(const UA_ByteString *src, size_t *offset, UA_NetworkMessage *dst);
+
+UA_StatusCode
+UA_NetworkMessage_decodePayload(const UA_ByteString *src, size_t *offset, UA_NetworkMessage *dst);
+
+UA_StatusCode
+UA_NetworkMessage_decodeFooters(const UA_ByteString *src, size_t *offset, UA_NetworkMessage *dst);
 
 UA_StatusCode
 UA_NetworkMessage_decodeBinary(const UA_ByteString *src, size_t *offset,
                                UA_NetworkMessage* dst);
 
+
+UA_StatusCode
+UA_NetworkMessageHeader_decodeBinary(const UA_ByteString *src, size_t *offset, UA_NetworkMessage *dst);
+
 size_t
-UA_NetworkMessage_calcSizeBinary(const UA_NetworkMessage* p);
+UA_NetworkMessage_calcSizeBinary(UA_NetworkMessage *p,
+                                 UA_NetworkMessageOffsetBuffer *offsetBuffer);
+
+#ifdef UA_ENABLE_PUBSUB_ENCRYPTION
+
+UA_StatusCode
+UA_NetworkMessage_signEncrypt(UA_NetworkMessage *nm, UA_MessageSecurityMode securityMode,
+                              UA_PubSubSecurityPolicy *policy, void *policyContext,
+                              UA_Byte *messageStart, UA_Byte *encryptStart,
+                              UA_Byte *sigStart);
+#endif
 
 void
-UA_NetworkMessage_deleteMembers(UA_NetworkMessage* p);
-
-#define UA_NetworkMessage_clear(p) UA_NetworkMessage_deleteMembers(p)
+UA_NetworkMessage_clear(UA_NetworkMessage* p);
 
 void
 UA_NetworkMessage_delete(UA_NetworkMessage* p);

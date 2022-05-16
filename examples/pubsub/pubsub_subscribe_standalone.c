@@ -16,7 +16,9 @@
 #include <open62541/server.h>
 #include <open62541/server_config_default.h>
 
+#include "ua_types_encoding_binary.h"
 #include "ua_pubsub_networkmessage.h"
+#include "ua_util_internal.h"
 
 #include <signal.h>
 
@@ -25,6 +27,8 @@
 #endif
 
 UA_Boolean running = true;
+static UA_StatusCode
+customDecodeAndProcessCallback(UA_PubSubChannel *psc, void* ctx, const UA_ByteString *buffer);
 static void stopHandler(int sign) {
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
                 "received ctrl-c");
@@ -42,26 +46,21 @@ subscriberListen(UA_PubSubChannel *psc) {
     }
 
     /* Receive the message. Blocks for 100ms */
-    retval = psc->receive(psc, &buffer, NULL, 100);
-    if(retval != UA_STATUSCODE_GOOD || buffer.length == 0) {
-        /* Workaround!! Reset buffer length. Receive can set the length to zero.
-         * Then the buffer is not deleted because no memory allocation is
-         * assumed.
-         * TODO: Return an error code in 'receive' instead of setting the buf
-         * length to zero. */
-        buffer.length = 512;
-        UA_ByteString_clear(&buffer);
-        return UA_STATUSCODE_GOOD;
-    }
+    UA_StatusCode rv = psc->receive(psc, NULL, customDecodeAndProcessCallback, NULL, 100);
+
+    UA_ByteString_clear(&buffer);
+    return rv;
+}
+static UA_StatusCode
+customDecodeAndProcessCallback(UA_PubSubChannel *psc, void *ctx, const UA_ByteString *buffer) {
 
     /* Decode the message */
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
-                "Message length: %lu", (unsigned long) buffer.length);
+                "Message length: %lu", (unsigned long) (*buffer).length);
     UA_NetworkMessage networkMessage;
     memset(&networkMessage, 0, sizeof(UA_NetworkMessage));
     size_t currentPosition = 0;
-    UA_NetworkMessage_decodeBinary(&buffer, &currentPosition, &networkMessage);
-    UA_ByteString_clear(&buffer);
+    UA_NetworkMessage_decodeBinary(buffer, &currentPosition, &networkMessage);
 
     /* Is this the correct message type? */
     if(networkMessage.networkMessageType != UA_NETWORKMESSAGE_DATASET)
@@ -77,29 +76,46 @@ subscriberListen(UA_PubSubChannel *psc) {
         UA_DataSetMessage *dsm = &networkMessage.payload.dataSetPayload.dataSetMessages[j];
         if(dsm->header.dataSetMessageType != UA_DATASETMESSAGE_DATAKEYFRAME)
             continue;
-
-        /* Loop over the fields and print well-known content types */
-        for(int i = 0; i < dsm->data.keyFrameData.fieldCount; i++) {
-            const UA_DataType *currentType = dsm->data.keyFrameData.dataSetFields[i].value.type;
-            if(currentType == &UA_TYPES[UA_TYPES_BYTE]) {
-                UA_Byte value = *(UA_Byte *)dsm->data.keyFrameData.dataSetFields[i].value.data;
-                UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
-                            "Message content: [Byte] \tReceived data: %i", value);
-            } else if (currentType == &UA_TYPES[UA_TYPES_DATETIME]) {
-                UA_DateTime value = *(UA_DateTime *)dsm->data.keyFrameData.dataSetFields[i].value.data;
-                UA_DateTimeStruct receivedTime = UA_DateTime_toStruct(value);
-                UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
-                            "Message content: [DateTime] \t"
-                            "Received date: %02i-%02i-%02i Received time: %02i:%02i:%02i",
-                            receivedTime.year, receivedTime.month, receivedTime.day,
-                            receivedTime.hour, receivedTime.min, receivedTime.sec);
+        if(dsm->header.fieldEncoding == UA_FIELDENCODING_RAWDATA){
+            //The RAW-Encoded payload contains no fieldCount information
+            UA_DateTime dateTime;
+            size_t offset = 0;
+            UA_DateTime_decodeBinary(&dsm->data.keyFrameData.rawFields, &offset, &dateTime);
+            //UA_DateTime value = *(UA_DateTime *)dsm->data.keyFrameData.rawFields->data;
+            UA_DateTimeStruct receivedTime = UA_DateTime_toStruct(dateTime);
+            UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
+                        "Message content: [DateTime] \t"
+                        "Received date: %02i-%02i-%02i Received time: %02i:%02i:%02i",
+                        receivedTime.year, receivedTime.month, receivedTime.day,
+                        receivedTime.hour, receivedTime.min, receivedTime.sec);
+        } else {
+            /* Loop over the fields and print well-known content types */
+            for(int i = 0; i < dsm->data.keyFrameData.fieldCount; i++) {
+                const UA_DataType *currentType = dsm->data.keyFrameData.dataSetFields[i].value.type;
+                if(currentType == &UA_TYPES[UA_TYPES_BYTE]) {
+                    UA_Byte value = *(UA_Byte *)dsm->data.keyFrameData.dataSetFields[i].value.data;
+                    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
+                                "Message content: [Byte] \tReceived data: %i", value);
+                } else if (currentType == &UA_TYPES[UA_TYPES_UINT32]) {
+                    UA_UInt32 value = *(UA_UInt32 *)dsm->data.keyFrameData.dataSetFields[i].value.data;
+                    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
+                                "Message content: [UInt32] \tReceived data: %u", value);
+                } else if (currentType == &UA_TYPES[UA_TYPES_DATETIME]) {
+                    UA_DateTime value = *(UA_DateTime *)dsm->data.keyFrameData.dataSetFields[i].value.data;
+                    UA_DateTimeStruct receivedTime = UA_DateTime_toStruct(value);
+                    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
+                                "Message content: [DateTime] \t"
+                                "Received date: %02i-%02i-%02i Received time: %02i:%02i:%02i",
+                                receivedTime.year, receivedTime.month, receivedTime.day,
+                                receivedTime.hour, receivedTime.min, receivedTime.sec);
+                }
             }
         }
     }
 
-    cleanup:
+cleanup:
     UA_NetworkMessage_clear(&networkMessage);
-    return retval;
+    return UA_STATUSCODE_GOOD;
 }
 
 int main(int argc, char **argv) {

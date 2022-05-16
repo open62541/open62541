@@ -9,8 +9,8 @@
 #ifndef UA_PLUGIN_NETWORK_H_
 #define UA_PLUGIN_NETWORK_H_
 
+#include <open62541/util.h>
 #include <open62541/plugin/log.h>
-#include <open62541/server.h>
 
 _UA_BEGIN_DECLS
 
@@ -20,9 +20,6 @@ typedef struct UA_Connection UA_Connection;
 
 struct UA_SecureChannel;
 typedef struct UA_SecureChannel UA_SecureChannel;
-
-struct UA_ServerNetworkLayer;
-typedef struct UA_ServerNetworkLayer UA_ServerNetworkLayer;
 
 /**
  * .. _networking:
@@ -44,33 +41,30 @@ typedef struct {
     UA_UInt32 protocolVersion;
     UA_UInt32 recvBufferSize;
     UA_UInt32 sendBufferSize;
-    UA_UInt32 maxMessageSize; /* Indicated by the remote side (0 = unbounded) */
-    UA_UInt32 maxChunkCount;  /* Indicated by the remote side (0 = unbounded) */
+    UA_UInt32 localMaxMessageSize;  /* (0 = unbounded) */
+    UA_UInt32 remoteMaxMessageSize; /* (0 = unbounded) */
+    UA_UInt32 localMaxChunkCount;   /* (0 = unbounded) */
+    UA_UInt32 remoteMaxChunkCount;  /* (0 = unbounded) */
 } UA_ConnectionConfig;
 
 typedef enum {
-    UA_CONNECTION_CLOSED,     /* The socket has been closed and the connection
-                               * will be deleted */
-    UA_CONNECTION_OPENING,    /* The socket is open, but the HEL/ACK handshake
-                               * is not done */
-    UA_CONNECTION_ESTABLISHED /* The socket is open and the connection
-                               * configured */
-
+    UA_CONNECTIONSTATE_CLOSED,     /* The socket has been closed and the connection
+                                    * will be deleted */
+    UA_CONNECTIONSTATE_OPENING,    /* The socket is open, but the HEL/ACK handshake
+                                    * is not done */
+    UA_CONNECTIONSTATE_ESTABLISHED /* The socket is open and the connection
+                                    * configured */
 } UA_ConnectionState;
 
 struct UA_Connection {
     UA_ConnectionState state;
-    UA_ConnectionConfig config;
     UA_SecureChannel *channel;     /* The securechannel that is attached to
                                     * this connection */
     UA_SOCKET sockfd;              /* Most connectivity solutions run on
                                     * sockets. Having the socket id here
                                     * simplifies the design. */
-    UA_DateTime openingDate;       /* The date the connection was created */
     void *handle;                  /* A pointer to internal data */
-    UA_ByteString incompleteChunk; /* A half-received chunk (TCP is a
-                                    * streaming protocol) is stored here */
-    UA_UInt64 connectCallbackID;   /* Callback Id, for the connect-loop */
+
     /* Get a buffer for sending */
     UA_StatusCode (*getSendBuffer)(UA_Connection *connection, size_t length,
                                    UA_ByteString *buf);
@@ -89,8 +83,13 @@ struct UA_Connection {
     /* Receive a message from the remote connection
      *
      * @param connection The connection
-     * @param response The response string. It is allocated by the connection
-     *        and needs to be freed with connection->releaseBuffer
+
+     * @param response The response string. If this is empty, it will be
+     *        allocated by the connection and needs to be freed with
+     *        connection->releaseBuffer. If the response string is non-empty, it
+     *        will be used as the receive buffer. If bytes are received, the
+     *        length of the buffer is adjusted to match the length of the
+     *        received bytes.
      * @param timeout Timeout of the recv operation in milliseconds
      * @return Returns UA_STATUSCODE_BADCOMMUNICATIONERROR if the recv operation
      *         can be repeated, UA_STATUSCODE_GOOD if it succeeded and
@@ -112,81 +111,6 @@ struct UA_Connection {
     void (*free)(UA_Connection *connection);
 };
 
-/* Cleans up half-received messages, and so on. Called from connection->free. */
-void UA_EXPORT
-UA_Connection_clear(UA_Connection *connection);
-
-/**
- * Server Network Layer
- * --------------------
- * The server exposes two functions to interact with remote clients:
- * `processBinaryMessage` and `removeConnection`. These functions are called by
- * the server network layer.
- *
- * It is the job of the server network layer to listen on a TCP socket, to
- * accept new connections, to call the server with received messages and to
- * signal closed connections to the server.
- *
- * The network layer is part of the server config. So users can provide a custom
- * implementation if the provided example does not fit their architecture. The
- * network layer is invoked only from the server's main loop. So the network
- * layer does not need to be thread-safe. If the networklayer receives a
- * positive duration for blocking listening, the server's main loop will block
- * until a message is received or the duration times out. */
-
-/* Process a binary message (TCP packet). The message can contain partial
- * chunks. (TCP is a streaming protocol and packets may be split/merge during
- * transport.) After processing, the message is freed with
- * connection->releaseRecvBuffer. */
-void UA_EXPORT
-UA_Server_processBinaryMessage(UA_Server *server, UA_Connection *connection,
-                               UA_ByteString *message);
-
-/* The server internally cleans up the connection and then calls
- * connection->free. */
-void UA_EXPORT
-UA_Server_removeConnection(UA_Server *server, UA_Connection *connection);
-
-struct UA_ServerNetworkLayer {
-    void *handle; /* Internal data */
-
-    UA_String discoveryUrl;
-
-    UA_ConnectionConfig localConnectionConfig;
-
-    /* Start listening on the networklayer.
-     *
-     * @param nl The network layer
-     * @return Returns UA_STATUSCODE_GOOD or an error code. */
-    UA_StatusCode (*start)(UA_ServerNetworkLayer *nl, const UA_String *customHostname);
-
-    /* Listen for new and closed connections and arriving packets. Calls
-     * UA_Server_processBinaryMessage for the arriving packets. Closed
-     * connections are picked up here and forwarded to
-     * UA_Server_removeConnection where they are cleaned up and freed.
-     *
-     * @param nl The network layer
-     * @param server The server for processing the incoming packets and for
-     *               closing connections.
-     * @param timeout The timeout during which an event must arrive in
-     *                milliseconds
-     * @return A statuscode for the status of the network layer. */
-    UA_StatusCode (*listen)(UA_ServerNetworkLayer *nl, UA_Server *server,
-                            UA_UInt16 timeout);
-
-    /* Close the network socket and all open connections. Afterwards, the
-     * network layer can be safely deleted.
-     *
-     * @param nl The network layer
-     * @param server The server that processes the incoming packets and for
-     *               closing connections before deleting them.
-     * @return A statuscode for the status of the closing operation. */
-    void (*stop)(UA_ServerNetworkLayer *nl, UA_Server *server);
-
-    /* Deletes the network layer context. Call only after stopping. */
-    void (*clear)(UA_ServerNetworkLayer *nl);
-};
-
 /**
  * Client Network Layer
  * --------------------
@@ -199,7 +123,7 @@ struct UA_ServerNetworkLayer {
  * @param logger the logger to use */
 typedef UA_Connection
 (*UA_ConnectClientConnection)(UA_ConnectionConfig config, UA_String endpointUrl,
-                              UA_UInt32 timeout, UA_Logger *logger);
+                              UA_UInt32 timeout, const UA_Logger *logger);
 
 _UA_END_DECLS
 

@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 # coding: UTF-8
 # This Source Code Form is subject to the terms of the Mozilla Public
@@ -60,7 +60,7 @@ log_content = replace_re.sub('', log_content)
 
 # Try to parse the output. Look for the following line:
 # ==17054== FILE DESCRIPTORS: 5 open at exit.
-descriptors_re = re.compile(r".*==(\d+)==\s+FILE DESCRIPTORS: (\d+) open at exit\..*", re.DOTALL)
+descriptors_re = re.compile(r".*==(\d+)==\s+FILE DESCRIPTORS: (\d+) open at exit\..*")
 m = descriptors_re.match(log_content)
 
 if not m:
@@ -86,7 +86,9 @@ open_count = int(m.group(2))
 #==21343== Open file descriptor 0: /dev/pts/1
 #==21343==    <inherited from parent>
 
-replace_re = re.compile(r"^=="+str(valgrind_number)+r"==\s+Open file descriptor \d+:\s*[^\s]*$\n^=="+str(valgrind_number)+r"==\s+<inherited from parent>$\n(^=="+str(valgrind_number)+r"==\s+$\n)*", re.MULTILINE)
+replace_re = re.compile(r"^==" + str(valgrind_number) + r"==\s+Open .*$\n" +
+                        r"^==" + str(valgrind_number) + r"==\s+<inherited from parent>$\n" +
+                        r"(^==" + str(valgrind_number) + r"==\s+$\n)*", re.MULTILINE)
 log_content = replace_re.sub('', log_content)
 
 # Valgrind detected a memleak if ret_code != 0

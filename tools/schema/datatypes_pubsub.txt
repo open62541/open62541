@@ -1,4 +1,3 @@
-KeyValuePair
 DataSetMetaDataType
 ConfigurationVersionDataType
 UadpDataSetWriterMessageDataType
@@ -26,6 +25,7 @@ DataSetWriterDataType
 DataSetReaderDataType
 PubSubState
 JsonDataSetWriterMessageDataType
+JsonWriterGroupMessageDataType
 JsonDataSetMessageContentMask
 JsonNetworkMessageContentMask
 BrokerTransportQualityOfService
@@ -33,7 +33,23 @@ BrokerConnectionTransportDataType
 BrokerWriterGroupTransportDataType
 BrokerDataSetWriterTransportDataType
 BrokerWriterGroupTransportType
+BrokerDataSetReaderTransportDataType
 UadpDataSetReaderMessageDataType
+JsonDataSetReaderMessageDataType
 TargetVariablesDataType
 FieldTargetDataType
 OverrideValueHandling
+PubSubConfigurationDataType
+PublishedDataSetDataType
+PublishedDataItemsDataType
+UABinaryFileDataType
+PermissionType
+RolePermissionType
+SubscribedDataSetMirrorDataType
+SimpleAttributeOperand
+FilterOperator
+ContentFilterElement
+ContentFilter
+PublishedEventsDataType
+DatagramConnectionTransportDataType
+DatagramWriterGroupTransportDataType

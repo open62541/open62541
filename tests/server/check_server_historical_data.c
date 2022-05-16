@@ -139,9 +139,9 @@ static void teardown(void) {
     UA_Client_delete(client);
     running = false;
     THREAD_JOIN(server_thread);
-    UA_NodeId_deleteMembers(&parentNodeId);
-    UA_NodeId_deleteMembers(&parentReferenceNodeId);
-    UA_NodeId_deleteMembers(&outNodeId);
+    UA_NodeId_clear(&parentNodeId);
+    UA_NodeId_clear(&parentReferenceNodeId);
+    UA_NodeId_clear(&outNodeId);
     UA_Server_run_shutdown(server);
     UA_Server_delete(server);
 #ifdef UA_ENABLE_HISTORIZING
@@ -262,7 +262,7 @@ fillHistoricalDataBackend(UA_HistoryDataBackend backend)
             fprintf(stderr, "\n");
             return false;
         }
-        UA_DataValue_deleteMembers(&value);
+        UA_DataValue_clear(&value);
         currentDateTime = testData[++i];
     }
     fprintf(stderr, "\n");
@@ -305,16 +305,16 @@ requestHistory(UA_DateTime start,
     request.nodesToReadSize = 1;
     request.nodesToRead = valueId;
 
-    UA_LOCK(server->serviceMutex);
+    UA_LOCK(&server->serviceMutex);
     Service_HistoryRead(server, &server->adminSession, &request, response);
-    UA_UNLOCK(server->serviceMutex);
-    UA_HistoryReadRequest_deleteMembers(&request);
+    UA_UNLOCK(&server->serviceMutex);
+    UA_HistoryReadRequest_clear(&request);
 }
 
 static UA_UInt32
-testHistoricalDataBackend(size_t maxResponseSize)
-{
-    const UA_HistorizingNodeIdSettings* setting = gathering->getHistorizingSetting(server, gathering->context, &outNodeId);
+testHistoricalDataBackend(size_t maxResponseSize) {
+    const UA_HistorizingNodeIdSettings *setting =
+        gathering->getHistorizingSetting(server, gathering->context, &outNodeId);
     UA_HistorizingNodeIdSettings newSetting = *setting;
     newSetting.maxHistoryDataResponseSize = maxResponseSize;
     gathering->updateNodeIdSetting(server, gathering->context, &outNodeId, newSetting);
@@ -322,18 +322,21 @@ testHistoricalDataBackend(size_t maxResponseSize)
     UA_UInt32 retval = 0;
     size_t i = 0;
     testTuple *current = &testRequests[i];
-    fprintf(stderr, "Testing with maxResponseSize of %lu\n", maxResponseSize);
-    fprintf(stderr, "Start | End  | numValuesPerNode | returnBounds |ContPoint| {Expected}{Result} Result\n");
-    fprintf(stderr, "------+------+------------------+--------------+---------+----------------\n");
+    fprintf(stderr, "Testing with maxResponseSize of %llu\n",
+            (long long unsigned)maxResponseSize);
+    fprintf(stderr, "Start | End  | numValuesPerNode | returnBounds |ContPoint| "
+                    "{Expected}{Result} Result\n");
+    fprintf(stderr, "------+------+------------------+"
+                    "--------------+---------+----------------\n");
     size_t j;
-    while (current->start || current->end) {
+    while(current->start || current->end) {
         j = 0;
-        if (current->start == TIMESTAMP_UNSPECIFIED) {
+        if(current->start == TIMESTAMP_UNSPECIFIED) {
             fprintf(stderr, "UNSPEC|");
         } else {
             fprintf(stderr, "  %3lld |", current->start / UA_DATETIME_SEC);
         }
-        if (current->end == TIMESTAMP_UNSPECIFIED) {
+        if(current->end == TIMESTAMP_UNSPECIFIED) {
             fprintf(stderr, "UNSPEC|");
         } else {
             fprintf(stderr, "  %3lld |", current->end / UA_DATETIME_SEC);
@@ -369,16 +372,18 @@ testHistoricalDataBackend(size_t maxResponseSize)
             ++counter;
 
             if(response.resultsSize != 1) {
-                fprintf(stderr, "ResultError:Size %lu %s", response.resultsSize, UA_StatusCode_name(response.responseHeader.serviceResult));
+                fprintf(stderr, "ResultError:Size %llu %s",
+                        (long long unsigned)response.resultsSize,
+                        UA_StatusCode_name(response.responseHeader.serviceResult));
                 readOk = false;
-                UA_HistoryReadResponse_deleteMembers(&response);
+                UA_HistoryReadResponse_clear(&response);
                 break;
             }
 
             UA_StatusCode stat = response.results[0].statusCode;
             if (stat == UA_STATUSCODE_BADBOUNDNOTSUPPORTED && current->returnBounds) {
                 fprintf(stderr, "%s", UA_StatusCode_name(stat));
-                UA_HistoryReadResponse_deleteMembers(&response);
+                UA_HistoryReadResponse_clear(&response);
                 break;
             }
 
@@ -386,7 +391,7 @@ testHistoricalDataBackend(size_t maxResponseSize)
                     || response.results[0].historyData.content.decoded.type != &UA_TYPES[UA_TYPES_HISTORYDATA]) {
                 fprintf(stderr, "ResultError:HistoryData");
                 readOk = false;
-                UA_HistoryReadResponse_deleteMembers(&response);
+                UA_HistoryReadResponse_clear(&response);
                 break;
             }
 
@@ -397,14 +402,14 @@ testHistoricalDataBackend(size_t maxResponseSize)
             if (resultSize == 0 && continuous.length > 0) {
                 fprintf(stderr, "continuousResultEmpty");
                 readOk = false;
-                UA_HistoryReadResponse_deleteMembers(&response);
+                UA_HistoryReadResponse_clear(&response);
                 break;
             }
 
             if (resultSize > maxResponseSize) {
                 fprintf(stderr, "resultToBig");
                 readOk = false;
-                UA_HistoryReadResponse_deleteMembers(&response);
+                UA_HistoryReadResponse_clear(&response);
                 break;
             }
 
@@ -444,28 +449,28 @@ testHistoricalDataBackend(size_t maxResponseSize)
                         readOk = false;
                         fprintf(stderr, "unexpectedContinuationPoint");
                     }
-                    UA_HistoryReadResponse_deleteMembers(&response);
+                    UA_HistoryReadResponse_clear(&response);
                     break;
                 }
-                UA_ByteString_deleteMembers(&continuous);
+                UA_ByteString_clear(&continuous);
                 UA_ByteString_copy(&response.results[0].continuationPoint, &continuous);
             } else {
                 readOk = false;
-                UA_HistoryReadResponse_deleteMembers(&response);
+                UA_HistoryReadResponse_clear(&response);
                 break;
             }
-            UA_HistoryReadResponse_deleteMembers(&response);
+            UA_HistoryReadResponse_clear(&response);
         } while (continuous.length > 0);
 
         if (j != reseivedValues) {
             readOk = false;
         }
-        UA_ByteString_deleteMembers(&continuous);
+        UA_ByteString_clear(&continuous);
         if (!readOk) {
-            fprintf(stderr, "} Fail (%lu requests)\n", counter);
+            fprintf(stderr, "} Fail (%llu requests)\n", (long long unsigned)counter);
             ++retval;
         } else {
-            fprintf(stderr, "} OK (%lu requests)\n", counter);
+            fprintf(stderr, "} OK (%llu requests)\n", (long long unsigned)counter);
         }
         current = &testRequests[++i];
     }
@@ -499,10 +504,10 @@ deleteHistory(UA_DateTime start,
 
     UA_HistoryUpdateResponse response;
     UA_HistoryUpdateResponse_init(&response);
-    UA_LOCK(server->serviceMutex);
+    UA_LOCK(&server->serviceMutex);
     Service_HistoryUpdate(server, &server->adminSession, &request, &response);
-    UA_UNLOCK(server->serviceMutex);
-    UA_HistoryUpdateRequest_deleteMembers(&request);
+    UA_UNLOCK(&server->serviceMutex);
+    UA_HistoryUpdateRequest_clear(&request);
     UA_StatusCode ret = UA_STATUSCODE_GOOD;
     if (response.responseHeader.serviceResult != UA_STATUSCODE_GOOD)
         ret = response.responseHeader.serviceResult;
@@ -513,7 +518,7 @@ deleteHistory(UA_DateTime start,
     else if (response.results[0].operationResultsSize != 0)
         ret = UA_STATUSCODE_BADUNEXPECTEDERROR;
 
-    UA_HistoryUpdateResponse_deleteMembers(&response);
+    UA_HistoryUpdateResponse_clear(&response);
     return ret;
 }
 
@@ -553,10 +558,10 @@ updateHistory(UA_PerformUpdateType updateType, UA_DateTime *updateData, UA_Statu
 
     UA_HistoryUpdateResponse response;
     UA_HistoryUpdateResponse_init(&response);
-    UA_LOCK(server->serviceMutex);
+    UA_LOCK(&server->serviceMutex);
     Service_HistoryUpdate(server, &server->adminSession, &request, &response);
-    UA_UNLOCK(server->serviceMutex);
-    UA_HistoryUpdateRequest_deleteMembers(&request);
+    UA_UNLOCK(&server->serviceMutex);
+    UA_HistoryUpdateRequest_clear(&request);
     UA_StatusCode ret = UA_STATUSCODE_GOOD;
     if (response.responseHeader.serviceResult != UA_STATUSCODE_GOOD)
         ret = response.responseHeader.serviceResult;
@@ -579,7 +584,7 @@ updateHistory(UA_PerformUpdateType updateType, UA_DateTime *updateData, UA_Statu
             }
         }
     }
-    UA_HistoryUpdateResponse_deleteMembers(&response);
+    UA_HistoryUpdateResponse_clear(&response);
     return ret;
 }
 
@@ -605,7 +610,7 @@ testResult(UA_DateTime *resultData, UA_HistoryData * historyData) {
         ck_assert_uint_eq(data->dataValues[j].hasSourceTimestamp, true);
         ck_assert_uint_eq(data->dataValues[j].sourceTimestamp, resultData[j]);
     }
-    UA_HistoryReadResponse_deleteMembers(&localResponse);
+    UA_HistoryReadResponse_clear(&localResponse);
 }
 
 START_TEST(Server_HistorizingUpdateDelete)
@@ -629,7 +634,7 @@ START_TEST(Server_HistorizingUpdateDelete)
 
     testResult(testDataAfterDelete, NULL);
 
-    UA_HistoryDataBackend_Memory_deleteMembers(&setting.historizingBackend);
+    UA_HistoryDataBackend_Memory_clear(&setting.historizingBackend);
 }
 END_TEST
 
@@ -660,8 +665,8 @@ START_TEST(Server_HistorizingUpdateInsert)
         ck_assert_uint_eq(*((UA_Int64*)data.dataValues[i].value.data), UA_PERFORMUPDATETYPE_INSERT);
     }
 
-    UA_HistoryData_deleteMembers(&data);
-    UA_HistoryDataBackend_Memory_deleteMembers(&setting.historizingBackend);
+    UA_HistoryData_clear(&data);
+    UA_HistoryDataBackend_Memory_clear(&setting.historizingBackend);
 }
 END_TEST
 
@@ -696,8 +701,8 @@ START_TEST(Server_HistorizingUpdateReplace)
         ck_assert_uint_eq(*((UA_Int64*)data.dataValues[i].value.data), UA_PERFORMUPDATETYPE_REPLACE);
     }
 
-    UA_HistoryData_deleteMembers(&data);
-    UA_HistoryDataBackend_Memory_deleteMembers(&setting.historizingBackend);
+    UA_HistoryData_clear(&data);
+    UA_HistoryDataBackend_Memory_clear(&setting.historizingBackend);
 }
 END_TEST
 
@@ -726,10 +731,10 @@ START_TEST(Server_HistorizingUpdateUpdate)
     testResult(testDataAfterDelete, NULL);
 
     // update all and insert some
-    UA_StatusCode *result;
+    UA_StatusCode *result = NULL;
     size_t resultSize = 0;
-    ck_assert_str_eq(UA_StatusCode_name(updateHistory(UA_PERFORMUPDATETYPE_UPDATE, testDataSorted, &result, &resultSize))
-                                        , UA_StatusCode_name(UA_STATUSCODE_GOOD));
+    ck_assert_uint_eq(updateHistory(UA_PERFORMUPDATETYPE_UPDATE, testDataSorted, &result, &resultSize),
+                      UA_STATUSCODE_GOOD);
 
     for (size_t i = 0; i < resultSize; ++i) {
         ck_assert_str_eq(UA_StatusCode_name(result[i]), UA_StatusCode_name(testDataUpdateResult[i]));
@@ -747,8 +752,8 @@ START_TEST(Server_HistorizingUpdateUpdate)
         ck_assert_uint_eq(*((UA_Int64*)data.dataValues[i].value.data), UA_PERFORMUPDATETYPE_UPDATE);
     }
 
-    UA_HistoryData_deleteMembers(&data);
-    UA_HistoryDataBackend_Memory_deleteMembers(&setting.historizingBackend);
+    UA_HistoryData_clear(&data);
+    UA_HistoryDataBackend_Memory_clear(&setting.historizingBackend);
 }
 END_TEST
 
@@ -784,7 +789,7 @@ START_TEST(Server_HistorizingStrategyUser)
                                                                  UA_FALSE,
                                                                  &value);
         ck_assert_str_eq(UA_StatusCode_name(retval), UA_StatusCode_name(UA_STATUSCODE_GOOD));
-        UA_DataValue_deleteMembers(&value);
+        UA_DataValue_clear(&value);
     }
 
     // request
@@ -812,8 +817,8 @@ START_TEST(Server_HistorizingStrategyUser)
             ck_assert_uint_eq(*value, j);
         }
     }
-    UA_HistoryReadResponse_deleteMembers(&response);
-    UA_HistoryDataBackend_Memory_deleteMembers(&setting.historizingBackend);
+    UA_HistoryReadResponse_clear(&response);
+    UA_HistoryDataBackend_Memory_clear(&setting.historizingBackend);
 }
 END_TEST
 
@@ -885,8 +890,8 @@ START_TEST(Server_HistorizingStrategyPoll)
             }
         }
     }
-    UA_HistoryReadResponse_deleteMembers(&response);
-    UA_HistoryDataBackend_Memory_deleteMembers(&setting.historizingBackend);
+    UA_HistoryReadResponse_clear(&response);
+    UA_HistoryDataBackend_Memory_clear(&setting.historizingBackend);
 }
 END_TEST
 
@@ -941,8 +946,8 @@ START_TEST(Server_HistorizingStrategyValueSet)
             ck_assert_uint_eq(*value, j);
         }
     }
-    UA_HistoryReadResponse_deleteMembers(&response);
-    UA_HistoryDataBackend_Memory_deleteMembers(&setting.historizingBackend);
+    UA_HistoryReadResponse_clear(&response);
+    UA_HistoryDataBackend_Memory_clear(&setting.historizingBackend);
 }
 END_TEST
 
@@ -960,26 +965,26 @@ START_TEST(Server_HistorizingBackendMemory)
 
     // empty backend should not crash
     UA_UInt32 retval = testHistoricalDataBackend(100);
-    fprintf(stderr, "%d tests expected failed.\n", retval);
+    fprintf(stderr, "%x tests expected failed.\n", retval);
 
     // fill backend
     ck_assert_uint_eq(fillHistoricalDataBackend(backend), true);
 
     // read all in one
     retval = testHistoricalDataBackend(100);
-    fprintf(stderr, "%d tests failed.\n", retval);
+    fprintf(stderr, "%x tests failed.\n", retval);
     ck_assert_uint_eq(retval, 0);
 
     // read continuous one at one request
     retval = testHistoricalDataBackend(1);
-    fprintf(stderr, "%d tests failed.\n", retval);
+    fprintf(stderr, "%x tests failed.\n", retval);
     ck_assert_uint_eq(retval, 0);
 
     // read continuous two at one request
     retval = testHistoricalDataBackend(2);
-    fprintf(stderr, "%d tests failed.\n", retval);
+    fprintf(stderr, "%x tests failed.\n", retval);
     ck_assert_uint_eq(retval, 0);
-    UA_HistoryDataBackend_Memory_deleteMembers(&setting.historizingBackend);
+    UA_HistoryDataBackend_Memory_clear(&setting.historizingBackend);
 }
 END_TEST
 
@@ -997,19 +1002,19 @@ START_TEST(Server_HistorizingRandomIndexBackend)
 
     // read all in one
     UA_UInt32 retval = testHistoricalDataBackend(100);
-    fprintf(stderr, "%d tests failed.\n", retval);
+    fprintf(stderr, "%x tests failed.\n", retval);
     ck_assert_uint_eq(retval, 0);
 
     // read continuous one at one request
     retval = testHistoricalDataBackend(1);
-    fprintf(stderr, "%d tests failed.\n", retval);
+    fprintf(stderr, "%x tests failed.\n", retval);
     ck_assert_uint_eq(retval, 0);
 
     // read continuous two at one request
     retval = testHistoricalDataBackend(2);
-    fprintf(stderr, "%d tests failed.\n", retval);
+    fprintf(stderr, "%x tests failed.\n", retval);
     ck_assert_uint_eq(retval, 0);
-    UA_HistoryDataBackend_randomindextest_deleteMembers(&backend);
+    UA_HistoryDataBackend_randomindextest_clear(&backend);
 }
 END_TEST
 
