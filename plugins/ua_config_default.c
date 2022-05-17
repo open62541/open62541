@@ -211,7 +211,7 @@ setDefaultConfig(UA_ServerConfig *conf, UA_UInt16 portNumber) {
         if(conf->serverUrlsSize > 0) {
             UA_LOG_WARNING(&conf->logger, UA_LOGCATEGORY_USERLAND,
                            "ServerUrls already set. Overriding.");
-            UA_Array_delete(conf->serverUrls, serverUrlsSize,
+            UA_Array_delete(conf->serverUrls, conf->serverUrlsSize,
                             &UA_TYPES[UA_TYPES_STRING]);
             conf->serverUrls = NULL;
             conf->serverUrlsSize = 0;
