@@ -10,11 +10,6 @@
 
 #include <stdio.h>
 
-#if UA_MULTITHREADING >= 100
-#include <pthread.h>
-static pthread_mutex_t printf_mutex = PTHREAD_MUTEX_INITIALIZER;
-#endif
-
 /* ANSI escape sequences for color output taken from here:
  * https://stackoverflow.com/questions/3219393/stdlib-and-colored-output-in-c*/
 
@@ -45,50 +40,61 @@ const char *logCategoryNames[UA_LOGCATEGORIES] =
     {"network", "channel", "session", "server",
      "client", "userland", "securitypolicy", "eventloop"};
 
+typedef struct {
+    UA_LogLevel minlevel;
+#if UA_MULTITHREADING >= 100
+    UA_Lock lock;
+#endif
+} LogContext;
+
 #ifdef __clang__
 __attribute__((__format__(__printf__, 4 , 0)))
 #endif
-void
+static void
 UA_Log_Stdout_log(void *context, UA_LogLevel level, UA_LogCategory category,
                   const char *msg, va_list args) {
-
-    /* Assume that context is casted to UA_LogLevel */
-    /* TODO we may later change this to a struct with bitfields to filter on category */
-    if ( context != NULL && (UA_LogLevel)(uintptr_t)context > level )
-        return;
+    LogContext *logContext = (LogContext*)context;
+    if(logContext) {
+        if(logContext->minlevel > level)
+            return;
+        UA_LOCK(&logContext->lock);
+    }
 
     UA_Int64 tOffset = UA_DateTime_localTimeUtcOffset();
     UA_DateTimeStruct dts = UA_DateTime_toStruct(UA_DateTime_now() + tOffset);
 
-#if UA_MULTITHREADING >= 100
-    pthread_mutex_lock(&printf_mutex);
-#endif
-
     printf("[%04u-%02u-%02u %02u:%02u:%02u.%03u (UTC%+05d)] %s/%s" ANSI_COLOR_RESET "\t",
            dts.year, dts.month, dts.day, dts.hour, dts.min, dts.sec, dts.milliSec,
-           (int)(tOffset / UA_DATETIME_SEC / 36), logLevelNames[level], logCategoryNames[category]);
+           (int)(tOffset / UA_DATETIME_SEC / 36), logLevelNames[level],
+           logCategoryNames[category]);
     vprintf(msg, args);
     printf("\n");
     fflush(stdout);
 
-#if UA_MULTITHREADING >= 100
-    pthread_mutex_unlock(&printf_mutex);
-#endif
+    if(logContext) {
+        UA_UNLOCK(&logContext->lock);
+    }
 }
 
-void
-UA_Log_Stdout_clear(void *logContext) {
-
+static void
+UA_Log_Stdout_clear(void *context) {
+    if(!context)
+        return;
+    UA_LOCK_DESTROY(&((LogContext*)context)->lock);
+    UA_free(context);
 }
 
 const UA_Logger UA_Log_Stdout_ = {UA_Log_Stdout_log, NULL, UA_Log_Stdout_clear};
 const UA_Logger *UA_Log_Stdout = &UA_Log_Stdout_;
 
-/* By default the client and server is configured with UA_Log_Stdout
-   This constructs a logger with a configurable max log level */
+UA_Logger
+UA_Log_Stdout_withLevel(UA_LogLevel minlevel) {
+    LogContext *context = (LogContext*)UA_calloc(1, sizeof(LogContext));
+    if(context) {
+        UA_LOCK_INIT(&context->lock);
+        context->minlevel = minlevel;
+    }
 
-UA_Logger UA_Log_Stdout_withLevel(UA_LogLevel minlevel)
-{
-    UA_Logger logger = {UA_Log_Stdout_log, (void*)minlevel, UA_Log_Stdout_clear};
+    UA_Logger logger = {UA_Log_Stdout_log, (void*)context, UA_Log_Stdout_clear};
     return logger;
 }
