@@ -159,7 +159,6 @@ endforeach(arch_ ${architectures})
 # Options
 option(BUILD_SHARED_LIBS "Enable building of shared libraries (dll/so)" OFF)
 set(UA_LOGLEVEL 300 CACHE STRING "Minimal level at which logs shall be reported (100=TRACE, 200=DEBUG, 300=INFO, 400=WARNING, 500=ERROR, 600=FATAL)")
-set(UA_MULTITHREADING 0 CACHE STRING "Level of multithreading (0-99: No Multithreading, >=100: Thread-Safe API")
 option(UA_ENABLE_DIAGNOSTICS "Enable diagnostics information exposed by the server" OFF)
 option(UA_ENABLE_METHODCALLS "Enable the Method service set" ON)
 option(UA_ENABLE_SUBSCRIPTIONS "Enable subscriptions support" ON)
@@ -168,6 +167,14 @@ option(UA_ENABLE_DA "Enable OPC UA DataAccess (Part 8) definitions" ON)
 option(UA_ENABLE_HISTORIZING "Enable basic support for historical access (client and server)" OFF)
 option(UA_ENABLE_DISCOVERY "Enable Discovery Service (LDS)" OFF)
 option(UA_ENABLE_JSON_ENCODING "Enable JSON encoding" OFF)
+
+set(MULTITHREADING_DEFAULT 0)
+if(WIN32 OR UNIX)
+  # Enable multithreading by default on Windows and POSIX-like (Unix) systems
+  set(MULTITHREADING_DEFAULT 100)
+endif()
+set(UA_MULTITHREADING ${MULTITHREADING_DEFAULT} CACHE STRING
+    "Multithreading support (<100: No multithreading support, >=100: Thread-safety enabled (internal mutexes)")
 
 option(UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS "Enable the use of A&C. (EXPERIMENTAL)" OFF)
 mark_as_advanced(UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS)
@@ -681,7 +688,8 @@ if(NOT UA_FORCE_CPP AND (CMAKE_COMPILER_IS_GNUCC OR CMAKE_C_COMPILER_ID STREQUAL
     check_add_cc_flag("-Wextra")    # More warnings
     check_add_cc_flag("-Wpedantic") # Standard compliance
     if(UA_FORCE_WERROR)
-        check_add_cc_flag("-Werror")    # All warnings are errors
+        check_add_cc_flag("-Werror") # All warnings are errors
+        check_add_cc_flag("-Wunused-command-line-argument") # Warning for command line args instead of error
     endif()
 
     check_add_cc_flag("-Wno-static-in-inline") # Clang doesn't like the use of static inline methods inside static inline methods
@@ -714,6 +722,10 @@ if(NOT UA_FORCE_CPP AND (CMAKE_COMPILER_IS_GNUCC OR CMAKE_C_COMPILER_ID STREQUAL
     # Generate position-independent code for shared libraries (adds a performance penalty)
     if(BUILD_SHARED_LIBS)
         check_add_cc_flag("-fPIC")
+    endif()
+
+    if(UA_MULTITHREADING GREATER_EQUAL 100 AND NOT WIN32)
+        check_add_cc_flag("-pthread")
     endif()
 
     # Force 32bit build
