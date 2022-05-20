@@ -96,7 +96,7 @@ UA_DiscoveryManager_addEntryToServersOnNetwork(UA_Server *server, const char *fq
     }
     listEntry->serverOnNetwork.serverName.length = serverNameLen;
     memcpy(listEntry->serverOnNetwork.serverName.data, serverName, serverNameLen);
-    UA_atomic_addUInt32(&server->discoveryManager.serverOnNetworkRecordIdCounter, 1);
+    server->discoveryManager.serverOnNetworkRecordIdCounter++;
     if(server->discoveryManager.serverOnNetworkRecordIdCounter == 0)
         server->discoveryManager.serverOnNetworkRecordIdLastReset = UA_DateTime_now();
     listEntry->lastSeen = UA_DateTime_nowMonotonic();

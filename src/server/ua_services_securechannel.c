@@ -42,22 +42,22 @@ removeSecureChannel(UA_Server *server, channel_entry *entry,
 
     /* Update the statistics */
     UA_SecureChannelStatistics *scs = &server->secureChannelStatistics;
-    UA_atomic_subSize(&scs->currentChannelCount, 1);
+    scs->currentChannelCount--;
     switch(event) {
     case UA_DIAGNOSTICEVENT_CLOSE:
         break;
     case UA_DIAGNOSTICEVENT_TIMEOUT:
-        UA_atomic_addSize(&scs->channelTimeoutCount, 1);
+        scs->channelTimeoutCount++;
         break;
     case UA_DIAGNOSTICEVENT_PURGE:
-        UA_atomic_addSize(&scs->channelPurgeCount, 1);
+        scs->channelPurgeCount++;
         break;
     case UA_DIAGNOSTICEVENT_REJECT:
     case UA_DIAGNOSTICEVENT_SECURITYREJECT:
-        UA_atomic_addSize(&scs->rejectedChannelCount, 1);
+        scs->rejectedChannelCount++;
         break;
     case UA_DIAGNOSTICEVENT_ABORT:
-        UA_atomic_addSize(&scs->channelAbortCount, 1);
+        scs->channelAbortCount++;
         break;
     default:
         UA_assert(false);
