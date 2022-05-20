@@ -265,9 +265,12 @@ encodeHeadersSym(UA_MessageContext *mc, size_t totalLength) {
     else
         header.messageTypeAndChunkType += UA_CHUNKTYPE_INTERMEDIATE;
 
+    /* Increase the sequence number in the channel */
+    channel->sendSequenceNumber++;
+
     UA_SequenceHeader seqHeader;
     seqHeader.requestId = mc->requestId;
-    seqHeader.sequenceNumber = UA_atomic_addUInt32(&channel->sendSequenceNumber, 1);
+    seqHeader.sequenceNumber = channel->sendSequenceNumber;
 
     UA_StatusCode res = UA_STATUSCODE_GOOD;
     res |= UA_encodeBinaryInternal(&header, &UA_TRANSPORT[UA_TRANSPORT_TCPMESSAGEHEADER],

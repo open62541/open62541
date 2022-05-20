@@ -401,8 +401,9 @@ process_RegisterServer(UA_Server *server, UA_Session *session,
             return;
         }
 
-        LIST_INSERT_HEAD(&server->discoveryManager.registeredServers, registeredServer_entry, pointers);
-        UA_atomic_addSize(&server->discoveryManager.registeredServersSize, 1);
+        LIST_INSERT_HEAD(&server->discoveryManager.registeredServers,
+                         registeredServer_entry, pointers);
+        server->discoveryManager.registeredServersSize++;
     } else {
         UA_RegisteredServer_clear(&registeredServer_entry->registeredServer);
     }
