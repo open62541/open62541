@@ -14,18 +14,8 @@ _UA_BEGIN_DECLS
 extern UA_EXPORT const UA_Logger UA_Log_Stdout_; /* Logger structure */
 extern UA_EXPORT const UA_Logger *UA_Log_Stdout; /* Shorthand pointer */
 
-/* Don't use these definitions. They are only exported as long as the client
- * config is static and required compile-time  */
-UA_EXPORT void
-UA_Log_Stdout_log(void *_, UA_LogLevel level, UA_LogCategory category,
-                  const char *msg, va_list args);
-UA_EXPORT void
-UA_Log_Stdout_clear(void *logContext);
-
-/* By default the client and server is configured with UA_Log_Stdout
-   This constructs a logger with a configurable max log level */
-
-UA_EXPORT UA_Logger UA_Log_Stdout_withLevel(UA_LogLevel minlevel);
+UA_EXPORT UA_Logger
+UA_Log_Stdout_withLevel(UA_LogLevel minlevel);
 
 _UA_END_DECLS
 
