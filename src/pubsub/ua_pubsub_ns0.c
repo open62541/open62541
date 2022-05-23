@@ -1249,7 +1249,7 @@ removeGroupRepresentation(UA_Server *server, UA_WriterGroup *writerGroup) {
 
 UA_StatusCode
 removeReaderGroupRepresentation(UA_Server *server, UA_ReaderGroup *readerGroup) {
-    return UA_Server_deleteNode(server, readerGroup->identifier, true);
+    return deleteNode(server, readerGroup->identifier, true);
 }
 
 #ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL_METHODS

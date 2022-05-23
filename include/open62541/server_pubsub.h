@@ -804,7 +804,7 @@ UA_Server_addReaderGroup(UA_Server *server, UA_NodeId connectionIdentifier,
                          UA_NodeId *readerGroupIdentifier);
 
 /* Remove ReaderGroup from connection */
-UA_StatusCode UA_EXPORT
+UA_StatusCode UA_EXPORT UA_THREADSAFE
 UA_Server_removeReaderGroup(UA_Server *server, UA_NodeId groupIdentifier);
 
 UA_StatusCode UA_EXPORT
