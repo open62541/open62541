@@ -1244,7 +1244,7 @@ addWriterGroupAction(UA_Server *server,
 
 UA_StatusCode
 removeGroupRepresentation(UA_Server *server, UA_WriterGroup *writerGroup) {
-    return UA_Server_deleteNode(server, writerGroup->identifier, true);
+    return deleteNode(server, writerGroup->identifier, true);
 }
 
 UA_StatusCode
@@ -1439,11 +1439,10 @@ addDataSetWriterAction(UA_Server *server,
 }
 #endif
 
-
 UA_StatusCode
 removeDataSetWriterRepresentation(UA_Server *server,
                                   UA_DataSetWriter *dataSetWriter) {
-    return UA_Server_deleteNode(server, dataSetWriter->identifier, true);
+    return deleteNode(server, dataSetWriter->identifier, true);
 }
 
 #ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL_METHODS

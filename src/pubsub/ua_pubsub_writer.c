@@ -102,8 +102,10 @@ void
 UA_PubSubConnection_clear(UA_Server *server, UA_PubSubConnection *connection) {
     /* Remove WriterGroups */
     UA_WriterGroup *writerGroup, *tmpWriterGroup;
-    LIST_FOREACH_SAFE(writerGroup, &connection->writerGroups, listEntry, tmpWriterGroup)
-        UA_Server_removeWriterGroup(server, writerGroup->identifier);
+    LIST_FOREACH_SAFE(writerGroup, &connection->writerGroups,
+                      listEntry, tmpWriterGroup) {
+        removeWriterGroup(server, writerGroup->identifier);
+    }
 
     /* Remove ReaderGroups */
     UA_ReaderGroup *readerGroups, *tmpReaderGroup;

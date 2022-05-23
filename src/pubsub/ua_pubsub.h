@@ -184,6 +184,9 @@ struct UA_WriterGroup {
 };
 
 UA_StatusCode
+removeWriterGroup(UA_Server *server, const UA_NodeId writerGroup);
+
+UA_StatusCode
 UA_WriterGroupConfig_copy(const UA_WriterGroupConfig *src,
                           UA_WriterGroupConfig *dst);
 
