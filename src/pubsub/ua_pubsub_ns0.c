@@ -804,7 +804,7 @@ addDataSetReaderAction(UA_Server *server,
 UA_StatusCode
 removeDataSetReaderRepresentation(UA_Server *server,
                                   UA_DataSetReader* dataSetReader) {
-    return UA_Server_deleteNode(server, dataSetReader->identifier, true);
+    return deleteNode(server, dataSetReader->identifier, true);
 }
 
 #ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL_METHODS
@@ -1048,7 +1048,7 @@ removeVariablesAction(UA_Server *server,
 UA_StatusCode
 removePublishedDataSetRepresentation(UA_Server *server,
                                      UA_PublishedDataSet *publishedDataSet) {
-    return UA_Server_deleteNode(server, publishedDataSet->identifier, true);
+    return deleteNode(server, publishedDataSet->identifier, true);
 }
 
 #ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL_METHODS
