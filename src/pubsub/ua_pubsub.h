@@ -91,6 +91,9 @@ UA_PubSubConnection_findConnectionbyId(UA_Server *server,
 void
 UA_PubSubConnectionConfig_clear(UA_PubSubConnectionConfig *connectionConfig);
 
+UA_StatusCode
+removePubSubConnection(UA_Server *server, const UA_NodeId connection);
+
 void
 UA_PubSubConnection_clear(UA_Server *server, UA_PubSubConnection *connection);
 

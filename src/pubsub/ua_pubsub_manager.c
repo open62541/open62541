@@ -159,9 +159,10 @@ UA_Server_addPubSubConnection(UA_Server *server,
 }
 
 UA_StatusCode
-UA_Server_removePubSubConnection(UA_Server *server, const UA_NodeId connection) {
+removePubSubConnection(UA_Server *server, const UA_NodeId connection) {
     //search the identified Connection and store the Connection index
-    UA_PubSubConnection *currentConnection = UA_PubSubConnection_findConnectionbyId(server, connection);
+    UA_PubSubConnection *currentConnection =
+        UA_PubSubConnection_findConnectionbyId(server, connection);
     if(!currentConnection)
         return UA_STATUSCODE_BADNOTFOUND;
 
@@ -174,6 +175,14 @@ UA_Server_removePubSubConnection(UA_Server *server, const UA_NodeId connection) 
     TAILQ_REMOVE(&server->pubSubManager.connections, currentConnection, listEntry);
     UA_free(currentConnection);
     return UA_STATUSCODE_GOOD;
+}
+
+UA_StatusCode
+UA_Server_removePubSubConnection(UA_Server *server, const UA_NodeId connection) {
+    UA_LOCK(&server->serviceMutex);
+    UA_StatusCode res = removePubSubConnection(server, connection);
+    UA_UNLOCK(&server->serviceMutex);
+    return res;
 }
 
 UA_StatusCode
@@ -406,8 +415,9 @@ UA_PubSubManager_delete(UA_Server *server, UA_PubSubManager *pubSubManager) {
 
     //remove Connections and WriterGroups
     UA_PubSubConnection *tmpConnection1, *tmpConnection2;
-    TAILQ_FOREACH_SAFE(tmpConnection1, &server->pubSubManager.connections, listEntry, tmpConnection2){
-        UA_Server_removePubSubConnection(server, tmpConnection1->identifier);
+    TAILQ_FOREACH_SAFE(tmpConnection1, &server->pubSubManager.connections,
+                       listEntry, tmpConnection2) {
+        removePubSubConnection(server, tmpConnection1->identifier);
     }
     UA_PublishedDataSet *tmpPDS1, *tmpPDS2;
     TAILQ_FOREACH_SAFE(tmpPDS1, &server->pubSubManager.publishedDataSets, listEntry, tmpPDS2){

@@ -687,7 +687,7 @@ addPubSubConnectionAction(UA_Server *server,
 UA_StatusCode
 removePubSubConnectionRepresentation(UA_Server *server,
                                      UA_PubSubConnection *connection) {
-    return UA_Server_deleteNode(server, connection->identifier, true);
+    return deleteNode(server, connection->identifier, true);
 }
 
 #ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL_METHODS
