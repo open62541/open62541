@@ -1275,6 +1275,7 @@ ua_generate_datatypes(
     NAME "types"
     TARGET_SUFFIX "types"
     NAMESPACE_IDX 0
+    EXPORT_MACRO "UA_EXPORT"
     FILE_CSV "${UA_FILE_NODEIDS}"
     FILES_BSD "${UA_FILE_TYPES_BSD}"
     FILES_SELECTED ${UA_FILE_DATATYPES}
@@ -1286,6 +1287,7 @@ ua_generate_datatypes(
     NAME "transport"
     TARGET_SUFFIX "transport"
     NAMESPACE_IDX 1
+    EXPORT_MACRO "UA_EXPORT"
     FILE_CSV "${UA_FILE_NODEIDS}"
     IMPORT_BSD "TYPES#${UA_FILE_TYPES_BSD}"
     FILES_BSD "${PROJECT_SOURCE_DIR}/tools/schema/Custom.Opc.Ua.Transport.bsd"

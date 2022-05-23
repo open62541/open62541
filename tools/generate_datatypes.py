@@ -76,6 +76,15 @@ parser.add_argument('-i', '--import',
 parser.add_argument('outfile',
                     metavar='<outputFile>',
                     help='output file w/o extension')
+
+parser.add_argument('--export-macro',
+                    metavar='<exportMacro>',
+                    type=str,
+                    dest="export_macro",
+                    action='store',
+                    default="",
+                    help='set the export macro of the generated code')
+
 args = parser.parse_args()
 
 outname = args.outfile.split("/")[-1]
@@ -94,5 +103,5 @@ parser = CSVBSDTypeParser(args.opaque_map, args.selected_types, args.no_builtin,
                           args.type_bsd, args.type_csv, namespaceMap)
 parser.create_types()
 
-generator = backend.CGenerator(parser, inname, args.outfile, args.internal, namespaceMap)
+generator = backend.CGenerator(parser, inname, args.outfile, args.internal, namespaceMap, args.export_macro)
 generator.write_definitions()
