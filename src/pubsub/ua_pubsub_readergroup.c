@@ -163,7 +163,7 @@ UA_Server_addReaderGroup(UA_Server *server, UA_NodeId connectionIdentifier,
 }
 
 UA_StatusCode
-UA_Server_removeReaderGroup(UA_Server *server, UA_NodeId groupIdentifier) {
+removeReaderGroup(UA_Server *server, UA_NodeId groupIdentifier) {
     UA_ReaderGroup* readerGroup =
         UA_ReaderGroup_findRGbyId(server, groupIdentifier);
     if(readerGroup == NULL)
@@ -196,6 +196,14 @@ UA_Server_removeReaderGroup(UA_Server *server, UA_NodeId groupIdentifier) {
     LIST_REMOVE(readerGroup, listEntry);
     UA_free(readerGroup);
     return UA_STATUSCODE_GOOD;
+}
+
+UA_StatusCode
+UA_Server_removeReaderGroup(UA_Server *server, UA_NodeId groupIdentifier) {
+    UA_LOCK(&server->serviceMutex);
+    UA_StatusCode res = removeReaderGroup(server, groupIdentifier);
+    UA_UNLOCK(&server->serviceMutex);
+    return res;
 }
 
 /* TODO: Implement

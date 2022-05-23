@@ -323,6 +323,9 @@ struct UA_ReaderGroup {
 };
 
 UA_StatusCode
+removeReaderGroup(UA_Server *server, UA_NodeId groupIdentifier);
+
+UA_StatusCode
 UA_ReaderGroupConfig_copy(const UA_ReaderGroupConfig *src,
                           UA_ReaderGroupConfig *dst);
 
