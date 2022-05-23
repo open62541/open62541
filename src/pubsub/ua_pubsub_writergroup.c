@@ -119,7 +119,7 @@ UA_Server_addWriterGroup(UA_Server *server, const UA_NodeId connection,
 }
 
 UA_StatusCode
-UA_Server_removeWriterGroup(UA_Server *server, const UA_NodeId writerGroup) {
+removeWriterGroup(UA_Server *server, const UA_NodeId writerGroup) {
     UA_WriterGroup *wg = UA_WriterGroup_findWGbyId(server, writerGroup);
     if(!wg)
         return UA_STATUSCODE_BADNOTFOUND;
@@ -164,6 +164,14 @@ UA_Server_removeWriterGroup(UA_Server *server, const UA_NodeId writerGroup) {
     LIST_REMOVE(wg, listEntry);
     UA_free(wg);
     return UA_STATUSCODE_GOOD;
+}
+
+UA_StatusCode
+UA_Server_removeWriterGroup(UA_Server *server, const UA_NodeId writerGroup) {
+    UA_LOCK(&server->serviceMutex);
+    UA_StatusCode res = removeWriterGroup(server, writerGroup);
+    UA_UNLOCK(&server->serviceMutex);
+    return res;
 }
 
 UA_StatusCode
