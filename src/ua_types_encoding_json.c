@@ -2791,23 +2791,35 @@ decodeFields(CtxJson *ctx, ParseCtx *parseCtx,
     CHECK_TOKEN_BOUNDS;
     CHECK_OBJECT;
 
+    if(ctx->depth >= UA_JSON_ENCODING_MAX_RECURSION - 1)
+        return UA_STATUSCODE_BADENCODINGERROR;
+    ctx->depth++;
+
     /* Empty object, nothing to decode */
     size_t objectCount = (size_t)(parseCtx->tokenArray[parseCtx->index].size);
     if(objectCount == 0) {
+        ctx->depth--;
         parseCtx->index++; /* Jump to the element after the empty object */
         return UA_STATUSCODE_GOOD;
     }
 
     parseCtx->index++; /* Go to first key */
-    CHECK_TOKEN_BOUNDS;
+
+    /* CHECK_TOKEN_BOUNDS */
+    if(parseCtx->index >= parseCtx->tokenCount) {
+        ctx->depth--;
+        return UA_STATUSCODE_BADDECODINGERROR;
+    }
 
     status ret = UA_STATUSCODE_GOOD;
     for(size_t currObj = 0; currObj < objectCount &&
             parseCtx->index < parseCtx->tokenCount; currObj++) {
 
         /* Key must be a string (TODO: Convert to assert when jsmn is replaced) */
-        if(getJsmnType(parseCtx) != JSMN_STRING)
-            return UA_STATUSCODE_BADDECODINGERROR;
+        if(getJsmnType(parseCtx) != JSMN_STRING) {
+            ret = UA_STATUSCODE_BADDECODINGERROR;
+            goto cleanup;
+        }
 
         /* Start searching at the index of currObj */
         for(size_t i = currObj; i < entryCount + currObj; i++) {
@@ -2815,19 +2827,31 @@ decodeFields(CtxJson *ctx, ParseCtx *parseCtx,
              * if objectCount is in order! */
             size_t index = i % entryCount;
 
-            CHECK_TOKEN_BOUNDS;
+            /* CHECK_TOKEN_BOUNDS */
+            if(parseCtx->index >= parseCtx->tokenCount) {
+                ret = UA_STATUSCODE_BADDECODINGERROR;
+                goto cleanup;
+            }
+
             if(jsoneq((char*) ctx->pos, &parseCtx->tokenArray[parseCtx->index],
                       entries[index].fieldName) != 0)
                 continue;
 
             /* Duplicate key found, abort */
-            if(entries[index].found)
-                return UA_STATUSCODE_BADDECODINGERROR;
+            if(entries[index].found) {
+                ret = UA_STATUSCODE_BADDECODINGERROR;
+                goto cleanup;
+            }
 
             entries[index].found = true;
 
             parseCtx->index++; /* Go from key to value */
-            CHECK_TOKEN_BOUNDS;
+
+            /* CHECK_TOKEN_BOUNDS */
+            if(parseCtx->index >= parseCtx->tokenCount) {
+                ret = UA_STATUSCODE_BADDECODINGERROR;
+                goto cleanup;
+            }
 
             /* An entry that was expected, but shall not be decoded.
              * Jump over it. */
@@ -2851,10 +2875,13 @@ decodeFields(CtxJson *ctx, ParseCtx *parseCtx,
                 ret = decodeJsonJumpTable[entries[index].type->typeKind]
                     (entries[index].fieldPointer, entries[index].type, ctx, parseCtx);
             if(ret != UA_STATUSCODE_GOOD)
-                return ret;
+                goto cleanup;
             break;
         }
     }
+
+ cleanup:
+    ctx->depth--;
     return ret;
 }
 
