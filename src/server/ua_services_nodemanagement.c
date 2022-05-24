@@ -648,6 +648,16 @@ copyChild(UA_Server *server, UA_Session *session,
         node->head.monitoredItems = NULL;
 #endif
 
+        /* The value backend is copied by default. But we don't want to keep it
+         * here. */
+        if(node->head.nodeClass == UA_NODECLASS_VARIABLE ||
+           node->head.nodeClass == UA_NODECLASS_VARIABLETYPE) {
+            if(node->variableNode.valueSource != UA_VALUESOURCE_DATA)
+                memset(&node->variableNode.value, 0, sizeof(node->variableNode.value));
+            node->variableNode.valueSource = UA_VALUESOURCE_DATA;
+            memset(&node->variableNode.valueBackend, 0, sizeof(UA_ValueBackend));
+        }
+
         /* Reset the NodeId (random numeric id will be assigned in the nodestore) */
         UA_NodeId_clear(&node->head.nodeId);
         node->head.nodeId.namespaceIndex = destinationNodeId->namespaceIndex;
