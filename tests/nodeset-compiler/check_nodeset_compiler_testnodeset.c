@@ -113,26 +113,26 @@ START_TEST(readValueRank) {
     ck_assert_int_eq(rank, -2);
     UA_Variant_init(&dims);
     UA_Server_readArrayDimensions(server, UA_NODEID_NUMERIC(testNamespaceIndex, 10002), &dims);
-    ck_assert_int_eq(dims.arrayLength, 0);
+    ck_assert_uint_eq(dims.arrayLength, 0);
     UA_Variant_clear(&dims);
     // 1-dim
     UA_Server_readValueRank(server, UA_NODEID_NUMERIC(testNamespaceIndex, 10007), &rank);
     ck_assert_int_eq(rank, 1);
     UA_Server_readArrayDimensions(server, UA_NODEID_NUMERIC(testNamespaceIndex, 10007), &dims);
-    ck_assert_int_eq(dims.arrayLength, 1);
+    ck_assert_uint_eq(dims.arrayLength, 1);
     ck_assert_int_eq(*((UA_UInt32 *)dims.data), 0);
     UA_Variant_clear(&dims);
     UA_Server_readValueRank(server, UA_NODEID_NUMERIC(testNamespaceIndex, 10004), &rank);
     ck_assert_int_eq(rank, 1);
     UA_Server_readArrayDimensions(server, UA_NODEID_NUMERIC(testNamespaceIndex, 10004), &dims);
-    ck_assert_int_eq(dims.arrayLength, 1);
+    ck_assert_uint_eq(dims.arrayLength, 1);
     ck_assert_int_eq(*((UA_UInt32 *)dims.data), 4);
     UA_Variant_clear(&dims);
     // 2-dim
     UA_Server_readValueRank(server, UA_NODEID_NUMERIC(testNamespaceIndex, 10006), &rank);
     ck_assert_int_eq(rank, 2);
     UA_Server_readArrayDimensions(server, UA_NODEID_NUMERIC(testNamespaceIndex, 10006), &dims);
-    ck_assert_int_eq(dims.arrayLength, 2);
+    ck_assert_uint_eq(dims.arrayLength, 2);
     UA_UInt32 *dimensions = (UA_UInt32 *)dims.data;
     ck_assert_int_eq(dimensions[0], 2);
     ck_assert_int_eq(dimensions[1], 2);
