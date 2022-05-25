@@ -14,8 +14,8 @@
 #include <open62541/plugin/log_stdout.h>
 #include <open62541/plugin/pubsub_ethernet.h>
 
-#define RECEIVE_MSG_BUFFER_SIZE   4096
-static UA_THREAD_LOCAL UA_Byte ReceiveMsgBufferETH[RECEIVE_MSG_BUFFER_SIZE];
+#define UA_RECEIVE_MSG_BUFFER_SIZE   4096
+static UA_THREAD_LOCAL UA_Byte ReceiveMsgBufferETH[UA_RECEIVE_MSG_BUFFER_SIZE];
 
 #if !defined(UA_ARCHITECTURE_POSIX) && !defined(UA_ARCHITECTURE_VXWORKS)
 /* For anything else than Linux or VxWorks which are specifically handled below,
@@ -1173,7 +1173,7 @@ UA_PubSubChannelEthernet_receive(UA_PubSubChannel *channel,
         }
 
         UA_ByteString buffer;
-        buffer.length = RECEIVE_MSG_BUFFER_SIZE;
+        buffer.length = UA_RECEIVE_MSG_BUFFER_SIZE;
         buffer.data = ReceiveMsgBufferETH;
 
 #if defined LIBBPF_EBPF
@@ -1197,7 +1197,7 @@ UA_PubSubChannelEthernet_receive(UA_PubSubChannel *channel,
         iov[0].iov_base = &eth_hdr;
         iov[0].iov_len  = sizeof(eth_hdr);
         iov[1].iov_base = buffer.data;
-        iov[1].iov_len  = RECEIVE_MSG_BUFFER_SIZE;
+        iov[1].iov_len  = UA_RECEIVE_MSG_BUFFER_SIZE;
         msg.msg_iov     = iov;
         msg.msg_iovlen  = 2;
 
