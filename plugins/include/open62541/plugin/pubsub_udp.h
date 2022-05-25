@@ -8,11 +8,12 @@
 #define UA_NETWORK_UDPMC_H_
 
 #include <open62541/plugin/pubsub.h>
+#include <open62541/plugin/eventloop.h>
 
 _UA_BEGIN_DECLS
 
 UA_PubSubTransportLayer UA_EXPORT
-UA_PubSubTransportLayerUDP(void);
+UA_PubSubTransportLayerUDP(UA_EventLoop *el);
 
 _UA_END_DECLS
 

@@ -11,6 +11,8 @@
 #include <open62541/types.h>
 #include <open62541/types_generated.h>
 
+#include <open62541/plugin/eventloop.h>
+
 _UA_BEGIN_DECLS
 
 #ifdef UA_ENABLE_PUBSUB
@@ -63,7 +65,7 @@ struct UA_PubSubChannel {
 
     /* Sending out the content of the buf parameter */
     UA_StatusCode (*send)(UA_PubSubChannel *channel, UA_ExtensionObject *transportSettings,
-                          const UA_ByteString *buf);
+                          UA_ByteString *buf);
 
     /* Register to an specified message source, e.g. multicast group or topic. Callback is used for mqtt. */
     UA_StatusCode (*regist)(UA_PubSubChannel *channel, UA_ExtensionObject *transportSettings,
@@ -96,9 +98,10 @@ struct UA_PubSubChannel {
  * UA_PubSubTransportLayer. Take a look in the tutorial_pubsub_connection to get
  * information about the TransportLayer handling. */
 
-typedef struct {
+typedef struct UA_PubSubTransportLayer {
     UA_String transportProfileUri;
-    UA_PubSubChannel *(*createPubSubChannel)(UA_PubSubConnectionConfig *connectionConfig);
+    UA_ConnectionManager *connectionManager;
+    UA_PubSubChannel *(*createPubSubChannel)(struct UA_PubSubTransportLayer *tl, UA_PubSubConnectionConfig *connectionConfig);
 } UA_PubSubTransportLayer;
 
 #endif /* UA_ENABLE_PUBSUB */

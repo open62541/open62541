@@ -269,7 +269,7 @@ UA_PubSubChannelMQTT_unregist(UA_PubSubChannel *channel, UA_ExtensionObject *tra
  * @return UA_STATUSCODE_GOOD if success
  */
 static UA_StatusCode
-UA_PubSubChannelMQTT_send(UA_PubSubChannel *channel, UA_ExtensionObject *transportSettings, const UA_ByteString *buf) {
+UA_PubSubChannelMQTT_send(UA_PubSubChannel *channel, UA_ExtensionObject *transportSettings, UA_ByteString *buf) {
     if(channel->state != UA_PUBSUB_CHANNEL_RDY){
         UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "PubSub MQTT: sending failed. Invalid state.");
         return UA_STATUSCODE_BADCONNECTIONCLOSED;

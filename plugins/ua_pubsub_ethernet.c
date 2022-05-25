@@ -1027,7 +1027,7 @@ sendWithTxTime(UA_PubSubChannel *channel, UA_ExtensionObject *transportSettings,
 static UA_StatusCode
 UA_PubSubChannelEthernet_send(UA_PubSubChannel *channel,
                               UA_ExtensionObject *transportSettings,
-                              const UA_ByteString *buf) {
+                              UA_ByteString *buf) {
     UA_PubSubChannelDataEthernet *channelDataEthernet =
         (UA_PubSubChannelDataEthernet *) channel->handle;
 

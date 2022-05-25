@@ -150,7 +150,7 @@ UA_Server_addPubSubConnection(UA_Server *server,
     UA_CHECK_STATUS(retval, return retval);
 
     /* Open the communication channel */
-    newConnectionsField->channel = tl->createPubSubChannel(newConnectionsField->config);
+    newConnectionsField->channel = tl->createPubSubChannel(tl, newConnectionsField->config);
     UA_CHECK_MEM(newConnectionsField->channel, return channelErrorHandling(server, newConnectionsField));
 
     assignConnectionIdentifier(server, newConnectionsField, connectionIdentifier);

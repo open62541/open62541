@@ -34,6 +34,11 @@ UA_Server *serverSubscriber = NULL;
 UA_ServerConfig *configPublisher = NULL;
 UA_ServerConfig *configSubscriber = NULL;
 
+#define UA_TYPES_DATAGRAMWRITERGROUPTRANSPORT2DATATYPE 264
+typedef struct UA_DatagramWriterGroupTransport2DataType {
+    UA_Variant address;
+} UA_DatagramWriterGroupTransport2DataType;
+
 // UA_NodeId publisherConnectionId;
 // UA_NodeId subscriberConnectionId;
 //
@@ -59,7 +64,7 @@ static void setupPubSubServer(UA_Server **server, UA_ServerConfig **config, UA_U
 
     UA_ServerConfig_setMinimal(*config, portNumber, NULL);
     UA_Server_run_startup(*server);
-    UA_ServerConfig_addPubSubTransportLayer(*config, UA_PubSubTransportLayerUDP());
+    UA_ServerConfig_addPubSubTransportLayer(*config, UA_PubSubTransportLayerUDP((*config)->eventLoop));
 }
 
 static void addUDPConnection(UA_Server *server, const char *host, UA_Int16 portNumber, UA_NodeId *outConnectionId) {
@@ -140,7 +145,10 @@ static void setupWrittenData(UA_Server *server, UA_NodeId connectionId, UA_NodeI
     /* udpTransportSettings. */
     UA_DatagramWriterGroupTransport2DataType udpTransportSettings;
     memset(&udpTransportSettings, 0, sizeof(UA_DatagramWriterGroupTransport2DataType));
-    udpTransportSettings.address = UA_STRING(dstAddress);
+    UA_NetworkAddressUrlDataType url =
+        {UA_STRING_NULL, UA_STRING(dstAddress)};
+    UA_Variant_setScalar(&udpTransportSettings.address, &url,
+                         &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
 
     /* Encapsulate config in transportSettings */
     UA_ExtensionObject transportSettings;
