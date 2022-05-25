@@ -326,8 +326,8 @@ UA_Server_addPublishedDataSet(UA_Server *server,
     return result;
 }
 
-UA_StatusCode
-UA_Server_removePublishedDataSet(UA_Server *server, const UA_NodeId pds) {
+static UA_StatusCode
+removePublishedDataSet(UA_Server *server, const UA_NodeId pds) {
     //search the identified PublishedDataSet and store the PDS index
     UA_PublishedDataSet *publishedDataSet = UA_PublishedDataSet_findPDSbyId(server, pds);
     if(!publishedDataSet){
@@ -363,6 +363,14 @@ UA_Server_removePublishedDataSet(UA_Server *server, const UA_NodeId pds) {
     return UA_STATUSCODE_GOOD;
 }
 
+UA_StatusCode
+UA_Server_removePublishedDataSet(UA_Server *server, const UA_NodeId pds) {
+    UA_LOCK(&server->serviceMutex);
+    UA_StatusCode res = removePublishedDataSet(server, pds);
+    UA_UNLOCK(&server->serviceMutex);
+    return res;
+}
+
 /* Calculate the time difference between current time and UTC (00:00) on January
  * 1, 2000. */
 UA_UInt32
@@ -395,7 +403,9 @@ UA_PubSubManager_generateUniqueGuid(UA_Server *server) {
  * action also delete the configured PubSub transport Layers. */
 void
 UA_PubSubManager_delete(UA_Server *server, UA_PubSubManager *pubSubManager) {
-    UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_SERVER, "PubSub cleanup was called.");
+    UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                "PubSub cleanup was called.");
+    UA_LOCK_ASSERT(&server->serviceMutex, 1);
 
     /* Stop and unfreeze all WriterGroups */
     UA_PubSubConnection *tmpConnection;
@@ -421,8 +431,9 @@ UA_PubSubManager_delete(UA_Server *server, UA_PubSubManager *pubSubManager) {
         removePubSubConnection(server, tmpConnection1->identifier);
     }
     UA_PublishedDataSet *tmpPDS1, *tmpPDS2;
-    TAILQ_FOREACH_SAFE(tmpPDS1, &server->pubSubManager.publishedDataSets, listEntry, tmpPDS2){
-        UA_Server_removePublishedDataSet(server, tmpPDS1->identifier);
+    TAILQ_FOREACH_SAFE(tmpPDS1, &server->pubSubManager.publishedDataSets,
+                       listEntry, tmpPDS2){
+        removePublishedDataSet(server, tmpPDS1->identifier);
     }
 }
 
