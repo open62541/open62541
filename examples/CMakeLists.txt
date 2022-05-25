@@ -205,6 +205,8 @@ add_subdirectory(nodeset)
 ####################
 
 if(UA_ENABLE_PUBSUB)
+
+    add_example(server_standalone_dataset pubsub/server_standalone_dataset.c)
     add_example(tutorial_pubsub_connection pubsub/tutorial_pubsub_connection.c)
     add_example(tutorial_pubsub_publish pubsub/tutorial_pubsub_publish.c)
     add_example(tutorial_pubsub_publish_raw pubsub/tutorial_pubsub_publish_raw.c)

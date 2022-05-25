@@ -51,6 +51,7 @@
       <Reference ReferenceType="i=14476">i=14417</Reference>
       <Reference ReferenceType="HasProperty">i=17479</Reference>
       <Reference ReferenceType="HasComponent">i=14434</Reference>
+      <Reference ReferenceType="HasComponent">i=23622</Reference>
       <Reference ReferenceType="HasComponent">i=16598</Reference>
       <Reference ReferenceType="HasComponent">i=14432</Reference>
       <Reference ReferenceType="HasSubtype" IsForward="false">i=15906</Reference>
@@ -382,6 +383,14 @@
     <References>
       <Reference ReferenceType="HasTypeDefinition">i=14477</Reference>
       <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">i=14416</Reference>
+    </References>
+  </UAObject>
+  <UAObject NodeId="i=23622" BrowseName="SubscribedDataSets" ParentNodeId="i=14416">
+    <DisplayName>SubscribedDataSets</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=23795</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
       <Reference ReferenceType="HasComponent" IsForward="false">i=14416</Reference>
     </References>
   </UAObject>
@@ -1477,6 +1486,494 @@
       <Reference ReferenceType="HasComponent" IsForward="false">i=15298</Reference>
     </References>
   </UAObject>
+  <UAObjectType NodeId="i=23795" BrowseName="SubscribedDataSetFolderType">
+    <DisplayName>SubscribedDataSetFolderType</DisplayName>
+    <Category>PubSub Model SubscribedDataSet Standalone</Category>
+    <Documentation>https://reference.opcfoundation.org/v105/Core/docs/Part14/9.1.9/#9.1.9.4.1</Documentation>
+    <References>
+      <Reference ReferenceType="Organizes">i=23796</Reference>
+      <Reference ReferenceType="HasComponent">i=23807</Reference>
+      <Reference ReferenceType="HasComponent">i=23811</Reference>
+      <Reference ReferenceType="HasComponent">i=23814</Reference>
+      <Reference ReferenceType="HasComponent">i=23816</Reference>
+      <Reference ReferenceType="HasComponent">i=23819</Reference>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=61</Reference>
+    </References>
+  </UAObjectType>
+  <UAObject NodeId="i=23796" BrowseName="&lt;SubscribedDataSetFolderName&gt;" SymbolicName="SubscribedDataSetFolderName_Placeholder" ParentNodeId="i=23795">
+    <DisplayName>&lt;SubscribedDataSetFolderName&gt;</DisplayName>
+    <References>
+      <Reference ReferenceType="HasComponent">i=23797</Reference>
+      <Reference ReferenceType="HasComponent">i=23800</Reference>
+      <Reference ReferenceType="HasComponent">i=23802</Reference>
+      <Reference ReferenceType="HasComponent">i=23805</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=23795</Reference>
+      <Reference ReferenceType="HasModellingRule">i=11508</Reference>
+      <Reference ReferenceType="Organizes" IsForward="false">i=23795</Reference>
+    </References>
+  </UAObject>
+  <UAMethod NodeId="i=23797" BrowseName="AddSubscribedDataSet" ParentNodeId="i=23796" MethodDeclarationId="i=23811">
+    <DisplayName>AddSubscribedDataSet</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty">i=23798</Reference>
+      <Reference ReferenceType="HasProperty">i=23799</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">i=23796</Reference>
+    </References>
+  </UAMethod>
+  <UAVariable NodeId="i=23798" BrowseName="InputArguments" ParentNodeId="i=23797" DataType="i=296" ValueRank="1" ArrayDimensions="1">
+    <DisplayName>InputArguments</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">i=23797</Reference>
+    </References>
+    <Value>
+      <ListOfExtensionObject xmlns="http://opcfoundation.org/UA/2008/02/Types.xsd">
+        <ExtensionObject>
+          <TypeId>
+            <Identifier>i=297</Identifier>
+          </TypeId>
+          <Body>
+            <Argument>
+              <Name>SubscribedDataSet</Name>
+              <DataType>
+                <Identifier>i=23600</Identifier>
+              </DataType>
+              <ValueRank>-1</ValueRank>
+              <ArrayDimensions />
+            </Argument>
+          </Body>
+        </ExtensionObject>
+      </ListOfExtensionObject>
+    </Value>
+  </UAVariable>
+  <UAVariable NodeId="i=23799" BrowseName="OutputArguments" ParentNodeId="i=23797" DataType="i=296" ValueRank="1" ArrayDimensions="1">
+    <DisplayName>OutputArguments</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">i=23797</Reference>
+    </References>
+    <Value>
+      <ListOfExtensionObject xmlns="http://opcfoundation.org/UA/2008/02/Types.xsd">
+        <ExtensionObject>
+          <TypeId>
+            <Identifier>i=297</Identifier>
+          </TypeId>
+          <Body>
+            <Argument>
+              <Name>SubscribedDataSetNodeId</Name>
+              <DataType>
+                <Identifier>i=17</Identifier>
+              </DataType>
+              <ValueRank>-1</ValueRank>
+              <ArrayDimensions />
+            </Argument>
+          </Body>
+        </ExtensionObject>
+      </ListOfExtensionObject>
+    </Value>
+  </UAVariable>
+  <UAMethod NodeId="i=23800" BrowseName="RemoveSubscribedDataSet" ParentNodeId="i=23796" MethodDeclarationId="i=23814">
+    <DisplayName>RemoveSubscribedDataSet</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty">i=23801</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">i=23796</Reference>
+    </References>
+  </UAMethod>
+  <UAVariable NodeId="i=23801" BrowseName="InputArguments" ParentNodeId="i=23800" DataType="i=296" ValueRank="1" ArrayDimensions="1">
+    <DisplayName>InputArguments</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">i=23800</Reference>
+    </References>
+    <Value>
+      <ListOfExtensionObject xmlns="http://opcfoundation.org/UA/2008/02/Types.xsd">
+        <ExtensionObject>
+          <TypeId>
+            <Identifier>i=297</Identifier>
+          </TypeId>
+          <Body>
+            <Argument>
+              <Name>SubscribedDataSetNodeId</Name>
+              <DataType>
+                <Identifier>i=17</Identifier>
+              </DataType>
+              <ValueRank>-1</ValueRank>
+              <ArrayDimensions />
+            </Argument>
+          </Body>
+        </ExtensionObject>
+      </ListOfExtensionObject>
+    </Value>
+  </UAVariable>
+  <UAMethod NodeId="i=23802" BrowseName="AddDataSetFolder" ParentNodeId="i=23796" MethodDeclarationId="i=23816">
+    <DisplayName>AddDataSetFolder</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty">i=23803</Reference>
+      <Reference ReferenceType="HasProperty">i=23804</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">i=23796</Reference>
+    </References>
+  </UAMethod>
+  <UAVariable NodeId="i=23803" BrowseName="InputArguments" ParentNodeId="i=23802" DataType="i=296" ValueRank="1" ArrayDimensions="1">
+    <DisplayName>InputArguments</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">i=23802</Reference>
+    </References>
+    <Value>
+      <ListOfExtensionObject xmlns="http://opcfoundation.org/UA/2008/02/Types.xsd">
+        <ExtensionObject>
+          <TypeId>
+            <Identifier>i=297</Identifier>
+          </TypeId>
+          <Body>
+            <Argument>
+              <Name>Name</Name>
+              <DataType>
+                <Identifier>i=12</Identifier>
+              </DataType>
+              <ValueRank>-1</ValueRank>
+              <ArrayDimensions />
+            </Argument>
+          </Body>
+        </ExtensionObject>
+      </ListOfExtensionObject>
+    </Value>
+  </UAVariable>
+  <UAVariable NodeId="i=23804" BrowseName="OutputArguments" ParentNodeId="i=23802" DataType="i=296" ValueRank="1" ArrayDimensions="1">
+    <DisplayName>OutputArguments</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">i=23802</Reference>
+    </References>
+    <Value>
+      <ListOfExtensionObject xmlns="http://opcfoundation.org/UA/2008/02/Types.xsd">
+        <ExtensionObject>
+          <TypeId>
+            <Identifier>i=297</Identifier>
+          </TypeId>
+          <Body>
+            <Argument>
+              <Name>DataSetFolderNodeId</Name>
+              <DataType>
+                <Identifier>i=17</Identifier>
+              </DataType>
+              <ValueRank>-1</ValueRank>
+              <ArrayDimensions />
+            </Argument>
+          </Body>
+        </ExtensionObject>
+      </ListOfExtensionObject>
+    </Value>
+  </UAVariable>
+  <UAMethod NodeId="i=23805" BrowseName="RemoveDataSetFolder" ParentNodeId="i=23796" MethodDeclarationId="i=23819">
+    <DisplayName>RemoveDataSetFolder</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty">i=23806</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">i=23796</Reference>
+    </References>
+  </UAMethod>
+  <UAVariable NodeId="i=23806" BrowseName="InputArguments" ParentNodeId="i=23805" DataType="i=296" ValueRank="1" ArrayDimensions="1">
+    <DisplayName>InputArguments</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">i=23805</Reference>
+    </References>
+    <Value>
+      <ListOfExtensionObject xmlns="http://opcfoundation.org/UA/2008/02/Types.xsd">
+        <ExtensionObject>
+          <TypeId>
+            <Identifier>i=297</Identifier>
+          </TypeId>
+          <Body>
+            <Argument>
+              <Name>DataSetFolderNodeId</Name>
+              <DataType>
+                <Identifier>i=17</Identifier>
+              </DataType>
+              <ValueRank>-1</ValueRank>
+              <ArrayDimensions />
+            </Argument>
+          </Body>
+        </ExtensionObject>
+      </ListOfExtensionObject>
+    </Value>
+  </UAVariable>
+  <UAObject NodeId="i=23807" BrowseName="&lt;StandaloneSubscribedDataSetName&gt;" SymbolicName="StandaloneSubscribedDataSetName_Placeholder" ParentNodeId="i=23795">
+    <DisplayName>&lt;StandaloneSubscribedDataSetName&gt;</DisplayName>
+    <References>
+      <Reference ReferenceType="HasComponent">i=23808</Reference>
+      <Reference ReferenceType="HasProperty">i=23809</Reference>
+      <Reference ReferenceType="HasProperty">i=23810</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=23828</Reference>
+      <Reference ReferenceType="HasModellingRule">i=11508</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">i=23795</Reference>
+    </References>
+  </UAObject>
+  <UAObject NodeId="i=23808" BrowseName="SubscribedDataSet" ParentNodeId="i=23807">
+    <DisplayName>SubscribedDataSet</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=15108</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">i=23807</Reference>
+    </References>
+  </UAObject>
+  <UAVariable NodeId="i=23809" BrowseName="DataSetMetaData" ParentNodeId="i=23807" DataType="i=14523">
+    <DisplayName>DataSetMetaData</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">i=23807</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="i=23810" BrowseName="IsConnected" ParentNodeId="i=23807" DataType="Boolean">
+    <DisplayName>IsConnected</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">i=23807</Reference>
+    </References>
+  </UAVariable>
+  <UAMethod NodeId="i=23811" BrowseName="AddSubscribedDataSet" ParentNodeId="i=23795">
+    <DisplayName>AddSubscribedDataSet</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty">i=23812</Reference>
+      <Reference ReferenceType="HasProperty">i=23813</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">i=23795</Reference>
+    </References>
+  </UAMethod>
+  <UAVariable NodeId="i=23812" BrowseName="InputArguments" ParentNodeId="i=23811" DataType="i=296" ValueRank="1" ArrayDimensions="1">
+    <DisplayName>InputArguments</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">i=23811</Reference>
+    </References>
+    <Value>
+      <ListOfExtensionObject xmlns="http://opcfoundation.org/UA/2008/02/Types.xsd">
+        <ExtensionObject>
+          <TypeId>
+            <Identifier>i=297</Identifier>
+          </TypeId>
+          <Body>
+            <Argument>
+              <Name>SubscribedDataSet</Name>
+              <DataType>
+                <Identifier>i=23600</Identifier>
+              </DataType>
+              <ValueRank>-1</ValueRank>
+              <ArrayDimensions />
+            </Argument>
+          </Body>
+        </ExtensionObject>
+      </ListOfExtensionObject>
+    </Value>
+  </UAVariable>
+  <UAVariable NodeId="i=23813" BrowseName="OutputArguments" ParentNodeId="i=23811" DataType="i=296" ValueRank="1" ArrayDimensions="1">
+    <DisplayName>OutputArguments</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">i=23811</Reference>
+    </References>
+    <Value>
+      <ListOfExtensionObject xmlns="http://opcfoundation.org/UA/2008/02/Types.xsd">
+        <ExtensionObject>
+          <TypeId>
+            <Identifier>i=297</Identifier>
+          </TypeId>
+          <Body>
+            <Argument>
+              <Name>SubscribedDataSetNodeId</Name>
+              <DataType>
+                <Identifier>i=17</Identifier>
+              </DataType>
+              <ValueRank>-1</ValueRank>
+              <ArrayDimensions />
+            </Argument>
+          </Body>
+        </ExtensionObject>
+      </ListOfExtensionObject>
+    </Value>
+  </UAVariable>
+  <UAMethod NodeId="i=23814" BrowseName="RemoveSubscribedDataSet" ParentNodeId="i=23795">
+    <DisplayName>RemoveSubscribedDataSet</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty">i=23815</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">i=23795</Reference>
+    </References>
+  </UAMethod>
+  <UAVariable NodeId="i=23815" BrowseName="InputArguments" ParentNodeId="i=23814" DataType="i=296" ValueRank="1" ArrayDimensions="1">
+    <DisplayName>InputArguments</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">i=23814</Reference>
+    </References>
+    <Value>
+      <ListOfExtensionObject xmlns="http://opcfoundation.org/UA/2008/02/Types.xsd">
+        <ExtensionObject>
+          <TypeId>
+            <Identifier>i=297</Identifier>
+          </TypeId>
+          <Body>
+            <Argument>
+              <Name>SubscribedDataSetNodeId</Name>
+              <DataType>
+                <Identifier>i=17</Identifier>
+              </DataType>
+              <ValueRank>-1</ValueRank>
+              <ArrayDimensions />
+            </Argument>
+          </Body>
+        </ExtensionObject>
+      </ListOfExtensionObject>
+    </Value>
+  </UAVariable>
+  <UAMethod NodeId="i=23816" BrowseName="AddDataSetFolder" ParentNodeId="i=23795">
+    <DisplayName>AddDataSetFolder</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty">i=23817</Reference>
+      <Reference ReferenceType="HasProperty">i=23818</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">i=23795</Reference>
+    </References>
+  </UAMethod>
+  <UAVariable NodeId="i=23817" BrowseName="InputArguments" ParentNodeId="i=23816" DataType="i=296" ValueRank="1" ArrayDimensions="1">
+    <DisplayName>InputArguments</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">i=23816</Reference>
+    </References>
+    <Value>
+      <ListOfExtensionObject xmlns="http://opcfoundation.org/UA/2008/02/Types.xsd">
+        <ExtensionObject>
+          <TypeId>
+            <Identifier>i=297</Identifier>
+          </TypeId>
+          <Body>
+            <Argument>
+              <Name>Name</Name>
+              <DataType>
+                <Identifier>i=12</Identifier>
+              </DataType>
+              <ValueRank>-1</ValueRank>
+              <ArrayDimensions />
+            </Argument>
+          </Body>
+        </ExtensionObject>
+      </ListOfExtensionObject>
+    </Value>
+  </UAVariable>
+  <UAVariable NodeId="i=23818" BrowseName="OutputArguments" ParentNodeId="i=23816" DataType="i=296" ValueRank="1" ArrayDimensions="1">
+    <DisplayName>OutputArguments</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">i=23816</Reference>
+    </References>
+    <Value>
+      <ListOfExtensionObject xmlns="http://opcfoundation.org/UA/2008/02/Types.xsd">
+        <ExtensionObject>
+          <TypeId>
+            <Identifier>i=297</Identifier>
+          </TypeId>
+          <Body>
+            <Argument>
+              <Name>DataSetFolderNodeId</Name>
+              <DataType>
+                <Identifier>i=17</Identifier>
+              </DataType>
+              <ValueRank>-1</ValueRank>
+              <ArrayDimensions />
+            </Argument>
+          </Body>
+        </ExtensionObject>
+      </ListOfExtensionObject>
+    </Value>
+  </UAVariable>
+  <UAMethod NodeId="i=23819" BrowseName="RemoveDataSetFolder" ParentNodeId="i=23795">
+    <DisplayName>RemoveDataSetFolder</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty">i=23820</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">i=23795</Reference>
+    </References>
+  </UAMethod>
+  <UAVariable NodeId="i=23820" BrowseName="InputArguments" ParentNodeId="i=23819" DataType="i=296" ValueRank="1" ArrayDimensions="1">
+    <DisplayName>InputArguments</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">i=23819</Reference>
+    </References>
+    <Value>
+      <ListOfExtensionObject xmlns="http://opcfoundation.org/UA/2008/02/Types.xsd">
+        <ExtensionObject>
+          <TypeId>
+            <Identifier>i=297</Identifier>
+          </TypeId>
+          <Body>
+            <Argument>
+              <Name>DataSetFolderNodeId</Name>
+              <DataType>
+                <Identifier>i=17</Identifier>
+              </DataType>
+              <ValueRank>-1</ValueRank>
+              <ArrayDimensions />
+            </Argument>
+          </Body>
+        </ExtensionObject>
+      </ListOfExtensionObject>
+    </Value>
+  </UAVariable>
+  <UAObjectType NodeId="i=23828" BrowseName="StandaloneSubscribedDataSetType">
+    <DisplayName>StandaloneSubscribedDataSetType</DisplayName>
+    <Category>PubSub Model SubscribedDataSet Standalone</Category>
+    <Documentation>https://reference.opcfoundation.org/v105/Core/docs/Part14/9.1.9/#9.1.9.5</Documentation>
+    <References>
+      <Reference ReferenceType="HasComponent">i=23829</Reference>
+      <Reference ReferenceType="HasProperty">i=23830</Reference>
+      <Reference ReferenceType="HasProperty">i=23831</Reference>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=58</Reference>
+    </References>
+  </UAObjectType>
+  <UAObject NodeId="i=23829" BrowseName="SubscribedDataSet" ParentNodeId="i=23828">
+    <DisplayName>SubscribedDataSet</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=15108</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">i=23828</Reference>
+    </References>
+  </UAObject>
+  <UAVariable NodeId="i=23830" BrowseName="DataSetMetaData" ParentNodeId="i=23828" DataType="i=14523">
+    <DisplayName>DataSetMetaData</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">i=23828</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="i=23831" BrowseName="IsConnected" ParentNodeId="i=23828" DataType="Boolean">
+    <DisplayName>IsConnected</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">i=23828</Reference>
+    </References>
+  </UAVariable>
   <UAObjectType NodeId="i=14643" BrowseName="PubSubStatusType">
     <DisplayName>PubSubStatusType</DisplayName>
     <References>

@@ -5,6 +5,7 @@
  * Copyright (c) 2017-2018 Fraunhofer IOSB (Author: Andreas Ebner)
  * Copyright (c) 2019 Kalycito Infotech Private Limited
  * Copyright (c) 2021 Fraunhofer IOSB (Author: Jan Hermes)
+ * Copyright (c) 2022 Siemens AG (Author: Thomas Fischer)
  */
 
 #ifndef UA_SERVER_PUBSUB_H
@@ -726,6 +727,7 @@ typedef struct {
         // UA_SubscribedDataSetMirrorDataType subscribedDataSetMirror;
     } subscribedDataSet;
     /* non std. fields */
+    UA_String subscribedDataSetName;
     UA_PubSubRtEncoding expectedEncoding;
 } UA_DataSetReaderConfig;
 
@@ -744,6 +746,33 @@ UA_Server_DataSetReader_getConfig(UA_Server *server, UA_NodeId dataSetReaderIden
 UA_StatusCode UA_EXPORT
 UA_Server_DataSetReader_getState(UA_Server *server, UA_NodeId dataSetReaderIdentifier,
                                  UA_PubSubState *state);
+
+typedef struct {
+    UA_String name;
+    UA_SubscribedDataSetEnumType subscribedDataSetType;
+    union {
+        /* datasetmirror is currently not implemented */
+        UA_TargetVariablesDataType target;
+    } subscribedDataSet;
+    UA_DataSetMetaDataType dataSetMetaData;
+    UA_Boolean isConnected;
+} UA_StandaloneSubscribedDataSetConfig;
+
+void
+UA_StandaloneSubscribedDataSetConfig_clear(UA_StandaloneSubscribedDataSetConfig *sdsConfig);
+
+typedef struct {
+    UA_StatusCode addResult;
+} UA_AddSubscribedDataSetResult;
+
+UA_AddSubscribedDataSetResult UA_EXPORT
+UA_Server_addStandaloneSubscribedDataSet(UA_Server *server,
+                               const UA_StandaloneSubscribedDataSetConfig *subscribedDataSetConfig,
+                               UA_NodeId *sdsIdentifier);
+
+/* Remove StandaloneSubscribedDataSet, identified by the NodeId. */
+UA_StatusCode UA_EXPORT
+UA_Server_removeStandaloneSubscribedDataSet(UA_Server *server, const UA_NodeId sds);
 
 /**
  * ReaderGroup

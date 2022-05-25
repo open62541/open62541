@@ -7,6 +7,7 @@
  * Copyright (c) 2020 Yannick Wallerer, Siemens AG
  * Copyright (c) 2020 Thomas Fischer, Siemens AG
  * Copyright (c) 2021 Fraunhofer IOSB (Author: Jan Hermes)
+ * Copyright (c) 2022 Siemens AG (Author: Thomas Fischer)
  */
 
 #ifndef UA_PUBSUB_H_
@@ -60,6 +61,23 @@ UA_PublishedDataSet_findPDSbyName(UA_Server *server, UA_String name);
 void
 UA_PublishedDataSet_clear(UA_Server *server,
                           UA_PublishedDataSet *publishedDataSet);
+
+typedef struct UA_StandaloneSubscribedDataSet{
+    UA_StandaloneSubscribedDataSetConfig config;
+    UA_NodeId identifier;
+    TAILQ_ENTRY(UA_StandaloneSubscribedDataSet) listEntry;
+    UA_NodeId connectedReader;
+} UA_StandaloneSubscribedDataSet;
+
+UA_StatusCode
+UA_StandaloneSubscribedDataSetConfig_copy(const UA_StandaloneSubscribedDataSetConfig *src, UA_StandaloneSubscribedDataSetConfig *dst);
+UA_StandaloneSubscribedDataSet *
+UA_StandaloneSubscribedDataSet_findSDSbyId(UA_Server *server, UA_NodeId identifier);
+UA_StandaloneSubscribedDataSet *
+UA_StandaloneSubscribedDataSet_findSDSbyName(UA_Server *server, UA_String identifier);
+void
+UA_StandaloneSubscribedDataSet_clear(UA_Server *server, UA_StandaloneSubscribedDataSet *subscribedDataSet); 
+
 
 /**********************************************/
 /*               Connection                   */
