@@ -1660,60 +1660,6 @@ static UA_UInt32 hex2int(char ch) {
     return 0;
 }
 
-DECODE_JSON(Float) {
-    CHECK_TOKEN_BOUNDS;
-    GET_TOKEN;
-
-    /* https://www.exploringbinary.com/maximum-number-of-decimal-digits-in-binary-floating-point-numbers/
-     * Maximum digit counts for select IEEE floating-point formats: 149
-     * Sanity check. */
-    if(tokenSize > 150)
-        return UA_STATUSCODE_BADDECODINGERROR;
-
-    jsmntype_t tokenType = getJsmnType(parseCtx);
-
-    /* It could be a string with NaN, Infinity */
-    if(tokenType == JSMN_STRING) {
-        parseCtx->index++;
-
-        if(tokenSize == 8 && memcmp(tokenData, "Infinity", 8) == 0) {
-            *dst = (UA_Float)INFINITY;
-            return UA_STATUSCODE_GOOD;
-        }
-
-        if(tokenSize == 9 && memcmp(tokenData, "-Infinity", 9) == 0) {
-            /* workaround an MSVC 2013 issue */
-            *dst = (UA_Float)-INFINITY;
-            return UA_STATUSCODE_GOOD;
-        }
-
-        if(tokenSize == 3 && memcmp(tokenData, "NaN", 3) == 0) {
-            *dst = (UA_Float)NAN;
-            return UA_STATUSCODE_GOOD;
-        }
-
-        if(tokenSize == 4 && memcmp(tokenData, "-NaN", 4) == 0) {
-            *dst = (UA_Float)NAN;
-            return UA_STATUSCODE_GOOD;
-        }
-
-        return UA_STATUSCODE_BADDECODINGERROR;
-    }
-
-    if(tokenType != JSMN_PRIMITIVE)
-        return UA_STATUSCODE_BADDECODINGERROR;
-
-    double val;
-    size_t len = parseDouble(tokenData, tokenSize, &val);
-    if(len == 0)
-        return UA_STATUSCODE_BADDECODINGERROR;
-
-    *dst = (UA_Float)val;
-
-    parseCtx->index++;
-    return UA_STATUSCODE_GOOD;
-}
-
 /* Either a JSMN_STRING or JSMN_PRIMITIVE */
 DECODE_JSON(Double) {
     CHECK_TOKEN_BOUNDS;
@@ -1763,8 +1709,22 @@ DECODE_JSON(Double) {
     if(len == 0)
         return UA_STATUSCODE_BADDECODINGERROR;
 
+    /* There must only be whitespace between the end of the parsed number and
+     * the end of the token */
+    for(size_t i = len; i < tokenSize; i++) {
+        if(tokenData[i] != ' ' && tokenData[i] -'\t' >= 5)
+            return UA_STATUSCODE_BADDECODINGERROR;
+    }
+
     parseCtx->index++;
     return UA_STATUSCODE_GOOD;
+}
+
+DECODE_JSON(Float) {
+    UA_Double v = 0.0;
+    UA_StatusCode res = Double_decodeJson(&v, NULL, ctx, parseCtx);
+    *dst = (UA_Float)v;
+    return res;
 }
 
 /*
