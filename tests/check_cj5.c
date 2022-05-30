@@ -12,7 +12,7 @@ START_TEST(parseObject) {
     cj5_result r = cj5_parse(json, (unsigned int)strlen(json), tokens, 32);
     ck_assert(r.error == CJ5_ERROR_NONE);
     double d = 0.0;
-    cj5_error_code err = cj5_get_float(json, &tokens[2], &d);
+    cj5_error_code err = cj5_get_float(&r, 2, &d);
     ck_assert(err == CJ5_ERROR_NONE);
     ck_assert(d == 1.0);
 } END_TEST
@@ -23,7 +23,7 @@ START_TEST(parseUTF8) {
     cj5_result r = cj5_parse(json, (unsigned int)strlen(json), tokens, 32);
     ck_assert(r.error == CJ5_ERROR_NONE);
     char buf[32];
-    cj5_error_code err = cj5_get_str(json, &tokens[2], buf, NULL);
+    cj5_error_code err = cj5_get_str(&r, 2, buf, NULL);
     ck_assert(err == CJ5_ERROR_NONE);
 } END_TEST
 
