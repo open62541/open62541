@@ -1315,6 +1315,9 @@ UA_WriterGroup_addPublishCallback(UA_Server *server, UA_WriterGroup *writerGroup
     if(retval == UA_STATUSCODE_GOOD)
         writerGroup->publishCallbackIsRegistered = true;
 
+    UA_ServerConfig *config = UA_Server_getConfig(server);
+    /* one iteration for connect callback */
+    config->eventLoop->run(config->eventLoop, 0);
     /* Run once after creation. The Publish callback itself takes the server
      * mutex. So we release it first. */
     UA_UNLOCK(&server->serviceMutex);

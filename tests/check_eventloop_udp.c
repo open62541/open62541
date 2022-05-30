@@ -21,6 +21,50 @@ typedef struct TestContext {
 } TestContext;
 
 static void
+connectionCallbackTalker(UA_ConnectionManager *cm, uintptr_t connectionId,
+                   void *application, void **connectionContext,
+                   UA_StatusCode status,
+                   size_t paramsSize, const UA_KeyValuePair *params,
+                   UA_ByteString msg) {
+    TestContext *ctx = (TestContext*) *connectionContext;
+    if(status != UA_STATUSCODE_GOOD) {
+        UA_LOG_DEBUG(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
+                     "Closing connection %u", (unsigned)connectionId);
+    } else {
+        if(msg.length == 0) {
+            UA_LOG_DEBUG(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
+                         "Opening connection %u", (unsigned)connectionId);
+        } else {
+            UA_LOG_DEBUG(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
+                         "Received a message of length %u", (unsigned)msg.length);
+        }
+    }
+
+    if(msg.length == 0 && status == UA_STATUSCODE_GOOD) {
+        ctx->connCount++;
+        clientId = connectionId;
+
+        /* The remote-hostname is set during the first callback */
+        if(paramsSize > 0) {
+            const void *hn =
+                UA_KeyValueMap_getScalar(params, paramsSize,
+                                         UA_QUALIFIEDNAME(0, "remote-hostname"),
+                                         &UA_TYPES[UA_TYPES_STRING]);
+            ck_assert(hn != NULL);
+        }
+    }
+    if(status != UA_STATUSCODE_GOOD) {
+        ctx->connCount--;
+    }
+
+    if(msg.length > 0) {
+        UA_ByteString rcv = UA_BYTESTRING(testMsg);
+        ck_assert(UA_String_equal(&msg, &rcv));
+        received = true;
+    }
+}
+
+static void
 connectionCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
                    void *application, void **connectionContext,
                    UA_StatusCode status,
@@ -318,7 +362,7 @@ START_TEST(udpTalkerAndListener) {
     UA_Variant_setScalar(&params[1].value, &targetHost, &UA_TYPES[UA_TYPES_STRING]);
     
     retval = cmTalker->openConnection(cmTalker, 2, params, NULL, &testContext,
-                                      connectionCallback);
+                                      connectionCallbackTalker);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     
     /* The talker el should receive a signal "ready to be written on" */

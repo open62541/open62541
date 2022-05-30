@@ -1483,11 +1483,11 @@ receiveBufferedNetworkMessage(UA_Server *server, UA_ReaderGroup *readerGroup,
                               UA_PubSubConnection *connection) {
     UA_RGContext ctx = {server, connection, readerGroup};
     UA_PubSubReceiveCallback receiveCB;
-    if(readerGroup->config.rtLevel == UA_PUBSUB_RT_FIXED_SIZE)
+    if(readerGroup->config.rtLevel == UA_PUBSUB_RT_FIXED_SIZE) {
         receiveCB = decodeAndProcessFunRT;
-    else
+    } else {
         receiveCB = decodeAndProcessFun;
-
+    }
     /* TODO: Move the TransportSettings to to the readerGroupConfig. So we can
      * use it here instead of a NULL pointer. */
     UA_StatusCode rv =

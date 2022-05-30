@@ -716,8 +716,12 @@ UA_ReaderGroup_addSubscribeCallback(UA_Server *server, UA_ReaderGroup *readerGro
     /* When using blocking socket functionality, the server mechanism might get
      * blocked. It is highly recommended to use custom callback when using
      * blockingsocket. */
-    if(readerGroup->config.enableBlockingSocket != UA_TRUE)
-        UA_ReaderGroup_subscribeCallback(server, readerGroup);
+    if(readerGroup->config.enableBlockingSocket != UA_TRUE) {
+        UA_ServerConfig *config = UA_Server_getConfig(server);
+        /* one iteration for connect callback */
+        config->eventLoop->run(config->eventLoop, 0);
+        // UA_ReaderGroup_subscribeCallback(server, readerGroup);
+    }
 
     return retval;
 }

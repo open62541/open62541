@@ -619,7 +619,7 @@ TCP_sendWithConnection(UA_ConnectionManager *cm, uintptr_t connectionId,
                 if(UA_ERRNO != UA_INTERRUPTED &&
                    UA_ERRNO != UA_WOULDBLOCK &&
                    UA_ERRNO != UA_AGAIN) {
-                    UA_LOG_SOCKET_ERRNO_GAI_WRAP(
+                    UA_LOG_SOCKET_ERRNO_WRAP(
                        UA_LOG_ERROR(cm->eventSource.eventLoop->logger,
                                     UA_LOGCATEGORY_NETWORK,
                                     "TCP %u\t| Send failed with error %s",
@@ -635,7 +635,7 @@ TCP_sendWithConnection(UA_ConnectionManager *cm, uintptr_t connectionId,
                 do {
                     poll_ret = UA_poll(&tmp_poll_fd, 1, 100);
                     if(poll_ret < 0 && UA_ERRNO != UA_INTERRUPTED) {
-                        UA_LOG_SOCKET_ERRNO_GAI_WRAP(
+                        UA_LOG_SOCKET_ERRNO_WRAP(
                            UA_LOG_ERROR(cm->eventSource.eventLoop->logger,
                                         UA_LOGCATEGORY_NETWORK,
                                         "TCP %u\t| Send failed with error %s",

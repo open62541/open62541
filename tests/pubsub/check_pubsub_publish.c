@@ -441,6 +441,8 @@ START_TEST(SinglePublishDataSetField){
         UA_Server_addDataSetField(server, publishedDataSet1, &dataSetFieldConfig, NULL);
 
         UA_WriterGroup *wg = UA_WriterGroup_findWGbyId(server, writerGroup1);
+        UA_ServerConfig *config = UA_Server_getConfig(server);
+        config->eventLoop->run(config->eventLoop, 0);
         UA_WriterGroup_publishCallback(server, wg);
     } END_TEST
 
@@ -459,6 +461,9 @@ START_TEST(PublishDataSetFieldAsDeltaFrame){
             wg->config.maxEncapsulatedDataSetMessageCount = 3;
             UA_DataSetWriter *dsw = UA_DataSetWriter_findDSWbyId(server, dataSetWriter1);
             dsw->config.keyFrameCount = 3;
+
+            UA_ServerConfig *config = UA_Server_getConfig(server);
+            config->eventLoop->run(config->eventLoop, 0);
 
             UA_WriterGroup_publishCallback(server, wg);
             UA_WriterGroup_publishCallback(server, wg);
