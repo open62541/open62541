@@ -24,6 +24,7 @@
 #include "cj5.h"
 #include "parse_num.h"
 
+#include <math.h>
 #include <string.h>
 
 #if defined(_DEBUG) || defined(NDEBUG)
@@ -39,6 +40,14 @@
 #else
 # define CJ5__RESTRICT __restrict__
 # define CJ5_INLINE inline
+#endif
+
+/* vs2008 does not have INFINITY and NAN defined */
+#ifndef INFINITY
+# define INFINITY ((UA_Double)(DBL_MAX+DBL_MAX))
+#endif
+#ifndef NAN
+# define NAN ((UA_Double)(INFINITY-INFINITY))
 #endif
 
 // Max nesting depth of objects and arrays
@@ -510,31 +519,69 @@ cj5_parse(const char *json5, unsigned int len,
 }
 
 cj5_error_code
-cj5_get_float(const char *json5, const cj5_token *token, double *out) {
-    size_t parsed = parseDouble(&json5[token->start],
-                                token->end - token->start, out);
+cj5_get_float(const cj5_result *parse_result, unsigned int tok_index, double *out) {
+    const cj5_token *token = &parse_result->tokens[tok_index];
+    const char *tokstr = &parse_result->json5[token->start];
+    size_t toksize = token->end - token->start;
+    if(toksize == 0)
+        return CJ5_ERROR_INVALID;
+
+    // Skip prefixed +/-
+    bool neg = false;
+    if(tokstr[0] == '+' || tokstr[0] == '-') {
+        neg = (tokstr[0] == '-');
+        tokstr++;
+        toksize--;
+    }
+
+    // Detect prefixed inf/nan
+    if(strncmp(tokstr, "Infinity", toksize) == 0) {
+        *out = neg ? -INFINITY : INFINITY;
+        return CJ5_ERROR_NONE;
+    } else if(strncmp(tokstr, "NaN", toksize) == 0) {
+        *out = NAN;
+        return CJ5_ERROR_NONE;
+    }
+
+    // reset the +/- detection and parse
+    tokstr = &parse_result->json5[token->start];
+    toksize = token->end - token->start;
+    size_t parsed = parseDouble(tokstr, toksize, out);
+
+    // There must only be whitespace between the end of the parsed number and
+    // the end of the token
+    for(size_t i = parsed; i < toksize; i++) {
+        if(tokstr[i] != ' ' && tokstr[i] -'\t' >= 5)
+            return CJ5_ERROR_INVALID;
+    }
+
     return (parsed != 0) ? CJ5_ERROR_NONE : CJ5_ERROR_INVALID;
 }
 
 cj5_error_code
-cj5_get_int(const char *json5, const cj5_token *token, int64_t *out) {
-    size_t parsed = parseInt64(&json5[token->start],
+cj5_get_int(const cj5_result *parse_result, unsigned int tok_index,
+            int64_t *out) {
+    const cj5_token *token = &parse_result->tokens[tok_index];
+    size_t parsed = parseInt64(&parse_result->json5[token->start],
                                token->end - token->start, out);
     return (parsed != 0) ? CJ5_ERROR_NONE : CJ5_ERROR_INVALID;
 }
 
 cj5_error_code
-cj5_get_uint(const char *json5, const cj5_token *token, uint64_t *out) {
-    size_t parsed = parseUInt64(&json5[token->start],
+cj5_get_uint(const cj5_result *parse_result, unsigned int tok_index,
+             uint64_t *out) {
+    const cj5_token *token = &parse_result->tokens[tok_index];
+    size_t parsed = parseUInt64(&parse_result->json5[token->start],
                                 token->end - token->start, out);
     return (parsed != 0) ? CJ5_ERROR_NONE : CJ5_ERROR_INVALID;
 }
 
 cj5_error_code
-cj5_get_str(const char *json5, const cj5_token *token,
-            char *buf, unsigned *buflen) {
-    const char *pos = &json5[token->start];
-    const char *end = &json5[token->end];
+cj5_get_str(const cj5_result *parse_result, unsigned int tok_index,
+            char *buf, unsigned int *buflen) {
+    const cj5_token *token = &parse_result->tokens[tok_index];
+    const char *pos = &parse_result->json5[token->start];
+    const char *end = &parse_result->json5[token->end];
     unsigned int outpos = 0;
     for(; pos < end; pos++) {
         uint8_t c = (uint8_t)*pos;
@@ -616,4 +663,45 @@ cj5_get_str(const char *json5, const cj5_token *token,
     if(buflen)
         *buflen = outpos;
     return CJ5_ERROR_NONE;
+}
+
+void
+cj5_skip(const cj5_result *parse_result, unsigned int *tok_index) {
+    unsigned int idx = *tok_index;
+    unsigned int end = parse_result->tokens[idx].end;
+    do { idx++; } while(idx < parse_result->num_tokens &&
+                        parse_result->tokens[idx].start < end);
+    *tok_index = idx;
+}
+
+cj5_error_code
+cj5_find(const cj5_result *parse_result, unsigned int *tok_index,
+         const char *key) {
+    // It has to be an object
+    unsigned int idx = *tok_index;
+    if(parse_result->tokens[idx].type != CJ5_TOKEN_OBJECT)
+        return CJ5_ERROR_INVALID;
+    unsigned int size = parse_result->tokens[idx].size;
+
+    // Skip to the first key
+    idx++;
+
+    // Size is number of keys + number of values
+    for(unsigned int i = 0; i < size; i += 2) {
+        // Key has to be a string
+        if(parse_result->tokens[idx].type != CJ5_TOKEN_STRING)
+            return CJ5_ERROR_INVALID;
+
+        // Return the index to the value if the key matches
+        if(strncmp(key, &parse_result->json5[parse_result->tokens[idx].start],
+                   parse_result->tokens[idx].end - parse_result->tokens[idx].start)) {
+            *tok_index = idx + 1;
+            return CJ5_ERROR_NONE;
+        }
+
+        // Skip over the value
+        idx++;
+        cj5_skip(parse_result, &idx);
+    }
+    return CJ5_ERROR_NOTFOUND;
 }
