@@ -508,7 +508,7 @@ TCP_registerListenSockets(UA_ConnectionManager *cm, const char *hostname,
 #endif
     hints.ai_socktype = SOCK_STREAM;
     hints.ai_protocol = IPPROTO_TCP;
-    hints.ai_flags = AI_PASSIVE | AI_NUMERICHOST;
+    hints.ai_flags = AI_PASSIVE;
 #ifdef AI_ADDRCONFIG
     hints.ai_flags |= AI_ADDRCONFIG; /* Only return IPv4/IPv6 if at least one
                                       * such address is configured */
