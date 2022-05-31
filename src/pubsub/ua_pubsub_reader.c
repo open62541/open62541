@@ -338,12 +338,6 @@ static UA_StatusCode
 checkReaderIdentifier(UA_Server *server, UA_NetworkMessage *msg,
                       UA_DataSetReader *reader, UA_ReaderGroupConfig readerGroupConfig) {
 if(readerGroupConfig.encodingMimeType != UA_PUBSUB_ENCODING_JSON){
-    if(!msg->groupHeaderEnabled || !msg->groupHeader.writerGroupIdEnabled) {
-        UA_LOG_INFO_READER(&server->config.logger, reader,
-                           "Cannot process DataSetReader without WriterGroup"
-                           "and DataSetWriter identifiers");
-        return UA_STATUSCODE_BADNOTIMPLEMENTED;
-    }
 
     switch(msg->publisherIdType) {
     case UA_PUBLISHERIDTYPE_BYTE:
@@ -375,7 +369,8 @@ if(readerGroupConfig.encodingMimeType != UA_PUBSUB_ENCODING_JSON){
         return UA_STATUSCODE_BADNOTFOUND;
     }
 
-    if(reader->config.writerGroupId == msg->groupHeader.writerGroupId &&
+    if(((!msg->groupHeaderEnabled || !msg->groupHeader.writerGroupIdEnabled) ||
+        (reader->config.writerGroupId == msg->groupHeader.writerGroupId)) &&
        (!msg->payloadHeaderEnabled ||
         reader->config.dataSetWriterId == *msg->payloadHeader.dataSetPayloadHeader.dataSetWriterIds)) {
         UA_LOG_DEBUG_READER(&server->config.logger, reader,
