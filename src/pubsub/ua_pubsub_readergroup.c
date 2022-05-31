@@ -278,7 +278,8 @@ UA_Server_ReaderGroup_getState(UA_Server *server, UA_NodeId readerGroupIdentifie
 
 static UA_StatusCode
 UA_ReaderGroup_setPubSubState_disable(UA_Server *server,
-                                      UA_ReaderGroup *rg) {
+                                      UA_ReaderGroup *rg,
+                                      UA_StatusCode cause) {
     UA_DataSetReader *dataSetReader;
     switch(rg->state) {
     case UA_PUBSUBSTATE_DISABLED:
@@ -288,8 +289,8 @@ UA_ReaderGroup_setPubSubState_disable(UA_Server *server,
     case UA_PUBSUBSTATE_OPERATIONAL:
         UA_ReaderGroup_removeSubscribeCallback(server, rg);
         LIST_FOREACH(dataSetReader, &rg->readers, listEntry) {
-            UA_DataSetReader_setPubSubState(server, UA_PUBSUBSTATE_DISABLED,
-                                            dataSetReader);
+            UA_DataSetReader_setPubSubState(server, dataSetReader,
+                                            UA_PUBSUBSTATE_DISABLED, cause);
         }
         rg->state = UA_PUBSUBSTATE_DISABLED;
         break;
@@ -305,9 +306,11 @@ UA_ReaderGroup_setPubSubState_disable(UA_Server *server,
 
 static UA_StatusCode
 UA_ReaderGroup_setPubSubState_paused(UA_Server *server,
-                                     UA_ReaderGroup *rg) {
+                                     UA_ReaderGroup *rg,
+                                     UA_StatusCode cause) {
     UA_LOG_DEBUG(&server->config.logger, UA_LOGCATEGORY_SERVER,
                  "PubSub state paused is unsupported at the moment!");
+    (void)cause;
     switch(rg->state) {
     case UA_PUBSUBSTATE_DISABLED:
         break;
@@ -327,12 +330,14 @@ UA_ReaderGroup_setPubSubState_paused(UA_Server *server,
 
 static UA_StatusCode
 UA_ReaderGroup_setPubSubState_operational(UA_Server *server,
-                                          UA_ReaderGroup *rg) {
+                                          UA_ReaderGroup *rg,
+                                          UA_StatusCode cause) {
     UA_DataSetReader *dataSetReader;
     switch(rg->state) {
     case UA_PUBSUBSTATE_DISABLED:
         LIST_FOREACH(dataSetReader, &rg->readers, listEntry) {
-            UA_DataSetReader_setPubSubState(server, UA_PUBSUBSTATE_OPERATIONAL, dataSetReader);
+            UA_DataSetReader_setPubSubState(server, dataSetReader, UA_PUBSUBSTATE_OPERATIONAL,
+                                            cause);
         }
         UA_ReaderGroup_addSubscribeCallback(server, rg);
         rg->state = UA_PUBSUBSTATE_OPERATIONAL;
@@ -353,7 +358,8 @@ UA_ReaderGroup_setPubSubState_operational(UA_Server *server,
 
 static UA_StatusCode
 UA_ReaderGroup_setPubSubState_error(UA_Server *server,
-                                    UA_ReaderGroup *rg) {
+                                    UA_ReaderGroup *rg,
+                                    UA_StatusCode cause) {
     UA_DataSetReader *dataSetReader;
     switch(rg->state) {
     case UA_PUBSUBSTATE_DISABLED:
@@ -363,7 +369,8 @@ UA_ReaderGroup_setPubSubState_error(UA_Server *server,
     case UA_PUBSUBSTATE_OPERATIONAL:
         UA_ReaderGroup_removeSubscribeCallback(server, rg);
         LIST_FOREACH(dataSetReader, &rg->readers, listEntry){
-            UA_DataSetReader_setPubSubState(server, UA_PUBSUBSTATE_ERROR, dataSetReader);
+            UA_DataSetReader_setPubSubState(server, dataSetReader, UA_PUBSUBSTATE_ERROR,
+                                            cause);
         }
         break;
     case UA_PUBSUBSTATE_ERROR:
@@ -378,23 +385,39 @@ UA_ReaderGroup_setPubSubState_error(UA_Server *server,
 }
 
 UA_StatusCode
-UA_ReaderGroup_setPubSubState(UA_Server *server, UA_PubSubState state,
-                              UA_ReaderGroup *readerGroup) {
+UA_ReaderGroup_setPubSubState(UA_Server *server,
+                              UA_ReaderGroup *readerGroup,
+                              UA_PubSubState state,
+                              UA_StatusCode cause) {
+    UA_StatusCode ret = UA_STATUSCODE_BADINVALIDARGUMENT;
+    UA_PubSubState oldState = readerGroup->state;
     switch(state) {
         case UA_PUBSUBSTATE_DISABLED:
-            return UA_ReaderGroup_setPubSubState_disable(server, readerGroup);
+            ret = UA_ReaderGroup_setPubSubState_disable(server, readerGroup, cause);
+            break;
         case UA_PUBSUBSTATE_PAUSED:
-            return UA_ReaderGroup_setPubSubState_paused(server, readerGroup);
+            ret = UA_ReaderGroup_setPubSubState_paused(server, readerGroup, cause);
+            break;
         case UA_PUBSUBSTATE_OPERATIONAL:
-            return UA_ReaderGroup_setPubSubState_operational(server, readerGroup);
+            ret = UA_ReaderGroup_setPubSubState_operational(server, readerGroup, cause);
+            break;
         case UA_PUBSUBSTATE_ERROR:
-            return UA_ReaderGroup_setPubSubState_error(server, readerGroup);
+            ret = UA_ReaderGroup_setPubSubState_error(server, readerGroup, cause);
+            break;
         default:
             UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
                            "Received unknown PubSub state!");
             break;
     }
-    return UA_STATUSCODE_BADINVALIDARGUMENT;
+    if (state != oldState) {
+        /* inform application about state change */
+        UA_ServerConfig *pConfig = UA_Server_getConfig(server);
+        if(pConfig->pubSubConfig.stateChangeCallback != 0) {
+            pConfig->pubSubConfig.
+                stateChangeCallback(&readerGroup->identifier, state, cause);
+        }
+    }
+    return ret;
 }
 
 UA_StatusCode
@@ -402,7 +425,8 @@ UA_Server_setReaderGroupOperational(UA_Server *server, const UA_NodeId readerGro
     UA_ReaderGroup *rg = UA_ReaderGroup_findRGbyId(server, readerGroupId);
     if(!rg)
         return UA_STATUSCODE_BADNOTFOUND;
-    return UA_ReaderGroup_setPubSubState(server, UA_PUBSUBSTATE_OPERATIONAL, rg);
+    return UA_ReaderGroup_setPubSubState(server, rg, UA_PUBSUBSTATE_OPERATIONAL,
+                                         UA_STATUSCODE_GOOD);
 }
 
 UA_StatusCode
@@ -410,7 +434,8 @@ UA_Server_setReaderGroupDisabled(UA_Server *server, const UA_NodeId readerGroupI
     UA_ReaderGroup *rg = UA_ReaderGroup_findRGbyId(server, readerGroupId);
     if(!rg)
         return UA_STATUSCODE_BADNOTFOUND;
-    return UA_ReaderGroup_setPubSubState(server, UA_PUBSUBSTATE_DISABLED, rg);
+    return UA_ReaderGroup_setPubSubState(server, rg, UA_PUBSUBSTATE_DISABLED,
+                                         UA_STATUSCODE_BADRESOURCEUNAVAILABLE);
 }
 
 #ifdef UA_ENABLE_PUBSUB_ENCRYPTION
@@ -649,7 +674,8 @@ UA_ReaderGroup_subscribeCallback(UA_Server *server,
     if(!connection) {
         UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
                      "SubscribeCallback(): Find linked connection failed");
-        UA_ReaderGroup_setPubSubState(server, UA_PUBSUBSTATE_ERROR, readerGroup);
+        UA_ReaderGroup_setPubSubState(server, readerGroup, UA_PUBSUBSTATE_ERROR,
+                                      UA_STATUSCODE_BADCONNECTIONCLOSED);
         return;
     }
 

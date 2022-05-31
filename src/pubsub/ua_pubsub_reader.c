@@ -402,7 +402,8 @@ UA_Server_addDataSetReader(UA_Server *server, UA_NodeId readerGroupIdentifier,
     UA_StatusCode retVal = UA_STATUSCODE_GOOD;
     newDataSetReader->componentType = UA_PUBSUB_COMPONENT_DATASETREADER;
     if(readerGroup->state == UA_PUBSUBSTATE_OPERATIONAL) {
-        retVal = UA_DataSetReader_setPubSubState(server, UA_PUBSUBSTATE_OPERATIONAL, newDataSetReader);
+        retVal = UA_DataSetReader_setPubSubState(server, newDataSetReader, UA_PUBSUBSTATE_OPERATIONAL,
+                                                 UA_STATUSCODE_GOOD);
         if(retVal != UA_STATUSCODE_GOOD) {
             UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
                             "Add DataSetReader failed. setPubSubState failed.");
@@ -741,13 +742,19 @@ UA_DataSetReader_setState_disabled(UA_Server *server, UA_DataSetReader *dsr) {
 
 /* State machine methods not part of the open62541 state machine API */
 UA_StatusCode
-UA_DataSetReader_setPubSubState(UA_Server *server, UA_PubSubState state,
-                                UA_DataSetReader *dataSetReader) {
+UA_DataSetReader_setPubSubState(UA_Server *server,
+                                UA_DataSetReader *dataSetReader,
+                                UA_PubSubState state,
+                                UA_StatusCode cause) {
+    UA_StatusCode ret = UA_STATUSCODE_GOOD;
+    UA_PubSubState oldState = dataSetReader->state;
     switch(state) {
         case UA_PUBSUBSTATE_DISABLED:
-            return UA_DataSetReader_setState_disabled(server, dataSetReader);
+            ret = UA_DataSetReader_setState_disabled(server, dataSetReader);
+            break;
         case UA_PUBSUBSTATE_PAUSED:
-            return UA_STATUSCODE_BADNOTSUPPORTED;
+            ret = UA_STATUSCODE_BADNOTSUPPORTED;
+            break;
         case UA_PUBSUBSTATE_OPERATIONAL:
             dataSetReader->state = UA_PUBSUBSTATE_OPERATIONAL;
             break;
@@ -757,9 +764,18 @@ UA_DataSetReader_setPubSubState(UA_Server *server, UA_PubSubState state,
         default:
             UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
                            "Received unknown PubSub state!");
-            return UA_STATUSCODE_BADINVALIDARGUMENT;
+            ret = UA_STATUSCODE_BADINVALIDARGUMENT;
+            break;
     }
-    return UA_STATUSCODE_GOOD;
+    if (state != oldState) {
+        /* inform application about state change */
+        UA_ServerConfig *pConfig = UA_Server_getConfig(server);
+        if(pConfig->pubSubConfig.stateChangeCallback != 0) {
+            pConfig->pubSubConfig.
+                stateChangeCallback(&dataSetReader->identifier, state, cause);
+        }
+    }
+    return ret;
 }
 
 UA_StatusCode
@@ -1133,12 +1149,8 @@ UA_DataSetReader_checkMessageReceiveTimeout(UA_Server *server,
     /* If previous reader state was error (because we haven't received messages
      * and ran into timeout) we should set the state back to operational */
     if(dsr->state == UA_PUBSUBSTATE_ERROR) {
-        UA_DataSetReader_setPubSubState(server, UA_PUBSUBSTATE_OPERATIONAL, dsr);
-        if(server->config.pubSubConfig.stateChangeCallback != 0) {
-            server->config.pubSubConfig.stateChangeCallback(&dsr->identifier,
-                                                            UA_PUBSUBSTATE_OPERATIONAL,
-                                                            UA_STATUSCODE_GOOD);
-        }
+        UA_DataSetReader_setPubSubState(server, dsr, UA_PUBSUBSTATE_OPERATIONAL,
+                                        UA_STATUSCODE_GOOD);
     }
 
     /* Stop message receive timeout timer */
@@ -1153,7 +1165,8 @@ UA_DataSetReader_checkMessageReceiveTimeout(UA_Server *server,
             UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
                          "DataSetReader '%.*s': stop receive timeout timer failed",
                          (int)dsr->config.name.length, dsr->config.name.data);
-            UA_DataSetReader_setPubSubState(server, UA_PUBSUBSTATE_ERROR, dsr);
+            UA_DataSetReader_setPubSubState(server, dsr, UA_PUBSUBSTATE_ERROR,
+                                            UA_STATUSCODE_BADINTERNALERROR);
         }
     }
 
@@ -1169,7 +1182,8 @@ UA_DataSetReader_checkMessageReceiveTimeout(UA_Server *server,
     } else {
         UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
                      "Starting Message Receive Timeout timer failed.");
-        UA_DataSetReader_setPubSubState(server, UA_PUBSUBSTATE_ERROR, dsr);
+        UA_DataSetReader_setPubSubState(server, dsr, UA_PUBSUBSTATE_ERROR,
+                                        UA_STATUSCODE_BADINTERNALERROR);
     }
 }
 
@@ -1200,15 +1214,9 @@ UA_DataSetReader_handleMessageReceiveTimeout(UA_Server *server,
                  dsr->config.messageReceiveTimeout,
                  (UA_UInt32) dsr->msgRcvTimeoutTimerId);
 
-    UA_ServerConfig *pConfig = UA_Server_getConfig(server);
-    if(pConfig->pubSubConfig.stateChangeCallback != 0) {
-        pConfig->pubSubConfig.stateChangeCallback(&dsr->identifier,
-                                                  UA_PUBSUBSTATE_ERROR,
-                                                  UA_STATUSCODE_BADTIMEOUT);
-    }
-
     UA_StatusCode res =
-        UA_DataSetReader_setPubSubState(server, UA_PUBSUBSTATE_ERROR, dsr);
+        UA_DataSetReader_setPubSubState(server, dsr, UA_PUBSUBSTATE_ERROR,
+                                        UA_STATUSCODE_BADTIMEOUT);
     if(res != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
                      "UA_DataSetReader_handleMessageReceiveTimeout(): "
