@@ -627,7 +627,9 @@ UA_Server_unfreezeReaderGroupConfiguration(UA_Server *server,
         for(size_t i = 0; i < dataSetReader->bufferedMessage.offsetsSize; i++) {
             UA_NetworkMessageOffset *offset = &dataSetReader->bufferedMessage.offsets[i];
             if((offset->contentType == UA_PUBSUB_OFFSETTYPE_PAYLOAD_VARIANT) ||
-                (offset->contentType == UA_PUBSUB_OFFSETTYPE_PAYLOAD_RAW)) {
+                (offset->contentType == UA_PUBSUB_OFFSETTYPE_PAYLOAD_RAW) ||
+                (offset->contentType == UA_PUBSUB_OFFSETTYPE_DATASETMESSAGE_SEQUENCENUMBER) ||
+                (offset->contentType == UA_PUBSUB_OFFSETTYPE_NETWORKMESSAGE_SEQUENCENUMBER)) {
                 UA_DataValue_delete(offset->offsetData.value.value);
             } else if(offset->contentType == UA_PUBSUB_OFFSETTYPE_NETWORKMESSAGE_FIELDENCDODING) {
                 offset->offsetData.value.value->value.data = NULL;
