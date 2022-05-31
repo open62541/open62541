@@ -736,8 +736,9 @@ UA_ExtendedNetworkMessageHeader_decodeBinary(const UA_ByteString *src, size_t *o
     return UA_STATUSCODE_GOOD;
 
 error:
-    if (dst->promotedFields) {
+    if(dst->promotedFields) {
         UA_free(dst->promotedFields);
+        dst->promotedFields = NULL;
     }
     return rv;
 }
@@ -1105,43 +1106,38 @@ UA_NetworkMessage_calcSizeBinary(UA_NetworkMessage *p, UA_NetworkMessageOffsetBu
 
 void
 UA_NetworkMessage_clear(UA_NetworkMessage* p) {
-    if(p->promotedFieldsEnabled)
-        UA_Array_delete(p->promotedFields, p->promotedFieldsSize, &UA_TYPES[UA_TYPES_VARIANT]);
+    if(p->promotedFieldsEnabled) {
+        UA_Array_delete(p->promotedFields, p->promotedFieldsSize,
+                        &UA_TYPES[UA_TYPES_VARIANT]);
+    }
 
     if(p->networkMessageType == UA_NETWORKMESSAGE_DATASET) {
-        if(p->payloadHeaderEnabled) {
-            if(p->payloadHeader.dataSetPayloadHeader.dataSetWriterIds != NULL) {
-                UA_Array_delete(p->payloadHeader.dataSetPayloadHeader.dataSetWriterIds,
-                                p->payloadHeader.dataSetPayloadHeader.count, &UA_TYPES[UA_TYPES_UINT16]);
-            }
-            if(p->payload.dataSetPayload.sizes != NULL) { 
-                UA_Array_delete(p->payload.dataSetPayload.sizes,
-                                p->payloadHeader.dataSetPayloadHeader.count, &UA_TYPES[UA_TYPES_UINT16]);
-            }
-        }
+        if(p->payloadHeader.dataSetPayloadHeader.dataSetWriterIds)
+            UA_free(p->payloadHeader.dataSetPayloadHeader.dataSetWriterIds);
+
+        if(p->payload.dataSetPayload.sizes)
+            UA_free(p->payload.dataSetPayload.sizes);
 
         if(p->payload.dataSetPayload.dataSetMessages) {
             UA_Byte count = 1;
             if(p->payloadHeaderEnabled)
                 count = p->payloadHeader.dataSetPayloadHeader.count;
-            
             for(size_t i = 0; i < count; i++)
-                UA_DataSetMessage_clear(&(p->payload.dataSetPayload.dataSetMessages[i]));
-
+                UA_DataSetMessage_clear(&p->payload.dataSetPayload.dataSetMessages[i]);
             UA_free(p->payload.dataSetPayload.dataSetMessages);
         }
     }
 
-    if(p->securityHeader.securityFooterEnabled && (p->securityHeader.securityFooterSize > 0))
+    if(p->securityHeader.securityFooterEnabled &&
+       p->securityHeader.securityFooterSize > 0)
         UA_ByteString_clear(&p->securityFooter);
 
-    if(p->messageIdEnabled){
-           UA_String_clear(&p->messageId);
-    }
+    if(p->messageIdEnabled)
+        UA_String_clear(&p->messageId);
 
-    if(p->publisherIdEnabled && p->publisherIdType == UA_PUBLISHERDATATYPE_STRING){
+    if(p->publisherIdEnabled &&
+       p->publisherIdType == UA_PUBLISHERDATATYPE_STRING)
        UA_String_clear(&p->publisherId.publisherIdString);
-    }
 
     memset(p, 0, sizeof(UA_NetworkMessage));
 }
@@ -1729,44 +1725,48 @@ UA_DataSetMessage_calcSizeBinary(UA_DataSetMessage* p, UA_NetworkMessageOffsetBu
 }
 
 void
-UA_DataSetMessage_clear(const UA_DataSetMessage* p) {
+UA_DataSetMessage_clear(UA_DataSetMessage* p) {
     if(p->header.dataSetMessageType == UA_DATASETMESSAGE_DATAKEYFRAME) {
-        if(p->data.keyFrameData.dataSetFields != NULL) {
+        if(p->data.keyFrameData.dataSetFields) {
             UA_Array_delete(p->data.keyFrameData.dataSetFields,
                             p->data.keyFrameData.fieldCount,
                             &UA_TYPES[UA_TYPES_DATAVALUE]);
         }
 
         /* Json keys */
-        if(p->data.keyFrameData.fieldNames != NULL){
+        if(p->data.keyFrameData.fieldNames){
             UA_Array_delete(p->data.keyFrameData.fieldNames,
                             p->data.keyFrameData.fieldCount,
                             &UA_TYPES[UA_TYPES_STRING]);
         }
     } else if(p->header.dataSetMessageType == UA_DATASETMESSAGE_DATADELTAFRAME) {
-        if(p->data.deltaFrameData.deltaFrameFields != NULL) {
+        if(p->data.deltaFrameData.deltaFrameFields) {
             for(UA_UInt16 i = 0; i < p->data.deltaFrameData.fieldCount; i++) {
+                UA_DataSetMessage_DeltaFrameField *f =
+                    &p->data.deltaFrameData.deltaFrameFields[i];
                 if(p->header.fieldEncoding == UA_FIELDENCODING_DATAVALUE) {
-                    UA_DataValue_clear(&p->data.deltaFrameData.deltaFrameFields[i].fieldValue);
+                    UA_DataValue_clear(&f->fieldValue);
                 } else if(p->header.fieldEncoding == UA_FIELDENCODING_VARIANT) {
-                    UA_Variant_clear(&p->data.deltaFrameData.deltaFrameFields[i].fieldValue.value);
+                    UA_Variant_clear(&f->fieldValue.value);
                 }
             }
             UA_free(p->data.deltaFrameData.deltaFrameFields);
         }
     }
+
+    memset(p, 0, sizeof(UA_DataSetMessage));
 }
 
 void
 UA_NetworkMessageOffsetBuffer_clear(UA_NetworkMessageOffsetBuffer *nmob) {
     UA_ByteString_clear(&nmob->buffer);
 
-#ifdef UA_ENABLE_PUBSUB_ENCRYPTION
     if(nmob->nm) {
-        UA_NetworkMessage_clear(&nmob->nm);
+        UA_NetworkMessage_clear(nmob->nm);
         UA_free(nmob->nm);
-        nmob->nm = NULL;
     }
+
+#ifdef UA_ENABLE_PUBSUB_ENCRYPTION
     UA_ByteString_clear(&nmob->encryptBuffer);
 #endif
 
@@ -1790,8 +1790,8 @@ UA_NetworkMessageOffsetBuffer_clear(UA_NetworkMessageOffsetBuffer *nmob) {
     }
 
     UA_free(nmob->offsets);
-    nmob->offsets = NULL;
-    nmob->offsetsSize = 0;
+
+    memset(nmob, 0, sizeof(UA_NetworkMessageOffsetBuffer));
 }
 
 
