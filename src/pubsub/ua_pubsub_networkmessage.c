@@ -1756,4 +1756,44 @@ UA_DataSetMessage_clear(const UA_DataSetMessage* p) {
         }
     }
 }
+
+void
+UA_NetworkMessageOffsetBuffer_clear(UA_NetworkMessageOffsetBuffer *nmob) {
+    UA_ByteString_clear(&nmob->buffer);
+
+#ifdef UA_ENABLE_PUBSUB_ENCRYPTION
+    if(nmob->nm) {
+        UA_NetworkMessage_clear(&nmob->nm);
+        UA_free(nmob->nm);
+        nmob->nm = NULL;
+    }
+    UA_ByteString_clear(&nmob->encryptBuffer);
+#endif
+
+    if(nmob->offsetsSize == 0)
+        return;
+
+    for(size_t i = 0; i < nmob->offsetsSize; i++) {
+        UA_NetworkMessageOffset *offset = &nmob->offsets[i];
+        if(offset->contentType == UA_PUBSUB_OFFSETTYPE_PAYLOAD_VARIANT ||
+           offset->contentType == UA_PUBSUB_OFFSETTYPE_PAYLOAD_RAW ||
+           offset->contentType == UA_PUBSUB_OFFSETTYPE_DATASETMESSAGE_SEQUENCENUMBER ||
+           offset->contentType == UA_PUBSUB_OFFSETTYPE_NETWORKMESSAGE_SEQUENCENUMBER) {
+            UA_DataValue_delete(offset->offsetData.value.value);
+            continue;
+        }
+
+        if(offset->contentType == UA_PUBSUB_OFFSETTYPE_NETWORKMESSAGE_FIELDENCDODING) {
+            offset->offsetData.value.value->value.data = NULL;
+            UA_DataValue_delete(offset->offsetData.value.value);
+        }
+    }
+
+    UA_free(nmob->offsets);
+    nmob->offsets = NULL;
+    nmob->offsetsSize = 0;
+}
+
+
 #endif /* UA_ENABLE_PUBSUB */
+

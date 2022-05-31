@@ -413,18 +413,8 @@ UA_Server_unfreezeWriterGroupConfiguration(UA_Server *server,
             dataSetWriter->configurationFrozen = UA_FALSE;
         }
     }
-    if(wg->config.rtLevel == UA_PUBSUB_RT_FIXED_SIZE) {
-        UA_ByteString_clear(&wg->bufferedMessage.buffer);
-#ifdef UA_ENABLE_PUBSUB_ENCRYPTION
-        if (wg->config.securityMode > UA_MESSAGESECURITYMODE_NONE) {
-            if (wg->bufferedMessage.nm != NULL) {
-                UA_ByteString_clear(&wg->bufferedMessage.nm->securityHeader.messageNonce);
-                UA_free(wg->bufferedMessage.nm);
-            }
-            UA_ByteString_clear(&wg->bufferedMessage.encryptBuffer);
-        }
-#endif
-    }
+
+    UA_NetworkMessageOffsetBuffer_clear(&wg->bufferedMessage);
 
     wg->configurationFrozen = false;
 
@@ -597,7 +587,7 @@ UA_Server_setWriterGroupEncryptionKeys(UA_Server *server, const UA_NodeId writer
 #endif
 
 void
-UA_WriterGroupConfig_clear(UA_WriterGroupConfig *writerGroupConfig){
+UA_WriterGroupConfig_clear(UA_WriterGroupConfig *writerGroupConfig) {
     UA_String_clear(&writerGroupConfig->name);
     UA_ExtensionObject_clear(&writerGroupConfig->transportSettings);
     UA_ExtensionObject_clear(&writerGroupConfig->messageSettings);
@@ -618,28 +608,14 @@ UA_WriterGroup_clear(UA_Server *server, UA_WriterGroup *writerGroup) {
         UA_Server_removeDataSetWriter(server, dataSetWriter->identifier);
     }
 
-    if(writerGroup->bufferedMessage.offsetsSize > 0){
-        for(size_t i = 0; i < writerGroup->bufferedMessage.offsetsSize; i++) {
-            if((writerGroup->bufferedMessage.offsets[i].contentType == UA_PUBSUB_OFFSETTYPE_PAYLOAD_VARIANT) ||
-                (writerGroup->bufferedMessage.offsets[i].contentType == UA_PUBSUB_OFFSETTYPE_PAYLOAD_RAW) ||
-                (writerGroup->bufferedMessage.offsets[i].contentType == UA_PUBSUB_OFFSETTYPE_DATASETMESSAGE_SEQUENCENUMBER) ||
-                (writerGroup->bufferedMessage.offsets[i].contentType == UA_PUBSUB_OFFSETTYPE_NETWORKMESSAGE_SEQUENCENUMBER)) {
-                UA_DataValue_delete(writerGroup->bufferedMessage.offsets[i].offsetData.value.value);
-            } else if(writerGroup->bufferedMessage.offsets[i].contentType == UA_PUBSUB_OFFSETTYPE_NETWORKMESSAGE_FIELDENCDODING) {
-                writerGroup->bufferedMessage.offsets[i].offsetData.value.value->value.data = NULL;
-                UA_DataValue_delete(writerGroup->bufferedMessage.offsets[i].offsetData.value.value);
-            }
-        }
-        UA_ByteString_clear(&writerGroup->bufferedMessage.buffer);
-        UA_free(writerGroup->bufferedMessage.offsets);
-    }
-
 #ifdef UA_ENABLE_PUBSUB_ENCRYPTION
     if(writerGroup->config.securityPolicy && writerGroup->securityPolicyContext) {
         writerGroup->config.securityPolicy->deleteContext(writerGroup->securityPolicyContext);
         writerGroup->securityPolicyContext = NULL;
     }
 #endif
+
+    UA_NetworkMessageOffsetBuffer_clear(&writerGroup->bufferedMessage);
 }
 
 UA_StatusCode

@@ -218,14 +218,19 @@ typedef struct {
     UA_ByteString buffer; /* The precomputed message buffer */
     UA_NetworkMessageOffset *offsets; /* Offsets for changes in the message buffer */
     size_t offsetsSize;
-    UA_Boolean RTsubscriberEnabled; /* Addtional offsets computation like publisherId, WGId if this bool enabled */
+    UA_Boolean RTsubscriberEnabled; /* Addtional offsets computation like
+                                     * publisherId, WGId if this bool enabled */
     UA_NetworkMessage *nm; /* The precomputed NetworkMessage for subscriber */
     size_t rawMessageLength;
 #ifdef UA_ENABLE_PUBSUB_ENCRYPTION
-    UA_ByteString encryptBuffer; /* The precomputed message buffer is copied into the encrypt buffer for encryption and signing*/
+    UA_ByteString encryptBuffer; /* The precomputed message buffer is copied
+                                  * into the encrypt buffer for encryption and
+                                  * signing*/
     UA_Byte *payloadPosition; /* Payload Position of the message to encrypt*/
 #endif
 } UA_NetworkMessageOffsetBuffer;
+
+void UA_NetworkMessageOffsetBuffer_clear(UA_NetworkMessageOffsetBuffer *nmob);
 
 /**
  * DataSetMessage
