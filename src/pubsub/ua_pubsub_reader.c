@@ -338,8 +338,7 @@ static UA_StatusCode
 checkReaderIdentifier(UA_Server *server, UA_NetworkMessage *msg,
                       UA_DataSetReader *reader, UA_ReaderGroupConfig readerGroupConfig) {
 if(readerGroupConfig.encodingMimeType != UA_PUBSUB_ENCODING_JSON){
-    if(!msg->groupHeaderEnabled || !msg->groupHeader.writerGroupIdEnabled ||
-       !msg->payloadHeaderEnabled) {
+    if(!msg->groupHeaderEnabled || !msg->groupHeader.writerGroupIdEnabled) {
         UA_LOG_INFO_READER(&server->config.logger, reader,
                            "Cannot process DataSetReader without WriterGroup"
                            "and DataSetWriter identifiers");
@@ -377,7 +376,8 @@ if(readerGroupConfig.encodingMimeType != UA_PUBSUB_ENCODING_JSON){
     }
 
     if(reader->config.writerGroupId == msg->groupHeader.writerGroupId &&
-       reader->config.dataSetWriterId == *msg->payloadHeader.dataSetPayloadHeader.dataSetWriterIds) {
+       (!msg->payloadHeaderEnabled ||
+        reader->config.dataSetWriterId == *msg->payloadHeader.dataSetPayloadHeader.dataSetWriterIds)) {
         UA_LOG_DEBUG_READER(&server->config.logger, reader,
                             "DataSetReader found, process NetworkMessage");
         return UA_STATUSCODE_GOOD;
