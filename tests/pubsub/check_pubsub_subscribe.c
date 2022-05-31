@@ -1654,7 +1654,7 @@ int main(void) {
     tcase_add_test(tc_pubsub_publish_subscribe, MultiPublishSubscribeInt32);
 
     Suite *suite = suite_create("PubSub readerGroups/reader/Fields handling and publishing");
-    // suite_add_tcase(suite, tc_add_pubsub_readergroup);
+    suite_add_tcase(suite, tc_add_pubsub_readergroup);
     suite_add_tcase(suite, tc_pubsub_publish_subscribe);
 
     SRunner *suiteRunner = srunner_create(suite);

@@ -83,6 +83,7 @@ getRawAddressAndPortValues(const UA_NetworkAddressUrlDataType *address, char *ou
 typedef struct UA_UDPConnectionContext {
     UA_ConnectionManager *connectionManager;
     UA_Server *server;
+    UA_PubSubConnection *connection;
     uintptr_t connectionIdPublish;
     uintptr_t connectionIdSubscribe;
 } UA_UDPConnectionContext;
@@ -136,6 +137,11 @@ UA_PubSub_udpCallbackSubscribe(UA_ConnectionManager *cm, uintptr_t connectionId,
     ctx->connectionManager = cm;
 
     UA_EventSource es = ctx->connectionManager->eventSource;
+
+    if(msg.length > 0) {
+        decodeAndProcessNetworkMessage(ctx->server, ctx->connection, &msg);
+    }
+
     // ctx->connectionId = connectionId;
     // ctx->
 
@@ -225,8 +231,10 @@ UA_KeyValueMap_merge(UA_KeyValuePair *dst, UA_KeyValuePair *lhs, size_t lhsCount
 }
 static void
 UA_openSubscribeDirection(UA_ConnectionManager *connectionManager,
-                          const UA_PubSubConnectionConfig *connectionConfig, UA_PubSubChannel *newChannel,
+                          const UA_PubSubConnection *connection, UA_PubSubChannel *newChannel,
                           const UA_NetworkAddressUrlDataType *address, char *addressAsChar, UA_UInt16 port) {
+    UA_PubSubConnectionConfig *connectionConfig = connection->config;
+
     size_t paramIdx = 0;
     UA_KeyValuePair defaultParams[UA_DEFAULT_PARAM_SIZE];
     UA_String targetHost = UA_STRING(addressAsChar);
@@ -330,8 +338,10 @@ startsWith(const char *pre, const char *str) {
  * @return ref to created channel, NULL on error
  */
 static UA_PubSubChannel *
-UA_PubSubChannelUDP_open(UA_ConnectionManager *connectionManager, const UA_PubSubConnectionConfig *connectionConfig, UA_Server *server) {
+UA_PubSubChannelUDP_open(UA_ConnectionManager *connectionManager, UA_PubSubConnection *connection, UA_Server *server) {
     UA_initialize_architecture_network();
+
+    UA_PubSubConnectionConfig *connectionConfig = connection->config;
 
     if(!UA_Variant_hasScalarType(&connectionConfig->address,
                                  &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE])) {
@@ -369,6 +379,7 @@ UA_PubSubChannelUDP_open(UA_ConnectionManager *connectionManager, const UA_PubSu
 
     UA_UDPConnectionContext *context = (UA_UDPConnectionContext *) UA_calloc(1, sizeof(UA_UDPConnectionContext));
     context->server = server;
+    context->connection = connection;
     newChannel->handle = context; /* Link channel and internal channel data */
     // void *application = NULL;
 
@@ -376,7 +387,7 @@ UA_PubSubChannelUDP_open(UA_ConnectionManager *connectionManager, const UA_PubSu
         UA_openPublishDirection(connectionManager, connectionConfig, newChannel, address, addressAsChar, port);
     }
 
-    UA_openSubscribeDirection(connectionManager, connectionConfig, newChannel, address, addressAsChar, port);
+    UA_openSubscribeDirection(connectionManager, connection, newChannel, address, addressAsChar, port);
     return newChannel;
 }
 
@@ -629,9 +640,11 @@ UA_PubSubChannelUDP_close(UA_PubSubChannel *channel) {
  * @return  ref to created channel, NULL on error
  */
 static UA_PubSubChannel *
-TransportLayerUDP_addChannel(UA_PubSubTransportLayer *tl, UA_PubSubConnectionConfig *connectionConfig) {
+TransportLayerUDP_addChannel(UA_PubSubTransportLayer *tl, void *ctx) {
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "PubSub channel requested");
-    UA_PubSubChannel * pubSubChannel = UA_PubSubChannelUDP_open(tl->connectionManager, connectionConfig, tl->server);
+    UA_PubSubConnection *connection = (UA_PubSubConnection *) ctx;
+    UA_PubSubConnectionConfig *connectionConfig= connection->config;
+    UA_PubSubChannel * pubSubChannel = UA_PubSubChannelUDP_open(tl->connectionManager, connection, tl->server);
     if(pubSubChannel){
         pubSubChannel->regist = UA_PubSubChannelUDP_regist;
         pubSubChannel->unregist = UA_PubSubChannelUDP_unregist;

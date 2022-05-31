@@ -102,7 +102,7 @@ typedef struct UA_PubSubTransportLayer {
     UA_String transportProfileUri;
     UA_ConnectionManager *connectionManager;
     UA_Server *server;
-    UA_PubSubChannel *(*createPubSubChannel)(struct UA_PubSubTransportLayer *tl, UA_PubSubConnectionConfig *connectionConfig);
+    UA_PubSubChannel *(*createPubSubChannel)(struct UA_PubSubTransportLayer *tl, void *ctx);
 } UA_PubSubTransportLayer;
 
 #endif /* UA_ENABLE_PUBSUB */
