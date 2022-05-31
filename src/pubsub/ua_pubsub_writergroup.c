@@ -430,7 +430,8 @@ UA_Server_setWriterGroupOperational(UA_Server *server,
     UA_WriterGroup *wg = UA_WriterGroup_findWGbyId(server, writerGroup);
     if(!wg)
         return UA_STATUSCODE_BADNOTFOUND;
-    return UA_WriterGroup_setPubSubState(server, UA_PUBSUBSTATE_OPERATIONAL, wg);
+    return UA_WriterGroup_setPubSubState(server, wg, UA_PUBSUBSTATE_OPERATIONAL,
+                                         UA_STATUSCODE_GOOD);
 }
 
 UA_StatusCode
@@ -439,7 +440,8 @@ UA_Server_setWriterGroupDisabled(UA_Server *server,
     UA_WriterGroup *wg = UA_WriterGroup_findWGbyId(server, writerGroup);
     if(!wg)
         return UA_STATUSCODE_BADNOTFOUND;
-    return UA_WriterGroup_setPubSubState(server, UA_PUBSUBSTATE_DISABLED, wg);
+    return UA_WriterGroup_setPubSubState(server, wg, UA_PUBSUBSTATE_DISABLED,
+                                         UA_STATUSCODE_BADRESOURCEUNAVAILABLE);
 }
 
 UA_StatusCode
@@ -622,14 +624,18 @@ UA_WriterGroup_clear(UA_Server *server, UA_WriterGroup *writerGroup) {
 }
 
 UA_StatusCode
-UA_WriterGroup_setPubSubState(UA_Server *server, UA_PubSubState state,
-                              UA_WriterGroup *writerGroup) {
+UA_WriterGroup_setPubSubState(UA_Server *server,
+                              UA_WriterGroup *writerGroup,
+                              UA_PubSubState state,
+                              UA_StatusCode cause) {
+    UA_StatusCode ret = UA_STATUSCODE_GOOD;
     UA_DataSetWriter *dataSetWriter;
+    UA_PubSubState oldState = writerGroup->state;
     switch(state) {
         case UA_PUBSUBSTATE_DISABLED:
             switch (writerGroup->state){
                 case UA_PUBSUBSTATE_DISABLED:
-                    return UA_STATUSCODE_GOOD;
+                    break;
                 case UA_PUBSUBSTATE_PAUSED:
                     break;
                 case UA_PUBSUBSTATE_OPERATIONAL:
@@ -640,7 +646,8 @@ UA_WriterGroup_setPubSubState(UA_Server *server, UA_PubSubState state,
                         UA_PubSubManager_removeRepeatedPubSubCallback(server, writerGroup->publishCallbackId);
 
                     LIST_FOREACH(dataSetWriter, &writerGroup->writers, listEntry){
-                        UA_DataSetWriter_setPubSubState(server, UA_PUBSUBSTATE_DISABLED, dataSetWriter);
+                        UA_DataSetWriter_setPubSubState(server, dataSetWriter, UA_PUBSUBSTATE_DISABLED,
+                                                        UA_STATUSCODE_BADRESOURCEUNAVAILABLE);
                     }
                     writerGroup->state = UA_PUBSUBSTATE_DISABLED;
                     break;
@@ -656,7 +663,7 @@ UA_WriterGroup_setPubSubState(UA_Server *server, UA_PubSubState state,
                 case UA_PUBSUBSTATE_DISABLED:
                     break;
                 case UA_PUBSUBSTATE_PAUSED:
-                    return UA_STATUSCODE_GOOD;
+                    break;
                 case UA_PUBSUBSTATE_OPERATIONAL:
                     break;
                 case UA_PUBSUBSTATE_ERROR:
@@ -678,15 +685,15 @@ UA_WriterGroup_setPubSubState(UA_Server *server, UA_PubSubState state,
                         UA_PubSubManager_removeRepeatedPubSubCallback(server, writerGroup->publishCallbackId);
 
                     LIST_FOREACH(dataSetWriter, &writerGroup->writers, listEntry){
-                        UA_DataSetWriter_setPubSubState(server, UA_PUBSUBSTATE_OPERATIONAL,
-                                                        dataSetWriter);
+                        UA_DataSetWriter_setPubSubState(server, dataSetWriter,
+                                                        UA_PUBSUBSTATE_OPERATIONAL, cause);
                     }
                     UA_WriterGroup_addPublishCallback(server, writerGroup);
                     break;
                 case UA_PUBSUBSTATE_PAUSED:
                     break;
                 case UA_PUBSUBSTATE_OPERATIONAL:
-                    return UA_STATUSCODE_GOOD;
+                    break;
                 case UA_PUBSUBSTATE_ERROR:
                     break;
                 default:
@@ -703,31 +710,32 @@ UA_WriterGroup_setPubSubState(UA_Server *server, UA_PubSubState state,
                 case UA_PUBSUBSTATE_OPERATIONAL:
                     UA_PubSubManager_removeRepeatedPubSubCallback(server, writerGroup->publishCallbackId);
                     LIST_FOREACH(dataSetWriter, &writerGroup->writers, listEntry){
-                        UA_DataSetWriter_setPubSubState(server, UA_PUBSUBSTATE_ERROR, dataSetWriter);
+                        UA_DataSetWriter_setPubSubState(server, dataSetWriter, UA_PUBSUBSTATE_ERROR,
+                                                        UA_STATUSCODE_GOOD);
                     }
                     break;
                 case UA_PUBSUBSTATE_ERROR:
-                    return UA_STATUSCODE_GOOD;
+                    break;
                 default:
                     UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
                                     "Received unknown PubSub state!");
             }
             writerGroup->state = UA_PUBSUBSTATE_ERROR;
-            /* TODO: WIP - example usage of pubsubStateChangeCallback -> inform
-             * application about error state, reason param necessary */
-            UA_ServerConfig *pConfig = UA_Server_getConfig(server);
-            if(pConfig->pubSubConfig.stateChangeCallback != 0) {
-                pConfig->pubSubConfig.
-                    stateChangeCallback(&writerGroup->identifier, UA_PUBSUBSTATE_ERROR,
-                                        UA_STATUSCODE_BADINTERNALERROR);
-            }
             break;
         }
         default:
             UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
                            "Received unknown PubSub state!");
     }
-    return UA_STATUSCODE_GOOD;
+    if (state != oldState) {
+        /* inform application about state change */
+        UA_ServerConfig *pConfig = UA_Server_getConfig(server);
+        if(pConfig->pubSubConfig.stateChangeCallback != 0) {
+            pConfig->pubSubConfig.
+                stateChangeCallback(&writerGroup->identifier, state, cause);
+        }
+    }
+    return ret;
 }
 
 #ifdef UA_ENABLE_PUBSUB_ENCRYPTION
@@ -1049,7 +1057,8 @@ publishRT(UA_Server *server, UA_WriterGroup *writerGroup, UA_PubSubConnection *c
     } else {
         UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
                      "Publish failed. sendBufferedNetworkMessage failed. StatusCode %s", UA_StatusCode_name(res));
-        UA_WriterGroup_setPubSubState(server, UA_PUBSUBSTATE_ERROR, writerGroup);
+        UA_WriterGroup_setPubSubState(server, writerGroup, UA_PUBSUBSTATE_ERROR,
+                                      UA_STATUSCODE_BADCOMMUNICATIONERROR);
     }
 }
 
@@ -1097,7 +1106,8 @@ setErrorStateForDataSetWritersWithIds(UA_Server *server, UA_WriterGroup *writerG
     LIST_FOREACH(dsw, &writerGroup->writers, listEntry) {
         for(size_t i = 0; i < idCount; ++i) {
             if (dsw->config.dataSetWriterId == dsWriterIds[i]) {
-                UA_DataSetWriter_setPubSubState(server, UA_PUBSUBSTATE_ERROR, dsw);
+                UA_DataSetWriter_setPubSubState(server, dsw, UA_PUBSUBSTATE_ERROR,
+                                                UA_STATUSCODE_GOOD);
                 break;
             }
         }
@@ -1163,7 +1173,8 @@ sendOrCollectDataSetMessage(UA_Server *server, UA_WriterGroup *writerGroup, UA_D
         return 0;
     }
 error:
-    UA_DataSetWriter_setPubSubState(server, UA_PUBSUBSTATE_ERROR, writer);
+    UA_DataSetWriter_setPubSubState(server, writer, UA_PUBSUBSTATE_ERROR,
+                                    UA_STATUSCODE_BADCOMMUNICATIONERROR);
     return 0;
 }
 
@@ -1250,7 +1261,8 @@ UA_WriterGroup_publishCallback(UA_Server *server, UA_WriterGroup *writerGroup) {
     return;
 
 error:
-    UA_WriterGroup_setPubSubState(server, UA_PUBSUBSTATE_ERROR, writerGroup);
+    UA_WriterGroup_setPubSubState(server, writerGroup, UA_PUBSUBSTATE_ERROR,
+                                  UA_STATUSCODE_BADCONNECTIONCLOSED);
 }
 
 /* Add new publishCallback. The first execution is triggered directly after
