@@ -1184,6 +1184,8 @@ closeSecureChannel(UA_Client *client) {
     /* Set the Session to "Created" if it was "Activated" */
     if(client->sessionState > UA_SESSIONSTATE_CREATED)
         client->sessionState = UA_SESSIONSTATE_CREATED;
+
+    client->connectStatus = UA_STATUSCODE_BADCONNECTIONCLOSED;
 }
 
 static void
