@@ -32,6 +32,20 @@ START_TEST(parseNestedObject) {
     cj5_token tokens[32];
     cj5_result r = cj5_parse(json, (unsigned int)strlen(json), tokens, 32);
     ck_assert(r.error == CJ5_ERROR_NONE);
+
+    /* Test the cj5_find method for value lookup in objects */
+    unsigned int idx = 0;
+    cj5_error_code err = cj5_find(&r, &idx, "b");
+    ck_assert_int_eq(err, CJ5_ERROR_NONE);
+    ck_assert_uint_eq(idx, 4);
+
+    err = cj5_find(&r, &idx, "c");
+    ck_assert(err == CJ5_ERROR_NONE);
+    ck_assert(idx == 6);
+
+    idx = 4;
+    err = cj5_find(&r, &idx, "d");
+    ck_assert(err == CJ5_ERROR_NOTFOUND);
 } END_TEST
 
 START_TEST(parseObjectUnquoted) {
