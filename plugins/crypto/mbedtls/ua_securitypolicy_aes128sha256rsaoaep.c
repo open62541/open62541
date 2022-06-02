@@ -143,7 +143,7 @@ asym_sign_sp_aes128sha256rsaoaep(Aes128Sha256PsaOaep_ChannelContext *cc,
 static size_t
 asym_getLocalSignatureSize_sp_aes128sha256rsaoaep(const Aes128Sha256PsaOaep_ChannelContext *cc) {
 #if MBEDTLS_VERSION_NUMBER >= 0x02060000 && MBEDTLS_VERSION_NUMBER < 0x03000000
-    return mbedtls_pk_rsa(cc->remoteCertificate.pk)->len;
+    return mbedtls_pk_rsa(cc->policyContext->localPrivateKey)->len;
 #else
     if(cc == NULL)
         return 0;
