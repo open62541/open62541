@@ -824,6 +824,7 @@ UA_PubSubChannelEthernet_open(const UA_PubSubConnectionConfig *connectionConfig)
         return NULL;
     }
 
+#ifdef __linux__
     /* Setting the socket priority to the socket */
     if(sockOptions.socketPriority) {
         if (UA_setsockopt(sockFd, SOL_SOCKET, SO_PRIORITY, sockOptions.socketPriority, sizeof(int))) {
@@ -837,6 +838,7 @@ UA_PubSubChannelEthernet_open(const UA_PubSubConnectionConfig *connectionConfig)
             return NULL;
         }
     }
+#endif
 
 #if defined(KERNEL_VERSION)
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(4,19,0))
