@@ -34,10 +34,10 @@ UA_Server *serverSubscriber = NULL;
 UA_ServerConfig *configPublisher = NULL;
 UA_ServerConfig *configSubscriber = NULL;
 
-#define UA_TYPES_DATAGRAMWRITERGROUPTRANSPORT2DATATYPE 264
-typedef struct UA_DatagramWriterGroupTransport2DataType {
-    UA_Variant address;
-} UA_DatagramWriterGroupTransport2DataType;
+// #define UA_TYPES_DATAGRAMWRITERGROUPTRANSPORT2DATATYPE 264
+// typedef struct UA_DatagramWriterGroupTransport2DataType {
+//     UA_Variant address;
+// } UA_DatagramWriterGroupTransport2DataType;
 
 // UA_NodeId publisherConnectionId;
 // UA_NodeId subscriberConnectionId;
@@ -142,12 +142,23 @@ static void setupWrittenData(UA_Server *server, UA_NodeId connectionId, UA_NodeI
     writerGroupConfig.writerGroupId = WRITER_GROUP_ID;
     writerGroupConfig.encodingMimeType = UA_PUBSUB_ENCODING_UADP;
 
+    /* Message settings in WriterGroup to include necessary headers */
+    writerGroupConfig.messageSettings.encoding             = UA_EXTENSIONOBJECT_DECODED;
+    writerGroupConfig.messageSettings.content.decoded.type = &UA_TYPES[UA_TYPES_UADPWRITERGROUPMESSAGEDATATYPE];
+    UA_UadpWriterGroupMessageDataType *writerGroupMessage  = UA_UadpWriterGroupMessageDataType_new();
+    writerGroupMessage->networkMessageContentMask =
+        (UA_UadpNetworkMessageContentMask)UA_UADPNETWORKMESSAGECONTENTMASK_PUBLISHERID |
+        (UA_UadpNetworkMessageContentMask)UA_UADPNETWORKMESSAGECONTENTMASK_GROUPHEADER |
+        (UA_UadpNetworkMessageContentMask)UA_UADPNETWORKMESSAGECONTENTMASK_WRITERGROUPID |
+        (UA_UadpNetworkMessageContentMask)UA_UADPNETWORKMESSAGECONTENTMASK_PAYLOADHEADER;
+    writerGroupConfig.messageSettings.content.decoded.data = writerGroupMessage;
+
     /* udpTransportSettings. */
     UA_DatagramWriterGroupTransport2DataType udpTransportSettings;
     memset(&udpTransportSettings, 0, sizeof(UA_DatagramWriterGroupTransport2DataType));
     UA_NetworkAddressUrlDataType url =
         {UA_STRING_NULL, UA_STRING(dstAddress)};
-    UA_Variant_setScalar(&udpTransportSettings.address, &url,
+    UA_ExtensionObject_setValue(&udpTransportSettings.address, &url,
                          &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
 
     /* Encapsulate config in transportSettings */
