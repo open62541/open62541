@@ -10,47 +10,16 @@
  * Copyright (c) 2022 Fraunhofer IOSB (Author: Jan Hermes)
  */
 
-#include <open62541/server_pubsub.h>
 #include <open62541/util.h>
 
 #include <open62541/plugin/log_stdout.h>
 #include <open62541/plugin/pubsub_udp.h>
-#include <open62541/plugin/eventloop.h>
 #include "ua_pubsub.h"
 
 #define RECEIVE_MSG_BUFFER_SIZE   4096
 #define UA_DEFAULT_PARAM_SIZE 5
 
 #define UA_MULTICAST_TTL_NO_LIMIT 255
-
-#define LEGACY_IPV4_PREFIX_MASK 0xF0000000
-#define LEGACY_IPV4_MULTICAST_PREFIX 0xE0000000
-#ifdef UA_IPV6
-#   define LEGACY_IPV6_MULTICAST_PREFIX 0xFF
-#endif
-
-typedef union {
-    struct ip_mreq ipv4;
-#if UA_IPV6
-    struct ipv6_mreq ipv6;
-#endif
-} UA_IpMulticastRequest;
-
-/* UDP multicast network layer specific internal data */
-typedef struct {
-    int ai_family;                   /* Protocol family for socket. IPv4/IPv6 */
-    struct sockaddr_storage ai_addr; /* https://msdn.microsoft.com/de-de/library/windows/desktop/ms740496(v=vs.85).aspx */
-    socklen_t ai_addrlen;            /* Address length */
-    struct sockaddr_storage intf_addr;
-    UA_UInt32 messageTTL;
-    UA_Boolean enableLoopback;
-    UA_Boolean enableReuse;
-    UA_Boolean isMulticast;
-#ifdef __linux__
-    UA_UInt32* socketPriority;
-#endif
-    UA_IpMulticastRequest ipMulticastRequest;
-} UA_PubSubChannelDataUDP;
 
 #define MAX_URL_LENGTH 512
 #define MAX_PORT_CHARACTER_COUNT 6

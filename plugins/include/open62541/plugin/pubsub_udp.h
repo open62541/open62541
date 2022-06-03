@@ -8,7 +8,6 @@
 #define UA_NETWORK_UDPMC_H_
 
 #include <open62541/plugin/pubsub.h>
-#include <open62541/plugin/eventloop.h>
 
 _UA_BEGIN_DECLS
 

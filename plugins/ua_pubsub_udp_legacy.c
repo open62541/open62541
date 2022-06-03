@@ -15,7 +15,6 @@
 
 #include <open62541/plugin/log_stdout.h>
 #include <open62541/plugin/pubsub_udp.h>
-#include "ua_pubsub.h"
 
 #define RECEIVE_MSG_BUFFER_SIZE   4096
 
