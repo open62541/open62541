@@ -15,6 +15,7 @@
 
 #include <open62541/plugin/log_stdout.h>
 #include <open62541/plugin/pubsub_udp.h>
+#include <open62541/plugin/eventloop.h>
 #include "ua_pubsub.h"
 
 #define RECEIVE_MSG_BUFFER_SIZE   4096
@@ -88,9 +89,9 @@ typedef struct UA_UDPConnectionContext {
 
 static
 UA_StatusCode
-decodeAndProcessNetworkMessage(UA_Server *server,
-                               UA_PubSubConnection *connection,
-                               UA_ByteString *buffer) {
+UA_decodeAndProcessNetworkMessage(UA_Server *server,
+                                  UA_PubSubConnection *connection,
+                                  UA_ByteString *buffer) {
     UA_NetworkMessage nm;
     memset(&nm, 0, sizeof(UA_NetworkMessage));
     size_t currentPosition = 0;
@@ -131,7 +132,7 @@ UA_PubSub_udpCallbackSubscribe(UA_ConnectionManager *cm, uintptr_t connectionId,
     ctx->connectionManager = cm;
 
     if(msg.length > 0) {
-        decodeAndProcessNetworkMessage(ctx->server, ctx->connection, &msg);
+        UA_decodeAndProcessNetworkMessage(ctx->server, ctx->connection, &msg);
     }
 }
 
