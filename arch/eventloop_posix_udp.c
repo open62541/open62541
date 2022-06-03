@@ -271,65 +271,6 @@ setSocketPriority(UA_SOCKET sockfd, UA_UInt32 *socketPriority, const UA_Logger *
 }
 #endif
 
-static UA_StatusCode
-bindChannelSocket(UA_SOCKET sockfd, struct sockaddr_storage *ai_addr, int ai_family, const UA_Logger *logger) {
-    if(ai_family == AF_INET) { //IPv4 handling
-        struct sockaddr_in addr;
-        memset(&addr, 0, sizeof(addr));
-        addr.sin_family = AF_INET;
-        memcpy(&addr, ai_addr, sizeof(struct sockaddr_in));
-        addr.sin_addr.s_addr = INADDR_ANY;
-        if(UA_bind(sockfd, (const struct sockaddr *)&addr,
-                   sizeof(struct sockaddr_in)) != 0){
-            UA_LOG_SOCKET_ERRNO_WRAP(
-                UA_LOG_ERROR(logger, UA_LOGCATEGORY_NETWORK,
-                             "PubSub connection creation failed (IPv4). Cannot bind socket: "
-                             "Error: %s", errno_str));
-            return UA_STATUSCODE_BADINTERNALERROR;
-        }
-#if UA_IPV6
-    } else if(ai_family == AF_INET6) {//IPv6 handling
-        struct sockaddr_in6 addr;
-        memset(&addr, 0, sizeof(addr));
-        addr.sin6_family = AF_INET6;
-        memcpy(&addr, ai_addr, sizeof(struct sockaddr_in6));
-        addr.sin6_addr = in6addr_any;
-        if(UA_bind(sockfd, (const struct sockaddr *)&addr,
-                   sizeof(struct sockaddr_in6)) != 0) {
-            UA_LOG_SOCKET_ERRNO_WRAP(
-                UA_LOG_ERROR(logger, UA_LOGCATEGORY_NETWORK,
-                             "PubSub connection creation failed (IPv6). Cannot bind socket: "
-                             "Error: %s", errno_str));
-
-            return UA_STATUSCODE_BADINTERNALERROR;
-        }
-#endif
-    }
-    return UA_STATUSCODE_GOOD;
-}
-
-static UA_StatusCode
-setMulticastOption(UA_SOCKET sockfd, IpMulticastRequest ipMulticastRequest, int ai_family, const UA_Logger *logger) {
-#if UA_IPV6
-    if(UA_setsockopt(sockfd,
-                     ai_family == AF_INET6 ? IPPROTO_IPV6 : IPPROTO_IP,
-                     ai_family == AF_INET6 ? IPV6_MULTICAST_IF : IP_MULTICAST_IF,
-                     ai_family == AF_INET6 ? (const void *) &ipMulticastRequest.ipv6.ipv6mr_interface : &ipMulticastRequest.ipv4.imr_interface,
-                     ai_family == AF_INET6 ? sizeof(ipMulticastRequest.ipv6.ipv6mr_interface) : sizeof(struct in_addr)) < 0)
-#else
-        if(UA_setsockopt(sockfd, IPPROTO_IP, IP_MULTICAST_IF,
-                     &ipMulticastRequest.ipv4.imr_interface, sizeof(struct in_addr)) < 0)
-#endif
-    {
-        UA_LOG_SOCKET_ERRNO_WRAP(
-            UA_LOG_ERROR(logger, UA_LOGCATEGORY_NETWORK,
-                         "PubSub Connection creation problem. Interface selection failed: "
-                         "Cannot set socket option IP_MULTICAST_IF. Error: %s",
-                         errno_str));
-        return UA_STATUSCODE_BADINTERNALERROR;
-    }
-    return UA_STATUSCODE_GOOD;
-}
 #ifdef UA_IPV6
 static UA_INLINE UA_StatusCode
 setMulticastInfoIPV6(const char *addressAsChar, IpMulticastRequest *ipMulticastRequest) {
@@ -342,18 +283,6 @@ setMulticastInfoIPV6(const char *addressAsChar, IpMulticastRequest *ipMulticastR
     return UA_STATUSCODE_GOOD;
 }
 #endif
-
-static UA_StatusCode
-setMulticastInfoIPv4(const char *addressAsChar, IpMulticastRequest *ipMulticastRequest) {
-    int convertTextAddressToBinarySuccessful = UA_inet_pton(AF_INET, addressAsChar,
-                                                            &ipMulticastRequest->ipv4.imr_multiaddr);
-    if(convertTextAddressToBinarySuccessful != 1) {
-        return UA_STATUSCODE_BADINTERNALERROR;
-    }
-    ipMulticastRequest->ipv4.imr_interface.s_addr = UA_htonl(INADDR_ANY);
-    return UA_STATUSCODE_GOOD;
-}
-
 
 static UA_StatusCode
 isMulticastAddress(const UA_Byte *address, int domain, UA_Byte mask, UA_Byte prefix, UA_Boolean *isMulticast) {
@@ -378,82 +307,6 @@ isIPv6MulticastAddress(const UA_Byte *address) {
     return isMulticast;
 }
 
-static UA_StatusCode
-setupNetworkInterface(IpMulticastRequest *ipMulticastRequest,
-                      struct sockaddr_storage *intf_addr,
-                      int ai_family, UA_String *networkInterface, const UA_Logger *logger) {/* Set configured interface */
-    UA_STACKARRAY(char, interfaceAsChar, sizeof(char) * (*networkInterface).length + 1);
-    memcpy(interfaceAsChar, (*networkInterface).data, (*networkInterface).length);
-    interfaceAsChar[(*networkInterface).length] = 0;
-
-    if(ai_family == AF_INET) {
-        if(UA_inet_pton(AF_INET, interfaceAsChar, &ipMulticastRequest->ipv4.imr_interface) <= 0) {
-            UA_LOG_ERROR(logger, UA_LOGCATEGORY_SERVER,
-                         "PubSub Connection creation problem. "
-                         "Interface configuration preparation failed.");
-            return UA_STATUSCODE_BADINTERNALERROR;
-        }
-        memcpy(intf_addr, &ipMulticastRequest->ipv4.imr_interface,
-               sizeof(ipMulticastRequest->ipv4.imr_interface));
-#if UA_IPV6
-    } else if(ai_family == AF_INET6) {
-        ipMulticastRequest->ipv6.ipv6mr_interface = UA_if_nametoindex(interfaceAsChar);
-        if(ipMulticastRequest->ipv6.ipv6mr_interface == 0) {
-            UA_LOG_ERROR(logger, UA_LOGCATEGORY_SERVER,
-                         "PubSub Connection creation problem. "
-                         "Interface configuration preparation failed.");
-            return UA_STATUSCODE_BADINTERNALERROR;
-        }
-#endif
-    } else {
-        UA_LOG_ERROR(logger, UA_LOGCATEGORY_NETWORK,
-                     "PubSub Connection creation failed. Multicast setup failed: "
-                     "unknown address family");
-        return UA_STATUSCODE_BADINTERNALERROR;
-    }
-    return UA_STATUSCODE_GOOD;
-}
-
-static UA_StatusCode
-configureMulticast(IpMulticastRequest *ipMulticastRequest,
-                   int ai_family,
-                   UA_String networkInterface,
-                   const char *addressAsChar,
-                   const UA_Logger *logger) {
-
-    struct sockaddr_storage intf_addr;
-
-    UA_StatusCode res = UA_STATUSCODE_GOOD;
-    /* Prepare for following socket options:
-     * - Set the physical interface for in- and outgoing traffic (if configured)
-     * - Join multicast group */
-    memset(ipMulticastRequest, 0, sizeof(IpMulticastRequest));
-    /* Check if the ip address is a multicast address */
-    if(ai_family == AF_INET) {
-        res = setMulticastInfoIPv4(addressAsChar, ipMulticastRequest);
-#ifdef UA_IPV6
-    } else if(ai_family == AF_INET6) {
-        res = setMulticastInfoIPV6(addressAsChar, ipMulticastRequest);
-#endif
-    } else {
-        UA_LOG_ERROR(logger, UA_LOGCATEGORY_NETWORK,
-                     "PubSub Connection creation failed. Multicast setup failed: "
-                     "unknown address family");
-        return UA_STATUSCODE_BADINTERNALERROR;
-    }
-    if(res != UA_STATUSCODE_GOOD) {
-        UA_LOG_ERROR(logger, UA_LOGCATEGORY_NETWORK,
-                     "PubSub Connection creation failed. Multicast setup failed.");
-        return UA_STATUSCODE_BADINTERNALERROR;
-    }
-    if(networkInterface.length > 0) {
-        res = setupNetworkInterface(ipMulticastRequest, &intf_addr, ai_family, &networkInterface, logger);
-        if(res != UA_STATUSCODE_GOOD) {
-            return UA_STATUSCODE_BADINTERNALERROR;
-        }
-    }
-    return UA_STATUSCODE_GOOD;
-}
 static UA_StatusCode
 setConnectionConfigurationProperties(UA_FD socket,
                                      const UA_KeyValuePair *connectionProperties,
