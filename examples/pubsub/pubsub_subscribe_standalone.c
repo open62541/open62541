@@ -123,7 +123,7 @@ int main(int argc, char **argv) {
     signal(SIGINT, stopHandler);
     signal(SIGTERM, stopHandler);
 
-    UA_PubSubTransportLayer udpLayer = UA_PubSubTransportLayerUDPMC();
+    UA_PubSubTransportLayer udpLayer = UA_PubSubTransportLayerUDPMP();
 
     UA_PubSubConnectionConfig connectionConfig;
     memset(&connectionConfig, 0, sizeof(connectionConfig));

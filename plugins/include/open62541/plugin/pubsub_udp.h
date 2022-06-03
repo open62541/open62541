@@ -16,7 +16,7 @@ UA_PubSubTransportLayer UA_EXPORT
 UA_PubSubTransportLayerUDP(void);
 
 UA_PubSubTransportLayer UA_EXPORT
-UA_PubSubTransportLayerUDPMC(void);
+UA_PubSubTransportLayerUDPMP(void);
 
 _UA_END_DECLS
 
