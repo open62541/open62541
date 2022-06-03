@@ -39,7 +39,8 @@
 //  [x] Additional white space characters are allowed.
 //
 // Extensions to JSON5 (more permissive):
-//  [x] If no root object is defined, a "virtual root object" is assumed.
+//  [x] Root objects can be an array or a primitive value
+//  [x] The root object may omit the surrounding brackets
 //  [x] Hash ('#') comments out until the end of the line.
 //  [x] Strings may include unescaped utf8 bytes
 //
