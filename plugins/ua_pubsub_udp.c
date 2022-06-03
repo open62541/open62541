@@ -28,8 +28,6 @@
 #   define IPV6_MULTICAST_PREFIX 0xFF
 #endif
 
-static UA_THREAD_LOCAL UA_Byte ReceiveMsgBufferUDP[RECEIVE_MSG_BUFFER_SIZE];
-
 typedef union {
     struct ip_mreq ipv4;
 #if UA_IPV6
@@ -87,10 +85,6 @@ typedef struct UA_UDPConnectionContext {
     uintptr_t connectionIdPublish;
     uintptr_t connectionIdSubscribe;
 } UA_UDPConnectionContext;
-typedef struct UA_UDPConnectionContextSubscriber {
-    UA_ConnectionManager *connectionManager;
-    uintptr_t connectionId;
-} UA_UDPConnectionContextSubscriber ;
 
 static
 UA_StatusCode
@@ -111,7 +105,7 @@ decodeAndProcessNetworkMessage(UA_Server *server,
     }
 
     rv = UA_Server_processNetworkMessage(server, connection, &nm);
-    // TODO: check what action to perform on error (nothing?)
+    /* TODO: check what action to perform on error (nothing?) */
     if(rv != UA_STATUSCODE_GOOD) {
         UA_LOG_WARNING(&config->logger, UA_LOGCATEGORY_SERVER,
                        "Subscribe failed. process network message failed.");
@@ -154,18 +148,6 @@ UA_PubSub_udpCallbackPublish(UA_ConnectionManager *cm, uintptr_t connectionId,
     UA_UDPConnectionContext *ctx = (UA_UDPConnectionContext *) *connectionContext;
     ctx->connectionIdPublish = connectionId;
     ctx->connectionManager = cm;
-
-    UA_EventSource es = ctx->connectionManager->eventSource;
-    // ctx->connectionId = connectionId;
-    // ctx->
-
-    // UA_StatusCode retval = receiveCallback(channel, receiveCallbackContext, msg);
-    // if(retval != UA_STATUSCODE_GOOD) {
-    //     UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_NETWORK,
-    //                    "PubSub Connection decode and process failed.");
-    //     return;
-    // }
-
 }
 
 static size_t
