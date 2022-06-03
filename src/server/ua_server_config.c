@@ -118,6 +118,10 @@ UA_ServerConfig_addPubSubTransportLayer(UA_ServerConfig *config,
     config->pubSubConfig.transportLayers = tmpLayers;
     config->pubSubConfig.transportLayers[config->pubSubConfig.transportLayersSize] = pubsubTransportLayer;
     config->pubSubConfig.transportLayersSize++;
+
+    UA_EventLoop *el = config->eventLoop;
+    el->registerEventSource(el, &pubsubTransportLayer.connectionManager->eventSource);
+
     return UA_STATUSCODE_GOOD;
 }
 #endif /* UA_ENABLE_PUBSUB */

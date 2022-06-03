@@ -356,8 +356,9 @@ UA_PubSubChannelMQTT_yield(UA_PubSubChannel *channel, UA_UInt16 timeout){
  * @return  ref to created channel, NULL on error
  */
 static UA_PubSubChannel *
-TransportLayerMQTT_addChannel(UA_PubSubConnectionConfig *connectionConfig) {
+TransportLayerMQTT_addChannel(UA_PubSubTransportLayer *tl, void *ctx) {
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "PubSub MQTT: channel requested.");
+    UA_PubSubConnectionConfig *connectionConfig = NULL;
     UA_PubSubChannel * pubSubChannel = UA_PubSubChannelMQTT_open(connectionConfig);
     if(pubSubChannel){
         pubSubChannel->regist = UA_PubSubChannelMQTT_regist;

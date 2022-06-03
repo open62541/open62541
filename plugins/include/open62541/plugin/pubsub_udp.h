@@ -13,7 +13,7 @@
 _UA_BEGIN_DECLS
 
 UA_PubSubTransportLayer UA_EXPORT
-UA_PubSubTransportLayerUDP(UA_Server *server);
+UA_PubSubTransportLayerUDP(void);
 
 UA_PubSubTransportLayer UA_EXPORT
 UA_PubSubTransportLayerUDPMC(void);

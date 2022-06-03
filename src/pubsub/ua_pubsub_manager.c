@@ -152,6 +152,7 @@ UA_Server_addPubSubConnection(UA_Server *server,
     UA_TransportLayerContext ctx;
     ctx.connection = newConnectionsField;
     ctx.writerGroup = NULL;
+    ctx.server = server;
 
     /* Open the communication channel */
     newConnectionsField->channel = tl->createPubSubChannel(tl, &ctx);

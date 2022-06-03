@@ -124,6 +124,8 @@ UA_Server_addWriterGroup(UA_Server *server, const UA_NodeId connection,
                 UA_TransportLayerContext ctx;
                 ctx.writerGroup = newWriterGroup;
                 ctx.connection = currentConnectionContext;
+                ctx.server = server;
+
                 newWriterGroup->isUnicast = true;
                 newWriterGroup->channel = tl->createPubSubChannel(tl, &ctx);
             }

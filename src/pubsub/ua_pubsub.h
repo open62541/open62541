@@ -187,6 +187,7 @@ struct UA_WriterGroup {
 typedef struct {
     UA_PubSubConnection *connection;
     UA_WriterGroup *writerGroup;
+    UA_Server *server;
 } UA_TransportLayerContext;
 
 UA_StatusCode

@@ -307,7 +307,8 @@ startsWith(const char *pre, const char *str) {
  * @return ref to created channel, NULL on error
  */
 static UA_PubSubChannel *
-UA_PubSubChannelUDP_open(UA_ConnectionManager *connectionManager, UA_PubSubConnection *connection, UA_Server *server, UA_NetworkAddressUrlDataType *address) {
+UA_PubSubChannelUDP_open(UA_ConnectionManager *connectionManager, UA_PubSubConnection *connection,
+                         UA_Server *server, UA_NetworkAddressUrlDataType *address) {
     UA_initialize_architecture_network();
 
     UA_PubSubConnectionConfig *connectionConfig = connection->config;
@@ -561,6 +562,7 @@ TransportLayerUDP_addChannel(UA_PubSubTransportLayer *tl, void *ctx) {
     UA_PubSubConnection *connection = (UA_PubSubConnection *) tctx->connection;
     UA_PubSubConnectionConfig *connectionConfig = connection->config;
     UA_PubSubChannel *pubSubChannel = NULL;
+    UA_Server *server = tctx->server;
 
     if(!UA_Variant_hasScalarType(&connectionConfig->address,
                                  &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE])) {
@@ -573,9 +575,9 @@ TransportLayerUDP_addChannel(UA_PubSubTransportLayer *tl, void *ctx) {
 
     if(tctx->writerGroup)  {
         address = tctx->writerGroup->address;
-        pubSubChannel = UA_PubSubChannelUDP_openUnicast(tl->connectionManager, connection, tl->server, address);
+        pubSubChannel = UA_PubSubChannelUDP_openUnicast(tl->connectionManager, connection, server, address);
     } else {
-        pubSubChannel = UA_PubSubChannelUDP_open(tl->connectionManager, connection, tl->server, address);
+        pubSubChannel = UA_PubSubChannelUDP_open(tl->connectionManager, connection, server, address);
     }
 
     if(pubSubChannel){
@@ -591,14 +593,14 @@ TransportLayerUDP_addChannel(UA_PubSubTransportLayer *tl, void *ctx) {
 
 //UDP channel factory
 UA_PubSubTransportLayer
-UA_PubSubTransportLayerUDP(UA_Server* server) {
-    UA_ServerConfig *config = UA_Server_getConfig(server);
-    UA_EventLoop *el = config->eventLoop;
+UA_PubSubTransportLayerUDP(void) {
+    // UA_ServerConfig *config = UA_Server_getConfig(server);
+    // UA_EventLoop *el = config->eventLoop;
 
     UA_PubSubTransportLayer pubSubTransportLayer;
     pubSubTransportLayer.connectionManager = UA_ConnectionManager_new_POSIX_UDP(UA_STRING("udp-cm"));
-    pubSubTransportLayer.server = server;
-    el->registerEventSource(el, &pubSubTransportLayer.connectionManager->eventSource);
+    // pubSubTransportLayer.server = server;
+    // el->registerEventSource(el, &pubSubTransportLayer.connectionManager->eventSource);
 
     pubSubTransportLayer.transportProfileUri =
         UA_STRING("http://opcfoundation.org/UA-Profile/Transport/pubsub-udp-uadp");
