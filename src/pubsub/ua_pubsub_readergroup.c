@@ -129,6 +129,7 @@ UA_Server_addReaderGroup(UA_Server *server, UA_NodeId connectionIdentifier,
     if(!newGroup)
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
+    memset(newGroup, 0, sizeof(UA_ReaderGroup));
     newGroup->componentType = UA_PUBSUB_COMPONENT_READERGROUP;
     /* Generate nodeid for the readergroup identifier */
     newGroup->linkedConnection = currentConnectionContext->identifier;
