@@ -111,11 +111,32 @@ START_TEST(parseObjectNoRoot) {
     ck_assert(r.error == CJ5_ERROR_NONE);
 } END_TEST
 
+START_TEST(parseObjectNoRootUnquoted) {
+    const char *json = "a:1, 'b':2";
+    cj5_token tokens[32];
+    cj5_result r = cj5_parse(json, (unsigned int)strlen(json), tokens, 32);
+    ck_assert(r.error == CJ5_ERROR_NONE);
+} END_TEST
+
 START_TEST(parseObjectCloseNoRoot) {
     const char *json = "'a':1, 'b':2}";
     cj5_token tokens[32];
     cj5_result r = cj5_parse(json, (unsigned int)strlen(json), tokens, 32);
     ck_assert(r.error == CJ5_ERROR_INVALID);
+} END_TEST
+
+START_TEST(parseArray) {
+    const char *json = "[1,2,3,null]";
+    cj5_token tokens[32];
+    cj5_result r = cj5_parse(json, (unsigned int)strlen(json), tokens, 32);
+    ck_assert(r.error == CJ5_ERROR_NONE);
+} END_TEST
+
+START_TEST(parseValue) {
+    const char *json = "null";
+    cj5_token tokens[32];
+    cj5_result r = cj5_parse(json, (unsigned int)strlen(json), tokens, 32);
+    ck_assert(r.error == CJ5_ERROR_NONE);
 } END_TEST
 
 static Suite *testSuite_builtin_json(void) {
@@ -128,7 +149,10 @@ static Suite *testSuite_builtin_json(void) {
     tcase_add_test(tc_parse, parseObjectWrongBracket2);
     tcase_add_test(tc_parse, parseObjectIncomplete);
     tcase_add_test(tc_parse, parseObjectNoRoot);
+    tcase_add_test(tc_parse, parseObjectNoRootUnquoted);
     tcase_add_test(tc_parse, parseObjectCloseNoRoot);
+    tcase_add_test(tc_parse, parseArray);
+    tcase_add_test(tc_parse, parseValue);
 
     Suite *s = suite_create("Test JSON decoding with the cj5 library");
     suite_add_tcase(s, tc_parse);

@@ -261,7 +261,7 @@ cj5__parse_key(cj5__parser* parser) {
     unsigned int start = parser->pos;
     cj5_token* token;
 
-    // A normal string
+    // Key is a a normal string
     if(json5[start] == '\"' || json5[start] == '\'') {
         cj5__parse_string(parser);
         return;
@@ -285,7 +285,7 @@ cj5__parse_key(cj5__parser* parser) {
         return;
     }
 
-    // Move pos to the last character within the key
+    // Move pos to the last character within the unquoted key
     parser->pos--;
 
     token = cj5__alloc_token(parser);
@@ -301,21 +301,48 @@ cj5__parse_key(cj5__parser* parser) {
 static void
 cj5__skip_comment(cj5__parser* parser) {
     const char* json5 = parser->json5;
-    for(; parser->pos < parser->len; parser->pos++) {
-        if(json5[parser->pos] == '\n' || json5[parser->pos] == '\r')
-            return;
-    }
-}
 
-static void
-cj5__skip_multiline_comment(cj5__parser *parser) {
-    const char* json5 = parser->json5;
-    unsigned int len = parser->len;
-    for(; parser->pos < len; parser->pos++) {
-        if(json5[parser->pos] == '*' && parser->pos + 1 < len &&
-           json5[parser->pos+1] == '/')
-            return;
+    // Single-line comment
+    if(json5[parser->pos] == '#') {
+    skip_line:
+        while(parser->pos < parser->len) {
+            if(json5[parser->pos] == '\n') {
+                parser->pos--; // Reparse the newline in the main parse loop
+                return;
+            }
+            parser->pos++;
+        }
+        return;
     }
+
+    // Comment begins with '/' but not enough space for another character
+    if(parser->pos + 1 >= parser->len) {
+        parser->error = CJ5_ERROR_INVALID;
+        return;
+    }
+    parser->pos++;
+
+    // Comment begins with '//' -> single-line comment
+    if(json5[parser->pos] == '/')
+        goto skip_line;
+
+    // Multi-line comments begin with '/*' and end with '*/'
+    if(json5[parser->pos] == '*') {
+        parser->pos++;
+        for(; parser->pos + 1 <= parser->len; parser->pos++) {
+            if(json5[parser->pos] == '*' && json5[parser->pos + 1] == '/') {
+                parser->pos++;
+                return;
+            }
+            // Remember we passed a newline
+            if(json5[parser->pos] == '\n') {
+                parser->line++;
+                parser->line_start = parser->pos;
+            }
+        }
+    }
+
+    // Unknown comment type or the multi-line comment is not terminated
     parser->error = CJ5_ERROR_INCOMPLETE;
 }
 
@@ -331,46 +358,39 @@ cj5_parse(const char *json5, unsigned int len,
     parser.tokens = tokens;
     parser.max_tokens = max_tokens;
 
-    // The nesting depth zero means "outside the root object"
-    unsigned short depth = 0;
+    unsigned short depth = 0; // Nesting depth zero means "outside the root object"
     char nesting[CJ5_MAX_NESTING]; // Contains either '\0', '{' or '[' for the
                                    // type of nesting at each depth. '\0'
                                    // indicates we are out of the root object.
-    char slot[CJ5_MAX_NESTING];    // Next content to parse: 'k' (key), ':', 'v'
+    char next[CJ5_MAX_NESTING];    // Next content to parse: 'k' (key), ':', 'v'
                                    // (value) or ',' (komma).
+    next[0] = 'v';  // The root is a "value" (object, array or primitive). If we
+                    // detect a colon after the first value then everything is
+                    // wrapped into a "virtual root object" and the parsing is
+                    // restarted.
     nesting[0] = 0; // Becomes '{' if there is a virtual root object
-    slot[0] = 0;
-    bool before_root = true;
-    cj5_token *token = NULL;
 
+    cj5_token *token = NULL; // The current token
+
+ start_parsing:
     for(; parser.pos < len; parser.pos++) {
         CJ5_ASSERT(!token || token == &tokens[parser.curr_tok_idx]);
 
         char c = json5[parser.pos];
         switch(c) {
-        case '\n': // Newline
+        case '\n': // Skip newline
             parser.line++;
             parser.line_start = parser.pos;
             break;
 
-        case '\r': // Whitespace
+        case '\r': // Skip whitespace
         case '\t':
         case ' ':
             break;
 
-        case '#': // Comment
+        case '#': // Skip comment
         case '/':
-            if(json5[parser.pos] == '#') {
-                cj5__skip_comment(&parser);
-            } else {
-                if(parser.pos + 1 >= parser.len) {
-                    parser.error = CJ5_ERROR_INVALID;
-                } else if(json5[parser.pos + 1] == '/') {
-                    cj5__skip_comment(&parser);
-                } else if(json5[parser.pos + 1] == '*') {
-                    cj5__skip_multiline_comment(&parser);
-                }
-            }
+            cj5__skip_comment(&parser);
             if(parser.error != CJ5_ERROR_NONE &&
                parser.error != CJ5_ERROR_OVERFLOW)
                 goto finish;
@@ -384,19 +404,15 @@ cj5_parse(const char *json5, unsigned int len,
                 goto finish;
             }
 
-            // Correct slot?
-            if(slot[depth] != 'v') {
-                // Start the root object
-                if(!before_root || c != '{') {
-                    parser.error = CJ5_ERROR_INVALID;
-                    goto finish;
-                }
-                before_root = false;
+            // Correct next?
+            if(next[depth] != 'v') {
+                parser.error = CJ5_ERROR_INVALID;
+                goto finish;
             }
 
-            depth++; // Increase the nesting
-            nesting[depth] = c;
-            slot[depth] = (c == '{') ? 'k' : 'v';
+            depth++; // Increase the nesting depth
+            nesting[depth] = c; // Set the nesting type
+            next[depth] = (c == '{') ? 'k' : 'v'; // next is either a key or a value
 
             // Create a token for the object or array
             token = cj5__alloc_token(&parser);
@@ -423,7 +439,7 @@ cj5_parse(const char *json5, unsigned int len,
             // '{' == 2. Arrays can always be closed. Objects can only close
             // when a key or a comma is expected.
             if(c - nesting[depth] != 2 ||
-               (c == '}' && slot[depth] != 'k' && slot[depth] != ',')) {
+               (c == '}' && next[depth] != 'k' && next[depth] != ',')) {
                 parser.error = CJ5_ERROR_INVALID;
                 goto finish;
             }
@@ -434,69 +450,58 @@ cj5_parse(const char *json5, unsigned int len,
             // Move to the parent and increase the parent size
             parser.curr_tok_idx = token->parent_id;
             token = &tokens[token->parent_id];
+            token->size++;
 
             // Step one level up
             depth--;
-            bool close_root = (depth == 0);
-            slot[depth] = (close_root) ? 0 : ','; // zero if we step out the root object
-
-            // Closing and not inside the root object. Count the current object as
-            // one value for the parent.
-            if(!close_root)
-                token->size++;
+            next[depth] = (depth == 0) ? 0 : ','; // zero if we step out the root
+                                                  // object. then we do not look for
+                                                  // another element.
             break;
 
         case ':': // Colon (between key and value)
-            if(slot[depth] != ':') {
+            if(next[depth] != ':') {
                 parser.error = CJ5_ERROR_INVALID;
                 goto finish;
             }
-            slot[depth] = 'v';
+            next[depth] = 'v';
             break;
 
         case ',': // Comma
-            if(slot[depth] != ',') {
+            if(next[depth] != ',') {
                 parser.error = CJ5_ERROR_INVALID;
                 goto finish;
             }
-            slot[depth] = (nesting[depth] == '{') ? 'k' : 'v';
+            next[depth] = (nesting[depth] == '{') ? 'k' : 'v';
             break;
 
-        default: // Value
-            if(slot[depth] == 'v') {
+        default: // Value or key
+            if(next[depth] == 'v') {
                 cj5__parse_primitive(&parser); // Parse primitive value
-                token->size++; // One more value for the parent
-                slot[depth] = ',';
-            } else if(slot[depth] == 'k') {
-                cj5__parse_key(&parser); // Parse key
-                token->size++; // Keys count towards the length
-                slot[depth] = ':';
-            } else {
-                if(before_root) {
-                    // Create a virtual root object and restart parsing
-                    CJ5_ASSERT(depth == 0);
-                    nesting[0] = '{';
-                    slot[0] = 'k';
-                    token = cj5__alloc_token(&parser);
-                    if(token) {
-                        token->parent_id = parser.curr_tok_idx;
-                        token->type = CJ5_TOKEN_OBJECT;
-                        token->start = parser.pos;
-                        token->size = 0;
-                        parser.curr_tok_idx = parser.token_count - 1;
-                    }
-                    parser.pos--; // Reparse the current character
-                } else {
-                    parser.error = CJ5_ERROR_INVALID;
+                if(nesting[depth] != 0) { // Parent is object or array
+                    token->size++;
+                    next[depth] = ',';
+                } else { // The current value was the root element. Don't look for
+                         // any next element.
+                    next[depth] = 0;
                 }
+            } else if(next[depth] == 'k') {
+                CJ5_ASSERT(nesting[depth] == '{');
+                cj5__parse_key(&parser);
+                token->size++; // Keys count towards the length
+                next[depth] = ':';
+            } else {
+                parser.error = CJ5_ERROR_INVALID;
             }
+
             if(parser.error && parser.error != CJ5_ERROR_OVERFLOW)
                 goto finish;
+
             break;
         }
     }
 
-    // The initial object was not closed
+    // Are we back to the initial nesting depth?
     if(depth != 0) {
         parser.error = CJ5_ERROR_INCOMPLETE;
         goto finish;
@@ -504,9 +509,30 @@ cj5_parse(const char *json5, unsigned int len,
 
     // Close the virtual root object if there is one
     if(nesting[0] == '{' && parser.error != CJ5_ERROR_OVERFLOW)
-        tokens[parser.curr_tok_idx].end = parser.pos - 1;
+        tokens[0].end = parser.pos - 1;
 
  finish:
+    // If parsing failed at the initial nesting depth, create a virtual root object
+    // and restart parsing.
+    if(parser.error != CJ5_ERROR_NONE && depth == 0 && nesting[0] != '{') {
+        parser.token_count = 0;
+        token = cj5__alloc_token(&parser);
+        if(token) {
+            token->parent_id = 0;
+            token->type = CJ5_TOKEN_OBJECT;
+            token->start = 0;
+            token->size = 0;
+
+            nesting[0] = '{';
+            next[0] = 'k';
+
+            parser.curr_tok_idx = 0;
+            parser.pos = 0;
+            parser.error = CJ5_ERROR_NONE;
+            goto start_parsing;
+        }
+    }
+
     memset(&r, 0x0, sizeof(r));
     r.error = parser.error;
     r.error_line = parser.line;
@@ -634,11 +660,11 @@ cj5_get_str(const cj5_result *r, unsigned int tok_index,
                     pos++;
                     uint8_t byte = (uint8_t)*pos;
                     if(byte >= '0' && byte <= '9') {
-                        byte = byte - (uint8_t)'0';
+                        byte = (uint8_t)(byte - (uint8_t)'0');
                     } else if(byte >= 'a' && byte <='f') {
-                        byte = byte - (uint8_t)('a' - 10);
+                        byte = (uint8_t)(byte - (uint8_t)('a' - 10));
                     } else if(byte >= 'A' && byte <='F') {
-                        byte = byte - (uint8_t)('A' - 10);
+                        byte = (uint8_t)(byte - (uint8_t)('A' - 10));
                     } else {
                         return CJ5_ERROR_INVALID;
                     }
