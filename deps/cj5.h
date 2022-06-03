@@ -104,9 +104,11 @@ typedef struct cj5_token {
     cj5_token_type type;
     unsigned int start;     // Start position in the json5 string
     unsigned int end;       // Position of the last character (included)
-    unsigned int size;      // Number of direct children. For objects, both key and value
-                            // are counted. Note that this is *not*
-                            // the number of overall (recursively nested) child tokens.
+    unsigned int size;      // For objects and arrays the number of direct
+                            // children. Note that this is *not* the number of
+                            // overall (recursively nested) child tokens. For
+                            // other tokens the length of token in the json
+                            // encoding.
     unsigned int parent_id; // The root object is at position zero. It is an
                             // object that has itself as parent.
 } cj5_token;
@@ -125,20 +127,23 @@ cj5_parse(const char *json5, unsigned int len,
           cj5_token *tokens, unsigned int max_tokens);
 
 CJ5_API cj5_error_code
-cj5_get_float(const cj5_result *parse_result, unsigned int tok_index, double *out);
+cj5_get_bool(const cj5_result *r, unsigned int tok_index, bool *out);
 
 CJ5_API cj5_error_code
-cj5_get_int(const cj5_result *parse_result, unsigned int tok_index, int64_t *out);
+cj5_get_float(const cj5_result *r, unsigned int tok_index, double *out);
 
 CJ5_API cj5_error_code
-cj5_get_uint(const cj5_result *parse_result, unsigned int tok_index, uint64_t *out);
+cj5_get_int(const cj5_result *r, unsigned int tok_index, int64_t *out);
+
+CJ5_API cj5_error_code
+cj5_get_uint(const cj5_result *r, unsigned int tok_index, uint64_t *out);
 
 // Replaces escape characters, utf8 codepoints, etc.
 // The buffer shall have a length of at least token->end - token->start + 1.
 // Upon success, the length is written to buflen.
 // The output string is terminated with \0.
 CJ5_API cj5_error_code
-cj5_get_str(const cj5_result *parse_result, unsigned int tok_index,
+cj5_get_str(const cj5_result *r, unsigned int tok_index,
             char *buf, unsigned int *buflen);
 
 // Skips the (nested) structure that starts at the current index. The index is
@@ -150,13 +155,13 @@ cj5_get_str(const cj5_result *parse_result, unsigned int tok_index,
 //
 // Cannot fail as long as the token array is the result of cj5_parse.
 CJ5_API void
-cj5_skip(const cj5_result *parse_result, unsigned int *tok_index);
+cj5_skip(const cj5_result *r, unsigned int *tok_index);
 
 // Lookup of a key within an object (linear search).
 // The current token (index) must point to an object.
 // The error code CJ5_ERROR_NOTFOUND is returned if the key is not present.
 // Otherwise the index is updated to point to the value associated with the key.
 CJ5_API cj5_error_code
-cj5_find(const cj5_result *parse_result, unsigned int *tok_index, const char *key);
+cj5_find(const cj5_result *r, unsigned int *tok_index, const char *key);
 
 #endif /* __CJ5_H_ */
