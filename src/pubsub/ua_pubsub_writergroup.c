@@ -377,19 +377,24 @@ UA_Server_unfreezeWriterGroupConfiguration(UA_Server *server,
     UA_WriterGroup *wg = UA_WriterGroup_findWGbyId(server, writerGroup);
     if(!wg)
         return UA_STATUSCODE_BADNOTFOUND;
+
+    /* Already unfrozen */
+    if(!wg->configurationFrozen)
+        return UA_STATUSCODE_GOOD;
+    
     //if(wg->config.rtLevel == UA_PUBSUB_RT_NONE){
     //    UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
     //                   "PubSub configuration freeze without RT configuration has no effect.");
     //    return UA_STATUSCODE_BADCONFIGURATIONERROR;
     //}
     //PubSubConnection freezeCounter--
+
     UA_PubSubConnection *pubSubConnection =  wg->linkedConnection;
     pubSubConnection->configurationFreezeCounter--;
     if(pubSubConnection->configurationFreezeCounter == 0){
         pubSubConnection->configurationFrozen = UA_FALSE;
     }
-    //WriterGroup unfreeze
-    wg->configurationFrozen = UA_FALSE;
+
     //DataSetWriter unfreeze
     UA_DataSetWriter *dataSetWriter;
     LIST_FOREACH(dataSetWriter, &wg->writers, listEntry) {
@@ -420,6 +425,8 @@ UA_Server_unfreezeWriterGroupConfiguration(UA_Server *server,
         }
 #endif
     }
+
+    wg->configurationFrozen = false;
 
     return UA_STATUSCODE_GOOD;
 }
