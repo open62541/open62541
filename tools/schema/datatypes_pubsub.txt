@@ -54,3 +54,4 @@ PublishedEventsDataType
 DatagramConnectionTransportDataType
 DatagramWriterGroupTransportDataType
 DatagramWriterGroupTransport2DataType
+DatagramConnectionTransport2DataType
