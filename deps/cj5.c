@@ -25,6 +25,7 @@
 #include "parse_num.h"
 
 #include <math.h>
+#include <float.h>
 #include <string.h>
 
 #if defined(_DEBUG) || defined(NDEBUG)
@@ -44,10 +45,10 @@
 
 /* vs2008 does not have INFINITY and NAN defined */
 #ifndef INFINITY
-# define INFINITY ((UA_Double)(DBL_MAX+DBL_MAX))
+# define INFINITY ((double)(DBL_MAX+DBL_MAX))
 #endif
 #ifndef NAN
-# define NAN ((UA_Double)(INFINITY-INFINITY))
+# define NAN ((double)(INFINITY-INFINITY))
 #endif
 
 // Max nesting depth of objects and arrays
