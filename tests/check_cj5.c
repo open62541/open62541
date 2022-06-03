@@ -7,7 +7,7 @@
 #include "cj5.h"
 
 START_TEST(parseObject) {
-    const char *json = "{'a':1.0, 'b':2}";
+    const char *json = "{'a':1.0, 'b':2, 'c':'abcde'}";
     cj5_token tokens[32];
     cj5_result r = cj5_parse(json, (unsigned int)strlen(json), tokens, 32);
     ck_assert(r.error == CJ5_ERROR_NONE);
@@ -15,6 +15,8 @@ START_TEST(parseObject) {
     cj5_error_code err = cj5_get_float(&r, 2, &d);
     ck_assert(err == CJ5_ERROR_NONE);
     ck_assert(d == 1.0);
+
+    ck_assert_uint_eq(tokens[6].size, 5);
 } END_TEST
 
 START_TEST(parseUTF8) {
@@ -25,10 +27,12 @@ START_TEST(parseUTF8) {
     char buf[32];
     cj5_error_code err = cj5_get_str(&r, 2, buf, NULL);
     ck_assert(err == CJ5_ERROR_NONE);
+
+    ck_assert_uint_eq(tokens[2].size, 16);
 } END_TEST
 
 START_TEST(parseNestedObject) {
-    const char *json = "{'a':{}, 'b':{'c':3}}";
+    const char *json = "{'a':{}, 'b':{'c':3}, 'd':true, 'e':false, 'f':null, 'g':[]}";
     cj5_token tokens[32];
     cj5_result r = cj5_parse(json, (unsigned int)strlen(json), tokens, 32);
     ck_assert(r.error == CJ5_ERROR_NONE);
@@ -43,13 +47,37 @@ START_TEST(parseNestedObject) {
     ck_assert(err == CJ5_ERROR_NONE);
     ck_assert(idx == 6);
 
+    int64_t val = 0;
+    cj5_get_int(&r, idx, &val);
+    ck_assert(val == 3);
+
     idx = 4;
     err = cj5_find(&r, &idx, "d");
     ck_assert(err == CJ5_ERROR_NOTFOUND);
+
+    idx = 0;
+    err = cj5_find(&r, &idx, "d");
+    ck_assert_int_eq(err, CJ5_ERROR_NONE);
+
+    bool bval = 0;
+    cj5_get_bool(&r, idx, &bval);
+    ck_assert(bval == true);
+
+    idx = 0;
+    err = cj5_find(&r, &idx, "e");
+    ck_assert_int_eq(err, CJ5_ERROR_NONE);
+
+    cj5_get_bool(&r, idx, &bval);
+    ck_assert(bval == false);
+
+    idx = 0;
+    err = cj5_find(&r, &idx, "f");
+    ck_assert_int_eq(err, CJ5_ERROR_NONE);
+    ck_assert(tokens[idx].type == CJ5_TOKEN_NULL);
 } END_TEST
 
 START_TEST(parseObjectUnquoted) {
-    const char *json = "{'a':1, b:2}";
+    const char *json = "{'a':1, b:true}";
     cj5_token tokens[32];
     cj5_result r = cj5_parse(json, (unsigned int)strlen(json), tokens, 32);
     ck_assert(r.error == CJ5_ERROR_NONE);
