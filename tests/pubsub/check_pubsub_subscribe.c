@@ -95,7 +95,7 @@ static void setup(void) {
     config = UA_Server_getConfig(server);
     UA_ServerConfig_setMinimal(config, UA_SUBSCRIBER_PORT, NULL);
     UA_Server_run_startup(server);
-    UA_ServerConfig_addPubSubTransportLayer(config, UA_PubSubTransportLayerUDP(server));
+    UA_ServerConfig_addPubSubTransportLayer(config, UA_PubSubTransportLayerUDP());
 
     addVariables();
 

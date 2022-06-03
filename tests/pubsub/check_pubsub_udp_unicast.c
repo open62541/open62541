@@ -64,7 +64,7 @@ static void setupPubSubServer(UA_Server **server, UA_ServerConfig **config, UA_U
 
     UA_ServerConfig_setMinimal(*config, portNumber, NULL);
     UA_Server_run_startup(*server);
-    UA_ServerConfig_addPubSubTransportLayer(*config, UA_PubSubTransportLayerUDP(*server));
+    UA_ServerConfig_addPubSubTransportLayer(*config, UA_PubSubTransportLayerUDP());
 }
 
 static void addUDPConnection(UA_Server *server, const char *host, UA_Int16 portNumber, UA_NodeId *outConnectionId) {
