@@ -485,7 +485,7 @@ UA_CertificateVerification_Verify (void *                verificationContext,
     /* Set flag to check if the certificate has an invalid signature */
     X509_STORE_CTX_set_flags (storeCtx, X509_V_FLAG_CHECK_SS_SIGNATURE);
 
-    if (X509_STORE_CTX_get_check_issued(storeCtx) (storeCtx,certificateX509, certificateX509) != 1) {
+    if (X509_check_issued(certificateX509,certificateX509) != X509_V_OK) {
         X509_STORE_CTX_set_flags (storeCtx, X509_V_FLAG_CRL_CHECK);
     }
 
@@ -505,7 +505,7 @@ UA_CertificateVerification_Verify (void *                verificationContext,
         /* Check if the not trusted certificate has a CRL file. If there is no CRL file available for the corresponding
          * parent certificate then return status code UA_STATUSCODE_BADCERTIFICATEISSUERREVOCATIONUNKNOWN. Refer the test
          * case CTT/Security/Security Certificate Validation/002.js */
-        if (X509_STORE_CTX_get_check_issued (storeCtx) (storeCtx,certificateX509, certificateX509) != 1) {
+        if (X509_check_issued(certificateX509,certificateX509) != X509_V_OK) {
             /* Free X509_STORE_CTX and reuse it for certification verification */
             if (storeCtx != NULL) {
                X509_STORE_CTX_free(storeCtx);
