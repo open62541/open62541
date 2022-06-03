@@ -16,9 +16,9 @@
 
 #define UA_DATETIMESTAMP_2000 125911584000000000
 
-static UA_PubSubTransportLayer *
-getTransportProtocolLayer(const UA_Server *server,
-                          const UA_String *transportProfileUri) {
+UA_PubSubTransportLayer *
+UA_getTransportProtocolLayer(const UA_Server *server,
+                             const UA_String *transportProfileUri) {
     /* Find the matching UA_PubSubTransportLayers */
     UA_PubSubTransportLayer *tl = NULL;
     for(size_t i = 0; i < server->config.pubSubConfig.transportLayersSize; i++) {
@@ -140,7 +140,7 @@ UA_Server_addPubSubConnection(UA_Server *server,
                        UA_LOGCATEGORY_SERVER, "PubSub Connection creation failed. No connection configuration supplied.");
 
     /* Retrieve the transport layer for the given profile uri */
-    UA_PubSubTransportLayer *tl = getTransportProtocolLayer(server, &connectionConfig->transportProfileUri);
+    UA_PubSubTransportLayer *tl = UA_getTransportProtocolLayer(server, &connectionConfig->transportProfileUri);
     UA_CHECK_MEM_ERROR(tl, return UA_STATUSCODE_BADNOTFOUND, &server->config.logger,
                        UA_LOGCATEGORY_SERVER, "PubSub Connection creation failed. Requested transport layer not found.");
 
@@ -149,8 +149,12 @@ UA_Server_addPubSubConnection(UA_Server *server,
     UA_StatusCode retval = createAndAddConnection(server, connectionConfig, &newConnectionsField);
     UA_CHECK_STATUS(retval, return retval);
 
+    UA_TransportLayerContext ctx;
+    ctx.connection = newConnectionsField;
+    ctx.writerGroup = NULL;
+
     /* Open the communication channel */
-    newConnectionsField->channel = tl->createPubSubChannel(tl, newConnectionsField);
+    newConnectionsField->channel = tl->createPubSubChannel(tl, &ctx);
     UA_CHECK_MEM(newConnectionsField->channel, return channelErrorHandling(server, newConnectionsField));
 
     assignConnectionIdentifier(server, newConnectionsField, connectionIdentifier);

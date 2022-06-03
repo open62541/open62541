@@ -136,22 +136,9 @@ UA_PubSub_udpCallbackSubscribe(UA_ConnectionManager *cm, uintptr_t connectionId,
     ctx->connectionIdSubscribe = connectionId;
     ctx->connectionManager = cm;
 
-    UA_EventSource es = ctx->connectionManager->eventSource;
-
     if(msg.length > 0) {
         decodeAndProcessNetworkMessage(ctx->server, ctx->connection, &msg);
     }
-
-    // ctx->connectionId = connectionId;
-    // ctx->
-
-    // UA_StatusCode retval = receiveCallback(channel, receiveCallbackContext, msg);
-    // if(retval != UA_STATUSCODE_GOOD) {
-    //     UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_NETWORK,
-    //                    "PubSub Connection decode and process failed.");
-    //     return;
-    // }
-
 }
 
 /* Callback of a TCP socket (server socket or an active connection) */
@@ -338,17 +325,10 @@ startsWith(const char *pre, const char *str) {
  * @return ref to created channel, NULL on error
  */
 static UA_PubSubChannel *
-UA_PubSubChannelUDP_open(UA_ConnectionManager *connectionManager, UA_PubSubConnection *connection, UA_Server *server) {
+UA_PubSubChannelUDP_open(UA_ConnectionManager *connectionManager, UA_PubSubConnection *connection, UA_Server *server, UA_NetworkAddressUrlDataType *address) {
     UA_initialize_architecture_network();
 
     UA_PubSubConnectionConfig *connectionConfig = connection->config;
-
-    if(!UA_Variant_hasScalarType(&connectionConfig->address,
-                                 &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE])) {
-        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
-                     "PubSub Connection creation failed. Invalid Address.");
-        return NULL;
-    }
     UA_PubSubChannel *newChannel = (UA_PubSubChannel *)
         UA_calloc(1, sizeof(UA_PubSubChannel));
     if(!newChannel) {
@@ -356,9 +336,6 @@ UA_PubSubChannelUDP_open(UA_ConnectionManager *connectionManager, UA_PubSubConne
                      "PubSub Connection creation failed. Out of memory.");
         return NULL;
     }
-
-    UA_NetworkAddressUrlDataType *address =
-        (UA_NetworkAddressUrlDataType *)connectionConfig->address.data;
 
     char addressAsChar[MAX_URL_LENGTH];
     UA_UInt16 port;
@@ -391,6 +368,48 @@ UA_PubSubChannelUDP_open(UA_ConnectionManager *connectionManager, UA_PubSubConne
     return newChannel;
 }
 
+static UA_PubSubChannel *
+UA_PubSubChannelUDP_openUnicast(UA_ConnectionManager *connectionManager, UA_PubSubConnection *connection, UA_Server *server, UA_NetworkAddressUrlDataType *address) {
+    UA_initialize_architecture_network();
+
+    UA_PubSubConnectionConfig *connectionConfig = connection->config;
+    UA_PubSubChannel *newChannel = (UA_PubSubChannel *)
+        UA_calloc(1, sizeof(UA_PubSubChannel));
+    if(!newChannel) {
+        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
+                     "PubSub Connection creation failed. Out of memory.");
+        return NULL;
+    }
+
+    char addressAsChar[MAX_URL_LENGTH];
+    UA_UInt16 port;
+    UA_StatusCode res = getRawAddressAndPortValues(address, addressAsChar, &port);
+    if(res != UA_STATUSCODE_GOOD) {
+        UA_free(newChannel);
+        return NULL;
+    }
+
+    // if(startsWith("opc.udp://127.0.0.1", (char*) address->url.data)) {
+    //     UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
+    //                  "For UDP Unicast you connection needs to start with"
+    //                  " opc.udp://localhost - per spec 127.0.0.1 is not permitted to establish"
+    //                  " unicast connections");
+    //     UA_free(newChannel);
+    //     return NULL;
+    // }
+
+    UA_UDPConnectionContext *context = (UA_UDPConnectionContext *) UA_calloc(1, sizeof(UA_UDPConnectionContext));
+    context->server = server;
+    context->connection = connection;
+    newChannel->handle = context; /* Link channel and internal channel data */
+    // void *application = NULL;
+
+    if(!startsWith("opc.udp://localhost", (char*) address->url.data)) {
+        UA_openPublishDirection(connectionManager, connectionConfig, newChannel, address, addressAsChar, port);
+    }
+
+    return newChannel;
+}
 
 /**
  * Subscribe to a given address.
@@ -511,8 +530,6 @@ UA_PubSubChannelUDP_send(UA_PubSubChannel *channel, UA_ExtensionObject *transpor
 
     uintptr_t connectionId = udpContext->connectionIdPublish;
 
-    UA_EventSource es = cm->eventSource;
-
     return cm->sendWithConnection(cm, connectionId, 0, NULL, buf);
 }
 
@@ -534,91 +551,7 @@ UA_PubSubChannelUDP_receive(UA_PubSubChannel *channel,
                             UA_PubSubReceiveCallback receiveCallback,
                             void *receiveCallbackContext,
                             UA_UInt32 timeout) {
-    if(!(channel->state == UA_PUBSUB_CHANNEL_PUB ||
-         channel->state == UA_PUBSUB_CHANNEL_PUB_SUB)) {
-        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
-                     "PubSub Connection receive failed. Invalid state.");
-        return UA_STATUSCODE_BADINTERNALERROR;
-    }
-    UA_StatusCode retval = UA_STATUSCODE_GOOD;
-    UA_UInt16 rcvCount = 0;
-    struct timeval timeoutValue;
-    struct timeval receiveTime;
-    fd_set fdset;
-
-    memset(&timeoutValue, 0, sizeof(timeoutValue));
-    memset(&receiveTime, 0, sizeof(receiveTime));
-    FD_ZERO(&fdset);
-    timeoutValue.tv_sec  = (long int)(timeout / 1000000);
-    timeoutValue.tv_usec = (long int)(timeout % 1000000);
-    do {
-        if(timeout > 0) {
-            UA_fd_set(channel->sockfd, &fdset);
-            /* Select API will return the remaining time in the struct
-             * timeval */
-            int resultsize = UA_select(channel->sockfd+1, &fdset, NULL,
-                                       NULL, &timeoutValue);
-            if(resultsize == 0) {
-                retval = UA_STATUSCODE_GOODNONCRITICALTIMEOUT;
-                if(rcvCount > 0)
-                    retval = UA_STATUSCODE_GOOD;
-                break;
-            }
-
-            if (resultsize == -1) {
-                UA_LOG_SOCKET_ERRNO_WRAP(
-                    UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_NETWORK,
-                                   "PubSub Connection receiving failed: "
-                                   "select failed. Error: %s", errno_str));
-                retval = UA_STATUSCODE_BADINTERNALERROR;
-                break;
-            }
-        }
-        UA_ByteString buffer;
-        buffer.length = RECEIVE_MSG_BUFFER_SIZE;
-        buffer.data = ReceiveMsgBufferUDP;
-
-        UA_DateTime beforeRecvTime = UA_DateTime_nowMonotonic();
-        ssize_t messageLength = UA_recvfrom(channel->sockfd, buffer.data,
-                                            RECEIVE_MSG_BUFFER_SIZE, 0, NULL, NULL);
-        if(messageLength > 0){
-            buffer.length = (size_t) messageLength;
-            retval = receiveCallback(channel, receiveCallbackContext, &buffer);
-            if(retval != UA_STATUSCODE_GOOD) {
-                    UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_NETWORK,
-                                   "PubSub Connection decode and process failed.");
-
-            }
-
-        } else {
-            UA_LOG_SOCKET_ERRNO_WRAP(
-                UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_NETWORK,
-                               "PubSub Connection receiving failed: "
-                               "recvfrom failed. Error: %s", errno_str));
-            retval = UA_STATUSCODE_BADINTERNALERROR;
-            break;
-        }
-
-        rcvCount++;
-        UA_DateTime endTime = UA_DateTime_nowMonotonic();
-        UA_DateTime receiveDuration = endTime - beforeRecvTime;
-
-        UA_DateTime remainingTimeoutValue = timevalToDateTime(timeoutValue);
-        if(remainingTimeoutValue < receiveDuration) {
-            retval = UA_STATUSCODE_GOOD;
-            break;
-        }
-
-        UA_DateTime newTimeoutValue = remainingTimeoutValue - receiveDuration;
-        timeoutValue.tv_sec = (long int)(newTimeoutValue  / UA_DATETIME_SEC);
-        timeoutValue.tv_usec = (long int)((newTimeoutValue % UA_DATETIME_SEC) * 100);
-
-    } while(true); /* TODO:Need to handle for jumbo frames*/
-                                             /* 1518 bytes is the maximum size of ethernet packet
-                                              * where 18 bytes used for header size, 28 bytes of header
-                                              * used for IP and UDP header so remaining length is 1472 */
-    // message->length = dataLength;
-    return retval;
+    return UA_STATUSCODE_GOOD;
 }
 /**
  * Close channel and free the channel data.
@@ -642,9 +575,27 @@ UA_PubSubChannelUDP_close(UA_PubSubChannel *channel) {
 static UA_PubSubChannel *
 TransportLayerUDP_addChannel(UA_PubSubTransportLayer *tl, void *ctx) {
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "PubSub channel requested");
-    UA_PubSubConnection *connection = (UA_PubSubConnection *) ctx;
-    UA_PubSubConnectionConfig *connectionConfig= connection->config;
-    UA_PubSubChannel * pubSubChannel = UA_PubSubChannelUDP_open(tl->connectionManager, connection, tl->server);
+    UA_TransportLayerContext *tctx  = (UA_TransportLayerContext *) ctx;
+    UA_PubSubConnection *connection = (UA_PubSubConnection *) tctx->connection;
+    UA_PubSubConnectionConfig *connectionConfig = connection->config;
+    UA_PubSubChannel *pubSubChannel = NULL;
+
+    if(!UA_Variant_hasScalarType(&connectionConfig->address,
+                                 &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE])) {
+        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
+                     "PubSub Connection creation failed. Invalid Address.");
+        return NULL;
+    }
+    UA_NetworkAddressUrlDataType *address =
+        (UA_NetworkAddressUrlDataType *)connectionConfig->address.data;
+
+    if(tctx->writerGroup)  {
+        address = tctx->writerGroup->address;
+        pubSubChannel = UA_PubSubChannelUDP_openUnicast(tl->connectionManager, connection, tl->server, address);
+    } else {
+        pubSubChannel = UA_PubSubChannelUDP_open(tl->connectionManager, connection, tl->server, address);
+    }
+
     if(pubSubChannel){
         pubSubChannel->regist = UA_PubSubChannelUDP_regist;
         pubSubChannel->unregist = UA_PubSubChannelUDP_unregist;

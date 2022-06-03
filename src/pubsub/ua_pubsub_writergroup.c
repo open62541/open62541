@@ -102,6 +102,33 @@ UA_Server_addWriterGroup(UA_Server *server, const UA_NodeId connection,
             &UA_TYPES[UA_TYPES_UADPWRITERGROUPMESSAGEDATATYPE];
         newConfig->messageSettings.encoding = UA_EXTENSIONOBJECT_DECODED;
     }
+    /* transportSettings */
+    const UA_ExtensionObject *transportSettings = &writerGroupConfig->transportSettings;
+    if(transportSettings && transportSettings->content.decoded.type == &UA_TYPES[UA_TYPES_DATAGRAMWRITERGROUPTRANSPORT2DATATYPE]) {
+        UA_DatagramWriterGroupTransport2DataType *ts = (UA_DatagramWriterGroupTransport2DataType *) transportSettings->content.decoded.data;
+
+        if(ts->address.content.decoded.type == &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]) {
+            UA_NetworkAddressUrlDataType *address = (UA_NetworkAddressUrlDataType *) ts->address.content.decoded.data;
+            newWriterGroup->address = address;
+            const char *prefix = "opc.udp://";
+            if(strncmp(prefix, (char *) address->url.data, strlen(prefix)) == 0) {
+
+                UA_LOG_DEBUG(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                             "adding udp unicast WriterGroup connecting to "
+
+                             );
+                /* Retrieve the transport layer for the given profile uri */
+                UA_PubSubTransportLayer *tl = UA_getTransportProtocolLayer(server, &currentConnectionContext->config->transportProfileUri);
+                UA_CHECK_MEM_ERROR(tl, return UA_STATUSCODE_BADNOTFOUND, &server->config.logger,
+                                   UA_LOGCATEGORY_SERVER, "PubSub Connection creation failed. Requested transport layer not found.");
+                UA_TransportLayerContext ctx;
+                ctx.writerGroup = newWriterGroup;
+                ctx.connection = currentConnectionContext;
+                newWriterGroup->isUnicast = true;
+                newWriterGroup->channel = tl->createPubSubChannel(tl, &ctx);
+            }
+        }
+    }
 
     /* Attach to the connection */
     LIST_INSERT_HEAD(&currentConnectionContext->writerGroups, newWriterGroup, listEntry);
@@ -824,7 +851,8 @@ encodeNetworkMessage(UA_WriterGroup *wg, UA_NetworkMessage *nm,
 
 #ifdef UA_ENABLE_JSON_ENCODING
 static UA_StatusCode
-sendNetworkMessageJson(UA_PubSubConnection *connection, UA_DataSetMessage *dsm,
+sendNetworkMessageJson(UA_PubSubConnection *connection,
+                       UA_WriterGroup *writerGroup, UA_DataSetMessage *dsm,
                        UA_UInt16 *writerIds, UA_Byte dsmCount,
                        UA_ExtensionObject *transportSettings) {
     /* Prepare the NetworkMessage */
@@ -860,8 +888,16 @@ sendNetworkMessageJson(UA_PubSubConnection *connection, UA_DataSetMessage *dsm,
         goto cleanup;
     UA_assert(bufPos == bufEnd);
 
+    /* Choose the channel */
+    UA_PubSubChannel *channel = NULL;
+    if(writerGroup->isUnicast) {
+        channel = writerGroup->channel;
+    } else {
+        channel = connection->channel;
+    }
+
     /* Send the prepared messages */
-    res = connection->channel->send(connection->channel, transportSettings, &buf);
+    res = channel->send(channel, transportSettings, &buf);
 
  cleanup:
     if(msgSize > UA_MAX_STACKBUF)
@@ -1010,8 +1046,16 @@ sendNetworkMessageUADP(UA_PubSubConnection *connection, UA_WriterGroup *wg,
     rv = encodeNetworkMessage(wg, &nm, &buf);
     UA_CHECK_STATUS(rv, goto cleanup_with_msg_size);
 
+    /* Choose the channel */
+    UA_PubSubChannel *channel = NULL;
+    if(wg->isUnicast) {
+        channel = wg->channel;
+    } else {
+        channel = connection->channel;
+    }
+
     /* Send out the message */
-    rv = connection->channel->send(connection->channel, transportSettings, &buf);
+    rv = channel->send(channel, transportSettings, &buf);
     UA_CHECK_STATUS(rv, goto cleanup_with_msg_size);
 
 cleanup_with_msg_size:
@@ -1024,12 +1068,12 @@ cleanup:
 }
 
 static UA_StatusCode
-sendBufferedNetworkMessage(UA_Server *server, UA_PubSubConnection *connection,
+sendBufferedNetworkMessage(UA_PubSubChannel *channel,
                            UA_ByteString *buffer,
                            UA_ExtensionObject *transportSettings) {
 
-    return connection->channel->send(connection->channel,
-                                     transportSettings, buffer);
+    return channel->send(channel,
+                         transportSettings, buffer);
 }
 
 static UA_INLINE void
@@ -1057,12 +1101,12 @@ publishRT(UA_Server *server, UA_WriterGroup *writerGroup, UA_PubSubConnection *c
             }
             /* Send the encrypted buffered network message
              * if PubSub encryption is enabled */
-            res = sendBufferedNetworkMessage(server, connection, &writerGroup->bufferedMessage.encryptBuffer,
+            res = sendBufferedNetworkMessage(connection->channel, &writerGroup->bufferedMessage.encryptBuffer,
                                              &writerGroup->config.transportSettings);
         }
 #endif
     if (writerGroup->config.securityMode < UA_MESSAGESECURITYMODE_NONE) {
-        res = sendBufferedNetworkMessage(server, connection, &writerGroup->bufferedMessage.buffer,
+        res = sendBufferedNetworkMessage(connection->channel, &writerGroup->bufferedMessage.buffer,
                                          &writerGroup->config.transportSettings);
     }
     if(res == UA_STATUSCODE_GOOD) {
@@ -1100,7 +1144,7 @@ sendNetworkMessage(UA_WriterGroup *writerGroup, UA_PubSubConnection *connection,
                                      &writerGroup->config.transportSettings);
     } else { /* if(writerGroup->config.encodingMimeType == UA_PUBSUB_ENCODING_JSON) */
 #ifdef UA_ENABLE_JSON_ENCODING
-        res = sendNetworkMessageJson(connection, dsm,
+        res = sendNetworkMessageJson(connection, writerGroup, dsm,
                                      writerIds, dsmCount,
                                      &writerGroup->config.transportSettings);
 #else

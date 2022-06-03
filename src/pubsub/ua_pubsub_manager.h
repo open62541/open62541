@@ -58,6 +58,10 @@ UA_PubSubManager_changeRepeatedCallback(UA_Server *server, UA_UInt64 callbackId,
 void
 UA_PubSubManager_removeRepeatedPubSubCallback(UA_Server *server, UA_UInt64 callbackId);
 
+UA_PubSubTransportLayer *
+UA_getTransportProtocolLayer(const UA_Server *server,
+                             const UA_String *transportProfileUri);
+
 /*************************************************/
 /*      PubSub component monitoring              */
 /*************************************************/

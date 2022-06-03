@@ -173,6 +173,9 @@ struct UA_WriterGroup {
     UA_NetworkMessageOffsetBuffer bufferedMessage;
     UA_UInt16 sequenceNumber; /* Increased after every succressuly sent message */
     UA_Boolean configurationFrozen;
+    UA_Boolean isUnicast;
+    UA_NetworkAddressUrlDataType *address;
+    UA_PubSubChannel *channel;
 
 #ifdef UA_ENABLE_PUBSUB_ENCRYPTION
     UA_UInt32 securityTokenId;
@@ -180,6 +183,11 @@ struct UA_WriterGroup {
     void *securityPolicyContext;
 #endif
 };
+
+typedef struct {
+    UA_PubSubConnection *connection;
+    UA_WriterGroup *writerGroup;
+} UA_TransportLayerContext;
 
 UA_StatusCode
 removeWriterGroup(UA_Server *server, const UA_NodeId writerGroup);
