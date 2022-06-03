@@ -22,10 +22,10 @@
 
 #define UA_MULTICAST_TTL_NO_LIMIT 255
 
-#define IPV4_PREFIX_MASK 0xF0000000
-#define IPV4_MULTICAST_PREFIX 0xE0000000
+#define LEGACY_IPV4_PREFIX_MASK 0xF0000000
+#define LEGACY_IPV4_MULTICAST_PREFIX 0xE0000000
 #ifdef UA_IPV6
-#   define IPV6_MULTICAST_PREFIX 0xFF
+#   define LEGACY_IPV6_MULTICAST_PREFIX 0xFF
 #endif
 
 typedef union {
@@ -33,7 +33,7 @@ typedef union {
 #if UA_IPV6
     struct ipv6_mreq ipv6;
 #endif
-} IpMulticastRequest;
+} UA_IpMulticastRequest;
 
 /* UDP multicast network layer specific internal data */
 typedef struct {
@@ -48,7 +48,7 @@ typedef struct {
 #ifdef __linux__
     UA_UInt32* socketPriority;
 #endif
-    IpMulticastRequest ipMulticastRequest;
+    UA_IpMulticastRequest ipMulticastRequest;
 } UA_PubSubChannelDataUDP;
 
 #define MAX_URL_LENGTH 512
@@ -514,12 +514,6 @@ UA_PubSubChannelUDP_send(UA_PubSubChannel *channel, UA_ExtensionObject *transpor
     uintptr_t connectionId = udpContext->connectionIdPublish;
 
     return cm->sendWithConnection(cm, connectionId, 0, NULL, buf);
-}
-
-static
-UA_INLINE
-UA_DateTime timevalToDateTime(struct timeval val) {
-    return val.tv_sec * UA_DATETIME_SEC + val.tv_usec / 100;
 }
 
 /**

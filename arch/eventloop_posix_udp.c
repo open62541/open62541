@@ -271,19 +271,6 @@ setSocketPriority(UA_SOCKET sockfd, UA_UInt32 *socketPriority, const UA_Logger *
 }
 #endif
 
-#ifdef UA_IPV6
-static UA_INLINE UA_StatusCode
-setMulticastInfoIPV6(const char *addressAsChar, IpMulticastRequest *ipMulticastRequest) {
-    int convertTextAddressToBinarySuccessful = UA_inet_pton(AF_INET6, addressAsChar,
-                                                            &ipMulticastRequest->ipv6.ipv6mr_multiaddr);
-    if(convertTextAddressToBinarySuccessful != 1) {
-        return UA_STATUSCODE_BADINTERNALERROR;
-    }
-    ipMulticastRequest->ipv6.ipv6mr_interface = 0; // default configuration
-    return UA_STATUSCODE_GOOD;
-}
-#endif
-
 static UA_StatusCode
 isMulticastAddress(const UA_Byte *address, int domain, UA_Byte mask, UA_Byte prefix, UA_Boolean *isMulticast) {
     *isMulticast = (address[0] & mask) == prefix;
@@ -294,7 +281,7 @@ isMulticastAddress(const UA_Byte *address, int domain, UA_Byte mask, UA_Byte pre
 static UA_Boolean
 isIPv4MulticastAddress(const UA_Byte *address) {
     UA_Boolean isMulticast;
-    isMulticastAddress(address, AF_INET, IPV4_PREFIX_MASK,  IPV4_MULTICAST_PREFIX, &isMulticast);
+    isMulticastAddress(address, AF_INET, IPV4_PREFIX_MASK, IPV4_MULTICAST_PREFIX, &isMulticast);
 
     return isMulticast;
 }

@@ -19,10 +19,10 @@
 
 #define RECEIVE_MSG_BUFFER_SIZE   4096
 
-#define IPV4_PREFIX_MASK 0xF0000000
-#define IPV4_MULTICAST_PREFIX 0xE0000000
+#define LEGACY_IPV4_PREFIX_MASK 0xF0000000
+#define LEGACY_IPV4_MULTICAST_PREFIX 0xE0000000
 #ifdef UA_IPV6
-#   define IPV6_MULTICAST_PREFIX 0xFF
+#   define LEGACY_IPV6_MULTICAST_PREFIX 0xFF
 #endif
 
 static UA_THREAD_LOCAL UA_Byte ReceiveMsgBufferUDP[RECEIVE_MSG_BUFFER_SIZE];
@@ -32,7 +32,7 @@ typedef union {
 #if UA_IPV6
     struct ipv6_mreq ipv6;
 #endif
-} IpMulticastRequest;
+} UA_IpMulticastRequest;
 
 /* UDP multicast network layer specific internal data */
 typedef struct {
@@ -47,7 +47,7 @@ typedef struct {
 #ifdef __linux__
     UA_UInt32* socketPriority;
 #endif
-    IpMulticastRequest ipMulticastRequest;
+    UA_IpMulticastRequest ipMulticastRequest;
 } UA_PubSubChannelDataUDPMC;
 
 #define MAX_URL_LENGTH 512
@@ -126,9 +126,9 @@ chooseValidAddrInfoAndCreateSocket(UA_SOCKET *sockfd, struct addrinfo* addrInfoL
 }
 
 static void
-setConnectionConfigurationProperties(UA_PubSubChannelDataUDPMC *channelDataUDPMC,
-                                     const UA_KeyValuePair *connectionProperties,
-                                     const size_t connectionPropertiesSize) {
+UA_setConnectionConfigurationProperties(UA_PubSubChannelDataUDPMC *channelDataUDPMC,
+                                        const UA_KeyValuePair *connectionProperties,
+                                        const size_t connectionPropertiesSize) {
     /* Set default values */
     memset(channelDataUDPMC, 0, sizeof(UA_PubSubChannelDataUDPMC));
     channelDataUDPMC->messageTTL = 255;
@@ -219,7 +219,7 @@ setMulticastInfoIPV6(UA_PubSubChannelDataUDPMC *channelDataUDPMC, const char *ad
     if(convertTextAddressToBinarySuccessful != 1) {
         return UA_STATUSCODE_BADINTERNALERROR;
     }
-    if((channelDataUDPMC->ipMulticastRequest.ipv6.ipv6mr_multiaddr.s6_addr[0] != IPV6_MULTICAST_PREFIX)) {
+    if((channelDataUDPMC->ipMulticastRequest.ipv6.ipv6mr_multiaddr.s6_addr[0] != LEGACY_IPV6_MULTICAST_PREFIX)) {
         UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
                        "PubSub Connection is created for a unicast address (IPv6)");
         channelDataUDPMC->isMulticast = false;
@@ -238,8 +238,8 @@ setMulticastInfoIPv4(UA_PubSubChannelDataUDPMC *channelDataUDPMC, const char *ad
     if(convertTextAddressToBinarySuccessful != 1) {
         return UA_STATUSCODE_BADINTERNALERROR;
     }
-    uint32_t masked = UA_ntohl(channelDataUDPMC->ipMulticastRequest.ipv4.imr_multiaddr.s_addr) & IPV4_PREFIX_MASK;
-    if(masked != IPV4_MULTICAST_PREFIX) {
+    uint32_t masked = UA_ntohl(channelDataUDPMC->ipMulticastRequest.ipv4.imr_multiaddr.s_addr) & LEGACY_IPV4_PREFIX_MASK;
+    if(masked != LEGACY_IPV4_MULTICAST_PREFIX) {
         UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
                        "PubSub Connection is created for a unicast address (IPv4)");
         channelDataUDPMC->isMulticast = false;
@@ -311,8 +311,8 @@ UA_PubSubChannelDataUDPMC_new(UA_PubSubChannel *channel, const UA_PubSubConnecti
                      "PubSub Connection creation failed. Out of memory.");
         goto error;
     }
-    setConnectionConfigurationProperties(channelDataUDPMC, connectionConfig->connectionProperties,
-                                         connectionConfig->connectionPropertiesSize);
+    UA_setConnectionConfigurationProperties(channelDataUDPMC, connectionConfig->connectionProperties,
+                                            connectionConfig->connectionPropertiesSize);
     UA_NetworkAddressUrlDataType *address =
         (UA_NetworkAddressUrlDataType *)connectionConfig->address.data;
 
@@ -350,9 +350,9 @@ error:
 }
 
 static UA_INLINE UA_StatusCode
-setLoopBackData(UA_SOCKET *sockfd,
-                UA_Boolean enableLoopback,
-                int ai_family) {
+UA_setLoopBackData(UA_SOCKET *sockfd,
+                   UA_Boolean enableLoopback,
+                   int ai_family) {
     /* Set loop back data to your host */
 #if UA_IPV6
     /* The Linux Kernel IPv6 socket code checks for optlen to be at least the
@@ -382,9 +382,9 @@ setLoopBackData(UA_SOCKET *sockfd,
 }
 
 static UA_INLINE void
-setTimeToLive(UA_SOCKET *sockfd,
-              UA_UInt32 messageTTL,
-              int ai_family) {
+UA_setTimeToLive(UA_SOCKET *sockfd,
+                 UA_UInt32 messageTTL,
+                 int ai_family) {
     /* Set Time to live (TTL). Value of 1 prevent forward beyond the local network. */
 #if UA_IPV6
     if(UA_setsockopt(*sockfd,
@@ -407,7 +407,7 @@ setTimeToLive(UA_SOCKET *sockfd,
 }
 
 static UA_INLINE void
-setReuseAddress(UA_SOCKET *sockfd, UA_Boolean enableReuse) {
+UA_setReuseAddress(UA_SOCKET *sockfd, UA_Boolean enableReuse) {
     /* Set reuse address -> enables sharing of the same listening address on
     * different sockets */
     if(enableReuse){
@@ -425,7 +425,7 @@ setReuseAddress(UA_SOCKET *sockfd, UA_Boolean enableReuse) {
 
 #ifdef __linux__
 static UA_StatusCode
-setSocketPriority(UA_SOCKET *sockfd, UA_UInt32 *socketPriority) {/* Setting the socket priority to the socket */
+UA_setSocketPriority(UA_SOCKET *sockfd, UA_UInt32 *socketPriority) {/* Setting the socket priority to the socket */
     if(socketPriority != NULL) {
         if (UA_setsockopt(*sockfd, SOL_SOCKET, SO_PRIORITY,
                           socketPriority, sizeof(*socketPriority)) < 0) {
@@ -478,7 +478,7 @@ bindChannelSocket(UA_SOCKET *sockfd, struct sockaddr_storage *ai_addr, int ai_fa
 }
 
 static UA_StatusCode
-setMulticastOption(UA_SOCKET *sockfd, IpMulticastRequest ipMulticastRequest, int ai_family) {
+setMulticastOption(UA_SOCKET *sockfd, UA_IpMulticastRequest ipMulticastRequest, int ai_family) {
 #if UA_IPV6
     if(UA_setsockopt(*sockfd,
                      ai_family == AF_INET6 ? IPPROTO_IPV6 : IPPROTO_IP,
@@ -502,11 +502,11 @@ setMulticastOption(UA_SOCKET *sockfd, IpMulticastRequest ipMulticastRequest, int
 
 static UA_StatusCode
 setSocketOptionsAndBind(UA_SOCKET *sockfd, UA_PubSubChannelDataUDPMC *channelDataUDPMC) {
-    UA_StatusCode res = setLoopBackData(sockfd, channelDataUDPMC->enableLoopback, channelDataUDPMC->ai_family);
+    UA_StatusCode res = UA_setLoopBackData(sockfd, channelDataUDPMC->enableLoopback, channelDataUDPMC->ai_family);
     if (res != UA_STATUSCODE_GOOD) return res;
 
-    setTimeToLive(sockfd, channelDataUDPMC->messageTTL, channelDataUDPMC->ai_family);
-    setReuseAddress(sockfd, channelDataUDPMC->enableReuse);
+    UA_setTimeToLive(sockfd, channelDataUDPMC->messageTTL, channelDataUDPMC->ai_family);
+    UA_setReuseAddress(sockfd, channelDataUDPMC->enableReuse);
 
     res = setMulticastOption(sockfd, channelDataUDPMC->ipMulticastRequest, channelDataUDPMC->ai_family);
     if(res != UA_STATUSCODE_GOOD) return res;
@@ -515,7 +515,7 @@ setSocketOptionsAndBind(UA_SOCKET *sockfd, UA_PubSubChannelDataUDPMC *channelDat
     if(res != UA_STATUSCODE_GOOD) return res;
 
 #ifdef __linux__
-    res = setSocketPriority(sockfd, channelDataUDPMC->socketPriority);
+    res = UA_setSocketPriority(sockfd, channelDataUDPMC->socketPriority);
     if(res != UA_STATUSCODE_GOOD) return res;
 #endif
 
