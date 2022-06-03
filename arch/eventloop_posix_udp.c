@@ -1046,7 +1046,7 @@ UDP_registerListenSockets(UA_ConnectionManager *cm, const char *hostname,
 #endif
     hints.ai_socktype = SOCK_DGRAM;
     hints.ai_protocol = IPPROTO_UDP;
-    hints.ai_flags = AI_PASSIVE | AI_NUMERICHOST;
+    hints.ai_flags = AI_PASSIVE; // | AI_NUMERICHOST;
 #ifdef AI_ADDRCONFIG
     hints.ai_flags |= AI_ADDRCONFIG; /* Only return IPv4/IPv6 if at least one
                                       * such address is configured */
@@ -1219,6 +1219,9 @@ UDP_openSendConnection(UA_ConnectionManager *cm,
         return UA_STATUSCODE_BADDISCONNECT;
     }
     UA_StatusCode res = setConnectionConfigurationProperties(newSock, params, paramsSize, info->ai_family, el->eventLoop.logger);
+    if(res != UA_STATUSCODE_GOOD) {
+        return res;
+    }
 
     if(info->ai_family == AF_INET) {
         res = configureMulticastInterfaceIPv4(newSock, info->ai_addrlen, (struct sockaddr_in *)info->ai_addr,
