@@ -1372,35 +1372,30 @@ loops_exit:
     return UA_STATUSCODE_GOOD;
 }
 
-static
-UA_StatusCode
-decodeAndProcessNetworkMessage(UA_Server *server, UA_ReaderGroup *readerGroup,
-                               UA_PubSubConnection *connection,
-                               UA_ByteString *buffer) {
+static UA_StatusCode
+decodeAndProcessNetworkMessage(UA_Server *server, UA_PubSubConnection *connection,
+                               UA_ByteString *buf) {
     UA_NetworkMessage nm;
     memset(&nm, 0, sizeof(UA_NetworkMessage));
-    size_t currentPosition = 0;
 
-    UA_StatusCode rv = UA_STATUSCODE_GOOD;
-    rv = decodeNetworkMessage(server, buffer, &currentPosition, &nm, connection);
+    size_t currentPosition = 0;
+    UA_StatusCode rv = decodeNetworkMessage(server, buf, &currentPosition,
+                                            &nm, connection);
     UA_CHECK_STATUS_WARN(rv, goto cleanup, &server->config.logger, UA_LOGCATEGORY_SERVER,
-                         "Subscribe failed. verify, decrypt and decode network message failed.");
+                         "Verify, decrypt and decode network message failed.");
 
     rv = processNetworkMessage(server, connection, &nm);
-    // TODO: check what action to perform on error (nothing?)
     UA_CHECK_STATUS_WARN(rv, (void)0, &server->config.logger, UA_LOGCATEGORY_SERVER,
-                         "Subscribe failed. process network message failed.");
+                         "Processing the network message failed.");
 
 cleanup:
     UA_NetworkMessage_clear(&nm);
     return rv;
 }
 
-static
-UA_StatusCode
+static UA_StatusCode
 decodeAndProcessNetworkMessageRT(UA_Server *server, UA_ReaderGroup *readerGroup,
-                                 UA_PubSubConnection *connection,
-                                 UA_ByteString *buffer) {
+                                 UA_PubSubConnection *connection, UA_ByteString *buf) {
 #ifdef UA_ENABLE_PUBSUB_BUFMALLOC
     useMembufAlloc();
 #endif
@@ -1414,18 +1409,15 @@ decodeAndProcessNetworkMessageRT(UA_Server *server, UA_ReaderGroup *readerGroup,
 #ifdef UA_ENABLE_PUBSUB_ENCRYPTION
     UA_NetworkMessage currentNetworkMessage;
     memset(&currentNetworkMessage, 0, sizeof(UA_NetworkMessage));
-    UA_StatusCode rv;
-    size_t payLoadPosition = 0;
-    rv = UA_NetworkMessage_decodeHeaders(
-        buffer, &payLoadPosition, &currentNetworkMessage);
 
+    size_t payLoadPosition = 0;
+    UA_StatusCode rv =
+        UA_NetworkMessage_decodeHeaders(buf, &payLoadPosition, &currentNetworkMessage);
     UA_CHECK_STATUS_ERROR(rv, return rv, &server->config.logger, UA_LOGCATEGORY_SERVER,
                           "PubSub receive. decoding headers failed");
-    rv = verifyAndDecryptNetworkMessage(&server->config.logger,
-                                        buffer,
-                                        &payLoadPosition,
-                                        &currentNetworkMessage,
-                                        readerGroup);
+
+    rv = verifyAndDecryptNetworkMessage(&server->config.logger, buf, &payLoadPosition,
+                                        &currentNetworkMessage, readerGroup);
     UA_CHECK_STATUS_WARN(rv, return rv, &server->config.logger, UA_LOGCATEGORY_SERVER,
                          "Subscribe failed. verify and decrypt network message failed.");
     UA_NetworkMessage_clear(&currentNetworkMessage);
@@ -1434,7 +1426,7 @@ decodeAndProcessNetworkMessageRT(UA_Server *server, UA_ReaderGroup *readerGroup,
     /* Decode only the necessary offset and update the networkMessage */
     UA_StatusCode res =
         UA_NetworkMessage_updateBufferedNwMessage(&dataSetReader->bufferedMessage,
-                                                  buffer, &currentPosition);
+                                                  buf, &currentPosition);
     if(res != UA_STATUSCODE_GOOD) {
         UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_SERVER,
                     "PubSub receive. Unknown field type.");
@@ -1471,18 +1463,17 @@ typedef struct {
 
 static UA_StatusCode
 decodeAndProcessFun(UA_PubSubChannel *channel, void *cbContext,
-                    const UA_ByteString *buffer) {
-    UA_ByteString mutableBuffer = {buffer->length, buffer->data};
-    UA_RGContext *ctx = (UA_RGContext*) cbContext;
-    return decodeAndProcessNetworkMessage(ctx->server, ctx->readerGroup,
-                                          ctx->connection, &mutableBuffer);
+                    const UA_ByteString *buf) {
+    UA_RGContext *ctx = (UA_RGContext*)cbContext;
+    UA_ByteString mutableBuffer = {buf->length, buf->data};
+    return decodeAndProcessNetworkMessage(ctx->server, ctx->connection, &mutableBuffer);
 }
 
 static UA_StatusCode
 decodeAndProcessFunRT(UA_PubSubChannel *channel, void *cbContext,
-                      const UA_ByteString *buffer) {
-    UA_ByteString mutableBuffer = {buffer->length, buffer->data};
-    UA_RGContext *ctx = (UA_RGContext*) cbContext;
+                      const UA_ByteString *buf) {
+    UA_RGContext *ctx = (UA_RGContext*)cbContext;
+    UA_ByteString mutableBuffer = {buf->length, buf->data};
     return decodeAndProcessNetworkMessageRT(ctx->server, ctx->readerGroup,
                                             ctx->connection, &mutableBuffer);
 }
