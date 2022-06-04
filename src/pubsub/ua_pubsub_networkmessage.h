@@ -15,6 +15,8 @@
 
 _UA_BEGIN_DECLS
 
+#define UA_NETWORKMESSAGE_MAX_NONCE_LENGTH 16
+
 /* DataSet Payload Header */
 typedef struct {
     UA_Byte count;
@@ -128,7 +130,8 @@ typedef struct {
     UA_Boolean securityFooterEnabled;
     UA_Boolean forceKeyReset;
     UA_UInt32 securityTokenId;      // spec: IntegerId
-    UA_ByteString messageNonce;
+    UA_Byte messageNonce[UA_NETWORKMESSAGE_MAX_NONCE_LENGTH];
+    UA_UInt16 messageNonceSize;
     UA_UInt16 securityFooterSize;
 } UA_NetworkMessageSecurityHeader;
 
