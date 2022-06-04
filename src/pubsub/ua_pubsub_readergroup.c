@@ -537,7 +537,8 @@ UA_Server_freezeReaderGroupConfiguration(UA_Server *server,
         }
     }
 
-    UA_DataSetMessage *dsm = (UA_DataSetMessage *) UA_calloc(1, sizeof(UA_DataSetMessage));
+    UA_DataSetMessage *dsm = (UA_DataSetMessage*)
+        UA_calloc(1, sizeof(UA_DataSetMessage));
     if(!dsm) {
         UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
                      "PubSub RT Offset calculation: DSM creation failed");
@@ -565,7 +566,8 @@ UA_Server_freezeReaderGroupConfiguration(UA_Server *server,
     }
     *dsWriterIds = dataSetReader->config.dataSetWriterId;
 
-    UA_NetworkMessage *networkMessage = (UA_NetworkMessage *)UA_calloc(1, sizeof(UA_NetworkMessage));
+    UA_NetworkMessage *networkMessage = (UA_NetworkMessage *)
+        UA_calloc(1, sizeof(UA_NetworkMessage));
     if(!networkMessage) {
         UA_free(dsWriterIds);
         UA_DataSetMessage_clear(dsm);
@@ -575,6 +577,7 @@ UA_Server_freezeReaderGroupConfiguration(UA_Server *server,
         return UA_STATUSCODE_BADOUTOFMEMORY;
     }
 
+    /* Move the dsm into the NetworkMessage */
     res = UA_DataSetReader_generateNetworkMessage(pubSubConnection, rg, dataSetReader, dsm,
                                                   dsWriterIds, 1, networkMessage);
     if(res != UA_STATUSCODE_GOOD) {
