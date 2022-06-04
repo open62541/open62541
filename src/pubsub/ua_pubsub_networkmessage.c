@@ -1142,10 +1142,6 @@ UA_NetworkMessage_clear(UA_NetworkMessage* p) {
     memset(p, 0, sizeof(UA_NetworkMessage));
 }
 
-void UA_NetworkMessage_delete(UA_NetworkMessage* p) {
-    UA_NetworkMessage_clear(p);
-}
-
 UA_Boolean
 UA_NetworkMessage_ExtendedFlags1Enabled(const UA_NetworkMessage* src) {
     UA_Boolean retval = false;

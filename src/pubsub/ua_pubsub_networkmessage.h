@@ -333,10 +333,6 @@ UA_NetworkMessage_signEncrypt(UA_NetworkMessage *nm, UA_MessageSecurityMode secu
 void
 UA_NetworkMessage_clear(UA_NetworkMessage* p);
 
-void
-UA_NetworkMessage_delete(UA_NetworkMessage* p);
-
-
 #ifdef UA_ENABLE_JSON_ENCODING
 UA_StatusCode
 UA_NetworkMessage_encodeJson(const UA_NetworkMessage *src,
