@@ -59,13 +59,13 @@ UA_Server_new() {
 /*******************************/
 
 const UA_ConnectionConfig UA_ConnectionConfig_default = {
-    0,     /* .protocolVersion */
-    65535, /* .sendBufferSize, 64k per chunk */
-    65535, /* .recvBufferSize, 64k per chunk */
-    0,     /* .localMaxMessageSize, 0 -> unlimited */
-    0,     /* .remoteMaxMessageSize, 0 -> unlimited */
-    0,     /* .localMaxChunkCount, 0 -> unlimited */
-    0      /* .remoteMaxChunkCount, 0 -> unlimited */
+    0,       /* .protocolVersion */
+    2 << 16, /* .sendBufferSize, 64k per chunk */
+    2 << 16, /* .recvBufferSize, 64k per chunk */
+    2 << 29, /* .localMaxMessageSize, 512 MB */
+    2 << 29, /* .remoteMaxMessageSize, 512 MB */
+    2 << 14, /* .localMaxChunkCount, 16k */
+    2 << 14  /* .remoteMaxChunkCount, 16k */
 };
 
 /***************************/
