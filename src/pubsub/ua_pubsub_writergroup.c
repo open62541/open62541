@@ -182,6 +182,9 @@ UA_Server_freezeWriterGroupConfiguration(UA_Server *server,
     if(!wg)
         return UA_STATUSCODE_BADNOTFOUND;
 
+    if(wg->configurationFrozen)
+        return UA_STATUSCODE_GOOD;
+
     /* PubSubConnection freezeCounter++ */
     UA_PubSubConnection *pubSubConnection =  wg->linkedConnection;
     pubSubConnection->configurationFreezeCounter++;
