@@ -37,11 +37,11 @@ size_t parseUInt64(const char *str, size_t size, uint64_t *result) {
             /* Get the byte value */
             uint8_t c = (uint8_t)str[i] | 32;
             if(c >= '0' && c <= '9')
-                c = c - '0';
+                c = (uint8_t)(c - '0');
             else if(c >= 'a' && c <='f')
-                c = c - 'a' + 10;
+                c = (uint8_t)(c - 'a' + 10);
             else if(c >= 'A' && c <='F')
-                c = c - 'A' + 10;
+                c = (uint8_t)(c - 'A' + 10);
             else
                 break;
             /* Update */
