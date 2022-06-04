@@ -67,21 +67,20 @@ static const uint32_t CJ5__NULL_FOURCC  = CJ5__FOURCC('n', 'u', 'l', 'l');
 static const uint32_t CJ5__TRUE_FOURCC  = CJ5__FOURCC('t', 'r', 'u', 'e');
 static const uint32_t CJ5__FALSE_FOURCC = CJ5__FOURCC('f', 'a', 'l', 's');
 
-typedef struct cj5__parser {
+typedef struct {
     unsigned int pos;
     unsigned int line_start;
     unsigned int line;
+    cj5_error_code error;
 
-    const char* json5;
+    const char *json5;
     unsigned int len;
 
     unsigned int curr_tok_idx;
 
-    cj5_token* tokens;
+    cj5_token *tokens;
     unsigned int token_count;
     unsigned int max_tokens;
-
-    cj5_error_code error;
 } cj5__parser;
 
 static CJ5_INLINE bool
@@ -665,11 +664,11 @@ cj5_get_str(const cj5_result *r, unsigned int tok_index,
                 for(unsigned int i = 0; i < 4; i++) {
                     pos++;
                     uint8_t byte = (uint8_t)*pos;
-                    if(byte >= '0' && byte <= '9') {
+                    if(cj5__isrange(*pos, '0', '9')) {
                         byte = (uint8_t)(byte - (uint8_t)'0');
-                    } else if(byte >= 'a' && byte <='f') {
+                    } else if(cj5__isrange(*pos, 'a', 'f')) {
                         byte = (uint8_t)(byte - (uint8_t)('a' - 10));
-                    } else if(byte >= 'A' && byte <='F') {
+                    } else if(cj5__isrange(*pos, 'A', 'F')) {
                         byte = (uint8_t)(byte - (uint8_t)('A' - 10));
                     } else {
                         return CJ5_ERROR_INVALID;
