@@ -49,10 +49,6 @@ const UA_Byte DS_MESSAGEHEADER_PICOSECONDS_INCLUDED_MASK = 32;
 const UA_Byte NM_SHIFT_LEN = 2;
 const UA_Byte DS_MH_SHIFT_LEN = 1;
 
-/* Static memory allocation for the message nonce */
-#define MESSAGE_NONCE_LENGTH      8
-static UA_Byte MessageNonceGenerated[MESSAGE_NONCE_LENGTH];
-
 static UA_Boolean UA_NetworkMessage_ExtendedFlags1Enabled(const UA_NetworkMessage* src);
 static UA_Boolean UA_NetworkMessage_ExtendedFlags2Enabled(const UA_NetworkMessage* src);
 static UA_Boolean UA_DataSetMessageHeader_DataSetFlags2Enabled(const UA_DataSetMessageHeader* src);
@@ -404,13 +400,15 @@ UA_SecurityHeader_encodeBinary(const UA_NetworkMessage* src, UA_Byte **bufPos,
     // SecurityTokenId
     rv = UA_UInt32_encodeBinary(&src->securityHeader.securityTokenId, bufPos, bufEnd);
     UA_CHECK_STATUS(rv, return rv);
+
     // NonceLength
-    UA_Byte nonceLength = (UA_Byte)src->securityHeader.messageNonce.length;
+    UA_Byte nonceLength = (UA_Byte)src->securityHeader.messageNonceSize;
     rv = UA_Byte_encodeBinary(&nonceLength, bufPos, bufEnd);
     UA_CHECK_STATUS(rv, return rv);
+
     // MessageNonce
-    for (size_t i = 0; i < src->securityHeader.messageNonce.length; i++) {
-        rv = UA_Byte_encodeBinary(&src->securityHeader.messageNonce.data[i],
+    for(size_t i = 0; i < src->securityHeader.messageNonceSize; i++) {
+        rv = UA_Byte_encodeBinary(&src->securityHeader.messageNonce[i],
                                   bufPos, bufEnd);
         UA_CHECK_STATUS(rv, return rv);
     }
@@ -768,23 +766,21 @@ UA_SecurityHeader_decodeBinary(const UA_ByteString *src, size_t *offset,
     rv = UA_UInt32_decodeBinary(src, offset, &dst->securityHeader.securityTokenId);
     UA_CHECK_STATUS(rv, return rv);
 
-    // NonceLength
+    // MessageNonce
     UA_Byte nonceLength;
     rv = UA_Byte_decodeBinary(src, offset, &nonceLength);
     UA_CHECK_STATUS(rv, return rv);
-
-    // MessageNonce
+    if(nonceLength > UA_NETWORKMESSAGE_MAX_NONCE_LENGTH)
+        return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
     if(nonceLength > 0) {
-        //TODO: check for memory leaks
-        dst->securityHeader.messageNonce.length = MESSAGE_NONCE_LENGTH;
-        dst->securityHeader.messageNonce.data = MessageNonceGenerated;
-        UA_CHECK_STATUS(rv, return rv);
-        for (UA_Byte i = 0; i < nonceLength; i++) {
+        dst->securityHeader.messageNonceSize = nonceLength;
+        for(UA_Byte i = 0; i < nonceLength; i++) {
             rv = UA_Byte_decodeBinary(src, offset,
-                                      &dst->securityHeader.messageNonce.data[i]);
+                                      &dst->securityHeader.messageNonce[i]);
             UA_CHECK_STATUS(rv, return rv);
         }
     }
+
     // SecurityFooterSize
     if(dst->securityHeader.securityFooterEnabled) {
         rv = UA_UInt16_decodeBinary(src, offset, &dst->securityHeader.securityFooterSize);
@@ -1074,7 +1070,7 @@ UA_NetworkMessage_calcSizeBinary(UA_NetworkMessage *p, UA_NetworkMessageOffsetBu
         size += UA_Byte_calcSizeBinary(&byte);
         size += UA_UInt32_calcSizeBinary(&p->securityHeader.securityTokenId);
         size += 1; /* UA_Byte_calcSizeBinary(&p->securityHeader.nonceLength); */
-        size += p->securityHeader.messageNonce.length;
+        size += p->securityHeader.messageNonceSize;
         if(p->securityHeader.securityFooterEnabled)
             size += UA_UInt16_calcSizeBinary(&p->securityHeader.securityFooterSize);
     }
@@ -1128,12 +1124,8 @@ UA_NetworkMessage_clear(UA_NetworkMessage* p) {
         }
     }
 
-    if(p->securityHeader.securityFooterEnabled &&
-       p->securityHeader.securityFooterSize > 0)
-        UA_ByteString_clear(&p->securityFooter);
-
-    if(p->messageIdEnabled)
-        UA_String_clear(&p->messageId);
+    UA_ByteString_clear(&p->securityFooter);
+    UA_String_clear(&p->messageId);
 
     if(p->publisherIdEnabled &&
        p->publisherIdType == UA_PUBLISHERDATATYPE_STRING)
@@ -1270,7 +1262,11 @@ UA_NetworkMessage_signEncrypt(UA_NetworkMessage *nm, UA_MessageSecurityMode secu
     /* Encrypt the payload */
     if(securityMode == UA_MESSAGESECURITYMODE_SIGNANDENCRYPT) {
         /* Set the temporary MessageNonce in the SecurityPolicy */
-        res = policy->setMessageNonce(policyContext, &nm->securityHeader.messageNonce);
+        const UA_ByteString nonce = {
+            (size_t)nm->securityHeader.messageNonceSize,
+            nm->securityHeader.messageNonce
+        };
+        res = policy->setMessageNonce(policyContext, &nonce);
         UA_CHECK_STATUS(res, return res);
 
         /* The encryption is done in-place, no need to encode again */

@@ -341,22 +341,19 @@ UA_Server_freezeWriterGroupConfiguration(UA_Server *server,
     /* Encode the NetworkMessage */
     bufEnd = &wg->bufferedMessage.buffer.data[wg->bufferedMessage.buffer.length];
     bufPos = wg->bufferedMessage.buffer.data;
+
 #ifdef UA_ENABLE_PUBSUB_ENCRYPTION
     if(wg->config.securityMode > UA_MESSAGESECURITYMODE_NONE) {
         UA_Byte *payloadPosition;
         UA_NetworkMessage_encodeBinary(&networkMessage, &bufPos, bufEnd, &payloadPosition);
         wg->bufferedMessage.payloadPosition = payloadPosition;
+
         wg->bufferedMessage.nm = (UA_NetworkMessage *)UA_calloc(1,sizeof(UA_NetworkMessage));
-        wg->bufferedMessage.nm->securityHeader.networkMessageEncrypted =
-            networkMessage.securityHeader.networkMessageEncrypted;
-        wg->bufferedMessage.nm->securityHeader.networkMessageSigned =
-            networkMessage.securityHeader.networkMessageSigned;
-        UA_ByteString_copy(&networkMessage.securityHeader.messageNonce,
-                           &wg->bufferedMessage.nm->securityHeader.messageNonce);
+        wg->bufferedMessage.nm->securityHeader = networkMessage.securityHeader;
         UA_ByteString_allocBuffer(&wg->bufferedMessage.encryptBuffer, msgSize);
-        UA_ByteString_clear(&networkMessage.securityHeader.messageNonce);
     }
 #endif
+
     if(wg->config.securityMode <= UA_MESSAGESECURITYMODE_NONE)
         UA_NetworkMessage_encodeBinary(&networkMessage, &bufPos, bufEnd, NULL);
 
@@ -743,8 +740,11 @@ encryptAndSign(UA_WriterGroup *wg, const UA_NetworkMessage *nm,
 
     if(nm->securityHeader.networkMessageEncrypted) {
         /* Set the temporary MessageNonce in the SecurityPolicy */
-        rv = wg->config.securityPolicy->setMessageNonce(channelContext,
-                                                        &nm->securityHeader.messageNonce);
+        const UA_ByteString nonce = {
+            (size_t)nm->securityHeader.messageNonceSize,
+            (UA_Byte*)(uintptr_t)nm->securityHeader.messageNonce
+        };
+        rv = wg->config.securityPolicy->setMessageNonce(channelContext, &nonce);
         UA_CHECK_STATUS(rv, return rv);
 
         /* The encryption is done in-place, no need to encode again */
@@ -905,21 +905,17 @@ generateNetworkMessage(UA_PubSubConnection *connection, UA_WriterGroup *wg,
             networkMessage->securityHeader.networkMessageEncrypted = true;
         networkMessage->securityHeader.securityTokenId = wg->securityTokenId;
 
-        /* Generate the MessageNonce */
-        UA_ByteString_allocBuffer(&networkMessage->securityHeader.messageNonce, 8);
-        if(networkMessage->securityHeader.messageNonce.length == 0)
-            return UA_STATUSCODE_BADOUTOFMEMORY;
-
-        networkMessage->securityHeader.messageNonce.length = 4; /* Generate 4 random bytes */
+        /* Generate the MessageNonce. Four random bytes followed by a four-byte
+         * sequence number */
+        UA_ByteString nonce = {4, networkMessage->securityHeader.messageNonce};
         UA_StatusCode rv = wg->config.securityPolicy->symmetricModule.
-            generateNonce(wg->config.securityPolicy->policyContext,
-                          &networkMessage->securityHeader.messageNonce);
+            generateNonce(wg->config.securityPolicy->policyContext, &nonce);
         if(rv != UA_STATUSCODE_GOOD)
             return rv;
-        networkMessage->securityHeader.messageNonce.length = 8;
-        UA_Byte *pos = &networkMessage->securityHeader.messageNonce.data[4];
-        const UA_Byte *end = &networkMessage->securityHeader.messageNonce.data[8];
+        UA_Byte *pos = &networkMessage->securityHeader.messageNonce[4];
+        const UA_Byte *end = &networkMessage->securityHeader.messageNonce[8];
         UA_UInt32_encodeBinary(&wg->nonceSequenceNumber, &pos, end);
+        networkMessage->securityHeader.messageNonceSize = 8;
     }
 #endif
 
@@ -1003,7 +999,6 @@ cleanup_with_msg_size:
         UA_ByteString_clear(&buf);
     }
 cleanup:
-    UA_ByteString_clear(&nm.securityHeader.messageNonce);
     UA_free(nm.payload.dataSetPayload.sizes);
     return rv;
 }

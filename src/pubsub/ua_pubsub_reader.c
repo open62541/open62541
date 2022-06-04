@@ -32,12 +32,6 @@
 /* This functionality of this API will be used in future to create mirror Variables - TODO */
 /* #define UA_MAX_SIZENAME           64 */ /* Max size of Qualified Name of Subscribed Variable */
 
-/* Static memory allocation for the message nonce */
-#ifdef UA_ENABLE_PUBSUB_ENCRYPTION
-#define MESSAGE_NONCE_LENGTH      8
-static UA_Byte MessageNonceGenerated[MESSAGE_NONCE_LENGTH];
-#endif
-
 /* Clear DataSetReader */
 static void
 UA_DataSetReader_clear(UA_Server *server, UA_DataSetReader *dataSetReader);
@@ -259,17 +253,14 @@ UA_DataSetReader_generateNetworkMessage(UA_PubSubConnection *pubSubConnection,
             nm->securityHeader.networkMessageEncrypted = true;
         nm->securityHeader.securityTokenId = readerGroup->securityTokenId;
 
-        /* Generate the MessageNonce */
-        nm->securityHeader.messageNonce.length = MESSAGE_NONCE_LENGTH;
-        nm->securityHeader.messageNonce.data = MessageNonceGenerated;
-
-        nm->securityHeader.messageNonce.length = 4; /* Generate 4 random bytes */
+        /* Generate the MessageNonce starting with four random bytes */
+        UA_ByteString nonce = {4, nm->securityHeader.messageNonce};
         UA_StatusCode rv = readerGroup->config.securityPolicy->symmetricModule.
             generateNonce(readerGroup->config.securityPolicy->policyContext,
-                          &nm->securityHeader.messageNonce);
+                          &nonce);
         if(rv != UA_STATUSCODE_GOOD)
             return rv;
-        nm->securityHeader.messageNonce.length = 8;
+        nm->securityHeader.messageNonceSize = 8;
     }
 #endif
     nm->version = 1;
