@@ -44,8 +44,6 @@
 #include <open62541/server.h>
 #include <open62541/server_config_default.h>
 
-#include "ua_pubsub.h"
-
 #include <signal.h>
 
 #include <open62541/plugin/pubsub_mqtt.h>
@@ -471,14 +469,6 @@ int main(int argc, char **argv) {
         return EXIT_FAILURE;
     }
     addDataSetWriter(server, topic);
-    UA_PubSubConnection *connection = UA_PubSubConnection_findConnectionbyId(server, connectionIdent);
-
-    if(!connection) {
-        UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
-                       "Could not create a PubSubConnection");
-        UA_Server_delete(server);
-        return -1;
-    }
 
     UA_Server_run(server, &running);
     UA_Server_delete(server);

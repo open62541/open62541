@@ -240,7 +240,7 @@ UA_Server_ReaderGroup_clear(UA_Server* server, UA_ReaderGroup *readerGroup) {
     UA_DataSetReader *dataSetReader;
     UA_DataSetReader *tmpDataSetReader;
     LIST_FOREACH_SAFE(dataSetReader, &readerGroup->readers, listEntry, tmpDataSetReader) {
-        UA_Server_removeDataSetReader(server, dataSetReader->identifier);
+        removeDataSetReader(server, dataSetReader->identifier);
     }
     UA_PubSubConnection* pConn =
         UA_PubSubConnection_findConnectionbyId(server, readerGroup->linkedConnection);
