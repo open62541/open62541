@@ -342,19 +342,22 @@ UA_Server_freezeWriterGroupConfiguration(UA_Server *server,
     bufEnd = &wg->bufferedMessage.buffer.data[wg->bufferedMessage.buffer.length];
     bufPos = wg->bufferedMessage.buffer.data;
 #ifdef UA_ENABLE_PUBSUB_ENCRYPTION
-    if (wg->config.securityMode > UA_MESSAGESECURITYMODE_NONE){
+    if(wg->config.securityMode > UA_MESSAGESECURITYMODE_NONE) {
         UA_Byte *payloadPosition;
         UA_NetworkMessage_encodeBinary(&networkMessage, &bufPos, bufEnd, &payloadPosition);
         wg->bufferedMessage.payloadPosition = payloadPosition;
-        wg->bufferedMessage.nm = (UA_NetworkMessage *)UA_malloc(sizeof(networkMessage));
-        wg->bufferedMessage.nm->securityHeader.networkMessageEncrypted = networkMessage.securityHeader.networkMessageEncrypted;
-        wg->bufferedMessage.nm->securityHeader.networkMessageSigned = networkMessage.securityHeader.networkMessageSigned;
-        UA_ByteString_copy(&networkMessage.securityHeader.messageNonce, &wg->bufferedMessage.nm->securityHeader.messageNonce);
+        wg->bufferedMessage.nm = (UA_NetworkMessage *)UA_calloc(1,sizeof(UA_NetworkMessage));
+        wg->bufferedMessage.nm->securityHeader.networkMessageEncrypted =
+            networkMessage.securityHeader.networkMessageEncrypted;
+        wg->bufferedMessage.nm->securityHeader.networkMessageSigned =
+            networkMessage.securityHeader.networkMessageSigned;
+        UA_ByteString_copy(&networkMessage.securityHeader.messageNonce,
+                           &wg->bufferedMessage.nm->securityHeader.messageNonce);
         UA_ByteString_allocBuffer(&wg->bufferedMessage.encryptBuffer, msgSize);
         UA_ByteString_clear(&networkMessage.securityHeader.messageNonce);
     }
 #endif
-    if (wg->config.securityMode <= UA_MESSAGESECURITYMODE_NONE)
+    if(wg->config.securityMode <= UA_MESSAGESECURITYMODE_NONE)
         UA_NetworkMessage_encodeBinary(&networkMessage, &bufPos, bufEnd, NULL);
 
  cleanup:
