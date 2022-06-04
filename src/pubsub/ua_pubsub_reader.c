@@ -1239,9 +1239,11 @@ processMessageWithReader(UA_Server *server, UA_ReaderGroup *readerGroup,
     }
 }
 
-UA_StatusCode
-UA_Server_processNetworkMessage(UA_Server *server, UA_PubSubConnection *connection,
-                                UA_NetworkMessage* msg) {
+/* Process Network Message for a ReaderGroup. But we the ReaderGroup needs to be
+ * identified first. */
+static UA_StatusCode
+processNetworkMessage(UA_Server *server, UA_PubSubConnection *connection,
+                      UA_NetworkMessage* msg) {
     if(!msg || !connection)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
 
@@ -1384,7 +1386,7 @@ decodeAndProcessNetworkMessage(UA_Server *server, UA_ReaderGroup *readerGroup,
     UA_CHECK_STATUS_WARN(rv, goto cleanup, &server->config.logger, UA_LOGCATEGORY_SERVER,
                          "Subscribe failed. verify, decrypt and decode network message failed.");
 
-    rv = UA_Server_processNetworkMessage(server, connection, &nm);
+    rv = processNetworkMessage(server, connection, &nm);
     // TODO: check what action to perform on error (nothing?)
     UA_CHECK_STATUS_WARN(rv, (void)0, &server->config.logger, UA_LOGCATEGORY_SERVER,
                          "Subscribe failed. process network message failed.");
