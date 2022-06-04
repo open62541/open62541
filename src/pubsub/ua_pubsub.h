@@ -219,6 +219,14 @@ UA_DataSetFieldConfig_copy(const UA_DataSetFieldConfig *src,
 UA_DataSetField *
 UA_DataSetField_findDSFbyId(UA_Server *server, UA_NodeId identifier);
 
+UA_DataSetFieldResult
+addDataSetField(UA_Server *server, const UA_NodeId publishedDataSet,
+                const UA_DataSetFieldConfig *fieldConfig,
+                UA_NodeId *fieldIdentifier);
+
+UA_DataSetFieldResult
+removeDataSetField(UA_Server *server, const UA_NodeId dsf);
+
 /**********************************************/
 /*               DataSetReader                */
 /**********************************************/
@@ -250,6 +258,9 @@ UA_DataSetReader_process(UA_Server *server,
                          UA_ReaderGroup *readerGroup,
                          UA_DataSetReader *dataSetReader,
                          UA_DataSetMessage *dataSetMsg);
+
+UA_StatusCode
+removeDataSetReader(UA_Server *server, UA_NodeId readerIdentifier);
 
 /* Copy the configuration of DataSetReader */
 UA_StatusCode UA_DataSetReaderConfig_copy(const UA_DataSetReaderConfig *src,

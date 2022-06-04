@@ -471,7 +471,7 @@ UA_Server_addDataSetReader(UA_Server *server, UA_NodeId readerGroupIdentifier,
 }
 
 UA_StatusCode
-UA_Server_removeDataSetReader(UA_Server *server, UA_NodeId readerIdentifier) {
+removeDataSetReader(UA_Server *server, UA_NodeId readerIdentifier) {
     /* Remove datasetreader given by the identifier */
     UA_DataSetReader *dsr = UA_ReaderGroup_findDSRbyId(server, readerIdentifier);
     if(!dsr)
@@ -515,6 +515,14 @@ UA_Server_removeDataSetReader(UA_Server *server, UA_NodeId readerIdentifier) {
 #endif /* UA_ENABLE_PUBSUB_MONITORING */
 
     UA_DataSetReader_clear(server, dsr);
+    return res;
+}
+
+UA_StatusCode
+UA_Server_removeDataSetReader(UA_Server *server, UA_NodeId readerIdentifier) {
+    UA_LOCK(&server->serviceMutex);
+    UA_StatusCode res = removeDataSetReader(server, readerIdentifier);
+    UA_UNLOCK(&server->serviceMutex);
     return res;
 }
 

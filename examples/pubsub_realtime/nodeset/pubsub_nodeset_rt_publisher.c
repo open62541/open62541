@@ -295,7 +295,7 @@ addPublishedDataSet(UA_Server *server) {
 /* This example only uses two addDataSetField which uses the custom nodes of the XML file
  * (pubDataModel.xml) */
 static void
-addDataSetField(UA_Server *server) {
+_addDataSetField(UA_Server *server) {
     UA_NodeId dataSetFieldIdent;
     UA_DataSetFieldConfig dsfConfig;
     memset(&dsfConfig, 0, sizeof(UA_DataSetFieldConfig));
@@ -683,7 +683,7 @@ int main(int argc, char **argv) {
 
     addPubSubConnection(server, &networkAddressUrlPub);
     addPublishedDataSet(server);
-    addDataSetField(server);
+    _addDataSetField(server);
     addWriterGroup(server);
     addDataSetWriter(server);
     UA_Server_freezeWriterGroupConfiguration(server, writerGroupIdent);
