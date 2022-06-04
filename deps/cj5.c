@@ -51,7 +51,12 @@
 # define NAN ((double)(INFINITY-INFINITY))
 #endif
 
-// Max nesting depth of objects and arrays
+#if defined(_MSC_VER)
+# pragma warning(disable: 4056)
+# pragma warning(disable: 4756)
+#endif
+
+/* Max nesting depth of objects and arrays */
 #define CJ5_MAX_NESTING 32
 
 #define CJ5__FOURCC(_a, _b, _c, _d)                         \
