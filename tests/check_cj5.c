@@ -6,6 +6,22 @@
 #include <check.h>
 #include "cj5.h"
 
+#include <math.h>
+#include <float.h>
+
+/* vs2008 does not have INFINITY and NAN defined */
+#ifndef INFINITY
+# define INFINITY ((double)(DBL_MAX+DBL_MAX))
+#endif
+#ifndef NAN
+# define NAN ((double)(INFINITY-INFINITY))
+#endif
+
+#if defined(_MSC_VER)
+# pragma warning(disable: 4056)
+# pragma warning(disable: 4756)
+#endif
+
 START_TEST(parseObject) {
     const char *json = "{'a':1.0, 'b':2, 'c':'abcde'}";
     cj5_token tokens[32];
@@ -126,10 +142,14 @@ START_TEST(parseObjectCloseNoRoot) {
 } END_TEST
 
 START_TEST(parseArray) {
-    const char *json = "[1,2,3,null]";
+    const char *json = "[1.23456,2,3,null]";
     cj5_token tokens[32];
     cj5_result r = cj5_parse(json, (unsigned int)strlen(json), tokens, 32);
     ck_assert(r.error == CJ5_ERROR_NONE);
+
+    double val = 0;
+    cj5_get_float(&r, 1, &val);
+    ck_assert(fabs(val - 1.23456) < 0.00001);
 } END_TEST
 
 START_TEST(parseValue) {
@@ -137,6 +157,28 @@ START_TEST(parseValue) {
     cj5_token tokens[32];
     cj5_result r = cj5_parse(json, (unsigned int)strlen(json), tokens, 32);
     ck_assert(r.error == CJ5_ERROR_NONE);
+} END_TEST
+
+START_TEST(parseInf) {
+    const char *json = "Infinity";
+    cj5_token tokens[32];
+    cj5_result r = cj5_parse(json, (unsigned int)strlen(json), tokens, 32);
+    ck_assert(r.error == CJ5_ERROR_NONE);
+
+    double val = 0;
+    cj5_get_float(&r, 0, &val);
+    ck_assert_msg(val == INFINITY, "val: %f", val);
+} END_TEST
+
+START_TEST(parseNegInf) {
+    const char *json = "-Infinity";
+    cj5_token tokens[32];
+    cj5_result r = cj5_parse(json, (unsigned int)strlen(json), tokens, 32);
+    ck_assert(r.error == CJ5_ERROR_NONE);
+
+    double val = 0;
+    cj5_get_float(&r, 0, &val);
+    ck_assert_msg(val == -INFINITY, "val: %f", val);
 } END_TEST
 
 static Suite *testSuite_builtin_json(void) {
@@ -153,6 +195,8 @@ static Suite *testSuite_builtin_json(void) {
     tcase_add_test(tc_parse, parseObjectCloseNoRoot);
     tcase_add_test(tc_parse, parseArray);
     tcase_add_test(tc_parse, parseValue);
+    tcase_add_test(tc_parse, parseInf);
+    tcase_add_test(tc_parse, parseNegInf);
 
     Suite *s = suite_create("Test JSON decoding with the cj5 library");
     suite_add_tcase(s, tc_parse);
