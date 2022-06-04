@@ -651,7 +651,7 @@ cj5_get_str(const cj5_result *r, unsigned int tok_index,
             case 'r':  buf[outpos++] = '\r'; break;
             case 'n':  buf[outpos++] = '\n'; break;
             case 't':  buf[outpos++] = '\t'; break;
-            case 'u': // The next four characters are an utf8 code
+            case 'u': { // The next four characters are an utf8 code
                 if(pos + 4 >= end)
                     return CJ5_ERROR_INCOMPLETE;
                 
@@ -676,21 +676,22 @@ cj5_get_str(const cj5_result *r, unsigned int tok_index,
                 if(utf <= 0x7F) { // Plain ASCII
                     buf[outpos++] = (char)utf;
                 } else if(utf <= 0x07FF) { // 2-byte unicode
-                    buf[outpos++] = (char) (((utf >> 6) & 0x1F) | 0xC0);
-                    buf[outpos++] = (char) (((utf >> 0) & 0x3F) | 0x80);
+                    buf[outpos++] = (char)(((utf >> 6) & 0x1F) | 0xC0);
+                    buf[outpos++] = (char)(((utf >> 0) & 0x3F) | 0x80);
                 } else if(utf <= 0xFFFF) { // 3-byte unicode
-                    buf[outpos++] = (char) (((utf >> 12) & 0x0F) | 0xE0);
-                    buf[outpos++] = (char) (((utf >>  6) & 0x3F) | 0x80);
-                    buf[outpos++] = (char) (((utf >>  0) & 0x3F) | 0x80);
+                    buf[outpos++] = (char)(((utf >> 12) & 0x0F) | 0xE0);
+                    buf[outpos++] = (char)(((utf >>  6) & 0x3F) | 0x80);
+                    buf[outpos++] = (char)(((utf >>  0) & 0x3F) | 0x80);
                 } else if(utf <= 0x10FFFF) { // 4-byte unicode
-                    buf[outpos++] = (char) (((utf >> 18) & 0x07) | 0xF0);
-                    buf[outpos++] = (char) (((utf >> 12) & 0x3F) | 0x80);
-                    buf[outpos++] = (char) (((utf >>  6) & 0x3F) | 0x80);
-                    buf[outpos++] = (char) (((utf >>  0) & 0x3F) | 0x80);
+                    buf[outpos++] = (char)(((utf >> 18) & 0x07) | 0xF0);
+                    buf[outpos++] = (char)(((utf >> 12) & 0x3F) | 0x80);
+                    buf[outpos++] = (char)(((utf >>  6) & 0x3F) | 0x80);
+                    buf[outpos++] = (char)(((utf >>  0) & 0x3F) | 0x80);
                 } else {
                     return CJ5_ERROR_INVALID; // Not a utf8 string
                 }
                 break;
+            }
             default:
                 return CJ5_ERROR_INVALID;
             }
