@@ -456,6 +456,9 @@ UA_Server_freezeReaderGroupConfiguration(UA_Server *server,
     if(!rg)
         return UA_STATUSCODE_BADNOTFOUND;
 
+    if(rg->configurationFrozen)
+        return UA_STATUSCODE_GOOD;
+
     /* PubSubConnection freezeCounter++ */
     UA_NodeId pubSubConnectionId =  rg->linkedConnection;
     UA_PubSubConnection *pubSubConnection =
