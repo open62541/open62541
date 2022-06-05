@@ -34,7 +34,7 @@ UA_StatusCode
 mbedtls_generateKey(mbedtls_md_context_t *context,
                     const UA_ByteString *secret, const UA_ByteString *seed,
                     UA_ByteString *out) {
-#if MBEDTLS_VERSION_NUMBER >= 0x02070000 && MBEDTLS_VERSION_NUMBER < 0x03000000
+#if MBEDTLS_VERSION_NUMBER >= 0x02060000 && MBEDTLS_VERSION_NUMBER < 0x03000000
     size_t hashLen = (size_t)mbedtls_md_get_size(context->md_info);
 #else
     size_t hashLen = (size_t)mbedtls_md_get_size(context->private_md_info);
@@ -185,10 +185,17 @@ mbedtls_encrypt_rsaOaep(mbedtls_rsa_context *context,
         return UA_STATUSCODE_BADINTERNALERROR;
 
     size_t max_blocks = data->length / plainTextBlockSize;
-    size_t keylen = mbedtls_rsa_get_len(context);
+
 
     UA_ByteString encrypted;
+#if MBEDTLS_VERSION_NUMBER >= 0x02060000 && MBEDTLS_VERSION_NUMBER < 0x03000000
+    UA_StatusCode retval = UA_ByteString_allocBuffer(&encrypted, max_blocks * context->len);
+#else
+    size_t keylen = mbedtls_rsa_get_len(context);
     UA_StatusCode retval = UA_ByteString_allocBuffer(&encrypted, max_blocks * keylen);
+
+#endif
+
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
@@ -197,7 +204,7 @@ mbedtls_encrypt_rsaOaep(mbedtls_rsa_context *context,
     size_t offset = 0;
     const unsigned char *label = NULL;
     while(lenDataToEncrypt >= plainTextBlockSize) {
-#if MBEDTLS_VERSION_NUMBER >= 0x02070000 && MBEDTLS_VERSION_NUMBER < 0x03000000
+#if MBEDTLS_VERSION_NUMBER >= 0x02060000 && MBEDTLS_VERSION_NUMBER < 0x03000000
         int mbedErr = mbedtls_rsa_rsaes_oaep_encrypt(context, mbedtls_ctr_drbg_random,
                                                      drbgContext, MBEDTLS_RSA_PUBLIC,
                                                      label, 0, plainTextBlockSize,
@@ -214,7 +221,11 @@ mbedtls_encrypt_rsaOaep(mbedtls_rsa_context *context,
         }
 
         inOffset += plainTextBlockSize;
+#if MBEDTLS_VERSION_NUMBER >= 0x02060000 && MBEDTLS_VERSION_NUMBER < 0x03000000
+        offset += context->len;
+#else
         offset += keylen;
+#endif
         lenDataToEncrypt -= plainTextBlockSize;
     }
 
@@ -229,10 +240,14 @@ mbedtls_decrypt_rsaOaep(mbedtls_pk_context *localPrivateKey,
                         UA_ByteString *data) {
     mbedtls_rsa_context *rsaContext = mbedtls_pk_rsa(*localPrivateKey);
     mbedtls_rsa_set_padding(rsaContext, MBEDTLS_RSA_PKCS_V21, MBEDTLS_MD_SHA1);
-    size_t keylen = mbedtls_rsa_get_len(rsaContext);
-
-    if(data->length % keylen != 0)
+#if MBEDTLS_VERSION_NUMBER >= 0x02060000 && MBEDTLS_VERSION_NUMBER < 0x03000000
+    if(data->length % rsaContext->len != 0)
         return UA_STATUSCODE_BADINTERNALERROR;
+#else
+    size_t keylen = mbedtls_rsa_get_len(rsaContext);
+        if(data->length % keylen != 0)
+        return UA_STATUSCODE_BADINTERNALERROR;
+#endif
 
     size_t inOffset = 0;
     size_t outOffset = 0;
@@ -240,7 +255,7 @@ mbedtls_decrypt_rsaOaep(mbedtls_pk_context *localPrivateKey,
     unsigned char buf[512];
 
     while(inOffset < data->length) {
-#if MBEDTLS_VERSION_NUMBER >= 0x02070000 && MBEDTLS_VERSION_NUMBER < 0x03000000
+#if MBEDTLS_VERSION_NUMBER >= 0x02060000 && MBEDTLS_VERSION_NUMBER < 0x03000000
         int mbedErr = mbedtls_rsa_rsaes_oaep_decrypt(rsaContext, mbedtls_ctr_drbg_random,
                                                      drbgContext, MBEDTLS_RSA_PRIVATE,
                                                      NULL, 0, &outLength,
@@ -258,7 +273,11 @@ mbedtls_decrypt_rsaOaep(mbedtls_pk_context *localPrivateKey,
             return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
 
         memcpy(data->data + outOffset, buf, outLength);
+#if MBEDTLS_VERSION_NUMBER >= 0x02060000 && MBEDTLS_VERSION_NUMBER < 0x03000000
+        inOffset += rsaContext->len;
+#else
         inOffset += keylen;
+#endif
         outOffset += outLength;
     }
 
@@ -269,7 +288,7 @@ mbedtls_decrypt_rsaOaep(mbedtls_pk_context *localPrivateKey,
 int
 UA_mbedTLS_LoadPrivateKey(const UA_ByteString *key, mbedtls_pk_context *target, void *p_rng) {
     UA_ByteString data = UA_mbedTLS_CopyDataFormatAware(key);
-#if MBEDTLS_VERSION_NUMBER >= 0x02070000 && MBEDTLS_VERSION_NUMBER < 0x03000000
+#if MBEDTLS_VERSION_NUMBER >= 0x02060000 && MBEDTLS_VERSION_NUMBER < 0x03000000
     int mbedErr = mbedtls_pk_parse_key(target, data.data, data.length, NULL, 0);
 #else
     int mbedErr = mbedtls_pk_parse_key(target, data.data, data.length, NULL, 0, mbedtls_entropy_func, p_rng);

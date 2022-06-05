@@ -439,7 +439,7 @@ certificateVerification_verify(void *verificationContext,
      * shall be condidered as CA Certificate and cannot be used to establish a
      * connection. Refer the test case CTT/Security/Security Certificate Validation/029.js
      * for more details */
-#if MBEDTLS_VERSION_NUMBER >= 0x02070000 && MBEDTLS_VERSION_NUMBER < 0x03000000
+#if MBEDTLS_VERSION_NUMBER >= 0x02060000 && MBEDTLS_VERSION_NUMBER < 0x03000000
     if((remoteCertificate.key_usage & MBEDTLS_X509_KU_KEY_CERT_SIGN) &&
        (remoteCertificate.key_usage & MBEDTLS_X509_KU_CRL_SIGN)) {
         return UA_STATUSCODE_BADCERTIFICATEUSENOTALLOWED;
