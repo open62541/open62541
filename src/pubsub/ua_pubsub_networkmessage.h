@@ -259,7 +259,8 @@ UA_DataSetMessage_decodeBinary(const UA_ByteString *src, size_t *offset,
                                UA_DataSetMessage* dst, UA_UInt16 dsmSize);
 
 size_t
-UA_DataSetMessage_calcSizeBinary(UA_DataSetMessage *p, UA_NetworkMessageOffsetBuffer *offsetBuffer,
+UA_DataSetMessage_calcSizeBinary(UA_DataSetMessage *p,
+                                 UA_NetworkMessageOffsetBuffer *offsetBuffer,
                                  size_t currentOffset);
 
 void UA_DataSetMessage_clear(UA_DataSetMessage* p);
@@ -304,13 +305,16 @@ UA_NetworkMessage_encodeFooters(const UA_NetworkMessage* src,
  * ^^^^^^^^^^^^^^^^^^^^^^^ */
 
 UA_StatusCode
-UA_NetworkMessage_decodeHeaders(const UA_ByteString *src, size_t *offset, UA_NetworkMessage *dst);
+UA_NetworkMessage_decodeHeaders(const UA_ByteString *src, size_t *offset,
+                                UA_NetworkMessage *dst);
 
 UA_StatusCode
-UA_NetworkMessage_decodePayload(const UA_ByteString *src, size_t *offset, UA_NetworkMessage *dst);
+UA_NetworkMessage_decodePayload(const UA_ByteString *src, size_t *offset,
+                                UA_NetworkMessage *dst);
 
 UA_StatusCode
-UA_NetworkMessage_decodeFooters(const UA_ByteString *src, size_t *offset, UA_NetworkMessage *dst);
+UA_NetworkMessage_decodeFooters(const UA_ByteString *src, size_t *offset,
+                                UA_NetworkMessage *dst);
 
 UA_StatusCode
 UA_NetworkMessage_decodeBinary(const UA_ByteString *src, size_t *offset,
@@ -318,8 +322,10 @@ UA_NetworkMessage_decodeBinary(const UA_ByteString *src, size_t *offset,
 
 
 UA_StatusCode
-UA_NetworkMessageHeader_decodeBinary(const UA_ByteString *src, size_t *offset, UA_NetworkMessage *dst);
+UA_NetworkMessageHeader_decodeBinary(const UA_ByteString *src, size_t *offset,
+                                     UA_NetworkMessage *dst);
 
+/* Also stores the offset if offsetBuffer != NULL */
 size_t
 UA_NetworkMessage_calcSizeBinary(UA_NetworkMessage *p,
                                  UA_NetworkMessageOffsetBuffer *offsetBuffer);
