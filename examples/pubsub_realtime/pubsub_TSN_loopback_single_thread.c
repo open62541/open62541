@@ -620,7 +620,7 @@ addPublishedDataSet(UA_Server *server) {
 
 /* DataSetField handling */
 static void
-addDataSetField(UA_Server *server) {
+_addDataSetField(UA_Server *server) {
     /* Add a field to the previous created PublishedDataSet */
     UA_NodeId dataSetFieldIdent1;
     UA_DataSetFieldConfig dataSetFieldConfig;
@@ -1327,7 +1327,7 @@ int main(int argc, char **argv) {
 #ifdef TWO_WAY_COMMUNICATION
     addPubSubConnection(server, &transportProfile, &networkAddressUrlPub);
     addPublishedDataSet(server);
-    addDataSetField(server);
+    _addDataSetField(server);
     addWriterGroup(server);
     addDataSetWriter(server);
     UA_Server_freezeWriterGroupConfiguration(server, writerGroupIdent);

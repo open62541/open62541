@@ -40,12 +40,13 @@
  * options is provided, the system's default certificate location will be used.
  */
 
-#include "open62541/server.h"
-#include "open62541/server_config_default.h"
-#include "ua_pubsub.h"
-#include "ua_network_pubsub_mqtt.h"
-#include "open62541/plugin/log_stdout.h"
+#include <open62541/plugin/log_stdout.h>
+#include <open62541/server.h>
+#include <open62541/server_config_default.h>
+
 #include <signal.h>
+
+#include <open62541/plugin/pubsub_mqtt.h>
 
 #define CONNECTION_NAME              "MQTT Publisher Connection"
 #define TRANSPORT_PROFILE_URI        "http://opcfoundation.org/UA-Profile/Transport/pubsub-mqtt"
@@ -68,7 +69,7 @@
 #endif
 
 // Uncomment the following line to enable MQTT via TLS for the example
-// #define EXAMPLE_USE_MQTT_TLS
+//#define EXAMPLE_USE_MQTT_TLS
 
 #ifdef EXAMPLE_USE_MQTT_TLS
 #define USE_TLS_OPTION_NAME             "mqttUseTLS"
@@ -468,14 +469,6 @@ int main(int argc, char **argv) {
         return EXIT_FAILURE;
     }
     addDataSetWriter(server, topic);
-    UA_PubSubConnection *connection = UA_PubSubConnection_findConnectionbyId(server, connectionIdent);
-
-    if(!connection) {
-        UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
-                       "Could not create a PubSubConnection");
-        UA_Server_delete(server);
-        return -1;
-    }
 
     UA_Server_run(server, &running);
     UA_Server_delete(server);

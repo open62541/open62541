@@ -138,14 +138,14 @@ if(UA_ENABLE_PUBSUB)
     endif()
 
     if(UA_ENABLE_PUBSUB_MQTT)
-      list(APPEND test_plugin_sources ${PROJECT_SOURCE_DIR}/deps/mqtt-c/mqtt_pal.h
-                                      ${PROJECT_SOURCE_DIR}/deps/mqtt-c/mqtt.h
-                                      ${PROJECT_SOURCE_DIR}/plugins/ua_network_pubsub_mqtt.h
-                                      ${PROJECT_SOURCE_DIR}/plugins/mqtt/ua_mqtt_adapter.h
-                                      ${PROJECT_SOURCE_DIR}/plugins/mqtt/ua_mqtt_pal.c
-                                      ${PROJECT_SOURCE_DIR}/deps/mqtt-c/mqtt.c
-                                      ${PROJECT_SOURCE_DIR}/plugins/ua_network_pubsub_mqtt.c
-                                      ${PROJECT_SOURCE_DIR}/plugins/mqtt/ua_mqtt_adapter.c)
+      list(APPEND test_plugin_sources ${PROJECT_SOURCE_DIR}/deps/mqtt-c/include/mqtt_pal.h
+           ${PROJECT_SOURCE_DIR}/deps/mqtt-c/include/mqtt.h
+           ${PROJECT_SOURCE_DIR}/plugins/include/open62541/plugin/pubsub_mqtt.h
+           ${PROJECT_SOURCE_DIR}/plugins/mqtt/ua_mqtt-c_adapter.h
+           ${PROJECT_SOURCE_DIR}/deps/mqtt-c/src/mqtt.c
+           ${PROJECT_SOURCE_DIR}/deps/mqtt-c/src/mqtt_pal.c
+           ${PROJECT_SOURCE_DIR}/plugins/ua_pubsub_mqtt.c
+           ${PROJECT_SOURCE_DIR}/plugins/mqtt/ua_mqtt-c_adapter.c)
     endif()
 endif()
 
@@ -226,6 +226,7 @@ endfunction()
 ua_add_test(check_types_builtin.c)
 
 if(UA_ENABLE_JSON_ENCODING)
+    ua_add_test(check_cj5.c)
     ua_add_test(check_types_builtin_json.c)
 
     if(UA_ENABLE_PUBSUB)

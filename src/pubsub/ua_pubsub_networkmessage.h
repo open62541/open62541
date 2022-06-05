@@ -15,6 +15,8 @@
 
 _UA_BEGIN_DECLS
 
+#define UA_NETWORKMESSAGE_MAX_NONCE_LENGTH 16
+
 /* DataSet Payload Header */
 typedef struct {
     UA_Byte count;
@@ -128,7 +130,8 @@ typedef struct {
     UA_Boolean securityFooterEnabled;
     UA_Boolean forceKeyReset;
     UA_UInt32 securityTokenId;      // spec: IntegerId
-    UA_ByteString messageNonce;
+    UA_Byte messageNonce[UA_NETWORKMESSAGE_MAX_NONCE_LENGTH];
+    UA_UInt16 messageNonceSize;
     UA_UInt16 securityFooterSize;
 } UA_NetworkMessageSecurityHeader;
 
@@ -218,14 +221,19 @@ typedef struct {
     UA_ByteString buffer; /* The precomputed message buffer */
     UA_NetworkMessageOffset *offsets; /* Offsets for changes in the message buffer */
     size_t offsetsSize;
-    UA_Boolean RTsubscriberEnabled; /* Addtional offsets computation like publisherId, WGId if this bool enabled */
+    UA_Boolean RTsubscriberEnabled; /* Addtional offsets computation like
+                                     * publisherId, WGId if this bool enabled */
     UA_NetworkMessage *nm; /* The precomputed NetworkMessage for subscriber */
     size_t rawMessageLength;
 #ifdef UA_ENABLE_PUBSUB_ENCRYPTION
-    UA_ByteString encryptBuffer; /* The precomputed message buffer is copied into the encrypt buffer for encryption and signing*/
+    UA_ByteString encryptBuffer; /* The precomputed message buffer is copied
+                                  * into the encrypt buffer for encryption and
+                                  * signing*/
     UA_Byte *payloadPosition; /* Payload Position of the message to encrypt*/
 #endif
 } UA_NetworkMessageOffsetBuffer;
+
+void UA_NetworkMessageOffsetBuffer_clear(UA_NetworkMessageOffsetBuffer *nmob);
 
 /**
  * DataSetMessage
@@ -251,10 +259,11 @@ UA_DataSetMessage_decodeBinary(const UA_ByteString *src, size_t *offset,
                                UA_DataSetMessage* dst, UA_UInt16 dsmSize);
 
 size_t
-UA_DataSetMessage_calcSizeBinary(UA_DataSetMessage *p, UA_NetworkMessageOffsetBuffer *offsetBuffer,
+UA_DataSetMessage_calcSizeBinary(UA_DataSetMessage *p,
+                                 UA_NetworkMessageOffsetBuffer *offsetBuffer,
                                  size_t currentOffset);
 
-void UA_DataSetMessage_clear(const UA_DataSetMessage* p);
+void UA_DataSetMessage_clear(UA_DataSetMessage* p);
 
 /**
  * NetworkMessage
@@ -296,13 +305,16 @@ UA_NetworkMessage_encodeFooters(const UA_NetworkMessage* src,
  * ^^^^^^^^^^^^^^^^^^^^^^^ */
 
 UA_StatusCode
-UA_NetworkMessage_decodeHeaders(const UA_ByteString *src, size_t *offset, UA_NetworkMessage *dst);
+UA_NetworkMessage_decodeHeaders(const UA_ByteString *src, size_t *offset,
+                                UA_NetworkMessage *dst);
 
 UA_StatusCode
-UA_NetworkMessage_decodePayload(const UA_ByteString *src, size_t *offset, UA_NetworkMessage *dst);
+UA_NetworkMessage_decodePayload(const UA_ByteString *src, size_t *offset,
+                                UA_NetworkMessage *dst);
 
 UA_StatusCode
-UA_NetworkMessage_decodeFooters(const UA_ByteString *src, size_t *offset, UA_NetworkMessage *dst);
+UA_NetworkMessage_decodeFooters(const UA_ByteString *src, size_t *offset,
+                                UA_NetworkMessage *dst);
 
 UA_StatusCode
 UA_NetworkMessage_decodeBinary(const UA_ByteString *src, size_t *offset,
@@ -310,8 +322,10 @@ UA_NetworkMessage_decodeBinary(const UA_ByteString *src, size_t *offset,
 
 
 UA_StatusCode
-UA_NetworkMessageHeader_decodeBinary(const UA_ByteString *src, size_t *offset, UA_NetworkMessage *dst);
+UA_NetworkMessageHeader_decodeBinary(const UA_ByteString *src, size_t *offset,
+                                     UA_NetworkMessage *dst);
 
+/* Also stores the offset if offsetBuffer != NULL */
 size_t
 UA_NetworkMessage_calcSizeBinary(UA_NetworkMessage *p,
                                  UA_NetworkMessageOffsetBuffer *offsetBuffer);
@@ -327,10 +341,6 @@ UA_NetworkMessage_signEncrypt(UA_NetworkMessage *nm, UA_MessageSecurityMode secu
 
 void
 UA_NetworkMessage_clear(UA_NetworkMessage* p);
-
-void
-UA_NetworkMessage_delete(UA_NetworkMessage* p);
-
 
 #ifdef UA_ENABLE_JSON_ENCODING
 UA_StatusCode

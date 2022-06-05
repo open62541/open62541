@@ -293,7 +293,7 @@ TCP_listenSocketCallback(UA_ConnectionManager *cm, UA_RegisteredFD *rfd, short e
     if(res != UA_STATUSCODE_GOOD) {
         UA_LOG_SOCKET_ERRNO_WRAP(
             UA_LOG_WARNING(cm->eventSource.eventLoop->logger, UA_LOGCATEGORY_NETWORK,
-                           "TCP %u\t| Error seeting the TCP options (%s), closing",
+                           "TCP %u\t| Error seeting the TCP options (%s)",
                            (unsigned)newsockfd, errno_str));
         /* Close the new socket */
         UA_close(newsockfd);
@@ -304,7 +304,7 @@ TCP_listenSocketCallback(UA_ConnectionManager *cm, UA_RegisteredFD *rfd, short e
     TCP_FD *newtcpfd = (TCP_FD*)UA_calloc(1, sizeof(TCP_FD));
     if(!newtcpfd) {
         UA_LOG_WARNING(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
-                       "TCP %u\t| Error allocating memory for the socket, closing",
+                       "TCP %u\t| Error allocating memory for the socket",
                        (unsigned)newsockfd);
         UA_close(newsockfd);
         return;
@@ -321,7 +321,7 @@ TCP_listenSocketCallback(UA_ConnectionManager *cm, UA_RegisteredFD *rfd, short e
     res = TCPConnectionManager_register(tcm, &newtcpfd->fd);
     if(res != UA_STATUSCODE_GOOD) {
         UA_LOG_WARNING(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
-                       "TCP %u\t| Error registering the socket, closing",
+                       "TCP %u\t| Error registering the socket",
                        (unsigned)newsockfd);
         UA_free(newtcpfd);
         UA_close(newsockfd);
@@ -372,7 +372,7 @@ TCP_registerListenSocket(UA_ConnectionManager *cm, struct addrinfo *ai,
     }
 
     UA_LOG_INFO(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
-                "TCP %u\t| New server socket for \"%s\" on port %u",
+                "TCP %u\t| Creating server socket for \"%s\" on port %u",
                 (unsigned)listenSocket, hoststr, port);
 
     /* Some Linux distributions have net.ipv6.bindv6only not activated. So
@@ -384,7 +384,7 @@ TCP_registerListenSocket(UA_ConnectionManager *cm, struct addrinfo *ai,
        UA_setsockopt(listenSocket, IPPROTO_IPV6, IPV6_V6ONLY,
                      (const char*)&optval, sizeof(optval)) == -1) {
         UA_LOG_WARNING(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
-                       "TCP %u\t| Could not set an IPv6 socket to IPv6 only, closing",
+                       "TCP %u\t| Could not set an IPv6 socket to IPv6 only",
                        (unsigned)listenSocket);
         UA_close(listenSocket);
         return UA_STATUSCODE_BADINTERNALERROR;
@@ -395,7 +395,7 @@ TCP_registerListenSocket(UA_ConnectionManager *cm, struct addrinfo *ai,
     if(UA_setsockopt(listenSocket, SOL_SOCKET, SO_REUSEADDR,
                      (const char *)&optval, sizeof(optval)) == -1) {
         UA_LOG_WARNING(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
-                       "TCP %u\t| Could not make the socket reusable, closing",
+                       "TCP %u\t| Could not make the socket reusable",
                        (unsigned)listenSocket);
         UA_close(listenSocket);
         return UA_STATUSCODE_BADINTERNALERROR;
@@ -404,7 +404,7 @@ TCP_registerListenSocket(UA_ConnectionManager *cm, struct addrinfo *ai,
     /* Set the socket non-blocking */
     if(TCP_setNonBlocking(listenSocket) != UA_STATUSCODE_GOOD) {
         UA_LOG_WARNING(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
-                       "TCP %u\t| Could not set the socket non-blocking, closing",
+                       "TCP %u\t| Could not set the socket non-blocking",
                        (unsigned)listenSocket);
         UA_close(listenSocket);
         return UA_STATUSCODE_BADINTERNALERROR;
@@ -413,7 +413,7 @@ TCP_registerListenSocket(UA_ConnectionManager *cm, struct addrinfo *ai,
     /* Supress interrupts from the socket */
     if(TCP_setNoSigPipe(listenSocket) != UA_STATUSCODE_GOOD) {
         UA_LOG_WARNING(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
-                       "TCP %u\t| Could not disable SIGPIPE, closing",
+                       "TCP %u\t| Could not disable SIGPIPE",
                        (unsigned)listenSocket);
         UA_close(listenSocket);
         return UA_STATUSCODE_BADINTERNALERROR;
@@ -424,8 +424,8 @@ TCP_registerListenSocket(UA_ConnectionManager *cm, struct addrinfo *ai,
     if(ret < 0) {
         UA_LOG_SOCKET_ERRNO_WRAP(
            UA_LOG_WARNING(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
-                          "TCP %u\t| Error binding the socket to the address (%s), closing",
-                          (unsigned)listenSocket, errno_str));
+                          "TCP %u\t| Error binding the socket to the address %s (%s)",
+                          (unsigned)listenSocket, hoststr, errno_str));
         UA_close(listenSocket);
         return UA_STATUSCODE_BADINTERNALERROR;
     }
@@ -434,7 +434,7 @@ TCP_registerListenSocket(UA_ConnectionManager *cm, struct addrinfo *ai,
     if(UA_listen(listenSocket, UA_MAXBACKLOG) < 0) {
         UA_LOG_SOCKET_ERRNO_WRAP(
            UA_LOG_WARNING(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
-                          "TCP %u\t| Error listening on the socket (%s), closing",
+                          "TCP %u\t| Error listening on the socket (%s)",
                           (unsigned)listenSocket, errno_str));
         UA_close(listenSocket);
         return UA_STATUSCODE_BADINTERNALERROR;
@@ -444,7 +444,7 @@ TCP_registerListenSocket(UA_ConnectionManager *cm, struct addrinfo *ai,
     TCP_FD *newtcpfd = (TCP_FD*)UA_calloc(1, sizeof(TCP_FD));
     if(!newtcpfd) {
         UA_LOG_WARNING(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
-                       "TCP %u\t| Error allocating memory for the socket, closing",
+                       "TCP %u\t| Error allocating memory for the socket",
                        (unsigned)listenSocket);
         UA_close(listenSocket);
         return UA_STATUSCODE_BADINTERNALERROR;
@@ -462,7 +462,7 @@ TCP_registerListenSocket(UA_ConnectionManager *cm, struct addrinfo *ai,
     UA_StatusCode res = TCPConnectionManager_register(tcm, &newtcpfd->fd);
     if(res != UA_STATUSCODE_GOOD) {
         UA_LOG_WARNING(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
-                       "TCP %u\t| Error registering the socket, closing",
+                       "TCP %u\t| Error registering the socket",
                        (unsigned)listenSocket);
         UA_free(newtcpfd);
         UA_close(listenSocket);
@@ -508,7 +508,7 @@ TCP_registerListenSockets(UA_ConnectionManager *cm, const char *hostname,
 #endif
     hints.ai_socktype = SOCK_STREAM;
     hints.ai_protocol = IPPROTO_TCP;
-    hints.ai_flags = AI_PASSIVE | AI_NUMERICHOST;
+    hints.ai_flags = AI_PASSIVE;
 #ifdef AI_ADDRCONFIG
     hints.ai_flags |= AI_ADDRCONFIG; /* Only return IPv4/IPv6 if at least one
                                       * such address is configured */
@@ -516,10 +516,16 @@ TCP_registerListenSockets(UA_ConnectionManager *cm, const char *hostname,
 
     int retcode = UA_getaddrinfo(hostname, portstr, &hints, &res);
     if(retcode != 0) {
-        UA_LOG_SOCKET_ERRNO_GAI_WRAP(
-           UA_LOG_WARNING(cm->eventSource.eventLoop->logger, UA_LOGCATEGORY_NETWORK,
-                          "TCP\t| getaddrinfo lookup for \"%s\" on port %u failed (%s)",
-                          hostname, port, errno_str));
+#ifdef _WIN32
+        UA_LOG_SOCKET_ERRNO_WRAP(
+        UA_LOG_WARNING(cm->eventSource.eventLoop->logger, UA_LOGCATEGORY_NETWORK,
+                       "tcp\t| Lookup for \"%s\" on port %u failed (%s)",
+                       hostname, port, errno_str));
+#else
+        UA_LOG_WARNING(cm->eventSource.eventLoop->logger, UA_LOGCATEGORY_NETWORK,
+                       "TCP\t| Lookup for \"%s\" on port %u failed (%s)",
+                       hostname, port, gai_strerror(retcode));
+#endif
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
@@ -769,10 +775,16 @@ TCP_openActiveConnection(UA_ConnectionManager *cm,
     hints.ai_socktype = SOCK_STREAM;
     int error = getaddrinfo(hostname, portStr, &hints, &info);
     if(error != 0) {
-        UA_LOG_SOCKET_ERRNO_GAI_WRAP(
+#ifdef _WIN32
+        UA_LOG_SOCKET_ERRNO_WRAP(
         UA_LOG_WARNING(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
-                       "TCP\t| Lookup of %s failed with error %d - %s",
-                       hostname, error, errno_str));
+                       "TCP\t| Lookup of %s failed (%s)",
+                       hostname, errno_str));
+#else
+        UA_LOG_WARNING(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
+                       "TCP\t| Lookup of %s failed (%s)",
+                       hostname, gai_strerror(error));
+#endif
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
@@ -818,7 +830,7 @@ TCP_openActiveConnection(UA_ConnectionManager *cm,
     TCP_FD *newtcpfd = (TCP_FD*)UA_calloc(1, sizeof(TCP_FD));
     if(!newtcpfd) {
         UA_LOG_WARNING(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
-                       "TCP %u\t| Error allocating memory for the socket, closing",
+                       "TCP %u\t| Error allocating memory for the socket",
                        (unsigned)newSock);
         UA_close(newSock);
         return UA_STATUSCODE_BADOUTOFMEMORY;
