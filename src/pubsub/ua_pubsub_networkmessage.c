@@ -932,7 +932,8 @@ increaseOffsetArray(UA_NetworkMessageOffsetBuffer *offsetBuffer) {
 }
 
 size_t
-UA_NetworkMessage_calcSizeBinary(UA_NetworkMessage *p, UA_NetworkMessageOffsetBuffer *offsetBuffer) {
+UA_NetworkMessage_calcSizeBinary(UA_NetworkMessage *p,
+                                 UA_NetworkMessageOffsetBuffer *offsetBuffer) {
     size_t retval = 0;
     UA_Byte byte = 0;
     size_t size = UA_Byte_calcSizeBinary(&byte); // UADPVersion + UADPFlags
