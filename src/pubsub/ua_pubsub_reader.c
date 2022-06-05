@@ -32,10 +32,6 @@
 /* This functionality of this API will be used in future to create mirror Variables - TODO */
 /* #define UA_MAX_SIZENAME           64 */ /* Max size of Qualified Name of Subscribed Variable */
 
-/* Clear DataSetReader */
-static void
-UA_DataSetReader_clear(UA_Server *server, UA_DataSetReader *dataSetReader);
-
 static void
 UA_PubSubDSRDataSetField_sampleValue(UA_Server *server, UA_DataSetReader *dataSetReader,
                                      UA_DataValue *value, UA_FieldTargetVariable *ftv) {
@@ -482,9 +478,9 @@ removeDataSetReader(UA_Server *server, UA_NodeId readerIdentifier) {
     removeDataSetReaderRepresentation(server, dsr);
 #endif
 
-    UA_StatusCode res = UA_STATUSCODE_GOOD;
 #ifdef UA_ENABLE_PUBSUB_MONITORING
     /* Stop and remove message receive timeout timer */
+    UA_StatusCode res = UA_STATUSCODE_GOOD;
     if(dsr->msgRcvTimeoutTimerRunning) {
         res = server->config.pubSubConfig.monitoringInterface.
             stopMonitoring(server, dsr->identifier, UA_PUBSUB_COMPONENT_DATASETREADER,
@@ -508,8 +504,31 @@ removeDataSetReader(UA_Server *server, UA_NodeId readerIdentifier) {
     }
 #endif /* UA_ENABLE_PUBSUB_MONITORING */
 
-    UA_DataSetReader_clear(server, dsr);
-    return res;
+    /* Delete DataSetReader config */
+    UA_DataSetReaderConfig_clear(&dsr->config);
+
+    /* Remove DataSetReader from group */
+    LIST_REMOVE(dsr, listEntry);
+    UA_ReaderGroup *rg = UA_ReaderGroup_findRGbyId(server, dsr->linkedReaderGroup);
+    if(rg)
+        rg->readersCount--;
+
+    /* THe offset buffer is only set when the dsr is frozen
+     * UA_NetworkMessageOffsetBuffer_clear(&dsr->bufferedMessage); */
+
+    UA_NodeId_clear(&dsr->identifier);
+    UA_NodeId_clear(&dsr->linkedReaderGroup);
+    if(dsr->config.subscribedDataSetType == UA_PUBSUB_SDS_TARGET) {
+        UA_TargetVariables_clear(&dsr->config.subscribedDataSet.subscribedDataSetTarget);
+    } else {
+        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                     "UA_DataSetReader_delete(): unsupported subscribed dataset enum type");
+    }
+
+    /* Free memory allocated for DataSetReader */
+    UA_free(dsr);
+
+    return UA_STATUSCODE_GOOD;
 }
 
 UA_StatusCode
@@ -1197,32 +1216,6 @@ UA_DataSetReader_handleMessageReceiveTimeout(UA_Server *server,
     }
 }
 #endif /* UA_ENABLE_PUBSUB_MONITORING */
-
-static void
-UA_DataSetReader_clear(UA_Server *server, UA_DataSetReader *dsr) {
-    /* Delete DataSetReader config */
-    UA_DataSetReaderConfig_clear(&dsr->config);
-
-    /* Delete DataSetReader */
-    UA_ReaderGroup *rg = UA_ReaderGroup_findRGbyId(server, dsr->linkedReaderGroup);
-    if(rg)
-        rg->readersCount--;
-
-    UA_NodeId_clear(&dsr->identifier);
-    UA_NodeId_clear(&dsr->linkedReaderGroup);
-    if(dsr->config.subscribedDataSetType == UA_PUBSUB_SDS_TARGET) {
-        UA_TargetVariables_clear(&dsr->config.subscribedDataSet.subscribedDataSetTarget);
-    } else {
-        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
-                     "UA_DataSetReader_clear(): unsupported subscribed dataset enum type");
-    }
-
-    /* Remove DataSetReader from group */
-    LIST_REMOVE(dsr, listEntry);
-
-    /* Free memory allocated for DataSetReader */
-    UA_free(dsr);
-}
 
 static void
 processMessageWithReader(UA_Server *server, UA_ReaderGroup *readerGroup,
