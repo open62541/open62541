@@ -591,10 +591,12 @@ UA_Server_freezeReaderGroupConfiguration(UA_Server *server,
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
+    /* The offset buffer is already clear if the ReaderGroup was unfrozen
+     * UA_NetworkMessageOffsetBuffer_clear(&dataSetReader->bufferedMessage); */
     memset(&dataSetReader->bufferedMessage, 0, sizeof(UA_NetworkMessageOffsetBuffer));
     dataSetReader->bufferedMessage.RTsubscriberEnabled = true;
 
-    /* Fix the offsets necessary to decode */
+    /* Compute and store the offsets necessary to decode */
     UA_NetworkMessage_calcSizeBinary(networkMessage, &dataSetReader->bufferedMessage);
     dataSetReader->bufferedMessage.nm = networkMessage;
 
