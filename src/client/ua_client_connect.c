@@ -1161,7 +1161,6 @@ initConnect(UA_Client *client) {
     /* Reset the connect status */
     client->connectStatus = UA_STATUSCODE_GOOD;
     client->channel.renewState = UA_SECURECHANNELRENEWSTATE_NORMAL;
-    client->endpointsHandshake = false;
 
     /* Initialize the SecureChannel */
     UA_SecureChannel_init(&client->channel, &client->config.localConnectionConfig);
