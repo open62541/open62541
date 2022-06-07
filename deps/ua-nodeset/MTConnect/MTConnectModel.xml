@@ -1,0 +1,1039 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<!--
+ * Copyright (c) 2005-2020 The OPC Foundation, Inc. All rights reserved.
+ *
+ * OPC Foundation MIT License 1.00
+ * 
+ * Permission is hereby granted, free of charge, to any person
+ * obtaining a copy of this software and associated documentation
+ * files (the "Software"), to deal in the Software without
+ * restriction, including without limitation the rights to use,
+ * copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the
+ * Software is furnished to do so, subject to the following
+ * conditions:
+ * 
+ * The above copyright notice and this permission notice shall be
+ * included in all copies or substantial portions of the Software.
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+ * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
+ * OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+ * NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
+ * HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+ * WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+ * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+ * OTHER DEALINGS IN THE SOFTWARE.
+ *
+ * The complete license agreement can be found here:
+ * http://opcfoundation.org/License/MIT/1.00/
+-->
+
+<opc:ModelDesign
+  xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xmlns:ua="http://opcfoundation.org/UA/"
+  xmlns:opc="http://opcfoundation.org/UA/ModelDesign.xsd"
+  xmlns:xsd="http://www.w3.org/2001/XMLSchema"
+  xmlns="http://opcfoundation.org/UA/MTConnect/"
+  TargetNamespace="http://opcfoundation.org/UA/MTConnect/"
+  TargetXmlNamespace="http://opcfoundation.org/UA/MTConnect/Types.xsd"
+  TargetVersion="1.00"
+  TargetPublicationDate="2013-12-31T00:00:00Z">
+
+  <opc:Namespaces>
+    <opc:Namespace Name="OpcUaMTConnect" Prefix="Opc.Ua.MTConnect" XmlNamespace="http://opcfoundation.org/UA/MTConnect/Types.xsd" XmlPrefix="DI">http://opcfoundation.org/UA/MTConnect/</opc:Namespace>
+    <opc:Namespace Name="OpcUa" Version="1.04.3" PublicationDate="2019-09-09T00:00:00Z" Prefix="Opc.Ua" InternalPrefix="Opc.Ua.Server" XmlNamespace="http://opcfoundation.org/UA/2008/02/Types.xsd" XmlPrefix="OpcUa">http://opcfoundation.org/UA/</opc:Namespace>
+  </opc:Namespaces>
+
+  <opc:Object SymbolicName="OpcUaMTConnectNamespaceMetadata" TypeDefinition="ua:NamespaceMetadataType">
+    <opc:BrowseName>http://opcfoundation.org/UA/MTConnect/</opc:BrowseName>
+    <opc:Children>
+      <opc:Property SymbolicName="ua:NamespaceUri" DataType="ua:String">
+        <opc:DefaultValue>
+          <uax:String>http://opcfoundation.org/UA/MTConnect/</uax:String>
+        </opc:DefaultValue>
+      </opc:Property>
+      <opc:Property SymbolicName="ua:NamespaceVersion" DataType="ua:String">
+        <opc:DefaultValue>
+          <uax:String>1.00</uax:String>
+        </opc:DefaultValue>
+      </opc:Property>
+      <opc:Property SymbolicName="ua:NamespacePublicationDate" DataType="ua:DateTime">
+        <opc:DefaultValue>
+          <uax:DateTime>2013-12-31</uax:DateTime>
+        </opc:DefaultValue>
+      </opc:Property>
+      <opc:Property SymbolicName="ua:IsNamespaceSubset" DataType="ua:Boolean">
+        <opc:DefaultValue>
+          <uax:Boolean>false</uax:Boolean>
+        </opc:DefaultValue>
+      </opc:Property>
+      <opc:Property SymbolicName="ua:StaticNodeIdTypes" DataType="ua:IdType" ValueRank="Array">
+        <opc:DefaultValue>
+          <uax:ListOfInt32>
+            <uax:Int32>0</uax:Int32>
+          </uax:ListOfInt32>
+        </opc:DefaultValue>
+      </opc:Property>
+      <opc:Property SymbolicName="ua:StaticNumericNodeIdRange" DataType="ua:NumericRange" ValueRank="Array">
+        <opc:DefaultValue>
+          <uax:ListOfString>
+            <uax:String>1:65535</uax:String>
+          </uax:ListOfString>
+        </opc:DefaultValue>
+      </opc:Property>
+      <opc:Property SymbolicName="ua:StaticStringNodeIdPattern" DataType="ua:String">
+        <opc:DefaultValue>
+          <uax:String></uax:String>
+        </opc:DefaultValue>
+      </opc:Property>
+      <opc:Property SymbolicName="ua:DefaultRolePermissions" ModellingRule="Mandatory" />
+      <opc:Property SymbolicName="ua:DefaultUserRolePermissions" ModellingRule="Mandatory" />
+      <opc:Property SymbolicName="ua:DefaultAccessRestrictions" ModellingRule="Mandatory" />
+    </opc:Children>
+    <opc:References>
+      <opc:Reference IsInverse="true">
+        <opc:ReferenceType>ua:HasComponent</opc:ReferenceType>
+        <opc:TargetId>ua:Server_Namespaces</opc:TargetId>
+      </opc:Reference>
+    </opc:References>
+  </opc:Object>
+
+  <opc:ObjectType SymbolicName="MTDevicesType" BaseType="ua:FolderType">
+    <opc:Children>
+      <opc:Variable SymbolicName="MTConnectVersion" DataType="ua:String" ModellingRule="Optional"></opc:Variable>
+      <opc:Variable SymbolicName="OPCUAMappingDate" DataType="ua:DateTime" ModellingRule="Optional"></opc:Variable>
+      <opc:Variable SymbolicName="OPCUAVersion" DataType="ua:String" ModellingRule="Optional"></opc:Variable>
+    </opc:Children>  
+  </opc:ObjectType>
+
+  <opc:Object SymbolicName="MTDevices" TypeDefinition="MTDevicesType">
+    <opc:References>
+      <opc:Reference IsInverse="true">
+        <opc:ReferenceType>ua:Organizes</opc:ReferenceType>
+        <opc:TargetId>ua:ObjectsFolder</opc:TargetId>
+      </opc:Reference>
+      <opc:Reference IsInverse="true">
+        <opc:ReferenceType>ua:HasNotifier</opc:ReferenceType>
+        <opc:TargetId>ua:Server</opc:TargetId>
+      </opc:Reference>
+    </opc:References>
+  </opc:Object>
+
+  <opc:ObjectType SymbolicName="MTDeviceType" BaseType="ua:BaseObjectType">
+    <opc:Children>
+      <opc:Variable SymbolicName="Availability" DataType="ua:String" TypeDefinition="ua:DataItemType" ModellingRule="Mandatory"></opc:Variable>
+      <opc:Property SymbolicName="Manufacturer" DataType="ua:String" ModellingRule="Mandatory"></opc:Property>
+      <opc:Property SymbolicName="SerialNumber" DataType="ua:String" ModellingRule="Mandatory"></opc:Property>
+      <opc:Property SymbolicName="Configuration" DataType="ua:String" ModellingRule="Optional"></opc:Property>
+      <opc:Property SymbolicName="SampleInterval" DataType="ua:Duration" ModellingRule="Optional"></opc:Property>
+      <opc:Object SymbolicName="DataItems" TypeDefinition="ua:FolderType" ModellingRule="Mandatory"></opc:Object>
+      <opc:Object SymbolicName="Components" TypeDefinition="ua:FolderType" ModellingRule="Mandatory"></opc:Object>
+      <opc:Object SymbolicName="Conditions" TypeDefinition="ua:FolderType" ModellingRule="Optional"></opc:Object>
+    </opc:Children>
+  </opc:ObjectType>
+
+  <opc:ObjectType SymbolicName="MTComponentType" BaseType="MTDeviceType">
+    <opc:Children>
+      <opc:Property SymbolicName="Model" DataType="ua:String" ModellingRule="Optional"></opc:Property>
+      <opc:Property SymbolicName="Station" DataType="ua:Duration" ModellingRule="Optional"></opc:Property>
+    </opc:Children>
+  </opc:ObjectType>
+
+  <opc:ObjectType SymbolicName="MTAxesType" BaseType="MTDeviceType">
+    <opc:Children>
+      <opc:Property SymbolicName="LinearAxesX" DataType="ua:String" ModellingRule="Optional"></opc:Property>
+      <opc:Property SymbolicName="LinearAxesY" DataType="ua:String" ModellingRule="Optional"></opc:Property>
+      <opc:Property SymbolicName="LinearAxesZ" DataType="ua:String" ModellingRule="Optional"></opc:Property>
+      <opc:Property SymbolicName="RotoryAxesA" DataType="ua:String" ModellingRule="Optional"></opc:Property>
+      <opc:Property SymbolicName="RotoryAxesB" DataType="ua:String" ModellingRule="Optional"></opc:Property>
+      <opc:Property SymbolicName="RotoryAxesC" DataType="ua:String" ModellingRule="Optional"></opc:Property>
+    </opc:Children>
+  </opc:ObjectType>
+
+  <opc:ObjectType SymbolicName="MTControllerType" BaseType="MTDeviceType">
+  </opc:ObjectType>
+
+  <opc:ObjectType SymbolicName="MTDoorType" BaseType="MTDeviceType">
+    <opc:Children>
+      <opc:Property SymbolicName="DoorState" DataType="ua:String" ModellingRule="Optional"></opc:Property>
+    </opc:Children>
+  </opc:ObjectType>
+
+  <opc:ObjectType SymbolicName="MTActuatorType" BaseType="MTDeviceType">
+    <opc:Children>
+      <opc:Property SymbolicName="LinearAxesX" DataType="ua:String" ModellingRule="Optional"></opc:Property>
+    </opc:Children>
+  </opc:ObjectType>
+
+  <opc:VariableType SymbolicName="MTSampleDataItemType" BaseType="ua:AnalogItemType" DataType="ua:Number">
+    <opc:Children>
+      <opc:Property SymbolicName="CoordinateSystem" DataType="CoordinateSystemTypeEnum" ModellingRule="Optional"></opc:Property>
+      <opc:Property SymbolicName="NativeUnits" DataType="ua:EUInformation" ModellingRule="Optional"></opc:Property>
+      <opc:Property SymbolicName="NativeScale" DataType="ua:Float" ModellingRule="Optional"></opc:Property>
+      <opc:Property SymbolicName="SampleInterval" DataType="ua:Duration" ModellingRule="Optional"></opc:Property>
+    </opc:Children>
+  </opc:VariableType>
+
+  <opc:VariableType SymbolicName="AccelerationType" BaseType="MTSampleDataItemType">
+  </opc:VariableType>
+
+  <opc:VariableType SymbolicName="AccumulatedTimeType" BaseType="MTSampleDataItemType">
+  </opc:VariableType>
+
+  <opc:VariableType SymbolicName="AmperageType" BaseType="MTSampleDataItemType">
+  </opc:VariableType>
+
+  <opc:VariableType SymbolicName="AngleType" BaseType="MTSampleDataItemType">
+  </opc:VariableType>
+
+  <opc:VariableType SymbolicName="AngularAccelerationType" BaseType="MTSampleDataItemType">
+  </opc:VariableType>
+
+  <opc:VariableType SymbolicName="AngularVelocityType" BaseType="MTSampleDataItemType">
+  </opc:VariableType>
+
+  <opc:VariableType SymbolicName="AxisFeedrateType" BaseType="MTSampleDataItemType">
+  </opc:VariableType>
+
+  <opc:VariableType SymbolicName="ConcentrationType" BaseType="MTSampleDataItemType">
+  </opc:VariableType>
+
+  <opc:VariableType SymbolicName="ConductivityType" BaseType="MTSampleDataItemType">
+  </opc:VariableType>
+
+  <opc:VariableType SymbolicName="DisplacementType" BaseType="MTSampleDataItemType">
+  </opc:VariableType>
+
+  <opc:VariableType SymbolicName="ElectricalEnergyType" BaseType="MTSampleDataItemType">
+  </opc:VariableType>
+
+  <opc:VariableType SymbolicName="FillLevelType" BaseType="MTSampleDataItemType">
+  </opc:VariableType>
+
+  <opc:VariableType SymbolicName="FlowType" BaseType="MTSampleDataItemType">
+  </opc:VariableType>
+
+  <opc:VariableType SymbolicName="FrequencyType" BaseType="MTSampleDataItemType">
+  </opc:VariableType>
+
+  <opc:VariableType SymbolicName="LinearForceType" BaseType="MTSampleDataItemType">
+  </opc:VariableType>
+
+  <opc:VariableType SymbolicName="LoadType" BaseType="MTSampleDataItemType">
+  </opc:VariableType>
+
+  <opc:VariableType SymbolicName="MassType" BaseType="MTSampleDataItemType">
+  </opc:VariableType>
+
+  <opc:VariableType SymbolicName="PathFeedrateType" BaseType="MTSampleDataItemType">
+  </opc:VariableType>
+
+  <opc:VariableType SymbolicName="PathPositionType" BaseType="MTSampleDataItemType">
+  </opc:VariableType>
+
+  <opc:VariableType SymbolicName="PHType" BaseType="MTSampleDataItemType">
+  </opc:VariableType>
+
+  <opc:VariableType SymbolicName="PositionType" BaseType="MTSampleDataItemType">
+  </opc:VariableType>
+
+  <opc:VariableType SymbolicName="PowerFactorType" BaseType="MTSampleDataItemType">
+  </opc:VariableType>
+
+  <opc:VariableType SymbolicName="PressureType" BaseType="MTSampleDataItemType">
+  </opc:VariableType>
+
+  <opc:VariableType SymbolicName="ResistanceType" BaseType="MTSampleDataItemType">
+  </opc:VariableType>
+
+  <opc:VariableType SymbolicName="RotationalVelocityType" BaseType="MTSampleDataItemType">
+  </opc:VariableType>
+
+  <opc:VariableType SymbolicName="SoundPressureType" BaseType="MTSampleDataItemType">
+  </opc:VariableType>
+
+  <opc:VariableType SymbolicName="StrainType" BaseType="MTSampleDataItemType">
+  </opc:VariableType>
+
+  <opc:VariableType SymbolicName="TemperatureType" BaseType="MTSampleDataItemType">
+  </opc:VariableType>
+
+  <opc:VariableType SymbolicName="TiltType" BaseType="MTSampleDataItemType">
+  </opc:VariableType>
+
+  <opc:VariableType SymbolicName="TorqueType" BaseType="MTSampleDataItemType">
+  </opc:VariableType>
+
+  <opc:VariableType SymbolicName="VelocityType" BaseType="MTSampleDataItemType">
+  </opc:VariableType>
+
+  <opc:VariableType SymbolicName="ViscosityType" BaseType="MTSampleDataItemType">
+  </opc:VariableType>
+
+  <opc:VariableType SymbolicName="VoltageType" BaseType="MTSampleDataItemType">
+  </opc:VariableType>
+
+  <opc:VariableType SymbolicName="VoltAmpereType" BaseType="MTSampleDataItemType">
+  </opc:VariableType>
+
+  <opc:VariableType SymbolicName="VoltAmpereReactiveType" BaseType="MTSampleDataItemType">
+  </opc:VariableType>
+
+  <opc:VariableType SymbolicName="WattageType" BaseType="MTSampleDataItemType">
+  </opc:VariableType>
+
+  <opc:VariableType SymbolicName="MTEventDataItemType" BaseType="ua:DiscreteItemType" DataType="ua:BaseDataType">
+    <opc:Children>
+      <opc:Property SymbolicName="CoordinateSystem" DataType="CoordinateSystemTypeEnum" ModellingRule="Optional"></opc:Property>
+      <opc:Property SymbolicName="SampleInterval" DataType="ua:Duration" ModellingRule="Optional"></opc:Property>
+    </opc:Children>
+  </opc:VariableType>
+
+  <opc:VariableType SymbolicName="ActiveAxesType" BaseType="MTEventDataItemType" DataType="ua:String">
+  </opc:VariableType>
+
+  <opc:VariableType SymbolicName="ActuatorStateType" BaseType="MTEventDataItemType" DataType="ActuatorStateTypeEnum">
+  </opc:VariableType>
+
+  <opc:VariableType SymbolicName="AvailabilityType" BaseType="MTEventDataItemType" DataType="AvailabilityTypeEnum">
+  </opc:VariableType>
+
+  <opc:VariableType SymbolicName="AxesCouplingType" BaseType="MTEventDataItemType" DataType="AxesCouplingTypeEnum">
+  </opc:VariableType>
+
+  <opc:VariableType SymbolicName="BlockType" BaseType="MTEventDataItemType" DataType="ua:String">
+  </opc:VariableType>
+
+  <opc:VariableType SymbolicName="ClampStateType" BaseType="MTEventDataItemType" DataType="ClampStateTypeEnum">
+  </opc:VariableType>
+
+  <opc:VariableType SymbolicName="ControllerModeType" BaseType="MTEventDataItemType" DataType="ControllerModeTypeEnum">
+  </opc:VariableType>
+
+  <opc:VariableType SymbolicName="CoupledAxesType" BaseType="MTEventDataItemType" DataType="ua:String">
+  </opc:VariableType>
+
+  <opc:VariableType SymbolicName="DirectionType" BaseType="MTEventDataItemType" DataType="DirectionTypeEnum">
+  </opc:VariableType>
+
+  <opc:VariableType SymbolicName="DoorStateType" BaseType="MTEventDataItemType" DataType="DoorStateTypeEnum">
+  </opc:VariableType>
+
+  <opc:VariableType SymbolicName="EmergencyStopType" BaseType="MTEventDataItemType" DataType="EmergencyStopTypeEnum">
+  </opc:VariableType>
+
+  <opc:VariableType SymbolicName="ExecutionType" BaseType="MTEventDataItemType" DataType="ExecutionTypeEnum">
+  </opc:VariableType>
+
+  <opc:VariableType SymbolicName="LineType" BaseType="MTEventDataItemType" DataType="ua:UInt16">
+  </opc:VariableType>
+
+  <opc:VariableType SymbolicName="MessageType" BaseType="MTEventDataItemType" DataType="ua:String">
+  </opc:VariableType>
+
+  <opc:VariableType SymbolicName="PalletIdType" BaseType="MTEventDataItemType" DataType="ua:String">
+  </opc:VariableType>
+
+  <opc:VariableType SymbolicName="PartCountType" BaseType="MTEventDataItemType" DataType="ua:UInt16">
+  </opc:VariableType>
+
+  <opc:VariableType SymbolicName="PartIdType" BaseType="MTEventDataItemType" DataType="ua:String">
+  </opc:VariableType>
+
+  <opc:VariableType SymbolicName="PathModeType" BaseType="MTEventDataItemType" DataType="PathModeTypeEnum">
+  </opc:VariableType>
+
+  <opc:VariableType SymbolicName="PowerStateType" BaseType="MTEventDataItemType" DataType="PowerStateTypeEnum">
+  </opc:VariableType>
+
+  <opc:VariableType SymbolicName="ProgramType" BaseType="MTEventDataItemType" DataType="ua:String">
+  </opc:VariableType>
+
+  <opc:VariableType SymbolicName="RotaryModeType" BaseType="MTEventDataItemType" DataType="RotaryModeTypeEnum">
+  </opc:VariableType>
+
+  <opc:VariableType SymbolicName="ToolAssetIdType" BaseType="MTEventDataItemType" DataType="ua:String">
+  </opc:VariableType>
+
+  <opc:VariableType SymbolicName="ToolNumberType" BaseType="MTEventDataItemType" DataType="ua:UInt16">
+  </opc:VariableType>
+
+  <opc:VariableType SymbolicName="WorkHoldingIdType" BaseType="MTEventDataItemType" DataType="ua:String">
+  </opc:VariableType>
+
+  <opc:ObjectType SymbolicName="MTConditionType" BaseType="ua:ConditionType">
+    <opc:Children>
+      <opc:Variable SymbolicName="MTCurrentState" TypeDefinition="ua:BaseDataVariableType" DataType="ua:String" ModellingRule="Mandatory"></opc:Variable>
+      <opc:Variable SymbolicName="ActiveState" TypeDefinition="ua:TwoStateVariableType" DataType="ua:LocalizedText" ModellingRule="Mandatory"></opc:Variable>
+      <opc:Object SymbolicName="LimitState" TypeDefinition="ua:ExclusiveLimitStateMachineType" ModellingRule="Optional"></opc:Object>
+      <opc:Property SymbolicName="NativeCode" DataType="ua:String" ModellingRule="Optional"></opc:Property>
+      <opc:Property SymbolicName="NativeSeverity" DataType="ua:String" ModellingRule="Optional"></opc:Property>
+    </opc:Children>
+  </opc:ObjectType>
+
+  <opc:ObjectType SymbolicName="AccelerationConditionType" BaseType="MTConditionType">
+  </opc:ObjectType>
+
+  <opc:ObjectType SymbolicName="Accumulated_TimeConditionType" BaseType="MTConditionType">
+  </opc:ObjectType>
+
+  <opc:ObjectType SymbolicName="AmperageConditionType" BaseType="MTConditionType">
+  </opc:ObjectType>
+
+  <opc:ObjectType SymbolicName="AngleConditionType" BaseType="MTConditionType">
+  </opc:ObjectType>
+
+  <opc:ObjectType SymbolicName="Angular-AccelerationConditionType" BaseType="MTConditionType">
+  </opc:ObjectType>
+
+  <opc:ObjectType SymbolicName="Angular_VelocityConditionType" BaseType="MTConditionType">
+  </opc:ObjectType>
+
+  <opc:ObjectType SymbolicName="CommunicationsConditionType" BaseType="MTConditionType">
+  </opc:ObjectType>
+
+  <opc:ObjectType SymbolicName="ConcentrationConditionType" BaseType="MTConditionType">
+  </opc:ObjectType>
+
+  <opc:ObjectType SymbolicName="ConductivityConditionType" BaseType="MTConditionType">
+  </opc:ObjectType>
+
+  <opc:ObjectType SymbolicName="Data_RangeConditionType" BaseType="MTConditionType">
+  </opc:ObjectType>
+
+  <opc:ObjectType SymbolicName="DirectionConditionType" BaseType="MTConditionType">
+  </opc:ObjectType>
+
+  <opc:ObjectType SymbolicName="DisplacementConditionType" BaseType="MTConditionType">
+  </opc:ObjectType>
+
+  <opc:ObjectType SymbolicName="Electrical_EnergyConditionType" BaseType="MTConditionType">
+  </opc:ObjectType>
+
+  <opc:ObjectType SymbolicName="Fill_LevelConditionType" BaseType="MTConditionType">
+  </opc:ObjectType>
+
+  <opc:ObjectType SymbolicName="FlowConditionType" BaseType="MTConditionType">
+  </opc:ObjectType>
+
+  <opc:ObjectType SymbolicName="FrequencyConditionType" BaseType="MTConditionType">
+  </opc:ObjectType>
+
+  <opc:ObjectType SymbolicName="HardwareConditionType" BaseType="MTConditionType">
+  </opc:ObjectType>
+
+  <opc:ObjectType SymbolicName="Linear_ForceConditionType" BaseType="MTConditionType">
+  </opc:ObjectType>
+
+  <opc:ObjectType SymbolicName="LoadConditionType" BaseType="MTConditionType">
+  </opc:ObjectType>
+
+  <opc:ObjectType SymbolicName="Logic_ProgramConditionType" BaseType="MTConditionType">
+  </opc:ObjectType>
+
+  <opc:ObjectType SymbolicName="MassConditionType" BaseType="MTConditionType">
+  </opc:ObjectType>
+
+  <opc:ObjectType SymbolicName="Motion_ProgramConditionType" BaseType="MTConditionType">
+  </opc:ObjectType>
+
+  <opc:ObjectType SymbolicName="Path_FeedrateConditionType" BaseType="MTConditionType">
+  </opc:ObjectType>
+
+  <opc:ObjectType SymbolicName="Path_PositionConditionType" BaseType="MTConditionType">
+  </opc:ObjectType>
+
+  <opc:ObjectType SymbolicName="PHConditionType" BaseType="MTConditionType">
+  </opc:ObjectType>
+
+  <opc:ObjectType SymbolicName="PositionConditionType" BaseType="MTConditionType">
+  </opc:ObjectType>
+
+  <opc:ObjectType SymbolicName="Power_FactorConditionType" BaseType="MTConditionType">
+  </opc:ObjectType>
+
+  <opc:ObjectType SymbolicName="PressureConditionType" BaseType="MTConditionType">
+  </opc:ObjectType>
+
+  <opc:ObjectType SymbolicName="ResistanceConditionType" BaseType="MTConditionType">
+  </opc:ObjectType>
+
+  <opc:ObjectType SymbolicName="Rotary_VelocityConditionType" BaseType="MTConditionType">
+  </opc:ObjectType>
+
+  <opc:ObjectType SymbolicName="Sound_LevelConditionType" BaseType="MTConditionType">
+  </opc:ObjectType>
+
+  <opc:ObjectType SymbolicName="StrainConditionType" BaseType="MTConditionType">
+  </opc:ObjectType>
+
+  <opc:ObjectType SymbolicName="SystemConditionType" BaseType="MTConditionType">
+  </opc:ObjectType>
+
+  <opc:ObjectType SymbolicName="TemperatureConditionType" BaseType="MTConditionType">
+  </opc:ObjectType>
+
+  <opc:ObjectType SymbolicName="TiltConditionType" BaseType="MTConditionType">
+  </opc:ObjectType>
+
+  <opc:ObjectType SymbolicName="TorqueConditionType" BaseType="MTConditionType">
+  </opc:ObjectType>
+
+  <opc:ObjectType SymbolicName="VelocityConditionType" BaseType="MTConditionType">
+  </opc:ObjectType>
+
+  <opc:ObjectType SymbolicName="ViscosityConditionType" BaseType="MTConditionType">
+  </opc:ObjectType>
+
+  <opc:ObjectType SymbolicName="VoltageConditionType" BaseType="MTConditionType">
+  </opc:ObjectType>
+
+  <opc:ObjectType SymbolicName="Volt_AmperageConditionType" BaseType="MTConditionType">
+  </opc:ObjectType>
+
+  <opc:ObjectType SymbolicName="VoltAmperageReactiveConditionType" BaseType="MTConditionType">
+  </opc:ObjectType>
+
+  <opc:ObjectType SymbolicName="WattageConditionType" BaseType="MTConditionType">
+  </opc:ObjectType>
+
+  <opc:VariableType SymbolicName="ChannelType" DataType="ChannelNumberDataType">
+    <opc:Children>
+      <opc:Property SymbolicName="CalibrationDate" DataType="CalibrationDateDataType" ModellingRule="Optional"></opc:Property>
+      <opc:Property SymbolicName="NextCalibrationDate" DataType="CalibrationDateDataType" ModellingRule="Optional"></opc:Property>
+      <opc:Property SymbolicName="CalibrationInitials" DataType="CalibrationInitialsDataType" ModellingRule="Optional"></opc:Property>
+    </opc:Children>
+  </opc:VariableType>
+
+  <opc:ObjectType SymbolicName="ConfigurationType" BaseType="MTComponentType">
+  </opc:ObjectType>
+
+  <opc:ObjectType SymbolicName="SensorConfigurationType" BaseType="ConfigurationType">
+    <opc:Children>
+      <opc:Property SymbolicName="FirmwareVersion" DataType="FirmwareVersionDataType" ModellingRule="Optional"></opc:Property>
+    </opc:Children>
+  </opc:ObjectType>
+
+  <opc:ObjectType SymbolicName="SensorType" BaseType="MTComponentType">
+  </opc:ObjectType>
+
+  <opc:ObjectType SymbolicName="SourceType" BaseType="MTComponentType">
+    <opc:Children>
+      <opc:Property SymbolicName="ComponentId" DataType="ComponentIdDataType" ModellingRule="Optional"></opc:Property>
+    </opc:Children>
+  </opc:ObjectType>
+
+  <opc:ObjectType SymbolicName="AssetType" BaseType="ua:BaseObjectType">
+    <opc:Children>
+      <opc:Property SymbolicName="SerialNumber" DataType="SerialNumberDataType" ModellingRule="Mandatory"></opc:Property>
+      <opc:Property SymbolicName="Manufacturers" DataType="ManufacturersDataType" ModellingRule="Optional"></opc:Property>
+      <opc:Property SymbolicName="LastChangeTimestamp" DataType="ua:DateTime" ModellingRule="Mandatory"></opc:Property>
+      <opc:Variable SymbolicName="AssetDescription" DataType="ua:BaseDataType" ModellingRule="Optional"></opc:Variable>
+    </opc:Children>
+  </opc:ObjectType>
+
+  <opc:VariableType SymbolicName="MeasurementType" BaseType="ua:AnalogItemType">
+    <opc:Children>
+      <opc:Property SymbolicName="SignificantDigits" DataType="SignificantDigitsValueDataType" ModellingRule="Optional"></opc:Property>
+      <opc:Variable SymbolicName="Units" DataType="ua:EUInformation" ModellingRule="Optional"></opc:Variable>
+      <opc:Variable SymbolicName="NativeUnits" DataType="ua:EUInformation" ModellingRule="Optional"></opc:Variable>
+      <opc:Property SymbolicName="LastChangeTimestamp" DataType="ua:DateTime" ModellingRule="Optional"></opc:Property>
+      <opc:Property SymbolicName="Code" DataType="CodeDataType" ModellingRule="Optional"></opc:Property>
+      <opc:Property SymbolicName="Maximum" DataType="MeasurementValueDataType" ModellingRule="Optional"></opc:Property>
+      <opc:Property SymbolicName="Minimum" DataType="MeasurementValueDataType" ModellingRule="Optional"></opc:Property>
+      <opc:Property SymbolicName="Nominal" DataType="MeasurementValueDataType" ModellingRule="Optional"></opc:Property>
+    </opc:Children>
+  </opc:VariableType>
+  
+  <opc:ObjectType SymbolicName="CuttingToolType" BaseType="ua:BaseObjectType">
+    <opc:Children>
+      <opc:Property SymbolicName="ToolId" DataType="ToolIdDataType" ModellingRule="Mandatory"></opc:Property>
+      <opc:Property SymbolicName="ToolGroup" DataType="ToolGroupDataType" ModellingRule="Optional"></opc:Property>
+    </opc:Children>
+  </opc:ObjectType>
+
+  <opc:ObjectType SymbolicName="CuttingToolLifeCycleType" BaseType="AssetType">
+    <opc:Children>
+      <opc:Variable SymbolicName="CutterStatus" DataType="CutterStatusValueTypeEnum" TypeDefinition="CutterStatusType" ModellingRule="Mandatory"></opc:Variable>
+      <opc:Variable SymbolicName="ReconditionCount" DataType="ReconditionCountValueDataType" TypeDefinition="ReconditionCountType" ModellingRule="Optional"></opc:Variable>
+      <opc:Variable SymbolicName="ToolLife" DataType="ua:BaseDataType" TypeDefinition="LifeType" ModellingRule="Optional"></opc:Variable>
+      <opc:Variable SymbolicName="ProgramToolNumber" DataType="ProgramToolNumberDataType" TypeDefinition="ProgramSpindleSpeedType" ModellingRule="Optional"></opc:Variable>
+      <opc:Variable SymbolicName="Location" DataType="LocationValueDataType" TypeDefinition="LocationType" ModellingRule="Optional"></opc:Variable>
+      <opc:Variable SymbolicName="ProgramSpindleSpeed" DataType="ua:BaseDataType" TypeDefinition="ProgramSpindleSpeedType" ModellingRule="Optional"></opc:Variable>
+      <opc:Property SymbolicName="ProgramFeedRate" DataType="FeedrateValueDataType" ModellingRule="Optional"></opc:Property>
+      <opc:Property SymbolicName="ConnectionCodeMachineSide" DataType="ConnectionCodeMachineSideDataType" ModellingRule="Optional"></opc:Property>
+    </opc:Children>
+  </opc:ObjectType>
+
+  <opc:VariableType SymbolicName="CutterStatusType" BaseType="ua:BaseDataVariableType">
+    <opc:Children>
+      <opc:Property SymbolicName="Status" DataType="ua:String" ModellingRule="Mandatory"></opc:Property>
+    </opc:Children>
+  </opc:VariableType>
+
+  <opc:VariableType SymbolicName="ReconditionCountType" BaseType="ua:BaseDataVariableType">
+    <opc:Children>
+      <opc:Property SymbolicName="MaximumCount" DataType="MaximumCountDataType" ModellingRule="Optional"></opc:Property>
+    </opc:Children>
+  </opc:VariableType>
+
+  <opc:VariableType SymbolicName="LifeType" BaseType="ua:BaseDataVariableType">
+    <opc:Children>
+      <opc:Property SymbolicName="Type" DataType="ToolLifeTypeEnum" ModellingRule="Mandatory"></opc:Property>
+      <opc:Property SymbolicName="CountDirection" DataType="ToolLifeDirectionTypeEnum" ModellingRule="Mandatory"></opc:Property>
+      <opc:Property SymbolicName="WarningLevel" DataType="ToolLifeValueDataType" ModellingRule="Optional"></opc:Property>
+      <opc:Property SymbolicName="Maximum" DataType="ToolLifeValueDataType" ModellingRule="Mandatory"></opc:Property>
+    </opc:Children>
+  </opc:VariableType>
+
+  <opc:VariableType SymbolicName="LocationType" BaseType="ua:BaseDataVariableType">
+    <opc:Children>
+      <opc:Property SymbolicName="Type" DataType="LocationsTypeEnum" ModellingRule="Mandatory"></opc:Property>
+      <opc:Property SymbolicName="NegativeOverlap" DataType="OverlapDataType" ModellingRule="Mandatory"></opc:Property>
+      <opc:Property SymbolicName="PositiveOverlap" DataType="OverlapDataType" ModellingRule="Mandatory"></opc:Property>
+    </opc:Children>
+  </opc:VariableType>
+
+  <opc:VariableType SymbolicName="ProgramSpindleSpeedType" BaseType="ua:BaseDataVariableType">
+    <opc:Children>
+      <opc:Property SymbolicName="Maximum" DataType="MaximumDataType" ModellingRule="Mandatory"></opc:Property>
+      <opc:Property SymbolicName="Minimum" DataType="MinimumDataType" ModellingRule="Mandatory"></opc:Property>
+      <opc:Property SymbolicName="Nominal" DataType="NominalDataType" ModellingRule="Mandatory"></opc:Property>
+    </opc:Children>
+  </opc:VariableType>
+
+  <opc:VariableType SymbolicName="ProgramFeedRateType" BaseType="ua:BaseDataVariableType">
+    <opc:Children>
+      <opc:Property SymbolicName="Maximum" DataType="MaximumDataType" ModellingRule="Mandatory"></opc:Property>
+      <opc:Property SymbolicName="Minimum" DataType="MinimumDataType" ModellingRule="Mandatory"></opc:Property>
+      <opc:Property SymbolicName="Nominal" DataType="NominalDataType" ModellingRule="Mandatory"></opc:Property>
+    </opc:Children>
+  </opc:VariableType>
+
+  <opc:VariableType SymbolicName="CuttingItemType" BaseType="ua:BaseDataVariableType">
+    <opc:Children>
+      <opc:Property SymbolicName="Indices" DataType="IndexRangeDataType" ModellingRule="Mandatory"></opc:Property>
+      <opc:Property SymbolicName="ItemId" DataType="ItemIdDataType" ModellingRule="Optional"></opc:Property>
+      <opc:Property SymbolicName="Grade" DataType="GradeDataType" ModellingRule="Optional"></opc:Property>
+      <opc:Property SymbolicName="Manufacturers" DataType="ManufacturersDataType" ModellingRule="Optional"></opc:Property>
+      <opc:Property SymbolicName="Description" DataType="AssetDescriptionType" ModellingRule="Optional"></opc:Property>
+      <opc:Property SymbolicName="Locus" DataType="LocusDataType" ModellingRule="Optional"></opc:Property>
+      <opc:Object SymbolicName="ItemLife" TypeDefinition="ua:FolderType" ModellingRule="Optional"></opc:Object>
+      <opc:Object SymbolicName="Measurements" TypeDefinition="ua:FolderType" ModellingRule="Optional"></opc:Object>
+    </opc:Children>
+  </opc:VariableType>
+
+  <opc:VariableType SymbolicName="AssemblyMeasurementType" BaseType="MeasurementType">
+  </opc:VariableType>
+  
+  <opc:DataType SymbolicName="ActuatorStateTypeEnum" BaseType="ua:Enumeration">
+    <opc:Fields>
+      <opc:Field Name="ACTIVE_1" Identifier="1"></opc:Field>
+      <opc:Field Name="INACTIVE_2" Identifier="2"></opc:Field>
+    </opc:Fields>
+  </opc:DataType>
+
+  <opc:DataType SymbolicName="AlarmStateTypeEnum" BaseType="ua:Enumeration">
+    <opc:Fields>
+      <opc:Field Name="ACTIVE_1" Identifier="1"></opc:Field>
+      <opc:Field Name="CLEARED_2" Identifier="2"></opc:Field>
+    </opc:Fields>
+  </opc:DataType>
+
+  <opc:DataType SymbolicName="AssetDescriptionType" BaseType="ua:String"></opc:DataType>
+  <opc:DataType SymbolicName="AssetAttrDataType" BaseType="ua:String"></opc:DataType>
+  <opc:DataType SymbolicName="AssetBufferSizeDataType" BaseType="ua:Integer"></opc:DataType>
+  <opc:DataType SymbolicName="AssetIdDataType" BaseType="ua:String"></opc:DataType>
+
+  <opc:DataType SymbolicName="AvailabilityTypeEnum" BaseType="ua:Enumeration">
+    <opc:Fields>
+      <opc:Field Name="AVAILABLE_1" Identifier="1"></opc:Field>
+      <opc:Field Name="UNAVAILABLE_2" Identifier="2"></opc:Field>
+    </opc:Fields>
+  </opc:DataType>
+
+  <opc:DataType SymbolicName="AxesCouplingTypeEnum" BaseType="ua:Enumeration">
+    <opc:Fields>
+      <opc:Field Name="MASTER_1" Identifier="1"></opc:Field>
+      <opc:Field Name="SLAVE_2" Identifier="2"></opc:Field>
+      <opc:Field Name="SYCHRONOUS_3" Identifier="3"></opc:Field>
+      <opc:Field Name="TANDEM_4" Identifier="4"></opc:Field>
+      <opc:Field Name="UNAVAILABLE_5" Identifier="5"></opc:Field>
+    </opc:Fields>
+  </opc:DataType>
+
+  <opc:DataType SymbolicName="AxesListValueDataType" BaseType="ua:String"></opc:DataType>
+  <opc:DataType SymbolicName="BufferSizeDataType" BaseType="ua:Integer"></opc:DataType>
+  <opc:DataType SymbolicName="CalibrationDateDataType" BaseType="ua:String"></opc:DataType>
+  <opc:DataType SymbolicName="CalibrationInitialsDataType" BaseType="ua:String"></opc:DataType>
+
+  <opc:DataType SymbolicName="CategoryTypeEnum" BaseType="ua:Enumeration">
+    <opc:Fields>
+      <opc:Field Name="CONDITION_1" Identifier="1"></opc:Field>
+      <opc:Field Name="EVENT_2" Identifier="2"></opc:Field>
+      <opc:Field Name="SAMPLE_3" Identifier="3"></opc:Field>
+    </opc:Fields>
+  </opc:DataType>
+
+  <opc:DataType SymbolicName="ChannelNumberDataType" BaseType="ua:UInt16"></opc:DataType>
+
+  <opc:DataType SymbolicName="ClampStateTypeEnum" BaseType="ua:Enumeration">
+    <opc:Fields>
+      <opc:Field Name="CLOSED_1" Identifier="1"></opc:Field>
+      <opc:Field Name="INDETERMINATE_2" Identifier="2"></opc:Field>
+      <opc:Field Name="OPEN_3" Identifier="3"></opc:Field>
+      <opc:Field Name="UNAVAILABLE_4" Identifier="4"></opc:Field>
+    </opc:Fields>
+  </opc:DataType>
+
+  <opc:DataType SymbolicName="ConditionDescriptionDataType" BaseType="ua:String"></opc:DataType>
+
+  <opc:DataType SymbolicName="ControllerModeTypeEnum" BaseType="ua:Enumeration">
+    <opc:Fields>
+      <opc:Field Name="AUTOMATIC_1" Identifier="1"></opc:Field>
+      <opc:Field Name="MANUAL_2" Identifier="2"></opc:Field>
+      <opc:Field Name="MANUAL_DATA_INPUT_3" Identifier="3"></opc:Field>
+      <opc:Field Name="SEMI_AUTOMATIC_4" Identifier="4"></opc:Field>
+      <opc:Field Name="UNAVAILABLE_5" Identifier="5"></opc:Field>
+    </opc:Fields>
+  </opc:DataType>
+
+  <opc:DataType SymbolicName="CoordinateSystemTypeEnum" BaseType="ua:Enumeration">
+    <opc:Fields>
+      <opc:Field Name="MACHINE_1" Identifier="1"></opc:Field>
+      <opc:Field Name="WORK_2" Identifier="2"></opc:Field>
+    </opc:Fields>
+  </opc:DataType>
+
+  <opc:DataType SymbolicName="IDDataType" BaseType="ua:NodeId"></opc:DataType>
+  
+  <opc:DataType SymbolicName="CodeDataType" BaseType="ua:String"></opc:DataType>
+  <opc:DataType SymbolicName="ComponentIdDataType" BaseType="IDDataType"></opc:DataType>
+  <opc:DataType SymbolicName="ConnectionCodeMachineSideDataType" BaseType="ua:String"></opc:DataType>
+  <opc:DataType SymbolicName="CountValueDataType" BaseType="ua:String"></opc:DataType>
+  <opc:DataType SymbolicName="CreationTimeDataType" BaseType="ua:DateTime"></opc:DataType>
+
+  <opc:DataType SymbolicName="CutterStatusValueTypeEnum" BaseType="ua:Enumeration">
+    <opc:Fields>
+      <opc:Field Name="ALLOCATED_1" Identifier="1"></opc:Field>
+      <opc:Field Name="AVAILABLE_2" Identifier="2"></opc:Field>
+      <opc:Field Name="BROKEN_3" Identifier="3"></opc:Field>
+      <opc:Field Name="EXPIRED_4" Identifier="4"></opc:Field>
+      <opc:Field Name="MEASURED_5" Identifier="5"></opc:Field>
+      <opc:Field Name="NEW_6" Identifier="6"></opc:Field>
+      <opc:Field Name="NOT_REGISTERED_7" Identifier="7"></opc:Field>
+      <opc:Field Name="RECONDITIONED_8" Identifier="8"></opc:Field>
+      <opc:Field Name="TAGGED_OUT_9" Identifier="9"></opc:Field>
+      <opc:Field Name="UNALLOCATED_10" Identifier="10"></opc:Field>
+      <opc:Field Name="UNAVAILABLE_11" Identifier="11"></opc:Field>
+      <opc:Field Name="UNKNOWN_12" Identifier="12"></opc:Field>
+      <opc:Field Name="USED_13" Identifier="13"></opc:Field>
+    </opc:Fields>
+  </opc:DataType>
+
+  <opc:DataType SymbolicName="DataItemEnumDataType" BaseType="ua:Structure">
+    <opc:Fields>
+      <opc:Field Name="DataItemEnum" DataType="DataItemEnumTypeEnum"></opc:Field>
+      <opc:Field Name="DataItemEnumString" DataType="ua:String"></opc:Field>
+    </opc:Fields>
+  </opc:DataType>
+
+  <opc:DataType SymbolicName="DataItemEnumTypeEnum" BaseType="ua:Enumeration">
+    <opc:Fields>
+      <opc:Field Name="ACCELERATION_1" Identifier="1"></opc:Field>
+      <opc:Field Name="ACCUMULATED_TIME_2" Identifier="2"></opc:Field>
+      <opc:Field Name="ACTIVE_AXES_3" Identifier="3"></opc:Field>
+      <opc:Field Name="ACTUATOR_4" Identifier="4"></opc:Field>
+      <opc:Field Name="ACTUATOR_STATE_5" Identifier="5"></opc:Field>
+      <opc:Field Name="ALARM_6" Identifier="6"></opc:Field>
+      <opc:Field Name="AMPERAGE_7" Identifier="7"></opc:Field>
+      <opc:Field Name="ANGLE_8" Identifier="8"></opc:Field>
+      <opc:Field Name="ANGULAR_ACCELERATION_9" Identifier="9"></opc:Field>
+      <opc:Field Name="ANGULAR_VELOCITY_10" Identifier="10"></opc:Field>
+      <opc:Field Name="ASSET_CHANGED_11" Identifier="11"></opc:Field>
+      <opc:Field Name="AVAILABILITY_12" Identifier="12"></opc:Field>
+      <opc:Field Name="AXIS_COUPLING_13" Identifier="13"></opc:Field>
+      <opc:Field Name="AXIS_FEEDRATE_14" Identifier="14"></opc:Field>
+      <opc:Field Name="BLOCK_15" Identifier="15"></opc:Field>
+      <opc:Field Name="CODE_16" Identifier="16"></opc:Field>
+      <opc:Field Name="COMMUNICATIONS_17" Identifier="17"></opc:Field>
+      <opc:Field Name="CONCENTRATION_18" Identifier="18"></opc:Field>
+      <opc:Field Name="CONDUCTIVITY_19" Identifier="19"></opc:Field>
+      <opc:Field Name="CONTROLLER_MODE_20" Identifier="20"></opc:Field>
+      <opc:Field Name="COUPLED_AXES_21" Identifier="21"></opc:Field>
+      <opc:Field Name="DIRECTION_22" Identifier="22"></opc:Field>
+      <opc:Field Name="DISPLACEMENT_23" Identifier="23"></opc:Field>
+      <opc:Field Name="DOOR_STATE_24" Identifier="24"></opc:Field>
+      <opc:Field Name="ELECTRICAL_POWER_25" Identifier="25"></opc:Field>
+      <opc:Field Name="EMERGENCY_STOP_26" Identifier="26"></opc:Field>
+      <opc:Field Name="EXECUTION_27" Identifier="27"></opc:Field>
+      <opc:Field Name="FILL_LEVEL_28" Identifier="28"></opc:Field>
+      <opc:Field Name="FLOW_29" Identifier="29"></opc:Field>
+      <opc:Field Name="FREQUENCY_30" Identifier="30"></opc:Field>
+      <opc:Field Name="HARDWARE_31" Identifier="31"></opc:Field>
+      <opc:Field Name="LEVEL_32" Identifier="32"></opc:Field>
+      <opc:Field Name="LINE_33" Identifier="33"></opc:Field>
+      <opc:Field Name="LINEAR_FORCE_34" Identifier="34"></opc:Field>
+      <opc:Field Name="LOAD_35" Identifier="35"></opc:Field>
+      <opc:Field Name="LOGIC_PROGRAM_36" Identifier="36"></opc:Field>
+      <opc:Field Name="MASS_37" Identifier="37"></opc:Field>
+      <opc:Field Name="MESSAGE_38" Identifier="38"></opc:Field>
+      <opc:Field Name="MOTION_PROGRAM_39" Identifier="39"></opc:Field>
+      <opc:Field Name="PART_COUNT_40" Identifier="40"></opc:Field>
+      <opc:Field Name="PART_ID_41" Identifier="41"></opc:Field>
+    </opc:Fields>
+  </opc:DataType>
+
+  <opc:DataType SymbolicName="DataItemIdDataType" BaseType="ua:String"></opc:DataType>
+
+  <opc:DataType SymbolicName="DataItemStatisticsDataType" BaseType="ua:Structure">
+    <opc:Fields>
+      <opc:Field Name="DataItemStatisticsEnum" DataType="DataItemStatisticsTypeEnum"></opc:Field>
+      <opc:Field Name="DataItemStatisticsString" DataType="ua:String"></opc:Field>
+    </opc:Fields>
+  </opc:DataType>
+
+  <opc:DataType SymbolicName="DataItemStatisticsTypeEnum" BaseType="ua:Enumeration">
+    <opc:Fields>
+      <opc:Field Name="AVERAGE_1" Identifier="1"></opc:Field>
+      <opc:Field Name="KURTOSIS_2" Identifier="2"></opc:Field>
+      <opc:Field Name="MAXIMUM_3" Identifier="3"></opc:Field>
+      <opc:Field Name="MEAN_4" Identifier="4"></opc:Field>
+      <opc:Field Name="MINIMUM_5" Identifier="5"></opc:Field>
+      <opc:Field Name="MODE_6" Identifier="6"></opc:Field>
+      <opc:Field Name="RANGE_7" Identifier="7"></opc:Field>
+      <opc:Field Name="ROOT_MEAN_SQUARE_8" Identifier="8"></opc:Field>
+      <opc:Field Name="STANDARD_DEVIATION_9" Identifier="9"></opc:Field>
+    </opc:Fields>
+  </opc:DataType>
+
+  <opc:DataType SymbolicName="DataItemSubEnumTypeEnum" BaseType="ua:Enumeration">
+    <opc:Fields>
+      <opc:Field Name="ACTUAL_1" Identifier="1"></opc:Field>
+      <opc:Field Name="ALL_2" Identifier="2"></opc:Field>
+      <opc:Field Name="ALTERNATING_3" Identifier="3"></opc:Field>
+      <opc:Field Name="A_SCALE_4" Identifier="4"></opc:Field>
+      <opc:Field Name="BAD_5" Identifier="5"></opc:Field>
+      <opc:Field Name="B_SCALE_6" Identifier="6"></opc:Field>
+      <opc:Field Name="COMMANDED_7" Identifier="7"></opc:Field>
+      <opc:Field Name="CONTROL_8" Identifier="8"></opc:Field>
+      <opc:Field Name="C_SCALE_9" Identifier="9"></opc:Field>
+      <opc:Field Name="DIRECT_10" Identifier="10"></opc:Field>
+      <opc:Field Name="DYNAMIC_11" Identifier="11"></opc:Field>
+      <opc:Field Name="D_SCALE_12" Identifier="12"></opc:Field>
+      <opc:Field Name="GOOD_13" Identifier="13"></opc:Field>
+      <opc:Field Name="KINETIC_14" Identifier="14"></opc:Field>
+      <opc:Field Name="LINE_15" Identifier="15"></opc:Field>
+      <opc:Field Name="MAXIMUM_16" Identifier="16"></opc:Field>
+      <opc:Field Name="MINIMUM_17" Identifier="17"></opc:Field>
+      <opc:Field Name="MOLE_18" Identifier="18"></opc:Field>
+      <opc:Field Name="NO_SCALE_19" Identifier="19"></opc:Field>
+      <opc:Field Name="OTHER_20" Identifier="20"></opc:Field>
+      <opc:Field Name="OVERRIDE_21" Identifier="21"></opc:Field>
+      <opc:Field Name="PROBE_22" Identifier="22"></opc:Field>
+      <opc:Field Name="TARGET_23" Identifier="23"></opc:Field>
+      <opc:Field Name="VOLUME_24" Identifier="24"></opc:Field>
+      <opc:Field Name="WEIGHT_25" Identifier="25"></opc:Field>
+    </opc:Fields>
+  </opc:DataType>
+
+  <opc:DataType SymbolicName="DefinitionFormatTypeEnum" BaseType="ua:Enumeration">
+    <opc:Fields>
+      <opc:Field Name="EXPRESS_1" Identifier="1"></opc:Field>
+      <opc:Field Name="TEXT_2" Identifier="2"></opc:Field>
+      <opc:Field Name="UNDEFINED_3" Identifier="3"></opc:Field>
+      <opc:Field Name="XML_4" Identifier="4"></opc:Field>
+    </opc:Fields>
+  </opc:DataType>
+
+  <opc:DataType SymbolicName="DecibelValueDataType" BaseType="ua:String"></opc:DataType>
+  <opc:DataType SymbolicName="DescriptionTextDataType" BaseType="ua:String"></opc:DataType>
+
+  <opc:DataType SymbolicName="DirectionTypeEnum" BaseType="ua:Enumeration">
+    <opc:Fields>
+      <opc:Field Name="CLOCKWISE_1" Identifier="1"></opc:Field>
+      <opc:Field Name="COUNTER_CLOCKWISE_2" Identifier="2"></opc:Field>
+      <opc:Field Name="NEGATIVE_3" Identifier="3"></opc:Field>
+      <opc:Field Name="POSITIVE_4" Identifier="4"></opc:Field>
+      <opc:Field Name="UNAVAILABLE_5" Identifier="5"></opc:Field>
+    </opc:Fields>
+  </opc:DataType>
+
+  <opc:DataType SymbolicName="DoorStateTypeEnum" BaseType="ua:Enumeration">
+    <opc:Fields>
+      <opc:Field Name="CLOSED_1" Identifier="1"></opc:Field>
+      <opc:Field Name="INDETERMINATE_2" Identifier="2"></opc:Field>
+      <opc:Field Name="OPEN_3" Identifier="3"></opc:Field>
+      <opc:Field Name="UNAVAILABLE_4" Identifier="4"></opc:Field>
+    </opc:Fields>
+  </opc:DataType>
+
+  <opc:DataType SymbolicName="DurationTimeDataType" BaseType="ua:Float"></opc:DataType>
+  <opc:DataType SymbolicName="DurationValueDataType" BaseType="ua:String"></opc:DataType>
+  <opc:DataType SymbolicName="EdgeCountDataType" BaseType="ua:Integer"></opc:DataType>
+
+  <opc:DataType SymbolicName="EmergencyStopTypeEnum" BaseType="ua:Enumeration">
+    <opc:Fields>
+      <opc:Field Name="ARMED_1" Identifier="1"></opc:Field>
+      <opc:Field Name="TRIGGERED_2" Identifier="2"></opc:Field>
+      <opc:Field Name="UNAVAILABLE_3" Identifier="3"></opc:Field>
+    </opc:Fields>
+  </opc:DataType>
+
+  <opc:DataType SymbolicName="EnergyValueDataType" BaseType="ua:String"></opc:DataType>
+
+  <opc:DataType SymbolicName="ExecutionTypeEnum" BaseType="ua:Enumeration">
+    <opc:Fields>
+      <opc:Field Name="ACTIVE_1" Identifier="1"></opc:Field>
+      <opc:Field Name="INTERRUPTED_2" Identifier="2"></opc:Field>
+      <opc:Field Name="READY_3" Identifier="3"></opc:Field>
+      <opc:Field Name="STOPPED_4" Identifier="4"></opc:Field>
+      <opc:Field Name="UNAVAILABLE_5" Identifier="5"></opc:Field>
+    </opc:Fields>
+  </opc:DataType>
+
+  <opc:DataType SymbolicName="FeedrateValueDataType" BaseType="ua:String"></opc:DataType>
+  <opc:DataType SymbolicName="FirmwareVersionDataType" BaseType="ua:String"></opc:DataType>
+  <opc:DataType SymbolicName="ForceValueDataType" BaseType="ua:String"></opc:DataType>
+  <opc:DataType SymbolicName="GradeDataType" BaseType="ua:String"></opc:DataType>
+  <opc:DataType SymbolicName="IndexRangeDataType" BaseType="ua:String"></opc:DataType>
+  <opc:DataType SymbolicName="InstanceIdDataType" BaseType="ua:Integer"></opc:DataType>
+  <opc:DataType SymbolicName="ItemIdDataType" BaseType="ua:String"></opc:DataType>
+
+  <opc:DataType SymbolicName="InterfaceStateTypeEnum" BaseType="ua:Enumeration">
+    <opc:Fields>
+      <opc:Field Name="ACTIVE_1" Identifier="1"></opc:Field>
+      <opc:Field Name="COMPLETE_2" Identifier="2"></opc:Field>
+      <opc:Field Name="FAIL_3" Identifier="3"></opc:Field>
+      <opc:Field Name="READY_4" Identifier="4"></opc:Field>
+    </opc:Fields>
+  </opc:DataType>
+
+  <opc:DataType SymbolicName="ItemSourceDataType" BaseType="ua:String"></opc:DataType>
+  <opc:DataType SymbolicName="LocationSizeDataType" BaseType="ua:Integer"></opc:DataType>
+  <opc:DataType SymbolicName="LocationValueDataType" BaseType="ua:Integer"></opc:DataType>
+
+  <opc:DataType SymbolicName="LocationsTypeEnum" BaseType="ua:Enumeration">
+    <opc:Fields>
+      <opc:Field Name="CRIB_1" Identifier="1"></opc:Field>
+      <opc:Field Name="POT_2" Identifier="2"></opc:Field>
+      <opc:Field Name="STATION_3" Identifier="3"></opc:Field>
+      <opc:Field Name="READY_4" Identifier="4"></opc:Field>
+    </opc:Fields>
+  </opc:DataType>
+
+  <opc:DataType SymbolicName="LocusDataType" BaseType="ua:String"></opc:DataType>
+  <opc:DataType SymbolicName="ManufacturersDataType" BaseType="ua:String"></opc:DataType>
+  <opc:DataType SymbolicName="MassValueDataType" BaseType="ua:String"></opc:DataType>
+  <opc:DataType SymbolicName="MaximumCountDataType" BaseType="ua:Integer"></opc:DataType>
+  <opc:DataType SymbolicName="MaximumDataType" BaseType="ua:Float"></opc:DataType>
+  <opc:DataType SymbolicName="MeasurementValueDataType" BaseType="ua:Float"></opc:DataType>
+  <opc:DataType SymbolicName="MinimumDataType" BaseType="ua:Float"></opc:DataType>
+  <opc:DataType SymbolicName="ModelDataType" BaseType="ua:String"></opc:DataType>
+  <opc:DataType SymbolicName="NameDataType" BaseType="ua:String"></opc:DataType>
+  <opc:DataType SymbolicName="NativeCodeDataType" BaseType="ua:String"></opc:DataType>
+  <opc:DataType SymbolicName="NativeNotifcationCodeDataType" BaseType="ua:String"></opc:DataType>
+  <opc:DataType SymbolicName="NativeScaleDataType" BaseType="ua:Float"></opc:DataType>
+  <opc:DataType SymbolicName="NativeSeverityDataType" BaseType="ua:String"></opc:DataType>
+  <opc:DataType SymbolicName="NextCalibrationDateDataType" BaseType="ua:DateTime"></opc:DataType>
+  <opc:DataType SymbolicName="NominalDataType" BaseType="ua:Float"></opc:DataType>
+
+  <opc:DataType SymbolicName="NotificationCodeTypeEnum" BaseType="ua:Enumeration">
+    <opc:Fields>
+      <opc:Field Name="CRASH_1" Identifier="1"></opc:Field>
+      <opc:Field Name="ESTOP_2" Identifier="2"></opc:Field>
+      <opc:Field Name="FAILURE_3" Identifier="3"></opc:Field>
+      <opc:Field Name="FAULT_4" Identifier="4"></opc:Field>
+      <opc:Field Name="JAM_5" Identifier="5"></opc:Field>
+      <opc:Field Name="MATERIAL_6" Identifier="6"></opc:Field>
+      <opc:Field Name="MESSAGE_7" Identifier="7"></opc:Field>
+      <opc:Field Name="OTHER_8" Identifier="8"></opc:Field>
+      <opc:Field Name="OVERLOAD_9" Identifier="9"></opc:Field>
+    </opc:Fields>
+  </opc:DataType>
+  
+  <opc:DataType SymbolicName="NotificationDescriptionDataType" BaseType="ua:String"></opc:DataType>
+  <opc:DataType SymbolicName="OccurrenceTimeDataType" BaseType="ua:DateTime"></opc:DataType>
+  <opc:DataType SymbolicName="OverlapDataType" BaseType="ua:Integer"></opc:DataType>
+
+  <opc:DataType SymbolicName="PathModeTypeEnum" BaseType="ua:Enumeration">
+    <opc:Fields>
+      <opc:Field Name="INDEPENDENT_1" Identifier="1"></opc:Field>
+      <opc:Field Name="MIRROR_2" Identifier="2"></opc:Field>
+      <opc:Field Name="SYNCHRONOUS_3" Identifier="3"></opc:Field>
+    </opc:Fields>
+  </opc:DataType>
+
+  <opc:DataType SymbolicName="PowerStateTypeEnum" BaseType="ua:Enumeration">
+    <opc:Fields>
+      <opc:Field Name="OFF_1" Identifier="1"></opc:Field>
+      <opc:Field Name="ON_2" Identifier="2"></opc:Field>
+      <opc:Field Name="UNAVAILABLE_3" Identifier="3"></opc:Field>
+    </opc:Fields>
+  </opc:DataType>
+  
+  <opc:DataType SymbolicName="ProgramToolNumberDataType" BaseType="ua:Integer"></opc:DataType>
+
+  <opc:DataType SymbolicName="QualifierTypeEnum" BaseType="ua:Enumeration">
+    <opc:Fields>
+      <opc:Field Name="HIGH_1" Identifier="1"></opc:Field>
+      <opc:Field Name="LOW_2" Identifier="2"></opc:Field>
+    </opc:Fields>
+  </opc:DataType>
+  
+  <opc:DataType SymbolicName="RateDataType" BaseType="ua:Float"></opc:DataType>
+  <opc:DataType SymbolicName="ReconditionCountValueDataType" BaseType="ua:Integer"></opc:DataType>
+
+  <opc:DataType SymbolicName="RotaryModeTypeEnum" BaseType="ua:Enumeration">
+    <opc:Fields>
+      <opc:Field Name="CONTOUR_1" Identifier="1"></opc:Field>
+      <opc:Field Name="INDEX_2" Identifier="2"></opc:Field>
+      <opc:Field Name="SPINDLE_3" Identifier="3"></opc:Field>
+      <opc:Field Name="UNAVAILABLE_4" Identifier="4"></opc:Field>
+    </opc:Fields>
+  </opc:DataType>
+  
+  <opc:DataType SymbolicName="SampleRateDataType" BaseType="ua:Float"></opc:DataType>
+
+  <opc:DataType SymbolicName="SeverityTypeEnum" BaseType="ua:Enumeration">
+    <opc:Fields>
+      <opc:Field Name="CRITICAL_1" Identifier="1"></opc:Field>
+      <opc:Field Name="ERROR_2" Identifier="2"></opc:Field>
+      <opc:Field Name="INFORMATION_3" Identifier="3"></opc:Field>
+      <opc:Field Name="WARNING_4" Identifier="4"></opc:Field>
+    </opc:Fields>
+  </opc:DataType>
+  
+  <opc:DataType SymbolicName="SignificantDigitsValueDataType" BaseType="ua:Integer"></opc:DataType>
+  <opc:DataType SymbolicName="StationDataType" BaseType="ua:String"></opc:DataType>
+  <opc:DataType SymbolicName="SenderDataType" BaseType="ua:String"></opc:DataType>
+  <opc:DataType SymbolicName="SequenceDataType" BaseType="ua:Integer"></opc:DataType>
+  <opc:DataType SymbolicName="SerialNumberDataType" BaseType="ua:String"></opc:DataType>
+  <opc:DataType SymbolicName="SpeedDataType" BaseType="ua:Float"></opc:DataType>
+  <opc:DataType SymbolicName="TestIndicatorDataType" BaseType="ua:Boolean"></opc:DataType>
+  <opc:DataType SymbolicName="ToolEventValueDataType" BaseType="ua:String"></opc:DataType>
+  <opc:DataType SymbolicName="ToolGroupDataType" BaseType="ua:String"></opc:DataType>
+  <opc:DataType SymbolicName="ToolIdDataType" BaseType="ua:String"></opc:DataType>
+
+  <opc:DataType SymbolicName="ToolLifeDirectionTypeEnum" BaseType="ua:Enumeration">
+    <opc:Fields>
+      <opc:Field Name="DOWN_1" Identifier="1"></opc:Field>
+      <opc:Field Name="UP_2" Identifier="2"></opc:Field>
+    </opc:Fields>
+  </opc:DataType>
+
+  <opc:DataType SymbolicName="ToolLifeTypeEnum" BaseType="ua:Enumeration">
+    <opc:Fields>
+      <opc:Field Name="MINUTES_1" Identifier="1"></opc:Field>
+      <opc:Field Name="PART_COUNT_2" Identifier="2"></opc:Field>
+      <opc:Field Name="WEAR_3" Identifier="3"></opc:Field>
+    </opc:Fields>
+  </opc:DataType>
+  
+  <opc:DataType SymbolicName="ToolLifeValueDataType" BaseType="ua:Float"></opc:DataType>
+  <opc:DataType SymbolicName="UnitsExtDataType" BaseType="ua:String"></opc:DataType>
+  <opc:DataType SymbolicName="VersionDataType" BaseType="ua:String"></opc:DataType>
+  <opc:DataType SymbolicName="VibrationValueDataType" BaseType="ua:String"></opc:DataType>
+
+</opc:ModelDesign>

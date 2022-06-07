@@ -1,0 +1,144 @@
+<opc:TypeDictionary xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:tns="http://opcfoundation.org/UA/ISA95-JOBCONTROL" DefaultByteOrder="LittleEndian" xmlns:opc="http://opcfoundation.org/BinarySchema/" xmlns:ua="http://opcfoundation.org/UA/" TargetNamespace="http://opcfoundation.org/UA/ISA95-JOBCONTROL">
+    <opc:Import Namespace="http://opcfoundation.org/UA/"/>
+    <opc:StructuredType BaseType="ua:ExtensionObject" Name="ISA95EquipmentDataType">
+        <opc:Documentation>Defines an equipment resource or a piece of equipment, a quantity, an optional description, and an optional collection of properties.</opc:Documentation>
+        <opc:Field TypeName="opc:CharArray" Name="ID"/>
+        <opc:Field TypeName="opc:CharArray" Name="Description"/>
+        <opc:Field TypeName="opc:CharArray" Name="EquipmentUse"/>
+        <opc:Field TypeName="opc:CharArray" Name="Quantity"/>
+        <opc:Field TypeName="opc:CharArray" Name="UoM"/>
+        <opc:Field TypeName="opc:Int32" Name="NoOfProperties"/>
+        <opc:Field LengthField="NoOfProperties" TypeName="tns:ISA95PropertyDataType" Name="Properties"/>
+    </opc:StructuredType>
+    <opc:StructuredType BaseType="ua:ExtensionObject" Name="ISA95JobOrderDataType">
+        <opc:Documentation>Defines the information needed to schedule and execute a job.</opc:Documentation>
+        <opc:Field TypeName="opc:CharArray" Name="ID"/>
+        <opc:Field TypeName="opc:CharArray" Name="Description"/>
+        <opc:Field TypeName="opc:Int32" Name="NoOfWorkMasterID"/>
+        <opc:Field LengthField="NoOfWorkMasterID" TypeName="tns:ISA95WorkMasterDataType" Name="WorkMasterID"/>
+        <opc:Field TypeName="opc:DateTime" Name="StartTime"/>
+        <opc:Field TypeName="opc:DateTime" Name="EndTime"/>
+        <opc:Field TypeName="opc:Int16" Name="Priority"/>
+        <opc:Field TypeName="opc:Int32" Name="NoOfJobOrderParameters"/>
+        <opc:Field LengthField="NoOfJobOrderParameters" TypeName="tns:ISA95ParameterDataType" Name="JobOrderParameters"/>
+        <opc:Field TypeName="opc:Int32" Name="NoOfPersonnelRequirements"/>
+        <opc:Field LengthField="NoOfPersonnelRequirements" TypeName="tns:ISA95PersonnelDataType" Name="PersonnelRequirements"/>
+        <opc:Field TypeName="opc:Int32" Name="NoOfEquipmentRequirements"/>
+        <opc:Field LengthField="NoOfEquipmentRequirements" TypeName="tns:ISA95EquipmentDataType" Name="EquipmentRequirements"/>
+        <opc:Field TypeName="opc:Int32" Name="NoOfPhysicalAssetRequirements"/>
+        <opc:Field LengthField="NoOfPhysicalAssetRequirements" TypeName="tns:ISA95PhysicalAssetDataType" Name="PhysicalAssetRequirements"/>
+        <opc:Field TypeName="opc:Int32" Name="NoOfMaterialRequirements"/>
+        <opc:Field LengthField="NoOfMaterialRequirements" TypeName="tns:ISA95MaterialDataType" Name="MaterialRequirements"/>
+    </opc:StructuredType>
+    <opc:StructuredType BaseType="ua:ExtensionObject" Name="ISA95JobResponseDataType">
+        <opc:Documentation>defines the information needed to schedule and execute a job.</opc:Documentation>
+        <opc:Field TypeName="opc:CharArray" Name="ID"/>
+        <opc:Field TypeName="opc:CharArray" Name="Description"/>
+        <opc:Field TypeName="opc:CharArray" Name="JobOrderID"/>
+        <opc:Field TypeName="opc:DateTime" Name="StartTime"/>
+        <opc:Field TypeName="opc:DateTime" Name="EndTime"/>
+        <opc:Field TypeName="tns:ISA95JobOrderStateEnum" Name="JobState"/>
+        <opc:Field TypeName="opc:Int32" Name="NoOfJobResponseData"/>
+        <opc:Field LengthField="NoOfJobResponseData" TypeName="tns:ISA95ParameterDataType" Name="JobResponseData"/>
+        <opc:Field TypeName="opc:Int32" Name="NoOfPersonnelActuals"/>
+        <opc:Field LengthField="NoOfPersonnelActuals" TypeName="tns:ISA95PersonnelDataType" Name="PersonnelActuals"/>
+        <opc:Field TypeName="opc:Int32" Name="NoOfEquipmentActuals"/>
+        <opc:Field LengthField="NoOfEquipmentActuals" TypeName="tns:ISA95EquipmentDataType" Name="EquipmentActuals"/>
+        <opc:Field TypeName="opc:Int32" Name="NoOfPhysicalAssetActuals"/>
+        <opc:Field LengthField="NoOfPhysicalAssetActuals" TypeName="tns:ISA95PhysicalAssetDataType" Name="PhysicalAssetActuals"/>
+        <opc:Field TypeName="opc:Int32" Name="NoOfMaterialActuals"/>
+        <opc:Field LengthField="NoOfMaterialActuals" TypeName="tns:ISA95MaterialDataType" Name="MaterialActuals"/>
+    </opc:StructuredType>
+    <opc:StructuredType BaseType="ua:ExtensionObject" Name="ISA95MaterialDataType">
+        <opc:Documentation>defines a material resource, a quantity, an optional description, and an optional collection of properties.</opc:Documentation>
+        <opc:Field TypeName="opc:CharArray" Name="MaterialClassID"/>
+        <opc:Field TypeName="opc:CharArray" Name="MaterialDefinitionID"/>
+        <opc:Field TypeName="opc:CharArray" Name="MaterialLotID"/>
+        <opc:Field TypeName="opc:CharArray" Name="MaterialSublotID"/>
+        <opc:Field TypeName="opc:CharArray" Name="Description"/>
+        <opc:Field TypeName="opc:CharArray" Name="MaterialUse"/>
+        <opc:Field TypeName="opc:CharArray" Name="Quantity"/>
+        <opc:Field TypeName="opc:CharArray" Name="UoM"/>
+        <opc:Field TypeName="opc:Int32" Name="NoOfProperties"/>
+        <opc:Field LengthField="NoOfProperties" TypeName="tns:ISA95PropertyDataType" Name="Properties"/>
+    </opc:StructuredType>
+    <opc:StructuredType BaseType="ua:ExtensionObject" Name="ISA95ParameterDataType">
+        <opc:Documentation>A subtype of OPC UA Structure that defines three linked data items: the ID, which is a unique identifier for a property, the value, which is the data that is identified, and an optional description of the parameter.</opc:Documentation>
+        <opc:Field TypeName="opc:CharArray" Name="ID"/>
+        <opc:Field TypeName="ua:Variant" Name="Value"/>
+        <opc:Field TypeName="opc:CharArray" Name="Description"/>
+        <opc:Field TypeName="opc:CharArray" Name="UoM"/>
+        <opc:Field TypeName="opc:Int32" Name="NoOfSubparameters"/>
+        <opc:Field LengthField="NoOfSubparameters" TypeName="tns:ISA95ParameterDataType" Name="Subparameters"/>
+    </opc:StructuredType>
+    <opc:StructuredType BaseType="ua:ExtensionObject" Name="ISA95PersonnelDataType">
+        <opc:Documentation>defines a personnel resource or a person, a quantity, an optional description, and an optional collection of properties.</opc:Documentation>
+        <opc:Field TypeName="opc:CharArray" Name="ID"/>
+        <opc:Field TypeName="opc:CharArray" Name="Description"/>
+        <opc:Field TypeName="opc:CharArray" Name="PersonnelUse"/>
+        <opc:Field TypeName="opc:CharArray" Name="Quantity"/>
+        <opc:Field TypeName="opc:CharArray" Name="UoM"/>
+        <opc:Field TypeName="opc:Int32" Name="NoOfProperties"/>
+        <opc:Field LengthField="NoOfProperties" TypeName="tns:ISA95PropertyDataType" Name="Properties"/>
+    </opc:StructuredType>
+    <opc:StructuredType BaseType="ua:ExtensionObject" Name="ISA95PhysicalAssetDataType">
+        <opc:Documentation>defines a physical asset, a quantity, an optional description, and an optional collection of properties.</opc:Documentation>
+        <opc:Field TypeName="opc:CharArray" Name="ID"/>
+        <opc:Field TypeName="opc:CharArray" Name="Description"/>
+        <opc:Field TypeName="opc:CharArray" Name="PhysicalAssetUse"/>
+        <opc:Field TypeName="opc:CharArray" Name="Quantity"/>
+        <opc:Field TypeName="opc:CharArray" Name="UoM"/>
+        <opc:Field TypeName="opc:Int32" Name="NoOfProperties"/>
+        <opc:Field LengthField="NoOfProperties" TypeName="tns:ISA95PropertyDataType" Name="Properties"/>
+    </opc:StructuredType>
+    <opc:StructuredType BaseType="ua:ExtensionObject" Name="ISA95PropertyDataType">
+        <opc:Documentation>A subtype of OPC UA Structure that defines two linked data items: an ID, which is a unique identifier for a property within the scope of the associated resource, and the value, which is the data for the property.</opc:Documentation>
+        <opc:Field TypeName="opc:CharArray" Name="ID"/>
+        <opc:Field TypeName="ua:Variant" Name="Value"/>
+        <opc:Field TypeName="opc:CharArray" Name="Description"/>
+        <opc:Field TypeName="opc:CharArray" Name="UoM"/>
+        <opc:Field TypeName="opc:Int32" Name="NoOfSubproperties"/>
+        <opc:Field LengthField="NoOfSubproperties" TypeName="tns:ISA95PropertyDataType" Name="Subproperties"/>
+    </opc:StructuredType>
+    <opc:StructuredType BaseType="ua:ExtensionObject" Name="ISA95WorkMasterDataType">
+        <opc:Documentation>Defines a Work Master ID and the defined parameters for the Work Master.</opc:Documentation>
+        <opc:Field TypeName="opc:CharArray" Name="ID"/>
+        <opc:Field TypeName="opc:CharArray" Name="Description"/>
+        <opc:Field TypeName="opc:Int32" Name="NoOfParameters"/>
+        <opc:Field LengthField="NoOfParameters" TypeName="tns:ISA95ParameterDataType" Name="Parameters"/>
+    </opc:StructuredType>
+    <opc:EnumeratedType LengthInBits="32" Name="ISA95JobOrderCommandEnum">
+        <opc:Documentation>Describes the possible job order commands.  </opc:Documentation>
+        <opc:EnumeratedValue Name="Undefined" Value="0"/>
+        <opc:EnumeratedValue Name="Store" Value="1"/>
+        <opc:EnumeratedValue Name="StoreAndStart" Value="2"/>
+        <opc:EnumeratedValue Name="Start" Value="3"/>
+        <opc:EnumeratedValue Name="Update" Value="4"/>
+        <opc:EnumeratedValue Name="Stop" Value="5"/>
+        <opc:EnumeratedValue Name="Cancel" Value="6"/>
+        <opc:EnumeratedValue Name="Clear" Value="7"/>
+    </opc:EnumeratedType>
+    <opc:EnumeratedType LengthInBits="32" Name="ISA95JobOrderStateEnum">
+        <opc:Documentation>Describes the defined job statuses. </opc:Documentation>
+        <opc:EnumeratedValue Name="Undefined" Value="0"/>
+        <opc:EnumeratedValue Name="Waiting" Value="1"/>
+        <opc:EnumeratedValue Name="Ready" Value="2"/>
+        <opc:EnumeratedValue Name="Loaded" Value="3"/>
+        <opc:EnumeratedValue Name="Running" Value="4"/>
+        <opc:EnumeratedValue Name="Completed" Value="5"/>
+        <opc:EnumeratedValue Name="Aborted" Value="6"/>
+        <opc:EnumeratedValue Name="Held" Value="7"/>
+        <opc:EnumeratedValue Name="Suspended" Value="8"/>
+        <opc:EnumeratedValue Name="Closed" Value="9"/>
+        <opc:EnumeratedValue Name="Error" Value="10"/>
+    </opc:EnumeratedType>
+    <opc:EnumeratedType LengthInBits="32" Name="ISA95ReturnEnum">
+        <opc:Documentation>It describes the possible return status from a Method call</opc:Documentation>
+        <opc:EnumeratedValue Name="Undefined" Value="0"/>
+        <opc:EnumeratedValue Name="NoError" Value="1"/>
+        <opc:EnumeratedValue Name="InvalidJobOrderID" Value="2"/>
+        <opc:EnumeratedValue Name="UnableToAcceptJobOrder" Value="3"/>
+        <opc:EnumeratedValue Name="UnableToAcceptJobOrderCommand" Value="4"/>
+        <opc:EnumeratedValue Name="UnableToReturnJobResponse" Value="5"/>
+    </opc:EnumeratedType>
+</opc:TypeDictionary>

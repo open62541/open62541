@@ -1,0 +1,404 @@
+<xs:schema elementFormDefault="qualified" targetNamespace="http://opcfoundation.org/UA/Pumps/Types.xsd" xmlns:tns="http://opcfoundation.org/UA/Pumps/Types.xsd" xmlns:ua="http://opcfoundation.org/UA/2008/02/Types.xsd" xmlns:xs="http://www.w3.org/2001/XMLSchema">
+    <xs:import namespace="http://opcfoundation.org/UA/2008/02/Types.xsd"/>
+    <xs:simpleType name="ControlModeEnum">
+        <xs:annotation>
+            <xs:documentation>describes the possible control modes of the pump</xs:documentation>
+        </xs:annotation>
+        <xs:restriction base="xs:string">
+            <xs:enumeration value="ConstantPressureControl_0"/>
+            <xs:enumeration value="ConstantTemperatureControl_1"/>
+            <xs:enumeration value="DifferentialPressureControl_2"/>
+            <xs:enumeration value="ConstantDifferentialPressureControl_3"/>
+            <xs:enumeration value="VariableDifferentialPressureControl_4"/>
+            <xs:enumeration value="FlowDependentDifferentialPressureControl_5"/>
+            <xs:enumeration value="ReturnFlowTemperatureControl_6"/>
+            <xs:enumeration value="FlowTemperatureControl_7"/>
+            <xs:enumeration value="FlowRateControl_8"/>
+            <xs:enumeration value="SpeedControl_9"/>
+            <xs:enumeration value="Automatic_10"/>
+            <xs:enumeration value="Uncontrolled_11"/>
+        </xs:restriction>
+    </xs:simpleType>
+    <xs:element type="tns:ControlModeEnum" name="ControlModeEnum"/>
+    <xs:complexType name="ListOfControlModeEnum">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="unbounded" type="tns:ControlModeEnum" name="ControlModeEnum" nillable="true"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:ListOfControlModeEnum" name="ListOfControlModeEnum" nillable="true"/>
+    <xs:simpleType name="DistributionTypeEnum">
+        <xs:annotation>
+            <xs:documentation>describes the share of operation time of different pumps of the pump system in addition operation mode</xs:documentation>
+        </xs:annotation>
+        <xs:restriction base="xs:string">
+            <xs:enumeration value="ManufacturerSpecific_0"/>
+            <xs:enumeration value="OperatorSpecific_1"/>
+            <xs:enumeration value="ConcerningTimeDistribution_2"/>
+            <xs:enumeration value="ConcerningLoadDistribution_3"/>
+        </xs:restriction>
+    </xs:simpleType>
+    <xs:element type="tns:DistributionTypeEnum" name="DistributionTypeEnum"/>
+    <xs:complexType name="ListOfDistributionTypeEnum">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="unbounded" type="tns:DistributionTypeEnum" name="DistributionTypeEnum" nillable="true"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:ListOfDistributionTypeEnum" name="ListOfDistributionTypeEnum" nillable="true"/>
+    <xs:simpleType name="ExchangeModeEnum">
+        <xs:annotation>
+            <xs:documentation>specifies the exchange mode of the pump</xs:documentation>
+        </xs:annotation>
+        <xs:restriction base="xs:string">
+            <xs:enumeration value="ManufacturerSpecific_0"/>
+            <xs:enumeration value="ExchangeDisabled_1"/>
+            <xs:enumeration value="OperatorSpecific_2"/>
+        </xs:restriction>
+    </xs:simpleType>
+    <xs:element type="tns:ExchangeModeEnum" name="ExchangeModeEnum"/>
+    <xs:complexType name="ListOfExchangeModeEnum">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="unbounded" type="tns:ExchangeModeEnum" name="ExchangeModeEnum" nillable="true"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:ListOfExchangeModeEnum" name="ListOfExchangeModeEnum" nillable="true"/>
+    <xs:simpleType name="FieldbusEnum">
+        <xs:annotation>
+            <xs:documentation>defines possible field buses</xs:documentation>
+        </xs:annotation>
+        <xs:restriction base="xs:string">
+            <xs:enumeration value="Other_0"/>
+            <xs:enumeration value="ARCNET_1"/>
+            <xs:enumeration value="AS-Interface_2"/>
+            <xs:enumeration value="BACnet/IP_3"/>
+            <xs:enumeration value="BACnet/MSTP_4"/>
+            <xs:enumeration value="Bluetooth_5"/>
+            <xs:enumeration value="BluetoothLowEnergy_6"/>
+            <xs:enumeration value="CAN_7"/>
+            <xs:enumeration value="CANopen_8"/>
+            <xs:enumeration value="CC-Link_9"/>
+            <xs:enumeration value="ControlNet_10"/>
+            <xs:enumeration value="DALI_11"/>
+            <xs:enumeration value="DECTULE_12"/>
+            <xs:enumeration value="DeviceNet_13"/>
+            <xs:enumeration value="DMX_14"/>
+            <xs:enumeration value="KNX_15"/>
+            <xs:enumeration value="EnOcean_16"/>
+            <xs:enumeration value="EtherCAT_17"/>
+            <xs:enumeration value="Ethernet/IP_18"/>
+            <xs:enumeration value="EthernetTCP/IP_19"/>
+            <xs:enumeration value="IEEE1588_20"/>
+            <xs:enumeration value="GSM_21"/>
+            <xs:enumeration value="Interbus_22"/>
+            <xs:enumeration value="IO-Link_23"/>
+            <xs:enumeration value="HART_24"/>
+            <xs:enumeration value="LON_25"/>
+            <xs:enumeration value="LoRaWAN_26"/>
+            <xs:enumeration value="LIN-Bus_27"/>
+            <xs:enumeration value="LTE_28"/>
+            <xs:enumeration value="LTE-M_29"/>
+            <xs:enumeration value="M-Bus_30"/>
+            <xs:enumeration value="ModbusTCP_31"/>
+            <xs:enumeration value="ModbusRTU_32"/>
+            <xs:enumeration value="MP-Bus_33"/>
+            <xs:enumeration value="NB-IOT_34"/>
+            <xs:enumeration value="NFC_35"/>
+            <xs:enumeration value="OPCUA_36"/>
+            <xs:enumeration value="OPCDA_37"/>
+            <xs:enumeration value="PROFIBUSDP_38"/>
+            <xs:enumeration value="PROFINETRT_39"/>
+            <xs:enumeration value="Powerlink_40"/>
+            <xs:enumeration value="SERCOS_41"/>
+            <xs:enumeration value="SMI_42"/>
+            <xs:enumeration value="Thread_43"/>
+            <xs:enumeration value="UMTS_44"/>
+            <xs:enumeration value="WIFI_45"/>
+            <xs:enumeration value="X2X-Link_46"/>
+            <xs:enumeration value="VARAN_47"/>
+            <xs:enumeration value="ZigBee_48"/>
+            <xs:enumeration value="Z-Wave_49"/>
+        </xs:restriction>
+    </xs:simpleType>
+    <xs:element type="tns:FieldbusEnum" name="FieldbusEnum"/>
+    <xs:complexType name="ListOfFieldbusEnum">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="unbounded" type="tns:FieldbusEnum" name="FieldbusEnum" nillable="true"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:ListOfFieldbusEnum" name="ListOfFieldbusEnum" nillable="true"/>
+    <xs:simpleType name="MaintenanceLevelEnum">
+        <xs:annotation>
+            <xs:documentation>defines maintenance levels for the pump</xs:documentation>
+        </xs:annotation>
+        <xs:restriction base="xs:string">
+            <xs:enumeration value="Level1_0"/>
+            <xs:enumeration value="Level2_1"/>
+            <xs:enumeration value="Level3_2"/>
+            <xs:enumeration value="Level4_3"/>
+            <xs:enumeration value="Level5_4"/>
+        </xs:restriction>
+    </xs:simpleType>
+    <xs:element type="tns:MaintenanceLevelEnum" name="MaintenanceLevelEnum"/>
+    <xs:complexType name="ListOfMaintenanceLevelEnum">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="unbounded" type="tns:MaintenanceLevelEnum" name="MaintenanceLevelEnum" nillable="true"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:ListOfMaintenanceLevelEnum" name="ListOfMaintenanceLevelEnum" nillable="true"/>
+    <xs:simpleType name="MultiPumpOperationModeEnum">
+        <xs:annotation>
+            <xs:documentation>specifies the actual multi pump operation mode</xs:documentation>
+        </xs:annotation>
+        <xs:restriction base="xs:string">
+            <xs:enumeration value="Standalone_0"/>
+            <xs:enumeration value="RedundancyOperation_1"/>
+            <xs:enumeration value="AdditionOperation_2"/>
+            <xs:enumeration value="MixedRedundancy_3"/>
+        </xs:restriction>
+    </xs:simpleType>
+    <xs:element type="tns:MultiPumpOperationModeEnum" name="MultiPumpOperationModeEnum"/>
+    <xs:complexType name="ListOfMultiPumpOperationModeEnum">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="unbounded" type="tns:MultiPumpOperationModeEnum" name="MultiPumpOperationModeEnum" nillable="true"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:ListOfMultiPumpOperationModeEnum" name="ListOfMultiPumpOperationModeEnum" nillable="true"/>
+    <xs:simpleType name="OperatingModeEnum">
+        <xs:annotation>
+            <xs:documentation>specifies whether the pump is to be operated in single, parallel or series connection</xs:documentation>
+        </xs:annotation>
+        <xs:restriction base="xs:string">
+            <xs:enumeration value="SingleOperation_0"/>
+            <xs:enumeration value="SeriesOperation_1"/>
+            <xs:enumeration value="ParallelOperation_2"/>
+        </xs:restriction>
+    </xs:simpleType>
+    <xs:element type="tns:OperatingModeEnum" name="OperatingModeEnum"/>
+    <xs:complexType name="ListOfOperatingModeEnum">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="unbounded" type="tns:OperatingModeEnum" name="OperatingModeEnum" nillable="true"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:ListOfOperatingModeEnum" name="ListOfOperatingModeEnum" nillable="true"/>
+    <xs:simpleType name="OperationModeEnum">
+        <xs:annotation>
+            <xs:documentation>describes the possible operation modes of the pump</xs:documentation>
+        </xs:annotation>
+        <xs:restriction base="xs:string">
+            <xs:enumeration value="AutoControl_0"/>
+            <xs:enumeration value="ClosedLoopStandardPID_1"/>
+            <xs:enumeration value="Advanced_2"/>
+            <xs:enumeration value="StandBy_3"/>
+            <xs:enumeration value="OpenLoopMin_4"/>
+            <xs:enumeration value="OpenLoopValue_5"/>
+            <xs:enumeration value="OpenLoopMax_6"/>
+            <xs:enumeration value="ClosedLoopMin_7"/>
+            <xs:enumeration value="ClosedLoopMax_8"/>
+            <xs:enumeration value="Test_9"/>
+            <xs:enumeration value="Calibration_10"/>
+        </xs:restriction>
+    </xs:simpleType>
+    <xs:element type="tns:OperationModeEnum" name="OperationModeEnum"/>
+    <xs:complexType name="ListOfOperationModeEnum">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="unbounded" type="tns:OperationModeEnum" name="OperationModeEnum" nillable="true"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:ListOfOperationModeEnum" name="ListOfOperationModeEnum" nillable="true"/>
+    <xs:simpleType name="PortDirectionEnum">
+        <xs:annotation>
+            <xs:documentation>determines whether the port is an inlet and outlet or both</xs:documentation>
+        </xs:annotation>
+        <xs:restriction base="xs:string">
+            <xs:enumeration value="In_0"/>
+            <xs:enumeration value="Out_1"/>
+            <xs:enumeration value="InOut_2"/>
+        </xs:restriction>
+    </xs:simpleType>
+    <xs:element type="tns:PortDirectionEnum" name="PortDirectionEnum"/>
+    <xs:complexType name="ListOfPortDirectionEnum">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="unbounded" type="tns:PortDirectionEnum" name="PortDirectionEnum" nillable="true"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:ListOfPortDirectionEnum" name="ListOfPortDirectionEnum" nillable="true"/>
+    <xs:simpleType name="PumpClassEnum">
+        <xs:annotation>
+            <xs:documentation>defines possible pump types</xs:documentation>
+        </xs:annotation>
+        <xs:restriction base="xs:string">
+            <xs:enumeration value="RotodynamicPump_0"/>
+            <xs:enumeration value="PositiveDisplacementPump_1"/>
+            <xs:enumeration value="ProcessVacuumPump_2"/>
+            <xs:enumeration value="TurboVacuumPump_3"/>
+            <xs:enumeration value="VacuumPump_4"/>
+            <xs:enumeration value="LiquidPump_5"/>
+            <xs:enumeration value="Pump_6"/>
+        </xs:restriction>
+    </xs:simpleType>
+    <xs:element type="tns:PumpClassEnum" name="PumpClassEnum"/>
+    <xs:complexType name="ListOfPumpClassEnum">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="unbounded" type="tns:PumpClassEnum" name="PumpClassEnum" nillable="true"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:ListOfPumpClassEnum" name="ListOfPumpClassEnum" nillable="true"/>
+    <xs:simpleType name="PumpKickModeEnum">
+        <xs:annotation>
+            <xs:documentation>describes the pump kick mode of the pump</xs:documentation>
+        </xs:annotation>
+        <xs:restriction base="xs:string">
+            <xs:enumeration value="ManufacturerSpecific_0"/>
+            <xs:enumeration value="Disabled_1"/>
+            <xs:enumeration value="OperatorSpecific_2"/>
+        </xs:restriction>
+    </xs:simpleType>
+    <xs:element type="tns:PumpKickModeEnum" name="PumpKickModeEnum"/>
+    <xs:complexType name="ListOfPumpKickModeEnum">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="unbounded" type="tns:PumpKickModeEnum" name="PumpKickModeEnum" nillable="true"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:ListOfPumpKickModeEnum" name="ListOfPumpKickModeEnum" nillable="true"/>
+    <xs:simpleType name="PumpRoleEnum">
+        <xs:annotation>
+            <xs:documentation>identifies the role rsp. task of the pump within the multi pump management</xs:documentation>
+        </xs:annotation>
+        <xs:restriction base="xs:string">
+            <xs:enumeration value="Slave_0"/>
+            <xs:enumeration value="Master_1"/>
+            <xs:enumeration value="SlaveAndAuxiliaryMaster_2"/>
+        </xs:restriction>
+    </xs:simpleType>
+    <xs:element type="tns:PumpRoleEnum" name="PumpRoleEnum"/>
+    <xs:complexType name="ListOfPumpRoleEnum">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="unbounded" type="tns:PumpRoleEnum" name="PumpRoleEnum" nillable="true"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:ListOfPumpRoleEnum" name="ListOfPumpRoleEnum" nillable="true"/>
+    <xs:simpleType name="StateOfTheItemEnum">
+        <xs:annotation>
+            <xs:documentation>describes the state of the pump</xs:documentation>
+        </xs:annotation>
+        <xs:restriction base="xs:string">
+            <xs:enumeration value="IdleState_0"/>
+            <xs:enumeration value="StandByState_1"/>
+            <xs:enumeration value="OperatingState_2"/>
+            <xs:enumeration value="ExternalDisabledState_3"/>
+            <xs:enumeration value="DownState_4"/>
+        </xs:restriction>
+    </xs:simpleType>
+    <xs:element type="tns:StateOfTheItemEnum" name="StateOfTheItemEnum"/>
+    <xs:complexType name="ListOfStateOfTheItemEnum">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="unbounded" type="tns:StateOfTheItemEnum" name="StateOfTheItemEnum" nillable="true"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:ListOfStateOfTheItemEnum" name="ListOfStateOfTheItemEnum" nillable="true"/>
+    <xs:complexType name="DeclarationOfConformityOptionSet">
+        <xs:annotation>
+            <xs:documentation>defines flags for directives on the basis of which conformity was determined</xs:documentation>
+        </xs:annotation>
+        <xs:complexContent mixed="false">
+            <xs:extension base="ua:OptionSet">
+                <xs:sequence/>
+            </xs:extension>
+        </xs:complexContent>
+    </xs:complexType>
+    <xs:element type="tns:DeclarationOfConformityOptionSet" name="DeclarationOfConformityOptionSet"/>
+    <xs:complexType name="ListOfDeclarationOfConformityOptionSet">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="unbounded" type="tns:DeclarationOfConformityOptionSet" name="DeclarationOfConformityOptionSet" nillable="true"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:ListOfDeclarationOfConformityOptionSet" name="ListOfDeclarationOfConformityOptionSet" nillable="true"/>
+    <xs:complexType name="ExplosionProtectionOptionSet">
+        <xs:annotation>
+            <xs:documentation>defines flags for the category of explosion protection for devices according to EU Directive 2014/34/EU (ATEX)</xs:documentation>
+        </xs:annotation>
+        <xs:complexContent mixed="false">
+            <xs:extension base="ua:OptionSet">
+                <xs:sequence/>
+            </xs:extension>
+        </xs:complexContent>
+    </xs:complexType>
+    <xs:element type="tns:ExplosionProtectionOptionSet" name="ExplosionProtectionOptionSet"/>
+    <xs:complexType name="ListOfExplosionProtectionOptionSet">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="unbounded" type="tns:ExplosionProtectionOptionSet" name="ExplosionProtectionOptionSet" nillable="true"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:ListOfExplosionProtectionOptionSet" name="ListOfExplosionProtectionOptionSet" nillable="true"/>
+    <xs:complexType name="ExplosionZoneOptionSet">
+        <xs:annotation>
+            <xs:documentation>defines flags for the category of explosion zones for devices</xs:documentation>
+        </xs:annotation>
+        <xs:complexContent mixed="false">
+            <xs:extension base="ua:OptionSet">
+                <xs:sequence/>
+            </xs:extension>
+        </xs:complexContent>
+    </xs:complexType>
+    <xs:element type="tns:ExplosionZoneOptionSet" name="ExplosionZoneOptionSet"/>
+    <xs:complexType name="ListOfExplosionZoneOptionSet">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="unbounded" type="tns:ExplosionZoneOptionSet" name="ExplosionZoneOptionSet" nillable="true"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:ListOfExplosionZoneOptionSet" name="ListOfExplosionZoneOptionSet" nillable="true"/>
+    <xs:complexType name="OfferedControlModesOptionSet">
+        <xs:annotation>
+            <xs:documentation>defines flags for offerd control modes supported by the manufacturer for the product</xs:documentation>
+        </xs:annotation>
+        <xs:complexContent mixed="false">
+            <xs:extension base="ua:OptionSet">
+                <xs:sequence/>
+            </xs:extension>
+        </xs:complexContent>
+    </xs:complexType>
+    <xs:element type="tns:OfferedControlModesOptionSet" name="OfferedControlModesOptionSet"/>
+    <xs:complexType name="ListOfOfferedControlModesOptionSet">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="unbounded" type="tns:OfferedControlModesOptionSet" name="OfferedControlModesOptionSet" nillable="true"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:ListOfOfferedControlModesOptionSet" name="ListOfOfferedControlModesOptionSet" nillable="true"/>
+    <xs:complexType name="OfferedFieldbusesOptionSet">
+        <xs:annotation>
+            <xs:documentation>defines flags for fieldbuses supported by the manufacturer for the product</xs:documentation>
+        </xs:annotation>
+        <xs:complexContent mixed="false">
+            <xs:extension base="ua:OptionSet">
+                <xs:sequence/>
+            </xs:extension>
+        </xs:complexContent>
+    </xs:complexType>
+    <xs:element type="tns:OfferedFieldbusesOptionSet" name="OfferedFieldbusesOptionSet"/>
+    <xs:complexType name="ListOfOfferedFieldbusesOptionSet">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="unbounded" type="tns:OfferedFieldbusesOptionSet" name="OfferedFieldbusesOptionSet" nillable="true"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:ListOfOfferedFieldbusesOptionSet" name="ListOfOfferedFieldbusesOptionSet" nillable="true"/>
+    <xs:complexType name="PhysicalAddressDataType">
+        <xs:annotation>
+            <xs:documentation>Physical address of the manufacturer.</xs:documentation>
+        </xs:annotation>
+        <xs:sequence>
+            <xs:element minOccurs="0" type="xs:unsignedInt" name="EncodingMask"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="ua:LocalizedText" name="Street"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="ua:LocalizedText" name="Number"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="ua:LocalizedText" name="City"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="ua:LocalizedText" name="PostalCode"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="ua:LocalizedText" name="State"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="ua:LocalizedText" name="Country"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:PhysicalAddressDataType" name="PhysicalAddressDataType"/>
+    <xs:complexType name="ListOfPhysicalAddressDataType">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="unbounded" type="tns:PhysicalAddressDataType" name="PhysicalAddressDataType" nillable="true"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:ListOfPhysicalAddressDataType" name="ListOfPhysicalAddressDataType" nillable="true"/>
+</xs:schema>

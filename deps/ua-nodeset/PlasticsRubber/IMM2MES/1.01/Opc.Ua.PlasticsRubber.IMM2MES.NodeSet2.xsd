@@ -1,0 +1,86 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<!--
+ * Copyright (c) 2005-2021 The OPC Foundation, Inc. All rights reserved.
+ *
+ * OPC Foundation MIT License 1.00
+ * 
+ * Permission is hereby granted, free of charge, to any person
+ * obtaining a copy of this software and associated documentation
+ * files (the "Software"), to deal in the Software without
+ * restriction, including without limitation the rights to use,
+ * copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the
+ * Software is furnished to do so, subject to the following
+ * conditions:
+ * 
+ * The above copyright notice and this permission notice shall be
+ * included in all copies or substantial portions of the Software.
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+ * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
+ * OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+ * NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
+ * HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+ * WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+ * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+ * OTHER DEALINGS IN THE SOFTWARE.
+ *
+ * The complete license agreement can be found here:
+ * http://opcfoundation.org/License/MIT/1.00/
+-->
+
+<xs:schema elementFormDefault="qualified" targetNamespace="http://opcfoundation.org/UA/PlasticsRubber/IMM2MES/Types.xsd" xmlns:tns="http://opcfoundation.org/UA/PlasticsRubber/IMM2MES/Types.xsd" xmlns:ua="http://opcfoundation.org/UA/2008/02/Types.xsd" xmlns:xs="http://www.w3.org/2001/XMLSchema">
+    <xs:import namespace="http://opcfoundation.org/UA/2008/02/Types.xsd"/>
+    <xs:simpleType name="IMMMessageClassificationEnumeration">
+        <xs:annotation>
+            <xs:documentation>This Enumeration specifies the values to be used in the Classification property in the MessageConditionType and related logbook events of OPC 40083</xs:documentation>
+        </xs:annotation>
+        <xs:restriction base="xs:string">
+            <xs:enumeration value="OTHER_0"/>
+            <xs:enumeration value="IMM_INJECTION_UNIT_100"/>
+            <xs:enumeration value="IMM_CLAMPING_UNIT_101"/>
+            <xs:enumeration value="IMM_HARDWARE_102"/>
+            <xs:enumeration value="IMM_COMPRESSED_AIR_CONTROL_103"/>
+            <xs:enumeration value="IMM_MACHINE_MONITORING_104"/>
+            <xs:enumeration value="IMM_MOULD_105"/>
+            <xs:enumeration value="IMM_EJECTOR_106"/>
+            <xs:enumeration value="IMM_CORE_PULL_107"/>
+            <xs:enumeration value="IMM_TABLE_108"/>
+            <xs:enumeration value="IMM_INJECTION_PROGRAM_109"/>
+            <xs:enumeration value="IMM_HYDRAULIC_TEMPERATURE_CONTROL_110"/>
+            <xs:enumeration value="IMM_CYLINDER_TEMPERATURE_CONTROL_111"/>
+            <xs:enumeration value="IMM_MOULD_TEMPERATURE_CONTROL_112"/>
+            <xs:enumeration value="IMM_HOT_RUNNER_113"/>
+            <xs:enumeration value="IMM_INTERFACES_114"/>
+            <xs:enumeration value="IMM_MEASURING_SYSTEM_115"/>
+            <xs:enumeration value="IMM_ROBOTIC_SYSTEM_INTERFACE_116"/>
+            <xs:enumeration value="IMM_SPECIAL_PURPOSE_SIGNALS_117"/>
+            <xs:enumeration value="IMM_REAL_TIME_ETHERNET_SYSTEM_118"/>
+            <xs:enumeration value="IMM_MACHINE_CONTROLLER_119"/>
+            <xs:enumeration value="IMM_SOFTWARE_MONITORING_120"/>
+            <xs:enumeration value="PERIPHERAL_EXTERNAL_DEVICE_INTERFACE_200"/>
+            <xs:enumeration value="PERIPHERAL_TEMPERATURE_CONTROL_UNIT_201"/>
+            <xs:enumeration value="PERIPHERAL_ROBOTICS_SYSTEM_202"/>
+            <xs:enumeration value="PERIPHERAL_LSR_203"/>
+            <xs:enumeration value="PERIPHERAL_STRIPPER_UNIT_204"/>
+            <xs:enumeration value="PERIPHERAL_DRYER_205"/>
+            <xs:enumeration value="PERIPHERAL_CONVEYOR_BELT_206"/>
+            <xs:enumeration value="PERIPHERAL_SORTER_UNIT_207"/>
+            <xs:enumeration value="PERIPHERAL_COLOURING_UNIT_208"/>
+            <xs:enumeration value="PERIPHERAL_FEEDING_209"/>
+            <xs:enumeration value="PERIPHERAL_EXTERNAL_ALARMS_210"/>
+            <xs:enumeration value="PERIPHERAL_VACUUM_CONTROL_211"/>
+            <xs:enumeration value="PERIPHERAL_PRINTER_INTERFACE_212"/>
+            <xs:enumeration value="OPERATION_QUALITY_MONITORING_300"/>
+            <xs:enumeration value="OPERATION_MANUAL_OPERATION_301"/>
+            <xs:enumeration value="OPERATION_EMERGENCY_STOP_302"/>
+            <xs:enumeration value="OPERATION_JOB_STATUS_303"/>
+        </xs:restriction>
+    </xs:simpleType>
+    <xs:element type="tns:IMMMessageClassificationEnumeration" name="IMMMessageClassificationEnumeration"/>
+    <xs:complexType name="ListOfIMMMessageClassificationEnumeration">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="unbounded" type="tns:IMMMessageClassificationEnumeration" name="IMMMessageClassificationEnumeration" nillable="true"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:ListOfIMMMessageClassificationEnumeration" name="ListOfIMMMessageClassificationEnumeration" nillable="true"/>
+</xs:schema>

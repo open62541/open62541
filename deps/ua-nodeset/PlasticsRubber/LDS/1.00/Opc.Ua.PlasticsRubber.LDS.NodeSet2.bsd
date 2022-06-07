@@ -1,0 +1,33 @@
+<opc:TypeDictionary xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:tns="http://opcfoundation.org/UA/PlasticsRubber/LDS/" DefaultByteOrder="LittleEndian" xmlns:opc="http://opcfoundation.org/BinarySchema/" xmlns:ua="http://opcfoundation.org/UA/" TargetNamespace="http://opcfoundation.org/UA/PlasticsRubber/LDS/">
+    <opc:Import Namespace="http://opcfoundation.org/UA/"/>
+    <opc:EnumeratedType LengthInBits="32" Name="AdditiveStatusEnumeration">
+        <opc:Documentation>Actual status of the additive provides a minimal error handling for devices without event support.</opc:Documentation>
+        <opc:EnumeratedValue Name="GOOD" Value="0"/>
+        <opc:EnumeratedValue Name="WARNING" Value="1"/>
+        <opc:EnumeratedValue Name="ADVANCE_WARNING_ADDITIVE_CHANGE" Value="2"/>
+        <opc:EnumeratedValue Name="ERROR_EMPTY" Value="3"/>
+        <opc:EnumeratedValue Name="ERROR" Value="4"/>
+    </opc:EnumeratedType>
+    <opc:EnumeratedType LengthInBits="32" Name="ComponentStatusEnumeration">
+        <opc:Documentation>Actual status of the component provides a minimal error handling for devices without event support.</opc:Documentation>
+        <opc:EnumeratedValue Name="GOOD" Value="0"/>
+        <opc:EnumeratedValue Name="WARNING" Value="1"/>
+        <opc:EnumeratedValue Name="WARNING_PRESSURE_TOO_HIGH" Value="2"/>
+        <opc:EnumeratedValue Name="WARNING_PRESSURE_TOO_LOW" Value="3"/>
+        <opc:EnumeratedValue Name="ADVANCE_WARNING_DRUM_CHANGE" Value="4"/>
+        <opc:EnumeratedValue Name="ERROR_DRUM_EMPTY" Value="5"/>
+        <opc:EnumeratedValue Name="ERROR" Value="6"/>
+    </opc:EnumeratedType>
+    <opc:EnumeratedType LengthInBits="32" Name="MaterialBalanceSystemTypeEnumeration">
+        <opc:EnumeratedValue Name="NOT_AVAILABLE" Value="0"/>
+        <opc:EnumeratedValue Name="ALWAYS_ACTIVE" Value="1"/>
+        <opc:EnumeratedValue Name="SELECTABLE" Value="2"/>
+    </opc:EnumeratedType>
+    <opc:EnumeratedType LengthInBits="32" Name="PurgeStatusEnumeration">
+        <opc:EnumeratedValue Name="OFF" Value="0"/>
+        <opc:EnumeratedValue Name="COMPONENT_A" Value="1"/>
+        <opc:EnumeratedValue Name="COMPONENT_B" Value="2"/>
+        <opc:EnumeratedValue Name="COMPONENT_A_AND_B" Value="3"/>
+        <opc:EnumeratedValue Name="COMPONENT_A_AND_B_CYCLIC" Value="4"/>
+    </opc:EnumeratedType>
+</opc:TypeDictionary>
