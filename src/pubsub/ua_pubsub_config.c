@@ -745,14 +745,15 @@ addDataSetFieldVariables(UA_Server *server, const UA_NodeId *pdsIdent,
         UA_DataSetFieldConfig fc;
         memset(&fc, 0, sizeof(UA_DataSetFieldConfig));
         fc.dataSetFieldType = UA_PUBSUB_DATASETFIELD_VARIABLE;
-        fc.field.variable.configurationVersion = pdsParams->dataSetMetaData.configurationVersion;
+        fc.field.variable.configurationVersion =
+            pdsParams->dataSetMetaData.configurationVersion;
         fc.field.variable.fieldNameAlias = pdsParams->dataSetMetaData.fields[i].name;
         fc.field.variable.promotedField = pdsParams->dataSetMetaData.
             fields[i].fieldFlags & 0x0001;
         fc.field.variable.publishParameters = pdItems->publishedData[i];
 
         UA_NodeId fieldIdent;
-        UA_StatusCode res = UA_Server_addDataSetField(server, *pdsIdent, &fc, &fieldIdent).result;
+        UA_StatusCode res = addDataSetField(server, *pdsIdent, &fc, &fieldIdent).result;
         if(res != UA_STATUSCODE_GOOD) {
             UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
                          "[UA_PubSubManager_addDataSetFieldVariables] "

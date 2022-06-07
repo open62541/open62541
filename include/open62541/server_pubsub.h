@@ -384,7 +384,7 @@ typedef struct {
     UA_ConfigurationVersionDataType configurationVersion;
 } UA_DataSetFieldResult;
 
-UA_DataSetFieldResult UA_EXPORT
+UA_DataSetFieldResult UA_EXPORT UA_THREADSAFE
 UA_Server_addDataSetField(UA_Server *server,
                           const UA_NodeId publishedDataSet,
                           const UA_DataSetFieldConfig *fieldConfig,
@@ -395,7 +395,7 @@ UA_StatusCode UA_EXPORT
 UA_Server_getDataSetFieldConfig(UA_Server *server, const UA_NodeId dsf,
                                 UA_DataSetFieldConfig *config);
 
-UA_DataSetFieldResult UA_EXPORT
+UA_DataSetFieldResult UA_EXPORT UA_THREADSAFE
 UA_Server_removeDataSetField(UA_Server *server, const UA_NodeId dsf);
 
 /**
