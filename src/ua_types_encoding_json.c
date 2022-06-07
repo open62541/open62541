@@ -17,15 +17,10 @@
 #include <math.h>
 
 #include "../deps/itoa.h"
-#include "../deps/atoi.h"
+#include "../deps/parse_num.h"
 #include "../deps/string_escape.h"
 #include "../deps/base64.h"
 #include "../deps/libc_time.h"
-
-#if defined(_MSC_VER)
-# define strtoll _strtoi64
-# define strtoull _strtoui64
-#endif
 
 /* vs2008 does not have INFINITY and NAN defined */
 #ifndef INFINITY
@@ -401,11 +396,7 @@ ENCODE_JSON(Float) {
     } else if(*src == -INFINITY) {
         strcpy(buffer, "\"-Infinity\"");
     } else {
-#ifdef UA_ENABLE_CUSTOM_LIBC
-        fmt_fp(buffer, *src, 0, -1, 0, 'g');
-#else
         UA_snprintf(buffer, 200, "%.149g", (UA_Double)*src);
-#endif
     }
 
     size_t len = strlen(buffer);
@@ -431,11 +422,7 @@ ENCODE_JSON(Double) {
     } else if(*src == -INFINITY) {
         strcpy(buffer, "\"-Infinity\"");
     } else {
-#ifdef UA_ENABLE_CUSTOM_LIBC
-        fmt_fp(buffer, *src, 0, 17, 0, 'g');
-#else
         UA_snprintf(buffer, 2000, "%.1074g", *src);
-#endif
     }
 
     size_t len = strlen(buffer);
@@ -1523,104 +1510,37 @@ DECODE_JSON(Boolean) {
     return UA_STATUSCODE_GOOD;
 }
 
-#ifdef UA_ENABLE_CUSTOM_LIBC
 static UA_StatusCode
-parseUnsignedInteger(char* inputBuffer, size_t sizeOfBuffer,
-                     UA_UInt64 *destinationOfNumber) {
-    UA_UInt64 d = 0;
-    atoiUnsigned(inputBuffer, sizeOfBuffer, &d);
-    if(!destinationOfNumber)
+parseUnsignedInteger(char *tokenData, size_t tokenSize, UA_UInt64 *dst) {
+    size_t len = parseUInt64(tokenData, tokenSize, dst);
+    if(len == 0)
         return UA_STATUSCODE_BADDECODINGERROR;
-    *destinationOfNumber = d;
-    return UA_STATUSCODE_GOOD;
-}
 
-static UA_StatusCode
-parseSignedInteger(char* inputBuffer, size_t sizeOfBuffer,
-                   UA_Int64 *destinationOfNumber) {
-    UA_Int64 d = 0;
-    atoiSigned(inputBuffer, sizeOfBuffer, &d);
-    if(!destinationOfNumber)
-        return UA_STATUSCODE_BADDECODINGERROR;
-    *destinationOfNumber = d;
-    return UA_STATUSCODE_GOOD;
-}
-#else
-/* Safe strtol variant of unsigned string conversion.
- * Returns UA_STATUSCODE_BADDECODINGERROR in case of overflows.
- * Buffer limit is 20 digits. */
-static UA_StatusCode
-parseUnsignedInteger(char* inputBuffer, size_t sizeOfBuffer,
-                     UA_UInt64 *destinationOfNumber) {
-    /* Check size to avoid huge malicious stack allocation.
-     * No UInt64 can have more digits than 20. */
-    if(sizeOfBuffer > 20) {
-        return UA_STATUSCODE_BADDECODINGERROR;
+    /* There must only be whitespace between the end of the parsed number and
+     * the end of the token */
+    for(size_t i = len; i < tokenSize; i++) {
+        if(tokenData[i] != ' ' && tokenData[i] -'\t' >= 5)
+            return UA_STATUSCODE_BADDECODINGERROR;
     }
 
-    /* convert to null terminated string  */
-    char string[21];
-    memcpy(string, inputBuffer, sizeOfBuffer);
-    string[sizeOfBuffer] = 0;
-
-    /* Conversion */
-    char *endptr, *str;
-    str = string;
-    errno = 0;    /* To distinguish success/failure after call */
-    UA_UInt64 val = strtoull(str, &endptr, 10);
-
-    /* Check for various possible errors */
-    if((errno == ERANGE && (val == LLONG_MAX || val == 0))
-          || (errno != 0 )) {
-        return UA_STATUSCODE_BADDECODINGERROR;
-    }
-
-    /* Check if no digits were found */
-    if(endptr == str)
-        return UA_STATUSCODE_BADDECODINGERROR;
-
-    /* copy to destination */
-    *destinationOfNumber = val;
     return UA_STATUSCODE_GOOD;
 }
 
-/* Safe strtol variant of unsigned string conversion.
- * Returns UA_STATUSCODE_BADDECODINGERROR in case of overflows.
- * Buffer limit is 20 digits. */
 static UA_StatusCode
-parseSignedInteger(char* inputBuffer, size_t sizeOfBuffer,
-                   UA_Int64 *destinationOfNumber) {
-    /* Check size to avoid huge malicious stack allocation.
-     * No UInt64 can have more digits than 20. */
-    if(sizeOfBuffer > 20)
+parseSignedInteger(char *tokenData, size_t tokenSize, UA_Int64 *dst) {
+    size_t len = parseInt64(tokenData, tokenSize, dst);
+    if(len == 0)
         return UA_STATUSCODE_BADDECODINGERROR;
 
-    /* convert to null terminated string  */
-    char string[21];
-    memcpy(string, inputBuffer, sizeOfBuffer);
-    string[sizeOfBuffer] = 0;
-
-    /* Conversion */
-    char *endptr, *str;
-    str = string;
-    errno = 0;    /* To distinguish success/failure after call */
-    UA_Int64 val = strtoll(str, &endptr, 10);
-
-    /* Check for various possible errors */
-    if((errno == ERANGE && (val == LONG_MAX || val == LONG_MIN))
-          || (errno != 0 )) {
-        return UA_STATUSCODE_BADDECODINGERROR;
+    /* There must only be whitespace between the end of the parsed number and
+     * the end of the token */
+    for(size_t i = len; i < tokenSize; i++) {
+        if(tokenData[i] != ' ' && tokenData[i] -'\t' >= 5)
+            return UA_STATUSCODE_BADDECODINGERROR;
     }
 
-    /* Check if no digits were found */
-    if(endptr == str)
-        return UA_STATUSCODE_BADDECODINGERROR;
-
-    /* copy to destination */
-    *destinationOfNumber = val;
     return UA_STATUSCODE_GOOD;
 }
-#endif
 
 DECODE_JSON(Byte) {
     CHECK_TOKEN_BOUNDS;
@@ -1629,10 +1549,11 @@ DECODE_JSON(Byte) {
 
     UA_UInt64 out = 0;
     UA_StatusCode s = parseUnsignedInteger(tokenData, tokenSize, &out);
+    if(s != UA_STATUSCODE_GOOD || out > UA_BYTE_MAX)
+        return UA_STATUSCODE_BADDECODINGERROR;
     *dst = (UA_Byte)out;
-
     parseCtx->index++;
-    return s;
+    return UA_STATUSCODE_GOOD;
 }
 
 DECODE_JSON(UInt16) {
@@ -1642,10 +1563,11 @@ DECODE_JSON(UInt16) {
 
     UA_UInt64 out = 0;
     UA_StatusCode s = parseUnsignedInteger(tokenData, tokenSize, &out);
+    if(s != UA_STATUSCODE_GOOD || out > UA_UINT16_MAX)
+        return UA_STATUSCODE_BADDECODINGERROR;
     *dst = (UA_UInt16)out;
-
     parseCtx->index++;
-    return s;
+    return UA_STATUSCODE_GOOD;
 }
 
 DECODE_JSON(UInt32) {
@@ -1655,10 +1577,11 @@ DECODE_JSON(UInt32) {
 
     UA_UInt64 out = 0;
     UA_StatusCode s = parseUnsignedInteger(tokenData, tokenSize, &out);
+    if(s != UA_STATUSCODE_GOOD || out > UA_UINT32_MAX)
+        return UA_STATUSCODE_BADDECODINGERROR;
     *dst = (UA_UInt32)out;
-
     parseCtx->index++;
-    return s;
+    return UA_STATUSCODE_GOOD;
 }
 
 DECODE_JSON(UInt64) {
@@ -1666,12 +1589,11 @@ DECODE_JSON(UInt64) {
     CHECK_STRING;
     GET_TOKEN;
 
-    UA_UInt64 out = 0;
-    UA_StatusCode s = parseUnsignedInteger(tokenData, tokenSize, &out);
-    *dst = (UA_UInt64)out;
-
+    UA_StatusCode s = parseUnsignedInteger(tokenData, tokenSize, dst);
+    if(s != UA_STATUSCODE_GOOD)
+        return UA_STATUSCODE_BADDECODINGERROR;
     parseCtx->index++;
-    return s;
+    return UA_STATUSCODE_GOOD;
 }
 
 DECODE_JSON(SByte) {
@@ -1681,10 +1603,11 @@ DECODE_JSON(SByte) {
 
     UA_Int64 out = 0;
     UA_StatusCode s = parseSignedInteger(tokenData, tokenSize, &out);
+    if(s != UA_STATUSCODE_GOOD || out < UA_SBYTE_MIN || out > UA_SBYTE_MAX)
+        return UA_STATUSCODE_BADDECODINGERROR;
     *dst = (UA_SByte)out;
-
     parseCtx->index++;
-    return s;
+    return UA_STATUSCODE_GOOD;
 }
 
 DECODE_JSON(Int16) {
@@ -1694,10 +1617,11 @@ DECODE_JSON(Int16) {
 
     UA_Int64 out = 0;
     UA_StatusCode s = parseSignedInteger(tokenData, tokenSize, &out);
+    if(s != UA_STATUSCODE_GOOD || out < UA_INT16_MIN || out > UA_INT16_MAX)
+        return UA_STATUSCODE_BADDECODINGERROR;
     *dst = (UA_Int16)out;
-
     parseCtx->index++;
-    return s;
+    return UA_STATUSCODE_GOOD;
 }
 
 DECODE_JSON(Int32) {
@@ -1707,10 +1631,11 @@ DECODE_JSON(Int32) {
 
     UA_Int64 out = 0;
     UA_StatusCode s = parseSignedInteger(tokenData, tokenSize, &out);
+    if(s != UA_STATUSCODE_GOOD || out < UA_INT32_MIN || out > UA_INT32_MAX)
+        return UA_STATUSCODE_BADDECODINGERROR;
     *dst = (UA_Int32)out;
-
     parseCtx->index++;
-    return s;
+    return UA_STATUSCODE_GOOD;
 }
 
 DECODE_JSON(Int64) {
@@ -1718,12 +1643,11 @@ DECODE_JSON(Int64) {
     CHECK_STRING;
     GET_TOKEN;
 
-    UA_Int64 out = 0;
-    UA_StatusCode s = parseSignedInteger(tokenData, tokenSize, &out);
-    *dst = (UA_Int64)out;
-
+    UA_StatusCode s = parseSignedInteger(tokenData, tokenSize, dst);
+    if(s != UA_STATUSCODE_GOOD)
+        return UA_STATUSCODE_BADDECODINGERROR;
     parseCtx->index++;
-    return s;
+    return UA_STATUSCODE_GOOD;
 }
 
 static UA_UInt32 hex2int(char ch) {
@@ -1734,75 +1658,6 @@ static UA_UInt32 hex2int(char ch) {
     if(ch >= 'a' && ch <= 'f')
         return (UA_UInt32)(ch - 'a' + 10);
     return 0;
-}
-
-DECODE_JSON(Float) {
-    CHECK_TOKEN_BOUNDS;
-    GET_TOKEN;
-
-    /* https://www.exploringbinary.com/maximum-number-of-decimal-digits-in-binary-floating-point-numbers/
-     * Maximum digit counts for select IEEE floating-point formats: 149
-     * Sanity check. */
-    if(tokenSize > 150)
-        return UA_STATUSCODE_BADDECODINGERROR;
-
-    jsmntype_t tokenType = getJsmnType(parseCtx);
-
-    /* It could be a string with NaN, Infinity */
-    if(tokenType == JSMN_STRING) {
-        parseCtx->index++;
-
-        if(tokenSize == 8 && memcmp(tokenData, "Infinity", 8) == 0) {
-            *dst = (UA_Float)INFINITY;
-            return UA_STATUSCODE_GOOD;
-        }
-
-        if(tokenSize == 9 && memcmp(tokenData, "-Infinity", 9) == 0) {
-            /* workaround an MSVC 2013 issue */
-            *dst = (UA_Float)-INFINITY;
-            return UA_STATUSCODE_GOOD;
-        }
-
-        if(tokenSize == 3 && memcmp(tokenData, "NaN", 3) == 0) {
-            *dst = (UA_Float)NAN;
-            return UA_STATUSCODE_GOOD;
-        }
-
-        if(tokenSize == 4 && memcmp(tokenData, "-NaN", 4) == 0) {
-            *dst = (UA_Float)NAN;
-            return UA_STATUSCODE_GOOD;
-        }
-
-        return UA_STATUSCODE_BADDECODINGERROR;
-    }
-
-    if(tokenType != JSMN_PRIMITIVE)
-        return UA_STATUSCODE_BADDECODINGERROR;
-
-    /* Null-Terminate for sscanf. */
-    char string[151];
-    memcpy(string, tokenData, tokenSize);
-    string[tokenSize] = 0;
-
-    UA_Float d = 0;
-#ifdef UA_ENABLE_CUSTOM_LIBC
-    d = (UA_Float)__floatscan(string, 1, 0);
-#else
-    char c = 0;
-    /* On success, the function returns the number of variables filled.
-     * In the case of an input failure before any data could be successfully read, EOF is returned. */
-    int ret = sscanf(string, "%f%c", &d, &c);
-
-    /* Exactly one var must be filled. %c acts as a guard for wrong input which is accepted by sscanf.
-    E.g. 1.23.45 is not accepted. */
-    if(ret == EOF || (ret != 1))
-        return UA_STATUSCODE_BADDECODINGERROR;
-#endif
-
-    *dst = d;
-
-    parseCtx->index++;
-    return UA_STATUSCODE_GOOD;
 }
 
 /* Either a JSMN_STRING or JSMN_PRIMITIVE */
@@ -1850,32 +1705,26 @@ DECODE_JSON(Double) {
     if(tokenType != JSMN_PRIMITIVE)
         return UA_STATUSCODE_BADDECODINGERROR;
 
-    /* Null-Terminate for sscanf. Should this better be handled on heap? Max
-     * 1075 input chars allowed. Not using heap. */
-    char string[1076];
-    memcpy(string, tokenData, tokenSize);
-    string[tokenSize] = 0;
-
-    UA_Double d = 0;
-#ifdef UA_ENABLE_CUSTOM_LIBC
-    d = (UA_Double)__floatscan(string, 2, 0);
-#else
-    char c = 0;
-    /* On success, the function returns the number of variables filled. In the
-     * case of an input failure before any data could be successfully read, EOF
-     * is returned. */
-    int ret = sscanf(string, "%lf%c", &d, &c);
-
-    /* Exactly one var must be filled. %c acts as a guard for wrong input which
-    is accepted by sscanf. E.g. 1.23.45 is not accepted. */
-    if(ret == EOF || (ret != 1))
+    size_t len = parseDouble(tokenData, tokenSize, dst);
+    if(len == 0)
         return UA_STATUSCODE_BADDECODINGERROR;
-#endif
 
-    *dst = d;
+    /* There must only be whitespace between the end of the parsed number and
+     * the end of the token */
+    for(size_t i = len; i < tokenSize; i++) {
+        if(tokenData[i] != ' ' && tokenData[i] -'\t' >= 5)
+            return UA_STATUSCODE_BADDECODINGERROR;
+    }
 
     parseCtx->index++;
     return UA_STATUSCODE_GOOD;
+}
+
+DECODE_JSON(Float) {
+    UA_Double v = 0.0;
+    UA_StatusCode res = Double_decodeJson(&v, NULL, ctx, parseCtx);
+    *dst = (UA_Float)v;
+    return res;
 }
 
 /*
@@ -2298,7 +2147,7 @@ DECODE_JSON(DateTime) {
     if(tokenData[0] == '-' || tokenData[0] == '+')
         pos++;
     UA_Int64 year = 0;
-    len = atoiSigned(&tokenData[pos], 5, &year);
+    len = parseInt64(&tokenData[pos], 5, &year);
     pos += len;
     if(len != 4 && tokenData[pos] != '-')
         return UA_STATUSCODE_BADDECODINGERROR;
@@ -2310,7 +2159,7 @@ DECODE_JSON(DateTime) {
 
     /* Parse the month */
     UA_UInt64 month = 0;
-    len = atoiUnsigned(&tokenData[pos], 2, &month);
+    len = parseUInt64(&tokenData[pos], 2, &month);
     pos += len;
     UA_CHECK(len == 2, return UA_STATUSCODE_BADDECODINGERROR);
     dts.tm_mon = (UA_UInt16)month - 1;
@@ -2319,7 +2168,7 @@ DECODE_JSON(DateTime) {
 
     /* Parse the day and check the T between date and time */
     UA_UInt64 day = 0;
-    len = atoiUnsigned(&tokenData[pos], 2, &day);
+    len = parseUInt64(&tokenData[pos], 2, &day);
     pos += len;
     UA_CHECK(len == 2 || tokenData[pos] != 'T',
              return UA_STATUSCODE_BADDECODINGERROR);
@@ -2328,7 +2177,7 @@ DECODE_JSON(DateTime) {
 
     /* Parse the hour */
     UA_UInt64 hour = 0;
-    len = atoiUnsigned(&tokenData[pos], 2, &hour);
+    len = parseUInt64(&tokenData[pos], 2, &hour);
     pos += len;
     UA_CHECK(len == 2, return UA_STATUSCODE_BADDECODINGERROR);
     dts.tm_hour = (UA_UInt16)hour;
@@ -2337,7 +2186,7 @@ DECODE_JSON(DateTime) {
 
     /* Parse the minute */
     UA_UInt64 min = 0;
-    len = atoiUnsigned(&tokenData[pos], 2, &min);
+    len = parseUInt64(&tokenData[pos], 2, &min);
     pos += len;
     UA_CHECK(len == 2, return UA_STATUSCODE_BADDECODINGERROR);
     dts.tm_min = (UA_UInt16)min;
@@ -2346,7 +2195,7 @@ DECODE_JSON(DateTime) {
 
     /* Parse the second */
     UA_UInt64 sec = 0;
-    len = atoiUnsigned(&tokenData[pos], 2, &sec);
+    len = parseUInt64(&tokenData[pos], 2, &sec);
     pos += len;
     UA_CHECK(len == 2, return UA_STATUSCODE_BADDECODINGERROR);
     dts.tm_sec = (UA_UInt16)sec;
@@ -2447,7 +2296,7 @@ DECODE_JSON(Variant) {
         return UA_STATUSCODE_BADDECODINGERROR;
     UA_UInt64 idTypeDecoded = 0;
     char *idTypeEncoded = (char*)(ctx->pos + parseCtx->tokenArray[searchResultType].start);
-    size_t len = atoiUnsigned(idTypeEncoded, size, &idTypeDecoded);
+    size_t len = parseUInt64(idTypeEncoded, size, &idTypeDecoded);
     if(len == 0)
         return UA_STATUSCODE_BADDECODINGERROR;
 
@@ -2570,9 +2419,11 @@ DECODE_JSON(ExtensionObject) {
     if(ret == UA_STATUSCODE_GOOD) {
         /* Parse the encoding */
         UA_UInt64 encoding = 0;
-        char *extObjEncoding = (char*)(ctx->pos + parseCtx->tokenArray[encodingPos].start);
-        size_t size = (size_t)(parseCtx->tokenArray[encodingPos].end - parseCtx->tokenArray[encodingPos].start);
-        atoiUnsigned(extObjEncoding, size, &encoding);
+        char *extObjEncoding = (char*)(ctx->pos +
+                                       parseCtx->tokenArray[encodingPos].start);
+        size_t size = (size_t)(parseCtx->tokenArray[encodingPos].end -
+                               parseCtx->tokenArray[encodingPos].start);
+        parseUInt64(extObjEncoding, size, &encoding);
 
         if(encoding == 1) {
             dst->encoding = UA_EXTENSIONOBJECT_ENCODED_BYTESTRING; /* ByteString in Json Body */
@@ -2709,7 +2560,7 @@ Variant_decodeJsonUnwrapExtensionObject(void *p, const UA_DataType *type,
         char *extObjEncoding = (char*)(ctx->pos + parseCtx->tokenArray[searchEncodingResult].start);
         size_t size = (size_t)(parseCtx->tokenArray[searchEncodingResult].end
                                - parseCtx->tokenArray[searchEncodingResult].start);
-        atoiUnsigned(extObjEncoding, size, &encoding);
+        parseUInt64(extObjEncoding, size, &encoding);
     }
 
     if(encoding == 0 && typeOfBody != NULL) {
@@ -2791,23 +2642,35 @@ decodeFields(CtxJson *ctx, ParseCtx *parseCtx,
     CHECK_TOKEN_BOUNDS;
     CHECK_OBJECT;
 
+    if(ctx->depth >= UA_JSON_ENCODING_MAX_RECURSION - 1)
+        return UA_STATUSCODE_BADENCODINGERROR;
+    ctx->depth++;
+
     /* Empty object, nothing to decode */
     size_t objectCount = (size_t)(parseCtx->tokenArray[parseCtx->index].size);
     if(objectCount == 0) {
+        ctx->depth--;
         parseCtx->index++; /* Jump to the element after the empty object */
         return UA_STATUSCODE_GOOD;
     }
 
     parseCtx->index++; /* Go to first key */
-    CHECK_TOKEN_BOUNDS;
+
+    /* CHECK_TOKEN_BOUNDS */
+    if(parseCtx->index >= parseCtx->tokenCount) {
+        ctx->depth--;
+        return UA_STATUSCODE_BADDECODINGERROR;
+    }
 
     status ret = UA_STATUSCODE_GOOD;
     for(size_t currObj = 0; currObj < objectCount &&
             parseCtx->index < parseCtx->tokenCount; currObj++) {
 
         /* Key must be a string (TODO: Convert to assert when jsmn is replaced) */
-        if(getJsmnType(parseCtx) != JSMN_STRING)
-            return UA_STATUSCODE_BADDECODINGERROR;
+        if(getJsmnType(parseCtx) != JSMN_STRING) {
+            ret = UA_STATUSCODE_BADDECODINGERROR;
+            goto cleanup;
+        }
 
         /* Start searching at the index of currObj */
         for(size_t i = currObj; i < entryCount + currObj; i++) {
@@ -2815,19 +2678,31 @@ decodeFields(CtxJson *ctx, ParseCtx *parseCtx,
              * if objectCount is in order! */
             size_t index = i % entryCount;
 
-            CHECK_TOKEN_BOUNDS;
+            /* CHECK_TOKEN_BOUNDS */
+            if(parseCtx->index >= parseCtx->tokenCount) {
+                ret = UA_STATUSCODE_BADDECODINGERROR;
+                goto cleanup;
+            }
+
             if(jsoneq((char*) ctx->pos, &parseCtx->tokenArray[parseCtx->index],
                       entries[index].fieldName) != 0)
                 continue;
 
             /* Duplicate key found, abort */
-            if(entries[index].found)
-                return UA_STATUSCODE_BADDECODINGERROR;
+            if(entries[index].found) {
+                ret = UA_STATUSCODE_BADDECODINGERROR;
+                goto cleanup;
+            }
 
             entries[index].found = true;
 
             parseCtx->index++; /* Go from key to value */
-            CHECK_TOKEN_BOUNDS;
+
+            /* CHECK_TOKEN_BOUNDS */
+            if(parseCtx->index >= parseCtx->tokenCount) {
+                ret = UA_STATUSCODE_BADDECODINGERROR;
+                goto cleanup;
+            }
 
             /* An entry that was expected, but shall not be decoded.
              * Jump over it. */
@@ -2851,10 +2726,13 @@ decodeFields(CtxJson *ctx, ParseCtx *parseCtx,
                 ret = decodeJsonJumpTable[entries[index].type->typeKind]
                     (entries[index].fieldPointer, entries[index].type, ctx, parseCtx);
             if(ret != UA_STATUSCODE_GOOD)
-                return ret;
+                goto cleanup;
             break;
         }
     }
+
+ cleanup:
+    ctx->depth--;
     return ret;
 }
 

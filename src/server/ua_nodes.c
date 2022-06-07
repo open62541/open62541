@@ -453,13 +453,15 @@ UA_CommonVariableNode_copy(const UA_VariableNode *src, UA_VariableNode *dst) {
     dst->arrayDimensionsSize = src->arrayDimensionsSize;
     retval = UA_NodeId_copy(&src->dataType, &dst->dataType);
     dst->valueRank = src->valueRank;
+    dst->valueBackend = src->valueBackend;
     dst->valueSource = src->valueSource;
     if(src->valueSource == UA_VALUESOURCE_DATA) {
         retval |= UA_DataValue_copy(&src->value.data.value,
                                     &dst->value.data.value);
         dst->value.data.callback = src->value.data.callback;
-    } else
+    } else {
         dst->value.dataSource = src->value.dataSource;
+    }
     return retval;
 }
 

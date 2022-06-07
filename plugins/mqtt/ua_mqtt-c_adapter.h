@@ -13,7 +13,7 @@
 extern "C" {
 #endif
 
-#include "ua_network_pubsub_mqtt.h"
+#include <open62541/plugin/pubsub_mqtt.h>
 
 void freeTLS(UA_PubSubChannelDataMQTT *data);
 

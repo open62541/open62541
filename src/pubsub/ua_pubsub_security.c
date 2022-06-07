@@ -98,8 +98,11 @@ verifyAndDecrypt(const UA_Logger *logger, UA_ByteString *buffer,
     }
 
     if(doDecrypt) {
-        rv = securityPolicy->setMessageNonce(channelContext,
-                                             &nm->securityHeader.messageNonce);
+        const UA_ByteString nonce = {
+            (size_t)nm->securityHeader.messageNonceSize,
+            (UA_Byte*)(uintptr_t)nm->securityHeader.messageNonce
+        };
+        rv = securityPolicy->setMessageNonce(channelContext, &nonce);
         UA_CHECK_STATUS_WARN(rv, return rv, logger, UA_LOGCATEGORY_SECURITYPOLICY,
                              "PubSub receive. Faulty Nonce set");
 

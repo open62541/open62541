@@ -44,7 +44,8 @@ setup_secureChannel(void) {
     UA_SecureChannel_init(&testChannel, &UA_ConnectionConfig_default);
     UA_SecureChannel_setSecurityPolicy(&testChannel, &dummyPolicy, &dummyCertificate);
 
-    testingConnection = createDummyConnection(65535, &sentData);
+    testingConnection =
+        createDummyConnection(UA_ConnectionConfig_default.sendBufferSize, &sentData);
     UA_Connection_attachSecureChannel(&testingConnection, &testChannel);
     testChannel.connection = &testingConnection;
 
@@ -364,7 +365,7 @@ START_TEST(Securechannel_sendAsymmetricOPNMessage_extraPaddingPresentWhenKeyLarg
     if(extraPadding) {
         extraPaddingByte = paddingByte;
         paddingByte = sentData.data[sentData.length - keySizes.asym_lcl_sig_size - 2];
-        paddingSize = (extraPaddingByte << 8u) + paddingByte;
+        paddingSize = ((size_t)extraPaddingByte << 8u) + paddingByte;
         paddingSize += 1;
     }
 

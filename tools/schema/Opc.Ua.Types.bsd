@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8" ?>
 <!--
- * Copyright (c) 2005-2020 The OPC Foundation, Inc. All rights reserved.
+ * Copyright (c) 2005-2021 The OPC Foundation, Inc. All rights reserved.
  *
  * OPC Foundation MIT License 1.00
  * 
@@ -219,6 +219,9 @@
   </opc:EnumeratedType>
     
 
+  <opc:EnumeratedType Name="Enumeration" LengthInBits="32">
+  </opc:EnumeratedType>
+
   <opc:OpaqueType Name="ImageBMP">
   </opc:OpaqueType>
 
@@ -234,7 +237,16 @@
   <opc:OpaqueType Name="AudioDataType">
   </opc:OpaqueType>
 
+  <opc:StructuredType Name="Union" BaseType="ua:ExtensionObject">
+  </opc:StructuredType>
+
+  <opc:OpaqueType Name="UriString">
+  </opc:OpaqueType>
+
   <opc:OpaqueType Name="BitFieldMaskDataType">
+  </opc:OpaqueType>
+
+  <opc:OpaqueType Name="SemanticVersionString">
   </opc:OpaqueType>
 
   <opc:StructuredType Name="KeyValuePair" BaseType="ua:ExtensionObject">
@@ -313,6 +325,8 @@
     <opc:EnumeratedValue Name="GroupId" Value="4" />
     <opc:EnumeratedValue Name="Anonymous" Value="5" />
     <opc:EnumeratedValue Name="AuthenticatedUser" Value="6" />
+    <opc:EnumeratedValue Name="Application" Value="7" />
+    <opc:EnumeratedValue Name="X509Subject" Value="8" />
   </opc:EnumeratedType>
 
   <opc:StructuredType Name="IdentityMappingRuleType" BaseType="ua:ExtensionObject">
@@ -404,11 +418,27 @@
     <opc:Field Name="Body" TypeName="ua:Variant" />
   </opc:StructuredType>
 
+  <opc:StructuredType Name="PortableQualifiedName" BaseType="ua:ExtensionObject">
+    <opc:Field Name="NamespaceUri" TypeName="opc:String" />
+    <opc:Field Name="Name" TypeName="opc:String" />
+  </opc:StructuredType>
+
+  <opc:StructuredType Name="PortableNodeId" BaseType="ua:ExtensionObject">
+    <opc:Field Name="NamespaceUri" TypeName="opc:String" />
+    <opc:Field Name="Identifier" TypeName="ua:NodeId" />
+  </opc:StructuredType>
+
+  <opc:StructuredType Name="UnsignedRationalNumber" BaseType="ua:ExtensionObject">
+    <opc:Field Name="Numerator" TypeName="opc:UInt32" />
+    <opc:Field Name="Denominator" TypeName="opc:UInt32" />
+  </opc:StructuredType>
+
   <opc:EnumeratedType Name="PubSubState" LengthInBits="32">
     <opc:EnumeratedValue Name="Disabled" Value="0" />
     <opc:EnumeratedValue Name="Paused" Value="1" />
     <opc:EnumeratedValue Name="Operational" Value="2" />
     <opc:EnumeratedValue Name="Error" Value="3" />
+    <opc:EnumeratedValue Name="PreOperational" Value="4" />
   </opc:EnumeratedType>
 
   <opc:StructuredType Name="DataSetMetaDataType" BaseType="tns:DataTypeSchemaHeader">
@@ -488,6 +518,10 @@
     <opc:Field Name="NoOfSelectedFields" TypeName="opc:Int32" />
     <opc:Field Name="SelectedFields" TypeName="tns:SimpleAttributeOperand" LengthField="NoOfSelectedFields" />
     <opc:Field Name="Filter" TypeName="tns:ContentFilter" />
+  </opc:StructuredType>
+
+  <opc:StructuredType Name="PublishedDataSetCustomSourceDataType" BaseType="tns:PublishedDataSetSourceDataType">
+    <opc:Field Name="CyclicDataSet" TypeName="opc:Boolean" />
   </opc:StructuredType>
 
   <opc:EnumeratedType Name="DataSetFieldContentMask" LengthInBits="32" IsOptionSet="true">
@@ -675,6 +709,69 @@
     <opc:Field Name="Enabled" TypeName="opc:Boolean" />
   </opc:StructuredType>
 
+  <opc:StructuredType Name="StandaloneSubscribedDataSetRefDataType" BaseType="tns:SubscribedDataSetDataType">
+    <opc:Field Name="DataSetName" TypeName="opc:String" />
+  </opc:StructuredType>
+
+  <opc:StructuredType Name="StandaloneSubscribedDataSetDataType" BaseType="tns:SubscribedDataSetDataType">
+    <opc:Field Name="Name" TypeName="opc:String" />
+    <opc:Field Name="NoOfDataSetFolder" TypeName="opc:Int32" />
+    <opc:Field Name="DataSetFolder" TypeName="opc:String" LengthField="NoOfDataSetFolder" />
+    <opc:Field Name="DataSetMetaData" TypeName="tns:DataSetMetaDataType" />
+    <opc:Field Name="SubscribedDataSet" TypeName="ua:ExtensionObject" />
+  </opc:StructuredType>
+
+  <opc:StructuredType Name="SecurityGroupDataType" BaseType="ua:ExtensionObject">
+    <opc:Field Name="Name" TypeName="opc:String" />
+    <opc:Field Name="NoOfSecurityGroupFolder" TypeName="opc:Int32" />
+    <opc:Field Name="SecurityGroupFolder" TypeName="opc:String" LengthField="NoOfSecurityGroupFolder" />
+    <opc:Field Name="KeyLifetime" TypeName="opc:Double" />
+    <opc:Field Name="SecurityPolicyUri" TypeName="opc:String" />
+    <opc:Field Name="MaxFutureKeyCount" TypeName="opc:UInt32" />
+    <opc:Field Name="MaxPastKeyCount" TypeName="opc:UInt32" />
+    <opc:Field Name="SecurityGroupId" TypeName="opc:String" />
+    <opc:Field Name="NoOfRolePermissions" TypeName="opc:Int32" />
+    <opc:Field Name="RolePermissions" TypeName="tns:RolePermissionType" LengthField="NoOfRolePermissions" />
+    <opc:Field Name="NoOfGroupProperties" TypeName="opc:Int32" />
+    <opc:Field Name="GroupProperties" TypeName="tns:KeyValuePair" LengthField="NoOfGroupProperties" />
+  </opc:StructuredType>
+
+  <opc:StructuredType Name="PubSubKeyPushTargetDataType" BaseType="ua:ExtensionObject">
+    <opc:Field Name="ApplicationUri" TypeName="opc:String" />
+    <opc:Field Name="NoOfPushTargetFolder" TypeName="opc:Int32" />
+    <opc:Field Name="PushTargetFolder" TypeName="opc:String" LengthField="NoOfPushTargetFolder" />
+    <opc:Field Name="EndpointUrl" TypeName="opc:String" />
+    <opc:Field Name="SecurityPolicyUri" TypeName="opc:String" />
+    <opc:Field Name="UserTokenType" TypeName="tns:UserTokenPolicy" />
+    <opc:Field Name="RequestedKeyCount" TypeName="opc:UInt16" />
+    <opc:Field Name="RetryInterval" TypeName="opc:Double" />
+    <opc:Field Name="NoOfPushTargetProperties" TypeName="opc:Int32" />
+    <opc:Field Name="PushTargetProperties" TypeName="tns:KeyValuePair" LengthField="NoOfPushTargetProperties" />
+    <opc:Field Name="NoOfSecurityGroups" TypeName="opc:Int32" />
+    <opc:Field Name="SecurityGroups" TypeName="opc:String" LengthField="NoOfSecurityGroups" />
+  </opc:StructuredType>
+
+  <opc:StructuredType Name="PubSubConfiguration2DataType" BaseType="tns:PubSubConfigurationDataType">
+    <opc:Field Name="NoOfPublishedDataSets" TypeName="opc:Int32" />
+    <opc:Field Name="PublishedDataSets" TypeName="tns:PublishedDataSetDataType" LengthField="NoOfPublishedDataSets" />
+    <opc:Field Name="NoOfConnections" TypeName="opc:Int32" />
+    <opc:Field Name="Connections" TypeName="tns:PubSubConnectionDataType" LengthField="NoOfConnections" />
+    <opc:Field Name="Enabled" TypeName="opc:Boolean" SourceType="tns:PubSubConfigurationDataType" />
+    <opc:Field Name="NoOfSubscribedDataSets" TypeName="opc:Int32" />
+    <opc:Field Name="SubscribedDataSets" TypeName="tns:StandaloneSubscribedDataSetDataType" LengthField="NoOfSubscribedDataSets" />
+    <opc:Field Name="NoOfDataSetClasses" TypeName="opc:Int32" />
+    <opc:Field Name="DataSetClasses" TypeName="tns:DataSetMetaDataType" LengthField="NoOfDataSetClasses" />
+    <opc:Field Name="NoOfDefaultSecurityKeyServices" TypeName="opc:Int32" />
+    <opc:Field Name="DefaultSecurityKeyServices" TypeName="tns:EndpointDescription" LengthField="NoOfDefaultSecurityKeyServices" />
+    <opc:Field Name="NoOfSecurityGroups" TypeName="opc:Int32" />
+    <opc:Field Name="SecurityGroups" TypeName="tns:SecurityGroupDataType" LengthField="NoOfSecurityGroups" />
+    <opc:Field Name="NoOfPubSubKeyPushTargets" TypeName="opc:Int32" />
+    <opc:Field Name="PubSubKeyPushTargets" TypeName="tns:PubSubKeyPushTargetDataType" LengthField="NoOfPubSubKeyPushTargets" />
+    <opc:Field Name="ConfigurationVersion" TypeName="opc:UInt32" />
+    <opc:Field Name="NoOfConfigurationProperties" TypeName="opc:Int32" />
+    <opc:Field Name="ConfigurationProperties" TypeName="tns:KeyValuePair" LengthField="NoOfConfigurationProperties" />
+  </opc:StructuredType>
+
   <opc:EnumeratedType Name="DataSetOrderingType" LengthInBits="32">
     <opc:EnumeratedValue Name="Undefined" Value="0" />
     <opc:EnumeratedValue Name="AscendingWriterId" Value="1" />
@@ -755,6 +852,9 @@
     <opc:EnumeratedValue Name="SequenceNumber" Value="4" />
     <opc:EnumeratedValue Name="Timestamp" Value="8" />
     <opc:EnumeratedValue Name="Status" Value="16" />
+    <opc:EnumeratedValue Name="MessageType" Value="32" />
+    <opc:EnumeratedValue Name="DataSetWriterName" Value="64" />
+    <opc:EnumeratedValue Name="ReversibleFieldEncoding" Value="128" />
   </opc:EnumeratedType>
 
   <opc:StructuredType Name="JsonDataSetWriterMessageDataType" BaseType="tns:DataSetWriterMessageDataType">
@@ -766,13 +866,58 @@
     <opc:Field Name="DataSetMessageContentMask" TypeName="tns:JsonDataSetMessageContentMask" />
   </opc:StructuredType>
 
+  <opc:StructuredType Name="QosDataType" BaseType="ua:ExtensionObject">
+  </opc:StructuredType>
+
+  <opc:StructuredType Name="TransmitQosDataType" BaseType="tns:QosDataType">
+  </opc:StructuredType>
+
+  <opc:StructuredType Name="TransmitQosPriorityDataType" BaseType="tns:TransmitQosDataType">
+    <opc:Field Name="PriorityLabel" TypeName="opc:String" />
+  </opc:StructuredType>
+
+  <opc:StructuredType Name="ReceiveQosDataType" BaseType="tns:QosDataType">
+  </opc:StructuredType>
+
+  <opc:StructuredType Name="ReceiveQosPriorityDataType" BaseType="tns:ReceiveQosDataType">
+    <opc:Field Name="PriorityLabel" TypeName="opc:String" />
+  </opc:StructuredType>
+
   <opc:StructuredType Name="DatagramConnectionTransportDataType" BaseType="tns:ConnectionTransportDataType">
     <opc:Field Name="DiscoveryAddress" TypeName="ua:ExtensionObject" />
+  </opc:StructuredType>
+
+  <opc:StructuredType Name="DatagramConnectionTransport2DataType" BaseType="tns:DatagramConnectionTransportDataType">
+    <opc:Field Name="DiscoveryAddress" TypeName="ua:ExtensionObject" SourceType="tns:DatagramConnectionTransportDataType" />
+    <opc:Field Name="DiscoveryAnnounceRate" TypeName="opc:UInt32" />
+    <opc:Field Name="DiscoveryMaxMessageSize" TypeName="opc:UInt32" />
+    <opc:Field Name="QosCategory" TypeName="opc:String" />
+    <opc:Field Name="NoOfDatagramQos" TypeName="opc:Int32" />
+    <opc:Field Name="DatagramQos" TypeName="ua:ExtensionObject" LengthField="NoOfDatagramQos" />
   </opc:StructuredType>
 
   <opc:StructuredType Name="DatagramWriterGroupTransportDataType" BaseType="tns:WriterGroupTransportDataType">
     <opc:Field Name="MessageRepeatCount" TypeName="opc:Byte" />
     <opc:Field Name="MessageRepeatDelay" TypeName="opc:Double" />
+  </opc:StructuredType>
+
+  <opc:StructuredType Name="DatagramWriterGroupTransport2DataType" BaseType="tns:DatagramWriterGroupTransportDataType">
+    <opc:Field Name="MessageRepeatCount" TypeName="opc:Byte" SourceType="tns:DatagramWriterGroupTransportDataType" />
+    <opc:Field Name="MessageRepeatDelay" TypeName="opc:Double" SourceType="tns:DatagramWriterGroupTransportDataType" />
+    <opc:Field Name="Address" TypeName="ua:ExtensionObject" />
+    <opc:Field Name="QosCategory" TypeName="opc:String" />
+    <opc:Field Name="NoOfDatagramQos" TypeName="opc:Int32" />
+    <opc:Field Name="DatagramQos" TypeName="ua:ExtensionObject" LengthField="NoOfDatagramQos" />
+    <opc:Field Name="DiscoveryAnnounceRate" TypeName="opc:UInt32" />
+    <opc:Field Name="Topic" TypeName="opc:String" />
+  </opc:StructuredType>
+
+  <opc:StructuredType Name="DatagramDataSetReaderTransportDataType" BaseType="tns:DataSetReaderTransportDataType">
+    <opc:Field Name="Address" TypeName="ua:ExtensionObject" />
+    <opc:Field Name="QosCategory" TypeName="opc:String" />
+    <opc:Field Name="NoOfDatagramQos" TypeName="opc:Int32" />
+    <opc:Field Name="DatagramQos" TypeName="ua:ExtensionObject" LengthField="NoOfDatagramQos" />
+    <opc:Field Name="Topic" TypeName="opc:String" />
   </opc:StructuredType>
 
   <opc:StructuredType Name="BrokerConnectionTransportDataType" BaseType="tns:ConnectionTransportDataType">
@@ -812,6 +957,36 @@
     <opc:Field Name="MetaDataQueueName" TypeName="opc:String" />
   </opc:StructuredType>
 
+  <opc:EnumeratedType Name="PubSubConfigurationRefMask" LengthInBits="32" IsOptionSet="true">
+    <opc:EnumeratedValue Name="None" Value="0" />
+    <opc:EnumeratedValue Name="ElementAdd" Value="1" />
+    <opc:EnumeratedValue Name="ElementMatch" Value="2" />
+    <opc:EnumeratedValue Name="ElementModify" Value="4" />
+    <opc:EnumeratedValue Name="ElementRemove" Value="8" />
+    <opc:EnumeratedValue Name="ReferenceWriter" Value="16" />
+    <opc:EnumeratedValue Name="ReferenceReader" Value="32" />
+    <opc:EnumeratedValue Name="ReferenceWriterGroup" Value="64" />
+    <opc:EnumeratedValue Name="ReferenceReaderGroup" Value="128" />
+    <opc:EnumeratedValue Name="ReferenceConnection" Value="256" />
+    <opc:EnumeratedValue Name="ReferencePubDataset" Value="512" />
+    <opc:EnumeratedValue Name="ReferenceSubDataset" Value="1024" />
+    <opc:EnumeratedValue Name="ReferenceSecurityGroup" Value="2048" />
+    <opc:EnumeratedValue Name="ReferencePushTarget" Value="4096" />
+  </opc:EnumeratedType>
+
+  <opc:StructuredType Name="PubSubConfigurationRefDataType" BaseType="ua:ExtensionObject">
+    <opc:Field Name="ConfigurationMask" TypeName="tns:PubSubConfigurationRefMask" />
+    <opc:Field Name="ElementIndex" TypeName="opc:UInt16" />
+    <opc:Field Name="ConnectionIndex" TypeName="opc:UInt16" />
+    <opc:Field Name="GroupIndex" TypeName="opc:UInt16" />
+  </opc:StructuredType>
+
+  <opc:StructuredType Name="PubSubConfigurationValueDataType" BaseType="ua:ExtensionObject">
+    <opc:Field Name="ConfigurationElement" TypeName="tns:PubSubConfigurationRefDataType" />
+    <opc:Field Name="Name" TypeName="opc:String" />
+    <opc:Field Name="Identifier" TypeName="ua:Variant" />
+  </opc:StructuredType>
+
   <opc:EnumeratedType Name="DiagnosticsLevel" LengthInBits="32">
     <opc:EnumeratedValue Name="Basic" Value="0" />
     <opc:EnumeratedValue Name="Advanced" Value="1" />
@@ -829,6 +1004,120 @@
     <opc:Field Name="AliasName" TypeName="ua:QualifiedName" />
     <opc:Field Name="NoOfReferencedNodes" TypeName="opc:Int32" />
     <opc:Field Name="ReferencedNodes" TypeName="ua:ExpandedNodeId" LengthField="NoOfReferencedNodes" />
+  </opc:StructuredType>
+
+  <opc:EnumeratedType Name="PasswordOptionsMask" LengthInBits="32" IsOptionSet="true">
+    <opc:EnumeratedValue Name="None" Value="0" />
+    <opc:EnumeratedValue Name="SupportInitialPasswordChange" Value="1" />
+    <opc:EnumeratedValue Name="SupportDisableUser" Value="2" />
+    <opc:EnumeratedValue Name="SupportDisableDeleteForUser" Value="4" />
+    <opc:EnumeratedValue Name="SupportNoChangeForUser" Value="8" />
+    <opc:EnumeratedValue Name="SupportDescriptionForUser" Value="16" />
+    <opc:EnumeratedValue Name="RequiresUpperCaseCharacters" Value="32" />
+    <opc:EnumeratedValue Name="RequiresLowerCaseCharacters" Value="64" />
+    <opc:EnumeratedValue Name="RequiresDigitCharacters" Value="128" />
+    <opc:EnumeratedValue Name="RequiresSpecialCharacters" Value="256" />
+  </opc:EnumeratedType>
+
+  <opc:EnumeratedType Name="UserConfigurationMask" LengthInBits="32" IsOptionSet="true">
+    <opc:EnumeratedValue Name="None" Value="0" />
+    <opc:EnumeratedValue Name="NoDelete" Value="1" />
+    <opc:EnumeratedValue Name="Disabled" Value="2" />
+    <opc:EnumeratedValue Name="NoChangeByUser" Value="4" />
+    <opc:EnumeratedValue Name="MustChangePassword" Value="8" />
+  </opc:EnumeratedType>
+
+  <opc:StructuredType Name="UserManagementDataType" BaseType="ua:ExtensionObject">
+    <opc:Field Name="UserName" TypeName="opc:String" />
+    <opc:Field Name="UserConfiguration" TypeName="tns:UserConfigurationMask" />
+    <opc:Field Name="Description" TypeName="opc:String" />
+  </opc:StructuredType>
+
+  <opc:EnumeratedType Name="Duplex" LengthInBits="32">
+    <opc:EnumeratedValue Name="Full" Value="0" />
+    <opc:EnumeratedValue Name="Half" Value="1" />
+    <opc:EnumeratedValue Name="Unknown" Value="2" />
+  </opc:EnumeratedType>
+
+  <opc:EnumeratedType Name="InterfaceAdminStatus" LengthInBits="32">
+    <opc:EnumeratedValue Name="Up" Value="0" />
+    <opc:EnumeratedValue Name="Down" Value="1" />
+    <opc:EnumeratedValue Name="Testing" Value="2" />
+  </opc:EnumeratedType>
+
+  <opc:EnumeratedType Name="InterfaceOperStatus" LengthInBits="32">
+    <opc:EnumeratedValue Name="Up" Value="0" />
+    <opc:EnumeratedValue Name="Down" Value="1" />
+    <opc:EnumeratedValue Name="Testing" Value="2" />
+    <opc:EnumeratedValue Name="Unknown" Value="3" />
+    <opc:EnumeratedValue Name="Dormant" Value="4" />
+    <opc:EnumeratedValue Name="NotPresent" Value="5" />
+    <opc:EnumeratedValue Name="LowerLayerDown" Value="6" />
+  </opc:EnumeratedType>
+
+  <opc:EnumeratedType Name="NegotiationStatus" LengthInBits="32">
+    <opc:EnumeratedValue Name="InProgress" Value="0" />
+    <opc:EnumeratedValue Name="Complete" Value="1" />
+    <opc:EnumeratedValue Name="Failed" Value="2" />
+    <opc:EnumeratedValue Name="Unknown" Value="3" />
+    <opc:EnumeratedValue Name="NoNegotiation" Value="4" />
+  </opc:EnumeratedType>
+
+  <opc:EnumeratedType Name="TsnFailureCode" LengthInBits="32">
+    <opc:EnumeratedValue Name="NoFailure" Value="0" />
+    <opc:EnumeratedValue Name="InsufficientBandwidth" Value="1" />
+    <opc:EnumeratedValue Name="InsufficientResources" Value="2" />
+    <opc:EnumeratedValue Name="InsufficientTrafficClassBandwidth" Value="3" />
+    <opc:EnumeratedValue Name="StreamIdInUse" Value="4" />
+    <opc:EnumeratedValue Name="StreamDestinationAddressInUse" Value="5" />
+    <opc:EnumeratedValue Name="StreamPreemptedByHigherRank" Value="6" />
+    <opc:EnumeratedValue Name="LatencyHasChanged" Value="7" />
+    <opc:EnumeratedValue Name="EgressPortNotAvbCapable" Value="8" />
+    <opc:EnumeratedValue Name="UseDifferentDestinationAddress" Value="9" />
+    <opc:EnumeratedValue Name="OutOfMsrpResources" Value="10" />
+    <opc:EnumeratedValue Name="OutOfMmrpResources" Value="11" />
+    <opc:EnumeratedValue Name="CannotStoreDestinationAddress" Value="12" />
+    <opc:EnumeratedValue Name="PriorityIsNotAnSrcClass" Value="13" />
+    <opc:EnumeratedValue Name="MaxFrameSizeTooLarge" Value="14" />
+    <opc:EnumeratedValue Name="MaxFanInPortsLimitReached" Value="15" />
+    <opc:EnumeratedValue Name="FirstValueChangedForStreamId" Value="16" />
+    <opc:EnumeratedValue Name="VlanBlockedOnEgress" Value="17" />
+    <opc:EnumeratedValue Name="VlanTaggingDisabledOnEgress" Value="18" />
+    <opc:EnumeratedValue Name="SrClassPriorityMismatch" Value="19" />
+    <opc:EnumeratedValue Name="FeatureNotPropagated" Value="20" />
+    <opc:EnumeratedValue Name="MaxLatencyExceeded" Value="21" />
+    <opc:EnumeratedValue Name="BridgeDoesNotProvideNetworkId" Value="22" />
+    <opc:EnumeratedValue Name="StreamTransformNotSupported" Value="23" />
+    <opc:EnumeratedValue Name="StreamIdTypeNotSupported" Value="24" />
+    <opc:EnumeratedValue Name="FeatureNotSupported" Value="25" />
+  </opc:EnumeratedType>
+
+  <opc:EnumeratedType Name="TsnStreamState" LengthInBits="32">
+    <opc:EnumeratedValue Name="Disabled" Value="0" />
+    <opc:EnumeratedValue Name="Configuring" Value="1" />
+    <opc:EnumeratedValue Name="Ready" Value="2" />
+    <opc:EnumeratedValue Name="Operational" Value="3" />
+    <opc:EnumeratedValue Name="Error" Value="4" />
+  </opc:EnumeratedType>
+
+  <opc:EnumeratedType Name="TsnTalkerStatus" LengthInBits="32">
+    <opc:EnumeratedValue Name="None" Value="0" />
+    <opc:EnumeratedValue Name="Ready" Value="1" />
+    <opc:EnumeratedValue Name="Failed" Value="2" />
+  </opc:EnumeratedType>
+
+  <opc:EnumeratedType Name="TsnListenerStatus" LengthInBits="32">
+    <opc:EnumeratedValue Name="None" Value="0" />
+    <opc:EnumeratedValue Name="Ready" Value="1" />
+    <opc:EnumeratedValue Name="PartialFailed" Value="2" />
+    <opc:EnumeratedValue Name="Failed" Value="3" />
+  </opc:EnumeratedType>
+
+  <opc:StructuredType Name="PriorityMappingEntryType" BaseType="ua:ExtensionObject">
+    <opc:Field Name="MappingUri" TypeName="opc:String" />
+    <opc:Field Name="PriorityLabel" TypeName="opc:String" />
+    <opc:Field Name="PriorityValue_PCP" TypeName="opc:Byte" />
+    <opc:Field Name="PriorityValue_DSCP" TypeName="opc:UInt32" />
   </opc:StructuredType>
 
   <opc:EnumeratedType Name="IdType" LengthInBits="32">
@@ -895,6 +1184,8 @@
     <opc:EnumeratedValue Name="NonatomicWrite" Value="512" />
     <opc:EnumeratedValue Name="WriteFullArrayOnly" Value="1024" />
     <opc:EnumeratedValue Name="NoSubDataTypes" Value="2048" />
+    <opc:EnumeratedValue Name="NonVolatile" Value="4096" />
+    <opc:EnumeratedValue Name="Constant" Value="8192" />
   </opc:EnumeratedType>
 
   <opc:EnumeratedType Name="EventNotifierType" LengthInBits="8" IsOptionSet="true">
@@ -917,10 +1208,15 @@
     <opc:Field Name="Permissions" TypeName="tns:PermissionType" />
   </opc:StructuredType>
 
+  <opc:StructuredType Name="DataTypeDefinition" BaseType="ua:ExtensionObject">
+  </opc:StructuredType>
+
   <opc:EnumeratedType Name="StructureType" LengthInBits="32">
     <opc:EnumeratedValue Name="Structure" Value="0" />
     <opc:EnumeratedValue Name="StructureWithOptionalFields" Value="1" />
     <opc:EnumeratedValue Name="Union" Value="2" />
+    <opc:EnumeratedValue Name="StructureWithSubtypedValues" Value="3" />
+    <opc:EnumeratedValue Name="UnionWithSubtypedValues" Value="4" />
   </opc:EnumeratedType>
 
   <opc:StructuredType Name="StructureField" BaseType="ua:ExtensionObject">
@@ -1192,9 +1488,6 @@
   <opc:StructuredType Name="OptionSet" BaseType="ua:ExtensionObject">
     <opc:Field Name="Value" TypeName="opc:ByteString" />
     <opc:Field Name="ValidBits" TypeName="opc:ByteString" />
-  </opc:StructuredType>
-
-  <opc:StructuredType Name="Union" BaseType="ua:ExtensionObject">
   </opc:StructuredType>
 
   <opc:OpaqueType Name="NormalizedString">
@@ -3040,7 +3333,7 @@
     <opc:Field Name="NoOfLastMethodOutputValues" TypeName="opc:Int32" />
     <opc:Field Name="LastMethodOutputValues" TypeName="ua:Variant" LengthField="NoOfLastMethodOutputValues" />
     <opc:Field Name="LastMethodCallTime" TypeName="opc:DateTime" />
-    <opc:Field Name="LastMethodReturnStatus" TypeName="tns:StatusResult" />
+    <opc:Field Name="LastMethodReturnStatus" TypeName="ua:StatusCode" />
   </opc:StructuredType>
 
   <opc:StructuredType Name="Annotation" BaseType="ua:ExtensionObject">

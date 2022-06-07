@@ -47,7 +47,7 @@
  * Application URI.
  *
  * This is done as soon as the Namespace Array is read or written via node value
- * read / write services, or UA_Server_addNamespace,
+ * read / write services, or UA_Server_addNamespace, or UA_Server_getNamespaceByIndex
  * UA_Server_getNamespaceByName or UA_Server_run_startup is called.
  *
  * Therefore one has to set the custom NS1 URI before one of the previously
@@ -121,10 +121,31 @@ getNamespaceByName(UA_Server *server, const UA_String namespaceUri,
 }
 
 UA_StatusCode
+getNamespaceByIndex(UA_Server *server, const size_t namespaceIndex,
+                   UA_String *foundUri) {
+    /* ensure that the uri for ns1 is set up from the app description */
+    setupNs1Uri(server);
+    UA_StatusCode res = UA_STATUSCODE_BADNOTFOUND;
+    if(namespaceIndex > server->namespacesSize)
+        return res;
+    res = UA_String_copy(&server->namespaces[namespaceIndex], foundUri);
+    return res;
+}
+
+UA_StatusCode
 UA_Server_getNamespaceByName(UA_Server *server, const UA_String namespaceUri,
                              size_t *foundIndex) {
     UA_LOCK(&server->serviceMutex);
     UA_StatusCode res = getNamespaceByName(server, namespaceUri, foundIndex);
+    UA_UNLOCK(&server->serviceMutex);
+    return res;
+}
+
+UA_StatusCode
+UA_Server_getNamespaceByIndex(UA_Server *server, const size_t namespaceIndex,
+                              UA_String *foundUri) {
+    UA_LOCK(&server->serviceMutex);
+    UA_StatusCode res = getNamespaceByIndex(server, namespaceIndex, foundUri);
     UA_UNLOCK(&server->serviceMutex);
     return res;
 }
@@ -721,6 +742,9 @@ UA_Server_run_startup(UA_Server *server) {
     UA_Boolean haveServerSocket = false;
     if(config->serverUrlsSize == 0) {
         /* Empty hostname -> listen on all devices */
+        UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                       "No Server URL configured. Using \"opc.tcp://:4840\" "
+                       "to configure the listen socket.");
         UA_String defaultUrl = UA_STRING("opc.tcp://:4840");
         retVal = UA_Server_createServerConnection(server, &defaultUrl);
         if(retVal == UA_STATUSCODE_GOOD)

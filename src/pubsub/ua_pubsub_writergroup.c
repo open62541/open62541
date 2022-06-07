@@ -82,6 +82,7 @@ UA_Server_addWriterGroup(UA_Server *server, const UA_NodeId connection,
     if(!newWriterGroup)
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
+    memset(newWriterGroup, 0, sizeof(UA_WriterGroup));
     newWriterGroup->componentType = UA_PUBSUB_COMPONENT_WRITERGROUP;
     newWriterGroup->linkedConnection = currentConnectionContext;
 
@@ -119,7 +120,7 @@ UA_Server_addWriterGroup(UA_Server *server, const UA_NodeId connection,
 }
 
 UA_StatusCode
-UA_Server_removeWriterGroup(UA_Server *server, const UA_NodeId writerGroup) {
+removeWriterGroup(UA_Server *server, const UA_NodeId writerGroup) {
     UA_WriterGroup *wg = UA_WriterGroup_findWGbyId(server, writerGroup);
     if(!wg)
         return UA_STATUSCODE_BADNOTFOUND;
@@ -167,11 +168,22 @@ UA_Server_removeWriterGroup(UA_Server *server, const UA_NodeId writerGroup) {
 }
 
 UA_StatusCode
+UA_Server_removeWriterGroup(UA_Server *server, const UA_NodeId writerGroup) {
+    UA_LOCK(&server->serviceMutex);
+    UA_StatusCode res = removeWriterGroup(server, writerGroup);
+    UA_UNLOCK(&server->serviceMutex);
+    return res;
+}
+
+UA_StatusCode
 UA_Server_freezeWriterGroupConfiguration(UA_Server *server,
                                          const UA_NodeId writerGroup) {
     UA_WriterGroup *wg = UA_WriterGroup_findWGbyId(server, writerGroup);
     if(!wg)
         return UA_STATUSCODE_BADNOTFOUND;
+
+    if(wg->configurationFrozen)
+        return UA_STATUSCODE_GOOD;
 
     /* PubSubConnection freezeCounter++ */
     UA_PubSubConnection *pubSubConnection =  wg->linkedConnection;
@@ -329,20 +341,20 @@ UA_Server_freezeWriterGroupConfiguration(UA_Server *server,
     /* Encode the NetworkMessage */
     bufEnd = &wg->bufferedMessage.buffer.data[wg->bufferedMessage.buffer.length];
     bufPos = wg->bufferedMessage.buffer.data;
+
 #ifdef UA_ENABLE_PUBSUB_ENCRYPTION
-    if (wg->config.securityMode > UA_MESSAGESECURITYMODE_NONE){
+    if(wg->config.securityMode > UA_MESSAGESECURITYMODE_NONE) {
         UA_Byte *payloadPosition;
         UA_NetworkMessage_encodeBinary(&networkMessage, &bufPos, bufEnd, &payloadPosition);
         wg->bufferedMessage.payloadPosition = payloadPosition;
-        wg->bufferedMessage.nm = (UA_NetworkMessage *)UA_malloc(sizeof(networkMessage));
-        wg->bufferedMessage.nm->securityHeader.networkMessageEncrypted = networkMessage.securityHeader.networkMessageEncrypted;
-        wg->bufferedMessage.nm->securityHeader.networkMessageSigned = networkMessage.securityHeader.networkMessageSigned;
-        UA_ByteString_copy(&networkMessage.securityHeader.messageNonce, &wg->bufferedMessage.nm->securityHeader.messageNonce);
+
+        wg->bufferedMessage.nm = (UA_NetworkMessage *)UA_calloc(1,sizeof(UA_NetworkMessage));
+        wg->bufferedMessage.nm->securityHeader = networkMessage.securityHeader;
         UA_ByteString_allocBuffer(&wg->bufferedMessage.encryptBuffer, msgSize);
-        UA_ByteString_clear(&networkMessage.securityHeader.messageNonce);
     }
 #endif
-    if (wg->config.securityMode <= UA_MESSAGESECURITYMODE_NONE)
+
+    if(wg->config.securityMode <= UA_MESSAGESECURITYMODE_NONE)
         UA_NetworkMessage_encodeBinary(&networkMessage, &bufPos, bufEnd, NULL);
 
  cleanup:
@@ -368,47 +380,46 @@ UA_Server_unfreezeWriterGroupConfiguration(UA_Server *server,
     UA_WriterGroup *wg = UA_WriterGroup_findWGbyId(server, writerGroup);
     if(!wg)
         return UA_STATUSCODE_BADNOTFOUND;
+
+    /* Already unfrozen */
+    if(!wg->configurationFrozen)
+        return UA_STATUSCODE_GOOD;
+    
     //if(wg->config.rtLevel == UA_PUBSUB_RT_NONE){
     //    UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
     //                   "PubSub configuration freeze without RT configuration has no effect.");
     //    return UA_STATUSCODE_BADCONFIGURATIONERROR;
     //}
     //PubSubConnection freezeCounter--
+
     UA_PubSubConnection *pubSubConnection =  wg->linkedConnection;
     pubSubConnection->configurationFreezeCounter--;
     if(pubSubConnection->configurationFreezeCounter == 0){
         pubSubConnection->configurationFrozen = UA_FALSE;
     }
-    //WriterGroup unfreeze
-    wg->configurationFrozen = UA_FALSE;
+
     //DataSetWriter unfreeze
     UA_DataSetWriter *dataSetWriter;
     LIST_FOREACH(dataSetWriter, &wg->writers, listEntry) {
         UA_PublishedDataSet *publishedDataSet =
             UA_PublishedDataSet_findPDSbyId(server, dataSetWriter->connectedDataSet);
         //PublishedDataSet freezeCounter--
-        publishedDataSet->configurationFreezeCounter--;
-        if(publishedDataSet->configurationFreezeCounter == 0){
-            publishedDataSet->configurationFrozen = UA_FALSE;
-            UA_DataSetField *dataSetField;
-            TAILQ_FOREACH(dataSetField, &publishedDataSet->fields, listEntry){
-                dataSetField->configurationFrozen = UA_FALSE;
+        if(publishedDataSet != NULL){ /* This means the DSW is a heartbeat configuration */
+            publishedDataSet->configurationFreezeCounter--;
+            if(publishedDataSet->configurationFreezeCounter == 0){
+                publishedDataSet->configurationFrozen = UA_FALSE;
+                UA_DataSetField *dataSetField;
+                TAILQ_FOREACH(dataSetField, &publishedDataSet->fields, listEntry){
+                    dataSetField->configurationFrozen = UA_FALSE;
+                }
             }
+            dataSetWriter->configurationFrozen = UA_FALSE;
         }
-        dataSetWriter->configurationFrozen = UA_FALSE;
     }
-    if(wg->config.rtLevel == UA_PUBSUB_RT_FIXED_SIZE) {
-        UA_ByteString_clear(&wg->bufferedMessage.buffer);
-#ifdef UA_ENABLE_PUBSUB_ENCRYPTION
-        if (wg->config.securityMode > UA_MESSAGESECURITYMODE_NONE) {
-            if (wg->bufferedMessage.nm != NULL) {
-                UA_ByteString_clear(&wg->bufferedMessage.nm->securityHeader.messageNonce);
-                UA_free(wg->bufferedMessage.nm);
-            }
-            UA_ByteString_clear(&wg->bufferedMessage.encryptBuffer);
-        }
-#endif
-    }
+
+    UA_NetworkMessageOffsetBuffer_clear(&wg->bufferedMessage);
+
+    wg->configurationFrozen = false;
 
     return UA_STATUSCODE_GOOD;
 }
@@ -579,7 +590,7 @@ UA_Server_setWriterGroupEncryptionKeys(UA_Server *server, const UA_NodeId writer
 #endif
 
 void
-UA_WriterGroupConfig_clear(UA_WriterGroupConfig *writerGroupConfig){
+UA_WriterGroupConfig_clear(UA_WriterGroupConfig *writerGroupConfig) {
     UA_String_clear(&writerGroupConfig->name);
     UA_ExtensionObject_clear(&writerGroupConfig->transportSettings);
     UA_ExtensionObject_clear(&writerGroupConfig->messageSettings);
@@ -600,26 +611,14 @@ UA_WriterGroup_clear(UA_Server *server, UA_WriterGroup *writerGroup) {
         UA_Server_removeDataSetWriter(server, dataSetWriter->identifier);
     }
 
-    if(writerGroup->bufferedMessage.offsetsSize > 0){
-        for(size_t i = 0; i < writerGroup->bufferedMessage.offsetsSize; i++) {
-            if((writerGroup->bufferedMessage.offsets[i].contentType == UA_PUBSUB_OFFSETTYPE_PAYLOAD_VARIANT) ||
-                (writerGroup->bufferedMessage.offsets[i].contentType == UA_PUBSUB_OFFSETTYPE_PAYLOAD_RAW)) {
-                UA_DataValue_delete(writerGroup->bufferedMessage.offsets[i].offsetData.value.value);
-            } else if(writerGroup->bufferedMessage.offsets[i].contentType == UA_PUBSUB_OFFSETTYPE_NETWORKMESSAGE_FIELDENCDODING) {
-                writerGroup->bufferedMessage.offsets[i].offsetData.value.value->value.data = NULL;
-                UA_DataValue_delete(writerGroup->bufferedMessage.offsets[i].offsetData.value.value);
-            }
-        }
-        UA_ByteString_clear(&writerGroup->bufferedMessage.buffer);
-        UA_free(writerGroup->bufferedMessage.offsets);
-    }
-
 #ifdef UA_ENABLE_PUBSUB_ENCRYPTION
     if(writerGroup->config.securityPolicy && writerGroup->securityPolicyContext) {
         writerGroup->config.securityPolicy->deleteContext(writerGroup->securityPolicyContext);
         writerGroup->securityPolicyContext = NULL;
     }
 #endif
+
+    UA_NetworkMessageOffsetBuffer_clear(&writerGroup->bufferedMessage);
 }
 
 UA_StatusCode
@@ -741,8 +740,11 @@ encryptAndSign(UA_WriterGroup *wg, const UA_NetworkMessage *nm,
 
     if(nm->securityHeader.networkMessageEncrypted) {
         /* Set the temporary MessageNonce in the SecurityPolicy */
-        rv = wg->config.securityPolicy->setMessageNonce(channelContext,
-                                                        &nm->securityHeader.messageNonce);
+        const UA_ByteString nonce = {
+            (size_t)nm->securityHeader.messageNonceSize,
+            (UA_Byte*)(uintptr_t)nm->securityHeader.messageNonce
+        };
+        rv = wg->config.securityPolicy->setMessageNonce(channelContext, &nonce);
         UA_CHECK_STATUS(rv, return rv);
 
         /* The encryption is done in-place, no need to encode again */
@@ -903,21 +905,17 @@ generateNetworkMessage(UA_PubSubConnection *connection, UA_WriterGroup *wg,
             networkMessage->securityHeader.networkMessageEncrypted = true;
         networkMessage->securityHeader.securityTokenId = wg->securityTokenId;
 
-        /* Generate the MessageNonce */
-        UA_ByteString_allocBuffer(&networkMessage->securityHeader.messageNonce, 8);
-        if(networkMessage->securityHeader.messageNonce.length == 0)
-            return UA_STATUSCODE_BADOUTOFMEMORY;
-
-        networkMessage->securityHeader.messageNonce.length = 4; /* Generate 4 random bytes */
+        /* Generate the MessageNonce. Four random bytes followed by a four-byte
+         * sequence number */
+        UA_ByteString nonce = {4, networkMessage->securityHeader.messageNonce};
         UA_StatusCode rv = wg->config.securityPolicy->symmetricModule.
-            generateNonce(wg->config.securityPolicy->policyContext,
-                          &networkMessage->securityHeader.messageNonce);
+            generateNonce(wg->config.securityPolicy->policyContext, &nonce);
         if(rv != UA_STATUSCODE_GOOD)
             return rv;
-        networkMessage->securityHeader.messageNonce.length = 8;
-        UA_Byte *pos = &networkMessage->securityHeader.messageNonce.data[4];
-        const UA_Byte *end = &networkMessage->securityHeader.messageNonce.data[8];
+        UA_Byte *pos = &networkMessage->securityHeader.messageNonce[4];
+        const UA_Byte *end = &networkMessage->securityHeader.messageNonce[8];
         UA_UInt32_encodeBinary(&wg->nonceSequenceNumber, &pos, end);
+        networkMessage->securityHeader.messageNonceSize = 8;
     }
 #endif
 
@@ -1001,7 +999,6 @@ cleanup_with_msg_size:
         UA_ByteString_clear(&buf);
     }
 cleanup:
-    UA_ByteString_clear(&nm.securityHeader.messageNonce);
     UA_free(nm.payload.dataSetPayload.sizes);
     return rv;
 }
@@ -1142,6 +1139,14 @@ sendOrCollectDataSetMessage(UA_Server *server, UA_WriterGroup *writerGroup, UA_D
     UA_StatusCode res = UA_DataSetWriter_generateDataSetMessage(server, dataSetMessage, writer);
     UA_CHECK_STATUS_ERROR(res, goto error, &server->config.logger, UA_LOGCATEGORY_SERVER,
                           "PubSub Publish: DataSetMessage creation failed");
+
+    /* Check if the message is a Heartbeat */
+    if(UA_NodeId_isNull(&writer->connectedDataSet)){
+        res = sendNetworkMessageAndCleanup(writerGroup, connection, dataSetMessage, writer);
+        UA_CHECK_STATUS_ERROR(res, goto error, &server->config.logger, UA_LOGCATEGORY_SERVER,
+                              "PubSub Publish: Could not send a NetworkMessage");
+        return 0;
+    }
 
     UA_PublishedDataSet *publishedDataSet =
         UA_PublishedDataSet_findPDSbyId(server, writer->connectedDataSet);

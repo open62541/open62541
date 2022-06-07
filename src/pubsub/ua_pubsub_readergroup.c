@@ -129,6 +129,7 @@ UA_Server_addReaderGroup(UA_Server *server, UA_NodeId connectionIdentifier,
     if(!newGroup)
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
+    memset(newGroup, 0, sizeof(UA_ReaderGroup));
     newGroup->componentType = UA_PUBSUB_COMPONENT_READERGROUP;
     /* Generate nodeid for the readergroup identifier */
     newGroup->linkedConnection = currentConnectionContext->identifier;
@@ -163,7 +164,7 @@ UA_Server_addReaderGroup(UA_Server *server, UA_NodeId connectionIdentifier,
 }
 
 UA_StatusCode
-UA_Server_removeReaderGroup(UA_Server *server, UA_NodeId groupIdentifier) {
+removeReaderGroup(UA_Server *server, UA_NodeId groupIdentifier) {
     UA_ReaderGroup* readerGroup =
         UA_ReaderGroup_findRGbyId(server, groupIdentifier);
     if(readerGroup == NULL)
@@ -196,6 +197,14 @@ UA_Server_removeReaderGroup(UA_Server *server, UA_NodeId groupIdentifier) {
     LIST_REMOVE(readerGroup, listEntry);
     UA_free(readerGroup);
     return UA_STATUSCODE_GOOD;
+}
+
+UA_StatusCode
+UA_Server_removeReaderGroup(UA_Server *server, UA_NodeId groupIdentifier) {
+    UA_LOCK(&server->serviceMutex);
+    UA_StatusCode res = removeReaderGroup(server, groupIdentifier);
+    UA_UNLOCK(&server->serviceMutex);
+    return res;
 }
 
 /* TODO: Implement
@@ -231,7 +240,7 @@ UA_Server_ReaderGroup_clear(UA_Server* server, UA_ReaderGroup *readerGroup) {
     UA_DataSetReader *dataSetReader;
     UA_DataSetReader *tmpDataSetReader;
     LIST_FOREACH_SAFE(dataSetReader, &readerGroup->readers, listEntry, tmpDataSetReader) {
-        UA_Server_removeDataSetReader(server, dataSetReader->identifier);
+        removeDataSetReader(server, dataSetReader->identifier);
     }
     UA_PubSubConnection* pConn =
         UA_PubSubConnection_findConnectionbyId(server, readerGroup->linkedConnection);
@@ -447,6 +456,9 @@ UA_Server_freezeReaderGroupConfiguration(UA_Server *server,
     if(!rg)
         return UA_STATUSCODE_BADNOTFOUND;
 
+    if(rg->configurationFrozen)
+        return UA_STATUSCODE_GOOD;
+
     /* PubSubConnection freezeCounter++ */
     UA_NodeId pubSubConnectionId =  rg->linkedConnection;
     UA_PubSubConnection *pubSubConnection =
@@ -525,7 +537,8 @@ UA_Server_freezeReaderGroupConfiguration(UA_Server *server,
         }
     }
 
-    UA_DataSetMessage *dsm = (UA_DataSetMessage *) UA_calloc(1, sizeof(UA_DataSetMessage));
+    UA_DataSetMessage *dsm = (UA_DataSetMessage*)
+        UA_calloc(1, sizeof(UA_DataSetMessage));
     if(!dsm) {
         UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
                      "PubSub RT Offset calculation: DSM creation failed");
@@ -553,7 +566,8 @@ UA_Server_freezeReaderGroupConfiguration(UA_Server *server,
     }
     *dsWriterIds = dataSetReader->config.dataSetWriterId;
 
-    UA_NetworkMessage *networkMessage = (UA_NetworkMessage *)UA_calloc(1, sizeof(UA_NetworkMessage));
+    UA_NetworkMessage *networkMessage = (UA_NetworkMessage *)
+        UA_calloc(1, sizeof(UA_NetworkMessage));
     if(!networkMessage) {
         UA_free(dsWriterIds);
         UA_DataSetMessage_clear(dsm);
@@ -563,6 +577,7 @@ UA_Server_freezeReaderGroupConfiguration(UA_Server *server,
         return UA_STATUSCODE_BADOUTOFMEMORY;
     }
 
+    /* Move the dsm into the NetworkMessage */
     res = UA_DataSetReader_generateNetworkMessage(pubSubConnection, rg, dataSetReader, dsm,
                                                   dsWriterIds, 1, networkMessage);
     if(res != UA_STATUSCODE_GOOD) {
@@ -576,10 +591,12 @@ UA_Server_freezeReaderGroupConfiguration(UA_Server *server,
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
+    /* The offset buffer is already clear if the ReaderGroup was unfrozen
+     * UA_NetworkMessageOffsetBuffer_clear(&dataSetReader->bufferedMessage); */
     memset(&dataSetReader->bufferedMessage, 0, sizeof(UA_NetworkMessageOffsetBuffer));
     dataSetReader->bufferedMessage.RTsubscriberEnabled = true;
 
-    /* Fix the offsets necessary to decode */
+    /* Compute and store the offsets necessary to decode */
     UA_NetworkMessage_calcSizeBinary(networkMessage, &dataSetReader->bufferedMessage);
     dataSetReader->bufferedMessage.nm = networkMessage;
 
@@ -609,30 +626,7 @@ UA_Server_unfreezeReaderGroupConfiguration(UA_Server *server,
     UA_DataSetReader *dataSetReader;
     LIST_FOREACH(dataSetReader, &rg->readers, listEntry) {
         dataSetReader->configurationFrozen = UA_FALSE;
-    }
-
-    if(rg->config.rtLevel != UA_PUBSUB_RT_FIXED_SIZE)
-        return UA_STATUSCODE_GOOD;
-
-    dataSetReader = LIST_FIRST(&rg->readers);
-    if(dataSetReader->bufferedMessage.offsetsSize > 0) {
-        for(size_t i = 0; i < dataSetReader->bufferedMessage.offsetsSize; i++) {
-            UA_NetworkMessageOffset *offset = &dataSetReader->bufferedMessage.offsets[i];
-            if((offset->contentType == UA_PUBSUB_OFFSETTYPE_PAYLOAD_VARIANT) ||
-                (offset->contentType == UA_PUBSUB_OFFSETTYPE_PAYLOAD_RAW)) {
-                UA_DataValue_delete(offset->offsetData.value.value);
-            } else if(offset->contentType == UA_PUBSUB_OFFSETTYPE_NETWORKMESSAGE_FIELDENCDODING) {
-                offset->offsetData.value.value->value.data = NULL;
-                UA_DataValue_delete(offset->offsetData.value.value);
-            }
-        }
-        UA_free(dataSetReader->bufferedMessage.offsets);
-    }
-
-    if(dataSetReader->bufferedMessage.RTsubscriberEnabled &&
-       dataSetReader->bufferedMessage.nm) {
-        UA_NetworkMessage_delete(dataSetReader->bufferedMessage.nm);
-        UA_free(dataSetReader->bufferedMessage.nm);
+        UA_NetworkMessageOffsetBuffer_clear(&dataSetReader->bufferedMessage);
     }
 
     return UA_STATUSCODE_GOOD;

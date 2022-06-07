@@ -11,22 +11,22 @@ if(UA_NAMESPACE_ZERO STREQUAL "FULL")
     # Generate types and namespace for DI
     ua_generate_nodeset_and_datatypes(
         NAME "tests-di"
-        FILE_CSV "${open62541_NODESET_DIR}/DI/OpcUaDiModel.csv"
-        FILE_BSD "${open62541_NODESET_DIR}/DI/Opc.Ua.Di.Types.bsd"
+        FILE_CSV "${UA_NODESET_DIR}/DI/OpcUaDiModel.csv"
+        FILE_BSD "${UA_NODESET_DIR}/DI/Opc.Ua.Di.Types.bsd"
         NAMESPACE_MAP "2:http://opcfoundation.org/UA/DI/"
         OUTPUT_DIR "${GENERATE_OUTPUT_DIR}"
-        FILE_NS "${open62541_NODESET_DIR}/DI/Opc.Ua.Di.NodeSet2.xml"
+        FILE_NS "${UA_NODESET_DIR}/DI/Opc.Ua.Di.NodeSet2.xml"
         INTERNAL
     )
 
     # Generate types and namespace for ADI
     ua_generate_nodeset_and_datatypes(
         NAME "tests-adi"
-        FILE_CSV "${open62541_NODESET_DIR}/ADI/OpcUaAdiModel.csv"
-        FILE_BSD "${open62541_NODESET_DIR}/ADI/Opc.Ua.Adi.Types.bsd"
+        FILE_CSV "${UA_NODESET_DIR}/ADI/OpcUaAdiModel.csv"
+        FILE_BSD "${UA_NODESET_DIR}/ADI/Opc.Ua.Adi.Types.bsd"
         NAMESPACE_MAP "3:http://opcfoundation.org/UA/ADI/"
         OUTPUT_DIR "${GENERATE_OUTPUT_DIR}"
-        FILE_NS "${open62541_NODESET_DIR}/ADI/Opc.Ua.Adi.NodeSet2.xml"
+        FILE_NS "${UA_NODESET_DIR}/ADI/Opc.Ua.Adi.NodeSet2.xml"
         DEPENDS "tests-di"
         INTERNAL
     )
@@ -45,7 +45,7 @@ if(UA_NAMESPACE_ZERO STREQUAL "FULL")
     ua_generate_nodeset_and_datatypes(
         NAME "tests-plc"
         # PLCopen does not define custom types. Only generate the nodeset
-        FILE_NS "${open62541_NODESET_DIR}/PLCopen/Opc.Ua.PLCopen.NodeSet2_V1.02.xml"
+        FILE_NS "${UA_NODESET_DIR}/PLCopen/Opc.Ua.PLCopen.NodeSet2_V1.02.xml"
         # PLCopen depends on the di nodeset, which must be generated before
         OUTPUT_DIR "${GENERATE_OUTPUT_DIR}"
         DEPENDS "tests-di"
@@ -69,7 +69,7 @@ if(UA_NAMESPACE_ZERO STREQUAL "FULL")
             FILE_BSD "${PROJECT_SOURCE_DIR}/tests/nodeset-compiler/Opc.Ua.AutoID.Types.bsd"
             NAMESPACE_MAP "3:http://opcfoundation.org/UA/AutoID/"
             OUTPUT_DIR "${GENERATE_OUTPUT_DIR}"
-            FILE_NS "${open62541_NODESET_DIR}/AutoID/Opc.Ua.AutoID.NodeSet2.xml"
+            FILE_NS "${UA_NODESET_DIR}/AutoID/Opc.Ua.AutoID.NodeSet2.xml"
             DEPENDS "tests-di"
             INTERNAL
     )

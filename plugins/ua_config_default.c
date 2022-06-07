@@ -42,14 +42,14 @@ UA_DURATIONRANGE(UA_Duration min, UA_Duration max) {
 }
 
 static UA_StatusCode
-setDefaultConfig(UA_ServerConfig *conf);
+setDefaultConfig(UA_ServerConfig *conf, UA_UInt16 portNumber);
 
 UA_Server *
 UA_Server_new(void) {
     UA_ServerConfig config;
     memset(&config, 0, sizeof(UA_ServerConfig));
 
-    UA_StatusCode res = setDefaultConfig(&config);
+    UA_StatusCode res = setDefaultConfig(&config, 4840);
     if(res != UA_STATUSCODE_GOOD)
         return NULL;
 
@@ -61,13 +61,13 @@ UA_Server_new(void) {
 /*******************************/
 
 const UA_ConnectionConfig UA_ConnectionConfig_default = {
-    0,     /* .protocolVersion */
-    65535, /* .sendBufferSize, 64k per chunk */
-    65535, /* .recvBufferSize, 64k per chunk */
-    0,     /* .localMaxMessageSize, 0 -> unlimited */
-    0,     /* .remoteMaxMessageSize, 0 -> unlimited */
-    0,     /* .localMaxChunkCount, 0 -> unlimited */
-    0      /* .remoteMaxChunkCount, 0 -> unlimited */
+    0,       /* .protocolVersion */
+    2 << 16, /* .sendBufferSize, 64k per chunk */
+    2 << 16, /* .recvBufferSize, 64k per chunk */
+    2 << 29, /* .localMaxMessageSize, 512 MB */
+    2 << 29, /* .remoteMaxMessageSize, 512 MB */
+    2 << 14, /* .localMaxChunkCount, 16k */
+    2 << 14  /* .remoteMaxChunkCount, 16k */
 };
 
 /***************************/
@@ -123,7 +123,7 @@ static UA_UsernamePasswordLogin usernamePasswords[2] = {
     {UA_STRING_STATIC("user2"), UA_STRING_STATIC("password1")}};
 
 static UA_StatusCode
-setDefaultConfig(UA_ServerConfig *conf) {
+setDefaultConfig(UA_ServerConfig *conf, UA_UInt16 portNumber) {
     if(!conf)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
 
@@ -197,10 +197,61 @@ setDefaultConfig(UA_ServerConfig *conf) {
     /* conf->customDataTypes = NULL; */
 
     /* Networking */
-    /* conf->networkLayersSize = 0; */
-    /* conf->networkLayers = NULL; */
-    /* conf->customHostname = UA_STRING_NULL; */
+    /* Set up the local ServerUrls. They are used during startup to initialize
+     * the server sockets. */
+    UA_String serverUrls[2];
+    size_t serverUrlsSize = 0;
+    char hostnamestr[256];
+    char serverUrlBuffer[2][512];
 
+    if(portNumber == 0) {
+        UA_LOG_WARNING(&conf->logger, UA_LOGCATEGORY_USERLAND,
+                       "Cannot set the ServerUrl with a zero port");
+    } else {
+        if(conf->serverUrlsSize > 0) {
+            UA_LOG_WARNING(&conf->logger, UA_LOGCATEGORY_USERLAND,
+                           "ServerUrls already set. Overriding.");
+            UA_Array_delete(conf->serverUrls, conf->serverUrlsSize,
+                            &UA_TYPES[UA_TYPES_STRING]);
+            conf->serverUrls = NULL;
+            conf->serverUrlsSize = 0;
+        }
+
+        /* 1) Listen on all interfaces (also external). This must be the first
+         * entry if this is desired. Otherwise some interfaces may be blocked
+         * (already in use) with a hostname that is only locally reachable.*/
+        UA_snprintf(serverUrlBuffer[0], sizeof(serverUrlBuffer[0]),
+                    "opc.tcp://:%u", portNumber);
+        serverUrls[serverUrlsSize] = UA_STRING(serverUrlBuffer[0]);
+        serverUrlsSize++;
+
+        /* 2) Use gethostname to get the local hostname. For that temporarily
+         * initialize the Winsock API on Win32. */
+#ifdef _WIN32
+        WSADATA wsaData;
+        WSAStartup(MAKEWORD(2, 2), &wsaData);
+#endif
+        int err = UA_gethostname(hostnamestr, sizeof(hostnamestr));
+#ifdef _WIN32
+        WSACleanup();
+#endif
+
+        if(err == 0) {
+            UA_snprintf(serverUrlBuffer[1], sizeof(serverUrlBuffer[1]),
+                        "opc.tcp://%s:%u", hostnamestr, portNumber);
+            serverUrls[serverUrlsSize] = UA_STRING(serverUrlBuffer[1]);
+            serverUrlsSize++;
+        }
+
+        /* 3) Add to the config */
+        UA_StatusCode retval =
+            UA_Array_copy(serverUrls, serverUrlsSize,
+                          (void**)&conf->serverUrls, &UA_TYPES[UA_TYPES_STRING]);
+        if(retval != UA_STATUSCODE_GOOD)
+            return retval;
+        conf->serverUrlsSize = serverUrlsSize;
+    }
+    
     /* Endpoints */
     /* conf->endpoints = {0, NULL}; */
 
@@ -278,7 +329,7 @@ setDefaultConfig(UA_ServerConfig *conf) {
 
 UA_EXPORT UA_StatusCode
 UA_ServerConfig_setBasics(UA_ServerConfig* conf) {
-    UA_StatusCode res = setDefaultConfig(conf);
+    UA_StatusCode res = setDefaultConfig(conf, 4840);
     UA_LOG_WARNING(&conf->logger, UA_LOGCATEGORY_USERLAND,
                    "AcceptAll Certificate Verification. "
                    "Any remote certificate will be accepted.");
@@ -426,55 +477,11 @@ UA_ServerConfig_setMinimalCustomBuffer(UA_ServerConfig *config, UA_UInt16 portNu
     if(!config)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
 
-    UA_StatusCode retval = setDefaultConfig(config);
+    UA_StatusCode retval = setDefaultConfig(config, portNumber);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_ServerConfig_clean(config);
         return retval;
     }
-
-    /* Set up the local ServerUrls. They are used during startup to initialize
-     * the server sockets. */
-    UA_String serverUrls[2];
-    size_t serverUrlsSize = 0;
-    char hostnamestr[256];
-    char serverUrlBuffer[2][512];
-
-    /* 1) Listen on all interfaces (also external). This must be the first entry
-     * if this is desired. Otherwise some interfaces may be blocked (already in
-     * use) with a hostname that is only locally reachable.*/
-    UA_snprintf(serverUrlBuffer[0], sizeof(serverUrlBuffer[0]),
-                "opc.tcp://:%u", portNumber);
-    serverUrls[serverUrlsSize] = UA_STRING(serverUrlBuffer[0]);
-    serverUrlsSize++;
-
-    /* 2) Based on the local hostname. For that temporarily initialize the
-     * Winsock API on Win32. */
-
-#ifdef _WIN32
-    WSADATA wsaData;
-    WSAStartup(MAKEWORD(2, 2), &wsaData);
-#endif
-    int err = UA_gethostname(hostnamestr, sizeof(hostnamestr));
-#ifdef _WIN32
-    WSACleanup();
-#endif
-
-    if(err == 0) {
-        UA_snprintf(serverUrlBuffer[1], sizeof(serverUrlBuffer[1]),
-                    "opc.tcp://%s:%u", hostnamestr, portNumber);
-        serverUrls[serverUrlsSize] = UA_STRING(serverUrlBuffer[1]);
-        serverUrlsSize++;
-    }
-
-    /* 3) Add to the config */
-    retval =
-        UA_Array_copy(serverUrls, serverUrlsSize,
-                      (void**)&config->serverUrls, &UA_TYPES[UA_TYPES_STRING]);
-    if(retval != UA_STATUSCODE_GOOD) {
-        UA_ServerConfig_clean(config);
-        return retval;
-    }
-    config->serverUrlsSize = serverUrlsSize;
 
     /* Set the TCP settings */
     config->tcpBufSize = recvBufferSize;
@@ -710,7 +717,7 @@ UA_ServerConfig_setDefaultWithSecurityPolicies(UA_ServerConfig *conf,
                                                size_t issuerListSize,
                                                const UA_ByteString *revocationList,
                                                size_t revocationListSize) {
-    UA_StatusCode retval = setDefaultConfig(conf);
+    UA_StatusCode retval = setDefaultConfig(conf, portNumber);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_ServerConfig_clean(conf);
         return retval;

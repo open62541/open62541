@@ -979,8 +979,13 @@ ENCODE_BINARY(Variant) {
     const UA_Boolean hasDimensions = isArray && src->arrayDimensionsSize > 0;
     if(isArray) {
         encoding |= (u8)UA_VARIANT_ENCODINGMASKTYPE_ARRAY;
-        if(hasDimensions)
+        if(hasDimensions) {
             encoding |= (u8)UA_VARIANT_ENCODINGMASKTYPE_DIMENSIONS;
+            size_t totalRequiredSize = 1;
+            for(size_t i = 0; i < src->arrayDimensionsSize; ++i)
+                totalRequiredSize *= src->arrayDimensions[i];
+            if(totalRequiredSize != src->arrayLength) return UA_STATUSCODE_BADENCODINGERROR;
+        }
     }
 
     /* Encode the encoding byte */

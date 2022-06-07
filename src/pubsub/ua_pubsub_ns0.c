@@ -687,7 +687,7 @@ addPubSubConnectionAction(UA_Server *server,
 UA_StatusCode
 removePubSubConnectionRepresentation(UA_Server *server,
                                      UA_PubSubConnection *connection) {
-    return UA_Server_deleteNode(server, connection->identifier, true);
+    return deleteNode(server, connection->identifier, true);
 }
 
 #ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL_METHODS
@@ -804,7 +804,7 @@ addDataSetReaderAction(UA_Server *server,
 UA_StatusCode
 removeDataSetReaderRepresentation(UA_Server *server,
                                   UA_DataSetReader* dataSetReader) {
-    return UA_Server_deleteNode(server, dataSetReader->identifier, true);
+    return deleteNode(server, dataSetReader->identifier, true);
 }
 
 #ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL_METHODS
@@ -1048,7 +1048,7 @@ removeVariablesAction(UA_Server *server,
 UA_StatusCode
 removePublishedDataSetRepresentation(UA_Server *server,
                                      UA_PublishedDataSet *publishedDataSet) {
-    return UA_Server_deleteNode(server, publishedDataSet->identifier, true);
+    return deleteNode(server, publishedDataSet->identifier, true);
 }
 
 #ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL_METHODS
@@ -1244,12 +1244,12 @@ addWriterGroupAction(UA_Server *server,
 
 UA_StatusCode
 removeGroupRepresentation(UA_Server *server, UA_WriterGroup *writerGroup) {
-    return UA_Server_deleteNode(server, writerGroup->identifier, true);
+    return deleteNode(server, writerGroup->identifier, true);
 }
 
 UA_StatusCode
 removeReaderGroupRepresentation(UA_Server *server, UA_ReaderGroup *readerGroup) {
-    return UA_Server_deleteNode(server, readerGroup->identifier, true);
+    return deleteNode(server, readerGroup->identifier, true);
 }
 
 #ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL_METHODS
@@ -1350,11 +1350,13 @@ addDataSetWriterRepresentation(UA_Server *server, UA_DataSetWriter *dataSetWrite
                                    UA_QUALIFIEDNAME(0, dswName),
                                    UA_NODEID_NUMERIC(0, UA_NS0ID_DATASETWRITERTYPE),
                                    object_attr, NULL, &dataSetWriter->identifier);
-
-    retVal |= UA_Server_addReference(server, dataSetWriter->connectedDataSet,
-                                     UA_NODEID_NUMERIC(0, UA_NS0ID_DATASETTOWRITER),
-                                     UA_EXPANDEDNODEID_NODEID(dataSetWriter->identifier),
-                                     true);
+    //if connected dataset is null this means it's configured for heartbeats
+    if(!UA_NodeId_isNull(&dataSetWriter->connectedDataSet)){
+        retVal |= UA_Server_addReference(server, dataSetWriter->connectedDataSet,
+                                         UA_NODEID_NUMERIC(0, UA_NS0ID_DATASETTOWRITER),
+                                         UA_EXPANDEDNODEID_NODEID(dataSetWriter->identifier),
+                                         true);
+    }
 
     UA_NodeId dataSetWriterIdNode =
         findSingleChildNode(server, UA_QUALIFIEDNAME(0, "DataSetWriterId"),
@@ -1437,11 +1439,10 @@ addDataSetWriterAction(UA_Server *server,
 }
 #endif
 
-
 UA_StatusCode
 removeDataSetWriterRepresentation(UA_Server *server,
                                   UA_DataSetWriter *dataSetWriter) {
-    return UA_Server_deleteNode(server, dataSetWriter->identifier, true);
+    return deleteNode(server, dataSetWriter->identifier, true);
 }
 
 #ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL_METHODS

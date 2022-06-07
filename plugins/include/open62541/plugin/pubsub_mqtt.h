@@ -12,11 +12,13 @@
 extern "C" {
 #endif
 
-#include "open62541/plugin/pubsub.h"
-#include "open62541/network_tcp.h"
+#include <open62541/plugin/pubsub.h>
+#include <open62541/network_tcp.h>
 
-#ifdef UA_ENABLE_MQTT_TLS
+#if defined(UA_ENABLE_MQTT_TLS_OPENSSL)
 #include <openssl/ssl.h>
+#elif defined(UA_ENABLE_MQTT_TLS_MBEDTLS)
+#include <mqtt_pal.h>
 #endif
 
 /* mqtt network layer specific internal data */
@@ -28,8 +30,12 @@ typedef struct {
     uint8_t *mqttRecvBuffer; 
     UA_String *mqttClientId;
     UA_Connection *connection;
-#ifdef UA_ENABLE_MQTT_TLS_OPENSSL
-    SSL *ssl;
+#if defined(UA_ENABLE_MQTT_TLS_OPENSSL)
+    BIO *sockfd;
+#elif defined(UA_ENABLE_MQTT_TLS_MBEDTLS)
+    mqtt_pal_socket_handle sockfd;
+#else
+    int sockfd;
 #endif
     void * mqttClient;
     void (*callback)(UA_ByteString *encodedBuffer, UA_ByteString *topic);

@@ -91,6 +91,9 @@ UA_PubSubConnection_findConnectionbyId(UA_Server *server,
 void
 UA_PubSubConnectionConfig_clear(UA_PubSubConnectionConfig *connectionConfig);
 
+UA_StatusCode
+removePubSubConnection(UA_Server *server, const UA_NodeId connection);
+
 void
 UA_PubSubConnection_clear(UA_Server *server, UA_PubSubConnection *connection);
 
@@ -181,6 +184,9 @@ struct UA_WriterGroup {
 };
 
 UA_StatusCode
+removeWriterGroup(UA_Server *server, const UA_NodeId writerGroup);
+
+UA_StatusCode
 UA_WriterGroupConfig_copy(const UA_WriterGroupConfig *src,
                           UA_WriterGroupConfig *dst);
 
@@ -213,6 +219,14 @@ UA_DataSetFieldConfig_copy(const UA_DataSetFieldConfig *src,
 UA_DataSetField *
 UA_DataSetField_findDSFbyId(UA_Server *server, UA_NodeId identifier);
 
+UA_DataSetFieldResult
+addDataSetField(UA_Server *server, const UA_NodeId publishedDataSet,
+                const UA_DataSetFieldConfig *fieldConfig,
+                UA_NodeId *fieldIdentifier);
+
+UA_DataSetFieldResult
+removeDataSetField(UA_Server *server, const UA_NodeId dsf);
+
 /**********************************************/
 /*               DataSetReader                */
 /**********************************************/
@@ -235,6 +249,7 @@ typedef struct UA_DataSetReader {
     UA_UInt64 msgRcvTimeoutTimerId;
     UA_Boolean msgRcvTimeoutTimerRunning;
 #endif
+    UA_DateTime lastHeartbeatReceived;
 } UA_DataSetReader;
 
 /* Process Network Message using DataSetReader */
@@ -243,6 +258,9 @@ UA_DataSetReader_process(UA_Server *server,
                          UA_ReaderGroup *readerGroup,
                          UA_DataSetReader *dataSetReader,
                          UA_DataSetMessage *dataSetMsg);
+
+UA_StatusCode
+removeDataSetReader(UA_Server *server, UA_NodeId readerIdentifier);
 
 /* Copy the configuration of DataSetReader */
 UA_StatusCode UA_DataSetReaderConfig_copy(const UA_DataSetReaderConfig *src,
@@ -314,6 +332,9 @@ struct UA_ReaderGroup {
     void *securityPolicyContext;
 #endif
 };
+
+UA_StatusCode
+removeReaderGroup(UA_Server *server, UA_NodeId groupIdentifier);
 
 UA_StatusCode
 UA_ReaderGroupConfig_copy(const UA_ReaderGroupConfig *src,
