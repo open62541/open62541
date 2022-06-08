@@ -897,7 +897,7 @@ sendNetworkMessageJson(UA_PubSubConnection *connection,
     /* Choose the channel */
     UA_PubSubChannel *channel = NULL;
 
-    if(transportSettings) {
+    if(transportSettings->content.decoded.data) {
         channel = writerGroup->channel;
     } else {
         channel = connection->channel;
@@ -1055,7 +1055,7 @@ sendNetworkMessageUADP(UA_PubSubConnection *connection, UA_WriterGroup *wg,
 
     /* Choose the channel */
     UA_PubSubChannel *channel = NULL;
-    if(transportSettings) {
+    if(transportSettings->content.decoded.data) {
         channel = wg->channel;
     } else {
         channel = connection->channel;
