@@ -93,6 +93,11 @@ UA_PubSub_udpCallbackSubscribe(UA_ConnectionManager *cm, uintptr_t connectionId,
                              UA_StatusCode state,
                              size_t paramsSize, const UA_KeyValuePair *params,
                              UA_ByteString msg) {
+
+    if (state == UA_STATUSCODE_BADCONNECTIONCLOSED) {
+        return;
+    }
+
     UA_PubSubChannel *channel = (UA_PubSubChannel *) application;
     channel->sockfd = (int) connectionId;
 
@@ -112,6 +117,10 @@ UA_PubSub_udpCallbackPublish(UA_ConnectionManager *cm, uintptr_t connectionId,
                              UA_StatusCode state,
                              size_t paramsSize, const UA_KeyValuePair *params,
                              UA_ByteString msg) {
+
+    if(state == UA_STATUSCODE_BADCONNECTIONCLOSED) {
+        return;
+    }
     UA_PubSubChannel *channel = (UA_PubSubChannel *) application;
     channel->sockfd = (int) connectionId;
 
