@@ -184,12 +184,6 @@ struct UA_WriterGroup {
 #endif
 };
 
-typedef struct {
-    UA_PubSubConnection *connection;
-    UA_WriterGroup *writerGroup;
-    UA_Server *server;
-} UA_TransportLayerContext;
-
 UA_StatusCode
 removeWriterGroup(UA_Server *server, const UA_NodeId writerGroup);
 

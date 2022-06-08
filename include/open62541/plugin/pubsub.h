@@ -105,6 +105,13 @@ typedef struct UA_PubSubTransportLayer {
     UA_PubSubChannel *(*createPubSubChannel)(struct UA_PubSubTransportLayer *tl, void *ctx);
 } UA_PubSubTransportLayer;
 
+
+typedef struct {
+    struct UA_PubSubConnection *connection;
+    struct UA_WriterGroup *writerGroup;
+    UA_Server *server;
+} UA_TransportLayerContext;
+
 #endif /* UA_ENABLE_PUBSUB */
 
 _UA_END_DECLS
