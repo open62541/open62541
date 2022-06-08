@@ -103,6 +103,7 @@ UA_Server_addWriterGroup(UA_Server *server, const UA_NodeId connection,
         newConfig->messageSettings.encoding = UA_EXTENSIONOBJECT_DECODED;
     }
     /* transportSettings */
+    newWriterGroup->channel = NULL;
     const UA_ExtensionObject *transportSettings = &writerGroupConfig->transportSettings;
     if(transportSettings && transportSettings->content.decoded.type == &UA_TYPES[UA_TYPES_DATAGRAMWRITERGROUPTRANSPORT2DATATYPE]) {
         UA_DatagramWriterGroupTransport2DataType *ts = (UA_DatagramWriterGroupTransport2DataType *) transportSettings->content.decoded.data;
@@ -661,6 +662,9 @@ UA_WriterGroup_clear(UA_Server *server, UA_WriterGroup *writerGroup) {
 #endif
 
     UA_NetworkMessageOffsetBuffer_clear(&writerGroup->bufferedMessage);
+    if(writerGroup->channel) {
+        writerGroup->channel->close(writerGroup->channel);
+    }
 }
 
 UA_StatusCode
