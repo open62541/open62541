@@ -60,7 +60,7 @@ static void setup(void) {
                                       &config->logger);
 
     UA_Server_run_startup(server);
-    UA_ServerConfig_addPubSubTransportLayer(config, UA_PubSubTransportLayerUDPMP());
+    UA_ServerConfig_addPubSubTransportLayer(config, UA_PubSubTransportLayerUDP());
 
     /* Add connection to the server */
     UA_PubSubConnectionConfig connectionConfig;
