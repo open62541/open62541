@@ -15,6 +15,7 @@
 
 #include <open62541/plugin/log_stdout.h>
 #include <open62541/plugin/pubsub_udp.h>
+#include "ua_pubsub.h"
 
 #define RECEIVE_MSG_BUFFER_SIZE   4096
 
@@ -855,6 +856,7 @@ TransportLayerUDPMC_addChannel(UA_PubSubTransportLayer *tl, void *ctx) {
 UA_PubSubTransportLayer
 UA_PubSubTransportLayerUDPMP(void) {
     UA_PubSubTransportLayer pubSubTransportLayer;
+    pubSubTransportLayer.connectionManager = NULL;
     pubSubTransportLayer.transportProfileUri =
         UA_STRING("http://opcfoundation.org/UA-Profile/Transport/pubsub-udp-uadp");
     pubSubTransportLayer.createPubSubChannel = &TransportLayerUDPMC_addChannel;

@@ -119,8 +119,10 @@ UA_ServerConfig_addPubSubTransportLayer(UA_ServerConfig *config,
     config->pubSubConfig.transportLayers[config->pubSubConfig.transportLayersSize] = pubsubTransportLayer;
     config->pubSubConfig.transportLayersSize++;
 
-    UA_EventLoop *el = config->eventLoop;
-    el->registerEventSource(el, &pubsubTransportLayer.connectionManager->eventSource);
+    if(pubsubTransportLayer.connectionManager) {
+        UA_EventLoop *el = config->eventLoop;
+        el->registerEventSource(el, &pubsubTransportLayer.connectionManager->eventSource);
+    }
 
     return UA_STATUSCODE_GOOD;
 }
