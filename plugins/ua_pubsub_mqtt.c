@@ -19,6 +19,7 @@
 
 #include "mqtt/ua_mqtt-c_adapter.h"
 #include "open62541/plugin/log_stdout.h"
+#include "ua_pubsub.h"
 
 static UA_StatusCode
 UA_uaQos_toMqttQos(UA_BrokerTransportQualityOfService uaQos, UA_Byte *qos){
@@ -358,7 +359,10 @@ UA_PubSubChannelMQTT_yield(UA_PubSubChannel *channel, UA_UInt16 timeout){
 static UA_PubSubChannel *
 TransportLayerMQTT_addChannel(UA_PubSubTransportLayer *tl, void *ctx) {
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "PubSub MQTT: channel requested.");
-    UA_PubSubConnectionConfig *connectionConfig = NULL;
+    UA_TransportLayerContext *tctx  = (UA_TransportLayerContext *) ctx;
+    UA_PubSubConnection *connection = (UA_PubSubConnection *) tctx->connection;
+    UA_PubSubConnectionConfig *connectionConfig = connection->config;
+
     UA_PubSubChannel * pubSubChannel = UA_PubSubChannelMQTT_open(connectionConfig);
     if(pubSubChannel){
         pubSubChannel->regist = UA_PubSubChannelMQTT_regist;
@@ -376,6 +380,8 @@ TransportLayerMQTT_addChannel(UA_PubSubTransportLayer *tl, void *ctx) {
 UA_PubSubTransportLayer
 UA_PubSubTransportLayerMQTT(){
     UA_PubSubTransportLayer pubSubTransportLayer;
+
+    pubSubTransportLayer.connectionManager = NULL;
     pubSubTransportLayer.transportProfileUri = UA_STRING("http://opcfoundation.org/UA-Profile/Transport/pubsub-mqtt");
     pubSubTransportLayer.createPubSubChannel = &TransportLayerMQTT_addChannel;
     return pubSubTransportLayer;

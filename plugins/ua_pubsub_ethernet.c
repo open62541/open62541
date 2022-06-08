@@ -1309,8 +1309,10 @@ UA_PubSubChannelEthernet_close(UA_PubSubChannel *channel) {
 static UA_PubSubChannel *
 TransportLayerEthernet_addChannel(UA_PubSubTransportLayer *tl, void *ctx) {
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "PubSub channel requested");
-    UA_PubSubConnection *connection = (UA_PubSubConnection *) ctx;
-    UA_PubSubConnectionConfig *connectionConfig= connection->config;
+    UA_TransportLayerContext *tctx  = (UA_TransportLayerContext *) ctx;
+    UA_PubSubConnection *connection = (UA_PubSubConnection *) tctx->connection;
+    UA_PubSubConnectionConfig *connectionConfig = connection->config;
+
     UA_PubSubChannel * pubSubChannel = UA_PubSubChannelEthernet_open(connectionConfig);
     if(pubSubChannel) {
         pubSubChannel->regist = UA_PubSubChannelEthernet_regist;
@@ -1326,6 +1328,8 @@ TransportLayerEthernet_addChannel(UA_PubSubTransportLayer *tl, void *ctx) {
 UA_PubSubTransportLayer
 UA_PubSubTransportLayerEthernet(void) {
     UA_PubSubTransportLayer pubSubTransportLayer;
+
+    pubSubTransportLayer.connectionManager = NULL;
     pubSubTransportLayer.transportProfileUri =
         UA_STRING("http://opcfoundation.org/UA-Profile/Transport/pubsub-eth-uadp");
     pubSubTransportLayer.createPubSubChannel = &TransportLayerEthernet_addChannel;
