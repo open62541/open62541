@@ -1078,6 +1078,12 @@ UDP_openSendConnection(UA_ConnectionManager *cm,
                      "UDP\t| Opening a connection failed");
         return UA_STATUSCODE_BADINTERNALERROR;
     }
+    if(res != UA_STATUSCODE_GOOD) {
+        freeaddrinfo(info);
+        UA_LOG_ERROR(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
+                     "UDP\t| Configuring multicast failed");
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
     /* Non-blocking connect */
     error = UA_connect(newSock, info->ai_addr, info->ai_addrlen);
     freeaddrinfo(info);
