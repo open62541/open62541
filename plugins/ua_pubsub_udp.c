@@ -17,7 +17,7 @@
 #include "ua_pubsub.h"
 
 #define RECEIVE_MSG_BUFFER_SIZE   4096
-#define UA_DEFAULT_PARAM_SIZE 5
+#define UA_MAX_DEFAULT_PARAM_SIZE 6
 
 #define UA_MULTICAST_TTL_NO_LIMIT 255
 
@@ -122,18 +122,18 @@ UA_PubSub_udpCallbackPublish(UA_ConnectionManager *cm, uintptr_t connectionId,
 
 static size_t
 UA_KeyValueMap_countMergedMembers(UA_KeyValuePair *lhs, size_t lhsCount, UA_KeyValuePair *rhs, size_t rhsCount) {
-    size_t disjointCountInRhs = rhsCount;
+    size_t uniqueKeyCountInRhs = rhsCount;
 
     for(size_t i = 0; i < lhsCount; ++i) {
         UA_KeyValuePair lhsPair = lhs[i];
         for(size_t j = 0; j < rhsCount; ++j) {
             UA_KeyValuePair rhsPair = rhs[j];
             if(UA_String_equal(&lhsPair.key.name, &rhsPair.key.name)) {
-                disjointCountInRhs--;
+                uniqueKeyCountInRhs--;
             }
         }
     }
-    return lhsCount + disjointCountInRhs;
+    return lhsCount + uniqueKeyCountInRhs;
 }
 
 static UA_Boolean
@@ -154,8 +154,8 @@ UA_KeyValueMap_merge(UA_KeyValuePair *dst, UA_KeyValuePair *lhs, size_t lhsCount
         // UA_KeyValuePair_copy(&lhs[i], &dst[outIndex]);
         for(size_t j = 0; j < rhsCount; ++j) {
             if(UA_String_equal(&lhs[i].key.name, &rhs[j].key.name)) {
-                dst[outIndex] = rhs[i];
-                // UA_KeyValuePair_copy(&rhs[i], &dst[outIndex]);
+                dst[outIndex] = rhs[j];
+                // UA_KeyValuePair_copy(&rhs[j], &dst[outIndex]);
                 break;
             }
         }
@@ -175,7 +175,7 @@ UA_openSubscribeDirection(UA_ConnectionManager *connectionManager,
     UA_PubSubConnectionConfig *connectionConfig = connection->config;
 
     size_t paramIdx = 0;
-    UA_KeyValuePair defaultParams[UA_DEFAULT_PARAM_SIZE];
+    UA_KeyValuePair defaultParams[UA_MAX_DEFAULT_PARAM_SIZE];
     UA_String targetHost = UA_STRING(addressAsChar);
     defaultParams[paramIdx].key = UA_QUALIFIEDNAME(0, "listen-hostnames");
     UA_Variant_setArray(&defaultParams[paramIdx].value, &targetHost, 1, &UA_TYPES[UA_TYPES_STRING]);
@@ -219,7 +219,7 @@ UA_openPublishDirection(UA_ConnectionManager *connectionManager,
                         const UA_PubSubConnectionConfig *connectionConfig, UA_PubSubChannel *newChannel,
                         const UA_NetworkAddressUrlDataType *address, char *addressAsChar, UA_UInt16 port) {
     size_t paramIdx = 0;
-    UA_KeyValuePair defaultParams[UA_DEFAULT_PARAM_SIZE];
+    UA_KeyValuePair defaultParams[UA_MAX_DEFAULT_PARAM_SIZE];
     UA_String targetHost = UA_STRING(addressAsChar);
     defaultParams[paramIdx].key = UA_QUALIFIEDNAME(0, "hostname");
     UA_Variant_setScalar(&defaultParams[paramIdx].value, &targetHost, &UA_TYPES[UA_TYPES_STRING]);
@@ -231,9 +231,8 @@ UA_openPublishDirection(UA_ConnectionManager *connectionManager,
     paramIdx++;
 
     if(address->networkInterface.length > 0) {
-        UA_String targetInterface = address->networkInterface;
         defaultParams[paramIdx].key = UA_QUALIFIEDNAME(0, "networkInterface");
-        UA_Variant_setScalar(&defaultParams[paramIdx].value, &targetInterface, &UA_TYPES[UA_TYPES_STRING]);
+        UA_Variant_setScalar(&defaultParams[paramIdx].value, &address->networkInterface, &UA_TYPES[UA_TYPES_STRING]);
         paramIdx++;
     }
     defaultParams[paramIdx].key = UA_QUALIFIEDNAME(0, "ttl");
