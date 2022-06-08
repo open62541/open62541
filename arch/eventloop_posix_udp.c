@@ -300,11 +300,6 @@ setConnectionConfigurationProperties(UA_FD socket,
                                      const size_t connectionPropertiesSize,
                                      int ai_family,
                                      const UA_Logger *logger) {
-    // channelDataUDPMC->messageTTL = 255;
-    // channelDataUDPMC->enableLoopback = true;
-    // channelDataUDPMC->enableReuse = true;
-    // channelDataUDPMC->isMulticast = true;
-
     /* Iterate over the given KeyValuePair parameters */
     UA_String ttlParam = UA_STRING("ttl");
     UA_String loopbackParam = UA_STRING("loopback");
