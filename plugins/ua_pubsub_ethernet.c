@@ -57,7 +57,7 @@ static UA_THREAD_LOCAL UA_Byte ReceiveMsgBufferETH[RECEIVE_MSG_BUFFER_SIZE];
 #endif
 
 #include <time.h>
-#include "ua_pubsub.h"
+
 #define ETHERTYPE_UADP                       0xb62c
 #define MIN_ETHERNET_PACKET_SIZE_WITHOUT_FCS 60
 #define VLAN_HEADER_SIZE                     4
@@ -1310,8 +1310,7 @@ static UA_PubSubChannel *
 TransportLayerEthernet_addChannel(UA_PubSubTransportLayer *tl, void *ctx) {
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "PubSub channel requested");
     UA_TransportLayerContext *tctx  = (UA_TransportLayerContext *) ctx;
-    UA_PubSubConnection *connection = (UA_PubSubConnection *) tctx->connection;
-    UA_PubSubConnectionConfig *connectionConfig = connection->config;
+    UA_PubSubConnectionConfig *connectionConfig = tctx->connectionConfig;
 
     UA_PubSubChannel * pubSubChannel = UA_PubSubChannelEthernet_open(connectionConfig);
     if(pubSubChannel) {

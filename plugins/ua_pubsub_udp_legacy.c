@@ -15,7 +15,6 @@
 
 #include <open62541/plugin/log_stdout.h>
 #include <open62541/plugin/pubsub_udp.h>
-#include "ua_pubsub.h"
 
 #define RECEIVE_MSG_BUFFER_SIZE   4096
 
@@ -837,8 +836,7 @@ TransportLayerUDPMC_addChannel(UA_PubSubTransportLayer *tl, void *ctx) {
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "PubSub channel requested");
 
     UA_TransportLayerContext *tctx  = (UA_TransportLayerContext *) ctx;
-    UA_PubSubConnection *connection = (UA_PubSubConnection *) tctx->connection;
-    UA_PubSubConnectionConfig *connectionConfig = connection->config;
+    UA_PubSubConnectionConfig *connectionConfig = tctx->connectionConfig;
     UA_PubSubChannel * pubSubChannel = UA_PubSubChannelUDPMC_open(connectionConfig);
 
     if(pubSubChannel){

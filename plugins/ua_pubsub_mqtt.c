@@ -19,7 +19,6 @@
 
 #include "mqtt/ua_mqtt-c_adapter.h"
 #include "open62541/plugin/log_stdout.h"
-#include "ua_pubsub.h"
 
 static UA_StatusCode
 UA_uaQos_toMqttQos(UA_BrokerTransportQualityOfService uaQos, UA_Byte *qos){
@@ -360,8 +359,7 @@ static UA_PubSubChannel *
 TransportLayerMQTT_addChannel(UA_PubSubTransportLayer *tl, void *ctx) {
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "PubSub MQTT: channel requested.");
     UA_TransportLayerContext *tctx  = (UA_TransportLayerContext *) ctx;
-    UA_PubSubConnection *connection = (UA_PubSubConnection *) tctx->connection;
-    UA_PubSubConnectionConfig *connectionConfig = connection->config;
+    UA_PubSubConnectionConfig *connectionConfig = tctx->connectionConfig;
 
     UA_PubSubChannel * pubSubChannel = UA_PubSubChannelMQTT_open(connectionConfig);
     if(pubSubChannel){
