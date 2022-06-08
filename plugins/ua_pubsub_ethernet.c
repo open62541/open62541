@@ -1332,5 +1332,7 @@ UA_PubSubTransportLayerEthernet(void) {
     pubSubTransportLayer.transportProfileUri =
         UA_STRING("http://opcfoundation.org/UA-Profile/Transport/pubsub-eth-uadp");
     pubSubTransportLayer.createPubSubChannel = &TransportLayerEthernet_addChannel;
+    pubSubTransportLayer.connectionManager = NULL;
+
     return pubSubTransportLayer;
 }

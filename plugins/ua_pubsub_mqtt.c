@@ -383,6 +383,7 @@ UA_PubSubTransportLayerMQTT(){
 
     pubSubTransportLayer.transportProfileUri = UA_STRING("http://opcfoundation.org/UA-Profile/Transport/pubsub-mqtt");
     pubSubTransportLayer.createPubSubChannel = &TransportLayerMQTT_addChannel;
+    pubSubTransportLayer.connectionManager = NULL;
     return pubSubTransportLayer;
 }
 
