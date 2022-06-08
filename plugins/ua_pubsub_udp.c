@@ -177,7 +177,7 @@ UA_KeyValueMap_merge(UA_KeyValuePair *dst, UA_KeyValuePair *lhs, size_t lhsCount
         }
     }
 }
-static void
+static UA_StatusCode
 UA_openSubscribeDirection(UA_ConnectionManager *connectionManager,
                           const UA_PubSubConnection *connection, UA_PubSubChannel *newChannel,
                           const UA_NetworkAddressUrlDataType *address, char *addressAsChar, UA_UInt16 port) {
@@ -218,15 +218,15 @@ UA_openSubscribeDirection(UA_ConnectionManager *connectionManager,
 
 
 
-    connectionManager->openConnection(connectionManager,
+    return connectionManager->openConnection(connectionManager,
                                       mergeSize, mergedParams,
                                       newChannel, newChannel->handle, UA_PubSub_udpCallbackSubscribe);
 }
 
-static void
+static UA_StatusCode
 UA_openPublishDirection(UA_ConnectionManager *connectionManager,
                         const UA_PubSubConnectionConfig *connectionConfig, UA_PubSubChannel *newChannel,
-                        const UA_NetworkAddressUrlDataType *address, char *addressAsChar, UA_UInt16 port) {
+                        UA_NetworkAddressUrlDataType *address, char *addressAsChar, UA_UInt16 port) {
     size_t paramIdx = 0;
     UA_KeyValuePair defaultParams[UA_MAX_DEFAULT_PARAM_SIZE];
     UA_String targetHost = UA_STRING(addressAsChar);
@@ -267,7 +267,7 @@ UA_openPublishDirection(UA_ConnectionManager *connectionManager,
                          defaultParams, paramIdx,
                          connectionConfig->connectionProperties, connectionConfig->connectionPropertiesSize);
 
-    connectionManager->openConnection(connectionManager,
+    return connectionManager->openConnection(connectionManager,
                                       mergeSize, mergedParams,
                                       newChannel, newChannel->handle, UA_PubSub_udpCallbackPublish);
 }
@@ -302,8 +302,7 @@ UA_PubSubChannelUDP_open(UA_ConnectionManager *connectionManager, UA_PubSubConne
     UA_UInt16 port;
     UA_StatusCode res = getRawAddressAndPortValues(address, addressAsChar, &port);
     if(res != UA_STATUSCODE_GOOD) {
-        UA_free(newChannel);
-        return NULL;
+        goto error;
     }
 
     if(startsWith("opc.udp://127.0.0.1", (char*) address->url.data)) {
@@ -311,8 +310,7 @@ UA_PubSubChannelUDP_open(UA_ConnectionManager *connectionManager, UA_PubSubConne
                        "For UDP Unicast you connection needs to start with"
                        " opc.udp://localhost - per spec 127.0.0.1 is not permitted to establish"
                        " unicast connections");
-        UA_free(newChannel);
-        return NULL;
+        goto error;
     }
 
     UA_UDPConnectionContext *context = (UA_UDPConnectionContext *) UA_calloc(1, sizeof(UA_UDPConnectionContext));
@@ -320,13 +318,21 @@ UA_PubSubChannelUDP_open(UA_ConnectionManager *connectionManager, UA_PubSubConne
     context->connection = connection;
     newChannel->handle = context; /* Link channel and internal channel data */
     // void *application = NULL;
-
     if(!startsWith("opc.udp://localhost", (char*) address->url.data)) {
-        UA_openPublishDirection(connectionManager, connectionConfig, newChannel, address, addressAsChar, port);
+        res = UA_openPublishDirection(connectionManager, connectionConfig, newChannel, address, addressAsChar, port);
+        if(res != UA_STATUSCODE_GOOD) {
+            goto error;
+        }
     }
 
-    UA_openSubscribeDirection(connectionManager, connection, newChannel, address, addressAsChar, port);
+    res = UA_openSubscribeDirection(connectionManager, connection, newChannel, address, addressAsChar, port);
+    if(res != UA_STATUSCODE_GOOD) {
+        goto error;
+    }
     return newChannel;
+error:
+    UA_free(newChannel);
+    return NULL;
 }
 
 static UA_PubSubChannel *
@@ -346,8 +352,7 @@ UA_PubSubChannelUDP_openUnicast(UA_ConnectionManager *connectionManager, UA_PubS
     UA_UInt16 port;
     UA_StatusCode res = getRawAddressAndPortValues(address, addressAsChar, &port);
     if(res != UA_STATUSCODE_GOOD) {
-        UA_free(newChannel);
-        return NULL;
+        goto error;
     }
 
     // if(startsWith("opc.udp://127.0.0.1", (char*) address->url.data)) {
@@ -366,10 +371,16 @@ UA_PubSubChannelUDP_openUnicast(UA_ConnectionManager *connectionManager, UA_PubS
     // void *application = NULL;
 
     if(!startsWith("opc.udp://localhost", (char*) address->url.data)) {
-        UA_openPublishDirection(connectionManager, connectionConfig, newChannel, address, addressAsChar, port);
+        res = UA_openPublishDirection(connectionManager, connectionConfig, newChannel, address, addressAsChar, port);
+        if(res != UA_STATUSCODE_GOOD) {
+            goto error;
+        }
     }
 
     return newChannel;
+error:
+    UA_free(newChannel);
+    return NULL;
 }
 
 /**
