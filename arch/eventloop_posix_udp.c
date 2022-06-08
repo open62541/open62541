@@ -1208,8 +1208,8 @@ UDP_openReceiveConnection(UA_ConnectionManager *cm,
  *               hostname
  *               port
  *               sockpriority: uint32
- *               mc-ttl: uint32 - set the multicast time to live
- *               mc-loopback: bool - whether or not multicast datagrams are looped back
+ *               ttl: uint32 - set the multicast time to live
+ *               loopback: bool - whether or not multicast datagrams are looped back
  *                                   (enable local interfaces belonging to the multicast group to receive packages)
  *               reuse: bool -
  *
