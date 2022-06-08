@@ -550,12 +550,12 @@ configureMulticastInterfaceIPv6(UA_FD socket, socklen_t addrlen, struct sockaddr
             }
         }
 
-        if(setsockopt(socket, IPPROTO_IPV6, IP_MULTICAST_IF,
+        if(setsockopt(socket, IPPROTO_IPV6, IPV6_MULTICAST_IF,
                       &ipMulticastRequest.ipv6.ipv6mr_interface, sizeof(ipMulticastRequest.ipv6.ipv6mr_interface)) < 0) {
             UA_LOG_SOCKET_ERRNO_WRAP(
                 UA_LOG_ERROR(logger, UA_LOGCATEGORY_NETWORK,
                              "Opening UDP connection failed: "
-                             "Cannot set socket option IP_MULTICAST_IF. Error: %s",
+                             "Cannot set socket option IPV6_MULTICAST_IF. Error: %s",
                              errno_str));
             return UA_STATUSCODE_BADINTERNALERROR;
         }
