@@ -110,7 +110,6 @@ UA_Server_addWriterGroup(UA_Server *server, const UA_NodeId connection,
 
         if(ts->address.content.decoded.type == &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]) {
             UA_NetworkAddressUrlDataType *address = (UA_NetworkAddressUrlDataType *) ts->address.content.decoded.data;
-            newWriterGroup->address = address;
             const char *prefix = "opc.udp://";
             if(strncmp(prefix, (char *) address->url.data, strlen(prefix)) == 0) {
 
@@ -123,11 +122,12 @@ UA_Server_addWriterGroup(UA_Server *server, const UA_NodeId connection,
                 UA_CHECK_MEM_ERROR(tl, return UA_STATUSCODE_BADNOTFOUND, &server->config.logger,
                                    UA_LOGCATEGORY_SERVER, "PubSub Connection creation failed. Requested transport layer not found.");
                 UA_TransportLayerContext ctx;
-                ctx.writerGroup = newWriterGroup;
+                ctx.writerGroupAddress = address;
                 ctx.connection = currentConnectionContext;
+                ctx.connectionConfig = currentConnectionContext->config;
+                ctx.decodeAndProcessNetworkMessage = UA_decodeAndProcessNetworkMessage;
                 ctx.server = server;
 
-                newWriterGroup->isUnicast = true;
                 newWriterGroup->channel = tl->createPubSubChannel(tl, &ctx);
             }
         }
@@ -896,7 +896,8 @@ sendNetworkMessageJson(UA_PubSubConnection *connection,
 
     /* Choose the channel */
     UA_PubSubChannel *channel = NULL;
-    if(writerGroup->isUnicast) {
+
+    if(transportSettings) {
         channel = writerGroup->channel;
     } else {
         channel = connection->channel;
@@ -1054,7 +1055,7 @@ sendNetworkMessageUADP(UA_PubSubConnection *connection, UA_WriterGroup *wg,
 
     /* Choose the channel */
     UA_PubSubChannel *channel = NULL;
-    if(wg->isUnicast) {
+    if(transportSettings) {
         channel = wg->channel;
     } else {
         channel = connection->channel;

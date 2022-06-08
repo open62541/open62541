@@ -14,7 +14,7 @@
 
 #include <open62541/plugin/log_stdout.h>
 #include <open62541/plugin/pubsub_udp.h>
-#include "ua_pubsub.h"
+#include <open62541/server.h>
 
 #define RECEIVE_MSG_BUFFER_SIZE   4096
 #define UA_MAX_DEFAULT_PARAM_SIZE 6
@@ -51,40 +51,14 @@ getRawAddressAndPortValues(const UA_NetworkAddressUrlDataType *address, char *ou
 typedef struct UA_UDPConnectionContext {
     UA_ConnectionManager *connectionManager;
     UA_Server *server;
-    UA_PubSubConnection *connection;
+    void *connection;
     uintptr_t connectionIdPublish;
     uintptr_t connectionIdSubscribe;
+    UA_StatusCode (*decodeAndProcessNetworkMessage)(UA_Server *server,
+                                                    void *connection,
+                                                    UA_ByteString *buffer);
 } UA_UDPConnectionContext;
 
-static
-UA_StatusCode
-UA_decodeAndProcessNetworkMessage(UA_Server *server,
-                                  UA_PubSubConnection *connection,
-                                  UA_ByteString *buffer) {
-    UA_NetworkMessage nm;
-    memset(&nm, 0, sizeof(UA_NetworkMessage));
-    size_t currentPosition = 0;
-
-    UA_StatusCode rv = UA_STATUSCODE_GOOD;
-    rv = decodeNetworkMessage(server, buffer, &currentPosition, &nm, connection);
-    UA_ServerConfig *config = UA_Server_getConfig(server);
-    if(rv != UA_STATUSCODE_GOOD) {
-        UA_LOG_WARNING(&config->logger, UA_LOGCATEGORY_SERVER,
-            "Subscribe failed. verify, decrypt and decode network message failed.");
-        goto cleanup;
-    }
-
-    rv = UA_Server_processNetworkMessage(server, connection, &nm);
-    /* TODO: check what action to perform on error (nothing?) */
-    if(rv != UA_STATUSCODE_GOOD) {
-        UA_LOG_WARNING(&config->logger, UA_LOGCATEGORY_SERVER,
-                       "Subscribe failed. process network message failed.");
-    }
-
-cleanup:
-    UA_NetworkMessage_clear(&nm);
-    return rv;
-}
 
 /* Callback of a TCP socket (server socket or an active connection) */
 static void
@@ -106,7 +80,7 @@ UA_PubSub_udpCallbackSubscribe(UA_ConnectionManager *cm, uintptr_t connectionId,
     ctx->connectionManager = cm;
 
     if(msg.length > 0) {
-        UA_decodeAndProcessNetworkMessage(ctx->server, ctx->connection, &msg);
+        ctx->decodeAndProcessNetworkMessage(ctx->server, ctx->connection, &msg);
     }
 }
 
@@ -179,9 +153,8 @@ UA_KeyValueMap_merge(UA_KeyValuePair *dst, UA_KeyValuePair *lhs, size_t lhsCount
 }
 static UA_StatusCode
 UA_openSubscribeDirection(UA_ConnectionManager *connectionManager,
-                          const UA_PubSubConnection *connection, UA_PubSubChannel *newChannel,
+                          const UA_PubSubConnectionConfig *connectionConfig, UA_PubSubChannel *newChannel,
                           const UA_NetworkAddressUrlDataType *address, char *addressAsChar, UA_UInt16 port) {
-    UA_PubSubConnectionConfig *connectionConfig = connection->config;
 
     size_t paramIdx = 0;
     UA_KeyValuePair defaultParams[UA_MAX_DEFAULT_PARAM_SIZE];
@@ -285,11 +258,10 @@ startsWith(const char *pre, const char *str) {
  * @return ref to created channel, NULL on error
  */
 static UA_PubSubChannel *
-UA_PubSubChannelUDP_open(UA_ConnectionManager *connectionManager, UA_PubSubConnection *connection,
-                         UA_Server *server, UA_NetworkAddressUrlDataType *address) {
+UA_PubSubChannelUDP_open(UA_ConnectionManager *connectionManager, UA_TransportLayerContext *ctx, UA_NetworkAddressUrlDataType *address) {
     UA_initialize_architecture_network();
 
-    UA_PubSubConnectionConfig *connectionConfig = connection->config;
+    UA_PubSubConnectionConfig *connectionConfig = ctx->connectionConfig;
     UA_PubSubChannel *newChannel = (UA_PubSubChannel *)
         UA_calloc(1, sizeof(UA_PubSubChannel));
     if(!newChannel) {
@@ -314,8 +286,9 @@ UA_PubSubChannelUDP_open(UA_ConnectionManager *connectionManager, UA_PubSubConne
     }
 
     UA_UDPConnectionContext *context = (UA_UDPConnectionContext *) UA_calloc(1, sizeof(UA_UDPConnectionContext));
-    context->server = server;
-    context->connection = connection;
+    context->server = ctx->server;
+    context->connection = ctx->connection;
+    context->decodeAndProcessNetworkMessage = ctx->decodeAndProcessNetworkMessage;
     newChannel->handle = context; /* Link channel and internal channel data */
     // void *application = NULL;
     if(!startsWith("opc.udp://localhost", (char*) address->url.data)) {
@@ -325,7 +298,7 @@ UA_PubSubChannelUDP_open(UA_ConnectionManager *connectionManager, UA_PubSubConne
         }
     }
 
-    res = UA_openSubscribeDirection(connectionManager, connection, newChannel, address, addressAsChar, port);
+    res = UA_openSubscribeDirection(connectionManager, connectionConfig, newChannel, address, addressAsChar, port);
     if(res != UA_STATUSCODE_GOOD) {
         goto error;
     }
@@ -336,10 +309,10 @@ error:
 }
 
 static UA_PubSubChannel *
-UA_PubSubChannelUDP_openUnicast(UA_ConnectionManager *connectionManager, UA_PubSubConnection *connection, UA_Server *server, UA_NetworkAddressUrlDataType *address) {
+UA_PubSubChannelUDP_openUnicast(UA_ConnectionManager *connectionManager, UA_TransportLayerContext *ctx, UA_NetworkAddressUrlDataType *address) {
     UA_initialize_architecture_network();
 
-    UA_PubSubConnectionConfig *connectionConfig = connection->config;
+    UA_PubSubConnectionConfig *connectionConfig = ctx->connectionConfig;
     UA_PubSubChannel *newChannel = (UA_PubSubChannel *)
         UA_calloc(1, sizeof(UA_PubSubChannel));
     if(!newChannel) {
@@ -365,8 +338,8 @@ UA_PubSubChannelUDP_openUnicast(UA_ConnectionManager *connectionManager, UA_PubS
     // }
 
     UA_UDPConnectionContext *context = (UA_UDPConnectionContext *) UA_calloc(1, sizeof(UA_UDPConnectionContext));
-    context->server = server;
-    context->connection = connection;
+    context->server = ctx->server;
+    context->connection = ctx->connection;
     newChannel->handle = context; /* Link channel and internal channel data */
     // void *application = NULL;
 
@@ -542,10 +515,24 @@ static UA_PubSubChannel *
 TransportLayerUDP_addChannel(UA_PubSubTransportLayer *tl, void *ctx) {
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "PubSub channel requested");
     UA_TransportLayerContext *tctx  = (UA_TransportLayerContext *) ctx;
-    UA_PubSubConnection *connection = (UA_PubSubConnection *) tctx->connection;
-    UA_PubSubConnectionConfig *connectionConfig = connection->config;
+    UA_PubSubConnectionConfig *connectionConfig = tctx->connectionConfig;
     UA_PubSubChannel *pubSubChannel = NULL;
     UA_Server *server = tctx->server;
+
+    UA_ServerConfig *config = UA_Server_getConfig(server);
+    UA_EventLoop *el = config->eventLoop;
+    UA_String needle = UA_STRING("udp connection manager");
+
+    UA_EventSource *es;
+    for(es = el->eventSources; es != NULL; es=es->next) {
+        if(UA_String_equal(&es->name, &needle)) {
+            break;
+        }
+    }
+    if(!es) {
+        return NULL;
+    }
+    tl->connectionManager = (UA_ConnectionManager *) es;
 
     if(!UA_Variant_hasScalarType(&connectionConfig->address,
                                  &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE])) {
@@ -556,11 +543,10 @@ TransportLayerUDP_addChannel(UA_PubSubTransportLayer *tl, void *ctx) {
     UA_NetworkAddressUrlDataType *address =
         (UA_NetworkAddressUrlDataType *)connectionConfig->address.data;
 
-    if(tctx->writerGroup)  {
-        address = tctx->writerGroup->address;
-        pubSubChannel = UA_PubSubChannelUDP_openUnicast(tl->connectionManager, connection, server, address);
+    if(tctx->writerGroupAddress)  {
+        pubSubChannel = UA_PubSubChannelUDP_openUnicast(tl->connectionManager, tctx, tctx->writerGroupAddress);
     } else {
-        pubSubChannel = UA_PubSubChannelUDP_open(tl->connectionManager, connection, server, address);
+        pubSubChannel = UA_PubSubChannelUDP_open(tl->connectionManager, tctx, address);
     }
 
     if(pubSubChannel){
@@ -581,7 +567,8 @@ UA_PubSubTransportLayerUDP(void) {
     // UA_EventLoop *el = config->eventLoop;
 
     UA_PubSubTransportLayer pubSubTransportLayer;
-    pubSubTransportLayer.connectionManager = UA_ConnectionManager_new_POSIX_UDP(UA_STRING("udp-cm"));
+    memset(&pubSubTransportLayer, 0, sizeof(UA_PubSubTransportLayer));
+    // pubSubTransportLayer.connectionManager = UA_ConnectionManager_new_POSIX_UDP(UA_STRING("udp-cm"));
     // pubSubTransportLayer.server = server;
     // el->registerEventSource(el, &pubSubTransportLayer.connectionManager->eventSource);
 

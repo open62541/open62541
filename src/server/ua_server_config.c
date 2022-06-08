@@ -116,13 +116,9 @@ UA_ServerConfig_addPubSubTransportLayer(UA_ServerConfig *config,
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
     config->pubSubConfig.transportLayers = tmpLayers;
+    // memcpy(config->pubSubConfig.transportLayers + config->pubSubConfig.transportLayersSize, &pubsubTransportLayer, sizeof(UA_PubSubTransportLayer));
     config->pubSubConfig.transportLayers[config->pubSubConfig.transportLayersSize] = pubsubTransportLayer;
     config->pubSubConfig.transportLayersSize++;
-
-    if(pubsubTransportLayer.connectionManager) {
-        UA_EventLoop *el = config->eventLoop;
-        el->registerEventSource(el, &pubsubTransportLayer.connectionManager->eventSource);
-    }
 
     return UA_STATUSCODE_GOOD;
 }

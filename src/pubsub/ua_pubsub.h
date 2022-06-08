@@ -101,6 +101,18 @@ UA_PubSubConnection_clear(UA_Server *server, UA_PubSubConnection *connection);
 UA_StatusCode
 UA_PubSubConnection_regist(UA_Server *server, UA_NodeId *connectionIdentifier);
 
+/* Process Network Message for a ReaderGroup. But we the ReaderGroup needs to be
+ * identified first. */
+UA_StatusCode
+UA_Server_processNetworkMessage(UA_Server *server,
+                                UA_PubSubConnection *connection,
+                                UA_NetworkMessage *msg);
+
+UA_StatusCode
+UA_decodeAndProcessNetworkMessage(UA_Server *server,
+                                  void *connection,
+                                  UA_ByteString *buffer);
+
 /**********************************************/
 /*              DataSetWriter                 */
 /**********************************************/
@@ -173,9 +185,7 @@ struct UA_WriterGroup {
     UA_NetworkMessageOffsetBuffer bufferedMessage;
     UA_UInt16 sequenceNumber; /* Increased after every succressuly sent message */
     UA_Boolean configurationFrozen;
-    UA_Boolean isUnicast;
-    UA_NetworkAddressUrlDataType *address;
-    UA_PubSubChannel *channel;
+    UA_PubSubChannel *channel; /* channel used for udp unicast communication */
 
 #ifdef UA_ENABLE_PUBSUB_ENCRYPTION
     UA_UInt32 securityTokenId;

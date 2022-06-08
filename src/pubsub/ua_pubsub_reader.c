@@ -1372,7 +1372,38 @@ loops_exit:
     return UA_STATUSCODE_GOOD;
 }
 
-static UA_StatusCode
+UA_StatusCode
+UA_decodeAndProcessNetworkMessage(UA_Server *server,
+                                  void *con,
+                                  UA_ByteString *buffer) {
+    UA_PubSubConnection *connection = (UA_PubSubConnection *) con;
+    UA_NetworkMessage nm;
+    memset(&nm, 0, sizeof(UA_NetworkMessage));
+    size_t currentPosition = 0;
+
+    UA_StatusCode rv = UA_STATUSCODE_GOOD;
+    rv = decodeNetworkMessage(server, buffer, &currentPosition, &nm, connection);
+    UA_ServerConfig *config = UA_Server_getConfig(server);
+    if(rv != UA_STATUSCODE_GOOD) {
+        UA_LOG_WARNING(&config->logger, UA_LOGCATEGORY_SERVER,
+                       "Subscribe failed. verify, decrypt and decode network message failed.");
+        goto cleanup;
+    }
+
+    rv = UA_Server_processNetworkMessage(server, connection, &nm);
+    /* TODO: check what action to perform on error (nothing?) */
+    if(rv != UA_STATUSCODE_GOOD) {
+        UA_LOG_WARNING(&config->logger, UA_LOGCATEGORY_SERVER,
+                       "Subscribe failed. process network message failed.");
+    }
+
+cleanup:
+    UA_NetworkMessage_clear(&nm);
+    return rv;
+}
+
+static
+UA_StatusCode
 decodeAndProcessNetworkMessage(UA_Server *server, UA_PubSubConnection *connection,
                                UA_ByteString *buf) {
     UA_NetworkMessage nm;

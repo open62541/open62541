@@ -100,16 +100,20 @@ struct UA_PubSubChannel {
 
 typedef struct UA_PubSubTransportLayer {
     UA_String transportProfileUri;
-    UA_ConnectionManager *connectionManager;
-    UA_Server *server;
+    // UA_ConnectionManager *connectionManager;
+    // UA_Server *server;
     UA_PubSubChannel *(*createPubSubChannel)(struct UA_PubSubTransportLayer *tl, void *ctx);
 } UA_PubSubTransportLayer;
 
 
 typedef struct {
-    struct UA_PubSubConnection *connection;
-    struct UA_WriterGroup *writerGroup;
+    void *connection;
+    UA_PubSubConnectionConfig *connectionConfig;
+    UA_NetworkAddressUrlDataType  *writerGroupAddress;
     UA_Server *server;
+    UA_StatusCode (*decodeAndProcessNetworkMessage)(UA_Server *server,
+                                                    void *connection,
+                                                    UA_ByteString *buffer);
 } UA_TransportLayerContext;
 
 #endif /* UA_ENABLE_PUBSUB */

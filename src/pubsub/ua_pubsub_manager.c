@@ -151,7 +151,9 @@ UA_Server_addPubSubConnection(UA_Server *server,
 
     UA_TransportLayerContext ctx;
     ctx.connection = newConnectionsField;
-    ctx.writerGroup = NULL;
+    ctx.connectionConfig = newConnectionsField->config;
+    ctx.decodeAndProcessNetworkMessage = UA_decodeAndProcessNetworkMessage;
+    ctx.writerGroupAddress = NULL;
     ctx.server = server;
 
     /* Open the communication channel */
