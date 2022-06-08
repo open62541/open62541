@@ -8,6 +8,8 @@
 
 #include "ua_pubsub.h"
 
+#include <signal.h>
+
 UA_NodeId connectionIdentifier;
 UA_NodeId readerGroupIdentifier;
 UA_NodeId readerIdentifier;
@@ -201,8 +203,8 @@ addAddDemoSubscriberMethod(UA_Server *server) {
     UA_Server_addMethodNode(
         server, UA_NODEID_NUMERIC(1, 62541), UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
         UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
-        UA_QUALIFIEDNAME(1, "Add Demo Subscriber"), addDemoSubscriberAttr, &addDemoSubscriberCallback,
-        0, NULL, 0, NULL, NULL, NULL);
+        UA_QUALIFIEDNAME(1, "Add Demo Subscriber"), addDemoSubscriberAttr,
+        &addDemoSubscriberCallback, 0, NULL, 0, NULL, NULL, NULL);
 }
 
 UA_Boolean running = true;
