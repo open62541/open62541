@@ -531,7 +531,7 @@ class Float(Number):
     def __init__(self, xmlelement=None):
         Number.__init__(self)
         if xmlelement:
-            Float.parseXML(self, xmlelement)
+            self.parseXML(self, xmlelement)
 
     def parseXML(self, xmlvalue):
         # Expect <Float>value</Float> or
