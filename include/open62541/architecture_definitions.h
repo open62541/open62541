@@ -159,7 +159,7 @@ extern UA_THREAD_LOCAL void * (*UA_reallocSingleton)(void *ptr, size_t size);
 # endif
 # define UA_STATIC_ASSERT(cond,msg)                             \
     typedef struct {                                            \
-        int UA_CTASTR(static_assertion_failed_,msg) : !!(cond); \
+        unsigned int UA_CTASTR(static_assertion_failed_,msg) : !!(cond); \
     } UA_CTASTR(static_assertion_failed_,__COUNTER__)
 #else /* Everybody else */
 # define UA_STATIC_ASSERT(cond,msg) typedef char static_assertion_##msg[(cond)?1:-1]
