@@ -2159,36 +2159,18 @@ setStandardConditionCallbacks(UA_Server *server, const UA_NodeId* condition,
     return retval;
 }
 
-/* Create condition instance. The function checks first whether the passed
- * conditionType is a subType of ConditionType. Then checks whether the
- * condition source has HasEventSource reference to its parent. If not, a
- * HasEventSource reference will be created between condition source and server
- * object. To expose the condition in address space, a hierarchical
- * ReferenceType should be passed to create the reference to condition source.
- * Otherwise, UA_NODEID_NULL should be passed to make the condition unexposed. */
-UA_StatusCode
-UA_Server_createCondition(UA_Server *server,
-                          const UA_NodeId conditionId, const UA_NodeId conditionType,
-                          const UA_QualifiedName conditionName,
-                          const UA_NodeId conditionSource,
-                          const UA_NodeId hierarchialReferenceType,
-                          UA_NodeId *outNodeId) {
-    if(!outNodeId) {
-        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_USERLAND, "outNodeId cannot be NULL!");
-        return UA_STATUSCODE_BADINVALIDARGUMENT;
-    }
+static UA_StatusCode
+addCondition_finish(UA_Server *server,
+                    const UA_NodeId conditionId,
+                    const UA_NodeId conditionType,
+                    const UA_QualifiedName conditionName,
+                    const UA_NodeId conditionSource,
+                    const UA_NodeId hierarchialReferenceType) {
 
-    /* Make sure the conditionType is a Subtype of ConditionType */
-    UA_NodeId conditionTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_CONDITIONTYPE);
-    if(!isNodeInTree_singleRef(server, &conditionType, &conditionTypeId,
-                               UA_REFERENCETYPEINDEX_HASSUBTYPE)) {
-        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_USERLAND,
-                     "Condition Type must be a subtype of ConditionType!");
-        return UA_STATUSCODE_BADNOMATCH;
-    }
+    UA_StatusCode retval = UA_Server_addNode_finish(server, conditionId);
+    CONDITION_ASSERT_RETURN_RETVAL(retval, "Finish node failed",);
 
     /* Make sure the ConditionSource has HasEventSource or one of its SubTypes ReferenceType */
-    UA_StatusCode retval;
     UA_NodeId serverObject = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER);
     if(!doesHasEventSourceReferenceExist(server, conditionSource) &&
        !UA_NodeId_equal(&serverObject, &conditionSource)) {
@@ -2201,15 +2183,6 @@ UA_Server_createCondition(UA_Server *server,
                                          "to the Server Object failed",);
     }
 
-    /* Create an ObjectNode which represents the condition */
-    UA_NodeId newNodeId = UA_NODEID_NULL;
-    UA_ObjectAttributes oAttr = UA_ObjectAttributes_default;
-    oAttr.displayName.locale = UA_STRING("en");
-    oAttr.displayName.text = conditionName.name;
-    retval = UA_Server_addObjectNode(server, conditionId, UA_NODEID_NULL, UA_NODEID_NULL,
-                                     conditionName, conditionType, oAttr, NULL, &newNodeId);
-    CONDITION_ASSERT_RETURN_RETVAL(retval, "Adding Condition failed",);
-
     /* create HasCondition Reference (HasCondition should be forward from the
      * ConditionSourceNode to the Condition. else, HasCondition should be
      * forward from the ConditionSourceNode to the ConditionType Node) */
@@ -2218,7 +2191,7 @@ UA_Server_createCondition(UA_Server *server,
          * ConditionNode in Address Space */
         // only Check hierarchialReferenceType
         UA_ExpandedNodeId expandedNewNodeId = UA_EXPANDEDNODEID_NULL;
-        expandedNewNodeId.nodeId = newNodeId;
+        expandedNewNodeId.nodeId = conditionId;
         retval = UA_Server_addReference(server, conditionSource, hierarchialReferenceType,
                                         expandedNewNodeId, true);
         CONDITION_ASSERT_RETURN_RETVAL(retval, "Creating hierarchical Reference to "
@@ -2239,14 +2212,12 @@ UA_Server_createCondition(UA_Server *server,
     }
 
     /* Set standard fields */
-    retval = setStandardConditionFields(server, &newNodeId, &conditionType,
+    retval = setStandardConditionFields(server, &conditionId, &conditionType,
                                         &conditionSource, &conditionName);
     CONDITION_ASSERT_RETURN_RETVAL(retval, "Set standard Condition Fields failed",);
 
-    *outNodeId = newNodeId;
-
     /* Set Method Callbacks */
-    retval = setStandardConditionCallbacks(server, &newNodeId, &conditionType);
+    retval = setStandardConditionCallbacks(server, &conditionId, &conditionType);
     CONDITION_ASSERT_RETURN_RETVAL(retval, "Set Condition callbacks failed",);
 
     /* change Refresh Events IsAbstract = false
@@ -2266,7 +2237,102 @@ UA_Server_createCondition(UA_Server *server,
     }
 
     /* append Condition to list */
-    return appendConditionEntry(server, &newNodeId, &conditionSource);
+    return appendConditionEntry(server, &conditionId, &conditionSource);
+}
+
+/* Create condition instance. The function checks first whether the passed
+ * conditionType is a subType of ConditionType. Then checks whether the
+ * condition source has HasEventSource reference to its parent. If not, a
+ * HasEventSource reference will be created between condition source and server
+ * object. To expose the condition in address space, a hierarchical
+ * ReferenceType should be passed to create the reference to condition source.
+ * Otherwise, UA_NODEID_NULL should be passed to make the condition unexposed. */
+UA_StatusCode
+UA_Server_createCondition(UA_Server *server,
+                          const UA_NodeId conditionId, const UA_NodeId conditionType,
+                          const UA_QualifiedName conditionName,
+                          const UA_NodeId conditionSource,
+                          const UA_NodeId hierarchialReferenceType,
+                          UA_NodeId *outNodeId) {
+    if(!outNodeId) {
+        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_USERLAND,
+                     "outNodeId cannot be NULL!");
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    }
+
+    UA_StatusCode retval = UA_Server_addCondition_begin(server, conditionId, conditionType,
+                                                        conditionName, outNodeId);
+    if(retval != UA_STATUSCODE_GOOD) {
+        return retval;
+    }
+    return addCondition_finish(server, *outNodeId, conditionType, conditionName,
+                               conditionSource, hierarchialReferenceType);
+}
+
+UA_StatusCode
+UA_Server_addCondition_begin(UA_Server *server, const UA_NodeId conditionId,
+                             const UA_NodeId conditionType,
+                             const UA_QualifiedName conditionName, UA_NodeId *outNodeId) {
+    if(!outNodeId) {
+        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_USERLAND,
+                     "outNodeId cannot be NULL!");
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    }
+
+    /* Make sure the conditionType is a Subtype of ConditionType */
+    UA_NodeId conditionTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_CONDITIONTYPE);
+    if(!isNodeInTree_singleRef(server, &conditionType, &conditionTypeId,
+                               UA_REFERENCETYPEINDEX_HASSUBTYPE)) {
+        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_USERLAND,
+                     "Condition Type must be a subtype of ConditionType!");
+        return UA_STATUSCODE_BADNOMATCH;
+    }
+
+    /* Create an ObjectNode which represents the condition */
+    UA_StatusCode retval;
+    UA_ObjectAttributes oAttr = UA_ObjectAttributes_default;
+    oAttr.displayName.locale = UA_STRING("en");
+    oAttr.displayName.text = conditionName.name;
+    retval = UA_Server_addNode_begin(server,
+                                     UA_NODECLASS_OBJECT,
+                                     conditionId,
+                                     UA_NODEID_NULL,
+                                     UA_NODEID_NULL,
+                                     conditionName,
+                                     conditionType,
+                                     (const UA_NodeAttributes *)&oAttr,
+                                     &UA_TYPES[UA_TYPES_OBJECTATTRIBUTES],
+                                     NULL,
+                                     outNodeId);
+    CONDITION_ASSERT_RETURN_RETVAL(retval, "Adding Condition failed", );
+    return UA_STATUSCODE_GOOD;
+}
+
+UA_StatusCode
+UA_Server_addCondition_finish(UA_Server *server,
+                              const UA_NodeId conditionId,
+                              const UA_NodeId conditionSource,
+                              const UA_NodeId hierarchialReferenceType) {
+
+    const UA_Node *node = UA_NODESTORE_GET(server, &conditionId);
+
+    if(!node)
+        return UA_STATUSCODE_BADNODEIDUNKNOWN;
+
+    const UA_Node *type = getNodeType(server, &node->head);
+    if(!type) {
+        UA_NODESTORE_RELEASE(server, node);
+        return UA_STATUSCODE_BADTYPEDEFINITIONINVALID;
+    }
+
+    UA_StatusCode retval;
+    retval = addCondition_finish(server, conditionId, type->head.nodeId, node->head.browseName,
+                                conditionSource, hierarchialReferenceType);
+
+    UA_NODESTORE_RELEASE(server, type);
+    UA_NODESTORE_RELEASE(server, node);
+
+    return retval;
 }
 
 #ifdef CONDITIONOPTIONALFIELDS_SUPPORT

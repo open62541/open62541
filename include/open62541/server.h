@@ -1579,6 +1579,57 @@ UA_Server_createCondition(UA_Server *server,
                           const UA_NodeId hierarchialReferenceType,
                           UA_NodeId *outConditionId);
 
+/**
+ * The method pair UA_Server_addCondition_begin and _finish splits the
+ * UA_Server_createCondtion in two parts similiar to the
+ * UA_Server_addNode_begin / _finish pair. This is useful if the node shall be
+ * modified before finish the instantiation. For example to add children with
+ * specific NodeIds.
+ * For details refer to the UA_Server_addNode_begin / _finish methods.
+ *
+ * Additionally to UA_Server_addNode_begin UA_Server_addCondition_begin checks
+ * if the passed condition type is a subtype of the OPC UA ConditionType.
+ *
+ * @param server The server object
+ * @param conditionId The NodeId of the requested Condition Object. When passing
+ *        UA_NODEID_NUMERIC(X,0) an unused nodeid in namespace X will be used.
+ *        E.g. passing UA_NODEID_NULL will result in a NodeId in namespace 0.
+ * @param conditionType The NodeId of the node representation of the ConditionType
+ * @param conditionName The name of the condition to be added
+ * @param outConditionId The NodeId of the added Condition
+ * @return The StatusCode of the UA_Server_addCondition_begin method */
+UA_StatusCode UA_EXPORT
+UA_Server_addCondition_begin(UA_Server *server,
+                             const UA_NodeId conditionId,
+                             const UA_NodeId conditionType,
+                             const UA_QualifiedName conditionName,
+                             UA_NodeId *outConditionId);
+
+/**
+ * Second call of the UA_Server_addCondition_begin and _finish pair.
+ *
+ * Additionally to UA_Server_addNode_finish UA_Server_addCondition_finish:
+ *  - checks whether the condition source has HasEventSource reference to its
+ *    parent. If not, a HasEventSource reference will be created between
+ *    condition source and server object
+ *  - exposes the condition in the address space if hierarchialReferenceType is
+ *    not UA_NODEID_NULL by adding a reference of this type from the condition
+ *    source to the condition instance
+ *  - initializes the standard condition fields and callbacks
+ *
+ * @param server The server object
+ * @param conditionId The NodeId of the unfinished Condition Object
+ * @param conditionSource The NodeId of the Condition Source (Parent of the Condition)
+ * @param hierarchialReferenceType The NodeId of Hierarchical ReferenceType
+ *                                 between Condition and its source
+ * @return The StatusCode of the UA_Server_addCondition_finish method */
+
+UA_StatusCode UA_EXPORT
+UA_Server_addCondition_finish(UA_Server *server,
+                              const UA_NodeId conditionId,
+                              const UA_NodeId conditionSource,
+                              const UA_NodeId hierarchialReferenceType);
+
 /* Set the value of condition field.
  *
  * @param server The server object

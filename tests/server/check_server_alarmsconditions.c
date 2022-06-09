@@ -42,7 +42,7 @@ START_TEST(createDelete) {
         ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
         ck_assert_msg(!UA_NodeId_isNull(&conditionInstance), "ConditionId is null");
 
-        UA_Server_deleteCondition(
+        retval = UA_Server_deleteCondition(
             server_ac,
             conditionInstance,
             UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER)
@@ -50,6 +50,75 @@ START_TEST(createDelete) {
         ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     }
 } END_TEST
+
+START_TEST(splitCreation) {
+
+    UA_UInt16 nsIdx = UA_Server_addNamespace(server_ac, "http://yourorganisation.org/test/");
+
+    UA_StatusCode retval;
+    const UA_NodeId requestedId = UA_NODEID_NUMERIC(nsIdx, 1000);
+    UA_NodeId actualId = UA_NODEID_NULL;
+
+    retval = UA_Server_addCondition_begin(
+        server_ac,
+        requestedId,
+        UA_NODEID_NUMERIC(0, UA_NS0ID_OFFNORMALALARMTYPE),
+        UA_QUALIFIEDNAME(0, "Condition split creation"),
+        &actualId);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_msg(UA_NodeId_equal(&requestedId, &actualId),
+                                  "Actual node Id differs from requested Id");
+
+    // explicit add member EnabledState
+    UA_VariableAttributes attr = UA_VariableAttributes_default;
+    attr.minimumSamplingInterval = 0.000000;
+    attr.userAccessLevel = 1;
+    attr.accessLevel = 1;
+    /* Value rank inherited */
+    attr.valueRank = -1;
+    attr.dataType = UA_NODEID_NUMERIC(0, UA_NS0ID_LOCALIZEDTEXT);
+    attr.displayName = UA_LOCALIZEDTEXT("", "EnabledState");
+
+    UA_NodeId var;
+    retval = UA_Server_addVariableNode(
+        server_ac,
+        UA_NODEID_NULL,
+        actualId,
+        UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
+        UA_QUALIFIEDNAME(0, "EnabledState"),
+        UA_NODEID_NUMERIC(0, UA_NS0ID_TWOSTATEVARIABLETYPE),
+        attr,
+        NULL,
+        &var);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    retval = UA_Server_addCondition_finish(
+        server_ac,
+        actualId,
+        UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER),
+        UA_NODEID_NULL);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    // Check if EnabledState is linked - correctly set to "Disabled"
+    UA_Variant enabledStateVariant;
+    UA_Variant_init(&enabledStateVariant);
+    retval = UA_Server_readValue(server_ac, var, &enabledStateVariant);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_msg(UA_Variant_hasScalarType(
+        &enabledStateVariant,
+        &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]),
+        "Unexpected Data Type of EnabledState");
+    const UA_LocalizedText* enabledState = (UA_LocalizedText*)enabledStateVariant.data;
+    ck_assert_str_eq((const char*)enabledState->text.data, "Disabled");
+
+    retval = UA_Server_deleteCondition(
+        server_ac,
+        actualId,
+        UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER));
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+}
+END_TEST
+
 #endif
 
 int main(void) {
@@ -58,6 +127,7 @@ int main(void) {
     TCase *tc_call = tcase_create("Alarms and Conditions");
 #ifdef UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS
     tcase_add_test(tc_call, createDelete);
+    tcase_add_test(tc_call, splitCreation);
 #endif
     tcase_add_checked_fixture(tc_call, setup, teardown);
 
