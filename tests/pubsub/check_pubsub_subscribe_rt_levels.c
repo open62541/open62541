@@ -30,8 +30,8 @@ static void ServerDoProcess(
     const UA_UInt32 sleep_ms,             /* use at least publishing interval */
     const UA_UInt32 noOfIterateCycles)
 {
+    UA_Server_run_iterate(server, true);
     for (UA_UInt32 i = 0; i < noOfIterateCycles; i++) {
-        UA_Server_run_iterate(server, true);
         UA_fakeSleep(sleep_ms);
         UA_Server_run_iterate(server, true);
     }

@@ -333,8 +333,8 @@ static void ServerDoProcess(
     ck_assert(pMessage != 0);
 
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "ServerDoProcess() sleep : %s", pMessage);
+    UA_Server_run_iterate(server, true);
     for (UA_UInt32 i = 0; i < NoOfRunIterateCycles; i++) {
-        UA_Server_run_iterate(server, true);
         UA_fakeSleep(Sleep_ms);
         UA_Server_run_iterate(server, true);
     }
