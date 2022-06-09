@@ -1620,6 +1620,10 @@ unionOrder(const void *p1, const void *p2, const UA_DataType *type) {
     if(sel1 != sel2)
         return (sel1 < sel2) ? UA_ORDER_LESS : UA_ORDER_MORE;
 
+    if(sel1 == 0) {
+        return UA_ORDER_EQ;
+    }
+
     const UA_DataTypeMember *m = &type->members[sel1-1];
     const UA_DataType *mt = m->memberType;
 
