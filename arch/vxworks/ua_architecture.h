@@ -21,6 +21,7 @@
 
 #include <hostLib.h>
 #include <selectLib.h>
+#include <poll.h>
 
 #define UA_sleep_ms(X)                            \
  {                                                \
@@ -62,7 +63,10 @@
 #define UA_WOULDBLOCK EWOULDBLOCK
 
 #define UA_ENABLE_LOG_COLORS
+#define UA_POLLIN POLLIN
+#define UA_POLLOUT POLLOUT
 
+#define UA_poll poll
 #define UA_getnameinfo(sa, salen, host, hostlen, serv, servlen, flags) \
     getnameinfo(sa, salen, host, hostlen, serv, servlen, flags)
 #define UA_send send
