@@ -3,7 +3,9 @@
     <Objective-C>
       <option name="KEEP_NESTED_NAMESPACES_IN_ONE_LINE" value="true" />
       <option name="FUNCTION_TOP_AFTER_RETURN_TYPE_WRAP" value="2" />
+      <option name="FUNCTION_PARAMETERS_WRAP" value="5" />
       <option name="LAMBDA_CAPTURE_LIST_ALIGN_MULTILINE" value="true" />
+      <option name="FUNCTION_CALL_ARGUMENTS_WRAP" value="5" />
       <option name="FUNCTION_CALL_ARGUMENTS_ALIGN_MULTILINE_PARS" value="true" />
       <option name="CLASS_CONSTRUCTOR_INIT_LIST_WRAP" value="0" />
       <option name="CLASS_CONSTRUCTOR_INIT_LIST_NEW_LINE_BEFORE_COLON" value="0" />
@@ -11,12 +13,12 @@
       <option name="SUPERCLASS_LIST_BEFORE_COLON" value="0" />
       <option name="SUPERCLASS_LIST_AFTER_COLON" value="2" />
     </Objective-C>
-    <Objective-C-extensions>
+    <files>
       <extensions>
         <pair source="cpp" header="h" fileNamingConvention="NONE" />
         <pair source="c" header="h" fileNamingConvention="NONE" />
       </extensions>
-    </Objective-C-extensions>
+    </files>
     <codeStyleSettings language="CMake">
       <option name="ALIGN_MULTILINE_PARAMETERS_IN_CALLS" value="true" />
       <option name="SPACE_BEFORE_IF_PARENTHESES" value="false" />
@@ -35,7 +37,7 @@
       <option name="SPACE_BEFORE_CATCH_PARENTHESES" value="false" />
       <option name="SPACE_BEFORE_SWITCH_PARENTHESES" value="false" />
       <option name="METHOD_CALL_CHAIN_WRAP" value="1" />
-      <option name="SOFT_MARGINS" value="80" />
+      <option name="SOFT_MARGINS" value="120" />
       <indentOptions>
         <option name="CONTINUATION_INDENT_SIZE" value="4" />
         <option name="LABEL_INDENT_ABSOLUTE" value="true" />

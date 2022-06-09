@@ -29,7 +29,7 @@ static void setup(void) {
 
     TestingPolicy(&dummyPolicy, UA_BYTESTRING_NULL, &funcsCalled, &keySizes);
     UA_SecureChannel_init(&testChannel, &UA_ConnectionConfig_default);
-    UA_SecureChannel_setSecurityPolicy(&testChannel, &dummyPolicy, &UA_BYTESTRING_NULL);
+    UA_SecureChannel_setEndpoint(&testChannel, &dummyPolicy);
 
     testingConnection = createDummyConnection(65535, NULL);
     UA_Connection_attachSecureChannel(&testingConnection, &testChannel);

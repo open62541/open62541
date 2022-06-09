@@ -145,7 +145,7 @@ typedef struct {
     UA_SecurityPolicy *securityPolicies;
 
     /* Certificate Verification Plugin */
-    UA_CertificateVerification certificateVerification;
+    UA_CertificateManager certificateManager;
 
     /* Callbacks for async connection handshakes */
     UA_ConnectClientConnection initConnectionFunc;

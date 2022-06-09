@@ -14,35 +14,21 @@
 _UA_BEGIN_DECLS
 
 UA_EXPORT UA_StatusCode
-UA_SecurityPolicy_None(UA_SecurityPolicy *policy,
-                       const UA_ByteString localCertificate,
-                       const UA_Logger *logger);
+UA_SecurityPolicy_None(UA_SecurityPolicy *policy, const UA_Logger *logger);
 
 #ifdef UA_ENABLE_ENCRYPTION
 
 UA_EXPORT UA_StatusCode
-UA_SecurityPolicy_Basic128Rsa15(UA_SecurityPolicy *policy,
-                                const UA_ByteString localCertificate,
-                                const UA_ByteString localPrivateKey,
-                                const UA_Logger *logger);
+UA_SecurityPolicy_Basic128Rsa15(UA_SecurityPolicy *policy, const UA_Logger *logger);
 
 UA_EXPORT UA_StatusCode
-UA_SecurityPolicy_Basic256(UA_SecurityPolicy *policy,
-                           const UA_ByteString localCertificate,
-                           const UA_ByteString localPrivateKey,
-                           const UA_Logger *logger);
+UA_SecurityPolicy_Basic256(UA_SecurityPolicy *policy, const UA_Logger *logger);
 
 UA_EXPORT UA_StatusCode
-UA_SecurityPolicy_Basic256Sha256(UA_SecurityPolicy *policy,
-                                 const UA_ByteString localCertificate,
-                                 const UA_ByteString localPrivateKey,
-                                 const UA_Logger *logger);
+UA_SecurityPolicy_Basic256Sha256(UA_SecurityPolicy *policy, const UA_Logger *logger);
 
 UA_EXPORT UA_StatusCode
-UA_SecurityPolicy_Aes128Sha256RsaOaep(UA_SecurityPolicy *policy,
-                                 const UA_ByteString localCertificate,
-                                 const UA_ByteString localPrivateKey,
-                                 const UA_Logger *logger);
+UA_SecurityPolicy_Aes128Sha256RsaOaep(UA_SecurityPolicy *policy, const UA_Logger *logger);
 
 #endif
 

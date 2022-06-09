@@ -175,30 +175,22 @@ Service_GetEndpoints(UA_Server *server, UA_Session *session,
                      UA_GetEndpointsResponse *response) {
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
 
-    /* If the client expects to see a specific endpointurl, mirror it back. If
-     * not, clone the endpoints with the discovery url of all networklayers. */
-    const UA_String *endpointUrl = &request->endpointUrl;
-    if(endpointUrl->length > 0) {
-        UA_LOG_DEBUG_SESSION(&server->config.logger, session,
-                             "Processing GetEndpointsRequest with endpointUrl "
-                             UA_PRINTF_STRING_FORMAT, UA_PRINTF_STRING_DATA(*endpointUrl));
-    } else {
-        UA_LOG_DEBUG_SESSION(&server->config.logger, session,
-                             "Processing GetEndpointsRequest with an empty endpointUrl");
+    // Duplicate Endpoints for each enabled security mode
+    size_t endpointDescriptionsSize = 0;
+    for(size_t i = 0; i < server->config.endpointsSize; ++i) {
+        if(server->config.endpoints[i].allowNone) {
+            endpointDescriptionsSize++;
+        }
+        if(server->config.endpoints[i].allowSign) {
+            endpointDescriptionsSize++;
+        }
+        if(server->config.endpoints[i].allowSignAndEncrypt) {
+            endpointDescriptionsSize++;
+        }
     }
 
-    /* Clone the endpoint for each networklayer? */
-    size_t clone_times = 1;
-    UA_Boolean use_discovery = false;
-    if(endpointUrl->length == 0) {
-        clone_times = server->config.applicationDescription.discoveryUrlsSize;
-        use_discovery = true;
-    }
-
-    /* Allocate enough memory */
-    response->endpoints = (UA_EndpointDescription*)
-        UA_Array_new(server->config.endpointsSize * clone_times,
-                     &UA_TYPES[UA_TYPES_ENDPOINTDESCRIPTION]);
+    response->endpoints =
+        (UA_EndpointDescription *)UA_Array_new(endpointDescriptionsSize, &UA_TYPES[UA_TYPES_ENDPOINTDESCRIPTION]);
     if(!response->endpoints) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
         return;
@@ -206,47 +198,50 @@ Service_GetEndpoints(UA_Server *server, UA_Session *session,
 
     size_t pos = 0;
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
-    for(size_t j = 0; j < server->config.endpointsSize; ++j) {
-        /* Test if the supported binary profile shall be returned */
-        UA_Boolean usable = (request->profileUrisSize == 0);
-        if(!usable) {
-            for(size_t i = 0; i < request->profileUrisSize; ++i) {
-                if(!UA_String_equal(&request->profileUris[i],
-                                    &server->config.endpoints[j].transportProfileUri))
-                    continue;
-                usable = true;
+    for(size_t i = 0; i < server->config.endpointsSize && pos < endpointDescriptionsSize; ++i) {
+        UA_Endpoint *endpoint = &server->config.endpoints[i];
+        UA_EndpointDescription endpointDescriptionNone;
+        UA_EndpointDescription_init(&endpointDescriptionNone);
+        UA_Endpoint_toEndpointDescription(endpoint,
+                                          &endpointDescriptionNone,
+                                          UA_MESSAGESECURITYMODE_NONE);
+
+        // Always match if no profile uris supplied.
+        // Otherwise, only match if at least one uri is contained in the description
+        UA_Boolean matchingProfileUri = true;
+        for(size_t j = 0; j < request->profileUrisSize; ++j) {
+            if(UA_String_equal(&request->profileUris[j],
+                               &endpointDescriptionNone.transportProfileUri)) {
+                matchingProfileUri = true;
                 break;
             }
+            matchingProfileUri = false;
         }
-        if(!usable)
+        if(!matchingProfileUri)
             continue;
 
-        /* Copy into the results */
-        for(size_t i = 0; i < clone_times; ++i) {
-            retval |= UA_EndpointDescription_copy(&server->config.endpoints[j],
-                                                  &response->endpoints[pos]);
-            UA_String_clear(&response->endpoints[pos].endpointUrl);
-            if(use_discovery) {
-                retval |=
-                    UA_String_copy(&server->config.applicationDescription.discoveryUrls[i],
-                                   &response->endpoints[pos].endpointUrl);
-            } else {
-                /* Mirror back the requested EndpointUrl and also add it to the
-                 * array of discovery urls */
-                retval |= UA_String_copy(endpointUrl, &response->endpoints[pos].endpointUrl);
-                retval |=
-                    UA_Array_appendCopy((void**)&response->endpoints[pos].server.discoveryUrls,
-                                        &response->endpoints[pos].server.discoveryUrlsSize,
-                                        endpointUrl, &UA_TYPES[UA_TYPES_STRING]);
-            }
-            if(retval != UA_STATUSCODE_GOOD)
-                goto error;
-            pos++;
+        if(endpoint->allowSign) {
+            retval |= UA_Endpoint_toEndpointDescription(endpoint,
+                                                  &response->endpoints[pos++],
+                                                  UA_MESSAGESECURITYMODE_SIGN);
+        }
+        if(endpoint->allowSignAndEncrypt) {
+            retval |= UA_Endpoint_toEndpointDescription(endpoint,
+                                                  &response->endpoints[pos++],
+                                                  UA_MESSAGESECURITYMODE_SIGNANDENCRYPT);
+        }
+        if(endpoint->allowNone) {
+            response->endpoints[pos++] = endpointDescriptionNone;
+        } else {
+            UA_EndpointDescription_clear(&endpointDescriptionNone);
+        }
+        if(retval != UA_STATUSCODE_GOOD) {
+            goto error;
         }
     }
 
-    UA_assert(pos <= server->config.endpointsSize * clone_times);
-    response->endpointsSize = pos;
+    UA_assert(pos == endpointDescriptionsSize);
+    response->endpointsSize = endpointDescriptionsSize;
     return;
 
 error:

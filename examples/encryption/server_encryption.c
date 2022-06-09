@@ -77,23 +77,11 @@ int main(int argc, char* argv[]) {
     for(size_t i = 0; i < trustListSize; i++)
         trustList[i] = loadFile(argv[i+3]);
 
-    /* Loading of an issuer list, not used in this application */
-    size_t issuerListSize = 0;
-    UA_ByteString *issuerList = NULL;
-
-    /* Loading of a revocation list currently unsupported */
-    UA_ByteString *revocationList = NULL;
-    size_t revocationListSize = 0;
-
     UA_Server *server = UA_Server_new();
     UA_ServerConfig *config = UA_Server_getConfig(server);
 
     UA_StatusCode retval =
-        UA_ServerConfig_setDefaultWithSecurityPolicies(config, 4840,
-                                                       &certificate, &privateKey,
-                                                       trustList, trustListSize,
-                                                       issuerList, issuerListSize,
-                                                       revocationList, revocationListSize);
+        UA_ServerConfig_setDefaultWithSecurityPolicies(config, 4840, NULL);
 
     #ifdef UA_ENABLE_WEBSOCKET_SERVER
     UA_ServerConfig_addNetworkLayerWS(UA_Server_getConfig(server), 7681, 0, 0, &certificate, &privateKey);

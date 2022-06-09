@@ -470,41 +470,42 @@ UA_Server_updateCertificate(UA_Server *server,
     UA_CHECK(server && oldCertificate && newCertificate && newPrivateKey,
              return UA_STATUSCODE_BADINTERNALERROR);
 
-    if(closeSessions) {
-        session_list_entry *current;
-        LIST_FOREACH(current, &server->sessions, pointers) {
-            if(UA_ByteString_equal(oldCertificate,
-                                    &current->session.header.channel->securityPolicy->localCertificate)) {
-                UA_LOCK(&server->serviceMutex);
-                UA_Server_removeSessionByToken(server, &current->session.header.authenticationToken,
-                                               UA_DIAGNOSTICEVENT_CLOSE);
-                UA_UNLOCK(&server->serviceMutex);
-            }
-        }
+    // TODO: Do we need to close sessions and securechannels on certificate update?
+//    if(closeSessions) {
+//        session_list_entry *current;
+//        LIST_FOREACH(current, &server->sessions, pointers) {
+//            if(UA_ByteString_equal(oldCertificate,
+//                                    &current->session.header.channel->securityPolicy->localCertificate)) {
+//                UA_LOCK(&server->serviceMutex);
+//                UA_Server_removeSessionByToken(server, &current->session.header.authenticationToken,
+//                                               UA_DIAGNOSTICEVENT_CLOSE);
+//                UA_UNLOCK(&server->serviceMutex);
+//            }
+//        }
+//
+//    }
+//
+//    if(closeSecureChannels) {
+//        channel_entry *entry;
+//        TAILQ_FOREACH(entry, &server->channels, pointers) {
+//            if(UA_ByteString_equal(&entry->channel.securityPolicy->localCertificate, oldCertificate))
+//                UA_Server_closeSecureChannel(server, &entry->channel, UA_DIAGNOSTICEVENT_CLOSE);
+//        }
+//    }
 
-    }
-
-    if(closeSecureChannels) {
-        channel_entry *entry;
-        TAILQ_FOREACH(entry, &server->channels, pointers) {
-            if(UA_ByteString_equal(&entry->channel.securityPolicy->localCertificate, oldCertificate))
-                UA_Server_closeSecureChannel(server, &entry->channel, UA_DIAGNOSTICEVENT_CLOSE);
-        }
-    }
-
-    size_t i = 0;
-    while(i < server->config.endpointsSize) {
-        UA_EndpointDescription *ed = &server->config.endpoints[i];
-        if(UA_ByteString_equal(&ed->serverCertificate, oldCertificate)) {
-            UA_String_clear(&ed->serverCertificate);
-            UA_String_copy(newCertificate, &ed->serverCertificate);
-            UA_SecurityPolicy *sp = getSecurityPolicyByUri(server,
-                            &server->config.endpoints[i].securityPolicyUri);
-            UA_CHECK_MEM(sp, return UA_STATUSCODE_BADINTERNALERROR);
-            sp->updateCertificateAndPrivateKey(sp, *newCertificate, *newPrivateKey);
-        }
-        i++;
-    }
+//    size_t i = 0;
+//    while(i < server->config.endpointsSize) {
+//        UA_EndpointDescription *ed = &server->config.endpoints[i];
+//        if(UA_ByteString_equal(&ed->serverCertificate, oldCertificate)) {
+//            UA_String_clear(&ed->serverCertificate);
+//            UA_String_copy(newCertificate, &ed->serverCertificate);
+//            UA_SecurityPolicy *sp = getSecurityPolicyByUri(server,
+//                            &server->config.endpoints[i].securityPolicyUri);
+//            UA_CHECK_MEM(sp, return UA_STATUSCODE_BADINTERNALERROR);
+//            sp->updateCertificateAndPrivateKey(sp, *newCertificate, *newPrivateKey);
+//        }
+//        i++;
+//    }
 
     return UA_STATUSCODE_GOOD;
 }
@@ -526,28 +527,31 @@ getSecurityPolicyByUri(const UA_Server *server, const UA_ByteString *securityPol
 #ifdef UA_ENABLE_ENCRYPTION
 /* The local ApplicationURI has to match the certificates of the
  * SecurityPolicies */
-static UA_StatusCode
-verifyServerApplicationURI(const UA_Server *server) {
-    const UA_String securityPolicyNoneUri = UA_STRING("http://opcfoundation.org/UA/SecurityPolicy#None");
-    for(size_t i = 0; i < server->config.securityPoliciesSize; i++) {
-        UA_SecurityPolicy *sp = &server->config.securityPolicies[i];
-        if(UA_String_equal(&sp->policyUri, &securityPolicyNoneUri) && (sp->localCertificate.length == 0))
-            continue;
-        UA_StatusCode retval = server->config.certificateVerification.
-            verifyApplicationURI(server->config.certificateVerification.context,
-                                 &sp->localCertificate,
-                                 &server->config.applicationDescription.applicationUri);
-
-        UA_CHECK_STATUS_ERROR(retval, return retval, &server->config.logger, UA_LOGCATEGORY_SERVER,
-                       "The configured ApplicationURI \"%.*s\"does not match the "
-                       "ApplicationURI specified in the certificate for the "
-                       "SecurityPolicy %.*s",
-                       (int)server->config.applicationDescription.applicationUri.length,
-                       server->config.applicationDescription.applicationUri.data,
-                       (int)sp->policyUri.length, sp->policyUri.data);
-    }
-    return UA_STATUSCODE_GOOD;
-}
+// TODO: Move this check to certificate plugin. The plugin should verify the provided pki contents anyways and maybe
+// TODO: give some information on the number of trusted certs and so on. this check should be performed on startup
+// TODO: The check should also be configured by default to fail the startup if any sanity checks fail.
+//static UA_StatusCode
+//verifyServerApplicationURI(const UA_Server *server) {
+//    const UA_String securityPolicyNoneUri = UA_STRING("http://opcfoundation.org/UA/SecurityPolicy#None");
+//    for(size_t i = 0; i < server->config.securityPoliciesSize; i++) {
+//        UA_SecurityPolicy *sp = &server->config.securityPolicies[i];
+//        if(UA_String_equal(&sp->policyUri, &securityPolicyNoneUri) && (sp->localCertificate.length == 0))
+//            continue;
+//        UA_StatusCode retval = server->config.certificateManager.
+//            verifyApplicationURI(server->config.certificateManager.context,
+//                                 &sp->localCertificate,
+//                                 &server->config.applicationDescription.applicationUri);
+//
+//        UA_CHECK_STATUS_ERROR(retval, return retval, &server->config.logger, UA_LOGCATEGORY_SERVER,
+//                       "The configured ApplicationURI \"%.*s\"does not match the "
+//                       "ApplicationURI specified in the certificate for the "
+//                       "SecurityPolicy %.*s",
+//                       (int)server->config.applicationDescription.applicationUri.length,
+//                       server->config.applicationDescription.applicationUri.data,
+//                       (int)sp->policyUri.length, sp->policyUri.data);
+//    }
+//    return UA_STATUSCODE_GOOD;
+//}
 #endif
 
 UA_ServerStatistics
@@ -788,8 +792,9 @@ UA_Server_run_startup(UA_Server *server) {
 
     /* Does the ApplicationURI match the local certificates? */
 #ifdef UA_ENABLE_ENCRYPTION
-    retVal = verifyServerApplicationURI(server);
-    UA_CHECK_STATUS(retVal, return retVal);
+    // TODO: Move this to certificate plugin
+//    retVal = verifyServerApplicationURI(server);
+//    UA_CHECK_STATUS(retVal, return retVal);
 #endif
 
     /* Sample the start time and set it to the Server object */
@@ -825,11 +830,8 @@ UA_Server_run_startup(UA_Server *server) {
         startMulticastDiscoveryServer(server);
 #endif
 
-    /* Update Endpoint description */
     for(size_t i = 0; i < server->config.endpointsSize; ++i) {
-        UA_ApplicationDescription_clear(&server->config.endpoints[i].server);
-        UA_ApplicationDescription_copy(&server->config.applicationDescription,
-                                       &server->config.endpoints[i].server);
+        UA_Endpoint_updateApplicationDescription(&server->config.endpoints[i], &server->config.applicationDescription);
     }
 
     server->state = UA_SERVERLIFECYCLE_FRESH;

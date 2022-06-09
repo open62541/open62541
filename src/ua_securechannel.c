@@ -43,34 +43,34 @@ void UA_SecureChannel_init(UA_SecureChannel *channel,
 }
 
 UA_StatusCode
-UA_SecureChannel_setSecurityPolicy(UA_SecureChannel *channel,
-                                   const UA_SecurityPolicy *securityPolicy,
-                                   const UA_ByteString *remoteCertificate) {
+UA_SecureChannel_setEndpoint(UA_SecureChannel *channel, const UA_Endpoint *endpoint) {
     /* Is a policy already configured? */
-    UA_CHECK_ERROR(!channel->securityPolicy, return UA_STATUSCODE_BADINTERNALERROR,
-                   securityPolicy->logger, UA_LOGCATEGORY_SECURITYPOLICY,
-                   "Security policy already configured");
+    UA_CHECK_ERROR(!channel->endpoint, return UA_STATUSCODE_BADINTERNALERROR,
+                   endpoint->securityPolicy->logger, UA_LOGCATEGORY_SECURITYPOLICY,
+                   "Endpoint and security policy already configured for securechannel");
 
     /* Create the context */
-    UA_StatusCode res = securityPolicy->channelModule.
-        newContext(securityPolicy, remoteCertificate, &channel->channelContext);
-    res |= UA_ByteString_copy(remoteCertificate, &channel->remoteCertificate);
-    UA_CHECK_STATUS_WARN(res, return res, securityPolicy->logger,
+    UA_StatusCode res =
+        endpoint->securityPolicy->channelModule.newContext(endpoint->securityPolicy,
+                                                           endpoint->pkiStore,
+                                                           &channel->remoteCertificate,
+                                                           &channel->channelContext);
+    UA_CHECK_STATUS_WARN(res, return res, endpoint->securityPolicy->logger,
                          UA_LOGCATEGORY_SECURITYPOLICY,
                          "Could not set up the SecureChannel context");
 
     /* Compute the certificate thumbprint */
     UA_ByteString remoteCertificateThumbprint =
         {20, channel->remoteCertificateThumbprint};
-    res = securityPolicy->asymmetricModule.
-        makeCertificateThumbprint(securityPolicy, &channel->remoteCertificate,
+    res = endpoint->securityPolicy->asymmetricModule.
+        makeCertificateThumbprint(endpoint->securityPolicy, &channel->remoteCertificate,
                                   &remoteCertificateThumbprint);
-    UA_CHECK_STATUS_WARN(res, return res, securityPolicy->logger,
+    UA_CHECK_STATUS_WARN(res, return res, endpoint->securityPolicy->logger,
                          UA_LOGCATEGORY_SECURITYPOLICY,
                          "Could not create the certificate thumbprint");
 
     /* Set the policy */
-    channel->securityPolicy = securityPolicy;
+    channel->endpoint = endpoint;
     return UA_STATUSCODE_GOOD;
 }
 
@@ -118,10 +118,16 @@ UA_SecureChannel_close(UA_SecureChannel *channel) {
     }
 
     /* Delete the channel context for the security policy */
-    if(channel->securityPolicy) {
-        channel->securityPolicy->channelModule.deleteContext(channel->channelContext);
-        channel->securityPolicy = NULL;
+    if(channel->endpoint && channel->endpoint->securityPolicy) {
+        channel->endpoint->securityPolicy->channelModule.deleteContext(channel->channelContext);
+        channel->endpoint = NULL;
         channel->channelContext = NULL;
+    }
+
+    if(channel->endpointCandidates != NULL) {
+        UA_free(channel->endpointCandidates);
+        channel->endpointCandidates = NULL;
+        channel->endpointCandidatesSize = 0;
     }
 
     /* Delete members */
@@ -171,7 +177,7 @@ UA_SecureChannel_sendAsymmetricOPNMessage(UA_SecureChannel *channel,
     UA_CHECK(channel->securityMode != UA_MESSAGESECURITYMODE_INVALID,
              return UA_STATUSCODE_BADSECURITYMODEREJECTED);
 
-    const UA_SecurityPolicy *sp = channel->securityPolicy;
+    const UA_SecurityPolicy *sp = channel->endpoint->securityPolicy;
     UA_Connection *conn = channel->connection;
     UA_CHECK_MEM(sp, return UA_STATUSCODE_BADINTERNALERROR);
     UA_CHECK_MEM(conn, return UA_STATUSCODE_BADINTERNALERROR);
@@ -199,7 +205,7 @@ UA_SecureChannel_sendAsymmetricOPNMessage(UA_SecureChannel *channel,
      * since we are using asymmetric communication to exchange keys and thus
      * need to encrypt. */
     if(channel->securityMode != UA_MESSAGESECURITYMODE_NONE)
-        padChunk(channel, &channel->securityPolicy->asymmetricModule.cryptoModule,
+        padChunk(channel, &channel->endpoint->securityPolicy->asymmetricModule.cryptoModule,
                  &buf.data[UA_SECURECHANNEL_CHANNELHEADER_LENGTH + securityHeaderLength],
                  &buf_pos);
 #endif
@@ -284,7 +290,7 @@ encodeHeadersSym(UA_MessageContext *mc, size_t totalLength) {
 static UA_StatusCode
 sendSymmetricChunk(UA_MessageContext *mc) {
     UA_SecureChannel *channel = mc->channel;
-    const UA_SecurityPolicy *sp = channel->securityPolicy;
+    const UA_SecurityPolicy *sp = channel->endpoint->securityPolicy;
     UA_Connection *connection = channel->connection;
     UA_CHECK_MEM(connection, return UA_STATUSCODE_BADINTERNALERROR);
 
@@ -507,20 +513,23 @@ unpackPayloadOPN(UA_SecureChannel *channel, UA_Chunk *chunk, void *application) 
     UA_CHECK_STATUS(res, return res);
 
     if(asymHeader.senderCertificate.length > 0) {
-        if(channel->certificateVerification)
-            res = channel->certificateVerification->
-                verifyCertificate(channel->certificateVerification->context,
-                                  &asymHeader.senderCertificate);
-        else
-            res = UA_STATUSCODE_BADINTERNALERROR;
+        res = UA_STATUSCODE_BADINTERNALERROR;
+        if(channel->certificateVerification) {
+            res = channel->certificateVerification->verifyCertificate(channel->certificateVerification,
+                                                                      channel->endpoint->pkiStore,
+                                                                      &asymHeader.senderCertificate);
+        }
+        if(!UA_StatusCode_isGood(res)) {
+            channel->endpoint->pkiStore->appendRejectedList(channel->endpoint->pkiStore, &asymHeader.senderCertificate);
+        }
         UA_CHECK_STATUS(res, goto error);
     }
 
     /* New channel, create a security policy context and attach */
-    if(!channel->securityPolicy) {
+    if(!channel->endpoint) {
         if(channel->processOPNHeader)
             res = channel->processOPNHeader(application, channel, &asymHeader);
-        if(!channel->securityPolicy)
+        if(!channel->endpoint)
             res = UA_STATUSCODE_BADINTERNALERROR;
         UA_CHECK_STATUS(res, goto error);
     }
@@ -538,13 +547,11 @@ unpackPayloadOPN(UA_SecureChannel *channel, UA_Chunk *chunk, void *application) 
 #endif
 
     /* Check the header */
-    res = checkAsymHeader(channel, &asymHeader);
     UA_AsymmetricAlgorithmSecurityHeader_clear(&asymHeader);
-    UA_CHECK_STATUS(res, return res);
 
     /* Decrypt the chunk payload */
     res = decryptAndVerifyChunk(channel,
-                                &channel->securityPolicy->asymmetricModule.cryptoModule,
+                                &channel->endpoint->securityPolicy->asymmetricModule.cryptoModule,
                                 chunk->messageType, &chunk->bytes, offset);
     UA_CHECK_STATUS(res, return res);
 
@@ -570,7 +577,8 @@ error:
 
 static UA_StatusCode
 unpackPayloadMSG(UA_SecureChannel *channel, UA_Chunk *chunk) {
-    UA_CHECK_MEM(channel->securityPolicy, return UA_STATUSCODE_BADINTERNALERROR);
+    UA_CHECK_MEM(channel->endpoint, return UA_STATUSCODE_BADINTERNALERROR);
+    UA_CHECK_MEM(channel->endpoint->securityPolicy, return UA_STATUSCODE_BADINTERNALERROR);
 
     UA_assert(chunk->bytes.length >= UA_SECURECHANNEL_MESSAGE_MIN_LENGTH);
     size_t offset = UA_SECURECHANNEL_MESSAGEHEADER_LENGTH; /* Skip the message header */
@@ -594,7 +602,7 @@ unpackPayloadMSG(UA_SecureChannel *channel, UA_Chunk *chunk) {
 
     /* Decrypt the chunk payload */
     res = decryptAndVerifyChunk(channel,
-                                &channel->securityPolicy->symmetricModule.cryptoModule,
+                                &channel->endpoint->securityPolicy->symmetricModule.cryptoModule,
                                 chunk->messageType, &chunk->bytes, offset);
     UA_CHECK_STATUS(res, return res);
 

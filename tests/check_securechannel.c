@@ -42,7 +42,7 @@ static void
 setup_secureChannel(void) {
     TestingPolicy(&dummyPolicy, dummyCertificate, &fCalled, &keySizes);
     UA_SecureChannel_init(&testChannel, &UA_ConnectionConfig_default);
-    UA_SecureChannel_setSecurityPolicy(&testChannel, &dummyPolicy, &dummyCertificate);
+    UA_SecureChannel_setEndpoint(&testChannel, &dummyPolicy);
 
     testingConnection =
         createDummyConnection(UA_ConnectionConfig_default.sendBufferSize, &sentData);
@@ -98,7 +98,7 @@ START_TEST(SecureChannel_initAndDelete) {
 
     UA_SecureChannel channel;
     UA_SecureChannel_init(&channel, &UA_ConnectionConfig_default);
-    retval = UA_SecureChannel_setSecurityPolicy(&channel, &dummyPolicy, &dummyCertificate);
+    retval = UA_SecureChannel_setEndpoint(&channel, &dummyPolicy);
 
     ck_assert_msg(retval == UA_STATUSCODE_GOOD, "Expected StatusCode to be good");
     ck_assert_msg(channel.state == UA_SECURECHANNELSTATE_FRESH, "Expected state to be new/fresh");

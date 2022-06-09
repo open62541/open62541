@@ -185,7 +185,7 @@ UA_Server_createSecureChannel(UA_Server *server, UA_Connection *connection) {
 
     /* Channel state is closed (0) */
     UA_SecureChannel_init(&entry->channel, &connConfig);
-    entry->channel.certificateVerification = &config->certificateVerification;
+    entry->channel.certificateVerification = &config->certificateManager;
     entry->channel.processOPNHeader = UA_Server_configSecureChannel;
 
     TAILQ_INSERT_TAIL(&server->channels, entry, pointers);
@@ -198,36 +198,43 @@ UA_Server_createSecureChannel(UA_Server *server, UA_Connection *connection) {
 UA_StatusCode
 UA_Server_configSecureChannel(void *application, UA_SecureChannel *channel,
                               const UA_AsymmetricAlgorithmSecurityHeader *asymHeader) {
+    UA_StatusCode retval = UA_ByteString_copy(&asymHeader->senderCertificate, &channel->remoteCertificate);
+    if(retval != UA_STATUSCODE_GOOD) {
+        return retval;
+    }
     /* Iterate over available endpoints and choose the correct one */
-    UA_SecurityPolicy *securityPolicy = NULL;
-    UA_Server *const server = (UA_Server *const) application;
-    for(size_t i = 0; i < server->config.securityPoliciesSize; ++i) {
-        UA_SecurityPolicy *policy = &server->config.securityPolicies[i];
-        if(!UA_ByteString_equal(&asymHeader->securityPolicyUri, &policy->policyUri))
+    const UA_Endpoint *endpoint = NULL;
+    UA_Server *const server = (UA_Server *const)application;
+    for(size_t i = 0; i < channel->endpointCandidatesSize; ++i) {
+        const UA_Endpoint *endpointCandidate = channel->endpointCandidates[i];
+        if(!UA_ByteString_equal(&asymHeader->securityPolicyUri, &endpointCandidate->securityPolicy->policyUri))
             continue;
 
-        UA_StatusCode retval = policy->asymmetricModule.
-            compareCertificateThumbprint(policy, &asymHeader->receiverCertificateThumbprint);
+        retval = endpointCandidate->securityPolicy->asymmetricModule.
+            compareCertificateThumbprint(endpointCandidate->securityPolicy,
+                                         endpointCandidate->pkiStore,
+                                         &asymHeader->receiverCertificateThumbprint);
         if(retval != UA_STATUSCODE_GOOD)
             continue;
 
-        /* We found the correct policy (except for security mode). The endpoint
-         * needs to be selected by the client / server to match the security
-         * mode in the endpoint for the session. */
-        securityPolicy = policy;
+        endpoint = endpointCandidate;
         break;
     }
 
-    if(!securityPolicy)
+    if(endpoint == NULL)
         return UA_STATUSCODE_BADSECURITYPOLICYREJECTED;
 
     /* Create the channel context and parse the sender (remote) certificate used for the
      * secureChannel. */
-    UA_StatusCode retval =
-        UA_SecureChannel_setSecurityPolicy(channel, securityPolicy,
-                                           &asymHeader->senderCertificate);
+    retval = UA_SecureChannel_setEndpoint(channel, endpoint);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
+
+    if(channel->endpointCandidates != NULL) {
+        UA_free(channel->endpointCandidates);
+        channel->endpointCandidates = NULL;
+        channel->endpointCandidatesSize = 0;
+    }
 
     channel->securityToken.tokenId = server->lastTokenId++;
     return UA_STATUSCODE_GOOD;
@@ -244,7 +251,21 @@ UA_SecureChannelManager_open(UA_Server *server, UA_SecureChannel *channel,
     }
 
     if(request->securityMode != UA_MESSAGESECURITYMODE_NONE &&
-       UA_ByteString_equal(&channel->securityPolicy->policyUri, &UA_SECURITY_POLICY_NONE_URI)) {
+       UA_ByteString_equal(&channel->endpoint->securityPolicy->policyUri, &UA_SECURITY_POLICY_NONE_URI)) {
+        return UA_STATUSCODE_BADSECURITYMODEREJECTED;
+    }
+
+    switch(request->securityMode) {
+    case UA_MESSAGESECURITYMODE_NONE:
+        if(!channel->endpoint->allowNone) return UA_STATUSCODE_BADSECURITYMODEREJECTED;
+        break;
+    case UA_MESSAGESECURITYMODE_SIGN:
+        if(!channel->endpoint->allowNone) return UA_STATUSCODE_BADSECURITYMODEREJECTED;
+        break;
+    case UA_MESSAGESECURITYMODE_SIGNANDENCRYPT:
+        if(!channel->endpoint->allowSignAndEncrypt) return UA_STATUSCODE_BADSECURITYMODEREJECTED;
+        break;
+    default:
         return UA_STATUSCODE_BADSECURITYMODEREJECTED;
     }
 
@@ -383,8 +404,8 @@ Service_OpenSecureChannel(UA_Server *server, UA_SecureChannel *channel,
         UA_LOG_INFO_CHANNEL(&server->config.logger, channel,
                             "SecureChannel opened with SecurityPolicy %.*s "
                             "and a revised lifetime of %.2fs",
-                            (int)channel->securityPolicy->policyUri.length,
-                            channel->securityPolicy->policyUri.data, lifetime);
+                            (int)channel->endpoint->securityPolicy->policyUri.length,
+                            channel->endpoint->securityPolicy->policyUri.data, lifetime);
     } else {
         UA_LOG_INFO_CHANNEL(&server->config.logger, channel,
                             "Opening a SecureChannel failed");

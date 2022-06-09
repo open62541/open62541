@@ -1247,15 +1247,13 @@ int main(int argc, char **argv) {
         goto cleanup;
 #else /* On Linux we can monitor the certs folder and reload when changes are made */
     UA_StatusCode res =
-        UA_ServerConfig_setDefaultWithSecurityPolicies(&config, 4840,
-                                                       &certificate, &privateKey,
-                                                       NULL, 0, NULL, 0, NULL, 0);
+        UA_ServerConfig_setDefaultWithSecurityPolicies(&config, 4840, NULL);
     if(res != UA_STATUSCODE_GOOD)
         goto cleanup;
-    config.certificateVerification.clear(&config.certificateVerification);
-    res = UA_CertificateVerification_CertFolders(&config.certificateVerification,
-                                                 trustlistFolder, issuerlistFolder,
-                                                 revocationlistFolder);
+    config.certificateManager.clear(&config.certificateManager);
+    res = UA_CertificateManager_CertFolders(&config.certificateManager,
+                                            trustlistFolder, issuerlistFolder,
+                                            revocationlistFolder);
     if(res != UA_STATUSCODE_GOOD)
         goto cleanup;
 #endif /* __linux__ */

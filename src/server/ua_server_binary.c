@@ -49,7 +49,7 @@ sendServiceFault(UA_SecureChannel *channel, UA_UInt32 requestId,
     responseHeader->timestamp = UA_DateTime_now();
     responseHeader->serviceResult = statusCode;
 
-    UA_LOG_DEBUG(channel->securityPolicy->logger, UA_LOGCATEGORY_SERVER,
+    UA_LOG_DEBUG(channel->endpoint->securityPolicy->logger, UA_LOGCATEGORY_SERVER,
                  "Sending response for RequestId %u with ServiceResult %s",
                  (unsigned)requestId, UA_StatusCode_name(statusCode));
 
@@ -323,7 +323,7 @@ getServicePointers(UA_UInt32 requestTypeId, const UA_DataType **requestType,
 static UA_StatusCode
 processHEL(UA_Server *server, UA_SecureChannel *channel, const UA_ByteString *msg) {
     if(channel->state != UA_SECURECHANNELSTATE_FRESH)
-        return UA_STATUSCODE_BADINTERNALERROR;
+        return UA_STATUSCODE_BADINVALIDSTATE;
     size_t offset = 0; /* Go to the beginning of the TcpHelloMessage */
     UA_TcpHelloMessage helloMessage;
     UA_StatusCode retval =
@@ -332,7 +332,22 @@ processHEL(UA_Server *server, UA_SecureChannel *channel, const UA_ByteString *ms
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
-    /* Currently not checked */
+    if(channel->endpointCandidatesSize > 0 || channel->endpointCandidates != NULL) {
+        return UA_STATUSCODE_BADINVALIDSTATE;
+    }
+    channel->endpointCandidates = UA_malloc(sizeof(UA_Endpoint*) * server->config.endpointsSize);
+    if(channel->endpointCandidates == NULL) {
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    }
+    for(size_t i = 0; i < server->config.endpointsSize; ++i) {
+        UA_Endpoint *endpoint = &server->config.endpoints[i];
+        if(UA_String_equal(&helloMessage.endpointUrl, &endpoint->endpointUrl)) {
+            channel->endpointCandidates[channel->endpointCandidatesSize++] = endpoint;
+        }
+    }
+    if(channel->endpointCandidatesSize == 0) {
+        return UA_STATUSCODE_BADTCPENDPOINTURLINVALID;
+    }
     UA_String_clear(&helloMessage.endpointUrl);
 
     /* Parameterize the connection. The TcpHelloMessage casts to a
@@ -565,7 +580,7 @@ processMSGDecoded(UA_Server *server, UA_SecureChannel *channel, UA_UInt32 reques
 
     /* If it is an unencrypted (#None) channel, only allow the discovery services */
     if(server->config.securityPolicyNoneDiscoveryOnly &&
-       UA_String_equal(&channel->securityPolicy->policyUri, &securityPolicyNone ) &&
+       UA_String_equal(&channel->endpoint->securityPolicy->policyUri, &securityPolicyNone ) &&
        requestType != &UA_TYPES[UA_TYPES_GETENDPOINTSREQUEST] &&
        requestType != &UA_TYPES[UA_TYPES_FINDSERVERSREQUEST]
 #if defined(UA_ENABLE_DISCOVERY) && defined(UA_ENABLE_DISCOVERY_MULTICAST)
