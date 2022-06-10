@@ -732,6 +732,9 @@ START_TEST(Client_subscription_keepAlive) {
     UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
+    /* For the keepalive tests disable automatically sending publish requests */
+    UA_Client_getConfig(client)->outStandingPublishRequests = 0;
+
     UA_CreateSubscriptionRequest request = UA_CreateSubscriptionRequest_default();
     request.requestedMaxKeepAliveCount = 1;
     UA_CreateSubscriptionResponse response = UA_Client_Subscriptions_create(client, request,
@@ -795,6 +798,9 @@ START_TEST(Client_subscription_priority) {
     UA_ClientConfig_setDefault(UA_Client_getConfig(client));
     UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    /* For the test disable automatically sending publish requests */
+    UA_Client_getConfig(client)->outStandingPublishRequests = 0;
 
     // prio = 0
     UA_CreateSubscriptionRequest request = UA_CreateSubscriptionRequest_default();
@@ -884,8 +890,14 @@ START_TEST(Client_subscription_connectionClose) {
     retval = UA_Client_run_iterate(client, 1);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
-    /* Simulate BADCONNECTIONCLOSE */
-    UA_Client_recvTesting_result = UA_STATUSCODE_BADCONNECTIONCLOSED;
+    /* Manually close the connection. The connection is internally closed at the
+     * next iteration of the EventLoop. Hence the next request is sent out. But
+     * the connection "actually closes" before receiving the response. */
+    UA_ConnectionManager *cm = (UA_ConnectionManager*)client->connection.handle;
+    uintptr_t connId = client->connection.sockfd;
+    cm->closeConnection(cm, connId);
+
+    notificationReceived = false;
 
     /* Reconnect a new SecureChannel and recover the Session */
     retval = UA_Client_run_iterate(client, 1);
@@ -912,7 +924,6 @@ START_TEST(Client_subscription_connectionClose) {
     /* Still receiving on the MonitoredItem */
     UA_fakeSleep((UA_UInt32)publishingInterval + 1);
     UA_Server_run_iterate(server, true);
-    notificationReceived = false;
     countNotificationReceived = 0;
     retval = UA_Client_run_iterate(client, 1);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
