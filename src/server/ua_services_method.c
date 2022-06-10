@@ -97,30 +97,6 @@ typeCheckArguments(UA_Server *server, UA_Session *session,
     return retval;
 }
 
-/* inputArgumentResults has the length request->inputArgumentsSize */
-static UA_StatusCode
-validMethodArguments(UA_Server *server, UA_Session *session, const UA_MethodNode *method,
-                     const UA_CallMethodRequest *request,
-                     UA_StatusCode *inputArgumentResults) {
-    /* Get the input arguments node */
-    const UA_VariableNode *inputArguments =
-        getArgumentsVariableNode(server, &method->head, UA_STRING("InputArguments"));
-    if(!inputArguments) {
-        if(request->inputArgumentsSize > 0)
-            return UA_STATUSCODE_BADTOOMANYARGUMENTS;
-        return UA_STATUSCODE_GOOD;
-    }
-
-    /* Verify the request */
-    UA_StatusCode retval =
-        typeCheckArguments(server, session, inputArguments, request->inputArgumentsSize,
-                           request->inputArguments, inputArgumentResults);
-
-    /* Release the input arguments node */
-    UA_NODESTORE_RELEASE(server, (const UA_Node*)inputArguments);
-    return retval;
-}
-
 static const UA_NodeId hasComponentNodeId = {0, UA_NODEIDTYPE_NUMERIC, {UA_NS0ID_HASCOMPONENT}};
 static const UA_NodeId organizedByNodeId = {0, UA_NODEIDTYPE_NUMERIC, {UA_NS0ID_ORGANIZES}};
 static const UA_String namespaceDiModel = UA_STRING_STATIC("http://opcfoundation.org/UA/DI/");
@@ -322,9 +298,20 @@ callWithMethodAndObject(UA_Server *server, UA_Session *session,
     }
     result->inputArgumentResultsSize = request->inputArgumentsSize;
 
-    /* Verify Input Arguments */
-    result->statusCode = validMethodArguments(server, session, method, request,
-                                              result->inputArgumentResults);
+    /* Type-check the input arguments */
+    const UA_VariableNode *inputArguments =
+        getArgumentsVariableNode(server, &method->head, UA_STRING("InputArguments"));
+    if(inputArguments) {
+        result->statusCode =
+            typeCheckArguments(server, session, inputArguments, request->inputArgumentsSize,
+                               request->inputArguments, inputArgumentResults);
+        UA_NODESTORE_RELEASE(server, (const UA_Node*)inputArguments);
+    } else {
+        if(request->inputArgumentsSize > 0) {
+            result->statusCode = UA_STATUSCODE_BADTOOMANYARGUMENTS;
+            return;
+        }
+    }
 
     /* Return inputArgumentResults only for BADINVALIDARGUMENT */
     if(result->statusCode != UA_STATUSCODE_BADINVALIDARGUMENT) {
