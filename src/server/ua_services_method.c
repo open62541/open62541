@@ -18,6 +18,8 @@
 
 #ifdef UA_ENABLE_METHODCALLS /* conditional compilation */
 
+#define UA_MAX_METHOD_ARGUMENTS 64
+
 static const UA_VariableNode *
 getArgumentsVariableNode(UA_Server *server, const UA_NodeHead *head,
                          UA_String withBrowseName) {
@@ -51,9 +53,9 @@ getArgumentsVariableNode(UA_Server *server, const UA_NodeHead *head,
 
 /* inputArgumentResults has the length request->inputArgumentsSize */
 static UA_StatusCode
-typeCheckArguments(UA_Server *server, UA_Session *session,
-                   const UA_VariableNode *argRequirements, size_t argsSize,
-                   UA_Variant *args, UA_StatusCode *inputArgumentResults) {
+checkAdjustArguments(UA_Server *server, UA_Session *session,
+                     const UA_VariableNode *argRequirements, size_t argsSize,
+                     UA_Variant *args, UA_StatusCode *inputArgumentResults) {
     /* Verify that we have a Variant containing UA_Argument (scalar or array) in
      * the "InputArguments" node */
     if(argRequirements->valueSource != UA_VALUESOURCE_DATA)
@@ -289,6 +291,19 @@ callWithMethodAndObject(UA_Server *server, UA_Session *session,
         return;
     }
 
+    /* The input arguments are const and not changed. We move the input
+     * arguments to a secondary array that is mutable. This is used for small
+     * adjustments on the type level during the type checking. But it has to be
+     * ensured that the original array can still by _clear'ed after the methods
+     * call. */
+    if(request->inputArgumentsSize > UA_MAX_METHOD_ARGUMENTS) {
+        result->statusCode = UA_STATUSCODE_BADTOOMANYARGUMENTS;
+        return;
+    }
+    UA_Variant mutableInputArgs[UA_MAX_METHOD_ARGUMENTS];
+    memcpy(mutableInputArgs, request->inputArguments,
+           sizeof(UA_Variant) * request->inputArgumentsSize);
+
     /* Allocate the inputArgumentResults array */
     result->inputArgumentResults = (UA_StatusCode*)
         UA_Array_new(request->inputArgumentsSize, &UA_TYPES[UA_TYPES_STATUSCODE]);
@@ -303,8 +318,8 @@ callWithMethodAndObject(UA_Server *server, UA_Session *session,
         getArgumentsVariableNode(server, &method->head, UA_STRING("InputArguments"));
     if(inputArguments) {
         result->statusCode =
-            typeCheckArguments(server, session, inputArguments, request->inputArgumentsSize,
-                               request->inputArguments, inputArgumentResults);
+            checkAdjustArguments(server, session, inputArguments, request->inputArgumentsSize,
+                                 mutableInputArgs, result->inputArgumentResults);
         UA_NODESTORE_RELEASE(server, (const UA_Node*)inputArguments);
     } else {
         if(request->inputArgumentsSize > 0) {
@@ -349,7 +364,7 @@ callWithMethodAndObject(UA_Server *server, UA_Session *session,
     result->statusCode = method->method(server, &session->sessionId, session->sessionHandle,
                                         &method->head.nodeId, method->head.context,
                                         &object->head.nodeId, object->head.context,
-                                        request->inputArgumentsSize, request->inputArguments,
+                                        request->inputArgumentsSize, mutableInputArgs,
                                         result->outputArgumentsSize, result->outputArguments);
     UA_LOCK(&server->serviceMutex);
     /* TODO: Verify Output matches the argument definition */
