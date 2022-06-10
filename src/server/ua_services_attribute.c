@@ -1087,6 +1087,51 @@ compatibleValue(UA_Server *server, UA_Session *session, const UA_NodeId *targetD
 /* Write Service */
 /*****************/
 
+static void
+unwrapEOArray(UA_Server *server, UA_Variant *value) {
+    /* Only works on arrays of ExtensionObjects */
+    if(!UA_Variant_hasArrayType(value, &UA_TYPES[UA_TYPES_EXTENSIONOBJECT]) ||
+       value->arrayLength == 0)
+        return;
+
+    /* All eo need to be already decoded and have the same wrapped type */
+    UA_ExtensionObject *eo = (UA_ExtensionObject*)value->data;
+    const UA_DataType *innerType = eo[0].content.decoded.type;
+    for(size_t i = 0; i < value->arrayLength; i++) {
+        if(eo[i].encoding != UA_EXTENSIONOBJECT_DECODED &&
+           eo[i].encoding != UA_EXTENSIONOBJECT_DECODED_NODELETE)
+            return;
+        if(eo[i].content.decoded.type != innerType)
+            return;
+    }
+
+    /* Allocate the array for the unwrapped data. Since the adjusted value is
+     * not cleaned up (only the original value), this memory is being cleaned up
+     * by a delayed callback in the server after the method call has
+     * finished. */
+    UA_DelayedCallback *dc = (UA_DelayedCallback*)
+        UA_malloc(sizeof(UA_DelayedCallback) + (value->arrayLength * innerType->memSize));
+    if(!dc)
+        return;
+    dc->callback = NULL; /* No callback, just free the memory */
+
+    /* Move the content */
+    uintptr_t pos = ((uintptr_t)dc) + sizeof(UA_DelayedCallback);
+    void *unwrappedArray = (void*)pos;
+    for(size_t i = 0; i < value->arrayLength; i++) {
+        memcpy((void*)pos, eo[i].content.decoded.data, innerType->memSize);
+        pos += innerType->memSize;
+    }
+
+    /* Adjust the value */
+    value->type = innerType;
+    value->data = unwrappedArray;
+
+    /* Add the delayed callback to free the memory of the unwrapped array */
+    server->config.eventLoop->
+        addDelayedCallback(server->config.eventLoop, dc);
+}
+
 void
 adjustValueType(UA_Server *server, UA_Variant *value,
                 const UA_NodeId *targetDataTypeId) {
@@ -1097,6 +1142,9 @@ adjustValueType(UA_Server *server, UA_Variant *value,
     const UA_DataType *targetDataType = UA_findDataType(targetDataTypeId);
     if(!targetDataType)
         return;
+
+    /* Unwrap ExtensionObject arrays if they all contain the same DataType */
+    unwrapEOArray(server, value);
 
     /* A string is written to a byte array. the valuerank and array dimensions
      * are checked later */
@@ -1359,21 +1407,16 @@ writeNodeValueAttribute(UA_Server *server, UA_Session *session,
     UA_DataValue adjustedValue = *value;
 
     /* Type checking. May change the type of editableValue */
-    if(value->hasValue && value->value.type) {
+    const char *reason;
+    if(value->hasValue && value->value.type &&
+       !compatibleValue(server, session, &node->dataType, node->valueRank,
+                        node->arrayDimensionsSize, node->arrayDimensions,
+                        &adjustedValue.value, rangeptr, &reason)) {
+        /* Try to correct the type */
         adjustValueType(server, &adjustedValue.value, &node->dataType);
 
-        /* The value may be an extension object, especially the nodeset compiler
-         * uses extension objects to write variable values. If value is an
-         * extension object we check if the current node value is also an
-         * extension object. */
-        const UA_NodeId nodeDataType = UA_NODEID_NUMERIC(0, UA_NS0ID_STRUCTURE);
-        const UA_NodeId *nodeDataTypePtr = &node->dataType;
-        if(value->value.type->typeId.identifierType == UA_NODEIDTYPE_NUMERIC &&
-           value->value.type->typeId.identifier.numeric == UA_NS0ID_STRUCTURE)
-            nodeDataTypePtr = &nodeDataType;
-
-        const char *reason;
-        if(!compatibleValue(server, session, nodeDataTypePtr, node->valueRank,
+        /* Recheck the type */
+        if(!compatibleValue(server, session, &node->dataType, node->valueRank,
                             node->arrayDimensionsSize, node->arrayDimensions,
                             &adjustedValue.value, rangeptr, &reason)) {
             UA_LOG_NODEID_WARNING(&node->head.nodeId,
