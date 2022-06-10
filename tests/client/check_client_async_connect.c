@@ -75,6 +75,8 @@ START_TEST(Client_connect_async) {
             UA_Client_sendAsyncBrowseRequest(client, &bReq, asyncBrowseCallback,
                                              &asyncCounter, &reqId);
         }
+        /* Give network a chance to process packet */
+        sleep(0);
         /* Manual clock for unit tests */
         UA_Server_run_iterate(server, false);
         retval = UA_Client_run_iterate(client, 0);
@@ -145,7 +147,7 @@ START_TEST(Client_no_connection) {
     //simulating unconnected server
     UA_Client_recvTesting_result = UA_STATUSCODE_BADCONNECTIONCLOSED;
     UA_Server_run_iterate(server, false);
-    retval = UA_Client_run_iterate(client, 0);  /* Open connection */
+    retval = UA_Client_run_iterate(client, 1);  /* Open connection */
     UA_Server_run_iterate(server, false);
     retval |= UA_Client_run_iterate(client, 0); /* Send HEL */
     UA_Server_run_iterate(server, false);
