@@ -814,8 +814,20 @@ compatibleValueDataType(UA_Server *server, const UA_DataType *dataType,
         return true;
 
     /* For actual values, the constraint DataType may be a subtype of the
-     * DataType of the value. E.g. UtcTime is subtype of DateTime. But it still
-     * is a DateTime value when transferred over the wire. */
+     * DataType of the value -- subtyping in the wrong direction. E.g. UtcTime
+     * is a subtype of DateTime. But we allow it to be encoded as a DateTime
+     * value when transferred over the wire.
+     *
+     * We do not allow "subtyping in the "wrong direction" if the received type
+     * is abstract. For example, ExtensionObjects (== "Structure" in the type
+     * hierarchy) is an abstract type. But ExtensionObject could still be
+     * transported over the network. */
+    UA_Boolean abstract = false;
+    UA_StatusCode res = readWithReadValue(server, &dataType->typeId,
+                                          UA_ATTRIBUTEID_ISABSTRACT, &abstract);
+    if(res != UA_STATUSCODE_GOOD || abstract)
+        return false;
+
     if(isNodeInTree_singleRef(server, constraintDataType, &dataType->typeId,
                               UA_REFERENCETYPEINDEX_HASSUBTYPE))
         return true;
