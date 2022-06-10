@@ -29,6 +29,7 @@ jobs:
         with:
           repository: open62541/open62541-www
           path: open62541-www
+          ref: main
           persist-credentials: false
       - name: Get the current branch name
         shell: bash
