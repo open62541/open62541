@@ -125,9 +125,113 @@ static const UA_NodeId hasComponentNodeId = {0, UA_NODEIDTYPE_NUMERIC, {UA_NS0ID
 static const UA_NodeId organizedByNodeId = {0, UA_NODEIDTYPE_NUMERIC, {UA_NS0ID_ORGANIZES}};
 static const UA_String namespaceDiModel = UA_STRING_STATIC("http://opcfoundation.org/UA/DI/");
 static const UA_NodeId hasTypeDefinitionNodeId = {0, UA_NODEIDTYPE_NUMERIC, {UA_NS0ID_HASTYPEDEFINITION}};
-static const UA_NodeId hasSubTypeNodeId = {0, UA_NODEIDTYPE_NUMERIC, {UA_NS0ID_HASSUBTYPE}};
 // ns=0 will be replace dynamically. DI-Spec. 1.01: <UAObjectType NodeId="ns=1;i=1005" BrowseName="1:FunctionalGroupType">
 static UA_NodeId functionGroupNodeId = {0, UA_NODEIDTYPE_NUMERIC, {1005}};
+
+static UA_Boolean
+checkMethodReference(const UA_NodeHead *h, UA_ReferenceTypeSet refs,
+                     const UA_ExpandedNodeId *methodId) {
+    for(size_t i = 0; i < h->referencesSize; i++) {
+        const UA_NodeReferenceKind *rk = &h->references[i];
+        if(rk->isInverse)
+            continue;
+        if(!UA_ReferenceTypeSet_contains(&refs, rk->referenceTypeIndex))
+            continue;
+        if(UA_NodeReferenceKind_findTarget(rk, methodId))
+            return true;
+    }
+    return false;
+}
+
+static UA_StatusCode
+checkObjectTypeMethodReference(UA_Server *server, const UA_NodeHead *h,
+                               UA_ReferenceTypeSet refs, const UA_ExpandedNodeId *methodId,
+                               UA_Boolean *found) {
+    /* Get the list of types from which the method inherits. This considers
+     * multiple inheritance. */
+    UA_NodeId *typeHierarchy = NULL;
+    size_t typeHierarchySize = 0;
+    UA_StatusCode res =
+        getParentTypeAndInterfaceHierarchy(server, &h->nodeId,
+                                           &typeHierarchy, &typeHierarchySize);
+    UA_CHECK_STATUS(res, return res);
+
+    for(size_t i = 0; i < typeHierarchySize && !*found; i++) {
+        const UA_Node *objectType =
+            UA_NODESTORE_GET_SELECTIVE(server, &typeHierarchy[i], 0,
+                                       refs, UA_BROWSEDIRECTION_FORWARD);
+        if(!objectType)
+            continue;
+        *found = checkMethodReference(&objectType->head, refs, methodId);
+        UA_NODESTORE_RELEASE(server, objectType);
+    }
+
+    UA_Array_delete(typeHierarchy, typeHierarchySize, &UA_TYPES[UA_TYPES_NODEID]);
+    return UA_STATUSCODE_GOOD;
+}
+
+static UA_StatusCode
+checkFunctionalGroupMethodReference(UA_Server *server, const UA_NodeHead *h,
+                                    const UA_ExpandedNodeId *methodId,
+                                    UA_Boolean *found) {
+    /* Check whether the DI namespace is available */
+    size_t foundNamespace = 0;
+    UA_StatusCode res = getNamespaceByName(server, namespaceDiModel, &foundNamespace);
+    UA_CHECK_STATUS(res, return UA_STATUSCODE_BADMETHODINVALID);
+    functionGroupNodeId.namespaceIndex = (UA_UInt16)foundNamespace;
+
+    UA_ReferenceTypeSet hasTypeDefinitionRefs;
+    res = referenceTypeIndices(server, &hasTypeDefinitionNodeId,
+                               &hasTypeDefinitionRefs, true);
+    UA_CHECK_STATUS(res, return res);
+
+    /* Search for a HasTypeDefinition (or sub-) reference to the FunctionGroupType */
+    UA_Boolean isFunctionGroup = false;
+    for(size_t i = 0; i < h->referencesSize && !isFunctionGroup; ++i) {
+        const UA_NodeReferenceKind *rk = &h->references[i];
+        if(rk->isInverse)
+            continue;
+
+        /* Are these HasTypeDefinition references */
+        if(!UA_ReferenceTypeSet_contains(&hasTypeDefinitionRefs, rk->referenceTypeIndex))
+            continue;
+
+        /* Reference points to FunctionGroupType (or sub-type) from the DI
+         * model? */
+        const UA_ReferenceTarget *t = NULL;
+        while((t = UA_NodeReferenceKind_iterate(rk, t))) {
+            if(!UA_NodePointer_isLocal(t->targetId))
+                continue;
+
+            UA_NodeId tmpId = UA_NodePointer_toNodeId(t->targetId);
+            if(!isNodeInTree_singleRef(server, &tmpId, &functionGroupNodeId,
+                                       UA_REFERENCETYPEINDEX_HASSUBTYPE))
+                continue;
+            isFunctionGroup = true;
+            break;
+        }
+    }
+    if(!isFunctionGroup)
+        return UA_STATUSCODE_GOOD;
+
+    /* Search for the called method with reference Organize (or sub-type) from
+     * the parent object */
+    UA_ReferenceTypeSet organizesRefs;
+    res = referenceTypeIndices(server, &organizedByNodeId, &organizesRefs, true);
+    UA_CHECK_STATUS(res, return res);
+    for(size_t k = 0; k < h->referencesSize; ++k) {
+        const UA_NodeReferenceKind *rk = &h->references[k];
+        if(rk->isInverse)
+            continue;
+        if(!UA_ReferenceTypeSet_contains(&organizesRefs, rk->referenceTypeIndex))
+            continue;
+        if(UA_NodeReferenceKind_findTarget(rk, methodId)) {
+            *found = true;
+            break;
+        }
+    }
+    return UA_STATUSCODE_GOOD;
+}
 
 static void
 callWithMethodAndObject(UA_Server *server, UA_Session *session,
@@ -152,90 +256,26 @@ callWithMethodAndObject(UA_Server *server, UA_Session *session,
         return;
     }
 
-    UA_NodePointer methodP = UA_NodePointer_fromNodeId(&request->methodId);
-
     /* Verify method/object relations. Object must have a hasComponent or a
      * subtype of hasComponent reference to the method node. Therefore, check
      * every reference between the parent object and the method node if there is
      * a hasComponent (or subtype) reference */
+    UA_ExpandedNodeId methodId = UA_EXPANDEDNODEID_NODEID(request->methodId);
     UA_ReferenceTypeSet hasComponentRefs;
-    result->statusCode =
-        referenceTypeIndices(server, &hasComponentNodeId, &hasComponentRefs, true);
-    if(result->statusCode != UA_STATUSCODE_GOOD)
-        return;
+    result->statusCode = referenceTypeIndices(server, &hasComponentNodeId,
+                                              &hasComponentRefs, true);
+    UA_CHECK_STATUS(result->statusCode, return);
+    UA_Boolean found = checkMethodReference(&object->head, hasComponentRefs, &methodId);
 
-    UA_Boolean found = false;
-    for(size_t i = 0; i < object->head.referencesSize && !found; ++i) {
-        const UA_NodeReferenceKind *rk = &object->head.references[i];
-        if(rk->isInverse)
-            continue;
-        if(!UA_ReferenceTypeSet_contains(&hasComponentRefs, rk->referenceTypeIndex))
-            continue;
-        const UA_ReferenceTarget *t = NULL;
-        while((t = UA_NodeReferenceKind_iterate(rk, t))) {
-            if(UA_NodePointer_equal(t->targetId, methodP)) {
-                found = true;
-                break;
-            }
-        }
-    }
     if(!found) {
         /* If the object doesn't have a hasComponent reference to the method node,
          * check its objectType (and its supertypes). Invoked method can be a component
          * of objectType and be invoked on this objectType's instance (or on a instance
          * of one of its subtypes). */
-
-        /* Get the ObjectType */
-        const UA_Node *objectType = NULL;
-        bool releaseType = true;
-        if(object->head.nodeClass == UA_NODECLASS_OBJECT) {
-            objectType = getNodeType(server, &object->head);
-            if(!objectType) {
-                result->statusCode = UA_STATUSCODE_BADMETHODINVALID;
-                return;
-            }
-        }
-        else {
-            /* If the method was invoked on objectType use the provided node and don't 
-             * release it later, it's done in calling function */
-            objectType = (const UA_Node *)object;
-            releaseType = false;
-        }
-
-        UA_ReferenceTypeSet hasSubTypeRefs;
-        result->statusCode = referenceTypeIndices(server, &hasSubTypeNodeId,
-                                                  &hasSubTypeRefs, true);
-        if(result->statusCode != UA_STATUSCODE_GOOD)
-            return;
-
-        UA_ExpandedNodeId methodExpId = UA_EXPANDEDNODEID_NODEID(request->methodId);
-        while(objectType && !found) {
-            /* Check if this objectType references the method node with hasComponent (or its subtype) */
-            for(size_t i = 0; i < objectType->head.referencesSize && !found; ++i) {
-                const UA_NodeReferenceKind *rk = &objectType->head.references[i];
-                if(rk->isInverse)
-                    continue;
-                if(!UA_ReferenceTypeSet_contains(&hasComponentRefs, rk->referenceTypeIndex))
-                    continue;
-                if(UA_NodeReferenceKind_findTarget(rk, &methodExpId)) {
-                    found = true;
-                    break;
-                }
-            }
-            if(found)
-                break;
-            
-            /* Reference was not found - next iteration check supertype */
-            const UA_Node *superType = getNodeType(server, &objectType->head);
-            if(objectType && releaseType) {
-                UA_NODESTORE_RELEASE(server, objectType);
-            }
-            objectType = superType;
-            releaseType = true;
-        }
-        if(objectType && releaseType) {
-            UA_NODESTORE_RELEASE(server, objectType);
-        }
+        result->statusCode =
+            checkObjectTypeMethodReference(server, &object->head,
+                                           hasComponentRefs, &methodId, &found);
+        UA_CHECK_STATUS(result->statusCode, return);
     }
 
     if(!found) {
@@ -249,69 +289,11 @@ callWithMethodAndObject(UA_Server *server, UA_Session *session,
          * ParameterSet and MethodSet) in (Functional) groups for instance
          * Configuration or Identification. The same Property, Parameter or
          * Method can be referenced from more than one FunctionalGroup. */
-
-        /* Check whether the DI namespace is available */
-        size_t foundNamespace = 0;
-        UA_StatusCode res = getNamespaceByName(server, namespaceDiModel, &foundNamespace);
-        if(res != UA_STATUSCODE_GOOD) {
-            result->statusCode = UA_STATUSCODE_BADMETHODINVALID;
-            return;
-        }
-        functionGroupNodeId.namespaceIndex = (UA_UInt16)foundNamespace;
-
-        UA_ReferenceTypeSet hasTypeDefinitionRefs;
         result->statusCode =
-            referenceTypeIndices(server, &hasTypeDefinitionNodeId,
-                                 &hasTypeDefinitionRefs, true);
-        if(result->statusCode != UA_STATUSCODE_GOOD)
-            return;
-
-        /* Search for a HasTypeDefinition (or sub-) reference in the parent object */
-        for(size_t i = 0; i < object->head.referencesSize && !found; ++i) {
-            const UA_NodeReferenceKind *rk = &object->head.references[i];
-            if(rk->isInverse)
-                continue;
-            if(!UA_ReferenceTypeSet_contains(&hasTypeDefinitionRefs, rk->referenceTypeIndex))
-                continue;
-            
-            /* Verify that the HasTypeDefinition is equal to FunctionGroupType
-             * (or sub-type) from the DI model */
-            const UA_ReferenceTarget *t = NULL;
-            while((t = UA_NodeReferenceKind_iterate(rk, t))) {
-                if(!UA_NodePointer_isLocal(t->targetId))
-                    continue;
-                
-                UA_NodeId tmpId = UA_NodePointer_toNodeId(t->targetId);
-                if(!isNodeInTree_singleRef(server, &tmpId, &functionGroupNodeId,
-                                           UA_REFERENCETYPEINDEX_HASSUBTYPE))
-                    continue;
-
-                /* Search for the called method with reference Organize (or
-                 * sub-type) from the parent object */
-                for(size_t k = 0; k < object->head.referencesSize && !found; ++k) {
-                    const UA_NodeReferenceKind *rkInner = &object->head.references[k];
-                    if(rkInner->isInverse)
-                        continue;
-                    const UA_NodeId * refId = 
-                        UA_NODESTORE_GETREFERENCETYPEID(server, rkInner->referenceTypeIndex);
-                    if(!isNodeInTree_singleRef(server, refId, &organizedByNodeId,
-                                               UA_REFERENCETYPEINDEX_HASSUBTYPE))
-                        continue;
-                    
-                    const UA_ReferenceTarget *t2 = NULL;
-                    while((t2 = UA_NodeReferenceKind_iterate(rkInner, t2))) {
-                        if(UA_NodePointer_equal(t2->targetId, methodP)) {
-                            found = true;
-                            break;
-                        }
-                    }
-                }
-            }
-        }
-        if(!found) {
+            checkFunctionalGroupMethodReference(server, &object->head, &methodId, &found);
+        if(!found && result->statusCode == UA_STATUSCODE_GOOD)
             result->statusCode = UA_STATUSCODE_BADMETHODINVALID;
-            return;
-        }
+        UA_CHECK_STATUS(result->statusCode, return);
     }
 
     /* Verify access rights */
@@ -319,8 +301,9 @@ callWithMethodAndObject(UA_Server *server, UA_Session *session,
     if(session != &server->adminSession) {
         UA_UNLOCK(&server->serviceMutex);
         executable = executable && server->config.accessControl.
-            getUserExecutableOnObject(server, &server->config.accessControl, &session->sessionId,
-                                      session->sessionHandle, &request->methodId, method->head.context,
+            getUserExecutableOnObject(server, &server->config.accessControl,
+                                      &session->sessionId, session->sessionHandle,
+                                      &request->methodId, method->head.context,
                                       &request->objectId, object->head.context);
         UA_LOCK(&server->serviceMutex);
     }
