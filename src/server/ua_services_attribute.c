@@ -813,6 +813,12 @@ compatibleValueDataType(UA_Server *server, const UA_DataType *dataType,
     if(compatibleDataTypes(server, &dataType->typeId, constraintDataType))
         return true;
 
+    /* The constraint is an enum -> allow writing Int32 */
+    if(UA_NodeId_equal(&dataType->typeId, &UA_TYPES[UA_TYPES_INT32].typeId) &&
+       isNodeInTree_singleRef(server, constraintDataType, &enumNodeId,
+                              UA_REFERENCETYPEINDEX_HASSUBTYPE))
+        return true;
+
     /* For actual values, the constraint DataType may be a subtype of the
      * DataType of the value -- subtyping in the wrong direction. E.g. UtcTime
      * is a subtype of DateTime. But we allow it to be encoded as a DateTime
@@ -853,12 +859,6 @@ compatibleDataTypes(UA_Server *server, const UA_NodeId *dataType,
 
     /* Is the DataType a subtype of the constraint type? */
     if(isNodeInTree_singleRef(server, dataType, constraintDataType,
-                              UA_REFERENCETYPEINDEX_HASSUBTYPE))
-        return true;
-
-    /* The constraint is an enum -> allow writing Int32 */
-    if(UA_NodeId_equal(dataType, &UA_TYPES[UA_TYPES_INT32].typeId) &&
-       isNodeInTree_singleRef(server, constraintDataType, &enumNodeId,
                               UA_REFERENCETYPEINDEX_HASSUBTYPE))
         return true;
 
