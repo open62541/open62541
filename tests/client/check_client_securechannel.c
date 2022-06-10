@@ -202,21 +202,17 @@ START_TEST(SecureChannel_cableunplugged) {
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     UA_Variant_clear(&val);
 
-    UA_Client_recv = client->connection.recv;
-    client->connection.recv = UA_Client_recvTesting;
-
-    /* Simulate network cable unplugged (no response from server) */
-    UA_Client_recvTesting_result = UA_STATUSCODE_BADINTERNALERROR;
+    /* Manually close the connection. The connection is internally closed at the
+     * next iteration of the EventLoop. Hence the next request is sent out. But
+     * the connection "actually closes" before receiving the response. */
+    UA_ConnectionManager *cm = (UA_ConnectionManager*)client->connection.handle;
+    uintptr_t connId = client->connection.sockfd;
+    cm->closeConnection(cm, connId);
 
     UA_Variant_init(&val);
     retval = UA_Client_readValueAttribute(client, nodeId, &val);
-    ck_assert_uint_eq(retval, UA_STATUSCODE_BADCONNECTIONCLOSED);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADSESSIONCLOSED);
 
-    UA_SecureChannelState scs;
-    UA_Client_getState(client, &scs, NULL, NULL);
-    ck_assert_int_eq(scs, UA_SECURECHANNELSTATE_CLOSED);
-
-    UA_Client_recvTesting_result = UA_STATUSCODE_GOOD;
     UA_Client_delete(client);
 }
 END_TEST

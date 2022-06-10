@@ -48,7 +48,7 @@ static void
 asyncReadCallback(UA_Client *client, void *userdata,
                   UA_UInt32 requestId, const UA_ReadResponse *response) {
     UA_UInt16 *asyncCounter = (UA_UInt16*) userdata;
-    if (response->responseHeader.serviceResult == UA_STATUSCODE_BADTIMEOUT) {
+    if(response->responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
         (*asyncCounter) = 9999;
         UA_fakeSleep(10);
     } else {
@@ -141,7 +141,7 @@ START_TEST(Client_read_async) {
 
         UA_Client_disconnect(client);
         UA_Client_delete(client);
-    }END_TEST
+} END_TEST
 
 START_TEST(Client_read_async_timed) {
         UA_Client *client = UA_Client_new();
@@ -182,8 +182,12 @@ START_TEST(Client_read_async_timed) {
         ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
         ck_assert_uint_eq(asyncCounter, 1);
 
-        /* Simulate network cable unplugged (no response from server) */
-        UA_Client_recvTesting_result = UA_STATUSCODE_GOODNONCRITICALTIMEOUT;
+        /* Manually close the connection. The connection is internally closed at the
+         * next iteration of the EventLoop. Hence the next request is sent out. But
+         * the connection "actually closes" before receiving the response. */
+        UA_ConnectionManager *cm = (UA_ConnectionManager*)client->connection.handle;
+        uintptr_t connId = client->connection.sockfd;
+        cm->closeConnection(cm, connId);
 
         retval = __UA_Client_AsyncServiceEx(client, &rr,
                 &UA_TYPES[UA_TYPES_READREQUEST],
@@ -196,7 +200,7 @@ START_TEST(Client_read_async_timed) {
 
         UA_Client_disconnect(client);
         UA_Client_delete(client);
-    }END_TEST
+} END_TEST
 
 static UA_Boolean inactivityCallbackTriggered = false;
 
