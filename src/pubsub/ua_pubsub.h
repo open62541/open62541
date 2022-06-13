@@ -152,6 +152,9 @@ UA_StatusCode
 UA_DataSetWriter_remove(UA_Server *server, UA_WriterGroup *linkedWriterGroup,
                         UA_DataSetWriter *dataSetWriter);
 
+UA_StatusCode
+removeDataSetWriter(UA_Server *server, const UA_NodeId dsw);
+
 /**********************************************/
 /*               WriterGroup                  */
 /**********************************************/

@@ -874,6 +874,8 @@ UA_Server_addDataSetWriter(UA_Server *server,
 UA_StatusCode
 UA_DataSetWriter_remove(UA_Server *server, UA_WriterGroup *linkedWriterGroup,
                         UA_DataSetWriter *dataSetWriter) {
+    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+
     /* Frozen? */
     if(linkedWriterGroup->configurationFrozen) {
         UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
@@ -895,7 +897,9 @@ UA_DataSetWriter_remove(UA_Server *server, UA_WriterGroup *linkedWriterGroup,
 }
 
 UA_StatusCode
-UA_Server_removeDataSetWriter(UA_Server *server, const UA_NodeId dsw) {
+removeDataSetWriter(UA_Server *server, const UA_NodeId dsw) {
+    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+
     UA_DataSetWriter *dataSetWriter = UA_DataSetWriter_findDSWbyId(server, dsw);
     if(!dataSetWriter)
         return UA_STATUSCODE_BADNOTFOUND;
@@ -912,6 +916,14 @@ UA_Server_removeDataSetWriter(UA_Server *server, const UA_NodeId dsw) {
         return UA_STATUSCODE_BADNOTFOUND;
 
     return UA_DataSetWriter_remove(server, linkedWriterGroup, dataSetWriter);
+}
+
+UA_StatusCode
+UA_Server_removeDataSetWriter(UA_Server *server, const UA_NodeId dsw) {
+    UA_LOCK(&server->serviceMutex);
+    UA_StatusCode res = removeDataSetWriter(server, dsw);
+    UA_UNLOCK(&server->serviceMutex);
+    return res;
 }
 
 /**********************************************/
