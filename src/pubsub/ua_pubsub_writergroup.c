@@ -489,14 +489,18 @@ UA_Server_updateWriterGroupConfig(UA_Server *server, UA_NodeId writerGroupIdenti
     if(!config)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
 
+    UA_LOCK(&server->serviceMutex);
     UA_WriterGroup *currentWriterGroup =
         UA_WriterGroup_findWGbyId(server, writerGroupIdentifier);
-    if(!currentWriterGroup)
+    if(!currentWriterGroup) {
+        UA_UNLOCK(&server->serviceMutex);
         return UA_STATUSCODE_BADNOTFOUND;
+    }
 
     if(currentWriterGroup->configurationFrozen){
         UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
                        "Modify WriterGroup failed. WriterGroup is frozen.");
+        UA_UNLOCK(&server->serviceMutex);
         return UA_STATUSCODE_BADCONFIGURATIONERROR;
     }
 
@@ -532,6 +536,7 @@ UA_Server_updateWriterGroupConfig(UA_Server *server, UA_NodeId writerGroupIdenti
                        "No or unsupported WriterGroup update.");
     }
 
+    UA_UNLOCK(&server->serviceMutex);
     return UA_STATUSCODE_GOOD;
 }
 
