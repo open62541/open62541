@@ -44,16 +44,15 @@ def generateNodeValueInstanceName(node, parent, arrayIndex):
     return generateNodeIdPrintable(parent) + "_" + str(node.alias) + "_" + str(arrayIndex)
 
 def generateReferenceCode(reference):
-    if reference.isForward:
-        return "retVal |= UA_Server_addReference(server, %s, %s, %s, true);" % \
-               (generateNodeIdCode(reference.source),
-                generateNodeIdCode(reference.referenceType),
-                generateExpandedNodeIdCode(reference.target))
-    else:
-        return "retVal |= UA_Server_addReference(server, %s, %s, %s, false);" % \
-               (generateNodeIdCode(reference.source),
-                generateNodeIdCode(reference.referenceType),
-                generateExpandedNodeIdCode(reference.target))
+    code = []
+    forwardFlag = "true" if reference.isForward else "false"
+    code.append("retVal |= UA_Server_addReference(server, %s, %s, %s, %s);" %
+                (generateNodeIdCode(reference.source),
+                 generateNodeIdCode(reference.referenceType),
+                 generateExpandedNodeIdCode(reference.target),
+                 forwardFlag))
+    code.append("if (retVal != UA_STATUSCODE_GOOD) return retVal;")
+    return "\n".join(code)
 
 def generateReferenceTypeNodeCode(node):
     code = []
@@ -541,6 +540,7 @@ def generateNodeCode_begin(node, nodeset, code_global):
         code.append(" UA_NODEID_NULL,")
     code.append("(const UA_NodeAttributes*)&attr, &UA_TYPES[UA_TYPES_{}ATTRIBUTES],NULL, NULL);".
             format(makeCIdentifier(node.__class__.__name__.upper().replace("NODE" ,""))))
+    code.append("if (retVal != UA_STATUSCODE_GOOD) return retVal;")
     code.extend(codeCleanup)
 
     return "\n".join(code)
