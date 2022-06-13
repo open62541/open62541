@@ -599,7 +599,7 @@ UA_StatusCode UA_EXPORT
 UA_Server_DataSetWriter_getState(UA_Server *server, UA_NodeId dataSetWriterIdentifier,
                                UA_PubSubState *state);
 
-UA_StatusCode UA_EXPORT
+UA_StatusCode UA_EXPORT UA_THREADSAFE
 UA_Server_removeDataSetWriter(UA_Server *server, const UA_NodeId dsw);
 
 /**
