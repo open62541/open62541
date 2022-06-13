@@ -1,0 +1,24 @@
+%{
+#define YY_CTX_LOCAL 1
+#define YY_CTX_MEMBERS \
+  int count;
+%}
+
+Char	= ('\n' | '\r\n' | '\r')	{ yy->count++ }
+	| .
+
+%%
+
+#include <stdio.h>
+#include <string.h>
+
+int main()
+{
+    yycontext yy;
+    memset(&yy, 0, sizeof(yy));
+    while (yyparse(&yy))
+	;
+    printf("%d newlines\n", yy.count);
+    yyrelease(&yy);
+    return 0;
+}

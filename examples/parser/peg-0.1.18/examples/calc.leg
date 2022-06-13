@@ -1,0 +1,46 @@
+%{
+#include <stdio.h>
+int vars[26];
+%}
+
+Stmt	= - e:Expr EOL			{ printf("%d\n", e); }
+	| ( !EOL . )* EOL		{ printf("error\n"); }
+
+Expr	= i:ID ASSIGN s:Sum		{ $$= vars[i]= s; }
+	| s:Sum				{ $$= s; }
+
+Sum	= l:Product
+		( PLUS  r:Product	{ l += r; }
+		| MINUS r:Product	{ l -= r; }
+		)*			{ $$= l; }
+
+Product	= l:Value
+		( TIMES  r:Value	{ l *= r; }
+		| DIVIDE r:Value	{ l /= r; }
+		)*			{ $$= l; }
+
+Value	= i:NUMBER			{ $$= atoi(yytext); }
+	| i:ID !ASSIGN			{ $$= vars[i]; }
+	| OPEN i:Expr CLOSE		{ $$= i; }
+
+NUMBER	= < [0-9]+ >	-		{ $$= atoi(yytext); }
+ID	= < [a-z]  >	-		{ $$= yytext[0] - 'a'; }
+ASSIGN	= '='		-
+PLUS	= '+'		-
+MINUS	= '-'		-
+TIMES	= '*'		-
+DIVIDE	= '/'		-
+OPEN	= '('		-
+CLOSE	= ')'		-
+
+-	= [ \t]*
+EOL	= '\n' | '\r\n' | '\r' | ';'
+
+%%
+
+int main()
+{
+  while (yyparse());
+
+  return 0;
+}

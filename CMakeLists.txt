@@ -1159,6 +1159,9 @@ if(UA_ENABLE_PUBSUB)
 endif()
 
 if(UA_ENABLE_JSON_ENCODING)
+    if(UA_ENABLE_PUBSUB_ENCRYPTION)
+        MESSAGE(WARNING "Payload encryption with JSON encoding is not possible according to the specification.The message security is only defined for the UADP message mapping.")
+    endif()
     if(UA_ENABLE_PUBSUB)
         list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_networkmessage_json.c)
     endif()
@@ -1210,7 +1213,7 @@ endif()
 if(UA_BUILD_FUZZING OR UA_BUILD_OSS_FUZZ)
     set(lib_sources
         ${lib_sources}
-        ${PROJECT_SOURCE_DIR}/tests/fuzz/custom_memory_manager.c)
+        ${PROJECT_SOURCE_DIR}/tests/fuzz/custom_memory_manager.c examples/parser/min_examples_query/elementoperand/elementoperand_setup_functions.h examples/parser/min_examples_query/SAO/SAO_setup_functions.h examples/parser/min_examples_query/LEG/SAO/SAO_setup_functions.h examples/parser/min_examples_query/LEG/SelectClauses/select_set_up_functions.h examples/parser/min_examples_query/LEG/Operator/operator_setup_functions.h examples/parser/min_examples_query/LEG/FilterOperator/element_setup_functions.h examples/parser/min_examples_query/LEG/ContentFilter/content_filter_setup_functions.h examples/parser/min_examples_query/LEG/EventFilter/set_up_functions.h)
 endif()
 
 #########################

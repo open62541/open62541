@@ -1,0 +1,22 @@
+%{
+#include <stdio.h>
+int lines= 0, words= 0, chars= 0;
+%}
+
+start	= (line | word | char)
+
+line	= < (( '\n' '\r'* ) | ( '\r' '\n'* )) >	{ lines++;  chars += yyleng; }
+word	= < [a-zA-Z]+ >				{ words++;  chars += yyleng;  printf("<%s>\n", yytext); }
+char	= .					{ chars++; }
+
+%%
+
+int main()
+{
+  while (yyparse())
+    ;
+  printf("%d lines\n", lines);
+  printf("%d chars\n", chars);
+  printf("%d words\n", words);
+  return 0;
+}

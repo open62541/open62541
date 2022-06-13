@@ -451,7 +451,11 @@ UA_Server_setReaderGroupEncryptionKeys(UA_Server *server, const UA_NodeId reader
                                        const UA_ByteString keyNonce) {
     UA_ReaderGroup *rg = UA_ReaderGroup_findRGbyId(server, readerGroup);
     UA_CHECK_MEM(rg, return UA_STATUSCODE_BADNOTFOUND);
-
+    if(rg->config.encodingMimeType == UA_PUBSUB_ENCODING_JSON) {
+        UA_LOG_WARNING_READERGROUP(&server->config.logger, rg,
+                                   "JSON encoding is enabled. The message security is only defined for the UADP message mapping.");
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
     if(!rg->config.securityPolicy) {
         UA_LOG_WARNING_READERGROUP(&server->config.logger, rg,
                                    "No SecurityPolicy configured for the ReaderGroup");

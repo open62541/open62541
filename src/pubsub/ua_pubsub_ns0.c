@@ -542,6 +542,7 @@ addPubSubConnectionRepresentation(UA_Server *server, UA_PubSubConnection *connec
         return UA_STATUSCODE_BADOUTOFMEMORY;
     char connectionName[513];
     memcpy(connectionName, connection->config->name.data, connection->config->name.length);
+    memcpy(connectionName, connection->config->name.data, connection->config->name.length);
     connectionName[connection->config->name.length] = '\0';
 
     UA_ObjectAttributes attr = UA_ObjectAttributes_default;

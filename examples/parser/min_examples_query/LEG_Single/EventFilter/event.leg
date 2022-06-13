@@ -1,0 +1,498 @@
+%{
+#include <open62541/plugin/log_stdout.h>
+#include <open62541/server.h>
+#include <open62541/server_config_default.h>
+#include <../deps/cj5.h>
+#include "../deps/open62541_queue.h"
+#include <signal.h>
+#include <stdlib.h>
+
+#define YY_CTX_LOCAL 1
+#define YY_CTX_MEMBERS \
+    UA_EventFilter filt;
+
+struct global_context context;
+
+# define YYSTYPE struct local
+
+%}
+
+EventFilter = SelectClauses ContentFilter
+
+SelectClauses = Select (Space* (SimpleAttributeOperand Space* Comma Space* Enter*)* SimpleAttributeOperand) EnterSpace
+                                                                                {
+
+                                                                                    set_up_select_clauses(&context, &yy->filt.selectClausesSize, &yy->filt.selectClauses)
+                                                                                    /*struct select_SAO *sao_init, *sao_fin;
+                                                                                    TAILQ_FOREACH_SAFE(sao_init, &context.select_clauses_elements, select_entries, sao_fin){
+                                                                                        append_select_clauses(&yy->filt.selectClauses, &yy->filt.selectClausesSize, &sao_init->sao);
+                                                                                        for(size_t i =0 ; i< sao_init->sao.browsePathSize; i++){
+                                                                                            UA_QualifiedName_clear(&sao_init->sao.browsePath[i]);
+                                                                                        }
+                                                                                        UA_SimpleAttributeOperand_clear(&sao_init->sao);
+                                                                                        TAILQ_REMOVE(&context.select_clauses_elements, sao_init, select_entries);
+                                                                                    };*/
+                                                                                }
+
+Select = EnterSpace 'SELECT' EnterSpace                                         {TAILQ_INIT(&context.select_clauses_elements);}
+
+SimpleAttributeOperand = ((Space* TypeDef? Space* BrowsePath Space* AttributeId? Space* IndexRange?) | (Space* open_round_bracket Space* TypeDef? Space* BrowsePath Space* AttributeId? Space* IndexRange? Space* close_round_bracket)) Space*
+                                                                                {
+                                                                                    append_select_clauses_element(&$$.value.sao, &context)
+                                                                                }
+
+
+ContentFilter = Space* ( Filterbranch EnterSpace ForClauses*)                   {
+                                                                                    yy->filt.whereClause = create_content_filter(context.list);
+                                                                                }
+
+ForClauses = EnterSpace "FOR" EnterSpace (Operator)+
+
+Filterbranch = Where Operators   EnterSpace
+
+Where = EnterSpace 'WHERE' EnterSpace                                           {
+                                                                                    printf("found the where clause\n");
+                                                                                    TAILQ_INIT(&context.list.where_clause_elements);
+                                                                                };
+Operators = Space * (SingleOperatorStructure | BranchStructure) Space*         {printf("\n");
+                                                                                /*printf("the current list has the length %zu \n", context.filter_elements);
+                                                                                for(size_t i=0; i<context.filter_elements; i++){
+                                                                                    if(context.children[i].identifier == BRANCHELEMENT){
+                                                                                        printf("the reference of the branch operator with number %zu is %s\n",i, context.children[i].element.branch.ref);
+                                                                                        for(size_t z = 0;z< context.children[i].element.branch.child_nbr;z++){
+                                                                                            printf("the child ref is %s \n", context.children[i].element.branch.child_ref[z]);
+                                                                                        }
+                                                                                    }
+                                                                                    else{
+                                                                                        printf("the reference of the filter operator with number %zu is %s\n",i, context.children[i].element.filt.ref);
+                                                                                    }
+                                                                                }*/
+                                                                                printf("\n");
+}
+
+SingleOperatorStructure = (ElementRef | ForOperator) {
+    if(context.filter_elements > 0) {
+        printf("an element is in the list\n");
+        char *cmp = "for_reference";
+        char tem[14];
+        if(context.children[0].identifier == BRANCHELEMENT) {
+            if(strlen(context.children[0].element.branch.ref) >= 14) {
+                memcpy(tem, context.children[0].element.branch.ref, 14 * sizeof(char));
+            }
+        }
+        // case on, a single filterelemet is specified inside the where clause, case 2 a single reference to a for element is specified in the where clause
+        if((context.filter_elements == 1 && context.children[0].identifier == FILTERELEMENT) ||
+           (context.filter_elements == 1 && strcmp(tem, cmp) == 0)) {
+            printf("single element\n");
+        }
+    }
+}
+
+BranchStructure  = ((OR | AND) Space* open_round_bracket Space* op1:Operand_ctr Space* Comma Space* op2:Operand_ctr Space* close_round_bracket )
+                                                                                {
+
+
+    /*
+     * struct ParseElem *$$ = calloc();
+     * $$->parseElemType = ELEMTYPE_OPERATOR;
+     * $$->operator.operatorType = OPERATOR_AND;
+     * $$->operator.operands = calloc();
+     * $$->operator.operandsSize = 2;
+     * $$->operator.operands[0] = op1;
+     * $$->operator.operands[1] = op2;
+     * addToGlobal($$);
+     * // return $$
+     */
+                                                                                            printf("found a branch structure\n");
+                                                                                            if(context.children[context.filter_elements-1].identifier == FILTERELEMENT){
+                                                                                                printf("found a filterelement in the branch structure\n");
+                                                                                            }
+                                                                                            //todo error handling für keine 2 operanden
+                                                                                            //(assert(context.filter_element ==2)
+                                                                                            if(context.filter_elements > 1){
+                                                                                                //resize the child ref array
+                                                                                                UA_Where_Clause_List *second_last = &context.children[context.filter_elements-2];
+                                                                                                UA_Where_Clause_List *last = &context.children[context.filter_elements-1];
+                                                                                                if(second_last->element.branch.child_nbr == 0){
+                                                                                                    second_last->element.branch.child_ref = (char **)UA_calloc(1, sizeof(char *));
+                                                                                                    //second_last->element.branch.child_nbr++;
+                                                                                                }
+                                                                                                else{
+                                                                                                    //second_last->element.branch.child_nbr++;
+                                                                                                    second_last->element.branch.child_ref =
+                                                                                                        (char **)UA_realloc(second_last->element.branch.child_ref, (second_last->element.branch.child_nbr+1)*sizeof(char *));
+                                                                                                    //fallunterscheidung weg, nur mir realloc und danach memory init
+                                                                                                    //init memory
+
+                                                                                                }
+                                                                                                second_last->element.branch.child_nbr++;
+                                                                                                //allocate memory for the child ref
+                                                                                                second_last->element.branch.child_ref[second_last->element.branch.child_nbr-1] =
+                                                                                                    (char*)UA_calloc(strlen(last->element.branch.ref)+1, sizeof(char));
+                                                                                                strcpy(second_last->element.branch.child_ref[second_last->element.branch.child_nbr-1], last->element.branch.ref);
+                                                                                                }
+
+                                                                                                add_linked_list_element(&context.filter_elements, &context.children, &context.list);
+                                                                                                remove_list_element(&context.filter_elements, &context.children);
+                                                                                }
+
+Operand_ctr = (ElementRef | BranchStructure | ForOperator)
+
+ForOperator = (For_Operator | open_round_bracket Space* For_Operator Space* close_round_bracket)                                                        {
+
+                                                                                    printf("found a single for operator\n");
+
+                                                                                    //create the reference as char
+                                                                                    char *ref_identifier = "for_reference_";
+                                                                                    char ref_nbr[128];
+                                                                                    int temp = context.for_operator_reference-1;
+                                                                                    sprintf(ref_nbr, "%d", temp);
+                                                                                    char *identifier = (char*) UA_calloc(strlen(ref_identifier)+strlen(ref_nbr)+1, sizeof(char));
+                                                                                    strcpy(identifier, ref_identifier);
+                                                                                    strcat(identifier, ref_nbr);
+
+                                                                                    //context.for_operator_reference++;
+                                                                                    if(context.filter_elements > 0){
+                                                                                        if(context.children[context.filter_elements-1].identifier ==BRANCHELEMENT){
+                                                                                            add_branch_child_ref(&context.filter_elements, &context.children, identifier);
+                                                                                        }
+                                                                                    }
+                                                                                    //add_branch_child_ref(&context.filter_elements, &context.children, identifier);
+                                                                                    free(identifier);
+}
+
+ElementRef  =  (Space* '$' elementIDX) Space*                                   {
+                                                                                    printf("found a element reference with referenc %s \n", yytext);
+                                                                                    check_empty_list(&context.filter_elements, &context.children);
+                                                                                    if(context.children[context.filter_elements-1].identifier == BRANCHELEMENT){
+                                                                                        add_branch_child_ref(&context.filter_elements, &context.children, yytext);
+                                                                                    }
+                                                                                }
+
+OR = 'OR'                                                                       {
+                                                                                    handle_branch_operator(&context.filter_elements, &context.children, UA_FILTEROPERATOR_OR, &context.branch_element_number);
+                                                                                }
+
+AND = 'AND'                                                                     {
+                                                                                    printf("\n");
+                                                                                    printf("found an and operator\n");
+                                                                                    handle_branch_operator(&context.filter_elements, &context.children, UA_FILTEROPERATOR_AND, &context.branch_element_number);
+                                                                                }
+
+Operator = OperatorReference Space* ( OperatorInstance | BranchStructure) EnterSpace
+
+
+OperatorInstance =  (Operand TwoOperandsOperatorType Operand | SingleOperatorType )   {
+
+                                                                                    add_linked_list_element(&context.filter_elements, &context.children, &context.list);
+                                                                                    remove_list_element(&context.filter_elements, &context.children);
+                                                                                }
+
+For_Operator = Space* (Operand TwoOperandsOperatorType Operand | SingleOperatorType) EnterSpace{
+
+                                                                                    //create the reference as char
+                                                                                    char *ref_identifier = "for_reference_";
+                                                                                    char ref_nbr[128];
+                                                                                    sprintf(ref_nbr, "%d", context.for_operator_reference);
+                                                                                    char identifier[512];
+                                                                                    strcpy(identifier, ref_identifier);
+                                                                                    strcat(identifier, ref_nbr);
+                                                                                    printf("increase the for rteference ctr\n");
+                                                                                    context.for_operator_reference++;
+
+
+                                                                                    if(context.children[context.filter_elements-1].identifier == BRANCHELEMENT){
+                                                                                        printf("branchelement \n");
+                                                                                        add_branch_child_ref(&context.filter_elements, &context.children, identifier);
+                                                                                    }
+
+
+                                                                                    //the where clauses consists of an operand and no branch structure
+                                                                                    if(context.children[context.filter_elements-1].identifier == FILTERELEMENT){
+                                                                                        printf("filterelement\n");
+                                                                                        context.children[context.filter_elements-1].element.filt.ref = (char*) UA_calloc(strlen(identifier)+1, sizeof(char));
+                                                                                        strcpy(context.children[context.filter_elements-1].element.filt.ref, identifier);
+                                                                                        printf("added the identifier\n");
+                                                                                        add_linked_list_element(&context.filter_elements, &context.children, &context.list);
+                                                                                        remove_list_element(&context.filter_elements, &context.children);
+                                                                                        printf("added thee linked list item \n");
+                                                                                    }
+
+}
+
+SingleOperatorType =  ((Not | IsNull) Space* Operand Space* | OfType)
+
+Not = "NOT"
+                                                                                {
+                                                                                    check_empty_list(&context.filter_elements, &context.children);
+                                                                                    if(context.children[context.filter_elements-1].identifier == BRANCHELEMENT){
+                                                                                        add_new_filter_element(&context.filter_elements, &context.children);
+                                                                                    }
+                                                                                     context.children[context.filter_elements-1].element.filt.element.filter = UA_FILTEROPERATOR_NOT;
+                                                                                }
+
+IsNull = "ISNULL"                                                               {
+                                                                                    printf("found an isnull operator\n");
+                                                                                    check_empty_list(&context.filter_elements, &context.children);
+                                                                                    if(context.children[context.filter_elements-1].identifier == BRANCHELEMENT){
+                                                                                        printf("add the filter element for the isnull operator\n");
+                                                                                        add_new_filter_element(&context.filter_elements, &context.children);
+                                                                                    }
+                                                                                    context.children[context.filter_elements-1].element.filt.element.filter = UA_FILTEROPERATOR_ISNULL;
+}
+
+OfType = 'OFTYPE' Space* (NodeId | open_round_bracket Space* NodeId Space* close_round_bracket)   Space*                          {
+                                                                                    handle_oftype(&context.filter_elements, &context.children, &$$);
+                                                                                };
+
+TwoOperandsOperatorType = (GreaterOperator | EqualsOperator | LessOperator | GreaterEqualOperator | LessEqualOperator | LikeOperator | Cast | BitWiseAnd | BitWiseOr)
+
+GreaterOperator = "GREATERTHAN"                                                 {
+                                                                                 context.children[context.filter_elements-1].element.filt.element.filter = UA_FILTEROPERATOR_GREATERTHAN;
+}
+
+EqualsOperator = "EQUALS"                                                       {
+                                                                                 context.children[context.filter_elements-1].element.filt.element.filter = UA_FILTEROPERATOR_EQUALS;
+}
+
+LessOperator = "LESSTHAN"                                                       {
+                                                                                 context.children[context.filter_elements-1].element.filt.element.filter= UA_FILTEROPERATOR_LESSTHAN;
+}
+
+GreaterEqualOperator = "GREATEROREQUAL"                                         {
+                                                                                 context.children[context.filter_elements-1].element.filt.element.filter = UA_FILTEROPERATOR_GREATERTHANOREQUAL;
+}
+
+LessEqualOperator = "LESSOREQUAL"                                               {
+                                                                                 context.children[context.filter_elements-1].element.filt.element.filter = UA_FILTEROPERATOR_LESSTHANOREQUAL;
+}
+
+LikeOperator = "LIKE"                                                           {
+                                                                                 context.children[context.filter_elements-1].element.filt.element.filter = UA_FILTEROPERATOR_LIKE;
+}
+
+Cast = "CAST"                                                                   {
+                                                                                 context.children[context.filter_elements-1].element.filt.element.filter = UA_FILTEROPERATOR_CAST;
+}
+
+BitWiseAnd = "BITAND"                                                           {
+                                                                                 context.children[context.filter_elements-1].element.filt.element.filter = UA_FILTEROPERATOR_BITWISEAND;
+                                                                                }
+
+BitWiseOr = "BITOR"                                                             {
+                                                                                 context.children[context.filter_elements-1].element.filt.element.filter = UA_FILTEROPERATOR_BITWISEOR;
+                                                                                }
+
+OperatorReference = '$' elementIDX ':='                                         {
+                                                                                    add_new_filter_element(&context.filter_elements, &context.children);
+                                                                                    context.children[context.filter_elements-1].identifier = FILTERELEMENT;
+                                                                                    set_reference(&context.children[context.filter_elements-1].element.filt.ref, yytext);
+                                                                                };
+
+Operand = (Space)* ((LITERALOPERAND | ElementOperand | WhereSimpleAttributeOperand) | open_round_bracket Space* (LITERALOPERAND | ElementOperand | WhereSimpleAttributeOperand) Space* close_round_bracket) (Space)*
+
+WhereSimpleAttributeOperand = (Space* TypeDef? Space* BrowsePath Space* AttributeId? Space* IndexRange?) {
+                                                                                    printf("found the sao\n");
+                                                                                    handle_sao(&context.filter_elements, &context.children, &$$);
+                                                                                }
+
+AttributeId                 = (Space* 'ATTRIBUTE' Space* Id)                    {
+                                                                                    set_up_attributeId(yytext, &$$.value.sao.attributeId);
+                                                                                }
+
+Id                 =  <[0-9]+>
+
+TypeDef            = (Space* 'TYPEID' Space* NodeId)                         {
+                                                                                    append_sao_typeId(&$$)
+
+                                                                                }
+
+NodeId = ((NamespaceIdx? identifier) | (open_round_bracket Space* NamespaceIdx? identifier Space* close_round_bracket))
+                                                                                {
+                                                                                    create_nodeId(&$$);
+                                                                                }
+identifier = (Numeric | String | Guid | ByteString)
+
+ByteString = 'b=' (<characterelement+>)                                           {set_up_bytestring_identifier(&$$.value.str, yytext);}
+
+String = Quotation_Marks 's=' (stringidentifierelement) Quotation_Marks         {set_up_string_identifier(&$$.value.str, yytext);}
+
+Numeric = 'i=' <[0-9]+>                                                         {set_up_numeric_identifier(&$$.value.str, yytext);}
+
+Guid = 'g=' (Guidelement)                                                       {set_up_guid_identifier(&$$.value.str, yytext);}
+
+NamespaceIdx = 'ns=' <[0-9]+> Semicolon                                         {set_up_namespaceidx(&$$.value.str, yytext);}
+
+
+BrowsePath               =  'PATH' (Space* <characterelement+>)     Space*           {
+                                                                                    set_up_browsepath(&$$.value.sao.browsePath, &$$.value.sao.browsePathSize, yytext);
+                                                                                    }
+
+IndexRange = Space*   (IndexElement)  Space*                                    {
+                                                                                    set_up_index_range(yytext, &$$.value.sao.indexRange);
+                                                                                }
+
+IndexElement = 'INDEX' Space* open_square_brackets <(Space | [0-9] | Colon | Comma [0-9] | Comma Space* [0-9])+>  close_square_brackets
+
+ElementOperand  =  (Space* '$' elementIDX) Space*                        {
+                                                                                    handle_elementoperand(&context.filter_elements, &context.children, yytext);
+                                                                                }
+
+elementIDX =  (<[0-9]+> | Quotation_Marks <([a-zA-Z] | Space | [0-9] | underline )+> Quotation_Marks)
+
+LITERALOPERAND = (JSONSTRING | LITERALVALUE)                                    {
+                                                                                handle_literaloperand(&context.filter_elements, &context.children, &$$);
+                                                                                }
+
+LITERALVALUE = (INT32VALUE | STRINGVALUE | BOOLVALUE | INT16VALUE | INT64VALUE | UINT16VALUE | UINT32VALUE | UINT64VALUE | DOUBLEVALUE | FLOATVALUE
+    | NODEIDVALUE | SBYTEVALUE | BYTEVALUE | TIMEVALUE | GUIDVALUE | BYTESTRINGVALUE | STATUSCODEVALUE | EXPNODEIDVALUE | QNAMEVALUE | LOCALIZEVALUE)
+
+    {$$.identifier = DATATYPE_VARIANT;}
+
+NODEIDVALUE = 'NODEID' Space* NodeId      {
+                                                store_nodeId_as_variant(&$$);
+                                            }
+
+FLOATVALUE = 'FLOAT' Space* <(minus | [0-9])+>       {
+                                            set_up_variant_from_float(yytext, &$$.value.var);
+                                            }
+
+QNAMEVALUE = 'QNAME' Space* <(characterelement)+>       {
+                                            set_up_variant_from_qname(yytext, &$$.value.var);
+                                            }
+LOCALIZEVALUE = 'LOCALIZED' Space* Quotation_Marks stringidentifierelement Quotation_Marks       {
+                                            set_up_variant_from_localized(yytext, &$$.value.var);
+                                            }
+
+STATUSCODEVALUE = 'STATUSCODE' Space* <([a-zA-Z_] | [0-9])+>       {
+                                            set_up_variant_from_statuscode(yytext, &$$.value.var);
+                                            }
+
+EXPNODEIDVALUE = 'EXPNODEID' Space* Quotation_Marks <(stringelement | [0-9])+> Quotation_Marks       {
+                                            set_up_variant_from_expnodeid(yytext, &$$.value.var);
+                                            }
+
+BYTESTRINGVALUE = 'BSTRING' Space* Quotation_Marks stringidentifierelement Quotation_Marks       {
+                                            set_up_variant_from_bstring(yytext, &$$.value.var);
+                                            }
+GUIDVALUE = 'GUID' Space* Guidelement       {
+                                            set_up_variant_from_guid(yytext, &$$.value.var);
+                                            }
+
+TIMEVALUE = 'TIME' Space* (Quotation_Marks <(minus | [0-9] | [a-zA-Z] | dot | Colon)+> Quotation_Marks)       {
+                                            set_up_variant_from_time(yytext, &$$.value.var);
+                                            }
+
+SBYTEVALUE = 'SBYTE' Space* <(minus | [0-9])+>       {
+                                                    set_up_variant_from_sbyte(yytext, &$$.value.var);
+                                                    }
+
+BYTEVALUE = 'BYTE' Space* <[0-9]+>       {
+                                                    set_up_variant_from_byte(yytext, &$$.value.var);
+                                                    }
+
+DOUBLEVALUE = 'DOUBLE' Space* <(minus | [0-9])+>       {
+                                                    set_up_variant_from_double(yytext, &$$.value.var);
+                                                    }
+
+BOOLVALUE = 'BOOL' Space* (Quotation_Marks stringidentifierelement Quotation_Marks | <[0-1]> )  {
+                                                    set_up_variant_from_bool(yytext, &$$.value.var);
+                                                    }
+
+STRINGVALUE = 'STRING' Space* Quotation_Marks stringidentifierelement Quotation_Marks  {
+                                                    set_up_variant_from_string(yytext, &$$.value.var);
+                                                }
+
+INT64VALUE = 'INT64' Space* <(minus | [0-9])+>       {
+                                            set_up_variant_from_int64(yytext, &$$.value.var);
+                                            }
+
+UINT16VALUE = 'UINT16' Space* <[0-9]+>       {
+                                                set_up_variant_from_uint16(yytext, &$$.value.var);
+                                                }
+
+UINT32VALUE = 'UINT32' Space* <[0-9]+>       {
+                                            set_up_variant_from_uint32(yytext, &$$.value.var);
+                                            }
+
+UINT64VALUE = 'UINT64' Space* <[0-9]+>       {
+                                            set_up_variant_from_uint64(yytext, &$$.value.var);
+                                            }
+
+INT16VALUE = 'INT16' Space* <(minus | [0-9])+>       {
+                                            set_up_variant_from_int16(yytext, &$$.value.var);
+                                            }
+
+INT32VALUE = 'INT32' Space* < (minus | [0-9])+>       {
+                                            set_up_variant_from_int32(yytext, &$$.value.var);
+                                            }
+
+JSONSTRING = (JSONParse)+                   {$$.identifier = DATATYPE_STRING;}
+
+JSONParse = (JSONELEMENT | JSON_String)
+
+JSONELEMENT = (<(close_Clip | [0-9] | Space | Comma | open_square_brackets | close_square_brackets)>)
+                                                        {
+                                                        if(context.br_ctr > 0){
+                                                            append_json_string(&$$.value.str, yytext, &context.br_ctr);
+                                                        }
+                                                        }
+
+JSON_String =  (First_Json_String | Given_Json_String)
+
+First_Json_String = (open_Clip Quotation_Marks <([a-zA-Z])+> Quotation_Marks Colon)
+                                                    {set_up_parsed_string(yytext, &$$.value.str, true, &context.br_ctr);}
+
+Given_Json_String =  (Quotation_Marks <([a-zA-Z])+> Quotation_Marks Colon)
+                                                    {set_up_parsed_string(yytext, &$$.value.str, false, &context.br_ctr);}
+
+Guidelement = <([a-zA-Z_] | [0-9] | minus)+>
+
+
+stringidentifierelement = <stringelement+>
+
+stringelement =     ( characterelement| Space )
+
+characterelement = ( [a-zA-Z_] | [0-9] | Colon | StringComma | Equals | Semicolon | minus | Slash | and_sign | Plus | dot | underline)
+
+Plus = "+"
+
+Equals = "="
+
+Semicolon = ";"
+
+Slash = "/"
+
+and_sign = "&"
+
+StringComma = "&,"
+
+open_Clip = "{"
+
+close_Clip = "}"
+
+Quotation_Marks = ('"' | "'")
+
+Colon = ":"
+
+EnterSpace = (Enter | Space)*
+
+Space = " "
+
+open_square_brackets = "["
+
+close_square_brackets = "]"
+
+Enter = '\r\n'
+
+Comma = ","
+
+open_round_bracket = "("
+
+close_round_bracket = ")"
+
+minus = "-"
+
+dot = "."
+
+underline = "_"

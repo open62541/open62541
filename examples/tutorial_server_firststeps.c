@@ -23,9 +23,57 @@
 #include <open62541/plugin/log_stdout.h>
 #include <open62541/server.h>
 #include <open62541/server_config_default.h>
-
+#include <../deps/cj5.h>
 #include <signal.h>
 #include <stdlib.h>
+
+
+static void test_json_parser(UA_ByteString *inp_val, UA_DecodeJsonOptions *options, void *target_value, const UA_DataType *type){
+
+
+    UA_StatusCode ret_val = UA_decodeJson(inp_val, target_value, type, options);
+    if(ret_val != UA_STATUSCODE_GOOD){
+
+        UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "parsing failed");
+    }
+    else{
+        printf("parsing succeeded\n");
+        //UA_String out = UA_STRING_NULL;
+        //UA_print(target_value, &UA_TYPES[UA_TYPES_NODEID], &out);
+        //printf("The parsed json value is: %.*s\n", (int)out.length, out.data);
+        //UA_String_clear(&out);
+    }
+    UA_LiteralOperand lit;
+    UA_LiteralOperand_init(&lit);
+    lit.value = *(UA_Variant *) target_value;
+    //UA_Variant var = *(UA_Variant *) target_value;
+    //UA_String out = UA_STRING_NULL;
+    //UA_print(&lit, &UA_TYPES[UA_TYPES_LITERALOPERAND], &out);
+    //printf("As Literal Operand: %.*s\n", (int)out.length, out.data);
+    //UA_String_clear(&out);
+
+
+}
+
+static void test_ua_array_set_up(size_t *length, UA_QualifiedName *value, UA_QualifiedName **qname_array){
+    UA_QualifiedName name;
+    UA_QualifiedName_init(&name);
+    name.namespaceIndex = value->namespaceIndex;
+    name.name = value->name;
+
+
+    //printf("len is %zu\n", len);
+    if(*length == 0){
+        * (qname_array[0]) = name;
+        *length = 2;
+    }
+    else{
+        UA_StatusCode retval = UA_Array_append((void **) qname_array, length, (void *) &name, &UA_TYPES[UA_TYPES_QUALIFIEDNAME]);
+        if (retval!= UA_STATUSCODE_GOOD){
+            printf("failed to Append the array\n");
+        }
+    }
+}
 
 static volatile UA_Boolean running = true;
 static void stopHandler(int sig) {
@@ -37,14 +85,121 @@ int main(void) {
     signal(SIGINT, stopHandler);
     signal(SIGTERM, stopHandler);
 
+
+
     UA_Server *server = UA_Server_new();
     UA_ServerConfig_setDefault(UA_Server_getConfig(server));
+    UA_String s;
+    UA_String_init(&s);
+    s.length = strlen("test");
+    s.data = (UA_Byte*)"test";
+    size_t length = 0;
+    UA_QualifiedName *qname_array;
+    UA_QualifiedName *value = UA_QualifiedName_new();
+    value->name = s;
+    value->namespaceIndex = 3;
+
+    UA_Int16 test = 4;
+
+
+    UA_UInt16 *array = (UA_UInt16 *) UA_Array_new(3, &UA_TYPES[UA_TYPES_UINT16]);
+    array[0] = 2;
+    array[1] = 3;
+    array[2] = test;
+    //UA_String out = UA_STRING_NULL;
+    //UA_print(&array[1], &UA_TYPES[UA_TYPES_UINT16], &out);
+    //printf("case 2: q name array at pos 1 is %.*s\n", (int)out.length, out.data);
+    //UA_String_clear(&out);
+    //UA_print(&array[2], &UA_TYPES[UA_TYPES_UINT16], &out);
+    //printf("case 2: q name array at pos 1 is %.*s\n", (int)out.length, out.data);
+    //UA_String_clear(&out);
+    for (int i=0; i<5; i++){
+        if (i==0){
+            //qname_array = (UA_QualifiedName *)malloc(sizeof(UA_QualifiedName));//= test_1;
+            size_t len = 1;
+            qname_array = (UA_QualifiedName *) UA_Array_new(len, &UA_TYPES[UA_TYPES_QUALIFIEDNAME]);
+            test_ua_array_set_up(&length, value, &qname_array);
+        }
+        else{
+            test_ua_array_set_up(&length, value, &qname_array);
+        }
+    }
+
+
+    char *test_nodeid = "ns=1;b=b3BlbjYyNTQxIQ==";
+    UA_String str;
+    UA_String_init(&str);
+    str.length =  strlen(test_nodeid);
+    str.data = (UA_Byte*) test_nodeid;
+    UA_NodeId tar_val;
+    UA_NodeId_parse(&tar_val, str);
+
+    UA_String out = UA_STRING_NULL;
+    UA_print(&tar_val, &UA_TYPES[UA_TYPES_NODEID], &out);
+    printf("The parsed Nodeid is %.*s\n", (int)out.length, out.data);
+    UA_String_clear(&out);
+
+
+    UA_DecodeJsonOptions options;
+
+    //char *inp = "{\"Type\": 3,\"Body\": [1,2,3,4,5,6,7,8],\"Dimension\": [2, 4]}";
+    char *inp = "{\"Id\":5555,\"Namespace\":4}";
+    //char *inp = "{\"Value\": {\"Type\": 0,\"Body\": true}}";
+    //char *inp = "{\"NodeId\": {\"Id\": 12345, \"IdType\":1, \"Namespace\": 3}}";
+    //variant with nodeid
+    //char *inp = "{\"Type\": 3, \"Body\": 2}";
+
+    //parse_json(inp);
+
+    UA_NodeId *test_val = UA_NodeId_new();
+
+    UA_ByteString *input_val = UA_ByteString_new();
+    input_val->length = strlen(inp);
+    input_val->data = (UA_Byte*)inp;
+
+
+    //= ('{"Type": 3,"Body": [1,2,3,4,5,6,7,8],"Dimension": [2, 4]}');
+    test_json_parser(input_val, &options, test_val, &UA_TYPES[UA_TYPES_NODEID]);
+
 
     UA_StatusCode retval = UA_Server_run(server, &running);
 
     UA_Server_delete(server);
     return retval == UA_STATUSCODE_GOOD ? EXIT_SUCCESS : EXIT_FAILURE;
 }
+
+
+
+/*static void parse_json(const char *g_json){
+    cj5_token tokens[32];
+    cj5_result r = cj5_parse(g_json, (int)strlen(g_json), tokens, 32);
+    if(r.error != CJ5_ERROR_NONE) {
+        printf("error\n");
+        if(r.error == CJ5_ERROR_OVERFLOW) {
+            // you can use r.num_tokens to determine the actual token count and reparse
+            printf("Error: line: %d, col: %d\n", r.error_line, r.error_col);
+        }
+    }
+    else{
+        printf("the parsed results is %s\n", r.json5);
+        unsigned int type_idx = 0;
+        cj5_find(&r, &type_idx, "Type");
+        printf("the size of the type token is %d\n",tokens[type_idx].size);
+        UA_UInt64 type;
+        cj5_get_uint(&r, type_idx, &type);
+        UA_String out = UA_STRING_NULL;
+        UA_print(&type, &UA_TYPES[UA_TYPES_UINT64], &out);
+        printf("The type is: %.*s\n", (int)out.length, out.data);
+        UA_String_clear(&out);
+
+        unsigned int body_idx = 0;
+        cj5_find(&r,&body_idx, "Body");
+
+
+    }
+
+}
+*/
 
 /**
  * This is all that is needed for a simple OPC UA server. With the GCC compiler,

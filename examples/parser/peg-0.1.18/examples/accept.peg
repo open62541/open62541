@@ -1,0 +1,8 @@
+start	<- abcd+
+
+abcd	<- 'a' { printf("A %d\n", yypos); } bc { printf("ABC %d\n", yypos); } &{YYACCEPT}
+	 / 'b' { printf("B %d\n", yypos); } cd { printf("BCD %d\n", yypos); } &{YYACCEPT}
+
+bc	<- 'b' { printf("B %d\n", yypos); } 'c' { printf("C %d\n", yypos); }
+
+cd	<- 'c' { printf("C %d\n", yypos); } 'd' { printf("D %d\n", yypos); }

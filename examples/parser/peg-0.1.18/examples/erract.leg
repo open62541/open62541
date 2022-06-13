@@ -1,0 +1,27 @@
+%{
+#include <stdio.h>
+%}
+
+Expr	=   a:NUMBER PLUS   ~{ printf("fail at PLUS\n") } b:NUMBER { printf("got addition\n"); }
+	| ( a:NUMBER MINUS  				  b:NUMBER { printf("got subtraction\n"); } ) ~{ printf("fail at subtraction\n") }
+	|   a:NUMBER TIMES  				  b:NUMBER { printf("got multiplication\n"); }
+	|   a:NUMBER DIVIDE 				  b:NUMBER { printf("got division\n"); }
+
+NUMBER	= < [0-9]+ >	-					   { $$= atoi(yytext); }
+PLUS	= '+'		-
+MINUS	= '-'		-
+TIMES	= '*'		-
+DIVIDE	= '/'		-
+
+-	= (SPACE | EOL)*
+SPACE	= [ \t]
+EOL	= '\n' | '\r\n' | '\r' | ';'
+
+%%
+
+int main()
+{
+  while (yyparse());
+
+  return 0;
+}

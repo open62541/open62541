@@ -198,7 +198,10 @@ if(UA_ENABLE_DISCOVERY_MULTICAST)
     add_example(discovery_client_find_servers discovery/client_find_servers.c)
     add_example(discovery_server_multicast discovery/server_multicast.c)
 endif()
+add_example(query_test parser/query_language_event_filterElementOperand.c)
 
+add_subdirectory(wrap_func_event_filter)
+add_subdirectory(tut_event_filter)
 add_subdirectory(nodeset)
 ####################
 #  Example PubSub  #

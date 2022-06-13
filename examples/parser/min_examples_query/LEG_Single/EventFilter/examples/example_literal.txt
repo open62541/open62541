@@ -1,0 +1,27 @@
+SELECT
+
+
+TYPEID ns=134;"s=1;;5 2;3" PATH /1:Duration/15:SecondElement/7:ThirdElement ATTRIBUTE 23 INDEX [100,5:20]
+
+WHERE
+
+OR(OR($19, AND($8, OR($9, $11))),AND(OR( $6 ,$"another" ), AND($10, $7)))
+
+FOR
+
+
+$"another":= DOUBLE 18 GREATERTHAN STRING "tes tSt 3 ring"
+
+$19:= FLOAT 17 LESSOREQUAL BOOL 1
+
+$6:= GUID 09087e75-8e5e-499b-954f-f2a9603db28a LESSTHAN UINT16 30
+
+$7:= INT64 -25 LESSTHAN NODEID ns=2;i=2000
+
+$8:= SBYTE -125 LESSTHAN TIME "2023-06-06T09:55:50.730824Z"
+
+$9:= EXPNODEID "svr=5;nsu=https://test.test.com;s=test" LESSTHAN STATUSCODE 15
+
+$10:= QNAME 1:Duration LESSTHAN QNAME Duration
+
+$11:= LOCALIZED "Duration" LESSTHAN BOOL "True"

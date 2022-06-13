@@ -1,0 +1,14 @@
+SELECT
+
+PATH Message,
+PATH Severity,
+PATH EventType
+
+WHERE
+
+OR($4, $123)
+
+FOR
+
+$4:= OFTYPE ns=1;i=5000
+$123:= TYPEID i=5000 PATH Severity GREATERTHAN {"Type": 3&,"Body": 99}

@@ -1,0 +1,27 @@
+# Grammar
+
+Expr	<- SPACE Sum EOL		{ printf("%d\n", pop()); }
+	 / (!EOL .)* EOL		{ printf("error\n"); }
+
+Sum	<- Product ( PLUS  Product	{ int r= pop(), l= pop();  push(l + r); }
+		   / MINUS Product	{ int r= pop(), l= pop();  push(l - r); }
+		   )*
+
+Product	<- Value ( TIMES  Value		{ int r= pop(), l= pop();  push(l * r); }
+                 / DIVIDE Value		{ int r= pop(), l= pop();  push(l / r); }
+		 )*
+
+Value	<- NUMBER			{ push(atoi(yytext)); }
+	 / OPEN Sum CLOSE
+
+# Lexemes
+
+NUMBER	<- < [0-9]+ > SPACE
+PLUS	<- '+' SPACE
+MINUS	<- '-' SPACE
+TIMES	<- '*' SPACE
+DIVIDE	<- '/' SPACE
+OPEN	<- '(' SPACE
+CLOSE	<- ')' SPACE
+SPACE	<- [ \t]*
+EOL	<- '\n' / '\r\n' / '\r'

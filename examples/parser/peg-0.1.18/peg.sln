@@ -1,0 +1,27 @@
+Microsoft Visual Studio Solution File, Format Version 11.00
+# Visual Studio 2010
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "leg", "leg.vcxproj", "{5ECEC9E5-8F23-47B6-93E0-C3B328B3BE66}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "peg", "peg.vcxproj", "{5ECEC9E5-8F23-47B6-93E0-C3B328B3BE65}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Win32 = Debug|Win32
+		Release|Win32 = Release|Win32
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{5ECEC9E5-8F23-47B6-93E0-C3B328B3BE65}.Debug|Win32.ActiveCfg = Debug|Win32
+		{5ECEC9E5-8F23-47B6-93E0-C3B328B3BE65}.Debug|Win32.Build.0 = Debug|Win32
+		{5ECEC9E5-8F23-47B6-93E0-C3B328B3BE65}.Release|Win32.ActiveCfg = Release|Win32
+		{5ECEC9E5-8F23-47B6-93E0-C3B328B3BE65}.Release|Win32.Build.0 = Release|Win32
+		{5ECEC9E5-8F23-47B6-93E0-C3B328B3BE66}.Debug|Win32.ActiveCfg = Debug|Win32
+		{5ECEC9E5-8F23-47B6-93E0-C3B328B3BE66}.Debug|Win32.Build.0 = Debug|Win32
+		{5ECEC9E5-8F23-47B6-93E0-C3B328B3BE66}.Release|Win32.ActiveCfg = Release|Win32
+		{5ECEC9E5-8F23-47B6-93E0-C3B328B3BE66}.Release|Win32.Build.0 = Release|Win32
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+	EndGlobalSection
+EndGlobal

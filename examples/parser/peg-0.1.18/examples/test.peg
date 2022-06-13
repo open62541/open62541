@@ -1,0 +1,13 @@
+start	<- body '.' { printf(".\n"); }
+
+body	<- 'a' { printf("a1 "); }   'b'  { printf("ab1 "); }
+
+	 / 'a' { printf("a2 "); }   'c'  { printf("ac2 "); }
+
+	 / 'a' { printf("a3 "); } ( 'd'  { printf("ad3 "); } / 'e'  { printf("ae3 "); } )
+
+	 / 'a' { printf("a4 "); } ( 'f'  { printf("af4 "); }   'g'  { printf("afg4 "); }
+				  / 'f'  { printf("af5 "); }   'h'  { printf("afh5 "); } )
+
+	 / 'a' { printf("a6 "); } ( 'f' &{ printf("af6 ")  }   'i' &{ printf("afi6 ") }
+				  / 'f' &{ printf("af7 ")  }   'j' &{ printf("afj7 ") } )
