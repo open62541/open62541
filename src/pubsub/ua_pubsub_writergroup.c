@@ -639,6 +639,7 @@ UA_WriterGroup_setPubSubState(UA_Server *server,
                               UA_WriterGroup *writerGroup,
                               UA_PubSubState state,
                               UA_StatusCode cause) {
+    UA_LOCK_ASSERT(&server->serviceMutex, 1);
     UA_StatusCode ret = UA_STATUSCODE_GOOD;
     UA_DataSetWriter *dataSetWriter;
     UA_PubSubState oldState = writerGroup->state;
@@ -1033,6 +1034,7 @@ sendBufferedNetworkMessage(UA_Server *server, UA_PubSubConnection *connection,
 
 static UA_INLINE void
 publishRT(UA_Server *server, UA_WriterGroup *writerGroup, UA_PubSubConnection *connection) {
+    UA_LOCK_ASSERT(&server->serviceMutex, 1);
     UA_StatusCode res = UA_STATUSCODE_GOOD;
     if(UA_NetworkMessage_updateBufferedMessage(&writerGroup->bufferedMessage) != UA_STATUSCODE_GOOD)
         UA_LOG_DEBUG(&server->config.logger, UA_LOGCATEGORY_SERVER,
@@ -1110,6 +1112,7 @@ sendNetworkMessage(UA_WriterGroup *writerGroup, UA_PubSubConnection *connection,
 
 static UA_INLINE void
 setErrorStateForDataSetWritersWithIds(UA_Server *server, UA_WriterGroup *writerGroup, UA_UInt16 *dsWriterIds, size_t idCount) {
+    UA_LOCK_ASSERT(&server->serviceMutex, 1);
     UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
                  "PubSub Publish: Sending a NetworkMessage failed");
 
@@ -1153,6 +1156,7 @@ static UA_INLINE size_t
 sendOrCollectDataSetMessage(UA_Server *server, UA_WriterGroup *writerGroup, UA_DataSetWriter *writer,
                             UA_PubSubConnection *connection, UA_Byte maxDSM, UA_UInt16 *dsWriterId,
                             UA_DataSetMessage *dataSetMessage) {
+    UA_LOCK_ASSERT(&server->serviceMutex, 1);
     if(writer->state != UA_PUBSUBSTATE_OPERATIONAL) {
         return 0;
     }
@@ -1193,7 +1197,10 @@ static UA_INLINE void
 sendCollectedDataSetMessagesInBatches(UA_Server *server, UA_WriterGroup *writerGroup, UA_PubSubConnection *connection,
                                       UA_UInt16 *dsWriterIds, UA_DataSetMessage *dataSetMessageBuffer,
                                       size_t collectedDatasetMessageCount,
-                                      UA_Byte maxDSMCount) {/* Send the NetworkMessages with batched DataSetMessages */
+                                      UA_Byte maxDSMCount) {
+    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+
+    /* Send the NetworkMessages with batched DataSetMessages */
     size_t cursor, dsmCount;
     FOR_EACH_CHUNK(cursor, dsmCount, maxDSMCount, collectedDatasetMessageCount) {
         UA_StatusCode res = sendNetworkMessage(
@@ -1214,6 +1221,8 @@ sendCollectedDataSetMessagesInBatches(UA_Server *server, UA_WriterGroup *writerG
 static void
 publishRegular(UA_Server *server, UA_WriterGroup *writerGroup,
                UA_PubSubConnection *connection) {
+    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+
     /* It is possible to put several DataSetMessages into one NetworkMessage.
      * But only if they do not contain promoted fields. NM with only DSM are
      * sent out right away. The others are kept in a buffer for "batching". */
@@ -1285,6 +1294,7 @@ error:
  * creation. */
 UA_StatusCode
 UA_WriterGroup_addPublishCallback(UA_Server *server, UA_WriterGroup *writerGroup) {
+    UA_LOCK_ASSERT(&server->serviceMutex, 1);
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     if(writerGroup->config.pubsubManagerCallback.addCustomCallback)
         retval |= writerGroup->config.pubsubManagerCallback.
