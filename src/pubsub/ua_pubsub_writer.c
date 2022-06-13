@@ -390,14 +390,18 @@ addDataSetField(UA_Server *server, const UA_NodeId publishedDataSet,
         return result;
     }
 
-    UA_StatusCode retVal = UA_DataSetFieldConfig_copy(fieldConfig, &newField->config);
-    if(retVal != UA_STATUSCODE_GOOD) {
+    result.result = UA_DataSetFieldConfig_copy(fieldConfig, &newField->config);
+    if(result.result != UA_STATUSCODE_GOOD) {
         UA_free(newField);
-        result.result = retVal;
         return result;
     }
 
-    newField->publishedDataSet = currDS->identifier;
+    result.result = UA_NodeId_copy(&currDS->identifier, &newField->publishedDataSet);
+    if(result.result != UA_STATUSCODE_GOOD) {
+        UA_DataSetFieldConfig_clear(&newField->config);
+        UA_free(newField);
+        return result;
+    }
 
     /* Initialize the field metadata. Also generates a FieldId */
     UA_FieldMetaData fmd;
@@ -406,6 +410,7 @@ addDataSetField(UA_Server *server, const UA_NodeId publishedDataSet,
     if(result.result != UA_STATUSCODE_GOOD) {
         UA_FieldMetaData_clear(&fmd);
         UA_DataSetFieldConfig_clear(&newField->config);
+        UA_NodeId_clear(&newField->publishedDataSet);
         UA_free(newField);
         return result;
     }
@@ -417,6 +422,7 @@ addDataSetField(UA_Server *server, const UA_NodeId publishedDataSet,
     if(result.result != UA_STATUSCODE_GOOD) {
         UA_FieldMetaData_clear(&fmd);
         UA_DataSetFieldConfig_clear(&newField->config);
+        UA_NodeId_clear(&newField->publishedDataSet);
         UA_free(newField);
         return result;
     }
