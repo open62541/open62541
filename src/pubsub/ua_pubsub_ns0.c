@@ -1325,13 +1325,18 @@ addReaderGroupAction(UA_Server *server,
 /**********************************************/
 
 UA_StatusCode
-addDataSetWriterRepresentation(UA_Server *server, UA_DataSetWriter *dataSetWriter){
+addDataSetWriterRepresentation(UA_Server *server, UA_DataSetWriter *dataSetWriter) {
+    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+
     UA_StatusCode retVal = UA_STATUSCODE_GOOD;
     if(dataSetWriter->config.name.length > 512)
         return UA_STATUSCODE_BADOUTOFMEMORY;
+
     char dswName[513];
     memcpy(dswName, dataSetWriter->config.name.data, dataSetWriter->config.name.length);
     dswName[dataSetWriter->config.name.length] = '\0';
+
+    UA_UNLOCK(&server->serviceMutex);
 
     UA_ObjectAttributes object_attr = UA_ObjectAttributes_default;
     object_attr.displayName = UA_LOCALIZEDTEXT("", dswName);
@@ -1392,6 +1397,8 @@ addDataSetWriterRepresentation(UA_Server *server, UA_DataSetWriter *dataSetWrite
                                       UA_QUALIFIEDNAME(0, "MessageSettings"),
                                       UA_NODEID_NUMERIC(0, UA_NS0ID_UADPDATASETWRITERMESSAGETYPE),
                                       object_attr, NULL, NULL);
+
+    UA_LOCK(&server->serviceMutex);
     return retVal;
 }
 
