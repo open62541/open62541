@@ -1238,16 +1238,19 @@ publishRegular(UA_Server *server, UA_WriterGroup *writerGroup,
  * contained DataSetMessages. */
 void
 UA_WriterGroup_publishCallback(UA_Server *server, UA_WriterGroup *writerGroup) {
+    UA_LOCK(&server->serviceMutex);
     UA_LOG_DEBUG(&server->config.logger, UA_LOGCATEGORY_SERVER, "Publish Callback");
 
     // TODO: review if its okay to force correct value from caller side instead
     // UA_assert(writerGroup != NULL);
     // UA_assert(server != NULL);
-    UA_CHECK_MEM_WARN(writerGroup, return,
+    UA_CHECK_MEM_WARN(writerGroup,
+                      UA_UNLOCK(&server->serviceMutex); return,
                       &server->config.logger, UA_LOGCATEGORY_SERVER,
                       "Publish failed. WriterGroup not found");
     /* Nothing to do? */
     if(writerGroup->writersCount == 0) {
+        UA_UNLOCK(&server->serviceMutex);
         return;
     }
     /* Binary or Json encoding?  */
@@ -1269,11 +1272,13 @@ UA_WriterGroup_publishCallback(UA_Server *server, UA_WriterGroup *writerGroup) {
     } else {
         publishRegular(server, writerGroup, connection);
     }
+    UA_UNLOCK(&server->serviceMutex);
     return;
 
 error:
     UA_WriterGroup_setPubSubState(server, writerGroup, UA_PUBSUBSTATE_ERROR,
                                   UA_STATUSCODE_BADCONNECTIONCLOSED);
+    UA_UNLOCK(&server->serviceMutex);
 }
 
 /* Add new publishCallback. The first execution is triggered directly after
@@ -1300,8 +1305,11 @@ UA_WriterGroup_addPublishCallback(UA_Server *server, UA_WriterGroup *writerGroup
     if(retval == UA_STATUSCODE_GOOD)
         writerGroup->publishCallbackIsRegistered = true;
 
-    /* Run once after creation */
+    /* Run once after creation. The Publish callback itself takes the server
+     * mutex. So we release it first. */
+    UA_UNLOCK(&server->serviceMutex);
     UA_WriterGroup_publishCallback(server, writerGroup);
+    UA_LOCK(&server->serviceMutex);
     return retval;
 }
 
