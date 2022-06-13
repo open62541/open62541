@@ -583,7 +583,7 @@ UA_DataSetWriterConfig_clear(UA_DataSetWriterConfig *pdsConfig);
  * Part 14, 7.1.5.2.1 defines: The link between the PublishedDataSet and
  * DataSetWriter shall be created when an instance of the DataSetWriterType is
  * created. */
-UA_StatusCode UA_EXPORT
+UA_StatusCode UA_EXPORT UA_THREADSAFE
 UA_Server_addDataSetWriter(UA_Server *server,
                            const UA_NodeId writerGroup, const UA_NodeId dataSet,
                            const UA_DataSetWriterConfig *dataSetWriterConfig,

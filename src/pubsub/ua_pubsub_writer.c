@@ -746,11 +746,12 @@ UA_DataSetWriter_setPubSubState(UA_Server *server,
     return ret;
 }
 
-UA_StatusCode
-UA_Server_addDataSetWriter(UA_Server *server,
-                           const UA_NodeId writerGroup, const UA_NodeId dataSet,
-                           const UA_DataSetWriterConfig *dataSetWriterConfig,
-                           UA_NodeId *writerIdentifier) {
+static UA_StatusCode
+addDataSetWriter(UA_Server *server,
+                 const UA_NodeId writerGroup, const UA_NodeId dataSet,
+                 const UA_DataSetWriterConfig *dataSetWriterConfig,
+                 UA_NodeId *writerIdentifier) {
+    UA_LOCK_ASSERT(&server->serviceMutex, 1);
     if(!dataSetWriterConfig)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
 
@@ -868,6 +869,19 @@ UA_Server_addDataSetWriter(UA_Server *server,
 #endif
     if(writerIdentifier)
         UA_NodeId_copy(&newDataSetWriter->identifier, writerIdentifier);
+    return res;
+}
+
+UA_StatusCode
+UA_Server_addDataSetWriter(UA_Server *server,
+                           const UA_NodeId writerGroup, const UA_NodeId dataSet,
+                           const UA_DataSetWriterConfig *dataSetWriterConfig,
+                           UA_NodeId *writerIdentifier) {
+    UA_LOCK(&server->serviceMutex);
+    UA_StatusCode res =
+        addDataSetWriter(server, writerGroup, dataSet,
+                         dataSetWriterConfig, writerIdentifier);
+    UA_UNLOCK(&server->serviceMutex);
     return res;
 }
 
