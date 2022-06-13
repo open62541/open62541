@@ -588,7 +588,11 @@ UA_Server_setWriterGroupEncryptionKeys(UA_Server *server, const UA_NodeId writer
     UA_WriterGroup *wg = UA_WriterGroup_findWGbyId(server, writerGroup);
     if(!wg)
         return UA_STATUSCODE_BADNOTFOUND;
-
+    if(wg->config.encodingMimeType == UA_PUBSUB_ENCODING_JSON) {
+        UA_LOG_WARNING_WRITERGROUP(&server->config.logger, wg,
+                                   "JSON encoding is enabled. The message security is only defined for the UADP message mapping.");
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
     if(!wg->config.securityPolicy) {
         UA_LOG_WARNING_WRITERGROUP(&server->config.logger, wg,
                                    "No SecurityPolicy configured for the WriterGroup");
