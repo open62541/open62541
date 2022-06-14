@@ -407,14 +407,26 @@ UA_PubSubManager_delete(UA_Server *server, UA_PubSubManager *pubSubManager) {
                 "PubSub cleanup was called.");
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
 
-    /* Stop and unfreeze all WriterGroups */
+    /* Stop, unfreeze and delete all WriterGroups */
     UA_PubSubConnection *tmpConnection;
-    TAILQ_FOREACH(tmpConnection, &server->pubSubManager.connections, listEntry){
-        UA_WriterGroup *writerGroup;
-        LIST_FOREACH(writerGroup, &tmpConnection->writerGroups, listEntry) {
+    TAILQ_FOREACH(tmpConnection, &server->pubSubManager.connections, listEntry) {
+        UA_WriterGroup *writerGroup, *tmpWriterGroup;
+        LIST_FOREACH_SAFE(writerGroup, &tmpConnection->writerGroups, listEntry, tmpWriterGroup) {
             UA_WriterGroup_setPubSubState(server, writerGroup, UA_PUBSUBSTATE_DISABLED,
                                           UA_STATUSCODE_BADSHUTDOWN);
             UA_Server_unfreezeWriterGroupConfiguration(server, writerGroup->identifier);
+            removeWriterGroup(server, writerGroup->identifier);
+        }
+    }
+
+    /* Stop, unfreeze and delete all ReaderGroups */
+    TAILQ_FOREACH(tmpConnection, &server->pubSubManager.connections, listEntry) {
+        UA_ReaderGroup *readerGroup, *tmpReaderGroup;
+        LIST_FOREACH_SAFE(readerGroup, &tmpConnection->readerGroups, listEntry, tmpReaderGroup) {
+            UA_ReaderGroup_setPubSubState(server, readerGroup, UA_PUBSUBSTATE_DISABLED,
+                                          UA_STATUSCODE_BADSHUTDOWN);
+            UA_Server_unfreezeReaderGroupConfiguration(server, readerGroup->identifier);
+            removeReaderGroup(server, readerGroup->identifier);
         }
     }
 
