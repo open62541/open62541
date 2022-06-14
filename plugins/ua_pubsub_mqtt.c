@@ -11,13 +11,13 @@
  * Currently only ua_mqtt_adapter.c implements this 
  * interface and maps them to the specific "MQTT-C" library functions. 
  * Another mqtt lib could be used.
- * "ua_mqtt_pal.c" forwards the network calls (send/recv) to UA_Connection (TCP).
+ * "mqtt_pal.c" forwards the network calls (send/recv) to UA_Connection (TCP).
  */
 
 #include <open62541/server_pubsub.h>
 #include <open62541/util.h>
 
-#include "mqtt/ua_mqtt_adapter.h"
+#include "mqtt/ua_mqtt-c_adapter.h"
 #include "open62541/plugin/log_stdout.h"
 
 static UA_StatusCode
@@ -67,8 +67,12 @@ UA_PubSubChannelMQTT_open(const UA_PubSubConnectionConfig *connectionConfig) {
     /* set default values */
     UA_String mqttClientId = UA_STRING("open62541_pub");
     memcpy(channelDataMQTT, &(UA_PubSubChannelDataMQTT){address, 2000, 2000, NULL, NULL, &mqttClientId, NULL,
-                                                    #ifdef UA_ENABLE_MQTT_TLS_OPENSSL // Initialize the "ssl" member
+                                                    #if defined(UA_ENABLE_MQTT_TLS_OPENSSL) // Initialize the "ssl" member
                                                         NULL,
+                                                    #elif defined(UA_ENABLE_MQTT_TLS_MBEDTLS)
+                                                        NULL,
+                                                    #else
+                                                        -1,
                                                     #endif
                                                         NULL, NULL,
                                                         UA_STRING_NULL, UA_STRING_NULL, UA_STRING_NULL, UA_STRING_NULL,

@@ -21,6 +21,7 @@ include(GNUInstallDirs)
 # Set when installed via make install
 set(open62541_TOOLS_DIR ${PROJECT_SOURCE_DIR}/tools)
 set(open62541_NODESET_DIR ${PROJECT_SOURCE_DIR}/deps/ua-nodeset)
+set(open62541_MQTT_DIR ${PROJECT_SOURCE_DIR}/deps/mqtt-c)
 
 include(macros_internal)
 include(macros_public)
@@ -416,29 +417,49 @@ endif()
 option(UA_ENABLE_PUBSUB_MQTT "Enable publish/subscribe with mqtt (experimental)" OFF)
 mark_as_advanced(UA_ENABLE_PUBSUB_MQTT)
 if(UA_ENABLE_PUBSUB_MQTT)
-    # Warn if run in Windows
-    if(WIN32)
-        MESSAGE(WARNING "Multithreading is enabled in MQTT plugin. This feature is under development and marked as EXPERIMENTAL")
+    if(NOT UA_FILE_MQTT)
+        set(UA_FILE_MQTT ${open62541_MQTT_DIR}/src/mqtt.c)
     endif()
-    if(NOT UA_ENABLE_PUBSUB)
-    message(FATAL_ERROR "Mqtt cannot be used with disabled PubSub function.")
+    if(NOT EXISTS "${UA_FILE_MQTT}")
+        message(FATAL_ERROR "File ${UA_FILE_MQTT} not found.You probably need to initialize the git submodule for deps/mqtt-c.Therefore execute the following command \ngit submodule update --init --recursive")
+    else()
+        # Warn if run in Windows
+        if(WIN32)
+            MESSAGE(WARNING "Multithreading is enabled in MQTT plugin. This feature is under development and marked as EXPERIMENTAL")
+        endif()
+        if(NOT UA_ENABLE_PUBSUB)
+        message(FATAL_ERROR "Mqtt cannot be used with disabled PubSub function.")
+        endif()
+        configure_file(${PROJECT_SOURCE_DIR}/deps/mqtt-c/include/mqtt.h "${PROJECT_BINARY_DIR}/src_generated/mqtt.h" COPYONLY)
+        configure_file(${PROJECT_SOURCE_DIR}/deps/mqtt-c/include/mqtt_pal.h "${PROJECT_BINARY_DIR}/src_generated/mqtt_pal.h" COPYONLY)
+        configure_file(${PROJECT_SOURCE_DIR}/plugins/mqtt/templates/posix_sockets.h "${PROJECT_BINARY_DIR}/src_generated/posix_sockets.h" COPYONLY)
     endif()
 endif()
 
 option(UA_ENABLE_MQTT_TLS_OPENSSL "Enable TLS support for publish/subscribe with mqtt (use OpenSSL)" OFF)
 mark_as_advanced(UA_ENABLE_MQTT_TLS_OPENSSL)
+option(UA_ENABLE_MQTT_TLS_MBEDTLS "Enable TLS support for publish/subscribe with mqtt (use MBEDTLS)" OFF)
+mark_as_advanced(UA_ENABLE_MQTT_TLS_MBEDTLS)
 
 option(UA_ENABLE_MQTT_TLS "Enable TLS support for publish/subscribe with mqtt" OFF)
 mark_as_advanced(UA_ENABLE_MQTT_TLS)
 if(UA_ENABLE_MQTT_TLS)
-        if(NOT UA_ENABLE_PUBSUB_MQTT)
-            message(FATAL_ERROR "Mqtt with TLS cannot be used without UA_ENABLE_PUBSUB_MQTT.")
-        endif()
+    if(NOT UA_ENABLE_PUBSUB_MQTT)
+        message(FATAL_ERROR "Mqtt with TLS cannot be used without UA_ENABLE_PUBSUB_MQTT.")
+    endif()
+    if(NOT UA_ENABLE_ENCRYPTION)
+        message(FATAL_ERROR "Mqtt with TLS cannot be used without UA_ENABLE_ENCRYPTION.")
+    elseif(UA_ENABLE_ENCRYPTION STREQUAL "OPENSSL")
         set(UA_ENABLE_MQTT_TLS_OPENSSL ON)
-endif()
-
-if(UA_ENABLE_MQTT_TLS_OPENSSL)
-    set(UA_ENABLE_MQTT_TLS ON)
+        add_definitions(-DMQTT_USE_BIO)
+        configure_file(${PROJECT_SOURCE_DIR}/plugins/mqtt/templates/openssl_sockets.h "${PROJECT_BINARY_DIR}/src_generated/openssl_sockets.h" COPYONLY)
+    elseif(UA_ENABLE_ENCRYPTION STREQUAL "MBEDTLS")
+        set(UA_ENABLE_MQTT_TLS_MBEDTLS ON)
+        add_definitions(-DMQTT_USE_MBEDTLS)
+        configure_file(${PROJECT_SOURCE_DIR}/plugins/mqtt/templates/mbedtls_sockets.h "${PROJECT_BINARY_DIR}/src_generated/mbedtls_sockets.h" COPYONLY)
+    else()
+        message(FATAL_ERROR "UA_ENABLE_ENCRYPTION is set to an undefined value")
+    endif()
 endif()
 
 option(UA_ENABLE_STATUSCODE_DESCRIPTIONS "Enable conversion of StatusCode to human-readable error message" ON)
@@ -1076,14 +1097,14 @@ if(UA_ENABLE_PUBSUB)
         if(WIN32)
             MESSAGE(WARNING "Multithreading is enabled in MQTT plugin. This feature is under development and marked as EXPERIMENTAL")
         else()
-            list(APPEND default_plugin_headers ${PROJECT_SOURCE_DIR}/deps/mqtt-c/mqtt_pal.h
-                                               ${PROJECT_SOURCE_DIR}/deps/mqtt-c/mqtt.h
-                                               ${PROJECT_SOURCE_DIR}/plugins/ua_network_pubsub_mqtt.h
-                                               ${PROJECT_SOURCE_DIR}/plugins/mqtt/ua_mqtt_adapter.h)
-            list(APPEND default_plugin_sources ${PROJECT_SOURCE_DIR}/plugins/mqtt/ua_mqtt_pal.c
-                                               ${PROJECT_SOURCE_DIR}/deps/mqtt-c/mqtt.c
-                                               ${PROJECT_SOURCE_DIR}/plugins/ua_network_pubsub_mqtt.c
-                                               ${PROJECT_SOURCE_DIR}/plugins/mqtt/ua_mqtt_adapter.c)
+            list(APPEND default_plugin_headers ${PROJECT_SOURCE_DIR}/deps/mqtt-c/include/mqtt_pal.h
+                 ${PROJECT_SOURCE_DIR}/deps/mqtt-c/include/mqtt.h
+                 ${PROJECT_SOURCE_DIR}/plugins/include/open62541/plugin/pubsub_mqtt.h
+                 ${PROJECT_SOURCE_DIR}/plugins/mqtt/ua_mqtt-c_adapter.h)
+            list(APPEND default_plugin_sources ${PROJECT_SOURCE_DIR}/deps/mqtt-c/src/mqtt_pal.c
+                 ${PROJECT_SOURCE_DIR}/deps/mqtt-c/src/mqtt.c
+                 ${PROJECT_SOURCE_DIR}/plugins/ua_pubsub_mqtt.c
+                 ${PROJECT_SOURCE_DIR}/plugins/mqtt/ua_mqtt-c_adapter.c)
         endif()
     endif()
     if(UA_ENABLE_MALLOC_SINGLETON AND UA_ENABLE_PUBSUB_BUFMALLOC)
