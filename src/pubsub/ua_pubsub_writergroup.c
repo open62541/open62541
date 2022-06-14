@@ -82,6 +82,7 @@ UA_Server_addWriterGroup(UA_Server *server, const UA_NodeId connection,
     if(!newWriterGroup)
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
+    memset(newWriterGroup, 0, sizeof(UA_WriterGroup));
     newWriterGroup->componentType = UA_PUBSUB_COMPONENT_WRITERGROUP;
     newWriterGroup->linkedConnection = currentConnectionContext;
 
@@ -180,6 +181,9 @@ UA_Server_freezeWriterGroupConfiguration(UA_Server *server,
     UA_WriterGroup *wg = UA_WriterGroup_findWGbyId(server, writerGroup);
     if(!wg)
         return UA_STATUSCODE_BADNOTFOUND;
+
+    if(wg->configurationFrozen)
+        return UA_STATUSCODE_GOOD;
 
     /* PubSubConnection freezeCounter++ */
     UA_PubSubConnection *pubSubConnection =  wg->linkedConnection;
@@ -337,20 +341,20 @@ UA_Server_freezeWriterGroupConfiguration(UA_Server *server,
     /* Encode the NetworkMessage */
     bufEnd = &wg->bufferedMessage.buffer.data[wg->bufferedMessage.buffer.length];
     bufPos = wg->bufferedMessage.buffer.data;
+
 #ifdef UA_ENABLE_PUBSUB_ENCRYPTION
-    if (wg->config.securityMode > UA_MESSAGESECURITYMODE_NONE){
+    if(wg->config.securityMode > UA_MESSAGESECURITYMODE_NONE) {
         UA_Byte *payloadPosition;
         UA_NetworkMessage_encodeBinary(&networkMessage, &bufPos, bufEnd, &payloadPosition);
         wg->bufferedMessage.payloadPosition = payloadPosition;
-        wg->bufferedMessage.nm = (UA_NetworkMessage *)UA_malloc(sizeof(networkMessage));
-        wg->bufferedMessage.nm->securityHeader.networkMessageEncrypted = networkMessage.securityHeader.networkMessageEncrypted;
-        wg->bufferedMessage.nm->securityHeader.networkMessageSigned = networkMessage.securityHeader.networkMessageSigned;
-        UA_ByteString_copy(&networkMessage.securityHeader.messageNonce, &wg->bufferedMessage.nm->securityHeader.messageNonce);
+
+        wg->bufferedMessage.nm = (UA_NetworkMessage *)UA_calloc(1,sizeof(UA_NetworkMessage));
+        wg->bufferedMessage.nm->securityHeader = networkMessage.securityHeader;
         UA_ByteString_allocBuffer(&wg->bufferedMessage.encryptBuffer, msgSize);
-        UA_ByteString_clear(&networkMessage.securityHeader.messageNonce);
     }
 #endif
-    if (wg->config.securityMode <= UA_MESSAGESECURITYMODE_NONE)
+
+    if(wg->config.securityMode <= UA_MESSAGESECURITYMODE_NONE)
         UA_NetworkMessage_encodeBinary(&networkMessage, &bufPos, bufEnd, NULL);
 
  cleanup:
@@ -376,19 +380,24 @@ UA_Server_unfreezeWriterGroupConfiguration(UA_Server *server,
     UA_WriterGroup *wg = UA_WriterGroup_findWGbyId(server, writerGroup);
     if(!wg)
         return UA_STATUSCODE_BADNOTFOUND;
+
+    /* Already unfrozen */
+    if(!wg->configurationFrozen)
+        return UA_STATUSCODE_GOOD;
+    
     //if(wg->config.rtLevel == UA_PUBSUB_RT_NONE){
     //    UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
     //                   "PubSub configuration freeze without RT configuration has no effect.");
     //    return UA_STATUSCODE_BADCONFIGURATIONERROR;
     //}
     //PubSubConnection freezeCounter--
+
     UA_PubSubConnection *pubSubConnection =  wg->linkedConnection;
     pubSubConnection->configurationFreezeCounter--;
     if(pubSubConnection->configurationFreezeCounter == 0){
         pubSubConnection->configurationFrozen = UA_FALSE;
     }
-    //WriterGroup unfreeze
-    wg->configurationFrozen = UA_FALSE;
+
     //DataSetWriter unfreeze
     UA_DataSetWriter *dataSetWriter;
     LIST_FOREACH(dataSetWriter, &wg->writers, listEntry) {
@@ -407,18 +416,10 @@ UA_Server_unfreezeWriterGroupConfiguration(UA_Server *server,
             dataSetWriter->configurationFrozen = UA_FALSE;
         }
     }
-    if(wg->config.rtLevel == UA_PUBSUB_RT_FIXED_SIZE) {
-        UA_ByteString_clear(&wg->bufferedMessage.buffer);
-#ifdef UA_ENABLE_PUBSUB_ENCRYPTION
-        if (wg->config.securityMode > UA_MESSAGESECURITYMODE_NONE) {
-            if (wg->bufferedMessage.nm != NULL) {
-                UA_ByteString_clear(&wg->bufferedMessage.nm->securityHeader.messageNonce);
-                UA_free(wg->bufferedMessage.nm);
-            }
-            UA_ByteString_clear(&wg->bufferedMessage.encryptBuffer);
-        }
-#endif
-    }
+
+    UA_NetworkMessageOffsetBuffer_clear(&wg->bufferedMessage);
+
+    wg->configurationFrozen = false;
 
     return UA_STATUSCODE_GOOD;
 }
@@ -429,7 +430,8 @@ UA_Server_setWriterGroupOperational(UA_Server *server,
     UA_WriterGroup *wg = UA_WriterGroup_findWGbyId(server, writerGroup);
     if(!wg)
         return UA_STATUSCODE_BADNOTFOUND;
-    return UA_WriterGroup_setPubSubState(server, UA_PUBSUBSTATE_OPERATIONAL, wg);
+    return UA_WriterGroup_setPubSubState(server, wg, UA_PUBSUBSTATE_OPERATIONAL,
+                                         UA_STATUSCODE_GOOD);
 }
 
 UA_StatusCode
@@ -438,7 +440,8 @@ UA_Server_setWriterGroupDisabled(UA_Server *server,
     UA_WriterGroup *wg = UA_WriterGroup_findWGbyId(server, writerGroup);
     if(!wg)
         return UA_STATUSCODE_BADNOTFOUND;
-    return UA_WriterGroup_setPubSubState(server, UA_PUBSUBSTATE_DISABLED, wg);
+    return UA_WriterGroup_setPubSubState(server, wg, UA_PUBSUBSTATE_DISABLED,
+                                         UA_STATUSCODE_BADRESOURCEUNAVAILABLE);
 }
 
 UA_StatusCode
@@ -589,7 +592,7 @@ UA_Server_setWriterGroupEncryptionKeys(UA_Server *server, const UA_NodeId writer
 #endif
 
 void
-UA_WriterGroupConfig_clear(UA_WriterGroupConfig *writerGroupConfig){
+UA_WriterGroupConfig_clear(UA_WriterGroupConfig *writerGroupConfig) {
     UA_String_clear(&writerGroupConfig->name);
     UA_ExtensionObject_clear(&writerGroupConfig->transportSettings);
     UA_ExtensionObject_clear(&writerGroupConfig->messageSettings);
@@ -610,37 +613,29 @@ UA_WriterGroup_clear(UA_Server *server, UA_WriterGroup *writerGroup) {
         UA_Server_removeDataSetWriter(server, dataSetWriter->identifier);
     }
 
-    if(writerGroup->bufferedMessage.offsetsSize > 0){
-        for(size_t i = 0; i < writerGroup->bufferedMessage.offsetsSize; i++) {
-            if((writerGroup->bufferedMessage.offsets[i].contentType == UA_PUBSUB_OFFSETTYPE_PAYLOAD_VARIANT) ||
-                (writerGroup->bufferedMessage.offsets[i].contentType == UA_PUBSUB_OFFSETTYPE_PAYLOAD_RAW)) {
-                UA_DataValue_delete(writerGroup->bufferedMessage.offsets[i].offsetData.value.value);
-            } else if(writerGroup->bufferedMessage.offsets[i].contentType == UA_PUBSUB_OFFSETTYPE_NETWORKMESSAGE_FIELDENCDODING) {
-                writerGroup->bufferedMessage.offsets[i].offsetData.value.value->value.data = NULL;
-                UA_DataValue_delete(writerGroup->bufferedMessage.offsets[i].offsetData.value.value);
-            }
-        }
-        UA_ByteString_clear(&writerGroup->bufferedMessage.buffer);
-        UA_free(writerGroup->bufferedMessage.offsets);
-    }
-
 #ifdef UA_ENABLE_PUBSUB_ENCRYPTION
     if(writerGroup->config.securityPolicy && writerGroup->securityPolicyContext) {
         writerGroup->config.securityPolicy->deleteContext(writerGroup->securityPolicyContext);
         writerGroup->securityPolicyContext = NULL;
     }
 #endif
+
+    UA_NetworkMessageOffsetBuffer_clear(&writerGroup->bufferedMessage);
 }
 
 UA_StatusCode
-UA_WriterGroup_setPubSubState(UA_Server *server, UA_PubSubState state,
-                              UA_WriterGroup *writerGroup) {
+UA_WriterGroup_setPubSubState(UA_Server *server,
+                              UA_WriterGroup *writerGroup,
+                              UA_PubSubState state,
+                              UA_StatusCode cause) {
+    UA_StatusCode ret = UA_STATUSCODE_GOOD;
     UA_DataSetWriter *dataSetWriter;
+    UA_PubSubState oldState = writerGroup->state;
     switch(state) {
         case UA_PUBSUBSTATE_DISABLED:
             switch (writerGroup->state){
                 case UA_PUBSUBSTATE_DISABLED:
-                    return UA_STATUSCODE_GOOD;
+                    break;
                 case UA_PUBSUBSTATE_PAUSED:
                     break;
                 case UA_PUBSUBSTATE_OPERATIONAL:
@@ -651,7 +646,8 @@ UA_WriterGroup_setPubSubState(UA_Server *server, UA_PubSubState state,
                         UA_PubSubManager_removeRepeatedPubSubCallback(server, writerGroup->publishCallbackId);
 
                     LIST_FOREACH(dataSetWriter, &writerGroup->writers, listEntry){
-                        UA_DataSetWriter_setPubSubState(server, UA_PUBSUBSTATE_DISABLED, dataSetWriter);
+                        UA_DataSetWriter_setPubSubState(server, dataSetWriter, UA_PUBSUBSTATE_DISABLED,
+                                                        UA_STATUSCODE_BADRESOURCEUNAVAILABLE);
                     }
                     writerGroup->state = UA_PUBSUBSTATE_DISABLED;
                     break;
@@ -667,7 +663,7 @@ UA_WriterGroup_setPubSubState(UA_Server *server, UA_PubSubState state,
                 case UA_PUBSUBSTATE_DISABLED:
                     break;
                 case UA_PUBSUBSTATE_PAUSED:
-                    return UA_STATUSCODE_GOOD;
+                    break;
                 case UA_PUBSUBSTATE_OPERATIONAL:
                     break;
                 case UA_PUBSUBSTATE_ERROR:
@@ -689,15 +685,15 @@ UA_WriterGroup_setPubSubState(UA_Server *server, UA_PubSubState state,
                         UA_PubSubManager_removeRepeatedPubSubCallback(server, writerGroup->publishCallbackId);
 
                     LIST_FOREACH(dataSetWriter, &writerGroup->writers, listEntry){
-                        UA_DataSetWriter_setPubSubState(server, UA_PUBSUBSTATE_OPERATIONAL,
-                                                        dataSetWriter);
+                        UA_DataSetWriter_setPubSubState(server, dataSetWriter,
+                                                        UA_PUBSUBSTATE_OPERATIONAL, cause);
                     }
                     UA_WriterGroup_addPublishCallback(server, writerGroup);
                     break;
                 case UA_PUBSUBSTATE_PAUSED:
                     break;
                 case UA_PUBSUBSTATE_OPERATIONAL:
-                    return UA_STATUSCODE_GOOD;
+                    break;
                 case UA_PUBSUBSTATE_ERROR:
                     break;
                 default:
@@ -714,31 +710,32 @@ UA_WriterGroup_setPubSubState(UA_Server *server, UA_PubSubState state,
                 case UA_PUBSUBSTATE_OPERATIONAL:
                     UA_PubSubManager_removeRepeatedPubSubCallback(server, writerGroup->publishCallbackId);
                     LIST_FOREACH(dataSetWriter, &writerGroup->writers, listEntry){
-                        UA_DataSetWriter_setPubSubState(server, UA_PUBSUBSTATE_ERROR, dataSetWriter);
+                        UA_DataSetWriter_setPubSubState(server, dataSetWriter, UA_PUBSUBSTATE_ERROR,
+                                                        UA_STATUSCODE_GOOD);
                     }
                     break;
                 case UA_PUBSUBSTATE_ERROR:
-                    return UA_STATUSCODE_GOOD;
+                    break;
                 default:
                     UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
                                     "Received unknown PubSub state!");
             }
             writerGroup->state = UA_PUBSUBSTATE_ERROR;
-            /* TODO: WIP - example usage of pubsubStateChangeCallback -> inform
-             * application about error state, reason param necessary */
-            UA_ServerConfig *pConfig = UA_Server_getConfig(server);
-            if(pConfig->pubSubConfig.stateChangeCallback != 0) {
-                pConfig->pubSubConfig.
-                    stateChangeCallback(&writerGroup->identifier, UA_PUBSUBSTATE_ERROR,
-                                        UA_STATUSCODE_BADINTERNALERROR);
-            }
             break;
         }
         default:
             UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
                            "Received unknown PubSub state!");
     }
-    return UA_STATUSCODE_GOOD;
+    if (state != oldState) {
+        /* inform application about state change */
+        UA_ServerConfig *pConfig = UA_Server_getConfig(server);
+        if(pConfig->pubSubConfig.stateChangeCallback != 0) {
+            pConfig->pubSubConfig.
+                stateChangeCallback(&writerGroup->identifier, state, cause);
+        }
+    }
+    return ret;
 }
 
 #ifdef UA_ENABLE_PUBSUB_ENCRYPTION
@@ -751,8 +748,11 @@ encryptAndSign(UA_WriterGroup *wg, const UA_NetworkMessage *nm,
 
     if(nm->securityHeader.networkMessageEncrypted) {
         /* Set the temporary MessageNonce in the SecurityPolicy */
-        rv = wg->config.securityPolicy->setMessageNonce(channelContext,
-                                                        &nm->securityHeader.messageNonce);
+        const UA_ByteString nonce = {
+            (size_t)nm->securityHeader.messageNonceSize,
+            (UA_Byte*)(uintptr_t)nm->securityHeader.messageNonce
+        };
+        rv = wg->config.securityPolicy->setMessageNonce(channelContext, &nonce);
         UA_CHECK_STATUS(rv, return rv);
 
         /* The encryption is done in-place, no need to encode again */
@@ -913,21 +913,17 @@ generateNetworkMessage(UA_PubSubConnection *connection, UA_WriterGroup *wg,
             networkMessage->securityHeader.networkMessageEncrypted = true;
         networkMessage->securityHeader.securityTokenId = wg->securityTokenId;
 
-        /* Generate the MessageNonce */
-        UA_ByteString_allocBuffer(&networkMessage->securityHeader.messageNonce, 8);
-        if(networkMessage->securityHeader.messageNonce.length == 0)
-            return UA_STATUSCODE_BADOUTOFMEMORY;
-
-        networkMessage->securityHeader.messageNonce.length = 4; /* Generate 4 random bytes */
+        /* Generate the MessageNonce. Four random bytes followed by a four-byte
+         * sequence number */
+        UA_ByteString nonce = {4, networkMessage->securityHeader.messageNonce};
         UA_StatusCode rv = wg->config.securityPolicy->symmetricModule.
-            generateNonce(wg->config.securityPolicy->policyContext,
-                          &networkMessage->securityHeader.messageNonce);
+            generateNonce(wg->config.securityPolicy->policyContext, &nonce);
         if(rv != UA_STATUSCODE_GOOD)
             return rv;
-        networkMessage->securityHeader.messageNonce.length = 8;
-        UA_Byte *pos = &networkMessage->securityHeader.messageNonce.data[4];
-        const UA_Byte *end = &networkMessage->securityHeader.messageNonce.data[8];
+        UA_Byte *pos = &networkMessage->securityHeader.messageNonce[4];
+        const UA_Byte *end = &networkMessage->securityHeader.messageNonce[8];
         UA_UInt32_encodeBinary(&wg->nonceSequenceNumber, &pos, end);
+        networkMessage->securityHeader.messageNonceSize = 8;
     }
 #endif
 
@@ -1011,7 +1007,6 @@ cleanup_with_msg_size:
         UA_ByteString_clear(&buf);
     }
 cleanup:
-    UA_ByteString_clear(&nm.securityHeader.messageNonce);
     UA_free(nm.payload.dataSetPayload.sizes);
     return rv;
 }
@@ -1062,7 +1057,8 @@ publishRT(UA_Server *server, UA_WriterGroup *writerGroup, UA_PubSubConnection *c
     } else {
         UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
                      "Publish failed. sendBufferedNetworkMessage failed. StatusCode %s", UA_StatusCode_name(res));
-        UA_WriterGroup_setPubSubState(server, UA_PUBSUBSTATE_ERROR, writerGroup);
+        UA_WriterGroup_setPubSubState(server, writerGroup, UA_PUBSUBSTATE_ERROR,
+                                      UA_STATUSCODE_BADCOMMUNICATIONERROR);
     }
 }
 
@@ -1110,7 +1106,8 @@ setErrorStateForDataSetWritersWithIds(UA_Server *server, UA_WriterGroup *writerG
     LIST_FOREACH(dsw, &writerGroup->writers, listEntry) {
         for(size_t i = 0; i < idCount; ++i) {
             if (dsw->config.dataSetWriterId == dsWriterIds[i]) {
-                UA_DataSetWriter_setPubSubState(server, UA_PUBSUBSTATE_ERROR, dsw);
+                UA_DataSetWriter_setPubSubState(server, dsw, UA_PUBSUBSTATE_ERROR,
+                                                UA_STATUSCODE_GOOD);
                 break;
             }
         }
@@ -1176,7 +1173,8 @@ sendOrCollectDataSetMessage(UA_Server *server, UA_WriterGroup *writerGroup, UA_D
         return 0;
     }
 error:
-    UA_DataSetWriter_setPubSubState(server, UA_PUBSUBSTATE_ERROR, writer);
+    UA_DataSetWriter_setPubSubState(server, writer, UA_PUBSUBSTATE_ERROR,
+                                    UA_STATUSCODE_BADCOMMUNICATIONERROR);
     return 0;
 }
 
@@ -1263,7 +1261,8 @@ UA_WriterGroup_publishCallback(UA_Server *server, UA_WriterGroup *writerGroup) {
     return;
 
 error:
-    UA_WriterGroup_setPubSubState(server, UA_PUBSUBSTATE_ERROR, writerGroup);
+    UA_WriterGroup_setPubSubState(server, writerGroup, UA_PUBSUBSTATE_ERROR,
+                                  UA_STATUSCODE_BADCONNECTIONCLOSED);
 }
 
 /* Add new publishCallback. The first execution is triggered directly after

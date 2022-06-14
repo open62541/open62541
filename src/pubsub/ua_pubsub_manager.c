@@ -402,7 +402,8 @@ UA_PubSubManager_delete(UA_Server *server, UA_PubSubManager *pubSubManager) {
     TAILQ_FOREACH(tmpConnection, &server->pubSubManager.connections, listEntry){
         UA_WriterGroup *writerGroup;
         LIST_FOREACH(writerGroup, &tmpConnection->writerGroups, listEntry) {
-            UA_WriterGroup_setPubSubState(server, UA_PUBSUBSTATE_DISABLED, writerGroup);
+            UA_WriterGroup_setPubSubState(server, writerGroup, UA_PUBSUBSTATE_DISABLED,
+                                          UA_STATUSCODE_BADSHUTDOWN);
             UA_Server_unfreezeWriterGroupConfiguration(server, writerGroup->identifier);
         }
     }

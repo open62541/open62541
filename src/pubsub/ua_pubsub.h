@@ -145,8 +145,10 @@ UA_DataSetWriter *
 UA_DataSetWriter_findDSWbyId(UA_Server *server, UA_NodeId identifier);
 
 UA_StatusCode
-UA_DataSetWriter_setPubSubState(UA_Server *server, UA_PubSubState state,
-                                UA_DataSetWriter *dataSetWriter);
+UA_DataSetWriter_setPubSubState(UA_Server *server,
+                                UA_DataSetWriter *dataSetWriter,
+                                UA_PubSubState state,
+                                UA_StatusCode cause);
 
 UA_StatusCode
 UA_DataSetWriter_generateDataSetMessage(UA_Server *server,
@@ -194,8 +196,10 @@ UA_WriterGroup *
 UA_WriterGroup_findWGbyId(UA_Server *server, UA_NodeId identifier);
 
 UA_StatusCode
-UA_WriterGroup_setPubSubState(UA_Server *server, UA_PubSubState state,
-                              UA_WriterGroup *writerGroup);
+UA_WriterGroup_setPubSubState(UA_Server *server,
+                              UA_WriterGroup *writerGroup,
+                              UA_PubSubState state,
+                              UA_StatusCode cause);
 
 /**********************************************/
 /*               DataSetField                 */
@@ -218,6 +222,14 @@ UA_DataSetFieldConfig_copy(const UA_DataSetFieldConfig *src,
 
 UA_DataSetField *
 UA_DataSetField_findDSFbyId(UA_Server *server, UA_NodeId identifier);
+
+UA_DataSetFieldResult
+addDataSetField(UA_Server *server, const UA_NodeId publishedDataSet,
+                const UA_DataSetFieldConfig *fieldConfig,
+                UA_NodeId *fieldIdentifier);
+
+UA_DataSetFieldResult
+removeDataSetField(UA_Server *server, const UA_NodeId dsf);
 
 /**********************************************/
 /*               DataSetReader                */
@@ -251,6 +263,9 @@ UA_DataSetReader_process(UA_Server *server,
                          UA_DataSetReader *dataSetReader,
                          UA_DataSetMessage *dataSetMsg);
 
+UA_StatusCode
+removeDataSetReader(UA_Server *server, UA_NodeId readerIdentifier);
+
 /* Copy the configuration of DataSetReader */
 UA_StatusCode UA_DataSetReaderConfig_copy(const UA_DataSetReaderConfig *src,
                                           UA_DataSetReaderConfig *dst);
@@ -270,8 +285,10 @@ UA_StatusCode UA_FieldTargetVariable_copy(const UA_FieldTargetVariable *src,
                                           UA_FieldTargetVariable *dst);
 
 UA_StatusCode
-UA_DataSetReader_setPubSubState(UA_Server *server, UA_PubSubState state,
-                                UA_DataSetReader *dataSetReader);
+UA_DataSetReader_setPubSubState(UA_Server *server,
+                                UA_DataSetReader *dataSetReader,
+                                UA_PubSubState state,
+                                UA_StatusCode cause);
 
 #ifdef UA_ENABLE_PUBSUB_MONITORING
 /* Check if DataSetReader has a message receive timeout */
@@ -338,8 +355,10 @@ UA_DataSetReader *
 UA_ReaderGroup_findDSRbyId(UA_Server *server, UA_NodeId identifier);
 
 UA_StatusCode
-UA_ReaderGroup_setPubSubState(UA_Server *server, UA_PubSubState state,
-                              UA_ReaderGroup *readerGroup);
+UA_ReaderGroup_setPubSubState(UA_Server *server,
+                              UA_ReaderGroup *readerGroup,
+                              UA_PubSubState state,
+                              UA_StatusCode cause);
 
 /*********************************************************/
 /*               PublishValues handling                  */

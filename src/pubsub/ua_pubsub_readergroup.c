@@ -129,6 +129,7 @@ UA_Server_addReaderGroup(UA_Server *server, UA_NodeId connectionIdentifier,
     if(!newGroup)
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
+    memset(newGroup, 0, sizeof(UA_ReaderGroup));
     newGroup->componentType = UA_PUBSUB_COMPONENT_READERGROUP;
     /* Generate nodeid for the readergroup identifier */
     newGroup->linkedConnection = currentConnectionContext->identifier;
@@ -239,7 +240,7 @@ UA_Server_ReaderGroup_clear(UA_Server* server, UA_ReaderGroup *readerGroup) {
     UA_DataSetReader *dataSetReader;
     UA_DataSetReader *tmpDataSetReader;
     LIST_FOREACH_SAFE(dataSetReader, &readerGroup->readers, listEntry, tmpDataSetReader) {
-        UA_Server_removeDataSetReader(server, dataSetReader->identifier);
+        removeDataSetReader(server, dataSetReader->identifier);
     }
     UA_PubSubConnection* pConn =
         UA_PubSubConnection_findConnectionbyId(server, readerGroup->linkedConnection);
@@ -277,7 +278,8 @@ UA_Server_ReaderGroup_getState(UA_Server *server, UA_NodeId readerGroupIdentifie
 
 static UA_StatusCode
 UA_ReaderGroup_setPubSubState_disable(UA_Server *server,
-                                      UA_ReaderGroup *rg) {
+                                      UA_ReaderGroup *rg,
+                                      UA_StatusCode cause) {
     UA_DataSetReader *dataSetReader;
     switch(rg->state) {
     case UA_PUBSUBSTATE_DISABLED:
@@ -287,8 +289,8 @@ UA_ReaderGroup_setPubSubState_disable(UA_Server *server,
     case UA_PUBSUBSTATE_OPERATIONAL:
         UA_ReaderGroup_removeSubscribeCallback(server, rg);
         LIST_FOREACH(dataSetReader, &rg->readers, listEntry) {
-            UA_DataSetReader_setPubSubState(server, UA_PUBSUBSTATE_DISABLED,
-                                            dataSetReader);
+            UA_DataSetReader_setPubSubState(server, dataSetReader,
+                                            UA_PUBSUBSTATE_DISABLED, cause);
         }
         rg->state = UA_PUBSUBSTATE_DISABLED;
         break;
@@ -304,9 +306,11 @@ UA_ReaderGroup_setPubSubState_disable(UA_Server *server,
 
 static UA_StatusCode
 UA_ReaderGroup_setPubSubState_paused(UA_Server *server,
-                                     UA_ReaderGroup *rg) {
+                                     UA_ReaderGroup *rg,
+                                     UA_StatusCode cause) {
     UA_LOG_DEBUG(&server->config.logger, UA_LOGCATEGORY_SERVER,
                  "PubSub state paused is unsupported at the moment!");
+    (void)cause;
     switch(rg->state) {
     case UA_PUBSUBSTATE_DISABLED:
         break;
@@ -326,12 +330,14 @@ UA_ReaderGroup_setPubSubState_paused(UA_Server *server,
 
 static UA_StatusCode
 UA_ReaderGroup_setPubSubState_operational(UA_Server *server,
-                                          UA_ReaderGroup *rg) {
+                                          UA_ReaderGroup *rg,
+                                          UA_StatusCode cause) {
     UA_DataSetReader *dataSetReader;
     switch(rg->state) {
     case UA_PUBSUBSTATE_DISABLED:
         LIST_FOREACH(dataSetReader, &rg->readers, listEntry) {
-            UA_DataSetReader_setPubSubState(server, UA_PUBSUBSTATE_OPERATIONAL, dataSetReader);
+            UA_DataSetReader_setPubSubState(server, dataSetReader, UA_PUBSUBSTATE_OPERATIONAL,
+                                            cause);
         }
         UA_ReaderGroup_addSubscribeCallback(server, rg);
         rg->state = UA_PUBSUBSTATE_OPERATIONAL;
@@ -352,7 +358,8 @@ UA_ReaderGroup_setPubSubState_operational(UA_Server *server,
 
 static UA_StatusCode
 UA_ReaderGroup_setPubSubState_error(UA_Server *server,
-                                    UA_ReaderGroup *rg) {
+                                    UA_ReaderGroup *rg,
+                                    UA_StatusCode cause) {
     UA_DataSetReader *dataSetReader;
     switch(rg->state) {
     case UA_PUBSUBSTATE_DISABLED:
@@ -362,7 +369,8 @@ UA_ReaderGroup_setPubSubState_error(UA_Server *server,
     case UA_PUBSUBSTATE_OPERATIONAL:
         UA_ReaderGroup_removeSubscribeCallback(server, rg);
         LIST_FOREACH(dataSetReader, &rg->readers, listEntry){
-            UA_DataSetReader_setPubSubState(server, UA_PUBSUBSTATE_ERROR, dataSetReader);
+            UA_DataSetReader_setPubSubState(server, dataSetReader, UA_PUBSUBSTATE_ERROR,
+                                            cause);
         }
         break;
     case UA_PUBSUBSTATE_ERROR:
@@ -377,23 +385,39 @@ UA_ReaderGroup_setPubSubState_error(UA_Server *server,
 }
 
 UA_StatusCode
-UA_ReaderGroup_setPubSubState(UA_Server *server, UA_PubSubState state,
-                              UA_ReaderGroup *readerGroup) {
+UA_ReaderGroup_setPubSubState(UA_Server *server,
+                              UA_ReaderGroup *readerGroup,
+                              UA_PubSubState state,
+                              UA_StatusCode cause) {
+    UA_StatusCode ret = UA_STATUSCODE_BADINVALIDARGUMENT;
+    UA_PubSubState oldState = readerGroup->state;
     switch(state) {
         case UA_PUBSUBSTATE_DISABLED:
-            return UA_ReaderGroup_setPubSubState_disable(server, readerGroup);
+            ret = UA_ReaderGroup_setPubSubState_disable(server, readerGroup, cause);
+            break;
         case UA_PUBSUBSTATE_PAUSED:
-            return UA_ReaderGroup_setPubSubState_paused(server, readerGroup);
+            ret = UA_ReaderGroup_setPubSubState_paused(server, readerGroup, cause);
+            break;
         case UA_PUBSUBSTATE_OPERATIONAL:
-            return UA_ReaderGroup_setPubSubState_operational(server, readerGroup);
+            ret = UA_ReaderGroup_setPubSubState_operational(server, readerGroup, cause);
+            break;
         case UA_PUBSUBSTATE_ERROR:
-            return UA_ReaderGroup_setPubSubState_error(server, readerGroup);
+            ret = UA_ReaderGroup_setPubSubState_error(server, readerGroup, cause);
+            break;
         default:
             UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
                            "Received unknown PubSub state!");
             break;
     }
-    return UA_STATUSCODE_BADINVALIDARGUMENT;
+    if (state != oldState) {
+        /* inform application about state change */
+        UA_ServerConfig *pConfig = UA_Server_getConfig(server);
+        if(pConfig->pubSubConfig.stateChangeCallback != 0) {
+            pConfig->pubSubConfig.
+                stateChangeCallback(&readerGroup->identifier, state, cause);
+        }
+    }
+    return ret;
 }
 
 UA_StatusCode
@@ -401,7 +425,8 @@ UA_Server_setReaderGroupOperational(UA_Server *server, const UA_NodeId readerGro
     UA_ReaderGroup *rg = UA_ReaderGroup_findRGbyId(server, readerGroupId);
     if(!rg)
         return UA_STATUSCODE_BADNOTFOUND;
-    return UA_ReaderGroup_setPubSubState(server, UA_PUBSUBSTATE_OPERATIONAL, rg);
+    return UA_ReaderGroup_setPubSubState(server, rg, UA_PUBSUBSTATE_OPERATIONAL,
+                                         UA_STATUSCODE_GOOD);
 }
 
 UA_StatusCode
@@ -409,7 +434,8 @@ UA_Server_setReaderGroupDisabled(UA_Server *server, const UA_NodeId readerGroupI
     UA_ReaderGroup *rg = UA_ReaderGroup_findRGbyId(server, readerGroupId);
     if(!rg)
         return UA_STATUSCODE_BADNOTFOUND;
-    return UA_ReaderGroup_setPubSubState(server, UA_PUBSUBSTATE_DISABLED, rg);
+    return UA_ReaderGroup_setPubSubState(server, rg, UA_PUBSUBSTATE_DISABLED,
+                                         UA_STATUSCODE_BADRESOURCEUNAVAILABLE);
 }
 
 #ifdef UA_ENABLE_PUBSUB_ENCRYPTION
@@ -454,6 +480,9 @@ UA_Server_freezeReaderGroupConfiguration(UA_Server *server,
     UA_ReaderGroup *rg = UA_ReaderGroup_findRGbyId(server, readerGroupId);
     if(!rg)
         return UA_STATUSCODE_BADNOTFOUND;
+
+    if(rg->configurationFrozen)
+        return UA_STATUSCODE_GOOD;
 
     /* PubSubConnection freezeCounter++ */
     UA_NodeId pubSubConnectionId =  rg->linkedConnection;
@@ -533,7 +562,8 @@ UA_Server_freezeReaderGroupConfiguration(UA_Server *server,
         }
     }
 
-    UA_DataSetMessage *dsm = (UA_DataSetMessage *) UA_calloc(1, sizeof(UA_DataSetMessage));
+    UA_DataSetMessage *dsm = (UA_DataSetMessage*)
+        UA_calloc(1, sizeof(UA_DataSetMessage));
     if(!dsm) {
         UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
                      "PubSub RT Offset calculation: DSM creation failed");
@@ -561,7 +591,8 @@ UA_Server_freezeReaderGroupConfiguration(UA_Server *server,
     }
     *dsWriterIds = dataSetReader->config.dataSetWriterId;
 
-    UA_NetworkMessage *networkMessage = (UA_NetworkMessage *)UA_calloc(1, sizeof(UA_NetworkMessage));
+    UA_NetworkMessage *networkMessage = (UA_NetworkMessage *)
+        UA_calloc(1, sizeof(UA_NetworkMessage));
     if(!networkMessage) {
         UA_free(dsWriterIds);
         UA_DataSetMessage_clear(dsm);
@@ -571,6 +602,7 @@ UA_Server_freezeReaderGroupConfiguration(UA_Server *server,
         return UA_STATUSCODE_BADOUTOFMEMORY;
     }
 
+    /* Move the dsm into the NetworkMessage */
     res = UA_DataSetReader_generateNetworkMessage(pubSubConnection, rg, dataSetReader, dsm,
                                                   dsWriterIds, 1, networkMessage);
     if(res != UA_STATUSCODE_GOOD) {
@@ -584,10 +616,12 @@ UA_Server_freezeReaderGroupConfiguration(UA_Server *server,
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
+    /* The offset buffer is already clear if the ReaderGroup was unfrozen
+     * UA_NetworkMessageOffsetBuffer_clear(&dataSetReader->bufferedMessage); */
     memset(&dataSetReader->bufferedMessage, 0, sizeof(UA_NetworkMessageOffsetBuffer));
     dataSetReader->bufferedMessage.RTsubscriberEnabled = true;
 
-    /* Fix the offsets necessary to decode */
+    /* Compute and store the offsets necessary to decode */
     UA_NetworkMessage_calcSizeBinary(networkMessage, &dataSetReader->bufferedMessage);
     dataSetReader->bufferedMessage.nm = networkMessage;
 
@@ -617,30 +651,7 @@ UA_Server_unfreezeReaderGroupConfiguration(UA_Server *server,
     UA_DataSetReader *dataSetReader;
     LIST_FOREACH(dataSetReader, &rg->readers, listEntry) {
         dataSetReader->configurationFrozen = UA_FALSE;
-    }
-
-    if(rg->config.rtLevel != UA_PUBSUB_RT_FIXED_SIZE)
-        return UA_STATUSCODE_GOOD;
-
-    dataSetReader = LIST_FIRST(&rg->readers);
-    if(dataSetReader->bufferedMessage.offsetsSize > 0) {
-        for(size_t i = 0; i < dataSetReader->bufferedMessage.offsetsSize; i++) {
-            UA_NetworkMessageOffset *offset = &dataSetReader->bufferedMessage.offsets[i];
-            if((offset->contentType == UA_PUBSUB_OFFSETTYPE_PAYLOAD_VARIANT) ||
-                (offset->contentType == UA_PUBSUB_OFFSETTYPE_PAYLOAD_RAW)) {
-                UA_DataValue_delete(offset->offsetData.value.value);
-            } else if(offset->contentType == UA_PUBSUB_OFFSETTYPE_NETWORKMESSAGE_FIELDENCDODING) {
-                offset->offsetData.value.value->value.data = NULL;
-                UA_DataValue_delete(offset->offsetData.value.value);
-            }
-        }
-        UA_free(dataSetReader->bufferedMessage.offsets);
-    }
-
-    if(dataSetReader->bufferedMessage.RTsubscriberEnabled &&
-       dataSetReader->bufferedMessage.nm) {
-        UA_NetworkMessage_delete(dataSetReader->bufferedMessage.nm);
-        UA_free(dataSetReader->bufferedMessage.nm);
+        UA_NetworkMessageOffsetBuffer_clear(&dataSetReader->bufferedMessage);
     }
 
     return UA_STATUSCODE_GOOD;
@@ -663,7 +674,8 @@ UA_ReaderGroup_subscribeCallback(UA_Server *server,
     if(!connection) {
         UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
                      "SubscribeCallback(): Find linked connection failed");
-        UA_ReaderGroup_setPubSubState(server, UA_PUBSUBSTATE_ERROR, readerGroup);
+        UA_ReaderGroup_setPubSubState(server, readerGroup, UA_PUBSUBSTATE_ERROR,
+                                      UA_STATUSCODE_BADCONNECTIONCLOSED);
         return;
     }
 

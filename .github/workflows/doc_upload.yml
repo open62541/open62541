@@ -27,8 +27,9 @@ jobs:
       - name: Checkout Website Repository
         uses: actions/checkout@v2
         with:
-          repository: andreasebner/open62541-www-staging
+          repository: open62541/open62541-www
           path: open62541-www
+          ref: main
           persist-credentials: false
       - name: Get the current branch name
         shell: bash
@@ -52,6 +53,6 @@ jobs:
         with:
           github_token: ${{ secrets.WWW_PUSH_TOKEN }}
           directory: open62541-www
-          repository: open62541/open62541-www-staging
-          branch: master
+          repository: open62541/open62541-www
+          branch: main
           force: true

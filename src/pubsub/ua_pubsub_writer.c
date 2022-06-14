@@ -110,7 +110,7 @@ UA_PubSubConnection_clear(UA_Server *server, UA_PubSubConnection *connection) {
     /* Remove ReaderGroups */
     UA_ReaderGroup *readerGroups, *tmpReaderGroup;
     LIST_FOREACH_SAFE(readerGroups, &connection->readerGroups, listEntry, tmpReaderGroup)
-        UA_Server_removeReaderGroup(server, readerGroups->identifier);
+        removeReaderGroup(server, readerGroups->identifier);
 
     UA_NodeId_clear(&connection->identifier);
     if(connection->channel)
@@ -235,7 +235,7 @@ void
 UA_PublishedDataSet_clear(UA_Server *server, UA_PublishedDataSet *publishedDataSet) {
     UA_DataSetField *field, *tmpField;
     TAILQ_FOREACH_SAFE(field, &publishedDataSet->fields, listEntry, tmpField) {
-        UA_Server_removeDataSetField(server, field->identifier);
+        removeDataSetField(server, field->identifier);
     }
     UA_PublishedDataSetConfig_clear(&publishedDataSet->config);
     UA_DataSetMetaDataType_clear(&publishedDataSet->dataSetMetaData);
@@ -289,7 +289,8 @@ generateFieldMetaData(UA_Server *server, UA_DataSetField *field,
     const UA_PublishedVariableDataType *pp = &var->publishParameters;
     UA_Variant value;
     UA_Variant_init(&value);
-    res = UA_Server_readArrayDimensions(server, pp->publishedVariable, &value);
+    res = readWithReadValue(server, &pp->publishedVariable,
+                            UA_ATTRIBUTEID_ARRAYDIMENSIONS, &value);
     UA_CHECK_STATUS_LOG(res, return res,
                         WARNING, &server->config.logger, UA_LOGCATEGORY_SERVER,
                         "PubSub meta data generation. Reading the array dimensions failed.");
@@ -305,8 +306,8 @@ generateFieldMetaData(UA_Server *server, UA_DataSetField *field,
     fieldMetaData->arrayDimensionsSize = value.arrayDimensionsSize;
 
     /* Set the DataType */
-    res = UA_Server_readDataType(server, pp->publishedVariable,
-                                 &fieldMetaData->dataType);
+    res = readWithReadValue(server, &pp->publishedVariable,
+                            UA_ATTRIBUTEID_DATATYPE, &fieldMetaData->dataType);
     UA_CHECK_STATUS_LOG(res, return res,
                         WARNING, &server->config.logger, UA_LOGCATEGORY_SERVER,
                         "PubSub meta data generation. Reading the datatype failed.");
@@ -330,7 +331,8 @@ generateFieldMetaData(UA_Server *server, UA_DataSetField *field,
 
     /* Set the ValueRank */
     UA_Int32 valueRank;
-    res = UA_Server_readValueRank(server, pp->publishedVariable, &valueRank);
+    res = readWithReadValue(server, &pp->publishedVariable,
+                            UA_ATTRIBUTEID_VALUERANK, &valueRank);
     UA_CHECK_STATUS_LOG(res, return res,
                         WARNING, &server->config.logger, UA_LOGCATEGORY_SERVER,
                         "PubSub meta data generation. Reading the value rank failed.");
@@ -354,9 +356,9 @@ generateFieldMetaData(UA_Server *server, UA_DataSetField *field,
 }
 
 UA_DataSetFieldResult
-UA_Server_addDataSetField(UA_Server *server, const UA_NodeId publishedDataSet,
-                          const UA_DataSetFieldConfig *fieldConfig,
-                          UA_NodeId *fieldIdentifier) {
+addDataSetField(UA_Server *server, const UA_NodeId publishedDataSet,
+                const UA_DataSetFieldConfig *fieldConfig,
+                UA_NodeId *fieldIdentifier) {
     UA_DataSetFieldResult result = {0};
     if(!fieldConfig) {
         result.result = UA_STATUSCODE_BADINVALIDARGUMENT;
@@ -453,7 +455,18 @@ UA_Server_addDataSetField(UA_Server *server, const UA_NodeId publishedDataSet,
 }
 
 UA_DataSetFieldResult
-UA_Server_removeDataSetField(UA_Server *server, const UA_NodeId dsf) {
+UA_Server_addDataSetField(UA_Server *server, const UA_NodeId publishedDataSet,
+                          const UA_DataSetFieldConfig *fieldConfig,
+                          UA_NodeId *fieldIdentifier) {
+    UA_LOCK(&server->serviceMutex);
+    UA_DataSetFieldResult res =
+        addDataSetField(server, publishedDataSet, fieldConfig, fieldIdentifier);
+    UA_UNLOCK(&server->serviceMutex);
+    return res;
+}
+
+UA_DataSetFieldResult
+removeDataSetField(UA_Server *server, const UA_NodeId dsf) {
     UA_DataSetFieldResult result = {0};
 
     UA_DataSetField *currentField = UA_DataSetField_findDSFbyId(server, dsf);
@@ -540,6 +553,14 @@ UA_Server_removeDataSetField(UA_Server *server, const UA_NodeId dsf) {
     result.configurationVersion.minorVersion =
         pds->dataSetMetaData.configurationVersion.minorVersion;
     return result;
+}
+
+UA_DataSetFieldResult
+UA_Server_removeDataSetField(UA_Server *server, const UA_NodeId dsf) {
+    UA_LOCK(&server->serviceMutex);
+    UA_DataSetFieldResult res = removeDataSetField(server, dsf);
+    UA_UNLOCK(&server->serviceMutex);
+    return res;
 }
 
 /**********************************************/
@@ -639,13 +660,17 @@ UA_DataSetWriter_clear(UA_Server *server, UA_DataSetWriter *dataSetWriter) {
 
 //state machine methods not part of the open62541 state machine API
 UA_StatusCode
-UA_DataSetWriter_setPubSubState(UA_Server *server, UA_PubSubState state,
-                                UA_DataSetWriter *dataSetWriter) {
+UA_DataSetWriter_setPubSubState(UA_Server *server,
+                                UA_DataSetWriter *dataSetWriter,
+                                UA_PubSubState state,
+                                UA_StatusCode cause) {
+    UA_StatusCode ret = UA_STATUSCODE_GOOD;
+    UA_PubSubState oldState = dataSetWriter->state;
     switch(state){
         case UA_PUBSUBSTATE_DISABLED:
             switch (dataSetWriter->state){
                 case UA_PUBSUBSTATE_DISABLED:
-                    return UA_STATUSCODE_GOOD;
+                    break;
                 case UA_PUBSUBSTATE_PAUSED:
                     dataSetWriter->state = UA_PUBSUBSTATE_DISABLED;
                     //no further action is required
@@ -665,7 +690,7 @@ UA_DataSetWriter_setPubSubState(UA_Server *server, UA_PubSubState state,
                 case UA_PUBSUBSTATE_DISABLED:
                     break;
                 case UA_PUBSUBSTATE_PAUSED:
-                    return UA_STATUSCODE_GOOD;
+                    break;
                 case UA_PUBSUBSTATE_OPERATIONAL:
                     break;
                 case UA_PUBSUBSTATE_ERROR:
@@ -683,7 +708,7 @@ UA_DataSetWriter_setPubSubState(UA_Server *server, UA_PubSubState state,
                 case UA_PUBSUBSTATE_PAUSED:
                     break;
                 case UA_PUBSUBSTATE_OPERATIONAL:
-                    return UA_STATUSCODE_GOOD;
+                    break;
                 case UA_PUBSUBSTATE_ERROR:
                     break;
                 default:
@@ -700,7 +725,7 @@ UA_DataSetWriter_setPubSubState(UA_Server *server, UA_PubSubState state,
                 case UA_PUBSUBSTATE_OPERATIONAL:
                     break;
                 case UA_PUBSUBSTATE_ERROR:
-                    return UA_STATUSCODE_GOOD;
+                    break;
                 default:
                     UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
                                    "Received unknown PubSub state!");
@@ -710,7 +735,15 @@ UA_DataSetWriter_setPubSubState(UA_Server *server, UA_PubSubState state,
             UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
                                            "Received unknown PubSub state!");
     }
-    return UA_STATUSCODE_GOOD;
+    if (state != oldState) {
+        /* inform application about state change */
+        UA_ServerConfig *pConfig = UA_Server_getConfig(server);
+        if(pConfig->pubSubConfig.stateChangeCallback != 0) {
+            pConfig->pubSubConfig.
+                stateChangeCallback(&dataSetWriter->identifier, state, cause);
+        }
+    }
+    return ret;
 }
 
 UA_StatusCode
@@ -774,8 +807,9 @@ UA_Server_addDataSetWriter(UA_Server *server,
 
     UA_StatusCode res = UA_STATUSCODE_GOOD;
     if(wg->state == UA_PUBSUBSTATE_OPERATIONAL) {
-        res = UA_DataSetWriter_setPubSubState(server, UA_PUBSUBSTATE_OPERATIONAL,
-                                              newDataSetWriter);
+        res = UA_DataSetWriter_setPubSubState(server, newDataSetWriter,
+                                              UA_PUBSUBSTATE_OPERATIONAL,
+                                              UA_STATUSCODE_GOOD);
         if(res != UA_STATUSCODE_GOOD) {
             UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
                          "Add DataSetWriter failed. setPubSubState failed.");
@@ -1019,7 +1053,7 @@ UA_PubSubDataSetField_sampleValue(UA_Server *server, UA_DataSetField *field,
         rvid.nodeId = params->publishedVariable;
         rvid.attributeId = params->attributeId;
         rvid.indexRange = params->indexRange;
-        *value = UA_Server_read(server, &rvid, UA_TIMESTAMPSTORETURN_BOTH);
+        *value = readAttribute(server, &rvid, UA_TIMESTAMPSTORETURN_BOTH);
     } else {
         *value = **field->config.field.variable.rtValueSource.staticValueSource;
         value->value.storageType = UA_VARIANT_DATA_NODELETE;

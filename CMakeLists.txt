@@ -23,7 +23,7 @@ include(GNUInstallDirs)
 
 # Set when installed via make install
 set(open62541_TOOLS_DIR ${PROJECT_SOURCE_DIR}/tools)
-set(open62541_NODESET_DIR ${PROJECT_SOURCE_DIR}/deps/ua-nodeset)
+set(UA_NODESET_DIR ${PROJECT_SOURCE_DIR}/deps/ua-nodeset CACHE STRING "The path to the nodetset directory.")
 set(open62541_MQTT_DIR ${PROJECT_SOURCE_DIR}/deps/mqtt-c)
 
 include(macros_internal)
@@ -45,8 +45,8 @@ set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 # number from the latest release plus the "-undefined" label. Will be
 # overwritten with more detailed information if git is available.
 set(OPEN62541_VER_MAJOR 1)
-set(OPEN62541_VER_MINOR 2)
-set(OPEN62541_VER_PATCH 2)
+set(OPEN62541_VER_MINOR 3)
+set(OPEN62541_VER_PATCH 1)
 set(OPEN62541_VER_LABEL "-unknown") # like "-rc1" or "-g4538abcd" or "-g4538abcd-dirty"
 set(OPEN62541_VER_COMMIT "undefined")
 
@@ -765,7 +765,7 @@ if(NOT UA_FORCE_CPP AND (CMAKE_COMPILER_IS_GNUCC OR CMAKE_C_COMPILER_ID STREQUAL
         # This allows e.g. CLion to find memory locations for SegFaults
         message(STATUS "Sanitizer enabled")
         set(SANITIZER_FLAGS "-g -fno-omit-frame-pointer -gline-tables-only -fsanitize=address -fsanitize-address-use-after-scope -fsanitize=leak -fsanitize=undefined")
-        if(CMAKE_CXX_COMPILER_VERSION VERSION_LESS 10.0)
+        if(CMAKE_CXX_COMPILER_VERSION AND CMAKE_CXX_COMPILER_VERSION VERSION_LESS 10.0)
             set(SANITIZER_FLAGS "${SANITIZER_FLAGS} -fsanitize-coverage=trace-pc-guard")
         endif()
         set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${SANITIZER_FLAGS}")
@@ -1135,14 +1135,16 @@ if(UA_ENABLE_JSON_ENCODING)
         list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_networkmessage_json.c)
     endif()
     list(APPEND internal_headers ${PROJECT_SOURCE_DIR}/deps/jsmn/jsmn.h
+                                 ${PROJECT_SOURCE_DIR}/deps/cj5.h
                                  ${PROJECT_SOURCE_DIR}/deps/string_escape.h
                                  ${PROJECT_SOURCE_DIR}/deps/itoa.h
-                                 ${PROJECT_SOURCE_DIR}/deps/atoi.h
+                                 ${PROJECT_SOURCE_DIR}/deps/parse_num.h
                                  ${PROJECT_SOURCE_DIR}/src/ua_types_encoding_json.h)
     list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/deps/jsmn/jsmn.c
+                            ${PROJECT_SOURCE_DIR}/deps/cj5.c
                             ${PROJECT_SOURCE_DIR}/deps/string_escape.c
                             ${PROJECT_SOURCE_DIR}/deps/itoa.c
-                            ${PROJECT_SOURCE_DIR}/deps/atoi.c
+                            ${PROJECT_SOURCE_DIR}/deps/parse_num.c
                             ${PROJECT_SOURCE_DIR}/src/ua_types_encoding_json.c)
 endif()
 
@@ -1198,17 +1200,18 @@ set(UA_FILE_NODESETS)
 
 if(UA_NAMESPACE_ZERO STREQUAL "FULL")
     if(NOT UA_FILE_NS0)
-        set(UA_FILE_NS0 ${open62541_NODESET_DIR}/Schema/Opc.Ua.NodeSet2.xml)
+        set(UA_FILE_NS0 ${UA_NODESET_DIR}/Schema/Opc.Ua.NodeSet2.xml)
     endif()
     set(UA_FILE_NODESETS "${UA_FILE_NS0}")
 
     if(NOT EXISTS "${UA_FILE_NS0}")
-        message(FATAL_ERROR "File ${UA_FILE_NS0} not found. You probably need to initialize the git submodule for deps/ua-nodeset or set open62541_NODESET_DIR.")
+        message(FATAL_ERROR "File ${UA_FILE_NS0} not found. You probably need to initialize the git submodule for deps/ua-nodeset or set UA_NODESET_DIR.")
     endif()
 
-    set(UA_FILE_NODEIDS ${open62541_NODESET_DIR}/Schema/NodeIds.csv)
-    set(UA_FILE_STATUSCODES ${open62541_NODESET_DIR}/Schema/StatusCode.csv)
-    set(UA_FILE_TYPES_BSD ${open62541_NODESET_DIR}/Schema/Opc.Ua.Types.bsd)
+
+    set(UA_FILE_NODEIDS ${UA_NODESET_DIR}/Schema/NodeIds.csv)
+    set(UA_FILE_STATUSCODES ${UA_NODESET_DIR}/Schema/StatusCode.csv)
+    set(UA_FILE_TYPES_BSD ${UA_NODESET_DIR}/Schema/Opc.Ua.Types.bsd)
 else()
     if(NOT UA_FILE_NS0)
         set(UA_FILE_NS0 ${PROJECT_SOURCE_DIR}/tools/schema/Opc.Ua.NodeSet2.Reduced.xml)
@@ -1698,7 +1701,7 @@ endif()
 set(UA_install_tools_dirs "tools/certs"
     "tools/nodeset_compiler"
     "tools/schema"
-    ${open62541_NODESET_DIR})
+    ${UA_NODESET_DIR})
 
 set(UA_install_tools_files "tools/generate_datatypes.py"
     "tools/generate_nodeid_header.py"
