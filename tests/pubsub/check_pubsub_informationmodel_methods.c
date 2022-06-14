@@ -1005,9 +1005,9 @@ START_TEST(AddNewPubSubConnectionWithReaderGroupandDataSetReader){
         /* Static definition of number of fields size to 4 to create four different
         * targetVariables of distinct datatype
         * Currently the publisher sends only DateTime data type */
+        UA_FieldMetaData fields[4] = {0};
         pMetaData->fieldsSize = 4;
-        pMetaData->fields = (UA_FieldMetaData*)UA_Array_new (pMetaData->fieldsSize,
-                            &UA_TYPES[UA_TYPES_FIELDMETADATA]);
+        pMetaData->fields = fields;
 
         /* DateTime DataType */
         UA_FieldMetaData_init (&pMetaData->fields[0]);
