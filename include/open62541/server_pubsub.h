@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  *
- * Copyright (c) 2017-2018 Fraunhofer IOSB (Author: Andreas Ebner)
+ * Copyright (c) 2017-2022 Fraunhofer IOSB (Author: Andreas Ebner)
  * Copyright (c) 2019 Kalycito Infotech Private Limited
  * Copyright (c) 2021 Fraunhofer IOSB (Author: Jan Hermes)
  * Copyright (c) 2022 Siemens AG (Author: Thomas Fischer)
@@ -727,7 +727,7 @@ typedef struct {
         // UA_SubscribedDataSetMirrorDataType subscribedDataSetMirror;
     } subscribedDataSet;
     /* non std. fields */
-    UA_String subscribedDataSetName;
+    UA_String linkedStandaloneSubscribedDataSetName;
     UA_PubSubRtEncoding expectedEncoding;
 } UA_DataSetReaderConfig;
 
@@ -761,11 +761,7 @@ typedef struct {
 void
 UA_StandaloneSubscribedDataSetConfig_clear(UA_StandaloneSubscribedDataSetConfig *sdsConfig);
 
-typedef struct {
-    UA_StatusCode addResult;
-} UA_AddSubscribedDataSetResult;
-
-UA_AddSubscribedDataSetResult UA_EXPORT
+UA_StatusCode UA_EXPORT
 UA_Server_addStandaloneSubscribedDataSet(UA_Server *server,
                                const UA_StandaloneSubscribedDataSetConfig *subscribedDataSetConfig,
                                UA_NodeId *sdsIdentifier);

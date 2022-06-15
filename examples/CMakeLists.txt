@@ -205,8 +205,6 @@ add_subdirectory(nodeset)
 ####################
 
 if(UA_ENABLE_PUBSUB)
-
-    add_example(server_standalone_dataset pubsub/server_standalone_dataset.c)
     add_example(tutorial_pubsub_connection pubsub/tutorial_pubsub_connection.c)
     add_example(tutorial_pubsub_publish pubsub/tutorial_pubsub_publish.c)
     add_example(tutorial_pubsub_publish_raw pubsub/tutorial_pubsub_publish_raw.c)
@@ -215,6 +213,7 @@ if(UA_ENABLE_PUBSUB)
     add_example(server_pubsub_publish_rt_level pubsub/server_pubsub_publisher_rt_level.c)
     add_example(server_pubsub_publish_rt_level_raw pubsub/server_pubsub_publisher_rt_level_raw.c)
     add_example(server_pubsub_rt_information_model pubsub/server_pubsub_rt_field_information_model.c)
+    add_example(pubsub_subscribe_standalone_dataset pubsub/pubsub_subscribe_standalone_dataset.c)
     if(CMAKE_SYSTEM MATCHES "Linux")
         if(UA_ENABLE_PUBSUB_ETH_UADP AND UA_ENABLE_MALLOC_SINGLETON AND UA_ENABLE_IMMUTABLE_NODES)
             add_example(rt_publisher pubsub_realtime/pubsub_interrupt_publish.c)

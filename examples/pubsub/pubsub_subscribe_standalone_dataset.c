@@ -1,6 +1,14 @@
 /* This work is licensed under a Creative Commons CCZero 1.0 Universal License.
  * See http://creativecommons.org/publicdomain/zero/1.0/ for more information. */
 
+/**
+ * With the OPC UA Part 14 1.0.5, the concept of StandaloneSubscribedDataSet (SSDS) was
+ * introduced. The SSDS is the counterpart to the PublishedDataSet and has its own
+ * lifecycle. The SSDS can be connected to exactly one DataSetReader. In general,
+ * the SSDS is optional and DSR's can still be defined without referencing a SSDS.
+ * This example shows, how to configure a SSDS.
+ */
+
 #include <open62541/plugin/log_stdout.h>
 #include <open62541/plugin/pubsub_udp.h>
 #include <open62541/server.h>
@@ -17,8 +25,7 @@ UA_NodeId readerIdentifier;
 UA_DataSetReaderConfig readerConfig;
 
 static void
-addVariable(UA_Server *server) {
-    /* Define the attribute of the myInteger variable node */
+addTargetVariable(UA_Server *server) {
     UA_VariableAttributes attr = UA_VariableAttributes_default;
     UA_Int32 myInteger = 42;
     UA_Variant_setScalar(&attr.value, &myInteger, &UA_TYPES[UA_TYPES_INT32]);
@@ -38,41 +45,30 @@ addVariable(UA_Server *server) {
 }
 
 static void
-fillTestDataSetMetaData(UA_DataSetMetaDataType *pMetaData) {
-    if(pMetaData == NULL) {
-        return;
-    }
-
-    UA_DataSetMetaDataType_init(pMetaData);
-    pMetaData->name = UA_STRING("DemoStandaloneSDS");
-
-    /* Static definition of number of fields size to 4 to create four different
-     * targetVariables of distinct datatype
-     * Currently the publisher sends only DateTime data type */
-    pMetaData->fieldsSize = 1;
-    pMetaData->fields = (UA_FieldMetaData *)UA_Array_new(
-        pMetaData->fieldsSize, &UA_TYPES[UA_TYPES_FIELDMETADATA]);
-
-    /* DateTime DataType */
-    UA_FieldMetaData_init(&pMetaData->fields[0]);
-    UA_NodeId_copy(&UA_TYPES[UA_TYPES_INT32].typeId, &pMetaData->fields[0].dataType);
-    pMetaData->fields[0].builtInType = UA_NS0ID_INT32;
-    pMetaData->fields[0].name = UA_STRING("subscribedTargetVar");
-    pMetaData->fields[0].valueRank = -1; /* scalar */
-}
-
-static void
 addStandaloneSubscribedDataSet(UA_Server *server) {
     UA_StandaloneSubscribedDataSetConfig cfg;
     UA_NodeId ret;
     memset(&cfg, 0, sizeof(UA_StandaloneSubscribedDataSetConfig));
 
+    /* Fill the SSDS MetaData */
+    UA_DataSetMetaDataType_init(&cfg.dataSetMetaData);
+    cfg.dataSetMetaData.name = UA_STRING("DemoStandaloneSDS");
+    cfg.dataSetMetaData.fieldsSize = 1;
+    UA_FieldMetaData fieldMetaData;
+    cfg.dataSetMetaData.fields = &fieldMetaData;
+
+    /* DateTime DataType */
+    UA_FieldMetaData_init(&cfg.dataSetMetaData.fields[0]);
+    UA_NodeId_copy(&UA_TYPES[UA_TYPES_INT32].typeId, &cfg.dataSetMetaData.fields[0].dataType);
+    cfg.dataSetMetaData.fields[0].builtInType = UA_NS0ID_INT32;
+    cfg.dataSetMetaData.fields[0].name = UA_STRING("subscribedTargetVar");
+    cfg.dataSetMetaData.fields[0].valueRank = -1; /* scalar */
+
     cfg.name = UA_STRING("DemoStandaloneSDS");
-    fillTestDataSetMetaData(&cfg.dataSetMetaData);
     cfg.isConnected = UA_FALSE;
     cfg.subscribedDataSet.target.targetVariablesSize = 1;
-    cfg.subscribedDataSet.target.targetVariables =
-        (UA_FieldTargetDataType *)UA_calloc(1, sizeof(UA_FieldTargetDataType));
+    UA_FieldTargetDataType fieldTargetDataType;
+    cfg.subscribedDataSet.target.targetVariables = &fieldTargetDataType;
 
     UA_FieldTargetDataType_init(&cfg.subscribedDataSet.target.targetVariables[0]);
     cfg.subscribedDataSet.target.targetVariables[0].attributeId = UA_ATTRIBUTEID_VALUE;
@@ -80,9 +76,6 @@ addStandaloneSubscribedDataSet(UA_Server *server) {
         UA_NODEID_STRING(1, "demoVar");
 
     UA_Server_addStandaloneSubscribedDataSet(server, &cfg, &ret);
-
-    UA_free(cfg.dataSetMetaData.fields);
-    UA_free(cfg.subscribedDataSet.target.targetVariables);
 }
 
 /* Add new connection to the server */
@@ -149,7 +142,7 @@ addDataSetReader(UA_Server *server) {
     readerConfig.publisherId.data = &publisherIdentifier;
     readerConfig.writerGroupId = 100;
     readerConfig.dataSetWriterId = 62541;
-    readerConfig.subscribedDataSetName = UA_STRING("DemoStandaloneSDS");
+    readerConfig.linkedStandaloneSubscribedDataSetName = UA_STRING("DemoStandaloneSDS");
 
     /* DataSetMetaData already contained in Standalone SDS no need to set up */
     retval |= UA_Server_addDataSetReader(server, readerGroupIdentifier, &readerConfig,
@@ -158,53 +151,6 @@ addDataSetReader(UA_Server *server) {
     readerConfig.publisherId.data = NULL;
 
     return retval;
-}
-
-static UA_StatusCode
-addDemoSubscriberCallback(UA_Server *server, const UA_NodeId *sessionId,
-                          void *sessionHandle, const UA_NodeId *methodId,
-                          void *methodContext, const UA_NodeId *objectId,
-                          void *objectContext, size_t inputSize, const UA_Variant *input,
-                          size_t outputSize, UA_Variant *output) {
-
-    UA_ServerConfig *config = UA_Server_getConfig(server);
-
-    UA_ServerConfig_addPubSubTransportLayer(config, UA_PubSubTransportLayerUDPMP());
-    UA_NetworkAddressUrlDataType networkAddressUrl = {
-        UA_STRING_NULL, UA_STRING("opc.udp://224.0.0.22:4840/")};
-    UA_String transportProfile =
-        UA_STRING("http://opcfoundation.org/UA-Profile/Transport/pubsub-udp-uadp");
-
-    UA_StatusCode retval =
-        addPubSubConnection(server, &transportProfile, &networkAddressUrl);
-    if(retval != UA_STATUSCODE_GOOD)
-        return retval;
-
-    /* Add ReaderGroup to the created PubSubConnection */
-    retval |= addReaderGroup(server);
-    if(retval != UA_STATUSCODE_GOOD)
-        return retval;
-
-    /* Add DataSetReader to the created ReaderGroup */
-    retval |= addDataSetReader(server);
-    if(retval != UA_STATUSCODE_GOOD)
-        return retval;
-
-    return UA_STATUSCODE_GOOD;
-}
-
-static void
-addAddDemoSubscriberMethod(UA_Server *server) {
-    UA_MethodAttributes addDemoSubscriberAttr = UA_MethodAttributes_default;
-    addDemoSubscriberAttr.description = UA_LOCALIZEDTEXT("en-US", "Add Demo Subscriber");
-    addDemoSubscriberAttr.displayName = UA_LOCALIZEDTEXT("en-US", "Add Demo Subscriber");
-    addDemoSubscriberAttr.executable = true;
-    addDemoSubscriberAttr.userExecutable = true;
-    UA_Server_addMethodNode(
-        server, UA_NODEID_NUMERIC(1, 62541), UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
-        UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
-        UA_QUALIFIEDNAME(1, "Add Demo Subscriber"), addDemoSubscriberAttr,
-        &addDemoSubscriberCallback, 0, NULL, 0, NULL, NULL, NULL);
 }
 
 UA_Boolean running = true;
@@ -222,11 +168,26 @@ run(UA_String *transportProfile, UA_NetworkAddressUrlDataType *networkAddressUrl
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     UA_Server *server = UA_Server_new();
     UA_ServerConfig *config = UA_Server_getConfig(server);
-    UA_ServerConfig_setMinimal(config, 4801, NULL);
+    UA_ServerConfig_setDefault(config);
 
-    addVariable(server);
+    /* Details about the connection configuration and handling are located in
+     * the pubsub connection tutorial */
+    UA_ServerConfig_addPubSubTransportLayer(config, UA_PubSubTransportLayerUDPMP());
+    #ifdef UA_ENABLE_PUBSUB_ETH_UADP
+        UA_ServerConfig_addPubSubTransportLayer(config, UA_PubSubTransportLayerEthernet());
+    #endif
+
+    addTargetVariable(server);
     addStandaloneSubscribedDataSet(server);
-    addAddDemoSubscriberMethod(server);
+
+    /* Add PubSub configuration */
+    addPubSubConnection(server, transportProfile, networkAddressUrl);
+
+    /* Add ReaderGroup to the created PubSubConnection */
+    retval |= addReaderGroup(server);
+
+    /* Add DataSetReader to the created ReaderGroup */
+    retval |= addDataSetReader(server);
 
     retval = UA_Server_run(server, &running);
     UA_Server_delete(server);

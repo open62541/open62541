@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  *
- * Copyright (c) 2017-2019 Fraunhofer IOSB (Author: Andreas Ebner)
+ * Copyright (c) 2017-2022 Fraunhofer IOSB (Author: Andreas Ebner)
  * Copyright (c) 2018 Fraunhofer IOSB (Author: Julius Pfrommer)
  * Copyright (c) 2021 Fraunhofer IOSB (Author: Jan Hermes)
  * Copyright (c) 2022 Siemens AG (Author: Thomas Fischer)
@@ -402,24 +402,22 @@ UA_PubSubConfigurationVersionTimeDifference(void) {
     UA_UInt32 timeDiffSince2000 = (UA_UInt32) (UA_DateTime_now() - UA_DATETIMESTAMP_2000);
     return timeDiffSince2000;
 }
-UA_AddSubscribedDataSetResult
+UA_StatusCode
 UA_Server_addStandaloneSubscribedDataSet(UA_Server *server, const UA_StandaloneSubscribedDataSetConfig *subscribedDataSetConfig,
                               UA_NodeId *sdsIdentifier) {
-    UA_AddSubscribedDataSetResult result = { UA_STATUSCODE_BADINVALIDARGUMENT };
+    UA_StatusCode result = UA_STATUSCODE_BADINVALIDARGUMENT;
     if(!subscribedDataSetConfig){
         UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
                      "SubscribedDataSet creation failed. No config passed in.");
         return result;
     }
 
-    //deep copy the given connection config
     UA_StandaloneSubscribedDataSetConfig tmpSubscribedDataSetConfig;
     memset(&tmpSubscribedDataSetConfig, 0, sizeof(UA_StandaloneSubscribedDataSetConfig));
     if(UA_StandaloneSubscribedDataSetConfig_copy(subscribedDataSetConfig, &tmpSubscribedDataSetConfig) != UA_STATUSCODE_GOOD){
         UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
                      "SubscribedDataSet creation failed. Configuration copy failed.");
-        result.addResult = UA_STATUSCODE_BADINTERNALERROR;
-        return result;
+        return UA_STATUSCODE_BADINTERNALERROR;
     }
     //create new PDS and add to UA_PubSubManager
     UA_StandaloneSubscribedDataSet *newSubscribedDataSet = (UA_StandaloneSubscribedDataSet *)
@@ -428,14 +426,11 @@ UA_Server_addStandaloneSubscribedDataSet(UA_Server *server, const UA_StandaloneS
         UA_StandaloneSubscribedDataSetConfig_clear(&tmpSubscribedDataSetConfig);
         UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
                      "SubscribedDataSet creation failed. Out of Memory.");
-        result.addResult = UA_STATUSCODE_BADOUTOFMEMORY;
-        return result;
+        return UA_STATUSCODE_BADOUTOFMEMORY;
     }
 
-    memset(newSubscribedDataSet, 0, sizeof(UA_StandaloneSubscribedDataSet));
     newSubscribedDataSet->config = tmpSubscribedDataSetConfig;
     newSubscribedDataSet->connectedReader = UA_NODEID_NULL;
-    
     
     if (server->pubSubManager.subscribedDataSetsSize != 0)
         TAILQ_INSERT_TAIL(&server->pubSubManager.subscribedDataSets, newSubscribedDataSet, listEntry);
@@ -460,7 +455,6 @@ UA_Server_addStandaloneSubscribedDataSet(UA_Server *server, const UA_StandaloneS
 
 UA_StatusCode
 UA_Server_removeStandaloneSubscribedDataSet(UA_Server *server, const UA_NodeId sds) {
-    //search the identified PublishedDataSet and store the PDS index
     UA_StandaloneSubscribedDataSet *subscribedDataSet = UA_StandaloneSubscribedDataSet_findSDSbyId(server, sds);
     if(!subscribedDataSet){
         return UA_STATUSCODE_BADNOTFOUND;

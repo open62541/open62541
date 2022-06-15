@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  *
- * Copyright (c) 2017-2018 Fraunhofer IOSB (Author: Andreas Ebner)
+ * Copyright (c) 2017-2022 Fraunhofer IOSB (Author: Andreas Ebner)
  * Copyright (c) 2019-2021 Kalycito Infotech Private Limited
  * Copyright (c) 2020 Yannick Wallerer, Siemens AG
  * Copyright (c) 2020-2022 Thomas Fischer, Siemens AG
@@ -847,18 +847,17 @@ addDataSetReaderAction(UA_Server *server,
 #endif
 
 UA_StatusCode
-removeDataSetReaderRepresentation(UA_Server *server,
-                                  UA_DataSetReader* dataSetReader) {
-                                      UA_StatusCode retVal = UA_STATUSCODE_GOOD;
-    if(!UA_String_equal(&dataSetReader->config.subscribedDataSetName, &UA_STRING_NULL)) {
-    
+removeDataSetReaderRepresentation(UA_Server *server, UA_DataSetReader* dataSetReader) {
+    UA_StatusCode retVal = UA_STATUSCODE_GOOD;
+    if(!UA_String_equal(&dataSetReader->config.linkedStandaloneSubscribedDataSetName, &UA_STRING_NULL)) {
         UA_NodeId dataSetMetaDataOnDsrId = findSingleChildNode(server, UA_QUALIFIEDNAME(0, "DataSetMetaData"),
                                     UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY), dataSetReader->identifier);
         UA_NodeId subscribedDataSetOnDsrId = findSingleChildNode(server, UA_QUALIFIEDNAME(0, "SubscribedDataSet"),
                                     UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT), dataSetReader->identifier);
 
         if(UA_NodeId_isNull(&dataSetMetaDataOnDsrId) || UA_NodeId_isNull(&subscribedDataSetOnDsrId)) {
-            /* todo UA_LOG_ERROR */
+            UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER, "removeDataSetReaderRepresentation failed."
+                                                                        "SubscribedDataSet or DataSetMetaData not found!");
             return UA_STATUSCODE_BADNOTFOUND;
         }
 
@@ -1142,7 +1141,7 @@ UA_StatusCode
 addStandaloneSubscribedDataSetRepresentation(UA_Server *server, UA_StandaloneSubscribedDataSet *subscribedDataSet) {
     UA_StatusCode ret = UA_STATUSCODE_GOOD;
     if(subscribedDataSet->config.name.length > 512)
-        return UA_STATUSCODE_BADOUTOFMEMORY;
+        return UA_STATUSCODE_BADCONFIGURATIONERROR;
 
     UA_STACKARRAY(char, sdsName, sizeof(char) * subscribedDataSet->config.name.length +1);
     memcpy(sdsName, subscribedDataSet->config.name.data, subscribedDataSet->config.name.length);
@@ -1150,7 +1149,6 @@ addStandaloneSubscribedDataSetRepresentation(UA_Server *server, UA_StandaloneSub
 
     UA_ObjectAttributes object_attr = UA_ObjectAttributes_default;
     object_attr.displayName = UA_LOCALIZEDTEXT("", sdsName);
-    // nsIndex = 2 because it is currently in a different nodeset. Needs to be adjusted when it will be added to the ns0 ns
     UA_Server_addObjectNode(server, UA_NODEID_NUMERIC(1, 0), /* Create a new id */
                                    UA_NODEID_NUMERIC(0, UA_NS0ID_PUBLISHSUBSCRIBE_SUBSCRIBEDDATASETS), 
                                    UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY),
@@ -1172,17 +1170,18 @@ addStandaloneSubscribedDataSetRepresentation(UA_Server *server, UA_StandaloneSub
        UA_NodeId_equal(&connectedId, &UA_NODEID_NULL)) {
         return UA_STATUSCODE_BADNOTFOUND;
     }
-    /* todo  check sdstype */
-    UA_VariableAttributes attr = UA_VariableAttributes_default;
-    UA_NodeId targetVarsId;
-    attr.displayName = UA_LOCALIZEDTEXT("", "TargetVariables");
-    attr.dataType = UA_TYPES[UA_TYPES_TARGETVARIABLESDATATYPE].typeId;
-    attr.valueRank = UA_VALUERANK_SCALAR;
-    attr.accessLevel = UA_ACCESSLEVELMASK_READ;
-    UA_Variant_setScalar(&attr.value, &subscribedDataSet->config.subscribedDataSet.target, &UA_TYPES[UA_TYPES_TARGETVARIABLESDATATYPE]);
-    ret |= UA_Server_addVariableNode(server, UA_NODEID_NULL, sdsObjectNode, UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY), 
-                                UA_QUALIFIEDNAME(0, "TargetVariables"), UA_NODEID_NUMERIC(0, UA_NS0ID_PROPERTYTYPE),
-                                attr, NULL, &targetVarsId);
+    if(subscribedDataSet->config.subscribedDataSetType == UA_PUBSUB_SDS_TARGET){
+        UA_VariableAttributes attr = UA_VariableAttributes_default;
+        UA_NodeId targetVarsId;
+        attr.displayName = UA_LOCALIZEDTEXT("", "TargetVariables");
+        attr.dataType = UA_TYPES[UA_TYPES_TARGETVARIABLESDATATYPE].typeId;
+        attr.valueRank = UA_VALUERANK_SCALAR;
+        attr.accessLevel = UA_ACCESSLEVELMASK_READ;
+        UA_Variant_setScalar(&attr.value, &subscribedDataSet->config.subscribedDataSet.target, &UA_TYPES[UA_TYPES_TARGETVARIABLESDATATYPE]);
+        ret |= UA_Server_addVariableNode(server, UA_NODEID_NULL, sdsObjectNode, UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY),
+                                         UA_QUALIFIEDNAME(0, "TargetVariables"), UA_NODEID_NUMERIC(0, UA_NS0ID_PROPERTYTYPE),
+                                         attr, NULL, &targetVarsId);
+    }
                                 
     UA_NodePropertyContext *isConnectedNodeContext = (UA_NodePropertyContext *) UA_malloc(sizeof(UA_NodePropertyContext));
     isConnectedNodeContext->parentNodeId = subscribedDataSet->identifier;
@@ -1192,7 +1191,6 @@ addStandaloneSubscribedDataSetRepresentation(UA_Server *server, UA_StandaloneSub
     UA_ValueCallback valueCallback;
     valueCallback.onRead = onRead; 
     valueCallback.onWrite = NULL;
-
     ret |= addVariableValueSource(server, valueCallback, connectedId, isConnectedNodeContext);
     
     UA_NodePropertyContext *metaDataContext = (UA_NodePropertyContext *)
@@ -1209,7 +1207,6 @@ UA_StatusCode
 removeStandaloneSubscribedDataSetRepresentation(UA_Server *server, UA_StandaloneSubscribedDataSet *subscribedDataSet) {
     UA_StatusCode retVal = UA_STATUSCODE_GOOD;
     retVal |= UA_Server_deleteNode(server, subscribedDataSet->identifier, true);
-
     return retVal;
 }
 
@@ -1919,8 +1916,7 @@ UA_Server_initPubSubNS0(UA_Server *server) {
 }
 
 UA_StatusCode
-connectDataSetReaderToDataSet(UA_Server *server,
-                              UA_NodeId dsrId, UA_NodeId standaloneSdsId) {
+connectDataSetReaderToDataSet(UA_Server *server, UA_NodeId dsrId, UA_NodeId standaloneSdsId) {
     UA_StatusCode retVal = UA_STATUSCODE_GOOD;
 
     UA_NodeId dataSetMetaDataOnDsrId = findSingleChildNode(server, UA_QUALIFIEDNAME(0, "DataSetMetaData"),
@@ -1945,7 +1941,6 @@ connectDataSetReaderToDataSet(UA_Server *server,
         UA_EXPANDEDNODEID_NUMERIC(dataSetMetaDataOnSdsId.namespaceIndex, dataSetMetaDataOnSdsId.identifier.numeric), UA_TRUE);
     retVal |= UA_Server_addReference(server, dsrId, UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY),
         UA_EXPANDEDNODEID_NUMERIC(dataSetMetaDataOnSdsId.namespaceIndex, subscribedDataSetOnSdsId.identifier.numeric), UA_TRUE);
-
 
     return retVal;
 }

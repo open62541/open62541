@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  *
- * Copyright (c) 2017-2018 Fraunhofer IOSB (Author: Andreas Ebner)
+ * Copyright (c) 2017-2022 Fraunhofer IOSB (Author: Andreas Ebner)
  * Copyright (c) 2019 Fraunhofer IOSB (Author: Julius Pfrommer)
  * Copyright (c) 2019 Kalycito Infotech Private Limited
  * Copyright (c) 2021 Fraunhofer IOSB (Author: Jan Hermes)
@@ -453,11 +453,11 @@ UA_Server_addDataSetReader(UA_Server *server, UA_NodeId readerGroupIdentifier,
     LIST_INSERT_HEAD(&readerGroup->readers, newDataSetReader, listEntry);
     readerGroup->readersCount++;
 
-    if(newDataSetReader->config.subscribedDataSetName.length != 0) {
+    if(newDataSetReader->config.linkedStandaloneSubscribedDataSetName.length != 0) {
         // find sds by name
         UA_StandaloneSubscribedDataSet *subscribedDataSet =
             UA_StandaloneSubscribedDataSet_findSDSbyName(
-                server, newDataSetReader->config.subscribedDataSetName);
+                server, newDataSetReader->config.linkedStandaloneSubscribedDataSetName);
         if(subscribedDataSet != NULL) {
             if(subscribedDataSet->config.subscribedDataSetType != UA_PUBSUB_SDS_TARGET) {
                 UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
@@ -479,7 +479,6 @@ UA_Server_addDataSetReader(UA_Server *server, UA_NodeId readerGroupIdentifier,
                             subscribedDataSet->config.subscribedDataSet.target
                                 .targetVariablesSize,
                             sizeof(UA_FieldTargetVariable));
-                    memset(targetVars, 0, sizeof(UA_FieldTargetVariable));
                     for(size_t index = 0;
                         index < subscribedDataSet->config.subscribedDataSet.target
                                     .targetVariablesSize;
@@ -506,7 +505,8 @@ UA_Server_addDataSetReader(UA_Server *server, UA_NodeId readerGroupIdentifier,
                     UA_free(targetVars);
 
 #ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL
-                    retVal |= connectDataSetReaderToDataSet(server, newDataSetReader->identifier, subscribedDataSet->identifier);
+                    retVal |= connectDataSetReaderToDataSet(server, newDataSetReader->identifier,
+                                                            subscribedDataSet->identifier);
 #endif
                 }
             }
@@ -734,7 +734,7 @@ UA_DataSetReaderConfig_copy(const UA_DataSetReaderConfig *src,
         }
     }
 
-    retVal = UA_String_copy(&src->subscribedDataSetName, &dst->subscribedDataSetName);
+    retVal = UA_String_copy(&src->linkedStandaloneSubscribedDataSetName, &dst->linkedStandaloneSubscribedDataSetName);
 
     return retVal;
 }
@@ -742,7 +742,7 @@ UA_DataSetReaderConfig_copy(const UA_DataSetReaderConfig *src,
 void
 UA_DataSetReaderConfig_clear(UA_DataSetReaderConfig *cfg) {
     UA_String_clear(&cfg->name);
-    UA_String_clear(&cfg->subscribedDataSetName);
+    UA_String_clear(&cfg->linkedStandaloneSubscribedDataSetName);
     UA_Variant_clear(&cfg->publisherId);
     UA_DataSetMetaDataType_clear(&cfg->dataSetMetaData);
     UA_ExtensionObject_clear(&cfg->messageSettings);
@@ -1574,7 +1574,6 @@ UA_StandaloneSubscribedDataSet_findSDSbyId(UA_Server *server, UA_NodeId identifi
         if(UA_NodeId_equal(&identifier, &subscribedDataSet->identifier))
             return subscribedDataSet;
     }
-
     return NULL;
 }
 
@@ -1586,7 +1585,6 @@ UA_StandaloneSubscribedDataSet_findSDSbyName(UA_Server *server, UA_String identi
         if(UA_String_equal(&identifier, &subscribedDataSet->config.name))
             return subscribedDataSet;
     }
-
     return NULL;
 }
 
@@ -1603,7 +1601,6 @@ UA_StandaloneSubscribedDataSetConfig_copy(const UA_StandaloneSubscribedDataSetCo
 
     if(res != UA_STATUSCODE_GOOD)
         UA_StandaloneSubscribedDataSetConfig_clear(dst);
-
     return res;
 }
 
