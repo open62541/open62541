@@ -944,6 +944,17 @@ DataValue_copy(UA_DataValue const *src, UA_DataValue *dst,
     return retval;
 }
 
+UA_StatusCode
+UA_DataValue_copyVariantRange(const UA_DataValue *src, UA_DataValue * UA_RESTRICT dst,
+                              const UA_NumericRange range) {
+    memcpy(dst, src, sizeof(UA_DataValue));
+    UA_Variant_init(&dst->value);
+    UA_StatusCode retval = UA_Variant_copyRange(&src->value, &dst->value, range);
+    if(retval != UA_STATUSCODE_GOOD)
+        DataValue_clear(dst, NULL);
+    return retval;
+}
+
 /* DiagnosticInfo */
 static void
 DiagnosticInfo_clear(UA_DiagnosticInfo *p, const UA_DataType *_) {
