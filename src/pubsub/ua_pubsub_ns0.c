@@ -224,36 +224,36 @@ addVariableValueSource(UA_Server *server, UA_ValueCallback valueCallback,
 
 #ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL_METHODS
 static UA_StatusCode
-addPubSubConnectionConfig(UA_Server *server, UA_PubSubConnectionDataType *pubsubConnectionDataType,
+addPubSubConnectionConfig(UA_Server *server, UA_PubSubConnectionDataType *pubsubConnection,
                           UA_NodeId *connectionId){
     UA_StatusCode retVal = UA_STATUSCODE_GOOD;
-    UA_NetworkAddressUrlDataType networkAddressUrlDataType;
-    memset(&networkAddressUrlDataType, 0, sizeof(networkAddressUrlDataType));
-    UA_ExtensionObject *eo = &pubsubConnectionDataType->address;
+    UA_NetworkAddressUrlDataType networkAddressUrl;
+    memset(&networkAddressUrl, 0, sizeof(networkAddressUrl));
+    UA_ExtensionObject *eo = &pubsubConnection->address;
     if(eo->encoding == UA_EXTENSIONOBJECT_DECODED &&
        eo->content.decoded.type == &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]) {
         void *data = eo->content.decoded.data;
         retVal =
             UA_NetworkAddressUrlDataType_copy((UA_NetworkAddressUrlDataType *)data,
-                                              &networkAddressUrlDataType);
+                                              &networkAddressUrl);
         if(retVal != UA_STATUSCODE_GOOD)
             return retVal;
     }
 
     UA_PubSubConnectionConfig connectionConfig;
     memset(&connectionConfig, 0, sizeof(UA_PubSubConnectionConfig));
-    connectionConfig.transportProfileUri = pubsubConnectionDataType->transportProfileUri;
-    connectionConfig.name = pubsubConnectionDataType->name;
+    connectionConfig.transportProfileUri = pubsubConnection->transportProfileUri;
+    connectionConfig.name = pubsubConnection->name;
     //TODO set real connection state
-    connectionConfig.enabled = pubsubConnectionDataType->enabled;
-    //connectionConfig.enabled = pubSubConnectionDataType.enabled;
-    UA_Variant_setScalar(&connectionConfig.address, &networkAddressUrlDataType,
+    connectionConfig.enabled = pubsubConnection->enabled;
+    //connectionConfig.enabled = pubSubConnection.enabled;
+    UA_Variant_setScalar(&connectionConfig.address, &networkAddressUrl,
                          &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
-    if(pubsubConnectionDataType->publisherId.type == &UA_TYPES[UA_TYPES_UINT32]){
-        connectionConfig.publisherId.numeric = * ((UA_UInt32 *) pubsubConnectionDataType->publisherId.data);
-    } else if(pubsubConnectionDataType->publisherId.type == &UA_TYPES[UA_TYPES_STRING]){
+    if(pubsubConnection->publisherId.type == &UA_TYPES[UA_TYPES_UINT32]){
+        connectionConfig.publisherId.numeric = * ((UA_UInt32 *) pubsubConnection->publisherId.data);
+    } else if(pubsubConnection->publisherId.type == &UA_TYPES[UA_TYPES_STRING]){
         connectionConfig.publisherIdType = UA_PUBSUB_PUBLISHERID_STRING;
-        UA_String_copy((UA_String *) pubsubConnectionDataType->publisherId.data, &connectionConfig.publisherId.string);
+        UA_String_copy((UA_String *) pubsubConnection->publisherId.data, &connectionConfig.publisherId.string);
     } else {
         UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER, "Unsupported PublisherId Type used.");
         //TODO what's the best default behaviour here?
@@ -261,7 +261,7 @@ addPubSubConnectionConfig(UA_Server *server, UA_PubSubConnectionDataType *pubsub
     }
 
     retVal |= UA_Server_addPubSubConnection(server, &connectionConfig, connectionId);
-    UA_NetworkAddressUrlDataType_clear(&networkAddressUrlDataType);
+    UA_NetworkAddressUrlDataType_clear(&networkAddressUrl);
     return retVal;
 }
 
@@ -272,21 +272,21 @@ addPubSubConnectionConfig(UA_Server *server, UA_PubSubConnectionDataType *pubsub
  * configuration parameters for the message creation. */
 static UA_StatusCode
 addWriterGroupConfig(UA_Server *server, UA_NodeId connectionId,
-                     UA_WriterGroupDataType *writerGroupDataType, UA_NodeId *writerGroupId){
+                     UA_WriterGroupDataType *writerGroup, UA_NodeId *writerGroupId){
     /* Now we create a new WriterGroupConfig and add the group to the existing
      * PubSubConnection. */
     UA_WriterGroupConfig writerGroupConfig;
     memset(&writerGroupConfig, 0, sizeof(UA_WriterGroupConfig));
-    writerGroupConfig.name = writerGroupDataType->name;
-    writerGroupConfig.publishingInterval = writerGroupDataType->publishingInterval;
-    writerGroupConfig.enabled = writerGroupDataType->enabled;
-    writerGroupConfig.writerGroupId = writerGroupDataType->writerGroupId;
+    writerGroupConfig.name = writerGroup->name;
+    writerGroupConfig.publishingInterval = writerGroup->publishingInterval;
+    writerGroupConfig.enabled = writerGroup->enabled;
+    writerGroupConfig.writerGroupId = writerGroup->writerGroupId;
     //TODO remove hard coded UADP
     writerGroupConfig.encodingMimeType = UA_PUBSUB_ENCODING_UADP;
-    writerGroupConfig.priority = writerGroupDataType->priority;
+    writerGroupConfig.priority = writerGroup->priority;
 
     UA_UadpWriterGroupMessageDataType writerGroupMessage;
-    UA_ExtensionObject *eoWG = &writerGroupDataType->messageSettings;
+    UA_ExtensionObject *eoWG = &writerGroup->messageSettings;
     if(eoWG->encoding == UA_EXTENSIONOBJECT_DECODED){
         writerGroupConfig.messageSettings.encoding  = UA_EXTENSIONOBJECT_DECODED;
         if(eoWG->content.decoded.type == &UA_TYPES[UA_TYPES_UADPWRITERGROUPMESSAGEDATATYPE]){
@@ -310,12 +310,12 @@ addWriterGroupConfig(UA_Server *server, UA_NodeId connectionId,
  * message generation. */
 static UA_StatusCode
 addDataSetWriterConfig(UA_Server *server, const UA_NodeId *writerGroupId,
-                       UA_DataSetWriterDataType *dataSetWriterDataType,
+                       UA_DataSetWriterDataType *dataSetWriter,
                        UA_NodeId *dataSetWriterId) {
     UA_NodeId publishedDataSetId = UA_NODEID_NULL;
     UA_PublishedDataSet *tmpPDS;
     TAILQ_FOREACH(tmpPDS, &server->pubSubManager.publishedDataSets, listEntry){
-        if(UA_String_equal(&dataSetWriterDataType->dataSetName, &tmpPDS->config.name)) {
+        if(UA_String_equal(&dataSetWriter->dataSetName, &tmpPDS->config.name)) {
             publishedDataSetId = tmpPDS->identifier;
             break;
         }
@@ -328,10 +328,10 @@ addDataSetWriterConfig(UA_Server *server, const UA_NodeId *writerGroupId,
      * create a new DataSetWriterConfig and add call the addWriterGroup function. */
     UA_DataSetWriterConfig dataSetWriterConfig;
     memset(&dataSetWriterConfig, 0, sizeof(UA_DataSetWriterConfig));
-    dataSetWriterConfig.name = dataSetWriterDataType->name;
-    dataSetWriterConfig.dataSetWriterId = dataSetWriterDataType->dataSetWriterId;
-    dataSetWriterConfig.keyFrameCount = dataSetWriterDataType->keyFrameCount;
-    dataSetWriterConfig.dataSetFieldContentMask =  dataSetWriterDataType->dataSetFieldContentMask;
+    dataSetWriterConfig.name = dataSetWriter->name;
+    dataSetWriterConfig.dataSetWriterId = dataSetWriter->dataSetWriterId;
+    dataSetWriterConfig.keyFrameCount = dataSetWriter->keyFrameCount;
+    dataSetWriterConfig.dataSetFieldContentMask =  dataSetWriter->dataSetFieldContentMask;
     return UA_Server_addDataSetWriter(server, *writerGroupId, publishedDataSetId,
                                       &dataSetWriterConfig, dataSetWriterId);
 }
@@ -345,11 +345,11 @@ addDataSetWriterConfig(UA_Server *server, const UA_NodeId *writerGroupId,
 /* Add ReaderGroup to the created connection */
 static UA_StatusCode
 addReaderGroupConfig(UA_Server *server, UA_NodeId connectionId,
-                     UA_ReaderGroupDataType *readerGroupDataType,
+                     UA_ReaderGroupDataType *readerGroup,
                      UA_NodeId *readerGroupId) {
     UA_ReaderGroupConfig readerGroupConfig;
     memset(&readerGroupConfig, 0, sizeof(UA_ReaderGroupConfig));
-    readerGroupConfig.name = readerGroupDataType->name;
+    readerGroupConfig.name = readerGroup->name;
     return UA_Server_addReaderGroup(server, connectionId,
                                     &readerGroupConfig, readerGroupId);
 }
@@ -361,10 +361,10 @@ addReaderGroupConfig(UA_Server *server, UA_NodeId connectionId,
  * Add subscribedvariables to the DataSetReader */
 static UA_StatusCode
 addSubscribedVariables(UA_Server *server, UA_NodeId dataSetReaderId,
-                       UA_DataSetReaderDataType *dataSetReaderDataType,
+                       UA_DataSetReaderDataType *dataSetReader,
                        UA_DataSetMetaDataType *pMetaData) {
     UA_StatusCode retVal = UA_STATUSCODE_GOOD;
-    UA_ExtensionObject *eoTargetVar = &dataSetReaderDataType->subscribedDataSet;
+    UA_ExtensionObject *eoTargetVar = &dataSetReader->subscribedDataSet;
     if(eoTargetVar->encoding != UA_EXTENSIONOBJECT_DECODED ||
        eoTargetVar->content.decoded.type != &UA_TYPES[UA_TYPES_TARGETVARIABLESDATATYPE])
         return UA_STATUSCODE_BADUNEXPECTEDERROR;
@@ -442,41 +442,41 @@ addSubscribedVariables(UA_Server *server, UA_NodeId dataSetReaderId,
 /* Add DataSetReader to the ReaderGroup */
 static UA_StatusCode
 addDataSetReaderConfig(UA_Server *server, UA_NodeId readerGroupId,
-                       UA_DataSetReaderDataType *dataSetReaderDataType,
+                       UA_DataSetReaderDataType *dataSetReader,
                        UA_NodeId *dataSetReaderId) {
     UA_StatusCode retVal = UA_STATUSCODE_GOOD;
     UA_DataSetReaderConfig readerConfig;
     memset(&readerConfig, 0, sizeof(UA_DataSetReaderConfig));
-    readerConfig.name = dataSetReaderDataType->name;
-    readerConfig.publisherId = dataSetReaderDataType->publisherId;
-    readerConfig.writerGroupId = dataSetReaderDataType->writerGroupId;
-    readerConfig.dataSetWriterId = dataSetReaderDataType->dataSetWriterId;
+    readerConfig.name = dataSetReader->name;
+    readerConfig.publisherId = dataSetReader->publisherId;
+    readerConfig.writerGroupId = dataSetReader->writerGroupId;
+    readerConfig.dataSetWriterId = dataSetReader->dataSetWriterId;
 
     /* Setting up Meta data configuration in DataSetReader */
     UA_DataSetMetaDataType *pMetaData;
     pMetaData = &readerConfig.dataSetMetaData;
     UA_DataSetMetaDataType_init (pMetaData);
-    pMetaData->name =  dataSetReaderDataType->dataSetMetaData.name;
-    pMetaData->fieldsSize = dataSetReaderDataType->dataSetMetaData.fieldsSize;
+    pMetaData->name =  dataSetReader->dataSetMetaData.name;
+    pMetaData->fieldsSize = dataSetReader->dataSetMetaData.fieldsSize;
     pMetaData->fields = (UA_FieldMetaData*)UA_Array_new (pMetaData->fieldsSize,
                         &UA_TYPES[UA_TYPES_FIELDMETADATA]);
     for(size_t i = 0; i < pMetaData->fieldsSize; i++){
         UA_FieldMetaData_init (&pMetaData->fields[i]);
-        UA_NodeId_copy (&dataSetReaderDataType->dataSetMetaData.fields[i].dataType,
+        UA_NodeId_copy (&dataSetReader->dataSetMetaData.fields[i].dataType,
                         &pMetaData->fields[i].dataType);
-        pMetaData->fields[i].builtInType = dataSetReaderDataType->dataSetMetaData.fields[i].builtInType;
-        pMetaData->fields[i].name = dataSetReaderDataType->dataSetMetaData.fields[i].name;
-        pMetaData->fields[i].valueRank = dataSetReaderDataType->dataSetMetaData.fields[i].valueRank;
+        pMetaData->fields[i].builtInType = dataSetReader->dataSetMetaData.fields[i].builtInType;
+        pMetaData->fields[i].name = dataSetReader->dataSetMetaData.fields[i].name;
+        pMetaData->fields[i].valueRank = dataSetReader->dataSetMetaData.fields[i].valueRank;
     }
 
-    retVal |= UA_Server_addDataSetReader(server, readerGroupId, &readerConfig,
-                                         dataSetReaderId);
+    retVal |= UA_Server_addDataSetReader(server, readerGroupId,
+                                         &readerConfig, dataSetReaderId);
     if(retVal != UA_STATUSCODE_GOOD) {
         UA_free(pMetaData->fields);
         return retVal;
     }
 
-    retVal |= addSubscribedVariables(server, *dataSetReaderId, dataSetReaderDataType, pMetaData);
+    retVal |= addSubscribedVariables(server, *dataSetReaderId, dataSetReader, pMetaData);
     UA_free(pMetaData->fields);
     return retVal;
 }
@@ -551,14 +551,14 @@ addPubSubConnectionRepresentation(UA_Server *server, UA_PubSubConnection *connec
                                           connection->config->connectionPropertiesSize,
                                           &UA_TYPES[UA_TYPES_KEYVALUEPAIR]);
 
-    UA_NetworkAddressUrlDataType *networkAddressUrlDataType =
+    UA_NetworkAddressUrlDataType *networkAddressUrl=
         ((UA_NetworkAddressUrlDataType*)connection->config->address.data);
     UA_Variant value;
     UA_Variant_init(&value);
-    UA_Variant_setScalar(&value, &networkAddressUrlDataType->url,
+    UA_Variant_setScalar(&value, &networkAddressUrl->url,
                          &UA_TYPES[UA_TYPES_STRING]);
     UA_Server_writeValue(server, urlNode, value);
-    UA_Variant_setScalar(&value, &networkAddressUrlDataType->networkInterface,
+    UA_Variant_setScalar(&value, &networkAddressUrl->networkInterface,
                          &UA_TYPES[UA_TYPES_STRING]);
     UA_Server_writeValue(server, interfaceNode, value);
     UA_Variant_setScalar(&value, &connection->config->transportProfileUri,
@@ -601,71 +601,84 @@ addPubSubConnectionAction(UA_Server *server,
                           const UA_NodeId *methodId, void *methodContext,
                           const UA_NodeId *objectId, void *objectContext,
                           size_t inputSize, const UA_Variant *input,
-                          size_t outputSize, UA_Variant *output){
+                          size_t outputSize, UA_Variant *output) {
     UA_StatusCode retVal = UA_STATUSCODE_GOOD;
-    UA_PubSubConnectionDataType pubSubConnectionDataType = *((UA_PubSubConnectionDataType *) input[0].data);
+    UA_PubSubConnectionDataType *pubSubConnection =
+        (UA_PubSubConnectionDataType *) input[0].data;
 
     //call API function and create the connection
     UA_NodeId connectionId;
-    retVal |= addPubSubConnectionConfig(server, &pubSubConnectionDataType, &connectionId);
+    retVal |= addPubSubConnectionConfig(server, pubSubConnection, &connectionId);
     if(retVal != UA_STATUSCODE_GOOD) {
-        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER, "addPubSubConnection failed");
+        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                     "addPubSubConnection failed");
         return retVal;
     }
 
-    for(size_t i = 0; i < pubSubConnectionDataType.writerGroupsSize; i++){
+    for(size_t i = 0; i < pubSubConnection->writerGroupsSize; i++) {
         UA_NodeId writerGroupId;
-        UA_WriterGroupDataType *writerGroupDataType = &pubSubConnectionDataType.writerGroups[i];
-        retVal |= addWriterGroupConfig(server, connectionId, writerGroupDataType, &writerGroupId);
+        UA_WriterGroupDataType *writerGroup = &pubSubConnection->writerGroups[i];
+        retVal |= addWriterGroupConfig(server, connectionId, writerGroup, &writerGroupId);
         if(retVal != UA_STATUSCODE_GOOD) {
-            UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER, "addWriterGroup failed");
+            UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                         "addWriterGroup failed");
             return retVal;
         }
 
-        for (size_t j = 0; j < pubSubConnectionDataType.writerGroups[i].dataSetWritersSize; j++){
-            UA_DataSetWriterDataType *dataSetWriterDataType = &writerGroupDataType->dataSetWriters[j];
-            retVal |= addDataSetWriterConfig(server, &writerGroupId, dataSetWriterDataType, NULL);
+        for(size_t j = 0; j < writerGroup->dataSetWritersSize; j++) {
+            UA_DataSetWriterDataType *dataSetWriter = &writerGroup->dataSetWriters[j];
+            retVal |= addDataSetWriterConfig(server, &writerGroupId, dataSetWriter, NULL);
             if(retVal != UA_STATUSCODE_GOOD) {
-                UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER, "addDataSetWriter failed");
+                UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                             "addDataSetWriter failed");
                 return retVal;
             }
         }
 
-        //TODO: Need to handle the UA_Server_setWriterGroupOperational based on the status variable in information model
-        if(pubSubConnectionDataType.enabled) {
+        /* TODO: Need to handle the UA_Server_setWriterGroupOperational based on
+         * the status variable in information model */
+        if(pubSubConnection->enabled) {
             UA_Server_freezeWriterGroupConfiguration(server, writerGroupId);
             UA_Server_setWriterGroupOperational(server, writerGroupId);
-        } else
+        } else {
             UA_Server_setWriterGroupDisabled(server, writerGroupId);
+        }
     }
 
-    for(size_t i = 0; i < pubSubConnectionDataType.readerGroupsSize; i++){
+    for(size_t i = 0; i < pubSubConnection->readerGroupsSize; i++){
         UA_NodeId readerGroupId;
-        UA_ReaderGroupDataType *readerGroupDataType = &pubSubConnectionDataType.readerGroups[i];
-        retVal |= addReaderGroupConfig(server, connectionId, readerGroupDataType, &readerGroupId);
+        UA_ReaderGroupDataType *readerGroup = &pubSubConnection->readerGroups[i];
+        retVal |= addReaderGroupConfig(server, connectionId, readerGroup, &readerGroupId);
         if(retVal != UA_STATUSCODE_GOOD) {
-            UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER, "addReaderGroup failed");
+            UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                         "addReaderGroup failed");
             return retVal;
         }
 
-        for(size_t j = 0; j < pubSubConnectionDataType.readerGroups[i].dataSetReadersSize; j++){
+        for(size_t j = 0; j < readerGroup->dataSetReadersSize; j++) {
             UA_NodeId dataSetReaderId;
-            UA_DataSetReaderDataType *dataSetReaderDataType =  &readerGroupDataType->dataSetReaders[j];
-            retVal |= addDataSetReaderConfig(server, readerGroupId, dataSetReaderDataType, &dataSetReaderId);
+            UA_DataSetReaderDataType *dataSetReader = &readerGroup->dataSetReaders[j];
+            retVal |= addDataSetReaderConfig(server, readerGroupId,
+                                             dataSetReader, &dataSetReaderId);
             if(retVal != UA_STATUSCODE_GOOD) {
-                UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER, "addDataSetReader failed");
+                UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                             "addDataSetReader failed");
                 return retVal;
             }
+
         }
-        //TODO: Need to handle the UA_Server_setReaderGroupOperational based on the status variable in information model
-        if(pubSubConnectionDataType.enabled) {
+
+        /* TODO: Need to handle the UA_Server_setReaderGroupOperational based on
+         * the status variable in information model */
+        if(pubSubConnection->enabled) {
             UA_Server_freezeReaderGroupConfiguration(server, readerGroupId);
             UA_Server_setReaderGroupOperational(server, readerGroupId);
-        }
-        else
+        } else {
             UA_Server_setReaderGroupDisabled(server, readerGroupId);
+        }
     }
-    //set ouput value
+
+    /* Set ouput value */
     UA_Variant_setScalarCopy(output, &connectionId, &UA_TYPES[UA_TYPES_NODEID]);
     return UA_STATUSCODE_GOOD;
 }
@@ -776,8 +789,8 @@ addDataSetReaderAction(UA_Server *server,
     }
 
     UA_NodeId dataSetReaderId;
-    UA_DataSetReaderDataType *dataSetReaderDataType = (UA_DataSetReaderDataType *) input[0].data;
-    retVal |= addDataSetReaderConfig(server, *objectId, dataSetReaderDataType, &dataSetReaderId);
+    UA_DataSetReaderDataType *dataSetReader= (UA_DataSetReaderDataType *) input[0].data;
+    retVal |= addDataSetReaderConfig(server, *objectId, dataSetReader, &dataSetReaderId);
     if(retVal != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER, "addDataSetReader failed");
         return retVal;
@@ -1206,9 +1219,9 @@ addWriterGroupAction(UA_Server *server,
                              size_t inputSize, const UA_Variant *input,
                              size_t outputSize, UA_Variant *output){
     UA_StatusCode retVal = UA_STATUSCODE_GOOD;
-    UA_WriterGroupDataType *writerGroupDataType = ((UA_WriterGroupDataType *) input[0].data);
+    UA_WriterGroupDataType *writerGroup = ((UA_WriterGroupDataType *) input[0].data);
     UA_NodeId writerGroupId;
-    retVal |= addWriterGroupConfig(server, *objectId, writerGroupDataType, &writerGroupId);
+    retVal |= addWriterGroupConfig(server, *objectId, writerGroup, &writerGroupId);
     if(retVal != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER, "addWriterGroup failed");
         return retVal;
@@ -1293,9 +1306,9 @@ addReaderGroupAction(UA_Server *server,
                      size_t inputSize, const UA_Variant *input,
                      size_t outputSize, UA_Variant *output){
     UA_StatusCode retVal = UA_STATUSCODE_GOOD;
-    UA_ReaderGroupDataType *readerGroupDataType = ((UA_ReaderGroupDataType *) input->data);
+    UA_ReaderGroupDataType *readerGroup = ((UA_ReaderGroupDataType *) input->data);
     UA_NodeId readerGroupId;
-    retVal |= addReaderGroupConfig(server, *objectId, readerGroupDataType, &readerGroupId);
+    retVal |= addReaderGroupConfig(server, *objectId, readerGroup, &readerGroupId);
     if(retVal != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER, "addReaderGroup failed");
         return retVal;
