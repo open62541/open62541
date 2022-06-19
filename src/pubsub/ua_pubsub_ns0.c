@@ -446,23 +446,11 @@ addDataSetReaderConfig(UA_Server *server, UA_NodeId readerGroupId,
                        UA_NodeId *dataSetReaderId) {
     UA_StatusCode retVal = UA_STATUSCODE_GOOD;
     UA_DataSetReaderConfig readerConfig;
-    memset (&readerConfig, 0, sizeof(UA_DataSetReaderConfig));
+    memset(&readerConfig, 0, sizeof(UA_DataSetReaderConfig));
     readerConfig.name = dataSetReaderDataType->name;
-    /* Parameters to filter which DataSetMessage has to be processed
-     * by the DataSetReader */
-    if(dataSetReaderDataType->publisherId.type == &UA_TYPES[UA_TYPES_STRING]){
-        UA_String publisherIdentifier;
-        readerConfig.publisherId.type = &UA_TYPES[UA_TYPES_STRING];
-        UA_String_copy((UA_String *) dataSetReaderDataType->publisherId.data, &publisherIdentifier);
-        readerConfig.publisherId.data = &publisherIdentifier;
-    } else {
-        UA_UInt16 publisherIdentifier = *(UA_UInt16*)dataSetReaderDataType->publisherId.data;
-        readerConfig.publisherId.type = &UA_TYPES[UA_TYPES_UINT16];
-        readerConfig.publisherId.data = &publisherIdentifier;
-    }
-
-    readerConfig.writerGroupId    = dataSetReaderDataType->writerGroupId;
-    readerConfig.dataSetWriterId  = dataSetReaderDataType->dataSetWriterId;
+    readerConfig.publisherId = dataSetReaderDataType->publisherId;
+    readerConfig.writerGroupId = dataSetReaderDataType->writerGroupId;
+    readerConfig.dataSetWriterId = dataSetReaderDataType->dataSetWriterId;
 
     /* Setting up Meta data configuration in DataSetReader */
     UA_DataSetMetaDataType *pMetaData;
