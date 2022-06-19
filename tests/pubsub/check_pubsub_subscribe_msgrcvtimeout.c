@@ -24,9 +24,13 @@ static UA_Boolean UseFastPath = UA_FALSE;
 static UA_DataValue *pFastPathPublisherValue = 0;
 static UA_DataValue *pFastPathSubscriberValue = 0;
 
+static UA_Boolean runtime;
+
 /***************************************************************************************************/
 /***************************************************************************************************/
 static void setup(void) {
+
+    runtime = true;
 
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "\n\nsetup\n\n");
 
@@ -50,6 +54,8 @@ static void setup(void) {
 
 /***************************************************************************************************/
 static void teardown(void) {
+
+    runtime = false;
 
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "\n\nteardown\n\n");
 
@@ -705,18 +711,15 @@ START_TEST(Test_basic) {
 
 } END_TEST
 
-
-
-/***************************************************************************************************/
-/***************************************************************************************************/
 /* Test different message receive timeouts */
 
-/***************************************************************************************************/
-static void PubSubStateChangeCallback_different_timeouts (
-    UA_NodeId *pubsubComponentId,
-    UA_PubSubState state,
-    UA_StatusCode status) {
-
+static void
+PubSubStateChangeCallback_different_timeouts(UA_NodeId *pubsubComponentId,
+                                             UA_PubSubState state, UA_StatusCode status) {
+    /* Disable some checks during shutdown */
+    if(!runtime)
+        return;
+    
     UA_String strId;
     UA_String_init(&strId);
     UA_NodeId_print(pubsubComponentId, &strId);
@@ -1051,11 +1054,12 @@ START_TEST(Test_wrong_timeout) {
 /* Test a bigger configuration */
 
 /***************************************************************************************************/
-static void PubSubStateChangeCallback_many_components (
-    UA_NodeId *pubsubComponentId,
-    UA_PubSubState state,
-    UA_StatusCode status) {
-
+static void
+PubSubStateChangeCallback_many_components(UA_NodeId *pubsubComponentId,
+                                          UA_PubSubState state, UA_StatusCode status) {
+    if(!runtime)
+        return;
+    
     UA_String strId;
     UA_String_init(&strId);
     UA_NodeId_print(pubsubComponentId, &strId);
@@ -1619,16 +1623,19 @@ START_TEST(Test_many_components) {
 /* Custom PubSub statechange callback:
     count no of message receive timeouts
 */
-static void PubSubStateChangeCallback_update_config (
-    UA_NodeId *pubsubComponentId,
-    UA_PubSubState state,
-    UA_StatusCode status) {
-
+static void
+PubSubStateChangeCallback_update_config(UA_NodeId *pubsubComponentId,
+                                        UA_PubSubState state, UA_StatusCode status) {
+    if(!runtime)
+        return;
+    
     UA_String strId;
     UA_String_init(&strId);
     UA_NodeId_print(pubsubComponentId, &strId);
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "PubSubStateChangeCallback(): "
-        "Component Id = %.*s, state = %i, status = 0x%08x %s", (UA_Int32) strId.length, strId.data, state, status, UA_StatusCode_name(status));
+                "Component Id = %.*s, state = %i, status = 0x%08x %s",
+                (UA_Int32) strId.length, strId.data, state, status,
+                UA_StatusCode_name(status));
     UA_String_clear(&strId);
 
     if (UA_NodeId_equal(pubsubComponentId, &ExpectedCallbackComponentNodeId) == UA_TRUE) {

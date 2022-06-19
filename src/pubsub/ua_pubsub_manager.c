@@ -160,20 +160,43 @@ UA_Server_addPubSubConnection(UA_Server *server,
 
 UA_StatusCode
 removePubSubConnection(UA_Server *server, const UA_NodeId connection) {
-    //search the identified Connection and store the Connection index
-    UA_PubSubConnection *currentConnection =
+    /* Find the connection */
+    UA_PubSubConnection *c =
         UA_PubSubConnection_findConnectionbyId(server, connection);
-    if(!currentConnection)
+    if(!c)
         return UA_STATUSCODE_BADNOTFOUND;
 
+    /* Stop, unfreeze and delete all WriterGroups attached to the Connection */
+    UA_WriterGroup *writerGroup, *tmpWriterGroup;
+    LIST_FOREACH_SAFE(writerGroup, &c->writerGroups, listEntry, tmpWriterGroup) {
+        UA_WriterGroup_setPubSubState(server, writerGroup, UA_PUBSUBSTATE_DISABLED,
+                                      UA_STATUSCODE_BADSHUTDOWN);
+        UA_Server_unfreezeWriterGroupConfiguration(server, writerGroup->identifier);
+        removeWriterGroup(server, writerGroup->identifier);
+    }
+
+    /* Stop, unfreeze and delete all ReaderGroups attached to the Connection */
+    UA_ReaderGroup *readerGroup, *tmpReaderGroup;
+    LIST_FOREACH_SAFE(readerGroup, &c->readerGroups, listEntry, tmpReaderGroup) {
+        UA_ReaderGroup_setPubSubState(server, readerGroup, UA_PUBSUBSTATE_DISABLED,
+                                      UA_STATUSCODE_BADSHUTDOWN);
+        UA_Server_unfreezeReaderGroupConfiguration(server, readerGroup->identifier);
+        removeReaderGroup(server, readerGroup->identifier);
+    }
+
+    /* Remove from the information model */
 #ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL
-    removePubSubConnectionRepresentation(server, currentConnection);
+    removePubSubConnectionRepresentation(server, c);
 #endif
+
+    /* Unlink from the server */
+    TAILQ_REMOVE(&server->pubSubManager.connections, c, listEntry);
     server->pubSubManager.connectionsSize--;
 
-    UA_PubSubConnection_clear(server, currentConnection);
-    TAILQ_REMOVE(&server->pubSubManager.connections, currentConnection, listEntry);
-    UA_free(currentConnection);
+    /* Clean up the connection structure */
+    UA_PubSubConnection_clear(server, c);
+    UA_free(c);
+
     return UA_STATUSCODE_GOOD;
 }
 
@@ -407,45 +430,25 @@ UA_PubSubManager_delete(UA_Server *server, UA_PubSubManager *pubSubManager) {
                 "PubSub cleanup was called.");
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
 
-    /* Stop, unfreeze and delete all WriterGroups */
-    UA_PubSubConnection *tmpConnection;
-    TAILQ_FOREACH(tmpConnection, &server->pubSubManager.connections, listEntry) {
-        UA_WriterGroup *writerGroup, *tmpWriterGroup;
-        LIST_FOREACH_SAFE(writerGroup, &tmpConnection->writerGroups, listEntry, tmpWriterGroup) {
-            UA_WriterGroup_setPubSubState(server, writerGroup, UA_PUBSUBSTATE_DISABLED,
-                                          UA_STATUSCODE_BADSHUTDOWN);
-            UA_Server_unfreezeWriterGroupConfiguration(server, writerGroup->identifier);
-            removeWriterGroup(server, writerGroup->identifier);
-        }
-    }
-
-    /* Stop, unfreeze and delete all ReaderGroups */
-    TAILQ_FOREACH(tmpConnection, &server->pubSubManager.connections, listEntry) {
-        UA_ReaderGroup *readerGroup, *tmpReaderGroup;
-        LIST_FOREACH_SAFE(readerGroup, &tmpConnection->readerGroups, listEntry, tmpReaderGroup) {
-            UA_ReaderGroup_setPubSubState(server, readerGroup, UA_PUBSUBSTATE_DISABLED,
-                                          UA_STATUSCODE_BADSHUTDOWN);
-            UA_Server_unfreezeReaderGroupConfiguration(server, readerGroup->identifier);
-            removeReaderGroup(server, readerGroup->identifier);
-        }
-    }
-
-    //free the currently configured transport layers
-    if(server->config.pubSubConfig.transportLayersSize > 0) {
-        UA_free(server->config.pubSubConfig.transportLayers);
-        server->config.pubSubConfig.transportLayersSize = 0;
-    }
-
-    //remove Connections and WriterGroups
+    /* Remove Connections - this also remove WriterGroups and ReaderGroups */
     UA_PubSubConnection *tmpConnection1, *tmpConnection2;
     TAILQ_FOREACH_SAFE(tmpConnection1, &server->pubSubManager.connections,
                        listEntry, tmpConnection2) {
         removePubSubConnection(server, tmpConnection1->identifier);
     }
+
+    /* Remove the DataSets */
     UA_PublishedDataSet *tmpPDS1, *tmpPDS2;
     TAILQ_FOREACH_SAFE(tmpPDS1, &server->pubSubManager.publishedDataSets,
                        listEntry, tmpPDS2){
         removePublishedDataSet(server, tmpPDS1->identifier);
+    }
+
+
+    /* Free the list of transport layers */
+    if(server->config.pubSubConfig.transportLayersSize > 0) {
+        UA_free(server->config.pubSubConfig.transportLayers);
+        server->config.pubSubConfig.transportLayersSize = 0;
     }
 }
 
