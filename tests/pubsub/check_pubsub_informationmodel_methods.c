@@ -103,7 +103,7 @@ static UA_NodeId addPubSubConnection(void){
     UA_Variant_setScalar(&connectionOptions[0].value, &ttl, &UA_TYPES[UA_TYPES_UINT32]);
     connectionOptions[1].key = UA_QUALIFIEDNAME(0, "loopback");
     UA_Boolean loopback = UA_FALSE;
-    UA_Variant_setScalar(&connectionOptions[1].value, &loopback, &UA_TYPES[UA_TYPES_UINT32]);
+    UA_Variant_setScalar(&connectionOptions[1].value, &loopback, &UA_TYPES[UA_TYPES_BOOLEAN]);
     pubSubConnection.connectionProperties = connectionOptions;
 
     UA_Variant inputArguments;
@@ -213,14 +213,14 @@ START_TEST(AddandRemoveNewPubSubConnectionWithWriterGroup){
         UA_Variant_setScalar(&connectionOptions[0].value, &ttl, &UA_TYPES[UA_TYPES_UINT32]);
         connectionOptions[1].key = UA_QUALIFIEDNAME(0, "loopback");
         UA_Boolean loopback = UA_FALSE;
-        UA_Variant_setScalar(&connectionOptions[1].value, &loopback, &UA_TYPES[UA_TYPES_UINT32]);
+        UA_Variant_setScalar(&connectionOptions[1].value, &loopback, &UA_TYPES[UA_TYPES_BOOLEAN]);
         pubSubConnection.connectionProperties = connectionOptions;
 
         pubSubConnection.writerGroupsSize = 1;
         pubSubConnection.writerGroups = (UA_WriterGroupDataType *)UA_calloc(pubSubConnection.writerGroupsSize, sizeof(UA_WriterGroupDataType));
         UA_UadpWriterGroupMessageDataType *writerGroupMessage = \
             (UA_UadpWriterGroupMessageDataType *)UA_calloc(pubSubConnection.writerGroupsSize, sizeof(UA_UadpWriterGroupMessageDataType));
-        UA_ExtensionObject extensionObjectWG; 
+        UA_ExtensionObject extensionObjectWG;
         pubSubConnection.writerGroups->name = UA_STRING("WriterGroup 1");
         pubSubConnection.writerGroups->publishingInterval = 5;
         pubSubConnection.writerGroups->enabled = UA_FALSE;
@@ -234,7 +234,7 @@ START_TEST(AddandRemoveNewPubSubConnectionWithWriterGroup){
                                                         (UA_UadpNetworkMessageContentMask)UA_UADPNETWORKMESSAGECONTENTMASK_PAYLOADHEADER);
         extensionObjectWG.encoding = UA_EXTENSIONOBJECT_DECODED;
         extensionObjectWG.content.decoded.type = &UA_TYPES[UA_TYPES_UADPWRITERGROUPMESSAGEDATATYPE];
-        extensionObjectWG.content.decoded.data = &writerGroupMessage;
+        extensionObjectWG.content.decoded.data = writerGroupMessage;
         pubSubConnection.writerGroups->messageSettings = extensionObjectWG;
 
         UA_Variant inputArguments;
@@ -326,7 +326,7 @@ START_TEST(AddNewPubSubConnectionWithWriterGroupAndDataSetWriter){
         UA_Variant_setScalar(&connectionOptions[0].value, &ttl, &UA_TYPES[UA_TYPES_UINT32]);
         connectionOptions[1].key = UA_QUALIFIEDNAME(0, "loopback");
         UA_Boolean loopback = UA_FALSE;
-        UA_Variant_setScalar(&connectionOptions[1].value, &loopback, &UA_TYPES[UA_TYPES_UINT32]);
+        UA_Variant_setScalar(&connectionOptions[1].value, &loopback, &UA_TYPES[UA_TYPES_BOOLEAN]);
         pubSubConnection.connectionProperties = connectionOptions;
 
         pubSubConnection.writerGroupsSize = 1;
@@ -348,7 +348,7 @@ START_TEST(AddNewPubSubConnectionWithWriterGroupAndDataSetWriter){
                                                         (UA_UadpNetworkMessageContentMask)UA_UADPNETWORKMESSAGECONTENTMASK_PAYLOADHEADER);
         extensionObjectWG.encoding = UA_EXTENSIONOBJECT_DECODED;
         extensionObjectWG.content.decoded.type = &UA_TYPES[UA_TYPES_UADPWRITERGROUPMESSAGEDATATYPE];
-        extensionObjectWG.content.decoded.data = &writerGroupMessage;
+        extensionObjectWG.content.decoded.data = writerGroupMessage;
         pubSubConnection.writerGroups->messageSettings = extensionObjectWG;
 
         pubSubConnection.writerGroups->dataSetWriters = \
@@ -910,7 +910,7 @@ START_TEST(AddNewPubSubConnectionWithReaderGroup){
         UA_Variant_setScalar(&connectionOptions[0].value, &ttl, &UA_TYPES[UA_TYPES_UINT32]);
         connectionOptions[1].key = UA_QUALIFIEDNAME(0, "loopback");
         UA_Boolean loopback = UA_FALSE;
-        UA_Variant_setScalar(&connectionOptions[1].value, &loopback, &UA_TYPES[UA_TYPES_UINT32]);
+        UA_Variant_setScalar(&connectionOptions[1].value, &loopback, &UA_TYPES[UA_TYPES_BOOLEAN]);
         pubSubConnection.connectionProperties = connectionOptions;
         pubSubConnection.readerGroupsSize = 1;
         pubSubConnection.readerGroups = \
@@ -983,7 +983,7 @@ START_TEST(AddNewPubSubConnectionWithReaderGroupandDataSetReader){
         UA_Variant_setScalar(&connectionOptions[0].value, &ttl, &UA_TYPES[UA_TYPES_UINT32]);
         connectionOptions[1].key = UA_QUALIFIEDNAME(0, "loopback");
         UA_Boolean loopback = UA_FALSE;
-        UA_Variant_setScalar(&connectionOptions[1].value, &loopback, &UA_TYPES[UA_TYPES_UINT32]);
+        UA_Variant_setScalar(&connectionOptions[1].value, &loopback, &UA_TYPES[UA_TYPES_BOOLEAN]);
         pubSubConnection.connectionProperties = connectionOptions;
         pubSubConnection.readerGroupsSize = 1;
         pubSubConnection.readerGroups = \
