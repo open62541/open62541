@@ -304,3 +304,14 @@ UA_KeyValueMap_delete(UA_KeyValuePair **map, size_t *mapSize,
         break;
     }
 }
+
+UA_KeyValuePair*
+UA_KeyValueMap_copy(UA_KeyValuePair *map, size_t mapSize) {
+
+    UA_KeyValuePair *copy = (UA_KeyValuePair *) UA_calloc(sizeof(UA_KeyValuePair), mapSize);
+
+    for(size_t i = 0; i < mapSize; i++) {
+        UA_KeyValuePair_copy(&map[i], &copy[i]);
+    }
+    return copy;
+}

@@ -68,6 +68,9 @@ UA_EXPORT void
 UA_KeyValueMap_delete(UA_KeyValuePair **map, size_t *mapSize,
                       const UA_QualifiedName key);
 
+UA_EXPORT UA_KeyValuePair*
+UA_KeyValueMap_copy(UA_KeyValuePair *map, size_t mapSize);
+
 /**
  * Endpoint URL Parser
  * -------------------
