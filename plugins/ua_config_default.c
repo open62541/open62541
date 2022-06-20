@@ -153,6 +153,13 @@ setDefaultConfig(UA_ServerConfig *conf, UA_UInt16 portNumber) {
             conf->eventLoop->registerEventSource(conf->eventLoop, (UA_EventSource *)udpCM);
     }
 
+    if(conf->eventLoop->state != UA_EVENTLOOPSTATE_STARTED) {
+        UA_StatusCode statusCode = conf->eventLoop->start(conf->eventLoop);
+        if(statusCode != UA_STATUSCODE_GOOD) {
+            return statusCode;
+        }
+    }
+
     /* --> Start setting the default static config <-- */
 
     conf->shutdownDelay = 0.0;
