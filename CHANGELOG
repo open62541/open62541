@@ -1,6 +1,20 @@
 This changelog reports changes visible through the public API. Internal refactorings and bug
 fixes are not reported here.
 
+2022-06-09 Andreas Eckerstorfer <estr at keba.com>
+
+ * PubSub state change functions
+
+   The following functions in ua_pubsub.h have been extended with
+   an additional parameter for the cause of the state change.
+   Moreover the parameter order has been changed.
+   UA_DataSetWriter_setPubSubState
+   UA_WriterGroup_setPubSubState
+   UA_DataSetReader_setPubSubState
+   UA_ReaderGroup_setPubSubState
+
+   The change was done with pull request #5162.
+
 2022-05-04 Julius Pfrommer <julius.pfrommer at iosb.fraunhofer.de>
 
  * Server port and hostname configuration
