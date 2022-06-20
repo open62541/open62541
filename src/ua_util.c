@@ -309,6 +309,9 @@ UA_KeyValuePair*
 UA_KeyValueMap_copy(UA_KeyValuePair *map, size_t mapSize) {
 
     UA_KeyValuePair *copy = (UA_KeyValuePair *) UA_calloc(sizeof(UA_KeyValuePair), mapSize);
+    if(!copy) {
+        return NULL;
+    }
 
     for(size_t i = 0; i < mapSize; i++) {
         UA_KeyValuePair_copy(&map[i], &copy[i]);

@@ -195,11 +195,10 @@ UA_openSubscribeDirection(UA_ConnectionManager *connectionManager,
     UA_UDPConnectionContext *ctx = (UA_UDPConnectionContext *) newChannel->handle;
     ctx->subscriberParamCount = mergeSize;
     ctx->subscriberParams = UA_KeyValueMap_copy(mergedParams, mergeSize);
+    if(!ctx->subscriberParams) {
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    }
     return UA_STATUSCODE_GOOD;
-
-    // return connectionManager->openConnection(connectionManager,
-    //                                   mergeSize, mergedParams,
-    //                                   newChannel, newChannel->handle, UA_PubSub_udpCallbackSubscribe);
 }
 
 static UA_StatusCode
@@ -249,10 +248,10 @@ UA_openPublishDirection(UA_ConnectionManager *connectionManager,
     UA_UDPConnectionContext *ctx = (UA_UDPConnectionContext *) newChannel->handle;
     ctx->publisherParamCount = mergeSize;
     ctx->publisherParams = UA_KeyValueMap_copy(mergedParams, mergeSize);
+    if(!ctx->publisherParams) {
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    }
     return UA_STATUSCODE_GOOD;
-    // return connectionManager->openConnection(connectionManager,
-    //                                   mergeSize, mergedParams,
-    //                                   newChannel, newChannel->handle, UA_PubSub_udpCallbackPublish);
 }
 
 static UA_Boolean
@@ -339,27 +338,15 @@ UA_PubSubChannelUDP_openUnicast(UA_ConnectionManager *connectionManager, UA_Tran
         goto error;
     }
 
-    // if(startsWith("opc.udp://127.0.0.1", (char*) address->url.data)) {
-    //     UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
-    //                  "For UDP Unicast you connection needs to start with"
-    //                  " opc.udp://localhost - per spec 127.0.0.1 is not permitted to establish"
-    //                  " unicast connections");
-    //     UA_free(newChannel);
-    //     return NULL;
-    // }
-
     UA_UDPConnectionContext *context = (UA_UDPConnectionContext *) UA_calloc(1, sizeof(UA_UDPConnectionContext));
     context->server = ctx->server;
     context->connection = ctx->connection;
     context->connectionManager = connectionManager;
     newChannel->handle = context; /* Link channel and internal channel data */
-    // void *application = NULL;
 
-    if(!startsWith("opc.udp://localhost", (char*) address->url.data)) {
-        res = UA_openPublishDirection(connectionManager, connectionConfig, newChannel, address, addressAsChar, port);
-        if(res != UA_STATUSCODE_GOOD) {
-            goto error;
-        }
+    res = UA_openPublishDirection(connectionManager, connectionConfig, newChannel, address, addressAsChar, port);
+    if(res != UA_STATUSCODE_GOOD) {
+        goto error;
     }
 
     return newChannel;
