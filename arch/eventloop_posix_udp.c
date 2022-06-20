@@ -416,6 +416,7 @@ configureMulticastInterfaceIPv4(UA_FD socket,
 
 static UA_StatusCode
 addMulticastInterfaceIPv4(UA_FD socket,
+                          size_t paramsSize, const UA_KeyValuePair *params,
                           socklen_t addrlen, struct sockaddr_in *addr,
                           const UA_Logger *logger){
     struct in_addr address = addr->sin_addr;
@@ -428,26 +429,26 @@ addMulticastInterfaceIPv4(UA_FD socket,
         /* default outgoing interface ANY */
         ipMulticastRequest.ipv4.imr_interface.s_addr = UA_htonl(INADDR_ANY);
 
-        // UA_String netif = UA_STRING_NULL;
-        // int foundInterface = getNetworkInterfaceFromParams(paramsSize, params, &netif, logger);
-        // if(foundInterface < 0) {
-        //     UA_LOG_ERROR(logger, UA_LOGCATEGORY_NETWORK,
-        //                  "UDP\t| Opening a connection failed");
-        //     return UA_STATUSCODE_BADINTERNALERROR;
-        // }
+        UA_String netif = UA_STRING_NULL;
+        int foundInterface = getNetworkInterfaceFromParams(paramsSize, params, &netif, logger);
+        if(foundInterface < 0) {
+            UA_LOG_ERROR(logger, UA_LOGCATEGORY_NETWORK,
+                         "UDP\t| Opening a connection failed");
+            return UA_STATUSCODE_BADINTERNALERROR;
+        }
 
-        // if(netif.length > 0) {
-        //     UA_STACKARRAY(char, interfaceAsChar, sizeof(char) * (netif).length + 1);
-        //     memcpy(interfaceAsChar, netif.data, netif.length);
-        //     interfaceAsChar[netif.length] = 0;
+        if(netif.length > 0) {
+            UA_STACKARRAY(char, interfaceAsChar, sizeof(char) * (netif).length + 1);
+            memcpy(interfaceAsChar, netif.data, netif.length);
+            interfaceAsChar[netif.length] = 0;
 
-        //     if(UA_inet_pton(AF_INET, interfaceAsChar, &ipMulticastRequest.ipv4.imr_interface) <= 0) {
-        //         UA_LOG_ERROR(logger, UA_LOGCATEGORY_SERVER,
-        //                      "PubSub Connection creation problem. "
-        //                      "Interface configuration preparation failed.");
-        //         return UA_STATUSCODE_BADINTERNALERROR;
-        //     }
-        // }
+            if(UA_inet_pton(AF_INET, interfaceAsChar, &ipMulticastRequest.ipv4.imr_interface) <= 0) {
+                UA_LOG_ERROR(logger, UA_LOGCATEGORY_SERVER,
+                             "PubSub Connection creation problem. "
+                             "Interface configuration preparation failed.");
+                return UA_STATUSCODE_BADINTERNALERROR;
+            }
+        }
         if(UA_setsockopt(socket, IPPROTO_IP, IP_ADD_MEMBERSHIP,
                          &ipMulticastRequest.ipv4, sizeof(ipMulticastRequest.ipv4)) < 0) {
             UA_LOG_SOCKET_ERRNO_WRAP(
@@ -463,7 +464,9 @@ addMulticastInterfaceIPv4(UA_FD socket,
 
 #ifdef UA_IPV6
 static UA_StatusCode
-addMulticastInterfaceIPv6(UA_FD socket, socklen_t addrlen, struct sockaddr_in6 *addr,
+addMulticastInterfaceIPv6(UA_FD socket,
+                          size_t paramsSize, const UA_KeyValuePair *params,
+                          socklen_t addrlen, struct sockaddr_in6 *addr,
                           const UA_Logger *logger) {
 
     struct in6_addr address = addr->sin6_addr;
@@ -476,27 +479,27 @@ addMulticastInterfaceIPv6(UA_FD socket, socklen_t addrlen, struct sockaddr_in6 *
         /* default outgoing interface ANY */
         ipMulticastRequest.ipv6.ipv6mr_interface = 0;
 
-        // UA_String netif = UA_STRING_NULL;
-        // int foundInterface = getNetworkInterfaceFromParams(paramsSize, params, &netif, logger);
-        // if(foundInterface < 0) {
-        //     UA_LOG_ERROR(logger, UA_LOGCATEGORY_NETWORK,
-        //                  "UDP\t| Opening a connection failed");
-        //     return UA_STATUSCODE_BADINTERNALERROR;
-        // }
+        UA_String netif = UA_STRING_NULL;
+        int foundInterface = getNetworkInterfaceFromParams(paramsSize, params, &netif, logger);
+        if(foundInterface < 0) {
+            UA_LOG_ERROR(logger, UA_LOGCATEGORY_NETWORK,
+                         "UDP\t| Opening a connection failed");
+            return UA_STATUSCODE_BADINTERNALERROR;
+        }
 
-        // if(netif.length > 0) {
-        //     UA_STACKARRAY(char, interfaceAsChar, sizeof(char) * (netif).length + 1);
-        //     memcpy(interfaceAsChar, netif.data, netif.length);
-        //     interfaceAsChar[netif.length] = 0;
+        if(netif.length > 0) {
+            UA_STACKARRAY(char, interfaceAsChar, sizeof(char) * (netif).length + 1);
+            memcpy(interfaceAsChar, netif.data, netif.length);
+            interfaceAsChar[netif.length] = 0;
 
-        //     ipMulticastRequest.ipv6.ipv6mr_interface = UA_if_nametoindex(interfaceAsChar);
-        //     if(ipMulticastRequest.ipv6.ipv6mr_interface == 0) {
-        //         UA_LOG_ERROR(logger, UA_LOGCATEGORY_SERVER,
-        //                      "PubSub Connection creation problem. "
-        //                      "Interface configuration preparation failed.");
-        //         return UA_STATUSCODE_BADINTERNALERROR;
-        //     }
-        // }
+            ipMulticastRequest.ipv6.ipv6mr_interface = UA_if_nametoindex(interfaceAsChar);
+            if(ipMulticastRequest.ipv6.ipv6mr_interface == 0) {
+                UA_LOG_ERROR(logger, UA_LOGCATEGORY_SERVER,
+                             "PubSub Connection creation problem. "
+                             "Interface configuration preparation failed.");
+                return UA_STATUSCODE_BADINTERNALERROR;
+            }
+        }
         if(UA_setsockopt(socket, IPPROTO_IPV6,IPV6_ADD_MEMBERSHIP,
                          &ipMulticastRequest.ipv6,sizeof(ipMulticastRequest.ipv6)) < 0) {
             UA_LOG_SOCKET_ERRNO_WRAP(
@@ -727,8 +730,9 @@ UDP_connectionSocketCallback(UA_ConnectionManager *cm, UA_RegisteredFD *rfd,
 }
 
 static void
-UDP_registerListenSocket(UA_ConnectionManager *cm, UA_UInt16 port,
-                         struct addrinfo *ai, void *application, void *context,
+UDP_registerListenSocket(UA_ConnectionManager *cm, UA_UInt16 port, struct addrinfo *ai,
+                         size_t paramsSize, const UA_KeyValuePair *params,
+                         void *application, void *context,
                          UA_ConnectionManager_connectionCallback connectionCallback) {
     UDPConnectionManager *ucm = (UDPConnectionManager*)cm;
     UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX*)cm->eventSource.eventLoop;
@@ -764,11 +768,15 @@ UDP_registerListenSocket(UA_ConnectionManager *cm, UA_UInt16 port,
     UA_StatusCode res = UA_STATUSCODE_GOOD;
 
     if(ai->ai_family == AF_INET) {
-        res = addMulticastInterfaceIPv4(listenSocket, ai->ai_addrlen, (struct sockaddr_in *)ai->ai_addr,
+        res = addMulticastInterfaceIPv4(listenSocket,
+                                        paramsSize, params,
+                                        ai->ai_addrlen, (struct sockaddr_in *)ai->ai_addr,
                                               el->eventLoop.logger);
 #ifdef UA_IPV6
     } else if(ai->ai_family == AF_INET6) {
-        res = addMulticastInterfaceIPv6(listenSocket, ai->ai_addrlen, (struct sockaddr_in6 *)ai->ai_addr, el->eventLoop.logger);
+        res = addMulticastInterfaceIPv6(listenSocket,
+                                        paramsSize, params,
+                                        ai->ai_addrlen, (struct sockaddr_in6 *)ai->ai_addr, el->eventLoop.logger);
 #endif
     } else {
         UA_close(listenSocket);
@@ -868,8 +876,9 @@ UDP_registerListenSocket(UA_ConnectionManager *cm, UA_UInt16 port,
 }
 
 static UA_StatusCode
-UDP_registerListenSockets(UA_ConnectionManager *cm, const char *hostname,
-                          UA_UInt16 port, void *application, void *context,
+UDP_registerListenSockets(UA_ConnectionManager *cm, const char *hostname, UA_UInt16 port,
+                          size_t paramsSize, const UA_KeyValuePair *params,
+                          void *application, void *context,
                           UA_ConnectionManager_connectionCallback connectionCallback) {
     /* Get all the interface and IPv4/6 combinations for the configured hostname */
     struct addrinfo hints, *res;
@@ -904,7 +913,7 @@ UDP_registerListenSockets(UA_ConnectionManager *cm, const char *hostname,
     /* Add listen sockets */
     struct addrinfo *ai = res;
     while(ai) {
-        UDP_registerListenSocket(cm, port, ai, application, context, connectionCallback);
+        UDP_registerListenSocket(cm, port, ai, paramsSize, params, application, context, connectionCallback);
         ai = ai->ai_next;
     }
     UA_freeaddrinfo(res);
@@ -1160,7 +1169,9 @@ UDP_openReceiveConnection(UA_ConnectionManager *cm,
         /* No hostnames configured -> listen on all interfaces*/
         UA_LOG_INFO(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
                     "UDP\t| Listening on all interfaces");
-        return UDP_registerListenSockets(cm, NULL, *port, application,
+        return UDP_registerListenSockets(cm, NULL, *port,
+                                         paramsSize, params,
+                                         application,
                                          context, connectionCallback);
     }
 
@@ -1176,7 +1187,9 @@ UDP_openReceiveConnection(UA_ConnectionManager *cm,
     if(interfaces == 0) {
         UA_LOG_WARNING(el->eventLoop.logger, UA_LOGCATEGORY_EVENTLOOP,
                      "UDP\t| Listening on all interfaces");
-        return UDP_registerListenSockets(cm, NULL, *port, application,
+        return UDP_registerListenSockets(cm, NULL, *port,
+                                         paramsSize, params,
+                                         application,
                                          context, connectionCallback);
     }
     
@@ -1188,7 +1201,9 @@ UDP_openReceiveConnection(UA_ConnectionManager *cm,
             continue;
         memcpy(hostname, hostStrings[i].data, hostStrings->length);
         hostname[hostStrings->length] = '\0';
-        UDP_registerListenSockets(cm, hostname, *port, application,
+        UDP_registerListenSockets(cm, hostname, *port,
+                                  paramsSize, params,
+                                  application,
                                   context, connectionCallback);
     }
 
