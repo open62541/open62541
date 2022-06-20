@@ -368,6 +368,10 @@ TransportLayerMQTT_addChannel(UA_PubSubTransportLayer *tl, void *ctx) {
         pubSubChannel->send = UA_PubSubChannelMQTT_send;
         pubSubChannel->close = UA_PubSubChannelMQTT_close;
         pubSubChannel->yield = UA_PubSubChannelMQTT_yield;
+        pubSubChannel->openPublisher = NULL;
+        pubSubChannel->openSubscriber = NULL;
+        pubSubChannel->closePublisher = NULL;
+        pubSubChannel->closeSubscriber = NULL;
         
         pubSubChannel->connectionConfig = connectionConfig;
     }

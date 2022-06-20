@@ -687,9 +687,20 @@ UA_PubSubChannelUDPMC_send(UA_PubSubChannel *channel, UA_ExtensionObject *transp
     //TODO evalute: chunk messages or check against MTU?
     long nWritten = 0;
     while (nWritten < (long)buf->length) {
-        long n = (long)UA_sendto(channel->sockfd, buf->data, buf->length, 0,
+        long n = (long)UA_connect(channel->sockfd,
                                  (struct sockaddr *) &channelConfigUDPMC->ai_addr,
                                  channelConfigUDPMC->ai_addrlen);
+        if(n == -1L) {
+            UA_LOG_SOCKET_ERRNO_WRAP(
+                UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_NETWORK,
+                               "PubSub Connection sending failed: "
+                               "connect failed. Error: %s", errno_str));
+            return UA_STATUSCODE_BADINTERNALERROR;
+        }
+        n = (long)UA_send(channel->sockfd, buf->data, buf->length, 0);
+        // n = (long)UA_sendto(channel->sockfd, buf->data, buf->length, 0,
+        //                          (struct sockaddr *) &channelConfigUDPMC->ai_addr,
+        //                          channelConfigUDPMC->ai_addrlen);
         if(n == -1L) {
             UA_LOG_SOCKET_ERRNO_WRAP(
                 UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_NETWORK,
@@ -845,6 +856,10 @@ TransportLayerUDPMC_addChannel(UA_PubSubTransportLayer *tl, void *ctx) {
         pubSubChannel->send = UA_PubSubChannelUDPMC_send;
         pubSubChannel->receive = UA_PubSubChannelUDPMC_receive;
         pubSubChannel->close = UA_PubSubChannelUDPMC_close;
+        pubSubChannel->openPublisher = NULL;
+        pubSubChannel->openSubscriber = NULL;
+        pubSubChannel->closePublisher = NULL;
+        pubSubChannel->closeSubscriber = NULL;
         pubSubChannel->connectionConfig = connectionConfig;
     }
     return pubSubChannel;

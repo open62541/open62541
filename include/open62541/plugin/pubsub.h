@@ -84,6 +84,11 @@ struct UA_PubSubChannel {
     /* Closing the connection and implicit free of the channel structures. */
     UA_StatusCode (*close)(UA_PubSubChannel *channel);
 
+    UA_StatusCode (*closeSubscriber)(UA_PubSubChannel *channel);
+    UA_StatusCode (*closePublisher)(UA_PubSubChannel *channel);
+    UA_StatusCode (*openSubscriber)(UA_PubSubChannel *channel);
+    UA_StatusCode (*openPublisher)(UA_PubSubChannel *channel);
+
     /* Giving the connection protocoll time to process inbound and outbound traffic. */
     UA_StatusCode (*yield)(UA_PubSubChannel *channel, UA_UInt16 timeout);
 };

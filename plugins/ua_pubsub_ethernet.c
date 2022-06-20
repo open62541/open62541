@@ -1319,6 +1319,10 @@ TransportLayerEthernet_addChannel(UA_PubSubTransportLayer *tl, void *ctx) {
         pubSubChannel->send = UA_PubSubChannelEthernet_send;
         pubSubChannel->receive = UA_PubSubChannelEthernet_receive;
         pubSubChannel->close = UA_PubSubChannelEthernet_close;
+        pubSubChannel->openPublisher = NULL;
+        pubSubChannel->openSubscriber = NULL;
+        pubSubChannel->closePublisher = NULL;
+        pubSubChannel->closeSubscriber = NULL;
         pubSubChannel->connectionConfig = connectionConfig;
     }
     return pubSubChannel;

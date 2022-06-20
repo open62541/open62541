@@ -694,6 +694,15 @@ UA_WriterGroup_setPubSubState(UA_Server *server,
                         UA_DataSetWriter_setPubSubState(server, dataSetWriter, UA_PUBSUBSTATE_DISABLED,
                                                         UA_STATUSCODE_BADRESOURCEUNAVAILABLE);
                     }
+
+                    UA_PubSubChannel *channel = writerGroup->channel;
+                    if(!channel) {
+                        UA_PubSubConnection *connection = writerGroup->linkedConnection;
+                        channel = connection->channel;
+                    }
+                    if(channel->closePublisher) {
+                        channel->closePublisher(channel);
+                    }
                     writerGroup->state = UA_PUBSUBSTATE_DISABLED;
                     break;
                 case UA_PUBSUBSTATE_ERROR:
@@ -732,6 +741,14 @@ UA_WriterGroup_setPubSubState(UA_Server *server,
                     LIST_FOREACH(dataSetWriter, &writerGroup->writers, listEntry){
                         UA_DataSetWriter_setPubSubState(server, dataSetWriter,
                                                         UA_PUBSUBSTATE_OPERATIONAL, cause);
+                    }
+                    UA_PubSubChannel *channel = writerGroup->channel;
+                    if(!channel) {
+                        UA_PubSubConnection *connection = writerGroup->linkedConnection;
+                        channel = connection->channel;
+                    }
+                    if(channel->openPublisher) {
+                        channel->openPublisher(channel);
                     }
                     UA_WriterGroup_addPublishCallback(server, writerGroup);
                     break;
@@ -1063,7 +1080,6 @@ sendNetworkMessageUADP(UA_PubSubConnection *connection, UA_WriterGroup *wg,
 
     /* Send out the message */
     rv = channel->send(channel, transportSettings, &buf);
-    UA_CHECK_STATUS(rv, goto cleanup_with_msg_size);
 
 cleanup_with_msg_size:
     if(msgSize > UA_MAX_STACKBUF) {

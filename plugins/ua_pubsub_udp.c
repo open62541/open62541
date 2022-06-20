@@ -54,6 +54,10 @@ typedef struct UA_UDPConnectionContext {
     void *connection;
     uintptr_t connectionIdPublish;
     uintptr_t connectionIdSubscribe;
+    size_t subscriberParamCount;
+    UA_KeyValuePair *subscriberParams;
+    size_t publisherParamCount;
+    UA_KeyValuePair *publisherParams;
     UA_StatusCode (*decodeAndProcessNetworkMessage)(UA_Server *server,
                                                     void *connection,
                                                     UA_ByteString *buffer);
@@ -188,12 +192,14 @@ UA_openSubscribeDirection(UA_ConnectionManager *connectionManager,
                          defaultParams, paramIdx,
                          connectionConfig->connectionProperties, connectionConfig->connectionPropertiesSize);
 
+    UA_UDPConnectionContext *ctx = (UA_UDPConnectionContext *) newChannel->handle;
+    ctx->subscriberParamCount = mergeSize;
+    ctx->subscriberParams = UA_KeyValueMap_copy(mergedParams, mergeSize);
+    return UA_STATUSCODE_GOOD;
 
-
-
-    return connectionManager->openConnection(connectionManager,
-                                      mergeSize, mergedParams,
-                                      newChannel, newChannel->handle, UA_PubSub_udpCallbackSubscribe);
+    // return connectionManager->openConnection(connectionManager,
+    //                                   mergeSize, mergedParams,
+    //                                   newChannel, newChannel->handle, UA_PubSub_udpCallbackSubscribe);
 }
 
 static UA_StatusCode
@@ -240,9 +246,13 @@ UA_openPublishDirection(UA_ConnectionManager *connectionManager,
                          defaultParams, paramIdx,
                          connectionConfig->connectionProperties, connectionConfig->connectionPropertiesSize);
 
-    return connectionManager->openConnection(connectionManager,
-                                      mergeSize, mergedParams,
-                                      newChannel, newChannel->handle, UA_PubSub_udpCallbackPublish);
+    UA_UDPConnectionContext *ctx = (UA_UDPConnectionContext *) newChannel->handle;
+    ctx->publisherParamCount = mergeSize;
+    ctx->publisherParams = UA_KeyValueMap_copy(mergedParams, mergeSize);
+    return UA_STATUSCODE_GOOD;
+    // return connectionManager->openConnection(connectionManager,
+    //                                   mergeSize, mergedParams,
+    //                                   newChannel, newChannel->handle, UA_PubSub_udpCallbackPublish);
 }
 
 static UA_Boolean
@@ -288,6 +298,7 @@ UA_PubSubChannelUDP_open(UA_ConnectionManager *connectionManager, UA_TransportLa
     UA_UDPConnectionContext *context = (UA_UDPConnectionContext *) UA_calloc(1, sizeof(UA_UDPConnectionContext));
     context->server = ctx->server;
     context->connection = ctx->connection;
+    context->connectionManager = connectionManager;
     context->decodeAndProcessNetworkMessage = ctx->decodeAndProcessNetworkMessage;
     newChannel->handle = context; /* Link channel and internal channel data */
     // void *application = NULL;
@@ -340,6 +351,7 @@ UA_PubSubChannelUDP_openUnicast(UA_ConnectionManager *connectionManager, UA_Tran
     UA_UDPConnectionContext *context = (UA_UDPConnectionContext *) UA_calloc(1, sizeof(UA_UDPConnectionContext));
     context->server = ctx->server;
     context->connection = ctx->connection;
+    context->connectionManager = connectionManager;
     newChannel->handle = context; /* Link channel and internal channel data */
     // void *application = NULL;
 
@@ -505,6 +517,32 @@ UA_PubSubChannelUDP_close(UA_PubSubChannel *channel) {
     return UA_STATUSCODE_GOOD;
 }
 
+static UA_StatusCode
+UA_PubSubChannelUDP_openPublisher(UA_PubSubChannel *channel) {
+    UA_UDPConnectionContext *ctx = (UA_UDPConnectionContext *) channel->handle;
+    ctx->connectionManager->openConnection(ctx->connectionManager, ctx->publisherParamCount, ctx->publisherParams, channel, ctx, UA_PubSub_udpCallbackPublish);
+    return UA_STATUSCODE_GOOD;
+}
+
+static UA_StatusCode
+UA_PubSubChannelUDP_openSubscriber(UA_PubSubChannel *channel) {
+    UA_UDPConnectionContext *ctx = (UA_UDPConnectionContext *) channel->handle;
+    ctx->connectionManager->openConnection(ctx->connectionManager, ctx->subscriberParamCount, ctx->subscriberParams, channel, ctx, UA_PubSub_udpCallbackSubscribe);
+    return UA_STATUSCODE_GOOD;
+}
+static UA_StatusCode
+UA_PubSubChannelUDP_closePublisher(UA_PubSubChannel *channel) {
+    UA_UDPConnectionContext *ctx = (UA_UDPConnectionContext *) channel->handle;
+    ctx->connectionManager->closeConnection(ctx->connectionManager, ctx->connectionIdPublish);
+    return UA_STATUSCODE_GOOD;
+}
+
+static UA_StatusCode
+UA_PubSubChannelUDP_closeSubscriber(UA_PubSubChannel *channel) {
+    UA_UDPConnectionContext *ctx = (UA_UDPConnectionContext *) channel->handle;
+    ctx->connectionManager->closeConnection(ctx->connectionManager, ctx->connectionIdSubscribe);
+    return UA_STATUSCODE_GOOD;
+}
 /**
  * Generate a new channel. based on the given configuration.
  *
@@ -555,7 +593,13 @@ TransportLayerUDP_addChannel(UA_PubSubTransportLayer *tl, void *ctx) {
         pubSubChannel->send = UA_PubSubChannelUDP_send;
         pubSubChannel->receive = UA_PubSubChannelUDP_receive;
         pubSubChannel->close = UA_PubSubChannelUDP_close;
+        pubSubChannel->closeSubscriber = UA_PubSubChannelUDP_closeSubscriber;
+        pubSubChannel->closePublisher = UA_PubSubChannelUDP_closePublisher;
+        pubSubChannel->openSubscriber = UA_PubSubChannelUDP_openSubscriber;
+        pubSubChannel->openPublisher = UA_PubSubChannelUDP_openPublisher;
         pubSubChannel->connectionConfig = connectionConfig;
+
+        pubSubChannel->state = UA_PUBSUB_CHANNEL_PUB;
     }
     return pubSubChannel;
 }
