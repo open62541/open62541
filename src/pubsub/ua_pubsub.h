@@ -101,13 +101,6 @@ UA_PubSubConnection_clear(UA_Server *server, UA_PubSubConnection *connection);
 UA_StatusCode
 UA_PubSubConnection_regist(UA_Server *server, UA_NodeId *connectionIdentifier);
 
-/* Process Network Message for a ReaderGroup. But we the ReaderGroup needs to be
- * identified first. */
-UA_StatusCode
-UA_Server_processNetworkMessage(UA_Server *server,
-                                UA_PubSubConnection *connection,
-                                UA_NetworkMessage *msg);
-
 UA_StatusCode
 UA_decodeAndProcessNetworkMessage(UA_Server *server,
                                   void *connection,
