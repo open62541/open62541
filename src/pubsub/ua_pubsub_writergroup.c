@@ -744,7 +744,7 @@ UA_WriterGroup_setPubSubState(UA_Server *server,
         UA_ServerConfig *pConfig = UA_Server_getConfig(server);
         if(pConfig->pubSubConfig.stateChangeCallback != 0) {
             pConfig->pubSubConfig.
-                stateChangeCallback(&writerGroup->identifier, state, cause);
+                stateChangeCallback(server, &writerGroup->identifier, state, cause);
         }
     }
     return ret;
