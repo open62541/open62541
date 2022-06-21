@@ -746,7 +746,7 @@ UA_DataSetWriter_setPubSubState(UA_Server *server,
         UA_ServerConfig *pConfig = UA_Server_getConfig(server);
         if(pConfig->pubSubConfig.stateChangeCallback != 0) {
             pConfig->pubSubConfig.
-                stateChangeCallback(&dataSetWriter->identifier, state, cause);
+                stateChangeCallback(server, &dataSetWriter->identifier, state, cause);
         }
     }
     return ret;

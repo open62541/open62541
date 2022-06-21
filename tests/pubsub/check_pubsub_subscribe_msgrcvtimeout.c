@@ -407,9 +407,12 @@ static void ValidatePublishSubscribe_fast_path(
 /***************************************************************************************************/
 
 /***************************************************************************************************/
-static void PubSubStateChangeCallback_basic (UA_NodeId *pubsubComponentId,
+static void PubSubStateChangeCallback_basic (UA_Server *hostServer,
+                                UA_NodeId *pubsubComponentId,
                                 UA_PubSubState state,
                                 UA_StatusCode status) {
+    ck_assert(hostServer == server);
+
     UA_String strId;
     UA_String_init(&strId);
     UA_NodeId_print(pubsubComponentId, &strId);
@@ -714,8 +717,10 @@ START_TEST(Test_basic) {
 /* Test different message receive timeouts */
 
 static void
-PubSubStateChangeCallback_different_timeouts(UA_NodeId *pubsubComponentId,
+PubSubStateChangeCallback_different_timeouts(UA_Server *hostServer, UA_NodeId *pubsubComponentId,
                                              UA_PubSubState state, UA_StatusCode status) {
+    ck_assert(hostServer == server);
+    
     /* Disable some checks during shutdown */
     if(!runtime)
         return;
@@ -938,9 +943,12 @@ START_TEST(Test_different_timeouts) {
 
 /***************************************************************************************************/
 static void PubSubStateChangeCallback_wrong_timeout (
+    UA_Server *hostServer,
     UA_NodeId *pubsubComponentId,
     UA_PubSubState state,
     UA_StatusCode status) {
+    
+    ck_assert(hostServer == server);
 
     UA_String strId;
     UA_String_init(&strId);
@@ -1055,8 +1063,10 @@ START_TEST(Test_wrong_timeout) {
 
 /***************************************************************************************************/
 static void
-PubSubStateChangeCallback_many_components(UA_NodeId *pubsubComponentId,
+PubSubStateChangeCallback_many_components(UA_Server *hostServer, UA_NodeId *pubsubComponentId,
                                           UA_PubSubState state, UA_StatusCode status) {
+    ck_assert(hostServer == server);
+    
     if(!runtime)
         return;
     
@@ -1624,8 +1634,10 @@ START_TEST(Test_many_components) {
     count no of message receive timeouts
 */
 static void
-PubSubStateChangeCallback_update_config(UA_NodeId *pubsubComponentId,
+PubSubStateChangeCallback_update_config(UA_Server *hostServer, UA_NodeId *pubsubComponentId,
                                         UA_PubSubState state, UA_StatusCode status) {
+    ck_assert(hostServer == server);
+    
     if(!runtime)
         return;
     
@@ -1807,9 +1819,11 @@ START_TEST(Test_add_remove) {
 
 
 /***************************************************************************************************/
-static void PubSubStateChangeCallback_fast_path (UA_NodeId *pubsubComponentId,
+static void PubSubStateChangeCallback_fast_path (UA_Server *hostServer, UA_NodeId *pubsubComponentId,
                                 UA_PubSubState state,
                                 UA_StatusCode status) {
+    ck_assert(hostServer == server);
+
     UA_String strId;
     UA_String_init(&strId);
     UA_NodeId_print(pubsubComponentId, &strId);

@@ -413,7 +413,7 @@ UA_ReaderGroup_setPubSubState(UA_Server *server,
         UA_ServerConfig *pConfig = UA_Server_getConfig(server);
         if(pConfig->pubSubConfig.stateChangeCallback != 0) {
             pConfig->pubSubConfig.
-                stateChangeCallback(&readerGroup->identifier, state, cause);
+                stateChangeCallback(server, &readerGroup->identifier, state, cause);
         }
     }
     return ret;

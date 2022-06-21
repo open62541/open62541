@@ -262,9 +262,15 @@ static void stopHandler(int sign) {
     Stop the tutorial_pubsub_publish example during operation to trigger the MessageReceiveTimeout and 
     check the callback invocation here */
 static void
-pubsubStateChangeCallback(UA_NodeId *pubsubComponentId,
-                                      UA_PubSubState state,
-                                      UA_StatusCode code) {
+pubsubStateChangeCallback(UA_Server *server,
+                                    UA_NodeId *pubsubComponentId,
+                                    UA_PubSubState state,
+                                    UA_StatusCode code) {
+    /* Use the application context kept by the server.
+       In this case, count up the number of times the state changed */
+    UA_ServerConfig *config = UA_Server_getConfig(server);
+    UA_UInt32 *stateChangeCnt = (UA_UInt32 *)config->context;
+    (*stateChangeCnt)++;
     
     if (pubsubComponentId == 0) {
         UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "pubsubStateChangeCallback(): Null pointer error. Internal error");
@@ -443,8 +449,13 @@ run(UA_String *transportProfile, UA_NetworkAddressUrlDataType *networkAddressUrl
     UA_ServerConfig_addPubSubTransportLayer(config, UA_PubSubTransportLayerEthernet());
 #endif
 
-    /* provide a callback to get notifications of specific PubSub state changes or timeouts (e.g. subscriber MessageReceiveTimeout) */
+    /* Provide a callback to get notifications of specific PubSub state changes or timeouts (e.g. subscriber MessageReceiveTimeout) */
     config->pubSubConfig.stateChangeCallback = pubsubStateChangeCallback;
+
+    /* Provide some application context that can be accessed from the above callback.
+       e.g. count the number of times the state changed. */
+    UA_UInt32 stateChangeCnt = 0;
+    config->context = &stateChangeCnt;
 
     if (*useCustomMonitoring == UA_TRUE) {
         /* provide own backend by setting the monitoring callbacks */
@@ -481,6 +492,10 @@ run(UA_String *transportProfile, UA_NetworkAddressUrlDataType *networkAddressUrl
 
     retval = UA_Server_run(server, &running);
     UA_Server_delete(server);
+
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
+        "PubSub state changed %d time(s).", stateChangeCnt);
+
     return retval == UA_STATUSCODE_GOOD ? EXIT_SUCCESS : EXIT_FAILURE;
 }
 

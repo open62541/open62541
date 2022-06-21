@@ -772,7 +772,7 @@ UA_DataSetReader_setPubSubState(UA_Server *server,
         UA_ServerConfig *pConfig = UA_Server_getConfig(server);
         if(pConfig->pubSubConfig.stateChangeCallback != 0) {
             pConfig->pubSubConfig.
-                stateChangeCallback(&dataSetReader->identifier, state, cause);
+                stateChangeCallback(server, &dataSetReader->identifier, state, cause);
         }
     }
     return ret;
