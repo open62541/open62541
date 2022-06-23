@@ -262,8 +262,14 @@ processMSGResponse(UA_Client *client, UA_UInt32 requestId,
      * Bad_SecurityChecksFailed error is reported. The RequestId only needs to
      * be verified by the Client since only the Client knows if it is valid or
      * not.*/
-    if(!ac)
+    if(!ac) {
+        UA_LOG_WARNING(&client->config.logger, UA_LOGCATEGORY_CLIENT,
+                       "Request with unknown RequestId %u", requestId);
         return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
+    }
+
+    UA_LOG_WARNING(&client->config.logger, UA_LOGCATEGORY_CLIENT,
+                   "Processing request with RequestId %u", requestId);
 
     UA_Response asyncResponse;
     UA_Response *response = (ac->syncResponse) ? ac->syncResponse : &asyncResponse;
