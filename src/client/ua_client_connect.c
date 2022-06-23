@@ -1105,7 +1105,7 @@ UA_Client_networkCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
                                                processServiceResponse, &msg);
         if(state != UA_STATUSCODE_GOOD) {
             UA_LOG_WARNING(&client->config.logger, UA_LOGCATEGORY_CLIENT,
-                           "Processing the message return the error code %s",
+                           "Processing the message returned the error code %s",
                            UA_StatusCode_name(state));
         }
     }
