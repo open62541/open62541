@@ -66,6 +66,7 @@ extern UA_StatusCode processSym_seqNumberFailure;
 typedef struct UA_SessionHeader {
     SLIST_ENTRY(UA_SessionHeader) next;
     UA_NodeId authenticationToken;
+    UA_Boolean serverSession; /* Disambiguate client and server session */
     UA_SecureChannel *channel; /* The pointer back to the SecureChannel in the session. */
 } UA_SessionHeader;
 
