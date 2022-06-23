@@ -14,6 +14,46 @@ extern "C" {
 #endif
 
 #include <open62541/plugin/pubsub_mqtt.h>
+#include <open62541/network_tcp.h>
+
+#if defined(UA_ENABLE_MQTT_TLS_OPENSSL)
+#include <openssl/ssl.h>
+#elif defined(UA_ENABLE_MQTT_TLS_MBEDTLS)
+#include <mqtt_pal.h>
+#endif
+
+/* mqtt network layer specific internal data */
+typedef struct {
+    UA_NetworkAddressUrlDataType address;
+    UA_UInt32 mqttRecvBufferSize;
+    UA_UInt32 mqttSendBufferSize;
+    uint8_t *mqttSendBuffer; 
+    uint8_t *mqttRecvBuffer; 
+    UA_String *mqttClientId;
+    UA_Connection *connection;
+#if defined(UA_ENABLE_MQTT_TLS_OPENSSL)
+    BIO *sockfd;
+#elif defined(UA_ENABLE_MQTT_TLS_MBEDTLS)
+    mqtt_pal_socket_handle sockfd;
+#else
+    int sockfd;
+#endif
+    void * mqttClient;
+    void (*callback)(UA_ByteString *encodedBuffer, UA_ByteString *topic);
+    UA_String mqttUsername;
+    UA_String mqttPassword;
+    UA_String mqttCaFilePath;
+    UA_String mqttCaPath;
+    UA_String mqttClientCertPath;
+    UA_String mqttClientKeyPath;
+    UA_Boolean mqttUseTLS;
+} UA_PubSubChannelDataMQTT;
+/* TODO:
+ * will topic,
+ * will message,
+ * keep alive
+ * ssl: flag
+ */
 
 void freeTLS(UA_PubSubChannelDataMQTT *data);
 
