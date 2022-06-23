@@ -852,8 +852,7 @@ UA_Variant_copyRange(const UA_Variant *src, UA_Variant * UA_RESTRICT dst,
         }
         dst->arrayDimensionsSize = thisrange.dimensionsSize;
         for(size_t k = 0; k < thisrange.dimensionsSize; ++k)
-            dst->arrayDimensions[k] =
-                thisrange.dimensions[k].max - thisrange.dimensions[k].min + 1;
+            dst->arrayDimensions[k] = (UA_UInt32)block;
     }
     return UA_STATUSCODE_GOOD;
 }
