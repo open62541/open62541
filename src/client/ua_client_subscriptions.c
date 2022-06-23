@@ -463,24 +463,27 @@ MonitoredItems_CreateData_prepare(UA_Client *client,
                                   MonitoredItems_CreateData *data) {
     /* Align arrays and copy over */
     UA_StatusCode retval = UA_STATUSCODE_BADOUTOFMEMORY;
-    data->contexts = (void **)UA_malloc(sizeof(void *) * request->itemsToCreateSize);
+    data->contexts = (void **)UA_calloc(request->itemsToCreateSize, sizeof(void *));
     if(!data->contexts)
         goto cleanup;
-    memcpy(data->contexts, contexts, request->itemsToCreateSize * sizeof(void *));
+    if(contexts)
+        memcpy(data->contexts, contexts, request->itemsToCreateSize * sizeof(void *));
 
     data->deleteCallbacks = (UA_Client_DeleteMonitoredItemCallback *)
-        UA_malloc(request->itemsToCreateSize * sizeof(UA_Client_DeleteMonitoredItemCallback));
+        UA_calloc(request->itemsToCreateSize, sizeof(UA_Client_DeleteMonitoredItemCallback));
     if(!data->deleteCallbacks)
         goto cleanup;
-    memcpy(data->deleteCallbacks, deleteCallbacks,
-           request->itemsToCreateSize * sizeof(UA_Client_DeleteMonitoredItemCallback));
+    if(deleteCallbacks)
+        memcpy(data->deleteCallbacks, deleteCallbacks,
+               request->itemsToCreateSize * sizeof(UA_Client_DeleteMonitoredItemCallback));
 
     data->handlingCallbacks = (void **)
-        UA_malloc(request->itemsToCreateSize * sizeof(void *));
+        UA_calloc(request->itemsToCreateSize, sizeof(void *));
     if(!data->handlingCallbacks)
         goto cleanup;
-    memcpy(data->handlingCallbacks, handlingCallbacks,
-           request->itemsToCreateSize * sizeof(void *));
+    if(handlingCallbacks)
+        memcpy(data->handlingCallbacks, handlingCallbacks,
+               request->itemsToCreateSize * sizeof(void *));
 
     retval = UA_CreateMonitoredItemsRequest_copy(request, &data->request);
     if(retval != UA_STATUSCODE_GOOD)
@@ -923,9 +926,11 @@ processDataChangeNotification(UA_Client *client, UA_Client_Subscription *sub,
             continue;
         }
 
-        mon->handler.dataChangeCallback(client, sub->subscriptionId, sub->context,
-                                        mon->monitoredItemId, mon->context,
-                                        &min->value);
+        if(mon->handler.dataChangeCallback) {
+            mon->handler.dataChangeCallback(client, sub->subscriptionId, sub->context,
+                                            mon->monitoredItemId, mon->context,
+                                            &min->value);
+        }
     }
 }
 
