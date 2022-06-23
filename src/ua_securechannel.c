@@ -18,6 +18,7 @@
 #include "ua_securechannel.h"
 #include "ua_types_encoding_binary.h"
 #include "ua_util_internal.h"
+#include "server/ua_session.h"
 
 #define UA_BITMASK_MESSAGETYPE 0x00ffffffu
 #define UA_BITMASK_CHUNKTYPE 0xff000000u
@@ -109,12 +110,16 @@ UA_SecureChannel_close(UA_SecureChannel *channel) {
         UA_Connection_detachSecureChannel(channel->connection);
     }
 
-    /* Remove session pointers (not the sessions) and NULL the pointers back to
-     * the SecureChannel in the Session */
+    /* Detach Sessions from the SecureChannel. This also removes outstanding
+     * Publish requests whose RequestId is valid only for the SecureChannel. */
     UA_SessionHeader *sh;
     while((sh = SLIST_FIRST(&channel->sessions))) {
-        sh->channel = NULL;
-        SLIST_REMOVE_HEAD(&channel->sessions, next);
+        if(sh->serverSession) {
+            UA_Session_detachFromSecureChannel((UA_Session *)sh);
+        } else {
+            sh->channel = NULL;
+            SLIST_REMOVE_HEAD(&channel->sessions, next);
+        }
     }
 
     /* Delete the channel context for the security policy */
