@@ -55,22 +55,20 @@ UA_ServerConfig_clean(UA_ServerConfig *config) {
     config->securityPolicies = NULL;
     config->securityPoliciesSize = 0;
 
-    for(size_t i = 0; i < config->endpointsSize; ++i)
-        UA_EndpointDescription_clear(&config->endpoints[i]);
+    if(config->endpoints != NULL) {
+        for(size_t i = 0; i < config->endpointsSize; ++i)
+            UA_Endpoint_clear(&config->endpoints[i]);
 
-    UA_free(config->endpoints);
-    config->endpoints = NULL;
-    config->endpointsSize = 0;
+        UA_free(config->endpoints);
+        config->endpoints = NULL;
+        config->endpointsSize = 0;
+    }
 
     /* Nodestore */
     if(config->nodestore.context && config->nodestore.clear) {
         config->nodestore.clear(config->nodestore.context);
         config->nodestore.context = NULL;
     }
-
-    /* Certificate Validation */
-    if(config->certificateVerification.clear)
-        config->certificateVerification.clear(&config->certificateVerification);
 
     /* Access Control */
     if(config->accessControl.clear)
@@ -81,6 +79,20 @@ UA_ServerConfig_clean(UA_ServerConfig *config) {
     if(config->historyDatabase.clear)
         config->historyDatabase.clear(&config->historyDatabase);
 #endif
+
+    /* Certificate Validation */
+    if(config->certificateManager.clear)
+        config->certificateManager.clear(&config->certificateManager);
+
+    if(config->pkiStores != NULL) {
+        for(size_t i = 0; i < config->pkiStoresSize; ++i) {
+            if(config->pkiStores[i].clear)
+                config->pkiStores[i].clear(&config->pkiStores[i]);
+        }
+        UA_free(config->pkiStores);
+        config->pkiStores = NULL;
+        config->pkiStoresSize = 0;
+    }
 
     /* Logger */
     if(config->logger.clear)

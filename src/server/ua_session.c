@@ -96,7 +96,7 @@ UA_Session_detachFromSecureChannel(UA_Session *session) {
 UA_StatusCode
 UA_Session_generateNonce(UA_Session *session) {
     UA_SecureChannel *channel = session->header.channel;
-    if(!channel || !channel->securityPolicy)
+    if(!channel || !channel->endpoint)
         return UA_STATUSCODE_BADINTERNALERROR;
 
     /* Is the length of the previous nonce correct? */
@@ -108,8 +108,8 @@ UA_Session_generateNonce(UA_Session *session) {
             return retval;
     }
 
-    return channel->securityPolicy->symmetricModule.
-        generateNonce(channel->securityPolicy->policyContext, &session->serverNonce);
+    return channel->endpoint->securityPolicy->symmetricModule.
+        generateNonce(channel->endpoint->securityPolicy->policyContext, &session->serverNonce);
 }
 
 void UA_Session_updateLifetime(UA_Session *session) {

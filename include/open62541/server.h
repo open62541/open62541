@@ -30,7 +30,9 @@
 #include <open62541/plugin/nodestore.h>
 #include <open62541/plugin/network.h>
 #include <open62541/plugin/log.h>
-#include <open62541/plugin/pki.h>
+#include <open62541/plugin/certificate_manager.h>
+#include <open62541/plugin/certstore.h>
+#include <open62541/endpoint.h>
 
 #ifdef UA_ENABLE_PUBSUB
 #include <open62541/plugin/pubsub.h>
@@ -188,8 +190,12 @@ struct UA_ServerConfig {
     size_t securityPoliciesSize;
     UA_SecurityPolicy* securityPolicies;
 
+    /* One PKIStore corresponds to one certificate Group */
+    size_t pkiStoresSize;
+    UA_PKIStore *pkiStores;
+
     size_t endpointsSize;
-    UA_EndpointDescription *endpoints;
+    UA_Endpoint *endpoints;
 
     /* Only allow the following discovery services to be executed on a
      * SecureChannel with SecurityPolicyNone: GetEndpointsRequest,
@@ -200,7 +206,7 @@ struct UA_ServerConfig {
      * securityPolicies list. */
     UA_Boolean securityPolicyNoneDiscoveryOnly;
 
-    UA_CertificateVerification certificateVerification;
+    UA_CertificateManager certificateManager;
 
     /**
      * See the section for :ref:`access-control

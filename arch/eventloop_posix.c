@@ -84,7 +84,7 @@ UA_EventLoopPOSIX_addDelayedCallback(UA_EventLoop *public_el,
 /* Process and then free registered delayed callbacks */
 static void
 processDelayed(UA_EventLoopPOSIX *el) {
-    UA_LOG_DEBUG(el->eventLoop.logger, UA_LOGCATEGORY_EVENTLOOP,
+    UA_LOG_TRACE(el->eventLoop.logger, UA_LOGCATEGORY_EVENTLOOP,
                  "Process delayed callbacks");
 
     UA_LOCK_ASSERT(&el->elMutex, 1);

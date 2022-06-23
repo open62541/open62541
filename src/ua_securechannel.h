@@ -20,6 +20,7 @@
 #include "open62541_queue.h"
 #include "ua_util_internal.h"
 #include "ua_connection_internal.h"
+#include <open62541/endpoint.h>
 
 _UA_BEGIN_DECLS
 
@@ -119,7 +120,9 @@ struct UA_SecureChannel {
                                                * See the renewState. */
 
     /* The endpoint and context of the channel */
-    const UA_SecurityPolicy *securityPolicy;
+    const UA_Endpoint **endpointCandidates;
+    size_t endpointCandidatesSize;
+    const UA_Endpoint *endpoint;
     void *channelContext; /* For interaction with the security policy */
     UA_Connection *connection;
 
@@ -155,7 +158,7 @@ struct UA_SecureChannel {
     UA_ByteString incompleteChunk; /* A half-received chunk (TCP is a
                                     * streaming protocol) is stored here */
 
-    UA_CertificateVerification *certificateVerification;
+    UA_CertificateManager *certificateVerification;
     UA_StatusCode (*processOPNHeader)(void *application, UA_SecureChannel *channel,
                                       const UA_AsymmetricAlgorithmSecurityHeader *asymHeader);
 };
@@ -172,9 +175,7 @@ UA_SecureChannel_processHELACK(UA_SecureChannel *channel,
                                const UA_TcpAcknowledgeMessage *remoteConfig);
 
 UA_StatusCode
-UA_SecureChannel_setSecurityPolicy(UA_SecureChannel *channel,
-                                   const UA_SecurityPolicy *securityPolicy,
-                                   const UA_ByteString *remoteCertificate);
+UA_SecureChannel_setEndpoint(UA_SecureChannel *channel, const UA_Endpoint *endpoint);
 
 /* Remove (partially) received unprocessed chunks */
 void
@@ -312,10 +313,6 @@ setBufPos(UA_MessageContext *mc);
 
 UA_StatusCode
 checkSymHeader(UA_SecureChannel *channel, const UA_UInt32 tokenId);
-
-UA_StatusCode
-checkAsymHeader(UA_SecureChannel *channel,
-                const UA_AsymmetricAlgorithmSecurityHeader *asymHeader);
 
 void
 padChunk(UA_SecureChannel *channel, const UA_SecurityPolicyCryptoModule *cm,

@@ -124,13 +124,13 @@ UA_CertificateVerification_clear (UA_CertificateVerification * cv) {
 }
 
 static UA_StatusCode
-UA_skTrusted_Cert2X509 (const UA_ByteString *   certificateTrustList,
+UA_skTrusted_Cert2X509 (const UA_ByteString *   trustedCertificates,
                         size_t                  certificateTrustListSize,
                         CertContext *           ctx) {
     size_t                i;        
 
     for (i = 0; i < certificateTrustListSize; i++) {
-        X509 * x509 = UA_OpenSSL_LoadCertificate(&certificateTrustList[i]);
+        X509 * x509 = UA_OpenSSL_LoadCertificate(&trustedCertificates[i]);
 
         if (x509 == NULL) {
             return UA_STATUSCODE_BADINTERNALERROR;
@@ -142,13 +142,13 @@ UA_skTrusted_Cert2X509 (const UA_ByteString *   certificateTrustList,
 }
 
 static UA_StatusCode
-UA_skIssuer_Cert2X509 (const UA_ByteString *   certificateIssuerList,
+UA_skIssuer_Cert2X509 (const UA_ByteString *   trustedIssuers,
                        size_t                  certificateIssuerListSize,
                        CertContext *           ctx) {
     size_t                i;
 
     for (i = 0; i < certificateIssuerListSize; i++) {
-        X509 * x509 = UA_OpenSSL_LoadCertificate(&certificateIssuerList[i]);
+        X509 * x509 = UA_OpenSSL_LoadCertificate(&trustedIssuers[i]);
 
         if (x509 == NULL) {
             return UA_STATUSCODE_BADINTERNALERROR;
@@ -160,22 +160,22 @@ UA_skIssuer_Cert2X509 (const UA_ByteString *   certificateIssuerList,
 }
 
 static UA_StatusCode
-UA_skCrls_Cert2X509 (const UA_ByteString *   certificateRevocationList,
+UA_skCrls_Cert2X509 (const UA_ByteString *   trustedCertificateCrls,
                      size_t                  certificateRevocationListSize,
                      CertContext *           ctx) {
     size_t                i;        
     const unsigned char * pData;
 
     for (i = 0; i < certificateRevocationListSize; i++) {
-        pData = certificateRevocationList[i].data;
+        pData = trustedCertificateCrls[i].data;
         X509_CRL * crl = NULL;
 
-        if (certificateRevocationList[i].length > 1 && pData[0] == 0x30 && pData[1] == 0x82) { // Magic number for DER encoded files
-            crl = d2i_X509_CRL (NULL, &pData, (long) certificateRevocationList[i].length);
+        if (trustedCertificateCrls[i].length > 1 && pData[0] == 0x30 && pData[1] == 0x82) { // Magic number for DER encoded files
+            crl = d2i_X509_CRL (NULL, &pData, (long) trustedCertificateCrls[i].length);
         } else {
             BIO* bio = NULL;
-            bio = BIO_new_mem_buf((void *) certificateRevocationList[i].data,
-                                  (int) certificateRevocationList[i].length);
+            bio = BIO_new_mem_buf((void *) trustedCertificateCrls[i].data,
+                                  (int) trustedCertificateCrls[i].length);
             crl = PEM_read_bio_X509_CRL(bio, NULL, NULL, NULL);
             BIO_free(bio);
         }
@@ -653,11 +653,11 @@ UA_CertificateVerification_VerifyApplicationURI (void *                verificat
 
 UA_StatusCode
 UA_CertificateVerification_Trustlist(UA_CertificateVerification * cv,
-                                     const UA_ByteString *        certificateTrustList,
+                                     const UA_ByteString *        trustedCertificates,
                                      size_t                       certificateTrustListSize,
-                                     const UA_ByteString *        certificateIssuerList,
+                                     const UA_ByteString *        trustedIssuers,
                                      size_t                       certificateIssuerListSize,
-                                     const UA_ByteString *        certificateRevocationList,
+                                     const UA_ByteString *        trustedCertificateCrls,
                                      size_t                       certificateRevocationListSize) {
     UA_StatusCode ret;
 
@@ -683,7 +683,7 @@ UA_CertificateVerification_Trustlist(UA_CertificateVerification * cv,
         cv->verifyCertificate = UA_VerifyCertificateAllowAll;
     
     if (certificateTrustListSize > 0) {
-        if (UA_skTrusted_Cert2X509 (certificateTrustList, certificateTrustListSize,
+        if (UA_skTrusted_Cert2X509 (trustedCertificates, certificateTrustListSize,
                                     context) != UA_STATUSCODE_GOOD) {
             ret = UA_STATUSCODE_BADINTERNALERROR;
             goto errout;
@@ -691,7 +691,7 @@ UA_CertificateVerification_Trustlist(UA_CertificateVerification * cv,
     }
 
     if (certificateIssuerListSize > 0) {
-        if (UA_skIssuer_Cert2X509 (certificateIssuerList, certificateIssuerListSize,
+        if (UA_skIssuer_Cert2X509 (trustedIssuers, certificateIssuerListSize,
                                   context) != UA_STATUSCODE_GOOD) {
             ret = UA_STATUSCODE_BADINTERNALERROR;                                       
             goto errout;
@@ -699,7 +699,7 @@ UA_CertificateVerification_Trustlist(UA_CertificateVerification * cv,
     }
 
     if (certificateRevocationListSize > 0) {
-        if (UA_skCrls_Cert2X509 (certificateRevocationList, certificateRevocationListSize,
+        if (UA_skCrls_Cert2X509 (trustedCertificateCrls, certificateRevocationListSize,
                                   context) != UA_STATUSCODE_GOOD) {
             ret = UA_STATUSCODE_BADINTERNALERROR; 
             goto errout;

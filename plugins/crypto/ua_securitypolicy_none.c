@@ -52,6 +52,7 @@ makeThumbprint_none(const UA_SecurityPolicy *securityPolicy,
 
 static UA_StatusCode
 compareThumbprint_none(const UA_SecurityPolicy *securityPolicy,
+                       UA_PKIStore *pkiStore,
                        const UA_ByteString *certificateThumbprint) {
     return UA_STATUSCODE_GOOD;
 }
@@ -88,6 +89,7 @@ generateNonce_none(void *policyContext, UA_ByteString *out) {
 
 static UA_StatusCode
 newContext_none(const UA_SecurityPolicy *securityPolicy,
+                UA_PKIStore *pkiStore,
                 const UA_ByteString *remoteCertificate,
                 void **channelContext) {
     return UA_STATUSCODE_GOOD;
@@ -110,34 +112,31 @@ compareCertificate_none(const void *channelContext,
 }
 
 static UA_StatusCode
-updateCertificateAndPrivateKey_none(UA_SecurityPolicy *policy,
-                                    const UA_ByteString newCertificate,
-                                    const UA_ByteString newPrivateKey) {
-    UA_ByteString_clear(&policy->localCertificate);
-    UA_ByteString_copy(&newCertificate, &policy->localCertificate);
-    return UA_STATUSCODE_GOOD;
+getLocalCertificate_none(const UA_SecurityPolicy *policy,
+                         UA_PKIStore *pkiStore,
+                         UA_ByteString *cert) {
+#ifdef UA_ENABLE_ENCRYPTION_MBEDTLS
+    UA_StatusCode retval = UA_mbedTLS_LoadLocalCertificate(policy, pkiStore, cert);
+#elif defined(UA_ENABLE_ENCRYPTION_OPENSSL) || defined(UA_ENABLE_ENCRYPTION_LIBRESSL)
+    UA_StatusCode retval = UA_OpenSSL_LoadLocalCertificate(policy, pkiStore, cert);
+#else
+    UA_StatusCode retval = UA_ByteString_copy(&localCertificate, cert);
+#endif
+    // For the none policy we allow the certificate to not exist.
+    if(retval == UA_STATUSCODE_BADNOTFOUND) {
+        return UA_STATUSCODE_GOOD;
+    }
+    return retval;
 }
-
 
 static void
-policy_clear_none(UA_SecurityPolicy *policy) {
-    UA_ByteString_clear(&policy->localCertificate);
-}
+policy_clear_none(UA_SecurityPolicy *policy) {}
 
 UA_StatusCode
-UA_SecurityPolicy_None(UA_SecurityPolicy *policy, const UA_ByteString localCertificate,
-                       const UA_Logger *logger) {
-    policy->policyContext = (void *)(uintptr_t)logger;
+UA_SecurityPolicy_None(UA_SecurityPolicy *policy, const UA_Logger *logger) {
     policy->policyUri = UA_STRING("http://opcfoundation.org/UA/SecurityPolicy#None");
     policy->logger = logger;
-
-#ifdef UA_ENABLE_ENCRYPTION_MBEDTLS
-    UA_mbedTLS_LoadLocalCertificate(&localCertificate, &policy->localCertificate);
-#elif defined(UA_ENABLE_ENCRYPTION_OPENSSL) || defined(UA_ENABLE_ENCRYPTION_LIBRESSL)
-    UA_OpenSSL_LoadLocalCertificate(&localCertificate, &policy->localCertificate);
-#else
-    UA_ByteString_copy(&localCertificate, &policy->localCertificate);
-#endif
+    policy->certificateTypeId = UA_NODEID_NULL;
 
     policy->symmetricModule.generateKey = generateKey_none;
     policy->symmetricModule.generateNonce = generateNonce_none;
@@ -181,7 +180,7 @@ UA_SecurityPolicy_None(UA_SecurityPolicy *policy, const UA_ByteString localCerti
     policy->channelModule.setRemoteSymSigningKey = setContextValue_none;
     policy->channelModule.setRemoteSymIv = setContextValue_none;
     policy->channelModule.compareCertificate = compareCertificate_none;
-    policy->updateCertificateAndPrivateKey = updateCertificateAndPrivateKey_none;
+    policy->getLocalCertificate = getLocalCertificate_none;
     policy->clear = policy_clear_none;
 
     return UA_STATUSCODE_GOOD;

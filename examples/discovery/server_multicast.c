@@ -94,6 +94,7 @@ UA_EndpointDescription *getRegisterEndpointFromServer(const char *discoveryServe
                      "Invalid"
         );
         // find the endpoint with highest supported security mode
+        // FIXME: This check will ignore policies other than none and a really weak one. I don't belive this is intended
         if((UA_String_equal(&endpointArray[i].securityPolicyUri, &UA_SECURITY_POLICY_NONE_URI) ||
             UA_String_equal(&endpointArray[i].securityPolicyUri, &UA_SECURITY_POLICY_BASIC128_URI)) && (
             foundEndpoint == NULL || foundEndpoint->securityMode < endpointArray[i].securityMode))

@@ -3,7 +3,35 @@
   <component name="CsvFileAttributes">
     <option name="attributeMap">
       <map>
+        <entry key="/deps/ua-nodeset/ADI/OpcUaAdiModel.csv">
+          <value>
+            <Attribute>
+              <option name="separator" value="," />
+            </Attribute>
+          </value>
+        </entry>
         <entry key="/deps/ua-nodeset/CAS/Opc.Ua.CAS.NodeIds.csv">
+          <value>
+            <Attribute>
+              <option name="separator" value="," />
+            </Attribute>
+          </value>
+        </entry>
+        <entry key="/deps/ua-nodeset/CNC/Opc.Ua.CNC.NodeIds.csv">
+          <value>
+            <Attribute>
+              <option name="separator" value="," />
+            </Attribute>
+          </value>
+        </entry>
+        <entry key="/deps/ua-nodeset/DEXPI/Opc.Ua.DEXPI.NodeIds.csv">
+          <value>
+            <Attribute>
+              <option name="separator" value="," />
+            </Attribute>
+          </value>
+        </entry>
+        <entry key="/deps/ua-nodeset/DI/OpcUaDiModel.csv">
           <value>
             <Attribute>
               <option name="separator" value="," />
@@ -17,10 +45,87 @@
             </Attribute>
           </value>
         </entry>
+        <entry key="/deps/ua-nodeset/FDI/OpcUaFdiPart5Model.csv">
+          <value>
+            <Attribute>
+              <option name="separator" value="," />
+            </Attribute>
+          </value>
+        </entry>
+        <entry key="/deps/ua-nodeset/FDI/OpcUaFdiPart7Model.csv">
+          <value>
+            <Attribute>
+              <option name="separator" value="," />
+            </Attribute>
+          </value>
+        </entry>
+        <entry key="/deps/ua-nodeset/GDS/OpcUaGdsModel.csv">
+          <value>
+            <Attribute>
+              <option name="separator" value="," />
+            </Attribute>
+          </value>
+        </entry>
+        <entry key="/deps/ua-nodeset/Glass/Flat/NodeIds.csv">
+          <value>
+            <Attribute>
+              <option name="separator" value="," />
+            </Attribute>
+          </value>
+        </entry>
+        <entry key="/deps/ua-nodeset/I4AAS/NodeIds.csv">
+          <value>
+            <Attribute>
+              <option name="separator" value="," />
+            </Attribute>
+          </value>
+        </entry>
+        <entry key="/deps/ua-nodeset/IJT/Tightening/NodeIds.csv">
+          <value>
+            <Attribute>
+              <option name="separator" value="," />
+            </Attribute>
+          </value>
+        </entry>
         <entry key="/deps/ua-nodeset/IOLink/EngineeringUnits.csv">
           <value>
             <Attribute>
               <option name="separator" value=";" />
+            </Attribute>
+          </value>
+        </entry>
+        <entry key="/deps/ua-nodeset/MDIS/MDIS.csv">
+          <value>
+            <Attribute>
+              <option name="separator" value="," />
+            </Attribute>
+          </value>
+        </entry>
+        <entry key="/deps/ua-nodeset/PNEM/NodeIds.csv">
+          <value>
+            <Attribute>
+              <option name="separator" value="," />
+            </Attribute>
+          </value>
+        </entry>
+        <entry key="/deps/ua-nodeset/Pumps/Opc.Ua.Pumps.NodeSet2.csv">
+          <value>
+            <Attribute>
+              <option name="separator" value="," />
+            </Attribute>
+          </value>
+        </entry>
+        <entry key="/deps/ua-nodeset/Schema/NodeIds.csv">
+          <value>
+            <Attribute>
+              <option name="separator" value="," />
+            </Attribute>
+          </value>
+        </entry>
+        <entry key="/deps/ua-nodeset/Schema/Opc.Ua.NodeSet2.Services.documentation.csv">
+          <value>
+            <Attribute>
+              <option name="separator" value="," />
             </Attribute>
           </value>
         </entry>
@@ -46,6 +151,13 @@
           </value>
         </entry>
         <entry key="/deps/ua-nodeset/Schema/rec20_latest_a2-3.csv">
+          <value>
+            <Attribute>
+              <option name="separator" value="," />
+            </Attribute>
+          </value>
+        </entry>
+        <entry key="/deps/ua-nodeset/TMC/Opc.Ua.TMC.NodeIds.csv">
           <value>
             <Attribute>
               <option name="separator" value="," />
