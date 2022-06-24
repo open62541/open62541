@@ -58,7 +58,8 @@ START_TEST(EthernetSendWithoutVLANTag) {
     UA_Variant_setScalar(&connectionConfig.address, &networkAddressUrl,
                          &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
     connectionConfig.transportProfileUri = UA_STRING(TRANSPORT_PROFILE_URI);
-    connectionConfig.publisherId.numeric = PUBLISHER_ID;
+    connectionConfig.publisherIdType = UA_PUBLISHERIDTYPE_UINT16;
+    connectionConfig.publisherId.uint16 = PUBLISHER_ID;
     UA_Server_addPubSubConnection(server, &connectionConfig, &connection_test);
     connection = UA_PubSubConnection_findConnectionbyId(server, connection_test);
     /* Remove the connection if invalid*/
@@ -86,7 +87,8 @@ START_TEST(EthernetSendWithVLANTag) {
     UA_Variant_setScalar(&connectionConfig.address, &networkAddressUrl,
                          &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
     connectionConfig.transportProfileUri = UA_STRING(TRANSPORT_PROFILE_URI);
-    connectionConfig.publisherId.numeric = PUBLISHER_ID;
+    connectionConfig.publisherIdType = UA_PUBLISHERIDTYPE_UINT16;
+    connectionConfig.publisherId.uint16 = PUBLISHER_ID;
     UA_Server_addPubSubConnection(server, &connectionConfig, &connection_test);
     connection = UA_PubSubConnection_findConnectionbyId(server, connection_test);
     /* Remove the connection if invalid*/

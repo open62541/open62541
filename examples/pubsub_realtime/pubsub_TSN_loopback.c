@@ -474,7 +474,8 @@ addPubSubConnectionSubscriber(UA_Server *server,
     connectionConfig.transportProfileUri = UA_STRING(ETH_TRANSPORT_PROFILE);
     UA_Variant_setScalar(&connectionConfig.address, &networkAddressUrlsubscribe,
                          &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
-    connectionConfig.publisherId.numeric = UA_UInt32_random();
+    connectionConfig.publisherIdType = UA_PUBLISHERIDTYPE_UINT32;
+    connectionConfig.publisherId.uint32 = UA_UInt32_random();
     retval |= UA_Server_addPubSubConnection(server, &connectionConfig,
                                             &connectionIdentSubscriber);
     if(retval == UA_STATUSCODE_GOOD)
@@ -739,7 +740,8 @@ addPubSubConnection(UA_Server *server, UA_NetworkAddressUrlDataType *networkAddr
     connectionConfig.transportProfileUri = UA_STRING(ETH_TRANSPORT_PROFILE);
     UA_Variant_setScalar(&connectionConfig.address, &networkAddressUrl,
                          &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
-    connectionConfig.publisherId.numeric = PUBLISHER_ID;
+    connectionConfig.publisherIdType = UA_PUBLISHERIDTYPE_UINT16;
+    connectionConfig.publisherId.uint16 = PUBLISHER_ID;
     /* Connection options are given as Key/Value Pairs - Sockprio and Txtime */
     UA_KeyValuePair connectionOptions[2];
     connectionOptions[0].key = UA_QUALIFIEDNAME(0, "sockpriority");

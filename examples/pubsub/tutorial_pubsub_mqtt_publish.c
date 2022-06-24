@@ -103,7 +103,8 @@ addPubSubConnection(UA_Server *server, char *addressUrl) {
                          &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
     /* Changed to static publisherId from random generation to identify
      * the publisher on Subscriber side */
-    connectionConfig.publisherId.numeric = 2234;
+    connectionConfig.publisherIdType = UA_PUBLISHERIDTYPE_UINT16;
+    connectionConfig.publisherId.uint16 = 2234;
 
     /* configure options, set mqtt client id */
     const int connectionOptionsCount = 1

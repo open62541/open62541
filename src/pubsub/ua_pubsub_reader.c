@@ -265,25 +265,28 @@ UA_DataSetReader_generateNetworkMessage(UA_PubSubConnection *pubSubConnection,
     if(!UA_DataType_isNumeric(dataSetReader->config.publisherId.type))
         return UA_STATUSCODE_BADNOTSUPPORTED;
 
-    switch(dataSetReader->config.publisherId.type->typeKind) {
-    case UA_DATATYPEKIND_BYTE:
-        nm->publisherIdType = UA_PUBLISHERDATATYPE_BYTE;
-        nm->publisherId.publisherIdByte = *(UA_Byte *) dataSetReader->config.publisherId.data;
-        break;
-    case UA_DATATYPEKIND_UINT16:
-        nm->publisherIdType = UA_PUBLISHERDATATYPE_UINT16;
-        nm->publisherId.publisherIdUInt16 = *(UA_UInt16 *) dataSetReader->config.publisherId.data;
-        break;
-    case UA_DATATYPEKIND_UINT32:
-        nm->publisherIdType = UA_PUBLISHERDATATYPE_UINT32;
-        nm->publisherId.publisherIdUInt32 = *(UA_UInt32 *) dataSetReader->config.publisherId.data;
-        break;
-    case UA_DATATYPEKIND_UINT64:
-        nm->publisherIdType = UA_PUBLISHERDATATYPE_UINT64;
-        nm->publisherId.publisherIdUInt64 = *(UA_UInt64 *) dataSetReader->config.publisherId.data;
-        break;
-    default:
-        return UA_STATUSCODE_BADNOTSUPPORTED;
+    if (nm->publisherIdEnabled) {
+        switch(dataSetReader->config.publisherId.type->typeKind) {
+        case UA_DATATYPEKIND_BYTE:
+            nm->publisherIdType = UA_PUBLISHERIDTYPE_BYTE;
+            nm->publisherId.byte = *(UA_Byte *) dataSetReader->config.publisherId.data;
+            break;
+        case UA_DATATYPEKIND_UINT16:
+            nm->publisherIdType = UA_PUBLISHERIDTYPE_UINT16;
+            nm->publisherId.uint16 = *(UA_UInt16 *) dataSetReader->config.publisherId.data;
+            break;
+        case UA_DATATYPEKIND_UINT32:
+            nm->publisherIdType = UA_PUBLISHERIDTYPE_UINT32;
+            nm->publisherId.uint32 = *(UA_UInt32 *) dataSetReader->config.publisherId.data;
+            break;
+        case UA_DATATYPEKIND_UINT64:
+            nm->publisherIdType = UA_PUBLISHERIDTYPE_UINT64;
+            nm->publisherId.uint64 = *(UA_UInt64 *) dataSetReader->config.publisherId.data;
+            break;
+        default:
+            // UA_PUBLISHERIDTYPE_STRING is not supported because of UA_PUBSUB_RT_FIXED_SIZE
+            return UA_STATUSCODE_BADNOTSUPPORTED;
+        }
     }
 
     if(nm->groupHeader.sequenceNumberEnabled)
@@ -330,35 +333,29 @@ checkReaderIdentifier(UA_Server *server, UA_NetworkMessage *msg,
     }
 
     switch(msg->publisherIdType) {
-    case UA_PUBLISHERDATATYPE_BYTE:
+    case UA_PUBLISHERIDTYPE_BYTE:
         if(reader->config.publisherId.type == &UA_TYPES[UA_TYPES_BYTE] &&
-           msg->publisherIdType == UA_PUBLISHERDATATYPE_BYTE &&
-           msg->publisherId.publisherIdByte == *(UA_Byte*)reader->config.publisherId.data)
+           msg->publisherId.byte == *(UA_Byte*)reader->config.publisherId.data)
             break;
         return UA_STATUSCODE_BADNOTFOUND;
-    case UA_PUBLISHERDATATYPE_UINT16:
+    case UA_PUBLISHERIDTYPE_UINT16:
         if(reader->config.publisherId.type == &UA_TYPES[UA_TYPES_UINT16] &&
-           msg->publisherIdType == UA_PUBLISHERDATATYPE_UINT16 &&
-           msg->publisherId.publisherIdUInt16 == *(UA_UInt16*)reader->config.publisherId.data)
+           msg->publisherId.uint16 == *(UA_UInt16*)reader->config.publisherId.data)
             break;
         return UA_STATUSCODE_BADNOTFOUND;
-    case UA_PUBLISHERDATATYPE_UINT32:
+    case UA_PUBLISHERIDTYPE_UINT32:
         if(reader->config.publisherId.type == &UA_TYPES[UA_TYPES_UINT32] &&
-           msg->publisherIdType == UA_PUBLISHERDATATYPE_UINT32 &&
-           msg->publisherId.publisherIdUInt32 == *(UA_UInt32*)reader->config.publisherId.data)
+           msg->publisherId.uint32 == *(UA_UInt32*)reader->config.publisherId.data)
             break;
         return UA_STATUSCODE_BADNOTFOUND;
-    case UA_PUBLISHERDATATYPE_UINT64:
+    case UA_PUBLISHERIDTYPE_UINT64:
         if(reader->config.publisherId.type == &UA_TYPES[UA_TYPES_UINT64] &&
-           msg->publisherIdType == UA_PUBLISHERDATATYPE_UINT64 &&
-           msg->publisherId.publisherIdUInt64 == *(UA_UInt64*)reader->config.publisherId.data)
+           msg->publisherId.uint64 == *(UA_UInt64*)reader->config.publisherId.data)
             break;
         return UA_STATUSCODE_BADNOTFOUND;
-    case UA_PUBLISHERDATATYPE_STRING:
+    case UA_PUBLISHERIDTYPE_STRING:
         if(reader->config.publisherId.type == &UA_TYPES[UA_TYPES_STRING] &&
-           msg->publisherIdType == UA_PUBLISHERDATATYPE_STRING &&
-           UA_String_equal(&msg->publisherId.publisherIdString,
-                           (UA_String*)reader->config.publisherId.data))
+           UA_String_equal(&msg->publisherId.string, (UA_String*)reader->config.publisherId.data))
             break;
         return UA_STATUSCODE_BADNOTFOUND;
     default:
@@ -1434,10 +1431,8 @@ decodeAndProcessNetworkMessageRT(UA_Server *server, UA_ReaderGroup *readerGroup,
         goto cleanup;
     }
 
-    /* Check the decoded message is the expected one
-     * TODO: PublisherID check after modification in NM to support all datatypes */
-    if(nm->groupHeader.writerGroupId != dataSetReader->config.writerGroupId ||
-       *nm->payloadHeader.dataSetPayloadHeader.dataSetWriterIds != dataSetReader->config.dataSetWriterId) {
+    /* Check the decoded message is the expected one */
+    if (checkReaderIdentifier(server, nm, dataSetReader) != UA_STATUSCODE_GOOD) {
         UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_SERVER,
                     "PubSub receive. Unknown message received. Will not be processed.");
         res = UA_STATUSCODE_UNCERTAIN;

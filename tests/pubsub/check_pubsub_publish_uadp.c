@@ -31,7 +31,8 @@ static void setup(void) {
     UA_Variant_setScalar(&connectionConfig.address, &networkAddressUrl,
                          &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
     connectionConfig.transportProfileUri = UA_STRING("http://opcfoundation.org/UA-Profile/Transport/pubsub-udp-uadp");
-    connectionConfig.publisherId.numeric = 62541;
+    connectionConfig.publisherIdType = UA_PUBLISHERIDTYPE_UINT16;
+    connectionConfig.publisherId.uint16 = 62541;
     UA_Server_addPubSubConnection(server, &connectionConfig, &connection1);
 
     UA_PublishedDataSetConfig publishedDataSetConfig;
@@ -180,7 +181,7 @@ START_TEST(CheckNMandDSMcalculation){
     UA_ByteString buffer = UA_BYTESTRING("");
     UA_NetworkMessage networkMessage;
     receiveAvailableMessages(buffer, connection, &networkMessage);
-    //ck_assert_int_eq(networkMessage.publisherId.publisherIdUInt32 , 62541);
+    //ck_assert_int_eq(networkMessage.publisherId.uint32 , 62541);
     ck_assert_int_eq(networkMessage.payloadHeader.dataSetPayloadHeader.count, 10);
     for(size_t i = 10; i > 0; i--){
         ck_assert_int_eq(*(networkMessage.payloadHeader.dataSetPayloadHeader.dataSetWriterIds+(i-1)), 21-i);
@@ -346,7 +347,7 @@ START_TEST(CheckSingleDSMRawEncodedMessage){
     UA_ByteString buffer = UA_BYTESTRING("");
     UA_NetworkMessage networkMessage;
     receiveAvailableMessages(buffer, connection, &networkMessage);
-    //ck_assert_int_eq(networkMessage.publisherId.publisherIdUInt32 , 62541);
+    //ck_assert_int_eq(networkMessage.publisherId.uint32 , 62541);
     ck_assert_int_eq(networkMessage.payloadHeader.dataSetPayloadHeader.count, 10);
     for(size_t i = 10; i > 0; i--){
         ck_assert_int_eq(*(networkMessage.payloadHeader.dataSetPayloadHeader.dataSetWriterIds+(i-1)), 21-i);

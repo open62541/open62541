@@ -941,15 +941,11 @@ generateNetworkMessage(UA_PubSubConnection *connection, UA_WriterGroup *wg,
 
     networkMessage->version = 1;
     networkMessage->networkMessageType = UA_NETWORKMESSAGE_DATASET;
-    if(connection->config->publisherIdType == UA_PUBSUB_PUBLISHERID_NUMERIC) {
-        networkMessage->publisherIdType = UA_PUBLISHERDATATYPE_UINT16;
-        networkMessage->publisherId.publisherIdUInt32 =
-            connection->config->publisherId.numeric;
-    } else if(connection->config->publisherIdType == UA_PUBSUB_PUBLISHERID_STRING) {
-        networkMessage->publisherIdType = UA_PUBLISHERDATATYPE_STRING;
-        networkMessage->publisherId.publisherIdString =
-            connection->config->publisherId.string;
-    }
+    networkMessage->publisherIdType = connection->config->publisherIdType;
+    /* shallow copy of the PublisherId from connection configuration
+        -> the configuration needs to be stable during publishing process
+        -> it must not be cleaned after network message has been sent */
+    networkMessage->publisherId = connection->config->publisherId;
 
     if(networkMessage->groupHeader.sequenceNumberEnabled)
         networkMessage->groupHeader.sequenceNumber = wg->sequenceNumber;

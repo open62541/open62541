@@ -53,8 +53,8 @@ static void AddConnection(
     UA_Variant_setScalar(&connectionConfig.address, &networkAddressUrl,
                          &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
 
-    connectionConfig.publisherIdType = UA_PUBSUB_PUBLISHERID_NUMERIC;
-    connectionConfig.publisherId.numeric = PublisherId;
+    connectionConfig.publisherIdType = UA_PUBLISHERIDTYPE_UINT32;
+    connectionConfig.publisherId.uint32 = PublisherId;
 
     ck_assert(UA_Server_addPubSubConnection(server, &connectionConfig, opConnectionId) == UA_STATUSCODE_GOOD);
     ck_assert(UA_PubSubConnection_regist(server, opConnectionId) == UA_STATUSCODE_GOOD);
