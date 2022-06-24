@@ -86,6 +86,7 @@
 
 #include <open62541/server.h>
 #include <open62541/server_config_default.h>
+#include <open62541/server_pubsub.h>
 #include <open62541/plugin/log_stdout.h>
 #include <open62541/plugin/log.h>
 #include <open62541/types_generated.h>
@@ -471,7 +472,8 @@ addPubSubConnectionSubscriber(UA_Server *server,
     UA_NetworkAddressUrlDataType networkAddressUrlsubscribe = *networkAddressUrlSubscriber;
     connectionConfig.transportProfileUri = UA_STRING(ETH_TRANSPORT_PROFILE);
     UA_Variant_setScalar(&connectionConfig.address, &networkAddressUrlsubscribe, &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
-    connectionConfig.publisherId.numeric = UA_UInt32_random();
+    connectionConfig.publisherIdType = UA_PUBLISHERIDTYPE_UINT32;
+    connectionConfig.publisherId.uint32 = UA_UInt32_random();
     retval |= UA_Server_addPubSubConnection(server, &connectionConfig, &connectionIdentSubscriber);
     if(retval == UA_STATUSCODE_GOOD)
          UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
@@ -733,7 +735,8 @@ addPubSubConnection(UA_Server *server, UA_NetworkAddressUrlDataType *networkAddr
     connectionConfig.transportProfileUri                    = UA_STRING(ETH_TRANSPORT_PROFILE);
     UA_Variant_setScalar(&connectionConfig.address, &networkAddressUrl,
                          &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
-    connectionConfig.publisherId.numeric                    = PUBLISHER_ID;
+    connectionConfig.publisherIdType                        = UA_PUBLISHERIDTYPE_UINT16;
+    connectionConfig.publisherId.uint16                     = PUBLISHER_ID;
     /* Connection options are given as Key/Value Pairs - Sockprio and Txtime */
     UA_KeyValuePair connectionOptions[2];
     connectionOptions[0].key                  = UA_QUALIFIEDNAME(0, "sockpriority");

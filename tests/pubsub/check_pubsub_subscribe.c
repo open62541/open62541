@@ -109,7 +109,8 @@ static void setup(void) {
                          &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
     connectionConfig.transportProfileUri =
         UA_STRING("http://opcfoundation.org/UA-Profile/Transport/pubsub-udp-uadp");
-    connectionConfig.publisherId.numeric = PUBLISHER_ID;
+    connectionConfig.publisherIdType = UA_PUBLISHERIDTYPE_UINT16;
+    connectionConfig.publisherId.uint16 = PUBLISHER_ID;
     UA_Server_addPubSubConnection(server, &connectionConfig, &connectionId);
 }
 

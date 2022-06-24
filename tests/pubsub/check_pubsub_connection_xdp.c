@@ -222,7 +222,8 @@ START_TEST(AddSingleConnectionWithMaximalConfiguration){
     connectionConf.name = UA_STRING("XDP Connection");
     connectionConf.transportProfileUri = UA_STRING("http://opcfoundation.org/UA-Profile/Transport/pubsub-eth-uadp");
     connectionConf.enabled = true;
-    connectionConf.publisherId.numeric = 223344;
+    connectionConf.publisherIdType = UA_PUBLISHERIDTYPE_UINT32;
+    connectionConf.publisherId.uint32 = 223344;
     connectionConf.connectionPropertiesSize = 4;
     connectionConf.connectionProperties = connectionOptions;
     connectionConf.address = address;
@@ -259,7 +260,8 @@ START_TEST(GetMaximalConnectionConfigurationAndCompareValues){
     connectionConf.name = UA_STRING("XDP Connection");
     connectionConf.transportProfileUri = UA_STRING("http://opcfoundation.org/UA-Profile/Transport/pubsub-eth-uadp");
     connectionConf.enabled = true;
-    connectionConf.publisherId.numeric = 223344;
+    connectionConf.publisherIdType = UA_PUBLISHERIDTYPE_UINT32;
+    connectionConf.publisherId.uint32 = 223344;
     connectionConf.connectionPropertiesSize = 5;
     connectionConf.connectionProperties = connectionOptions;
     connectionConf.address = address;

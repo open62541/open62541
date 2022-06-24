@@ -361,7 +361,8 @@ addPubSubConnectionSubscriber(UA_Server *server, UA_String *transportProfile,
 
     connectionConfig.transportProfileUri                    = *transportProfile;
     UA_Variant_setScalar(&connectionConfig.address, &networkAddressUrlsubscribe, &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
-    connectionConfig.publisherId.numeric                    = UA_UInt32_random();
+    connectionConfig.publisherIdType                        = UA_PUBLISHERIDTYPE_UINT16;
+    connectionConfig.publisherId.uint16                     = (UA_UInt16) UA_UInt32_random();
     retval |= UA_Server_addPubSubConnection(server, &connectionConfig, &connectionIdentSubscriber);
     if (retval == UA_STATUSCODE_GOOD)
          UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,"The PubSub Connection was created successfully!");
@@ -596,7 +597,8 @@ addPubSubConnection(UA_Server *server, UA_String *transportProfile,
     connectionConfig.transportProfileUri                    = *transportProfile;
     UA_Variant_setScalar(&connectionConfig.address, &networkAddressUrl,
                          &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
-    connectionConfig.publisherId.numeric                    = PUBLISHER_ID;
+    connectionConfig.publisherIdType                        = UA_PUBLISHERIDTYPE_UINT16;
+    connectionConfig.publisherId.uint16                     = PUBLISHER_ID;
 #ifdef UA_ENABLE_PUBSUB_ETH_UADP
     /* Connection options are given as Key/Value Pairs - Sockprio and Txtime */
     UA_KeyValuePair connectionOptions[2];

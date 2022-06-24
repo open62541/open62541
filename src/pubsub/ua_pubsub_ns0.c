@@ -75,13 +75,31 @@ onRead(UA_Server *server, const UA_NodeId *sessionId, void *sessionContext,
             UA_PubSubConnection_findConnectionbyId(server, *myNodeId);
         switch(nodeContext->elementClassiefier) {
         case UA_NS0ID_PUBSUBCONNECTIONTYPE_PUBLISHERID:
-            if(pubSubConnection->config->publisherIdType == UA_PUBSUB_PUBLISHERID_STRING) {
-                UA_Variant_setScalar(&value, &pubSubConnection->config->publisherId.numeric,
-                                     &UA_TYPES[UA_TYPES_STRING]);
-            } else {
-                UA_Variant_setScalar(&value, &pubSubConnection->config->publisherId.numeric,
-                                     &UA_TYPES[UA_TYPES_UINT32]);
-            }
+            switch (pubSubConnection->config->publisherIdType) {
+                case UA_PUBLISHERIDTYPE_BYTE:
+                    UA_Variant_setScalar(&value, &pubSubConnection->config->publisherId.byte,
+                                         &UA_TYPES[UA_TYPES_BYTE]);
+                    break;
+                case UA_PUBLISHERIDTYPE_UINT16:
+                    UA_Variant_setScalar(&value, &pubSubConnection->config->publisherId.uint16,
+                                         &UA_TYPES[UA_TYPES_UINT16]);
+                    break;
+                case UA_PUBLISHERIDTYPE_UINT32:
+                    UA_Variant_setScalar(&value, &pubSubConnection->config->publisherId.uint32,
+                                         &UA_TYPES[UA_TYPES_UINT32]);
+                    break;
+                case UA_PUBLISHERIDTYPE_UINT64:
+                    UA_Variant_setScalar(&value, &pubSubConnection->config->publisherId.uint64,
+                                         &UA_TYPES[UA_TYPES_UINT64]);
+                    break;
+                case UA_PUBLISHERIDTYPE_STRING:
+                    UA_Variant_setScalar(&value, &pubSubConnection->config->publisherId.string,
+                                         &UA_TYPES[UA_TYPES_STRING]);
+                    break;
+                default:
+                    UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                           "Read error! Unknown PublisherId type.");
+                }
             break;
         default:
             UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
@@ -249,15 +267,25 @@ addPubSubConnectionConfig(UA_Server *server, UA_PubSubConnectionDataType *pubsub
     //connectionConfig.enabled = pubSubConnection.enabled;
     UA_Variant_setScalar(&connectionConfig.address, &networkAddressUrl,
                          &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
-    if(pubsubConnection->publisherId.type == &UA_TYPES[UA_TYPES_UINT32]){
-        connectionConfig.publisherId.numeric = * ((UA_UInt32 *) pubsubConnection->publisherId.data);
-    } else if(pubsubConnection->publisherId.type == &UA_TYPES[UA_TYPES_STRING]){
-        connectionConfig.publisherIdType = UA_PUBSUB_PUBLISHERID_STRING;
+
+    if (pubsubConnection->publisherId.type == &UA_TYPES[UA_TYPES_BYTE]) {
+        connectionConfig.publisherIdType = UA_PUBLISHERIDTYPE_BYTE;
+        connectionConfig.publisherId.byte = *((UA_Byte*)pubsubConnection->publisherId.data);
+    } else if (pubsubConnection->publisherId.type == &UA_TYPES[UA_TYPES_UINT16]) {
+        connectionConfig.publisherIdType = UA_PUBLISHERIDTYPE_UINT16;
+        connectionConfig.publisherId.uint16 = *((UA_UInt16*)pubsubConnection->publisherId.data);
+    } else if (pubsubConnection->publisherId.type == &UA_TYPES[UA_TYPES_UINT32]) {
+        connectionConfig.publisherIdType = UA_PUBLISHERIDTYPE_UINT32;
+        connectionConfig.publisherId.uint32 = *((UA_UInt32*)pubsubConnection->publisherId.data);
+    } else if (pubsubConnection->publisherId.type == &UA_TYPES[UA_TYPES_UINT64]) {
+        connectionConfig.publisherIdType = UA_PUBLISHERIDTYPE_UINT64;
+        connectionConfig.publisherId.uint64 = *((UA_UInt64*)pubsubConnection->publisherId.data);
+    } else if (pubsubConnection->publisherId.type == &UA_TYPES[UA_TYPES_STRING]) {
+        connectionConfig.publisherIdType = UA_PUBLISHERIDTYPE_STRING;
         UA_String_copy((UA_String *) pubsubConnection->publisherId.data, &connectionConfig.publisherId.string);
     } else {
-        UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER, "Unsupported PublisherId Type used.");
-        //TODO what's the best default behaviour here?
-        connectionConfig.publisherId.numeric = 0;
+        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER, "Unsupported PublisherId Type used.");
+        return UA_STATUSCODE_BADCONFIGURATIONERROR;
     }
 
     retVal |= UA_Server_addPubSubConnection(server, &connectionConfig, connectionId);
