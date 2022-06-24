@@ -134,7 +134,7 @@ UA_debug_dumpCompleteChunk(UA_Server *const server, UA_Connection *const connect
     struct UA_dump_filename dump_filename;
     dump_filename.messageType = NULL;
     dump_filename.serviceName[0] = 0;
-    
+
     UA_Connection c = createDummyConnection(RECEIVE_BUFFER_SIZE, NULL);
     UA_SecureChannel dummy;
     UA_SecureChannel_init(&dummy, &connection->channel->config);
@@ -155,7 +155,7 @@ UA_debug_dumpCompleteChunk(UA_Server *const server, UA_Connection *const connect
     dummy.securityPolicy = NULL;
     UA_SecureChannel_deleteBuffered(&dummy);
     c.close(&c);
-    
+
     char fileName[250];
     snprintf(fileName, sizeof(fileName), "%s/%05u_%s%s", UA_CORPUS_OUTPUT_DIR, ++UA_dump_chunkCount,
              dump_filename.messageType ? dump_filename.messageType : "", dump_filename.serviceName);

@@ -27,8 +27,8 @@ typedef struct {
     UA_NetworkAddressUrlDataType address;
     UA_UInt32 mqttRecvBufferSize;
     UA_UInt32 mqttSendBufferSize;
-    uint8_t *mqttSendBuffer; 
-    uint8_t *mqttRecvBuffer; 
+    uint8_t *mqttSendBuffer;
+    uint8_t *mqttRecvBuffer;
     UA_String *mqttClientId;
     UA_Connection *connection;
 #if defined(UA_ENABLE_MQTT_TLS_OPENSSL)
@@ -74,7 +74,7 @@ subscribeMqtt(UA_PubSubChannelDataMQTT*, UA_String topic, UA_Byte qos);
 
 UA_StatusCode
 yieldMqtt(UA_PubSubChannelDataMQTT*, UA_UInt16 timeout);
-    
+
 #ifdef __cplusplus
 } // extern "C"
 #endif

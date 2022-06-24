@@ -280,7 +280,7 @@ static Suite * namespace_suite (void) {
     tcase_add_test (tc_iterate, iterateOverUA_NodeStoreShallNotVisitEmptyNodes);
     tcase_add_test (tc_iterate, iterateOverExpandedNamespaceShallNotVisitEmptyNodes);
     suite_add_tcase (s, tc_iterate);
-    
+
     TCase* tc_profile = tcase_create ("Profile-ZipTree");
     tcase_add_checked_fixture(tc_profile, setupZipTree, teardown);
     tcase_add_test (tc_profile, profileGetDelete);
@@ -306,7 +306,7 @@ static Suite * namespace_suite (void) {
     tcase_add_test (tc_iterate_hm, iterateOverUA_NodeStoreShallNotVisitEmptyNodes);
     tcase_add_test (tc_iterate_hm, iterateOverExpandedNamespaceShallNotVisitEmptyNodes);
     suite_add_tcase (s, tc_iterate_hm);
-    
+
     TCase* tc_profile_hm = tcase_create ("Profile-HashMap");
     tcase_add_checked_fixture(tc_profile_hm, setupHashMap, teardown);
     tcase_add_test (tc_profile_hm, profileGetDelete);

@@ -384,7 +384,7 @@ UA_Server_unfreezeWriterGroupConfiguration(UA_Server *server,
     /* Already unfrozen */
     if(!wg->configurationFrozen)
         return UA_STATUSCODE_GOOD;
-    
+
     //if(wg->config.rtLevel == UA_PUBSUB_RT_NONE){
     //    UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
     //                   "PubSub configuration freeze without RT configuration has no effect.");

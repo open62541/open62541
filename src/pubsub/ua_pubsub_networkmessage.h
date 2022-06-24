@@ -168,18 +168,18 @@ typedef struct {
     union {
         UA_DataSetPayloadHeader dataSetPayloadHeader;
     } payloadHeader;
-    
+
     UA_DateTime timestamp;
     UA_UInt16 picoseconds;
     UA_UInt16 promotedFieldsSize;
     UA_Variant* promotedFields; /* BaseDataType */
-    
+
     UA_NetworkMessageSecurityHeader securityHeader;
 
     union {
         UA_DataSetPayload dataSetPayload;
     } payload;
-    
+
     UA_ByteString securityFooter;
 } UA_NetworkMessage;
 

@@ -830,7 +830,7 @@ UA_PubSubChannelEthernet_open(const UA_PubSubConnectionConfig *connectionConfig)
             UA_LOG_SOCKET_ERRNO_WRAP(
             UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "setsockopt SO_PRIORITY failed (%s)", errno_str));
             UA_close(sockFd);
-            
+
             UA_free(sockOptions.socketPriority);
             UA_free(channelDataEthernet);
             UA_free(newChannel);
@@ -945,7 +945,7 @@ UA_PubSubChannelEthernet_unregist(UA_PubSubChannel *channel,
     mreq.mr_alen = ETH_ALEN;
     memcpy(mreq.mr_address, channelDataEthernet->targetAddress, ETH_ALEN);
 
-    if(UA_setsockopt(channel->sockfd, SOL_PACKET, PACKET_DROP_MEMBERSHIP, (char*) &mreq, sizeof(mreq)) < 0) { 
+    if(UA_setsockopt(channel->sockfd, SOL_PACKET, PACKET_DROP_MEMBERSHIP, (char*) &mreq, sizeof(mreq)) < 0) {
         UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "PubSub Connection regist failed.");
         return UA_STATUSCODE_BADINTERNALERROR;
     }

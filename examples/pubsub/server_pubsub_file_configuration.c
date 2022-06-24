@@ -46,7 +46,7 @@ int main(int argc, char** argv) {
             break;
 
         default:
-            usage_info(); 
+            usage_info();
     }
 
     /* 2. Initialize Server */
@@ -58,7 +58,7 @@ int main(int argc, char** argv) {
     UA_VariableAttributes attr;
     UA_NodeId parentReferenceNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES);
     UA_NodeId pubSubVariableObjectId = UA_NODEID_STRING(1, "PubSubObject");
-    
+
     UA_ObjectAttributes oAttr = UA_ObjectAttributes_default;
     oAttr.displayName = UA_LOCALIZEDTEXT("en-US", "PubSubVariables");
     UA_Server_addObjectNode(server, pubSubVariableObjectId,
@@ -138,10 +138,10 @@ int main(int argc, char** argv) {
         statusCode = UA_PubSubManager_getEncodedPubSubConfiguration(server, &buffer);
         if(statusCode == UA_STATUSCODE_GOOD)
             statusCode = writeFile(argv[2], buffer);
-        
-        if(statusCode != UA_STATUSCODE_GOOD) 
+
+        if(statusCode != UA_STATUSCODE_GOOD)
             UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "Saving PubSub configuration to file failed. StatusCode: 0x%x\n", statusCode);
-        
+
         UA_ByteString_clear(&buffer);
     }
 

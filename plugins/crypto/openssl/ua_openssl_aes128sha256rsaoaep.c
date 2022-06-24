@@ -94,7 +94,7 @@ UA_Policy_Aes128Sha256RsaOaep_Clear_Context(UA_SecurityPolicy *policy) {
     Policy_Context_Aes128Sha256RsaOaep *pc =
         (Policy_Context_Aes128Sha256RsaOaep *)policy->policyContext;
     if (pc == NULL) {
-        return; 
+        return;
     }
 
     EVP_PKEY_free(pc->localPrivateKey);

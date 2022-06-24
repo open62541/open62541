@@ -128,7 +128,7 @@ encryptUserIdentityToken(UA_Client *client, const UA_String *userTokenSecurityPo
                        "Could not instantiate the SecurityPolicy for the UserToken");
         return UA_STATUSCODE_BADINTERNALERROR;
     }
-    
+
     /* Compute the encrypted length (at least one byte padding) */
     size_t plainTextBlockSize = sp->asymmetricModule.cryptoModule.
         encryptionAlgorithm.getRemotePlainTextBlockSize(channelContext);
@@ -657,7 +657,7 @@ responseGetEndpoints(UA_Client *client, void *userdata, UA_UInt32 requestId,
             const UA_DataType *tokenType = client->config.userIdentityToken.content.decoded.type;
 
             /* Usertokens also have a security policy... */
-            if(tokenPolicy->tokenType != UA_USERTOKENTYPE_ANONYMOUS && 
+            if(tokenPolicy->tokenType != UA_USERTOKENTYPE_ANONYMOUS &&
                tokenPolicy->securityPolicyUri.length > 0 &&
                !getSecurityPolicy(client, tokenPolicy->securityPolicyUri)) {
                 UA_LOG_INFO(&client->config.logger, UA_LOGCATEGORY_CLIENT,
@@ -809,7 +809,7 @@ responseSessionCallback(UA_Client *client, void *userdata,
             goto cleanup;
     }
 #endif
-    
+
     /* Copy nonce and AuthenticationToken */
     UA_ByteString_clear(&client->remoteNonce);
     UA_NodeId_clear(&client->authenticationToken);
@@ -1003,15 +1003,15 @@ verifyClientApplicationURI(const UA_Client *client) {
 #if defined(UA_ENABLE_ENCRYPTION) && (UA_LOGLEVEL <= 400)
     for(size_t i = 0; i < client->config.securityPoliciesSize; i++) {
         UA_SecurityPolicy *sp = &client->config.securityPolicies[i];
-        
-        if(sp->localCertificate.data == NULL) 
+
+        if(sp->localCertificate.data == NULL)
         {
                 UA_LOG_WARNING(&client->config.logger, UA_LOGCATEGORY_CLIENT,
                 "skip verifying ApplicationURI for the SecurityPolicy %.*s",
                 (int)sp->policyUri.length, sp->policyUri.data);
                 continue;
         }
-        
+
         UA_StatusCode retval =
             client->config.certificateVerification.
             verifyApplicationURI(client->config.certificateVerification.context,

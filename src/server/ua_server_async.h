@@ -63,7 +63,7 @@ typedef struct {
     /* Operations for the workers. The queues are all FIFO: Put in at the tail,
      * take out at the head.*/
     UA_Lock queueLock;
-    UA_AsyncOperationQueue newQueue;        /* New operations for the workers */    
+    UA_AsyncOperationQueue newQueue;        /* New operations for the workers */
     UA_AsyncOperationQueue dispatchedQueue; /* Operations taken by a worker. When a result is
                                              * returned, we search for the op here to see if it
                                              * is still "alive" (not timed out). */

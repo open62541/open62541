@@ -213,7 +213,7 @@ sym_verify_sp_basic256(Basic256_ChannelContext *cc,
         return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
 
     Basic256_PolicyContext *pc = cc->policyContext;
-    
+
     unsigned char mac[UA_SHA1_LENGTH];
     mbedtls_hmac(&pc->sha1MdContext, &cc->remoteSymSigningKey, message, mac);
 

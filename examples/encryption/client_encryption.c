@@ -53,7 +53,7 @@ int main(int argc, char* argv[]) {
         UA_Client_delete(client);
         return EXIT_FAILURE;
     }
-    
+
     UA_ByteString_clear(&certificate);
     UA_ByteString_clear(&privateKey);
     for(size_t deleteCount = 0; deleteCount < trustListSize; deleteCount++) {

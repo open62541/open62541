@@ -7,7 +7,7 @@
  *    Copyright 2018 (c) HMS Industrial Networks AB (Author: Jonas Green)
  *    Copyright 2020 (c) Wind River Systems, Inc.
  *    Copyright 2020 (c) basysKom GmbH
- * 
+ *
  */
 
 #include <open62541/plugin/securitypolicy_default.h>

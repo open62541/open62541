@@ -1043,7 +1043,7 @@ START_TEST(AddNewPubSubConnectionWithReaderGroupandDataSetReader){
         targetVars.targetVariablesSize = 4;
         targetVars.targetVariables = (UA_FieldTargetDataType *)
             UA_calloc(targetVars.targetVariablesSize, sizeof(UA_FieldTargetDataType));
-        UA_ExtensionObject extensionObjectTargetVars; 
+        UA_ExtensionObject extensionObjectTargetVars;
         for(size_t i = 0; i < targetVars.targetVariablesSize; i++) {
             /* For creating Targetvariables */
             UA_FieldTargetDataType_init(&targetVars.targetVariables[i]);

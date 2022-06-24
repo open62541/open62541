@@ -681,10 +681,10 @@ copyChild(UA_Server *server, UA_Session *session,
          * manually added by the user during addnode_begin and addnode_finish. */
         /* For now we keep all the modelling rule references and delete all others */
         const UA_NodeId nodeId_typesFolder= UA_NODEID_NUMERIC(0, UA_NS0ID_TYPESFOLDER);
-        const UA_ReferenceTypeSet reftypes_aggregates = 
+        const UA_ReferenceTypeSet reftypes_aggregates =
             UA_REFTYPESET(UA_REFERENCETYPEINDEX_AGGREGATES);
         UA_ReferenceTypeSet reftypes_skipped;
-        /* Check if the hasModellingRule-reference is required (configured or node in an 
+        /* Check if the hasModellingRule-reference is required (configured or node in an
             instance declaration) */
         if(server->config.modellingRulesOnInstances ||
            isNodeInTree(server, destinationNodeId,
@@ -737,8 +737,8 @@ copyChild(UA_Server *server, UA_Session *session,
             deleteNode(server, newNodeId, true);
             return retval;
         }
-        
-        /* Clean up.  Because it can happen that a string is assigned as ID at 
+
+        /* Clean up.  Because it can happen that a string is assigned as ID at
          * generateChildNodeId. */
         UA_NodeId_clear(&newNodeId);
     }
@@ -921,7 +921,7 @@ AddNode_addRefs(UA_Server *server, UA_Session *session, const UA_NodeId *nodeId,
             UA_ReferenceTypeSet refTypes = UA_ReferenceTypeSet_union(refTypes1, refTypes2);
             if(retval != UA_STATUSCODE_GOOD)
                 goto cleanup;
-            
+
             /* Abstract variable is allowed if parent is a children of a
              * base data variable. An abstract variable may be part of an
              * object type which again is below BaseObjectType */
@@ -954,12 +954,12 @@ AddNode_addRefs(UA_Server *server, UA_Session *session, const UA_NodeId *nodeId,
             const UA_NodeId objectTypes = UA_NODEID_NUMERIC(0, UA_NS0ID_BASEOBJECTTYPE);
             UA_Boolean isInBaseObjectType =
                 isNodeInTree(server, parentNodeId, &objectTypes, &refTypes);
-            
+
             const UA_NodeId eventTypes = UA_NODEID_NUMERIC(0, UA_NS0ID_BASEEVENTTYPE);
             UA_Boolean isInBaseEventType =
                 isNodeInTree_singleRef(server, &type->head.nodeId, &eventTypes,
                                        UA_REFERENCETYPEINDEX_HASSUBTYPE);
-            
+
             if(!isInBaseObjectType &&
                !(isInBaseEventType && UA_NodeId_isNull(parentNodeId))) {
                 logAddNode(&server->config.logger, session, nodeId,
@@ -1398,7 +1398,7 @@ checkSetIsDynamicVariable(UA_Server *server, UA_Session *session,
     /* Set the variable to "dynamic" */
     UA_Server_editNode(server, session, nodeId,
                        (UA_EditNodeCallback)setVariableNodeDynamic, NULL);
-    
+
     return UA_STATUSCODE_GOOD;
 }
 
@@ -1750,7 +1750,7 @@ deconstructNodeSet(UA_Server *server, UA_Session *session,
                   lifecycle = &type->objectTypeNode.lifecycle;
                else
                   lifecycle = &type->variableTypeNode.lifecycle;
-               
+
                /* Call the destructor */
                if(lifecycle->destructor) {
                   UA_UNLOCK(&server->serviceMutex);

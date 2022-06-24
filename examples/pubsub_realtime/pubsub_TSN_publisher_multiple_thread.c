@@ -584,7 +584,7 @@ addDataSetReader(UA_Server *server) {
  * Create connection, writergroup, datasetwriter and publisheddataset for Publisher thread.
  */
 static void
-addPubSubConnection(UA_Server *server, UA_String *transportProfile, 
+addPubSubConnection(UA_Server *server, UA_String *transportProfile,
                     UA_NetworkAddressUrlDataType *networkAddressUrlPub){
     /* Details about the connection configuration and handling are located
      * in the pubsub connection tutorial */
@@ -832,7 +832,7 @@ void userApplicationPublisher(UA_UInt64 monotonicOffsetValue) {
             updateMeasurementsPublisher(dataModificationTime, *pubCounterData, monotonicOffsetValue);
     }
 
-    /* *runningPub variable made false and send to the publisher application which is running in another node 
+    /* *runningPub variable made false and send to the publisher application which is running in another node
        which will close the application during blocking socket condition */
     if (signalTerm == UA_TRUE) {
         *runningPub = UA_FALSE;
@@ -866,7 +866,7 @@ updateMeasurementsSubscriber(struct timespec receive_time, UA_UInt64 counterValu
 }
 
 /**
- * userApplicationSubscriber function is used to read the data from Information Model for the Subscriber and 
+ * userApplicationSubscriber function is used to read the data from Information Model for the Subscriber and
  * writes the updated counterdata in distinct csv files
  **/
 void userApplicationSubscriber(UA_UInt64 monotonicOffsetValue) {
@@ -1484,7 +1484,7 @@ int main(int argc, char **argv) {
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,"\nTotal Packet Loss Count of publisher application :%"PRIu64"\n", \
                 threadArgPubSub1->packetLossCount);
     UA_Server_unfreezeReaderGroupConfiguration(server, readerGroupIdentifier);
-#endif  
+#endif
     returnValue = pthread_join(pubAppThreadID, NULL);
     if (returnValue != 0)
         UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,"\nPthread Join Failed for pubApp thread:%d\n", returnValue);

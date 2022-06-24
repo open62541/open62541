@@ -145,6 +145,6 @@ int main(int argc, char **argv) {
         retval = subscriberListen(psc);
 
     psc->close(psc);
-        
+
     return 0;
 }

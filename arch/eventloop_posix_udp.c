@@ -249,7 +249,7 @@ UDP_registerListenSocket(UA_ConnectionManager *cm, UA_UInt16 port,
                           "UDP\t| getnameinfo(...) could not resolve the hostname (%s)",
                           errno_str));
     }
-    
+
     /* Create the server socket */
     UA_FD listenSocket = UA_socket(ai->ai_family, ai->ai_socktype, ai->ai_protocol);
     if(listenSocket == UA_INVALID_FD) {
@@ -739,7 +739,7 @@ UDP_openReceiveConnection(UA_ConnectionManager *cm,
         return UDP_registerListenSockets(cm, NULL, *port, application,
                                          context, connectionCallback);
     }
-    
+
     /* Iterate over the configured hostnames */
     UA_String *hostStrings = (UA_String*)hostNames->data;
     for(size_t i = 0; i < hostNames->arrayLength; i++) {
@@ -800,7 +800,7 @@ UDP_eventSourceStart(UA_ConnectionManager *cm) {
     UA_StatusCode res = UA_ByteString_allocBuffer(&ucm->rxBuffer, rxBufSize);
     if(res != UA_STATUSCODE_GOOD)
         return res;
-    
+
     /* Set the EventSource to the started state */
     cm->eventSource.state = UA_EVENTSOURCESTATE_STARTED;
 

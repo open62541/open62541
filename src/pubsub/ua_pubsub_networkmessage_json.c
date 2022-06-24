@@ -472,7 +472,7 @@ NetworkMessage_decodeJsonInternal(UA_NetworkMessage *dst, CtxJson *ctx,
     //TODO: MetaData
     if(!isUaData)
         return UA_STATUSCODE_BADNOTIMPLEMENTED;
-        
+
     /* Network Message */
     UA_String messageType;
     DecodeEntry entries[5] = {

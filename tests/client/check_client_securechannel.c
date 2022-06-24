@@ -173,7 +173,7 @@ START_TEST(SecureChannel_reconnect) {
 
     UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
-    
+
     UA_Client_disconnectSecureChannel(client);
 
     UA_ClientConfig *cconfig = UA_Client_getConfig(client);

@@ -173,7 +173,7 @@ struct UA_EventLoop {
  * Event Sources are attached to an EventLoop. Typically the event source and
  * the EventLoop are developed together and share a private API in the
  * background. */
- 
+
 typedef enum {
     UA_EVENTSOURCESTATE_FRESH = 0,
     UA_EVENTSOURCESTATE_STOPPED,      /* Registered but stopped */

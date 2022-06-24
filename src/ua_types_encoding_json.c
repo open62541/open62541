@@ -1,6 +1,6 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. 
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  *
  *    Copyright 2014-2018 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
  *    Copyright 2018 (c) Fraunhofer IOSB (Author: Lukas Meling)
@@ -504,7 +504,7 @@ ENCODE_JSON(String) {
                 break;
 
             /* TODO: Why is this commented? */
-            /* slash 
+            /* slash
             if((flags & JSON_ESCAPE_SLASH) && codepoint == '/')
                 break;*/
 
@@ -1023,8 +1023,8 @@ Variant_encodeJsonWrapExtensionObject(const UA_Variant *src, const bool isArray,
 }
 
 static status
-addMultiArrayContentJSON(CtxJson *ctx, void* array, const UA_DataType *type, 
-                         size_t *index, UA_UInt32 *arrayDimensions, size_t dimensionIndex, 
+addMultiArrayContentJSON(CtxJson *ctx, void* array, const UA_DataType *type,
+                         size_t *index, UA_UInt32 *arrayDimensions, size_t dimensionIndex,
                          size_t dimensionSize) {
     /* Stop recursion: The inner Arrays are written */
     status ret;
@@ -1074,7 +1074,7 @@ ENCODE_JSON(Variant) {
             typeId = UA_TYPES[UA_TYPES_EXTENSIONOBJECT].typeId.identifier.numeric;
         ret |= writeJsonKey(ctx, UA_JSONKEY_TYPE);
         ret |= ENCODE_DIRECT_JSON(&typeId, UInt32);
-            
+
         /* Write the reversible form body */
         if(!isBuiltin) {
             /* Not builtin. Can it be encoded? Wrap in extension object. */
@@ -1093,7 +1093,7 @@ ENCODE_JSON(Variant) {
         /* Write the dimensions */
         if(hasDimensions) {
             ret |= writeJsonKey(ctx, UA_JSONKEY_DIMENSION);
-            ret |= encodeJsonArray(ctx, src->arrayDimensions, src->arrayDimensionsSize, 
+            ret |= encodeJsonArray(ctx, src->arrayDimensions, src->arrayDimensionsSize,
                                    &UA_TYPES[UA_TYPES_INT32]);
         }
     } else {
@@ -1958,7 +1958,7 @@ lookAheadForKey(const char *key, CtxJson *ctx,
 }
 
 static status
-prepareDecodeNodeIdJson(UA_NodeId *dst, CtxJson *ctx, ParseCtx *parseCtx, 
+prepareDecodeNodeIdJson(UA_NodeId *dst, CtxJson *ctx, ParseCtx *parseCtx,
                         u8 *fieldCount, DecodeEntry *entries) {
     /* possible keys: Id, IdType, NamespaceIndex */
     /* Id must always be present */

@@ -1,6 +1,6 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. 
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  *
  *    Copyright 2014-2019 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
  *    Copyright 2014-2017 (c) Florian Palm
@@ -184,7 +184,7 @@ isNodeInTree_singleRef(UA_Server *server, const UA_NodeId *leafNode,
     UA_ReferenceTypeSet reftypes = UA_REFTYPESET(relevantRefTypeIndex);
     return isNodeInTree(server, leafNode, nodeToFind, &reftypes);
 }
- 
+
 static enum ZIP_CMP
 cmpTarget(const void *a, const void *b) {
     const RefEntry *aa = (const RefEntry*)a;
@@ -525,7 +525,7 @@ addReferenceDescription(UA_Server *server, RefResult *rr,
     UA_ExpandedNodeId en = UA_NodePointer_toExpandedNodeId(nodeP);
     retval = UA_ExpandedNodeId_copy(&en, &descr->nodeId);
     if(mask & UA_BROWSERESULTMASK_REFERENCETYPEID) {
-        const UA_NodeId *refTypeId = 
+        const UA_NodeId *refTypeId =
             UA_NODESTORE_GETREFERENCETYPEID(server, ref->referenceTypeIndex);
         retval |= UA_NodeId_copy(refTypeId, &descr->referenceTypeId);
     }
@@ -537,7 +537,7 @@ addReferenceDescription(UA_Server *server, RefResult *rr,
         UA_ReferenceDescription_clear(descr);
         return retval;
     }
-    
+
     /* Fields that require the actual node */
     if(mask & UA_BROWSERESULTMASK_NODECLASS)
         descr->nodeClass = curr->head.nodeClass;
@@ -1093,7 +1093,7 @@ walkBrowsePathElement(UA_Server *server, UA_Session *session,
                     aa_find(&_refNameTree, &browseNameHash);
                 if(!rt)
                     continue;
-                
+
                 res = recursiveAddBrowseHashTarget(next, &_refNameTree, rt);
                 if(res != UA_STATUSCODE_GOOD)
                     break;

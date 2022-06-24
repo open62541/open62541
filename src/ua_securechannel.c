@@ -660,7 +660,7 @@ assembleProcessMessage(UA_SecureChannel *channel, void *application,
     UA_ByteString payload;
     res = UA_ByteString_allocBuffer(&payload, messageSize);
     UA_CHECK_STATUS(res, return res);
-    
+
     /* Assemble the full message */
     size_t offset = 0;
     while(true) {
@@ -673,7 +673,7 @@ assembleProcessMessage(UA_SecureChannel *channel, void *application,
         if(ct == UA_CHUNKTYPE_FINAL)
             break;
     }
-    
+
     /* Process the assembled message */
     res = callback(application, channel, messageType, requestId, &payload);
     UA_ByteString_clear(&payload);
@@ -910,7 +910,7 @@ UA_SecureChannel_receive(UA_SecureChannel *channel, void *application,
                          UA_ProcessMessageCallback callback, UA_UInt32 timeout) {
     UA_Connection *connection = channel->connection;
     UA_CHECK_MEM(connection, return UA_STATUSCODE_BADINTERNALERROR);
-    
+
     /* Listen for messages to arrive */
     UA_ByteString buffer = UA_BYTESTRING_NULL;
     UA_StatusCode res = connection->recv(connection, &buffer, timeout);

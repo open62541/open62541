@@ -110,7 +110,7 @@ void client_addVariableType(void* value){
 static
 void initTest(void) {
     initThreadContext(NUMBER_OF_WORKERS, NUMBER_OF_CLIENTS, checkServer);
-    
+
     for (size_t i = 0; i < tc.numberOfWorkers; i++) {
         setThreadContext(&tc.workerContext[i], i, ITERATIONS_PER_WORKER, server_addVariableType);
     }

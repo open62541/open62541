@@ -83,7 +83,7 @@ int main(void) {
  * as an exchangeable plugin. But don't worry. *open62541* provides plugin
  * implementations for most platforms and sensible default configurations
  * out-of-the-box.
- * 
+ *
  * In the above server code, we simply take the default server configuration and
  * add a single TCP network layer that is listerning on port 4840.
  *

@@ -233,7 +233,7 @@ orOperator(UA_FilterOperatorContext *ctx) {
     if(secondBoolean == UA_STATUSCODE_GOOD) {
         ctx->valueResult[ctx->index].type = &UA_TYPES[UA_TYPES_BOOLEAN];
         return UA_STATUSCODE_GOOD;
-    } 
+    }
     if((firstBoolean_or == UA_STATUSCODE_BADNOMATCH) &&
        (secondBoolean == UA_STATUSCODE_BADNOMATCH)) {
         ctx->valueResult[ctx->index].type = &UA_TYPES[UA_TYPES_BOOLEAN];

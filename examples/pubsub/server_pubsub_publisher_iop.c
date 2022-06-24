@@ -672,7 +672,7 @@ timerCallback(UA_Server *server, void *data) {
     UA_Variant_setScalar(&tmpVari, &ds2DoubleVal, &UA_TYPES[UA_TYPES_DOUBLE]);
     UA_Server_writeValue(server, ds2DoubleId, tmpVari);
 
-    // String 
+    // String
     UA_Variant_init(&tmpVari);
     ds2StringIndex++;
     if(ds2StringIndex >= ds2StringArrayLen)
@@ -681,7 +681,7 @@ timerCallback(UA_Server *server, void *data) {
     UA_Variant_setScalar(&tmpVari, &ds2StringArray[ds2StringIndex], &UA_TYPES[UA_TYPES_STRING]);
     UA_Server_writeValue(server, ds2StringId, tmpVari);
 
-    // ByteString 
+    // ByteString
     UA_Variant_init(&tmpVari);
     UA_ByteString bs;
     UA_ByteString_init(&bs);
@@ -693,7 +693,7 @@ timerCallback(UA_Server *server, void *data) {
     UA_Server_writeValue(server, ds2ByteStringId, tmpVari);
     UA_ByteString_clear(&bs);
 
-    // Guid 
+    // Guid
     UA_Variant_init(&tmpVari);
     UA_Guid g = UA_Guid_random();
     UA_Variant_setScalar(&tmpVari, &g, &UA_TYPES[UA_TYPES_GUID]);
@@ -730,7 +730,7 @@ static int run(UA_String *transportProfile,
 #endif
 
     addPubSubConnection(server, transportProfile, networkAddressUrl);
-    
+
     /* Create a PublishedDataSet based on a PublishedDataSetConfig. */
     UA_PublishedDataSetConfig publishedDataSetConfig;
     publishedDataSetConfig.publishedDataSetType = UA_PUBSUB_DATASET_PUBLISHEDITEMS;
@@ -757,13 +757,13 @@ static int run(UA_String *transportProfile,
     UA_Server_setWriterGroupOperational(server, writerGroupIdent);
 
     /* Create a new Writer and connect it with an existing PublishedDataSet */
-    // DataSetWriter ID 1 with Variant Encoding 
+    // DataSetWriter ID 1 with Variant Encoding
     UA_DataSetWriterConfig dataSetWriterConfig;
     memset(&dataSetWriterConfig, 0, sizeof(UA_DataSetWriterConfig));
     dataSetWriterConfig.name = UA_STRING("DataSet 1 DataSetWriter");
     dataSetWriterConfig.dataSetWriterId = 1;
     //The creation of delta messages is configured in the following line. Value
-    // 0 -> no delta messages are created. 
+    // 0 -> no delta messages are created.
     dataSetWriterConfig.keyFrameCount = 10;
 
     UA_NodeId writerIdentifier;
@@ -788,7 +788,7 @@ static int run(UA_String *transportProfile,
     dataSetWriterConfig2.name = UA_STRING("DataSet 2 DataSetWriter");
     dataSetWriterConfig2.dataSetWriterId = 2;
     //The creation of delta messages is configured in the following line. Value
-    // 0 -> no delta messages are created. 
+    // 0 -> no delta messages are created.
     dataSetWriterConfig2.keyFrameCount = 10;
 
     UA_NodeId writerIdentifier2;

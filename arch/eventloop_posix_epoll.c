@@ -19,7 +19,7 @@ UA_EventLoopPOSIX_registerFD(UA_EventLoopPOSIX *el, UA_RegisteredFD *rfd) {
         event.events |= EPOLLIN;
     if(rfd->listenEvents & UA_FDEVENT_OUT)
         event.events |= EPOLLOUT;
-            
+
     int err = epoll_ctl(el->epollfd, EPOLL_CTL_ADD, rfd->fd, &event);
     if(err != 0) {
         UA_LOG_SOCKET_ERRNO_WRAP(
@@ -40,7 +40,7 @@ UA_EventLoopPOSIX_modifyFD(UA_EventLoopPOSIX *el, UA_RegisteredFD *rfd) {
         event.events |= EPOLLIN;
     if(rfd->listenEvents & UA_FDEVENT_OUT)
         event.events |= EPOLLOUT;
-            
+
     int err = epoll_ctl(el->epollfd, EPOLL_CTL_MOD, rfd->fd, &event);
     if(err != 0) {
         UA_LOG_SOCKET_ERRNO_WRAP(
@@ -107,7 +107,7 @@ UA_EventLoopPOSIX_pollFDs(UA_EventLoopPOSIX *el, UA_DateTime listenTimeout) {
         } else {
             revent = UA_FDEVENT_ERR;
         }
-        
+
         UA_UNLOCK(&el->elMutex);
         rfd->callback(rfd->es, rfd, revent);
         UA_LOCK(&el->elMutex);

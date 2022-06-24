@@ -307,20 +307,20 @@ START_TEST(udpTalkerAndListener) {
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
     size_t listenSockets = testContext.connCount;
-    
+
     /* Open a talker connection */
     clientId = 0;
-    
+
     UA_String targetHost = UA_STRING("localhost");
     params[0].key = UA_QUALIFIEDNAME(0, "port");
     params[0].value = portVar;
     params[1].key = UA_QUALIFIEDNAME(0, "hostname");
     UA_Variant_setScalar(&params[1].value, &targetHost, &UA_TYPES[UA_TYPES_STRING]);
-    
+
     retval = cmTalker->openConnection(cmTalker, 2, params, NULL, &testContext,
                                       connectionCallback);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
-    
+
     /* The talker el should receive a signal "ready to be written on" */
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     for(size_t i = 0; i < 2; i++) {
@@ -329,7 +329,7 @@ START_TEST(udpTalkerAndListener) {
     }
     ck_assert_uint_ne(clientId, 0);
     ck_assert_uint_eq(testContext.connCount, listenSockets + 1);
-    
+
     /* Send a message from the talker */
     received = false;
     UA_ByteString snd;
@@ -343,7 +343,7 @@ START_TEST(udpTalkerAndListener) {
         UA_fakeSleep((UA_UInt32)((next - UA_DateTime_now()) / UA_DATETIME_MSEC));
     }
     ck_assert(received);
-    
+
     /* Close the connection */
     retval = cmTalker->closeConnection(cmTalker, clientId);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
@@ -353,7 +353,7 @@ START_TEST(udpTalkerAndListener) {
         UA_fakeSleep((UA_UInt32)((next - UA_DateTime_now()) / UA_DATETIME_MSEC));
     }
     ck_assert_uint_eq(testContext.connCount, listenSockets);
-    
+
     /* Stop the Talker EventLoop */
     int max_stop_iteration_count = 10;
     int iteration = 0;
@@ -367,7 +367,7 @@ START_TEST(udpTalkerAndListener) {
     ck_assert_int_eq(elTalker->state, UA_EVENTLOOPSTATE_STOPPED);
     elTalker->free(elTalker);
     elTalker = NULL;
-    
+
     /* Stop the Listener EventLoop */
     max_stop_iteration_count = 10;
     iteration = 0;

@@ -206,7 +206,7 @@ addWriterGroup(UA_Server *server, char *topic, int interval) {
     /* decide whether to use JSON or UADP encoding*/
 #ifdef UA_ENABLE_JSON_ENCODING
     UA_JsonWriterGroupMessageDataType *Json_writerGroupMessage;
-    
+
     if(useJson) {
         writerGroupConfig.encodingMimeType = UA_PUBSUB_ENCODING_JSON;
         writerGroupConfig.messageSettings.encoding             = UA_EXTENSIONOBJECT_DECODED;
