@@ -44,7 +44,7 @@ START_TEST(UA_PubSub_EnDecode_ShallWorkOn1DS1ValueVariantKeyFrame) {
     memset(bufPos, 0, msgSize);
     const UA_Byte *bufEnd = &(buffer.data[buffer.length]);
     rv = UA_NetworkMessage_encodeBinary(&m, &bufPos, bufEnd, NULL);
-    
+
     ck_assert_int_eq(rv, UA_STATUSCODE_GOOD);
 
     UA_NetworkMessage m2;
@@ -1023,7 +1023,7 @@ START_TEST(UA_PubSub_EnDecode_ShallWorkOn1DS2ValuesVariantKeyFrameTSProm) {
     m.promotedFieldsEnabled = true;
     m.promotedFieldsSize = 1;
     m.promotedFields = (UA_Variant*)UA_Array_new(m.promotedFieldsSize, &UA_TYPES[UA_TYPES_VARIANT]);
-    
+
     UA_DataSetMessage dmkf;
     memset(&dmkf, 0, sizeof(UA_DataSetMessage));
     dmkf.header.dataSetMessageValid = true;
@@ -1364,13 +1364,13 @@ int main(void) {
 
     TCase *tc_ende2 = tcase_create("encode_decode2DS");
     tcase_add_test(tc_ende2, UA_PubSub_EnDecode_ShallWorkOn2DSVariant);
-    
-    Suite *s = suite_create("PubSub NetworkMessage");   
+
+    Suite *s = suite_create("PubSub NetworkMessage");
     suite_add_tcase(s, tc_encode);
     suite_add_tcase(s, tc_decode);
     suite_add_tcase(s, tc_ende1);
     suite_add_tcase(s, tc_ende2);
-    
+
     SRunner *sr = srunner_create(s);
     srunner_set_fork_status(sr, CK_NOFORK);
     srunner_run_all(sr,CK_NORMAL);

@@ -1,6 +1,6 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. 
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  *
  *    Copyright 2014-2018 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
  *    Copyright 2015-2016 (c) Sten Grüner
@@ -552,7 +552,7 @@ ReadWithNode(const UA_Node *node, UA_Server *server, UA_Session *session,
             UA_StructureDefinition def;
             retval = getStructureDefinition(type, &def);
             if(UA_STATUSCODE_GOOD!=retval)
-                break;            
+                break;
             retval = UA_Variant_setScalarCopy(&v->value, &def,
                                               &UA_TYPES[UA_TYPES_STRUCTUREDEFINITION]);
             UA_free(def.fields);
@@ -895,7 +895,7 @@ compatibleValueRankArrayDimensions(UA_Server *server, UA_Session *session,
         }
         return true;
     }
-    
+
     /* case >= 1, UA_VALUERANK_ONE_DIMENSION: the value is an array with the
        specified number of dimensions */
     if(arrayDimensionsSize != (size_t)valueRank) {

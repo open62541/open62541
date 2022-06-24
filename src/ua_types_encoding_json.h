@@ -66,7 +66,7 @@ typedef struct {
 
     size_t namespacesSize;
     const UA_String *namespaces;
-    
+
     size_t serverUrisSize;
     const UA_String *serverUris;
 } CtxJson;

@@ -1435,7 +1435,7 @@ START_TEST(MultiPublishSubscribeInt32) {
     UA_NodeId dataSetWriter;
     UA_NodeId readerIdentifier;
     UA_NodeId writerGroup;
-    
+
     /* Published DataSet */
     memset(&pdsConfig, 0, sizeof(UA_PublishedDataSetConfig));
     pdsConfig.publishedDataSetType = UA_PUBSUB_DATASET_PUBLISHEDITEMS;

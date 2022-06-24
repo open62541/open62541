@@ -424,7 +424,7 @@ UA_EventLoop_new_POSIX(const UA_Logger *logger) {
     el->eventLoop.removeCyclicCallback = UA_EventLoopPOSIX_removeCyclicCallback;
     el->eventLoop.addTimedCallback = UA_EventLoopPOSIX_addTimedCallback;
     el->eventLoop.addDelayedCallback = UA_EventLoopPOSIX_addDelayedCallback;
-    
+
     el->eventLoop.registerEventSource =
         (UA_StatusCode (*)(UA_EventLoop*, UA_EventSource*))
         UA_EventLoopPOSIX_registerEventSource;

@@ -58,10 +58,10 @@ static void setup(void) {
                             UA_QUALIFIEDNAME(1, "Not executable"),
                             nonExecAttr, &methodCallback,
                             0, NULL, 0, NULL, NULL, NULL);
-    
+
     /* Add callback to ServerType's getMonitoredItems method */
-    UA_Server_setMethodNodeCallback(server, 
-                                    UA_NODEID_NUMERIC(0,UA_NS0ID_SERVERTYPE_GETMONITOREDITEMS), 
+    UA_Server_setMethodNodeCallback(server,
+                                    UA_NODEID_NUMERIC(0,UA_NS0ID_SERVERTYPE_GETMONITOREDITEMS),
                                     &methodCallback);
 }
 

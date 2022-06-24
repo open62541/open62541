@@ -359,7 +359,7 @@ TCP_registerListenSocket(UA_ConnectionManager *cm, struct addrinfo *ai,
                           "TCP\t| getnameinfo(...) could not resolve the "
                           "hostname (%s)", errno_str));
     }
-    
+
     /* Create the server socket */
     UA_FD listenSocket = UA_socket(ai->ai_family, ai->ai_socktype, ai->ai_protocol);
     if(listenSocket == UA_INVALID_FD) {
@@ -907,7 +907,7 @@ TCP_eventSourceStart(UA_ConnectionManager *cm) {
     UA_StatusCode res = UA_ByteString_allocBuffer(&tcm->rxBuffer, rxBufSize);
     if(res != UA_STATUSCODE_GOOD)
         return res;
-    
+
     /* Set the EventSource to the started state */
     cm->eventSource.state = UA_EVENTSOURCESTATE_STARTED;
 

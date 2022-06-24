@@ -43,7 +43,7 @@ methodCalled(UA_Client *client, void *userdata, UA_UInt32 requestId,
                     "---Method call was successful, returned %lu values.\n",
                     (unsigned long)response->results[i].outputArgumentsSize);
     }
-    
+
     /* We initiate the MultiCall (2 methods within one CallRequest) */
     InitCallMulti(client);
 }

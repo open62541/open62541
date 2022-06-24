@@ -113,8 +113,8 @@
 #endif
 #define             CLOCKID                               CLOCK_MONOTONIC
 #define             ETH_TRANSPORT_PROFILE                 "http://opcfoundation.org/UA-Profile/Transport/pubsub-eth-uadp"
-#define             UDP_TRANSPORT_PROFILE                 "http://opcfoundation.org/UA-Profile/Transport/pubsub-udp-uadp"                               
-             
+#define             UDP_TRANSPORT_PROFILE                 "http://opcfoundation.org/UA-Profile/Transport/pubsub-udp-uadp"
+
 /* If the Hardcoded publisher/subscriber MAC addresses need to be changed,
  * change PUBLISHING_MAC_ADDRESS and SUBSCRIBING_MAC_ADDRESS
  */
@@ -870,7 +870,7 @@ void userApplication(UA_UInt64 monotonicOffsetValue) {
 #endif
     }
 
-    /* *runningPub variable made false and send to the publisher application which is running in another node 
+    /* *runningPub variable made false and send to the publisher application which is running in another node
        which will close the application during blocking socket condition */
     if (signalTerm == UA_TRUE) {
 #ifdef TWO_WAY_COMMUNICATION

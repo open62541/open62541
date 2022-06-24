@@ -1661,7 +1661,7 @@ UA_Server_setConditionTwoStateVariableCallback(UA_Server *server,
                                                UA_TwoStateVariableCallbackType callbackType);
 
 /* Delete a condition from the address space and the internal lists.
- * 
+ *
  * @param server The server object
  * @param condition The NodeId of the node representation of the Condition Instance
  * @param conditionSource The NodeId of the node representation of the Condition Source

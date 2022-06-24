@@ -225,7 +225,7 @@ UA_NetworkMessageHeader_encodeBinary(const UA_NetworkMessage *src, UA_Byte **buf
         UA_CHECK_STATUS(rv, return rv);
 
         // ExtendedFlags2
-        if(UA_NetworkMessage_ExtendedFlags2Enabled(src)) { 
+        if(UA_NetworkMessage_ExtendedFlags2Enabled(src)) {
             v = (UA_Byte)src->networkMessageType;
             // shift left 2 bit
             v = (UA_Byte) (v << NM_SHIFT_LEN);
@@ -462,7 +462,7 @@ UA_NetworkMessage_encodePayload(const UA_NetworkMessage* src, UA_Byte **bufPos,
     // Payload
     if(src->networkMessageType != UA_NETWORKMESSAGE_DATASET)
         return UA_STATUSCODE_BADNOTIMPLEMENTED;
-        
+
     UA_Byte count = 1;
 
     if(src->payloadHeaderEnabled) {
@@ -1139,10 +1139,10 @@ UA_Boolean
 UA_NetworkMessage_ExtendedFlags1Enabled(const UA_NetworkMessage* src) {
     UA_Boolean retval = false;
 
-    if((src->publisherIdType != UA_PUBLISHERDATATYPE_BYTE) 
-        || src->dataSetClassIdEnabled 
-        || src->securityEnabled 
-        || src->timestampEnabled 
+    if((src->publisherIdType != UA_PUBLISHERDATATYPE_BYTE)
+        || src->dataSetClassIdEnabled
+        || src->securityEnabled
+        || src->timestampEnabled
         || src->picosecondsEnabled
         || UA_NetworkMessage_ExtendedFlags2Enabled(src))
     {
@@ -1172,7 +1172,7 @@ UA_StatusCode
 UA_DataSetMessageHeader_encodeBinary(const UA_DataSetMessageHeader* src, UA_Byte **bufPos,
                                      const UA_Byte *bufEnd) {
     UA_Byte v;
-    // DataSetFlags1 
+    // DataSetFlags1
     v = (UA_Byte)src->fieldEncoding;
     // shift left 1 bit
     v = (UA_Byte)(v << DS_MH_SHIFT_LEN);
@@ -1213,7 +1213,7 @@ UA_DataSetMessageHeader_encodeBinary(const UA_DataSetMessageHeader* src, UA_Byte
     }
 
     // DataSetMessageSequenceNr
-    if(src->dataSetMessageSequenceNrEnabled) { 
+    if(src->dataSetMessageSequenceNrEnabled) {
         rv = UA_UInt16_encodeBinary(&src->dataSetMessageSequenceNr, bufPos, bufEnd);
         UA_CHECK_STATUS(rv, return rv);
     }
@@ -1307,7 +1307,7 @@ UA_DataSetMessageHeader_decodeBinary(const UA_ByteString *src, size_t *offset,
     UA_Byte v2 = v & DS_MESSAGEHEADER_FIELD_ENCODING_MASK;
     v2 = (UA_Byte)(v2 >> DS_MH_SHIFT_LEN);
     dst->fieldEncoding = (UA_FieldEncoding)v2;
-    
+
     if((v & DS_MESSAGEHEADER_DS_MSG_VALID) != 0)
         dst->dataSetMessageValid = true;
 

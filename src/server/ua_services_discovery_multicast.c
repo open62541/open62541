@@ -1,6 +1,6 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. 
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  *
  *    Copyright 2017 (c) Stefan Profanter, fortiss GmbH
  *    Copyright 2017 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
@@ -145,7 +145,7 @@ stopMulticastDiscoveryServer(UA_Server *server) {
 # endif
 }
 
-/* All filter criteria must be fulfilled in the list entry. The comparison is case 
+/* All filter criteria must be fulfilled in the list entry. The comparison is case
  * insensitive.
  * @returns true if the entry matches the filter. False if the filter does not match.
  * */

@@ -761,7 +761,7 @@ addDataSetWriter(UA_Server *server,
     if(!dataSetWriterConfig)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
 
-    /* Make checks for a heartbeat */ 
+    /* Make checks for a heartbeat */
     if(UA_NodeId_isNull(&dataSet) && dataSetWriterConfig->keyFrameCount != 1) {
         UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
                        "Adding DataSetWriter failed. DataSet can be null only for a heartbeat, "

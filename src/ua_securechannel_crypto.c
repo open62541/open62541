@@ -338,10 +338,10 @@ signAndEncryptSym(UA_MessageContext *messageContext,
     /* Encrypt */
     UA_ByteString dataToEncrypt;
     dataToEncrypt.data = messageContext->messageBuffer.data +
-        UA_SECURECHANNEL_CHANNELHEADER_LENGTH + 
+        UA_SECURECHANNEL_CHANNELHEADER_LENGTH +
         UA_SECURECHANNEL_SYMMETRIC_SECURITYHEADER_LENGTH;
     dataToEncrypt.length = totalLength -
-        (UA_SECURECHANNEL_CHANNELHEADER_LENGTH + 
+        (UA_SECURECHANNEL_CHANNELHEADER_LENGTH +
          UA_SECURECHANNEL_SYMMETRIC_SECURITYHEADER_LENGTH);
     return sp->symmetricModule.cryptoModule.encryptionAlgorithm.
         encrypt(channel->channelContext, &dataToEncrypt);

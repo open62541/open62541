@@ -259,7 +259,7 @@ UA_AsyncManager_createAsyncOp(UA_AsyncManager *am, UA_Server *server,
     UA_StatusCode result = UA_CallMethodRequest_copy(opRequest, &ao->request);
     if(result != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
-                     "UA_Server_SetAsyncMethodResult: UA_CallMethodRequest_copy failed.");                
+                     "UA_Server_SetAsyncMethodResult: UA_CallMethodRequest_copy failed.");
         UA_free(ao);
         return result;
     }

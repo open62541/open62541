@@ -503,7 +503,7 @@ START_TEST(Node_AddReadWriteNodes) {
                                        attr, &nodeReadWriteView);
         ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     }
-        
+
     // iterate over children
     retval = UA_Client_forEachChildNodeCall(client, nodeReadWriteUnitTest, nodeIter, NULL);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);

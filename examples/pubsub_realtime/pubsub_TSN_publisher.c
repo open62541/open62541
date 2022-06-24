@@ -1726,28 +1726,28 @@ int main(int argc, char **argv) {
     networkAddressUrlSub.networkInterface = UA_STRING(interface);
     networkAddressUrlSub.url              = UA_STRING(subMacAddress);
 #endif
-    
+
     if(enableCsvLog) {
 #if defined(PUBLISHER)
         fpPublisher = fopen(filePublishedData, "w");
 #endif
-        
+
 #if defined(SUBSCRIBER)
         fpSubscriber = fopen(fileSubscribedData, "w");
 #endif
     }
-    
+
     /* It is possible to use multiple PubSubTransportLayers on runtime.
      * The correct factory is selected on runtime by the standard defined
      * PubSub TransportProfileUri's. */
-    
+
 #if defined (PUBLISHER)
     UA_ServerConfig_addPubSubTransportLayer(config, UA_PubSubTransportLayerEthernet());
 #endif
-    
+
     /* Create variable nodes for publisher and subscriber in address space */
     addServerNodes(server);
-    
+
 #if defined(PUBLISHER)
     addPubSubConnection(server, &networkAddressUrlPub);
     addPublishedDataSet(server);

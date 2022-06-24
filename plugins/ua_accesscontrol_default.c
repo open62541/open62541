@@ -1,5 +1,5 @@
 /* This work is licensed under a Creative Commons CCZero 1.0 Universal License.
- * See http://creativecommons.org/publicdomain/zero/1.0/ for more information. 
+ * See http://creativecommons.org/publicdomain/zero/1.0/ for more information.
  *
  *    Copyright 2016-2017 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
  *    Copyright 2017 (c) Stefan Profanter, fortiss GmbH
@@ -281,7 +281,7 @@ UA_AccessControl_default(UA_ServerConfig *config,
 
     if(ac->clear)
         clear_default(ac);
-    
+
     ac->clear = clear_default;
     ac->activateSession = activateSession_default;
     ac->closeSession = closeSession_default;

@@ -1590,7 +1590,7 @@ UA_loadPubSubConfigMethodCallback(UA_Server *server,
 
 /* Adds method node to server. This method is used to load binary files for
  * PubSub configuration and delete / replace old PubSub configurations. */
-static UA_StatusCode 
+static UA_StatusCode
 UA_addLoadPubSubConfigMethod(UA_Server *server) {
     UA_Argument inputArgument;
     UA_Argument_init(&inputArgument);
@@ -1627,7 +1627,7 @@ UA_deletePubSubConfigMethodCallback(UA_Server *server,
 
 /* Adds method node to server. This method is used to delete the current PubSub
  * configuration. */
-static UA_StatusCode 
+static UA_StatusCode
 UA_addDeletePubSubConfigMethod(UA_Server *server) {
     UA_MethodAttributes configAttr = UA_MethodAttributes_default;
     configAttr.description = UA_LOCALIZEDTEXT("","Delete current PubSub configuration");

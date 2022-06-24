@@ -1,6 +1,6 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. 
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  *
  *    Copyright 2015-2018 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
  *    Copyright 2015 (c) Oleksiy Vasylyev
@@ -189,7 +189,7 @@ UA_Client_Subscriptions_modify(UA_Client *client,
         response.responseHeader.serviceResult = UA_STATUSCODE_BADSUBSCRIPTIONIDINVALID;
         return response;
     }
-    
+
     /* Call the service */
     __UA_Client_Service(client,
                         &request, &UA_TYPES[UA_TYPES_MODIFYSUBSCRIPTIONREQUEST],
@@ -355,7 +355,7 @@ UA_Client_Subscriptions_deleteSingle(UA_Client *client, UA_UInt32 subscriptionId
     UA_DeleteSubscriptionsRequest_init(&request);
     request.subscriptionIds = &subscriptionId;
     request.subscriptionIdsSize = 1;
-    
+
     UA_DeleteSubscriptionsResponse response =
         UA_Client_Subscriptions_delete(client, request);
 
@@ -640,7 +640,7 @@ UA_Client_MonitoredItems_createDataChange(UA_Client *client, UA_UInt32 subscript
     request.timestampsToReturn = timestampsToReturn;
     request.itemsToCreate = (UA_MonitoredItemCreateRequest*)(uintptr_t)&item;
     request.itemsToCreateSize = 1;
-    UA_CreateMonitoredItemsResponse response = 
+    UA_CreateMonitoredItemsResponse response =
        UA_Client_MonitoredItems_createDataChanges(client, request, &context,
                                                    &callback, &deleteCallback);
     UA_MonitoredItemCreateResult result;
@@ -651,7 +651,7 @@ UA_Client_MonitoredItems_createDataChange(UA_Client *client, UA_UInt32 subscript
     if(result.statusCode == UA_STATUSCODE_GOOD &&
        response.resultsSize != 1)
         result.statusCode = UA_STATUSCODE_BADINTERNALERROR;
-    
+
     if(result.statusCode == UA_STATUSCODE_GOOD)
        UA_MonitoredItemCreateResult_copy(&response.results[0] , &result);
     UA_CreateMonitoredItemsResponse_clear(&response);
@@ -696,7 +696,7 @@ UA_Client_MonitoredItems_createEvent(UA_Client *client, UA_UInt32 subscriptionId
     request.timestampsToReturn = timestampsToReturn;
     request.itemsToCreate = (UA_MonitoredItemCreateRequest*)(uintptr_t)&item;
     request.itemsToCreateSize = 1;
-    UA_CreateMonitoredItemsResponse response = 
+    UA_CreateMonitoredItemsResponse response =
        UA_Client_MonitoredItems_createEvents(client, request, &context,
                                              &callback, &deleteCallback);
     UA_StatusCode retval = response.responseHeader.serviceResult;
@@ -1145,12 +1145,12 @@ UA_Client_Subscriptions_processPublishResponse(UA_Client *client, UA_PublishRequ
                            "Not enough memory to store the acknowledgement for a publish "
                            "message on subscription %" PRIu32, sub->subscriptionId);
             break;
-        }   
+        }
         tmpAck->subAck.sequenceNumber = msg->sequenceNumber;
         tmpAck->subAck.subscriptionId = sub->subscriptionId;
         LIST_INSERT_HEAD(&client->pendingNotificationsAcks, tmpAck, listEntry);
         break;
-    } 
+    }
 }
 
 static void
@@ -1233,7 +1233,7 @@ UA_Client_Subscriptions_backgroundPublish(UA_Client *client) {
             UA_PublishRequest_delete(request);
             return;
         }
-    
+
         UA_UInt32 requestId;
         client->currentlyOutStandingPublishRequests++;
 

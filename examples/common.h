@@ -41,7 +41,7 @@ writeFile(const char* const path, const UA_ByteString buffer) {
     FILE *fp = NULL;
 
     fp = fopen(path, "wb");
-    if(fp == NULL) 
+    if(fp == NULL)
         return UA_STATUSCODE_BADINTERNALERROR;
 
     for(UA_UInt32 bufIndex = 0; bufIndex < buffer.length; bufIndex++) {

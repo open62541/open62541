@@ -32,15 +32,15 @@ int main(void) {
         UA_Client_delete(client);
         return (int)retval;
     }
-    
+
     UA_Variant value; /* Variants can hold scalar values and arrays of any type */
     UA_Variant_init(&value);
-    
+
      UA_NodeId nodeId =
         UA_NODEID_STRING(1, "3D.Point");
 
     retval = UA_Client_readValueAttribute(client, nodeId, &value);
-            
+
     if(retval == UA_STATUSCODE_GOOD) {
         Point *p = (Point *)value.data;
         printf("Point = %f, %f, %f \n", p->x, p->y, p->z);
