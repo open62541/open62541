@@ -254,10 +254,10 @@ readValueAttributeComplete(UA_Server *server, UA_Session *session,
             }
             /* Set the result */
             if(rangeptr)
-                return UA_Variant_copyRange(
-                    (const UA_Variant *)&vn->valueBackend.backend.external.value,
-                    &v->value, *rangeptr);
-            retval = UA_DataValue_copy(*vn->valueBackend.backend.external.value, v);
+                retval = UA_DataValue_copyVariantRange(
+                    *vn->valueBackend.backend.external.value, v, *rangeptr);
+            else
+                retval = UA_DataValue_copy(*vn->valueBackend.backend.external.value, v);
             break;
         case UA_VALUEBACKENDTYPE_NONE:
             /* Read the value */
