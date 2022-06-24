@@ -903,6 +903,10 @@ START_TEST(Client_subscription_connectionClose) {
     running = false;
     THREAD_JOIN(server_thread);
 
+    /* Send Publish requests */
+    retval = UA_Client_run_iterate(client, 1);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
     /* Still receiving on the MonitoredItem */
     UA_fakeSleep((UA_UInt32)publishingInterval + 1);
     UA_Server_run_iterate(server, true);
