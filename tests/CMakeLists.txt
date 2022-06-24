@@ -311,6 +311,7 @@ if(UA_ENABLE_PUBSUB)
     ua_add_test(pubsub/check_pubsub_publish.c)
     ua_add_test(pubsub/check_pubsub_publish_uadp.c)
     ua_add_test(pubsub/check_pubsub_get_state.c)
+    ua_add_test(pubsub/check_pubsub_publisherid.c)
 
     #Link libraries for executing subscriber unit test
     ua_add_test(pubsub/check_pubsub_subscribe.c)
