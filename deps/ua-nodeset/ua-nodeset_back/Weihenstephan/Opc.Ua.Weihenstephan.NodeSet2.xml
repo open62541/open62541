@@ -1,0 +1,821 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<!--
+ * Copyright (c) 2005-2021 The OPC Foundation, Inc. All rights reserved.
+ *
+ * OPC Foundation MIT License 1.00
+ * 
+ * Permission is hereby granted, free of charge, to any person
+ * obtaining a copy of this software and associated documentation
+ * files (the "Software"), to deal in the Software without
+ * restriction, including without limitation the rights to use,
+ * copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the
+ * Software is furnished to do so, subject to the following
+ * conditions:
+ * 
+ * The above copyright notice and this permission notice shall be
+ * included in all copies or substantial portions of the Software.
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+ * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
+ * OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+ * NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
+ * HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+ * WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+ * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+ * OTHER DEALINGS IN THE SOFTWARE.
+ *
+ * The complete license agreement can be found here:
+ * http://opcfoundation.org/License/MIT/1.00/
+-->
+
+<UANodeSet xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema" LastModified="2021-08-04T13:16:26.878Z" xmlns="http://opcfoundation.org/UA/2011/03/UANodeSet.xsd">
+  <NamespaceUris>
+    <Uri>http://opcfoundation.org/UA/DI/</Uri>
+    <Uri>http://opcfoundation.org/UA/Machinery/</Uri>
+    <Uri>http://opcfoundation.org/UA/PackML/</Uri>
+    <Uri>http://opcfoundation.org/UA/Weihenstephan/</Uri>
+  </NamespaceUris>
+  <Models>
+    <Model ModelUri="http://opcfoundation.org/UA/Weihenstephan/" Version="1.00.0" PublicationDate="2021-07-12T00:00:00Z">
+      <RequiredModel ModelUri="http://opcfoundation.org/UA/" Version="1.04.7" PublicationDate="2020-07-15T00:00:00Z" />
+      <RequiredModel ModelUri="http://opcfoundation.org/UA/DI/" Version="1.02.2" PublicationDate="2020-06-02T00:00:00Z" />
+      <RequiredModel ModelUri="http://opcfoundation.org/UA/Machinery/" Version="1.0.0" PublicationDate="2020-09-25T00:00:00Z" />
+      <RequiredModel ModelUri="http://opcfoundation.org/UA/PackML/" Version="1.01" PublicationDate="2020-10-08T11:08:00Z" />
+    </Model>
+  </Models>
+  <Aliases>
+    <Alias Alias="Boolean">i=1</Alias>
+    <Alias Alias="UInt16">i=5</Alias>
+    <Alias Alias="UInt32">i=7</Alias>
+    <Alias Alias="DateTime">i=13</Alias>
+    <Alias Alias="String">i=12</Alias>
+    <Alias Alias="ByteString">i=15</Alias>
+    <Alias Alias="LocalizedText">i=21</Alias>
+    <Alias Alias="HasComponent">i=47</Alias>
+    <Alias Alias="HasProperty">i=46</Alias>
+    <Alias Alias="HasSubtype">i=45</Alias>
+    <Alias Alias="HasTypeDefinition">i=40</Alias>
+    <Alias Alias="HasModellingRule">i=37</Alias>
+    <Alias Alias="IdType">i=256</Alias>
+    <Alias Alias="NumericRange">i=291</Alias>
+    <Alias Alias="HasInterface">i=17603</Alias>
+    <Alias Alias="HasSubStateMachine">i=117</Alias>
+    <Alias Alias="EnumValueType">i=7594</Alias>
+  </Aliases>
+  <Extensions>
+    <Extension>
+      <si:Generator Product="SiOME" Edition="Standard" Version="2.2.0" xmlns:si="http://www.siemens.com/OPCUA/2017/SimaticNodeSetExtensions" />
+    </Extension>
+    <Extension>
+      <ws:Generator xmlns:ws="http://weihenstephaner-standards.com" Product="WS Modeler">
+      </ws:Generator>
+    </Extension>
+    <Extension>
+      <si:GeneratorExtension Hash="30b26ee3053cf793097bcc58692d071e" xmlns:si="http://www.siemens.com/OPCUA/2017/SimaticNodeSetExtensions" />
+    </Extension>
+  </Extensions>
+  <UAObject NodeId="ns=4;i=5000" BrowseName="4:http://opcfoundation.org/UA/Weihenstephan/" SymbolicName="http___opcfoundation_org_UA_Weihenstephan" ParentNodeId="i=11715">
+    <DisplayName>http://opcfoundation.org/UA/Weihenstephan/</DisplayName>
+    <Documentation>https://reference.opcfoundation.org/v104/Weihenstephan/v100/docs/11.1</Documentation>
+    <References>
+      <Reference ReferenceType="HasComponent" IsForward="false">i=11715</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=11616</Reference>
+    </References>
+  </UAObject>
+  <UAVariable NodeId="ns=4;i=6000" BrowseName="IsNamespaceSubset" ParentNodeId="ns=4;i=5000" DataType="Boolean">
+    <DisplayName>IsNamespaceSubset</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=4;i=5000</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+    <Value>
+      <uax:Boolean xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd">false</uax:Boolean>
+    </Value>
+  </UAVariable>
+  <UAVariable NodeId="ns=4;i=6001" BrowseName="NamespacePublicationDate" ParentNodeId="ns=4;i=5000" DataType="DateTime">
+    <DisplayName>NamespacePublicationDate</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=4;i=5000</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+    <Value>
+      <uax:DateTime xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd">2021-07-12T00:00:00Z</uax:DateTime>
+    </Value>
+  </UAVariable>
+  <UAVariable NodeId="ns=4;i=6002" BrowseName="NamespaceUri" ParentNodeId="ns=4;i=5000" DataType="String">
+    <DisplayName>NamespaceUri</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=4;i=5000</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+    <Value>
+      <uax:String xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd">http://opcfoundation.org/UA/Weihenstephan/</uax:String>
+    </Value>
+  </UAVariable>
+  <UAVariable NodeId="ns=4;i=6003" BrowseName="NamespaceVersion" ParentNodeId="ns=4;i=5000" DataType="String">
+    <DisplayName>NamespaceVersion</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=4;i=5000</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+    <Value>
+      <uax:String xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd">1.00.0</uax:String>
+    </Value>
+  </UAVariable>
+  <UAVariable NodeId="ns=4;i=6004" BrowseName="StaticNodeIdTypes" ParentNodeId="ns=4;i=5000" DataType="IdType" ValueRank="1" ArrayDimensions="0">
+    <DisplayName>StaticNodeIdTypes</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=4;i=5000</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+    <Value>
+      <uax:ListOfInt32 xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd">
+        <uax:Int32>0</uax:Int32>
+      </uax:ListOfInt32>
+    </Value>
+  </UAVariable>
+  <UAVariable NodeId="ns=4;i=6005" BrowseName="StaticNumericNodeIdRange" ParentNodeId="ns=4;i=5000" DataType="NumericRange" ValueRank="1" ArrayDimensions="0">
+    <DisplayName>StaticNumericNodeIdRange</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=4;i=5000</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+    <Value>
+      <uax:ListOfString xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd">
+        <uax:String>1:2147483647</uax:String>
+      </uax:ListOfString>
+    </Value>
+  </UAVariable>
+  <UAVariable NodeId="ns=4;i=6006" BrowseName="StaticStringNodeIdPattern" ParentNodeId="ns=4;i=5000" DataType="String">
+    <DisplayName>StaticStringNodeIdPattern</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=4;i=5000</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+    <Value>
+      <String xmlns="http://opcfoundation.org/UA/2008/02/Types.xsd" />
+    </Value>
+  </UAVariable>
+  <UAObjectType NodeId="ns=4;i=1000" BrowseName="4:WSMachineType">
+    <DisplayName>WSMachineType</DisplayName>
+    <Description>Definition of a machine according to the Weihenstephan standards</Description>
+    <Documentation>https://reference.opcfoundation.org/v104/Weihenstephan/v100/docs/7.1</Documentation>
+    <References>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=58</Reference>
+    </References>
+  </UAObjectType>
+  <UAVariable NodeId="ns=4;i=6010" BrowseName="4:WSVersionVendor" ParentNodeId="ns=4;i=1000" DataType="String" AccessLevel="3" UserAccessLevel="3">
+    <DisplayName>WSVersionVendor</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=4;i=1000</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=4;i=6011" BrowseName="4:WSVersionProject" ParentNodeId="ns=4;i=1000" DataType="String" AccessLevel="3" UserAccessLevel="3">
+    <DisplayName>WSVersionProject</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=4;i=1000</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+    </References>
+  </UAVariable>
+  <UAObject NodeId="ns=4;i=5003" BrowseName="4:Counters" ParentNodeId="ns=4;i=1000">
+    <DisplayName>Counters</DisplayName>
+    <References>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=4;i=1000</Reference>
+      <Reference ReferenceType="HasTypeDefinition">ns=1;i=1005</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+    </References>
+  </UAObject>
+  <UAObject NodeId="ns=4;i=5004" BrowseName="4:BatchAndArticleTracing" ParentNodeId="ns=4;i=1000">
+    <DisplayName>BatchAndArticleTracing</DisplayName>
+    <References>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=4;i=1000</Reference>
+      <Reference ReferenceType="HasTypeDefinition">ns=1;i=1005</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+    </References>
+  </UAObject>
+  <UAObject NodeId="ns=4;i=5005" BrowseName="4:OperatingModes" ParentNodeId="ns=4;i=1000">
+    <DisplayName>OperatingModes</DisplayName>
+    <References>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=4;i=1000</Reference>
+      <Reference ReferenceType="HasTypeDefinition">ns=1;i=1005</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+    </References>
+  </UAObject>
+  <UAObject NodeId="ns=4;i=5006" BrowseName="4:OperatingStates" ParentNodeId="ns=4;i=1000">
+    <DisplayName>OperatingStates</DisplayName>
+    <References>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=4;i=1000</Reference>
+      <Reference ReferenceType="HasTypeDefinition">ns=1;i=1005</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+    </References>
+  </UAObject>
+  <UAObject NodeId="ns=4;i=5007" BrowseName="4:Programs" ParentNodeId="ns=4;i=1000">
+    <DisplayName>Programs</DisplayName>
+    <References>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=4;i=1000</Reference>
+      <Reference ReferenceType="HasTypeDefinition">ns=1;i=1005</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+    </References>
+  </UAObject>
+  <UAObject NodeId="ns=4;i=5008" BrowseName="4:Alarms" ParentNodeId="ns=4;i=1000">
+    <DisplayName>Alarms</DisplayName>
+    <References>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=4;i=1000</Reference>
+      <Reference ReferenceType="HasTypeDefinition">ns=1;i=1005</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+    </References>
+  </UAObject>
+  <UAObject NodeId="ns=4;i=5009" BrowseName="4:MeasuredValues" ParentNodeId="ns=4;i=1000">
+    <DisplayName>MeasuredValues</DisplayName>
+    <References>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=4;i=1000</Reference>
+      <Reference ReferenceType="HasTypeDefinition">ns=1;i=1005</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+    </References>
+  </UAObject>
+  <UAObject NodeId="ns=4;i=5010" BrowseName="4:Parameters" ParentNodeId="ns=4;i=1000">
+    <DisplayName>Parameters</DisplayName>
+    <References>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=4;i=1000</Reference>
+      <Reference ReferenceType="HasTypeDefinition">ns=1;i=1005</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+    </References>
+  </UAObject>
+  <UAObject NodeId="ns=4;i=5011" BrowseName="4:Warnings" ParentNodeId="ns=4;i=1000">
+    <DisplayName>Warnings</DisplayName>
+    <References>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=4;i=1000</Reference>
+      <Reference ReferenceType="HasTypeDefinition">ns=1;i=1005</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+    </References>
+  </UAObject>
+  <UAVariable NodeId="ns=4;i=6009" BrowseName="4:WSVersion" ParentNodeId="ns=4;i=1000" DataType="String" AccessLevel="3" UserAccessLevel="3">
+    <DisplayName>WSVersion</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=4;i=1000</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+    </References>
+  </UAVariable>
+  <UAObject NodeId="ns=4;i=5001" BrowseName="1:Identification" ParentNodeId="ns=4;i=1000">
+    <DisplayName>Identification</DisplayName>
+    <References>
+      <Reference ReferenceType="i=17604" IsForward="false">ns=4;i=1000</Reference>
+      <Reference ReferenceType="HasTypeDefinition">ns=2;i=1012</Reference>
+      <Reference ReferenceType="HasInterface">ns=2;i=1011</Reference>
+      <Reference ReferenceType="HasInterface">ns=2;i=1010</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+    </References>
+  </UAObject>
+  <UAVariable NodeId="ns=4;i=6012" BrowseName="1:SerialNumber" ParentNodeId="ns=4;i=5001" DataType="String">
+    <DisplayName>SerialNumber</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=4;i=5001</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=4;i=6013" BrowseName="1:ProductInstanceUri" ParentNodeId="ns=4;i=5001" DataType="String">
+    <DisplayName>ProductInstanceUri</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=4;i=5001</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=4;i=6014" BrowseName="1:Manufacturer" ParentNodeId="ns=4;i=5001" DataType="LocalizedText">
+    <DisplayName>Manufacturer</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=4;i=5001</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+    </References>
+  </UAVariable>
+  <UAObjectType NodeId="ns=4;i=1001" BrowseName="4:WSBaseObjectType">
+    <DisplayName>WSBaseObjectType</DisplayName>
+    <Documentation>https://reference.opcfoundation.org/v104/Weihenstephan/v100/docs/7.2</Documentation>
+    <References>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=58</Reference>
+    </References>
+  </UAObjectType>
+  <UAVariable NodeId="ns=4;i=6015" BrowseName="4:WSTagNumber" ParentNodeId="ns=4;i=1001" DataType="UInt16" AccessLevel="3" UserAccessLevel="3">
+    <DisplayName>WSTagNumber</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=4;i=1001</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+    </References>
+  </UAVariable>
+  <UAObjectType NodeId="ns=4;i=1002" BrowseName="4:WSAlarmType">
+    <DisplayName>WSAlarmType</DisplayName>
+    <Documentation>https://reference.opcfoundation.org/v104/Weihenstephan/v100/docs/7.3</Documentation>
+    <References>
+      <Reference ReferenceType="HasSubtype" IsForward="false">ns=4;i=1001</Reference>
+    </References>
+  </UAObjectType>
+  <UAVariable NodeId="ns=4;i=6016" BrowseName="4:WSAlarmCode" ParentNodeId="ns=4;i=1002" DataType="UInt32" AccessLevel="3" UserAccessLevel="3">
+    <DisplayName>WSAlarmCode</DisplayName>
+    <References>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=4;i=1002</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=63</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=4;i=6017" BrowseName="4:WSAlarmMessage" ParentNodeId="ns=4;i=1002" DataType="LocalizedText" AccessLevel="3" UserAccessLevel="3">
+    <DisplayName>WSAlarmMessage</DisplayName>
+    <References>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=4;i=1002</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=63</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+    </References>
+  </UAVariable>
+  <UAObjectType NodeId="ns=4;i=1003" BrowseName="4:WSWarningType">
+    <DisplayName>WSWarningType</DisplayName>
+    <Documentation>https://reference.opcfoundation.org/v104/Weihenstephan/v100/docs/7.4</Documentation>
+    <References>
+      <Reference ReferenceType="HasSubtype" IsForward="false">ns=4;i=1001</Reference>
+    </References>
+  </UAObjectType>
+  <UAVariable NodeId="ns=4;i=6018" BrowseName="4:WSWarningCode" SymbolicName="WS__Warning_Code" ParentNodeId="ns=4;i=1003" DataType="UInt32" AccessLevel="3" UserAccessLevel="3">
+    <DisplayName>WSWarningCode</DisplayName>
+    <References>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=4;i=1003</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=63</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=4;i=6019" BrowseName="4:WSWarningMessage" SymbolicName="WS_Warning__Message" ParentNodeId="ns=4;i=1003" DataType="LocalizedText" AccessLevel="3" UserAccessLevel="3">
+    <DisplayName>WSWarningMessage</DisplayName>
+    <References>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=4;i=1003</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=63</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+    </References>
+  </UAVariable>
+  <UAObjectType NodeId="ns=4;i=1004" BrowseName="4:WSBaseStateMachineType">
+    <DisplayName>WSBaseStateMachineType</DisplayName>
+    <Documentation>https://reference.opcfoundation.org/v104/Weihenstephan/v100/docs/7.5</Documentation>
+    <References>
+      <Reference ReferenceType="HasSubtype" IsForward="false">ns=3;i=3</Reference>
+    </References>
+  </UAObjectType>
+  <UAVariable NodeId="ns=4;i=6020" BrowseName="4:WSTagNumber" ParentNodeId="ns=4;i=1004" DataType="UInt16" AccessLevel="3" UserAccessLevel="3">
+    <DisplayName>WSTagNumber</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=4;i=1004</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+    </References>
+  </UAVariable>
+  <UAObjectType NodeId="ns=4;i=1005" BrowseName="4:WSExecuteStateMachineType">
+    <DisplayName>WSExecuteStateMachineType</DisplayName>
+    <Documentation>https://reference.opcfoundation.org/v104/Weihenstephan/v100/docs/7.6</Documentation>
+    <References>
+      <Reference ReferenceType="HasSubtype" IsForward="false">ns=3;i=1</Reference>
+    </References>
+  </UAObjectType>
+  <UAObjectType NodeId="ns=4;i=1006" BrowseName="4:WSHeldStateMachineType">
+    <DisplayName>WSHeldStateMachineType</DisplayName>
+    <Documentation>https://reference.opcfoundation.org/v104/Weihenstephan/v100/docs/7.7</Documentation>
+    <References>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=2771</Reference>
+    </References>
+  </UAObjectType>
+  <UAObject NodeId="ns=4;i=5012" BrowseName="4:EquipmentFailure" ParentNodeId="ns=4;i=1006">
+    <DisplayName>EquipmentFailure</DisplayName>
+    <References>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=4;i=1006</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=2307</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+    </References>
+  </UAObject>
+  <UAObject NodeId="ns=4;i=5014" BrowseName="4:ExternalFailure" ParentNodeId="ns=4;i=1006">
+    <DisplayName>ExternalFailure</DisplayName>
+    <References>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=4;i=1006</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=2307</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+    </References>
+  </UAObject>
+  <UAObjectType NodeId="ns=4;i=1007" BrowseName="4:WSSuspendedStateMachineType">
+    <DisplayName>WSSuspendedStateMachineType</DisplayName>
+    <Documentation>https://reference.opcfoundation.org/v104/Weihenstephan/v100/docs/7.8</Documentation>
+    <References>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=2771</Reference>
+    </References>
+  </UAObjectType>
+  <UAObject NodeId="ns=4;i=5016" BrowseName="4:Lack" ParentNodeId="ns=4;i=1007">
+    <DisplayName>Lack</DisplayName>
+    <References>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=4;i=1007</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=2307</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+    </References>
+  </UAObject>
+  <UAObject NodeId="ns=4;i=5018" BrowseName="4:LackBranchLine" ParentNodeId="ns=4;i=1007">
+    <DisplayName>LackBranchLine</DisplayName>
+    <References>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=4;i=1007</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=2307</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+    </References>
+  </UAObject>
+  <UAObject NodeId="ns=4;i=5020" BrowseName="4:Prepared" ParentNodeId="ns=4;i=1007">
+    <DisplayName>Prepared</DisplayName>
+    <References>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=4;i=1007</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=2307</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+    </References>
+  </UAObject>
+  <UAObject NodeId="ns=4;i=5022" BrowseName="4:Tailback" ParentNodeId="ns=4;i=1007">
+    <DisplayName>Tailback</DisplayName>
+    <References>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=4;i=1007</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=2307</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+    </References>
+  </UAObject>
+  <UAObject NodeId="ns=4;i=5024" BrowseName="4:TailbackBranchLine" ParentNodeId="ns=4;i=1007">
+    <DisplayName>TailbackBranchLine</DisplayName>
+    <References>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=4;i=1007</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=2307</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+    </References>
+  </UAObject>
+  <UAObject NodeId="ns=4;i=5026" BrowseName="4:HeldState" ParentNodeId="ns=4;i=1005">
+    <DisplayName>HeldState</DisplayName>
+    <References>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=4;i=1005</Reference>
+      <Reference ReferenceType="HasTypeDefinition">ns=4;i=1006</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+    </References>
+  </UAObject>
+  <UAObject NodeId="ns=4;i=5027" BrowseName="4:SuspendedState" ParentNodeId="ns=4;i=1005">
+    <DisplayName>SuspendedState</DisplayName>
+    <References>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=4;i=1005</Reference>
+      <Reference ReferenceType="HasTypeDefinition">ns=4;i=1007</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+    </References>
+  </UAObject>
+  <UADataType NodeId="ns=4;i=3000" BrowseName="4:WSOperatingModeEnumerationType">
+    <DisplayName>WSOperatingModeEnumerationType</DisplayName>
+    <Description>The operating mode provides information about the nature and extent of the intervention on the control equipment by the operators, and also via feedback from the equipment (DIN 19 237). This value must be coded in bit form or be documented as an integer for machines which are components of bottling systems:</Description>
+    <Documentation>https://reference.opcfoundation.org/v104/Weihenstephan/v100/docs/9.1</Documentation>
+    <References>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=29</Reference>
+    </References>
+    <Definition Name="4:WSOperatingModeEnumerationType">
+      <Field Name="Off" Value="1">
+        <Description>The machine state (in the Weihenstephan Standards the machine state is understood to be the operating mode) provides information about whether the machine is off (Off: relevant bit = 1 or identification by the documented integer number). If this bit is not set, then the machine is in operation and is in one of the following operating modes.</Description>
+      </Field>
+      <Field Name="Manual" Value="2">
+        <Description>An operating mode in which the control units only operate with intervention by the operator and involve possible locking mechanisms (DIN 19237). As opposed to the DIN standard, in the context of the Weihenstephan Standards this term also includes the setup mode, the step setting mode and tipping mode.</Description>
+      </Field>
+      <Field Name="Semi-automatic" SymbolicName="Semi_automatic" Value="4">
+        <Description>An operating mode in which only some of the controls or part of the program function without intervention by the operator (DIN 19 237). In the context of the Weihenstephan Standards, this term means that the machines of a bottling plant are not integrated into a control concept for the entire system and the set output is manually controlled on site.</Description>
+      </Field>
+      <Field Name="Automatic" Value="8">
+        <Description>An operating mode in which the control unit operates without intervention by the operator following a set of control procedures (DIN 19 237). In the context of the Weihenstephan Standards this term means that the machines of a production plant are integrated into a control concept for the entire system and the set output is automatically controlled.</Description>
+      </Field>
+    </Definition>
+  </UADataType>
+  <UAVariable NodeId="ns=4;i=6021" BrowseName="EnumValues" ParentNodeId="ns=4;i=3000" DataType="EnumValueType" ValueRank="1" ArrayDimensions="4" AccessLevel="3" UserAccessLevel="3">
+    <DisplayName>EnumValues</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=4;i=3000</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+    <Value>
+      <uax:ListOfExtensionObject xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd">
+        <uax:ExtensionObject>
+          <uax:TypeId>
+            <uax:Identifier>i=7616</uax:Identifier>
+          </uax:TypeId>
+          <uax:Body>
+            <uax:EnumValueType>
+              <uax:Value>1</uax:Value>
+              <uax:DisplayName>
+                <uax:Locale>en</uax:Locale>
+                <uax:Text>Off</uax:Text>
+              </uax:DisplayName>
+              <uax:Description>
+                <uax:Locale>en</uax:Locale>
+                <uax:Text>The machine state (in the Weihenstephan Standards the machine state is understood to be the operating mode) provides information about whether the machine is off (Off: relevant bit = 1 or identification by the documented integer number). If this bit is not set, then the machine is in operation and is in one of the following operating modes.</uax:Text>
+              </uax:Description>
+            </uax:EnumValueType>
+          </uax:Body>
+        </uax:ExtensionObject>
+        <uax:ExtensionObject>
+          <uax:TypeId>
+            <uax:Identifier>i=7616</uax:Identifier>
+          </uax:TypeId>
+          <uax:Body>
+            <uax:EnumValueType>
+              <uax:Value>2</uax:Value>
+              <uax:DisplayName>
+                <uax:Locale>en</uax:Locale>
+                <uax:Text>Manual</uax:Text>
+              </uax:DisplayName>
+              <uax:Description>
+                <uax:Locale>en</uax:Locale>
+                <uax:Text>An operating mode in which the control units only operate with intervention by the operator and involve possible locking mechanisms (DIN 19237). As opposed to the DIN standard, in the context of the Weihenstephan Standards this term also includes the setup mode, the step setting mode and tipping mode.</uax:Text>
+              </uax:Description>
+            </uax:EnumValueType>
+          </uax:Body>
+        </uax:ExtensionObject>
+        <uax:ExtensionObject>
+          <uax:TypeId>
+            <uax:Identifier>i=7616</uax:Identifier>
+          </uax:TypeId>
+          <uax:Body>
+            <uax:EnumValueType>
+              <uax:Value>4</uax:Value>
+              <uax:DisplayName>
+                <uax:Locale>en</uax:Locale>
+                <uax:Text>Semi-automatic</uax:Text>
+              </uax:DisplayName>
+              <uax:Description>
+                <uax:Locale>en</uax:Locale>
+                <uax:Text>An operating mode in which only some of the controls or part of the program function without intervention by the operator (DIN 19 237). In the context of the Weihenstephan Standards, this term means that the machines of a bottling plant are not integrated into a control concept for the entire system and the set output is manually controlled on site.</uax:Text>
+              </uax:Description>
+            </uax:EnumValueType>
+          </uax:Body>
+        </uax:ExtensionObject>
+        <uax:ExtensionObject>
+          <uax:TypeId>
+            <uax:Identifier>i=7616</uax:Identifier>
+          </uax:TypeId>
+          <uax:Body>
+            <uax:EnumValueType>
+              <uax:Value>8</uax:Value>
+              <uax:DisplayName>
+                <uax:Locale>en</uax:Locale>
+                <uax:Text>Automatic</uax:Text>
+              </uax:DisplayName>
+              <uax:Description>
+                <uax:Locale>en</uax:Locale>
+                <uax:Text>An operating mode in which the control unit operates without intervention by the operator following a set of control procedures (DIN 19 237). In the context of the Weihenstephan Standards this term means that the machines of a production plant are integrated into a control concept for the entire system and the set output is automatically controlled.</uax:Text>
+              </uax:Description>
+            </uax:EnumValueType>
+          </uax:Body>
+        </uax:ExtensionObject>
+      </uax:ListOfExtensionObject>
+    </Value>
+  </UAVariable>
+  <UADataType NodeId="ns=4;i=3001" BrowseName="4:WSProgramEnumerationType">
+    <DisplayName>WSProgramEnumerationType</DisplayName>
+    <Description>The program is a consequent sequence of control instructions for a self-contained application-oriented function (DIN 19237). For bottling machines, bits or documented integer numbers must be used for machine operation with the following programs:</Description>
+    <Documentation>https://reference.opcfoundation.org/v104/Weihenstephan/v100/docs/9.2</Documentation>
+    <References>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=29</Reference>
+    </References>
+    <Definition Name="4:WSProgramEnumerationType">
+      <Field Name="Undefined (No Program)" SymbolicName="Undefined__No_Program_" Value="0">
+        <Description>A machine was turned on, but no program for a special application function has been selected. „Undefined“ may also be used to provide the information that a machine is ready for action, but not required („No Order, No Activity“)</Description>
+      </Field>
+      <Field Name="Production" Value="1">
+        <Description>The machine is functioning as designed by the manufacturer.</Description>
+      </Field>
+      <Field Name="Start Up" SymbolicName="Start_Up" Value="2">
+        <Description>Although the machine is functioning as designed by the manufacturer, it is running a start-up pro-gram which ensures full production after a warm-up period as stipulated by regulations or for safe-ty considerations, or in conjunction with container buffering machines.</Description>
+      </Field>
+      <Field Name="Run Down" SymbolicName="Run_Down" Value="4">
+        <Description>Although the machine is functioning as designed by the manufacturer, it is running a stop program which ensures production stop after a run-down period as stipulated by regulations or for safety considerations, or in conjunction with container buffering machines.</Description>
+      </Field>
+      <Field Name="Clean" Value="8">
+        <Description>The machine is running the cleaning program. This program can consist of program steps which can be controlled independently of each another, for example the program step “flush” for the filling or closing machine, or the program step “headspace disinfection” for the cleaning machine.</Description>
+      </Field>
+      <Field Name="Changeover" Value="16">
+        <Description>The machine is running the changeover program in which automatic machine adjustments are made depending on specific parameters.</Description>
+      </Field>
+      <Field Name="Maintenance" Value="32">
+        <Description>The machine is running the maintenance program in which the maintenance and service work are carried out.</Description>
+      </Field>
+      <Field Name="Break" Value="64">
+        <Description>The machine is running the break program. This ensures there is start up of the machine in accordance with regulations after a break.</Description>
+      </Field>
+    </Definition>
+  </UADataType>
+  <UAVariable NodeId="ns=4;i=6026" BrowseName="EnumValues" ParentNodeId="ns=4;i=3001" DataType="EnumValueType" ValueRank="1" ArrayDimensions="8" AccessLevel="3" UserAccessLevel="3">
+    <DisplayName>EnumValues</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=4;i=3001</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+    <Value>
+      <uax:ListOfExtensionObject xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd">
+        <uax:ExtensionObject>
+          <uax:TypeId>
+            <uax:Identifier>i=7616</uax:Identifier>
+          </uax:TypeId>
+          <uax:Body>
+            <uax:EnumValueType>
+              <uax:Value>0</uax:Value>
+              <uax:DisplayName>
+                <uax:Locale>en</uax:Locale>
+                <uax:Text>Undefined (No Program)</uax:Text>
+              </uax:DisplayName>
+              <uax:Description>
+                <uax:Locale>en</uax:Locale>
+                <uax:Text>A machine was turned on, but no program for a special application function has been selected. „Undefined“ may also be used to provide the information that a machine is ready for action, but not required („No Order, No Activity“)</uax:Text>
+              </uax:Description>
+            </uax:EnumValueType>
+          </uax:Body>
+        </uax:ExtensionObject>
+        <uax:ExtensionObject>
+          <uax:TypeId>
+            <uax:Identifier>i=7616</uax:Identifier>
+          </uax:TypeId>
+          <uax:Body>
+            <uax:EnumValueType>
+              <uax:Value>1</uax:Value>
+              <uax:DisplayName>
+                <uax:Locale>en</uax:Locale>
+                <uax:Text>Production</uax:Text>
+              </uax:DisplayName>
+              <uax:Description>
+                <uax:Locale>en</uax:Locale>
+                <uax:Text>The machine is functioning as designed by the manufacturer.</uax:Text>
+              </uax:Description>
+            </uax:EnumValueType>
+          </uax:Body>
+        </uax:ExtensionObject>
+        <uax:ExtensionObject>
+          <uax:TypeId>
+            <uax:Identifier>i=7616</uax:Identifier>
+          </uax:TypeId>
+          <uax:Body>
+            <uax:EnumValueType>
+              <uax:Value>2</uax:Value>
+              <uax:DisplayName>
+                <uax:Locale>en</uax:Locale>
+                <uax:Text>Start Up</uax:Text>
+              </uax:DisplayName>
+              <uax:Description>
+                <uax:Locale>en</uax:Locale>
+                <uax:Text>Although the machine is functioning as designed by the manufacturer, it is running a start-up pro-gram which ensures full production after a warm-up period as stipulated by regulations or for safe-ty considerations, or in conjunction with container buffering machines.</uax:Text>
+              </uax:Description>
+            </uax:EnumValueType>
+          </uax:Body>
+        </uax:ExtensionObject>
+        <uax:ExtensionObject>
+          <uax:TypeId>
+            <uax:Identifier>i=7616</uax:Identifier>
+          </uax:TypeId>
+          <uax:Body>
+            <uax:EnumValueType>
+              <uax:Value>4</uax:Value>
+              <uax:DisplayName>
+                <uax:Locale>en</uax:Locale>
+                <uax:Text>Run Down</uax:Text>
+              </uax:DisplayName>
+              <uax:Description>
+                <uax:Locale>en</uax:Locale>
+                <uax:Text>Although the machine is functioning as designed by the manufacturer, it is running a stop program which ensures production stop after a run-down period as stipulated by regulations or for safety considerations, or in conjunction with container buffering machines.</uax:Text>
+              </uax:Description>
+            </uax:EnumValueType>
+          </uax:Body>
+        </uax:ExtensionObject>
+        <uax:ExtensionObject>
+          <uax:TypeId>
+            <uax:Identifier>i=7616</uax:Identifier>
+          </uax:TypeId>
+          <uax:Body>
+            <uax:EnumValueType>
+              <uax:Value>8</uax:Value>
+              <uax:DisplayName>
+                <uax:Locale>en</uax:Locale>
+                <uax:Text>Clean</uax:Text>
+              </uax:DisplayName>
+              <uax:Description>
+                <uax:Locale>en</uax:Locale>
+                <uax:Text>The machine is running the cleaning program. This program can consist of program steps which can be controlled independently of each another, for example the program step “flush” for the filling or closing machine, or the program step “headspace disinfection” for the cleaning machine.</uax:Text>
+              </uax:Description>
+            </uax:EnumValueType>
+          </uax:Body>
+        </uax:ExtensionObject>
+        <uax:ExtensionObject>
+          <uax:TypeId>
+            <uax:Identifier>i=7616</uax:Identifier>
+          </uax:TypeId>
+          <uax:Body>
+            <uax:EnumValueType>
+              <uax:Value>16</uax:Value>
+              <uax:DisplayName>
+                <uax:Locale>en</uax:Locale>
+                <uax:Text>Changeover</uax:Text>
+              </uax:DisplayName>
+              <uax:Description>
+                <uax:Locale>en</uax:Locale>
+                <uax:Text>The machine is running the changeover program in which automatic machine adjustments are made depending on specific parameters.</uax:Text>
+              </uax:Description>
+            </uax:EnumValueType>
+          </uax:Body>
+        </uax:ExtensionObject>
+        <uax:ExtensionObject>
+          <uax:TypeId>
+            <uax:Identifier>i=7616</uax:Identifier>
+          </uax:TypeId>
+          <uax:Body>
+            <uax:EnumValueType>
+              <uax:Value>32</uax:Value>
+              <uax:DisplayName>
+                <uax:Locale>en</uax:Locale>
+                <uax:Text>Maintenance</uax:Text>
+              </uax:DisplayName>
+              <uax:Description>
+                <uax:Locale>en</uax:Locale>
+                <uax:Text>The machine is running the maintenance program in which the maintenance and service work are carried out.</uax:Text>
+              </uax:Description>
+            </uax:EnumValueType>
+          </uax:Body>
+        </uax:ExtensionObject>
+        <uax:ExtensionObject>
+          <uax:TypeId>
+            <uax:Identifier>i=7616</uax:Identifier>
+          </uax:TypeId>
+          <uax:Body>
+            <uax:EnumValueType>
+              <uax:Value>64</uax:Value>
+              <uax:DisplayName>
+                <uax:Locale>en</uax:Locale>
+                <uax:Text>Break</uax:Text>
+              </uax:DisplayName>
+              <uax:Description>
+                <uax:Locale>en</uax:Locale>
+                <uax:Text>The machine is running the break program. This ensures there is start up of the machine in accordance with regulations after a break.</uax:Text>
+              </uax:Description>
+            </uax:EnumValueType>
+          </uax:Body>
+        </uax:ExtensionObject>
+      </uax:ListOfExtensionObject>
+    </Value>
+  </UAVariable>
+  <UAVariableType NodeId="ns=4;i=2000" BrowseName="4:WSAnalogUnitType">
+    <DisplayName>WSAnalogUnitType</DisplayName>
+    <Documentation>https://reference.opcfoundation.org/v104/Weihenstephan/v100/docs/8.1</Documentation>
+    <References>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=17497</Reference>
+    </References>
+  </UAVariableType>
+  <UAVariable NodeId="ns=4;i=6027" BrowseName="4:WSTagNumber" ParentNodeId="ns=4;i=2000" DataType="UInt16" AccessLevel="3" UserAccessLevel="3">
+    <DisplayName>WSTagNumber</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=4;i=2000</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=4;i=6008" BrowseName="4:WSMachineProfile" ParentNodeId="ns=4;i=1000" DataType="String" AccessLevel="3" UserAccessLevel="3">
+    <DisplayName>WSMachineProfile</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=4;i=1000</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+    </References>
+  </UAVariable>
+  <UAVariableType NodeId="ns=4;i=2001" BrowseName="4:WSBaseDataVariableType">
+    <DisplayName>WSBaseDataVariableType</DisplayName>
+    <References>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=63</Reference>
+    </References>
+  </UAVariableType>
+  <UAVariable NodeId="ns=4;i=6022" BrowseName="4:WSTagNumber" ParentNodeId="ns=4;i=2001" DataType="UInt16" ValueRank="-2" AccessLevel="3" UserAccessLevel="3">
+    <DisplayName>WSTagNumber</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=4;i=2001</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+    </References>
+  </UAVariable>
+  <UAObject NodeId="ns=4;i=5002" BrowseName="4:ComputedValues" ParentNodeId="ns=4;i=1000">
+    <DisplayName>ComputedValues</DisplayName>
+    <References>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=4;i=1000</Reference>
+      <Reference ReferenceType="HasTypeDefinition">ns=1;i=1005</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+    </References>
+  </UAObject>
+  <UAObject NodeId="ns=4;i=5028" BrowseName="3:Held" ParentNodeId="ns=4;i=1005">
+    <DisplayName>Held</DisplayName>
+    <References>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=4;i=1005</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=2307</Reference>
+      <Reference ReferenceType="HasSubStateMachine">ns=4;i=5026</Reference>
+    </References>
+  </UAObject>
+  <UAObject NodeId="ns=4;i=5029" BrowseName="3:Suspended" ParentNodeId="ns=4;i=1005">
+    <DisplayName>Suspended</DisplayName>
+    <References>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=4;i=1005</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=2307</Reference>
+      <Reference ReferenceType="HasSubStateMachine">ns=4;i=5027</Reference>
+    </References>
+  </UAObject>
+</UANodeSet>

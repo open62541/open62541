@@ -1,0 +1,1857 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<!--
+ * Copyright (c) 2005-2021 The OPC Foundation, Inc. All rights reserved.
+ *
+ * OPC Foundation MIT License 1.00
+ * 
+ * Permission is hereby granted, free of charge, to any person
+ * obtaining a copy of this software and associated documentation
+ * files (the "Software"), to deal in the Software without
+ * restriction, including without limitation the rights to use,
+ * copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the
+ * Software is furnished to do so, subject to the following
+ * conditions:
+ * 
+ * The above copyright notice and this permission notice shall be
+ * included in all copies or substantial portions of the Software.
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+ * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
+ * OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+ * NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
+ * HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+ * WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+ * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+ * OTHER DEALINGS IN THE SOFTWARE.
+ *
+ * The complete license agreement can be found here:
+ * http://opcfoundation.org/License/MIT/1.00/
+-->
+
+<UANodeSet xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema" LastModified="2021-09-15T00:00:00Z" xmlns="http://opcfoundation.org/UA/2011/03/UANodeSet.xsd">
+  <Models>
+    <Model ModelUri="http://opcfoundation.org/UA/" Version="1.04.10" PublicationDate="2021-09-15T00:00:00Z" />
+  </Models>
+  <Aliases>
+    <Alias Alias="Boolean">i=1</Alias>
+    <Alias Alias="SByte">i=2</Alias>
+    <Alias Alias="Byte">i=3</Alias>
+    <Alias Alias="Int16">i=4</Alias>
+    <Alias Alias="UInt16">i=5</Alias>
+    <Alias Alias="Int32">i=6</Alias>
+    <Alias Alias="UInt32">i=7</Alias>
+    <Alias Alias="Int64">i=8</Alias>
+    <Alias Alias="UInt64">i=9</Alias>
+    <Alias Alias="Float">i=10</Alias>
+    <Alias Alias="Double">i=11</Alias>
+    <Alias Alias="DateTime">i=13</Alias>
+    <Alias Alias="String">i=12</Alias>
+    <Alias Alias="ByteString">i=15</Alias>
+    <Alias Alias="Guid">i=14</Alias>
+    <Alias Alias="XmlElement">i=16</Alias>
+    <Alias Alias="NodeId">i=17</Alias>
+    <Alias Alias="ExpandedNodeId">i=18</Alias>
+    <Alias Alias="QualifiedName">i=20</Alias>
+    <Alias Alias="LocalizedText">i=21</Alias>
+    <Alias Alias="StatusCode">i=19</Alias>
+    <Alias Alias="Structure">i=22</Alias>
+    <Alias Alias="Number">i=26</Alias>
+    <Alias Alias="Integer">i=27</Alias>
+    <Alias Alias="UInteger">i=28</Alias>
+    <Alias Alias="HasComponent">i=47</Alias>
+    <Alias Alias="HasProperty">i=46</Alias>
+    <Alias Alias="Organizes">i=35</Alias>
+    <Alias Alias="HasEventSource">i=36</Alias>
+    <Alias Alias="HasNotifier">i=48</Alias>
+    <Alias Alias="HasSubtype">i=45</Alias>
+    <Alias Alias="HasTypeDefinition">i=40</Alias>
+    <Alias Alias="HasModellingRule">i=37</Alias>
+    <Alias Alias="HasEncoding">i=38</Alias>
+    <Alias Alias="HasDescription">i=39</Alias>
+    <Alias Alias="HasCause">i=53</Alias>
+    <Alias Alias="ToState">i=52</Alias>
+    <Alias Alias="FromState">i=51</Alias>
+    <Alias Alias="HasEffect">i=54</Alias>
+    <Alias Alias="HasTrueSubState">i=9004</Alias>
+    <Alias Alias="HasFalseSubState">i=9005</Alias>
+    <Alias Alias="HasDictionaryEntry">i=17597</Alias>
+    <Alias Alias="HasCondition">i=9006</Alias>
+    <Alias Alias="HasGuard">i=15112</Alias>
+    <Alias Alias="HasAddIn">i=17604</Alias>
+    <Alias Alias="HasInterface">i=17603</Alias>
+  </Aliases>
+  <UAObjectType NodeId="i=24148" BrowseName="IIetfBaseNetworkInterfaceType" IsAbstract="true">
+    <DisplayName>IIetfBaseNetworkInterfaceType</DisplayName>
+    <References>
+      <Reference ReferenceType="HasComponent">i=24149</Reference>
+      <Reference ReferenceType="HasComponent">i=24150</Reference>
+      <Reference ReferenceType="HasComponent">i=24151</Reference>
+      <Reference ReferenceType="HasComponent">i=24152</Reference>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=17602</Reference>
+    </References>
+  </UAObjectType>
+  <UAVariable NodeId="i=24149" BrowseName="AdminStatus" ParentNodeId="i=24148" DataType="i=24212">
+    <DisplayName>AdminStatus</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=63</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">i=24148</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="i=24150" BrowseName="OperStatus" ParentNodeId="i=24148" DataType="i=24214">
+    <DisplayName>OperStatus</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=63</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">i=24148</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="i=24151" BrowseName="PhysAddress" ParentNodeId="i=24148" DataType="String">
+    <DisplayName>PhysAddress</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=63</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">i=24148</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="i=24152" BrowseName="Speed" ParentNodeId="i=24148" DataType="UInt64">
+    <DisplayName>Speed</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty">i=24157</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=17497</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">i=24148</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="i=24157" BrowseName="EngineeringUnits" ParentNodeId="i=24152" DataType="i=887">
+    <DisplayName>EngineeringUnits</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">i=24152</Reference>
+    </References>
+    <Value>
+      <ExtensionObject xmlns="http://opcfoundation.org/UA/2008/02/Types.xsd">
+        <TypeId>
+          <Identifier>i=888</Identifier>
+        </TypeId>
+        <Body>
+          <EUInformation>
+            <NamespaceUri>http://www.opcfoundation.org/UA/units/un/cefact</NamespaceUri>
+            <UnitId>4337968</UnitId>
+            <DisplayName>
+              <Locale>en</Locale>
+              <Text>bit/s</Text>
+            </DisplayName>
+            <Description>
+              <Locale>en</Locale>
+              <Text>bit per second</Text>
+            </Description>
+          </EUInformation>
+        </Body>
+      </ExtensionObject>
+    </Value>
+  </UAVariable>
+  <UAObjectType NodeId="i=24158" BrowseName="IIeeeBaseEthernetPortType" IsAbstract="true">
+    <DisplayName>IIeeeBaseEthernetPortType</DisplayName>
+    <References>
+      <Reference ReferenceType="HasComponent">i=24159</Reference>
+      <Reference ReferenceType="HasComponent">i=24165</Reference>
+      <Reference ReferenceType="HasComponent">i=24166</Reference>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=17602</Reference>
+    </References>
+  </UAObjectType>
+  <UAVariable NodeId="i=24159" BrowseName="Speed" ParentNodeId="i=24158" DataType="UInt64">
+    <DisplayName>Speed</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty">i=24164</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=17497</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">i=24158</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="i=24164" BrowseName="EngineeringUnits" ParentNodeId="i=24159" DataType="i=887">
+    <DisplayName>EngineeringUnits</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">i=24159</Reference>
+    </References>
+    <Value>
+      <ExtensionObject xmlns="http://opcfoundation.org/UA/2008/02/Types.xsd">
+        <TypeId>
+          <Identifier>i=888</Identifier>
+        </TypeId>
+        <Body>
+          <EUInformation>
+            <NamespaceUri>http://www.opcfoundation.org/UA/units/un/cefact</NamespaceUri>
+            <UnitId>4534832</UnitId>
+            <DisplayName>
+              <Locale>en</Locale>
+              <Text>Mbit/s</Text>
+            </DisplayName>
+            <Description>
+              <Locale>en</Locale>
+              <Text>megabit per second</Text>
+            </Description>
+          </EUInformation>
+        </Body>
+      </ExtensionObject>
+    </Value>
+  </UAVariable>
+  <UAVariable NodeId="i=24165" BrowseName="Duplex" ParentNodeId="i=24158" DataType="i=24210">
+    <DisplayName>Duplex</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=63</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">i=24158</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="i=24166" BrowseName="MaxFrameLength" ParentNodeId="i=24158" DataType="UInt16">
+    <DisplayName>MaxFrameLength</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=63</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">i=24158</Reference>
+    </References>
+  </UAVariable>
+  <UAObjectType NodeId="i=24233" BrowseName="IIeeeAutoNegotiationStatusType" IsAbstract="true">
+    <DisplayName>IIeeeAutoNegotiationStatusType</DisplayName>
+    <References>
+      <Reference ReferenceType="HasComponent">i=24234</Reference>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=17602</Reference>
+    </References>
+  </UAObjectType>
+  <UAVariable NodeId="i=24234" BrowseName="NegotiationStatus" ParentNodeId="i=24233" DataType="i=24216">
+    <DisplayName>NegotiationStatus</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=63</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">i=24233</Reference>
+    </References>
+  </UAVariable>
+  <UAObjectType NodeId="i=24167" BrowseName="IBaseEthernetCapabilitiesType" IsAbstract="true">
+    <DisplayName>IBaseEthernetCapabilitiesType</DisplayName>
+    <References>
+      <Reference ReferenceType="HasComponent">i=24168</Reference>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=17602</Reference>
+    </References>
+  </UAObjectType>
+  <UAVariable NodeId="i=24168" BrowseName="VlanTagCapable" ParentNodeId="i=24167" DataType="Boolean">
+    <DisplayName>VlanTagCapable</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=63</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">i=24167</Reference>
+    </References>
+  </UAVariable>
+  <UAObjectType NodeId="i=24169" BrowseName="ISrClassType" IsAbstract="true">
+    <DisplayName>ISrClassType</DisplayName>
+    <References>
+      <Reference ReferenceType="HasComponent">i=24170</Reference>
+      <Reference ReferenceType="HasComponent">i=24171</Reference>
+      <Reference ReferenceType="HasComponent">i=24172</Reference>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=17602</Reference>
+    </References>
+  </UAObjectType>
+  <UAVariable NodeId="i=24170" BrowseName="Id" ParentNodeId="i=24169" DataType="Byte">
+    <DisplayName>Id</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=63</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">i=24169</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="i=24171" BrowseName="Priority" ParentNodeId="i=24169" DataType="Byte">
+    <DisplayName>Priority</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=63</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">i=24169</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="i=24172" BrowseName="Vid" ParentNodeId="i=24169" DataType="UInt16">
+    <DisplayName>Vid</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=63</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">i=24169</Reference>
+    </References>
+  </UAVariable>
+  <UAObjectType NodeId="i=24173" BrowseName="IIeeeBaseTsnStreamType" IsAbstract="true">
+    <DisplayName>IIeeeBaseTsnStreamType</DisplayName>
+    <References>
+      <Reference ReferenceType="HasComponent">i=24174</Reference>
+      <Reference ReferenceType="HasComponent">i=24175</Reference>
+      <Reference ReferenceType="HasComponent">i=24176</Reference>
+      <Reference ReferenceType="HasComponent">i=24177</Reference>
+      <Reference ReferenceType="HasComponent">i=24178</Reference>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=17602</Reference>
+    </References>
+  </UAObjectType>
+  <UAVariable NodeId="i=24174" BrowseName="StreamId" ParentNodeId="i=24173" DataType="Byte" ValueRank="1" ArrayDimensions="8">
+    <DisplayName>StreamId</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=63</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">i=24173</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="i=24175" BrowseName="StreamName" ParentNodeId="i=24173" DataType="String">
+    <DisplayName>StreamName</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=63</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">i=24173</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="i=24176" BrowseName="State" ParentNodeId="i=24173" DataType="i=24220">
+    <DisplayName>State</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=63</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">i=24173</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="i=24177" BrowseName="AccumulatedLatency" ParentNodeId="i=24173" DataType="UInt32">
+    <DisplayName>AccumulatedLatency</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=63</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">i=24173</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="i=24178" BrowseName="SrClassId" ParentNodeId="i=24173" DataType="Byte">
+    <DisplayName>SrClassId</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=63</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">i=24173</Reference>
+    </References>
+  </UAVariable>
+  <UAObjectType NodeId="i=24179" BrowseName="IIeeeBaseTsnTrafficSpecificationType" IsAbstract="true">
+    <DisplayName>IIeeeBaseTsnTrafficSpecificationType</DisplayName>
+    <References>
+      <Reference ReferenceType="HasComponent">i=24180</Reference>
+      <Reference ReferenceType="HasComponent">i=24181</Reference>
+      <Reference ReferenceType="HasComponent">i=24182</Reference>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=17602</Reference>
+    </References>
+  </UAObjectType>
+  <UAVariable NodeId="i=24180" BrowseName="MaxIntervalFrames" ParentNodeId="i=24179" DataType="UInt16">
+    <DisplayName>MaxIntervalFrames</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=63</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">i=24179</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="i=24181" BrowseName="MaxFrameSize" ParentNodeId="i=24179" DataType="UInt32">
+    <DisplayName>MaxFrameSize</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=63</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">i=24179</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="i=24182" BrowseName="Interval" ParentNodeId="i=24179" DataType="i=24107">
+    <DisplayName>Interval</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=63</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">i=24179</Reference>
+    </References>
+  </UAVariable>
+  <UAObjectType NodeId="i=24183" BrowseName="IIeeeBaseTsnStatusStreamType" IsAbstract="true">
+    <DisplayName>IIeeeBaseTsnStatusStreamType</DisplayName>
+    <References>
+      <Reference ReferenceType="HasComponent">i=24184</Reference>
+      <Reference ReferenceType="HasComponent">i=24185</Reference>
+      <Reference ReferenceType="HasComponent">i=24186</Reference>
+      <Reference ReferenceType="HasComponent">i=24187</Reference>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=17602</Reference>
+    </References>
+  </UAObjectType>
+  <UAVariable NodeId="i=24184" BrowseName="TalkerStatus" ParentNodeId="i=24183" DataType="i=24222">
+    <DisplayName>TalkerStatus</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=63</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">i=24183</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="i=24185" BrowseName="ListenerStatus" ParentNodeId="i=24183" DataType="i=24224">
+    <DisplayName>ListenerStatus</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=63</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">i=24183</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="i=24186" BrowseName="FailureCode" ParentNodeId="i=24183" DataType="i=24218">
+    <DisplayName>FailureCode</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=63</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">i=24183</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="i=24187" BrowseName="FailureSystemIdentifier" ParentNodeId="i=24183" DataType="Byte" ValueRank="2" ArrayDimensions="0,8">
+    <DisplayName>FailureSystemIdentifier</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=63</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">i=24183</Reference>
+    </References>
+  </UAVariable>
+  <UAObjectType NodeId="i=24188" BrowseName="IIeeeTsnInterfaceConfigurationType" IsAbstract="true">
+    <DisplayName>IIeeeTsnInterfaceConfigurationType</DisplayName>
+    <References>
+      <Reference ReferenceType="HasComponent">i=24189</Reference>
+      <Reference ReferenceType="HasComponent">i=24190</Reference>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=17602</Reference>
+    </References>
+  </UAObjectType>
+  <UAVariable NodeId="i=24189" BrowseName="MacAddress" ParentNodeId="i=24188" DataType="String">
+    <DisplayName>MacAddress</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=63</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">i=24188</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="i=24190" BrowseName="InterfaceName" ParentNodeId="i=24188" DataType="String">
+    <DisplayName>InterfaceName</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=63</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">i=24188</Reference>
+    </References>
+  </UAVariable>
+  <UAObjectType NodeId="i=24191" BrowseName="IIeeeTsnInterfaceConfigurationTalkerType" IsAbstract="true">
+    <DisplayName>IIeeeTsnInterfaceConfigurationTalkerType</DisplayName>
+    <References>
+      <Reference ReferenceType="HasComponent">i=24194</Reference>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=24188</Reference>
+    </References>
+  </UAObjectType>
+  <UAVariable NodeId="i=24194" BrowseName="TimeAwareOffset" ParentNodeId="i=24191" DataType="UInt32">
+    <DisplayName>TimeAwareOffset</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=63</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">i=24191</Reference>
+    </References>
+  </UAVariable>
+  <UAObjectType NodeId="i=24195" BrowseName="IIeeeTsnInterfaceConfigurationListenerType" IsAbstract="true">
+    <DisplayName>IIeeeTsnInterfaceConfigurationListenerType</DisplayName>
+    <References>
+      <Reference ReferenceType="HasComponent">i=24198</Reference>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=24188</Reference>
+    </References>
+  </UAObjectType>
+  <UAVariable NodeId="i=24198" BrowseName="ReceiveOffset" ParentNodeId="i=24195" DataType="UInt32">
+    <DisplayName>ReceiveOffset</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=63</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">i=24195</Reference>
+    </References>
+  </UAVariable>
+  <UAObjectType NodeId="i=24199" BrowseName="IIeeeTsnMacAddressType" IsAbstract="true">
+    <DisplayName>IIeeeTsnMacAddressType</DisplayName>
+    <References>
+      <Reference ReferenceType="HasComponent">i=24200</Reference>
+      <Reference ReferenceType="HasComponent">i=24201</Reference>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=17602</Reference>
+    </References>
+  </UAObjectType>
+  <UAVariable NodeId="i=24200" BrowseName="DestinationAddress" ParentNodeId="i=24199" DataType="Byte" ValueRank="1" ArrayDimensions="6">
+    <DisplayName>DestinationAddress</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=63</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">i=24199</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="i=24201" BrowseName="SourceAddress" ParentNodeId="i=24199" DataType="Byte" ValueRank="1" ArrayDimensions="6">
+    <DisplayName>SourceAddress</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=63</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">i=24199</Reference>
+    </References>
+  </UAVariable>
+  <UAObjectType NodeId="i=24202" BrowseName="IIeeeTsnVlanTagType" IsAbstract="true">
+    <DisplayName>IIeeeTsnVlanTagType</DisplayName>
+    <References>
+      <Reference ReferenceType="HasComponent">i=24203</Reference>
+      <Reference ReferenceType="HasComponent">i=24204</Reference>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=17602</Reference>
+    </References>
+  </UAObjectType>
+  <UAVariable NodeId="i=24203" BrowseName="VlanId" ParentNodeId="i=24202" DataType="UInt16">
+    <DisplayName>VlanId</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=63</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">i=24202</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="i=24204" BrowseName="PriorityCodePoint" ParentNodeId="i=24202" DataType="Byte">
+    <DisplayName>PriorityCodePoint</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=63</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">i=24202</Reference>
+    </References>
+  </UAVariable>
+  <UAObjectType NodeId="i=24205" BrowseName="IPriorityMappingEntryType" IsAbstract="true">
+    <DisplayName>IPriorityMappingEntryType</DisplayName>
+    <References>
+      <Reference ReferenceType="HasComponent">i=24206</Reference>
+      <Reference ReferenceType="HasComponent">i=24207</Reference>
+      <Reference ReferenceType="HasComponent">i=24208</Reference>
+      <Reference ReferenceType="HasComponent">i=24209</Reference>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=17602</Reference>
+    </References>
+  </UAObjectType>
+  <UAVariable NodeId="i=24206" BrowseName="MappingUri" ParentNodeId="i=24205" DataType="String">
+    <DisplayName>MappingUri</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=63</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">i=24205</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="i=24207" BrowseName="PriorityLabel" ParentNodeId="i=24205" DataType="String">
+    <DisplayName>PriorityLabel</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=63</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">i=24205</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="i=24208" BrowseName="PriorityValue_PCP" ParentNodeId="i=24205" DataType="Byte">
+    <DisplayName>PriorityValue_PCP</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=63</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">i=24205</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="i=24209" BrowseName="PriorityValue_DSCP" ParentNodeId="i=24205" DataType="UInt32">
+    <DisplayName>PriorityValue_DSCP</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=63</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">i=24205</Reference>
+    </References>
+  </UAVariable>
+  <UADataType NodeId="i=24210" BrowseName="Duplex">
+    <DisplayName>Duplex</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty">i=24235</Reference>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=29</Reference>
+    </References>
+    <Definition Name="Duplex">
+      <Field Name="Full" Value="0">
+        <Description>Full duplex.</Description>
+      </Field>
+      <Field Name="Half" Value="1">
+        <Description>Half duplex.</Description>
+      </Field>
+      <Field Name="Unknown" Value="2">
+        <Description>Link is currently disconnected or initializing.</Description>
+      </Field>
+    </Definition>
+  </UADataType>
+  <UAVariable NodeId="i=24235" BrowseName="EnumValues" ParentNodeId="i=24210" DataType="i=7594" ValueRank="1" ArrayDimensions="0">
+    <DisplayName>EnumValues</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">i=24210</Reference>
+    </References>
+    <Value>
+      <ListOfExtensionObject xmlns="http://opcfoundation.org/UA/2008/02/Types.xsd">
+        <ExtensionObject>
+          <TypeId>
+            <Identifier>i=7616</Identifier>
+          </TypeId>
+          <Body>
+            <EnumValueType>
+              <Value>0</Value>
+              <DisplayName>
+                <Text>Full</Text>
+              </DisplayName>
+              <Description>
+                <Text>Full duplex.</Text>
+              </Description>
+            </EnumValueType>
+          </Body>
+        </ExtensionObject>
+        <ExtensionObject>
+          <TypeId>
+            <Identifier>i=7616</Identifier>
+          </TypeId>
+          <Body>
+            <EnumValueType>
+              <Value>1</Value>
+              <DisplayName>
+                <Text>Half</Text>
+              </DisplayName>
+              <Description>
+                <Text>Half duplex.</Text>
+              </Description>
+            </EnumValueType>
+          </Body>
+        </ExtensionObject>
+        <ExtensionObject>
+          <TypeId>
+            <Identifier>i=7616</Identifier>
+          </TypeId>
+          <Body>
+            <EnumValueType>
+              <Value>2</Value>
+              <DisplayName>
+                <Text>Unknown</Text>
+              </DisplayName>
+              <Description>
+                <Text>Link is currently disconnected or initializing.</Text>
+              </Description>
+            </EnumValueType>
+          </Body>
+        </ExtensionObject>
+      </ListOfExtensionObject>
+    </Value>
+  </UAVariable>
+  <UADataType NodeId="i=24212" BrowseName="InterfaceAdminStatus">
+    <DisplayName>InterfaceAdminStatus</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty">i=24236</Reference>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=29</Reference>
+    </References>
+    <Definition Name="InterfaceAdminStatus">
+      <Field Name="Up" Value="0">
+        <Description>Ready to pass packets.</Description>
+      </Field>
+      <Field Name="Down" Value="1">
+        <Description>Not ready to pass packets and not in some test mode.</Description>
+      </Field>
+      <Field Name="Testing" Value="2">
+        <Description>In some test mode.</Description>
+      </Field>
+    </Definition>
+  </UADataType>
+  <UAVariable NodeId="i=24236" BrowseName="EnumValues" ParentNodeId="i=24212" DataType="i=7594" ValueRank="1" ArrayDimensions="0">
+    <DisplayName>EnumValues</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">i=24212</Reference>
+    </References>
+    <Value>
+      <ListOfExtensionObject xmlns="http://opcfoundation.org/UA/2008/02/Types.xsd">
+        <ExtensionObject>
+          <TypeId>
+            <Identifier>i=7616</Identifier>
+          </TypeId>
+          <Body>
+            <EnumValueType>
+              <Value>0</Value>
+              <DisplayName>
+                <Text>Up</Text>
+              </DisplayName>
+              <Description>
+                <Text>Ready to pass packets.</Text>
+              </Description>
+            </EnumValueType>
+          </Body>
+        </ExtensionObject>
+        <ExtensionObject>
+          <TypeId>
+            <Identifier>i=7616</Identifier>
+          </TypeId>
+          <Body>
+            <EnumValueType>
+              <Value>1</Value>
+              <DisplayName>
+                <Text>Down</Text>
+              </DisplayName>
+              <Description>
+                <Text>Not ready to pass packets and not in some test mode.</Text>
+              </Description>
+            </EnumValueType>
+          </Body>
+        </ExtensionObject>
+        <ExtensionObject>
+          <TypeId>
+            <Identifier>i=7616</Identifier>
+          </TypeId>
+          <Body>
+            <EnumValueType>
+              <Value>2</Value>
+              <DisplayName>
+                <Text>Testing</Text>
+              </DisplayName>
+              <Description>
+                <Text>In some test mode.</Text>
+              </Description>
+            </EnumValueType>
+          </Body>
+        </ExtensionObject>
+      </ListOfExtensionObject>
+    </Value>
+  </UAVariable>
+  <UADataType NodeId="i=24214" BrowseName="InterfaceOperStatus">
+    <DisplayName>InterfaceOperStatus</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty">i=24237</Reference>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=29</Reference>
+    </References>
+    <Definition Name="InterfaceOperStatus">
+      <Field Name="Up" Value="0">
+        <Description>Ready to pass packets.</Description>
+      </Field>
+      <Field Name="Down" Value="1">
+        <Description>The interface does not pass any packets.</Description>
+      </Field>
+      <Field Name="Testing" Value="2">
+        <Description>In some test mode. No operational packets can be passed.</Description>
+      </Field>
+      <Field Name="Unknown" Value="3">
+        <Description>Status cannot be determined for some reason.</Description>
+      </Field>
+      <Field Name="Dormant" Value="4">
+        <Description>Waiting for some external event.</Description>
+      </Field>
+      <Field Name="NotPresent" Value="5">
+        <Description>Some component (typically hardware) is missing.</Description>
+      </Field>
+      <Field Name="LowerLayerDown" Value="6">
+        <Description>Down due to state of lower-layer interface(s).</Description>
+      </Field>
+    </Definition>
+  </UADataType>
+  <UAVariable NodeId="i=24237" BrowseName="EnumValues" ParentNodeId="i=24214" DataType="i=7594" ValueRank="1" ArrayDimensions="0">
+    <DisplayName>EnumValues</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">i=24214</Reference>
+    </References>
+    <Value>
+      <ListOfExtensionObject xmlns="http://opcfoundation.org/UA/2008/02/Types.xsd">
+        <ExtensionObject>
+          <TypeId>
+            <Identifier>i=7616</Identifier>
+          </TypeId>
+          <Body>
+            <EnumValueType>
+              <Value>0</Value>
+              <DisplayName>
+                <Text>Up</Text>
+              </DisplayName>
+              <Description>
+                <Text>Ready to pass packets.</Text>
+              </Description>
+            </EnumValueType>
+          </Body>
+        </ExtensionObject>
+        <ExtensionObject>
+          <TypeId>
+            <Identifier>i=7616</Identifier>
+          </TypeId>
+          <Body>
+            <EnumValueType>
+              <Value>1</Value>
+              <DisplayName>
+                <Text>Down</Text>
+              </DisplayName>
+              <Description>
+                <Text>The interface does not pass any packets.</Text>
+              </Description>
+            </EnumValueType>
+          </Body>
+        </ExtensionObject>
+        <ExtensionObject>
+          <TypeId>
+            <Identifier>i=7616</Identifier>
+          </TypeId>
+          <Body>
+            <EnumValueType>
+              <Value>2</Value>
+              <DisplayName>
+                <Text>Testing</Text>
+              </DisplayName>
+              <Description>
+                <Text>In some test mode. No operational packets can be passed.</Text>
+              </Description>
+            </EnumValueType>
+          </Body>
+        </ExtensionObject>
+        <ExtensionObject>
+          <TypeId>
+            <Identifier>i=7616</Identifier>
+          </TypeId>
+          <Body>
+            <EnumValueType>
+              <Value>3</Value>
+              <DisplayName>
+                <Text>Unknown</Text>
+              </DisplayName>
+              <Description>
+                <Text>Status cannot be determined for some reason.</Text>
+              </Description>
+            </EnumValueType>
+          </Body>
+        </ExtensionObject>
+        <ExtensionObject>
+          <TypeId>
+            <Identifier>i=7616</Identifier>
+          </TypeId>
+          <Body>
+            <EnumValueType>
+              <Value>4</Value>
+              <DisplayName>
+                <Text>Dormant</Text>
+              </DisplayName>
+              <Description>
+                <Text>Waiting for some external event.</Text>
+              </Description>
+            </EnumValueType>
+          </Body>
+        </ExtensionObject>
+        <ExtensionObject>
+          <TypeId>
+            <Identifier>i=7616</Identifier>
+          </TypeId>
+          <Body>
+            <EnumValueType>
+              <Value>5</Value>
+              <DisplayName>
+                <Text>NotPresent</Text>
+              </DisplayName>
+              <Description>
+                <Text>Some component (typically hardware) is missing.</Text>
+              </Description>
+            </EnumValueType>
+          </Body>
+        </ExtensionObject>
+        <ExtensionObject>
+          <TypeId>
+            <Identifier>i=7616</Identifier>
+          </TypeId>
+          <Body>
+            <EnumValueType>
+              <Value>6</Value>
+              <DisplayName>
+                <Text>LowerLayerDown</Text>
+              </DisplayName>
+              <Description>
+                <Text>Down due to state of lower-layer interface(s).</Text>
+              </Description>
+            </EnumValueType>
+          </Body>
+        </ExtensionObject>
+      </ListOfExtensionObject>
+    </Value>
+  </UAVariable>
+  <UADataType NodeId="i=24216" BrowseName="NegotiationStatus">
+    <DisplayName>NegotiationStatus</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty">i=24238</Reference>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=29</Reference>
+    </References>
+    <Definition Name="NegotiationStatus">
+      <Field Name="InProgress" Value="0">
+        <Description>The auto-negotiation protocol is running and negotiation is currently in-progress.</Description>
+      </Field>
+      <Field Name="Complete" Value="1">
+        <Description>The auto-negotiation protocol has completed successfully.</Description>
+      </Field>
+      <Field Name="Failed" Value="2">
+        <Description>The auto-negotiation protocol has failed.</Description>
+      </Field>
+      <Field Name="Unknown" Value="3">
+        <Description>The auto-negotiation status is not currently known, this could be because it is still negotiating or the protocol cannot run (e.g., if no medium is present).</Description>
+      </Field>
+      <Field Name="NoNegotiation" Value="4">
+        <Description>No auto-negotiation is executed. The auto-negotiation function is either not supported on this interface or has not been enabled.</Description>
+      </Field>
+    </Definition>
+  </UADataType>
+  <UAVariable NodeId="i=24238" BrowseName="EnumValues" ParentNodeId="i=24216" DataType="i=7594" ValueRank="1" ArrayDimensions="0">
+    <DisplayName>EnumValues</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">i=24216</Reference>
+    </References>
+    <Value>
+      <ListOfExtensionObject xmlns="http://opcfoundation.org/UA/2008/02/Types.xsd">
+        <ExtensionObject>
+          <TypeId>
+            <Identifier>i=7616</Identifier>
+          </TypeId>
+          <Body>
+            <EnumValueType>
+              <Value>0</Value>
+              <DisplayName>
+                <Text>InProgress</Text>
+              </DisplayName>
+              <Description>
+                <Text>The auto-negotiation protocol is running and negotiation is currently in-progress.</Text>
+              </Description>
+            </EnumValueType>
+          </Body>
+        </ExtensionObject>
+        <ExtensionObject>
+          <TypeId>
+            <Identifier>i=7616</Identifier>
+          </TypeId>
+          <Body>
+            <EnumValueType>
+              <Value>1</Value>
+              <DisplayName>
+                <Text>Complete</Text>
+              </DisplayName>
+              <Description>
+                <Text>The auto-negotiation protocol has completed successfully.</Text>
+              </Description>
+            </EnumValueType>
+          </Body>
+        </ExtensionObject>
+        <ExtensionObject>
+          <TypeId>
+            <Identifier>i=7616</Identifier>
+          </TypeId>
+          <Body>
+            <EnumValueType>
+              <Value>2</Value>
+              <DisplayName>
+                <Text>Failed</Text>
+              </DisplayName>
+              <Description>
+                <Text>The auto-negotiation protocol has failed.</Text>
+              </Description>
+            </EnumValueType>
+          </Body>
+        </ExtensionObject>
+        <ExtensionObject>
+          <TypeId>
+            <Identifier>i=7616</Identifier>
+          </TypeId>
+          <Body>
+            <EnumValueType>
+              <Value>3</Value>
+              <DisplayName>
+                <Text>Unknown</Text>
+              </DisplayName>
+              <Description>
+                <Text>The auto-negotiation status is not currently known, this could be because it is still negotiating or the protocol cannot run (e.g., if no medium is present).</Text>
+              </Description>
+            </EnumValueType>
+          </Body>
+        </ExtensionObject>
+        <ExtensionObject>
+          <TypeId>
+            <Identifier>i=7616</Identifier>
+          </TypeId>
+          <Body>
+            <EnumValueType>
+              <Value>4</Value>
+              <DisplayName>
+                <Text>NoNegotiation</Text>
+              </DisplayName>
+              <Description>
+                <Text>No auto-negotiation is executed. The auto-negotiation function is either not supported on this interface or has not been enabled.</Text>
+              </Description>
+            </EnumValueType>
+          </Body>
+        </ExtensionObject>
+      </ListOfExtensionObject>
+    </Value>
+  </UAVariable>
+  <UADataType NodeId="i=24218" BrowseName="TsnFailureCode">
+    <DisplayName>TsnFailureCode</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty">i=24239</Reference>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=29</Reference>
+    </References>
+    <Definition Name="TsnFailureCode">
+      <Field Name="NoFailure" Value="0">
+        <Description>No failure</Description>
+      </Field>
+      <Field Name="InsufficientBandwidth" Value="1">
+        <Description>Insufficient bandwidth</Description>
+      </Field>
+      <Field Name="InsufficientResources" Value="2">
+        <Description>Insufficient bridge resources</Description>
+      </Field>
+      <Field Name="InsufficientTrafficClassBandwidth" Value="3">
+        <Description>Insufficient bandwidth for Traffic Class</Description>
+      </Field>
+      <Field Name="StreamIdInUse" Value="4">
+        <Description>StreamID in use by another Talker</Description>
+      </Field>
+      <Field Name="StreamDestinationAddressInUse" Value="5">
+        <Description>Stream destination address already in use</Description>
+      </Field>
+      <Field Name="StreamPreemptedByHigherRank" Value="6">
+        <Description>Stream pre-empted by higher rank</Description>
+      </Field>
+      <Field Name="LatencyHasChanged" Value="7">
+        <Description>Reported latency has changed</Description>
+      </Field>
+      <Field Name="EgressPortNotAvbCapable" Value="8">
+        <Description>Egress port is not AVBCapable</Description>
+      </Field>
+      <Field Name="UseDifferentDestinationAddress" Value="9">
+        <Description>Use a different destination address</Description>
+      </Field>
+      <Field Name="OutOfMsrpResources" Value="10">
+        <Description>Out of MSRP resources</Description>
+      </Field>
+      <Field Name="OutOfMmrpResources" Value="11">
+        <Description>Out of MMRP resources</Description>
+      </Field>
+      <Field Name="CannotStoreDestinationAddress" Value="12">
+        <Description>Cannot store destination address</Description>
+      </Field>
+      <Field Name="PriorityIsNotAnSrcClass" Value="13">
+        <Description>Requested priority is not an SR Class priority</Description>
+      </Field>
+      <Field Name="MaxFrameSizeTooLarge" Value="14">
+        <Description>MaxFrameSize is too large for media</Description>
+      </Field>
+      <Field Name="MaxFanInPortsLimitReached" Value="15">
+        <Description>MaxFanInPorts limit has been reached</Description>
+      </Field>
+      <Field Name="FirstValueChangedForStreamId" Value="16">
+        <Description>Changes in FirstValue for a registered StreamID</Description>
+      </Field>
+      <Field Name="VlanBlockedOnEgress" Value="17">
+        <Description>VLAN is blocked on this egress port (Registration Forbidden)</Description>
+      </Field>
+      <Field Name="VlanTaggingDisabledOnEgress" Value="18">
+        <Description>VLAN tagging is disabled on this egress port (untagged set)</Description>
+      </Field>
+      <Field Name="SrClassPriorityMismatch" Value="19">
+        <Description>SR class priority mismatch</Description>
+      </Field>
+      <Field Name="FeatureNotPropagated" Value="20">
+        <Description>Enhanced feature cannot be propagated to original Port</Description>
+      </Field>
+      <Field Name="MaxLatencyExceeded" Value="21">
+        <Description>MaxLatency exceeded</Description>
+      </Field>
+      <Field Name="BridgeDoesNotProvideNetworkId" Value="22">
+        <Description>Nearest Bridge cannot provide network identification for stream transformation</Description>
+      </Field>
+      <Field Name="StreamTransformNotSupported" Value="23">
+        <Description>Stream transformation not supported</Description>
+      </Field>
+      <Field Name="StreamIdTypeNotSupported" Value="24">
+        <Description>Stream identification type not supported for stream transformation</Description>
+      </Field>
+      <Field Name="FeatureNotSupported" Value="25">
+        <Description>Enhanced feature cannot be supported without a CNC</Description>
+      </Field>
+    </Definition>
+  </UADataType>
+  <UAVariable NodeId="i=24239" BrowseName="EnumValues" ParentNodeId="i=24218" DataType="i=7594" ValueRank="1" ArrayDimensions="0">
+    <DisplayName>EnumValues</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">i=24218</Reference>
+    </References>
+    <Value>
+      <ListOfExtensionObject xmlns="http://opcfoundation.org/UA/2008/02/Types.xsd">
+        <ExtensionObject>
+          <TypeId>
+            <Identifier>i=7616</Identifier>
+          </TypeId>
+          <Body>
+            <EnumValueType>
+              <Value>0</Value>
+              <DisplayName>
+                <Text>NoFailure</Text>
+              </DisplayName>
+              <Description>
+                <Text>No failure</Text>
+              </Description>
+            </EnumValueType>
+          </Body>
+        </ExtensionObject>
+        <ExtensionObject>
+          <TypeId>
+            <Identifier>i=7616</Identifier>
+          </TypeId>
+          <Body>
+            <EnumValueType>
+              <Value>1</Value>
+              <DisplayName>
+                <Text>InsufficientBandwidth</Text>
+              </DisplayName>
+              <Description>
+                <Text>Insufficient bandwidth</Text>
+              </Description>
+            </EnumValueType>
+          </Body>
+        </ExtensionObject>
+        <ExtensionObject>
+          <TypeId>
+            <Identifier>i=7616</Identifier>
+          </TypeId>
+          <Body>
+            <EnumValueType>
+              <Value>2</Value>
+              <DisplayName>
+                <Text>InsufficientResources</Text>
+              </DisplayName>
+              <Description>
+                <Text>Insufficient bridge resources</Text>
+              </Description>
+            </EnumValueType>
+          </Body>
+        </ExtensionObject>
+        <ExtensionObject>
+          <TypeId>
+            <Identifier>i=7616</Identifier>
+          </TypeId>
+          <Body>
+            <EnumValueType>
+              <Value>3</Value>
+              <DisplayName>
+                <Text>InsufficientTrafficClassBandwidth</Text>
+              </DisplayName>
+              <Description>
+                <Text>Insufficient bandwidth for Traffic Class</Text>
+              </Description>
+            </EnumValueType>
+          </Body>
+        </ExtensionObject>
+        <ExtensionObject>
+          <TypeId>
+            <Identifier>i=7616</Identifier>
+          </TypeId>
+          <Body>
+            <EnumValueType>
+              <Value>4</Value>
+              <DisplayName>
+                <Text>StreamIdInUse</Text>
+              </DisplayName>
+              <Description>
+                <Text>StreamID in use by another Talker</Text>
+              </Description>
+            </EnumValueType>
+          </Body>
+        </ExtensionObject>
+        <ExtensionObject>
+          <TypeId>
+            <Identifier>i=7616</Identifier>
+          </TypeId>
+          <Body>
+            <EnumValueType>
+              <Value>5</Value>
+              <DisplayName>
+                <Text>StreamDestinationAddressInUse</Text>
+              </DisplayName>
+              <Description>
+                <Text>Stream destination address already in use</Text>
+              </Description>
+            </EnumValueType>
+          </Body>
+        </ExtensionObject>
+        <ExtensionObject>
+          <TypeId>
+            <Identifier>i=7616</Identifier>
+          </TypeId>
+          <Body>
+            <EnumValueType>
+              <Value>6</Value>
+              <DisplayName>
+                <Text>StreamPreemptedByHigherRank</Text>
+              </DisplayName>
+              <Description>
+                <Text>Stream pre-empted by higher rank</Text>
+              </Description>
+            </EnumValueType>
+          </Body>
+        </ExtensionObject>
+        <ExtensionObject>
+          <TypeId>
+            <Identifier>i=7616</Identifier>
+          </TypeId>
+          <Body>
+            <EnumValueType>
+              <Value>7</Value>
+              <DisplayName>
+                <Text>LatencyHasChanged</Text>
+              </DisplayName>
+              <Description>
+                <Text>Reported latency has changed</Text>
+              </Description>
+            </EnumValueType>
+          </Body>
+        </ExtensionObject>
+        <ExtensionObject>
+          <TypeId>
+            <Identifier>i=7616</Identifier>
+          </TypeId>
+          <Body>
+            <EnumValueType>
+              <Value>8</Value>
+              <DisplayName>
+                <Text>EgressPortNotAvbCapable</Text>
+              </DisplayName>
+              <Description>
+                <Text>Egress port is not AVBCapable</Text>
+              </Description>
+            </EnumValueType>
+          </Body>
+        </ExtensionObject>
+        <ExtensionObject>
+          <TypeId>
+            <Identifier>i=7616</Identifier>
+          </TypeId>
+          <Body>
+            <EnumValueType>
+              <Value>9</Value>
+              <DisplayName>
+                <Text>UseDifferentDestinationAddress</Text>
+              </DisplayName>
+              <Description>
+                <Text>Use a different destination address</Text>
+              </Description>
+            </EnumValueType>
+          </Body>
+        </ExtensionObject>
+        <ExtensionObject>
+          <TypeId>
+            <Identifier>i=7616</Identifier>
+          </TypeId>
+          <Body>
+            <EnumValueType>
+              <Value>10</Value>
+              <DisplayName>
+                <Text>OutOfMsrpResources</Text>
+              </DisplayName>
+              <Description>
+                <Text>Out of MSRP resources</Text>
+              </Description>
+            </EnumValueType>
+          </Body>
+        </ExtensionObject>
+        <ExtensionObject>
+          <TypeId>
+            <Identifier>i=7616</Identifier>
+          </TypeId>
+          <Body>
+            <EnumValueType>
+              <Value>11</Value>
+              <DisplayName>
+                <Text>OutOfMmrpResources</Text>
+              </DisplayName>
+              <Description>
+                <Text>Out of MMRP resources</Text>
+              </Description>
+            </EnumValueType>
+          </Body>
+        </ExtensionObject>
+        <ExtensionObject>
+          <TypeId>
+            <Identifier>i=7616</Identifier>
+          </TypeId>
+          <Body>
+            <EnumValueType>
+              <Value>12</Value>
+              <DisplayName>
+                <Text>CannotStoreDestinationAddress</Text>
+              </DisplayName>
+              <Description>
+                <Text>Cannot store destination address</Text>
+              </Description>
+            </EnumValueType>
+          </Body>
+        </ExtensionObject>
+        <ExtensionObject>
+          <TypeId>
+            <Identifier>i=7616</Identifier>
+          </TypeId>
+          <Body>
+            <EnumValueType>
+              <Value>13</Value>
+              <DisplayName>
+                <Text>PriorityIsNotAnSrcClass</Text>
+              </DisplayName>
+              <Description>
+                <Text>Requested priority is not an SR Class priority</Text>
+              </Description>
+            </EnumValueType>
+          </Body>
+        </ExtensionObject>
+        <ExtensionObject>
+          <TypeId>
+            <Identifier>i=7616</Identifier>
+          </TypeId>
+          <Body>
+            <EnumValueType>
+              <Value>14</Value>
+              <DisplayName>
+                <Text>MaxFrameSizeTooLarge</Text>
+              </DisplayName>
+              <Description>
+                <Text>MaxFrameSize is too large for media</Text>
+              </Description>
+            </EnumValueType>
+          </Body>
+        </ExtensionObject>
+        <ExtensionObject>
+          <TypeId>
+            <Identifier>i=7616</Identifier>
+          </TypeId>
+          <Body>
+            <EnumValueType>
+              <Value>15</Value>
+              <DisplayName>
+                <Text>MaxFanInPortsLimitReached</Text>
+              </DisplayName>
+              <Description>
+                <Text>MaxFanInPorts limit has been reached</Text>
+              </Description>
+            </EnumValueType>
+          </Body>
+        </ExtensionObject>
+        <ExtensionObject>
+          <TypeId>
+            <Identifier>i=7616</Identifier>
+          </TypeId>
+          <Body>
+            <EnumValueType>
+              <Value>16</Value>
+              <DisplayName>
+                <Text>FirstValueChangedForStreamId</Text>
+              </DisplayName>
+              <Description>
+                <Text>Changes in FirstValue for a registered StreamID</Text>
+              </Description>
+            </EnumValueType>
+          </Body>
+        </ExtensionObject>
+        <ExtensionObject>
+          <TypeId>
+            <Identifier>i=7616</Identifier>
+          </TypeId>
+          <Body>
+            <EnumValueType>
+              <Value>17</Value>
+              <DisplayName>
+                <Text>VlanBlockedOnEgress</Text>
+              </DisplayName>
+              <Description>
+                <Text>VLAN is blocked on this egress port (Registration Forbidden)</Text>
+              </Description>
+            </EnumValueType>
+          </Body>
+        </ExtensionObject>
+        <ExtensionObject>
+          <TypeId>
+            <Identifier>i=7616</Identifier>
+          </TypeId>
+          <Body>
+            <EnumValueType>
+              <Value>18</Value>
+              <DisplayName>
+                <Text>VlanTaggingDisabledOnEgress</Text>
+              </DisplayName>
+              <Description>
+                <Text>VLAN tagging is disabled on this egress port (untagged set)</Text>
+              </Description>
+            </EnumValueType>
+          </Body>
+        </ExtensionObject>
+        <ExtensionObject>
+          <TypeId>
+            <Identifier>i=7616</Identifier>
+          </TypeId>
+          <Body>
+            <EnumValueType>
+              <Value>19</Value>
+              <DisplayName>
+                <Text>SrClassPriorityMismatch</Text>
+              </DisplayName>
+              <Description>
+                <Text>SR class priority mismatch</Text>
+              </Description>
+            </EnumValueType>
+          </Body>
+        </ExtensionObject>
+        <ExtensionObject>
+          <TypeId>
+            <Identifier>i=7616</Identifier>
+          </TypeId>
+          <Body>
+            <EnumValueType>
+              <Value>20</Value>
+              <DisplayName>
+                <Text>FeatureNotPropagated</Text>
+              </DisplayName>
+              <Description>
+                <Text>Enhanced feature cannot be propagated to original Port</Text>
+              </Description>
+            </EnumValueType>
+          </Body>
+        </ExtensionObject>
+        <ExtensionObject>
+          <TypeId>
+            <Identifier>i=7616</Identifier>
+          </TypeId>
+          <Body>
+            <EnumValueType>
+              <Value>21</Value>
+              <DisplayName>
+                <Text>MaxLatencyExceeded</Text>
+              </DisplayName>
+              <Description>
+                <Text>MaxLatency exceeded</Text>
+              </Description>
+            </EnumValueType>
+          </Body>
+        </ExtensionObject>
+        <ExtensionObject>
+          <TypeId>
+            <Identifier>i=7616</Identifier>
+          </TypeId>
+          <Body>
+            <EnumValueType>
+              <Value>22</Value>
+              <DisplayName>
+                <Text>BridgeDoesNotProvideNetworkId</Text>
+              </DisplayName>
+              <Description>
+                <Text>Nearest Bridge cannot provide network identification for stream transformation</Text>
+              </Description>
+            </EnumValueType>
+          </Body>
+        </ExtensionObject>
+        <ExtensionObject>
+          <TypeId>
+            <Identifier>i=7616</Identifier>
+          </TypeId>
+          <Body>
+            <EnumValueType>
+              <Value>23</Value>
+              <DisplayName>
+                <Text>StreamTransformNotSupported</Text>
+              </DisplayName>
+              <Description>
+                <Text>Stream transformation not supported</Text>
+              </Description>
+            </EnumValueType>
+          </Body>
+        </ExtensionObject>
+        <ExtensionObject>
+          <TypeId>
+            <Identifier>i=7616</Identifier>
+          </TypeId>
+          <Body>
+            <EnumValueType>
+              <Value>24</Value>
+              <DisplayName>
+                <Text>StreamIdTypeNotSupported</Text>
+              </DisplayName>
+              <Description>
+                <Text>Stream identification type not supported for stream transformation</Text>
+              </Description>
+            </EnumValueType>
+          </Body>
+        </ExtensionObject>
+        <ExtensionObject>
+          <TypeId>
+            <Identifier>i=7616</Identifier>
+          </TypeId>
+          <Body>
+            <EnumValueType>
+              <Value>25</Value>
+              <DisplayName>
+                <Text>FeatureNotSupported</Text>
+              </DisplayName>
+              <Description>
+                <Text>Enhanced feature cannot be supported without a CNC</Text>
+              </Description>
+            </EnumValueType>
+          </Body>
+        </ExtensionObject>
+      </ListOfExtensionObject>
+    </Value>
+  </UAVariable>
+  <UADataType NodeId="i=24220" BrowseName="TsnStreamState">
+    <DisplayName>TsnStreamState</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty">i=24240</Reference>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=29</Reference>
+    </References>
+    <Definition Name="TsnStreamState">
+      <Field Name="Disabled" Value="0">
+        <Description>The related TSN Stream is currently disabled.</Description>
+      </Field>
+      <Field Name="Configuring" Value="1">
+        <Description>The related TSN Stream is in the process of receiving configuration parameters from the TSN Control Layer.</Description>
+      </Field>
+      <Field Name="Ready" Value="2">
+        <Description>The related TSN Stream has successfully received and applied the configuration from the TSN Control Layer. The related TSN Stream is not fully operational as long as local preconditions (e.g. synchronization state) are not valid.</Description>
+      </Field>
+      <Field Name="Operational" Value="3">
+        <Description>The related TSN Stream object is configured and all other required preconditions (e.g. synchronization state) for sending / receiving data are valid.</Description>
+      </Field>
+      <Field Name="Error" Value="4">
+        <Description>The related TSN Stream object is in an error state.</Description>
+      </Field>
+    </Definition>
+  </UADataType>
+  <UAVariable NodeId="i=24240" BrowseName="EnumValues" ParentNodeId="i=24220" DataType="i=7594" ValueRank="1" ArrayDimensions="0">
+    <DisplayName>EnumValues</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">i=24220</Reference>
+    </References>
+    <Value>
+      <ListOfExtensionObject xmlns="http://opcfoundation.org/UA/2008/02/Types.xsd">
+        <ExtensionObject>
+          <TypeId>
+            <Identifier>i=7616</Identifier>
+          </TypeId>
+          <Body>
+            <EnumValueType>
+              <Value>0</Value>
+              <DisplayName>
+                <Text>Disabled</Text>
+              </DisplayName>
+              <Description>
+                <Text>The related TSN Stream is currently disabled.</Text>
+              </Description>
+            </EnumValueType>
+          </Body>
+        </ExtensionObject>
+        <ExtensionObject>
+          <TypeId>
+            <Identifier>i=7616</Identifier>
+          </TypeId>
+          <Body>
+            <EnumValueType>
+              <Value>1</Value>
+              <DisplayName>
+                <Text>Configuring</Text>
+              </DisplayName>
+              <Description>
+                <Text>The related TSN Stream is in the process of receiving configuration parameters from the TSN Control Layer.</Text>
+              </Description>
+            </EnumValueType>
+          </Body>
+        </ExtensionObject>
+        <ExtensionObject>
+          <TypeId>
+            <Identifier>i=7616</Identifier>
+          </TypeId>
+          <Body>
+            <EnumValueType>
+              <Value>2</Value>
+              <DisplayName>
+                <Text>Ready</Text>
+              </DisplayName>
+              <Description>
+                <Text>The related TSN Stream has successfully received and applied the configuration from the TSN Control Layer. The related TSN Stream is not fully operational as long as local preconditions (e.g. synchronization state) are not valid.</Text>
+              </Description>
+            </EnumValueType>
+          </Body>
+        </ExtensionObject>
+        <ExtensionObject>
+          <TypeId>
+            <Identifier>i=7616</Identifier>
+          </TypeId>
+          <Body>
+            <EnumValueType>
+              <Value>3</Value>
+              <DisplayName>
+                <Text>Operational</Text>
+              </DisplayName>
+              <Description>
+                <Text>The related TSN Stream object is configured and all other required preconditions (e.g. synchronization state) for sending / receiving data are valid.</Text>
+              </Description>
+            </EnumValueType>
+          </Body>
+        </ExtensionObject>
+        <ExtensionObject>
+          <TypeId>
+            <Identifier>i=7616</Identifier>
+          </TypeId>
+          <Body>
+            <EnumValueType>
+              <Value>4</Value>
+              <DisplayName>
+                <Text>Error</Text>
+              </DisplayName>
+              <Description>
+                <Text>The related TSN Stream object is in an error state.</Text>
+              </Description>
+            </EnumValueType>
+          </Body>
+        </ExtensionObject>
+      </ListOfExtensionObject>
+    </Value>
+  </UAVariable>
+  <UADataType NodeId="i=24222" BrowseName="TsnTalkerStatus">
+    <DisplayName>TsnTalkerStatus</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty">i=24241</Reference>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=29</Reference>
+    </References>
+    <Definition Name="TsnTalkerStatus">
+      <Field Name="None" Value="0">
+        <Description>No Talker detected.</Description>
+      </Field>
+      <Field Name="Ready" Value="1">
+        <Description>Talker ready (configured).</Description>
+      </Field>
+      <Field Name="Failed" Value="2">
+        <Description>Talker failed.</Description>
+      </Field>
+    </Definition>
+  </UADataType>
+  <UAVariable NodeId="i=24241" BrowseName="EnumValues" ParentNodeId="i=24222" DataType="i=7594" ValueRank="1" ArrayDimensions="0">
+    <DisplayName>EnumValues</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">i=24222</Reference>
+    </References>
+    <Value>
+      <ListOfExtensionObject xmlns="http://opcfoundation.org/UA/2008/02/Types.xsd">
+        <ExtensionObject>
+          <TypeId>
+            <Identifier>i=7616</Identifier>
+          </TypeId>
+          <Body>
+            <EnumValueType>
+              <Value>0</Value>
+              <DisplayName>
+                <Text>None</Text>
+              </DisplayName>
+              <Description>
+                <Text>No Talker detected.</Text>
+              </Description>
+            </EnumValueType>
+          </Body>
+        </ExtensionObject>
+        <ExtensionObject>
+          <TypeId>
+            <Identifier>i=7616</Identifier>
+          </TypeId>
+          <Body>
+            <EnumValueType>
+              <Value>1</Value>
+              <DisplayName>
+                <Text>Ready</Text>
+              </DisplayName>
+              <Description>
+                <Text>Talker ready (configured).</Text>
+              </Description>
+            </EnumValueType>
+          </Body>
+        </ExtensionObject>
+        <ExtensionObject>
+          <TypeId>
+            <Identifier>i=7616</Identifier>
+          </TypeId>
+          <Body>
+            <EnumValueType>
+              <Value>2</Value>
+              <DisplayName>
+                <Text>Failed</Text>
+              </DisplayName>
+              <Description>
+                <Text>Talker failed.</Text>
+              </Description>
+            </EnumValueType>
+          </Body>
+        </ExtensionObject>
+      </ListOfExtensionObject>
+    </Value>
+  </UAVariable>
+  <UADataType NodeId="i=24224" BrowseName="TsnListenerStatus">
+    <DisplayName>TsnListenerStatus</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty">i=24242</Reference>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=29</Reference>
+    </References>
+    <Definition Name="TsnListenerStatus">
+      <Field Name="None" Value="0">
+        <Description>No Listener detected.</Description>
+      </Field>
+      <Field Name="Ready" Value="1">
+        <Description>Listener ready (configured).</Description>
+      </Field>
+      <Field Name="PartialFailed" Value="2">
+        <Description>One or more Listeners ready, and one or more Listeners failed.</Description>
+      </Field>
+      <Field Name="Failed" Value="3">
+        <Description>Listener failed.</Description>
+      </Field>
+    </Definition>
+  </UADataType>
+  <UAVariable NodeId="i=24242" BrowseName="EnumValues" ParentNodeId="i=24224" DataType="i=7594" ValueRank="1" ArrayDimensions="0">
+    <DisplayName>EnumValues</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">i=24224</Reference>
+    </References>
+    <Value>
+      <ListOfExtensionObject xmlns="http://opcfoundation.org/UA/2008/02/Types.xsd">
+        <ExtensionObject>
+          <TypeId>
+            <Identifier>i=7616</Identifier>
+          </TypeId>
+          <Body>
+            <EnumValueType>
+              <Value>0</Value>
+              <DisplayName>
+                <Text>None</Text>
+              </DisplayName>
+              <Description>
+                <Text>No Listener detected.</Text>
+              </Description>
+            </EnumValueType>
+          </Body>
+        </ExtensionObject>
+        <ExtensionObject>
+          <TypeId>
+            <Identifier>i=7616</Identifier>
+          </TypeId>
+          <Body>
+            <EnumValueType>
+              <Value>1</Value>
+              <DisplayName>
+                <Text>Ready</Text>
+              </DisplayName>
+              <Description>
+                <Text>Listener ready (configured).</Text>
+              </Description>
+            </EnumValueType>
+          </Body>
+        </ExtensionObject>
+        <ExtensionObject>
+          <TypeId>
+            <Identifier>i=7616</Identifier>
+          </TypeId>
+          <Body>
+            <EnumValueType>
+              <Value>2</Value>
+              <DisplayName>
+                <Text>PartialFailed</Text>
+              </DisplayName>
+              <Description>
+                <Text>One or more Listeners ready, and one or more Listeners failed.</Text>
+              </Description>
+            </EnumValueType>
+          </Body>
+        </ExtensionObject>
+        <ExtensionObject>
+          <TypeId>
+            <Identifier>i=7616</Identifier>
+          </TypeId>
+          <Body>
+            <EnumValueType>
+              <Value>3</Value>
+              <DisplayName>
+                <Text>Failed</Text>
+              </DisplayName>
+              <Description>
+                <Text>Listener failed.</Text>
+              </Description>
+            </EnumValueType>
+          </Body>
+        </ExtensionObject>
+      </ListOfExtensionObject>
+    </Value>
+  </UAVariable>
+  <UADataType NodeId="i=24107" BrowseName="UnsignedRationalNumber">
+    <DisplayName>UnsignedRationalNumber</DisplayName>
+    <References>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=22</Reference>
+    </References>
+    <Definition Name="UnsignedRationalNumber">
+      <Field Name="Numerator" DataType="i=7" />
+      <Field Name="Denominator" DataType="i=7" />
+    </Definition>
+  </UADataType>
+  <UAObject NodeId="i=24226" BrowseName="Resources">
+    <DisplayName>Resources</DisplayName>
+    <References>
+      <Reference ReferenceType="HasComponent" IsForward="false">i=2253</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=61</Reference>
+    </References>
+  </UAObject>
+  <UAObject NodeId="i=24227" BrowseName="Communication">
+    <DisplayName>Communication</DisplayName>
+    <References>
+      <Reference ReferenceType="Organizes" IsForward="false">i=24226</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=61</Reference>
+    </References>
+  </UAObject>
+  <UAObject NodeId="i=24228" BrowseName="MappingTables">
+    <DisplayName>MappingTables</DisplayName>
+    <References>
+      <Reference ReferenceType="Organizes" IsForward="false">i=24227</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=61</Reference>
+    </References>
+  </UAObject>
+  <UAObject NodeId="i=24229" BrowseName="NetworkInterfaces">
+    <DisplayName>NetworkInterfaces</DisplayName>
+    <References>
+      <Reference ReferenceType="Organizes" IsForward="false">i=24227</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=61</Reference>
+    </References>
+  </UAObject>
+  <UAObject NodeId="i=24230" BrowseName="Streams">
+    <DisplayName>Streams</DisplayName>
+    <References>
+      <Reference ReferenceType="Organizes" IsForward="false">i=24227</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=61</Reference>
+    </References>
+  </UAObject>
+  <UAObject NodeId="i=24231" BrowseName="TalkerStreams">
+    <DisplayName>TalkerStreams</DisplayName>
+    <References>
+      <Reference ReferenceType="Organizes" IsForward="false">i=24230</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=61</Reference>
+    </References>
+  </UAObject>
+  <UAObject NodeId="i=24232" BrowseName="ListenerStreams">
+    <DisplayName>ListenerStreams</DisplayName>
+    <References>
+      <Reference ReferenceType="Organizes" IsForward="false">i=24230</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=61</Reference>
+    </References>
+  </UAObject>
+  <UAObject NodeId="i=24110" BrowseName="Default Binary" SymbolicName="DefaultBinary">
+    <DisplayName>Default Binary</DisplayName>
+    <References>
+      <Reference ReferenceType="HasEncoding" IsForward="false">i=24107</Reference>
+      <Reference ReferenceType="HasDescription">i=24117</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=76</Reference>
+    </References>
+  </UAObject>
+  <UAObject NodeId="i=24122" BrowseName="Default XML" SymbolicName="DefaultXml">
+    <DisplayName>Default XML</DisplayName>
+    <References>
+      <Reference ReferenceType="HasEncoding" IsForward="false">i=24107</Reference>
+      <Reference ReferenceType="HasDescription">i=24129</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=76</Reference>
+    </References>
+  </UAObject>
+  <UAObject NodeId="i=24134" BrowseName="Default JSON" SymbolicName="DefaultJson">
+    <DisplayName>Default JSON</DisplayName>
+    <References>
+      <Reference ReferenceType="HasEncoding" IsForward="false">i=24107</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=76</Reference>
+    </References>
+  </UAObject>
+</UANodeSet>

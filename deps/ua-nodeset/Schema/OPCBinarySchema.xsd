@@ -1,0 +1,149 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<!--
+ * Copyright (c) 2005-2020 The OPC Foundation, Inc. All rights reserved.
+ *
+ * OPC Foundation MIT License 1.00
+ * 
+ * Permission is hereby granted, free of charge, to any person
+ * obtaining a copy of this software and associated documentation
+ * files (the "Software"), to deal in the Software without
+ * restriction, including without limitation the rights to use,
+ * copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the
+ * Software is furnished to do so, subject to the following
+ * conditions:
+ * 
+ * The above copyright notice and this permission notice shall be
+ * included in all copies or substantial portions of the Software.
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+ * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
+ * OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+ * NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
+ * HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+ * WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+ * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+ * OTHER DEALINGS IN THE SOFTWARE.
+ *
+ * The complete license agreement can be found here:
+ * http://opcfoundation.org/License/MIT/1.00/
+-->
+
+<xs:schema
+  targetNamespace="http://opcfoundation.org/BinarySchema/"
+  elementFormDefault="qualified"
+  xmlns="http://opcfoundation.org/BinarySchema/"
+  xmlns:xs="http://www.w3.org/2001/XMLSchema"
+>
+  <xs:element name="Documentation">
+    <xs:complexType mixed="true">
+      <xs:choice minOccurs="0" maxOccurs="unbounded">
+        <xs:any minOccurs="0" maxOccurs="unbounded"/>
+      </xs:choice>
+      <xs:anyAttribute/>
+    </xs:complexType>
+  </xs:element>
+
+  <xs:complexType name="ImportDirective">
+    <xs:attribute name="Namespace" type="xs:string" use="optional" />
+    <xs:attribute name="Location" type="xs:string" use="optional" />
+  </xs:complexType>
+
+  <xs:simpleType name="ByteOrder">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="BigEndian" />
+      <xs:enumeration value="LittleEndian" />
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:complexType name="TypeDescription">
+    <xs:sequence>
+      <xs:element ref="Documentation" minOccurs="0" maxOccurs="1" />
+    </xs:sequence>
+    <xs:attribute name="Name" type="xs:NCName" use="required" />
+    <xs:attribute name="DefaultByteOrder" type="ByteOrder" use="optional" />
+    <xs:anyAttribute processContents="lax" />
+  </xs:complexType>
+
+  <xs:complexType name="OpaqueType">
+    <xs:complexContent>
+      <xs:extension base="TypeDescription">
+        <xs:attribute name="LengthInBits" type="xs:int" use="optional" />
+        <xs:attribute name="ByteOrderSignificant" type="xs:boolean" default="false" />
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+
+  <xs:complexType name="EnumeratedValue">
+    <xs:sequence>
+      <xs:element ref="Documentation"  minOccurs="0" maxOccurs="1" />
+    </xs:sequence>
+    <xs:attribute name="Name" type="xs:string" use="optional" />
+    <xs:attribute name="Value" type="xs:int" use="optional" />
+  </xs:complexType>
+
+  <xs:complexType name="EnumeratedType">
+    <xs:complexContent>
+      <xs:extension base="OpaqueType">
+        <xs:sequence>
+          <xs:element name="EnumeratedValue" type="EnumeratedValue" maxOccurs="unbounded" />
+        </xs:sequence>
+        <xs:attribute name="IsOptionSet" type="xs:boolean" default="false" />
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+
+  <xs:simpleType name="SwitchOperand">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="Equals" />
+      <xs:enumeration value="GreaterThan" />
+      <xs:enumeration value="LessThan" />
+      <xs:enumeration value="GreaterThanOrEqual" />
+      <xs:enumeration value="LessThanOrEqual" />
+      <xs:enumeration value="NotEqual" />
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:complexType name="FieldType">
+    <xs:sequence>
+      <xs:element ref="Documentation" minOccurs="0" maxOccurs="1" />
+    </xs:sequence>
+    <xs:attribute name="Name" type="xs:string" use="required" />
+    <xs:attribute name="TypeName" type="xs:QName" use="optional" />
+    <xs:attribute name="Length" type="xs:unsignedInt" use="optional" />
+    <xs:attribute name="LengthField" type="xs:string" use="optional" />
+    <xs:attribute name="IsLengthInBytes" type="xs:boolean" default="false" />
+    <xs:attribute name="SwitchField" type="xs:string" use="optional" />
+    <xs:attribute name="SwitchValue" type="xs:unsignedInt" use="optional" />
+    <xs:attribute name="SwitchOperand" type="SwitchOperand" use="optional" />
+    <xs:attribute name="Terminator" type="xs:hexBinary" use="optional" />
+    <xs:anyAttribute processContents="lax" />
+  </xs:complexType>
+
+  <xs:complexType name="StructuredType">
+    <xs:complexContent>
+      <xs:extension base="TypeDescription">
+        <xs:sequence>
+          <xs:element name="Field" type="FieldType" minOccurs="0" maxOccurs="unbounded" />
+        </xs:sequence>
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+
+  <xs:element name="TypeDictionary">
+    <xs:complexType>
+      <xs:sequence>
+        <xs:element ref="Documentation"  minOccurs="0" maxOccurs="1" />
+        <xs:element name="Import" type="ImportDirective" minOccurs="0" maxOccurs="unbounded" />
+        <xs:choice minOccurs="0" maxOccurs="unbounded">
+          <xs:element name="OpaqueType" type="OpaqueType" />
+          <xs:element name="EnumeratedType" type="EnumeratedType" />
+          <xs:element name="StructuredType" type="StructuredType" />
+        </xs:choice>
+      </xs:sequence>
+      <xs:attribute name="TargetNamespace" type="xs:string" use="required" />
+      <xs:attribute name="DefaultByteOrder" type="ByteOrder" use="optional" />
+      <xs:anyAttribute processContents="lax" />
+    </xs:complexType>
+  </xs:element>
+
+</xs:schema>

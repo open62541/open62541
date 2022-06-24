@@ -1,0 +1,155 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<!--
+ * Copyright (c) 2005-2021 The OPC Foundation, Inc. All rights reserved.
+ *
+ * OPC Foundation MIT License 1.00
+ * 
+ * Permission is hereby granted, free of charge, to any person
+ * obtaining a copy of this software and associated documentation
+ * files (the "Software"), to deal in the Software without
+ * restriction, including without limitation the rights to use,
+ * copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the
+ * Software is furnished to do so, subject to the following
+ * conditions:
+ * 
+ * The above copyright notice and this permission notice shall be
+ * included in all copies or substantial portions of the Software.
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+ * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
+ * OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+ * NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
+ * HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+ * WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+ * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+ * OTHER DEALINGS IN THE SOFTWARE.
+ *
+ * The complete license agreement can be found here:
+ * http://opcfoundation.org/License/MIT/1.00/
+-->
+
+<xs:schema
+  xmlns:xs="http://www.w3.org/2001/XMLSchema"
+  xmlns:ua="http://opcfoundation.org/UA/2008/02/Types.xsd"
+  xmlns:tns="http://opcfoundation.org/UA/DI/Types.xsd"
+  targetNamespace="http://opcfoundation.org/UA/DI/Types.xsd"
+  elementFormDefault="qualified"
+>
+  <xs:import namespace="http://opcfoundation.org/UA/2008/02/Types.xsd" />
+
+  <xs:simpleType  name="DeviceHealthEnumeration">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="NORMAL_0" />
+      <xs:enumeration value="FAILURE_1" />
+      <xs:enumeration value="CHECK_FUNCTION_2" />
+      <xs:enumeration value="OFF_SPEC_3" />
+      <xs:enumeration value="MAINTENANCE_REQUIRED_4" />
+    </xs:restriction>
+  </xs:simpleType>
+  <xs:element name="DeviceHealthEnumeration" type="tns:DeviceHealthEnumeration" />
+
+  <xs:complexType name="ListOfDeviceHealthEnumeration">
+    <xs:sequence>
+      <xs:element name="DeviceHealthEnumeration" type="tns:DeviceHealthEnumeration" minOccurs="0" maxOccurs="unbounded" />
+    </xs:sequence>
+  </xs:complexType>
+  <xs:element name="ListOfDeviceHealthEnumeration" type="tns:ListOfDeviceHealthEnumeration" nillable="true"></xs:element>
+
+  <xs:complexType name="FetchResultDataType">
+    <xs:sequence>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:element name="FetchResultDataType" type="tns:FetchResultDataType" />
+
+  <xs:complexType name="ListOfFetchResultDataType">
+    <xs:sequence>
+      <xs:element name="FetchResultDataType" type="tns:FetchResultDataType" minOccurs="0" maxOccurs="unbounded" nillable="true" />
+    </xs:sequence>
+  </xs:complexType>
+  <xs:element name="ListOfFetchResultDataType" type="tns:ListOfFetchResultDataType" nillable="true"></xs:element>
+
+  <xs:complexType name="TransferResultErrorDataType">
+    <xs:complexContent mixed="false">
+      <xs:extension base="tns:FetchResultDataType">
+        <xs:sequence>
+          <xs:element name="Status" type="xs:int" minOccurs="0" />
+          <xs:element name="Diagnostics" type="ua:DiagnosticInfo" minOccurs="0" nillable="true" />
+        </xs:sequence>
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+  <xs:element name="TransferResultErrorDataType" type="tns:TransferResultErrorDataType" />
+
+  <xs:complexType name="ListOfTransferResultErrorDataType">
+    <xs:sequence>
+      <xs:element name="TransferResultErrorDataType" type="tns:TransferResultErrorDataType" minOccurs="0" maxOccurs="unbounded" nillable="true" />
+    </xs:sequence>
+  </xs:complexType>
+  <xs:element name="ListOfTransferResultErrorDataType" type="tns:ListOfTransferResultErrorDataType" nillable="true"></xs:element>
+
+  <xs:complexType name="TransferResultDataDataType">
+    <xs:complexContent mixed="false">
+      <xs:extension base="tns:FetchResultDataType">
+        <xs:sequence>
+          <xs:element name="SequenceNumber" type="xs:int" minOccurs="0" />
+          <xs:element name="EndOfResults" type="xs:boolean" minOccurs="0" />
+          <xs:element name="ParameterDefs" type="tns:ListOfParameterResultDataType" minOccurs="0" nillable="true" />
+        </xs:sequence>
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+  <xs:element name="TransferResultDataDataType" type="tns:TransferResultDataDataType" />
+
+  <xs:complexType name="ListOfTransferResultDataDataType">
+    <xs:sequence>
+      <xs:element name="TransferResultDataDataType" type="tns:TransferResultDataDataType" minOccurs="0" maxOccurs="unbounded" nillable="true" />
+    </xs:sequence>
+  </xs:complexType>
+  <xs:element name="ListOfTransferResultDataDataType" type="tns:ListOfTransferResultDataDataType" nillable="true"></xs:element>
+
+  <xs:complexType name="ParameterResultDataType">
+    <xs:sequence>
+      <xs:element name="NodePath" type="ua:ListOfQualifiedName" minOccurs="0" nillable="true" />
+      <xs:element name="StatusCode" type="ua:StatusCode" minOccurs="0" />
+      <xs:element name="Diagnostics" type="ua:DiagnosticInfo" minOccurs="0" nillable="true" />
+    </xs:sequence>
+  </xs:complexType>
+  <xs:element name="ParameterResultDataType" type="tns:ParameterResultDataType" />
+
+  <xs:complexType name="ListOfParameterResultDataType">
+    <xs:sequence>
+      <xs:element name="ParameterResultDataType" type="tns:ParameterResultDataType" minOccurs="0" maxOccurs="unbounded" nillable="true" />
+    </xs:sequence>
+  </xs:complexType>
+  <xs:element name="ListOfParameterResultDataType" type="tns:ListOfParameterResultDataType" nillable="true"></xs:element>
+
+  <xs:simpleType  name="SoftwareVersionFileType">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="Current_0" />
+      <xs:enumeration value="Pending_1" />
+      <xs:enumeration value="Fallback_2" />
+    </xs:restriction>
+  </xs:simpleType>
+  <xs:element name="SoftwareVersionFileType" type="tns:SoftwareVersionFileType" />
+
+  <xs:complexType name="ListOfSoftwareVersionFileType">
+    <xs:sequence>
+      <xs:element name="SoftwareVersionFileType" type="tns:SoftwareVersionFileType" minOccurs="0" maxOccurs="unbounded" />
+    </xs:sequence>
+  </xs:complexType>
+  <xs:element name="ListOfSoftwareVersionFileType" type="tns:ListOfSoftwareVersionFileType" nillable="true"></xs:element>
+
+  <xs:simpleType  name="UpdateBehavior">
+    <xs:restriction base="xs:unsignedInt">
+    </xs:restriction>
+  </xs:simpleType>
+  <xs:element name="UpdateBehavior" type="tns:UpdateBehavior" />
+
+  <xs:complexType name="ListOfUpdateBehavior">
+    <xs:sequence>
+      <xs:element name="UpdateBehavior" type="tns:UpdateBehavior" minOccurs="0" maxOccurs="unbounded" />
+    </xs:sequence>
+  </xs:complexType>
+  <xs:element name="ListOfUpdateBehavior" type="tns:ListOfUpdateBehavior" nillable="true"></xs:element>
+
+</xs:schema>

@@ -1,0 +1,648 @@
+<?xml version="1.0" encoding="utf-8"?>
+<wsdl:definitions
+  targetNamespace="http://opcfoundation.org/UA/2008/02/Services.wsdl"
+  xmlns:tns="http://opcfoundation.org/UA/2008/02/Services.wsdl"
+  xmlns:s0="http://opcfoundation.org/UA/2008/02/Types.xsd"
+  xmlns:wsdl="http://schemas.xmlsoap.org/wsdl/"
+  xmlns:wsaw="http://www.w3.org/2006/05/addressing/wsdl"
+  xmlns:xsd="http://www.w3.org/2001/XMLSchema"
+>
+  <wsdl:types>
+    <xsd:schema targetNamespace="http://opcfoundation.org/UA/2008/02/Types.xsd/Imports">
+      <xsd:import schemaLocation="http://opcfoundation.org/UA/2008/02/Types.xsd" namespace="http://opcfoundation.org/UA/2008/02/Types.xsd"/>
+    </xsd:schema>
+  </wsdl:types>
+
+  <wsdl:message name="InvokeServiceMessage">
+    <wsdl:part name="input" element="s0:InvokeServiceRequest"/>
+  </wsdl:message>
+  <wsdl:message name="InvokeServiceResponseMessage">
+    <wsdl:part name="output" element="s0:InvokeServiceResponse"/>
+  </wsdl:message>
+  <wsdl:message name="InvokeServiceFaultMessage">
+    <wsdl:part name="detail" element="s0:ServiceFault" />
+  </wsdl:message>
+
+  <wsdl:message name="FindServersMessage">
+    <wsdl:part name="parameters" element="s0:FindServersRequest"/>
+  </wsdl:message>
+  <wsdl:message name="FindServersResponseMessage">
+    <wsdl:part name="parameters" element="s0:FindServersResponse"/>
+  </wsdl:message>
+  <wsdl:message name="FindServers_FaultMessage">
+    <wsdl:part name="detail" element="s0:ServiceFault" />
+  </wsdl:message>
+
+  <wsdl:message name="FindServersOnNetworkMessage">
+    <wsdl:part name="parameters" element="s0:FindServersOnNetworkRequest"/>
+  </wsdl:message>
+  <wsdl:message name="FindServersOnNetworkResponseMessage">
+    <wsdl:part name="parameters" element="s0:FindServersOnNetworkResponse"/>
+  </wsdl:message>
+  <wsdl:message name="FindServersOnNetwork_FaultMessage">
+    <wsdl:part name="detail" element="s0:ServiceFault" />
+  </wsdl:message>
+
+  <wsdl:message name="GetEndpointsMessage">
+    <wsdl:part name="parameters" element="s0:GetEndpointsRequest"/>
+  </wsdl:message>
+  <wsdl:message name="GetEndpointsResponseMessage">
+    <wsdl:part name="parameters" element="s0:GetEndpointsResponse"/>
+  </wsdl:message>
+  <wsdl:message name="GetEndpoints_FaultMessage">
+    <wsdl:part name="detail" element="s0:ServiceFault" />
+  </wsdl:message>
+
+  <wsdl:message name="RegisterServerMessage">
+    <wsdl:part name="parameters" element="s0:RegisterServerRequest"/>
+  </wsdl:message>
+  <wsdl:message name="RegisterServerResponseMessage">
+    <wsdl:part name="parameters" element="s0:RegisterServerResponse"/>
+  </wsdl:message>
+  <wsdl:message name="RegisterServer_FaultMessage">
+    <wsdl:part name="detail" element="s0:ServiceFault" />
+  </wsdl:message>
+
+  <wsdl:message name="RegisterServer2Message">
+    <wsdl:part name="parameters" element="s0:RegisterServer2Request"/>
+  </wsdl:message>
+  <wsdl:message name="RegisterServer2ResponseMessage">
+    <wsdl:part name="parameters" element="s0:RegisterServer2Response"/>
+  </wsdl:message>
+  <wsdl:message name="RegisterServer2_FaultMessage">
+    <wsdl:part name="detail" element="s0:ServiceFault" />
+  </wsdl:message>
+
+  <wsdl:message name="CreateSessionMessage">
+    <wsdl:part name="parameters" element="s0:CreateSessionRequest"/>
+  </wsdl:message>
+  <wsdl:message name="CreateSessionResponseMessage">
+    <wsdl:part name="parameters" element="s0:CreateSessionResponse"/>
+  </wsdl:message>
+  <wsdl:message name="CreateSession_FaultMessage">
+    <wsdl:part name="detail" element="s0:ServiceFault" />
+  </wsdl:message>
+
+  <wsdl:message name="ActivateSessionMessage">
+    <wsdl:part name="parameters" element="s0:ActivateSessionRequest"/>
+  </wsdl:message>
+  <wsdl:message name="ActivateSessionResponseMessage">
+    <wsdl:part name="parameters" element="s0:ActivateSessionResponse"/>
+  </wsdl:message>
+  <wsdl:message name="ActivateSession_FaultMessage">
+    <wsdl:part name="detail" element="s0:ServiceFault" />
+  </wsdl:message>
+
+  <wsdl:message name="CloseSessionMessage">
+    <wsdl:part name="parameters" element="s0:CloseSessionRequest"/>
+  </wsdl:message>
+  <wsdl:message name="CloseSessionResponseMessage">
+    <wsdl:part name="parameters" element="s0:CloseSessionResponse"/>
+  </wsdl:message>
+  <wsdl:message name="CloseSession_FaultMessage">
+    <wsdl:part name="detail" element="s0:ServiceFault" />
+  </wsdl:message>
+
+  <wsdl:message name="CancelMessage">
+    <wsdl:part name="parameters" element="s0:CancelRequest"/>
+  </wsdl:message>
+  <wsdl:message name="CancelResponseMessage">
+    <wsdl:part name="parameters" element="s0:CancelResponse"/>
+  </wsdl:message>
+  <wsdl:message name="Cancel_FaultMessage">
+    <wsdl:part name="detail" element="s0:ServiceFault" />
+  </wsdl:message>
+
+  <wsdl:message name="AddNodesMessage">
+    <wsdl:part name="parameters" element="s0:AddNodesRequest"/>
+  </wsdl:message>
+  <wsdl:message name="AddNodesResponseMessage">
+    <wsdl:part name="parameters" element="s0:AddNodesResponse"/>
+  </wsdl:message>
+  <wsdl:message name="AddNodes_FaultMessage">
+    <wsdl:part name="detail" element="s0:ServiceFault" />
+  </wsdl:message>
+
+  <wsdl:message name="AddReferencesMessage">
+    <wsdl:part name="parameters" element="s0:AddReferencesRequest"/>
+  </wsdl:message>
+  <wsdl:message name="AddReferencesResponseMessage">
+    <wsdl:part name="parameters" element="s0:AddReferencesResponse"/>
+  </wsdl:message>
+  <wsdl:message name="AddReferences_FaultMessage">
+    <wsdl:part name="detail" element="s0:ServiceFault" />
+  </wsdl:message>
+
+  <wsdl:message name="DeleteNodesMessage">
+    <wsdl:part name="parameters" element="s0:DeleteNodesRequest"/>
+  </wsdl:message>
+  <wsdl:message name="DeleteNodesResponseMessage">
+    <wsdl:part name="parameters" element="s0:DeleteNodesResponse"/>
+  </wsdl:message>
+  <wsdl:message name="DeleteNodes_FaultMessage">
+    <wsdl:part name="detail" element="s0:ServiceFault" />
+  </wsdl:message>
+
+  <wsdl:message name="DeleteReferencesMessage">
+    <wsdl:part name="parameters" element="s0:DeleteReferencesRequest"/>
+  </wsdl:message>
+  <wsdl:message name="DeleteReferencesResponseMessage">
+    <wsdl:part name="parameters" element="s0:DeleteReferencesResponse"/>
+  </wsdl:message>
+  <wsdl:message name="DeleteReferences_FaultMessage">
+    <wsdl:part name="detail" element="s0:ServiceFault" />
+  </wsdl:message>
+
+  <wsdl:message name="BrowseMessage">
+    <wsdl:part name="parameters" element="s0:BrowseRequest"/>
+  </wsdl:message>
+  <wsdl:message name="BrowseResponseMessage">
+    <wsdl:part name="parameters" element="s0:BrowseResponse"/>
+  </wsdl:message>
+  <wsdl:message name="Browse_FaultMessage">
+    <wsdl:part name="detail" element="s0:ServiceFault" />
+  </wsdl:message>
+
+  <wsdl:message name="BrowseNextMessage">
+    <wsdl:part name="parameters" element="s0:BrowseNextRequest"/>
+  </wsdl:message>
+  <wsdl:message name="BrowseNextResponseMessage">
+    <wsdl:part name="parameters" element="s0:BrowseNextResponse"/>
+  </wsdl:message>
+  <wsdl:message name="BrowseNext_FaultMessage">
+    <wsdl:part name="detail" element="s0:ServiceFault" />
+  </wsdl:message>
+
+  <wsdl:message name="TranslateBrowsePathsToNodeIdsMessage">
+    <wsdl:part name="parameters" element="s0:TranslateBrowsePathsToNodeIdsRequest"/>
+  </wsdl:message>
+  <wsdl:message name="TranslateBrowsePathsToNodeIdsResponseMessage">
+    <wsdl:part name="parameters" element="s0:TranslateBrowsePathsToNodeIdsResponse"/>
+  </wsdl:message>
+  <wsdl:message name="TranslateBrowsePathsToNodeIds_FaultMessage">
+    <wsdl:part name="detail" element="s0:ServiceFault" />
+  </wsdl:message>
+
+  <wsdl:message name="RegisterNodesMessage">
+    <wsdl:part name="parameters" element="s0:RegisterNodesRequest"/>
+  </wsdl:message>
+  <wsdl:message name="RegisterNodesResponseMessage">
+    <wsdl:part name="parameters" element="s0:RegisterNodesResponse"/>
+  </wsdl:message>
+  <wsdl:message name="RegisterNodes_FaultMessage">
+    <wsdl:part name="detail" element="s0:ServiceFault" />
+  </wsdl:message>
+
+  <wsdl:message name="UnregisterNodesMessage">
+    <wsdl:part name="parameters" element="s0:UnregisterNodesRequest"/>
+  </wsdl:message>
+  <wsdl:message name="UnregisterNodesResponseMessage">
+    <wsdl:part name="parameters" element="s0:UnregisterNodesResponse"/>
+  </wsdl:message>
+  <wsdl:message name="UnregisterNodes_FaultMessage">
+    <wsdl:part name="detail" element="s0:ServiceFault" />
+  </wsdl:message>
+
+  <wsdl:message name="QueryFirstMessage">
+    <wsdl:part name="parameters" element="s0:QueryFirstRequest"/>
+  </wsdl:message>
+  <wsdl:message name="QueryFirstResponseMessage">
+    <wsdl:part name="parameters" element="s0:QueryFirstResponse"/>
+  </wsdl:message>
+  <wsdl:message name="QueryFirst_FaultMessage">
+    <wsdl:part name="detail" element="s0:ServiceFault" />
+  </wsdl:message>
+
+  <wsdl:message name="QueryNextMessage">
+    <wsdl:part name="parameters" element="s0:QueryNextRequest"/>
+  </wsdl:message>
+  <wsdl:message name="QueryNextResponseMessage">
+    <wsdl:part name="parameters" element="s0:QueryNextResponse"/>
+  </wsdl:message>
+  <wsdl:message name="QueryNext_FaultMessage">
+    <wsdl:part name="detail" element="s0:ServiceFault" />
+  </wsdl:message>
+
+  <wsdl:message name="ReadMessage">
+    <wsdl:part name="parameters" element="s0:ReadRequest"/>
+  </wsdl:message>
+  <wsdl:message name="ReadResponseMessage">
+    <wsdl:part name="parameters" element="s0:ReadResponse"/>
+  </wsdl:message>
+  <wsdl:message name="Read_FaultMessage">
+    <wsdl:part name="detail" element="s0:ServiceFault" />
+  </wsdl:message>
+
+  <wsdl:message name="HistoryReadMessage">
+    <wsdl:part name="parameters" element="s0:HistoryReadRequest"/>
+  </wsdl:message>
+  <wsdl:message name="HistoryReadResponseMessage">
+    <wsdl:part name="parameters" element="s0:HistoryReadResponse"/>
+  </wsdl:message>
+  <wsdl:message name="HistoryRead_FaultMessage">
+    <wsdl:part name="detail" element="s0:ServiceFault" />
+  </wsdl:message>
+
+  <wsdl:message name="WriteMessage">
+    <wsdl:part name="parameters" element="s0:WriteRequest"/>
+  </wsdl:message>
+  <wsdl:message name="WriteResponseMessage">
+    <wsdl:part name="parameters" element="s0:WriteResponse"/>
+  </wsdl:message>
+  <wsdl:message name="Write_FaultMessage">
+    <wsdl:part name="detail" element="s0:ServiceFault" />
+  </wsdl:message>
+
+  <wsdl:message name="HistoryUpdateMessage">
+    <wsdl:part name="parameters" element="s0:HistoryUpdateRequest"/>
+  </wsdl:message>
+  <wsdl:message name="HistoryUpdateResponseMessage">
+    <wsdl:part name="parameters" element="s0:HistoryUpdateResponse"/>
+  </wsdl:message>
+  <wsdl:message name="HistoryUpdate_FaultMessage">
+    <wsdl:part name="detail" element="s0:ServiceFault" />
+  </wsdl:message>
+
+  <wsdl:message name="CallMessage">
+    <wsdl:part name="parameters" element="s0:CallRequest"/>
+  </wsdl:message>
+  <wsdl:message name="CallResponseMessage">
+    <wsdl:part name="parameters" element="s0:CallResponse"/>
+  </wsdl:message>
+  <wsdl:message name="Call_FaultMessage">
+    <wsdl:part name="detail" element="s0:ServiceFault" />
+  </wsdl:message>
+
+  <wsdl:message name="CreateMonitoredItemsMessage">
+    <wsdl:part name="parameters" element="s0:CreateMonitoredItemsRequest"/>
+  </wsdl:message>
+  <wsdl:message name="CreateMonitoredItemsResponseMessage">
+    <wsdl:part name="parameters" element="s0:CreateMonitoredItemsResponse"/>
+  </wsdl:message>
+  <wsdl:message name="CreateMonitoredItems_FaultMessage">
+    <wsdl:part name="detail" element="s0:ServiceFault" />
+  </wsdl:message>
+
+  <wsdl:message name="ModifyMonitoredItemsMessage">
+    <wsdl:part name="parameters" element="s0:ModifyMonitoredItemsRequest"/>
+  </wsdl:message>
+  <wsdl:message name="ModifyMonitoredItemsResponseMessage">
+    <wsdl:part name="parameters" element="s0:ModifyMonitoredItemsResponse"/>
+  </wsdl:message>
+  <wsdl:message name="ModifyMonitoredItems_FaultMessage">
+    <wsdl:part name="detail" element="s0:ServiceFault" />
+  </wsdl:message>
+
+  <wsdl:message name="SetMonitoringModeMessage">
+    <wsdl:part name="parameters" element="s0:SetMonitoringModeRequest"/>
+  </wsdl:message>
+  <wsdl:message name="SetMonitoringModeResponseMessage">
+    <wsdl:part name="parameters" element="s0:SetMonitoringModeResponse"/>
+  </wsdl:message>
+  <wsdl:message name="SetMonitoringMode_FaultMessage">
+    <wsdl:part name="detail" element="s0:ServiceFault" />
+  </wsdl:message>
+
+  <wsdl:message name="SetTriggeringMessage">
+    <wsdl:part name="parameters" element="s0:SetTriggeringRequest"/>
+  </wsdl:message>
+  <wsdl:message name="SetTriggeringResponseMessage">
+    <wsdl:part name="parameters" element="s0:SetTriggeringResponse"/>
+  </wsdl:message>
+  <wsdl:message name="SetTriggering_FaultMessage">
+    <wsdl:part name="detail" element="s0:ServiceFault" />
+  </wsdl:message>
+
+  <wsdl:message name="DeleteMonitoredItemsMessage">
+    <wsdl:part name="parameters" element="s0:DeleteMonitoredItemsRequest"/>
+  </wsdl:message>
+  <wsdl:message name="DeleteMonitoredItemsResponseMessage">
+    <wsdl:part name="parameters" element="s0:DeleteMonitoredItemsResponse"/>
+  </wsdl:message>
+  <wsdl:message name="DeleteMonitoredItems_FaultMessage">
+    <wsdl:part name="detail" element="s0:ServiceFault" />
+  </wsdl:message>
+
+  <wsdl:message name="CreateSubscriptionMessage">
+    <wsdl:part name="parameters" element="s0:CreateSubscriptionRequest"/>
+  </wsdl:message>
+  <wsdl:message name="CreateSubscriptionResponseMessage">
+    <wsdl:part name="parameters" element="s0:CreateSubscriptionResponse"/>
+  </wsdl:message>
+  <wsdl:message name="CreateSubscription_FaultMessage">
+    <wsdl:part name="detail" element="s0:ServiceFault" />
+  </wsdl:message>
+
+  <wsdl:message name="ModifySubscriptionMessage">
+    <wsdl:part name="parameters" element="s0:ModifySubscriptionRequest"/>
+  </wsdl:message>
+  <wsdl:message name="ModifySubscriptionResponseMessage">
+    <wsdl:part name="parameters" element="s0:ModifySubscriptionResponse"/>
+  </wsdl:message>
+  <wsdl:message name="ModifySubscription_FaultMessage">
+    <wsdl:part name="detail" element="s0:ServiceFault" />
+  </wsdl:message>
+
+  <wsdl:message name="SetPublishingModeMessage">
+    <wsdl:part name="parameters" element="s0:SetPublishingModeRequest"/>
+  </wsdl:message>
+  <wsdl:message name="SetPublishingModeResponseMessage">
+    <wsdl:part name="parameters" element="s0:SetPublishingModeResponse"/>
+  </wsdl:message>
+  <wsdl:message name="SetPublishingMode_FaultMessage">
+    <wsdl:part name="detail" element="s0:ServiceFault" />
+  </wsdl:message>
+
+  <wsdl:message name="PublishMessage">
+    <wsdl:part name="parameters" element="s0:PublishRequest"/>
+  </wsdl:message>
+  <wsdl:message name="PublishResponseMessage">
+    <wsdl:part name="parameters" element="s0:PublishResponse"/>
+  </wsdl:message>
+  <wsdl:message name="Publish_FaultMessage">
+    <wsdl:part name="detail" element="s0:ServiceFault" />
+  </wsdl:message>
+
+  <wsdl:message name="RepublishMessage">
+    <wsdl:part name="parameters" element="s0:RepublishRequest"/>
+  </wsdl:message>
+  <wsdl:message name="RepublishResponseMessage">
+    <wsdl:part name="parameters" element="s0:RepublishResponse"/>
+  </wsdl:message>
+  <wsdl:message name="Republish_FaultMessage">
+    <wsdl:part name="detail" element="s0:ServiceFault" />
+  </wsdl:message>
+
+  <wsdl:message name="TransferSubscriptionsMessage">
+    <wsdl:part name="parameters" element="s0:TransferSubscriptionsRequest"/>
+  </wsdl:message>
+  <wsdl:message name="TransferSubscriptionsResponseMessage">
+    <wsdl:part name="parameters" element="s0:TransferSubscriptionsResponse"/>
+  </wsdl:message>
+  <wsdl:message name="TransferSubscriptions_FaultMessage">
+    <wsdl:part name="detail" element="s0:ServiceFault" />
+  </wsdl:message>
+
+  <wsdl:message name="DeleteSubscriptionsMessage">
+    <wsdl:part name="parameters" element="s0:DeleteSubscriptionsRequest"/>
+  </wsdl:message>
+  <wsdl:message name="DeleteSubscriptionsResponseMessage">
+    <wsdl:part name="parameters" element="s0:DeleteSubscriptionsResponse"/>
+  </wsdl:message>
+  <wsdl:message name="DeleteSubscriptions_FaultMessage">
+    <wsdl:part name="detail" element="s0:ServiceFault" />
+  </wsdl:message>
+
+  <wsdl:portType name="ISessionEndpoint">
+
+    <wsdl:operation name="InvokeService">
+      <wsdl:input wsaw:Action="http://opcfoundation.org/UA/2008/02/Services.wsdl/InvokeService" name="InvokeServiceMessage" message="tns:InvokeServiceMessage"/>
+      <wsdl:output wsaw:Action="http://opcfoundation.org/UA/2008/02/Services.wsdl/InvokeServiceResponse" name="InvokeServiceResponseMessage" message="tns:InvokeServiceResponseMessage"/>
+      <wsdl:fault wsaw:Action="http://opcfoundation.org/UA/2008/02/Services.wsdl/InvokeServiceFault" name="InvokeServiceFaultMessage" message="tns:InvokeServiceFaultMessage" />
+    </wsdl:operation>
+
+    <wsdl:operation name="CreateSession">
+      <wsdl:input wsaw:Action="http://opcfoundation.org/UA/2008/02/Services.wsdl/CreateSession" name="CreateSessionMessage" message="tns:CreateSessionMessage"/>
+      <wsdl:output wsaw:Action="http://opcfoundation.org/UA/2008/02/Services.wsdl/CreateSessionResponse" name="CreateSessionResponseMessage" message="tns:CreateSessionResponseMessage"/>
+      <wsdl:fault wsaw:Action="http://opcfoundation.org/UA/2008/02/Services.wsdl/CreateSessionFault" name="CreateSessionFaultMessage" message="tns:CreateSession_FaultMessage" />
+    </wsdl:operation>
+
+    <wsdl:operation name="ActivateSession">
+      <wsdl:input wsaw:Action="http://opcfoundation.org/UA/2008/02/Services.wsdl/ActivateSession" name="ActivateSessionMessage" message="tns:ActivateSessionMessage"/>
+      <wsdl:output wsaw:Action="http://opcfoundation.org/UA/2008/02/Services.wsdl/ActivateSessionResponse" name="ActivateSessionResponseMessage" message="tns:ActivateSessionResponseMessage"/>
+      <wsdl:fault wsaw:Action="http://opcfoundation.org/UA/2008/02/Services.wsdl/ActivateSessionFault" name="ActivateSessionFaultMessage" message="tns:ActivateSession_FaultMessage" />
+    </wsdl:operation>
+
+    <wsdl:operation name="CloseSession">
+      <wsdl:input wsaw:Action="http://opcfoundation.org/UA/2008/02/Services.wsdl/CloseSession" name="CloseSessionMessage" message="tns:CloseSessionMessage"/>
+      <wsdl:output wsaw:Action="http://opcfoundation.org/UA/2008/02/Services.wsdl/CloseSessionResponse" name="CloseSessionResponseMessage" message="tns:CloseSessionResponseMessage"/>
+      <wsdl:fault wsaw:Action="http://opcfoundation.org/UA/2008/02/Services.wsdl/CloseSessionFault" name="CloseSessionFaultMessage" message="tns:CloseSession_FaultMessage" />
+    </wsdl:operation>
+
+    <wsdl:operation name="Cancel">
+      <wsdl:input wsaw:Action="http://opcfoundation.org/UA/2008/02/Services.wsdl/Cancel" name="CancelMessage" message="tns:CancelMessage"/>
+      <wsdl:output wsaw:Action="http://opcfoundation.org/UA/2008/02/Services.wsdl/CancelResponse" name="CancelResponseMessage" message="tns:CancelResponseMessage"/>
+      <wsdl:fault wsaw:Action="http://opcfoundation.org/UA/2008/02/Services.wsdl/CancelFault" name="CancelFaultMessage" message="tns:Cancel_FaultMessage" />
+    </wsdl:operation>
+
+    <wsdl:operation name="AddNodes">
+      <wsdl:input wsaw:Action="http://opcfoundation.org/UA/2008/02/Services.wsdl/AddNodes" name="AddNodesMessage" message="tns:AddNodesMessage"/>
+      <wsdl:output wsaw:Action="http://opcfoundation.org/UA/2008/02/Services.wsdl/AddNodesResponse" name="AddNodesResponseMessage" message="tns:AddNodesResponseMessage"/>
+      <wsdl:fault wsaw:Action="http://opcfoundation.org/UA/2008/02/Services.wsdl/AddNodesFault" name="AddNodesFaultMessage" message="tns:AddNodes_FaultMessage" />
+    </wsdl:operation>
+
+    <wsdl:operation name="AddReferences">
+      <wsdl:input wsaw:Action="http://opcfoundation.org/UA/2008/02/Services.wsdl/AddReferences" name="AddReferencesMessage" message="tns:AddReferencesMessage"/>
+      <wsdl:output wsaw:Action="http://opcfoundation.org/UA/2008/02/Services.wsdl/AddReferencesResponse" name="AddReferencesResponseMessage" message="tns:AddReferencesResponseMessage"/>
+      <wsdl:fault wsaw:Action="http://opcfoundation.org/UA/2008/02/Services.wsdl/AddReferencesFault" name="AddReferencesFaultMessage" message="tns:AddReferences_FaultMessage" />
+    </wsdl:operation>
+
+    <wsdl:operation name="DeleteNodes">
+      <wsdl:input wsaw:Action="http://opcfoundation.org/UA/2008/02/Services.wsdl/DeleteNodes" name="DeleteNodesMessage" message="tns:DeleteNodesMessage"/>
+      <wsdl:output wsaw:Action="http://opcfoundation.org/UA/2008/02/Services.wsdl/DeleteNodesResponse" name="DeleteNodesResponseMessage" message="tns:DeleteNodesResponseMessage"/>
+      <wsdl:fault wsaw:Action="http://opcfoundation.org/UA/2008/02/Services.wsdl/DeleteNodesFault" name="DeleteNodesFaultMessage" message="tns:DeleteNodes_FaultMessage" />
+    </wsdl:operation>
+
+    <wsdl:operation name="DeleteReferences">
+      <wsdl:input wsaw:Action="http://opcfoundation.org/UA/2008/02/Services.wsdl/DeleteReferences" name="DeleteReferencesMessage" message="tns:DeleteReferencesMessage"/>
+      <wsdl:output wsaw:Action="http://opcfoundation.org/UA/2008/02/Services.wsdl/DeleteReferencesResponse" name="DeleteReferencesResponseMessage" message="tns:DeleteReferencesResponseMessage"/>
+      <wsdl:fault wsaw:Action="http://opcfoundation.org/UA/2008/02/Services.wsdl/DeleteReferencesFault" name="DeleteReferencesFaultMessage" message="tns:DeleteReferences_FaultMessage" />
+    </wsdl:operation>
+
+    <wsdl:operation name="Browse">
+      <wsdl:input wsaw:Action="http://opcfoundation.org/UA/2008/02/Services.wsdl/Browse" name="BrowseMessage" message="tns:BrowseMessage"/>
+      <wsdl:output wsaw:Action="http://opcfoundation.org/UA/2008/02/Services.wsdl/BrowseResponse" name="BrowseResponseMessage" message="tns:BrowseResponseMessage"/>
+      <wsdl:fault wsaw:Action="http://opcfoundation.org/UA/2008/02/Services.wsdl/BrowseFault" name="BrowseFaultMessage" message="tns:Browse_FaultMessage" />
+    </wsdl:operation>
+
+    <wsdl:operation name="BrowseNext">
+      <wsdl:input wsaw:Action="http://opcfoundation.org/UA/2008/02/Services.wsdl/BrowseNext" name="BrowseNextMessage" message="tns:BrowseNextMessage"/>
+      <wsdl:output wsaw:Action="http://opcfoundation.org/UA/2008/02/Services.wsdl/BrowseNextResponse" name="BrowseNextResponseMessage" message="tns:BrowseNextResponseMessage"/>
+      <wsdl:fault wsaw:Action="http://opcfoundation.org/UA/2008/02/Services.wsdl/BrowseNextFault" name="BrowseNextFaultMessage" message="tns:BrowseNext_FaultMessage" />
+    </wsdl:operation>
+
+    <wsdl:operation name="TranslateBrowsePathsToNodeIds">
+      <wsdl:input wsaw:Action="http://opcfoundation.org/UA/2008/02/Services.wsdl/TranslateBrowsePathsToNodeIds" name="TranslateBrowsePathsToNodeIdsMessage" message="tns:TranslateBrowsePathsToNodeIdsMessage"/>
+      <wsdl:output wsaw:Action="http://opcfoundation.org/UA/2008/02/Services.wsdl/TranslateBrowsePathsToNodeIdsResponse" name="TranslateBrowsePathsToNodeIdsResponseMessage" message="tns:TranslateBrowsePathsToNodeIdsResponseMessage"/>
+      <wsdl:fault wsaw:Action="http://opcfoundation.org/UA/2008/02/Services.wsdl/TranslateBrowsePathsToNodeIdsFault" name="TranslateBrowsePathsToNodeIdsFaultMessage" message="tns:TranslateBrowsePathsToNodeIds_FaultMessage" />
+    </wsdl:operation>
+
+    <wsdl:operation name="RegisterNodes">
+      <wsdl:input wsaw:Action="http://opcfoundation.org/UA/2008/02/Services.wsdl/RegisterNodes" name="RegisterNodesMessage" message="tns:RegisterNodesMessage"/>
+      <wsdl:output wsaw:Action="http://opcfoundation.org/UA/2008/02/Services.wsdl/RegisterNodesResponse" name="RegisterNodesResponseMessage" message="tns:RegisterNodesResponseMessage"/>
+      <wsdl:fault wsaw:Action="http://opcfoundation.org/UA/2008/02/Services.wsdl/RegisterNodesFault" name="RegisterNodesFaultMessage" message="tns:RegisterNodes_FaultMessage" />
+    </wsdl:operation>
+
+    <wsdl:operation name="UnregisterNodes">
+      <wsdl:input wsaw:Action="http://opcfoundation.org/UA/2008/02/Services.wsdl/UnregisterNodes" name="UnregisterNodesMessage" message="tns:UnregisterNodesMessage"/>
+      <wsdl:output wsaw:Action="http://opcfoundation.org/UA/2008/02/Services.wsdl/UnregisterNodesResponse" name="UnregisterNodesResponseMessage" message="tns:UnregisterNodesResponseMessage"/>
+      <wsdl:fault wsaw:Action="http://opcfoundation.org/UA/2008/02/Services.wsdl/UnregisterNodesFault" name="UnregisterNodesFaultMessage" message="tns:UnregisterNodes_FaultMessage" />
+    </wsdl:operation>
+
+    <wsdl:operation name="QueryFirst">
+      <wsdl:input wsaw:Action="http://opcfoundation.org/UA/2008/02/Services.wsdl/QueryFirst" name="QueryFirstMessage" message="tns:QueryFirstMessage"/>
+      <wsdl:output wsaw:Action="http://opcfoundation.org/UA/2008/02/Services.wsdl/QueryFirstResponse" name="QueryFirstResponseMessage" message="tns:QueryFirstResponseMessage"/>
+      <wsdl:fault wsaw:Action="http://opcfoundation.org/UA/2008/02/Services.wsdl/QueryFirstFault" name="QueryFirstFaultMessage" message="tns:QueryFirst_FaultMessage" />
+    </wsdl:operation>
+
+    <wsdl:operation name="QueryNext">
+      <wsdl:input wsaw:Action="http://opcfoundation.org/UA/2008/02/Services.wsdl/QueryNext" name="QueryNextMessage" message="tns:QueryNextMessage"/>
+      <wsdl:output wsaw:Action="http://opcfoundation.org/UA/2008/02/Services.wsdl/QueryNextResponse" name="QueryNextResponseMessage" message="tns:QueryNextResponseMessage"/>
+      <wsdl:fault wsaw:Action="http://opcfoundation.org/UA/2008/02/Services.wsdl/QueryNextFault" name="QueryNextFaultMessage" message="tns:QueryNext_FaultMessage" />
+    </wsdl:operation>
+
+    <wsdl:operation name="Read">
+      <wsdl:input wsaw:Action="http://opcfoundation.org/UA/2008/02/Services.wsdl/Read" name="ReadMessage" message="tns:ReadMessage"/>
+      <wsdl:output wsaw:Action="http://opcfoundation.org/UA/2008/02/Services.wsdl/ReadResponse" name="ReadResponseMessage" message="tns:ReadResponseMessage"/>
+      <wsdl:fault wsaw:Action="http://opcfoundation.org/UA/2008/02/Services.wsdl/ReadFault" name="ReadFaultMessage" message="tns:Read_FaultMessage" />
+    </wsdl:operation>
+
+    <wsdl:operation name="HistoryRead">
+      <wsdl:input wsaw:Action="http://opcfoundation.org/UA/2008/02/Services.wsdl/HistoryRead" name="HistoryReadMessage" message="tns:HistoryReadMessage"/>
+      <wsdl:output wsaw:Action="http://opcfoundation.org/UA/2008/02/Services.wsdl/HistoryReadResponse" name="HistoryReadResponseMessage" message="tns:HistoryReadResponseMessage"/>
+      <wsdl:fault wsaw:Action="http://opcfoundation.org/UA/2008/02/Services.wsdl/HistoryReadFault" name="HistoryReadFaultMessage" message="tns:HistoryRead_FaultMessage" />
+    </wsdl:operation>
+
+    <wsdl:operation name="Write">
+      <wsdl:input wsaw:Action="http://opcfoundation.org/UA/2008/02/Services.wsdl/Write" name="WriteMessage" message="tns:WriteMessage"/>
+      <wsdl:output wsaw:Action="http://opcfoundation.org/UA/2008/02/Services.wsdl/WriteResponse" name="WriteResponseMessage" message="tns:WriteResponseMessage"/>
+      <wsdl:fault wsaw:Action="http://opcfoundation.org/UA/2008/02/Services.wsdl/WriteFault" name="WriteFaultMessage" message="tns:Write_FaultMessage" />
+    </wsdl:operation>
+
+    <wsdl:operation name="HistoryUpdate">
+      <wsdl:input wsaw:Action="http://opcfoundation.org/UA/2008/02/Services.wsdl/HistoryUpdate" name="HistoryUpdateMessage" message="tns:HistoryUpdateMessage"/>
+      <wsdl:output wsaw:Action="http://opcfoundation.org/UA/2008/02/Services.wsdl/HistoryUpdateResponse" name="HistoryUpdateResponseMessage" message="tns:HistoryUpdateResponseMessage"/>
+      <wsdl:fault wsaw:Action="http://opcfoundation.org/UA/2008/02/Services.wsdl/HistoryUpdateFault" name="HistoryUpdateFaultMessage" message="tns:HistoryUpdate_FaultMessage" />
+    </wsdl:operation>
+
+    <wsdl:operation name="Call">
+      <wsdl:input wsaw:Action="http://opcfoundation.org/UA/2008/02/Services.wsdl/Call" name="CallMessage" message="tns:CallMessage"/>
+      <wsdl:output wsaw:Action="http://opcfoundation.org/UA/2008/02/Services.wsdl/CallResponse" name="CallResponseMessage" message="tns:CallResponseMessage"/>
+      <wsdl:fault wsaw:Action="http://opcfoundation.org/UA/2008/02/Services.wsdl/CallFault" name="CallFaultMessage" message="tns:Call_FaultMessage" />
+    </wsdl:operation>
+
+    <wsdl:operation name="CreateMonitoredItems">
+      <wsdl:input wsaw:Action="http://opcfoundation.org/UA/2008/02/Services.wsdl/CreateMonitoredItems" name="CreateMonitoredItemsMessage" message="tns:CreateMonitoredItemsMessage"/>
+      <wsdl:output wsaw:Action="http://opcfoundation.org/UA/2008/02/Services.wsdl/CreateMonitoredItemsResponse" name="CreateMonitoredItemsResponseMessage" message="tns:CreateMonitoredItemsResponseMessage"/>
+      <wsdl:fault wsaw:Action="http://opcfoundation.org/UA/2008/02/Services.wsdl/CreateMonitoredItemsFault" name="CreateMonitoredItemsFaultMessage" message="tns:CreateMonitoredItems_FaultMessage" />
+    </wsdl:operation>
+
+    <wsdl:operation name="ModifyMonitoredItems">
+      <wsdl:input wsaw:Action="http://opcfoundation.org/UA/2008/02/Services.wsdl/ModifyMonitoredItems" name="ModifyMonitoredItemsMessage" message="tns:ModifyMonitoredItemsMessage"/>
+      <wsdl:output wsaw:Action="http://opcfoundation.org/UA/2008/02/Services.wsdl/ModifyMonitoredItemsResponse" name="ModifyMonitoredItemsResponseMessage" message="tns:ModifyMonitoredItemsResponseMessage"/>
+      <wsdl:fault wsaw:Action="http://opcfoundation.org/UA/2008/02/Services.wsdl/ModifyMonitoredItemsFault" name="ModifyMonitoredItemsFaultMessage" message="tns:ModifyMonitoredItems_FaultMessage" />
+    </wsdl:operation>
+
+    <wsdl:operation name="SetMonitoringMode">
+      <wsdl:input wsaw:Action="http://opcfoundation.org/UA/2008/02/Services.wsdl/SetMonitoringMode" name="SetMonitoringModeMessage" message="tns:SetMonitoringModeMessage"/>
+      <wsdl:output wsaw:Action="http://opcfoundation.org/UA/2008/02/Services.wsdl/SetMonitoringModeResponse" name="SetMonitoringModeResponseMessage" message="tns:SetMonitoringModeResponseMessage"/>
+      <wsdl:fault wsaw:Action="http://opcfoundation.org/UA/2008/02/Services.wsdl/SetMonitoringModeFault" name="SetMonitoringModeFaultMessage" message="tns:SetMonitoringMode_FaultMessage" />
+    </wsdl:operation>
+
+    <wsdl:operation name="SetTriggering">
+      <wsdl:input wsaw:Action="http://opcfoundation.org/UA/2008/02/Services.wsdl/SetTriggering" name="SetTriggeringMessage" message="tns:SetTriggeringMessage"/>
+      <wsdl:output wsaw:Action="http://opcfoundation.org/UA/2008/02/Services.wsdl/SetTriggeringResponse" name="SetTriggeringResponseMessage" message="tns:SetTriggeringResponseMessage"/>
+      <wsdl:fault wsaw:Action="http://opcfoundation.org/UA/2008/02/Services.wsdl/SetTriggeringFault" name="SetTriggeringFaultMessage" message="tns:SetTriggering_FaultMessage" />
+    </wsdl:operation>
+
+    <wsdl:operation name="DeleteMonitoredItems">
+      <wsdl:input wsaw:Action="http://opcfoundation.org/UA/2008/02/Services.wsdl/DeleteMonitoredItems" name="DeleteMonitoredItemsMessage" message="tns:DeleteMonitoredItemsMessage"/>
+      <wsdl:output wsaw:Action="http://opcfoundation.org/UA/2008/02/Services.wsdl/DeleteMonitoredItemsResponse" name="DeleteMonitoredItemsResponseMessage" message="tns:DeleteMonitoredItemsResponseMessage"/>
+      <wsdl:fault wsaw:Action="http://opcfoundation.org/UA/2008/02/Services.wsdl/DeleteMonitoredItemsFault" name="DeleteMonitoredItemsFaultMessage" message="tns:DeleteMonitoredItems_FaultMessage" />
+    </wsdl:operation>
+
+    <wsdl:operation name="CreateSubscription">
+      <wsdl:input wsaw:Action="http://opcfoundation.org/UA/2008/02/Services.wsdl/CreateSubscription" name="CreateSubscriptionMessage" message="tns:CreateSubscriptionMessage"/>
+      <wsdl:output wsaw:Action="http://opcfoundation.org/UA/2008/02/Services.wsdl/CreateSubscriptionResponse" name="CreateSubscriptionResponseMessage" message="tns:CreateSubscriptionResponseMessage"/>
+      <wsdl:fault wsaw:Action="http://opcfoundation.org/UA/2008/02/Services.wsdl/CreateSubscriptionFault" name="CreateSubscriptionFaultMessage" message="tns:CreateSubscription_FaultMessage" />
+    </wsdl:operation>
+
+    <wsdl:operation name="ModifySubscription">
+      <wsdl:input wsaw:Action="http://opcfoundation.org/UA/2008/02/Services.wsdl/ModifySubscription" name="ModifySubscriptionMessage" message="tns:ModifySubscriptionMessage"/>
+      <wsdl:output wsaw:Action="http://opcfoundation.org/UA/2008/02/Services.wsdl/ModifySubscriptionResponse" name="ModifySubscriptionResponseMessage" message="tns:ModifySubscriptionResponseMessage"/>
+      <wsdl:fault wsaw:Action="http://opcfoundation.org/UA/2008/02/Services.wsdl/ModifySubscriptionFault" name="ModifySubscriptionFaultMessage" message="tns:ModifySubscription_FaultMessage" />
+    </wsdl:operation>
+
+    <wsdl:operation name="SetPublishingMode">
+      <wsdl:input wsaw:Action="http://opcfoundation.org/UA/2008/02/Services.wsdl/SetPublishingMode" name="SetPublishingModeMessage" message="tns:SetPublishingModeMessage"/>
+      <wsdl:output wsaw:Action="http://opcfoundation.org/UA/2008/02/Services.wsdl/SetPublishingModeResponse" name="SetPublishingModeResponseMessage" message="tns:SetPublishingModeResponseMessage"/>
+      <wsdl:fault wsaw:Action="http://opcfoundation.org/UA/2008/02/Services.wsdl/SetPublishingModeFault" name="SetPublishingModeFaultMessage" message="tns:SetPublishingMode_FaultMessage" />
+    </wsdl:operation>
+
+    <wsdl:operation name="Publish">
+      <wsdl:input wsaw:Action="http://opcfoundation.org/UA/2008/02/Services.wsdl/Publish" name="PublishMessage" message="tns:PublishMessage"/>
+      <wsdl:output wsaw:Action="http://opcfoundation.org/UA/2008/02/Services.wsdl/PublishResponse" name="PublishResponseMessage" message="tns:PublishResponseMessage"/>
+      <wsdl:fault wsaw:Action="http://opcfoundation.org/UA/2008/02/Services.wsdl/PublishFault" name="PublishFaultMessage" message="tns:Publish_FaultMessage" />
+    </wsdl:operation>
+
+    <wsdl:operation name="Republish">
+      <wsdl:input wsaw:Action="http://opcfoundation.org/UA/2008/02/Services.wsdl/Republish" name="RepublishMessage" message="tns:RepublishMessage"/>
+      <wsdl:output wsaw:Action="http://opcfoundation.org/UA/2008/02/Services.wsdl/RepublishResponse" name="RepublishResponseMessage" message="tns:RepublishResponseMessage"/>
+      <wsdl:fault wsaw:Action="http://opcfoundation.org/UA/2008/02/Services.wsdl/RepublishFault" name="RepublishFaultMessage" message="tns:Republish_FaultMessage" />
+    </wsdl:operation>
+
+    <wsdl:operation name="TransferSubscriptions">
+      <wsdl:input wsaw:Action="http://opcfoundation.org/UA/2008/02/Services.wsdl/TransferSubscriptions" name="TransferSubscriptionsMessage" message="tns:TransferSubscriptionsMessage"/>
+      <wsdl:output wsaw:Action="http://opcfoundation.org/UA/2008/02/Services.wsdl/TransferSubscriptionsResponse" name="TransferSubscriptionsResponseMessage" message="tns:TransferSubscriptionsResponseMessage"/>
+      <wsdl:fault wsaw:Action="http://opcfoundation.org/UA/2008/02/Services.wsdl/TransferSubscriptionsFault" name="TransferSubscriptionsFaultMessage" message="tns:TransferSubscriptions_FaultMessage" />
+    </wsdl:operation>
+
+    <wsdl:operation name="DeleteSubscriptions">
+      <wsdl:input wsaw:Action="http://opcfoundation.org/UA/2008/02/Services.wsdl/DeleteSubscriptions" name="DeleteSubscriptionsMessage" message="tns:DeleteSubscriptionsMessage"/>
+      <wsdl:output wsaw:Action="http://opcfoundation.org/UA/2008/02/Services.wsdl/DeleteSubscriptionsResponse" name="DeleteSubscriptionsResponseMessage" message="tns:DeleteSubscriptionsResponseMessage"/>
+      <wsdl:fault wsaw:Action="http://opcfoundation.org/UA/2008/02/Services.wsdl/DeleteSubscriptionsFault" name="DeleteSubscriptionsFaultMessage" message="tns:DeleteSubscriptions_FaultMessage" />
+    </wsdl:operation>
+
+  </wsdl:portType>
+
+  <wsdl:portType name="IDiscoveryEndpoint">
+
+    <wsdl:operation name="InvokeService">
+      <wsdl:input wsaw:Action="http://opcfoundation.org/UA/2008/02/Services.wsdl/InvokeService" name="InvokeServiceMessage" message="tns:InvokeServiceMessage"/>
+      <wsdl:output wsaw:Action="http://opcfoundation.org/UA/2008/02/Services.wsdl/InvokeServiceResponse" name="InvokeServiceResponseMessage" message="tns:InvokeServiceResponseMessage"/>
+      <wsdl:fault wsaw:Action="http://opcfoundation.org/UA/2008/02/Services.wsdl/InvokeServiceFault" name="InvokeServiceFaultMessage" message="tns:InvokeServiceFaultMessage" />
+    </wsdl:operation>
+
+    <wsdl:operation name="FindServers">
+      <wsdl:input wsaw:Action="http://opcfoundation.org/UA/2008/02/Services.wsdl/FindServers" name="FindServersMessage" message="tns:FindServersMessage"/>
+      <wsdl:output wsaw:Action="http://opcfoundation.org/UA/2008/02/Services.wsdl/FindServersResponse" name="FindServersResponseMessage" message="tns:FindServersResponseMessage"/>
+      <wsdl:fault wsaw:Action="http://opcfoundation.org/UA/2008/02/Services.wsdl/FindServersFault" name="FindServersFaultMessage" message="tns:FindServers_FaultMessage" />
+    </wsdl:operation>
+
+    <wsdl:operation name="FindServersOnNetwork">
+      <wsdl:input wsaw:Action="http://opcfoundation.org/UA/2008/02/Services.wsdl/FindServersOnNetwork" name="FindServersOnNetworkMessage" message="tns:FindServersOnNetworkMessage"/>
+      <wsdl:output wsaw:Action="http://opcfoundation.org/UA/2008/02/Services.wsdl/FindServersOnNetworkResponse" name="FindServersOnNetworkResponseMessage" message="tns:FindServersOnNetworkResponseMessage"/>
+      <wsdl:fault wsaw:Action="http://opcfoundation.org/UA/2008/02/Services.wsdl/FindServersOnNetworkFault" name="FindServersOnNetworkFaultMessage" message="tns:FindServersOnNetwork_FaultMessage" />
+    </wsdl:operation>
+
+    <wsdl:operation name="GetEndpoints">
+      <wsdl:input wsaw:Action="http://opcfoundation.org/UA/2008/02/Services.wsdl/GetEndpoints" name="GetEndpointsMessage" message="tns:GetEndpointsMessage"/>
+      <wsdl:output wsaw:Action="http://opcfoundation.org/UA/2008/02/Services.wsdl/GetEndpointsResponse" name="GetEndpointsResponseMessage" message="tns:GetEndpointsResponseMessage"/>
+      <wsdl:fault wsaw:Action="http://opcfoundation.org/UA/2008/02/Services.wsdl/GetEndpointsFault" name="GetEndpointsFaultMessage" message="tns:GetEndpoints_FaultMessage" />
+    </wsdl:operation>
+
+  </wsdl:portType>
+
+  <wsdl:portType name="IRegistrationEndpoint">
+
+    <wsdl:operation name="InvokeService">
+      <wsdl:input wsaw:Action="http://opcfoundation.org/UA/2008/02/Services.wsdl/InvokeService" name="InvokeServiceMessage" message="tns:InvokeServiceMessage"/>
+      <wsdl:output wsaw:Action="http://opcfoundation.org/UA/2008/02/Services.wsdl/InvokeServiceResponse" name="InvokeServiceResponseMessage" message="tns:InvokeServiceResponseMessage"/>
+      <wsdl:fault wsaw:Action="http://opcfoundation.org/UA/2008/02/Services.wsdl/InvokeServiceFault" name="InvokeServiceFaultMessage" message="tns:InvokeServiceFaultMessage" />
+    </wsdl:operation>
+
+    <wsdl:operation name="RegisterServer">
+      <wsdl:input wsaw:Action="http://opcfoundation.org/UA/2008/02/Services.wsdl/RegisterServer" name="RegisterServerMessage" message="tns:RegisterServerMessage"/>
+      <wsdl:output wsaw:Action="http://opcfoundation.org/UA/2008/02/Services.wsdl/RegisterServerResponse" name="RegisterServerResponseMessage" message="tns:RegisterServerResponseMessage"/>
+      <wsdl:fault wsaw:Action="http://opcfoundation.org/UA/2008/02/Services.wsdl/RegisterServerFault" name="RegisterServerFaultMessage" message="tns:RegisterServer_FaultMessage" />
+    </wsdl:operation>
+
+    <wsdl:operation name="RegisterServer2">
+      <wsdl:input wsaw:Action="http://opcfoundation.org/UA/2008/02/Services.wsdl/RegisterServer2" name="RegisterServer2Message" message="tns:RegisterServer2Message"/>
+      <wsdl:output wsaw:Action="http://opcfoundation.org/UA/2008/02/Services.wsdl/RegisterServer2Response" name="RegisterServer2ResponseMessage" message="tns:RegisterServer2ResponseMessage"/>
+      <wsdl:fault wsaw:Action="http://opcfoundation.org/UA/2008/02/Services.wsdl/RegisterServer2Fault" name="RegisterServer2FaultMessage" message="tns:RegisterServer2_FaultMessage" />
+    </wsdl:operation>
+
+  </wsdl:portType>
+
+</wsdl:definitions>

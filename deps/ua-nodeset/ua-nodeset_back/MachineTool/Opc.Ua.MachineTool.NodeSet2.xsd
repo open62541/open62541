@@ -1,0 +1,165 @@
+<xs:schema elementFormDefault="qualified" targetNamespace="http://opcfoundation.org/UA/MachineTool/Types.xsd" xmlns:tns="http://opcfoundation.org/UA/MachineTool/Types.xsd" xmlns:ua="http://opcfoundation.org/UA/2008/02/Types.xsd" xmlns:xs="http://www.w3.org/2001/XMLSchema">
+    <xs:import namespace="http://opcfoundation.org/UA/2008/02/Types.xsd"/>
+    <xs:simpleType name="ChannelMode">
+        <xs:restriction base="xs:string">
+            <xs:enumeration value="Automatic_0"/>
+            <xs:enumeration value="MdaMdi_1"/>
+            <xs:enumeration value="JogManual_2"/>
+            <xs:enumeration value="JogIncrement_3"/>
+            <xs:enumeration value="TeachingHandle_4"/>
+            <xs:enumeration value="Remote_5"/>
+            <xs:enumeration value="Reference_6"/>
+            <xs:enumeration value="Other_7"/>
+        </xs:restriction>
+    </xs:simpleType>
+    <xs:element type="tns:ChannelMode" name="ChannelMode"/>
+    <xs:complexType name="ListOfChannelMode">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="unbounded" type="tns:ChannelMode" name="ChannelMode" nillable="true"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:ListOfChannelMode" name="ListOfChannelMode" nillable="true"/>
+    <xs:simpleType name="ChannelState">
+        <xs:restriction base="xs:string">
+            <xs:enumeration value="Active_0"/>
+            <xs:enumeration value="Interrupted_1"/>
+            <xs:enumeration value="Reset_2"/>
+        </xs:restriction>
+    </xs:simpleType>
+    <xs:element type="tns:ChannelState" name="ChannelState"/>
+    <xs:complexType name="ListOfChannelState">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="unbounded" type="tns:ChannelState" name="ChannelState" nillable="true"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:ListOfChannelState" name="ListOfChannelState" nillable="true"/>
+    <xs:simpleType name="EDMGeneratorState">
+        <xs:restriction base="xs:string">
+            <xs:enumeration value="Undefined_0"/>
+            <xs:enumeration value="Ready_1"/>
+            <xs:enumeration value="Active_Low_Voltage_2"/>
+            <xs:enumeration value="Active_High_Voltage_3"/>
+            <xs:enumeration value="Error_4"/>
+        </xs:restriction>
+    </xs:simpleType>
+    <xs:element type="tns:EDMGeneratorState" name="EDMGeneratorState"/>
+    <xs:complexType name="ListOfEDMGeneratorState">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="unbounded" type="tns:EDMGeneratorState" name="EDMGeneratorState" nillable="true"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:ListOfEDMGeneratorState" name="ListOfEDMGeneratorState" nillable="true"/>
+    <xs:simpleType name="LaserState">
+        <xs:restriction base="xs:string">
+            <xs:enumeration value="Undefined_0"/>
+            <xs:enumeration value="Ready_1"/>
+            <xs:enumeration value="Active_2"/>
+            <xs:enumeration value="Error_3"/>
+        </xs:restriction>
+    </xs:simpleType>
+    <xs:element type="tns:LaserState" name="LaserState"/>
+    <xs:complexType name="ListOfLaserState">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="unbounded" type="tns:LaserState" name="LaserState" nillable="true"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:ListOfLaserState" name="ListOfLaserState" nillable="true"/>
+    <xs:simpleType name="MachineOperationMode">
+        <xs:restriction base="xs:string">
+            <xs:enumeration value="Manual_0"/>
+            <xs:enumeration value="Automatic_1"/>
+            <xs:enumeration value="Setup_2"/>
+            <xs:enumeration value="AutoWithManualIntervention_3"/>
+            <xs:enumeration value="Service_4"/>
+            <xs:enumeration value="Other_5"/>
+        </xs:restriction>
+    </xs:simpleType>
+    <xs:element type="tns:MachineOperationMode" name="MachineOperationMode"/>
+    <xs:complexType name="ListOfMachineOperationMode">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="unbounded" type="tns:MachineOperationMode" name="MachineOperationMode" nillable="true"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:ListOfMachineOperationMode" name="ListOfMachineOperationMode" nillable="true"/>
+    <xs:simpleType name="PartQuality">
+        <xs:restriction base="xs:string">
+            <xs:enumeration value="CapabilityUnavailable_0"/>
+            <xs:enumeration value="Good_1"/>
+            <xs:enumeration value="Bad_2"/>
+            <xs:enumeration value="NotYetMeasured_3"/>
+            <xs:enumeration value="WillNotBeMeasured_4"/>
+        </xs:restriction>
+    </xs:simpleType>
+    <xs:element type="tns:PartQuality" name="PartQuality"/>
+    <xs:complexType name="ListOfPartQuality">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="unbounded" type="tns:PartQuality" name="PartQuality" nillable="true"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:ListOfPartQuality" name="ListOfPartQuality" nillable="true"/>
+    <xs:simpleType name="ProcessIrregularity">
+        <xs:restriction base="xs:string">
+            <xs:enumeration value="CapabilityUnavailable_0"/>
+            <xs:enumeration value="Detected_1"/>
+            <xs:enumeration value="NotDetected_2"/>
+            <xs:enumeration value="NotYetDetermined_3"/>
+        </xs:restriction>
+    </xs:simpleType>
+    <xs:element type="tns:ProcessIrregularity" name="ProcessIrregularity"/>
+    <xs:complexType name="ListOfProcessIrregularity">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="unbounded" type="tns:ProcessIrregularity" name="ProcessIrregularity" nillable="true"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:ListOfProcessIrregularity" name="ListOfProcessIrregularity" nillable="true"/>
+    <xs:simpleType name="ToolLifeIndication">
+        <xs:restriction base="xs:string">
+            <xs:enumeration value="Time_0"/>
+            <xs:enumeration value="NumberOfParts_1"/>
+            <xs:enumeration value="NumberOfUsages_2"/>
+            <xs:enumeration value="Feed_Distance_3"/>
+            <xs:enumeration value="Cutting_Distance_4"/>
+            <xs:enumeration value="Length_5"/>
+            <xs:enumeration value="Diameter_6"/>
+            <xs:enumeration value="Other_7"/>
+        </xs:restriction>
+    </xs:simpleType>
+    <xs:element type="tns:ToolLifeIndication" name="ToolLifeIndication"/>
+    <xs:complexType name="ListOfToolLifeIndication">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="unbounded" type="tns:ToolLifeIndication" name="ToolLifeIndication" nillable="true"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:ListOfToolLifeIndication" name="ListOfToolLifeIndication" nillable="true"/>
+    <xs:simpleType name="ToolLocked">
+        <xs:restriction base="xs:string">
+            <xs:enumeration value="CapabilityUnavailable_0"/>
+            <xs:enumeration value="ByOperator_1"/>
+            <xs:enumeration value="ToolBreak_2"/>
+            <xs:enumeration value="ToolLife_3"/>
+            <xs:enumeration value="MeasurementError_4"/>
+            <xs:enumeration value="Other_5"/>
+        </xs:restriction>
+    </xs:simpleType>
+    <xs:element type="tns:ToolLocked" name="ToolLocked"/>
+    <xs:complexType name="ListOfToolLocked">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="unbounded" type="tns:ToolLocked" name="ToolLocked" nillable="true"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:ListOfToolLocked" name="ListOfToolLocked" nillable="true"/>
+    <xs:simpleType name="ToolManagement">
+        <xs:restriction base="xs:string">
+            <xs:enumeration value="NumberBased_0"/>
+            <xs:enumeration value="GroupBased_1"/>
+            <xs:enumeration value="Other_2"/>
+        </xs:restriction>
+    </xs:simpleType>
+    <xs:element type="tns:ToolManagement" name="ToolManagement"/>
+    <xs:complexType name="ListOfToolManagement">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="unbounded" type="tns:ToolManagement" name="ToolManagement" nillable="true"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:ListOfToolManagement" name="ListOfToolManagement" nillable="true"/>
+</xs:schema>
