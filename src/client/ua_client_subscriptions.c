@@ -56,6 +56,10 @@ ua_Subscriptions_create(UA_Client *client, UA_Client_Subscription *newSub,
     newSub->maxKeepAliveCount = response->revisedMaxKeepAliveCount;
     ZIP_INIT(&newSub->monitoredItems);
     LIST_INSERT_HEAD(&client->subscriptions, newSub, listEntry);
+
+    /* Immediately send the first publish requests if there are none
+     * outstanding */
+    UA_Client_Subscriptions_backgroundPublish(client);
 }
 
 static void

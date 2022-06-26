@@ -517,6 +517,12 @@ responseActivateSession(UA_Client *client, void *userdata, UA_UInt32 requestId,
 
     client->sessionState = UA_SESSIONSTATE_ACTIVATED;
     notifyClientState(client);
+
+    /* Immediately check if publish requests are outstanding - for example when
+     * an existing Session has been reattached / activated. */
+#ifdef UA_ENABLE_SUBSCRIPTIONS
+    UA_Client_Subscriptions_backgroundPublish(client);
+#endif
 }
 
 static UA_StatusCode

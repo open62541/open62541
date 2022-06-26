@@ -902,6 +902,9 @@ START_TEST(Client_subscription_connectionClose) {
     running = false;
     THREAD_JOIN(server_thread);
 
+    retval = UA_Client_run_iterate(client, 1);
+    UA_Server_run_iterate(server, true);
+
     /* Send Publish requests */
     retval = UA_Client_run_iterate(client, 1);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
