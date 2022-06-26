@@ -437,6 +437,11 @@ endif()
 option(UA_ENABLE_PUBSUB_MQTT "Enable publish/subscribe with mqtt (experimental)" OFF)
 mark_as_advanced(UA_ENABLE_PUBSUB_MQTT)
 if(UA_ENABLE_PUBSUB_MQTT)
+    if(UA_ENABLE_AMALGAMATION)
+        # MQTT Support currently not compatible with the amalgamation
+        message(FATAL_ERROR "Amalgamation cannot be generated with MQTT enabled")
+    endif()
+
     if(NOT UA_FILE_MQTT)
         set(UA_FILE_MQTT ${open62541_MQTT_DIR}/src/mqtt.c)
     endif()
