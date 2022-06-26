@@ -1184,6 +1184,11 @@ closeSecureChannel(UA_Client *client) {
     /* Set the Session to "Created" if it was "Activated" */
     if(client->sessionState > UA_SESSIONSTATE_CREATED)
         client->sessionState = UA_SESSIONSTATE_CREATED;
+
+    /* Delete outstanding async services - the RequestId is no longr valid. Do
+     * this after setting the Session state. Otherwise we send out new Publish
+     * Requests immediately. */
+    UA_Client_AsyncService_removeAll(client, UA_STATUSCODE_BADSECURECHANNELCLOSED);
 }
 
 static void

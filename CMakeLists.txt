@@ -46,9 +46,9 @@ set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 # overwritten with more detailed information if git is available.
 set(OPEN62541_VER_MAJOR 1)
 set(OPEN62541_VER_MINOR 3)
-set(OPEN62541_VER_PATCH 1)
-set(OPEN62541_VER_LABEL "-unknown") # like "-rc1" or "-g4538abcd" or "-g4538abcd-dirty"
-set(OPEN62541_VER_COMMIT "undefined")
+set(OPEN62541_VER_PATCH 2)
+set(OPEN62541_VER_LABEL "-undefined") # like "-rc1" or "-g4538abcd" or "-g4538abcd-dirty"
+set(OPEN62541_VER_COMMIT "unknown-commit")
 
 # Overwrite the version information based on git if available
 include(SetGitBasedVersion)
@@ -437,6 +437,11 @@ endif()
 option(UA_ENABLE_PUBSUB_MQTT "Enable publish/subscribe with mqtt (experimental)" OFF)
 mark_as_advanced(UA_ENABLE_PUBSUB_MQTT)
 if(UA_ENABLE_PUBSUB_MQTT)
+    if(UA_ENABLE_AMALGAMATION)
+        # MQTT Support currently not compatible with the amalgamation
+        message(FATAL_ERROR "Amalgamation cannot be generated with MQTT enabled")
+    endif()
+
     if(NOT UA_FILE_MQTT)
         set(UA_FILE_MQTT ${open62541_MQTT_DIR}/src/mqtt.c)
     endif()
@@ -1336,7 +1341,7 @@ if(UA_ENABLE_AMALGAMATION)
     add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/open62541.h
                        PRE_BUILD
                        COMMAND ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tools/amalgamate.py
-                               ${OPEN62541_VER_COMMIT} ${CMAKE_CURRENT_BINARY_DIR}/open62541.h
+                               ${OPEN62541_VERSION} ${CMAKE_CURRENT_BINARY_DIR}/open62541.h
                                ${exported_headers} ${default_plugin_headers} ${ua_architecture_headers}
                        DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/tools/amalgamate.py
                                ${exported_headers} ${default_plugin_headers} ${ua_architecture_headers})
@@ -1344,7 +1349,7 @@ if(UA_ENABLE_AMALGAMATION)
     add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/open62541.c
                        PRE_BUILD
                        COMMAND ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tools/amalgamate.py
-                               ${OPEN62541_VER_COMMIT} ${CMAKE_CURRENT_BINARY_DIR}/open62541.c
+                               ${OPEN62541_VERSION} ${CMAKE_CURRENT_BINARY_DIR}/open62541.c
                                ${internal_headers} ${lib_sources} ${default_plugin_sources} ${ua_architecture_sources}
                        DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/tools/amalgamate.py ${internal_headers}
                                ${lib_sources} ${default_plugin_sources} ${ua_architecture_sources} )

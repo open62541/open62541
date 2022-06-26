@@ -75,6 +75,7 @@ void
 UA_Session_attachToSecureChannel(UA_Session *session, UA_SecureChannel *channel) {
     UA_Session_detachFromSecureChannel(session);
     session->header.channel = channel;
+    session->header.serverSession = true;
     SLIST_INSERT_HEAD(&channel->sessions, &session->header, next);
 }
 
@@ -91,6 +92,16 @@ UA_Session_detachFromSecureChannel(UA_Session *session) {
         SLIST_REMOVE(&channel->sessions, sh, UA_SessionHeader, next);
         break;
     }
+
+    /* Clean up the response queue. Their RequestId is bound to the
+     * SecureChannel so they cannot be reused. */
+#ifdef UA_ENABLE_SUBSCRIPTIONS
+    UA_PublishResponseEntry *pre;
+    while((pre = UA_Session_dequeuePublishReq(session))) {
+        UA_PublishResponse_clear(&pre->response);
+        UA_free(pre);
+    }
+#endif
 }
 
 UA_StatusCode
