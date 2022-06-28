@@ -122,7 +122,7 @@ Jointly with the overall open62541 community, the core maintainers steer the lon
 
 Official docker container builds are available on [Docker Cloud](https://cloud.docker.com/u/open62541/repository/registry-1.docker.io/open62541/open62541)
 
-More information can be found in the [Docker README](docker/README.md)
+More information can be found in the [Docker README](tools/docker/README.md)
 
 ## Support & Development
 
