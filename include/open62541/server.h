@@ -1579,6 +1579,29 @@ UA_Server_createCondition(UA_Server *server,
                           const UA_NodeId hierarchialReferenceType,
                           UA_NodeId *outConditionId);
 
+/**
+ * attach condition behavior to an already existing condition Node. The function checks first whether the passed conditionType
+ * is a subType of ConditionType. Then checks whether the condition source has HasEventSource
+ * reference to its parent. If not, a HasEventSource reference will be created between condition
+ * source and server object. To expose the condition in address space, a hierarchical ReferenceType
+ * should be passed to create the reference to condition source. Otherwise, UA_NODEID_NULL should be
+ * passed to make the condition not exposed.
+ * @param server The server object
+ * @param conditionId The NodeId of the static Condition Object.
+ * @param conditionType The NodeId of the node representation of the ConditionType
+ * @param conditionName The name of the condition to be created
+ * @param conditionSource The NodeId of the Condition Source (Parent of the Condition)
+ * @param hierarchialReferenceType The NodeId of Hierarchical ReferenceType between Condition and its source
+ * @param refreshStart The NodeId of RefreshStartEvent
+ * @param refreshEnd The NodeId of RefreshEndEvent
+ * @return The StatusCode of the UA_Server_createCondition method */
+UA_StatusCode UA_EXPORT
+UA_Server_attachConditionBehavior(UA_Server *server,
+                                  const UA_NodeId conditionId, const UA_NodeId conditionType,
+                                  UA_QualifiedName conditionName, const UA_NodeId conditionSource,
+                                  const UA_NodeId hierarchialReferenceType,
+                                  const UA_NodeId refreshStart, const UA_NodeId refreshEnd);
+								  
 /* Set the value of condition field.
  *
  * @param server The server object

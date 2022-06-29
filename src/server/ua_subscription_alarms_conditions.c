@@ -1959,10 +1959,22 @@ setStandardConditionFields(UA_Server *server, const UA_NodeId* condition,
     CONDITION_ASSERT_RETURN_RETVAL(retval, "Set AckedState/Id Field failed",);
 
 #ifdef CONDITIONOPTIONALFIELDS_SUPPORT
-    /* add optional field ConfirmedState*/
-    retval = UA_Server_addConditionOptionalField(server, *condition, acknowledgeableConditionTypeId,
-                                                 fieldConfirmedStateQN, NULL);
-    CONDITION_ASSERT_RETURN_RETVAL(retval, "Adding ConfirmedState optional Field failed",);
+    /* add optional field ConfirmedState if not already added statically by user*/
+    UA_BrowsePathResult bpr = UA_Server_browseSimplifiedBrowsePath(server, *condition, 1, &fieldConfirmedStateQN);
+    if(bpr.statusCode == UA_STATUSCODE_BADNOMATCH) {
+      retval = UA_Server_addConditionOptionalField(server, *condition, acknowledgeableConditionTypeId,
+                                                   fieldConfirmedStateQN, NULL);
+      CONDITION_ASSERT_RETURN_RETVAL(retval, "Adding ConfirmedState optional Field failed",);
+
+      /* add reference from Condition to Confirm Method */
+      retval = UA_Server_addReference(server, *condition, UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
+                                       UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_ACKNOWLEDGEABLECONDITIONTYPE_CONFIRM), true);
+      CONDITION_ASSERT_RETURN_RETVAL(retval, "Adding HasComponent Reference to Confirm Method failed",);
+    }
+    else if(bpr.statusCode == UA_STATUSCODE_GOOD)
+    {
+      UA_BrowsePathResult_clear(&bpr);
+    }
 
     /* Set ConfirmedState (Id = false by default) */
     text = UA_LOCALIZEDTEXT(LOCALE, UNCONFIRMED_TEXT);
@@ -1974,7 +1986,7 @@ setStandardConditionFields(UA_Server *server, const UA_NodeId* condition,
     retval = UA_Server_setConditionVariableFieldProperty(server, *condition, &value,
                                                          fieldConfirmedStateQN,
                                                          twoStateVariableIdQN);
-    CONDITION_ASSERT_RETURN_RETVAL(retval, "Set EnabledState/Id Field failed",);
+    CONDITION_ASSERT_RETURN_RETVAL(retval, "Set ConfirmedState/Id Field failed",);
 #endif//CONDITIONOPTIONALFIELDS_SUPPORT
 
     /* 2. Check if ConditionType is subType of AlarmConditionType */
@@ -2033,13 +2045,6 @@ setTwoStateVariableCallbacks(UA_Server *server, const UA_NodeId* condition,
         retval = getConditionFieldPropertyNodeId(server, condition, &fieldConfirmedStateQN,
                                                  &twoStateVariableIdQN, &twoStateVariableIdNodeId);
         CONDITION_ASSERT_RETURN_RETVAL(retval, "Id Property of TwoStateVariable not found",);
-
-        /* add reference from Condition to Confirm Method */
-        retval = UA_Server_addReference(server, *condition, UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
-                     UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_ACKNOWLEDGEABLECONDITIONTYPE_CONFIRM), true);
-        CONDITION_ASSERT_RETURN_RETVAL(retval,
-                                       "Adding HasComponent Reference to Confirm Method failed",
-                                       UA_NodeId_clear(&twoStateVariableIdNodeId););
 
         retval = UA_Server_setVariableNode_valueCallback(server, twoStateVariableIdNodeId, callback);
         CONDITION_ASSERT_RETURN_RETVAL(retval, "Adding ConfirmedState/Id callback failed",
@@ -2267,6 +2272,81 @@ UA_Server_createCondition(UA_Server *server,
 
     /* append Condition to list */
     return appendConditionEntry(server, &newNodeId, &conditionSource);
+}
+
+/**
+ * attach condition behavior to an already existing condition Node. The function checks first whether the passed conditionType
+ * is a subType of ConditionType. Then checks whether the condition source has HasEventSource
+ * reference to its parent. If not, a HasEventSource reference will be created between condition
+ * source and server object. To expose the condition in address space, a hierarchical ReferenceType
+ * should be passed to create the reference to condition source. Otherwise, UA_NODEID_NULL should be
+ * passed to make the condition not exposed.
+ */
+UA_StatusCode
+UA_Server_attachConditionBehavior(UA_Server *server,
+                                  const UA_NodeId conditionId, const UA_NodeId conditionType,
+                                  UA_QualifiedName conditionName, const UA_NodeId conditionSource,
+                                  const UA_NodeId hierarchialReferenceType,
+                                  const UA_NodeId refreshStart, const UA_NodeId refreshEnd) {
+
+    /*ConditionId and ConditionSource Nodes will be checked implicitly by other function calls*/
+    UA_StatusCode retval;
+
+    /* Make sure the conditionType is a Subtype of ConditionType */
+    UA_NodeId conditionTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_CONDITIONTYPE);
+    if(!isNodeInTree_singleRef(server, &conditionType, &conditionTypeId,
+                               UA_REFERENCETYPEINDEX_HASSUBTYPE)) {
+        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_USERLAND,
+                     "Condition Type must be a subtype of ConditionType!");
+        return UA_STATUSCODE_BADNOMATCH;
+    }
+
+    /* create HasCondition Reference (HasCondition should be forward from the ConditionSourceNode to the Condition.
+     * else, HasCondition should be forward from the ConditionSourceNode to the ConditionType Node) */
+    UA_ExpandedNodeId hasConditionTarget;
+    if(!UA_NodeId_isNull(&hierarchialReferenceType))
+        hasConditionTarget = UA_EXPANDEDNODEID_NUMERIC(conditionId.namespaceIndex, conditionId.identifier.numeric);
+    else
+        hasConditionTarget = UA_EXPANDEDNODEID_NUMERIC(conditionType.namespaceIndex, conditionType.identifier.numeric);
+
+    UA_NodeId hasConditionId = UA_NODEID_NUMERIC(0, UA_NS0ID_HASCONDITION);
+    retval = UA_Server_addReference(server, conditionSource, hasConditionId,
+                                    hasConditionTarget, true);
+    CONDITION_ASSERT_RETURN_RETVAL(retval, "Creating HasCondition Reference failed",);
+
+    /* Set standard fields */
+    retval = setStandardConditionFields(server, &conditionId, &conditionType,
+                                        &conditionSource, &conditionName);
+    CONDITION_ASSERT_RETURN_RETVAL(retval, "Set standard Condition Fields failed",);
+
+    /* Attach RefreshEvents */
+    if(LIST_EMPTY(&server->conditionSources)) {
+      const UA_Node *refreshStartTmp = UA_NODESTORE_GET(server, &refreshStart);
+      if(refreshStartTmp == NULL) {
+        CONDITION_ASSERT_RETURN_RETVAL(UA_STATUSCODE_BADINVALIDARGUMENT, "RefreshStartEvent Node does not exist in server",);
+      }
+
+      retval = UA_NodeId_copy(&refreshStart, &refreshEvents[REFRESHEVENT_START_IDX]);
+      CONDITION_ASSERT_RETURN_RETVAL(retval, "Set RefreshStartEvent failed",);
+
+      const UA_Node *refreshEndTmp = UA_NODESTORE_GET(server, &refreshEnd);
+      if(refreshEndTmp == NULL) {
+        UA_NODESTORE_RELEASE(server, refreshStartTmp);
+        CONDITION_ASSERT_RETURN_RETVAL(UA_STATUSCODE_BADINVALIDARGUMENT, "RefreshEndEvent Node does not exist in server",);
+      }
+
+      retval = UA_NodeId_copy(&refreshEnd, &refreshEvents[REFRESHEVENT_END_IDX]);
+      UA_NODESTORE_RELEASE(server, refreshStartTmp);
+      UA_NODESTORE_RELEASE(server, refreshEndTmp);
+      CONDITION_ASSERT_RETURN_RETVAL(retval, "Set RefreshEndEvent failed",);
+    }
+
+    /* Set Method Callbacks */
+    retval = setStandardConditionCallbacks(server, &conditionId, &conditionType);
+    CONDITION_ASSERT_RETURN_RETVAL(retval, "Set Condition callbacks failed",);
+
+    /* append Condition to list */
+    return appendConditionEntry(server, &conditionId, &conditionSource);
 }
 
 #ifdef CONDITIONOPTIONALFIELDS_SUPPORT

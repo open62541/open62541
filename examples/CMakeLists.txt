@@ -99,6 +99,7 @@ if(UA_ENABLE_SUBSCRIPTIONS_EVENTS)
   add_example(client_event_filter events/client_eventfilter.c)
   if(UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS)
     add_example(tutorial_server_alarms_conditions tutorial_server_alarms_conditions.c)
+    add_example(tutorial_server_alarms_conditions_custom tutorial_server_alarms_conditions_custom.c)
   endif()
 endif()
 
