@@ -388,6 +388,16 @@ mark_as_advanced(UA_ENABLE_PUBSUB_MONITORING)
 option(UA_ENABLE_PUBSUB_BUFMALLOC "Enable allocation with static memory buffer for time critical PubSub parts" OFF)
 mark_as_advanced(UA_ENABLE_PUBSUB_BUFMALLOC)
 
+option(UA_ENABLE_PUBSUB_SKS "Enable Security Key Service support for publisher and subscriber" OFF)
+mark_as_advanced(UA_ENABLE_PUBSUB_SKS)
+
+if(UA_ENABLE_PUBSUB_SKS)
+    message(WARNING "The PubSub SKS feature is under development and not yet ready.")
+    if(NOT UA_ENABLE_PUBSUB_ENCRYPTION)
+        message(FATAL_ERROR "PubSub SKS cannot be used with disabled UA_ENABLE_PUBSUB_ENCRYPTION")
+    endif()
+endif()
+
 #RT and Transport PubSub settings
 option(UA_ENABLE_PUBSUB_ETH_UADP "Enable publish/subscribe UADP over Ethernet" OFF)
 
