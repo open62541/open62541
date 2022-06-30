@@ -5,6 +5,7 @@
  * Copyright (c) 2017-2019 Fraunhofer IOSB (Author: Andreas Ebner)
  * Copyright (c) 2022 Siemens AG (Author: Thomas Fischer)
  * Copyright (c) 2022 Fraunhofer IOSB (Author: Noel Graf)
+ * Copyright (c) 2022 Linutronix GmbH (Author: Muddasir Shakil)
  */
 
 #ifndef UA_PUBSUB_MANAGER_H_
@@ -54,6 +55,10 @@ typedef struct UA_PubSubManager {
 
     size_t reserveIdsSize;
     LIST_HEAD(UA_ListOfReserveIds, UA_ReserveId) reserveIds;
+
+#ifdef UA_ENABLE_PUBSUB_SKS
+    LIST_HEAD(PubSubKeyList, UA_PubSubKeyStorage) pubSubKeyList;
+#endif
 
 #ifndef UA_ENABLE_PUBSUB_INFORMATIONMODEL
     UA_UInt32 uniqueIdCount;
