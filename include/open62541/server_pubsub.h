@@ -6,6 +6,7 @@
  * Copyright (c) 2019 Kalycito Infotech Private Limited
  * Copyright (c) 2021 Fraunhofer IOSB (Author: Jan Hermes)
  * Copyright (c) 2022 Siemens AG (Author: Thomas Fischer)
+ * Copyright (c) 2022 Linutronix GmbH (Author: Muddasir Shakil)
  */
 
 #ifndef UA_SERVER_PUBSUB_H
@@ -519,6 +520,7 @@ typedef struct {
     UA_MessageSecurityMode securityMode; /* via the UA_WriterGroupDataType */
 #ifdef UA_ENABLE_PUBSUB_ENCRYPTION
     UA_PubSubSecurityPolicy *securityPolicy;
+    UA_String securityGroupId;
 #endif
 } UA_WriterGroupConfig;
 
@@ -810,6 +812,7 @@ typedef struct {
     UA_MessageSecurityMode securityMode;
 #ifdef UA_ENABLE_PUBSUB_ENCRYPTION
     UA_PubSubSecurityPolicy *securityPolicy;
+    UA_String securityGroupId;
 #endif
 } UA_ReaderGroupConfig;
 
