@@ -118,6 +118,57 @@ typedef struct UA_PubSubKeyStorage {
 
 } UA_PubSubKeyStorage;
 
+/**
+ * @brief Find the Keystorage from the Server KeyStorageList and returns the pointer to
+ * the keystorage
+ *
+ * @param server holds the keystoragelist
+ * @param securityGroupId of the keystorage to be found
+ * @return Pointer to the keystorage on success, null pointer on failure
+ */
+UA_PubSubKeyStorage *
+UA_Server_findKeyStorage(UA_Server *server, UA_String securityGroupId);
+
+/**
+ * @brief retreives the security policy pointer from the PubSub configuration by
+ * SecurityPolicyUri
+ *
+ * @param server the server object
+ * @param securityPolicyUri the URI of the security policy
+ * @param policy the pointer to the security policy
+ * @return UA_StatusCode return status code
+ */
+UA_StatusCode
+UA_Server_findPubSubSecurityPolicy(UA_Server *server, const UA_String *securityPolicyUri,
+                                   UA_PubSubSecurityPolicy **policy);
+
+/**
+ * @brief Deletes the keystorage from the server and its members
+ *
+ * @param server where the keystorage is created
+ * @param keyStorage pointer to the keystorage
+ */
+void
+UA_PubSubKeyStorage_delete(UA_Server *server, UA_PubSubKeyStorage *keyStorage);
+
+/**
+ * @brief Initializes an empty Keystorage for the SecurityGroupId and add it to the Server
+ * KeyStorageList
+ *
+ * @param server the server object
+ * @param securityGroupId the identifier of the SecurityGroup
+ * @param securityPolicyUri the security policy assocaited with the security algorithm
+ * @param maxPastKeyCount maximum number of past keys a keystorage is allowed to store
+ * @param maxFutureKeyCount maximum number of future keys a keystorage is allowed to store
+ * @param keyStorage pointer to the keystorage to be initialized
+ * @return UA_StatusCode return status code
+ */
+UA_StatusCode
+UA_PubSubKeyStorage_init(UA_Server *server, const UA_String *securityGroupId,
+                               const UA_String *securityPolicyUri,
+                               UA_UInt32 maxPastKeyCount, UA_UInt32 maxFutureKeyCount,
+                               UA_PubSubKeyStorage *keyStorage);
+
 #endif
 
 _UA_END_DECLS
