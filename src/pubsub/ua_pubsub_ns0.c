@@ -1151,7 +1151,7 @@ addStandaloneSubscribedDataSetRepresentation(UA_Server *server, UA_StandaloneSub
     object_attr.displayName = UA_LOCALIZEDTEXT("", sdsName);
     UA_Server_addObjectNode(server, UA_NODEID_NUMERIC(1, 0), /* Create a new id */
                                    UA_NODEID_NUMERIC(0, UA_NS0ID_PUBLISHSUBSCRIBE_SUBSCRIBEDDATASETS), 
-                                   UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY),
+                                   UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
                                    UA_QUALIFIEDNAME(0, sdsName),
                                    UA_NODEID_NUMERIC(0, UA_NS0ID_STANDALONESUBSCRIBEDDATASETTYPE),
                                    object_attr, NULL, &subscribedDataSet->identifier);
@@ -1174,10 +1174,15 @@ addStandaloneSubscribedDataSetRepresentation(UA_Server *server, UA_StandaloneSub
         UA_VariableAttributes attr = UA_VariableAttributes_default;
         UA_NodeId targetVarsId;
         attr.displayName = UA_LOCALIZEDTEXT("", "TargetVariables");
-        attr.dataType = UA_TYPES[UA_TYPES_TARGETVARIABLESDATATYPE].typeId;
-        attr.valueRank = UA_VALUERANK_SCALAR;
+        attr.dataType = UA_TYPES[UA_TYPES_FIELDTARGETDATATYPE].typeId;
+        attr.valueRank = UA_VALUERANK_ONE_DIMENSION;
+        attr.arrayDimensionsSize = 1;
+        attr.arrayDimensions = (UA_UInt32 *) UA_Array_new(attr.arrayDimensionsSize, &UA_TYPES[UA_TYPES_UINT32]);
+        attr.arrayDimensions[0] = (UA_UInt32)subscribedDataSet->config.subscribedDataSet.target.targetVariablesSize;
         attr.accessLevel = UA_ACCESSLEVELMASK_READ;
-        UA_Variant_setScalar(&attr.value, &subscribedDataSet->config.subscribedDataSet.target, &UA_TYPES[UA_TYPES_TARGETVARIABLESDATATYPE]);
+        UA_Variant_setArray(&attr.value, subscribedDataSet->config.subscribedDataSet.target.targetVariables, 
+                            subscribedDataSet->config.subscribedDataSet.target.targetVariablesSize, 
+                            &UA_TYPES[UA_TYPES_FIELDTARGETDATATYPE]);
         ret |= UA_Server_addVariableNode(server, UA_NODEID_NULL, sdsObjectNode, UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY),
                                          UA_QUALIFIEDNAME(0, "TargetVariables"), UA_NODEID_NUMERIC(0, UA_NS0ID_PROPERTYTYPE),
                                          attr, NULL, &targetVarsId);
