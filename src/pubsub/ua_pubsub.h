@@ -9,6 +9,7 @@
  * Copyright (c) 2021 Fraunhofer IOSB (Author: Jan Hermes)
  * Copyright (c) 2022 Siemens AG (Author: Thomas Fischer)
  * Copyright (c) 2022 Fraunhofer IOSB (Author: Noel Graf)
+ * Copyright (c) 2022 Linutronix GmbH (Author: Muddasir Shakil)
  */
 
 #ifndef UA_PUBSUB_H_
@@ -20,6 +21,10 @@
 
 #include "open62541_queue.h"
 #include "ua_pubsub_networkmessage.h"
+
+#ifdef UA_ENABLE_PUBSUB_SKS
+#include <ua_pubsub_keystorage.h>
+#endif
 
 /* The public configuration structs are defined in include/ua_plugin_pubsub.h */
 
@@ -77,7 +82,7 @@ UA_StandaloneSubscribedDataSet_findSDSbyId(UA_Server *server, UA_NodeId identifi
 UA_StandaloneSubscribedDataSet *
 UA_StandaloneSubscribedDataSet_findSDSbyName(UA_Server *server, UA_String identifier);
 void
-UA_StandaloneSubscribedDataSet_clear(UA_Server *server, UA_StandaloneSubscribedDataSet *subscribedDataSet); 
+UA_StandaloneSubscribedDataSet_clear(UA_Server *server, UA_StandaloneSubscribedDataSet *subscribedDataSet);
 
 #define UA_LOG_PDS_INTERNAL(LOGGER, LEVEL, PDS, MSG, ...)               \
     if(UA_LOGLEVEL <= UA_LOGLEVEL_##LEVEL) {                            \
@@ -274,6 +279,9 @@ struct UA_WriterGroup {
     UA_UInt32 securityTokenId;
     UA_UInt32 nonceSequenceNumber; /* To be part of the MessageNonce */
     void *securityPolicyContext;
+#ifdef UA_ENABLE_PUBSUB_SKS
+    UA_PubSubKeyStorage *keyStorage; /* non-owning pointer to keyStorage*/
+#endif
 #endif
 };
 
@@ -465,6 +473,9 @@ struct UA_ReaderGroup {
     UA_UInt32 securityTokenId;
     UA_UInt32 nonceSequenceNumber; /* To be part of the MessageNonce */
     void *securityPolicyContext;
+#ifdef UA_ENABLE_PUBSUB_SKS
+    UA_PubSubKeyStorage *keyStorage;
+#endif
 #endif
 };
 
