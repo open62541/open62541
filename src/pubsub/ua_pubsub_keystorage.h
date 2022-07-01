@@ -259,6 +259,27 @@ UA_PubSubKeyStorage_activateKeyToChannelContext(UA_Server *server, const UA_Node
 void
 UA_PubSubKeyStorage_keyRolloverCallback(UA_Server *server, UA_PubSubKeyStorage *keyStorage);
 
+/**
+ * @brief It updates/adds the current and future keys into the existing KeyStorage.
+ * If the currentKeyID is known to existing keyStorage, then it is set as the currentKey
+ * and any future keys are appended to the existing list. If the currentKeyId is not know
+ * then, existing keyList is discarded and replaced with the new list.
+ *
+ * @param server the server object
+ * @param keyStorage pointer to the keystorage
+ * @param currentKey the currentKey data
+ * @param currentKeyID the identifier of the current Key
+ * @param futureKeySize the size of the future key list
+ * @param futureKeys the pointer to the future keys list
+ * @param msKeyLifeTime the updated time to move to next key
+ * @return UA_StatusCode the return status
+ */
+UA_StatusCode
+UA_PubSubKeyStorage_update(UA_Server *server, UA_PubSubKeyStorage *keyStorage,
+                           const UA_ByteString *currentKey, UA_UInt32 currentKeyID,
+                           const size_t futureKeySize, UA_ByteString *futureKeys,
+                           UA_Duration msKeyLifeTime);
+
 #endif
 
 _UA_END_DECLS

@@ -416,4 +416,41 @@ UA_PubSubKeyStorage_keyRolloverCallback(UA_Server *server, UA_PubSubKeyStorage *
     }
 }
 
+UA_StatusCode
+UA_PubSubKeyStorage_update(UA_Server *server, UA_PubSubKeyStorage *keyStorage,
+                           const UA_ByteString *currentKey, UA_UInt32 currentKeyID,
+                           const size_t futureKeySize, UA_ByteString *futureKeys,
+                           UA_Duration msKeyLifeTime) {
+    if(!keyStorage)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+    UA_PubSubKeyListItem *keyListIterator = NULL;
+
+    if (currentKeyID != 0){
+        /*if currentKeyId is known then update keystorage currentItem*/
+        retval = UA_PubSubKeyStorage_getKeyByKeyID(currentKeyID, keyStorage,
+                                                   &keyListIterator);
+        if (retval == UA_STATUSCODE_GOOD && keyListIterator) {
+            keyStorage->currentItem = keyListIterator;
+            /*Add new keys at the end of KeyList*/
+            retval = UA_PubSubKeyStorage_storeSecurityKeys(
+                server, keyStorage, currentKeyID, NULL,
+                futureKeys, futureKeySize, msKeyLifeTime);
+            if(retval != UA_STATUSCODE_GOOD)
+                return retval;
+        } else if(retval == UA_STATUSCODE_BADNOTFOUND) {
+            /*If the CurrentTokenId is unknown, the existing list shall be discarded and
+             * replaced by the fetched list*/
+            UA_PubSubKeyStorage_clearKeyList(keyStorage);
+            retval = UA_PubSubKeyStorage_storeSecurityKeys(server, keyStorage,
+                                                  currentKeyID, currentKey, futureKeys,
+                                                  futureKeySize, msKeyLifeTime);
+            if (retval != UA_STATUSCODE_GOOD)
+                return retval;
+        }
+    }
+    return retval;
+}
+
 #endif
