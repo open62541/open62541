@@ -169,6 +169,51 @@ UA_PubSubKeyStorage_init(UA_Server *server, const UA_String *securityGroupId,
                                UA_UInt32 maxPastKeyCount, UA_UInt32 maxFutureKeyCount,
                                UA_PubSubKeyStorage *keyStorage);
 
+/**
+ * @brief After Keystorage is initialized and added to the server, this method is called
+ * to store the current Keys and futurekeys.
+ *
+ * @param server the server object
+ * @param keyStorage pointer to the keyStorage
+ * @param currentTokenId The token Id of the current key it starts with 1 and increaments
+ * each time keylifetime expires
+ * @param currentKey the key used for encrypt the current messages
+ * @param futureKeys pointer to the future keys
+ * @param futureKeyCount the number future keys provided
+ * @param keyLifeTime the time period when the key expires and move to next future key in
+ * milli seconds
+ * @return UA_StatusCode the return status
+ */
+UA_StatusCode
+UA_PubSubKeyStorage_storeSecurityKeys(UA_Server *server, UA_PubSubKeyStorage *keyStorage,
+                                      UA_UInt32 currentTokenId, const UA_ByteString *currentKey,
+                                      UA_ByteString *futureKeys, size_t futureKeyCount,
+                                      UA_Duration msKeyLifeTime);
+
+/**
+ * @brief Finds the KeyItem from the KeyList by KeyId
+ *
+ * @param keyId the identifier of the Key
+ * @param keyStorage pointer to the keystorage
+ * @param keyItem returned pointer to the keyItem in the KeyList
+ * @return UA_StatusCode return status code
+ */
+UA_StatusCode
+UA_PubSubKeyStorage_getKeyByKeyID(const UA_UInt32 keyId, UA_PubSubKeyStorage *keyStorage,
+                                  UA_PubSubKeyListItem **keyItem);
+
+/**
+ * @brief Adds a new KeyItem at the end of the KeyList
+ * to the new KeyListItem.
+ *
+ * @param keyStorage pointer to the keystorage
+ * @param key the key to be added
+ * @param keyID the keyID associated with the key to be added
+ */
+UA_PubSubKeyListItem *
+UA_PubSubKeyStorage_push(UA_PubSubKeyStorage *keyStorage, const UA_ByteString *key,
+                         UA_UInt32 keyID);
+
 #endif
 
 _UA_END_DECLS

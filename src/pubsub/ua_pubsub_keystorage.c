@@ -133,4 +133,103 @@ error:
     return retval;
 }
 
+UA_StatusCode
+UA_PubSubKeyStorage_storeSecurityKeys(UA_Server *server, UA_PubSubKeyStorage *keyStorage,
+                                      UA_UInt32 currentTokenId, const UA_ByteString *currentKey,
+                                      UA_ByteString *futureKeys, size_t futureKeyCount,
+                                      UA_Duration msKeyLifeTime) {
+
+    UA_assert(server);
+
+    UA_StatusCode retval = UA_STATUSCODE_BAD;
+
+    if(futureKeyCount > 0 && !futureKeys) {
+        retval = UA_STATUSCODE_BADARGUMENTSMISSING;
+        goto error;
+    }
+
+    size_t keyNumber = futureKeyCount;
+
+    if(currentKey && keyStorage->keyListSize == 0) {
+
+        keyStorage->keyListSize++;
+        UA_PubSubKeyListItem *keyItem =
+            (UA_PubSubKeyListItem *)UA_calloc(1, sizeof(UA_PubSubKeyListItem));
+        if(!keyItem)
+            goto error;
+        retval = UA_ByteString_copy(currentKey, &keyItem->key);
+        if(UA_StatusCode_isBad(retval))
+            goto error;
+
+        keyItem->keyID = currentTokenId;
+
+        TAILQ_INIT(&keyStorage->keyList);
+        TAILQ_INSERT_HEAD(&keyStorage->keyList, keyItem, keyListEntry);
+    }
+
+    UA_PubSubKeyListItem *keyListIterator = TAILQ_FIRST(&keyStorage->keyList);
+    UA_UInt32 startingTokenID = currentTokenId + 1;
+    for(size_t i = 0; i < keyNumber; ++i) {
+        retval = UA_PubSubKeyStorage_getKeyByKeyID(
+            startingTokenID, keyStorage, &keyListIterator);
+        /*Skipping key with matching KeyID in existing list*/
+        if(retval == UA_STATUSCODE_BADNOTFOUND) {
+            keyListIterator = UA_PubSubKeyStorage_push(keyStorage, &futureKeys[i], startingTokenID);
+            if(!keyListIterator)
+                goto error;
+
+            keyStorage->keyListSize++;
+        }
+        if(startingTokenID == UA_UINT32_MAX)
+            startingTokenID = 1;
+        else
+            ++startingTokenID;
+    }
+
+    /*update keystorage references*/
+    retval = UA_PubSubKeyStorage_getKeyByKeyID(currentTokenId, keyStorage, &keyStorage->currentItem);
+    if (retval != UA_STATUSCODE_GOOD && !keyStorage->currentItem)
+        goto error;
+
+    keyStorage->keyLifeTime = msKeyLifeTime;
+
+    return retval;
+error:
+    if(keyStorage) {
+        UA_PubSubKeyStorage_clearKeyList(keyStorage);
+    }
+    return retval;
+}
+
+UA_StatusCode
+UA_PubSubKeyStorage_getKeyByKeyID(const UA_UInt32 keyId, UA_PubSubKeyStorage *keyStorage,
+                                  UA_PubSubKeyListItem **keyItem) {
+
+    if(!keyStorage)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+
+    UA_PubSubKeyListItem *item;
+    TAILQ_FOREACH(item, &keyStorage->keyList, keyListEntry){
+        if(item->keyID == keyId) {
+            *keyItem = item;
+            return UA_STATUSCODE_GOOD;
+        }
+    }
+    return UA_STATUSCODE_BADNOTFOUND;
+}
+
+UA_PubSubKeyListItem *
+UA_PubSubKeyStorage_push(UA_PubSubKeyStorage *keyStorage, const UA_ByteString *key,
+                         UA_UInt32 keyID) {
+    UA_PubSubKeyListItem *newItem = (UA_PubSubKeyListItem *)malloc(sizeof(UA_PubSubKeyListItem));
+    if (!newItem)
+        return NULL;
+
+    newItem->keyID = keyID;
+    UA_ByteString_copy(key, &newItem->key);
+    TAILQ_INSERT_TAIL(&keyStorage->keyList, newItem, keyListEntry);
+
+    return TAILQ_LAST(&keyStorage->keyList, keyListItems);
+}
+
 #endif
