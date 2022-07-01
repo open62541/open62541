@@ -280,6 +280,18 @@ UA_PubSubKeyStorage_update(UA_Server *server, UA_PubSubKeyStorage *keyStorage,
                            const size_t futureKeySize, UA_ByteString *futureKeys,
                            UA_Duration msKeyLifeTime);
 
+/**
+ * @brief KeyStorage must be referenced by atleast one PubSubGroup. This method checks if
+ * KeyStorage is referenced by more then 1 PubSubGroup, then it decreases the
+ * referenceCount by one. If the referenceCount is exactly one then removes the KeyStorage
+ * from the server and PubSubGroup.
+ *
+ * @param server that holds the keystorage and PubSubGroups0
+ * @param keyStorage to be removed from server
+ */
+void
+UA_PubSubKeyStorage_removeKeyStorage(UA_Server *server, UA_PubSubKeyStorage *keyStorage);
+
 #endif
 
 _UA_END_DECLS

@@ -453,4 +453,19 @@ UA_PubSubKeyStorage_update(UA_Server *server, UA_PubSubKeyStorage *keyStorage,
     return retval;
 }
 
+void
+UA_PubSubKeyStorage_removeKeyStorage(UA_Server *server, UA_PubSubKeyStorage *keyStorage) {
+    if(!keyStorage) {
+        return;
+    }
+    if(keyStorage->referenceCount > 1) {
+        --keyStorage->referenceCount;
+        return;
+    }
+    if(keyStorage->referenceCount == 1) {
+        LIST_REMOVE(keyStorage, keyStorageList);
+        UA_PubSubKeyStorage_delete(server, keyStorage);
+    }
+    return;
+}
 #endif
