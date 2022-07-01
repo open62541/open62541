@@ -8,6 +8,7 @@
  * Copyright (c) 2020 Yannick Wallerer, Siemens AG
  * Copyright (c) 2020 Thomas Fischer, Siemens AG
  * Copyright (c) 2021 Fraunhofer IOSB (Author: Jan Hermes)
+ * Copyright (c) 2022 Linutronix GmbH (Author: Muddasir Shakil)
  */
 
 #include <open62541/server_pubsub.h>
@@ -668,6 +669,15 @@ UA_WriterGroup_clear(UA_Server *server, UA_WriterGroup *writerGroup) {
     if(writerGroup->config.securityPolicy && writerGroup->securityPolicyContext) {
         writerGroup->config.securityPolicy->deleteContext(writerGroup->securityPolicyContext);
         writerGroup->securityPolicyContext = NULL;
+    }
+#endif
+
+#ifdef UA_ENABLE_PUBSUB_SKS
+    if(writerGroup->config.securityMode == UA_MESSAGESECURITYMODE_SIGN ||
+       writerGroup->config.securityMode == UA_MESSAGESECURITYMODE_SIGNANDENCRYPT) {
+            UA_PubSubKeyStorage_removeKeyStorage(server,
+                                                 writerGroup->keyStorage);
+            writerGroup->keyStorage = NULL;
     }
 #endif
 
