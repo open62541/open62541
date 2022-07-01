@@ -617,42 +617,36 @@ UA_Variant_setArrayCopy(UA_Variant *v, const void * UA_RESTRICT array,
     return UA_STATUSCODE_GOOD;
 }
 
-/* Test if a range is compatible with a variant. If yes, the following values
- * are set:
- * - total: how many elements are in the range
- * - block: how big is each contiguous block of elements in the variant that
- *   maps into the range
- * - stride: how many elements are between the blocks (beginning to beginning)
- * - first: where does the first block begin */
+/* Test if a range is compatible with a variant. This may adjust the upper bound
+ * (max) in order to fit the variant. */
 static UA_StatusCode
-computeStrides(const UA_Variant *v, const UA_NumericRange range,
-               size_t *total, size_t *block, size_t *stride, size_t *first) {
+checkAdjustRange(const UA_Variant *v, UA_NumericRange *range) {
     /* Test for max array size (64bit only) */
 #if (SIZE_MAX > 0xffffffff)
     if(v->arrayLength > UA_UINT32_MAX)
         return UA_STATUSCODE_BADINTERNALERROR;
 #endif
-
-    /* Test the integrity of the source variant dimensions, make dimensions
-     * vector of one dimension if none defined */
     u32 arrayLength = (u32)v->arrayLength;
-    const u32 *dims = &arrayLength;
-    size_t dims_count = 1;
-    if(v->arrayDimensionsSize > 0) {
-        size_t elements = 1;
-        dims_count = v->arrayDimensionsSize;
-        dims = (u32*)v->arrayDimensions;
-        for(size_t i = 0; i < dims_count; ++i)
-            elements *= dims[i];
-        if(elements != v->arrayLength)
-            return UA_STATUSCODE_BADINTERNALERROR;
-    }
-    UA_assert(dims_count > 0);
 
-    /* Upper bound of the dimensions for stack-allocation */
-    if(dims_count > UA_MAX_ARRAY_DIMS)
+    /* Assume one array dimension if none defined */
+    const u32 *dims = v->arrayDimensions;
+    size_t dims_count = v->arrayDimensionsSize;
+    if(v->arrayDimensionsSize == 0) {
+        dims_count = 1;
+        dims = &arrayLength;
+    }
+
+    /* Does the range match the dimension of the variant? */
+    if(range->dimensionsSize != dims_count)
+        return UA_STATUSCODE_BADINDEXRANGENODATA;
+
+    /* Check that the number of elements in the variant matches the array
+     * dimensions */
+    size_t elements = 1;
+    for(size_t i = 0; i < dims_count; ++i)
+        elements *= dims[i];
+    if(elements != v->arrayLength)
         return UA_STATUSCODE_BADINTERNALERROR;
-    UA_UInt32 realmax[UA_MAX_ARRAY_DIMS];
 
     /* Test the integrity of the range and compute the max index used for every
      * dimension. The standard says in Part 4, Section 7.22:
@@ -660,24 +654,43 @@ computeStrides(const UA_Variant *v, const UA_NumericRange range,
      * When reading a value, the indexes may not specify a range that is within
      * the bounds of the array. The Server shall return a partial result if some
      * elements exist within the range. */
-    size_t count = 1;
-    if(range.dimensionsSize != dims_count)
-        return UA_STATUSCODE_BADINDEXRANGENODATA;
     for(size_t i = 0; i < dims_count; ++i) {
-        if(range.dimensions[i].min > range.dimensions[i].max)
+        if(range->dimensions[i].min > range->dimensions[i].max)
             return UA_STATUSCODE_BADINDEXRANGEINVALID;
-        if(range.dimensions[i].min >= dims[i])
+        if(range->dimensions[i].min >= dims[i])
             return UA_STATUSCODE_BADINDEXRANGENODATA;
 
-        if(range.dimensions[i].max < dims[i])
-            realmax[i] = range.dimensions[i].max;
-        else
-            realmax[i] = dims[i] - 1;
-
-        count *= (realmax[i] - range.dimensions[i].min) + 1;
+        /* Reduce the max to fit the variant */
+        if(range->dimensions[i].max >= dims[i])
+            range->dimensions[i].max = dims[i] - 1;
     }
 
+    return UA_STATUSCODE_GOOD;
+}
+
+/* Computes the stride for copying the range elements.
+ * - total: how many elements are in the range
+ * - block: how big is each contiguous block of elements in the variant that
+ *   maps into the range
+ * - stride: how many elements are between the blocks (beginning to beginning)
+ * - first: where does the first block begin */
+static void
+computeStrides(const UA_Variant *v, const UA_NumericRange range,
+               size_t *total, size_t *block, size_t *stride, size_t *first) {
+    /* Number of total elements to be copied */
+    size_t count = 1;
+    for(size_t i = 0; i < range.dimensionsSize; ++i)
+        count *= (range.dimensions[i].max - range.dimensions[i].min) + 1;
     *total = count;
+
+    /* Assume one array dimension if none defined */
+    u32 arrayLength = (u32)v->arrayLength;
+    const u32 *dims = v->arrayDimensions;
+    size_t dims_count = v->arrayDimensionsSize;
+    if(v->arrayDimensionsSize == 0) {
+        dims_count = 1;
+        dims = &arrayLength;
+    }
 
     /* Compute the stride length and the position of the first element */
     *block = count;           /* Assume the range describes the entire array. */
@@ -687,7 +700,7 @@ computeStrides(const UA_Variant *v, const UA_NumericRange range,
     UA_Boolean found_contiguous = false;
     for(size_t k = dims_count; k > 0;) {
         --k;
-        size_t dimrange = 1 + realmax[k] - range.dimensions[k].min;
+        size_t dimrange = 1 + range.dimensions[k].max - range.dimensions[k].min;
         if(!found_contiguous && dimrange != dims[k]) {
             /* Found the maximum block that can be copied contiguously */
             found_contiguous = true;
@@ -697,7 +710,6 @@ computeStrides(const UA_Variant *v, const UA_NumericRange range,
         *first += running_dimssize * range.dimensions[k].min;
         running_dimssize *= dims[k];
     }
-    return UA_STATUSCODE_GOOD;
 }
 
 /* Is the type string-like? */
@@ -738,15 +750,26 @@ UA_Variant_copyRange(const UA_Variant *src, UA_Variant * UA_RESTRICT dst,
                      const UA_NumericRange range) {
     if(!src->type)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
+
     UA_Boolean isScalar = UA_Variant_isScalar(src);
     UA_Boolean stringLike = isStringLike(src->type);
-    UA_Variant arraySrc;
+
+    /* Upper bound of the dimensions for stack-allocation */
+    if(range.dimensionsSize > UA_MAX_ARRAY_DIMS)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
+    /* Copy the const range to a mutable stack location */
+    UA_NumericRangeDimension thisrangedims[UA_MAX_ARRAY_DIMS];
+    memcpy(thisrangedims, range.dimensions, sizeof(UA_NumericRangeDimension) * range.dimensionsSize);
+    UA_NumericRange thisrange = {range.dimensionsSize, thisrangedims};
+
+    UA_NumericRangeDimension scalarThisDimension = {0,0}; /* a single entry */
+    UA_NumericRange nextrange = {0, NULL};
 
     /* Extract the range for copying at this level. The remaining range is dealt
      * with in the "scalar" type that may define an array by itself (string,
      * variant, ...). */
-    UA_NumericRange thisrange, nextrange;
-    UA_NumericRangeDimension scalarThisDimension = {0,0}; /* a single entry */
+    UA_Variant arraySrc;
     if(isScalar) {
         /* Replace scalar src with array of length 1 */
         arraySrc = *src;
@@ -763,18 +786,18 @@ UA_Variant_copyRange(const UA_Variant *src, UA_Variant * UA_RESTRICT dst,
             dims = 1;
         if(dims > range.dimensionsSize)
             return UA_STATUSCODE_BADINDEXRANGEINVALID;
-       thisrange = range;
        thisrange.dimensionsSize = dims;
        nextrange.dimensions = &range.dimensions[dims];
        nextrange.dimensionsSize = range.dimensionsSize - dims;
     }
 
-    /* Compute the strides */
-    size_t count, block, stride, first;
-    UA_StatusCode retval = computeStrides(src, thisrange, &count,
-                                          &block, &stride, &first);
+    UA_StatusCode retval = checkAdjustRange(src, &thisrange);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
+
+    /* Compute the strides */
+    size_t count, block, stride, first;
+    computeStrides(src, thisrange, &count, &block, &stride, &first);
 
     /* Allocate the array */
     UA_Variant_init(dst);
@@ -868,12 +891,25 @@ UA_Variant_copyRange(const UA_Variant *src, UA_Variant * UA_RESTRICT dst,
 static UA_StatusCode
 Variant_setRange(UA_Variant *v, void *array, size_t arraySize,
                  const UA_NumericRange range, UA_Boolean copy) {
-    /* Compute the strides */
-    size_t count, block, stride, first;
-    UA_StatusCode retval = computeStrides(v, range, &count,
-                                          &block, &stride, &first);
+    if(!v->type)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+
+    /* Upper bound of the dimensions for stack-allocation */
+    if(range.dimensionsSize > UA_MAX_ARRAY_DIMS)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
+    /* Copy the const range to a mutable stack location */
+    UA_NumericRangeDimension thisrangedims[UA_MAX_ARRAY_DIMS];
+    memcpy(thisrangedims, range.dimensions, sizeof(UA_NumericRangeDimension) * range.dimensionsSize);
+    UA_NumericRange thisrange = {range.dimensionsSize, thisrangedims};
+
+    UA_StatusCode retval = checkAdjustRange(v, &thisrange);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
+
+    /* Compute the strides */
+    size_t count, block, stride, first;
+    computeStrides(v, range, &count, &block, &stride, &first);
     if(count != arraySize)
         return UA_STATUSCODE_BADINDEXRANGEINVALID;
 
