@@ -117,6 +117,34 @@ UA_Server_addWriterGroup(UA_Server *server, const UA_NodeId connection,
     UA_PubSubManager_generateUniqueNodeId(&server->pubSubManager,
                                           &newWriterGroup->identifier);
 #endif
+
+#ifdef UA_ENABLE_PUBSUB_SKS
+    if(writerGroupConfig->securityMode == UA_MESSAGESECURITYMODE_SIGN ||
+       writerGroupConfig->securityMode == UA_MESSAGESECURITYMODE_SIGNANDENCRYPT) {
+        if(!UA_String_isEmpty(&writerGroupConfig->securityGroupId) &&
+           writerGroupConfig->securityPolicy) {
+            UA_String policyUri = writerGroupConfig->securityPolicy->policyUri;
+
+            newWriterGroup->keyStorage =
+                UA_Server_findKeyStorage(
+                    server, writerGroupConfig->securityGroupId);
+            if(!newWriterGroup->keyStorage) {
+                newWriterGroup->keyStorage = (UA_PubSubKeyStorage *)UA_calloc(1, sizeof(UA_PubSubKeyStorage));
+                if(!newWriterGroup)
+                    return UA_STATUSCODE_BADOUTOFMEMORY;
+            }
+
+            res = UA_PubSubKeyStorage_init(server, &writerGroupConfig->securityGroupId,
+                                           &policyUri, 0, 0, newWriterGroup->keyStorage);
+            if(res != UA_STATUSCODE_GOOD) {
+                UA_free(newWriterGroup);
+                return res;
+            }
+        }
+    }
+
+#endif
+
     if(writerGroupIdentifier)
         UA_NodeId_copy(&newWriterGroup->identifier, writerGroupIdentifier);
     return res;
