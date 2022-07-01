@@ -294,6 +294,15 @@ UA_Server_ReaderGroup_clear(UA_Server* server, UA_ReaderGroup *readerGroup) {
     }
 #endif
 
+#ifdef UA_ENABLE_PUBSUB_SKS
+    if(readerGroup->config.securityMode == UA_MESSAGESECURITYMODE_SIGN ||
+       readerGroup->config.securityMode == UA_MESSAGESECURITYMODE_SIGNANDENCRYPT) {
+        UA_PubSubKeyStorage_removeKeyStorage(server, readerGroup->keyStorage);
+        readerGroup->keyStorage = NULL;
+    }
+
+#endif
+
     UA_ReaderGroupConfig_clear(&readerGroup->config);
 }
 
