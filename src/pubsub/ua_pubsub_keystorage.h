@@ -214,6 +214,51 @@ UA_PubSubKeyListItem *
 UA_PubSubKeyStorage_push(UA_PubSubKeyStorage *keyStorage, const UA_ByteString *key,
                          UA_UInt32 keyID);
 
+/**
+ * @brief It calculates the time to trigger the callback to update current key, adds the
+ * callback to the server and returns the callbackId.
+ *
+ * @param server the server object
+ * @param keyStorage the pointer to the existing keystorage in the server
+ * @param callback the callback function to be added to the server
+ * @param timeToNextMs time in milli seconds to trigger the callback function
+ * @param callbackID the returned callbackId of the added callback function
+ * @return UA_StatusCode the return status
+ */
+UA_StatusCode
+UA_PubSubKeyStorage_addKeyRolloverCallback(UA_Server *server,
+                                          UA_PubSubKeyStorage *keyStorage,
+                                          UA_ServerCallback callback,
+                                          UA_Duration timeToNextMs,
+                                          UA_UInt64 *callbackID);
+
+/**
+ * @brief It takes the current Key data, divide it into signing key, encrypting key and
+ * keyNonce according to security policy associated with PubSub Group and set it in
+ * channel context of the assocaited PubSub Group. In case of pubSubGroupId is
+ * UA_NODEID_NULL, all the Reader/WriterGroup's channelcontext are updated with matching
+ * SecurityGroupId.
+ *
+ * @param server The server object
+ * @param pubSubGroupId the nodeId of the Reader/WirterGroup whose channel context to be
+ * updated
+ * @param securityGroupId The identifier for the SecurityGroup
+ * @return UA_StatusCode return status code
+ */
+UA_StatusCode
+UA_PubSubKeyStorage_activateKeyToChannelContext(UA_Server *server, const UA_NodeId pubSubGroupId,
+                                                const UA_String securityGroupId);
+
+/**
+ * @brief The callback function to update the current key from keystorage in the server
+ * and activate the current key into channel context of the associated PubSub Group
+ *
+ * @param server the server object
+ * @param keyStorage the pointer to the keystorage
+ */
+void
+UA_PubSubKeyStorage_keyRolloverCallback(UA_Server *server, UA_PubSubKeyStorage *keyStorage);
+
 #endif
 
 _UA_END_DECLS

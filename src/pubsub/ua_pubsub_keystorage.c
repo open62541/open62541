@@ -232,4 +232,188 @@ UA_PubSubKeyStorage_push(UA_PubSubKeyStorage *keyStorage, const UA_ByteString *k
     return TAILQ_LAST(&keyStorage->keyList, keyListItems);
 }
 
+UA_StatusCode
+UA_PubSubKeyStorage_addKeyRolloverCallback(UA_Server *server,
+                                          UA_PubSubKeyStorage *keyStorage,
+                                          UA_ServerCallback callback,
+                                          UA_Duration timeToNextMs,
+                                          UA_UInt64 *callbackID) {
+    if(!server || !keyStorage || !callback || timeToNextMs <= 0)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+    UA_DateTime now = UA_DateTime_nowMonotonic();
+
+    UA_DateTime dateTimeToNextKey = now + (UA_DateTime)(UA_DATETIME_MSEC * timeToNextMs);
+
+    retval = UA_Server_addTimedCallback(server, callback, keyStorage, dateTimeToNextKey,
+                                        callbackID);
+
+    return retval;
+}
+
+static UA_StatusCode
+splitCurrentKeyMaterial(UA_PubSubKeyStorage *keyStorage, UA_ByteString *signingKey,
+                        UA_ByteString *encryptingKey, UA_ByteString *keyNonce) {
+    if(!keyStorage)
+        return UA_STATUSCODE_BADNOTFOUND;
+
+    if(!keyStorage->policy)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
+    UA_PubSubSecurityPolicy *policy = keyStorage->policy;
+
+    UA_ByteString key = keyStorage->currentItem->key;
+
+    /*Check the main key length is the same according to policy*/
+    if(key.length != policy->symmetricModule.secureChannelNonceLength)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
+    /*Get Key Length according to policy*/
+    size_t signingkeyLength =
+        policy->symmetricModule.cryptoModule.signatureAlgorithm.getLocalKeyLength(NULL);
+    size_t encryptkeyLength =
+        policy->symmetricModule.cryptoModule.encryptionAlgorithm.getLocalKeyLength(NULL);
+    /*Rest of the part is the keyNonce*/
+    size_t keyNonceLength = key.length - signingkeyLength - encryptkeyLength;
+
+    /*DivideKeys in origin ByteString*/
+    UA_ByteString tSigningKey = {signingkeyLength, key.data};
+    UA_ByteString_copy(&tSigningKey, signingKey);
+
+    UA_String tEncryptingKey = {encryptkeyLength, key.data + signingkeyLength};
+    UA_ByteString_copy(&tEncryptingKey, encryptingKey);
+
+    UA_ByteString tKeyNonce = {keyNonceLength,
+                              key.data + signingkeyLength + encryptkeyLength};
+    UA_ByteString_copy(&tKeyNonce, keyNonce);
+
+    return UA_STATUSCODE_GOOD;
+}
+
+static UA_StatusCode
+setPubSubGroupEncryptingKey(UA_Server *server, UA_NodeId PubSubGroupId, UA_UInt32 securityTokenId,
+                            UA_ByteString signingKey, UA_ByteString encryptingKey,
+                            UA_ByteString keyNonce) {
+    UA_StatusCode retval = UA_STATUSCODE_BAD;
+    retval = UA_Server_setWriterGroupEncryptionKeys(
+        server, PubSubGroupId, securityTokenId, signingKey, encryptingKey, keyNonce);
+    if(retval == UA_STATUSCODE_BADNOTFOUND)
+        retval = UA_Server_setReaderGroupEncryptionKeys(
+            server, PubSubGroupId, securityTokenId, signingKey, encryptingKey, keyNonce);
+
+    return retval;
+}
+
+static UA_StatusCode
+setPubSubGroupEncryptingKeyForMatchingSecurityGroupId(
+    UA_Server *server, UA_String securityGroupId, UA_UInt32 securityTokenId,
+    UA_ByteString signingKey, UA_ByteString encryptingKey, UA_ByteString keyNonce) {
+    UA_StatusCode retval = UA_STATUSCODE_BAD;
+    UA_PubSubConnection *tmpPubSubConnections;
+
+    /* key storage is the same for all reader / writer groups, channel context isn't
+     * => Update channelcontext in all Writergroups / ReaderGroups which have the same
+     * securityGroupId*/
+    TAILQ_FOREACH(tmpPubSubConnections, &server->pubSubManager.connections, listEntry) {
+        /*ForEach writerGroup in server with matching SecurityGroupId*/
+        UA_WriterGroup *tmpWriterGroup;
+        LIST_FOREACH(tmpWriterGroup, &tmpPubSubConnections->writerGroups, listEntry) {
+
+            if(UA_String_equal(&tmpWriterGroup->config.securityGroupId,
+                               &securityGroupId)) {
+                retval = UA_Server_setWriterGroupEncryptionKeys(
+                    server, tmpWriterGroup->identifier, securityTokenId, signingKey,
+                    encryptingKey, keyNonce);
+                if(retval != UA_STATUSCODE_GOOD)
+                    return retval;
+            }
+        }
+
+        /*ForEach readerGroup in server with matching SecurityGroupId*/
+        UA_ReaderGroup *tmpReaderGroup;
+        LIST_FOREACH(tmpReaderGroup, &tmpPubSubConnections->readerGroups, listEntry) {
+
+            if(UA_String_equal(&tmpReaderGroup->config.securityGroupId,
+                               &securityGroupId)) {
+                retval = UA_Server_setReaderGroupEncryptionKeys(
+                    server, tmpReaderGroup->identifier, securityTokenId, signingKey,
+                    encryptingKey, keyNonce);
+                if(retval != UA_STATUSCODE_GOOD)
+                    return retval;
+            }
+        }
+    }
+    return retval;
+}
+
+UA_StatusCode
+UA_PubSubKeyStorage_activateKeyToChannelContext(UA_Server *server, UA_NodeId pubSubGroupId,
+                                              UA_String securityGroupId) {
+
+    if(securityGroupId.data == NULL)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+
+    UA_PubSubKeyStorage *keyStorage =
+        UA_Server_findKeyStorage(server, securityGroupId);
+    if(!keyStorage)
+        return UA_STATUSCODE_BADNOTFOUND;
+
+    if(!keyStorage->policy && !(keyStorage->keyListSize > 0))
+        return UA_STATUSCODE_BADINTERNALERROR;
+
+    UA_UInt32 securityTokenId = keyStorage->currentItem->keyID;
+
+    /*DivideKeys in origin ByteString*/
+    UA_ByteString signingKey;
+    UA_ByteString encryptKey;
+    UA_ByteString keyNonce;
+    splitCurrentKeyMaterial(keyStorage, &signingKey, &encryptKey, &keyNonce);
+
+    if(!UA_NodeId_isNull(&pubSubGroupId))
+        retval = setPubSubGroupEncryptingKey(server, pubSubGroupId, securityTokenId,
+                                             signingKey, encryptKey, keyNonce);
+    else
+        retval = setPubSubGroupEncryptingKeyForMatchingSecurityGroupId(
+            server, securityGroupId, securityTokenId, signingKey, encryptKey, keyNonce);
+
+    if(retval != UA_STATUSCODE_GOOD)
+        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                     "Failed to set Encrypting keys with Error: %s",
+                     UA_StatusCode_name(retval));
+
+    return retval;
+}
+
+void
+UA_PubSubKeyStorage_keyRolloverCallback(UA_Server *server, UA_PubSubKeyStorage *keyStorage) {
+
+    UA_StatusCode retval = UA_PubSubKeyStorage_addKeyRolloverCallback(
+        server, keyStorage, (UA_ServerCallback)UA_PubSubKeyStorage_keyRolloverCallback,
+        keyStorage->keyLifeTime, &keyStorage->callBackId);
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                     "Failed to update keys for security group id '%.*s'. Reason: '%s'.",
+                     (int)keyStorage->securityGroupID.length,
+                     keyStorage->securityGroupID.data, UA_StatusCode_name(retval));
+    }
+
+    if(keyStorage->currentItem != TAILQ_LAST(&keyStorage->keyList, keyListItems)) {
+        keyStorage->currentItem = TAILQ_NEXT(keyStorage->currentItem, keyListEntry);
+        keyStorage->currentTokenId = keyStorage->currentItem->keyID;
+
+        retval = UA_PubSubKeyStorage_activateKeyToChannelContext(
+            server, UA_NODEID_NULL, keyStorage->securityGroupID);
+        if(retval != UA_STATUSCODE_GOOD) {
+            UA_LOG_ERROR(
+                &server->config.logger, UA_LOGCATEGORY_SERVER,
+                "Failed to update keys for security group id '%.*s'. Reason: '%s'.",
+                (int)keyStorage->securityGroupID.length, keyStorage->securityGroupID.data,
+                UA_StatusCode_name(retval));
+        }
+    }
+}
+
 #endif
