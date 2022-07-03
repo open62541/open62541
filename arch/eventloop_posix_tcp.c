@@ -34,6 +34,9 @@ typedef struct {
                              * via the recv-bufsize parameter.*/
 } TCPConnectionManager;
 
+static void
+TCP_shutdown(UA_ConnectionManager *cm, UA_RegisteredFD *rfd);
+
 static UA_StatusCode
 TCPConnectionManager_register(TCPConnectionManager *tcm, UA_RegisteredFD *rfd) {
     UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX*)tcm->cm.eventSource.eventLoop;
@@ -167,6 +170,20 @@ TCP_delayedClose(void *application, void *context) {
      * mechanism. */
 }
 
+static int
+getSockError(UA_RegisteredFD *rfd) {
+    int error = 0;
+#ifndef _WIN32
+    socklen_t errlen = sizeof(int);
+    int err = getsockopt(rfd->fd, SOL_SOCKET, SO_ERROR, &error, &errlen);
+#else
+    int errlen = (int)sizeof(int);
+    int err = getsockopt((SOCKET)rfd->fd, SOL_SOCKET, SO_ERROR,
+                         (char*)&error, &errlen);
+#endif
+    return (err == 0) ? error : err;
+}
+
 /* Gets called when a connection socket opens, receives data or closes */
 static void
 TCP_connectionSocketCallback(UA_ConnectionManager *cm, UA_RegisteredFD *rfd,
@@ -177,8 +194,29 @@ TCP_connectionSocketCallback(UA_ConnectionManager *cm, UA_RegisteredFD *rfd,
     UA_LOG_DEBUG(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
                  "TCP %u\t| Activity on the socket", (unsigned)rfd->fd);
 
-    /* Write-Event, a new connection has opened.  */
+    /* Error. The connection has closed. */
+    if(event == UA_FDEVENT_ERR) {
+        UA_LOG_INFO(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
+                    "TCP %u\t| The connection closes with error %i",
+                    (unsigned)rfd->fd, getSockError(rfd));
+        TCP_shutdown(cm, rfd);
+        return;
+    }
+
+    /* Write-Event, a new connection has opened. But some errors come as an
+     * out-event. For example if the remote side could not be reached to
+     * initiate the connection. So we check manually for error conditions on
+     * the socket. */
     if(event == UA_FDEVENT_OUT) {
+        int error = getSockError(rfd);
+        if(error != 0) {
+            UA_LOG_INFO(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
+                        "TCP %u\t| The connection closes with error %i",
+                        (unsigned)rfd->fd, error);
+            TCP_shutdown(cm, rfd);
+            return;
+        }
+
         UA_LOG_DEBUG(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
                      "TCP %u\t| Opening a new connection", (unsigned)rfd->fd);
 
@@ -215,15 +253,12 @@ TCP_connectionSocketCallback(UA_ConnectionManager *cm, UA_RegisteredFD *rfd,
            UA_ERRNO == UA_AGAIN)
             return; /* Temporary error on an non-blocking socket */
 
-        /* Orderly shutdown of the socket. We can immediately close as no method
-         * "below" in the call stack will use the socket in this iteration of
-         * the EventLoop. */
+        /* Orderly shutdown of the socket */
         UA_LOG_SOCKET_ERRNO_WRAP(
            UA_LOG_DEBUG(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
                         "TCP %u\t| recv signaled the socket was shutdown (%s)",
                         (unsigned)rfd->fd, errno_str));
-        TCP_close(tcm, rfd);
-        UA_free(rfd);
+        TCP_shutdown(cm, rfd);
         return;
     }
 
@@ -265,8 +300,7 @@ TCP_listenSocketCallback(UA_ConnectionManager *cm, UA_RegisteredFD *rfd, short e
                                (unsigned)rfd->fd, errno_str));
         }
 
-        TCP_close(tcm, rfd);
-        UA_free(rfd);
+        TCP_shutdown(cm, rfd);
         return;
     }
 
