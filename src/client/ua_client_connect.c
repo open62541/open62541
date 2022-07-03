@@ -1075,6 +1075,8 @@ UA_Client_networkCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
         /* Opening the TCP connection failed. Cannot recover from this. */
         if(state != UA_STATUSCODE_GOOD) {
             client->connectStatus = state;
+            client->connection.state = UA_CONNECTIONSTATE_CLOSED;
+            closeSecureChannel(client);
             notifyClientState(client);
             return;
         }
@@ -1118,12 +1120,7 @@ UA_Client_networkCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
                     UA_StatusCode_name(state));
 
         /* Close the SecureChannel */
-        UA_SecureChannel_close(&client->channel);
         closeSecureChannel(client);
-
-        /* Detach the connection and set to closed */
-        UA_Connection_detachSecureChannel(&client->connection);
-        client->connection.state = UA_CONNECTIONSTATE_CLOSED;
 
         /* Do not return here. We might want to reconnect. */
     }
@@ -1341,9 +1338,11 @@ closeSecureChannel(UA_Client *client) {
 
     /* Clean up */
     client->channel.renewState = UA_SECURECHANNELRENEWSTATE_NORMAL;
-    UA_SecureChannel_close(&client->channel);
     if(client->connection.free)
         client->connection.free(&client->connection);
+
+    UA_SecureChannel_close(&client->channel);
+    client->connection.state = UA_CONNECTIONSTATE_CLOSED;
 
     /* Set the Session to "Created" if it was "Activated" */
     if(client->sessionState > UA_SESSIONSTATE_CREATED)
