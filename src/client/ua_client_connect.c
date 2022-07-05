@@ -950,9 +950,6 @@ iterateConnect(UA_Client *client) {
 
         /* ACK receieved. Send OPN. */
     case UA_SECURECHANNELSTATE_ACK_RECEIVED:
-        if(!client->channel.connection) /* Attach the connection to the SecureChannel */
-            UA_Connection_attachSecureChannel(&client->connection, &client->channel);
-        initSecurityPolicy(client); /* Initialize the SecurityPolicy */
         if(client->connectStatus == UA_STATUSCODE_GOOD)
             client->connectStatus = sendOPNAsync(client, false); /* Send OPN */
         return;
@@ -1171,6 +1168,10 @@ initConnect(UA_Client *client) {
     client->channel.certificateVerification = &client->config.certificateVerification;
     client->channel.processOPNHeader = verifyClientSecurechannelHeader;
 
+    /* Initialize the SecurityPolicy */
+    initSecurityPolicy(client);
+
+    /* Clean up if there is an old connection */
     if(client->connection.free)
         client->connection.free(&client->connection);
 
@@ -1226,6 +1227,9 @@ initConnect(UA_Client *client) {
     /* The TCP connection has started. All future interactions will be handled
      * through the network callback. */
     client->connection.state = UA_CONNECTIONSTATE_OPENING;
+
+    /* Attach the connection to the SecureChannel */
+    UA_Connection_attachSecureChannel(&client->connection, &client->channel);
 }
 
 UA_StatusCode
