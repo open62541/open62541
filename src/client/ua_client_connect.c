@@ -1453,6 +1453,20 @@ UA_Client_disconnectAsync(UA_Client *client) {
 UA_StatusCode
 UA_Client_disconnectSecureChannel(UA_Client *client) {
     closeSecureChannel(client);
+
+    /* Manually set the status to closed to prevent an automatic reconnection */
+    client->connectStatus = UA_STATUSCODE_BADCONNECTIONCLOSED;
+
+    /* Closing is async. Loop until the client has actually closed. */
+    UA_EventLoop *el = client->config.eventLoop;
+    if(el &&
+       el->state != UA_EVENTLOOPSTATE_FRESH &&
+       el->state != UA_EVENTLOOPSTATE_STOPPED) {
+        while(client->connection.state != UA_CONNECTIONSTATE_CLOSED) {
+            el->run(el, 100);
+        }
+    }
+
     notifyClientState(client);
     return UA_STATUSCODE_GOOD;
 }
@@ -1460,7 +1474,5 @@ UA_Client_disconnectSecureChannel(UA_Client *client) {
 UA_StatusCode
 UA_Client_disconnect(UA_Client *client) {
     closeSession(client);
-    closeSecureChannel(client);
-    notifyClientState(client);
-    return UA_STATUSCODE_GOOD;
+    return UA_Client_disconnectSecureChannel(client);
 }
