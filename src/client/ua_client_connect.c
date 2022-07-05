@@ -1441,6 +1441,11 @@ UA_Client_disconnectAsync(UA_Client *client) {
         UA_Client_sendAsyncRequest(client, &request, &UA_TYPES[UA_TYPES_CLOSESESSIONREQUEST],
                                    (UA_ClientAsyncServiceCallback)closeSessionCallback,
                                    &UA_TYPES[UA_TYPES_CLOSESESSIONRESPONSE], NULL, NULL);
+    if(res != UA_STATUSCODE_GOOD) {
+        /* Sending the close request failed. Continue to close the connection anyway. */
+        closeSession(client);
+        closeSecureChannel(client);
+    }
     notifyClientState(client);
     return res;
 }
