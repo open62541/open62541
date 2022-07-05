@@ -35,7 +35,7 @@ void checkServer(void) {
         UA_DataValue resp = UA_Server_read(tc.server, &rvi, UA_TIMESTAMPSTORETURN_NEITHER);
 
         ck_assert_int_eq(resp.status, UA_STATUSCODE_GOOD);
-        ck_assert_int_eq(0, resp.value.arrayLength);
+        ck_assert_uint_eq(0, resp.value.arrayLength);
         ck_assert(&UA_TYPES[UA_TYPES_INT32] == resp.value.type);
         ck_assert_int_eq(42, *(UA_Int32* )resp.value.data);
         UA_DataValue_clear(&resp);
@@ -52,7 +52,7 @@ void checkServer(void) {
         UA_DataValue resp = UA_Server_read(tc.server, &rvi, UA_TIMESTAMPSTORETURN_NEITHER);
 
         ck_assert_int_eq(resp.status, UA_STATUSCODE_GOOD);
-        ck_assert_int_eq(2, resp.value.arrayLength);
+        ck_assert_uint_eq(2, resp.value.arrayLength);
         ck_assert(&UA_TYPES[UA_TYPES_INT32] == resp.value.type);
         ck_assert_int_eq(10, *(UA_Int32 *)resp.value.data);
         ck_assert_int_eq(20, *((UA_Int32 *)resp.value.data + 1));

@@ -55,7 +55,7 @@ void server_readValueAttribute(void * value) {
     UA_DataValue resp = UA_Server_read(tc.server, &rvi, UA_TIMESTAMPSTORETURN_NEITHER);
     ck_assert_int_eq(UA_STATUSCODE_GOOD, resp.status);
     ck_assert_int_eq(true, resp.hasValue);
-    ck_assert_int_eq(0, resp.value.arrayLength);
+    ck_assert_uint_eq(0, resp.value.arrayLength);
     ck_assert(&UA_TYPES[UA_TYPES_INT32] == resp.value.type);
     ck_assert_int_eq(42, *(UA_Int32* )resp.value.data);
     UA_DataValue_clear(&resp);
