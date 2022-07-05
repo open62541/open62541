@@ -105,8 +105,12 @@ UA_SecureChannel_close(UA_SecureChannel *channel) {
 
     /* Detach from the connection and close the connection */
     if(channel->connection) {
-        if(channel->connection->state != UA_CONNECTIONSTATE_CLOSED)
-            channel->connection->close(channel->connection);
+        if(channel->connection->state != UA_CONNECTIONSTATE_CLOSED) {
+            if(channel->connection->close)
+                channel->connection->close(channel->connection);
+            else
+                channel->connection->state = UA_CONNECTIONSTATE_CLOSED;
+        }
         UA_Connection_detachSecureChannel(channel->connection);
     }
 
