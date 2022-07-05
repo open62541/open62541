@@ -1069,9 +1069,9 @@ UA_Client_networkCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
 
     /* A new connection is opening */
     if(!*connectionContext) {
-        /* Opening the TCP connection failed. Cannot recover from this. */
+        /* Opening the connection failed */
         if(state != UA_STATUSCODE_GOOD) {
-            client->connectStatus = state;
+            client->connectStatus = state; /* The client cannot recover from this */
             client->connection.state = UA_CONNECTIONSTATE_CLOSED;
             closeSecureChannel(client);
             notifyClientState(client);
@@ -1092,34 +1092,37 @@ UA_Client_networkCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
         conn->close = UA_Connection_close;
         conn->free = NULL;
 
-        /* Link the connection into the SecureChannel */
-        UA_Connection_attachSecureChannel(conn, &client->channel);
-
         *connectionContext = conn; /* Set the connection context */
         goto continue_connect;
     }
 
-    /* Received a message. Process the message with the SecureChannel. */
-    if(UA_LIKELY(state == UA_STATUSCODE_GOOD)) {
-        state = UA_SecureChannel_processBuffer(&client->channel, client,
-                                               processServiceResponse, &msg);
-        if(state != UA_STATUSCODE_GOOD) {
-            UA_LOG_WARNING(&client->config.logger, UA_LOGCATEGORY_CLIENT,
-                           "Processing the message returned the error code %s",
-                           UA_StatusCode_name(state));
-        }
-    }
-
-    /* Connection closed or error during the processing of the message */
+    /* A bad status code was sent from an open connection. The connection will
+     * be deleted now in the ConnectionManager. Clean up in the client. */
     if(state != UA_STATUSCODE_GOOD) {
         UA_LOG_INFO(&client->config.logger, UA_LOGCATEGORY_CLIENT,
-                    "Closing the SecureChannel with state %s",
+                    "The TCP connection closed with state %s",
                     UA_StatusCode_name(state));
+        client->connection.state = UA_CONNECTIONSTATE_CLOSED; /* Do this before
+                                                               * closeSecureChannel */
+        closeSecureChannel(client); /* The channel might be already closed. This
+                                     * is checked within closeSecureChannel. */
+        goto continue_connect; /* We may immediately reconnect */
+    }
 
-        /* Close the SecureChannel */
+    /* Received a message. Process the message with the SecureChannel. */
+    state = UA_SecureChannel_processBuffer(&client->channel, client,
+                                           processServiceResponse, &msg);
+    if(state != UA_STATUSCODE_GOOD) {
+        UA_LOG_WARNING(&client->config.logger, UA_LOGCATEGORY_CLIENT,
+                       "Processing the message returned the error code %s",
+                       UA_StatusCode_name(state));
+
+        /* Close the SecureChannel, but don't notify the client right away.
+         * Return immediately. notifyClientState will be called in the next
+         * callback from the ConnectionManager when the connection closes with a
+         * StatusCode. */
         closeSecureChannel(client);
-
-        /* Do not return here. We might want to reconnect. */
+        return;
     }
 
     /* Trigger the next action from our end to fully open up the connection */
