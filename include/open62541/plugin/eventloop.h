@@ -280,6 +280,9 @@ struct UA_ConnectionManager {
      * The connection is opened asynchronously. The connection-callback is
      * triggered when the connection is fully opened (UA_STATUSCODE_GOOD) or has
      * failed (with an error code). */
+
+    /* TODO: Return the connection id right away. So an opening connection can
+     * be aborted before the first callback. */
     UA_StatusCode
     (*openConnection)(UA_ConnectionManager *cm,
                       size_t paramsSize, const UA_KeyValuePair *params,
