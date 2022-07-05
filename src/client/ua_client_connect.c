@@ -1327,6 +1327,12 @@ UA_Client_connectSecureChannel(UA_Client *client, const char *endpointUrl) {
 
 void
 closeSecureChannel(UA_Client *client) {
+    /* Prevent recursion */
+    if(client->channel.state == UA_SECURECHANNELSTATE_CLOSING ||
+       client->channel.state == UA_SECURECHANNELSTATE_CLOSED)
+        return;
+    client->channel.state = UA_SECURECHANNELSTATE_CLOSING;
+
     /* Send CLO if the SecureChannel is open */
     if(client->channel.state == UA_SECURECHANNELSTATE_OPEN) {
         UA_CloseSecureChannelRequest request;
@@ -1346,10 +1352,16 @@ closeSecureChannel(UA_Client *client) {
         client->connection.free(&client->connection);
 
     UA_SecureChannel_close(&client->channel);
-    client->connection.state = UA_CONNECTIONSTATE_CLOSED;
+
+    /* The connection is eventually closed in the next callback from the
+     * ConnectionManager with the appropriate status code. Don't set the
+     * connection closed right away!
+     *
+     * client->connection.state = UA_CONNECTIONSTATE_CLOSED;
+     */
 
     /* Set the Session to "Created" if it was "Activated" */
-    if(client->sessionState > UA_SESSIONSTATE_CREATED)
+    if(client->sessionState == UA_SESSIONSTATE_ACTIVATED)
         client->sessionState = UA_SESSIONSTATE_CREATED;
 
     /* Delete outstanding async services - the RequestId is no longer valid. Do
@@ -1374,18 +1386,20 @@ sendCloseSession(UA_Client *client) {
     /* Set after sending the message to prevent immediate reoping during the
      * service call */
     client->sessionState = UA_SESSIONSTATE_CLOSING;
-
 }
 
 static void
 closeSession(UA_Client *client) {
+    if(client->sessionState == UA_SESSIONSTATE_CLOSED ||
+       client->sessionState == UA_SESSIONSTATE_CLOSING)
+        return;
+
     /* Is a session established? */
     if(client->sessionState == UA_SESSIONSTATE_ACTIVATED)
         sendCloseSession(client);
 
     UA_NodeId_clear(&client->authenticationToken);
     client->requestHandle = 0;
-    client->sessionState = UA_SESSIONSTATE_CLOSED;
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS
     /* We need to clean up the subscriptions */
@@ -1401,6 +1415,8 @@ closeSession(UA_Client *client) {
 #ifdef UA_ENABLE_SUBSCRIPTIONS
     client->currentlyOutStandingPublishRequests = 0;
 #endif
+
+    client->sessionState = UA_SESSIONSTATE_CLOSED;
 }
 
 static void
