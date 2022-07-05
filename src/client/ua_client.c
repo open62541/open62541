@@ -129,6 +129,7 @@ UA_Client_clear(UA_Client *client) {
 
 void
 UA_Client_delete(UA_Client* client) {
+    UA_Client_disconnect(client);
     UA_Client_clear(client);
     UA_ClientConfig_clear(&client->config);
     UA_free(client);
@@ -452,7 +453,6 @@ __UA_Client_Service(UA_Client *client, const void *request,
 
     /* Return the status code */
     respHeader->serviceResult = retval;
-    return;
 }
 
 /***********************************/
