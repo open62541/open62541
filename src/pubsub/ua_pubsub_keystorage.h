@@ -19,6 +19,81 @@ _UA_BEGIN_DECLS
 #ifdef UA_ENABLE_PUBSUB_SKS
 
 /**
+ * PubSubKeyStorage
+ * ================
+ * A PubSubKeyStorage provides a linked list to store all the keys used to
+ * secure the messages. It keeps the records of old keys (past keys), current
+ * key, new keys (futurekeys), time to move to next key and callback id.
+ *
+ * PubSubKeyListItem is the basic item stored in the KeyList of KeyStorage. It
+ * provides keyId, Key, and pointer to the next key in KeyList. The KeyId is used
+ * to identify and update currentKey in the keystorage. The KeyId is the SecurityTokenId
+ * that appears in the header of messages secured with the CurrentKey.
+ *
+ * Working
+ * =======
+ *                     +------------------------------+
+ *                     |AddReaderGroup/AddWriterGroup |
+ *                     +------------------------------+
+ *                                    |
+ *                                    V
+ *                     +--------------------+
+ *                     |CheckSecurityGroupId|
+ *                     +--------------------+
+ *                                    |Yes
+ *                                    V
+ *                     +--------------------+
+ *                     |InitializeKeyStorage|
+ *                     +--------------------+
+ *                                    |
+ *                                    V
+ *                     +----------------------------+
+ *                     |store/updateKeysInKeyStorage|
+ *                     +----------------------------+
+ *                                    |
+ *                                    V
+ *                     +------------------------------------------+
+ *                     |activateKeysToAllPubSubGroupChannelContext|
+ *                     +------------------------------------------+
+ *                                    |                        Ʌ
+ *                                    V                        |
+ *                     +-----------------------+               |
+ *                     |addKeyRolloverCallbacks|               |
+ *                     +-----------------------+               |
+ *                                    |                        |
+ *                                    V                        |
+ *                     +-------------------+                   |
+ *                     |keyRolloverCallback|                   |
+ *                     +-------------------+                   |
+ *                                    |CurrentKey!=LastItem    |
+ *                                    -------------------------+
+ *
+ * A KeyStorage is created and initialized when a ReaderGroup or WriterGroup is
+ * created with securityGroupId and SecurityMode SignAndEncrypt. The new
+ * KeyStorage is added to the server KeyStorageList. At this time KeyList is empty.
+ *
+ * UA_PubSubKeyStorage_storeSecurityKeys is used to push the keys into existing
+ * keystorage. In order to update the KeyList of an existing keyStorage,
+ * UA_PubSubKeyStorage_update is called.
+ *
+ * After adding/updating the keys to keystorage, the current key should be
+ * activated to the associated PubSub Group's ChannelContext in the server. The
+ * security Policy associated with PubSub Group will take the keys from
+ * channel context and use them to secure the messages.
+ * The UA_PubSubKeyStorage_storeSecurityKeys and UA_PubSubKeyStorage_update
+ * method will be used by setSecurityKeysAction and getSecurityKeysAction to
+ * retrieve the keys from SKS server and store keys in local storage.
+ *
+ * Each key has a life time, after which the current key is expired and move to
+ * next key in the existing list. For this a callback function is added to the
+ * server. The callback function keyRolloverCallback is added to the server as a
+ * timed callback. The addKeyRolloverCallbacks function calculates the time
+ * stamp to trigger the callback when the current Key expires and roll
+ * over to the next key in existing list.
+ *
+ */
+
+/**
  * @brief This structure holds the information about the keys
  */
 typedef struct UA_PubSubKeyListItem {
