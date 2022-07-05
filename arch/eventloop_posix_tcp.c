@@ -904,17 +904,26 @@ TCP_openConnection(UA_ConnectionManager *cm,
                    size_t paramsSize, const UA_KeyValuePair *params,
                    void *application, void *context,
                    UA_ConnectionManager_connectionCallback connectionCallback) {
+    UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX*)cm->eventSource.eventLoop;
+    if(cm->eventSource.state != UA_EVENTSOURCESTATE_STARTED) {
+        UA_LOG_ERROR(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
+                     "TCP\t| Cannot open a connection for a "
+                     "ConnectionManager that is not started");
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
+
     /* If the "port"-parameter is defined, then try to open an active
      * connection. Otherwise try to open a socket that listens for incoming TCP
      * connections. */
-    const UA_Variant *val = UA_KeyValueMap_get(params, paramsSize,
-                                               UA_QUALIFIEDNAME(0, "port"));
-    if(val)
+    const UA_Variant *val =
+        UA_KeyValueMap_get(params, paramsSize, UA_QUALIFIEDNAME(0, "port"));
+    if(val) {
         return TCP_openActiveConnection(cm, paramsSize, params,
                                         application, context, connectionCallback);
-    else
+    } else {
         return TCP_openPassiveConnection(cm, paramsSize, params,
                                          application, context, connectionCallback);
+    }
 }
 
 static UA_StatusCode
