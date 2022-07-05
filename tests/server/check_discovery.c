@@ -368,7 +368,6 @@ GetEndpoints(UA_Client *client, const UA_String* endpointUrl,
              const char* filterTransportProfileUri) {
     UA_GetEndpointsRequest request;
     UA_GetEndpointsRequest_init(&request);
-    //request.requestHeader.authenticationToken = client->authenticationToken;
     request.requestHeader.timestamp = UA_DateTime_now();
     request.requestHeader.timeoutHint = 10000;
     request.endpointUrl = *endpointUrl; // assume the endpointurl outlives the service call

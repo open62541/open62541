@@ -43,10 +43,8 @@ static void setup(void) {
 }
 
 static void teardown(void) {
-    if (running) {
-        running = false;
-        THREAD_JOIN(server_thread);
-    }
+    running = false;
+    THREAD_JOIN(server_thread);
     UA_Server_run_shutdown(server);
     UA_Server_delete(server);
 }
@@ -203,10 +201,13 @@ START_TEST(Client_subscription_async) {
 
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
-    UA_Server_run_iterate(server, true);
-    UA_Client_run_iterate(client, 0);
+    response.responseHeader.serviceResult = 1;
+    do {
+        UA_Server_run_iterate(server, true);
+        retval = UA_Client_run_iterate(client, 1);
+        ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    } while(response.responseHeader.serviceResult == 1);
 
-    ck_assert_uint_eq(response.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
     UA_UInt32 subId = response.subscriptionId;
 
     UA_ModifySubscriptionRequest modifySubscriptionRequest;
@@ -217,19 +218,19 @@ START_TEST(Client_subscription_async) {
     modifySubscriptionRequest.requestedLifetimeCount = response.revisedLifetimeCount;
     modifySubscriptionRequest.requestedMaxKeepAliveCount =
         response.revisedMaxKeepAliveCount;
-    UA_ModifySubscriptionResponse modifySubscriptionResponse;
 
-    retval = UA_Client_Subscriptions_modify_async(
-        client, modifySubscriptionRequest, modifySubscriptionCallback,
-        &modifySubscriptionResponse, &requestId);
+    UA_ModifySubscriptionResponse modifySubscriptionResponse;
+    retval = UA_Client_Subscriptions_modify_async(client, modifySubscriptionRequest,
+                                                  modifySubscriptionCallback,
+                                                  &modifySubscriptionResponse, &requestId);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
     modifySubscriptionResponse.responseHeader.serviceResult = 1;
-    UA_Server_run_iterate(server, true);
-    retval = UA_Client_run_iterate(client, 1);
-    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
-    ck_assert_int_eq(modifySubscriptionResponse.responseHeader.serviceResult,
-                     UA_STATUSCODE_GOOD);
+    do {
+        UA_Server_run_iterate(server, true);
+        retval = UA_Client_run_iterate(client, 1);
+        ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    } while(modifySubscriptionResponse.responseHeader.serviceResult == 1);
 
     /* monitor the server state */
     UA_MonitoredItemCreateRequest singleMonRequest =
@@ -246,15 +247,17 @@ START_TEST(Client_subscription_async) {
     monRequest.itemsToCreateSize = 1;
     UA_CreateMonitoredItemsResponse monResponse;
     UA_CreateMonitoredItemsResponse_init(&monResponse);
-    retval = UA_Client_MonitoredItems_createDataChanges_async(
-        client, monRequest, &contexts, &notifications, &deleteCallbacks,
-        createDataChangesCallback, &monResponse, &requestId);
+    retval = UA_Client_MonitoredItems_createDataChanges_async(client, monRequest,
+                                                              &contexts, &notifications, &deleteCallbacks,
+                                                              createDataChangesCallback, &monResponse, &requestId);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
-    UA_Server_run_iterate(server, true);
-    UA_Server_run_iterate(server, true);
-    retval = UA_Client_run_iterate(client, 0);
-    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    monResponse.responseHeader.serviceResult = 1;
+    do {
+        UA_Server_run_iterate(server, true);
+        retval = UA_Client_run_iterate(client, 1);
+        ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    } while(monResponse.responseHeader.serviceResult == 1);
 
     ck_assert_uint_eq(monResponse.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(monResponse.resultsSize, 1);
@@ -281,12 +284,13 @@ START_TEST(Client_subscription_async) {
                                                    deleteMonitoredItemsCallback,
                                                    &monDeleteResponse, &requestId);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
-    UA_Server_run_iterate(server, true);
-    retval = UA_Client_run_iterate(client, 1);
-    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
-    UA_Server_run_iterate(server, true);
-    retval = UA_Client_run_iterate(client, 1);
-    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    monDeleteResponse.responseHeader.serviceResult = 1;
+    do {
+        UA_Server_run_iterate(server, true);
+        retval = UA_Client_run_iterate(client, 1);
+        ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    } while(monDeleteResponse.responseHeader.serviceResult == 1);
 
     ck_assert_uint_eq(monDeleteResponse.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(monDeleteResponse.resultsSize, 1);
@@ -303,9 +307,12 @@ START_TEST(Client_subscription_async) {
                                                   &subDeleteResponse, &requestId);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
-    UA_Server_run_iterate(server, true);
-    retval = UA_Client_run_iterate(client, 0);
-    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    subDeleteResponse.responseHeader.serviceResult = 1;
+    do {
+        UA_Server_run_iterate(server, true);
+        retval = UA_Client_run_iterate(client, 1);
+        ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    } while(subDeleteResponse.responseHeader.serviceResult == 1);
 
     ck_assert_uint_eq(subDeleteResponse.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(subDeleteResponse.resultsSize, 1);
@@ -654,11 +661,14 @@ START_TEST(Client_subscription_createDataChanges_async) {
                                                               createDataChangesCallback,
                                                               &createResponse, &reqId);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
-    UA_Server_run_iterate(server, true);
-    retval = UA_Client_run_iterate(client, 0);
-    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
-    ck_assert_uint_eq(createResponse.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
+    createResponse.responseHeader.serviceResult = 1;
+    do {
+        UA_Server_run_iterate(server, true);
+        retval = UA_Client_run_iterate(client, 1);
+        ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    } while(createResponse.responseHeader.serviceResult == 1);
+
     ck_assert_uint_eq(createResponse.resultsSize, 3);
     ck_assert_uint_eq(createResponse.results[0].statusCode, UA_STATUSCODE_GOOD);
     newMonitoredItemIds[0] = createResponse.results[0].monitoredItemId;
@@ -701,8 +711,8 @@ START_TEST(Client_subscription_createDataChanges_async) {
     deleteRequest.monitoredItemIdsSize = 3;
 
     UA_DeleteMonitoredItemsResponse deleteResponse;
-    retval = UA_Client_MonitoredItems_delete_async(
-        client, deleteRequest, deleteMonitoredItemsCallback, &deleteResponse, &reqId);
+    retval = UA_Client_MonitoredItems_delete_async(client, deleteRequest,
+                                                   deleteMonitoredItemsCallback, &deleteResponse, &reqId);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     UA_realSleep(500);  // need to wait until response is at the client
     retval = UA_Client_run_iterate(client, 0);
@@ -915,6 +925,7 @@ START_TEST(Client_subscription_connectionClose) {
     THREAD_JOIN(server_thread);
 
     retval = UA_Client_run_iterate(client, 1);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     UA_Server_run_iterate(server, true);
 
     /* Send Publish requests */
@@ -923,6 +934,7 @@ START_TEST(Client_subscription_connectionClose) {
 
     /* Still receiving on the MonitoredItem */
     UA_fakeSleep((UA_UInt32)publishingInterval + 1);
+
     UA_Server_run_iterate(server, true);
     countNotificationReceived = 0;
     retval = UA_Client_run_iterate(client, 1);
@@ -993,6 +1005,9 @@ START_TEST(Client_subscription_statusChange) {
     UA_Server_run_shutdown(server);
     UA_Client_disconnect(client);
     UA_Client_delete(client);
+
+    running = true;
+    THREAD_CREATE(server_thread, serverloop);
 }
 END_TEST
 
@@ -1234,6 +1249,39 @@ END_TEST
 
 static UA_SecureChannelState chanState;
 static UA_SessionState sessState;
+static UA_Boolean hasMon;
+
+static void
+monCallback(UA_Client *client, void *userdata,
+            UA_UInt32 requestId, void *r) {
+    hasMon = true;
+}
+
+static void
+createSubscriptionCallback2(UA_Client *client, void *userdata,
+                            UA_UInt32 requestId, void *r) {
+    UA_CreateSubscriptionResponse *rr = (UA_CreateSubscriptionResponse*)r;
+
+    ck_assert_uint_ne(rr->subscriptionId, 0);
+
+    /* Add a MonitoredItem */
+    UA_NodeId currentTime =
+        UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_CURRENTTIME);
+    UA_CreateMonitoredItemsRequest req;;
+    UA_CreateMonitoredItemsRequest_init(&req);
+    UA_MonitoredItemCreateRequest monRequest =
+        UA_MonitoredItemCreateRequest_default(currentTime);
+    req.itemsToCreate = &monRequest;
+    req.itemsToCreateSize = 1;
+    req.subscriptionId = rr->subscriptionId;
+    
+    UA_Client_DataChangeNotificationCallback callbacks[1] = {dataChangeHandler};
+    UA_StatusCode res =
+        UA_Client_MonitoredItems_createDataChanges_async(client, req,
+                                                         NULL, callbacks, NULL,
+                                                         monCallback, NULL, NULL);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+}
 
 static void
 stateCallback(UA_Client *client, UA_SecureChannelState channelState,
@@ -1248,26 +1296,11 @@ stateCallback(UA_Client *client, UA_SecureChannelState channelState,
         /* A new session was created. We need to create the subscription. */
         UA_CreateSubscriptionRequest request = UA_CreateSubscriptionRequest_default();
         request.requestedMaxKeepAliveCount = 1;
-        UA_CreateSubscriptionResponse response = UA_Client_Subscriptions_create(client, request,
-                                                                                NULL, NULL, NULL);
-        ck_assert_uint_eq(response.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
-        UA_UInt32 subId = response.subscriptionId;
-        ck_assert_uint_ne(subId, 0);
+        UA_StatusCode res =
+            UA_Client_Subscriptions_create_async(client, request, NULL, NULL, NULL,
+                                                 createSubscriptionCallback2, NULL, NULL);
 
-        /* Add a MonitoredItem */
-        UA_NodeId currentTime =
-            UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_CURRENTTIME);
-        UA_MonitoredItemCreateRequest monRequest =
-            UA_MonitoredItemCreateRequest_default(currentTime);
-
-        UA_MonitoredItemCreateResult monResponse =
-            UA_Client_MonitoredItems_createDataChange(client, response.subscriptionId,
-                                                      UA_TIMESTAMPSTORETURN_BOTH,
-                                                      monRequest, NULL, dataChangeHandler, NULL);
-        ck_assert_uint_eq(monResponse.statusCode, UA_STATUSCODE_GOOD);
-        UA_UInt32 monId = monResponse.monitoredItemId;
-
-        ck_assert_uint_ne(monId, 0);
+        ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
     }
 }
 
@@ -1293,6 +1326,7 @@ START_TEST(Client_subscription_async_sub) {
 
     ck_assert_uint_eq(chanState, UA_SECURECHANNELSTATE_FRESH);
 
+    hasMon = false;
     UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(sessState, UA_SESSIONSTATE_ACTIVATED);
@@ -1306,13 +1340,21 @@ START_TEST(Client_subscription_async_sub) {
     running = false;
     THREAD_JOIN(server_thread);
 
+    countNotificationReceived = 0;
+    notificationReceived = false;
+
+    while(!hasMon) {
+        UA_Client_run_iterate(client, 1);
+        UA_Server_run_iterate(server, true);
+    }
+
     UA_fakeSleep((UA_UInt32)publishingInterval + 1);
     UA_Server_run_iterate(server, true);
-
-    countNotificationReceived = 0;
-
-    notificationReceived = false;
     UA_Client_run_iterate(client, 1);
+
+    UA_Server_run_iterate(server, true);
+    UA_Client_run_iterate(client, 1);
+
     ck_assert_uint_eq(notificationReceived, true);
     ck_assert_uint_eq(countNotificationReceived, 1);
 
@@ -1348,16 +1390,10 @@ START_TEST(Client_subscription_async_sub) {
     ck_assert_uint_eq(notificationReceived, true);
     ck_assert_uint_eq(countNotificationReceived, 5);
 
+    /* Simulate network cable unplugged (no response from server) */
+    UA_fakeSleep((UA_UInt32)publishingInterval * 100);
+
     ck_assert_uint_lt(client->config.outStandingPublishRequests, 10);
-
-    notificationReceived = false;
-    /* Simulate network cable unplugged (no response from server) */
-    UA_Client_recvTesting_result = UA_STATUSCODE_GOODNONCRITICALTIMEOUT;
-    UA_Client_run_iterate(client, (UA_UInt16)(publishingInterval + 1));
-    ck_assert_uint_eq(notificationReceived, false);
-    ck_assert_uint_eq(sessState, UA_SESSIONSTATE_ACTIVATED);
-
-    /* Simulate network cable unplugged (no response from server) */
     ck_assert_uint_eq(inactivityCallbackCalled, false);
     UA_Client_recvTesting_result = UA_STATUSCODE_GOODNONCRITICALTIMEOUT;
     UA_Client_run_iterate(client, (UA_UInt16)cc->timeout);
@@ -1385,6 +1421,7 @@ START_TEST(Client_subscription_reconnect) {
     /* Activate background publish request */
     cc->outStandingPublishRequests = 10;
 
+    hasMon = false;
     UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(sessState, UA_SESSIONSTATE_ACTIVATED);
@@ -1397,6 +1434,11 @@ START_TEST(Client_subscription_reconnect) {
     /* manually control the server thread */
     running = false;
     THREAD_JOIN(server_thread);
+
+    while(!hasMon) {
+        UA_Server_run_iterate(server, true);
+        UA_Client_run_iterate(client, 1);
+    }
 
     UA_fakeSleep((UA_UInt32)publishingInterval + 1);
     UA_Server_run_iterate(server, true);
@@ -1422,13 +1464,14 @@ START_TEST(Client_subscription_reconnect) {
     running = false;
     THREAD_JOIN(server_thread);
 
-    UA_Client_run_iterate(client, 1);
-
-    UA_fakeSleep((UA_UInt32)publishingInterval + 1);
-    UA_Server_run_iterate(server, true);
-
     notificationReceived = false;
-    UA_Client_run_iterate(client, 1);
+
+    while(!notificationReceived) {
+        UA_fakeSleep((UA_UInt32)publishingInterval + 1);
+        UA_Client_run_iterate(client, 1);
+        UA_Server_run_iterate(server, true);
+    }
+
     ck_assert_uint_eq(notificationReceived, true);
     ck_assert_uint_eq(countNotificationReceived, 2);
 

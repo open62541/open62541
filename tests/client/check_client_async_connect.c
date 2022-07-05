@@ -104,7 +104,7 @@ static void
 abortSecureChannelConnect(UA_Client *client, UA_SecureChannelState channelState,
                           UA_SessionState sessionState, UA_StatusCode recoveryStatus) {
     if(channelState >= abortState)
-        UA_Client_disconnect(client);
+        UA_Client_disconnectAsync(client);
 }
 
 /* Abort the connection by calling disconnect */
@@ -125,7 +125,8 @@ START_TEST(Client_connect_async_abort) {
             UA_Server_run_iterate(server, false);
             UA_Client_run_iterate(client, 5);
             UA_Client_getState(client, &currentState, NULL, &retval);
-        } while(currentState != UA_SECURECHANNELSTATE_CLOSED);
+        } while(currentState != UA_SECURECHANNELSTATE_CLOSED &&
+                currentState != UA_SECURECHANNELSTATE_FRESH);
         ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     }
 
@@ -142,17 +143,23 @@ START_TEST(Client_no_connection) {
     UA_StatusCode retval = UA_Client_connectAsync(client, "opc.tcp://localhost:4840");
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
-    UA_Client_recv = client->connection.recv;
-    client->connection.recv = UA_Client_recvTesting;
-    //simulating unconnected server
-    UA_Client_recvTesting_result = UA_STATUSCODE_BADCONNECTIONCLOSED;
+    /* Wait for the initial socket */
+    UA_EventLoop *el = client->config.eventLoop;
+    while(!client->connection.handle) {
+        el->run(el, 0);
+    }
+
+    /* Manually close the TCP connection */
+    UA_ConnectionManager *cm = (UA_ConnectionManager*)client->connection.handle;
+    cm->closeConnection(cm, (uintptr_t)client->connection.sockfd);
+
     UA_Server_run_iterate(server, false);
     retval = UA_Client_run_iterate(client, 1);  /* Open connection */
     UA_Server_run_iterate(server, false);
     retval |= UA_Client_run_iterate(client, 0); /* Send HEL */
     UA_Server_run_iterate(server, false);
     retval |= UA_Client_run_iterate(client, 0); /* Receive ACK */
-    ck_assert_uint_eq(retval, UA_STATUSCODE_BADCONNECTIONCLOSED);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     UA_Client_disconnect(client);
     UA_Client_delete(client);
 }

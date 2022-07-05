@@ -486,8 +486,17 @@ UA_Client_AsyncService_cancel(UA_Client *client, AsyncServiceCall *ac,
 
 void
 UA_Client_AsyncService_removeAll(UA_Client *client, UA_StatusCode statusCode) {
+    /* Make this function reentrant. One of the async callbacks could indirectly
+     * operate on the list. Moving all elements to a local list before iterating
+     * that. */
+    UA_AsyncServiceList asyncServiceCalls = client->asyncServiceCalls;
+    LIST_INIT(&client->asyncServiceCalls);
+    if(asyncServiceCalls.lh_first)
+        asyncServiceCalls.lh_first->pointers.le_prev = &asyncServiceCalls.lh_first;
+
+    /* Cancel and remove the elements from the local list */
     AsyncServiceCall *ac, *ac_tmp;
-    LIST_FOREACH_SAFE(ac, &client->asyncServiceCalls, pointers, ac_tmp) {
+    LIST_FOREACH_SAFE(ac, &asyncServiceCalls, pointers, ac_tmp) {
         LIST_REMOVE(ac, pointers);
         UA_Client_AsyncService_cancel(client, ac, statusCode);
     }
@@ -504,7 +513,6 @@ UA_Client_modifyAsyncCallback(UA_Client *client, UA_UInt32 requestId,
             return UA_STATUSCODE_GOOD;
         }
     }
-
     return UA_STATUSCODE_BADNOTFOUND;
 }
 
