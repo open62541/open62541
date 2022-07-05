@@ -7,6 +7,7 @@
  * Copyright (c) 2019 Kalycito Infotech Private Limited
  * Copyright (c) 2021 Fraunhofer IOSB (Author: Jan Hermes)
  * Copyright (c) 2022 Siemens AG (Author: Thomas Fischer)
+ * Copyright (c) 2022 Fraunhofer IOSB (Author: Noel Graf)
  */
 
 #include <open62541/server_pubsub.h>
@@ -335,7 +336,8 @@ UA_DataSetReader_generateNetworkMessage(UA_PubSubConnection *pubSubConnection,
 
 static UA_StatusCode
 checkReaderIdentifier(UA_Server *server, UA_NetworkMessage *msg,
-                      UA_DataSetReader *reader) {
+                      UA_DataSetReader *reader, UA_ReaderGroupConfig readerGroupConfig) {
+if(readerGroupConfig.encodingMimeType != UA_PUBSUB_ENCODING_JSON){
     if(!msg->groupHeaderEnabled || !msg->groupHeader.writerGroupIdEnabled ||
        !msg->payloadHeaderEnabled) {
         UA_LOG_INFO_READER(&server->config.logger, reader,
@@ -381,6 +383,17 @@ checkReaderIdentifier(UA_Server *server, UA_NetworkMessage *msg,
         return UA_STATUSCODE_GOOD;
     }
 
+}else{
+    if(reader->config.publisherId.type != &UA_TYPES[UA_TYPES_UINT32] &&
+       msg->publisherId.uint32 != *(UA_UInt32*)reader->config.publisherId.data)
+        return UA_STATUSCODE_BADNOTFOUND;
+
+    if(reader->config.dataSetWriterId == *msg->payloadHeader.dataSetPayloadHeader.dataSetWriterIds) {
+        UA_LOG_DEBUG(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                     "DataSetReader found. Process NetworkMessage");
+        return UA_STATUSCODE_GOOD;
+    }
+}
     return UA_STATUSCODE_BADNOTFOUND;
 }
 
@@ -1286,7 +1299,7 @@ UA_DataSetReader_handleMessageReceiveTimeout(UA_Server *server, UA_DataSetReader
                         (int)dsr->config.name.length, dsr->config.name.data,
                         dsr->config.messageReceiveTimeout,
                         (UA_UInt32) dsr->msgRcvTimeoutTimerId);
-    
+
     UA_StatusCode res =
         UA_DataSetReader_setPubSubState(server, dsr, UA_PUBSUBSTATE_ERROR,
                                         UA_STATUSCODE_BADTIMEOUT);
@@ -1335,7 +1348,7 @@ processNetworkMessage(UA_Server *server, UA_PubSubConnection *connection,
     UA_DataSetReader *reader;
     LIST_FOREACH(readerGroup, &connection->readerGroups, listEntry) {
         LIST_FOREACH(reader, &readerGroup->readers, listEntry) {
-            UA_StatusCode retval = checkReaderIdentifier(server, msg, reader);
+            UA_StatusCode retval = checkReaderIdentifier(server, msg, reader, readerGroup->config);
             if(retval == UA_STATUSCODE_GOOD) {
                 processed = true;
                 processMessageWithReader(server, readerGroup, reader, msg);
@@ -1404,7 +1417,7 @@ decodeNetworkMessage(UA_Server *server, UA_ByteString *buffer, size_t *pos,
      * (there could be multiple) */
     LIST_FOREACH(readerGroup, &connection->readerGroups, listEntry) {
         LIST_FOREACH(reader, &readerGroup->readers, listEntry) {
-            UA_StatusCode retval = checkReaderIdentifier(server, nm, reader);
+            UA_StatusCode retval = checkReaderIdentifier(server, nm, reader, readerGroup->config);
             if(retval == UA_STATUSCODE_GOOD) {
                 processed = true;
                 rv = verifyAndDecryptNetworkMessage(&server->config.logger, buffer, pos,
@@ -1450,15 +1463,37 @@ loops_exit:
     return UA_STATUSCODE_GOOD;
 }
 
+#ifdef UA_ENABLE_JSON_ENCODING
+UA_StatusCode
+decodeNetworkMessageJson(UA_Server *server, UA_ByteString *buffer, size_t *pos,
+                     UA_NetworkMessage *nm, UA_PubSubConnection *connection) {
+
+    UA_StatusCode rv = UA_NetworkMessage_decodeJson(nm, buffer);
+    UA_CHECK_STATUS(rv, return rv);
+
+    return UA_STATUSCODE_GOOD;
+}
+#endif
+
 static UA_StatusCode
 decodeAndProcessNetworkMessage(UA_Server *server, UA_PubSubConnection *connection,
-                               UA_ByteString *buf) {
+                               UA_ReaderGroup *readerGroup, UA_ByteString *buf) {
     UA_NetworkMessage nm;
     memset(&nm, 0, sizeof(UA_NetworkMessage));
 
     size_t currentPosition = 0;
-    UA_StatusCode rv = decodeNetworkMessage(server, buf, &currentPosition,
-                                            &nm, connection);
+    UA_StatusCode rv;
+    if(readerGroup->config.encodingMimeType == UA_PUBSUB_ENCODING_UADP){
+        rv = decodeNetworkMessage(server, buf, &currentPosition,
+                                  &nm, connection);
+    } else { /* if(writerGroup->config.encodingMimeType == UA_PUBSUB_ENCODING_JSON) */
+#ifdef UA_ENABLE_JSON_ENCODING
+        rv = decodeNetworkMessageJson(server, buf, &currentPosition,
+                                  &nm, connection);
+#else
+        rv = UA_STATUSCODE_BADNOTSUPPORTED;
+#endif
+    }
     if(rv != UA_STATUSCODE_GOOD) {
         UA_LOG_WARNING_CONNECTION(&server->config.logger, connection,
                                   "Verify, decrypt and decode network message failed.");
@@ -1523,7 +1558,7 @@ decodeAndProcessNetworkMessageRT(UA_Server *server, UA_ReaderGroup *readerGroup,
     }
 
     /* Check the decoded message is the expected one */
-    rv = checkReaderIdentifier(server, nm, dataSetReader);
+    rv = checkReaderIdentifier(server, nm, dataSetReader, readerGroup->config);
     if(rv != UA_STATUSCODE_GOOD) {
         UA_LOG_INFO_READER(&server->config.logger, dataSetReader,
                            "PubSub receive. Unknown message received. Will not be processed.");
@@ -1553,7 +1588,7 @@ decodeAndProcessFun(UA_PubSubChannel *channel, void *cbContext,
                     const UA_ByteString *buf) {
     UA_RGContext *ctx = (UA_RGContext*)cbContext;
     UA_ByteString mutableBuffer = {buf->length, buf->data};
-    return decodeAndProcessNetworkMessage(ctx->server, ctx->connection, &mutableBuffer);
+    return decodeAndProcessNetworkMessage(ctx->server, ctx->connection, ctx->readerGroup, &mutableBuffer);
 }
 
 static UA_StatusCode
@@ -1563,6 +1598,13 @@ decodeAndProcessFunRT(UA_PubSubChannel *channel, void *cbContext,
     UA_ByteString mutableBuffer = {buf->length, buf->data};
     return decodeAndProcessNetworkMessageRT(ctx->server, ctx->readerGroup,
                                             ctx->connection, &mutableBuffer);
+}
+
+void processMqttSubscriberCallback(UA_Server *server, UA_ReaderGroup *readerGroup,
+                      UA_PubSubConnection *connection, UA_ByteString *msg,
+                      UA_ByteString *topic) {
+    UA_RGContext ctx = {server, connection, readerGroup};
+    decodeAndProcessFun(connection->channel, &ctx, msg);
 }
 
 UA_StatusCode
@@ -1578,12 +1620,12 @@ receiveBufferedNetworkMessage(UA_Server *server, UA_ReaderGroup *readerGroup,
     /* TODO: Move the TransportSettings to to the readerGroupConfig. So we can
      * use it here instead of a NULL pointer. */
     UA_StatusCode rv =
-        connection->channel->receive(connection->channel, NULL,
+        connection->channel->receive(connection->channel, &readerGroup->config.transportSettings,
                                      receiveCB, &ctx,
                                      readerGroup->config.timeout);
 
     // TODO attention: here rv is ok if UA_STATUSCODE_GOOD != rv
-    if(!UA_StatusCode_isBad(rv)) {
+    if(UA_StatusCode_isBad(rv)) {
         UA_LOG_WARNING_CONNECTION(&server->config.logger, connection,
                               "SubscribeCallback(): Connection receive failed!");
         return rv;

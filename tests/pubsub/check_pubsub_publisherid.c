@@ -71,7 +71,7 @@ static void AddConnection(
     /* deep copy is not needed (not even for string) because UA_Server_addPubSubConnection performs deep copy */
     connectionConfig.publisherId = publisherId;
     ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_addPubSubConnection(server, &connectionConfig, opConnectionId));
-    ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_PubSubConnection_regist(server, opConnectionId));
+    ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_PubSubConnection_regist(server, opConnectionId, NULL));
 }
 
 /***************************************************************************************************/

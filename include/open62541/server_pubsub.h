@@ -453,9 +453,9 @@ typedef struct {
  * contained in the WriterGroup. */
 
 typedef enum {
-    UA_PUBSUB_ENCODING_BINARY,
-    UA_PUBSUB_ENCODING_JSON,
-    UA_PUBSUB_ENCODING_UADP
+    UA_PUBSUB_ENCODING_UADP = 0,
+    UA_PUBSUB_ENCODING_JSON = 1,
+    UA_PUBSUB_ENCODING_BINARY = 2
 } UA_PubSubEncodingType;
 
 /**
@@ -801,6 +801,8 @@ typedef struct {
     UA_PubSubRTLevel rtLevel;
     size_t groupPropertiesSize;
     UA_KeyValuePair *groupProperties;
+    UA_PubSubEncodingType encodingMimeType;
+    UA_ExtensionObject transportSettings;
 
     /* Messages are decrypted if a SecurityPolicy is configured and the
      * securityMode set accordingly. The symmetric key is a runtime information

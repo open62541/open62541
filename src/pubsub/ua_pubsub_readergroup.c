@@ -120,7 +120,7 @@ UA_Server_addReaderGroup(UA_Server *server, UA_NodeId connectionIdentifier,
 
     /* Regist (bind) the connection channel if it is not already registered */
     if(!currentConnectionContext->isRegistered) {
-        retval |= UA_PubSubConnection_regist(server, &connectionIdentifier);
+        retval |= UA_PubSubConnection_regist(server, &connectionIdentifier, readerGroupConfig);
         if(retval != UA_STATUSCODE_GOOD)
             return retval;
     }
@@ -160,6 +160,12 @@ UA_Server_addReaderGroup(UA_Server *server, UA_NodeId connectionIdentifier,
     if(readerGroupIdentifier)
         UA_NodeId_copy(&newGroup->identifier, readerGroupIdentifier);
 
+    /* Set the assigment between ReaderGroup and Topic if the transport layer is MQTT. */
+    const UA_String transport_uri = UA_STRING("http://opcfoundation.org/UA-Profile/Transport/pubsub-mqtt");
+    if(UA_String_equal(&currentConnectionContext->config->transportProfileUri, &transport_uri)) {
+        UA_String topic = ((UA_BrokerWriterGroupTransportDataType *)readerGroupConfig->transportSettings.content.decoded.data)->queueName;
+        retval |= UA_PubSubManager_addPubSubTopicAssign(server, newGroup, topic);
+    }
     return retval;
 }
 
