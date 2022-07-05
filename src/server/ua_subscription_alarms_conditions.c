@@ -1491,6 +1491,7 @@ confirmMethodCallback(UA_Server *server, const UA_NodeId *sessionId,
 
 static UA_StatusCode
 setRefreshMethodEventFields(UA_Server *server, const UA_NodeId *refreshEventNodId) {
+    UA_LOCK_ASSERT(&server->serviceMutex, 1);
     UA_QualifiedName fieldSeverity = UA_QUALIFIEDNAME(0, CONDITION_FIELD_SEVERITY);
     UA_QualifiedName fieldSourceName = UA_QUALIFIEDNAME(0, CONDITION_FIELD_SOURCENAME);
     UA_QualifiedName fieldReceiveTime = UA_QUALIFIEDNAME(0, CONDITION_FIELD_RECEIVETIME);
@@ -1502,19 +1503,25 @@ setRefreshMethodEventFields(UA_Server *server, const UA_NodeId *refreshEventNodI
 
     /* Set Severity */
     UA_Variant_setScalar(&value, &severityValue, &UA_TYPES[UA_TYPES_UINT16]);
+    UA_UNLOCK(&server->serviceMutex);
     UA_StatusCode retval = UA_Server_setConditionField(server, *refreshEventNodId, &value,
                                                        fieldSeverity);
+    UA_LOCK(&server->serviceMutex);
     CONDITION_ASSERT_RETURN_RETVAL(retval, "Set RefreshEvent Severity failed",);
 
     /* Set SourceName */
     UA_Variant_setScalar(&value, &sourceNameString, &UA_TYPES[UA_TYPES_STRING]);
+    UA_UNLOCK(&server->serviceMutex);
     retval = UA_Server_setConditionField(server, *refreshEventNodId, &value, fieldSourceName);
+    UA_LOCK(&server->serviceMutex);
     CONDITION_ASSERT_RETURN_RETVAL(retval, "Set RefreshEvent Source failed",);
 
     /* Set ReceiveTime */
     UA_DateTime fieldReceiveTimeValue = UA_DateTime_now();
     UA_Variant_setScalar(&value, &fieldReceiveTimeValue, &UA_TYPES[UA_TYPES_DATETIME]);
+    UA_UNLOCK(&server->serviceMutex);
     retval = UA_Server_setConditionField(server, *refreshEventNodId, &value, fieldReceiveTime);
+    UA_LOCK(&server->serviceMutex);
     CONDITION_ASSERT_RETURN_RETVAL(retval, "Set RefreshEvent ReceiveTime failed",);
 
     /* Set EventId */
@@ -1522,7 +1529,9 @@ setRefreshMethodEventFields(UA_Server *server, const UA_NodeId *refreshEventNodI
     CONDITION_ASSERT_RETURN_RETVAL(retval, "Generating EventId failed",);
 
     UA_Variant_setScalar(&value, &eventId, &UA_TYPES[UA_TYPES_BYTESTRING]);
+    UA_UNLOCK(&server->serviceMutex);
     retval = UA_Server_setConditionField(server, *refreshEventNodId, &value, fieldEventId);
+    UA_LOCK(&server->serviceMutex);
     CONDITION_ASSERT_RETURN_RETVAL(retval, "Set RefreshEvent EventId failed",);
 
     UA_ByteString_clear(&eventId);
@@ -1576,13 +1585,16 @@ isConditionSourceInMonitoredItem(UA_Server *server, const UA_MonitoredItem *moni
 static UA_StatusCode
 refreshLogic(UA_Server *server, const UA_NodeId *refreshStartNodId,
              const UA_NodeId *refreshEndNodId, UA_MonitoredItem *monitoredItem) {
+    UA_LOCK_ASSERT(&server->serviceMutex, 1);
     UA_assert(monitoredItem != NULL);
 
     /* 1. Trigger RefreshStartEvent */
     UA_DateTime fieldTimeValue = UA_DateTime_now();
+    UA_UNLOCK(&server->serviceMutex);
     UA_StatusCode retval =
         UA_Server_writeObjectProperty_scalar(server, *refreshStartNodId, fieldTimeQN,
                                              &fieldTimeValue, &UA_TYPES[UA_TYPES_DATETIME]);
+    UA_LOCK(&server->serviceMutex);
     CONDITION_ASSERT_RETURN_RETVAL(retval, "Write Object Property scalar failed",);
 
     retval = UA_Event_addEventToMonitoredItem(server, refreshStartNodId, monitoredItem);
@@ -1632,8 +1644,10 @@ refreshLogic(UA_Server *server, const UA_NodeId *refreshStartNodId,
 
     /* 3. Trigger RefreshEndEvent */
     fieldTimeValue = UA_DateTime_now();
+    UA_UNLOCK(&server->serviceMutex);
     retval = UA_Server_writeObjectProperty_scalar(server, *refreshEndNodId, fieldTimeQN,
                                                   &fieldTimeValue, &UA_TYPES[UA_TYPES_DATETIME]);
+    UA_LOCK(&server->serviceMutex);
     CONDITION_ASSERT_RETURN_RETVAL(retval, "Write Object Property scalar failed",);
     return UA_Event_addEventToMonitoredItem(server, refreshEndNodId, monitoredItem);
 }
@@ -1645,31 +1659,37 @@ refresh2MethodCallback(UA_Server *server, const UA_NodeId *sessionId,
                       void *objectContext, size_t inputSize,
                       const UA_Variant *input, size_t outputSize,
                       UA_Variant *output) {
+    UA_LOCK(&server->serviceMutex);
     //TODO implement logic for subscription array
     /* Check if valid subscriptionId */
     UA_Session *session = UA_Server_getSessionById(server, sessionId);
     UA_Subscription *subscription =
         UA_Session_getSubscriptionById(session, *((UA_UInt32 *)input[0].data));
-    if(!subscription)
+    if(!subscription) {
+        UA_UNLOCK(&server->serviceMutex);
         return UA_STATUSCODE_BADSUBSCRIPTIONIDINVALID;
+    }
 
     /* set RefreshStartEvent and RefreshEndEvent */
     UA_StatusCode retval = setRefreshMethodEvents(server,
                                                   &refreshEvents[REFRESHEVENT_START_IDX],
                                                   &refreshEvents[REFRESHEVENT_END_IDX]);
-    CONDITION_ASSERT_RETURN_RETVAL(retval, "Create Event RefreshStart or RefreshEnd failed",);
+    CONDITION_ASSERT_RETURN_RETVAL(retval, "Create Event RefreshStart or RefreshEnd failed",UA_UNLOCK(&server->serviceMutex););
 
     /* Trigger RefreshStartEvent and RefreshEndEvent for the each monitoredItem
      * in the subscription */
     UA_MonitoredItem *monitoredItem =
         UA_Subscription_getMonitoredItem(subscription, *((UA_UInt32 *)input[1].data));
-    if(!monitoredItem)
+    if(!monitoredItem) {
+        UA_UNLOCK(&server->serviceMutex);
         return UA_STATUSCODE_BADMONITOREDITEMIDINVALID;
+    }
 
     //TODO when there are a lot of monitoreditems (not only events)?
     retval = refreshLogic(server, &refreshEvents[REFRESHEVENT_START_IDX],
                           &refreshEvents[REFRESHEVENT_END_IDX], monitoredItem);
-    CONDITION_ASSERT_RETURN_RETVAL(retval, "Could not refresh Condition",);
+    CONDITION_ASSERT_RETURN_RETVAL(retval, "Could not refresh Condition",UA_UNLOCK(&server->serviceMutex););
+    UA_UNLOCK(&server->serviceMutex);
     return UA_STATUSCODE_GOOD;
 }
 
@@ -1680,19 +1700,22 @@ refreshMethodCallback(UA_Server *server, const UA_NodeId *sessionId,
                       void *objectContext, size_t inputSize,
                       const UA_Variant *input, size_t outputSize,
                       UA_Variant *output) {
+    UA_LOCK(&server->serviceMutex);
     //TODO implement logic for subscription array
     /* Check if valid subscriptionId */
     UA_Session *session = UA_Server_getSessionById(server, sessionId);
     UA_Subscription *subscription =
         UA_Session_getSubscriptionById(session, *((UA_UInt32 *)input[0].data));
-    if(!subscription)
+    if(!subscription) {
+        UA_UNLOCK(&server->serviceMutex);
         return UA_STATUSCODE_BADSUBSCRIPTIONIDINVALID;
+    }
 
     /* set RefreshStartEvent and RefreshEndEvent */
     UA_StatusCode retval =
         setRefreshMethodEvents(server, &refreshEvents[REFRESHEVENT_START_IDX],
                                &refreshEvents[REFRESHEVENT_END_IDX]);
-    CONDITION_ASSERT_RETURN_RETVAL(retval, "Create Event RefreshStart or RefreshEnd failed",);
+    CONDITION_ASSERT_RETURN_RETVAL(retval, "Create Event RefreshStart or RefreshEnd failed",UA_UNLOCK(&server->serviceMutex););
 
     /* Trigger RefreshStartEvent and RefreshEndEvent for the each monitoredItem
      * in the subscription */
@@ -1701,8 +1724,9 @@ refreshMethodCallback(UA_Server *server, const UA_NodeId *sessionId,
     LIST_FOREACH(monitoredItem, &subscription->monitoredItems, listEntry) {
         retval = refreshLogic(server, &refreshEvents[REFRESHEVENT_START_IDX],
                               &refreshEvents[REFRESHEVENT_END_IDX], monitoredItem);
-        CONDITION_ASSERT_RETURN_RETVAL(retval, "Could not refresh Condition",);
+        CONDITION_ASSERT_RETURN_RETVAL(retval, "Could not refresh Condition",UA_UNLOCK(&server->serviceMutex););
     }
+    UA_UNLOCK(&server->serviceMutex);
     return UA_STATUSCODE_GOOD;
 }
 

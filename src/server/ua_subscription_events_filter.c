@@ -881,6 +881,7 @@ UA_Server_evaluateWhereClauseContentFilter(UA_Server *server, UA_Session *sessio
                                            const UA_NodeId *eventNode,
                                            const UA_ContentFilter *contentFilter,
                                            UA_ContentFilterResult *contentFilterResult) {
+    UA_LOCK_ASSERT(&server->serviceMutex, 1);
     if(contentFilter->elementsSize == 0)
         return UA_STATUSCODE_GOOD;
     /* TODO add maximum lenth size to the server config */
@@ -899,7 +900,6 @@ UA_Server_evaluateWhereClauseContentFilter(UA_Server *server, UA_Session *sessio
     ctx.contentFilterResult = contentFilterResult;
     ctx.valueResult = valueResult;
     ctx.index = 0;
-
     UA_StatusCode res = evaluateWhereClauseContentFilter(&ctx);
     for(size_t i = 0; i < ctx.contentFilter->elementsSize; i++) {
         if(!UA_Variant_isEmpty(&ctx.valueResult[i]))
@@ -911,6 +911,7 @@ UA_Server_evaluateWhereClauseContentFilter(UA_Server *server, UA_Session *sessio
 static UA_Boolean
 isValidEvent(UA_Server *server, const UA_NodeId *validEventParent,
              const UA_NodeId *eventId) {
+    UA_LOCK_ASSERT(&server->serviceMutex, 1);
     /* find the eventType variableNode */
     UA_QualifiedName findName = UA_QUALIFIEDNAME(0, "EventType");
     UA_BrowsePathResult bpr = browseSimplifiedBrowsePath(server, *eventId, 1, &findName);
@@ -922,7 +923,6 @@ isValidEvent(UA_Server *server, const UA_NodeId *validEventParent,
     /* Get the EventType Property Node */
     UA_Variant tOutVariant;
     UA_Variant_init(&tOutVariant);
-
     /* Read the Value of EventType Property Node (the Value should be a NodeId) */
     UA_StatusCode retval = readWithReadValue(server, &bpr.targets[0].targetId.nodeId,
                                              UA_ATTRIBUTEID_VALUE, &tOutVariant);
@@ -962,6 +962,7 @@ UA_StatusCode
 filterEvent(UA_Server *server, UA_Session *session,
             const UA_NodeId *eventNode, UA_EventFilter *filter,
             UA_EventFieldList *efl, UA_EventFilterResult *result) {
+    UA_LOCK_ASSERT(&server->serviceMutex, 1);
     if(filter->selectClausesSize == 0)
         return UA_STATUSCODE_BADEVENTFILTERINVALID;
 
