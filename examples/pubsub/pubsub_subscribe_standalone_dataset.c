@@ -16,6 +16,11 @@
 
 #include "ua_pubsub.h"
 
+#ifdef UA_ENABLE_PUBSUB_ETH_UADP
+#include <open62541/plugin/pubsub_ethernet.h>
+#endif
+
+
 #include <signal.h>
 
 UA_NodeId connectionIdentifier;
