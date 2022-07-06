@@ -194,7 +194,8 @@ run(UA_String *transportProfile, UA_NetworkAddressUrlDataType *networkAddressUrl
     /* Add DataSetReader to the created ReaderGroup */
     retval |= addDataSetReader(server);
 
-    retval = UA_Server_run(server, &running);
+    retval |= UA_Server_run(server, &running);
+
     UA_Server_delete(server);
     return retval == UA_STATUSCODE_GOOD ? EXIT_SUCCESS : EXIT_FAILURE;
 }
