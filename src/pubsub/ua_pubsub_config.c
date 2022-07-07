@@ -105,7 +105,9 @@ updatePubSubConfig(UA_Server *server,
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     }
 
+    UA_LOCK(&server->serviceMutex);
     UA_PubSubManager_delete(server, &server->pubSubManager);
+    UA_UNLOCK(&server->serviceMutex);
 
     /* Configuration of Published DataSets: */
     UA_UInt32 pdsCount = (UA_UInt32)configurationParameters->publishedDataSetsSize;
@@ -114,6 +116,7 @@ updatePubSubConfig(UA_Server *server,
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
     UA_StatusCode res = UA_STATUSCODE_GOOD;
+
     for(UA_UInt32 i = 0; i < pdsCount; i++) {
         res = createPublishedDataSet(server,
                                      &configurationParameters->publishedDataSets[i],
@@ -144,6 +147,7 @@ updatePubSubConfig(UA_Server *server,
     }
 
     UA_free(publishedDataSetIdent);
+
     return res;
 }
 
@@ -547,7 +551,7 @@ createReaderGroup(UA_Server *server,
     memset(&config, 0, sizeof(UA_ReaderGroupConfig));
 
     config.name = readerGroupParameters->name;
-    config.securityParameters.securityMode = readerGroupParameters->securityMode;
+    config.securityMode = readerGroupParameters->securityMode;
 
     UA_NodeId readerGroupIdent;
     UA_StatusCode res =
@@ -753,7 +757,7 @@ addDataSetFieldVariables(UA_Server *server, const UA_NodeId *pdsIdent,
         fc.field.variable.publishParameters = pdItems->publishedData[i];
 
         UA_NodeId fieldIdent;
-        UA_StatusCode res = addDataSetField(server, *pdsIdent, &fc, &fieldIdent).result;
+        UA_StatusCode res = UA_Server_addDataSetField(server, *pdsIdent, &fc, &fieldIdent).result;
         if(res != UA_STATUSCODE_GOOD) {
             UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
                          "[UA_PubSubManager_addDataSetFieldVariables] "
