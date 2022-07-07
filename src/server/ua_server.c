@@ -845,7 +845,7 @@ UA_Server_run_iterate(UA_Server *server, UA_Boolean waitInternal) {
     UA_PubSubConnection *connection;
     TAILQ_FOREACH(connection, &server->pubSubManager.connections, listEntry){
         UA_PubSubConnection *ps = connection;
-        if(ps && ps->channel->yield){
+        if(ps && ps->channel && ps->channel->yield){
             ps->channel->yield(ps->channel, 0);
         }
     }
