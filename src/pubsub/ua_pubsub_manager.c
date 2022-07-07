@@ -306,7 +306,7 @@ UA_Server_addPublishedDataSet(UA_Server *server,
             UA_PubSubConfigurationVersionTimeDifference();
         newPDS->dataSetMetaData.configurationVersion.minorVersion =
             UA_PubSubConfigurationVersionTimeDifference();
-        newPDS->dataSetMetaData.description = UA_LOCALIZEDTEXT_ALLOC("", "");
+        newPDS->dataSetMetaData.description = publishedDataSetConfig->config.itemsTemplate.metaData.description;
         newPDS->dataSetMetaData.dataSetClassId = UA_GUID_NULL;
         res = UA_String_copy(&newConfig->name, &newPDS->dataSetMetaData.name);
         break;
