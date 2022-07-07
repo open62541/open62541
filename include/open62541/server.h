@@ -11,7 +11,7 @@
  *    Copyright 2017 (c) Henrik Norrman
  *    Copyright 2018 (c) Fabian Arndt, Root-Core
  *    Copyright 2017-2020 (c) HMS Industrial Networks AB (Author: Jonas Green)
- *    Copyright 2020-2021 (c) Christian von Arnim, ISW University of Stuttgart  (for VDW and umati)
+ *    Copyright 2020-2022 (c) Christian von Arnim, ISW University of Stuttgart  (for VDW and umati)
  */
 
 #ifndef UA_SERVER_H_
@@ -1586,7 +1586,7 @@ UA_Server_createCondition(UA_Server *server,
  * @param value Variant Value to be written to the Field
  * @param fieldName Name of the Field in which the value should be written
  * @return The StatusCode of the UA_Server_setConditionField method*/
-UA_StatusCode UA_EXPORT
+UA_StatusCode UA_EXPORT UA_THREADSAFE
 UA_Server_setConditionField(UA_Server *server,
                             const UA_NodeId condition,
                             const UA_Variant *value,

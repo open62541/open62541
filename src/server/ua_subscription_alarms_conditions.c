@@ -3,7 +3,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  *
  *    Copyright 2018 (c) Hilscher Gesellschaft für Systemautomation mbH (Author: Sameer AL-Qadasi)
- *    Copyright 2020 (c) Christian von Arnim, ISW University of Stuttgart (for VDW and umati)
+ *    Copyright 2020-2022 (c) Christian von Arnim, ISW University of Stuttgart (for VDW and umati)
  */
 
 #include "ua_server_internal.h"
@@ -169,6 +169,10 @@ static const UA_QualifiedName fieldSourceQN = STATIC_QN(CONDITION_FIELD_SOURCENO
             return;                                                                       \
         }                                                                                 \
     }
+
+static UA_StatusCode
+setConditionField(UA_Server *server, const UA_NodeId condition,
+                            const UA_Variant* value, const UA_QualifiedName fieldName);
 
 /*****************************************************************************/
 /* Global Variables                                                          */
@@ -1503,25 +1507,19 @@ setRefreshMethodEventFields(UA_Server *server, const UA_NodeId *refreshEventNodI
 
     /* Set Severity */
     UA_Variant_setScalar(&value, &severityValue, &UA_TYPES[UA_TYPES_UINT16]);
-    UA_UNLOCK(&server->serviceMutex);
-    UA_StatusCode retval = UA_Server_setConditionField(server, *refreshEventNodId, &value,
+    UA_StatusCode retval = setConditionField(server, *refreshEventNodId, &value,
                                                        fieldSeverity);
-    UA_LOCK(&server->serviceMutex);
     CONDITION_ASSERT_RETURN_RETVAL(retval, "Set RefreshEvent Severity failed",);
 
     /* Set SourceName */
     UA_Variant_setScalar(&value, &sourceNameString, &UA_TYPES[UA_TYPES_STRING]);
-    UA_UNLOCK(&server->serviceMutex);
-    retval = UA_Server_setConditionField(server, *refreshEventNodId, &value, fieldSourceName);
-    UA_LOCK(&server->serviceMutex);
+    retval = setConditionField(server, *refreshEventNodId, &value, fieldSourceName);
     CONDITION_ASSERT_RETURN_RETVAL(retval, "Set RefreshEvent Source failed",);
 
     /* Set ReceiveTime */
     UA_DateTime fieldReceiveTimeValue = UA_DateTime_now();
     UA_Variant_setScalar(&value, &fieldReceiveTimeValue, &UA_TYPES[UA_TYPES_DATETIME]);
-    UA_UNLOCK(&server->serviceMutex);
-    retval = UA_Server_setConditionField(server, *refreshEventNodId, &value, fieldReceiveTime);
-    UA_LOCK(&server->serviceMutex);
+    retval = setConditionField(server, *refreshEventNodId, &value, fieldReceiveTime);
     CONDITION_ASSERT_RETURN_RETVAL(retval, "Set RefreshEvent ReceiveTime failed",);
 
     /* Set EventId */
@@ -1529,9 +1527,7 @@ setRefreshMethodEventFields(UA_Server *server, const UA_NodeId *refreshEventNodI
     CONDITION_ASSERT_RETURN_RETVAL(retval, "Generating EventId failed",);
 
     UA_Variant_setScalar(&value, &eventId, &UA_TYPES[UA_TYPES_BYTESTRING]);
-    UA_UNLOCK(&server->serviceMutex);
-    retval = UA_Server_setConditionField(server, *refreshEventNodId, &value, fieldEventId);
-    UA_LOCK(&server->serviceMutex);
+    retval = setConditionField(server, *refreshEventNodId, &value, fieldEventId);
     CONDITION_ASSERT_RETURN_RETVAL(retval, "Set RefreshEvent EventId failed",);
 
     UA_ByteString_clear(&eventId);
@@ -1590,11 +1586,9 @@ refreshLogic(UA_Server *server, const UA_NodeId *refreshStartNodId,
 
     /* 1. Trigger RefreshStartEvent */
     UA_DateTime fieldTimeValue = UA_DateTime_now();
-    UA_UNLOCK(&server->serviceMutex);
     UA_StatusCode retval =
-        UA_Server_writeObjectProperty_scalar(server, *refreshStartNodId, fieldTimeQN,
+        writeObjectProperty_scalar(server, *refreshStartNodId, fieldTimeQN,
                                              &fieldTimeValue, &UA_TYPES[UA_TYPES_DATETIME]);
-    UA_LOCK(&server->serviceMutex);
     CONDITION_ASSERT_RETURN_RETVAL(retval, "Write Object Property scalar failed",);
 
     retval = UA_Event_addEventToMonitoredItem(server, refreshStartNodId, monitoredItem);
@@ -1644,10 +1638,8 @@ refreshLogic(UA_Server *server, const UA_NodeId *refreshStartNodId,
 
     /* 3. Trigger RefreshEndEvent */
     fieldTimeValue = UA_DateTime_now();
-    UA_UNLOCK(&server->serviceMutex);
-    retval = UA_Server_writeObjectProperty_scalar(server, *refreshEndNodId, fieldTimeQN,
+    retval = writeObjectProperty_scalar(server, *refreshEndNodId, fieldTimeQN,
                                                   &fieldTimeValue, &UA_TYPES[UA_TYPES_DATETIME]);
-    UA_LOCK(&server->serviceMutex);
     CONDITION_ASSERT_RETURN_RETVAL(retval, "Write Object Property scalar failed",);
     return UA_Event_addEventToMonitoredItem(server, refreshEndNodId, monitoredItem);
 }
@@ -2452,24 +2444,36 @@ UA_Server_addConditionOptionalField(UA_Server *server, const UA_NodeId condition
 }
 
 /* Set the value of condition field (only scalar). */
-UA_StatusCode
-UA_Server_setConditionField(UA_Server *server, const UA_NodeId condition,
+static UA_StatusCode
+setConditionField(UA_Server *server, const UA_NodeId condition,
                             const UA_Variant* value, const UA_QualifiedName fieldName) {
+    UA_LOCK_ASSERT(&server->serviceMutex, 1);
     if(value->arrayLength != 0 || value->data <= UA_EMPTY_ARRAY_SENTINEL) {
       //TODO implement logic for array variants!
       CONDITION_ASSERT_RETURN_RETVAL(UA_STATUSCODE_BADNOTIMPLEMENTED,
                                      "Set Condition Field with Array value not implemented",);
     }
 
-    UA_BrowsePathResult bpr = UA_Server_browseSimplifiedBrowsePath(server, condition, 1, &fieldName);
+    UA_BrowsePathResult bpr = browseSimplifiedBrowsePath(server, condition, 1, &fieldName);
     if(bpr.statusCode != UA_STATUSCODE_GOOD)
         return bpr.statusCode;
 
-    UA_StatusCode retval = UA_Server_writeValue(server, bpr.targets[0].targetId.nodeId, *value);
+    UA_StatusCode retval = writeValueAttribute(server, &server->adminSession, &bpr.targets[0].targetId.nodeId, value);
     UA_BrowsePathResult_clear(&bpr);
 
     return retval;
 }
+
+/* Set the value of condition field (only scalar). */
+UA_StatusCode
+UA_Server_setConditionField(UA_Server *server, const UA_NodeId condition,
+                            const UA_Variant* value, const UA_QualifiedName fieldName) {
+    UA_LOCK(&server->serviceMutex);
+    UA_StatusCode retval = setConditionField(server, condition, value, fieldName);
+    UA_UNLOCK(&server->serviceMutex);
+    return retval;
+}
+
 
 /* Set the value of property of condition field. */
 UA_StatusCode

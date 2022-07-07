@@ -2098,15 +2098,23 @@ writeObjectProperty(UA_Server *server, const UA_NodeId objectId,
     return retval;
 }
 
-UA_StatusCode UA_EXPORT
-UA_Server_writeObjectProperty_scalar(UA_Server *server, const UA_NodeId objectId,
+UA_StatusCode
+writeObjectProperty_scalar(UA_Server *server, const UA_NodeId objectId,
                                      const UA_QualifiedName propertyName,
                                      const void *value, const UA_DataType *type) {
     UA_Variant var;
     UA_Variant_init(&var);
     UA_Variant_setScalar(&var, (void*)(uintptr_t)value, type);
+    return writeObjectProperty(server, objectId, propertyName, var);
+}
+
+UA_StatusCode UA_EXPORT
+UA_Server_writeObjectProperty_scalar(UA_Server *server, const UA_NodeId objectId,
+                                     const UA_QualifiedName propertyName,
+                                     const void *value, const UA_DataType *type) {
     UA_LOCK(&server->serviceMutex);
-    UA_StatusCode retval = writeObjectProperty(server, objectId, propertyName, var);
+    UA_StatusCode retval = 
+        writeObjectProperty_scalar(server, objectId, propertyName, value, type);
     UA_UNLOCK(&server->serviceMutex);
     return retval;
 }
