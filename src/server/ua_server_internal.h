@@ -13,6 +13,7 @@
  *    Copyright 2019 (c) Kalycito Infotech Private Limited
  *    Copyright 2019 (c) HMS Industrial Networks AB (Author: Jonas Green)
  *    Copyright 2021 (c) Fraunhofer IOSB (Author: Andreas Ebner)
+ *    Copyright 2022 (c) Christian von Arnim, ISW University of Stuttgart (for VDW and umati)
  */
 
 #ifndef UA_SERVER_INTERNAL_H_
@@ -446,6 +447,11 @@ browseSimplifiedBrowsePath(UA_Server *server, const UA_NodeId origin,
 UA_StatusCode
 writeObjectProperty(UA_Server *server, const UA_NodeId objectId,
                     const UA_QualifiedName propertyName, const UA_Variant value);
+
+UA_StatusCode
+writeObjectProperty_scalar(UA_Server *server, const UA_NodeId objectId,
+                                     const UA_QualifiedName propertyName,
+                                     const void *value, const UA_DataType *type);
 
 UA_StatusCode
 getNodeContext(UA_Server *server, UA_NodeId nodeId, void **nodeContext);
