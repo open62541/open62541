@@ -161,13 +161,35 @@ def printXML(nodeIds, referenceXmls, existingXml=None):
     xmlRoot = etree.fromstring('''<UANodeSet
         xmlns:xsd="http://www.w3.org/2001/XMLSchema"
         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-        xmlns="http://opcfoundation.org/UA/2011/03/UANodeSet.xsd"/>''')
+        xmlns="http://opcfoundation.org/UA/2011/03/UANodeSet.xsd">
+            <Models/>
+            <Aliases/>
+        </UANodeSet>''')
 
     for referenceXml in referenceXmls:
         # Iterate through all reference XMLs looking fore nodes...
         referenceRoot = etree.parse(referenceXml.name).getroot()
         logger.info("Pulling in required nodes from {}...".format(referenceXml.name))
 
+        # Collect models
+        modelNodes = xmlRoot.find('Models', xmlRoot.nsmap)
+        refModelNodes = referenceRoot.find('Models', referenceRoot.nsmap)
+        for refModelNode in refModelNodes:
+            if (refModelNode.attrib['ModelUri'] not in [model.attrib['ModelUri'] for model in modelNodes]):
+                # Copy over model node if not already in xmlRoot
+                modelNodes.append(refModelNode)
+        referenceRoot.remove(refModelNodes)
+
+        # Collect aliases
+        aliasNodes = xmlRoot.find('Aliases', xmlRoot.nsmap)
+        refAliasNodes = referenceRoot.find('Aliases', referenceRoot.nsmap)
+        for refAliasNode in refAliasNodes:
+            if (refAliasNode.attrib['Alias'] not in [alias.attrib['Alias'] for alias in aliasNodes]):
+                # Copy over alias node if not already in xmlRoot
+                aliasNodes.append(refAliasNode)
+        referenceRoot.remove(refAliasNodes)
+
+        # Look for other nodes we need
         for node in referenceRoot:
             if ('NodeId' in node.attrib) and NodeId(node.attrib['NodeId']) in nodeIds:
                 # If node is in node list, copy over and remove from node list
@@ -179,6 +201,25 @@ def printXML(nodeIds, referenceXmls, existingXml=None):
         logger.info("Merging with {}...".format(existingXml.name))
         existingRoot = etree.parse(existingXml.name).getroot()
 
+        # Handle model nodes
+        modelNodes = xmlRoot.find('Models', xmlRoot.nsmap)
+        existingModelNodes = existingRoot.find('Models', existingRoot.nsmap)
+        for modelNode in modelNodes:
+            if (modelNode.attrib['ModelUri'] not in [model.attrib['ModelUri'] for model in existingModelNodes]):
+                # Append this model node if not already in existing XML
+                existingModelNodes.append(modelNode)
+        xmlRoot.remove(modelNodes)
+
+        # Handle Alias nodes
+        aliasNodes = xmlRoot.find('Aliases', xmlRoot.nsmap)
+        existingAliasNodes = existingRoot.find('Aliases', existingRoot.nsmap)
+        for aliasNode in aliasNodes:
+            if (aliasNode.attrib['Alias'] not in [alias.attrib['Alias'] for alias in existingAliasNodes]):
+                # Append this alias node if not already in existing XML
+                existingAliasNodes.append(aliasNode)
+        xmlRoot.remove(aliasNodes)
+
+        # Handle all other nodes
         for node in xmlRoot:
             existingRoot.append(node)
 
