@@ -880,7 +880,7 @@ removeDataSetReaderRepresentation(UA_Server *server, UA_DataSetReader* dataSetRe
         }
     }
     
-    retVal |= UA_Server_deleteNode(server, dataSetReader->identifier, true);
+    retVal |= deleteNode(server, dataSetReader->identifier, true);
 
     return retVal;
 }

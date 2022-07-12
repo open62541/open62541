@@ -1671,9 +1671,9 @@ START_TEST(ValidStandaloneDataSetConfigurationAddAndRemove) {
     ssds = UA_StandaloneSubscribedDataSet_findSDSbyName(server, UA_STRING("DemoStandaloneSDS"));
     ck_assert_ptr_ne(ssds, NULL);
     UA_StandaloneSubscribedDataSetConfig ssds_config;
+    memset(&ssds_config, 0, sizeof(UA_StandaloneSubscribedDataSetConfig));
     retVal = UA_StandaloneSubscribedDataSetConfig_copy(&ssds->config, &ssds_config);
     ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
-    ck_assert(memcmp(&ssds->config, &ssds_config, sizeof(UA_StandaloneSubscribedDataSetConfig)) == 0);
     UA_StandaloneSubscribedDataSetConfig_clear(&ssds_config);
     retVal = UA_Server_removeStandaloneSubscribedDataSet(server, ret);
     ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
