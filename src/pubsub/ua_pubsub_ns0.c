@@ -1177,8 +1177,9 @@ addStandaloneSubscribedDataSetRepresentation(UA_Server *server, UA_StandaloneSub
         attr.dataType = UA_TYPES[UA_TYPES_FIELDTARGETDATATYPE].typeId;
         attr.valueRank = UA_VALUERANK_ONE_DIMENSION;
         attr.arrayDimensionsSize = 1;
-        attr.arrayDimensions = (UA_UInt32 *) UA_Array_new(attr.arrayDimensionsSize, &UA_TYPES[UA_TYPES_UINT32]);
-        attr.arrayDimensions[0] = (UA_UInt32)subscribedDataSet->config.subscribedDataSet.target.targetVariablesSize;
+        UA_UInt32 arrayDimensions[1];
+        arrayDimensions[0] = (UA_UInt32) subscribedDataSet->config.subscribedDataSet.target.targetVariablesSize;
+        attr.arrayDimensions = arrayDimensions;
         attr.accessLevel = UA_ACCESSLEVELMASK_READ;
         UA_Variant_setArray(&attr.value, subscribedDataSet->config.subscribedDataSet.target.targetVariables, 
                             subscribedDataSet->config.subscribedDataSet.target.targetVariablesSize, 

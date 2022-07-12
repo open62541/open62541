@@ -1682,7 +1682,7 @@ START_TEST(ValidStandaloneDataSetConfigurationAddAndRemove) {
     ssds = UA_StandaloneSubscribedDataSet_findSDSbyId(server, ret);
     ck_assert_ptr_eq(ssds, NULL);
 
-    } END_TEST
+} END_TEST
 
 START_TEST(ReceiveStandaloneDataSetFrame) {
 
