@@ -2,10 +2,10 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  *
- * Copyright (c) 2017-2018 Fraunhofer IOSB (Author: Andreas Ebner)
+ * Copyright (c) 2017-2022 Fraunhofer IOSB (Author: Andreas Ebner)
  * Copyright (c) 2019-2021 Kalycito Infotech Private Limited
  * Copyright (c) 2020 Yannick Wallerer, Siemens AG
- * Copyright (c) 2020 Thomas Fischer, Siemens AG
+ * Copyright (c) 2020-2022 Thomas Fischer, Siemens AG
  */
 
 #include <open62541/types.h>
@@ -181,6 +181,23 @@ onRead(UA_Server *server, const UA_NodeId *sessionId, void *sessionContext,
         case UA_NS0ID_PUBLISHEDDATAITEMSTYPE_CONFIGURATIONVERSION: {
             UA_Variant_setScalarCopy(&value, &publishedDataSet->dataSetMetaData.configurationVersion,
                                      &UA_TYPES[UA_TYPES_CONFIGURATIONVERSIONDATATYPE]);
+            break;
+        }
+        case UA_NS0ID_STANDALONESUBSCRIBEDDATASETREFDATATYPE: {
+            UA_StandaloneSubscribedDataSet *sds = UA_StandaloneSubscribedDataSet_findSDSbyId(server, *myNodeId);
+            switch(nodeContext->elementClassiefier) {
+                case UA_NS0ID_STANDALONESUBSCRIBEDDATASETTYPE_ISCONNECTED: {
+                    UA_Variant_setScalar(&value, &sds->config.isConnected, &UA_TYPES[UA_TYPES_BOOLEAN]);
+                    break;
+                }
+                case UA_NS0ID_STANDALONESUBSCRIBEDDATASETTYPE_DATASETMETADATA: {
+                    UA_Variant_setScalarCopy(&value, &sds->config.dataSetMetaData, &UA_TYPES[UA_TYPES_DATASETMETADATATYPE]);
+                    break;
+                }
+                default:
+                UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                                "Read error! Unknown property.");
+            }
             break;
         }
         default:
@@ -830,9 +847,42 @@ addDataSetReaderAction(UA_Server *server,
 #endif
 
 UA_StatusCode
-removeDataSetReaderRepresentation(UA_Server *server,
-                                  UA_DataSetReader* dataSetReader) {
-    return deleteNode(server, dataSetReader->identifier, true);
+removeDataSetReaderRepresentation(UA_Server *server, UA_DataSetReader* dataSetReader) {
+    UA_StatusCode retVal = UA_STATUSCODE_GOOD;
+    if(!UA_String_equal(&dataSetReader->config.linkedStandaloneSubscribedDataSetName, &UA_STRING_NULL)) {
+        UA_NodeId dataSetMetaDataOnDsrId = findSingleChildNode(server, UA_QUALIFIEDNAME(0, "DataSetMetaData"),
+                                    UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY), dataSetReader->identifier);
+        UA_NodeId subscribedDataSetOnDsrId = findSingleChildNode(server, UA_QUALIFIEDNAME(0, "SubscribedDataSet"),
+                                    UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT), dataSetReader->identifier);
+
+        if(UA_NodeId_isNull(&dataSetMetaDataOnDsrId) || UA_NodeId_isNull(&subscribedDataSetOnDsrId)) {
+            UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER, "removeDataSetReaderRepresentation failed."
+                                                                        "SubscribedDataSet or DataSetMetaData not found!");
+            return UA_STATUSCODE_BADNOTFOUND;
+        }
+
+        retVal |= UA_Server_deleteReference(server, dataSetReader->identifier,
+                                  UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY),
+                                  UA_TRUE,
+                                  UA_EXPANDEDNODEID_NUMERIC(dataSetMetaDataOnDsrId.namespaceIndex, dataSetMetaDataOnDsrId.identifier.numeric),
+                                  UA_TRUE);
+        if(retVal != UA_STATUSCODE_GOOD) {
+            /* todo error handling */
+        }
+
+        retVal |= UA_Server_deleteReference(server, dataSetReader->identifier,
+                                  UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
+                                  UA_TRUE,
+                                  UA_EXPANDEDNODEID_NUMERIC(subscribedDataSetOnDsrId.namespaceIndex, subscribedDataSetOnDsrId.identifier.numeric),
+                                  UA_TRUE);
+        if(retVal != UA_STATUSCODE_GOOD) {
+            /* todo error handling */
+        }
+    }
+    
+    retVal |= deleteNode(server, dataSetReader->identifier, true);
+
+    return retVal;
 }
 
 #ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL_METHODS
@@ -1082,6 +1132,89 @@ removePublishedDataSetAction(UA_Server *server,
     return UA_Server_removePublishedDataSet(server, nodeToRemove);
 }
 #endif
+
+/**********************************************/
+/*       StandaloneSubscribedDataSet          */
+/**********************************************/
+
+UA_StatusCode
+addStandaloneSubscribedDataSetRepresentation(UA_Server *server, UA_StandaloneSubscribedDataSet *subscribedDataSet) {
+    UA_StatusCode ret = UA_STATUSCODE_GOOD;
+    if(subscribedDataSet->config.name.length > 512)
+        return UA_STATUSCODE_BADCONFIGURATIONERROR;
+
+    UA_STACKARRAY(char, sdsName, sizeof(char) * subscribedDataSet->config.name.length +1);
+    memcpy(sdsName, subscribedDataSet->config.name.data, subscribedDataSet->config.name.length);
+    sdsName[subscribedDataSet->config.name.length] = '\0';
+
+    UA_ObjectAttributes object_attr = UA_ObjectAttributes_default;
+    object_attr.displayName = UA_LOCALIZEDTEXT("", sdsName);
+    UA_Server_addObjectNode(server, UA_NODEID_NUMERIC(1, 0), /* Create a new id */
+                                   UA_NODEID_NUMERIC(0, UA_NS0ID_PUBLISHSUBSCRIBE_SUBSCRIBEDDATASETS), 
+                                   UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
+                                   UA_QUALIFIEDNAME(0, sdsName),
+                                   UA_NODEID_NUMERIC(0, UA_NS0ID_STANDALONESUBSCRIBEDDATASETTYPE),
+                                   object_attr, NULL, &subscribedDataSet->identifier);
+    UA_NodeId sdsObjectNode = findSingleChildNode(server, UA_QUALIFIEDNAME(0, "SubscribedDataSet"),
+                                      UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
+                                      subscribedDataSet->identifier);
+    UA_NodeId metaDataId = findSingleChildNode(server, UA_QUALIFIEDNAME(0, "DataSetMetaData"),
+                                      UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY),
+                                      subscribedDataSet->identifier);
+    UA_NodeId connectedId = findSingleChildNode(server, UA_QUALIFIEDNAME(0, "IsConnected"),
+                                      UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY),
+                                      subscribedDataSet->identifier);
+
+    if(UA_NodeId_equal(&sdsObjectNode, &UA_NODEID_NULL) ||
+       UA_NodeId_equal(&metaDataId, &UA_NODEID_NULL) ||
+       UA_NodeId_equal(&connectedId, &UA_NODEID_NULL)) {
+        return UA_STATUSCODE_BADNOTFOUND;
+    }
+    if(subscribedDataSet->config.subscribedDataSetType == UA_PUBSUB_SDS_TARGET){
+        UA_VariableAttributes attr = UA_VariableAttributes_default;
+        UA_NodeId targetVarsId;
+        attr.displayName = UA_LOCALIZEDTEXT("", "TargetVariables");
+        attr.dataType = UA_TYPES[UA_TYPES_FIELDTARGETDATATYPE].typeId;
+        attr.valueRank = UA_VALUERANK_ONE_DIMENSION;
+        attr.arrayDimensionsSize = 1;
+        UA_UInt32 arrayDimensions[1];
+        arrayDimensions[0] = (UA_UInt32) subscribedDataSet->config.subscribedDataSet.target.targetVariablesSize;
+        attr.arrayDimensions = arrayDimensions;
+        attr.accessLevel = UA_ACCESSLEVELMASK_READ;
+        UA_Variant_setArray(&attr.value, subscribedDataSet->config.subscribedDataSet.target.targetVariables, 
+                            subscribedDataSet->config.subscribedDataSet.target.targetVariablesSize, 
+                            &UA_TYPES[UA_TYPES_FIELDTARGETDATATYPE]);
+        ret |= UA_Server_addVariableNode(server, UA_NODEID_NULL, sdsObjectNode, UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY),
+                                         UA_QUALIFIEDNAME(0, "TargetVariables"), UA_NODEID_NUMERIC(0, UA_NS0ID_PROPERTYTYPE),
+                                         attr, NULL, &targetVarsId);
+    }
+                                
+    UA_NodePropertyContext *isConnectedNodeContext = (UA_NodePropertyContext *) UA_malloc(sizeof(UA_NodePropertyContext));
+    isConnectedNodeContext->parentNodeId = subscribedDataSet->identifier;
+    isConnectedNodeContext->parentClassifier = UA_NS0ID_STANDALONESUBSCRIBEDDATASETREFDATATYPE;
+    isConnectedNodeContext->elementClassiefier = UA_NS0ID_STANDALONESUBSCRIBEDDATASETTYPE_ISCONNECTED;
+
+    UA_ValueCallback valueCallback;
+    valueCallback.onRead = onRead; 
+    valueCallback.onWrite = NULL;
+    ret |= addVariableValueSource(server, valueCallback, connectedId, isConnectedNodeContext);
+    
+    UA_NodePropertyContext *metaDataContext = (UA_NodePropertyContext *)
+        UA_malloc(sizeof(UA_NodePropertyContext));
+    metaDataContext->parentNodeId = subscribedDataSet->identifier;
+    metaDataContext->parentClassifier = UA_NS0ID_STANDALONESUBSCRIBEDDATASETREFDATATYPE;
+    metaDataContext->elementClassiefier = UA_NS0ID_STANDALONESUBSCRIBEDDATASETTYPE_DATASETMETADATA;
+    ret |= addVariableValueSource(server, valueCallback, metaDataId, metaDataContext);
+
+    return ret;
+}
+
+UA_StatusCode
+removeStandaloneSubscribedDataSetRepresentation(UA_Server *server, UA_StandaloneSubscribedDataSet *subscribedDataSet) {
+    UA_StatusCode retVal = UA_STATUSCODE_GOOD;
+    retVal |= UA_Server_deleteNode(server, subscribedDataSet->identifier, true);
+    return retVal;
+}
 
 /**********************************************/
 /*               WriterGroup                  */
@@ -1591,6 +1724,30 @@ publishedDataItemsTypeDestructor(UA_Server *server,
         UA_free(childContext);
 }
 
+static void
+standaloneSubscribedDataSetTypeDestructor(UA_Server *server,
+                            const UA_NodeId *sessionId, void *sessionContext,
+                            const UA_NodeId *typeId, void *typeContext,
+                            const UA_NodeId *nodeId, void **nodeContext) {
+    UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_USERLAND,
+                "Standalone SubscribedDataSet destructor called!");
+    void *childContext;
+
+    UA_NodeId node =
+        findSingleChildNode(server, UA_QUALIFIEDNAME(0, "DataSetMetaData"),
+                            UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY), *nodeId);
+    UA_Server_getNodeContext(server, node, (void**)&childContext);
+    if(!UA_NodeId_equal(&UA_NODEID_NULL , &node))
+        UA_free(childContext);
+
+    node = findSingleChildNode(server, UA_QUALIFIEDNAME(0, "IsConnected"),
+                               UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY),
+                               *nodeId);
+    UA_Server_getNodeContext(server, node, (void**)&childContext);
+    if(!UA_NodeId_equal(&UA_NODEID_NULL , &node))
+        UA_free(childContext);
+}
+
 /*************************************/
 /*         PubSub configurator       */
 /*************************************/
@@ -1681,6 +1838,12 @@ UA_Server_initPubSubNS0(UA_Server *server) {
     retVal |= writePubSubNs0VariableArray(server, UA_NS0ID_PUBLISHSUBSCRIBE_SUPPORTEDTRANSPORTPROFILES,
                                     profileArray, 1, &UA_TYPES[UA_TYPES_STRING]);
 
+    UA_ObjectAttributes oAttr = UA_ObjectAttributes_default;
+    oAttr.displayName = UA_LOCALIZEDTEXT("", "SubscribedDataSets");
+    UA_Server_addObjectNode(server, UA_NODEID_NUMERIC(0, UA_NS0ID_PUBLISHSUBSCRIBE_SUBSCRIBEDDATASETS), 
+                            UA_NODEID_NUMERIC(0, UA_NS0ID_PUBLISHSUBSCRIBE), UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
+                            UA_QUALIFIEDNAME(0, "SubscribedDataSets"), UA_NODEID_NUMERIC(0, UA_NS0ID_SUBSCRIBEDDATASETFOLDERTYPE),
+                            oAttr, NULL, NULL);
 #ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL_METHODS
     /* Add missing references */
     retVal |= UA_Server_addReference(server, UA_NODEID_NUMERIC(0, UA_NS0ID_PUBLISHSUBSCRIBE_PUBLISHEDDATASETS),
@@ -1751,6 +1914,39 @@ UA_Server_initPubSubNS0(UA_Server *server) {
 
     lifeCycle.destructor = dataSetReaderTypeDestructor;
     retVal |= UA_Server_setNodeTypeLifecycle(server, UA_NODEID_NUMERIC(0, UA_NS0ID_DATASETREADERTYPE), lifeCycle);
+
+    lifeCycle.destructor = standaloneSubscribedDataSetTypeDestructor;
+    UA_Server_setNodeTypeLifecycle(server, UA_NODEID_NUMERIC(0, UA_NS0ID_STANDALONESUBSCRIBEDDATASETTYPE),lifeCycle);
+
+    return retVal;
+}
+
+UA_StatusCode
+connectDataSetReaderToDataSet(UA_Server *server, UA_NodeId dsrId, UA_NodeId standaloneSdsId) {
+    UA_StatusCode retVal = UA_STATUSCODE_GOOD;
+
+    UA_NodeId dataSetMetaDataOnDsrId = findSingleChildNode(server, UA_QUALIFIEDNAME(0, "DataSetMetaData"),
+                                UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY), dsrId);
+    UA_NodeId subscribedDataSetOnDsrId = findSingleChildNode(server, UA_QUALIFIEDNAME(0, "SubscribedDataSet"),
+                                UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT), dsrId);
+    UA_NodeId dataSetMetaDataOnSdsId = findSingleChildNode(server, UA_QUALIFIEDNAME(0, "DataSetMetaData"),
+                                UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY), standaloneSdsId);
+    UA_NodeId subscribedDataSetOnSdsId = findSingleChildNode(server, UA_QUALIFIEDNAME(0, "SubscribedDataSet"),
+                                UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT), standaloneSdsId);
+
+    if (UA_NodeId_isNull(&dataSetMetaDataOnDsrId) || UA_NodeId_isNull(&subscribedDataSetOnDsrId)
+        || UA_NodeId_isNull(&dataSetMetaDataOnSdsId) || UA_NodeId_isNull(&subscribedDataSetOnSdsId))
+    {
+        return UA_STATUSCODE_BADNOTFOUND;
+    }
+
+    UA_NODESTORE_REMOVE(server, &dataSetMetaDataOnDsrId);
+    UA_NODESTORE_REMOVE(server, &subscribedDataSetOnDsrId);
+
+    retVal |= UA_Server_addReference(server, dsrId, UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY),
+        UA_EXPANDEDNODEID_NUMERIC(dataSetMetaDataOnSdsId.namespaceIndex, dataSetMetaDataOnSdsId.identifier.numeric), UA_TRUE);
+    retVal |= UA_Server_addReference(server, dsrId, UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY),
+        UA_EXPANDEDNODEID_NUMERIC(dataSetMetaDataOnSdsId.namespaceIndex, subscribedDataSetOnSdsId.identifier.numeric), UA_TRUE);
 
     return retVal;
 }

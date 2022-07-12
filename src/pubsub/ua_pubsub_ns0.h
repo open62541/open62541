@@ -4,6 +4,7 @@
  *
  * Copyright (c) 2017-2018 Fraunhofer IOSB (Author: Andreas Ebner)
  * Copyright (c) 2019 Kalycito Infotech Private Limited
+ * Copyright (c) 2022 Siemens AG (Author: Thomas Fischer)
  */
 
 #ifndef UA_PUBSUB_NS0_H_
@@ -44,7 +45,13 @@ UA_StatusCode
 addPublishedDataItemsRepresentation(UA_Server *server, UA_PublishedDataSet *publishedDataSet);
 
 UA_StatusCode
+addStandaloneSubscribedDataSetRepresentation(UA_Server *server, UA_StandaloneSubscribedDataSet *subscribedDataSet);
+
+UA_StatusCode
 removePublishedDataSetRepresentation(UA_Server *server, UA_PublishedDataSet *publishedDataSet);
+
+UA_StatusCode
+removeStandaloneSubscribedDataSetRepresentation(UA_Server *server, UA_StandaloneSubscribedDataSet *subscribedDataSet);
 
 UA_StatusCode
 addDataSetReaderRepresentation(UA_Server *server, UA_DataSetReader *dataSetReader);
@@ -54,6 +61,9 @@ removeDataSetReaderRepresentation(UA_Server *server, UA_DataSetReader *dataSetRe
 
 UA_StatusCode
 removeReaderGroupRepresentation(UA_Server *server, UA_ReaderGroup *readerGroup);
+
+UA_StatusCode
+connectDataSetReaderToDataSet(UA_Server *server, UA_NodeId dsrId, UA_NodeId standaloneSdsId);
 
 #endif /* UA_ENABLE_PUBSUB_INFORMATIONMODEL */
 

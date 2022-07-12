@@ -2,9 +2,10 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  *
- * Copyright (c) 2017-2019 Fraunhofer IOSB (Author: Andreas Ebner)
+ * Copyright (c) 2017-2022 Fraunhofer IOSB (Author: Andreas Ebner)
  * Copyright (c) 2018 Fraunhofer IOSB (Author: Julius Pfrommer)
  * Copyright (c) 2021 Fraunhofer IOSB (Author: Jan Hermes)
+ * Copyright (c) 2022 Siemens AG (Author: Thomas Fischer)
  */
 
 #include <open62541/server_pubsub.h>
@@ -401,6 +402,87 @@ UA_PubSubConfigurationVersionTimeDifference(void) {
     UA_UInt32 timeDiffSince2000 = (UA_UInt32) (UA_DateTime_now() - UA_DATETIMESTAMP_2000);
     return timeDiffSince2000;
 }
+UA_StatusCode
+UA_Server_addStandaloneSubscribedDataSet(UA_Server *server, const UA_StandaloneSubscribedDataSetConfig *subscribedDataSetConfig,
+                              UA_NodeId *sdsIdentifier) {
+    if(!subscribedDataSetConfig){
+        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                     "SubscribedDataSet creation failed. No config passed in.");
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    }
+
+    UA_StandaloneSubscribedDataSetConfig tmpSubscribedDataSetConfig;
+    memset(&tmpSubscribedDataSetConfig, 0, sizeof(UA_StandaloneSubscribedDataSetConfig));
+    if(UA_StandaloneSubscribedDataSetConfig_copy(subscribedDataSetConfig, &tmpSubscribedDataSetConfig) != UA_STATUSCODE_GOOD){
+        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                     "SubscribedDataSet creation failed. Configuration copy failed.");
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
+    //create new PDS and add to UA_PubSubManager
+    UA_StandaloneSubscribedDataSet *newSubscribedDataSet = (UA_StandaloneSubscribedDataSet *)
+            UA_calloc(1, sizeof(UA_StandaloneSubscribedDataSet));
+    if(!newSubscribedDataSet) {
+        UA_StandaloneSubscribedDataSetConfig_clear(&tmpSubscribedDataSetConfig);
+        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                     "SubscribedDataSet creation failed. Out of Memory.");
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    }
+
+    newSubscribedDataSet->config = tmpSubscribedDataSetConfig;
+    newSubscribedDataSet->connectedReader = UA_NODEID_NULL;
+    
+    if (server->pubSubManager.subscribedDataSetsSize != 0)
+        TAILQ_INSERT_TAIL(&server->pubSubManager.subscribedDataSets, newSubscribedDataSet, listEntry);
+    else {
+        TAILQ_INIT(&server->pubSubManager.subscribedDataSets);
+        TAILQ_INSERT_HEAD(&server->pubSubManager.subscribedDataSets, newSubscribedDataSet, listEntry);
+    }
+
+    server->pubSubManager.subscribedDataSetsSize++;
+#ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL
+    addStandaloneSubscribedDataSetRepresentation(server, newSubscribedDataSet);
+#else
+    UA_PubSubManager_generateUniqueNodeId(&server->pubSubManager, &newSubscribedDataSet->identifier);
+#endif
+
+    if(sdsIdentifier){
+        UA_NodeId_copy(&newSubscribedDataSet->identifier, sdsIdentifier);
+    }
+
+    return UA_STATUSCODE_GOOD;
+}
+
+UA_StatusCode
+UA_Server_removeStandaloneSubscribedDataSet(UA_Server *server, const UA_NodeId sds) {
+    UA_StandaloneSubscribedDataSet *subscribedDataSet = UA_StandaloneSubscribedDataSet_findSDSbyId(server, sds);
+    if(!subscribedDataSet){
+        return UA_STATUSCODE_BADNOTFOUND;
+    }
+
+    //search for referenced readers. 
+    UA_PubSubConnection *tmpConnectoin;
+    TAILQ_FOREACH(tmpConnectoin, &server->pubSubManager.connections, listEntry){
+        UA_ReaderGroup *readerGroup;
+        LIST_FOREACH(readerGroup, &tmpConnectoin->readerGroups, listEntry){
+            UA_DataSetReader *currentReader, *tmpReader;
+            LIST_FOREACH_SAFE(currentReader, &readerGroup->readers, listEntry, tmpReader){
+                if(UA_NodeId_equal(&currentReader->identifier, &subscribedDataSet->connectedReader)){
+                    UA_Server_removeDataSetReader(server, currentReader->identifier);
+                    // todo -> break out of loop
+                }
+            }
+        }
+    }
+#ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL
+    removeStandaloneSubscribedDataSetRepresentation(server, subscribedDataSet);
+#endif
+    UA_StandaloneSubscribedDataSet_clear(server, subscribedDataSet);
+    server->pubSubManager.subscribedDataSetsSize--;
+
+    TAILQ_REMOVE(&server->pubSubManager.subscribedDataSets, subscribedDataSet, listEntry);
+    UA_free(subscribedDataSet);
+    return UA_STATUSCODE_GOOD;
+}
 
 /* Generate a new unique NodeId. This NodeId will be used for the information
  * model representation of PubSub entities. */
@@ -449,6 +531,11 @@ UA_PubSubManager_delete(UA_Server *server, UA_PubSubManager *pubSubManager) {
     if(server->config.pubSubConfig.transportLayersSize > 0) {
         UA_free(server->config.pubSubConfig.transportLayers);
         server->config.pubSubConfig.transportLayersSize = 0;
+    }
+    /* delete subscribed datasets */
+    UA_StandaloneSubscribedDataSet *tmpSDS1, *tmpSDS2;
+    TAILQ_FOREACH_SAFE(tmpSDS1, &server->pubSubManager.subscribedDataSets, listEntry, tmpSDS2){
+        UA_Server_removeStandaloneSubscribedDataSet(server, tmpSDS1->identifier);
     }
 }
 

@@ -3,6 +3,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  *
  * Copyright (c) 2017-2019 Fraunhofer IOSB (Author: Andreas Ebner)
+ * Copyright (c) 2022 Siemens AG (Author: Thomas Fischer)
  */
 
 #ifndef UA_PUBSUB_MANAGER_H_
@@ -24,6 +25,8 @@ typedef struct UA_PubSubManager {
 
     size_t publishedDataSetsSize;
     TAILQ_HEAD(UA_ListOfPublishedDataSet, UA_PublishedDataSet) publishedDataSets;
+    size_t subscribedDataSetsSize;
+    TAILQ_HEAD(UA_ListOfStandaloneSubscribedDataSet, UA_StandaloneSubscribedDataSet) subscribedDataSets;
 
 #ifndef UA_ENABLE_PUBSUB_INFORMATIONMODEL
     UA_UInt32 uniqueIdCount;

@@ -1612,6 +1612,82 @@ START_TEST(MultiPublishSubscribeInt32) {
     UA_Variant_clear(&publishedNodeData);
 } END_TEST
 
+static void
+addTargetVariable(void) {
+    UA_VariableAttributes attr = UA_VariableAttributes_default;
+    UA_DateTime dateTime = 0;
+    UA_Variant_setScalar(&attr.value, &dateTime, &UA_TYPES[UA_TYPES_DATETIME]);
+    attr.description = UA_LOCALIZEDTEXT("en-US", "subscribedTargetVar");
+    attr.displayName = UA_LOCALIZEDTEXT("en-US", "subscribedTargetVar");
+    attr.dataType = UA_TYPES[UA_TYPES_DATETIME].typeId;
+    attr.accessLevel = UA_ACCESSLEVELMASK_READ | UA_ACCESSLEVELMASK_WRITE;
+
+    /* Add the variable node to the information model */
+    UA_NodeId myIntegerNodeId = UA_NODEID_STRING(1, "demoVar");
+    UA_QualifiedName myIntegerName = UA_QUALIFIEDNAME(1, "subscribedTargetVar");
+    UA_NodeId parentNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER);
+    UA_NodeId parentReferenceNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES);
+    UA_Server_addVariableNode(
+        server, myIntegerNodeId, parentNodeId, parentReferenceNodeId, myIntegerName,
+        UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE), attr, NULL, NULL);
+}
+
+START_TEST(ValidStandaloneDataSetConfigurationAddAndRemove) {
+    addTargetVariable();
+    UA_StandaloneSubscribedDataSetConfig cfg;
+    UA_NodeId ret;
+    memset(&cfg, 0, sizeof(UA_StandaloneSubscribedDataSetConfig));
+
+    /* Fill the SSDS MetaData */
+    UA_DataSetMetaDataType_init(&cfg.dataSetMetaData);
+    cfg.dataSetMetaData.name = UA_STRING("DemoStandaloneSDS");
+    cfg.dataSetMetaData.fieldsSize = 1;
+    UA_FieldMetaData fieldMetaData;
+    cfg.dataSetMetaData.fields = &fieldMetaData;
+
+    /* DateTime DataType */
+    UA_FieldMetaData_init(&cfg.dataSetMetaData.fields[0]);
+    UA_NodeId_copy(&UA_TYPES[UA_TYPES_DATETIME].typeId, &cfg.dataSetMetaData.fields[0].dataType);
+    cfg.dataSetMetaData.fields[0].builtInType = UA_NS0ID_DATETIME;
+    cfg.dataSetMetaData.fields[0].name = UA_STRING("subscribedTargetVar");
+    cfg.dataSetMetaData.fields[0].valueRank = -1; /* scalar */
+
+    cfg.name = UA_STRING("DemoStandaloneSDS");
+    cfg.isConnected = UA_FALSE;
+    cfg.subscribedDataSet.target.targetVariablesSize = 1;
+    UA_FieldTargetDataType fieldTargetDataType;
+    cfg.subscribedDataSet.target.targetVariables = &fieldTargetDataType;
+
+    UA_FieldTargetDataType_init(&cfg.subscribedDataSet.target.targetVariables[0]);
+    cfg.subscribedDataSet.target.targetVariables[0].attributeId = UA_ATTRIBUTEID_VALUE;
+    cfg.subscribedDataSet.target.targetVariables[0].targetNodeId =
+    UA_NODEID_STRING(1, "demoVar");
+    UA_StatusCode retVal = UA_Server_addStandaloneSubscribedDataSet(server, &cfg, &ret);
+    ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+    UA_StandaloneSubscribedDataSet *ssds = NULL;
+    ssds = UA_StandaloneSubscribedDataSet_findSDSbyId(server, ret);
+    ck_assert_ptr_ne(ssds, NULL);
+    ssds = NULL;
+    ssds = UA_StandaloneSubscribedDataSet_findSDSbyName(server, UA_STRING("DemoStandaloneSDS"));
+    ck_assert_ptr_ne(ssds, NULL);
+    UA_StandaloneSubscribedDataSetConfig ssds_config;
+    memset(&ssds_config, 0, sizeof(UA_StandaloneSubscribedDataSetConfig));
+    retVal = UA_StandaloneSubscribedDataSetConfig_copy(&ssds->config, &ssds_config);
+    ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+    UA_StandaloneSubscribedDataSetConfig_clear(&ssds_config);
+    retVal = UA_Server_removeStandaloneSubscribedDataSet(server, ret);
+    ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+    ssds = UA_StandaloneSubscribedDataSet_findSDSbyName(server, UA_STRING("DemoStandaloneSDS"));
+    ck_assert_ptr_eq(ssds, NULL);
+    ssds = UA_StandaloneSubscribedDataSet_findSDSbyId(server, ret);
+    ck_assert_ptr_eq(ssds, NULL);
+
+} END_TEST
+
+START_TEST(ReceiveStandaloneDataSetFrame) {
+
+} END_TEST
+
 int main(void) {
     TCase *tc_add_pubsub_readergroup = tcase_create("PubSub readerGroup items handling");
     tcase_add_checked_fixture(tc_add_pubsub_readergroup, setup, teardown);
@@ -1650,13 +1726,18 @@ int main(void) {
     tcase_add_test(tc_pubsub_publish_subscribe, SinglePublishSubscribeBool);
     tcase_add_test(tc_pubsub_publish_subscribe, SinglePublishSubscribewithValidIdentifiers);
     tcase_add_test(tc_pubsub_publish_subscribe, SinglePublishSubscribeHeartbeat);
-
-    /* Test cases with several readers */
     tcase_add_test(tc_pubsub_publish_subscribe, MultiPublishSubscribeInt32);
+
+    /*Test cases for the standalone datasets */
+    TCase *tc_pubsub_standalone_datasets = tcase_create("Subscriber using standalone datasets");
+    tcase_add_test(tc_pubsub_publish_subscribe, ValidStandaloneDataSetConfigurationAddAndRemove);
+    tcase_add_test(tc_pubsub_publish_subscribe, ReceiveStandaloneDataSetFrame);
+
 
     Suite *suite = suite_create("PubSub readerGroups/reader/Fields handling and publishing");
     suite_add_tcase(suite, tc_add_pubsub_readergroup);
     suite_add_tcase(suite, tc_pubsub_publish_subscribe);
+    suite_add_tcase(suite, tc_pubsub_standalone_datasets);
 
     SRunner *suiteRunner = srunner_create(suite);
     srunner_set_fork_status(suiteRunner, CK_NOFORK);

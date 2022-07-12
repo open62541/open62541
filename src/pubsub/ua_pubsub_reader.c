@@ -2,10 +2,11 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  *
- * Copyright (c) 2017-2018 Fraunhofer IOSB (Author: Andreas Ebner)
+ * Copyright (c) 2017-2022 Fraunhofer IOSB (Author: Andreas Ebner)
  * Copyright (c) 2019 Fraunhofer IOSB (Author: Julius Pfrommer)
  * Copyright (c) 2019 Kalycito Infotech Private Limited
  * Copyright (c) 2021 Fraunhofer IOSB (Author: Jan Hermes)
+ * Copyright (c) 2022 Siemens AG (Author: Thomas Fischer)
  */
 
 #include <open62541/server_pubsub.h>
@@ -452,6 +453,66 @@ UA_Server_addDataSetReader(UA_Server *server, UA_NodeId readerGroupIdentifier,
     LIST_INSERT_HEAD(&readerGroup->readers, newDataSetReader, listEntry);
     readerGroup->readersCount++;
 
+    if(newDataSetReader->config.linkedStandaloneSubscribedDataSetName.length != 0) {
+        // find sds by name
+        UA_StandaloneSubscribedDataSet *subscribedDataSet =
+            UA_StandaloneSubscribedDataSet_findSDSbyName(
+                server, newDataSetReader->config.linkedStandaloneSubscribedDataSetName);
+        if(subscribedDataSet != NULL) {
+            if(subscribedDataSet->config.subscribedDataSetType != UA_PUBSUB_SDS_TARGET) {
+                UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                             "Not implemented! Currently only SubscribedDataSet as "
+                             "TargetVariables is implemented");
+            } else {
+                if(subscribedDataSet->config.isConnected) {
+                    UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                                 "SubscribedDataSet is already connected");
+                } else {
+                    UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_USERLAND,
+                                "Found SubscribedDataSet");
+                    subscribedDataSet->config.isConnected = true;
+                    UA_DataSetMetaDataType_copy(
+                        &subscribedDataSet->config.dataSetMetaData,
+                        &newDataSetReader->config.dataSetMetaData);
+                    UA_FieldTargetVariable *targetVars =
+                        (UA_FieldTargetVariable *)UA_calloc(
+                            subscribedDataSet->config.subscribedDataSet.target
+                                .targetVariablesSize,
+                            sizeof(UA_FieldTargetVariable));
+                    for(size_t index = 0;
+                        index < subscribedDataSet->config.subscribedDataSet.target
+                                    .targetVariablesSize;
+                        index++) {
+                        UA_FieldTargetDataType_copy(
+                            &subscribedDataSet->config.subscribedDataSet.target
+                                 .targetVariables[index],
+                            &targetVars[index].targetVariable);
+                    }
+                    UA_Server_DataSetReader_createTargetVariables(
+                        server, newDataSetReader->identifier,
+                        subscribedDataSet->config.subscribedDataSet.target
+                            .targetVariablesSize,
+                        targetVars);
+                    subscribedDataSet->connectedReader = newDataSetReader->identifier;
+
+                    for(size_t index = 0;
+                        index < subscribedDataSet->config.subscribedDataSet.target
+                                    .targetVariablesSize;
+                        index++) {
+                        UA_FieldTargetDataType_clear(&targetVars[index].targetVariable);
+                    }
+
+                    UA_free(targetVars);
+
+#ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL
+                    retVal |= connectDataSetReaderToDataSet(server, newDataSetReader->identifier,
+                                                            subscribedDataSet->identifier);
+#endif
+                }
+            }
+        }
+    }
+
     if(readerIdentifier)
         UA_NodeId_copy(&newDataSetReader->identifier, readerIdentifier);
 
@@ -668,13 +729,20 @@ UA_DataSetReaderConfig_copy(const UA_DataSetReaderConfig *src,
     if(src->subscribedDataSetType == UA_PUBSUB_SDS_TARGET) {
         retVal = UA_TargetVariables_copy(&src->subscribedDataSet.subscribedDataSetTarget,
                                          &dst->subscribedDataSet.subscribedDataSetTarget);
+        if(retVal != UA_STATUSCODE_GOOD) {
+            return retVal;
+        }
     }
+
+    retVal = UA_String_copy(&src->linkedStandaloneSubscribedDataSetName, &dst->linkedStandaloneSubscribedDataSetName);
+
     return retVal;
 }
 
 void
 UA_DataSetReaderConfig_clear(UA_DataSetReaderConfig *cfg) {
     UA_String_clear(&cfg->name);
+    UA_String_clear(&cfg->linkedStandaloneSubscribedDataSetName);
     UA_Variant_clear(&cfg->publisherId);
     UA_DataSetMetaDataType_clear(&cfg->dataSetMetaData);
     UA_ExtensionObject_clear(&cfg->messageSettings);
@@ -1496,6 +1564,61 @@ receiveBufferedNetworkMessage(UA_Server *server, UA_ReaderGroup *readerGroup,
                   "SubscribeCallback(): Connection receive failed!");
 
     return UA_STATUSCODE_GOOD;
+}
+
+UA_StandaloneSubscribedDataSet *
+UA_StandaloneSubscribedDataSet_findSDSbyId(UA_Server *server, UA_NodeId identifier) {
+    UA_StandaloneSubscribedDataSet *subscribedDataSet;
+    TAILQ_FOREACH(subscribedDataSet, &server->pubSubManager.subscribedDataSets,
+                  listEntry) {
+        if(UA_NodeId_equal(&identifier, &subscribedDataSet->identifier))
+            return subscribedDataSet;
+    }
+    return NULL;
+}
+
+UA_StandaloneSubscribedDataSet *
+UA_StandaloneSubscribedDataSet_findSDSbyName(UA_Server *server, UA_String identifier) {
+    UA_StandaloneSubscribedDataSet *subscribedDataSet;
+    TAILQ_FOREACH(subscribedDataSet, &server->pubSubManager.subscribedDataSets,
+                  listEntry) {
+        if(UA_String_equal(&identifier, &subscribedDataSet->config.name))
+            return subscribedDataSet;
+    }
+    return NULL;
+}
+
+UA_StatusCode
+UA_StandaloneSubscribedDataSetConfig_copy(const UA_StandaloneSubscribedDataSetConfig *src,
+                                          UA_StandaloneSubscribedDataSetConfig *dst) {
+    UA_StatusCode res = UA_STATUSCODE_GOOD;
+    memcpy(dst, src, sizeof(UA_StandaloneSubscribedDataSetConfig));
+    res = UA_DataSetMetaDataType_copy(&src->dataSetMetaData, &dst->dataSetMetaData);
+    res |= UA_String_copy(&src->name, &dst->name);
+    res |= UA_Boolean_copy(&src->isConnected, &dst->isConnected);
+    res |= UA_TargetVariablesDataType_copy(&src->subscribedDataSet.target,
+                                           &dst->subscribedDataSet.target);
+
+    if(res != UA_STATUSCODE_GOOD)
+        UA_StandaloneSubscribedDataSetConfig_clear(dst);
+    return res;
+}
+
+void
+UA_StandaloneSubscribedDataSetConfig_clear(
+    UA_StandaloneSubscribedDataSetConfig *sdsConfig) {
+    // delete sds config
+    UA_String_clear(&sdsConfig->name);
+    UA_DataSetMetaDataType_clear(&sdsConfig->dataSetMetaData);
+    UA_TargetVariablesDataType_clear(&sdsConfig->subscribedDataSet.target);
+}
+
+void
+UA_StandaloneSubscribedDataSet_clear(UA_Server *server,
+                                     UA_StandaloneSubscribedDataSet *subscribedDataSet) {
+    UA_StandaloneSubscribedDataSetConfig_clear(&subscribedDataSet->config);
+    UA_NodeId_clear(&subscribedDataSet->identifier);
+    UA_NodeId_clear(&subscribedDataSet->connectedReader);
 }
 
 #endif /* UA_ENABLE_PUBSUB */
