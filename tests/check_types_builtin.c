@@ -195,7 +195,7 @@ END_TEST
 START_TEST(UA_Int64_decodeShallRespectSign) {
     // given
     UA_ByteString rawMessage;
-    UA_UInt64 expectedVal = ((UA_UInt64)0xFF) << 56;
+    UA_Int64 expectedVal = ((UA_Int64)0xFF) << 56;
     UA_Byte  mem[8]      = { 00, 00, 00, 00, 0x00, 0x00, 0x00, 0xFF };
     rawMessage.data   = mem;
     rawMessage.length = 8;

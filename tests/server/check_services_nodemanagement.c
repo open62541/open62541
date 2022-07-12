@@ -596,7 +596,7 @@ START_TEST(ObjectWithDynamicVariableChild) {
 
     UA_BrowsePathResult bpr = UA_Server_translateBrowsePathToNodeIds(server, &bp);
 
-    ck_assert_int_eq(bpr.targetsSize, 1);
+    ck_assert_uint_eq(bpr.targetsSize, 1);
 
     UA_WriteValue wv;
     UA_WriteValue_init(&wv);

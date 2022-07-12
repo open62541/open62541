@@ -107,12 +107,12 @@ START_TEST(encryption_connect) {
     UA_ByteString certificate;
     certificate.length = CERT_DER_LENGTH;
     certificate.data = CERT_DER_DATA;
-    ck_assert_int_ne(certificate.length, 0);
+    ck_assert_uint_ne(certificate.length, 0);
 
     UA_ByteString privateKey;
     privateKey.length = KEY_DER_LENGTH;
     privateKey.data = KEY_DER_DATA;
-    ck_assert_int_ne(privateKey.length, 0);
+    ck_assert_uint_ne(privateKey.length, 0);
 
     /* The Get endpoint (discovery service) is done with
      * security mode as none to see the server's capability
@@ -188,12 +188,12 @@ START_TEST(encryption_connect_pem) {
     UA_ByteString certificate;
     certificate.length = CERT_PEM_LENGTH;
     certificate.data = CERT_PEM_DATA;
-    ck_assert_int_ne(certificate.length, 0);
+    ck_assert_uint_ne(certificate.length, 0);
 
     UA_ByteString privateKey;
     privateKey.length = KEY_PEM_LENGTH;
     privateKey.data = KEY_PEM_DATA;
-    ck_assert_int_ne(privateKey.length, 0);
+    ck_assert_uint_ne(privateKey.length, 0);
 
     /* The Get endpoint (discovery service) is done with
      * security mode as none to see the server's capability
