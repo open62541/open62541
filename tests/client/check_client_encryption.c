@@ -90,12 +90,12 @@ START_TEST(encryption_reconnect_session) {
     UA_ByteString certificate;
     certificate.length = CERT_DER_LENGTH;
     certificate.data = CERT_DER_DATA;
-    ck_assert_int_ne(certificate.length, 0);
+    ck_assert_uint_ne(certificate.length, 0);
 
     UA_ByteString privateKey;
     privateKey.length = KEY_DER_LENGTH;
     privateKey.data = KEY_DER_DATA;
-    ck_assert_int_ne(privateKey.length, 0);
+    ck_assert_uint_ne(privateKey.length, 0);
 
     /* Secure client initialization */
     client = UA_Client_new();

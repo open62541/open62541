@@ -365,7 +365,7 @@ START_TEST(Securechannel_sendAsymmetricOPNMessage_extraPaddingPresentWhenKeyLarg
     if(extraPadding) {
         extraPaddingByte = paddingByte;
         paddingByte = sentData.data[sentData.length - keySizes.asym_lcl_sig_size - 2];
-        paddingSize = (extraPaddingByte << 8u) + paddingByte;
+        paddingSize = ((size_t)extraPaddingByte << 8u) + paddingByte;
         paddingSize += 1;
     }
 

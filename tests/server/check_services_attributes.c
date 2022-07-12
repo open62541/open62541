@@ -199,7 +199,7 @@ START_TEST(ReadSingleServerAttribute) {
     UA_DataValue resp = UA_Server_read(server, &rvi, UA_TIMESTAMPSTORETURN_BOTH);
 
     ck_assert_int_eq(resp.status, UA_STATUSCODE_GOOD);
-    ck_assert_int_eq(0, resp.value.arrayLength);
+    ck_assert_uint_eq(0, resp.value.arrayLength);
     ck_assert_int_eq(resp.serverTimestamp, UA_DateTime_now());
     ck_assert_int_eq(resp.sourceTimestamp, UA_DateTime_now());
     UA_DataValue_clear(&resp);
@@ -825,7 +825,7 @@ START_TEST(WriteSingleAttributeValueWithServerTimestamp) {
     ck_assert(resp.hasValue);
     ck_assert_int_eq(20, *(UA_Int32*)resp.value.data);
     ck_assert(resp.hasServerTimestamp);
-    ck_assert_uint_eq(resp.serverTimestamp, UA_DateTime_now());
+    ck_assert_int_eq(resp.serverTimestamp, UA_DateTime_now());
     UA_DataValue_clear(&resp);
 } END_TEST
 
