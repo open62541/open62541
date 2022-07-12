@@ -405,11 +405,10 @@ UA_PubSubConfigurationVersionTimeDifference(void) {
 UA_StatusCode
 UA_Server_addStandaloneSubscribedDataSet(UA_Server *server, const UA_StandaloneSubscribedDataSetConfig *subscribedDataSetConfig,
                               UA_NodeId *sdsIdentifier) {
-    UA_StatusCode result = UA_STATUSCODE_BADINVALIDARGUMENT;
     if(!subscribedDataSetConfig){
         UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
                      "SubscribedDataSet creation failed. No config passed in.");
-        return result;
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
     }
 
     UA_StandaloneSubscribedDataSetConfig tmpSubscribedDataSetConfig;
@@ -450,7 +449,7 @@ UA_Server_addStandaloneSubscribedDataSet(UA_Server *server, const UA_StandaloneS
         UA_NodeId_copy(&newSubscribedDataSet->identifier, sdsIdentifier);
     }
 
-    return result;
+    return UA_STATUSCODE_GOOD;
 }
 
 UA_StatusCode
