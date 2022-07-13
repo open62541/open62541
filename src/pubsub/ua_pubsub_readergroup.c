@@ -367,6 +367,35 @@ UA_ReaderGroup_setPubSubState_paused(UA_Server *server,
 }
 
 static UA_StatusCode
+UA_ReaderGroup_setPubSubState_preoperational(UA_Server *server,
+                                            UA_ReaderGroup *rg,
+                                            UA_StatusCode cause) {
+    UA_DataSetReader *dataSetReader;
+    switch(rg->state) {
+        case UA_PUBSUBSTATE_DISABLED:
+            LIST_FOREACH(dataSetReader, &rg->readers, listEntry) {
+                UA_DataSetReader_setPubSubState(server, dataSetReader, UA_PUBSUBSTATE_PREOPERATIONAL,
+                                                cause);
+            }
+            rg->state = UA_PUBSUBSTATE_PREOPERATIONAL;
+            return UA_STATUSCODE_GOOD;
+        case UA_PUBSUBSTATE_PAUSED:
+            break;
+        case UA_PUBSUBSTATE_PREOPERATIONAL:
+            break;
+        case UA_PUBSUBSTATE_OPERATIONAL:
+            return UA_STATUSCODE_GOOD;
+        case UA_PUBSUBSTATE_ERROR:
+            break;
+        default:
+            UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                           "Unknown PubSub state!");
+            return UA_STATUSCODE_BADINTERNALERROR;
+    }
+    return UA_STATUSCODE_BADNOTSUPPORTED;
+}
+
+static UA_StatusCode
 UA_ReaderGroup_setPubSubState_operational(UA_Server *server,
                                           UA_ReaderGroup *rg,
                                           UA_StatusCode cause) {
@@ -448,6 +477,9 @@ UA_ReaderGroup_setPubSubState(UA_Server *server,
             break;
         case UA_PUBSUBSTATE_PAUSED:
             ret = UA_ReaderGroup_setPubSubState_paused(server, readerGroup, cause);
+            break;
+        case UA_PUBSUBSTATE_PREOPERATIONAL:
+            ret = UA_ReaderGroup_setPubSubState_preoperational(server, readerGroup, cause);
             break;
         case UA_PUBSUBSTATE_OPERATIONAL:
             ret = UA_ReaderGroup_setPubSubState_operational(server, readerGroup, cause);
