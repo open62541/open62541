@@ -519,6 +519,23 @@ UA_Server_getSessionParameter_scalar(UA_Server *server,
                                      const UA_DataType *type,
                                      void *outValue);
 
+typedef struct {
+    UA_ApplicationDescription clientDescription;
+    UA_String    sessionName;
+    UA_Boolean   activated;
+    void        *sessionHandle; /* pointer assigned in userland-callback */
+    UA_NodeId    sessionId;
+    UA_UInt32    maxRequestMessageSize;
+    UA_UInt32    maxResponseMessageSize;
+    UA_Double    timeout; /* in ms */
+    UA_DateTime  validTill;
+} UA_SessionInformation;
+
+/* Returns a copy of the session information in case of a valid session. */
+UA_EXPORT UA_StatusCode UA_THREADSAFE
+UA_Server_getSessionInformation(UA_Server *server, const UA_NodeId *sessionId,
+                                UA_SessionInformation *outInformation);
+
 /**
  * Reading and Writing Node Attributes
  * -----------------------------------

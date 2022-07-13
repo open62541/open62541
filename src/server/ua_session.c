@@ -330,3 +330,56 @@ UA_Server_getSessionParameter_scalar(UA_Server *server, const UA_NodeId *session
     UA_UNLOCK(&server->serviceMutex);
     return res;
 }
+
+UA_StatusCode
+UA_Server_getSessionInformation(UA_Server *server, const UA_NodeId *sessionId,
+                                UA_SessionInformation *outInformation) {
+    UA_LOCK(&server->serviceMutex);
+    if (!outInformation) {
+        UA_UNLOCK(&server->serviceMutex);
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
+
+    UA_Session *session = UA_Server_getSessionById(server, sessionId);
+    if(session) {
+        // deep copy of session information
+        UA_StatusCode res =
+            UA_ApplicationDescription_copy(&session->clientDescription,
+                                           &outInformation->clientDescription);
+        if (res != UA_STATUSCODE_GOOD) {
+            UA_UNLOCK(&server->serviceMutex);
+            return res;
+        }
+        res = UA_String_copy(&session->sessionName, &outInformation->sessionName);
+        if (res != UA_STATUSCODE_GOOD) {
+            UA_ApplicationDescription_clear(&outInformation->clientDescription);
+            UA_UNLOCK(&server->serviceMutex);
+            return res;
+        }
+        res = UA_NodeId_copy(&session->sessionId, &outInformation->sessionId);
+        if (res != UA_STATUSCODE_GOOD) {
+            UA_String_clear(&outInformation->sessionName);
+            UA_ApplicationDescription_clear(&outInformation->clientDescription);
+            UA_UNLOCK(&server->serviceMutex);
+            return res;
+        }
+        res = UA_DateTime_copy(&session->validTill, &outInformation->validTill);
+        if (res != UA_STATUSCODE_GOOD) {
+            UA_NodeId_clear(&outInformation->sessionId);
+            UA_String_clear(&outInformation->sessionName);
+            UA_ApplicationDescription_clear(&outInformation->clientDescription);
+            UA_UNLOCK(&server->serviceMutex);
+            return res;
+        }
+        outInformation->activated = session->activated;
+        outInformation->sessionHandle = session->sessionHandle;
+        outInformation->maxRequestMessageSize = session->maxRequestMessageSize;
+        outInformation->maxResponseMessageSize = session->maxResponseMessageSize;
+        outInformation->timeout = session->timeout;
+        UA_UNLOCK(&server->serviceMutex);
+        return res;
+    }
+
+    UA_UNLOCK(&server->serviceMutex);
+    return UA_STATUSCODE_BADSESSIONIDINVALID;
+}
