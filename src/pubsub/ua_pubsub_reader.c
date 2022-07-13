@@ -428,8 +428,8 @@ UA_DataSetReader_create(UA_Server *server, UA_NodeId readerGroupIdentifier,
 
     UA_StatusCode retVal = UA_STATUSCODE_GOOD;
     newDataSetReader->componentType = UA_PUBSUB_COMPONENT_DATASETREADER;
-    if(readerGroup->state == UA_PUBSUBSTATE_OPERATIONAL) {
-        retVal = UA_DataSetReader_setPubSubState(server, newDataSetReader, UA_PUBSUBSTATE_OPERATIONAL,
+    if(readerGroup->state == UA_PUBSUBSTATE_OPERATIONAL || readerGroup->state == UA_PUBSUBSTATE_PREOPERATIONAL) {
+        retVal = UA_DataSetReader_setPubSubState(server, newDataSetReader, UA_PUBSUBSTATE_PREOPERATIONAL,
                                                  UA_STATUSCODE_GOOD);
         if(retVal != UA_STATUSCODE_GOOD) {
             UA_LOG_ERROR_READERGROUP(&server->config.logger, readerGroup,
@@ -869,6 +869,9 @@ UA_DataSetReader_setPubSubState(UA_Server *server,
         case UA_PUBSUBSTATE_PAUSED:
             ret = UA_STATUSCODE_BADNOTSUPPORTED;
             break;
+        case UA_PUBSUBSTATE_PREOPERATIONAL:
+            dataSetReader->state = UA_PUBSUBSTATE_PREOPERATIONAL;
+            break;
         case UA_PUBSUBSTATE_OPERATIONAL:
             dataSetReader->state = UA_PUBSUBSTATE_OPERATIONAL;
             break;
@@ -1214,6 +1217,11 @@ UA_DataSetReader_process(UA_Server *server, UA_ReaderGroup *rg,
          *     }
          * } */
         return;
+    }
+
+    /* Message is valid, if DSR is preoperational, we can change it to operational*/
+    if(dsr->state == UA_PUBSUBSTATE_PREOPERATIONAL){
+        UA_DataSetReader_setPubSubState(server, dsr, UA_PUBSUBSTATE_OPERATIONAL, UA_STATUSCODE_GOOD);
     }
 
     if(msg->header.dataSetMessageType != UA_DATASETMESSAGE_DATAKEYFRAME) {
