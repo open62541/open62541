@@ -55,10 +55,10 @@ void UA_Session_clear(UA_Session *session, UA_Server* server) {
     session->continuationPoints = NULL;
     session->availableContinuationPoints = UA_MAXCONTINUATIONPOINTS;
 
-    UA_Array_delete(session->params, session->paramsSize,
+    UA_Array_delete(session->attributes, session->attributesSize,
                     &UA_TYPES[UA_TYPES_KEYVALUEPAIR]);
-    session->params = NULL;
-    session->paramsSize = 0;
+    session->attributes = NULL;
+    session->attributesSize = 0;
 
     UA_Array_delete(session->localeIds, session->localeIdsSize,
                     &UA_TYPES[UA_TYPES_STRING]);
@@ -251,82 +251,136 @@ UA_Server_closeSession(UA_Server *server, const UA_NodeId *sessionId) {
     return res;
 }
 
+/* Session Attributes */
+
+#define UA_PROTECTEDATTRIBUTESSIZE 3
+static const UA_QualifiedName protectedAttributes[UA_PROTECTEDATTRIBUTESSIZE] = {
+    {0, UA_STRING_STATIC("localeIds")},
+    {0, UA_STRING_STATIC("clientDescription")},
+    {0, UA_STRING_STATIC("sessionName")}
+};
+
+static UA_Boolean
+protectedAttribute(const UA_QualifiedName key) {
+    for(size_t i = 0; i < UA_PROTECTEDATTRIBUTESSIZE; i++) {
+        if(UA_QualifiedName_equal(&key, &protectedAttributes[i]))
+            return true;
+    }
+    return false;
+}
+
 UA_StatusCode
-UA_Server_setSessionParameter(UA_Server *server, const UA_NodeId *sessionId,
+UA_Server_setSessionAttribute(UA_Server *server, const UA_NodeId *sessionId,
                               const UA_QualifiedName key, const UA_Variant *value) {
+    if(protectedAttribute(key))
+        return UA_STATUSCODE_BADNOTWRITABLE;
     UA_LOCK(&server->serviceMutex);
     UA_Session *session = UA_Server_getSessionById(server, sessionId);
     UA_StatusCode res = UA_STATUSCODE_BADSESSIONIDINVALID;
     if(session)
-        res = UA_KeyValueMap_set(&session->params, &session->paramsSize,
+        res = UA_KeyValueMap_set(&session->attributes, &session->attributesSize,
                                  key, value);
     UA_UNLOCK(&server->serviceMutex);
     return res;
 }
 
-void
-UA_Server_deleteSessionParameter(UA_Server *server, const UA_NodeId *sessionId,
+UA_StatusCode
+UA_Server_deleteSessionAttribute(UA_Server *server, const UA_NodeId *sessionId,
                                  const UA_QualifiedName key) {
+    if(protectedAttribute(key))
+        return UA_STATUSCODE_BADNOTWRITABLE;
     UA_LOCK(&server->serviceMutex);
     UA_Session *session = UA_Server_getSessionById(server, sessionId);
-    if(session)
-        UA_KeyValueMap_delete(&session->params, &session->paramsSize, key);
+    if(!session)
+        return UA_STATUSCODE_BADSESSIONIDINVALID;
+    UA_StatusCode res =
+        UA_KeyValueMap_delete(&session->attributes, &session->attributesSize, key);
     UA_UNLOCK(&server->serviceMutex);
+    return res;
+}
+
+static UA_StatusCode
+getSessionAttribute(UA_Server *server, const UA_NodeId *sessionId,
+                    const UA_QualifiedName key, UA_Variant *outValue,
+                    UA_Boolean copy) {
+    if(!outValue)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
+    UA_Session *session = UA_Server_getSessionById(server, sessionId);
+    if(!session)
+        return UA_STATUSCODE_BADSESSIONIDINVALID;
+
+    const UA_Variant *attr;
+    UA_Variant localAttr;
+
+    if(UA_QualifiedName_equal(&key, &protectedAttributes[0])) {
+        /* Return LocaleIds */
+        UA_Variant_setArray(&localAttr, session->localeIds,
+                            session->localeIdsSize, &UA_TYPES[UA_TYPES_STRING]);
+        attr = &localAttr;
+    } else if(UA_QualifiedName_equal(&key, &protectedAttributes[1])) {
+        /* Return client description */
+        UA_Variant_setScalar(&localAttr, &session->clientDescription,
+                             &UA_TYPES[UA_TYPES_APPLICATIONDESCRIPTION]);
+        attr = &localAttr;
+    } else if(UA_QualifiedName_equal(&key, &protectedAttributes[2])) {
+        /* Return session name */
+        UA_Variant_setScalar(&localAttr, &session->sessionName,
+                             &UA_TYPES[UA_TYPES_STRING]);
+        attr = &localAttr;
+    } else {
+        /* Get from the actual key-value list */
+        attr = UA_KeyValueMap_get(session->attributes, session->attributesSize, key);
+        if(!attr)
+            return UA_STATUSCODE_BADNOTFOUND;
+    }
+
+    if(copy)
+        return UA_Variant_copy(attr, outValue);
+    *outValue = *attr;
+    return UA_STATUSCODE_GOOD;
 }
 
 UA_StatusCode
-UA_Server_getSessionParameter(UA_Server *server, const UA_NodeId *sessionId,
-                              const UA_QualifiedName key,
-                              UA_Variant *outParameter) {
+UA_Server_getSessionAttribute(UA_Server *server, const UA_NodeId *sessionId,
+                              const UA_QualifiedName key, UA_Variant *outValue) {
     UA_LOCK(&server->serviceMutex);
-    if(!outParameter) {
-        UA_UNLOCK(&server->serviceMutex);
-        return UA_STATUSCODE_BADINTERNALERROR;
-    }
-
-    UA_Session *session = UA_Server_getSessionById(server, sessionId);
-    if(!session) {
-        UA_UNLOCK(&server->serviceMutex);
-        return UA_STATUSCODE_BADSESSIONIDINVALID;
-    }
-
-    const UA_Variant *param =
-        UA_KeyValueMap_get(session->params, session->paramsSize, key);
-    if(!param) {
-        UA_UNLOCK(&server->serviceMutex);
-        return UA_STATUSCODE_BADNOTFOUND;
-    }
-
-    UA_StatusCode res = UA_Variant_copy(param, outParameter);
+    UA_StatusCode res = getSessionAttribute(server, sessionId, key, outValue, false);
     UA_UNLOCK(&server->serviceMutex);
     return res;
 }
 
 UA_StatusCode
-UA_Server_getSessionParameter_scalar(UA_Server *server, const UA_NodeId *sessionId,
+UA_Server_getSessionAttributeCopy(UA_Server *server, const UA_NodeId *sessionId,
+                                  const UA_QualifiedName key, UA_Variant *outValue) {
+    UA_LOCK(&server->serviceMutex);
+    UA_StatusCode res = getSessionAttribute(server, sessionId, key, outValue, true);
+    UA_UNLOCK(&server->serviceMutex);
+    return res;
+}
+
+UA_StatusCode
+UA_Server_getSessionAttribute_scalar(UA_Server *server,
+                                     const UA_NodeId *sessionId,
                                      const UA_QualifiedName key,
                                      const UA_DataType *type,
-                                     void *outParameter) {
+                                     void *outValue) {
     UA_LOCK(&server->serviceMutex);
-    if(!outParameter) {
+
+    UA_Variant attr;
+    UA_StatusCode res = getSessionAttribute(server, sessionId, key, &attr, false);
+    if(res != UA_STATUSCODE_GOOD) {
         UA_UNLOCK(&server->serviceMutex);
-        return UA_STATUSCODE_BADINTERNALERROR;
+        return res;
     }
 
-    UA_Session *session = UA_Server_getSessionById(server, sessionId);
-    if(!session) {
-        UA_UNLOCK(&server->serviceMutex);
-        return UA_STATUSCODE_BADSESSIONIDINVALID;
-    }
-
-    const UA_Variant *param =
-        UA_KeyValueMap_get(session->params, session->paramsSize, key);
-    if(!param || !UA_Variant_hasScalarType(param, type)) {
+    if(!UA_Variant_hasScalarType(&attr, type)) {
         UA_UNLOCK(&server->serviceMutex);
         return UA_STATUSCODE_BADNOTFOUND;
     }
 
-    UA_StatusCode res = UA_copy(param->data, outParameter, type);
+    memcpy(outValue, attr.data, type->memSize);
+
     UA_UNLOCK(&server->serviceMutex);
-    return res;
+    return UA_STATUSCODE_GOOD;
 }

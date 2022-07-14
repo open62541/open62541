@@ -384,14 +384,25 @@ START_TEST(Client_activateSessionLocaleIds) {
     UA_ClientConfig *config = UA_Client_getConfig(client);
     UA_ClientConfig_setDefault(config);
 
-    config->sessionLocaleIdsSize = 1;
-    config->sessionLocaleIds = (UA_LocaleId*)UA_Array_new(1, &UA_TYPES[UA_TYPES_LOCALEID]);
+    config->sessionLocaleIdsSize = 2;
+    config->sessionLocaleIds = (UA_LocaleId*)UA_Array_new(2, &UA_TYPES[UA_TYPES_LOCALEID]);
     config->sessionLocaleIds[0] = UA_STRING_ALLOC("en");
+    config->sessionLocaleIds[1] = UA_STRING_ALLOC("fr");
 
     UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
     ck_assert_uint_eq(server->sessionCount, 1);
+
+    UA_QualifiedName key = {0, UA_STRING_STATIC("localeIds")};
+    UA_Variant locales;
+    UA_Server_getSessionAttribute(server, &server->sessions.lh_first->session.sessionId,
+                                  key, &locales);
+
+    ck_assert_uint_eq(locales.arrayLength, 2);
+    UA_String *localeIds = (UA_String*)locales.data;
+    ck_assert(UA_String_equal(&localeIds[0], &config->sessionLocaleIds[0]));
+    ck_assert(UA_String_equal(&localeIds[1], &config->sessionLocaleIds[1]));
 
     UA_Client_delete(client);
 

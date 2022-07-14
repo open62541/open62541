@@ -104,12 +104,14 @@ START_TEST(splitCreation) {
     UA_Variant_init(&enabledStateVariant);
     retval = UA_Server_readValue(server_ac, var, &enabledStateVariant);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
-    ck_assert_msg(UA_Variant_hasScalarType(
-        &enabledStateVariant,
-        &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]),
+    ck_assert_msg(UA_Variant_hasScalarType(&enabledStateVariant, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]),
         "Unexpected Data Type of EnabledState");
+
     const UA_LocalizedText* enabledState = (UA_LocalizedText*)enabledStateVariant.data;
-    ck_assert_str_eq((const char*)enabledState->text.data, "Disabled");
+    UA_String disabledStr = UA_STRING("Disabled");
+    ck_assert(UA_String_equal(&enabledState->text, &disabledStr));
+
+    UA_Variant_clear(&enabledStateVariant);
 
     retval = UA_Server_deleteCondition(
         server_ac,
