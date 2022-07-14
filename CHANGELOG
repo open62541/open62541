@@ -1,6 +1,22 @@
 This changelog reports changes visible through the public API. Internal refactorings and bug
 fixes are not reported here.
 
+2022-07-14 Jannis Voelker <jannis.voelker at basyskom.com>
+
+ * LocaleId support in the server
+
+   The server now supports that descriptions and display names for
+   different locales are written to a node. The server selects a
+   suitable localization depending on the locale ids that are set for
+   the current session.
+
+   Locales are added simply by writing a LocalizedText value with a
+   different locale. A locale can be removed by writing a
+   LocalizedText value of the corresponding locale and with an empty
+   text.
+
+   The change was done with pull request #4165.
+
 2022-07-07 Andreas Eckerstorfer <estr at keba.com>
 
  * PubSub publisher id types
