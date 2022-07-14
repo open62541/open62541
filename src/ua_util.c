@@ -275,7 +275,7 @@ UA_KeyValueMap_getScalar(const UA_KeyValuePair *map, size_t mapSize,
     return v->data;
 }
 
-void
+UA_StatusCode
 UA_KeyValueMap_delete(UA_KeyValuePair **map, size_t *mapSize,
                       const UA_QualifiedName key) {
     UA_KeyValuePair *m = *map;
@@ -301,6 +301,7 @@ UA_KeyValueMap_delete(UA_KeyValuePair **map, size_t *mapSize,
                            * array around. Resize never fails when reducing
                            * the size to zero. Reduce the size integer in
                            * any case. */
-        break;
+        return UA_STATUSCODE_GOOD;
     }
+    return UA_STATUSCODE_BADNOTFOUND;
 }
