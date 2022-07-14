@@ -2360,12 +2360,9 @@ addOptionalVariableField(UA_Server *server, const UA_NodeId *originCondition,
                          UA_NodeId *outOptionalVariable) {
     UA_VariableAttributes vAttr = UA_VariableAttributes_default;
     vAttr.valueRank = optionalVariableFieldNode->valueRank;
-    UA_StatusCode retval = UA_LocalizedText_copy(&optionalVariableFieldNode->head.displayName,
-                                                 &vAttr.displayName);
-    CONDITION_ASSERT_RETURN_RETVAL(retval, "Copying LocalizedText failed",);
-
-    retval = UA_NodeId_copy(&optionalVariableFieldNode->dataType, &vAttr.dataType);
-    CONDITION_ASSERT_RETURN_RETVAL(retval, "Copying NodeId failed",);
+    vAttr.displayName = UA_Session_getNodeDisplayName(&server->adminSession,
+                                                      &optionalVariableFieldNode->head);
+    vAttr.dataType = optionalVariableFieldNode->dataType;
 
     /* Get typedefintion */
     const UA_Node *type = getNodeType(server, &optionalVariableFieldNode->head);
@@ -2373,7 +2370,6 @@ addOptionalVariableField(UA_Server *server, const UA_NodeId *originCondition,
         UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_USERLAND,
                        "Invalid VariableType. StatusCode %s",
                        UA_StatusCode_name(UA_STATUSCODE_BADTYPEDEFINITIONINVALID));
-        UA_VariableAttributes_clear(&vAttr);
         return UA_STATUSCODE_BADTYPEDEFINITIONINVALID;
     }
 
@@ -2387,11 +2383,11 @@ addOptionalVariableField(UA_Server *server, const UA_NodeId *originCondition,
 
     /* Set a random unused NodeId with specified Namespace Index*/
     UA_NodeId optionalVariable = {originCondition->namespaceIndex, UA_NODEIDTYPE_NUMERIC, {0}};
-    retval = UA_Server_addVariableNode(server, optionalVariable, *originCondition,
-                                       referenceToParent, *fieldName, type->head.nodeId,
-                                       vAttr, NULL, outOptionalVariable);
+    UA_StatusCode retval =
+        UA_Server_addVariableNode(server, optionalVariable, *originCondition,
+                                  referenceToParent, *fieldName, type->head.nodeId,
+                                  vAttr, NULL, outOptionalVariable);
     UA_NODESTORE_RELEASE(server, type);
-    UA_VariableAttributes_clear(&vAttr);
     return retval;
 }
 
@@ -2401,9 +2397,8 @@ addOptionalObjectField(UA_Server *server, const UA_NodeId *originCondition,
                        const UA_ObjectNode *optionalObjectFieldNode,
                        UA_NodeId *outOptionalObject) {
     UA_ObjectAttributes oAttr = UA_ObjectAttributes_default;
-    UA_StatusCode retval = UA_LocalizedText_copy(&optionalObjectFieldNode->head.displayName,
-                                                 &oAttr.displayName);
-    CONDITION_ASSERT_RETURN_RETVAL(retval, "Copying LocalizedText failed",);
+    oAttr.displayName = UA_Session_getNodeDisplayName(&server->adminSession,
+                                                      &optionalObjectFieldNode->head);
 
     /* Get typedefintion */
     const UA_Node *type = getNodeType(server, &optionalObjectFieldNode->head);
@@ -2411,7 +2406,6 @@ addOptionalObjectField(UA_Server *server, const UA_NodeId *originCondition,
         UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_USERLAND,
                        "Invalid ObjectType. StatusCode %s",
                        UA_StatusCode_name(UA_STATUSCODE_BADTYPEDEFINITIONINVALID));
-        UA_ObjectAttributes_clear(&oAttr);
         return UA_STATUSCODE_BADTYPEDEFINITIONINVALID;
     }
 
@@ -2424,15 +2418,14 @@ addOptionalObjectField(UA_Server *server, const UA_NodeId *originCondition,
         referenceToParent = UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT);
 
     UA_NodeId optionalObject = {originCondition->namespaceIndex, UA_NODEIDTYPE_NUMERIC, {0}};
-    retval = UA_Server_addObjectNode(server, optionalObject, *originCondition,
+    UA_StatusCode retval = UA_Server_addObjectNode(server, optionalObject, *originCondition,
                                      referenceToParent, *fieldName, type->head.nodeId,
                                      oAttr, NULL, outOptionalObject);
-
     UA_NODESTORE_RELEASE(server, type);
-    UA_ObjectAttributes_clear(&oAttr);
     return retval;
 }
-#endif//CONDITIONOPTIONALFIELDS_SUPPORT
+
+#endif /* CONDITIONOPTIONALFIELDS_SUPPORT */
 
 /**
  * add an optional condition field using its name. (Adding optional methods

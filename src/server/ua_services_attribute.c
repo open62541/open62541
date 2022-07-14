@@ -418,14 +418,18 @@ ReadWithNode(const UA_Node *node, UA_Server *server, UA_Session *session,
         retval = UA_Variant_setScalarCopy(&v->value, &node->head.browseName,
                                           &UA_TYPES[UA_TYPES_QUALIFIEDNAME]);
         break;
-    case UA_ATTRIBUTEID_DISPLAYNAME:
-        retval = UA_Variant_setScalarCopy(&v->value, &node->head.displayName,
+    case UA_ATTRIBUTEID_DISPLAYNAME: {
+        UA_LocalizedText lt = UA_Session_getNodeDisplayName(session, &node->head);
+        retval = UA_Variant_setScalarCopy(&v->value, &lt,
                                           &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]);
         break;
-    case UA_ATTRIBUTEID_DESCRIPTION:
-        retval = UA_Variant_setScalarCopy(&v->value, &node->head.description,
+    }
+    case UA_ATTRIBUTEID_DESCRIPTION: {
+        UA_LocalizedText lt = UA_Session_getNodeDescription(session, &node->head);
+        retval = UA_Variant_setScalarCopy(&v->value, &lt,
                                           &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]);
         break;
+    }
     case UA_ATTRIBUTEID_WRITEMASK:
         retval = UA_Variant_setScalarCopy(&v->value, &node->head.writeMask,
                                           &UA_TYPES[UA_TYPES_UINT32]);
@@ -1652,14 +1656,14 @@ copyAttributeIntoNode(UA_Server *server, UA_Session *session,
     case UA_ATTRIBUTEID_DISPLAYNAME:
         CHECK_USERWRITEMASK(UA_WRITEMASK_DISPLAYNAME);
         CHECK_DATATYPE_SCALAR(LOCALIZEDTEXT);
-        retval = updateLocalizedText((const UA_LocalizedText *)value,
-                                     &node->head.displayName);
+        retval = UA_Node_insertOrUpdateDisplayName(&node->head,
+                                                   (const UA_LocalizedText *)value);
         break;
     case UA_ATTRIBUTEID_DESCRIPTION:
         CHECK_USERWRITEMASK(UA_WRITEMASK_DESCRIPTION);
         CHECK_DATATYPE_SCALAR(LOCALIZEDTEXT);
-        retval = updateLocalizedText((const UA_LocalizedText *)value,
-                                     &node->head.description);
+        retval = UA_Node_insertOrUpdateDescription(&node->head,
+                                                   (const UA_LocalizedText *)value);
         break;
     case UA_ATTRIBUTEID_WRITEMASK:
         CHECK_USERWRITEMASK(UA_WRITEMASK_WRITEMASK);
@@ -2117,4 +2121,71 @@ UA_Server_writeObjectProperty_scalar(UA_Server *server, const UA_NodeId objectId
         writeObjectProperty_scalar(server, objectId, propertyName, value, type);
     UA_UNLOCK(&server->serviceMutex);
     return retval;
+}
+
+static UA_LocalizedText
+getLocalizedForSession(const UA_Session *session,
+                       const UA_LocalizedTextListEntry *root) {
+    const UA_LocalizedTextListEntry *lt;
+    UA_LocalizedText result;
+    UA_LocalizedText_init(&result);
+
+    /* No session. Return the first  */
+    if(!session)
+        goto not_found;
+
+    /* Exact match? */
+    for(size_t i = 0; i < session->localeIdsSize; ++i) {
+        for(lt = root; lt != NULL; lt = lt->next) {
+            if(UA_String_equal(&session->localeIds[i], &lt->localizedText.locale))
+                return lt->localizedText;
+        }
+    }
+
+    /* Partial match, e.g. de-DE instead of de-CH */
+    for(size_t i = 0; i < session->localeIdsSize; ++i) {
+        if(session->localeIds[i].length < 2 ||
+           (session->localeIdsSize > 2 &&
+            session->localeIds[i].data[2] != '-'))
+            continue;
+
+        UA_String requestedPrefix;
+        requestedPrefix.data = session->localeIds[i].data;
+        requestedPrefix.length = 2;
+
+        for(lt = root; lt != NULL; lt = lt->next) {
+            if(lt->localizedText.locale.length < 2 ||
+               (lt->localizedText.locale.length > 2 &&
+                lt->localizedText.locale.data[2] != '-'))
+                continue;
+
+            UA_String currentPrefix;
+            currentPrefix.data = lt->localizedText.locale.data;
+            currentPrefix.length = 2;
+
+            if(UA_String_equal(&requestedPrefix, &currentPrefix))
+                return lt->localizedText;
+        }
+    }
+
+    /* Not found. Return the first localized text that was added (last in the
+     * linked list). Return an empty result if the list is empty. */
+ not_found:
+    if(!root)
+        return result;
+    while(root->next)
+        root = root->next;
+    return root->localizedText;
+}
+
+UA_LocalizedText
+UA_Session_getNodeDisplayName(const UA_Session *session,
+                              const UA_NodeHead *head) {
+    return getLocalizedForSession(session, head->displayName);
+}
+
+UA_LocalizedText
+UA_Session_getNodeDescription(const UA_Session *session,
+                              const UA_NodeHead *head) {
+    return getLocalizedForSession(session, head->description);
 }

@@ -400,8 +400,20 @@ void UA_Node_clear(UA_Node *node) {
     UA_NodeHead *head = &node->head;
     UA_NodeId_clear(&head->nodeId);
     UA_QualifiedName_clear(&head->browseName);
-    UA_LocalizedText_clear(&head->displayName);
-    UA_LocalizedText_clear(&head->description);
+
+    UA_LocalizedTextListEntry *lt;
+
+    while((lt = head->displayName)) {
+        head->displayName = lt->next;
+        UA_LocalizedText_clear(&lt->localizedText);
+        UA_free(lt);
+    }
+
+    while((lt = head->description)) {
+        head->description = lt->next;
+        UA_LocalizedText_clear(&lt->localizedText);
+        UA_free(lt);
+    }
 
     /* Delete unique content of the nodeclass */
     switch(head->nodeClass) {
@@ -531,8 +543,37 @@ UA_Node_copy(const UA_Node *src, UA_Node *dst) {
     /* Copy standard content */
     UA_StatusCode retval = UA_NodeId_copy(&srchead->nodeId, &dsthead->nodeId);
     retval |= UA_QualifiedName_copy(&srchead->browseName, &dsthead->browseName);
-    retval |= UA_LocalizedText_copy(&srchead->displayName, &dsthead->displayName);
-    retval |= UA_LocalizedText_copy(&srchead->description, &dsthead->description);
+
+    /* Copy the display name in several languages */
+    for(UA_LocalizedTextListEntry *lt = srchead->displayName; lt != NULL; lt = lt->next) {
+        UA_LocalizedTextListEntry *newEntry = (UA_LocalizedTextListEntry *)
+            UA_calloc(1, sizeof(UA_LocalizedTextListEntry));
+        if(!newEntry) {
+            retval |= UA_STATUSCODE_BADOUTOFMEMORY;
+            break;
+        }
+        retval |= UA_LocalizedText_copy(&lt->localizedText, &newEntry->localizedText);
+
+        /* Add to the linked list possibly in reverse order */
+        newEntry->next = dsthead->displayName;
+        dsthead->displayName = newEntry;
+    }
+
+    /* Copy the description in several languages */
+    for(UA_LocalizedTextListEntry *lt = srchead->description; lt != NULL; lt = lt->next) {
+        UA_LocalizedTextListEntry *newEntry = (UA_LocalizedTextListEntry *)
+            UA_calloc(1, sizeof(UA_LocalizedTextListEntry));
+        if(!newEntry) {
+            retval |= UA_STATUSCODE_BADOUTOFMEMORY;
+            break;
+        }
+        retval |= UA_LocalizedText_copy(&lt->localizedText, &newEntry->localizedText);
+
+        /* Add to the linked list possibly in reverse order */
+        newEntry->next = dsthead->description;
+        dsthead->description= newEntry;
+    }
+
     dsthead->writeMask = srchead->writeMask;
     dsthead->context = srchead->context;
     dsthead->constructed = srchead->constructed;
@@ -665,14 +706,17 @@ copyStandardAttributes(UA_NodeHead *head, const UA_NodeAttributes *attr) {
     /* UA_QualifiedName_copy(&item->browseName, &node->browseName); */
 
     head->writeMask = attr->writeMask;
-    UA_StatusCode retval = UA_LocalizedText_copy(&attr->description, &head->description);
+    UA_StatusCode retval = UA_Node_insertOrUpdateDescription(head, &attr->description);
     /* The new nodeset format has optional display names:
      * https://github.com/open62541/open62541/issues/2627. If the display name
      * is NULL, take the name part of the browse name */
-    if(attr->displayName.text.length == 0)
-        retval |= UA_String_copy(&head->browseName.name, &head->displayName.text);
-    else
-        retval |= UA_LocalizedText_copy(&attr->displayName, &head->displayName);
+    if(attr->displayName.text.length == 0) {
+        UA_LocalizedText lt;
+        UA_LocalizedText_init(&lt);
+        lt.text = head->browseName.name;
+        retval |= UA_Node_insertOrUpdateDisplayName(head, &lt);
+    } else
+        retval |= UA_Node_insertOrUpdateDisplayName(head, &attr->displayName);
     return retval;
 }
 
@@ -1086,4 +1130,70 @@ void UA_Node_deleteReferences(UA_Node *node) {
     UA_ReferenceTypeSet noRefs;
     UA_ReferenceTypeSet_init(&noRefs);
     UA_Node_deleteReferencesSubset(node, &noRefs);
+}
+
+static UA_StatusCode
+UA_Node_insertOrUpdateLocale(UA_LocalizedTextListEntry **root,
+                             const UA_LocalizedText *value) {
+    UA_StatusCode res;
+    UA_LocalizedTextListEntry *lt, *prev = NULL;
+    for(lt = *root; lt != NULL; prev = lt, lt = lt->next) {
+        if(!UA_String_equal(&value->locale, &lt->localizedText.locale))
+            continue;
+
+        /* No text -> remove the entry for this locale */
+        if(value->text.length == 0) {
+            if(prev == NULL)
+                *root = lt->next;
+            else
+                prev->next = lt->next;
+            UA_LocalizedText_clear(&lt->localizedText);
+            UA_free(lt);
+            return UA_STATUSCODE_GOOD;
+        }
+
+        /* First make a copy of the text, if this succeeds replace the old
+         * version */
+        UA_String tmp;
+        res = UA_String_copy(&value->text, &tmp);
+        if(res != UA_STATUSCODE_GOOD)
+            return res;
+
+        UA_String_clear(&lt->localizedText.text);
+        lt->localizedText.text = tmp;
+        return UA_STATUSCODE_GOOD;
+    }
+
+    /* The locale does not exist so far */
+
+    /* Do nothing if a non-existing locale should be removed */
+    if(value->text.length == 0)
+        return UA_STATUSCODE_GOOD;
+
+    /* Add a new localized text */
+    lt = (UA_LocalizedTextListEntry *)UA_malloc(sizeof(UA_LocalizedTextListEntry));
+    if(!lt)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+
+    res = UA_LocalizedText_copy(value, &lt->localizedText);
+    if(res != UA_STATUSCODE_GOOD) {
+        UA_free(lt);
+        return res;
+    }
+
+    lt->next = *root;
+    *root = lt;
+    return UA_STATUSCODE_GOOD;
+}
+
+UA_StatusCode
+UA_Node_insertOrUpdateDisplayName(UA_NodeHead *head,
+                                  const UA_LocalizedText *value) {
+    return UA_Node_insertOrUpdateLocale(&head->displayName, value);
+}
+
+UA_StatusCode
+UA_Node_insertOrUpdateDescription(UA_NodeHead *head,
+                                  const UA_LocalizedText *value) {
+    return UA_Node_insertOrUpdateLocale(&head->description, value);
 }
