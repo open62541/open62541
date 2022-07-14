@@ -455,6 +455,18 @@ UA_ConnectionManager_new_POSIX_TCP(const UA_String eventSourceName);
  * Open Connection Parameters:
  * - 0:hostname [string]: Hostname (or IPv4/v6 address) to connect to (required).
  * - 0:port [uint16]: Port of the target host (required).
+ * - 0:ttl [uint32]: Multicast time to live, (optional, default: 1 - meaning multicast is
+ *                   available only to the local subnet).
+ * - 0:loopback [boolean]: Whether or not to use multicast loopback, enabling
+ *                         local interfaces belonging to the multicast group
+ *                         to receive packages. (optional, default: enabled).
+ * - 0:reuse [boolean]: Set reuse address -> enables sharing of the same
+ *                      listening address on different sockets (optional, default: disabled).
+ * - 0:sockpriority [uint32]: The socket priority (optional) - only available on linux.
+ *                            packets with a higher priority may be
+ *                            processed first depending on the selected device queueing
+ *                            discipline.  Setting a priority outside the range 0 to 6
+ *                            requires the CAP_NET_ADMIN capability.
  *
  * Connection Callback Paramters:
  * - 0:remote-hostname [string]: When a new connection is opened by listening on
