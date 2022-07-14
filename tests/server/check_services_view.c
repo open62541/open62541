@@ -303,6 +303,70 @@ START_TEST(Service_Browse_Recursive) {
 }
 END_TEST
 
+START_TEST(Service_Browse_Localization) {
+    UA_Server *server = UA_Server_new();
+    UA_ServerConfig_setDefault(UA_Server_getConfig(server));
+
+    UA_NodeId outerObjectId = UA_NODEID_STRING(1, "EntryPoint");
+
+    {
+        UA_ObjectAttributes attr = UA_ObjectAttributes_default;
+        attr.displayName = UA_LOCALIZEDTEXT("en-US", "EntryPoint");
+        UA_QualifiedName browseName = UA_QUALIFIEDNAME(0, "EntryPoint");
+        UA_StatusCode result = UA_Server_addObjectNode(server, outerObjectId, UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
+                                                       UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES), browseName,
+                                                       UA_NODEID_NUMERIC(0, UA_NS0ID_BASEOBJECTTYPE), attr, NULL, NULL);
+        ck_assert_int_eq(result, UA_STATUSCODE_GOOD);
+    }
+
+    UA_ObjectAttributes attr = UA_ObjectAttributes_default;
+    attr.displayName = UA_LOCALIZEDTEXT("en-US", "MyDisplayName");
+    UA_NodeId objectId = UA_NODEID_STRING(1, "LocalizedObject");
+    UA_QualifiedName browseName = UA_QUALIFIEDNAME(0, "LocalizedObject");
+    UA_StatusCode result = UA_Server_addObjectNode(server, objectId, outerObjectId,
+                                                   UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT), browseName,
+                                                   UA_NODEID_NUMERIC(0, UA_NS0ID_BASEOBJECTTYPE), attr, NULL, NULL);
+    ck_assert_int_eq(result, UA_STATUSCODE_GOOD);
+
+    UA_LocalizedText germanDisplayName = UA_LOCALIZEDTEXT("de-DE", "MeinAnzeigeName");
+    result = UA_Server_writeDisplayName(server, objectId, germanDisplayName);
+    ck_assert_int_eq(result, UA_STATUSCODE_GOOD);
+
+    UA_BrowseDescription bd;
+    UA_BrowseDescription_init(&bd);
+    bd.nodeId = outerObjectId;
+    bd.resultMask = UA_BROWSERESULTMASK_ALL;
+    bd.nodeClassMask = UA_NODECLASS_OBJECT;
+    bd.browseDirection = UA_BROWSEDIRECTION_FORWARD;
+    bd.referenceTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT);
+
+    /* Expect the english display name */
+    server->adminSession.localeIdsSize = 1;
+    server->adminSession.localeIds = UA_LocaleId_new();
+    *server->adminSession.localeIds = UA_STRING_ALLOC("en-US");
+
+    UA_BrowseResult br = UA_Server_browse(server, 100, &bd);
+    ck_assert_int_eq(br.statusCode, UA_STATUSCODE_GOOD);
+    ck_assert_int_eq(br.referencesSize, 1);
+    ck_assert(UA_String_equal(&br.references->displayName.locale, &attr.displayName.locale));
+    ck_assert(UA_String_equal(&br.references->displayName.text, &attr.displayName.text));
+    UA_BrowseResult_clear(&br);
+
+    /* Expect the german display name */
+    UA_LocaleId_clear(server->adminSession.localeIds);
+    *server->adminSession.localeIds = UA_STRING_ALLOC("de-DE");
+
+    br = UA_Server_browse(server, 100, &bd);
+    ck_assert_int_eq(br.statusCode, UA_STATUSCODE_GOOD);
+    ck_assert_int_eq(br.referencesSize, 1);
+    ck_assert(UA_String_equal(&br.references->displayName.locale, &germanDisplayName.locale));
+    ck_assert(UA_String_equal(&br.references->displayName.text, &germanDisplayName.text));
+    UA_BrowseResult_clear(&br);
+
+    UA_Server_delete(server);
+}
+END_TEST
+
 START_TEST(Service_TranslateBrowsePathsToNodeIds) {
     UA_Client *client = UA_Client_new();
     UA_ClientConfig_setDefault(UA_Client_getConfig(client));
@@ -440,6 +504,7 @@ static Suite *testSuite_Service_TranslateBrowsePathsToNodeIds(void) {
     tcase_add_test(tc_browse, Service_Browse_ReferenceTypes);
     tcase_add_test(tc_browse, Service_Browse_WithMaxResults);
     tcase_add_test(tc_browse, Service_Browse_Recursive);
+    tcase_add_test(tc_browse, Service_Browse_Localization);
     suite_add_tcase(s, tc_browse);
 
     TCase *tc_translate = tcase_create("TranslateBrowsePathsToNodeIds");
@@ -450,6 +515,7 @@ static Suite *testSuite_Service_TranslateBrowsePathsToNodeIds(void) {
     tcase_add_test(tc_translate, BrowseSimplifiedBrowsePath);
 
     suite_add_tcase(s, tc_translate);
+
     return s;
 }
 

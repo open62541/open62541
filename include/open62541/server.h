@@ -488,36 +488,52 @@ UA_Server_removeCallback(UA_Server *server, UA_UInt64 callbackId);
 UA_EXPORT UA_StatusCode UA_THREADSAFE
 UA_Server_closeSession(UA_Server *server, const UA_NodeId *sessionId);
 
-/* Session Parameters: Besides the user-definable session context pointer,
- * so-called session parameters are a way to attach key-value parameters to a
- * session. This enables "plugins" to attach data to a session without impacting
- * the user-definedable session context pointer. */
+/**
+ * Session attributes: Besides the user-definable session context pointer (set
+ * by the AccessControl plugin when the Session is created), a session carries
+ * attributes in a key-value list. Some attributes are present in every session
+ * and shown in the list below. Additional attributes can be manually set as
+ * meta-data.
+ *
+ * Always present as session attributes are:
+ *
+ * - 0:localeIds [UA_String]: List of preferred languages (read-only)
+ * - 0:clientDescription [UA_ApplicationDescription]: Client description (read-only)
+ * - 0:sessionName [String] Client-defined name of the session (read-only)
+ */
 
+/* Returns a shallow copy of the attribute. Don't _clear or _delete the value
+ * variant. Don't use the value once the Session could be already closed in the
+ * background or the attribute of the session replaced. Hence don't use this in a
+ * multi-threaded application. */
+UA_EXPORT UA_StatusCode
+UA_Server_getSessionAttribute(UA_Server *server, const UA_NodeId *sessionId,
+                              const UA_QualifiedName key, UA_Variant *outValue);
+
+/* Return a deep copy of the attribute */
 UA_EXPORT UA_StatusCode UA_THREADSAFE
-UA_Server_setSessionParameter(UA_Server *server, const UA_NodeId *sessionId,
-                              const UA_QualifiedName key,
-                              const UA_Variant *value);
-
-UA_EXPORT void UA_THREADSAFE
-UA_Server_deleteSessionParameter(UA_Server *server, const UA_NodeId *sessionId,
-                                 const UA_QualifiedName key);
-
-/* Returns NULL if the session or the parameter are not defined. Returns a deep
- * copy otherwise */
-UA_EXPORT UA_StatusCode UA_THREADSAFE
-UA_Server_getSessionParameter(UA_Server *server, const UA_NodeId *sessionId,
-                              const UA_QualifiedName key,
-                              UA_Variant *outValue);
+UA_Server_getSessionAttributeCopy(UA_Server *server, const UA_NodeId *sessionId,
+                                  const UA_QualifiedName key, UA_Variant *outValue);
 
 /* Returns NULL if the parameter is not defined or not a scalar or not of the
- * right datatype. Otherwise a deep copy of the scalar value is filled at the
- * target location of the void pointer. */
-UA_EXPORT UA_StatusCode UA_THREADSAFE
-UA_Server_getSessionParameter_scalar(UA_Server *server,
+ * right datatype. Otherwise a shallow copy of the scalar value is created at
+ * the target location of the void pointer. Hence don't use this in a
+ * multi-threaded application. */
+UA_EXPORT UA_StatusCode
+UA_Server_getSessionAttribute_scalar(UA_Server *server,
                                      const UA_NodeId *sessionId,
                                      const UA_QualifiedName key,
                                      const UA_DataType *type,
                                      void *outValue);
+
+UA_EXPORT UA_StatusCode UA_THREADSAFE
+UA_Server_setSessionAttribute(UA_Server *server, const UA_NodeId *sessionId,
+                              const UA_QualifiedName key,
+                              const UA_Variant *value);
+
+UA_EXPORT UA_StatusCode UA_THREADSAFE
+UA_Server_deleteSessionAttribute(UA_Server *server, const UA_NodeId *sessionId,
+                                 const UA_QualifiedName key);
 
 /**
  * Reading and Writing Node Attributes

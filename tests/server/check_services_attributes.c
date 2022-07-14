@@ -149,6 +149,20 @@ static void setup(void) {
                                      NULL, 0, NULL, 0, NULL, NULL, NULL);
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
 #endif
+
+    /* Variable node with localized DisplayName and Description */
+    UA_VariableAttributes lvattr = UA_VariableAttributes_default;
+    UA_Variant_setScalar(&vattr.value, &myInteger, &UA_TYPES[UA_TYPES_INT32]);
+    lvattr.description = UA_LOCALIZEDTEXT("en-US","MyDescription");
+    lvattr.displayName = UA_LOCALIZEDTEXT("en-US","MyDisplayName");
+    lvattr.valueRank = UA_VALUERANK_ANY;
+    UA_QualifiedName myLocalizedVarName = UA_QUALIFIEDNAME(1, "LocalizedAttributes");
+    UA_NodeId myLocalizedVarNodeId = UA_NODEID_STRING(1, "localized.attrs");
+    retval = UA_Server_addVariableNode(server, myLocalizedVarNodeId, parentNodeId,
+                                       parentReferenceNodeId, myLocalizedVarName,
+                                       UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
+                                       lvattr, NULL, NULL);
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
 }
 
 static UA_VariableNode* makeCompareSequence(void) {
@@ -163,8 +177,8 @@ static UA_VariableNode* makeCompareSequence(void) {
     UA_QualifiedName_copy(&myIntegerName, &node->head.browseName);
 
     const UA_LocalizedText myIntegerDisplName = UA_LOCALIZEDTEXT("locale", "the answer");
-    UA_LocalizedText_copy(&myIntegerDisplName, &node->head.displayName);
-    UA_LocalizedText_copy(&myIntegerDisplName, &node->head.description);
+    UA_Node_insertOrUpdateDescription(&node->head, &myIntegerDisplName);
+    UA_Node_insertOrUpdateDisplayName(&node->head, &myIntegerDisplName);
 
     const UA_NodeId myIntegerNodeId = UA_NODEID_STRING(1, "the.answer");
     UA_NodeId_copy(&myIntegerNodeId, &node->head.nodeId);
@@ -304,7 +318,9 @@ START_TEST(ReadSingleAttributeDisplayNameWithoutTimestamp) {
     ck_assert_uint_eq(0, resp.value.arrayLength);
     ck_assert(&UA_TYPES[UA_TYPES_LOCALIZEDTEXT] == resp.value.type);
     ck_assert(UA_String_equal(&comp.text, &respval->text));
-    ck_assert(UA_String_equal(&compNode->head.displayName.locale, &respval->locale));
+    UA_LocalizedText displayName =
+        UA_Session_getNodeDisplayName(NULL, &compNode->head);
+    ck_assert(UA_String_equal(&displayName.locale, &respval->locale));
     UA_DataValue_clear(&resp);
     UA_NODESTORE_DELETE(server, (UA_Node*)compNode);
 } END_TEST
@@ -321,8 +337,10 @@ START_TEST(ReadSingleAttributeDescriptionWithoutTimestamp) {
     UA_VariableNode* compNode = makeCompareSequence();
     ck_assert_uint_eq(0, resp.value.arrayLength);
     ck_assert(&UA_TYPES[UA_TYPES_LOCALIZEDTEXT] == resp.value.type);
-    ck_assert(UA_String_equal(&compNode->head.description.locale, &respval->locale));
-    ck_assert(UA_String_equal(&compNode->head.description.text, &respval->text));
+    UA_LocalizedText description =
+        UA_Session_getNodeDescription(NULL, &compNode->head);
+    ck_assert(UA_String_equal(&description.locale, &respval->locale));
+    ck_assert(UA_String_equal(&description.text, &respval->text));
     UA_DataValue_clear(&resp);
     UA_NODESTORE_DELETE(server, (UA_Node*)compNode);
 } END_TEST
@@ -977,6 +995,100 @@ START_TEST(WriteSingleDataSourceAttributeValue) {
     ck_assert_int_eq(retval, UA_STATUSCODE_BADWRITENOTSUPPORTED);
 } END_TEST
 
+START_TEST(CheckDisplayNameLocalization) {
+    /* Add a german localization for the DisplayName attribute */
+    UA_WriteValue wValue;
+    UA_WriteValue_init(&wValue);
+    UA_LocalizedText germanDisplayName = UA_LOCALIZEDTEXT("de-DE", "MeinAnzeigeName");
+    UA_Variant_setScalar(&wValue.value.value, &germanDisplayName, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]);
+    wValue.nodeId = UA_NODEID_STRING(1, "localized.attrs");
+    wValue.attributeId = UA_ATTRIBUTEID_DISPLAYNAME;
+    wValue.value.hasValue = true;
+    UA_StatusCode retval = UA_Server_write(server, &wValue);
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+
+    /* Check the original english value fallback */
+    UA_LocalizedText lt;
+    UA_LocalizedText_init(&lt);
+    retval = UA_Server_readDisplayName(server, wValue.nodeId, &lt);
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+
+    UA_LocalizedText expectedEnglishValue = UA_LOCALIZEDTEXT("en-US", "MyDisplayName");
+    ck_assert(UA_String_equal(&lt.locale, &expectedEnglishValue.locale));
+    ck_assert(UA_String_equal(&lt.text, &expectedEnglishValue.text));
+    UA_LocalizedText_clear(&lt);
+
+    /* Check the new german value */
+    server->adminSession.localeIdsSize = 1;
+    server->adminSession.localeIds = UA_LocaleId_new();
+    *server->adminSession.localeIds = UA_STRING_ALLOC("de-DE");
+
+    retval = UA_Server_readDisplayName(server, wValue.nodeId, &lt);
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+
+    ck_assert(UA_String_equal(&lt.locale, &germanDisplayName.locale));
+    ck_assert(UA_String_equal(&lt.text, &germanDisplayName.text));
+    UA_LocalizedText_clear(&lt);
+
+    /* Requesting de-CH should return de-DE if only de-DE is available */
+    UA_LocaleId_clear(server->adminSession.localeIds);
+    *server->adminSession.localeIds = UA_STRING_ALLOC("de-CH");
+
+    retval = UA_Server_readDisplayName(server, wValue.nodeId, &lt);
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+
+    ck_assert(UA_String_equal(&lt.locale, &germanDisplayName.locale));
+    ck_assert(UA_String_equal(&lt.text, &germanDisplayName.text));
+    UA_LocalizedText_clear(&lt);
+} END_TEST
+
+START_TEST(CheckDescriptionLocalization) {
+    /* Add a german localization for the Description attribute */
+    UA_WriteValue wValue;
+    UA_WriteValue_init(&wValue);
+    UA_LocalizedText germanDescription = UA_LOCALIZEDTEXT("de-DE", "MeineBeschreibung");
+    UA_Variant_setScalar(&wValue.value.value, &germanDescription, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]);
+    wValue.nodeId = UA_NODEID_STRING(1, "localized.attrs");
+    wValue.attributeId = UA_ATTRIBUTEID_DESCRIPTION;
+    wValue.value.hasValue = true;
+    UA_StatusCode retval = UA_Server_write(server, &wValue);
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+
+    /* Check the original english value */
+    UA_LocalizedText lt;
+    UA_LocalizedText_init(&lt);
+    retval = UA_Server_readDescription(server, wValue.nodeId, &lt);
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+
+    UA_LocalizedText expectedEnglishValue = UA_LOCALIZEDTEXT("en-US", "MyDescription");
+    ck_assert(UA_String_equal(&lt.locale, &expectedEnglishValue.locale));
+    ck_assert(UA_String_equal(&lt.text, &expectedEnglishValue.text));
+    UA_LocalizedText_clear(&lt);
+
+    /* Check the new german value */
+    server->adminSession.localeIdsSize = 1;
+    server->adminSession.localeIds = UA_LocaleId_new();
+    *server->adminSession.localeIds = UA_STRING_ALLOC("de-DE");
+
+    retval = UA_Server_readDescription(server, wValue.nodeId, &lt);
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+
+    ck_assert(UA_String_equal(&lt.locale, &germanDescription.locale));
+    ck_assert(UA_String_equal(&lt.text, &germanDescription.text));
+    UA_LocalizedText_clear(&lt);
+
+    /* Requesting de-CH should return de-DE if only de-DE is available */
+    UA_LocaleId_clear(server->adminSession.localeIds);
+    *server->adminSession.localeIds = UA_STRING_ALLOC("de-CH");
+
+    retval = UA_Server_readDescription(server, wValue.nodeId, &lt);
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+
+    ck_assert(UA_String_equal(&lt.locale, &germanDescription.locale));
+    ck_assert(UA_String_equal(&lt.text, &germanDescription.text));
+    UA_LocalizedText_clear(&lt);
+} END_TEST
+
 static Suite * testSuite_services_attributes(void) {
     Suite *s = suite_create("services_attributes_read");
 
@@ -1042,6 +1154,12 @@ static Suite * testSuite_services_attributes(void) {
     tcase_add_test(tc_writeSingleAttributes, WriteSingleDataSourceAttributeValue);
 
     suite_add_tcase(s, tc_writeSingleAttributes);
+
+    TCase *tc_localization = tcase_create("localization");
+    tcase_add_checked_fixture(tc_localization, setup, teardown);
+    tcase_add_test(tc_localization, CheckDisplayNameLocalization);
+    tcase_add_test(tc_localization, CheckDescriptionLocalization);
+    suite_add_tcase(s, tc_localization);
 
     return s;
 }
