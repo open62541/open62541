@@ -171,6 +171,9 @@ UA_Server_getSessionById(UA_Server *server, const UA_NodeId *sessionId) {
         return &current->session;
     }
 
+    if(UA_NodeId_equal(sessionId, &server->adminSession.sessionId))
+        return &server->adminSession;
+
     return NULL;
 }
 
