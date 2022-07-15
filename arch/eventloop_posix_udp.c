@@ -77,16 +77,15 @@ UDP_setNoSigPipe(UA_FD sockfd) {
     return UA_STATUSCODE_GOOD;
 }
 
-/**
- * Retrieves hostname and port from given key value parameters.
+/* Retrieves hostname and port from given key value parameters.
+ *
  * @param[in] paramsSize the size of the parameter list
  * @param[in] params the parameter list to retrieve from
  * @param[out] hostname the retrieved hostname when present, NULL otherwise
  * @param[out] portStr the retrieved port when present, NULL otherwise
  * @param[in] logger the logger to log information
  * @return -1 upon error, 0 if there was no host or port parameter, 1 if
- *         host and port are present
- */
+ *         host and port are present */
 static int
 getHostAndPortFromParams(size_t paramsSize, const UA_KeyValuePair *params,
                          char *hostname, char *portStr, const UA_Logger *logger) {
@@ -140,10 +139,12 @@ getNetworkInterfaceFromParams(size_t paramsSize, const UA_KeyValuePair *params,
 }
 
 static int
-getConnectionInfoFromParams(size_t paramsSize, const UA_KeyValuePair *params, char *hostname, char *portStr,
+getConnectionInfoFromParams(size_t paramsSize, const UA_KeyValuePair *params,
+                            char *hostname, char *portStr,
                             struct addrinfo **info, const UA_Logger *logger) {
 
-    int foundParams = getHostAndPortFromParams(paramsSize, params, hostname, portStr, logger);
+    int foundParams = getHostAndPortFromParams(paramsSize, params,
+                                               hostname, portStr, logger);
     if (foundParams < 0) {
         UA_LOG_ERROR(logger, UA_LOGCATEGORY_EVENTLOOP,
                      "UDP\t| Failed retrieving host and port parameters");
@@ -155,7 +156,7 @@ getConnectionInfoFromParams(size_t paramsSize, const UA_KeyValuePair *params, ch
         return 0;
     }
     /* Create the socket description from the connectString
-    * TODO: Make this non-blocking */
+     * TODO: Make this non-blocking */
     struct addrinfo hints;
     memset(&hints, 0, sizeof(struct addrinfo));
     hints.ai_family = AF_UNSPEC;
@@ -170,12 +171,11 @@ getConnectionInfoFromParams(size_t paramsSize, const UA_KeyValuePair *params, ch
     }
     return 1;
 }
-static UA_INLINE UA_StatusCode
-setLoopBackData(UA_SOCKET sockfd,
-                UA_Boolean enableLoopback,
-                int ai_family,
-                const UA_Logger *logger) {
-    /* Set loop back data to your host */
+
+/* Set loop back data to your host */
+static UA_StatusCode
+setLoopBackData(UA_SOCKET sockfd, UA_Boolean enableLoopback,
+                int ai_family, const UA_Logger *logger) {
     /* The Linux Kernel IPv6 socket code checks for optlen to be at least the
      * size of an integer. However, channelDataUDPMC->enableLoopback is a
      * boolean. In order for the code to work for IPv4 and IPv6 propagate it to
@@ -203,11 +203,9 @@ setLoopBackData(UA_SOCKET sockfd,
     return UA_STATUSCODE_GOOD;
 }
 
-static UA_INLINE void
-setTimeToLive(UA_SOCKET sockfd,
-              UA_UInt32 messageTTL,
-              int ai_family,
-              const UA_Logger *logger) {
+static void
+setTimeToLive(UA_SOCKET sockfd, UA_UInt32 messageTTL,
+              int ai_family, const UA_Logger *logger) {
     /* Set Time to live (TTL). Value of 1 prevent forward beyond the local network. */
 #if UA_IPV6
     if(UA_setsockopt(sockfd,
@@ -229,14 +227,13 @@ setTimeToLive(UA_SOCKET sockfd,
     }
 }
 
-static UA_INLINE void
+static void
 setReuseAddress(UA_SOCKET sockfd, UA_Boolean enableReuse, const UA_Logger *logger) {
     /* Set reuse address -> enables sharing of the same listening address on
-    * different sockets */
+     * different sockets */
     int enableReuseVal = 1;
-    if (!enableReuse) {
+    if(!enableReuse)
         enableReuseVal = 0;
-    }
     if(UA_setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR,
                      (const char*)&enableReuseVal, sizeof(enableReuseVal)) < 0) {
         UA_LOG_SOCKET_ERRNO_WRAP(
@@ -249,8 +246,9 @@ setReuseAddress(UA_SOCKET sockfd, UA_Boolean enableReuse, const UA_Logger *logge
 
 #ifdef __linux__
 static UA_StatusCode
-setSocketPriority(UA_SOCKET sockfd, UA_UInt32 *socketPriority, const UA_Logger *logger) {/* Setting the socket priority to the socket */
-    // assert (socketPriority != NULL)
+setSocketPriority(UA_SOCKET sockfd, UA_UInt32 *socketPriority,
+                  const UA_Logger *logger) {
+    /* Setting the socket priority to the socket */
     if (UA_setsockopt(sockfd, SOL_SOCKET, SO_PRIORITY,
                       socketPriority, sizeof(*socketPriority)) < 0) {
         UA_LOG_SOCKET_ERRNO_WRAP(
@@ -279,11 +277,9 @@ isIPv6MulticastAddress(const UA_Byte *address) {
 }
 
 static UA_StatusCode
-setConnectionConfigurationProperties(UA_FD socket,
-                                     const UA_KeyValuePair *connectionProperties,
-                                     const size_t connectionPropertiesSize,
-                                     int ai_family,
-                                     const UA_Logger *logger) {
+setConnectionConfig(UA_FD socket, const UA_KeyValuePair *connectionProperties,
+                    const size_t connectionPropertiesSize,
+                    int ai_family, const UA_Logger *logger) {
     /* Iterate over the given KeyValuePair parameters */
     UA_String ttlParam = UA_STRING("ttl");
     UA_String loopbackParam = UA_STRING("loopback");
@@ -340,12 +336,10 @@ setConnectionConfigurationProperties(UA_FD socket,
                            (int)prop->key.name.length, (char*)prop->key.name.data);
         }
     }
-    /* Set the socket options
-    * also there might be external requirements for socket options
-    * how to handle and set those
-    * either via: passed in parameters
-    * or via: specific callback that gives access to the allocated socket
-    * */
+    /* Set the socket options also there might be external requirements for
+     * socket options how to handle and set those either
+     * - passed in parameters
+     * - specific callback that gives access to the allocated socket */
     UA_StatusCode res = UA_STATUSCODE_GOOD;
     res |= UDP_setNonBlocking(socket);
     res |= UDP_setNoSigPipe(socket);
@@ -1051,8 +1045,9 @@ checkForSendMulticastAndConfigure(size_t paramsSize, const UA_KeyValuePair *para
 }
 
 static UA_StatusCode
-registerSocketAndDestinationForSend(size_t paramsSize, const UA_KeyValuePair *params, const char *hostname,
-                                    struct addrinfo *info, int error, UA_FD *sock, const UA_Logger *logger) {
+registerSocketAndDestinationForSend(size_t paramsSize, const UA_KeyValuePair *params,
+                                    const char *hostname, struct addrinfo *info,
+                                    int error, UA_FD *sock, const UA_Logger *logger) {
     UA_FD newSock = socket(info->ai_family, info->ai_socktype, info->ai_protocol);
     *sock = newSock;
     if(newSock == UA_INVALID_FD) {
@@ -1062,7 +1057,8 @@ registerSocketAndDestinationForSend(size_t paramsSize, const UA_KeyValuePair *pa
                            hostname, errno_str));
         return UA_STATUSCODE_BADDISCONNECT;
     }
-    UA_StatusCode res = setConnectionConfigurationProperties(newSock, params, paramsSize, info->ai_family, logger);
+    UA_StatusCode res = setConnectionConfig(newSock, params, paramsSize,
+                                            info->ai_family, logger);
     if(res != UA_STATUSCODE_GOOD) {
         UA_close(newSock);
         return res;
@@ -1102,7 +1098,8 @@ UDP_openSendConnection(UA_ConnectionManager *cm,
     char portStr[UA_MAXPORTSTR_LENGTH];
     struct addrinfo *info = NULL;
 
-    int error = getConnectionInfoFromParams(paramsSize, params, hostname, portStr, &info, el->eventLoop.logger);
+    int error = getConnectionInfoFromParams(paramsSize, params, hostname,
+                                            portStr, &info, el->eventLoop.logger);
     if(error < 0 || info == NULL) {
         if(info != NULL) {
             UA_freeaddrinfo(info);
@@ -1115,11 +1112,13 @@ UDP_openSendConnection(UA_ConnectionManager *cm,
                  "UDP\t| Open a connection to \"%s\" on port %s", hostname, portStr);
     /* Create a socket and register the destination address from the provided parameters */
     UA_FD newSock = UA_INVALID_FD;
-    UA_StatusCode res = registerSocketAndDestinationForSend(paramsSize, params, hostname, info, error, &newSock, el->eventLoop.logger);
+    UA_StatusCode res =
+        registerSocketAndDestinationForSend(paramsSize, params, hostname, info,
+                                            error, &newSock, el->eventLoop.logger);
     UA_freeaddrinfo(info);
-    if (res != UA_STATUSCODE_GOOD) {
+    if(res != UA_STATUSCODE_GOOD)
         return res;
-    }
+
     /* Allocate the UA_RegisteredFD */
     UDP_FD *newudpfd = (UDP_FD*)UA_calloc(1, sizeof(UDP_FD));
     if(!newudpfd) {
@@ -1188,10 +1187,8 @@ UDP_openReceiveConnection(UA_ConnectionManager *cm,
         /* No hostnames configured -> listen on all interfaces*/
         UA_LOG_INFO(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
                     "UDP\t| Listening on all interfaces");
-        return UDP_registerListenSockets(cm, NULL, *port,
-                                         paramsSize, params,
-                                         application,
-                                         context, connectionCallback);
+        return UDP_registerListenSockets(cm, NULL, *port, paramsSize, params,
+                                         application, context, connectionCallback);
     }
 
     /* Correct datatype for the hostnames? */
@@ -1206,10 +1203,8 @@ UDP_openReceiveConnection(UA_ConnectionManager *cm,
     if(interfaces == 0) {
         UA_LOG_WARNING(el->eventLoop.logger, UA_LOGCATEGORY_EVENTLOOP,
                      "UDP\t| Listening on all interfaces");
-        return UDP_registerListenSockets(cm, NULL, *port,
-                                         paramsSize, params,
-                                         application,
-                                         context, connectionCallback);
+        return UDP_registerListenSockets(cm, NULL, *port, paramsSize, params,
+                                         application, context, connectionCallback);
     }
 
     /* Iterate over the configured hostnames */
