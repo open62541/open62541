@@ -590,7 +590,7 @@ UDP_close(UDPConnectionManager *ucm, UA_RegisteredFD *rfd) {
     /* Signal closing to the application */
     udpfd->connectionCallback(&ucm->cm, (uintptr_t)rfd->fd,
                               rfd->application, &rfd->context,
-                              UA_STATUSCODE_BADCONNECTIONCLOSED,
+                              UA_CONNECTIONSTATE_CLOSING,
                               0, NULL, UA_BYTESTRING_NULL);
 
     /* Close the socket */
@@ -643,8 +643,8 @@ UDP_connectionSocketCallback(UA_ConnectionManager *cm, UA_RegisteredFD *rfd,
         /* A new socket has opened. Signal it to the application. */
         udpfd->connectionCallback(cm, (uintptr_t)rfd->fd,
                                   rfd->application, &rfd->context,
-                                  UA_STATUSCODE_GOOD, 0, NULL,
-                                  UA_BYTESTRING_NULL);
+                                  UA_CONNECTIONSTATE_ESTABLISHED,
+                                  0, NULL, UA_BYTESTRING_NULL);
 
         /* Now we are interested in read-events. */
         rfd->listenEvents = UA_FDEVENT_IN;
@@ -691,7 +691,7 @@ UDP_connectionSocketCallback(UA_ConnectionManager *cm, UA_RegisteredFD *rfd,
     response.length = (size_t)ret; /* Set the length of the received buffer */
     udpfd->connectionCallback(cm, (uintptr_t)rfd->fd,
                               rfd->application, &rfd->context,
-                              UA_STATUSCODE_GOOD, 0, NULL, response);
+                              UA_CONNECTIONSTATE_ESTABLISHED, 0, NULL, response);
 }
 
 static UA_StatusCode
@@ -847,9 +847,12 @@ UDP_registerListenSocket(UA_ConnectionManager *cm, UA_UInt16 port, struct addrin
         UA_close(listenSocket);
         return;
     }
+
+    /* Register the listen socket in the application */
     connectionCallback(cm, (uintptr_t)newudpfd->fd.fd,
                        application, &newudpfd->fd.context,
-                       UA_STATUSCODE_GOOD, 0, NULL, UA_BYTESTRING_NULL);
+                       UA_CONNECTIONSTATE_ESTABLISHED,
+                       0, NULL, UA_BYTESTRING_NULL);
 }
 
 static UA_StatusCode
@@ -1153,10 +1156,10 @@ UDP_openSendConnection(UA_ConnectionManager *cm,
                 "UDP %u\t| New connection to \"%s\" on port %s",
                 (unsigned)newSock, hostname, portStr);
 
-    /* Don't signal the application that the connection has opened. This will
-     * happen in the next iteration of the EventLoop. */
-    /* connectionCallback(cm, (uintptr_t)newSock, application, &newudpfd->fd.context,
-                          UA_STATUSCODE_GOOD, 0, NULL, UA_BYTESTRING_NULL); */
+    /* Signal the connection as opening. The connection fully opens in the next
+     * iteration of the EventLoop */
+    connectionCallback(cm, (uintptr_t)newSock, application, &newudpfd->fd.context,
+                       UA_CONNECTIONSTATE_OPENING, 0, NULL, UA_BYTESTRING_NULL);
 
     return UA_STATUSCODE_GOOD;
 }

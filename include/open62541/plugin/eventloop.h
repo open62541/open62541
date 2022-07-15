@@ -13,6 +13,7 @@
 #include <open62541/types_generated.h>
 #include <open62541/util.h>
 #include <open62541/plugin/log.h>
+#include <open62541/plugin/network.h>
 
 _UA_BEGIN_DECLS
 
@@ -232,9 +233,10 @@ struct UA_EventSource {
  *   is set. The context can be replaced within the callback (via the
  *   double-pointer).
  *
- * - The status indicates whether the connection is closing down. If status
- *   != GOOD, then the application should clean up the context, as this is
- *   the last time the callback will be called for this connection.
+ * - The state argument indicates the lifecycle of the connection. Every
+ *   connection calls the callback a last time with UA_CONNECTIONSTATE_CLOSING.
+ *   Protocols individually can forward diagnostic information relevant to the
+ *   state as part of the key-value parameters.
  *
  * - The parameters are a key-value list with additional information. The
  *   possible keys and their meaning are documented for the individual
@@ -245,9 +247,8 @@ struct UA_EventSource {
 typedef void
 (*UA_ConnectionManager_connectionCallback)
      (UA_ConnectionManager *cm, uintptr_t connectionId,
-      void *application, void **connectionContext, UA_StatusCode status,
-      size_t paramsSize, const UA_KeyValuePair *params,
-      UA_ByteString msg);
+      void *application, void **connectionContext, UA_ConnectionState state,
+      size_t paramsSize, const UA_KeyValuePair *params, UA_ByteString msg);
 
 struct UA_ConnectionManager {
     /* Every ConnectionManager is treated like an EventSource from the
@@ -277,12 +278,22 @@ struct UA_ConnectionManager {
      * connection. It is already set before the first call to
      * connectionCallback.
      *
-     * The connection is opened asynchronously. The connection-callback is
-     * triggered when the connection is fully opened (UA_STATUSCODE_GOOD) or has
-     * failed (with an error code). */
-
-    /* TODO: Return the connection id right away. So an opening connection can
-     * be aborted before the first callback. */
+     * The connection can be opened synchronously or asynchronously.
+     *
+     * - For synchronous connection, the connectionCallback is called with the
+     *   status UA_CONNECTIONSTATE_ESTABLISHED immediately from within the
+     *   openConnection operation.
+     *
+     * - In the asynchronous case the connectionCallback is called immediately
+     *   from within the openConnection operation with the status
+     *   UA_CONNECTIONSTATE_OPENING. The connectionCallback is called with the
+     *   status UA_CONNECTIONSTATE_ESTABLISHED once the connection has fully
+     *   opened.
+     *
+     * Note that a single call to openConnection might open multiple
+     * connections. For example listening on IPv4 and IPv6 for a single
+     * hostname. Each protocol implementation documents whether multiple
+     * connections might be opened at once. */
     UA_StatusCode
     (*openConnection)(UA_ConnectionManager *cm,
                       size_t paramsSize, const UA_KeyValuePair *params,

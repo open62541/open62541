@@ -133,7 +133,7 @@ TCP_close(TCPConnectionManager *tcm, UA_RegisteredFD *rfd) {
     /* Signal closing to the application */
     tcpfd->connectionCallback(&tcm->cm, (uintptr_t)rfd->fd,
                               rfd->application, &rfd->context,
-                              UA_STATUSCODE_BADCONNECTIONCLOSED,
+                              UA_CONNECTIONSTATE_CLOSING,
                               0, NULL, UA_BYTESTRING_NULL);
 
     /* Close the socket */
@@ -148,9 +148,8 @@ TCP_close(TCPConnectionManager *tcm, UA_RegisteredFD *rfd) {
                           (unsigned)rfd->fd, errno_str));
     }
 
-    /* Don't call free here. This might be done automatically via the delayed
+    /* Don't call UA_free(rfd). This might be done automatically via the delayed
      * callback that calls TCP_close. */
-    /* UA_free(rfd); */
 
     /* Stop if the tcm is stopping and this was the last open socket */
     TCP_checkStopped(tcm);
@@ -223,7 +222,7 @@ TCP_connectionSocketCallback(UA_ConnectionManager *cm, UA_RegisteredFD *rfd,
         /* A new socket has opened. Signal it to the application. */
         tcpfd->connectionCallback(cm, (uintptr_t)rfd->fd,
                                   rfd->application, &rfd->context,
-                                  UA_STATUSCODE_GOOD, 0, NULL,
+                                  UA_CONNECTIONSTATE_ESTABLISHED, 0, NULL,
                                   UA_BYTESTRING_NULL);
 
         /* Now we are interested in read-events. */
@@ -270,7 +269,8 @@ TCP_connectionSocketCallback(UA_ConnectionManager *cm, UA_RegisteredFD *rfd,
     response.length = (size_t)ret; /* Set the length of the received buffer */
     tcpfd->connectionCallback(cm, (uintptr_t)rfd->fd,
                               rfd->application, &rfd->context,
-                              UA_STATUSCODE_GOOD, 0, NULL, response);
+                              UA_CONNECTIONSTATE_ESTABLISHED,
+                              0, NULL, response);
 }
 
 /* Gets called when a new connection opens or if the listenSocket is closed */
@@ -371,7 +371,8 @@ TCP_listenSocketCallback(UA_ConnectionManager *cm, UA_RegisteredFD *rfd, short e
     /* The socket has opened. Signal it to the application. */
     tcpfd->connectionCallback(cm, (uintptr_t)newsockfd,
                               newtcpfd->fd.application, &newtcpfd->fd.context,
-                              UA_STATUSCODE_GOOD, 1, &kvp, UA_BYTESTRING_NULL);
+                              UA_CONNECTIONSTATE_ESTABLISHED,
+                              1, &kvp, UA_BYTESTRING_NULL);
 }
 
 static UA_StatusCode
@@ -518,7 +519,8 @@ TCP_registerListenSocket(UA_ConnectionManager *cm, struct addrinfo *ai,
 
     /* Announce the listen-socket in the application */
     connectionCallback(cm, (uintptr_t)listenSocket, application,
-                       &newtcpfd->fd.context, UA_STATUSCODE_GOOD,
+                       &newtcpfd->fd.context,
+                       UA_CONNECTIONSTATE_ESTABLISHED,
                        paramsSize, params, UA_BYTESTRING_NULL);
 
     return UA_STATUSCODE_GOOD;
@@ -893,8 +895,11 @@ TCP_openActiveConnection(UA_ConnectionManager *cm,
                 "TCP %u\t| New connection to \"%s\" on port %s",
                 (unsigned)newSock, hostname, portStr);
 
-    /* The callback to signal the new connection to the application is triggered
-     * asynchonously in the next iteration of the EventLoop */
+    /* Signal the new connection to the application as asynchonously opening */
+    connectionCallback(cm, (uintptr_t)newSock,
+                       application, &newtcpfd->fd.context,
+                       UA_CONNECTIONSTATE_OPENING, 0, NULL,
+                       UA_BYTESTRING_NULL);
 
     return UA_STATUSCODE_GOOD;
 }

@@ -1059,7 +1059,7 @@ verifyClientApplicationURI(const UA_Client *client) {
 static void
 UA_Client_networkCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
                           void *application, void **connectionContext,
-                          UA_StatusCode state,
+                          UA_ConnectionState state,
                           size_t paramsSize, const UA_KeyValuePair *params,
                           UA_ByteString msg) {
     UA_Client *client = (UA_Client*)application;
@@ -1067,11 +1067,17 @@ UA_Client_networkCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
     UA_LOG_TRACE(&client->config.logger, UA_LOGCATEGORY_CLIENT,
                  "Client network callback");
 
-    /* A new connection is opening */
+    /* The connection is still opening */
+    if(state == UA_CONNECTIONSTATE_OPENING) {
+        return;
+    }
+
+    /* A new connection is not yet registered */
     if(!*connectionContext) {
         /* Opening the connection failed */
-        if(state != UA_STATUSCODE_GOOD) {
-            client->connectStatus = state; /* The client cannot recover from this */
+        if(state != UA_CONNECTIONSTATE_ESTABLISHED) {
+            /* The client cannot recover from this */
+            client->connectStatus = UA_STATUSCODE_BADCONNECTIONREJECTED;
             client->connection.state = UA_CONNECTIONSTATE_CLOSED;
             closeSecureChannel(client);
             notifyClientState(client);
@@ -1098,7 +1104,7 @@ UA_Client_networkCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
 
     /* A bad status code was sent from an open connection. The connection will
      * be deleted now in the ConnectionManager. Clean up in the client. */
-    if(state != UA_STATUSCODE_GOOD) {
+    if(state == UA_CONNECTIONSTATE_CLOSING) {
         UA_LOG_INFO(&client->config.logger, UA_LOGCATEGORY_CLIENT,
                     "The TCP connection closed with state %s",
                     UA_StatusCode_name(state));
@@ -1110,12 +1116,13 @@ UA_Client_networkCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
     }
 
     /* Received a message. Process the message with the SecureChannel. */
-    state = UA_SecureChannel_processBuffer(&client->channel, client,
-                                           processServiceResponse, &msg);
-    if(state != UA_STATUSCODE_GOOD) {
+    UA_StatusCode res
+        = UA_SecureChannel_processBuffer(&client->channel, client,
+                                         processServiceResponse, &msg);
+    if(res != UA_STATUSCODE_GOOD) {
         UA_LOG_WARNING(&client->config.logger, UA_LOGCATEGORY_CLIENT,
                        "Processing the message returned the error code %s",
-                       UA_StatusCode_name(state));
+                       UA_StatusCode_name(res));
 
         /* Close the SecureChannel, but don't notify the client right away.
          * Return immediately. notifyClientState will be called in the next
