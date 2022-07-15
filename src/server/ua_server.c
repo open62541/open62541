@@ -570,15 +570,17 @@ UA_Server_getStatistics(UA_Server *server) {
 static void
 UA_Server_networkCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
                           void *application, void **connectionContext,
-                          UA_StatusCode state,
+                          UA_ConnectionState state,
                           size_t paramsSize, const UA_KeyValuePair *params,
                           UA_ByteString msg) {
     UA_Server *server = (UA_Server*)application;
 
     /* A server socket that is not registered in the server */
     if(*connectionContext == NULL) {
-        if(state != UA_STATUSCODE_GOOD)
-            return; /* Closing an unregistered server socket */
+        /* The socket is no fully open -> ignore */
+        if(state == UA_CONNECTIONSTATE_CLOSED ||
+           state == UA_CONNECTIONSTATE_CLOSING)
+            return;
 
         /* Cannot register */
         if(server->serverConnectionsSize >= UA_MAXSERVERCONNECTIONS) {
@@ -593,7 +595,7 @@ UA_Server_networkCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
         UA_ServerConnection *sc = server->serverConnections;
         while(sc->connectionId != 0)
             sc++;
-        sc->state = UA_SERVERCONNECTIONSTATE_STARTED;
+        sc->state = state;
         sc->connectionId = connectionId;
         sc->connectionManager = cm;
         *connectionContext = (void*)sc; /* Set the context pointer in the connection */
@@ -605,10 +607,10 @@ UA_Server_networkCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
     UA_Boolean serverSocket = (sc >= server->serverConnections &&
                                sc < &server->serverConnections[UA_MAXSERVERCONNECTIONS]);
 
-    if(state != UA_STATUSCODE_GOOD) {
+    if(state == UA_CONNECTIONSTATE_CLOSING) {
         if(serverSocket) {
-            /* A server socket is closing */
-            sc->state = UA_SERVERCONNECTIONSTATE_FRESH;
+            /* Server socket is closed */
+            sc->state = UA_CONNECTIONSTATE_CLOSED;
             sc->connectionId = 0;
             server->serverConnectionsSize--;
         } else {

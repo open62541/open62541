@@ -23,11 +23,11 @@ typedef struct TestContext {
 static void
 connectionCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
                    void *application, void **connectionContext,
-                   UA_StatusCode status,
+                   UA_ConnectionState status,
                    size_t paramsSize, const UA_KeyValuePair *params,
                    UA_ByteString msg) {
     TestContext *ctx = (TestContext*) *connectionContext;
-    if(status != UA_STATUSCODE_GOOD) {
+    if(status == UA_CONNECTIONSTATE_CLOSING) {
         UA_LOG_DEBUG(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
                      "Closing connection %u", (unsigned)connectionId);
     } else {
@@ -40,7 +40,7 @@ connectionCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
         }
     }
 
-    if(msg.length == 0 && status == UA_STATUSCODE_GOOD) {
+    if(msg.length == 0 && status == UA_CONNECTIONSTATE_ESTABLISHED) {
         ctx->connCount++;
         clientId = connectionId;
 
@@ -53,29 +53,15 @@ connectionCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
             ck_assert(hn != NULL);
         }
     }
-    if(status != UA_STATUSCODE_GOOD) {
+
+    if(status == UA_CONNECTIONSTATE_CLOSING)
         ctx->connCount--;
-    }
 
     if(msg.length > 0) {
         UA_ByteString rcv = UA_BYTESTRING(testMsg);
         ck_assert(UA_String_equal(&msg, &rcv));
         received = true;
     }
-}
-
-static void
-reenterConnectionCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
-                          void *application, void **connectionContext,
-                          UA_StatusCode status,
-                          size_t paramsSize, const UA_KeyValuePair *params,
-                          UA_ByteString msg) {
-    /* Try to reenter the eventloop. Must fail. */
-    UA_StatusCode rv = el->run(el, 1);
-    ck_assert_uint_eq(rv, UA_STATUSCODE_BADINTERNALERROR);
-
-    connectionCallback(cm, connectionId, application, connectionContext,
-                       status, paramsSize, params, msg);
 }
 
 START_TEST(listenUDP) {
@@ -107,86 +93,6 @@ START_TEST(listenUDP) {
     int max_stop_iteration_count = 1000;
     int iteration = 0;
     el->stop(el);
-    while(el->state != UA_EVENTLOOPSTATE_STOPPED &&
-          iteration < max_stop_iteration_count) {
-        UA_DateTime next = el->run(el, 1);
-        UA_fakeSleep((UA_UInt32)((next - UA_DateTime_now()) / UA_DATETIME_MSEC));
-        iteration++;
-    }
-    el->free(el);
-    el = NULL;
-
-    ck_assert_uint_eq(testContext.connCount, 0);
-} END_TEST
-
-START_TEST(runEventloopFailsIfCalledFromCallback) {
-    UA_ConnectionManager *cm = UA_ConnectionManager_new_POSIX_UDP(UA_STRING("udpCM"));
-    el = UA_EventLoop_new_POSIX(UA_Log_Stdout);
-    el->registerEventSource(el, &cm->eventSource);
-    el->start(el);
-
-    TestContext testContext;
-    testContext.connCount = 0;
-
-    UA_UInt16 port = 4840;
-    UA_Variant portVar;
-    UA_Variant_setScalar(&portVar, &port, &UA_TYPES[UA_TYPES_UINT16]);
-
-    UA_KeyValuePair params[2];
-    params[0].key = UA_QUALIFIEDNAME(0, "listen-port");
-    params[0].value = portVar;
-
-    cm->openConnection(cm, 1, params, NULL, &testContext, connectionCallback);
-
-    size_t listenSockets = testContext.connCount;
-
-    /* Open a client connection */
-    clientId = 0;
-
-    UA_String targetHost = UA_STRING("localhost");
-    params[0].key = UA_QUALIFIEDNAME(0, "port");
-    params[0].value = portVar;
-    params[1].key = UA_QUALIFIEDNAME(0, "hostname");
-    UA_Variant_setScalar(&params[1].value, &targetHost, &UA_TYPES[UA_TYPES_STRING]);
-
-    UA_StatusCode retval = cm->openConnection(cm, 2, params, NULL, &testContext,
-                                              reenterConnectionCallback);
-    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
-    for(size_t i = 0; i < 10; i++) {
-        UA_DateTime next = el->run(el, 1);
-        UA_fakeSleep((UA_UInt32)((next - UA_DateTime_now()) / UA_DATETIME_MSEC));
-    }
-    ck_assert(clientId != 0);
-    ck_assert_uint_eq(testContext.connCount, listenSockets + 1);
-
-    /* Send a message from the client */
-    received = false;
-    UA_ByteString snd;
-    retval = cm->allocNetworkBuffer(cm, clientId, &snd, strlen(testMsg));
-    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
-    memcpy(snd.data, testMsg, strlen(testMsg));
-    retval = cm->sendWithConnection(cm, clientId, 0, NULL, &snd);
-    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
-    for(size_t i = 0; i < 2; i++) {
-        UA_DateTime next = el->run(el, 1);
-        UA_fakeSleep((UA_UInt32)((next - UA_DateTime_now()) / UA_DATETIME_MSEC));
-    }
-    ck_assert(received);
-
-    /* Close the connection */
-    retval = cm->closeConnection(cm, clientId);
-    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
-    ck_assert_uint_eq(testContext.connCount, listenSockets + 1);
-    for(size_t i = 0; i < 2; i++) {
-        UA_DateTime next = el->run(el, 1);
-        UA_fakeSleep((UA_UInt32)((next - UA_DateTime_now()) / UA_DATETIME_MSEC));
-    }
-    ck_assert_uint_eq(testContext.connCount, listenSockets);
-
-    /* Stop the EventLoop */
-    el->stop(el);
-    int max_stop_iteration_count = 1000;
-    int iteration = 0;
     while(el->state != UA_EVENTLOOPSTATE_STOPPED &&
           iteration < max_stop_iteration_count) {
         UA_DateTime next = el->run(el, 1);
@@ -506,8 +412,6 @@ int main(void) {
     TCase *tc = tcase_create("test cases");
     tcase_add_test(tc, listenUDP);
     tcase_add_test(tc, connectUDP);
-    tcase_add_test(tc, runEventloopFailsIfCalledFromCallback);
-
     tcase_add_test(tc, udpTalkerAndListener);
     tcase_add_test(tc, udpTalkerAndListenerDifferentDestination);
     suite_add_tcase(s, tc);

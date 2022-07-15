@@ -86,19 +86,11 @@ typedef enum {
     UA_SERVERLIFECYCLE_STOPPING
 } UA_ServerLifecycle;
 
-typedef enum {
-    UA_SERVERCONNECTIONSTATE_FRESH,
-    UA_SERVERCONNECTIONSTATE_STOPPED,
-    UA_SERVERCONNECTIONSTATE_STARTING,
-    UA_SERVERCONNECTIONSTATE_STARTED,
-    UA_SERVERCONNECTIONSTATE_STOPPING
-} UA_ServerConnectionState;
-
 /* Maximum numbers of sockets to listen on */
 #define UA_MAXSERVERCONNECTIONS 16
 
 typedef struct {
-    UA_ServerConnectionState state;
+    UA_ConnectionState state;
     uintptr_t connectionId;
     UA_ConnectionManager *connectionManager;
 } UA_ServerConnection;
