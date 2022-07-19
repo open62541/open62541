@@ -48,15 +48,6 @@ TCPConnectionManager_register(TCPConnectionManager *tcm, UA_RegisteredFD *rfd) {
     return UA_STATUSCODE_GOOD;
 }
 
-static void
-TCPConnectionManager_deregister(TCPConnectionManager *tcm, UA_RegisteredFD *rfd) {
-    UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX*)tcm->cm.eventSource.eventLoop;
-    UA_EventLoopPOSIX_deregisterFD(el, rfd);
-    LIST_REMOVE(rfd, es_pointers);
-    UA_assert(tcm->fdsSize > 0);
-    tcm->fdsSize--;
-}
-
 static UA_StatusCode
 TCP_allocNetworkBuffer(UA_ConnectionManager *cm, uintptr_t connectionId,
                        UA_ByteString *buf, size_t bufSize) {
@@ -127,9 +118,6 @@ TCP_close(TCPConnectionManager *tcm, UA_RegisteredFD *rfd) {
     UA_LOG_DEBUG(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
                  "TCP %u\t| Closing connection", (unsigned)rfd->fd);
 
-    /* Deregister from the EventLoop */
-    TCPConnectionManager_deregister(tcm, rfd);
-
     /* Signal closing to the application */
     tcpfd->connectionCallback(&tcm->cm, (uintptr_t)rfd->fd,
                               rfd->application, &rfd->context,
@@ -148,11 +136,14 @@ TCP_close(TCPConnectionManager *tcm, UA_RegisteredFD *rfd) {
                           (unsigned)rfd->fd, errno_str));
     }
 
+    /* Decrease the number of open sockets. Then check if the tcm is stopping
+     * and this was the last open socket */
+    UA_assert(tcm->fdsSize > 0);
+    tcm->fdsSize--;
+    TCP_checkStopped(tcm);
+
     /* Don't call UA_free(rfd). This might be done automatically via the delayed
      * callback that calls TCP_close. */
-
-    /* Stop if the tcm is stopping and this was the last open socket */
-    TCP_checkStopped(tcm);
 
     return UA_STATUSCODE_GOOD;
 }
@@ -604,6 +595,14 @@ TCP_shutdown(UA_ConnectionManager *cm, UA_RegisteredFD *rfd) {
     UA_LOG_DEBUG(el->logger, UA_LOGCATEGORY_NETWORK,
                  "TCP %u\t| Shutdown called", (unsigned)rfd->fd);
 
+    /* Deregister from the EventLoop. Don't decrease the tcm->fdsSize counter
+     * right now. Do this in the delayed callback where the rfd is freed.
+     * Otherwise the ConnectionManager may be freed too early. */
+    UA_EventLoopPOSIX_deregisterFD((UA_EventLoopPOSIX*)el, rfd);
+    LIST_REMOVE(rfd, es_pointers);
+
+    /* Add to the delayed callback list. Will be cleaned up in the next
+     * iteration. */
     UA_DelayedCallback *dc = &rfd->dc;
     dc->callback = TCP_delayedClose;
     dc->application = cm;
