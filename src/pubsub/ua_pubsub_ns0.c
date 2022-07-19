@@ -121,6 +121,10 @@ onReadLocked(UA_Server *server, const UA_NodeId *sessionId, void *sessionContext
             UA_Variant_setScalar(&value, dataSetReader->config.publisherId.data,
                                  dataSetReader->config.publisherId.type);
             break;
+        case UA_NS0ID_DATASETREADERTYPE_STATUS_STATE:
+            UA_Variant_setScalar(&value, &dataSetReader->state,
+                                 &UA_TYPES[UA_TYPES_PUBSUBSTATE]);
+            break;
         default:
             UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
                            "Read error! Unknown property.");
@@ -860,7 +864,7 @@ addDataSetReaderRepresentation(UA_Server *server, UA_DataSetReader *dataSetReade
     dsrName[dataSetReader->config.name.length] = '\0';
 
     UA_StatusCode retVal = UA_STATUSCODE_GOOD;
-    UA_NodeId publisherIdNode, writerGroupIdNode, dataSetwriterIdNode;
+    UA_NodeId publisherIdNode, writerGroupIdNode, dataSetwriterIdNode, stateParentNode, stateNode;
 
     UA_ObjectAttributes object_attr = UA_ObjectAttributes_default;
     object_attr.displayName = UA_LOCALIZEDTEXT("", dsrName);
@@ -883,6 +887,12 @@ addDataSetReaderRepresentation(UA_Server *server, UA_DataSetReader *dataSetReade
     dataSetwriterIdNode = findSingleChildNode(server, UA_QUALIFIEDNAME(0, "DataSetWriterId"),
                                               UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY),
                                               dataSetReader->identifier);
+    stateParentNode = findSingleChildNode(server, UA_QUALIFIEDNAME(0, "Status"),
+                                              UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
+                                              dataSetReader->identifier);
+    stateNode = findSingleChildNode(server, UA_QUALIFIEDNAME(0, "State"),
+                                            UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
+                                            stateParentNode);
 
     if(UA_NodeId_isNull(&publisherIdNode) ||
        UA_NodeId_isNull(&writerGroupIdNode) ||
@@ -900,6 +910,14 @@ addDataSetReaderRepresentation(UA_Server *server, UA_DataSetReader *dataSetReade
     valueCallback.onWrite = NULL;
     retVal |= addVariableValueSource(server, valueCallback, publisherIdNode,
                                      dataSetReaderPublisherIdContext);
+
+    UA_NodePropertyContext *dataSetReaderStateContext =
+        (UA_NodePropertyContext *) UA_malloc(sizeof(UA_NodePropertyContext));
+    dataSetReaderStateContext->parentNodeId = dataSetReader->identifier;
+    dataSetReaderStateContext->parentClassifier = UA_NS0ID_DATASETREADERTYPE;
+    dataSetReaderStateContext->elementClassiefier = UA_NS0ID_DATASETREADERTYPE_STATUS_STATE;
+    retVal |= addVariableValueSource(server, valueCallback, stateNode,
+                                     dataSetReaderStateContext);
 
     /* Update childNode with values from Publisher */
     UA_Variant value;
@@ -2227,6 +2245,13 @@ dataSetReaderTypeDestructor(UA_Server *server,
     UA_NodeId publisherIdNode =
         findSingleChildNode(server, UA_QUALIFIEDNAME(0, "PublisherId"),
                             UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY), *nodeId);
+    UA_NodeId stateParentNode = findSingleChildNode(server, UA_QUALIFIEDNAME(0, "Status"),
+                                          UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
+                                          *nodeId);
+    UA_NodeId stateNode = findSingleChildNode(server, UA_QUALIFIEDNAME(0, "State"),
+                                    UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
+                                    stateParentNode);
+
     UA_NodePropertyContext *ctx;
     getNodeContext(server, publisherIdNode, (void **)&ctx);
     if(!UA_NodeId_isNull(&publisherIdNode))
