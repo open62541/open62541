@@ -122,33 +122,6 @@ checkMethodReference(const UA_NodeHead *h, UA_ReferenceTypeSet refs,
 }
 
 static UA_StatusCode
-checkObjectTypeMethodReference(UA_Server *server, const UA_NodeHead *h,
-                               UA_ReferenceTypeSet refs, const UA_ExpandedNodeId *methodId,
-                               UA_Boolean *found) {
-    /* Get the list of types from which the method inherits. This considers
-     * multiple inheritance. */
-    UA_NodeId *typeHierarchy = NULL;
-    size_t typeHierarchySize = 0;
-    UA_StatusCode res =
-        getParentTypeAndInterfaceHierarchy(server, &h->nodeId,
-                                           &typeHierarchy, &typeHierarchySize);
-    UA_CHECK_STATUS(res, return res);
-
-    for(size_t i = 0; i < typeHierarchySize && !*found; i++) {
-        const UA_Node *objectType =
-            UA_NODESTORE_GET_SELECTIVE(server, &typeHierarchy[i], 0,
-                                       refs, UA_BROWSEDIRECTION_FORWARD);
-        if(!objectType)
-            continue;
-        *found = checkMethodReference(&objectType->head, refs, methodId);
-        UA_NODESTORE_RELEASE(server, objectType);
-    }
-
-    UA_Array_delete(typeHierarchy, typeHierarchySize, &UA_TYPES[UA_TYPES_NODEID]);
-    return UA_STATUSCODE_GOOD;
-}
-
-static UA_StatusCode
 checkFunctionalGroupMethodReference(UA_Server *server, const UA_NodeHead *h,
                                     const UA_ExpandedNodeId *methodId,
                                     UA_Boolean *found) {
@@ -250,10 +223,11 @@ callWithMethodAndObject(UA_Server *server, UA_Session *session,
          * check its objectType (and its supertypes). Invoked method can be a component
          * of objectType and be invoked on this objectType's instance (or on a instance
          * of one of its subtypes). */
-        result->statusCode =
-            checkObjectTypeMethodReference(server, &object->head,
-                                           hasComponentRefs, &methodId, &found);
-        UA_CHECK_STATUS(result->statusCode, return);
+        const UA_Node *objectType = getNodeType(server, &object->head);
+        if(objectType) {
+            found = checkMethodReference(&objectType->head, hasComponentRefs, &methodId);
+            UA_NODESTORE_RELEASE(server, objectType);
+        }
     }
 
     if(!found) {
