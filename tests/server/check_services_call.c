@@ -206,7 +206,8 @@ START_TEST(callMethodWithWronglyTypedArguments) {
     ck_assert_int_eq(result.inputArgumentResults[0], UA_STATUSCODE_BADTYPEMISMATCH);
     ck_assert_int_eq(result.statusCode, UA_STATUSCODE_BADINVALIDARGUMENT);
 
-    UA_Array_delete(result.inputArgumentResults, result.inputArgumentResultsSize, &UA_TYPES[UA_TYPES_STATUSCODE]);
+    UA_Array_delete(result.inputArgumentResults, result.inputArgumentResultsSize,
+                    &UA_TYPES[UA_TYPES_STATUSCODE]);
 #endif
 } END_TEST
 
@@ -231,13 +232,14 @@ START_TEST(callMethodWithEmptyArgument) {
     ck_assert_int_eq(result.inputArgumentResults[0], UA_STATUSCODE_BADTYPEMISMATCH);
     ck_assert_int_eq(result.statusCode, UA_STATUSCODE_BADINVALIDARGUMENT);
 
-    UA_Array_delete(result.inputArgumentResults, result.inputArgumentResultsSize, &UA_TYPES[UA_TYPES_STATUSCODE]);
+    UA_Array_delete(result.inputArgumentResults, result.inputArgumentResultsSize,
+                    &UA_TYPES[UA_TYPES_STATUSCODE]);
 #endif
 } END_TEST
 
 START_TEST(callObjectTypeMethodOnInstance) {
 /* Minimal nodeset does not add any method nodes we may call here */
-#if defined(UA_GENERATED_NAMESPACE_ZERO_FULL) && defined(UA_ENABLE_SUBSCRIPTIONS)
+#if defined(UA_GENERATED_NAMESPACE_ZERO) && defined(UA_ENABLE_SUBSCRIPTIONS)
     UA_Variant inputArgument;
     UA_Variant_init(&inputArgument);
     UA_UInt32 inputArgumentValue = 0;
@@ -262,6 +264,63 @@ START_TEST(callObjectTypeMethodOnInstance) {
 #endif
 } END_TEST
 
+START_TEST(callObjectTypeMethodOnInstance2) {
+/* Minimal nodeset does not add any method nodes we may call here */
+#if defined(UA_GENERATED_NAMESPACE_ZERO) && defined(UA_ENABLE_SUBSCRIPTIONS)
+    /* Add an object type */
+    UA_NodeId objecttypeid = UA_NODEID_NUMERIC(0, 13371337);
+    UA_ObjectTypeAttributes attr = UA_ObjectTypeAttributes_default;
+    attr.displayName = UA_LOCALIZEDTEXT("en-US","my objecttype");
+    UA_StatusCode res =
+        UA_Server_addObjectTypeNode(server, objecttypeid,
+                                    UA_NODEID_NUMERIC(0, UA_NS0ID_BASEOBJECTTYPE),
+                                    UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE),
+                                    UA_QUALIFIEDNAME(0, "myobjecttype"), attr,
+                                    NULL, NULL);
+    ck_assert_int_eq(res, UA_STATUSCODE_GOOD);
+
+    /* Add a method to the object type. But don't make the method a mandatory child. */
+    UA_NodeId methodid = UA_NODEID_NUMERIC(0, 4711);
+    UA_MethodAttributes methodAttr = UA_MethodAttributes_default;
+    methodAttr.description = UA_LOCALIZEDTEXT("en-US","my method");
+    methodAttr.displayName = UA_LOCALIZEDTEXT("en-US","my method");
+    methodAttr.executable = true;
+    methodAttr.userExecutable = true;
+    UA_Server_addMethodNode(server, methodid,
+                            objecttypeid,
+                            UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
+                            UA_QUALIFIEDNAME(1, "Not executable"),
+                            methodAttr, &methodCallback,
+                            0, NULL, 0, NULL, NULL, NULL);
+
+    /* Instantiate the object type. This does not create a copy of the method. */
+    UA_NodeId objId;
+    UA_ObjectAttributes attr2 = UA_ObjectAttributes_default;
+    attr2.displayName = UA_LOCALIZEDTEXT("en-US","my object");
+    res = UA_Server_addObjectNode(server, UA_NODEID_NULL,
+                                  UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
+                                  UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
+                                  UA_QUALIFIEDNAME(0, "MyObjectNode"), objecttypeid,
+                                  attr2, NULL, &objId);
+    ck_assert_int_eq(res, UA_STATUSCODE_GOOD);
+    
+    UA_CallMethodRequest callMethodRequest;
+    UA_CallMethodRequest_init(&callMethodRequest);
+    callMethodRequest.methodId = methodid;
+    callMethodRequest.objectId = objId;
+
+    UA_CallMethodResult result;
+    UA_CallMethodResult_init(&result);
+    result = UA_Server_call(server, &callMethodRequest);
+
+    /* Has to succeed even though the method is not directly referenced from the
+     * object. We look up that the method is defined in its ObjectType and then
+     * allow it to be called. */
+    ck_assert_int_eq(result.statusCode, UA_STATUSCODE_GOOD);
+    UA_CallMethodResult_clear(&result);
+#endif
+} END_TEST
+
 int main(void) {
     Suite *s = suite_create("services_call");
 
@@ -278,6 +337,7 @@ int main(void) {
     tcase_add_test(tc_call, callMethodWithWronglyTypedArguments);
     tcase_add_test(tc_call, callMethodWithEmptyArgument);
     tcase_add_test(tc_call, callObjectTypeMethodOnInstance);
+    tcase_add_test(tc_call, callObjectTypeMethodOnInstance2);
     suite_add_tcase(s, tc_call);
 
     SRunner *sr = srunner_create(s);
