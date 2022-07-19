@@ -254,7 +254,10 @@ START_TEST(callObjectTypeMethodOnInstance) {
     UA_CallMethodResult_init(&result);
     result = UA_Server_call(server, &callMethodRequest);
 
-    /* ck_assert_int_eq(result.statusCode, UA_STATUSCODE_GOOD); // Fails because the subscription id is invalid */
+    /* Fails because the "local" session has not subscriptions.
+     * Notifications are directly forwarded to a callback method.
+     * However all the type-checking before calling the method has to work. */
+    ck_assert_int_eq(result.statusCode, UA_STATUSCODE_BADSUBSCRIPTIONIDINVALID); 
     UA_CallMethodResult_clear(&result);
 #endif
 } END_TEST
