@@ -347,7 +347,7 @@ START_TEST(Service_Browse_Localization) {
 
     UA_BrowseResult br = UA_Server_browse(server, 100, &bd);
     ck_assert_int_eq(br.statusCode, UA_STATUSCODE_GOOD);
-    ck_assert_int_eq(br.referencesSize, 1);
+    ck_assert_uint_eq(br.referencesSize, 1);
     ck_assert(UA_String_equal(&br.references->displayName.locale, &attr.displayName.locale));
     ck_assert(UA_String_equal(&br.references->displayName.text, &attr.displayName.text));
     UA_BrowseResult_clear(&br);
@@ -358,7 +358,7 @@ START_TEST(Service_Browse_Localization) {
 
     br = UA_Server_browse(server, 100, &bd);
     ck_assert_int_eq(br.statusCode, UA_STATUSCODE_GOOD);
-    ck_assert_int_eq(br.referencesSize, 1);
+    ck_assert_uint_eq(br.referencesSize, 1);
     ck_assert(UA_String_equal(&br.references->displayName.locale, &germanDisplayName.locale));
     ck_assert(UA_String_equal(&br.references->displayName.text, &germanDisplayName.text));
     UA_BrowseResult_clear(&br);

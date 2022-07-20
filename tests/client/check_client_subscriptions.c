@@ -904,7 +904,7 @@ START_TEST(Client_subscription_connectionClose) {
      * next iteration of the EventLoop. Hence the next request is sent out. But
      * the connection "actually closes" before receiving the response. */
     UA_ConnectionManager *cm = (UA_ConnectionManager*)client->connection.handle;
-    uintptr_t connId = client->connection.sockfd;
+    uintptr_t connId = (unsigned)client->connection.sockfd;
     cm->closeConnection(cm, connId);
 
     notificationReceived = false;
