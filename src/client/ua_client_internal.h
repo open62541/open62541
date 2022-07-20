@@ -95,6 +95,8 @@ void
 UA_Client_AsyncService_cancel(UA_Client *client, AsyncServiceCall *ac,
                               UA_StatusCode statusCode);
 
+typedef LIST_HEAD(UA_AsyncServiceList, AsyncServiceCall) UA_AsyncServiceList;
+
 void
 UA_Client_AsyncService_removeAll(UA_Client *client, UA_StatusCode statusCode);
 
@@ -147,7 +149,7 @@ struct UA_Client {
     UA_Boolean pendingConnectivityCheck;
 
     /* Async Service */
-    LIST_HEAD(, AsyncServiceCall) asyncServiceCalls;
+    UA_AsyncServiceList asyncServiceCalls;
 
     /* Subscriptions */
 #ifdef UA_ENABLE_SUBSCRIPTIONS
