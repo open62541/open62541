@@ -466,7 +466,7 @@ setupListenMulticastIPv6(UA_FD socket, size_t paramsSize, const UA_KeyValuePair 
             return UA_STATUSCODE_BADINTERNALERROR;
         }
     }
-    if(UA_setsockopt(socket, IPPROTO_IPV6,IPV6_ADD_MEMBERSHIP,
+    if(UA_setsockopt(socket, IPPROTO_IPV6,IPV6_JOIN_GROUP,
                      &ipMulticastRequest.ipv6,sizeof(ipMulticastRequest.ipv6)) < 0) {
         UA_LOG_SOCKET_ERRNO_WRAP(
             UA_LOG_ERROR(logger, UA_LOGCATEGORY_NETWORK,
