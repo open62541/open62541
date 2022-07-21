@@ -272,6 +272,9 @@ UA_DataSetReader_generateNetworkMessage(UA_PubSubConnection *pubSubConnection,
     if(nm->groupHeader.sequenceNumberEnabled)
         nm->groupHeader.sequenceNumber = 1; /* Will be modified when subscriber receives new nw msg. */
 
+    if(nm->groupHeader.groupVersionEnabled)
+        nm->groupHeader.groupVersion = dsrm->groupVersion;
+
     /* Compute the length of the dsm separately for the header */
     UA_UInt16 *dsmLengths = (UA_UInt16 *) UA_calloc(dsmCount, sizeof(UA_UInt16));
     if(!dsmLengths)
