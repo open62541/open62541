@@ -67,7 +67,7 @@ START_TEST(UA_PubSub_EnDecode_ShallWorkOn1DS1ValueVariantKeyFrame) {
     ck_assert(m.payload.dataSetPayload.dataSetMessages[0].header.fieldEncoding == m2.payload.dataSetPayload.dataSetMessages[0].header.fieldEncoding);
     ck_assert_int_eq(m2.payload.dataSetPayload.dataSetMessages[0].data.keyFrameData.fieldCount, 1);
     ck_assert(m.payload.dataSetPayload.dataSetMessages[0].data.keyFrameData.dataSetFields[0].hasValue == m2.payload.dataSetPayload.dataSetMessages[0].data.keyFrameData.dataSetFields[0].hasValue);
-    ck_assert_int_eq((uintptr_t)m2.payload.dataSetPayload.dataSetMessages[0].data.keyFrameData.dataSetFields[0].value.type, (uintptr_t)&UA_TYPES[UA_TYPES_INT32]);
+    ck_assert_ptr_eq(m2.payload.dataSetPayload.dataSetMessages[0].data.keyFrameData.dataSetFields[0].value.type, &UA_TYPES[UA_TYPES_INT32]);
     ck_assert_int_eq(*(UA_Int32 *)m2.payload.dataSetPayload.dataSetMessages[0].data.keyFrameData.dataSetFields[0].value.data, iv);
     ck_assert(m.payload.dataSetPayload.dataSetMessages[0].data.keyFrameData.dataSetFields[0].hasSourceTimestamp == m2.payload.dataSetPayload.dataSetMessages[0].data.keyFrameData.dataSetFields[0].hasSourceTimestamp);
 
@@ -128,7 +128,7 @@ START_TEST(UA_PubSub_EnDecode_ShallWorkOn1DS1ValueDataValueKeyFrame) {
     ck_assert(m.payload.dataSetPayload.dataSetMessages[0].header.fieldEncoding == m2.payload.dataSetPayload.dataSetMessages[0].header.fieldEncoding);
     ck_assert_int_eq(m2.payload.dataSetPayload.dataSetMessages[0].data.keyFrameData.fieldCount, 1);
     ck_assert(m.payload.dataSetPayload.dataSetMessages[0].data.keyFrameData.dataSetFields[0].hasValue == m2.payload.dataSetPayload.dataSetMessages[0].data.keyFrameData.dataSetFields[0].hasValue);
-    ck_assert_int_eq((uintptr_t)m2.payload.dataSetPayload.dataSetMessages[0].data.keyFrameData.dataSetFields[0].value.type, (uintptr_t)&UA_TYPES[UA_TYPES_INT32]);
+    ck_assert_ptr_eq(m2.payload.dataSetPayload.dataSetMessages[0].data.keyFrameData.dataSetFields[0].value.type, &UA_TYPES[UA_TYPES_INT32]);
     ck_assert_int_eq(*(UA_Int32 *)m2.payload.dataSetPayload.dataSetMessages[0].data.keyFrameData.dataSetFields[0].value.data, iv);
     ck_assert(m.payload.dataSetPayload.dataSetMessages[0].data.keyFrameData.dataSetFields[0].hasSourceTimestamp == m2.payload.dataSetPayload.dataSetMessages[0].data.keyFrameData.dataSetFields[0].hasSourceTimestamp);
     ck_assert(m.dataSetClassIdEnabled == m2.dataSetClassIdEnabled);
@@ -201,10 +201,10 @@ START_TEST(UA_PubSub_EnDecode_ShallWorkOn1DS2ValuesVariantKeyFrame) {
     ck_assert(m.payload.dataSetPayload.dataSetMessages[0].header.fieldEncoding == m2.payload.dataSetPayload.dataSetMessages[0].header.fieldEncoding);
     ck_assert_int_eq(m2.payload.dataSetPayload.dataSetMessages[0].data.keyFrameData.fieldCount, anzFields);
     ck_assert(m.payload.dataSetPayload.dataSetMessages[0].data.keyFrameData.dataSetFields[0].hasValue == m2.payload.dataSetPayload.dataSetMessages[0].data.keyFrameData.dataSetFields[0].hasValue);
-    ck_assert_int_eq((uintptr_t)m2.payload.dataSetPayload.dataSetMessages[0].data.keyFrameData.dataSetFields[0].value.type, (uintptr_t)&UA_TYPES[UA_TYPES_DOUBLE]);
+    ck_assert_ptr_eq(m2.payload.dataSetPayload.dataSetMessages[0].data.keyFrameData.dataSetFields[0].value.type, &UA_TYPES[UA_TYPES_DOUBLE]);
     ck_assert(*(UA_Double*)m2.payload.dataSetPayload.dataSetMessages[0].data.keyFrameData.dataSetFields[0].value.data == dv);
     ck_assert(m.payload.dataSetPayload.dataSetMessages[0].data.keyFrameData.dataSetFields[1].hasValue == m2.payload.dataSetPayload.dataSetMessages[0].data.keyFrameData.dataSetFields[0].hasValue);
-    ck_assert_int_eq((uintptr_t)m2.payload.dataSetPayload.dataSetMessages[0].data.keyFrameData.dataSetFields[1].value.type, (uintptr_t)&UA_TYPES[UA_TYPES_UINT64]);
+    ck_assert_ptr_eq(m2.payload.dataSetPayload.dataSetMessages[0].data.keyFrameData.dataSetFields[1].value.type, &UA_TYPES[UA_TYPES_UINT64]);
     ck_assert_uint_eq(*(UA_UInt64 *)m2.payload.dataSetPayload.dataSetMessages[0].data.keyFrameData.dataSetFields[1].value.data, uiv);
     ck_assert(m.payload.dataSetPayload.dataSetMessages[0].data.keyFrameData.dataSetFields[0].hasSourceTimestamp == m2.payload.dataSetPayload.dataSetMessages[0].data.keyFrameData.dataSetFields[0].hasSourceTimestamp);
     ck_assert(m.payload.dataSetPayload.dataSetMessages[0].data.keyFrameData.dataSetFields[1].hasSourceTimestamp == m2.payload.dataSetPayload.dataSetMessages[0].data.keyFrameData.dataSetFields[0].hasSourceTimestamp);
@@ -277,10 +277,10 @@ START_TEST(UA_PubSub_EnDecode_ShallWorkOn1DS2ValuesDataValueKeyFrame) {
     ck_assert(m.payload.dataSetPayload.dataSetMessages[0].header.fieldEncoding == m2.payload.dataSetPayload.dataSetMessages[0].header.fieldEncoding);
     ck_assert_int_eq(m2.payload.dataSetPayload.dataSetMessages[0].data.keyFrameData.fieldCount, anzFields);
     ck_assert(m.payload.dataSetPayload.dataSetMessages[0].data.keyFrameData.dataSetFields[0].hasValue == m2.payload.dataSetPayload.dataSetMessages[0].data.keyFrameData.dataSetFields[0].hasValue);
-    ck_assert_int_eq((uintptr_t)m2.payload.dataSetPayload.dataSetMessages[0].data.keyFrameData.dataSetFields[0].value.type, (uintptr_t)&UA_TYPES[UA_TYPES_DOUBLE]);
+    ck_assert_ptr_eq(m2.payload.dataSetPayload.dataSetMessages[0].data.keyFrameData.dataSetFields[0].value.type, &UA_TYPES[UA_TYPES_DOUBLE]);
     ck_assert(*(UA_Double*)m2.payload.dataSetPayload.dataSetMessages[0].data.keyFrameData.dataSetFields[0].value.data == dv);
     ck_assert(m.payload.dataSetPayload.dataSetMessages[0].data.keyFrameData.dataSetFields[1].hasValue == m2.payload.dataSetPayload.dataSetMessages[0].data.keyFrameData.dataSetFields[0].hasValue);
-    ck_assert_int_eq((uintptr_t)m2.payload.dataSetPayload.dataSetMessages[0].data.keyFrameData.dataSetFields[1].value.type, (uintptr_t)&UA_TYPES[UA_TYPES_UINT64]);
+    ck_assert_ptr_eq(m2.payload.dataSetPayload.dataSetMessages[0].data.keyFrameData.dataSetFields[1].value.type, &UA_TYPES[UA_TYPES_UINT64]);
     ck_assert_uint_eq(*(UA_UInt64 *)m2.payload.dataSetPayload.dataSetMessages[0].data.keyFrameData.dataSetFields[1].value.data, uiv);
     ck_assert(m.payload.dataSetPayload.dataSetMessages[0].data.keyFrameData.dataSetFields[0].hasSourceTimestamp == m2.payload.dataSetPayload.dataSetMessages[0].data.keyFrameData.dataSetFields[0].hasSourceTimestamp);
     ck_assert(m.payload.dataSetPayload.dataSetMessages[0].data.keyFrameData.dataSetFields[1].hasSourceTimestamp == m2.payload.dataSetPayload.dataSetMessages[0].data.keyFrameData.dataSetFields[0].hasSourceTimestamp);
@@ -351,7 +351,7 @@ START_TEST(UA_PubSub_EnDecode_ShallWorkOn1DS1ValueVariantDeltaFrame) {
     ck_assert_int_eq(m2.payload.dataSetPayload.dataSetMessages[0].data.deltaFrameData.fieldCount, 1);
     ck_assert_int_eq(m.payload.dataSetPayload.dataSetMessages[0].data.deltaFrameData.deltaFrameFields[0].fieldIndex, fieldIndex);
     ck_assert(m.payload.dataSetPayload.dataSetMessages[0].data.deltaFrameData.deltaFrameFields[0].fieldValue.hasValue == m2.payload.dataSetPayload.dataSetMessages[0].data.deltaFrameData.deltaFrameFields[0].fieldValue.hasValue);
-    ck_assert_int_eq((uintptr_t)m2.payload.dataSetPayload.dataSetMessages[0].data.deltaFrameData.deltaFrameFields[0].fieldValue.value.type, (uintptr_t)&UA_TYPES[UA_TYPES_INT32]);
+    ck_assert_ptr_eq(m2.payload.dataSetPayload.dataSetMessages[0].data.deltaFrameData.deltaFrameFields[0].fieldValue.value.type, &UA_TYPES[UA_TYPES_INT32]);
     ck_assert_int_eq(*(UA_Int32 *)m2.payload.dataSetPayload.dataSetMessages[0].data.deltaFrameData.deltaFrameFields[0].fieldValue.value.data, iv);
     ck_assert(m.payload.dataSetPayload.dataSetMessages[0].data.deltaFrameData.deltaFrameFields[0].fieldValue.hasSourceTimestamp == m2.payload.dataSetPayload.dataSetMessages[0].data.deltaFrameData.deltaFrameFields[0].fieldValue.hasSourceTimestamp);
     ck_assert(m.dataSetClassIdEnabled == m2.dataSetClassIdEnabled);
@@ -420,7 +420,7 @@ START_TEST(UA_PubSub_EnDecode_ShallWorkOn1DS1ValueDataValueDeltaFrame) {
     ck_assert_int_eq(m2.payload.dataSetPayload.dataSetMessages[0].data.deltaFrameData.fieldCount, 1);
     ck_assert_int_eq(m.payload.dataSetPayload.dataSetMessages[0].data.deltaFrameData.deltaFrameFields[0].fieldIndex, fieldIndex);
     ck_assert(m.payload.dataSetPayload.dataSetMessages[0].data.deltaFrameData.deltaFrameFields[0].fieldValue.hasValue == m2.payload.dataSetPayload.dataSetMessages[0].data.deltaFrameData.deltaFrameFields[0].fieldValue.hasValue);
-    ck_assert_int_eq((uintptr_t)m2.payload.dataSetPayload.dataSetMessages[0].data.deltaFrameData.deltaFrameFields[0].fieldValue.value.type, (uintptr_t)&UA_TYPES[UA_TYPES_INT32]);
+    ck_assert_ptr_eq(m2.payload.dataSetPayload.dataSetMessages[0].data.deltaFrameData.deltaFrameFields[0].fieldValue.value.type, &UA_TYPES[UA_TYPES_INT32]);
     ck_assert_int_eq(*(UA_Int32 *)m2.payload.dataSetPayload.dataSetMessages[0].data.deltaFrameData.deltaFrameFields[0].fieldValue.value.data, iv);
     ck_assert(m.payload.dataSetPayload.dataSetMessages[0].data.deltaFrameData.deltaFrameFields[0].fieldValue.hasSourceTimestamp == m2.payload.dataSetPayload.dataSetMessages[0].data.deltaFrameData.deltaFrameFields[0].fieldValue.hasSourceTimestamp);
     ck_assert(m.dataSetClassIdEnabled == m2.dataSetClassIdEnabled);
@@ -601,7 +601,7 @@ START_TEST(UA_PubSub_EnDecode_ShallWorkOn1DS2ValuesVariantDeltaFrame) {
     ck_assert_int_eq(m2.payload.dataSetPayload.dataSetMessages[0].data.deltaFrameData.fieldCount, 2);
     ck_assert_int_eq(m.payload.dataSetPayload.dataSetMessages[0].data.deltaFrameData.deltaFrameFields[0].fieldIndex, fieldIndex1);
     ck_assert(m.payload.dataSetPayload.dataSetMessages[0].data.deltaFrameData.deltaFrameFields[0].fieldValue.hasValue == m2.payload.dataSetPayload.dataSetMessages[0].data.deltaFrameData.deltaFrameFields[0].fieldValue.hasValue);
-    ck_assert_int_eq((uintptr_t)m2.payload.dataSetPayload.dataSetMessages[0].data.deltaFrameData.deltaFrameFields[0].fieldValue.value.type, (uintptr_t)&UA_TYPES[UA_TYPES_INT32]);
+    ck_assert_ptr_eq(m2.payload.dataSetPayload.dataSetMessages[0].data.deltaFrameData.deltaFrameFields[0].fieldValue.value.type, &UA_TYPES[UA_TYPES_INT32]);
     ck_assert_int_eq(*(UA_Int32 *)m2.payload.dataSetPayload.dataSetMessages[0].data.deltaFrameData.deltaFrameFields[0].fieldValue.value.data, iv);
     ck_assert(m.payload.dataSetPayload.dataSetMessages[0].data.deltaFrameData.deltaFrameFields[0].fieldValue.hasSourceTimestamp == m2.payload.dataSetPayload.dataSetMessages[0].data.deltaFrameData.deltaFrameFields[0].fieldValue.hasSourceTimestamp);
 
@@ -613,7 +613,7 @@ START_TEST(UA_PubSub_EnDecode_ShallWorkOn1DS2ValuesVariantDeltaFrame) {
     {
         ck_assert_int_eq(decodedString.data[i], testString.data[i]);
     }
-    ck_assert_int_eq(decodedString.length, testString.length);
+    ck_assert_uint_eq(decodedString.length, testString.length);
     ck_assert(m.payload.dataSetPayload.dataSetMessages[0].data.deltaFrameData.deltaFrameFields[1].fieldValue.hasSourceTimestamp == m2.payload.dataSetPayload.dataSetMessages[0].data.deltaFrameData.deltaFrameFields[1].fieldValue.hasSourceTimestamp);
 
     ck_assert(m.dataSetClassIdEnabled == m2.dataSetClassIdEnabled);
@@ -697,7 +697,7 @@ START_TEST(UA_PubSub_EnDecode_ShallWorkOn1DS2ValuesDataValueDeltaFrame) {
     ck_assert_int_eq(m2.payload.dataSetPayload.dataSetMessages[0].data.deltaFrameData.fieldCount, 2);
     ck_assert_int_eq(m.payload.dataSetPayload.dataSetMessages[0].data.deltaFrameData.deltaFrameFields[0].fieldIndex, fieldIndex1);
     ck_assert(m.payload.dataSetPayload.dataSetMessages[0].data.deltaFrameData.deltaFrameFields[0].fieldValue.hasValue == m2.payload.dataSetPayload.dataSetMessages[0].data.deltaFrameData.deltaFrameFields[0].fieldValue.hasValue);
-    ck_assert_int_eq((uintptr_t)m2.payload.dataSetPayload.dataSetMessages[0].data.deltaFrameData.deltaFrameFields[0].fieldValue.value.type, (uintptr_t)&UA_TYPES[UA_TYPES_INT32]);
+    ck_assert_ptr_eq(m2.payload.dataSetPayload.dataSetMessages[0].data.deltaFrameData.deltaFrameFields[0].fieldValue.value.type, &UA_TYPES[UA_TYPES_INT32]);
     ck_assert_int_eq(*(UA_Int32 *)m2.payload.dataSetPayload.dataSetMessages[0].data.deltaFrameData.deltaFrameFields[0].fieldValue.value.data, iv);
     ck_assert(m.payload.dataSetPayload.dataSetMessages[0].data.deltaFrameData.deltaFrameFields[0].fieldValue.hasSourceTimestamp == m2.payload.dataSetPayload.dataSetMessages[0].data.deltaFrameData.deltaFrameFields[0].fieldValue.hasSourceTimestamp);
 
@@ -709,7 +709,7 @@ START_TEST(UA_PubSub_EnDecode_ShallWorkOn1DS2ValuesDataValueDeltaFrame) {
     {
         ck_assert_int_eq(decodedString.data[i], testString.data[i]);
     }
-    ck_assert_int_eq(decodedString.length, testString.length);
+    ck_assert_uint_eq(decodedString.length, testString.length);
     ck_assert(m.payload.dataSetPayload.dataSetMessages[0].data.deltaFrameData.deltaFrameFields[1].fieldValue.hasSourceTimestamp == m2.payload.dataSetPayload.dataSetMessages[0].data.deltaFrameData.deltaFrameFields[1].fieldValue.hasSourceTimestamp);
 
     ck_assert(m.dataSetClassIdEnabled == m2.dataSetClassIdEnabled);
@@ -902,7 +902,7 @@ START_TEST(UA_PubSub_EnDecode_ShallWorkOn1DS2ValuesVariantDeltaFramePublDSCID) {
     ck_assert_int_eq(m2.payload.dataSetPayload.dataSetMessages[0].data.deltaFrameData.fieldCount, 2);
     ck_assert_int_eq(m.payload.dataSetPayload.dataSetMessages[0].data.deltaFrameData.deltaFrameFields[0].fieldIndex, fieldIndex1);
     ck_assert(m.payload.dataSetPayload.dataSetMessages[0].data.deltaFrameData.deltaFrameFields[0].fieldValue.hasValue == m2.payload.dataSetPayload.dataSetMessages[0].data.deltaFrameData.deltaFrameFields[0].fieldValue.hasValue);
-    ck_assert_int_eq((uintptr_t)m2.payload.dataSetPayload.dataSetMessages[0].data.deltaFrameData.deltaFrameFields[0].fieldValue.value.type, (uintptr_t)&UA_TYPES[UA_TYPES_INT32]);
+    ck_assert_ptr_eq(m2.payload.dataSetPayload.dataSetMessages[0].data.deltaFrameData.deltaFrameFields[0].fieldValue.value.type, &UA_TYPES[UA_TYPES_INT32]);
     ck_assert_int_eq(*(UA_Int32 *)m2.payload.dataSetPayload.dataSetMessages[0].data.deltaFrameData.deltaFrameFields[0].fieldValue.value.data, iv);
     ck_assert(m.payload.dataSetPayload.dataSetMessages[0].data.deltaFrameData.deltaFrameFields[0].fieldValue.hasSourceTimestamp == m2.payload.dataSetPayload.dataSetMessages[0].data.deltaFrameData.deltaFrameFields[0].fieldValue.hasSourceTimestamp);
 
@@ -914,7 +914,7 @@ START_TEST(UA_PubSub_EnDecode_ShallWorkOn1DS2ValuesVariantDeltaFramePublDSCID) {
     {
         ck_assert_int_eq(decodedString.data[i], testString.data[i]);
     }
-    ck_assert_int_eq(decodedString.length, testString.length);
+    ck_assert_uint_eq(decodedString.length, testString.length);
     ck_assert(m.payload.dataSetPayload.dataSetMessages[0].data.deltaFrameData.deltaFrameFields[1].fieldValue.hasSourceTimestamp == m2.payload.dataSetPayload.dataSetMessages[0].data.deltaFrameData.deltaFrameFields[1].fieldValue.hasSourceTimestamp);
 
     ((UA_String*)value.data)->data = NULL; // the string is statically allocated. do not free it.
@@ -988,10 +988,10 @@ START_TEST(UA_PubSub_EnDecode_ShallWorkOn1DS2ValuesDataValueKeyFramePH) {
     ck_assert(m.payload.dataSetPayload.dataSetMessages[0].header.fieldEncoding == m2.payload.dataSetPayload.dataSetMessages[0].header.fieldEncoding);
     ck_assert_int_eq(m2.payload.dataSetPayload.dataSetMessages[0].data.keyFrameData.fieldCount, anzFields);
     ck_assert(m.payload.dataSetPayload.dataSetMessages[0].data.keyFrameData.dataSetFields[0].hasValue == m2.payload.dataSetPayload.dataSetMessages[0].data.keyFrameData.dataSetFields[0].hasValue);
-    ck_assert_int_eq((uintptr_t)m2.payload.dataSetPayload.dataSetMessages[0].data.keyFrameData.dataSetFields[0].value.type, (uintptr_t)&UA_TYPES[UA_TYPES_DOUBLE]);
+    ck_assert_ptr_eq(m2.payload.dataSetPayload.dataSetMessages[0].data.keyFrameData.dataSetFields[0].value.type, &UA_TYPES[UA_TYPES_DOUBLE]);
     ck_assert(*(UA_Double*)m2.payload.dataSetPayload.dataSetMessages[0].data.keyFrameData.dataSetFields[0].value.data == dv);
     ck_assert(m.payload.dataSetPayload.dataSetMessages[0].data.keyFrameData.dataSetFields[1].hasValue == m2.payload.dataSetPayload.dataSetMessages[0].data.keyFrameData.dataSetFields[0].hasValue);
-    ck_assert_int_eq((uintptr_t)m2.payload.dataSetPayload.dataSetMessages[0].data.keyFrameData.dataSetFields[1].value.type, (uintptr_t)&UA_TYPES[UA_TYPES_UINT64]);
+    ck_assert_ptr_eq(m2.payload.dataSetPayload.dataSetMessages[0].data.keyFrameData.dataSetFields[1].value.type, &UA_TYPES[UA_TYPES_UINT64]);
     ck_assert_uint_eq(*(UA_UInt64 *)m2.payload.dataSetPayload.dataSetMessages[0].data.keyFrameData.dataSetFields[1].value.data, uiv);
     ck_assert(m.payload.dataSetPayload.dataSetMessages[0].data.keyFrameData.dataSetFields[0].hasSourceTimestamp == m2.payload.dataSetPayload.dataSetMessages[0].data.keyFrameData.dataSetFields[0].hasSourceTimestamp);
     ck_assert(m.payload.dataSetPayload.dataSetMessages[0].data.keyFrameData.dataSetFields[1].hasSourceTimestamp == m2.payload.dataSetPayload.dataSetMessages[0].data.keyFrameData.dataSetFields[0].hasSourceTimestamp);
@@ -1083,10 +1083,10 @@ START_TEST(UA_PubSub_EnDecode_ShallWorkOn1DS2ValuesVariantKeyFrameTSProm) {
     ck_assert(m.payload.dataSetPayload.dataSetMessages[0].header.fieldEncoding == m2.payload.dataSetPayload.dataSetMessages[0].header.fieldEncoding);
     ck_assert_int_eq(m2.payload.dataSetPayload.dataSetMessages[0].data.keyFrameData.fieldCount, anzFields);
     ck_assert(m.payload.dataSetPayload.dataSetMessages[0].data.keyFrameData.dataSetFields[0].hasValue == m2.payload.dataSetPayload.dataSetMessages[0].data.keyFrameData.dataSetFields[0].hasValue);
-    ck_assert_int_eq((uintptr_t)m2.payload.dataSetPayload.dataSetMessages[0].data.keyFrameData.dataSetFields[0].value.type, (uintptr_t)&UA_TYPES[UA_TYPES_DOUBLE]);
+    ck_assert_ptr_eq(m2.payload.dataSetPayload.dataSetMessages[0].data.keyFrameData.dataSetFields[0].value.type, &UA_TYPES[UA_TYPES_DOUBLE]);
     ck_assert(*(UA_Double*)m2.payload.dataSetPayload.dataSetMessages[0].data.keyFrameData.dataSetFields[0].value.data == dv);
     ck_assert(m.payload.dataSetPayload.dataSetMessages[0].data.keyFrameData.dataSetFields[1].hasValue == m2.payload.dataSetPayload.dataSetMessages[0].data.keyFrameData.dataSetFields[0].hasValue);
-    ck_assert_int_eq((uintptr_t)m2.payload.dataSetPayload.dataSetMessages[0].data.keyFrameData.dataSetFields[1].value.type, (uintptr_t)&UA_TYPES[UA_TYPES_UINT64]);
+    ck_assert_ptr_eq(m2.payload.dataSetPayload.dataSetMessages[0].data.keyFrameData.dataSetFields[1].value.type, &UA_TYPES[UA_TYPES_UINT64]);
     ck_assert_uint_eq(*(UA_UInt64 *)m2.payload.dataSetPayload.dataSetMessages[0].data.keyFrameData.dataSetFields[1].value.data, uiv);
     ck_assert(m.payload.dataSetPayload.dataSetMessages[0].data.keyFrameData.dataSetFields[0].hasSourceTimestamp == m2.payload.dataSetPayload.dataSetMessages[0].data.keyFrameData.dataSetFields[0].hasSourceTimestamp);
     ck_assert(m.payload.dataSetPayload.dataSetMessages[0].data.keyFrameData.dataSetFields[1].hasSourceTimestamp == m2.payload.dataSetPayload.dataSetMessages[0].data.keyFrameData.dataSetFields[0].hasSourceTimestamp);
@@ -1196,7 +1196,7 @@ START_TEST(UA_PubSub_EnDecode_ShallWorkOn1DS2ValuesDataValueDeltaFrameGHProm2) {
     ck_assert_int_eq(m2.payload.dataSetPayload.dataSetMessages[0].data.deltaFrameData.fieldCount, 2);
     ck_assert_int_eq(m.payload.dataSetPayload.dataSetMessages[0].data.deltaFrameData.deltaFrameFields[0].fieldIndex, fieldIndex1);
     ck_assert(m.payload.dataSetPayload.dataSetMessages[0].data.deltaFrameData.deltaFrameFields[0].fieldValue.hasValue == m2.payload.dataSetPayload.dataSetMessages[0].data.deltaFrameData.deltaFrameFields[0].fieldValue.hasValue);
-    ck_assert_int_eq((uintptr_t)m2.payload.dataSetPayload.dataSetMessages[0].data.deltaFrameData.deltaFrameFields[0].fieldValue.value.type, (uintptr_t)&UA_TYPES[UA_TYPES_INT32]);
+    ck_assert_ptr_eq(m2.payload.dataSetPayload.dataSetMessages[0].data.deltaFrameData.deltaFrameFields[0].fieldValue.value.type, &UA_TYPES[UA_TYPES_INT32]);
     ck_assert_int_eq(*(UA_Int32 *)m2.payload.dataSetPayload.dataSetMessages[0].data.deltaFrameData.deltaFrameFields[0].fieldValue.value.data, iv);
     ck_assert(m.payload.dataSetPayload.dataSetMessages[0].data.deltaFrameData.deltaFrameFields[0].fieldValue.hasSourceTimestamp == m2.payload.dataSetPayload.dataSetMessages[0].data.deltaFrameData.deltaFrameFields[0].fieldValue.hasSourceTimestamp);
 
@@ -1208,7 +1208,7 @@ START_TEST(UA_PubSub_EnDecode_ShallWorkOn1DS2ValuesDataValueDeltaFrameGHProm2) {
     {
         ck_assert_int_eq(decodedString.data[i], testString.data[i]);
     }
-    ck_assert_int_eq(decodedString.length, testString.length);
+    ck_assert_uint_eq(decodedString.length, testString.length);
     ck_assert(m.payload.dataSetPayload.dataSetMessages[0].data.deltaFrameData.deltaFrameFields[1].fieldValue.hasSourceTimestamp == m2.payload.dataSetPayload.dataSetMessages[0].data.deltaFrameData.deltaFrameFields[1].fieldValue.hasSourceTimestamp);
 
     UA_Array_delete(m.promotedFields, m.promotedFieldsSize, &UA_TYPES[UA_TYPES_VARIANT]);

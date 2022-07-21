@@ -1002,7 +1002,7 @@ static void Test_string_PublisherId_InformationModel(
     UA_BrowsePathResult_init(&bpr);
     bpr = UA_Server_translateBrowsePathToNodeIds(server, &bp);
     ck_assert_int_eq(UA_STATUSCODE_GOOD, bpr.statusCode);
-    ck_assert_int_eq(1, bpr.targetsSize);
+    ck_assert_uint_eq(1, bpr.targetsSize);
     UA_NodeId PublisherIdNode = bpr.targets[0].targetId.nodeId;
 
     /* read value */

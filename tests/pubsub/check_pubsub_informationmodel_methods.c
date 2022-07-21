@@ -121,7 +121,7 @@ static UA_NodeId addPubSubConnection(void){
     UA_CallMethodResult result;
     UA_CallMethodResult_init(&result);
     result = UA_Server_call(server, &callMethodRequest);
-    ck_assert_int_eq(1, result.outputArgumentsSize);
+    ck_assert_uint_eq(1, result.outputArgumentsSize);
     ck_assert_int_eq(result.statusCode, UA_STATUSCODE_GOOD);
     if(result.outputArguments->type == &UA_TYPES[UA_TYPES_NODEID])
         connectionId =  *((UA_NodeId *) result.outputArguments->data);
@@ -166,7 +166,7 @@ static void addPublishedDataSets(void){
     UA_CallMethodResult result;
     UA_CallMethodResult_init(&result);
     result = UA_Server_call(server, &callMethodRequest);
-    ck_assert_int_eq(3, result.outputArgumentsSize);
+    ck_assert_uint_eq(3, result.outputArgumentsSize);
     ck_assert_int_eq(result.statusCode, UA_STATUSCODE_GOOD);
     UA_CallMethodResult_clear(&result);
     UA_free(inputArguments);
@@ -257,7 +257,7 @@ START_TEST(AddandRemoveNewPubSubConnectionWithWriterGroup){
         UA_NodeId connectionId = UA_NODEID_NULL;
         UA_CallResponse response;
         response = UA_Client_Service_call(client, callMethodRequestFromClient);
-        ck_assert_int_eq(1, response.results->outputArgumentsSize);
+        ck_assert_uint_eq(1, response.results->outputArgumentsSize);
         ck_assert_int_eq(response.results->statusCode, UA_STATUSCODE_GOOD);
         if(response.results->outputArguments->type == &UA_TYPES[UA_TYPES_NODEID])
             connectionId =  *((UA_NodeId *) response.results->outputArguments->data);
@@ -276,7 +276,7 @@ START_TEST(AddandRemoveNewPubSubConnectionWithWriterGroup){
         item.inputArgumentsSize = 1;
 
         response = UA_Client_Service_call(client, callMethodRequestFromClient);
-        ck_assert_int_eq(0, response.results->outputArgumentsSize);
+        ck_assert_uint_eq(0, response.results->outputArgumentsSize);
         ck_assert_int_eq(response.results->statusCode, UA_STATUSCODE_GOOD);
 
         UA_ExtensionObject_clear(&eo);
@@ -378,7 +378,7 @@ START_TEST(AddNewPubSubConnectionWithWriterGroupAndDataSetWriter){
 
         UA_CallResponse response;
         response = UA_Client_Service_call(client, callMethodRequestFromClient);
-        ck_assert_int_eq(1, response.results->outputArgumentsSize);
+        ck_assert_uint_eq(1, response.results->outputArgumentsSize);
         ck_assert_int_eq(response.results->statusCode, UA_STATUSCODE_GOOD);
         UA_ExtensionObject_clear(&eo);
         UA_free(pubSubConnection.writerGroups->dataSetWriters);
@@ -448,7 +448,7 @@ START_TEST(AddAndRemovePublishedDataSetFoldersUsingServer){
         UA_CallMethodResult result;
         UA_CallMethodResult_init(&result);
         result = UA_Server_call(server, &callMethodRequest);
-        ck_assert_int_eq(1, result.outputArgumentsSize);
+        ck_assert_uint_eq(1, result.outputArgumentsSize);
         ck_assert_int_eq(result.statusCode, UA_STATUSCODE_GOOD);
 
         UA_NodeId createdFolder = UA_NODEID_NULL;
@@ -476,7 +476,7 @@ START_TEST(AddAndRemovePublishedDataSetFoldersUsingServer){
         callMethodRequest.methodId = UA_NODEID_NUMERIC(0, UA_NS0ID_DATASETFOLDERTYPE_ADDDATASETFOLDER);
         UA_CallMethodResult_init(&result);
         result = UA_Server_call(server, &callMethodRequest);
-        ck_assert_int_eq(1, result.outputArgumentsSize);
+        ck_assert_uint_eq(1, result.outputArgumentsSize);
         ck_assert_int_eq(result.statusCode, UA_STATUSCODE_GOOD);
         UA_NodeId createdFolder2 = UA_NODEID_NULL;
         if(result.outputArguments->type == &UA_TYPES[UA_TYPES_NODEID])
@@ -500,7 +500,7 @@ START_TEST(AddAndRemovePublishedDataSetFoldersUsingServer){
         callMethodRequest.methodId = UA_NODEID_NUMERIC(0, UA_NS0ID_DATASETFOLDERTYPE_REMOVEDATASETFOLDER);
 
         result = UA_Server_call(server, &callMethodRequest);
-        ck_assert_int_eq(0, result.outputArgumentsSize);
+        ck_assert_uint_eq(0, result.outputArgumentsSize);
         ck_assert_int_eq(result.statusCode, UA_STATUSCODE_GOOD);
         //check if the node is deleted
         retVal = UA_Server_readNodeId(server, createdFolder, NULL);
@@ -542,7 +542,7 @@ START_TEST(AddAndRemovePublishedDataSetFoldersUsingClient){
 
         UA_CallResponse response;
         response = UA_Client_Service_call(client, callMethodRequestFromClient);
-        ck_assert_int_eq(1, response.results->outputArgumentsSize);
+        ck_assert_uint_eq(1, response.results->outputArgumentsSize);
         ck_assert_int_eq(response.results->statusCode, UA_STATUSCODE_GOOD);
 
         UA_NodeId createdFolder = UA_NODEID_NULL;
@@ -575,7 +575,7 @@ START_TEST(AddAndRemovePublishedDataSetFoldersUsingClient){
         item.inputArgumentsSize = 1;
 
         response = UA_Client_Service_call(client, callMethodRequestFromClient);
-        ck_assert_int_eq(1, response.results->outputArgumentsSize);
+        ck_assert_uint_eq(1, response.results->outputArgumentsSize);
         ck_assert_int_eq(response.results->statusCode, UA_STATUSCODE_GOOD);
 
         UA_NodeId createdFolder2 = UA_NODEID_NULL;
@@ -606,7 +606,7 @@ START_TEST(AddAndRemovePublishedDataSetFoldersUsingClient){
         item.inputArgumentsSize = 1;
 
         response = UA_Client_Service_call(client, callMethodRequestFromClient);
-        ck_assert_int_eq(0, response.results->outputArgumentsSize);
+        ck_assert_uint_eq(0, response.results->outputArgumentsSize);
         ck_assert_int_eq(response.results->statusCode, UA_STATUSCODE_GOOD);
 
         //check if the node is deleted
@@ -661,7 +661,7 @@ START_TEST(AddAndRemovePublishedDataSetItemsUsingServer){
         UA_CallMethodResult result;
         UA_CallMethodResult_init(&result);
         result = UA_Server_call(server, &callMethodRequest);
-        ck_assert_int_eq(3, result.outputArgumentsSize);
+        ck_assert_uint_eq(3, result.outputArgumentsSize);
         ck_assert_int_eq(result.statusCode, UA_STATUSCODE_GOOD);
 
         //TODO checked correctness of created items
@@ -722,7 +722,7 @@ START_TEST(AddAndRemovePublishedDataSetItemsUsingClient){
         UA_NodeId dataSetItemsNodeId;
         UA_CallResponse response;
         response = UA_Client_Service_call(client, callMethodRequestFromClient);
-        ck_assert_int_eq(3, response.results->outputArgumentsSize);
+        ck_assert_uint_eq(3, response.results->outputArgumentsSize);
         ck_assert_int_eq(response.results->statusCode, UA_STATUSCODE_GOOD);
         if(response.results->outputArguments->type == &UA_TYPES[UA_TYPES_NODEID])
             dataSetItemsNodeId = *((UA_NodeId *) response.results->outputArguments->data);
@@ -741,7 +741,7 @@ START_TEST(AddAndRemovePublishedDataSetItemsUsingClient){
         item.inputArguments = (UA_Variant*)&inputArgument;
         item.inputArgumentsSize = 1;
         response = UA_Client_Service_call(client, callMethodRequestFromClient);
-        ck_assert_int_eq(0, response.results->outputArgumentsSize);
+        ck_assert_uint_eq(0, response.results->outputArgumentsSize);
         ck_assert_int_eq(response.results->statusCode, UA_STATUSCODE_GOOD);
 
         UA_CallResponse_clear(&response);
@@ -784,7 +784,7 @@ START_TEST(AddAndRemoveWriterGroupsUsingServer){
         UA_CallMethodResult_init(&result);
         result = UA_Server_call(server, &callMethodRequest);
         ck_assert_int_eq(result.statusCode, UA_STATUSCODE_GOOD);
-        ck_assert_int_eq(1, result.outputArgumentsSize);
+        ck_assert_uint_eq(1, result.outputArgumentsSize);
 
         UA_NodeId createdWriterGroup = UA_NODEID_NULL;
         if(result.outputArguments->type == &UA_TYPES[UA_TYPES_NODEID])
@@ -837,7 +837,7 @@ START_TEST(AddAndRemoveWriterGroupsUsingClient){
 
         UA_CallResponse response;
         response = UA_Client_Service_call(client, callMethodRequestFromClient);
-        ck_assert_int_eq(1, response.results->outputArgumentsSize);
+        ck_assert_uint_eq(1, response.results->outputArgumentsSize);
         ck_assert_int_eq(response.results->statusCode, UA_STATUSCODE_GOOD);
 
         UA_NodeId createdWriterGroup = UA_NODEID_NULL;
@@ -936,7 +936,7 @@ START_TEST(AddNewPubSubConnectionWithReaderGroup){
 
         UA_CallResponse response;
         response = UA_Client_Service_call(client, callMethodRequestFromClient);
-        ck_assert_int_eq(1, response.results->outputArgumentsSize);
+        ck_assert_uint_eq(1, response.results->outputArgumentsSize);
         ck_assert_int_eq(response.results->statusCode, UA_STATUSCODE_GOOD);
         UA_ExtensionObject_clear(&eo);
         UA_free(pubSubConnection.readerGroups);
@@ -1073,7 +1073,7 @@ START_TEST(AddNewPubSubConnectionWithReaderGroupandDataSetReader){
 
         UA_CallResponse response;
         response = UA_Client_Service_call(client, callMethodRequestFromClient);
-        ck_assert_int_eq(1, response.results->outputArgumentsSize);
+        ck_assert_uint_eq(1, response.results->outputArgumentsSize);
         ck_assert_int_eq(response.results->statusCode, UA_STATUSCODE_GOOD);
         UA_ExtensionObject_clear(&eo);
         UA_free(targetVars.targetVariables);
@@ -1116,7 +1116,7 @@ START_TEST(AddandRemoveReaderGroup){
 
         UA_CallResponse response;
         response = UA_Client_Service_call(client, callMethodRequestFromClient);
-        ck_assert_int_eq(1, response.results->outputArgumentsSize);
+        ck_assert_uint_eq(1, response.results->outputArgumentsSize);
         ck_assert_int_eq(response.results->statusCode, UA_STATUSCODE_GOOD);
 
         UA_NodeId createdReaderGroup = UA_NODEID_NULL;
