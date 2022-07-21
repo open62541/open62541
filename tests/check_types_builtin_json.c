@@ -64,7 +64,7 @@ START_TEST(UA_Boolean_false_json_encode) {
     UA_ByteString buf;
 
     size_t size = UA_calcSizeJsonInternal((void *) src, type, NULL, 0, NULL, 0, true);
-    ck_assert_int_eq(size, 5);
+    ck_assert_uint_eq(size, 5);
 
     UA_ByteString_allocBuffer(&buf, size+1);
 
@@ -1586,7 +1586,7 @@ START_TEST(UA_NodeId_Guid_Namespace_json_encode) {
     UA_ByteString buf;
 
     // {"IdType":2,"Id":"00000003-0009-000A-0807-060504030201","Namespace":5}
-    ck_assert_int_eq(size, 70);
+    ck_assert_uint_eq(size, 70);
 
     UA_ByteString_allocBuffer(&buf, size+1);
 
@@ -1619,7 +1619,7 @@ START_TEST(UA_NodeId_ByteString_json_encode) {
     const UA_Byte *bufEnd = &buf.data[size+1];
 
     //{"IdType":3,"Id":"YXNkZmFzZGY="}
-    ck_assert_int_eq(size, 32);
+    ck_assert_uint_eq(size, 32);
 
     status s = UA_encodeJsonInternal((void *) src, type, &bufPos, &bufEnd, NULL, 0, NULL, 0, true);
 
@@ -1665,7 +1665,7 @@ START_TEST(UA_NodeId_NonReversible_Numeric_Namespace_json_encode) {
 
     UA_String namespaces[3] = {UA_STRING("ns0"),UA_STRING("ns1"),UA_STRING("ns2")};
     size_t size = UA_calcSizeJsonInternal((void *) src, type, namespaces, 3, NULL, 0, false);
-    ck_assert_int_ne(size, 0);
+    ck_assert_uint_ne(size, 0);
     UA_ByteString buf;
 
     UA_ByteString_allocBuffer(&buf, size+1);
@@ -1771,7 +1771,7 @@ START_TEST(UA_DiagInfo_withInner_json_encode) {
     const UA_Byte *bufEnd = &buf.data[size+1];
 
     //{"SymbolicId":13,"LocalizedText":14,"Locale":12,"AdditionalInfo":"additionalInfo","InnerStatusCode":2155216896,"InnerDiagnosticInfo":{"AdditionalInfo":"INNER ADDITION INFO"}}
-    ck_assert_int_eq(size, 174);
+    ck_assert_uint_eq(size, 174);
 
     status s = UA_encodeJsonInternal((void *) src, type, &bufPos, &bufEnd, NULL, 0, NULL, 0, true);
 
@@ -2501,7 +2501,7 @@ START_TEST(UA_Variant_Array_UInt16_json_encode) {
     UA_Byte *bufPos = &buf.data[0];
     const UA_Byte *bufEnd = &buf.data[size+1];
 
-    ck_assert_int_eq(size, 25);
+    ck_assert_uint_eq(size, 25);
 
     status s = UA_encodeJsonInternal((void *) src, type, &bufPos, &bufEnd, NULL, 0, NULL, 0, true);
 
@@ -2627,7 +2627,7 @@ START_TEST(UA_Variant_Matrix_UInt16_json_encode) {
 
     //{"Type":5,"Body":[1,2,3,4,5,6,7,8,9],"Dimension":[3,3]}
     size_t sizeOfBytes = UA_calcSizeJsonInternal((void *) &src, type, NULL, 0, NULL, 0, true);
-    ck_assert_int_eq(sizeOfBytes, 55);
+    ck_assert_uint_eq(sizeOfBytes, 55);
 
     status s = UA_encodeJsonInternal((void *) &src, type, &bufPos, &bufEnd, NULL, 0, NULL, 0, true);
 
@@ -2732,7 +2732,7 @@ START_TEST(UA_Variant_Matrix_String_NonReversible_json_encode) {
 
     //{"Body":[[[["1"],["2"]],[["3"],["4"]]],[[["5"],["6"]],[["7"],["8"]]]]}
     size_t sizeOfBytes = UA_calcSizeJsonInternal((void *) &src, type, NULL, 0, NULL, 0, false);
-    ck_assert_int_eq(sizeOfBytes, 70);
+    ck_assert_uint_eq(sizeOfBytes, 70);
 
     status s = UA_encodeJsonInternal((void *) &src, type, &bufPos, &bufEnd, NULL, 0, NULL, 0, false);
 
@@ -4230,7 +4230,7 @@ START_TEST(UA_String_json_decode) {
     // then
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
     ck_assert_int_eq(out.type->typeKind, UA_DATATYPEKIND_STRING);
-    ck_assert_int_eq(  ((UA_String*)out.data)->length, 6);
+    ck_assert_uint_eq(  ((UA_String*)out.data)->length, 6);
     ck_assert_int_eq( ((UA_String*)out.data)->data[0], 'a');
     ck_assert_int_eq(((UA_String*)out.data)->data[1], 'b');
     ck_assert_int_eq(((UA_String*)out.data)->data[2], 'c');
@@ -4252,7 +4252,7 @@ START_TEST(UA_String_empty_json_decode) {
     // then
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
     ck_assert_int_eq(out.type->typeKind, UA_DATATYPEKIND_STRING);
-    ck_assert_int_eq(  ((UA_String*)out.data)->length, 0);
+    ck_assert_uint_eq(  ((UA_String*)out.data)->length, 0);
     ck_assert_ptr_eq(  ((UA_String*)out.data)->data, UA_EMPTY_ARRAY_SENTINEL);
 
     UA_Variant_clear(&out);
@@ -4269,7 +4269,7 @@ START_TEST(UA_String_unescapeBS_json_decode) {
     // then
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
     ck_assert_int_eq(out.type->typeKind, UA_DATATYPEKIND_STRING);
-    ck_assert_int_eq(  ((UA_String*)out.data)->length, 7);
+    ck_assert_uint_eq(  ((UA_String*)out.data)->length, 7);
     ck_assert_int_eq( ((UA_String*)out.data)->data[0], 'a');
     ck_assert_int_eq(((UA_String*)out.data)->data[1], 'b');
     ck_assert_int_eq(((UA_String*)out.data)->data[2], '\t');
@@ -4292,7 +4292,7 @@ START_TEST(UA_String_escape_unicode_json_decode) {
     // then
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
     ck_assert_int_eq(out.type->typeKind, UA_DATATYPEKIND_STRING);
-    ck_assert_int_eq(  ((UA_String*)out.data)->length, 1);
+    ck_assert_uint_eq(  ((UA_String*)out.data)->length, 1);
     ck_assert_int_eq( ((UA_String*)out.data)->data[0], ',');
 
     UA_Variant_clear(&out);
@@ -4310,7 +4310,7 @@ START_TEST(UA_String_escape2_json_decode) {
     // then
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
     ck_assert_int_eq(out.type->typeKind, UA_DATATYPEKIND_STRING);
-    ck_assert_int_eq(  ((UA_String*)out.data)->length, 12);//  \b\th\"e\fl\nl\\o\r
+    ck_assert_uint_eq(  ((UA_String*)out.data)->length, 12);//  \b\th\"e\fl\nl\\o\r
     ck_assert_int_eq( ((UA_String*)out.data)->data[0], '\b');
     ck_assert_int_eq( ((UA_String*)out.data)->data[1], '\t');
     ck_assert_int_eq( ((UA_String*)out.data)->data[2], 'h');
@@ -4339,7 +4339,7 @@ START_TEST(UA_String_surrogatePair_json_decode) {
     // then
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
     ck_assert_int_eq(out.type->typeKind, UA_DATATYPEKIND_STRING);
-    ck_assert_int_eq(  ((UA_String*)out.data)->length, 4);//U+10000  => 0xF0 0x90 0x80 0x80
+    ck_assert_uint_eq(  ((UA_String*)out.data)->length, 4);//U+10000  => 0xF0 0x90 0x80 0x80
     ck_assert_uint_eq( ((UA_String*)out.data)->data[0], 0xF0);
     ck_assert_uint_eq( ((UA_String*)out.data)->data[1], 0x90);
     ck_assert_uint_eq( ((UA_String*)out.data)->data[2], 0x80);
@@ -4360,7 +4360,7 @@ START_TEST(UA_ByteString_json_decode) {
     // then
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
     ck_assert_int_eq(out.type->typeKind, UA_DATATYPEKIND_BYTESTRING);
-    ck_assert_int_eq(((UA_ByteString*)out.data)->length, 8);
+    ck_assert_uint_eq(((UA_ByteString*)out.data)->length, 8);
     ck_assert_int_eq(((UA_ByteString*)out.data)->data[0], 'a');
     ck_assert_int_eq(((UA_ByteString*)out.data)->data[1], 's');
     ck_assert_int_eq(((UA_ByteString*)out.data)->data[2], 'd');
@@ -4634,7 +4634,7 @@ START_TEST(UA_DateTime_json_decode_min) {
     status s = UA_encodeJsonInternal((void *)&dt_min, type,
                                      &bufPos, &bufEnd, NULL, 0, NULL, 0, true);
     ck_assert_int_eq(s, UA_STATUSCODE_GOOD);
-    buf.length = bufPos - buf.data;
+    buf.length = (size_t)(bufPos - buf.data);
 
     UA_DateTime out;
     s = UA_decodeJsonInternal(&buf, &out, &UA_TYPES[UA_TYPES_DATETIME]);
@@ -4671,7 +4671,7 @@ START_TEST(UA_DateTime_json_decode_max) {
     status s = UA_encodeJsonInternal((void *)&dt_max, type,
                                      &bufPos, &bufEnd, NULL, 0, NULL, 0, true);
     ck_assert_int_eq(s, UA_STATUSCODE_GOOD);
-    buf.length = bufPos - buf.data;
+    buf.length = (size_t)(bufPos - buf.data);
 
     UA_DateTime out;
     s = UA_decodeJsonInternal(&buf, &out, &UA_TYPES[UA_TYPES_DATETIME]);
@@ -4730,7 +4730,7 @@ START_TEST(UA_QualifiedName_json_decode) {
     UA_StatusCode retval = UA_decodeJsonInternal(&buf, &out, &UA_TYPES[UA_TYPES_QUALIFIEDNAME]);
     // then
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
-    ck_assert_int_eq(out.name.length, 7);
+    ck_assert_uint_eq(out.name.length, 7);
     ck_assert_int_eq(out.name.data[1], 'e');
     ck_assert_int_eq(out.name.data[6], 'e');
     ck_assert_int_eq(out.namespaceIndex, 1);
@@ -4779,11 +4779,11 @@ START_TEST(UA_LocalizedText_missing_json_decode) {
     UA_StatusCode retval = UA_decodeJsonInternal(&buf, &out, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]);
     // then
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
-    ck_assert_int_eq(out.locale.length, 2);
+    ck_assert_uint_eq(out.locale.length, 2);
     ck_assert_int_eq(out.locale.data[0], 't');
     ck_assert_int_eq(out.locale.data[1], '1');
     ck_assert_ptr_eq(out.text.data, NULL);
-    ck_assert_int_eq(out.text.length, 0);
+    ck_assert_uint_eq(out.text.length, 0);
 
     UA_LocalizedText_clear(&out);
 }
@@ -4843,8 +4843,8 @@ START_TEST(UA_NodeId_Nummeric_json_decode) {
     UA_StatusCode retval = UA_decodeJsonInternal(&buf, &out, &UA_TYPES[UA_TYPES_NODEID]);
     // then
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
-    ck_assert_int_eq(out.identifier.numeric, 42);
-    ck_assert_int_eq(out.namespaceIndex, 0);
+    ck_assert_uint_eq(out.identifier.numeric, 42);
+    ck_assert_uint_eq(out.namespaceIndex, 0);
     ck_assert_int_eq(out.identifierType, UA_NODEIDTYPE_NUMERIC);
 
     UA_NodeId_clear(&out);
@@ -4861,8 +4861,8 @@ START_TEST(UA_NodeId_Nummeric_Namespace_json_decode) {
     UA_StatusCode retval = UA_decodeJsonInternal(&buf, &out, &UA_TYPES[UA_TYPES_NODEID]);
     // then
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
-    ck_assert_int_eq(out.identifier.numeric, 42);
-    ck_assert_int_eq(out.namespaceIndex, 123);
+    ck_assert_uint_eq(out.identifier.numeric, 42);
+    ck_assert_uint_eq(out.namespaceIndex, 123);
     ck_assert_int_eq(out.identifierType, UA_NODEIDTYPE_NUMERIC);
 
     UA_NodeId_clear(&out);
@@ -4880,7 +4880,7 @@ START_TEST(UA_NodeId_String_json_decode) {
     UA_StatusCode retval = UA_decodeJsonInternal(&buf, &out, &UA_TYPES[UA_TYPES_NODEID]);
     // then
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
-    ck_assert_int_eq(out.identifier.string.length, 7);
+    ck_assert_uint_eq(out.identifier.string.length, 7);
     ck_assert_int_eq(out.identifier.string.data[0], 't');
     ck_assert_int_eq(out.identifier.string.data[1], 'e');
     ck_assert_int_eq(out.identifier.string.data[2], 's');
@@ -4938,7 +4938,7 @@ START_TEST(UA_NodeId_ByteString_json_decode) {
 
     ck_assert_int_eq(out.namespaceIndex, 0);
     ck_assert_int_eq(out.identifierType, UA_NODEIDTYPE_BYTESTRING);
-    ck_assert_int_eq(out.identifier.byteString.length, 8);
+    ck_assert_uint_eq(out.identifier.byteString.length, 8);
     ck_assert_int_eq(out.identifier.byteString.data[0], 'a');
     ck_assert_int_eq(out.identifier.byteString.data[1], 's');
     ck_assert_int_eq(out.identifier.byteString.data[2], 'd');
@@ -4967,7 +4967,7 @@ START_TEST(UA_ExpandedNodeId_Nummeric_json_decode) {
     ck_assert_int_eq(out.nodeId.identifier.numeric, 42);
     ck_assert_int_eq(out.nodeId.identifierType, UA_NODEIDTYPE_NUMERIC);
     ck_assert_ptr_eq(out.namespaceUri.data, NULL);
-    ck_assert_int_eq(out.namespaceUri.length, 0);
+    ck_assert_uint_eq(out.namespaceUri.length, 0);
     ck_assert_int_eq(out.serverIndex, 0);
 
     UA_ExpandedNodeId_clear(&out);
@@ -4984,11 +4984,11 @@ START_TEST(UA_ExpandedNodeId_String_json_decode) {
     UA_StatusCode retval = UA_decodeJsonInternal(&buf, &out, &UA_TYPES[UA_TYPES_EXPANDEDNODEID]);
     // then
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
-    ck_assert_int_eq(out.nodeId.identifier.string.length, 4);
+    ck_assert_uint_eq(out.nodeId.identifier.string.length, 4);
     ck_assert_int_eq(out.nodeId.identifier.string.data[0], 't');
     ck_assert_int_eq(out.nodeId.identifierType, UA_NODEIDTYPE_STRING);
     ck_assert_ptr_eq(out.namespaceUri.data, NULL);
-    ck_assert_int_eq(out.namespaceUri.length, 0);
+    ck_assert_uint_eq(out.namespaceUri.length, 0);
     ck_assert_int_eq(out.serverIndex, 0);
 
     UA_ExpandedNodeId_clear(&out);
@@ -5005,13 +5005,13 @@ START_TEST(UA_ExpandedNodeId_String_Namespace_json_decode) {
     UA_StatusCode retval = UA_decodeJsonInternal(&buf, &out, &UA_TYPES[UA_TYPES_EXPANDEDNODEID]);
     // then
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
-    ck_assert_int_eq(out.nodeId.identifier.string.length, 4);
+    ck_assert_uint_eq(out.nodeId.identifier.string.length, 4);
     ck_assert_int_eq(out.nodeId.identifier.string.data[0], 't');
     ck_assert_int_eq(out.nodeId.identifier.string.data[1], 'e');
     ck_assert_int_eq(out.nodeId.identifier.string.data[2], 's');
     ck_assert_int_eq(out.nodeId.identifier.string.data[3], 't');
     ck_assert_int_eq(out.nodeId.identifierType, UA_NODEIDTYPE_STRING);
-    ck_assert_int_eq(out.namespaceUri.length, 6);
+    ck_assert_uint_eq(out.namespaceUri.length, 6);
     ck_assert_int_eq(out.namespaceUri.data[0], 'a');
     ck_assert_int_eq(out.namespaceUri.data[1], 'b');
     ck_assert_int_eq(out.namespaceUri.data[2], 'c');
@@ -5034,16 +5034,16 @@ START_TEST(UA_ExpandedNodeId_String_NamespaceAsIndex_json_decode) {
     UA_StatusCode retval = UA_decodeJsonInternal(&buf, &out, &UA_TYPES[UA_TYPES_EXPANDEDNODEID]);
     // then
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
-    ck_assert_int_eq(out.nodeId.identifier.string.length, 4);
+    ck_assert_uint_eq(out.nodeId.identifier.string.length, 4);
     ck_assert_int_eq(out.nodeId.identifier.string.data[0], 't');
     ck_assert_int_eq(out.nodeId.identifier.string.data[1], 'e');
     ck_assert_int_eq(out.nodeId.identifier.string.data[2], 's');
     ck_assert_int_eq(out.nodeId.identifier.string.data[3], 't');
     ck_assert_int_eq(out.nodeId.identifierType, UA_NODEIDTYPE_STRING);
-    ck_assert_int_eq(out.namespaceUri.length, 0);
+    ck_assert_uint_eq(out.namespaceUri.length, 0);
     ck_assert_ptr_eq(out.namespaceUri.data, NULL);
-    ck_assert_int_eq(out.nodeId.namespaceIndex, 42);
-    ck_assert_int_eq(out.serverIndex, 0);
+    ck_assert_uint_eq(out.nodeId.namespaceIndex, 42);
+    ck_assert_uint_eq(out.serverIndex, 0);
 
     UA_ExpandedNodeId_clear(&out);
 }
@@ -5059,13 +5059,13 @@ START_TEST(UA_ExpandedNodeId_String_Namespace_ServerUri_json_decode) {
     UA_StatusCode retval = UA_decodeJsonInternal(&buf, &out, &UA_TYPES[UA_TYPES_EXPANDEDNODEID]);
     // then
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
-    ck_assert_int_eq(out.nodeId.identifier.string.length, 4);
+    ck_assert_uint_eq(out.nodeId.identifier.string.length, 4);
     ck_assert_int_eq(out.nodeId.identifier.string.data[0], 't');
     ck_assert_int_eq(out.nodeId.identifier.string.data[1], 'e');
     ck_assert_int_eq(out.nodeId.identifier.string.data[2], 's');
     ck_assert_int_eq(out.nodeId.identifier.string.data[3], 't');
     ck_assert_int_eq(out.nodeId.identifierType, UA_NODEIDTYPE_STRING);
-    ck_assert_int_eq(out.serverIndex, 13);
+    ck_assert_uint_eq(out.serverIndex, 13);
     ck_assert_int_eq(out.namespaceUri.data[0], 't');
     ck_assert_int_eq(out.namespaceUri.data[1], 'e');
     ck_assert_int_eq(out.namespaceUri.data[2], 's');
@@ -5085,7 +5085,7 @@ START_TEST(UA_ExpandedNodeId_ByteString_json_decode) {
     UA_StatusCode retval = UA_decodeJsonInternal(&buf, &out, &UA_TYPES[UA_TYPES_EXPANDEDNODEID]);
     // then
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
-    ck_assert_int_eq(out.nodeId.identifier.string.length, 8);
+    ck_assert_uint_eq(out.nodeId.identifier.string.length, 8);
     ck_assert_int_eq(out.nodeId.identifier.string.data[0], 'a');
     ck_assert_int_eq(out.nodeId.identifier.string.data[1], 's');
     ck_assert_int_eq(out.nodeId.identifier.string.data[2], 'd');
@@ -5095,7 +5095,7 @@ START_TEST(UA_ExpandedNodeId_ByteString_json_decode) {
     ck_assert_int_eq(out.nodeId.identifier.string.data[6], 'd');
     ck_assert_int_eq(out.nodeId.identifier.string.data[7], 'f');
     ck_assert_int_eq(out.nodeId.identifierType, UA_NODEIDTYPE_BYTESTRING);
-    ck_assert_int_eq(out.serverIndex, 13);
+    ck_assert_uint_eq(out.serverIndex, 13);
     ck_assert_int_eq(out.namespaceUri.data[0], 't');
     ck_assert_int_eq(out.namespaceUri.data[1], 'e');
     ck_assert_int_eq(out.namespaceUri.data[2], 's');
@@ -5127,8 +5127,8 @@ START_TEST(UA_DiagnosticInfo_json_decode) {
     ck_assert_int_eq(out.symbolicId, 13);
     ck_assert_int_eq(out.localizedText, 14);
     ck_assert_int_eq(out.innerStatusCode, 2155216896);
-    ck_assert_int_eq(out.additionalInfo.length, 14);
-    ck_assert_int_eq(out.innerDiagnosticInfo->additionalInfo.length, 19);
+    ck_assert_uint_eq(out.additionalInfo.length, 14);
+    ck_assert_uint_eq(out.innerDiagnosticInfo->additionalInfo.length, 19);
     UA_DiagnosticInfo_clear(&out);
 }
 END_TEST
@@ -5296,7 +5296,7 @@ START_TEST(UA_ExtensionObject_Unkown_json_decode) {
     ck_assert_int_eq(out.content.encoded.typeId.identifier.numeric, 4711);
 
     //{"unknown":"body","saveas":"Bytestring"}Q
-    ck_assert_int_eq(out.content.encoded.body.length, 40);
+    ck_assert_uint_eq(out.content.encoded.body.length, 40);
     ck_assert_int_eq(out.content.encoded.body.data[2], 'u');
     ck_assert_int_eq(out.content.encoded.body.data[3], 'n');
     ck_assert_int_eq(out.content.encoded.body.data[4], 'k');
@@ -5371,10 +5371,10 @@ START_TEST(UA_VariantStringArray_json_decode) {
     ck_assert_int_eq((char)testArray[5].data[0], '6');
     ck_assert_int_eq((char)testArray[6].data[0], '7');
     ck_assert_int_eq((char)testArray[7].data[0], '8');
-    ck_assert_int_eq(out->arrayDimensionsSize, 2);
-    ck_assert_int_eq(out->arrayDimensions[0], 2);
-    ck_assert_int_eq(out->arrayDimensions[1], 4);
-    ck_assert_int_eq(out->arrayLength, 8);
+    ck_assert_uint_eq(out->arrayDimensionsSize, 2);
+    ck_assert_uint_eq(out->arrayDimensions[0], 2);
+    ck_assert_uint_eq(out->arrayDimensions[1], 4);
+    ck_assert_uint_eq(out->arrayLength, 8);
     ck_assert_int_eq(out->type->typeKind, UA_DATATYPEKIND_STRING);
     UA_Variant_delete(out);
 }
@@ -5404,10 +5404,10 @@ START_TEST(UA_VariantStringArrayNull_json_decode) {
     ck_assert_ptr_eq(testArray[5].data, NULL);
     ck_assert_ptr_eq(testArray[6].data, NULL);
     ck_assert_ptr_eq(testArray[7].data, NULL);
-    ck_assert_int_eq(out.arrayDimensionsSize, 2);
-    ck_assert_int_eq(out.arrayDimensions[0], 2);
-    ck_assert_int_eq(out.arrayDimensions[1], 4);
-    ck_assert_int_eq(out.arrayLength, 8);
+    ck_assert_uint_eq(out.arrayDimensionsSize, 2);
+    ck_assert_uint_eq(out.arrayDimensions[0], 2);
+    ck_assert_uint_eq(out.arrayDimensions[1], 4);
+    ck_assert_uint_eq(out.arrayLength, 8);
     ck_assert_int_eq(out.type->typeKind, UA_DATATYPEKIND_STRING);
     UA_Variant_clear(&out);
 }
@@ -5438,10 +5438,10 @@ START_TEST(UA_VariantLocalizedTextArrayNull_json_decode) {
     ck_assert_ptr_eq(testArray[5].locale.data, NULL);
     ck_assert_ptr_eq(testArray[6].locale.data, NULL);
     ck_assert_ptr_eq(testArray[7].locale.data, NULL);
-    ck_assert_int_eq(out.arrayDimensionsSize, 2);
-    ck_assert_int_eq(out.arrayDimensions[0], 2);
-    ck_assert_int_eq(out.arrayDimensions[1], 4);
-    ck_assert_int_eq(out.arrayLength, 8);
+    ck_assert_uint_eq(out.arrayDimensionsSize, 2);
+    ck_assert_uint_eq(out.arrayDimensions[0], 2);
+    ck_assert_uint_eq(out.arrayDimensions[1], 4);
+    ck_assert_uint_eq(out.arrayLength, 8);
     ck_assert_int_eq(out.type->typeKind, UA_DATATYPEKIND_LOCALIZEDTEXT);
     UA_Variant_clear(&out);
 }
@@ -5465,10 +5465,10 @@ START_TEST(UA_VariantVariantArrayNull_json_decode) {
     // then
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
     ck_assert(!testArray[0].type);
-    ck_assert_int_eq(out.arrayDimensionsSize, 2);
-    ck_assert_int_eq(out.arrayDimensions[0], 2);
-    ck_assert_int_eq(out.arrayDimensions[1], 4);
-    ck_assert_int_eq(out.arrayLength, 8);
+    ck_assert_uint_eq(out.arrayDimensionsSize, 2);
+    ck_assert_uint_eq(out.arrayDimensions[0], 2);
+    ck_assert_uint_eq(out.arrayDimensions[1], 4);
+    ck_assert_uint_eq(out.arrayLength, 8);
     ck_assert_int_eq(out.type->typeKind, 21);
     UA_Variant_clear(&out);
 }
@@ -5489,7 +5489,7 @@ START_TEST(UA_VariantVariantArrayEmpty_json_decode) {
     UA_StatusCode retval = UA_decodeJsonInternal(&buf, &out, &UA_TYPES[UA_TYPES_VARIANT]);
     // then
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
-    ck_assert_int_eq(out.arrayLength, 0);
+    ck_assert_uint_eq(out.arrayLength, 0);
     ck_assert_ptr_eq(out.data, UA_EMPTY_ARRAY_SENTINEL);
     UA_Variant_clear(&out);
 }
@@ -5516,8 +5516,8 @@ START_TEST(UA_VariantStringArray_WithoutDimension_json_decode) {
     ck_assert_int_eq((char)testArray[5].data[0], '6');
     ck_assert_int_eq((char)testArray[6].data[0], '7');
     ck_assert_int_eq((char)testArray[7].data[0], '8');
-    ck_assert_int_eq(out.arrayDimensionsSize, 0);
-    ck_assert_int_eq(out.arrayLength, 8);
+    ck_assert_uint_eq(out.arrayDimensionsSize, 0);
+    ck_assert_uint_eq(out.arrayLength, 8);
     ck_assert_int_eq(out.type->typeKind, UA_DATATYPEKIND_STRING);
     UA_Variant_clear(&out);
 }
@@ -5541,8 +5541,8 @@ START_TEST(UA_Variant_BooleanArray_json_decode) {
     ck_assert_int_eq(testArray[0], 1);
     ck_assert_int_eq(testArray[1], 0);
     ck_assert_int_eq(testArray[2], 1);
-    ck_assert_int_eq(out.arrayDimensionsSize, 0);
-    ck_assert_int_eq(out.arrayLength, 3);
+    ck_assert_uint_eq(out.arrayDimensionsSize, 0);
+    ck_assert_uint_eq(out.arrayLength, 3);
     ck_assert_int_eq(out.type->typeKind, UA_DATATYPEKIND_BOOLEAN);
     UA_Variant_clear(&out);
 }
