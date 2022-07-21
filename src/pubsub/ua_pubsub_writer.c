@@ -1253,7 +1253,7 @@ UA_DataSetWriter_generateDataSetMessage(UA_Server *server,
         /* TODO: Statuscode not supported yet */
         if((u64)dsm->dataSetMessageContentMask &
            (u64)UA_UADPDATASETMESSAGECONTENTMASK_STATUS) {
-            dataSetMessage->header.statusEnabled = false;
+            dataSetMessage->header.statusEnabled = true;
         }
     } else if(jsonDsm) {
         if((u64)jsonDsm->dataSetMessageContentMask &
@@ -1285,7 +1285,7 @@ UA_DataSetWriter_generateDataSetMessage(UA_Server *server,
         /* TODO: Statuscode not supported yet */
         if((u64)jsonDsm->dataSetMessageContentMask &
            (u64)UA_JSONDATASETMESSAGECONTENTMASK_STATUS) {
-            dataSetMessage->header.statusEnabled = false;
+            dataSetMessage->header.statusEnabled = true;
         }
     }
 

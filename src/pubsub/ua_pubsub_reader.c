@@ -202,7 +202,7 @@ UA_DataSetReader_generateDataSetMessage(UA_Server *server,
     /* TODO: Statuscode not supported yet */
     if((u64)dataSetReaderMessageDataType->dataSetMessageContentMask &
        (u64)UA_UADPDATASETMESSAGECONTENTMASK_STATUS) {
-        dataSetMessage->header.statusEnabled = false;
+        dataSetMessage->header.statusEnabled = true;
     }
 
     /* Not supported for Delta frames atm */
