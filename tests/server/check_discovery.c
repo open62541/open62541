@@ -462,7 +462,7 @@ Client_find_on_network_registered(void) {
     UA_String expectedUris[2];
     char hostname[256];
 
-    ck_assert_uint_eq(gethostname(hostname, 255), 0);
+    ck_assert_int_eq(gethostname(hostname, 255), 0);
 
     // DNS limits name to max 63 chars (+ \0). We need this ugly casting,
     // otherwise gcc >7.2 will complain about format-truncation, but we want it
