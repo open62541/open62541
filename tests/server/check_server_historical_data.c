@@ -608,7 +608,7 @@ testResult(UA_DateTime *resultData, UA_HistoryData * historyData) {
     for (size_t j = 0; j < data->dataValuesSize; ++j) {
         ck_assert(resultData[j] != 0);
         ck_assert_uint_eq(data->dataValues[j].hasSourceTimestamp, true);
-        ck_assert_uint_eq(data->dataValues[j].sourceTimestamp, resultData[j]);
+        ck_assert_int_eq(data->dataValues[j].sourceTimestamp, resultData[j]);
     }
     UA_HistoryReadResponse_clear(&localResponse);
 }
@@ -662,7 +662,7 @@ START_TEST(Server_HistorizingUpdateInsert)
     for (size_t i = 0; i < data.dataValuesSize; ++i) {
         ck_assert_uint_eq(data.dataValues[i].hasValue, true);
         ck_assert(data.dataValues[i].value.type == &UA_TYPES[UA_TYPES_INT64]);
-        ck_assert_uint_eq(*((UA_Int64*)data.dataValues[i].value.data), UA_PERFORMUPDATETYPE_INSERT);
+        ck_assert_int_eq(*((UA_Int64*)data.dataValues[i].value.data), UA_PERFORMUPDATETYPE_INSERT);
     }
 
     UA_HistoryData_clear(&data);
@@ -698,7 +698,7 @@ START_TEST(Server_HistorizingUpdateReplace)
     for (size_t i = 0; i < data.dataValuesSize; ++i) {
         ck_assert_uint_eq(data.dataValues[i].hasValue, true);
         ck_assert(data.dataValues[i].value.type == &UA_TYPES[UA_TYPES_INT64]);
-        ck_assert_uint_eq(*((UA_Int64*)data.dataValues[i].value.data), UA_PERFORMUPDATETYPE_REPLACE);
+        ck_assert_int_eq(*((UA_Int64*)data.dataValues[i].value.data), UA_PERFORMUPDATETYPE_REPLACE);
     }
 
     UA_HistoryData_clear(&data);
@@ -749,7 +749,7 @@ START_TEST(Server_HistorizingUpdateUpdate)
     for (size_t i = 0; i < data.dataValuesSize; ++i) {
         ck_assert_uint_eq(data.dataValues[i].hasValue, true);
         ck_assert(data.dataValues[i].value.type == &UA_TYPES[UA_TYPES_INT64]);
-        ck_assert_uint_eq(*((UA_Int64*)data.dataValues[i].value.data), UA_PERFORMUPDATETYPE_UPDATE);
+        ck_assert_int_eq(*((UA_Int64*)data.dataValues[i].value.data), UA_PERFORMUPDATETYPE_UPDATE);
     }
 
     UA_HistoryData_clear(&data);
@@ -808,7 +808,8 @@ START_TEST(Server_HistorizingStrategyUser)
         ck_assert_uint_eq(data->dataValuesSize, 10);
         for (size_t j = 0; j < data->dataValuesSize; ++j) {
             ck_assert_uint_eq(data->dataValues[j].hasSourceTimestamp, true);
-            ck_assert_uint_eq(data->dataValues[j].sourceTimestamp, start + (j * UA_DATETIME_SEC));
+            ck_assert_int_eq(data->dataValues[j].sourceTimestamp,
+                             start + (UA_DateTime)(j * UA_DATETIME_SEC));
             ck_assert_uint_eq(data->dataValues[j].hasStatus, true);
             ck_assert_str_eq(UA_StatusCode_name(data->dataValues[j].status), UA_StatusCode_name(UA_STATUSCODE_GOOD));
             ck_assert_uint_eq(data->dataValues[j].hasValue, true);
