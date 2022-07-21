@@ -209,7 +209,7 @@ static void *profileGetThread(void *arg) {
     UA_Int32 max_val = test->max_val;
     for(UA_Int32 x = 0; x<test->rounds; x++) {
         for(UA_Int32 i=test->min_val; i<max_val; i++) {
-            id.identifier.numeric = i+1;
+            id.identifier.numeric = (UA_UInt32)(i+1);
             const UA_Node* n = ns.getNode(ns.context, &id, ~(UA_UInt32)0,
                                           UA_REFERENCETYPESET_ALL, UA_BROWSEDIRECTION_BOTH);
             ns.releaseNode(ns.context, n);
