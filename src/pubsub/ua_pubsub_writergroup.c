@@ -1075,7 +1075,9 @@ UA_WriterGroup_publishCallback(UA_Server *server, UA_WriterGroup *writerGroup) {
 #endif
         }
 
-        if(res != UA_STATUSCODE_GOOD) {
+        if(res == UA_STATUSCODE_GOOD) {
+            writerGroup->sequenceNumber++;
+        } else {
             UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
                          "PubSub Publish: Could not send a NetworkMessage");
             UA_DataSetWriter_setPubSubState(server, UA_PUBSUBSTATE_ERROR, dsw);
@@ -1115,7 +1117,7 @@ UA_WriterGroup_publishCallback(UA_Server *server, UA_WriterGroup *writerGroup) {
         }
 
         if(res == UA_STATUSCODE_GOOD) {
-            writerGroup->sequenceNumber++; /* TODO: Why not in the direct-send case? */
+            writerGroup->sequenceNumber++;
         } else {
             UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
                          "PubSub Publish: Sending a NetworkMessage failed");
