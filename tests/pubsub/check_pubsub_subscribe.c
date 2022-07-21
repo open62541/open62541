@@ -163,7 +163,7 @@ START_TEST(AddReaderGroupWithValidConfiguration) {
             readerGroupCount++;
         }
         /* Check readerGroup count */
-        ck_assert_int_eq(readerGroupCount, 1);
+        ck_assert_uint_eq(readerGroupCount, 1);
         /* To Do: RemoveReaderGroup operation should be carried out when UA_Server_delete has been called */
         UA_Server_removeReaderGroup(server, localreaderGroup);
     } END_TEST
@@ -180,7 +180,7 @@ START_TEST(AddReaderGroupWithNullConfig) {
             readerGroupCount++;
         }
         /* Check readerGroup count */
-        ck_assert_int_eq(readerGroupCount, 0);
+        ck_assert_uint_eq(readerGroupCount, 0);
     } END_TEST
 
 START_TEST(AddReaderGroupWithInvalidConnectionId) {
@@ -198,7 +198,7 @@ START_TEST(AddReaderGroupWithInvalidConnectionId) {
             readerGroupCount++;
         }
         /* Check readerGroup count */
-        ck_assert_int_eq(readerGroupCount, 0);
+        ck_assert_uint_eq(readerGroupCount, 0);
     } END_TEST
 
 START_TEST(RemoveReaderGroupWithInvalidIdentifier) {
@@ -220,7 +220,7 @@ START_TEST(RemoveReaderGroupWithInvalidIdentifier) {
             readerGroupCount++;
         }
         /* Check readerGroup count */
-        ck_assert_int_eq(readerGroupCount, 1);
+        ck_assert_uint_eq(readerGroupCount, 1);
         UA_Server_removeReaderGroup(server, localreaderGroup);
     } END_TEST
 
@@ -244,7 +244,7 @@ START_TEST(AddRemoveMultipleAddReaderGroupWithValidConfiguration) {
         }
 
         /* Check ReaderGroup Count */
-        ck_assert_int_eq(readerGroupCount, 0);
+        ck_assert_uint_eq(readerGroupCount, 0);
         /* Add Multiple ReaderGroups */
         for (int iterator = 0; iterator <= READERGROUP_COUNT; iterator++) {
             retVal |= UA_Server_addReaderGroup(server, connectionId, &readerGroupConfig, &localReaderGroup);
@@ -257,7 +257,7 @@ START_TEST(AddRemoveMultipleAddReaderGroupWithValidConfiguration) {
             readerGroupCount++;
         }
         /* Check ReaderGroup Count */
-        ck_assert_int_eq(readerGroupCount, CHECK_READERGROUP_COUNT);
+        ck_assert_uint_eq(readerGroupCount, CHECK_READERGROUP_COUNT);
     } END_TEST
 
       /* Check status of updating ReaderGroup with invalid identifier */
@@ -565,7 +565,7 @@ START_TEST(UpdateDataSetReaderConfigWithValidConfiguration){
 
         retVal |=  UA_Server_DataSetReader_updateConfig(server, localDataSetReaderId, localreaderGroup, &dataSetreaderConfig);
         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
-        ck_assert_int_eq(2, localDataSetReader->config.subscribedDataSet.subscribedDataSetTarget.targetVariablesSize);
+        ck_assert_uint_eq(2, localDataSetReader->config.subscribedDataSet.subscribedDataSetTarget.targetVariablesSize);
         UA_free(dataSetreaderConfig.subscribedDataSet.subscribedDataSetTarget.targetVariables);
 } END_TEST
 

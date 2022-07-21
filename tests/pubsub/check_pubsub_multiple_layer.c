@@ -28,13 +28,13 @@ START_TEST(AddMultipleTransportLayers){
     UA_ServerConfig_setDefault(config);
 
     UA_ServerConfig_addPubSubTransportLayer(config, UA_PubSubTransportLayerUDPMP());
-    ck_assert_int_eq(config->pubSubConfig.transportLayersSize, 1);
+    ck_assert_uint_eq(config->pubSubConfig.transportLayersSize, 1);
 
     UA_ServerConfig_addPubSubTransportLayer(config, UA_PubSubTransportLayerUDPMP());
-    ck_assert_int_eq(config->pubSubConfig.transportLayersSize, 2);
+    ck_assert_uint_eq(config->pubSubConfig.transportLayersSize, 2);
 
     UA_ServerConfig_addPubSubTransportLayer(config, UA_PubSubTransportLayerUDPMP());
-    ck_assert_int_eq(config->pubSubConfig.transportLayersSize, 3);
+    ck_assert_uint_eq(config->pubSubConfig.transportLayersSize, 3);
 
     UA_Server_delete(server);
 } END_TEST

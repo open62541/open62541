@@ -81,7 +81,7 @@ START_TEST(UA_PubSub_EncodeAllOptionalFields) {
     m.payload.dataSetPayload.dataSetMessages[0].data.keyFrameData.dataSetFields[0].hasValue = true;
 
     size_t size = UA_NetworkMessage_calcSizeJson(&m, NULL, 0, NULL, 0, true);
-    ck_assert_int_eq(size, 340);
+    ck_assert_uint_eq(size, 340);
 
     UA_ByteString buffer;
     UA_StatusCode rv = UA_ByteString_allocBuffer(&buffer, size+1);
