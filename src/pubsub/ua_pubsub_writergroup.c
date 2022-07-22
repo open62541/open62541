@@ -743,8 +743,9 @@ encodeNetworkMessage(UA_WriterGroup *wg, UA_NetworkMessage *nm,
 
 #ifdef UA_ENABLE_JSON_ENCODING
 static UA_StatusCode
-sendNetworkMessageJson(UA_PubSubConnection *connection, UA_DataSetMessage *dsm,
-                       UA_UInt16 *writerIds, UA_Byte dsmCount,
+sendNetworkMessageJson(UA_PubSubConnection *connection, UA_WriterGroup *wg,
+                       UA_DataSetMessage *dsm, UA_UInt16 *writerIds, UA_Byte dsmCount,
+                       UA_ExtensionObject *messageSettings,
                        UA_ExtensionObject *transportSettings) {
     /* Prepare the NetworkMessage */
     UA_NetworkMessage nm;
@@ -981,15 +982,6 @@ UA_WriterGroup_publishCallback(UA_Server *server, UA_WriterGroup *writerGroup) {
     if(writerGroup->writersCount == 0)
         return;
 
-    /* Binary or Json encoding?  */
-    if(writerGroup->config.encodingMimeType != UA_PUBSUB_ENCODING_UADP &&
-       writerGroup->config.encodingMimeType != UA_PUBSUB_ENCODING_JSON) {
-        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
-                       "Publish failed: Unknown encoding type.");
-        UA_WriterGroup_setPubSubState(server, UA_PUBSUBSTATE_ERROR, writerGroup);
-        return;
-    }
-
     /* Find the connection associated with the writer */
     UA_PubSubConnection *connection = writerGroup->linkedConnection;
     if(!connection) {
@@ -1017,7 +1009,8 @@ UA_WriterGroup_publishCallback(UA_Server *server, UA_WriterGroup *writerGroup) {
     UA_Byte maxDSM = (UA_Byte)writerGroup->config.maxEncapsulatedDataSetMessageCount;
     if(writerGroup->config.maxEncapsulatedDataSetMessageCount > UA_BYTE_MAX)
         maxDSM = UA_BYTE_MAX;
-    /* If the maxEncapsulatedDataSetMessageCount is set to 0->1 */
+
+    /* If the maxEncapsulatedDataSetMessageCount is set to 0 -> 1 */
     if(maxDSM == 0)
         maxDSM = 1;
 
@@ -1060,19 +1053,24 @@ UA_WriterGroup_publishCallback(UA_Server *server, UA_WriterGroup *writerGroup) {
         }
 
         /* Send right away */
-        if(writerGroup->config.encodingMimeType == UA_PUBSUB_ENCODING_UADP){
+        switch(writerGroup->config.encodingMimeType) {
+        case UA_PUBSUB_ENCODING_UADP:
             res = sendNetworkMessage(connection, writerGroup, &dsmStore[dsmCount],
                                      &dsw->config.dataSetWriterId, 1,
                                      &writerGroup->config.messageSettings,
                                      &writerGroup->config.transportSettings);
-        } else { /* if(writerGroup->config.encodingMimeType == UA_PUBSUB_ENCODING_JSON) */
+            break;
 #ifdef UA_ENABLE_JSON_ENCODING
-            res = sendNetworkMessageJson(connection, &dsmStore[dsmCount],
+        case UA_PUBSUB_ENCODING_JSON:
+            res = sendNetworkMessageJson(connection, writerGroup, &dsmStore[dsmCount],
                                          &dsw->config.dataSetWriterId, 1,
+                                         &writerGroup->config.messageSettings,
                                          &writerGroup->config.transportSettings);
-#else
-            res = UA_STATUSCODE_BADNOTSUPPORTED;
+            break;
 #endif
+        default:
+            res = UA_STATUSCODE_BADNOTSUPPORTED;
+            break;
         }
 
         if(res == UA_STATUSCODE_GOOD) {
@@ -1097,23 +1095,27 @@ UA_WriterGroup_publishCallback(UA_Server *server, UA_WriterGroup *writerGroup) {
     while(i < dsmCount) {
         /* How many dsm in this iteration? */
         UA_Byte nmDsmCount = maxDSM;
-        if(i + nmDsmCount > dsmCount) {
+        if(i + nmDsmCount > dsmCount)
             nmDsmCount = (UA_Byte)(dsmCount - i);
-        }
 
-        if(writerGroup->config.encodingMimeType == UA_PUBSUB_ENCODING_UADP){
+        switch(writerGroup->config.encodingMimeType) {
+        case UA_PUBSUB_ENCODING_UADP:
             res = sendNetworkMessage(connection, writerGroup, &dsmStore[i],
                                      &dsWriterIds[i], nmDsmCount,
                                      &writerGroup->config.messageSettings,
                                      &writerGroup->config.transportSettings);
-        } else { /* if(writerGroup->config.encodingMimeType == UA_PUBSUB_ENCODING_JSON) */
+            break;
 #ifdef UA_ENABLE_JSON_ENCODING
-            res = sendNetworkMessageJson(connection, &dsmStore[i],
+        case UA_PUBSUB_ENCODING_JSON:
+            res = sendNetworkMessageJson(connection, writerGroup, &dsmStore[i],
                                          &dsWriterIds[i], nmDsmCount,
+                                         &writerGroup->config.messageSettings,
                                          &writerGroup->config.transportSettings);
-#else
-            res = UA_STATUSCODE_BADNOTSUPPORTED;
+            break;
 #endif
+        default:
+            res = UA_STATUSCODE_BADNOTSUPPORTED;
+            break;
         }
 
         if(res == UA_STATUSCODE_GOOD) {
