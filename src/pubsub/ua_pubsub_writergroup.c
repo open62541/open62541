@@ -951,15 +951,29 @@ cleanup:
     return rv;
 }
 
-static UA_StatusCode
-sendBufferedNetworkMessage(UA_Server *server, UA_PubSubConnection *connection,
-                           UA_NetworkMessageOffsetBuffer *buffer,
-                           UA_ExtensionObject *transportSettings) {
-    if(UA_NetworkMessage_updateBufferedMessage(buffer) != UA_STATUSCODE_GOOD)
+static void
+sendBufferedNetworkMessage(UA_Server *server, UA_WriterGroup *wg,
+                           UA_PubSubConnection *connection) {
+    UA_NetworkMessageOffsetBuffer *buf = &wg->bufferedMessage;
+    UA_StatusCode res = UA_NetworkMessage_updateBufferedMessage(buf);
+    if(res != UA_STATUSCODE_GOOD) {
         UA_LOG_DEBUG(&server->config.logger, UA_LOGCATEGORY_SERVER,
-                     "PubSub sending. Unknown field type.");
-    return connection->channel->send(connection->channel,
-                                     transportSettings, &buffer->buffer);
+                     "PubSub sending failed - could not update the message");
+        UA_WriterGroup_setPubSubState(server, UA_PUBSUBSTATE_ERROR, wg);
+        return;
+    }
+
+    res = connection->channel->send(connection->channel,
+                                    &wg->config.transportSettings, &buf->buffer);
+    if(res != UA_STATUSCODE_GOOD) {
+        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                     "Publish failed. RT fixed size. sendBufferedNetworkMessage failed");
+        UA_WriterGroup_setPubSubState(server, UA_PUBSUBSTATE_ERROR, wg);
+        return;
+    }
+
+    /* Sending successful - increase the sequence number */
+    wg->sequenceNumber++;
 }
 
 /* This callback triggers the collection and publish of NetworkMessages and the
@@ -991,17 +1005,9 @@ UA_WriterGroup_publishCallback(UA_Server *server, UA_WriterGroup *writerGroup) {
         return;
     }
 
+    /* Realtime path - update the buffer message and send directly */
     if(writerGroup->config.rtLevel == UA_PUBSUB_RT_FIXED_SIZE) {
-        UA_StatusCode res =
-            sendBufferedNetworkMessage(server, connection, &writerGroup->bufferedMessage,
-                                       &writerGroup->config.transportSettings);
-        if(res == UA_STATUSCODE_GOOD) {
-            writerGroup->sequenceNumber++;
-        } else {
-            UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
-                       "Publish failed. RT fixed size. sendBufferedNetworkMessage failed");
-            UA_WriterGroup_setPubSubState(server, UA_PUBSUBSTATE_ERROR, writerGroup);
-        }
+        sendBufferedNetworkMessage(server, writerGroup, connection);
         return;
     }
 
