@@ -921,6 +921,173 @@ START_TEST(SinglePublishSubscribeInt32) {
         checkReceived();
 } END_TEST
 
+START_TEST(SinglePublishSubscribeInt32StatusCode) {
+        /* To check status after running both publisher and subscriber */
+        UA_StatusCode retVal = UA_STATUSCODE_GOOD;
+        UA_PublishedDataSetConfig pdsConfig;
+        UA_NodeId dataSetWriter;
+        UA_NodeId readerIdentifier;
+        UA_NodeId writerGroup;
+        UA_DataSetReaderConfig readerConfig;
+
+        /* Published DataSet */
+        memset(&pdsConfig, 0, sizeof(UA_PublishedDataSetConfig));
+        pdsConfig.publishedDataSetType = UA_PUBSUB_DATASET_PUBLISHEDITEMS;
+        pdsConfig.name = UA_STRING("PublishedDataSet Test");
+        UA_Server_addPublishedDataSet(server, &pdsConfig, &publishedDataSetId);
+        ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+
+        /* Create variable to publish integer data */
+        UA_NodeId publisherNode;
+        UA_VariableAttributes attr = UA_VariableAttributes_default;
+        attr.description           = UA_LOCALIZEDTEXT("en-US","Published Int32");
+        attr.displayName           = UA_LOCALIZEDTEXT("en-US","Published Int32");
+        attr.dataType              = UA_TYPES[UA_TYPES_INT32].typeId;
+        UA_Int32 publisherData     = 42;
+        UA_Variant_setScalar(&attr.value, &publisherData, &UA_TYPES[UA_TYPES_INT32]);
+        retVal = UA_Server_addVariableNode(server, UA_NODEID_NUMERIC(1, PUBLISHVARIABLE_NODEID),
+                                           UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
+                                           UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
+                                           UA_QUALIFIEDNAME(1, "Published Int32"),
+                                           UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
+                                           attr, NULL, &publisherNode);
+        ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+
+        /* Data Set Field */
+        UA_NodeId dataSetFieldIdent;
+        UA_DataSetFieldConfig dataSetFieldConfig;
+        memset(&dataSetFieldConfig, 0, sizeof(UA_DataSetFieldConfig));
+        dataSetFieldConfig.dataSetFieldType              = UA_PUBSUB_DATASETFIELD_VARIABLE;
+        dataSetFieldConfig.field.variable.fieldNameAlias = UA_STRING("Published Int32");
+        dataSetFieldConfig.field.variable.promotedField  = UA_FALSE;
+        dataSetFieldConfig.field.variable.publishParameters.publishedVariable = publisherNode;
+        dataSetFieldConfig.field.variable.publishParameters.attributeId       = UA_ATTRIBUTEID_VALUE;
+        UA_Server_addDataSetField (server, publishedDataSetId, &dataSetFieldConfig, &dataSetFieldIdent);
+
+        /* Writer group */
+        UA_WriterGroupConfig writerGroupConfig;
+        memset(&writerGroupConfig, 0, sizeof(writerGroupConfig));
+        writerGroupConfig.name               = UA_STRING("WriterGroup Test");
+        writerGroupConfig.publishingInterval = PUBLISH_INTERVAL;
+        writerGroupConfig.enabled            = UA_FALSE;
+        writerGroupConfig.writerGroupId      = WRITER_GROUP_ID;
+        writerGroupConfig.encodingMimeType   = UA_PUBSUB_ENCODING_UADP;
+        /* Message settings in WriterGroup to include necessary headers */
+        writerGroupConfig.messageSettings.encoding             = UA_EXTENSIONOBJECT_DECODED;
+        writerGroupConfig.messageSettings.content.decoded.type = &UA_TYPES[UA_TYPES_UADPWRITERGROUPMESSAGEDATATYPE];
+        UA_UadpWriterGroupMessageDataType *writerGroupMessage  = UA_UadpWriterGroupMessageDataType_new();
+        writerGroupMessage->networkMessageContentMask =
+            (UA_UadpNetworkMessageContentMask)UA_UADPNETWORKMESSAGECONTENTMASK_PUBLISHERID |
+            (UA_UadpNetworkMessageContentMask)UA_UADPNETWORKMESSAGECONTENTMASK_GROUPHEADER |
+            (UA_UadpNetworkMessageContentMask)UA_UADPNETWORKMESSAGECONTENTMASK_WRITERGROUPID |
+            (UA_UadpNetworkMessageContentMask)UA_UADPNETWORKMESSAGECONTENTMASK_PAYLOADHEADER;
+        writerGroupConfig.messageSettings.content.decoded.data = writerGroupMessage;
+        retVal |= UA_Server_addWriterGroup(server, connectionId, &writerGroupConfig, &writerGroup);
+        UA_Server_setWriterGroupOperational(server, writerGroup);
+        UA_UadpWriterGroupMessageDataType_delete(writerGroupMessage);
+        ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+
+        /* DataSetWriter */
+        UA_DataSetWriterConfig dataSetWriterConfig;
+        memset(&dataSetWriterConfig, 0, sizeof(dataSetWriterConfig));
+        dataSetWriterConfig.name            = UA_STRING("DataSetWriter Test");
+        dataSetWriterConfig.dataSetWriterId = DATASET_WRITER_ID;
+        dataSetWriterConfig.keyFrameCount   = 10;
+        dataSetWriterConfig.dataSetFieldContentMask = UA_DATASETFIELDCONTENTMASK_STATUSCODE;
+        retVal |= UA_Server_addDataSetWriter(server, writerGroup, publishedDataSetId,
+                                             &dataSetWriterConfig, &dataSetWriter);
+        ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+
+        /* Reader Group */
+        UA_ReaderGroupConfig readerGroupConfig;
+        memset (&readerGroupConfig, 0, sizeof (UA_ReaderGroupConfig));
+        readerGroupConfig.name = UA_STRING ("ReaderGroup Test");
+        retVal |=  UA_Server_addReaderGroup(server, connectionId, &readerGroupConfig, &readerGroupId);
+        UA_Server_setReaderGroupOperational(server, readerGroupId);
+
+        /* Data Set Reader */
+        /* Parameters to filter received NetworkMessage */
+        memset (&readerConfig, 0, sizeof (UA_DataSetReaderConfig));
+        readerConfig.name             = UA_STRING ("DataSetReader Test");
+        UA_UInt16 publisherIdentifier = PUBLISHER_ID;
+        readerConfig.publisherId.type = &UA_TYPES[UA_TYPES_UINT16];
+        readerConfig.publisherId.data = &publisherIdentifier;
+        readerConfig.writerGroupId    = WRITER_GROUP_ID;
+        readerConfig.dataSetWriterId  = DATASET_WRITER_ID;
+        readerConfig.dataSetFieldContentMask = UA_DATASETFIELDCONTENTMASK_STATUSCODE;
+        /* Setting up Meta data configuration in DataSetReader */
+        UA_DataSetMetaDataType *pMetaData = &readerConfig.dataSetMetaData;
+        /* FilltestMetadata function in subscriber implementation */
+        UA_DataSetMetaDataType_init (pMetaData);
+        pMetaData->name       = UA_STRING ("DataSet Test");
+        /* Static definition of number of fields size to 1 to create one
+           targetVariable */
+        pMetaData->fieldsSize = 1;
+        pMetaData->fields     = (UA_FieldMetaData*)
+            UA_Array_new(pMetaData->fieldsSize, &UA_TYPES[UA_TYPES_FIELDMETADATA]);
+        /* Unsigned Integer DataType */
+        UA_FieldMetaData_init (&pMetaData->fields[0]);
+        UA_NodeId_copy (&UA_TYPES[UA_TYPES_INT32].typeId,
+                        &pMetaData->fields[0].dataType);
+        pMetaData->fields[0].builtInType = UA_NS0ID_INT32;
+        pMetaData->fields[0].valueRank   = -1; /* scalar */
+        retVal |= UA_Server_addDataSetReader(server, readerGroupId, &readerConfig,
+                                             &readerIdentifier);
+        ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+
+        /* Add Subscribed Variables */
+        /* Variable to subscribe data */
+        UA_NodeId newnodeId;
+        UA_VariableAttributes vAttr = UA_VariableAttributes_default;
+        vAttr.description = UA_LOCALIZEDTEXT ("en-US", "Subscribed Int32");
+        vAttr.displayName = UA_LOCALIZEDTEXT ("en-US", "Subscribed Int32");
+        vAttr.dataType    = UA_TYPES[UA_TYPES_INT32].typeId;
+        retVal = UA_Server_addVariableNode(server, UA_NODEID_NUMERIC(1, SUBSCRIBEVARIABLE_NODEID), folderId,
+                                           UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),  UA_QUALIFIEDNAME(1, "Subscribed Int32"),
+                                           UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE), vAttr, NULL, &newnodeId);
+        ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+        UA_FieldTargetVariable targetVar;
+        memset(&targetVar, 0, sizeof(UA_FieldTargetVariable));
+        /* For creating Targetvariable */
+        UA_FieldTargetDataType_init(&targetVar.targetVariable);
+        targetVar.targetVariable.attributeId  = UA_ATTRIBUTEID_VALUE;
+        targetVar.targetVariable.targetNodeId = newnodeId;
+        retVal |= UA_Server_DataSetReader_createTargetVariables(server, readerIdentifier,
+                                                                1, &targetVar);
+        ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+        UA_FieldTargetDataType_clear(&targetVar.targetVariable);
+        UA_free(pMetaData->fields);
+
+        /* Write the value back - but with a status code */
+        UA_ReadValueId rvi;
+        UA_ReadValueId_init(&rvi);
+        rvi.attributeId = UA_ATTRIBUTEID_VALUE;
+        rvi.nodeId = publisherNode;
+
+        UA_WriteValue wv;
+        UA_WriteValue_init(&wv);
+        wv.value = UA_Server_read(server, &rvi, UA_TIMESTAMPSTORETURN_NEITHER);
+        wv.value.hasStatus = true;
+        wv.value.status = UA_STATUSCODE_BADINTERNALERROR;
+        wv.attributeId = UA_ATTRIBUTEID_VALUE;
+        wv.nodeId = publisherNode;
+        UA_Server_write(server, &wv);
+
+        /* run server - publisher and subscriber */
+        UA_fakeSleep(PUBLISH_INTERVAL + 1);
+        UA_Server_run_iterate(server,true);
+        UA_fakeSleep(PUBLISH_INTERVAL + 1);
+        UA_Server_run_iterate(server,true);
+
+        /* Check that the status code was received */
+        checkReceived();
+
+        /* Unset the status code */
+        wv.value.hasStatus = false;
+        UA_Server_write(server, &wv);
+        UA_WriteValue_clear(&wv);
+} END_TEST
+
 START_TEST(SinglePublishSubscribeInt64) {
         /* To check status after running both publisher and subscriber */
         UA_StatusCode retVal = UA_STATUSCODE_GOOD;
@@ -1584,6 +1751,7 @@ int main(void) {
     tcase_add_test(tc_pubsub_publish_subscribe, SinglePublishSubscribeDateTime);
     tcase_add_test(tc_pubsub_publish_subscribe, SinglePublishSubscribeDateTimeRaw);
     tcase_add_test(tc_pubsub_publish_subscribe, SinglePublishSubscribeInt32);
+    tcase_add_test(tc_pubsub_publish_subscribe, SinglePublishSubscribeInt32StatusCode);
     tcase_add_test(tc_pubsub_publish_subscribe, SinglePublishSubscribeInt64);
     tcase_add_test(tc_pubsub_publish_subscribe, SinglePublishSubscribeBool);
     tcase_add_test(tc_pubsub_publish_subscribe, SinglePublishSubscribewithValidIdentifiers);

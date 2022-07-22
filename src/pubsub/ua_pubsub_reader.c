@@ -199,7 +199,7 @@ UA_DataSetReader_generateDataSetMessage(UA_Server *server,
        (u64)UA_UADPDATASETMESSAGECONTENTMASK_PICOSECONDS) {
         dataSetMessage->header.picoSecondsIncluded = false;
     }
-    /* TODO: Statuscode not supported yet */
+
     if((u64)dataSetReaderMessageDataType->dataSetMessageContentMask &
        (u64)UA_UADPDATASETMESSAGECONTENTMASK_STATUS) {
         dataSetMessage->header.statusEnabled = true;
