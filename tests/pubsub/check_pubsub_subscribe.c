@@ -121,27 +121,27 @@ static void teardown(void) {
 
 static void checkReceived(void) {
     /* Read data sent by the Publisher */
-    UA_Variant publishedNodeData;
-    UA_Variant_init(&publishedNodeData);
-    UA_StatusCode retVal =
-        UA_Server_readValue(server, UA_NODEID_NUMERIC(1, PUBLISHVARIABLE_NODEID),
-                            &publishedNodeData);
-    ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+    UA_ReadValueId rvi;
+    UA_ReadValueId_init(&rvi);
+    rvi.attributeId = UA_ATTRIBUTEID_VALUE;
+    rvi.nodeId = UA_NODEID_NUMERIC(1, PUBLISHVARIABLE_NODEID);
+    UA_DataValue publishedNodeData = UA_Server_read(server, &rvi, UA_TIMESTAMPSTORETURN_NEITHER);
 
     /* Read data received by the Subscriber */
-    UA_Variant subscribedNodeData;
-    UA_Variant_init(&subscribedNodeData);
-    retVal = UA_Server_readValue(server, UA_NODEID_NUMERIC(1, SUBSCRIBEVARIABLE_NODEID),
-                                 &subscribedNodeData);
-    ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+    rvi.nodeId = UA_NODEID_NUMERIC(1, SUBSCRIBEVARIABLE_NODEID);
+    UA_DataValue subscribedNodeData = UA_Server_read(server, &rvi, UA_TIMESTAMPSTORETURN_NEITHER);
 
     /* Check if data sent from Publisher is being received by Subscriber */
-    ck_assert(publishedNodeData.type == subscribedNodeData.type);
-    ck_assert(UA_order(publishedNodeData.data,
-                       subscribedNodeData.data,
-                       subscribedNodeData.type) == UA_ORDER_EQ);
-    UA_Variant_clear(&subscribedNodeData);
-    UA_Variant_clear(&publishedNodeData);
+    ck_assert(publishedNodeData.value.type == subscribedNodeData.value.type);
+    ck_assert(UA_order(publishedNodeData.value.data,
+                       subscribedNodeData.value.data,
+                       subscribedNodeData.value.type) == UA_ORDER_EQ);
+
+    ck_assert(publishedNodeData.hasStatus == subscribedNodeData.hasStatus);
+    ck_assert(publishedNodeData.status == subscribedNodeData.status);
+
+    UA_DataValue_clear(&subscribedNodeData);
+    UA_DataValue_clear(&publishedNodeData);
 }
 
 START_TEST(AddReaderGroupWithValidConfiguration) {
@@ -442,10 +442,13 @@ START_TEST(UpdateDataSetReaderConfigWithInvalidId) {
         retVal |=  UA_Server_addReaderGroup(server, connectionId,
                                             &readerGroupConfig, &localreaderGroup);
         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+
         memset(&dataSetreaderConfig, 0, sizeof(dataSetreaderConfig));
+        dataSetreaderConfig.name = UA_STRING("DataSetReader Test");
         retVal |= UA_Server_addDataSetReader(server, localreaderGroup,
                                              &dataSetreaderConfig, &localDataSetreader);
         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+
         retVal |=  UA_Server_DataSetReader_updateConfig(server, UA_NODEID_NUMERIC(0, UA_UINT32_MAX),
                                                       localreaderGroup, &dataSetreaderConfig );
         ck_assert_int_ne(retVal, UA_STATUSCODE_GOOD);
@@ -462,9 +465,12 @@ START_TEST(GetDataSetReaderConfigWithValidConfiguration) {
         readerGroupConfig.name = UA_STRING("ReaderGroup Test");
         retVal |=  UA_Server_addReaderGroup(server, connectionId, &readerGroupConfig, &localreaderGroup);
         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+
         memset(&dataSetreaderConfig, 0, sizeof(dataSetreaderConfig));
+        dataSetreaderConfig.name = UA_STRING("DataSetReader Test");
         retVal |= UA_Server_addDataSetReader(server, localreaderGroup, &dataSetreaderConfig, &localDataSetreader);
         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+
         retVal |= UA_Server_DataSetReader_getConfig(server, localDataSetreader, &dataSetreaderConfig);
         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
 } END_TEST
@@ -480,9 +486,12 @@ START_TEST(GetDataSetReaderConfigWithInvalidConfiguration) {
         readerGroupConfig.name = UA_STRING("ReaderGroup Test");
         retVal |=  UA_Server_addReaderGroup(server, connectionId, &readerGroupConfig, &localreaderGroup);
         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+
         memset(&dataSetreaderConfig, 0, sizeof(dataSetreaderConfig));
+        dataSetreaderConfig.name = UA_STRING("DataSetReader Test");
         retVal |= UA_Server_addDataSetReader(server, localreaderGroup, &dataSetreaderConfig, &localDataSetreader);
         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+
         retVal |= UA_Server_DataSetReader_getConfig(server, localDataSetreader, NULL);
         ck_assert_int_ne(retVal, UA_STATUSCODE_GOOD);
 } END_TEST
@@ -498,9 +507,12 @@ START_TEST(GetDataSetReaderConfigWithInvalidIdentifier) {
         readerGroupConfig.name = UA_STRING("ReaderGroup Test");
         retVal |=  UA_Server_addReaderGroup(server, connectionId, &readerGroupConfig, &localreaderGroup);
         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+
         memset(&dataSetreaderConfig, 0, sizeof(dataSetreaderConfig));
+        dataSetreaderConfig.name = UA_STRING("DataSetReader Test");
         retVal |= UA_Server_addDataSetReader(server, localreaderGroup, &dataSetreaderConfig, &localDataSetreader);
         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+
         retVal |= UA_Server_DataSetReader_getConfig(server, UA_NODEID_NUMERIC(0, UA_UINT32_MAX), &dataSetreaderConfig);
         ck_assert_int_ne(retVal, UA_STATUSCODE_GOOD);
 } END_TEST
@@ -573,9 +585,12 @@ START_TEST(CreateTargetVariableWithInvalidConfiguration) {
         readerGroupConfig.name = UA_STRING("ReaderGroup Test");
         retVal |=  UA_Server_addReaderGroup(server, connectionId, &readerGroupConfig, &localreaderGroup);
         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+
         memset(&dataSetreaderConfig, 0, sizeof(dataSetreaderConfig));
+        dataSetreaderConfig.name = UA_STRING("DataSetReader Test");
         retVal |= UA_Server_addDataSetReader(server, localreaderGroup, &dataSetreaderConfig, &localDataSetreader);
         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+
         retVal |= UA_Server_DataSetReader_createTargetVariables(server,
                                                                 UA_NODEID_NUMERIC(0, UA_UINT32_MAX),
                                                                 0, NULL);
