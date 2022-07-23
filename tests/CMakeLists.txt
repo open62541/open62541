@@ -44,8 +44,6 @@ if(CMAKE_HOST_SYSTEM_NAME MATCHES "OpenBSD")
     add_definitions(-Wno-gnu-zero-variadic-macro-arguments)
 endif()
 
-add_definitions(-DUA_sleep_ms=UA_comboSleep)
-
 #############################
 # Compiled binaries folders #
 #############################
