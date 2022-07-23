@@ -37,7 +37,7 @@ typedef enum {
     UA_LOGLEVEL_FATAL   = 600
 } UA_LogLevel;
 
-#define UA_LOGCATEGORIES 8
+#define UA_LOGCATEGORIES 9
 
 typedef enum {
     UA_LOGCATEGORY_NETWORK = 0,
@@ -47,7 +47,8 @@ typedef enum {
     UA_LOGCATEGORY_CLIENT,
     UA_LOGCATEGORY_USERLAND,
     UA_LOGCATEGORY_SECURITYPOLICY,
-    UA_LOGCATEGORY_EVENTLOOP
+    UA_LOGCATEGORY_EVENTLOOP,
+    UA_LOGCATEGORY_PUBSUB
 } UA_LogCategory;
 
 typedef struct {

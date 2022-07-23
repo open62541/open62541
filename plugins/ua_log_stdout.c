@@ -38,7 +38,7 @@ const char *logLevelNames[6] = {"trace", "debug",
                                 ANSI_COLOR_MAGENTA "fatal"};
 const char *logCategoryNames[UA_LOGCATEGORIES] =
     {"network", "channel", "session", "server",
-     "client", "userland", "securitypolicy", "eventloop"};
+     "client", "userland", "securitypolicy", "eventloop", "pubsub"};
 
 typedef struct {
     UA_LogLevel minlevel;
