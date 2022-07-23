@@ -49,10 +49,15 @@ UA_Log_Syslog_log(void *context, UA_LogLevel level, UA_LogCategory category,
         return;
     }
 
+    int logLevelSlot = ((int)level / 100) - 1;
+    if(logLevelSlot < 0 || logLevelSlot > 5)
+        logLevelSlot = 5; /* Set to fatal if the level is outside the range */
+
 #define LOGBUFSIZE 512
     char logbuf[LOGBUFSIZE];
     int pos = snprintf(logbuf, LOGBUFSIZE, "[%s/%s] ",
-                       syslogLevelNames[level], syslogCategoryNames[category]);
+                       syslogLevelNames[logLevelSlot],
+                       syslogCategoryNames[category]);
     if(pos < 0) {
         syslog(LOG_WARNING, "Log message too long for syslog");
         return;
