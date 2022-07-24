@@ -340,11 +340,6 @@ UA_DataSetField *
 UA_DataSetField_findDSFbyId(UA_Server *server, UA_NodeId identifier);
 
 UA_DataSetFieldResult
-addDataSetField(UA_Server *server, const UA_NodeId publishedDataSet,
-                const UA_DataSetFieldConfig *fieldConfig,
-                UA_NodeId *fieldIdentifier);
-
-UA_DataSetFieldResult
 removeDataSetField(UA_Server *server, const UA_NodeId dsf);
 
 /**********************************************/
