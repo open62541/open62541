@@ -325,7 +325,7 @@ UA_ClientConnectionTCP_poll(UA_Connection *connection, UA_UInt32 timeout,
                        tcpConnection->endpointUrl.data, strerror(UA_ERRNO));
         ClientNetworkLayerTCP_close(connection);
         return UA_STATUSCODE_BADDISCONNECT;
-    } else if (ret == 0) {
+    } else if (timeout && ret == 0) {
         UA_LOG_WARNING(logger, UA_LOGCATEGORY_NETWORK,
                        "Connection to %.*s timed out",
                        (int)tcpConnection->endpointUrl.length,

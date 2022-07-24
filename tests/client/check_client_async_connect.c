@@ -176,6 +176,25 @@ START_TEST(Client_without_run_iterate) {
 }
 END_TEST
 
+START_TEST(Client_run_iterate) {
+    UA_StatusCode retval;
+    UA_Client *client = UA_Client_new();
+    UA_ClientConfig *cc = UA_Client_getConfig(client);
+    UA_ClientConfig_setDefault(cc);
+    cc->stateCallback = currentState;
+    connected = false;
+    retval = UA_Client_connectAsync(client, "opc.tcp://localhost:4840");
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    while (!connected) {
+        UA_Server_run_iterate(server, false);
+        retval = UA_Client_run_iterate(client, 0);
+        ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+        sleep(0);
+    }
+    UA_Client_delete(client);
+}
+END_TEST
+
 static Suite* testSuite_Client(void) {
     Suite *s = suite_create("Client");
     TCase *tc_client_connect = tcase_create("Client Connect Async");
@@ -184,6 +203,7 @@ static Suite* testSuite_Client(void) {
     tcase_add_test(tc_client_connect, Client_connect_async_abort);
     tcase_add_test(tc_client_connect, Client_no_connection);
     tcase_add_test(tc_client_connect, Client_without_run_iterate);
+    tcase_add_test(tc_client_connect, Client_run_iterate);
     suite_add_tcase(s,tc_client_connect);
     return s;
 }
