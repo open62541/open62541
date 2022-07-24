@@ -361,7 +361,7 @@ generateFieldMetaData(UA_Server *server, UA_DataSetField *field,
     return UA_STATUSCODE_GOOD;
 }
 
-UA_DataSetFieldResult
+static UA_DataSetFieldResult
 addDataSetField(UA_Server *server, const UA_NodeId publishedDataSet,
                 const UA_DataSetFieldConfig *fieldConfig,
                 UA_NodeId *fieldIdentifier) {
