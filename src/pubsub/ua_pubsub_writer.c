@@ -250,8 +250,8 @@ UA_PublishedDataSet_clear(UA_Server *server, UA_PublishedDataSet *publishedDataS
 
 /* The fieldMetaData variable has to be cleaned up external in case of an error */
 static UA_StatusCode
-generateFieldMetaData(UA_Server *server, UA_DataSetField *field,
-                      UA_FieldMetaData *fieldMetaData) {
+generateFieldMetaData(UA_Server *server, UA_PublishedDataSet *pds,
+                      UA_DataSetField *field, UA_FieldMetaData *fieldMetaData) {
     if(field->config.dataSetFieldType != UA_PUBSUB_DATASETFIELD_VARIABLE)
         return UA_STATUSCODE_BADNOTSUPPORTED;
 
@@ -297,9 +297,11 @@ generateFieldMetaData(UA_Server *server, UA_DataSetField *field,
     UA_Variant_init(&value);
     res = readWithReadValue(server, &pp->publishedVariable,
                             UA_ATTRIBUTEID_ARRAYDIMENSIONS, &value);
-    UA_CHECK_STATUS_LOG(res, return res,
-                        WARNING, &server->config.logger, UA_LOGCATEGORY_SERVER,
-                        "PubSub meta data generation. Reading the array dimensions failed.");
+    if(res != UA_STATUSCODE_GOOD) {
+        UA_LOG_WARNING_DATASET(&server->config.logger, pds,
+                               "PubSub meta data generation: Reading the array dimensions failed");
+        return res;
+    }
 
     if(value.arrayDimensionsSize > 0) {
         fieldMetaData->arrayDimensions = (UA_UInt32 *)
@@ -314,34 +316,39 @@ generateFieldMetaData(UA_Server *server, UA_DataSetField *field,
     /* Set the DataType */
     res = readWithReadValue(server, &pp->publishedVariable,
                             UA_ATTRIBUTEID_DATATYPE, &fieldMetaData->dataType);
-    UA_CHECK_STATUS_LOG(res, return res,
-                        WARNING, &server->config.logger, UA_LOGCATEGORY_SERVER,
-                        "PubSub meta data generation. Reading the datatype failed.");
+    if(res != UA_STATUSCODE_GOOD) {
+        UA_LOG_WARNING_DATASET(&server->config.logger, pds,
+                               "PubSub meta data generation: Reading the datatype failed");
+        return res;
+    }
 
     if(!UA_NodeId_isNull(&fieldMetaData->dataType)) {
         const UA_DataType *currentDataType =
             UA_findDataTypeWithCustom(&fieldMetaData->dataType,
                                       server->config.customDataTypes);
 #ifdef UA_ENABLE_TYPEDESCRIPTION
-        UA_LOG_DEBUG(&server->config.logger, UA_LOGCATEGORY_SERVER,
-                     "MetaData creation. Found DataType %s.", currentDataType->typeName);
+        UA_LOG_DEBUG_DATASET(&server->config.logger, pds,
+                             "MetaData creation: Found DataType %s",
+                             currentDataType->typeName);
 #endif
         /* Check if the datatype is a builtInType, if yes set the builtinType.
          * TODO: Remove the magic number */
         if(currentDataType->typeKind <= UA_DATATYPEKIND_ENUM)
             fieldMetaData->builtInType = (UA_Byte)currentDataType->typeKind;
     } else {
-        UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
-                       "PubSub meta data generation. DataType is UA_NODEID_NULL.");
+        UA_LOG_WARNING_DATASET(&server->config.logger, pds,
+                               "PubSub meta data generation: DataType is UA_NODEID_NULL");
     }
 
     /* Set the ValueRank */
     UA_Int32 valueRank;
     res = readWithReadValue(server, &pp->publishedVariable,
                             UA_ATTRIBUTEID_VALUERANK, &valueRank);
-    UA_CHECK_STATUS_LOG(res, return res,
-                        WARNING, &server->config.logger, UA_LOGCATEGORY_SERVER,
-                        "PubSub meta data generation. Reading the value rank failed.");
+    if(res != UA_STATUSCODE_GOOD) {
+        UA_LOG_WARNING_DATASET(&server->config.logger, pds,
+                               "PubSub meta data generation: Reading the value rank failed");
+        return res;
+    }
     fieldMetaData->valueRank = valueRank;
 
     /* PromotedField? */
@@ -379,8 +386,8 @@ addDataSetField(UA_Server *server, const UA_NodeId publishedDataSet,
     }
 
     if(currDS->configurationFrozen) {
-        UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
-                       "Adding DataSetField failed. PublishedDataSet is frozen.");
+        UA_LOG_WARNING_DATASET(&server->config.logger, currDS,
+                               "Adding DataSetField failed: PublishedDataSet is frozen");
         result.result = UA_STATUSCODE_BADCONFIGURATIONERROR;
         return result;
     }
@@ -412,7 +419,7 @@ addDataSetField(UA_Server *server, const UA_NodeId publishedDataSet,
     /* Initialize the field metadata. Also generates a FieldId */
     UA_FieldMetaData fmd;
     UA_FieldMetaData_init(&fmd);
-    result.result = generateFieldMetaData(server, newField, &fmd);
+    result.result = generateFieldMetaData(server, currDS, newField, &fmd);
     if(result.result != UA_STATUSCODE_GOOD) {
         UA_FieldMetaData_clear(&fmd);
         UA_DataSetFieldConfig_clear(&newField->config);
@@ -487,13 +494,6 @@ removeDataSetField(UA_Server *server, const UA_NodeId dsf) {
         return result;
     }
 
-    if(currentField->configurationFrozen) {
-        UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
-                       "Remove DataSetField failed. DataSetField is frozen.");
-        result.result = UA_STATUSCODE_BADCONFIGURATIONERROR;
-        return result;
-    }
-
     UA_PublishedDataSet *pds =
         UA_PublishedDataSet_findPDSbyId(server, currentField->publishedDataSet);
     if(!pds) {
@@ -501,9 +501,16 @@ removeDataSetField(UA_Server *server, const UA_NodeId dsf) {
         return result;
     }
 
+    if(currentField->configurationFrozen) {
+        UA_LOG_WARNING_DATASET(&server->config.logger, pds,
+                               "Remove DataSetField failed: DataSetField is frozen");
+        result.result = UA_STATUSCODE_BADCONFIGURATIONERROR;
+        return result;
+    }
+
     if(pds->configurationFrozen) {
-        UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
-                       "Remove DataSetField failed. PublishedDataSet is frozen.");
+        UA_LOG_WARNING_DATASET(&server->config.logger, pds,
+                               "Remove DataSetField failed: PublishedDataSet is frozen");
         result.result = UA_STATUSCODE_BADCONFIGURATIONERROR;
         return result;
     }
@@ -544,12 +551,13 @@ removeDataSetField(UA_Server *server, const UA_NodeId dsf) {
         }
         UA_DataSetField *tmpDSF;
         size_t counter = 0;
-        TAILQ_FOREACH(tmpDSF, &pds->fields, listEntry){
-            result.result = generateFieldMetaData(server, tmpDSF, &fieldMetaData[counter]);
+        TAILQ_FOREACH(tmpDSF, &pds->fields, listEntry) {
+            result.result = generateFieldMetaData(server, pds, tmpDSF, &fieldMetaData[counter]);
             if(result.result != UA_STATUSCODE_GOOD) {
                 UA_FieldMetaData_clear(&fieldMetaData[counter]);
-                UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
-                               "PubSub MetaData generation failed!");
+                UA_LOG_WARNING_DATASET(&server->config.logger, pds,
+                                       "PubSub MetaData regeneration failed "
+                                       "after removing a field!");
                 break;
             }
             counter++;
@@ -693,8 +701,8 @@ UA_DataSetWriter_setPubSubState(UA_Server *server,
                 case UA_PUBSUBSTATE_ERROR:
                     break;
                 default:
-                    UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
-                                   "Received unknown PubSub state!");
+                    UA_LOG_WARNING_WRITER(&server->config.logger, dataSetWriter,
+                                          "Received unknown PubSub state!");
             }
             break;
         case UA_PUBSUBSTATE_PAUSED:
@@ -708,8 +716,8 @@ UA_DataSetWriter_setPubSubState(UA_Server *server,
                 case UA_PUBSUBSTATE_ERROR:
                     break;
                 default:
-                    UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
-                                   "Received unknown PubSub state!");
+                    UA_LOG_WARNING_WRITER(&server->config.logger, dataSetWriter,
+                                          "Received unknown PubSub state!");
             }
             break;
         case UA_PUBSUBSTATE_OPERATIONAL:
@@ -724,8 +732,8 @@ UA_DataSetWriter_setPubSubState(UA_Server *server,
                 case UA_PUBSUBSTATE_ERROR:
                     break;
                 default:
-                    UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
-                                   "Received unknown PubSub state!");
+                    UA_LOG_WARNING_WRITER(&server->config.logger, dataSetWriter,
+                                          "Received unknown PubSub state!");
             }
             break;
         case UA_PUBSUBSTATE_ERROR:
@@ -739,13 +747,13 @@ UA_DataSetWriter_setPubSubState(UA_Server *server,
                 case UA_PUBSUBSTATE_ERROR:
                     break;
                 default:
-                    UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
-                                   "Received unknown PubSub state!");
+                    UA_LOG_WARNING_WRITER(&server->config.logger, dataSetWriter,
+                                          "Received unknown PubSub state!");
             }
             break;
         default:
-            UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
-                                           "Received unknown PubSub state!");
+            UA_LOG_WARNING_WRITER(&server->config.logger, dataSetWriter,
+                                  "Received unknown PubSub state!");
     }
     if (state != oldState) {
         /* inform application about state change */
@@ -767,21 +775,21 @@ addDataSetWriter(UA_Server *server,
     if(!dataSetWriterConfig)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
 
-    /* Make checks for a heartbeat */
-    if(UA_NodeId_isNull(&dataSet) && dataSetWriterConfig->keyFrameCount != 1) {
-        UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
-                       "Adding DataSetWriter failed. DataSet can be null only for a heartbeat, "
-                       "in which case KeyFrameCount shall be 1.");
-        return UA_STATUSCODE_BADCONFIGURATIONERROR;
-    }
-
     UA_WriterGroup *wg = UA_WriterGroup_findWGbyId(server, writerGroup);
     if(!wg)
         return UA_STATUSCODE_BADNOTFOUND;
 
+    /* Make checks for a heartbeat */
+    if(UA_NodeId_isNull(&dataSet) && dataSetWriterConfig->keyFrameCount != 1) {
+        UA_LOG_WARNING_WRITERGROUP(&server->config.logger, wg,
+                                   "Adding DataSetWriter failed: DataSet can be null only for "
+                                   "a heartbeat in which case KeyFrameCount shall be 1");
+        return UA_STATUSCODE_BADCONFIGURATIONERROR;
+    }
+
     if(wg->configurationFrozen) {
-        UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
-                       "Adding DataSetWriter failed. WriterGroup is frozen.");
+        UA_LOG_WARNING_WRITERGROUP(&server->config.logger, wg,
+                                   "Adding DataSetWriter failed: WriterGroup is frozen");
         return UA_STATUSCODE_BADCONFIGURATIONERROR;
     }
 
@@ -792,9 +800,9 @@ addDataSetWriter(UA_Server *server,
         if(!currentDataSetContext)
             return UA_STATUSCODE_BADNOTFOUND;
 
-        if(currentDataSetContext->configurationFrozen){
-            UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
-                        "Adding DataSetWriter failed. PublishedDataSet is frozen.");
+        if(currentDataSetContext->configurationFrozen) {
+            UA_LOG_WARNING_DATASET(&server->config.logger, currentDataSetContext,
+                                   "Adding DataSetWriter failed: PublishedDataSet is frozen");
             return UA_STATUSCODE_BADCONFIGURATIONERROR;
         }
 
@@ -802,9 +810,10 @@ addDataSetWriter(UA_Server *server,
             UA_DataSetField *tmpDSF;
             TAILQ_FOREACH(tmpDSF, &currentDataSetContext->fields, listEntry) {
                 if(!tmpDSF->config.field.variable.rtValueSource.rtFieldSourceEnabled &&
-                !tmpDSF->config.field.variable.rtValueSource.rtInformationModelNode) {
-                    UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
-                                "Adding DataSetWriter failed. Fields in PDS are not RT capable.");
+                   !tmpDSF->config.field.variable.rtValueSource.rtInformationModelNode) {
+                    UA_LOG_WARNING_DATASET(&server->config.logger, currentDataSetContext,
+                                           "Adding DataSetWriter failed: "
+                                           "Fields in PDS are not RT capable");
                     return UA_STATUSCODE_BADCONFIGURATIONERROR;
                 }
             }
@@ -824,8 +833,8 @@ addDataSetWriter(UA_Server *server,
                                               UA_PUBSUBSTATE_OPERATIONAL,
                                               UA_STATUSCODE_GOOD);
         if(res != UA_STATUSCODE_GOOD) {
-            UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
-                         "Add DataSetWriter failed. setPubSubState failed.");
+            UA_LOG_ERROR_WRITERGROUP(&server->config.logger, wg,
+                                     "Add DataSetWriter failed: setPubSubState failed");
             UA_free(newDataSetWriter);
             return res;
         }
@@ -890,9 +899,8 @@ UA_Server_addDataSetWriter(UA_Server *server,
                            const UA_DataSetWriterConfig *dataSetWriterConfig,
                            UA_NodeId *writerIdentifier) {
     UA_LOCK(&server->serviceMutex);
-    UA_StatusCode res =
-        addDataSetWriter(server, writerGroup, dataSet,
-                         dataSetWriterConfig, writerIdentifier);
+    UA_StatusCode res = addDataSetWriter(server, writerGroup, dataSet,
+                                         dataSetWriterConfig, writerIdentifier);
     UA_UNLOCK(&server->serviceMutex);
     return res;
 }
@@ -904,8 +912,8 @@ UA_DataSetWriter_remove(UA_Server *server, UA_WriterGroup *linkedWriterGroup,
 
     /* Frozen? */
     if(linkedWriterGroup->configurationFrozen) {
-        UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
-                       "Remove DataSetWriter failed. WriterGroup is frozen.");
+        UA_LOG_WARNING_WRITER(&server->config.logger, dataSetWriter,
+                              "Remove DataSetWriter failed: WriterGroup is frozen");
         return UA_STATUSCODE_BADCONFIGURATIONERROR;
     }
 
@@ -931,8 +939,8 @@ removeDataSetWriter(UA_Server *server, const UA_NodeId dsw) {
         return UA_STATUSCODE_BADNOTFOUND;
 
     if(dataSetWriter->configurationFrozen) {
-        UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
-                       "Remove DataSetWriter failed. DataSetWriter is frozen.");
+        UA_LOG_WARNING_WRITER(&server->config.logger, dataSetWriter,
+                              "Remove DataSetWriter failed: DataSetWriter is frozen");
         return UA_STATUSCODE_BADCONFIGURATIONERROR;
     }
 
@@ -1320,8 +1328,8 @@ UA_DataSetWriter_generateDataSetMessage(UA_Server *server,
         if(dsm->networkMessageNumber != 0 ||
            dsm->dataSetOffset != 0 ||
            dsm->configuredSize != 0) {
-            UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
-                           "Static DSM configuration not supported. Using defaults");
+            UA_LOG_WARNING_WRITER(&server->config.logger, dataSetWriter,
+                                  "Static DSM configuration not supported, using defaults");
             dsm->networkMessageNumber = 0;
             dsm->dataSetOffset = 0;
             dsm->configuredSize = 0;
@@ -1419,12 +1427,11 @@ UA_DataSetWriter_generateDataSetMessage(UA_Server *server,
     /* Set the sequence count. Automatically rolls over to zero */
     dataSetWriter->actualDataSetMessageSequenceCount++;
 
-    if(heartbeat){
+    if(heartbeat) {
         /* Prepare DataSetMessageContent */
         dataSetMessage->header.dataSetMessageValid = true;
         dataSetMessage->header.dataSetMessageType = UA_DATASETMESSAGE_DATAKEYFRAME;
-        dataSetMessage->data.keyFrameData.fieldCount = 0; // Heartbeat
-
+        dataSetMessage->data.keyFrameData.fieldCount = 0;
         return UA_STATUSCODE_GOOD;
     }
 
