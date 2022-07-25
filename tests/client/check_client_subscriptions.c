@@ -1053,21 +1053,30 @@ START_TEST(Client_subscription_writeBurst) {
                                                   monRequest, NULL, dataChangeHandler, NULL);
     ck_assert_uint_eq(monResponse.statusCode, UA_STATUSCODE_GOOD);
 
+    running = false;
+    THREAD_JOIN(server_thread);
+
     UA_fakeSleep((UA_UInt32)publishingInterval + 1);
 
+    UA_Server_run_iterate(server, true);
     retval = UA_Client_run_iterate(client, 1);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
     UA_DateTime origTime = UA_DateTime_nowMonotonic();
     do {
         myInteger++;
-        retval = UA_Client_writeValueAttribute_async(client, myIntegerNodeId, &attr.value, NULL, NULL, NULL);
+        retval = UA_Client_writeValueAttribute_async(client, myIntegerNodeId, &attr.value,
+                                                     NULL, NULL, NULL);
         ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+        UA_Server_run_iterate(server, true);
         UA_Client_run_iterate(client, 1);
-        UA_comboSleep(2);
+        UA_fakeSleep(2);
     } while(UA_DateTime_nowMonotonic() - origTime < 1 * UA_DATETIME_SEC);
 
     printf("done\n");
+
+    running = true;
+    THREAD_CREATE(server_thread, serverloop);
 
     UA_Client_disconnect(client);
     UA_Client_delete(client);
