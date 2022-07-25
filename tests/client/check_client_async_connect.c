@@ -191,6 +191,12 @@ START_TEST(Client_run_iterate) {
         ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
         sleep(0);
     }
+
+    UA_Client_disconnectAsync(client);
+    while(client->connection.state != UA_CONNECTIONSTATE_CLOSED) {
+        UA_Server_run_iterate(server, false);
+        UA_Client_run_iterate(client, 0);
+    }
     UA_Client_delete(client);
 }
 END_TEST
