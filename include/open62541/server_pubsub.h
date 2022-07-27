@@ -877,6 +877,33 @@ UA_Server_setReaderGroupEncryptionKeys(UA_Server *server, UA_NodeId readerGroup,
                                        UA_ByteString keyNonce);
 #endif
 
+#ifdef UA_ENABLE_PUBSUB_SKS
+/**
+ * SecurityGroup
+ * -------------
+ *
+ * A SecurityGroup is an abstraction that represents the message security settings and
+ * security keys for a subset of NetworkMessages exchanged between Publishers and
+ * Subscribers. The SecurityGroup objects are created on a Security Key Service (SKS). The
+ * SKS manages the access to the keys based on the role permission for a user assigned to
+ * a SecurityGroup Object. A SecurityGroup is identified with a unique identifier called
+ * the SecurityGroupId. It is unique within the SKS.
+ *
+ * .. note:: The access to the SecurityGroup and therefore the securitykeys managed by SKS
+ *           requires management of Roles and Permissions in the SKS. The Role Permission
+ *           model is not supported at the time of writing. However, the access control plugin can
+ *           be used to create and manage role permission on SecurityGroup object.
+ */
+
+typedef struct {
+    UA_String securityGroupName;
+    UA_Duration keyLifeTime;
+    UA_String securityPolicyUri;
+    UA_UInt32 maxFutureKeyCount;
+    UA_UInt32 maxPastKeyCount;
+} UA_SecurityGroupConfig;
+
+#endif /* UA_ENABLE_PUBSUB_SKS */
 
 #endif /* UA_ENABLE_PUBSUB */
 
