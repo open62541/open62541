@@ -604,6 +604,16 @@ struct UA_SecurityGroup {
     TAILQ_ENTRY(UA_SecurityGroup) listEntry;
 };
 
+/* finds the SecurityGroup within the server by NodeId*/
+UA_SecurityGroup *
+UA_SecurityGroup_findSGbyId(UA_Server *server, UA_NodeId identifier);
+
+void
+UA_SecurityGroup_delete(UA_SecurityGroup *securityGroup);
+
+UA_StatusCode
+removeSecurityGroup(UA_Server *server, const UA_NodeId securityGroupNodeId);
+
 #endif /* UA_ENABLE_PUBSUB_SKS */
 
 #endif /* UA_ENABLE_PUBSUB */

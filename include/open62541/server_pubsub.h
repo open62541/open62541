@@ -903,6 +903,17 @@ typedef struct {
     UA_UInt32 maxPastKeyCount;
 } UA_SecurityGroupConfig;
 
+/**
+ * @brief Removes the SecurityGroup from PubSub Manager. It removes the KeyStorage
+ * associated with the SecurityGroup from the server.
+ *
+ * @param server The server instance
+ * @param securityGroup The nodeId of the securityGroup to be removed
+ * @return UA_StatusCode The returned status code.
+ */
+UA_StatusCode UA_EXPORT UA_THREADSAFE
+UA_Server_removeSecurityGroup(UA_Server *server, const UA_NodeId securityGroup);
+
 #endif /* UA_ENABLE_PUBSUB_SKS */
 
 #endif /* UA_ENABLE_PUBSUB */

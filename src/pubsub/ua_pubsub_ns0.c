@@ -1498,6 +1498,16 @@ addReaderGroupAction(UA_Server *server,
 }
 #endif
 
+#ifdef UA_ENABLE_PUBSUB_SKS
+#ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL
+UA_StatusCode
+UA_removeSecurityGroupRepresentation(UA_Server *server, UA_SecurityGroup *securityGroup) {
+    UA_StatusCode retval = deleteNode(server, securityGroup->securityGroupNodeId, true);
+    return  retval;
+}
+#endif /* UA_ENABLE_PUBSUB_INFORMATIONMODEL*/
+#endif /* UA_ENABLE_PUBSUB_SKS */
+
 /**********************************************/
 /*               DataSetWriter                */
 /**********************************************/
