@@ -1849,6 +1849,137 @@ setSecurityKeysAction(UA_Server *server, const UA_NodeId *sessionId, void *sessi
 
 #endif
 
+#if defined(UA_ENABLE_PUBSUB_SKS) && defined(UA_ENABLE_PUBSUB_INFORMATIONMODEL_METHODS)
+static UA_StatusCode
+getSecurityKeysAction(UA_Server *server, const UA_NodeId *sessionId, void *sessionHandle,
+                      const UA_NodeId *methodId, void *methodContext,
+                      const UA_NodeId *objectId, void *objectContext, size_t inputSize,
+                      const UA_Variant *input, size_t outputSize, UA_Variant *output) {
+    /*Check whether the channel is encrypted according to specification*/
+    session_list_entry *session_entry;
+    LIST_FOREACH(session_entry, &server->sessions, pointers) {
+        if(UA_NodeId_equal(&session_entry->session.sessionId, sessionId)) {
+            if(session_entry->session.header.channel->securityMode !=
+               UA_MESSAGESECURITYMODE_SIGNANDENCRYPT)
+                return UA_STATUSCODE_BADSECURITYMODEINSUFFICIENT;
+        }
+    }
+
+    if(!server || !input)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+
+    if(inputSize < 3 || outputSize < 5)
+        return UA_STATUSCODE_BADARGUMENTSMISSING;
+    if(inputSize > 3 || outputSize > 5)
+        return UA_STATUSCODE_BADTOOMANYARGUMENTS;
+
+    /*check for types*/
+    if(!UA_Variant_hasScalarType(&input[0],
+                                 &UA_TYPES[UA_TYPES_STRING]) || /*SecurityGroupId*/
+       !UA_Variant_hasScalarType(&input[1],
+                                 &UA_TYPES[UA_TYPES_UINT32]) || /*StartingTokenId*/
+       !UA_Variant_hasScalarType(&input[2],
+                                 &UA_TYPES[UA_TYPES_UINT32])) /*RequestedKeyCount*/
+        return UA_STATUSCODE_BADTYPEMISMATCH;
+
+    UA_StatusCode retval = UA_STATUSCODE_BAD;
+    UA_UInt32 currentKeyCount = 1;
+    /* input */
+    UA_String *securityGroupId = (UA_String *)input[0].data;
+    UA_UInt32 startingTokenId = *(UA_UInt32 *)input[1].data;
+    UA_UInt32 requestedKeyCount = *(UA_UInt32 *)input[2].data;
+
+    UA_PubSubKeyStorage *ks =
+        UA_Server_findKeyStorage(server, *securityGroupId);
+    if(!ks)
+        return UA_STATUSCODE_BADNOTFOUND;
+
+    UA_Boolean executable = UA_FALSE;
+    UA_SecurityGroup *sg = UA_SecurityGroup_findSGbyName(server, *securityGroupId);
+    void *sgNodeCtx;
+    getNodeContext(server, sg->securityGroupNodeId, (void **)&sgNodeCtx);
+    executable = server->config.accessControl.getUserExecutableOnObject(
+        server, &server->config.accessControl, sessionId, sessionHandle, methodId,
+        methodContext, &sg->securityGroupNodeId, sgNodeCtx);
+
+    if(!executable)
+        return UA_STATUSCODE_BADUSERACCESSDENIED;
+
+    /* If the caller requests a number larger than the Security Key Service permits, then
+     * the SKS shall return the maximum it allows.*/
+    if(requestedKeyCount > sg->config.maxFutureKeyCount)
+        requestedKeyCount =(UA_UInt32) sg->keyStorage->keyListSize;
+    else
+        requestedKeyCount = requestedKeyCount + currentKeyCount; /* Add Current keyCount */
+
+    /*The current token is requested by passing 0.*/
+    UA_PubSubKeyListItem *startingItem = NULL;
+    if(startingTokenId == 0) {
+        /* currentItem is always set by the server when a security group is added */
+        UA_assert(sg->keyStorage->currentItem != NULL);
+        startingItem = sg->keyStorage->currentItem;
+    } else {
+        retval = UA_PubSubKeyStorage_getKeyByKeyID(
+            startingTokenId, sg->keyStorage, &startingItem);
+        /*If the StartingTokenId is unknown, the oldest (firstItem) available tokens are
+         * returned. */
+        if(retval == UA_STATUSCODE_BADNOTFOUND)
+            startingItem =  TAILQ_FIRST(&sg->keyStorage->keyList);
+    }
+
+    /*SecurityPolicyUri*/
+    retval = UA_Variant_setScalarCopy(&output[0], &(sg->keyStorage->policy->policyUri),
+                         &UA_TYPES[UA_TYPES_STRING]);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
+
+    /*FirstTokenId*/
+    retval = UA_Variant_setScalarCopy(&output[1], &startingItem->keyID,
+                                      &UA_TYPES[UA_TYPES_INTEGERID]);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
+
+    /*TimeToNextKey*/
+    UA_DateTime baseTime = sg->baseTime;
+    UA_DateTime currentTime = UA_DateTime_nowMonotonic();
+    UA_Duration interval = sg->config.keyLifeTime;
+    UA_Duration timeToNextKey =
+        (UA_Duration)((currentTime - baseTime) / UA_DATETIME_MSEC);
+    timeToNextKey = interval - timeToNextKey;
+    retval = UA_Variant_setScalarCopy(&output[3], &timeToNextKey,
+                                      &UA_TYPES[UA_TYPES_DURATION]);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
+
+    /*KeyLifeTime*/
+    retval = UA_Variant_setScalarCopy(&output[4], &sg->config.keyLifeTime,
+                         &UA_TYPES[UA_TYPES_DURATION]);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
+
+    /*Keys*/
+    UA_PubSubKeyListItem *iterator = startingItem;
+    output[2].data = (UA_ByteString *)UA_calloc(requestedKeyCount, startingItem->key.length);
+    if(!output[2].data)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+
+    UA_ByteString *requestedKeys = (UA_ByteString *)output[2].data;
+    UA_UInt32 retkeyCount = 0;
+    for(size_t i = 0; i < requestedKeyCount; i++) {
+        UA_ByteString_copy(&iterator->key, &requestedKeys[i]);
+        ++retkeyCount;
+        iterator = TAILQ_NEXT(iterator, keyListEntry);
+        if(!iterator) {
+            requestedKeyCount = retkeyCount;
+            break;
+        }
+    }
+
+    UA_Variant_setArray(&output[2], requestedKeys, requestedKeyCount, &UA_TYPES[UA_TYPES_BYTESTRING]);
+    return retval;
+}
+#endif
+
 /**********************************************/
 /*                Destructors                 */
 /**********************************************/
@@ -2110,6 +2241,7 @@ UA_Server_initPubSubNS0(UA_Server *server) {
     retVal |= UA_Server_setMethodNodeCallback(server, UA_NODEID_NUMERIC(0, UA_NS0ID_PUBLISHSUBSCRIBE_PUBSUBCONFIGURATION_RESERVEIDS), addReserveIdsAction);
 #ifdef UA_ENABLE_PUBSUB_SKS
     retVal |= UA_Server_setMethodNodeCallback(server, UA_NODEID_NUMERIC(0, UA_NS0ID_PUBLISHSUBSCRIBE_SETSECURITYKEYS), setSecurityKeysAction);
+    retVal |= UA_Server_setMethodNodeCallback(server, UA_NODEID_NUMERIC(0, UA_NS0ID_PUBLISHSUBSCRIBE_GETSECURITYKEYS), getSecurityKeysAction);
 #endif
 
 #ifdef UA_ENABLE_PUBSUB_FILE_CONFIG
