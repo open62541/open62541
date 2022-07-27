@@ -68,6 +68,9 @@ connectDataSetReaderToDataSet(UA_Server *server, UA_NodeId dsrId, UA_NodeId stan
 
 #ifdef UA_ENABLE_PUBSUB_SKS
 UA_StatusCode
+addSecurityGroupRepresentation(UA_Server *server, UA_SecurityGroup *securityGroup);
+
+UA_StatusCode
 UA_removeSecurityGroupRepresentation(UA_Server *server, UA_SecurityGroup *securityGroup);
 #endif /* UA_ENABLE_PUBSUB_SKS */
 

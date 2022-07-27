@@ -604,6 +604,14 @@ struct UA_SecurityGroup {
     TAILQ_ENTRY(UA_SecurityGroup) listEntry;
 };
 
+UA_StatusCode
+UA_SecurityGroupConfig_copy(const UA_SecurityGroupConfig *src,
+                            UA_SecurityGroupConfig *dst);
+
+/* finds the SecurityGroup within the server by SecurityGroup Name/Id*/
+UA_SecurityGroup *
+UA_SecurityGroup_findSGbyName(UA_Server *server, UA_String securityGroupName);
+
 /* finds the SecurityGroup within the server by NodeId*/
 UA_SecurityGroup *
 UA_SecurityGroup_findSGbyId(UA_Server *server, UA_NodeId identifier);

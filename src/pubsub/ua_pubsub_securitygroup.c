@@ -14,6 +14,249 @@
 
 #include "server/ua_server_internal.h"
 
+#define UA_PUBSUB_KEYMATERIAL_NONCELENGTH 32
+
+UA_SecurityGroup *
+UA_SecurityGroup_findSGbyName(UA_Server *server, UA_String securityGroupName) {
+    UA_SecurityGroup *tmpSG;
+    TAILQ_FOREACH(tmpSG, &server->pubSubManager.securityGroups, listEntry) {
+        if(UA_String_equal(&securityGroupName, &tmpSG->config.securityGroupName))
+            return tmpSG;
+    }
+    return NULL;
+}
+
+UA_StatusCode
+UA_SecurityGroupConfig_copy(const UA_SecurityGroupConfig *src,
+                            UA_SecurityGroupConfig *dst) {
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+
+    memcpy(dst, src, sizeof(UA_SecurityGroupConfig));
+    if(UA_String_copy(&src->securityGroupName, &dst->securityGroupName) !=
+       UA_STATUSCODE_GOOD)
+        return UA_STATUSCODE_BAD;
+
+    if(UA_String_copy(&src->securityPolicyUri, &dst->securityPolicyUri) !=
+       UA_STATUSCODE_GOOD)
+        return UA_STATUSCODE_BAD;
+    return retval;
+}
+
+static UA_StatusCode
+generateKeyData(const UA_PubSubSecurityPolicy *policy, UA_ByteString *key) {
+    if(!key || !policy)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+
+    UA_StatusCode retVal;
+
+    /* Can't not found in specification for pubsub key generation, so use the idea of
+     * securechannel, see specification 1.0.3 6.7.5 Deriving keys for more details
+     In pubsub we do get have OpenSecureChannel request, so we cannot have Client or Server Nonce*/
+    UA_Byte secretBytes[UA_PUBSUB_KEYMATERIAL_NONCELENGTH];
+    UA_ByteString secret;
+    secret.length = UA_PUBSUB_KEYMATERIAL_NONCELENGTH;
+    secret.data = secretBytes;
+
+    UA_Byte seedBytes[UA_PUBSUB_KEYMATERIAL_NONCELENGTH];
+    UA_ByteString seed;
+    seed.data = seedBytes;
+    seed.length = UA_PUBSUB_KEYMATERIAL_NONCELENGTH;
+    memset(seed.data, 0, seed.length);
+    retVal = policy->symmetricModule.generateNonce(policy->policyContext, &secret);
+    retVal |= policy->symmetricModule.generateNonce(policy->policyContext, &seed);
+    if(retVal != UA_STATUSCODE_GOOD)
+        return retVal;
+
+    retVal = policy->symmetricModule.generateKey(policy->policyContext, &secret, &seed, key);
+    return retVal;
+}
+
+static void
+updateSKSKeyStorage(UA_Server *server, UA_SecurityGroup *securityGroup){
+
+    if(!securityGroup)
+        return;
+
+    UA_PubSubKeyStorage *keyStorage = securityGroup->keyStorage;
+
+    UA_StatusCode retval = UA_STATUSCODE_BAD;
+    UA_ByteString newKey;
+    size_t keyLength = keyStorage->policy->symmetricModule.secureChannelNonceLength;
+
+    retval = UA_ByteString_allocBuffer(&newKey, keyLength);
+    if(retval != UA_STATUSCODE_GOOD)
+        return;
+
+    generateKeyData(keyStorage->policy, &newKey);
+    UA_UInt32 newKeyID = TAILQ_LAST(&keyStorage->keyList, keyListItems)->keyID;
+
+    if(newKeyID >= UA_UINT32_MAX)
+        newKeyID = 1;
+    else
+        ++newKeyID;
+
+    if(keyStorage->keyListSize >= keyStorage->maxKeyListSize) {
+        /*the first item has the oldest key*/
+        UA_PubSubKeyListItem *oldestKey = TAILQ_FIRST(&keyStorage->keyList);
+        /*shift head to second oldest*/
+        TAILQ_INSERT_HEAD(&keyStorage->keyList, oldestKey->keyListEntry.tqe_next, keyListEntry);
+        /*move oldest to the tail*/
+        TAILQ_INSERT_TAIL(&keyStorage->keyList, oldestKey, keyListEntry);
+        /*copy new key over the oldest key locatio*/
+        oldestKey->keyID = newKeyID;
+        UA_ByteString_copy(&newKey, &oldestKey->key);
+    } else {
+        UA_PubSubKeyListItem *newItem =
+            UA_PubSubKeyStorage_push(keyStorage, &newKey, newKeyID);
+        if(!newItem)
+            goto error;
+        keyStorage->keyListSize++;
+    }
+
+    UA_PubSubKeyListItem *nextCurrentItem = TAILQ_NEXT(keyStorage->currentItem, keyListEntry);
+    if(nextCurrentItem)
+        keyStorage->currentItem = nextCurrentItem;
+
+    securityGroup->baseTime = UA_DateTime_nowMonotonic();
+
+    return;
+error:
+    UA_ByteString_delete(&newKey);
+}
+
+static UA_StatusCode
+initializeKeyStorageWithKeys(UA_Server *server, UA_SecurityGroup *securityGroup) {
+    size_t keyLength;
+    UA_StatusCode retval = UA_STATUSCODE_BAD;
+
+    UA_ByteString futurekeys[securityGroup->config.maxFutureKeyCount];
+    UA_ByteString currentKey;
+    UA_UInt32 startingKeyId = 1;
+    UA_PubSubKeyStorage *ks = (UA_PubSubKeyStorage *)UA_calloc(1, sizeof(UA_PubSubKeyStorage));
+    if(!ks)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+
+    securityGroup->keyStorage = ks;
+    retval = UA_PubSubKeyStorage_init(server, &securityGroup->securityGroupId,
+                                            &securityGroup->config.securityPolicyUri,
+                                            securityGroup->config.maxPastKeyCount,
+                                            securityGroup->config.maxFutureKeyCount, ks);
+    if(retval != UA_STATUSCODE_GOOD)
+        goto error;
+
+    keyLength = ks->policy->symmetricModule.secureChannelNonceLength;
+    retval = UA_ByteString_allocBuffer(&currentKey, keyLength);
+    retval = generateKeyData(ks->policy, &currentKey);
+
+    for(size_t i = 0; i < securityGroup->config.maxFutureKeyCount; i++) {
+        retval = UA_ByteString_allocBuffer(&futurekeys[i], keyLength);
+        retval = generateKeyData(ks->policy, &futurekeys[i]);
+    }
+
+    retval = UA_PubSubKeyStorage_storeSecurityKeys(
+        server, securityGroup->keyStorage, startingKeyId, &currentKey, futurekeys,
+        securityGroup->config.maxFutureKeyCount, securityGroup->config.keyLifeTime);
+    if(retval != UA_STATUSCODE_GOOD)
+        goto error;
+
+    securityGroup->baseTime = UA_DateTime_nowMonotonic();
+
+    retval = UA_Server_addRepeatedCallback(server, (UA_ServerCallback)updateSKSKeyStorage,
+                                           securityGroup, securityGroup->config.keyLifeTime,
+                                           &securityGroup->callbackId);
+    if(retval != UA_STATUSCODE_GOOD)
+        goto error;
+
+    return retval;
+error:
+    UA_PubSubKeyStorage_delete(server, ks);
+    return retval;
+}
+
+UA_StatusCode
+UA_Server_addSecurityGroup(UA_Server *server, UA_NodeId securityGroupFolderNodeId,
+                           const UA_SecurityGroupConfig *securityGroupConfig,
+                           UA_NodeId *securityGroupNodeId) {
+    if(!securityGroupConfig)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+
+    /*check minimal config parameters*/
+    if(!securityGroupConfig->keyLifeTime ||
+       UA_String_isEmpty(&securityGroupConfig->securityGroupName) ||
+       UA_String_isEmpty(&securityGroupConfig->securityPolicyUri))
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+
+    if(UA_SecurityGroup_findSGbyName(server, securityGroupConfig->securityGroupName))
+        return UA_STATUSCODE_BADNODEIDEXISTS;
+
+    UA_PubSubSecurityPolicy *policy = NULL;
+    UA_Server_findPubSubSecurityPolicy(server, &securityGroupConfig->securityPolicyUri,
+                                       &policy);
+    if(!policy)
+        return UA_STATUSCODE_BADSECURITYPOLICYREJECTED;
+
+    if(securityGroupConfig->securityGroupName.length > 512)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+
+    UA_StatusCode retval = UA_STATUSCODE_BAD;
+
+    UA_SecurityGroup *newSecurityGroup =
+        (UA_SecurityGroup *)UA_calloc(1, sizeof(UA_SecurityGroup));
+    if(!newSecurityGroup)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+
+    memset(newSecurityGroup, 0, sizeof(UA_SecurityGroup));
+    UA_SecurityGroupConfig_copy(securityGroupConfig, &newSecurityGroup->config);
+
+    retval = UA_NodeId_copy(&securityGroupFolderNodeId,
+                            &newSecurityGroup->securityGroupFolderId);
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_SecurityGroup_delete(newSecurityGroup);
+        return retval;
+    }
+
+    retval = UA_String_copy(&securityGroupConfig->securityGroupName,
+                            &newSecurityGroup->securityGroupId);
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_SecurityGroup_delete(newSecurityGroup);
+        return retval;
+    }
+
+    retval = initializeKeyStorageWithKeys(server, newSecurityGroup);
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_SecurityGroup_delete(newSecurityGroup);
+        return retval;
+    }
+
+#ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL
+    retval = addSecurityGroupRepresentation(server, newSecurityGroup);
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                     "Add SecurityGroup failed with error: %s.",
+                     UA_StatusCode_name(retval));
+        UA_SecurityGroup_delete(newSecurityGroup);
+        return retval;
+    }
+#else
+    UA_PubSubManager_generateUniqueNodeId(&server->pubSubManager,
+                                          &newSecurityGroup->securityGroupNodeId);
+#endif
+
+    if(securityGroupNodeId)
+        UA_NodeId_copy(&newSecurityGroup->securityGroupNodeId, securityGroupNodeId);
+
+    if(server->pubSubManager.securityGroupsSize != 0) {
+        TAILQ_INSERT_TAIL(&server->pubSubManager.securityGroups, newSecurityGroup,
+                          listEntry);
+    } else {
+        TAILQ_INIT(&server->pubSubManager.securityGroups);
+        TAILQ_INSERT_HEAD(&server->pubSubManager.securityGroups, newSecurityGroup,
+                          listEntry);
+    }
+    server->pubSubManager.securityGroupsSize++;
+    return retval;
+}
+
 UA_SecurityGroup *
 UA_SecurityGroup_findSGbyId(UA_Server *server, UA_NodeId identifier) {
     UA_SecurityGroup *tmpSG;

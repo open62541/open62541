@@ -904,6 +904,25 @@ typedef struct {
 } UA_SecurityGroupConfig;
 
 /**
+ * @brief Creates a SecurityGroup object and add it to the list in PubSub Manager. If the
+ * information model is enabled then the SecurityGroup object Node is also created in the
+ * server. A keyStorage with initial list of keys is created with a SecurityGroup. A
+ * callback is added to new SecurityGroup which updates the keys periodically at each
+ * KeyLifeTime expire.
+ *
+ * @param server The server instance
+ * @param securityGroupFolderNodeId The parent node of the SecurityGroup. It must be of
+ * SecurityGroupFolderType
+ * @param securityGroupConfig The security settings of a SecurityGroup
+ * @param securityGroupNodeId The output nodeId of the new SecurityGroup
+ * @return UA_StatusCode The return status code
+ */
+UA_StatusCode UA_EXPORT
+UA_Server_addSecurityGroup(UA_Server *server, UA_NodeId securityGroupFolderNodeId,
+                           const UA_SecurityGroupConfig *securityGroupConfig,
+                           UA_NodeId *securityGroupNodeId);
+
+/**
  * @brief Removes the SecurityGroup from PubSub Manager. It removes the KeyStorage
  * associated with the SecurityGroup from the server.
  *
