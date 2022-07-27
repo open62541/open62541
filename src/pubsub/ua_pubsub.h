@@ -528,7 +528,7 @@ UA_ReaderGroup_subscribeCallback(UA_Server *server, UA_ReaderGroup *readerGroup)
     if(UA_LOGLEVEL <= UA_LOGLEVEL_##LEVEL) {                            \
         UA_String idStr = UA_STRING_NULL;                               \
         if(RG)                                                          \
-            UA_NodeId_print(&(RGi)->identifier, &idStr);                \
+            UA_NodeId_print(&(RG)->identifier, &idStr);                 \
         UA_LOG_##LEVEL(LOGGER, UA_LOGCATEGORY_PUBSUB,                   \
                        "ReaderGroup %.*s\t| " MSG "%.0s", (int)idStr.length, \
                        (char*)idStr.data, __VA_ARGS__);                 \
