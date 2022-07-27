@@ -401,19 +401,6 @@ UA_DataSetReader_setPubSubState(UA_Server *server,
                                 UA_PubSubState state,
                                 UA_StatusCode cause);
 
-#ifdef UA_ENABLE_PUBSUB_MONITORING
-/* Check if DataSetReader has a message receive timeout */
-void
-UA_DataSetReader_checkMessageReceiveTimeout(UA_Server *server,
-                                            UA_DataSetReader *dataSetReader);
-
-/* DataSetReader MessageReceiveTimeout callback for generic PubSub component
- * timeout handling */
-void
-UA_DataSetReader_handleMessageReceiveTimeout(UA_Server *server,
-                                             void *dataSetReader);
-#endif /* UA_ENABLE_PUBSUB_MONITORING */
-
 UA_StatusCode
 UA_DataSetReader_generateNetworkMessage(UA_PubSubConnection *pubSubConnection,
                                         UA_ReaderGroup *readerGroup,

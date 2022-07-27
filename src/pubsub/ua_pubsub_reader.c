@@ -30,6 +30,14 @@
 #include "ua_pubsub_bufmalloc.h"
 #endif
 
+#ifdef UA_ENABLE_PUBSUB_MONITORING
+static void
+UA_DataSetReader_checkMessageReceiveTimeout(UA_Server *server, UA_DataSetReader *dsr);
+
+static void
+UA_DataSetReader_handleMessageReceiveTimeout(UA_Server *server, UA_DataSetReader *dsr);
+#endif
+
 /* This functionality of this API will be used in future to create mirror Variables - TODO */
 /* #define UA_MAX_SIZENAME           64 */ /* Max size of Qualified Name of Subscribed Variable */
 
@@ -441,6 +449,7 @@ UA_Server_addDataSetReader(UA_Server *server, UA_NodeId readerGroupIdentifier,
         UA_PUBSUB_COMPONENT_DATASETREADER,
         UA_PUBSUB_MONITORING_MESSAGE_RECEIVE_TIMEOUT,
         newDataSetReader,
+        (void (*)(UA_Server *, void *))
         UA_DataSetReader_handleMessageReceiveTimeout);
     if(retVal != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR_READERGROUP(&server->config.logger, readerGroup,
@@ -1210,7 +1219,7 @@ UA_DataSetReader_process(UA_Server *server, UA_ReaderGroup *rg,
 
 #ifdef UA_ENABLE_PUBSUB_MONITORING
 
-void
+static void
 UA_DataSetReader_checkMessageReceiveTimeout(UA_Server *server,
                                             UA_DataSetReader *dsr) {
     UA_assert(server != 0);
@@ -1258,15 +1267,10 @@ UA_DataSetReader_checkMessageReceiveTimeout(UA_Server *server,
 }
 
 /* Timeout callback for DataSetReader MessageReceiveTimeout handling */
-void
-UA_DataSetReader_handleMessageReceiveTimeout(UA_Server *server,
-                                             void *dsr) {
-    if(!server || !dsr) {
-        UA_LOG_ERROR_READER(&server->config.logger, dsr,
-                            "UA_DataSetReader_handleMessageReceiveTimeout(): "
-                            "null pointer param");
-        return;
-    }
+static void
+UA_DataSetReader_handleMessageReceiveTimeout(UA_Server *server, UA_DataSetReader *dsr) {
+    UA_assert(server);
+    UA_assert(dsr);
 
     if(dsr->componentType != UA_PUBSUB_COMPONENT_DATASETREADER) {
         UA_LOG_ERROR_READER(&server->config.logger, dsr,
