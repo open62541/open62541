@@ -41,7 +41,7 @@ static UA_StatusCode writeJsonKey_UA_String(CtxJson *ctx, UA_String *in) {
 static UA_StatusCode
 UA_DataSetMessage_encodeJson_internal(const UA_DataSetMessage* src,
                                       UA_UInt16 dataSetWriterId,
-                                      UA_String dataSetWriterName,
+                                      UA_String* dataSetWriterName,
                                       CtxJson *ctx) {
     status rv = writeJsonObjStart(ctx);
 
@@ -52,10 +52,12 @@ UA_DataSetMessage_encodeJson_internal(const UA_DataSetMessage* src,
         return rv;
     
     /* DataSetWriterName */
-    rv |= writeJsonObjElm(ctx, UA_DECODEKEY_DATASETWRITERNAME,
-                          &dataSetWriterName, &UA_TYPES[UA_TYPES_STRING]);
-    if(rv != UA_STATUSCODE_GOOD)
-        return rv;
+    if(dataSetWriterName != NULL) {
+        rv |= writeJsonObjElm(ctx, UA_DECODEKEY_DATASETWRITERNAME,
+                              dataSetWriterName, &UA_TYPES[UA_TYPES_STRING]);
+        if(rv != UA_STATUSCODE_GOOD)
+            return rv;
+    }
 
 
     /* DataSetMessageSequenceNr */
@@ -225,9 +227,15 @@ UA_NetworkMessage_encodeJson_internal(const UA_NetworkMessage* src, CtxJson *ctx
 
                 for (UA_UInt16 i = 0; i < count; i++) {
                     writeJsonCommaIfNeeded(ctx);
-                    rv |= UA_DataSetMessage_encodeJson_internal(
-                        &src->payload.dataSetPayload.dataSetMessages[i],
-                        dataSetWriterIds[i], dataSetWriterNames[i], ctx);
+                    if(dataSetWriterNames != NULL) {
+                        rv |= UA_DataSetMessage_encodeJson_internal(
+                            &src->payload.dataSetPayload.dataSetMessages[i],
+                            dataSetWriterIds[i], &dataSetWriterNames[i], ctx);
+                    } else {
+                        rv |= UA_DataSetMessage_encodeJson_internal(
+                            &src->payload.dataSetPayload.dataSetMessages[i],
+                            dataSetWriterIds[i], NULL, ctx);
+                    }
                     if(rv != UA_STATUSCODE_GOOD)
                         return rv;
                     /* comma is needed if more dsm are present */
