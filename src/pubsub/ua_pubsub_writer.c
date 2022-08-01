@@ -486,7 +486,7 @@ addDataSetField(UA_Server *server, const UA_NodeId publishedDataSet,
 }
 
 void
-UA_Server_updateDataSetField(UA_Server *server, const UA_NodeId dsf) {
+UA_Server_updateDataSetField(UA_Server *server, const UA_NodeId dsf, UA_Boolean minor, UA_Boolean major) {
     UA_DataSetField *currentField = UA_DataSetField_findDSFbyId(server, dsf);
     if(!currentField) {
         return;
@@ -494,7 +494,7 @@ UA_Server_updateDataSetField(UA_Server *server, const UA_NodeId dsf) {
 
     if(currentField->configurationFrozen) {
         UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
-                       "Remove DataSetField failed. DataSetField is frozen.");
+                       "Update DataSetField failed. DataSetField is frozen.");
         return;
     }
 
@@ -506,13 +506,16 @@ UA_Server_updateDataSetField(UA_Server *server, const UA_NodeId dsf) {
 
     if(pds->configurationFrozen) {
         UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
-                       "Remove DataSetField failed. PublishedDataSet is frozen.");
+                       "Update DataSetField failed. PublishedDataSet is frozen.");
         return;
     }
 
     /* Update minor version of PublishedDataSet */
-    pds->dataSetMetaData.configurationVersion.minorVersion =
-        UA_PubSubConfigurationVersionTimeDifference();
+    UA_UInt32 timeDifference = UA_PubSubConfigurationVersionTimeDifference();
+    if(minor)
+        pds->dataSetMetaData.configurationVersion.minorVersion = timeDifference;
+    if(major)
+        pds->dataSetMetaData.configurationVersion.majorVersion = timeDifference;
 }
 
 UA_DataSetFieldResult
