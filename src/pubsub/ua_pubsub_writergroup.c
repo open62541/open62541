@@ -893,7 +893,7 @@ sendNetworkMessageJson(UA_Server *server, UA_PubSubConnection *connection, UA_Wr
     UA_assert(bufPos == bufEnd);
 
     /* Send the prepared messages */
-    sendNetworkMessageBuffer(server, wg, connection, &buf);
+    res = connection->channel->send(connection->channel, transportSettings, &buf);
 
  cleanup:
     if(msgSize > UA_MAX_STACKBUF)
