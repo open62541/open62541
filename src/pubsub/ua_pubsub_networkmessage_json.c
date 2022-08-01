@@ -162,6 +162,7 @@ UA_NetworkMessage_encodeJson_internal(const UA_NetworkMessage* src, CtxJson *ctx
             break;
         
         case UA_NETWORKMESSAGE_DATASET:
+        {
             writeJsonObjStart(ctx);
 
             /* Table 91 – JSON NetworkMessage Definition
@@ -246,6 +247,7 @@ UA_NetworkMessage_encodeJson_internal(const UA_NetworkMessage* src, CtxJson *ctx
 
             rv |= writeJsonObjEnd(ctx);
             break;
+        }
         default:
             return UA_STATUSCODE_BADNOTIMPLEMENTED;
     }
