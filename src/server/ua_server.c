@@ -584,7 +584,7 @@ UA_Server_networkCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
 
         /* Cannot register */
         if(server->serverConnectionsSize >= UA_MAXSERVERCONNECTIONS) {
-            UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
+            UA_LOG_WARNING0(&server->config.logger, UA_LOGCATEGORY_SERVER,
                            "Cannot register server socket - too many already open");
             cm->closeConnection(cm, connectionId);
             return;
@@ -626,7 +626,7 @@ UA_Server_networkCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
     if(serverSocket) {
         conn = (UA_Connection*)UA_malloc(sizeof(UA_Connection));
         if(!conn) {
-            UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
+            UA_LOG_WARNING0(&server->config.logger, UA_LOGCATEGORY_SERVER,
                            "Could not accept the connection - out of memory");
             cm->closeConnection(cm, connectionId);
             return;
@@ -745,7 +745,7 @@ UA_Server_run_startup(UA_Server *server) {
     UA_Boolean haveServerSocket = false;
     if(config->serverUrlsSize == 0) {
         /* Empty hostname -> listen on all devices */
-        UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
+        UA_LOG_WARNING0(&server->config.logger, UA_LOGCATEGORY_SERVER,
                        "No Server URL configured. Using \"opc.tcp://:4840\" "
                        "to configure the listen socket.");
         UA_String defaultUrl = UA_STRING("opc.tcp://:4840");
@@ -762,7 +762,7 @@ UA_Server_run_startup(UA_Server *server) {
 
     /* Warn if no socket available */
     if(!haveServerSocket) {
-        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
+        UA_LOG_ERROR0(&server->config.logger, UA_LOGCATEGORY_SERVER,
                      "The server has no server socket");
     }
 
@@ -780,7 +780,7 @@ UA_Server_run_startup(UA_Server *server) {
 
     /* At least one endpoint has to be configured */
     if(server->config.endpointsSize == 0) {
-        UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
+        UA_LOG_WARNING0(&server->config.logger, UA_LOGCATEGORY_SERVER,
                        "There has to be at least one endpoint.");
     }
 

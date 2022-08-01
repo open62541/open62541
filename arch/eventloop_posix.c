@@ -115,7 +115,7 @@ UA_EventLoopPOSIX_start(UA_EventLoopPOSIX *el) {
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
-    UA_LOG_INFO(el->eventLoop.logger, UA_LOGCATEGORY_EVENTLOOP,
+    UA_LOG_INFO0(el->eventLoop.logger, UA_LOGCATEGORY_EVENTLOOP,
                 "Starting the EventLoop");
 
 #ifdef UA_HAVE_EPOLL
@@ -164,7 +164,7 @@ checkClosed(UA_EventLoopPOSIX *el) {
     close(el->epollfd);
 #endif
 
-    UA_LOG_INFO(el->eventLoop.logger, UA_LOGCATEGORY_EVENTLOOP,
+    UA_LOG_INFO0(el->eventLoop.logger, UA_LOGCATEGORY_EVENTLOOP,
                 "The EventLoop has stopped");
 }
 
@@ -173,13 +173,13 @@ UA_EventLoopPOSIX_stop(UA_EventLoopPOSIX *el) {
     UA_LOCK(&el->elMutex);
 
     if(el->eventLoop.state != UA_EVENTLOOPSTATE_STARTED) {
-        UA_LOG_WARNING(el->eventLoop.logger, UA_LOGCATEGORY_EVENTLOOP,
+        UA_LOG_WARNING0(el->eventLoop.logger, UA_LOGCATEGORY_EVENTLOOP,
                        "The EventLoop is not running, cannot be stopped");
         UA_UNLOCK(&el->elMutex);
         return;
     }
 
-    UA_LOG_INFO(el->eventLoop.logger, UA_LOGCATEGORY_EVENTLOOP,
+    UA_LOG_INFO0(el->eventLoop.logger, UA_LOGCATEGORY_EVENTLOOP,
                 "Stopping the EventLoop");
 
     /* Shutdown all event sources. This closes open connections. */
@@ -206,7 +206,7 @@ UA_EventLoopPOSIX_run(UA_EventLoopPOSIX *el, UA_UInt32 timeout) {
     UA_LOCK(&el->elMutex);
 
     if(el->executing) {
-        UA_LOG_ERROR(el->eventLoop.logger,
+        UA_LOG_ERROR0(el->eventLoop.logger,
                      UA_LOGCATEGORY_EVENTLOOP,
                      "Cannot run EventLoop from the run method itself");
         UA_UNLOCK(&el->elMutex);
@@ -217,14 +217,14 @@ UA_EventLoopPOSIX_run(UA_EventLoopPOSIX *el, UA_UInt32 timeout) {
 
     if(el->eventLoop.state == UA_EVENTLOOPSTATE_FRESH ||
        el->eventLoop.state == UA_EVENTLOOPSTATE_STOPPED) {
-        UA_LOG_WARNING(el->eventLoop.logger, UA_LOGCATEGORY_EVENTLOOP,
+        UA_LOG_WARNING0(el->eventLoop.logger, UA_LOGCATEGORY_EVENTLOOP,
                        "Cannot iterate a stopped EventLoop");
         el->executing = false;
         UA_UNLOCK(&el->elMutex);
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
-    UA_LOG_TRACE(el->eventLoop.logger, UA_LOGCATEGORY_EVENTLOOP,
+    UA_LOG_TRACE0(el->eventLoop.logger, UA_LOGCATEGORY_EVENTLOOP,
                  "Iterate the EventLoop");
 
     /* Process cyclic callbacks */
@@ -355,7 +355,7 @@ UA_EventLoopPOSIX_free(UA_EventLoopPOSIX *el) {
     /* Check if the EventLoop can be deleted */
     if(el->eventLoop.state != UA_EVENTLOOPSTATE_STOPPED &&
        el->eventLoop.state != UA_EVENTLOOPSTATE_FRESH) {
-        UA_LOG_WARNING(el->eventLoop.logger, UA_LOGCATEGORY_EVENTLOOP,
+        UA_LOG_WARNING0(el->eventLoop.logger, UA_LOGCATEGORY_EVENTLOOP,
                        "Cannot delete a running EventLoop");
         UA_UNLOCK(&el->elMutex);
         return UA_STATUSCODE_BADINTERNALERROR;

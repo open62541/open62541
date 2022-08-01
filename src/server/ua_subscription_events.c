@@ -33,7 +33,7 @@ UA_Server_createEvent(UA_Server *server, const UA_NodeId eventType,
                       UA_NodeId *outNodeId) {
     UA_LOCK(&server->serviceMutex);
     if(!outNodeId) {
-        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_USERLAND,
+        UA_LOG_ERROR0(&server->config.logger, UA_LOGCATEGORY_USERLAND,
                      "outNodeId must not be NULL. The event's NodeId must be returned "
                      "so it can be triggered.");
         UA_UNLOCK(&server->serviceMutex);
@@ -44,7 +44,7 @@ UA_Server_createEvent(UA_Server *server, const UA_NodeId eventType,
     UA_NodeId baseEventTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_BASEEVENTTYPE);
     if(!isNodeInTree_singleRef(server, &eventType, &baseEventTypeId,
                                UA_REFERENCETYPEINDEX_HASSUBTYPE)) {
-        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_USERLAND,
+        UA_LOG_ERROR0(&server->config.logger, UA_LOGCATEGORY_USERLAND,
                      "Event type must be a subtype of BaseEventType!");
         UA_UNLOCK(&server->serviceMutex);
         return UA_STATUSCODE_BADINVALIDARGUMENT;
@@ -297,7 +297,7 @@ triggerEvent(UA_Server *server, const UA_NodeId eventNodeId,
     /* Check that the origin node exists */
     const UA_Node *originNode = UA_NODESTORE_GET(server, &origin);
     if(!originNode) {
-        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_USERLAND,
+        UA_LOG_ERROR0(&server->config.logger, UA_LOGCATEGORY_USERLAND,
                      "Origin node for event does not exist.");
         return UA_STATUSCODE_BADNOTFOUND;
     }
@@ -320,7 +320,7 @@ triggerEvent(UA_Server *server, const UA_NodeId eventNodeId,
     }
 
     if(!isNodeInTree(server, &origin, &objectsFolderId, &refTypes)) {
-        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_USERLAND,
+        UA_LOG_ERROR0(&server->config.logger, UA_LOGCATEGORY_USERLAND,
                      "Node for event must be in ObjectsFolder!");
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     }

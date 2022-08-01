@@ -705,7 +705,7 @@ TCP_openPassiveConnection(UA_ConnectionManager *cm,
                                  UA_QUALIFIEDNAME(0, "listen-port"),
                                  &UA_TYPES[UA_TYPES_UINT16]);
     if(!port) {
-        UA_LOG_ERROR(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
+        UA_LOG_ERROR0(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
                      "TCP\t| The listen-port was not correctly configured");
         return UA_STATUSCODE_BADINTERNALERROR;
     }
@@ -715,7 +715,7 @@ TCP_openPassiveConnection(UA_ConnectionManager *cm,
         UA_KeyValueMap_get(params, paramsSize, UA_QUALIFIEDNAME(0, "listen-hostnames"));
     if(!hostNames) {
         /* No listen-hostnames parameter -> listen on all interfaces */
-        UA_LOG_INFO(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
+        UA_LOG_INFO0(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
                     "TCP\t| Listening on all interfaces");
         return TCP_registerListenSockets(cm, NULL, *port, application,
                                          context, connectionCallback);
@@ -724,7 +724,7 @@ TCP_openPassiveConnection(UA_ConnectionManager *cm,
     /* Wrong datatype for the hostnames */
     if(hostNames->type != &UA_TYPES[UA_TYPES_STRING] ||
        UA_Variant_isScalar(hostNames)) {
-        UA_LOG_ERROR(el->eventLoop.logger, UA_LOGCATEGORY_EVENTLOOP,
+        UA_LOG_ERROR0(el->eventLoop.logger, UA_LOGCATEGORY_EVENTLOOP,
                      "TCP\t| The listen-hostnames have to be an array of strings");
         return UA_STATUSCODE_BADINTERNALERROR;
     }
@@ -732,7 +732,7 @@ TCP_openPassiveConnection(UA_ConnectionManager *cm,
     /* Empty array -> listen on all interfaces */
     size_t interfaces = hostNames->arrayLength;
     if(interfaces == 0) {
-        UA_LOG_INFO(el->eventLoop.logger, UA_LOGCATEGORY_EVENTLOOP,
+        UA_LOG_INFO0(el->eventLoop.logger, UA_LOGCATEGORY_EVENTLOOP,
                      "TCP\t| Listening on all interfaces");
         return TCP_registerListenSockets(cm, NULL, *port, application,
                                          context, connectionCallback);
@@ -763,7 +763,7 @@ TCP_openActiveConnection(UA_ConnectionManager *cm,
     UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX*)cm->eventSource.eventLoop;
 
     if(paramsSize != 2) {
-        UA_LOG_ERROR(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
+        UA_LOG_ERROR0(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
                      "TCP\t| Port and hostname need to be defined for the connection");
         return UA_STATUSCODE_BADINTERNALERROR;
     }
@@ -777,7 +777,7 @@ TCP_openActiveConnection(UA_ConnectionManager *cm,
         UA_KeyValueMap_getScalar(params, paramsSize, UA_QUALIFIEDNAME(0, "port"),
                                  &UA_TYPES[UA_TYPES_UINT16]);
     if(!port) {
-        UA_LOG_ERROR(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
+        UA_LOG_ERROR0(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
                      "TCP\t| Open TCP Connection: No port defined, aborting");
         return UA_STATUSCODE_BADINTERNALERROR;
     }
@@ -788,12 +788,12 @@ TCP_openActiveConnection(UA_ConnectionManager *cm,
         UA_KeyValueMap_getScalar(params, paramsSize, UA_QUALIFIEDNAME(0, "hostname"),
                                  &UA_TYPES[UA_TYPES_STRING]);
     if(!host) {
-        UA_LOG_ERROR(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
+        UA_LOG_ERROR0(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
                      "TCP\t| Open TCP Connection: No hostname defined, aborting");
         return UA_STATUSCODE_BADINTERNALERROR;
     }
     if(host->length >= 256) {
-        UA_LOG_ERROR(el->eventLoop.logger, UA_LOGCATEGORY_EVENTLOOP,
+        UA_LOG_ERROR0(el->eventLoop.logger, UA_LOGCATEGORY_EVENTLOOP,
                      "TCP\t| Open TCP Connection: Hostname too long, aborting");
         return UA_STATUSCODE_BADINTERNALERROR;
     }
@@ -911,7 +911,7 @@ TCP_openConnection(UA_ConnectionManager *cm,
                    UA_ConnectionManager_connectionCallback connectionCallback) {
     UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX*)cm->eventSource.eventLoop;
     if(cm->eventSource.state != UA_EVENTSOURCESTATE_STARTED) {
-        UA_LOG_ERROR(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
+        UA_LOG_ERROR0(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
                      "TCP\t| Cannot open a connection for a "
                      "ConnectionManager that is not started");
         return UA_STATUSCODE_BADINTERNALERROR;
@@ -938,7 +938,7 @@ TCP_eventSourceStart(UA_ConnectionManager *cm) {
 
     /* Check the state */
     if(cm->eventSource.state != UA_EVENTSOURCESTATE_STOPPED) {
-        UA_LOG_ERROR(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
+        UA_LOG_ERROR0(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
                      "To start the TCP ConnectionManager, it has to be "
                      "registered in an EventLoop and not started yet");
         return UA_STATUSCODE_BADINTERNALERROR;
@@ -965,7 +965,7 @@ TCP_eventSourceStart(UA_ConnectionManager *cm) {
 static void
 TCP_eventSourceStop(UA_ConnectionManager *cm) {
     TCPConnectionManager *tcm = (TCPConnectionManager*)cm;
-    UA_LOG_INFO(cm->eventSource.eventLoop->logger, UA_LOGCATEGORY_NETWORK,
+    UA_LOG_INFO0(cm->eventSource.eventLoop->logger, UA_LOGCATEGORY_NETWORK,
                 "TCP\t| Shutting down the ConnectionManager");
 
     cm->eventSource.state = UA_EVENTSOURCESTATE_STOPPING;
@@ -984,7 +984,7 @@ TCP_eventSourceStop(UA_ConnectionManager *cm) {
 static UA_StatusCode
 TCP_eventSourceDelete(UA_ConnectionManager *cm) {
     if(cm->eventSource.state >= UA_EVENTSOURCESTATE_STARTING) {
-        UA_LOG_ERROR(cm->eventSource.eventLoop->logger, UA_LOGCATEGORY_EVENTLOOP,
+        UA_LOG_ERROR0(cm->eventSource.eventLoop->logger, UA_LOGCATEGORY_EVENTLOOP,
                      "TCP\t| The EventSource must be stopped before it can be deleted");
         return UA_STATUSCODE_BADINTERNALERROR;
     }

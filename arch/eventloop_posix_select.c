@@ -113,7 +113,7 @@ UA_EventLoopPOSIX_pollFDs(UA_EventLoopPOSIX *el, UA_DateTime listenTimeout) {
 
     /* Nothing to do? */
     if(highestfd == UA_INVALID_FD) {
-        UA_LOG_TRACE(el->eventLoop.logger, UA_LOGCATEGORY_EVENTLOOP,
+        UA_LOG_TRACE0(el->eventLoop.logger, UA_LOGCATEGORY_EVENTLOOP,
                      "No valid FDs for processing");
         return UA_STATUSCODE_GOOD;
     }

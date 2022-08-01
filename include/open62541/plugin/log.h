@@ -55,7 +55,7 @@ typedef struct {
      * according to the rules of the printf command. Use the convenience macros
      * below that take the minimum log level defined in ua_config.h into
      * account. */
-    void (*log)(void *logContext, UA_LogLevel level, UA_LogCategory category,
+    void (*log)(void *logContext, UA_LogLevel level, UA_LogCategory category, const char* file, const char* function, uint_least32_t line, 
                 const char *msg, va_list args);
 
     void *context; /* Logger state */
@@ -63,6 +63,24 @@ typedef struct {
     void (*clear)(void *context); /* Clean up the logger plugin */
 } UA_Logger;
 
+
+#define UA_SOURCE_LOCATION 1
+#ifdef UA_SOURCE_LOCATION
+inline void Log( const UA_Logger *logger, UA_LogLevel level, UA_LogCategory category, const char* file, const char* function, uint_least32_t line, const char *msg, ... )
+{
+    va_list args; va_start( args, msg );
+    //va_list args2; va_copy( args2, args );
+    //size_t l1 = strlen( msg );
+    //int len = vsnprintf( 0, 0, msg, args2 );
+    //size_t len = 1023;
+    //char* x = new char[len+1];
+    //vsnprintf( x, len + 1, msg, args );
+    logger->log( logger->context, level, category, file, function, line, msg, args );
+    va_end(args);
+}
+#define UA_LOG_TRACE0( logger, category, msg ) Log( logger, UA_LOGLEVEL_TRACE, category, __FILE__, __FUNCTION__, __LINE__, msg )
+#define UA_LOG_TRACE( logger, category, msg, ... ) Log( logger, UA_LOGLEVEL_TRACE, category, __FILE__, __FUNCTION__, __LINE__, msg, __VA_ARGS__ )
+#else
 static UA_INLINE UA_FORMAT(3,4) void
 UA_LOG_TRACE(const UA_Logger *logger, UA_LogCategory category, const char *msg, ...) {
 #if UA_LOGLEVEL <= 100
@@ -77,6 +95,7 @@ UA_LOG_TRACE(const UA_Logger *logger, UA_LogCategory category, const char *msg, 
     (void) msg;
 #endif
 }
+#endif
 
 static UA_INLINE UA_FORMAT(3,4) void
 UA_LOG_DEBUG(const UA_Logger *logger, UA_LogCategory category, const char *msg, ...) {
@@ -93,6 +112,10 @@ UA_LOG_DEBUG(const UA_Logger *logger, UA_LogCategory category, const char *msg, 
 #endif
 }
 
+#ifdef UA_SOURCE_LOCATION
+    #define UA_LOG_INFO0( logger, category, msg ) Log( logger, UA_LOGLEVEL_INFO, category, __FILE__,__FUNCTION__,__LINE__, msg )
+    #define UA_LOG_INFO( logger, category, msg, ... ) Log( logger, UA_LOGLEVEL_INFO, category, __FILE__,__FUNCTION__,__LINE__, msg, __VA_ARGS__ )
+#else
 static UA_INLINE UA_FORMAT(3,4) void
 UA_LOG_INFO(const UA_Logger *logger, UA_LogCategory category, const char *msg, ...) {
 #if UA_LOGLEVEL <= 300
@@ -107,7 +130,12 @@ UA_LOG_INFO(const UA_Logger *logger, UA_LogCategory category, const char *msg, .
     (void) msg;
 #endif
 }
-
+#endif
+#define UA_SOURCE_LOCATION 1
+#ifdef UA_SOURCE_LOCATION
+#define UA_LOG_WARNING0( logger, category, msg ) Log( logger, UA_LOGLEVEL_WARNING, category, __FILE__,__FUNCTION__,__LINE__,  msg )
+#define UA_LOG_WARNING( logger, category, msg, ... ) Log( logger, UA_LOGLEVEL_WARNING, category, __FILE__,__FUNCTION__,__LINE__,  msg, __VA_ARGS__ )
+#else
 static UA_INLINE UA_FORMAT(3,4) void
 UA_LOG_WARNING(const UA_Logger *logger, UA_LogCategory category, const char *msg, ...) {
 #if UA_LOGLEVEL <= 400
@@ -122,7 +150,12 @@ UA_LOG_WARNING(const UA_Logger *logger, UA_LogCategory category, const char *msg
     (void) msg;
 #endif
 }
+#endif
 
+#ifdef UA_SOURCE_LOCATION
+#define UA_LOG_ERROR0( logger, category, msg ) Log( logger, UA_LOGLEVEL_INFO, category, __FILE__,__FUNCTION__,__LINE__,  msg )
+#define UA_LOG_ERROR( logger, category, msg, ... ) Log( logger, UA_LOGLEVEL_INFO, category, __FILE__,__FUNCTION__,__LINE__,  msg, __VA_ARGS__ )
+#else
 static UA_INLINE UA_FORMAT(3,4) void
 UA_LOG_ERROR(const UA_Logger *logger, UA_LogCategory category, const char *msg, ...) {
 #if UA_LOGLEVEL <= 500
@@ -137,7 +170,12 @@ UA_LOG_ERROR(const UA_Logger *logger, UA_LogCategory category, const char *msg, 
     (void) msg;
 #endif
 }
+#endif
 
+#ifdef UA_SOURCE_LOCATION
+#define UA_LOG_FATAL0( logger, category, msg ) Log( logger, UA_LOGLEVEL_FATAL, category, __FILE__, __FUNCTION__, __LINE__,  msg )
+#define UA_LOG_FATAL( logger, category, msg, ... ) Log( logger, UA_LOGLEVEL_FATAL, category, __FILE__, __FUNCTION__, __LINE__,  msg, __VA_ARGS__ )
+#else
 static UA_INLINE UA_FORMAT(3,4) void
 UA_LOG_FATAL(const UA_Logger *logger, UA_LogCategory category, const char *msg, ...) {
 #if UA_LOGLEVEL <= 600
@@ -152,6 +190,7 @@ UA_LOG_FATAL(const UA_Logger *logger, UA_LogCategory category, const char *msg, 
     (void) msg;
 #endif
 }
+#endif
 
 _UA_END_DECLS
 

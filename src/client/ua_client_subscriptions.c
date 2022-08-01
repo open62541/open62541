@@ -959,7 +959,7 @@ processDataChangeNotification(UA_Client *client, UA_Client_Subscription *sub,
         }
 
         if(mon->isEventMonitoredItem) {
-            UA_LOG_WARNING(&client->config.logger, UA_LOGCATEGORY_CLIENT,
+            UA_LOG_WARNING0(&client->config.logger, UA_LOGCATEGORY_CLIENT,
                            "MonitoredItem is configured for Events. But received a "
                            "DataChangeNotification.");
             continue;
@@ -1035,14 +1035,14 @@ processNotificationMessage(UA_Client *client, UA_Client_Subscription *sub,
             sub->statusChangeCallback(client, sub->subscriptionId, sub->context,
                                       (UA_StatusChangeNotification*)msg->content.decoded.data);
         } else {
-            UA_LOG_WARNING(&client->config.logger, UA_LOGCATEGORY_CLIENT,
+            UA_LOG_WARNING0(&client->config.logger, UA_LOGCATEGORY_CLIENT,
                            "Dropped a StatusChangeNotification since no "
                            "callback is registered");
         }
         return;
     }
 
-    UA_LOG_WARNING(&client->config.logger, UA_LOGCATEGORY_CLIENT,
+    UA_LOG_WARNING0(&client->config.logger, UA_LOGCATEGORY_CLIENT,
                    "Unknown notification message type");
 }
 
@@ -1060,7 +1060,7 @@ UA_Client_Subscriptions_processPublishResponse(UA_Client *client, UA_PublishRequ
                            "Too many publishrequest, reduce outStandingPublishRequests "
                            "to %" PRId16, client->config.outStandingPublishRequests);
         } else {
-            UA_LOG_ERROR(&client->config.logger, UA_LOGCATEGORY_CLIENT,
+            UA_LOG_ERROR0(&client->config.logger, UA_LOGCATEGORY_CLIENT,
                          "Too many publishrequest when outStandingPublishRequests = 1");
             UA_Client_Subscriptions_deleteSingle(client, response->subscriptionId);
         }
@@ -1089,7 +1089,7 @@ UA_Client_Subscriptions_processPublishResponse(UA_Client *client, UA_PublishRequ
 
     if(response->responseHeader.serviceResult == UA_STATUSCODE_BADSESSIONIDINVALID) {
         UA_Client_disconnectAsync(client); /* TODO: This should be handled before the process callback */
-        UA_LOG_WARNING(&client->config.logger, UA_LOGCATEGORY_CLIENT,
+        UA_LOG_WARNING0(&client->config.logger, UA_LOGCATEGORY_CLIENT,
                        "Received BadSessionIdInvalid");
         return;
     }
@@ -1097,7 +1097,7 @@ UA_Client_Subscriptions_processPublishResponse(UA_Client *client, UA_PublishRequ
     if(response->responseHeader.serviceResult == UA_STATUSCODE_BADTIMEOUT) {
         if (client->config.inactivityCallback)
             client->config.inactivityCallback(client);
-        UA_LOG_WARNING(&client->config.logger, UA_LOGCATEGORY_CLIENT,
+        UA_LOG_WARNING0(&client->config.logger, UA_LOGCATEGORY_CLIENT,
                        "Received Timeout for Publish Response");
         return;
     }
@@ -1112,7 +1112,7 @@ UA_Client_Subscriptions_processPublishResponse(UA_Client *client, UA_PublishRequ
     UA_Client_Subscription *sub = findSubscription(client, response->subscriptionId);
     if(!sub) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADINTERNALERROR;
-        UA_LOG_WARNING(&client->config.logger, UA_LOGCATEGORY_CLIENT,
+        UA_LOG_WARNING0(&client->config.logger, UA_LOGCATEGORY_CLIENT,
                        "Received Publish Response for a non-existant subscription");
         return;
     }

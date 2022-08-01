@@ -112,7 +112,7 @@ getHostAndPortFromParams(size_t paramsSize, const UA_KeyValuePair *params,
         return 0;
     }
     if(host->length >= UA_MAXHOSTNAME_LENGTH) {
-        UA_LOG_ERROR(logger, UA_LOGCATEGORY_EVENTLOOP,
+        UA_LOG_ERROR0(logger, UA_LOGCATEGORY_EVENTLOOP,
                      "UDP\t| Open UDP Connection: Hostname too long, aborting");
         return -1;
     }
@@ -146,7 +146,7 @@ getConnectionInfoFromParams(size_t paramsSize, const UA_KeyValuePair *params,
     int foundParams = getHostAndPortFromParams(paramsSize, params,
                                                hostname, portStr, logger);
     if (foundParams < 0) {
-        UA_LOG_ERROR(logger, UA_LOGCATEGORY_EVENTLOOP,
+        UA_LOG_ERROR0(logger, UA_LOGCATEGORY_EVENTLOOP,
                      "UDP\t| Failed retrieving host and port parameters");
         return -1;
     }
@@ -365,7 +365,7 @@ setupSendMulticastIPv4(UA_FD socket, struct sockaddr_in *addr, size_t paramsSize
     UA_String netif = UA_STRING_NULL;
     int foundInterface = getNetworkInterfaceFromParams(paramsSize, params, &netif, logger);
     if(foundInterface < 0) {
-        UA_LOG_ERROR(logger, UA_LOGCATEGORY_NETWORK,
+        UA_LOG_ERROR0(logger, UA_LOGCATEGORY_NETWORK,
                      "UDP\t| Opening a connection failed");
         return UA_STATUSCODE_BADINTERNALERROR;
     }
@@ -376,7 +376,7 @@ setupSendMulticastIPv4(UA_FD socket, struct sockaddr_in *addr, size_t paramsSize
         interfaceAsChar[netif.length] = 0;
 
         if(UA_inet_pton(AF_INET, interfaceAsChar, &ipMulticastRequest.ipv4.imr_interface) <= 0) {
-            UA_LOG_ERROR(logger, UA_LOGCATEGORY_SERVER,
+            UA_LOG_ERROR0(logger, UA_LOGCATEGORY_SERVER,
                          "PubSub Connection creation problem. "
                          "Interface configuration preparation failed.");
             return UA_STATUSCODE_BADINTERNALERROR;
@@ -404,7 +404,7 @@ setupListenMulticastIPv4(UA_FD socket, size_t paramsSize, const UA_KeyValuePair 
     UA_String netif = UA_STRING_NULL;
     int foundInterface = getNetworkInterfaceFromParams(paramsSize, params, &netif, logger);
     if(foundInterface < 0) {
-        UA_LOG_ERROR(logger, UA_LOGCATEGORY_NETWORK,
+        UA_LOG_ERROR0(logger, UA_LOGCATEGORY_NETWORK,
                      "UDP\t| Opening a connection failed");
         return UA_STATUSCODE_BADINTERNALERROR;
     }
@@ -415,7 +415,7 @@ setupListenMulticastIPv4(UA_FD socket, size_t paramsSize, const UA_KeyValuePair 
         interfaceAsChar[netif.length] = 0;
 
         if(UA_inet_pton(AF_INET, interfaceAsChar, &ipMulticastRequest.ipv4.imr_interface) <= 0) {
-            UA_LOG_ERROR(logger, UA_LOGCATEGORY_SERVER,
+            UA_LOG_ERROR0(logger, UA_LOGCATEGORY_SERVER,
                          "PubSub Connection creation problem. "
                          "Interface configuration preparation failed.");
             return UA_STATUSCODE_BADINTERNALERROR;
@@ -448,7 +448,7 @@ setupListenMulticastIPv6(UA_FD socket, size_t paramsSize, const UA_KeyValuePair 
     UA_String netif = UA_STRING_NULL;
     int foundInterface = getNetworkInterfaceFromParams(paramsSize, params, &netif, logger);
     if(foundInterface < 0) {
-        UA_LOG_ERROR(logger, UA_LOGCATEGORY_NETWORK,
+        UA_LOG_ERROR0(logger, UA_LOGCATEGORY_NETWORK,
                      "UDP\t| Opening a connection failed");
         return UA_STATUSCODE_BADINTERNALERROR;
     }
@@ -460,7 +460,7 @@ setupListenMulticastIPv6(UA_FD socket, size_t paramsSize, const UA_KeyValuePair 
 
         ipMulticastRequest.ipv6.ipv6mr_interface = UA_if_nametoindex(interfaceAsChar);
         if(ipMulticastRequest.ipv6.ipv6mr_interface == 0) {
-            UA_LOG_ERROR(logger, UA_LOGCATEGORY_SERVER,
+            UA_LOG_ERROR0(logger, UA_LOGCATEGORY_SERVER,
                          "PubSub Connection creation problem. "
                          "Interface configuration preparation failed.");
             return UA_STATUSCODE_BADINTERNALERROR;
@@ -491,7 +491,7 @@ setupSendMulticastIPv6(UA_FD socket, struct sockaddr_in6 *addr, size_t paramsSiz
     UA_String netif = UA_STRING_NULL;
     int foundInterface = getNetworkInterfaceFromParams(paramsSize, params, &netif, logger);
     if(foundInterface < 0) {
-        UA_LOG_ERROR(logger, UA_LOGCATEGORY_NETWORK,
+        UA_LOG_ERROR0(logger, UA_LOGCATEGORY_NETWORK,
                      "UDP\t| Opening a connection failed");
         return UA_STATUSCODE_BADINTERNALERROR;
     }
@@ -503,7 +503,7 @@ setupSendMulticastIPv6(UA_FD socket, struct sockaddr_in6 *addr, size_t paramsSiz
 
         ipMulticastRequest.ipv6.ipv6mr_interface = UA_if_nametoindex(interfaceAsChar);
         if(ipMulticastRequest.ipv6.ipv6mr_interface == 0) {
-            UA_LOG_ERROR(logger, UA_LOGCATEGORY_SERVER,
+            UA_LOG_ERROR0(logger, UA_LOGCATEGORY_SERVER,
                          "PubSub Connection creation problem. "
                          "Interface configuration preparation failed.");
             return UA_STATUSCODE_BADINTERNALERROR;
@@ -714,7 +714,7 @@ checkForListenMulticastAndConfigure(struct addrinfo *info, size_t paramsSize, co
         }
 #endif
     } else {
-        UA_LOG_ERROR(logger, UA_LOGCATEGORY_NETWORK,
+        UA_LOG_ERROR0(logger, UA_LOGCATEGORY_NETWORK,
                      "UDP\t| Opening a connection failed");
         res = UA_STATUSCODE_BADCONNECTIONREJECTED;
     }
@@ -759,7 +759,7 @@ UDP_registerListenSocket(UA_ConnectionManager *cm, UA_UInt16 port, struct addrin
 
     UA_StatusCode res = checkForListenMulticastAndConfigure(info, paramsSize, params, listenSocket, el->eventLoop.logger);
     if(res != UA_STATUSCODE_GOOD) {
-        UA_LOG_ERROR(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
+        UA_LOG_ERROR0(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
                      "UDP\t| Configuring listen multicast failed");
         UA_close(listenSocket);
         return;
@@ -1040,7 +1040,7 @@ checkForSendMulticastAndConfigure(size_t paramsSize, const UA_KeyValuePair *para
         }
 #endif
     } else {
-        UA_LOG_ERROR(logger, UA_LOGCATEGORY_NETWORK,
+        UA_LOG_ERROR0(logger, UA_LOGCATEGORY_NETWORK,
                      "UDP\t| Opening a connection failed");
         res = UA_STATUSCODE_BADINTERNALERROR;
     }
@@ -1070,7 +1070,7 @@ registerSocketAndDestinationForSend(size_t paramsSize, const UA_KeyValuePair *pa
     res = checkForSendMulticastAndConfigure(paramsSize, params, info, newSock, logger);
     if(res != UA_STATUSCODE_GOOD) {
         UA_close(newSock);
-        UA_LOG_ERROR(logger, UA_LOGCATEGORY_NETWORK,
+        UA_LOG_ERROR0(logger, UA_LOGCATEGORY_NETWORK,
                      "UDP\t| Configuring send multicast failed");
         return UA_STATUSCODE_BADINTERNALERROR;
     }
@@ -1107,7 +1107,7 @@ UDP_openSendConnection(UA_ConnectionManager *cm,
         if(info != NULL) {
             UA_freeaddrinfo(info);
         }
-        UA_LOG_ERROR(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
+        UA_LOG_ERROR0(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
                      "UDP\t| Opening a connection failed");
         return UA_STATUSCODE_BADINTERNALERROR;
     }
@@ -1177,7 +1177,7 @@ UDP_openReceiveConnection(UA_ConnectionManager *cm,
                                  UA_QUALIFIEDNAME(0, "listen-port"),
                                  &UA_TYPES[UA_TYPES_UINT16]);
     if(!port) {
-        UA_LOG_ERROR(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
+        UA_LOG_ERROR0(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
                      "UDP\t| Port information required for UDP listening");
         return UA_STATUSCODE_BADINTERNALERROR;
     }
@@ -1188,7 +1188,7 @@ UDP_openReceiveConnection(UA_ConnectionManager *cm,
                            UA_QUALIFIEDNAME(0, "listen-hostnames"));
     if(!hostNames) {
         /* No hostnames configured -> listen on all interfaces*/
-        UA_LOG_INFO(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
+        UA_LOG_INFO0(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
                     "UDP\t| Listening on all interfaces");
         return UDP_registerListenSockets(cm, NULL, *port, paramsSize, params,
                                          application, context, connectionCallback);
@@ -1197,14 +1197,14 @@ UDP_openReceiveConnection(UA_ConnectionManager *cm,
     /* Correct datatype for the hostnames? */
     if(hostNames->type != &UA_TYPES[UA_TYPES_STRING] ||
        UA_Variant_isScalar(hostNames)) {
-        UA_LOG_ERROR(el->eventLoop.logger, UA_LOGCATEGORY_EVENTLOOP,
+        UA_LOG_ERROR0(el->eventLoop.logger, UA_LOGCATEGORY_EVENTLOOP,
                      "UDP\t| The hostnames have to be an array of string");
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
     size_t interfaces = hostNames->arrayLength;
     if(interfaces == 0) {
-        UA_LOG_WARNING(el->eventLoop.logger, UA_LOGCATEGORY_EVENTLOOP,
+        UA_LOG_WARNING0(el->eventLoop.logger, UA_LOGCATEGORY_EVENTLOOP,
                      "UDP\t| Listening on all interfaces");
         return UDP_registerListenSockets(cm, NULL, *port, paramsSize, params,
                                          application, context, connectionCallback);
@@ -1254,7 +1254,7 @@ UDP_eventSourceStart(UA_ConnectionManager *cm) {
 
     /* Check the state */
     if(cm->eventSource.state != UA_EVENTSOURCESTATE_STOPPED) {
-        UA_LOG_ERROR(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
+        UA_LOG_ERROR0(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
                      "To start the UDP ConnectionManager, "
                      "it has to be registered in an EventLoop and not started");
         return UA_STATUSCODE_BADINTERNALERROR;
@@ -1283,7 +1283,7 @@ UDP_eventSourceStart(UA_ConnectionManager *cm) {
 static void
 UDP_eventSourceStop(UA_ConnectionManager *cm) {
     UDPConnectionManager *ucm = (UDPConnectionManager*)cm;
-    UA_LOG_INFO(cm->eventSource.eventLoop->logger, UA_LOGCATEGORY_NETWORK,
+    UA_LOG_INFO0(cm->eventSource.eventLoop->logger, UA_LOGCATEGORY_NETWORK,
                 "UDP\t| Shutting down the ConnectionManager");
 
     cm->eventSource.state = UA_EVENTSOURCESTATE_STOPPING;
@@ -1303,7 +1303,7 @@ UDP_eventSourceStop(UA_ConnectionManager *cm) {
 static UA_StatusCode
 UDP_eventSourceDelete(UA_ConnectionManager *cm) {
     if(cm->eventSource.state >= UA_EVENTSOURCESTATE_STARTING) {
-        UA_LOG_ERROR(cm->eventSource.eventLoop->logger, UA_LOGCATEGORY_EVENTLOOP,
+        UA_LOG_ERROR0(cm->eventSource.eventLoop->logger, UA_LOGCATEGORY_EVENTLOOP,
                      "UDP\t| The EventSource must be stopped before it can be deleted");
         return UA_STATUSCODE_BADINTERNALERROR;
     }

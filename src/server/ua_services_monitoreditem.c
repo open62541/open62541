@@ -387,7 +387,7 @@ Operation_CreateMonitoredItem(UA_Server *server, UA_Session *session,
     if(request->itemToMonitor.attributeId == UA_ATTRIBUTEID_EVENTNOTIFIER) {
         /* TODO: Only remote clients can add Event-MonitoredItems at the moment */
         if(!cmc->sub) {
-            UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
+            UA_LOG_WARNING0(&server->config.logger, UA_LOGCATEGORY_SERVER,
                            "Only remote clients can add Event-MonitoredItems");
             result->statusCode = UA_STATUSCODE_BADNOTSUPPORTED;
             UA_DataValue_clear(&v);

@@ -205,11 +205,11 @@ setDefaultConfig(UA_ServerConfig *conf, UA_UInt16 portNumber) {
     char serverUrlBuffer[2][512];
 
     if(portNumber == 0) {
-        UA_LOG_WARNING(&conf->logger, UA_LOGCATEGORY_USERLAND,
+        UA_LOG_WARNING0(&conf->logger, UA_LOGCATEGORY_USERLAND,
                        "Cannot set the ServerUrl with a zero port");
     } else {
         if(conf->serverUrlsSize > 0) {
-            UA_LOG_WARNING(&conf->logger, UA_LOGCATEGORY_USERLAND,
+            UA_LOG_WARNING0(&conf->logger, UA_LOGCATEGORY_USERLAND,
                            "ServerUrls already set. Overriding.");
             UA_Array_delete(conf->serverUrls, conf->serverUrlsSize,
                             &UA_TYPES[UA_TYPES_STRING]);
@@ -330,7 +330,7 @@ setDefaultConfig(UA_ServerConfig *conf, UA_UInt16 portNumber) {
 UA_EXPORT UA_StatusCode
 UA_ServerConfig_setBasics(UA_ServerConfig* conf) {
     UA_StatusCode res = setDefaultConfig(conf, 4840);
-    UA_LOG_WARNING(&conf->logger, UA_LOGCATEGORY_USERLAND,
+    UA_LOG_WARNING0(&conf->logger, UA_LOGCATEGORY_USERLAND,
                    "AcceptAll Certificate Verification. "
                    "Any remote certificate will be accepted.");
     return res;
@@ -510,7 +510,7 @@ UA_ServerConfig_setMinimalCustomBuffer(UA_ServerConfig *config, UA_UInt16 portNu
         return retval;
     }
 
-    UA_LOG_WARNING(&config->logger, UA_LOGCATEGORY_USERLAND,
+    UA_LOG_WARNING0(&config->logger, UA_LOGCATEGORY_USERLAND,
                    "AcceptAll Certificate Verification. "
                    "Any remote certificate will be accepted.");
 
@@ -834,7 +834,7 @@ UA_ClientConfig_setDefault(UA_ClientConfig *config) {
     /* Certificate Verification that accepts every certificate. Can be
      * overwritten when the policy is specialized. */
     UA_CertificateVerification_AcceptAll(&config->certificateVerification);
-    UA_LOG_WARNING(&config->logger, UA_LOGCATEGORY_USERLAND,
+    UA_LOG_WARNING0(&config->logger, UA_LOGCATEGORY_USERLAND,
                    "AcceptAll Certificate Verification. "
                    "Any remote certificate will be accepted.");
 
@@ -844,7 +844,7 @@ UA_ClientConfig_setDefault(UA_ClientConfig *config) {
     config->clientDescription.applicationType = UA_APPLICATIONTYPE_CLIENT;
 
     if(config->securityPoliciesSize > 0) {
-        UA_LOG_ERROR(&config->logger, UA_LOGCATEGORY_NETWORK,
+        UA_LOG_ERROR0(&config->logger, UA_LOGCATEGORY_NETWORK,
                      "Could not initialize a config that already has SecurityPolicies");
         return UA_STATUSCODE_BADINTERNALERROR;
     }

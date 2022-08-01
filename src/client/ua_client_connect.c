@@ -271,7 +271,7 @@ processACKResponse(UA_Client *client, const UA_ByteString *chunk) {
         UA_decodeBinaryInternal(chunk, &offset, &ackMessage,
                                 &UA_TRANSPORT[UA_TRANSPORT_TCPACKNOWLEDGEMESSAGE], NULL);
     if(client->connectStatus != UA_STATUSCODE_GOOD) {
-        UA_LOG_INFO(&client->config.logger, UA_LOGCATEGORY_NETWORK,
+        UA_LOG_INFO0(&client->config.logger, UA_LOGCATEGORY_NETWORK,
                      "Decoding ACK message failed");
         closeSecureChannel(client);
         return;
@@ -334,7 +334,7 @@ sendHELMessage(UA_Client *client) {
         UA_LOG_DEBUG(&client->config.logger, UA_LOGCATEGORY_CLIENT, "Sent HEL message");
         client->channel.state = UA_SECURECHANNELSTATE_HEL_SENT;
     } else {
-        UA_LOG_INFO(&client->config.logger, UA_LOGCATEGORY_CLIENT, "Sending HEL failed");
+        UA_LOG_INFO0(&client->config.logger, UA_LOGCATEGORY_CLIENT, "Sending HEL failed");
         closeSecureChannel(client);
     }
     return retval;
@@ -502,7 +502,7 @@ responseActivateSession(UA_Client *client, void *userdata, UA_UInt32 requestId,
             /* The session is no longer usable. Create a new one. */
             closeSession(client);
             createSessionAsync(client);
-            UA_LOG_ERROR(&client->config.logger, UA_LOGCATEGORY_CLIENT,
+            UA_LOG_ERROR0(&client->config.logger, UA_LOGCATEGORY_CLIENT,
                          "Session cannot be activated. Create a new Session.");
         } else {
             /* Something else is wrong. Give up. */
@@ -770,11 +770,11 @@ responseGetEndpoints(UA_Client *client, void *userdata, UA_UInt32 requestId,
     }
 
     if(!endpointFound) {
-        UA_LOG_ERROR(&client->config.logger, UA_LOGCATEGORY_CLIENT,
+        UA_LOG_ERROR0(&client->config.logger, UA_LOGCATEGORY_CLIENT,
                      "No suitable endpoint found");
         client->connectStatus = UA_STATUSCODE_BADINTERNALERROR;
     } else if(!tokenFound) {
-        UA_LOG_ERROR(&client->config.logger, UA_LOGCATEGORY_CLIENT,
+        UA_LOG_ERROR0(&client->config.logger, UA_LOGCATEGORY_CLIENT,
                      "No suitable UserTokenPolicy found for the possible endpoints");
         client->connectStatus = UA_STATUSCODE_BADINTERNALERROR;
     }
@@ -929,7 +929,7 @@ initSecurityPolicy(UA_Client *client) {
 
 static void
 iterateConnect(UA_Client *client) {
-    UA_LOG_TRACE(&client->config.logger, UA_LOGCATEGORY_CLIENT,
+    UA_LOG_TRACE0(&client->config.logger, UA_LOGCATEGORY_CLIENT,
                  "Client connect iterate");
 
     /* Could not connect with an error that canot be recovered from */
@@ -1064,7 +1064,7 @@ UA_Client_networkCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
                           UA_ByteString msg) {
     UA_Client *client = (UA_Client*)application;
 
-    UA_LOG_TRACE(&client->config.logger, UA_LOGCATEGORY_CLIENT,
+    UA_LOG_TRACE0(&client->config.logger, UA_LOGCATEGORY_CLIENT,
                  "Client network callback");
 
     /* The connection is still opening */
@@ -1147,7 +1147,7 @@ UA_Client_networkCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
 static void
 initConnect(UA_Client *client) {
     if(client->connection.state > UA_CONNECTIONSTATE_CLOSED) {
-        UA_LOG_WARNING(&client->config.logger, UA_LOGCATEGORY_CLIENT,
+        UA_LOG_WARNING0(&client->config.logger, UA_LOGCATEGORY_CLIENT,
                        "Client connection already initiated");
         return;
     }
@@ -1155,7 +1155,7 @@ initConnect(UA_Client *client) {
     /* Start the EventLoop if not already started */
     UA_EventLoop *el = client->config.eventLoop;
     if(!el) {
-        UA_LOG_WARNING(&client->config.logger, UA_LOGCATEGORY_CLIENT,
+        UA_LOG_WARNING0(&client->config.logger, UA_LOGCATEGORY_CLIENT,
                        "No EventLoop configured");
         return;
     }
@@ -1292,11 +1292,11 @@ connectSync(UA_Client *client) {
         if(client->noSession && client->channel.state == UA_SECURECHANNELSTATE_OPEN)
             break;
         now = UA_DateTime_nowMonotonic();
-        if(maxDate < now) {
-            /* TODO: Close the SecureChannel properly */
+/*        if(maxDate < now) {
+            /* TODO: Close the SecureChannel properly * /
             client->connectStatus = UA_STATUSCODE_BADTIMEOUT;
             return;
-        }
+        }*/
         client->connectStatus =
             UA_Client_run_iterate(client,
                                   (UA_UInt32)((maxDate - now) / UA_DATETIME_MSEC));

@@ -275,7 +275,7 @@ UA_AccessControl_default(UA_ServerConfig *config,
                          const UA_ByteString *userTokenPolicyUri,
                          size_t usernamePasswordLoginSize,
                          const UA_UsernamePasswordLogin *usernamePasswordLogin) {
-    UA_LOG_WARNING(&config->logger, UA_LOGCATEGORY_SERVER,
+    UA_LOG_WARNING0(&config->logger, UA_LOGCATEGORY_SERVER,
                    "AccessControl: Unconfigured AccessControl. Users have all permissions.");
     UA_AccessControl *ac = &config->accessControl;
 
@@ -315,7 +315,7 @@ UA_AccessControl_default(UA_ServerConfig *config,
     /* Allow anonymous? */
     context->allowAnonymous = allowAnonymous;
     if(allowAnonymous) {
-        UA_LOG_INFO(&config->logger, UA_LOGCATEGORY_SERVER,
+        UA_LOG_INFO0(&config->logger, UA_LOGCATEGORY_SERVER,
                     "AccessControl: Anonymous login is enabled");
     }
 
@@ -325,7 +325,7 @@ UA_AccessControl_default(UA_ServerConfig *config,
         memset(verifyX509, 0, sizeof(UA_CertificateVerification));
     } else {
         memset(&context->verifyX509, 0, sizeof(UA_CertificateVerification));
-        UA_LOG_INFO(&config->logger, UA_LOGCATEGORY_SERVER,
+        UA_LOG_INFO0(&config->logger, UA_LOGCATEGORY_SERVER,
                     "AccessControl: x509 certificate user authentication is enabled");
     }
 
@@ -371,7 +371,7 @@ UA_AccessControl_default(UA_ServerConfig *config,
         ac->userTokenPolicies[policies].policyId = UA_STRING_ALLOC(CERTIFICATE_POLICY);
 #if UA_LOGLEVEL <= 400
         if(UA_ByteString_equal(userTokenPolicyUri, &UA_SECURITY_POLICY_NONE_URI)) {
-            UA_LOG_WARNING(&config->logger, UA_LOGCATEGORY_SERVER,
+            UA_LOG_WARNING0(&config->logger, UA_LOGCATEGORY_SERVER,
                            "x509 Certificate Authentication configured, "
                            "but no encrypting SecurityPolicy. "
                            "This can leak credentials on the network.");
@@ -387,7 +387,7 @@ UA_AccessControl_default(UA_ServerConfig *config,
         ac->userTokenPolicies[policies].policyId = UA_STRING_ALLOC(USERNAME_POLICY);
 #if UA_LOGLEVEL <= 400
         if(UA_ByteString_equal(userTokenPolicyUri, &UA_SECURITY_POLICY_NONE_URI)) {
-            UA_LOG_WARNING(&config->logger, UA_LOGCATEGORY_SERVER,
+            UA_LOG_WARNING0(&config->logger, UA_LOGCATEGORY_SERVER,
                            "Username/Password Authentication configured, "
                            "but no encrypting SecurityPolicy. "
                            "This can leak credentials on the network.");

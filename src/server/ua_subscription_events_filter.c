@@ -180,7 +180,7 @@ ofTypeOperator(UA_FilterOperatorContext *ctx) {
     if(!UA_Variant_isScalar(&typeNodeIdVariant) ||
        typeNodeIdVariant.type != &UA_TYPES[UA_TYPES_NODEID] ||
        typeNodeIdVariant.data == NULL) {
-        UA_LOG_ERROR(&ctx->server->config.logger, UA_LOGCATEGORY_SERVER,
+        UA_LOG_ERROR0(&ctx->server->config.logger, UA_LOGCATEGORY_SERVER,
                      "EventType has an invalid type.");
         UA_Variant_clear(&typeNodeIdVariant);
         return UA_STATUSCODE_BADINTERNALERROR;

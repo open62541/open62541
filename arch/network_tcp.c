@@ -213,7 +213,7 @@ UA_ClientConnectionTCP_poll(UA_Connection *connection, UA_UInt32 timeout,
     TCPClientConnection *tcpConnection = (TCPClientConnection*) connection->handle;
     if((UA_Double) (UA_DateTime_nowMonotonic() - tcpConnection->connStart)
        > (UA_Double) tcpConnection->timeout * UA_DATETIME_MSEC ) {
-        UA_LOG_WARNING(logger, UA_LOGCATEGORY_NETWORK, "Timed out");
+        UA_LOG_WARNING0(logger, UA_LOGCATEGORY_NETWORK, "Timed out");
         ClientNetworkLayerTCP_close(connection);
         return UA_STATUSCODE_BADDISCONNECT;
     }
@@ -240,7 +240,7 @@ UA_ClientConnectionTCP_poll(UA_Connection *connection, UA_UInt32 timeout,
 
         /* Non blocking connect to be able to timeout */
         if(UA_socket_set_nonblocking(connection->sockfd) != UA_STATUSCODE_GOOD) {
-            UA_LOG_WARNING(logger, UA_LOGCATEGORY_NETWORK,
+            UA_LOG_WARNING0(logger, UA_LOGCATEGORY_NETWORK,
                            "Could not set the client socket to nonblocking");
             ClientNetworkLayerTCP_close(connection);
             return UA_STATUSCODE_BADDISCONNECT;

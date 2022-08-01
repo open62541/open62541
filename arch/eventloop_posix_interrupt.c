@@ -252,7 +252,7 @@ registerPOSIXInterrupt(UA_InterruptManager *im, uintptr_t interruptHandle,
                        UA_InterruptCallback callback, void *interruptContext) {
     UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX *)im->eventSource.eventLoop;
     if(paramsSize > 0) {
-        UA_LOG_ERROR(el->eventLoop.logger, UA_LOGCATEGORY_EVENTLOOP,
+        UA_LOG_ERROR0(el->eventLoop.logger, UA_LOGCATEGORY_EVENTLOOP,
                      "Interrupt\t| Supplied parameters invalid for the "
                      "POSIX InterruptManager");
         return UA_STATUSCODE_BADINTERNALERROR;
@@ -334,7 +334,7 @@ static UA_StatusCode
 startPOSIXInterruptManager(UA_EventSource *es) {
     /* Check the state */
     if(es->state != UA_EVENTSOURCESTATE_STOPPED) {
-        UA_LOG_ERROR(es->eventLoop->logger, UA_LOGCATEGORY_EVENTLOOP,
+        UA_LOG_ERROR0(es->eventLoop->logger, UA_LOGCATEGORY_EVENTLOOP,
                      "Interrupt\t| To start the InterruptManager, "
                      "it has to be registered in an EventLoop and not started");
         return UA_STATUSCODE_BADINTERNALERROR;
@@ -344,7 +344,7 @@ startPOSIXInterruptManager(UA_EventSource *es) {
     UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX *)es->eventLoop;
     /* Set the global pointer */
     if(singletonIM != NULL) {
-        UA_LOG_ERROR(es->eventLoop->logger, UA_LOGCATEGORY_EVENTLOOP,
+        UA_LOG_ERROR0(es->eventLoop->logger, UA_LOGCATEGORY_EVENTLOOP,
                      "Interrupt\t| There can be at most one active "
                      "InterruptManager at a time");
         return UA_STATUSCODE_BADINTERNALERROR;
@@ -382,7 +382,7 @@ startPOSIXInterruptManager(UA_EventSource *es) {
     pim->readFD.callback = executeTriggeredPOSIXInterrupts;
     UA_StatusCode res = UA_EventLoopPOSIX_registerFD(el, &pim->readFD);
     if(res != UA_STATUSCODE_GOOD) {
-        UA_LOG_ERROR(es->eventLoop->logger, UA_LOGCATEGORY_EVENTLOOP,
+        UA_LOG_ERROR0(es->eventLoop->logger, UA_LOGCATEGORY_EVENTLOOP,
                      "Interrupt\t| Could not register the InterruptManager socket");
         UA_close(pipefd[0]);
         UA_close(pipefd[1]);
@@ -437,7 +437,7 @@ stopPOSIXInterruptManager(UA_EventSource *es) {
 static UA_StatusCode
 freePOSIXInterruptmanager(UA_EventSource *es) {
     if(es->state >= UA_EVENTSOURCESTATE_STARTING) {
-        UA_LOG_ERROR(es->eventLoop->logger, UA_LOGCATEGORY_EVENTLOOP,
+        UA_LOG_ERROR0(es->eventLoop->logger, UA_LOGCATEGORY_EVENTLOOP,
                      "Interrupt\t| The EventSource must be stopped "
                      "before it can be deleted");
         return UA_STATUSCODE_BADINTERNALERROR;

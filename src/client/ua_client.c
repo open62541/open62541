@@ -294,11 +294,11 @@ processMSGResponse(UA_Client *client, UA_UInt32 requestId,
         UA_init(response, ac->responseType);
         if(UA_NodeId_equal(&responseTypeId, &serviceFaultId)) {
             /* Decode as a ServiceFault, i.e. only the response header */
-            UA_LOG_INFO(&client->config.logger, UA_LOGCATEGORY_CLIENT,
+            UA_LOG_INFO0(&client->config.logger, UA_LOGCATEGORY_CLIENT,
                         "Received a ServiceFault response");
             responseType = &UA_TYPES[UA_TYPES_SERVICEFAULT];
         } else {
-            UA_LOG_ERROR(&client->config.logger, UA_LOGCATEGORY_CLIENT,
+            UA_LOG_ERROR0(&client->config.logger, UA_LOGCATEGORY_CLIENT,
                          "Service response type does not match");
             retval = UA_STATUSCODE_BADCOMMUNICATIONERROR;
             goto process; /* Do not decode */
@@ -390,7 +390,7 @@ __UA_Client_Service(UA_Client *client, const void *request,
     /* Check that the SecureChannel is open. Otherwise reopen. */
     if((client->sessionState != UA_SESSIONSTATE_ACTIVATED && !client->noSession) ||
        client->channel.state != UA_SECURECHANNELSTATE_OPEN) {
-        UA_LOG_INFO(&client->config.logger, UA_LOGCATEGORY_CLIENT,
+        UA_LOG_INFO0(&client->config.logger, UA_LOGCATEGORY_CLIENT,
                     "Re-establish the connction for the synchronous service call");
         connectSync(client);
         if(client->connectStatus != UA_STATUSCODE_GOOD) {
@@ -524,7 +524,7 @@ __UA_Client_AsyncServiceEx(UA_Client *client, const void *request,
                            void *userdata, UA_UInt32 *requestId,
                            UA_UInt32 timeout) {
     if(client->channel.state != UA_SECURECHANNELSTATE_OPEN) {
-        UA_LOG_INFO(&client->config.logger, UA_LOGCATEGORY_CLIENT,
+        UA_LOG_INFO0(&client->config.logger, UA_LOGCATEGORY_CLIENT,
                     "SecureChannel must be connected before sending requests");
         return UA_STATUSCODE_BADSERVERNOTCONNECTED;
     }

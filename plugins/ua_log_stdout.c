@@ -50,9 +50,14 @@ typedef struct {
 #ifdef __clang__
 __attribute__((__format__(__printf__, 4 , 0)))
 #endif
+#ifdef UA_SOURCE_LOCATION
+void UA_Log_Stdout_log(void *context, UA_LogLevel level, UA_LogCategory category, const char* file, const char* function, uint_least32_t line, const char *msg, va_list args)
+{
+#else
 static void
 UA_Log_Stdout_log(void *context, UA_LogLevel level, UA_LogCategory category,
                   const char *msg, va_list args) {
+#endif
     LogContext *logContext = (LogContext*)context;
     if(logContext) {
         if(logContext->minlevel > level)
