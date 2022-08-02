@@ -307,6 +307,8 @@ addDataSetWriter(UA_Server *server, char *topic) {
     dataSetWriterConfig.name = UA_STRING("Demo DataSetWriter");
     dataSetWriterConfig.dataSetWriterId = 62541;
     dataSetWriterConfig.keyFrameCount = 10;
+    /* Enable Publishing of DataSetMetaData via e.g. MQTT */
+    dataSetWriterConfig.publishDataSetMetaData = UA_TRUE;
 
 #ifdef UA_ENABLE_JSON_ENCODING
     UA_JsonDataSetWriterMessageDataType jsonDswMd;

@@ -901,7 +901,6 @@ sendNetworkMessageJson(UA_Server *server, UA_PubSubConnection *connection, UA_Wr
     return res;
 }
 
-#ifdef UA_ENABLE_PUBSUB_MQTT_METADATA
 UA_StatusCode
 sendNetworkMessageMetadataJson(UA_PubSubConnection *connection, 
                                UA_DataSetMetaData *dsmd,
@@ -952,7 +951,6 @@ sendNetworkMessageMetadataJson(UA_PubSubConnection *connection,
         UA_ByteString_clear(&buf);
     return res;
 }
-#endif /* UA_ENABLE_PUBSUB_MQTT_METADATA */
 #endif /* UA_ENABLE_JSON_ENCODING*/
 
 static UA_StatusCode
@@ -1150,7 +1148,6 @@ publishRT(UA_Server *server, UA_WriterGroup *writerGroup, UA_PubSubConnection *c
     }
 }
 
-#ifdef UA_ENABLE_PUBSUB_MQTT_METADATA
 static void
 publishMetadata(UA_Server* server, UA_PubSubConnection* connection, UA_DataSetWriter* dsw) {
     /* Generate the DataSetMetaData */
@@ -1206,7 +1203,6 @@ publishMetadata(UA_Server* server, UA_PubSubConnection* connection, UA_DataSetWr
         UA_DataSetMetaData_clear(&dataSetMetaData);         
     }
 }
-#endif /* UA_ENABLE_PUBSUB_MQTT_METADATA */
 
 static void
 sendNetworkMessage(UA_Server *server, UA_WriterGroup *wg, UA_PubSubConnection *connection,
@@ -1301,9 +1297,9 @@ UA_WriterGroup_publishCallback(UA_Server *server, UA_WriterGroup *writerGroup) {
 
     UA_DataSetWriter *dsw;
     LIST_FOREACH(dsw, &writerGroup->writers, listEntry) {
-#ifdef UA_ENABLE_PUBSUB_MQTT_METADATA
-        publishMetadata(server, connection, dsw);
-#endif /* UA_ENABLE_PUBSUB_MQTT_METADATA */          
+        if(dsw->config.publishDataSetMetaData) {
+            publishMetadata(server, connection, dsw);
+        }          
         if(dsw->state != UA_PUBSUBSTATE_OPERATIONAL)
             continue;
 

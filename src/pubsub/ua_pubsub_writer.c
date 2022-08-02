@@ -936,59 +936,59 @@ addDataSetWriter(UA_Server *server,
     if(writerIdentifier)
         UA_NodeId_copy(&newDataSetWriter->identifier, writerIdentifier);
     
-#ifdef UA_ENABLE_PUBSUB_MQTT_METADATA
-    if(wg->config.encodingMimeType == UA_PUBSUB_ENCODING_JSON) {
-        UA_PubSubConnection *connection = wg->linkedConnection;
-        /* Find the dataset */
-        UA_PublishedDataSet *pds = UA_PublishedDataSet_findPDSbyId(server, newDataSetWriter->connectedDataSet);
-        if(!connection || !pds) {
-            UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
-                        "Publish failed. PubSubConnection invalid or PublishedDataSet not found.");
-        } else {
-            /* Generate the DataSetMetaData */
-            UA_DataSetMetaData dataSetMetaData;
-            UA_DataSetMetaDataType *dsmdt = &pds->dataSetMetaData;
-            res |= UA_DataSetWriter_generateDataSetMetaData(server, &dataSetMetaData, dsmdt, newDataSetWriter, UA_TRUE);
-            if(res != UA_STATUSCODE_GOOD) {
-                UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
-                            "PubSub: DataSetMessageMetaData generation failed");
-            }
-            
-            switch(connection->config->publisherIdType) {
-                case UA_PUBLISHERIDTYPE_BYTE:
-                    dataSetMetaData.publisherIdType = UA_PUBLISHERIDTYPE_BYTE;
-                    dataSetMetaData.publisherId.publisherIdByte = connection->config->publisherId.byte;
-                    break;
-                case UA_PUBLISHERIDTYPE_UINT16:
-                    dataSetMetaData.publisherIdType = UA_PUBLISHERIDTYPE_UINT16;
-                    dataSetMetaData.publisherId.publisherIdUInt16 = connection->config->publisherId.uint16;
-                    break;
-                case UA_PUBLISHERIDTYPE_UINT32:
-                    dataSetMetaData.publisherIdType = UA_PUBLISHERIDTYPE_UINT32;
-                    dataSetMetaData.publisherId.publisherIdUInt32 = connection->config->publisherId.uint32;
-                    break;
-                case UA_PUBLISHERIDTYPE_UINT64:
-                    dataSetMetaData.publisherIdType = UA_PUBLISHERIDTYPE_UINT64;
-                    dataSetMetaData.publisherId.publisherIdUInt64 = connection->config->publisherId.uint64;
-                    break;
-                case UA_PUBLISHERIDTYPE_STRING:
-                    dataSetMetaData.publisherIdType = UA_PUBLISHERIDTYPE_STRING;
-                    dataSetMetaData.publisherId.publisherIdString = connection->config->publisherId.string;
-                    break;
-                default:
-                    break;
-            }
+    if(newDataSetWriter->config.publishDataSetMetaData) {
+        if(wg->config.encodingMimeType == UA_PUBSUB_ENCODING_JSON) {
+            UA_PubSubConnection *connection = wg->linkedConnection;
+            /* Find the dataset */
+            UA_PublishedDataSet *pds = UA_PublishedDataSet_findPDSbyId(server, newDataSetWriter->connectedDataSet);
+            if(!connection || !pds) {
+                UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                            "Publish failed. PubSubConnection invalid or PublishedDataSet not found.");
+            } else {
+                /* Generate the DataSetMetaData */
+                UA_DataSetMetaData dataSetMetaData;
+                UA_DataSetMetaDataType *dsmdt = &pds->dataSetMetaData;
+                res |= UA_DataSetWriter_generateDataSetMetaData(server, &dataSetMetaData, dsmdt, newDataSetWriter, UA_TRUE);
+                if(res != UA_STATUSCODE_GOOD) {
+                    UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                                "PubSub: DataSetMessageMetaData generation failed");
+                }
+                
+                switch(connection->config->publisherIdType) {
+                    case UA_PUBLISHERIDTYPE_BYTE:
+                        dataSetMetaData.publisherIdType = UA_PUBLISHERIDTYPE_BYTE;
+                        dataSetMetaData.publisherId.publisherIdByte = connection->config->publisherId.byte;
+                        break;
+                    case UA_PUBLISHERIDTYPE_UINT16:
+                        dataSetMetaData.publisherIdType = UA_PUBLISHERIDTYPE_UINT16;
+                        dataSetMetaData.publisherId.publisherIdUInt16 = connection->config->publisherId.uint16;
+                        break;
+                    case UA_PUBLISHERIDTYPE_UINT32:
+                        dataSetMetaData.publisherIdType = UA_PUBLISHERIDTYPE_UINT32;
+                        dataSetMetaData.publisherId.publisherIdUInt32 = connection->config->publisherId.uint32;
+                        break;
+                    case UA_PUBLISHERIDTYPE_UINT64:
+                        dataSetMetaData.publisherIdType = UA_PUBLISHERIDTYPE_UINT64;
+                        dataSetMetaData.publisherId.publisherIdUInt64 = connection->config->publisherId.uint64;
+                        break;
+                    case UA_PUBLISHERIDTYPE_STRING:
+                        dataSetMetaData.publisherIdType = UA_PUBLISHERIDTYPE_STRING;
+                        dataSetMetaData.publisherId.publisherIdString = connection->config->publisherId.string;
+                        break;
+                    default:
+                        break;
+                }
 #ifdef UA_ENABLE_JSON_ENCODING
-            res = sendNetworkMessageMetadataJson(connection, &dataSetMetaData, &newDataSetWriter->config.dataSetWriterId, 1, &newDataSetWriter->config.transportSettings);
-            if(res != UA_STATUSCODE_GOOD) {
-                UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
-                            "PubSub: DataSetMessageMetaData sending failed");
-            }
+                res = sendNetworkMessageMetadataJson(connection, &dataSetMetaData, &newDataSetWriter->config.dataSetWriterId, 1, &newDataSetWriter->config.transportSettings);
+                if(res != UA_STATUSCODE_GOOD) {
+                    UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                                "PubSub: DataSetMessageMetaData sending failed");
+                }
 #endif /* UA_ENABLE_JSON_ENCODING */
-            UA_DataSetMetaData_clear(&dataSetMetaData);
+                UA_DataSetMetaData_clear(&dataSetMetaData);
+            }
         }
     }
-#endif /* UA_ENABLE_PUBSUB_MQTT_METADATA */
     return res;
 }
 
@@ -1205,7 +1205,6 @@ UA_PubSubDataSetField_sampleValue(UA_Server *server, UA_DataSetField *field,
     }
 }
 
-#ifdef UA_ENABLE_PUBSUB_MQTT_METADATA
 static size_t
 UA_PubSubDataSetField_sampleProperties(UA_Server *server, UA_DataSetField *field,
                                   UA_KeyValuePair **browseNameAndValues) {
@@ -1234,7 +1233,6 @@ UA_PubSubDataSetField_sampleProperties(UA_Server *server, UA_DataSetField *field
     }
     return noOfProps;
 }
-#endif /* UA_ENABLE_PUBSUB_MQTT_METADATA */
 
 static UA_StatusCode
 UA_PubSubDataSetWriter_generateKeyFrameMessage(UA_Server *server,
@@ -1617,7 +1615,6 @@ UA_DataSetWriter_generateDataSetMessage(UA_Server *server,
                                                           dataSetWriter);
 }
 
-#ifdef UA_ENABLE_PUBSUB_MQTT_METADATA
 UA_StatusCode
 UA_DataSetWriter_generateDataSetMetaData(UA_Server *server,
                                         UA_DataSetMetaData *dataSetMetaData,
@@ -1656,6 +1653,5 @@ UA_DataSetWriter_generateDataSetMetaData(UA_Server *server,
     }
     return UA_STATUSCODE_GOOD;
 }
-#endif /* UA_ENABLE_PUBSUB_MQTT_METADATA */
 
 #endif /* UA_ENABLE_PUBSUB */

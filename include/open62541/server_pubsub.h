@@ -596,6 +596,7 @@ typedef struct {
     UA_String dataSetName;
     size_t dataSetWriterPropertiesSize;
     UA_KeyValuePair *dataSetWriterProperties;
+    UA_Boolean publishDataSetMetaData;
 } UA_DataSetWriterConfig;
 
 void UA_EXPORT

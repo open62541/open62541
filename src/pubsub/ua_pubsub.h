@@ -214,14 +214,12 @@ UA_DataSetWriter_generateDataSetMessage(UA_Server *server,
                                         UA_DataSetMessage *dataSetMessage,
                                         UA_DataSetWriter *dataSetWriter);
 
-#ifdef UA_ENABLE_PUBSUB_MQTT_METADATA
 UA_StatusCode
 UA_DataSetWriter_generateDataSetMetaData(UA_Server *server,
                                         UA_DataSetMetaData *dataSetMetaData,
                                         UA_DataSetMetaDataType *dataSetMetaDataType, 
                                         UA_DataSetWriter *dataSetWriter,
                                         UA_Boolean ignoreVersion);
-#endif /* UA_ENABLE_PUBSUB_MQTT_METADATA */
 
 UA_StatusCode
 UA_DataSetWriter_remove(UA_Server *server, UA_WriterGroup *linkedWriterGroup,
@@ -508,13 +506,11 @@ UA_WriterGroup_addPublishCallback(UA_Server *server, UA_WriterGroup *writerGroup
 void
 UA_WriterGroup_publishCallback(UA_Server *server, UA_WriterGroup *writerGroup);
 
-#ifdef UA_ENABLE_PUBSUB_MQTT_METADATA
 #ifdef UA_ENABLE_JSON_ENCODING
 UA_StatusCode
 sendNetworkMessageMetadataJson(UA_PubSubConnection *connection, UA_DataSetMetaData *dsmd,
                        UA_UInt16 *writerIds, UA_Byte dsmdCount, UA_ExtensionObject *dataSetWriterTransportSettings);
 #endif /* UA_ENABLE_JSON_ENCODING */
-#endif /* UA_ENABLE_PUBSUB_MQTT_METADATA */
 
 /*********************************************************/
 /*               SubscribeValues handling                */

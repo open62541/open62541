@@ -105,7 +105,6 @@ typedef enum {
     UA_NETWORKMESSAGE_DATASETMETADATA = 3
 } UA_NetworkMessageType;
 
-#ifdef UA_ENABLE_PUBSUB_MQTT_METADATA
 /** 
  * DataSetMetaData
  * ^^^^^^^^^^^^^^^ */
@@ -137,7 +136,6 @@ typedef struct {
 UA_StatusCode UA_DataSetMetaData_encodeJson_internal(const UA_DataSetMetaData* src, void *ctx);
 
 void UA_DataSetMetaData_clear(const UA_DataSetMetaData* p);
-#endif /* UA_ENABLE_PUBSUB_MQTT_METADATA */
 
 /**
  * UA_NetworkMessageGroupHeader
@@ -203,9 +201,7 @@ typedef struct {
 
     union {
         UA_DataSetPayload dataSetPayload;
-#ifdef UA_ENABLE_PUBSUB_MQTT_METADATA
         UA_DataSetMetaDataPayload metaDataPayload;
-#endif
     } payload;
 
     UA_ByteString securityFooter;
