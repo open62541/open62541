@@ -483,7 +483,7 @@ int main(int argc, char **argv) {
              * changes to the properties of the corresponding node at this point, 
              * which results in an update of the MinorVersion of the DataSetMetaData's ConfigurationVersion
              * and thus, a new DataSetMetaData message is sent. */ 
-            UA_Server_updateDataSetField(server, fieldNodeId);
+            UA_Server_updateDataSetField(server, fieldNodeId, UA_TRUE, UA_FALSE);
         }
     }
     UA_Server_run_shutdown(server);
