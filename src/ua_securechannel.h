@@ -331,8 +331,8 @@ signAndEncryptSym(UA_MessageContext *messageContext,
 
 #define UA_LOG_TRACE_CHANNEL_INTERNAL(LOGGER, CHANNEL, MSG, ...)              \
     UA_LOG_TRACE(LOGGER, UA_LOGCATEGORY_SECURECHANNEL,                        \
-                 "Connection %i | SecureChannel %" PRIu32 " | " MSG "%.0s",     \
-                 ((CHANNEL)->connection ? (int)((CHANNEL)->connection->sockfd) : 0), \
+                 "TCP %lu\t| SecureChannel %" PRIu32 " | " MSG "%.0s",        \
+                 (long unsigned)(CHANNEL)->connectionId,                      \
                  (CHANNEL)->securityToken.channelId, __VA_ARGS__)
 
 #define UA_LOG_TRACE_CHANNEL(LOGGER, CHANNEL, ...)        \
@@ -340,8 +340,8 @@ signAndEncryptSym(UA_MessageContext *messageContext,
 
 #define UA_LOG_DEBUG_CHANNEL_INTERNAL(LOGGER, CHANNEL, MSG, ...)              \
     UA_LOG_DEBUG(LOGGER, UA_LOGCATEGORY_SECURECHANNEL,                        \
-                 "Connection %i | SecureChannel %" PRIu32 " | " MSG "%.0s",     \
-                 ((CHANNEL)->connection ? (int)((CHANNEL)->connection->sockfd) : 0), \
+                 "TCP %lu\t| SecureChannel %" PRIu32 " | " MSG "%.0s",        \
+                 (long unsigned)(CHANNEL)->connectionId,                      \
                  (CHANNEL)->securityToken.channelId, __VA_ARGS__)
 
 #define UA_LOG_DEBUG_CHANNEL(LOGGER, CHANNEL, ...)        \
@@ -349,8 +349,8 @@ signAndEncryptSym(UA_MessageContext *messageContext,
 
 #define UA_LOG_INFO_CHANNEL_INTERNAL(LOGGER, CHANNEL, MSG, ...)               \
     UA_LOG_INFO(LOGGER, UA_LOGCATEGORY_SECURECHANNEL,                         \
-                 "Connection %i | SecureChannel %" PRIu32 " | " MSG "%.0s",     \
-                 ((CHANNEL)->connection ? (int)((CHANNEL)->connection->sockfd) : 0), \
+                 "TCP %lu\t| SecureChannel %" PRIu32 " | " MSG "%.0s",        \
+                 (long unsigned)(CHANNEL)->connectionId,                      \
                  (CHANNEL)->securityToken.channelId, __VA_ARGS__)
 
 #define UA_LOG_INFO_CHANNEL(LOGGER, CHANNEL, ...)        \
@@ -358,8 +358,8 @@ signAndEncryptSym(UA_MessageContext *messageContext,
 
 #define UA_LOG_WARNING_CHANNEL_INTERNAL(LOGGER, CHANNEL, MSG, ...)            \
     UA_LOG_WARNING(LOGGER, UA_LOGCATEGORY_SECURECHANNEL,                      \
-                 "Connection %i | SecureChannel %" PRIu32 " | " MSG "%.0s",     \
-                 ((CHANNEL)->connection ? (int)((CHANNEL)->connection->sockfd) : 0), \
+                 "TCP %lu\t| SecureChannel %" PRIu32 " | " MSG "%.0s",        \
+                 (long unsigned)(CHANNEL)->connectionId,                      \
                  (CHANNEL)->securityToken.channelId, __VA_ARGS__)
 
 #define UA_LOG_WARNING_CHANNEL(LOGGER, CHANNEL, ...)        \
@@ -367,8 +367,8 @@ signAndEncryptSym(UA_MessageContext *messageContext,
 
 #define UA_LOG_ERROR_CHANNEL_INTERNAL(LOGGER, CHANNEL, MSG, ...)              \
     UA_LOG_ERROR(LOGGER, UA_LOGCATEGORY_SECURECHANNEL,                        \
-                 "Connection %i | SecureChannel %" PRIu32 " | " MSG "%.0s",     \
-                 ((CHANNEL)->connection ? (int)((CHANNEL)->connection->sockfd) : 0), \
+                 "TCP %lu\t| SecureChannel %" PRIu32 " | " MSG "%.0s",        \
+                 (long unsigned)(CHANNEL)->connectionId,                      \
                  (CHANNEL)->securityToken.channelId, __VA_ARGS__)
 
 #define UA_LOG_ERROR_CHANNEL(LOGGER, CHANNEL, ...)        \
@@ -376,8 +376,8 @@ signAndEncryptSym(UA_MessageContext *messageContext,
 
 #define UA_LOG_FATAL_CHANNEL_INTERNAL(LOGGER, CHANNEL, MSG, ...)              \
     UA_LOG_FATAL(LOGGER, UA_LOGCATEGORY_SECURECHANNEL,                        \
-                 "Connection %i | SecureChannel %" PRIu32 " | " MSG "%.0s",     \
-                 ((CHANNEL)->connection ? (CHANNEL)->connection->sockfd : 0), \
+                 "TCP %lu\t| SecureChannel %" PRIu32 " | " MSG "%.0s",        \
+                 (long unsigned)(CHANNEL)->connectionId,                      \
                  (CHANNEL)->securityToken.channelId, __VA_ARGS__)
 
 #define UA_LOG_FATAL_CHANNEL(LOGGER, CHANNEL, ...)        \
