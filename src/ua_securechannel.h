@@ -52,13 +52,6 @@ _UA_BEGIN_DECLS
 /* Minimum length of a valid message (ERR message with an empty reason) */
 #define UA_SECURECHANNEL_MESSAGE_MIN_LENGTH 16
 
-/* Thread-local variables to force failure modes during testing */
-#ifdef UA_ENABLE_UNIT_TEST_FAILURE_HOOKS
-extern UA_StatusCode decrypt_verifySignatureFailure;
-extern UA_StatusCode sendAsym_sendFailure;
-extern UA_StatusCode processSym_seqNumberFailure;
-#endif
-
 /* The Session implementation differs between client and server. Still, it is
  * expected that the Session structure begins with the SessionHeader. This is
  * the interface that will be used by the SecureChannel. The lifecycle of
