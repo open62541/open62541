@@ -69,6 +69,62 @@ UA_SecureChannel_setSecurityPolicy(UA_SecureChannel *channel,
     return UA_STATUSCODE_GOOD;
 }
 
+/* Hides some errors before sending them to a client according to the
+ * standard. */
+static void
+hideErrors(UA_TcpErrorMessage *const error) {
+    switch(error->error) {
+    case UA_STATUSCODE_BADCERTIFICATEUNTRUSTED:
+    case UA_STATUSCODE_BADCERTIFICATEREVOKED:
+        error->error = UA_STATUSCODE_BADSECURITYCHECKSFAILED;
+        error->reason = UA_STRING_NULL;
+        break;
+        // TODO: Check if these are all cases that need to be covered.
+    default:
+        break;
+    }
+}
+
+UA_Boolean
+UA_SecureChannel_isConnected(UA_SecureChannel *channel) {
+    return (channel->state >= UA_SECURECHANNELSTATE_CONNECTING &&
+            channel->state < UA_SECURECHANNELSTATE_CLOSING);
+}
+
+void
+UA_SecureChannel_sendError(UA_SecureChannel *channel, UA_TcpErrorMessage *error) {
+    if(!UA_SecureChannel_isConnected(channel))
+        return;
+
+    hideErrors(error);
+
+    UA_TcpMessageHeader header;
+    header.messageTypeAndChunkType = UA_MESSAGETYPE_ERR + UA_CHUNKTYPE_FINAL;
+    /* Header + ErrorMessage (error + reasonLength_field + length) */
+    header.messageSize = 8 + (4 + 4 + (UA_UInt32)error->reason.length);
+
+    /* Get the send buffer from the network layer */
+    UA_ConnectionManager *cm = channel->connectionManager;
+    UA_ByteString msg = UA_BYTESTRING_NULL;
+    UA_StatusCode retval = cm->allocNetworkBuffer(cm, channel->connectionId,
+                                                  &msg, header.messageSize);
+    if(retval != UA_STATUSCODE_GOOD)
+        return;
+
+    /* Encode and send the response */
+    UA_Byte *bufPos = msg.data;
+    const UA_Byte *bufEnd = &msg.data[msg.length];
+    retval |= UA_encodeBinaryInternal(&header,
+                                      &UA_TRANSPORT[UA_TRANSPORT_TCPMESSAGEHEADER],
+                                      &bufPos, &bufEnd, NULL, NULL);
+    retval |= UA_encodeBinaryInternal(error,
+                                      &UA_TRANSPORT[UA_TRANSPORT_TCPERRORMESSAGE],
+                                      &bufPos, &bufEnd, NULL, NULL);
+    (void)retval; /* Encoding of these cannot fail */
+    msg.length = header.messageSize;
+    cm->sendWithConnection(cm, channel->connectionId, 0, NULL, &msg);
+}
+
 static void
 UA_Chunk_delete(UA_Chunk *chunk) {
     if(chunk->copied)
