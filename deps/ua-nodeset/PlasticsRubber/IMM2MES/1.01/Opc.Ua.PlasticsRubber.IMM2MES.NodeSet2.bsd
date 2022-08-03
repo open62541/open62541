@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<!--
+ * Copyright (c) 2005-2021 The OPC Foundation, Inc. All rights reserved.
+ *
+ * OPC Foundation MIT License 1.00
+ * 
+ * Permission is hereby granted, free of charge, to any person
+ * obtaining a copy of this software and associated documentation
+ * files (the "Software"), to deal in the Software without
+ * restriction, including without limitation the rights to use,
+ * copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the
+ * Software is furnished to do so, subject to the following
+ * conditions:
+ * 
+ * The above copyright notice and this permission notice shall be
+ * included in all copies or substantial portions of the Software.
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+ * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
+ * OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+ * NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
+ * HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+ * WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+ * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+ * OTHER DEALINGS IN THE SOFTWARE.
+ *
+ * The complete license agreement can be found here:
+ * http://opcfoundation.org/License/MIT/1.00/
+-->
+
+<opc:TypeDictionary xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:tns="http://opcfoundation.org/UA/PlasticsRubber/IMM2MES/" DefaultByteOrder="LittleEndian" xmlns:opc="http://opcfoundation.org/BinarySchema/" xmlns:ua="http://opcfoundation.org/UA/" TargetNamespace="http://opcfoundation.org/UA/PlasticsRubber/IMM2MES/">
+    <opc:Import Namespace="http://opcfoundation.org/UA/"/>
+    <opc:EnumeratedType LengthInBits="32" Name="IMMMessageClassificationEnumeration">
+        <opc:Documentation>This Enumeration specifies the values to be used in the Classification property in the MessageConditionType and related logbook events of OPC 40083</opc:Documentation>
+        <opc:EnumeratedValue Name="OTHER" Value="0"/>
+        <opc:EnumeratedValue Name="IMM_INJECTION_UNIT" Value="100"/>
+        <opc:EnumeratedValue Name="IMM_CLAMPING_UNIT" Value="101"/>
+        <opc:EnumeratedValue Name="IMM_HARDWARE" Value="102"/>
+        <opc:EnumeratedValue Name="IMM_COMPRESSED_AIR_CONTROL" Value="103"/>
+        <opc:EnumeratedValue Name="IMM_MACHINE_MONITORING" Value="104"/>
+        <opc:EnumeratedValue Name="IMM_MOULD" Value="105"/>
+        <opc:EnumeratedValue Name="IMM_EJECTOR" Value="106"/>
+        <opc:EnumeratedValue Name="IMM_CORE_PULL" Value="107"/>
+        <opc:EnumeratedValue Name="IMM_TABLE" Value="108"/>
+        <opc:EnumeratedValue Name="IMM_INJECTION_PROGRAM" Value="109"/>
+        <opc:EnumeratedValue Name="IMM_HYDRAULIC_TEMPERATURE_CONTROL" Value="110"/>
+        <opc:EnumeratedValue Name="IMM_CYLINDER_TEMPERATURE_CONTROL" Value="111"/>
+        <opc:EnumeratedValue Name="IMM_MOULD_TEMPERATURE_CONTROL" Value="112"/>
+        <opc:EnumeratedValue Name="IMM_HOT_RUNNER" Value="113"/>
+        <opc:EnumeratedValue Name="IMM_INTERFACES" Value="114"/>
+        <opc:EnumeratedValue Name="IMM_MEASURING_SYSTEM" Value="115"/>
+        <opc:EnumeratedValue Name="IMM_ROBOTIC_SYSTEM_INTERFACE" Value="116"/>
+        <opc:EnumeratedValue Name="IMM_SPECIAL_PURPOSE_SIGNALS" Value="117"/>
+        <opc:EnumeratedValue Name="IMM_REAL_TIME_ETHERNET_SYSTEM" Value="118"/>
+        <opc:EnumeratedValue Name="IMM_MACHINE_CONTROLLER" Value="119"/>
+        <opc:EnumeratedValue Name="IMM_SOFTWARE_MONITORING" Value="120"/>
+        <opc:EnumeratedValue Name="PERIPHERAL_EXTERNAL_DEVICE_INTERFACE" Value="200"/>
+        <opc:EnumeratedValue Name="PERIPHERAL_TEMPERATURE_CONTROL_UNIT" Value="201"/>
+        <opc:EnumeratedValue Name="PERIPHERAL_ROBOTICS_SYSTEM" Value="202"/>
+        <opc:EnumeratedValue Name="PERIPHERAL_LSR" Value="203"/>
+        <opc:EnumeratedValue Name="PERIPHERAL_STRIPPER_UNIT" Value="204"/>
+        <opc:EnumeratedValue Name="PERIPHERAL_DRYER" Value="205"/>
+        <opc:EnumeratedValue Name="PERIPHERAL_CONVEYOR_BELT" Value="206"/>
+        <opc:EnumeratedValue Name="PERIPHERAL_SORTER_UNIT" Value="207"/>
+        <opc:EnumeratedValue Name="PERIPHERAL_COLOURING_UNIT" Value="208"/>
+        <opc:EnumeratedValue Name="PERIPHERAL_FEEDING" Value="209"/>
+        <opc:EnumeratedValue Name="PERIPHERAL_EXTERNAL_ALARMS" Value="210"/>
+        <opc:EnumeratedValue Name="PERIPHERAL_VACUUM_CONTROL" Value="211"/>
+        <opc:EnumeratedValue Name="PERIPHERAL_PRINTER_INTERFACE" Value="212"/>
+        <opc:EnumeratedValue Name="OPERATION_QUALITY_MONITORING" Value="300"/>
+        <opc:EnumeratedValue Name="OPERATION_MANUAL_OPERATION" Value="301"/>
+        <opc:EnumeratedValue Name="OPERATION_EMERGENCY_STOP" Value="302"/>
+        <opc:EnumeratedValue Name="OPERATION_JOB_STATUS" Value="303"/>
+    </opc:EnumeratedType>
+</opc:TypeDictionary>

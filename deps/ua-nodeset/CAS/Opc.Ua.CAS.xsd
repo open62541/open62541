@@ -1,0 +1,444 @@
+<xs:schema elementFormDefault="qualified" targetNamespace="http://opcfoundation.org/UA/CAS/Types.xsd" xmlns:tns="http://opcfoundation.org/UA/CAS/Types.xsd" xmlns:ua="http://opcfoundation.org/UA/2008/02/Types.xsd" xmlns:xs="http://www.w3.org/2001/XMLSchema">
+    <xs:import namespace="http://opcfoundation.org/UA/2008/02/Types.xsd"/>
+    <xs:simpleType name="AirnetHealthStateEnum">
+        <xs:restriction base="xs:string">
+            <xs:enumeration value="OK_0"/>
+            <xs:enumeration value="Warning_1"/>
+            <xs:enumeration value="Error_2"/>
+            <xs:enumeration value="Critical_3"/>
+        </xs:restriction>
+    </xs:simpleType>
+    <xs:element type="tns:AirnetHealthStateEnum" name="AirnetHealthStateEnum"/>
+    <xs:complexType name="ListOfAirnetHealthStateEnum">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="unbounded" type="tns:AirnetHealthStateEnum" name="AirnetHealthStateEnum" nillable="true"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:ListOfAirnetHealthStateEnum" name="ListOfAirnetHealthStateEnum" nillable="true"/>
+    <xs:simpleType name="AirnetIntegratedStateEnum">
+        <xs:restriction base="xs:string">
+            <xs:enumeration value="FullyIntegrated_0"/>
+            <xs:enumeration value="PartiallyIntegrated_1"/>
+            <xs:enumeration value="FullyIsolated_2"/>
+        </xs:restriction>
+    </xs:simpleType>
+    <xs:element type="tns:AirnetIntegratedStateEnum" name="AirnetIntegratedStateEnum"/>
+    <xs:complexType name="ListOfAirnetIntegratedStateEnum">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="unbounded" type="tns:AirnetIntegratedStateEnum" name="AirnetIntegratedStateEnum" nillable="true"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:ListOfAirnetIntegratedStateEnum" name="ListOfAirnetIntegratedStateEnum" nillable="true"/>
+    <xs:simpleType name="AirnetOperatingStateEnum">
+        <xs:restriction base="xs:string">
+            <xs:enumeration value="Other_0"/>
+            <xs:enumeration value="Stopped_1"/>
+            <xs:enumeration value="Starting_2"/>
+            <xs:enumeration value="Stopping_3"/>
+            <xs:enumeration value="Operational_4"/>
+        </xs:restriction>
+    </xs:simpleType>
+    <xs:element type="tns:AirnetOperatingStateEnum" name="AirnetOperatingStateEnum"/>
+    <xs:complexType name="ListOfAirnetOperatingStateEnum">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="unbounded" type="tns:AirnetOperatingStateEnum" name="AirnetOperatingStateEnum" nillable="true"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:ListOfAirnetOperatingStateEnum" name="ListOfAirnetOperatingStateEnum" nillable="true"/>
+    <xs:simpleType name="CompressorOperatingStateEnum">
+        <xs:restriction base="xs:string">
+            <xs:enumeration value="Other_0"/>
+            <xs:enumeration value="Stopped_1"/>
+            <xs:enumeration value="Starting_2"/>
+            <xs:enumeration value="Stopping_3"/>
+            <xs:enumeration value="Unloaded_4"/>
+            <xs:enumeration value="Loading_5"/>
+            <xs:enumeration value="Unloading_6"/>
+            <xs:enumeration value="Loaded_7"/>
+        </xs:restriction>
+    </xs:simpleType>
+    <xs:element type="tns:CompressorOperatingStateEnum" name="CompressorOperatingStateEnum"/>
+    <xs:complexType name="ListOfCompressorOperatingStateEnum">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="unbounded" type="tns:CompressorOperatingStateEnum" name="CompressorOperatingStateEnum" nillable="true"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:ListOfCompressorOperatingStateEnum" name="ListOfCompressorOperatingStateEnum" nillable="true"/>
+    <xs:simpleType name="CompressorTypeEnum">
+        <xs:annotation>
+            <xs:documentation>possible compressor types</xs:documentation>
+        </xs:annotation>
+        <xs:restriction base="xs:string">
+            <xs:enumeration value="Other_0"/>
+            <xs:enumeration value="AxialTurboCompressor_1"/>
+            <xs:enumeration value="BellowsCompressor_2"/>
+            <xs:enumeration value="DiaphragmCompressor_3"/>
+            <xs:enumeration value="LiquidRingCompressor_4"/>
+            <xs:enumeration value="PistonCompressor_5"/>
+            <xs:enumeration value="RadialTurboCompressor_6"/>
+            <xs:enumeration value="RootsCompressor_7"/>
+            <xs:enumeration value="ScrewCompressor_8"/>
+            <xs:enumeration value="ScrollCompressor_9"/>
+            <xs:enumeration value="SideChannelCompressor_10"/>
+            <xs:enumeration value="StraightLobeCompressor_11"/>
+            <xs:enumeration value="VaneCompressor_12"/>
+        </xs:restriction>
+    </xs:simpleType>
+    <xs:element type="tns:CompressorTypeEnum" name="CompressorTypeEnum"/>
+    <xs:complexType name="ListOfCompressorTypeEnum">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="unbounded" type="tns:CompressorTypeEnum" name="CompressorTypeEnum" nillable="true"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:ListOfCompressorTypeEnum" name="ListOfCompressorTypeEnum" nillable="true"/>
+    <xs:simpleType name="ConverterTypeEnum">
+        <xs:annotation>
+            <xs:documentation>possible converter types</xs:documentation>
+        </xs:annotation>
+        <xs:restriction base="xs:string">
+            <xs:enumeration value="Other_0"/>
+            <xs:enumeration value="CatalyticHCConverter_1"/>
+        </xs:restriction>
+    </xs:simpleType>
+    <xs:element type="tns:ConverterTypeEnum" name="ConverterTypeEnum"/>
+    <xs:complexType name="ListOfConverterTypeEnum">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="unbounded" type="tns:ConverterTypeEnum" name="ConverterTypeEnum" nillable="true"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:ListOfConverterTypeEnum" name="ListOfConverterTypeEnum" nillable="true"/>
+    <xs:simpleType name="DisplacementTypeEnum">
+        <xs:annotation>
+            <xs:documentation>possible displacement types for a compressor</xs:documentation>
+        </xs:annotation>
+        <xs:restriction base="xs:string">
+            <xs:enumeration value="PositiveDisplacement_0"/>
+            <xs:enumeration value="DynamicDisplacement_1"/>
+        </xs:restriction>
+    </xs:simpleType>
+    <xs:element type="tns:DisplacementTypeEnum" name="DisplacementTypeEnum"/>
+    <xs:complexType name="ListOfDisplacementTypeEnum">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="unbounded" type="tns:DisplacementTypeEnum" name="DisplacementTypeEnum" nillable="true"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:ListOfDisplacementTypeEnum" name="ListOfDisplacementTypeEnum" nillable="true"/>
+    <xs:simpleType name="DrainTypeEnum">
+        <xs:annotation>
+            <xs:documentation>possible condensate drain types</xs:documentation>
+        </xs:annotation>
+        <xs:restriction base="xs:string">
+            <xs:enumeration value="Other_0"/>
+            <xs:enumeration value="CapacitiveDrain_1"/>
+            <xs:enumeration value="LevelControlledDrain_2"/>
+            <xs:enumeration value="TimedDrain_3"/>
+        </xs:restriction>
+    </xs:simpleType>
+    <xs:element type="tns:DrainTypeEnum" name="DrainTypeEnum"/>
+    <xs:complexType name="ListOfDrainTypeEnum">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="unbounded" type="tns:DrainTypeEnum" name="DrainTypeEnum" nillable="true"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:ListOfDrainTypeEnum" name="ListOfDrainTypeEnum" nillable="true"/>
+    <xs:simpleType name="DryerOperatingStateEnum">
+        <xs:restriction base="xs:string">
+            <xs:enumeration value="Other_0"/>
+            <xs:enumeration value="Stopped_1"/>
+            <xs:enumeration value="Running_2"/>
+            <xs:enumeration value="RefrigerantCompressorStopped_3"/>
+            <xs:enumeration value="RefrigerantCompressorRunning_4"/>
+            <xs:enumeration value="PurgeValveClosed_5"/>
+            <xs:enumeration value="PurgeValveOpen_6"/>
+            <xs:enumeration value="ParallelModeOfBothVessels_7"/>
+            <xs:enumeration value="Depressurizing_8"/>
+            <xs:enumeration value="Desorbing_9"/>
+            <xs:enumeration value="Cooling_10"/>
+            <xs:enumeration value="Pressurizing_11"/>
+            <xs:enumeration value="RegeneratedVesselInStand-by_12"/>
+        </xs:restriction>
+    </xs:simpleType>
+    <xs:element type="tns:DryerOperatingStateEnum" name="DryerOperatingStateEnum"/>
+    <xs:complexType name="ListOfDryerOperatingStateEnum">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="unbounded" type="tns:DryerOperatingStateEnum" name="DryerOperatingStateEnum" nillable="true"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:ListOfDryerOperatingStateEnum" name="ListOfDryerOperatingStateEnum" nillable="true"/>
+    <xs:simpleType name="DryerTypeEnum">
+        <xs:annotation>
+            <xs:documentation>possible dryer types</xs:documentation>
+        </xs:annotation>
+        <xs:restriction base="xs:string">
+            <xs:enumeration value="Other_0"/>
+            <xs:enumeration value="AbsorptionDryer_1"/>
+            <xs:enumeration value="AdsorptionDryer_2"/>
+            <xs:enumeration value="MembraneDryer_3"/>
+            <xs:enumeration value="RefrigerationDryer_4"/>
+        </xs:restriction>
+    </xs:simpleType>
+    <xs:element type="tns:DryerTypeEnum" name="DryerTypeEnum"/>
+    <xs:complexType name="ListOfDryerTypeEnum">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="unbounded" type="tns:DryerTypeEnum" name="DryerTypeEnum" nillable="true"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:ListOfDryerTypeEnum" name="ListOfDryerTypeEnum" nillable="true"/>
+    <xs:simpleType name="FilterClassEnum">
+        <xs:annotation>
+            <xs:documentation>possible filter classes according to ISO 8573-1</xs:documentation>
+        </xs:annotation>
+        <xs:restriction base="xs:string">
+            <xs:enumeration value="0_0"/>
+            <xs:enumeration value="1_1"/>
+            <xs:enumeration value="2_2"/>
+            <xs:enumeration value="3_3"/>
+            <xs:enumeration value="4_4"/>
+            <xs:enumeration value="5_5"/>
+            <xs:enumeration value="6_6"/>
+            <xs:enumeration value="7_7"/>
+            <xs:enumeration value="8_8"/>
+            <xs:enumeration value="9_9"/>
+            <xs:enumeration value="X_10"/>
+        </xs:restriction>
+    </xs:simpleType>
+    <xs:element type="tns:FilterClassEnum" name="FilterClassEnum"/>
+    <xs:complexType name="ListOfFilterClassEnum">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="unbounded" type="tns:FilterClassEnum" name="FilterClassEnum" nillable="true"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:ListOfFilterClassEnum" name="ListOfFilterClassEnum" nillable="true"/>
+    <xs:simpleType name="FilterTypeEnum">
+        <xs:annotation>
+            <xs:documentation>possible filter types</xs:documentation>
+        </xs:annotation>
+        <xs:restriction base="xs:string">
+            <xs:enumeration value="Other_0"/>
+            <xs:enumeration value="ActivatedCarbonFilter_1"/>
+            <xs:enumeration value="AdsorptionFilter_2"/>
+            <xs:enumeration value="CoalescingFilter_3"/>
+            <xs:enumeration value="ParticulateFilter_4"/>
+            <xs:enumeration value="FabricFilter_5"/>
+            <xs:enumeration value="SterileFilter_6"/>
+        </xs:restriction>
+    </xs:simpleType>
+    <xs:element type="tns:FilterTypeEnum" name="FilterTypeEnum"/>
+    <xs:complexType name="ListOfFilterTypeEnum">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="unbounded" type="tns:FilterTypeEnum" name="FilterTypeEnum" nillable="true"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:ListOfFilterTypeEnum" name="ListOfFilterTypeEnum" nillable="true"/>
+    <xs:simpleType name="FluidTypeEnum">
+        <xs:annotation>
+            <xs:documentation>possible process fluid types</xs:documentation>
+        </xs:annotation>
+        <xs:restriction base="xs:string">
+            <xs:enumeration value="Air_0"/>
+            <xs:enumeration value="Condensate_1"/>
+            <xs:enumeration value="Oil_2"/>
+            <xs:enumeration value="Water_3"/>
+        </xs:restriction>
+    </xs:simpleType>
+    <xs:element type="tns:FluidTypeEnum" name="FluidTypeEnum"/>
+    <xs:complexType name="ListOfFluidTypeEnum">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="unbounded" type="tns:FluidTypeEnum" name="FluidTypeEnum" nillable="true"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:ListOfFluidTypeEnum" name="ListOfFluidTypeEnum" nillable="true"/>
+    <xs:simpleType name="HealthStateEnum">
+        <xs:restriction base="xs:string">
+            <xs:enumeration value="OK_0"/>
+            <xs:enumeration value="Warning_1"/>
+            <xs:enumeration value="Error_2"/>
+            <xs:enumeration value="Critical_3"/>
+        </xs:restriction>
+    </xs:simpleType>
+    <xs:element type="tns:HealthStateEnum" name="HealthStateEnum"/>
+    <xs:complexType name="ListOfHealthStateEnum">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="unbounded" type="tns:HealthStateEnum" name="HealthStateEnum" nillable="true"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:ListOfHealthStateEnum" name="ListOfHealthStateEnum" nillable="true"/>
+    <xs:simpleType name="IntegratedStateEnum">
+        <xs:restriction base="xs:string">
+            <xs:enumeration value="FullyIntegrated_0"/>
+            <xs:enumeration value="PartiallyIntegrated_1"/>
+            <xs:enumeration value="FullyIsolated_2"/>
+        </xs:restriction>
+    </xs:simpleType>
+    <xs:element type="tns:IntegratedStateEnum" name="IntegratedStateEnum"/>
+    <xs:complexType name="ListOfIntegratedStateEnum">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="unbounded" type="tns:IntegratedStateEnum" name="IntegratedStateEnum" nillable="true"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:ListOfIntegratedStateEnum" name="ListOfIntegratedStateEnum" nillable="true"/>
+    <xs:simpleType name="IpVersionEnum">
+        <xs:restriction base="xs:string">
+            <xs:enumeration value="IPv4_0"/>
+            <xs:enumeration value="IPv6_1"/>
+        </xs:restriction>
+    </xs:simpleType>
+    <xs:element type="tns:IpVersionEnum" name="IpVersionEnum"/>
+    <xs:complexType name="ListOfIpVersionEnum">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="unbounded" type="tns:IpVersionEnum" name="IpVersionEnum" nillable="true"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:ListOfIpVersionEnum" name="ListOfIpVersionEnum" nillable="true"/>
+    <xs:simpleType name="LubricationTypeEnum">
+        <xs:annotation>
+            <xs:documentation>possible lubrication types for the compression process of a compressor</xs:documentation>
+        </xs:annotation>
+        <xs:restriction base="xs:string">
+            <xs:enumeration value="NoLubrication_0"/>
+            <xs:enumeration value="OilLubricated_1"/>
+            <xs:enumeration value="WaterLubricated_2"/>
+        </xs:restriction>
+    </xs:simpleType>
+    <xs:element type="tns:LubricationTypeEnum" name="LubricationTypeEnum"/>
+    <xs:complexType name="ListOfLubricationTypeEnum">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="unbounded" type="tns:LubricationTypeEnum" name="LubricationTypeEnum" nillable="true"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:ListOfLubricationTypeEnum" name="ListOfLubricationTypeEnum" nillable="true"/>
+    <xs:simpleType name="OperatingStateEnum">
+        <xs:restriction base="xs:string">
+            <xs:enumeration value="Other_0"/>
+            <xs:enumeration value="Stopped_1"/>
+            <xs:enumeration value="Starting_2"/>
+            <xs:enumeration value="Stopping_3"/>
+            <xs:enumeration value="Operational_4"/>
+        </xs:restriction>
+    </xs:simpleType>
+    <xs:element type="tns:OperatingStateEnum" name="OperatingStateEnum"/>
+    <xs:complexType name="ListOfOperatingStateEnum">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="unbounded" type="tns:OperatingStateEnum" name="OperatingStateEnum" nillable="true"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:ListOfOperatingStateEnum" name="ListOfOperatingStateEnum" nillable="true"/>
+    <xs:simpleType name="ReceiverTypeEnum">
+        <xs:annotation>
+            <xs:documentation>possible receiver types</xs:documentation>
+        </xs:annotation>
+        <xs:restriction base="xs:string">
+            <xs:enumeration value="Other_0"/>
+            <xs:enumeration value="DryReceiver_1"/>
+            <xs:enumeration value="WetReceiver_2"/>
+        </xs:restriction>
+    </xs:simpleType>
+    <xs:element type="tns:ReceiverTypeEnum" name="ReceiverTypeEnum"/>
+    <xs:complexType name="ListOfReceiverTypeEnum">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="unbounded" type="tns:ReceiverTypeEnum" name="ReceiverTypeEnum" nillable="true"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:ListOfReceiverTypeEnum" name="ListOfReceiverTypeEnum" nillable="true"/>
+    <xs:simpleType name="SensorTypeEnum">
+        <xs:annotation>
+            <xs:documentation>possible sensor types</xs:documentation>
+        </xs:annotation>
+        <xs:restriction base="xs:string">
+            <xs:enumeration value="Other_0"/>
+            <xs:enumeration value="Ammeter_1"/>
+            <xs:enumeration value="DewPointSensor_2"/>
+            <xs:enumeration value="FlowRateSensor_3"/>
+            <xs:enumeration value="FlowSpeedSensor_4"/>
+            <xs:enumeration value="HumiditySensor_5"/>
+            <xs:enumeration value="OilConcentrationSensor_6"/>
+            <xs:enumeration value="ParticleCounter_7"/>
+            <xs:enumeration value="PressureSensor_8"/>
+            <xs:enumeration value="TemperatureSensor_9"/>
+            <xs:enumeration value="Voltmeter_10"/>
+            <xs:enumeration value="VolumeSensor_11"/>
+            <xs:enumeration value="Wattmeter_12"/>
+        </xs:restriction>
+    </xs:simpleType>
+    <xs:element type="tns:SensorTypeEnum" name="SensorTypeEnum"/>
+    <xs:complexType name="ListOfSensorTypeEnum">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="unbounded" type="tns:SensorTypeEnum" name="SensorTypeEnum" nillable="true"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:ListOfSensorTypeEnum" name="ListOfSensorTypeEnum" nillable="true"/>
+    <xs:simpleType name="SeparatorTypeEnum">
+        <xs:annotation>
+            <xs:documentation>possible condensate separator types</xs:documentation>
+        </xs:annotation>
+        <xs:restriction base="xs:string">
+            <xs:enumeration value="Other_0"/>
+            <xs:enumeration value="CentrifugalOilyWaterSeparator_1"/>
+            <xs:enumeration value="EmulsionSplittingSeparator_2"/>
+            <xs:enumeration value="FlotationSeparator_3"/>
+            <xs:enumeration value="GravityPlateSeparator_4"/>
+            <xs:enumeration value="HydrocycloneOilyWaterSeparator_5"/>
+        </xs:restriction>
+    </xs:simpleType>
+    <xs:element type="tns:SeparatorTypeEnum" name="SeparatorTypeEnum"/>
+    <xs:complexType name="ListOfSeparatorTypeEnum">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="unbounded" type="tns:SeparatorTypeEnum" name="SeparatorTypeEnum" nillable="true"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:ListOfSeparatorTypeEnum" name="ListOfSeparatorTypeEnum" nillable="true"/>
+    <xs:simpleType name="ValveTypeEnum">
+        <xs:annotation>
+            <xs:documentation>possible valve types</xs:documentation>
+        </xs:annotation>
+        <xs:restriction base="xs:string">
+            <xs:enumeration value="Other_0"/>
+            <xs:enumeration value="CheckValve_1"/>
+            <xs:enumeration value="ContinuousValve_2"/>
+            <xs:enumeration value="FlowControlValve_3"/>
+            <xs:enumeration value="PressureValve_4"/>
+            <xs:enumeration value="SwitchingValve_5"/>
+        </xs:restriction>
+    </xs:simpleType>
+    <xs:element type="tns:ValveTypeEnum" name="ValveTypeEnum"/>
+    <xs:complexType name="ListOfValveTypeEnum">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="unbounded" type="tns:ValveTypeEnum" name="ValveTypeEnum" nillable="true"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:ListOfValveTypeEnum" name="ListOfValveTypeEnum" nillable="true"/>
+    <xs:complexType name="FilterClassDataType">
+        <xs:annotation>
+            <xs:documentation>information about the used filter class according to ISO 8573-1 of a filter</xs:documentation>
+        </xs:annotation>
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="1" type="tns:FilterClassEnum" name="A"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="tns:FilterClassEnum" name="B"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="tns:FilterClassEnum" name="C"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:FilterClassDataType" name="FilterClassDataType"/>
+    <xs:complexType name="ListOfFilterClassDataType">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="unbounded" type="tns:FilterClassDataType" name="FilterClassDataType" nillable="true"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:ListOfFilterClassDataType" name="ListOfFilterClassDataType" nillable="true"/>
+    <xs:complexType name="SensorTechnologyOptionSet">
+        <xs:annotation>
+            <xs:documentation>flags for the used sensor technologies for a sensor</xs:documentation>
+        </xs:annotation>
+        <xs:complexContent mixed="false">
+            <xs:extension base="ua:OptionSet">
+                <xs:sequence/>
+            </xs:extension>
+        </xs:complexContent>
+    </xs:complexType>
+    <xs:element type="tns:SensorTechnologyOptionSet" name="SensorTechnologyOptionSet"/>
+    <xs:complexType name="ListOfSensorTechnologyOptionSet">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="unbounded" type="tns:SensorTechnologyOptionSet" name="SensorTechnologyOptionSet" nillable="true"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:ListOfSensorTechnologyOptionSet" name="ListOfSensorTechnologyOptionSet" nillable="true"/>
+</xs:schema>

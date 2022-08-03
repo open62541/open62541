@@ -1,0 +1,327 @@
+<xs:schema elementFormDefault="qualified" targetNamespace="http://opcfoundation.org/UA/PROFINET/Types.xsd" xmlns:tns="http://opcfoundation.org/UA/PROFINET/Types.xsd" xmlns:ua="http://opcfoundation.org/UA/2008/02/Types.xsd" xmlns:xs="http://www.w3.org/2001/XMLSchema">
+    <xs:import namespace="http://opcfoundation.org/UA/2008/02/Types.xsd"/>
+    <xs:simpleType name="IMTagSelectorEnumeration">
+        <xs:restriction base="xs:string">
+            <xs:enumeration value="FUNCTION_0"/>
+            <xs:enumeration value="LOCATION_1"/>
+            <xs:enumeration value="BOTH_2"/>
+        </xs:restriction>
+    </xs:simpleType>
+    <xs:element type="tns:IMTagSelectorEnumeration" name="IMTagSelectorEnumeration"/>
+    <xs:complexType name="ListOfIMTagSelectorEnumeration">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="unbounded" type="tns:IMTagSelectorEnumeration" name="IMTagSelectorEnumeration" nillable="true"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:ListOfIMTagSelectorEnumeration" name="ListOfIMTagSelectorEnumeration" nillable="true"/>
+    <xs:simpleType name="PnARStateEnumeration">
+        <xs:restriction base="xs:string">
+            <xs:enumeration value="CONNECTED_0"/>
+            <xs:enumeration value="UNCONNECTED_1"/>
+            <xs:enumeration value="UNCONNECTED_ERR_DEVICE_NOT_FOUND_2"/>
+            <xs:enumeration value="UNCONNECTED_ERR_DUPLICATE_IP_3"/>
+            <xs:enumeration value="UNCONNECTED_ERR_DUPLICATE_NOS_4"/>
+        </xs:restriction>
+    </xs:simpleType>
+    <xs:element type="tns:PnARStateEnumeration" name="PnARStateEnumeration"/>
+    <xs:complexType name="ListOfPnARStateEnumeration">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="unbounded" type="tns:PnARStateEnumeration" name="PnARStateEnumeration" nillable="true"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:ListOfPnARStateEnumeration" name="ListOfPnARStateEnumeration" nillable="true"/>
+    <xs:simpleType name="PnARTypeEnumeration">
+        <xs:restriction base="xs:string">
+            <xs:enumeration value="IOCARSingle_0"/>
+            <xs:enumeration value="IOSAR_6"/>
+            <xs:enumeration value="IOCARSingleUsingRT_CLASS_3_16"/>
+            <xs:enumeration value="IOCARSR_32"/>
+        </xs:restriction>
+    </xs:simpleType>
+    <xs:element type="tns:PnARTypeEnumeration" name="PnARTypeEnumeration"/>
+    <xs:complexType name="ListOfPnARTypeEnumeration">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="unbounded" type="tns:PnARTypeEnumeration" name="PnARTypeEnumeration" nillable="true"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:ListOfPnARTypeEnumeration" name="ListOfPnARTypeEnumeration" nillable="true"/>
+    <xs:simpleType name="PnAssetChangeEnumeration">
+        <xs:restriction base="xs:string">
+            <xs:enumeration value="INSERTED_0"/>
+            <xs:enumeration value="REMOVED_1"/>
+            <xs:enumeration value="CHANGED_2"/>
+        </xs:restriction>
+    </xs:simpleType>
+    <xs:element type="tns:PnAssetChangeEnumeration" name="PnAssetChangeEnumeration"/>
+    <xs:complexType name="ListOfPnAssetChangeEnumeration">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="unbounded" type="tns:PnAssetChangeEnumeration" name="PnAssetChangeEnumeration" nillable="true"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:ListOfPnAssetChangeEnumeration" name="ListOfPnAssetChangeEnumeration" nillable="true"/>
+    <xs:simpleType name="PnAssetTypeEnumeration">
+        <xs:restriction base="xs:string">
+            <xs:enumeration value="DEVICE_0"/>
+            <xs:enumeration value="MODULE_1"/>
+            <xs:enumeration value="SUBMODULE_2"/>
+            <xs:enumeration value="ASSET_3"/>
+        </xs:restriction>
+    </xs:simpleType>
+    <xs:element type="tns:PnAssetTypeEnumeration" name="PnAssetTypeEnumeration"/>
+    <xs:complexType name="ListOfPnAssetTypeEnumeration">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="unbounded" type="tns:PnAssetTypeEnumeration" name="PnAssetTypeEnumeration" nillable="true"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:ListOfPnAssetTypeEnumeration" name="ListOfPnAssetTypeEnumeration" nillable="true"/>
+    <xs:simpleType name="PnChannelAccumulativeEnumeration">
+        <xs:restriction base="xs:string">
+            <xs:enumeration value="SINGLE_0"/>
+            <xs:enumeration value="ACCUMULATIVE_256"/>
+        </xs:restriction>
+    </xs:simpleType>
+    <xs:element type="tns:PnChannelAccumulativeEnumeration" name="PnChannelAccumulativeEnumeration"/>
+    <xs:complexType name="ListOfPnChannelAccumulativeEnumeration">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="unbounded" type="tns:PnChannelAccumulativeEnumeration" name="PnChannelAccumulativeEnumeration" nillable="true"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:ListOfPnChannelAccumulativeEnumeration" name="ListOfPnChannelAccumulativeEnumeration" nillable="true"/>
+    <xs:simpleType name="PnChannelDirectionEnumeration">
+        <xs:restriction base="xs:string">
+            <xs:enumeration value="MANUFACTURER_SPECIFIC_0"/>
+            <xs:enumeration value="INPUT_CHANNEL_8192"/>
+            <xs:enumeration value="OUTPUT_CHANNEL_16384"/>
+            <xs:enumeration value="BIDIRECTIONAL_CHANNEL_24576"/>
+        </xs:restriction>
+    </xs:simpleType>
+    <xs:element type="tns:PnChannelDirectionEnumeration" name="PnChannelDirectionEnumeration"/>
+    <xs:complexType name="ListOfPnChannelDirectionEnumeration">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="unbounded" type="tns:PnChannelDirectionEnumeration" name="PnChannelDirectionEnumeration" nillable="true"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:ListOfPnChannelDirectionEnumeration" name="ListOfPnChannelDirectionEnumeration" nillable="true"/>
+    <xs:simpleType name="PnChannelMaintenanceEnumeration">
+        <xs:restriction base="xs:string">
+            <xs:enumeration value="FAULT_0"/>
+            <xs:enumeration value="MAINTENANCE_REQUIRED_512"/>
+            <xs:enumeration value="MAINTENANCE_DEMANDED_1024"/>
+            <xs:enumeration value="USE_QUALIFIED_CHANNEL_QUALIFIER_1536"/>
+        </xs:restriction>
+    </xs:simpleType>
+    <xs:element type="tns:PnChannelMaintenanceEnumeration" name="PnChannelMaintenanceEnumeration"/>
+    <xs:complexType name="ListOfPnChannelMaintenanceEnumeration">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="unbounded" type="tns:PnChannelMaintenanceEnumeration" name="PnChannelMaintenanceEnumeration" nillable="true"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:ListOfPnChannelMaintenanceEnumeration" name="ListOfPnChannelMaintenanceEnumeration" nillable="true"/>
+    <xs:simpleType name="PnChannelSpecifierEnumeration">
+        <xs:restriction base="xs:string">
+            <xs:enumeration value="ALL_DISAPPEARS_0"/>
+            <xs:enumeration value="APPEARS_2048"/>
+            <xs:enumeration value="DISAPPEARS_4096"/>
+            <xs:enumeration value="DISAPPEARS_OTHER_REMAIN_6144"/>
+        </xs:restriction>
+    </xs:simpleType>
+    <xs:element type="tns:PnChannelSpecifierEnumeration" name="PnChannelSpecifierEnumeration"/>
+    <xs:complexType name="ListOfPnChannelSpecifierEnumeration">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="unbounded" type="tns:PnChannelSpecifierEnumeration" name="PnChannelSpecifierEnumeration" nillable="true"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:ListOfPnChannelSpecifierEnumeration" name="ListOfPnChannelSpecifierEnumeration" nillable="true"/>
+    <xs:simpleType name="PnChannelTypeEnumeration">
+        <xs:restriction base="xs:string">
+            <xs:enumeration value="UNSPECIFIC_0"/>
+            <xs:enumeration value="1BIT_1"/>
+            <xs:enumeration value="2BIT_2"/>
+            <xs:enumeration value="4BIT_3"/>
+            <xs:enumeration value="8BIT_4"/>
+            <xs:enumeration value="16BIT_5"/>
+            <xs:enumeration value="32BIT_6"/>
+            <xs:enumeration value="64BIT_7"/>
+        </xs:restriction>
+    </xs:simpleType>
+    <xs:element type="tns:PnChannelTypeEnumeration" name="PnChannelTypeEnumeration"/>
+    <xs:complexType name="ListOfPnChannelTypeEnumeration">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="unbounded" type="tns:PnChannelTypeEnumeration" name="PnChannelTypeEnumeration" nillable="true"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:ListOfPnChannelTypeEnumeration" name="ListOfPnChannelTypeEnumeration" nillable="true"/>
+    <xs:simpleType name="PnDeviceStateEnumeration">
+        <xs:restriction base="xs:string">
+            <xs:enumeration value="OFFLINE_0"/>
+            <xs:enumeration value="OFFLINE_DOCKING_1"/>
+            <xs:enumeration value="ONLINE_2"/>
+            <xs:enumeration value="ONLINE_DOCKING_3"/>
+        </xs:restriction>
+    </xs:simpleType>
+    <xs:element type="tns:PnDeviceStateEnumeration" name="PnDeviceStateEnumeration"/>
+    <xs:complexType name="ListOfPnDeviceStateEnumeration">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="unbounded" type="tns:PnDeviceStateEnumeration" name="PnDeviceStateEnumeration" nillable="true"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:ListOfPnDeviceStateEnumeration" name="ListOfPnDeviceStateEnumeration" nillable="true"/>
+    <xs:simpleType name="PnLinkStateEnumeration">
+        <xs:restriction base="xs:string">
+            <xs:enumeration value="UP_1"/>
+            <xs:enumeration value="DOWN_2"/>
+            <xs:enumeration value="TESTING_3"/>
+            <xs:enumeration value="UNKNOWN_4"/>
+            <xs:enumeration value="DORMANT_5"/>
+            <xs:enumeration value="NOT_PRESENT_6"/>
+            <xs:enumeration value="LOWER_LAYER_DOWN_7"/>
+        </xs:restriction>
+    </xs:simpleType>
+    <xs:element type="tns:PnLinkStateEnumeration" name="PnLinkStateEnumeration"/>
+    <xs:complexType name="ListOfPnLinkStateEnumeration">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="unbounded" type="tns:PnLinkStateEnumeration" name="PnLinkStateEnumeration" nillable="true"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:ListOfPnLinkStateEnumeration" name="ListOfPnLinkStateEnumeration" nillable="true"/>
+    <xs:simpleType name="PnModuleStateEnumeration">
+        <xs:restriction base="xs:string">
+            <xs:enumeration value="NO_MODULE_0"/>
+            <xs:enumeration value="WRONG_MODULE_1"/>
+            <xs:enumeration value="PROPER_MODULE_2"/>
+            <xs:enumeration value="SUBSTITUTE_3"/>
+            <xs:enumeration value="OK_4"/>
+        </xs:restriction>
+    </xs:simpleType>
+    <xs:element type="tns:PnModuleStateEnumeration" name="PnModuleStateEnumeration"/>
+    <xs:complexType name="ListOfPnModuleStateEnumeration">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="unbounded" type="tns:PnModuleStateEnumeration" name="PnModuleStateEnumeration" nillable="true"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:ListOfPnModuleStateEnumeration" name="ListOfPnModuleStateEnumeration" nillable="true"/>
+    <xs:simpleType name="PnPortStateEnumeration">
+        <xs:restriction base="xs:string">
+            <xs:enumeration value="UNKNOWN_0"/>
+            <xs:enumeration value="DISABLED_DISCARDING_1"/>
+            <xs:enumeration value="BLOCKING_2"/>
+            <xs:enumeration value="LISTENING_3"/>
+            <xs:enumeration value="LEARNING_4"/>
+            <xs:enumeration value="FORWARDING_5"/>
+            <xs:enumeration value="BROKEN_6"/>
+        </xs:restriction>
+    </xs:simpleType>
+    <xs:element type="tns:PnPortStateEnumeration" name="PnPortStateEnumeration"/>
+    <xs:complexType name="ListOfPnPortStateEnumeration">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="unbounded" type="tns:PnPortStateEnumeration" name="PnPortStateEnumeration" nillable="true"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:ListOfPnPortStateEnumeration" name="ListOfPnPortStateEnumeration" nillable="true"/>
+    <xs:simpleType name="PnSubmoduleAddInfoEnumeration">
+        <xs:restriction base="xs:string">
+            <xs:enumeration value="NO_ADD_INFO_0"/>
+            <xs:enumeration value="TAKEOVER_NOT_ALLOWED_1"/>
+        </xs:restriction>
+    </xs:simpleType>
+    <xs:element type="tns:PnSubmoduleAddInfoEnumeration" name="PnSubmoduleAddInfoEnumeration"/>
+    <xs:complexType name="ListOfPnSubmoduleAddInfoEnumeration">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="unbounded" type="tns:PnSubmoduleAddInfoEnumeration" name="PnSubmoduleAddInfoEnumeration" nillable="true"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:ListOfPnSubmoduleAddInfoEnumeration" name="ListOfPnSubmoduleAddInfoEnumeration" nillable="true"/>
+    <xs:simpleType name="PnSubmoduleARInfoEnumeration">
+        <xs:restriction base="xs:string">
+            <xs:enumeration value="OWN_0"/>
+            <xs:enumeration value="APPLICATION_READY_PENDING_128"/>
+            <xs:enumeration value="SUPERORDINATED_LOCKED_256"/>
+            <xs:enumeration value="LOCKED_BY_IO_CONTROLLER_384"/>
+            <xs:enumeration value="LOCKED_BY_IO_SUPERVISOR_512"/>
+        </xs:restriction>
+    </xs:simpleType>
+    <xs:element type="tns:PnSubmoduleARInfoEnumeration" name="PnSubmoduleARInfoEnumeration"/>
+    <xs:complexType name="ListOfPnSubmoduleARInfoEnumeration">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="unbounded" type="tns:PnSubmoduleARInfoEnumeration" name="PnSubmoduleARInfoEnumeration" nillable="true"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:ListOfPnSubmoduleARInfoEnumeration" name="ListOfPnSubmoduleARInfoEnumeration" nillable="true"/>
+    <xs:simpleType name="PnSubmoduleIdentInfoEnumeration">
+        <xs:restriction base="xs:string">
+            <xs:enumeration value="OK_0"/>
+            <xs:enumeration value="SUBSTITUTE_2048"/>
+            <xs:enumeration value="WRONG_4096"/>
+            <xs:enumeration value="NO_SUBMODULE_6144"/>
+        </xs:restriction>
+    </xs:simpleType>
+    <xs:element type="tns:PnSubmoduleIdentInfoEnumeration" name="PnSubmoduleIdentInfoEnumeration"/>
+    <xs:complexType name="ListOfPnSubmoduleIdentInfoEnumeration">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="unbounded" type="tns:PnSubmoduleIdentInfoEnumeration" name="PnSubmoduleIdentInfoEnumeration" nillable="true"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:ListOfPnSubmoduleIdentInfoEnumeration" name="ListOfPnSubmoduleIdentInfoEnumeration" nillable="true"/>
+    <xs:complexType name="PnDeviceRoleOptionSet">
+        <xs:complexContent mixed="false">
+            <xs:extension base="ua:OptionSet">
+                <xs:sequence/>
+            </xs:extension>
+        </xs:complexContent>
+    </xs:complexType>
+    <xs:element type="tns:PnDeviceRoleOptionSet" name="PnDeviceRoleOptionSet"/>
+    <xs:complexType name="ListOfPnDeviceRoleOptionSet">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="unbounded" type="tns:PnDeviceRoleOptionSet" name="PnDeviceRoleOptionSet" nillable="true"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:ListOfPnDeviceRoleOptionSet" name="ListOfPnDeviceRoleOptionSet" nillable="true"/>
+    <xs:complexType name="PnDeviceDiagnosisDataType">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="1" type="xs:unsignedInt" name="API"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="xs:unsignedShort" name="Slot"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="xs:unsignedShort" name="Subslot"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="xs:unsignedShort" name="ChannelNumber"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="tns:PnChannelTypeEnumeration" name="Type"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="tns:PnChannelAccumulativeEnumeration" name="Accumulative"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="tns:PnChannelMaintenanceEnumeration" name="Maintenance"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="tns:PnChannelSpecifierEnumeration" name="Specifier"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="tns:PnChannelDirectionEnumeration" name="Direction"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="xs:unsignedShort" name="UserStructureIdentifier"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="xs:unsignedShort" name="ChannelErrorType"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="xs:unsignedShort" name="ExtChannelErrorType"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="xs:unsignedInt" name="ExtChannelAddValue"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="xs:unsignedInt" name="QualifiedChannelQualifier"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="xs:base64Binary" name="ManufacturerData"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="ua:LocalizedText" name="Message"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="ua:LocalizedText" name="HelpText"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:PnDeviceDiagnosisDataType" name="PnDeviceDiagnosisDataType"/>
+    <xs:complexType name="ListOfPnDeviceDiagnosisDataType">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="unbounded" type="tns:PnDeviceDiagnosisDataType" name="PnDeviceDiagnosisDataType" nillable="true"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:ListOfPnDeviceDiagnosisDataType" name="ListOfPnDeviceDiagnosisDataType" nillable="true"/>
+    <xs:complexType name="PnIM5DataType">
+        <xs:annotation>
+            <xs:documentation>Contains the fields of the APDU element I&amp;M5 | I&amp;M5Data</xs:documentation>
+        </xs:annotation>
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="1" type="xs:string" name="Annotation"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="xs:string" name="OrderId"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="xs:unsignedShort" name="VendorId"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="xs:string" name="SerialNumber"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="xs:string" name="HardwareRevision"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="xs:string" name="SoftwareRevision"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:PnIM5DataType" name="PnIM5DataType"/>
+    <xs:complexType name="ListOfPnIM5DataType">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="unbounded" type="tns:PnIM5DataType" name="PnIM5DataType" nillable="true"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:ListOfPnIM5DataType" name="ListOfPnIM5DataType" nillable="true"/>
+</xs:schema>

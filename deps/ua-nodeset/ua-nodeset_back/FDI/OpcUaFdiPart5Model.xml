@@ -1,0 +1,341 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<!--
+ * Copyright (c) 2005-2020 The OPC Foundation, Inc. All rights reserved.
+ *
+ * OPC Foundation MIT License 1.00
+ * 
+ * Permission is hereby granted, free of charge, to any person
+ * obtaining a copy of this software and associated documentation
+ * files (the "Software"), to deal in the Software without
+ * restriction, including without limitation the rights to use,
+ * copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the
+ * Software is furnished to do so, subject to the following
+ * conditions:
+ * 
+ * The above copyright notice and this permission notice shall be
+ * included in all copies or substantial portions of the Software.
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+ * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
+ * OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+ * NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
+ * HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+ * WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+ * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+ * OTHER DEALINGS IN THE SOFTWARE.
+ *
+ * The complete license agreement can be found here:
+ * http://opcfoundation.org/License/MIT/1.00/
+-->
+
+<ModelDesign
+  xmlns="http://opcfoundation.org/UA/ModelDesign.xsd"
+  xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xmlns:ua="http://opcfoundation.org/UA/"
+  xmlns:DI="http://opcfoundation.org/UA/DI/"
+  xmlns:FDI="http://fdi-cooperation.com/OPCUA/FDI5/"
+  xmlns:xsd="http://www.w3.org/2001/XMLSchema"
+  TargetNamespace="http://fdi-cooperation.com/OPCUA/FDI5/"
+  TargetXmlNamespace="http://fdi-cooperation.com/OPCUA/FDI5/"
+  TargetVersion="1.1"
+  TargetPublicationDate="2017-07-14T00:00:00Z"
+>
+  <Namespaces>
+    <Namespace Name="OpcUaFdi5" Prefix="Opc.Ua.Fdi5" XmlNamespace="http://fdi-cooperation.com/OPCUA/FDI5/Types.xsd" XmlPrefix="FDI5">http://fdi-cooperation.com/OPCUA/FDI5/</Namespace>
+    <Namespace Name="OpcUaDi" Version="1.02" PublicationDate="2019-05-01T00:00:00Z" Prefix="Opc.Ua.Di" XmlNamespace="http://opcfoundation.org/UA/DI/Types.xsd" XmlPrefix="DI" FilePath="OpcUaDiModel">http://opcfoundation.org/UA/DI/</Namespace>
+    <Namespace Name="OpcUa" Version="1.04.3" PublicationDate="2019-09-09T00:00:00Z" Prefix="Opc.Ua" InternalPrefix="Opc.Ua.Server" XmlNamespace="http://opcfoundation.org/UA/2008/02/Types.xsd" XmlPrefix="OpcUa">http://opcfoundation.org/UA/</Namespace>
+  </Namespaces>
+
+  <Object SymbolicName="FDI:OpcUaFdi5NamespaceMetadata" TypeDefinition="ua:NamespaceMetadataType">
+    <BrowseName>http://fdi-cooperation.com/OPCUA/FDI5/</BrowseName>
+    <Children>
+      <Property SymbolicName="ua:NamespaceUri" DataType="ua:String">
+        <DefaultValue>
+          <uax:String>http://fdi-cooperation.com/OPCUA/FDI5/</uax:String>
+        </DefaultValue>
+      </Property>
+      <Property SymbolicName="ua:NamespaceVersion" DataType="ua:String">
+        <DefaultValue>
+          <uax:String>1.1</uax:String>
+        </DefaultValue>
+      </Property>
+      <Property SymbolicName="ua:NamespacePublicationDate" DataType="ua:DateTime">
+        <DefaultValue>
+          <uax:DateTime>2017-07-14T00:00:00Z</uax:DateTime>
+        </DefaultValue>
+      </Property>
+      <Property SymbolicName="ua:IsNamespaceSubset" DataType="ua:Boolean">
+        <DefaultValue>
+          <uax:Boolean>false</uax:Boolean>
+        </DefaultValue>
+      </Property>
+      <Property SymbolicName="ua:StaticNodeIdTypes" DataType="ua:IdType" ValueRank="Array">
+        <DefaultValue>
+          <uax:ListOfInt32>
+            <uax:Int32>0</uax:Int32>
+          </uax:ListOfInt32>
+        </DefaultValue>
+      </Property>
+      <Property SymbolicName="ua:StaticNumericNodeIdRange" DataType="ua:NumericRange" ValueRank="Array">
+        <DefaultValue>
+          <uax:ListOfString>
+            <uax:String>1:65535</uax:String>
+          </uax:ListOfString>
+        </DefaultValue>
+      </Property>
+      <Property SymbolicName="ua:StaticStringNodeIdPattern" DataType="ua:String">
+        <DefaultValue>
+          <uax:String></uax:String>
+        </DefaultValue>
+      </Property>
+      <Property SymbolicName="ua:DefaultRolePermissions" ModellingRule="Mandatory" />
+      <Property SymbolicName="ua:DefaultUserRolePermissions" ModellingRule="Mandatory" />
+      <Property SymbolicName="ua:DefaultAccessRestrictions" ModellingRule="Mandatory" />
+    </Children>
+    <References>
+      <Reference IsInverse="true">
+        <ReferenceType>ua:HasComponent</ReferenceType>
+        <TargetId>ua:Server_Namespaces</TargetId>
+      </Reference>
+    </References>
+  </Object>
+
+  <VariableType SymbolicName="FDI:UIDescriptionType" BaseType="DI:UIElementType" DataType="ua:String" IsAbstract="false">
+  </VariableType>
+
+  <VariableType SymbolicName="FDI:UIPlugInType" BaseType="DI:UIElementType" DataType="ua:Byte" ValueRank="Array" IsAbstract="false">
+    <Children>
+      <Property SymbolicName="FDI:UIPVariantVersion" DataType="ua:String" ModellingRule="Mandatory" />
+      <Property SymbolicName="FDI:FDITechnologyVersion" DataType="ua:String" ModellingRule="Mandatory" />
+      <Property SymbolicName="FDI:RuntimeId" DataType="ua:String" ModellingRule="Mandatory" />
+      <Property SymbolicName="FDI:CpuInformation" DataType="ua:String" ModellingRule="Mandatory" />
+      <Property SymbolicName="FDI:PlatformId" DataType="ua:String" ModellingRule="Mandatory" />
+      <Property SymbolicName="FDI:Style" DataType="FDI:StyleType" ModellingRule="Mandatory" />
+      <Property SymbolicName="FDI:StartElementName" DataType="ua:String" ModellingRule="Mandatory" />
+      <Object SymbolicName="FDI:Documentation" TypeDefinition="ua:FolderType" ModellingRule="Optional" />
+    </Children>
+  </VariableType>
+
+  <ObjectType SymbolicName="FDI:ActionType" BaseType="ua:BaseObjectType" IsAbstract="true">
+  </ObjectType>
+  
+  <Method SymbolicName="FDI:InvokeActionMethodType">
+    <InputArguments>
+      <Argument Name="ActionName" DataType="ua:String" ValueRank="Scalar" />
+      <Argument Name="MethodArguments" DataType="ua:String" ValueRank="Scalar" />
+    </InputArguments>
+    <OutputArguments>
+      <Argument Name="ActionNodeId" DataType="ua:NodeId" ValueRank="Scalar" />
+      <Argument Name="InvokeActionError" DataType="ua:Int32" ValueRank="Scalar" />
+    </OutputArguments>
+  </Method>
+
+  <Method SymbolicName="FDI:RespondActionMethodType">
+    <InputArguments>
+      <Argument Name="ActionNodeId" DataType="ua:NodeId" ValueRank="Scalar" />
+      <Argument Name="Response" DataType="ua:String" ValueRank="Scalar" />
+    </InputArguments>
+    <OutputArguments>
+      <Argument Name="RespondActionError" DataType="ua:Int32" ValueRank="Scalar" />
+    </OutputArguments>
+  </Method>
+  
+  <Method SymbolicName="FDI:AbortActionMethodType">
+    <InputArguments>
+      <Argument Name="ActionNodeId" DataType="ua:NodeId" ValueRank="Scalar" />
+    </InputArguments>
+    <OutputArguments>
+      <Argument Name="AbortActionError" DataType="ua:Int32" ValueRank="Scalar" />
+    </OutputArguments>
+  </Method>
+
+  <ObjectType SymbolicName="FDI:ActionServiceType" BaseType="ua:BaseObjectType" IsAbstract="false">
+    <Children>
+      <Method SymbolicName="FDI:InvokeAction" TypeDefinition="FDI:InvokeActionMethodType" ModellingRule="Mandatory" />
+      <Method SymbolicName="FDI:RespondAction" TypeDefinition="FDI:RespondActionMethodType" ModellingRule="Mandatory" />
+      <Method SymbolicName="FDI:AbortAction" TypeDefinition="FDI:AbortActionMethodType" ModellingRule="Mandatory" />
+      <Object SymbolicName="FDI:ActionIdentifier_PH" TypeDefinition="FDI:ActionType" ModellingRule="OptionalPlaceholder">
+        <BrowseName>&lt;ActionIdentifier&gt;</BrowseName>
+      </Object>
+    </Children>
+  </ObjectType>
+
+  <DataType SymbolicName="FDI:WindowModeType" BaseType="ua:Enumeration">
+    <Fields>
+      <Field Name="ModalWindow" Identifier="1" />
+      <Field Name="NonModalWindow" Identifier="2" />
+      <Field Name="UIP" Identifier="3" />
+    </Fields>
+  </DataType>
+
+  <DataType SymbolicName="FDI:StyleType" BaseType="ua:Enumeration">
+    <Fields>
+      <Field Name="Window" Identifier="1" />
+      <Field Name="Dialog" Identifier="2" />
+    </Fields>
+  </DataType>
+
+  <Method SymbolicName="FDI:GetEditContextMethodType">
+    <InputArguments>
+      <Argument Name="ParentId" DataType="ua:String" ValueRank="Scalar" />
+      <Argument Name="TargetWindowMode" DataType="FDI:WindowModeType" ValueRank="Scalar" />
+    </InputArguments>
+    <OutputArguments>
+      <Argument Name="EditContextId" DataType="ua:String" ValueRank="Scalar" />
+      <Argument Name="GetEditContextStatus" DataType="ua:Int32" ValueRank="Scalar" />
+    </OutputArguments>
+  </Method>
+
+  <DataType SymbolicName="FDI:RegistrationParameters" BaseType="ua:Structure">
+    <Fields>
+      <Field Name="Path" DataType="ua:RelativePath" />
+      <Field Name="SelectionFlags" DataType="ua:UInt32" />
+    </Fields>
+  </DataType>
+  
+  <DataType SymbolicName="FDI:RegisteredNode" BaseType="ua:Structure">
+    <Fields>
+      <Field Name="NodeStatus" DataType="ua:Int32" />
+      <Field Name="OnlineContextNodeId" DataType="ua:NodeId" />
+      <Field Name="OnlineDeviceNodeId" DataType="ua:NodeId" />
+      <Field Name="OfflineContextNodeId" DataType="ua:NodeId" />
+      <Field Name="OfflineDeviceNodeId" DataType="ua:NodeId" />
+    </Fields>
+  </DataType>
+
+  <DataType SymbolicName="FDI:RegisterNodesResult" BaseType="ua:Structure">
+    <Fields>
+      <Field Name="Status" DataType="ua:Int32" />
+      <Field Name="RegisteredNodes" DataType="FDI:RegisteredNode" ValueRank="Array" />
+    </Fields>
+  </DataType>
+
+  <Method SymbolicName="FDI:RegisterNodesMethodType">
+    <InputArguments>
+      <Argument Name="EditContextId" DataType="ua:String" ValueRank="Scalar" />
+      <Argument Name="NodesToRegister" DataType="FDI:RegistrationParameters" ValueRank="Array" />
+    </InputArguments>
+    <OutputArguments>
+      <Argument Name="RegisterNodesStatus" DataType="FDI:RegisterNodesResult" ValueRank="Scalar" />
+    </OutputArguments>
+  </Method>
+
+  <DataType SymbolicName="FDI:TransferIncident" BaseType="ua:Structure">
+    <Fields>
+      <Field Name="ContextNodeId" DataType="ua:NodeId" />
+      <Field Name="StatusCode" DataType="ua:StatusCode" />
+      <Field Name="Diagnostics" DataType="ua:DiagnosticInfo" />
+    </Fields>
+  </DataType>
+
+  <DataType SymbolicName="FDI:ApplyResult" BaseType="ua:Structure">
+    <Fields>
+      <Field Name="Status" DataType="ua:Int32" />
+      <Field Name="TransferIncidents" DataType="FDI:TransferIncident" ValueRank="Array" />
+    </Fields>
+  </DataType>
+
+  <Method SymbolicName="FDI:ApplyMethodType">
+    <InputArguments>
+      <Argument Name="EditContextId" DataType="ua:String" ValueRank="Scalar" />
+    </InputArguments>
+    <OutputArguments>
+      <Argument Name="ApplyStatus" DataType="FDI:ApplyResult" ValueRank="Scalar" />
+    </OutputArguments>
+  </Method>
+
+  <Method SymbolicName="FDI:ResetMethodType">
+    <InputArguments>
+      <Argument Name="EditContextId" DataType="ua:String" ValueRank="Scalar" />
+    </InputArguments>
+    <OutputArguments>
+      <Argument Name="ResetStatus" DataType="ua:Int32" ValueRank="Scalar" />
+    </OutputArguments>
+  </Method>
+
+  <Method SymbolicName="FDI:DiscardMethodType">
+    <InputArguments>
+      <Argument Name="EditContextId" DataType="ua:String" ValueRank="Scalar" />
+    </InputArguments>
+    <OutputArguments>
+      <Argument Name="DiscardStatus" DataType="ua:Int32" ValueRank="Scalar" />
+    </OutputArguments>
+  </Method>
+
+  <ObjectType SymbolicName="FDI:EditContextType" BaseType="ua:BaseObjectType" IsAbstract="false">
+    <Children>
+      <Method SymbolicName="FDI:GetEditContext" TypeDefinition="FDI:GetEditContextMethodType" ModellingRule="Mandatory" />
+      <Method SymbolicName="FDI:RegisterNodesById" TypeDefinition="FDI:RegisterNodesMethodType" ModellingRule="Mandatory" />
+      <Method SymbolicName="FDI:RegisterNodesByRelativePath" TypeDefinition="FDI:RegisterNodesMethodType" ModellingRule="Mandatory" />
+      <Method SymbolicName="FDI:Apply" TypeDefinition="FDI:ApplyMethodType" ModellingRule="Mandatory" />
+      <Method SymbolicName="FDI:Reset" TypeDefinition="FDI:ResetMethodType" ModellingRule="Mandatory" />
+      <Method SymbolicName="FDI:Discard" TypeDefinition="FDI:DiscardMethodType" ModellingRule="Mandatory" />
+    </Children>
+  </ObjectType>
+
+  <Method SymbolicName="FDI:InitDirectAccessMethodType">
+    <InputArguments>
+      <Argument Name="Context" DataType="ua:String" ValueRank="Scalar" />
+    </InputArguments>
+    <OutputArguments>
+      <Argument Name="InitDirectAccessError" DataType="ua:Int32" ValueRank="Scalar" />
+    </OutputArguments>
+  </Method>
+
+  <Method SymbolicName="FDI:TransferMethodType">
+    <InputArguments>
+      <Argument Name="SendData" DataType="ua:String" ValueRank="Scalar" />
+      <Argument Name="ReceiveData" DataType="ua:String" ValueRank="Scalar" />
+    </InputArguments>
+    <OutputArguments>
+      <Argument Name="TransferError" DataType="ua:Int32" ValueRank="Scalar" />
+    </OutputArguments>
+  </Method>
+
+  <Method SymbolicName="FDI:EndDirectAccessMethodType">
+    <InputArguments>
+      <Argument Name="InvalidateCache" DataType="ua:Boolean" ValueRank="Scalar" />
+    </InputArguments>
+    <OutputArguments>
+      <Argument Name="EndDirectAccessError" DataType="ua:Int32" ValueRank="Scalar" />
+    </OutputArguments>
+  </Method>
+
+  <ObjectType SymbolicName="FDI:DirectDeviceAccessType" BaseType="ua:BaseObjectType" IsAbstract="false">
+    <Children>
+      <Method SymbolicName="FDI:InitDirectAccess" TypeDefinition="FDI:InitDirectAccessMethodType" ModellingRule="Mandatory" />
+      <Method SymbolicName="FDI:Transfer" TypeDefinition="FDI:TransferMethodType" ModellingRule="Mandatory" />
+      <Method SymbolicName="FDI:EndDirectAccess" TypeDefinition="FDI:EndDirectAccessMethodType" ModellingRule="Mandatory" />
+    </Children>
+  </ObjectType>
+
+  <Method SymbolicName="FDI:LogAuditTrailMessage">
+    <InputArguments>
+      <Argument Name="Message" DataType="ua:String" ValueRank="Scalar" />
+    </InputArguments>
+  </Method>
+
+  <Variable SymbolicName="FDI:FDIServerVersion" TypeDefinition="ua:PropertyType" DataType="ua:String" ValueRank="Scalar">
+    <References>
+      <Reference IsInverse="true">
+        <ReferenceType>ua:HasProperty</ReferenceType>
+        <TargetId>ua:Server</TargetId>
+      </Reference>
+    </References>
+  </Variable>
+
+  <Variable SymbolicName="FDI:DeviceHealthDiagnostics" TypeDefinition="ua:PropertyType" DataType="ua:LocalizedText" ValueRank="Array" ModellingRule="Optional">
+    <References>
+      <Reference IsInverse="true">
+        <ReferenceType>ua:HasProperty</ReferenceType>
+        <TargetId>DI:DeviceType</TargetId>
+      </Reference>
+    </References>
+  </Variable>
+  
+  <Object SymbolicName="FDI:ActionIdentifier" TypeDefinition="FDI:ActionType"></Object>
+  
+  <Object SymbolicName="FDI:ActionSet" TypeDefinition="FDI:ActionServiceType"></Object>
+
+</ModelDesign>

@@ -1,0 +1,184 @@
+# using c for language overwrites our compilers
+language: c
+sudo: false
+
+dist: trusty
+
+matrix:
+  include:
+#
+# gcc-4.8 (trusty) full host and cross build with tests:
+    - os: linux
+      compiler: gcc-4.8
+      addons:
+        apt:
+          sources:
+            # see https://github.com/travis-ci/apt-source-whitelist/blob/master/ubuntu.json
+            - ubuntu-toolchain-r-test
+          packages:
+            - binutils-mingw-w64-i686
+            - build-essential
+            - check
+            - cppcheck
+            - gcc-multilib
+            - gcc-4.9
+            - gcc-mingw-w64-i686
+            - g++-multilib
+            - g++-mingw-w64
+            - libc6-dev-i386
+            - linux-libc-dev:i386
+            - mingw-w64
+            - valgrind
+      env:
+         - ANALYZE=false
+         - MINGW=true
+#
+# gcc-8 full host build with tests:
+    - os: linux
+      compiler: gcc-8
+      addons:
+        apt:
+          sources:
+            - ubuntu-toolchain-r-test
+          packages:
+            - gcc-8
+            - gcc-8-multilib
+            - check
+            - cppcheck
+            - valgrind
+      env:
+         - ANALYZE=false
+  #
+  # clang-8 full host build with tests:
+    - os: linux
+      compiler: clang-8
+      addons:
+        apt:
+          sources:
+            - llvm-toolchain-trusty-8
+            - ubuntu-toolchain-r-test
+          packages:
+            - check
+            - cppcheck
+            - clang-8
+            - valgrind
+      env:
+         - ANALYZE=false
+    - os: linux
+      compiler: clang-6.0
+      addons:
+        apt:
+          sources:
+            - llvm-toolchain-trusty-6.0
+            - ubuntu-toolchain-r-test
+          packages:
+            - check
+            - cppcheck
+            - clang-6.0
+            - clang-tidy-6.0
+            - valgrind
+      env:
+         - ANALYZE=false
+#
+# gcc-4.8 static code analysis
+    - os: linux
+      compiler: gcc
+      addons:
+        apt:
+          packages:
+            - check
+            - cppcheck
+            - valgrind
+      env:
+        - ANALYZE=true
+#
+# clang-6 static code analysis
+    - os: linux
+      compiler: clang-6.0
+      addons:
+        apt:
+          sources:
+            - llvm-toolchain-trusty-6.0
+            - ubuntu-toolchain-r-test
+          packages:
+            - check
+            - cppcheck
+            - clang-6.0
+            - clang-tidy-6.0
+            - valgrind
+      env:
+         - ANALYZE=true
+ #
+ # clang-8 FUZZER build
+    - os: linux
+      compiler: clang-8
+      addons:
+        apt:
+          sources:
+            - llvm-toolchain-trusty-8
+            - ubuntu-toolchain-r-test
+          packages:
+            - check
+            - cppcheck
+            - valgrind
+            - clang-8
+            - clang-tidy-8
+            - libfuzzer-8-dev
+      env:
+        - FUZZER=true
+#
+# OSX clang build
+    - os: osx
+      compiler: clang
+      # disable homebrew auto update which takes a lot of time
+      env: HOMEBREW_NO_AUTO_UPDATE=1
+      cache:
+        directories:
+          - $HOME/Library/Caches/Homebrew
+      env:
+         - ANALYZE=false
+
+#addons:
+#  apt:
+#    sources:
+#      # see https://github.com/travis-ci/apt-source-whitelist/blob/master/ubuntu.json
+#    packages:
+#      - binutils-mingw-w64-i686
+#      - build-essential
+#      - cmake
+#      - mingw32-gcc
+#      - gcc-mingw-w64-i686
+#      - gcc-mingw-w64
+#      - g++-mingw-w64
+#      - gcc-multilib
+#      - g++-multilib
+#      - libc6-dbg # for valgrind compilation
+
+cache:
+  pip: true
+  apt: true
+  directories:
+    - $HOME/install
+
+before_install:
+# set paths for locally installed libs (like liburcu)
+- export LOCAL_PKG=$HOME/install
+- mkdir -p $LOCAL_PKG/lib
+- mkdir -p $LOCAL_PKG/include
+- mkdir -p $LOCAL_PKG/bin
+- export LIBRARY_PATH=$LOCAL_PKG/lib:$LIBRARY_PATH
+- export C_INCLUDE_PATH=$LOCAL_PKG/include:$C_INCLUDE_PATH
+- export CPLUS_INCLUDE_PATH=$LOCAL_PKG/include:$CPLUS_INCLUDE_PATH
+- export PKG_CONFIG_PATH=$LOCAL_PKG/lib/pkgconfig:$PKG_CONFIG_PATH
+- export PATH=$LOCAL_PKG:$LOCAL_PKG/bin:$PATH
+# set local path for python packages
+- export PATH=$PATH:$HOME/.local/bin # linux
+- export PATH=$PATH:$HOME/Library/Python #OS X
+- export PATH=$PATH:$HOME/Library/Python/2.7/bin #OS X
+
+- if [ ${TRAVIS_OS_NAME} == "linux" ]; then sh ./tools/travis/travis_linux_before_install.sh; fi
+- if [ ${TRAVIS_OS_NAME} == "osx" ]; then sh ./tools/travis/travis_osx_before_install.sh; fi
+
+script:
+- if [ ${TRAVIS_OS_NAME} == "linux" ]; then sh ./tools/travis/travis_linux_script.sh; fi
+- if [ ${TRAVIS_OS_NAME} == "osx" ]; then sh ./tools/travis/travis_osx_script.sh; fi

@@ -1,0 +1,144 @@
+<opc:TypeDictionary xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:tns="http://opcfoundation.org/UA/PROFINET/" DefaultByteOrder="LittleEndian" xmlns:opc="http://opcfoundation.org/BinarySchema/" xmlns:ua="http://opcfoundation.org/UA/" TargetNamespace="http://opcfoundation.org/UA/PROFINET/">
+    <opc:Import Namespace="http://opcfoundation.org/UA/"/>
+    <opc:StructuredType BaseType="ua:OptionSet" Name="PnDeviceRoleOptionSet">
+        <opc:Field TypeName="opc:ByteString" Name="Value"/>
+        <opc:Field TypeName="opc:ByteString" Name="ValidBits"/>
+    </opc:StructuredType>
+    <opc:StructuredType BaseType="ua:ExtensionObject" Name="PnDeviceDiagnosisDataType">
+        <opc:Field TypeName="opc:UInt32" Name="API"/>
+        <opc:Field TypeName="opc:UInt16" Name="Slot"/>
+        <opc:Field TypeName="opc:UInt16" Name="Subslot"/>
+        <opc:Field TypeName="opc:UInt16" Name="ChannelNumber"/>
+        <opc:Field TypeName="tns:PnChannelTypeEnumeration" Name="Type"/>
+        <opc:Field TypeName="tns:PnChannelAccumulativeEnumeration" Name="Accumulative"/>
+        <opc:Field TypeName="tns:PnChannelMaintenanceEnumeration" Name="Maintenance"/>
+        <opc:Field TypeName="tns:PnChannelSpecifierEnumeration" Name="Specifier"/>
+        <opc:Field TypeName="tns:PnChannelDirectionEnumeration" Name="Direction"/>
+        <opc:Field TypeName="opc:UInt16" Name="UserStructureIdentifier"/>
+        <opc:Field TypeName="opc:UInt16" Name="ChannelErrorType"/>
+        <opc:Field TypeName="opc:UInt16" Name="ExtChannelErrorType"/>
+        <opc:Field TypeName="opc:UInt32" Name="ExtChannelAddValue"/>
+        <opc:Field TypeName="opc:UInt32" Name="QualifiedChannelQualifier"/>
+        <opc:Field TypeName="opc:ByteString" Name="ManufacturerData"/>
+        <opc:Field TypeName="ua:LocalizedText" Name="Message"/>
+        <opc:Field TypeName="ua:LocalizedText" Name="HelpText"/>
+    </opc:StructuredType>
+    <opc:StructuredType BaseType="ua:ExtensionObject" Name="PnIM5DataType">
+        <opc:Documentation>Contains the fields of the APDU element I&amp;M5 | I&amp;M5Data</opc:Documentation>
+        <opc:Field TypeName="opc:CharArray" Name="Annotation"/>
+        <opc:Field TypeName="opc:CharArray" Name="OrderId"/>
+        <opc:Field TypeName="opc:UInt16" Name="VendorId"/>
+        <opc:Field TypeName="opc:CharArray" Name="SerialNumber"/>
+        <opc:Field TypeName="opc:CharArray" Name="HardwareRevision"/>
+        <opc:Field TypeName="opc:CharArray" Name="SoftwareRevision"/>
+    </opc:StructuredType>
+    <opc:EnumeratedType LengthInBits="32" Name="IMTagSelectorEnumeration">
+        <opc:EnumeratedValue Name="FUNCTION" Value="0"/>
+        <opc:EnumeratedValue Name="LOCATION" Value="1"/>
+        <opc:EnumeratedValue Name="BOTH" Value="2"/>
+    </opc:EnumeratedType>
+    <opc:EnumeratedType LengthInBits="32" Name="PnARStateEnumeration">
+        <opc:EnumeratedValue Name="CONNECTED" Value="0"/>
+        <opc:EnumeratedValue Name="UNCONNECTED" Value="1"/>
+        <opc:EnumeratedValue Name="UNCONNECTED_ERR_DEVICE_NOT_FOUND" Value="2"/>
+        <opc:EnumeratedValue Name="UNCONNECTED_ERR_DUPLICATE_IP" Value="3"/>
+        <opc:EnumeratedValue Name="UNCONNECTED_ERR_DUPLICATE_NOS" Value="4"/>
+    </opc:EnumeratedType>
+    <opc:EnumeratedType LengthInBits="32" Name="PnARTypeEnumeration">
+        <opc:EnumeratedValue Name="IOCARSingle" Value="0"/>
+        <opc:EnumeratedValue Name="IOSAR" Value="6"/>
+        <opc:EnumeratedValue Name="IOCARSingleUsingRT_CLASS_3" Value="16"/>
+        <opc:EnumeratedValue Name="IOCARSR" Value="32"/>
+    </opc:EnumeratedType>
+    <opc:EnumeratedType LengthInBits="32" Name="PnAssetChangeEnumeration">
+        <opc:EnumeratedValue Name="INSERTED" Value="0"/>
+        <opc:EnumeratedValue Name="REMOVED" Value="1"/>
+        <opc:EnumeratedValue Name="CHANGED" Value="2"/>
+    </opc:EnumeratedType>
+    <opc:EnumeratedType LengthInBits="32" Name="PnAssetTypeEnumeration">
+        <opc:EnumeratedValue Name="DEVICE" Value="0"/>
+        <opc:EnumeratedValue Name="MODULE" Value="1"/>
+        <opc:EnumeratedValue Name="SUBMODULE" Value="2"/>
+        <opc:EnumeratedValue Name="ASSET" Value="3"/>
+    </opc:EnumeratedType>
+    <opc:EnumeratedType LengthInBits="32" Name="PnChannelAccumulativeEnumeration">
+        <opc:EnumeratedValue Name="SINGLE" Value="0"/>
+        <opc:EnumeratedValue Name="ACCUMULATIVE" Value="256"/>
+    </opc:EnumeratedType>
+    <opc:EnumeratedType LengthInBits="32" Name="PnChannelDirectionEnumeration">
+        <opc:EnumeratedValue Name="MANUFACTURER_SPECIFIC" Value="0"/>
+        <opc:EnumeratedValue Name="INPUT_CHANNEL" Value="8192"/>
+        <opc:EnumeratedValue Name="OUTPUT_CHANNEL" Value="16384"/>
+        <opc:EnumeratedValue Name="BIDIRECTIONAL_CHANNEL" Value="24576"/>
+    </opc:EnumeratedType>
+    <opc:EnumeratedType LengthInBits="32" Name="PnChannelMaintenanceEnumeration">
+        <opc:EnumeratedValue Name="FAULT" Value="0"/>
+        <opc:EnumeratedValue Name="MAINTENANCE_REQUIRED" Value="512"/>
+        <opc:EnumeratedValue Name="MAINTENANCE_DEMANDED" Value="1024"/>
+        <opc:EnumeratedValue Name="USE_QUALIFIED_CHANNEL_QUALIFIER" Value="1536"/>
+    </opc:EnumeratedType>
+    <opc:EnumeratedType LengthInBits="32" Name="PnChannelSpecifierEnumeration">
+        <opc:EnumeratedValue Name="ALL_DISAPPEARS" Value="0"/>
+        <opc:EnumeratedValue Name="APPEARS" Value="2048"/>
+        <opc:EnumeratedValue Name="DISAPPEARS" Value="4096"/>
+        <opc:EnumeratedValue Name="DISAPPEARS_OTHER_REMAIN" Value="6144"/>
+    </opc:EnumeratedType>
+    <opc:EnumeratedType LengthInBits="32" Name="PnChannelTypeEnumeration">
+        <opc:EnumeratedValue Name="UNSPECIFIC" Value="0"/>
+        <opc:EnumeratedValue Name="1BIT" Value="1"/>
+        <opc:EnumeratedValue Name="2BIT" Value="2"/>
+        <opc:EnumeratedValue Name="4BIT" Value="3"/>
+        <opc:EnumeratedValue Name="8BIT" Value="4"/>
+        <opc:EnumeratedValue Name="16BIT" Value="5"/>
+        <opc:EnumeratedValue Name="32BIT" Value="6"/>
+        <opc:EnumeratedValue Name="64BIT" Value="7"/>
+    </opc:EnumeratedType>
+    <opc:EnumeratedType LengthInBits="32" Name="PnDeviceStateEnumeration">
+        <opc:EnumeratedValue Name="OFFLINE" Value="0"/>
+        <opc:EnumeratedValue Name="OFFLINE_DOCKING" Value="1"/>
+        <opc:EnumeratedValue Name="ONLINE" Value="2"/>
+        <opc:EnumeratedValue Name="ONLINE_DOCKING" Value="3"/>
+    </opc:EnumeratedType>
+    <opc:EnumeratedType LengthInBits="32" Name="PnLinkStateEnumeration">
+        <opc:EnumeratedValue Name="UP" Value="1"/>
+        <opc:EnumeratedValue Name="DOWN" Value="2"/>
+        <opc:EnumeratedValue Name="TESTING" Value="3"/>
+        <opc:EnumeratedValue Name="UNKNOWN" Value="4"/>
+        <opc:EnumeratedValue Name="DORMANT" Value="5"/>
+        <opc:EnumeratedValue Name="NOT_PRESENT" Value="6"/>
+        <opc:EnumeratedValue Name="LOWER_LAYER_DOWN" Value="7"/>
+    </opc:EnumeratedType>
+    <opc:EnumeratedType LengthInBits="32" Name="PnModuleStateEnumeration">
+        <opc:EnumeratedValue Name="NO_MODULE" Value="0"/>
+        <opc:EnumeratedValue Name="WRONG_MODULE" Value="1"/>
+        <opc:EnumeratedValue Name="PROPER_MODULE" Value="2"/>
+        <opc:EnumeratedValue Name="SUBSTITUTE" Value="3"/>
+        <opc:EnumeratedValue Name="OK" Value="4"/>
+    </opc:EnumeratedType>
+    <opc:EnumeratedType LengthInBits="32" Name="PnPortStateEnumeration">
+        <opc:EnumeratedValue Name="UNKNOWN" Value="0"/>
+        <opc:EnumeratedValue Name="DISABLED_DISCARDING" Value="1"/>
+        <opc:EnumeratedValue Name="BLOCKING" Value="2"/>
+        <opc:EnumeratedValue Name="LISTENING" Value="3"/>
+        <opc:EnumeratedValue Name="LEARNING" Value="4"/>
+        <opc:EnumeratedValue Name="FORWARDING" Value="5"/>
+        <opc:EnumeratedValue Name="BROKEN" Value="6"/>
+    </opc:EnumeratedType>
+    <opc:EnumeratedType LengthInBits="32" Name="PnSubmoduleAddInfoEnumeration">
+        <opc:EnumeratedValue Name="NO_ADD_INFO" Value="0"/>
+        <opc:EnumeratedValue Name="TAKEOVER_NOT_ALLOWED" Value="1"/>
+    </opc:EnumeratedType>
+    <opc:EnumeratedType LengthInBits="32" Name="PnSubmoduleARInfoEnumeration">
+        <opc:EnumeratedValue Name="OWN" Value="0"/>
+        <opc:EnumeratedValue Name="APPLICATION_READY_PENDING" Value="128"/>
+        <opc:EnumeratedValue Name="SUPERORDINATED_LOCKED" Value="256"/>
+        <opc:EnumeratedValue Name="LOCKED_BY_IO_CONTROLLER" Value="384"/>
+        <opc:EnumeratedValue Name="LOCKED_BY_IO_SUPERVISOR" Value="512"/>
+    </opc:EnumeratedType>
+    <opc:EnumeratedType LengthInBits="32" Name="PnSubmoduleIdentInfoEnumeration">
+        <opc:EnumeratedValue Name="OK" Value="0"/>
+        <opc:EnumeratedValue Name="SUBSTITUTE" Value="2048"/>
+        <opc:EnumeratedValue Name="WRONG" Value="4096"/>
+        <opc:EnumeratedValue Name="NO_SUBMODULE" Value="6144"/>
+    </opc:EnumeratedType>
+</opc:TypeDictionary>
