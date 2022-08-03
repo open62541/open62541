@@ -590,6 +590,7 @@ UA_Server_addPeriodicServerRegisterCallback(UA_Server *server,
                                             UA_Double delayFirstRegisterMs,
                                             UA_UInt64 *periodicCallbackId) {
     UA_LOCK(&server->serviceMutex);
+
     /* No valid server URL */
     if(!discoveryServerUrl) {
         UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,

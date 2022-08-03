@@ -341,29 +341,23 @@ UA_SecureChannelManager_renew(UA_Server *server, UA_SecureChannel *channel,
 }
 
 void
-UA_Server_closeSecureChannel(UA_Server *server, UA_SecureChannel *channel,
-                             UA_DiagnosticEvent event) {
-    removeSecureChannel(server, container_of(channel, channel_entry, channel), event);
-}
-
-void
 Service_OpenSecureChannel(UA_Server *server, UA_SecureChannel *channel,
                           const UA_OpenSecureChannelRequest *request,
                           UA_OpenSecureChannelResponse *response) {
+    /* Renew the channel */
     if(request->requestType == UA_SECURITYTOKENREQUESTTYPE_RENEW) {
-        /* Renew the channel */
         response->responseHeader.serviceResult =
             UA_SecureChannelManager_renew(server, channel, request, response);
-
-        /* Logging */
-        if(response->responseHeader.serviceResult == UA_STATUSCODE_GOOD) {
-            UA_Float lifetime = (UA_Float)response->securityToken.revisedLifetime / 1000;
-            UA_LOG_INFO_CHANNEL(&server->config.logger, channel, "SecureChannel renewed "
-                                "with a revised lifetime of %.2fs", lifetime);
-        } else {
+        if(response->responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
             UA_LOG_DEBUG_CHANNEL(&server->config.logger, channel,
                                  "Renewing SecureChannel failed");
+            return;
         }
+
+        /* Log the renewal and the lifetime */
+        UA_Float lifetime = (UA_Float)response->securityToken.revisedLifetime / 1000;
+        UA_LOG_INFO_CHANNEL(&server->config.logger, channel, "SecureChannel renewed "
+                            "with a revised lifetime of %.2fs", lifetime);
         return;
     }
 

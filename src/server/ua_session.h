@@ -135,11 +135,13 @@ UA_Session_dequeuePublishReq(UA_Session *session);
         int nameLen = (SESSION) ? (int)(SESSION)->sessionName.length : 0; \
         const char *nameStr = (SESSION) ?                               \
             (const char*)(SESSION)->sessionName.data : NULL;            \
+        unsigned long sockId = ((SESSION) && (SESSION)->header.channel) ? \
+            (unsigned long)(SESSION)->header.channel->connectionId : 0; \
         UA_UInt32 chanId = ((SESSION) && (SESSION)->header.channel) ?   \
             (SESSION)->header.channel->securityToken.channelId : 0;     \
         UA_LOG_##LEVEL(LOGGER, UA_LOGCATEGORY_SESSION,                  \
-                       "SecureChannel %" PRIu32 " | Session \"%.*s\" | " MSG "%.0s", \
-                       chanId, nameLen, nameStr, __VA_ARGS__);          \
+                       "TCP %lu\t| SecureChannel %" PRIu32 "\t| Session \"%.*s\"\t| " MSG "%.0s", \
+                       sockId, chanId, nameLen, nameStr, __VA_ARGS__);   \
     }
 
 #define UA_LOG_TRACE_SESSION(LOGGER, SESSION, ...)                      \
