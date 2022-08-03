@@ -484,8 +484,9 @@ UA_Server_updateCertificate(UA_Server *server,
     if(closeSecureChannels) {
         channel_entry *entry;
         TAILQ_FOREACH(entry, &server->channels, pointers) {
-            if(UA_ByteString_equal(&entry->channel.securityPolicy->localCertificate, oldCertificate))
-                UA_Server_closeSecureChannel(server, &entry->channel, UA_DIAGNOSTICEVENT_CLOSE);
+            if(UA_ByteString_equal(&entry->channel.securityPolicy->localCertificate,
+                                   oldCertificate))
+                shutdownServerSecureChannel(server, &entry->channel, UA_DIAGNOSTICEVENT_CLOSE);
         }
     }
 
@@ -566,92 +567,6 @@ UA_Server_getStatistics(UA_Server *server) {
         server->serverDiagnosticsSummary.sessionAbortCount;
 
     return stat;
-}
-
-/* Callback of a TCP socket (server socket or an active connection) */
-static void
-UA_Server_networkCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
-                          void *application, void **connectionContext,
-                          UA_ConnectionState state,
-                          size_t paramsSize, const UA_KeyValuePair *params,
-                          UA_ByteString msg) {
-    UA_Server *server = (UA_Server*)application;
-
-    /* A server socket that is not registered in the server */
-    if(*connectionContext == NULL) {
-        /* The socket is no fully open -> ignore */
-        if(state == UA_CONNECTIONSTATE_CLOSED ||
-           state == UA_CONNECTIONSTATE_CLOSING)
-            return;
-
-        /* Cannot register */
-        if(server->serverConnectionsSize >= UA_MAXSERVERCONNECTIONS) {
-            UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
-                           "Cannot register server socket - too many already open");
-            cm->closeConnection(cm, connectionId);
-            return;
-        }
-
-        /* Find and use a free connection slot */
-        server->serverConnectionsSize++;
-        UA_ServerConnection *sc = server->serverConnections;
-        while(sc->connectionId != 0)
-            sc++;
-        sc->state = state;
-        sc->connectionId = connectionId;
-        sc->connectionManager = cm;
-        *connectionContext = (void*)sc; /* Set the context pointer in the connection */
-        return;
-    }
-
-    UA_ServerConnection *sc = (UA_ServerConnection*)*connectionContext;
-    UA_Connection *conn = (UA_Connection*)*connectionContext;
-    UA_Boolean serverSocket = (sc >= server->serverConnections &&
-                               sc < &server->serverConnections[UA_MAXSERVERCONNECTIONS]);
-
-    if(state == UA_CONNECTIONSTATE_CLOSING) {
-        if(serverSocket) {
-            /* Server socket is closed */
-            sc->state = UA_CONNECTIONSTATE_CLOSED;
-            sc->connectionId = 0;
-            server->serverConnectionsSize--;
-        } else {
-            /* A normal connection is closing */
-            if(conn->channel)
-                UA_SecureChannel_close(conn->channel);
-            UA_free(conn);
-        }
-        return;
-    }
-
-    /* A new connection is opening - still has the pointer to the serversocket */
-    if(serverSocket) {
-        conn = (UA_Connection*)UA_malloc(sizeof(UA_Connection));
-        if(!conn) {
-            UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
-                           "Could not accept the connection - out of memory");
-            cm->closeConnection(cm, connectionId);
-            return;
-        }
-
-        conn->state = UA_CONNECTIONSTATE_OPENING;
-        conn->channel = NULL;
-        conn->sockfd = (UA_SOCKET)connectionId;
-        conn->handle = cm;
-        conn->getSendBuffer = UA_Connection_getSendBuffer;
-        conn->releaseSendBuffer = UA_Connection_releaseBuffer;
-        conn->send = UA_Connection_send;
-        conn->recv = NULL;
-        conn->releaseRecvBuffer = UA_Connection_releaseBuffer;
-        conn->close = UA_Connection_close;
-        conn->free = NULL;
-
-        *connectionContext = (void*)conn;
-        return;
-    }
-
-    /* Received a message on a normal connection */
-    UA_Server_processBinaryMessage(server, conn, &msg);
 }
 
 static UA_StatusCode
