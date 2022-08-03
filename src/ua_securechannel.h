@@ -170,6 +170,17 @@ UA_SecureChannel_setSecurityPolicy(UA_SecureChannel *channel,
                                    const UA_SecurityPolicy *securityPolicy,
                                    const UA_ByteString *remoteCertificate);
 
+UA_Boolean
+UA_SecureChannel_isConnected(UA_SecureChannel *channel);
+
+/* When a fatal error occurs the Server shall send an Error Message to the
+ * Client and close the socket. When a Client encounters one of these errors, it
+ * shall also close the socket but does not send an Error Message. After the
+ * socket is closed a Client shall try to reconnect automatically using the
+ * mechanisms described in [...]. */
+void
+UA_SecureChannel_sendError(UA_SecureChannel *channel, UA_TcpErrorMessage *error);
+
 /* Remove (partially) received unprocessed chunks */
 void
 UA_SecureChannel_deleteBuffered(UA_SecureChannel *channel);
