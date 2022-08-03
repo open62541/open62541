@@ -16,7 +16,6 @@
 #include <check.h>
 
 #include "testing_clock.h"
-#include "testing_networklayers.h"
 #include "thread_wrapper.h"
 
 UA_Server *server;
@@ -123,9 +122,6 @@ static void setup(void) {
     retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
-    UA_Client_recv = client->connection.recv;
-    client->connection.recv = UA_Client_recvTesting;
-
     UA_CreateSubscriptionRequest request = UA_CreateSubscriptionRequest_default();
     request.requestedMaxKeepAliveCount = 100;
     UA_CreateSubscriptionResponse response = UA_Client_Subscriptions_create(client, request,
@@ -192,12 +188,11 @@ waitForNotification(UA_UInt32 notifications, UA_UInt32 maxTries) {
 static UA_Boolean
 fuzzyLastValueIsEqualTo(UA_Double value) {
     double offset = 0.001;
-    if(lastValue.hasValue
-            && lastValue.value.type == &UA_TYPES[UA_TYPES_DOUBLE]) {
+    if(lastValue.hasValue &&
+       lastValue.value.type == &UA_TYPES[UA_TYPES_DOUBLE]) {
         double lastDouble = *((UA_Double*)(lastValue.value.data));
-        if (lastDouble > value - offset && lastDouble < value + offset) {
+        if(lastDouble > value - offset && lastDouble < value + offset)
             return true;
-        }
     }
     return false;
 }
@@ -345,7 +340,6 @@ START_TEST(Server_MonitoredItemsAbsoluteFilterSetLater) {
     ck_assert_uint_eq(deleteResponse.results[0], UA_STATUSCODE_GOOD);
 
     UA_DeleteMonitoredItemsResponse_clear(&deleteResponse);
-
 }
 END_TEST
 
@@ -498,7 +492,6 @@ START_TEST(Server_MonitoredItemsAbsoluteFilterSetOnCreateRemoveLater) {
     ck_assert_uint_eq(deleteResponse.results[0], UA_STATUSCODE_GOOD);
 
     UA_DeleteMonitoredItemsResponse_clear(&deleteResponse);
-
 }
 END_TEST
 
@@ -644,7 +637,6 @@ START_TEST(Server_MonitoredItemsPercentFilterSetLaterMissingEURange) {
     ck_assert_uint_eq(deleteResponse.results[0], UA_STATUSCODE_GOOD);
 
     UA_DeleteMonitoredItemsResponse_clear(&deleteResponse);
-
 }
 END_TEST
 
@@ -911,7 +903,6 @@ START_TEST(Server_MonitoredItemsAbsoluteFilterSetOnCreate) {
     ck_assert_uint_eq(deleteResponse.results[0], UA_STATUSCODE_GOOD);
 
     UA_DeleteMonitoredItemsResponse_clear(&deleteResponse);
-
 }
 END_TEST
 
