@@ -365,7 +365,8 @@ deleteNode(UA_Server *server, const UA_NodeId nodeId,
            UA_Boolean deleteReferences);
 
 UA_StatusCode
-addNode(UA_Server *server, const UA_NodeClass nodeClass, const UA_NodeId *requestedNewNodeId,
+addNode(UA_Server *server, const UA_NodeClass nodeClass,
+        const UA_NodeId *requestedNewNodeId,
         const UA_NodeId *parentNodeId, const UA_NodeId *referenceTypeId,
         const UA_QualifiedName browseName, const UA_NodeId *typeDefinition,
         const UA_NodeAttributes *attr, const UA_DataType *attributeType,
@@ -454,7 +455,8 @@ void
 removeCallback(UA_Server *server, UA_UInt64 callbackId);
 
 UA_StatusCode
-changeRepeatedCallbackInterval(UA_Server *server, UA_UInt64 callbackId, UA_Double interval_ms);
+changeRepeatedCallbackInterval(UA_Server *server, UA_UInt64 callbackId,
+                               UA_Double interval_ms);
 
 UA_StatusCode
 addRepeatedCallback(UA_Server *server, UA_ServerCallback callback,
@@ -462,8 +464,7 @@ addRepeatedCallback(UA_Server *server, UA_ServerCallback callback,
 
 #ifdef UA_ENABLE_DISCOVERY
 UA_StatusCode
-register_server_with_discovery_server(UA_Server *server,
-                                      void *client,
+register_server_with_discovery_server(UA_Server *server, void *client,
                                       const UA_Boolean isUnregister,
                                       const char* semaphoreFilePath);
 #endif

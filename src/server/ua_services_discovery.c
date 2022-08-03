@@ -599,8 +599,7 @@ UA_Server_addPeriodicServerRegisterCallback(UA_Server *server,
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
-
-    if (client->connection.state != UA_CONNECTIONSTATE_CLOSED) {
+    if(UA_SecureChannel_isConnected(&client->channel)) {
         UA_UNLOCK(&server->serviceMutex);
         return UA_STATUSCODE_BADINVALIDSTATE;
     }

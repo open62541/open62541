@@ -207,9 +207,9 @@ UA_Server_configSecureChannel(void *application, UA_SecureChannel *channel,
         if(!UA_ByteString_equal(&asymHeader->securityPolicyUri, &policy->policyUri))
             continue;
 
-        UA_StatusCode retval = policy->asymmetricModule.
+        UA_StatusCode res = policy->asymmetricModule.
             compareCertificateThumbprint(policy, &asymHeader->receiverCertificateThumbprint);
-        if(retval != UA_STATUSCODE_GOOD)
+        if(res != UA_STATUSCODE_GOOD)
             continue;
 
         /* We found the correct policy (except for security mode). The endpoint
@@ -222,16 +222,10 @@ UA_Server_configSecureChannel(void *application, UA_SecureChannel *channel,
     if(!securityPolicy)
         return UA_STATUSCODE_BADSECURITYPOLICYREJECTED;
 
-    /* Create the channel context and parse the sender (remote) certificate used for the
-     * secureChannel. */
-    UA_StatusCode retval =
-        UA_SecureChannel_setSecurityPolicy(channel, securityPolicy,
-                                           &asymHeader->senderCertificate);
-    if(retval != UA_STATUSCODE_GOOD)
-        return retval;
-
-    channel->securityToken.tokenId = server->lastTokenId++;
-    return UA_STATUSCODE_GOOD;
+    /* Create the channel context and parse the sender (remote) certificate used
+     * for the secureChannel. */
+    return UA_SecureChannel_setSecurityPolicy(channel, securityPolicy,
+                                              &asymHeader->senderCertificate);
 }
 
 static UA_StatusCode
@@ -309,7 +303,7 @@ UA_SecureChannelManager_renew(UA_Server *server, UA_SecureChannel *channel,
     }
 
     /* Create a new SecurityToken. Will be switched over when the first message
-     * is received. */
+     * is received. The ChannelId is left unchanged. */
     channel->altSecurityToken = channel->securityToken;
     channel->altSecurityToken.tokenId = server->lastTokenId++;
     channel->altSecurityToken.createdAt = UA_DateTime_nowMonotonic();
@@ -371,19 +365,19 @@ Service_OpenSecureChannel(UA_Server *server, UA_SecureChannel *channel,
     /* Open the channel */
     response->responseHeader.serviceResult =
         UA_SecureChannelManager_open(server, channel, request, response);
-
-    /* Logging */
-    if(response->responseHeader.serviceResult == UA_STATUSCODE_GOOD) {
-        UA_Float lifetime = (UA_Float)response->securityToken.revisedLifetime / 1000;
-        UA_LOG_INFO_CHANNEL(&server->config.logger, channel,
-                            "SecureChannel opened with SecurityPolicy %.*s "
-                            "and a revised lifetime of %.2fs",
-                            (int)channel->securityPolicy->policyUri.length,
-                            channel->securityPolicy->policyUri.data, lifetime);
-    } else {
+    if(response->responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
         UA_LOG_INFO_CHANNEL(&server->config.logger, channel,
                             "Opening a SecureChannel failed");
+        return;
     }
+
+    /* Log the lifetime */
+    UA_Float lifetime = (UA_Float)response->securityToken.revisedLifetime / 1000;
+    UA_LOG_INFO_CHANNEL(&server->config.logger, channel,
+                        "SecureChannel opened with SecurityPolicy %.*s "
+                        "and a revised lifetime of %.2fs",
+                        (int)channel->securityPolicy->policyUri.length,
+                        channel->securityPolicy->policyUri.data, lifetime);
 }
 
 /* The server does not send a CloseSecureChannel response */
