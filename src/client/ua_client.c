@@ -42,7 +42,8 @@ UA_Client_newWithConfig(const UA_ClientConfig *config) {
     memset(client, 0, sizeof(UA_Client));
     client->config = *config;
 
-    UA_SecureChannel_init(&client->channel, &client->config.localConnectionConfig);
+    UA_SecureChannel_init(&client->channel);
+    client->channel.config = client->config.localConnectionConfig;
     client->connectStatus = UA_STATUSCODE_GOOD;
 
     /* Set up the regular callback for checking the internal state */

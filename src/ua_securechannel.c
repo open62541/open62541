@@ -33,8 +33,6 @@ UA_SecureChannel_init(UA_SecureChannel *channel) {
     channel->state = UA_SECURECHANNELSTATE_FRESH;
     SIMPLEQ_INIT(&channel->completeChunks);
     SIMPLEQ_INIT(&channel->decryptedChunks);
-    SLIST_INIT(&channel->sessions);
-    channel->config = *config;
 }
 
 UA_StatusCode

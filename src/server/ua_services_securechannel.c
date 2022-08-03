@@ -183,8 +183,9 @@ UA_Server_createSecureChannel(UA_Server *server, UA_Connection *connection) {
     if(connConfig.sendBufferSize == 0)
         connConfig.sendBufferSize = 1 << 16; /* 64kB */
 
-    /* Channel state is closed (0) */
-    UA_SecureChannel_init(&entry->channel, &connConfig);
+    /* Set up the new SecureChannel */
+    UA_SecureChannel_init(&entry->channel);
+    entry->channel.config = connConfig;
     entry->channel.certificateVerification = &config->certificateVerification;
     entry->channel.processOPNHeader = UA_Server_configSecureChannel;
 
