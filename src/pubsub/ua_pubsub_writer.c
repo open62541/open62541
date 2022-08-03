@@ -333,7 +333,9 @@ generateFieldMetaData(UA_Server *server, UA_PublishedDataSet *pds,
                its SubDataType. */
             UA_Variant v;
             UA_Variant_init(&v);
+            UA_UNLOCK(&server->serviceMutex);
             UA_Server_readValue(server, pp->publishedVariable, &v);
+            UA_LOCK(&server->serviceMutex);
             currentDataType = v.type;
             UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER, 
             "MetaData creation error. DataType not found. Could be abstract.");
@@ -640,6 +642,7 @@ UA_DataSetWriterConfig_copy(const UA_DataSetWriterConfig *src,
     retVal |= UA_String_copy(&src->name, &dst->name);
     retVal |= UA_String_copy(&src->dataSetName, &dst->dataSetName);
     retVal |= UA_ExtensionObject_copy(&src->messageSettings, &dst->messageSettings);
+    retVal |= UA_ExtensionObject_copy(&src->transportSettings, &dst->transportSettings);
     if(src->dataSetWriterPropertiesSize > 0) {
         dst->dataSetWriterProperties = (UA_KeyValuePair *)
             UA_calloc(src->dataSetWriterPropertiesSize, sizeof(UA_KeyValuePair));
@@ -1208,6 +1211,7 @@ UA_PubSubDataSetField_sampleValue(UA_Server *server, UA_DataSetField *field,
 static size_t
 UA_PubSubDataSetField_sampleProperties(UA_Server *server, UA_DataSetField *field,
                                   UA_KeyValuePair **browseNameAndValues) {
+    UA_UNLOCK(&server->serviceMutex);
     UA_PublishedVariableDataType *params = &field->config.field.variable.publishParameters;
     size_t noOfProps = 0;
     /* Read the value */
@@ -1215,7 +1219,6 @@ UA_PubSubDataSetField_sampleProperties(UA_Server *server, UA_DataSetField *field
         UA_ReadValueId rvid;
         UA_ReadValueId_init(&rvid);
         rvid.nodeId = params->publishedVariable;
-
         UA_BrowseDescription bd;
         UA_BrowseDescription_init(&bd);
         bd.nodeId = rvid.nodeId;
@@ -1231,6 +1234,7 @@ UA_PubSubDataSetField_sampleProperties(UA_Server *server, UA_DataSetField *field
             UA_QualifiedName_copy(&br.references[i].browseName, &(*browseNameAndValues)[i].key);
         }
     }
+    UA_LOCK(&server->serviceMutex);
     return noOfProps;
 }
 

@@ -1293,7 +1293,6 @@ UA_WriterGroup_publishCallback(UA_Server *server, UA_WriterGroup *writerGroup) {
     UA_STACKARRAY(UA_String, dsWriterNames, writerGroup->writersCount);
     UA_STACKARRAY(UA_DataSetFieldContentMask, dsWriterDsfContentMasks, writerGroup->writersCount);
     UA_STACKARRAY(UA_DataSetMessage, dsmStore, writerGroup->writersCount);
-    UA_STACKARRAY(UA_DataSetWriter*, dsWriters, writerGroup->writersCount);
 
     UA_DataSetWriter *dsw;
     LIST_FOREACH(dsw, &writerGroup->writers, listEntry) {
@@ -1357,7 +1356,7 @@ UA_WriterGroup_publishCallback(UA_Server *server, UA_WriterGroup *writerGroup) {
         nmDsmCount = (i + maxDSM > dsmCount) ? (UA_Byte)(dsmCount - i) : maxDSM;
 
         /* Send the batched messages */
-        sendNetworkMessage(server, writerGroup, connection, dsWriters[i], 
+        sendNetworkMessage(server, writerGroup, connection, NULL, 
                            &dsmStore[i], &dsWriterIds[i],  &dsWriterNames[i],
                            &dsWriterDsfContentMasks[i], nmDsmCount);
     }
