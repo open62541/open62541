@@ -26,15 +26,9 @@
 const UA_String UA_SECURITY_POLICY_NONE_URI =
     {47, (UA_Byte *)"http://opcfoundation.org/UA/SecurityPolicy#None"};
 
-#ifdef UA_ENABLE_UNIT_TEST_FAILURE_HOOKS
-UA_StatusCode decrypt_verifySignatureFailure;
-UA_StatusCode sendAsym_sendFailure;
-UA_StatusCode processSym_seqNumberFailure;
-#endif
-
-void UA_SecureChannel_init(UA_SecureChannel *channel,
-                           const UA_ConnectionConfig *config) {
-    /* Linked lists are also initialized by zeroing out */
+void
+UA_SecureChannel_init(UA_SecureChannel *channel) {
+    /* Normal linked lists are initialized by zeroing out */
     memset(channel, 0, sizeof(UA_SecureChannel));
     channel->state = UA_SECURECHANNELSTATE_FRESH;
     SIMPLEQ_INIT(&channel->completeChunks);
@@ -488,12 +482,6 @@ UA_SecureChannel_sendSymmetricMessage(UA_SecureChannel *channel, UA_UInt32 reque
 #ifndef FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
 static UA_StatusCode
 processSequenceNumberSym(UA_SecureChannel *channel, UA_UInt32 sequenceNumber) {
-#ifdef UA_ENABLE_UNIT_TEST_FAILURE_HOOKS
-    /* Failure mode hook for unit tests */
-    if(processSym_seqNumberFailure != UA_STATUSCODE_GOOD)
-        return processSym_seqNumberFailure;
-#endif
-
     if(sequenceNumber != channel->receiveSequenceNumber + 1) {
         if(channel->receiveSequenceNumber + 1 <= UA_SEQUENCENUMBER_ROLLOVER ||
            sequenceNumber >= 1024)

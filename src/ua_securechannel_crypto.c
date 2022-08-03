@@ -429,9 +429,6 @@ verifySignature(const UA_SecureChannel *channel,
     const UA_ByteString sig = {sigsize, chunk->data + chunk->length - sigsize};
     UA_StatusCode retval = cryptoModule->signatureAlgorithm.
         verify(channel->channelContext, &content, &sig);
-#ifdef UA_ENABLE_UNIT_TEST_FAILURE_HOOKS
-    retval |= decrypt_verifySignatureFailure;
-#endif
     return retval;
 }
 
