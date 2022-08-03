@@ -586,15 +586,17 @@ TCP_findRegisteredFD(TCPConnectionManager *tcm, uintptr_t connectionId) {
 static void
 TCP_shutdown(UA_ConnectionManager *cm, UA_RegisteredFD *rfd) {
     UA_EventLoop *el = cm->eventSource.eventLoop;
+
+    /* Already closing - nothing to do */
     if(rfd->dc.callback) {
-        UA_LOG_INFO(el->logger, UA_LOGCATEGORY_NETWORK,
-                    "TCP %u\t| Cannot close - already closing",
-                    (unsigned)rfd->fd);
+        UA_LOG_DEBUG(el->logger, UA_LOGCATEGORY_NETWORK,
+                     "TCP %u\t| Cannot shutdown - already triggered",
+                     (unsigned)rfd->fd);
         return;
     }
 
     UA_LOG_DEBUG(el->logger, UA_LOGCATEGORY_NETWORK,
-                 "TCP %u\t| Shutdown called", (unsigned)rfd->fd);
+                 "TCP %u\t| Shutdown triggered", (unsigned)rfd->fd);
 
     /* Deregister from the EventLoop. Don't decrease the tcm->fdsSize counter
      * right now. Do this in the delayed callback where the rfd is freed.
@@ -652,34 +654,17 @@ TCP_sendWithConnection(UA_ConnectionManager *cm, uintptr_t connectionId,
                         bytes_to_send, flags);
             if(n < 0) {
                 /* An error we cannot recover from? */
-                if(UA_ERRNO != UA_INTERRUPTED &&
-                   UA_ERRNO != UA_WOULDBLOCK &&
-                   UA_ERRNO != UA_AGAIN) {
-                    UA_LOG_SOCKET_ERRNO_GAI_WRAP(
-                       UA_LOG_ERROR(cm->eventSource.eventLoop->logger,
-                                    UA_LOGCATEGORY_NETWORK,
-                                    "TCP %u\t| Send failed with error %s",
-                                    (unsigned)connectionId, errno_str));
-                    TCP_shutdownConnection(cm, connectionId);
-                    UA_ByteString_clear(buf);
-                    return UA_STATUSCODE_BADCONNECTIONCLOSED;
-                }
+                if(UA_ERRNO != UA_INTERRUPTED && UA_ERRNO != UA_WOULDBLOCK &&
+                   UA_ERRNO != UA_AGAIN)
+                    goto shutdown;
 
                 /* Poll for the socket resources to become available and retry
                  * (blocking) */
                 int poll_ret;
                 do {
                     poll_ret = UA_poll(&tmp_poll_fd, 1, 100);
-                    if(poll_ret < 0 && UA_ERRNO != UA_INTERRUPTED) {
-                        UA_LOG_SOCKET_ERRNO_GAI_WRAP(
-                           UA_LOG_ERROR(cm->eventSource.eventLoop->logger,
-                                        UA_LOGCATEGORY_NETWORK,
-                                        "TCP %u\t| Send failed with error %s",
-                                        (unsigned)connectionId, errno_str));
-                        TCP_shutdownConnection(cm, connectionId);
-                        UA_ByteString_clear(buf);
-                        return UA_STATUSCODE_BADCONNECTIONCLOSED;
-                    }
+                    if(poll_ret < 0 && UA_ERRNO != UA_INTERRUPTED)
+                        goto shutdown;
                 } while(poll_ret <= 0);
             }
         } while(n < 0);
@@ -689,6 +674,15 @@ TCP_sendWithConnection(UA_ConnectionManager *cm, uintptr_t connectionId,
     /* Free the buffer */
     UA_ByteString_clear(buf);
     return UA_STATUSCODE_GOOD;
+
+ shutdown:
+    UA_LOG_SOCKET_ERRNO_GAI_WRAP(
+       UA_LOG_ERROR(cm->eventSource.eventLoop->logger, UA_LOGCATEGORY_NETWORK,
+                    "TCP %u\t| Send failed with error %s",
+                    (unsigned)connectionId, errno_str));
+    TCP_shutdownConnection(cm, connectionId);
+    UA_ByteString_clear(buf);
+    return UA_STATUSCODE_BADCONNECTIONCLOSED;
 }
 
 /* Create a listen-socket that waits for incoming connections */
