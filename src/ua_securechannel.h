@@ -340,59 +340,26 @@ signAndEncryptSym(UA_MessageContext *messageContext,
  * zero arguments. So we add a dummy argument that is not printed (%.0s is
  * string of length zero). */
 
-#define UA_LOG_TRACE_CHANNEL_INTERNAL(LOGGER, CHANNEL, MSG, ...)              \
-    UA_LOG_TRACE(LOGGER, UA_LOGCATEGORY_SECURECHANNEL,                        \
-                 "TCP %lu\t| SecureChannel %" PRIu32 " | " MSG "%.0s",        \
-                 (long unsigned)(CHANNEL)->connectionId,                      \
-                 (CHANNEL)->securityToken.channelId, __VA_ARGS__)
+#define UA_LOG_CHANNEL_INTERNAL(LOGGER, LEVEL, CHANNEL, MSG, ...)       \
+    if(UA_LOGLEVEL <= UA_LOGLEVEL_##LEVEL) {                            \
+        UA_LOG_##LEVEL(LOGGER, UA_LOGCATEGORY_SECURECHANNEL,            \
+                       "TCP %lu\t| SecureChannel %" PRIu32 "\t| " MSG "%.0s", \
+                       (long unsigned)(CHANNEL)->connectionId,          \
+                       (CHANNEL)->securityToken.channelId, __VA_ARGS__); \
+    }
 
-#define UA_LOG_TRACE_CHANNEL(LOGGER, CHANNEL, ...)        \
-    UA_MACRO_EXPAND(UA_LOG_TRACE_CHANNEL_INTERNAL(LOGGER, CHANNEL, __VA_ARGS__, ""))
-
-#define UA_LOG_DEBUG_CHANNEL_INTERNAL(LOGGER, CHANNEL, MSG, ...)              \
-    UA_LOG_DEBUG(LOGGER, UA_LOGCATEGORY_SECURECHANNEL,                        \
-                 "TCP %lu\t| SecureChannel %" PRIu32 " | " MSG "%.0s",        \
-                 (long unsigned)(CHANNEL)->connectionId,                      \
-                 (CHANNEL)->securityToken.channelId, __VA_ARGS__)
-
-#define UA_LOG_DEBUG_CHANNEL(LOGGER, CHANNEL, ...)        \
-    UA_MACRO_EXPAND(UA_LOG_DEBUG_CHANNEL_INTERNAL(LOGGER, CHANNEL, __VA_ARGS__, ""))
-
-#define UA_LOG_INFO_CHANNEL_INTERNAL(LOGGER, CHANNEL, MSG, ...)               \
-    UA_LOG_INFO(LOGGER, UA_LOGCATEGORY_SECURECHANNEL,                         \
-                 "TCP %lu\t| SecureChannel %" PRIu32 " | " MSG "%.0s",        \
-                 (long unsigned)(CHANNEL)->connectionId,                      \
-                 (CHANNEL)->securityToken.channelId, __VA_ARGS__)
-
-#define UA_LOG_INFO_CHANNEL(LOGGER, CHANNEL, ...)        \
-    UA_MACRO_EXPAND(UA_LOG_INFO_CHANNEL_INTERNAL(LOGGER, CHANNEL, __VA_ARGS__, ""))
-
-#define UA_LOG_WARNING_CHANNEL_INTERNAL(LOGGER, CHANNEL, MSG, ...)            \
-    UA_LOG_WARNING(LOGGER, UA_LOGCATEGORY_SECURECHANNEL,                      \
-                 "TCP %lu\t| SecureChannel %" PRIu32 " | " MSG "%.0s",        \
-                 (long unsigned)(CHANNEL)->connectionId,                      \
-                 (CHANNEL)->securityToken.channelId, __VA_ARGS__)
-
-#define UA_LOG_WARNING_CHANNEL(LOGGER, CHANNEL, ...)        \
-    UA_MACRO_EXPAND(UA_LOG_WARNING_CHANNEL_INTERNAL(LOGGER, CHANNEL, __VA_ARGS__, ""))
-
-#define UA_LOG_ERROR_CHANNEL_INTERNAL(LOGGER, CHANNEL, MSG, ...)              \
-    UA_LOG_ERROR(LOGGER, UA_LOGCATEGORY_SECURECHANNEL,                        \
-                 "TCP %lu\t| SecureChannel %" PRIu32 " | " MSG "%.0s",        \
-                 (long unsigned)(CHANNEL)->connectionId,                      \
-                 (CHANNEL)->securityToken.channelId, __VA_ARGS__)
-
-#define UA_LOG_ERROR_CHANNEL(LOGGER, CHANNEL, ...)        \
-    UA_MACRO_EXPAND(UA_LOG_ERROR_CHANNEL_INTERNAL(LOGGER, CHANNEL, __VA_ARGS__, ""))
-
-#define UA_LOG_FATAL_CHANNEL_INTERNAL(LOGGER, CHANNEL, MSG, ...)              \
-    UA_LOG_FATAL(LOGGER, UA_LOGCATEGORY_SECURECHANNEL,                        \
-                 "TCP %lu\t| SecureChannel %" PRIu32 " | " MSG "%.0s",        \
-                 (long unsigned)(CHANNEL)->connectionId,                      \
-                 (CHANNEL)->securityToken.channelId, __VA_ARGS__)
-
-#define UA_LOG_FATAL_CHANNEL(LOGGER, CHANNEL, ...)        \
-    UA_MACRO_EXPAND(UA_LOG_FATAL_CHANNEL_INTERNAL(LOGGER, CHANNEL, __VA_ARGS__, ""))
+#define UA_LOG_TRACE_CHANNEL(LOGGER, CHANNEL, ...)                      \
+    UA_MACRO_EXPAND(UA_LOG_CHANNEL_INTERNAL(LOGGER, TRACE, CHANNEL, __VA_ARGS__, ""))
+#define UA_LOG_DEBUG_CHANNEL(LOGGER, CHANNEL, ...)                      \
+    UA_MACRO_EXPAND(UA_LOG_CHANNEL_INTERNAL(LOGGER, DEBUG, CHANNEL, __VA_ARGS__, ""))
+#define UA_LOG_INFO_CHANNEL(LOGGER, CHANNEL, ...)                       \
+    UA_MACRO_EXPAND(UA_LOG_CHANNEL_INTERNAL(LOGGER, INFO, CHANNEL, __VA_ARGS__, ""))
+#define UA_LOG_WARNING_CHANNEL(LOGGER, CHANNEL, ...)                    \
+    UA_MACRO_EXPAND(UA_LOG_CHANNEL_INTERNAL(LOGGER, WARNING, CHANNEL, __VA_ARGS__, ""))
+#define UA_LOG_ERROR_CHANNEL(LOGGER, CHANNEL, ...)                      \
+    UA_MACRO_EXPAND(UA_LOG_CHANNEL_INTERNAL(LOGGER, ERROR, CHANNEL, __VA_ARGS__, ""))
+#define UA_LOG_FATAL_CHANNEL(LOGGER, CHANNEL, ...)                      \
+    UA_MACRO_EXPAND(UA_LOG_CHANNEL_INTERNAL(LOGGER, FATAL, CHANNEL, __VA_ARGS__, ""))
 
 _UA_END_DECLS
 
