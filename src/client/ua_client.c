@@ -270,9 +270,6 @@ processMSGResponse(UA_Client *client, UA_UInt32 requestId,
         return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
     }
 
-    UA_LOG_WARNING(&client->config.logger, UA_LOGCATEGORY_CLIENT,
-                   "Processing request with RequestId %u", requestId);
-
     UA_Response asyncResponse;
     UA_Response *response = (ac->syncResponse) ? ac->syncResponse : &asyncResponse;
     const UA_DataType *responseType = ac->responseType;
@@ -348,17 +345,34 @@ processServiceResponse(void *application, UA_SecureChannel *channel,
                        UA_ByteString *message) {
     UA_Client *client = (UA_Client*)application;
 
+    if(!UA_SecureChannel_isConnected(channel)) {
+        if(messageType == UA_MESSAGETYPE_MSG) {
+            UA_LOG_DEBUG_CHANNEL(&client->config.logger, channel, "Discard MSG message "
+                                 "with RequestId %u as the SecureChannel is not connected",
+                                 requestId);
+        } else {
+            UA_LOG_DEBUG_CHANNEL(&client->config.logger, channel, "Discard message "
+                                 "as the SecureChannel is not connected");
+        }
+        return UA_STATUSCODE_BADCONNECTIONCLOSED;
+    }
+
     switch(messageType) {
     case UA_MESSAGETYPE_ACK:
+        UA_LOG_DEBUG_CHANNEL(&client->config.logger, channel, "Process ACK message");
         processACKResponse(client, message);
         return UA_STATUSCODE_GOOD;
     case UA_MESSAGETYPE_OPN:
+        UA_LOG_DEBUG_CHANNEL(&client->config.logger, channel, "Process OPN message");
         processOPNResponse(client, message);
         return UA_STATUSCODE_GOOD;
     case UA_MESSAGETYPE_ERR:
+        UA_LOG_DEBUG_CHANNEL(&client->config.logger, channel, "Process ERR message");
         processERRResponse(client, message);
         return UA_STATUSCODE_GOOD;
     case UA_MESSAGETYPE_MSG:
+        UA_LOG_DEBUG_CHANNEL(&client->config.logger, channel, "Process MSG message "
+                             "with RequestId %u", requestId);
         return processMSGResponse(client, requestId, message);
     default:
         UA_LOG_TRACE_CHANNEL(&client->config.logger, channel,
@@ -525,8 +539,8 @@ __UA_Client_AsyncServiceEx(UA_Client *client, const void *request,
                            void *userdata, UA_UInt32 *requestId,
                            UA_UInt32 timeout) {
     if(client->channel.state != UA_SECURECHANNELSTATE_OPEN) {
-        UA_LOG_INFO(&client->config.logger, UA_LOGCATEGORY_CLIENT,
-                    "SecureChannel must be connected before sending requests");
+        UA_LOG_WARNING_CHANNEL(&client->config.logger, &client->channel,
+                               "SecureChannel must be connected before sending requests");
         return UA_STATUSCODE_BADSERVERNOTCONNECTED;
     }
 

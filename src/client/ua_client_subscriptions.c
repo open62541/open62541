@@ -1060,8 +1060,8 @@ UA_Client_Subscriptions_processPublishResponse(UA_Client *client, UA_PublishRequ
                            "Too many publishrequest, reduce outStandingPublishRequests "
                            "to %" PRId16, client->config.outStandingPublishRequests);
         } else {
-            UA_LOG_ERROR(&client->config.logger, UA_LOGCATEGORY_CLIENT,
-                         "Too many publishrequest when outStandingPublishRequests = 1");
+            UA_LOG_WARNING(&client->config.logger, UA_LOGCATEGORY_CLIENT,
+                           "Too many publishrequest when outStandingPublishRequests = 1");
             UA_Client_Subscriptions_deleteSingle(client, response->subscriptionId);
         }
         return;
@@ -1216,8 +1216,8 @@ UA_Client_Subscriptions_backgroundPublishInactivityCheck(UA_Client *client) {
             if(client->config.subscriptionInactivityCallback)
                 client->config.subscriptionInactivityCallback(client, sub->subscriptionId,
                                                               sub->context);
-            UA_LOG_ERROR(&client->config.logger, UA_LOGCATEGORY_CLIENT,
-                         "Inactivity for Subscription %" PRIu32 ".", sub->subscriptionId);
+            UA_LOG_WARNING(&client->config.logger, UA_LOGCATEGORY_CLIENT,
+                           "Inactivity for Subscription %" PRIu32 ".", sub->subscriptionId);
         }
     }
 }
