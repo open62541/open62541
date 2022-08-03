@@ -12,7 +12,6 @@
 
 #include "check.h"
 #include "testing_clock.h"
-#include "testing_networklayers.h"
 #include "thread_wrapper.h"
 
 UA_Server *server;
@@ -151,8 +150,8 @@ START_TEST(SecureChannel_networkfail) {
     rq.nodesToReadSize = 1;
 
     /* Manually close the TCP connection */
-    UA_ConnectionManager *cm = (UA_ConnectionManager*)client->connection.handle;
-    cm->closeConnection(cm, (uintptr_t)client->connection.sockfd);
+    UA_ConnectionManager *cm = client->channel.connectionManager;
+    cm->closeConnection(cm, client->channel.connectionId);
     UA_EventLoop *el = client->config.eventLoop;
     el->run(el, 0);
 
@@ -206,8 +205,8 @@ START_TEST(SecureChannel_cableunplugged) {
     /* Manually close the connection. The connection is internally closed at the
      * next iteration of the EventLoop. Hence the next request is sent out. But
      * the connection "actually closes" before receiving the response. */
-    UA_ConnectionManager *cm = (UA_ConnectionManager*)client->connection.handle;
-    uintptr_t connId = (unsigned)client->connection.sockfd;
+    UA_ConnectionManager *cm = client->channel.connectionManager;
+    uintptr_t connId = client->channel.connectionId;
     cm->closeConnection(cm, connId);
 
     UA_Variant_init(&val);

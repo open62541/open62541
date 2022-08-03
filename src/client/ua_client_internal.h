@@ -137,9 +137,9 @@ struct UA_Client {
 
     UA_Boolean endpointsHandshake;     /* Ongoing GetEndpoints */
     UA_Boolean noSession;              /* Don't open a session */
+    UA_Boolean noReconnect;            /* Don't reconnect when the connection closes */
 
     /* Connection */
-    UA_Connection connection;
     UA_String endpointUrl;
 
     /* SecureChannel */
