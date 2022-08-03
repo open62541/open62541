@@ -15,11 +15,11 @@
 #include <open62541/types.h>
 #include <open62541/plugin/log.h>
 #include <open62541/plugin/securitypolicy.h>
+#include <open62541/plugin/eventloop.h>
 #include <open62541/transport_generated.h>
 
 #include "open62541_queue.h"
 #include "ua_util_internal.h"
-#include "ua_connection_internal.h"
 
 _UA_BEGIN_DECLS
 
@@ -101,6 +101,10 @@ struct UA_SecureChannel {
     UA_MessageSecurityMode securityMode;
     UA_ConnectionConfig config;
 
+    /* Connection handling in the EventLoop */
+    UA_ConnectionManager *connectionManager;
+    uintptr_t connectionId;
+
     /* Rules for revolving the token with a renew OPN request: The client is
      * allowed to accept messages with the old token until the OPN response has
      * arrived. The server accepts the old token until one message secured with
@@ -115,7 +119,6 @@ struct UA_SecureChannel {
     /* The endpoint and context of the channel */
     const UA_SecurityPolicy *securityPolicy;
     void *channelContext; /* For interaction with the security policy */
-    UA_Connection *connection;
 
     /* Asymmetric encryption info */
     UA_ByteString remoteCertificate;
@@ -156,7 +159,12 @@ struct UA_SecureChannel {
 
 void UA_SecureChannel_init(UA_SecureChannel *channel);
 
-void UA_SecureChannel_close(UA_SecureChannel *channel);
+/* Trigger the shutdown */
+void UA_SecureChannel_shutdown(UA_SecureChannel *channel);
+
+/* Eventual cleanup after the channel has closed. It is possible to call _init
+ * on the channel afterwards to reset it to the fresh status. */
+void UA_SecureChannel_clear(UA_SecureChannel *channel);
 
 /* Process the remote configuration in the HEL/ACK handshake. The connection
  * config is initialized with the local settings. */
