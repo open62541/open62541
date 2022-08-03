@@ -210,15 +210,16 @@ TCP_connectionSocketCallback(UA_ConnectionManager *cm, UA_RegisteredFD *rfd,
         UA_LOG_DEBUG(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
                      "TCP %u\t| Opening a new connection", (unsigned)rfd->fd);
 
+        /* Now we are interested in read-events. */
+        rfd->listenEvents = UA_FDEVENT_IN;
+        UA_EventLoopPOSIX_modifyFD(el, rfd);
+
         /* A new socket has opened. Signal it to the application. */
         tcpfd->connectionCallback(cm, (uintptr_t)rfd->fd,
                                   rfd->application, &rfd->context,
                                   UA_CONNECTIONSTATE_ESTABLISHED, 0, NULL,
                                   UA_BYTESTRING_NULL);
 
-        /* Now we are interested in read-events. */
-        rfd->listenEvents = UA_FDEVENT_IN;
-        UA_EventLoopPOSIX_modifyFD(el, rfd);
         return;
     }
 
