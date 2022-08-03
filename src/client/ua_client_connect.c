@@ -262,8 +262,6 @@ processACKResponse(UA_Client *client, const UA_ByteString *chunk) {
         return;
     }
 
-    UA_LOG_DEBUG(&client->config.logger, UA_LOGCATEGORY_NETWORK, "Received ACK message");
-
     /* Decode the message */
     size_t offset = 0;
     UA_TcpAcknowledgeMessage ackMessage;
@@ -1345,6 +1343,8 @@ closeSecureChannel(UA_Client *client) {
 
     /* Send CLO if the SecureChannel is open */
     if(client->channel.state == UA_SECURECHANNELSTATE_OPEN) {
+        UA_LOG_DEBUG_CHANNEL(&client->config.logger, &client->channel,
+                             "Sending the CLO message");
         UA_CloseSecureChannelRequest request;
         UA_CloseSecureChannelRequest_init(&request);
         request.requestHeader.requestHandle = ++client->requestHandle;
