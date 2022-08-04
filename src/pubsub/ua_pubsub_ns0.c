@@ -848,41 +848,7 @@ addDataSetReaderAction(UA_Server *server,
 
 UA_StatusCode
 removeDataSetReaderRepresentation(UA_Server *server, UA_DataSetReader* dataSetReader) {
-    UA_StatusCode retVal = UA_STATUSCODE_GOOD;
-    if(!UA_String_equal(&dataSetReader->config.linkedStandaloneSubscribedDataSetName, &UA_STRING_NULL)) {
-        UA_NodeId dataSetMetaDataOnDsrId = findSingleChildNode(server, UA_QUALIFIEDNAME(0, "DataSetMetaData"),
-                                    UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY), dataSetReader->identifier);
-        UA_NodeId subscribedDataSetOnDsrId = findSingleChildNode(server, UA_QUALIFIEDNAME(0, "SubscribedDataSet"),
-                                    UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT), dataSetReader->identifier);
-
-        if(UA_NodeId_isNull(&dataSetMetaDataOnDsrId) || UA_NodeId_isNull(&subscribedDataSetOnDsrId)) {
-            UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER, "removeDataSetReaderRepresentation failed."
-                                                                        "SubscribedDataSet or DataSetMetaData not found!");
-            return UA_STATUSCODE_BADNOTFOUND;
-        }
-
-        retVal |= UA_Server_deleteReference(server, dataSetReader->identifier,
-                                  UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY),
-                                  UA_TRUE,
-                                  UA_EXPANDEDNODEID_NUMERIC(dataSetMetaDataOnDsrId.namespaceIndex, dataSetMetaDataOnDsrId.identifier.numeric),
-                                  UA_TRUE);
-        if(retVal != UA_STATUSCODE_GOOD) {
-            /* todo error handling */
-        }
-
-        retVal |= UA_Server_deleteReference(server, dataSetReader->identifier,
-                                  UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
-                                  UA_TRUE,
-                                  UA_EXPANDEDNODEID_NUMERIC(subscribedDataSetOnDsrId.namespaceIndex, subscribedDataSetOnDsrId.identifier.numeric),
-                                  UA_TRUE);
-        if(retVal != UA_STATUSCODE_GOOD) {
-            /* todo error handling */
-        }
-    }
-    
-    retVal |= deleteNode(server, dataSetReader->identifier, true);
-
-    return retVal;
+    return deleteNode(server, dataSetReader->identifier, true);
 }
 
 #ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL_METHODS
@@ -1211,9 +1177,7 @@ addStandaloneSubscribedDataSetRepresentation(UA_Server *server, UA_StandaloneSub
 
 UA_StatusCode
 removeStandaloneSubscribedDataSetRepresentation(UA_Server *server, UA_StandaloneSubscribedDataSet *subscribedDataSet) {
-    UA_StatusCode retVal = UA_STATUSCODE_GOOD;
-    retVal |= UA_Server_deleteNode(server, subscribedDataSet->identifier, true);
-    return retVal;
+    return UA_Server_deleteNode(server, subscribedDataSet->identifier, true);
 }
 
 /**********************************************/
@@ -1946,7 +1910,7 @@ connectDataSetReaderToDataSet(UA_Server *server, UA_NodeId dsrId, UA_NodeId stan
     retVal |= UA_Server_addReference(server, dsrId, UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY),
         UA_EXPANDEDNODEID_NUMERIC(dataSetMetaDataOnSdsId.namespaceIndex, dataSetMetaDataOnSdsId.identifier.numeric), UA_TRUE);
     retVal |= UA_Server_addReference(server, dsrId, UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY),
-        UA_EXPANDEDNODEID_NUMERIC(dataSetMetaDataOnSdsId.namespaceIndex, subscribedDataSetOnSdsId.identifier.numeric), UA_TRUE);
+        UA_EXPANDEDNODEID_NUMERIC(subscribedDataSetOnSdsId.namespaceIndex, subscribedDataSetOnSdsId.identifier.numeric), UA_TRUE);
 
     return retVal;
 }
