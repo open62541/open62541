@@ -13,6 +13,8 @@
 #define UA_SERVER_PUBSUB_H
 
 #include <open62541/common.h>
+#include <open62541/util.h>
+#include <open62541/client.h>
 #include <open62541/plugin/pubsub.h>
 #include <open62541/plugin/securitypolicy.h>
 
@@ -935,6 +937,51 @@ UA_Server_addSecurityGroup(UA_Server *server, UA_NodeId securityGroupFolderNodeI
  */
 UA_EXPORT UA_StatusCode UA_THREADSAFE
 UA_Server_removeSecurityGroup(UA_Server *server, const UA_NodeId securityGroup);
+
+/**
+ * @brief This is a repeated callback which is triggered on each iteration of SKS Pull request.
+ * The server uses this callback to notify user about the status of current Pull request iteration.
+ * The period is calculated based on the KeylifeTime of specified in the SecurityGroup object node on
+ * the SKS server.
+ *
+ * @param server The server instance managing the publisher/subscriber.
+ * @param sksPullRequestStatus The current status of sks pull request.
+ * @param context The pointer to user defined data passed to this callback.
+ */
+typedef void
+(*UA_Server_sksPullRequestCallback)(UA_Server *server, UA_StatusCode sksPullRequestStatus, void* context);
+
+/**
+ * @brief Sets the SKS client config used to call the GetSecurityKeys Method on SKS and get the
+ * initial set of keys for a SecurityGroupId and adds timedCallback for the next GetSecurityKeys
+ * method Call. This uses async Client API for SKS Pull request. The SKS Client instance is created and destroyed at
+ * runtime on each iteration of SKS Pull request by the server. The key Rollover mechanism will check if the new
+ * keys are needed then it will call the getSecurityKeys Method on SKS Server. At the end of SKS Pull request
+ * iteration, the sks client will be deleted by a delayed callback (in next server iteration).
+ *
+ * @note It is be called before setting Reader/Writer Group into Operational because this also allocates
+ * a channel context for the pubsub security policy.
+ *
+ * @note the stateCallback of sksClientConfig will be overwritten by an internal callback.
+ *
+ * @param server the server instance
+ * @param clientConfig holds the required configuration to make encrypted connection with
+ * SKS Server. The input client config takes the lifecycle as long as SKS request are made.
+ * It is deleted with its plugins when the server is deleted or the last Reader/Writer
+ * Group of the securityGroupId is deleted. The input config is copied to an internal
+ * config object and the content of input config object will be reset to zero.
+ * @param endpointUrl holds the endpointUrl of the SKS server
+ * @param securityGroupId the SecurityGroupId of the securityGroup on SKS and
+ * reader/writergroups
+ * @param callback the user defined callback to notify the user about the status of SKS
+ * Pull request.
+ * @param context passed to the callback function
+ * @return UA_StatusCode the retuned status
+ */
+UA_StatusCode UA_EXPORT
+UA_Server_setSksClient(UA_Server *server, UA_String securityGroupId,
+                       UA_ClientConfig *clientConfig, const char *endpointUrl,
+                       UA_Server_sksPullRequestCallback callback, void *context);
 
 #endif /* UA_ENABLE_PUBSUB_SKS */
 
