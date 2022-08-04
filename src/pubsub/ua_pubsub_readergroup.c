@@ -482,9 +482,20 @@ UA_Server_setReaderGroupOperational(UA_Server *server, const UA_NodeId readerGro
     UA_LOCK(&server->serviceMutex);
     UA_StatusCode ret = UA_STATUSCODE_BADNOTFOUND;
     UA_ReaderGroup *rg = UA_ReaderGroup_findRGbyId(server, readerGroupId);
-    if(rg)
+    if(rg) {
+#ifdef UA_ENABLE_PUBSUB_SKS
+        if(rg->keyStorage && rg->keyStorage->currentItem) {
+            UA_StatusCode retval = UA_PubSubKeyStorage_activateKeyToChannelContext(
+                server, rg->identifier, rg->config.securityGroupId);
+            if(retval != UA_STATUSCODE_GOOD) {
+                UA_UNLOCK(&server->serviceMutex);
+                return retval;
+            }
+        }
+#endif
         ret = UA_ReaderGroup_setPubSubState(server, rg, UA_PUBSUBSTATE_OPERATIONAL,
                                             UA_STATUSCODE_GOOD);
+    }
     UA_UNLOCK(&server->serviceMutex);
     return ret;
 }
