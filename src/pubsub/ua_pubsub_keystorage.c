@@ -354,6 +354,22 @@ UA_PubSubKeyStorage_activateKeyToChannelContext(UA_Server *server, UA_NodeId pub
     return retval;
 }
 
+static void
+nextGetSecuritykeysCallback(UA_Server *server, UA_PubSubKeyStorage *keyStorage) {
+    UA_StatusCode retval = UA_STATUSCODE_BAD;
+    if(!keyStorage) {
+        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                     "GetSecurityKeysCall Failed with error: KeyStorage does not exist "
+                     "in the server");
+        return;
+    }
+    retval = getSecurityKeysAndStoreFetchedKeys(server, keyStorage);
+    if(retval != UA_STATUSCODE_GOOD)
+        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                     "GetSecurityKeysCall Failed with error: %s ",
+                     UA_StatusCode_name(retval));
+}
+
 void
 UA_PubSubKeyStorage_keyRolloverCallback(UA_Server *server, UA_PubSubKeyStorage *keyStorage) {
     /* Callbacks from the EventLoop are initially unlocked */
@@ -380,6 +396,15 @@ UA_PubSubKeyStorage_keyRolloverCallback(UA_Server *server, UA_PubSubKeyStorage *
                          (int)keyStorage->securityGroupID.length, keyStorage->securityGroupID.data,
                          UA_StatusCode_name(retval));
         }
+    } else if(keyStorage->sksConfig.endpointUrl) {
+        UA_DateTime now = UA_DateTime_nowMonotonic();
+        /*Publishers using a central SKS shall call GetSecurityKeys at a period of half the KeyLifetime */
+        UA_Duration msTimeToNextGetSecurityKeys = keyStorage->keyLifeTime / 2;
+        UA_DateTime dateTimeToNextGetSecurityKeys =
+            now + (UA_DateTime)(UA_DATETIME_MSEC * msTimeToNextGetSecurityKeys);
+        retval = server->config.eventLoop->addTimedCallback(
+            server->config.eventLoop, (UA_Callback)nextGetSecuritykeysCallback, server,
+            keyStorage, dateTimeToNextGetSecurityKeys, NULL);
     }
     UA_UNLOCK(&server->serviceMutex);
 }
