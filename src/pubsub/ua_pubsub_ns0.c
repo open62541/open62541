@@ -68,6 +68,8 @@ onRead(UA_Server *server, const UA_NodeId *sessionId, void *sessionContext,
     UA_Variant_init(&value);
     const UA_NodePropertyContext *nodeContext = (const UA_NodePropertyContext*)context;
     const UA_NodeId *myNodeId = &nodeContext->parentNodeId;
+    UA_PublishedVariableDataType *pvd = NULL;
+    UA_PublishedDataSet *publishedDataSet = NULL;
 
     switch(nodeContext->parentClassifier){
     case UA_NS0ID_PUBSUBCONNECTIONTYPE: {
@@ -155,12 +157,12 @@ onRead(UA_Server *server, const UA_NodeId *sessionId, void *sessionContext,
         break;
     }
     case UA_NS0ID_PUBLISHEDDATAITEMSTYPE: {
-        UA_PublishedDataSet *publishedDataSet = UA_PublishedDataSet_findPDSbyId(server, *myNodeId);
+        publishedDataSet = UA_PublishedDataSet_findPDSbyId(server, *myNodeId);
         if(!publishedDataSet)
             return;
         switch(nodeContext->elementClassiefier) {
         case UA_NS0ID_PUBLISHEDDATAITEMSTYPE_PUBLISHEDDATA: {
-            UA_PublishedVariableDataType *pvd = (UA_PublishedVariableDataType *)
+            pvd = (UA_PublishedVariableDataType *)
                 UA_calloc(publishedDataSet->fieldSize, sizeof(UA_PublishedVariableDataType));
             size_t counter = 0;
             UA_DataSetField *field;
@@ -175,11 +177,11 @@ onRead(UA_Server *server, const UA_NodeId *sessionId, void *sessionContext,
             break;
         }
         case UA_NS0ID_PUBLISHEDDATAITEMSTYPE_DATASETMETADATA: {
-            UA_Variant_setScalarCopy(&value, &publishedDataSet->dataSetMetaData, &UA_TYPES[UA_TYPES_DATASETMETADATATYPE]);
+            UA_Variant_setScalar(&value, &publishedDataSet->dataSetMetaData, &UA_TYPES[UA_TYPES_DATASETMETADATATYPE]);
             break;
         }
         case UA_NS0ID_PUBLISHEDDATAITEMSTYPE_CONFIGURATIONVERSION: {
-            UA_Variant_setScalarCopy(&value, &publishedDataSet->dataSetMetaData.configurationVersion,
+            UA_Variant_setScalar(&value, &publishedDataSet->dataSetMetaData.configurationVersion,
                                      &UA_TYPES[UA_TYPES_CONFIGURATIONVERSIONDATATYPE]);
             break;
         }
@@ -191,7 +193,7 @@ onRead(UA_Server *server, const UA_NodeId *sessionId, void *sessionContext,
                     break;
                 }
                 case UA_NS0ID_STANDALONESUBSCRIBEDDATASETTYPE_DATASETMETADATA: {
-                    UA_Variant_setScalarCopy(&value, &sds->config.dataSetMetaData, &UA_TYPES[UA_TYPES_DATASETMETADATATYPE]);
+                    UA_Variant_setScalar(&value, &sds->config.dataSetMetaData, &UA_TYPES[UA_TYPES_DATASETMETADATATYPE]);
                     break;
                 }
                 default:
@@ -211,6 +213,9 @@ onRead(UA_Server *server, const UA_NodeId *sessionId, void *sessionContext,
                        "Read error! Unknown parent element.");
     }
     UA_Server_writeValue(server, *nodeid, value);
+    if(pvd && publishedDataSet) {
+        UA_Array_delete(pvd, publishedDataSet->fieldSize, &UA_TYPES[UA_TYPES_PUBLISHEDVARIABLEDATATYPE]);
+    }
 }
 
 static void
