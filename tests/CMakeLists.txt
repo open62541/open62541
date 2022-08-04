@@ -344,6 +344,7 @@ if(UA_ENABLE_PUBSUB)
             ua_add_test(pubsub/check_pubsub_sks_push.c)
             ua_add_test(pubsub/check_pubsub_sks_pull.c)
             ua_add_test(pubsub/check_pubsub_sks_securitygroups.c)
+            ua_add_test(pubsub/check_pubsub_sks_client.c)
         endif()
     endif()
 
