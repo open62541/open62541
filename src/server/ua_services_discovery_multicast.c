@@ -12,6 +12,39 @@
 
 #if defined(UA_ENABLE_DISCOVERY) && defined(UA_ENABLE_DISCOVERY_MULTICAST)
 
+typedef enum {
+    UA_DISCOVERY_TCP,    /* OPC UA TCP mapping */
+    UA_DISCOVERY_TLS     /* OPC UA HTTPS mapping */
+} UA_DiscoveryProtocol;
+
+/* Create a mDNS Record for the given server info and adds it to the mDNS output
+ * queue.
+ *
+ * Additionally this method also adds the given server to the internal
+ * serversOnNetwork list so that a client finds it when calling
+ * FindServersOnNetwork. */
+static UA_StatusCode
+UA_Discovery_addRecord(UA_Server *server, const UA_String *servername,
+                       const UA_String *hostname, UA_UInt16 port,
+                       const UA_String *path, const UA_DiscoveryProtocol protocol,
+                       UA_Boolean createTxt, const UA_String* capabilites,
+                       const size_t capabilitiesSize,
+                       UA_Boolean isSelf);
+
+/* Create a mDNS Record for the given server info with TTL=0 and adds it to the
+ * mDNS output queue.
+ *
+ * Additionally this method also removes the given server from the internal
+ * serversOnNetwork list so that a client gets the updated data when calling
+ * FindServersOnNetwork. */
+static UA_StatusCode
+UA_Discovery_removeRecord(UA_Server *server, const UA_String *servername,
+                          const UA_String *hostname, UA_UInt16 port,
+                          UA_Boolean removeTxt);
+
+static int
+discovery_multicastQueryAnswer(mdns_answer_t *a, void *arg);
+
 #if UA_MULTITHREADING >= 100
 
 static void *
@@ -108,8 +141,10 @@ void startMulticastDiscoveryServer(UA_Server *server) {
     for(size_t i = 0; i < server->config.serverUrlsSize; i++)
         addMdnsRecordForNetworkLayer(server, appName, &server->config.serverUrls[i]);
 
-    /* find any other server on the net */
-    UA_Discovery_multicastQuery(server);
+    /* Send a multicast probe to find any other OPC UA server on the network
+     * through mDNS */
+    mdnsd_query(server->discoveryManager.mdnsDaemon, "_opcua-tcp._tcp.local.",
+                QTYPE_PTR,discovery_multicastQueryAnswer, server);
 
 #if UA_MULTITHREADING >= 100
     multicastListenStart(server);
@@ -375,14 +410,7 @@ discovery_multicastQueryAnswer(mdns_answer_t *a, void *arg) {
     return 0;
 }
 
-UA_StatusCode
-UA_Discovery_multicastQuery(UA_Server* server) {
-    mdnsd_query(server->discoveryManager.mdnsDaemon, "_opcua-tcp._tcp.local.",
-                QTYPE_PTR,discovery_multicastQueryAnswer, server);
-    return UA_STATUSCODE_GOOD;
-}
-
-UA_StatusCode
+static UA_StatusCode
 UA_Discovery_addRecord(UA_Server *server, const UA_String *servername,
                        const UA_String *hostname, UA_UInt16 port,
                        const UA_String *path, const UA_DiscoveryProtocol protocol,
@@ -517,7 +545,7 @@ UA_Discovery_addRecord(UA_Server *server, const UA_String *servername,
     return UA_STATUSCODE_GOOD;
 }
 
-UA_StatusCode
+static UA_StatusCode
 UA_Discovery_removeRecord(UA_Server *server, const UA_String *servername,
                           const UA_String *hostname, UA_UInt16 port,
                           UA_Boolean removeTxt) {
