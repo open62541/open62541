@@ -272,7 +272,7 @@ addWriterGroup(UA_Server *server, char *topic, int interval) {
     transportSettings.content.decoded.type = &UA_TYPES[UA_TYPES_BROKERWRITERGROUPTRANSPORTDATATYPE];
     transportSettings.content.decoded.data = &brokerTransportSettings;
 
-    UA_ExtensionObject_copy(&transportSettings, &writerGroupConfig.transportSettings);
+    writerGroupConfig.transportSettings = transportSettings;
     retval = UA_Server_addWriterGroup(server, connectionIdent, &writerGroupConfig, &writerGroupIdent);
 
     if (retval == UA_STATUSCODE_GOOD)
@@ -353,7 +353,7 @@ addDataSetWriter(UA_Server *server, char *topic) {
     transportSettings.content.decoded.type = &UA_TYPES[UA_TYPES_BROKERDATASETWRITERTRANSPORTDATATYPE];
     transportSettings.content.decoded.data = &brokerTransportSettings;
 
-    UA_ExtensionObject_copy(&transportSettings, &dataSetWriterConfig.transportSettings);
+    dataSetWriterConfig.transportSettings = transportSettings;
     UA_Server_addDataSetWriter(server, writerGroupIdent, publishedDataSetIdent,
                                &dataSetWriterConfig, &dataSetWriterIdent);
 }
@@ -389,6 +389,11 @@ static void usage(void) {
            "  - Topic: customTopic\n"
            "  - Frequency: 500\n"
            "  - JSON: Off\n");
+}
+
+static void forcePublishMetaDataCallback(UA_Server *server, void *data) {
+    UA_NodeId *fieldNodeId = (UA_NodeId *)data;
+    UA_Server_updateDataSetField(server, *fieldNodeId);
 }
 
 int main(int argc, char **argv) {
@@ -463,7 +468,7 @@ int main(int argc, char **argv) {
     UA_ServerConfig_addPubSubTransportLayer(config, UA_PubSubTransportLayerMQTT());
     
     UA_NodeId fieldNodeId;
-    memset(&fieldNodeId, 0, sizeof(UA_NodeId));
+    UA_NodeId_init(&fieldNodeId);
     addPubSubConnection(server, addressUrl);
     addPublishedDataSet(server);
     addDataSetField(server, &fieldNodeId);
@@ -474,21 +479,9 @@ int main(int argc, char **argv) {
         return EXIT_FAILURE;
     }
     addDataSetWriter(server, topic);
-
-    UA_Server_run_startup(server);
-    size_t iteration = 0;
-    while(running) {
-        iteration++;
-        UA_Server_run_iterate(server, true);
-        if(iteration % 100 == 0) {
-            /* Trigger publishing of DataSetMetaData. In a real application we would have made 
-             * changes to the properties of the corresponding node at this point, 
-             * which results in an update of the MinorVersion of the DataSetMetaData's ConfigurationVersion
-             * and thus, a new DataSetMetaData message is sent. */ 
-            UA_Server_updateDataSetField(server, fieldNodeId, UA_TRUE, UA_FALSE);
-        }
-    }
-    UA_Server_run_shutdown(server);
+    UA_UInt64 callbackId;
+    UA_Server_addRepeatedCallback(server, forcePublishMetaDataCallback, &fieldNodeId, 5000, &callbackId);
+    UA_Server_run(server, &running);
     UA_Server_delete(server);
     return 0;
 }

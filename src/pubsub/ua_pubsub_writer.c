@@ -488,7 +488,7 @@ addDataSetField(UA_Server *server, const UA_NodeId publishedDataSet,
 }
 
 void
-UA_Server_updateDataSetField(UA_Server *server, const UA_NodeId dsf, UA_Boolean minor, UA_Boolean major) {
+UA_Server_updateDataSetField(UA_Server *server, const UA_NodeId dsf) {
     UA_DataSetField *currentField = UA_DataSetField_findDSFbyId(server, dsf);
     if(!currentField) {
         return;
@@ -513,11 +513,8 @@ UA_Server_updateDataSetField(UA_Server *server, const UA_NodeId dsf, UA_Boolean 
     }
 
     /* Update minor version of PublishedDataSet */
-    UA_UInt32 timeDifference = UA_PubSubConfigurationVersionTimeDifference();
-    if(minor)
-        pds->dataSetMetaData.configurationVersion.minorVersion = timeDifference;
-    if(major)
-        pds->dataSetMetaData.configurationVersion.majorVersion = timeDifference;
+    pds->dataSetMetaData.configurationVersion.minorVersion =
+        UA_PubSubConfigurationVersionTimeDifference();
 }
 
 UA_DataSetFieldResult
@@ -891,6 +888,14 @@ addDataSetWriter(UA_Server *server,
     /* Copy the config into the new dataSetWriter */
     res = UA_DataSetWriterConfig_copy(dataSetWriterConfig, &newDataSetWriter->config);
     UA_CHECK_STATUS(res, UA_free(newDataSetWriter); return res);
+
+#if !(defined UA_ENABLE_JSON_ENCODING && defined UA_ENABLE_PUBSUB_MQTT)
+    if(dataSetWriterConfig->publishDataSetMetaData) {
+        UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
+            "PubSub: DataSetMetaData publishing is enabled but only supported "
+            "for PubSub over JSON and MQTT.");
+    }
+#endif
 
     if(!UA_NodeId_isNull(&dataSet) && currentDataSetContext != NULL) {
         /* Save the current version of the connected PublishedDataSet */

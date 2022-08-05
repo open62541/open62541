@@ -412,7 +412,7 @@ UA_Server_addDataSetField(UA_Server *server,
                           UA_NodeId *fieldIdentifier);
 
 void UA_EXPORT
-UA_Server_updateDataSetField(UA_Server *server, const UA_NodeId dsf, UA_Boolean minor, UA_Boolean major);
+UA_Server_updateDataSetField(UA_Server *server, const UA_NodeId dsf);
 
 /* Returns a deep copy of the config */
 UA_StatusCode UA_EXPORT
