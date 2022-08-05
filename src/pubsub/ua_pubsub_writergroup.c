@@ -1328,7 +1328,7 @@ UA_WriterGroup_publishCallback(UA_Server *server, UA_WriterGroup *writerGroup) {
         }
 
         /* There is no promoted field -> send right away */
-        if(pds && pds->promotedFieldsCount > 0 && !pds->config.sendViaWriterGroupTopic) {
+        if(pds && pds->promotedFieldsCount > 0 && !pds->config.batchMessagesViaWriterGroupTopic) {
             sendNetworkMessage(server, writerGroup, connection, dsw, &dsmStore[dsmCount],
                                &dsWriterIds[dsmCount], 
                                &dsWriterNames[dsmCount],

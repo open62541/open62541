@@ -315,7 +315,10 @@ typedef struct {
 typedef struct {
     UA_String name;
     UA_PublishedDataSetType publishedDataSetType;
-    UA_Boolean sendViaWriterGroupTopic;
+    /* If true, DataSetMessages of this PDS are batched together with
+     * other messages of other PDS with DataSetWriters within the same WriterGroup
+     * using the WriterGroup's transportSettings.queueName */ 
+    UA_Boolean batchMessagesViaWriterGroupTopic;
     union {
         /* The UA_PUBSUB_DATASET_PUBLISHEDITEMS has currently no additional members
          * and thus no dedicated config structure.*/
@@ -412,7 +415,7 @@ UA_Server_addDataSetField(UA_Server *server,
                           UA_NodeId *fieldIdentifier);
 
 void UA_EXPORT
-UA_Server_updateDataSetField(UA_Server *server, const UA_NodeId dsf);
+UA_Server_triggerDataSetFieldUpdate(UA_Server *server, const UA_NodeId dsf);
 
 /* Returns a deep copy of the config */
 UA_StatusCode UA_EXPORT
@@ -596,6 +599,9 @@ typedef struct {
     UA_String dataSetName;
     size_t dataSetWriterPropertiesSize;
     UA_KeyValuePair *dataSetWriterProperties;
+    /* Enables the publishing of DataSetMetaData over the PubSub transport
+     * layer. See 7.2.3.4.2 in Part 14 (1.05.01). Currently only supported
+     * for MQTT and JSON */
     UA_Boolean publishDataSetMetaData;
 } UA_DataSetWriterConfig;
 

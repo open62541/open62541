@@ -135,7 +135,6 @@ UA_StatusCode
 UA_PublishedDataSetConfig_copy(const UA_PublishedDataSetConfig *src,
                                UA_PublishedDataSetConfig *dst) {
     UA_StatusCode res = UA_STATUSCODE_GOOD;
-    dst->sendViaWriterGroupTopic = src->sendViaWriterGroupTopic;
     memcpy(dst, src, sizeof(UA_PublishedDataSetConfig));
     res |= UA_String_copy(&src->name, &dst->name);
     switch(src->publishedDataSetType) {
@@ -488,7 +487,7 @@ addDataSetField(UA_Server *server, const UA_NodeId publishedDataSet,
 }
 
 void
-UA_Server_updateDataSetField(UA_Server *server, const UA_NodeId dsf) {
+UA_Server_triggerDataSetFieldUpdate(UA_Server *server, const UA_NodeId dsf) {
     UA_DataSetField *currentField = UA_DataSetField_findDSFbyId(server, dsf);
     if(!currentField) {
         return;

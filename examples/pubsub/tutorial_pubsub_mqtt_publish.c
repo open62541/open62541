@@ -393,7 +393,7 @@ static void usage(void) {
 
 static void forcePublishMetaDataCallback(UA_Server *server, void *data) {
     UA_NodeId *fieldNodeId = (UA_NodeId *)data;
-    UA_Server_updateDataSetField(server, *fieldNodeId);
+    UA_Server_triggerDataSetFieldUpdate(server, *fieldNodeId);
 }
 
 int main(int argc, char **argv) {
