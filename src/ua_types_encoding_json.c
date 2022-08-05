@@ -1293,7 +1293,7 @@ encodeJsonInternal(const void *src, const UA_DataType *type, CtxJson *ctx) {
     return encodeJsonJumpTable[type->typeKind](src, type, ctx);
 }
 
-status UA_FUNC_ATTR_WARN_UNUSED_RESULT
+static status
 UA_encodeJsonInternal(const void *src, const UA_DataType *type,
               u8 **bufPos, const u8 **bufEnd, const UA_String *namespaces,
               size_t namespaceSize, const UA_String *serverUris,
@@ -1360,7 +1360,7 @@ UA_encodeJson(const void *src, const UA_DataType *type, UA_ByteString *outBuf,
 /* CalcSize */
 /************/
 
-size_t
+static size_t
 UA_calcSizeJsonInternal(const void *src, const UA_DataType *type,
                 const UA_String *namespaces, size_t namespaceSize,
                 const UA_String *serverUris, size_t serverUriSize,
