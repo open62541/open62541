@@ -20,41 +20,8 @@
 _UA_BEGIN_DECLS
 
 #define UA_JSON_MAXTOKENCOUNT 2048
-
-/* Returns the number of bytes the value src takes in json encoding. Returns
- * zero if an error occurs. */
-size_t
-UA_calcSizeJsonInternal(const void *src, const UA_DataType *type,
-                        const UA_String *namespaces, size_t namespaceSize,
-                        const UA_String *serverUris, size_t serverUriSize,
-                        UA_Boolean useReversible) UA_FUNC_ATTR_WARN_UNUSED_RESULT;
-
-/* Encodes the scalar value described by type to json encoding.
- *
- * @param src The value. Must not be NULL.
- * @param type The value type. Must not be NULL.
- * @param bufPos Points to a pointer to the current position in the encoding
- *        buffer. Must not be NULL.
- * @param bufEnd Points to a pointer to the end of the encoding buffer (encoding
- *        always stops before *buf_end). Must not be NULL.
- * @param namespaces An array of namespaces
- * @param namespaceSize The size of the namespaces array
- * @param serverUris An array of serverUris
- * @param serverUriSize The size of the serverUris array
- * @param useReversible preserve datatypes in json encoding
- * @return Returns a statuscode whether encoding succeeded. */
-UA_StatusCode
-UA_encodeJsonInternal(const void *src, const UA_DataType *type, uint8_t **bufPos,
-                      const uint8_t **bufEnd, const UA_String *namespaces,
-                      size_t namespaceSize, const UA_String *serverUris,
-                      size_t serverUriSize,
-                      UA_Boolean useReversible) UA_FUNC_ATTR_WARN_UNUSED_RESULT;
-
-/* Interal Definitions
- *
- * For future by the PubSub encoding */
-
 #define UA_JSON_ENCODING_MAX_RECURSION 100
+
 typedef struct {
     uint8_t *pos;
     const uint8_t *end;
@@ -84,45 +51,6 @@ UA_StatusCode writeJsonArrEnd(CtxJson *ctx);
 UA_StatusCode writeJsonKey(CtxJson *ctx, const char* key);
 UA_StatusCode writeJsonCommaIfNeeded(CtxJson *ctx);
 UA_StatusCode writeJsonNull(CtxJson *ctx);
-
-/* The encoding length is returned in ctx->pos */
-static UA_INLINE UA_StatusCode
-calcJsonObjStart(CtxJson *ctx) {
-    UA_assert(ctx->calcOnly);
-    return writeJsonObjStart(ctx);
-}
-
-static UA_INLINE UA_StatusCode
-calcJsonObjElm(CtxJson *ctx, const char *key,
-               const void *value, const UA_DataType *type) {
-    UA_assert(ctx->calcOnly);
-    return writeJsonObjElm(ctx, key, value, type);
-}
-
-static UA_INLINE UA_StatusCode
-calcJsonObjEnd(CtxJson *ctx) {
-    UA_assert(ctx->calcOnly);
-    return writeJsonObjEnd(ctx);
-}
-
-static UA_INLINE UA_StatusCode
-calcJsonArrStart(CtxJson *ctx) {
-    UA_assert(ctx->calcOnly);
-    return writeJsonArrStart(ctx);
-}
-
-static UA_INLINE UA_StatusCode
-calcJsonArrElm(CtxJson *ctx, const void *value,
-               const UA_DataType *type) {
-    UA_assert(ctx->calcOnly);
-    return writeJsonArrElm(ctx, value, type);
-}
-
-static UA_INLINE UA_StatusCode
-calcJsonArrEnd(CtxJson *ctx) {
-    UA_assert(ctx->calcOnly);
-    return writeJsonArrEnd(ctx);
-}
 
 status
 encodeJsonInternal(const void *src, const UA_DataType *type, CtxJson *ctx);
