@@ -942,60 +942,12 @@ addDataSetWriter(UA_Server *server,
 #endif
     if(writerIdentifier)
         UA_NodeId_copy(&newDataSetWriter->identifier, writerIdentifier);
-    
-    if(newDataSetWriter->config.publishDataSetMetaData) {
-        if(wg->config.encodingMimeType == UA_PUBSUB_ENCODING_JSON) {
-            UA_PubSubConnection *connection = wg->linkedConnection;
-            /* Find the dataset */
-            UA_PublishedDataSet *pds = UA_PublishedDataSet_findPDSbyId(server, newDataSetWriter->connectedDataSet);
-            if(!connection || !pds) {
-                UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
-                            "Publish failed. PubSubConnection invalid or PublishedDataSet not found.");
-            } else {
-                /* Generate the DataSetMetaData */
-                UA_DataSetMetaData dataSetMetaData;
-                UA_DataSetMetaDataType *dsmdt = &pds->dataSetMetaData;
-                res |= UA_DataSetWriter_generateDataSetMetaData(server, &dataSetMetaData, dsmdt, newDataSetWriter, UA_TRUE);
-                if(res != UA_STATUSCODE_GOOD) {
-                    UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
-                                "PubSub: DataSetMessageMetaData generation failed");
-                }
-                
-                switch(connection->config->publisherIdType) {
-                    case UA_PUBLISHERIDTYPE_BYTE:
-                        dataSetMetaData.publisherIdType = UA_PUBLISHERIDTYPE_BYTE;
-                        dataSetMetaData.publisherId.publisherIdByte = connection->config->publisherId.byte;
-                        break;
-                    case UA_PUBLISHERIDTYPE_UINT16:
-                        dataSetMetaData.publisherIdType = UA_PUBLISHERIDTYPE_UINT16;
-                        dataSetMetaData.publisherId.publisherIdUInt16 = connection->config->publisherId.uint16;
-                        break;
-                    case UA_PUBLISHERIDTYPE_UINT32:
-                        dataSetMetaData.publisherIdType = UA_PUBLISHERIDTYPE_UINT32;
-                        dataSetMetaData.publisherId.publisherIdUInt32 = connection->config->publisherId.uint32;
-                        break;
-                    case UA_PUBLISHERIDTYPE_UINT64:
-                        dataSetMetaData.publisherIdType = UA_PUBLISHERIDTYPE_UINT64;
-                        dataSetMetaData.publisherId.publisherIdUInt64 = connection->config->publisherId.uint64;
-                        break;
-                    case UA_PUBLISHERIDTYPE_STRING:
-                        dataSetMetaData.publisherIdType = UA_PUBLISHERIDTYPE_STRING;
-                        dataSetMetaData.publisherId.publisherIdString = connection->config->publisherId.string;
-                        break;
-                    default:
-                        break;
-                }
-#ifdef UA_ENABLE_JSON_ENCODING
-                res = sendNetworkMessageMetadataJson(connection, &dataSetMetaData, &newDataSetWriter->config.dataSetWriterId, 1, &newDataSetWriter->config.transportSettings);
-                if(res != UA_STATUSCODE_GOOD) {
-                    UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
-                                "PubSub: DataSetMessageMetaData sending failed");
-                }
-#endif /* UA_ENABLE_JSON_ENCODING */
-                UA_DataSetMetaData_clear(&dataSetMetaData);
-            }
-        }
+
+
+    if(newDataSetWriter->config.publishDataSetMetaData) {    
+        newDataSetWriter->connectedDataSetInititiallyPublished = UA_FALSE;
     }
+    
     return res;
 }
 
@@ -1634,13 +1586,15 @@ UA_DataSetWriter_generateDataSetMetaData(UA_Server *server,
     if(!currentDataSet)
         return UA_STATUSCODE_BADNOTFOUND;
 
-    if (dataSetWriter->connectedDataSetVersion.majorVersion == 
+   if (dataSetWriter->connectedDataSetVersion.majorVersion == 
         currentDataSet->dataSetMetaData.configurationVersion.majorVersion &&
         dataSetWriter->connectedDataSetVersion.minorVersion ==
         currentDataSet->dataSetMetaData.configurationVersion.minorVersion &&
+        dataSetWriter->connectedDataSetInititiallyPublished &&
         !ignoreVersion)
         return UA_STATUSCODE_BADNOTFOUND;
 
+    dataSetWriter->connectedDataSetInititiallyPublished = 1;
     /* Reset the message */
     memset(dataSetMetaData, 0, sizeof(UA_DataSetMetaData));
    

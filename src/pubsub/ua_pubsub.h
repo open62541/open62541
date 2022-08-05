@@ -186,6 +186,7 @@ typedef struct UA_DataSetWriter {
     UA_NodeId linkedWriterGroup;
     UA_NodeId connectedDataSet;
     UA_ConfigurationVersionDataType connectedDataSetVersion;
+    UA_Boolean connectedDataSetInititiallyPublished;
     UA_PubSubState state;
 #ifdef UA_ENABLE_PUBSUB_DELTAFRAMES
     UA_UInt16 deltaFrameCounter; /* count of sent deltaFrames */
