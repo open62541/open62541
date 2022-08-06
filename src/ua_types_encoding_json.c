@@ -1646,16 +1646,6 @@ DECODE_JSON(Int64) {
     return UA_STATUSCODE_GOOD;
 }
 
-static UA_UInt32 hex2int(char ch) {
-    if(ch >= '0' && ch <= '9')
-        return (UA_UInt32)(ch - '0');
-    if(ch >= 'A' && ch <= 'F')
-        return (UA_UInt32)(ch - 'A' + 10);
-    if(ch >= 'a' && ch <= 'f')
-        return (UA_UInt32)(ch - 'a' + 10);
-    return 0;
-}
-
 /* Either a STRING or NUMBER token */
 DECODE_JSON(Double) {
     CHECK_TOKEN_BOUNDS;
@@ -1723,11 +1713,25 @@ DECODE_JSON(Float) {
     return res;
 }
 
+#ifndef UA_ENABLE_PARSING
+
+static UA_UInt32
+hex2int(char ch) {
+    if(ch >= '0' && ch <= '9')
+        return (UA_UInt32)(ch - '0');
+    if(ch >= 'A' && ch <= 'F')
+        return (UA_UInt32)(ch - 'A' + 10);
+    if(ch >= 'a' && ch <= 'f')
+        return (UA_UInt32)(ch - 'a' + 10);
+    return 0;
+}
+
 /*
   Expects 36 chars in format    00000003-0009-000A-0807-060504030201
                                 | data1| |d2| |d3| |d4| |  data4   |
 */
-static UA_Guid UA_Guid_fromChars(const char* chars) {
+static UA_Guid
+UA_Guid_fromChars(const char* chars) {
     UA_Guid dst;
     UA_Guid_init(&dst);
     for(size_t i = 0; i < 8; i++)
@@ -1746,16 +1750,21 @@ static UA_Guid UA_Guid_fromChars(const char* chars) {
     }
     return dst;
 }
+#endif
 
 DECODE_JSON(Guid) {
     CHECK_TOKEN_BOUNDS;
     CHECK_STRING;
     GET_TOKEN;
 
+#ifdef UA_ENABLE_PARSING
+    /* Use the existing parsing routine if available */
+    UA_String str = {tokenSize, (UA_Byte*)tokenData};
+    parseCtx->index++;
+    return UA_Guid_parse(dst, str);
+#else
     if(tokenSize != 36)
         return UA_STATUSCODE_BADDECODINGERROR;
-
-    /* check if incorrect chars are present */
     for(size_t i = 0; i < tokenSize; i++) {
         if(!(tokenData[i] == '-' ||
              (tokenData[i] >= '0' && tokenData[i] <= '9') ||
@@ -1764,11 +1773,10 @@ DECODE_JSON(Guid) {
             return UA_STATUSCODE_BADDECODINGERROR;
         }
     }
-
     *dst = UA_Guid_fromChars(tokenData);
-
     parseCtx->index++;
     return UA_STATUSCODE_GOOD;
+#endif
 }
 
 DECODE_JSON(String) {
