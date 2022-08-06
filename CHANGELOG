@@ -1,6 +1,25 @@
 This changelog reports changes visible through the public API. Internal refactorings and bug
 fixes are not reported here.
 
+2022-08-07 Julius Pfrommer <julius.pfrommer at iosb.fraunhofer.de>
+
+ * JSON decoding based on JSON5
+
+   The JSON decoding can parse the official encoding from the OPC UA
+   specification. It now further allows the following extensions:
+
+   - The strict JSON format is relaxed to also allow the JSON5 extensions
+     (https://json5.org/). This allows for more human-readable encoding
+     and adds convenience features such as trailing commas in arrays and
+     comments within JSON documents.
+   - If `UA_ENABLE_PARSING` is set, NodeIds and ExpandedNodeIds can be given in
+     the string encoding (see `UA_NodeId_parse`). The standard encoding is to
+     express NodeIds as JSON objects.
+
+   These extensions are not intended to be used for the OPC UA protocol on the
+   network. They were rather added to allow more convenient configuration file
+   formats that also include data in the OPC UA type system.
+
 2022-07-14 Jannis Voelker <jannis.voelker at basyskom.com>
 
  * LocaleId support in the server

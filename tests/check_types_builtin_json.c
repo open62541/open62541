@@ -4415,6 +4415,26 @@ START_TEST(UA_NodeId_Nummeric_json_decode) {
 }
 END_TEST
 
+#ifdef UA_ENABLE_PARSING
+START_TEST(UA_NodeId_Nummeric_json_decode_string) {
+    // given
+    UA_NodeId out;
+    UA_NodeId_init(&out);
+    UA_ByteString buf = UA_STRING("\"i=42\"");
+    // when
+
+    UA_StatusCode retval = UA_decodeJson(&buf, &out, &UA_TYPES[UA_TYPES_NODEID], NULL);
+    // then
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(out.identifier.numeric, 42);
+    ck_assert_uint_eq(out.namespaceIndex, 0);
+    ck_assert_int_eq(out.identifierType, UA_NODEIDTYPE_NUMERIC);
+
+    UA_NodeId_clear(&out);
+}
+END_TEST
+#endif
+
 START_TEST(UA_NodeId_Nummeric_Namespace_json_decode) {
     // given
     UA_NodeId out;
@@ -4536,6 +4556,28 @@ START_TEST(UA_ExpandedNodeId_Nummeric_json_decode) {
     UA_ExpandedNodeId_clear(&out);
 }
 END_TEST
+
+#ifdef UA_ENABLE_PARSING
+START_TEST(UA_ExpandedNodeId_Nummeric_json_decode_string) {
+    // given
+    UA_ExpandedNodeId out;
+    UA_ExpandedNodeId_init(&out);
+    UA_ByteString buf = UA_STRING("\"svr=5;i=42\"");
+    // when
+
+    UA_StatusCode retval = UA_decodeJson(&buf, &out, &UA_TYPES[UA_TYPES_EXPANDEDNODEID], NULL);
+    // then
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_int_eq(out.nodeId.identifier.numeric, 42);
+    ck_assert_int_eq(out.nodeId.identifierType, UA_NODEIDTYPE_NUMERIC);
+    ck_assert_ptr_eq(out.namespaceUri.data, NULL);
+    ck_assert_uint_eq(out.namespaceUri.length, 0);
+    ck_assert_int_eq(out.serverIndex, 5);
+
+    UA_ExpandedNodeId_clear(&out);
+}
+END_TEST
+#endif
 
 START_TEST(UA_ExpandedNodeId_String_json_decode) {
     // given
@@ -5666,6 +5708,9 @@ static Suite *testSuite_builtin_json(void) {
 
     //-NodeId-
     tcase_add_test(tc_json_decode, UA_NodeId_Nummeric_json_decode);
+#ifdef UA_ENABLE_PARSING
+    tcase_add_test(tc_json_decode, UA_NodeId_Nummeric_json_decode_string);
+#endif
     tcase_add_test(tc_json_decode, UA_NodeId_Nummeric_Namespace_json_decode);
 
     tcase_add_test(tc_json_decode, UA_NodeId_String_json_decode);
@@ -5677,6 +5722,9 @@ static Suite *testSuite_builtin_json(void) {
 
     //expandednodeid
     tcase_add_test(tc_json_decode, UA_ExpandedNodeId_Nummeric_json_decode);
+#ifdef UA_ENABLE_PARSING
+    tcase_add_test(tc_json_decode, UA_ExpandedNodeId_Nummeric_json_decode_string);
+#endif
     tcase_add_test(tc_json_decode, UA_ExpandedNodeId_String_json_decode);
     tcase_add_test(tc_json_decode, UA_ExpandedNodeId_String_Namespace_json_decode);
     tcase_add_test(tc_json_decode, UA_ExpandedNodeId_String_NamespaceAsIndex_json_decode);
