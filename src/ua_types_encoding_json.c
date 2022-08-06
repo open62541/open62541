@@ -2028,6 +2028,17 @@ prepareDecodeNodeIdJson(UA_NodeId *dst, CtxJson *ctx, ParseCtx *parseCtx,
 }
 
 DECODE_JSON(NodeId) {
+    /* Non-standard decoding of NodeIds from the string representation */
+#ifdef UA_ENABLE_PARSING
+    if(currentTokenType(parseCtx) == CJ5_TOKEN_STRING) {
+        GET_TOKEN;
+        UA_String str = {tokenSize, (UA_Byte*)tokenData};
+        parseCtx->index++;
+        return UA_NodeId_parse(dst, str);
+    }
+#endif
+
+    /* Object representation */
     CHECK_OBJECT;
 
     u8 fieldCount = 0;
@@ -2098,6 +2109,17 @@ decodeExpandedNodeIdServerUri(void *dst, const UA_DataType *type,
 }
 
 DECODE_JSON(ExpandedNodeId) {
+    /* Non-standard decoding of ExpandedNodeIds from the string representation */
+#ifdef UA_ENABLE_PARSING
+    if(currentTokenType(parseCtx) == CJ5_TOKEN_STRING) {
+        GET_TOKEN;
+        UA_String str = {tokenSize, (UA_Byte*)tokenData};
+        parseCtx->index++;
+        return UA_ExpandedNodeId_parse(dst, str);
+    }
+#endif
+
+    /* Object representation */
     CHECK_OBJECT;
 
     u8 fieldCount = 0;
