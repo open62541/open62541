@@ -15,7 +15,7 @@
 #include "ua_types_encoding_json.h"
 #include "ua_util_internal.h"
 
-#include "../deps/jsmn/jsmn.h"
+#include "../deps/cj5.h"
 
 _UA_BEGIN_DECLS
 
@@ -56,8 +56,8 @@ status
 encodeJsonInternal(const void *src, const UA_DataType *type, CtxJson *ctx);
 
 typedef struct {
-    jsmntok_t *tokenArray;
-    UA_Int32 tokenCount;
+    cj5_token *tokenArray;
+    size_t tokenCount;
     UA_UInt16 index;
 
     /* Additonal data for special cases such as networkmessage/datasetmessage
@@ -105,8 +105,13 @@ UA_StatusCode tokenize(ParseCtx *parseCtx, CtxJson *ctx,
 UA_Boolean isJsonNull(const CtxJson *ctx, const ParseCtx *parseCtx);
 
 static UA_INLINE
-jsmntype_t getJsmnType(const ParseCtx *parseCtx) {
+cj5_token_type currentTokenType(const ParseCtx *parseCtx) {
     return parseCtx->tokenArray[parseCtx->index].type;
+}
+
+static UA_INLINE
+size_t getTokenLength(cj5_token *t) {
+    return (size_t)(1u + t->end - t->start);
 }
 
 _UA_END_DECLS
