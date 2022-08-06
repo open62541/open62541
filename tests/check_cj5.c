@@ -53,6 +53,9 @@ START_TEST(parseNestedObject) {
     cj5_result r = cj5_parse(json, (unsigned int)strlen(json), tokens, 32);
     ck_assert(r.error == CJ5_ERROR_NONE);
 
+    /* 12 elements directly under the root object */
+    ck_assert_uint_eq(tokens[0].size, 12);
+
     /* Test the cj5_find method for value lookup in objects */
     unsigned int idx = 0;
     cj5_error_code err = cj5_find(&r, &idx, "b");

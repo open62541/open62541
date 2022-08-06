@@ -452,10 +452,13 @@ cj5_parse(const char *json5, unsigned int len,
             // Finalize the current token
             token->end = parser.pos;
 
-            // Move to the parent and increase the parent size
-            parser.curr_tok_idx = token->parent_id;
-            token = &tokens[token->parent_id];
-            token->size++;
+            // Move to the parent and increase the parent size.
+            // Omit when we leave the root
+            if(parser.curr_tok_idx != token->parent_id) {
+                parser.curr_tok_idx = token->parent_id;
+                token = &tokens[token->parent_id];
+                token->size++;
+            }
 
             // Step one level up
             depth--;
