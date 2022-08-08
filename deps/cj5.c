@@ -28,18 +28,9 @@
 #include <float.h>
 #include <string.h>
 
-#if defined(_DEBUG) || defined(NDEBUG)
-# include <assert.h>
-# define CJ5_ASSERT(_e) assert(_e)
-#else
-# define CJ5_ASSERT(_e)
-#endif
-
 #if defined(_MSC_VER)
-# define CJ5__RESTRICT __restrict
 # define CJ5_INLINE __inline
 #else
-# define CJ5__RESTRICT __restrict__
 # define CJ5_INLINE inline
 #endif
 
@@ -103,7 +94,7 @@ cj5__isnum(char ch) {
     return cj5__isrange(ch, '0', '9');
 }
 
-static CJ5_INLINE cj5_token *
+static cj5_token *
 cj5__alloc_token(cj5__parser *parser) {
     cj5_token* token = NULL;
     if(parser->token_count < parser->max_tokens) {
@@ -384,8 +375,6 @@ cj5_parse(const char *json5, unsigned int len,
 
  start_parsing:
     for(; parser.pos < len; parser.pos++) {
-        CJ5_ASSERT(!token || token == &tokens[parser.curr_tok_idx]);
-
         char c = json5[parser.pos];
         switch(c) {
         case '\n': // Skip newline
@@ -503,7 +492,6 @@ cj5_parse(const char *json5, unsigned int len,
                     next[depth] = 0;
                 }
             } else if(next[depth] == 'k') {
-                CJ5_ASSERT(nesting[depth] == '{');
                 cj5__parse_key(&parser);
                 if(token)
                     token->size++; // Keys count towards the length
