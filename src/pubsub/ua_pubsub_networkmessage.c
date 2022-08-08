@@ -4,6 +4,7 @@
  *
  * Copyright (c) 2017 - 2018 Fraunhofer IOSB (Author: Tino Bischoff)
  * Copyright (c) 2019 Fraunhofer IOSB (Author: Andreas Ebner)
+ * Copyright (c) 2022 ISW (for umati and VDW e.V.) (Author: Moritz Walker)
  */
 
 #include <open62541/types_generated_handling.h>
@@ -1788,6 +1789,12 @@ UA_NetworkMessageOffsetBuffer_clear(UA_NetworkMessageOffsetBuffer *nmob) {
     memset(nmob, 0, sizeof(UA_NetworkMessageOffsetBuffer));
 }
 
-
+void
+UA_DataSetMetaData_clear(const UA_DataSetMetaData* metadata) {
+    if(metadata->dataSetMetaData.fields != NULL) {
+        UA_Array_delete(metadata->dataSetMetaData.fields, 
+            metadata->dataSetMetaData.fieldsSize, &UA_TYPES[UA_TYPES_FIELDMETADATA]);
+    }
+}
 #endif /* UA_ENABLE_PUBSUB */
 

@@ -8,6 +8,7 @@
  * Copyright (c) 2020 Thomas Fischer, Siemens AG
  * Copyright (c) 2021 Fraunhofer IOSB (Author: Jan Hermes)
  * Copyright (c) 2022 Siemens AG (Author: Thomas Fischer)
+ * Copyright (c) 2022 ISW (for umati and VDW e.V.) (Author: Moritz Walker)
  */
 
 #ifndef UA_PUBSUB_H_
@@ -185,6 +186,7 @@ typedef struct UA_DataSetWriter {
     UA_NodeId linkedWriterGroup;
     UA_NodeId connectedDataSet;
     UA_ConfigurationVersionDataType connectedDataSetVersion;
+    UA_Boolean connectedDataSetInititiallyPublished;
     UA_PubSubState state;
 #ifdef UA_ENABLE_PUBSUB_DELTAFRAMES
     UA_UInt16 deltaFrameCounter; /* count of sent deltaFrames */
@@ -212,6 +214,13 @@ UA_StatusCode
 UA_DataSetWriter_generateDataSetMessage(UA_Server *server,
                                         UA_DataSetMessage *dataSetMessage,
                                         UA_DataSetWriter *dataSetWriter);
+
+UA_StatusCode
+UA_DataSetWriter_generateDataSetMetaData(UA_Server *server,
+                                        UA_DataSetMetaData *dataSetMetaData,
+                                        UA_DataSetMetaDataType *dataSetMetaDataType, 
+                                        UA_DataSetWriter *dataSetWriter,
+                                        UA_Boolean ignoreVersion);
 
 UA_StatusCode
 UA_DataSetWriter_remove(UA_Server *server, UA_WriterGroup *linkedWriterGroup,
@@ -497,6 +506,12 @@ UA_WriterGroup_addPublishCallback(UA_Server *server, UA_WriterGroup *writerGroup
 
 void
 UA_WriterGroup_publishCallback(UA_Server *server, UA_WriterGroup *writerGroup);
+
+#ifdef UA_ENABLE_JSON_ENCODING
+UA_StatusCode
+sendNetworkMessageMetadataJson(UA_PubSubConnection *connection, UA_DataSetMetaData *dsmd,
+                       UA_UInt16 *writerIds, UA_Byte dsmdCount, UA_ExtensionObject *dataSetWriterTransportSettings);
+#endif /* UA_ENABLE_JSON_ENCODING */
 
 /*********************************************************/
 /*               SubscribeValues handling                */

@@ -173,7 +173,7 @@ addPublishedDataSet(UA_Server *server) {
  * The DataSetField (DSF) is part of the PDS and describes exactly one published field.
  */
 static void
-addDataSetField(UA_Server *server) {
+addDataSetField(UA_Server *server, UA_NodeId *fieldNodeId) {
     /* Add a field to the previous created PublishedDataSet */
     UA_DataSetFieldConfig dataSetFieldConfig;
     memset(&dataSetFieldConfig, 0, sizeof(UA_DataSetFieldConfig));
@@ -184,7 +184,7 @@ addDataSetField(UA_Server *server) {
     dataSetFieldConfig.field.variable.publishParameters.publishedVariable =
         UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_CURRENTTIME);
     dataSetFieldConfig.field.variable.publishParameters.attributeId = UA_ATTRIBUTEID_VALUE;
-    UA_Server_addDataSetField(server, publishedDataSetIdent, &dataSetFieldConfig, NULL);
+    UA_Server_addDataSetField(server, publishedDataSetIdent, &dataSetFieldConfig, fieldNodeId);
 }
 
 /**
@@ -307,6 +307,8 @@ addDataSetWriter(UA_Server *server, char *topic) {
     dataSetWriterConfig.name = UA_STRING("Demo DataSetWriter");
     dataSetWriterConfig.dataSetWriterId = 62541;
     dataSetWriterConfig.keyFrameCount = 10;
+    /* Enable Publishing of DataSetMetaData via e.g. MQTT */
+    dataSetWriterConfig.publishDataSetMetaData = UA_TRUE;
 
 #ifdef UA_ENABLE_JSON_ENCODING
     UA_JsonDataSetWriterMessageDataType jsonDswMd;
@@ -389,6 +391,11 @@ static void usage(void) {
            "  - JSON: Off\n");
 }
 
+static void forcePublishMetaDataCallback(UA_Server *server, void *data) {
+    UA_NodeId *fieldNodeId = (UA_NodeId *)data;
+    UA_Server_triggerDataSetFieldUpdate(server, *fieldNodeId);
+}
+
 int main(int argc, char **argv) {
     signal(SIGINT, stopHandler);
     signal(SIGTERM, stopHandler);
@@ -459,10 +466,12 @@ int main(int argc, char **argv) {
      * the pubsub connection tutorial */
     UA_ServerConfig_setDefault(config);
     UA_ServerConfig_addPubSubTransportLayer(config, UA_PubSubTransportLayerMQTT());
-
+    
+    UA_NodeId fieldNodeId;
+    UA_NodeId_init(&fieldNodeId);
     addPubSubConnection(server, addressUrl);
     addPublishedDataSet(server);
-    addDataSetField(server);
+    addDataSetField(server, &fieldNodeId);
     retval = addWriterGroup(server, topic, interval);
     if (UA_STATUSCODE_GOOD != retval)
     {
@@ -470,7 +479,8 @@ int main(int argc, char **argv) {
         return EXIT_FAILURE;
     }
     addDataSetWriter(server, topic);
-
+    UA_UInt64 callbackId;
+    UA_Server_addRepeatedCallback(server, forcePublishMetaDataCallback, &fieldNodeId, 5000, &callbackId);
     UA_Server_run(server, &running);
     UA_Server_delete(server);
     return 0;

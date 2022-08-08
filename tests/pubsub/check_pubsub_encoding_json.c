@@ -375,6 +375,132 @@ START_TEST(UA_NetworkMessage_fieldNames_json_decode) {
 }
 END_TEST
 
+START_TEST(UA_PubSub_DataSetMetaDataEncodeAllOptionalFields) {
+    UA_NetworkMessage m;
+    memset(&m, 0, sizeof(UA_NetworkMessage));
+
+    UA_DataSetMetaData dataSetMetaData;
+    memset(&dataSetMetaData, 0, sizeof(UA_DataSetMetaData));
+
+    UA_DataSetMetaDataType dataSetMetaDataType;
+    dataSetMetaDataType.configurationVersion.majorVersion = 12345678;
+    dataSetMetaDataType.configurationVersion.minorVersion = 87654321;
+    UA_LocalizedText description = UA_LOCALIZEDTEXT("en", "Description of the DataSet");
+    dataSetMetaDataType.description = description;
+    UA_EnumDescription *enumDescription = (UA_EnumDescription*) UA_Array_new(1, &UA_TYPES[UA_TYPES_ENUMDESCRIPTION]);
+    enumDescription[0].builtInType = (UA_Byte) 5;
+    enumDescription[0].dataTypeId = UA_NODEID_NUMERIC(0, 2408842);
+    UA_EnumField *enumField = (UA_EnumField*) UA_Array_new(1, &UA_TYPES[UA_TYPES_ENUMFIELD]);
+    enumDescription[0].enumDefinition.fields = enumField;
+    enumDescription[0].enumDefinition.fieldsSize = 1;
+    enumDescription[0].name = UA_QUALIFIEDNAME(0, "Name of the enum description");
+    enumField->description = UA_LOCALIZEDTEXT("en", "Description of the enum field");
+    enumField->displayName = UA_LOCALIZEDTEXT("en", "DisplayName of the enum field");
+    enumField->name = UA_STRING("Name of the enum field");
+    enumField->value = 1142141;
+    enumDescription->enumDefinition.fields = enumField;
+    enumDescription->enumDefinition.fieldsSize = 1;
+    dataSetMetaDataType.enumDataTypes = enumDescription;
+    dataSetMetaDataType.enumDataTypesSize = 1;
+
+    UA_FieldMetaData *fieldMetaData = (UA_FieldMetaData*) UA_Array_new(1, &UA_TYPES[UA_TYPES_FIELDMETADATA]);
+    fieldMetaData->arrayDimensions = (UA_UInt32*) UA_Array_new(1, &UA_TYPES[UA_TYPES_UINT32]);
+    fieldMetaData->arrayDimensionsSize = 1;
+    fieldMetaData->arrayDimensions[0] = 0;
+    fieldMetaData->builtInType = UA_TYPES_BYTE;
+    fieldMetaData->dataSetFieldId = UA_GUID("GUID of the field");
+    fieldMetaData->dataType = UA_NODEID_NUMERIC(0, 141432);
+    fieldMetaData->description = UA_LOCALIZEDTEXT("en", "Description of field");
+    fieldMetaData->fieldFlags = UA_DATASETFIELDFLAGS_NONE;
+    fieldMetaData->maxStringLength = (UA_UInt32) 99;
+    fieldMetaData->name = UA_STRING("Name of the field");
+    fieldMetaData->properties = (UA_KeyValuePair*)UA_Array_new(1, &UA_TYPES[UA_TYPES_KEYVALUEPAIR]);
+    fieldMetaData->properties[0].key = UA_QUALIFIEDNAME(0, "Key");
+    UA_Variant variant;
+    memset(&variant, 0, sizeof(UA_Variant));
+    UA_String string = UA_STRING("Value");
+    UA_Variant_setScalar(&variant, &string, &UA_TYPES[UA_TYPES_STRING]);
+    fieldMetaData->properties[0].value = variant;
+    fieldMetaData->propertiesSize = 1;
+    fieldMetaData->valueRank = 55;
+
+    dataSetMetaDataType.fields = fieldMetaData;
+    dataSetMetaDataType.fieldsSize = 1;
+    dataSetMetaDataType.name = UA_STRING("Name of the DatSet");
+
+    UA_String *nsArray = (UA_String*) UA_Array_new(1, &UA_TYPES[UA_TYPES_STRING]);
+    nsArray[0] = UA_STRING("Namespace array entry 0");
+    dataSetMetaDataType.namespaces = nsArray;
+    dataSetMetaDataType.namespacesSize = 1;
+
+    UA_SimpleTypeDescription *simpleTypeDescription = (UA_SimpleTypeDescription*)UA_Array_new(1, &UA_TYPES[UA_TYPES_SIMPLETYPEDESCRIPTION]);
+    simpleTypeDescription->baseDataType = UA_NODEID_NUMERIC(0, 3123);
+    simpleTypeDescription->builtInType = UA_DATATYPEKIND_STRING;
+    simpleTypeDescription->dataTypeId = UA_NODEID_NUMERIC(0, 55);
+    simpleTypeDescription->name = UA_QUALIFIEDNAME(0, "Name of simple type"); 
+    dataSetMetaDataType.simpleDataTypes = simpleTypeDescription;
+    dataSetMetaDataType.simpleDataTypesSize = 1;
+
+    UA_StructureDescription *structureDescription = (UA_StructureDescription*)UA_Array_new(1, &UA_TYPES[UA_TYPES_STRUCTUREDESCRIPTION]);
+    structureDescription->dataTypeId = UA_NODEID("NodeId1");
+    structureDescription->name = UA_QUALIFIEDNAME(0, "Name of structure");
+    structureDescription->structureDefinition.baseDataType = UA_NODEID_NUMERIC(0, 442);
+    structureDescription->structureDefinition.defaultEncodingId = UA_NODEID_NUMERIC(0, 2335);  
+    UA_StructureField *structureField = (UA_StructureField*)UA_Array_new(1, &UA_TYPES[UA_TYPES_STRUCTUREFIELD]);
+    structureField->arrayDimensions = NULL;
+    structureField->arrayDimensionsSize = 0;
+    structureField->dataType = UA_NODEID_NUMERIC(0, 14124);
+    structureField->description = UA_LOCALIZEDTEXT("en", "Description of structure field");
+    structureField->isOptional = UA_FALSE;
+    structureField->maxStringLength = (UA_UInt32) 98;
+    structureField->name = UA_STRING("Name of structure field");
+    structureField->valueRank = (UA_Int32) -1;
+    structureDescription->structureDefinition.fields = structureField;
+    structureDescription->structureDefinition.fieldsSize = 1;
+
+    dataSetMetaDataType.structureDataTypes = structureDescription;
+    dataSetMetaDataType.structureDataTypesSize = 1;
+    memset(dataSetMetaDataType.dataSetClassId.data4, 0, sizeof(UA_Byte) * 8);
+    dataSetMetaDataType.dataSetClassId.data1 = 1;
+    dataSetMetaDataType.dataSetClassId.data2 = 4;
+    dataSetMetaDataType.dataSetClassId.data3 = 3;
+
+    dataSetMetaData.dataSetMetaData = dataSetMetaDataType;
+    dataSetMetaData.dataSetWriterId = 12345;
+    dataSetMetaData.dataSetWriterName =  UA_STRING("OneTwoThreeFourFive");
+    dataSetMetaData.messageId = UA_STRING("MessageID1234");
+    dataSetMetaData.messageType = UA_STRING("ua-metadata");
+    dataSetMetaData.publisherId.publisherIdString = UA_STRING("publisheId1");
+    dataSetMetaData.publisherIdType = UA_PUBLISHERIDTYPE_STRING;
+
+    m.version = 1;
+    m.networkMessageType = UA_NETWORKMESSAGE_DATASETMETADATA;
+    m.payload.metaDataPayload.dataSetMetaData = &dataSetMetaData;
+
+    size_t size = UA_NetworkMessage_calcSizeJson(&m, NULL, 0, NULL, 0, true);
+    ck_assert_uint_eq(size, 1628);
+
+    UA_ByteString buffer;
+    UA_StatusCode rv = UA_ByteString_allocBuffer(&buffer, size+1);
+    ck_assert_int_eq(rv, UA_STATUSCODE_GOOD);
+
+    UA_Byte *bufPos = buffer.data;
+    memset(bufPos, 0, size+1);
+    const UA_Byte *bufEnd = &(buffer.data[buffer.length]);
+
+    rv = UA_NetworkMessage_encodeJson(&m, &bufPos, &bufEnd, NULL, 0, NULL, 0, true);
+    *bufPos = 0;
+    // then
+    ck_assert_int_eq(rv, UA_STATUSCODE_GOOD);
+
+    char* result = "{\"MessageId\":\"MessageID1234\",\"MessageType\":\"ua-metadata\",\"PublisherId\":\"publisheId1\",\"DataSetWriterId\":12345,\"DataSetWriterName\":\"OneTwoThreeFourFive\",\"MetaData\":{\"Namespaces\":[\"Namespace array entry 0\"],\"StructureDataTypes\":[{\"DataTypeId\":{\"Id\":0},\"Name\":{\"Name\":\"Name of structure\"},\"StructureDefinition\":{\"DefaultEncodingId\":{\"Id\":2335},\"BaseDataType\":{\"Id\":442},\"StructureType\":0,\"Fields\":[{\"Name\":\"Name of structure field\",\"Description\":{\"Locale\":\"en\",\"Text\":\"Description of structure field\"},\"DataType\":{\"Id\":14124},\"ValueRank\":-1,\"ArrayDimensions\":[],\"MaxStringLength\":98,\"IsOptional\":false}]}}],\"EnumDataTypes\":[{\"DataTypeId\":{\"Id\":2408842},\"Name\":{\"Name\":\"Name of the enum description\"},\"EnumDefinition\":{\"Fields\":[{\"Value\":\"1142141\",\"DisplayName\":{\"Locale\":\"en\",\"Text\":\"DisplayName of the enum field\"},\"Description\":{\"Locale\":\"en\",\"Text\":\"Description of the enum field\"},\"Name\":\"Name of the enum field\"}]},\"BuiltInType\":5}],\"SimpleDataTypes\":[{\"DataTypeId\":{\"Id\":55},\"Name\":{\"Name\":\"Name of simple type\"},\"BaseDataType\":{\"Id\":3123},\"BuiltInType\":11}],\"Name\":\"Name of the DatSet\",\"Description\":{\"Locale\":\"en\",\"Text\":\"Description of the DataSet\"},\"Fields\":[{\"Name\":\"Name of the field\",\"Description\":{\"Locale\":\"en\",\"Text\":\"Description of field\"},\"FieldFlags\":0,\"BuiltInType\":2,\"DataType\":{\"Id\":141432},\"ValueRank\":55,\"ArrayDimensions\":[0],\"MaxStringLength\":99,\"DataSetFieldId\":\"00000000-0000-0000-0000-000000000000\",\"Properties\":[{\"Key\":{\"Name\":\"Key\"},\"Value\":{\"Type\":12,\"Body\":\"Value\"}}]}],\"DataSetClassId\":\"00000001-0004-0003-0000-000000000000\",\"ConfigurationVersion\":{\"MajorVersion\":12345678,\"MinorVersion\":87654321}}}";
+    ck_assert_str_eq(result, (char*)buffer.data);
+
+    UA_ByteString_clear(&buffer);
+    UA_NetworkMessage_clear(&m);
+}
+END_TEST
+
 static Suite *testSuite_networkmessage(void) {
     Suite *s = suite_create("Built-in Data Types 62541-6 Json");
     TCase *tc_json_networkmessage = tcase_create("networkmessage_json");
@@ -386,6 +512,7 @@ static Suite *testSuite_networkmessage(void) {
     tcase_add_test(tc_json_networkmessage, UA_NetworkMessage_json_decode);
     tcase_add_test(tc_json_networkmessage, UA_Networkmessage_DataSetFieldsNull_json_decode);
     tcase_add_test(tc_json_networkmessage, UA_NetworkMessage_fieldNames_json_decode);
+    tcase_add_test(tc_json_networkmessage, UA_PubSub_DataSetMetaDataEncodeAllOptionalFields);
 
     suite_add_tcase(s, tc_json_networkmessage);
     return s;

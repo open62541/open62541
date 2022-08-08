@@ -8,6 +8,7 @@
  * Copyright (c) 2020 Yannick Wallerer, Siemens AG
  * Copyright (c) 2020 Thomas Fischer, Siemens AG
  * Copyright (c) 2021 Fraunhofer IOSB (Author: Jan Hermes)
+ * Copyright (c) 2022 ISW (for umati and VDW e.V.) (Author: Moritz Walker)
  */
 
 #include <open62541/server_pubsub.h>
@@ -326,6 +327,18 @@ generateFieldMetaData(UA_Server *server, UA_PublishedDataSet *pds,
         const UA_DataType *currentDataType =
             UA_findDataTypeWithCustom(&fieldMetaData->dataType,
                                       server->config.customDataTypes);
+        if(!currentDataType) {
+            /* TODO: Abstract types are actually allowed, as the value could change
+               its SubDataType. */
+            UA_Variant v;
+            UA_Variant_init(&v);
+            UA_UNLOCK(&server->serviceMutex);
+            UA_Server_readValue(server, pp->publishedVariable, &v);
+            UA_LOCK(&server->serviceMutex);
+            currentDataType = v.type;
+            UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER, 
+            "MetaData creation error. DataType not found. Could be abstract.");
+        }
 #ifdef UA_ENABLE_TYPEDESCRIPTION
         UA_LOG_DEBUG_DATASET(&server->config.logger, pds,
                              "MetaData creation: Found DataType %s",
@@ -428,6 +441,11 @@ addDataSetField(UA_Server *server, const UA_NodeId publishedDataSet,
         return result;
     }
 
+    /* Copy the identifier from the metadata. Cannot fail with a guid NodeId. */
+    newField->identifier = UA_NODEID_GUID(1, fmd.dataSetFieldId);
+    if(fieldIdentifier)
+        UA_NodeId_copy(&newField->identifier, fieldIdentifier);
+
     /* Append to the metadata fields array. Point of last return. */
     result.result = UA_Array_append((void**)&currDS->dataSetMetaData.fields,
                                     &currDS->dataSetMetaData.fieldsSize,
@@ -439,11 +457,6 @@ addDataSetField(UA_Server *server, const UA_NodeId publishedDataSet,
         UA_free(newField);
         return result;
     }
-
-    /* Copy the identifier from the metadata. Cannot fail with a guid NodeId. */
-    newField->identifier = UA_NODEID_GUID(1, fmd.dataSetFieldId);
-    if(fieldIdentifier)
-        UA_NodeId_copy(&newField->identifier, fieldIdentifier);
 
     /* Register the field. The order of DataSetFields should be the same in both
      * creating and publishing. So adding DataSetFields at the the end of the
@@ -471,6 +484,36 @@ addDataSetField(UA_Server *server, const UA_NodeId publishedDataSet,
     result.configurationVersion.minorVersion =
         currDS->dataSetMetaData.configurationVersion.minorVersion;
     return result;
+}
+
+void
+UA_Server_triggerDataSetFieldUpdate(UA_Server *server, const UA_NodeId dsf) {
+    UA_DataSetField *currentField = UA_DataSetField_findDSFbyId(server, dsf);
+    if(!currentField) {
+        return;
+    }
+
+    if(currentField->configurationFrozen) {
+        UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                       "Update DataSetField failed. DataSetField is frozen.");
+        return;
+    }
+
+    UA_PublishedDataSet *pds =
+        UA_PublishedDataSet_findPDSbyId(server, currentField->publishedDataSet);
+    if(!pds) {
+        return;
+    }
+
+    if(pds->configurationFrozen) {
+        UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                       "Update DataSetField failed. PublishedDataSet is frozen.");
+        return;
+    }
+
+    /* Update minor version of PublishedDataSet */
+    pds->dataSetMetaData.configurationVersion.minorVersion =
+        UA_PubSubConfigurationVersionTimeDifference();
 }
 
 UA_DataSetFieldResult
@@ -595,6 +638,7 @@ UA_DataSetWriterConfig_copy(const UA_DataSetWriterConfig *src,
     retVal |= UA_String_copy(&src->name, &dst->name);
     retVal |= UA_String_copy(&src->dataSetName, &dst->dataSetName);
     retVal |= UA_ExtensionObject_copy(&src->messageSettings, &dst->messageSettings);
+    retVal |= UA_ExtensionObject_copy(&src->transportSettings, &dst->transportSettings);
     if(src->dataSetWriterPropertiesSize > 0) {
         dst->dataSetWriterProperties = (UA_KeyValuePair *)
             UA_calloc(src->dataSetWriterPropertiesSize, sizeof(UA_KeyValuePair));
@@ -844,6 +888,14 @@ addDataSetWriter(UA_Server *server,
     res = UA_DataSetWriterConfig_copy(dataSetWriterConfig, &newDataSetWriter->config);
     UA_CHECK_STATUS(res, UA_free(newDataSetWriter); return res);
 
+#if !(defined UA_ENABLE_JSON_ENCODING && defined UA_ENABLE_PUBSUB_MQTT)
+    if(dataSetWriterConfig->publishDataSetMetaData) {
+        UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
+            "PubSub: DataSetMetaData publishing is enabled but only supported "
+            "for PubSub over JSON and MQTT.");
+    }
+#endif
+
     if(!UA_NodeId_isNull(&dataSet) && currentDataSetContext != NULL) {
         /* Save the current version of the connected PublishedDataSet */
         newDataSetWriter->connectedDataSetVersion =
@@ -890,6 +942,12 @@ addDataSetWriter(UA_Server *server,
 #endif
     if(writerIdentifier)
         UA_NodeId_copy(&newDataSetWriter->identifier, writerIdentifier);
+
+
+    if(newDataSetWriter->config.publishDataSetMetaData) {    
+        newDataSetWriter->connectedDataSetInititiallyPublished = UA_FALSE;
+    }
+    
     return res;
 }
 
@@ -1104,6 +1162,36 @@ UA_PubSubDataSetField_sampleValue(UA_Server *server, UA_DataSetField *field,
         *value = **field->config.field.variable.rtValueSource.staticValueSource;
         value->value.storageType = UA_VARIANT_DATA_NODELETE;
     }
+}
+
+static size_t
+UA_PubSubDataSetField_sampleProperties(UA_Server *server, UA_DataSetField *field,
+                                  UA_KeyValuePair **browseNameAndValues) {
+    UA_UNLOCK(&server->serviceMutex);
+    UA_PublishedVariableDataType *params = &field->config.field.variable.publishParameters;
+    size_t noOfProps = 0;
+    /* Read the value */
+    if(field->config.field.variable.rtValueSource.rtFieldSourceEnabled == UA_FALSE){
+        UA_ReadValueId rvid;
+        UA_ReadValueId_init(&rvid);
+        rvid.nodeId = params->publishedVariable;
+        UA_BrowseDescription bd;
+        UA_BrowseDescription_init(&bd);
+        bd.nodeId = rvid.nodeId;
+        bd.referenceTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY);
+        bd.browseDirection = UA_BROWSEDIRECTION_FORWARD;
+        bd.nodeClassMask = UA_NODECLASS_VARIABLE;
+        bd.resultMask = UA_BROWSERESULTMASK_BROWSENAME;
+        UA_BrowseResult br = UA_Server_browse(server, 100, &bd);
+        noOfProps = br.referencesSize;
+        *browseNameAndValues = (UA_KeyValuePair*) UA_Array_new(br.referencesSize, &UA_TYPES[UA_TYPES_KEYVALUEPAIR]); 
+        for (size_t i = 0; i < br.referencesSize; i++) {
+            UA_Server_readValue(server, br.references[i].nodeId.nodeId, &(*browseNameAndValues)[i].value);
+            UA_QualifiedName_copy(&br.references[i].browseName, &(*browseNameAndValues)[i].key);
+        }
+    }
+    UA_LOCK(&server->serviceMutex);
+    return noOfProps;
 }
 
 static UA_StatusCode
@@ -1485,6 +1573,47 @@ UA_DataSetWriter_generateDataSetMessage(UA_Server *server,
 
     return UA_PubSubDataSetWriter_generateKeyFrameMessage(server, dataSetMessage,
                                                           dataSetWriter);
+}
+
+UA_StatusCode
+UA_DataSetWriter_generateDataSetMetaData(UA_Server *server,
+                                        UA_DataSetMetaData *dataSetMetaData,
+                                        UA_DataSetMetaDataType *dataSetMetaDataType,
+                                        UA_DataSetWriter *dataSetWriter,
+                                        UA_Boolean ignoreVersion) {
+    UA_PublishedDataSet *currentDataSet =
+        UA_PublishedDataSet_findPDSbyId(server, dataSetWriter->connectedDataSet);
+    if(!currentDataSet)
+        return UA_STATUSCODE_BADNOTFOUND;
+
+   if (dataSetWriter->connectedDataSetVersion.majorVersion == 
+        currentDataSet->dataSetMetaData.configurationVersion.majorVersion &&
+        dataSetWriter->connectedDataSetVersion.minorVersion ==
+        currentDataSet->dataSetMetaData.configurationVersion.minorVersion &&
+        dataSetWriter->connectedDataSetInititiallyPublished &&
+        !ignoreVersion)
+        return UA_STATUSCODE_BADNOTFOUND;
+
+    dataSetWriter->connectedDataSetInititiallyPublished = 1;
+    /* Reset the message */
+    memset(dataSetMetaData, 0, sizeof(UA_DataSetMetaData));
+   
+    UA_DataSetMetaDataType_copy(dataSetMetaDataType, &dataSetMetaData->dataSetMetaData);
+    dataSetMetaData->dataSetWriterId = dataSetWriter->config.dataSetWriterId;
+    dataSetMetaData->dataSetWriterName = UA_STRING_ALLOC("");
+    dataSetMetaData->messageType = UA_STRING_ALLOC("ua-metadata");
+    dataSetMetaData->dataSetWriterName = dataSetWriter->config.name;
+
+    UA_DataSetField *dsf;
+    size_t dsfnumber = 0;
+    TAILQ_FOREACH(dsf, &currentDataSet->fields, listEntry) {
+        UA_KeyValuePair *properties;
+        size_t propertiesCount = UA_PubSubDataSetField_sampleProperties(server, dsf, &properties);
+        dataSetMetaData->dataSetMetaData.fields[dsfnumber].properties = properties;
+        dataSetMetaData->dataSetMetaData.fields[dsfnumber].propertiesSize = propertiesCount;
+        dsfnumber++;
+    }
+    return UA_STATUSCODE_GOOD;
 }
 
 #endif /* UA_ENABLE_PUBSUB */
