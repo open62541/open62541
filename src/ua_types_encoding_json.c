@@ -2408,8 +2408,10 @@ DECODE_JSON(ExtensionObject) {
     CHECK_OBJECT;
 
     /* Empty object -> Null ExtensionObject */
-    if(parseCtx->tokenArray[parseCtx->index].size == 0)
+    if(parseCtx->tokenArray[parseCtx->index].size == 0) {
+        parseCtx->index++; /* Skip the empty ExtensionObject */
         return UA_STATUSCODE_GOOD;
+    }
 
     /* Search for Encoding */
     size_t encodingPos = 0;
@@ -2747,11 +2749,13 @@ Array_decodeJson(void **dst, const UA_DataType *type,
 
     size_t length = (size_t)parseCtx->tokenArray[parseCtx->index].size;
 
+    parseCtx->index++; /* Go to first array member or to the first element after
+                        * the array (if empty) */
+
     /* Return early for empty arrays */
     if(length == 0) {
         *size_ptr = length;
         *dst = UA_EMPTY_ARRAY_SENTINEL;
-        parseCtx->index++; /* Jump over the array token */
         return UA_STATUSCODE_GOOD;
     }
 
@@ -2759,8 +2763,6 @@ Array_decodeJson(void **dst, const UA_DataType *type,
     *dst = UA_calloc(length, type->memSize);
     if(*dst == NULL)
         return UA_STATUSCODE_BADOUTOFMEMORY;
-
-    parseCtx->index++; /* Go to first array member */
 
     /* Decode array members */
     uintptr_t ptr = (uintptr_t)*dst;
