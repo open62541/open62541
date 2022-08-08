@@ -2881,7 +2881,8 @@ const decodeJsonSignature decodeJsonJumpTable[UA_DATATYPEKINDS] = {
 };
 
 status
-tokenize(ParseCtx *parseCtx, CtxJson *ctx, const UA_ByteString *src, size_t tokensSize) {
+tokenize(ParseCtx *parseCtx, CtxJson *ctx,
+         const UA_ByteString *src, size_t tokensSize) {
     /* Set up the context */
     ctx->pos = &src->data[0];
     ctx->end = &src->data[src->length];
@@ -2892,11 +2893,23 @@ tokenize(ParseCtx *parseCtx, CtxJson *ctx, const UA_ByteString *src, size_t toke
     /* Tokenize */
     cj5_result r = cj5_parse((char*)src->data, (unsigned int)src->length,
                              parseCtx->tokenArray, (unsigned int)tokensSize);
-    if(r.error == CJ5_ERROR_OVERFLOW)
-        return UA_STATUSCODE_BADOUTOFMEMORY;
+
+    /* Handle overflow error by allocating the number of tokens the parser would
+     * have needed */
+    if(r.error == CJ5_ERROR_OVERFLOW &&
+       tokensSize != r.num_tokens) {
+        parseCtx->tokenArray = (cj5_token*)
+            UA_malloc(sizeof(cj5_token) * r.num_tokens);
+        if(!parseCtx->tokenArray)
+            return UA_STATUSCODE_BADOUTOFMEMORY;
+        return tokenize(parseCtx, ctx, src, r.num_tokens);
+    }
+
+    /* Cannot recover from other errors */
     if(r.error != CJ5_ERROR_NONE)
         return UA_STATUSCODE_BADDECODINGERROR;
 
+    /* Set the parsed number of tokens and return */
     parseCtx->tokenCount = r.num_tokens;
     return UA_STATUSCODE_GOOD;
 }
@@ -2912,7 +2925,7 @@ UA_decodeJson(const UA_ByteString *src, void *dst, const UA_DataType *type,
         return UA_STATUSCODE_BADARGUMENTSMISSING;
 
     /* Set up the context */
-    cj5_token tokens[UA_JSON_MAXTOKENCOUNT / 8];
+    cj5_token tokens[UA_JSON_MAXTOKENCOUNT];
     CtxJson ctx;
     memset(&ctx, 0, sizeof(ctx));
     ParseCtx parseCtx;
@@ -2928,32 +2941,25 @@ UA_decodeJson(const UA_ByteString *src, void *dst, const UA_DataType *type,
     }
 
     /* Decode */
-    status ret = tokenize(&parseCtx, &ctx, src, UA_JSON_MAXTOKENCOUNT / 8);
+    status ret = tokenize(&parseCtx, &ctx, src, UA_JSON_MAXTOKENCOUNT);
+    if(ret != UA_STATUSCODE_GOOD)
+        goto cleanup;
 
-    /* Allocate larger token array on the heap and try again */
-    if(ret == UA_STATUSCODE_BADOUTOFMEMORY) {
-        parseCtx.tokenArray = (cj5_token*)
-            UA_malloc(sizeof(cj5_token) * UA_JSON_MAXTOKENCOUNT);
-        if(!parseCtx.tokenArray)
-            return UA_STATUSCODE_BADOUTOFMEMORY;
-        ret = tokenize(&parseCtx, &ctx, src, UA_JSON_MAXTOKENCOUNT);
-    }
+    memset(dst, 0, type->memSize); /* Initialize the value */
+    ret = decodeJsonJumpTable[type->typeKind](dst, type, &ctx, &parseCtx);
 
-    if(ret == UA_STATUSCODE_GOOD) {
-        memset(dst, 0, type->memSize); /* Initialize the value */
-        ret = decodeJsonJumpTable[type->typeKind](dst, type, &ctx, &parseCtx);
+    /* Sanity check if all tokens were processed */
+    if(parseCtx.index != parseCtx.tokenCount &&
+       parseCtx.index != parseCtx.tokenCount - 1)
+        ret = UA_STATUSCODE_BADDECODINGERROR;
 
-        /* Sanity check if all Tokens were processed */
-        if(parseCtx.index != parseCtx.tokenCount &&
-           parseCtx.index != parseCtx.tokenCount - 1)
-            ret = UA_STATUSCODE_BADDECODINGERROR;
-    }
+ cleanup:
 
     /* Free token array on the heap */
     if(parseCtx.tokenArray != tokens)
         UA_free(parseCtx.tokenArray);
 
     if(ret != UA_STATUSCODE_GOOD)
-        UA_clear(dst, type); /* Clean up */
+        UA_clear(dst, type);
     return ret;
 }
