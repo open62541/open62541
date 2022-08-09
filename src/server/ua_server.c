@@ -711,6 +711,11 @@ UA_Server_run_startup(UA_Server *server) {
     UA_CHECK_STATUS(retVal, return retVal);
 #endif
 
+#ifdef UA_ENABLE_PUBSUB
+    /* Initialized PubSubManager */
+    UA_PubSubManager_init(server, &server->pubSubManager);
+#endif
+
     /* Sample the start time and set it to the Server object */
     server->startTime = UA_DateTime_now();
     UA_Variant var;

@@ -898,6 +898,8 @@ UA_Server_addDataSetWriter(UA_Server *server,
                            const UA_NodeId writerGroup, const UA_NodeId dataSet,
                            const UA_DataSetWriterConfig *dataSetWriterConfig,
                            UA_NodeId *writerIdentifier) {
+    /* Delete the reserved IDs if the related session no longer exists. */
+    UA_PubSubManager_freeIds(server);
     UA_LOCK(&server->serviceMutex);
     UA_StatusCode res = addDataSetWriter(server, writerGroup, dataSet,
                                          dataSetWriterConfig, writerIdentifier);

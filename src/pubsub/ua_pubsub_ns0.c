@@ -1397,6 +1397,53 @@ removeGroupAction(UA_Server *server,
 #endif
 
 /**********************************************/
+/*               ReserveIds                   */
+/**********************************************/
+
+#ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL_METHODS
+static UA_StatusCode
+addReserveIdsAction(UA_Server *server,
+                             const UA_NodeId *sessionId, void *sessionHandle,
+                             const UA_NodeId *methodId, void *methodContext,
+                             const UA_NodeId *objectId, void *objectContext,
+                             size_t inputSize, const UA_Variant *input,
+                             size_t outputSize, UA_Variant *output){
+    UA_StatusCode retVal = UA_STATUSCODE_GOOD;
+    UA_String transportProfileUri = *((UA_String *)input[0].data);
+    UA_UInt16 numRegWriterGroupIds = *((UA_UInt16 *)input[1].data);
+    UA_UInt16 numRegDataSetWriterIds = *((UA_UInt16 *)input[2].data);
+
+    UA_UInt16 *writerGroupIds;
+    UA_UInt16 *dataSetWriterIds;
+
+    retVal |= UA_PubSubManager_reserveIds(server, *sessionId, numRegWriterGroupIds, numRegDataSetWriterIds,
+                                          transportProfileUri, &writerGroupIds, &dataSetWriterIds);
+    if(retVal != UA_STATUSCODE_GOOD) {
+        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER, "addReserveIds failed");
+        return retVal;
+    }
+
+    /* Check the transportProfileUri */
+    UA_String profile_1 = UA_STRING("http://opcfoundation.org/UA-Profile/Transport/pubsub-mqtt-uadp");
+    UA_String profile_2 = UA_STRING("http://opcfoundation.org/UA-Profile/Transport/pubsub-mqtt-json");
+
+    if(UA_String_equal(&transportProfileUri, &profile_1) || UA_String_equal(&transportProfileUri, &profile_2)) {
+        UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_SERVER, "ApplicationUri: %.*s",
+                    (int)server->config.applicationDescription.applicationUri.length,
+                    server->config.applicationDescription.applicationUri.data);
+        retVal |= UA_Variant_setScalarCopy(&output[0], &server->config.applicationDescription.applicationUri,
+                                           &UA_TYPES[UA_TYPES_STRING]);
+    }
+    else
+        retVal |= UA_Variant_setScalarCopy(&output[0], &server->pubSubManager.defaultPublisherId, &UA_TYPES[UA_TYPES_UINT64]);
+    UA_Variant_setArray(&output[1], writerGroupIds, numRegWriterGroupIds, &UA_TYPES[UA_TYPES_UINT16]);
+    UA_Variant_setArray(&output[2], dataSetWriterIds, numRegDataSetWriterIds, &UA_TYPES[UA_TYPES_UINT16]);
+
+    return retVal;
+}
+#endif
+
+/**********************************************/
 /*               ReaderGroup                  */
 /**********************************************/
 
@@ -1844,6 +1891,7 @@ UA_Server_initPubSubNS0(UA_Server *server) {
     retVal |= UA_Server_setMethodNodeCallback(server, UA_NODEID_NUMERIC(0, UA_NS0ID_WRITERGROUPTYPE_REMOVEDATASETWRITER), removeDataSetWriterAction);
     retVal |= UA_Server_setMethodNodeCallback(server, UA_NODEID_NUMERIC(0, UA_NS0ID_READERGROUPTYPE_ADDDATASETREADER), addDataSetReaderAction);
     retVal |= UA_Server_setMethodNodeCallback(server, UA_NODEID_NUMERIC(0, UA_NS0ID_READERGROUPTYPE_REMOVEDATASETREADER), removeDataSetReaderAction);
+    retVal |= UA_Server_setMethodNodeCallback(server, UA_NODEID_NUMERIC(0, UA_NS0ID_PUBLISHSUBSCRIBE_PUBSUBCONFIGURATION_RESERVEIDS), addReserveIdsAction);
 
 #ifdef UA_ENABLE_PUBSUB_FILE_CONFIG
     retVal |= UA_addLoadPubSubConfigMethod(server);
