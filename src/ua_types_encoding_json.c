@@ -1065,18 +1065,24 @@ ENCODE_JSON(Variant) {
     const bool isArray = src->arrayLength > 0 || src->data <= UA_EMPTY_ARRAY_SENTINEL;
     const bool hasDimensions = isArray && src->arrayDimensionsSize > 0;
 
+    /* We cannot directly encode a variant inside a variant (but arrays of
+     * variant are possible) */
+    UA_Boolean wrapEO = !isBuiltin;
+    if(src->type == &UA_TYPES[UA_TYPES_VARIANT] && !isArray)
+        wrapEO = true;
+
     status ret = writeJsonObjStart(ctx);
 
     if(ctx->useReversible) {
         /* Write the NodeId */
         UA_UInt32 typeId = src->type->typeId.identifier.numeric;
-        if(!isBuiltin)
+        if(wrapEO)
             typeId = UA_TYPES[UA_TYPES_EXTENSIONOBJECT].typeId.identifier.numeric;
         ret |= writeJsonKey(ctx, UA_JSONKEY_TYPE);
         ret |= ENCODE_DIRECT_JSON(&typeId, UInt32);
 
         /* Write the reversible form body */
-        if(!isBuiltin) {
+        if(wrapEO) {
             /* Not builtin. Can it be encoded? Wrap in extension object. */
             if(src->arrayDimensionsSize > 1)
                 return UA_STATUSCODE_BADNOTIMPLEMENTED;
@@ -1101,7 +1107,7 @@ ENCODE_JSON(Variant) {
          * containing only the value of the Body field. The Type and Dimensions
          * fields are dropped. Multi-dimensional arrays are encoded as a multi
          * dimensional JSON array as described in 5.4.5. */
-        if(!isBuiltin) {
+        if(wrapEO) {
             /* Not builtin. Can it be encoded? Wrap in extension object. */
             if(src->arrayDimensionsSize > 1)
                 return UA_STATUSCODE_BADNOTIMPLEMENTED;
@@ -2579,8 +2585,10 @@ Variant_decodeJsonUnwrapExtensionObject(void *p, const UA_DataType *type,
         parseUInt64(extObjEncoding, size, &encoding);
     }
 
-    if(encoding == 0 && typeOfBody != NULL) {
-        /* Found a valid type and it is structure encoded so it can be unwrapped */
+    /* If we have the content in JSON encoding and the type is known -> Unwrap
+     * the ExtensionObject */
+    if(encoding == 0 && typeOfBody != NULL &&
+       typeOfBody != &UA_TYPES[UA_TYPES_VARIANT]) {
         dst->data = UA_new(typeOfBody);
         if(!dst->data)
             return UA_STATUSCODE_BADOUTOFMEMORY;
@@ -2604,6 +2612,7 @@ Variant_decodeJsonUnwrapExtensionObject(void *p, const UA_DataType *type,
                                                   * of the ExtensionObject */
         ret = ExtensionObject_decodeJson((UA_ExtensionObject*)dst->data, NULL, ctx, parseCtx);
     }
+
     if(ret != UA_STATUSCODE_GOOD) {
         UA_delete(dst->data, dst->type);
         dst->data = NULL;
