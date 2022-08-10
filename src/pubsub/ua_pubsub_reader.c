@@ -824,6 +824,7 @@ UA_DataSetReader_setState_disabled(UA_Server *server, UA_DataSetReader *dsr) {
     case UA_PUBSUBSTATE_PAUSED:
         dsr->state = UA_PUBSUBSTATE_DISABLED;
         return UA_STATUSCODE_GOOD;
+    case UA_PUBSUBSTATE_PREOPERATIONAL:
     case UA_PUBSUBSTATE_OPERATIONAL:
 #ifdef UA_ENABLE_PUBSUB_MONITORING
         /* Stop MessageReceiveTimeout timer */
