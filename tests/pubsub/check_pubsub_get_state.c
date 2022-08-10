@@ -311,7 +311,7 @@ START_TEST(Test_normal_operation) {
     ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_ReaderGroup_getState(server, RGId_Conn1_RG1, &state));
     ck_assert_int_eq(UA_PUBSUBSTATE_PREOPERATIONAL, state);
     ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_DataSetReader_getState(server, DSRId_Conn1_RG1_DSR1, &state));
-    ck_assert_int_eq(UA_PUBSUBSTATE_OPERATIONAL, state);
+    ck_assert_int_eq(UA_PUBSUBSTATE_PREOPERATIONAL, state);
 
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "set groups disabled");
     ck_assert(UA_Server_setWriterGroupDisabled(server, WGId_Conn1_WG1) == UA_STATUSCODE_GOOD);
