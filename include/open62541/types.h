@@ -1174,10 +1174,11 @@ UA_Order UA_EXPORT
 UA_order(const void *p1, const void *p2, const UA_DataType *type);
 
 /**
- * Encoding/Decoding
- * ^^^^^^^^^^^^^^^^^^
- * Encoding and decoding routines for the available formats. For all formats
- * the _calcSize, _encode and _decode methods are provided. */
+ * Binary Encoding/Decoding
+ * ------------------------
+ *
+ * Encoding and decoding routines for the binary format. For the binary decoding
+ * additional data types can be forwarded. */
 
 /* Returns the number of bytes the value p takes in binary encoding. Returns
  * zero if an error occurs. */
