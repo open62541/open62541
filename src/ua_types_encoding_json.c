@@ -1074,59 +1074,44 @@ ENCODE_JSON(Variant) {
     status ret = writeJsonObjStart(ctx);
 
     if(ctx->useReversible) {
-        /* Write the NodeId */
+        /* Write the NodeId for the reversible form */
         UA_UInt32 typeId = src->type->typeId.identifier.numeric;
         if(wrapEO)
             typeId = UA_TYPES[UA_TYPES_EXTENSIONOBJECT].typeId.identifier.numeric;
         ret |= writeJsonKey(ctx, UA_JSONKEY_TYPE);
         ret |= ENCODE_DIRECT_JSON(&typeId, UInt32);
+    }
 
-        /* Write the reversible form body */
-        if(wrapEO) {
-            /* Not builtin. Can it be encoded? Wrap in extension object. */
-            if(src->arrayDimensionsSize > 1)
-                return UA_STATUSCODE_BADNOTIMPLEMENTED;
-            ret |= writeJsonKey(ctx, UA_JSONKEY_BODY);
-            ret |= Variant_encodeJsonWrapExtensionObject(src, isArray, ctx);
-        } else if(!isArray) {
-            ret |= writeJsonKey(ctx, UA_JSONKEY_BODY);
-            ret |= encodeJsonInternal(src->data, src->type, ctx);
-        } else {
-            ret |= writeJsonKey(ctx, UA_JSONKEY_BODY);
-            ret |= encodeJsonArray(ctx, src->data, src->arrayLength, src->type);
-        }
-
-        /* Write the dimensions */
+    if(wrapEO) {
+        /* Not builtin. Can it be encoded? Wrap in extension object. */
+        if(src->arrayDimensionsSize > 1)
+            return UA_STATUSCODE_BADNOTIMPLEMENTED;
+        ret |= writeJsonKey(ctx, UA_JSONKEY_BODY);
+        ret |= Variant_encodeJsonWrapExtensionObject(src, isArray, ctx);
+    } else if(!isArray) {
+        /* Unwrapped scalar */
+        ret |= writeJsonKey(ctx, UA_JSONKEY_BODY);
+        ret |= encodeJsonInternal(src->data, src->type, ctx);
+    } else if(ctx->useReversible) {
+        /* Reversible array */
+        ret |= writeJsonKey(ctx, UA_JSONKEY_BODY);
+        ret |= encodeJsonArray(ctx, src->data, src->arrayLength, src->type);
         if(hasDimensions) {
             ret |= writeJsonKey(ctx, UA_JSONKEY_DIMENSION);
             ret |= encodeJsonArray(ctx, src->arrayDimensions, src->arrayDimensionsSize,
                                    &UA_TYPES[UA_TYPES_INT32]);
         }
     } else {
-        /* Non-Reversible form. Variant values encoded as a JSON object
-         * containing only the value of the Body field. The Type and Dimensions
-         * fields are dropped. Multi-dimensional arrays are encoded as a multi
-         * dimensional JSON array as described in 5.4.5. */
-        if(wrapEO) {
-            /* Not builtin. Can it be encoded? Wrap in extension object. */
-            if(src->arrayDimensionsSize > 1)
-                return UA_STATUSCODE_BADNOTIMPLEMENTED;
-            ret |= writeJsonKey(ctx, UA_JSONKEY_BODY);
-            ret |= Variant_encodeJsonWrapExtensionObject(src, isArray, ctx);
-        } else if(!isArray) {
-            ret |= writeJsonKey(ctx, UA_JSONKEY_BODY);
-            ret |= encodeJsonInternal(src->data, src->type, ctx);
+        /* Non-Reversible array */
+        ret |= writeJsonKey(ctx, UA_JSONKEY_BODY);
+        if(src->arrayDimensionsSize > 1) {
+            size_t index = 0;
+            size_t dimensionIndex = 0;
+            ret |= addMultiArrayContentJSON(ctx, src->data, src->type, &index,
+                                            src->arrayDimensions, dimensionIndex,
+                                            src->arrayDimensionsSize);
         } else {
-            ret |= writeJsonKey(ctx, UA_JSONKEY_BODY);
-            if(src->arrayDimensionsSize > 1) {
-                size_t index = 0;
-                size_t dimensionIndex = 0;
-                ret |= addMultiArrayContentJSON(ctx, src->data, src->type, &index,
-                                                src->arrayDimensions, dimensionIndex,
-                                                src->arrayDimensionsSize);
-            } else {
-                ret |= encodeJsonArray(ctx, src->data, src->arrayLength, src->type);
-            }
+            ret |= encodeJsonArray(ctx, src->data, src->arrayLength, src->type);
         }
     }
 
