@@ -15,7 +15,6 @@
 
 #include <open62541/client.h>
 #include <open62541/client_config_default.h>
-#include <open62541/network_tcp.h>
 #ifdef UA_ENABLE_WEBSOCKET_SERVER
 #include <open62541/network_ws.h>
 #endif
@@ -860,9 +859,6 @@ UA_ClientConfig_setDefault(UA_ClientConfig *config) {
         return retval;
     }
     config->securityPoliciesSize = 1;
-
-    config->initConnectionFunc = UA_ClientConnectionTCP_init; /* for async client */
-    config->pollConnectionFunc = UA_ClientConnectionTCP_poll; /* for async connection */
 
     config->customDataTypes = NULL;
     config->stateCallback = NULL;
