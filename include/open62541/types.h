@@ -1238,13 +1238,14 @@ typedef struct {
     size_t serverUrisSize;
     UA_Boolean useReversible;
 
-    UA_Boolean prettyPrint; /* Add newlines and spaces for legibility */
+    UA_Boolean prettyPrint;   /* Add newlines and spaces for legibility */
 
     /* Enabling the following options leads to non-standard compatible JSON5
      * encoding! Use it for pretty-printing, but not for sending messages over
      * the network. (Our own decoding can still parse it.) */
 
-    UA_Boolean unquotedKeys; /* Don't print quotes around object element keys */
+    UA_Boolean unquotedKeys;  /* Don't print quotes around object element keys */
+    UA_Boolean stringNodeIds; /* String encoding for NodeIds, like "ns=1;i=42" */
 } UA_EncodeJsonOptions;
 
 /* Returns the number of bytes the value src takes in json encoding. Returns

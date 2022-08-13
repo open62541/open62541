@@ -39,6 +39,7 @@ typedef struct {
 
     UA_Boolean prettyPrint;
     UA_Boolean unquotedKeys;
+    UA_Boolean stringNodeIds;
 } CtxJson;
 
 UA_StatusCode writeJsonObjStart(CtxJson *ctx);

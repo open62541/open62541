@@ -796,7 +796,20 @@ NodeId_encodeJsonInternal(UA_NodeId const *src, CtxJson *ctx) {
 }
 
 ENCODE_JSON(NodeId) {
-    UA_StatusCode ret = writeJsonObjStart(ctx);
+    /* Encode as string (non-standard) */
+    UA_StatusCode ret = UA_STATUSCODE_GOOD;
+    if(ctx->stringNodeIds) {
+        UA_String out = {(size_t)(ctx->end - ctx->pos), ctx->pos};
+        ret |= writeChar(ctx, '\"');
+        ret |= UA_NodeId_print(src, &out);
+        if(ret == UA_STATUSCODE_GOOD)
+            ctx->pos += out.length;
+        ret |= writeChar(ctx, '\"');
+        return ret;
+    }
+
+    /* Encode as object */
+    ret |= writeJsonObjStart(ctx);
     ret |= NodeId_encodeJsonInternal(src, ctx);
     if(ctx->useReversible) {
         if(src->namespaceIndex > 0) {
@@ -829,9 +842,22 @@ ENCODE_JSON(NodeId) {
 
 /* ExpandedNodeId */
 ENCODE_JSON(ExpandedNodeId) {
-    status ret = writeJsonObjStart(ctx);
+    /* Encode as string (non-standard) */
+    UA_StatusCode ret = UA_STATUSCODE_GOOD;
+    if(ctx->stringNodeIds) {
+        UA_String out = {(size_t)(ctx->end - ctx->pos), ctx->pos};
+        ret |= writeChar(ctx, '\"');
+        ret |= UA_ExpandedNodeId_print(src, &out);
+        if(ret == UA_STATUSCODE_GOOD)
+            ctx->pos += out.length;
+        ret |= writeChar(ctx, '\"');
+        return ret;
+    }
 
-    /* Encode the NodeId */
+    /* Encode as object */
+    ret |= writeJsonObjStart(ctx);
+
+    /* Encode the identifier portion */
     ret |= NodeId_encodeJsonInternal(&src->nodeId, ctx);
 
     if(ctx->useReversible) {
@@ -1341,6 +1367,7 @@ UA_encodeJson(const void *src, const UA_DataType *type, UA_ByteString *outBuf,
         ctx.useReversible = options->useReversible;
         ctx.prettyPrint = options->prettyPrint;
         ctx.unquotedKeys = options->unquotedKeys;
+        ctx.stringNodeIds = options->stringNodeIds;
     }
 
     /* Encode */
