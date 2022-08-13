@@ -86,6 +86,28 @@ static WRITE_JSON_ELEMENT(Quote) {
     return writeChar(ctx, '\"');
 }
 
+UA_StatusCode
+writeJsonBeforeElement(CtxJson *ctx, UA_Boolean distinct) {
+    /* Comma if needed */
+    UA_StatusCode res = UA_STATUSCODE_GOOD;
+    if(ctx->commaNeeded[ctx->depth])
+        res |= writeChar(ctx, ',');
+
+    if(ctx->prettyPrint) {
+        if(distinct) {
+            /* Newline and indent if needed */
+            res |= writeChar(ctx, '\n');
+            for(size_t i = 0; i < ctx->depth; i++)
+                res |= writeChar(ctx, '\t');
+        } else if(ctx->commaNeeded[ctx->depth]) {
+            /* Space after the comma if no newline */
+            res |= writeChar(ctx, ' ');
+        }
+    }
+
+    return res;
+}
+
 WRITE_JSON_ELEMENT(ObjStart) {
     /* increase depth, save: before first key-value no comma needed. */
     if(ctx->depth >= UA_JSON_ENCODING_MAX_RECURSION - 1)
@@ -98,9 +120,19 @@ WRITE_JSON_ELEMENT(ObjStart) {
 WRITE_JSON_ELEMENT(ObjEnd) {
     if(ctx->depth == 0)
         return UA_STATUSCODE_BADENCODINGERROR;
+
+    UA_Boolean have_elem = ctx->commaNeeded[ctx->depth];
     ctx->depth--;
     ctx->commaNeeded[ctx->depth] = true;
-    return writeChar(ctx, '}');
+
+    UA_StatusCode res = UA_STATUSCODE_GOOD;
+    if(ctx->prettyPrint && have_elem) {
+        res |= writeChar(ctx, '\n');
+        for(size_t i = 0; i < ctx->depth; i++)
+            res |= writeChar(ctx, '\t');
+    }
+    res |= writeChar(ctx, '}');
+    return res;
 }
 
 WRITE_JSON_ELEMENT(ArrStart) {
@@ -115,21 +147,24 @@ WRITE_JSON_ELEMENT(ArrStart) {
 WRITE_JSON_ELEMENT(ArrEnd) {
     if(ctx->depth == 0)
         return UA_STATUSCODE_BADENCODINGERROR;
+    UA_Boolean have_elem = ctx->commaNeeded[ctx->depth];
     ctx->depth--;
     ctx->commaNeeded[ctx->depth] = true;
-    return writeChar(ctx, ']');
-}
-
-WRITE_JSON_ELEMENT(CommaIfNeeded) {
-    if(ctx->commaNeeded[ctx->depth])
-        return writeChar(ctx, ',');
-    return UA_STATUSCODE_GOOD;
+    UA_StatusCode res = UA_STATUSCODE_GOOD;
+    if(ctx->prettyPrint && have_elem) {
+        res |= writeChar(ctx, '\n');
+        for(size_t i = 0; i < ctx->depth; i++)
+            res |= writeChar(ctx, '\t');
+    }
+    res |= writeChar(ctx, ']');
+    return res;
 }
 
 status
 writeJsonArrElm(CtxJson *ctx, const void *value,
                 const UA_DataType *type) {
-    status ret = writeJsonCommaIfNeeded(ctx);
+    UA_Boolean distinct = (type->typeKind > UA_DATATYPEKIND_DOUBLE);
+    status ret = writeJsonBeforeElement(ctx, distinct);
     ctx->commaNeeded[ctx->depth] = true;
     ret |= encodeJsonInternal(value, type, ctx);
     return ret;
@@ -207,23 +242,17 @@ static const char* UA_JSONKEY_INNERDIAGNOSTICINFO = "InnerDiagnosticInfo";
  * comma in front of key if needed. Encapsulates key in quotes. */
 status UA_FUNC_ATTR_WARN_UNUSED_RESULT
 writeJsonKey(CtxJson *ctx, const char* key) {
-    size_t size = strlen(key);
-    if(ctx->pos + size + 4 > ctx->end) /* +4 because of " " : and , */
-        return UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED;
-    status ret = writeJsonCommaIfNeeded(ctx);
+    status ret = writeJsonBeforeElement(ctx, true);
     ctx->commaNeeded[ctx->depth] = true;
-    if(ctx->calcOnly) {
-        ctx->pos += 3;
-        ctx->pos += size;
-        return ret;
-    }
-
-    ret |= writeChar(ctx, '\"');
-    for(size_t i = 0; i < size; i++) {
-        *(ctx->pos++) = (u8)key[i];
-    }
-    ret |= writeChar(ctx, '\"');
-    ret |= writeChar(ctx, ':');
+    if(!ctx->unquotedKeys)
+        ret |= writeChar(ctx, '\"');
+    ret |= writeChars(ctx, key, strlen(key));
+    if(!ctx->unquotedKeys)
+        ret |= writeChar(ctx, '\"');
+    if(!ctx->unquotedKeys)
+        ret |= writeChar(ctx, ':');
+    if(ctx->prettyPrint)
+        ret |= writeChar(ctx, ' ');
     return ret;
 }
 
@@ -450,8 +479,9 @@ encodeJsonArray(CtxJson *ctx, const void *ptr, size_t length,
 
     uintptr_t uptr = (uintptr_t)ptr;
     encodeJsonSignature encodeType = encodeJsonJumpTable[type->typeKind];
+    UA_Boolean distinct = (type->typeKind > UA_DATATYPEKIND_DOUBLE);
     for(size_t i = 0; i < length && ret == UA_STATUSCODE_GOOD; ++i) {
-        ret |= writeJsonCommaIfNeeded(ctx);
+        ret |= writeJsonBeforeElement(ctx, distinct);
         if(isNull((const void*)uptr, type))
             ret |= writeJsonNull(ctx); /* null values are written as "null" */
         else
@@ -665,9 +695,8 @@ ENCODE_JSON(Guid) {
     if(ctx->pos + 38 > ctx->end) /* 36 + 2 (") */
         return UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED;
     status ret = writeJsonQuote(ctx);
-    u8 *buf = ctx->pos;
     if(!ctx->calcOnly)
-        UA_Guid_to_hex(src, buf);
+        UA_Guid_to_hex(src, ctx->pos, false);
     ctx->pos += 36;
     ret |= writeJsonQuote(ctx);
     return ret;
@@ -1035,7 +1064,7 @@ addMultiArrayContentJSON(CtxJson *ctx, void* array, const UA_DataType *type,
     if(ret != UA_STATUSCODE_GOOD)
         return ret;
     for(size_t i = 0; i < arrayDimensions[dimensionIndex]; i++) {
-        ret |= writeJsonCommaIfNeeded(ctx);
+        ret |= writeJsonBeforeElement(ctx, true);
         ret |= addMultiArrayContentJSON(ctx, array, type, index, arrayDimensions,
                                         dimensionIndex + 1, dimensionSize);
         ctx->commaNeeded[ctx->depth] = true;
@@ -1279,38 +1308,12 @@ encodeJsonInternal(const void *src, const UA_DataType *type, CtxJson *ctx) {
     return encodeJsonJumpTable[type->typeKind](src, type, ctx);
 }
 
-static status
-UA_encodeJsonInternal(const void *src, const UA_DataType *type,
-              u8 **bufPos, const u8 **bufEnd, const UA_String *namespaces,
-              size_t namespaceSize, const UA_String *serverUris,
-              size_t serverUriSize, UA_Boolean useReversible) {
-    if(!src || !type)
-        return UA_STATUSCODE_BADINTERNALERROR;
-
-    /* Set up the context */
-    CtxJson ctx;
-    memset(&ctx, 0, sizeof(ctx));
-    ctx.pos = *bufPos;
-    ctx.end = *bufEnd;
-    ctx.depth = 0;
-    ctx.namespaces = namespaces;
-    ctx.namespacesSize = namespaceSize;
-    ctx.serverUris = serverUris;
-    ctx.serverUrisSize = serverUriSize;
-    ctx.useReversible = useReversible;
-    ctx.calcOnly = false;
-
-    /* Encode */
-    status ret = encodeJsonJumpTable[type->typeKind](src, type, &ctx);
-
-    *bufPos = ctx.pos;
-    *bufEnd = ctx.end;
-    return ret;
-}
-
 UA_StatusCode
 UA_encodeJson(const void *src, const UA_DataType *type, UA_ByteString *outBuf,
               const UA_EncodeJsonOptions *options) {
+    if(!src || !type)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
     /* Allocate buffer */
     UA_Boolean allocated = false;
     status res = UA_STATUSCODE_GOOD;
@@ -1322,20 +1325,30 @@ UA_encodeJson(const void *src, const UA_DataType *type, UA_ByteString *outBuf,
         allocated = true;
     }
 
-    /* Encode */
-    u8 *pos = outBuf->data;
-    const u8 *posEnd = &outBuf->data[outBuf->length];
+    /* Set up the context */
+    CtxJson ctx;
+    memset(&ctx, 0, sizeof(ctx));
+    ctx.pos = outBuf->data;
+    ctx.end = &outBuf->data[outBuf->length];
+    ctx.depth = 0;
+    ctx.calcOnly = false;
+    ctx.useReversible = true; /* default */
     if(options) {
-        res = UA_encodeJsonInternal(src, type, &pos, &posEnd, options->namespaces,
-                                    options->namespacesSize, options->serverUris,
-                                    options->serverUrisSize, options->useReversible);
-    } else {
-        res = UA_encodeJsonInternal(src, type, &pos, &posEnd, NULL, 0u, NULL, 0u, true);
+        ctx.namespaces = options->namespaces;
+        ctx.namespacesSize = options->namespacesSize;
+        ctx.serverUris = options->serverUris;
+        ctx.serverUrisSize = options->serverUrisSize;
+        ctx.useReversible = options->useReversible;
+        ctx.prettyPrint = options->prettyPrint;
+        ctx.unquotedKeys = options->unquotedKeys;
     }
+
+    /* Encode */
+    res = encodeJsonJumpTable[type->typeKind](src, type, &ctx);
 
     /* Clean up */
     if(res == UA_STATUSCODE_GOOD) {
-        outBuf->length = (size_t)((uintptr_t)pos - (uintptr_t)outBuf->data);
+        outBuf->length = (size_t)((uintptr_t)ctx.pos - (uintptr_t)outBuf->data);
     } else if(allocated) {
         UA_ByteString_clear(outBuf);
     }

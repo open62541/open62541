@@ -197,7 +197,7 @@ UA_NetworkMessage_encodeJson_internal(const UA_NetworkMessage* src, CtxJson *ctx
         const UA_DataSetMessage *dataSetMessages =
             src->payload.dataSetPayload.dataSetMessages;
         for(UA_UInt16 i = 0; i < count; i++) {
-            writeJsonCommaIfNeeded(ctx);
+            rv |= writeJsonBeforeElement(ctx, true);
             rv |= UA_DataSetMessage_encodeJson_internal(&dataSetMessages[i],
                                                         dataSetWriterIds[i], ctx);
             if(rv != UA_STATUSCODE_GOOD)

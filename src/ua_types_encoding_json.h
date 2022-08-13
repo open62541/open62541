@@ -36,6 +36,9 @@ typedef struct {
 
     size_t serverUrisSize;
     const UA_String *serverUris;
+
+    UA_Boolean prettyPrint;
+    UA_Boolean unquotedKeys;
 } CtxJson;
 
 UA_StatusCode writeJsonObjStart(CtxJson *ctx);
@@ -49,8 +52,11 @@ UA_StatusCode writeJsonArrElm(CtxJson *ctx, const void *value,
 UA_StatusCode writeJsonArrEnd(CtxJson *ctx);
 
 UA_StatusCode writeJsonKey(CtxJson *ctx, const char* key);
-UA_StatusCode writeJsonCommaIfNeeded(CtxJson *ctx);
 UA_StatusCode writeJsonNull(CtxJson *ctx);
+
+/* Adds a comma if needed. Distinct elements go on a new line if pretty-printing
+ * is enabled. */
+UA_StatusCode writeJsonBeforeElement(CtxJson *ctx, UA_Boolean distinct);
 
 status
 encodeJsonInternal(const void *src, const UA_DataType *type, CtxJson *ctx);
