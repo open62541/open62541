@@ -790,15 +790,14 @@ NodeId_encodeJsonInternal(CtxJson *ctx, UA_NodeId const *src) {
 }
 
 ENCODE_JSON(NodeId) {
-    /* Encode as string (non-standard) */
+    /* Encode as string (non-standard). Encode with the standard utf8 escaping.
+     * As the NodeId can contain quote characters, etc. */
     UA_StatusCode ret = UA_STATUSCODE_GOOD;
     if(ctx->stringNodeIds) {
-        UA_String out = {(size_t)(ctx->end - ctx->pos), ctx->pos};
-        ret |= writeChar(ctx, '\"');
+        UA_String out = UA_STRING_NULL;
         ret |= UA_NodeId_print(src, &out);
-        if(ret == UA_STATUSCODE_GOOD)
-            ctx->pos += out.length;
-        ret |= writeChar(ctx, '\"');
+        ret |= encodeJsonJumpTable[UA_DATATYPEKIND_STRING](ctx, &out, NULL);
+        UA_String_clear(&out);
         return ret;
     }
 
@@ -836,15 +835,14 @@ ENCODE_JSON(NodeId) {
 
 /* ExpandedNodeId */
 ENCODE_JSON(ExpandedNodeId) {
-    /* Encode as string (non-standard) */
+    /* Encode as string (non-standard). Encode with utf8 escaping as the NodeId
+     * can contain quote characters, etc. */
     UA_StatusCode ret = UA_STATUSCODE_GOOD;
     if(ctx->stringNodeIds) {
-        UA_String out = {(size_t)(ctx->end - ctx->pos), ctx->pos};
-        ret |= writeChar(ctx, '\"');
+        UA_String out = UA_STRING_NULL;
         ret |= UA_ExpandedNodeId_print(src, &out);
-        if(ret == UA_STATUSCODE_GOOD)
-            ctx->pos += out.length;
-        ret |= writeChar(ctx, '\"');
+        ret |= encodeJsonJumpTable[UA_DATATYPEKIND_STRING](ctx, &out, NULL);
+        UA_String_clear(&out);
         return ret;
     }
 
