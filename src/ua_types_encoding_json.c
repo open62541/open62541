@@ -10,8 +10,9 @@
 #include <open62541/types_generated.h>
 #include <open62541/types_generated_handling.h>
 
+#ifdef UA_ENABLE_JSON_ENCODING
+
 #include "ua_types_encoding_json.h"
-#include "ua_types_encoding_binary.h"
 
 #include <float.h>
 #include <math.h>
@@ -21,6 +22,14 @@
 #include "../deps/string_escape.h"
 #include "../deps/base64.h"
 #include "../deps/libc_time.h"
+
+#ifndef UA_ENABLE_PARSING
+#error UA_ENABLE_PARSING required for JSON encoding
+#endif
+
+#ifndef UA_ENABLE_TYPEDESCRIPTION
+#error UA_ENABLE_TYPEDESCRIPTION required for JSON encoding
+#endif
 
 /* vs2008 does not have INFINITY and NAN defined */
 #ifndef INFINITY
@@ -1730,70 +1739,15 @@ DECODE_JSON(Float) {
     return res;
 }
 
-#ifndef UA_ENABLE_PARSING
-
-static UA_UInt32
-hex2int(char ch) {
-    if(ch >= '0' && ch <= '9')
-        return (UA_UInt32)(ch - '0');
-    if(ch >= 'A' && ch <= 'F')
-        return (UA_UInt32)(ch - 'A' + 10);
-    if(ch >= 'a' && ch <= 'f')
-        return (UA_UInt32)(ch - 'a' + 10);
-    return 0;
-}
-
-/*
-  Expects 36 chars in format    00000003-0009-000A-0807-060504030201
-                                | data1| |d2| |d3| |d4| |  data4   |
-*/
-static UA_Guid
-UA_Guid_fromChars(const char* chars) {
-    UA_Guid dst;
-    UA_Guid_init(&dst);
-    for(size_t i = 0; i < 8; i++)
-        dst.data1 |= (UA_UInt32)(hex2int(chars[i]) << (28 - (i*4)));
-    for(size_t i = 0; i < 4; i++) {
-        dst.data2 |= (UA_UInt16)(hex2int(chars[9+i]) << (12 - (i*4)));
-        dst.data3 |= (UA_UInt16)(hex2int(chars[14+i]) << (12 - (i*4)));
-    }
-    dst.data4[0] |= (UA_Byte)(hex2int(chars[19]) << 4u);
-    dst.data4[0] |= (UA_Byte)(hex2int(chars[20]) << 0u);
-    dst.data4[1] |= (UA_Byte)(hex2int(chars[21]) << 4u);
-    dst.data4[1] |= (UA_Byte)(hex2int(chars[22]) << 0u);
-    for(size_t i = 0; i < 6; i++) {
-        dst.data4[2+i] |= (UA_Byte)(hex2int(chars[24 + i*2]) << 4u);
-        dst.data4[2+i] |= (UA_Byte)(hex2int(chars[25 + i*2]) << 0u);
-    }
-    return dst;
-}
-#endif
-
 DECODE_JSON(Guid) {
     CHECK_TOKEN_BOUNDS;
     CHECK_STRING;
     GET_TOKEN;
 
-#ifdef UA_ENABLE_PARSING
     /* Use the existing parsing routine if available */
     UA_String str = {tokenSize, (UA_Byte*)(uintptr_t)tokenData};
     ctx->index++;
     return UA_Guid_parse(dst, str);
-#else
-    if(tokenSize != 36)
-        return UA_STATUSCODE_BADDECODINGERROR;
-    for(size_t i = 0; i < tokenSize; i++) {
-        if(!(tokenData[i] == '-' ||
-             (tokenData[i] >= '0' && tokenData[i] <= '9') ||
-             (tokenData[i] >= 'A' && tokenData[i] <= 'F') ||
-             (tokenData[i] >= 'a' && tokenData[i] <= 'f'))) {
-            return UA_STATUSCODE_BADDECODINGERROR;
-        }
-    }
-    *dst = UA_Guid_fromChars(tokenData);
-    ctx->index++;
-    return UA_STATUSCODE_GOOD;
-#endif
 }
 
 DECODE_JSON(String) {
@@ -1983,14 +1937,12 @@ prepareDecodeNodeIdJson(ParseCtx *ctx, UA_NodeId *dst,
 
 DECODE_JSON(NodeId) {
     /* Non-standard decoding of NodeIds from the string representation */
-#ifdef UA_ENABLE_PARSING
     if(currentTokenType(ctx) == CJ5_TOKEN_STRING) {
         GET_TOKEN;
         UA_String str = {tokenSize, (UA_Byte*)(uintptr_t)tokenData};
         ctx->index++;
         return UA_NodeId_parse(dst, str);
     }
-#endif
 
     /* Object representation */
     CHECK_OBJECT;
@@ -2062,14 +2014,12 @@ decodeExpandedNodeIdServerUri(ParseCtx *ctx, void *dst, const UA_DataType *type)
 
 DECODE_JSON(ExpandedNodeId) {
     /* Non-standard decoding of ExpandedNodeIds from the string representation */
-#ifdef UA_ENABLE_PARSING
     if(currentTokenType(ctx) == CJ5_TOKEN_STRING) {
         GET_TOKEN;
         UA_String str = {tokenSize, (UA_Byte*)(uintptr_t)tokenData};
         ctx->index++;
         return UA_ExpandedNodeId_parse(dst, str);
     }
-#endif
 
     /* Object representation */
     CHECK_OBJECT;
@@ -2848,10 +2798,6 @@ tokenize(ParseCtx *ctx, const UA_ByteString *src, size_t tokensSize) {
 UA_StatusCode
 UA_decodeJson(const UA_ByteString *src, void *dst, const UA_DataType *type,
               const UA_DecodeJsonOptions *options) {
-#ifndef UA_ENABLE_TYPEDESCRIPTION
-    return UA_STATUSCODE_BADNOTSUPPORTED;
-#endif
-
     if(!dst || !src || !type)
         return UA_STATUSCODE_BADARGUMENTSMISSING;
 
@@ -2892,3 +2838,5 @@ UA_decodeJson(const UA_ByteString *src, void *dst, const UA_DataType *type,
         UA_clear(dst, type);
     return ret;
 }
+
+#endif /* UA_ENABLE_JSON_ENCODING */
