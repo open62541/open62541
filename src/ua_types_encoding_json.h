@@ -63,25 +63,32 @@ status
 encodeJsonInternal(const void *src, const UA_DataType *type, CtxJson *ctx);
 
 typedef struct {
-    cj5_token *tokenArray;
-    size_t tokenCount;
+    const char *json5;
+    cj5_token *tokens;
+    unsigned int tokensSize;
     unsigned int index;
+    UA_Byte depth;
+
+    size_t namespacesSize;
+    const UA_String *namespaces;
+
+    size_t serverUrisSize;
+    const UA_String *serverUris;
+
+    const UA_DataTypeArray *customTypes;
 
     /* Additonal data for special cases such as networkmessage/datasetmessage
      * Currently only used for dataSetWriterIds */
     size_t numCustom;
     void * custom;
     size_t currentCustomIndex;
-
-    const UA_DataTypeArray *customTypes;
 } ParseCtx;
 
 typedef UA_StatusCode
 (*encodeJsonSignature)(const void *src, const UA_DataType *type, CtxJson *ctx);
 
 typedef UA_StatusCode
-(*decodeJsonSignature)(void *dst, const UA_DataType *type,
-                       CtxJson *ctx, ParseCtx *parseCtx);
+(*decodeJsonSignature)(ParseCtx *ctx, void *dst, const UA_DataType *type);
 
 /* Map for decoding a Json Object. An array of this is passed to the
  * decodeFields function. If the key "fieldName" is found in the json object
@@ -98,26 +105,22 @@ typedef struct {
 } DecodeEntry;
 
 UA_StatusCode
-decodeFields(CtxJson *ctx, ParseCtx *parseCtx,
-             DecodeEntry *entries, size_t entryCount);
+decodeFields(ParseCtx *ctx, DecodeEntry *entries, size_t entryCount);
 
 /* Expose the jump tables and some methods for PubSub JSON decoding */
 extern const encodeJsonSignature encodeJsonJumpTable[UA_DATATYPEKINDS];
 extern const decodeJsonSignature decodeJsonJumpTable[UA_DATATYPEKINDS];
 
-UA_StatusCode lookAheadForKey(const char* search, CtxJson *ctx,
-                              ParseCtx *parseCtx, size_t *resultIndex);
-UA_StatusCode tokenize(ParseCtx *parseCtx, CtxJson *ctx,
-                       const UA_ByteString *src, size_t tokensSize);
-UA_Boolean isJsonNull(const CtxJson *ctx, const ParseCtx *parseCtx);
+UA_StatusCode lookAheadForKey(ParseCtx *ctx, const char *search, size_t *resultIndex);
+UA_StatusCode tokenize(ParseCtx *ctx, const UA_ByteString *src, size_t tokensSize);
 
 static UA_INLINE
-cj5_token_type currentTokenType(const ParseCtx *parseCtx) {
-    return parseCtx->tokenArray[parseCtx->index].type;
+cj5_token_type currentTokenType(const ParseCtx *ctx) {
+    return ctx->tokens[ctx->index].type;
 }
 
 static UA_INLINE
-size_t getTokenLength(cj5_token *t) {
+size_t getTokenLength(const cj5_token *t) {
     return (size_t)(1u + t->end - t->start);
 }
 
