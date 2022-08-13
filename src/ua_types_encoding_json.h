@@ -11,8 +11,6 @@
 
 #include <open62541/types.h>
 
-#include "ua_types_encoding_binary.h"
-#include "ua_types_encoding_json.h"
 #include "ua_util_internal.h"
 
 #include "../deps/cj5.h"
@@ -59,9 +57,6 @@ UA_StatusCode writeJsonNull(CtxJson *ctx);
  * is enabled. */
 UA_StatusCode writeJsonBeforeElement(CtxJson *ctx, UA_Boolean distinct);
 
-status
-encodeJsonInternal(const void *src, const UA_DataType *type, CtxJson *ctx);
-
 typedef struct {
     const char *json5;
     cj5_token *tokens;
@@ -85,7 +80,7 @@ typedef struct {
 } ParseCtx;
 
 typedef UA_StatusCode
-(*encodeJsonSignature)(const void *src, const UA_DataType *type, CtxJson *ctx);
+(*encodeJsonSignature)(CtxJson *ctx, const void *src, const UA_DataType *type);
 
 typedef UA_StatusCode
 (*decodeJsonSignature)(ParseCtx *ctx, void *dst, const UA_DataType *type);
@@ -104,8 +99,7 @@ typedef struct {
                               * type->typeKind. */
 } DecodeEntry;
 
-UA_StatusCode
-decodeFields(ParseCtx *ctx, DecodeEntry *entries, size_t entryCount);
+UA_StatusCode decodeFields(ParseCtx *ctx, DecodeEntry *entries, size_t entryCount);
 
 /* Expose the jump tables and some methods for PubSub JSON decoding */
 extern const encodeJsonSignature encodeJsonJumpTable[UA_DATATYPEKINDS];
