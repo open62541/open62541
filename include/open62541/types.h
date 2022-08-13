@@ -1136,7 +1136,9 @@ void UA_EXPORT UA_clear(void *p, const UA_DataType *type);
  * @param type The datatype description of the variable */
 void UA_EXPORT UA_delete(void *p, const UA_DataType *type);
 
-/* Pretty-print the value from the datatype.
+/* Pretty-print the value from the datatype. The output is pretty-printed JSON5.
+ * Note that this format is non-standard and should not be sent over the
+ * network. It can however be read by our own JSON decoding.
  *
  * @param p The memory location of the variable
  * @param type The datatype description of the variable
@@ -1144,8 +1146,8 @@ void UA_EXPORT UA_delete(void *p, const UA_DataType *type);
  *        memory for string is already allocated, we try to use the existing
  *        string (the length is adjusted). If the string is empty, memory
  *        is allocated for it.
- * @return Indicates whether the operation succeeded*/
-#ifdef UA_ENABLE_TYPEDESCRIPTION
+ * @return Indicates whether the operation succeeded */
+#ifdef UA_ENABLE_JSON_ENCODING
 UA_StatusCode UA_EXPORT
 UA_print(const void *p, const UA_DataType *type, UA_String *output);
 #endif
