@@ -1800,6 +1800,7 @@ DECODE_JSON(String) {
     CHECK_TOKEN_BOUNDS;
     CHECK_STRING;
     GET_TOKEN;
+    (void)tokenData;
 
     /* Empty string? */
     if(tokenSize == 0) {
@@ -1809,95 +1810,32 @@ DECODE_JSON(String) {
         return UA_STATUSCODE_GOOD;
     }
 
-    /* The actual value is at most of the same length as the source string:
-     * - Shortcut escapes (e.g. "\t") (length 2) are converted to 1 byte
-     * - A single \uXXXX escape (length 6) is converted to at most 3 bytes
-     * - Two \uXXXX escapes (length 12) forming an UTF-16 surrogate pair are
-     *   converted to 4 bytes */
-    uint8_t *outputBuffer = (uint8_t*)UA_malloc(tokenSize);
-    if(!outputBuffer)
+    /* The decoded utf8 is at most of the same length as the source string */
+    char *outBuf = (char*)UA_malloc(tokenSize+1);
+    if(!outBuf)
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
-    const uint8_t *p = (const uint8_t*)tokenData;
-    const uint8_t *end = (const uint8_t*)&tokenData[tokenSize];
-    uint8_t *pos = outputBuffer;
-    while(p < end) {
-        /* No escaping */
-        if(*p != '\\') {
-            /* In the ASCII range, but not a printable character */
-            /* if(*p < 32 || *p == 127) */
-            /*     goto cleanup; */
+    /* Decode the string */
+    unsigned int len = 0;
+    cj5_result r;
+    r.tokens = ctx->tokens;
+    r.num_tokens = ctx->tokensSize;
+    r.json5 = ctx->json5;
+    cj5_error_code err = cj5_get_str(&r, ctx->index, outBuf, &len);
+    if(err != CJ5_ERROR_NONE)
+        return UA_STATUSCODE_BADDECODINGERROR;
 
-            *(pos++) = *(p++);
-            continue;
-        }
-
-        /* Escape character */
-        p++;
-        if(p == end)
-            goto cleanup;
-
-        if(*p != 'u') {
-            switch(*p) {
-            case '"': case '\\': case '/': *pos = *p; break;
-            case 'b': *pos = '\b'; break;
-            case 'f': *pos = '\f'; break;
-            case 'n': *pos = '\n'; break;
-            case 'r': *pos = '\r'; break;
-            case 't': *pos = '\t'; break;
-            default: goto cleanup;
-            }
-            pos++;
-            p++;
-            continue;
-        }
-
-        /* Unicode */
-        if(p + 4 >= end)
-            goto cleanup;
-        int32_t value_signed = decode_unicode_escape((const char*)p);
-        if(value_signed < 0)
-            goto cleanup;
-        uint32_t value = (uint32_t)value_signed;
-        p += 5;
-
-        if(0xD800 <= value && value <= 0xDBFF) {
-            /* Surrogate pair */
-            if(p + 5 >= end)
-                goto cleanup;
-            if(*p != '\\' || *(p + 1) != 'u')
-                goto cleanup;
-            int32_t value2 = decode_unicode_escape((const char*)p + 1);
-            if(value2 < 0xDC00 || value2 > 0xDFFF)
-                goto cleanup;
-            value = ((value - 0xD800u) << 10u) + (uint32_t)((value2 - 0xDC00) + 0x10000);
-            p += 6;
-        } else if(0xDC00 <= value && value <= 0xDFFF) {
-            /* Invalid Unicode '\\u%04X' */
-            goto cleanup;
-        }
-
-        size_t length;
-        if(utf8_encode((int32_t)value, (char*)pos, &length))
-            goto cleanup;
-
-        pos += length;
-    }
-
-    dst->length = (size_t)(pos - outputBuffer);
+    /* Set the output */
+    dst->length = len;
     if(dst->length > 0) {
-        dst->data = (UA_Byte*)outputBuffer;
+        dst->data = (UA_Byte*)outBuf;
     } else {
         dst->data = (UA_Byte*)UA_EMPTY_ARRAY_SENTINEL;
-        UA_free(outputBuffer);
+        UA_free(outBuf);
     }
 
     ctx->index++;
     return UA_STATUSCODE_GOOD;
-
-cleanup:
-    UA_free(outputBuffer);
-    return UA_STATUSCODE_BADDECODINGERROR;
 }
 
 DECODE_JSON(ByteString) {
