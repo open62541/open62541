@@ -502,7 +502,7 @@ encodeJsonArray(CtxJson *ctx, const void *ptr, size_t length,
     return ret;
 }
 
-static const u8 hexmapLower[16] =
+static const u8 hexmap[16] =
     {'0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f'};
 static const u8 hexmapUpper[16] =
     {'0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', 'C', 'D', 'E', 'F'};
@@ -578,10 +578,10 @@ ENCODE_JSON(String) {
                 seq[1] = 'u';
                 UA_Byte b1 = (UA_Byte)(codepoint >> 8u);
                 UA_Byte b2 = (UA_Byte)(codepoint >> 0u);
-                seq[2] = hexmapLower[(b1 & 0xF0u) >> 4u];
-                seq[3] = hexmapLower[b1 & 0x0Fu];
-                seq[4] = hexmapLower[(b2 & 0xF0u) >> 4u];
-                seq[5] = hexmapLower[b2 & 0x0Fu];
+                seq[2] = hexmap[(b1 & 0xF0u) >> 4u];
+                seq[3] = hexmap[b1 & 0x0Fu];
+                seq[4] = hexmap[(b2 & 0xF0u) >> 4u];
+                seq[5] = hexmap[b2 & 0x0Fu];
                 length = 6;
             } else {
                 /* not in BMP -> construct a UTF-16 surrogate pair */
@@ -597,17 +597,17 @@ ENCODE_JSON(String) {
 
                 seq[0] = '\\';
                 seq[1] = 'u';
-                seq[2] = hexmapLower[(fb1 & 0xF0u) >> 4u];
-                seq[3] = hexmapLower[fb1 & 0x0Fu];
-                seq[4] = hexmapLower[(fb2 & 0xF0u) >> 4u];
-                seq[5] = hexmapLower[fb2 & 0x0Fu];
+                seq[2] = hexmap[(fb1 & 0xF0u) >> 4u];
+                seq[3] = hexmap[fb1 & 0x0Fu];
+                seq[4] = hexmap[(fb2 & 0xF0u) >> 4u];
+                seq[5] = hexmap[fb2 & 0x0Fu];
 
                 seq[6] = '\\';
                 seq[7] = 'u';
-                seq[8] = hexmapLower[(lb1 & 0xF0u) >> 4u];
-                seq[9] = hexmapLower[lb1 & 0x0Fu];
-                seq[10] = hexmapLower[(lb2 & 0xF0u) >> 4u];
-                seq[11] = hexmapLower[lb2 & 0x0Fu];
+                seq[8] = hexmap[(lb1 & 0xF0u) >> 4u];
+                seq[9] = hexmap[lb1 & 0x0Fu];
+                seq[10] = hexmap[(lb2 & 0xF0u) >> 4u];
+                seq[11] = hexmap[lb2 & 0x0Fu];
                 length = 12;
             }
             text = (char*)seq;
@@ -661,41 +661,26 @@ ENCODE_JSON(ByteString) {
     return ret;
 }
 
-/* Converts Guid to a hexadecimal represenation */
-static void UA_Guid_to_hex(const UA_Guid *guid, u8* out) {
-    /*
-                          16 byte
-       +--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
-       |   data1   |data2|data3|          data4        |
-       +--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
-       |aa aa aa aa-bb bb-cc cc-dd dd-ee ee ee ee ee ee|
-       +--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
-                          36 character
-    */
-
-#ifdef hexCharlowerCase
-    const u8 *hexmap = hexmapLower;
-#else
-    const u8 *hexmap = hexmapUpper;
-#endif
+void
+UA_Guid_to_hex(const UA_Guid *guid, u8* out) {
     size_t i = 0, j = 28;
     for(; i<8;i++,j-=4)         /* pos 0-7, 4byte, (a) */
-        out[i] = hexmap[(guid->data1 >> j) & 0x0Fu];
+        out[i] = hexmapUpper[(guid->data1 >> j) & 0x0Fu];
     out[i++] = '-';             /* pos 8 */
     for(j=12; i<13;i++,j-=4)    /* pos 9-12, 2byte, (b) */
-        out[i] = hexmap[(uint16_t)(guid->data2 >> j) & 0x0Fu];
+        out[i] = hexmapUpper[(uint16_t)(guid->data2 >> j) & 0x0Fu];
     out[i++] = '-';             /* pos 13 */
     for(j=12; i<18;i++,j-=4)    /* pos 14-17, 2byte (c) */
-        out[i] = hexmap[(uint16_t)(guid->data3 >> j) & 0x0Fu];
-    out[i++] = '-';             /* pos 18 */
+        out[i] = hexmapUpper[(uint16_t)(guid->data3 >> j) & 0x0Fu];
+    out[i++] = '-';              /* pos 18 */
     for(j=0;i<23;i+=2,j++) {     /* pos 19-22, 2byte (d) */
-        out[i] = hexmap[(guid->data4[j] & 0xF0u) >> 4u];
-        out[i+1] = hexmap[guid->data4[j] & 0x0Fu];
+        out[i] = hexmapUpper[(guid->data4[j] & 0xF0u) >> 4u];
+        out[i+1] = hexmapUpper[guid->data4[j] & 0x0Fu];
     }
-    out[i++] = '-';             /* pos 23 */
+    out[i++] = '-';              /* pos 23 */
     for(j=2; i<36;i+=2,j++) {    /* pos 24-35, 6byte (e) */
-        out[i] = hexmap[(guid->data4[j] & 0xF0u) >> 4u];
-        out[i+1] = hexmap[guid->data4[j] & 0x0Fu];
+        out[i] = hexmapUpper[(guid->data4[j] & 0xF0u) >> 4u];
+        out[i+1] = hexmapUpper[guid->data4[j] & 0x0Fu];
     }
 }
 
@@ -1386,6 +1371,20 @@ UA_encodeJson(const void *src, const UA_DataType *type, UA_ByteString *outBuf,
         UA_ByteString_clear(outBuf);
     }
     return res;
+}
+
+UA_StatusCode
+UA_print(const void *p, const UA_DataType *type, UA_String *output) {
+    if(!p || !type || !output)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
+    UA_EncodeJsonOptions options = {0};
+    options.useReversible = true;
+    options.prettyPrint = true;
+    options.unquotedKeys = true;
+    options.stringNodeIds = true;
+
+    return UA_encodeJson(p, type, output, &options);
 }
 
 /************/
