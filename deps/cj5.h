@@ -140,7 +140,7 @@ CJ5_API cj5_error_code
 cj5_get_uint(const cj5_result *r, unsigned int tok_index, uint64_t *out);
 
 // Replaces escape characters, utf8 codepoints, etc.
-// The buffer shall have a length of at least token->end - token->start + 1.
+// The buffer shall have a length of at least token->size + 1.
 // Upon success, the length is written to buflen.
 // The output string is terminated with \0.
 CJ5_API cj5_error_code
