@@ -65,7 +65,7 @@ encodeJsonInternal(const void *src, const UA_DataType *type, CtxJson *ctx);
 typedef struct {
     cj5_token *tokenArray;
     size_t tokenCount;
-    UA_UInt16 index;
+    unsigned int index;
 
     /* Additonal data for special cases such as networkmessage/datasetmessage
      * Currently only used for dataSetWriterIds */

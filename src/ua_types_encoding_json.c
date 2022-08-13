@@ -1958,7 +1958,7 @@ UA_FUNC_ATTR_WARN_UNUSED_RESULT status
 lookAheadForKey(const char *key, CtxJson *ctx,
                 ParseCtx *parseCtx, size_t *resultIndex) {
     status ret = UA_STATUSCODE_BADNOTFOUND;
-    UA_UInt16 oldIndex = parseCtx->index; /* Save index for later restore */
+    unsigned int oldIndex = parseCtx->index; /* Save index for later restore */
     unsigned int end = parseCtx->tokenArray[parseCtx->index].end;
     parseCtx->index++; /* Move to the first key */
     while(parseCtx->index < parseCtx->tokenCount &&
@@ -2081,7 +2081,7 @@ decodeExpandedNodeIdNamespace(void *dst, const UA_DataType *type,
     UA_ExpandedNodeId *en = (UA_ExpandedNodeId*)dst;
 
     /* Parse as a number */
-    UA_UInt16 oldIndex = parseCtx->index;
+    unsigned int oldIndex = parseCtx->index;
     status ret = UInt16_decodeJson(&en->nodeId.namespaceIndex, NULL, ctx, parseCtx);
     if(ret == UA_STATUSCODE_GOOD)
         return ret;
@@ -2109,7 +2109,7 @@ decodeExpandedNodeIdServerUri(void *dst, const UA_DataType *type,
     UA_ExpandedNodeId *en = (UA_ExpandedNodeId*)dst;
 
     /* Parse as a number */
-    UA_UInt16 oldIndex = parseCtx->index;
+    unsigned int oldIndex = parseCtx->index;
     status ret = UInt32_decodeJson(&en->serverIndex, NULL, ctx, parseCtx);
     if(ret == UA_STATUSCODE_GOOD)
         return ret;
@@ -2495,7 +2495,7 @@ DECODE_JSON(ExtensionObject) {
     if(ret != UA_STATUSCODE_GOOD)
         return UA_STATUSCODE_BADENCODINGERROR;
 
-    UA_UInt16 index = parseCtx->index; /* to restore later */
+    unsigned int index = parseCtx->index; /* to restore later */
     parseCtx->index = (UA_UInt16)searchTypeIdResult;
     ret = NodeId_decodeJson(&typeId, &UA_TYPES[UA_TYPES_NODEID], ctx, parseCtx);
     if(ret != UA_STATUSCODE_GOOD)
@@ -2573,7 +2573,7 @@ Variant_decodeJsonUnwrapExtensionObject(void *p, const UA_DataType *type,
         return UA_STATUSCODE_GOOD;
     }
 
-    UA_UInt16 old_index = parseCtx->index; /* Store the start index of the ExtensionObject */
+    unsigned int old_index = parseCtx->index; /* Store the start index of the ExtensionObject */
 
     /* Decode the DataType */
     UA_NodeId typeId;
