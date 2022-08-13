@@ -68,10 +68,10 @@
 /************/
 
 #define ENCODE_JSON(TYPE) static status \
-    TYPE##_encodeJson(const UA_##TYPE *src, const UA_DataType *type, CtxJson *ctx)
+    TYPE##_encodeJson(CtxJson *ctx, const UA_##TYPE *src, const UA_DataType *type)
 
 #define ENCODE_DIRECT_JSON(SRC, TYPE) \
-    TYPE##_encodeJson((const UA_##TYPE*)SRC, NULL, ctx)
+    TYPE##_encodeJson(ctx, (const UA_##TYPE*)SRC, NULL)
 
 /* Forward declarations */
 UA_String UA_DateTime_toJSON(UA_DateTime t);
@@ -175,14 +175,14 @@ writeJsonArrElm(CtxJson *ctx, const void *value,
     UA_Boolean distinct = (type->typeKind > UA_DATATYPEKIND_DOUBLE);
     status ret = writeJsonBeforeElement(ctx, distinct);
     ctx->commaNeeded[ctx->depth] = true;
-    ret |= encodeJsonInternal(value, type, ctx);
+    ret |= encodeJsonJumpTable[type->typeKind](ctx, value, type);
     return ret;
 }
 
 status
 writeJsonObjElm(CtxJson *ctx, const char *key,
                 const void *value, const UA_DataType *type) {
-    return writeJsonKey(ctx, key) | encodeJsonInternal(value, type, ctx);
+    return writeJsonKey(ctx, key) | encodeJsonJumpTable[type->typeKind](ctx, value, type);
 }
 
 status
@@ -494,7 +494,7 @@ encodeJsonArray(CtxJson *ctx, const void *ptr, size_t length,
         if(isNull((const void*)uptr, type))
             ret |= writeJsonNull(ctx); /* null values are written as "null" */
         else
-            ret |= encodeType((const void*)uptr, type, ctx);
+            ret |= encodeType(ctx, (const void*)uptr, type);
         ctx->commaNeeded[ctx->depth] = true;
         uptr += type->memSize;
     }
@@ -773,7 +773,7 @@ ENCODE_JSON(DateTime) {
 
 /* NodeId */
 static status
-NodeId_encodeJsonInternal(UA_NodeId const *src, CtxJson *ctx) {
+NodeId_encodeJsonInternal(CtxJson *ctx, UA_NodeId const *src) {
     status ret = UA_STATUSCODE_GOOD;
     switch(src->identifierType) {
     case UA_NODEIDTYPE_NUMERIC:
@@ -819,7 +819,7 @@ ENCODE_JSON(NodeId) {
 
     /* Encode as object */
     ret |= writeJsonObjStart(ctx);
-    ret |= NodeId_encodeJsonInternal(src, ctx);
+    ret |= NodeId_encodeJsonInternal(ctx, src);
     if(ctx->useReversible) {
         if(src->namespaceIndex > 0) {
             ret |= writeJsonKey(ctx, UA_JSONKEY_NAMESPACE);
@@ -867,7 +867,7 @@ ENCODE_JSON(ExpandedNodeId) {
     ret |= writeJsonObjStart(ctx);
 
     /* Encode the identifier portion */
-    ret |= NodeId_encodeJsonInternal(&src->nodeId, ctx);
+    ret |= NodeId_encodeJsonInternal(ctx, &src->nodeId);
 
     if(ctx->useReversible) {
         /* Reversible Case */
@@ -1038,11 +1038,13 @@ ENCODE_JSON(ExtensionObject) {
     /* Write the body */
     ret |= writeJsonKey(ctx, UA_JSONKEY_BODY);
     if(src->encoding == UA_EXTENSIONOBJECT_ENCODED_BYTESTRING ||
-       src->encoding == UA_EXTENSIONOBJECT_ENCODED_XML)
+       src->encoding == UA_EXTENSIONOBJECT_ENCODED_XML) {
         ret |= ENCODE_DIRECT_JSON(&src->content.encoded.body, String);
-    else
-        ret |= encodeJsonInternal(src->content.decoded.data,
-                                  src->content.decoded.type, ctx);
+    } else {
+        const UA_DataType *t = src->content.decoded.type;
+        ret |= encodeJsonJumpTable[t->typeKind]
+            (ctx, src->content.decoded.data, t);
+    }
 
     ret |= writeJsonObjEnd(ctx);
     return ret;
@@ -1078,7 +1080,7 @@ Variant_encodeJsonWrapExtensionObject(const UA_Variant *src, const bool isArray,
     }
 
     eo.content.decoded.data = src->data;
-    return ExtensionObject_encodeJson(&eo, NULL, ctx);
+    return ExtensionObject_encodeJson(ctx, &eo, NULL);
 }
 
 static status
@@ -1150,7 +1152,7 @@ ENCODE_JSON(Variant) {
     } else if(!isArray) {
         /* Unwrapped scalar */
         ret |= writeJsonKey(ctx, UA_JSONKEY_BODY);
-        ret |= encodeJsonInternal(src->data, src->type, ctx);
+        ret |= encodeJsonJumpTable[src->type->typeKind](ctx, src->data, src->type);
     } else if(ctx->useReversible) {
         /* Reversible array */
         ret |= writeJsonKey(ctx, UA_JSONKEY_BODY);
@@ -1258,15 +1260,15 @@ ENCODE_JSON(DiagnosticInfo) {
 
     if(src->hasInnerDiagnosticInfo && src->innerDiagnosticInfo) {
         ret |= writeJsonKey(ctx, UA_JSONKEY_INNERDIAGNOSTICINFO);
-        ret |= encodeJsonInternal(src->innerDiagnosticInfo,
-                                  &UA_TYPES[UA_TYPES_DIAGNOSTICINFO], ctx);
+        ret |= encodeJsonJumpTable[UA_DATATYPEKIND_DIAGNOSTICINFO]
+            (ctx, src->innerDiagnosticInfo, NULL);
     }
 
     return ret | writeJsonObjEnd(ctx);
 }
 
 static status
-encodeJsonStructure(const void *src, const UA_DataType *type, CtxJson *ctx) {
+encodeJsonStructure(CtxJson *ctx, const void *src, const UA_DataType *type) {
     status ret = writeJsonObjStart(ctx);
     if(ret != UA_STATUSCODE_GOOD)
         return ret;
@@ -1283,7 +1285,7 @@ encodeJsonStructure(const void *src, const UA_DataType *type, CtxJson *ctx) {
         if(!m->isArray) {
             ptr += m->padding;
             size_t memSize = mt->memSize;
-            ret |= encodeJsonJumpTable[mt->typeKind]((const void*) ptr, mt, ctx);
+            ret |= encodeJsonJumpTable[mt->typeKind](ctx, (const void*) ptr, mt);
             ptr += memSize;
         } else {
             ptr += m->padding;
@@ -1338,11 +1340,6 @@ const encodeJsonSignature encodeJsonJumpTable[UA_DATATYPEKINDS] = {
     (encodeJsonSignature)encodeJsonNotImplemented /* BitfieldCluster */
 };
 
-status
-encodeJsonInternal(const void *src, const UA_DataType *type, CtxJson *ctx) {
-    return encodeJsonJumpTable[type->typeKind](src, type, ctx);
-}
-
 UA_StatusCode
 UA_encodeJson(const void *src, const UA_DataType *type, UA_ByteString *outBuf,
               const UA_EncodeJsonOptions *options) {
@@ -1380,7 +1377,7 @@ UA_encodeJson(const void *src, const UA_DataType *type, UA_ByteString *outBuf,
     }
 
     /* Encode */
-    res = encodeJsonJumpTable[type->typeKind](src, type, &ctx);
+    res = encodeJsonJumpTable[type->typeKind](&ctx, src, type);
 
     /* Clean up */
     if(res == UA_STATUSCODE_GOOD) {
@@ -1417,7 +1414,7 @@ UA_calcSizeJsonInternal(const void *src, const UA_DataType *type,
     ctx.calcOnly = true;
 
     /* Encode */
-    status ret = encodeJsonJumpTable[type->typeKind](src, type, &ctx);
+    status ret = encodeJsonJumpTable[type->typeKind](&ctx, src, type);
     if(ret != UA_STATUSCODE_GOOD)
         return 0;
     return (size_t)ctx.pos;

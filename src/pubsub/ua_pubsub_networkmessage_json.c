@@ -101,8 +101,8 @@ UA_DataSetMessage_encodeJson_internal(const UA_DataSetMessage* src,
                 rv |= writeJsonKey_UA_String(ctx, &src->data.keyFrameData.fieldNames[i]);
             else
                 rv |= writeJsonKey(ctx, "");
-            rv |= encodeJsonInternal(&(src->data.keyFrameData.dataSetFields[i].value),
-                                     &UA_TYPES[UA_TYPES_VARIANT], ctx);
+            rv |= encodeJsonJumpTable[UA_DATATYPEKIND_VARIANT]
+                (ctx, &src->data.keyFrameData.dataSetFields[i].value, NULL);
             if(rv != UA_STATUSCODE_GOOD)
                 return rv;
         }
@@ -113,8 +113,8 @@ UA_DataSetMessage_encodeJson_internal(const UA_DataSetMessage* src,
                 rv |= writeJsonKey_UA_String(ctx, &src->data.keyFrameData.fieldNames[i]);
             else
                 rv |= writeJsonKey(ctx, "");
-            rv |= encodeJsonInternal(&src->data.keyFrameData.dataSetFields[i],
-                                     &UA_TYPES[UA_TYPES_DATAVALUE], ctx);
+            rv |= encodeJsonJumpTable[UA_DATATYPEKIND_DATAVALUE]
+                (ctx, &src->data.keyFrameData.dataSetFields[i], NULL);
             if(rv != UA_STATUSCODE_GOOD)
                 return rv;
         }
@@ -169,8 +169,8 @@ UA_NetworkMessage_encodeJson_internal(const UA_NetworkMessage* src, CtxJson *ctx
             publisherIdType = &UA_TYPES[UA_TYPES_STRING];
             break;
         }
-        rv |= encodeJsonInternal(&src->publisherId,
-                                 publisherIdType, ctx);
+        rv |= encodeJsonJumpTable[publisherIdType->typeKind]
+            (ctx, &src->publisherId, publisherIdType);
     }
     if(rv != UA_STATUSCODE_GOOD)
         return rv;
