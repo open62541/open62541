@@ -276,6 +276,51 @@ UA_Guid_random(void) {
     return result;
 }
 
+static const u8 hexmapLower[16] =
+    {'0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f'};
+static const u8 hexmapUpper[16] =
+    {'0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', 'C', 'D', 'E', 'F'};
+
+void
+UA_Guid_to_hex(const UA_Guid *guid, u8* out, UA_Boolean lower) {
+    const u8 *hexmap = (lower) ? hexmapLower : hexmapUpper;
+    size_t i = 0, j = 28;
+    for(; i<8;i++,j-=4)         /* pos 0-7, 4byte, (a) */
+        out[i] = hexmap[(guid->data1 >> j) & 0x0Fu];
+    out[i++] = '-';             /* pos 8 */
+    for(j=12; i<13;i++,j-=4)    /* pos 9-12, 2byte, (b) */
+        out[i] = hexmap[(uint16_t)(guid->data2 >> j) & 0x0Fu];
+    out[i++] = '-';             /* pos 13 */
+    for(j=12; i<18;i++,j-=4)    /* pos 14-17, 2byte (c) */
+        out[i] = hexmap[(uint16_t)(guid->data3 >> j) & 0x0Fu];
+    out[i++] = '-';              /* pos 18 */
+    for(j=0;i<23;i+=2,j++) {     /* pos 19-22, 2byte (d) */
+        out[i] = hexmap[(guid->data4[j] & 0xF0u) >> 4u];
+        out[i+1] = hexmap[guid->data4[j] & 0x0Fu];
+    }
+    out[i++] = '-';              /* pos 23 */
+    for(j=2; i<36;i+=2,j++) {    /* pos 24-35, 6byte (e) */
+        out[i] = hexmap[(guid->data4[j] & 0xF0u) >> 4u];
+        out[i+1] = hexmap[guid->data4[j] & 0x0Fu];
+    }
+}
+
+UA_StatusCode
+UA_Guid_print(const UA_Guid *guid, UA_String *output) {
+    if(output->length == 0) {
+        UA_StatusCode res =
+            UA_ByteString_allocBuffer((UA_ByteString*)output, 36);
+        if(res != UA_STATUSCODE_GOOD)
+            return res;
+    } else {
+        if(output->length < 36)
+            return UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED;
+        output->length = 36;
+    }
+    UA_Guid_to_hex(guid, output->data, true);
+    return UA_STATUSCODE_GOOD;
+}
+
 /* ByteString */
 UA_StatusCode
 UA_ByteString_allocBuffer(UA_ByteString *bs, size_t length) {
