@@ -62,6 +62,7 @@
 // #define EXAMPLE_USE_MQTT_LOGIN
 
 #ifdef EXAMPLE_USE_MQTT_LOGIN
+#define LOGIN_OPTION_COUNT           2
 #define USERNAME_OPTION_NAME         "mqttUsername"
 #define PASSWORD_OPTION_NAME         "mqttPassword"
 #define MQTT_USERNAME                "open62541user"
@@ -72,6 +73,7 @@
 //#define EXAMPLE_USE_MQTT_TLS
 
 #ifdef EXAMPLE_USE_MQTT_TLS
+#define TLS_OPTION_COUNT                2
 #define USE_TLS_OPTION_NAME             "mqttUseTLS"
 #define MQTT_CA_FILE_PATH_OPTION_NAME   "mqttCaFilePath"
 #define CA_FILE_PATH                    "/path/to/server.cert"
@@ -109,10 +111,10 @@ addPubSubConnection(UA_Server *server, char *addressUrl) {
     /* configure options, set mqtt client id */
     const int connectionOptionsCount = 1
 #ifdef EXAMPLE_USE_MQTT_LOGIN
-    + 2
+    + LOGIN_OPTION_COUNT
 #endif
 #ifdef EXAMPLE_USE_MQTT_TLS
-    + 2
+    + TLS_OPTION_COUNT
 #endif
     ;
 

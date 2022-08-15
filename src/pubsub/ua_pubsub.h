@@ -8,6 +8,7 @@
  * Copyright (c) 2020 Thomas Fischer, Siemens AG
  * Copyright (c) 2021 Fraunhofer IOSB (Author: Jan Hermes)
  * Copyright (c) 2022 Siemens AG (Author: Thomas Fischer)
+ * Copyright (c) 2022 Fraunhofer IOSB (Author: Noel Graf)
  */
 
 #ifndef UA_PUBSUB_H_
@@ -140,7 +141,7 @@ UA_PubSubConnection_clear(UA_Server *server, UA_PubSubConnection *connection);
 
 /* Register channel for given connectionIdentifier */
 UA_StatusCode
-UA_PubSubConnection_regist(UA_Server *server, UA_NodeId *connectionIdentifier);
+UA_PubSubConnection_regist(UA_Server *server, UA_NodeId *connectionIdentifier, const UA_ReaderGroupConfig *readerGroupConfig);
 
 #define UA_LOG_CONNECTION_INTERNAL(LOGGER, LEVEL, CONNECTION, MSG, ...) \
     if(UA_LOGLEVEL <= UA_LOGLEVEL_##LEVEL) {                            \
@@ -561,6 +562,16 @@ decodeNetworkMessage(UA_Server *server, UA_ByteString *buffer, size_t *pos,
 UA_StatusCode
 receiveBufferedNetworkMessage(UA_Server *server, UA_ReaderGroup *readerGroup,
                               UA_PubSubConnection *connection);
+
+/* It serves as the entry point into reader processing and is called when
+ * a publish is received, and the topic matches with one or more readers. */
+void processMqttSubscriberCallback(UA_Server *server, UA_ReaderGroup *readerGroup,
+                      UA_PubSubConnection *connection, UA_ByteString *msg,
+                      UA_ByteString *topic);
+
+UA_StatusCode
+decodeNetworkMessageJson(UA_Server *server, UA_ByteString *buffer, size_t *pos,
+                         UA_NetworkMessage *nm, UA_PubSubConnection *connection);
 
 #endif /* UA_ENABLE_PUBSUB */
 

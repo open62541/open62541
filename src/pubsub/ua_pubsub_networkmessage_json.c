@@ -430,8 +430,10 @@ NetworkMessage_decodeJsonInternal(UA_NetworkMessage *dst, CtxJson *ctx,
     if(found == UA_STATUSCODE_GOOD) {
         cj5_token *publishIdToken = &parseCtx->tokenArray[searchResultPublishIdType];
         if(publishIdToken->type == CJ5_TOKEN_NUMBER) {
-            pubIdType = &UA_TYPES[UA_TYPES_UINT64];
-            dst->publisherIdType = UA_PUBLISHERIDTYPE_UINT64; //store in biggest possible
+            // store in biggest possible. The problem is that with a UInt64 a string is expected in the json.
+            // Therefore, the maximum value is set to UInt32.
+            pubIdType = &UA_TYPES[UA_TYPES_UINT32];
+            dst->publisherIdType = UA_PUBLISHERIDTYPE_UINT32;
         } else if(publishIdToken->type == CJ5_TOKEN_STRING) {
             dst->publisherIdType = UA_PUBLISHERIDTYPE_STRING;
         } else {
@@ -495,8 +497,8 @@ NetworkMessage_decodeJsonInternal(UA_NetworkMessage *dst, CtxJson *ctx,
     dst->messageIdEnabled = entries[0].found;
     dst->publisherIdEnabled = entries[2].found;
     if(dst->publisherIdEnabled) {
-        if(pubIdType == &UA_TYPES[UA_TYPES_UINT64]) {
-            dst->publisherIdType = UA_PUBLISHERIDTYPE_UINT64;
+        if(pubIdType == &UA_TYPES[UA_TYPES_UINT32]) {
+            dst->publisherIdType = UA_PUBLISHERIDTYPE_UINT32;
         } else {
             dst->publisherIdType = UA_PUBLISHERIDTYPE_STRING;
         }

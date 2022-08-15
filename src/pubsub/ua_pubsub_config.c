@@ -203,7 +203,7 @@ createComponentsForConnection(UA_Server *server,
     for(size_t j = 0; j < connParams->readerGroupsSize; j++) {
         res = createReaderGroup(server, &connParams->readerGroups[j], connectionIdent);
         if(res == UA_STATUSCODE_GOOD)
-            res |= UA_PubSubConnection_regist(server, &connectionIdent);
+            res |= UA_PubSubConnection_regist(server, &connectionIdent, NULL);
         if(res != UA_STATUSCODE_GOOD) {
             UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
                          "[UA_PubSubManager_createComponentsForConnection] "

@@ -6,6 +6,7 @@
  * Copyright (c) 2018 Fraunhofer IOSB (Author: Julius Pfrommer)
  * Copyright (c) 2021 Fraunhofer IOSB (Author: Jan Hermes)
  * Copyright (c) 2022 Siemens AG (Author: Thomas Fischer)
+ * Copyright (c) 2022 Fraunhofer IOSB (Author: Noel Graf)
  */
 
 #include <open62541/server_pubsub.h>
@@ -14,6 +15,11 @@
 
 #include "server/ua_server_internal.h"
 #include "ua_pubsub_ns0.h"
+
+#ifdef UA_ENABLE_PUBSUB_MQTT
+#include "../../plugins/mqtt/ua_mqtt-c_adapter.h"
+#include "mqtt.h"
+#endif
 
 #define UA_DATETIMESTAMP_2000 125911584000000000
 
@@ -69,6 +75,39 @@ UA_PubSubManager_addConnection(UA_PubSubManager *pubSubManager, UA_PubSubConnect
         TAILQ_INSERT_HEAD(&pubSubManager->connections, connection, listEntry);
     }
     pubSubManager->connectionsSize++;
+}
+
+static void
+UA_PubSubManager_addTopic(UA_PubSubManager *pubSubManager, UA_TopicAssign *topicAssign) {
+    if (pubSubManager->topicAssignSize != 0) {
+        TAILQ_INSERT_TAIL(&pubSubManager->topicAssign, topicAssign, listEntry);
+    } else {
+        TAILQ_INIT(&pubSubManager->topicAssign);
+        TAILQ_INSERT_HEAD(&pubSubManager->topicAssign, topicAssign, listEntry);
+    }
+    pubSubManager->topicAssignSize++;
+}
+
+static UA_TopicAssign *
+UA_TopicAssign_new(UA_ReaderGroup *readerGroup,
+                   UA_String topic, UA_Logger *logger) {
+    UA_TopicAssign *topicAssign = (UA_TopicAssign *) calloc(1, sizeof(UA_TopicAssign));
+    if(!topicAssign) {
+        UA_LOG_ERROR(logger, UA_LOGCATEGORY_SERVER,
+                     "PubSub TopicAssign creation failed. Out of Memory.");
+        return NULL;
+    }
+    topicAssign->rgIdentifier = readerGroup;
+    topicAssign->topic = topic;
+    return topicAssign;
+}
+
+UA_StatusCode
+UA_PubSubManager_addPubSubTopicAssign(UA_Server *server, UA_ReaderGroup *readerGroup, UA_String topic) {
+    UA_PubSubManager *pubSubManager = &server->pubSubManager;
+    UA_TopicAssign *topicAssign = UA_TopicAssign_new(readerGroup, topic, &server->config.logger);
+    UA_PubSubManager_addTopic(pubSubManager, topicAssign);
+    return UA_STATUSCODE_GOOD;
 }
 
 static UA_PubSubConnection *
@@ -154,6 +193,17 @@ UA_Server_addPubSubConnection(UA_Server *server,
     newConnectionsField->channel = tl->createPubSubChannel(newConnectionsField->config);
     UA_CHECK_MEM(newConnectionsField->channel, return channelErrorHandling(server, newConnectionsField));
 
+#ifdef UA_ENABLE_PUBSUB_MQTT
+    /* If the transport layer is MQTT, attach the server pointer to the callback function
+     * that is called when a PUBLISH is received. */
+    const UA_String transport_uri = UA_STRING("http://opcfoundation.org/UA-Profile/Transport/pubsub-mqtt");
+    if(UA_String_equal(&newConnectionsField->config->transportProfileUri, &transport_uri)) {
+        UA_PubSubChannelDataMQTT *channelDataMQTT = (UA_PubSubChannelDataMQTT *)newConnectionsField->channel->handle;
+        struct mqtt_client* client = (struct mqtt_client*)channelDataMQTT->mqttClient;
+        client->publish_response_callback_state = server;
+    }
+#endif
+
     assignConnectionIdentifier(server, newConnectionsField, connectionIdentifier);
 
     return UA_STATUSCODE_GOOD;
@@ -210,7 +260,7 @@ UA_Server_removePubSubConnection(UA_Server *server, const UA_NodeId connection) 
 }
 
 UA_StatusCode
-UA_PubSubConnection_regist(UA_Server *server, UA_NodeId *connectionIdentifier) {
+UA_PubSubConnection_regist(UA_Server *server, UA_NodeId *connectionIdentifier, const UA_ReaderGroupConfig *readerGroupConfig) {
     UA_PubSubConnection *connection =
         UA_PubSubConnection_findConnectionbyId(server, *connectionIdentifier);
     if(!connection)
@@ -220,8 +270,13 @@ UA_PubSubConnection_regist(UA_Server *server, UA_NodeId *connectionIdentifier) {
         UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_SERVER, "Connection already registered");
         return UA_STATUSCODE_GOOD;
     }
+    UA_StatusCode retval = UA_STATUSCODE_BAD;
+    if(readerGroupConfig != NULL) {
+        UA_ExtensionObject transportSettings = readerGroupConfig->transportSettings;
+        retval = connection->channel->regist(connection->channel, &transportSettings, NULL);
+    }else
+        retval = connection->channel->regist(connection->channel, NULL, NULL);
 
-    UA_StatusCode retval = connection->channel->regist(connection->channel, NULL, NULL);
     if(retval != UA_STATUSCODE_GOOD)
         UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
                        "register channel failed: 0x%" PRIx32 "!", retval);
@@ -526,7 +581,16 @@ UA_PubSubManager_delete(UA_Server *server, UA_PubSubManager *pubSubManager) {
         removePublishedDataSet(server, tmpPDS1->identifier);
     }
 
+    /* Remove the TopicAssigns */
+    UA_TopicAssign *tmpTopicAssign1, *tmpTopicAssign2;
+    TAILQ_FOREACH_SAFE(tmpTopicAssign1, &server->pubSubManager.topicAssign,
+                       listEntry, tmpTopicAssign2){
 
+        server->pubSubManager.topicAssignSize--;
+        TAILQ_REMOVE(&server->pubSubManager.topicAssign, tmpTopicAssign1, listEntry);
+        UA_free(tmpTopicAssign1);
+    }
+    
     /* Free the list of transport layers */
     if(server->config.pubSubConfig.transportLayersSize > 0) {
         UA_free(server->config.pubSubConfig.transportLayers);

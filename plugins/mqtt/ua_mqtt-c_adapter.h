@@ -15,6 +15,7 @@ extern "C" {
 
 #include <open62541/plugin/pubsub_mqtt.h>
 #include <open62541/network_tcp.h>
+#include "ua_pubsub.h"
 
 #if defined(UA_ENABLE_MQTT_TLS_OPENSSL)
 #include <openssl/ssl.h>
