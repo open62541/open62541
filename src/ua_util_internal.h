@@ -295,6 +295,9 @@ UA_String_equal_ignorecase(const UA_String *s1, const UA_String *s2);
 /* Encoding Helpers */
 /********************/
 
+/* out must be a buffer with at least 36 elements, the length of every guid */
+void UA_Guid_to_hex(const UA_Guid *guid, u8* out, UA_Boolean lower);
+
 #define UA_ENCODING_HELPERS(TYPE, UPCASE_TYPE)                          \
     static UA_INLINE size_t                                             \
     UA_##TYPE##_calcSizeBinary(const UA_##TYPE *src) {                    \
