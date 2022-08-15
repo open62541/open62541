@@ -20,6 +20,8 @@
 #include <open62541/types_generated_handling.h>
 
 #include "ua_util_internal.h"
+#include "../deps/itoa.h"
+#include "../deps/base64.h"
 #include "libc_time.h"
 #include "pcg_basic.h"
 
@@ -397,96 +399,108 @@ UA_NodeId_hash(const UA_NodeId *n) {
     }
 }
 
+/* Computes length for the encoding size and pre-encodes the numeric values */
+static size_t
+nodeIdSize(const UA_NodeId *id,
+           char *nsStr, size_t *nsStrSize,
+           char *numIdStr, size_t *numIdStrSize) {
+    /* Namespace length */
+    size_t len = 0;
+    if(id->namespaceIndex != 0) {
+        len += 4; /* ns=; */
+        *nsStrSize = itoaUnsigned(id->namespaceIndex, nsStr, 10);
+        len += *nsStrSize;
+    }
+
+    switch (id->identifierType) {
+    case UA_NODEIDTYPE_NUMERIC:
+        *numIdStrSize = itoaUnsigned(id->identifier.numeric, numIdStr, 10);
+        len += 2 + *numIdStrSize;
+        break;
+    case UA_NODEIDTYPE_STRING:
+        len += 2 + id->identifier.string.length;
+        break;
+    case UA_NODEIDTYPE_GUID:
+        len += 2 + 36;
+        break;
+    case UA_NODEIDTYPE_BYTESTRING:
+        len += 2 + (4*((id->identifier.byteString.length + 2) / 3));
+        break;
+    default:
+        len = 0;
+    }
+    return len;
+}
+
+#define PRINT_NODEID                                           \
+    /* Encode the namespace */                                 \
+    if(id->namespaceIndex != 0) {                              \
+        memcpy(pos, "ns=", 3);                                 \
+        pos += 3;                                              \
+        memcpy(pos, nsStr, nsStrSize);                         \
+        pos += nsStrSize;                                      \
+        *pos++ = ';';                                          \
+    }                                                          \
+                                                               \
+    /* Encode the identifier */                                \
+    switch(id->identifierType) {                               \
+    case UA_NODEIDTYPE_NUMERIC:                                \
+        memcpy(pos, "i=", 2);                                  \
+        pos += 2;                                              \
+        memcpy(pos, numIdStr, numIdStrSize);                   \
+        pos += numIdStrSize;                                   \
+        break;                                                 \
+    case UA_NODEIDTYPE_STRING:                                 \
+        memcpy(pos, "s=", 2);                                  \
+        pos += 2;                                              \
+        memcpy(pos, id->identifier.string.data,                \
+               id->identifier.string.length);                  \
+        pos += id->identifier.string.length;                   \
+        break;                                                 \
+    case UA_NODEIDTYPE_GUID:                                   \
+        memcpy(pos, "g=", 2);                                  \
+        pos += 2;                                              \
+        UA_Guid_to_hex(&id->identifier.guid,                   \
+                       (unsigned char*)pos, true);             \
+        pos += 36;                                             \
+        break;                                                 \
+    case UA_NODEIDTYPE_BYTESTRING:                             \
+        memcpy(pos, "b=", 2);                                  \
+        pos += 2;                                              \
+        pos += UA_base64_buf(id->identifier.byteString.data,   \
+                             id->identifier.byteString.length, \
+                             (unsigned char*)pos);             \
+        break;                                                 \
+    }                                                          \
+    do { } while(false)
+
 UA_StatusCode
 UA_NodeId_print(const UA_NodeId *id, UA_String *output) {
-    UA_String_clear(output);
-    if(!id)
-        return UA_STATUSCODE_GOOD;
-
-    char *nsStr = NULL;
-    long snprintfLen = 0;
-    size_t nsLen = 0;
-    if(id->namespaceIndex != 0) {
-        nsStr = (char*)UA_malloc(9+1); // strlen("ns=XXXXX;") = 9 + Nullbyte
-        if(!nsStr)
-            return UA_STATUSCODE_BADOUTOFMEMORY;
-        snprintfLen = UA_snprintf(nsStr, 10, "ns=%d;", id->namespaceIndex);
-        if(snprintfLen < 0 || snprintfLen >= 10) {
-            UA_free(nsStr);
-            return UA_STATUSCODE_BADINTERNALERROR;
-        }
-        nsLen = (size_t)(snprintfLen);
-    }
-
-    UA_ByteString byteStr = UA_BYTESTRING_NULL;
-    switch (id->identifierType) {
-        case UA_NODEIDTYPE_NUMERIC:
-            /* ns (2 byte, 65535) = 5 chars, numeric (4 byte, 4294967295) = 10
-             * chars, delim = 1 , nullbyte = 1-> 17 chars */
-            output->length = nsLen + 2 + 10 + 1;
-            output->data = (UA_Byte*)UA_malloc(output->length);
-            if(output->data == NULL) {
-                output->length = 0;
-                UA_free(nsStr);
-                return UA_STATUSCODE_BADOUTOFMEMORY;
-            }
-            snprintfLen = UA_snprintf((char*)output->data, output->length, "%si=%lu",
-                                      nsLen > 0 ? nsStr : "",
-                                      (unsigned long )id->identifier.numeric);
-            break;
-        case UA_NODEIDTYPE_STRING:
-            /* ns (16bit) = 5 chars, strlen + nullbyte */
-            output->length = nsLen + 2 + id->identifier.string.length + 1;
-            output->data = (UA_Byte*)UA_malloc(output->length);
-            if(output->data == NULL) {
-                output->length = 0;
-                UA_free(nsStr);
-                return UA_STATUSCODE_BADOUTOFMEMORY;
-            }
-            snprintfLen = UA_snprintf((char*)output->data, output->length, "%ss=%.*s",
-                                      nsLen > 0 ? nsStr : "", (int)id->identifier.string.length,
-                                      id->identifier.string.data);
-            break;
-        case UA_NODEIDTYPE_GUID:
-            /* ns (16bit) = 5 chars + strlen(A123456C-0ABC-1A2B-815F-687212AAEE1B)=36 + nullbyte */
-            output->length = nsLen + 2 + 36 + 1;
-            output->data = (UA_Byte*)UA_malloc(output->length);
-            if(output->data == NULL) {
-                output->length = 0;
-                UA_free(nsStr);
-                return UA_STATUSCODE_BADOUTOFMEMORY;
-            }
-            snprintfLen = UA_snprintf((char*)output->data, output->length,
-                                      "%sg=" UA_PRINTF_GUID_FORMAT, nsLen > 0 ? nsStr : "",
-                                      UA_PRINTF_GUID_DATA(id->identifier.guid));
-            break;
-        case UA_NODEIDTYPE_BYTESTRING:
-            UA_ByteString_toBase64(&id->identifier.byteString, &byteStr);
-            /* ns (16bit) = 5 chars + LEN + nullbyte */
-            output->length = nsLen + 2 + byteStr.length + 1;
-            output->data = (UA_Byte*)UA_malloc(output->length);
-            if(output->data == NULL) {
-                output->length = 0;
-                UA_String_clear(&byteStr);
-                UA_free(nsStr);
-                return UA_STATUSCODE_BADOUTOFMEMORY;
-            }
-            snprintfLen = UA_snprintf((char*)output->data, output->length, "%sb=%.*s",
-                                      nsLen > 0 ? nsStr : "",
-                                      (int)byteStr.length, byteStr.data);
-            UA_String_clear(&byteStr);
-            break;
-    }
-    UA_free(nsStr);
-
-    if(snprintfLen < 0 || snprintfLen >= (long) output->length) {
-        UA_free(output->data);
-        output->data = NULL;
-        output->length = 0;
+    /* Compute the string length */
+    char nsStr[6];
+    size_t nsStrSize = 0;
+    char numIdStr[11];
+    size_t numIdStrSize = 0;
+    size_t idLen = nodeIdSize(id, nsStr, &nsStrSize, numIdStr, &numIdStrSize);
+    if(idLen == 0)
         return UA_STATUSCODE_BADINTERNALERROR;
-    }
-    output->length = (size_t)snprintfLen;
 
+    /* Allocate memory if required */
+    if(output->length == 0) {
+        UA_StatusCode res = UA_ByteString_allocBuffer((UA_ByteString*)output, idLen);
+        if(res != UA_STATUSCODE_GOOD)
+            return res;
+    } else {
+        if(output->length < idLen)
+            return UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED;
+        output->length = idLen;
+    }
+
+    /* Print the NodeId */
+    char *pos = (char*)output->data;
+    PRINT_NODEID;
+
+    UA_assert(output->length == (size_t)((UA_Byte*)pos - output->data));
     return UA_STATUSCODE_GOOD;
 }
 
@@ -533,44 +547,70 @@ UA_ExpandedNodeId_hash(const UA_ExpandedNodeId *n) {
 }
 
 UA_StatusCode
-UA_ExpandedNodeId_print(const UA_ExpandedNodeId *id, UA_String *output) {
+UA_ExpandedNodeId_print(const UA_ExpandedNodeId *eid, UA_String *output) {
     /* Don't print the namespace-index if a NamespaceUri is set */
-    UA_NodeId nid = id->nodeId;
-    if(id->namespaceUri.data != NULL)
-        nid.namespaceIndex = 0;
+    UA_NodeId stackid = eid->nodeId;
+    UA_NodeId *id = &stackid; /* for the print-macro below */
+    if(eid->namespaceUri.data != NULL)
+        id->namespaceIndex = 0;
 
-    /* Encode the NodeId */
-    UA_String outNid = UA_STRING_NULL;
-    UA_StatusCode res = UA_NodeId_print(&nid, &outNid);
-    if(res != UA_STATUSCODE_GOOD)
-        return res;
+    /* Compute the string length */
+    char nsStr[6];
+    size_t nsStrSize = 0;
+    char numIdStr[11];
+    size_t numIdStrSize = 0;
+    size_t idLen = nodeIdSize(id, nsStr, &nsStrSize, numIdStr, &numIdStrSize);
+    if(idLen == 0)
+        return UA_STATUSCODE_BADINTERNALERROR;
 
-    /* Encode the ServerIndex */
-    char svr[100];
-    if(id->serverIndex == 0)
-        svr[0] = 0;
-    else
-        UA_snprintf(svr, 100, "svr=%"PRIu32";", id->serverIndex);
-    size_t svrlen = strlen(svr);
-
-    /* Encode the NamespaceUri */
-    char nsu[100];
-    if(id->namespaceUri.data == NULL)
-        nsu[0] = 0;
-    else
-        UA_snprintf(nsu, 100, "nsu=%.*s;", (int)id->namespaceUri.length, id->namespaceUri.data);
-    size_t nsulen = strlen(nsu);
-
-    /* Combine everything */
-    res = UA_ByteString_allocBuffer((UA_String*)output, outNid.length + svrlen + nsulen);
-    if(res == UA_STATUSCODE_GOOD) {
-        memcpy(output->data, svr, svrlen);
-        memcpy(&output->data[svrlen], nsu, nsulen);
-        memcpy(&output->data[svrlen+nsulen], outNid.data, outNid.length);
+    char srvIdxStr[11];
+    size_t srvIdxSize = 0;
+    if(eid->serverIndex != 0) {
+        idLen += 5; /* svr=; */
+        srvIdxSize = itoaUnsigned(eid->serverIndex, srvIdxStr, 10);
+        idLen += srvIdxSize;
     }
 
-    UA_String_clear(&outNid);
-    return res;
+    if(eid->namespaceUri.data != NULL) {
+        idLen += 5; /* nsu=; */
+        idLen += eid->namespaceUri.length;
+    }
+
+    /* Allocate memory if required */
+    if(output->length == 0) {
+        UA_StatusCode res = UA_ByteString_allocBuffer((UA_ByteString*)output, idLen);
+        if(res != UA_STATUSCODE_GOOD)
+            return res;
+    } else {
+        if(output->length < idLen)
+            return UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED;
+        output->length = idLen;
+    }
+
+    /* Encode the ServerIndex */
+    char *pos = (char*)output->data;
+    if(eid->serverIndex != 0) {
+        memcpy(pos, "svr=", 4);
+        pos += 4;
+        memcpy(pos, srvIdxStr, srvIdxSize);
+        pos += srvIdxSize;
+        *pos++ = ';';
+    }
+
+    /* Encode the NamespaceUri */
+    if(eid->namespaceUri.data != NULL) {
+        memcpy(pos, "nsu=", 4);
+        pos += 4;
+        memcpy(pos, eid->namespaceUri.data, eid->namespaceUri.length);
+        pos += eid->namespaceUri.length;
+        *pos++ = ';';
+    }
+
+    /* Print the NodeId */
+    PRINT_NODEID;
+
+    UA_assert(output->length == (size_t)((UA_Byte*)pos - output->data));
+    return UA_STATUSCODE_GOOD;
 }
 
 /* ExtensionObject */

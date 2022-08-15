@@ -401,14 +401,16 @@ UA_Boolean UA_EXPORT UA_NodeId_isNull(const UA_NodeId *p);
  *   UA_NODEID("ns=10;s=Hello:World")
  *   UA_NODEID("g=09087e75-8e5e-499b-954f-f2a9603db28a")
  *   UA_NODEID("ns=1;b=b3BlbjYyNTQxIQ==") // base64
- * */
+ *
+ * The method can either use a pre-allocated string buffer or allocates memory
+ * internally if called with an empty output string. */
 UA_StatusCode UA_EXPORT
 UA_NodeId_print(const UA_NodeId *id, UA_String *output);
 
-#ifdef UA_ENABLE_PARSING
 /* Parse the human-readable NodeId format. Attention! String and
  * ByteString NodeIds have their identifier malloc'ed and need to be
  * cleaned up. */
+#ifdef UA_ENABLE_PARSING
 UA_StatusCode UA_EXPORT
 UA_NodeId_parse(UA_NodeId *id, const UA_String str);
 
@@ -488,18 +490,24 @@ typedef struct {
 
 UA_EXPORT extern const UA_ExpandedNodeId UA_EXPANDEDNODEID_NULL;
 
-UA_StatusCode UA_EXPORT
-UA_ExpandedNodeId_print(const UA_ExpandedNodeId *id, UA_String *output);
-
-#ifdef UA_ENABLE_PARSING
-/* Parse the ExpandedNodeId format defined in Part 6, 5.3.1.11:
+/* Print the ExpandedNodeId in the humand-readable format defined in Part 6,
+ * 5.3.1.11:
  *
  *   svr=<serverindex>;ns=<namespaceindex>;<type>=<value>
  *     or
  *   svr=<serverindex>;nsu=<uri>;<type>=<value>
  *
- * The definitions for svr, ns and nsu can be omitted and will be set to zero /
- * the empty string.*/
+ * The definitions for svr, ns and nsu is omitted if zero / the empty string.
+ *
+ * The method can either use a pre-allocated string buffer or allocates memory
+ * internally if called with an empty output string. */
+UA_StatusCode UA_EXPORT
+UA_ExpandedNodeId_print(const UA_ExpandedNodeId *id, UA_String *output);
+
+/* Parse the human-readable NodeId format. Attention! String and
+ * ByteString NodeIds have their identifier malloc'ed and need to be
+ * cleaned up. */
+#ifdef UA_ENABLE_PARSING
 UA_StatusCode UA_EXPORT
 UA_ExpandedNodeId_parse(UA_ExpandedNodeId *id, const UA_String str);
 
