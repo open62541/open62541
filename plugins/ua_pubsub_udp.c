@@ -20,7 +20,7 @@
 
 #define UA_IPV4_PREFIX_MASK 0xF0000000
 #define UA_IPV4_MULTICAST_PREFIX 0xE0000000
-#ifdef UA_IPV6
+#if UA_IPV6
 #   define UA_IPV6_MULTICAST_PREFIX 0xFF
 #endif
 
@@ -210,7 +210,7 @@ setupNetworkInterface(UA_PubSubChannelDataUDPMC *channelDataUDPMC,
     return UA_STATUSCODE_GOOD;
 }
 
-#ifdef UA_IPV6
+#if UA_IPV6
 static UA_INLINE UA_StatusCode
 setMulticastInfoIPV6(UA_PubSubChannelDataUDPMC *channelDataUDPMC, const char *addressAsChar) {
     int convertTextAddressToBinarySuccessful = UA_inet_pton(AF_INET6, addressAsChar,
@@ -264,7 +264,7 @@ configureMulticast(UA_PubSubChannelDataUDPMC *channelDataUDPMC,
     /* Check if the ip address is a multicast address */
     if(channelDataUDPMC->ai_family == AF_INET) {
         res = setMulticastInfoIPv4(channelDataUDPMC, addressAsChar);
-#ifdef UA_IPV6
+#if UA_IPV6
     } else if(channelDataUDPMC->ai_family == AF_INET6) {
         res = setMulticastInfoIPV6(channelDataUDPMC, addressAsChar);
 #endif
