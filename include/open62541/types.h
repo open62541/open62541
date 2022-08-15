@@ -288,13 +288,22 @@ typedef struct {
 
 UA_EXPORT extern const UA_Guid UA_GUID_NULL;
 
-UA_Boolean UA_EXPORT UA_Guid_equal(const UA_Guid *g1, const UA_Guid *g2);
+UA_Boolean UA_EXPORT
+UA_Guid_equal(const UA_Guid *g1, const UA_Guid *g2);
 
-#ifdef UA_ENABLE_PARSING
-/* Parse the Guid format defined in Part 6, 5.1.3.
+/* Print a Guid in the human-readable format defined in Part 6, 5.1.3
+ *
  * Format: C496578A-0DFE-4B8F-870A-745238C6AEAE
  *         |       |    |    |    |            |
- *         0       8    13   18   23           36 */
+ *         0       8    13   18   23           36
+ *
+ * This allocates memory if the output argument is an empty string. Tries to use
+ * the given buffer otherwise. */
+UA_StatusCode UA_EXPORT
+UA_Guid_print(const UA_Guid *guid, UA_String *output);
+
+/* Parse the humand-readable Guid format */
+#ifdef UA_ENABLE_PARSING
 UA_StatusCode UA_EXPORT
 UA_Guid_parse(UA_Guid *guid, const UA_String str);
 

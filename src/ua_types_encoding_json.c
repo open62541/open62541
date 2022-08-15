@@ -502,10 +502,8 @@ encodeJsonArray(CtxJson *ctx, const void *ptr, size_t length,
     return ret;
 }
 
-static const u8 hexmapLower[16] =
+static const u8 hexmap[16] =
     {'0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f'};
-static const u8 hexmapUpper[16] =
-    {'0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', 'C', 'D', 'E', 'F'};
 
 ENCODE_JSON(String) {
     if(!src->data)
@@ -578,10 +576,10 @@ ENCODE_JSON(String) {
                 seq[1] = 'u';
                 UA_Byte b1 = (UA_Byte)(codepoint >> 8u);
                 UA_Byte b2 = (UA_Byte)(codepoint >> 0u);
-                seq[2] = hexmapLower[(b1 & 0xF0u) >> 4u];
-                seq[3] = hexmapLower[b1 & 0x0Fu];
-                seq[4] = hexmapLower[(b2 & 0xF0u) >> 4u];
-                seq[5] = hexmapLower[b2 & 0x0Fu];
+                seq[2] = hexmap[(b1 & 0xF0u) >> 4u];
+                seq[3] = hexmap[b1 & 0x0Fu];
+                seq[4] = hexmap[(b2 & 0xF0u) >> 4u];
+                seq[5] = hexmap[b2 & 0x0Fu];
                 length = 6;
             } else {
                 /* not in BMP -> construct a UTF-16 surrogate pair */
@@ -597,17 +595,17 @@ ENCODE_JSON(String) {
 
                 seq[0] = '\\';
                 seq[1] = 'u';
-                seq[2] = hexmapLower[(fb1 & 0xF0u) >> 4u];
-                seq[3] = hexmapLower[fb1 & 0x0Fu];
-                seq[4] = hexmapLower[(fb2 & 0xF0u) >> 4u];
-                seq[5] = hexmapLower[fb2 & 0x0Fu];
+                seq[2] = hexmap[(fb1 & 0xF0u) >> 4u];
+                seq[3] = hexmap[fb1 & 0x0Fu];
+                seq[4] = hexmap[(fb2 & 0xF0u) >> 4u];
+                seq[5] = hexmap[fb2 & 0x0Fu];
 
                 seq[6] = '\\';
                 seq[7] = 'u';
-                seq[8] = hexmapLower[(lb1 & 0xF0u) >> 4u];
-                seq[9] = hexmapLower[lb1 & 0x0Fu];
-                seq[10] = hexmapLower[(lb2 & 0xF0u) >> 4u];
-                seq[11] = hexmapLower[lb2 & 0x0Fu];
+                seq[8] = hexmap[(lb1 & 0xF0u) >> 4u];
+                seq[9] = hexmap[lb1 & 0x0Fu];
+                seq[10] = hexmap[(lb2 & 0xF0u) >> 4u];
+                seq[11] = hexmap[lb2 & 0x0Fu];
                 length = 12;
             }
             text = (char*)seq;
@@ -659,30 +657,6 @@ ENCODE_JSON(ByteString) {
 
     ret |= writeJsonQuote(ctx);
     return ret;
-}
-
-void
-UA_Guid_to_hex(const UA_Guid *guid, u8* out, UA_Boolean lower) {
-    const u8 *hexmap = (lower) ? hexmapLower : hexmapUpper;
-    size_t i = 0, j = 28;
-    for(; i<8;i++,j-=4)         /* pos 0-7, 4byte, (a) */
-        out[i] = hexmap[(guid->data1 >> j) & 0x0Fu];
-    out[i++] = '-';             /* pos 8 */
-    for(j=12; i<13;i++,j-=4)    /* pos 9-12, 2byte, (b) */
-        out[i] = hexmap[(uint16_t)(guid->data2 >> j) & 0x0Fu];
-    out[i++] = '-';             /* pos 13 */
-    for(j=12; i<18;i++,j-=4)    /* pos 14-17, 2byte (c) */
-        out[i] = hexmap[(uint16_t)(guid->data3 >> j) & 0x0Fu];
-    out[i++] = '-';              /* pos 18 */
-    for(j=0;i<23;i+=2,j++) {     /* pos 19-22, 2byte (d) */
-        out[i] = hexmap[(guid->data4[j] & 0xF0u) >> 4u];
-        out[i+1] = hexmap[guid->data4[j] & 0x0Fu];
-    }
-    out[i++] = '-';              /* pos 23 */
-    for(j=2; i<36;i+=2,j++) {    /* pos 24-35, 6byte (e) */
-        out[i] = hexmap[(guid->data4[j] & 0xF0u) >> 4u];
-        out[i+1] = hexmap[guid->data4[j] & 0x0Fu];
-    }
 }
 
 /* Guid */
