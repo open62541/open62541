@@ -300,11 +300,6 @@ static void assertNodeIdString(const UA_String *gotStr, const char* expectedStr)
     UA_free(gotChars);
 }
 
-START_TEST(idToStringNull) {
-    UA_String str = UA_STRING_NULL;
-    ck_assert_int_eq(UA_NodeId_print(NULL, &str), UA_STATUSCODE_GOOD);
-} END_TEST
-
 START_TEST(idToStringNumeric) {
     UA_NodeId n;
     UA_String str = UA_STRING_NULL;
@@ -643,7 +638,6 @@ static Suite* testSuite_Utils(void) {
 
 
     TCase *tc1 = tcase_create("test nodeid string");
-    tcase_add_test(tc1, idToStringNull);
     tcase_add_test(tc1, idToStringNumeric);
     tcase_add_test(tc1, idToStringString);
     tcase_add_test(tc1, idToStringGuid);
