@@ -633,6 +633,28 @@ cj5_get_uint(const cj5_result *r, unsigned int tok_index,
     return (parsed != 0) ? CJ5_ERROR_NONE : CJ5_ERROR_INVALID;
 }
 
+static const uint32_t SURROGATE_OFFSET = 0x10000u - (0xD800u << 10) - 0xDC00;
+
+static cj5_error_code
+parse_codepoint(const char *pos, uint32_t *out_utf) {
+    uint32_t utf = 0;
+    for(unsigned int i = 0; i < 4; i++) {
+        char byte = pos[i];
+        if(cj5__isnum(byte)) {
+            byte = (char)(byte - '0');
+        } else if(cj5__isrange(byte, 'a', 'f')) {
+            byte = (char)(byte - ('a' - 10));
+        } else if(cj5__isrange(byte, 'A', 'F')) {
+            byte = (char)(byte - ('A' - 10));
+        } else {
+            return CJ5_ERROR_INVALID;
+        }
+        utf = (utf << 4) | ((uint8_t)byte & 0xF);
+    }
+    *out_utf = utf;
+    return CJ5_ERROR_NONE;
+}
+
 cj5_error_code
 cj5_get_str(const cj5_result *r, unsigned int tok_index,
             char *buf, unsigned int *buflen) {
@@ -662,28 +684,36 @@ cj5_get_str(const cj5_result *r, unsigned int tok_index,
             case 'r':  buf[outpos++] = '\r'; break;
             case 'n':  buf[outpos++] = '\n'; break;
             case 't':  buf[outpos++] = '\t'; break;
-            case 'u': { // The next four characters are an utf8 code
+            case 'u': {
+                // Parse the unicode code point
                 if(pos + 4 >= end)
                     return CJ5_ERROR_INCOMPLETE;
-                
-                // Parse the unicode code point
-                uint32_t utf = 0;
-                for(unsigned int i = 0; i < 4; i++) {
-                    pos++;
-                    uint8_t byte = (uint8_t)*pos;
-                    if(cj5__isrange(*pos, '0', '9')) {
-                        byte = (uint8_t)(byte - (uint8_t)'0');
-                    } else if(cj5__isrange(*pos, 'a', 'f')) {
-                        byte = (uint8_t)(byte - (uint8_t)('a' - 10));
-                    } else if(cj5__isrange(*pos, 'A', 'F')) {
-                        byte = (uint8_t)(byte - (uint8_t)('A' - 10));
-                    } else {
+                pos++;
+                uint32_t utf;
+                cj5_error_code err = parse_codepoint(pos, &utf);
+                if(err != CJ5_ERROR_NONE)
+                    return err;
+                pos += 3;
+
+                if(0xD800 <= utf && utf <= 0xDBFF) {
+                    // Parse a surrogate pair
+                    if(pos + 6 >= end)
                         return CJ5_ERROR_INVALID;
-                    }
-                    utf = (utf << 4) | (byte & 0xF);
+                    if(pos[1] != '\\' && pos[3] != 'u')
+                        return CJ5_ERROR_INVALID;
+                    pos += 3;
+                    uint32_t trail;
+                    err = parse_codepoint(pos, &trail);
+                    if(err != CJ5_ERROR_NONE)
+                        return err;
+                    pos += 3;
+                    utf = (utf << 10) + trail + SURROGATE_OFFSET;
+                } else if(0xDC00 <= utf && utf <= 0xDFFF) {
+                    // Invalid Unicode '\\u%04X'
+                    return CJ5_ERROR_INVALID;
                 }
                 
-                // Print the utf8 bytes
+                // Write the utf8 bytes of the code point
                 if(utf <= 0x7F) { // Plain ASCII
                     buf[outpos++] = (char)utf;
                 } else if(utf <= 0x07FF) { // 2-byte unicode
