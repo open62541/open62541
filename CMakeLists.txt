@@ -164,7 +164,7 @@ option(UA_ENABLE_SUBSCRIPTIONS_EVENTS "Enable event monitoring" ON)
 option(UA_ENABLE_DA "Enable OPC UA DataAccess (Part 8) definitions" ON)
 option(UA_ENABLE_HISTORIZING "Enable basic support for historical access (client and server)" OFF)
 option(UA_ENABLE_DISCOVERY "Enable Discovery Service (LDS)" OFF)
-option(UA_ENABLE_JSON_ENCODING "Enable JSON encoding" OFF)
+option(UA_ENABLE_JSON_ENCODING "Enable JSON encoding" ON)
 
 set(MULTITHREADING_DEFAULT 0)
 if(WIN32 OR UNIX)
