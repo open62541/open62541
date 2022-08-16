@@ -51,7 +51,6 @@ UA_StatusCode writeJsonArrElm(CtxJson *ctx, const void *value,
 UA_StatusCode writeJsonArrEnd(CtxJson *ctx);
 
 UA_StatusCode writeJsonKey(CtxJson *ctx, const char* key);
-UA_StatusCode writeJsonNull(CtxJson *ctx);
 
 /* Adds a comma if needed. Distinct elements go on a new line if pretty-printing
  * is enabled. */
