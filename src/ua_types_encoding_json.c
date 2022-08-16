@@ -489,6 +489,8 @@ ENCODE_JSON(String) {
         u8 seq[13];
         size_t length;
 
+        /* Iterate over codepoints in the utf8 encoding. Until the first
+         * character that needs to be escaped. */
         while(end < lim) {
             end = utf8_iterate(pos, (size_t)(lim - pos), (int32_t *)&codepoint);
             if(!end)  {
@@ -499,22 +501,14 @@ ENCODE_JSON(String) {
                 continue;
             }
 
-            /* mandatory escape or control char */
+            /* Mandatory escape or control char */
             if(codepoint == '\\' || codepoint == '"' || codepoint < 0x20)
                 break;
-
-            /* TODO: Why is this commented? */
-            /* slash
-            if((flags & JSON_ESCAPE_SLASH) && codepoint == '/')
-                break;*/
-
-            /* non-ASCII
-            if((flags & JSON_ENSURE_ASCII) && codepoint > 0x7F)
-                break;*/
 
             pos = end;
         }
 
+        /* Write out the characters that don't need escaping */
         if(pos != str) {
             if(ctx->pos + (pos - str) > ctx->end)
                 return UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED;
@@ -523,10 +517,11 @@ ENCODE_JSON(String) {
             ctx->pos += pos - str;
         }
 
+        /* Reached the end of the utf8 encoding */
         if(end == pos)
             break;
 
-        /* handle \, /, ", and control codes */
+        /* Handle an escaped character */
         length = 2;
         switch(codepoint) {
         case '\\': text = "\\\\"; break;
