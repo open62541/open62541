@@ -515,7 +515,7 @@ UA_OpenSSL_HMAC_SHA256_Verify (const UA_ByteString *     message,
     unsigned char buf[SHA256_DIGEST_LENGTH] = {0};
     UA_ByteString mac = {SHA256_DIGEST_LENGTH, buf};
 
-    if (HMAC (EVP_sha256(), key->data, (int) key->length, message->data, message->length, 
+    if (HMAC (EVP_sha256(), key->data, (int) key->length, message->data, message->length,
               mac.data, (unsigned int *) &mac.length) == NULL) {
         return UA_STATUSCODE_BADINTERNALERROR;
     }

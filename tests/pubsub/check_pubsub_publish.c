@@ -59,7 +59,7 @@ START_TEST(AddWriterGroupWithValidConfiguration){
         LIST_FOREACH(writerGroup, &UA_PubSubConnection_findConnectionbyId(server, connection1)->writerGroups, listEntry){
             writerGroupCount++;
         }
-        ck_assert_int_eq(writerGroupCount, 1);
+        ck_assert_uint_eq(writerGroupCount, 1);
         UA_Server_setWriterGroupDisabled(server, localWriterGroup);
     } END_TEST
 
@@ -80,7 +80,7 @@ START_TEST(AddRemoveAddWriterGroupWithMinimalValidConfiguration){
         LIST_FOREACH(writerGroup, &UA_PubSubConnection_findConnectionbyId(server, connection1)->writerGroups, listEntry){
             writerGroupCount++;
         }
-        ck_assert_int_eq(writerGroupCount, 0);
+        ck_assert_uint_eq(writerGroupCount, 0);
         retVal |= UA_Server_addWriterGroup(server, connection1, &writerGroupConfig, &localWriterGroup);
         UA_Server_setWriterGroupOperational(server, localWriterGroup);
         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
@@ -88,7 +88,7 @@ START_TEST(AddRemoveAddWriterGroupWithMinimalValidConfiguration){
         LIST_FOREACH(writerGroup, &UA_PubSubConnection_findConnectionbyId(server, connection1)->writerGroups, listEntry){
             writerGroupCount++;
         }
-        ck_assert_int_eq(writerGroupCount, 1);
+        ck_assert_uint_eq(writerGroupCount, 1);
         retVal |= UA_Server_addWriterGroup(server, connection1, &writerGroupConfig, &localWriterGroup);
         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
         UA_Server_setWriterGroupOperational(server, localWriterGroup);
@@ -96,7 +96,7 @@ START_TEST(AddRemoveAddWriterGroupWithMinimalValidConfiguration){
         LIST_FOREACH(writerGroup, &UA_PubSubConnection_findConnectionbyId(server, connection1)->writerGroups, listEntry){
             writerGroupCount++;
         }
-        ck_assert_int_eq(writerGroupCount, 2);
+        ck_assert_uint_eq(writerGroupCount, 2);
     } END_TEST
 
 START_TEST(AddWriterGroupWithNullConfig){
@@ -107,7 +107,7 @@ START_TEST(AddWriterGroupWithNullConfig){
         LIST_FOREACH(writerGroup, &UA_PubSubConnection_findConnectionbyId(server, connection1)->writerGroups, listEntry){
             writerGroupCount++;
         }
-        ck_assert_int_eq(writerGroupCount, 0);
+        ck_assert_uint_eq(writerGroupCount, 0);
         ck_assert_int_ne(retVal, UA_STATUSCODE_GOOD);
     } END_TEST
 
@@ -123,7 +123,7 @@ START_TEST(AddWriterGroupWithInvalidConnectionId){
         LIST_FOREACH(writerGroup, &UA_PubSubConnection_findConnectionbyId(server, connection1)->writerGroups, listEntry){
             writerGroupCount++;
         }
-        ck_assert_int_eq(writerGroupCount, 0);
+        ck_assert_uint_eq(writerGroupCount, 0);
         ck_assert_int_ne(retVal, UA_STATUSCODE_GOOD);
     } END_TEST
 
@@ -185,7 +185,7 @@ START_TEST(AddDataSetWriterWithValidConfiguration){
         ck_assert_ptr_ne(dsw1, NULL);
         UA_WriterGroup *wg1 = UA_WriterGroup_findWGbyId(server, writerGroup1);
         ck_assert_ptr_ne(wg1, NULL);
-        ck_assert_int_eq(wg1->writersCount, 1);
+        ck_assert_uint_eq(wg1->writersCount, 1);
     } END_TEST
 
 START_TEST(AddRemoveAddDataSetWriterWithValidConfiguration){
@@ -197,25 +197,25 @@ START_TEST(AddRemoveAddDataSetWriterWithValidConfiguration){
         memset(&dataSetWriterConfig, 0, sizeof(dataSetWriterConfig));
         dataSetWriterConfig.name = UA_STRING("DataSetWriter 1 ");
         UA_NodeId dataSetWriter;
-        ck_assert_int_eq(wg1->writersCount, 0);
+        ck_assert_uint_eq(wg1->writersCount, 0);
         retVal = UA_Server_addDataSetWriter(server, writerGroup1, publishedDataSet1, &dataSetWriterConfig, &dataSetWriter);
         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
-        ck_assert_int_eq(wg1->writersCount, 1);
+        ck_assert_uint_eq(wg1->writersCount, 1);
         retVal = UA_Server_removeDataSetWriter(server, dataSetWriter);
         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
-        ck_assert_int_eq(wg1->writersCount, 0);
+        ck_assert_uint_eq(wg1->writersCount, 0);
         retVal = UA_Server_addDataSetWriter(server, writerGroup1, publishedDataSet1, &dataSetWriterConfig, &dataSetWriter);
         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
-        ck_assert_int_eq(wg1->writersCount, 1);
+        ck_assert_uint_eq(wg1->writersCount, 1);
         retVal = UA_Server_addDataSetWriter(server, writerGroup1, publishedDataSet1, &dataSetWriterConfig, &dataSetWriter);
         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
-        ck_assert_int_eq(wg1->writersCount, 2);
+        ck_assert_uint_eq(wg1->writersCount, 2);
 
         UA_WriterGroup *wg2 = UA_WriterGroup_findWGbyId(server, writerGroup2);
         ck_assert_ptr_ne(wg2, NULL);
         retVal = UA_Server_addDataSetWriter(server, writerGroup2, publishedDataSet1, &dataSetWriterConfig, &dataSetWriter);
         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
-        ck_assert_int_eq(wg2->writersCount, 1);
+        ck_assert_uint_eq(wg2->writersCount, 1);
     } END_TEST
 
 START_TEST(AddDataSetWriterWithNullConfig){
@@ -224,7 +224,7 @@ START_TEST(AddDataSetWriterWithNullConfig){
         retVal = UA_Server_addDataSetWriter(server, writerGroup1, publishedDataSet1, NULL, NULL);
         UA_WriterGroup *wg1 = UA_WriterGroup_findWGbyId(server, writerGroup1);
         ck_assert_ptr_ne(wg1, NULL);
-        ck_assert_int_eq(wg1->writersCount, 0);
+        ck_assert_uint_eq(wg1->writersCount, 0);
         ck_assert_int_ne(retVal, UA_STATUSCODE_GOOD);
     } END_TEST
 
@@ -237,7 +237,7 @@ START_TEST(AddDataSetWriterWithInvalidPDSId){
         retVal = UA_Server_addDataSetWriter(server, writerGroup1, UA_NODEID_NUMERIC(0, UA_UINT32_MAX), &dataSetWriterConfig, NULL);
         UA_WriterGroup *wg1 = UA_WriterGroup_findWGbyId(server, writerGroup1);
         ck_assert_ptr_ne(wg1, NULL);
-        ck_assert_int_eq(wg1->writersCount, 0);
+        ck_assert_uint_eq(wg1->writersCount, 0);
         ck_assert_int_ne(retVal, UA_STATUSCODE_GOOD);
     } END_TEST
 
@@ -317,10 +317,10 @@ START_TEST(AddDataSetFieldWithValidConfiguration){
         UA_NodeId localDataSetField;
         UA_PublishedDataSet *pds = UA_PublishedDataSet_findPDSbyId(server, publishedDataSet1);
         ck_assert_ptr_ne(pds, NULL);
-        ck_assert_int_eq(pds->fieldSize, 0);
+        ck_assert_uint_eq(pds->fieldSize, 0);
         retVal = UA_Server_addDataSetField(server, publishedDataSet1, &fieldConfig, &localDataSetField).result;
         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
-        ck_assert_int_eq(pds->fieldSize, 1);
+        ck_assert_uint_eq(pds->fieldSize, 1);
     } END_TEST
 
 START_TEST(AddRemoveAddDataSetFieldWithValidConfiguration){
@@ -335,24 +335,24 @@ START_TEST(AddRemoveAddDataSetFieldWithValidConfiguration){
         UA_NodeId localDataSetField;
         UA_PublishedDataSet *pds1 = UA_PublishedDataSet_findPDSbyId(server, publishedDataSet1);
         ck_assert_ptr_ne(pds1, NULL);
-        ck_assert_int_eq(pds1->fieldSize, 0);
+        ck_assert_uint_eq(pds1->fieldSize, 0);
         retVal = UA_Server_addDataSetField(server, publishedDataSet1, &fieldConfig, &localDataSetField).result;
         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
-        ck_assert_int_eq(pds1->fieldSize, 1);
+        ck_assert_uint_eq(pds1->fieldSize, 1);
         retVal = UA_Server_removeDataSetField(server, localDataSetField).result;
         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
-        ck_assert_int_eq(pds1->fieldSize, 0);
+        ck_assert_uint_eq(pds1->fieldSize, 0);
         retVal = UA_Server_addDataSetField(server, publishedDataSet1, &fieldConfig, &localDataSetField).result;
         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
-        ck_assert_int_eq(pds1->fieldSize, 1);
+        ck_assert_uint_eq(pds1->fieldSize, 1);
         retVal = UA_Server_addDataSetField(server, publishedDataSet1, &fieldConfig, &localDataSetField).result;
         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
-        ck_assert_int_eq(pds1->fieldSize, 2);
+        ck_assert_uint_eq(pds1->fieldSize, 2);
         UA_PublishedDataSet *pds2 = UA_PublishedDataSet_findPDSbyId(server, publishedDataSet2);
         ck_assert_ptr_ne(pds2, NULL);
         retVal = UA_Server_addDataSetField(server, publishedDataSet2, &fieldConfig, &localDataSetField).result;
         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
-        ck_assert_int_eq(pds2->fieldSize, 1);
+        ck_assert_uint_eq(pds2->fieldSize, 1);
     } END_TEST
 
 START_TEST(AddDataSetFieldWithNullConfig){
@@ -362,7 +362,7 @@ START_TEST(AddDataSetFieldWithNullConfig){
         ck_assert_int_ne(retVal, UA_STATUSCODE_GOOD);
         UA_PublishedDataSet *pds1 = UA_PublishedDataSet_findPDSbyId(server, publishedDataSet1);
         ck_assert_ptr_ne(pds1, NULL);
-        ck_assert_int_eq(pds1->fieldSize, 0);
+        ck_assert_uint_eq(pds1->fieldSize, 0);
     } END_TEST
 
 START_TEST(AddDataSetFieldWithInvalidPDSId){
@@ -378,7 +378,7 @@ START_TEST(AddDataSetFieldWithInvalidPDSId){
         ck_assert_int_ne(retVal, UA_STATUSCODE_GOOD);
         UA_PublishedDataSet *pds1 = UA_PublishedDataSet_findPDSbyId(server, publishedDataSet1);
         ck_assert_ptr_ne(pds1, NULL);
-        ck_assert_int_eq(pds1->fieldSize, 0);
+        ck_assert_uint_eq(pds1->fieldSize, 0);
     } END_TEST
 
 START_TEST(GetDataSetFieldConfigurationAndCompareValues){
@@ -396,7 +396,7 @@ START_TEST(GetDataSetFieldConfigurationAndCompareValues){
         UA_DataSetFieldConfig fieldConfigCopy;
         retVal |= UA_Server_getDataSetFieldConfig(server, dataSetFieldId, &fieldConfigCopy);
         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
-        ck_assert_int_eq(fieldConfig.dataSetFieldType, fieldConfigCopy.dataSetFieldType);
+        ck_assert_uint_eq(fieldConfig.dataSetFieldType, fieldConfigCopy.dataSetFieldType);
         ck_assert_int_eq(UA_String_equal(&fieldConfig.field.variable.fieldNameAlias, &fieldConfigCopy.field.variable.fieldNameAlias), UA_TRUE);
         UA_DataSetFieldConfig_clear(&fieldConfigCopy);
     } END_TEST

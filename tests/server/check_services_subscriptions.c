@@ -162,7 +162,7 @@ END_TEST
 
 START_TEST(Server_setPublishingMode) {
     createSubscription();
-    
+
     UA_SetPublishingModeRequest request;
     UA_SetPublishingModeRequest_init(&request);
     request.publishingEnabled = UA_TRUE;
@@ -186,7 +186,7 @@ END_TEST
 
 START_TEST(Server_republish) {
     createSubscription();
-    
+
     UA_RepublishRequest request;
     UA_RepublishRequest_init(&request);
     request.subscriptionId = subscriptionId;
@@ -225,7 +225,7 @@ END_TEST
 
 START_TEST(Server_deleteSubscription) {
     createSubscription();
-    
+
     /* Remove the subscription */
     UA_DeleteSubscriptionsRequest del_request;
     UA_DeleteSubscriptionsRequest_init(&del_request);
@@ -576,7 +576,7 @@ END_TEST
 START_TEST(Server_setMonitoringMode) {
     createSubscription();
     createMonitoredItem();
-    
+
     UA_SetMonitoringModeRequest request;
     UA_SetMonitoringModeRequest_init(&request);
     request.subscriptionId = subscriptionId;
@@ -601,7 +601,7 @@ END_TEST
 START_TEST(Server_deleteMonitoredItems) {
     createSubscription();
     createMonitoredItem();
-    
+
     UA_DeleteMonitoredItemsRequest request;
     UA_DeleteMonitoredItemsRequest_init(&request);
     request.subscriptionId = subscriptionId;

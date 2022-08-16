@@ -65,7 +65,7 @@ UA_EventLoopPOSIX_deregisterFD(UA_EventLoopPOSIX *el, UA_RegisteredFD *rfd) {
         el->fds[i] = el->fds[el->fdsSize];
         UA_RegisteredFD **fds_tmp = (UA_RegisteredFD**)
             UA_realloc(el->fds, sizeof(UA_RegisteredFD*) * el->fdsSize);
-        /* if realloc fails the fds are still in a correct state with 
+        /* if realloc fails the fds are still in a correct state with
          * possibly lost memory, so failing silently here is ok */
         if(fds_tmp)
             el->fds = fds_tmp;
@@ -154,7 +154,7 @@ UA_EventLoopPOSIX_pollFDs(UA_EventLoopPOSIX *el, UA_DateTime listenTimeout) {
         } else {
             continue;
         }
-        
+
         UA_LOG_DEBUG(el->eventLoop.logger, UA_LOGCATEGORY_EVENTLOOP,
                      "Processing event %u on fd %u", (unsigned)event, (unsigned)fd);
 

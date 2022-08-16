@@ -33,15 +33,15 @@ THREAD_CALLBACK(serverloop) {
 
 static
 void teardown(void) {
-    for (size_t i = 0; i < tc.numberOfWorkers; i++)
+    for(size_t i = 0; i < tc.numberOfWorkers; i++)
         THREAD_JOIN(tc.workerContext[i].handle);
 
-    for (size_t i = 0; i < tc.numberofClients; i++)
+    for(size_t i = 0; i < tc.numberofClients; i++)
         THREAD_JOIN(tc.clientContext[i].handle);
 
     tc.running = false;
     THREAD_JOIN(server_thread);
-    if (tc.checkServerNodes)
+    if(tc.checkServerNodes)
         tc.checkServerNodes();
     UA_Server_run_shutdown(tc.server);
     UA_Server_delete(tc.server);
@@ -49,7 +49,7 @@ void teardown(void) {
 
 THREAD_CALLBACK_PARAM(workerLoop, val) {
     ThreadContext tmp = (*(ThreadContext *) val);
-    for (size_t i = 0; i < tmp.upperBound; i++) {
+    for(size_t i = 0; i < tmp.upperBound; i++) {
         tmp.counter = i;
         tmp.func(&tmp);
     }
@@ -73,7 +73,8 @@ THREAD_CALLBACK_PARAM(clientLoop, val) {
 }
 
 static UA_INLINE void
-initThreadContext(size_t numberOfWorkers, size_t numberOfClients, void (*checkServerNodes)(void)) {
+createThreadContext(size_t numberOfWorkers, size_t numberOfClients,
+                  void (*checkServerNodes)(void)) {
     tc.numberOfWorkers = numberOfWorkers;
     tc.numberofClients = numberOfClients;
     tc.checkServerNodes = checkServerNodes;
@@ -83,7 +84,19 @@ initThreadContext(size_t numberOfWorkers, size_t numberOfClients, void (*checkSe
 }
 
 static UA_INLINE void
-setThreadContext(ThreadContext *workerContext, size_t index, size_t upperBound, void (*func)(void *param)) {
+deleteThreadContext(void) {
+    if(tc.workerContext)
+        UA_free(tc.workerContext);
+    if(tc.clients)
+        UA_free(tc.clients);
+    if(tc.clientContext)
+        UA_free(tc.clientContext);
+    memset(&tc, 0, sizeof(tc));
+}
+
+static UA_INLINE void
+setThreadContext(ThreadContext *workerContext, size_t index, size_t upperBound,
+                 void (*func)(void *param)) {
     workerContext->index = index;
     workerContext->upperBound = upperBound;
     workerContext->func = func;
@@ -91,11 +104,11 @@ setThreadContext(ThreadContext *workerContext, size_t index, size_t upperBound, 
 
 static UA_INLINE void
 startMultithreading(void) {
-        for (size_t i = 0; i < tc.numberOfWorkers; i++)
-            THREAD_CREATE_PARAM(tc.workerContext[i].handle, workerLoop, tc.workerContext[i]);
+    for(size_t i = 0; i < tc.numberOfWorkers; i++)
+        THREAD_CREATE_PARAM(tc.workerContext[i].handle, workerLoop, tc.workerContext[i]);
 
-        for (size_t i = 0; i < tc.numberofClients; i++)
-            THREAD_CREATE_PARAM(tc.clientContext[i].handle, clientLoop, tc.clientContext[i]);
+    for(size_t i = 0; i < tc.numberofClients; i++)
+        THREAD_CREATE_PARAM(tc.clientContext[i].handle, clientLoop, tc.clientContext[i]);
 }
 
-#endif //OPEN62541_MT_TESTING_H
+#endif /* OPEN62541_MT_TESTING_H */

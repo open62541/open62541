@@ -198,7 +198,7 @@ static void createCustomInheritance(UA_Server *server) {
     UA_Server_addReference(server, UA_NODEID_NUMERIC(1, 30002),
                            UA_NODEID_NUMERIC(0, UA_NS0ID_HASMODELLINGRULE),
                            UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_MODELLINGRULE_MANDATORY), true);
-    
+
     /* Now we want to inherit all the mandatory children for LampGreen and don't care about the node ids.
      * These will be automatically generated. This will internally call the _begin and _finish methods */
 

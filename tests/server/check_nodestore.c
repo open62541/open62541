@@ -209,7 +209,7 @@ static void *profileGetThread(void *arg) {
     UA_Int32 max_val = test->max_val;
     for(UA_Int32 x = 0; x<test->rounds; x++) {
         for(UA_Int32 i=test->min_val; i<max_val; i++) {
-            id.identifier.numeric = i+1;
+            id.identifier.numeric = (UA_UInt32)(i+1);
             const UA_Node* n = ns.getNode(ns.context, &id, ~(UA_UInt32)0,
                                           UA_REFERENCETYPESET_ALL, UA_BROWSEDIRECTION_BOTH);
             ns.releaseNode(ns.context, n);
@@ -280,7 +280,7 @@ static Suite * namespace_suite (void) {
     tcase_add_test (tc_iterate, iterateOverUA_NodeStoreShallNotVisitEmptyNodes);
     tcase_add_test (tc_iterate, iterateOverExpandedNamespaceShallNotVisitEmptyNodes);
     suite_add_tcase (s, tc_iterate);
-    
+
     TCase* tc_profile = tcase_create ("Profile-ZipTree");
     tcase_add_checked_fixture(tc_profile, setupZipTree, teardown);
     tcase_add_test (tc_profile, profileGetDelete);
@@ -306,7 +306,7 @@ static Suite * namespace_suite (void) {
     tcase_add_test (tc_iterate_hm, iterateOverUA_NodeStoreShallNotVisitEmptyNodes);
     tcase_add_test (tc_iterate_hm, iterateOverExpandedNamespaceShallNotVisitEmptyNodes);
     suite_add_tcase (s, tc_iterate_hm);
-    
+
     TCase* tc_profile_hm = tcase_create ("Profile-HashMap");
     tcase_add_checked_fixture(tc_profile_hm, setupHashMap, teardown);
     tcase_add_test (tc_profile_hm, profileGetDelete);

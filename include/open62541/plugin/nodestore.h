@@ -391,13 +391,28 @@ UA_NodeReferenceKind_findTarget(const UA_NodeReferenceKind *rk,
 UA_EXPORT UA_StatusCode
 UA_NodeReferenceKind_switch(UA_NodeReferenceKind *rk);
 
+/* Singly-linked LocalizedText list */
+typedef struct UA_LocalizedTextListEntry {
+    struct UA_LocalizedTextListEntry *next;
+    UA_LocalizedText localizedText;
+} UA_LocalizedTextListEntry;
+
 /* Every Node starts with these attributes */
 struct UA_NodeHead {
     UA_NodeId nodeId;
     UA_NodeClass nodeClass;
     UA_QualifiedName browseName;
-    UA_LocalizedText displayName;
-    UA_LocalizedText description;
+
+    /* A node can have different localizations for displayName and description.
+     * The server selects a suitable localization depending on the locale ids
+     * that are set for the current session.
+     *
+     * Locales are added simply by writing a LocalizedText value with a new
+     * locale. A locale can be removed by writing a LocalizedText value of the
+     * corresponding locale with an empty text field. */
+    UA_LocalizedTextListEntry *displayName;
+    UA_LocalizedTextListEntry *description;
+
     UA_UInt32 writeMask;
     size_t referencesSize;
     UA_NodeReferenceKind *references;

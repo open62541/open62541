@@ -71,7 +71,7 @@ START_TEST(CreateAndLockConfiguration) {
     UA_WriterGroup *writerGroup = UA_WriterGroup_findWGbyId(server, writerGroup1);
     ck_assert(writerGroup->state == UA_PUBSUBSTATE_DISABLED);
 
-    UA_DataSetMetaDataType dataSetMetaDataType; 
+    UA_DataSetMetaDataType dataSetMetaDataType;
     UA_DataSetMetaDataType_init(&dataSetMetaDataType);
     ck_assert(UA_Server_getPublishedDataSetMetaData(server, publishedDataSet1, &dataSetMetaDataType) == UA_STATUSCODE_GOOD);
     UA_DataSetMetaDataType_clear(&dataSetMetaDataType);
@@ -79,7 +79,7 @@ START_TEST(CreateAndLockConfiguration) {
     UA_PublishedDataSetConfig publishedDataSetConfig;
     memset(&publishedDataSetConfig, 0, sizeof(UA_PublishedDataSetConfig));
     publishedDataSetConfig.publishedDataSetType = UA_PUBSUB_DATASET_PUBLISHEDITEMS_TEMPLATE;
-    UA_DataSetMetaDataType metaDataType; 
+    UA_DataSetMetaDataType metaDataType;
     UA_DataSetMetaDataType_init(&metaDataType);
     publishedDataSetConfig.config.itemsTemplate.metaData = metaDataType;
     publishedDataSetConfig.config.itemsTemplate.variablesToAddSize = 1;

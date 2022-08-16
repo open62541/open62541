@@ -64,7 +64,7 @@ UA_KeyValueMap_getScalar(const UA_KeyValuePair *map, size_t mapSize,
                          const UA_DataType *type);
 
 /* Remove a single entry. To delete the entire map, use UA_Array_delete. */
-UA_EXPORT void
+UA_EXPORT UA_StatusCode
 UA_KeyValueMap_delete(UA_KeyValuePair **map, size_t *mapSize,
                       const UA_QualifiedName key);
 

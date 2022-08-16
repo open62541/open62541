@@ -1,6 +1,6 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. 
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  *
  *    Copyright 2017-2018 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
  *    Copyright 2017 (c) Stefan Profanter, fortiss GmbH
@@ -619,7 +619,7 @@ UA_MonitoredItem_ensureQueueSpace(UA_Server *server, UA_MonitoredItem *mon) {
     /* Nothing to do */
     if(mon->queueSize - mon->eventOverflows <= mon->parameters.queueSize)
         return;
-    
+
     /* Remove notifications until the required queue size is reached */
     UA_Boolean reporting = false;
     size_t remove = mon->queueSize - mon->eventOverflows - mon->parameters.queueSize;

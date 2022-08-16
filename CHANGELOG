@@ -1,6 +1,65 @@
 This changelog reports changes visible through the public API. Internal refactorings and bug
 fixes are not reported here.
 
+2022-08-07 Julius Pfrommer <julius.pfrommer at iosb.fraunhofer.de>
+
+ * JSON decoding based on JSON5
+
+   The JSON decoding can parse the official encoding from the OPC UA
+   specification. It now further allows the following extensions:
+
+   - The strict JSON format is relaxed to also allow the JSON5 extensions
+     (https://json5.org/). This allows for more human-readable encoding
+     and adds convenience features such as trailing commas in arrays and
+     comments within JSON documents.
+   - If `UA_ENABLE_PARSING` is set, NodeIds and ExpandedNodeIds can be given in
+     the string encoding (see `UA_NodeId_parse`). The standard encoding is to
+     express NodeIds as JSON objects.
+
+   These extensions are not intended to be used for the OPC UA protocol on the
+   network. They were rather added to allow more convenient configuration file
+   formats that also include data in the OPC UA type system.
+
+2022-07-14 Jannis Voelker <jannis.voelker at basyskom.com>
+
+ * LocaleId support in the server
+
+   The server now supports that descriptions and display names for
+   different locales are written to a node. The server selects a
+   suitable localization depending on the locale ids that are set for
+   the current session.
+
+   Locales are added simply by writing a LocalizedText value with a
+   different locale. A locale can be removed by writing a
+   LocalizedText value of the corresponding locale and with an empty
+   text.
+
+   The change was done with pull request #4165.
+
+2022-07-07 Andreas Eckerstorfer <estr at keba.com>
+
+ * PubSub publisher id types
+
+   The union for the PubSub publisher id 'UA_PublisherId' and
+   the enumeration for the PubSub publisher type 'UA_PublisherIdType'
+   have been changed to support all specified publisher id types.
+
+   The change was done with pull request #5223.
+
+2022-06-09 Andreas Eckerstorfer <estr at keba.com>
+
+ * PubSub state change functions
+
+   The following functions in ua_pubsub.h have been extended with
+   an additional parameter for the cause of the state change.
+   Moreover the parameter order has been changed.
+   UA_DataSetWriter_setPubSubState
+   UA_WriterGroup_setPubSubState
+   UA_DataSetReader_setPubSubState
+   UA_ReaderGroup_setPubSubState
+
+   The change was done with pull request #5162.
+
 2022-05-04 Julius Pfrommer <julius.pfrommer at iosb.fraunhofer.de>
 
  * Server port and hostname configuration

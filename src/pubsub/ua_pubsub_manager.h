@@ -3,6 +3,8 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  *
  * Copyright (c) 2017-2019 Fraunhofer IOSB (Author: Andreas Ebner)
+ * Copyright (c) 2022 Siemens AG (Author: Thomas Fischer)
+ * Copyright (c) 2022 Fraunhofer IOSB (Author: Noel Graf)
  */
 
 #ifndef UA_PUBSUB_MANAGER_H_
@@ -16,6 +18,12 @@ _UA_BEGIN_DECLS
 
 #ifdef UA_ENABLE_PUBSUB /* conditional compilation */
 
+typedef struct UA_TopicAssign {
+    UA_ReaderGroup *rgIdentifier;
+    UA_String topic;
+    TAILQ_ENTRY(UA_TopicAssign) listEntry;
+} UA_TopicAssign;
+
 typedef struct UA_PubSubManager {
     /* Connections and PublishedDataSets can exist alone (own lifecycle) -> top
      * level components */
@@ -24,11 +32,19 @@ typedef struct UA_PubSubManager {
 
     size_t publishedDataSetsSize;
     TAILQ_HEAD(UA_ListOfPublishedDataSet, UA_PublishedDataSet) publishedDataSets;
+    size_t subscribedDataSetsSize;
+    TAILQ_HEAD(UA_ListOfStandaloneSubscribedDataSet, UA_StandaloneSubscribedDataSet) subscribedDataSets;
+
+    size_t topicAssignSize;
+    TAILQ_HEAD(UA_ListOfTopicAssign, UA_TopicAssign) topicAssign;
 
 #ifndef UA_ENABLE_PUBSUB_INFORMATIONMODEL
     UA_UInt32 uniqueIdCount;
 #endif
 } UA_PubSubManager;
+
+UA_StatusCode
+UA_PubSubManager_addPubSubTopicAssign(UA_Server *server, UA_ReaderGroup *readerGroup, UA_String topic);
 
 void
 UA_PubSubManager_delete(UA_Server *server, UA_PubSubManager *pubSubManager);

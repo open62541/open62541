@@ -12,7 +12,6 @@
 #include <stdlib.h>
 
 #include "testing_clock.h"
-#include "testing_networklayers.h"
 #include "thread_wrapper.h"
 
 UA_Server *server;
@@ -348,17 +347,17 @@ START_TEST(Client_activateSessionTimeout) {
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     UA_Variant_clear(&val);
 
-    UA_Client_recv = client->connection.recv;
-    client->connection.recv = UA_Client_recvTesting;
-
-    /* Simulate network cable unplugged (no response from server) */
-    UA_Client_recvTesting_result = UA_STATUSCODE_GOODNONCRITICALTIMEOUT;
+    /* Manually close the connection. The connection is internally closed at the
+     * next iteration of the EventLoop. Hence the next request is sent out. But
+     * the connection "actually closes" before receiving the response. */
+    UA_ConnectionManager *cm = client->channel.connectionManager;
+    uintptr_t connId = client->channel.connectionId;
+    cm->closeConnection(cm, connId);
 
     UA_Variant_init(&val);
     retval = UA_Client_readValueAttribute(client, nodeId, &val);
-    ck_assert_uint_eq(retval, UA_STATUSCODE_BADCONNECTIONCLOSED);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADSECURECHANNELCLOSED);
 
-    UA_Client_recvTesting_result = UA_STATUSCODE_GOOD;
     retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(server->sessionCount, 1);
@@ -383,14 +382,25 @@ START_TEST(Client_activateSessionLocaleIds) {
     UA_ClientConfig *config = UA_Client_getConfig(client);
     UA_ClientConfig_setDefault(config);
 
-    config->sessionLocaleIdsSize = 1;
-    config->sessionLocaleIds = (UA_LocaleId*)UA_Array_new(1, &UA_TYPES[UA_TYPES_LOCALEID]);
+    config->sessionLocaleIdsSize = 2;
+    config->sessionLocaleIds = (UA_LocaleId*)UA_Array_new(2, &UA_TYPES[UA_TYPES_LOCALEID]);
     config->sessionLocaleIds[0] = UA_STRING_ALLOC("en");
+    config->sessionLocaleIds[1] = UA_STRING_ALLOC("fr");
 
     UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
     ck_assert_uint_eq(server->sessionCount, 1);
+
+    UA_QualifiedName key = {0, UA_STRING_STATIC("localeIds")};
+    UA_Variant locales;
+    UA_Server_getSessionAttribute(server, &server->sessions.lh_first->session.sessionId,
+                                  key, &locales);
+
+    ck_assert_uint_eq(locales.arrayLength, 2);
+    UA_String *localeIds = (UA_String*)locales.data;
+    ck_assert(UA_String_equal(&localeIds[0], &config->sessionLocaleIds[0]));
+    ck_assert(UA_String_equal(&localeIds[1], &config->sessionLocaleIds[1]));
 
     UA_Client_delete(client);
 

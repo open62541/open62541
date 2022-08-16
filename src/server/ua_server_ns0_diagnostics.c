@@ -332,7 +332,7 @@ readSessionDiagnostics(UA_Server *server,
     UA_Session *session = UA_Server_getSessionById(server, sessionId);
     if(!session)
         return UA_STATUSCODE_BADINTERNALERROR;
-    
+
     /* Read the BrowseName */
     UA_QualifiedName bn;
     UA_StatusCode res = readWithReadValue(server, nodeId, UA_ATTRIBUTEID_BROWSENAME, &bn);

@@ -8,8 +8,8 @@
 
 /**
  * This uses the mqtt/ua_mqtt_adapter.h to call mqtt functions.
- * Currently only ua_mqtt_adapter.c implements this 
- * interface and maps them to the specific "MQTT-C" library functions. 
+ * Currently only ua_mqtt_adapter.c implements this
+ * interface and maps them to the specific "MQTT-C" library functions.
  * Another mqtt lib could be used.
  * "mqtt_pal.c" forwards the network calls (send/recv) to UA_Connection (TCP).
  */
@@ -41,7 +41,7 @@ UA_uaQos_toMqttQos(UA_BrokerTransportQualityOfService uaQos, UA_Byte *qos){
 
 /**
  * Open mqtt connection based on the connectionConfig.
- * 
+ *
  *
  * @return ref to created channel, NULL on error
  */
@@ -55,7 +55,7 @@ UA_PubSubChannelMQTT_open(const UA_PubSubConnectionConfig *connectionConfig) {
         UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "PubSub MQTT Connection creation failed. Invalid Address.");
         return NULL;
     }
-    
+
     /* allocate and init memory for the Mqtt specific internal data */
     UA_PubSubChannelDataMQTT * channelDataMQTT =
             (UA_PubSubChannelDataMQTT *) UA_calloc(1, (sizeof(UA_PubSubChannelDataMQTT)));
@@ -128,7 +128,7 @@ UA_PubSubChannelMQTT_open(const UA_PubSubConnectionConfig *connectionConfig) {
             UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "PubSub MQTT Connection creation. Unknown connection parameter.");
         }
     }
-    
+
     /* Create a new channel */
     UA_PubSubChannel *newChannel = (UA_PubSubChannel *) UA_calloc(1, sizeof(UA_PubSubChannel));
     if(!newChannel){
@@ -158,7 +158,7 @@ UA_PubSubChannelMQTT_open(const UA_PubSubConnectionConfig *connectionConfig) {
             return NULL;
         }
     }
-    
+
     /* Allocate memory for mqtt send buffer */
     if(channelDataMQTT->mqttSendBufferSize > 0){
         channelDataMQTT->mqttSendBuffer = (uint8_t*)UA_calloc(channelDataMQTT->mqttSendBufferSize, sizeof(uint8_t));
@@ -177,13 +177,13 @@ UA_PubSubChannelMQTT_open(const UA_PubSubConnectionConfig *connectionConfig) {
             return NULL;
         }
     }
-    
+
     /*link channel and internal channel data*/
     newChannel->handle = channelDataMQTT;
-    
+
     /* MQTT Client connect call. */
     UA_StatusCode ret = connectMqtt(channelDataMQTT);
-    
+
     if(ret != UA_STATUSCODE_GOOD){
         /* try to disconnect tcp */
         disconnectMqtt(channelDataMQTT);
@@ -219,7 +219,7 @@ UA_PubSubChannelMQTT_regist(UA_PubSubChannel *channel, UA_ExtensionObject *trans
 
     UA_PubSubChannelDataMQTT *channelDataMQTT = (UA_PubSubChannelDataMQTT *) channel->handle;
     channelDataMQTT->callback = callback;
-    
+
     if(transportSettings == NULL ||
        transportSettings->encoding != UA_EXTENSIONOBJECT_DECODED ||
        transportSettings->content.decoded.type != &UA_TYPES[UA_TYPES_BROKERDATASETREADERTRANSPORTDATATYPE]) {
@@ -295,7 +295,7 @@ UA_PubSubChannelMQTT_send(UA_PubSubChannel *channel, UA_ExtensionObject *transpo
         return ret;
     }
 
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "PubSub MQTT: Publish");
+    UA_LOG_TRACE(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "PubSub MQTT: Publish");
     return ret;
 }
 
@@ -350,6 +350,22 @@ UA_PubSubChannelMQTT_yield(UA_PubSubChannel *channel, UA_UInt16 timeout){
 }
 
 /**
+ * Receive a message. The regist function should be called before.
+ *
+ * @param timeout in msec
+ * @param Buffer to recieve messages
+ *
+ * @return UA_STATUSCODE_GOOD if success
+ */
+static UA_StatusCode
+UA_PubSubChannelMQTT_receive(UA_PubSubChannel *channel, UA_ExtensionObject *transportSettings, UA_PubSubReceiveCallback receiveCallback,
+                              void *receiveCallbackContext, UA_UInt32 timeout){
+
+    /* Nothing to do */
+    return UA_STATUSCODE_GOOD;
+}
+
+/**
  * Generate a new MQTT channel. Based on the given configuration. Uses yield and no recv call.
  *
  * @param connectionConfig connection configuration
@@ -365,7 +381,8 @@ TransportLayerMQTT_addChannel(UA_PubSubConnectionConfig *connectionConfig) {
         pubSubChannel->send = UA_PubSubChannelMQTT_send;
         pubSubChannel->close = UA_PubSubChannelMQTT_close;
         pubSubChannel->yield = UA_PubSubChannelMQTT_yield;
-        
+        pubSubChannel->receive = UA_PubSubChannelMQTT_receive;
+
         pubSubChannel->connectionConfig = connectionConfig;
     }
     return pubSubChannel;

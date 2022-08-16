@@ -37,7 +37,7 @@ typedef UA_StatusCode (*UA_exchangeEncodeBuffer)(void *handle, UA_Byte **bufPos,
           Is ignored if NULL.
  * @param exchangeHandle Custom data passed into the exchangeCallback.
  * @return Returns a statuscode whether encoding succeeded. */
-UA_StatusCode 
+UA_StatusCode
 UA_encodeBinaryInternal(const void *src, const UA_DataType *type,
                         UA_Byte **bufPos, const UA_Byte **bufEnd,
                         UA_exchangeEncodeBuffer exchangeCallback,

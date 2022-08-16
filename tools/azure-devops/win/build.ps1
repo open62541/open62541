@@ -95,6 +95,7 @@ try {
     & cmake --build . --config RelWithDebInfo
     if ($LASTEXITCODE -and $LASTEXITCODE -ne 0) {
         Write-Host -ForegroundColor Red "`n`n*** Make failed. Exiting ... ***"
+        get-content D:\a\1\s\build\open62541.c
         exit $LASTEXITCODE
     }
     cd ..

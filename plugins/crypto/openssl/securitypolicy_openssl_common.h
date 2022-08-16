@@ -38,20 +38,20 @@ UA_StatusCode
 UA_Openssl_RSA_Oaep_Decrypt(UA_ByteString *data,
                             EVP_PKEY *privateKey);
 UA_StatusCode
-UA_Openssl_RSA_OAEP_Encrypt(UA_ByteString *data, /* The data that is encrypted. 
-                                                    The encrypted data will overwrite 
+UA_Openssl_RSA_OAEP_Encrypt(UA_ByteString *data, /* The data that is encrypted.
+                                                    The encrypted data will overwrite
                                                     the data that was supplied.  */
                              size_t paddingSize, X509 *publicX509);
 
-UA_StatusCode 
+UA_StatusCode
 UA_Openssl_Random_Key_PSHA256_Derive(const UA_ByteString *secret,
-                                     const UA_ByteString *seed, 
+                                     const UA_ByteString *seed,
                                      UA_ByteString *out);
 
-UA_StatusCode 
+UA_StatusCode
 UA_Openssl_RSA_Public_GetKeyLength(X509 *publicKeyX509, UA_Int32 *keyLen);
 
-UA_StatusCode 
+UA_StatusCode
 UA_Openssl_RSA_PKCS1_V15_SHA256_Sign(const UA_ByteString *data,
                                      EVP_PKEY *privateKey,
                                      UA_ByteString *outSignature);
@@ -68,18 +68,18 @@ UA_OpenSSL_HMAC_SHA256_Sign(const UA_ByteString *message,
 
 UA_StatusCode
 UA_OpenSSL_AES_256_CBC_Decrypt(const UA_ByteString *iv,
-                               const UA_ByteString *key, 
+                               const UA_ByteString *key,
                                UA_ByteString *data  /* [in/out]*/);
 
 UA_StatusCode
 UA_OpenSSL_AES_256_CBC_Encrypt(const UA_ByteString *iv,
-                               const UA_ByteString *key, 
+                               const UA_ByteString *key,
                                UA_ByteString *data  /* [in/out]*/);
 
-UA_StatusCode 
+UA_StatusCode
 UA_OpenSSL_X509_compare(const UA_ByteString *cert, const X509 *b);
 
-UA_StatusCode 
+UA_StatusCode
 UA_Openssl_RSA_Private_GetKeyLength(EVP_PKEY *privateKey,
                                     UA_Int32 *keyLen) ;
 
@@ -88,13 +88,13 @@ UA_OpenSSL_RSA_PKCS1_V15_SHA1_Verify(const UA_ByteString *msg,
                                       X509 *publicKeyX509,
                                       const UA_ByteString *signature);
 
-UA_StatusCode 
+UA_StatusCode
 UA_Openssl_RSA_PKCS1_V15_SHA1_Sign(const UA_ByteString *message,
                                    EVP_PKEY *privateKey,
                                    UA_ByteString *outSignature);
-UA_StatusCode 
+UA_StatusCode
 UA_Openssl_Random_Key_PSHA1_Derive(const UA_ByteString *secret,
-                                   const UA_ByteString *seed, 
+                                   const UA_ByteString *seed,
                                    UA_ByteString *out);
 UA_StatusCode
 UA_OpenSSL_HMAC_SHA1_Verify(const UA_ByteString *message,
@@ -107,22 +107,22 @@ UA_OpenSSL_HMAC_SHA1_Sign(const UA_ByteString *message,
                           UA_ByteString *signature);
 
 UA_StatusCode
-UA_Openssl_RSA_PKCS1_V15_Decrypt(UA_ByteString *data, 
+UA_Openssl_RSA_PKCS1_V15_Decrypt(UA_ByteString *data,
                                  EVP_PKEY *privateKey);
 
 UA_StatusCode
-UA_Openssl_RSA_PKCS1_V15_Encrypt(UA_ByteString *data, 
+UA_Openssl_RSA_PKCS1_V15_Encrypt(UA_ByteString *data,
                                  size_t paddingSize,
                                  X509 *publicX509);
 
 UA_StatusCode
 UA_OpenSSL_AES_128_CBC_Decrypt(const UA_ByteString *iv,
-                               const UA_ByteString *key, 
+                               const UA_ByteString *key,
                                UA_ByteString *data  /* [in/out]*/);
 
 UA_StatusCode
 UA_OpenSSL_AES_128_CBC_Encrypt(const UA_ByteString *iv,
-                               const UA_ByteString *key, 
+                               const UA_ByteString *key,
                                UA_ByteString *data  /* [in/out]*/);
 
 EVP_PKEY *

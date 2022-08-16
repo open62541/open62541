@@ -80,7 +80,7 @@ static void setup(void) {
     THREAD_CREATE(server_thread, serverloop);
 }
 
-static void teardown(void) {    
+static void teardown(void) {
     running = false;
     THREAD_JOIN(server_thread);
     UA_Server_run_shutdown(server);
@@ -256,7 +256,7 @@ static Suite* method_async_suite(void) {
     tcase_add_test(tc_manager, Async_timeout);
     tcase_add_test(tc_manager, Async_timeout_worker);
     suite_add_tcase(s, tc_manager);
-    
+
     return s;
 }
 

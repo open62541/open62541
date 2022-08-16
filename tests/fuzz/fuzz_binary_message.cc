@@ -13,8 +13,6 @@
 #include <open62541/types.h>
 
 #include "ua_server_internal.h"
-#include "ua_connection_internal.h"
-
 #include "testing_networklayers.h"
 
 #define RECEIVE_BUFFER_SIZE 65535
@@ -31,8 +29,6 @@ LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
     if(!UA_memoryManager_setLimitFromLast4Bytes(data, size))
         return 0;
     size -= 4;
-
-    UA_Connection c = createDummyConnection(RECEIVE_BUFFER_SIZE, NULL);
 
     /* less debug output */
     UA_ServerConfig initialConfig;
@@ -64,11 +60,14 @@ LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
     }
     memcpy(msg.data, data, size);
 
-    UA_Server_processBinaryMessage(server, &c, &msg);
+    void *ctx;
+    UA_Server_networkCallback(&testConnectionManagerTCP, 0, server,
+                              &ctx, UA_CONNECTIONSTATE_ESTABLISHED,
+                              0, NULL, msg);
+
     // if we got an invalid chunk, the message is not deleted, so delete it here
     UA_ByteString_clear(&msg);
     UA_Server_run_shutdown(server);
     UA_Server_delete(server);
-    c.close(&c);
     return 0;
 }

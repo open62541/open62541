@@ -34,17 +34,11 @@ UA_realSleep(UA_UInt32 duration) {
 #ifdef _WIN32
     Sleep(duration);
 #else
-    UA_Int32 sec = duration / 1000;
-    UA_Int32 ns = (duration % 1000) * NANO_SECOND_MULTIPLIER;
+    UA_UInt32 sec = duration / 1000;
+    UA_UInt32 ns = (duration % 1000) * NANO_SECOND_MULTIPLIER;
     struct timespec sleepValue;
-    sleepValue.tv_sec = sec;
-    sleepValue.tv_nsec = ns;
+    sleepValue.tv_sec = (int)sec;
+    sleepValue.tv_nsec = (int)ns;
     nanosleep(&sleepValue, NULL);
 #endif
-}
-
-void
-UA_comboSleep(unsigned long duration) {
-    UA_fakeSleep((UA_UInt32)duration);
-    UA_realSleep((UA_UInt32)duration);
 }

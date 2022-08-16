@@ -13,6 +13,7 @@
 #include <open62541/types_generated.h>
 #include <open62541/util.h>
 #include <open62541/plugin/log.h>
+#include <open62541/plugin/network.h>
 
 _UA_BEGIN_DECLS
 
@@ -173,7 +174,7 @@ struct UA_EventLoop {
  * Event Sources are attached to an EventLoop. Typically the event source and
  * the EventLoop are developed together and share a private API in the
  * background. */
- 
+
 typedef enum {
     UA_EVENTSOURCESTATE_FRESH = 0,
     UA_EVENTSOURCESTATE_STOPPED,      /* Registered but stopped */
@@ -232,9 +233,10 @@ struct UA_EventSource {
  *   is set. The context can be replaced within the callback (via the
  *   double-pointer).
  *
- * - The status indicates whether the connection is closing down. If status
- *   != GOOD, then the application should clean up the context, as this is
- *   the last time the callback will be called for this connection.
+ * - The state argument indicates the lifecycle of the connection. Every
+ *   connection calls the callback a last time with UA_CONNECTIONSTATE_CLOSING.
+ *   Protocols individually can forward diagnostic information relevant to the
+ *   state as part of the key-value parameters.
  *
  * - The parameters are a key-value list with additional information. The
  *   possible keys and their meaning are documented for the individual
@@ -245,9 +247,8 @@ struct UA_EventSource {
 typedef void
 (*UA_ConnectionManager_connectionCallback)
      (UA_ConnectionManager *cm, uintptr_t connectionId,
-      void *application, void **connectionContext, UA_StatusCode status,
-      size_t paramsSize, const UA_KeyValuePair *params,
-      UA_ByteString msg);
+      void *application, void **connectionContext, UA_ConnectionState state,
+      size_t paramsSize, const UA_KeyValuePair *params, UA_ByteString msg);
 
 struct UA_ConnectionManager {
     /* Every ConnectionManager is treated like an EventSource from the
@@ -277,9 +278,22 @@ struct UA_ConnectionManager {
      * connection. It is already set before the first call to
      * connectionCallback.
      *
-     * The connection is opened asynchronously. The connection-callback is
-     * triggered when the connection is fully opened (UA_STATUSCODE_GOOD) or has
-     * failed (with an error code). */
+     * The connection can be opened synchronously or asynchronously.
+     *
+     * - For synchronous connection, the connectionCallback is called with the
+     *   status UA_CONNECTIONSTATE_ESTABLISHED immediately from within the
+     *   openConnection operation.
+     *
+     * - In the asynchronous case the connectionCallback is called immediately
+     *   from within the openConnection operation with the status
+     *   UA_CONNECTIONSTATE_OPENING. The connectionCallback is called with the
+     *   status UA_CONNECTIONSTATE_ESTABLISHED once the connection has fully
+     *   opened.
+     *
+     * Note that a single call to openConnection might open multiple
+     * connections. For example listening on IPv4 and IPv6 for a single
+     * hostname. Each protocol implementation documents whether multiple
+     * connections might be opened at once. */
     UA_StatusCode
     (*openConnection)(UA_ConnectionManager *cm,
                       size_t paramsSize, const UA_KeyValuePair *params,
@@ -452,6 +466,18 @@ UA_ConnectionManager_new_POSIX_TCP(const UA_String eventSourceName);
  * Open Connection Parameters:
  * - 0:hostname [string]: Hostname (or IPv4/v6 address) to connect to (required).
  * - 0:port [uint16]: Port of the target host (required).
+ * - 0:ttl [uint32]: Multicast time to live, (optional, default: 1 - meaning multicast is
+ *                   available only to the local subnet).
+ * - 0:loopback [boolean]: Whether or not to use multicast loopback, enabling
+ *                         local interfaces belonging to the multicast group
+ *                         to receive packages. (optional, default: enabled).
+ * - 0:reuse [boolean]: Set reuse address -> enables sharing of the same
+ *                      listening address on different sockets (optional, default: disabled).
+ * - 0:sockpriority [uint32]: The socket priority (optional) - only available on linux.
+ *                            packets with a higher priority may be
+ *                            processed first depending on the selected device queueing
+ *                            discipline.  Setting a priority outside the range 0 to 6
+ *                            requires the CAP_NET_ADMIN capability.
  *
  * Connection Callback Paramters:
  * - 0:remote-hostname [string]: When a new connection is opened by listening on

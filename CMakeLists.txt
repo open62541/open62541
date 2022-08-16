@@ -46,9 +46,9 @@ set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 # overwritten with more detailed information if git is available.
 set(OPEN62541_VER_MAJOR 1)
 set(OPEN62541_VER_MINOR 3)
-set(OPEN62541_VER_PATCH 1)
-set(OPEN62541_VER_LABEL "-unknown") # like "-rc1" or "-g4538abcd" or "-g4538abcd-dirty"
-set(OPEN62541_VER_COMMIT "undefined")
+set(OPEN62541_VER_PATCH 2)
+set(OPEN62541_VER_LABEL "-undefined") # like "-rc1" or "-g4538abcd" or "-g4538abcd-dirty"
+set(OPEN62541_VER_COMMIT "unknown-commit")
 
 # Overwrite the version information based on git if available
 include(SetGitBasedVersion)
@@ -158,8 +158,7 @@ endforeach(arch_ ${architectures})
 
 # Options
 option(BUILD_SHARED_LIBS "Enable building of shared libraries (dll/so)" OFF)
-set(UA_LOGLEVEL 300 CACHE STRING "Level at which logs shall be reported")
-set(UA_MULTITHREADING 0 CACHE STRING "Level of multithreading (0-99: No Multithreading, >=100: Thread-Safe API")
+set(UA_LOGLEVEL 300 CACHE STRING "Minimal level at which logs shall be reported (100=TRACE, 200=DEBUG, 300=INFO, 400=WARNING, 500=ERROR, 600=FATAL)")
 option(UA_ENABLE_DIAGNOSTICS "Enable diagnostics information exposed by the server" OFF)
 option(UA_ENABLE_METHODCALLS "Enable the Method service set" ON)
 option(UA_ENABLE_SUBSCRIPTIONS "Enable subscriptions support" ON)
@@ -168,6 +167,14 @@ option(UA_ENABLE_DA "Enable OPC UA DataAccess (Part 8) definitions" ON)
 option(UA_ENABLE_HISTORIZING "Enable basic support for historical access (client and server)" OFF)
 option(UA_ENABLE_DISCOVERY "Enable Discovery Service (LDS)" OFF)
 option(UA_ENABLE_JSON_ENCODING "Enable JSON encoding" OFF)
+
+set(MULTITHREADING_DEFAULT 0)
+if(WIN32 OR UNIX)
+  # Enable multithreading by default on Windows and POSIX-like (Unix) systems
+  set(MULTITHREADING_DEFAULT 100)
+endif()
+set(UA_MULTITHREADING ${MULTITHREADING_DEFAULT} CACHE STRING
+    "Multithreading support (<100: No multithreading support, >=100: Thread-safety enabled (internal mutexes)")
 
 option(UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS "Enable the use of A&C. (EXPERIMENTAL)" OFF)
 mark_as_advanced(UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS)
@@ -353,6 +360,9 @@ endif()
 
 option(UA_FORCE_WERROR "Force compilation with -Werror (or /WX on MSVC)" ON)
 
+option(UA_ENABLE_DEBUG_SANITIZER "Use sanitizer in debug mode" ON)
+mark_as_advanced(UA_ENABLE_DEBUG_SANITIZER)
+
 #General PubSub setup
 option(UA_ENABLE_PUBSUB "Enable the PubSub protocol" OFF)
 
@@ -427,23 +437,37 @@ endif()
 option(UA_ENABLE_PUBSUB_MQTT "Enable publish/subscribe with mqtt (experimental)" OFF)
 mark_as_advanced(UA_ENABLE_PUBSUB_MQTT)
 if(UA_ENABLE_PUBSUB_MQTT)
+    if(UA_ENABLE_AMALGAMATION)
+        # MQTT Support currently not compatible with the amalgamation
+        message(FATAL_ERROR "Amalgamation cannot be generated with MQTT enabled")
+    endif()
+
     if(NOT UA_FILE_MQTT)
         set(UA_FILE_MQTT ${open62541_MQTT_DIR}/src/mqtt.c)
     endif()
     if(NOT EXISTS "${UA_FILE_MQTT}")
-        message(FATAL_ERROR "File ${UA_FILE_MQTT} not found.You probably need to initialize the git submodule for deps/mqtt-c.Therefore execute the following command \ngit submodule update --init --recursive")
-    else()
-        # Warn if run in Windows
-        if(WIN32)
-            MESSAGE(WARNING "Multithreading is enabled in MQTT plugin. This feature is under development and marked as EXPERIMENTAL")
+        message(STATUS "Submodule update")
+        execute_process(COMMAND ${GIT_EXECUTABLE} submodule update --init --recursive
+                        RESULT_VARIABLE GIT_SUBMOD_RESULT)
+        if(NOT GIT_SUBMOD_RESULT EQUAL "0")
+            message(FATAL_ERROR "git submodule update --init --recursive failed with ${GIT_SUBMOD_RESULT}")
         endif()
-        if(NOT UA_ENABLE_PUBSUB)
-        message(FATAL_ERROR "Mqtt cannot be used with disabled PubSub function.")
-        endif()
-        configure_file(${PROJECT_SOURCE_DIR}/deps/mqtt-c/include/mqtt.h "${PROJECT_BINARY_DIR}/src_generated/mqtt.h" COPYONLY)
-        configure_file(${PROJECT_SOURCE_DIR}/deps/mqtt-c/include/mqtt_pal.h "${PROJECT_BINARY_DIR}/src_generated/mqtt_pal.h" COPYONLY)
-        configure_file(${PROJECT_SOURCE_DIR}/plugins/mqtt/templates/posix_sockets.h "${PROJECT_BINARY_DIR}/src_generated/posix_sockets.h" COPYONLY)
     endif()
+    # Warn if run in Windows
+    if(WIN32)
+        MESSAGE(WARNING "Multithreading is enabled in MQTT plugin. This feature is under development and marked as EXPERIMENTAL")
+    endif()
+    # Warn if run in Windows and the MSVC Version is lower than VS 12.0
+    if(WIN32 AND MSVC_VERSION LESS 1800)
+        message(WARNING "The MSVC version does not support the C99 standard. Therefore the file stdint.h will be included.")
+        configure_file(${PROJECT_SOURCE_DIR}/deps/ms_stdint.h "${PROJECT_BINARY_DIR}/src_generated/stdint.h" COPYONLY)
+    endif()
+    if(NOT UA_ENABLE_PUBSUB)
+        message(FATAL_ERROR "Mqtt cannot be used with disabled PubSub function.")
+    endif()
+    configure_file(${PROJECT_SOURCE_DIR}/deps/mqtt-c/include/mqtt.h "${PROJECT_BINARY_DIR}/src_generated/mqtt.h" COPYONLY)
+    configure_file(${PROJECT_SOURCE_DIR}/deps/mqtt-c/include/mqtt_pal.h "${PROJECT_BINARY_DIR}/src_generated/mqtt_pal.h" COPYONLY)
+    configure_file(${PROJECT_SOURCE_DIR}/plugins/mqtt/templates/posix_sockets.h "${PROJECT_BINARY_DIR}/src_generated/posix_sockets.h" COPYONLY)
 endif()
 
 option(UA_ENABLE_MQTT_TLS_OPENSSL "Enable TLS support for publish/subscribe with mqtt (use OpenSSL)" OFF)
@@ -511,10 +535,6 @@ mark_as_advanced(UA_ENABLE_DISCOVERY_SEMAPHORE)
 
 option(UA_ENABLE_UNIT_TESTS_MEMCHECK "Use Valgrind (Linux) or DrMemory (Windows) to detect memory leaks when running the unit tests" OFF)
 mark_as_advanced(UA_ENABLE_UNIT_TESTS_MEMCHECK)
-
-option(UA_ENABLE_UNIT_TEST_FAILURE_HOOKS
-       "Add hooks to force failure modes for additional unit tests. Not for production use!" OFF)
-mark_as_advanced(UA_ENABLE_UNIT_TEST_FAILURE_HOOKS)
 
 set(UA_VALGRIND_INTERACTIVE_INTERVAL 1000 CACHE STRING "The number of iterations to wait before creating the next dump")
 mark_as_advanced(UA_VALGRIND_INTERACTIVE_INTERVAL)
@@ -678,7 +698,8 @@ if(NOT UA_FORCE_CPP AND (CMAKE_COMPILER_IS_GNUCC OR CMAKE_C_COMPILER_ID STREQUAL
     check_add_cc_flag("-Wextra")    # More warnings
     check_add_cc_flag("-Wpedantic") # Standard compliance
     if(UA_FORCE_WERROR)
-        check_add_cc_flag("-Werror")    # All warnings are errors
+        check_add_cc_flag("-Werror") # All warnings are errors
+        check_add_cc_flag("-Wunused-command-line-argument") # Warning for command line args instead of error
     endif()
 
     check_add_cc_flag("-Wno-static-in-inline") # Clang doesn't like the use of static inline methods inside static inline methods
@@ -711,6 +732,10 @@ if(NOT UA_FORCE_CPP AND (CMAKE_COMPILER_IS_GNUCC OR CMAKE_C_COMPILER_ID STREQUAL
     # Generate position-independent code for shared libraries (adds a performance penalty)
     if(BUILD_SHARED_LIBS)
         check_add_cc_flag("-fPIC")
+    endif()
+
+    if(UA_MULTITHREADING GREATER_EQUAL 100 AND NOT WIN32)
+        check_add_cc_flag("-pthread")
     endif()
 
     # Force 32bit build
@@ -759,7 +784,7 @@ if(NOT UA_FORCE_CPP AND (CMAKE_COMPILER_IS_GNUCC OR CMAKE_C_COMPILER_ID STREQUAL
     set(CMAKE_SHARED_LIBRARY_LINK_C_FLAGS "") # cmake sets -rdynamic by default
 
     # Debug
-    if(BUILD_TYPE_LOWER_CASE STREQUAL "debug" AND UNIX AND NOT UA_BUILD_OSS_FUZZ AND
+    if(UA_ENABLE_DEBUG_SANITIZER AND BUILD_TYPE_LOWER_CASE STREQUAL "debug" AND UNIX AND NOT UA_BUILD_OSS_FUZZ AND
        CMAKE_C_COMPILER_ID STREQUAL "Clang" AND NOT UA_ENABLE_UNIT_TESTS_MEMCHECK)
         # Add default sanitizer settings when using clang and Debug build.
         # This allows e.g. CLion to find memory locations for SegFaults
@@ -919,7 +944,6 @@ set(internal_headers ${PROJECT_SOURCE_DIR}/deps/open62541_queue.h
                      ${PROJECT_SOURCE_DIR}/src/ua_util_internal.h
                      ${PROJECT_BINARY_DIR}/src_generated/open62541/transport_generated.h
                      ${PROJECT_BINARY_DIR}/src_generated/open62541/transport_generated_handling.h
-                     ${PROJECT_SOURCE_DIR}/src/ua_connection_internal.h
                      ${PROJECT_SOURCE_DIR}/src/ua_securechannel.h
                      ${PROJECT_SOURCE_DIR}/arch/common/ua_timer.h
                      ${PROJECT_SOURCE_DIR}/src/server/ua_session.h
@@ -943,7 +967,6 @@ set(lib_sources ${PROJECT_SOURCE_DIR}/src/ua_types.c
                 ${PROJECT_BINARY_DIR}/src_generated/open62541/statuscodes.c
                 ${PROJECT_SOURCE_DIR}/src/ua_util.c
                 ${PROJECT_SOURCE_DIR}/arch/common/ua_timer.c
-                ${PROJECT_SOURCE_DIR}/src/ua_connection.c
                 ${PROJECT_SOURCE_DIR}/src/ua_securechannel.c
                 ${PROJECT_SOURCE_DIR}/src/ua_securechannel_crypto.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_session.c
@@ -1134,14 +1157,12 @@ if(UA_ENABLE_JSON_ENCODING)
     if(UA_ENABLE_PUBSUB)
         list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_networkmessage_json.c)
     endif()
-    list(APPEND internal_headers ${PROJECT_SOURCE_DIR}/deps/jsmn/jsmn.h
-                                 ${PROJECT_SOURCE_DIR}/deps/cj5.h
+    list(APPEND internal_headers ${PROJECT_SOURCE_DIR}/deps/cj5.h
                                  ${PROJECT_SOURCE_DIR}/deps/string_escape.h
                                  ${PROJECT_SOURCE_DIR}/deps/itoa.h
                                  ${PROJECT_SOURCE_DIR}/deps/parse_num.h
                                  ${PROJECT_SOURCE_DIR}/src/ua_types_encoding_json.h)
-    list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/deps/jsmn/jsmn.c
-                            ${PROJECT_SOURCE_DIR}/deps/cj5.c
+    list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/deps/cj5.c
                             ${PROJECT_SOURCE_DIR}/deps/string_escape.c
                             ${PROJECT_SOURCE_DIR}/deps/itoa.c
                             ${PROJECT_SOURCE_DIR}/deps/parse_num.c
@@ -1205,7 +1226,12 @@ if(UA_NAMESPACE_ZERO STREQUAL "FULL")
     set(UA_FILE_NODESETS "${UA_FILE_NS0}")
 
     if(NOT EXISTS "${UA_FILE_NS0}")
-        message(FATAL_ERROR "File ${UA_FILE_NS0} not found. You probably need to initialize the git submodule for deps/ua-nodeset or set UA_NODESET_DIR.")
+        message(STATUS "Submodule update")
+        execute_process(COMMAND ${GIT_EXECUTABLE} submodule update --init --recursive
+                        RESULT_VARIABLE GIT_SUBMOD_RESULT)
+        if(NOT GIT_SUBMOD_RESULT EQUAL "0")
+            message(FATAL_ERROR "git submodule update --init --recursive failed with ${GIT_SUBMOD_RESULT}")
+        endif()
     endif()
 
 
@@ -1321,7 +1347,7 @@ if(UA_ENABLE_AMALGAMATION)
     add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/open62541.h
                        PRE_BUILD
                        COMMAND ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tools/amalgamate.py
-                               ${OPEN62541_VER_COMMIT} ${CMAKE_CURRENT_BINARY_DIR}/open62541.h
+                               ${OPEN62541_VERSION} ${CMAKE_CURRENT_BINARY_DIR}/open62541.h
                                ${exported_headers} ${default_plugin_headers} ${ua_architecture_headers}
                        DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/tools/amalgamate.py
                                ${exported_headers} ${default_plugin_headers} ${ua_architecture_headers})
@@ -1329,7 +1355,7 @@ if(UA_ENABLE_AMALGAMATION)
     add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/open62541.c
                        PRE_BUILD
                        COMMAND ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tools/amalgamate.py
-                               ${OPEN62541_VER_COMMIT} ${CMAKE_CURRENT_BINARY_DIR}/open62541.c
+                               ${OPEN62541_VERSION} ${CMAKE_CURRENT_BINARY_DIR}/open62541.c
                                ${internal_headers} ${lib_sources} ${default_plugin_sources} ${ua_architecture_sources}
                        DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/tools/amalgamate.py ${internal_headers}
                                ${lib_sources} ${default_plugin_sources} ${ua_architecture_sources} )
@@ -1526,6 +1552,11 @@ GET_PROPERTY(ua_architecture_append_to_library GLOBAL PROPERTY UA_ARCHITECTURE_A
 list(APPEND open62541_LIBRARIES ${ua_architecture_append_to_library})
 
 target_compile_definitions(open62541 PUBLIC UA_ARCHITECTURE_${UA_ARCHITECTURE_UPPER})
+target_compile_definitions(open62541-object PUBLIC UA_ARCHITECTURE_${UA_ARCHITECTURE_UPPER})
+
+if(NOT UA_ENABLE_AMALGAMATION)
+    target_compile_definitions(open62541-plugins PUBLIC UA_ARCHITECTURE_${UA_ARCHITECTURE_UPPER})
+endif()
 
 # DLL requires linking to dependencies
 target_link_libraries(open62541 ${open62541_LIBRARIES})

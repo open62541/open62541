@@ -171,6 +171,9 @@ UA_Server_getSessionById(UA_Server *server, const UA_NodeId *sessionId) {
         return &current->session;
     }
 
+    if(UA_NodeId_equal(sessionId, &server->adminSession.sessionId))
+        return &server->adminSession;
+
     return NULL;
 }
 
@@ -831,19 +834,26 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
     }
 
     /* Set the locale */
-    response->responseHeader.serviceResult |=
-        UA_Array_copy(request->localeIds, request->localeIdsSize,
-                      (void**)&tmpLocaleIds, &UA_TYPES[UA_TYPES_STRING]);
-    if(response->responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
-        UA_Session_detachFromSecureChannel(session);
-        UA_LOG_WARNING_SESSION(&server->config.logger, session,
-                               "ActivateSession: Could not store the Session LocaleIds");
-        goto rejected;
+
+    /* Part 4, §5.6.3.2: This parameter only needs to be specified during the first call to
+     * ActivateSession during a single application Session. If it is not specified the
+     * Server shall keep using the current localeIds for the Session.
+    */
+    if(request->localeIdsSize > 0) {
+        response->responseHeader.serviceResult |=
+            UA_Array_copy(request->localeIds, request->localeIdsSize,
+                          (void**)&tmpLocaleIds, &UA_TYPES[UA_TYPES_STRING]);
+        if(response->responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
+            UA_Session_detachFromSecureChannel(session);
+            UA_LOG_WARNING_SESSION(&server->config.logger, session,
+                                   "ActivateSession: Could not store the Session LocaleIds");
+            goto rejected;
+        }
+        UA_Array_delete(session->localeIds, session->localeIdsSize,
+                        &UA_TYPES[UA_TYPES_STRING]);
+        session->localeIds = tmpLocaleIds;
+        session->localeIdsSize = request->localeIdsSize;
     }
-    UA_Array_delete(session->localeIds, session->localeIdsSize,
-                    &UA_TYPES[UA_TYPES_STRING]);
-    session->localeIds = tmpLocaleIds;
-    session->localeIdsSize = request->localeIdsSize;
 
     UA_Session_updateLifetime(session);
 

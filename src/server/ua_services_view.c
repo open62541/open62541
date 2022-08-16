@@ -1,6 +1,6 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. 
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  *
  *    Copyright 2014-2019 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
  *    Copyright 2014-2017 (c) Florian Palm
@@ -184,7 +184,7 @@ isNodeInTree_singleRef(UA_Server *server, const UA_NodeId *leafNode,
     UA_ReferenceTypeSet reftypes = UA_REFTYPESET(relevantRefTypeIndex);
     return isNodeInTree(server, leafNode, nodeToFind, &reftypes);
 }
- 
+
 static enum ZIP_CMP
 cmpTarget(const void *a, const void *b) {
     const RefEntry *aa = (const RefEntry*)a;
@@ -508,7 +508,7 @@ ContinuationPoint_clear(ContinuationPoint *cp) {
 
 /* Target node on top of the stack */
 static UA_StatusCode UA_FUNC_ATTR_WARN_UNUSED_RESULT
-addReferenceDescription(UA_Server *server, RefResult *rr,
+addReferenceDescription(UA_Server *server, const UA_Session *session, RefResult *rr,
                         const UA_NodeReferenceKind *ref, UA_UInt32 mask,
                         UA_NodePointer nodeP, const UA_Node *curr) {
     /* Ensure capacity is left */
@@ -525,7 +525,7 @@ addReferenceDescription(UA_Server *server, RefResult *rr,
     UA_ExpandedNodeId en = UA_NodePointer_toExpandedNodeId(nodeP);
     retval = UA_ExpandedNodeId_copy(&en, &descr->nodeId);
     if(mask & UA_BROWSERESULTMASK_REFERENCETYPEID) {
-        const UA_NodeId *refTypeId = 
+        const UA_NodeId *refTypeId =
             UA_NODESTORE_GETREFERENCETYPEID(server, ref->referenceTypeIndex);
         retval |= UA_NodeId_copy(refTypeId, &descr->referenceTypeId);
     }
@@ -537,14 +537,17 @@ addReferenceDescription(UA_Server *server, RefResult *rr,
         UA_ReferenceDescription_clear(descr);
         return retval;
     }
-    
+
     /* Fields that require the actual node */
     if(mask & UA_BROWSERESULTMASK_NODECLASS)
         descr->nodeClass = curr->head.nodeClass;
     if(mask & UA_BROWSERESULTMASK_BROWSENAME)
         retval |= UA_QualifiedName_copy(&curr->head.browseName, &descr->browseName);
-    if(mask & UA_BROWSERESULTMASK_DISPLAYNAME)
-        retval |= UA_LocalizedText_copy(&curr->head.displayName, &descr->displayName);
+    if(mask & UA_BROWSERESULTMASK_DISPLAYNAME) {
+        UA_LocalizedText displayname =
+            UA_Session_getNodeDisplayName(session, &curr->head);
+        retval |= UA_LocalizedText_copy(&displayname, &descr->displayName);
+    }
     if(mask & UA_BROWSERESULTMASK_TYPEDEFINITION) {
         if(curr->head.nodeClass == UA_NODECLASS_OBJECT ||
            curr->head.nodeClass == UA_NODECLASS_VARIABLE) {
@@ -565,7 +568,7 @@ addReferenceDescription(UA_Server *server, RefResult *rr,
 
 /* Returns whether the node / continuationpoint is done */
 static UA_StatusCode
-browseReferences(UA_Server *server, const UA_NodeHead *head,
+browseReferences(UA_Server *server, const UA_Session *session, const UA_NodeHead *head,
                  ContinuationPoint *cp, RefResult *rr, UA_Boolean *done) {
     UA_assert(cp);
     const UA_BrowseDescription *bd = &cp->browseDescription;
@@ -666,7 +669,7 @@ browseReferences(UA_Server *server, const UA_NodeHead *head,
             }
 
             /* Copy the node description. Target is on top of the stack */
-            retval = addReferenceDescription(server, rr, rk, bd->resultMask,
+            retval = addReferenceDescription(server, session, rr, rk, bd->resultMask,
                                              ref->targetId, target);
             if(target)
                 UA_NODESTORE_RELEASE(server, target);
@@ -748,7 +751,7 @@ browseWithContinuation(UA_Server *server, UA_Session *session,
 
     /* Browse the references */
     UA_Boolean done = false;
-    result->statusCode = browseReferences(server, &node->head, cp, &rr, &done);
+    result->statusCode = browseReferences(server, session, &node->head, cp, &rr, &done);
     UA_NODESTORE_RELEASE(server, node);
     if(result->statusCode != UA_STATUSCODE_GOOD) {
         RefResult_clear(&rr);
@@ -1093,7 +1096,7 @@ walkBrowsePathElement(UA_Server *server, UA_Session *session,
                     aa_find(&_refNameTree, &browseNameHash);
                 if(!rt)
                     continue;
-                
+
                 res = recursiveAddBrowseHashTarget(next, &_refNameTree, rt);
                 if(res != UA_STATUSCODE_GOOD)
                     break;

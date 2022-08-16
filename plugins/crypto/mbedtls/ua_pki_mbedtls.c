@@ -107,7 +107,7 @@ fileNamesFromFolder(const UA_String *folder, size_t *pathsSize, UA_String **path
 
     memcpy(buf, folder->data, folder->length);
     buf[folder->length] = 0;
-    
+
     DIR *dir = opendir(buf);
     if(!dir)
         return UA_STATUSCODE_BADINTERNALERROR;
@@ -222,7 +222,7 @@ reloadCertificates(CertInfo *ci) {
             char errBuff[300];
             mbedtls_strerror(err, errBuff, 300);
             UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
-                        "Failed to load certificate from %s, mbedTLS error: %s (error code: %d)", 
+                        "Failed to load certificate from %s, mbedTLS error: %s (error code: %d)",
                         f, errBuff, err);
             internalErrorFlag = 1;
         }
@@ -239,7 +239,7 @@ reloadCertificates(CertInfo *ci) {
 static UA_StatusCode
 certificateVerification_allow(void *verificationContext,
                               const UA_ByteString *certificate) {
-    return UA_STATUSCODE_GOOD;  
+    return UA_STATUSCODE_GOOD;
 }
 
 static UA_StatusCode

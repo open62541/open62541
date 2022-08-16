@@ -1,68 +1,124 @@
 /* This work is licensed under a Creative Commons CCZero 1.0 Universal License.
  * See http://creativecommons.org/publicdomain/zero/1.0/ for more information.
  *
- * Copyright (c) 2021 Fraunhofer IOSB (Author: Jan Hermes)
+ * Copyright (c) 2022 Fraunhofer IOSB (Author: Noel Graf)
  */
 
 #include <open62541/plugin/log_stdout.h>
-#include <open62541/plugin/pubsub_udp.h>
 #include <open62541/server.h>
 #include <open62541/server_config_default.h>
-#include <open62541/types_generated.h>
 
-#include <open62541/plugin/securitypolicy_default.h>
+#include <signal.h>
 
-#include "ua_pubsub.h"
+#include <open62541/plugin/pubsub_mqtt.h>
+#include "ua_pubsub_manager.h"
 
-#if defined (UA_ENABLE_PUBSUB_ETH_UADP)
-#include <open62541/plugin/pubsub_ethernet.h>
+#define CONNECTION_NAME               "MQTT Subscriber Connection"
+#define TRANSPORT_PROFILE_URI         "http://opcfoundation.org/UA-Profile/Transport/pubsub-mqtt"
+#define MQTT_CLIENT_ID                "TESTCLIENTPUBSUBMQTTSUBSCRIBE"
+#define CONNECTIONOPTION_NAME         "mqttClientId"
+#define SUBSCRIBER_TOPIC              "customTopic"
+#define SUBSCRIBER_METADATAQUEUENAME  "MetaDataTopic"
+#define SUBSCRIBER_METADATAUPDATETIME 0
+#define BROKER_ADDRESS_URL            "opc.mqtt://127.0.0.1:1883"
+#define SUBSCRIBE_INTERVAL            500
+
+// Uncomment the following line to enable MQTT login for the example
+// #define EXAMPLE_USE_MQTT_LOGIN
+
+#ifdef EXAMPLE_USE_MQTT_LOGIN
+#define LOGIN_OPTION_COUNT           2
+#define USERNAME_OPTION_NAME         "mqttUsername"
+#define PASSWORD_OPTION_NAME         "mqttPassword"
+#define MQTT_USERNAME                "open62541user"
+#define MQTT_PASSWORD                "open62541"
 #endif
 
-#include <stdio.h>
-#include <signal.h>
-#include <stdlib.h>
+// Uncomment the following line to enable MQTT via TLS for the example
+//#define EXAMPLE_USE_MQTT_TLS
 
-#define UA_AES128CTR_SIGNING_KEY_LENGTH 32
-#define UA_AES128CTR_KEY_LENGTH 16
-#define UA_AES128CTR_KEYNONCE_LENGTH 4
+#ifdef EXAMPLE_USE_MQTT_TLS
+#define TLS_OPTION_COUNT                2
+#define USE_TLS_OPTION_NAME             "mqttUseTLS"
+#define MQTT_CA_FILE_PATH_OPTION_NAME   "mqttCaFilePath"
+#define CA_FILE_PATH                    "/path/to/server.cert"
+#endif
 
-UA_Byte signingKey[UA_AES128CTR_SIGNING_KEY_LENGTH] = {0};
-UA_Byte encryptingKey[UA_AES128CTR_KEY_LENGTH] = {0};
-UA_Byte keyNonce[UA_AES128CTR_KEYNONCE_LENGTH] = {0};
+#ifdef UA_ENABLE_JSON_ENCODING
+static UA_Boolean useJson = true;
+#else
+static UA_Boolean useJson = false;
+#endif
 
-
-UA_NodeId connectionIdentifier;
-UA_NodeId readerGroupIdentifier;
-UA_NodeId readerIdentifier;
+UA_NodeId connectionIdent;
+UA_NodeId subscribedDataSetIdent;
+UA_NodeId readerGroupIdent;
 
 UA_DataSetReaderConfig readerConfig;
 
 static void fillTestDataSetMetaData(UA_DataSetMetaDataType *pMetaData);
 
-/* Add new connection to the server */
 static UA_StatusCode
-addPubSubConnection(UA_Server *server, UA_String *transportProfile,
-                    UA_NetworkAddressUrlDataType *networkAddressUrl) {
-    if((server == NULL) || (transportProfile == NULL) ||
-        (networkAddressUrl == NULL)) {
-        return UA_STATUSCODE_BADINTERNALERROR;
-    }
-
+addPubSubConnection(UA_Server *server, char *addressUrl) {
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
-    /* Configuration creation for the connection */
+    /* Details about the connection configuration and handling are located
+     * in the pubsub connection tutorial */
     UA_PubSubConnectionConfig connectionConfig;
-    memset (&connectionConfig, 0, sizeof(UA_PubSubConnectionConfig));
-    connectionConfig.name = UA_STRING("UDPMC Connection 1");
-    connectionConfig.transportProfileUri = *transportProfile;
+    memset(&connectionConfig, 0, sizeof(connectionConfig));
+    connectionConfig.name = UA_STRING(CONNECTION_NAME);
+    connectionConfig.transportProfileUri = UA_STRING(TRANSPORT_PROFILE_URI);
     connectionConfig.enabled = UA_TRUE;
-    UA_Variant_setScalar(&connectionConfig.address, networkAddressUrl,
+
+    /* configure address of the mqtt broker (local on default port) */
+    UA_NetworkAddressUrlDataType networkAddressUrl = {UA_STRING_NULL , UA_STRING(addressUrl)};
+    UA_Variant_setScalar(&connectionConfig.address, &networkAddressUrl,
                          &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
-    connectionConfig.publisherIdType = UA_PUBLISHERIDTYPE_UINT32;
-    connectionConfig.publisherId.uint32 = UA_UInt32_random();
-    retval |= UA_Server_addPubSubConnection (server, &connectionConfig, &connectionIdentifier);
-    if (retval != UA_STATUSCODE_GOOD) {
-        return retval;
-    }
+    /* Changed to static publisherId from random generation to identify
+     * the publisher on Subscriber side */
+    connectionConfig.publisherIdType = UA_PUBLISHERIDTYPE_UINT16;
+    connectionConfig.publisherId.uint16 = 2234;
+
+    /* configure options, set mqtt client id */
+    const int connectionOptionsCount = 1
+#ifdef EXAMPLE_USE_MQTT_LOGIN
+    + LOGIN_OPTION_COUNT
+#endif
+#ifdef EXAMPLE_USE_MQTT_TLS
+    + TLS_OPTION_COUNT
+#endif
+    ;
+
+    UA_KeyValuePair connectionOptions[connectionOptionsCount];
+
+    size_t connectionOptionIndex = 0;
+    connectionOptions[connectionOptionIndex].key = UA_QUALIFIEDNAME(0, CONNECTIONOPTION_NAME);
+    UA_String mqttClientId = UA_STRING(MQTT_CLIENT_ID);
+    UA_Variant_setScalar(&connectionOptions[connectionOptionIndex++].value, &mqttClientId, &UA_TYPES[UA_TYPES_STRING]);
+
+#ifdef EXAMPLE_USE_MQTT_LOGIN
+    connectionOptions[connectionOptionIndex].key = UA_QUALIFIEDNAME(0, USERNAME_OPTION_NAME);
+    UA_String mqttUsername = UA_STRING(MQTT_USERNAME);
+    UA_Variant_setScalar(&connectionOptions[connectionOptionIndex++].value, &mqttUsername, &UA_TYPES[UA_TYPES_STRING]);
+
+    connectionOptions[connectionOptionIndex].key = UA_QUALIFIEDNAME(0, PASSWORD_OPTION_NAME);
+    UA_String mqttPassword = UA_STRING(MQTT_PASSWORD);
+    UA_Variant_setScalar(&connectionOptions[connectionOptionIndex++].value, &mqttPassword, &UA_TYPES[UA_TYPES_STRING]);
+#endif
+
+#ifdef EXAMPLE_USE_MQTT_TLS
+    connectionOptions[connectionOptionIndex].key = UA_QUALIFIEDNAME(0, USE_TLS_OPTION_NAME);
+    UA_Boolean mqttUseTLS = true;
+    UA_Variant_setScalar(&connectionOptions[connectionOptionIndex++].value, &mqttUseTLS, &UA_TYPES[UA_TYPES_BOOLEAN]);
+
+    connectionOptions[connectionOptionIndex].key = UA_QUALIFIEDNAME(0, MQTT_CA_FILE_PATH_OPTION_NAME);
+    UA_String mqttCaFile = UA_STRING(CA_FILE_PATH);
+    UA_Variant_setScalar(&connectionOptions[connectionOptionIndex++].value, &mqttCaFile, &UA_TYPES[UA_TYPES_STRING]);
+#endif
+
+    connectionConfig.connectionProperties = connectionOptions;
+    connectionConfig.connectionPropertiesSize = connectionOptionIndex;
+
+    retval |= UA_Server_addPubSubConnection(server, &connectionConfig, &connectionIdent);
 
     return retval;
 }
@@ -75,7 +131,7 @@ addPubSubConnection(UA_Server *server, UA_String *transportProfile,
  * is removed. All network message related filters are only available in the DataSetReader. */
 /* Add ReaderGroup to the created connection */
 static UA_StatusCode
-addReaderGroup(UA_Server *server) {
+addReaderGroup(UA_Server *server,  int interval) {
     if(server == NULL) {
         return UA_STATUSCODE_BADINTERNALERROR;
     }
@@ -84,25 +140,34 @@ addReaderGroup(UA_Server *server) {
     UA_ReaderGroupConfig readerGroupConfig;
     memset (&readerGroupConfig, 0, sizeof(UA_ReaderGroupConfig));
     readerGroupConfig.name = UA_STRING("ReaderGroup1");
+    readerGroupConfig.subscribingInterval = interval;
+    if(useJson)
+        readerGroupConfig.encodingMimeType = UA_PUBSUB_ENCODING_JSON;
 
-    /* Encryption settings */
-    UA_ServerConfig *config = UA_Server_getConfig(server);
-    readerGroupConfig.securityMode = UA_MESSAGESECURITYMODE_SIGNANDENCRYPT;
-    readerGroupConfig.securityPolicy = &config->pubSubConfig.securityPolicies[0];
+    /* configure the mqtt publish topic */
+    UA_BrokerWriterGroupTransportDataType brokerTransportSettings;
+    memset(&brokerTransportSettings, 0, sizeof(UA_BrokerWriterGroupTransportDataType));
+    /* Assign the Topic at which MQTT publish should happen */
+    /*ToDo: Pass the topic as argument from the reader group */
+    brokerTransportSettings.queueName = UA_STRING(SUBSCRIBER_TOPIC);
+    brokerTransportSettings.resourceUri = UA_STRING_NULL;
+    brokerTransportSettings.authenticationProfileUri = UA_STRING_NULL;
 
-    retval |= UA_Server_addReaderGroup(server, connectionIdentifier, &readerGroupConfig,
-                                       &readerGroupIdentifier);
+    /* Choose the QOS Level for MQTT */
+    brokerTransportSettings.requestedDeliveryGuarantee = UA_BROKERTRANSPORTQUALITYOFSERVICE_BESTEFFORT;
 
-    /* Add the encryption key informaton */
-    UA_ByteString sk = {UA_AES128CTR_SIGNING_KEY_LENGTH, signingKey};
-    UA_ByteString ek = {UA_AES128CTR_KEY_LENGTH, encryptingKey};
-    UA_ByteString kn = {UA_AES128CTR_KEYNONCE_LENGTH, keyNonce};
+    /* Encapsulate config in transportSettings */
+    UA_ExtensionObject transportSettings;
+    memset(&transportSettings, 0, sizeof(UA_ExtensionObject));
+    transportSettings.encoding = UA_EXTENSIONOBJECT_DECODED;
+    transportSettings.content.decoded.type = &UA_TYPES[UA_TYPES_BROKERDATASETREADERTRANSPORTDATATYPE];
+    transportSettings.content.decoded.data = &brokerTransportSettings;
 
-    // TODO security token not necessary for readergroup (extracted from security-header)
-    UA_Server_setReaderGroupEncryptionKeys(server, readerGroupIdentifier, 1, sk, ek, kn);
+    readerGroupConfig.transportSettings = transportSettings;
 
-    // TODO setOperational MUST be after setting keys
-    UA_Server_setReaderGroupOperational(server, readerGroupIdentifier);
+    retval |= UA_Server_addReaderGroup(server, connectionIdent, &readerGroupConfig,
+                                       &readerGroupIdent);
+    retval |= UA_Server_setReaderGroupOperational(server, readerGroupIdent);
 
     return retval;
 }
@@ -128,7 +193,7 @@ addDataSetReader(UA_Server *server) {
     /* Parameters to filter which DataSetMessage has to be processed
      * by the DataSetReader */
     /* The following parameters are used to show that the data published by
-     * tutorial_pubsub_publish.c is being subscribed and is being updated in
+     * tutorial_pubsub_mqtt_publish.c is being subscribed and is being updated in
      * the information model */
     UA_UInt16 publisherIdentifier = 2234;
     readerConfig.publisherId.type = &UA_TYPES[UA_TYPES_UINT16];
@@ -139,8 +204,8 @@ addDataSetReader(UA_Server *server) {
     /* Setting up Meta data configuration in DataSetReader */
     fillTestDataSetMetaData(&readerConfig.dataSetMetaData);
 
-    retval |= UA_Server_addDataSetReader(server, readerGroupIdentifier, &readerConfig,
-                                         &readerIdentifier);
+    retval |= UA_Server_addDataSetReader(server, readerGroupIdent, &readerConfig,
+                                         &subscribedDataSetIdent);
     return retval;
 }
 
@@ -174,7 +239,7 @@ addSubscribedVariables (UA_Server *server, UA_NodeId dataSetReaderId) {
                              UA_NODEID_NUMERIC (0, UA_NS0ID_OBJECTSFOLDER),
                              UA_NODEID_NUMERIC (0, UA_NS0ID_ORGANIZES),
                              folderBrowseName, UA_NODEID_NUMERIC (0,
-                             UA_NS0ID_BASEOBJECTTYPE), oAttr, NULL, &folderId);
+                                                                  UA_NS0ID_BASEOBJECTTYPE), oAttr, NULL, &folderId);
 
 /**
  * **TargetVariables**
@@ -184,7 +249,7 @@ addSubscribedVariables (UA_Server *server, UA_NodeId dataSetReaderId) {
  * The values subscribed from the Publisher are updated in the value field of these variables */
     /* Create the TargetVariables with respect to DataSetMetaData fields */
     UA_FieldTargetVariable *targetVars = (UA_FieldTargetVariable *)
-            UA_calloc(readerConfig.dataSetMetaData.fieldsSize, sizeof(UA_FieldTargetVariable));
+        UA_calloc(readerConfig.dataSetMetaData.fieldsSize, sizeof(UA_FieldTargetVariable));
     for(size_t i = 0; i < readerConfig.dataSetMetaData.fieldsSize; i++) {
         /* Variable to subscribe data */
         UA_VariableAttributes vAttr = UA_VariableAttributes_default;
@@ -196,11 +261,11 @@ addSubscribedVariables (UA_Server *server, UA_NodeId dataSetReaderId) {
 
         UA_NodeId newNode;
         retval |= UA_Server_addVariableNode(server, UA_NODEID_NUMERIC(1, (UA_UInt32)i + 50000),
-                                           folderId,
-                                           UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
-                                           UA_QUALIFIEDNAME(1, (char *)readerConfig.dataSetMetaData.fields[i].name.data),
-                                           UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
-                                           vAttr, NULL, &newNode);
+                                            folderId,
+                                            UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
+                                            UA_QUALIFIEDNAME(1, (char *)readerConfig.dataSetMetaData.fields[i].name.data),
+                                            UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
+                                            vAttr, NULL, &newNode);
 
         /* For creating Targetvariables */
         UA_FieldTargetDataType_init(&targetVars[i].targetVariable);
@@ -239,7 +304,7 @@ static void fillTestDataSetMetaData(UA_DataSetMetaDataType *pMetaData) {
      * Currently the publisher sends only DateTime data type */
     pMetaData->fieldsSize = 4;
     pMetaData->fields = (UA_FieldMetaData*)UA_Array_new (pMetaData->fieldsSize,
-                         &UA_TYPES[UA_TYPES_FIELDMETADATA]);
+                                                         &UA_TYPES[UA_TYPES_FIELDMETADATA]);
 
     /* DateTime DataType */
     UA_FieldMetaData_init (&pMetaData->fields[0]);
@@ -274,10 +339,6 @@ static void fillTestDataSetMetaData(UA_DataSetMetaDataType *pMetaData) {
     pMetaData->fields[3].valueRank = -1; /* scalar */
 }
 
-/*
- * TODO: add something similary ass addDataSetMetadata for security configuration
- */
-
 /**
  * Followed by the main server code, making use of the above definitions */
 UA_Boolean running = true;
@@ -286,40 +347,30 @@ static void stopHandler(int sign) {
     running = false;
 }
 
-static int
-run(UA_String *transportProfile, UA_NetworkAddressUrlDataType *networkAddressUrl) {
+
+int main(int argc, char **argv) {
     signal(SIGINT, stopHandler);
     signal(SIGTERM, stopHandler);
+
+    char *addressUrl = BROKER_ADDRESS_URL;
+    //char *topic = SUBSCRIBER_TOPIC;
+    int interval = SUBSCRIBE_INTERVAL;
+
     /* Return value initialized to Status Good */
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     UA_Server *server = UA_Server_new();
     UA_ServerConfig *config = UA_Server_getConfig(server);
-    UA_ServerConfig_setMinimal(config, 4801, NULL);
-
-    /* Instantiate the PubSub SecurityPolicy */
-    config->pubSubConfig.securityPolicies = (UA_PubSubSecurityPolicy*)
-        UA_malloc(sizeof(UA_PubSubSecurityPolicy));
-    config->pubSubConfig.securityPoliciesSize = 1;
-    UA_PubSubSecurityPolicy_Aes128Ctr(config->pubSubConfig.securityPolicies,
-                                      &config->logger);
-
-    /* Add the PubSub network layer implementation to the server config.
-     * The TransportLayer is acting as factory to create new connections
-     * on runtime. Details about the PubSubTransportLayer can be found inside the
-     * tutorial_pubsub_connection */
-    UA_ServerConfig_addPubSubTransportLayer(config, UA_PubSubTransportLayerUDPMP());
-#ifdef UA_ENABLE_PUBSUB_ETH_UADP
-    UA_ServerConfig_addPubSubTransportLayer(config, UA_PubSubTransportLayerEthernet());
-#endif
+    UA_ServerConfig_setDefault(config);
+    UA_ServerConfig_addPubSubTransportLayer(config, UA_PubSubTransportLayerMQTT());
 
     /* API calls */
     /* Add PubSubConnection */
-    retval |= addPubSubConnection(server, transportProfile, networkAddressUrl);
+    retval |= addPubSubConnection(server, addressUrl);
     if (retval != UA_STATUSCODE_GOOD)
         return EXIT_FAILURE;
 
     /* Add ReaderGroup to the created PubSubConnection */
-    retval |= addReaderGroup(server);
+    retval |= addReaderGroup(server, interval);
     if (retval != UA_STATUSCODE_GOOD)
         return EXIT_FAILURE;
 
@@ -329,48 +380,11 @@ run(UA_String *transportProfile, UA_NetworkAddressUrlDataType *networkAddressUrl
         return EXIT_FAILURE;
 
     /* Add SubscribedVariables to the created DataSetReader */
-    retval |= addSubscribedVariables(server, readerIdentifier);
+    retval |= addSubscribedVariables(server, subscribedDataSetIdent);
     if (retval != UA_STATUSCODE_GOOD)
         return EXIT_FAILURE;
 
     retval = UA_Server_run(server, &running);
     UA_Server_delete(server);
     return retval == UA_STATUSCODE_GOOD ? EXIT_SUCCESS : EXIT_FAILURE;
-}
-
-static void
-usage(char *progname) {
-    printf("usage: %s <uri> [device]\n", progname);
-}
-
-int main(int argc, char **argv) {
-    UA_String transportProfile =
-        UA_STRING("http://opcfoundation.org/UA-Profile/Transport/pubsub-udp-uadp");
-    UA_NetworkAddressUrlDataType networkAddressUrl =
-        {UA_STRING_NULL , UA_STRING("opc.udp://224.0.0.22:4840/")};
-
-    if (argc > 1) {
-        if (strcmp(argv[1], "-h") == 0) {
-            usage(argv[0]);
-            return EXIT_SUCCESS;
-        }
-
-        if (strncmp(argv[1], "opc.udp://", 10) == 0) {
-            networkAddressUrl.url = UA_STRING(argv[1]);
-        } else if (strncmp(argv[1], "opc.eth://", 10) == 0) {
-            transportProfile =
-                UA_STRING("http://opcfoundation.org/UA-Profile/Transport/pubsub-eth-uadp");
-            if (argc < 3) {
-                printf("Error: UADP/ETH needs an interface name\n");
-                return EXIT_FAILURE;
-            }
-            networkAddressUrl.networkInterface = UA_STRING(argv[2]);
-            networkAddressUrl.url = UA_STRING(argv[1]);
-        } else {
-            printf("Error: unknown URI\n");
-            return EXIT_FAILURE;
-        }
-    }
-
-    return run(&transportProfile, &networkAddressUrl);
 }

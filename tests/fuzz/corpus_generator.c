@@ -408,7 +408,7 @@ subscriptionRequests(UA_Client *client) {
     ASSERT_GOOD(setPublishingModeResponse.responseHeader.serviceResult);
     UA_SetPublishingModeRequest_clear(&setPublishingModeRequest);
     UA_SetPublishingModeResponse_clear(&setPublishingModeResponse);
-    
+
 
     // createMonitoredItemsRequest
     UA_UInt32 monId;
@@ -461,7 +461,7 @@ subscriptionRequests(UA_Client *client) {
     ASSERT_GOOD(modifyMonitoredItemsResponse.responseHeader.serviceResult);
     UA_ModifyMonitoredItemsRequest_clear(&modifyMonitoredItemsRequest);
     UA_ModifyMonitoredItemsResponse_clear(&modifyMonitoredItemsResponse);
-    
+
     // setMonitoringMode
     UA_SetMonitoringModeRequest setMonitoringModeRequest;
     UA_SetMonitoringModeRequest_init(&setMonitoringModeRequest);

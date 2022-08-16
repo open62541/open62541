@@ -7,6 +7,7 @@
 
 #include <open62541/types.h>
 #include <open62541/types_generated_handling.h>
+#include <open62541/server_pubsub.h>
 
 #include "ua_pubsub_networkmessage.h"
 #include "ua_types_encoding_json.h"
@@ -129,6 +130,7 @@ UA_DataSetMessage_encodeJson_internal(const UA_DataSetMessage* src,
 static UA_StatusCode
 UA_NetworkMessage_encodeJson_internal(const UA_NetworkMessage* src, CtxJson *ctx) {
     status rv = UA_STATUSCODE_GOOD;
+    const UA_DataType *publisherIdType;
     /* currently only ua-data is supported, no discovery message implemented */
     if(src->networkMessageType != UA_NETWORKMESSAGE_DATASET)
         return UA_STATUSCODE_BADNOTIMPLEMENTED;
@@ -151,31 +153,24 @@ UA_NetworkMessage_encodeJson_internal(const UA_NetworkMessage* src, CtxJson *ctx
     if(src->publisherIdEnabled) {
         rv = writeJsonKey(ctx, UA_DECODEKEY_PUBLISHERID);
         switch (src->publisherIdType) {
-        case UA_PUBLISHERDATATYPE_BYTE:
-            rv |= encodeJsonInternal(&src->publisherId.publisherIdByte,
-                                     &UA_TYPES[UA_TYPES_BYTE], ctx);
+        case UA_PUBLISHERIDTYPE_BYTE:
+            publisherIdType = &UA_TYPES[UA_TYPES_BYTE];
             break;
-
-        case UA_PUBLISHERDATATYPE_UINT16:
-            rv |= encodeJsonInternal(&src->publisherId.publisherIdUInt16,
-                                     &UA_TYPES[UA_TYPES_UINT16], ctx);
+        case UA_PUBLISHERIDTYPE_UINT16:
+            publisherIdType = &UA_TYPES[UA_TYPES_UINT16];
             break;
-
-        case UA_PUBLISHERDATATYPE_UINT32:
-            rv |= encodeJsonInternal(&src->publisherId.publisherIdUInt32,
-                                     &UA_TYPES[UA_TYPES_UINT32], ctx);
+        case UA_PUBLISHERIDTYPE_UINT32:
+            publisherIdType = &UA_TYPES[UA_TYPES_UINT32];
             break;
-
-        case UA_PUBLISHERDATATYPE_UINT64:
-            rv |= encodeJsonInternal(&src->publisherId.publisherIdUInt64,
-                                     &UA_TYPES[UA_TYPES_UINT64], ctx);
+        case UA_PUBLISHERIDTYPE_UINT64:
+            publisherIdType = &UA_TYPES[UA_TYPES_UINT64];
             break;
-
-        case UA_PUBLISHERDATATYPE_STRING:
-            rv |= encodeJsonInternal(&src->publisherId.publisherIdString,
-                                     &UA_TYPES[UA_TYPES_STRING], ctx);
+        case UA_PUBLISHERIDTYPE_STRING:
+            publisherIdType = &UA_TYPES[UA_TYPES_STRING];
             break;
         }
+        rv |= encodeJsonInternal(&src->publisherId,
+                                 publisherIdType, ctx);
     }
     if(rv != UA_STATUSCODE_GOOD)
         return rv;
@@ -285,28 +280,39 @@ DataSetPayload_decodeJsonInternal(void* dsmP, const UA_DataType *type,
         return UA_STATUSCODE_GOOD;
     }
 
-    size_t length = (size_t)parseCtx->tokenArray[parseCtx->index].size;
+    if(currentTokenType(parseCtx) != CJ5_TOKEN_OBJECT)
+        return UA_STATUSCODE_BADDECODINGERROR;
+
+    /* The number of key-value pairs */
+    UA_assert(parseCtx->tokenArray[parseCtx->index].size % 2 == 0);
+    size_t length = (size_t)(parseCtx->tokenArray[parseCtx->index].size) / 2;
+
     UA_String *fieldNames = (UA_String*)UA_calloc(length, sizeof(UA_String));
+    if(!fieldNames)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
     dsm->data.keyFrameData.fieldNames = fieldNames;
     dsm->data.keyFrameData.fieldCount = (UA_UInt16)length;
+
     dsm->data.keyFrameData.dataSetFields = (UA_DataValue *)
         UA_Array_new(dsm->data.keyFrameData.fieldCount, &UA_TYPES[UA_TYPES_DATAVALUE]);
+    if(!dsm->data.keyFrameData.dataSetFields)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
 
+    parseCtx->index++; /* Go to the first key */
+
+    /* Iterate over the key/value pairs in the object. Keys are stored in fieldnames. */
     status ret = UA_STATUSCODE_GOOD;
-
-    parseCtx->index++; // We go to first Object key!
-
-    /* iterate over the key/value pairs in the object. Keys are stored in fieldnames. */
     for(size_t i = 0; i < length; ++i) {
+        UA_assert(currentTokenType(parseCtx) == CJ5_TOKEN_STRING);
         ret = decodeJsonJumpTable[UA_DATATYPEKIND_STRING](&fieldNames[i], type, ctx, parseCtx);
         if(ret != UA_STATUSCODE_GOOD)
             return ret;
 
-        //TODO: Is field value a variant or datavalue? Current check if type and body present.
+        /* TODO: Is field value a variant or datavalue? Current check if type and body present. */
         size_t searchResult = 0;
         status foundType = lookAheadForKey("Type", ctx, parseCtx, &searchResult);
         status foundBody = lookAheadForKey("Body", ctx, parseCtx, &searchResult);
-        if(foundType == UA_STATUSCODE_GOOD && foundBody == UA_STATUSCODE_GOOD){
+        if(foundType == UA_STATUSCODE_GOOD && foundBody == UA_STATUSCODE_GOOD) {
             dsm->header.fieldEncoding = UA_FIELDENCODING_VARIANT;
             ret = decodeJsonJumpTable[UA_DATATYPEKIND_VARIANT]
                 (&dsm->data.keyFrameData.dataSetFields[i].value, type, ctx, parseCtx);
@@ -375,7 +381,7 @@ static status
 DatasetMessage_Array_decodeJsonInternal(void *UA_RESTRICT dst, const UA_DataType *type,
                                         CtxJson *ctx, ParseCtx *parseCtx) {
     /* Array! */
-    if(getJsmnType(parseCtx) != JSMN_ARRAY)
+    if(currentTokenType(parseCtx) != CJ5_TOKEN_ARRAY)
         return UA_STATUSCODE_BADDECODINGERROR;
     size_t length = (size_t)parseCtx->tokenArray[parseCtx->index].size;
 
@@ -422,12 +428,14 @@ NetworkMessage_decodeJsonInternal(UA_NetworkMessage *dst, CtxJson *ctx,
     status found = lookAheadForKey(UA_DECODEKEY_PUBLISHERID, ctx,
                                    parseCtx, &searchResultPublishIdType);
     if(found == UA_STATUSCODE_GOOD) {
-        jsmntok_t publishIdToken = parseCtx->tokenArray[searchResultPublishIdType];
-        if(publishIdToken.type == JSMN_PRIMITIVE) {
-            pubIdType = &UA_TYPES[UA_TYPES_UINT64];
-            dst->publisherIdType = UA_PUBLISHERDATATYPE_UINT64; //store in biggest possible
-        } else if(publishIdToken.type == JSMN_STRING) {
-            dst->publisherIdType = UA_PUBLISHERDATATYPE_STRING;
+        cj5_token *publishIdToken = &parseCtx->tokenArray[searchResultPublishIdType];
+        if(publishIdToken->type == CJ5_TOKEN_NUMBER) {
+            // store in biggest possible. The problem is that with a UInt64 a string is expected in the json.
+            // Therefore, the maximum value is set to UInt32.
+            pubIdType = &UA_TYPES[UA_TYPES_UINT32];
+            dst->publisherIdType = UA_PUBLISHERIDTYPE_UINT32;
+        } else if(publishIdToken->type == CJ5_TOKEN_STRING) {
+            dst->publisherIdType = UA_PUBLISHERIDTYPE_STRING;
         } else {
             return UA_STATUSCODE_BADDECODINGERROR;
         }
@@ -438,8 +446,8 @@ NetworkMessage_decodeJsonInternal(UA_NetworkMessage *dst, CtxJson *ctx,
     found = lookAheadForKey(UA_DECODEKEY_MESSAGES, ctx, parseCtx, &searchResultMessages);
     if(found != UA_STATUSCODE_GOOD)
         return UA_STATUSCODE_BADNOTIMPLEMENTED;
-    jsmntok_t bodyToken = parseCtx->tokenArray[searchResultMessages];
-    if(bodyToken.type != JSMN_ARRAY)
+    cj5_token *bodyToken = &parseCtx->tokenArray[searchResultMessages];
+    if(bodyToken->type != CJ5_TOKEN_ARRAY)
         return UA_STATUSCODE_BADNOTIMPLEMENTED;
     size_t messageCount = (size_t)parseCtx->tokenArray[searchResultMessages].size;
 
@@ -454,8 +462,7 @@ NetworkMessage_decodeJsonInternal(UA_NetworkMessage *dst, CtxJson *ctx,
     found = lookAheadForKey(UA_DECODEKEY_MESSAGETYPE, ctx, parseCtx, &searchResultMessageType);
     if(found != UA_STATUSCODE_GOOD)
         return UA_STATUSCODE_BADDECODINGERROR;
-    size_t size = (size_t)(parseCtx->tokenArray[searchResultMessageType].end -
-                           parseCtx->tokenArray[searchResultMessageType].start);
+    size_t size = getTokenLength(&parseCtx->tokenArray[searchResultMessageType]);
     char* msgType = (char*)(ctx->pos + parseCtx->tokenArray[searchResultMessageType].start);
     if(size == 7) { //ua-data
         if(strncmp(msgType, "ua-data", size) != 0)
@@ -472,20 +479,16 @@ NetworkMessage_decodeJsonInternal(UA_NetworkMessage *dst, CtxJson *ctx,
     //TODO: MetaData
     if(!isUaData)
         return UA_STATUSCODE_BADNOTIMPLEMENTED;
-        
+
     /* Network Message */
     UA_String messageType;
     DecodeEntry entries[5] = {
         {UA_DECODEKEY_MESSAGEID, &dst->messageId, NULL, false, &UA_TYPES[UA_TYPES_STRING]},
         {UA_DECODEKEY_MESSAGETYPE, &messageType, NULL, false, NULL},
-        {UA_DECODEKEY_PUBLISHERID, &dst->publisherId.publisherIdString, NULL, false, pubIdType},
+        {UA_DECODEKEY_PUBLISHERID, &dst->publisherId, NULL, false, pubIdType},
         {UA_DECODEKEY_DATASETCLASSID, &dst->dataSetClassId, NULL, false, &UA_TYPES[UA_TYPES_GUID]},
         {UA_DECODEKEY_MESSAGES, &dst->payload.dataSetPayload.dataSetMessages, &DatasetMessage_Array_decodeJsonInternal, false, NULL}
     };
-
-    //Store publisherId in correct union
-    if(pubIdType == &UA_TYPES[UA_TYPES_UINT64])
-        entries[2].fieldPointer = &dst->publisherId.publisherIdUInt64;
 
     status ret = decodeFields(ctx, parseCtx, entries, 5);
     if(ret != UA_STATUSCODE_GOOD)
@@ -493,8 +496,13 @@ NetworkMessage_decodeJsonInternal(UA_NetworkMessage *dst, CtxJson *ctx,
 
     dst->messageIdEnabled = entries[0].found;
     dst->publisherIdEnabled = entries[2].found;
-    if(dst->publisherIdEnabled)
-        dst->publisherIdType = UA_PUBLISHERDATATYPE_STRING;
+    if(dst->publisherIdEnabled) {
+        if(pubIdType == &UA_TYPES[UA_TYPES_UINT32]) {
+            dst->publisherIdType = UA_PUBLISHERIDTYPE_UINT32;
+        } else {
+            dst->publisherIdType = UA_PUBLISHERIDTYPE_STRING;
+        }
+    }
     dst->dataSetClassIdEnabled = entries[3].found;
     dst->payloadHeaderEnabled = true;
     dst->payloadHeader.dataSetPayloadHeader.count = (UA_Byte)messageCount;
@@ -511,11 +519,11 @@ UA_NetworkMessage_decodeJson(UA_NetworkMessage *dst, const UA_ByteString *src) {
     memset(&ctx, 0, sizeof(CtxJson));
     ParseCtx parseCtx;
     memset(&parseCtx, 0, sizeof(ParseCtx));
-    parseCtx.tokenArray = (jsmntok_t*)
-        UA_malloc(sizeof(jsmntok_t) * UA_JSON_MAXTOKENCOUNT);
+    parseCtx.tokenArray = (cj5_token*)
+        UA_malloc(sizeof(cj5_token) * UA_JSON_MAXTOKENCOUNT);
     if(!parseCtx.tokenArray)
         return UA_STATUSCODE_BADOUTOFMEMORY;
-    memset(parseCtx.tokenArray, 0, sizeof(jsmntok_t) * UA_JSON_MAXTOKENCOUNT);
+    memset(parseCtx.tokenArray, 0, sizeof(cj5_token) * UA_JSON_MAXTOKENCOUNT);
     status ret = tokenize(&parseCtx, &ctx, src, UA_JSON_MAXTOKENCOUNT);
     if(ret != UA_STATUSCODE_GOOD)
         return ret;

@@ -195,7 +195,7 @@ UA_CreateCertificate(const UA_Logger *logger,
     for(UA_UInt32 iSubject = 0; iSubject < subjectSize; ++iSubject) {
         UA_Int32 sep = UA_String_chr(&subject[iSubject], '=');
         char field[16];
-        if(sep == -1 || sep == 0 || 
+        if(sep == -1 || sep == 0 ||
             ((size_t) sep == (subject[iSubject].length - 1)) || sep >= 15) {
             UA_LOG_ERROR(logger, UA_LOGCATEGORY_SECURECHANNEL,
                          "Create Certificate: Subject must contain one '=' with "

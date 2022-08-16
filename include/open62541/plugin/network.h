@@ -52,8 +52,9 @@ typedef enum {
                                     * will be deleted */
     UA_CONNECTIONSTATE_OPENING,    /* The socket is open, but the HEL/ACK handshake
                                     * is not done */
-    UA_CONNECTIONSTATE_ESTABLISHED /* The socket is open and the connection
+    UA_CONNECTIONSTATE_ESTABLISHED,/* The socket is open and the connection
                                     * configured */
+    UA_CONNECTIONSTATE_CLOSING     /* The socket is closing down */
 } UA_ConnectionState;
 
 struct UA_Connection {
