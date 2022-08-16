@@ -87,6 +87,16 @@ writeChar(CtxJson *ctx, char c) {
     return UA_STATUSCODE_GOOD;
 }
 
+static status UA_FUNC_ATTR_WARN_UNUSED_RESULT
+writeChars(CtxJson *ctx, const char *c, size_t len) {
+    if(ctx->pos + len > ctx->end)
+        return UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED;
+    if(!ctx->calcOnly)
+        memcpy(ctx->pos, c, len);
+    ctx->pos += len;
+    return UA_STATUSCODE_GOOD;
+}
+
 #define WRITE_JSON_ELEMENT(ELEM)                            \
     UA_FUNC_ATTR_WARN_UNUSED_RESULT status                  \
     writeJson##ELEM(CtxJson *ctx)
@@ -185,21 +195,6 @@ writeJsonObjElm(CtxJson *ctx, const char *key,
     return writeJsonKey(ctx, key) | encodeJsonJumpTable[type->typeKind](ctx, value, type);
 }
 
-status
-writeJsonNull(CtxJson *ctx) {
-    if(ctx->pos + 4 > ctx->end)
-        return UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED;
-    if(ctx->calcOnly) {
-        ctx->pos += 4;
-    } else {
-        *(ctx->pos++) = 'n';
-        *(ctx->pos++) = 'u';
-        *(ctx->pos++) = 'l';
-        *(ctx->pos++) = 'l';
-    }
-    return UA_STATUSCODE_GOOD;
-}
-
 /* Keys for JSON */
 
 /* LocalizedText */
@@ -276,34 +271,9 @@ isNull(const void *p, const UA_DataType *type) {
 
 /* Boolean */
 ENCODE_JSON(Boolean) {
-    size_t sizeOfJSONBool;
-    if(*src == true) {
-        sizeOfJSONBool = 4; /* true */
-    } else {
-        sizeOfJSONBool = 5; /* false */
-    }
-
-    if(ctx->calcOnly) {
-        ctx->pos += sizeOfJSONBool;
-        return UA_STATUSCODE_GOOD;
-    }
-
-    if(ctx->pos + sizeOfJSONBool > ctx->end)
-        return UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED;
-
-    if(*src) {
-        *(ctx->pos++) = 't';
-        *(ctx->pos++) = 'r';
-        *(ctx->pos++) = 'u';
-        *(ctx->pos++) = 'e';
-    } else {
-        *(ctx->pos++) = 'f';
-        *(ctx->pos++) = 'a';
-        *(ctx->pos++) = 'l';
-        *(ctx->pos++) = 's';
-        *(ctx->pos++) = 'e';
-    }
-    return UA_STATUSCODE_GOOD;
+    if(*src == true)
+        return writeChars(ctx, "true", 4);
+    return writeChars(ctx, "false", 5);
 }
 
 /* Byte */
@@ -403,7 +373,6 @@ ENCODE_JSON(UInt64) {
 
     if(!ctx->calcOnly)
         memcpy(ctx->pos, buf, length);
-
     ctx->pos += length;
     return UA_STATUSCODE_GOOD;
 }
@@ -446,7 +415,6 @@ ENCODE_JSON(Float) {
 
     if(!ctx->calcOnly)
         memcpy(ctx->pos, buffer, len);
-
     ctx->pos += len;
     return UA_STATUSCODE_GOOD;
 }
@@ -472,7 +440,6 @@ ENCODE_JSON(Double) {
 
     if(!ctx->calcOnly)
         memcpy(ctx->pos, buffer, len);
-
     ctx->pos += len;
     return UA_STATUSCODE_GOOD;
 }
@@ -492,7 +459,7 @@ encodeJsonArray(CtxJson *ctx, const void *ptr, size_t length,
     for(size_t i = 0; i < length && ret == UA_STATUSCODE_GOOD; ++i) {
         ret |= writeJsonBeforeElement(ctx, distinct);
         if(isNull((const void*)uptr, type))
-            ret |= writeJsonNull(ctx); /* null values are written as "null" */
+            ret |= writeChars(ctx, "null", 4);
         else
             ret |= encodeType(ctx, (const void*)uptr, type);
         ctx->commaNeeded[ctx->depth] = true;
@@ -507,7 +474,7 @@ static const u8 hexmap[16] =
 
 ENCODE_JSON(String) {
     if(!src->data)
-        return writeJsonNull(ctx);
+        return writeChars(ctx, "null", 4);
 
     if(src->length == 0)
         return writeJsonQuote(ctx) | writeJsonQuote(ctx);
@@ -626,7 +593,7 @@ ENCODE_JSON(String) {
 
 ENCODE_JSON(ByteString) {
     if(!src->data)
-        return writeJsonNull(ctx);
+        return writeChars(ctx, "null", 4);
 
     if(src->length == 0) {
         status retval = writeJsonQuote(ctx);
@@ -963,7 +930,7 @@ ENCODE_JSON(StatusCode) {
 /* ExtensionObject */
 ENCODE_JSON(ExtensionObject) {
     if(src->encoding == UA_EXTENSIONOBJECT_ENCODED_NOBODY)
-        return writeJsonNull(ctx);
+        return writeChars(ctx, "null", 4);
 
     /* Must have a type set if data is decoded */
     if(src->encoding != UA_EXTENSIONOBJECT_ENCODED_BYTESTRING &&

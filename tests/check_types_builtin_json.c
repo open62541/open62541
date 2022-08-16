@@ -5368,7 +5368,6 @@ START_TEST(UA_JsonHelper) {
     ck_assert_int_eq(writeJsonObjStart(&ctx), UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED);
     ck_assert_int_eq(writeJsonObjEnd(&ctx), UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED);
     ck_assert_int_eq(writeJsonArrEnd(&ctx), UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED);
-    ck_assert_int_eq(writeJsonNull(&ctx), UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED);
 
     ctx.calcOnly = true;
     ctx.end = (const UA_Byte*)(uintptr_t)SIZE_MAX;
@@ -5376,7 +5375,6 @@ START_TEST(UA_JsonHelper) {
     ck_assert_int_eq(writeJsonObjStart(&ctx), UA_STATUSCODE_GOOD);
     ck_assert_int_eq(writeJsonObjEnd(&ctx), UA_STATUSCODE_GOOD);
     ck_assert_int_eq(writeJsonArrEnd(&ctx), UA_STATUSCODE_GOOD);
-    ck_assert_int_eq(writeJsonNull(&ctx), UA_STATUSCODE_GOOD);
 }
 END_TEST
 
