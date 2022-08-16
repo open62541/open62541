@@ -200,6 +200,8 @@ setupNetworkInterface(UA_PubSubChannelDataUDPMC *channelDataUDPMC,
                          "Interface configuration preparation failed.");
             return UA_STATUSCODE_BADINTERNALERROR;
         }
+        memcpy(&channelDataUDPMC->intf_addr, &channelDataUDPMC->ipMulticastRequest.ipv6.ipv6mr_interface,
+               sizeof(channelDataUDPMC->ipMulticastRequest.ipv6.ipv6mr_interface));
 #endif
     } else {
         UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_NETWORK,
@@ -594,6 +596,7 @@ UA_PubSubChannelUDPMC_regist(UA_PubSubChannel *channel, UA_ExtensionObject *tran
         memcpy(&groupV6.ipv6mr_multiaddr,
                &((const struct sockaddr_in6 *) &connectionConfig->ai_addr)->sin6_addr,
                sizeof(struct in6_addr));
+        memcpy(&groupV6.ipv6mr_interface, &connectionConfig->intf_addr, sizeof(int));
 
         if(UA_setsockopt(channel->sockfd,
             connectionConfig->ai_family == PF_INET6 ? IPPROTO_IPV6 : IPPROTO_IP,
