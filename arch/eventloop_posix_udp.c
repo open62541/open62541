@@ -10,7 +10,7 @@
 
 #define IPV4_PREFIX_MASK 0xF0
 #define IPV4_MULTICAST_PREFIX 0xE0
-#ifdef UA_IPV6
+#if UA_IPV6
 #   define IPV6_PREFIX_MASK 0xFF
 #   define IPV6_MULTICAST_PREFIX 0xFF
 #endif
@@ -271,10 +271,12 @@ isIPv4MulticastAddress(const UA_Byte *address) {
     return isMulticastAddress(address, IPV4_PREFIX_MASK, IPV4_MULTICAST_PREFIX);
 }
 
+#if UA_IPV6
 static UA_Boolean
 isIPv6MulticastAddress(const UA_Byte *address) {
     return isMulticastAddress(address, IPV6_PREFIX_MASK, IPV6_MULTICAST_PREFIX);
 }
+#endif
 
 static UA_StatusCode
 setConnectionConfig(UA_FD socket, const UA_KeyValuePair *connectionProperties,
@@ -433,7 +435,7 @@ setupListenMulticastIPv4(UA_FD socket, size_t paramsSize, const UA_KeyValuePair 
     return UA_STATUSCODE_GOOD;
 }
 
-#ifdef UA_IPV6
+#if UA_IPV6
 static UA_StatusCode
 setupListenMulticastIPv6(UA_FD socket, size_t paramsSize, const UA_KeyValuePair *params, struct sockaddr_in6 *addr,
                          const UA_Logger *logger) {
@@ -705,7 +707,7 @@ checkForListenMulticastAndConfigure(struct addrinfo *info, size_t paramsSize, co
                                            paramsSize, params, (struct sockaddr_in *)info->ai_addr,
                                            logger);
         }
-#ifdef UA_IPV6
+#if UA_IPV6
     } else if(info->ai_family == AF_INET6) {
         UA_Byte *addressVal = (UA_Byte *) &((struct sockaddr_in6 *)info->ai_addr)->sin6_addr;
         if(isIPv6MulticastAddress(addressVal)) {
@@ -1029,7 +1031,7 @@ checkForSendMulticastAndConfigure(size_t paramsSize, const UA_KeyValuePair *para
                                          paramsSize,
                                          params, logger);
         }
-#ifdef UA_IPV6
+#if UA_IPV6
     } else if(info->ai_family == AF_INET6) {
         struct sockaddr_in6* addr = (struct sockaddr_in6 *)info->ai_addr;
         UA_Byte *addressVal = (UA_Byte *) &addr->sin6_addr;
