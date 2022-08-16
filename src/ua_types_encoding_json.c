@@ -1331,25 +1331,30 @@ UA_print(const void *p, const UA_DataType *type, UA_String *output) {
 /* CalcSize */
 /************/
 
-static size_t
-UA_calcSizeJsonInternal(const void *src, const UA_DataType *type,
-                const UA_String *namespaces, size_t namespaceSize,
-                const UA_String *serverUris, size_t serverUriSize,
-                UA_Boolean useReversible) {
+size_t
+UA_calcSizeJson(const void *src, const UA_DataType *type,
+                const UA_EncodeJsonOptions *options) {
     if(!src || !type)
         return UA_STATUSCODE_BADINTERNALERROR;
 
     /* Set up the context */
     CtxJson ctx;
     memset(&ctx, 0, sizeof(ctx));
-    ctx.pos = 0;
+    ctx.pos = NULL;
     ctx.end = (const UA_Byte*)(uintptr_t)SIZE_MAX;
     ctx.depth = 0;
-    ctx.namespaces = namespaces;
-    ctx.namespacesSize = namespaceSize;
-    ctx.serverUris = serverUris;
-    ctx.serverUrisSize = serverUriSize;
-    ctx.useReversible = useReversible;
+    ctx.useReversible = true; /* default */
+    if(options) {
+        ctx.namespaces = options->namespaces;
+        ctx.namespacesSize = options->namespacesSize;
+        ctx.serverUris = options->serverUris;
+        ctx.serverUrisSize = options->serverUrisSize;
+        ctx.useReversible = options->useReversible;
+        ctx.prettyPrint = options->prettyPrint;
+        ctx.unquotedKeys = options->unquotedKeys;
+        ctx.stringNodeIds = options->stringNodeIds;
+    }
+
     ctx.calcOnly = true;
 
     /* Encode */
@@ -1357,18 +1362,6 @@ UA_calcSizeJsonInternal(const void *src, const UA_DataType *type,
     if(ret != UA_STATUSCODE_GOOD)
         return 0;
     return (size_t)ctx.pos;
-}
-
-size_t
-UA_calcSizeJson(const void *src, const UA_DataType *type,
-                const UA_EncodeJsonOptions *options) {
-    if(options) {
-        return UA_calcSizeJsonInternal(src, type, options->namespaces,
-                                       options->namespacesSize, options->serverUris,
-                                       options->serverUrisSize, options->useReversible);
-    }
-    return UA_calcSizeJsonInternal(src, type, &UA_STRING_NULL, 0u, &UA_STRING_NULL, 0u,
-                                   true);
 }
 
 /**********/
