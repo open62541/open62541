@@ -1705,8 +1705,10 @@ DECODE_JSON(String) {
     r.num_tokens = ctx->tokensSize;
     r.json5 = ctx->json5;
     cj5_error_code err = cj5_get_str(&r, ctx->index, outBuf, &len);
-    if(err != CJ5_ERROR_NONE)
+    if(err != CJ5_ERROR_NONE) {
+        UA_free(outBuf);
         return UA_STATUSCODE_BADDECODINGERROR;
+    }
 
     /* Set the output */
     dst->length = len;
