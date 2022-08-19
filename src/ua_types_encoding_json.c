@@ -505,8 +505,10 @@ ENCODE_JSON(String) {
                 continue;
             }
 
-            /* Mandatory escape or control char */
-            if(codepoint == '\\' || codepoint == '"' || codepoint < 0x20)
+            /* Escape unprintable ASCII, escaped characters and outside the
+             * ASCII range */
+            if(codepoint < ' '   || codepoint > '~'  ||
+               codepoint == '\\' || codepoint == '/' || codepoint == '\"')
                 break;
 
             pos = end;
