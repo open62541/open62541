@@ -489,10 +489,6 @@ ENCODE_JSON(String) {
     const char *lim = str + src->length;
     UA_UInt32 codepoint = 0;
     while(1) {
-        const char *text;
-        u8 seq[13];
-        size_t length;
-
         /* Iterate over codepoints in the utf8 encoding. Until the first
          * character that needs to be escaped. */
         while(end < lim) {
@@ -505,10 +501,12 @@ ENCODE_JSON(String) {
                 continue;
             }
 
-            /* Escape unprintable ASCII, escaped characters and outside the
-             * ASCII range */
-            if(codepoint < ' '   || codepoint > '~'  ||
-               codepoint == '\\' || codepoint == '/' || codepoint == '\"')
+            /* Escape unprintable ASCII and escape characters */
+            if(codepoint < ' '   || codepoint == 127  ||
+               codepoint == '\\' || codepoint == '\"' ||
+               codepoint == '\b' || codepoint == '\f' ||
+               codepoint == '\n' || codepoint == '\r' ||
+               codepoint == '\t')
                 break;
 
             pos = end;
@@ -528,7 +526,10 @@ ENCODE_JSON(String) {
             break;
 
         /* Handle an escaped character */
-        length = 2;
+        size_t length = 2;
+        u8 seq[13];
+        const char *text;
+
         switch(codepoint) {
         case '\\': text = "\\\\"; break;
         case '\"': text = "\\\""; break;
@@ -537,8 +538,8 @@ ENCODE_JSON(String) {
         case '\n': text = "\\n"; break;
         case '\r': text = "\\r"; break;
         case '\t': text = "\\t"; break;
-        case '/':  text = "\\/"; break;
         default:
+            text = (char*)seq;
             if(codepoint < 0x10000) {
                 /* codepoint is in BMP */
                 seq[0] = '\\';
@@ -555,20 +556,16 @@ ENCODE_JSON(String) {
                 codepoint -= 0x10000;
                 UA_UInt32 first = 0xD800u | ((codepoint & 0xffc00u) >> 10u);
                 UA_UInt32 last = 0xDC00u | (codepoint & 0x003ffu);
-
                 UA_Byte fb1 = (UA_Byte)(first >> 8u);
                 UA_Byte fb2 = (UA_Byte)(first >> 0u);
-
                 UA_Byte lb1 = (UA_Byte)(last >> 8u);
                 UA_Byte lb2 = (UA_Byte)(last >> 0u);
-
                 seq[0] = '\\';
                 seq[1] = 'u';
                 seq[2] = hexmap[(fb1 & 0xF0u) >> 4u];
                 seq[3] = hexmap[fb1 & 0x0Fu];
                 seq[4] = hexmap[(fb2 & 0xF0u) >> 4u];
                 seq[5] = hexmap[fb2 & 0x0Fu];
-
                 seq[6] = '\\';
                 seq[7] = 'u';
                 seq[8] = hexmap[(lb1 & 0xF0u) >> 4u];
@@ -577,10 +574,8 @@ ENCODE_JSON(String) {
                 seq[11] = hexmap[lb2 & 0x0Fu];
                 length = 12;
             }
-            text = (char*)seq;
             break;
         }
-
         if(ctx->pos + length > ctx->end)
             return UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED;
         if(!ctx->calcOnly)
