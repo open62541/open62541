@@ -739,8 +739,11 @@ cj5_get_str(const cj5_result *r, unsigned int tok_index,
             continue;
         }
 
-        // Unprintable ascii character
-        if(c < 32 || c == 127)
+        // Unprintable ascii characters must be escaped. JSON5 allows nested
+        // quotes if the quote character is not the same as the surrounding
+        // quote character, e.g. 'this is my "quote"'. This logic is in the
+        // token parsing code and not in this "string extraction" method.
+        if(c < ' '   || c == 127)
             return CJ5_ERROR_INVALID;
 
         // Ascii character or utf8 byte
