@@ -79,20 +79,9 @@ cj5__isrange(char ch, char from, char to) {
     return (uint8_t)(ch - from) <= (uint8_t)(to - from);
 }
 
-static CJ5_INLINE bool
-cj5__isupperchar(char ch) {
-    return cj5__isrange(ch, 'A', 'Z');
-}
-
-static CJ5_INLINE bool
-cj5__islowerchar(char ch) {
-    return cj5__isrange(ch, 'a', 'z');
-}
-
-static CJ5_INLINE bool
-cj5__isnum(char ch) {
-    return cj5__isrange(ch, '0', '9');
-}
+#define cj5__isupperchar(ch) cj5__isrange(ch, 'A', 'Z')
+#define cj5__islowerchar(ch) cj5__isrange(ch, 'a', 'z')
+#define cj5__isnum(ch)       cj5__isrange(ch, '0', '9')
 
 static cj5_token *
 cj5__alloc_token(cj5__parser *parser) {
