@@ -469,8 +469,53 @@ encodeJsonArray(CtxJson *ctx, const void *ptr, size_t length,
     return ret;
 }
 
+static const uint32_t min_codepoints[5] = {0x00, 0x00, 0x80, 0x800, 0x10000};
 static const u8 hexmap[16] =
     {'0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f'};
+
+/* Extract the next utf8 codepoint from the buffer. Return the next position in
+ * the buffer or NULL upon an error. */
+static const unsigned char *
+extract_codepoint(const unsigned char *pos, size_t len, uint32_t *codepoint) {
+    UA_assert(len > 0);
+
+    *codepoint = pos[0];
+    if(UA_LIKELY(*codepoint < 0x80))
+        return pos + 1; /* Normal ASCII */
+
+    if(UA_UNLIKELY(*codepoint <= 0xC1))
+        return NULL; /* Continuation byte not allowed here */
+
+    unsigned char count;
+    if(*codepoint <= 0xDF) {
+        count = 2; /* 2-byte sequence */
+        *codepoint &= 0x1F;
+    } else if(*codepoint <= 0xEF) {
+        count = 3; /* 3-byte sequence */
+        *codepoint &= 0xF;
+    } else if(*codepoint <= 0xF4) {
+        count = 4; /* 4-byte sequence */
+        *codepoint &= 0x7;
+    } else {
+        return NULL; /* invalid utf8 */
+    }
+
+    if(UA_UNLIKELY(count > len))
+        return NULL; /* Not enough bytes left */
+
+    for(unsigned char i = 1; i < count; i++) {
+        unsigned char byte = pos[i];
+        if(UA_UNLIKELY(byte < 0x80 || byte > 0xBF))
+            return NULL; /* Not a continuation byte */
+        *codepoint = (*codepoint << 6) + (byte & 0x3F);
+    }
+
+    /* Not in Unicode range or too small for the encoding length */
+    if(UA_UNLIKELY(*codepoint > 0x10FFFF || *codepoint < min_codepoints[count]))
+        return NULL;
+
+    return pos + count; /* Return the new position in the pos */
+}
 
 ENCODE_JSON(String) {
     if(!src->data)
@@ -481,18 +526,16 @@ ENCODE_JSON(String) {
 
     UA_StatusCode ret = writeJsonQuote(ctx);
 
-    /* Escaping adapted from https://github.com/akheron/jansson dump.c */
-
-    const char *str = (char*)src->data;
-    const char *pos = str;
-    const char *end = str;
-    const char *lim = str + src->length;
-    UA_UInt32 codepoint = 0;
+    const unsigned char *str = src->data;
+    const unsigned char *pos = str;
+    const unsigned char *end = str;
+    const unsigned char *lim = str + src->length;
+    uint32_t codepoint = 0;
     while(1) {
         /* Iterate over codepoints in the utf8 encoding. Until the first
          * character that needs to be escaped. */
         while(end < lim) {
-            end = utf8_iterate(pos, (size_t)(lim - pos), (int32_t *)&codepoint);
+            end = extract_codepoint(pos, (size_t)(lim - pos), &codepoint);
             if(!end)  {
                 /* A malformed utf8 character. Print anyway and let the
                  * receiving side choose how to handle it. */
