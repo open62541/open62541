@@ -503,10 +503,7 @@ ENCODE_JSON(String) {
 
             /* Escape unprintable ASCII and escape characters */
             if(codepoint < ' '   || codepoint == 127  ||
-               codepoint == '\\' || codepoint == '\"' ||
-               codepoint == '\b' || codepoint == '\f' ||
-               codepoint == '\n' || codepoint == '\r' ||
-               codepoint == '\t')
+               codepoint == '\\' || codepoint == '\"')
                 break;
 
             pos = end;
