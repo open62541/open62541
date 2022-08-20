@@ -19,7 +19,6 @@
 
 #include "../deps/itoa.h"
 #include "../deps/parse_num.h"
-#include "../deps/string_escape.h"
 #include "../deps/base64.h"
 #include "../deps/libc_time.h"
 
