@@ -1352,11 +1352,13 @@ int main(int argc, char **argv) {
         }
     }
 
+#ifdef UA_ENABLE_PUBSUB_ETH_UADP
     if (!interface) {
         UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "Need a network interface to run");
         usage(progname);
         return -1;
     }
+#endif
 
     if (cycleTimeInMsec < 0.125) {
         UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "%f Bad cycle time", cycleTimeInMsec);
