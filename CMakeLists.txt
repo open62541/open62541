@@ -471,9 +471,7 @@ if(UA_ENABLE_PUBSUB_MQTT)
         message(FATAL_ERROR "Amalgamation cannot be generated with MQTT enabled")
     endif()
 
-    if(NOT UA_FILE_MQTT)
-        set(UA_FILE_MQTT ${open62541_MQTT_DIR}/src/mqtt.c)
-    endif()
+    set(UA_FILE_MQTT ${open62541_MQTT_DIR}/src/mqtt.c)
     if(NOT EXISTS "${UA_FILE_MQTT}")
         message(STATUS "Submodule update")
         execute_process(COMMAND ${GIT_EXECUTABLE} submodule update --init --recursive
@@ -482,21 +480,6 @@ if(UA_ENABLE_PUBSUB_MQTT)
             message(FATAL_ERROR "git submodule update --init --recursive failed with ${GIT_SUBMOD_RESULT}")
         endif()
     endif()
-    # Warn if run in Windows
-    if(WIN32)
-        MESSAGE(WARNING "Multithreading is enabled in MQTT plugin. This feature is under development and marked as EXPERIMENTAL")
-    endif()
-    # Warn if run in Windows and the MSVC Version is lower than VS 12.0
-    if(WIN32 AND MSVC_VERSION LESS 1800)
-        message(WARNING "The MSVC version does not support the C99 standard. Therefore the file stdint.h will be included.")
-        configure_file(${PROJECT_SOURCE_DIR}/deps/ms_stdint.h "${PROJECT_BINARY_DIR}/src_generated/stdint.h" COPYONLY)
-    endif()
-    if(NOT UA_ENABLE_PUBSUB)
-        message(FATAL_ERROR "Mqtt cannot be used with disabled PubSub function.")
-    endif()
-    configure_file(${PROJECT_SOURCE_DIR}/deps/mqtt-c/include/mqtt.h "${PROJECT_BINARY_DIR}/src_generated/mqtt.h" COPYONLY)
-    configure_file(${PROJECT_SOURCE_DIR}/deps/mqtt-c/include/mqtt_pal.h "${PROJECT_BINARY_DIR}/src_generated/mqtt_pal.h" COPYONLY)
-    configure_file(${PROJECT_SOURCE_DIR}/plugins/mqtt/templates/posix_sockets.h "${PROJECT_BINARY_DIR}/src_generated/posix_sockets.h" COPYONLY)
 endif()
 
 option(UA_ENABLE_MQTT_TLS_OPENSSL "Enable TLS support for publish/subscribe with mqtt (use OpenSSL)" OFF)
@@ -1155,6 +1138,10 @@ if(UA_ENABLE_DISCOVERY)
     list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/src/server/ua_discovery_manager.c)
 endif()
 
+if(UA_ENABLE_PUBSUB_MQTT)
+  list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/arch/eventloop_mqtt.c)
+endif()
+
 if(UA_ENABLE_PUBSUB)
     list(APPEND default_plugin_headers ${PROJECT_SOURCE_DIR}/plugins/include/open62541/plugin/pubsub_udp.h)
     list(APPEND default_plugin_sources ${PROJECT_SOURCE_DIR}/plugins/ua_pubsub_udp.c)
@@ -1172,12 +1159,10 @@ if(UA_ENABLE_PUBSUB)
         if(WIN32)
             MESSAGE(WARNING "Multithreading is enabled in MQTT plugin. This feature is under development and marked as EXPERIMENTAL")
         else()
-            list(APPEND default_plugin_headers ${PROJECT_SOURCE_DIR}/deps/mqtt-c/include/mqtt_pal.h
-                 ${PROJECT_SOURCE_DIR}/deps/mqtt-c/include/mqtt.h
+            list(APPEND default_plugin_headers
                  ${PROJECT_SOURCE_DIR}/plugins/include/open62541/plugin/pubsub_mqtt.h
                  ${PROJECT_SOURCE_DIR}/plugins/mqtt/ua_mqtt-c_adapter.h)
-            list(APPEND default_plugin_sources ${PROJECT_SOURCE_DIR}/deps/mqtt-c/src/mqtt_pal.c
-                 ${PROJECT_SOURCE_DIR}/deps/mqtt-c/src/mqtt.c
+            list(APPEND default_plugin_sources
                  ${PROJECT_SOURCE_DIR}/plugins/ua_pubsub_mqtt.c
                  ${PROJECT_SOURCE_DIR}/plugins/mqtt/ua_mqtt-c_adapter.c)
         endif()
