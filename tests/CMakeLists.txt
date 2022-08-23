@@ -137,8 +137,6 @@ if(UA_ENABLE_PUBSUB)
            ${PROJECT_SOURCE_DIR}/deps/mqtt-c/include/mqtt.h
            ${PROJECT_SOURCE_DIR}/plugins/include/open62541/plugin/pubsub_mqtt.h
            ${PROJECT_SOURCE_DIR}/plugins/mqtt/ua_mqtt-c_adapter.h
-           ${PROJECT_SOURCE_DIR}/deps/mqtt-c/src/mqtt.c
-           ${PROJECT_SOURCE_DIR}/deps/mqtt-c/src/mqtt_pal.c
            ${PROJECT_SOURCE_DIR}/plugins/ua_pubsub_mqtt.c
            ${PROJECT_SOURCE_DIR}/plugins/mqtt/ua_mqtt-c_adapter.c)
     endif()
@@ -365,6 +363,7 @@ if(UA_ENABLE_PUBSUB)
     endif()
     if(UA_ENABLE_PUBSUB_MQTT)
         if(NOT WIN32)
+            ua_add_test(check_eventloop_mqtt.c)
             ua_add_test(pubsub/check_pubsub_connection_mqtt.c)
             ua_add_test(pubsub/check_pubsub_mqtt.c)
         endif()

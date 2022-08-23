@@ -559,6 +559,37 @@ UA_EXPORT UA_ConnectionManager *
 UA_ConnectionManager_new_POSIX_Ethernet(const UA_String eventSourceName);
 
 /**
+ * MQTT Connection Manager
+ * ~~~~~~~~~~~~~~~~~~~~~~~
+ *
+ * The MQTT ConnectionManager reuses the TCP ConnectionManager that is
+ * configured in the EventLoop. Hence the MQTT ConnectionManager is platform
+ * agnostic and does not require porting. An MQTT connection is for a
+ * combination of broker and topic. The MQTT ConnectionManager can group
+ * connections to the same broker in the background. Hence adding multiple
+ * connections for the same broker is "cheap". To have individual control,
+ * separate connections are created for each topic and for each direction
+ * (publishing / subscribing).
+ *
+ * Open Connection Parameters:
+ * - 0:hostname [string]: Hostname (or IPv4/v6 address) of the MQTT broker (required).
+ * - 0:port [uint16]: Port of the MQTT broker (default: 1883).
+ * - 0:username [string]: Username to use (default: none)
+ * - 0:password [string]: Password to use (default: none)
+ * - 0:keep-alive [uint16]: Number of seconds for the keep-alive (ping) (default: 400).
+ *
+ * - 0:topic [string]: Topic to which the connection is associated (required).
+ * - 0:subscribe [bool]: Subscribe to the topic (default: false).
+ *                       Otherwise it is only possible to publish on the topic.
+ *                       Subscribed topics can also be published to.
+ *
+ * Connection Callback Parameters:
+ * - 0:topic [string]: The value set during connect.
+ * - 0:subscribe [bool]: The value set during connect. */
+UA_EXPORT UA_ConnectionManager *
+UA_ConnectionManager_new_MQTT(const UA_String eventSourceName);
+
+/**
  * Signal Interrupt Manager
  * ~~~~~~~~~~~~~~~~~~~~~~~~
  * Create an instance of the interrupt manager that handles POSX signals. This

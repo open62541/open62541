@@ -153,6 +153,14 @@ setDefaultConfig(UA_ServerConfig *conf, UA_UInt16 portNumber) {
             UA_ConnectionManager_new_POSIX_UDP(UA_STRING("udp connection manager"));
         if(udpCM)
             conf->eventLoop->registerEventSource(conf->eventLoop, (UA_EventSource *)udpCM);
+
+#ifdef UA_ENABLE_PUBSUB_MQTT
+        /* Add the MQTT connection manager */
+        UA_ConnectionManager *mqttCM =
+            UA_ConnectionManager_new_MQTT(UA_STRING("mqtt connection manager"));
+        if(mqttCM)
+            conf->eventLoop->registerEventSource(conf->eventLoop, (UA_EventSource *)mqttCM);
+#endif
     }
     if(conf->eventLoop != NULL) {
         if(conf->eventLoop->state != UA_EVENTLOOPSTATE_STARTED) {
