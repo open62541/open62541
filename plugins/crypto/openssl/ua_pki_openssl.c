@@ -68,6 +68,8 @@ typedef struct {
     UA_String             trustListFolder;
     UA_String             issuerListFolder;
     UA_String             revocationListFolder;
+    /* Used with mbedTLS and UA_ENABLE_CERT_REJECTED_DIR option */
+    UA_String             rejectedListFolder;
 
     STACK_OF(X509) *      skIssue;
     STACK_OF(X509) *      skTrusted;
@@ -99,6 +101,7 @@ UA_CertContext_Init (CertContext * context) {
     UA_ByteString_init (&context->trustListFolder);
     UA_ByteString_init (&context->issuerListFolder);
     UA_ByteString_init (&context->revocationListFolder);
+    UA_ByteString_init (&context->rejectedListFolder);
     return UA_CertContext_sk_Init (context);
 }
 
@@ -114,6 +117,7 @@ UA_CertificateVerification_clear (UA_CertificateVerification * cv) {
     UA_ByteString_clear (&context->trustListFolder);
     UA_ByteString_clear (&context->issuerListFolder);
     UA_ByteString_clear (&context->revocationListFolder);
+    UA_ByteString_clear (&context->rejectedListFolder);
 
     UA_CertContext_sk_free (context);
     UA_free (context);

@@ -1,6 +1,17 @@
 This changelog reports changes visible through the public API. Internal refactorings and bug
 fixes are not reported here.
 
+2022-08-04 Robert Mak <makr at keba.com>
+
+ * Saving unknown client certificates
+
+   'UA_CertificateVerification_CertFolders()' has been extended with
+   an additional parameter - path to the folder where the rejected
+   certificate should be stored. This change applies if
+   `UA_ENABLE_CERT_REJECTED_DIR` is set.
+
+   The change was done with pull request #5260.
+
 2022-08-07 Julius Pfrommer <julius.pfrommer at iosb.fraunhofer.de>
 
  * JSON decoding based on JSON5
