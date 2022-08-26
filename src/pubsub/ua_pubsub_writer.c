@@ -301,7 +301,6 @@ generateFieldMetaData(UA_Server *server, UA_PublishedDataSet *pds,
     if(res != UA_STATUSCODE_GOOD) {
         UA_LOG_WARNING_DATASET(&server->config.logger, pds,
                                "PubSub meta data generation: Reading the array dimensions failed");
-        return res;
     }
 
     if(value.arrayDimensionsSize > 0) {
@@ -320,7 +319,6 @@ generateFieldMetaData(UA_Server *server, UA_PublishedDataSet *pds,
     if(res != UA_STATUSCODE_GOOD) {
         UA_LOG_WARNING_DATASET(&server->config.logger, pds,
                                "PubSub meta data generation: Reading the datatype failed");
-        return res;
     }
 
     if(!UA_NodeId_isNull(&fieldMetaData->dataType)) {
@@ -360,7 +358,6 @@ generateFieldMetaData(UA_Server *server, UA_PublishedDataSet *pds,
     if(res != UA_STATUSCODE_GOOD) {
         UA_LOG_WARNING_DATASET(&server->config.logger, pds,
                                "PubSub meta data generation: Reading the value rank failed");
-        return res;
     }
     fieldMetaData->valueRank = valueRank;
 

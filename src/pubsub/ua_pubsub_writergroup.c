@@ -870,7 +870,7 @@ sendNetworkMessageJson(UA_Server *server, UA_PubSubConnection *connection, UA_Wr
     UA_Boolean reversibleEncoding = 
         !(UA_Boolean)(*dsfContentMask & UA_DATASETFIELDCONTENTMASK_RAWDATA);
     /* Compute the message length */
-    size_t msgSize = UA_NetworkMessage_calcSizeJson(&nm, NULL, 0, NULL, 0, reversibleEncoding);
+    size_t msgSize = UA_NetworkMessage_calcSizeJson(&nm, server->namespaces, server->namespacesSize, NULL, 0, reversibleEncoding);
 
     /* Allocate the buffer. Allocate on the stack if the buffer is small. */
     UA_ByteString buf;
@@ -887,7 +887,7 @@ sendNetworkMessageJson(UA_Server *server, UA_PubSubConnection *connection, UA_Wr
     /* Encode the message */
     UA_Byte *bufPos = buf.data;
     const UA_Byte *bufEnd = &buf.data[msgSize];
-    res = UA_NetworkMessage_encodeJson(&nm, &bufPos, &bufEnd, NULL, 0, NULL, 0, reversibleEncoding);
+    res = UA_NetworkMessage_encodeJson(&nm, &bufPos, &bufEnd, server->namespaces, server->namespacesSize, NULL, 0, reversibleEncoding);
     if(res != UA_STATUSCODE_GOOD)
         goto cleanup;
     UA_assert(bufPos == bufEnd);
