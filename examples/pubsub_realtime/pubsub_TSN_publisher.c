@@ -78,7 +78,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <linux/types.h>
-#include <sys/io.h>
 #include <getopt.h>
 
 /* For thread operations */
