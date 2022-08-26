@@ -434,7 +434,7 @@ yieldMqtt(UA_PubSubChannelDataMQTT* channelData, UA_UInt16 timeout){
 }
 
 UA_StatusCode
-publishMqtt(UA_PubSubChannelDataMQTT* channelData, UA_String topic, const UA_ByteString *buf, UA_Byte qos){
+publishMqtt(UA_PubSubChannelDataMQTT* channelData, UA_String topic, const UA_ByteString *buf, UA_Byte qos, UA_Boolean retain){
     if(channelData == NULL || buf == NULL ){
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     }
@@ -448,7 +448,7 @@ publishMqtt(UA_PubSubChannelDataMQTT* channelData, UA_String topic, const UA_Byt
         return UA_STATUSCODE_BADNOTCONNECTED;
 
     /* publish */
-    enum MQTTPublishFlags flags;
+    uint8_t flags;
     if(qos == 0){
         flags = MQTT_PUBLISH_QOS_0;
     }else if( qos == 1){
@@ -460,7 +460,10 @@ publishMqtt(UA_PubSubChannelDataMQTT* channelData, UA_String topic, const UA_Byt
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     }
 
-    enum MQTTErrors mqttErr = mqtt_publish(client, topicChar, buf->data, buf->length, (uint8_t)flags);
+    if(retain)
+        flags |= MQTT_PUBLISH_RETAIN;
+
+    enum MQTTErrors mqttErr = mqtt_publish(client, topicChar, buf->data, buf->length, flags);
     if(mqttErr != MQTT_OK){
         if(mqttErr == MQTT_ERROR_SEND_BUFFER_IS_FULL) {
             UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "PubSub MQTT: publish: Send buffer is full. "

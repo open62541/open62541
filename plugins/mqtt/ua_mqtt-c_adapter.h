@@ -67,7 +67,7 @@ UA_StatusCode
 unSubscribeMqtt(UA_PubSubChannelDataMQTT*, UA_String topic);
 
 UA_StatusCode
-publishMqtt(UA_PubSubChannelDataMQTT*, UA_String topic, const UA_ByteString *buf, UA_Byte qos);
+publishMqtt(UA_PubSubChannelDataMQTT*, UA_String topic, const UA_ByteString *buf, UA_Byte qos, UA_Boolean retain);
 
 UA_StatusCode
 subscribeMqtt(UA_PubSubChannelDataMQTT*, UA_String topic, UA_Byte qos);

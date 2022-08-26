@@ -287,10 +287,15 @@ UA_PubSubChannelMQTT_send(UA_PubSubChannel *channel, UA_ExtensionObject *transpo
     UA_Byte qos = 0;
     UA_BrokerWriterGroupTransportDataType *brokerTransportSettings =
         (UA_BrokerWriterGroupTransportDataType*)transportSettings->content.decoded.data;
+    
     UA_uaQos_toMqttQos(brokerTransportSettings->requestedDeliveryGuarantee, &qos);
+    UA_Boolean retain = false;
+    if (brokerTransportSettings->requestedDeliveryGuarantee == UA_BROKERTRANSPORTQUALITYOFSERVICE_ATLEASTONCE) {
+        retain = true;
+    }
 
     UA_PubSubChannelDataMQTT *channelDataMQTT = (UA_PubSubChannelDataMQTT *) channel->handle;
-    UA_StatusCode ret = publishMqtt(channelDataMQTT, brokerTransportSettings->queueName, buf, qos);
+    UA_StatusCode ret = publishMqtt(channelDataMQTT, brokerTransportSettings->queueName, buf, qos, retain);
     if(ret != UA_STATUSCODE_GOOD) {
         channel->state = UA_PUBSUB_CHANNEL_ERROR;
         UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "PubSub MQTT: Publish failed");
