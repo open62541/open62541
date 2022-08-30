@@ -335,6 +335,7 @@ UA_SecureChannelManager_renew(UA_Server *server, UA_SecureChannel *channel,
     /* Set the response */
     response->securityToken = channel->altSecurityToken;
     response->securityToken.createdAt = UA_DateTime_now(); /* Only for sending */
+    response->responseHeader.timestamp = response->securityToken.createdAt;
     response->responseHeader.requestHandle = request->requestHeader.requestHandle;
     retval = UA_ByteString_copy(&channel->localNonce, &response->serverNonce);
     if(retval != UA_STATUSCODE_GOOD)
