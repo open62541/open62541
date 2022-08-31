@@ -614,7 +614,8 @@ UA_Subscription_publish(UA_Server *server, UA_Subscription *sub) {
 
     /* Repeat sending responses if there are more notifications to send */
     if(moreNotifications)
-        UA_Subscription_publish(server, sub);
+        UA_Server_addTimedCallback(server, (UA_ServerCallback)UA_Subscription_publish,
+                                   sub, UA_DateTime_nowMonotonic(), NULL);
 }
 
 UA_Boolean
