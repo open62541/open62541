@@ -127,20 +127,40 @@ int main(int argc, char *argv[]) {
     if(certfile) {
         UA_ByteString certificate = loadFile(certfile);
         UA_ByteString privateKey  = loadFile(keyfile);
-        if(trustList) {
-            /* Load the trust list */
+
+        UA_ClientConfig_setDefaultEncryption(cc);
+
+     	UA_ClientConfig_PKIStore_storeCertificate(
+     		UA_ClientConfig_PKIStore_getDefault(client),
+     		UA_NODEID_NUMERIC(0, UA_NS0ID_RSAMINAPPLICATIONCERTIFICATETYPE),
+     		&certificate
+     	);
+     	UA_ClientConfig_PKIStore_storeCertificate(
+     		UA_ClientConfig_PKIStore_getDefault(client),
+     		UA_NODEID_NUMERIC(0, UA_NS0ID_RSASHA256APPLICATIONCERTIFICATETYPE),
+     		&certificate
+     	);
+     	UA_ClientConfig_PKIStore_storePrivateKey(
+     		UA_ClientConfig_PKIStore_getDefault(client),
+     		UA_NODEID_NUMERIC(0, UA_NS0ID_RSAMINAPPLICATIONCERTIFICATETYPE),
+     		&privateKey
+     	);
+     	UA_ClientConfig_PKIStore_storePrivateKey(
+     		UA_ClientConfig_PKIStore_getDefault(client),
+     		UA_NODEID_NUMERIC(0, UA_NS0ID_RSASHA256APPLICATIONCERTIFICATETYPE),
+     		&privateKey
+     	);
+
+     	/* FIXME: HUK added trust list certificates  certificateAuth + certificate */
+ /* FIXME: HUK */
+     	if(trustList) {
+#if 0
             size_t trustListSize = 1;
-            UA_STACKARRAY(UA_ByteString, trustListAuth, trustListSize);
-            trustListAuth[0] = loadFile(trustList);
-            UA_ClientConfig_setDefaultEncryption(cc, certificate, privateKey,
-                                                 trustListAuth, trustListSize, NULL, 0);
-            UA_ByteString_clear(&trustListAuth[0]);
-        }else {
-            /* If no trust list is passed, all certificates are accepted. */
-            UA_ClientConfig_setDefaultEncryption(cc, certificate, privateKey,
-                                                 NULL, 0, NULL, 0);
-            UA_CertificateVerification_AcceptAll(&cc->certificateVerification);
-        }
+             UA_STACKARRAY(UA_ByteString, trustListAuth, trustListSize);
+             trustListAuth[0] = loadFile(trustList);
+#endif
+     	}
+
         UA_ByteString_clear(&certificate);
         UA_ByteString_clear(&privateKey);
     } else {

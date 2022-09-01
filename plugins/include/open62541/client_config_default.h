@@ -30,12 +30,52 @@ UA_ClientConfig_setAuthenticationCert(UA_ClientConfig *config,
                                       UA_ByteString certificateAuth, UA_ByteString privateKeyAuth);
 #endif
 
+UA_EXPORT UA_PKIStore*
+UA_ClientConfig_PKIStore_getDefault(UA_Client* client);
+
+UA_EXPORT UA_PKIStore*
+UA_ClientConfig_PKIStore_get(UA_Client* client, const UA_NodeId* certificateGroupId);
+
+UA_EXPORT UA_StatusCode
+UA_ClientConfig_PKIStore_removeContentAll(UA_PKIStore* pkiStore);
+
+UA_EXPORT UA_StatusCode
+UA_ClientConfig_PKIStore_storeTrustList(UA_PKIStore *pkiStore,
+		                         size_t trustedCertificatesSize,
+                                 UA_ByteString *trustedCertificates,
+                                 size_t trustedCrlsSize,
+                                 UA_ByteString *trustedCrls,
+                                 size_t issuerCertificatesSize,
+                                 UA_ByteString *issuerCertificates,
+                                 size_t issuerCrlsSize,
+                                 UA_ByteString *issuerCrls);
+UA_EXPORT UA_StatusCode
+UA_ClientConfig_PKIStore_storeRejectList(UA_PKIStore *pkiStore,
+                                 const UA_ByteString *rejectedList,
+                                 size_t rejectedListSize);
+
+UA_EXPORT UA_StatusCode
+UA_ClientConfig_PKIStore_appendRejectCertificate(UA_PKIStore *pkiStore,
+                                 const UA_ByteString *certificate);
+
+UA_EXPORT UA_StatusCode
+UA_ClientConfig_PKIStore_loadRejectCertificates(UA_PKIStore *pkiStore,
+		                         UA_ByteString **rejectedList,
+		                         size_t *rejectedListSize);
+
+UA_EXPORT UA_StatusCode
+UA_ClientConfig_PKIStore_storeCertificate(UA_PKIStore *pkiStore,
+		                         const UA_NodeId certType,
+								 const UA_ByteString *cert);
+
+UA_EXPORT UA_StatusCode
+UA_ClientConfig_PKIStore_storePrivateKey(UA_PKIStore *pkiStore,
+		                         const UA_NodeId certType,
+								 const UA_ByteString *privateKey);
+
 #ifdef UA_ENABLE_ENCRYPTION
 UA_StatusCode UA_EXPORT
-UA_ClientConfig_setDefaultEncryption(UA_ClientConfig *config,
-                                     UA_ByteString localCertificate, UA_ByteString privateKey,
-                                     const UA_ByteString *trustList, size_t trustListSize,
-                                     const UA_ByteString *revocationList, size_t revocationListSize);
+UA_ClientConfig_setDefaultEncryption(UA_ClientConfig *config);
 #endif
 
 _UA_END_DECLS

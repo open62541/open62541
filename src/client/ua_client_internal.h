@@ -141,6 +141,7 @@ struct UA_Client {
 
     /* Connection */
     UA_String endpointUrl;
+    UA_Endpoint* endpoint;
 
     /* SecureChannel */
     UA_SecureChannel channel;

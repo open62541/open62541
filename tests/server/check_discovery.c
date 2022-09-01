@@ -405,6 +405,8 @@ static void
 GetEndpointsAndCheck(const char* discoveryUrl, const char* filterTransportProfileUri,
                      const UA_String *expectedEndpointUrls,
                      size_t expectedEndpointUrlsSize) {
+	printf("Connect to %s\n", discoveryUrl);
+
     UA_Client *client = UA_Client_new();
     UA_ClientConfig_setDefault(UA_Client_getConfig(client));
 
@@ -413,15 +415,28 @@ GetEndpointsAndCheck(const char* discoveryUrl, const char* filterTransportProfil
     UA_EndpointDescription* endpointArray = NULL;
     size_t endpointArraySize = 0;
     UA_String discoveryUrlUA = UA_String_fromChars(discoveryUrl);
+
+
+    printf("SEND GET ENDPOINTS\n");
+
     UA_StatusCode retval = GetEndpoints(client, &discoveryUrlUA, &endpointArraySize,
                                         &endpointArray, filterTransportProfileUri);
+
+    printf("RECEIVE GET ENDPOINTS\n");
+
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     UA_String_clear(&discoveryUrlUA);
 
-    ck_assert_uint_eq(endpointArraySize , expectedEndpointUrlsSize);
+    ck_assert_uint_eq(endpointArraySize, expectedEndpointUrlsSize);
 
     for(size_t j = 0; j < endpointArraySize && j < expectedEndpointUrlsSize; j++) {
         UA_EndpointDescription* endpoint = &endpointArray[j];
+
+        printf("endpoint=%.*s expect=%.*s\n",
+        		(int)endpoint->endpointUrl.length, (char*)endpoint->endpointUrl.data,
+				(int)expectedEndpointUrls[j].length, (char*)expectedEndpointUrls[j].data
+
+        );
         ck_assert(UA_String_equal(&endpoint->endpointUrl, &expectedEndpointUrls[j]));
     }
 
@@ -504,7 +519,13 @@ Client_find_filter(void) {
 static void
 Client_get_endpoints(void) {
     UA_String  expectedEndpoints[1];
-    expectedEndpoints[0] = UA_STRING("opc.tcp://localhost:4840");
+
+    char hostname[256];
+    ck_assert_int_eq(gethostname(hostname, 255), 0);
+
+    char expectedUrl[512];
+    snprintf(expectedUrl, 512, "opc.tcp://%s:4840", hostname);
+    expectedEndpoints[0] = UA_STRING(expectedUrl);
 
     // general check if expected endpoints are returned
     GetEndpointsAndCheck("opc.tcp://localhost:4840", NULL,expectedEndpoints, 1);

@@ -89,11 +89,36 @@ int main(int argc, char* argv[]) {
     UA_ServerConfig *config = UA_Server_getConfig(server);
 
     UA_StatusCode retval =
-        UA_ServerConfig_setDefaultWithSecurityPolicies(config, 4840,
-                                                       &certificate, &privateKey,
-                                                       trustList, trustListSize,
-                                                       issuerList, issuerListSize,
-                                                       revocationList, revocationListSize);
+        UA_ServerConfig_setDefaultWithSecurityPolicies(config, 4840, NULL);
+
+ 	UA_ServerConfig_PKIStore_storeCertificate(
+ 		UA_ServerConfig_PKIStore_getDefault(server),
+ 		UA_NODEID_NUMERIC(0, UA_NS0ID_RSAMINAPPLICATIONCERTIFICATETYPE),
+ 		&certificate
+ 	);
+ 	UA_ServerConfig_PKIStore_storeCertificate(
+ 		UA_ServerConfig_PKIStore_getDefault(server),
+ 		UA_NODEID_NUMERIC(0, UA_NS0ID_RSASHA256APPLICATIONCERTIFICATETYPE),
+ 		&certificate
+ 	);
+ 	UA_ServerConfig_PKIStore_storePrivateKey(
+ 		UA_ServerConfig_PKIStore_getDefault(server),
+ 		UA_NODEID_NUMERIC(0, UA_NS0ID_RSAMINAPPLICATIONCERTIFICATETYPE),
+ 		&privateKey
+ 	);
+ 	UA_ServerConfig_PKIStore_storePrivateKey(
+ 		UA_ServerConfig_PKIStore_getDefault(server),
+ 		UA_NODEID_NUMERIC(0, UA_NS0ID_RSASHA256APPLICATIONCERTIFICATETYPE),
+ 		&privateKey
+ 	);
+
+ 	UA_ServerConfig_PKIStore_storeTrustList(
+ 		UA_ServerConfig_PKIStore_getDefault(server),
+		trustListSize, trustList,
+		revocationListSize, revocationList,
+		issuerListSize, issuerList,
+ 		0, NULL
+ 	);
 
     #ifdef UA_ENABLE_WEBSOCKET_SERVER
     UA_ServerConfig_addNetworkLayerWS(UA_Server_getConfig(server), 7681, 0, 0, &certificate, &privateKey);

@@ -37,6 +37,9 @@
 #include <valgrind/memcheck.h>
 #endif
 
+#include "open62541/server_config_default.h"
+#include "open62541/plugin/pki_default.h"
+
 #define STARTCHANNELID 1
 #define STARTTOKENID 1
 
@@ -456,51 +459,82 @@ UA_Server_removeCallback(UA_Server *server, UA_UInt64 callbackId) {
 }
 
 UA_StatusCode
-UA_Server_updateCertificate(UA_Server *server,
-                            const UA_ByteString *oldCertificate,
-                            const UA_ByteString *newCertificate,
-                            const UA_ByteString *newPrivateKey,
-                            UA_Boolean closeSessions,
-                            UA_Boolean closeSecureChannels) {
+UA_Server_updateCertificate(
+	UA_Server *server,
+	const UA_NodeId* certificateGroupId,
+	const UA_NodeId* certificateTypeId,
+    const UA_ByteString* certificate,
+    const UA_ByteString* privateKey,
+    UA_Boolean closeSessions,
+    UA_Boolean closeSecureChannels
+) {
+	if (server == NULL || certificateGroupId == NULL || certificateTypeId == NULL ||
+		certificate == NULL || privateKey == NULL) {
+		return UA_STATUSCODE_BADINVALIDARGUMENT;
+	}
 
-    UA_CHECK(server && oldCertificate && newCertificate && newPrivateKey,
-             return UA_STATUSCODE_BADINTERNALERROR);
-
+    /* close sessions on certificate update */
     if(closeSessions) {
         session_list_entry *current;
         LIST_FOREACH(current, &server->sessions, pointers) {
-            if(UA_ByteString_equal(oldCertificate,
-                                    &current->session.header.channel->securityPolicy->localCertificate)) {
-                UA_LOCK(&server->serviceMutex);
-                UA_Server_removeSessionByToken(server, &current->session.header.authenticationToken,
-                                               UA_DIAGNOSTICEVENT_CLOSE);
-                UA_UNLOCK(&server->serviceMutex);
-            }
-        }
+        	UA_PKIStore* pkiStore = current->session.header.channel->endpoint->pkiStore;
+        	UA_SecurityPolicy *securityPolicy = current->session.header.channel->endpoint->securityPolicy;
 
+        	/* Check used certificate group */
+        	if (!UA_NodeId_equal(certificateGroupId, &pkiStore->certificateGroupId)) {
+        		continue;
+        	}
+
+        	/* Check used certificate type */
+           	if (!UA_NodeId_equal(certificateTypeId, &securityPolicy->certificateTypeId)) {
+            	continue;
+            }
+
+           	/* Close session */
+            UA_LOCK(&server->serviceMutex);
+            UA_Server_removeSessionByToken(server, &current->session.header.authenticationToken,
+                                           UA_DIAGNOSTICEVENT_CLOSE);
+            UA_UNLOCK(&server->serviceMutex);
+        }
     }
 
+    /* Close securechannels on certificate update */
     if(closeSecureChannels) {
         channel_entry *entry;
         TAILQ_FOREACH(entry, &server->channels, pointers) {
-            if(UA_ByteString_equal(&entry->channel.securityPolicy->localCertificate,
-                                   oldCertificate))
-                shutdownServerSecureChannel(server, &entry->channel, UA_DIAGNOSTICEVENT_CLOSE);
+        	UA_PKIStore* pkiStore = entry->channel.endpoint->pkiStore;
+        	UA_SecurityPolicy *securityPolicy = entry->channel.endpoint->securityPolicy;
+
+           	/* Check used certificate group */
+        	if (!UA_NodeId_equal(certificateGroupId, &pkiStore->certificateGroupId)) {
+            	continue;
+            }
+
+            /* Check used certificate type */
+            if (!UA_NodeId_equal(certificateTypeId, &securityPolicy->certificateTypeId)) {
+                continue;
+            }
+
+        	/* Close secure channel */
+        	shutdownServerSecureChannel(server, &entry->channel, UA_DIAGNOSTICEVENT_CLOSE);
         }
     }
 
-    size_t i = 0;
-    while(i < server->config.endpointsSize) {
-        UA_EndpointDescription *ed = &server->config.endpoints[i];
-        if(UA_ByteString_equal(&ed->serverCertificate, oldCertificate)) {
-            UA_String_clear(&ed->serverCertificate);
-            UA_String_copy(newCertificate, &ed->serverCertificate);
-            UA_SecurityPolicy *sp = getSecurityPolicyByUri(server,
-                            &server->config.endpoints[i].securityPolicyUri);
-            UA_CHECK_MEM(sp, return UA_STATUSCODE_BADINTERNALERROR);
-            sp->updateCertificateAndPrivateKey(sp, *newCertificate, *newPrivateKey);
+    /* update certificate and private key */
+    for (size_t idx = 0; idx < server->config.pkiStoresSize; idx++) {
+    	UA_PKIStore* pkiStore = &server->config.pkiStores[idx];
+
+    	/* Add new certificate */
+    	UA_StatusCode retval = pkiStore->storeCertificate(pkiStore, *certificateTypeId, certificate);
+    	if (retval != UA_STATUSCODE_GOOD) {
+    		return retval;
+    	}
+
+    	/* Add new private key */
+        retval = pkiStore->storePrivateKey(pkiStore, *certificateTypeId, privateKey);
+       	if (retval != UA_STATUSCODE_GOOD) {
+        	return retval;
         }
-        i++;
     }
 
     return UA_STATUSCODE_GOOD;
@@ -523,28 +557,31 @@ getSecurityPolicyByUri(const UA_Server *server, const UA_ByteString *securityPol
 #ifdef UA_ENABLE_ENCRYPTION
 /* The local ApplicationURI has to match the certificates of the
  * SecurityPolicies */
-static UA_StatusCode
-verifyServerApplicationURI(const UA_Server *server) {
-    const UA_String securityPolicyNoneUri = UA_STRING("http://opcfoundation.org/UA/SecurityPolicy#None");
-    for(size_t i = 0; i < server->config.securityPoliciesSize; i++) {
-        UA_SecurityPolicy *sp = &server->config.securityPolicies[i];
-        if(UA_String_equal(&sp->policyUri, &securityPolicyNoneUri) && (sp->localCertificate.length == 0))
-            continue;
-        UA_StatusCode retval = server->config.certificateVerification.
-            verifyApplicationURI(server->config.certificateVerification.context,
-                                 &sp->localCertificate,
-                                 &server->config.applicationDescription.applicationUri);
-
-        UA_CHECK_STATUS_ERROR(retval, return retval, &server->config.logger, UA_LOGCATEGORY_SERVER,
-                       "The configured ApplicationURI \"%.*s\"does not match the "
-                       "ApplicationURI specified in the certificate for the "
-                       "SecurityPolicy %.*s",
-                       (int)server->config.applicationDescription.applicationUri.length,
-                       server->config.applicationDescription.applicationUri.data,
-                       (int)sp->policyUri.length, sp->policyUri.data);
-    }
-    return UA_STATUSCODE_GOOD;
-}
+// TODO: Move this check to certificate plugin. The plugin should verify the provided pki contents anyways and maybe
+// TODO: give some information on the number of trusted certs and so on. this check should be performed on startup
+// TODO: The check should also be configured by default to fail the startup if any sanity checks fail.
+//static UA_StatusCode
+//verifyServerApplicationURI(const UA_Server *server) {
+//    const UA_String securityPolicyNoneUri = UA_STRING("http://opcfoundation.org/UA/SecurityPolicy#None");
+//    for(size_t i = 0; i < server->config.securityPoliciesSize; i++) {
+//        UA_SecurityPolicy *sp = &server->config.securityPolicies[i];
+//        if(UA_String_equal(&sp->policyUri, &securityPolicyNoneUri) && (sp->localCertificate.length == 0))
+//            continue;
+//        UA_StatusCode retval = server->config.certificateManager.
+//            verifyApplicationURI(server->config.certificateManager.context,
+//                                 &sp->localCertificate,
+//                                 &server->config.applicationDescription.applicationUri);
+//
+//        UA_CHECK_STATUS_ERROR(retval, return retval, &server->config.logger, UA_LOGCATEGORY_SERVER,
+//                       "The configured ApplicationURI \"%.*s\"does not match the "
+//                       "ApplicationURI specified in the certificate for the "
+//                       "SecurityPolicy %.*s",
+//                       (int)server->config.applicationDescription.applicationUri.length,
+//                       server->config.applicationDescription.applicationUri.data,
+//                       (int)sp->policyUri.length, sp->policyUri.data);
+//    }
+//    return UA_STATUSCODE_GOOD;
+//}
 #endif
 
 UA_ServerStatistics
@@ -847,8 +884,9 @@ UA_Server_run_startup(UA_Server *server) {
 
     /* Does the ApplicationURI match the local certificates? */
 #ifdef UA_ENABLE_ENCRYPTION
-    retVal = verifyServerApplicationURI(server);
-    UA_CHECK_STATUS(retVal, return retVal);
+    // TODO: Move this to certificate plugin
+//    retVal = verifyServerApplicationURI(server);
+//    UA_CHECK_STATUS(retVal, return retVal);
 #endif
 
 #ifdef UA_ENABLE_PUBSUB
@@ -883,6 +921,26 @@ UA_Server_run_startup(UA_Server *server) {
         UA_CHECK_STATUS(retVal, return retVal);
     }
 
+#ifdef UA_ENABLE_ENCRYPTION
+    /* Register getRejectedListMethode */
+    retVal = UA_Server_setMethodNodeCallback(server, UA_NODEID_NUMERIC(0,
+    									     UA_NS0ID_SERVERCONFIGURATION_GETREJECTEDLIST),
+                                             getRejectedListMethod);
+    UA_CHECK_STATUS(retVal, return retVal);
+
+    /* Register updateCertificateMethode */
+    retVal = UA_Server_setMethodNodeCallback(server, UA_NODEID_NUMERIC(0,
+    									     UA_NS0ID_SERVERCONFIGURATION_UPDATECERTIFICATE),
+                                             updateCertificateMethod);
+    UA_CHECK_STATUS(retVal, return retVal);
+
+    /* Add createSigningRequest callback */
+    retVal = UA_Server_setMethodNodeCallback(server, UA_NODEID_NUMERIC(0,
+                                          UA_NS0ID_SERVERCONFIGURATION_CREATESIGNINGREQUEST),
+                                          createSigningRequest);
+    UA_CHECK_STATUS(retVal, return retVal);
+#endif
+
     /* Start the multicast discovery server */
 #ifdef UA_ENABLE_DISCOVERY_MULTICAST
     if(server->config.mdnsEnabled)
@@ -891,9 +949,7 @@ UA_Server_run_startup(UA_Server *server) {
 
     /* Update Endpoint description */
     for(size_t i = 0; i < server->config.endpointsSize; ++i) {
-        UA_ApplicationDescription_clear(&server->config.endpoints[i].server);
-        UA_ApplicationDescription_copy(&server->config.applicationDescription,
-                                       &server->config.endpoints[i].server);
+        UA_Endpoint_updateApplicationDescription(&server->config.endpoints[i], &server->config.applicationDescription);
     }
 
     server->state = UA_SERVERLIFECYCLE_FRESH;
@@ -1027,4 +1083,368 @@ UA_Server_run(UA_Server *server, const volatile UA_Boolean *running) {
     }
     return UA_Server_run_shutdown(server);
 }
+
+/* Add a new capability to the server configuration object */
+UA_StatusCode
+UA_Server_configAddCapability(UA_Server *server, const UA_String *newCapability) {
+
+    /* Valid Capabilities from deps/ua-nodeset/Schema/ServerCapabilities.csv */
+	static char validServerConfigCapabilities[][16] = {
+	    "NA", "DA", "HD", "AC", "HE", "GDS", "LDS", "DI", "ADI", "FDI",
+        "FDIC", "PLC", "S95", "RCP", "PUB", "AUTOID", "MDIS", "CNC", "PLK", "FDT",
+        "TMC", "CSPP", "61850", "PACKML", "MTC", "AUTOML", "SERCOS", "MIMOSA", "WITSML", "DEXPI",
+        "IOLINK", "VROBOT", "PNO", "PADIM"
+    };
+
+	/* check for nullparameter */
+	if ((server == NULL) || (newCapability == NULL) || UA_String_equal(newCapability, &UA_STRING_NULL)) {
+	    return UA_STATUSCODE_BADINVALIDARGUMENT;
+	}
+
+	/* Check for valid capability argument */
+	UA_Boolean isValid = false;
+	size_t i = 0;
+	for (i = 0; i < (sizeof(validServerConfigCapabilities)/sizeof(validServerConfigCapabilities[0])); i++) {
+		UA_String str = UA_STRING(validServerConfigCapabilities[i]);
+		if (UA_String_equal(newCapability, &str)) {
+			isValid = true;
+			break;
+		}
+	}
+	if (!isValid) {
+		return UA_STATUSCODE_BADINVALIDARGUMENT;
+	}
+
+	/* Read capabilities value */
+	UA_Variant capabilities;
+	UA_Variant_init(&capabilities);
+	UA_StatusCode retval = UA_Server_readValue(server,
+	                       UA_NODEID_NUMERIC(0, UA_NS0ID_SERVERCONFIGURATION_SERVERCAPABILITIES), &capabilities);
+	if (retval != UA_STATUSCODE_GOOD) {
+		return retval;  /* reading capabilities failed */
+	}
+
+	/* Clear incorrectly allocated array dimensions */
+	UA_Array_delete(capabilities.arrayDimensions, capabilities.arrayDimensionsSize, &UA_TYPES[UA_TYPES_UINT32]);
+	capabilities.arrayDimensions = NULL;
+	capabilities.arrayDimensionsSize = 0;
+
+	/* Check for duplicate capability */
+	UA_String *capa = (UA_String *)capabilities.data;
+	for (i = 0; i < capabilities.arrayLength; i++) {
+		if (UA_String_equal(capa + i, newCapability)) {
+			UA_Variant_clear(&capabilities);
+			return UA_STATUSCODE_GOOD;  /* already set, nothing to do, no error */
+		}
+	}
+
+	/* Add new capability */
+	retval = UA_Array_resize(&capabilities.data, &capabilities.arrayLength, capabilities.arrayLength + 1,
+	                         &UA_TYPES[UA_TYPES_STRING]);
+	if (retval != UA_STATUSCODE_GOOD) {
+		UA_Variant_clear(&capabilities);
+		return retval;
+	}
+
+	retval = UA_String_copy(newCapability, ((UA_String *)capabilities.data) + capabilities.arrayLength - 1);
+	if (retval != UA_STATUSCODE_GOOD) {
+		UA_Variant_clear(&capabilities);
+		return retval;
+	}
+
+	retval = UA_Server_writeValue(server,
+	         UA_NODEID_NUMERIC(0, UA_NS0ID_SERVERCONFIGURATION_SERVERCAPABILITIES), capabilities);
+	UA_Variant_clear(&capabilities);
+	return retval;
+}
+
+/* Add a new private key format to the server configuration */
+UA_StatusCode
+UA_Server_configAddKeyFormat(UA_Server *server, const UA_String *newKeyFormat) {
+    /* Valid private key formats are "PFX" and "PEM" */
+	static char validServerConfigKeyFormats[][4] = {"PFX", "PEM"};
+
+	/* Check for null arguments */
+	if ((server == NULL) || (newKeyFormat == NULL) || UA_String_equal(newKeyFormat, &UA_STRING_NULL)) {
+	    return UA_STATUSCODE_BADINVALIDARGUMENT;
+	}
+
+	/* Check for valid key format argument */
+	UA_Boolean isValid = false;
+	size_t i = 0;
+	for (i = 0; i < (sizeof(validServerConfigKeyFormats)/sizeof(validServerConfigKeyFormats[0])); i++) {
+	    UA_String str = UA_STRING(validServerConfigKeyFormats[i]);
+	    if (UA_String_equal(newKeyFormat, &str)) {
+	        isValid = true;
+	        break;
+	    }
+	}
+	if (!isValid) {
+	    return UA_STATUSCODE_BADINVALIDARGUMENT;
+	}
+
+	/* Read key formats already set */
+	UA_Variant keyFormats;
+	UA_Variant_init(&keyFormats);
+	UA_StatusCode retval = UA_Server_readValue(server,
+			               UA_NODEID_NUMERIC(0, UA_NS0ID_SERVERCONFIGURATION_SUPPORTEDPRIVATEKEYFORMATS),
+						   &keyFormats);
+	if (retval != UA_STATUSCODE_GOOD) {
+	    return retval;  /* reading key formats failed */
+	}
+
+	/* Clear incorrectly allocated array dimensions */
+	UA_Array_delete(keyFormats.arrayDimensions, keyFormats.arrayDimensionsSize, &UA_TYPES[UA_TYPES_UINT32]);
+	keyFormats.arrayDimensions = NULL;
+    keyFormats.arrayDimensionsSize = 0;
+
+    /* Check for duplicate key format */
+    UA_String *keyformat = (UA_String *)keyFormats.data;
+    for (i = 0; i < keyFormats.arrayLength; i++) {
+        if (UA_String_equal(keyformat + i, newKeyFormat)) {
+        	UA_Variant_clear(&keyFormats);
+            return UA_STATUSCODE_GOOD;  /* already set, nothing to do, no error */
+        }
+    }
+
+    /* Add new key format */
+    if((retval = UA_Array_resize(&keyFormats.data, &keyFormats.arrayLength, keyFormats.arrayLength + 1,
+                                 &UA_TYPES[UA_TYPES_STRING]))) {
+    	UA_Variant_clear(&keyFormats);
+        return retval;
+    }
+    if((retval = UA_String_copy(newKeyFormat, ((UA_String *)keyFormats.data) + keyFormats.arrayLength - 1))) {
+    	UA_Variant_clear(&keyFormats);
+        return retval;
+    }
+    retval = UA_Server_writeValue(server,
+             UA_NODEID_NUMERIC(0, UA_NS0ID_SERVERCONFIGURATION_SUPPORTEDPRIVATEKEYFORMATS), keyFormats);
+
+    UA_Variant_clear(&keyFormats);
+    return retval;
+}
+
+/* Set max trust list size of server configuration */
+UA_StatusCode
+UA_Server_configSetMaxTrustListSize(UA_Server *server, UA_UInt32 size) {
+
+    /* Check for null pointer argument */
+    if (server == NULL) {
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    }
+
+    /* Set the variable MaxTrustListSize of server configuration to size */
+    UA_Variant sizeVar;
+    UA_Variant_init(&sizeVar);
+    UA_Variant_setScalar(&sizeVar, &size, &UA_TYPES[UA_TYPES_UINT32]);
+
+    return UA_Server_writeValue(server,
+           UA_NODEID_NUMERIC(0, UA_NS0ID_SERVERCONFIGURATION_MAXTRUSTLISTSIZE), sizeVar);
+}
+
+/* Create a Certificate Signing Request (CSR) */
+UA_StatusCode
+createSigningRequest(UA_Server *server,
+                                const UA_NodeId *sessionId, void *sessionHandle,
+                                const UA_NodeId *methodId, void *methodContext,
+                                const UA_NodeId *objectId, void *objectContext,
+                                size_t inputSize, const UA_Variant *input,
+                                size_t outputSize, UA_Variant *output) {
+	UA_ByteString *csr;
+
+	/* Input arg 1: CertificateGroup object's certificateGroupId */
+	UA_NodeId* certificateGroupId = (UA_NodeId *)input[0].data;
+
+	/* Input arg 2: CertificateTypes Property's certificateTypeId, not yet implemented */
+	UA_NodeId* certificateTypeId = (UA_NodeId *)input[1].data;
+
+	/* Input arg 3: The subject name to use in the Certificate Request, can be NULL or empty */
+	UA_String* subject = (UA_String *)input[2].data;
+
+	/* Input arg 4: regenerateKey should be false (true not yet implemented) */
+	/* TODO */
+
+	/* Input arg 5: Nonce, additional entropy, can be NULL or empty, if set at least 32 bytes */
+	UA_ByteString* entropy = (UA_ByteString *)input[4].data;
+	if ((entropy != NULL) && (entropy->length != 0) && (entropy->length < 32)) {
+	    return UA_STATUSCODE_BADINVALIDARGUMENT;
+	}
+
+	/* Find PKI Store */
+	UA_PKIStore* pkiStore = UA_ServerConfig_PKIStore_get(server, certificateGroupId);
+	if (pkiStore == NULL) {
+		return UA_STATUSCODE_BADINVALIDARGUMENT;
+	}
+
+	/* Build the CSR */
+	UA_CertificateManager* certificateManager = &server->config.certificateManager;
+	if (certificateManager->createCertificateSigningRequest == NULL) {
+        return UA_STATUSCODE_BADINTERNALERROR;
+	}
+
+	UA_StatusCode ret = certificateManager->createCertificateSigningRequest(
+		certificateManager, pkiStore, *certificateTypeId, subject, entropy, &csr
+	);
+	if (ret != UA_STATUSCODE_GOOD) {
+	    return ret;
+	}
+
+	/* Output arg, the PKCS #10 DER encoded Certificate Request (CSR) */
+	UA_Variant_setScalar(output, csr, &UA_TYPES[UA_TYPES_BYTESTRING]);
+	return UA_STATUSCODE_GOOD;
+}
+
+/* UpdateCertificate method */
+UA_StatusCode
+updateCertificateMethod(UA_Server *server,
+	const UA_NodeId *sessionId, void *sessionHandle,
+    const UA_NodeId *methodId, void *methodContext,
+    const UA_NodeId *objectId, void *objectContext,
+    size_t inputSize, const UA_Variant *input,
+    size_t outputSize, UA_Variant *output)
+{
+	/* Input arg 1: CertificateGroupId */
+	UA_NodeId* certificateGroupId = (UA_NodeId *)input[0].data;
+
+	/* Input arg 2: CertificateTypeId */
+	UA_NodeId* certificateTypeId = (UA_NodeId *)input[1].data;
+
+	/* Input arg 3: Certificate */
+	UA_ByteString* certificate = (UA_ByteString *)input[2].data;
+
+	/* Input arg 4: Issuer Certificates */
+	/* Actual not implemented
+	UA_ByteString* issuerCertificates = (UA_ByteString *)input[3].data;
+	size_t issuerCertificatesLen = input[3].arrayLength; */
+
+	/* Input arg 5: PrivateKeyFormat */
+	/* TODO: Actual not implemented
+	UA_String* privateKeyFormat = (UA_String*)input[4].data; */
+
+	/* Input arg 6: PrivateKey */
+	UA_ByteString* privateKey = (UA_ByteString *)input[5].data;
+
+	/* Update certificate */
+	return UA_Server_updateCertificate(server, certificateGroupId, certificateTypeId,
+	    certificate, privateKey, true, true
+	);
+}
+
+
+UA_StatusCode
+UA_Server_getRejectedList(
+	UA_Server *server,
+	UA_ByteString **list,
+	size_t *listSize,
+	size_t listSizeMax
+)
+{
+	UA_StatusCode retval = UA_STATUSCODE_GOOD;
+	size_t i, j, k = 0;
+
+	/* Check parameter */
+	if (server == NULL || list == NULL || listSize == NULL || listSizeMax == 0) {
+		return UA_STATUSCODE_BADINVALIDARGUMENT;
+	}
+
+	/* Get server configuration */
+	UA_ServerConfig *config = UA_Server_getConfig(server);
+	if (!config) {
+	    return UA_STATUSCODE_BADINTERNALERROR;
+	}
+
+	/* Get rejected certificates from all server pki stores */
+	*list = (UA_ByteString*)UA_Array_new(listSizeMax, &UA_TYPES[UA_TYPES_STRING]);
+	*listSize = 0;
+	for (i = 0; i < config->pkiStoresSize; i++) {
+		UA_ByteString *rejectedList = NULL;
+		size_t rejectedListSize = 0;
+
+		/* Get rejected list */
+		UA_PKIStore* pkiStore = &config->pkiStores[i];
+		retval = pkiStore->loadRejectedList(pkiStore, &rejectedList, &rejectedListSize);
+		if (retval != UA_STATUSCODE_GOOD) {
+			*listSize = 0;
+			UA_Array_delete(*list, listSizeMax, &UA_TYPES[UA_TYPES_STRING]);
+			return retval;
+		}
+
+		/* Check duplicate entries and add new entry to list*/
+		for (j = 0; j < rejectedListSize; j++) {
+		    for (k = 0; k < *listSize; k++) {
+				if (UA_ByteString_equal(&rejectedList[j], &(*list)[k])) break;
+			}
+
+		    if (k == *listSize) {
+		    	UA_ByteString_copy(&rejectedList[j], &(*list)[*listSize]);
+		    	(*listSize)++;
+		    }
+
+		    if (*listSize >= listSizeMax) {
+		    	UA_Array_delete(rejectedList, rejectedListSize, &UA_TYPES[UA_TYPES_STRING]);
+		    	return UA_STATUSCODE_GOOD;
+		    }
+		}
+		UA_Array_delete(rejectedList, rejectedListSize, &UA_TYPES[UA_TYPES_STRING]);
+	}
+
+	size_t newSize = *listSize;
+    *listSize = listSizeMax;
+	retval = UA_Array_resize((void**)list, listSize, newSize, &UA_TYPES[UA_TYPES_STRING]);
+	if (retval != UA_STATUSCODE_GOOD) return retval;
+	return UA_STATUSCODE_GOOD;
+}
+
+/* GetRejectedList method */
+UA_StatusCode
+getRejectedListMethod(UA_Server *server,
+	const UA_NodeId *sessionId, void *sessionHandle,
+    const UA_NodeId *methodId, void *methodContext,
+    const UA_NodeId *objectId, void *objectContext,
+    size_t inputSize, const UA_Variant *input,
+    size_t outputSize, UA_Variant *output)
+{
+	UA_StatusCode retval = UA_STATUSCODE_GOOD;
+	UA_ByteString* list = NULL;
+	size_t listSize = 0;
+
+	/* Get server configuration */
+	UA_ServerConfig *config = UA_Server_getConfig(server);
+	if (!config) {
+	    return UA_STATUSCODE_BADINTERNALERROR;
+	}
+	size_t listSizeMax = config->rejectedListMethodMaxListSize;
+
+	/* Get rejected certificates from certificate store */
+	retval = UA_Server_getRejectedList(server, &list, &listSize, listSizeMax);
+	if (retval != UA_STATUSCODE_GOOD) {
+		return retval;
+	}
+
+	UA_Variant_setArray(output, list, listSize, &UA_TYPES[UA_TYPES_BYTESTRING]);
+	return UA_STATUSCODE_GOOD;
+}
+
+#ifdef UA_ENABLE_ENCRYPTION
+/* Setup the Certificate Manager */
+UA_EXPORT UA_StatusCode
+UA_ServerConfig_setupCertificateManager(UA_Server *server) {
+    if (server == NULL) {
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    }
+
+    UA_ServerConfig *config = UA_Server_getConfig(server);
+    if (config == NULL) {
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    }
+    if (config->pkiStoresSize < 1 || config->pkiStores == NULL) {
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    }
+
+    return UA_CertificateManager_create(
+    		&(config->certificateManager)
+	);
+}
+#endif
+
 

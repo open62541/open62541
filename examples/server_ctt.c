@@ -833,7 +833,7 @@ setInformationModel(UA_Server *server) {
 static void
 disableAnonymous(UA_ServerConfig *config) {
     for(size_t i = 0; i < config->endpointsSize; i++) {
-        UA_EndpointDescription *ep = &config->endpoints[i];
+        UA_EndpointDescription *ep = config->endpoints[i].endpointDescription;
 
         for(size_t j = 0; j < ep->userIdentityTokensSize; j++) {
             UA_UserTokenPolicy *utp = &ep->userIdentityTokens[j];
@@ -861,7 +861,7 @@ disableAnonymous(UA_ServerConfig *config) {
 static void
 disableUnencrypted(UA_ServerConfig *config) {
     for(size_t i = 0; i < config->endpointsSize; i++) {
-        UA_EndpointDescription *ep = &config->endpoints[i];
+        UA_EndpointDescription *ep = config->endpoints[i].endpointDescription;
         if(ep->securityMode != UA_MESSAGESECURITYMODE_NONE)
             continue;
 
@@ -883,7 +883,7 @@ disableUnencrypted(UA_ServerConfig *config) {
 static void
 disableOutdatedSecurityPolicy(UA_ServerConfig *config) {
     for(size_t i = 0; i < config->endpointsSize; i++) {
-        UA_EndpointDescription *ep = &config->endpoints[i];
+        UA_EndpointDescription *ep = config->endpoints[i].endpointDescription;
         UA_ByteString basic128uri = UA_BYTESTRING("http://opcfoundation.org/UA/SecurityPolicy#Basic128Rsa15");
         UA_ByteString basic256uri = UA_BYTESTRING("http://opcfoundation.org/UA/SecurityPolicy#Basic256");
         if(!UA_String_equal(&ep->securityPolicyUri, &basic128uri) &&
@@ -908,7 +908,7 @@ disableOutdatedSecurityPolicy(UA_ServerConfig *config) {
 static void
 disableBasic128SecurityPolicy(UA_ServerConfig *config) {
     for(size_t i = 0; i < config->endpointsSize; i++) {
-        UA_EndpointDescription *ep = &config->endpoints[i];
+        UA_EndpointDescription *ep = config->endpoints[i].endpointDescription;
         UA_ByteString basic128uri = UA_BYTESTRING("http://opcfoundation.org/UA/SecurityPolicy#Basic128Rsa15");
         if(!UA_String_equal(&ep->securityPolicyUri, &basic128uri))
             continue;
@@ -931,7 +931,7 @@ disableBasic128SecurityPolicy(UA_ServerConfig *config) {
 static void
 disableBasic256SecurityPolicy(UA_ServerConfig *config) {
     for(size_t i = 0; i < config->endpointsSize; i++) {
-        UA_EndpointDescription *ep = &config->endpoints[i];
+        UA_EndpointDescription *ep = config->endpoints[i].endpointDescription;
         UA_ByteString basic256uri = UA_BYTESTRING("http://opcfoundation.org/UA/SecurityPolicy#Basic256");
         if(!UA_String_equal(&ep->securityPolicyUri, &basic256uri))
             continue;
@@ -955,7 +955,7 @@ disableBasic256SecurityPolicy(UA_ServerConfig *config) {
 static void
 disableBasic256Sha256SecurityPolicy(UA_ServerConfig *config) {
     for(size_t i = 0; i < config->endpointsSize; i++) {
-        UA_EndpointDescription *ep = &config->endpoints[i];
+        UA_EndpointDescription *ep = config->endpoints[i].endpointDescription;
         UA_ByteString basic256sha256uri = UA_BYTESTRING("http://opcfoundation.org/UA/SecurityPolicy#Basic256Sha256");
         if(!UA_String_equal(&ep->securityPolicyUri, &basic256sha256uri))
             continue;
@@ -997,10 +997,6 @@ usage(void) {
                    "\t[--trustlist <tl1.ctl> <tl2.ctl> ... ]\n"
                    "\t[--issuerlist <il1.der> <il2.der> ... ]\n"
                    "\t[--revocationlist <rv1.crl> <rv2.crl> ...]\n"
-#else
-                   "\t[--trustlistFolder <folder>]\n"
-                   "\t[--issuerlistFolder <folder>]\n"
-                   "\t[--revocationlistFolder <folder>]\n"
 #endif
                    "\t[--enableUnencrypted]\n"
                    "\t[--enableOutdatedSecurityPolicy]\n"
@@ -1060,18 +1056,12 @@ int main(int argc, char **argv) {
     UA_Boolean disableBasic256 = false;
     UA_Boolean disableBasic256Sha256 = false;
 
-#ifndef __linux__
     UA_ByteString trustList[100];
     size_t trustListSize = 0;
     UA_ByteString issuerList[100];
     size_t issuerListSize = 0;
     UA_ByteString revocationList[100];
     size_t revocationListSize = 0;
-#else
-    const char *trustlistFolder = NULL;
-    const char *issuerlistFolder = NULL;
-    const char *revocationlistFolder = NULL;
-#endif /* __linux__ */
 
 #endif /* UA_ENABLE_ENCRYPTION */
 
@@ -1132,7 +1122,6 @@ int main(int argc, char **argv) {
             continue;
         }
 
-#ifndef __linux__
         if(strcmp(argv[pos], "--trustlist") == 0) {
             filetype = 't';
             continue;
@@ -1195,38 +1184,6 @@ int main(int argc, char **argv) {
             revocationListSize++;
             continue;
         }
-#else /* __linux__ */
-        if(strcmp(argv[pos], "--trustlistFolder") == 0) {
-            filetype = 't';
-            continue;
-        }
-
-        if(strcmp(argv[pos], "--issuerlistFolder") == 0) {
-            filetype = 'l';
-            continue;
-        }
-
-        if(strcmp(argv[pos], "--revocationlistFolder") == 0) {
-            filetype = 'r';
-            continue;
-        }
-
-        if(filetype == 't') {
-            trustlistFolder = argv[pos];
-            continue;
-        }
-
-        if(filetype == 'l') {
-            issuerlistFolder = argv[pos];
-            continue;
-        }
-
-        if(filetype == 'r') {
-            revocationlistFolder = argv[pos];
-            continue;
-        }
-#endif /* __linux__ */
-
 #endif /* UA_ENABLE_ENCRYPTION */
 
         usage();
@@ -1236,35 +1193,38 @@ int main(int argc, char **argv) {
     UA_Server *server = NULL;
 
 #ifdef UA_ENABLE_ENCRYPTION
-#ifndef __linux__
-    UA_StatusCode res =
-        UA_ServerConfig_setDefaultWithSecurityPolicies(&config, 4840,
-                                                       &certificate, &privateKey,
-                                                       trustList, trustListSize,
-                                                       issuerList, issuerListSize,
-                                                       revocationList, revocationListSize);
+    UA_StatusCode res = UA_ServerConfig_setDefaultWithSecurityPolicies(&config, 4840, NULL);
     if(res != UA_STATUSCODE_GOOD)
-        goto cleanup;
-#else /* On Linux we can monitor the certs folder and reload when changes are made */
-    UA_StatusCode res =
-        UA_ServerConfig_setDefaultWithSecurityPolicies(&config, 4840,
-                                                       &certificate, &privateKey,
-                                                       NULL, 0, NULL, 0, NULL, 0);
-    if(res != UA_STATUSCODE_GOOD)
-        goto cleanup;
-    config.certificateVerification.clear(&config.certificateVerification);
-#ifdef UA_ENABLE_CERT_REJECTED_DIR
-    res = UA_CertificateVerification_CertFolders(&config.certificateVerification,
-                                                 trustlistFolder, issuerlistFolder,
-                                                 revocationlistFolder, NULL);
-#else
-    res = UA_CertificateVerification_CertFolders(&config.certificateVerification,
-                                                 trustlistFolder, issuerlistFolder,
-                                                 revocationlistFolder);
-#endif
-    if(res != UA_STATUSCODE_GOOD)
-        goto cleanup;
-#endif /* __linux__ */
+         goto cleanup;
+
+ 	UA_ServerConfig_PKIStore_storeCertificate(
+ 		UA_ServerConfig_PKIStore_getDefault(server),
+ 		UA_NODEID_NUMERIC(0, UA_NS0ID_RSAMINAPPLICATIONCERTIFICATETYPE),
+ 		&certificate
+ 	);
+ 	UA_ServerConfig_PKIStore_storeCertificate(
+ 		UA_ServerConfig_PKIStore_getDefault(server),
+ 		UA_NODEID_NUMERIC(0, UA_NS0ID_RSASHA256APPLICATIONCERTIFICATETYPE),
+ 		&certificate
+ 	);
+ 	UA_ServerConfig_PKIStore_storePrivateKey(
+ 		UA_ServerConfig_PKIStore_getDefault(server),
+ 		UA_NODEID_NUMERIC(0, UA_NS0ID_RSAMINAPPLICATIONCERTIFICATETYPE),
+ 		&privateKey
+ 	);
+ 	UA_ServerConfig_PKIStore_storePrivateKey(
+ 		UA_ServerConfig_PKIStore_getDefault(server),
+ 		UA_NODEID_NUMERIC(0, UA_NS0ID_RSASHA256APPLICATIONCERTIFICATETYPE),
+ 		&privateKey
+ 	);
+
+ 	UA_ServerConfig_PKIStore_storeTrustList(
+ 		UA_ServerConfig_PKIStore_getDefault(server),
+		trustListSize, trustList,
+		revocationListSize, revocationList,
+		issuerListSize, issuerList,
+ 		0, NULL
+ 	);
 
     if(!enableUnencr)
         disableUnencrypted(&config);

@@ -955,6 +955,46 @@ UA_OpenSSL_LoadCertificate(const UA_ByteString *certificate) {
     return result;
 }
 
+UA_StatusCode
+UA_OpenSSL_LoadLocalCertificate(const UA_SecurityPolicy *policy, UA_PKIStore *pkiStore, UA_ByteString *target)
+{
+	UA_ByteString localCertificate;
+	UA_ByteString_init(&localCertificate);
+
+	/* Load certificate from PKI Store */
+	UA_StatusCode retval = pkiStore->loadCertificate(pkiStore, policy->certificateTypeId, &localCertificate);
+	if(!UA_StatusCode_isGood(retval)) {
+	    return retval;
+	}
+
+	/* Create X509 certificate */
+	X509 *cert = UA_OpenSSL_LoadCertificate(&localCertificate);
+	if (!cert) {
+	    UA_ByteString_init(target);
+	    return UA_STATUSCODE_BADINVALIDARGUMENT;
+	}
+
+	/* Check certificate */
+	unsigned char *derData = NULL;
+	int length = i2d_X509(cert, &derData);
+	X509_free(cert);
+
+	if (length > 0) {
+	    UA_ByteString temp;
+	    temp.length = (size_t) length;
+	    temp.data = derData;
+	    UA_ByteString_copy(&temp, target);
+	    OPENSSL_free(derData);
+	    UA_ByteString_clear(&localCertificate);
+	    return UA_STATUSCODE_GOOD;
+	} else {
+	    UA_ByteString_init(target);
+	}
+
+	UA_ByteString_clear(&localCertificate);
+	return UA_STATUSCODE_BADINVALIDARGUMENT;
+}
+
 X509 *
 UA_OpenSSL_LoadDerCertificate(const UA_ByteString *certificate) {
     const unsigned char *pData = certificate->data;
@@ -973,6 +1013,7 @@ UA_OpenSSL_LoadPemCertificate(const UA_ByteString *certificate) {
     return result;
 }
 
+#if 0 /* FIXME: HUK */
 UA_StatusCode
 UA_OpenSSL_LoadLocalCertificate(const UA_ByteString *certificate, UA_ByteString *target) {
     X509 *cert = UA_OpenSSL_LoadCertificate(certificate);
@@ -998,6 +1039,238 @@ UA_OpenSSL_LoadLocalCertificate(const UA_ByteString *certificate, UA_ByteString 
     }
 
     return UA_STATUSCODE_BADINVALIDARGUMENT;
+}
+#endif
+
+UA_StatusCode
+channelContext_loadKeyThenDecrypt(
+	const Channel_Context_openssl* channelContext,
+	UA_ByteString* data,
+	UA_StatusCode (*callback)(const Channel_Context_openssl* channelContext, UA_ByteString* data, EVP_PKEY* privateKey)
+)
+{
+	UA_StatusCode retval = UA_STATUSCODE_GOOD;
+
+	/* Check parameter */
+    if(channelContext == NULL || data == NULL || callback == NULL) {
+	    return UA_STATUSCODE_BADINTERNALERROR;
+    }
+
+    /* Load private key */
+    UA_ByteString privateKeyStr;
+    UA_ByteString_init(&privateKeyStr);
+    retval = channelContext->pkiStore->loadPrivateKey(
+    	channelContext->pkiStore, channelContext->certificateTypeId, &privateKeyStr
+    );
+    if (retval != UA_STATUSCODE_GOOD) {
+    	return retval;
+    }
+    EVP_PKEY* privateKey = UA_OpenSSL_LoadPrivateKey(&privateKeyStr);
+    if (retval != UA_STATUSCODE_GOOD) {
+    	UA_ByteString_clear(&privateKeyStr);
+    	return retval;
+    }
+
+    retval = callback(channelContext, data, privateKey);
+	UA_ByteString_clear(&privateKeyStr);
+	EVP_PKEY_free(privateKey);
+	return retval;
+}
+
+UA_StatusCode
+channelContext_parseKeyThenSign(
+	const Channel_Context_openssl* channelContext,
+	const UA_ByteString * message,
+	UA_ByteString *signature,
+	UA_ByteString *privateKeyStr,
+	UA_StatusCode (*callback)(
+		const Channel_Context_openssl* channelContext,
+		const UA_ByteString * message,
+		UA_ByteString *signature,
+		EVP_PKEY* privateKey
+	)
+)
+{
+	UA_StatusCode retval = UA_STATUSCODE_GOOD;
+
+	/* Check parameter */
+    if(channelContext == NULL || message == NULL || signature == NULL || privateKeyStr == NULL || callback == NULL) {
+	    return UA_STATUSCODE_BADINTERNALERROR;
+    }
+
+    EVP_PKEY* privateKey = UA_OpenSSL_LoadPrivateKey(privateKeyStr);
+    if (retval != UA_STATUSCODE_GOOD) {
+     	return retval;
+    }
+
+    retval = callback(channelContext, message, signature, privateKey);
+ 	EVP_PKEY_free(privateKey);
+ 	return retval;
+}
+
+UA_StatusCode
+channelContext_loadKeyThenSign(
+	const Channel_Context_openssl* channelContext,
+	const UA_ByteString * message,
+	UA_ByteString *signature,
+	UA_StatusCode (*callback)(
+		const Channel_Context_openssl* channelContext,
+		const UA_ByteString * message,
+		UA_ByteString *signature,
+		EVP_PKEY* privateKey
+	)
+)
+{
+	if (channelContext == NULL || message == NULL ||signature == NULL || callback == NULL) {
+		return UA_STATUSCODE_BADINTERNALERROR;
+	}
+
+	UA_StatusCode retval = UA_STATUSCODE_GOOD;
+
+	/* Check parameter */
+    if(channelContext == NULL || message == NULL || signature == NULL || callback == NULL) {
+	    return UA_STATUSCODE_BADINTERNALERROR;
+    }
+
+    /* Load private key */
+    UA_ByteString privateKeyStr;
+    UA_ByteString_init(&privateKeyStr);
+    retval = channelContext->pkiStore->loadPrivateKey(
+    	channelContext->pkiStore, channelContext->certificateTypeId, &privateKeyStr
+    );
+    if (retval != UA_STATUSCODE_GOOD) {
+    	return retval;
+    }
+
+    retval = channelContext_parseKeyThenSign(
+    	channelContext, message, signature, &privateKeyStr, callback
+	);
+
+    UA_ByteString_clear(&privateKeyStr);
+    return retval;
+}
+
+size_t
+channelContext_loadKeyThenGetSize(
+	const Channel_Context_openssl* channelContext,
+	size_t (*callback)(const Channel_Context_openssl* channelContext, EVP_PKEY* privateKey)
+)
+{
+	UA_StatusCode retval = UA_STATUSCODE_GOOD;
+
+	/* Check parameter */
+    if(channelContext == NULL || callback == NULL) {
+	    return 0;
+    }
+
+    /* Load private key */
+    UA_ByteString privateKeyStr;
+    UA_ByteString_init(&privateKeyStr);
+    retval = channelContext->pkiStore->loadPrivateKey(
+    	channelContext->pkiStore, channelContext->certificateTypeId, &privateKeyStr
+    );
+    if (retval != UA_STATUSCODE_GOOD) {
+    	return 0;
+    }
+    EVP_PKEY* privateKey = UA_OpenSSL_LoadPrivateKey(&privateKeyStr);
+    if (retval != UA_STATUSCODE_GOOD) {
+    	UA_ByteString_clear(&privateKeyStr);
+    	return 0;
+    }
+
+    size_t size = callback(channelContext, privateKey);
+	UA_ByteString_clear(&privateKeyStr);
+	EVP_PKEY_free(privateKey);
+	return size;
+}
+
+UA_StatusCode
+channelContext_loadCertThenCompareCertThumbPrint(
+	const UA_SecurityPolicy* securityPolicy,
+	UA_PKIStore *pkiStore,
+	const UA_ByteString* certificateThumbprint,
+	UA_StatusCode (*callback)(
+		const UA_SecurityPolicy* securityPolicy,
+		const UA_ByteString* certificateThumbprint,
+		const UA_ByteString* certificate
+	)
+)
+{
+	UA_StatusCode retval = UA_STATUSCODE_GOOD;
+
+	/* Check parameter */
+    if(securityPolicy == NULL || pkiStore == NULL || certificateThumbprint == NULL || callback == NULL) {
+	    return UA_STATUSCODE_BADINTERNALERROR;
+    }
+
+    /* Load certificate */
+    UA_ByteString certificateStr;
+    UA_ByteString_init(&certificateStr);
+    retval = pkiStore->loadCertificate(
+    	pkiStore, securityPolicy->certificateTypeId, &certificateStr
+    );
+    if (retval != UA_STATUSCODE_GOOD) {
+    	return retval;
+    }
+
+    retval = callback(securityPolicy, certificateThumbprint, &certificateStr);
+	UA_ByteString_clear(&certificateStr);
+	return retval;
+}
+
+// *************************************
+
+// ***************************************
+
+
+UA_StatusCode
+compareCertificateThumbprint(
+	const UA_SecurityPolicy* securityPolicy,
+    const UA_ByteString* certificateThumbprint,
+	const UA_ByteString* certificate
+) {
+	UA_StatusCode retval = UA_STATUSCODE_GOOD;
+
+    if(securityPolicy == NULL || certificateThumbprint == NULL || certificate == NULL) {
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    }
+
+    UA_ByteString localCertificateThumbprint;
+    UA_ByteString_init(&localCertificateThumbprint);
+    retval = UA_Openssl_X509_GetCertificateThumbprint(certificate, &localCertificateThumbprint, true);
+    if (retval != UA_STATUSCODE_GOOD) {
+    	return retval;
+    }
+
+    if(!UA_ByteString_equal(certificateThumbprint, &localCertificateThumbprint)) {
+        retval = UA_STATUSCODE_BADCERTIFICATEINVALID;
+    }
+    UA_ByteString_clear(&localCertificateThumbprint);
+
+    return retval;
+}
+
+UA_StatusCode
+UA_compareCertificateThumbprint(
+	const UA_SecurityPolicy* securityPolicy,
+	UA_PKIStore *pkiStore,
+    const UA_ByteString* certificateThumbprint
+) {
+    if(securityPolicy == NULL || certificateThumbprint == NULL)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+
+    return channelContext_loadCertThenCompareCertThumbPrint(
+    	securityPolicy, pkiStore, certificateThumbprint, compareCertificateThumbprint
+	);
+}
+
+/* Generates a thumbprint for the specified certificate */
+
+UA_StatusCode
+UA_makeCertificateThumbprint(const UA_SecurityPolicy * securityPolicy,
+                             const UA_ByteString * certificate,
+                             UA_ByteString * thumbprint) {
+    return UA_Openssl_X509_GetCertificateThumbprint(certificate, thumbprint, false);
 }
 
 #endif

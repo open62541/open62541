@@ -73,6 +73,7 @@ set(test_plugin_sources
     ${PROJECT_SOURCE_DIR}/plugins/ua_nodestore_hashmap.c
     ${PROJECT_SOURCE_DIR}/plugins/crypto/ua_securitypolicy_none.c
     ${PROJECT_SOURCE_DIR}/plugins/crypto/ua_pki_none.c
+    ${PROJECT_SOURCE_DIR}/plugins/crypto/certstore/ua_certstore_file.c
     ${PROJECT_SOURCE_DIR}/tests/testing-plugins/testing_policy.c
     ${PROJECT_SOURCE_DIR}/tests/testing-plugins/testing_networklayers.c
     )
@@ -106,7 +107,9 @@ if(UA_ENABLE_ENCRYPTION_MBEDTLS)
        ${PROJECT_SOURCE_DIR}/plugins/crypto/mbedtls/ua_securitypolicy_basic256.c
        ${PROJECT_SOURCE_DIR}/plugins/crypto/mbedtls/ua_securitypolicy_basic256sha256.c
        ${PROJECT_SOURCE_DIR}/plugins/crypto/mbedtls/ua_securitypolicy_aes128sha256rsaoaep.c
-       ${PROJECT_SOURCE_DIR}/plugins/crypto/mbedtls/ua_pki_mbedtls.c)
+       ${PROJECT_SOURCE_DIR}/plugins/crypto/mbedtls/ua_certificatemanager_mbedtls.c
+       ${PROJECT_SOURCE_DIR}/plugins/crypto/mbedtls/ua_pki_mbedtls.c
+       ${PROJECT_SOURCE_DIR}/plugins/crypto/mbedtls/san_mbedtls.c)
 endif()
 
 if(UA_ENABLE_ENCRYPTION_OPENSSL OR UA_ENABLE_ENCRYPTION_LIBRESSL)
@@ -118,6 +121,7 @@ if(UA_ENABLE_ENCRYPTION_OPENSSL OR UA_ENABLE_ENCRYPTION_LIBRESSL)
               ${PROJECT_SOURCE_DIR}/plugins/crypto/openssl/ua_openssl_basic256sha256.c
               ${PROJECT_SOURCE_DIR}/plugins/crypto/openssl/ua_openssl_aes128sha256rsaoaep.c
               ${PROJECT_SOURCE_DIR}/plugins/crypto/openssl/ua_openssl_create_certificate.c
+              ${PROJECT_SOURCE_DIR}/plugins/crypto/openssl/ua_certificatemanager_openssl.c
               ${PROJECT_SOURCE_DIR}/plugins/crypto/openssl/ua_pki_openssl.c)
 endif()
 
@@ -275,6 +279,10 @@ if (UA_MULTITHREADING GREATER_EQUAL 100)
     ua_add_test(server/check_server_asyncop.c)
 endif()
 
+if(UA_ENABLE_ENCRYPTION_MBEDTLS OR UA_ENABLE_ENCRYPTION_OPENSSL)
+  ua_add_test(check_serverconfig.c)
+endif()
+
 if(UA_ENABLE_METHODCALLS)
   ua_add_test(server/check_services_call.c)
 endif()
@@ -420,6 +428,8 @@ if(UA_ENABLE_ENCRYPTION)
     else()
         MESSAGE(WARNING "Certificate authentication with LibreSSL as crypto backend is not supported.")
     endif()
+    
+    ua_add_test(encryption/check_certstore_file.c)
 endif()
 
 if(UA_ENABLE_ENCRYPTION_MBEDTLS)
@@ -427,9 +437,6 @@ if(UA_ENABLE_ENCRYPTION_MBEDTLS)
     ua_add_test(encryption/check_encryption_basic256.c)
     ua_add_test(encryption/check_encryption_basic256sha256.c)
     ua_add_test(encryption/check_encryption_aes128sha256rsaoaep.c)
-endif()
-
-if(UA_ENABLE_ENCRYPTION_MBEDTLS AND UA_ENABLE_CERT_REJECTED_DIR)
     ua_add_test(encryption/check_save_rejected_cert.c)
 endif()
 
@@ -439,6 +446,7 @@ if(UA_ENABLE_ENCRYPTION_OPENSSL OR UA_ENABLE_ENCRYPTION_LIBRESSL)
     ua_add_test(encryption/check_encryption_basic256sha256.c)
     ua_add_test(encryption/check_encryption_aes128sha256rsaoaep.c)
     ua_add_test(encryption/check_cert_generation.c)
+    ua_add_test(encryption/check_save_rejected_cert.c)
 endif()
 
 # Tests for Nodeset Compiler
