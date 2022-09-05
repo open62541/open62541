@@ -310,7 +310,7 @@ disconnectMqtt(UA_PubSubChannelDataMQTT* channelData){
         mqtt_disconnect(client);
         yieldMqtt(channelData, 10);
 #ifdef UA_ENABLE_MQTT_TLS_OPENSSL //mbedTLS condition is missing
-        BIO_free_all(client->socketfd);
+        client->socketfd = NULL;
 #endif
     }
 
