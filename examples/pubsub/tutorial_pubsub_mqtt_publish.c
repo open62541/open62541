@@ -437,6 +437,7 @@ int main(int argc, char **argv) {
                 usage();
                 return -1;
             }
+            argpos++;
             if(sscanf(argv[argpos], "%d", &interval) != 1) {
                 usage();
                 return -1;
