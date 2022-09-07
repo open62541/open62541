@@ -130,7 +130,7 @@ UA_DataSetMessage_encodeJson_internal(const UA_DataSetMessage* src,
 static UA_StatusCode
 UA_NetworkMessage_encodeJson_internal(const UA_NetworkMessage* src, CtxJson *ctx) {
     status rv = UA_STATUSCODE_GOOD;
-    const UA_DataType *publisherIdType;
+    const UA_DataType *publisherIdType = NULL;
     /* currently only ua-data is supported, no discovery message implemented */
     if(src->networkMessageType != UA_NETWORKMESSAGE_DATASET)
         return UA_STATUSCODE_BADNOTIMPLEMENTED;
