@@ -66,17 +66,6 @@ UA_Timer_init(UA_Timer *t) {
     UA_LOCK_INIT(&t->timerMutex);
 }
 
-void
-UA_Timer_addTimerEntry(UA_Timer *t, UA_TimerEntry *te, UA_UInt64 *callbackId) {
-    UA_LOCK(&t->timerMutex);
-    te->id = ++t->idCounter;
-    if(callbackId)
-        *callbackId = te->id;
-    aa_insert(&t->root, te);
-    aa_insert(&t->idRoot, te);
-    UA_UNLOCK(&t->timerMutex);
-}
-
 static UA_StatusCode
 addCallback(UA_Timer *t, UA_ApplicationCallback callback, void *application,
             void *data, UA_DateTime nextTime, UA_UInt64 interval,
