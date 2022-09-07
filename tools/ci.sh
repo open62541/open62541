@@ -69,15 +69,26 @@ function build_tpm_tool {
 #########################
 # Build Release Version #
 #########################
-
 function build_release {
     mkdir -p build; cd build; rm -rf *
-    cmake -DBUILD_SHARED_LIBS=ON \
+    cmake -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+          -DBUILD_SHARED_LIBS=ON \
           -DUA_ENABLE_ENCRYPTION=MBEDTLS \
+          -DUA_BUILD_EXAMPLES=ON \
+          -DUA_BUILD_UNIT_TESTS=ON \
+          -DUA_ENABLE_DISCOVERY=ON \
+          -DUA_ENABLE_DISCOVERY_MULTICAST=ON \
           -DUA_ENABLE_SUBSCRIPTIONS_EVENTS=ON \
           -DUA_ENABLE_HISTORIZING=ON \
-          -DCMAKE_BUILD_TYPE=RelWithDebInfo \
-          -DUA_BUILD_EXAMPLES=ON \
+          -DUA_ENABLE_JSON_ENCODING=ON \
+          -DUA_ENABLE_PUBSUB=ON \
+          -DUA_ENABLE_PUBSUB_ETH_UADP=ON \
+          -DUA_ENABLE_PUBSUB_MQTT=ON \
+          -DUA_ENABLE_PUBSUB_DELTAFRAMES=ON \
+          -DUA_ENABLE_PUBSUB_INFORMATIONMODEL=ON \
+          -DUA_ENABLE_PUBSUB_INFORMATIONMODEL_METHODS=ON \
+          -DUA_ENABLE_PUBSUB_MONITORING=ON \
+          -DUA_ENABLE_PUBSUB_MQTT=ON \
           ..
     make ${MAKEOPTS}
 }
