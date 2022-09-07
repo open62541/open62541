@@ -81,6 +81,22 @@ UA_EventLoopPOSIX_addDelayedCallback(UA_EventLoop *public_el,
     UA_UNLOCK(&el->elMutex);
 }
 
+static void
+UA_EventLoopPOSIX_removeDelayedCallback(UA_EventLoop *public_el,
+                                     UA_DelayedCallback *dc) {
+    UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX*)public_el;
+    UA_LOCK(&el->elMutex);
+    UA_DelayedCallback **prev = &el->delayedCallbacks;
+    while(*prev) {
+        if(*prev == dc) {
+            *prev = (*prev)->next;
+            return;
+        }
+        prev = &(*prev)->next;
+    }
+    UA_UNLOCK(&el->elMutex);
+}
+
 /* Process and then free registered delayed callbacks */
 static void
 processDelayed(UA_EventLoopPOSIX *el) {
@@ -435,6 +451,7 @@ UA_EventLoop_new_POSIX(const UA_Logger *logger) {
     el->eventLoop.removeCyclicCallback = UA_EventLoopPOSIX_removeCyclicCallback;
     el->eventLoop.addTimedCallback = UA_EventLoopPOSIX_addTimedCallback;
     el->eventLoop.addDelayedCallback = UA_EventLoopPOSIX_addDelayedCallback;
+    el->eventLoop.removeDelayedCallback = UA_EventLoopPOSIX_removeDelayedCallback;
 
     el->eventLoop.registerEventSource =
         (UA_StatusCode (*)(UA_EventLoop*, UA_EventSource*))

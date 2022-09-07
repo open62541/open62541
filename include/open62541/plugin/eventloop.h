@@ -117,11 +117,10 @@ struct UA_EventLoop {
     UA_DateTime (*dateTime_nowMonotonic)(UA_EventLoop *el);
     UA_Int64    (*dateTime_localTimeUtcOffset)(UA_EventLoop *el);
 
-    /* Cyclic and Delayed Callbacks
-     * ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-     * Cyclic callbacks are executed regularly with an interval. A delayed
-     * callback is executed in the next cycle of the EventLoop. The memory for
-     * the delayed callback is freed after the execution. */
+    /* Timed Callbacks
+     * ~~~~~~~~~~~~~~~
+     * Cyclic callbacks are executed regularly with an interval.
+     * A timed callback is executed only once. */
 
     /* Time of the next cyclic callback. Returns the max DateTime if no cyclic
      * callback is registered. */
@@ -146,7 +145,19 @@ struct UA_EventLoop {
     (*addTimedCallback)(UA_EventLoop *el, UA_Callback cb, void *application,
                         void *data, UA_DateTime date, UA_UInt64 *callbackId);
 
+    /* Delayed Callbacks
+     * ~~~~~~~~~~~~~~~~~
+     * Delayed callbacks are executed once in the next iteration of the
+     * EventLoop and then deregistered automatically. A typical use case is to
+     * delay a resource cleanup to a point where it is known that the resource
+     * has no remaining users.
+     *
+     * The delayed callbacks are processed in each of the cycle of the EventLoop
+     * between the handling of timed cyclic callbacks and polling for (network)
+     * events. The memory for the delayed callback is automatically freed after
+     * the execution. */
     void (*addDelayedCallback)(UA_EventLoop *el, UA_DelayedCallback *dc);
+    void (*removeDelayedCallback)(UA_EventLoop *el, UA_DelayedCallback *dc);
 
     /* EventSources
      * ~~~~~~~~~~~~
