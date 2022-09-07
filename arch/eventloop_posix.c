@@ -244,6 +244,13 @@ UA_EventLoopPOSIX_run(UA_EventLoopPOSIX *el, UA_UInt32 timeout) {
      *   running out and executing the due cyclic callbacks. */
     processDelayed(el);
 
+    /* A delayed callback could create another delayed callback (or re-add
+     * itself). In that case we don't want to wait (indefinitely) for an event
+     * to happen. Process queued events but don't sleep. Then process the
+     * delayed callbacks in the next iteration. */
+    if(el->delayedCallbacks != NULL)
+        timeout = 0;
+
     /* Compute the remaining time */
     UA_DateTime maxDate = dateBefore + (timeout * UA_DATETIME_MSEC);
     if(dateNext > maxDate)
