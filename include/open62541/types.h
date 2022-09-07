@@ -1243,9 +1243,10 @@ UA_decodeBinary(const UA_ByteString *inBuf,
  *   (https://json5.org/). This allows for more human-readable encoding and adds
  *   convenience features such as trailing commas in arrays and comments within
  *   JSON documents.
+ * - Int64/UInt64 don't necessarily have to be wrapped into a string.
  * - If `UA_ENABLE_PARSING` is set, NodeIds and ExpandedNodeIds can be given in
- *   the string encoding (see `UA_NodeId_parse`). The standard encoding is to
- *   express NodeIds as JSON objects.
+ *   the string encoding (e.g. "ns=1;i=42", see `UA_NodeId_parse`). The standard
+ *   encoding is to express NodeIds as JSON objects.
  *
  * These extensions are not intended to be used for the OPC UA protocol on the
  * network. They were rather added to allow more convenient configuration file
