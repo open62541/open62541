@@ -672,13 +672,22 @@ UA_PubSubComponent_createMonitoring(UA_Server *server, UA_NodeId Id, UA_PubSubCo
     return ret;
 }
 
-static UA_StatusCode
-UA_PubSubComponent_startMonitoring(UA_Server *server, UA_NodeId Id, UA_PubSubComponentEnumType eComponentType,
-                                   UA_PubSubMonitoringType eMonitoringType, void *data) {
+static void
+monitoringReceiveTimeoutOnce(UA_Server *server, void *data) {
+    UA_DataSetReader *reader = (UA_DataSetReader*)data;
+    reader->msgRcvTimeoutTimerCallback(server, reader);
+    UA_PubSubManager_removeRepeatedPubSubCallback(server, reader->msgRcvTimeoutTimerId);
+    reader->msgRcvTimeoutTimerId = 0;
+}
 
+static UA_StatusCode
+UA_PubSubComponent_startMonitoring(UA_Server *server, UA_NodeId Id,
+                                   UA_PubSubComponentEnumType eComponentType,
+                                   UA_PubSubMonitoringType eMonitoringType, void *data) {
     if ((!server) || (!data)) {
-        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER, "Error UA_PubSubComponent_startMonitoring(): "
-            "null pointer param");
+        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                     "Error UA_PubSubComponent_startMonitoring(): "
+                     "null pointer param");
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     }
 
@@ -689,12 +698,13 @@ UA_PubSubComponent_startMonitoring(UA_Server *server, UA_NodeId Id, UA_PubSubCom
             switch (eMonitoringType) {
                 case UA_PUBSUB_MONITORING_MESSAGE_RECEIVE_TIMEOUT: {
                     /* use a timed callback, because one notification is enough,
-                    we assume that MessageReceiveTimeout configuration is in [ms], we do not handle or check fractions */
-                    UA_UInt64 interval = (UA_UInt64)(reader->config.messageReceiveTimeout * UA_DATETIME_MSEC);
-                    ret = server->config.eventLoop->
-                        addTimedCallback(server->config.eventLoop, (UA_Callback) reader->msgRcvTimeoutTimerCallback,
-                                         server, reader, UA_DateTime_nowMonotonic() + (UA_DateTime) interval,
-                                         &(reader->msgRcvTimeoutTimerId));
+                     * we assume that MessageReceiveTimeout configuration is in
+                     * [ms], we do not handle or check fractions */
+                    ret = UA_PubSubManager_addRepeatedCallback(server, monitoringReceiveTimeoutOnce,
+                                                               reader, reader->config.messageReceiveTimeout,
+                                                               NULL,
+                                                               UA_TIMER_HANDLE_CYCLEMISS_WITH_CURRENTTIME,
+                                                               &reader->msgRcvTimeoutTimerId);
                     if (ret == UA_STATUSCODE_GOOD) {
                         UA_LOG_DEBUG(&server->config.logger, UA_LOGCATEGORY_SERVER,
                             "UA_PubSubComponent_startMonitoring(): DataSetReader '%.*s'- MessageReceiveTimeout: MessageReceiveTimeout = '%f' "
