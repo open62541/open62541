@@ -237,8 +237,12 @@ UA_EventLoopPOSIX_run(UA_EventLoopPOSIX *el, UA_UInt32 timeout) {
                          timerExecutionTrampoline, NULL);
     UA_LOCK(&el->elMutex);
 
-    processDelayed(el); /* Process delayed callbacks. Remove closed sockets
-                         * already here instead of calling select for them. */
+    /* Process delayed callbacks here:
+     * - Removes closed sockets already here instead of polling them again.
+     * - The timeout for polling is selected to be ready in time for the next
+     *   cyclic callback. So we want to do little work between the timeout
+     *   running out and executing the due cyclic callbacks. */
+    processDelayed(el);
 
     /* Compute the remaining time */
     UA_DateTime maxDate = dateBefore + (timeout * UA_DATETIME_MSEC);
