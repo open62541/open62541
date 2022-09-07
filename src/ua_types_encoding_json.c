@@ -1573,7 +1573,6 @@ DECODE_JSON(UInt32) {
 
 DECODE_JSON(UInt64) {
     CHECK_TOKEN_BOUNDS;
-    CHECK_STRING;
     GET_TOKEN;
 
     UA_StatusCode s = parseUnsignedInteger(tokenData, tokenSize, dst);
@@ -1627,7 +1626,6 @@ DECODE_JSON(Int32) {
 
 DECODE_JSON(Int64) {
     CHECK_TOKEN_BOUNDS;
-    CHECK_STRING;
     GET_TOKEN;
 
     UA_StatusCode s = parseSignedInteger(tokenData, tokenSize, dst);
