@@ -457,6 +457,25 @@ UA_Server_removeCallback(UA_Server *server, UA_UInt64 callbackId) {
 }
 
 UA_StatusCode
+UA_Server_addDelayedCallback(UA_Server *server, UA_ServerCallback callback,
+                             void *data) {
+    UA_DelayedCallback* delayedCallback =
+        (UA_DelayedCallback*)UA_calloc(1, sizeof(UA_DelayedCallback));
+    UA_CHECK_MEM(delayedCallback, return UA_STATUSCODE_BADOUTOFMEMORY);
+
+    delayedCallback->callback = (UA_Callback)callback;
+    delayedCallback->application = server;
+    delayedCallback->context = data;
+
+    UA_LOCK(&server->serviceMutex);
+    server->config.eventLoop->addDelayedCallback(server->config.eventLoop,
+                                                 delayedCallback);
+    UA_UNLOCK(&server->serviceMutex);
+
+    return UA_STATUSCODE_GOOD;
+}
+
+UA_StatusCode
 UA_Server_updateCertificate(UA_Server *server,
                             const UA_ByteString *oldCertificate,
                             const UA_ByteString *newCertificate,
