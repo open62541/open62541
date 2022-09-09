@@ -153,6 +153,132 @@ implicitCastTargetType(const UA_DataType *t1, const UA_DataType *t2) {
     return targetType;
 }
 
+/* Cast Numerical
+ * --------------
+ * To reduce the number of cases we first "normalize" to either of
+ * Int64/UInt64/Double. Then cast from there to the target type. This works for
+ * all numericals (not only the implicit conversion).
+ *
+ * Numerical conversion rules from the standard:
+ *
+ * - If the conversion fails the result is a null value.
+ * - Floating point values are rounded by adding 0.5 and truncating when they
+ *   are converted to integer values.
+ * - Converting a value that is outside the range of the target type causes a
+ *   conversion error. */
+
+#define UA_CAST_SIGNED(t, T)                                         \
+    if(i < T##_MIN || (i > 0 && (t)i > T##_MAX))                     \
+        return;                                                      \
+    *(t*)data = (t)i;                                                \
+    do { } while(0)
+
+#define UA_CAST_UNSIGNED(t, T)                                       \
+    if(u > T##_MAX)                                                  \
+        return;                                                      \
+    *(t*)data = (t)u;                                                \
+    do { } while(0)
+
+#define UA_CAST_FLOAT(t, T)                                          \
+    if(f + 0.5 < (UA_Double)T##_MIN || f + 0.5 > (UA_Double)T##_MAX) \
+        return;                                                      \
+    *(t*)data = (t)(f + 0.5);                                        \
+    do { } while(0)
+
+/* We can cast between any numerical type. So this can be reused for explicit casting. */
+static void
+castNumerical(const UA_Variant *in, const UA_DataType *type, UA_Variant *out) {
+    UA_assert(UA_Variant_isScalar(in));
+    UA_Variant_init(out); /* Set to null value */
+
+    UA_Int64  i = 0;
+    UA_UInt64 u = 0;
+    UA_Double f = 0.0;
+
+    const UA_DataTypeKind ink = (UA_DataTypeKind)in->type->typeKind;
+    switch(ink) {
+    case UA_DATATYPEKIND_SBYTE:  i = *(UA_SByte*)in->data; break;
+    case UA_DATATYPEKIND_INT16:  i = *(UA_Int16*)in->data; break;
+    case UA_DATATYPEKIND_INT32:  i = *(UA_Int32*)in->data; break;
+    case UA_DATATYPEKIND_INT64:  i = *(UA_Int64*)in->data; break;
+    case UA_DATATYPEKIND_BYTE: /* or */
+    case UA_DATATYPEKIND_BOOLEAN: u = *(UA_Byte*)in->data; break;
+    case UA_DATATYPEKIND_UINT16:  u = *(UA_UInt16*)in->data; break;
+    case UA_DATATYPEKIND_UINT32: /* or */
+    case UA_DATATYPEKIND_STATUSCODE: u = *(UA_UInt32*)in->data; break;
+    case UA_DATATYPEKIND_UINT64: u = *(UA_UInt64*)in->data; break;
+    case UA_DATATYPEKIND_FLOAT:  f = *(UA_Float*)in->data; break;
+    case UA_DATATYPEKIND_DOUBLE: f = *(UA_Double*)in->data; break;
+    default: return;
+    }
+
+    void *data = UA_new(type);
+    if(!data)
+        return;
+
+    if(ink == UA_DATATYPEKIND_SBYTE || ink == UA_DATATYPEKIND_INT16 ||
+       ink == UA_DATATYPEKIND_INT32 || ink == UA_DATATYPEKIND_INT64) {
+        /* Cast from signed */
+        switch(type->typeKind) {
+        case UA_DATATYPEKIND_SBYTE:  UA_CAST_SIGNED(UA_SByte, UA_SBYTE); break;
+        case UA_DATATYPEKIND_INT16:  UA_CAST_SIGNED(UA_Int16, UA_INT16); break;
+        case UA_DATATYPEKIND_INT32:  UA_CAST_SIGNED(UA_Int32, UA_INT32); break;
+        case UA_DATATYPEKIND_INT64:  *(UA_Int64*)data = i; break;
+        case UA_DATATYPEKIND_BYTE:   UA_CAST_SIGNED(UA_Byte, UA_BYTE); break;
+        case UA_DATATYPEKIND_UINT16: UA_CAST_SIGNED(UA_UInt16, UA_UINT16); break;
+        case UA_DATATYPEKIND_UINT32: UA_CAST_SIGNED(UA_UInt32, UA_UINT32); break;
+        case UA_DATATYPEKIND_UINT64: UA_CAST_SIGNED(UA_UInt64, UA_UINT64); break;
+        case UA_DATATYPEKIND_FLOAT:  *(UA_Float*)data = (UA_Float)i; break;
+        case UA_DATATYPEKIND_DOUBLE: *(UA_Double*)data = (UA_Double)i; break;
+        default:
+            UA_free(data);
+            return;
+        }
+    } else if(ink == UA_DATATYPEKIND_BYTE   || ink == UA_DATATYPEKIND_UINT16 ||
+              ink == UA_DATATYPEKIND_UINT32 || ink == UA_DATATYPEKIND_UINT64) {
+        /* Cast from unsigned */
+        switch(type->typeKind) {
+        case UA_DATATYPEKIND_SBYTE:  UA_CAST_UNSIGNED(UA_SByte, UA_SBYTE); break;
+        case UA_DATATYPEKIND_INT16:  UA_CAST_UNSIGNED(UA_Int16, UA_INT16); break;
+        case UA_DATATYPEKIND_INT32:  UA_CAST_UNSIGNED(UA_Int32, UA_INT32); break;
+        case UA_DATATYPEKIND_INT64:  UA_CAST_UNSIGNED(UA_Int64, UA_INT64); break;
+        case UA_DATATYPEKIND_BYTE:   UA_CAST_UNSIGNED(UA_Byte, UA_BYTE); break;
+        case UA_DATATYPEKIND_UINT16: UA_CAST_UNSIGNED(UA_UInt16, UA_UINT16); break;
+        case UA_DATATYPEKIND_UINT32: UA_CAST_UNSIGNED(UA_UInt32, UA_UINT32); break;
+        case UA_DATATYPEKIND_UINT64: *(UA_UInt64*)data = u; break;
+        case UA_DATATYPEKIND_FLOAT:  *(UA_Float*)data = (UA_Float)u; break;
+        case UA_DATATYPEKIND_DOUBLE: *(UA_Double*)data = (UA_Double)u; break;
+        default:
+            UA_free(data);
+            return;
+        }
+    } else {
+        /* Cast from float */
+        if(f != f) {
+            /* NaN cannot be cast */
+            UA_free(data);
+            return;
+        }
+        switch(type->typeKind) {
+        case UA_DATATYPEKIND_SBYTE:  UA_CAST_FLOAT(UA_SByte, UA_SBYTE); break;
+        case UA_DATATYPEKIND_INT16:  UA_CAST_FLOAT(UA_Int16, UA_INT16); break;
+        case UA_DATATYPEKIND_INT32:  UA_CAST_FLOAT(UA_Int32, UA_INT32); break;
+        case UA_DATATYPEKIND_INT64:  UA_CAST_FLOAT(UA_Int64, UA_INT64); break;
+        case UA_DATATYPEKIND_BYTE:   UA_CAST_FLOAT(UA_Byte, UA_BYTE); break;
+        case UA_DATATYPEKIND_UINT16: UA_CAST_FLOAT(UA_UInt16, UA_UINT16); break;
+        case UA_DATATYPEKIND_UINT32: UA_CAST_FLOAT(UA_UInt32, UA_UINT32); break;
+        case UA_DATATYPEKIND_UINT64: UA_CAST_FLOAT(UA_UInt64, UA_UINT64); break;
+        case UA_DATATYPEKIND_FLOAT:  *(UA_Float*)data = (UA_Float)f; break;
+        case UA_DATATYPEKIND_DOUBLE: *(UA_Double*)data = (UA_Double)f; break;
+        default:
+            UA_free(data);
+            return;
+        }
+    }
+
+    UA_Variant_setScalar(out, data, type);
+}
+
 typedef struct {
     UA_Server *server;
     UA_Session *session;
