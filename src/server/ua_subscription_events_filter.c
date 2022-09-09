@@ -1175,9 +1175,11 @@ filterEvent(UA_Server *server, UA_Session *session,
             continue;
         }
 
-        /* TODO: Put the result into the selectClausResults */
-        resolveSimpleAttributeOperand(server, session, eventNode,
-                                      &filter->selectClauses[i], &efl->eventFields[i]);
+        /* Lookup the field. The overall filter can succeed even if a single
+         * select-field cannot be resolved. */
+        result->selectClauseResults[i] =
+            resolveSimpleAttributeOperand(server, session, eventNode,
+                                          &filter->selectClauses[i], &efl->eventFields[i]);
     }
 
     return UA_STATUSCODE_GOOD;
