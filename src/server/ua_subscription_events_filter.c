@@ -1018,10 +1018,10 @@ evaluateWhereClauseContentFilter(UA_FilterOperatorContext *ctx) {
 
 /* Exposes the filters For unit tests */
 UA_StatusCode
-UA_Server_evaluateWhereClauseContentFilter(UA_Server *server, UA_Session *session,
-                                           const UA_NodeId *eventNode,
-                                           const UA_ContentFilter *contentFilter,
-                                           UA_ContentFilterResult *contentFilterResult) {
+evaluateWhereClauseContentFilter(UA_Server *server, UA_Session *session,
+                                 const UA_NodeId *eventNode,
+                                 const UA_ContentFilter *contentFilter,
+                                 UA_ContentFilterResult *contentFilterResult) {
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
     if(contentFilter->elementsSize == 0)
         return UA_STATUSCODE_GOOD;
@@ -1053,7 +1053,8 @@ static UA_Boolean
 isValidEvent(UA_Server *server, const UA_NodeId *validEventParent,
              const UA_NodeId *eventId) {
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
-    /* find the eventType variableNode */
+
+    /* Find the eventType variableNode */
     UA_QualifiedName findName = UA_QUALIFIEDNAME(0, "EventType");
     UA_BrowsePathResult bpr = browseSimplifiedBrowsePath(server, *eventId, 1, &findName);
     if(bpr.statusCode != UA_STATUSCODE_GOOD || bpr.targetsSize < 1) {
@@ -1075,8 +1076,8 @@ isValidEvent(UA_Server *server, const UA_NodeId *validEventParent,
 
     const UA_NodeId *tEventType = (UA_NodeId*)tOutVariant.data;
 
-    /* check whether the EventType is a Subtype of CondtionType
-     * (Part 9 first implementation) */
+    /* Check whether the EventType is a Subtype of CondtionType (Part 9 first
+     * implementation) */
     UA_NodeId conditionTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_CONDITIONTYPE);
     if(UA_NodeId_equal(validEventParent, &conditionTypeId) &&
        isNodeInTree_singleRef(server, tEventType, &conditionTypeId,
@@ -1086,9 +1087,9 @@ isValidEvent(UA_Server *server, const UA_NodeId *validEventParent,
         return true;
     }
 
-    /*EventType is not a Subtype of CondtionType
-     *(ConditionId Clause won't be present in Events, which are not Conditions)*/
-    /* check whether Valid Event other than Conditions */
+    /* EventType is not a Subtype of CondtionType (ConditionId Clause won't be
+     * present in Events, which are not Conditions) */
+    /* Check whether Valid Event other than Conditions */
     UA_NodeId baseEventTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_BASEEVENTTYPE);
     UA_Boolean isSubtypeOfBaseEvent =
         isNodeInTree_singleRef(server, tEventType, &baseEventTypeId,
@@ -1104,6 +1105,7 @@ filterEvent(UA_Server *server, UA_Session *session,
             const UA_NodeId *eventNode, UA_EventFilter *filter,
             UA_EventFieldList *efl, UA_EventFilterResult *result) {
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
+
     if(filter->selectClausesSize == 0)
         return UA_STATUSCODE_BADEVENTFILTERINVALID;
 
@@ -1114,7 +1116,7 @@ filterEvent(UA_Server *server, UA_Session *session,
         return UA_STATUSCODE_BADOUTOFMEMORY;
     efl->eventFieldsSize = filter->selectClausesSize;
 
-    /* empty event filter result */
+    /* Empty event filter result */
     UA_EventFilterResult_init(result);
     result->selectClauseResultsSize = filter->selectClausesSize;
     result->selectClauseResults = (UA_StatusCode *)
@@ -1124,7 +1126,8 @@ filterEvent(UA_Server *server, UA_Session *session,
         UA_EventFilterResult_clear(result);
         return UA_STATUSCODE_BADOUTOFMEMORY;
     }
-    /* prepare content filter result structure */
+
+    /* Prepare content filter result structure */
     if(filter->whereClause.elementsSize != 0) {
         result->whereClauseResult.elementResultsSize = filter->whereClause.elementsSize;
         result->whereClauseResult.elementResults = (UA_ContentFilterElementResult *)
@@ -1138,10 +1141,9 @@ filterEvent(UA_Server *server, UA_Session *session,
         for(size_t i = 0; i < result->whereClauseResult.elementResultsSize; ++i) {
             result->whereClauseResult.elementResults[i].operandStatusCodesSize =
             filter->whereClause.elements->filterOperandsSize;
-            result->whereClauseResult.elementResults[i].operandStatusCodes =
-                (UA_StatusCode *)UA_Array_new(
-                    filter->whereClause.elements->filterOperandsSize,
-                    &UA_TYPES[UA_TYPES_STATUSCODE]);
+            result->whereClauseResult.elementResults[i].operandStatusCodes = (UA_StatusCode *)
+                UA_Array_new(filter->whereClause.elements->filterOperandsSize,
+                             &UA_TYPES[UA_TYPES_STATUSCODE]);
             if(!result->whereClauseResult.elementResults[i].operandStatusCodes) {
                 UA_EventFieldList_clear(efl);
                 UA_EventFilterResult_clear(result);
@@ -1150,10 +1152,10 @@ filterEvent(UA_Server *server, UA_Session *session,
         }
     }
 
-    /* Apply the content (where) filter */
+    /* Evaluate the where filter. Do we event need to consider the event? */
     UA_StatusCode res =
-        UA_Server_evaluateWhereClauseContentFilter(server, session, eventNode,
-                                                   &filter->whereClause, &result->whereClauseResult);
+        evaluateWhereClauseContentFilter(server, session, eventNode,
+                                         &filter->whereClause, &result->whereClauseResult);
     if(res != UA_STATUSCODE_GOOD){
         UA_EventFieldList_clear(efl);
         UA_EventFilterResult_clear(result);
@@ -1161,10 +1163,10 @@ filterEvent(UA_Server *server, UA_Session *session,
     }
 
     /* Apply the select filter */
-    /* Check if the browsePath is BaseEventType, in which case nothing more
-     * needs to be checked */
     UA_NodeId baseEventTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_BASEEVENTTYPE);
     for(size_t i = 0; i < filter->selectClausesSize; i++) {
+        /* Check if the browsePath is BaseEventType, in which case nothing more
+         * needs to be checked */
         if(!UA_NodeId_equal(&filter->selectClauses[i].typeDefinitionId, &baseEventTypeId) &&
            !isValidEvent(server, &filter->selectClauses[i].typeDefinitionId, eventNode)) {
             UA_Variant_init(&efl->eventFields[i]);
@@ -1278,7 +1280,8 @@ UA_Event_staticSelectClauseValidation(UA_Server *server,
 
         if(result[i] != UA_STATUSCODE_GOOD)
             continue;
-        /*indexRange is defined ? */
+
+        /* indexRange is defined ? */
         if(!UA_String_equal(&eventFilter->selectClauses[i].indexRange,
                             &UA_STRING_NULL)) {
             /* indexRange is parsable ? */
