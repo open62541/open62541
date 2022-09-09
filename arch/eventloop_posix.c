@@ -107,14 +107,13 @@ processDelayed(UA_EventLoopPOSIX *el) {
     while(el->delayedCallbacks) {
         UA_DelayedCallback *dc = el->delayedCallbacks;
         el->delayedCallbacks = dc->next;
-        /* Delayed Callbacks might have no cb pointer if all
-         * we want to do is free the memory */
-        if(dc->callback) {
-            UA_UNLOCK(&el->elMutex);
-            dc->callback(dc->application, dc->context);
-            UA_LOCK(&el->elMutex);
-        }
-        UA_free(dc);
+        /* Delayed Callbacks might have no callback set. We don't return a
+         * StatusCode during "add" and don't validate. So test here. */
+        if(!dc->callback)
+            continue;
+        UA_UNLOCK(&el->elMutex);
+        dc->callback(dc->application, dc->context);
+        UA_LOCK(&el->elMutex);
     }
 }
 

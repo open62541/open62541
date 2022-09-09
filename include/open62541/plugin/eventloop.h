@@ -154,8 +154,8 @@ struct UA_EventLoop {
      *
      * The delayed callbacks are processed in each of the cycle of the EventLoop
      * between the handling of timed cyclic callbacks and polling for (network)
-     * events. The memory for the delayed callback is automatically freed after
-     * the execution. */
+     * events. The memory for the delayed callback is *NOT* automatically freed
+     * after the execution. */
     void (*addDelayedCallback)(UA_EventLoop *el, UA_DelayedCallback *dc);
     void (*removeDelayedCallback)(UA_EventLoop *el, UA_DelayedCallback *dc);
 
