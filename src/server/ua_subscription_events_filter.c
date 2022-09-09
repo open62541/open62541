@@ -539,12 +539,17 @@ resolveSimpleAttributeOperand(UA_Server *server, UA_Session *session,
         UA_BrowsePathResult_clear(&bpr);
     }
 
-    /* Move the result to the output */
-    if(v.status == UA_STATUSCODE_GOOD && v.hasValue)
-        *value = v.value;
-    else
+    /* Validate the result */
+    if(v.status != UA_STATUSCODE_GOOD) {
         UA_Variant_clear(&v.value);
-    return v.status;
+        return v.status;
+    }
+    if(!v.hasValue)
+        return UA_STATUSCODE_BADNODATAAVAILABLE;
+
+    /* Move the result to the output */
+    *value = v.value;
+    return UA_STATUSCODE_GOOD;
 }
 
 /* Resolve operands to variants according to the operand type.
