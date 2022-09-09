@@ -201,20 +201,16 @@ UA_Timer_process(UA_Timer *t, UA_DateTime nowMonotonic,
     UA_TimerEntry *first;
     while((first = (UA_TimerEntry*)aa_min(&t->root)) &&
           first->nextTime <= nowMonotonic) {
+        /* Remove before modifying the nextTime timestamp.
+         * aa_remove gets confused if we remove later. */
         aa_remove(&t->root, first);
-
-        /* Reinsert / remove to their new position first. Because the callback
-         * can interact with the zip tree and expects the same entries in the
-         * root and idRoot trees. */
 
         if(first->interval == 0) {
             aa_remove(&t->idRoot, first);
-            if(first->callback) {
-                UA_UNLOCK(&t->timerMutex);
-                executionCallback(executionApplication, first->callback,
-                                  first->application, first->data);
-                UA_LOCK(&t->timerMutex);
-            }
+            UA_UNLOCK(&t->timerMutex);
+            executionCallback(executionApplication, first->callback,
+                              first->application, first->data);
+            UA_LOCK(&t->timerMutex);
             UA_free(first);
             continue;
         }
@@ -236,14 +232,13 @@ UA_Timer_process(UA_Timer *t, UA_DateTime nowMonotonic,
                 first->nextTime = nowMonotonic + (UA_DateTime)first->interval;
         }
 
+        /* Insert before running the callback. The entry can be removed from the
+         * callback itself. */
         aa_insert(&t->root, first);
 
-        if(!first->callback)
-            continue;
-
-        /* Unlock the mutes before dropping into the callback. So that the timer
-         * itself can be edited within the callback. When we return, only the
-         * pointer to t must still exist. */
+        /* Unlock the mutex before dropping into the callback. So that the timer
+         * itself can be removed / edited within the callback. When we return,
+         * only the pointer to t must still exist. */
         UA_ApplicationCallback cb = first->callback;
         void *app = first->application;
         void *data = first->data;
