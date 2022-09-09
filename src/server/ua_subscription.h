@@ -337,18 +337,18 @@ UA_Session_reachedPublishReqLimit(UA_Server *server, UA_Session *session);
 struct UA_ConditionSource;
 typedef struct UA_ConditionSource UA_ConditionSource;
 
+/* Evaluate content filter, exported only for unit testing */
+#ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
+UA_StatusCode
+evaluateWhereClauseContentFilter(UA_Server *server, UA_Session *session,
+                                 const UA_NodeId *eventNode,
+                                 const UA_ContentFilter *contentFilter,
+                                 UA_ContentFilterResult *contentFilterResult);
+#endif
+
 /***********/
 /* Helpers */
 /***********/
-
-/* Evaluate content filter, Only for unit testing */
-#ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
-UA_StatusCode
-UA_Server_evaluateWhereClauseContentFilter(UA_Server *server, UA_Session *session,
-                                           const UA_NodeId *eventNode,
-                                           const UA_ContentFilter *contentFilter,
-                                           UA_ContentFilterResult *contentFilterResult);
-#endif
 
 /* Setting an integer value within bounds */
 #define UA_BOUNDEDVALUE_SETWBOUNDS(BOUNDS, SRC, DST) { \

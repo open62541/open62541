@@ -733,8 +733,8 @@ START_TEST(evaluateWhereClause) {
         }
     }
     UA_LOCK(&server->serviceMutex);
-    retval = UA_Server_evaluateWhereClauseContentFilter(server, &server->adminSession,
-                                                        &eventNodeId, &contentFilter, &contentFilterResult);
+    retval = evaluateWhereClauseContentFilter(server, &server->adminSession,
+                                              &eventNodeId, &contentFilter, &contentFilterResult);
     UA_UNLOCK(&server->serviceMutex);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     UA_ContentFilterResult_clear(&contentFilterResult);
@@ -744,7 +744,6 @@ START_TEST(evaluateWhereClause) {
     UA_ContentFilterElement_init(&contentFilterElement);
     contentFilter.elements = &contentFilterElement;
     contentFilter.elementsSize = 1;
-    contentFilter.elements->filterOperandsSize = 6;
     contentFilterElement.filterOperator = UA_FILTEROPERATOR_RELATEDTO;
 
     UA_ContentFilterResult_init(&contentFilterResult);
@@ -768,9 +767,10 @@ START_TEST(evaluateWhereClause) {
         }
     }
     UA_LOCK(&server->serviceMutex);
-    retval = UA_Server_evaluateWhereClauseContentFilter(server, &server->adminSession, &eventNodeId, &contentFilter, &contentFilterResult);
+    retval = evaluateWhereClauseContentFilter(server, &server->adminSession,
+                                              &eventNodeId, &contentFilter, &contentFilterResult);
     UA_UNLOCK(&server->serviceMutex);
-    ck_assert_uint_eq(retval, UA_STATUSCODE_BADEVENTFILTERINVALID);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADFILTEROPERATORUNSUPPORTED);
     UA_ContentFilterResult_clear(&contentFilterResult);
 
     contentFilterElement.filterOperator = UA_FILTEROPERATOR_INVIEW;
@@ -794,34 +794,17 @@ START_TEST(evaluateWhereClause) {
         }
     }
     UA_LOCK(&server->serviceMutex);
-    retval = UA_Server_evaluateWhereClauseContentFilter(server, &server->adminSession, &eventNodeId, &contentFilter, &contentFilterResult);
+    retval = evaluateWhereClauseContentFilter(server, &server->adminSession,
+                                              &eventNodeId, &contentFilter,
+                                              &contentFilterResult);
     UA_UNLOCK(&server->serviceMutex);
-    ck_assert_uint_eq(retval, UA_STATUSCODE_BADEVENTFILTERINVALID);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADFILTEROPERATORUNSUPPORTED);
     UA_ContentFilterResult_clear(&contentFilterResult);
 
     /* No operand provided */
     contentFilterElement.filterOperator = UA_FILTEROPERATOR_OFTYPE;
-    UA_ContentFilterResult_init(&contentFilterResult);
-    contentFilterResult.elementResultsSize = contentFilter.elementsSize;
-    contentFilterResult.elementResults = (UA_ContentFilterElementResult *)
-        UA_Array_new(contentFilter.elementsSize,
-                     &UA_TYPES[UA_TYPES_CONTENTFILTERELEMENTRESULT]);
-    if(!contentFilterResult.elementResults) {
-        ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
-    }
-    for(size_t i = 0; i < contentFilterResult.elementResultsSize; ++i) {
-        contentFilterResult.elementResults[i].operandStatusCodesSize =
-            contentFilter.elements->filterOperandsSize;
-        contentFilterResult.elementResults[i].operandStatusCodes =
-            (UA_StatusCode *)UA_Array_new(
-                contentFilter.elements->filterOperandsSize,
-                &UA_TYPES[UA_TYPES_STATUSCODE]);
-        if(!contentFilterResult.elementResults[i].operandStatusCodes) {
-            ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
-        }
-    }
     UA_LOCK(&server->serviceMutex);
-    retval = UA_Server_evaluateWhereClauseContentFilter(server, &server->adminSession, &eventNodeId, &contentFilter, &contentFilterResult);
+    retval = UA_Event_staticWhereClauseValidation(server, &contentFilter, &contentFilterResult);
     UA_UNLOCK(&server->serviceMutex);
     ck_assert_uint_eq(retval, UA_STATUSCODE_BADFILTEROPERANDCOUNTMISMATCH);
     UA_ContentFilterResult_clear(&contentFilterResult);
@@ -857,7 +840,8 @@ START_TEST(evaluateWhereClause) {
         }
     }
     UA_LOCK(&server->serviceMutex);
-    retval = UA_Server_evaluateWhereClauseContentFilter(server, &server->adminSession, &eventNodeId, &contentFilter, &contentFilterResult);
+    retval = evaluateWhereClauseContentFilter(server, &server->adminSession,
+                                              &eventNodeId, &contentFilter, &contentFilterResult);
     UA_UNLOCK(&server->serviceMutex);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     UA_ContentFilterResult_clear(&contentFilterResult);
@@ -886,7 +870,8 @@ START_TEST(evaluateWhereClause) {
         }
     }
     UA_LOCK(&server->serviceMutex);
-    retval = UA_Server_evaluateWhereClauseContentFilter(server, &server->adminSession, &eventNodeId, &contentFilter, &contentFilterResult);
+    retval = evaluateWhereClauseContentFilter(server, &server->adminSession,
+                                              &eventNodeId, &contentFilter, &contentFilterResult);
     UA_UNLOCK(&server->serviceMutex);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     UA_ContentFilterResult_clear(&contentFilterResult);
@@ -914,7 +899,8 @@ START_TEST(evaluateWhereClause) {
         }
     }
     UA_LOCK(&server->serviceMutex);
-    retval = UA_Server_evaluateWhereClauseContentFilter(server, &server->adminSession, &eventNodeId, &contentFilter, &contentFilterResult);
+    retval = evaluateWhereClauseContentFilter(server, &server->adminSession,
+                                              &eventNodeId, &contentFilter, &contentFilterResult);
     UA_UNLOCK(&server->serviceMutex);
     ck_assert_uint_eq(retval, UA_STATUSCODE_BADNOMATCH);
     UA_ContentFilterResult_clear(&contentFilterResult);

@@ -818,7 +818,6 @@ static Suite *testSuite_Client(void) {
     tcase_add_test(tc_server, orderedCompareOperatorValidation);
     tcase_add_test(tc_server, betweenOperatorValidation);
     tcase_add_test(tc_server, inListOperatorValidation);
-
     suite_add_tcase(s, tc_server);
     return s;
 }
