@@ -279,6 +279,173 @@ castNumerical(const UA_Variant *in, const UA_DataType *type, UA_Variant *out) {
     UA_Variant_setScalar(out, data, type);
 }
 
+/* Implicit Casting
+ * ---------------- */
+
+static UA_INLINE UA_Byte uppercase(UA_Byte in) { return in | 32; }
+
+static UA_StatusCode
+castImplicitFromString(const UA_Variant *in, const UA_DataType *outType, UA_Variant *out) {
+    UA_StatusCode res = UA_STATUSCODE_GOOD;
+    if(outType == &UA_TYPES[UA_TYPES_BOOLEAN]) {
+        /* String -> Boolean
+         *
+         * Part 4 says: String values containing "true", "false", "1" or "0"
+         * can be converted to Boolean values. Other string values cause a
+         * conversion error. In this case Strings are case-insensitive. */
+        UA_Boolean b;
+        const UA_String *inStr = (const UA_String*)in->data;
+        if(inStr->length == 1 && inStr->data[0] == '0') {
+            b = false;
+        } else if(inStr->length == 1 && inStr->data[0] == '1') {
+            b = true;
+        } else if(inStr->length == 4 &&
+                  uppercase(inStr->data[0])== 'T' && uppercase(inStr->data[1])== 'R' &&
+                  uppercase(inStr->data[2])== 'U' && uppercase(inStr->data[3])== 'E') {
+            b = true;
+        } else if(inStr->length == 5              && uppercase(inStr->data[0])== 'F' &&
+                  uppercase(inStr->data[1])== 'A' && uppercase(inStr->data[2])== 'L' &&
+                  uppercase(inStr->data[3])== 'S' && uppercase(inStr->data[4])== 'E') {
+            b = false;
+        } else {
+            return UA_STATUSCODE_BADTYPEMISMATCH;
+        }
+        return UA_Variant_setScalarCopy(out, &b, outType);
+    }
+
+#ifdef UA_ENABLE_PARSING
+    else if(outType == &UA_TYPES[UA_TYPES_GUID]) {
+        /* String -> Guid */
+        UA_Guid guid;
+        res = UA_Guid_parse(&guid, *(UA_String*)in->data);
+        if(res != UA_STATUSCODE_GOOD)
+            return res;
+        return UA_Variant_setScalarCopy(out, &guid, outType);
+    }
+#endif
+
+#ifdef UA_ENABLE_JSON_ENCODING
+    /* String -> Numerical, uses the JSON decoding */
+    else if(UA_DataType_isNumeric(outType)) {
+        void *outData = UA_new(outType);
+        if(!outData)
+            return UA_STATUSCODE_BADOUTOFMEMORY;
+        res = UA_decodeJson((const UA_ByteString*)in->data, outData, outType, NULL);
+        if(res != UA_STATUSCODE_GOOD) {
+            UA_free(outData);
+            return res;
+        }
+        UA_Variant_setScalar(out, outData, outType);
+        return UA_STATUSCODE_GOOD;
+    }
+#endif
+
+    /* No implicit casting possible */
+    return UA_STATUSCODE_BADTYPEMISMATCH;
+}
+
+static UA_StatusCode
+castImplicit(const UA_Variant *in, const UA_DataType *outType, UA_Variant *out) {
+    /* Of the input is empty, casting results in a NULL value */
+    if(UA_Variant_isEmpty(in)) {
+        UA_Variant_init(out);
+        return UA_STATUSCODE_GOOD;
+    }
+
+    /* TODO: We only support scalar values for now */
+    if(!UA_Variant_isScalar(in))
+        return UA_STATUSCODE_BADFILTEROPERATORUNSUPPORTED;
+
+    /* No casting necessary */
+    if(in->type == outType) {
+        *out = *in;
+        out->storageType = UA_VARIANT_DATA_NODELETE;
+        return UA_STATUSCODE_GOOD;
+    }
+
+    UA_StatusCode res = UA_STATUSCODE_GOOD;
+    switch(in->type->typeKind) {
+    case UA_DATATYPEKIND_EXPANDEDNODEID: {
+        /* ExpandedNodeId -> String */
+        if(outType != &UA_TYPES[UA_TYPES_STRING])
+            break;
+        UA_String *outStr = UA_String_new();
+        if(!outStr)
+            return UA_STATUSCODE_BADOUTOFMEMORY;
+        res = UA_ExpandedNodeId_print((const UA_ExpandedNodeId*)in->data, outStr);
+        if(res != UA_STATUSCODE_GOOD) {
+            UA_free(outStr);
+            break;
+        }
+        UA_Variant_setScalar(out, outStr, outType);
+        break;
+    }
+
+    case UA_DATATYPEKIND_NODEID: {
+        if(outType == &UA_TYPES[UA_TYPES_STRING]) {
+            /* NodeId -> String */
+            UA_String *outStr = UA_String_new();
+            if(!outStr)
+                return UA_STATUSCODE_BADOUTOFMEMORY;
+            res = UA_NodeId_print((const UA_NodeId*)in->data, outStr);
+            if(res != UA_STATUSCODE_GOOD) {
+                UA_free(outStr);
+                break;
+            }
+            UA_Variant_setScalar(out, outStr, outType);
+        } else if(outType == &UA_TYPES[UA_TYPES_EXPANDEDNODEID]) {
+            /* NodeId -> ExpandedNodeId */
+            UA_ExpandedNodeId *eid = UA_ExpandedNodeId_new();
+            if(!eid)
+                return UA_STATUSCODE_BADOUTOFMEMORY;
+            res = UA_NodeId_copy((const UA_NodeId*)in->data, &eid->nodeId);
+            if(res != UA_STATUSCODE_GOOD) {
+                UA_free(eid);
+                break;
+            }
+            UA_Variant_setScalar(out, eid, outType);
+        }
+        break;
+    }
+
+    case UA_DATATYPEKIND_STRING:
+        res = castImplicitFromString(in, outType, out);
+        break;
+
+    case UA_DATATYPEKIND_LOCALIZEDTEXT: {
+        if(outType != &UA_TYPES[UA_TYPES_STRING])
+            break;
+        /* LocalizedText -> String */
+        UA_LocalizedText *inLT = (UA_LocalizedText*)in->data;
+        res = UA_Variant_setScalarCopy(out, &inLT->text, outType);
+        break;
+    }
+
+    case UA_DATATYPEKIND_QUALIFIEDNAME: {
+        UA_QualifiedName *inQN = (UA_QualifiedName*)in->data;
+        if(outType == &UA_TYPES[UA_TYPES_STRING]) {
+            /* QualifiedName -> String */
+            res = UA_Variant_setScalarCopy(out, &inQN->name, outType);
+        } else if(outType == &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]) {
+            /* QualifiedName -> LocalizedText */
+            UA_LocalizedText lt;
+            lt.text = inQN->name;
+            lt.locale = UA_STRING_NULL;
+            res = UA_Variant_setScalarCopy(out, &lt, outType);
+        }
+        break;
+    }
+
+    default:
+        /* Try casting between numericals (also works for Boolean and StatusCode
+         * input). The conversion can fail if the limits of the output type are
+         * exceeded and then results in a NULL value. */
+        castNumerical(in, outType, out);
+    }
+
+    return res;
+}
+
 typedef struct {
     UA_Server *server;
     UA_Session *session;
