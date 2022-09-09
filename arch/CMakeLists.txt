@@ -9,6 +9,7 @@ add_subdirectory(freertosLWIP)
 add_subdirectory(vxworks)
 add_subdirectory(eCos)
 add_subdirectory(wec7)
+add_subdirectory(wasm)
 
 SET(UA_ARCH_EXTRA_INCLUDES "" CACHE STRING "Folders to include from the architecture")
 mark_as_advanced(UA_ARCH_EXTRA_INCLUDES)
