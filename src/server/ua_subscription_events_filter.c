@@ -5,12 +5,77 @@
  *    Copyright 2018 (c) Ari Breitkreuz, fortiss GmbH
  *    Copyright 2020 (c) Christian von Arnim, ISW University of Stuttgart (for VDW and umati)
  *    Copyright 2021 (c) Fraunhofer IOSB (Author: Andreas Ebner)
+ *    Copyright 2022 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
  */
 
 #include "ua_server_internal.h"
 #include "ua_subscription.h"
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
+
+/* Ternary Logic
+ * -------------
+ * Similar to SQL, OPC UA Queries use the K3 - Strong Kleene Logic that
+ * considers ternary values true/false/null (unknown). Most operators resolve to
+ * a ternary value. Some operators can resolve to a literal value (e.g. CAST). */
+
+typedef enum {
+    UA_TERNARY_FALSE = -1,
+    UA_TERNARY_NULL = 0,
+    UA_TERNARY_TRUE = 1
+} UA_Ternary;
+
+static UA_Ternary
+UA_Ternary_and(UA_Ternary first, UA_Ternary second) {
+    if(first == UA_TERNARY_FALSE || second == UA_TERNARY_FALSE)
+        return UA_TERNARY_FALSE;
+    if(first == UA_TERNARY_TRUE && second == UA_TERNARY_TRUE)
+        return UA_TERNARY_TRUE;
+    return UA_TERNARY_NULL;
+}
+
+static UA_Ternary
+UA_Ternary_or(UA_Ternary first, UA_Ternary second) {
+    if(first == UA_TERNARY_TRUE || second == UA_TERNARY_TRUE)
+        return UA_TERNARY_TRUE;
+    if(first == UA_TERNARY_NULL || second == UA_TERNARY_NULL)
+        return UA_TERNARY_TRUE;
+    return UA_TERNARY_FALSE;
+}
+
+/* Part 4: The NOT operator always evaluates to NULL if applied to a NULL
+ * operand. We simply swap true/false. */
+static UA_Ternary
+UA_Ternary_not(UA_Ternary v) {
+    return (UA_Ternary)((int)v * -1);
+}
+
+static UA_Ternary v2t(const UA_Variant *v) {
+    if(UA_Variant_isEmpty(v) || !UA_Variant_hasScalarType(v, &UA_TYPES[UA_TYPES_BOOLEAN]))
+        return UA_TERNARY_NULL;
+    UA_Boolean b = *(UA_Boolean*)v->data;
+    return (b) ? UA_TERNARY_TRUE : UA_TERNARY_FALSE;
+}
+
+static const UA_Boolean bFalse = false;
+static const UA_Boolean bTrue  = true;
+
+static UA_Variant t2v(UA_Ternary t) {
+    UA_Variant v;
+    UA_Variant_init(&v);
+    switch(t) {
+    case UA_TERNARY_FALSE:
+        UA_Variant_setScalar(&v, (void*)(uintptr_t)&bFalse, &UA_TYPES[UA_TYPES_BOOLEAN]);
+        break;
+    case UA_TERNARY_TRUE:
+        UA_Variant_setScalar(&v, (void*)(uintptr_t)&bTrue, &UA_TYPES[UA_TYPES_BOOLEAN]);
+        break;
+    default:
+        return v;
+    }
+    v.storageType = UA_VARIANT_DATA_NODELETE;
+    return v;
+}
 
 typedef struct {
     UA_Server *server;
