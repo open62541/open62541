@@ -104,9 +104,15 @@ processDelayed(UA_EventLoopPOSIX *el) {
                  "Process delayed callbacks");
 
     UA_LOCK_ASSERT(&el->elMutex, 1);
-    while(el->delayedCallbacks) {
-        UA_DelayedCallback *dc = el->delayedCallbacks;
-        el->delayedCallbacks = dc->next;
+
+    /* First empty the linked list in the el. So a delayed callback can add
+     * (itself) to the list. New entries are then processed during the next
+     * iteration. */
+    UA_DelayedCallback *dc = el->delayedCallbacks, *next = NULL;
+    el->delayedCallbacks = NULL;
+
+    for(; dc; dc = next) {
+        next = dc->next;
         /* Delayed Callbacks might have no callback set. We don't return a
          * StatusCode during "add" and don't validate. So test here. */
         if(!dc->callback)
