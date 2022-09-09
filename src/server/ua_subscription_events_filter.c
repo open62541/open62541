@@ -77,6 +77,82 @@ static UA_Variant t2v(UA_Ternary t) {
     return v;
 }
 
+/* Type Casting Rules
+ * ------------------
+ * For comparison operations values from different datatypes can be implicitly
+ * or explicitly cast. The standard defines rules to selected the target type
+ * for casting and when implicit casts are possible. */
+
+/* Defined in Part 4 Table 123 "Data Precedence Rules". Implicit casting is
+ * always to the type of lower precedence value. */
+static UA_Byte typePrecedence[UA_DATATYPEKINDS] = {
+    12, 10, 11, 8, 9, 5, 6, 3, 4, 2, 1, 14, 255, 13, 255, 255, 16,
+    15, 7, 18, 17, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255
+};
+
+/* Type conversion table from the standard.
+ * 0 -> Same Type, 1 -> Implicit Cast, 2 -> Only explicit Cast, -1 -> cast invalid */
+static UA_SByte convertLookup[21][21] = {
+    { 0, 1,-1,-1, 1,-1, 1,-1, 1, 1, 1,-1, 1,-1, 2,-1,-1, 1, 1, 1,-1},
+    { 2, 0,-1,-1, 1,-1, 1,-1, 1, 1, 1,-1, 1,-1, 2,-1,-1, 1, 1, 1,-1},
+    {-1,-1, 0,-1,-1,-1,-1, 2,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1},
+    {-1,-1,-1, 0,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1, 2,-1,-1,-1,-1,-1,-1},
+    { 2, 2,-1,-1, 0,-1, 2,-1, 2, 2, 2,-1, 2,-1, 2,-1,-1, 2, 2, 2,-1},
+    {-1,-1,-1,-1,-1, 0,-1,-1,-1,-1,-1, 2,-1,-1, 1,-1,-1,-1,-1,-1,-1},
+    { 2, 2,-1,-1, 1,-1, 0,-1, 2, 2, 2,-1, 2,-1, 2,-1,-1, 2, 2, 2,-1},
+    {-1,-1, 2,-1,-1,-1,-1, 0,-1,-1,-1,-1,-1,-1, 2,-1,-1,-1,-1,-1,-1},
+    { 2, 2,-1,-1, 1,-1, 1,-1, 0, 1, 1,-1, 2,-1, 2,-1,-1, 2, 1, 1,-1},
+    { 2, 2,-1,-1, 1,-1, 1,-1, 2, 0, 1,-1, 2, 2, 2,-1,-1, 2, 2, 1,-1},
+    { 2, 2,-1,-1, 1,-1, 1,-1, 2, 2, 0,-1, 2, 2, 2,-1,-1, 2, 2, 2,-1},
+    {-1,-1,-1,-1,-1, 1,-1,-1,-1,-1,-1, 0,-1,-1, 1,-1,-1,-1,-1,-1,-1},
+    { 2, 2,-1,-1, 1,-1, 1,-1, 1, 1, 1,-1, 0,-1, 2,-1,-1, 1, 1, 1,-1},
+    {-1,-1,-1,-1,-1,-1,-1,-1,-1, 1, 1,-1,-1, 0,-1,-1,-1, 2, 1, 1,-1},
+    { 1, 1,-1, 2, 1, 2, 1, 1, 1, 1, 1, 2, 1,-1, 0, 2, 2, 1, 1, 1,-1},
+    {-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1, 1, 0,-1,-1,-1,-1,-1},
+    {-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1, 1, 1, 0,-1,-1,-1,-1},
+    { 2, 2,-1,-1, 1,-1, 1,-1, 1, 1, 1,-1, 2, 1, 2,-1,-1, 0, 1, 1,-1},
+    { 2, 2,-1,-1, 1,-1, 1,-1, 2, 1, 1,-1, 2, 2, 2,-1,-1, 2, 0, 1,-1},
+    { 2, 2,-1,-1, 1,-1, 1,-1, 2, 2, 1,-1, 2, 2, 2,-1,-1, 2, 2, 0,-1},
+    {-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1, 0}
+};
+
+/* This array maps the index of the DataType-Kind to the index of the type
+ * conversion matrix (255 -> not contained in the matrix) */
+static UA_Byte convertLookupIndex[UA_DATATYPEKINDS] = {
+    0,  12,  1,  8, 17,  9, 18, 10, 19,  6, 4,  14,  3,  7,  2,
+    20, 11,  5, 13, 16, 15,255,255,255,255,255,255,255,255,255,255
+};
+
+/* Returns the target type for implicit cassting or NULL if no implicit casting
+ * is possible */
+static const UA_DataType *
+implicitCastTargetType(const UA_DataType *t1, const UA_DataType *t2) {
+    if(!t1 || t1 == t2)
+        return t1;
+
+    /* Get the type precedence. Return if no implicit casting is possible. */
+    UA_Byte p1 = typePrecedence[t1->typeKind];
+    UA_Byte p2 = typePrecedence[t2->typeKind];
+    if(p1 == UA_BYTE_MAX || p2 == UA_BYTE_MAX)
+        return NULL;
+
+    /* Which is the target type based on the precedence rules? */
+    const UA_DataType *targetType = (p1 < p2) ? t1 : t2;
+    const UA_DataType *sourceType = (p1 < p2) ? t2 : t1;
+
+    /* Lookup the casting rule */
+    UA_Byte sourceIndex = convertLookupIndex[sourceType->typeKind];
+    UA_Byte targetIndex = convertLookupIndex[targetType->typeKind];
+    if(sourceIndex == UA_BYTE_MAX || targetIndex == UA_BYTE_MAX)
+        return NULL;
+    UA_SByte castingRule = convertLookup[sourceIndex][targetIndex];
+
+    /* Is implicit casting allowed? */
+    if(castingRule != 0 && castingRule != 1)
+        return NULL;
+    return targetType;
+}
+
 typedef struct {
     UA_Server *server;
     UA_Session *session;
