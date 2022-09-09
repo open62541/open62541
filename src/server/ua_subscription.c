@@ -43,6 +43,11 @@ UA_Subscription_new(void) {
     return newSub;
 }
 
+static void
+delayedFreeSubscription(void *app, void *context) {
+    UA_free(context);
+}
+
 void
 UA_Subscription_delete(UA_Server *server, UA_Subscription *sub) {
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
@@ -111,14 +116,14 @@ UA_Subscription_delete(UA_Server *server, UA_Subscription *sub) {
     }
     UA_assert(sub->retransmissionQueueSize == 0);
 
-    /* Add a delayed callback to remove the Subscription when the current jobs
-     * have completed. Pointers to the subscription may still exist upwards in
-     * the call stack. */
-    sub->delayedFreePointers.callback = NULL;
-    sub->delayedFreePointers.application = server;
-    sub->delayedFreePointers.context = NULL;
-    server->config.eventLoop->
-        addDelayedCallback(server->config.eventLoop, &sub->delayedFreePointers);
+    /* Pointers to the subscription may still exist upwards in the call stack.
+     * Add a delayed callback to remove the Subscription when the current jobs
+     * have completed. */
+    sub->delayedFreePointers.callback = delayedFreeSubscription;
+    sub->delayedFreePointers.application = NULL;
+    sub->delayedFreePointers.context = sub;
+    UA_EventLoop *el = server->config.eventLoop;
+    el->addDelayedCallback(el, &sub->delayedFreePointers);
 }
 
 UA_MonitoredItem *

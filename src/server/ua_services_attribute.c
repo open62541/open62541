@@ -1092,6 +1092,11 @@ compatibleValue(UA_Server *server, UA_Session *session, const UA_NodeId *targetD
 /*****************/
 
 static void
+freeWrapperArray(void *app, void *context) {
+    UA_free(context);
+}
+
+static void
 unwrapEOArray(UA_Server *server, UA_Variant *value) {
     /* Only works on arrays of ExtensionObjects */
     if(!UA_Variant_hasArrayType(value, &UA_TYPES[UA_TYPES_EXTENSIONOBJECT]) ||
@@ -1117,7 +1122,6 @@ unwrapEOArray(UA_Server *server, UA_Variant *value) {
         UA_malloc(sizeof(UA_DelayedCallback) + (value->arrayLength * innerType->memSize));
     if(!dc)
         return;
-    dc->callback = NULL; /* No callback, just free the memory */
 
     /* Move the content */
     uintptr_t pos = ((uintptr_t)dc) + sizeof(UA_DelayedCallback);
@@ -1132,8 +1136,11 @@ unwrapEOArray(UA_Server *server, UA_Variant *value) {
     value->data = unwrappedArray;
 
     /* Add the delayed callback to free the memory of the unwrapped array */
-    server->config.eventLoop->
-        addDelayedCallback(server->config.eventLoop, dc);
+    dc->callback = freeWrapperArray;
+    dc->application = NULL;
+    dc->context = dc;
+    UA_EventLoop *el = server->config.eventLoop;
+    el->addDelayedCallback(el, dc);
 }
 
 void

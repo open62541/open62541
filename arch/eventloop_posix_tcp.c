@@ -141,23 +141,18 @@ TCP_close(TCPConnectionManager *tcm, UA_RegisteredFD *rfd) {
     UA_assert(tcm->fdsSize > 0);
     tcm->fdsSize--;
     TCP_checkStopped(tcm);
-
-    /* Don't call UA_free(rfd). This might be done automatically via the delayed
-     * callback that calls TCP_close. */
-
     return UA_STATUSCODE_GOOD;
 }
 
 static void
 TCP_delayedClose(void *application, void *context) {
-    UA_ConnectionManager *cm = (UA_ConnectionManager*)application;
-    TCPConnectionManager *tcm = (TCPConnectionManager*)cm;
+    TCPConnectionManager *tcm = (TCPConnectionManager*)application;
+    UA_ConnectionManager *cm = &tcm->cm;
     UA_RegisteredFD* rfd = (UA_RegisteredFD *)context;
     UA_LOG_DEBUG(cm->eventSource.eventLoop->logger, UA_LOGCATEGORY_EVENTLOOP,
                  "TCP %u\t| Delayed closing of the connection", (unsigned)rfd->fd);
     TCP_close(tcm, rfd);
-    /* Don't call free here. This is done automatically via the delayed callback
-     * mechanism. */
+    UA_free(rfd);
 }
 
 static int
