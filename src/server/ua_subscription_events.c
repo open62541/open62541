@@ -14,7 +14,7 @@
 
 /* We use a 16-Byte ByteString as an identifier */
 UA_StatusCode
-UA_Event_generateEventId(UA_ByteString *generatedId) {
+generateEventId(UA_ByteString *generatedId) {
     /* EventId is a ByteString, which is basically just a string
      * We will use a 16-Byte ByteString as an identifier */
     UA_StatusCode res = UA_ByteString_allocBuffer(generatedId, 16 * sizeof(UA_Byte));
@@ -144,7 +144,7 @@ eventSetStandardFields(UA_Server *server, const UA_NodeId *event,
 
     /* Set the EventId */
     UA_ByteString eventId = UA_BYTESTRING_NULL;
-    retval = UA_Event_generateEventId(&eventId);
+    retval = generateEventId(&eventId);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
     name = UA_QUALIFIEDNAME(0, "EventId");
@@ -177,8 +177,8 @@ eventSetStandardFields(UA_Server *server, const UA_NodeId *event,
 /* Filters an event according to the filter specified by mon and then adds it to
  * mons notification queue */
 UA_StatusCode
-UA_Event_addEventToMonitoredItem(UA_Server *server, const UA_NodeId *event,
-                                 UA_MonitoredItem *mon) {
+UA_MonitoredItem_addEvent(UA_Server *server, UA_MonitoredItem *mon,
+                          const UA_NodeId *event) {
     UA_Notification *notification = UA_Notification_new();
     if(!notification)
         return UA_STATUSCODE_BADOUTOFMEMORY;
@@ -393,7 +393,7 @@ triggerEvent(UA_Server *server, const UA_NodeId eventNodeId,
             /* Is this an Event-MonitoredItem? */
             if(mon->itemToMonitor.attributeId != UA_ATTRIBUTEID_EVENTNOTIFIER)
                 continue;
-            retval = UA_Event_addEventToMonitoredItem(server, &eventNodeId, mon);
+            retval = UA_MonitoredItem_addEvent(server, mon, &eventNodeId);
             if(retval != UA_STATUSCODE_GOOD) {
                 UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
                                "Events: Could not add the event to a listening "
