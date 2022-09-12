@@ -81,6 +81,22 @@ UA_EventLoopPOSIX_addDelayedCallback(UA_EventLoop *public_el,
     UA_UNLOCK(&el->elMutex);
 }
 
+static void
+UA_EventLoopPOSIX_removeDelayedCallback(UA_EventLoop *public_el,
+                                     UA_DelayedCallback *dc) {
+    UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX*)public_el;
+    UA_LOCK(&el->elMutex);
+    UA_DelayedCallback **prev = &el->delayedCallbacks;
+    while(*prev) {
+        if(*prev == dc) {
+            *prev = (*prev)->next;
+            return;
+        }
+        prev = &(*prev)->next;
+    }
+    UA_UNLOCK(&el->elMutex);
+}
+
 /* Process and then free registered delayed callbacks */
 static void
 processDelayed(UA_EventLoopPOSIX *el) {
@@ -88,17 +104,22 @@ processDelayed(UA_EventLoopPOSIX *el) {
                  "Process delayed callbacks");
 
     UA_LOCK_ASSERT(&el->elMutex, 1);
-    while(el->delayedCallbacks) {
-        UA_DelayedCallback *dc = el->delayedCallbacks;
-        el->delayedCallbacks = dc->next;
-        /* Delayed Callbacks might have no cb pointer if all
-         * we want to do is free the memory */
-        if(dc->callback) {
-            UA_UNLOCK(&el->elMutex);
-            dc->callback(dc->application, dc->context);
-            UA_LOCK(&el->elMutex);
-        }
-        UA_free(dc);
+
+    /* First empty the linked list in the el. So a delayed callback can add
+     * (itself) to the list. New entries are then processed during the next
+     * iteration. */
+    UA_DelayedCallback *dc = el->delayedCallbacks, *next = NULL;
+    el->delayedCallbacks = NULL;
+
+    for(; dc; dc = next) {
+        next = dc->next;
+        /* Delayed Callbacks might have no callback set. We don't return a
+         * StatusCode during "add" and don't validate. So test here. */
+        if(!dc->callback)
+            continue;
+        UA_UNLOCK(&el->elMutex);
+        dc->callback(dc->application, dc->context);
+        UA_LOCK(&el->elMutex);
     }
 }
 
@@ -237,8 +258,19 @@ UA_EventLoopPOSIX_run(UA_EventLoopPOSIX *el, UA_UInt32 timeout) {
                          timerExecutionTrampoline, NULL);
     UA_LOCK(&el->elMutex);
 
-    processDelayed(el); /* Process delayed callbacks. Remove closed sockets
-                         * already here instead of calling select for them. */
+    /* Process delayed callbacks here:
+     * - Removes closed sockets already here instead of polling them again.
+     * - The timeout for polling is selected to be ready in time for the next
+     *   cyclic callback. So we want to do little work between the timeout
+     *   running out and executing the due cyclic callbacks. */
+    processDelayed(el);
+
+    /* A delayed callback could create another delayed callback (or re-add
+     * itself). In that case we don't want to wait (indefinitely) for an event
+     * to happen. Process queued events but don't sleep. Then process the
+     * delayed callbacks in the next iteration. */
+    if(el->delayedCallbacks != NULL)
+        timeout = 0;
 
     /* Compute the remaining time */
     UA_DateTime maxDate = dateBefore + (timeout * UA_DATETIME_MSEC);
@@ -424,6 +456,7 @@ UA_EventLoop_new_POSIX(const UA_Logger *logger) {
     el->eventLoop.removeCyclicCallback = UA_EventLoopPOSIX_removeCyclicCallback;
     el->eventLoop.addTimedCallback = UA_EventLoopPOSIX_addTimedCallback;
     el->eventLoop.addDelayedCallback = UA_EventLoopPOSIX_addDelayedCallback;
+    el->eventLoop.removeDelayedCallback = UA_EventLoopPOSIX_removeDelayedCallback;
 
     el->eventLoop.registerEventSource =
         (UA_StatusCode (*)(UA_EventLoop*, UA_EventSource*))

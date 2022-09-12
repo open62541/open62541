@@ -617,14 +617,13 @@ UDP_close(UDPConnectionManager *ucm, UA_RegisteredFD *rfd) {
 
 static void
 UDP_delayedClose(void *application, void *context) {
-    UA_ConnectionManager *cm = (UA_ConnectionManager*)application;
-    UDPConnectionManager *ucm = (UDPConnectionManager*)cm;
+    UDPConnectionManager *ucm = (UDPConnectionManager*)application;
+    UA_ConnectionManager *cm = &ucm->cm;
     UA_RegisteredFD* rfd = (UA_RegisteredFD *)context;
     UA_LOG_DEBUG(cm->eventSource.eventLoop->logger, UA_LOGCATEGORY_EVENTLOOP,
                  "UDP %u\t| Delayed closing of the connection", (unsigned)rfd->fd);
     UDP_close(ucm, rfd);
-    /* Don't call free here. This is done automatically via the delayed callback
-     * mechanism. */
+    UA_free(rfd);
 }
 
 /* Gets called when a socket receives data or closes */
