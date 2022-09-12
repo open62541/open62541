@@ -423,11 +423,10 @@ UA_StatusCode UA_EXPORT
 UA_Server_run_shutdown(UA_Server *server);
 
 /**
- * Timed and Delayed Callbacks
+ * Timed Callbacks
  * ---------------
  * Add a callback to the server that is executed at a defined time.
- * The callback can also be registered with a cyclic interval. A delayed
- * callback is executed in the next cycle of the server's main loop. */
+ * The callback can also be registered with a cyclic interval. */
 
 /* Add a callback for execution at a specified time. If the indicated time lies
  * in the past, then the callback is executed at the next iteration of the
@@ -477,18 +476,6 @@ UA_Server_removeCallback(UA_Server *server, UA_UInt64 callbackId);
 
 #define UA_Server_removeRepeatedCallback(server, callbackId) \
     UA_Server_removeCallback(server, callbackId);
-
-/* Add a delayed callback for execution in the next cycle of the server's main
- * loop.
- *
- * @param server The server object.
- * @param callback The callback that shall be added.
- * @param data Data that is forwarded to the callback.
- * @return Upon success, ``UA_STATUSCODE_GOOD`` is returned. An error code
- *         otherwise. */
-UA_StatusCode UA_EXPORT UA_THREADSAFE
-UA_Server_addDelayedCallback(UA_Server *server, UA_ServerCallback callback,
-                             void *data);
 
 /**
  * Session Handling

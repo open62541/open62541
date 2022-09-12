@@ -52,8 +52,11 @@ void
 UA_Subscription_delete(UA_Server *server, UA_Subscription *sub) {
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
 
-    /* Unregister the publish callback */
+    UA_EventLoop *el = server->config.eventLoop;
+
+    /* Unregister the publish callback and possible delayed callback */
     Subscription_unregisterPublishCallback(server, sub);
+    el->removeDelayedCallback(el, &sub->delayedMoreNotifications);
 
     /* Remove the diagnostics object for the subscription */
 #ifdef UA_ENABLE_DIAGNOSTICS
@@ -122,7 +125,6 @@ UA_Subscription_delete(UA_Server *server, UA_Subscription *sub) {
     sub->delayedFreePointers.callback = delayedFreeSubscription;
     sub->delayedFreePointers.application = NULL;
     sub->delayedFreePointers.context = sub;
-    UA_EventLoop *el = server->config.eventLoop;
     el->addDelayedCallback(el, &sub->delayedFreePointers);
 }
 
@@ -618,10 +620,13 @@ UA_Subscription_publish(UA_Server *server, UA_Subscription *sub) {
 #endif
 
     /* Repeat sending responses if there are more notifications to send */
-    if(moreNotifications)
-        UA_Server_addDelayedCallback(server,
-                                     (UA_ServerCallback)UA_Subscription_publish,
-                                     sub);
+    if(moreNotifications) {
+        sub->delayedMoreNotifications.callback = (UA_Callback)UA_Subscription_publish;
+        sub->delayedMoreNotifications.application = server;
+        sub->delayedMoreNotifications.context = sub;
+        UA_EventLoop *el = server->config.eventLoop;
+        el->addDelayedCallback(el, &sub->delayedMoreNotifications);
+    }
 }
 
 UA_Boolean
