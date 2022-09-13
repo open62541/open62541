@@ -17,6 +17,7 @@
  * --------------- */
 #include <string.h>
 #include <stddef.h>
+#include <float.h>
 
 /* Include stdint.h and stdbool.h or workaround for older Visual Studios */
 #ifdef UNDER_CE

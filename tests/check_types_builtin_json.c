@@ -809,7 +809,6 @@ START_TEST(UA_Int64_smallbuf_Number_json_encode) {
 }
 END_TEST
 
-
 START_TEST(UA_Double_json_encode) {
     UA_Double src = 1.1234;
     const UA_DataType *type = &UA_TYPES[UA_TYPES_DOUBLE];
@@ -3242,6 +3241,30 @@ START_TEST(UA_UInt64_Min_json_decode) {
 }
 END_TEST
 
+START_TEST(UA_UInt64_json_decode_wrapped) {
+    UA_ByteString buf = UA_STRING("\"184467440737095516\"");
+    // when
+
+    UA_UInt64 out;
+    UA_StatusCode retval = UA_decodeJson(&buf, &out, &UA_TYPES[UA_TYPES_UINT64], NULL);
+    // then
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(out, 184467440737095516);
+}
+END_TEST
+
+START_TEST(UA_UInt64_json_decode_unwrapped) {
+    UA_ByteString buf = UA_STRING("184467440737095516");
+    // when
+
+    UA_UInt64 out;
+    UA_StatusCode retval = UA_decodeJson(&buf, &out, &UA_TYPES[UA_TYPES_UINT64], NULL);
+    // then
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(out, 184467440737095516);
+}
+END_TEST
+
 START_TEST(UA_UInt64_Max_json_decode) {
     UA_Variant out;
     UA_Variant_init(&out);
@@ -5627,6 +5650,8 @@ static Suite *testSuite_builtin_json(void) {
     tcase_add_test(tc_json_decode, UA_Int64_TooBig_json_decode);
     tcase_add_test(tc_json_decode, UA_Int64_NoDigit_json_decode);
 
+    tcase_add_test(tc_json_decode, UA_UInt64_json_decode_wrapped);
+    tcase_add_test(tc_json_decode, UA_UInt64_json_decode_unwrapped);
     tcase_add_test(tc_json_decode, UA_UInt64_Min_json_decode);
     tcase_add_test(tc_json_decode, UA_UInt64_Max_json_decode);
     tcase_add_test(tc_json_decode, UA_UInt64_Overflow_json_decode);
