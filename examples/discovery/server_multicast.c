@@ -1,5 +1,8 @@
 /* This work is licensed under a Creative Commons CCZero 1.0 Universal License.
- * See http://creativecommons.org/publicdomain/zero/1.0/ for more information. */
+ * See http://creativecommons.org/publicdomain/zero/1.0/ for more information.
+ *
+ * Copyright (c) 2022 Linutronix GmbH (Author: Muddasir Shakil)
+ */
 
 /*
  * A simple server instance which registers with the discovery server.
@@ -222,8 +225,7 @@ int main(int argc, char **argv) {
 
     UA_Server *server = UA_Server_new();
     UA_ServerConfig *config = UA_Server_getConfig(server);
-    // use port 0 to dynamically assign port
-    UA_ServerConfig_setMinimal(config, 0, NULL);
+    UA_ServerConfig_setMinimal(config, 4841, NULL);
 
     // An LDS server normally has the application type to DISCOVERYSERVER.
     // Since this instance implements LDS and other OPC UA services, we set the type to SERVER.
