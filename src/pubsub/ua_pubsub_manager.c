@@ -183,7 +183,7 @@ UA_ReserveId_createId(UA_Server *server,  UA_NodeId sessionId, UA_String transpo
         next_id = next_id_writer;
 
     for(;numberOfIds > 0;numberOfIds--) {
-#ifndef UA_ENABLE_REDUCED_ITERATIONS_FOR_TESTING        
+#ifndef UA_ENABLE_REDUCED_ITERATIONS_FOR_TESTING
         if(next_id < UA_RESERVEID_FIRST_ID)
             next_id = UA_RESERVEID_FIRST_ID;
 #else
@@ -719,21 +719,23 @@ UA_PubSubManager_generateUniqueGuid(UA_Server *server) {
     }
 }
 
+static UA_UInt64
+generateRandomUInt64(UA_Server *server) {
+    UA_UInt64 id = 0;
+    UA_Guid ident = UA_Guid_random();
+
+    id = id + ident.data1;
+    id = (id << 32) + ident.data2;
+    id = (id << 16) + ident.data3;
+    return id;
+}
+
 /* Initialization the PubSub configuration. */
 void
 UA_PubSubManager_init(UA_Server *server, UA_PubSubManager *pubSubManager) {
-    /* ToDo: Must be correctly generated from Mac address and port. */
-    UA_Guid *ident = NULL;
-    ident = UA_Guid_new();
-    if(!ident) {
-        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
-                     "PubSub generate defaultPublisherId failed.");
-        return;
-    }
-    *ident = UA_Guid_random();
-    pubSubManager->defaultPublisherId = *(UA_UInt64*)ident;
-    LIST_INIT(&pubSubManager->reserveIds);
-    UA_free(ident);
+    //TODO: Using the Mac address to generate the defaultPublisherId.
+    // In the future, this can be retrieved from the eventloop.
+    pubSubManager->defaultPublisherId = generateRandomUInt64(server);
 }
 
 /* Delete the current PubSub configuration including all nested members. This
