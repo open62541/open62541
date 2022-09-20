@@ -54,6 +54,7 @@
       <Reference ReferenceType="HasComponent">i=23622</Reference>
       <Reference ReferenceType="HasComponent">i=16598</Reference>
       <Reference ReferenceType="HasComponent">i=14432</Reference>
+      <Reference ReferenceType="HasProperty">i=25432</Reference> <!--DefaultDatagramPublisherId-->
       <Reference ReferenceType="HasSubtype" IsForward="false">i=15906</Reference>
     </References>
   </UAObjectType>
@@ -65,7 +66,14 @@
       <Reference ReferenceType="HasProperty" IsForward="false">i=14416</Reference>
     </References>
   </UAVariable>
-
+  <UAVariable NodeId="i=25432" BrowseName="DefaultDatagramPublisherId" ParentNodeId="i=14416" DataType="UInt64">
+    <DisplayName>DefaultDatagramPublisherId</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">i=14416</Reference>
+    </References>
+  </UAVariable>
   <UAObjectType NodeId="i=14477" BrowseName="DataSetFolderType">
     <DisplayName>DataSetFolderType</DisplayName>
     <References>
@@ -2162,6 +2170,7 @@
       <Reference ReferenceType="HasComponent">i=17371</Reference>
       <Reference ReferenceType="HasComponent" IsForward="false">i=2253</Reference>
       <Reference ReferenceType="HasComponent">i=25451</Reference> <!-- PubSubConfiguration -->
+      <Reference ReferenceType="HasProperty">i=25480</Reference> <!-- DefaultDatagramPublisherId -->
       <Reference ReferenceType="HasTypeDefinition">i=14416</Reference>
     </References>
   </UAObject>
@@ -2410,6 +2419,13 @@
   </UAObject>
   <UAVariable NodeId="i=17481" BrowseName="SupportedTransportProfiles" ParentNodeId="i=14443" DataType="String" ValueRank="1">
     <DisplayName>SupportedTransportProfiles</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">i=14443</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="i=25480" BrowseName="DefaultDatagramPublisherId" ParentNodeId="i=14443" DataType="UInt64">
+    <DisplayName>DefaultDatagramPublisherId</DisplayName>
     <References>
       <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
       <Reference ReferenceType="HasProperty" IsForward="false">i=14443</Reference>
