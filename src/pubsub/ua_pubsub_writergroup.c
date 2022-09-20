@@ -46,6 +46,9 @@ UA_StatusCode
 UA_Server_addWriterGroup(UA_Server *server, const UA_NodeId connection,
                          const UA_WriterGroupConfig *writerGroupConfig,
                          UA_NodeId *writerGroupIdentifier) {
+
+    /* Delete the reserved IDs if the related session no longer exists. */
+    UA_PubSubManager_freeIds(server);
     if(!writerGroupConfig)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
 
