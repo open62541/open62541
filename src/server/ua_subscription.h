@@ -253,6 +253,7 @@ struct UA_Subscription {
     UA_UInt64 publishCallbackId;
 
     /* Delayed callback to schedule publication of more notifications */
+    UA_Boolean delayedCallbackRegistered;
     UA_DelayedCallback delayedMoreNotifications;
 
     /* MonitoredItems */

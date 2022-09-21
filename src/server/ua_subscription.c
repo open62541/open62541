@@ -56,7 +56,10 @@ UA_Subscription_delete(UA_Server *server, UA_Subscription *sub) {
 
     /* Unregister the publish callback and possible delayed callback */
     Subscription_unregisterPublishCallback(server, sub);
-    el->removeDelayedCallback(el, &sub->delayedMoreNotifications);
+    if(sub->delayedCallbackRegistered) {
+        el->removeDelayedCallback(el, &sub->delayedMoreNotifications);
+        sub->delayedCallbackRegistered = false;
+    }
 
     /* Remove the diagnostics object for the subscription */
 #ifdef UA_ENABLE_DIAGNOSTICS
@@ -370,8 +373,16 @@ UA_Subscription_nextSequenceNumber(UA_UInt32 sequenceNumber) {
 }
 
 static void
-publishCallback(UA_Server *server, UA_Subscription *sub) {
+repeatedPublishCallback(UA_Server *server, UA_Subscription *sub) {
     UA_LOCK(&server->serviceMutex);
+    UA_Subscription_publish(server, sub);
+    UA_UNLOCK(&server->serviceMutex);
+}
+
+static void
+delayedPublishCallback(UA_Server *server, UA_Subscription *sub) {
+    UA_LOCK(&server->serviceMutex);
+    sub->delayedCallbackRegistered = false;
     UA_Subscription_publish(server, sub);
     UA_UNLOCK(&server->serviceMutex);
 }
@@ -620,10 +631,13 @@ UA_Subscription_publish(UA_Server *server, UA_Subscription *sub) {
 #endif
 
     /* Repeat sending responses if there are more notifications to send */
-    if(moreNotifications) {
-        sub->delayedMoreNotifications.callback = (UA_Callback)UA_Subscription_publish;
+    if(moreNotifications && !sub->delayedCallbackRegistered) {
+        sub->delayedCallbackRegistered = true;
+
+        sub->delayedMoreNotifications.callback = (UA_Callback)delayedPublishCallback;
         sub->delayedMoreNotifications.application = server;
         sub->delayedMoreNotifications.context = sub;
+
         UA_EventLoop *el = server->config.eventLoop;
         el->addDelayedCallback(el, &sub->delayedMoreNotifications);
     }
@@ -681,7 +695,7 @@ Subscription_registerPublishCallback(UA_Server *server, UA_Subscription *sub) {
         return UA_STATUSCODE_GOOD;
 
     UA_StatusCode retval =
-        addRepeatedCallback(server, (UA_ServerCallback)publishCallback,
+        addRepeatedCallback(server, (UA_ServerCallback)repeatedPublishCallback,
                             sub, sub->publishingInterval, &sub->publishCallbackId);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
