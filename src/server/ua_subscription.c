@@ -52,8 +52,14 @@ void
 UA_Subscription_delete(UA_Server *server, UA_Subscription *sub) {
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
 
-    /* Unregister the publish callback */
+    UA_EventLoop *el = server->config.eventLoop;
+
+    /* Unregister the publish callback and possible delayed callback */
     Subscription_unregisterPublishCallback(server, sub);
+    if(sub->delayedCallbackRegistered) {
+        el->removeDelayedCallback(el, &sub->delayedMoreNotifications);
+        sub->delayedCallbackRegistered = false;
+    }
 
     /* Remove the diagnostics object for the subscription */
 #ifdef UA_ENABLE_DIAGNOSTICS
@@ -122,7 +128,6 @@ UA_Subscription_delete(UA_Server *server, UA_Subscription *sub) {
     sub->delayedFreePointers.callback = delayedFreeSubscription;
     sub->delayedFreePointers.application = NULL;
     sub->delayedFreePointers.context = sub;
-    UA_EventLoop *el = server->config.eventLoop;
     el->addDelayedCallback(el, &sub->delayedFreePointers);
 }
 
@@ -368,8 +373,16 @@ UA_Subscription_nextSequenceNumber(UA_UInt32 sequenceNumber) {
 }
 
 static void
-publishCallback(UA_Server *server, UA_Subscription *sub) {
+repeatedPublishCallback(UA_Server *server, UA_Subscription *sub) {
     UA_LOCK(&server->serviceMutex);
+    UA_Subscription_publish(server, sub);
+    UA_UNLOCK(&server->serviceMutex);
+}
+
+static void
+delayedPublishCallback(UA_Server *server, UA_Subscription *sub) {
+    UA_LOCK(&server->serviceMutex);
+    sub->delayedCallbackRegistered = false;
     UA_Subscription_publish(server, sub);
     UA_UNLOCK(&server->serviceMutex);
 }
@@ -618,8 +631,16 @@ UA_Subscription_publish(UA_Server *server, UA_Subscription *sub) {
 #endif
 
     /* Repeat sending responses if there are more notifications to send */
-    if(moreNotifications)
-        UA_Subscription_publish(server, sub);
+    if(moreNotifications && !sub->delayedCallbackRegistered) {
+        sub->delayedCallbackRegistered = true;
+
+        sub->delayedMoreNotifications.callback = (UA_Callback)delayedPublishCallback;
+        sub->delayedMoreNotifications.application = server;
+        sub->delayedMoreNotifications.context = sub;
+
+        UA_EventLoop *el = server->config.eventLoop;
+        el->addDelayedCallback(el, &sub->delayedMoreNotifications);
+    }
 }
 
 UA_Boolean
@@ -674,7 +695,7 @@ Subscription_registerPublishCallback(UA_Server *server, UA_Subscription *sub) {
         return UA_STATUSCODE_GOOD;
 
     UA_StatusCode retval =
-        addRepeatedCallback(server, (UA_ServerCallback)publishCallback,
+        addRepeatedCallback(server, (UA_ServerCallback)repeatedPublishCallback,
                             sub, sub->publishingInterval, &sub->publishCallbackId);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
