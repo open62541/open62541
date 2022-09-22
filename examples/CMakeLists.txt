@@ -274,3 +274,9 @@ if(UA_ENABLE_PUBSUB)
         endif()
     endif()
 endif()
+
+
+###########################
+# Nodeser Loader Examples #
+###########################
+add_subdirectory(nodeset_loader)

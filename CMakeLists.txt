@@ -25,6 +25,7 @@ include(GNUInstallDirs)
 set(open62541_TOOLS_DIR ${PROJECT_SOURCE_DIR}/tools)
 set(UA_NODESET_DIR ${PROJECT_SOURCE_DIR}/deps/ua-nodeset CACHE STRING "The path to the nodetset directory.")
 set(open62541_MQTT_DIR ${PROJECT_SOURCE_DIR}/deps/mqtt-c)
+set(UA_NODESET_LOADER_DIR ${PROJECT_SOURCE_DIR}/deps/nodesetLoader)
 
 include(macros_internal)
 include(macros_public)
@@ -676,6 +677,10 @@ if(MINGW)
     list(APPEND open62541_LIBRARIES ssp)
 endif()
 
+# LibXml2 library add
+find_package(LibXml2 REQUIRED)
+list(APPEND open62541_LIBRARIES ${LIBXML2_LIBRARIES})
+
 #####################
 # Compiler Settings #
 #####################
@@ -1022,6 +1027,7 @@ set(default_plugin_headers ${PROJECT_SOURCE_DIR}/plugins/include/open62541/plugi
                            ${PROJECT_SOURCE_DIR}/plugins/include/open62541/plugin/pki_default.h
                            ${PROJECT_SOURCE_DIR}/plugins/include/open62541/plugin/log_stdout.h
                            ${PROJECT_SOURCE_DIR}/plugins/include/open62541/plugin/nodestore_default.h
+                           ${PROJECT_SOURCE_DIR}/plugins/include/open62541/plugin/nodesetloader_default.h
                            ${PROJECT_SOURCE_DIR}/plugins/include/open62541/server_config_default.h
                            ${PROJECT_SOURCE_DIR}/plugins/include/open62541/client_config_default.h
                            ${PROJECT_SOURCE_DIR}/plugins/include/open62541/plugin/securitypolicy_default.h
@@ -1031,6 +1037,7 @@ set(default_plugin_sources ${PROJECT_SOURCE_DIR}/plugins/ua_log_stdout.c
                            ${PROJECT_SOURCE_DIR}/plugins/ua_accesscontrol_default.c
                            ${PROJECT_SOURCE_DIR}/plugins/ua_nodestore_ziptree.c
                            ${PROJECT_SOURCE_DIR}/plugins/ua_nodestore_hashmap.c
+                           ${PROJECT_SOURCE_DIR}/plugins/ua_nodesetloader.c
                            ${PROJECT_SOURCE_DIR}/plugins/ua_config_default.c
                            ${PROJECT_SOURCE_DIR}/plugins/crypto/ua_pki_none.c
                            ${PROJECT_SOURCE_DIR}/plugins/crypto/ua_securitypolicy_none.c
@@ -1212,6 +1219,36 @@ if(UA_BUILD_FUZZING OR UA_BUILD_OSS_FUZZ)
         ${lib_sources}
         ${PROJECT_SOURCE_DIR}/tests/fuzz/custom_memory_manager.c)
 endif()
+
+# For Nodeset Loader
+set(lib_sources
+    ${lib_sources}
+    ${UA_NODESET_LOADER_DIR}/backends/open62541/src/import.c
+    ${UA_NODESET_LOADER_DIR}/backends/open62541/src/Value.c
+    ${UA_NODESET_LOADER_DIR}/backends/open62541/src/DataTypeImporter.c
+    ${UA_NODESET_LOADER_DIR}/backends/open62541/src/customDataType.c
+    ${UA_NODESET_LOADER_DIR}/backends/open62541/src/RefServiceImpl.c
+    ${UA_NODESET_LOADER_DIR}/backends/open62541/src/ServerContext.c
+    ${UA_NODESET_LOADER_DIR}/src/NodesetLoader.c
+    ${UA_NODESET_LOADER_DIR}/src/Sort.c
+    ${UA_NODESET_LOADER_DIR}/src/Nodeset.c
+    ${UA_NODESET_LOADER_DIR}/src/CharAllocator.c
+    ${UA_NODESET_LOADER_DIR}/src/AliasList.c
+    ${UA_NODESET_LOADER_DIR}/src/NamespaceList.c
+    ${UA_NODESET_LOADER_DIR}/src/nodes/Node.c
+    ${UA_NODESET_LOADER_DIR}/src/nodes/DataTypeNode.c
+    ${UA_NODESET_LOADER_DIR}/src/nodes/NodeContainer.c
+    ${UA_NODESET_LOADER_DIR}/src/nodes/InstanceNode.c
+    ${UA_NODESET_LOADER_DIR}/src/NodeId.c
+    ${UA_NODESET_LOADER_DIR}/src/PrintfLogger.c
+    ${UA_NODESET_LOADER_DIR}/src/Value.c
+    ${UA_NODESET_LOADER_DIR}/src/InternalRefService.c
+    ${UA_NODESET_LOADER_DIR}/src/Parser.c)
+
+set(exported_headers
+    ${exported_headers}
+    ${UA_NODESET_LOADER_DIR}/backends/open62541/include/NodesetLoader/backendOpen62541.h
+    ${UA_NODESET_LOADER_DIR}/include/NodesetLoader/Extension.h)
 
 #########################
 # Generate source files #
@@ -1495,6 +1532,8 @@ else()
                                "${PROJECT_SOURCE_DIR}/include"
                                "${PROJECT_SOURCE_DIR}/plugins/include"
                                "${PROJECT_SOURCE_DIR}/deps"
+                               "${UA_NODESET_LOADER_DIR}/include"
+                               "${UA_NODESET_LOADER_DIR}/backends/open62541/include"
                                "${PROJECT_SOURCE_DIR}/src/pubsub"
                                "${PROJECT_BINARY_DIR}/src_generated")
 
@@ -1515,6 +1554,11 @@ else()
     if(UA_ENABLE_DISCOVERY)
         include_directories_private("${PROJECT_SOURCE_DIR}/src/client")
     endif()
+
+    # Nodeset loader specific includes
+    include_directories_private("${UA_NODESET_LOADER_DIR}/src"
+                                 ${LIBXML2_INCLUDE_DIRS}
+                                "${UA_NODESET_LOADER_DIR}/backend/open62541/src")
 
 endif()
 
