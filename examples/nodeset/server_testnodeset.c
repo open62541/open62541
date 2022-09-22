@@ -15,7 +15,7 @@
 
 UA_Boolean running = true;
 
-UA_DataTypeArray customTypesArray = { NULL, UA_TYPES_TESTNODESET_COUNT, UA_TYPES_TESTNODESET};
+UA_DataTypeArray customTypesArray = { NULL, UA_TYPES_TESTNODESET_COUNT, UA_TYPES_TESTNODESET, UA_FALSE};
 
 static void stopHandler(int sign) {
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "received ctrl-c");

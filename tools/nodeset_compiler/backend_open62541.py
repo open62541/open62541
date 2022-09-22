@@ -292,7 +292,8 @@ _UA_END_DECLS
         writec("\nstatic UA_DataTypeArray custom" + arr + " = {")
         writec("    NULL,")
         writec("    " + arr + "_COUNT,")
-        writec("    " + arr + "\n};")
+        writec("    " + arr + ",")
+        writec("    UA_FALSE\n};")
 
     writec("""
 UA_StatusCode %s(UA_Server *server) {

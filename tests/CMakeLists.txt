@@ -139,6 +139,10 @@ if(UA_ENABLE_PUBSUB)
     endif()
 endif()
 
+if(UA_ENABLE_NODESETLOADER)
+    list(APPEND test_plugin_sources ${PROJECT_SOURCE_DIR}/plugins/ua_nodesetloader.c)
+endif()
+
 if(UA_NAMESPACE_ZERO STREQUAL "FULL")
     set(NODESET_COMPILER_OUTPUT_DIR "${CMAKE_BINARY_DIR}/src_generated/tests")
 
@@ -415,6 +419,11 @@ endif()
 
 # Tests for Nodeset Compiler
 add_subdirectory(nodeset-compiler)
+
+# Tests for Nodeset Loader
+if(UA_ENABLE_NODESETLOADER)
+    add_subdirectory(nodeset-loader)
+endif()
 
 # Tests for interfaces
 if(UA_NAMESPACE_ZERO STREQUAL "FULL")

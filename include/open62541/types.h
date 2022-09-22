@@ -1074,6 +1074,9 @@ typedef struct UA_DataTypeArray {
     const struct UA_DataTypeArray *next;
     const size_t typesSize;
     const UA_DataType *types;
+    UA_Boolean cleanup; /* Free the array structure and its content
+                           when the client or server configuration
+                           containing it is cleaned up */
 } UA_DataTypeArray;
 
 /* Returns the offset and type of a structure member. The return value is false
