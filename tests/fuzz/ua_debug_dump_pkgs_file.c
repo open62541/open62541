@@ -173,9 +173,11 @@ UA_debug_dumpCompleteChunk(UA_Server *const server, UA_Connection *const connect
                 "Dumping package %s", dumpOutputFile);
 
     FILE *write_ptr = fopen(dumpOutputFile, "ab");
-    fwrite(messageBuffer->data, messageBuffer->length, 1, write_ptr); // write 10 bytes from our buffer
-    // add the available memory size. See the UA_DUMP_RAM_SIZE define for more info.
-    uint32_t ramSize = UA_DUMP_RAM_SIZE;
-    fwrite(&ramSize, sizeof(ramSize), 1, write_ptr);
-    fclose(write_ptr);
+    if (write_ptr) {
+        fwrite(messageBuffer->data, messageBuffer->length, 1, write_ptr); // write 10 bytes from our buffer
+        // add the available memory size. See the UA_DUMP_RAM_SIZE define for more info.
+        uint32_t ramSize = UA_DUMP_RAM_SIZE;
+        fwrite(&ramSize, sizeof(ramSize), 1, write_ptr);
+        fclose(write_ptr);
+    }
 }
