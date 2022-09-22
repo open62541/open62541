@@ -8,6 +8,8 @@
 
 #include <open62541/server.h>
 
+#include "ua_server_internal.h"
+
 void
 UA_ServerConfig_clean(UA_ServerConfig *config) {
     if(!config)
@@ -100,6 +102,9 @@ UA_ServerConfig_clean(UA_ServerConfig *config) {
     }
 #endif
 #endif /* UA_ENABLE_PUBSUB */
+
+    /* Custom Data Types */
+    UA_cleanupDataTypeWithCustom(config->customDataTypes);
 }
 
 #ifdef UA_ENABLE_PUBSUB

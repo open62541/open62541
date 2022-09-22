@@ -165,6 +165,7 @@ option(UA_ENABLE_DA "Enable OPC UA DataAccess (Part 8) definitions" ON)
 option(UA_ENABLE_HISTORIZING "Enable basic support for historical access (client and server)" OFF)
 option(UA_ENABLE_DISCOVERY "Enable Discovery Service (LDS)" OFF)
 option(UA_ENABLE_JSON_ENCODING "Enable JSON encoding" ON)
+option(UA_ENABLE_NODESETLOADER "Enable nodesetLoader public API" OFF)
 
 set(MULTITHREADING_DEFAULT 0)
 if(WIN32 OR UNIX)
@@ -1228,6 +1229,22 @@ if(UA_BUILD_FUZZING OR UA_BUILD_OSS_FUZZ)
         ${PROJECT_SOURCE_DIR}/tests/fuzz/custom_memory_manager.c)
 endif()
 
+if(UA_ENABLE_NODESETLOADER)
+    # This is required because of issues with policy CMP0077.
+    # Source: https://stackoverflow.com/a/54404924
+    option(ENABLE_BUILD_INTO_OPEN62541 "make nodesetLoader part of the open62541 library" off)
+    set(ENABLE_BUILD_INTO_OPEN62541 on)
+
+    add_subdirectory(${PROJECT_SOURCE_DIR}/deps/nodesetLoader)
+
+    list(APPEND lib_sources ${NODESETLOADER_SOURCES})
+    list(APPEND default_plugin_headers
+                ${PROJECT_SOURCE_DIR}/plugins/include/open62541/plugin/nodesetloader.h)
+    list(APPEND default_plugin_sources
+                ${PROJECT_SOURCE_DIR}/plugins/ua_nodesetloader.c)
+    list(APPEND open62541_LIBRARIES ${NODESETLOADER_DEPS_LIBS})
+endif()
+
 #########################
 # Generate source files #
 #########################
@@ -1513,6 +1530,10 @@ else()
                                "${PROJECT_SOURCE_DIR}/src/pubsub"
                                "${PROJECT_BINARY_DIR}/src_generated")
 
+    if(UA_ENABLE_NODESETLOADER)
+        include_directories_public(${NODESETLOADER_PUBLIC_INCLUDES})
+    endif()
+
     # Private includes
     include_directories_private("${PROJECT_BINARY_DIR}")
 
@@ -1525,12 +1546,14 @@ else()
     if(UA_ENABLE_ENCRYPTION_LIBRESSL)
         include_directories_private(${LIBRESSL_INCLUDE_DIR})
     endif()
+    if(UA_ENABLE_NODESETLOADER)
+        include_directories_private(${NODESETLOADER_PRIVATE_INCLUDES})
+    endif()
 
     # Option-specific includes
     if(UA_ENABLE_DISCOVERY)
         include_directories_private("${PROJECT_SOURCE_DIR}/src/client")
     endif()
-
 endif()
 
 add_dependencies(open62541-object open62541-code-generation)

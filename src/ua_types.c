@@ -83,6 +83,27 @@ UA_findDataType(const UA_NodeId *typeId) {
     return UA_findDataTypeWithCustom(typeId, NULL);
 }
 
+void
+UA_cleanupDataTypeWithCustom(const UA_DataTypeArray *customTypes) {
+    while (customTypes) {
+        const UA_DataTypeArray *next = customTypes->next;
+        if (customTypes->cleanup) {
+            for(size_t i = 0; i < customTypes->typesSize; ++i) {
+                const UA_DataType *type = &customTypes->types[i];
+                UA_free((void*)(uintptr_t)type->typeName);
+                for(size_t j = 0; j < type->membersSize; ++j) {
+                    const UA_DataTypeMember *m = &type->members[j];
+                    UA_free((void*)(uintptr_t)m->memberName);
+                }
+                UA_free((void*)type->members);
+            }
+            UA_free((void*)(uintptr_t)customTypes->types);
+            UA_free((void*)(uintptr_t)customTypes);
+        }
+        customTypes = next;
+    }
+}
+
 /***************************/
 /* Random Number Generator */
 /***************************/

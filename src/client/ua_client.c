@@ -104,6 +104,9 @@ UA_ClientConfig_clear(UA_ClientConfig *config) {
     }
     config->sessionLocaleIds = NULL;
     config->sessionLocaleIdsSize = 0;
+
+    /* Custom Data Types */
+    UA_cleanupDataTypeWithCustom(config->customDataTypes);
 }
 
 static void

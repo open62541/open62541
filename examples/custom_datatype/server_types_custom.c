@@ -279,7 +279,7 @@ int main(void) {
 
     /* Attention! Here the custom datatypes are allocated on the stack. So they
      * cannot be accessed from parallel (worker) threads. */
-    UA_DataTypeArray customDataTypes = {config->customDataTypes, 4, types};
+    UA_DataTypeArray customDataTypes = {config->customDataTypes, 4, types, UA_FALSE};
     config->customDataTypes = &customDataTypes;
 
     add3DPointDataType(server);
