@@ -367,13 +367,13 @@ __UA_Client_readAttribute(UA_Client *client, const UA_NodeId *nodeId,
     request.nodesToReadSize = 1;
     UA_ReadResponse response = UA_Client_Service_read(client, request);
     UA_StatusCode retval = response.responseHeader.serviceResult;
-    if(retval == UA_STATUSCODE_GOOD) {
+    if(UA_StatusCode_isGood(retval)) {
         if(response.resultsSize == 1)
             retval = response.results[0].status;
         else
             retval = UA_STATUSCODE_BADUNEXPECTEDERROR;
     }
-    if(retval != UA_STATUSCODE_GOOD) {
+    if(!UA_StatusCode_isGood(retval)) {
         UA_ReadResponse_clear(&response);
         return retval;
     }
