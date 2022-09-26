@@ -473,13 +473,15 @@ START_TEST(encryption_connect_reject_cert) {
     strcat(rejectedFileName, ".der");
     FILE * fp_rejectedFile = fopen(rejectedFileName, "rb");
 
-    UA_Byte readBuffer[CLIENT_CERTIFICATE_DER_SIZE] = {0};
-    fread(readBuffer, CLIENT_CERTIFICATE_DER_SIZE, 1, fp_rejectedFile);
+    if (fp_rejectedFile) {
+        UA_Byte readBuffer[CLIENT_CERTIFICATE_DER_SIZE] = {0};
+        fread(readBuffer, CLIENT_CERTIFICATE_DER_SIZE, 1, fp_rejectedFile);
 
-    for(size_t i=0; i<CLIENT_CERTIFICATE_DER_SIZE; i++) {
-        ck_assert(readBuffer[i] == clientCertificateDer[i]);
+        for(size_t i=0; i<CLIENT_CERTIFICATE_DER_SIZE; i++) {
+           ck_assert(readBuffer[i] == clientCertificateDer[i]);
+        }
+        fclose(fp_rejectedFile);
     }
-    fclose(fp_rejectedFile);
 
     UA_Client_disconnect(client);
 #endif

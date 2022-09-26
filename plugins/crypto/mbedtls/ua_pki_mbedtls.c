@@ -497,13 +497,17 @@ certificateVerification_verify(void *verificationContext,
             UA_ByteString_clear(&thumbprint);
 
             char *rejectedFullFileName = (char *) calloc(ci->rejectedListFolder.length + 1 /* '/' */ + strlen(rejectedFileName) + 1, sizeof(char));
-            memcpy(rejectedFullFileName, ci->rejectedListFolder.data, ci->rejectedListFolder.length);
-            rejectedFullFileName[ci->rejectedListFolder.length] = '/';
-            memcpy(&rejectedFullFileName[ci->rejectedListFolder.length + 1], rejectedFileName, strlen(rejectedFileName));
-            FILE * fp_rejectedFile = fopen(rejectedFullFileName, "wb");
-            fwrite(certificate->data, sizeof(certificate->data[0]), certificate->length, fp_rejectedFile);
-            free(rejectedFullFileName);
-            fclose(fp_rejectedFile);
+            if (rejectedFullFileName) {
+                memcpy(rejectedFullFileName, ci->rejectedListFolder.data, ci->rejectedListFolder.length);
+                rejectedFullFileName[ci->rejectedListFolder.length] = '/';
+                memcpy(&rejectedFullFileName[ci->rejectedListFolder.length + 1], rejectedFileName, strlen(rejectedFileName));
+                FILE * fp_rejectedFile = fopen(rejectedFullFileName, "wb");
+                if (fp_rejectedFile) {
+                    fwrite(certificate->data, sizeof(certificate->data[0]), certificate->length, fp_rejectedFile);
+                    fclose(fp_rejectedFile);
+                }
+                free(rejectedFullFileName);
+            }
         }
 #endif
     }
