@@ -3,6 +3,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  *
  *    Copyright 2021 (c) Christian von Arnim, ISW University of Stuttgart (for VDW and umati)
+ *    Copyright 2022 (c) Wind River Systems, Inc.
  *
  */
 
@@ -81,6 +82,16 @@ add_x509V3ext(X509 *x509, int nid, const char *value) {
     return UA_STATUSCODE_GOOD;
 }
 
+#if (OPENSSL_VERSION_NUMBER >= 0x30000000L)
+
+/* generate the RSA key */
+
+static EVP_PKEY * UA_RSA_Generate_Key (size_t keySizeBits){
+    return EVP_RSA_gen(keySizeBits);
+}
+
+#endif
+
 UA_StatusCode
 UA_CreateCertificate(const UA_Logger *logger,
                      const UA_String *subject, size_t subjectSize,
@@ -109,11 +120,18 @@ UA_CreateCertificate(const UA_Logger *logger,
 
     UA_StatusCode errRet = UA_STATUSCODE_GOOD;
 
+    X509 *x509 = X509_new();
+
+#if (OPENSSL_VERSION_NUMBER >= 0x30000000L)
+    EVP_PKEY *pkey = UA_RSA_Generate_Key(keySizeBits);
+    if((pkey == NULL) || (x509 == NULL)) {
+        errRet = UA_STATUSCODE_BADOUTOFMEMORY;
+        goto cleanup;
+    }    
+#else
     BIGNUM *exponent = BN_new();
     EVP_PKEY *pkey = EVP_PKEY_new();
-    X509 *x509 = X509_new();
     RSA *rsa = RSA_new();
-
     if(!pkey || !x509 || !exponent || !rsa) {
         errRet = UA_STATUSCODE_BADOUTOFMEMORY;
         goto cleanup;
@@ -144,6 +162,8 @@ UA_CreateCertificate(const UA_Logger *logger,
     }
     /* rsa will be freed by pkey */
     rsa = NULL;
+
+#endif  /* end of OPENSSL_VERSION_NUMBER >= 0x30000000L */
 
     /* x509v3 has version 2
      * (https://www.openssl.org/docs/man1.1.0/man3/X509_set_version.html) */
@@ -351,12 +371,14 @@ UA_CreateCertificate(const UA_Logger *logger,
 
 cleanup:
     UA_String_clear(&fullAltSubj);
+#if (OPENSSL_VERSION_NUMBER < 0x30000000L)
     RSA_free(rsa);
+    BN_free(exponent);    
+#endif
     X509_free(x509);
     EVP_PKEY_free(pkey);
     BIO_free(memCert);
     BIO_free(memPKey);
-    BN_free(exponent);
     return errRet;
 }
 
