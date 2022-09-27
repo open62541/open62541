@@ -543,7 +543,7 @@ ServerNetworkLayerTCP_listen(UA_ServerNetworkLayer *nl, UA_Server *server,
             UA_close(e->connection.sockfd);
             UA_Server_removeConnection(server, &e->connection);
             if(nl->statistics) {
-                nl->statistics->connectionTimeoutCount--;
+                nl->statistics->connectionTimeoutCount++;
                 nl->statistics->currentConnectionCount--;
             }
             continue;
