@@ -1,6 +1,6 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. 
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  *
  *    Copyright 2017, 2018, 2021 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
  *    Copyright 2017 (c) Stefan Profanter, fortiss GmbH
@@ -64,17 +64,6 @@ UA_Timer_init(UA_Timer *t) {
             offsetof(UA_TimerEntry, idTreeEntry),
             offsetof(UA_TimerEntry, id));
     UA_LOCK_INIT(&t->timerMutex);
-}
-
-void
-UA_Timer_addTimerEntry(UA_Timer *t, UA_TimerEntry *te, UA_UInt64 *callbackId) {
-    UA_LOCK(&t->timerMutex);
-    te->id = ++t->idCounter;
-    if(callbackId)
-        *callbackId = te->id;
-    aa_insert(&t->root, te);
-    aa_insert(&t->idRoot, te);
-    UA_UNLOCK(&t->timerMutex);
 }
 
 static UA_StatusCode
@@ -212,20 +201,16 @@ UA_Timer_process(UA_Timer *t, UA_DateTime nowMonotonic,
     UA_TimerEntry *first;
     while((first = (UA_TimerEntry*)aa_min(&t->root)) &&
           first->nextTime <= nowMonotonic) {
+        /* Remove before modifying the nextTime timestamp.
+         * aa_remove gets confused if we remove later. */
         aa_remove(&t->root, first);
-
-        /* Reinsert / remove to their new position first. Because the callback
-         * can interact with the zip tree and expects the same entries in the
-         * root and idRoot trees. */
 
         if(first->interval == 0) {
             aa_remove(&t->idRoot, first);
-            if(first->callback) {
-                UA_UNLOCK(&t->timerMutex);
-                executionCallback(executionApplication, first->callback,
-                                  first->application, first->data);
-                UA_LOCK(&t->timerMutex);
-            }
+            UA_UNLOCK(&t->timerMutex);
+            executionCallback(executionApplication, first->callback,
+                              first->application, first->data);
+            UA_LOCK(&t->timerMutex);
             UA_free(first);
             continue;
         }
@@ -247,14 +232,13 @@ UA_Timer_process(UA_Timer *t, UA_DateTime nowMonotonic,
                 first->nextTime = nowMonotonic + (UA_DateTime)first->interval;
         }
 
+        /* Insert before running the callback. The entry can be removed from the
+         * callback itself. */
         aa_insert(&t->root, first);
 
-        if(!first->callback)
-            continue;
-
-        /* Unlock the mutes before dropping into the callback. So that the timer
-         * itself can be edited within the callback. When we return, only the
-         * pointer to t must still exist. */
+        /* Unlock the mutex before dropping into the callback. So that the timer
+         * itself can be removed / edited within the callback. When we return,
+         * only the pointer to t must still exist. */
         UA_ApplicationCallback cb = first->callback;
         void *app = first->application;
         void *data = first->data;

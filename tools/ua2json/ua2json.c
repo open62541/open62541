@@ -1,6 +1,6 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. 
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  *
  *    Copyright 2018 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
  */
@@ -173,7 +173,7 @@ int main(int argc, char **argv) {
         fprintf(stderr, "Error: The first argument must be \"encode\" or \"decode\"\n");
         return -1;
     }
-        
+
     for(int argpos = 2; argpos < argc; argpos++) {
         if(strcmp(argv[argpos], "--help") == 0) {
             usage();
@@ -291,7 +291,7 @@ int main(int argc, char **argv) {
     } else {
         result = decode(&buf, &outbuf, type);
     }
-    
+
     if(result != UA_STATUSCODE_GOOD) {
         fprintf(stderr, "Error: Parsing failed with code %s\n",
                 UA_StatusCode_name(result));

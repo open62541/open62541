@@ -169,19 +169,19 @@ void
 UA_AsyncManager_clear(UA_AsyncManager *am, UA_Server *server) {
     removeCallback(server, am->checkTimeoutCallbackId);
 
-    UA_AsyncOperation *ar;
+    UA_AsyncOperation *ar, *ar_tmp;
 
     /* Clean up queues */
     UA_LOCK(&am->queueLock);
-    while((ar = TAILQ_FIRST(&am->newQueue))) {
-        TAILQ_REMOVE(&am->resultQueue, ar, pointers);
+    TAILQ_FOREACH_SAFE(ar, &am->newQueue, pointers, ar_tmp) {
+        TAILQ_REMOVE(&am->newQueue, ar, pointers);
         UA_AsyncOperation_delete(ar);
     }
-    while((ar = TAILQ_FIRST(&am->dispatchedQueue))) {
-        TAILQ_REMOVE(&am->resultQueue, ar, pointers);
+    TAILQ_FOREACH_SAFE(ar, &am->dispatchedQueue, pointers, ar_tmp) {
+        TAILQ_REMOVE(&am->dispatchedQueue, ar, pointers);
         UA_AsyncOperation_delete(ar);
     }
-    while((ar = TAILQ_FIRST(&am->resultQueue))) {
+    TAILQ_FOREACH_SAFE(ar, &am->resultQueue, pointers, ar_tmp) {
         TAILQ_REMOVE(&am->resultQueue, ar, pointers);
         UA_AsyncOperation_delete(ar);
     }
@@ -259,7 +259,7 @@ UA_AsyncManager_createAsyncOp(UA_AsyncManager *am, UA_Server *server,
     UA_StatusCode result = UA_CallMethodRequest_copy(opRequest, &ao->request);
     if(result != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
-                     "UA_Server_SetAsyncMethodResult: UA_CallMethodRequest_copy failed.");                
+                     "UA_Server_SetAsyncMethodResult: UA_CallMethodRequest_copy failed.");
         UA_free(ao);
         return result;
     }

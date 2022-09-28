@@ -44,9 +44,15 @@ int main(int argc, char* argv[]) {
     UA_Client *client = UA_Client_new();
     UA_ClientConfig *cc = UA_Client_getConfig(client);
     cc->securityMode = UA_MESSAGESECURITYMODE_SIGNANDENCRYPT;
-    UA_ClientConfig_setDefaultEncryption(cc, certificate, privateKey,
+    UA_StatusCode retval = UA_ClientConfig_setDefaultEncryption(cc, certificate, privateKey,
                                          trustList, trustListSize,
                                          revocationList, revocationListSize);
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_LOG_FATAL(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
+                    "Failed to set encryption." );
+        UA_Client_delete(client);
+        return EXIT_FAILURE;
+    }
 
     UA_ByteString_clear(&certificate);
     UA_ByteString_clear(&privateKey);
@@ -56,7 +62,7 @@ int main(int argc, char* argv[]) {
 
     /* Secure client connect */
     cc->securityMode = UA_MESSAGESECURITYMODE_SIGNANDENCRYPT; /* require encryption */
-    UA_StatusCode retval = UA_Client_connect(client, endpointUrl);
+    retval = UA_Client_connect(client, endpointUrl);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_Client_delete(client);
         return EXIT_FAILURE;

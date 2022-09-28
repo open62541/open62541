@@ -1,6 +1,6 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. 
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  *
  *    Copyright 2017, 2018, 2021 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
  *    Copyright 2017 (c) Stefan Profanter, fortiss GmbH
@@ -63,12 +63,6 @@ UA_StatusCode
 UA_Timer_addTimedCallback(UA_Timer *t, UA_ApplicationCallback callback,
                           void *application, void *data, UA_DateTime date,
                           UA_UInt64 *callbackId);
-
-/* Add a pre-allocated and pre-filled UA_TimerEntry. This cannot fail. It is
- * used, for example, for delayed memory reclamation where the data structure
- * begins with a UA_TimerEntry. */
-void
-UA_Timer_addTimerEntry(UA_Timer *t, UA_TimerEntry *te, UA_UInt64 *callbackId);
 
 UA_StatusCode
 UA_Timer_addRepeatedCallback(UA_Timer *t, UA_ApplicationCallback callback,

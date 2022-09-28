@@ -1,6 +1,6 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. 
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  *
  *    Copyright 2014-2018 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
  *    Copyright 2014-2017 (c) Florian Palm
@@ -25,7 +25,9 @@
 #include "ua_pubsub_ns0.h"
 #endif
 
+#ifdef UA_ENABLE_PUBSUB
 #include "ua_pubsub_manager.h"
+#endif
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS
 #include "ua_subscription.h"
@@ -47,7 +49,7 @@
  * Application URI.
  *
  * This is done as soon as the Namespace Array is read or written via node value
- * read / write services, or UA_Server_addNamespace,
+ * read / write services, or UA_Server_addNamespace, or UA_Server_getNamespaceByIndex
  * UA_Server_getNamespaceByName or UA_Server_run_startup is called.
  *
  * Therefore one has to set the custom NS1 URI before one of the previously
@@ -121,10 +123,31 @@ getNamespaceByName(UA_Server *server, const UA_String namespaceUri,
 }
 
 UA_StatusCode
+getNamespaceByIndex(UA_Server *server, const size_t namespaceIndex,
+                   UA_String *foundUri) {
+    /* ensure that the uri for ns1 is set up from the app description */
+    setupNs1Uri(server);
+    UA_StatusCode res = UA_STATUSCODE_BADNOTFOUND;
+    if(namespaceIndex > server->namespacesSize)
+        return res;
+    res = UA_String_copy(&server->namespaces[namespaceIndex], foundUri);
+    return res;
+}
+
+UA_StatusCode
 UA_Server_getNamespaceByName(UA_Server *server, const UA_String namespaceUri,
                              size_t *foundIndex) {
     UA_LOCK(&server->serviceMutex);
     UA_StatusCode res = getNamespaceByName(server, namespaceUri, foundIndex);
+    UA_UNLOCK(&server->serviceMutex);
+    return res;
+}
+
+UA_StatusCode
+UA_Server_getNamespaceByIndex(UA_Server *server, const size_t namespaceIndex,
+                              UA_String *foundUri) {
+    UA_LOCK(&server->serviceMutex);
+    UA_StatusCode res = getNamespaceByIndex(server, namespaceIndex, foundUri);
     UA_UNLOCK(&server->serviceMutex);
     return res;
 }
@@ -232,9 +255,10 @@ void UA_Server_delete(UA_Server *server) {
     UA_free(server);
 }
 
-/* Recurring cleanup. Removing unused and timed-out channels and sessions */
+/* Regular house-keeping tasks. Removing unused and timed-out channels and
+ * sessions. */
 static void
-UA_Server_cleanup(UA_Server *server, void *_) {
+serverHouseKeeping(UA_Server *server, void *_) {
     UA_LOCK(&server->serviceMutex);
     UA_DateTime nowMonotonic = UA_DateTime_nowMonotonic();
     UA_Server_cleanupSessions(server, nowMonotonic);
@@ -257,12 +281,10 @@ UA_Boolean UA_Server_NodestoreIsConfigured(UA_Server *server) {
 
 static UA_Server *
 UA_Server_init(UA_Server *server) {
-
     UA_StatusCode res = UA_STATUSCODE_GOOD;
     UA_CHECK_FATAL(UA_Server_NodestoreIsConfigured(server), goto cleanup,
-                    &server->config.logger, UA_LOGCATEGORY_SERVER,
-                    "No Nodestore configured in the server"
-                   );
+                   &server->config.logger, UA_LOGCATEGORY_SERVER,
+                   "No Nodestore configured in the server");
 
     /* Init start time to zero, the actual start time will be sampled in
      * UA_Server_run_startup() */
@@ -307,10 +329,6 @@ UA_Server_init(UA_Server *server) {
 #if UA_MULTITHREADING >= 100
     UA_AsyncManager_init(&server->asyncManager, server);
 #endif
-
-    /* Add a regular callback for cleanup and maintenance. With a 10s interval. */
-    UA_Server_addRepeatedCallback(server, (UA_ServerCallback)UA_Server_cleanup, NULL,
-                                  10000.0, NULL);
 
     /* Initialize namespace 0*/
     res = UA_Server_initNS0(server);
@@ -401,10 +419,9 @@ UA_Server_addRepeatedCallback(UA_Server *server, UA_ServerCallback callback,
                               void *data, UA_Double interval_ms,
                               UA_UInt64 *callbackId) {
     UA_LOCK(&server->serviceMutex);
-    UA_StatusCode retval =
-        addRepeatedCallback(server, callback, data, interval_ms, callbackId);
+    UA_StatusCode res = addRepeatedCallback(server, callback, data, interval_ms, callbackId);
     UA_UNLOCK(&server->serviceMutex);
-    return retval;
+    return res;
 }
 
 UA_StatusCode
@@ -427,8 +444,8 @@ UA_Server_changeRepeatedCallbackInterval(UA_Server *server, UA_UInt64 callbackId
 
 void
 removeCallback(UA_Server *server, UA_UInt64 callbackId) {
-    server->config.eventLoop->removeCyclicCallback(server->config.eventLoop,
-                                                   callbackId);
+    UA_EventLoop *el = server->config.eventLoop;
+    el->removeCyclicCallback(el, callbackId);
 }
 
 void
@@ -466,8 +483,9 @@ UA_Server_updateCertificate(UA_Server *server,
     if(closeSecureChannels) {
         channel_entry *entry;
         TAILQ_FOREACH(entry, &server->channels, pointers) {
-            if(UA_ByteString_equal(&entry->channel.securityPolicy->localCertificate, oldCertificate))
-                UA_Server_closeSecureChannel(server, &entry->channel, UA_DIAGNOSTICEVENT_CLOSE);
+            if(UA_ByteString_equal(&entry->channel.securityPolicy->localCertificate,
+                                   oldCertificate))
+                shutdownServerSecureChannel(server, &entry->channel, UA_DIAGNOSTICEVENT_CLOSE);
         }
     }
 
@@ -546,92 +564,8 @@ UA_Server_getStatistics(UA_Server *server) {
         server->serverDiagnosticsSummary.sessionTimeoutCount;
     stat.ss.sessionAbortCount =
         server->serverDiagnosticsSummary.sessionAbortCount;
-    
+
     return stat;
-}
-
-/* Callback of a TCP socket (server socket or an active connection) */
-static void
-UA_Server_networkCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
-                          void *application, void **connectionContext,
-                          UA_StatusCode state,
-                          size_t paramsSize, const UA_KeyValuePair *params,
-                          UA_ByteString msg) {
-    UA_Server *server = (UA_Server*)application;
-
-    /* A server socket that is not registered in the server */
-    if(*connectionContext == NULL) {
-        if(state != UA_STATUSCODE_GOOD)
-            return; /* Closing an unregistered server socket */
-
-        /* Cannot register */
-        if(server->serverConnectionsSize >= UA_MAXSERVERCONNECTIONS) {
-            UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
-                           "Cannot register server socket - too many already open");
-            cm->closeConnection(cm, connectionId);
-            return;
-        }
-
-        /* Find and use a free connection slot */
-        server->serverConnectionsSize++;
-        UA_ServerConnection *sc = server->serverConnections;
-        while(sc->connectionId != 0)
-            sc++;
-        sc->state = UA_SERVERCONNECTIONSTATE_STARTED;
-        sc->connectionId = connectionId;
-        sc->connectionManager = cm;
-        *connectionContext = (void*)sc; /* Set the context pointer in the connection */
-        return;
-    }
-
-    UA_ServerConnection *sc = (UA_ServerConnection*)*connectionContext;
-    UA_Connection *conn = (UA_Connection*)*connectionContext;
-    UA_Boolean serverSocket = (sc >= server->serverConnections &&
-                               sc < &server->serverConnections[UA_MAXSERVERCONNECTIONS]);
-
-    if(state != UA_STATUSCODE_GOOD) {
-        if(serverSocket) {
-            /* A server socket is closing */
-            sc->state = UA_SERVERCONNECTIONSTATE_FRESH;
-            sc->connectionId = 0;
-            server->serverConnectionsSize--;
-        } else {
-            /* A normal connection is closing */
-            if(conn->channel)
-                UA_SecureChannel_close(conn->channel);
-            UA_free(conn);
-        }
-        return;
-    }
-
-    /* A new connection is opening - still has the pointer to the serversocket */
-    if(serverSocket) {
-        conn = (UA_Connection*)UA_malloc(sizeof(UA_Connection));
-        if(!conn) {
-            UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
-                           "Could not accept the connection - out of memory");
-            cm->closeConnection(cm, connectionId);
-            return;
-        }
-
-        conn->state = UA_CONNECTIONSTATE_OPENING;
-        conn->channel = NULL;
-        conn->sockfd = (UA_SOCKET)connectionId;
-        conn->handle = cm;
-        conn->getSendBuffer = UA_Server_Connection_getSendBuffer;
-        conn->releaseSendBuffer = UA_Server_Connection_releaseBuffer;
-        conn->send = UA_Server_Connection_send;
-        conn->recv = NULL;
-        conn->releaseRecvBuffer = UA_Server_Connection_releaseBuffer;
-        conn->close = UA_Server_Connection_close;
-        conn->free = NULL;
-
-        *connectionContext = (void*)conn;
-        return;
-    }
-
-    /* Received a message on a normal connection */
-    UA_Server_processBinaryMessage(server, conn, &msg);
 }
 
 static UA_StatusCode
@@ -713,6 +647,12 @@ UA_Server_run_startup(UA_Server *server) {
                  "This should only be used for specific fuzzing builds.");
 #endif
 
+    /* Add a regular callback for housekeeping tasks. With a 1s interval. */
+    if(server->houseKeepingCallbackId == 0) {
+        UA_Server_addRepeatedCallback(server, (UA_ServerCallback)serverHouseKeeping,
+                                      NULL, 1000.0, &server->houseKeepingCallbackId);
+    }
+
     /* Start the EventLoop */
     UA_StatusCode retVal = config->eventLoop->start(config->eventLoop);
     UA_CHECK_STATUS(retVal, return retVal);
@@ -771,6 +711,11 @@ UA_Server_run_startup(UA_Server *server) {
     UA_CHECK_STATUS(retVal, return retVal);
 #endif
 
+#ifdef UA_ENABLE_PUBSUB
+    /* Initialized PubSubManager */
+    UA_PubSubManager_init(server, &server->pubSubManager);
+#endif
+
     /* Sample the start time and set it to the Server object */
     server->startTime = UA_DateTime_now();
     UA_Variant var;
@@ -824,7 +769,7 @@ UA_Server_run_iterate(UA_Server *server, UA_Boolean waitInternal) {
     UA_PubSubConnection *connection;
     TAILQ_FOREACH(connection, &server->pubSubManager.connections, listEntry){
         UA_PubSubConnection *ps = connection;
-        if(ps && ps->channel->yield){
+        if(ps && ps->channel && ps->channel->yield){
             ps->channel->yield(ps->channel, 0);
         }
     }
@@ -853,6 +798,10 @@ UA_Server_run_iterate(UA_Server *server, UA_Boolean waitInternal) {
 
 UA_StatusCode
 UA_Server_run_shutdown(UA_Server *server) {
+    /* Stop the regular housekeeping tasks */
+    UA_Server_removeCallback(server, server->houseKeepingCallbackId);
+    server->houseKeepingCallbackId = 0;
+
     /* Stop all SecureChannels */
     UA_Server_deleteSecureChannels(server);
 

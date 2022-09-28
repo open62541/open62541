@@ -182,7 +182,8 @@ START_TEST(Server_LocalMonitoredItem_CustomType) {
     for(size_t i = 0; i < 100; i++) {
         UA_ExtensionObject_setValueNoDelete(&arr[i], &p, &PointType);
     }
-    UA_Server_writeValue(server, outNodeId, val);
+    UA_StatusCode retval = UA_Server_writeValue(server, outNodeId, val);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
     UA_fakeSleep(100);
     UA_Server_run_iterate(server, 1);

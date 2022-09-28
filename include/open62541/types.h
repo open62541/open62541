@@ -85,8 +85,8 @@ typedef uint16_t UA_UInt16;
  * ^^^^^
  * An integer value between -2 147 483 648 and 2 147 483 647. */
 typedef int32_t UA_Int32;
-#define UA_INT32_MIN (-2147483648)
-#define UA_INT32_MAX 2147483647
+#define UA_INT32_MIN ((int32_t)-2147483648LL)
+#define UA_INT32_MAX 2147483647L
 
 /**
  * UInt32
@@ -94,7 +94,7 @@ typedef int32_t UA_Int32;
  * An integer value between 0 and 4 294 967 295. */
 typedef uint32_t UA_UInt32;
 #define UA_UINT32_MIN 0
-#define UA_UINT32_MAX 4294967295
+#define UA_UINT32_MAX 4294967295UL
 
 /**
  * Int64
@@ -110,7 +110,7 @@ typedef int64_t UA_Int64;
  * ^^^^^^
  * An integer value between 0 and 18 446 744 073 709 551 615. */
 typedef uint64_t UA_UInt64;
-#define UA_UINT64_MIN (uint64_t)0
+#define UA_UINT64_MIN 0
 #define UA_UINT64_MAX (uint64_t)18446744073709551615ULL
 
 /**
@@ -118,12 +118,16 @@ typedef uint64_t UA_UInt64;
  * ^^^^^
  * An IEEE single precision (32 bit) floating point value. */
 typedef float UA_Float;
+#define UA_FLOAT_MIN FLT_MIN;
+#define UA_FLOAT_MAX FLT_MAX;
 
 /**
  * Double
  * ^^^^^^
  * An IEEE double precision (64 bit) floating point value. */
 typedef double UA_Double;
+#define UA_DOUBLE_MIN DBL_MIN;
+#define UA_DOUBLE_MAX DBL_MAX;
 
 /**
  * .. _statuscode:
@@ -288,13 +292,22 @@ typedef struct {
 
 UA_EXPORT extern const UA_Guid UA_GUID_NULL;
 
-UA_Boolean UA_EXPORT UA_Guid_equal(const UA_Guid *g1, const UA_Guid *g2);
+UA_Boolean UA_EXPORT
+UA_Guid_equal(const UA_Guid *g1, const UA_Guid *g2);
 
-#ifdef UA_ENABLE_PARSING
-/* Parse the Guid format defined in Part 6, 5.1.3.
+/* Print a Guid in the human-readable format defined in Part 6, 5.1.3
+ *
  * Format: C496578A-0DFE-4B8F-870A-745238C6AEAE
  *         |       |    |    |    |            |
- *         0       8    13   18   23           36 */
+ *         0       8    13   18   23           36
+ *
+ * This allocates memory if the output argument is an empty string. Tries to use
+ * the given buffer otherwise. */
+UA_StatusCode UA_EXPORT
+UA_Guid_print(const UA_Guid *guid, UA_String *output);
+
+/* Parse the humand-readable Guid format */
+#ifdef UA_ENABLE_PARSING
 UA_StatusCode UA_EXPORT
 UA_Guid_parse(UA_Guid *guid, const UA_String str);
 
@@ -401,14 +414,16 @@ UA_Boolean UA_EXPORT UA_NodeId_isNull(const UA_NodeId *p);
  *   UA_NODEID("ns=10;s=Hello:World")
  *   UA_NODEID("g=09087e75-8e5e-499b-954f-f2a9603db28a")
  *   UA_NODEID("ns=1;b=b3BlbjYyNTQxIQ==") // base64
- * */
+ *
+ * The method can either use a pre-allocated string buffer or allocates memory
+ * internally if called with an empty output string. */
 UA_StatusCode UA_EXPORT
 UA_NodeId_print(const UA_NodeId *id, UA_String *output);
 
-#ifdef UA_ENABLE_PARSING
 /* Parse the human-readable NodeId format. Attention! String and
  * ByteString NodeIds have their identifier malloc'ed and need to be
  * cleaned up. */
+#ifdef UA_ENABLE_PARSING
 UA_StatusCode UA_EXPORT
 UA_NodeId_parse(UA_NodeId *id, const UA_String str);
 
@@ -488,18 +503,24 @@ typedef struct {
 
 UA_EXPORT extern const UA_ExpandedNodeId UA_EXPANDEDNODEID_NULL;
 
-UA_StatusCode UA_EXPORT
-UA_ExpandedNodeId_print(const UA_ExpandedNodeId *id, UA_String *output);
-
-#ifdef UA_ENABLE_PARSING
-/* Parse the ExpandedNodeId format defined in Part 6, 5.3.1.11:
+/* Print the ExpandedNodeId in the humand-readable format defined in Part 6,
+ * 5.3.1.11:
  *
  *   svr=<serverindex>;ns=<namespaceindex>;<type>=<value>
  *     or
  *   svr=<serverindex>;nsu=<uri>;<type>=<value>
  *
- * The definitions for svr, ns and nsu can be omitted and will be set to zero /
- * the empty string.*/
+ * The definitions for svr, ns and nsu is omitted if zero / the empty string.
+ *
+ * The method can either use a pre-allocated string buffer or allocates memory
+ * internally if called with an empty output string. */
+UA_StatusCode UA_EXPORT
+UA_ExpandedNodeId_print(const UA_ExpandedNodeId *id, UA_String *output);
+
+/* Parse the human-readable NodeId format. Attention! String and
+ * ByteString NodeIds have their identifier malloc'ed and need to be
+ * cleaned up. */
+#ifdef UA_ENABLE_PARSING
 UA_StatusCode UA_EXPORT
 UA_ExpandedNodeId_parse(UA_ExpandedNodeId *id, const UA_String str);
 
@@ -916,6 +937,18 @@ typedef struct {
     UA_Boolean    hasServerPicoseconds : 1;
 } UA_DataValue;
 
+/* Copy the DataValue, but use only a subset of the (multidimensional) array of
+ * of the variant of the source DataValue. Returns an error code if the variant
+ * of the DataValue is not an array or if the indicated range does not fit.
+ *
+ * @param src The source DataValue
+ * @param dst The target DataValue
+ * @param range The range of the variant of the DataValue to copy
+ * @return Returns UA_STATUSCODE_GOOD or an error code */
+UA_StatusCode UA_EXPORT
+UA_DataValue_copyVariantRange(const UA_DataValue *src, UA_DataValue * UA_RESTRICT dst,
+                              const UA_NumericRange range);
+
 /**
  * DiagnosticInfo
  * ^^^^^^^^^^^^^^
@@ -1063,11 +1096,6 @@ UA_DataType_getStructMember(const UA_DataType *type,
 UA_Boolean
 UA_DataType_isNumeric(const UA_DataType *type);
 
-/* Return the Data Type Precedence-Rank defined in Part 4.
- * If there is no Precedence-Rank assigned with the type -1 is returned.*/
-UA_Int16
-UA_DataType_getPrecedence(const UA_DataType *type);
-
 /**
  * Builtin data types can be accessed as UA_TYPES[UA_TYPES_XXX], where XXX is
  * the name of the data type. If only the NodeId of a type is known, use the
@@ -1124,7 +1152,9 @@ void UA_EXPORT UA_clear(void *p, const UA_DataType *type);
  * @param type The datatype description of the variable */
 void UA_EXPORT UA_delete(void *p, const UA_DataType *type);
 
-/* Pretty-print the value from the datatype.
+/* Pretty-print the value from the datatype. The output is pretty-printed JSON5.
+ * Note that this format is non-standard and should not be sent over the
+ * network. It can however be read by our own JSON decoding.
  *
  * @param p The memory location of the variable
  * @param type The datatype description of the variable
@@ -1132,8 +1162,8 @@ void UA_EXPORT UA_delete(void *p, const UA_DataType *type);
  *        memory for string is already allocated, we try to use the existing
  *        string (the length is adjusted). If the string is empty, memory
  *        is allocated for it.
- * @return Indicates whether the operation succeeded*/
-#ifdef UA_ENABLE_TYPEDESCRIPTION
+ * @return Indicates whether the operation succeeded */
+#ifdef UA_ENABLE_JSON_ENCODING
 UA_StatusCode UA_EXPORT
 UA_print(const void *p, const UA_DataType *type, UA_String *output);
 #endif
@@ -1162,10 +1192,11 @@ UA_Order UA_EXPORT
 UA_order(const void *p1, const void *p2, const UA_DataType *type);
 
 /**
- * Encoding/Decoding
- * ^^^^^^^^^^^^^^^^^^
- * Encoding and decoding routines for the available formats. For all formats
- * the _calcSize, _encode and _decode methods are provided. */
+ * Binary Encoding/Decoding
+ * ------------------------
+ *
+ * Encoding and decoding routines for the binary format. For the binary decoding
+ * additional data types can be forwarded. */
 
 /* Returns the number of bytes the value p takes in binary encoding. Returns
  * zero if an error occurs. */
@@ -1196,6 +1227,27 @@ UA_decodeBinary(const UA_ByteString *inBuf,
                 void *p, const UA_DataType *type,
                 const UA_DecodeBinaryOptions *options);
 
+/**
+ * JSON En/Decoding
+ * ----------------
+ *
+ * The JSON decoding can parse the official encoding from the OPC UA
+ * specification. It further allows the following extensions:
+ *
+ * - The strict JSON format is relaxed to also allow the JSON5 extensions
+ *   (https://json5.org/). This allows for more human-readable encoding and adds
+ *   convenience features such as trailing commas in arrays and comments within
+ *   JSON documents.
+ * - Int64/UInt64 don't necessarily have to be wrapped into a string.
+ * - If `UA_ENABLE_PARSING` is set, NodeIds and ExpandedNodeIds can be given in
+ *   the string encoding (e.g. "ns=1;i=42", see `UA_NodeId_parse`). The standard
+ *   encoding is to express NodeIds as JSON objects.
+ *
+ * These extensions are not intended to be used for the OPC UA protocol on the
+ * network. They were rather added to allow more convenient configuration file
+ * formats that also include data in the OPC UA type system.
+ */
+
 #ifdef UA_ENABLE_JSON_ENCODING
 
 typedef struct {
@@ -1204,6 +1256,15 @@ typedef struct {
     const UA_String *serverUris;
     size_t serverUrisSize;
     UA_Boolean useReversible;
+
+    UA_Boolean prettyPrint;   /* Add newlines and spaces for legibility */
+
+    /* Enabling the following options leads to non-standard compatible JSON5
+     * encoding! Use it for pretty-printing, but not for sending messages over
+     * the network. (Our own decoding can still parse it.) */
+
+    UA_Boolean unquotedKeys;  /* Don't print quotes around object element keys */
+    UA_Boolean stringNodeIds; /* String encoding for NodeIds, like "ns=1;i=42" */
 } UA_EncodeJsonOptions;
 
 /* Returns the number of bytes the value src takes in json encoding. Returns

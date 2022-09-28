@@ -17,6 +17,11 @@ _UA_BEGIN_DECLS
 unsigned char *
 UA_base64(const unsigned char *src, size_t len, size_t *out_len);
 
+/* Requires as input a buffer of length at least 4*((len + 2) / 3).
+ * Returns the actual size */
+size_t
+UA_base64_buf(const unsigned char *src, size_t len, unsigned char *out);
+
 /**
  * base64_decode - Base64 decode
  * @src: Data to be decoded

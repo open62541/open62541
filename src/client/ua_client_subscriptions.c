@@ -1,6 +1,6 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. 
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  *
  *    Copyright 2015-2018 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
  *    Copyright 2015 (c) Oleksiy Vasylyev
@@ -56,6 +56,10 @@ ua_Subscriptions_create(UA_Client *client, UA_Client_Subscription *newSub,
     newSub->maxKeepAliveCount = response->revisedMaxKeepAliveCount;
     ZIP_INIT(&newSub->monitoredItems);
     LIST_INSERT_HEAD(&client->subscriptions, newSub, listEntry);
+
+    /* Immediately send the first publish requests if there are none
+     * outstanding */
+    UA_Client_Subscriptions_backgroundPublish(client);
 }
 
 static void
@@ -189,7 +193,7 @@ UA_Client_Subscriptions_modify(UA_Client *client,
         response.responseHeader.serviceResult = UA_STATUSCODE_BADSUBSCRIPTIONIDINVALID;
         return response;
     }
-    
+
     /* Call the service */
     __UA_Client_Service(client,
                         &request, &UA_TYPES[UA_TYPES_MODIFYSUBSCRIPTIONREQUEST],
@@ -355,7 +359,7 @@ UA_Client_Subscriptions_deleteSingle(UA_Client *client, UA_UInt32 subscriptionId
     UA_DeleteSubscriptionsRequest_init(&request);
     request.subscriptionIds = &subscriptionId;
     request.subscriptionIdsSize = 1;
-    
+
     UA_DeleteSubscriptionsResponse response =
         UA_Client_Subscriptions_delete(client, request);
 
@@ -495,24 +499,27 @@ MonitoredItems_CreateData_prepare(UA_Client *client,
                                   MonitoredItems_CreateData *data) {
     /* Align arrays and copy over */
     UA_StatusCode retval = UA_STATUSCODE_BADOUTOFMEMORY;
-    data->contexts = (void **)UA_malloc(sizeof(void *) * request->itemsToCreateSize);
+    data->contexts = (void **)UA_calloc(request->itemsToCreateSize, sizeof(void *));
     if(!data->contexts)
         goto cleanup;
-    memcpy(data->contexts, contexts, request->itemsToCreateSize * sizeof(void *));
+    if(contexts)
+        memcpy(data->contexts, contexts, request->itemsToCreateSize * sizeof(void *));
 
     data->deleteCallbacks = (UA_Client_DeleteMonitoredItemCallback *)
-        UA_malloc(request->itemsToCreateSize * sizeof(UA_Client_DeleteMonitoredItemCallback));
+        UA_calloc(request->itemsToCreateSize, sizeof(UA_Client_DeleteMonitoredItemCallback));
     if(!data->deleteCallbacks)
         goto cleanup;
-    memcpy(data->deleteCallbacks, deleteCallbacks,
-           request->itemsToCreateSize * sizeof(UA_Client_DeleteMonitoredItemCallback));
+    if(deleteCallbacks)
+        memcpy(data->deleteCallbacks, deleteCallbacks,
+               request->itemsToCreateSize * sizeof(UA_Client_DeleteMonitoredItemCallback));
 
     data->handlingCallbacks = (void **)
-        UA_malloc(request->itemsToCreateSize * sizeof(void *));
+        UA_calloc(request->itemsToCreateSize, sizeof(void *));
     if(!data->handlingCallbacks)
         goto cleanup;
-    memcpy(data->handlingCallbacks, handlingCallbacks,
-           request->itemsToCreateSize * sizeof(void *));
+    if(handlingCallbacks)
+        memcpy(data->handlingCallbacks, handlingCallbacks,
+               request->itemsToCreateSize * sizeof(void *));
 
     retval = UA_CreateMonitoredItemsRequest_copy(request, &data->request);
     if(retval != UA_STATUSCODE_GOOD)
@@ -640,7 +647,7 @@ UA_Client_MonitoredItems_createDataChange(UA_Client *client, UA_UInt32 subscript
     request.timestampsToReturn = timestampsToReturn;
     request.itemsToCreate = (UA_MonitoredItemCreateRequest*)(uintptr_t)&item;
     request.itemsToCreateSize = 1;
-    UA_CreateMonitoredItemsResponse response = 
+    UA_CreateMonitoredItemsResponse response =
        UA_Client_MonitoredItems_createDataChanges(client, request, &context,
                                                    &callback, &deleteCallback);
     UA_MonitoredItemCreateResult result;
@@ -651,7 +658,7 @@ UA_Client_MonitoredItems_createDataChange(UA_Client *client, UA_UInt32 subscript
     if(result.statusCode == UA_STATUSCODE_GOOD &&
        response.resultsSize != 1)
         result.statusCode = UA_STATUSCODE_BADINTERNALERROR;
-    
+
     if(result.statusCode == UA_STATUSCODE_GOOD)
        UA_MonitoredItemCreateResult_copy(&response.results[0] , &result);
     UA_CreateMonitoredItemsResponse_clear(&response);
@@ -696,7 +703,7 @@ UA_Client_MonitoredItems_createEvent(UA_Client *client, UA_UInt32 subscriptionId
     request.timestampsToReturn = timestampsToReturn;
     request.itemsToCreate = (UA_MonitoredItemCreateRequest*)(uintptr_t)&item;
     request.itemsToCreateSize = 1;
-    UA_CreateMonitoredItemsResponse response = 
+    UA_CreateMonitoredItemsResponse response =
        UA_Client_MonitoredItems_createEvents(client, request, &context,
                                              &callback, &deleteCallback);
     UA_StatusCode retval = response.responseHeader.serviceResult;
@@ -958,9 +965,11 @@ processDataChangeNotification(UA_Client *client, UA_Client_Subscription *sub,
             continue;
         }
 
-        mon->handler.dataChangeCallback(client, sub->subscriptionId, sub->context,
-                                        mon->monitoredItemId, mon->context,
-                                        &min->value);
+        if(mon->handler.dataChangeCallback) {
+            mon->handler.dataChangeCallback(client, sub->subscriptionId, sub->context,
+                                            mon->monitoredItemId, mon->context,
+                                            &min->value);
+        }
     }
 }
 
@@ -1051,8 +1060,8 @@ UA_Client_Subscriptions_processPublishResponse(UA_Client *client, UA_PublishRequ
                            "Too many publishrequest, reduce outStandingPublishRequests "
                            "to %" PRId16, client->config.outStandingPublishRequests);
         } else {
-            UA_LOG_ERROR(&client->config.logger, UA_LOGCATEGORY_CLIENT,
-                         "Too many publishrequest when outStandingPublishRequests = 1");
+            UA_LOG_WARNING(&client->config.logger, UA_LOGCATEGORY_CLIENT,
+                           "Too many publishrequest when outStandingPublishRequests = 1");
             UA_Client_Subscriptions_deleteSingle(client, response->subscriptionId);
         }
         return;
@@ -1079,7 +1088,7 @@ UA_Client_Subscriptions_processPublishResponse(UA_Client *client, UA_PublishRequ
     }
 
     if(response->responseHeader.serviceResult == UA_STATUSCODE_BADSESSIONIDINVALID) {
-        UA_Client_disconnect(client); /* TODO: This should be handled before the process callback */
+        UA_Client_disconnectAsync(client); /* TODO: This should be handled before the process callback */
         UA_LOG_WARNING(&client->config.logger, UA_LOGCATEGORY_CLIENT,
                        "Received BadSessionIdInvalid");
         return;
@@ -1145,12 +1154,12 @@ UA_Client_Subscriptions_processPublishResponse(UA_Client *client, UA_PublishRequ
                            "Not enough memory to store the acknowledgement for a publish "
                            "message on subscription %" PRIu32, sub->subscriptionId);
             break;
-        }   
+        }
         tmpAck->subAck.sequenceNumber = msg->sequenceNumber;
         tmpAck->subAck.subscriptionId = sub->subscriptionId;
         LIST_INSERT_HEAD(&client->pendingNotificationsAcks, tmpAck, listEntry);
         break;
-    } 
+    }
 }
 
 static void
@@ -1207,8 +1216,8 @@ UA_Client_Subscriptions_backgroundPublishInactivityCheck(UA_Client *client) {
             if(client->config.subscriptionInactivityCallback)
                 client->config.subscriptionInactivityCallback(client, sub->subscriptionId,
                                                               sub->context);
-            UA_LOG_ERROR(&client->config.logger, UA_LOGCATEGORY_CLIENT,
-                         "Inactivity for Subscription %" PRIu32 ".", sub->subscriptionId);
+            UA_LOG_WARNING(&client->config.logger, UA_LOGCATEGORY_CLIENT,
+                           "Inactivity for Subscription %" PRIu32 ".", sub->subscriptionId);
         }
     }
 }
@@ -1233,7 +1242,7 @@ UA_Client_Subscriptions_backgroundPublish(UA_Client *client) {
             UA_PublishRequest_delete(request);
             return;
         }
-    
+
         UA_UInt32 requestId;
         client->currentlyOutStandingPublishRequests++;
 

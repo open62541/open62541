@@ -190,8 +190,8 @@ START_TEST(checkGuid) {
     ck_assert(out.type == &UA_TYPES[UA_TYPES_GUID]);
     ck_assert(out.arrayLength == 3);
     UA_Guid *ArrayData = (UA_Guid *)out.data;
-    UA_Guid ArrayGuidVal[3] = {UA_GUID("7822a391-1111-4a59-b08d-b70bc63fecec"), 
-                               UA_GUID("7822a391-2222-4a59-b08d-b70bc63fecec"), 
+    UA_Guid ArrayGuidVal[3] = {UA_GUID("7822a391-1111-4a59-b08d-b70bc63fecec"),
+                               UA_GUID("7822a391-2222-4a59-b08d-b70bc63fecec"),
                                UA_GUID("7822a391-3333-4a59-b08d-b70bc63fecec")};
     ck_assert(UA_Guid_equal(&ArrayData[0], &ArrayGuidVal[0]));
     ck_assert(UA_Guid_equal(&ArrayData[1], &ArrayGuidVal[1]));

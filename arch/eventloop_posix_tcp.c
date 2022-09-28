@@ -34,6 +34,9 @@ typedef struct {
                              * via the recv-bufsize parameter.*/
 } TCPConnectionManager;
 
+static void
+TCP_shutdown(UA_ConnectionManager *cm, UA_RegisteredFD *rfd);
+
 static UA_StatusCode
 TCPConnectionManager_register(TCPConnectionManager *tcm, UA_RegisteredFD *rfd) {
     UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX*)tcm->cm.eventSource.eventLoop;
@@ -43,15 +46,6 @@ TCPConnectionManager_register(TCPConnectionManager *tcm, UA_RegisteredFD *rfd) {
     LIST_INSERT_HEAD(&tcm->fds, rfd, es_pointers);
     tcm->fdsSize++;
     return UA_STATUSCODE_GOOD;
-}
-
-static void
-TCPConnectionManager_deregister(TCPConnectionManager *tcm, UA_RegisteredFD *rfd) {
-    UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX*)tcm->cm.eventSource.eventLoop;
-    UA_EventLoopPOSIX_deregisterFD(el, rfd);
-    LIST_REMOVE(rfd, es_pointers);
-    UA_assert(tcm->fdsSize > 0);
-    tcm->fdsSize--;
 }
 
 static UA_StatusCode
@@ -124,13 +118,10 @@ TCP_close(TCPConnectionManager *tcm, UA_RegisteredFD *rfd) {
     UA_LOG_DEBUG(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
                  "TCP %u\t| Closing connection", (unsigned)rfd->fd);
 
-    /* Deregister from the EventLoop */
-    TCPConnectionManager_deregister(tcm, rfd);
-
     /* Signal closing to the application */
     tcpfd->connectionCallback(&tcm->cm, (uintptr_t)rfd->fd,
                               rfd->application, &rfd->context,
-                              UA_STATUSCODE_BADCONNECTIONCLOSED,
+                              UA_CONNECTIONSTATE_CLOSING,
                               0, NULL, UA_BYTESTRING_NULL);
 
     /* Close the socket */
@@ -145,26 +136,37 @@ TCP_close(TCPConnectionManager *tcm, UA_RegisteredFD *rfd) {
                           (unsigned)rfd->fd, errno_str));
     }
 
-    /* Don't call free here. This might be done automatically via the delayed
-     * callback that calls TCP_close. */
-    /* UA_free(rfd); */
-
-    /* Stop if the tcm is stopping and this was the last open socket */
+    /* Decrease the number of open sockets. Then check if the tcm is stopping
+     * and this was the last open socket */
+    UA_assert(tcm->fdsSize > 0);
+    tcm->fdsSize--;
     TCP_checkStopped(tcm);
-
     return UA_STATUSCODE_GOOD;
 }
 
 static void
 TCP_delayedClose(void *application, void *context) {
-    UA_ConnectionManager *cm = (UA_ConnectionManager*)application;
-    TCPConnectionManager *tcm = (TCPConnectionManager*)cm;
+    TCPConnectionManager *tcm = (TCPConnectionManager*)application;
+    UA_ConnectionManager *cm = &tcm->cm;
     UA_RegisteredFD* rfd = (UA_RegisteredFD *)context;
     UA_LOG_DEBUG(cm->eventSource.eventLoop->logger, UA_LOGCATEGORY_EVENTLOOP,
                  "TCP %u\t| Delayed closing of the connection", (unsigned)rfd->fd);
     TCP_close(tcm, rfd);
-    /* Don't call free here. This is done automatically via the delayed callback
-     * mechanism. */
+    UA_free(rfd);
+}
+
+static int
+getSockError(UA_RegisteredFD *rfd) {
+    int error = 0;
+#ifndef _WIN32
+    socklen_t errlen = sizeof(int);
+    int err = getsockopt(rfd->fd, SOL_SOCKET, SO_ERROR, &error, &errlen);
+#else
+    int errlen = (int)sizeof(int);
+    int err = getsockopt((SOCKET)rfd->fd, SOL_SOCKET, SO_ERROR,
+                         (char*)&error, &errlen);
+#endif
+    return (err == 0) ? error : err;
 }
 
 /* Gets called when a connection socket opens, receives data or closes */
@@ -177,20 +179,42 @@ TCP_connectionSocketCallback(UA_ConnectionManager *cm, UA_RegisteredFD *rfd,
     UA_LOG_DEBUG(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
                  "TCP %u\t| Activity on the socket", (unsigned)rfd->fd);
 
-    /* Write-Event, a new connection has opened.  */
+    /* Error. The connection has closed. */
+    if(event == UA_FDEVENT_ERR) {
+        UA_LOG_INFO(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
+                    "TCP %u\t| The connection closes with error %i",
+                    (unsigned)rfd->fd, getSockError(rfd));
+        TCP_shutdown(cm, rfd);
+        return;
+    }
+
+    /* Write-Event, a new connection has opened. But some errors come as an
+     * out-event. For example if the remote side could not be reached to
+     * initiate the connection. So we check manually for error conditions on
+     * the socket. */
     if(event == UA_FDEVENT_OUT) {
+        int error = getSockError(rfd);
+        if(error != 0) {
+            UA_LOG_INFO(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
+                        "TCP %u\t| The connection closes with error %i",
+                        (unsigned)rfd->fd, error);
+            TCP_shutdown(cm, rfd);
+            return;
+        }
+
         UA_LOG_DEBUG(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
                      "TCP %u\t| Opening a new connection", (unsigned)rfd->fd);
-
-        /* A new socket has opened. Signal it to the application. */
-        tcpfd->connectionCallback(cm, (uintptr_t)rfd->fd,
-                                  rfd->application, &rfd->context,
-                                  UA_STATUSCODE_GOOD, 0, NULL,
-                                  UA_BYTESTRING_NULL);
 
         /* Now we are interested in read-events. */
         rfd->listenEvents = UA_FDEVENT_IN;
         UA_EventLoopPOSIX_modifyFD(el, rfd);
+
+        /* A new socket has opened. Signal it to the application. */
+        tcpfd->connectionCallback(cm, (uintptr_t)rfd->fd,
+                                  rfd->application, &rfd->context,
+                                  UA_CONNECTIONSTATE_ESTABLISHED, 0, NULL,
+                                  UA_BYTESTRING_NULL);
+
         return;
     }
 
@@ -215,15 +239,12 @@ TCP_connectionSocketCallback(UA_ConnectionManager *cm, UA_RegisteredFD *rfd,
            UA_ERRNO == UA_AGAIN)
             return; /* Temporary error on an non-blocking socket */
 
-        /* Orderly shutdown of the socket. We can immediately close as no method
-         * "below" in the call stack will use the socket in this iteration of
-         * the EventLoop. */
+        /* Orderly shutdown of the socket */
         UA_LOG_SOCKET_ERRNO_WRAP(
            UA_LOG_DEBUG(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
                         "TCP %u\t| recv signaled the socket was shutdown (%s)",
                         (unsigned)rfd->fd, errno_str));
-        TCP_close(tcm, rfd);
-        UA_free(rfd);
+        TCP_shutdown(cm, rfd);
         return;
     }
 
@@ -235,7 +256,8 @@ TCP_connectionSocketCallback(UA_ConnectionManager *cm, UA_RegisteredFD *rfd,
     response.length = (size_t)ret; /* Set the length of the received buffer */
     tcpfd->connectionCallback(cm, (uintptr_t)rfd->fd,
                               rfd->application, &rfd->context,
-                              UA_STATUSCODE_GOOD, 0, NULL, response);
+                              UA_CONNECTIONSTATE_ESTABLISHED,
+                              0, NULL, response);
 }
 
 /* Gets called when a new connection opens or if the listenSocket is closed */
@@ -265,8 +287,7 @@ TCP_listenSocketCallback(UA_ConnectionManager *cm, UA_RegisteredFD *rfd, short e
                                (unsigned)rfd->fd, errno_str));
         }
 
-        TCP_close(tcm, rfd);
-        UA_free(rfd);
+        TCP_shutdown(cm, rfd);
         return;
     }
 
@@ -337,7 +358,8 @@ TCP_listenSocketCallback(UA_ConnectionManager *cm, UA_RegisteredFD *rfd, short e
     /* The socket has opened. Signal it to the application. */
     tcpfd->connectionCallback(cm, (uintptr_t)newsockfd,
                               newtcpfd->fd.application, &newtcpfd->fd.context,
-                              UA_STATUSCODE_GOOD, 1, &kvp, UA_BYTESTRING_NULL);
+                              UA_CONNECTIONSTATE_ESTABLISHED,
+                              1, &kvp, UA_BYTESTRING_NULL);
 }
 
 static UA_StatusCode
@@ -359,7 +381,7 @@ TCP_registerListenSocket(UA_ConnectionManager *cm, struct addrinfo *ai,
                           "TCP\t| getnameinfo(...) could not resolve the "
                           "hostname (%s)", errno_str));
     }
-    
+
     /* Create the server socket */
     UA_FD listenSocket = UA_socket(ai->ai_family, ai->ai_socktype, ai->ai_protocol);
     if(listenSocket == UA_INVALID_FD) {
@@ -484,7 +506,8 @@ TCP_registerListenSocket(UA_ConnectionManager *cm, struct addrinfo *ai,
 
     /* Announce the listen-socket in the application */
     connectionCallback(cm, (uintptr_t)listenSocket, application,
-                       &newtcpfd->fd.context, UA_STATUSCODE_GOOD,
+                       &newtcpfd->fd.context,
+                       UA_CONNECTIONSTATE_ESTABLISHED,
                        paramsSize, params, UA_BYTESTRING_NULL);
 
     return UA_STATUSCODE_GOOD;
@@ -558,16 +581,26 @@ TCP_findRegisteredFD(TCPConnectionManager *tcm, uintptr_t connectionId) {
 static void
 TCP_shutdown(UA_ConnectionManager *cm, UA_RegisteredFD *rfd) {
     UA_EventLoop *el = cm->eventSource.eventLoop;
+
+    /* Already closing - nothing to do */
     if(rfd->dc.callback) {
-        UA_LOG_INFO(el->logger, UA_LOGCATEGORY_NETWORK,
-                    "TCP %u\t| Cannot close - already closing",
-                    (unsigned)rfd->fd);
+        UA_LOG_DEBUG(el->logger, UA_LOGCATEGORY_NETWORK,
+                     "TCP %u\t| Cannot shutdown - already triggered",
+                     (unsigned)rfd->fd);
         return;
     }
 
     UA_LOG_DEBUG(el->logger, UA_LOGCATEGORY_NETWORK,
-                 "TCP %u\t| Shutdown called", (unsigned)rfd->fd);
+                 "TCP %u\t| Shutdown triggered", (unsigned)rfd->fd);
 
+    /* Deregister from the EventLoop. Don't decrease the tcm->fdsSize counter
+     * right now. Do this in the delayed callback where the rfd is freed.
+     * Otherwise the ConnectionManager may be freed too early. */
+    UA_EventLoopPOSIX_deregisterFD((UA_EventLoopPOSIX*)el, rfd);
+    LIST_REMOVE(rfd, es_pointers);
+
+    /* Add to the delayed callback list. Will be cleaned up in the next
+     * iteration. */
     UA_DelayedCallback *dc = &rfd->dc;
     dc->callback = TCP_delayedClose;
     dc->application = cm;
@@ -582,7 +615,7 @@ TCP_shutdownConnection(UA_ConnectionManager *cm, uintptr_t connectionId) {
     UA_RegisteredFD *rfd = TCP_findRegisteredFD(tcm, connectionId);
     if(!rfd) {
         UA_LOG_WARNING(el->logger, UA_LOGCATEGORY_NETWORK,
-                       "TCP\t| Cannot close UDP connection %u - not found",
+                       "TCP\t| Cannot close TCP connection %u - not found",
                        (unsigned)connectionId);
         return UA_STATUSCODE_BADNOTFOUND;
     }
@@ -616,34 +649,17 @@ TCP_sendWithConnection(UA_ConnectionManager *cm, uintptr_t connectionId,
                         bytes_to_send, flags);
             if(n < 0) {
                 /* An error we cannot recover from? */
-                if(UA_ERRNO != UA_INTERRUPTED &&
-                   UA_ERRNO != UA_WOULDBLOCK &&
-                   UA_ERRNO != UA_AGAIN) {
-                    UA_LOG_SOCKET_ERRNO_GAI_WRAP(
-                       UA_LOG_ERROR(cm->eventSource.eventLoop->logger,
-                                    UA_LOGCATEGORY_NETWORK,
-                                    "TCP %u\t| Send failed with error %s",
-                                    (unsigned)connectionId, errno_str));
-                    TCP_shutdownConnection(cm, connectionId);
-                    UA_ByteString_clear(buf);
-                    return UA_STATUSCODE_BADCONNECTIONCLOSED;
-                }
+                if(UA_ERRNO != UA_INTERRUPTED && UA_ERRNO != UA_WOULDBLOCK &&
+                   UA_ERRNO != UA_AGAIN)
+                    goto shutdown;
 
                 /* Poll for the socket resources to become available and retry
                  * (blocking) */
                 int poll_ret;
                 do {
                     poll_ret = UA_poll(&tmp_poll_fd, 1, 100);
-                    if(poll_ret < 0 && UA_ERRNO != UA_INTERRUPTED) {
-                        UA_LOG_SOCKET_ERRNO_GAI_WRAP(
-                           UA_LOG_ERROR(cm->eventSource.eventLoop->logger,
-                                        UA_LOGCATEGORY_NETWORK,
-                                        "TCP %u\t| Send failed with error %s",
-                                        (unsigned)connectionId, errno_str));
-                        TCP_shutdownConnection(cm, connectionId);
-                        UA_ByteString_clear(buf);
-                        return UA_STATUSCODE_BADCONNECTIONCLOSED;
-                    }
+                    if(poll_ret < 0 && UA_ERRNO != UA_INTERRUPTED)
+                        goto shutdown;
                 } while(poll_ret <= 0);
             }
         } while(n < 0);
@@ -653,6 +669,15 @@ TCP_sendWithConnection(UA_ConnectionManager *cm, uintptr_t connectionId,
     /* Free the buffer */
     UA_ByteString_clear(buf);
     return UA_STATUSCODE_GOOD;
+
+ shutdown:
+    UA_LOG_SOCKET_ERRNO_GAI_WRAP(
+       UA_LOG_ERROR(cm->eventSource.eventLoop->logger, UA_LOGCATEGORY_NETWORK,
+                    "TCP %u\t| Send failed with error %s",
+                    (unsigned)connectionId, errno_str));
+    TCP_shutdownConnection(cm, connectionId);
+    UA_ByteString_clear(buf);
+    return UA_STATUSCODE_BADCONNECTIONCLOSED;
 }
 
 /* Create a listen-socket that waits for incoming connections */
@@ -859,8 +884,11 @@ TCP_openActiveConnection(UA_ConnectionManager *cm,
                 "TCP %u\t| New connection to \"%s\" on port %s",
                 (unsigned)newSock, hostname, portStr);
 
-    /* The callback to signal the new connection to the application is triggered
-     * asynchonously in the next iteration of the EventLoop */
+    /* Signal the new connection to the application as asynchonously opening */
+    connectionCallback(cm, (uintptr_t)newSock,
+                       application, &newtcpfd->fd.context,
+                       UA_CONNECTIONSTATE_OPENING, 0, NULL,
+                       UA_BYTESTRING_NULL);
 
     return UA_STATUSCODE_GOOD;
 }
@@ -870,17 +898,26 @@ TCP_openConnection(UA_ConnectionManager *cm,
                    size_t paramsSize, const UA_KeyValuePair *params,
                    void *application, void *context,
                    UA_ConnectionManager_connectionCallback connectionCallback) {
+    UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX*)cm->eventSource.eventLoop;
+    if(cm->eventSource.state != UA_EVENTSOURCESTATE_STARTED) {
+        UA_LOG_ERROR(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
+                     "TCP\t| Cannot open a connection for a "
+                     "ConnectionManager that is not started");
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
+
     /* If the "port"-parameter is defined, then try to open an active
      * connection. Otherwise try to open a socket that listens for incoming TCP
      * connections. */
-    const UA_Variant *val = UA_KeyValueMap_get(params, paramsSize,
-                                               UA_QUALIFIEDNAME(0, "port"));
-    if(val)
+    const UA_Variant *val =
+        UA_KeyValueMap_get(params, paramsSize, UA_QUALIFIEDNAME(0, "port"));
+    if(val) {
         return TCP_openActiveConnection(cm, paramsSize, params,
                                         application, context, connectionCallback);
-    else
+    } else {
         return TCP_openPassiveConnection(cm, paramsSize, params,
                                          application, context, connectionCallback);
+    }
 }
 
 static UA_StatusCode
@@ -907,7 +944,7 @@ TCP_eventSourceStart(UA_ConnectionManager *cm) {
     UA_StatusCode res = UA_ByteString_allocBuffer(&tcm->rxBuffer, rxBufSize);
     if(res != UA_STATUSCODE_GOOD)
         return res;
-    
+
     /* Set the EventSource to the started state */
     cm->eventSource.state = UA_EVENTSOURCESTATE_STARTED;
 

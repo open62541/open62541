@@ -92,7 +92,7 @@ START_TEST(encodeShallYieldDecode) {
     ck_assert(UA_order(obj1, obj2, &UA_TYPES[_i]) == UA_ORDER_EQ);
 
     // pretty-print the value
-#ifdef UA_ENABLE_TYPEDESCRIPTION
+#ifdef UA_ENABLE_JSON_ENCODING
     UA_Byte staticBuf[4096];
     UA_String buf;
     buf.data = staticBuf;

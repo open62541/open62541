@@ -4,9 +4,12 @@
  *
  * Copyright (c) 2018 Fraunhofer IOSB (Author: Lukas Meling)
  * Copyright (c) 2020 basysKom GmbH
+ * Copyright (c) 2022 Fraunhofer IOSB (Author: Noel Graf)
  */
 
 #include "ua_mqtt-c_adapter.h"
+#include "ua_pubsub_manager.h"
+#include "server/ua_server_internal.h"
 #include <mqtt.h>
 #include <open62541/plugin/log_stdout.h>
 #include <open62541/util.h>
@@ -21,7 +24,7 @@
 #include <time.h>
 
 
-/* forward decl for callback */
+/* The function that would be called whenever a PUBLISH is received. */
 void
 publish_callback(void**, struct mqtt_response_publish*);
 
@@ -234,11 +237,6 @@ connectMqtt(UA_PubSubChannelDataMQTT* channelData){
         return UA_STATUSCODE_BADCOMMUNICATIONERROR;
     }
 
-    /* Init custom data for subscribe callback function:
-     * A reference to the channeldata will be available in the callback.
-     * This is used to call the user callback channelData.callback */
-    client->publish_response_callback_state = channelData;
-
     /* Convert clientId UA_String to char* null terminated */
     char* clientId = (char*)calloc(1,channelData->mqttClientId->length + 1);
     if(!clientId){
@@ -312,7 +310,7 @@ disconnectMqtt(UA_PubSubChannelDataMQTT* channelData){
         mqtt_disconnect(client);
         yieldMqtt(channelData, 10);
 #ifdef UA_ENABLE_MQTT_TLS_OPENSSL //mbedTLS condition is missing
-        BIO_free_all(client->socketfd);
+        client->socketfd = NULL;
 #endif
     }
 
@@ -328,37 +326,59 @@ disconnectMqtt(UA_PubSubChannelDataMQTT* channelData){
 }
 
 void
-publish_callback(void** channelDataPtr, struct mqtt_response_publish *published)
+publish_callback(void** ptrServer, struct mqtt_response_publish *published)
 {
-    if(channelDataPtr != NULL){
-        UA_PubSubChannelDataMQTT *channelData = (UA_PubSubChannelDataMQTT*)*channelDataPtr;
-        if(channelData != NULL){
-            if(channelData->callback != NULL){
-                //Setup topic
-                UA_ByteString *topic = UA_ByteString_new();
-                if(!topic) return;
-                UA_ByteString *msg = UA_ByteString_new();
-                if(!msg) return;
+    UA_Server *server = (UA_Server*)*ptrServer;
+    UA_PubSubManager pubSubManager = server->pubSubManager;
+    UA_Boolean is_reader_configured = false;
+    const UA_String transport_uri = UA_STRING("http://opcfoundation.org/UA-Profile/Transport/pubsub-mqtt");
 
-                /* memory for topic */
-                UA_StatusCode ret = UA_ByteString_allocBuffer(topic, published->topic_name_size);
-                if(ret){
-                    UA_free(topic);
-                    UA_free(msg);
-                    return;
-                }
-                /* memory for message */
-                ret = UA_ByteString_allocBuffer(msg, published->application_message_size);
-                if(ret){
-                    UA_ByteString_delete(topic);
-                    UA_free(msg);
-                    return;
-                }
-                /* copy topic and msg, call the cb */
-                memcpy(topic->data, published->topic_name, published->topic_name_size);
-                memcpy(msg->data, published->application_message, published->application_message_size);
-                channelData->callback(msg, topic);
-            }
+    UA_PubSubConnection *pubSubConnection;
+    TAILQ_FOREACH(pubSubConnection, &server->pubSubManager.connections, listEntry){
+        if(!UA_String_equal(&pubSubConnection->config->transportProfileUri, &transport_uri))
+            break;
+        UA_ReaderGroup* readerGroup = NULL;
+        LIST_FOREACH(readerGroup, &pubSubConnection->readerGroups, listEntry) {
+            if(readerGroup->state != UA_PUBSUBSTATE_OPERATIONAL)
+                break;
+            if(!LIST_EMPTY(&readerGroup->readers))
+                is_reader_configured = true;
+        }
+    }
+    if(!is_reader_configured)
+        return;
+
+    UA_LOG_TRACE(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "PubSub MQTT: Receive");
+    //Setup topic
+    UA_ByteString *topic = UA_ByteString_new();
+    if(!topic) return;
+    UA_ByteString *msg = UA_ByteString_new();
+    if(!msg) return;
+
+    /* memory for topic */
+    UA_StatusCode ret = UA_ByteString_allocBuffer(topic, published->topic_name_size);
+    if(ret){
+        UA_free(topic);
+        UA_free(msg);
+        return;
+    }
+    /* memory for message */
+    ret = UA_ByteString_allocBuffer(msg, published->application_message_size);
+    if(ret){
+        UA_ByteString_delete(topic);
+        UA_free(msg);
+        return;
+    }
+    /* copy topic and msg, call the cb */
+    memcpy(topic->data, published->topic_name, published->topic_name_size);
+    memcpy(msg->data, published->application_message, published->application_message_size);
+
+    UA_TopicAssign *topicAssign1;
+    TAILQ_FOREACH(topicAssign1, &pubSubManager.topicAssign, listEntry){
+        if(UA_String_equal(&topicAssign1->topic, topic)){
+            UA_PubSubConnection* pConn =
+                UA_PubSubConnection_findConnectionbyId(server, topicAssign1->rgIdentifier->linkedConnection);
+            processMqttSubscriberCallback(server, topicAssign1->rgIdentifier,pConn, msg, topic);
         }
     }
 }

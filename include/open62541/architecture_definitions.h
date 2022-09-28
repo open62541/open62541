@@ -17,6 +17,7 @@
  * --------------- */
 #include <string.h>
 #include <stddef.h>
+#include <float.h>
 
 /* Include stdint.h and stdbool.h or workaround for older Visual Studios */
 #ifdef UNDER_CE
@@ -159,7 +160,7 @@ extern UA_THREAD_LOCAL void * (*UA_reallocSingleton)(void *ptr, size_t size);
 # endif
 # define UA_STATIC_ASSERT(cond,msg)                             \
     typedef struct {                                            \
-        int UA_CTASTR(static_assertion_failed_,msg) : !!(cond); \
+        unsigned int UA_CTASTR(static_assertion_failed_,msg) : !!(cond); \
     } UA_CTASTR(static_assertion_failed_,__COUNTER__)
 #else /* Everybody else */
 # define UA_STATIC_ASSERT(cond,msg) typedef char static_assertion_##msg[(cond)?1:-1]
@@ -399,108 +400,5 @@ UA_STATIC_ASSERT(sizeof(bool) == 1, cannot_overlay_integers_with_large_bool);
 #else
 # define UA_BINARY_OVERLAYABLE_FLOAT 0
 #endif
-
-/* Atomic Operations
- * -----------------
- * Atomic operations that synchronize across processor cores (for
- * multithreading). Only the inline-functions defined next are used. Replace
- * with architecture-specific operations if necessary. */
-#if UA_MULTITHREADING >= 100
-    #ifdef _MSC_VER /* Visual Studio */
-    #define UA_atomic_sync() _ReadWriteBarrier()
-    #else /* GCC/Clang */
-    #define UA_atomic_sync() __sync_synchronize()
-    #endif
-#else
-    #define UA_atomic_sync()
-#endif
-
-static UA_INLINE void *
-UA_atomic_xchg(void * volatile * addr, void *newptr) {
-#if UA_MULTITHREADING >= 100
-#ifdef _MSC_VER /* Visual Studio */
-    return _InterlockedExchangePointer(addr, newptr);
-#else /* GCC/Clang */
-    return __sync_lock_test_and_set(addr, newptr);
-#endif
-#else
-    void *old = *addr;
-    *addr = newptr;
-    return old;
-#endif
-}
-
-static UA_INLINE void *
-UA_atomic_cmpxchg(void * volatile * addr, void *expected, void *newptr) {
-#if UA_MULTITHREADING >= 100
-#ifdef _MSC_VER /* Visual Studio */
-    return _InterlockedCompareExchangePointer(addr, expected, newptr);
-#else /* GCC/Clang */
-    return __sync_val_compare_and_swap(addr, expected, newptr);
-#endif
-#else
-    void *old = *addr;
-    if(old == expected) {
-        *addr = newptr;
-    }
-    return old;
-#endif
-}
-
-static UA_INLINE uint32_t
-UA_atomic_addUInt32(volatile uint32_t *addr, uint32_t increase) {
-#if UA_MULTITHREADING >= 100
-#ifdef _MSC_VER /* Visual Studio */
-    return _InterlockedExchangeAdd(addr, increase) + increase;
-#else /* GCC/Clang */
-    return __sync_add_and_fetch(addr, increase);
-#endif
-#else
-    *addr += increase;
-    return *addr;
-#endif
-}
-
-static UA_INLINE size_t
-UA_atomic_addSize(volatile size_t *addr, size_t increase) {
-#if UA_MULTITHREADING >= 100
-#ifdef _MSC_VER /* Visual Studio */
-    return _InterlockedExchangeAdd(addr, increase) + increase;
-#else /* GCC/Clang */
-    return __sync_add_and_fetch(addr, increase);
-#endif
-#else
-    *addr += increase;
-    return *addr;
-#endif
-}
-
-static UA_INLINE uint32_t
-UA_atomic_subUInt32(volatile uint32_t *addr, uint32_t decrease) {
-#if UA_MULTITHREADING >= 100
-#ifdef _MSC_VER /* Visual Studio */
-    return _InterlockedExchangeSub(addr, decrease) - decrease;
-#else /* GCC/Clang */
-    return __sync_sub_and_fetch(addr, decrease);
-#endif
-#else
-    *addr -= decrease;
-    return *addr;
-#endif
-}
-
-static UA_INLINE size_t
-UA_atomic_subSize(volatile size_t *addr, size_t decrease) {
-#if UA_MULTITHREADING >= 100
-#ifdef _MSC_VER /* Visual Studio */
-    return _InterlockedExchangeSub(addr, decrease) - decrease;
-#else /* GCC/Clang */
-    return __sync_sub_and_fetch(addr, decrease);
-#endif
-#else
-    *addr -= decrease;
-    return *addr;
-#endif
-}
 
 #endif /* ARCH_UA_ARCHITECTURE_DEFINITIONS_H_ */

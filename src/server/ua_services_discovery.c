@@ -401,8 +401,9 @@ process_RegisterServer(UA_Server *server, UA_Session *session,
             return;
         }
 
-        LIST_INSERT_HEAD(&server->discoveryManager.registeredServers, registeredServer_entry, pointers);
-        UA_atomic_addSize(&server->discoveryManager.registeredServersSize, 1);
+        LIST_INSERT_HEAD(&server->discoveryManager.registeredServers,
+                         registeredServer_entry, pointers);
+        server->discoveryManager.registeredServersSize++;
     } else {
         UA_RegisteredServer_clear(&registeredServer_entry->registeredServer);
     }
@@ -589,6 +590,7 @@ UA_Server_addPeriodicServerRegisterCallback(UA_Server *server,
                                             UA_Double delayFirstRegisterMs,
                                             UA_UInt64 *periodicCallbackId) {
     UA_LOCK(&server->serviceMutex);
+
     /* No valid server URL */
     if(!discoveryServerUrl) {
         UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
@@ -597,8 +599,7 @@ UA_Server_addPeriodicServerRegisterCallback(UA_Server *server,
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
-
-    if (client->connection.state != UA_CONNECTIONSTATE_CLOSED) {
+    if(UA_SecureChannel_isConnected(&client->channel)) {
         UA_UNLOCK(&server->serviceMutex);
         return UA_STATUSCODE_BADINVALIDSTATE;
     }

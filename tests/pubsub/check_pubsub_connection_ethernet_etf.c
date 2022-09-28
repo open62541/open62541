@@ -56,13 +56,13 @@ START_TEST(AddConnectionsWithMinimalValidConfiguration){
     connectionConfig.connectionProperties     = connectionOptions;
     connectionConfig.connectionPropertiesSize = 2;
     retVal = UA_Server_addPubSubConnection(server, &connectionConfig, NULL);
-    ck_assert_int_eq(server->pubSubManager.connectionsSize, 1);
+    ck_assert_uint_eq(server->pubSubManager.connectionsSize, 1);
     ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
     ck_assert(! TAILQ_EMPTY(&server->pubSubManager.connections));
     retVal = UA_Server_addPubSubConnection(server, &connectionConfig, NULL);
     ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
     ck_assert(&server->pubSubManager.connections.tqh_first->listEntry.tqe_next != NULL);
-    ck_assert_int_eq(server->pubSubManager.connectionsSize, 2);
+    ck_assert_uint_eq(server->pubSubManager.connectionsSize, 2);
 } END_TEST
 
 START_TEST(AddRemoveAddConnectionWithMinimalValidConfiguration){
@@ -86,14 +86,14 @@ START_TEST(AddRemoveAddConnectionWithMinimalValidConfiguration){
     connectionConfig.connectionPropertiesSize = 2;
     UA_NodeId connectionIdent;
     retVal = UA_Server_addPubSubConnection(server, &connectionConfig, &connectionIdent);
-    ck_assert_int_eq(server->pubSubManager.connectionsSize, 1);
+    ck_assert_uint_eq(server->pubSubManager.connectionsSize, 1);
     ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
     ck_assert(! TAILQ_EMPTY(&server->pubSubManager.connections));
     retVal |= UA_Server_removePubSubConnection(server, connectionIdent);
-    ck_assert_int_eq(server->pubSubManager.connectionsSize, 0);
+    ck_assert_uint_eq(server->pubSubManager.connectionsSize, 0);
     ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
     retVal = UA_Server_addPubSubConnection(server, &connectionConfig, &connectionIdent);
-    ck_assert_int_eq(server->pubSubManager.connectionsSize, 1);
+    ck_assert_uint_eq(server->pubSubManager.connectionsSize, 1);
     ck_assert(&server->pubSubManager.connections.tqh_first->listEntry.tqe_next != NULL);
     ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
 } END_TEST
@@ -118,11 +118,11 @@ START_TEST(AddConnectionWithInvalidAddress){
     connectionConfig.connectionProperties     = connectionOptions;
     connectionConfig.connectionPropertiesSize = 2;
     retVal = UA_Server_addPubSubConnection(server, &connectionConfig, NULL);
-    ck_assert_int_eq(server->pubSubManager.connectionsSize, 0);
+    ck_assert_uint_eq(server->pubSubManager.connectionsSize, 0);
     ck_assert_int_ne(retVal, UA_STATUSCODE_GOOD);
     retVal = UA_Server_addPubSubConnection(server, &connectionConfig, NULL);
     ck_assert_int_ne(retVal, UA_STATUSCODE_GOOD);
-    ck_assert_int_eq(server->pubSubManager.connectionsSize, 0);
+    ck_assert_uint_eq(server->pubSubManager.connectionsSize, 0);
 } END_TEST
 
 START_TEST(AddConnectionWithInvalidInterface){
@@ -145,11 +145,11 @@ START_TEST(AddConnectionWithInvalidInterface){
     connectionConfig.connectionProperties     = connectionOptions;
     connectionConfig.connectionPropertiesSize = 2;
     retVal = UA_Server_addPubSubConnection(server, &connectionConfig, NULL);
-    ck_assert_int_eq(server->pubSubManager.connectionsSize, 0);
+    ck_assert_uint_eq(server->pubSubManager.connectionsSize, 0);
     ck_assert_int_ne(retVal, UA_STATUSCODE_GOOD);
     retVal = UA_Server_addPubSubConnection(server, &connectionConfig, NULL);
     ck_assert_int_ne(retVal, UA_STATUSCODE_GOOD);
-    ck_assert_int_eq(server->pubSubManager.connectionsSize, 0);
+    ck_assert_uint_eq(server->pubSubManager.connectionsSize, 0);
 } END_TEST
 
 START_TEST(AddConnectionWithUnknownTransportURL){
@@ -163,14 +163,14 @@ START_TEST(AddConnectionWithUnknownTransportURL){
     connectionConfig.transportProfileUri = UA_STRING("http://opcfoundation.org/UA-Profile/Transport/unknown-eth-uadp");
     UA_NodeId connectionIdent;
     retVal = UA_Server_addPubSubConnection(server, &connectionConfig, &connectionIdent);
-    ck_assert_int_eq(server->pubSubManager.connectionsSize, 0);
+    ck_assert_uint_eq(server->pubSubManager.connectionsSize, 0);
     ck_assert_int_ne(retVal, UA_STATUSCODE_GOOD);
 } END_TEST
 
 START_TEST(AddConnectionWithNullConfig){
         UA_StatusCode retVal;
         retVal = UA_Server_addPubSubConnection(server, NULL, NULL);
-        ck_assert_int_eq(server->pubSubManager.connectionsSize, 0);
+        ck_assert_uint_eq(server->pubSubManager.connectionsSize, 0);
         ck_assert_int_ne(retVal, UA_STATUSCODE_GOOD);
 } END_TEST
 
@@ -201,13 +201,14 @@ START_TEST(AddSingleConnectionWithMaximalConfiguration){
     connectionConf.name = UA_STRING("Ethernet ETF Connection");
     connectionConf.transportProfileUri = UA_STRING(TRANSPORT_PROFILE_URI);
     connectionConf.enabled = true;
-    connectionConf.publisherId.numeric = 223344;
+    connectionConf.publisherIdType = UA_PUBLISHERIDTYPE_UINT32;
+    connectionConf.publisherId.uint32 = 223344;
     connectionConf.connectionPropertiesSize = 5;
     connectionConf.connectionProperties = connectionOptions;
     connectionConf.address = address;
     UA_NodeId connection;
     UA_StatusCode retVal = UA_Server_addPubSubConnection(server, &connectionConf, &connection);
-    ck_assert_int_eq(server->pubSubManager.connectionsSize, 1);
+    ck_assert_uint_eq(server->pubSubManager.connectionsSize, 1);
     ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
     ck_assert(! TAILQ_EMPTY(&server->pubSubManager.connections));
 } END_TEST
@@ -239,7 +240,8 @@ START_TEST(GetMaximalConnectionConfigurationAndCompareValues){
     connectionConf.name = UA_STRING("Ethernet ETF Connection");
     connectionConf.transportProfileUri = UA_STRING(TRANSPORT_PROFILE_URI);
     connectionConf.enabled = true;
-    connectionConf.publisherId.numeric = 223344;
+    connectionConf.publisherIdType = UA_PUBLISHERIDTYPE_UINT32;
+    connectionConf.publisherId.uint32 = 223344;
     connectionConf.connectionPropertiesSize = 5;
     connectionConf.connectionProperties = connectionOptions;
     connectionConf.address = address;

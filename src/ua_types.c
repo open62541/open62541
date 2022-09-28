@@ -1,6 +1,6 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. 
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  *
  *    Copyright 2020 (c) Fraunhofer IOSB (Author: Andreas Ebner)
  *    Copyright 2014-2017 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
@@ -20,6 +20,8 @@
 #include <open62541/types_generated_handling.h>
 
 #include "ua_util_internal.h"
+#include "../deps/itoa.h"
+#include "../deps/base64.h"
 #include "libc_time.h"
 #include "pcg_basic.h"
 
@@ -274,6 +276,51 @@ UA_Guid_random(void) {
     return result;
 }
 
+static const u8 hexmapLower[16] =
+    {'0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f'};
+static const u8 hexmapUpper[16] =
+    {'0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', 'C', 'D', 'E', 'F'};
+
+void
+UA_Guid_to_hex(const UA_Guid *guid, u8* out, UA_Boolean lower) {
+    const u8 *hexmap = (lower) ? hexmapLower : hexmapUpper;
+    size_t i = 0, j = 28;
+    for(; i<8;i++,j-=4)         /* pos 0-7, 4byte, (a) */
+        out[i] = hexmap[(guid->data1 >> j) & 0x0Fu];
+    out[i++] = '-';             /* pos 8 */
+    for(j=12; i<13;i++,j-=4)    /* pos 9-12, 2byte, (b) */
+        out[i] = hexmap[(uint16_t)(guid->data2 >> j) & 0x0Fu];
+    out[i++] = '-';             /* pos 13 */
+    for(j=12; i<18;i++,j-=4)    /* pos 14-17, 2byte (c) */
+        out[i] = hexmap[(uint16_t)(guid->data3 >> j) & 0x0Fu];
+    out[i++] = '-';              /* pos 18 */
+    for(j=0;i<23;i+=2,j++) {     /* pos 19-22, 2byte (d) */
+        out[i] = hexmap[(guid->data4[j] & 0xF0u) >> 4u];
+        out[i+1] = hexmap[guid->data4[j] & 0x0Fu];
+    }
+    out[i++] = '-';              /* pos 23 */
+    for(j=2; i<36;i+=2,j++) {    /* pos 24-35, 6byte (e) */
+        out[i] = hexmap[(guid->data4[j] & 0xF0u) >> 4u];
+        out[i+1] = hexmap[guid->data4[j] & 0x0Fu];
+    }
+}
+
+UA_StatusCode
+UA_Guid_print(const UA_Guid *guid, UA_String *output) {
+    if(output->length == 0) {
+        UA_StatusCode res =
+            UA_ByteString_allocBuffer((UA_ByteString*)output, 36);
+        if(res != UA_STATUSCODE_GOOD)
+            return res;
+    } else {
+        if(output->length < 36)
+            return UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED;
+        output->length = 36;
+    }
+    UA_Guid_to_hex(guid, output->data, true);
+    return UA_STATUSCODE_GOOD;
+}
+
 /* ByteString */
 UA_StatusCode
 UA_ByteString_allocBuffer(UA_ByteString *bs, size_t length) {
@@ -397,6 +444,111 @@ UA_NodeId_hash(const UA_NodeId *n) {
     }
 }
 
+/* Computes length for the encoding size and pre-encodes the numeric values */
+static size_t
+nodeIdSize(const UA_NodeId *id,
+           char *nsStr, size_t *nsStrSize,
+           char *numIdStr, size_t *numIdStrSize) {
+    /* Namespace length */
+    size_t len = 0;
+    if(id->namespaceIndex != 0) {
+        len += 4; /* ns=; */
+        *nsStrSize = itoaUnsigned(id->namespaceIndex, nsStr, 10);
+        len += *nsStrSize;
+    }
+
+    switch (id->identifierType) {
+    case UA_NODEIDTYPE_NUMERIC:
+        *numIdStrSize = itoaUnsigned(id->identifier.numeric, numIdStr, 10);
+        len += 2 + *numIdStrSize;
+        break;
+    case UA_NODEIDTYPE_STRING:
+        len += 2 + id->identifier.string.length;
+        break;
+    case UA_NODEIDTYPE_GUID:
+        len += 2 + 36;
+        break;
+    case UA_NODEIDTYPE_BYTESTRING:
+        len += 2 + (4*((id->identifier.byteString.length + 2) / 3));
+        break;
+    default:
+        len = 0;
+    }
+    return len;
+}
+
+#define PRINT_NODEID                                           \
+    /* Encode the namespace */                                 \
+    if(id->namespaceIndex != 0) {                              \
+        memcpy(pos, "ns=", 3);                                 \
+        pos += 3;                                              \
+        memcpy(pos, nsStr, nsStrSize);                         \
+        pos += nsStrSize;                                      \
+        *pos++ = ';';                                          \
+    }                                                          \
+                                                               \
+    /* Encode the identifier */                                \
+    switch(id->identifierType) {                               \
+    case UA_NODEIDTYPE_NUMERIC:                                \
+        memcpy(pos, "i=", 2);                                  \
+        pos += 2;                                              \
+        memcpy(pos, numIdStr, numIdStrSize);                   \
+        pos += numIdStrSize;                                   \
+        break;                                                 \
+    case UA_NODEIDTYPE_STRING:                                 \
+        memcpy(pos, "s=", 2);                                  \
+        pos += 2;                                              \
+        memcpy(pos, id->identifier.string.data,                \
+               id->identifier.string.length);                  \
+        pos += id->identifier.string.length;                   \
+        break;                                                 \
+    case UA_NODEIDTYPE_GUID:                                   \
+        memcpy(pos, "g=", 2);                                  \
+        pos += 2;                                              \
+        UA_Guid_to_hex(&id->identifier.guid,                   \
+                       (unsigned char*)pos, true);             \
+        pos += 36;                                             \
+        break;                                                 \
+    case UA_NODEIDTYPE_BYTESTRING:                             \
+        memcpy(pos, "b=", 2);                                  \
+        pos += 2;                                              \
+        pos += UA_base64_buf(id->identifier.byteString.data,   \
+                             id->identifier.byteString.length, \
+                             (unsigned char*)pos);             \
+        break;                                                 \
+    }                                                          \
+    do { } while(false)
+
+UA_StatusCode
+UA_NodeId_print(const UA_NodeId *id, UA_String *output) {
+    /* Compute the string length */
+    char nsStr[6];
+    size_t nsStrSize = 0;
+    char numIdStr[11];
+    size_t numIdStrSize = 0;
+    size_t idLen = nodeIdSize(id, nsStr, &nsStrSize, numIdStr, &numIdStrSize);
+    if(idLen == 0)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
+    /* Allocate memory if required */
+    if(output->length == 0) {
+        UA_StatusCode res = UA_ByteString_allocBuffer((UA_ByteString*)output, idLen);
+        if(res != UA_STATUSCODE_GOOD)
+            return res;
+    } else {
+        if(output->length < idLen)
+            return UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED;
+        output->length = idLen;
+    }
+
+    /* Print the NodeId */
+    char *pos = (char*)output->data;
+    PRINT_NODEID;
+
+    UA_assert(output->length == (size_t)((UA_Byte*)pos - output->data));
+    return UA_STATUSCODE_GOOD;
+}
+
 /* ExpandedNodeId */
 static void
 ExpandedNodeId_clear(UA_ExpandedNodeId *p, const UA_DataType *_) {
@@ -437,6 +589,73 @@ UA_ExpandedNodeId_hash(const UA_ExpandedNodeId *n) {
     if(n->namespaceUri.length != 0)
         h = UA_ByteString_hash(h, n->namespaceUri.data, n->namespaceUri.length);
     return h;
+}
+
+UA_StatusCode
+UA_ExpandedNodeId_print(const UA_ExpandedNodeId *eid, UA_String *output) {
+    /* Don't print the namespace-index if a NamespaceUri is set */
+    UA_NodeId stackid = eid->nodeId;
+    UA_NodeId *id = &stackid; /* for the print-macro below */
+    if(eid->namespaceUri.data != NULL)
+        id->namespaceIndex = 0;
+
+    /* Compute the string length */
+    char nsStr[6];
+    size_t nsStrSize = 0;
+    char numIdStr[11];
+    size_t numIdStrSize = 0;
+    size_t idLen = nodeIdSize(id, nsStr, &nsStrSize, numIdStr, &numIdStrSize);
+    if(idLen == 0)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
+    char srvIdxStr[11];
+    size_t srvIdxSize = 0;
+    if(eid->serverIndex != 0) {
+        idLen += 5; /* svr=; */
+        srvIdxSize = itoaUnsigned(eid->serverIndex, srvIdxStr, 10);
+        idLen += srvIdxSize;
+    }
+
+    if(eid->namespaceUri.data != NULL) {
+        idLen += 5; /* nsu=; */
+        idLen += eid->namespaceUri.length;
+    }
+
+    /* Allocate memory if required */
+    if(output->length == 0) {
+        UA_StatusCode res = UA_ByteString_allocBuffer((UA_ByteString*)output, idLen);
+        if(res != UA_STATUSCODE_GOOD)
+            return res;
+    } else {
+        if(output->length < idLen)
+            return UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED;
+        output->length = idLen;
+    }
+
+    /* Encode the ServerIndex */
+    char *pos = (char*)output->data;
+    if(eid->serverIndex != 0) {
+        memcpy(pos, "svr=", 4);
+        pos += 4;
+        memcpy(pos, srvIdxStr, srvIdxSize);
+        pos += srvIdxSize;
+        *pos++ = ';';
+    }
+
+    /* Encode the NamespaceUri */
+    if(eid->namespaceUri.data != NULL) {
+        memcpy(pos, "nsu=", 4);
+        pos += 4;
+        memcpy(pos, eid->namespaceUri.data, eid->namespaceUri.length);
+        pos += eid->namespaceUri.length;
+        *pos++ = ';';
+    }
+
+    /* Print the NodeId */
+    PRINT_NODEID;
+
+    UA_assert(output->length == (size_t)((UA_Byte*)pos - output->data));
+    return UA_STATUSCODE_GOOD;
 }
 
 /* ExtensionObject */
@@ -617,42 +836,36 @@ UA_Variant_setArrayCopy(UA_Variant *v, const void * UA_RESTRICT array,
     return UA_STATUSCODE_GOOD;
 }
 
-/* Test if a range is compatible with a variant. If yes, the following values
- * are set:
- * - total: how many elements are in the range
- * - block: how big is each contiguous block of elements in the variant that
- *   maps into the range
- * - stride: how many elements are between the blocks (beginning to beginning)
- * - first: where does the first block begin */
+/* Test if a range is compatible with a variant. This may adjust the upper bound
+ * (max) in order to fit the variant. */
 static UA_StatusCode
-computeStrides(const UA_Variant *v, const UA_NumericRange range,
-               size_t *total, size_t *block, size_t *stride, size_t *first) {
+checkAdjustRange(const UA_Variant *v, UA_NumericRange *range) {
     /* Test for max array size (64bit only) */
 #if (SIZE_MAX > 0xffffffff)
     if(v->arrayLength > UA_UINT32_MAX)
         return UA_STATUSCODE_BADINTERNALERROR;
 #endif
-
-    /* Test the integrity of the source variant dimensions, make dimensions
-     * vector of one dimension if none defined */
     u32 arrayLength = (u32)v->arrayLength;
-    const u32 *dims = &arrayLength;
-    size_t dims_count = 1;
-    if(v->arrayDimensionsSize > 0) {
-        size_t elements = 1;
-        dims_count = v->arrayDimensionsSize;
-        dims = (u32*)v->arrayDimensions;
-        for(size_t i = 0; i < dims_count; ++i)
-            elements *= dims[i];
-        if(elements != v->arrayLength)
-            return UA_STATUSCODE_BADINTERNALERROR;
-    }
-    UA_assert(dims_count > 0);
 
-    /* Upper bound of the dimensions for stack-allocation */
-    if(dims_count > UA_MAX_ARRAY_DIMS)
+    /* Assume one array dimension if none defined */
+    const u32 *dims = v->arrayDimensions;
+    size_t dims_count = v->arrayDimensionsSize;
+    if(v->arrayDimensionsSize == 0) {
+        dims_count = 1;
+        dims = &arrayLength;
+    }
+
+    /* Does the range match the dimension of the variant? */
+    if(range->dimensionsSize != dims_count)
+        return UA_STATUSCODE_BADINDEXRANGENODATA;
+
+    /* Check that the number of elements in the variant matches the array
+     * dimensions */
+    size_t elements = 1;
+    for(size_t i = 0; i < dims_count; ++i)
+        elements *= dims[i];
+    if(elements != v->arrayLength)
         return UA_STATUSCODE_BADINTERNALERROR;
-    UA_UInt32 realmax[UA_MAX_ARRAY_DIMS];
 
     /* Test the integrity of the range and compute the max index used for every
      * dimension. The standard says in Part 4, Section 7.22:
@@ -660,24 +873,43 @@ computeStrides(const UA_Variant *v, const UA_NumericRange range,
      * When reading a value, the indexes may not specify a range that is within
      * the bounds of the array. The Server shall return a partial result if some
      * elements exist within the range. */
-    size_t count = 1;
-    if(range.dimensionsSize != dims_count)
-        return UA_STATUSCODE_BADINDEXRANGENODATA;
     for(size_t i = 0; i < dims_count; ++i) {
-        if(range.dimensions[i].min > range.dimensions[i].max)
+        if(range->dimensions[i].min > range->dimensions[i].max)
             return UA_STATUSCODE_BADINDEXRANGEINVALID;
-        if(range.dimensions[i].min >= dims[i])
+        if(range->dimensions[i].min >= dims[i])
             return UA_STATUSCODE_BADINDEXRANGENODATA;
 
-        if(range.dimensions[i].max < dims[i])
-            realmax[i] = range.dimensions[i].max;
-        else
-            realmax[i] = dims[i] - 1;
-
-        count *= (realmax[i] - range.dimensions[i].min) + 1;
+        /* Reduce the max to fit the variant */
+        if(range->dimensions[i].max >= dims[i])
+            range->dimensions[i].max = dims[i] - 1;
     }
 
+    return UA_STATUSCODE_GOOD;
+}
+
+/* Computes the stride for copying the range elements.
+ * - total: how many elements are in the range
+ * - block: how big is each contiguous block of elements in the variant that
+ *   maps into the range
+ * - stride: how many elements are between the blocks (beginning to beginning)
+ * - first: where does the first block begin */
+static void
+computeStrides(const UA_Variant *v, const UA_NumericRange range,
+               size_t *total, size_t *block, size_t *stride, size_t *first) {
+    /* Number of total elements to be copied */
+    size_t count = 1;
+    for(size_t i = 0; i < range.dimensionsSize; ++i)
+        count *= (range.dimensions[i].max - range.dimensions[i].min) + 1;
     *total = count;
+
+    /* Assume one array dimension if none defined */
+    u32 arrayLength = (u32)v->arrayLength;
+    const u32 *dims = v->arrayDimensions;
+    size_t dims_count = v->arrayDimensionsSize;
+    if(v->arrayDimensionsSize == 0) {
+        dims_count = 1;
+        dims = &arrayLength;
+    }
 
     /* Compute the stride length and the position of the first element */
     *block = count;           /* Assume the range describes the entire array. */
@@ -687,7 +919,7 @@ computeStrides(const UA_Variant *v, const UA_NumericRange range,
     UA_Boolean found_contiguous = false;
     for(size_t k = dims_count; k > 0;) {
         --k;
-        size_t dimrange = 1 + realmax[k] - range.dimensions[k].min;
+        size_t dimrange = 1 + range.dimensions[k].max - range.dimensions[k].min;
         if(!found_contiguous && dimrange != dims[k]) {
             /* Found the maximum block that can be copied contiguously */
             found_contiguous = true;
@@ -697,7 +929,6 @@ computeStrides(const UA_Variant *v, const UA_NumericRange range,
         *first += running_dimssize * range.dimensions[k].min;
         running_dimssize *= dims[k];
     }
-    return UA_STATUSCODE_GOOD;
 }
 
 /* Is the type string-like? */
@@ -738,15 +969,26 @@ UA_Variant_copyRange(const UA_Variant *src, UA_Variant * UA_RESTRICT dst,
                      const UA_NumericRange range) {
     if(!src->type)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
+
     UA_Boolean isScalar = UA_Variant_isScalar(src);
     UA_Boolean stringLike = isStringLike(src->type);
-    UA_Variant arraySrc;
+
+    /* Upper bound of the dimensions for stack-allocation */
+    if(range.dimensionsSize > UA_MAX_ARRAY_DIMS)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
+    /* Copy the const range to a mutable stack location */
+    UA_NumericRangeDimension thisrangedims[UA_MAX_ARRAY_DIMS];
+    memcpy(thisrangedims, range.dimensions, sizeof(UA_NumericRangeDimension) * range.dimensionsSize);
+    UA_NumericRange thisrange = {range.dimensionsSize, thisrangedims};
+
+    UA_NumericRangeDimension scalarThisDimension = {0,0}; /* a single entry */
+    UA_NumericRange nextrange = {0, NULL};
 
     /* Extract the range for copying at this level. The remaining range is dealt
      * with in the "scalar" type that may define an array by itself (string,
      * variant, ...). */
-    UA_NumericRange thisrange, nextrange;
-    UA_NumericRangeDimension scalarThisDimension = {0,0}; /* a single entry */
+    UA_Variant arraySrc;
     if(isScalar) {
         /* Replace scalar src with array of length 1 */
         arraySrc = *src;
@@ -763,18 +1005,18 @@ UA_Variant_copyRange(const UA_Variant *src, UA_Variant * UA_RESTRICT dst,
             dims = 1;
         if(dims > range.dimensionsSize)
             return UA_STATUSCODE_BADINDEXRANGEINVALID;
-       thisrange = range;
        thisrange.dimensionsSize = dims;
        nextrange.dimensions = &range.dimensions[dims];
        nextrange.dimensionsSize = range.dimensionsSize - dims;
     }
 
-    /* Compute the strides */
-    size_t count, block, stride, first;
-    UA_StatusCode retval = computeStrides(src, thisrange, &count,
-                                          &block, &stride, &first);
+    UA_StatusCode retval = checkAdjustRange(src, &thisrange);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
+
+    /* Compute the strides */
+    size_t count, block, stride, first;
+    computeStrides(src, thisrange, &count, &block, &stride, &first);
 
     /* Allocate the array */
     UA_Variant_init(dst);
@@ -868,12 +1110,25 @@ UA_Variant_copyRange(const UA_Variant *src, UA_Variant * UA_RESTRICT dst,
 static UA_StatusCode
 Variant_setRange(UA_Variant *v, void *array, size_t arraySize,
                  const UA_NumericRange range, UA_Boolean copy) {
-    /* Compute the strides */
-    size_t count, block, stride, first;
-    UA_StatusCode retval = computeStrides(v, range, &count,
-                                          &block, &stride, &first);
+    if(!v->type)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+
+    /* Upper bound of the dimensions for stack-allocation */
+    if(range.dimensionsSize > UA_MAX_ARRAY_DIMS)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
+    /* Copy the const range to a mutable stack location */
+    UA_NumericRangeDimension thisrangedims[UA_MAX_ARRAY_DIMS];
+    memcpy(thisrangedims, range.dimensions, sizeof(UA_NumericRangeDimension) * range.dimensionsSize);
+    UA_NumericRange thisrange = {range.dimensionsSize, thisrangedims};
+
+    UA_StatusCode retval = checkAdjustRange(v, &thisrange);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
+
+    /* Compute the strides */
+    size_t count, block, stride, first;
+    computeStrides(v, range, &count, &block, &stride, &first);
     if(count != arraySize)
         return UA_STATUSCODE_BADINDEXRANGEINVALID;
 
@@ -947,6 +1202,17 @@ DataValue_copy(UA_DataValue const *src, UA_DataValue *dst,
     memcpy(dst, src, sizeof(UA_DataValue));
     UA_Variant_init(&dst->value);
     UA_StatusCode retval = Variant_copy(&src->value, &dst->value, NULL);
+    if(retval != UA_STATUSCODE_GOOD)
+        DataValue_clear(dst, NULL);
+    return retval;
+}
+
+UA_StatusCode
+UA_DataValue_copyVariantRange(const UA_DataValue *src, UA_DataValue * UA_RESTRICT dst,
+                              const UA_NumericRange range) {
+    memcpy(dst, src, sizeof(UA_DataValue));
+    UA_Variant_init(&dst->value);
+    UA_StatusCode retval = UA_Variant_copyRange(&src->value, &dst->value, range);
     if(retval != UA_STATUSCODE_GOOD)
         DataValue_clear(dst, NULL);
     return retval;
@@ -1392,7 +1658,7 @@ extensionObjectOrder(const UA_ExtensionObject *p1, const UA_ExtensionObject *p2,
                                 (const UA_String*)&p2->content.encoded.body, NULL);
             return o;
         }
-        
+
     case UA_EXTENSIONOBJECT_DECODED:
     default: {
             const UA_DataType *type1 = p1->content.decoded.type;
@@ -1624,6 +1890,10 @@ unionOrder(const void *p1, const void *p2, const UA_DataType *type) {
     UA_UInt32 sel2 = *(const UA_UInt32 *)p2;
     if(sel1 != sel2)
         return (sel1 < sel2) ? UA_ORDER_LESS : UA_ORDER_MORE;
+
+    if(sel1 == 0) {
+        return UA_ORDER_EQ;
+    }
 
     const UA_DataTypeMember *m = &type->members[sel1-1];
     const UA_DataType *mt = m->memberType;
@@ -1895,51 +2165,6 @@ UA_DataType_isNumeric(const UA_DataType *type) {
         return true;
     default:
         return false;
-    }
-}
-
-UA_Int16
-UA_DataType_getPrecedence(const UA_DataType *type){
-    //Defined in Part 4 Table 123 "Data Precedence Rules"
-    switch(type->typeKind) {
-        case UA_DATATYPEKIND_DOUBLE:
-            return 1;
-        case UA_DATATYPEKIND_FLOAT:
-            return 2;
-        case UA_DATATYPEKIND_INT64:
-            return 3;
-        case UA_DATATYPEKIND_UINT64:
-            return 4;
-        case UA_DATATYPEKIND_INT32:
-            return 5;
-        case UA_DATATYPEKIND_UINT32:
-            return 6;
-        case UA_DATATYPEKIND_STATUSCODE:
-            return 7;
-        case UA_DATATYPEKIND_INT16:
-            return 8;
-        case UA_DATATYPEKIND_UINT16:
-            return 9;
-        case UA_DATATYPEKIND_SBYTE:
-            return 10;
-        case UA_DATATYPEKIND_BYTE:
-            return 11;
-        case UA_DATATYPEKIND_BOOLEAN:
-            return 12;
-        case UA_DATATYPEKIND_GUID:
-            return 13;
-        case UA_DATATYPEKIND_STRING:
-            return 14;
-        case UA_DATATYPEKIND_EXPANDEDNODEID:
-            return 15;
-        case UA_DATATYPEKIND_NODEID:
-            return 16;
-        case UA_DATATYPEKIND_LOCALIZEDTEXT:
-            return 17;
-        case UA_DATATYPEKIND_QUALIFIEDNAME:
-            return 18;
-        default:
-            return -1;
     }
 }
 

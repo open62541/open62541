@@ -90,7 +90,7 @@ UA_ServerConfig_setDefault(UA_ServerConfig *config) {
  * It initializes reasonable defaults for many things, but does not
  * add any network layer, security policies and endpoints.
  * Use the various UA_ServerConfig_addXxx functions to add them.
- * 
+ *
  * @param conf The configuration to manipulate
  */
 UA_EXPORT UA_StatusCode
@@ -121,14 +121,14 @@ UA_ServerConfig_addNetworkLayerWS(UA_ServerConfig *conf, UA_UInt16 portNumber,
  * @param certificate The optional server certificate.
  */
 UA_EXPORT UA_StatusCode
-UA_ServerConfig_addSecurityPolicyNone(UA_ServerConfig *config, 
+UA_ServerConfig_addSecurityPolicyNone(UA_ServerConfig *config,
                                       const UA_ByteString *certificate);
 
 #ifdef UA_ENABLE_ENCRYPTION
 
 /* Adds the security policy ``SecurityPolicy#Basic128Rsa15`` to the server. A
  * server certificate may be supplied but is optional.
- * 
+ *
  * Certificate verification should be configured before calling this
  * function. See PKI plugin.
  *
@@ -137,7 +137,7 @@ UA_ServerConfig_addSecurityPolicyNone(UA_ServerConfig *config,
  * @param privateKey The private key that corresponds to the certificate.
  */
 UA_EXPORT UA_StatusCode
-UA_ServerConfig_addSecurityPolicyBasic128Rsa15(UA_ServerConfig *config, 
+UA_ServerConfig_addSecurityPolicyBasic128Rsa15(UA_ServerConfig *config,
                                                const UA_ByteString *certificate,
                                                const UA_ByteString *privateKey);
 
@@ -146,13 +146,13 @@ UA_ServerConfig_addSecurityPolicyBasic128Rsa15(UA_ServerConfig *config,
  *
  * Certificate verification should be configured before calling this
  * function. See PKI plugin.
- * 
+ *
  * @param config The configuration to manipulate
  * @param certificate The server certificate.
  * @param privateKey The private key that corresponds to the certificate.
  */
 UA_EXPORT UA_StatusCode
-UA_ServerConfig_addSecurityPolicyBasic256(UA_ServerConfig *config, 
+UA_ServerConfig_addSecurityPolicyBasic256(UA_ServerConfig *config,
                                           const UA_ByteString *certificate,
                                           const UA_ByteString *privateKey);
 
@@ -167,7 +167,7 @@ UA_ServerConfig_addSecurityPolicyBasic256(UA_ServerConfig *config,
  * @param privateKey The private key that corresponds to the certificate.
  */
 UA_EXPORT UA_StatusCode
-UA_ServerConfig_addSecurityPolicyBasic256Sha256(UA_ServerConfig *config, 
+UA_ServerConfig_addSecurityPolicyBasic256Sha256(UA_ServerConfig *config,
                                                 const UA_ByteString *certificate,
                                                 const UA_ByteString *privateKey);
 
@@ -191,7 +191,7 @@ UA_ServerConfig_addSecurityPolicyAes128Sha256RsaOaep(UA_ServerConfig *config,
  *
  * Certificate verification should be configured before calling this
  * function. See PKI plugin.
- * 
+ *
  * @param config The configuration to manipulate
  * @param certificate The server certificate.
  * @param privateKey The private key that corresponds to the certificate.
@@ -215,7 +215,7 @@ UA_ServerConfig_addAllSecurityPolicies(UA_ServerConfig *config,
  * @param securityMode The security mode for which to add the endpoint.
  */
 UA_EXPORT UA_StatusCode
-UA_ServerConfig_addEndpoint(UA_ServerConfig *config, const UA_String securityPolicyUri, 
+UA_ServerConfig_addEndpoint(UA_ServerConfig *config, const UA_String securityPolicyUri,
                             UA_MessageSecurityMode securityMode);
 
 /* Adds endpoints for all configured security policies in each mode.

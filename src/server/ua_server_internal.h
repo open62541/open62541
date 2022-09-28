@@ -13,6 +13,7 @@
  *    Copyright 2019 (c) Kalycito Infotech Private Limited
  *    Copyright 2019 (c) HMS Industrial Networks AB (Author: Jonas Green)
  *    Copyright 2021 (c) Fraunhofer IOSB (Author: Andreas Ebner)
+ *    Copyright 2022 (c) Christian von Arnim, ISW University of Stuttgart (for VDW and umati)
  */
 
 #ifndef UA_SERVER_INTERNAL_H_
@@ -21,10 +22,8 @@
 #include <open62541/server.h>
 #include <open62541/plugin/nodestore.h>
 
-#include "ua_connection_internal.h"
 #include "ua_session.h"
 #include "ua_server_async.h"
-#include "common/ua_timer.h" /* arch-folder, TODO: Remove after the EventLoop is integrated */
 #include "ua_util_internal.h"
 #include "ziptree.h"
 
@@ -67,9 +66,9 @@ typedef enum {
 } UA_DiagnosticEvent;
 
 typedef struct channel_entry {
-    UA_DelayedCallback cleanupCallback;
     TAILQ_ENTRY(channel_entry) pointers;
     UA_SecureChannel channel;
+    UA_DiagnosticEvent closeEvent;
 } channel_entry;
 
 typedef struct session_list_entry {
@@ -85,19 +84,11 @@ typedef enum {
     UA_SERVERLIFECYCLE_STOPPING
 } UA_ServerLifecycle;
 
-typedef enum {
-    UA_SERVERCONNECTIONSTATE_FRESH,
-    UA_SERVERCONNECTIONSTATE_STOPPED,
-    UA_SERVERCONNECTIONSTATE_STARTING,
-    UA_SERVERCONNECTIONSTATE_STARTED,
-    UA_SERVERCONNECTIONSTATE_STOPPING
-} UA_ServerConnectionState;
-
 /* Maximum numbers of sockets to listen on */
 #define UA_MAXSERVERCONNECTIONS 16
 
 typedef struct {
-    UA_ServerConnectionState state;
+    UA_ConnectionState state;
     uintptr_t connectionId;
     UA_ConnectionManager *connectionManager;
 } UA_ServerConnection;
@@ -112,6 +103,8 @@ struct UA_Server {
                           * down once the time has been reached */
 
     UA_ServerLifecycle state;
+    UA_UInt64 houseKeepingCallbackId;
+
     UA_ServerConnection serverConnections[UA_MAXSERVERCONNECTIONS];
     size_t serverConnectionsSize;
 
@@ -202,20 +195,28 @@ UA_Server_deleteSecureChannels(UA_Server *server);
 void
 UA_Server_cleanupTimedOutSecureChannels(UA_Server *server, UA_DateTime nowMonotonic);
 
-UA_StatusCode
-UA_Server_createSecureChannel(UA_Server *server, UA_Connection *connection);
-
-UA_StatusCode
-UA_Server_configSecureChannel(void *application, UA_SecureChannel *channel,
-                              const UA_AsymmetricAlgorithmSecurityHeader *asymHeader);
 
 UA_StatusCode
 sendServiceFault(UA_SecureChannel *channel, UA_UInt32 requestId,
                  UA_UInt32 requestHandle, UA_StatusCode statusCode);
 
+/* Called only from within the network callback */
+UA_StatusCode
+createServerSecureChannel(UA_Server *server, UA_ConnectionManager *cm,
+                          uintptr_t connectionId, UA_SecureChannel **outChannel);
+
+UA_StatusCode
+configServerSecureChannel(void *application, UA_SecureChannel *channel,
+                          const UA_AsymmetricAlgorithmSecurityHeader *asymHeader);
+
+/* Can be called at any time */
 void
-UA_Server_closeSecureChannel(UA_Server *server, UA_SecureChannel *channel,
-                             UA_DiagnosticEvent event);
+shutdownServerSecureChannel(UA_Server *server, UA_SecureChannel *channel,
+                            UA_DiagnosticEvent event);
+
+/* Called only from within the network callback */
+void
+deleteServerSecureChannel(UA_Server *server, UA_SecureChannel *channel);
 
 /* Gets the a pointer to the context of a security policy supported by the
  * server matched by the security policy uri. */
@@ -231,6 +232,10 @@ getSecurityPolicyByUri(const UA_Server *server,
 UA_StatusCode
 getNamespaceByName(UA_Server *server, const UA_String namespaceUri,
                    size_t *foundIndex);
+
+UA_StatusCode
+getNamespaceByIndex(UA_Server *server, const size_t namespaceIndex,
+                    UA_String *foundUri);
 
 UA_StatusCode
 getBoundSession(UA_Server *server, const UA_SecureChannel *channel,
@@ -306,7 +311,7 @@ UA_StatusCode
 referenceTypeIndices(UA_Server *server, const UA_NodeId *refType,
                      UA_ReferenceTypeSet *indices, UA_Boolean includeSubtypes);
 
-/* Returns the recursive type and interface hierarchy of the node */ 
+/* Returns the recursive type and interface hierarchy of the node */
 UA_StatusCode
 getParentTypeAndInterfaceHierarchy(UA_Server *server, const UA_NodeId *typeNode,
                                    UA_NodeId **typeHierarchy, size_t *typeHierarchySize);
@@ -359,6 +364,14 @@ UA_Server_processServiceOperations(UA_Server *server, UA_Session *session,
                                    const UA_DataType *responseOperationsType)
     UA_FUNC_ATTR_WARN_UNUSED_RESULT;
 
+/* Processing for the binary protocol (SecureChannel) */
+void
+UA_Server_networkCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
+                          void *application, void **connectionContext,
+                          UA_ConnectionState state,
+                          size_t paramsSize, const UA_KeyValuePair *params,
+                          UA_ByteString msg);
+
 /******************************************/
 /* Internal function calls, without locks */
 /******************************************/
@@ -367,7 +380,8 @@ deleteNode(UA_Server *server, const UA_NodeId nodeId,
            UA_Boolean deleteReferences);
 
 UA_StatusCode
-addNode(UA_Server *server, const UA_NodeClass nodeClass, const UA_NodeId *requestedNewNodeId,
+addNode(UA_Server *server, const UA_NodeClass nodeClass,
+        const UA_NodeId *requestedNewNodeId,
         const UA_NodeId *parentNodeId, const UA_NodeId *referenceTypeId,
         const UA_QualifiedName browseName, const UA_NodeId *typeDefinition,
         const UA_NodeAttributes *attr, const UA_DataType *attributeType,
@@ -442,6 +456,11 @@ writeObjectProperty(UA_Server *server, const UA_NodeId objectId,
                     const UA_QualifiedName propertyName, const UA_Variant value);
 
 UA_StatusCode
+writeObjectProperty_scalar(UA_Server *server, const UA_NodeId objectId,
+                                     const UA_QualifiedName propertyName,
+                                     const void *value, const UA_DataType *type);
+
+UA_StatusCode
 getNodeContext(UA_Server *server, UA_NodeId nodeId, void **nodeContext);
 
 UA_StatusCode
@@ -451,7 +470,8 @@ void
 removeCallback(UA_Server *server, UA_UInt64 callbackId);
 
 UA_StatusCode
-changeRepeatedCallbackInterval(UA_Server *server, UA_UInt64 callbackId, UA_Double interval_ms);
+changeRepeatedCallbackInterval(UA_Server *server, UA_UInt64 callbackId,
+                               UA_Double interval_ms);
 
 UA_StatusCode
 addRepeatedCallback(UA_Server *server, UA_ServerCallback callback,
@@ -459,8 +479,7 @@ addRepeatedCallback(UA_Server *server, UA_ServerCallback callback,
 
 #ifdef UA_ENABLE_DISCOVERY
 UA_StatusCode
-register_server_with_discovery_server(UA_Server *server,
-                                      void *client,
+register_server_with_discovery_server(UA_Server *server, void *client,
                                       const UA_Boolean isUnregister,
                                       const char* semaphoreFilePath);
 #endif
@@ -707,6 +726,25 @@ UA_NODESTORE_GETFROMREF(UA_Server *server, UA_NodePointer target) {
 #define UA_NODESTORE_GETREFERENCETYPEID(server, index)                  \
     server->config.nodestore.getReferenceTypeId(server->config.nodestore.context, \
                                                 index)
+
+/* Handling of Locales */
+
+/* Returns a shallow copy */
+UA_LocalizedText
+UA_Session_getNodeDisplayName(const UA_Session *session,
+                              const UA_NodeHead *head);
+
+UA_LocalizedText
+UA_Session_getNodeDescription(const UA_Session *session,
+                              const UA_NodeHead *head);
+
+UA_StatusCode
+UA_Node_insertOrUpdateDisplayName(UA_NodeHead *head,
+                                  const UA_LocalizedText *value);
+
+UA_StatusCode
+UA_Node_insertOrUpdateDescription(UA_NodeHead *head,
+                                  const UA_LocalizedText *value);
 
 _UA_END_DECLS
 

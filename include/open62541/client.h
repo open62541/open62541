@@ -147,12 +147,6 @@ typedef struct {
     /* Certificate Verification Plugin */
     UA_CertificateVerification certificateVerification;
 
-    /* Callbacks for async connection handshakes */
-    UA_ConnectClientConnection initConnectionFunc;
-    UA_StatusCode (*pollConnectionFunc)(UA_Connection *connection,
-                                        UA_UInt32 timeout,
-                                        const UA_Logger *logger);
-
     /* Callback for state changes. The client state is differentated into the
      * SecureChannel state and the Session state. The connectStatus is set if
      * the client connection (including reconnects) has failed and the client
@@ -720,6 +714,9 @@ UA_Client_changeRepeatedCallbackInterval(UA_Client *client,
 
 void UA_EXPORT
 UA_Client_removeCallback(UA_Client *client, UA_UInt64 callbackId);
+
+#define UA_Client_removeRepeatedCallback(server, callbackId)    \
+    UA_Client_removeCallback(server, callbackId);
 
 /**
  * Client Utility Functions

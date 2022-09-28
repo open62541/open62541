@@ -47,6 +47,21 @@ static void addPublishedDataSet(UA_String pdsName, UA_NodeId *assignedId){
     UA_Server_addPublishedDataSet(server, &pdsConfig, assignedId);
 }
 
+static void addDataSetField(UA_NodeId publishedDataSetIdent) {
+    /* Add a field to the previous created PublishedDataSet */
+    UA_NodeId dataSetFieldIdent;
+    UA_DataSetFieldConfig dataSetFieldConfig;
+    memset(&dataSetFieldConfig, 0, sizeof(UA_DataSetFieldConfig));
+    dataSetFieldConfig.dataSetFieldType = UA_PUBSUB_DATASETFIELD_VARIABLE;
+    dataSetFieldConfig.field.variable.fieldNameAlias = UA_STRING("Server localtime");
+    dataSetFieldConfig.field.variable.promotedField = UA_FALSE;
+    dataSetFieldConfig.field.variable.publishParameters.publishedVariable =
+    UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_CURRENTTIME);
+    dataSetFieldConfig.field.variable.publishParameters.attributeId = UA_ATTRIBUTEID_VALUE;
+    UA_Server_addDataSetField(server, publishedDataSetIdent,
+                              &dataSetFieldConfig, &dataSetFieldIdent);
+}
+
 static void addPubSubConnection(UA_String connectionName, UA_String addressUrl, UA_NodeId *assignedId){
     UA_PubSubConnectionConfig connectionConfig;
     memset(&connectionConfig, 0, sizeof(UA_PubSubConnectionConfig));
@@ -170,7 +185,32 @@ START_TEST(AddRemoveAddSignlePubSubConnectionAndCheckInformationModelRepresentat
 START_TEST(AddSinglePublishedDataSetAndCheckInformationModelRepresentation){
     UA_String pdsName = UA_STRING("PDS 1");
     addPublishedDataSet(pdsName, &publishedDataSet1);
+    addDataSetField(publishedDataSet1);
     UA_QualifiedName browseName;
+    UA_NodeId publishedDataNodeId = findSingleChildNode(server, UA_QUALIFIEDNAME(0, "PublishedData"),
+                                                       UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY), publishedDataSet1);
+    UA_NodeId dataSetMetaDataNodeId = findSingleChildNode(server, UA_QUALIFIEDNAME(0, "DataSetMetaData"),
+                                                       UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY), publishedDataSet1);
+    UA_NodeId configurationVersionNodeId = findSingleChildNode(server, UA_QUALIFIEDNAME(0, "ConfigurationVersion"),
+                                                       UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY), publishedDataSet1);
+    UA_Variant value;
+    UA_Variant_init(&value);
+    ck_assert_int_eq(UA_Server_readValue(server, publishedDataNodeId, &value), UA_STATUSCODE_GOOD);
+    ck_assert(UA_Variant_hasArrayType(&value, &UA_TYPES[UA_TYPES_PUBLISHEDVARIABLEDATATYPE]));
+    UA_NodeId dsf1 = ((UA_PublishedVariableDataType *)value.data)[0].publishedVariable;
+    UA_NodeId serverCurrentTimeId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_CURRENTTIME);
+    ck_assert(UA_NodeId_equal(&dsf1, &serverCurrentTimeId));
+    ck_assert_uint_eq(value.arrayLength, 1);
+    UA_Variant_clear(&value);
+    UA_Variant_init(&value);
+    ck_assert_int_eq(UA_Server_readValue(server, dataSetMetaDataNodeId, &value), UA_STATUSCODE_GOOD);
+    ck_assert(UA_Variant_hasScalarType(&value, &UA_TYPES[UA_TYPES_DATASETMETADATATYPE]));
+    ck_assert_uint_eq(((UA_DataSetMetaDataType *)value.data)->fieldsSize, 1);
+    UA_Variant_clear(&value);
+    UA_Variant_init(&value);
+    ck_assert_int_eq(UA_Server_readValue(server, configurationVersionNodeId, &value), UA_STATUSCODE_GOOD);
+    ck_assert(UA_Variant_hasScalarType(&value, &UA_TYPES[UA_TYPES_CONFIGURATIONVERSIONDATATYPE]));
+    UA_Variant_clear(&value);
     ck_assert_int_eq(UA_Server_readBrowseName(server, publishedDataSet1, &browseName), UA_STATUSCODE_GOOD);
     ck_assert_int_eq(UA_String_equal(&browseName.name, &pdsName), UA_TRUE);
     UA_QualifiedName_clear(&browseName);

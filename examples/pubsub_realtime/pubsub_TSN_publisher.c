@@ -86,6 +86,7 @@
 
 #include <open62541/server.h>
 #include <open62541/server_config_default.h>
+#include <open62541/server_pubsub.h>
 #include <open62541/plugin/log_stdout.h>
 #include <open62541/plugin/log.h>
 #include <open62541/types_generated.h>
@@ -471,7 +472,8 @@ addPubSubConnectionSubscriber(UA_Server *server,
     UA_NetworkAddressUrlDataType networkAddressUrlsubscribe = *networkAddressUrlSubscriber;
     connectionConfig.transportProfileUri = UA_STRING(ETH_TRANSPORT_PROFILE);
     UA_Variant_setScalar(&connectionConfig.address, &networkAddressUrlsubscribe, &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
-    connectionConfig.publisherId.numeric = UA_UInt32_random();
+    connectionConfig.publisherIdType = UA_PUBLISHERIDTYPE_UINT32;
+    connectionConfig.publisherId.uint32 = UA_UInt32_random();
     retval |= UA_Server_addPubSubConnection(server, &connectionConfig, &connectionIdentSubscriber);
     if(retval == UA_STATUSCODE_GOOD)
          UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
@@ -733,7 +735,8 @@ addPubSubConnection(UA_Server *server, UA_NetworkAddressUrlDataType *networkAddr
     connectionConfig.transportProfileUri                    = UA_STRING(ETH_TRANSPORT_PROFILE);
     UA_Variant_setScalar(&connectionConfig.address, &networkAddressUrl,
                          &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
-    connectionConfig.publisherId.numeric                    = PUBLISHER_ID;
+    connectionConfig.publisherIdType                        = UA_PUBLISHERIDTYPE_UINT16;
+    connectionConfig.publisherId.uint16                     = PUBLISHER_ID;
     /* Connection options are given as Key/Value Pairs - Sockprio and Txtime */
     UA_KeyValuePair connectionOptions[2];
     connectionOptions[0].key                  = UA_QUALIFIEDNAME(0, "sockpriority");
@@ -758,7 +761,7 @@ addPublishedDataSet(UA_Server *server) {
 
 /* DataSetField handling */
 static void
-addDataSetField(UA_Server *server) {
+_addDataSetField(UA_Server *server) {
     /* Add a field to the previous created PublishedDataSet */
     UA_NodeId dataSetFieldIdentRepeated;
     UA_DataSetFieldConfig dataSetFieldConfig;
@@ -1726,32 +1729,32 @@ int main(int argc, char **argv) {
     networkAddressUrlSub.networkInterface = UA_STRING(interface);
     networkAddressUrlSub.url              = UA_STRING(subMacAddress);
 #endif
-    
+
     if(enableCsvLog) {
 #if defined(PUBLISHER)
         fpPublisher = fopen(filePublishedData, "w");
 #endif
-        
+
 #if defined(SUBSCRIBER)
         fpSubscriber = fopen(fileSubscribedData, "w");
 #endif
     }
-    
+
     /* It is possible to use multiple PubSubTransportLayers on runtime.
      * The correct factory is selected on runtime by the standard defined
      * PubSub TransportProfileUri's. */
-    
+
 #if defined (PUBLISHER)
     UA_ServerConfig_addPubSubTransportLayer(config, UA_PubSubTransportLayerEthernet());
 #endif
-    
+
     /* Create variable nodes for publisher and subscriber in address space */
     addServerNodes(server);
-    
+
 #if defined(PUBLISHER)
     addPubSubConnection(server, &networkAddressUrlPub);
     addPublishedDataSet(server);
-    addDataSetField(server);
+    _addDataSetField(server);
     addWriterGroup(server);
     addDataSetWriter(server);
     UA_Server_freezeWriterGroupConfiguration(server, writerGroupIdent);

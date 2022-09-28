@@ -14,8 +14,8 @@
 #include <open62541/plugin/log_stdout.h>
 #include <open62541/plugin/pubsub_ethernet.h>
 
-#define RECEIVE_MSG_BUFFER_SIZE   4096
-static UA_THREAD_LOCAL UA_Byte ReceiveMsgBufferETH[RECEIVE_MSG_BUFFER_SIZE];
+#define UA_RECEIVE_MSG_BUFFER_SIZE   4096
+static UA_THREAD_LOCAL UA_Byte ReceiveMsgBufferETH[UA_RECEIVE_MSG_BUFFER_SIZE];
 
 #if !defined(UA_ARCHITECTURE_POSIX) && !defined(UA_ARCHITECTURE_VXWORKS)
 /* For anything else than Linux or VxWorks which are specifically handled below,
@@ -830,7 +830,7 @@ UA_PubSubChannelEthernet_open(const UA_PubSubConnectionConfig *connectionConfig)
             UA_LOG_SOCKET_ERRNO_WRAP(
             UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "setsockopt SO_PRIORITY failed (%s)", errno_str));
             UA_close(sockFd);
-            
+
             UA_free(sockOptions.socketPriority);
             UA_free(channelDataEthernet);
             UA_free(newChannel);
@@ -945,7 +945,7 @@ UA_PubSubChannelEthernet_unregist(UA_PubSubChannel *channel,
     mreq.mr_alen = ETH_ALEN;
     memcpy(mreq.mr_address, channelDataEthernet->targetAddress, ETH_ALEN);
 
-    if(UA_setsockopt(channel->sockfd, SOL_PACKET, PACKET_DROP_MEMBERSHIP, (char*) &mreq, sizeof(mreq)) < 0) { 
+    if(UA_setsockopt(channel->sockfd, SOL_PACKET, PACKET_DROP_MEMBERSHIP, (char*) &mreq, sizeof(mreq)) < 0) {
         UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "PubSub Connection regist failed.");
         return UA_STATUSCODE_BADINTERNALERROR;
     }
@@ -1173,7 +1173,7 @@ UA_PubSubChannelEthernet_receive(UA_PubSubChannel *channel,
         }
 
         UA_ByteString buffer;
-        buffer.length = RECEIVE_MSG_BUFFER_SIZE;
+        buffer.length = UA_RECEIVE_MSG_BUFFER_SIZE;
         buffer.data = ReceiveMsgBufferETH;
 
 #if defined LIBBPF_EBPF
@@ -1197,7 +1197,7 @@ UA_PubSubChannelEthernet_receive(UA_PubSubChannel *channel,
         iov[0].iov_base = &eth_hdr;
         iov[0].iov_len  = sizeof(eth_hdr);
         iov[1].iov_base = buffer.data;
-        iov[1].iov_len  = RECEIVE_MSG_BUFFER_SIZE;
+        iov[1].iov_len  = UA_RECEIVE_MSG_BUFFER_SIZE;
         msg.msg_iov     = iov;
         msg.msg_iovlen  = 2;
 

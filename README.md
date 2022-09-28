@@ -17,7 +17,6 @@ Code Quality:
 
 [![Code Quality: Cpp](https://img.shields.io/lgtm/grade/cpp/g/open62541/open62541.svg?logo=lgtm&logoWidth=18)](https://lgtm.com/projects/g/open62541/open62541/context:cpp)
 [![Total Alerts](https://img.shields.io/lgtm/alerts/g/open62541/open62541.svg?logo=lgtm&logoWidth=18)](https://lgtm.com/projects/g/open62541/open62541/alerts)
-[![Coverage Status](https://img.shields.io/coveralls/open62541/open62541/master.svg)](https://coveralls.io/r/open62541/open62541?branch=master)
 [![codecov](https://codecov.io/gh/open62541/open62541/branch/master/graph/badge.svg)](https://codecov.io/gh/open62541/open62541)
 [![Fuzzing Status](https://oss-fuzz-build-logs.storage.googleapis.com/badges/open62541.svg)](https://bugs.chromium.org/p/oss-fuzz/issues/list?sort=-opened&can=1&q=proj:open62541)
 
@@ -123,7 +122,7 @@ Jointly with the overall open62541 community, the core maintainers steer the lon
 
 Official docker container builds are available on [Docker Cloud](https://cloud.docker.com/u/open62541/repository/registry-1.docker.io/open62541/open62541)
 
-More information can be found in the [Docker README](docker/README.md)
+More information can be found in the [Docker README](tools/docker/README.md)
 
 ## Support & Development
 
@@ -182,7 +181,7 @@ To build the examples, we recommend to install the open62541 project as mentione
 
 The following simple server example can be built using gcc, after you installed open62541 on your system.
 
-Using the GCC compiler, just run ```gcc -std=c99 -lopen62541 -DUA_ARCHITECTURE_POSIX <server.c> -o server``` (under Windows you may need to add ``` -lws2_32``` 
+Using the GCC compiler, just run ```gcc -std=c99 -DUA_ARCHITECTURE_POSIX <server.c> -lopen62541 -o server``` (under Windows you may need to add ``` -lws2_32``` 
 and change `-DUA_ARCHITECTURE_POSIX` to `-DUA_ARCHITECTURE_WIN32`).
 ```c
 #include <signal.h>

@@ -11,7 +11,7 @@
  *    Copyright 2017 (c) Henrik Norrman
  *    Copyright 2018 (c) Fabian Arndt, Root-Core
  *    Copyright 2017-2020 (c) HMS Industrial Networks AB (Author: Jonas Green)
- *    Copyright 2020-2021 (c) Christian von Arnim, ISW University of Stuttgart  (for VDW and umati)
+ *    Copyright 2020-2022 (c) Christian von Arnim, ISW University of Stuttgart  (for VDW and umati)
  */
 
 #ifndef UA_SERVER_H_
@@ -87,6 +87,9 @@ typedef struct {
 
 struct UA_ServerConfig {
     UA_Logger logger;
+    void *context; /* Used to attach custom data to a server config. This can
+                    * then be retrieved e.g. in a callback that forwards a
+                    * pointer to the server. */
 
     /**
      * Server Description
@@ -485,36 +488,52 @@ UA_Server_removeCallback(UA_Server *server, UA_UInt64 callbackId);
 UA_EXPORT UA_StatusCode UA_THREADSAFE
 UA_Server_closeSession(UA_Server *server, const UA_NodeId *sessionId);
 
-/* Session Parameters: Besides the user-definable session context pointer,
- * so-called session parameters are a way to attach key-value parameters to a
- * session. This enables "plugins" to attach data to a session without impacting
- * the user-definedable session context pointer. */
+/**
+ * Session attributes: Besides the user-definable session context pointer (set
+ * by the AccessControl plugin when the Session is created), a session carries
+ * attributes in a key-value list. Some attributes are present in every session
+ * and shown in the list below. Additional attributes can be manually set as
+ * meta-data.
+ *
+ * Always present as session attributes are:
+ *
+ * - 0:localeIds [UA_String]: List of preferred languages (read-only)
+ * - 0:clientDescription [UA_ApplicationDescription]: Client description (read-only)
+ * - 0:sessionName [String] Client-defined name of the session (read-only)
+ */
 
+/* Returns a shallow copy of the attribute. Don't _clear or _delete the value
+ * variant. Don't use the value once the Session could be already closed in the
+ * background or the attribute of the session replaced. Hence don't use this in a
+ * multi-threaded application. */
+UA_EXPORT UA_StatusCode
+UA_Server_getSessionAttribute(UA_Server *server, const UA_NodeId *sessionId,
+                              const UA_QualifiedName key, UA_Variant *outValue);
+
+/* Return a deep copy of the attribute */
 UA_EXPORT UA_StatusCode UA_THREADSAFE
-UA_Server_setSessionParameter(UA_Server *server, const UA_NodeId *sessionId,
-                              const UA_QualifiedName key,
-                              const UA_Variant *value);
-
-UA_EXPORT void UA_THREADSAFE
-UA_Server_deleteSessionParameter(UA_Server *server, const UA_NodeId *sessionId,
-                                 const UA_QualifiedName key);
-
-/* Returns NULL if the session or the parameter are not defined. Returns a deep
- * copy otherwise */
-UA_EXPORT UA_StatusCode UA_THREADSAFE
-UA_Server_getSessionParameter(UA_Server *server, const UA_NodeId *sessionId,
-                              const UA_QualifiedName key,
-                              UA_Variant *outValue);
+UA_Server_getSessionAttributeCopy(UA_Server *server, const UA_NodeId *sessionId,
+                                  const UA_QualifiedName key, UA_Variant *outValue);
 
 /* Returns NULL if the parameter is not defined or not a scalar or not of the
- * right datatype. Otherwise a deep copy of the scalar value is filled at the
- * target location of the void pointer. */
-UA_EXPORT UA_StatusCode UA_THREADSAFE
-UA_Server_getSessionParameter_scalar(UA_Server *server,
+ * right datatype. Otherwise a shallow copy of the scalar value is created at
+ * the target location of the void pointer. Hence don't use this in a
+ * multi-threaded application. */
+UA_EXPORT UA_StatusCode
+UA_Server_getSessionAttribute_scalar(UA_Server *server,
                                      const UA_NodeId *sessionId,
                                      const UA_QualifiedName key,
                                      const UA_DataType *type,
                                      void *outValue);
+
+UA_EXPORT UA_StatusCode UA_THREADSAFE
+UA_Server_setSessionAttribute(UA_Server *server, const UA_NodeId *sessionId,
+                              const UA_QualifiedName key,
+                              const UA_Variant *value);
+
+UA_EXPORT UA_StatusCode UA_THREADSAFE
+UA_Server_deleteSessionAttribute(UA_Server *server, const UA_NodeId *sessionId,
+                                 const UA_QualifiedName key);
 
 /**
  * Reading and Writing Node Attributes
@@ -1576,6 +1595,57 @@ UA_Server_createCondition(UA_Server *server,
                           const UA_NodeId hierarchialReferenceType,
                           UA_NodeId *outConditionId);
 
+/**
+ * The method pair UA_Server_addCondition_begin and _finish splits the
+ * UA_Server_createCondtion in two parts similiar to the
+ * UA_Server_addNode_begin / _finish pair. This is useful if the node shall be
+ * modified before finish the instantiation. For example to add children with
+ * specific NodeIds.
+ * For details refer to the UA_Server_addNode_begin / _finish methods.
+ *
+ * Additionally to UA_Server_addNode_begin UA_Server_addCondition_begin checks
+ * if the passed condition type is a subtype of the OPC UA ConditionType.
+ *
+ * @param server The server object
+ * @param conditionId The NodeId of the requested Condition Object. When passing
+ *        UA_NODEID_NUMERIC(X,0) an unused nodeid in namespace X will be used.
+ *        E.g. passing UA_NODEID_NULL will result in a NodeId in namespace 0.
+ * @param conditionType The NodeId of the node representation of the ConditionType
+ * @param conditionName The name of the condition to be added
+ * @param outConditionId The NodeId of the added Condition
+ * @return The StatusCode of the UA_Server_addCondition_begin method */
+UA_StatusCode UA_EXPORT
+UA_Server_addCondition_begin(UA_Server *server,
+                             const UA_NodeId conditionId,
+                             const UA_NodeId conditionType,
+                             const UA_QualifiedName conditionName,
+                             UA_NodeId *outConditionId);
+
+/**
+ * Second call of the UA_Server_addCondition_begin and _finish pair.
+ *
+ * Additionally to UA_Server_addNode_finish UA_Server_addCondition_finish:
+ *  - checks whether the condition source has HasEventSource reference to its
+ *    parent. If not, a HasEventSource reference will be created between
+ *    condition source and server object
+ *  - exposes the condition in the address space if hierarchialReferenceType is
+ *    not UA_NODEID_NULL by adding a reference of this type from the condition
+ *    source to the condition instance
+ *  - initializes the standard condition fields and callbacks
+ *
+ * @param server The server object
+ * @param conditionId The NodeId of the unfinished Condition Object
+ * @param conditionSource The NodeId of the Condition Source (Parent of the Condition)
+ * @param hierarchialReferenceType The NodeId of Hierarchical ReferenceType
+ *                                 between Condition and its source
+ * @return The StatusCode of the UA_Server_addCondition_finish method */
+
+UA_StatusCode UA_EXPORT
+UA_Server_addCondition_finish(UA_Server *server,
+                              const UA_NodeId conditionId,
+                              const UA_NodeId conditionSource,
+                              const UA_NodeId hierarchialReferenceType);
+
 /* Set the value of condition field.
  *
  * @param server The server object
@@ -1583,7 +1653,7 @@ UA_Server_createCondition(UA_Server *server,
  * @param value Variant Value to be written to the Field
  * @param fieldName Name of the Field in which the value should be written
  * @return The StatusCode of the UA_Server_setConditionField method*/
-UA_StatusCode UA_EXPORT
+UA_StatusCode UA_EXPORT UA_THREADSAFE
 UA_Server_setConditionField(UA_Server *server,
                             const UA_NodeId condition,
                             const UA_Variant *value,
@@ -1658,7 +1728,7 @@ UA_Server_setConditionTwoStateVariableCallback(UA_Server *server,
                                                UA_TwoStateVariableCallbackType callbackType);
 
 /* Delete a condition from the address space and the internal lists.
- * 
+ *
  * @param server The server object
  * @param condition The NodeId of the node representation of the Condition Instance
  * @param conditionSource The NodeId of the node representation of the Condition Source
@@ -1719,6 +1789,11 @@ UA_Server_addNamespace(UA_Server *server, const char* name);
 UA_StatusCode UA_EXPORT UA_THREADSAFE
 UA_Server_getNamespaceByName(UA_Server *server, const UA_String namespaceUri,
                              size_t* foundIndex);
+
+/* Get namespace by id from the server. */
+UA_StatusCode UA_EXPORT UA_THREADSAFE
+UA_Server_getNamespaceByIndex(UA_Server *server, const size_t namespaceIndex,
+                              UA_String *foundUri);
 
 /**
 * .. _async-operations:

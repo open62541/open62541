@@ -1,5 +1,5 @@
 /* This work is licensed under a Creative Commons CCZero 1.0 Universal License.
- * See http://creativecommons.org/publicdomain/zero/1.0/ for more information. 
+ * See http://creativecommons.org/publicdomain/zero/1.0/ for more information.
  *
  *    Copyright 2014-2019 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
  *    Copyright 2017 (c) Julian Grothoff
@@ -318,8 +318,6 @@ UA_NodeMap_removeNode(void *context, const UA_NodeId *nodeid) {
 
     UA_NodeMapEntry *entry = slot->entry;
     slot->entry = UA_NODEMAP_TOMBSTONE;
-    UA_atomic_sync(); /* Set the tombstone before cleaning up. E.g. if the
-                       * nodestore is accessed from an interrupt. */
     entry->deleted = true;
     cleanupNodeMapEntry(entry);
     --ns->count;
@@ -420,7 +418,6 @@ UA_NodeMap_insertNode(void *context, UA_Node *node,
     /* Insert the node */
     UA_NodeMapEntry *newEntry = container_of(node, UA_NodeMapEntry, node);
     slot->nodeIdHash = UA_NodeId_hash(&node->head.nodeId);
-    UA_atomic_sync(); /* Set the hash first */
     slot->entry = newEntry;
     ++ns->count;
     return retval;
@@ -447,7 +444,6 @@ UA_NodeMap_replaceNode(void *context, UA_Node *node) {
 
     /* Replace the entry */
     slot->entry = newEntry;
-    UA_atomic_sync();
     oldEntry->deleted = true;
     cleanupNodeMapEntry(oldEntry);
     return UA_STATUSCODE_GOOD;

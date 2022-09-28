@@ -11,13 +11,6 @@ if(NOT MSVC AND UA_ENABLE_UNIT_TESTS_MEMCHECK)
     find_package(Valgrind REQUIRED)
 endif()
 
-if(APPLE)
-    # CLang on Apple complains about many cases like this:
-    # /Users/travis/build/open62541/open62541/tests/check_chunking.c:148:22: warning: implicit conversion changes signedness: 'size_t' (aka 'unsigned long') to 'intmax_t' (aka 'long') [-Wsign-conversion]
-    #    ck_assert_int_eq(counter,9); //10 chunks allocated - callback called 4 times
-    add_definitions(-Wno-sign-conversion)
-endif()
-
 get_property(open62541_BUILD_INCLUDE_DIRS TARGET open62541 PROPERTY INTERFACE_INCLUDE_DIRECTORIES)
 include_directories(${open62541_BUILD_INCLUDE_DIRS})
 # ua_server_internal.h
@@ -51,8 +44,6 @@ if(CMAKE_HOST_SYSTEM_NAME MATCHES "OpenBSD")
     add_definitions(-Wno-gnu-zero-variadic-macro-arguments)
 endif()
 
-add_definitions(-DUA_sleep_ms=UA_comboSleep)
-
 #############################
 # Compiled binaries folders #
 #############################
@@ -67,7 +58,6 @@ endif()
 
 # Use different plugins for testing
 set(test_plugin_sources
-    ${PROJECT_SOURCE_DIR}/arch/network_tcp.c
     ${PROJECT_SOURCE_DIR}/arch/eventloop_posix.c
     ${PROJECT_SOURCE_DIR}/arch/eventloop_posix_select.c
     ${PROJECT_SOURCE_DIR}/arch/eventloop_posix_epoll.c
@@ -168,11 +158,6 @@ if(UA_ENABLE_COVERAGE)
     add_coverage(open62541-testplugins)
 endif()
 
-# Workaround some clang warnings in the uni tests
-if((NOT ${CMAKE_SYSTEM_NAME} MATCHES "OpenBSD") AND (CMAKE_COMPILER_IS_GNUCC OR CMAKE_C_COMPILER_ID STREQUAL "Clang"))
-    add_definitions(-Wno-sign-conversion)
-endif()
-
 # Unit Test Definition Macro
 # For now we need to disable the libc freeres. See https://github.com/open62541/open62541/pull/1003#issuecomment-315045143
 # This also requires to disable the phtread cache with no-nptl-pthread-stackcache
@@ -226,6 +211,7 @@ endfunction()
 ua_add_test(check_types_builtin.c)
 
 if(UA_ENABLE_JSON_ENCODING)
+    ua_add_test(check_cj5.c)
     ua_add_test(check_types_builtin_json.c)
 
     if(UA_ENABLE_PUBSUB)
@@ -310,6 +296,7 @@ if(UA_ENABLE_PUBSUB)
     ua_add_test(pubsub/check_pubsub_publish.c)
     ua_add_test(pubsub/check_pubsub_publish_uadp.c)
     ua_add_test(pubsub/check_pubsub_get_state.c)
+    ua_add_test(pubsub/check_pubsub_publisherid.c)
 
     #Link libraries for executing subscriber unit test
     ua_add_test(pubsub/check_pubsub_subscribe.c)
@@ -355,6 +342,7 @@ if(UA_ENABLE_PUBSUB)
     if(UA_ENABLE_PUBSUB_MQTT)
         if(NOT WIN32)
             ua_add_test(pubsub/check_pubsub_connection_mqtt.c)
+            ua_add_test(pubsub/check_pubsub_mqtt.c)
         endif()
     endif()
     if(UA_ENABLE_PUBSUB_FILE_CONFIG)
@@ -407,6 +395,10 @@ if(UA_ENABLE_ENCRYPTION_MBEDTLS)
     ua_add_test(encryption/check_encryption_basic256.c)
     ua_add_test(encryption/check_encryption_basic256sha256.c)
     ua_add_test(encryption/check_encryption_aes128sha256rsaoaep.c)
+endif()
+
+if(UA_ENABLE_ENCRYPTION_MBEDTLS AND UA_ENABLE_CERT_REJECTED_DIR)
+    ua_add_test(encryption/check_save_rejected_cert.c)
 endif()
 
 if(UA_ENABLE_ENCRYPTION_OPENSSL OR UA_ENABLE_ENCRYPTION_LIBRESSL)

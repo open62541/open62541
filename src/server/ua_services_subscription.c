@@ -1,6 +1,6 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. 
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  *
  *    Copyright 2014-2018, 2022 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
  *    Copyright 2016-2017 (c) Florian Palm
@@ -230,7 +230,8 @@ Service_SetPublishingMode(UA_Server *server, UA_Session *session,
 UA_StatusCode
 Service_Publish(UA_Server *server, UA_Session *session,
                 const UA_PublishRequest *request, UA_UInt32 requestId) {
-    UA_LOG_DEBUG_SESSION(&server->config.logger, session, "Processing PublishRequest");
+    UA_LOG_DEBUG_SESSION(&server->config.logger, session,
+                         "Processing PublishRequest with RequestId %u", requestId);
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
 
     /* Return an error if the session has no subscription */

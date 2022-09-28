@@ -126,7 +126,7 @@ deactivateSignal(UA_RegisteredSignal *rs) {
     if(!rs->active)
         return;
     rs->active = false;
-    
+
     /* Stop receiving the signal on the FD */
     UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX *)rs->rfd.es->eventLoop;
     UA_EventLoopPOSIX_deregisterFD(el, &rs->rfd);
@@ -285,7 +285,7 @@ registerPOSIXInterrupt(UA_InterruptManager *im, uintptr_t interruptHandle,
     /* Activate if we are already running */
     if(pim->im.eventSource.state == UA_EVENTSOURCESTATE_STARTED)
         activateSignal(rs);
-    
+
     return UA_STATUSCODE_GOOD;
 }
 

@@ -12,10 +12,14 @@
 
 #ifdef UA_ENABLE_ENCRYPTION_MBEDTLS
 
+#include "securitypolicy_mbedtls_common.h"
+
 #include <mbedtls/x509.h>
 #include <mbedtls/x509_crt.h>
 #include <mbedtls/error.h>
 #include <mbedtls/version.h>
+
+#include <inttypes.h>
 
 #define REMOTECERTIFICATETRUSTED 1
 #define ISSUERKNOWN              2
@@ -88,6 +92,7 @@ typedef struct {
     UA_String trustListFolder;
     UA_String issuerListFolder;
     UA_String revocationListFolder;
+    UA_String rejectedListFolder;
 
     mbedtls_x509_crt certificateTrustList;
     mbedtls_x509_crt certificateIssuerList;
@@ -107,7 +112,7 @@ fileNamesFromFolder(const UA_String *folder, size_t *pathsSize, UA_String **path
 
     memcpy(buf, folder->data, folder->length);
     buf[folder->length] = 0;
-    
+
     DIR *dir = opendir(buf);
     if(!dir)
         return UA_STATUSCODE_BADINTERNALERROR;
@@ -222,7 +227,7 @@ reloadCertificates(CertInfo *ci) {
             char errBuff[300];
             mbedtls_strerror(err, errBuff, 300);
             UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
-                        "Failed to load certificate from %s, mbedTLS error: %s (error code: %d)", 
+                        "Failed to load certificate from %s, mbedTLS error: %s (error code: %d)",
                         f, errBuff, err);
             internalErrorFlag = 1;
         }
@@ -239,7 +244,7 @@ reloadCertificates(CertInfo *ci) {
 static UA_StatusCode
 certificateVerification_allow(void *verificationContext,
                               const UA_ByteString *certificate) {
-    return UA_STATUSCODE_GOOD;  
+    return UA_STATUSCODE_GOOD;
 }
 
 static UA_StatusCode
@@ -259,6 +264,7 @@ certificateVerification_verify(void *verificationContext,
     if(ci->trustListFolder.length == 0 &&
        ci->issuerListFolder.length == 0 &&
        ci->revocationListFolder.length == 0 &&
+       ci->rejectedListFolder.length == 0 &&
        ci->certificateTrustList.raw.len == 0 &&
        ci->certificateIssuerList.raw.len == 0 &&
        ci->certificateRevocationList.raw.len == 0) {
@@ -471,6 +477,39 @@ certificateVerification_verify(void *verificationContext,
         } else {
             retval = UA_STATUSCODE_BADSECURITYCHECKSFAILED;
         }
+
+#ifdef UA_ENABLE_CERT_REJECTED_DIR
+        if(ci->rejectedListFolder.length !=0) {
+            char rejectedFileName[256] = {0};
+            UA_ByteString thumbprint;
+            UA_ByteString_allocBuffer(&thumbprint, UA_SHA1_LENGTH);
+            if(mbedtls_thumbprint_sha1(certificate, &thumbprint) == UA_STATUSCODE_GOOD) {
+                static const char hex2char[] = "0123456789ABCDEF";
+                for (size_t pos = 0, namePos = 0; pos < thumbprint.length; pos++) {
+                    rejectedFileName[namePos++] = hex2char[(thumbprint.data[pos] & 0xf0) >> 4];
+                    rejectedFileName[namePos++] = hex2char[thumbprint.data[pos] & 0x0f];
+                }
+                strcat(rejectedFileName, ".der");
+            } else {
+                UA_UInt64 dt = (UA_UInt64) UA_DateTime_now();
+                sprintf(rejectedFileName, "cert_%" PRIu64 ".der", dt);
+            }
+            UA_ByteString_clear(&thumbprint);
+
+            char *rejectedFullFileName = (char *) calloc(ci->rejectedListFolder.length + 1 /* '/' */ + strlen(rejectedFileName) + 1, sizeof(char));
+            if (rejectedFullFileName) {
+                memcpy(rejectedFullFileName, ci->rejectedListFolder.data, ci->rejectedListFolder.length);
+                rejectedFullFileName[ci->rejectedListFolder.length] = '/';
+                memcpy(&rejectedFullFileName[ci->rejectedListFolder.length + 1], rejectedFileName, strlen(rejectedFileName));
+                FILE * fp_rejectedFile = fopen(rejectedFullFileName, "wb");
+                if (fp_rejectedFile) {
+                    fwrite(certificate->data, sizeof(certificate->data[0]), certificate->length, fp_rejectedFile);
+                    fclose(fp_rejectedFile);
+                }
+                free(rejectedFullFileName);
+            }
+        }
+#endif
     }
 
     mbedtls_x509_crt_free(&remoteCertificate);
@@ -518,6 +557,9 @@ certificateVerification_clear(UA_CertificateVerification *cv) {
     UA_String_clear(&ci->trustListFolder);
     UA_String_clear(&ci->issuerListFolder);
     UA_String_clear(&ci->revocationListFolder);
+#ifdef UA_ENABLE_CERT_REJECTED_DIR
+    UA_String_clear(&ci->rejectedListFolder);
+#endif
     UA_free(ci);
     cv->context = NULL;
 }
@@ -612,11 +654,20 @@ error:
 
 #ifdef __linux__ /* Linux only so far */
 
+#ifdef UA_ENABLE_CERT_REJECTED_DIR
+UA_StatusCode
+UA_CertificateVerification_CertFolders(UA_CertificateVerification *cv,
+                                       const char *trustListFolder,
+                                       const char *issuerListFolder,
+                                       const char *revocationListFolder,
+                                       const char *rejectedListFolder) {
+#else
 UA_StatusCode
 UA_CertificateVerification_CertFolders(UA_CertificateVerification *cv,
                                        const char *trustListFolder,
                                        const char *issuerListFolder,
                                        const char *revocationListFolder) {
+#endif
     CertInfo *ci = (CertInfo*)UA_malloc(sizeof(CertInfo));
     if(!ci)
         return UA_STATUSCODE_BADOUTOFMEMORY;
@@ -630,6 +681,9 @@ UA_CertificateVerification_CertFolders(UA_CertificateVerification *cv,
     ci->trustListFolder = UA_STRING_ALLOC(trustListFolder);
     ci->issuerListFolder = UA_STRING_ALLOC(issuerListFolder);
     ci->revocationListFolder = UA_STRING_ALLOC(revocationListFolder);
+#ifdef UA_ENABLE_CERT_REJECTED_DIR
+    ci->rejectedListFolder = UA_STRING_ALLOC(rejectedListFolder);
+#endif
 
     reloadCertificates(ci);
 

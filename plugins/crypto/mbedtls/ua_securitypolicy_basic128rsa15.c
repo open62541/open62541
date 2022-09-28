@@ -7,7 +7,7 @@
  *    Copyright 2018 (c) HMS Industrial Networks AB (Author: Jonas Green)
  *    Copyright 2020 (c) Wind River Systems, Inc.
  *    Copyright 2020 (c) basysKom GmbH
- * 
+ *
  */
 
 #include <open62541/plugin/securitypolicy_default.h>
@@ -121,22 +121,18 @@ asym_encrypt_sp_basic128rsa15(Basic128Rsa15_ChannelContext *cc,
     mbedtls_rsa_set_padding(remoteRsaContext, MBEDTLS_RSA_PKCS_V15, MBEDTLS_MD_NONE);
 
 #if MBEDTLS_VERSION_NUMBER >= 0x02060000 && MBEDTLS_VERSION_NUMBER < 0x03000000
-    size_t plainTextBlockSize = remoteRsaContext->len - UA_SECURITYPOLICY_BASIC128RSA15_RSAPADDING_LEN;
+    size_t keylen = remoteRsaContext->len;
 #else
     size_t keylen = mbedtls_rsa_get_len(remoteRsaContext);
-    size_t plainTextBlockSize = mbedtls_rsa_get_len(remoteRsaContext) -
-        UA_SECURITYPOLICY_BASIC128RSA15_RSAPADDING_LEN;
 #endif
+    size_t plainTextBlockSize =
+        keylen - UA_SECURITYPOLICY_BASIC128RSA15_RSAPADDING_LEN;
     if(data->length % plainTextBlockSize != 0)
         return UA_STATUSCODE_BADINTERNALERROR;
 
     size_t blocks = data->length / plainTextBlockSize;
     UA_ByteString encrypted;
-#if MBEDTLS_VERSION_NUMBER >= 0x02060000 && MBEDTLS_VERSION_NUMBER < 0x03000000
-    UA_StatusCode retval = UA_ByteString_allocBuffer(&encrypted, blocks * remoteRsaContext->len);
-#else
     UA_StatusCode retval = UA_ByteString_allocBuffer(&encrypted, blocks * keylen);
-#endif
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
@@ -182,7 +178,7 @@ asym_decrypt_sp_basic128rsa15(Basic128Rsa15_ChannelContext *cc,
     size_t keylen = mbedtls_rsa_get_len(rsaContext);
 #endif
     if(data->length % keylen != 0)
-        return UA_STATUSCODE_BADINTERNALERROR;
+            return UA_STATUSCODE_BADINTERNALERROR;
 
     size_t inOffset = 0;
     size_t outOffset = 0;
@@ -190,9 +186,16 @@ asym_decrypt_sp_basic128rsa15(Basic128Rsa15_ChannelContext *cc,
     unsigned char buf[512];
 
     while(inOffset < data->length) {
+#if MBEDTLS_VERSION_NUMBER >= 0x02060000 && MBEDTLS_VERSION_NUMBER < 0x03000000
+        int mbedErr = mbedtls_pk_decrypt(&cc->policyContext->localPrivateKey,
+                                         data->data + inOffset, rsaContext->len,
+                                         buf, &outLength, 512, NULL, NULL);
+#else
         int mbedErr = mbedtls_pk_decrypt(&cc->policyContext->localPrivateKey,
                                          data->data + inOffset, keylen,
                                          buf, &outLength, 512, NULL, NULL);
+#endif
+
         if(mbedErr)
             return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
 
@@ -224,8 +227,6 @@ asym_getRemoteEncryptionKeyLength_sp_basic128rsa15(const Basic128Rsa15_ChannelCo
 
 static size_t
 asym_getRemoteBlockSize_sp_basic128rsa15(const Basic128Rsa15_ChannelContext *cc) {
-    if(cc == NULL)
-        return 0;
 #if MBEDTLS_VERSION_NUMBER >= 0x02060000 && MBEDTLS_VERSION_NUMBER < 0x03000000
     mbedtls_rsa_context *const rsaContext = mbedtls_pk_rsa(cc->remoteCertificate.pk);
     return rsaContext->len;

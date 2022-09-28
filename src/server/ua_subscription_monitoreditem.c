@@ -1,6 +1,6 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. 
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  *
  *    Copyright 2017-2018 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
  *    Copyright 2017 (c) Stefan Profanter, fortiss GmbH
@@ -562,6 +562,11 @@ UA_MonitoredItem_setMonitoringMode(UA_Server *server, UA_MonitoredItem *mon,
     return UA_STATUSCODE_GOOD;
 }
 
+static void
+delayedFreeMonitoredItem(void *app, void *context) {
+    UA_free(context);
+}
+
 void
 UA_MonitoredItem_delete(UA_Server *server, UA_MonitoredItem *mon) {
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
@@ -598,11 +603,11 @@ UA_MonitoredItem_delete(UA_Server *server, UA_MonitoredItem *mon) {
     /* Add a delayed callback to remove the MonitoredItem when the current jobs
      * have completed. This is needed to allow that a local MonitoredItem can
      * remove itself in the callback. */
-    mon->delayedFreePointers.callback = NULL;
-    mon->delayedFreePointers.application = server;
-    mon->delayedFreePointers.context = NULL;
-    server->config.eventLoop->
-        addDelayedCallback(server->config.eventLoop, &mon->delayedFreePointers);
+    mon->delayedFreePointers.callback = delayedFreeMonitoredItem;
+    mon->delayedFreePointers.application = NULL;
+    mon->delayedFreePointers.context = mon;
+    UA_EventLoop *el = server->config.eventLoop;
+    el->addDelayedCallback(el, &mon->delayedFreePointers);
 }
 
 void
@@ -619,7 +624,7 @@ UA_MonitoredItem_ensureQueueSpace(UA_Server *server, UA_MonitoredItem *mon) {
     /* Nothing to do */
     if(mon->queueSize - mon->eventOverflows <= mon->parameters.queueSize)
         return;
-    
+
     /* Remove notifications until the required queue size is reached */
     UA_Boolean reporting = false;
     size_t remove = mon->queueSize - mon->eventOverflows - mon->parameters.queueSize;

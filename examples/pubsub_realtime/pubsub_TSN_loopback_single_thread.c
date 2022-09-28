@@ -84,12 +84,12 @@
 #define             PUBLISHER_ID                          2235
 #define             WRITER_GROUP_ID                       100
 #define             DATA_SET_WRITER_ID                    62541
-#define             DEFAULT_PUBLISHING_MAC_ADDRESS        "opc.eth://01-00-5E-00-00-01:8.7"
+#define             DEFAULT_PUBLISHING_MAC_ADDRESS        "opc.eth://01-00-5E-00-00-01:8.3"
 #define             DEFAULT_PUBLISHER_MULTICAST_ADDRESS   "opc.udp://224.0.0.32:4840/"
 #define             PUBLISHER_ID_SUB                      2234
 #define             WRITER_GROUP_ID_SUB                   101
 #define             DATA_SET_WRITER_ID_SUB                62541
-#define             DEFAULT_SUBSCRIBING_MAC_ADDRESS       "opc.eth://01-00-5E-7F-00-01:8.7"
+#define             DEFAULT_SUBSCRIBING_MAC_ADDRESS       "opc.eth://01-00-5E-7F-00-01:8.3"
 #define             DEFAULT_SUBSCRIBER_MULTICAST_ADDRESS  "opc.udp://224.0.0.22:4840/"
 #define             REPEATED_NODECOUNTS                   2   // Default to publish 64 bytes
 #define             PORT_NUMBER                           62541
@@ -113,8 +113,8 @@
 #endif
 #define             CLOCKID                               CLOCK_MONOTONIC
 #define             ETH_TRANSPORT_PROFILE                 "http://opcfoundation.org/UA-Profile/Transport/pubsub-eth-uadp"
-#define             UDP_TRANSPORT_PROFILE                 "http://opcfoundation.org/UA-Profile/Transport/pubsub-udp-uadp"                               
-             
+#define             UDP_TRANSPORT_PROFILE                 "http://opcfoundation.org/UA-Profile/Transport/pubsub-udp-uadp"
+
 /* If the Hardcoded publisher/subscriber MAC addresses need to be changed,
  * change PUBLISHING_MAC_ADDRESS and SUBSCRIBING_MAC_ADDRESS
  */
@@ -349,7 +349,8 @@ addPubSubConnectionSubscriber(UA_Server *server, UA_String *transportProfile,
     UA_NetworkAddressUrlDataType networkAddressUrlsubscribe = *networkAddressUrlSubscriber;
     connectionConfig.transportProfileUri                    = *transportProfile;
     UA_Variant_setScalar(&connectionConfig.address, &networkAddressUrlsubscribe, &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
-    connectionConfig.publisherId.numeric                    = UA_UInt32_random();
+    connectionConfig.publisherIdType                        = UA_PUBLISHERIDTYPE_UINT32;
+    connectionConfig.publisherId.uint32                     = UA_UInt32_random();
     retval |= UA_Server_addPubSubConnection(server, &connectionConfig, &connectionIdentSubscriber);
     if (retval == UA_STATUSCODE_GOOD)
          UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,"The PubSub Connection was created successfully!");
@@ -584,7 +585,8 @@ addPubSubConnection(UA_Server *server, UA_String *transportProfile,
     connectionConfig.transportProfileUri                    = *transportProfile;
     UA_Variant_setScalar(&connectionConfig.address, &networkAddressUrl,
                          &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
-    connectionConfig.publisherId.numeric                    = PUBLISHER_ID;
+    connectionConfig.publisherIdType                        = UA_PUBLISHERIDTYPE_UINT16;
+    connectionConfig.publisherId.uint16                     = PUBLISHER_ID;
 
 #ifdef UA_ENABLE_PUBSUB_ETH_UADP
     /* Connection options are given as Key/Value Pairs - Sockprio and Txtime */
@@ -620,7 +622,7 @@ addPublishedDataSet(UA_Server *server) {
 
 /* DataSetField handling */
 static void
-addDataSetField(UA_Server *server) {
+_addDataSetField(UA_Server *server) {
     /* Add a field to the previous created PublishedDataSet */
     UA_NodeId dataSetFieldIdent1;
     UA_DataSetFieldConfig dataSetFieldConfig;
@@ -870,7 +872,7 @@ void userApplication(UA_UInt64 monotonicOffsetValue) {
 #endif
     }
 
-    /* *runningPub variable made false and send to the publisher application which is running in another node 
+    /* *runningPub variable made false and send to the publisher application which is running in another node
        which will close the application during blocking socket condition */
     if (signalTerm == UA_TRUE) {
 #ifdef TWO_WAY_COMMUNICATION
@@ -1327,7 +1329,7 @@ int main(int argc, char **argv) {
 #ifdef TWO_WAY_COMMUNICATION
     addPubSubConnection(server, &transportProfile, &networkAddressUrlPub);
     addPublishedDataSet(server);
-    addDataSetField(server);
+    _addDataSetField(server);
     addWriterGroup(server);
     addDataSetWriter(server);
     UA_Server_freezeWriterGroupConfiguration(server, writerGroupIdent);

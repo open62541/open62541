@@ -200,7 +200,7 @@ addVariableTypeNode(void) {
 
 START_TEST(InstantiateVariableTypeNode) {
     addVariableTypeNode();
-    
+
     /* Prepare the node attributes */
     UA_UInt32 arrayDims[1] = {2};
     UA_VariableAttributes vAttr = UA_VariableAttributes_default;
@@ -232,7 +232,7 @@ START_TEST(InstantiateVariableTypeNode) {
 
 START_TEST(InstantiateVariableTypeNodeWrongDims) {
     addVariableTypeNode();
-    
+
     /* Prepare the node attributes */
     UA_UInt32 arrayDims[1] = {3}; /* This will fail as the dimensions are too big */
     UA_VariableAttributes vAttr = UA_VariableAttributes_default;
@@ -256,7 +256,7 @@ START_TEST(InstantiateVariableTypeNodeWrongDims) {
 
 START_TEST(InstantiateVariableTypeNodeLessDims) {
     addVariableTypeNode();
-    
+
     /* Prepare the node attributes */
     UA_UInt32 arrayDims[1] = {1}; /* This will match as the dimension
                                    * constraints are an upper bound */
@@ -291,7 +291,7 @@ START_TEST(AddComplexTypeWithInheritance) {
     UA_ObjectAttributes attr = UA_ObjectAttributes_default;
     attr.description = UA_LOCALIZEDTEXT("en-US","fakeServerStruct");
     attr.displayName = UA_LOCALIZEDTEXT("en-US","fakeServerStruct");
-  
+
     UA_NodeId myObjectNodeId = UA_NODEID_STRING(1, "the.fake.Server.Struct");
     UA_QualifiedName myObjectName = UA_QUALIFIEDNAME(1, "the.fake.Server.Struct");
     UA_NodeId parentNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER);
@@ -442,7 +442,7 @@ START_TEST(DeleteObjectAndReferences) {
     bd.nodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER);
     bd.referenceTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT);
     bd.browseDirection = UA_BROWSEDIRECTION_FORWARD;
-    
+
     UA_BrowseResult br = UA_Server_browse(server, 0, &bd);
     ck_assert_int_eq(br.statusCode, UA_STATUSCODE_GOOD);
     size_t refCount = 0;
@@ -693,7 +693,7 @@ addObjInstance(const UA_NodeId parentNodeId, char *dispName) {
 	oAttr.displayName = UA_LOCALIZEDTEXT(NULL, dispName);
 	UA_QualifiedName browseName = UA_QUALIFIEDNAME(1, dispName);
 	UA_StatusCode st =
-        UA_Server_addObjectNode(server, UA_NODEID_NULL, 
+        UA_Server_addObjectNode(server, UA_NODEID_NULL,
                                 parentNodeId, UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
                                 browseName, UA_NODEID_NUMERIC(0, UA_NS0ID_BASEOBJECTTYPE),
                                 oAttr, NULL, &outNodeId);

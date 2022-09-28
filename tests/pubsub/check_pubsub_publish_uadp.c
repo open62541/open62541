@@ -31,7 +31,8 @@ static void setup(void) {
     UA_Variant_setScalar(&connectionConfig.address, &networkAddressUrl,
                          &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
     connectionConfig.transportProfileUri = UA_STRING("http://opcfoundation.org/UA-Profile/Transport/pubsub-udp-uadp");
-    connectionConfig.publisherId.numeric = 62541;
+    connectionConfig.publisherIdType = UA_PUBLISHERIDTYPE_UINT16;
+    connectionConfig.publisherId.uint16 = 62541;
     UA_Server_addPubSubConnection(server, &connectionConfig, &connection1);
 
     UA_PublishedDataSetConfig publishedDataSetConfig;
@@ -180,10 +181,10 @@ START_TEST(CheckNMandDSMcalculation){
     UA_ByteString buffer = UA_BYTESTRING("");
     UA_NetworkMessage networkMessage;
     receiveAvailableMessages(buffer, connection, &networkMessage);
-    //ck_assert_int_eq(networkMessage.publisherId.publisherIdUInt32 , 62541);
+    //ck_assert_int_eq(networkMessage.publisherId.uint32 , 62541);
     ck_assert_int_eq(networkMessage.payloadHeader.dataSetPayloadHeader.count, 10);
     for(size_t i = 10; i > 0; i--){
-        ck_assert_int_eq(*(networkMessage.payloadHeader.dataSetPayloadHeader.dataSetWriterIds+(i-1)), 21-i);
+        ck_assert_uint_eq(*(networkMessage.payloadHeader.dataSetPayloadHeader.dataSetWriterIds+(i-1)), 21-i);
     }
     for(int i = 0; i < networkMessage.payloadHeader.dataSetPayloadHeader.count; ++i) {
         UA_Byte_delete(networkMessage.payload.dataSetPayload.dataSetMessages[i].data.keyFrameData.rawFields.data);
@@ -198,8 +199,8 @@ START_TEST(CheckNMandDSMcalculation){
     // UA_NetworkMessage networkMessage1, networkMessage2;
     UA_NetworkMessage networkMessages[2];
     receiveAvailableMessages(buffer, connection, networkMessages);
-    ck_assert_int_eq(networkMessages[0].payloadHeader.dataSetPayloadHeader.count, 5);
-    ck_assert_int_eq(networkMessages[1].payloadHeader.dataSetPayloadHeader.count, 5);
+    ck_assert_uint_eq(networkMessages[0].payloadHeader.dataSetPayloadHeader.count, 5);
+    ck_assert_uint_eq(networkMessages[1].payloadHeader.dataSetPayloadHeader.count, 5);
     for(int i = 0; i < networkMessages[0].payloadHeader.dataSetPayloadHeader.count; ++i) {
         UA_Byte_delete(networkMessages[0].payload.dataSetPayload.dataSetMessages[i].data.keyFrameData.rawFields.data);
     }
@@ -216,7 +217,7 @@ START_TEST(CheckNMandDSMcalculation){
     UA_Server_updateWriterGroupConfig(server, writerGroupIdent, &writerGroupConfig);
     UA_NetworkMessage networkMessage3;
     receiveAvailableMessages(buffer, connection, &networkMessage3);
-    ck_assert_int_eq(networkMessage3.payloadHeader.dataSetPayloadHeader.count, 10);
+    ck_assert_uint_eq(networkMessage3.payloadHeader.dataSetPayloadHeader.count, 10);
 
     for(int i = 0; i < networkMessage3.payloadHeader.dataSetPayloadHeader.count; ++i) {
         UA_Byte_delete(networkMessage3.payload.dataSetPayload.dataSetMessages[i].data.keyFrameData.rawFields.data);
@@ -231,7 +232,7 @@ START_TEST(CheckNMandDSMcalculation){
     UA_NetworkMessage messageArray[10];
     receiveAvailableMessages(buffer, connection, messageArray);
     for (int j = 0; j < 10; ++j) {
-        ck_assert_int_eq(messageArray[j].payloadHeader.dataSetPayloadHeader.count, 1);
+        ck_assert_uint_eq(messageArray[j].payloadHeader.dataSetPayloadHeader.count, 1);
         for(int i = 0; i < messageArray[j].payloadHeader.dataSetPayloadHeader.count; ++i) {
             UA_Byte_delete(messageArray[j].payload.dataSetPayload.dataSetMessages[i].data.keyFrameData.rawFields.data);
         }
@@ -247,7 +248,7 @@ START_TEST(CheckNMandDSMcalculation){
 
     receiveAvailableMessages(buffer, connection, messageArray);
     for (int j = 0; j < 10; ++j) {
-        ck_assert_int_eq(messageArray[j].payloadHeader.dataSetPayloadHeader.count, 1);
+        ck_assert_uint_eq(messageArray[j].payloadHeader.dataSetPayloadHeader.count, 1);
         for(int i = 0; i < messageArray[j].payloadHeader.dataSetPayloadHeader.count; ++i) {
             UA_Byte_delete(messageArray[j].payload.dataSetPayload.dataSetMessages[i].data.keyFrameData.rawFields.data);
         }
@@ -346,10 +347,10 @@ START_TEST(CheckSingleDSMRawEncodedMessage){
     UA_ByteString buffer = UA_BYTESTRING("");
     UA_NetworkMessage networkMessage;
     receiveAvailableMessages(buffer, connection, &networkMessage);
-    //ck_assert_int_eq(networkMessage.publisherId.publisherIdUInt32 , 62541);
+    //ck_assert_int_eq(networkMessage.publisherId.uint32 , 62541);
     ck_assert_int_eq(networkMessage.payloadHeader.dataSetPayloadHeader.count, 10);
     for(size_t i = 10; i > 0; i--){
-        ck_assert_int_eq(*(networkMessage.payloadHeader.dataSetPayloadHeader.dataSetWriterIds+(i-1)), 21-i);
+        ck_assert_uint_eq(*(networkMessage.payloadHeader.dataSetPayloadHeader.dataSetWriterIds+(i-1)), 21-i);
     }
     for(int i = 0; i < networkMessage.payloadHeader.dataSetPayloadHeader.count; ++i) {
         UA_Byte_delete(networkMessage.payload.dataSetPayload.dataSetMessages[i].data.keyFrameData.rawFields.data);
@@ -375,7 +376,7 @@ START_TEST(CheckSingleDSMRawEncodedMessage){
     dateTime = 0;
     ck_assert(UA_DateTime_decodeBinary(&networkMessages[0].payload.dataSetPayload.dataSetMessages->data.keyFrameData.rawFields, &offset, &dateTime) ==
               UA_STATUSCODE_GOOD);
-    ck_assert_uint_eq(UA_DateTime_now(), dateTime);
+    ck_assert_int_eq(UA_DateTime_now(), dateTime);
     offset  = 0;
     dateTime = 0;
     ck_assert(UA_DateTime_decodeBinary(&networkMessages[1].payload.dataSetPayload.dataSetMessages->data.keyFrameData.rawFields, &offset, &dateTime) ==
@@ -383,13 +384,13 @@ START_TEST(CheckSingleDSMRawEncodedMessage){
     //TODO check if the length can be set right using the metadata
     //ck_assert_uint_eq(UA_DateTime_calcSizeBinary(&dateTime),
     //                  networkMessages[1].payload.dataSetPayload.dataSetMessages->data.keyFrameData.rawFields.length);
-    ck_assert_uint_eq(UA_DateTime_now(), dateTime);
+    ck_assert_int_eq(UA_DateTime_now(), dateTime);
     //Decode raw message of second DSM included in the NM
     offset  = 0;
     dateTime = 0;
     ck_assert(UA_DateTime_decodeBinary(&networkMessages[1].payload.dataSetPayload.dataSetMessages[1].data.keyFrameData.rawFields, &offset, &dateTime) ==
           UA_STATUSCODE_GOOD);
-    ck_assert_uint_eq(UA_DateTime_now(), dateTime);
+    ck_assert_int_eq(UA_DateTime_now(), dateTime);
 
     /* add a second field to the dataset writer */
     for(int i = 0; i < networkMessages[0].payloadHeader.dataSetPayloadHeader.count; ++i) {

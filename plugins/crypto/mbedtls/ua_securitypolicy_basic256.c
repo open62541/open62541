@@ -213,7 +213,7 @@ sym_verify_sp_basic256(Basic256_ChannelContext *cc,
         return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
 
     Basic256_PolicyContext *pc = cc->policyContext;
-    
+
     unsigned char mac[UA_SHA1_LENGTH];
     mbedtls_hmac(&pc->sha1MdContext, &cc->remoteSymSigningKey, message, mac);
 
@@ -364,15 +364,13 @@ parseRemoteCertificate_sp_basic256(Basic256_ChannelContext *cc,
     /* Check the key length */
 #if MBEDTLS_VERSION_NUMBER >= 0x02060000 && MBEDTLS_VERSION_NUMBER < 0x03000000
     mbedtls_rsa_context *rsaContext = mbedtls_pk_rsa(cc->remoteCertificate.pk);
-    if(rsaContext->len < UA_SECURITYPOLICY_BASIC256_MINASYMKEYLENGTH ||
-       rsaContext->len > UA_SECURITYPOLICY_BASIC256_MAXASYMKEYLENGTH)
-        return UA_STATUSCODE_BADCERTIFICATEUSENOTALLOWED;
+    size_t keylen = rsaContext->len;
 #else
     size_t keylen = mbedtls_rsa_get_len(mbedtls_pk_rsa(cc->remoteCertificate.pk));
+#endif
     if(keylen < UA_SECURITYPOLICY_BASIC256_MINASYMKEYLENGTH ||
        keylen > UA_SECURITYPOLICY_BASIC256_MAXASYMKEYLENGTH)
         return UA_STATUSCODE_BADCERTIFICATEUSENOTALLOWED;
-#endif
 
     return UA_STATUSCODE_GOOD;
 }

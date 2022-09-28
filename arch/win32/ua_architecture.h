@@ -38,6 +38,7 @@
 #include <winsock2.h>
 #include <windows.h>
 #include <ws2tcpip.h>
+#include <BaseTsd.h>
 
 #if defined (_MSC_VER) || defined(__clang__)
 # ifndef UNDER_CE
@@ -50,7 +51,7 @@
 #endif
 
 #ifndef _SSIZE_T_DEFINED
-# define ssize_t int
+typedef SSIZE_T ssize_t;
 #endif
 
 #define OPTVAL_TYPE int

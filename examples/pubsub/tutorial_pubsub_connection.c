@@ -50,7 +50,8 @@ int main(void) {
      * defined UA_NetworkAddressUrlDataType. */
     UA_NetworkAddressUrlDataType networkAddressUrl = {UA_STRING_NULL , UA_STRING("opc.udp://224.0.0.22:4840/")};
     UA_Variant_setScalar(&connectionConfig.address, &networkAddressUrl, &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
-    connectionConfig.publisherId.numeric = UA_UInt32_random();
+    connectionConfig.publisherIdType = UA_PUBLISHERIDTYPE_UINT32;
+    connectionConfig.publisherId.uint32 = UA_UInt32_random();
     /* Connection options are given as Key/Value Pairs. The available options are
      * maybe standard or vendor defined. */
     UA_KeyValuePair connectionOptions[3];

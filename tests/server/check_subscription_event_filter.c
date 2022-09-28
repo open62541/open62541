@@ -484,7 +484,7 @@ START_TEST(selectFilterValidation) {
 
     filter.selectClauses->browsePath[0] = UA_QUALIFIEDNAME_ALLOC(0, "");
     createResult = addMonitoredItem(handler_events_simple, &filter, true);
-    ck_assert_uint_eq(createResult.statusCode, UA_STATUSCODE_BADNODEIDUNKNOWN);
+    ck_assert_uint_eq(createResult.statusCode, UA_STATUSCODE_BADBROWSENAMEINVALID);
 
     UA_QualifiedName_delete(&filter.selectClauses->browsePath[0]);
     filter.selectClauses->browsePath = NULL;
@@ -818,7 +818,6 @@ static Suite *testSuite_Client(void) {
     tcase_add_test(tc_server, orderedCompareOperatorValidation);
     tcase_add_test(tc_server, betweenOperatorValidation);
     tcase_add_test(tc_server, inListOperatorValidation);
-
     suite_add_tcase(s, tc_server);
     return s;
 }

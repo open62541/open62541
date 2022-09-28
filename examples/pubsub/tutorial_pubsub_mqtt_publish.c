@@ -44,8 +44,6 @@
 #include <open62541/server.h>
 #include <open62541/server_config_default.h>
 
-#include "ua_pubsub.h"
-
 #include <signal.h>
 
 #include <open62541/plugin/pubsub_mqtt.h>
@@ -64,6 +62,7 @@
 // #define EXAMPLE_USE_MQTT_LOGIN
 
 #ifdef EXAMPLE_USE_MQTT_LOGIN
+#define LOGIN_OPTION_COUNT           2
 #define USERNAME_OPTION_NAME         "mqttUsername"
 #define PASSWORD_OPTION_NAME         "mqttPassword"
 #define MQTT_USERNAME                "open62541user"
@@ -74,6 +73,7 @@
 //#define EXAMPLE_USE_MQTT_TLS
 
 #ifdef EXAMPLE_USE_MQTT_TLS
+#define TLS_OPTION_COUNT                2
 #define USE_TLS_OPTION_NAME             "mqttUseTLS"
 #define MQTT_CA_FILE_PATH_OPTION_NAME   "mqttCaFilePath"
 #define CA_FILE_PATH                    "/path/to/server.cert"
@@ -105,15 +105,16 @@ addPubSubConnection(UA_Server *server, char *addressUrl) {
                          &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
     /* Changed to static publisherId from random generation to identify
      * the publisher on Subscriber side */
-    connectionConfig.publisherId.numeric = 2234;
+    connectionConfig.publisherIdType = UA_PUBLISHERIDTYPE_UINT16;
+    connectionConfig.publisherId.uint16 = 2234;
 
     /* configure options, set mqtt client id */
     const int connectionOptionsCount = 1
 #ifdef EXAMPLE_USE_MQTT_LOGIN
-    + 2
+    + LOGIN_OPTION_COUNT
 #endif
 #ifdef EXAMPLE_USE_MQTT_TLS
-    + 2
+    + TLS_OPTION_COUNT
 #endif
     ;
 
@@ -208,7 +209,7 @@ addWriterGroup(UA_Server *server, char *topic, int interval) {
     /* decide whether to use JSON or UADP encoding*/
 #ifdef UA_ENABLE_JSON_ENCODING
     UA_JsonWriterGroupMessageDataType *Json_writerGroupMessage;
-    
+
     if(useJson) {
         writerGroupConfig.encodingMimeType = UA_PUBSUB_ENCODING_JSON;
         writerGroupConfig.messageSettings.encoding             = UA_EXTENSIONOBJECT_DECODED;
@@ -436,6 +437,7 @@ int main(int argc, char **argv) {
                 usage();
                 return -1;
             }
+            argpos++;
             if(sscanf(argv[argpos], "%d", &interval) != 1) {
                 usage();
                 return -1;
@@ -471,14 +473,6 @@ int main(int argc, char **argv) {
         return EXIT_FAILURE;
     }
     addDataSetWriter(server, topic);
-    UA_PubSubConnection *connection = UA_PubSubConnection_findConnectionbyId(server, connectionIdent);
-
-    if(!connection) {
-        UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
-                       "Could not create a PubSubConnection");
-        UA_Server_delete(server);
-        return -1;
-    }
 
     UA_Server_run(server, &running);
     UA_Server_delete(server);

@@ -2,9 +2,10 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  *
- * Copyright (c) 2017-2018 Fraunhofer IOSB (Author: Andreas Ebner)
+ * Copyright (c) 2017-2022 Fraunhofer IOSB (Author: Andreas Ebner)
  * Copyright (c) 2019 Kalycito Infotech Private Limited
  * Copyright (c) 2021 Fraunhofer IOSB (Author: Jan Hermes)
+ * Copyright (c) 2022 Siemens AG (Author: Thomas Fischer)
  */
 
 #ifndef UA_SERVER_PUBSUB_H
@@ -138,18 +139,36 @@ typedef enum  {
 } UA_PubSubComponentEnumType;
 
 typedef enum {
-    UA_PUBSUB_PUBLISHERID_NUMERIC,
-    UA_PUBSUB_PUBLISHERID_STRING
+    UA_PUBLISHERIDTYPE_BYTE = 0,
+    UA_PUBLISHERIDTYPE_UINT16 = 1,
+    UA_PUBLISHERIDTYPE_UINT32 = 2,
+    UA_PUBLISHERIDTYPE_UINT64 = 3,
+    UA_PUBLISHERIDTYPE_STRING = 4
 } UA_PublisherIdType;
+
+/* Publisher Id
+    Valid types are defined in Part 14, 7.2.2.2.2 NetworkMessage Layout:
+
+    Bit range 0-2: PublisherId Type
+    000 The PublisherId is of DataType Byte This is the default value if ExtendedFlags1 is omitted
+    001 The PublisherId is of DataType UInt16
+    010 The PublisherId is of DataType UInt32
+    011 The PublisherId is of DataType UInt64
+    100 The PublisherId is of DataType String
+*/
+typedef union {
+    UA_Byte byte;
+    UA_UInt16 uint16;
+    UA_UInt32 uint32;
+    UA_UInt64 uint64;
+    UA_String string;
+} UA_PublisherId;
 
 struct UA_PubSubConnectionConfig {
     UA_String name;
     UA_Boolean enabled;
     UA_PublisherIdType publisherIdType;
-    union { /* std: valid types UInt or String */
-        UA_UInt32 numeric;
-        UA_String string;
-    } publisherId;
+    UA_PublisherId publisherId;
     UA_String transportProfileUri;
     UA_Variant address;
     size_t connectionPropertiesSize;
@@ -198,7 +217,7 @@ struct UA_PubSubConfiguration {
      * change from operational to error in case of a DataSetReader
      * MessageReceiveTimeout. The status code provides additional
      * information. */
-    void (*stateChangeCallback)(UA_NodeId *Id, UA_PubSubState state,
+    void (*stateChangeCallback)(UA_Server *server, UA_NodeId *id, UA_PubSubState state,
                                 UA_StatusCode status);
     /* TODO: maybe status code provides not enough information about the state change */
 
@@ -332,7 +351,7 @@ UA_Server_getPublishedDataSetMetaData(UA_Server *server, const UA_NodeId pds,
 /* Remove PublishedDataSet, identified by the NodeId. Deletion of PDS removes
  * all contained and linked PDS Fields. Connected WriterGroups will be also
  * removed. */
-UA_StatusCode UA_EXPORT
+UA_StatusCode UA_EXPORT UA_THREADSAFE
 UA_Server_removePublishedDataSet(UA_Server *server, const UA_NodeId pds);
 
 /**
@@ -384,7 +403,7 @@ typedef struct {
     UA_ConfigurationVersionDataType configurationVersion;
 } UA_DataSetFieldResult;
 
-UA_DataSetFieldResult UA_EXPORT
+UA_DataSetFieldResult UA_EXPORT UA_THREADSAFE
 UA_Server_addDataSetField(UA_Server *server,
                           const UA_NodeId publishedDataSet,
                           const UA_DataSetFieldConfig *fieldConfig,
@@ -395,7 +414,7 @@ UA_StatusCode UA_EXPORT
 UA_Server_getDataSetFieldConfig(UA_Server *server, const UA_NodeId dsf,
                                 UA_DataSetFieldConfig *config);
 
-UA_DataSetFieldResult UA_EXPORT
+UA_DataSetFieldResult UA_EXPORT UA_THREADSAFE
 UA_Server_removeDataSetField(UA_Server *server, const UA_NodeId dsf);
 
 /**
@@ -434,9 +453,9 @@ typedef struct {
  * contained in the WriterGroup. */
 
 typedef enum {
-    UA_PUBSUB_ENCODING_BINARY,
-    UA_PUBSUB_ENCODING_JSON,
-    UA_PUBSUB_ENCODING_UADP
+    UA_PUBSUB_ENCODING_UADP = 0,
+    UA_PUBSUB_ENCODING_JSON = 1,
+    UA_PUBSUB_ENCODING_BINARY = 2
 } UA_PubSubEncodingType;
 
 /**
@@ -517,7 +536,7 @@ UA_StatusCode UA_EXPORT
 UA_Server_getWriterGroupConfig(UA_Server *server, const UA_NodeId writerGroup,
                                UA_WriterGroupConfig *config);
 
-UA_StatusCode UA_EXPORT
+UA_StatusCode UA_EXPORT UA_THREADSAFE
 UA_Server_updateWriterGroupConfig(UA_Server *server, UA_NodeId writerGroupIdentifier,
                                   const UA_WriterGroupConfig *config);
 
@@ -535,10 +554,10 @@ UA_Server_freezeWriterGroupConfiguration(UA_Server *server, const UA_NodeId writ
 UA_StatusCode UA_EXPORT
 UA_Server_unfreezeWriterGroupConfiguration(UA_Server *server, const UA_NodeId writerGroup);
 
-UA_StatusCode UA_EXPORT
+UA_StatusCode UA_EXPORT UA_THREADSAFE
 UA_Server_setWriterGroupOperational(UA_Server *server, const UA_NodeId writerGroup);
 
-UA_StatusCode UA_EXPORT
+UA_StatusCode UA_EXPORT UA_THREADSAFE
 UA_Server_setWriterGroupDisabled(UA_Server *server, const UA_NodeId writerGroup);
 
 #ifdef UA_ENABLE_PUBSUB_ENCRYPTION
@@ -583,7 +602,7 @@ UA_DataSetWriterConfig_clear(UA_DataSetWriterConfig *pdsConfig);
  * Part 14, 7.1.5.2.1 defines: The link between the PublishedDataSet and
  * DataSetWriter shall be created when an instance of the DataSetWriterType is
  * created. */
-UA_StatusCode UA_EXPORT
+UA_StatusCode UA_EXPORT UA_THREADSAFE
 UA_Server_addDataSetWriter(UA_Server *server,
                            const UA_NodeId writerGroup, const UA_NodeId dataSet,
                            const UA_DataSetWriterConfig *dataSetWriterConfig,
@@ -599,7 +618,7 @@ UA_StatusCode UA_EXPORT
 UA_Server_DataSetWriter_getState(UA_Server *server, UA_NodeId dataSetWriterIdentifier,
                                UA_PubSubState *state);
 
-UA_StatusCode UA_EXPORT
+UA_StatusCode UA_EXPORT UA_THREADSAFE
 UA_Server_removeDataSetWriter(UA_Server *server, const UA_NodeId dsw);
 
 /**
@@ -708,6 +727,7 @@ typedef struct {
         // UA_SubscribedDataSetMirrorDataType subscribedDataSetMirror;
     } subscribedDataSet;
     /* non std. fields */
+    UA_String linkedStandaloneSubscribedDataSetName;
     UA_PubSubRtEncoding expectedEncoding;
 } UA_DataSetReaderConfig;
 
@@ -726,6 +746,29 @@ UA_Server_DataSetReader_getConfig(UA_Server *server, UA_NodeId dataSetReaderIden
 UA_StatusCode UA_EXPORT
 UA_Server_DataSetReader_getState(UA_Server *server, UA_NodeId dataSetReaderIdentifier,
                                  UA_PubSubState *state);
+
+typedef struct {
+    UA_String name;
+    UA_SubscribedDataSetEnumType subscribedDataSetType;
+    union {
+        /* datasetmirror is currently not implemented */
+        UA_TargetVariablesDataType target;
+    } subscribedDataSet;
+    UA_DataSetMetaDataType dataSetMetaData;
+    UA_Boolean isConnected;
+} UA_StandaloneSubscribedDataSetConfig;
+
+void
+UA_StandaloneSubscribedDataSetConfig_clear(UA_StandaloneSubscribedDataSetConfig *sdsConfig);
+
+UA_StatusCode UA_EXPORT
+UA_Server_addStandaloneSubscribedDataSet(UA_Server *server,
+                               const UA_StandaloneSubscribedDataSetConfig *subscribedDataSetConfig,
+                               UA_NodeId *sdsIdentifier);
+
+/* Remove StandaloneSubscribedDataSet, identified by the NodeId. */
+UA_StatusCode UA_EXPORT
+UA_Server_removeStandaloneSubscribedDataSet(UA_Server *server, const UA_NodeId sds);
 
 /**
  * ReaderGroup
@@ -758,6 +801,8 @@ typedef struct {
     UA_PubSubRTLevel rtLevel;
     size_t groupPropertiesSize;
     UA_KeyValuePair *groupProperties;
+    UA_PubSubEncodingType encodingMimeType;
+    UA_ExtensionObject transportSettings;
 
     /* Messages are decrypted if a SecurityPolicy is configured and the
      * securityMode set accordingly. The symmetric key is a runtime information
