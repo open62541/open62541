@@ -44,6 +44,10 @@ struct UA_CertificateVerification {
                                           const UA_ByteString *certificate,
                                           const UA_String *applicationURI);
 
+    /* Get the expire date from certificate */
+    UA_StatusCode (*getExpirationDate)(UA_DateTime *expiryDateTime, 
+                                       UA_ByteString *certificate);
+
     /* Delete the certificate verification context */
     void (*clear)(UA_CertificateVerification *cv);
 };
