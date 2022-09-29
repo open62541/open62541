@@ -89,6 +89,20 @@ typedef struct {
     UA_ConnectionManager *connectionManager;
 } UA_ServerConnection;
 
+typedef struct reverse_connect_context {
+    UA_String hostname;
+    UA_UInt16 port;
+    UA_UInt64 handle;
+
+    UA_ReverseConnectState state;
+    UA_Server_ReverseConnectStateCallback stateCallback;
+    void *callbackContext;
+
+    UA_ServerConnection currentConnection;
+    UA_SecureChannel *channel;
+    SLIST_ENTRY(reverse_connect_context) next;
+} reverse_connect_context;
+
 struct UA_Server {
     /* Config */
     UA_ServerConfig config;
@@ -168,6 +182,10 @@ struct UA_Server {
     /* Statistics */
     UA_SecureChannelStatistics secureChannelStatistics;
     UA_ServerDiagnosticsSummaryDataType serverDiagnosticsSummary;
+
+    SLIST_HEAD(, reverse_connect_context) reverseConnects;
+    UA_UInt64 reverseConnectsCheckHandle;
+    UA_UInt64 lastReverseConnectHandle;
 };
 
 /***********************/
@@ -365,6 +383,13 @@ UA_Server_networkCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
                           UA_ConnectionState state,
                           const UA_KeyValueMap *params,
                           UA_ByteString msg);
+
+/* Processing for reverse connect */
+void
+UA_Server_reverseConnectCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
+                                 void *application, void **connectionContext,
+                                 UA_ConnectionState state, const UA_KeyValueMap *params,
+                                 UA_ByteString msg);
 
 /******************************************/
 /* Internal function calls, without locks */
@@ -760,6 +785,11 @@ UA_Node_insertOrUpdateDisplayName(UA_NodeHead *head,
 UA_StatusCode
 UA_Node_insertOrUpdateDescription(UA_NodeHead *head,
                                   const UA_LocalizedText *value);
+
+
+/* Reverse connect */
+UA_StatusCode UA_Server_attemptReverseConnect(UA_Server *server, reverse_connect_context *context);
+UA_StatusCode UA_Server_setReverseConnectRetryCallback(UA_Server *server, UA_Boolean enabled);
 
 _UA_END_DECLS
 

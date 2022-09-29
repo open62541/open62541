@@ -323,7 +323,8 @@ getServicePointers(UA_UInt32 requestTypeId, const UA_DataType **requestType,
 static UA_StatusCode
 processHEL(UA_Server *server, UA_SecureChannel *channel, const UA_ByteString *msg) {
     UA_ConnectionManager *cm = channel->connectionManager;
-    if(!cm || channel->state != UA_SECURECHANNELSTATE_CONNECTED)
+    if(!cm || (channel->state != UA_SECURECHANNELSTATE_CONNECTED &&
+               channel->state != UA_SECURECHANNELSTATE_RHE_SENT))
         return UA_STATUSCODE_BADINTERNALERROR;
 
     size_t offset = 0; /* Go to the beginning of the TcpHelloMessage */
@@ -994,5 +995,206 @@ UA_Server_networkCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
         error.reason = UA_STRING_NULL;
         UA_SecureChannel_sendError(channel, &error);
         UA_SecureChannel_shutdown(channel);
+    }
+}
+
+#define UA_MINMESSAGESIZE 8192
+
+static UA_StatusCode
+sendRHEMessage(UA_Server *server, uintptr_t connectionId, UA_ConnectionManager *cm) {
+    /* Get a buffer */
+    UA_ByteString message;
+    UA_StatusCode retval = cm->allocNetworkBuffer(cm, connectionId,
+                                                  &message, UA_MINMESSAGESIZE);
+
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
+
+    /* Prepare the RHE message and encode at offset 8 */
+    UA_TcpReverseHelloMessage reverseHello;
+    UA_TcpReverseHelloMessage_init(&reverseHello);
+
+    UA_ServerConfig *config = UA_Server_getConfig(server);
+    reverseHello.serverUri = config->applicationDescription.applicationUri;
+    if (config->applicationDescription.discoveryUrlsSize)
+        reverseHello.endpointUrl = config->applicationDescription.discoveryUrls[0];
+
+    UA_Byte *bufPos = &message.data[8]; /* skip the header */
+    const UA_Byte *bufEnd = &message.data[message.length];
+    UA_StatusCode result = UA_encodeBinaryInternal(&reverseHello, &UA_TRANSPORT[UA_TRANSPORT_TCPREVERSEHELLOMESSAGE],
+                                                    &bufPos, &bufEnd, NULL, NULL);
+
+    if (result != UA_STATUSCODE_GOOD) {
+        cm->freeNetworkBuffer(cm, connectionId, &message);
+        return result;
+    }
+
+    /* Encode the message header at offset 0 */
+    UA_TcpMessageHeader messageHeader;
+    messageHeader.messageTypeAndChunkType = UA_CHUNKTYPE_FINAL + UA_MESSAGETYPE_RHE;
+    messageHeader.messageSize = (UA_UInt32) ((uintptr_t)bufPos - (uintptr_t)message.data);
+    bufPos = message.data;
+    retval = UA_encodeBinaryInternal(&messageHeader,
+                                     &UA_TRANSPORT[UA_TRANSPORT_TCPMESSAGEHEADER],
+                                     &bufPos, &bufEnd, NULL, NULL);
+
+    if(retval != UA_STATUSCODE_GOOD) {
+        cm->freeNetworkBuffer(cm, connectionId, &message);
+        return retval;
+    }
+
+    /* Send the RHE message */
+    message.length = messageHeader.messageSize;
+    retval = cm->sendWithConnection(cm, connectionId,
+                                    NULL, &message);
+
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_CLIENT, "Sending RHE failed");
+        cm->closeConnection(cm, connectionId);
+        return retval;
+    }
+
+    UA_LOG_DEBUG(&server->config.logger, UA_LOGCATEGORY_CLIENT, "Sent RHE message");
+    return UA_STATUSCODE_GOOD;
+}
+
+static void retryReverseConnectCallback(UA_Server *server, void *context) {
+    (void)context;
+
+    reverse_connect_context *rc = NULL;
+    SLIST_FOREACH(rc, &server->reverseConnects, next) {
+        if (rc && rc->state == UA_REVERSECONNECTSTATE_DISCONNECTED) {
+            UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                        "Attempt to reverse reconnect to %.*s:%d", (int)rc->hostname.length,
+                        rc->hostname.data, rc->port);
+            UA_Server_attemptReverseConnect(server, rc);
+        }
+    }
+}
+
+UA_StatusCode UA_Server_setReverseConnectRetryCallback(UA_Server *server, UA_Boolean enabled) {
+    if (enabled && !server->reverseConnectsCheckHandle) {
+        const UA_UInt32 reconnectInterval = server->config.reverseReconnectInterval ?
+                    server->config.reverseReconnectInterval : 15000;
+        return UA_Server_addRepeatedCallback(server, retryReverseConnectCallback, NULL,
+                                             reconnectInterval, &server->reverseConnectsCheckHandle);
+    } else if (!enabled && server->reverseConnectsCheckHandle) {
+        UA_Server_removeCallback(server, server->reverseConnectsCheckHandle);
+        server->reverseConnectsCheckHandle = 0;
+        return UA_STATUSCODE_GOOD;
+    }
+
+    return UA_STATUSCODE_GOOD;
+}
+
+void UA_Server_reverseConnectCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
+                          void *application, void **connectionContext,
+                          UA_ConnectionState state, const UA_KeyValueMap *params,
+                          UA_ByteString msg) {
+    (void)params;
+
+    UA_Server *server = (UA_Server*)application;
+
+    /* UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_SERVER, "Reverse connect has state %d", state); */
+
+    reverse_connect_context *context = (reverse_connect_context *)*connectionContext;
+
+    context->currentConnection.state = state;
+
+    if(context->currentConnection.connectionId == 0) {
+        /* The socket is closing without being previously registered -> ignore */
+        if(state == UA_CONNECTIONSTATE_CLOSED ||
+           state == UA_CONNECTIONSTATE_CLOSING) {
+            context->state = UA_REVERSECONNECTSTATE_DISCONNECTED;
+            if (context->stateCallback)
+                context->stateCallback(server, context->handle, context->state,
+                                       context->callbackContext);
+            return;
+        }
+
+        context->currentConnection.state = state;
+        context->currentConnection.connectionId = connectionId;
+        context->currentConnection.connectionManager = cm;
+        return;
+    }
+
+    /* The connection is closing. This is the last callback for it. */
+    if(state == UA_CONNECTIONSTATE_CLOSING && context->channel) {
+        deleteServerSecureChannel(server, context->channel);
+        context->channel = NULL;
+        context->state = UA_REVERSECONNECTSTATE_DISCONNECTED;
+        context->currentConnection.connectionId = 0;
+        if (context->stateCallback)
+            context->stateCallback(server, context->handle, context->state,
+                                   context->callbackContext);
+        return;
+    }
+
+    if (state == UA_CONNECTIONSTATE_CLOSING) {
+        context->state = UA_REVERSECONNECTSTATE_DISCONNECTED;
+
+        if (context->stateCallback)
+            context->stateCallback(server, context->handle, context->state,
+                                   context->callbackContext);
+    }
+
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+    if(state == UA_CONNECTIONSTATE_ESTABLISHED && !context->channel) {
+        /* A new connection is opening. This is the only place where
+         * createSecureChannel is used. */
+        retval = createServerSecureChannel(server, cm, connectionId, &context->channel);
+
+        if (retval == UA_STATUSCODE_GOOD) {
+            UA_LOG_INFO_CHANNEL(&server->config.logger, context->channel, "SecureChannel created");
+
+            /* Send the RHE message */
+            UA_StatusCode result = sendRHEMessage(server, connectionId, cm);
+
+            UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_SERVER, "Sending RHE returned %s", UA_StatusCode_name(result));
+
+            context->channel->state = UA_SECURECHANNELSTATE_RHE_SENT;
+        } else {
+            UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                           "TCP %lu\t| Could not accept the connection with status %s",
+                           (unsigned long)context->currentConnection.connectionId, UA_StatusCode_name(retval));
+        }
+
+        if(retval != UA_STATUSCODE_GOOD) {
+            context->state = UA_REVERSECONNECTSTATE_DISCONNECTED;
+            cm->closeConnection(cm, connectionId);
+        }
+
+        return;
+    }
+
+    /* The connection has fully opened */
+    if (context->channel) {
+        if(context->channel->state < UA_SECURECHANNELSTATE_CONNECTED)
+            context->channel->state = UA_SECURECHANNELSTATE_CONNECTED;
+
+        if (context->state != UA_REVERSECONNECTSTATE_CONNECTED) {
+            context->state = UA_REVERSECONNECTSTATE_CONNECTED;
+
+            if (context->stateCallback)
+                context->stateCallback(server, context->handle, context->state,
+                                       context->callbackContext);
+        }
+
+        retval = UA_SecureChannel_processBuffer(context->channel, server,
+                                                processSecureChannelMessage, &msg);
+        if(retval != UA_STATUSCODE_GOOD) {
+            UA_LOG_WARNING_CHANNEL(&server->config.logger, context->channel,
+                                   "Processing the message failed with error %s",
+                                   UA_StatusCode_name(retval));
+
+            /* Send an ERR message and close the connection */
+            UA_TcpErrorMessage error;
+            error.error = retval;
+            error.reason = UA_STRING_NULL;
+            UA_SecureChannel_sendError(context->channel, &error);
+            UA_SecureChannel_shutdown(context->channel);
+
+            context->state = UA_REVERSECONNECTSTATE_DISCONNECTED;
+        }
     }
 }

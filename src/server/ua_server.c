@@ -616,6 +616,119 @@ UA_Server_createServerConnection(UA_Server *server, const UA_String *serverUrl) 
     return UA_STATUSCODE_BADINTERNALERROR;
 }
 
+UA_StatusCode UA_Server_attemptReverseConnect(UA_Server *server, reverse_connect_context *context) {
+    UA_ServerConfig *config = UA_Server_getConfig(server);
+
+    UA_StatusCode res = UA_STATUSCODE_BADINTERNALERROR;
+    UA_String tcpString = UA_STRING_STATIC("tcp");
+    for(UA_EventSource *es = config->eventLoop->eventSources; es != NULL; es = es->next) {
+        /* Is this a usable connection manager? */
+        if(es->eventSourceType != UA_EVENTSOURCETYPE_CONNECTIONMANAGER)
+            continue;
+        UA_ConnectionManager *cm = (UA_ConnectionManager*)es;
+        if(!UA_String_equal(&tcpString, &cm->protocol))
+            continue;
+
+        if (es->state != UA_EVENTSOURCESTATE_STARTED)
+            return UA_STATUSCODE_GOODCOMPLETESASYNCHRONOUSLY;
+
+        /* Set up the parameters */
+        UA_KeyValueMap params;
+        params.mapSize = 0;
+        params.map = NULL;
+        UA_KeyValueMap_setScalar(&params, UA_QUALIFIEDNAME(0, "hostname"), &context->hostname,
+                                 &UA_TYPES[UA_TYPES_STRING]);
+        UA_KeyValueMap_setScalar(&params, UA_QUALIFIEDNAME(0, "port"), &context->port,
+                                 &UA_TYPES[UA_TYPES_UINT16]);
+
+        /* Open the server connection */
+        res = cm->openConnection(cm, &params, server, context,
+                                 UA_Server_reverseConnectCallback);
+
+        UA_KeyValueMap_clear(&params);
+
+        if (res != UA_STATUSCODE_GOOD) {
+            context->currentConnection.connectionId = 0;
+            context->state = UA_REVERSECONNECTSTATE_DISCONNECTED;
+            if (context->stateCallback)
+                context->stateCallback(server, context->handle, context->state,
+                                       context->callbackContext);
+        } else {
+            context->state = UA_REVERSECONNECTSTATE_CONNECTING;
+            if (context->stateCallback)
+                context->stateCallback(server, context->handle, context->state,
+                                       context->callbackContext);
+        }
+    }
+
+    return res;
+}
+
+UA_StatusCode UA_Server_addReverseConnect(UA_Server *server, UA_String url,
+                                          UA_Server_ReverseConnectStateCallback stateCallback,
+                                          void *callbackContext, UA_UInt64 *handle) {
+    UA_ServerConfig *config = UA_Server_getConfig(server);
+
+    UA_String hostname = UA_STRING_NULL;
+    UA_UInt16 port = 0;
+    UA_StatusCode res = UA_parseEndpointUrl(&url, &hostname, &port, NULL);
+    if(res != UA_STATUSCODE_GOOD) {
+        UA_LOG_WARNING(&config->logger, UA_LOGCATEGORY_SERVER,
+                       "OPC UA URL is invalid: %.*s",
+                       (int)url.length, url.data);
+        return res;
+    }
+
+    if (SLIST_EMPTY(&server->reverseConnects))
+        UA_Server_setReverseConnectRetryCallback(server, true);
+
+    reverse_connect_context *newContext = (reverse_connect_context *)calloc(1, sizeof(reverse_connect_context));
+    UA_String_copy(&hostname, &newContext->hostname);
+    newContext->port = port;
+    newContext->handle = ++server->lastReverseConnectHandle;
+    newContext->stateCallback = stateCallback;
+    newContext->callbackContext = callbackContext;
+    SLIST_INSERT_HEAD(&server->reverseConnects, newContext, next);
+
+    if (handle)
+        *handle = newContext->handle;
+
+    return UA_Server_attemptReverseConnect(server, newContext);
+}
+
+UA_StatusCode UA_Server_removeReverseConnect(UA_Server *server, UA_UInt64 handle) {
+    reverse_connect_context *rev = NULL;
+    reverse_connect_context *temp = NULL;
+    UA_StatusCode result = UA_STATUSCODE_BADNOTFOUND;
+
+    SLIST_FOREACH_SAFE(rev, &server->reverseConnects, next, temp) {
+        if (rev->handle == handle) {
+            SLIST_REMOVE(&server->reverseConnects, rev, reverse_connect_context, next);
+
+            if (rev->state != UA_REVERSECONNECTSTATE_DISCONNECTED) {
+                UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_SERVER, "Teardown required");
+
+                /* Request disconnect and run the event loop for one iteration */
+                if (rev->currentConnection.connectionId) {
+                    rev->currentConnection.connectionManager->closeConnection(
+                                rev->currentConnection.connectionManager,
+                                rev->currentConnection.connectionId);
+                    server->config.eventLoop->run(server->config.eventLoop, 0);
+                }
+            }
+            UA_String_clear(&rev->hostname);
+            free(rev);
+            result = UA_STATUSCODE_GOOD;
+            break;
+        }
+    }
+
+    if (SLIST_EMPTY(&server->reverseConnects))
+         UA_Server_setReverseConnectRetryCallback(server, false);
+
+    return result;
+}
+
 /********************/
 /* Main Server Loop */
 /********************/
@@ -763,6 +876,13 @@ UA_Server_run_startup(UA_Server *server) {
 
     server->state = UA_SERVERLIFECYCLE_FRESH;
 
+    if (!SLIST_EMPTY(&server->reverseConnects)) {
+        reverse_connect_context *rev = NULL;
+        SLIST_FOREACH(rev, &server->reverseConnects, next) {
+            UA_Server_attemptReverseConnect(server, rev);
+        }
+    }
+
     return UA_STATUSCODE_GOOD;
 }
 
@@ -836,6 +956,15 @@ UA_Server_run_shutdown(UA_Server *server) {
     if(server->config.mdnsEnabled)
         stopMulticastDiscoveryServer(server);
 #endif
+
+    UA_Server_setReverseConnectRetryCallback(server, false);
+    reverse_connect_context *next = server->reverseConnects.slh_first;
+    while (next) {
+        reverse_connect_context *current = next;
+        next = current->next.sle_next;
+        UA_String_clear(&current->hostname);
+        free(current);
+    }
 
     return UA_STATUSCODE_GOOD;
 }

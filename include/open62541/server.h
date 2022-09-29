@@ -363,6 +363,11 @@ struct UA_ServerConfig {
     UA_Boolean deleteEventCapability;
     UA_Boolean deleteAtTimeDataCapability;
 #endif
+
+    /**
+     * Reverse Connect
+     * ^^^^^^^^^^^^^^^ */
+    UA_UInt32 reverseReconnectInterval; /* Default is 15000 ms */
 };
 
 void UA_EXPORT
@@ -1885,6 +1890,69 @@ typedef struct {
 
 UA_ServerStatistics UA_EXPORT
 UA_Server_getStatistics(UA_Server *server);
+
+/**
+  * Reverse Connect
+  * ---------------
+  *
+  * The reverse connect feature of OPC UA permits the server instead of the client to
+  * establish the connection.
+  * The client must expose the listening port so the server is able to reach it.
+  */
+
+/**
+  * The CONNECTED state refers to the secure channel and is reached once the secure channel
+  * has been opened.
+  */
+typedef enum {
+    UA_REVERSECONNECTSTATE_DISCONNECTED = 0,
+    UA_REVERSECONNECTSTATE_CONNECTING,
+    UA_REVERSECONNECTSTATE_CONNECTED,
+} UA_ReverseConnectState;
+
+/**
+ * The reverse connect state change callback is called whenever the state of a reverse
+ * connect is modified by a connection attempt, a successful connection or a connection
+ * loss.
+ *
+ * Each attempt to establish a connection will lead to a call with
+ * UA_REVERSECONNECTSTATE_CONNECTING followed by either UA_REVERSECONNECTSTATE_CONNECTED
+ * if a secure channel was successfully opened or UA_REVERSECONNECTSTATE_DISCONNECTED if
+ * the connection attempt was not successful.
+ * A connection break leads to a call with UA_REVERSECONNECTSTATE_DISCONNECTED followed by
+ * UA_REVERSECONNECTSTATE_CONNECTING when the next reconnect attempt is made.
+ */
+typedef void (*UA_Server_ReverseConnectStateCallback)(UA_Server *server, UA_UInt64 handle,
+                                                      UA_ReverseConnectState state,
+                                                      void *context);
+
+/**
+ * Registers a reverse connect in the server.
+ * The server periodically attempts to establish a connection if the initial connect fails
+ * or if the connection breaks.
+ *
+ * @param server The server object
+ * @param url The URL of the remote client
+ * @param stateCallback The callback which will be called on state changes
+ * @param callbackContext The context for the state callback
+ * @param handle Is set to the handle of the reverse connect if not NULL
+ * @return Returns UA_STATUSCODE_GOOD if the reverse connect has been registered
+ */
+UA_StatusCode UA_EXPORT
+UA_Server_addReverseConnect(UA_Server *server, UA_String url,
+                                          UA_Server_ReverseConnectStateCallback stateCallback,
+                                          void *callbackContext, UA_UInt64 *handle);
+
+/**
+ * Removes a reverse connect from the server and closes the connection if it is currently
+ * open.
+ *
+ * @param server The server object
+ * @param handle The handle of the reverse connect to remove
+ * @return Returns UA_STATUSCODE_GOOD if the reverse connect has been successfully removed
+ */
+UA_StatusCode UA_EXPORT
+UA_Server_removeReverseConnect(UA_Server *server, UA_UInt64 handle);
 
 _UA_END_DECLS
 
