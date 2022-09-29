@@ -550,21 +550,14 @@ verifyServerApplicationURI(const UA_Server *server) {
 UA_ServerStatistics
 UA_Server_getStatistics(UA_Server *server) {
     UA_ServerStatistics stat;
-    stat.ns = server->networkStatistics;
     stat.scs = server->secureChannelStatistics;
-
+    UA_ServerDiagnosticsSummaryDataType *sds = &server->serverDiagnosticsSummary;
     stat.ss.currentSessionCount = server->activeSessionCount;
-    stat.ss.cumulatedSessionCount =
-        server->serverDiagnosticsSummary.cumulatedSessionCount;
-    stat.ss.securityRejectedSessionCount =
-        server->serverDiagnosticsSummary.securityRejectedSessionCount;
-    stat.ss.rejectedSessionCount =
-        server->serverDiagnosticsSummary.rejectedSessionCount;
-    stat.ss.sessionTimeoutCount =
-        server->serverDiagnosticsSummary.sessionTimeoutCount;
-    stat.ss.sessionAbortCount =
-        server->serverDiagnosticsSummary.sessionAbortCount;
-
+    stat.ss.cumulatedSessionCount = sds->cumulatedSessionCount;
+    stat.ss.securityRejectedSessionCount = sds->securityRejectedSessionCount;
+    stat.ss.rejectedSessionCount = sds->rejectedSessionCount;
+    stat.ss.sessionTimeoutCount = sds->sessionTimeoutCount;
+    stat.ss.sessionAbortCount = sds->sessionAbortCount;
     return stat;
 }
 

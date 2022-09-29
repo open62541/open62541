@@ -188,27 +188,15 @@ typedef enum {
 } UA_SessionState;
 
 /**
- * Statistic counters
+ * Statistic Counters
  * ------------------
  *
- * The stack manages statistic counters for the following layers:
+ * The stack manages statistic counters for SecureChannels and Sessions.
  *
- * - Network
- * - Secure channel
- * - Session
- *
- * The session layer counters are matching the counters of the
+ * The Session layer counters are matching the counters of the
  * ServerDiagnosticsSummaryDataType that are defined in the OPC UA Part 5
- * specification. Counters of the other layers are not specified by OPC UA but
- * are harmonized with the session layer counters if possible. */
-
-typedef struct {
-    size_t currentConnectionCount;
-    size_t cumulatedConnectionCount;
-    size_t rejectedConnectionCount;
-    size_t connectionTimeoutCount;
-    size_t connectionAbortCount;
-} UA_NetworkStatistics;
+ * specification. The SecureChannel counters are not defined in the OPC UA spec,
+ * but are harmonized with the Session layer counters if possible. */
 
 typedef struct {
     size_t currentChannelCount;

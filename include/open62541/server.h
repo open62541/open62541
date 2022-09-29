@@ -1879,7 +1879,6 @@ UA_Server_setAsyncOperationResult(UA_Server *server,
 * are structured per OPC UA communication layer. */
 
 typedef struct {
-   UA_NetworkStatistics ns;
    UA_SecureChannelStatistics scs;
    UA_SessionStatistics ss;
 } UA_ServerStatistics;
