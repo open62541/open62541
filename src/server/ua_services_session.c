@@ -302,6 +302,7 @@ Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
     if(response->responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
         UA_LOG_WARNING_CHANNEL(&server->config.logger, channel,
                                "Processing CreateSessionRequest failed");
+        UA_atomic_addSize(&server->serverStats.ss.rejectedSessionCount, 1);
         return;
     }
 
