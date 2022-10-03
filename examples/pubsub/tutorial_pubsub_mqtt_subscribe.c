@@ -200,6 +200,9 @@ addDataSetReader(UA_Server *server) {
     readerConfig.publisherId.data = &publisherIdentifier;
     readerConfig.writerGroupId    = 100;
     readerConfig.dataSetWriterId  = 62541;
+#ifdef UA_ENABLE_PUBSUB_MONITORING
+    readerConfig.messageReceiveTimeout = 0;
+#endif
 
     /* Setting up Meta data configuration in DataSetReader */
     fillTestDataSetMetaData(&readerConfig.dataSetMetaData);
@@ -360,7 +363,7 @@ int main(int argc, char **argv) {
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     UA_Server *server = UA_Server_new();
     UA_ServerConfig *config = UA_Server_getConfig(server);
-    UA_ServerConfig_setDefault(config);
+    UA_ServerConfig_setMinimal(config, 4841, NULL);
     UA_ServerConfig_addPubSubTransportLayer(config, UA_PubSubTransportLayerMQTT());
 
     /* API calls */
