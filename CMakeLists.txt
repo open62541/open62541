@@ -1745,6 +1745,7 @@ install(DIRECTORY ${UA_install_tools_dirs}
     FILES_MATCHING
     PATTERN "*"
     PATTERN "*.pyc" EXCLUDE
+    PATTERN ".git*" EXCLUDE
     )
 
 install(FILES ${UA_install_tools_files} DESTINATION ${open62541_install_tools_dir})
