@@ -1037,7 +1037,7 @@ compatibleValue(UA_Server *server, UA_Session *session, const UA_NodeId *targetD
                 const UA_UInt32 *targetArrayDimensions, const UA_Variant *value,
                 const UA_NumericRange *range, const char **reason) {
     /* Empty value */
-    if(!value->type) {
+    if(UA_Variant_isEmpty(value)) {
         /* Empty value is allowed for BaseDataType */
         if(UA_NodeId_equal(targetDataTypeId, &UA_TYPES[UA_TYPES_VARIANT].typeId) ||
            UA_NodeId_equal(targetDataTypeId, &UA_NODEID_NULL))
@@ -1059,6 +1059,14 @@ compatibleValue(UA_Server *server, UA_Session *session, const UA_NodeId *targetD
         /* Default handling is to abort */
         *reason = reason_EmptyType;
         return false;
+    }
+
+    /* Empty array of ExtensionObjects */
+    if(UA_Variant_hasArrayType(value, &UA_TYPES[UA_TYPES_EXTENSIONOBJECT]) &&
+       value->arrayLength == 0) {
+        /* There is no way to check type compatibility here. Leave it for the upper layers to
+         * decide, if empty array is okay. */
+        return true;        
     }
 
     /* Is the datatype compatible? */
@@ -1150,12 +1158,14 @@ adjustValueType(UA_Server *server, UA_Variant *value,
     if(!value->type)
         return;
 
-    const UA_DataType *targetDataType = UA_findDataType(targetDataTypeId);
-    if(!targetDataType)
-        return;
-
     /* Unwrap ExtensionObject arrays if they all contain the same DataType */
     unwrapEOArray(server, value);
+
+    const UA_DataType *targetDataType = UA_findDataType(targetDataTypeId);
+    if(!targetDataType) {
+        /* Type might not have been found, if it's a non-NS0 type or an abstract type. */
+        return;
+    }
 
     /* A string is written to a byte array. the valuerank and array dimensions
      * are checked later */
