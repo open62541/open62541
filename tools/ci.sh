@@ -224,6 +224,7 @@ function unit_tests_mt {
           -DUA_ENABLE_SUBSCRIPTIONS_EVENTS=ON \
           ..
     make ${MAKEOPTS}
+    set_capabilities
     make test ARGS="-V"
 }
 
@@ -238,6 +239,7 @@ function unit_tests_alarms {
           -DUA_NAMESPACE_ZERO=FULL \
           ..
     make ${MAKEOPTS}
+    set_capabilities
     make test ARGS="-V"
 }
 
@@ -251,6 +253,7 @@ function unit_tests_encryption {
           -DUA_ENABLE_ENCRYPTION=$1 \
           ..
     make ${MAKEOPTS}
+    set_capabilities
     make test ARGS="-V"
 }
 
@@ -270,6 +273,7 @@ function unit_tests_encryption_mbedtls_pubsub {
           -DUA_ENABLE_PUBSUB_ENCRYPTION=ON \
           ..
     make ${MAKEOPTS}
+    set_capabilities
     make test ARGS="-V"
 }
 
@@ -292,6 +296,7 @@ function unit_tests_pubsub_sks {
           -DUA_ENABLE_PUBSUB_SKS=ON \
           ..
     make ${MAKEOPTS}
+    set_capabilities
     make test ARGS="-V"
 }
 
@@ -351,6 +356,7 @@ function unit_tests_valgrind {
           -DUA_ENABLE_UNIT_TESTS_MEMCHECK=ON \
           ..
     make ${MAKEOPTS}
+    # set_capabilities not possible with valgrind
     make test ARGS="-V"
 }
 

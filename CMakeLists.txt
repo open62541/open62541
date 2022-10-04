@@ -101,6 +101,10 @@ if("${UA_ARCHITECTURE}" STREQUAL "None")
     endif(UNIX)
 endif()
 
+if(${CMAKE_SYSTEM_NAME} STREQUAL "Linux")
+  set(LINUX TRUE)
+endif()
+
 message(STATUS "The selected architecture is: ${UA_ARCHITECTURE}")
 string(TOUPPER ${UA_ARCHITECTURE} UA_ARCHITECTURE_UPPER)
 add_definitions(-DUA_ARCHITECTURE_${UA_ARCHITECTURE_UPPER})
@@ -129,7 +133,11 @@ set(ua_architecture_sources ${ua_architecture_sources}
     ${PROJECT_SOURCE_DIR}/arch/eventloop_posix_tcp.c
     ${PROJECT_SOURCE_DIR}/arch/eventloop_posix_udp.c
     ${PROJECT_SOURCE_DIR}/arch/eventloop_posix_interrupt.c
-)
+  )
+
+if(LINUX)
+    list(APPEND ua_architecture_sources ${PROJECT_SOURCE_DIR}/arch/eventloop_posix_eth.c)
+endif()
 
 set(ua_architecture_headers ${ua_architecture_headers}
     ${PROJECT_SOURCE_DIR}/include/open62541/architecture_functions.h

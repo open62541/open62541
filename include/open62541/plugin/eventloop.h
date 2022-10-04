@@ -506,9 +506,41 @@ UA_ConnectionManager_new_POSIX_TCP(const UA_String eventSourceName);
  *                               hostname parameter.
  *
  * Send Parameters:
- * No additional parameters for sending over an established UDP socket defined. */
+ * No additional parameters for sending over an UDP connection defined. */
 UA_EXPORT UA_ConnectionManager *
 UA_ConnectionManager_new_POSIX_UDP(const UA_String eventSourceName);
+
+/**
+ * Ethernet Connection Manager
+ * ~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ * Listens on the network and manages UDP connections. This should be available
+ * for all architectures.
+ *
+ * The configuration parameters have to set before calling _start to take
+ * effect.
+ *
+ * Open Connection Parameters:
+ * - 0:listen [bool]: The connection is either for sending or for listening
+ *                    (default: false).
+ * - 0:interface [string]: The name of the Ethernet interface to use (required).
+ * - 0:address [string]: MAC target address consisting of six groups of
+ *                       hexadecimal digits separated by hyphens such as
+ *                       01-23-45-67-89-ab. For sending this is a required
+ *                       parameter. For listening this is a multicast address
+ *                       that the connections tries to register for.
+ * - 0:ethertype [uint16]: EtherType for sending and receiving frames (optional).
+ *                         For listening connections, this filters out all frames
+ *                         with different EtherTypes.
+ * - 0:promiscuous [bool]: Receive frames also for different target addresses.
+ *                         Defined only for listening connections (default: false).
+ * - 0:vid [uint16]: 12-bit VLAN identifier (optional for send connections).
+ * - 0:pcp [byte]: 3-bit priority code point (optional for send connections).
+ * - 0:dei [bool]: 1-bit drop eligible indicator (optional for seond connections).
+ *
+ * Send Parameters:
+ * No additional parameters for sending over an Ethernet connection defined. */
+UA_EXPORT UA_ConnectionManager *
+UA_ConnectionManager_new_POSIX_Ethernet(const UA_String eventSourceName);
 
 /**
  * Signal Interrupt Manager

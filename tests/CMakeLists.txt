@@ -58,6 +58,7 @@ endif()
 
 # Use different plugins for testing
 set(test_plugin_sources
+    ${PROJECT_SOURCE_DIR}/arch/eventloop_common.c
     ${PROJECT_SOURCE_DIR}/arch/eventloop_posix.c
     ${PROJECT_SOURCE_DIR}/arch/eventloop_posix_select.c
     ${PROJECT_SOURCE_DIR}/arch/eventloop_posix_epoll.c
@@ -75,6 +76,10 @@ set(test_plugin_sources
     ${PROJECT_SOURCE_DIR}/tests/testing-plugins/testing_policy.c
     ${PROJECT_SOURCE_DIR}/tests/testing-plugins/testing_networklayers.c
     )
+
+if(LINUX)
+  list(APPEND test_plugin_sources ${PROJECT_SOURCE_DIR}/arch/eventloop_posix_eth.c)
+endif()
 
 if(UA_ENABLE_HISTORIZING)
     set(test_plugin_sources ${test_plugin_sources}
@@ -240,6 +245,10 @@ ua_add_test(check_eventloop.c)
 ua_add_test(check_eventloop_tcp.c)
 ua_add_test(check_eventloop_udp.c)
 ua_add_test(check_eventloop_interrupt.c)
+if(LINUX AND NOT UA_ENABLE_UNIT_TESTS_MEMCHECK)
+    # Requires raw socket capability, currently not possible with valgrind
+    ua_add_test(check_eventloop_eth.c)
+endif()
 
 # Test Server
 
