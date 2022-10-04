@@ -71,12 +71,12 @@ UA_ClientConfig_clear(UA_ClientConfig *config) {
         config->certificateVerification.clear(&config->certificateVerification);
 
     /* Delete the SecurityPolicies */
-    if(config->securityPolicies == 0)
-        return;
-    for(size_t i = 0; i < config->securityPoliciesSize; i++)
-        config->securityPolicies[i].clear(&config->securityPolicies[i]);
-    UA_free(config->securityPolicies);
-    config->securityPolicies = 0;
+    if(config->securityPolicies != 0) {
+        for(size_t i = 0; i < config->securityPoliciesSize; i++)
+            config->securityPolicies[i].clear(&config->securityPolicies[i]);
+        UA_free(config->securityPolicies);
+        config->securityPolicies = 0;
+    }
 
     /* Stop and delete the EventLoop */
     UA_EventLoop *el = config->eventLoop;
