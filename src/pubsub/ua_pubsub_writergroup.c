@@ -362,10 +362,8 @@ UA_Server_freezeWriterGroupConfiguration(UA_Server *server,
         goto cleanup_dsm;
 
     memset(&wg->bufferedMessage, 0, sizeof(UA_NetworkMessageOffsetBuffer));
-    UA_NetworkMessage_calcSizeBinary(&networkMessage, &wg->bufferedMessage);
+    msgSize = UA_NetworkMessage_calcSizeBinary(&networkMessage, &wg->bufferedMessage);
 
-    /* Allocate the buffer. Allocate on the stack if the buffer is small. */
-    msgSize = UA_NetworkMessage_calcSizeBinary(&networkMessage, NULL);
 #ifdef UA_ENABLE_PUBSUB_ENCRYPTION
     if(wg->config.securityMode > UA_MESSAGESECURITYMODE_NONE) {
         UA_PubSubSecurityPolicy *sp = wg->config.securityPolicy;

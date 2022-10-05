@@ -331,10 +331,20 @@ generateFieldMetaData(UA_Server *server, UA_PublishedDataSet *pds,
                              "MetaData creation: Found DataType %s",
                              currentDataType->typeName);
 #endif
-        /* Check if the datatype is a builtInType, if yes set the builtinType.
-         * TODO: Remove the magic number */
+        /* Check if the datatype is a builtInType, if yes set the builtinType. */
         if(currentDataType->typeKind <= UA_DATATYPEKIND_ENUM)
             fieldMetaData->builtInType = (UA_Byte)currentDataType->typeKind;
+        /* set the maxStringLength attribute */
+        if(field->config.field.variable.maxStringLength != 0){
+            if(currentDataType->typeKind == UA_DATATYPEKIND_BYTESTRING ||
+            currentDataType->typeKind == UA_DATATYPEKIND_STRING ||
+            currentDataType->typeKind == UA_DATATYPEKIND_LOCALIZEDTEXT) {
+                fieldMetaData->maxStringLength = field->config.field.variable.maxStringLength;
+            } else {
+                UA_LOG_WARNING_DATASET(&server->config.logger, pds,
+                                       "PubSub meta data generation: MaxStringLength with incompatible DataType configured.");
+            }
+        }
     } else {
         UA_LOG_WARNING_DATASET(&server->config.logger, pds,
                                "PubSub meta data generation: DataType is UA_NODEID_NULL");
@@ -1123,6 +1133,8 @@ UA_PubSubDataSetWriter_generateKeyFrameMessage(UA_Server *server,
     dataSetMessage->data.keyFrameData.fieldCount = currentDataSet->fieldSize;
     dataSetMessage->data.keyFrameData.dataSetFields = (UA_DataValue *)
             UA_Array_new(currentDataSet->fieldSize, &UA_TYPES[UA_TYPES_DATAVALUE]);
+    UA_PublishedDataSet *pds = UA_PublishedDataSet_findPDSbyId(server, dataSetWriter->connectedDataSet);
+    dataSetMessage->data.keyFrameData.dataSetMetaDataType = &pds->dataSetMetaData;
     if(!dataSetMessage->data.keyFrameData.dataSetFields)
         return UA_STATUSCODE_BADOUTOFMEMORY;
 

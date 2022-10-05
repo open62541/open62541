@@ -71,6 +71,8 @@ typedef struct {
     UA_ByteString rawFields;
     /* Json keys for the dataSetFields: TODO: own dataSetMessageType for json? */
     UA_String* fieldNames;
+    /* This information is for proper en- and decoding needed */
+    UA_DataSetMetaDataType *dataSetMetaDataType;
 } UA_DataSetMessage_DataKeyFrameData;
 
 typedef struct {
