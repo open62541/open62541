@@ -213,7 +213,7 @@ static UA_StatusCode
 ServerNetworkLayerTCP_add(UA_ServerNetworkLayer *nl, ServerNetworkLayerTCP *layer,
                           UA_Int32 newsockfd, struct sockaddr_storage *remote) {
    if(layer->maxConnections && layer->connectionsSize >= layer->maxConnections &&
-      !purgeFirstConnectionWithoutChannel(layer)) {
+      !purgeFirstConnectionWithoutChannel(layer, nl)) {
        return UA_STATUSCODE_BADTCPNOTENOUGHRESOURCES;
    }
 
