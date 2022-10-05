@@ -31,7 +31,11 @@
 typedef struct {
     UA_RegisteredFD fd;
     struct sockaddr_storage sendAddr;
+#ifdef _WIN32
+    size_t sendAddrLength;
+#else
     socklen_t sendAddrLength;
+#endif
     UA_ConnectionManager_connectionCallback connectionCallback;
 } UDP_FD;
 
