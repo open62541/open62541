@@ -496,6 +496,9 @@ UA_ConnectionManager_new_POSIX_TCP(const UA_String eventSourceName);
  *                            processed first depending on the selected device queueing
  *                            discipline.  Setting a priority outside the range 0 to 6
  *                            requires the CAP_NET_ADMIN capability.
+ * - 0:validate [boolean]: If true, the connection setup will act as a dry-run without
+ *                         actually creating any connection but solely validating the
+ *                         provided parameters, hostname(s) and port. (optional, default: false)
  *
  * Connection Callback Paramters:
  * - 0:remote-hostname [string]: When a new connection is opened by listening on
