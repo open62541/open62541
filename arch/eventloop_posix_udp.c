@@ -962,7 +962,6 @@ UDP_shutdownConnection(UA_ConnectionManager *cm, uintptr_t connectionId) {
     return UA_STATUSCODE_GOOD;
 }
 
-
 static UA_StatusCode
 UDP_sendWithConnection(UA_ConnectionManager *cm, uintptr_t connectionId,
                        size_t paramsSize, const UA_KeyValuePair *params,
@@ -1088,12 +1087,11 @@ registerSocketAndDestinationForSend(size_t paramsSize, const UA_KeyValuePair *pa
                      "UDP\t| Configuring send multicast failed");
         return UA_STATUSCODE_BADINTERNALERROR;
     }
-    memcpy(&ufd->sendAddr, info->ai_addr, sizeof(struct sockaddr));
+    memcpy(&ufd->sendAddr, info->ai_addr, info->ai_addrlen);
     ufd->sendAddrLength = info->ai_addrlen;
 
     return res;
 }
-
 
 static UA_StatusCode
 UDP_openSendConnection(UA_ConnectionManager *cm,
