@@ -671,7 +671,7 @@ TCP_sendWithConnection(UA_ConnectionManager *cm, uintptr_t connectionId,
     return UA_STATUSCODE_GOOD;
 
  shutdown:
-    UA_LOG_SOCKET_ERRNO_GAI_WRAP(
+    UA_LOG_SOCKET_ERRNO_WRAP(
        UA_LOG_ERROR(cm->eventSource.eventLoop->logger, UA_LOGCATEGORY_NETWORK,
                     "TCP %u\t| Send failed with error %s",
                     (unsigned)connectionId, errno_str));
