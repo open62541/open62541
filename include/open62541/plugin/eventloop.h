@@ -466,17 +466,24 @@ UA_ConnectionManager_new_POSIX_TCP(const UA_String eventSourceName);
  * effect.
  *
  * Configuration Parameters:
- * - 0:listen-port [uint16]: Port to listen for new connections (default: do not
- *                           listen on any port).
- * - 0:listen-hostnames [string | string array]: Hostnames of the devices to
- *                                               listen on (default: listen on
- *                                               all devices).
+
  * - 0:recv-bufsize [uint32]: Size of the buffer that is allocated for receiving
  *                            messages (default 64kB).
  *
  * Open Connection Parameters:
- * - 0:hostname [string]: Hostname (or IPv4/v6 address) to connect to (required).
- * - 0:port [uint16]: Port of the target host (required).
+ *
+ * - Active Connection
+ * -   0:hostname [string]: Hostname (or IPv4/v6 address) to connect to (required).
+ * -   0:port [uint16]: Port of the target host (required).
+ * - Passive Connection
+ * -   0:listen-port [uint16]: Port to listen for new connections (default: do not
+ *                           listen on any port).
+ * -   0:listen-hostnames [string | string array]: Hostnames of the devices to
+ *                                               listen on (default: listen on
+ *                                               all devices).
+ *
+ * - 0:network-interface [string]: Network interface to listen on or send through when using
+ *                                 multicast addresses
  * - 0:ttl [uint32]: Multicast time to live, (optional, default: 1 - meaning multicast is
  *                   available only to the local subnet).
  * - 0:loopback [boolean]: Whether or not to use multicast loopback, enabling
