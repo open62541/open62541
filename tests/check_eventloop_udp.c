@@ -105,6 +105,104 @@ START_TEST(listenUDP) {
     ck_assert_uint_eq(testContext.connCount, 0);
 } END_TEST
 
+START_TEST(connectUDPValidationSucceeds) {
+        UA_ConnectionManager *cm = UA_ConnectionManager_new_POSIX_UDP(UA_STRING("udpCM"));
+        el = UA_EventLoop_new_POSIX(UA_Log_Stdout);
+        el->registerEventSource(el, &cm->eventSource);
+
+        UA_UInt16 port = 30000;
+        UA_Variant portVar;
+        UA_Variant_setScalar(&portVar, &port, &UA_TYPES[UA_TYPES_UINT16]);
+
+        UA_Boolean validate = true;
+        UA_Variant validateVar;
+        UA_Variant_setScalar(&validateVar, &validate, &UA_TYPES[UA_TYPES_BOOLEAN]);
+
+
+        UA_KeyValuePair params[3];
+        params[0].key = UA_QUALIFIEDNAME(0, "listen-port");
+        params[0].value = portVar;
+
+        UA_String hostname = UA_STRING("127.0.0.1");
+        params[1].key = UA_QUALIFIEDNAME(0, "listen-hostnames");
+        UA_Variant_setArray(&params[1].value, &hostname, 1, &UA_TYPES[UA_TYPES_STRING]);
+
+        params[2].key = UA_QUALIFIEDNAME(0, "validate");
+        params[2].value = validateVar;
+
+        TestContext testContext;
+        testContext.connCount = 0;
+
+        UA_StatusCode retval =
+            cm->openConnection(cm, 3, params, NULL, &testContext, connectionCallback);
+        ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+        /* Open a client connection */
+        clientId = 0;
+        UA_String targetHost = UA_STRING("localhost");
+        params[0].key = UA_QUALIFIEDNAME(0, "port");
+        params[0].value = portVar;
+        params[1].key = UA_QUALIFIEDNAME(0, "hostname");
+        UA_Variant_setScalar(&params[1].value, &targetHost, &UA_TYPES[UA_TYPES_STRING]);
+
+        params[2].key = UA_QUALIFIEDNAME(0, "validate");
+        params[2].value = validateVar;
+
+        retval = cm->openConnection(cm, 3, params, NULL, &testContext, connectionCallback);
+        ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+        el->free(el);
+        el = NULL;
+    } END_TEST
+
+START_TEST(connectUDPValidationFails) {
+        UA_ConnectionManager *cm = UA_ConnectionManager_new_POSIX_UDP(UA_STRING("udpCM"));
+        el = UA_EventLoop_new_POSIX(UA_Log_Stdout);
+        el->registerEventSource(el, &cm->eventSource);
+
+        UA_UInt16 port = 30000;
+        UA_Variant portVar;
+        UA_Variant_setScalar(&portVar, &port, &UA_TYPES[UA_TYPES_UINT16]);
+
+        UA_Boolean validate = true;
+        UA_Variant validateVar;
+        UA_Variant_setScalar(&validateVar, &validate, &UA_TYPES[UA_TYPES_BOOLEAN]);
+
+
+        UA_KeyValuePair params[3];
+        params[0].key = UA_QUALIFIEDNAME(0, "listen-port");
+        params[0].value = portVar;
+
+        UA_String hostname = UA_STRING("300.300.300.300");
+        params[1].key = UA_QUALIFIEDNAME(0, "listen-hostnames");
+        UA_Variant_setArray(&params[1].value, &hostname, 1, &UA_TYPES[UA_TYPES_STRING]);
+
+        params[2].key = UA_QUALIFIEDNAME(0, "validate");
+        params[2].value = validateVar;
+
+        TestContext testContext;
+        testContext.connCount = 0;
+
+        UA_StatusCode retval =
+            cm->openConnection(cm, 3, params, NULL, &testContext, connectionCallback);
+        ck_assert_uint_eq(retval, UA_STATUSCODE_BADCONNECTIONREJECTED);
+
+        /* Open a client connection */
+        clientId = 0;
+        UA_String targetHost = UA_STRING("localho");
+        params[0].key = UA_QUALIFIEDNAME(0, "port");
+        params[0].value = portVar;
+        params[1].key = UA_QUALIFIEDNAME(0, "hostname");
+        UA_Variant_setScalar(&params[1].value, &targetHost, &UA_TYPES[UA_TYPES_STRING]);
+
+        params[2].key = UA_QUALIFIEDNAME(0, "validate");
+        params[2].value = validateVar;
+
+        retval = cm->openConnection(cm, 3, params, NULL, &testContext, connectionCallback);
+        ck_assert_uint_eq(retval, UA_STATUSCODE_BADCONNECTIONREJECTED);
+        el->free(el);
+        el = NULL;
+    } END_TEST
+
 START_TEST(connectUDP) {
     UA_ConnectionManager *cm = UA_ConnectionManager_new_POSIX_UDP(UA_STRING("udpCM"));
     el = UA_EventLoop_new_POSIX(UA_Log_Stdout);
@@ -412,6 +510,8 @@ int main(void) {
     TCase *tc = tcase_create("test cases");
     tcase_add_test(tc, listenUDP);
     tcase_add_test(tc, connectUDP);
+    tcase_add_test(tc, connectUDPValidationFails);
+    tcase_add_test(tc, connectUDPValidationSucceeds);
     tcase_add_test(tc, udpTalkerAndListener);
     tcase_add_test(tc, udpTalkerAndListenerDifferentDestination);
     suite_add_tcase(s, tc);
