@@ -55,33 +55,6 @@ typedef union {
     struct ipv6_mreq ipv6;
 #endif
 } IpMulticastRequest;
-/* Set the socket non-blocking. If the listen-socket is nonblocking, incoming
- * connections inherit this state. */
-static UA_StatusCode
-UDP_setNonBlocking(UA_FD sockfd) {
-#ifndef _WIN32
-    int opts = fcntl(sockfd, F_GETFL);
-    if(opts < 0 || fcntl(sockfd, F_SETFL, opts | O_NONBLOCK) < 0)
-        return UA_STATUSCODE_BADINTERNALERROR;
-#else
-    u_long iMode = 1;
-    if(ioctlsocket(sockfd, FIONBIO, &iMode) != NO_ERROR)
-        return UA_STATUSCODE_BADINTERNALERROR;
-#endif
-    return UA_STATUSCODE_GOOD;
-}
-
-/* Don't have the socket create interrupt signals */
-static UA_StatusCode
-UDP_setNoSigPipe(UA_FD sockfd) {
-#ifdef SO_NOSIGPIPE
-    int val = 1;
-    int res = UA_setsockopt(sockfd, SOL_SOCKET, SO_NOSIGPIPE, &val, sizeof(val));
-    if(res < 0)
-        return UA_STATUSCODE_BADINTERNALERROR;
-#endif
-    return UA_STATUSCODE_GOOD;
-}
 
 /* Retrieves hostname and port from given key value parameters.
  *
@@ -351,8 +324,8 @@ setConnectionConfig(UA_FD socket, const UA_KeyValuePair *connectionProperties,
      * - passed in parameters
      * - specific callback that gives access to the allocated socket */
     UA_StatusCode res = UA_STATUSCODE_GOOD;
-    res |= UDP_setNonBlocking(socket);
-    res |= UDP_setNoSigPipe(socket);
+    res |= UA_EventLoopPOSIX_setNonBlocking(socket);
+    res |= UA_EventLoopPOSIX_setNoSigPipe(socket);
     if(res != UA_STATUSCODE_GOOD) {
         UA_LOG_SOCKET_ERRNO_WRAP(
             UA_LOG_WARNING(logger, UA_LOGCATEGORY_NETWORK,
@@ -808,7 +781,7 @@ UDP_registerListenSocket(UA_ConnectionManager *cm, UA_UInt16 port, struct addrin
     }
 
     /* Set the socket non-blocking */
-    if(UDP_setNonBlocking(listenSocket) != UA_STATUSCODE_GOOD) {
+    if(UA_EventLoopPOSIX_setNonBlocking(listenSocket) != UA_STATUSCODE_GOOD) {
         UA_LOG_WARNING(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
                        "UDP %u\t| Could not set the socket non-blocking, closing",
                        (unsigned)listenSocket);
@@ -817,7 +790,7 @@ UDP_registerListenSocket(UA_ConnectionManager *cm, UA_UInt16 port, struct addrin
     }
 
     /* Supress interrupts from the socket */
-    if(UDP_setNoSigPipe(listenSocket) != UA_STATUSCODE_GOOD) {
+    if(UA_EventLoopPOSIX_setNoSigPipe(listenSocket) != UA_STATUSCODE_GOOD) {
         UA_LOG_WARNING(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
                        "UDP %u\t| Could not disable SIGPIPE, closing",
                        (unsigned)listenSocket);

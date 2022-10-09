@@ -467,3 +467,36 @@ UA_EventLoop_new_POSIX(const UA_Logger *logger) {
 
     return &el->eventLoop;
 }
+
+UA_StatusCode
+UA_EventLoopPOSIX_setNonBlocking(UA_FD sockfd) {
+#ifndef _WIN32
+    int opts = fcntl(sockfd, F_GETFL);
+    if(opts < 0 || fcntl(sockfd, F_SETFL, opts | O_NONBLOCK) < 0)
+        return UA_STATUSCODE_BADINTERNALERROR;
+#else
+    u_long iMode = 1;
+    if(ioctlsocket(sockfd, FIONBIO, &iMode) != NO_ERROR)
+        return UA_STATUSCODE_BADINTERNALERROR;
+#endif
+    return UA_STATUSCODE_GOOD;
+}
+
+UA_StatusCode
+UA_EventLoopPOSIX_setNoSigPipe(UA_FD sockfd) {
+#ifdef SO_NOSIGPIPE
+    int val = 1;
+    int res = UA_setsockopt(sockfd, SOL_SOCKET, SO_NOSIGPIPE, &val, sizeof(val));
+    if(res < 0)
+        return UA_STATUSCODE_BADINTERNALERROR;
+#endif
+    return UA_STATUSCODE_GOOD;
+}
+
+UA_StatusCode
+UA_EventLoopPOSIX_setReusable(UA_FD sockfd) {
+    int enableReuseVal = 1;
+    int res = UA_setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR,
+                            (const char*)&enableReuseVal, sizeof(enableReuseVal));
+    return (res == 0) ? UA_STATUSCODE_GOOD : UA_STATUSCODE_BADINTERNALERROR;
+}

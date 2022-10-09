@@ -85,7 +85,9 @@ typedef struct {
 #endif
 } UA_EventLoopPOSIX;
 
-/* The following functions differ between epoll and normal select */
+/*
+ * The following functions differ between epoll and normal select
+ */
 
 /* Register to start receiving events */
 UA_StatusCode
@@ -101,6 +103,23 @@ UA_EventLoopPOSIX_deregisterFD(UA_EventLoopPOSIX *el, UA_RegisteredFD *rfd);
 
 UA_StatusCode
 UA_EventLoopPOSIX_pollFDs(UA_EventLoopPOSIX *el, UA_DateTime listenTimeout);
+
+/*
+ * Helper functions to be used across protocols
+ */
+
+/* Set the socket non-blocking. If the listen-socket is nonblocking, incoming
+ * connections inherit this state. */
+UA_StatusCode
+UA_EventLoopPOSIX_setNonBlocking(UA_FD sockfd);
+
+/* Don't have the socket create interrupt signals */
+UA_StatusCode
+UA_EventLoopPOSIX_setNoSigPipe(UA_FD sockfd);
+
+/* Enables sharing of the same listening address on different sockets */
+UA_StatusCode
+UA_EventLoopPOSIX_setReusable(UA_FD sockfd);
 
 _UA_END_DECLS
 
