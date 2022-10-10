@@ -170,6 +170,12 @@ UA_StatusCode_isGood(UA_StatusCode code) {
     return ((code >> 30) == 0x00);
 }
 
+/* Compares the top 16 bits of two StatusCodes for equality. */
+static UA_INLINE UA_Boolean
+UA_StatusCode_equal (UA_StatusCode s1, UA_StatusCode s2) {
+  return ((s1 & 0xFFFF0000) == (s2 & 0xFFFF0000));
+}
+
 /**
  * String
  * ^^^^^^
