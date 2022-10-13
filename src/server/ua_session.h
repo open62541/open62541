@@ -134,7 +134,7 @@ UA_Session_dequeuePublishReq(UA_Session *session);
     if(UA_LOGLEVEL <= UA_LOGLEVEL_##LEVEL) {                           \
         int nameLen = (SESSION) ? (int)(SESSION)->sessionName.length : 0; \
         const char *nameStr = (SESSION) ?                               \
-            (const char*)(SESSION)->sessionName.data : NULL;            \
+            (const char*)(SESSION)->sessionName.data : "";              \
         unsigned long sockId = ((SESSION) && (SESSION)->header.channel) ? \
             (unsigned long)(SESSION)->header.channel->connectionId : 0; \
         UA_UInt32 chanId = ((SESSION) && (SESSION)->header.channel) ?   \
