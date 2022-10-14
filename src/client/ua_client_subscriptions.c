@@ -532,6 +532,8 @@ ua_Client_MonitoredItems_create(UA_Client *client,
         return;
     }
 
+    sub->lastActivity = UA_DateTime_nowMonotonic();
+    
     /* Call the service. Use data->request as it contains the client handle
      * information. */
     __UA_Client_Service(client, &data.request,
