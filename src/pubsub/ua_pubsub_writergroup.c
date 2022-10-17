@@ -8,6 +8,7 @@
  * Copyright (c) 2020 Yannick Wallerer, Siemens AG
  * Copyright (c) 2020 Thomas Fischer, Siemens AG
  * Copyright (c) 2021 Fraunhofer IOSB (Author: Jan Hermes)
+ * Copyright (c) 2022 Linutronix GmbH (Author: Muddasir Shakil)
  */
 
 #include <open62541/server_pubsub.h>
@@ -117,6 +118,34 @@ UA_Server_addWriterGroup(UA_Server *server, const UA_NodeId connection,
     UA_PubSubManager_generateUniqueNodeId(&server->pubSubManager,
                                           &newWriterGroup->identifier);
 #endif
+
+#ifdef UA_ENABLE_PUBSUB_SKS
+    if(writerGroupConfig->securityMode == UA_MESSAGESECURITYMODE_SIGN ||
+       writerGroupConfig->securityMode == UA_MESSAGESECURITYMODE_SIGNANDENCRYPT) {
+        if(!UA_String_isEmpty(&writerGroupConfig->securityGroupId) &&
+           writerGroupConfig->securityPolicy) {
+            UA_String policyUri = writerGroupConfig->securityPolicy->policyUri;
+
+            newWriterGroup->keyStorage =
+                UA_Server_findKeyStorage(
+                    server, writerGroupConfig->securityGroupId);
+            if(!newWriterGroup->keyStorage) {
+                newWriterGroup->keyStorage = (UA_PubSubKeyStorage *)UA_calloc(1, sizeof(UA_PubSubKeyStorage));
+                if(!newWriterGroup)
+                    return UA_STATUSCODE_BADOUTOFMEMORY;
+            }
+
+            res = UA_PubSubKeyStorage_init(server, &writerGroupConfig->securityGroupId,
+                                           &policyUri, 0, 0, newWriterGroup->keyStorage);
+            if(res != UA_STATUSCODE_GOOD) {
+                UA_free(newWriterGroup);
+                return res;
+            }
+        }
+    }
+
+#endif
+
     if(writerGroupIdentifier)
         UA_NodeId_copy(&newWriterGroup->identifier, writerGroupIdentifier);
     return res;
@@ -644,6 +673,15 @@ UA_WriterGroup_clear(UA_Server *server, UA_WriterGroup *writerGroup) {
     if(writerGroup->config.securityPolicy && writerGroup->securityPolicyContext) {
         writerGroup->config.securityPolicy->deleteContext(writerGroup->securityPolicyContext);
         writerGroup->securityPolicyContext = NULL;
+    }
+#endif
+
+#ifdef UA_ENABLE_PUBSUB_SKS
+    if(writerGroup->config.securityMode == UA_MESSAGESECURITYMODE_SIGN ||
+       writerGroup->config.securityMode == UA_MESSAGESECURITYMODE_SIGNANDENCRYPT) {
+            UA_PubSubKeyStorage_removeKeyStorage(server,
+                                                 writerGroup->keyStorage);
+            writerGroup->keyStorage = NULL;
     }
 #endif
 

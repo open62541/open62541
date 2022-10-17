@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Exit immediately if a command exits with a non-zero status
-set -e 
+set -e
 
 # Use the error status of the first failure in a pipeline
 set -o pipefail
@@ -127,7 +127,7 @@ function set_capabilities {
     for filename in bin/tests/*; do
         sudo setcap cap_sys_ptrace,cap_net_raw,cap_net_admin=eip $filename
     done
-} 
+}
 
 function unit_tests {
     mkdir -p build; cd build; rm -rf *
@@ -266,6 +266,27 @@ function unit_tests_encryption_mbedtls_pubsub {
           -DUA_ENABLE_PUBSUB_INFORMATIONMODEL=ON \
           -DUA_ENABLE_PUBSUB_MONITORING=ON \
           -DUA_ENABLE_PUBSUB_ENCRYPTION=ON \
+          ..
+    make ${MAKEOPTS}
+    make test ARGS="-V"
+}
+
+function unit_tests_pubsub_sks {
+    mkdir -p build; cd build; rm -rf *
+    cmake -DCMAKE_BUILD_TYPE=Debug \
+          -DUA_NAMESPACE_ZERO=FULL \
+          -DUA_BUILD_EXAMPLES=ON \
+          -DUA_BUILD_UNIT_TESTS=ON \
+          -DUA_ENABLE_DISCOVERY=ON \
+          -DUA_ENABLE_DISCOVERY_MULTICAST=ON \
+          -DUA_ENABLE_ENCRYPTION=MBEDTLS \
+          -DUA_ENABLE_PUBSUB=ON \
+          -DUA_ENABLE_PUBSUB_DELTAFRAMES=ON \
+          -DUA_ENABLE_PUBSUB_INFORMATIONMODEL=ON \
+          -DUA_ENABLE_PUBSUB_INFORMATIONMODEL_METHODS=ON \
+          -DUA_ENABLE_PUBSUB_MONITORING=ON \
+          -DUA_ENABLE_PUBSUB_ENCRYPTION=ON \
+          -DUA_ENABLE_PUBSUB_SKS=ON \
           ..
     make ${MAKEOPTS}
     make test ARGS="-V"

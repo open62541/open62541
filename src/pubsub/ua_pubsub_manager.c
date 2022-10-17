@@ -7,6 +7,7 @@
  * Copyright (c) 2021 Fraunhofer IOSB (Author: Jan Hermes)
  * Copyright (c) 2022 Siemens AG (Author: Thomas Fischer)
  * Copyright (c) 2022 Fraunhofer IOSB (Author: Noel Graf)
+ * Copyright (c) 2022 Linutronix GmbH (Author: Muddasir Shakil)
  */
 
 #include <open62541/server_pubsub.h>
@@ -15,6 +16,9 @@
 
 #include "server/ua_server_internal.h"
 #include "ua_pubsub_ns0.h"
+#ifdef UA_ENABLE_PUBSUB_SKS
+#include "ua_pubsub_keystorage.h"
+#endif
 
 #ifdef UA_ENABLE_PUBSUB_MQTT
 #include "../../plugins/mqtt/ua_mqtt-c_adapter.h"
@@ -633,7 +637,7 @@ UA_Server_addStandaloneSubscribedDataSet(UA_Server *server, const UA_StandaloneS
 
     newSubscribedDataSet->config = tmpSubscribedDataSetConfig;
     newSubscribedDataSet->connectedReader = UA_NODEID_NULL;
-    
+
     if (server->pubSubManager.subscribedDataSetsSize != 0)
         TAILQ_INSERT_TAIL(&server->pubSubManager.subscribedDataSets, newSubscribedDataSet, listEntry);
     else {
@@ -662,7 +666,7 @@ UA_Server_removeStandaloneSubscribedDataSet(UA_Server *server, const UA_NodeId s
         return UA_STATUSCODE_BADNOTFOUND;
     }
 
-    //search for referenced readers. 
+    //search for referenced readers.
     UA_PubSubConnection *tmpConnectoin;
     TAILQ_FOREACH(tmpConnectoin, &server->pubSubManager.connections, listEntry){
         UA_ReaderGroup *readerGroup;
@@ -773,6 +777,13 @@ UA_PubSubManager_delete(UA_Server *server, UA_PubSubManager *pubSubManager) {
     TAILQ_FOREACH_SAFE(tmpSDS1, &server->pubSubManager.subscribedDataSets, listEntry, tmpSDS2){
         UA_Server_removeStandaloneSubscribedDataSet(server, tmpSDS1->identifier);
     }
+
+#ifdef UA_ENABLE_PUBSUB_SKS
+    /* Remove the keyStorages */
+    UA_PubSubKeyStorage *ks, *ksTmp;
+    LIST_FOREACH_SAFE(ks, &server->pubSubManager.pubSubKeyList, keyStorageList, ksTmp)
+        UA_PubSubKeyStorage_delete(server, ks);
+#endif
 }
 
 /***********************************/
