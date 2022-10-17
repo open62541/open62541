@@ -155,7 +155,7 @@ UA_ReserveId_isFree(UA_Server *server,  UA_UInt16 id, UA_String transportProfile
                 UA_DataSetWriter *currentWriter;
                 LIST_FOREACH(currentWriter, &writerGroup->writers, listEntry) {
                     if(UA_String_equal(&tmpConnection->config->transportProfileUri, &transportProfileUri) &&
-                    currentWriter->identifier.identifierType == UA_NODEIDTYPE_NUMERIC && currentWriter->identifier.identifier.numeric == id)
+                    currentWriter->config.dataSetWriterId == id)
                        return false;
                 }
             }
