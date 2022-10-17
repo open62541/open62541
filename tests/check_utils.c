@@ -285,7 +285,7 @@ START_TEST(StatusCode_msg) {
                      "BadMaxConnectionsReached");
 
         // an invalid status code
-    ck_assert_str_eq(UA_StatusCode_name(0x80123456), "Unknown StatusCode");
+    ck_assert_str_eq(UA_StatusCode_name(0x70123456), "Unknown StatusCode");
 }
 END_TEST
 
