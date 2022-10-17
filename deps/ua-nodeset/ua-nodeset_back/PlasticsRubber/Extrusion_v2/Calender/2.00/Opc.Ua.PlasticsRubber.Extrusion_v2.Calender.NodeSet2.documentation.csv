@@ -1,0 +1,5 @@
+Id,Name,Link,ConformanceUnits
+1002,Calender_InterfaceType,"https://reference.opcfoundation.org/v105/PlasticsRubber/Extrusion/Calender/v200/docs/10","OPC 40084-12 Basic;"
+1003,CouplingProductForcesType,"https://reference.opcfoundation.org/v105/PlasticsRubber/Extrusion/Calender/v200/docs/15",""
+1004,CouplingProductTensionsType,"https://reference.opcfoundation.org/v105/PlasticsRubber/Extrusion/Calender/v200/docs/16",""
+5057,http://opcfoundation.org/UA/PlasticsRubber/Extrusion_v2/Calender/,"https://reference.opcfoundation.org/v105/PlasticsRubber/Extrusion/Calender/v200/docs/20",""

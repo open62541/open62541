@@ -1,0 +1,196 @@
+<opc:TypeDictionary xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:tns="http://opcfoundation.org/UA/Pumps/" DefaultByteOrder="LittleEndian" xmlns:opc="http://opcfoundation.org/BinarySchema/" xmlns:ua="http://opcfoundation.org/UA/" TargetNamespace="http://opcfoundation.org/UA/Pumps/">
+    <opc:Import Namespace="http://opcfoundation.org/UA/"/>
+    <opc:StructuredType BaseType="ua:OptionSet" Name="DeclarationOfConformityOptionSet">
+        <opc:Documentation>defines flags for directives on the basis of which conformity was determined</opc:Documentation>
+        <opc:Field TypeName="opc:ByteString" Name="Value"/>
+        <opc:Field TypeName="opc:ByteString" Name="ValidBits"/>
+    </opc:StructuredType>
+    <opc:StructuredType BaseType="ua:OptionSet" Name="ExplosionProtectionOptionSet">
+        <opc:Documentation>defines flags for the category of explosion protection for devices according to EU Directive 2014/34/EU (ATEX)</opc:Documentation>
+        <opc:Field TypeName="opc:ByteString" Name="Value"/>
+        <opc:Field TypeName="opc:ByteString" Name="ValidBits"/>
+    </opc:StructuredType>
+    <opc:StructuredType BaseType="ua:OptionSet" Name="ExplosionZoneOptionSet">
+        <opc:Documentation>defines flags for the category of explosion zones for devices</opc:Documentation>
+        <opc:Field TypeName="opc:ByteString" Name="Value"/>
+        <opc:Field TypeName="opc:ByteString" Name="ValidBits"/>
+    </opc:StructuredType>
+    <opc:StructuredType BaseType="ua:OptionSet" Name="OfferedControlModesOptionSet">
+        <opc:Documentation>defines flags for offerd control modes supported by the manufacturer for the product</opc:Documentation>
+        <opc:Field TypeName="opc:ByteString" Name="Value"/>
+        <opc:Field TypeName="opc:ByteString" Name="ValidBits"/>
+    </opc:StructuredType>
+    <opc:StructuredType BaseType="ua:OptionSet" Name="OfferedFieldbusesOptionSet">
+        <opc:Documentation>defines flags for fieldbuses supported by the manufacturer for the product</opc:Documentation>
+        <opc:Field TypeName="opc:ByteString" Name="Value"/>
+        <opc:Field TypeName="opc:ByteString" Name="ValidBits"/>
+    </opc:StructuredType>
+    <opc:StructuredType BaseType="ua:ExtensionObject" Name="PhysicalAddressDataType">
+        <opc:Documentation>Physical address of the manufacturer.</opc:Documentation>
+        <opc:Field TypeName="opc:Bit" Name="StreetSpecified"/>
+        <opc:Field TypeName="opc:Bit" Name="NumberSpecified"/>
+        <opc:Field TypeName="opc:Bit" Name="CitySpecified"/>
+        <opc:Field TypeName="opc:Bit" Name="PostalCodeSpecified"/>
+        <opc:Field TypeName="opc:Bit" Name="StateSpecified"/>
+        <opc:Field TypeName="opc:Bit" Name="CountrySpecified"/>
+        <opc:Field Length="26" TypeName="opc:Bit" Name="Reserved1"/>
+        <opc:Field SwitchField="StreetSpecified" TypeName="ua:LocalizedText" Name="Street"/>
+        <opc:Field SwitchField="NumberSpecified" TypeName="ua:LocalizedText" Name="Number"/>
+        <opc:Field SwitchField="CitySpecified" TypeName="ua:LocalizedText" Name="City"/>
+        <opc:Field SwitchField="PostalCodeSpecified" TypeName="ua:LocalizedText" Name="PostalCode"/>
+        <opc:Field SwitchField="StateSpecified" TypeName="ua:LocalizedText" Name="State"/>
+        <opc:Field SwitchField="CountrySpecified" TypeName="ua:LocalizedText" Name="Country"/>
+    </opc:StructuredType>
+    <opc:EnumeratedType LengthInBits="32" Name="ControlModeEnum">
+        <opc:Documentation>describes the possible control modes of the pump</opc:Documentation>
+        <opc:EnumeratedValue Name="ConstantPressureControl" Value="0"/>
+        <opc:EnumeratedValue Name="ConstantTemperatureControl" Value="1"/>
+        <opc:EnumeratedValue Name="DifferentialPressureControl" Value="2"/>
+        <opc:EnumeratedValue Name="ConstantDifferentialPressureControl" Value="3"/>
+        <opc:EnumeratedValue Name="VariableDifferentialPressureControl" Value="4"/>
+        <opc:EnumeratedValue Name="FlowDependentDifferentialPressureControl" Value="5"/>
+        <opc:EnumeratedValue Name="ReturnFlowTemperatureControl" Value="6"/>
+        <opc:EnumeratedValue Name="FlowTemperatureControl" Value="7"/>
+        <opc:EnumeratedValue Name="FlowRateControl" Value="8"/>
+        <opc:EnumeratedValue Name="SpeedControl" Value="9"/>
+        <opc:EnumeratedValue Name="Automatic" Value="10"/>
+        <opc:EnumeratedValue Name="Uncontrolled" Value="11"/>
+    </opc:EnumeratedType>
+    <opc:EnumeratedType LengthInBits="32" Name="DistributionTypeEnum">
+        <opc:Documentation>describes the share of operation time of different pumps of the pump system in addition operation mode</opc:Documentation>
+        <opc:EnumeratedValue Name="ManufacturerSpecific" Value="0"/>
+        <opc:EnumeratedValue Name="OperatorSpecific" Value="1"/>
+        <opc:EnumeratedValue Name="ConcerningTimeDistribution" Value="2"/>
+        <opc:EnumeratedValue Name="ConcerningLoadDistribution" Value="3"/>
+    </opc:EnumeratedType>
+    <opc:EnumeratedType LengthInBits="32" Name="ExchangeModeEnum">
+        <opc:Documentation>specifies the exchange mode of the pump</opc:Documentation>
+        <opc:EnumeratedValue Name="ManufacturerSpecific" Value="0"/>
+        <opc:EnumeratedValue Name="ExchangeDisabled" Value="1"/>
+        <opc:EnumeratedValue Name="OperatorSpecific" Value="2"/>
+    </opc:EnumeratedType>
+    <opc:EnumeratedType LengthInBits="32" Name="FieldbusEnum">
+        <opc:Documentation>defines possible field buses</opc:Documentation>
+        <opc:EnumeratedValue Name="Other" Value="0"/>
+        <opc:EnumeratedValue Name="ARCNET" Value="1"/>
+        <opc:EnumeratedValue Name="AS-Interface" Value="2"/>
+        <opc:EnumeratedValue Name="BACnet/IP" Value="3"/>
+        <opc:EnumeratedValue Name="BACnet/MSTP" Value="4"/>
+        <opc:EnumeratedValue Name="Bluetooth" Value="5"/>
+        <opc:EnumeratedValue Name="BluetoothLowEnergy" Value="6"/>
+        <opc:EnumeratedValue Name="CAN" Value="7"/>
+        <opc:EnumeratedValue Name="CANopen" Value="8"/>
+        <opc:EnumeratedValue Name="CC-Link" Value="9"/>
+        <opc:EnumeratedValue Name="ControlNet" Value="10"/>
+        <opc:EnumeratedValue Name="DALI" Value="11"/>
+        <opc:EnumeratedValue Name="DECTULE" Value="12"/>
+        <opc:EnumeratedValue Name="DeviceNet" Value="13"/>
+        <opc:EnumeratedValue Name="DMX" Value="14"/>
+        <opc:EnumeratedValue Name="KNX" Value="15"/>
+        <opc:EnumeratedValue Name="EnOcean" Value="16"/>
+        <opc:EnumeratedValue Name="EtherCAT" Value="17"/>
+        <opc:EnumeratedValue Name="Ethernet/IP" Value="18"/>
+        <opc:EnumeratedValue Name="EthernetTCP/IP" Value="19"/>
+        <opc:EnumeratedValue Name="IEEE1588" Value="20"/>
+        <opc:EnumeratedValue Name="GSM" Value="21"/>
+        <opc:EnumeratedValue Name="Interbus" Value="22"/>
+        <opc:EnumeratedValue Name="IO-Link" Value="23"/>
+        <opc:EnumeratedValue Name="HART" Value="24"/>
+        <opc:EnumeratedValue Name="LON" Value="25"/>
+        <opc:EnumeratedValue Name="LoRaWAN" Value="26"/>
+        <opc:EnumeratedValue Name="LIN-Bus" Value="27"/>
+        <opc:EnumeratedValue Name="LTE" Value="28"/>
+        <opc:EnumeratedValue Name="LTE-M" Value="29"/>
+        <opc:EnumeratedValue Name="M-Bus" Value="30"/>
+        <opc:EnumeratedValue Name="ModbusTCP" Value="31"/>
+        <opc:EnumeratedValue Name="ModbusRTU" Value="32"/>
+        <opc:EnumeratedValue Name="MP-Bus" Value="33"/>
+        <opc:EnumeratedValue Name="NB-IOT" Value="34"/>
+        <opc:EnumeratedValue Name="NFC" Value="35"/>
+        <opc:EnumeratedValue Name="OPCUA" Value="36"/>
+        <opc:EnumeratedValue Name="OPCDA" Value="37"/>
+        <opc:EnumeratedValue Name="PROFIBUSDP" Value="38"/>
+        <opc:EnumeratedValue Name="PROFINETRT" Value="39"/>
+        <opc:EnumeratedValue Name="Powerlink" Value="40"/>
+        <opc:EnumeratedValue Name="SERCOS" Value="41"/>
+        <opc:EnumeratedValue Name="SMI" Value="42"/>
+        <opc:EnumeratedValue Name="Thread" Value="43"/>
+        <opc:EnumeratedValue Name="UMTS" Value="44"/>
+        <opc:EnumeratedValue Name="WIFI" Value="45"/>
+        <opc:EnumeratedValue Name="X2X-Link" Value="46"/>
+        <opc:EnumeratedValue Name="VARAN" Value="47"/>
+        <opc:EnumeratedValue Name="ZigBee" Value="48"/>
+        <opc:EnumeratedValue Name="Z-Wave" Value="49"/>
+    </opc:EnumeratedType>
+    <opc:EnumeratedType LengthInBits="32" Name="MaintenanceLevelEnum">
+        <opc:Documentation>defines maintenance levels for the pump</opc:Documentation>
+        <opc:EnumeratedValue Name="Level1" Value="0"/>
+        <opc:EnumeratedValue Name="Level2" Value="1"/>
+        <opc:EnumeratedValue Name="Level3" Value="2"/>
+        <opc:EnumeratedValue Name="Level4" Value="3"/>
+        <opc:EnumeratedValue Name="Level5" Value="4"/>
+    </opc:EnumeratedType>
+    <opc:EnumeratedType LengthInBits="32" Name="MultiPumpOperationModeEnum">
+        <opc:Documentation>specifies the actual multi pump operation mode</opc:Documentation>
+        <opc:EnumeratedValue Name="Standalone" Value="0"/>
+        <opc:EnumeratedValue Name="RedundancyOperation" Value="1"/>
+        <opc:EnumeratedValue Name="AdditionOperation" Value="2"/>
+        <opc:EnumeratedValue Name="MixedRedundancy" Value="3"/>
+    </opc:EnumeratedType>
+    <opc:EnumeratedType LengthInBits="32" Name="OperatingModeEnum">
+        <opc:Documentation>specifies whether the pump is to be operated in single, parallel or series connection</opc:Documentation>
+        <opc:EnumeratedValue Name="SingleOperation" Value="0"/>
+        <opc:EnumeratedValue Name="SeriesOperation" Value="1"/>
+        <opc:EnumeratedValue Name="ParallelOperation" Value="2"/>
+    </opc:EnumeratedType>
+    <opc:EnumeratedType LengthInBits="32" Name="OperationModeEnum">
+        <opc:Documentation>describes the possible operation modes of the pump</opc:Documentation>
+        <opc:EnumeratedValue Name="AutoControl" Value="0"/>
+        <opc:EnumeratedValue Name="ClosedLoopStandardPID" Value="1"/>
+        <opc:EnumeratedValue Name="Advanced" Value="2"/>
+        <opc:EnumeratedValue Name="StandBy" Value="3"/>
+        <opc:EnumeratedValue Name="OpenLoopMin" Value="4"/>
+        <opc:EnumeratedValue Name="OpenLoopValue" Value="5"/>
+        <opc:EnumeratedValue Name="OpenLoopMax" Value="6"/>
+        <opc:EnumeratedValue Name="ClosedLoopMin" Value="7"/>
+        <opc:EnumeratedValue Name="ClosedLoopMax" Value="8"/>
+        <opc:EnumeratedValue Name="Test" Value="9"/>
+        <opc:EnumeratedValue Name="Calibration" Value="10"/>
+    </opc:EnumeratedType>
+    <opc:EnumeratedType LengthInBits="32" Name="PortDirectionEnum">
+        <opc:Documentation>determines whether the port is an inlet and outlet or both</opc:Documentation>
+        <opc:EnumeratedValue Name="In" Value="0"/>
+        <opc:EnumeratedValue Name="Out" Value="1"/>
+        <opc:EnumeratedValue Name="InOut" Value="2"/>
+    </opc:EnumeratedType>
+    <opc:EnumeratedType LengthInBits="32" Name="PumpClassEnum">
+        <opc:Documentation>defines possible pump types</opc:Documentation>
+        <opc:EnumeratedValue Name="RotodynamicPump" Value="0"/>
+        <opc:EnumeratedValue Name="PositiveDisplacementPump" Value="1"/>
+        <opc:EnumeratedValue Name="ProcessVacuumPump" Value="2"/>
+        <opc:EnumeratedValue Name="TurboVacuumPump" Value="3"/>
+        <opc:EnumeratedValue Name="VacuumPump" Value="4"/>
+        <opc:EnumeratedValue Name="LiquidPump" Value="5"/>
+        <opc:EnumeratedValue Name="Pump" Value="6"/>
+    </opc:EnumeratedType>
+    <opc:EnumeratedType LengthInBits="32" Name="PumpKickModeEnum">
+        <opc:Documentation>describes the pump kick mode of the pump</opc:Documentation>
+        <opc:EnumeratedValue Name="ManufacturerSpecific" Value="0"/>
+        <opc:EnumeratedValue Name="Disabled" Value="1"/>
+        <opc:EnumeratedValue Name="OperatorSpecific" Value="2"/>
+    </opc:EnumeratedType>
+    <opc:EnumeratedType LengthInBits="32" Name="PumpRoleEnum">
+        <opc:Documentation>identifies the role rsp. task of the pump within the multi pump management</opc:Documentation>
+        <opc:EnumeratedValue Name="Slave" Value="0"/>
+        <opc:EnumeratedValue Name="Master" Value="1"/>
+        <opc:EnumeratedValue Name="SlaveAndAuxiliaryMaster" Value="2"/>
+    </opc:EnumeratedType>
+    <opc:EnumeratedType LengthInBits="32" Name="StateOfTheItemEnum">
+        <opc:Documentation>describes the state of the pump</opc:Documentation>
+        <opc:EnumeratedValue Name="IdleState" Value="0"/>
+        <opc:EnumeratedValue Name="StandByState" Value="1"/>
+        <opc:EnumeratedValue Name="OperatingState" Value="2"/>
+        <opc:EnumeratedValue Name="ExternalDisabledState" Value="3"/>
+        <opc:EnumeratedValue Name="DownState" Value="4"/>
+    </opc:EnumeratedType>
+</opc:TypeDictionary>

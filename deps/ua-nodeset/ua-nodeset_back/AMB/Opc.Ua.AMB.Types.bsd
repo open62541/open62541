@@ -1,0 +1,15 @@
+<opc:TypeDictionary xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:tns="http://opcfoundation.org/UA/AMB/" DefaultByteOrder="LittleEndian" xmlns:opc="http://opcfoundation.org/BinarySchema/" xmlns:ua="http://opcfoundation.org/UA/" TargetNamespace="http://opcfoundation.org/UA/AMB/">
+    <opc:Import Namespace="http://opcfoundation.org/UA/"/>
+    <opc:StructuredType BaseType="ua:ExtensionObject" Name="NameNodeIdDataType">
+        <opc:Field TypeName="ua:LocalizedText" Name="Name"/>
+        <opc:Field TypeName="ua:NodeId" Name="NodeId"/>
+    </opc:StructuredType>
+    <opc:StructuredType BaseType="ua:ExtensionObject" Name="RootCauseDataType">
+        <opc:Field TypeName="ua:NodeId" Name="RootCauseId"/>
+        <opc:Field TypeName="ua:LocalizedText" Name="RootCause"/>
+    </opc:StructuredType>
+    <opc:EnumeratedType LengthInBits="32" Name="MaintenanceMethodEnum">
+        <opc:EnumeratedValue Name="Local" Value="0"/>
+        <opc:EnumeratedValue Name="Remote" Value="1"/>
+    </opc:EnumeratedType>
+</opc:TypeDictionary>

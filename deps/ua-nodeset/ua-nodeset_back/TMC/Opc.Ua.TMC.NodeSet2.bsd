@@ -1,0 +1,290 @@
+<opc:TypeDictionary xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:tns="http://opcfoundation.org/UA/TMC/v2/" DefaultByteOrder="LittleEndian" xmlns:opc="http://opcfoundation.org/BinarySchema/" xmlns:ua="http://opcfoundation.org/UA/" TargetNamespace="http://opcfoundation.org/UA/TMC/v2/">
+    <opc:Import Namespace="http://opcfoundation.org/UA/"/>
+    <opc:StructuredType BaseType="ua:ExtensionObject" Name="DataDescriptionType">
+        <opc:Documentation>The DataDescriptionType structure contains a metadata, i.e. a description.</opc:Documentation>
+        <opc:Field TypeName="opc:CharArray" Name="ID"/>
+        <opc:Field TypeName="opc:CharArray" Name="MES_ID"/>
+        <opc:Field TypeName="ua:LocalizedText" Name="Description"/>
+    </opc:StructuredType>
+    <opc:StructuredType BaseType="tns:DataDescriptionType" Name="DataDefinitionType">
+        <opc:Documentation>The DataDefinitionType structure contains the metadata that describes a parameter.</opc:Documentation>
+        <opc:Field SourceType="tns:DataDescriptionType" TypeName="opc:CharArray" Name="ID"/>
+        <opc:Field SourceType="tns:DataDescriptionType" TypeName="opc:CharArray" Name="MES_ID"/>
+        <opc:Field SourceType="tns:DataDescriptionType" TypeName="ua:LocalizedText" Name="Description"/>
+        <opc:Field TypeName="ua:EUInformation" Name="EngineeringUnits"/>
+        <opc:Field TypeName="opc:CharArray" Name="DisplayFormat"/>
+        <opc:Field TypeName="tns:ParameterDependencyEnumeration" Name="Dependency"/>
+        <opc:Field TypeName="opc:CharArray" Name="DataType"/>
+        <opc:Field TypeName="opc:Boolean" Name="UserSubset"/>
+        <opc:Field TypeName="ua:Range" Name="ControlRange"/>
+        <opc:Field TypeName="ua:Range" Name="AlarmRange"/>
+    </opc:StructuredType>
+    <opc:StructuredType BaseType="tns:DataDescriptionType" Name="DataValueType">
+        <opc:Documentation>The DataValueType structure contains a data value.</opc:Documentation>
+        <opc:Field SourceType="tns:DataDescriptionType" TypeName="opc:CharArray" Name="ID"/>
+        <opc:Field SourceType="tns:DataDescriptionType" TypeName="opc:CharArray" Name="MES_ID"/>
+        <opc:Field SourceType="tns:DataDescriptionType" TypeName="ua:LocalizedText" Name="Description"/>
+        <opc:Field TypeName="ua:Variant" Name="Value"/>
+        <opc:Field TypeName="ua:EUInformation" Name="EngineeringUnits"/>
+    </opc:StructuredType>
+    <opc:StructuredType BaseType="ua:ExtensionObject" Name="DataSetDefinitionType">
+        <opc:Documentation>The DataSetDefinition structure contains the description and other necessary metadata of the 
+complete set of machine settings required for production.</opc:Documentation>
+        <opc:Field TypeName="opc:CharArray" Name="ID"/>
+        <opc:Field TypeName="ua:LocalizedText" Name="Description"/>
+        <opc:Field TypeName="opc:Int32" Name="NoOfDefinitions"/>
+        <opc:Field LengthField="NoOfDefinitions" TypeName="tns:DataDefinitionType" Name="Definitions"/>
+    </opc:StructuredType>
+    <opc:StructuredType BaseType="ua:ExtensionObject" Name="DataSetEntryType">
+        <opc:Documentation>The DataSetEntryType structure contains the value of a single parameter, or data value.</opc:Documentation>
+        <opc:Field TypeName="opc:CharArray" Name="ID"/>
+        <opc:Field TypeName="ua:Variant" Name="Value"/>
+    </opc:StructuredType>
+    <opc:StructuredType BaseType="ua:ExtensionObject" Name="DataSetType">
+        <opc:Documentation>The DataSetType structure contains a set of data values.</opc:Documentation>
+        <opc:Field TypeName="opc:CharArray" Name="ID"/>
+        <opc:Field TypeName="ua:LocalizedText" Name="Description"/>
+        <opc:Field TypeName="opc:Int32" Name="NoOfValues"/>
+        <opc:Field LengthField="NoOfValues" TypeName="tns:DataSetEntryType" Name="Values"/>
+    </opc:StructuredType>
+    <opc:StructuredType BaseType="ua:ExtensionObject" Name="MaterialDefinitionType">
+        <opc:Documentation>The MaterialDefinitionType structure contains the definition of a material. It is harmonised with 
+ISA 95 Material Definition.</opc:Documentation>
+        <opc:Field TypeName="opc:Bit" Name="GroupIDSpecified"/>
+        <opc:Field TypeName="opc:Bit" Name="ParentGroupIDSpecified"/>
+        <opc:Field TypeName="opc:Bit" Name="ShelfLifeSpecified"/>
+        <opc:Field TypeName="opc:Bit" Name="PropertiesSpecified"/>
+        <opc:Field Length="28" TypeName="opc:Bit" Name="Reserved1"/>
+        <opc:Field TypeName="opc:CharArray" Name="ID"/>
+        <opc:Field TypeName="opc:CharArray" Name="MES_ID"/>
+        <opc:Field TypeName="ua:LocalizedText" Name="Description"/>
+        <opc:Field TypeName="ua:EUInformation" Name="BaseUnitOfMeasure"/>
+        <opc:Field TypeName="opc:Boolean" Name="BatchManaged"/>
+        <opc:Field SwitchField="GroupIDSpecified" TypeName="opc:CharArray" Name="GroupID"/>
+        <opc:Field SwitchField="ParentGroupIDSpecified" TypeName="opc:CharArray" Name="ParentGroupID"/>
+        <opc:Field SwitchField="ShelfLifeSpecified" TypeName="opc:UInt32" Name="ShelfLife"/>
+        <opc:Field SwitchField="PropertiesSpecified" TypeName="opc:Int32" Name="NoOfProperties"/>
+        <opc:Field LengthField="NoOfProperties" SwitchField="PropertiesSpecified" TypeName="tns:DataValueType" Name="Properties"/>
+    </opc:StructuredType>
+    <opc:StructuredType BaseType="ua:ExtensionObject" Name="MaterialListItemType">
+        <opc:Documentation>The MaterialListItemType structure contains a single material to be processed.</opc:Documentation>
+        <opc:Field TypeName="opc:CharArray" Name="AssemblyID"/>
+        <opc:Field TypeName="opc:CharArray" Name="MaterialPointID"/>
+        <opc:Field TypeName="opc:CharArray" Name="MaterialPointMES_ID"/>
+        <opc:Field TypeName="tns:MaterialSublotType" Name="MaterialSublot"/>
+        <opc:Field TypeName="tns:MaterialStockStatusEnumeration" Name="MaterialStockStatus"/>
+        <opc:Field TypeName="opc:Int32" Name="NoOfFollowUpMaterials"/>
+        <opc:Field LengthField="NoOfFollowUpMaterials" TypeName="tns:MaterialSublotType" Name="FollowUpMaterials"/>
+    </opc:StructuredType>
+    <opc:StructuredType BaseType="ua:ExtensionObject" Name="MaterialListType">
+        <opc:Documentation>The MaterialListType structure contains a set of material list items.</opc:Documentation>
+        <opc:Field TypeName="opc:CharArray" Name="ID"/>
+        <opc:Field TypeName="ua:LocalizedText" Name="Description"/>
+        <opc:Field TypeName="opc:Int32" Name="NoOfItems"/>
+        <opc:Field LengthField="NoOfItems" TypeName="tns:MaterialListItemType" Name="Items"/>
+    </opc:StructuredType>
+    <opc:StructuredType BaseType="ua:ExtensionObject" Name="MaterialLotType">
+        <opc:Documentation>The MaterialLotType structure contains the material lot information. It is harmonised with ISA 
+95 Material Lot.</opc:Documentation>
+        <opc:Field TypeName="opc:Bit" Name="BestUsedBeforeDateSpecified"/>
+        <opc:Field TypeName="opc:Bit" Name="PropertiesSpecified"/>
+        <opc:Field Length="30" TypeName="opc:Bit" Name="Reserved1"/>
+        <opc:Field TypeName="opc:CharArray" Name="ID"/>
+        <opc:Field TypeName="opc:CharArray" Name="MES_ID"/>
+        <opc:Field TypeName="ua:LocalizedText" Name="Description"/>
+        <opc:Field TypeName="tns:MaterialDefinitionType" Name="MaterialDefinition"/>
+        <opc:Field TypeName="tns:MaterialStockStatusEnumeration" Name="Status"/>
+        <opc:Field TypeName="opc:DateTime" Name="ProductionDate"/>
+        <opc:Field SwitchField="BestUsedBeforeDateSpecified" TypeName="opc:DateTime" Name="BestUsedBeforeDate"/>
+        <opc:Field SwitchField="PropertiesSpecified" TypeName="opc:Int32" Name="NoOfProperties"/>
+        <opc:Field LengthField="NoOfProperties" SwitchField="PropertiesSpecified" TypeName="tns:DataValueType" Name="Properties"/>
+    </opc:StructuredType>
+    <opc:StructuredType BaseType="ua:ExtensionObject" Name="MaterialPointType">
+        <opc:Documentation>The MaterialPointType structure provides the description of the capability of a load or
+unload point.</opc:Documentation>
+        <opc:Field TypeName="opc:CharArray" Name="ID"/>
+        <opc:Field TypeName="ua:LocalizedText" Name="Description"/>
+        <opc:Field TypeName="opc:Int32" Name="NoOfMaterialCapability"/>
+        <opc:Field LengthField="NoOfMaterialCapability" TypeName="tns:MaterialDefinitionType" Name="MaterialCapability"/>
+        <opc:Field TypeName="ua:ExpandedNodeId" Name="ConnectedMaterialPoint"/>
+        <opc:Field TypeName="opc:Boolean" Name="PropagatesProductionOrder"/>
+    </opc:StructuredType>
+    <opc:StructuredType BaseType="ua:ExtensionObject" Name="MaterialStorageBufferDataType">
+        <opc:Documentation>The MaterialStorageBufferDataType structure provides the description of the capability of a 
+material storage buffer.</opc:Documentation>
+        <opc:Field TypeName="opc:CharArray" Name="ID"/>
+        <opc:Field TypeName="tns:MaterialDefinitionType" Name="StoredMaterial"/>
+        <opc:Field TypeName="ua:EUInformation" Name="EngineeringUnits"/>
+        <opc:Field TypeName="opc:Double" Name="TotalStorageCapacity"/>
+        <opc:Field TypeName="tns:StorageLogicEnumeration" Name="StorageLogic"/>
+        <opc:Field TypeName="tns:StorageMixingLogicEnumeration" Name="MixingLogic"/>
+    </opc:StructuredType>
+    <opc:StructuredType BaseType="ua:ExtensionObject" Name="MaterialSublotType">
+        <opc:Documentation>The MaterialSublotType structure contains the material sublot information. It is harmonised with 
+ISA 95 Material Sublot.</opc:Documentation>
+        <opc:Field TypeName="opc:Bit" Name="CarrierIDSpecified"/>
+        <opc:Field TypeName="opc:Bit" Name="RelativePositionIDSpecified"/>
+        <opc:Field TypeName="opc:Bit" Name="ParentSublotIDSpecified"/>
+        <opc:Field TypeName="opc:Bit" Name="SublotsSpecified"/>
+        <opc:Field Length="28" TypeName="opc:Bit" Name="Reserved1"/>
+        <opc:Field TypeName="opc:CharArray" Name="ID"/>
+        <opc:Field TypeName="opc:CharArray" Name="MES_ID"/>
+        <opc:Field TypeName="tns:MaterialLotType" Name="MaterialLot"/>
+        <opc:Field TypeName="opc:CharArray" Name="MaterialStorageLocationID"/>
+        <opc:Field TypeName="opc:Double" Name="Quantity"/>
+        <opc:Field SwitchField="CarrierIDSpecified" TypeName="opc:CharArray" Name="CarrierID"/>
+        <opc:Field SwitchField="RelativePositionIDSpecified" TypeName="opc:CharArray" Name="RelativePositionID"/>
+        <opc:Field SwitchField="ParentSublotIDSpecified" TypeName="opc:CharArray" Name="ParentSublotID"/>
+        <opc:Field SwitchField="SublotsSpecified" TypeName="opc:Int32" Name="NoOfSublots"/>
+        <opc:Field LengthField="NoOfSublots" SwitchField="SublotsSpecified" TypeName="tns:MaterialSublotType" Name="Sublots"/>
+    </opc:StructuredType>
+    <opc:StructuredType BaseType="ua:ExtensionObject" Name="MessageType">
+        <opc:Documentation>The MessageType provides a uniquely identified localised text.</opc:Documentation>
+        <opc:Field TypeName="opc:CharArray" Name="ID"/>
+        <opc:Field TypeName="ua:LocalizedText" Name="LocalText"/>
+    </opc:StructuredType>
+    <opc:StructuredType BaseType="tns:MessageType" Name="RootCauseMessageType">
+        <opc:Documentation>The RootCauseMessageType structure contains a root cause message and its group identifier.</opc:Documentation>
+        <opc:Field SourceType="tns:MessageType" TypeName="opc:CharArray" Name="ID"/>
+        <opc:Field SourceType="tns:MessageType" TypeName="ua:LocalizedText" Name="LocalText"/>
+        <opc:Field TypeName="opc:CharArray" Name="GroupID"/>
+    </opc:StructuredType>
+    <opc:StructuredType BaseType="ua:ExtensionObject" Name="MethodExecutionFeedbackType">
+        <opc:Documentation>The MethodExecutionFeedbackType provides suitable feedback, both positive and negative, to an OPC UA client invoking a method.</opc:Documentation>
+        <opc:Field TypeName="opc:Boolean" Name="Success"/>
+        <opc:Field TypeName="opc:Int32" Name="NoOfMessage"/>
+        <opc:Field LengthField="NoOfMessage" TypeName="tns:MessageType" Name="Message"/>
+    </opc:StructuredType>
+    <opc:StructuredType BaseType="ua:ExtensionObject" Name="ProductionOrderHeaderType">
+        <opc:Documentation>The ProductionOrderHeaderType structure contains the header information for a production 
+order.</opc:Documentation>
+        <opc:Field TypeName="opc:CharArray" Name="Number"/>
+        <opc:Field TypeName="tns:MaterialDefinitionType" Name="ProducedMaterial"/>
+        <opc:Field TypeName="opc:Double" Name="TargetQuantity"/>
+        <opc:Field TypeName="opc:Boolean" Name="ContinueAtJobEnd"/>
+        <opc:Field TypeName="opc:DateTime" Name="TargetStartTime"/>
+        <opc:Field TypeName="opc:DateTime" Name="TargetEndTime"/>
+        <opc:Field TypeName="opc:CharArray" Name="DataSetID"/>
+        <opc:Field TypeName="ua:LocalizedText" Name="DataSetDescription"/>
+        <opc:Field TypeName="opc:CharArray" Name="MaterialListID"/>
+        <opc:Field TypeName="ua:LocalizedText" Name="MaterialListDescription"/>
+    </opc:StructuredType>
+    <opc:StructuredType BaseType="ua:ExtensionObject" Name="ProductionOrderType">
+        <opc:Documentation>The ProductionOrderType structure contains the complete production order information.</opc:Documentation>
+        <opc:Field TypeName="tns:ProductionOrderHeaderType" Name="Header"/>
+        <opc:Field TypeName="tns:MaterialListType" Name="MaterialList"/>
+        <opc:Field TypeName="tns:DataSetType" Name="DataSet"/>
+    </opc:StructuredType>
+    <opc:StructuredType BaseType="tns:ProductionOrderType" Name="OrchestrationProductionOrderType">
+        <opc:Documentation>The OrchestrationProductionOrderType structure contains the complete production order 
+information used by the Production Order Orchestration Layer.</opc:Documentation>
+        <opc:Field SourceType="tns:ProductionOrderType" TypeName="tns:ProductionOrderHeaderType" Name="Header"/>
+        <opc:Field SourceType="tns:ProductionOrderType" TypeName="tns:MaterialListType" Name="MaterialList"/>
+        <opc:Field SourceType="tns:ProductionOrderType" TypeName="tns:DataSetType" Name="DataSet"/>
+        <opc:Field TypeName="opc:Int32" Name="NoOfActiveMachineModules"/>
+        <opc:Field LengthField="NoOfActiveMachineModules" TypeName="opc:CharArray" Name="ActiveMachineModules"/>
+    </opc:StructuredType>
+    <opc:StructuredType BaseType="ua:ExtensionObject" Name="RootCauseGroupType">
+        <opc:Documentation>The RootCauseGroupType structure contains a root cause message and its group identifier.</opc:Documentation>
+        <opc:Field TypeName="opc:CharArray" Name="ID"/>
+        <opc:Field TypeName="opc:CharArray" Name="ParentID"/>
+        <opc:Field TypeName="ua:LocalizedText" Name="Description"/>
+    </opc:StructuredType>
+    <opc:EnumeratedType LengthInBits="32" Name="CommandEnumeration">
+        <opc:Documentation>The CommandEnumeration provides standardized commands that can be sent to a state machine.</opc:Documentation>
+        <opc:EnumeratedValue Name="Abort" Value="0"/>
+        <opc:EnumeratedValue Name="Start" Value="1"/>
+        <opc:EnumeratedValue Name="Stop" Value="2"/>
+        <opc:EnumeratedValue Name="Reset" Value="3"/>
+        <opc:EnumeratedValue Name="Hold" Value="4"/>
+        <opc:EnumeratedValue Name="Unhold" Value="5"/>
+        <opc:EnumeratedValue Name="Clear" Value="6"/>
+        <opc:EnumeratedValue Name="Suspend" Value="7"/>
+        <opc:EnumeratedValue Name="Unsuspend" Value="8"/>
+    </opc:EnumeratedType>
+    <opc:EnumeratedType LengthInBits="32" Name="ControlModeEnumeration">
+        <opc:Documentation>The ControlModeEnumeration contains the PackML modes of operation of a machine.</opc:Documentation>
+        <opc:EnumeratedValue Name="OTHER" Value="0"/>
+        <opc:EnumeratedValue Name="PRODUCTION" Value="1"/>
+        <opc:EnumeratedValue Name="MAINTENANCE" Value="2"/>
+        <opc:EnumeratedValue Name="MANUAL" Value="3"/>
+        <opc:EnumeratedValue Name="CHANGE OVER" Value="4"/>
+        <opc:EnumeratedValue Name="CLEAN" Value="5"/>
+        <opc:EnumeratedValue Name="SET UP" Value="6"/>
+        <opc:EnumeratedValue Name="EMPTY OUT" Value="7"/>
+        <opc:EnumeratedValue Name="REMOTE SERVICE" Value="8"/>
+    </opc:EnumeratedType>
+    <opc:EnumeratedType LengthInBits="32" Name="MaterialIntegrityAgentEnumeration">
+        <opc:Documentation>The MaterialIntegrityAgentEnumeration identifies the possible agents responsible for material integrity checking.</opc:Documentation>
+        <opc:EnumeratedValue Name="None" Value="0"/>
+        <opc:EnumeratedValue Name="Local" Value="1"/>
+        <opc:EnumeratedValue Name="External" Value="2"/>
+    </opc:EnumeratedType>
+    <opc:EnumeratedType LengthInBits="32" Name="MaterialStockStatusEnumeration">
+        <opc:Documentation>The MaterialStockStatusEnumeration provides the stock status for a material lot.</opc:Documentation>
+        <opc:EnumeratedValue Name="Unrestricted" Value="0"/>
+        <opc:EnumeratedValue Name="QualityInspection" Value="1"/>
+        <opc:EnumeratedValue Name="Blocked" Value="2"/>
+    </opc:EnumeratedType>
+    <opc:EnumeratedType LengthInBits="32" Name="MaterialValidationStatusEnumeration">
+        <opc:Documentation>The MaterialValidationStatusEnumeration describes the status of the material validation 
+process.</opc:Documentation>
+        <opc:EnumeratedValue Name="None" Value="0"/>
+        <opc:EnumeratedValue Name="Waiting" Value="1"/>
+        <opc:EnumeratedValue Name="Passed" Value="2"/>
+        <opc:EnumeratedValue Name="Failed" Value="3"/>
+    </opc:EnumeratedType>
+    <opc:EnumeratedType LengthInBits="32" Name="MotorDirectionEnumeration">
+        <opc:Documentation>The MotorDirectionEnumeration provides the rotation direction of a motor.</opc:Documentation>
+        <opc:EnumeratedValue Name="Clockwise" Value="0"/>
+        <opc:EnumeratedValue Name="CounterClockwise" Value="1"/>
+    </opc:EnumeratedType>
+    <opc:EnumeratedType LengthInBits="32" Name="ParameterDependencyEnumeration">
+        <opc:Documentation>The ParameterDependencyEnumeration contains what a parameter is depending upon.</opc:Documentation>
+        <opc:EnumeratedValue Name="Machine" Value="0"/>
+        <opc:EnumeratedValue Name="Brand" Value="1"/>
+        <opc:EnumeratedValue Name="Machine and Brand" Value="2"/>
+    </opc:EnumeratedType>
+    <opc:EnumeratedType LengthInBits="32" Name="ProductionStatusEnumeration">
+        <opc:Documentation>The ProductionStatusEnumeration contains the production state of a machine module.</opc:Documentation>
+        <opc:EnumeratedValue Name="Other" Value="0"/>
+        <opc:EnumeratedValue Name="BrandChange" Value="1"/>
+        <opc:EnumeratedValue Name="Production" Value="2"/>
+        <opc:EnumeratedValue Name="NoProduction" Value="3"/>
+    </opc:EnumeratedType>
+    <opc:EnumeratedType LengthInBits="32" Name="StateEnumeration">
+        <opc:Documentation>The StateEnumeration contains the PackML states for a machine.</opc:Documentation>
+        <opc:EnumeratedValue Name="Stopped" Value="0"/>
+        <opc:EnumeratedValue Name="Resetting" Value="1"/>
+        <opc:EnumeratedValue Name="Idle" Value="2"/>
+        <opc:EnumeratedValue Name="Starting" Value="3"/>
+        <opc:EnumeratedValue Name="Execute" Value="4"/>
+        <opc:EnumeratedValue Name="Completing" Value="5"/>
+        <opc:EnumeratedValue Name="Complete" Value="6"/>
+        <opc:EnumeratedValue Name="Aborting" Value="7"/>
+        <opc:EnumeratedValue Name="Aborted" Value="8"/>
+        <opc:EnumeratedValue Name="Stopping" Value="9"/>
+        <opc:EnumeratedValue Name="Clearing" Value="10"/>
+        <opc:EnumeratedValue Name="Suspending" Value="11"/>
+        <opc:EnumeratedValue Name="Suspended" Value="12"/>
+        <opc:EnumeratedValue Name="Unsuspending" Value="13"/>
+        <opc:EnumeratedValue Name="Holding" Value="14"/>
+        <opc:EnumeratedValue Name="Held" Value="15"/>
+        <opc:EnumeratedValue Name="Unholding" Value="16"/>
+    </opc:EnumeratedType>
+    <opc:EnumeratedType LengthInBits="32" Name="StorageLogicEnumeration">
+        <opc:Documentation>The StorageLogicEnumeration describes standard loading and unloading material 
+configurations.</opc:Documentation>
+        <opc:EnumeratedValue Name="Other" Value="0"/>
+        <opc:EnumeratedValue Name="FIFO" Value="1"/>
+        <opc:EnumeratedValue Name="LIFO" Value="2"/>
+        <opc:EnumeratedValue Name="FEFO" Value="3"/>
+    </opc:EnumeratedType>
+    <opc:EnumeratedType LengthInBits="32" Name="StorageMixingLogicEnumeration">
+        <opc:Documentation>The StorageMixingLogicEnumeration describes standard ways of mixing material in a material 
+storage buffer.</opc:Documentation>
+        <opc:EnumeratedValue Name="Mixing" Value="0"/>
+        <opc:EnumeratedValue Name="NonMixingByProduct" Value="1"/>
+        <opc:EnumeratedValue Name="NonMixingByBatch" Value="2"/>
+    </opc:EnumeratedType>
+</opc:TypeDictionary>

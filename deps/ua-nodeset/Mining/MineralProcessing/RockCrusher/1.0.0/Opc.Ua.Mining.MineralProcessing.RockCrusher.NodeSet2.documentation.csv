@@ -1,0 +1,5 @@
+Id,Name,Link,ConformanceUnits
+1002,RockCrusherType,"https://reference.opcfoundation.org/Mining/MineralProcessing/RockCrusher/v100/docs/7.1.2","Rock Crusher Functional Variables;Rock Crusher Methods;"
+1003,RockCrusherControlType,"https://reference.opcfoundation.org/Mining/MineralProcessing/RockCrusher/v100/docs/7.2.2","Rock Crusher Control Functional Variables;Rock Crusher Control Methods;"
+5006,http://opcfoundation.org/UA/Mining/MineralProcessing/RockCrusher/,"https://reference.opcfoundation.org/Mining/MineralProcessing/RockCrusher/v100/docs/9.1",""
+7001,RequestUnloading,"https://reference.opcfoundation.org/Mining/MineralProcessing/RockCrusher/v100/docs/7.2.3",""

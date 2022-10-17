@@ -1,0 +1,4 @@
+Id,Name,Link,ConformanceUnits
+1002,RoofSupportSystemType,"https://reference.opcfoundation.org/Mining/DevelopmentSupport/RoofSupportSystem/v100/docs/6.1.2","RSS Functional Variables;RSS Methods;"
+3002,RSSStateEnum,"https://reference.opcfoundation.org/Mining/DevelopmentSupport/RoofSupportSystem/v100/docs/7.1",""
+5001,http://opcfoundation.org/UA/Mining/DevelopmentSupport/RoofSupportSystem/,"https://reference.opcfoundation.org/Mining/DevelopmentSupport/RoofSupportSystem/v100/docs/9.1",""

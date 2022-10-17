@@ -1,0 +1,18 @@
+<xs:schema elementFormDefault="qualified" targetNamespace="http://opcfoundation.org/UA/PlasticsRubber/Extrusion_v2/Cutter/Types.xsd" xmlns:tns="http://opcfoundation.org/UA/PlasticsRubber/Extrusion_v2/Cutter/Types.xsd" xmlns:ua="http://opcfoundation.org/UA/2008/02/Types.xsd" xmlns:xs="http://www.w3.org/2001/XMLSchema">
+    <xs:import namespace="http://opcfoundation.org/UA/2008/02/Types.xsd"/>
+    <xs:simpleType name="WallThickeningEnumeration">
+        <xs:restriction base="xs:string">
+            <xs:enumeration value="NO_0"/>
+            <xs:enumeration value="FRONT_1"/>
+            <xs:enumeration value="END_2"/>
+            <xs:enumeration value="BOTH_3"/>
+        </xs:restriction>
+    </xs:simpleType>
+    <xs:element type="tns:WallThickeningEnumeration" name="WallThickeningEnumeration"/>
+    <xs:complexType name="ListOfWallThickeningEnumeration">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="unbounded" type="tns:WallThickeningEnumeration" name="WallThickeningEnumeration" nillable="true"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:ListOfWallThickeningEnumeration" name="ListOfWallThickeningEnumeration" nillable="true"/>
+</xs:schema>

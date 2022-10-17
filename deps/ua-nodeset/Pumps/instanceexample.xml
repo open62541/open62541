@@ -1,0 +1,2581 @@
+<?xml version="1.0" encoding="utf-8"?>
+<UANodeSet xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd" xmlns="http://opcfoundation.org/UA/2011/03/UANodeSet.xsd" xmlns:s1="http://yourorganisation.org/InstanceExample/Types.xsd" xmlns:s2="http://opcfoundation.org/UA/Pumps/Types.xsd" xmlns:s3="http://opcfoundation.org/UA/Machinery/Types.xsd" xmlns:ua="http://unifiedautomation.com/Configuration/NodeSet.xsd" xmlns:s4="http://opcfoundation.org/UA/DI/Types.xsd" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+    <NamespaceUris>
+        <Uri>http://yourorganisation.org/InstanceExample/</Uri>
+        <Uri>http://opcfoundation.org/UA/Pumps/</Uri>
+        <Uri>http://opcfoundation.org/UA/Machinery/</Uri>
+        <Uri>http://opcfoundation.org/UA/DI/</Uri>
+    </NamespaceUris>
+    <Aliases>
+        <Alias Alias="Boolean">i=1</Alias>
+        <Alias Alias="Byte">i=3</Alias>
+        <Alias Alias="UInt16">i=5</Alias>
+        <Alias Alias="Int32">i=6</Alias>
+        <Alias Alias="UInt32">i=7</Alias>
+        <Alias Alias="UInt64">i=9</Alias>
+        <Alias Alias="Double">i=11</Alias>
+        <Alias Alias="String">i=12</Alias>
+        <Alias Alias="DateTime">i=13</Alias>
+        <Alias Alias="LocalizedText">i=21</Alias>
+        <Alias Alias="Organizes">i=35</Alias>
+        <Alias Alias="HasTypeDefinition">i=40</Alias>
+        <Alias Alias="GeneratesEvent">i=41</Alias>
+        <Alias Alias="HasProperty">i=46</Alias>
+        <Alias Alias="HasComponent">i=47</Alias>
+        <Alias Alias="Argument">i=296</Alias>
+        <Alias Alias="Range">i=884</Alias>
+        <Alias Alias="EUInformation">i=887</Alias>
+        <Alias Alias="FieldbusEnum">ns=2;i=3005</Alias>
+        <Alias Alias="ControlModeEnum">ns=2;i=3008</Alias>
+        <Alias Alias="OfferedControlModesOptionSet">ns=2;i=3017</Alias>
+        <Alias Alias="OfferedFieldbusesOptionSet">ns=2;i=3018</Alias>
+        <Alias Alias="PhysicalAddressDataType">ns=2;i=3020</Alias>
+        <Alias Alias="PumpClassEnum">ns=2;i=3021</Alias>
+    </Aliases>
+    <Extensions>
+        <Extension>
+            <ua:ModelInfo Tool="UaModeler" Hash="8CEpSdpw5nSUufEe3NIxhg==" Version="1.6.5"/>
+        </Extension>
+    </Extensions>
+    <UAObject NodeId="ns=1;i=5002" BrowseName="1:ExamplePump">
+        <DisplayName>ExamplePump</DisplayName>
+        <References>
+            <Reference ReferenceType="HasComponent">ns=1;i=5020</Reference>
+            <Reference ReferenceType="HasComponent">ns=1;i=5005</Reference>
+            <Reference ReferenceType="HasComponent">ns=1;i=5008</Reference>
+            <Reference ReferenceType="Organizes" IsForward="false">i=85</Reference>
+            <Reference ReferenceType="HasComponent">ns=1;i=5001</Reference>
+            <Reference ReferenceType="HasComponent">ns=1;i=5012</Reference>
+            <Reference ReferenceType="HasComponent">ns=1;i=5016</Reference>
+            <Reference ReferenceType="HasComponent">ns=1;i=5003</Reference>
+            <Reference ReferenceType="HasTypeDefinition">ns=2;i=1052</Reference>
+            <Reference ReferenceType="Organizes" IsForward="false">ns=3;i=1001</Reference>
+        </References>
+    </UAObject>
+    <UAObject ParentNodeId="ns=1;i=5002" NodeId="ns=1;i=5020" BrowseName="4:Configuration">
+        <DisplayName>Configuration</DisplayName>
+        <Description>Static design, system requirements, and implementation data of the pump.</Description>
+        <References>
+            <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=5002</Reference>
+            <Reference ReferenceType="HasTypeDefinition">ns=2;i=1024</Reference>
+            <Reference ReferenceType="HasComponent">ns=1;i=5021</Reference>
+            <Reference ReferenceType="HasComponent">ns=1;i=5022</Reference>
+        </References>
+    </UAObject>
+    <UAObject ParentNodeId="ns=1;i=5020" NodeId="ns=1;i=5021" BrowseName="2:Design">
+        <DisplayName>Design</DisplayName>
+        <Description>Static design properties for a pump.</Description>
+        <References>
+            <Reference ReferenceType="HasComponent">ns=1;i=6025</Reference>
+            <Reference ReferenceType="HasComponent">ns=1;i=6049</Reference>
+            <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=5020</Reference>
+            <Reference ReferenceType="HasTypeDefinition">ns=2;i=1020</Reference>
+            <Reference ReferenceType="HasComponent">ns=1;i=6052</Reference>
+            <Reference ReferenceType="HasComponent">ns=1;i=6053</Reference>
+            <Reference ReferenceType="HasComponent">ns=1;i=6086</Reference>
+            <Reference ReferenceType="HasComponent">ns=1;i=6087</Reference>
+            <Reference ReferenceType="HasComponent">ns=1;i=6092</Reference>
+            <Reference ReferenceType="HasComponent">ns=1;i=6093</Reference>
+            <Reference ReferenceType="HasComponent">ns=1;i=6094</Reference>
+            <Reference ReferenceType="HasComponent">ns=1;i=6095</Reference>
+            <Reference ReferenceType="HasComponent">ns=1;i=6096</Reference>
+            <Reference ReferenceType="HasComponent">ns=1;i=6097</Reference>
+        </References>
+    </UAObject>
+    <UAVariable DataType="Boolean" ParentNodeId="ns=1;i=5021" NodeId="ns=1;i=6025" BrowseName="2:ClockwiseRotation">
+        <DisplayName>ClockwiseRotation</DisplayName>
+        <Description>Direction of rotation in which the shaft is seen to be turning in a clockwise direction when viewing the drive end of the shaft. A "True" status means that the rotation of pump is clockwise and a "False" status means that the rotation of pump is anticlockwise.</Description>
+        <References>
+            <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=5021</Reference>
+            <Reference ReferenceType="HasProperty">ns=1;i=6047</Reference>
+            <Reference ReferenceType="HasProperty">ns=1;i=6048</Reference>
+            <Reference ReferenceType="HasTypeDefinition">i=2373</Reference>
+        </References>
+        <Value>
+            <uax:Boolean>true</uax:Boolean>
+        </Value>
+    </UAVariable>
+    <UAVariable DataType="LocalizedText" ParentNodeId="ns=1;i=6025" NodeId="ns=1;i=6047" BrowseName="FalseState">
+        <DisplayName>FalseState</DisplayName>
+        <References>
+            <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6025</Reference>
+            <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+        </References>
+        <Value>
+            <uax:LocalizedText>
+                <uax:Text>A FalseState means that the rotation of the pump is anticlockwise.</uax:Text>
+            </uax:LocalizedText>
+        </Value>
+    </UAVariable>
+    <UAVariable DataType="LocalizedText" ParentNodeId="ns=1;i=6025" NodeId="ns=1;i=6048" BrowseName="TrueState">
+        <DisplayName>TrueState</DisplayName>
+        <References>
+            <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+            <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6025</Reference>
+        </References>
+        <Value>
+            <uax:LocalizedText>
+                <uax:Text>A TrueState means that the rotation of pump is clockwise. </uax:Text>
+            </uax:LocalizedText>
+        </Value>
+    </UAVariable>
+    <UAVariable DataType="Boolean" ParentNodeId="ns=1;i=5021" NodeId="ns=1;i=6049" BrowseName="2:Controllable">
+        <DisplayName>Controllable</DisplayName>
+        <Description>Indicates whether the product is a controllable pump or a self-controlling pump. A "True" status means that the pump is controllable and a "False" status means that the pump is not controllable.</Description>
+        <References>
+            <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=5021</Reference>
+            <Reference ReferenceType="HasProperty">ns=1;i=6050</Reference>
+            <Reference ReferenceType="HasProperty">ns=1;i=6051</Reference>
+            <Reference ReferenceType="HasTypeDefinition">i=2373</Reference>
+        </References>
+    </UAVariable>
+    <UAVariable DataType="LocalizedText" ParentNodeId="ns=1;i=6049" NodeId="ns=1;i=6050" BrowseName="FalseState">
+        <DisplayName>FalseState</DisplayName>
+        <References>
+            <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6049</Reference>
+            <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+        </References>
+        <Value>
+            <uax:LocalizedText>
+                <uax:Text>A FalseState means that the pump is not controllable.</uax:Text>
+            </uax:LocalizedText>
+        </Value>
+    </UAVariable>
+    <UAVariable DataType="LocalizedText" ParentNodeId="ns=1;i=6049" NodeId="ns=1;i=6051" BrowseName="TrueState">
+        <DisplayName>TrueState</DisplayName>
+        <References>
+            <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+            <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6049</Reference>
+        </References>
+        <Value>
+            <uax:LocalizedText>
+                <uax:Text>A TrueState means that the pump is controllable.</uax:Text>
+            </uax:LocalizedText>
+        </Value>
+    </UAVariable>
+    <UAVariable DataType="Double" ParentNodeId="ns=1;i=5021" NodeId="ns=1;i=6052" BrowseName="2:MaximumAllowableAmbientTemperature">
+        <DisplayName>MaximumAllowableAmbientTemperature</DisplayName>
+        <Description>Highest allowable ambient temperature for which the equipment (or any part to which the term refers) is suitable</Description>
+        <References>
+            <Reference ReferenceType="HasTypeDefinition">i=15318</Reference>
+            <Reference ReferenceType="HasProperty">ns=1;i=6123</Reference>
+            <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=5021</Reference>
+        </References>
+        <Value>
+            <uax:Double>343.15</uax:Double>
+        </Value>
+    </UAVariable>
+    <UAVariable DataType="EUInformation" ParentNodeId="ns=1;i=6052" NodeId="ns=1;i=6123" BrowseName="EngineeringUnits">
+        <DisplayName>EngineeringUnits</DisplayName>
+        <References>
+            <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6052</Reference>
+            <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+        </References>
+        <Value>
+            <uax:ExtensionObject>
+                <uax:TypeId>
+                    <uax:Identifier>i=888</uax:Identifier>
+                </uax:TypeId>
+                <uax:Body>
+                    <uax:EUInformation>
+                        <uax:NamespaceUri>http://www.opcfoundation.org/UA/units/un/cefact</uax:NamespaceUri>
+                        <uax:UnitId>4932940</uax:UnitId>
+                        <uax:DisplayName>
+                            <uax:Text>K</uax:Text>
+                        </uax:DisplayName>
+                        <uax:Description>
+                            <uax:Text>kelvin</uax:Text>
+                        </uax:Description>
+                    </uax:EUInformation>
+                </uax:Body>
+            </uax:ExtensionObject>
+        </Value>
+    </UAVariable>
+    <UAVariable DataType="Double" ParentNodeId="ns=1;i=5021" NodeId="ns=1;i=6053" BrowseName="2:MaximumAllowableContinuousSpeed">
+        <DisplayName>MaximumAllowableContinuousSpeed</DisplayName>
+        <Description>Highest rotational speed for continuous operation recommended by the manufacturer</Description>
+        <References>
+            <Reference ReferenceType="HasTypeDefinition">i=15318</Reference>
+            <Reference ReferenceType="HasProperty">ns=1;i=6127</Reference>
+            <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=5021</Reference>
+        </References>
+        <Value>
+            <uax:Double>56.67</uax:Double>
+        </Value>
+    </UAVariable>
+    <UAVariable DataType="EUInformation" ParentNodeId="ns=1;i=6053" NodeId="ns=1;i=6127" BrowseName="EngineeringUnits">
+        <DisplayName>EngineeringUnits</DisplayName>
+        <References>
+            <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6053</Reference>
+            <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+        </References>
+        <Value>
+            <uax:ExtensionObject>
+                <uax:TypeId>
+                    <uax:Identifier>i=888</uax:Identifier>
+                </uax:TypeId>
+                <uax:Body>
+                    <uax:EUInformation>
+                        <uax:NamespaceUri>http://www.opcfoundation.org/UA/units/un/cefact</uax:NamespaceUri>
+                        <uax:UnitId>4405559</uax:UnitId>
+                        <uax:DisplayName>
+                            <uax:Text>s⁻¹</uax:Text>
+                        </uax:DisplayName>
+                        <uax:Description>
+                            <uax:Text>reciprocal second</uax:Text>
+                        </uax:Description>
+                    </uax:EUInformation>
+                </uax:Body>
+            </uax:ExtensionObject>
+        </Value>
+    </UAVariable>
+    <UAVariable DataType="Double" ParentNodeId="ns=1;i=5021" NodeId="ns=1;i=6086" BrowseName="2:MaximumAllowableHead">
+        <DisplayName>MaximumAllowableHead</DisplayName>
+        <Description>Maximum permissible head at which the pump can be continuously operated without suffering damage</Description>
+        <References>
+            <Reference ReferenceType="HasTypeDefinition">i=15318</Reference>
+            <Reference ReferenceType="HasProperty">ns=1;i=6131</Reference>
+            <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=5021</Reference>
+        </References>
+        <Value>
+            <uax:Double>6.3</uax:Double>
+        </Value>
+    </UAVariable>
+    <UAVariable DataType="EUInformation" ParentNodeId="ns=1;i=6086" NodeId="ns=1;i=6131" BrowseName="EngineeringUnits">
+        <DisplayName>EngineeringUnits</DisplayName>
+        <References>
+            <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6086</Reference>
+            <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+        </References>
+        <Value>
+            <uax:ExtensionObject>
+                <uax:TypeId>
+                    <uax:Identifier>i=888</uax:Identifier>
+                </uax:TypeId>
+                <uax:Body>
+                    <uax:EUInformation>
+                        <uax:NamespaceUri>http://www.opcfoundation.org/UA/units/un/cefact</uax:NamespaceUri>
+                        <uax:UnitId>5067858</uax:UnitId>
+                        <uax:DisplayName>
+                            <uax:Text>m</uax:Text>
+                        </uax:DisplayName>
+                        <uax:Description>
+                            <uax:Text>metre</uax:Text>
+                        </uax:Description>
+                    </uax:EUInformation>
+                </uax:Body>
+            </uax:ExtensionObject>
+        </Value>
+    </UAVariable>
+    <UAVariable DataType="Double" ParentNodeId="ns=1;i=5021" NodeId="ns=1;i=6087" BrowseName="2:MaximumAllowableRelativeHumidity">
+        <DisplayName>MaximumAllowableRelativeHumidity</DisplayName>
+        <Description>Highest allowable relative humidity for which the equipment (or any part to which the term refers) is suitable</Description>
+        <References>
+            <Reference ReferenceType="HasTypeDefinition">i=15318</Reference>
+            <Reference ReferenceType="HasProperty">ns=1;i=6135</Reference>
+            <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=5021</Reference>
+        </References>
+        <Value>
+            <uax:Double>80</uax:Double>
+        </Value>
+    </UAVariable>
+    <UAVariable DataType="EUInformation" ParentNodeId="ns=1;i=6087" NodeId="ns=1;i=6135" BrowseName="EngineeringUnits">
+        <DisplayName>EngineeringUnits</DisplayName>
+        <References>
+            <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6087</Reference>
+            <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+        </References>
+        <Value>
+            <uax:ExtensionObject>
+                <uax:TypeId>
+                    <uax:Identifier>i=888</uax:Identifier>
+                </uax:TypeId>
+                <uax:Body>
+                    <uax:EUInformation>
+                        <uax:NamespaceUri>http://www.opcfoundation.org/UA/units/un/cefact</uax:NamespaceUri>
+                        <uax:UnitId>20529</uax:UnitId>
+                        <uax:DisplayName>
+                            <uax:Text>%</uax:Text>
+                        </uax:DisplayName>
+                        <uax:Description>
+                            <uax:Text>percent</uax:Text>
+                        </uax:Description>
+                    </uax:EUInformation>
+                </uax:Body>
+            </uax:ExtensionObject>
+        </Value>
+    </UAVariable>
+    <UAVariable DataType="Double" ParentNodeId="ns=1;i=5021" NodeId="ns=1;i=6092" BrowseName="2:MaximumPumpPowerInput">
+        <DisplayName>MaximumPumpPowerInput</DisplayName>
+        <Description>Highest value of the pump power input at any rate of flow at any allowable operating condition</Description>
+        <References>
+            <Reference ReferenceType="HasTypeDefinition">i=15318</Reference>
+            <Reference ReferenceType="HasProperty">ns=1;i=6139</Reference>
+            <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=5021</Reference>
+        </References>
+        <Value>
+            <uax:Double>85</uax:Double>
+        </Value>
+    </UAVariable>
+    <UAVariable DataType="EUInformation" ParentNodeId="ns=1;i=6092" NodeId="ns=1;i=6139" BrowseName="EngineeringUnits">
+        <DisplayName>EngineeringUnits</DisplayName>
+        <References>
+            <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6092</Reference>
+            <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+        </References>
+        <Value>
+            <uax:ExtensionObject>
+                <uax:TypeId>
+                    <uax:Identifier>i=888</uax:Identifier>
+                </uax:TypeId>
+                <uax:Body>
+                    <uax:EUInformation>
+                        <uax:NamespaceUri>http://www.opcfoundation.org/UA/units/un/cefact</uax:NamespaceUri>
+                        <uax:UnitId>5723220</uax:UnitId>
+                        <uax:DisplayName>
+                            <uax:Text>W</uax:Text>
+                        </uax:DisplayName>
+                        <uax:Description>
+                            <uax:Text>watt</uax:Text>
+                        </uax:Description>
+                    </uax:EUInformation>
+                </uax:Body>
+            </uax:ExtensionObject>
+        </Value>
+    </UAVariable>
+    <UAVariable DataType="Double" ParentNodeId="ns=1;i=5021" NodeId="ns=1;i=6093" BrowseName="2:MinimumAllowableAmbientTemperature">
+        <DisplayName>MinimumAllowableAmbientTemperature</DisplayName>
+        <Description>Lowest allowable ambient temperature for which the equipment (or any part to which the term refers) is suitable</Description>
+        <References>
+            <Reference ReferenceType="HasTypeDefinition">i=15318</Reference>
+            <Reference ReferenceType="HasProperty">ns=1;i=6148</Reference>
+            <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=5021</Reference>
+        </References>
+        <Value>
+            <uax:Double>278.15</uax:Double>
+        </Value>
+    </UAVariable>
+    <UAVariable DataType="EUInformation" ParentNodeId="ns=1;i=6093" NodeId="ns=1;i=6148" BrowseName="EngineeringUnits">
+        <DisplayName>EngineeringUnits</DisplayName>
+        <References>
+            <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6093</Reference>
+            <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+        </References>
+        <Value>
+            <uax:ExtensionObject>
+                <uax:TypeId>
+                    <uax:Identifier>i=888</uax:Identifier>
+                </uax:TypeId>
+                <uax:Body>
+                    <uax:EUInformation>
+                        <uax:NamespaceUri>http://www.opcfoundation.org/UA/units/un/cefact</uax:NamespaceUri>
+                        <uax:UnitId>4932940</uax:UnitId>
+                        <uax:DisplayName>
+                            <uax:Text>K</uax:Text>
+                        </uax:DisplayName>
+                        <uax:Description>
+                            <uax:Text>kelvin</uax:Text>
+                        </uax:Description>
+                    </uax:EUInformation>
+                </uax:Body>
+            </uax:ExtensionObject>
+        </Value>
+    </UAVariable>
+    <UAVariable DataType="Double" ParentNodeId="ns=1;i=5021" NodeId="ns=1;i=6094" BrowseName="2:MinimumAllowableContinuousSpeed">
+        <DisplayName>MinimumAllowableContinuousSpeed</DisplayName>
+        <Description>Lowest speed for continuous operation recommended by the manufacturer</Description>
+        <References>
+            <Reference ReferenceType="HasTypeDefinition">i=15318</Reference>
+            <Reference ReferenceType="HasProperty">ns=1;i=6163</Reference>
+            <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=5021</Reference>
+        </References>
+        <Value>
+            <uax:Double>23.33</uax:Double>
+        </Value>
+    </UAVariable>
+    <UAVariable DataType="EUInformation" ParentNodeId="ns=1;i=6094" NodeId="ns=1;i=6163" BrowseName="EngineeringUnits">
+        <DisplayName>EngineeringUnits</DisplayName>
+        <References>
+            <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6094</Reference>
+            <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+        </References>
+        <Value>
+            <uax:ExtensionObject>
+                <uax:TypeId>
+                    <uax:Identifier>i=888</uax:Identifier>
+                </uax:TypeId>
+                <uax:Body>
+                    <uax:EUInformation>
+                        <uax:NamespaceUri>http://www.opcfoundation.org/UA/units/un/cefact</uax:NamespaceUri>
+                        <uax:UnitId>4405559</uax:UnitId>
+                        <uax:DisplayName>
+                            <uax:Text>s⁻¹</uax:Text>
+                        </uax:DisplayName>
+                        <uax:Description>
+                            <uax:Text>reciprocal second</uax:Text>
+                        </uax:Description>
+                    </uax:EUInformation>
+                </uax:Body>
+            </uax:ExtensionObject>
+        </Value>
+    </UAVariable>
+    <UAVariable DataType="OfferedControlModesOptionSet" ParentNodeId="ns=1;i=5021" NodeId="ns=1;i=6095" BrowseName="2:OfferedControlModes">
+        <DisplayName>OfferedControlModes</DisplayName>
+        <Description>Control modes supported by the manufacturer for the product.</Description>
+        <References>
+            <Reference ReferenceType="HasTypeDefinition">i=2365</Reference>
+            <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=5021</Reference>
+        </References>
+        <Value>
+            <uax:ExtensionObject>
+                <uax:TypeId>
+                    <uax:Identifier>ns=2;i=5008</uax:Identifier>
+                </uax:TypeId>
+                <uax:Body>
+                    <OptionSet xmlns="http://opcfoundation.org/UA/2008/02/Types.xsd">
+                        <Value>AAA=</Value>
+                        <ValidBits>gA8=</ValidBits>
+                    </OptionSet>
+                </uax:Body>
+            </uax:ExtensionObject>
+        </Value>
+    </UAVariable>
+    <UAVariable DataType="OfferedFieldbusesOptionSet" ParentNodeId="ns=1;i=5021" NodeId="ns=1;i=6096" BrowseName="2:OfferedFieldbuses">
+        <DisplayName>OfferedFieldbuses</DisplayName>
+        <Description>Fieldbuses supported by the manufacturer for the product.</Description>
+        <References>
+            <Reference ReferenceType="HasTypeDefinition">i=2365</Reference>
+            <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=5021</Reference>
+        </References>
+        <Value>
+            <uax:ExtensionObject>
+                <uax:TypeId>
+                    <uax:Identifier>ns=2;i=5011</uax:Identifier>
+                </uax:TypeId>
+                <uax:Body>
+                    <OptionSet xmlns="http://opcfoundation.org/UA/2008/02/Types.xsd">
+                        <Value>AAAAAAAAAA==</Value>
+                        <ValidBits>gICAgICAAw==</ValidBits>
+                    </OptionSet>
+                </uax:Body>
+            </uax:ExtensionObject>
+        </Value>
+    </UAVariable>
+    <UAVariable DataType="PumpClassEnum" ParentNodeId="ns=1;i=5021" NodeId="ns=1;i=6097" BrowseName="2:PumpClass">
+        <DisplayName>PumpClass</DisplayName>
+        <Description>Pump type according to functional principle and pumped fluid</Description>
+        <References>
+            <Reference ReferenceType="HasTypeDefinition">i=2365</Reference>
+            <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=5021</Reference>
+        </References>
+        <Value>
+            <uax:Int32>5</uax:Int32>
+        </Value>
+    </UAVariable>
+    <UAObject ParentNodeId="ns=1;i=5020" NodeId="ns=1;i=5022" BrowseName="2:SystemRequirements">
+        <DisplayName>SystemRequirements</DisplayName>
+        <Description>Static system requirement properties for a pump.</Description>
+        <References>
+            <Reference ReferenceType="HasComponent">ns=1;i=6168</Reference>
+            <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=5020</Reference>
+            <Reference ReferenceType="HasTypeDefinition">ns=2;i=1022</Reference>
+        </References>
+    </UAObject>
+    <UAVariable DataType="FieldbusEnum" ParentNodeId="ns=1;i=5022" NodeId="ns=1;i=6168" BrowseName="2:Fieldbus" AccessLevel="3">
+        <DisplayName>Fieldbus</DisplayName>
+        <Description>Selected fieldbus for the product</Description>
+        <References>
+            <Reference ReferenceType="HasTypeDefinition">i=2365</Reference>
+            <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=5022</Reference>
+        </References>
+        <Value>
+            <uax:Int32>4</uax:Int32>
+        </Value>
+    </UAVariable>
+    <UAObject ParentNodeId="ns=1;i=5002" NodeId="ns=1;i=5005" BrowseName="2:Documentation">
+        <DisplayName>Documentation</DisplayName>
+        <Description>Static documentation files of a pump.</Description>
+        <References>
+            <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=5002</Reference>
+            <Reference ReferenceType="HasTypeDefinition">ns=2;i=1006</Reference>
+            <Reference ReferenceType="HasComponent">ns=1;i=5007</Reference>
+            <Reference ReferenceType="HasComponent">ns=1;i=6023</Reference>
+        </References>
+    </UAObject>
+    <UAObject ParentNodeId="ns=1;i=5005" NodeId="ns=1;i=5007" BrowseName="2:TechnicalData">
+        <DisplayName>TechnicalData</DisplayName>
+        <Description>Manufacturer`s specification of the item.</Description>
+        <References>
+            <Reference ReferenceType="HasComponent">ns=1;i=7001</Reference>
+            <Reference ReferenceType="HasTypeDefinition">i=11575</Reference>
+            <Reference ReferenceType="HasComponent">ns=1;i=7002</Reference>
+            <Reference ReferenceType="HasProperty">ns=1;i=6024</Reference>
+            <Reference ReferenceType="HasComponent">ns=1;i=7003</Reference>
+            <Reference ReferenceType="HasProperty">ns=1;i=6009</Reference>
+            <Reference ReferenceType="HasComponent">ns=1;i=7004</Reference>
+            <Reference ReferenceType="HasComponent">ns=1;i=7005</Reference>
+            <Reference ReferenceType="HasProperty">ns=1;i=6013</Reference>
+            <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=5005</Reference>
+            <Reference ReferenceType="HasProperty">ns=1;i=6014</Reference>
+            <Reference ReferenceType="HasProperty">ns=1;i=6015</Reference>
+            <Reference ReferenceType="HasComponent">ns=1;i=7006</Reference>
+        </References>
+    </UAObject>
+    <UAMethod ParentNodeId="ns=1;i=5007" NodeId="ns=1;i=7001" BrowseName="Close" MethodDeclarationId="i=11583">
+        <DisplayName>Close</DisplayName>
+        <References>
+            <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=5007</Reference>
+            <Reference ReferenceType="HasProperty">ns=1;i=6004</Reference>
+        </References>
+    </UAMethod>
+    <UAVariable DataType="Argument" ParentNodeId="ns=1;i=7001" ValueRank="1" NodeId="ns=1;i=6004" ArrayDimensions="0" BrowseName="InputArguments">
+        <DisplayName>InputArguments</DisplayName>
+        <References>
+            <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+            <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=7001</Reference>
+        </References>
+        <Value>
+            <uax:ListOfExtensionObject>
+                <uax:ExtensionObject>
+                    <uax:TypeId>
+                        <uax:Identifier>i=297</uax:Identifier>
+                    </uax:TypeId>
+                    <uax:Body>
+                        <uax:Argument>
+                            <uax:Name>FileHandle</uax:Name>
+                            <uax:DataType>
+                                <uax:Identifier>i=7</uax:Identifier>
+                            </uax:DataType>
+                            <uax:ValueRank>-1</uax:ValueRank>
+                            <uax:ArrayDimensions/>
+                            <uax:Description/>
+                        </uax:Argument>
+                    </uax:Body>
+                </uax:ExtensionObject>
+            </uax:ListOfExtensionObject>
+        </Value>
+    </UAVariable>
+    <UAMethod ParentNodeId="ns=1;i=5007" NodeId="ns=1;i=7002" BrowseName="GetPosition" MethodDeclarationId="i=11590">
+        <DisplayName>GetPosition</DisplayName>
+        <References>
+            <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=5007</Reference>
+            <Reference ReferenceType="HasProperty">ns=1;i=6005</Reference>
+            <Reference ReferenceType="HasProperty">ns=1;i=6006</Reference>
+        </References>
+    </UAMethod>
+    <UAVariable DataType="Argument" ParentNodeId="ns=1;i=7002" ValueRank="1" NodeId="ns=1;i=6005" ArrayDimensions="0" BrowseName="InputArguments">
+        <DisplayName>InputArguments</DisplayName>
+        <References>
+            <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+            <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=7002</Reference>
+        </References>
+        <Value>
+            <uax:ListOfExtensionObject>
+                <uax:ExtensionObject>
+                    <uax:TypeId>
+                        <uax:Identifier>i=297</uax:Identifier>
+                    </uax:TypeId>
+                    <uax:Body>
+                        <uax:Argument>
+                            <uax:Name>FileHandle</uax:Name>
+                            <uax:DataType>
+                                <uax:Identifier>i=7</uax:Identifier>
+                            </uax:DataType>
+                            <uax:ValueRank>-1</uax:ValueRank>
+                            <uax:ArrayDimensions/>
+                            <uax:Description/>
+                        </uax:Argument>
+                    </uax:Body>
+                </uax:ExtensionObject>
+            </uax:ListOfExtensionObject>
+        </Value>
+    </UAVariable>
+    <UAVariable DataType="Argument" ParentNodeId="ns=1;i=7002" ValueRank="1" NodeId="ns=1;i=6006" ArrayDimensions="0" BrowseName="OutputArguments">
+        <DisplayName>OutputArguments</DisplayName>
+        <References>
+            <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+            <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=7002</Reference>
+        </References>
+        <Value>
+            <uax:ListOfExtensionObject>
+                <uax:ExtensionObject>
+                    <uax:TypeId>
+                        <uax:Identifier>i=297</uax:Identifier>
+                    </uax:TypeId>
+                    <uax:Body>
+                        <uax:Argument>
+                            <uax:Name>Position</uax:Name>
+                            <uax:DataType>
+                                <uax:Identifier>i=9</uax:Identifier>
+                            </uax:DataType>
+                            <uax:ValueRank>-1</uax:ValueRank>
+                            <uax:ArrayDimensions/>
+                            <uax:Description/>
+                        </uax:Argument>
+                    </uax:Body>
+                </uax:ExtensionObject>
+            </uax:ListOfExtensionObject>
+        </Value>
+    </UAVariable>
+    <UAVariable DataType="String" ParentNodeId="ns=1;i=5007" NodeId="ns=1;i=6024" BrowseName="MimeType">
+        <DisplayName>MimeType</DisplayName>
+        <References>
+            <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=5007</Reference>
+            <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+        </References>
+    </UAVariable>
+    <UAMethod ParentNodeId="ns=1;i=5007" NodeId="ns=1;i=7003" BrowseName="Open" MethodDeclarationId="i=11580">
+        <DisplayName>Open</DisplayName>
+        <References>
+            <Reference ReferenceType="HasProperty">ns=1;i=6007</Reference>
+            <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=5007</Reference>
+            <Reference ReferenceType="HasProperty">ns=1;i=6008</Reference>
+        </References>
+    </UAMethod>
+    <UAVariable DataType="Argument" ParentNodeId="ns=1;i=7003" ValueRank="1" NodeId="ns=1;i=6007" ArrayDimensions="0" BrowseName="InputArguments">
+        <DisplayName>InputArguments</DisplayName>
+        <References>
+            <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+            <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=7003</Reference>
+        </References>
+        <Value>
+            <uax:ListOfExtensionObject>
+                <uax:ExtensionObject>
+                    <uax:TypeId>
+                        <uax:Identifier>i=297</uax:Identifier>
+                    </uax:TypeId>
+                    <uax:Body>
+                        <uax:Argument>
+                            <uax:Name>Mode</uax:Name>
+                            <uax:DataType>
+                                <uax:Identifier>i=3</uax:Identifier>
+                            </uax:DataType>
+                            <uax:ValueRank>-1</uax:ValueRank>
+                            <uax:ArrayDimensions/>
+                            <uax:Description/>
+                        </uax:Argument>
+                    </uax:Body>
+                </uax:ExtensionObject>
+            </uax:ListOfExtensionObject>
+        </Value>
+    </UAVariable>
+    <UAVariable DataType="Argument" ParentNodeId="ns=1;i=7003" ValueRank="1" NodeId="ns=1;i=6008" ArrayDimensions="0" BrowseName="OutputArguments">
+        <DisplayName>OutputArguments</DisplayName>
+        <References>
+            <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+            <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=7003</Reference>
+        </References>
+        <Value>
+            <uax:ListOfExtensionObject>
+                <uax:ExtensionObject>
+                    <uax:TypeId>
+                        <uax:Identifier>i=297</uax:Identifier>
+                    </uax:TypeId>
+                    <uax:Body>
+                        <uax:Argument>
+                            <uax:Name>FileHandle</uax:Name>
+                            <uax:DataType>
+                                <uax:Identifier>i=7</uax:Identifier>
+                            </uax:DataType>
+                            <uax:ValueRank>-1</uax:ValueRank>
+                            <uax:ArrayDimensions/>
+                            <uax:Description/>
+                        </uax:Argument>
+                    </uax:Body>
+                </uax:ExtensionObject>
+            </uax:ListOfExtensionObject>
+        </Value>
+    </UAVariable>
+    <UAVariable DataType="UInt16" ParentNodeId="ns=1;i=5007" NodeId="ns=1;i=6009" BrowseName="OpenCount">
+        <DisplayName>OpenCount</DisplayName>
+        <References>
+            <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=5007</Reference>
+            <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+        </References>
+    </UAVariable>
+    <UAMethod ParentNodeId="ns=1;i=5007" NodeId="ns=1;i=7004" BrowseName="Read" MethodDeclarationId="i=11585">
+        <DisplayName>Read</DisplayName>
+        <References>
+            <Reference ReferenceType="HasProperty">ns=1;i=6010</Reference>
+            <Reference ReferenceType="HasProperty">ns=1;i=6011</Reference>
+            <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=5007</Reference>
+        </References>
+    </UAMethod>
+    <UAVariable DataType="Argument" ParentNodeId="ns=1;i=7004" ValueRank="1" NodeId="ns=1;i=6010" ArrayDimensions="0" BrowseName="InputArguments">
+        <DisplayName>InputArguments</DisplayName>
+        <References>
+            <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+            <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=7004</Reference>
+        </References>
+        <Value>
+            <uax:ListOfExtensionObject>
+                <uax:ExtensionObject>
+                    <uax:TypeId>
+                        <uax:Identifier>i=297</uax:Identifier>
+                    </uax:TypeId>
+                    <uax:Body>
+                        <uax:Argument>
+                            <uax:Name>FileHandle</uax:Name>
+                            <uax:DataType>
+                                <uax:Identifier>i=7</uax:Identifier>
+                            </uax:DataType>
+                            <uax:ValueRank>-1</uax:ValueRank>
+                            <uax:ArrayDimensions/>
+                            <uax:Description/>
+                        </uax:Argument>
+                    </uax:Body>
+                </uax:ExtensionObject>
+                <uax:ExtensionObject>
+                    <uax:TypeId>
+                        <uax:Identifier>i=297</uax:Identifier>
+                    </uax:TypeId>
+                    <uax:Body>
+                        <uax:Argument>
+                            <uax:Name>Length</uax:Name>
+                            <uax:DataType>
+                                <uax:Identifier>i=6</uax:Identifier>
+                            </uax:DataType>
+                            <uax:ValueRank>-1</uax:ValueRank>
+                            <uax:ArrayDimensions/>
+                            <uax:Description/>
+                        </uax:Argument>
+                    </uax:Body>
+                </uax:ExtensionObject>
+            </uax:ListOfExtensionObject>
+        </Value>
+    </UAVariable>
+    <UAVariable DataType="Argument" ParentNodeId="ns=1;i=7004" ValueRank="1" NodeId="ns=1;i=6011" ArrayDimensions="0" BrowseName="OutputArguments">
+        <DisplayName>OutputArguments</DisplayName>
+        <References>
+            <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+            <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=7004</Reference>
+        </References>
+        <Value>
+            <uax:ListOfExtensionObject>
+                <uax:ExtensionObject>
+                    <uax:TypeId>
+                        <uax:Identifier>i=297</uax:Identifier>
+                    </uax:TypeId>
+                    <uax:Body>
+                        <uax:Argument>
+                            <uax:Name>Data</uax:Name>
+                            <uax:DataType>
+                                <uax:Identifier>i=15</uax:Identifier>
+                            </uax:DataType>
+                            <uax:ValueRank>-1</uax:ValueRank>
+                            <uax:ArrayDimensions/>
+                            <uax:Description/>
+                        </uax:Argument>
+                    </uax:Body>
+                </uax:ExtensionObject>
+            </uax:ListOfExtensionObject>
+        </Value>
+    </UAVariable>
+    <UAMethod ParentNodeId="ns=1;i=5007" NodeId="ns=1;i=7005" BrowseName="SetPosition" MethodDeclarationId="i=11593">
+        <DisplayName>SetPosition</DisplayName>
+        <References>
+            <Reference ReferenceType="HasProperty">ns=1;i=6012</Reference>
+            <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=5007</Reference>
+        </References>
+    </UAMethod>
+    <UAVariable DataType="Argument" ParentNodeId="ns=1;i=7005" ValueRank="1" NodeId="ns=1;i=6012" ArrayDimensions="0" BrowseName="InputArguments">
+        <DisplayName>InputArguments</DisplayName>
+        <References>
+            <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+            <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=7005</Reference>
+        </References>
+        <Value>
+            <uax:ListOfExtensionObject>
+                <uax:ExtensionObject>
+                    <uax:TypeId>
+                        <uax:Identifier>i=297</uax:Identifier>
+                    </uax:TypeId>
+                    <uax:Body>
+                        <uax:Argument>
+                            <uax:Name>FileHandle</uax:Name>
+                            <uax:DataType>
+                                <uax:Identifier>i=7</uax:Identifier>
+                            </uax:DataType>
+                            <uax:ValueRank>-1</uax:ValueRank>
+                            <uax:ArrayDimensions/>
+                            <uax:Description/>
+                        </uax:Argument>
+                    </uax:Body>
+                </uax:ExtensionObject>
+                <uax:ExtensionObject>
+                    <uax:TypeId>
+                        <uax:Identifier>i=297</uax:Identifier>
+                    </uax:TypeId>
+                    <uax:Body>
+                        <uax:Argument>
+                            <uax:Name>Position</uax:Name>
+                            <uax:DataType>
+                                <uax:Identifier>i=9</uax:Identifier>
+                            </uax:DataType>
+                            <uax:ValueRank>-1</uax:ValueRank>
+                            <uax:ArrayDimensions/>
+                            <uax:Description/>
+                        </uax:Argument>
+                    </uax:Body>
+                </uax:ExtensionObject>
+            </uax:ListOfExtensionObject>
+        </Value>
+    </UAVariable>
+    <UAVariable DataType="UInt64" ParentNodeId="ns=1;i=5007" NodeId="ns=1;i=6013" BrowseName="Size">
+        <DisplayName>Size</DisplayName>
+        <References>
+            <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+            <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=5007</Reference>
+        </References>
+    </UAVariable>
+    <UAVariable DataType="Boolean" ParentNodeId="ns=1;i=5007" NodeId="ns=1;i=6014" BrowseName="UserWritable">
+        <DisplayName>UserWritable</DisplayName>
+        <References>
+            <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+            <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=5007</Reference>
+        </References>
+    </UAVariable>
+    <UAVariable DataType="Boolean" ParentNodeId="ns=1;i=5007" NodeId="ns=1;i=6015" BrowseName="Writable">
+        <DisplayName>Writable</DisplayName>
+        <References>
+            <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+            <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=5007</Reference>
+        </References>
+    </UAVariable>
+    <UAMethod ParentNodeId="ns=1;i=5007" NodeId="ns=1;i=7006" BrowseName="Write" MethodDeclarationId="i=11588">
+        <DisplayName>Write</DisplayName>
+        <References>
+            <Reference ReferenceType="HasProperty">ns=1;i=6022</Reference>
+            <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=5007</Reference>
+        </References>
+    </UAMethod>
+    <UAVariable DataType="Argument" ParentNodeId="ns=1;i=7006" ValueRank="1" NodeId="ns=1;i=6022" ArrayDimensions="0" BrowseName="InputArguments">
+        <DisplayName>InputArguments</DisplayName>
+        <References>
+            <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+            <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=7006</Reference>
+        </References>
+        <Value>
+            <uax:ListOfExtensionObject>
+                <uax:ExtensionObject>
+                    <uax:TypeId>
+                        <uax:Identifier>i=297</uax:Identifier>
+                    </uax:TypeId>
+                    <uax:Body>
+                        <uax:Argument>
+                            <uax:Name>FileHandle</uax:Name>
+                            <uax:DataType>
+                                <uax:Identifier>i=7</uax:Identifier>
+                            </uax:DataType>
+                            <uax:ValueRank>-1</uax:ValueRank>
+                            <uax:ArrayDimensions/>
+                            <uax:Description/>
+                        </uax:Argument>
+                    </uax:Body>
+                </uax:ExtensionObject>
+                <uax:ExtensionObject>
+                    <uax:TypeId>
+                        <uax:Identifier>i=297</uax:Identifier>
+                    </uax:TypeId>
+                    <uax:Body>
+                        <uax:Argument>
+                            <uax:Name>Data</uax:Name>
+                            <uax:DataType>
+                                <uax:Identifier>i=15</uax:Identifier>
+                            </uax:DataType>
+                            <uax:ValueRank>-1</uax:ValueRank>
+                            <uax:ArrayDimensions/>
+                            <uax:Description/>
+                        </uax:Argument>
+                    </uax:Body>
+                </uax:ExtensionObject>
+            </uax:ListOfExtensionObject>
+        </Value>
+    </UAVariable>
+    <UAVariable DataType="String" ParentNodeId="ns=1;i=5005" NodeId="ns=1;i=6023" BrowseName="2:TechnicalDataLink">
+        <DisplayName>TechnicalDataLink</DisplayName>
+        <Description>Manufacturer`s specification of the item.</Description>
+        <References>
+            <Reference ReferenceType="HasTypeDefinition">i=2365</Reference>
+            <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=5005</Reference>
+        </References>
+        <Value>
+            <uax:String>www.LinkToTechnicalData.com/example</uax:String>
+        </Value>
+    </UAVariable>
+    <UAObject ParentNodeId="ns=1;i=5002" NodeId="ns=1;i=5008" BrowseName="2:Events">
+        <DisplayName>Events</DisplayName>
+        <Description>States, alarms, and conditions of a pump.</Description>
+        <References>
+            <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=5002</Reference>
+            <Reference ReferenceType="HasComponent">ns=1;i=5009</Reference>
+            <Reference ReferenceType="HasComponent">ns=1;i=5010</Reference>
+            <Reference ReferenceType="HasComponent">ns=1;i=5011</Reference>
+            <Reference ReferenceType="HasTypeDefinition">ns=2;i=1019</Reference>
+        </References>
+    </UAObject>
+    <UAObject ParentNodeId="ns=1;i=5008" NodeId="ns=1;i=5009" BrowseName="2:SupervisionMechanics">
+        <DisplayName>SupervisionMechanics</DisplayName>
+        <Description>Supervision mechanics specifies supervising information related to device mechanics.</Description>
+        <References>
+            <Reference ReferenceType="HasComponent">ns=1;i=6026</Reference>
+            <Reference ReferenceType="HasComponent">ns=1;i=6029</Reference>
+            <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=5008</Reference>
+            <Reference ReferenceType="HasTypeDefinition">ns=2;i=1012</Reference>
+            <Reference ReferenceType="HasComponent">ns=1;i=6032</Reference>
+        </References>
+    </UAObject>
+    <UAVariable DataType="Boolean" Historizing="true" ParentNodeId="ns=1;i=5009" NodeId="ns=1;i=6026" BrowseName="2:ExcessVibration" AccessLevel="5">
+        <DisplayName>ExcessVibration</DisplayName>
+        <Description>This attribute indicates unacceptable high mechanical vibration.</Description>
+        <References>
+            <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=5009</Reference>
+            <Reference ReferenceType="HasProperty">ns=1;i=6027</Reference>
+            <Reference ReferenceType="HasProperty">ns=1;i=6028</Reference>
+            <Reference ReferenceType="HasTypeDefinition">i=2373</Reference>
+        </References>
+        <Value>
+            <uax:Boolean>false</uax:Boolean>
+        </Value>
+    </UAVariable>
+    <UAVariable DataType="LocalizedText" ParentNodeId="ns=1;i=6026" NodeId="ns=1;i=6027" BrowseName="FalseState">
+        <DisplayName>FalseState</DisplayName>
+        <References>
+            <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6026</Reference>
+            <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+        </References>
+        <Value>
+            <uax:LocalizedText>
+                <uax:Text>A FalseState means that there is no excess vibration at the pump. </uax:Text>
+            </uax:LocalizedText>
+        </Value>
+    </UAVariable>
+    <UAVariable DataType="LocalizedText" ParentNodeId="ns=1;i=6026" NodeId="ns=1;i=6028" BrowseName="TrueState">
+        <DisplayName>TrueState</DisplayName>
+        <References>
+            <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+            <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6026</Reference>
+        </References>
+        <Value>
+            <uax:LocalizedText>
+                <uax:Text>A TrueState means that there is an excess vibration at the pump. </uax:Text>
+            </uax:LocalizedText>
+        </Value>
+    </UAVariable>
+    <UAVariable DataType="Boolean" Historizing="true" ParentNodeId="ns=1;i=5009" NodeId="ns=1;i=6029" BrowseName="2:RotorBlocked" AccessLevel="5">
+        <DisplayName>RotorBlocked</DisplayName>
+        <Description>This attribute indicates a blocked rotor.</Description>
+        <References>
+            <Reference ReferenceType="HasProperty">ns=1;i=6030</Reference>
+            <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=5009</Reference>
+            <Reference ReferenceType="HasProperty">ns=1;i=6031</Reference>
+            <Reference ReferenceType="HasTypeDefinition">i=2373</Reference>
+        </References>
+        <Value>
+            <uax:Boolean>false</uax:Boolean>
+        </Value>
+    </UAVariable>
+    <UAVariable DataType="LocalizedText" ParentNodeId="ns=1;i=6029" NodeId="ns=1;i=6030" BrowseName="FalseState">
+        <DisplayName>FalseState</DisplayName>
+        <References>
+            <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6029</Reference>
+            <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+        </References>
+        <Value>
+            <uax:LocalizedText>
+                <uax:Text>A FalseState means that there is no blocked rotor. </uax:Text>
+            </uax:LocalizedText>
+        </Value>
+    </UAVariable>
+    <UAVariable DataType="LocalizedText" ParentNodeId="ns=1;i=6029" NodeId="ns=1;i=6031" BrowseName="TrueState">
+        <DisplayName>TrueState</DisplayName>
+        <References>
+            <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+            <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6029</Reference>
+        </References>
+        <Value>
+            <uax:LocalizedText>
+                <uax:Text>A TrueState means that there a no blocked rotor. </uax:Text>
+            </uax:LocalizedText>
+        </Value>
+    </UAVariable>
+    <UAVariable DataType="Boolean" Historizing="true" ParentNodeId="ns=1;i=5009" NodeId="ns=1;i=6032" BrowseName="2:Unbalance" AccessLevel="5">
+        <DisplayName>Unbalance</DisplayName>
+        <Description>This attribute indicates an unbalance.</Description>
+        <References>
+            <Reference ReferenceType="HasProperty">ns=1;i=6033</Reference>
+            <Reference ReferenceType="HasProperty">ns=1;i=6034</Reference>
+            <Reference ReferenceType="HasTypeDefinition">i=2373</Reference>
+            <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=5009</Reference>
+        </References>
+        <Value>
+            <uax:Boolean>false</uax:Boolean>
+        </Value>
+    </UAVariable>
+    <UAVariable DataType="LocalizedText" ParentNodeId="ns=1;i=6032" NodeId="ns=1;i=6033" BrowseName="FalseState">
+        <DisplayName>FalseState</DisplayName>
+        <References>
+            <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6032</Reference>
+            <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+        </References>
+        <Value>
+            <uax:LocalizedText>
+                <uax:Text>A FalseState means that there is no unbalance at the pump. </uax:Text>
+            </uax:LocalizedText>
+        </Value>
+    </UAVariable>
+    <UAVariable DataType="LocalizedText" ParentNodeId="ns=1;i=6032" NodeId="ns=1;i=6034" BrowseName="TrueState">
+        <DisplayName>TrueState</DisplayName>
+        <References>
+            <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+            <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6032</Reference>
+        </References>
+        <Value>
+            <uax:LocalizedText>
+                <uax:Text>A TrueState means that there is unbalance at the pump. </uax:Text>
+            </uax:LocalizedText>
+        </Value>
+    </UAVariable>
+    <UAObject ParentNodeId="ns=1;i=5008" NodeId="ns=1;i=5010" BrowseName="2:SupervisionProcessFluid">
+        <DisplayName>SupervisionProcessFluid</DisplayName>
+        <Description>Supervision process fluid specifies information for monitoring the fluid of a pump.</Description>
+        <References>
+            <Reference ReferenceType="HasComponent">ns=1;i=6035</Reference>
+            <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=5008</Reference>
+            <Reference ReferenceType="HasTypeDefinition">ns=2;i=1015</Reference>
+            <Reference ReferenceType="HasComponent">ns=1;i=6038</Reference>
+        </References>
+    </UAObject>
+    <UAVariable DataType="Boolean" Historizing="true" ParentNodeId="ns=1;i=5010" NodeId="ns=1;i=6035" BrowseName="2:Blockage" AccessLevel="5">
+        <DisplayName>Blockage</DisplayName>
+        <Description>This attribute indicates a closed valve operation.</Description>
+        <References>
+            <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=5010</Reference>
+            <Reference ReferenceType="HasProperty">ns=1;i=6036</Reference>
+            <Reference ReferenceType="HasProperty">ns=1;i=6037</Reference>
+            <Reference ReferenceType="HasTypeDefinition">i=2373</Reference>
+        </References>
+        <Value>
+            <uax:Boolean>false</uax:Boolean>
+        </Value>
+    </UAVariable>
+    <UAVariable DataType="LocalizedText" ParentNodeId="ns=1;i=6035" NodeId="ns=1;i=6036" BrowseName="FalseState">
+        <DisplayName>FalseState</DisplayName>
+        <References>
+            <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6035</Reference>
+            <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+        </References>
+        <Value>
+            <uax:LocalizedText>
+                <uax:Text>A FalseState means that there is no blockage at the pump. </uax:Text>
+            </uax:LocalizedText>
+        </Value>
+    </UAVariable>
+    <UAVariable DataType="LocalizedText" ParentNodeId="ns=1;i=6035" NodeId="ns=1;i=6037" BrowseName="TrueState">
+        <DisplayName>TrueState</DisplayName>
+        <References>
+            <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+            <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6035</Reference>
+        </References>
+        <Value>
+            <uax:LocalizedText>
+                <uax:Text>A TrueState means that there is a blockage at the pump. </uax:Text>
+            </uax:LocalizedText>
+        </Value>
+    </UAVariable>
+    <UAVariable DataType="Boolean" Historizing="true" ParentNodeId="ns=1;i=5010" NodeId="ns=1;i=6038" BrowseName="2:Temperature" AccessLevel="5">
+        <DisplayName>Temperature</DisplayName>
+        <Description>This attribute indicates an abnormal temperature of the pump fluid.</Description>
+        <References>
+            <Reference ReferenceType="HasProperty">ns=1;i=6039</Reference>
+            <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=5010</Reference>
+            <Reference ReferenceType="HasProperty">ns=1;i=6040</Reference>
+            <Reference ReferenceType="HasTypeDefinition">i=2373</Reference>
+        </References>
+        <Value>
+            <uax:Boolean>false</uax:Boolean>
+        </Value>
+    </UAVariable>
+    <UAVariable DataType="LocalizedText" ParentNodeId="ns=1;i=6038" NodeId="ns=1;i=6039" BrowseName="FalseState">
+        <DisplayName>FalseState</DisplayName>
+        <References>
+            <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6038</Reference>
+            <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+        </References>
+        <Value>
+            <uax:LocalizedText>
+                <uax:Text>A FalseState means that there is no abnormal temperature at the fluid. </uax:Text>
+            </uax:LocalizedText>
+        </Value>
+    </UAVariable>
+    <UAVariable DataType="LocalizedText" ParentNodeId="ns=1;i=6038" NodeId="ns=1;i=6040" BrowseName="TrueState">
+        <DisplayName>TrueState</DisplayName>
+        <References>
+            <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+            <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6038</Reference>
+        </References>
+        <Value>
+            <uax:LocalizedText>
+                <uax:Text>A TrueState means that there is an abnormal temperature at the fluid. </uax:Text>
+            </uax:LocalizedText>
+        </Value>
+    </UAVariable>
+    <UAObject ParentNodeId="ns=1;i=5008" NodeId="ns=1;i=5011" BrowseName="2:SupervisionPumpOperation">
+        <DisplayName>SupervisionPumpOperation</DisplayName>
+        <Description>Supervision pump operation specifies information for monitoring the pump operation.</Description>
+        <References>
+            <Reference ReferenceType="HasComponent">ns=1;i=6041</Reference>
+            <Reference ReferenceType="HasComponent">ns=1;i=6044</Reference>
+            <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=5008</Reference>
+            <Reference ReferenceType="HasTypeDefinition">ns=2;i=1016</Reference>
+        </References>
+    </UAObject>
+    <UAVariable DataType="Boolean" Historizing="true" ParentNodeId="ns=1;i=5011" NodeId="ns=1;i=6041" BrowseName="2:MaximumNumberStarts" AccessLevel="5">
+        <DisplayName>MaximumNumberStarts</DisplayName>
+        <Description>This attribute indicates that the maximum number of pump start cycles is exceeded.</Description>
+        <References>
+            <Reference ReferenceType="HasProperty">ns=1;i=6042</Reference>
+            <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=5011</Reference>
+            <Reference ReferenceType="HasProperty">ns=1;i=6043</Reference>
+            <Reference ReferenceType="HasTypeDefinition">i=2373</Reference>
+        </References>
+        <Value>
+            <uax:Boolean>false</uax:Boolean>
+        </Value>
+    </UAVariable>
+    <UAVariable DataType="LocalizedText" ParentNodeId="ns=1;i=6041" NodeId="ns=1;i=6042" BrowseName="FalseState">
+        <DisplayName>FalseState</DisplayName>
+        <References>
+            <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6041</Reference>
+            <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+        </References>
+        <Value>
+            <uax:LocalizedText>
+                <uax:Text>A FalseState means that the maximum number of pump start cycles is not exceeded.</uax:Text>
+            </uax:LocalizedText>
+        </Value>
+    </UAVariable>
+    <UAVariable DataType="LocalizedText" ParentNodeId="ns=1;i=6041" NodeId="ns=1;i=6043" BrowseName="TrueState">
+        <DisplayName>TrueState</DisplayName>
+        <References>
+            <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+            <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6041</Reference>
+        </References>
+        <Value>
+            <uax:LocalizedText>
+                <uax:Text>A TrueState means that the maximum number of pump start cycles is exceeded.</uax:Text>
+            </uax:LocalizedText>
+        </Value>
+    </UAVariable>
+    <UAVariable DataType="Boolean" Historizing="true" ParentNodeId="ns=1;i=5011" NodeId="ns=1;i=6044" BrowseName="2:MaximumOperationTime" AccessLevel="5">
+        <DisplayName>MaximumOperationTime</DisplayName>
+        <Description>This attribute indicates that the maximum time of pump operation is exceeded.</Description>
+        <References>
+            <Reference ReferenceType="HasProperty">ns=1;i=6045</Reference>
+            <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=5011</Reference>
+            <Reference ReferenceType="HasProperty">ns=1;i=6046</Reference>
+            <Reference ReferenceType="HasTypeDefinition">i=2373</Reference>
+        </References>
+        <Value>
+            <uax:Boolean>false</uax:Boolean>
+        </Value>
+    </UAVariable>
+    <UAVariable DataType="LocalizedText" ParentNodeId="ns=1;i=6044" NodeId="ns=1;i=6045" BrowseName="FalseState">
+        <DisplayName>FalseState</DisplayName>
+        <References>
+            <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6044</Reference>
+            <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+        </References>
+        <Value>
+            <uax:LocalizedText>
+                <uax:Text>A FalseState means that the maximum time of pump operation is not exceeded.</uax:Text>
+            </uax:LocalizedText>
+        </Value>
+    </UAVariable>
+    <UAVariable DataType="LocalizedText" ParentNodeId="ns=1;i=6044" NodeId="ns=1;i=6046" BrowseName="TrueState">
+        <DisplayName>TrueState</DisplayName>
+        <References>
+            <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+            <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6044</Reference>
+        </References>
+        <Value>
+            <uax:LocalizedText>
+                <uax:Text>A TrueState means that the maximum time of pump operation is exceeded.</uax:Text>
+            </uax:LocalizedText>
+        </Value>
+    </UAVariable>
+    <UAObject ParentNodeId="ns=1;i=5002" NodeId="ns=1;i=5001" BrowseName="4:Identification">
+        <DisplayName>Identification</DisplayName>
+        <Description>Identification information of a pump.</Description>
+        <References>
+            <Reference ReferenceType="HasProperty">ns=1;i=6154</Reference>
+            <Reference ReferenceType="HasProperty">ns=1;i=6155</Reference>
+            <Reference ReferenceType="HasProperty">ns=1;i=6156</Reference>
+            <Reference ReferenceType="HasProperty">ns=1;i=6157</Reference>
+            <Reference ReferenceType="HasProperty">ns=1;i=6158</Reference>
+            <Reference ReferenceType="HasProperty">ns=1;i=6159</Reference>
+            <Reference ReferenceType="HasProperty">ns=1;i=6001</Reference>
+            <Reference ReferenceType="HasProperty">ns=1;i=6160</Reference>
+            <Reference ReferenceType="HasProperty">ns=1;i=6161</Reference>
+            <Reference ReferenceType="HasProperty">ns=1;i=6162</Reference>
+            <Reference ReferenceType="HasProperty">ns=1;i=6002</Reference>
+            <Reference ReferenceType="HasTypeDefinition">ns=2;i=1005</Reference>
+            <Reference ReferenceType="HasProperty">ns=1;i=6003</Reference>
+            <Reference ReferenceType="HasProperty">ns=1;i=6164</Reference>
+            <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=5002</Reference>
+        </References>
+    </UAObject>
+    <UAVariable DataType="String" ParentNodeId="ns=1;i=5001" NodeId="ns=1;i=6154" BrowseName="2:ArticleNumber">
+        <DisplayName>ArticleNumber</DisplayName>
+        <Description>Alphanumeric character sequence identifying a manufactured, non-configurable product.</Description>
+        <References>
+            <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=5001</Reference>
+            <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+        </References>
+        <Value>
+            <uax:String>1234567890</uax:String>
+        </Value>
+    </UAVariable>
+    <UAVariable DataType="LocalizedText" ParentNodeId="ns=1;i=5001" NodeId="ns=1;i=6155" BrowseName="4:ComponentName" AccessLevel="3">
+        <DisplayName>ComponentName</DisplayName>
+        <Description Locale="en">To be used by end users to store a human-readable localized text for the MachineryItem. The minimum number of locales supported for this property shall be two. Servers shall support at least 40 Unicode characters for the clients writing the text part of each locale, this means clients can expect to be able to write texts with a length of 40 Unicode characters into that field.</Description>
+        <References>
+            <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=5001</Reference>
+            <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+        </References>
+        <Value>
+            <uax:LocalizedText>
+                <uax:Text>ExampleComponentName</uax:Text>
+            </uax:LocalizedText>
+        </Value>
+    </UAVariable>
+    <UAVariable DataType="String" ParentNodeId="ns=1;i=5001" NodeId="ns=1;i=6156" BrowseName="2:CountryOfOrigin">
+        <DisplayName>CountryOfOrigin</DisplayName>
+        <Description>Country in which the product is manufactured.</Description>
+        <References>
+            <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=5001</Reference>
+            <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+        </References>
+        <Value>
+            <uax:String>Germany</uax:String>
+        </Value>
+    </UAVariable>
+    <UAVariable DataType="Int32" ParentNodeId="ns=1;i=5001" NodeId="ns=1;i=6157" BrowseName="2:DayOfConstruction">
+        <DisplayName>DayOfConstruction</DisplayName>
+        <Description>The optional DayOfConstrucition provides the day of the month in which the manufacturing process of the machine has been completed. It shall be a number and never change during the life-cycle of a machine.</Description>
+        <References>
+            <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=5001</Reference>
+            <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+        </References>
+        <Value>
+            <uax:Int32>1</uax:Int32>
+        </Value>
+    </UAVariable>
+    <UAVariable DataType="DateTime" ParentNodeId="ns=1;i=5001" NodeId="ns=1;i=6158" BrowseName="3:InitialOperationDate">
+        <DisplayName>InitialOperationDate</DisplayName>
+        <Description Locale="en">The date, when the MachineryItem was switched on the first time after it has left the manufacturer plant.</Description>
+        <References>
+            <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=5001</Reference>
+            <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+        </References>
+        <Value>
+            <uax:DateTime>2021-05-01T09:00:00Z</uax:DateTime>
+        </Value>
+    </UAVariable>
+    <UAVariable DataType="String" ParentNodeId="ns=1;i=5001" NodeId="ns=1;i=6159" BrowseName="3:Location" AccessLevel="3">
+        <DisplayName>Location</DisplayName>
+        <Description Locale="en">To be used by end users to store the location of the machine in a scheme specific to the end user. Servers shall support at least 60 Unicode characters for the clients writing this value, this means clients can expect to be able to write strings with a length of 60 Unicode characters into that field.</Description>
+        <References>
+            <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=5001</Reference>
+            <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+        </References>
+        <Value>
+            <uax:String>ExampleLocation</uax:String>
+        </Value>
+    </UAVariable>
+    <UAVariable DataType="LocalizedText" ParentNodeId="ns=1;i=5001" NodeId="ns=1;i=6001" BrowseName="4:Manufacturer">
+        <DisplayName>Manufacturer</DisplayName>
+        <Description Locale="en">A human-readable, localized name of the manufacturer of the MachineryItem.</Description>
+        <References>
+            <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=5001</Reference>
+            <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+        </References>
+        <Value>
+            <uax:LocalizedText>
+                <uax:Text>ExampleManufacturer</uax:Text>
+            </uax:LocalizedText>
+        </Value>
+    </UAVariable>
+    <UAVariable DataType="String" ParentNodeId="ns=1;i=5001" NodeId="ns=1;i=6160" BrowseName="4:ManufacturerUri">
+        <DisplayName>ManufacturerUri</DisplayName>
+        <Description Locale="en">A globally unique identifier of the manufacturer of the MachineryItem.</Description>
+        <References>
+            <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=5001</Reference>
+            <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+        </References>
+        <Value>
+            <uax:String>www.exampleManufacturer.com</uax:String>
+        </Value>
+    </UAVariable>
+    <UAVariable DataType="Byte" ParentNodeId="ns=1;i=5001" NodeId="ns=1;i=6161" BrowseName="3:MonthOfConstruction">
+        <DisplayName>MonthOfConstruction</DisplayName>
+        <Description Locale="en">The month in which the manufacturing process of the MachineryItem has been completed. It shall be a number between 1 and 12, representing the month from January to December.</Description>
+        <References>
+            <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=5001</Reference>
+            <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+        </References>
+        <Value>
+            <uax:Byte>1</uax:Byte>
+        </Value>
+    </UAVariable>
+    <UAVariable DataType="PhysicalAddressDataType" ParentNodeId="ns=1;i=5001" NodeId="ns=1;i=6162" BrowseName="2:PhysicalAddress">
+        <DisplayName>PhysicalAddress</DisplayName>
+        <Description>Physical address of the manufacturer.</Description>
+        <References>
+            <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=5001</Reference>
+            <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+        </References>
+        <Value>
+            <uax:ExtensionObject>
+                <uax:TypeId>
+                    <uax:Identifier>ns=2;i=5017</uax:Identifier>
+                </uax:TypeId>
+                <uax:Body>
+                    <PhysicalAddressDataType xmlns="http://opcfoundation.org/UA/Pumps/Types.xsd">
+                        <EncodingMask>63</EncodingMask>
+                        <Street>
+                            <Locale xmlns="http://opcfoundation.org/UA/2008/02/Types.xsd">GE</Locale>
+                            <Text xmlns="http://opcfoundation.org/UA/2008/02/Types.xsd">Lyoner Str.</Text>
+                        </Street>
+                        <Number>
+                            <Locale xmlns="http://opcfoundation.org/UA/2008/02/Types.xsd">GE</Locale>
+                            <Text xmlns="http://opcfoundation.org/UA/2008/02/Types.xsd">18</Text>
+                        </Number>
+                        <City>
+                            <Locale xmlns="http://opcfoundation.org/UA/2008/02/Types.xsd">GE</Locale>
+                            <Text xmlns="http://opcfoundation.org/UA/2008/02/Types.xsd">Frankfurt</Text>
+                        </City>
+                        <PostalCode>
+                            <Locale xmlns="http://opcfoundation.org/UA/2008/02/Types.xsd">GE</Locale>
+                            <Text xmlns="http://opcfoundation.org/UA/2008/02/Types.xsd">60528</Text>
+                        </PostalCode>
+                        <State>
+                            <Locale xmlns="http://opcfoundation.org/UA/2008/02/Types.xsd">GE</Locale>
+                            <Text xmlns="http://opcfoundation.org/UA/2008/02/Types.xsd">Hessen</Text>
+                        </State>
+                        <Country>
+                            <Locale xmlns="http://opcfoundation.org/UA/2008/02/Types.xsd">GE</Locale>
+                            <Text xmlns="http://opcfoundation.org/UA/2008/02/Types.xsd">Deutschland</Text>
+                        </Country>
+                    </PhysicalAddressDataType>
+                </uax:Body>
+            </uax:ExtensionObject>
+        </Value>
+    </UAVariable>
+    <UAVariable DataType="String" ParentNodeId="ns=1;i=5001" NodeId="ns=1;i=6002" BrowseName="4:ProductInstanceUri">
+        <DisplayName Locale="en">ProductInstanceUri</DisplayName>
+        <Description Locale="en">A globally unique resource identifier provided by the manufacturer of the machine</Description>
+        <References>
+            <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=5001</Reference>
+            <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+        </References>
+        <Value>
+            <uax:String>www.exampleManufacturer.com/Pump123xyz</uax:String>
+        </Value>
+    </UAVariable>
+    <UAVariable DataType="String" ParentNodeId="ns=1;i=5001" NodeId="ns=1;i=6003" BrowseName="4:SerialNumber">
+        <DisplayName>SerialNumber</DisplayName>
+        <Description Locale="en">A string containing a unique production number of the manufacturer of the MachineryItem. The global uniqueness of the serial number is only given in the context of the manufacturer, and potentially the model. The value shall not change during the life-cycle of the MachineryItem.</Description>
+        <References>
+            <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+            <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=5001</Reference>
+        </References>
+        <Value>
+            <uax:String>1234567890</uax:String>
+        </Value>
+    </UAVariable>
+    <UAVariable DataType="UInt16" ParentNodeId="ns=1;i=5001" NodeId="ns=1;i=6164" BrowseName="3:YearOfConstruction">
+        <DisplayName>YearOfConstruction</DisplayName>
+        <Description Locale="en">The year (Gregorian calendar) in which the manufacturing process of the MachineryItem has been completed. It shall be a four-digit number and never change during the life-cycle of a MachineryItem.</Description>
+        <References>
+            <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+            <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=5001</Reference>
+        </References>
+        <Value>
+            <uax:UInt16>2021</uax:UInt16>
+        </Value>
+    </UAVariable>
+    <UAObject ParentNodeId="ns=1;i=5002" NodeId="ns=1;i=5012" BrowseName="4:Maintenance">
+        <DisplayName>Maintenance</DisplayName>
+        <Description>Maintenance data of a pump.</Description>
+        <References>
+            <Reference ReferenceType="HasComponent">ns=1;i=5013</Reference>
+            <Reference ReferenceType="HasComponent">ns=1;i=5014</Reference>
+            <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=5002</Reference>
+            <Reference ReferenceType="HasTypeDefinition">ns=2;i=1011</Reference>
+            <Reference ReferenceType="HasComponent">ns=1;i=5015</Reference>
+        </References>
+    </UAObject>
+    <UAObject ParentNodeId="ns=1;i=5012" NodeId="ns=1;i=5013" BrowseName="2:BreakdownMaintenance">
+        <DisplayName>BreakdownMaintenance</DisplayName>
+        <Description>Properties for breakdown maintenance.</Description>
+        <References>
+            <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=5012</Reference>
+            <Reference ReferenceType="HasTypeDefinition">ns=2;i=1010</Reference>
+            <Reference ReferenceType="HasComponent">ns=1;i=6078</Reference>
+            <Reference ReferenceType="HasComponent">ns=1;i=6081</Reference>
+        </References>
+    </UAObject>
+    <UAVariable DataType="Boolean" ParentNodeId="ns=1;i=5013" NodeId="ns=1;i=6078" BrowseName="2:Failure">
+        <DisplayName>Failure</DisplayName>
+        <Description>Termination of the ability of an item to perform a required function. A "True" status means that the pump has a failure and a "False" status means that the pump has no failure.</Description>
+        <References>
+            <Reference ReferenceType="HasProperty">ns=1;i=6082</Reference>
+            <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=5013</Reference>
+            <Reference ReferenceType="HasProperty">ns=1;i=6079</Reference>
+            <Reference ReferenceType="HasProperty">ns=1;i=6080</Reference>
+            <Reference ReferenceType="HasTypeDefinition">i=2373</Reference>
+        </References>
+    </UAVariable>
+    <UAVariable DataType="String" ParentNodeId="ns=1;i=6078" NodeId="ns=1;i=6082" BrowseName="Definition">
+        <DisplayName>Definition</DisplayName>
+        <References>
+            <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6078</Reference>
+            <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+        </References>
+    </UAVariable>
+    <UAVariable DataType="LocalizedText" ParentNodeId="ns=1;i=6078" NodeId="ns=1;i=6079" BrowseName="FalseState">
+        <DisplayName>FalseState</DisplayName>
+        <References>
+            <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6078</Reference>
+            <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+        </References>
+    </UAVariable>
+    <UAVariable DataType="LocalizedText" ParentNodeId="ns=1;i=6078" NodeId="ns=1;i=6080" BrowseName="TrueState">
+        <DisplayName>TrueState</DisplayName>
+        <References>
+            <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+            <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6078</Reference>
+        </References>
+    </UAVariable>
+    <UAVariable DataType="Int32" ParentNodeId="ns=1;i=5013" NodeId="ns=1;i=6081" BrowseName="2:NumberOfFailures">
+        <DisplayName>NumberOfFailures</DisplayName>
+        <Description>Number of failures of an object</Description>
+        <References>
+            <Reference ReferenceType="HasTypeDefinition">i=15318</Reference>
+            <Reference ReferenceType="HasProperty">ns=1;i=6083</Reference>
+            <Reference ReferenceType="HasProperty">ns=1;i=6084</Reference>
+            <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=5013</Reference>
+        </References>
+    </UAVariable>
+    <UAVariable DataType="String" ParentNodeId="ns=1;i=6081" NodeId="ns=1;i=6083" BrowseName="Definition">
+        <DisplayName>Definition</DisplayName>
+        <References>
+            <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6081</Reference>
+            <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+        </References>
+    </UAVariable>
+    <UAVariable DataType="Range" ParentNodeId="ns=1;i=6081" NodeId="ns=1;i=6084" BrowseName="EURange">
+        <DisplayName>EURange</DisplayName>
+        <References>
+            <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6081</Reference>
+            <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+        </References>
+    </UAVariable>
+    <UAObject ParentNodeId="ns=1;i=5012" NodeId="ns=1;i=5014" BrowseName="2:GeneralMaintenance">
+        <DisplayName>GeneralMaintenance</DisplayName>
+        <Description>General maintenance properties.</Description>
+        <References>
+            <Reference ReferenceType="HasComponent">ns=1;i=6085</Reference>
+            <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=5012</Reference>
+            <Reference ReferenceType="HasTypeDefinition">ns=2;i=1007</Reference>
+            <Reference ReferenceType="HasComponent">ns=1;i=6088</Reference>
+        </References>
+    </UAObject>
+    <UAVariable DataType="Double" ParentNodeId="ns=1;i=5014" NodeId="ns=1;i=6085" BrowseName="2:ActiveMaintenanceTime">
+        <DisplayName>ActiveMaintenanceTime</DisplayName>
+        <Description>Part of the maintenance time when active maintenance is carried out on an item.</Description>
+        <References>
+            <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=5014</Reference>
+            <Reference ReferenceType="HasTypeDefinition">i=15318</Reference>
+            <Reference ReferenceType="HasProperty">ns=1;i=6089</Reference>
+            <Reference ReferenceType="HasProperty">ns=1;i=6091</Reference>
+            <Reference ReferenceType="HasProperty">ns=1;i=6090</Reference>
+        </References>
+    </UAVariable>
+    <UAVariable DataType="String" ParentNodeId="ns=1;i=6085" NodeId="ns=1;i=6089" BrowseName="Definition">
+        <DisplayName>Definition</DisplayName>
+        <References>
+            <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6085</Reference>
+            <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+        </References>
+    </UAVariable>
+    <UAVariable DataType="EUInformation" ParentNodeId="ns=1;i=6085" NodeId="ns=1;i=6091" BrowseName="EngineeringUnits">
+        <DisplayName>EngineeringUnits</DisplayName>
+        <References>
+            <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6085</Reference>
+            <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+        </References>
+        <Value>
+            <uax:ExtensionObject>
+                <uax:TypeId>
+                    <uax:Identifier>i=888</uax:Identifier>
+                </uax:TypeId>
+                <uax:Body>
+                    <uax:EUInformation>
+                        <uax:NamespaceUri>http://www.opcfoundation.org/UA/units/un/cefact</uax:NamespaceUri>
+                        <uax:UnitId>4740434</uax:UnitId>
+                        <uax:DisplayName>
+                            <uax:Text>h</uax:Text>
+                        </uax:DisplayName>
+                        <uax:Description>
+                            <uax:Text>hour</uax:Text>
+                        </uax:Description>
+                    </uax:EUInformation>
+                </uax:Body>
+            </uax:ExtensionObject>
+        </Value>
+    </UAVariable>
+    <UAVariable DataType="Range" ParentNodeId="ns=1;i=6085" NodeId="ns=1;i=6090" BrowseName="EURange">
+        <DisplayName>EURange</DisplayName>
+        <References>
+            <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6085</Reference>
+            <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+        </References>
+    </UAVariable>
+    <UAVariable DataType="Double" ParentNodeId="ns=1;i=5014" NodeId="ns=1;i=6088" BrowseName="2:OperatingTime">
+        <DisplayName>OperatingTime</DisplayName>
+        <Description>Measured time interval throughout which an item is in operating state</Description>
+        <References>
+            <Reference ReferenceType="HasTypeDefinition">i=15318</Reference>
+            <Reference ReferenceType="HasProperty">ns=1;i=6098</Reference>
+            <Reference ReferenceType="HasProperty">ns=1;i=6100</Reference>
+            <Reference ReferenceType="HasProperty">ns=1;i=6099</Reference>
+            <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=5014</Reference>
+        </References>
+    </UAVariable>
+    <UAVariable DataType="String" ParentNodeId="ns=1;i=6088" NodeId="ns=1;i=6098" BrowseName="Definition">
+        <DisplayName>Definition</DisplayName>
+        <References>
+            <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6088</Reference>
+            <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+        </References>
+    </UAVariable>
+    <UAVariable DataType="EUInformation" ParentNodeId="ns=1;i=6088" NodeId="ns=1;i=6100" BrowseName="EngineeringUnits">
+        <DisplayName>EngineeringUnits</DisplayName>
+        <References>
+            <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6088</Reference>
+            <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+        </References>
+        <Value>
+            <uax:ExtensionObject>
+                <uax:TypeId>
+                    <uax:Identifier>i=888</uax:Identifier>
+                </uax:TypeId>
+                <uax:Body>
+                    <uax:EUInformation>
+                        <uax:NamespaceUri>http://www.opcfoundation.org/UA/units/un/cefact</uax:NamespaceUri>
+                        <uax:UnitId>4740434</uax:UnitId>
+                        <uax:DisplayName>
+                            <uax:Text>h</uax:Text>
+                        </uax:DisplayName>
+                        <uax:Description>
+                            <uax:Text>hour</uax:Text>
+                        </uax:Description>
+                    </uax:EUInformation>
+                </uax:Body>
+            </uax:ExtensionObject>
+        </Value>
+    </UAVariable>
+    <UAVariable DataType="Range" ParentNodeId="ns=1;i=6088" NodeId="ns=1;i=6099" BrowseName="EURange">
+        <DisplayName>EURange</DisplayName>
+        <References>
+            <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6088</Reference>
+            <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+        </References>
+    </UAVariable>
+    <UAObject ParentNodeId="ns=1;i=5012" NodeId="ns=1;i=5015" BrowseName="2:PreventiveMaintenance">
+        <DisplayName>PreventiveMaintenance</DisplayName>
+        <Description>Properties for preventive maintenance.</Description>
+        <References>
+            <Reference ReferenceType="HasComponent">ns=1;i=6101</Reference>
+            <Reference ReferenceType="HasComponent">ns=1;i=6102</Reference>
+            <Reference ReferenceType="HasComponent">ns=1;i=6103</Reference>
+            <Reference ReferenceType="HasComponent">ns=1;i=6104</Reference>
+            <Reference ReferenceType="HasComponent">ns=1;i=6105</Reference>
+            <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=5012</Reference>
+            <Reference ReferenceType="HasTypeDefinition">ns=2;i=1009</Reference>
+        </References>
+    </UAObject>
+    <UAVariable DataType="DateTime" ParentNodeId="ns=1;i=5015" NodeId="ns=1;i=6101" BrowseName="2:InstallationDate" AccessLevel="3">
+        <DisplayName>InstallationDate</DisplayName>
+        <Description>This attribute identifies the date when the device was last inspected.</Description>
+        <References>
+            <Reference ReferenceType="HasTypeDefinition">i=2365</Reference>
+            <Reference ReferenceType="HasProperty">ns=1;i=6106</Reference>
+            <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=5015</Reference>
+        </References>
+        <Value>
+            <uax:DateTime>2021-05-01T10:00:00Z</uax:DateTime>
+        </Value>
+    </UAVariable>
+    <UAVariable DataType="String" ParentNodeId="ns=1;i=6101" NodeId="ns=1;i=6106" BrowseName="Definition">
+        <DisplayName>Definition</DisplayName>
+        <References>
+            <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6101</Reference>
+            <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+        </References>
+    </UAVariable>
+    <UAVariable DataType="DateTime" ParentNodeId="ns=1;i=5015" NodeId="ns=1;i=6102" BrowseName="2:LastInspectionDate" AccessLevel="3">
+        <DisplayName>LastInspectionDate</DisplayName>
+        <Description>This attribute identifies the date when the device is scheduled for the next inspection.</Description>
+        <References>
+            <Reference ReferenceType="HasTypeDefinition">i=2365</Reference>
+            <Reference ReferenceType="HasProperty">ns=1;i=6107</Reference>
+            <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=5015</Reference>
+        </References>
+        <Value>
+            <uax:DateTime>2021-05-01T10:00:00Z</uax:DateTime>
+        </Value>
+    </UAVariable>
+    <UAVariable DataType="String" ParentNodeId="ns=1;i=6102" NodeId="ns=1;i=6107" BrowseName="Definition">
+        <DisplayName>Definition</DisplayName>
+        <References>
+            <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6102</Reference>
+            <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+        </References>
+    </UAVariable>
+    <UAVariable DataType="DateTime" ParentNodeId="ns=1;i=5015" NodeId="ns=1;i=6103" BrowseName="2:LastServicingDate" AccessLevel="3">
+        <DisplayName>LastServicingDate</DisplayName>
+        <Description>This attribute identifies the date when the device is scheduled for the next servicing.</Description>
+        <References>
+            <Reference ReferenceType="HasTypeDefinition">i=2365</Reference>
+            <Reference ReferenceType="HasProperty">ns=1;i=6108</Reference>
+            <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=5015</Reference>
+        </References>
+        <Value>
+            <uax:DateTime>2021-05-01T10:00:00Z</uax:DateTime>
+        </Value>
+    </UAVariable>
+    <UAVariable DataType="String" ParentNodeId="ns=1;i=6103" NodeId="ns=1;i=6108" BrowseName="Definition">
+        <DisplayName>Definition</DisplayName>
+        <References>
+            <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6103</Reference>
+            <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+        </References>
+    </UAVariable>
+    <UAVariable DataType="DateTime" ParentNodeId="ns=1;i=5015" NodeId="ns=1;i=6104" BrowseName="2:NextInspectionDate" AccessLevel="3">
+        <DisplayName>NextInspectionDate</DisplayName>
+        <Description>This attribute identifies the date when the device was last serviced.</Description>
+        <References>
+            <Reference ReferenceType="HasTypeDefinition">i=2365</Reference>
+            <Reference ReferenceType="HasProperty">ns=1;i=6109</Reference>
+            <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=5015</Reference>
+        </References>
+        <Value>
+            <uax:DateTime>2022-05-01T10:00:00Z</uax:DateTime>
+        </Value>
+    </UAVariable>
+    <UAVariable DataType="String" ParentNodeId="ns=1;i=6104" NodeId="ns=1;i=6109" BrowseName="Definition">
+        <DisplayName>Definition</DisplayName>
+        <References>
+            <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6104</Reference>
+            <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+        </References>
+    </UAVariable>
+    <UAVariable DataType="DateTime" ParentNodeId="ns=1;i=5015" NodeId="ns=1;i=6105" BrowseName="2:NextServicingDate" AccessLevel="3">
+        <DisplayName>NextServicingDate</DisplayName>
+        <Description>Part of maintenance time when preventive maintenance is carried out on an item, including technical, logistic and internal administrative delays</Description>
+        <References>
+            <Reference ReferenceType="HasTypeDefinition">i=2365</Reference>
+            <Reference ReferenceType="HasProperty">ns=1;i=6110</Reference>
+            <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=5015</Reference>
+        </References>
+        <Value>
+            <uax:DateTime>2022-05-01T10:00:00Z</uax:DateTime>
+        </Value>
+    </UAVariable>
+    <UAVariable DataType="String" ParentNodeId="ns=1;i=6105" NodeId="ns=1;i=6110" BrowseName="Definition">
+        <DisplayName>Definition</DisplayName>
+        <References>
+            <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6105</Reference>
+            <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+        </References>
+    </UAVariable>
+    <UAObject ParentNodeId="ns=1;i=5002" NodeId="ns=1;i=5016" BrowseName="4:Operational">
+        <DisplayName>Operational</DisplayName>
+        <Description>Process data for control, actuation, signals, and measurements of the pump.</Description>
+        <References>
+            <Reference ReferenceType="HasComponent">ns=1;i=5018</Reference>
+            <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=5002</Reference>
+            <Reference ReferenceType="HasTypeDefinition">ns=2;i=1053</Reference>
+            <Reference ReferenceType="HasComponent">ns=1;i=5017</Reference>
+        </References>
+    </UAObject>
+    <UAObject ParentNodeId="ns=1;i=5016" NodeId="ns=1;i=5018" BrowseName="2:Measurements">
+        <DisplayName>Measurements</DisplayName>
+        <Description>Measurements at a pump.</Description>
+        <References>
+            <Reference ReferenceType="HasComponent">ns=1;i=6117</Reference>
+            <Reference ReferenceType="HasComponent">ns=1;i=6118</Reference>
+            <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=5016</Reference>
+            <Reference ReferenceType="HasTypeDefinition">ns=2;i=1054</Reference>
+            <Reference ReferenceType="HasComponent">ns=1;i=6119</Reference>
+            <Reference ReferenceType="HasComponent">ns=1;i=6120</Reference>
+            <Reference ReferenceType="HasComponent">ns=1;i=5019</Reference>
+            <Reference ReferenceType="HasComponent">ns=1;i=6121</Reference>
+        </References>
+    </UAObject>
+    <UAVariable DataType="Double" ParentNodeId="ns=1;i=5018" NodeId="ns=1;i=6117" BrowseName="2:DifferentialPressure">
+        <DisplayName>DifferentialPressure</DisplayName>
+        <Description>Determined (actual) gain in total pressure between the pump inlet and pump outlet</Description>
+        <References>
+            <Reference ReferenceType="HasTypeDefinition">i=15318</Reference>
+            <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=5018</Reference>
+            <Reference ReferenceType="HasProperty">ns=1;i=6124</Reference>
+            <Reference ReferenceType="HasProperty">ns=1;i=6125</Reference>
+        </References>
+        <Value>
+            <uax:Double>0</uax:Double>
+        </Value>
+    </UAVariable>
+    <UAVariable DataType="EUInformation" ParentNodeId="ns=1;i=6117" NodeId="ns=1;i=6124" BrowseName="EngineeringUnits">
+        <DisplayName>EngineeringUnits</DisplayName>
+        <References>
+            <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6117</Reference>
+            <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+        </References>
+        <Value>
+            <uax:ExtensionObject>
+                <uax:TypeId>
+                    <uax:Identifier>i=888</uax:Identifier>
+                </uax:TypeId>
+                <uax:Body>
+                    <uax:EUInformation>
+                        <uax:NamespaceUri>http://www.opcfoundation.org/UA/units/un/cefact</uax:NamespaceUri>
+                        <uax:UnitId>5259596</uax:UnitId>
+                        <uax:DisplayName>
+                            <uax:Text>Pa</uax:Text>
+                        </uax:DisplayName>
+                        <uax:Description>
+                            <uax:Text>pascal</uax:Text>
+                        </uax:Description>
+                    </uax:EUInformation>
+                </uax:Body>
+            </uax:ExtensionObject>
+        </Value>
+    </UAVariable>
+    <UAVariable DataType="String" ParentNodeId="ns=1;i=6117" NodeId="ns=1;i=6125" BrowseName="2:KindOfQuantity">
+        <DisplayName>KindOfQuantity</DisplayName>
+        <Description>Quotient of the component of a force normal to a surface and its area</Description>
+        <References>
+            <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6117</Reference>
+            <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+        </References>
+        <Value>
+            <uax:String>pressure</uax:String>
+        </Value>
+    </UAVariable>
+    <UAVariable DataType="Double" ParentNodeId="ns=1;i=5018" NodeId="ns=1;i=6118" BrowseName="2:FluidTemperature">
+        <DisplayName>FluidTemperature</DisplayName>
+        <Description>Measured internal temperature of pump fluid.</Description>
+        <References>
+            <Reference ReferenceType="HasTypeDefinition">i=15318</Reference>
+            <Reference ReferenceType="HasProperty">ns=1;i=6128</Reference>
+            <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=5018</Reference>
+            <Reference ReferenceType="HasProperty">ns=1;i=6129</Reference>
+        </References>
+        <Value>
+            <uax:Double>0</uax:Double>
+        </Value>
+    </UAVariable>
+    <UAVariable DataType="EUInformation" ParentNodeId="ns=1;i=6118" NodeId="ns=1;i=6128" BrowseName="EngineeringUnits">
+        <DisplayName>EngineeringUnits</DisplayName>
+        <References>
+            <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6118</Reference>
+            <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+        </References>
+        <Value>
+            <uax:ExtensionObject>
+                <uax:TypeId>
+                    <uax:Identifier>i=888</uax:Identifier>
+                </uax:TypeId>
+                <uax:Body>
+                    <uax:EUInformation>
+                        <uax:NamespaceUri>http://www.opcfoundation.org/UA/units/un/cefact</uax:NamespaceUri>
+                        <uax:UnitId>4932940</uax:UnitId>
+                        <uax:DisplayName>
+                            <uax:Text>K</uax:Text>
+                        </uax:DisplayName>
+                        <uax:Description>
+                            <uax:Text>kelvin</uax:Text>
+                        </uax:Description>
+                    </uax:EUInformation>
+                </uax:Body>
+            </uax:ExtensionObject>
+        </Value>
+    </UAVariable>
+    <UAVariable DataType="String" ParentNodeId="ns=1;i=6118" NodeId="ns=1;i=6129" BrowseName="2:KindOfQuantity">
+        <DisplayName>KindOfQuantity</DisplayName>
+        <Description>Quantity representing a temperature value</Description>
+        <References>
+            <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6118</Reference>
+            <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+        </References>
+        <Value>
+            <uax:String>temperature</uax:String>
+        </Value>
+    </UAVariable>
+    <UAVariable DataType="UInt32" ParentNodeId="ns=1;i=5018" NodeId="ns=1;i=6119" BrowseName="2:NumberOfStarts">
+        <DisplayName>NumberOfStarts</DisplayName>
+        <Description>Total number of starts</Description>
+        <References>
+            <Reference ReferenceType="HasTypeDefinition">i=15318</Reference>
+            <Reference ReferenceType="HasProperty">ns=1;i=6132</Reference>
+            <Reference ReferenceType="HasProperty">ns=1;i=6133</Reference>
+            <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=5018</Reference>
+        </References>
+        <Value>
+            <uax:UInt32>0</uax:UInt32>
+        </Value>
+    </UAVariable>
+    <UAVariable DataType="EUInformation" ParentNodeId="ns=1;i=6119" NodeId="ns=1;i=6132" BrowseName="EngineeringUnits">
+        <DisplayName>EngineeringUnits</DisplayName>
+        <References>
+            <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6119</Reference>
+            <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+        </References>
+    </UAVariable>
+    <UAVariable DataType="String" ParentNodeId="ns=1;i=6119" NodeId="ns=1;i=6133" BrowseName="2:KindOfQuantity">
+        <DisplayName>KindOfQuantity</DisplayName>
+        <Description>Element of a set of mathematical entities that includes all integers and other entities, each defined as the quotient of two integers, such that the division is defined for any two entities, except zero as a divisor</Description>
+        <References>
+            <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6119</Reference>
+            <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+        </References>
+        <Value>
+            <uax:String>rational number</uax:String>
+        </Value>
+    </UAVariable>
+    <UAVariable DataType="Double" ParentNodeId="ns=1;i=5018" NodeId="ns=1;i=6120" BrowseName="2:PumpPowerInput">
+        <DisplayName>PumpPowerInput</DisplayName>
+        <Description>Measured power transmitted to the pump by its driver</Description>
+        <References>
+            <Reference ReferenceType="HasTypeDefinition">i=15318</Reference>
+            <Reference ReferenceType="HasProperty">ns=1;i=6136</Reference>
+            <Reference ReferenceType="HasProperty">ns=1;i=6137</Reference>
+            <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=5018</Reference>
+        </References>
+        <Value>
+            <uax:Double>0</uax:Double>
+        </Value>
+    </UAVariable>
+    <UAVariable DataType="EUInformation" ParentNodeId="ns=1;i=6120" NodeId="ns=1;i=6136" BrowseName="EngineeringUnits">
+        <DisplayName>EngineeringUnits</DisplayName>
+        <References>
+            <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6120</Reference>
+            <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+        </References>
+        <Value>
+            <uax:ExtensionObject>
+                <uax:TypeId>
+                    <uax:Identifier>i=888</uax:Identifier>
+                </uax:TypeId>
+                <uax:Body>
+                    <uax:EUInformation>
+                        <uax:NamespaceUri>http://www.opcfoundation.org/UA/units/un/cefact</uax:NamespaceUri>
+                        <uax:UnitId>5723220</uax:UnitId>
+                        <uax:DisplayName>
+                            <uax:Text>W</uax:Text>
+                        </uax:DisplayName>
+                        <uax:Description>
+                            <uax:Text>watt</uax:Text>
+                        </uax:Description>
+                    </uax:EUInformation>
+                </uax:Body>
+            </uax:ExtensionObject>
+        </Value>
+    </UAVariable>
+    <UAVariable DataType="String" ParentNodeId="ns=1;i=6120" NodeId="ns=1;i=6137" BrowseName="2:KindOfQuantity">
+        <DisplayName>KindOfQuantity</DisplayName>
+        <Description>Scalar product of force acting to a body and its velocity</Description>
+        <References>
+            <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6120</Reference>
+            <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+        </References>
+        <Value>
+            <uax:String>mechanical power</uax:String>
+        </Value>
+    </UAVariable>
+    <UAObject ParentNodeId="ns=1;i=5018" NodeId="ns=1;i=5019" BrowseName="1:Sensor1">
+        <DisplayName>Sensor1</DisplayName>
+        <References>
+            <Reference ReferenceType="HasComponent">ns=1;i=6142</Reference>
+            <Reference ReferenceType="HasComponent">ns=1;i=6143</Reference>
+            <Reference ReferenceType="HasComponent">ns=1;i=6144</Reference>
+            <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=5018</Reference>
+            <Reference ReferenceType="HasTypeDefinition">ns=2;i=1055</Reference>
+        </References>
+    </UAObject>
+    <UAVariable DataType="Double" Historizing="true" ParentNodeId="ns=1;i=5019" NodeId="ns=1;i=6142" BrowseName="2:OverallVibrationAcceleration0_P" AccessLevel="5">
+        <DisplayName>OverallVibrationAcceleration0_P</DisplayName>
+        <Description>Maximum oscillation amplitude, expressed as acceleration. The oscillation range is the difference between the minimum and maximum value within the time range under consideration.</Description>
+        <References>
+            <Reference ReferenceType="HasTypeDefinition">i=15318</Reference>
+            <Reference ReferenceType="HasProperty">ns=1;i=6147</Reference>
+            <Reference ReferenceType="HasProperty">ns=1;i=6146</Reference>
+            <Reference ReferenceType="GeneratesEvent">i=2955</Reference>
+            <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=5019</Reference>
+        </References>
+        <Value>
+            <uax:Double>0</uax:Double>
+        </Value>
+    </UAVariable>
+    <UAVariable DataType="EUInformation" ParentNodeId="ns=1;i=6142" NodeId="ns=1;i=6147" BrowseName="EngineeringUnits">
+        <DisplayName>EngineeringUnits</DisplayName>
+        <References>
+            <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6142</Reference>
+            <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+        </References>
+        <Value>
+            <uax:ExtensionObject>
+                <uax:TypeId>
+                    <uax:Identifier>i=888</uax:Identifier>
+                </uax:TypeId>
+                <uax:Body>
+                    <uax:EUInformation>
+                        <uax:NamespaceUri>http://www.opcfoundation.org/UA/units/un/cefact</uax:NamespaceUri>
+                        <uax:UnitId>5067595</uax:UnitId>
+                        <uax:DisplayName>
+                            <uax:Text>m/s²</uax:Text>
+                        </uax:DisplayName>
+                        <uax:Description>
+                            <uax:Text>metre per second squared</uax:Text>
+                        </uax:Description>
+                    </uax:EUInformation>
+                </uax:Body>
+            </uax:ExtensionObject>
+        </Value>
+    </UAVariable>
+    <UAVariable DataType="Range" ParentNodeId="ns=1;i=6142" NodeId="ns=1;i=6146" BrowseName="EURange">
+        <DisplayName>EURange</DisplayName>
+        <References>
+            <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6142</Reference>
+            <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+        </References>
+    </UAVariable>
+    <UAVariable DataType="Double" Historizing="true" ParentNodeId="ns=1;i=5019" NodeId="ns=1;i=6143" BrowseName="2:OverallVibrationAccelerationP_P" AccessLevel="5">
+        <DisplayName>OverallVibrationAccelerationP_P</DisplayName>
+        <Description>Oscillation range, expressed as acceleration. The oscillation range is the difference between the minimum and maximum value within the time range under consideration.</Description>
+        <References>
+            <Reference ReferenceType="HasTypeDefinition">i=15318</Reference>
+            <Reference ReferenceType="HasProperty">ns=1;i=6150</Reference>
+            <Reference ReferenceType="HasProperty">ns=1;i=6149</Reference>
+            <Reference ReferenceType="GeneratesEvent">i=2955</Reference>
+            <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=5019</Reference>
+        </References>
+        <Value>
+            <uax:Double>0</uax:Double>
+        </Value>
+    </UAVariable>
+    <UAVariable DataType="EUInformation" ParentNodeId="ns=1;i=6143" NodeId="ns=1;i=6150" BrowseName="EngineeringUnits">
+        <DisplayName>EngineeringUnits</DisplayName>
+        <References>
+            <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6143</Reference>
+            <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+        </References>
+        <Value>
+            <uax:ExtensionObject>
+                <uax:TypeId>
+                    <uax:Identifier>i=888</uax:Identifier>
+                </uax:TypeId>
+                <uax:Body>
+                    <uax:EUInformation>
+                        <uax:NamespaceUri>http://www.opcfoundation.org/UA/units/un/cefact</uax:NamespaceUri>
+                        <uax:UnitId>5067595</uax:UnitId>
+                        <uax:DisplayName>
+                            <uax:Text>m/s²</uax:Text>
+                        </uax:DisplayName>
+                        <uax:Description>
+                            <uax:Text>metre per second squared</uax:Text>
+                        </uax:Description>
+                    </uax:EUInformation>
+                </uax:Body>
+            </uax:ExtensionObject>
+        </Value>
+    </UAVariable>
+    <UAVariable DataType="Range" ParentNodeId="ns=1;i=6143" NodeId="ns=1;i=6149" BrowseName="EURange">
+        <DisplayName>EURange</DisplayName>
+        <References>
+            <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6143</Reference>
+            <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+        </References>
+    </UAVariable>
+    <UAVariable DataType="Double" Historizing="true" ParentNodeId="ns=1;i=5019" NodeId="ns=1;i=6144" BrowseName="2:OverallVibrationAccelerationPerG0_P" AccessLevel="5">
+        <DisplayName>OverallVibrationAccelerationPerG0_P</DisplayName>
+        <Description>Maximum oscillation amplitude, expressed as acceleration in units of the acceleration of gravity g. The oscillation range is the difference between the minimum and maximum value within the time range under consideration.</Description>
+        <References>
+            <Reference ReferenceType="HasTypeDefinition">i=15318</Reference>
+            <Reference ReferenceType="HasProperty">ns=1;i=6153</Reference>
+            <Reference ReferenceType="HasProperty">ns=1;i=6152</Reference>
+            <Reference ReferenceType="GeneratesEvent">i=2955</Reference>
+            <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=5019</Reference>
+        </References>
+        <Value>
+            <uax:Double>0</uax:Double>
+        </Value>
+    </UAVariable>
+    <UAVariable DataType="EUInformation" ParentNodeId="ns=1;i=6144" NodeId="ns=1;i=6153" BrowseName="EngineeringUnits">
+        <DisplayName>EngineeringUnits</DisplayName>
+        <References>
+            <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6144</Reference>
+            <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+        </References>
+    </UAVariable>
+    <UAVariable DataType="Range" ParentNodeId="ns=1;i=6144" NodeId="ns=1;i=6152" BrowseName="EURange">
+        <DisplayName>EURange</DisplayName>
+        <References>
+            <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6144</Reference>
+            <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+        </References>
+    </UAVariable>
+    <UAVariable DataType="Double" ParentNodeId="ns=1;i=5018" NodeId="ns=1;i=6121" BrowseName="2:Speed">
+        <DisplayName>Speed</DisplayName>
+        <Description>Measured number of rotations or movements made by the shaft, coupling or impeller in a given time</Description>
+        <References>
+            <Reference ReferenceType="HasTypeDefinition">i=15318</Reference>
+            <Reference ReferenceType="HasProperty">ns=1;i=6140</Reference>
+            <Reference ReferenceType="HasProperty">ns=1;i=6141</Reference>
+            <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=5018</Reference>
+        </References>
+        <Value>
+            <uax:Double>0</uax:Double>
+        </Value>
+    </UAVariable>
+    <UAVariable DataType="EUInformation" ParentNodeId="ns=1;i=6121" NodeId="ns=1;i=6140" BrowseName="EngineeringUnits">
+        <DisplayName>EngineeringUnits</DisplayName>
+        <References>
+            <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6121</Reference>
+            <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+        </References>
+        <Value>
+            <uax:ExtensionObject>
+                <uax:TypeId>
+                    <uax:Identifier>i=888</uax:Identifier>
+                </uax:TypeId>
+                <uax:Body>
+                    <uax:EUInformation>
+                        <uax:NamespaceUri>http://www.opcfoundation.org/UA/units/un/cefact</uax:NamespaceUri>
+                        <uax:UnitId>4405559</uax:UnitId>
+                        <uax:DisplayName>
+                            <uax:Text>s⁻¹</uax:Text>
+                        </uax:DisplayName>
+                        <uax:Description>
+                            <uax:Text>reciprocal second</uax:Text>
+                        </uax:Description>
+                    </uax:EUInformation>
+                </uax:Body>
+            </uax:ExtensionObject>
+        </Value>
+    </UAVariable>
+    <UAVariable DataType="String" ParentNodeId="ns=1;i=6121" NodeId="ns=1;i=6141" BrowseName="2:KindOfQuantity">
+        <DisplayName>KindOfQuantity</DisplayName>
+        <Description>Inverse of one cycle of a periodic event</Description>
+        <References>
+            <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6121</Reference>
+            <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+        </References>
+        <Value>
+            <uax:String>frequency</uax:String>
+        </Value>
+    </UAVariable>
+    <UAObject ParentNodeId="ns=1;i=5016" NodeId="ns=1;i=5017" BrowseName="2:PumpActuation">
+        <DisplayName>PumpActuation</DisplayName>
+        <Description>Actuation parameters for a pump.</Description>
+        <References>
+            <Reference ReferenceType="HasComponent">ns=1;i=6111</Reference>
+            <Reference ReferenceType="HasComponent">ns=1;i=6112</Reference>
+            <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=5016</Reference>
+            <Reference ReferenceType="HasTypeDefinition">ns=2;i=1028</Reference>
+        </References>
+    </UAObject>
+    <UAVariable DataType="ControlModeEnum" ParentNodeId="ns=1;i=5017" NodeId="ns=1;i=6111" BrowseName="2:ActualControlMode">
+        <DisplayName>ActualControlMode</DisplayName>
+        <Description>This property describes the actual control mode of the pump.</Description>
+        <References>
+            <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=5017</Reference>
+            <Reference ReferenceType="HasTypeDefinition">i=2365</Reference>
+        </References>
+        <Value>
+            <uax:Int32>0</uax:Int32>
+        </Value>
+    </UAVariable>
+    <UAVariable DataType="Boolean" ParentNodeId="ns=1;i=5017" NodeId="ns=1;i=6112" BrowseName="2:OnOff" AccessLevel="3">
+        <DisplayName>OnOff</DisplayName>
+        <Description>This property enables the operation.</Description>
+        <References>
+            <Reference ReferenceType="HasProperty">ns=1;i=6113</Reference>
+            <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=5017</Reference>
+            <Reference ReferenceType="HasProperty">ns=1;i=6114</Reference>
+            <Reference ReferenceType="HasTypeDefinition">i=2373</Reference>
+        </References>
+    </UAVariable>
+    <UAVariable DataType="LocalizedText" ParentNodeId="ns=1;i=6112" NodeId="ns=1;i=6113" BrowseName="FalseState">
+        <DisplayName>FalseState</DisplayName>
+        <References>
+            <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6112</Reference>
+            <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+        </References>
+        <Value>
+            <uax:LocalizedText>
+                <uax:Text>A FalseState means that it is not possible to actuate the pump.</uax:Text>
+            </uax:LocalizedText>
+        </Value>
+    </UAVariable>
+    <UAVariable DataType="LocalizedText" ParentNodeId="ns=1;i=6112" NodeId="ns=1;i=6114" BrowseName="TrueState">
+        <DisplayName>TrueState</DisplayName>
+        <References>
+            <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+            <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6112</Reference>
+        </References>
+        <Value>
+            <uax:LocalizedText>
+                <uax:Text>A TrueState means that it is possible to actuate the pump.</uax:Text>
+            </uax:LocalizedText>
+        </Value>
+    </UAVariable>
+    <UAObject ParentNodeId="ns=1;i=5002" NodeId="ns=1;i=5003" BrowseName="2:Ports">
+        <DisplayName>Ports</DisplayName>
+        <Description>Connection points of the pump.</Description>
+        <References>
+            <Reference ReferenceType="HasComponent">ns=1;i=5004</Reference>
+            <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=5002</Reference>
+            <Reference ReferenceType="HasTypeDefinition">ns=2;i=1034</Reference>
+        </References>
+    </UAObject>
+    <UAObject SymbolicName="Drive" ParentNodeId="ns=1;i=5003" NodeId="ns=1;i=5004" BrowseName="2:&lt;Drive>">
+        <DisplayName>&lt;Drive></DisplayName>
+        <Description>Port for the connection of the drive.</Description>
+        <References>
+            <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=5003</Reference>
+            <Reference ReferenceType="HasTypeDefinition">ns=2;i=1038</Reference>
+            <Reference ReferenceType="HasComponent">ns=1;i=5006</Reference>
+        </References>
+    </UAObject>
+    <UAObject ParentNodeId="ns=1;i=5004" NodeId="ns=1;i=5006" BrowseName="2:Measurements">
+        <DisplayName>Measurements</DisplayName>
+        <Description>All operation measurements that describe the drive.</Description>
+        <References>
+            <Reference ReferenceType="HasTypeDefinition">ns=2;i=1051</Reference>
+            <Reference ReferenceType="HasComponent">ns=1;i=6016</Reference>
+            <Reference ReferenceType="HasComponent">ns=1;i=6017</Reference>
+            <Reference ReferenceType="HasComponent">ns=1;i=6018</Reference>
+            <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=5004</Reference>
+            <Reference ReferenceType="HasComponent">ns=1;i=6019</Reference>
+            <Reference ReferenceType="HasComponent">ns=1;i=6020</Reference>
+            <Reference ReferenceType="HasComponent">ns=1;i=6021</Reference>
+        </References>
+    </UAObject>
+    <UAVariable DataType="Double" ParentNodeId="ns=1;i=5006" NodeId="ns=1;i=6016" BrowseName="2:DriverPowerInput">
+        <DisplayName>DriverPowerInput</DisplayName>
+        <Description>Measured power absorbed by the motor.</Description>
+        <References>
+            <Reference ReferenceType="HasTypeDefinition">i=15318</Reference>
+            <Reference ReferenceType="HasProperty">ns=1;i=6054</Reference>
+            <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=5006</Reference>
+            <Reference ReferenceType="HasProperty">ns=1;i=6056</Reference>
+            <Reference ReferenceType="HasProperty">ns=1;i=6055</Reference>
+            <Reference ReferenceType="HasProperty">ns=1;i=6057</Reference>
+            <Reference ReferenceType="GeneratesEvent">i=2955</Reference>
+        </References>
+        <Value>
+            <uax:Double>0</uax:Double>
+        </Value>
+    </UAVariable>
+    <UAVariable DataType="String" ParentNodeId="ns=1;i=6016" NodeId="ns=1;i=6054" BrowseName="Definition">
+        <DisplayName>Definition</DisplayName>
+        <References>
+            <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6016</Reference>
+            <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+        </References>
+    </UAVariable>
+    <UAVariable DataType="EUInformation" ParentNodeId="ns=1;i=6016" NodeId="ns=1;i=6056" BrowseName="EngineeringUnits">
+        <DisplayName>EngineeringUnits</DisplayName>
+        <References>
+            <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6016</Reference>
+            <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+        </References>
+        <Value>
+            <uax:ExtensionObject>
+                <uax:TypeId>
+                    <uax:Identifier>i=888</uax:Identifier>
+                </uax:TypeId>
+                <uax:Body>
+                    <uax:EUInformation>
+                        <uax:NamespaceUri>http://www.opcfoundation.org/UA/units/un/cefact</uax:NamespaceUri>
+                        <uax:UnitId>5723220</uax:UnitId>
+                        <uax:DisplayName>
+                            <uax:Text>W</uax:Text>
+                        </uax:DisplayName>
+                        <uax:Description>
+                            <uax:Text>watt</uax:Text>
+                        </uax:Description>
+                    </uax:EUInformation>
+                </uax:Body>
+            </uax:ExtensionObject>
+        </Value>
+    </UAVariable>
+    <UAVariable DataType="Range" ParentNodeId="ns=1;i=6016" NodeId="ns=1;i=6055" BrowseName="EURange">
+        <DisplayName>EURange</DisplayName>
+        <References>
+            <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6016</Reference>
+            <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+        </References>
+    </UAVariable>
+    <UAVariable DataType="String" ParentNodeId="ns=1;i=6016" NodeId="ns=1;i=6057" BrowseName="2:KindOfQuantity">
+        <DisplayName>KindOfQuantity</DisplayName>
+        <Description>Derivative with respect to time t of energy E being transferred or transformed</Description>
+        <References>
+            <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6016</Reference>
+            <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+        </References>
+        <Value>
+            <uax:String>power</uax:String>
+        </Value>
+    </UAVariable>
+    <UAVariable DataType="Double" ParentNodeId="ns=1;i=5006" NodeId="ns=1;i=6017" BrowseName="2:EnergyConsumption">
+        <DisplayName>EnergyConsumption</DisplayName>
+        <Description>Measured energy consumption of the unit of the motor.</Description>
+        <References>
+            <Reference ReferenceType="HasTypeDefinition">i=15318</Reference>
+            <Reference ReferenceType="HasProperty">ns=1;i=6058</Reference>
+            <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=5006</Reference>
+            <Reference ReferenceType="HasProperty">ns=1;i=6060</Reference>
+            <Reference ReferenceType="HasProperty">ns=1;i=6059</Reference>
+            <Reference ReferenceType="HasProperty">ns=1;i=6061</Reference>
+            <Reference ReferenceType="GeneratesEvent">i=2955</Reference>
+        </References>
+        <Value>
+            <uax:Double>0</uax:Double>
+        </Value>
+    </UAVariable>
+    <UAVariable DataType="String" ParentNodeId="ns=1;i=6017" NodeId="ns=1;i=6058" BrowseName="Definition">
+        <DisplayName>Definition</DisplayName>
+        <References>
+            <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6017</Reference>
+            <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+        </References>
+    </UAVariable>
+    <UAVariable DataType="EUInformation" ParentNodeId="ns=1;i=6017" NodeId="ns=1;i=6060" BrowseName="EngineeringUnits">
+        <DisplayName>EngineeringUnits</DisplayName>
+        <References>
+            <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6017</Reference>
+            <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+        </References>
+        <Value>
+            <uax:ExtensionObject>
+                <uax:TypeId>
+                    <uax:Identifier>i=888</uax:Identifier>
+                </uax:TypeId>
+                <uax:Body>
+                    <uax:EUInformation>
+                        <uax:NamespaceUri>http://www.opcfoundation.org/UA/units/un/cefact</uax:NamespaceUri>
+                        <uax:UnitId>4869973</uax:UnitId>
+                        <uax:DisplayName>
+                            <uax:Text>J</uax:Text>
+                        </uax:DisplayName>
+                        <uax:Description>
+                            <uax:Text>joule</uax:Text>
+                        </uax:Description>
+                    </uax:EUInformation>
+                </uax:Body>
+            </uax:ExtensionObject>
+        </Value>
+    </UAVariable>
+    <UAVariable DataType="Range" ParentNodeId="ns=1;i=6017" NodeId="ns=1;i=6059" BrowseName="EURange">
+        <DisplayName>EURange</DisplayName>
+        <References>
+            <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6017</Reference>
+            <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+        </References>
+    </UAVariable>
+    <UAVariable DataType="String" ParentNodeId="ns=1;i=6017" NodeId="ns=1;i=6061" BrowseName="2:KindOfQuantity">
+        <DisplayName>KindOfQuantity</DisplayName>
+        <Description>Ability of a system to do work</Description>
+        <References>
+            <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6017</Reference>
+            <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+        </References>
+        <Value>
+            <uax:String>energy</uax:String>
+        </Value>
+    </UAVariable>
+    <UAVariable DataType="Double" ParentNodeId="ns=1;i=5006" NodeId="ns=1;i=6018" BrowseName="2:Frequency">
+        <DisplayName>Frequency</DisplayName>
+        <Description>Measured output frequency of the frequency converter.</Description>
+        <References>
+            <Reference ReferenceType="HasTypeDefinition">i=15318</Reference>
+            <Reference ReferenceType="HasProperty">ns=1;i=6062</Reference>
+            <Reference ReferenceType="HasProperty">ns=1;i=6064</Reference>
+            <Reference ReferenceType="HasProperty">ns=1;i=6063</Reference>
+            <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=5006</Reference>
+            <Reference ReferenceType="HasProperty">ns=1;i=6065</Reference>
+            <Reference ReferenceType="GeneratesEvent">i=2955</Reference>
+        </References>
+        <Value>
+            <uax:Double>0</uax:Double>
+        </Value>
+    </UAVariable>
+    <UAVariable DataType="String" ParentNodeId="ns=1;i=6018" NodeId="ns=1;i=6062" BrowseName="Definition">
+        <DisplayName>Definition</DisplayName>
+        <References>
+            <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6018</Reference>
+            <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+        </References>
+    </UAVariable>
+    <UAVariable DataType="EUInformation" ParentNodeId="ns=1;i=6018" NodeId="ns=1;i=6064" BrowseName="EngineeringUnits">
+        <DisplayName>EngineeringUnits</DisplayName>
+        <References>
+            <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6018</Reference>
+            <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+        </References>
+        <Value>
+            <uax:ExtensionObject>
+                <uax:TypeId>
+                    <uax:Identifier>i=888</uax:Identifier>
+                </uax:TypeId>
+                <uax:Body>
+                    <uax:EUInformation>
+                        <uax:NamespaceUri>http://www.opcfoundation.org/UA/units/un/cefact</uax:NamespaceUri>
+                        <uax:UnitId>4740186</uax:UnitId>
+                        <uax:DisplayName>
+                            <uax:Text>Hz</uax:Text>
+                        </uax:DisplayName>
+                        <uax:Description>
+                            <uax:Text>hertz</uax:Text>
+                        </uax:Description>
+                    </uax:EUInformation>
+                </uax:Body>
+            </uax:ExtensionObject>
+        </Value>
+    </UAVariable>
+    <UAVariable DataType="Range" ParentNodeId="ns=1;i=6018" NodeId="ns=1;i=6063" BrowseName="EURange">
+        <DisplayName>EURange</DisplayName>
+        <References>
+            <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6018</Reference>
+            <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+        </References>
+    </UAVariable>
+    <UAVariable DataType="String" ParentNodeId="ns=1;i=6018" NodeId="ns=1;i=6065" BrowseName="2:KindOfQuantity">
+        <DisplayName>KindOfQuantity</DisplayName>
+        <Description>Inverse of one cycle of a periodic event</Description>
+        <References>
+            <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6018</Reference>
+            <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+        </References>
+        <Value>
+            <uax:String>frequency</uax:String>
+        </Value>
+    </UAVariable>
+    <UAVariable DataType="Double" ParentNodeId="ns=1;i=5006" NodeId="ns=1;i=6019" BrowseName="2:MotorCurrent">
+        <DisplayName>MotorCurrent</DisplayName>
+        <Description>Measured actual motor current.</Description>
+        <References>
+            <Reference ReferenceType="HasTypeDefinition">i=15318</Reference>
+            <Reference ReferenceType="HasProperty">ns=1;i=6066</Reference>
+            <Reference ReferenceType="HasProperty">ns=1;i=6068</Reference>
+            <Reference ReferenceType="HasProperty">ns=1;i=6067</Reference>
+            <Reference ReferenceType="HasProperty">ns=1;i=6069</Reference>
+            <Reference ReferenceType="GeneratesEvent">i=2955</Reference>
+            <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=5006</Reference>
+        </References>
+        <Value>
+            <uax:Double>0</uax:Double>
+        </Value>
+    </UAVariable>
+    <UAVariable DataType="String" ParentNodeId="ns=1;i=6019" NodeId="ns=1;i=6066" BrowseName="Definition">
+        <DisplayName>Definition</DisplayName>
+        <References>
+            <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6019</Reference>
+            <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+        </References>
+    </UAVariable>
+    <UAVariable DataType="EUInformation" ParentNodeId="ns=1;i=6019" NodeId="ns=1;i=6068" BrowseName="EngineeringUnits">
+        <DisplayName>EngineeringUnits</DisplayName>
+        <References>
+            <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6019</Reference>
+            <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+        </References>
+        <Value>
+            <uax:ExtensionObject>
+                <uax:TypeId>
+                    <uax:Identifier>i=888</uax:Identifier>
+                </uax:TypeId>
+                <uax:Body>
+                    <uax:EUInformation>
+                        <uax:NamespaceUri>http://www.opcfoundation.org/UA/units/un/cefact</uax:NamespaceUri>
+                        <uax:UnitId>4279632</uax:UnitId>
+                        <uax:DisplayName>
+                            <uax:Text>A</uax:Text>
+                        </uax:DisplayName>
+                        <uax:Description>
+                            <uax:Text>ampere</uax:Text>
+                        </uax:Description>
+                    </uax:EUInformation>
+                </uax:Body>
+            </uax:ExtensionObject>
+        </Value>
+    </UAVariable>
+    <UAVariable DataType="Range" ParentNodeId="ns=1;i=6019" NodeId="ns=1;i=6067" BrowseName="EURange">
+        <DisplayName>EURange</DisplayName>
+        <References>
+            <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6019</Reference>
+            <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+        </References>
+    </UAVariable>
+    <UAVariable DataType="String" ParentNodeId="ns=1;i=6019" NodeId="ns=1;i=6069" BrowseName="2:KindOfQuantity">
+        <DisplayName>KindOfQuantity</DisplayName>
+        <Description>Scalar quantity equal to the flux of the electric current density J through a given directed surface S</Description>
+        <References>
+            <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6019</Reference>
+            <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+        </References>
+        <Value>
+            <uax:String>electric current</uax:String>
+        </Value>
+    </UAVariable>
+    <UAVariable DataType="Double" ParentNodeId="ns=1;i=5006" NodeId="ns=1;i=6020" BrowseName="2:MotorTemperature">
+        <DisplayName>MotorTemperature</DisplayName>
+        <Description>Measured temperature of the motor.</Description>
+        <References>
+            <Reference ReferenceType="HasTypeDefinition">i=15318</Reference>
+            <Reference ReferenceType="HasProperty">ns=1;i=6070</Reference>
+            <Reference ReferenceType="HasProperty">ns=1;i=6072</Reference>
+            <Reference ReferenceType="HasProperty">ns=1;i=6071</Reference>
+            <Reference ReferenceType="HasProperty">ns=1;i=6073</Reference>
+            <Reference ReferenceType="GeneratesEvent">i=2955</Reference>
+            <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=5006</Reference>
+        </References>
+        <Value>
+            <uax:Double>0</uax:Double>
+        </Value>
+    </UAVariable>
+    <UAVariable DataType="String" ParentNodeId="ns=1;i=6020" NodeId="ns=1;i=6070" BrowseName="Definition">
+        <DisplayName>Definition</DisplayName>
+        <References>
+            <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6020</Reference>
+            <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+        </References>
+    </UAVariable>
+    <UAVariable DataType="EUInformation" ParentNodeId="ns=1;i=6020" NodeId="ns=1;i=6072" BrowseName="EngineeringUnits">
+        <DisplayName>EngineeringUnits</DisplayName>
+        <References>
+            <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6020</Reference>
+            <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+        </References>
+        <Value>
+            <uax:ExtensionObject>
+                <uax:TypeId>
+                    <uax:Identifier>i=888</uax:Identifier>
+                </uax:TypeId>
+                <uax:Body>
+                    <uax:EUInformation>
+                        <uax:NamespaceUri>http://www.opcfoundation.org/UA/units/un/cefact</uax:NamespaceUri>
+                        <uax:UnitId>4932940</uax:UnitId>
+                        <uax:DisplayName>
+                            <uax:Text>K</uax:Text>
+                        </uax:DisplayName>
+                        <uax:Description>
+                            <uax:Text>kelvin</uax:Text>
+                        </uax:Description>
+                    </uax:EUInformation>
+                </uax:Body>
+            </uax:ExtensionObject>
+        </Value>
+    </UAVariable>
+    <UAVariable DataType="Range" ParentNodeId="ns=1;i=6020" NodeId="ns=1;i=6071" BrowseName="EURange">
+        <DisplayName>EURange</DisplayName>
+        <References>
+            <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6020</Reference>
+            <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+        </References>
+    </UAVariable>
+    <UAVariable DataType="String" ParentNodeId="ns=1;i=6020" NodeId="ns=1;i=6073" BrowseName="2:KindOfQuantity">
+        <DisplayName>KindOfQuantity</DisplayName>
+        <Description>Quantity representing a temperature value</Description>
+        <References>
+            <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6020</Reference>
+            <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+        </References>
+        <Value>
+            <uax:String>temperature</uax:String>
+        </Value>
+    </UAVariable>
+    <UAVariable DataType="Double" ParentNodeId="ns=1;i=5006" NodeId="ns=1;i=6021" BrowseName="2:MotorVoltage">
+        <DisplayName>MotorVoltage</DisplayName>
+        <Description>Measured actual motor voltage.</Description>
+        <References>
+            <Reference ReferenceType="HasTypeDefinition">i=15318</Reference>
+            <Reference ReferenceType="HasProperty">ns=1;i=6074</Reference>
+            <Reference ReferenceType="HasProperty">ns=1;i=6076</Reference>
+            <Reference ReferenceType="HasProperty">ns=1;i=6075</Reference>
+            <Reference ReferenceType="HasProperty">ns=1;i=6077</Reference>
+            <Reference ReferenceType="GeneratesEvent">i=2955</Reference>
+            <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=5006</Reference>
+        </References>
+        <Value>
+            <uax:Double>0</uax:Double>
+        </Value>
+    </UAVariable>
+    <UAVariable DataType="String" ParentNodeId="ns=1;i=6021" NodeId="ns=1;i=6074" BrowseName="Definition">
+        <DisplayName>Definition</DisplayName>
+        <References>
+            <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6021</Reference>
+            <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+        </References>
+    </UAVariable>
+    <UAVariable DataType="EUInformation" ParentNodeId="ns=1;i=6021" NodeId="ns=1;i=6076" BrowseName="EngineeringUnits">
+        <DisplayName>EngineeringUnits</DisplayName>
+        <References>
+            <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6021</Reference>
+            <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+        </References>
+        <Value>
+            <uax:ExtensionObject>
+                <uax:TypeId>
+                    <uax:Identifier>i=888</uax:Identifier>
+                </uax:TypeId>
+                <uax:Body>
+                    <uax:EUInformation>
+                        <uax:NamespaceUri>http://www.opcfoundation.org/UA/units/un/cefact</uax:NamespaceUri>
+                        <uax:UnitId>5655636</uax:UnitId>
+                        <uax:DisplayName>
+                            <uax:Text>V</uax:Text>
+                        </uax:DisplayName>
+                        <uax:Description>
+                            <uax:Text>volt</uax:Text>
+                        </uax:Description>
+                    </uax:EUInformation>
+                </uax:Body>
+            </uax:ExtensionObject>
+        </Value>
+    </UAVariable>
+    <UAVariable DataType="Range" ParentNodeId="ns=1;i=6021" NodeId="ns=1;i=6075" BrowseName="EURange">
+        <DisplayName>EURange</DisplayName>
+        <References>
+            <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6021</Reference>
+            <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+        </References>
+    </UAVariable>
+    <UAVariable DataType="String" ParentNodeId="ns=1;i=6021" NodeId="ns=1;i=6077" BrowseName="2:KindOfQuantity">
+        <DisplayName>KindOfQuantity</DisplayName>
+        <Description>Scalar quantity equal to the line integral of the electric field strength E along a specific path linking two points a and b</Description>
+        <References>
+            <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6021</Reference>
+            <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+        </References>
+        <Value>
+            <uax:String>voltage</uax:String>
+        </Value>
+    </UAVariable>
+</UANodeSet>

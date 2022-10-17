@@ -1,0 +1,17 @@
+<xs:schema elementFormDefault="qualified" targetNamespace="http://opcfoundation.org/UA/PlasticsRubber/Extrusion_v2/ExtrusionLine/Types.xsd" xmlns:tns="http://opcfoundation.org/UA/PlasticsRubber/Extrusion_v2/ExtrusionLine/Types.xsd" xmlns:ua="http://opcfoundation.org/UA/2008/02/Types.xsd" xmlns:xs="http://www.w3.org/2001/XMLSchema">
+    <xs:import namespace="http://opcfoundation.org/UA/2008/02/Types.xsd"/>
+    <xs:complexType name="MaterialMappingType">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="1" type="xs:string" name="MaterialId"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="xs:string" name="MaterialLot"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="xs:string" name="HopperId"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:MaterialMappingType" name="MaterialMappingType"/>
+    <xs:complexType name="ListOfMaterialMappingType">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="unbounded" type="tns:MaterialMappingType" name="MaterialMappingType" nillable="true"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:ListOfMaterialMappingType" name="ListOfMaterialMappingType" nillable="true"/>
+</xs:schema>

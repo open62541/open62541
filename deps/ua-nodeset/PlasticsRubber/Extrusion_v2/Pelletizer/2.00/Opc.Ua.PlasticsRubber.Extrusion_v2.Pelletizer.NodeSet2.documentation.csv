@@ -1,0 +1,5 @@
+Id,Name,Link,ConformanceUnits
+1002,DiePlateType,"https://reference.opcfoundation.org/v105/PlasticsRubber/Extrusion/Pelletizer/v200/docs/6.10.1",""
+1003,KnifePackageType,"https://reference.opcfoundation.org/v105/PlasticsRubber/Extrusion/Pelletizer/v200/docs/6.9.1",""
+1004,Pelletizer_InterfaceType,"https://reference.opcfoundation.org/v105/PlasticsRubber/Extrusion/Pelletizer/v200/docs/6.1","OPC 40084-8 Basic;"
+5014,http://opcfoundation.org/UA/PlasticsRubber/Extrusion_v2/Pelletizer/,"https://reference.opcfoundation.org/v105/PlasticsRubber/Extrusion/Pelletizer/v200/docs/8.1",""

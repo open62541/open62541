@@ -1,0 +1,9 @@
+Id,Name,Link,ConformanceUnits
+1002,CutEventType,"https://reference.opcfoundation.org/v105/PlasticsRubber/Extrusion/Cutter/v200/docs/6.12","OPC 40084-9 Basic;"
+1003,CuttingProductType,"https://reference.opcfoundation.org/v105/PlasticsRubber/Extrusion/Cutter/v200/docs/6.6","OPC 40084-9 Basic;"
+1004,CuttingProductsType,"https://reference.opcfoundation.org/v105/PlasticsRubber/Extrusion/Cutter/v200/docs/6.5","OPC 40084-9 Basic;"
+1005,Cutter_InterfaceType,"https://reference.opcfoundation.org/v105/PlasticsRubber/Extrusion/Cutter/v200/docs/6.1","OPC 40084-9 Basic;"
+3002,WallThickeningEnumeration,"https://reference.opcfoundation.org/v105/PlasticsRubber/Extrusion/Cutter/v200/docs/6.6",""
+5006,http://opcfoundation.org/UA/PlasticsRubber/Extrusion_v2/Cutter/,"https://reference.opcfoundation.org/v105/PlasticsRubber/Extrusion/Cutter/v200/docs/8.1",""
+7002,ManualCut,"https://reference.opcfoundation.org/v105/PlasticsRubber/Extrusion/Cutter/v200/docs/6.9",""
+7003,SampleCut,"https://reference.opcfoundation.org/v105/PlasticsRubber/Extrusion/Cutter/v200/docs/6.10",""

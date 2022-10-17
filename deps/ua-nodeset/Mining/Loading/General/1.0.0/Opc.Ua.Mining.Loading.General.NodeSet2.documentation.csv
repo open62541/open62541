@@ -1,0 +1,6 @@
+Id,Name,Link,ConformanceUnits
+1002,LoadingMachineType,"https://reference.opcfoundation.org/Mining/Loading/General/v100/docs/5.1.2","Loading General Functional Variables;Loading General Methods;"
+5001,http://opcfoundation.org/UA/Mining/Loading/General/,"https://reference.opcfoundation.org/Mining/Loading/General/v100/docs/7.1",""
+7001,RequestForLoading,"https://reference.opcfoundation.org/Mining/Loading/General/v100/docs/5.1.3",""
+7002,StopLoading,"https://reference.opcfoundation.org/Mining/Loading/General/v100/docs/5.1.4",""
+7003,PositioningComplete,"https://reference.opcfoundation.org/Mining/Loading/General/v100/docs/5.1.5",""

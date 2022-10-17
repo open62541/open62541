@@ -1,0 +1,6 @@
+Id,Name,Link,ConformanceUnits
+1002,Filter_InterfaceType,"https://reference.opcfoundation.org/v105/PlasticsRubber/Extrusion/Filter/v200/docs/6.1","OPC 40084-6 Basic;"
+1003,ScreenPackageType,"https://reference.opcfoundation.org/v105/PlasticsRubber/Extrusion/Filter/v200/docs/8.2.1","OPC 40084-6 Basic;"
+1004,FilterPackageType,"https://reference.opcfoundation.org/v105/PlasticsRubber/Extrusion/Filter/v200/docs/8.1.1","OPC 40084-6 Basic;"
+3002,FilterPackageStatusEnumeration,"https://reference.opcfoundation.org/v105/PlasticsRubber/Extrusion/Filter/v200/docs/8.1.2",""
+5023,http://opcfoundation.org/UA/PlasticsRubber/Extrusion_v2/Filter/,"https://reference.opcfoundation.org/v105/PlasticsRubber/Extrusion/Filter/v200/docs/10.1",""

@@ -1,0 +1,7 @@
+Id,Name,Link,ConformanceUnits
+1002,MiningEquipmentType,"https://reference.opcfoundation.org/Mining/General/v100/docs/7.2.2","Mining General Equipment Component;"
+1003,MiningEquipmentIdentificationType,"https://reference.opcfoundation.org/Mining/General/v100/docs/7.1.2","Mining General Equipment Identification Meta-Information;"
+2002,StructuredArrayItemType,"https://reference.opcfoundation.org/Mining/General/v100/docs/8.2",""
+2003,LongwallShieldOffsetArrayItemType,"https://reference.opcfoundation.org/Mining/General/v100/docs/8.3",""
+3002,LongwallShieldOffsetDataType,"https://reference.opcfoundation.org/Mining/General/v100/docs/9.1",""
+5004,http://opcfoundation.org/UA/Mining/General/,"https://reference.opcfoundation.org/Mining/General/v100/docs/11.1",""

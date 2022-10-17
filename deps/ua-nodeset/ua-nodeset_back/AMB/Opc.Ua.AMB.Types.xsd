@@ -1,0 +1,42 @@
+<xs:schema elementFormDefault="qualified" targetNamespace="http://opcfoundation.org/UA/AMB/Types.xsd" xmlns:tns="http://opcfoundation.org/UA/AMB/Types.xsd" xmlns:ua="http://opcfoundation.org/UA/2008/02/Types.xsd" xmlns:xs="http://www.w3.org/2001/XMLSchema">
+    <xs:import namespace="http://opcfoundation.org/UA/2008/02/Types.xsd"/>
+    <xs:simpleType name="MaintenanceMethodEnum">
+        <xs:restriction base="xs:string">
+            <xs:enumeration value="Local_0"/>
+            <xs:enumeration value="Remote_1"/>
+        </xs:restriction>
+    </xs:simpleType>
+    <xs:element type="tns:MaintenanceMethodEnum" name="MaintenanceMethodEnum"/>
+    <xs:complexType name="ListOfMaintenanceMethodEnum">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="unbounded" type="tns:MaintenanceMethodEnum" name="MaintenanceMethodEnum" nillable="true"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:ListOfMaintenanceMethodEnum" name="ListOfMaintenanceMethodEnum" nillable="true"/>
+    <xs:complexType name="NameNodeIdDataType">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="1" type="ua:LocalizedText" name="Name"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="ua:NodeId" name="NodeId"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:NameNodeIdDataType" name="NameNodeIdDataType"/>
+    <xs:complexType name="ListOfNameNodeIdDataType">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="unbounded" type="tns:NameNodeIdDataType" name="NameNodeIdDataType" nillable="true"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:ListOfNameNodeIdDataType" name="ListOfNameNodeIdDataType" nillable="true"/>
+    <xs:complexType name="RootCauseDataType">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="1" type="ua:NodeId" name="RootCauseId"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="ua:LocalizedText" name="RootCause"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:RootCauseDataType" name="RootCauseDataType"/>
+    <xs:complexType name="ListOfRootCauseDataType">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="unbounded" type="tns:RootCauseDataType" name="RootCauseDataType" nillable="true"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:ListOfRootCauseDataType" name="ListOfRootCauseDataType" nillable="true"/>
+</xs:schema>

@@ -1,0 +1,6 @@
+Id,Name,Link,ConformanceUnits
+1002,AFCType,"https://reference.opcfoundation.org/Mining/TransportDumping/ArmouredFaceConveyor/v100/docs/6.1.2","AFC Functional Variables;AFC Methods;"
+2001,AFCStateType,"https://reference.opcfoundation.org/Mining/TransportDumping/ArmouredFaceConveyor/v100/docs/7.1",""
+3002,AFCStateEnum,"https://reference.opcfoundation.org/Mining/TransportDumping/ArmouredFaceConveyor/v100/docs/8.2",""
+3004,AFCNormalRunningDirectionEnum,"https://reference.opcfoundation.org/Mining/TransportDumping/ArmouredFaceConveyor/v100/docs/8.1",""
+5001,http://opcfoundation.org/UA/Mining/TransportDumping/ArmouredFaceConveyor/,"https://reference.opcfoundation.org/Mining/TransportDumping/ArmouredFaceConveyor/v100/docs/10.1",""

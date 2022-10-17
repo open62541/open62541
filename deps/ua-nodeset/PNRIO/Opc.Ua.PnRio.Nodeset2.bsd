@@ -1,0 +1,210 @@
+<opc:TypeDictionary xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:tns="http://opcfoundation.org/UA/PNRIO/" DefaultByteOrder="LittleEndian" xmlns:opc="http://opcfoundation.org/BinarySchema/" xmlns:ua="http://opcfoundation.org/UA/" TargetNamespace="http://opcfoundation.org/UA/PNRIO/">
+    <opc:Import Namespace="http://opcfoundation.org/UA/"/>
+    <opc:StructuredType BaseType="ua:ExtensionObject" Name="RioBitFieldDataType">
+        <opc:Field TypeName="opc:UInt32" Name="BitData"/>
+        <opc:Field TypeName="opc:UInt32" Name="BitUsed"/>
+    </opc:StructuredType>
+    <opc:StructuredType BaseType="ua:ExtensionObject" Name="RioFaAnalogInputConfigDataType">
+        <opc:Field TypeName="opc:Float" Name="Damping"/>
+        <opc:Field TypeName="tns:RioSignalTypeEnumeration" Name="SignalType"/>
+        <opc:Field TypeName="opc:Boolean" Name="WireCheckEnabled"/>
+        <opc:Field TypeName="opc:Boolean" Name="SupplyVoltageCheckEnabled"/>
+        <opc:Field TypeName="tns:RioSubstitutePolicyEnumeration" Name="SubstitutePolicy"/>
+        <opc:Field TypeName="tns:RioAnalogDataType" Name="SubstituteValue"/>
+    </opc:StructuredType>
+    <opc:StructuredType BaseType="ua:ExtensionObject" Name="RioFaAnalogOutputConfigDataType">
+        <opc:Field TypeName="tns:RioSignalTypeEnumeration" Name="SignalType"/>
+        <opc:Field TypeName="opc:Boolean" Name="WireCheckEnabled"/>
+        <opc:Field TypeName="opc:Boolean" Name="SupplyVoltageCheckEnabled"/>
+        <opc:Field TypeName="opc:Boolean" Name="LoadVoltageCheckEnabled"/>
+        <opc:Field TypeName="tns:RioSubstitutePolicyEnumeration" Name="SubstitutePolicy"/>
+        <opc:Field TypeName="tns:RioAnalogDataType" Name="SubstituteValue"/>
+        <opc:Field TypeName="opc:Float" Name="SubstituteTime"/>
+    </opc:StructuredType>
+    <opc:StructuredType BaseType="ua:ExtensionObject" Name="RioFaAnalogValueDataType">
+        <opc:Field TypeName="tns:RioAnalogDataType" Name="Value"/>
+        <opc:Field TypeName="opc:Boolean" Name="Qualifier"/>
+    </opc:StructuredType>
+    <opc:StructuredType BaseType="tns:RioFaAnalogValueDataType" Name="RioFaAnalogProcessValueDataType">
+        <opc:Field SourceType="tns:RioFaAnalogValueDataType" TypeName="tns:RioAnalogDataType" Name="Value"/>
+        <opc:Field SourceType="tns:RioFaAnalogValueDataType" TypeName="opc:Boolean" Name="Qualifier"/>
+        <opc:Field TypeName="opc:Byte" Name="Quality"/>
+    </opc:StructuredType>
+    <opc:StructuredType BaseType="ua:ExtensionObject" Name="RioFaDigitalInputConfigDataType">
+        <opc:Field TypeName="tns:RioSignalTypeEnumeration" Name="SignalType"/>
+        <opc:Field TypeName="opc:Boolean" Name="WireCheckEnabled"/>
+        <opc:Field TypeName="opc:Boolean" Name="SupplyVoltageCheckEnabled"/>
+        <opc:Field TypeName="tns:RioSubstitutePolicyEnumeration" Name="SubstitutePolicy"/>
+        <opc:Field TypeName="opc:Boolean" Name="SubstituteValue"/>
+    </opc:StructuredType>
+    <opc:StructuredType BaseType="ua:ExtensionObject" Name="RioFaDigitalOutputConfigDataType">
+        <opc:Field TypeName="tns:RioSignalTypeEnumeration" Name="SignalType"/>
+        <opc:Field TypeName="opc:Boolean" Name="WireCheckEnabled"/>
+        <opc:Field TypeName="opc:Boolean" Name="SupplyVoltageCheckEnabled"/>
+        <opc:Field TypeName="opc:Boolean" Name="LoadVoltageCheckEnabled"/>
+        <opc:Field TypeName="tns:RioSubstitutePolicyEnumeration" Name="SubstitutePolicy"/>
+        <opc:Field TypeName="opc:Boolean" Name="SubstituteValue"/>
+        <opc:Field TypeName="opc:Float" Name="SubstituteTime"/>
+    </opc:StructuredType>
+    <opc:StructuredType BaseType="ua:ExtensionObject" Name="RioFaDigitalValueDataType">
+        <opc:Field TypeName="opc:Boolean" Name="Value"/>
+        <opc:Field TypeName="opc:Boolean" Name="Qualifier"/>
+    </opc:StructuredType>
+    <opc:StructuredType BaseType="tns:RioFaDigitalValueDataType" Name="RioFaDigitalProcessValueDataType">
+        <opc:Field SourceType="tns:RioFaDigitalValueDataType" TypeName="opc:Boolean" Name="Value"/>
+        <opc:Field SourceType="tns:RioFaDigitalValueDataType" TypeName="opc:Boolean" Name="Qualifier"/>
+        <opc:Field TypeName="opc:Byte" Name="Quality"/>
+    </opc:StructuredType>
+    <opc:StructuredType BaseType="ua:ExtensionObject" Name="RioPaAnalogInputConfigDataType">
+        <opc:Field TypeName="opc:Float" Name="Damping"/>
+        <opc:Field TypeName="tns:RioSignalTypeEnumeration" Name="SignalType"/>
+        <opc:Field TypeName="opc:Boolean" Name="WireCheckEnabled"/>
+        <opc:Field TypeName="tns:RioSubstitutePolicyEnumeration" Name="SubstitutePolicy"/>
+        <opc:Field TypeName="tns:RioAnalogDataType" Name="SubstituteValue"/>
+        <opc:Field TypeName="tns:RioAnalogDataType" Name="HighLimit"/>
+        <opc:Field TypeName="tns:RioAnalogDataType" Name="LowLimit"/>
+    </opc:StructuredType>
+    <opc:StructuredType BaseType="ua:ExtensionObject" Name="RioPaAnalogOutputConfigDataType">
+        <opc:Field TypeName="tns:RioSignalTypeEnumeration" Name="SignalType"/>
+        <opc:Field TypeName="opc:Boolean" Name="WireCheckEnabled"/>
+        <opc:Field TypeName="tns:RioSubstitutePolicyEnumeration" Name="SubstitutePolicy"/>
+        <opc:Field TypeName="tns:RioAnalogDataType" Name="SubstituteValue"/>
+        <opc:Field TypeName="opc:Float" Name="SubstituteTime"/>
+    </opc:StructuredType>
+    <opc:StructuredType BaseType="ua:ExtensionObject" Name="RioPaAnalogValueDataType">
+        <opc:Field TypeName="tns:RioAnalogDataType" Name="Value"/>
+        <opc:Field TypeName="opc:Byte" Name="Qualifier"/>
+    </opc:StructuredType>
+    <opc:StructuredType BaseType="tns:RioPaAnalogValueDataType" Name="RioPaAnalogProcessValueDataType">
+        <opc:Field SourceType="tns:RioPaAnalogValueDataType" TypeName="tns:RioAnalogDataType" Name="Value"/>
+        <opc:Field SourceType="tns:RioPaAnalogValueDataType" TypeName="opc:Byte" Name="Qualifier"/>
+        <opc:Field TypeName="opc:Byte" Name="Quality"/>
+        <opc:Field TypeName="opc:Byte" Name="NE_107"/>
+        <opc:Field TypeName="opc:Byte" Name="Status_full"/>
+    </opc:StructuredType>
+    <opc:StructuredType BaseType="ua:ExtensionObject" Name="RioPaDigitalInputConfigDataType">
+        <opc:Field TypeName="tns:RioSignalTypeEnumeration" Name="SignalType"/>
+        <opc:Field TypeName="opc:Boolean" Name="WireCheckEnabled"/>
+        <opc:Field TypeName="opc:Boolean" Name="InversionEnabled"/>
+        <opc:Field TypeName="tns:RioSubstitutePolicyEnumeration" Name="SubstitutePolicy"/>
+        <opc:Field TypeName="opc:Boolean" Name="SubstituteValue"/>
+    </opc:StructuredType>
+    <opc:StructuredType BaseType="ua:ExtensionObject" Name="RioPaDigitalOutputConfigDataType">
+        <opc:Field TypeName="tns:RioSignalTypeEnumeration" Name="SignalType"/>
+        <opc:Field TypeName="opc:Boolean" Name="WireCheckEnabled"/>
+        <opc:Field TypeName="opc:Boolean" Name="InversionEnabled"/>
+        <opc:Field TypeName="tns:RioSubstitutePolicyEnumeration" Name="SubstitutePolicy"/>
+        <opc:Field TypeName="opc:Boolean" Name="SubstituteValue"/>
+        <opc:Field TypeName="opc:Float" Name="SubstituteTime"/>
+    </opc:StructuredType>
+    <opc:StructuredType BaseType="ua:ExtensionObject" Name="RioPaDigitalValueDataType">
+        <opc:Field TypeName="opc:Boolean" Name="Value"/>
+        <opc:Field TypeName="opc:Byte" Name="Qualifier"/>
+    </opc:StructuredType>
+    <opc:StructuredType BaseType="tns:RioPaDigitalValueDataType" Name="RioPaDigitalProcessValueDataType">
+        <opc:Field SourceType="tns:RioPaDigitalValueDataType" TypeName="opc:Boolean" Name="Value"/>
+        <opc:Field SourceType="tns:RioPaDigitalValueDataType" TypeName="opc:Byte" Name="Qualifier"/>
+        <opc:Field TypeName="opc:Byte" Name="Quality"/>
+        <opc:Field TypeName="opc:Byte" Name="NE_107"/>
+        <opc:Field TypeName="opc:Byte" Name="Status_full"/>
+    </opc:StructuredType>
+    <opc:StructuredType BaseType="ua:Union" Name="RioAnalogDataType">
+        <opc:Field TypeName="opc:UInt32" Name="SwitchField"/>
+        <opc:Field SwitchField="SwitchField" TypeName="opc:Float" SwitchValue="1" Name="Float_32"/>
+        <opc:Field SwitchField="SwitchField" TypeName="opc:Int16" SwitchValue="2" Name="Int_16"/>
+        <opc:Field SwitchField="SwitchField" TypeName="opc:Int32" SwitchValue="3" Name="Int_32"/>
+        <opc:Field SwitchField="SwitchField" TypeName="opc:UInt16" SwitchValue="4" Name="UInt_16"/>
+        <opc:Field SwitchField="SwitchField" TypeName="opc:UInt32" SwitchValue="5" Name="UInt_32"/>
+    </opc:StructuredType>
+    <opc:EnumeratedType LengthInBits="32" Name="PnIoTelegramStatusEnumeration">
+        <opc:EnumeratedValue Name="GOOD" Value="0"/>
+        <opc:EnumeratedValue Name="BAD_BY_SUBSLOT" Value="1"/>
+        <opc:EnumeratedValue Name="BAD_BY_SLOT" Value="2"/>
+        <opc:EnumeratedValue Name="BAD_BY_DEVICE" Value="3"/>
+        <opc:EnumeratedValue Name="BAD_BY_CONTROLLER" Value="4"/>
+    </opc:EnumeratedType>
+    <opc:EnumeratedType LengthInBits="32" Name="RioChannelDiagnosisReasonEnumeration">
+        <opc:EnumeratedValue Name="ALL_DISAPPEARS" Value="0"/>
+        <opc:EnumeratedValue Name="APPEARS" Value="1"/>
+        <opc:EnumeratedValue Name="DISAPPEARS" Value="2"/>
+        <opc:EnumeratedValue Name="DISAPPEARS_OTHER_REMAIN" Value="3"/>
+    </opc:EnumeratedType>
+    <opc:EnumeratedType LengthInBits="32" Name="RioChannelDiagnosisStatusEnumeration">
+        <opc:EnumeratedValue Name="HI_LIM_EXCEEDED" Value="0"/>
+        <opc:EnumeratedValue Name="LO_LIM_EXCEEDED" Value="1"/>
+        <opc:EnumeratedValue Name="SIMULATION_ACTIVE" Value="2"/>
+        <opc:EnumeratedValue Name="MODE_CHANGED" Value="3"/>
+        <opc:EnumeratedValue Name="SUBSTITUTE_VALUE_USED" Value="4"/>
+        <opc:EnumeratedValue Name="Q_BAD_SUBSTITUTE_VALUE_USED" Value="5"/>
+        <opc:EnumeratedValue Name="OUT_OF_SERVICE" Value="6"/>
+    </opc:EnumeratedType>
+    <opc:EnumeratedType LengthInBits="32" Name="RioChannelModeEnumeration">
+        <opc:EnumeratedValue Name="AUTO" Value="0"/>
+        <opc:EnumeratedValue Name="MANUAL" Value="1"/>
+        <opc:EnumeratedValue Name="OUT_OF_SERVICE" Value="2"/>
+    </opc:EnumeratedType>
+    <opc:EnumeratedType LengthInBits="32" Name="RioQualifierEnumeration">
+        <opc:EnumeratedValue Name="BAD_NOT_SPECIFIC" Value="0"/>
+        <opc:EnumeratedValue Name="BAD_NOT_CONNECTED" Value="8"/>
+        <opc:EnumeratedValue Name="BAD_NOT_CONNECTED_SIMULATION_ACTIVE" Value="9"/>
+        <opc:EnumeratedValue Name="BAD_PASSIVATED" Value="32"/>
+        <opc:EnumeratedValue Name="BAD_PASSIVATED_SIMULATION_ACTIVE" Value="33"/>
+        <opc:EnumeratedValue Name="BAD_MAINTENANCE_ALARM" Value="36"/>
+        <opc:EnumeratedValue Name="BAD_MAINTENANCE_ALARM_SIMULATION_ACTIVE" Value="37"/>
+        <opc:EnumeratedValue Name="BAD_PROCESS" Value="40"/>
+        <opc:EnumeratedValue Name="BAD_PROCESS_SIMULATION_ACTIVE" Value="41"/>
+        <opc:EnumeratedValue Name="BAD_FUNCTION_CHECK" Value="60"/>
+        <opc:EnumeratedValue Name="BAD_FUNCTION_CHECK_SIMULATION_ACTIVE" Value="61"/>
+        <opc:EnumeratedValue Name="UNCERTAIN_SUBSTITUTE_SET" Value="72"/>
+        <opc:EnumeratedValue Name="UNCERTAIN_SUBSTITUTE_SET_SIMULATION_ACTIVE" Value="73"/>
+        <opc:EnumeratedValue Name="UNCERTAIN_INITIAL_VALUE" Value="76"/>
+        <opc:EnumeratedValue Name="UNCERTAIN_INITIAL_VALUE_SIMULATION_ACTIVE" Value="77"/>
+        <opc:EnumeratedValue Name="UNCERTAIN_MAINTENANCE_DEMANDED" Value="104"/>
+        <opc:EnumeratedValue Name="UNCERTAIN_MAINTENANCE_DEMANDED_SIMULATION_ACTIVE" Value="105"/>
+        <opc:EnumeratedValue Name="UNCERTAIN_NO_MAINTENANCE" Value="120"/>
+        <opc:EnumeratedValue Name="UNCERTAIN_NO_MAINTENANCE_SIMULATION_ACTIVE" Value="121"/>
+        <opc:EnumeratedValue Name="GOOD" Value="128"/>
+        <opc:EnumeratedValue Name="GOOD_SIMULATION_ACTIVE" Value="129"/>
+        <opc:EnumeratedValue Name="UPDATE" Value="130"/>
+        <opc:EnumeratedValue Name="GOOD_INITIATE_FAULT_STATE" Value="160"/>
+        <opc:EnumeratedValue Name="GOOD_MAINTENANCE_REQUIRED" Value="164"/>
+        <opc:EnumeratedValue Name="GOOD_MAINTENANCE_REQUIRED_SIMULATION_ACTIVE" Value="165"/>
+        <opc:EnumeratedValue Name="GOOD_MAINTENANCE_DEMANDED" Value="168"/>
+        <opc:EnumeratedValue Name="GOOD_MAINTENANCE_DEMANDED_SIMULATION_ACTIVE" Value="169"/>
+        <opc:EnumeratedValue Name="GOOD_LOCAL_OVERRIDE" Value="156"/>
+        <opc:EnumeratedValue Name="GOOD_LOCAL_OVERRIDE_SIMULATION_ACTIVE" Value="157"/>
+        <opc:EnumeratedValue Name="GOOD_FUNCTION_CHECK" Value="188"/>
+        <opc:EnumeratedValue Name="GOOD_FUNCTION_CHECK_SIMULATION_ACTIVE" Value="189"/>
+        <opc:EnumeratedValue Name="UNSPECIFIED" Value="255"/>
+    </opc:EnumeratedType>
+    <opc:EnumeratedType LengthInBits="32" Name="RioQualityEnumeration">
+        <opc:EnumeratedValue Name="GOOD" Value="0"/>
+        <opc:EnumeratedValue Name="UNCERTAIN" Value="1"/>
+        <opc:EnumeratedValue Name="BAD" Value="2"/>
+        <opc:EnumeratedValue Name="UNSPECIFIED" Value="255"/>
+    </opc:EnumeratedType>
+    <opc:EnumeratedType LengthInBits="32" Name="RioSignalTypeEnumeration">
+        <opc:EnumeratedValue Name="CURRENT-4-20_mA" Value="0"/>
+        <opc:EnumeratedValue Name="CURRENT-0-20_mA" Value="1"/>
+        <opc:EnumeratedValue Name="VOLTAGE-0-10_V" Value="2"/>
+        <opc:EnumeratedValue Name="VOLTAGE-10-10_V" Value="3"/>
+        <opc:EnumeratedValue Name="HART" Value="4"/>
+        <opc:EnumeratedValue Name="DIGITAL-0/24V" Value="5"/>
+        <opc:EnumeratedValue Name="NAMUR" Value="6"/>
+        <opc:EnumeratedValue Name="MANUFACTURER_SPECIFIC" Value="7"/>
+    </opc:EnumeratedType>
+    <opc:EnumeratedType LengthInBits="32" Name="RioSpecifierEnumeration">
+        <opc:EnumeratedValue Name="NORMAL" Value="0"/>
+        <opc:EnumeratedValue Name="FAILURE" Value="1"/>
+        <opc:EnumeratedValue Name="FUNCTION_CHECK" Value="2"/>
+        <opc:EnumeratedValue Name="MAINTENANCE_REQUEST" Value="3"/>
+        <opc:EnumeratedValue Name="OUT_OF_SPECIFICATION" Value="4"/>
+        <opc:EnumeratedValue Name="UNSPECIFIED" Value="255"/>
+    </opc:EnumeratedType>
+    <opc:EnumeratedType LengthInBits="32" Name="RioSubstitutePolicyEnumeration">
+        <opc:EnumeratedValue Name="USE_SUBSTITUTE_VALUE" Value="0"/>
+        <opc:EnumeratedValue Name="USE_LAST_VALID_VALUE" Value="1"/>
+        <opc:EnumeratedValue Name="USE_ACTUAL_VALUE" Value="2"/>
+        <opc:EnumeratedValue Name="Unspecified" Value="255"/>
+    </opc:EnumeratedType>
+</opc:TypeDictionary>

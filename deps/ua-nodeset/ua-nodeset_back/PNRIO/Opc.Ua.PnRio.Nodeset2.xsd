@@ -1,0 +1,463 @@
+<xs:schema elementFormDefault="qualified" targetNamespace="http://opcfoundation.org/UA/PNRIO/Types.xsd" xmlns:tns="http://opcfoundation.org/UA/PNRIO/Types.xsd" xmlns:ua="http://opcfoundation.org/UA/2008/02/Types.xsd" xmlns:xs="http://www.w3.org/2001/XMLSchema">
+    <xs:import namespace="http://opcfoundation.org/UA/2008/02/Types.xsd"/>
+    <xs:simpleType name="PnIoTelegramStatusEnumeration">
+        <xs:restriction base="xs:string">
+            <xs:enumeration value="GOOD_0"/>
+            <xs:enumeration value="BAD_BY_SUBSLOT_1"/>
+            <xs:enumeration value="BAD_BY_SLOT_2"/>
+            <xs:enumeration value="BAD_BY_DEVICE_3"/>
+            <xs:enumeration value="BAD_BY_CONTROLLER_4"/>
+        </xs:restriction>
+    </xs:simpleType>
+    <xs:element type="tns:PnIoTelegramStatusEnumeration" name="PnIoTelegramStatusEnumeration"/>
+    <xs:complexType name="ListOfPnIoTelegramStatusEnumeration">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="unbounded" type="tns:PnIoTelegramStatusEnumeration" name="PnIoTelegramStatusEnumeration" nillable="true"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:ListOfPnIoTelegramStatusEnumeration" name="ListOfPnIoTelegramStatusEnumeration" nillable="true"/>
+    <xs:simpleType name="RioChannelDiagnosisReasonEnumeration">
+        <xs:restriction base="xs:string">
+            <xs:enumeration value="ALL_DISAPPEARS_0"/>
+            <xs:enumeration value="APPEARS_1"/>
+            <xs:enumeration value="DISAPPEARS_2"/>
+            <xs:enumeration value="DISAPPEARS_OTHER_REMAIN_3"/>
+        </xs:restriction>
+    </xs:simpleType>
+    <xs:element type="tns:RioChannelDiagnosisReasonEnumeration" name="RioChannelDiagnosisReasonEnumeration"/>
+    <xs:complexType name="ListOfRioChannelDiagnosisReasonEnumeration">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="unbounded" type="tns:RioChannelDiagnosisReasonEnumeration" name="RioChannelDiagnosisReasonEnumeration" nillable="true"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:ListOfRioChannelDiagnosisReasonEnumeration" name="ListOfRioChannelDiagnosisReasonEnumeration" nillable="true"/>
+    <xs:simpleType name="RioChannelDiagnosisStatusEnumeration">
+        <xs:restriction base="xs:string">
+            <xs:enumeration value="HI_LIM_EXCEEDED_0"/>
+            <xs:enumeration value="LO_LIM_EXCEEDED_1"/>
+            <xs:enumeration value="SIMULATION_ACTIVE_2"/>
+            <xs:enumeration value="MODE_CHANGED_3"/>
+            <xs:enumeration value="SUBSTITUTE_VALUE_USED_4"/>
+            <xs:enumeration value="Q_BAD_SUBSTITUTE_VALUE_USED_5"/>
+            <xs:enumeration value="OUT_OF_SERVICE_6"/>
+        </xs:restriction>
+    </xs:simpleType>
+    <xs:element type="tns:RioChannelDiagnosisStatusEnumeration" name="RioChannelDiagnosisStatusEnumeration"/>
+    <xs:complexType name="ListOfRioChannelDiagnosisStatusEnumeration">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="unbounded" type="tns:RioChannelDiagnosisStatusEnumeration" name="RioChannelDiagnosisStatusEnumeration" nillable="true"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:ListOfRioChannelDiagnosisStatusEnumeration" name="ListOfRioChannelDiagnosisStatusEnumeration" nillable="true"/>
+    <xs:simpleType name="RioChannelModeEnumeration">
+        <xs:restriction base="xs:string">
+            <xs:enumeration value="AUTO_0"/>
+            <xs:enumeration value="MANUAL_1"/>
+            <xs:enumeration value="OUT_OF_SERVICE_2"/>
+        </xs:restriction>
+    </xs:simpleType>
+    <xs:element type="tns:RioChannelModeEnumeration" name="RioChannelModeEnumeration"/>
+    <xs:complexType name="ListOfRioChannelModeEnumeration">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="unbounded" type="tns:RioChannelModeEnumeration" name="RioChannelModeEnumeration" nillable="true"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:ListOfRioChannelModeEnumeration" name="ListOfRioChannelModeEnumeration" nillable="true"/>
+    <xs:simpleType name="RioQualifierEnumeration">
+        <xs:restriction base="xs:string">
+            <xs:enumeration value="BAD_NOT_SPECIFIC_0"/>
+            <xs:enumeration value="BAD_NOT_CONNECTED_8"/>
+            <xs:enumeration value="BAD_NOT_CONNECTED_SIMULATION_ACTIVE_9"/>
+            <xs:enumeration value="BAD_PASSIVATED_32"/>
+            <xs:enumeration value="BAD_PASSIVATED_SIMULATION_ACTIVE_33"/>
+            <xs:enumeration value="BAD_MAINTENANCE_ALARM_36"/>
+            <xs:enumeration value="BAD_MAINTENANCE_ALARM_SIMULATION_ACTIVE_37"/>
+            <xs:enumeration value="BAD_PROCESS_40"/>
+            <xs:enumeration value="BAD_PROCESS_SIMULATION_ACTIVE_41"/>
+            <xs:enumeration value="BAD_FUNCTION_CHECK_60"/>
+            <xs:enumeration value="BAD_FUNCTION_CHECK_SIMULATION_ACTIVE_61"/>
+            <xs:enumeration value="UNCERTAIN_SUBSTITUTE_SET_72"/>
+            <xs:enumeration value="UNCERTAIN_SUBSTITUTE_SET_SIMULATION_ACTIVE_73"/>
+            <xs:enumeration value="UNCERTAIN_INITIAL_VALUE_76"/>
+            <xs:enumeration value="UNCERTAIN_INITIAL_VALUE_SIMULATION_ACTIVE_77"/>
+            <xs:enumeration value="UNCERTAIN_MAINTENANCE_DEMANDED_104"/>
+            <xs:enumeration value="UNCERTAIN_MAINTENANCE_DEMANDED_SIMULATION_ACTIVE_105"/>
+            <xs:enumeration value="UNCERTAIN_NO_MAINTENANCE_120"/>
+            <xs:enumeration value="UNCERTAIN_NO_MAINTENANCE_SIMULATION_ACTIVE_121"/>
+            <xs:enumeration value="GOOD_128"/>
+            <xs:enumeration value="GOOD_SIMULATION_ACTIVE_129"/>
+            <xs:enumeration value="UPDATE_130"/>
+            <xs:enumeration value="GOOD_INITIATE_FAULT_STATE_160"/>
+            <xs:enumeration value="GOOD_MAINTENANCE_REQUIRED_164"/>
+            <xs:enumeration value="GOOD_MAINTENANCE_REQUIRED_SIMULATION_ACTIVE_165"/>
+            <xs:enumeration value="GOOD_MAINTENANCE_DEMANDED_168"/>
+            <xs:enumeration value="GOOD_MAINTENANCE_DEMANDED_SIMULATION_ACTIVE_169"/>
+            <xs:enumeration value="GOOD_LOCAL_OVERRIDE_156"/>
+            <xs:enumeration value="GOOD_LOCAL_OVERRIDE_SIMULATION_ACTIVE_157"/>
+            <xs:enumeration value="GOOD_FUNCTION_CHECK_188"/>
+            <xs:enumeration value="GOOD_FUNCTION_CHECK_SIMULATION_ACTIVE_189"/>
+            <xs:enumeration value="UNSPECIFIED_255"/>
+        </xs:restriction>
+    </xs:simpleType>
+    <xs:element type="tns:RioQualifierEnumeration" name="RioQualifierEnumeration"/>
+    <xs:complexType name="ListOfRioQualifierEnumeration">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="unbounded" type="tns:RioQualifierEnumeration" name="RioQualifierEnumeration" nillable="true"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:ListOfRioQualifierEnumeration" name="ListOfRioQualifierEnumeration" nillable="true"/>
+    <xs:simpleType name="RioQualityEnumeration">
+        <xs:restriction base="xs:string">
+            <xs:enumeration value="GOOD_0"/>
+            <xs:enumeration value="UNCERTAIN_1"/>
+            <xs:enumeration value="BAD_2"/>
+            <xs:enumeration value="UNSPECIFIED_255"/>
+        </xs:restriction>
+    </xs:simpleType>
+    <xs:element type="tns:RioQualityEnumeration" name="RioQualityEnumeration"/>
+    <xs:complexType name="ListOfRioQualityEnumeration">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="unbounded" type="tns:RioQualityEnumeration" name="RioQualityEnumeration" nillable="true"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:ListOfRioQualityEnumeration" name="ListOfRioQualityEnumeration" nillable="true"/>
+    <xs:simpleType name="RioSignalTypeEnumeration">
+        <xs:restriction base="xs:string">
+            <xs:enumeration value="CURRENT-4-20_mA_0"/>
+            <xs:enumeration value="CURRENT-0-20_mA_1"/>
+            <xs:enumeration value="VOLTAGE-0-10_V_2"/>
+            <xs:enumeration value="VOLTAGE-10-10_V_3"/>
+            <xs:enumeration value="HART_4"/>
+            <xs:enumeration value="DIGITAL-0/24V_5"/>
+            <xs:enumeration value="NAMUR_6"/>
+            <xs:enumeration value="MANUFACTURER_SPECIFIC_7"/>
+        </xs:restriction>
+    </xs:simpleType>
+    <xs:element type="tns:RioSignalTypeEnumeration" name="RioSignalTypeEnumeration"/>
+    <xs:complexType name="ListOfRioSignalTypeEnumeration">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="unbounded" type="tns:RioSignalTypeEnumeration" name="RioSignalTypeEnumeration" nillable="true"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:ListOfRioSignalTypeEnumeration" name="ListOfRioSignalTypeEnumeration" nillable="true"/>
+    <xs:simpleType name="RioSpecifierEnumeration">
+        <xs:restriction base="xs:string">
+            <xs:enumeration value="NORMAL_0"/>
+            <xs:enumeration value="FAILURE_1"/>
+            <xs:enumeration value="FUNCTION_CHECK_2"/>
+            <xs:enumeration value="MAINTENANCE_REQUEST_3"/>
+            <xs:enumeration value="OUT_OF_SPECIFICATION_4"/>
+            <xs:enumeration value="UNSPECIFIED_255"/>
+        </xs:restriction>
+    </xs:simpleType>
+    <xs:element type="tns:RioSpecifierEnumeration" name="RioSpecifierEnumeration"/>
+    <xs:complexType name="ListOfRioSpecifierEnumeration">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="unbounded" type="tns:RioSpecifierEnumeration" name="RioSpecifierEnumeration" nillable="true"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:ListOfRioSpecifierEnumeration" name="ListOfRioSpecifierEnumeration" nillable="true"/>
+    <xs:simpleType name="RioSubstitutePolicyEnumeration">
+        <xs:restriction base="xs:string">
+            <xs:enumeration value="USE_SUBSTITUTE_VALUE_0"/>
+            <xs:enumeration value="USE_LAST_VALID_VALUE_1"/>
+            <xs:enumeration value="USE_ACTUAL_VALUE_2"/>
+            <xs:enumeration value="Unspecified_255"/>
+        </xs:restriction>
+    </xs:simpleType>
+    <xs:element type="tns:RioSubstitutePolicyEnumeration" name="RioSubstitutePolicyEnumeration"/>
+    <xs:complexType name="ListOfRioSubstitutePolicyEnumeration">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="unbounded" type="tns:RioSubstitutePolicyEnumeration" name="RioSubstitutePolicyEnumeration" nillable="true"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:ListOfRioSubstitutePolicyEnumeration" name="ListOfRioSubstitutePolicyEnumeration" nillable="true"/>
+    <xs:complexType name="RioBitFieldDataType">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="1" type="xs:unsignedInt" name="BitData"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="xs:unsignedInt" name="BitUsed"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:RioBitFieldDataType" name="RioBitFieldDataType"/>
+    <xs:complexType name="ListOfRioBitFieldDataType">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="unbounded" type="tns:RioBitFieldDataType" name="RioBitFieldDataType" nillable="true"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:ListOfRioBitFieldDataType" name="ListOfRioBitFieldDataType" nillable="true"/>
+    <xs:complexType name="RioFaAnalogInputConfigDataType">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="1" type="xs:float" name="Damping"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="tns:RioSignalTypeEnumeration" name="SignalType"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="xs:boolean" name="WireCheckEnabled"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="xs:boolean" name="SupplyVoltageCheckEnabled"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="tns:RioSubstitutePolicyEnumeration" name="SubstitutePolicy"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="tns:RioAnalogDataType" name="SubstituteValue"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:RioFaAnalogInputConfigDataType" name="RioFaAnalogInputConfigDataType"/>
+    <xs:complexType name="ListOfRioFaAnalogInputConfigDataType">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="unbounded" type="tns:RioFaAnalogInputConfigDataType" name="RioFaAnalogInputConfigDataType" nillable="true"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:ListOfRioFaAnalogInputConfigDataType" name="ListOfRioFaAnalogInputConfigDataType" nillable="true"/>
+    <xs:complexType name="RioFaAnalogOutputConfigDataType">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="1" type="tns:RioSignalTypeEnumeration" name="SignalType"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="xs:boolean" name="WireCheckEnabled"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="xs:boolean" name="SupplyVoltageCheckEnabled"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="xs:boolean" name="LoadVoltageCheckEnabled"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="tns:RioSubstitutePolicyEnumeration" name="SubstitutePolicy"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="tns:RioAnalogDataType" name="SubstituteValue"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="xs:float" name="SubstituteTime"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:RioFaAnalogOutputConfigDataType" name="RioFaAnalogOutputConfigDataType"/>
+    <xs:complexType name="ListOfRioFaAnalogOutputConfigDataType">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="unbounded" type="tns:RioFaAnalogOutputConfigDataType" name="RioFaAnalogOutputConfigDataType" nillable="true"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:ListOfRioFaAnalogOutputConfigDataType" name="ListOfRioFaAnalogOutputConfigDataType" nillable="true"/>
+    <xs:complexType name="RioFaAnalogValueDataType">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="1" type="tns:RioAnalogDataType" name="Value"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="xs:boolean" name="Qualifier"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:RioFaAnalogValueDataType" name="RioFaAnalogValueDataType"/>
+    <xs:complexType name="ListOfRioFaAnalogValueDataType">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="unbounded" type="tns:RioFaAnalogValueDataType" name="RioFaAnalogValueDataType" nillable="true"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:ListOfRioFaAnalogValueDataType" name="ListOfRioFaAnalogValueDataType" nillable="true"/>
+    <xs:complexType name="RioFaAnalogProcessValueDataType">
+        <xs:complexContent mixed="false">
+            <xs:extension base="tns:RioFaAnalogValueDataType">
+                <xs:sequence>
+                    <xs:element minOccurs="0" maxOccurs="1" type="xs:unsignedByte" name="Quality"/>
+                </xs:sequence>
+            </xs:extension>
+        </xs:complexContent>
+    </xs:complexType>
+    <xs:element type="tns:RioFaAnalogProcessValueDataType" name="RioFaAnalogProcessValueDataType"/>
+    <xs:complexType name="ListOfRioFaAnalogProcessValueDataType">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="unbounded" type="tns:RioFaAnalogProcessValueDataType" name="RioFaAnalogProcessValueDataType" nillable="true"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:ListOfRioFaAnalogProcessValueDataType" name="ListOfRioFaAnalogProcessValueDataType" nillable="true"/>
+    <xs:complexType name="RioFaDigitalInputConfigDataType">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="1" type="tns:RioSignalTypeEnumeration" name="SignalType"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="xs:boolean" name="WireCheckEnabled"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="xs:boolean" name="SupplyVoltageCheckEnabled"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="tns:RioSubstitutePolicyEnumeration" name="SubstitutePolicy"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="xs:boolean" name="SubstituteValue"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:RioFaDigitalInputConfigDataType" name="RioFaDigitalInputConfigDataType"/>
+    <xs:complexType name="ListOfRioFaDigitalInputConfigDataType">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="unbounded" type="tns:RioFaDigitalInputConfigDataType" name="RioFaDigitalInputConfigDataType" nillable="true"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:ListOfRioFaDigitalInputConfigDataType" name="ListOfRioFaDigitalInputConfigDataType" nillable="true"/>
+    <xs:complexType name="RioFaDigitalOutputConfigDataType">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="1" type="tns:RioSignalTypeEnumeration" name="SignalType"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="xs:boolean" name="WireCheckEnabled"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="xs:boolean" name="SupplyVoltageCheckEnabled"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="xs:boolean" name="LoadVoltageCheckEnabled"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="tns:RioSubstitutePolicyEnumeration" name="SubstitutePolicy"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="xs:boolean" name="SubstituteValue"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="xs:float" name="SubstituteTime"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:RioFaDigitalOutputConfigDataType" name="RioFaDigitalOutputConfigDataType"/>
+    <xs:complexType name="ListOfRioFaDigitalOutputConfigDataType">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="unbounded" type="tns:RioFaDigitalOutputConfigDataType" name="RioFaDigitalOutputConfigDataType" nillable="true"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:ListOfRioFaDigitalOutputConfigDataType" name="ListOfRioFaDigitalOutputConfigDataType" nillable="true"/>
+    <xs:complexType name="RioFaDigitalValueDataType">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="1" type="xs:boolean" name="Value"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="xs:boolean" name="Qualifier"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:RioFaDigitalValueDataType" name="RioFaDigitalValueDataType"/>
+    <xs:complexType name="ListOfRioFaDigitalValueDataType">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="unbounded" type="tns:RioFaDigitalValueDataType" name="RioFaDigitalValueDataType" nillable="true"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:ListOfRioFaDigitalValueDataType" name="ListOfRioFaDigitalValueDataType" nillable="true"/>
+    <xs:complexType name="RioFaDigitalProcessValueDataType">
+        <xs:complexContent mixed="false">
+            <xs:extension base="tns:RioFaDigitalValueDataType">
+                <xs:sequence>
+                    <xs:element minOccurs="0" maxOccurs="1" type="xs:unsignedByte" name="Quality"/>
+                </xs:sequence>
+            </xs:extension>
+        </xs:complexContent>
+    </xs:complexType>
+    <xs:element type="tns:RioFaDigitalProcessValueDataType" name="RioFaDigitalProcessValueDataType"/>
+    <xs:complexType name="ListOfRioFaDigitalProcessValueDataType">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="unbounded" type="tns:RioFaDigitalProcessValueDataType" name="RioFaDigitalProcessValueDataType" nillable="true"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:ListOfRioFaDigitalProcessValueDataType" name="ListOfRioFaDigitalProcessValueDataType" nillable="true"/>
+    <xs:complexType name="RioPaAnalogInputConfigDataType">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="1" type="xs:float" name="Damping"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="tns:RioSignalTypeEnumeration" name="SignalType"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="xs:boolean" name="WireCheckEnabled"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="tns:RioSubstitutePolicyEnumeration" name="SubstitutePolicy"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="tns:RioAnalogDataType" name="SubstituteValue"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="tns:RioAnalogDataType" name="HighLimit"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="tns:RioAnalogDataType" name="LowLimit"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:RioPaAnalogInputConfigDataType" name="RioPaAnalogInputConfigDataType"/>
+    <xs:complexType name="ListOfRioPaAnalogInputConfigDataType">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="unbounded" type="tns:RioPaAnalogInputConfigDataType" name="RioPaAnalogInputConfigDataType" nillable="true"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:ListOfRioPaAnalogInputConfigDataType" name="ListOfRioPaAnalogInputConfigDataType" nillable="true"/>
+    <xs:complexType name="RioPaAnalogOutputConfigDataType">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="1" type="tns:RioSignalTypeEnumeration" name="SignalType"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="xs:boolean" name="WireCheckEnabled"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="tns:RioSubstitutePolicyEnumeration" name="SubstitutePolicy"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="tns:RioAnalogDataType" name="SubstituteValue"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="xs:float" name="SubstituteTime"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:RioPaAnalogOutputConfigDataType" name="RioPaAnalogOutputConfigDataType"/>
+    <xs:complexType name="ListOfRioPaAnalogOutputConfigDataType">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="unbounded" type="tns:RioPaAnalogOutputConfigDataType" name="RioPaAnalogOutputConfigDataType" nillable="true"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:ListOfRioPaAnalogOutputConfigDataType" name="ListOfRioPaAnalogOutputConfigDataType" nillable="true"/>
+    <xs:complexType name="RioPaAnalogValueDataType">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="1" type="tns:RioAnalogDataType" name="Value"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="xs:unsignedByte" name="Qualifier"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:RioPaAnalogValueDataType" name="RioPaAnalogValueDataType"/>
+    <xs:complexType name="ListOfRioPaAnalogValueDataType">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="unbounded" type="tns:RioPaAnalogValueDataType" name="RioPaAnalogValueDataType" nillable="true"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:ListOfRioPaAnalogValueDataType" name="ListOfRioPaAnalogValueDataType" nillable="true"/>
+    <xs:complexType name="RioPaAnalogProcessValueDataType">
+        <xs:complexContent mixed="false">
+            <xs:extension base="tns:RioPaAnalogValueDataType">
+                <xs:sequence>
+                    <xs:element minOccurs="0" maxOccurs="1" type="xs:unsignedByte" name="Quality"/>
+                    <xs:element minOccurs="0" maxOccurs="1" type="xs:unsignedByte" name="NE_107"/>
+                    <xs:element minOccurs="0" maxOccurs="1" type="xs:unsignedByte" name="Status_full"/>
+                </xs:sequence>
+            </xs:extension>
+        </xs:complexContent>
+    </xs:complexType>
+    <xs:element type="tns:RioPaAnalogProcessValueDataType" name="RioPaAnalogProcessValueDataType"/>
+    <xs:complexType name="ListOfRioPaAnalogProcessValueDataType">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="unbounded" type="tns:RioPaAnalogProcessValueDataType" name="RioPaAnalogProcessValueDataType" nillable="true"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:ListOfRioPaAnalogProcessValueDataType" name="ListOfRioPaAnalogProcessValueDataType" nillable="true"/>
+    <xs:complexType name="RioPaDigitalInputConfigDataType">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="1" type="tns:RioSignalTypeEnumeration" name="SignalType"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="xs:boolean" name="WireCheckEnabled"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="xs:boolean" name="InversionEnabled"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="tns:RioSubstitutePolicyEnumeration" name="SubstitutePolicy"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="xs:boolean" name="SubstituteValue"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:RioPaDigitalInputConfigDataType" name="RioPaDigitalInputConfigDataType"/>
+    <xs:complexType name="ListOfRioPaDigitalInputConfigDataType">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="unbounded" type="tns:RioPaDigitalInputConfigDataType" name="RioPaDigitalInputConfigDataType" nillable="true"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:ListOfRioPaDigitalInputConfigDataType" name="ListOfRioPaDigitalInputConfigDataType" nillable="true"/>
+    <xs:complexType name="RioPaDigitalOutputConfigDataType">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="1" type="tns:RioSignalTypeEnumeration" name="SignalType"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="xs:boolean" name="WireCheckEnabled"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="xs:boolean" name="InversionEnabled"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="tns:RioSubstitutePolicyEnumeration" name="SubstitutePolicy"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="xs:boolean" name="SubstituteValue"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="xs:float" name="SubstituteTime"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:RioPaDigitalOutputConfigDataType" name="RioPaDigitalOutputConfigDataType"/>
+    <xs:complexType name="ListOfRioPaDigitalOutputConfigDataType">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="unbounded" type="tns:RioPaDigitalOutputConfigDataType" name="RioPaDigitalOutputConfigDataType" nillable="true"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:ListOfRioPaDigitalOutputConfigDataType" name="ListOfRioPaDigitalOutputConfigDataType" nillable="true"/>
+    <xs:complexType name="RioPaDigitalValueDataType">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="1" type="xs:boolean" name="Value"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="xs:unsignedByte" name="Qualifier"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:RioPaDigitalValueDataType" name="RioPaDigitalValueDataType"/>
+    <xs:complexType name="ListOfRioPaDigitalValueDataType">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="unbounded" type="tns:RioPaDigitalValueDataType" name="RioPaDigitalValueDataType" nillable="true"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:ListOfRioPaDigitalValueDataType" name="ListOfRioPaDigitalValueDataType" nillable="true"/>
+    <xs:complexType name="RioPaDigitalProcessValueDataType">
+        <xs:complexContent mixed="false">
+            <xs:extension base="tns:RioPaDigitalValueDataType">
+                <xs:sequence>
+                    <xs:element minOccurs="0" maxOccurs="1" type="xs:unsignedByte" name="Quality"/>
+                    <xs:element minOccurs="0" maxOccurs="1" type="xs:unsignedByte" name="NE_107"/>
+                    <xs:element minOccurs="0" maxOccurs="1" type="xs:unsignedByte" name="Status_full"/>
+                </xs:sequence>
+            </xs:extension>
+        </xs:complexContent>
+    </xs:complexType>
+    <xs:element type="tns:RioPaDigitalProcessValueDataType" name="RioPaDigitalProcessValueDataType"/>
+    <xs:complexType name="ListOfRioPaDigitalProcessValueDataType">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="unbounded" type="tns:RioPaDigitalProcessValueDataType" name="RioPaDigitalProcessValueDataType" nillable="true"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:ListOfRioPaDigitalProcessValueDataType" name="ListOfRioPaDigitalProcessValueDataType" nillable="true"/>
+    <xs:complexType name="RioAnalogDataType">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="1" type="xs:unsignedInt" name="SwitchField"/>
+            <xs:choice>
+                <xs:element minOccurs="0" maxOccurs="1" type="xs:float" name="Float_32"/>
+                <xs:element minOccurs="0" maxOccurs="1" type="xs:short" name="Int_16"/>
+                <xs:element minOccurs="0" maxOccurs="1" type="xs:int" name="Int_32"/>
+                <xs:element minOccurs="0" maxOccurs="1" type="xs:unsignedShort" name="UInt_16"/>
+                <xs:element minOccurs="0" maxOccurs="1" type="xs:unsignedInt" name="UInt_32"/>
+            </xs:choice>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:RioAnalogDataType" name="RioAnalogDataType"/>
+    <xs:complexType name="ListOfRioAnalogDataType">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="unbounded" type="tns:RioAnalogDataType" name="RioAnalogDataType" nillable="true"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:ListOfRioAnalogDataType" name="ListOfRioAnalogDataType" nillable="true"/>
+</xs:schema>

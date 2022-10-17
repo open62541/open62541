@@ -1,5 +1,6 @@
 cmake_minimum_required(VERSION 3.1...3.12)
 if(UA_BUILD_FUZZING OR UA_BUILD_OSS_FUZZ OR UA_BUILD_FUZZING_CORPUS)
+set(OPEN62541_VERSION "v1.3.2-535-gb457206d")
     project(open62541) # We need to have C++ support configured for fuzzing
 else()
     project(open62541 C) # Do not look for a C++ compiler

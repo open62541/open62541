@@ -1,0 +1,816 @@
+<?xml version="1.0" encoding="utf-8"?>
+<UANodeSet xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd" xmlns="http://opcfoundation.org/UA/2011/03/UANodeSet.xsd" xmlns:s1="http://opcfoundation.org/UA/IA/Examples/Types.xsd" xmlns:s2="http://opcfoundation.org/UA/IA/Types.xsd" xmlns:s3="http://opcfoundation.org/UA/DI/Types.xsd" xmlns:ua="http://unifiedautomation.com/Configuration/NodeSet.xsd" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+    <NamespaceUris>
+        <Uri>http://opcfoundation.org/UA/IA/Examples/</Uri>
+        <Uri>http://opcfoundation.org/UA/IA/</Uri>
+        <Uri>http://opcfoundation.org/UA/DI/</Uri>
+    </NamespaceUris>
+    <Models>
+        <Model ModelUri="http://opcfoundation.org/UA/IA/Examples/" PublicationDate="2022-06-15T00:00:00Z" Version="1.01.2">
+            <RequiredModel ModelUri="http://opcfoundation.org/UA/" PublicationDate="2022-01-24T00:00:00Z" Version="1.05.01"/>
+            <RequiredModel ModelUri="http://opcfoundation.org/UA/DI/" PublicationDate="2021-09-07T00:00:00Z" Version="1.03.1"/>
+            <RequiredModel ModelUri="http://opcfoundation.org/UA/IA/" PublicationDate="2022-06-15T00:00:00Z" Version="1.01.2"/>
+        </Model>
+    </Models>
+    <Aliases>
+        <Alias Alias="Boolean">i=1</Alias>
+        <Alias Alias="Byte">i=3</Alias>
+        <Alias Alias="UInt16">i=5</Alias>
+        <Alias Alias="Int32">i=6</Alias>
+        <Alias Alias="Float">i=10</Alias>
+        <Alias Alias="String">i=12</Alias>
+        <Alias Alias="DateTime">i=13</Alias>
+        <Alias Alias="LocalizedText">i=21</Alias>
+        <Alias Alias="Organizes">i=35</Alias>
+        <Alias Alias="HasTypeDefinition">i=40</Alias>
+        <Alias Alias="HasProperty">i=46</Alias>
+        <Alias Alias="HasComponent">i=47</Alias>
+        <Alias Alias="HasOrderedComponent">i=49</Alias>
+        <Alias Alias="IdType">i=256</Alias>
+        <Alias Alias="NumericRange">i=291</Alias>
+        <Alias Alias="UtcTime">i=294</Alias>
+        <Alias Alias="Range">i=884</Alias>
+        <Alias Alias="EUInformation">i=887</Alias>
+        <Alias Alias="HasInterface">i=17603</Alias>
+        <Alias Alias="DeviceHealthEnumeration">ns=3;i=6244</Alias>
+        <Alias Alias="StacklightOperationMode">ns=2;i=3002</Alias>
+        <Alias Alias="SignalColor">ns=2;i=3004</Alias>
+        <Alias Alias="SignalModeLight">ns=2;i=3005</Alias>
+        <Alias Alias="HasStatisticComponent">ns=2;i=4002</Alias>
+    </Aliases>
+    <Extensions>
+        <Extension>
+            <ua:ModelInfo Tool="UaModeler" Hash="f9RJo486WdP/IK4QFvpqzw==" Version="1.6.6"/>
+        </Extension>
+    </Extensions>
+    <UAObject NodeId="ns=1;i=5002" BrowseName="1:Examples">
+        <DisplayName>Examples</DisplayName>
+        <References>
+            <Reference ReferenceType="HasTypeDefinition">i=61</Reference>
+            <Reference ReferenceType="Organizes">ns=1;i=5015</Reference>
+            <Reference ReferenceType="Organizes" IsForward="false">i=85</Reference>
+            <Reference ReferenceType="Organizes">ns=1;i=5003</Reference>
+            <Reference ReferenceType="Organizes">ns=1;i=5004</Reference>
+        </References>
+    </UAObject>
+    <UAObject NodeId="ns=1;i=5015" BrowseName="1:CalibrationTargets">
+        <DisplayName>CalibrationTargets</DisplayName>
+        <References>
+            <Reference ReferenceType="HasTypeDefinition">i=61</Reference>
+            <Reference ReferenceType="Organizes" IsForward="false">ns=1;i=5002</Reference>
+            <Reference ReferenceType="Organizes">ns=1;i=5016</Reference>
+        </References>
+    </UAObject>
+    <UAObject NodeId="ns=1;i=5016" BrowseName="1:ExampleCalibrationTarget">
+        <DisplayName>ExampleCalibrationTarget</DisplayName>
+        <References>
+            <Reference ReferenceType="HasTypeDefinition">ns=2;i=1019</Reference>
+            <Reference ReferenceType="HasComponent">ns=1;i=5014</Reference>
+            <Reference ReferenceType="HasComponent">ns=1;i=5017</Reference>
+            <Reference ReferenceType="HasProperty">ns=1;i=6040</Reference>
+            <Reference ReferenceType="Organizes" IsForward="false">ns=1;i=5015</Reference>
+            <Reference ReferenceType="HasComponent">ns=1;i=5018</Reference>
+            <Reference ReferenceType="HasProperty">ns=1;i=6041</Reference>
+            <Reference ReferenceType="HasProperty">ns=1;i=6042</Reference>
+            <Reference ReferenceType="HasProperty">ns=1;i=6043</Reference>
+        </References>
+    </UAObject>
+    <UAObject ParentNodeId="ns=1;i=5016" NodeId="ns=1;i=5014" BrowseName="2:CalibrationTargetCategory">
+        <DisplayName>CalibrationTargetCategory</DisplayName>
+        <Description Locale="en">Defines what category the calibration target is of.</Description>
+        <References>
+            <Reference ReferenceType="HasTypeDefinition">ns=2;i=1015</Reference>
+            <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=5016</Reference>
+        </References>
+    </UAObject>
+    <UAObject ParentNodeId="ns=1;i=5016" NodeId="ns=1;i=5017" BrowseName="2:CalibrationTargetFeatures">
+        <DisplayName>CalibrationTargetFeatures</DisplayName>
+        <Description Locale="en">A folder containing information about the features of a calibration target, that is, what can be calibrated with the calibration target.</Description>
+        <References>
+            <Reference ReferenceType="HasTypeDefinition">i=61</Reference>
+            <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=5016</Reference>
+            <Reference ReferenceType="HasComponent">ns=1;i=6049</Reference>
+        </References>
+    </UAObject>
+    <UAVariable DataType="Int32" ParentNodeId="ns=1;i=5017" ValueRank="-2" NodeId="ns=1;i=6049" BrowseName="1:CalibrationValue1" AccessLevel="3">
+        <DisplayName>CalibrationValue1</DisplayName>
+        <Description Locale="en">Represents the specific quantity and value (with engineering unit) that a calibration target provides for calibration of equipment.</Description>
+        <References>
+            <Reference ReferenceType="HasTypeDefinition">ns=2;i=2002</Reference>
+            <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=5017</Reference>
+            <Reference ReferenceType="HasProperty">ns=1;i=6050</Reference>
+        </References>
+        <Value>
+            <uax:Int32>1</uax:Int32>
+        </Value>
+    </UAVariable>
+    <UAVariable DataType="EUInformation" ParentNodeId="ns=1;i=6049" NodeId="ns=1;i=6050" BrowseName="EngineeringUnits" AccessLevel="3">
+        <DisplayName>EngineeringUnits</DisplayName>
+        <References>
+            <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+            <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6049</Reference>
+        </References>
+        <Value>
+            <uax:ExtensionObject>
+                <uax:TypeId>
+                    <uax:Identifier>i=888</uax:Identifier>
+                </uax:TypeId>
+                <uax:Body>
+                    <uax:EUInformation>
+                        <uax:NamespaceUri>http://www.opcfoundation.org/UA/units/un/cefact</uax:NamespaceUri>
+                        <uax:UnitId>5067858</uax:UnitId>
+                        <uax:DisplayName>
+                            <uax:Text>m</uax:Text>
+                        </uax:DisplayName>
+                        <uax:Description>
+                            <uax:Text>metre</uax:Text>
+                        </uax:Description>
+                    </uax:EUInformation>
+                </uax:Body>
+            </uax:ExtensionObject>
+        </Value>
+    </UAVariable>
+    <UAVariable DataType="String" ParentNodeId="ns=1;i=5016" NodeId="ns=1;i=6040" BrowseName="2:CertificateUri" AccessLevel="3">
+        <DisplayName>CertificateUri</DisplayName>
+        <Description Locale="en">Contains the Uri of a certificate of the calibration target, in case the calibration target is certified and the information available. Otherwise, the Property should be omitted.</Description>
+        <References>
+            <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+            <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=5016</Reference>
+        </References>
+        <Value>
+            <uax:String>http://sampleUri.org/certificate</uax:String>
+        </Value>
+    </UAVariable>
+    <UAObject ParentNodeId="ns=1;i=5016" NodeId="ns=1;i=5018" BrowseName="3:Identification">
+        <DisplayName>Identification</DisplayName>
+        <Description Locale="en">Provides identification information.</Description>
+        <References>
+            <Reference ReferenceType="HasTypeDefinition">ns=3;i=1005</Reference>
+            <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=5016</Reference>
+            <Reference ReferenceType="HasInterface">ns=3;i=15048</Reference>
+            <Reference ReferenceType="HasInterface">ns=3;i=15035</Reference>
+            <Reference ReferenceType="HasProperty">ns=1;i=6044</Reference>
+            <Reference ReferenceType="HasProperty">ns=1;i=6045</Reference>
+            <Reference ReferenceType="HasProperty">ns=1;i=6046</Reference>
+            <Reference ReferenceType="HasProperty">ns=1;i=6047</Reference>
+            <Reference ReferenceType="HasProperty">ns=1;i=6048</Reference>
+        </References>
+    </UAObject>
+    <UAVariable DataType="LocalizedText" ParentNodeId="ns=1;i=5018" NodeId="ns=1;i=6044" BrowseName="3:Manufacturer" AccessLevel="3">
+        <DisplayName>Manufacturer</DisplayName>
+        <References>
+            <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+            <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=5018</Reference>
+        </References>
+        <Value>
+            <uax:LocalizedText>
+                <uax:Text>SampleManufacturer</uax:Text>
+            </uax:LocalizedText>
+        </Value>
+    </UAVariable>
+    <UAVariable DataType="String" ParentNodeId="ns=1;i=5018" NodeId="ns=1;i=6045" BrowseName="3:ManufacturerUri" AccessLevel="3">
+        <DisplayName>ManufacturerUri</DisplayName>
+        <References>
+            <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+            <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=5018</Reference>
+        </References>
+        <Value>
+            <uax:String>http://sampleManufacturer.com</uax:String>
+        </Value>
+    </UAVariable>
+    <UAVariable DataType="LocalizedText" ParentNodeId="ns=1;i=5018" NodeId="ns=1;i=6046" BrowseName="3:Model" AccessLevel="3">
+        <DisplayName>Model</DisplayName>
+        <References>
+            <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+            <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=5018</Reference>
+        </References>
+        <Value>
+            <uax:LocalizedText>
+                <uax:Text>SampleModel</uax:Text>
+            </uax:LocalizedText>
+        </Value>
+    </UAVariable>
+    <UAVariable DataType="String" ParentNodeId="ns=1;i=5018" NodeId="ns=1;i=6047" BrowseName="3:ProductInstanceUri" AccessLevel="3">
+        <DisplayName>ProductInstanceUri</DisplayName>
+        <References>
+            <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+            <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=5018</Reference>
+        </References>
+        <Value>
+            <uax:String>http://sampleManufacturer.com/12345a</uax:String>
+        </Value>
+    </UAVariable>
+    <UAVariable DataType="String" ParentNodeId="ns=1;i=5018" NodeId="ns=1;i=6048" BrowseName="3:SerialNumber" AccessLevel="3">
+        <DisplayName>SerialNumber</DisplayName>
+        <References>
+            <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+            <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=5018</Reference>
+        </References>
+        <Value>
+            <uax:String>12345a</uax:String>
+        </Value>
+    </UAVariable>
+    <UAVariable DataType="UtcTime" ParentNodeId="ns=1;i=5016" NodeId="ns=1;i=6041" BrowseName="2:LastValidationDate" AccessLevel="3">
+        <DisplayName>LastValidationDate</DisplayName>
+        <Description Locale="en">Provides the date, the calibration target was validated the last time. If there is no specific validation date known, the date when the calibration target was bought or created should be used.</Description>
+        <References>
+            <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+            <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=5016</Reference>
+        </References>
+        <Value>
+            <uax:DateTime>2021-02-28T00:00:00Z</uax:DateTime>
+        </Value>
+    </UAVariable>
+    <UAVariable DataType="UtcTime" ParentNodeId="ns=1;i=5016" NodeId="ns=1;i=6042" BrowseName="2:NextValidationDate" AccessLevel="3">
+        <DisplayName>NextValidationDate</DisplayName>
+        <Description Locale="en">Provides the date, when the calibration target should be validated the next time. If this date is not known, the Property should be omitted. Note: Potentially the NextValidationDate is in the past, when the next validation did not take place.</Description>
+        <References>
+            <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+            <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=5016</Reference>
+        </References>
+        <Value>
+            <uax:DateTime>2022-02-28T00:00:00Z</uax:DateTime>
+        </Value>
+    </UAVariable>
+    <UAVariable DataType="Byte" ParentNodeId="ns=1;i=5016" NodeId="ns=1;i=6043" BrowseName="2:Quality" AccessLevel="3">
+        <DisplayName>Quality</DisplayName>
+        <Description Locale="en">Provides the quality of the calibration target in percentage, this is, the value shall be between 0 and 100. 100 means the highest quality, 0 the lowest. The semantic of the quality is application-specific.</Description>
+        <References>
+            <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+            <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=5016</Reference>
+        </References>
+        <Value>
+            <uax:Byte>10</uax:Byte>
+        </Value>
+    </UAVariable>
+    <UAObject NodeId="ns=1;i=5003" BrowseName="1:Stacklights">
+        <DisplayName>Stacklights</DisplayName>
+        <References>
+            <Reference ReferenceType="HasTypeDefinition">i=61</Reference>
+            <Reference ReferenceType="Organizes">ns=1;i=5005</Reference>
+            <Reference ReferenceType="Organizes" IsForward="false">ns=1;i=5002</Reference>
+        </References>
+    </UAObject>
+    <UAObject NodeId="ns=1;i=5005" BrowseName="1:ExampleStacklight">
+        <DisplayName>ExampleStacklight</DisplayName>
+        <References>
+            <Reference ReferenceType="HasTypeDefinition">ns=2;i=1010</Reference>
+            <Reference ReferenceType="HasOrderedComponent">ns=1;i=5006</Reference>
+            <Reference ReferenceType="HasComponent">ns=1;i=6002</Reference>
+            <Reference ReferenceType="Organizes" IsForward="false">ns=1;i=5003</Reference>
+            <Reference ReferenceType="HasOrderedComponent">ns=1;i=5009</Reference>
+            <Reference ReferenceType="HasOrderedComponent">ns=1;i=5010</Reference>
+            <Reference ReferenceType="HasOrderedComponent">ns=1;i=5011</Reference>
+            <Reference ReferenceType="HasProperty">ns=1;i=6001</Reference>
+        </References>
+    </UAObject>
+    <UAObject ParentNodeId="ns=1;i=5005" NodeId="ns=1;i=5006" BrowseName="1:AcousticInBase">
+        <DisplayName>AcousticInBase</DisplayName>
+        <Description Locale="en">Represents an acoustic element in a stacklight.</Description>
+        <References>
+            <Reference ReferenceType="HasTypeDefinition">ns=2;i=1007</Reference>
+            <Reference ReferenceType="HasOrderedComponent" IsForward="false">ns=1;i=5005</Reference>
+            <Reference ReferenceType="HasComponent">ns=1;i=5007</Reference>
+            <Reference ReferenceType="HasComponent">ns=1;i=6012</Reference>
+            <Reference ReferenceType="HasProperty">ns=1;i=6014</Reference>
+            <Reference ReferenceType="HasProperty">ns=1;i=6008</Reference>
+            <Reference ReferenceType="HasComponent">ns=1;i=6007</Reference>
+            <Reference ReferenceType="HasProperty">ns=1;i=6015</Reference>
+        </References>
+    </UAObject>
+    <UAObject ParentNodeId="ns=1;i=5006" NodeId="ns=1;i=5007" BrowseName="2:AcousticSignals">
+        <DisplayName>AcousticSignals</DisplayName>
+        <Description Locale="en">Contains a list of audio signals used by this acoustic stacklight element.</Description>
+        <References>
+            <Reference ReferenceType="HasTypeDefinition">i=23518</Reference>
+            <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=5006</Reference>
+            <Reference ReferenceType="HasOrderedComponent">ns=1;i=5008</Reference>
+            <Reference ReferenceType="HasOrderedComponent">ns=1;i=5012</Reference>
+        </References>
+    </UAObject>
+    <UAObject ParentNodeId="ns=1;i=5007" NodeId="ns=1;i=5008" BrowseName="Signal1">
+        <DisplayName>Signal1</DisplayName>
+        <Description Locale="en">Represents an acoustic signal.</Description>
+        <References>
+            <Reference ReferenceType="HasTypeDefinition">ns=2;i=1009</Reference>
+            <Reference ReferenceType="HasInterface">i=23513</Reference>
+            <Reference ReferenceType="HasProperty">ns=1;i=6006</Reference>
+            <Reference ReferenceType="HasOrderedComponent" IsForward="false">ns=1;i=5007</Reference>
+        </References>
+    </UAObject>
+    <UAVariable DataType="UInt16" ParentNodeId="ns=1;i=5008" NodeId="ns=1;i=6006" BrowseName="NumberInList" AccessLevel="3">
+        <DisplayName>NumberInList</DisplayName>
+        <Description Locale="en">Enumerate the acoustic signals. Instances of StackElementAcousticType index into this number using the OperationMode Property.</Description>
+        <References>
+            <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+            <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=5008</Reference>
+        </References>
+        <Value>
+            <uax:UInt16>0</uax:UInt16>
+        </Value>
+    </UAVariable>
+    <UAObject ParentNodeId="ns=1;i=5007" NodeId="ns=1;i=5012" BrowseName="1:Signal2">
+        <DisplayName>Signal2</DisplayName>
+        <Description Locale="en">Represents an acoustic signal.</Description>
+        <References>
+            <Reference ReferenceType="HasTypeDefinition">ns=2;i=1009</Reference>
+            <Reference ReferenceType="HasInterface">i=23513</Reference>
+            <Reference ReferenceType="HasProperty">ns=1;i=6016</Reference>
+            <Reference ReferenceType="HasOrderedComponent" IsForward="false">ns=1;i=5007</Reference>
+        </References>
+    </UAObject>
+    <UAVariable DataType="UInt16" ParentNodeId="ns=1;i=5012" NodeId="ns=1;i=6016" BrowseName="NumberInList" AccessLevel="3">
+        <DisplayName>NumberInList</DisplayName>
+        <Description Locale="en">Enumerate the acoustic signals. Instances of StackElementAcousticType index into this number using the OperationMode Property.</Description>
+        <References>
+            <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+            <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=5012</Reference>
+        </References>
+        <Value>
+            <uax:UInt16>1</uax:UInt16>
+        </Value>
+    </UAVariable>
+    <UAVariable DataType="Float" ParentNodeId="ns=1;i=5006" NodeId="ns=1;i=6012" BrowseName="2:Intensity" AccessLevel="3">
+        <DisplayName>Intensity</DisplayName>
+        <Description Locale="en">Indicates the sound pressure level of the acoustic signal when switched on. This value shall only have positive values. The mandatory EURange Property of the Variable indicates the lowest and highest value and thereby allows to calculate the percentage represented by the value. The lowest value is interpreted as 0 percent, the highest is interpreted as 100 percent.</Description>
+        <References>
+            <Reference ReferenceType="HasTypeDefinition">i=2368</Reference>
+            <Reference ReferenceType="HasProperty">ns=1;i=6013</Reference>
+            <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=5006</Reference>
+        </References>
+        <Value>
+            <uax:Float>10</uax:Float>
+        </Value>
+    </UAVariable>
+    <UAVariable DataType="Range" ParentNodeId="ns=1;i=6012" NodeId="ns=1;i=6013" BrowseName="EURange">
+        <DisplayName>EURange</DisplayName>
+        <References>
+            <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+            <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6012</Reference>
+        </References>
+        <Value>
+            <uax:ExtensionObject>
+                <uax:TypeId>
+                    <uax:Identifier>i=885</uax:Identifier>
+                </uax:TypeId>
+                <uax:Body>
+                    <uax:Range>
+                        <uax:Low>0</uax:Low>
+                        <uax:High>10</uax:High>
+                    </uax:Range>
+                </uax:Body>
+            </uax:ExtensionObject>
+        </Value>
+    </UAVariable>
+    <UAVariable DataType="Boolean" ParentNodeId="ns=1;i=5006" NodeId="ns=1;i=6014" BrowseName="2:IsPartOfBase" AccessLevel="3">
+        <DisplayName>IsPartOfBase</DisplayName>
+        <Description Locale="en">Indicates, if the element is contained in the mounting base of the stacklight. All elements contained in the mounting base shall be at the beginning of the list of stack elements.</Description>
+        <References>
+            <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+            <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=5006</Reference>
+        </References>
+    </UAVariable>
+    <UAVariable DataType="UInt16" ParentNodeId="ns=1;i=5006" NodeId="ns=1;i=6008" BrowseName="NumberInList">
+        <DisplayName>NumberInList</DisplayName>
+        <Description Locale="en">Enumerate the stacklight elements counting upwards beginning from the base of the stacklight.</Description>
+        <References>
+            <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+            <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=5006</Reference>
+        </References>
+    </UAVariable>
+    <UAVariable DataType="UInt16" ParentNodeId="ns=1;i=5006" NodeId="ns=1;i=6007" BrowseName="2:OperationMode" AccessLevel="3">
+        <DisplayName>OperationMode</DisplayName>
+        <Description Locale="en">Indicates what signal of the list of AcousticSignalType nodes is played when the acoustic element is switched on. It shall contain an index into the NumberInList of the respective AcousticSignalType Object of AcousticSignals.</Description>
+        <References>
+            <Reference ReferenceType="HasTypeDefinition">i=63</Reference>
+            <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=5006</Reference>
+        </References>
+    </UAVariable>
+    <UAVariable DataType="Boolean" ParentNodeId="ns=1;i=5006" NodeId="ns=1;i=6015" BrowseName="2:SignalOn" AccessLevel="3">
+        <DisplayName>SignalOn</DisplayName>
+        <Description Locale="en">Indicates if the signal emitted by the stack element is currently switched on or not.</Description>
+        <References>
+            <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+            <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=5006</Reference>
+        </References>
+    </UAVariable>
+    <UAVariable DataType="DeviceHealthEnumeration" ParentNodeId="ns=1;i=5005" NodeId="ns=1;i=6002" BrowseName="2:DeviceHealth" AccessLevel="3">
+        <DisplayName>DeviceHealth</DisplayName>
+        <Description Locale="en">Contains the health status information of the stacklight.</Description>
+        <References>
+            <Reference ReferenceType="HasTypeDefinition">i=63</Reference>
+            <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=5005</Reference>
+        </References>
+        <Value>
+            <uax:Int32>0</uax:Int32>
+        </Value>
+    </UAVariable>
+    <UAObject ParentNodeId="ns=1;i=5005" NodeId="ns=1;i=5009" BrowseName="1:Lamp1">
+        <DisplayName>Lamp1</DisplayName>
+        <Description Locale="en">Represents a lamp element in a stacklight.</Description>
+        <References>
+            <Reference ReferenceType="HasTypeDefinition">ns=2;i=1006</Reference>
+            <Reference ReferenceType="HasComponent">ns=1;i=6017</Reference>
+            <Reference ReferenceType="HasOrderedComponent" IsForward="false">ns=1;i=5005</Reference>
+            <Reference ReferenceType="HasProperty">ns=1;i=6009</Reference>
+            <Reference ReferenceType="HasComponent">ns=1;i=6019</Reference>
+            <Reference ReferenceType="HasComponent">ns=1;i=6021</Reference>
+            <Reference ReferenceType="HasProperty">ns=1;i=6020</Reference>
+        </References>
+    </UAObject>
+    <UAVariable DataType="Float" ParentNodeId="ns=1;i=5009" NodeId="ns=1;i=6017" BrowseName="2:Intensity" AccessLevel="3">
+        <DisplayName>Intensity</DisplayName>
+        <Description Locale="en">Intensity of the lamp, thus its brightness. The mandatory EURange Property of the Variable indicates the lowest and highest value and thereby allows to calculate the percentage represented by the value. The lowest value is interpreted as 0 percent, the highest is interpreted as 100 percent.</Description>
+        <References>
+            <Reference ReferenceType="HasTypeDefinition">i=2368</Reference>
+            <Reference ReferenceType="HasProperty">ns=1;i=6018</Reference>
+            <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=5009</Reference>
+        </References>
+        <Value>
+            <uax:Float>5</uax:Float>
+        </Value>
+    </UAVariable>
+    <UAVariable DataType="Range" ParentNodeId="ns=1;i=6017" NodeId="ns=1;i=6018" BrowseName="EURange">
+        <DisplayName>EURange</DisplayName>
+        <References>
+            <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+            <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6017</Reference>
+        </References>
+        <Value>
+            <uax:ExtensionObject>
+                <uax:TypeId>
+                    <uax:Identifier>i=885</uax:Identifier>
+                </uax:TypeId>
+                <uax:Body>
+                    <uax:Range>
+                        <uax:Low>0</uax:Low>
+                        <uax:High>10</uax:High>
+                    </uax:Range>
+                </uax:Body>
+            </uax:ExtensionObject>
+        </Value>
+    </UAVariable>
+    <UAVariable DataType="UInt16" ParentNodeId="ns=1;i=5009" NodeId="ns=1;i=6009" BrowseName="NumberInList">
+        <DisplayName>NumberInList</DisplayName>
+        <Description Locale="en">Enumerate the stacklight elements counting upwards beginning from the base of the stacklight.</Description>
+        <References>
+            <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+            <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=5009</Reference>
+        </References>
+        <Value>
+            <uax:UInt16>1</uax:UInt16>
+        </Value>
+    </UAVariable>
+    <UAVariable DataType="SignalColor" ParentNodeId="ns=1;i=5009" NodeId="ns=1;i=6019" BrowseName="2:SignalColor" AccessLevel="3">
+        <DisplayName>SignalColor</DisplayName>
+        <Description Locale="en">Indicates the colour the lamp element has when switched on.</Description>
+        <References>
+            <Reference ReferenceType="HasTypeDefinition">i=63</Reference>
+            <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=5009</Reference>
+        </References>
+        <Value>
+            <uax:Int32>3</uax:Int32>
+        </Value>
+    </UAVariable>
+    <UAVariable DataType="SignalModeLight" ParentNodeId="ns=1;i=5009" NodeId="ns=1;i=6021" BrowseName="2:SignalMode" AccessLevel="3">
+        <DisplayName>SignalMode</DisplayName>
+        <Description Locale="en">Shows in what way the lamp is used (continuous light, flashing, blinking) when switched on.</Description>
+        <References>
+            <Reference ReferenceType="HasTypeDefinition">i=63</Reference>
+            <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=5009</Reference>
+        </References>
+        <Value>
+            <uax:Int32>1</uax:Int32>
+        </Value>
+    </UAVariable>
+    <UAVariable DataType="Boolean" ParentNodeId="ns=1;i=5009" NodeId="ns=1;i=6020" BrowseName="2:SignalOn" AccessLevel="3">
+        <DisplayName>SignalOn</DisplayName>
+        <Description Locale="en">Indicates if the signal emitted by the stack element is currently switched on or not.</Description>
+        <References>
+            <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+            <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=5009</Reference>
+        </References>
+        <Value>
+            <uax:Boolean>true</uax:Boolean>
+        </Value>
+    </UAVariable>
+    <UAObject ParentNodeId="ns=1;i=5005" NodeId="ns=1;i=5010" BrowseName="1:Lamp2">
+        <DisplayName>Lamp2</DisplayName>
+        <Description Locale="en">Represents a lamp element in a stacklight.</Description>
+        <References>
+            <Reference ReferenceType="HasTypeDefinition">ns=2;i=1006</Reference>
+            <Reference ReferenceType="HasComponent">ns=1;i=6003</Reference>
+            <Reference ReferenceType="HasOrderedComponent" IsForward="false">ns=1;i=5005</Reference>
+            <Reference ReferenceType="HasProperty">ns=1;i=6010</Reference>
+            <Reference ReferenceType="HasComponent">ns=1;i=6005</Reference>
+            <Reference ReferenceType="HasComponent">ns=1;i=6023</Reference>
+            <Reference ReferenceType="HasProperty">ns=1;i=6022</Reference>
+        </References>
+    </UAObject>
+    <UAVariable DataType="Float" ParentNodeId="ns=1;i=5010" NodeId="ns=1;i=6003" BrowseName="2:Intensity" AccessLevel="3">
+        <DisplayName>Intensity</DisplayName>
+        <Description Locale="en">Intensity of the lamp, thus its brightness. The mandatory EURange Property of the Variable indicates the lowest and highest value and thereby allows to calculate the percentage represented by the value. The lowest value is interpreted as 0 percent, the highest is interpreted as 100 percent.</Description>
+        <References>
+            <Reference ReferenceType="HasTypeDefinition">i=2368</Reference>
+            <Reference ReferenceType="HasProperty">ns=1;i=6004</Reference>
+            <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=5010</Reference>
+        </References>
+        <Value>
+            <uax:Float>10</uax:Float>
+        </Value>
+    </UAVariable>
+    <UAVariable DataType="Range" ParentNodeId="ns=1;i=6003" NodeId="ns=1;i=6004" BrowseName="EURange">
+        <DisplayName>EURange</DisplayName>
+        <References>
+            <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+            <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6003</Reference>
+        </References>
+        <Value>
+            <uax:ExtensionObject>
+                <uax:TypeId>
+                    <uax:Identifier>i=885</uax:Identifier>
+                </uax:TypeId>
+                <uax:Body>
+                    <uax:Range>
+                        <uax:Low>0</uax:Low>
+                        <uax:High>10</uax:High>
+                    </uax:Range>
+                </uax:Body>
+            </uax:ExtensionObject>
+        </Value>
+    </UAVariable>
+    <UAVariable DataType="UInt16" ParentNodeId="ns=1;i=5010" NodeId="ns=1;i=6010" BrowseName="NumberInList">
+        <DisplayName>NumberInList</DisplayName>
+        <Description Locale="en">Enumerate the stacklight elements counting upwards beginning from the base of the stacklight.</Description>
+        <References>
+            <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+            <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=5010</Reference>
+        </References>
+        <Value>
+            <uax:UInt16>2</uax:UInt16>
+        </Value>
+    </UAVariable>
+    <UAVariable DataType="SignalColor" ParentNodeId="ns=1;i=5010" NodeId="ns=1;i=6005" BrowseName="2:SignalColor" AccessLevel="3">
+        <DisplayName>SignalColor</DisplayName>
+        <Description Locale="en">Indicates the colour the lamp element has when switched on.</Description>
+        <References>
+            <Reference ReferenceType="HasTypeDefinition">i=63</Reference>
+            <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=5010</Reference>
+        </References>
+        <Value>
+            <uax:Int32>4</uax:Int32>
+        </Value>
+    </UAVariable>
+    <UAVariable DataType="SignalModeLight" ParentNodeId="ns=1;i=5010" NodeId="ns=1;i=6023" BrowseName="2:SignalMode" AccessLevel="3">
+        <DisplayName>SignalMode</DisplayName>
+        <Description Locale="en">Shows in what way the lamp is used (continuous light, flashing, blinking) when switched on.</Description>
+        <References>
+            <Reference ReferenceType="HasTypeDefinition">i=63</Reference>
+            <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=5010</Reference>
+        </References>
+        <Value>
+            <uax:Int32>0</uax:Int32>
+        </Value>
+    </UAVariable>
+    <UAVariable DataType="Boolean" ParentNodeId="ns=1;i=5010" NodeId="ns=1;i=6022" BrowseName="2:SignalOn" AccessLevel="3">
+        <DisplayName>SignalOn</DisplayName>
+        <Description Locale="en">Indicates if the signal emitted by the stack element is currently switched on or not.</Description>
+        <References>
+            <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+            <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=5010</Reference>
+        </References>
+        <Value>
+            <uax:Boolean>false</uax:Boolean>
+        </Value>
+    </UAVariable>
+    <UAObject ParentNodeId="ns=1;i=5005" NodeId="ns=1;i=5011" BrowseName="1:Lamp3">
+        <DisplayName>Lamp3</DisplayName>
+        <Description Locale="en">Base class for elements in a stacklight.</Description>
+        <References>
+            <Reference ReferenceType="HasTypeDefinition">ns=2;i=1006</Reference>
+            <Reference ReferenceType="HasComponent">ns=1;i=6024</Reference>
+            <Reference ReferenceType="HasOrderedComponent" IsForward="false">ns=1;i=5005</Reference>
+            <Reference ReferenceType="HasProperty">ns=1;i=6011</Reference>
+            <Reference ReferenceType="HasComponent">ns=1;i=6026</Reference>
+            <Reference ReferenceType="HasComponent">ns=1;i=6028</Reference>
+            <Reference ReferenceType="HasProperty">ns=1;i=6027</Reference>
+        </References>
+    </UAObject>
+    <UAVariable DataType="Float" ParentNodeId="ns=1;i=5011" NodeId="ns=1;i=6024" BrowseName="2:Intensity" AccessLevel="3">
+        <DisplayName>Intensity</DisplayName>
+        <Description Locale="en">Intensity of the lamp, thus its brightness. The mandatory EURange Property of the Variable indicates the lowest and highest value and thereby allows to calculate the percentage represented by the value. The lowest value is interpreted as 0 percent, the highest is interpreted as 100 percent.</Description>
+        <References>
+            <Reference ReferenceType="HasTypeDefinition">i=2368</Reference>
+            <Reference ReferenceType="HasProperty">ns=1;i=6025</Reference>
+            <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=5011</Reference>
+        </References>
+        <Value>
+            <uax:Float>2</uax:Float>
+        </Value>
+    </UAVariable>
+    <UAVariable DataType="Range" ParentNodeId="ns=1;i=6024" NodeId="ns=1;i=6025" BrowseName="EURange">
+        <DisplayName>EURange</DisplayName>
+        <References>
+            <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+            <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6024</Reference>
+        </References>
+        <Value>
+            <uax:ExtensionObject>
+                <uax:TypeId>
+                    <uax:Identifier>i=885</uax:Identifier>
+                </uax:TypeId>
+                <uax:Body>
+                    <uax:Range>
+                        <uax:Low>0</uax:Low>
+                        <uax:High>100</uax:High>
+                    </uax:Range>
+                </uax:Body>
+            </uax:ExtensionObject>
+        </Value>
+    </UAVariable>
+    <UAVariable DataType="UInt16" ParentNodeId="ns=1;i=5011" NodeId="ns=1;i=6011" BrowseName="NumberInList">
+        <DisplayName>NumberInList</DisplayName>
+        <Description Locale="en">Enumerate the stacklight elements counting upwards beginning from the base of the stacklight.</Description>
+        <References>
+            <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+            <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=5011</Reference>
+        </References>
+        <Value>
+            <uax:UInt16>3</uax:UInt16>
+        </Value>
+    </UAVariable>
+    <UAVariable DataType="SignalColor" ParentNodeId="ns=1;i=5011" NodeId="ns=1;i=6026" BrowseName="2:SignalColor" AccessLevel="3">
+        <DisplayName>SignalColor</DisplayName>
+        <Description Locale="en">Indicates the colour the lamp element has when switched on.</Description>
+        <References>
+            <Reference ReferenceType="HasTypeDefinition">i=63</Reference>
+            <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=5011</Reference>
+        </References>
+        <Value>
+            <uax:Int32>1</uax:Int32>
+        </Value>
+    </UAVariable>
+    <UAVariable DataType="SignalModeLight" ParentNodeId="ns=1;i=5011" NodeId="ns=1;i=6028" BrowseName="2:SignalMode" AccessLevel="3">
+        <DisplayName>SignalMode</DisplayName>
+        <Description Locale="en">Shows in what way the lamp is used (continuous light, flashing, blinking) when switched on.</Description>
+        <References>
+            <Reference ReferenceType="HasTypeDefinition">i=63</Reference>
+            <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=5011</Reference>
+        </References>
+        <Value>
+            <uax:Int32>0</uax:Int32>
+        </Value>
+    </UAVariable>
+    <UAVariable DataType="Boolean" ParentNodeId="ns=1;i=5011" NodeId="ns=1;i=6027" BrowseName="2:SignalOn" AccessLevel="3">
+        <DisplayName>SignalOn</DisplayName>
+        <Description Locale="en">Indicates if the signal emitted by the stack element is currently switched on or not.</Description>
+        <References>
+            <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+            <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=5011</Reference>
+        </References>
+        <Value>
+            <uax:Boolean>false</uax:Boolean>
+        </Value>
+    </UAVariable>
+    <UAVariable DataType="StacklightOperationMode" ParentNodeId="ns=1;i=5005" NodeId="ns=1;i=6001" BrowseName="2:StacklightMode" AccessLevel="3">
+        <DisplayName>StacklightMode</DisplayName>
+        <Description Locale="en">Shows in what way (stack of individual lights, level meter, running light) the stacklight unit is used.</Description>
+        <References>
+            <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+            <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=5005</Reference>
+        </References>
+        <Value>
+            <uax:Int32>0</uax:Int32>
+        </Value>
+    </UAVariable>
+    <UAObject NodeId="ns=1;i=5004" BrowseName="1:StatisticalData">
+        <DisplayName>StatisticalData</DisplayName>
+        <References>
+            <Reference ReferenceType="HasTypeDefinition">i=61</Reference>
+            <Reference ReferenceType="Organizes">ns=1;i=5013</Reference>
+            <Reference ReferenceType="HasProperty">ns=1;i=6029</Reference>
+            <Reference ReferenceType="HasStatisticComponent">ns=1;i=6030</Reference>
+            <Reference ReferenceType="HasStatisticComponent">ns=1;i=6031</Reference>
+            <Reference ReferenceType="HasStatisticComponent">ns=1;i=6032</Reference>
+            <Reference ReferenceType="Organizes" IsForward="false">ns=1;i=5002</Reference>
+        </References>
+    </UAObject>
+    <UAObject NodeId="ns=1;i=5013" BrowseName="1:SampleStatistics">
+        <DisplayName>SampleStatistics</DisplayName>
+        <References>
+            <Reference ReferenceType="HasTypeDefinition">i=58</Reference>
+            <Reference ReferenceType="HasInterface">ns=2;i=1012</Reference>
+            <Reference ReferenceType="HasComponent">ns=1;i=7001</Reference>
+            <Reference ReferenceType="Organizes" IsForward="false">ns=1;i=5004</Reference>
+        </References>
+    </UAObject>
+    <UAMethod NodeId="ns=1;i=7001" BrowseName="2:ResetStatistics">
+        <DisplayName>ResetStatistics</DisplayName>
+        <References>
+            <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=5013</Reference>
+        </References>
+    </UAMethod>
+    <UAVariable DataType="DateTime" NodeId="ns=1;i=6029" BrowseName="2:StartTime" AccessLevel="3">
+        <DisplayName>StartTime</DisplayName>
+        <References>
+            <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+            <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=5004</Reference>
+        </References>
+    </UAVariable>
+    <UAVariable DataType="UInt16" NodeId="ns=1;i=6030" BrowseName="1:StatData1" AccessLevel="3">
+        <DisplayName>StatData1</DisplayName>
+        <References>
+            <Reference ReferenceType="HasTypeDefinition">i=63</Reference>
+            <Reference ReferenceType="HasStatisticComponent" IsForward="false">ns=1;i=5004</Reference>
+        </References>
+    </UAVariable>
+    <UAVariable DataType="UInt16" NodeId="ns=1;i=6031" BrowseName="1:StatData2" AccessLevel="3">
+        <DisplayName>StatData2</DisplayName>
+        <References>
+            <Reference ReferenceType="HasTypeDefinition">i=63</Reference>
+            <Reference ReferenceType="HasStatisticComponent" IsForward="false">ns=1;i=5004</Reference>
+        </References>
+    </UAVariable>
+    <UAVariable DataType="UInt16" NodeId="ns=1;i=6032" BrowseName="1:StatData3" AccessLevel="3">
+        <DisplayName>StatData3</DisplayName>
+        <References>
+            <Reference ReferenceType="HasTypeDefinition">i=63</Reference>
+            <Reference ReferenceType="HasStatisticComponent" IsForward="false">ns=1;i=5004</Reference>
+        </References>
+    </UAVariable>
+    <UAObject SymbolicName="http___opcfoundation_org_UA_IA_Examples_" NodeId="ns=1;i=5001" BrowseName="1:http://opcfoundation.org/UA/IA/Examples/">
+        <DisplayName>http://opcfoundation.org/UA/IA/Examples/</DisplayName>
+        <References>
+            <Reference ReferenceType="HasTypeDefinition">i=11616</Reference>
+            <Reference ReferenceType="HasProperty">ns=1;i=6033</Reference>
+            <Reference ReferenceType="HasComponent" IsForward="false">i=11715</Reference>
+            <Reference ReferenceType="HasProperty">ns=1;i=6034</Reference>
+            <Reference ReferenceType="HasProperty">ns=1;i=6035</Reference>
+            <Reference ReferenceType="HasProperty">ns=1;i=6036</Reference>
+            <Reference ReferenceType="HasProperty">ns=1;i=6037</Reference>
+            <Reference ReferenceType="HasProperty">ns=1;i=6038</Reference>
+            <Reference ReferenceType="HasProperty">ns=1;i=6039</Reference>
+        </References>
+    </UAObject>
+    <UAVariable DataType="Boolean" ParentNodeId="ns=1;i=5001" NodeId="ns=1;i=6033" BrowseName="IsNamespaceSubset">
+        <DisplayName>IsNamespaceSubset</DisplayName>
+        <References>
+            <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+            <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=5001</Reference>
+        </References>
+        <Value>
+            <uax:Boolean>false</uax:Boolean>
+        </Value>
+    </UAVariable>
+    <UAVariable DataType="DateTime" ParentNodeId="ns=1;i=5001" NodeId="ns=1;i=6034" BrowseName="NamespacePublicationDate">
+        <DisplayName>NamespacePublicationDate</DisplayName>
+        <References>
+            <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+            <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=5001</Reference>
+        </References>
+        <Value>
+            <uax:DateTime>2022-06-15T00:00:00Z</uax:DateTime>
+        </Value>
+    </UAVariable>
+    <UAVariable DataType="String" ParentNodeId="ns=1;i=5001" NodeId="ns=1;i=6035" BrowseName="NamespaceUri">
+        <DisplayName>NamespaceUri</DisplayName>
+        <References>
+            <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+            <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=5001</Reference>
+        </References>
+        <Value>
+            <uax:String>http://opcfoundation.org/UA/IA/Examples/</uax:String>
+        </Value>
+    </UAVariable>
+    <UAVariable DataType="String" ParentNodeId="ns=1;i=5001" NodeId="ns=1;i=6036" BrowseName="NamespaceVersion">
+        <DisplayName>NamespaceVersion</DisplayName>
+        <References>
+            <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+            <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=5001</Reference>
+        </References>
+        <Value>
+            <uax:String>1.01.2</uax:String>
+        </Value>
+    </UAVariable>
+    <UAVariable DataType="IdType" ParentNodeId="ns=1;i=5001" ValueRank="1" NodeId="ns=1;i=6037" ArrayDimensions="0" BrowseName="StaticNodeIdTypes">
+        <DisplayName>StaticNodeIdTypes</DisplayName>
+        <References>
+            <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+            <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=5001</Reference>
+        </References>
+    </UAVariable>
+    <UAVariable DataType="NumericRange" ParentNodeId="ns=1;i=5001" ValueRank="1" NodeId="ns=1;i=6038" ArrayDimensions="0" BrowseName="StaticNumericNodeIdRange">
+        <DisplayName>StaticNumericNodeIdRange</DisplayName>
+        <References>
+            <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+            <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=5001</Reference>
+        </References>
+    </UAVariable>
+    <UAVariable DataType="String" ParentNodeId="ns=1;i=5001" NodeId="ns=1;i=6039" BrowseName="StaticStringNodeIdPattern">
+        <DisplayName>StaticStringNodeIdPattern</DisplayName>
+        <References>
+            <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+            <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=5001</Reference>
+        </References>
+    </UAVariable>
+</UANodeSet>

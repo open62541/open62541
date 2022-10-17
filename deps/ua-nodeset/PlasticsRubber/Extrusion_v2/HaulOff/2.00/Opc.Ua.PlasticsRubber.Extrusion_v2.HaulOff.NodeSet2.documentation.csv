@@ -1,0 +1,5 @@
+Id,Name,Link,ConformanceUnits
+1002,HaulOff_InterfaceType,"https://reference.opcfoundation.org/v105/PlasticsRubber/Extrusion/HaulOff/v200/docs/6.1","OPC 40084-4 Basic;"
+5002,http://opcfoundation.org/UA/PlasticsRubber/Extrusion_v2/HaulOff/,"https://reference.opcfoundation.org/v105/PlasticsRubber/Extrusion/HaulOff/v200/docs/8.1",""
+7001,OpenClamp,"https://reference.opcfoundation.org/v105/PlasticsRubber/Extrusion/HaulOff/v200/docs/6.7",""
+7002,CloseClamp,"https://reference.opcfoundation.org/v105/PlasticsRubber/Extrusion/HaulOff/v200/docs/6.7",""

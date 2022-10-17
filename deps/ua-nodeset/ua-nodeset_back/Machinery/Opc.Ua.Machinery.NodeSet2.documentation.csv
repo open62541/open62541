@@ -1,0 +1,12 @@
+Id,Name,Link,ConformanceUnits
+1001,Machines,"https://reference.opcfoundation.org/v104/Machinery/v101/docs/9.2","Machinery Find Machines;"
+1002,MachineryItemState_StateMachineType,"https://reference.opcfoundation.org/v104/Machinery/v101/docs/12.2","Machinery MachineryItem State;"
+1003,IMachineryItemVendorNameplateType,"https://reference.opcfoundation.org/v104/Machinery/v101/docs/8.2","Machinery Machine Identification;Machinery Component Identification;"
+1004,MachineryItemIdentificationType,"https://reference.opcfoundation.org/v104/Machinery/v101/docs/8.3","Machinery Machine Identification;Machinery Component Identification;"
+1005,MachineryComponentIdentificationType,"https://reference.opcfoundation.org/v104/Machinery/v101/docs/10.2","Machinery Component Identification;"
+1006,MachineComponentsType,"https://reference.opcfoundation.org/v104/Machinery/v101/docs/11.2","Machinery Find Components of Machines;"
+1008,MachineryOperationModeStateMachineType,"https://reference.opcfoundation.org/v104/Machinery/v101/docs/13.2","Machinery Operation Mode;"
+1010,IMachineVendorNameplateType,"https://reference.opcfoundation.org/v104/Machinery/v101/docs/8.4","Machinery Machine Identification;"
+1011,IMachineTagNameplateType,"https://reference.opcfoundation.org/v104/Machinery/v101/docs/8.5","Machinery Machine Identification;"
+1012,MachineIdentificationType,"https://reference.opcfoundation.org/v104/Machinery/v101/docs/8.6","Machinery Machine Identification;"
+5001,http://opcfoundation.org/UA/Machinery/,"https://reference.opcfoundation.org/v104/Machinery/v101/docs/15.1",""

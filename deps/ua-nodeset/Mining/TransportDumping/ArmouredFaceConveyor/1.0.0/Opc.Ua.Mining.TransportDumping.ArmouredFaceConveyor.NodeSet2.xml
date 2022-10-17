@@ -1,0 +1,642 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<!--
+ * Copyright (c) 2005-2022 The OPC Foundation, Inc. All rights reserved.
+ *
+ * OPC Foundation MIT License 1.00
+ * 
+ * Permission is hereby granted, free of charge, to any person
+ * obtaining a copy of this software and associated documentation
+ * files (the "Software"), to deal in the Software without
+ * restriction, including without limitation the rights to use,
+ * copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the
+ * Software is furnished to do so, subject to the following
+ * conditions:
+ * 
+ * The above copyright notice and this permission notice shall be
+ * included in all copies or substantial portions of the Software.
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+ * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
+ * OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+ * NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
+ * HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+ * WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+ * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+ * OTHER DEALINGS IN THE SOFTWARE.
+ *
+ * The complete license agreement can be found here:
+ * http://opcfoundation.org/License/MIT/1.00/
+-->
+
+<UANodeSet xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns="http://opcfoundation.org/UA/2011/03/UANodeSet.xsd">
+  <NamespaceUris>
+    <Uri>http://opcfoundation.org/UA/Mining/TransportDumping/ArmouredFaceConveyor/</Uri>
+    <Uri>http://opcfoundation.org/UA/Mining/General/</Uri>
+    <Uri>http://opcfoundation.org/UA/DI/</Uri>
+  </NamespaceUris>
+  <Models>
+    <Model ModelUri="http://opcfoundation.org/UA/Mining/TransportDumping/ArmouredFaceConveyor/" Version="1.0.0" PublicationDate="2022-09-01T00:00:00Z">
+      <RequiredModel ModelUri="http://opcfoundation.org/UA/" Version="1.05.01" PublicationDate="2022-01-24T00:00:00Z" />
+      <RequiredModel ModelUri="http://opcfoundation.org/UA/DI/" Version="1.03.1" PublicationDate="2021-09-07T00:00:00Z" />
+      <RequiredModel ModelUri="http://opcfoundation.org/UA/Machinery/" Version="1.01.0" PublicationDate="2021-06-18T06:45:05Z" />
+      <RequiredModel ModelUri="http://opcfoundation.org/UA/Mining/General/" Version="1.0.0" PublicationDate="2022-09-01T00:00:00Z" />
+    </Model>
+  </Models>
+  <Aliases>
+    <Alias Alias="Boolean">i=1</Alias>
+    <Alias Alias="Double">i=11</Alias>
+    <Alias Alias="String">i=12</Alias>
+    <Alias Alias="DateTime">i=13</Alias>
+    <Alias Alias="ByteString">i=15</Alias>
+    <Alias Alias="LocalizedText">i=21</Alias>
+    <Alias Alias="HasModellingRule">i=37</Alias>
+    <Alias Alias="HasTypeDefinition">i=40</Alias>
+    <Alias Alias="HasSubtype">i=45</Alias>
+    <Alias Alias="HasProperty">i=46</Alias>
+    <Alias Alias="HasComponent">i=47</Alias>
+    <Alias Alias="IdType">i=256</Alias>
+    <Alias Alias="NumericRange">i=291</Alias>
+    <Alias Alias="Range">i=884</Alias>
+    <Alias Alias="EUInformation">i=887</Alias>
+    <Alias Alias="EnumValueType">i=7594</Alias>
+    <Alias Alias="HasAddIn">i=17604</Alias>
+    <Alias Alias="AFCStateEnum">ns=1;i=3002</Alias>
+    <Alias Alias="AFCNormalRunningDirectionEnum">ns=1;i=3004</Alias>
+  </Aliases>
+  <Extensions>
+    <Extension>
+      <ua:ModelInfo Tool="UaModeler" Hash="pmFO1ZTP6vGdkZ4EPo7kVA==" Version="1.6.7" xmlns:ua="http://unifiedautomation.com/Configuration/NodeSet.xsd" />
+    </Extension>
+  </Extensions>
+  <UADataType NodeId="ns=1;i=3004" BrowseName="1:AFCNormalRunningDirectionEnum">
+    <DisplayName>AFCNormalRunningDirectionEnum</DisplayName>
+    <Description>Enum describing the direction of the conveyor chain movement during normal operation</Description>
+    <Documentation>https://reference.opcfoundation.org/Mining/TransportDumping/ArmouredFaceConveyor/v100/docs/8.1</Documentation>
+    <References>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=29</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6020</Reference>
+    </References>
+    <Definition Name="1:AFCNormalRunningDirectionEnum">
+      <Field Name="LEFT" Value="0">
+        <Description Locale="en">Enum value indicating a normal AFC direction to the left</Description>
+      </Field>
+      <Field Name="RIGHT" Value="1">
+        <Description Locale="en">Enum value indicating a normal AFC direction to the right</Description>
+      </Field>
+    </Definition>
+  </UADataType>
+  <UAVariable NodeId="ns=1;i=6020" BrowseName="EnumValues" ParentNodeId="ns=1;i=3004" DataType="EnumValueType" ValueRank="1" ArrayDimensions="2">
+    <DisplayName>EnumValues</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=3004</Reference>
+    </References>
+    <Value>
+      <uax:ListOfExtensionObject xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd">
+                <uax:ExtensionObject>
+                    <uax:TypeId>
+                        <uax:Identifier>i=7616</uax:Identifier>
+                    </uax:TypeId>
+                    <uax:Body>
+                        <uax:EnumValueType>
+                            <uax:Value>0</uax:Value>
+                            <uax:DisplayName>
+                                <uax:Text>LEFT</uax:Text>
+                            </uax:DisplayName>
+                            <uax:Description>
+                                <uax:Locale>en</uax:Locale>
+                                <uax:Text>Enum value indicating a normal AFC direction to the left</uax:Text>
+                            </uax:Description>
+                        </uax:EnumValueType>
+                    </uax:Body>
+                </uax:ExtensionObject>
+                <uax:ExtensionObject>
+                    <uax:TypeId>
+                        <uax:Identifier>i=7616</uax:Identifier>
+                    </uax:TypeId>
+                    <uax:Body>
+                        <uax:EnumValueType>
+                            <uax:Value>1</uax:Value>
+                            <uax:DisplayName>
+                                <uax:Text>RIGHT</uax:Text>
+                            </uax:DisplayName>
+                            <uax:Description>
+                                <uax:Locale>en</uax:Locale>
+                                <uax:Text>Enum value indicating a normal AFC direction to the right</uax:Text>
+                            </uax:Description>
+                        </uax:EnumValueType>
+                    </uax:Body>
+                </uax:ExtensionObject>
+            </uax:ListOfExtensionObject>
+    </Value>
+  </UAVariable>
+  <UADataType NodeId="ns=1;i=3002" BrowseName="1:AFCStateEnum">
+    <DisplayName>AFCStateEnum</DisplayName>
+    <Description>Enum describing the current operation state of the chain conveyor</Description>
+    <Documentation>https://reference.opcfoundation.org/Mining/TransportDumping/ArmouredFaceConveyor/v100/docs/8.2</Documentation>
+    <References>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=29</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6019</Reference>
+    </References>
+    <Definition Name="1:AFCStateEnum">
+      <Field Name="UNDEFINED" Value="0">
+        <Description Locale="en">Enum value indicating an undefined AFC state</Description>
+      </Field>
+      <Field Name="STOPPED" Value="1">
+        <Description Locale="en">Enum value indicating a stopped AFC state</Description>
+      </Field>
+      <Field Name="RUNNING" Value="2">
+        <Description Locale="en">Enum value indicating a running AFC state</Description>
+      </Field>
+      <Field Name="REVERSE" Value="3">
+        <Description Locale="en">Enum value indicating a reversed AFC state</Description>
+      </Field>
+    </Definition>
+  </UADataType>
+  <UAVariable NodeId="ns=1;i=6019" BrowseName="EnumValues" ParentNodeId="ns=1;i=3002" DataType="EnumValueType" ValueRank="1" ArrayDimensions="4">
+    <DisplayName>EnumValues</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=3002</Reference>
+    </References>
+    <Value>
+      <uax:ListOfExtensionObject xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd">
+                <uax:ExtensionObject>
+                    <uax:TypeId>
+                        <uax:Identifier>i=7616</uax:Identifier>
+                    </uax:TypeId>
+                    <uax:Body>
+                        <uax:EnumValueType>
+                            <uax:Value>0</uax:Value>
+                            <uax:DisplayName>
+                                <uax:Text>UNDEFINED</uax:Text>
+                            </uax:DisplayName>
+                            <uax:Description>
+                                <uax:Locale>en</uax:Locale>
+                                <uax:Text>Enum value indicating an undefined AFC state</uax:Text>
+                            </uax:Description>
+                        </uax:EnumValueType>
+                    </uax:Body>
+                </uax:ExtensionObject>
+                <uax:ExtensionObject>
+                    <uax:TypeId>
+                        <uax:Identifier>i=7616</uax:Identifier>
+                    </uax:TypeId>
+                    <uax:Body>
+                        <uax:EnumValueType>
+                            <uax:Value>1</uax:Value>
+                            <uax:DisplayName>
+                                <uax:Text>STOPPED</uax:Text>
+                            </uax:DisplayName>
+                            <uax:Description>
+                                <uax:Locale>en</uax:Locale>
+                                <uax:Text>Enum value indicating a stopped AFC state</uax:Text>
+                            </uax:Description>
+                        </uax:EnumValueType>
+                    </uax:Body>
+                </uax:ExtensionObject>
+                <uax:ExtensionObject>
+                    <uax:TypeId>
+                        <uax:Identifier>i=7616</uax:Identifier>
+                    </uax:TypeId>
+                    <uax:Body>
+                        <uax:EnumValueType>
+                            <uax:Value>2</uax:Value>
+                            <uax:DisplayName>
+                                <uax:Text>RUNNING</uax:Text>
+                            </uax:DisplayName>
+                            <uax:Description>
+                                <uax:Locale>en</uax:Locale>
+                                <uax:Text>Enum value indicating a running AFC state</uax:Text>
+                            </uax:Description>
+                        </uax:EnumValueType>
+                    </uax:Body>
+                </uax:ExtensionObject>
+                <uax:ExtensionObject>
+                    <uax:TypeId>
+                        <uax:Identifier>i=7616</uax:Identifier>
+                    </uax:TypeId>
+                    <uax:Body>
+                        <uax:EnumValueType>
+                            <uax:Value>3</uax:Value>
+                            <uax:DisplayName>
+                                <uax:Text>REVERSE</uax:Text>
+                            </uax:DisplayName>
+                            <uax:Description>
+                                <uax:Locale>en</uax:Locale>
+                                <uax:Text>Enum value indicating a reversed AFC state</uax:Text>
+                            </uax:Description>
+                        </uax:EnumValueType>
+                    </uax:Body>
+                </uax:ExtensionObject>
+            </uax:ListOfExtensionObject>
+    </Value>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6012" BrowseName="1:TypeDictionary" SymbolicName="TypeDictionary_BinarySchema" DataType="ByteString">
+    <DisplayName>TypeDictionary</DisplayName>
+    <Description>Collects the data type descriptions of http://opcfoundation.org/UA/Mining/TransportDumping/ArmouredFaceConveyor/</Description>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=72</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6013</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">i=93</Reference>
+    </References>
+    <Value>
+      <uax:ByteString xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd">PG9wYzpUeXBlRGljdGlvbmFyeSB4bWxuczp4c2k9Imh0dHA6Ly93d3cudzMub3JnLzIwMDEvWE1MU2NoZ
+        W1hLWluc3RhbmNlIiB4bWxuczp0bnM9Imh0dHA6Ly9vcGNmb3VuZGF0aW9uLm9yZy9VQS9Na
+        W5pbmcvVHJhbnNwb3J0RHVtcGluZy9Bcm1vdXJlZEZhY2VDb252ZXlvci8iIERlZmF1bHRCe
+        XRlT3JkZXI9IkxpdHRsZUVuZGlhbiIgeG1sbnM6b3BjPSJodHRwOi8vb3BjZm91bmRhdGlvb
+        i5vcmcvQmluYXJ5U2NoZW1hLyIgeG1sbnM6dWE9Imh0dHA6Ly9vcGNmb3VuZGF0aW9uLm9yZ
+        y9VQS8iIFRhcmdldE5hbWVzcGFjZT0iaHR0cDovL29wY2ZvdW5kYXRpb24ub3JnL1VBL01pb
+        mluZy9UcmFuc3BvcnREdW1waW5nL0FybW91cmVkRmFjZUNvbnZleW9yLyI+CiA8b3BjOkltc
+        G9ydCBOYW1lc3BhY2U9Imh0dHA6Ly9vcGNmb3VuZGF0aW9uLm9yZy9VQS8iLz4KIDxvcGM6R
+        W51bWVyYXRlZFR5cGUgTGVuZ3RoSW5CaXRzPSIzMiIgTmFtZT0iQUZDTm9ybWFsUnVubmluZ
+        0RpcmVjdGlvbkVudW0iPgogIDxvcGM6RG9jdW1lbnRhdGlvbj5FbnVtIGRlc2NyaWJpbmcgd
+        GhlIGRpcmVjdGlvbiBvZiB0aGUgY29udmV5b3IgY2hhaW4gbW92ZW1lbnQgZHVyaW5nIG5vc
+        m1hbCBvcGVyYXRpb248L29wYzpEb2N1bWVudGF0aW9uPgogIDxvcGM6RW51bWVyYXRlZFZhb
+        HVlIE5hbWU9IkxFRlQiIFZhbHVlPSIwIi8+CiAgPG9wYzpFbnVtZXJhdGVkVmFsdWUgTmFtZ
+        T0iUklHSFQiIFZhbHVlPSIxIi8+CiA8L29wYzpFbnVtZXJhdGVkVHlwZT4KIDxvcGM6RW51b
+        WVyYXRlZFR5cGUgTGVuZ3RoSW5CaXRzPSIzMiIgTmFtZT0iQUZDU3RhdGVFbnVtIj4KICA8b
+        3BjOkRvY3VtZW50YXRpb24+RW51bSBkZXNjcmliaW5nIHRoZSBjdXJyZW50IG9wZXJhdGlvb
+        iBzdGF0ZSBvZiB0aGUgY2hhaW4gY29udmV5b3I8L29wYzpEb2N1bWVudGF0aW9uPgogIDxvc
+        GM6RW51bWVyYXRlZFZhbHVlIE5hbWU9IlVOREVGSU5FRCIgVmFsdWU9IjAiLz4KICA8b3BjO
+        kVudW1lcmF0ZWRWYWx1ZSBOYW1lPSJTVE9QUEVEIiBWYWx1ZT0iMSIvPgogIDxvcGM6RW51b
+        WVyYXRlZFZhbHVlIE5hbWU9IlJVTk5JTkciIFZhbHVlPSIyIi8+CiAgPG9wYzpFbnVtZXJhd
+        GVkVmFsdWUgTmFtZT0iUkVWRVJTRSIgVmFsdWU9IjMiLz4KIDwvb3BjOkVudW1lcmF0ZWRUe
+        XBlPgo8L29wYzpUeXBlRGljdGlvbmFyeT4K</uax:ByteString>
+    </Value>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6013" BrowseName="NamespaceUri" ParentNodeId="ns=1;i=6012" DataType="String">
+    <DisplayName>NamespaceUri</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6012</Reference>
+    </References>
+    <Value>
+      <uax:String xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd">http://opcfoundation.org/UA/Mining/TransportDumping/ArmouredFaceConveyor/</uax:String>
+    </Value>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6014" BrowseName="1:TypeDictionary" SymbolicName="TypeDictionary_XmlSchema" DataType="ByteString">
+    <DisplayName>TypeDictionary</DisplayName>
+    <Description>Collects the data type descriptions of http://opcfoundation.org/UA/Mining/TransportDumping/ArmouredFaceConveyor/</Description>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=72</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6015</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">i=92</Reference>
+    </References>
+    <Value>
+      <uax:ByteString xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd">PHhzOnNjaGVtYSBlbGVtZW50Rm9ybURlZmF1bHQ9InF1YWxpZmllZCIgdGFyZ2V0TmFtZXNwYWNlPSJod
+        HRwOi8vb3BjZm91bmRhdGlvbi5vcmcvVUEvTWluaW5nL1RyYW5zcG9ydER1bXBpbmcvQXJtb
+        3VyZWRGYWNlQ29udmV5b3IvVHlwZXMueHNkIiB4bWxuczp0bnM9Imh0dHA6Ly9vcGNmb3VuZ
+        GF0aW9uLm9yZy9VQS9NaW5pbmcvVHJhbnNwb3J0RHVtcGluZy9Bcm1vdXJlZEZhY2VDb252Z
+        Xlvci9UeXBlcy54c2QiIHhtbG5zOnVhPSJodHRwOi8vb3BjZm91bmRhdGlvbi5vcmcvVUEvM
+        jAwOC8wMi9UeXBlcy54c2QiIHhtbG5zOnhzPSJodHRwOi8vd3d3LnczLm9yZy8yMDAxL1hNT
+        FNjaGVtYSI+CiA8eHM6aW1wb3J0IG5hbWVzcGFjZT0iaHR0cDovL29wY2ZvdW5kYXRpb24ub
+        3JnL1VBLzIwMDgvMDIvVHlwZXMueHNkIi8+CiA8eHM6c2ltcGxlVHlwZSBuYW1lPSJBRkNOb
+        3JtYWxSdW5uaW5nRGlyZWN0aW9uRW51bSI+CiAgPHhzOmFubm90YXRpb24+CiAgIDx4czpkb
+        2N1bWVudGF0aW9uPkVudW0gZGVzY3JpYmluZyB0aGUgZGlyZWN0aW9uIG9mIHRoZSBjb252Z
+        XlvciBjaGFpbiBtb3ZlbWVudCBkdXJpbmcgbm9ybWFsIG9wZXJhdGlvbjwveHM6ZG9jdW1lb
+        nRhdGlvbj4KICA8L3hzOmFubm90YXRpb24+CiAgPHhzOnJlc3RyaWN0aW9uIGJhc2U9InhzO
+        nN0cmluZyI+CiAgIDx4czplbnVtZXJhdGlvbiB2YWx1ZT0iTEVGVF8wIi8+CiAgIDx4czplb
+        nVtZXJhdGlvbiB2YWx1ZT0iUklHSFRfMSIvPgogIDwveHM6cmVzdHJpY3Rpb24+CiA8L3hzO
+        nNpbXBsZVR5cGU+CiA8eHM6ZWxlbWVudCB0eXBlPSJ0bnM6QUZDTm9ybWFsUnVubmluZ0Rpc
+        mVjdGlvbkVudW0iIG5hbWU9IkFGQ05vcm1hbFJ1bm5pbmdEaXJlY3Rpb25FbnVtIi8+CiA8e
+        HM6Y29tcGxleFR5cGUgbmFtZT0iTGlzdE9mQUZDTm9ybWFsUnVubmluZ0RpcmVjdGlvbkVud
+        W0iPgogIDx4czpzZXF1ZW5jZT4KICAgPHhzOmVsZW1lbnQgbWluT2NjdXJzPSIwIiBtYXhPY
+        2N1cnM9InVuYm91bmRlZCIgdHlwZT0idG5zOkFGQ05vcm1hbFJ1bm5pbmdEaXJlY3Rpb25Fb
+        nVtIiBuYW1lPSJBRkNOb3JtYWxSdW5uaW5nRGlyZWN0aW9uRW51bSIgbmlsbGFibGU9InRyd
+        WUiLz4KICA8L3hzOnNlcXVlbmNlPgogPC94czpjb21wbGV4VHlwZT4KIDx4czplbGVtZW50I
+        HR5cGU9InRuczpMaXN0T2ZBRkNOb3JtYWxSdW5uaW5nRGlyZWN0aW9uRW51bSIgbmFtZT0iT
+        GlzdE9mQUZDTm9ybWFsUnVubmluZ0RpcmVjdGlvbkVudW0iIG5pbGxhYmxlPSJ0cnVlIi8+C
+        iA8eHM6c2ltcGxlVHlwZSBuYW1lPSJBRkNTdGF0ZUVudW0iPgogIDx4czphbm5vdGF0aW9uP
+        gogICA8eHM6ZG9jdW1lbnRhdGlvbj5FbnVtIGRlc2NyaWJpbmcgdGhlIGN1cnJlbnQgb3Blc
+        mF0aW9uIHN0YXRlIG9mIHRoZSBjaGFpbiBjb252ZXlvcjwveHM6ZG9jdW1lbnRhdGlvbj4KI
+        CA8L3hzOmFubm90YXRpb24+CiAgPHhzOnJlc3RyaWN0aW9uIGJhc2U9InhzOnN0cmluZyI+C
+        iAgIDx4czplbnVtZXJhdGlvbiB2YWx1ZT0iVU5ERUZJTkVEXzAiLz4KICAgPHhzOmVudW1lc
+        mF0aW9uIHZhbHVlPSJTVE9QUEVEXzEiLz4KICAgPHhzOmVudW1lcmF0aW9uIHZhbHVlPSJSV
+        U5OSU5HXzIiLz4KICAgPHhzOmVudW1lcmF0aW9uIHZhbHVlPSJSRVZFUlNFXzMiLz4KICA8L
+        3hzOnJlc3RyaWN0aW9uPgogPC94czpzaW1wbGVUeXBlPgogPHhzOmVsZW1lbnQgdHlwZT0id
+        G5zOkFGQ1N0YXRlRW51bSIgbmFtZT0iQUZDU3RhdGVFbnVtIi8+CiA8eHM6Y29tcGxleFR5c
+        GUgbmFtZT0iTGlzdE9mQUZDU3RhdGVFbnVtIj4KICA8eHM6c2VxdWVuY2U+CiAgIDx4czplb
+        GVtZW50IG1pbk9jY3Vycz0iMCIgbWF4T2NjdXJzPSJ1bmJvdW5kZWQiIHR5cGU9InRuczpBR
+        kNTdGF0ZUVudW0iIG5hbWU9IkFGQ1N0YXRlRW51bSIgbmlsbGFibGU9InRydWUiLz4KICA8L
+        3hzOnNlcXVlbmNlPgogPC94czpjb21wbGV4VHlwZT4KIDx4czplbGVtZW50IHR5cGU9InRuc
+        zpMaXN0T2ZBRkNTdGF0ZUVudW0iIG5hbWU9Ikxpc3RPZkFGQ1N0YXRlRW51bSIgbmlsbGFib
+        GU9InRydWUiLz4KPC94czpzY2hlbWE+Cg==</uax:ByteString>
+    </Value>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6015" BrowseName="NamespaceUri" ParentNodeId="ns=1;i=6014" DataType="String">
+    <DisplayName>NamespaceUri</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6014</Reference>
+    </References>
+    <Value>
+      <uax:String xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd">http://opcfoundation.org/UA/Mining/TransportDumping/ArmouredFaceConveyor/Types.xsd</uax:String>
+    </Value>
+  </UAVariable>
+  <UAVariableType NodeId="ns=1;i=2001" BrowseName="1:AFCStateType" DataType="AFCStateEnum">
+    <DisplayName>AFCStateType</DisplayName>
+    <Description Locale="en">Current State of operation of the AFC </Description>
+    <Documentation>https://reference.opcfoundation.org/Mining/TransportDumping/ArmouredFaceConveyor/v100/docs/7.1</Documentation>
+    <References>
+      <Reference ReferenceType="HasProperty">ns=1;i=6021</Reference>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=63</Reference>
+    </References>
+    <Value>
+      <uax:Int32 xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd">0</uax:Int32>
+    </Value>
+  </UAVariableType>
+  <UAVariable NodeId="ns=1;i=6021" BrowseName="1:AFCNormalRunningDirection" ParentNodeId="ns=1;i=2001" DataType="AFCNormalRunningDirectionEnum">
+    <DisplayName>AFCNormalRunningDirection</DisplayName>
+    <Description Locale="en">Direction of the normal AFC operation </Description>
+    <References>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=2001</Reference>
+    </References>
+  </UAVariable>
+  <UAObjectType NodeId="ns=1;i=1002" BrowseName="1:AFCType">
+    <DisplayName>AFCType</DisplayName>
+    <Description Locale="en">The AFCType ObjectType describes a armoured face conveyor for longwall mining operations</Description>
+    <Category>AFC Functional Variables</Category>
+    <Category>AFC Methods</Category>
+    <Documentation>https://reference.opcfoundation.org/Mining/TransportDumping/ArmouredFaceConveyor/v100/docs/6.1.2</Documentation>
+    <References>
+      <Reference ReferenceType="HasSubtype" IsForward="false">ns=2;i=1002</Reference>
+      <Reference ReferenceType="HasAddIn">ns=1;i=5003</Reference>
+      <Reference ReferenceType="HasComponent">ns=1;i=5002</Reference>
+    </References>
+  </UAObjectType>
+  <UAObject NodeId="ns=1;i=5003" BrowseName="2:MiningEquipmentIdentification" ParentNodeId="ns=1;i=1002">
+    <DisplayName>MiningEquipmentIdentification</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">ns=2;i=1003</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6022</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6001</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6002</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6003</Reference>
+      <Reference ReferenceType="HasAddIn" IsForward="false">ns=1;i=1002</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6016</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6017</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6018</Reference>
+    </References>
+  </UAObject>
+  <UAVariable NodeId="ns=1;i=6022" BrowseName="3:AssetId" ParentNodeId="ns=1;i=5003" DataType="String">
+    <DisplayName>AssetId</DisplayName>
+    <Description Locale="en">To be used by end users to store a unique identification in the context of their overall application. Servers shall support at least 40 Unicode characters for the clients writing this value, this means clients can expect to be able to write strings with a length of 40 Unicode characters into that field.</Description>
+    <References>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=5003</Reference>
+    </References>
+    <Value>
+      <uax:String xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd"></uax:String>
+    </Value>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6001" BrowseName="3:DeviceClass" ParentNodeId="ns=1;i=5003" DataType="String">
+    <DisplayName>DeviceClass</DisplayName>
+    <Description Locale="en">Indicates in which domain or for what purpose the MachineryItem is used.</Description>
+    <References>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=5003</Reference>
+    </References>
+    <Value>
+      <uax:String xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd"></uax:String>
+    </Value>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6002" BrowseName="3:Manufacturer" ParentNodeId="ns=1;i=5003" DataType="LocalizedText">
+    <DisplayName>Manufacturer</DisplayName>
+    <Description Locale="en">A human-readable, localized name of the manufacturer of the MachineryItem.</Description>
+    <References>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=5003</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6003" BrowseName="3:ManufacturerUri" ParentNodeId="ns=1;i=5003" DataType="String">
+    <DisplayName>ManufacturerUri</DisplayName>
+    <Description Locale="en">A globally unique identifier of the manufacturer of the MachineryItem.</Description>
+    <References>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=5003</Reference>
+    </References>
+    <Value>
+      <uax:String xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd"></uax:String>
+    </Value>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6016" BrowseName="3:Model" ParentNodeId="ns=1;i=5003" DataType="LocalizedText">
+    <DisplayName>Model</DisplayName>
+    <Description Locale="en">A human-readable, localized name of the model of the MachineryItem.</Description>
+    <References>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=5003</Reference>
+    </References>
+    <Value>
+      <uax:LocalizedText xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd" />
+    </Value>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6017" BrowseName="3:ProductInstanceUri" ParentNodeId="ns=1;i=5003" DataType="String">
+    <DisplayName Locale="en">ProductInstanceUri</DisplayName>
+    <Description Locale="en">A globally unique resource identifier provided by the manufacturer of the machine</Description>
+    <References>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=5003</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6018" BrowseName="3:SerialNumber" ParentNodeId="ns=1;i=5003" DataType="String">
+    <DisplayName>SerialNumber</DisplayName>
+    <Description Locale="en">A string containing a unique production number of the manufacturer of the MachineryItem. The global uniqueness of the serial number is only given in the context of the manufacturer, and potentially the model. The value shall not change during the life-cycle of the MachineryItem.</Description>
+    <References>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=5003</Reference>
+    </References>
+  </UAVariable>
+  <UAObject NodeId="ns=1;i=5002" BrowseName="3:ParameterSet" ParentNodeId="ns=1;i=1002">
+    <DisplayName>ParameterSet</DisplayName>
+    <Description>Flat list of Parameters</Description>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=58</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasComponent">ns=1;i=6025</Reference>
+      <Reference ReferenceType="HasComponent">ns=1;i=6026</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=1002</Reference>
+    </References>
+  </UAObject>
+  <UAVariable NodeId="ns=1;i=6025" BrowseName="1:AFCState" ParentNodeId="ns=1;i=5002" DataType="AFCStateEnum">
+    <DisplayName>AFCState</DisplayName>
+    <Description Locale="en">The AFCState Variable describes the current state of the AFC</Description>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">ns=1;i=2001</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6027</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=5002</Reference>
+    </References>
+    <Value>
+      <uax:Int32 xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd">0</uax:Int32>
+    </Value>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6027" BrowseName="1:AFCNormalRunningDirection" ParentNodeId="ns=1;i=6025" DataType="AFCNormalRunningDirectionEnum">
+    <DisplayName>AFCNormalRunningDirection</DisplayName>
+    <Description Locale="en">Direction of the normal AFC operation</Description>
+    <References>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6025</Reference>
+    </References>
+    <Value>
+      <uax:Int32 xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd">0</uax:Int32>
+    </Value>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6026" BrowseName="1:Load" ParentNodeId="ns=1;i=5002" DataType="Double">
+    <DisplayName>Load</DisplayName>
+    <Description Locale="en">The Load variable describes the current load of the conveyor motor</Description>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=17570</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6028</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6029</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=5002</Reference>
+    </References>
+    <Value>
+      <uax:Double xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd">0</uax:Double>
+    </Value>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6028" BrowseName="EngineeringUnits" ParentNodeId="ns=1;i=6026" DataType="EUInformation">
+    <DisplayName>EngineeringUnits</DisplayName>
+    <Description Locale="en">This is the EngineeringUnit of the conveyor load.</Description>
+    <References>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6026</Reference>
+    </References>
+    <Value>
+      <uax:ExtensionObject xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd">
+                <uax:TypeId>
+                    <uax:Identifier>i=888</uax:Identifier>
+                </uax:TypeId>
+                <uax:Body>
+                    <uax:EUInformation>
+                        <uax:NamespaceUri>http://www.opcfoundation.org/UA/units/un/cefact</uax:NamespaceUri>
+                        <uax:UnitId>20529</uax:UnitId>
+                        <uax:DisplayName>
+                            <uax:Text>%</uax:Text>
+                        </uax:DisplayName>
+                        <uax:Description>
+                            <uax:Text>percent</uax:Text>
+                        </uax:Description>
+                    </uax:EUInformation>
+                </uax:Body>
+            </uax:ExtensionObject>
+    </Value>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6029" BrowseName="EURange" ParentNodeId="ns=1;i=6026" DataType="Range">
+    <DisplayName>EURange</DisplayName>
+    <Description Locale="en">This is the EURange of the conveyor load.</Description>
+    <References>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6026</Reference>
+    </References>
+    <Value>
+      <uax:ExtensionObject xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd">
+                <uax:TypeId>
+                    <uax:Identifier>i=885</uax:Identifier>
+                </uax:TypeId>
+                <uax:Body>
+                    <uax:Range>
+                        <uax:Low>0</uax:Low>
+                        <uax:High>200</uax:High>
+                    </uax:Range>
+                </uax:Body>
+            </uax:ExtensionObject>
+    </Value>
+  </UAVariable>
+  <UAObject NodeId="ns=1;i=5001" BrowseName="1:http://opcfoundation.org/UA/Mining/TransportDumping/ArmouredFaceConveyor/" SymbolicName="http___opcfoundation_org_UA_Mining_TransportDumping_ArmouredFaceConveyor_">
+    <DisplayName>http://opcfoundation.org/UA/Mining/TransportDumping/ArmouredFaceConveyor/</DisplayName>
+    <Documentation>https://reference.opcfoundation.org/Mining/TransportDumping/ArmouredFaceConveyor/v100/docs/10.1</Documentation>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=11616</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6004</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">i=11715</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6005</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6006</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6007</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6008</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6009</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6010</Reference>
+    </References>
+  </UAObject>
+  <UAVariable NodeId="ns=1;i=6004" BrowseName="IsNamespaceSubset" ParentNodeId="ns=1;i=5001" DataType="Boolean">
+    <DisplayName>IsNamespaceSubset</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=5001</Reference>
+    </References>
+    <Value>
+      <uax:Boolean xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd">false</uax:Boolean>
+    </Value>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6005" BrowseName="NamespacePublicationDate" ParentNodeId="ns=1;i=5001" DataType="DateTime">
+    <DisplayName>NamespacePublicationDate</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=5001</Reference>
+    </References>
+    <Value>
+      <uax:DateTime xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd">2022-09-01T00:00:00Z</uax:DateTime>
+    </Value>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6006" BrowseName="NamespaceUri" ParentNodeId="ns=1;i=5001" DataType="String">
+    <DisplayName>NamespaceUri</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=5001</Reference>
+    </References>
+    <Value>
+      <uax:String xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd">http://opcfoundation.org/UA/Mining/TransportDumping/ArmouredFaceConveyor/</uax:String>
+    </Value>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6007" BrowseName="NamespaceVersion" ParentNodeId="ns=1;i=5001" DataType="String">
+    <DisplayName>NamespaceVersion</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=5001</Reference>
+    </References>
+    <Value>
+      <uax:String xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd">1.0.0</uax:String>
+    </Value>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6008" BrowseName="StaticNodeIdTypes" ParentNodeId="ns=1;i=5001" DataType="IdType" ValueRank="1" ArrayDimensions="0">
+    <DisplayName>StaticNodeIdTypes</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=5001</Reference>
+    </References>
+    <Value>
+      <uax:ListOfInt32 xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd">
+                <uax:Int32>0</uax:Int32>
+                <uax:Int32>1</uax:Int32>
+            </uax:ListOfInt32>
+    </Value>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6009" BrowseName="StaticNumericNodeIdRange" ParentNodeId="ns=1;i=5001" DataType="NumericRange" ValueRank="1" ArrayDimensions="0">
+    <DisplayName>StaticNumericNodeIdRange</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=5001</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6010" BrowseName="StaticStringNodeIdPattern" ParentNodeId="ns=1;i=5001" DataType="String">
+    <DisplayName>StaticStringNodeIdPattern</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=5001</Reference>
+    </References>
+  </UAVariable>
+</UANodeSet>

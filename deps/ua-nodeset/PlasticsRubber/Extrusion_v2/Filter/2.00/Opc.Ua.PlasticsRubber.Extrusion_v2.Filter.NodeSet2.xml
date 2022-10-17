@@ -1,0 +1,3413 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<!--
+ * Copyright (c) 2005-2021 The OPC Foundation, Inc. All rights reserved.
+ *
+ * OPC Foundation MIT License 1.00
+ * 
+ * Permission is hereby granted, free of charge, to any person
+ * obtaining a copy of this software and associated documentation
+ * files (the "Software"), to deal in the Software without
+ * restriction, including without limitation the rights to use,
+ * copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the
+ * Software is furnished to do so, subject to the following
+ * conditions:
+ * 
+ * The above copyright notice and this permission notice shall be
+ * included in all copies or substantial portions of the Software.
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+ * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
+ * OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+ * NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
+ * HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+ * WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+ * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+ * OTHER DEALINGS IN THE SOFTWARE.
+ *
+ * The complete license agreement can be found here:
+ * http://opcfoundation.org/License/MIT/1.00/
+-->
+
+<UANodeSet xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns="http://opcfoundation.org/UA/2011/03/UANodeSet.xsd">
+  <NamespaceUris>
+    <Uri>http://opcfoundation.org/UA/PlasticsRubber/Extrusion_v2/Filter/</Uri>
+    <Uri>http://opcfoundation.org/UA/PlasticsRubber/Extrusion_v2/GeneralTypes/</Uri>
+    <Uri>http://opcfoundation.org/UA/PlasticsRubber/GeneralTypes/</Uri>
+  </NamespaceUris>
+  <Models>
+    <Model ModelUri="http://opcfoundation.org/UA/PlasticsRubber/Extrusion_v2/Filter/" Version="2.00" PublicationDate="2022-05-01T00:00:00Z">
+      <RequiredModel ModelUri="http://opcfoundation.org/UA/" Version="1.04.7" PublicationDate="2020-07-15T00:00:00Z" />
+      <RequiredModel ModelUri="http://opcfoundation.org/UA/DI/" Version="1.02.2" PublicationDate="2020-06-02T00:00:00Z" />
+      <RequiredModel ModelUri="http://opcfoundation.org/UA/Machinery/" Version="1.02.0" PublicationDate="2022-05-01T00:00:00Z" />
+      <RequiredModel ModelUri="http://opcfoundation.org/UA/PlasticsRubber/GeneralTypes/" Version="1.03" PublicationDate="2021-05-10T12:00:00Z" />
+      <RequiredModel ModelUri="http://opcfoundation.org/UA/PlasticsRubber/Extrusion_v2/GeneralTypes/" Version="2.00" PublicationDate="2022-05-01T00:00:00Z" />
+    </Model>
+  </Models>
+  <Aliases>
+    <Alias Alias="Boolean">i=1</Alias>
+    <Alias Alias="UInt16">i=5</Alias>
+    <Alias Alias="UInt32">i=7</Alias>
+    <Alias Alias="Double">i=11</Alias>
+    <Alias Alias="String">i=12</Alias>
+    <Alias Alias="DateTime">i=13</Alias>
+    <Alias Alias="ByteString">i=15</Alias>
+    <Alias Alias="LocalizedText">i=21</Alias>
+    <Alias Alias="HasModellingRule">i=37</Alias>
+    <Alias Alias="HasTypeDefinition">i=40</Alias>
+    <Alias Alias="GeneratesEvent">i=41</Alias>
+    <Alias Alias="HasSubtype">i=45</Alias>
+    <Alias Alias="HasProperty">i=46</Alias>
+    <Alias Alias="HasComponent">i=47</Alias>
+    <Alias Alias="IdType">i=256</Alias>
+    <Alias Alias="Duration">i=290</Alias>
+    <Alias Alias="NumericRange">i=291</Alias>
+    <Alias Alias="Range">i=884</Alias>
+    <Alias Alias="EUInformation">i=887</Alias>
+    <Alias Alias="EnumValueType">i=7594</Alias>
+    <Alias Alias="ControlModeEnumeration">ns=3;i=3001</Alias>
+    <Alias Alias="MaintenanceStatusEnumeration">ns=3;i=3013</Alias>
+    <Alias Alias="PIDParametersDataType">ns=3;i=3023</Alias>
+    <Alias Alias="StartEnumeration">ns=3;i=3025</Alias>
+    <Alias Alias="FilterPackageStatusEnumeration">ns=1;i=3002</Alias>
+  </Aliases>
+  <Extensions>
+    <Extension>
+      <ua:ModelInfo Tool="UaModeler" Hash="LrZu+cx+x+nbr9LIBPFYJQ==" Version="1.6.5" xmlns:ua="http://unifiedautomation.com/Configuration/NodeSet.xsd" />
+    </Extension>
+  </Extensions>
+  <UADataType NodeId="ns=1;i=3002" BrowseName="1:FilterPackageStatusEnumeration">
+    <DisplayName>FilterPackageStatusEnumeration</DisplayName>
+    <Documentation>https://reference.opcfoundation.org/v105/PlasticsRubber/Extrusion/Filter/v200/docs/8.1.2</Documentation>
+    <References>
+      <Reference ReferenceType="HasProperty">ns=1;i=6158</Reference>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=29</Reference>
+    </References>
+    <Definition Name="1:FilterPackageStatusEnumeration">
+      <Field Name="NOT_ACTIVE" Value="0" />
+      <Field Name="ACTIVE" Value="1" />
+      <Field Name="CHANGE_REQUIRED" Value="2" />
+      <Field Name="IN_CHANGE_POSITION" Value="3" />
+      <Field Name="BACKFLUSH_ACTIVE" Value="4" />
+    </Definition>
+  </UADataType>
+  <UAVariable NodeId="ns=1;i=6158" BrowseName="EnumStrings" ParentNodeId="ns=1;i=3002" DataType="LocalizedText" ValueRank="1" ArrayDimensions="5">
+    <DisplayName>EnumStrings</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=3002</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+    <Value>
+      <uax:ListOfLocalizedText xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd">
+                <uax:LocalizedText>
+                    <uax:Text>NOT_ACTIVE</uax:Text>
+                </uax:LocalizedText>
+                <uax:LocalizedText>
+                    <uax:Text>ACTIVE</uax:Text>
+                </uax:LocalizedText>
+                <uax:LocalizedText>
+                    <uax:Text>CHANGE_REQUIRED</uax:Text>
+                </uax:LocalizedText>
+                <uax:LocalizedText>
+                    <uax:Text>IN_CHANGE_POSITION</uax:Text>
+                </uax:LocalizedText>
+                <uax:LocalizedText>
+                    <uax:Text>BACKFLUSH_ACTIVE</uax:Text>
+                </uax:LocalizedText>
+            </uax:ListOfLocalizedText>
+    </Value>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6159" BrowseName="1:OPC40084_6" SymbolicName="OPC40084_6_BinarySchema" DataType="ByteString">
+    <DisplayName>OPC40084_6</DisplayName>
+    <Description>Collects the data type descriptions of http://opcfoundation.org/UA/PlasticsRubber/Extrusion_v2/Filter/</Description>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=72</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6160</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">i=93</Reference>
+    </References>
+    <Value>
+      <uax:ByteString xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd">PG9wYzpUeXBlRGljdGlvbmFyeSB4bWxuczp4c2k9Imh0dHA6Ly93d3cudzMub3JnLzIwMDEvWE1MU2NoZ
+        W1hLWluc3RhbmNlIiB4bWxuczp0bnM9Imh0dHA6Ly9vcGNmb3VuZGF0aW9uLm9yZy9VQS9Qb
+        GFzdGljc1J1YmJlci9FeHRydXNpb25fdjIvRmlsdGVyLyIgRGVmYXVsdEJ5dGVPcmRlcj0iT
+        Gl0dGxlRW5kaWFuIiB4bWxuczpvcGM9Imh0dHA6Ly9vcGNmb3VuZGF0aW9uLm9yZy9CaW5hc
+        nlTY2hlbWEvIiB4bWxuczp1YT0iaHR0cDovL29wY2ZvdW5kYXRpb24ub3JnL1VBLyIgVGFyZ
+        2V0TmFtZXNwYWNlPSJodHRwOi8vb3BjZm91bmRhdGlvbi5vcmcvVUEvUGxhc3RpY3NSdWJiZ
+        XIvRXh0cnVzaW9uX3YyL0ZpbHRlci8iPgogPG9wYzpJbXBvcnQgTmFtZXNwYWNlPSJodHRwO
+        i8vb3BjZm91bmRhdGlvbi5vcmcvVUEvIi8+CiA8b3BjOkVudW1lcmF0ZWRUeXBlIExlbmd0a
+        EluQml0cz0iMzIiIE5hbWU9IkZpbHRlclBhY2thZ2VTdGF0dXNFbnVtZXJhdGlvbiI+CiAgP
+        G9wYzpFbnVtZXJhdGVkVmFsdWUgTmFtZT0iTk9UX0FDVElWRSIgVmFsdWU9IjAiLz4KICA8b
+        3BjOkVudW1lcmF0ZWRWYWx1ZSBOYW1lPSJBQ1RJVkUiIFZhbHVlPSIxIi8+CiAgPG9wYzpFb
+        nVtZXJhdGVkVmFsdWUgTmFtZT0iQ0hBTkdFX1JFUVVJUkVEIiBWYWx1ZT0iMiIvPgogIDxvc
+        GM6RW51bWVyYXRlZFZhbHVlIE5hbWU9IklOX0NIQU5HRV9QT1NJVElPTiIgVmFsdWU9IjMiL
+        z4KICA8b3BjOkVudW1lcmF0ZWRWYWx1ZSBOYW1lPSJCQUNLRkxVU0hfQUNUSVZFIiBWYWx1Z
+        T0iNCIvPgogPC9vcGM6RW51bWVyYXRlZFR5cGU+Cjwvb3BjOlR5cGVEaWN0aW9uYXJ5Pgo=</uax:ByteString>
+    </Value>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6160" BrowseName="NamespaceUri" ParentNodeId="ns=1;i=6159" DataType="String">
+    <DisplayName>NamespaceUri</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6159</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+    <Value>
+      <uax:String xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd">http://opcfoundation.org/UA/PlasticsRubber/Extrusion_v2/Filter/</uax:String>
+    </Value>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6161" BrowseName="1:OPC40084_6" SymbolicName="OPC40084_6_XmlSchema" DataType="ByteString">
+    <DisplayName>OPC40084_6</DisplayName>
+    <Description>Collects the data type descriptions of http://opcfoundation.org/UA/PlasticsRubber/Extrusion_v2/Filter/</Description>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=72</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6162</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">i=92</Reference>
+    </References>
+    <Value>
+      <uax:ByteString xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd">PHhzOnNjaGVtYSBlbGVtZW50Rm9ybURlZmF1bHQ9InF1YWxpZmllZCIgdGFyZ2V0TmFtZXNwYWNlPSJod
+        HRwOi8vb3BjZm91bmRhdGlvbi5vcmcvVUEvUGxhc3RpY3NSdWJiZXIvRXh0cnVzaW9uX3YyL
+        0ZpbHRlci9UeXBlcy54c2QiIHhtbG5zOnRucz0iaHR0cDovL29wY2ZvdW5kYXRpb24ub3JnL
+        1VBL1BsYXN0aWNzUnViYmVyL0V4dHJ1c2lvbl92Mi9GaWx0ZXIvVHlwZXMueHNkIiB4bWxuc
+        zp1YT0iaHR0cDovL29wY2ZvdW5kYXRpb24ub3JnL1VBLzIwMDgvMDIvVHlwZXMueHNkIiB4b
+        Wxuczp4cz0iaHR0cDovL3d3dy53My5vcmcvMjAwMS9YTUxTY2hlbWEiPgogPHhzOmltcG9yd
+        CBuYW1lc3BhY2U9Imh0dHA6Ly9vcGNmb3VuZGF0aW9uLm9yZy9VQS8yMDA4LzAyL1R5cGVzL
+        nhzZCIvPgogPHhzOnNpbXBsZVR5cGUgbmFtZT0iRmlsdGVyUGFja2FnZVN0YXR1c0VudW1lc
+        mF0aW9uIj4KICA8eHM6cmVzdHJpY3Rpb24gYmFzZT0ieHM6c3RyaW5nIj4KICAgPHhzOmVud
+        W1lcmF0aW9uIHZhbHVlPSJOT1RfQUNUSVZFXzAiLz4KICAgPHhzOmVudW1lcmF0aW9uIHZhb
+        HVlPSJBQ1RJVkVfMSIvPgogICA8eHM6ZW51bWVyYXRpb24gdmFsdWU9IkNIQU5HRV9SRVFVS
+        VJFRF8yIi8+CiAgIDx4czplbnVtZXJhdGlvbiB2YWx1ZT0iSU5fQ0hBTkdFX1BPU0lUSU9OX
+        zMiLz4KICAgPHhzOmVudW1lcmF0aW9uIHZhbHVlPSJCQUNLRkxVU0hfQUNUSVZFXzQiLz4KI
+        CA8L3hzOnJlc3RyaWN0aW9uPgogPC94czpzaW1wbGVUeXBlPgogPHhzOmVsZW1lbnQgdHlwZ
+        T0idG5zOkZpbHRlclBhY2thZ2VTdGF0dXNFbnVtZXJhdGlvbiIgbmFtZT0iRmlsdGVyUGFja
+        2FnZVN0YXR1c0VudW1lcmF0aW9uIi8+CiA8eHM6Y29tcGxleFR5cGUgbmFtZT0iTGlzdE9mR
+        mlsdGVyUGFja2FnZVN0YXR1c0VudW1lcmF0aW9uIj4KICA8eHM6c2VxdWVuY2U+CiAgIDx4c
+        zplbGVtZW50IG1pbk9jY3Vycz0iMCIgbWF4T2NjdXJzPSJ1bmJvdW5kZWQiIHR5cGU9InRuc
+        zpGaWx0ZXJQYWNrYWdlU3RhdHVzRW51bWVyYXRpb24iIG5hbWU9IkZpbHRlclBhY2thZ2VTd
+        GF0dXNFbnVtZXJhdGlvbiIgbmlsbGFibGU9InRydWUiLz4KICA8L3hzOnNlcXVlbmNlPgogP
+        C94czpjb21wbGV4VHlwZT4KIDx4czplbGVtZW50IHR5cGU9InRuczpMaXN0T2ZGaWx0ZXJQY
+        WNrYWdlU3RhdHVzRW51bWVyYXRpb24iIG5hbWU9Ikxpc3RPZkZpbHRlclBhY2thZ2VTdGF0d
+        XNFbnVtZXJhdGlvbiIgbmlsbGFibGU9InRydWUiLz4KPC94czpzY2hlbWE+Cg==</uax:ByteString>
+    </Value>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6162" BrowseName="NamespaceUri" ParentNodeId="ns=1;i=6161" DataType="String">
+    <DisplayName>NamespaceUri</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6161</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+    <Value>
+      <uax:String xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd">http://opcfoundation.org/UA/PlasticsRubber/Extrusion_v2/Filter/Types.xsd</uax:String>
+    </Value>
+  </UAVariable>
+  <UAObjectType NodeId="ns=1;i=1002" BrowseName="1:Filter_InterfaceType">
+    <DisplayName>Filter_InterfaceType</DisplayName>
+    <Category>OPC 40084-6 Basic</Category>
+    <Documentation>https://reference.opcfoundation.org/v105/PlasticsRubber/Extrusion/Filter/v200/docs/6.1</Documentation>
+    <References>
+      <Reference ReferenceType="HasComponent">ns=1;i=5012</Reference>
+      <Reference ReferenceType="HasComponent">ns=1;i=6011</Reference>
+      <Reference ReferenceType="HasComponent">ns=1;i=6139</Reference>
+      <Reference ReferenceType="HasComponent">ns=1;i=5002</Reference>
+      <Reference ReferenceType="HasSubtype" IsForward="false">ns=2;i=1002</Reference>
+      <Reference ReferenceType="HasComponent">ns=1;i=5014</Reference>
+      <Reference ReferenceType="HasComponent">ns=1;i=6004</Reference>
+      <Reference ReferenceType="HasComponent">ns=1;i=5007</Reference>
+      <Reference ReferenceType="HasComponent">ns=1;i=5001</Reference>
+      <Reference ReferenceType="HasComponent">ns=1;i=5011</Reference>
+      <Reference ReferenceType="HasComponent">ns=1;i=5006</Reference>
+      <Reference ReferenceType="HasComponent">ns=1;i=5005</Reference>
+      <Reference ReferenceType="HasComponent">ns=1;i=5003</Reference>
+    </References>
+  </UAObjectType>
+  <UAObject NodeId="ns=1;i=5012" BrowseName="1:AdditionalMeasuringDevices" ParentNodeId="ns=1;i=1002">
+    <DisplayName>AdditionalMeasuringDevices</DisplayName>
+    <References>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=1002</Reference>
+      <Reference ReferenceType="HasTypeDefinition">ns=3;i=1065</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6150</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+    </References>
+  </UAObject>
+  <UAVariable NodeId="ns=1;i=6150" BrowseName="NodeVersion" ParentNodeId="ns=1;i=5012" DataType="String">
+    <DisplayName>NodeVersion</DisplayName>
+    <References>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=5012</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+    <Value>
+      <uax:String xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd"></uax:String>
+    </Value>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6011" BrowseName="1:Area" ParentNodeId="ns=1;i=1002" DataType="Double">
+    <DisplayName>Area</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=17497</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=1002</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6006</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6006" BrowseName="EngineeringUnits" ParentNodeId="ns=1;i=6011" DataType="EUInformation">
+    <DisplayName>EngineeringUnits</DisplayName>
+    <References>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6011</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6139" BrowseName="1:BackflushPressure" ParentNodeId="ns=1;i=1002" DataType="Double" AccessLevel="3">
+    <DisplayName>BackflushPressure</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=17497</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=1002</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6012</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6012" BrowseName="EngineeringUnits" ParentNodeId="ns=1;i=6139" DataType="EUInformation">
+    <DisplayName>EngineeringUnits</DisplayName>
+    <References>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6139</Reference>
+    </References>
+  </UAVariable>
+  <UAObject NodeId="ns=1;i=5002" BrowseName="1:Drive" ParentNodeId="ns=1;i=1002">
+    <DisplayName>Drive</DisplayName>
+    <References>
+      <Reference ReferenceType="HasComponent">ns=1;i=5004</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=1002</Reference>
+      <Reference ReferenceType="HasTypeDefinition">ns=3;i=1068</Reference>
+      <Reference ReferenceType="HasComponent">ns=1;i=5017</Reference>
+      <Reference ReferenceType="HasComponent">ns=1;i=5018</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasComponent">ns=1;i=5019</Reference>
+      <Reference ReferenceType="HasComponent">ns=1;i=5020</Reference>
+      <Reference ReferenceType="HasComponent">ns=1;i=5021</Reference>
+    </References>
+  </UAObject>
+  <UAObject NodeId="ns=1;i=5004" BrowseName="3:AdditionalMeasuringDevices" ParentNodeId="ns=1;i=5002">
+    <DisplayName>AdditionalMeasuringDevices</DisplayName>
+    <References>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=5002</Reference>
+      <Reference ReferenceType="GeneratesEvent">i=2133</Reference>
+      <Reference ReferenceType="HasTypeDefinition">ns=3;i=1065</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6002</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+    </References>
+  </UAObject>
+  <UAVariable NodeId="ns=1;i=6002" BrowseName="NodeVersion" ParentNodeId="ns=1;i=5004" DataType="String">
+    <DisplayName>NodeVersion</DisplayName>
+    <References>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=5004</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+    <Value>
+      <uax:String xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd"></uax:String>
+    </Value>
+  </UAVariable>
+  <UAObject NodeId="ns=1;i=5017" BrowseName="3:Energy" ParentNodeId="ns=1;i=5002">
+    <DisplayName>Energy</DisplayName>
+    <References>
+      <Reference ReferenceType="HasComponent">ns=1;i=6074</Reference>
+      <Reference ReferenceType="HasComponent">ns=1;i=6076</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=5002</Reference>
+      <Reference ReferenceType="HasTypeDefinition">ns=3;i=1063</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasComponent">ns=1;i=6079</Reference>
+      <Reference ReferenceType="HasComponent">ns=1;i=6082</Reference>
+    </References>
+  </UAObject>
+  <UAVariable NodeId="ns=1;i=6074" BrowseName="3:ActualPower" ParentNodeId="ns=1;i=5017" DataType="Double">
+    <DisplayName>ActualPower</DisplayName>
+    <References>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=5017</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=17497</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6075</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+    </References>
+    <Value>
+      <uax:Double xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd">0</uax:Double>
+    </Value>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6075" BrowseName="EngineeringUnits" ParentNodeId="ns=1;i=6074" DataType="EUInformation">
+    <DisplayName>EngineeringUnits</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6074</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6076" BrowseName="3:ActualSpecificEnergy" ParentNodeId="ns=1;i=5017" DataType="Double">
+    <DisplayName>ActualSpecificEnergy</DisplayName>
+    <References>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=5017</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=17497</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6078</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+    </References>
+    <Value>
+      <uax:Double xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd">0</uax:Double>
+    </Value>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6078" BrowseName="EngineeringUnits" ParentNodeId="ns=1;i=6076" DataType="EUInformation">
+    <DisplayName>EngineeringUnits</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6076</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6079" BrowseName="3:PowerConsumption" ParentNodeId="ns=1;i=5017" DataType="Double">
+    <DisplayName>PowerConsumption</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=17497</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6081</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=5017</Reference>
+    </References>
+    <Value>
+      <uax:Double xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd">0</uax:Double>
+    </Value>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6081" BrowseName="EngineeringUnits" ParentNodeId="ns=1;i=6079" DataType="EUInformation">
+    <DisplayName>EngineeringUnits</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6079</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6082" BrowseName="3:PowerFactor" ParentNodeId="ns=1;i=5017" DataType="Double">
+    <DisplayName>PowerFactor</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=63</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=5017</Reference>
+    </References>
+    <Value>
+      <uax:Double xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd">0</uax:Double>
+    </Value>
+  </UAVariable>
+  <UAObject NodeId="ns=1;i=5018" BrowseName="3:Maintenance" ParentNodeId="ns=1;i=5002">
+    <DisplayName>Maintenance</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty">ns=1;i=6083</Reference>
+      <Reference ReferenceType="HasComponent">ns=1;i=6084</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=5002</Reference>
+      <Reference ReferenceType="HasTypeDefinition">ns=3;i=1053</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasComponent">ns=1;i=6087</Reference>
+      <Reference ReferenceType="HasComponent">ns=1;i=7006</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6003</Reference>
+      <Reference ReferenceType="HasComponent">ns=1;i=6090</Reference>
+    </References>
+  </UAObject>
+  <UAVariable NodeId="ns=1;i=6083" BrowseName="3:AdditionalInformation" ParentNodeId="ns=1;i=5018" DataType="String">
+    <DisplayName>AdditionalInformation</DisplayName>
+    <Description>Additional information on the necessary maintenance. Can be also a link to another document.</Description>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=5018</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6084" BrowseName="3:Interval" ParentNodeId="ns=1;i=5018" DataType="Double">
+    <DisplayName>Interval</DisplayName>
+    <Description>Regular interval between two maintenances</Description>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=2368</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6085</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6086</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=5018</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+    </References>
+    <Value>
+      <uax:Double xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd">0</uax:Double>
+    </Value>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6085" BrowseName="EngineeringUnits" ParentNodeId="ns=1;i=6084" DataType="EUInformation">
+    <DisplayName>EngineeringUnits</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6084</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6086" BrowseName="EURange" ParentNodeId="ns=1;i=6084" DataType="Range">
+    <DisplayName>EURange</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6084</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6087" BrowseName="3:RemainingInterval" ParentNodeId="ns=1;i=5018" DataType="Double">
+    <DisplayName>RemainingInterval</DisplayName>
+    <Description>Interval before next maintenance is due</Description>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=2368</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6088</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6089</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=5018</Reference>
+    </References>
+    <Value>
+      <uax:Double xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd">0</uax:Double>
+    </Value>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6088" BrowseName="EngineeringUnits" ParentNodeId="ns=1;i=6087" DataType="EUInformation">
+    <DisplayName>EngineeringUnits</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6087</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6089" BrowseName="EURange" ParentNodeId="ns=1;i=6087" DataType="Range">
+    <DisplayName>EURange</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6087</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAMethod NodeId="ns=1;i=7006" BrowseName="3:Reset" ParentNodeId="ns=1;i=5018" MethodDeclarationId="ns=3;i=7046">
+    <DisplayName>Reset</DisplayName>
+    <Description>This Method sets the CurrentInterval to 0 and Status to NOT_DUE_0</Description>
+    <References>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=5018</Reference>
+    </References>
+  </UAMethod>
+  <UAVariable NodeId="ns=1;i=6003" BrowseName="3:Status" ParentNodeId="ns=1;i=5018" DataType="MaintenanceStatusEnumeration">
+    <DisplayName>Status</DisplayName>
+    <Description>Maintenance status of the machine/device/component (represented by the parent element)</Description>
+    <References>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=5018</Reference>
+    </References>
+    <Value>
+      <uax:Int32 xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd">0</uax:Int32>
+    </Value>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6090" BrowseName="3:TotalOperation" ParentNodeId="ns=1;i=5018" DataType="Double">
+    <DisplayName>TotalOperation</DisplayName>
+    <Description>How long is the component running in total</Description>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=2368</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6091</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6092</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=5018</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6091" BrowseName="EngineeringUnits" ParentNodeId="ns=1;i=6090" DataType="EUInformation">
+    <DisplayName>EngineeringUnits</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6090</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6092" BrowseName="EURange" ParentNodeId="ns=1;i=6090" DataType="Range">
+    <DisplayName>EURange</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6090</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAObject NodeId="ns=1;i=5019" BrowseName="3:Speed" ParentNodeId="ns=1;i=5002">
+    <DisplayName>Speed</DisplayName>
+    <References>
+      <Reference ReferenceType="HasComponent">ns=1;i=6009</Reference>
+      <Reference ReferenceType="HasComponent">ns=1;i=6093</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6096</Reference>
+      <Reference ReferenceType="HasComponent">ns=1;i=6097</Reference>
+      <Reference ReferenceType="HasComponent">ns=1;i=6100</Reference>
+      <Reference ReferenceType="HasComponent">ns=1;i=6103</Reference>
+      <Reference ReferenceType="HasComponent">ns=1;i=6106</Reference>
+      <Reference ReferenceType="HasTypeDefinition">ns=3;i=1056</Reference>
+      <Reference ReferenceType="HasComponent">ns=1;i=6109</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasComponent">ns=1;i=7010</Reference>
+      <Reference ReferenceType="HasComponent">ns=1;i=6112</Reference>
+      <Reference ReferenceType="HasComponent">ns=1;i=6115</Reference>
+      <Reference ReferenceType="HasComponent">ns=1;i=6118</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=5002</Reference>
+      <Reference ReferenceType="HasComponent">ns=1;i=6121</Reference>
+      <Reference ReferenceType="HasComponent">ns=1;i=6124</Reference>
+    </References>
+  </UAObject>
+  <UAVariable NodeId="ns=1;i=6009" BrowseName="3:ActualValue" ParentNodeId="ns=1;i=5019" DataType="Double">
+    <DisplayName>ActualValue</DisplayName>
+    <Description>Actual value of the monitored parameter</Description>
+    <References>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=5019</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=2368</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6275</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6010</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+    </References>
+    <Value>
+      <uax:Double xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd">0</uax:Double>
+    </Value>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6275" BrowseName="EngineeringUnits" ParentNodeId="ns=1;i=6009" DataType="EUInformation">
+    <DisplayName>EngineeringUnits</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6009</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6010" BrowseName="EURange" ParentNodeId="ns=1;i=6009" DataType="Range">
+    <DisplayName>EURange</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6009</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6093" BrowseName="3:AlarmSuppression" ParentNodeId="ns=1;i=5019" DataType="UInt16" AccessLevel="3">
+    <DisplayName>AlarmSuppression</DisplayName>
+    <Description>The start-up alarm suppression deactivates alarms of a monitored parameter during start up or a setpoint jump</Description>
+    <References>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=5019</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6094</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=11238</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6095</Reference>
+    </References>
+    <Value>
+      <uax:UInt16 xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd">0</uax:UInt16>
+    </Value>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6094" BrowseName="EnumValues" ParentNodeId="ns=1;i=6093" DataType="EnumValueType" ValueRank="1">
+    <DisplayName>EnumValues</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6093</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6095" BrowseName="ValueAsText" ParentNodeId="ns=1;i=6093" DataType="LocalizedText">
+    <DisplayName>ValueAsText</DisplayName>
+    <References>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6093</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6096" BrowseName="3:AutomaticMonitoring" ParentNodeId="ns=1;i=5019" DataType="Boolean" AccessLevel="3">
+    <DisplayName>AutomaticMonitoring</DisplayName>
+    <Description>Determination if monitoring tolerance parameters are determined by auto-tuning itself (TRUE) or can be manually adjusted (FALSE)</Description>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=5019</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+    <Value>
+      <uax:Boolean xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd">false</uax:Boolean>
+    </Value>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6097" BrowseName="3:LowerTolerance" ParentNodeId="ns=1;i=5019" DataType="Double" AccessLevel="3">
+    <DisplayName>LowerTolerance</DisplayName>
+    <Description>Lower relative tolerance value of the process parameter</Description>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=2368</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6098</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6099</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=5019</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+    </References>
+    <Value>
+      <uax:Double xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd">0</uax:Double>
+    </Value>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6098" BrowseName="EngineeringUnits" ParentNodeId="ns=1;i=6097" DataType="EUInformation">
+    <DisplayName>EngineeringUnits</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6097</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6099" BrowseName="EURange" ParentNodeId="ns=1;i=6097" DataType="Range">
+    <DisplayName>EURange</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6097</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6100" BrowseName="3:LowerTolerance2" ParentNodeId="ns=1;i=5019" DataType="Double" AccessLevel="3">
+    <DisplayName>LowerTolerance2</DisplayName>
+    <Description>Second lower relative tolerance value of the process parameter</Description>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=2368</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6101</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6102</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=5019</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+    </References>
+    <Value>
+      <uax:Double xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd">0</uax:Double>
+    </Value>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6101" BrowseName="EngineeringUnits" ParentNodeId="ns=1;i=6100" DataType="EUInformation">
+    <DisplayName>EngineeringUnits</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6100</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6102" BrowseName="EURange" ParentNodeId="ns=1;i=6100" DataType="Range">
+    <DisplayName>EURange</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6100</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6103" BrowseName="3:MaxValue" ParentNodeId="ns=1;i=5019" DataType="Double" AccessLevel="3">
+    <DisplayName>MaxValue</DisplayName>
+    <Description>Maximum absolute value of the process parameter</Description>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=2368</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6104</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6105</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=5019</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+    </References>
+    <Value>
+      <uax:Double xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd">0</uax:Double>
+    </Value>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6104" BrowseName="EngineeringUnits" ParentNodeId="ns=1;i=6103" DataType="EUInformation">
+    <DisplayName>EngineeringUnits</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6103</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6105" BrowseName="EURange" ParentNodeId="ns=1;i=6103" DataType="Range">
+    <DisplayName>EURange</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6103</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6106" BrowseName="3:MinValue" ParentNodeId="ns=1;i=5019" DataType="Double" AccessLevel="3">
+    <DisplayName>MinValue</DisplayName>
+    <Description>Minimum absolute value of the process parameter</Description>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=2368</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6107</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6108</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=5019</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+    </References>
+    <Value>
+      <uax:Double xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd">0</uax:Double>
+    </Value>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6107" BrowseName="EngineeringUnits" ParentNodeId="ns=1;i=6106" DataType="EUInformation">
+    <DisplayName>EngineeringUnits</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6106</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6108" BrowseName="EURange" ParentNodeId="ns=1;i=6106" DataType="Range">
+    <DisplayName>EURange</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6106</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6109" BrowseName="3:MonitoringSensitivity" ParentNodeId="ns=1;i=5019" DataType="UInt16" AccessLevel="3">
+    <DisplayName>MonitoringSensitivity</DisplayName>
+    <Description>Defines how closely the tolerances are set during the automatic limit setting</Description>
+    <References>
+      <Reference ReferenceType="HasProperty">ns=1;i=6110</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=5019</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=11238</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6111</Reference>
+    </References>
+    <Value>
+      <uax:UInt16 xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd">0</uax:UInt16>
+    </Value>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6110" BrowseName="EnumValues" ParentNodeId="ns=1;i=6109" DataType="EnumValueType" ValueRank="1">
+    <DisplayName>EnumValues</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6109</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6111" BrowseName="ValueAsText" ParentNodeId="ns=1;i=6109" DataType="LocalizedText">
+    <DisplayName>ValueAsText</DisplayName>
+    <References>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6109</Reference>
+    </References>
+  </UAVariable>
+  <UAMethod NodeId="ns=1;i=7010" BrowseName="3:ResetMonitoring" ParentNodeId="ns=1;i=5019" MethodDeclarationId="ns=3;i=7053">
+    <DisplayName>ResetMonitoring</DisplayName>
+    <Description>With this method the tolerance values are set according to the actual value and the set monitoring sensitivity</Description>
+    <References>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=5019</Reference>
+    </References>
+  </UAMethod>
+  <UAVariable NodeId="ns=1;i=6112" BrowseName="3:SetRampDown" ParentNodeId="ns=1;i=5019" DataType="Double">
+    <DisplayName>SetRampDown</DisplayName>
+    <Description>Indication if SetValue that is lower than the actual value shall be reached as fast as possible (SetRampDown = 0) or within a given value change per time</Description>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=2368</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6113</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6114</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=5019</Reference>
+    </References>
+    <Value>
+      <uax:Double xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd">0</uax:Double>
+    </Value>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6113" BrowseName="EngineeringUnits" ParentNodeId="ns=1;i=6112" DataType="EUInformation">
+    <DisplayName>EngineeringUnits</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6112</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6114" BrowseName="EURange" ParentNodeId="ns=1;i=6112" DataType="Range">
+    <DisplayName>EURange</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6112</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6115" BrowseName="3:SetRampUp" ParentNodeId="ns=1;i=5019" DataType="Double">
+    <DisplayName>SetRampUp</DisplayName>
+    <Description>Indication if a SetValue that is higher than the actual value shall be reached as fast as possible (SetRampUp = 0) or within a given value change per time</Description>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=2368</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6116</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6117</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=5019</Reference>
+    </References>
+    <Value>
+      <uax:Double xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd">0</uax:Double>
+    </Value>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6116" BrowseName="EngineeringUnits" ParentNodeId="ns=1;i=6115" DataType="EUInformation">
+    <DisplayName>EngineeringUnits</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6115</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6117" BrowseName="EURange" ParentNodeId="ns=1;i=6115" DataType="Range">
+    <DisplayName>EURange</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6115</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6118" BrowseName="3:SetValue" ParentNodeId="ns=1;i=5019" DataType="Double" AccessLevel="3">
+    <DisplayName>SetValue</DisplayName>
+    <Description>Set/nominal/target value of the monitored parameter</Description>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=2368</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6119</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6120</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=5019</Reference>
+    </References>
+    <Value>
+      <uax:Double xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd">0</uax:Double>
+    </Value>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6119" BrowseName="EngineeringUnits" ParentNodeId="ns=1;i=6118" DataType="EUInformation">
+    <DisplayName>EngineeringUnits</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6118</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6120" BrowseName="EURange" ParentNodeId="ns=1;i=6118" DataType="Range">
+    <DisplayName>EURange</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6118</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6121" BrowseName="3:UpperTolerance" ParentNodeId="ns=1;i=5019" DataType="Double" AccessLevel="3">
+    <DisplayName>UpperTolerance</DisplayName>
+    <Description>Upper relative tolerance value of the process parameter</Description>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=2368</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6122</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6123</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=5019</Reference>
+    </References>
+    <Value>
+      <uax:Double xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd">0</uax:Double>
+    </Value>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6122" BrowseName="EngineeringUnits" ParentNodeId="ns=1;i=6121" DataType="EUInformation">
+    <DisplayName>EngineeringUnits</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6121</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6123" BrowseName="EURange" ParentNodeId="ns=1;i=6121" DataType="Range">
+    <DisplayName>EURange</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6121</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6124" BrowseName="3:UpperTolerance2" ParentNodeId="ns=1;i=5019" DataType="Double" AccessLevel="3">
+    <DisplayName>UpperTolerance2</DisplayName>
+    <Description>Second upper relative tolerance value of the process parameter</Description>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=2368</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6125</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6126</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=5019</Reference>
+    </References>
+    <Value>
+      <uax:Double xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd">0</uax:Double>
+    </Value>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6125" BrowseName="EngineeringUnits" ParentNodeId="ns=1;i=6124" DataType="EUInformation">
+    <DisplayName>EngineeringUnits</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6124</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6126" BrowseName="EURange" ParentNodeId="ns=1;i=6124" DataType="Range">
+    <DisplayName>EURange</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6124</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAObject NodeId="ns=1;i=5020" BrowseName="3:StartDrive" ParentNodeId="ns=1;i=5002">
+    <DisplayName>StartDrive</DisplayName>
+    <References>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6127</Reference>
+      <Reference ReferenceType="HasTypeDefinition">ns=3;i=1023</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=5002</Reference>
+      <Reference ReferenceType="HasComponent">ns=1;i=7012</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6071</Reference>
+      <Reference ReferenceType="HasComponent">ns=1;i=7013</Reference>
+    </References>
+  </UAObject>
+  <UAVariable NodeId="ns=1;i=6127" BrowseName="3:StartBlockedByClient" ParentNodeId="ns=1;i=5020" DataType="Boolean" AccessLevel="3">
+    <DisplayName>StartBlockedByClient</DisplayName>
+    <References>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=5020</Reference>
+    </References>
+  </UAVariable>
+  <UAMethod NodeId="ns=1;i=7012" BrowseName="3:StartRequest" ParentNodeId="ns=1;i=5020" MethodDeclarationId="ns=3;i=7051">
+    <DisplayName>StartRequest</DisplayName>
+    <References>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=5020</Reference>
+    </References>
+  </UAMethod>
+  <UAVariable NodeId="ns=1;i=6071" BrowseName="3:Status" ParentNodeId="ns=1;i=5020" DataType="StartEnumeration">
+    <DisplayName>Status</DisplayName>
+    <References>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=5020</Reference>
+    </References>
+    <Value>
+      <uax:Int32 xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd">0</uax:Int32>
+    </Value>
+  </UAVariable>
+  <UAMethod NodeId="ns=1;i=7013" BrowseName="3:StopRequest" ParentNodeId="ns=1;i=5020" MethodDeclarationId="ns=3;i=7056">
+    <DisplayName>StopRequest</DisplayName>
+    <References>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=5020</Reference>
+    </References>
+  </UAMethod>
+  <UAObject NodeId="ns=1;i=5021" BrowseName="3:Torque" ParentNodeId="ns=1;i=5002">
+    <DisplayName>Torque</DisplayName>
+    <References>
+      <Reference ReferenceType="HasComponent">ns=1;i=6072</Reference>
+      <Reference ReferenceType="HasComponent">ns=1;i=6128</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6131</Reference>
+      <Reference ReferenceType="HasComponent">ns=1;i=6231</Reference>
+      <Reference ReferenceType="HasComponent">ns=1;i=6234</Reference>
+      <Reference ReferenceType="HasComponent">ns=1;i=6237</Reference>
+      <Reference ReferenceType="HasComponent">ns=1;i=6253</Reference>
+      <Reference ReferenceType="HasTypeDefinition">ns=3;i=1056</Reference>
+      <Reference ReferenceType="HasComponent">ns=1;i=6256</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasComponent">ns=1;i=7014</Reference>
+      <Reference ReferenceType="HasComponent">ns=1;i=6259</Reference>
+      <Reference ReferenceType="HasComponent">ns=1;i=6262</Reference>
+      <Reference ReferenceType="HasComponent">ns=1;i=6265</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=5002</Reference>
+      <Reference ReferenceType="HasComponent">ns=1;i=6268</Reference>
+      <Reference ReferenceType="HasComponent">ns=1;i=6271</Reference>
+    </References>
+  </UAObject>
+  <UAVariable NodeId="ns=1;i=6072" BrowseName="3:ActualValue" ParentNodeId="ns=1;i=5021" DataType="Double">
+    <DisplayName>ActualValue</DisplayName>
+    <Description>Actual value of the monitored parameter</Description>
+    <References>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=5021</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=2368</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6282</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6073</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+    </References>
+    <Value>
+      <uax:Double xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd">0</uax:Double>
+    </Value>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6282" BrowseName="EngineeringUnits" ParentNodeId="ns=1;i=6072" DataType="EUInformation">
+    <DisplayName>EngineeringUnits</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6072</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6073" BrowseName="EURange" ParentNodeId="ns=1;i=6072" DataType="Range">
+    <DisplayName>EURange</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6072</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6128" BrowseName="3:AlarmSuppression" ParentNodeId="ns=1;i=5021" DataType="UInt16" AccessLevel="3">
+    <DisplayName>AlarmSuppression</DisplayName>
+    <Description>The start-up alarm suppression deactivates alarms of a monitored parameter during start up or a setpoint jump</Description>
+    <References>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=5021</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6129</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=11238</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6130</Reference>
+    </References>
+    <Value>
+      <uax:UInt16 xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd">0</uax:UInt16>
+    </Value>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6129" BrowseName="EnumValues" ParentNodeId="ns=1;i=6128" DataType="EnumValueType" ValueRank="1">
+    <DisplayName>EnumValues</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6128</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6130" BrowseName="ValueAsText" ParentNodeId="ns=1;i=6128" DataType="LocalizedText">
+    <DisplayName>ValueAsText</DisplayName>
+    <References>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6128</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6131" BrowseName="3:AutomaticMonitoring" ParentNodeId="ns=1;i=5021" DataType="Boolean" AccessLevel="3">
+    <DisplayName>AutomaticMonitoring</DisplayName>
+    <Description>Determination if monitoring tolerance parameters are determined by auto-tuning itself (TRUE) or can be manually adjusted (FALSE)</Description>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=5021</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+    <Value>
+      <uax:Boolean xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd">false</uax:Boolean>
+    </Value>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6231" BrowseName="3:LowerTolerance" ParentNodeId="ns=1;i=5021" DataType="Double" AccessLevel="3">
+    <DisplayName>LowerTolerance</DisplayName>
+    <Description>Lower relative tolerance value of the process parameter</Description>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=2368</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6232</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6233</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=5021</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+    </References>
+    <Value>
+      <uax:Double xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd">0</uax:Double>
+    </Value>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6232" BrowseName="EngineeringUnits" ParentNodeId="ns=1;i=6231" DataType="EUInformation">
+    <DisplayName>EngineeringUnits</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6231</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6233" BrowseName="EURange" ParentNodeId="ns=1;i=6231" DataType="Range">
+    <DisplayName>EURange</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6231</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6234" BrowseName="3:LowerTolerance2" ParentNodeId="ns=1;i=5021" DataType="Double" AccessLevel="3">
+    <DisplayName>LowerTolerance2</DisplayName>
+    <Description>Second lower relative tolerance value of the process parameter</Description>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=2368</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6235</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6236</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=5021</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+    </References>
+    <Value>
+      <uax:Double xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd">0</uax:Double>
+    </Value>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6235" BrowseName="EngineeringUnits" ParentNodeId="ns=1;i=6234" DataType="EUInformation">
+    <DisplayName>EngineeringUnits</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6234</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6236" BrowseName="EURange" ParentNodeId="ns=1;i=6234" DataType="Range">
+    <DisplayName>EURange</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6234</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6237" BrowseName="3:MaxValue" ParentNodeId="ns=1;i=5021" DataType="Double" AccessLevel="3">
+    <DisplayName>MaxValue</DisplayName>
+    <Description>Maximum absolute value of the process parameter</Description>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=2368</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6238</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6239</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=5021</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+    </References>
+    <Value>
+      <uax:Double xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd">0</uax:Double>
+    </Value>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6238" BrowseName="EngineeringUnits" ParentNodeId="ns=1;i=6237" DataType="EUInformation">
+    <DisplayName>EngineeringUnits</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6237</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6239" BrowseName="EURange" ParentNodeId="ns=1;i=6237" DataType="Range">
+    <DisplayName>EURange</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6237</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6253" BrowseName="3:MinValue" ParentNodeId="ns=1;i=5021" DataType="Double" AccessLevel="3">
+    <DisplayName>MinValue</DisplayName>
+    <Description>Minimum absolute value of the process parameter</Description>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=2368</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6254</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6255</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=5021</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+    </References>
+    <Value>
+      <uax:Double xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd">0</uax:Double>
+    </Value>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6254" BrowseName="EngineeringUnits" ParentNodeId="ns=1;i=6253" DataType="EUInformation">
+    <DisplayName>EngineeringUnits</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6253</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6255" BrowseName="EURange" ParentNodeId="ns=1;i=6253" DataType="Range">
+    <DisplayName>EURange</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6253</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6256" BrowseName="3:MonitoringSensitivity" ParentNodeId="ns=1;i=5021" DataType="UInt16" AccessLevel="3">
+    <DisplayName>MonitoringSensitivity</DisplayName>
+    <Description>Defines how closely the tolerances are set during the automatic limit setting</Description>
+    <References>
+      <Reference ReferenceType="HasProperty">ns=1;i=6257</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=5021</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=11238</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6258</Reference>
+    </References>
+    <Value>
+      <uax:UInt16 xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd">0</uax:UInt16>
+    </Value>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6257" BrowseName="EnumValues" ParentNodeId="ns=1;i=6256" DataType="EnumValueType" ValueRank="1">
+    <DisplayName>EnumValues</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6256</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6258" BrowseName="ValueAsText" ParentNodeId="ns=1;i=6256" DataType="LocalizedText">
+    <DisplayName>ValueAsText</DisplayName>
+    <References>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6256</Reference>
+    </References>
+  </UAVariable>
+  <UAMethod NodeId="ns=1;i=7014" BrowseName="3:ResetMonitoring" ParentNodeId="ns=1;i=5021" MethodDeclarationId="ns=3;i=7053">
+    <DisplayName>ResetMonitoring</DisplayName>
+    <Description>With this method the tolerance values are set according to the actual value and the set monitoring sensitivity</Description>
+    <References>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=5021</Reference>
+    </References>
+  </UAMethod>
+  <UAVariable NodeId="ns=1;i=6259" BrowseName="3:SetRampDown" ParentNodeId="ns=1;i=5021" DataType="Double">
+    <DisplayName>SetRampDown</DisplayName>
+    <Description>Indication if SetValue that is lower than the actual value shall be reached as fast as possible (SetRampDown = 0) or within a given value change per time</Description>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=2368</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6260</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6261</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=5021</Reference>
+    </References>
+    <Value>
+      <uax:Double xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd">0</uax:Double>
+    </Value>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6260" BrowseName="EngineeringUnits" ParentNodeId="ns=1;i=6259" DataType="EUInformation">
+    <DisplayName>EngineeringUnits</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6259</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6261" BrowseName="EURange" ParentNodeId="ns=1;i=6259" DataType="Range">
+    <DisplayName>EURange</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6259</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6262" BrowseName="3:SetRampUp" ParentNodeId="ns=1;i=5021" DataType="Double">
+    <DisplayName>SetRampUp</DisplayName>
+    <Description>Indication if a SetValue that is higher than the actual value shall be reached as fast as possible (SetRampUp = 0) or within a given value change per time</Description>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=2368</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6263</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6264</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=5021</Reference>
+    </References>
+    <Value>
+      <uax:Double xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd">0</uax:Double>
+    </Value>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6263" BrowseName="EngineeringUnits" ParentNodeId="ns=1;i=6262" DataType="EUInformation">
+    <DisplayName>EngineeringUnits</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6262</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6264" BrowseName="EURange" ParentNodeId="ns=1;i=6262" DataType="Range">
+    <DisplayName>EURange</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6262</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6265" BrowseName="3:SetValue" ParentNodeId="ns=1;i=5021" DataType="Double" AccessLevel="3">
+    <DisplayName>SetValue</DisplayName>
+    <Description>Set/nominal/target value of the monitored parameter</Description>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=2368</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6266</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6267</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=5021</Reference>
+    </References>
+    <Value>
+      <uax:Double xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd">0</uax:Double>
+    </Value>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6266" BrowseName="EngineeringUnits" ParentNodeId="ns=1;i=6265" DataType="EUInformation">
+    <DisplayName>EngineeringUnits</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6265</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6267" BrowseName="EURange" ParentNodeId="ns=1;i=6265" DataType="Range">
+    <DisplayName>EURange</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6265</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6268" BrowseName="3:UpperTolerance" ParentNodeId="ns=1;i=5021" DataType="Double" AccessLevel="3">
+    <DisplayName>UpperTolerance</DisplayName>
+    <Description>Upper relative tolerance value of the process parameter</Description>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=2368</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6269</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6270</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=5021</Reference>
+    </References>
+    <Value>
+      <uax:Double xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd">0</uax:Double>
+    </Value>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6269" BrowseName="EngineeringUnits" ParentNodeId="ns=1;i=6268" DataType="EUInformation">
+    <DisplayName>EngineeringUnits</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6268</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6270" BrowseName="EURange" ParentNodeId="ns=1;i=6268" DataType="Range">
+    <DisplayName>EURange</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6268</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6271" BrowseName="3:UpperTolerance2" ParentNodeId="ns=1;i=5021" DataType="Double" AccessLevel="3">
+    <DisplayName>UpperTolerance2</DisplayName>
+    <Description>Second upper relative tolerance value of the process parameter</Description>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=2368</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6272</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6274</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=5021</Reference>
+    </References>
+    <Value>
+      <uax:Double xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd">0</uax:Double>
+    </Value>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6272" BrowseName="EngineeringUnits" ParentNodeId="ns=1;i=6271" DataType="EUInformation">
+    <DisplayName>EngineeringUnits</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6271</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6274" BrowseName="EURange" ParentNodeId="ns=1;i=6271" DataType="Range">
+    <DisplayName>EURange</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6271</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAObject NodeId="ns=1;i=5014" BrowseName="1:FilterPackage_&lt;Nr&gt;" SymbolicName="FilterPackage__Nr_" ParentNodeId="ns=1;i=1002">
+    <DisplayName>FilterPackage_&lt;Nr&gt;</DisplayName>
+    <References>
+      <Reference ReferenceType="HasComponent">ns=1;i=6140</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6182</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6183</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=1002</Reference>
+      <Reference ReferenceType="HasTypeDefinition">ns=1;i=1004</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6277</Reference>
+      <Reference ReferenceType="HasModellingRule">i=11508</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6179</Reference>
+    </References>
+  </UAObject>
+  <UAVariable NodeId="ns=1;i=6140" BrowseName="1:Area" ParentNodeId="ns=1;i=5014" DataType="Double">
+    <DisplayName>Area</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=17497</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=5014</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6141</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6141" BrowseName="EngineeringUnits" ParentNodeId="ns=1;i=6140" DataType="EUInformation">
+    <DisplayName>EngineeringUnits</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6140</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6182" BrowseName="1:BackflushCounter" ParentNodeId="ns=1;i=5014" DataType="UInt32">
+    <DisplayName>BackflushCounter</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=5014</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6183" BrowseName="1:BackflushTime" ParentNodeId="ns=1;i=5014" DataType="Duration" AccessLevel="3">
+    <DisplayName>BackflushTime</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=5014</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6277" BrowseName="1:Name" ParentNodeId="ns=1;i=5014" DataType="LocalizedText">
+    <DisplayName>Name</DisplayName>
+    <References>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=5014</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6179" BrowseName="1:Status" ParentNodeId="ns=1;i=5014" DataType="FilterPackageStatusEnumeration">
+    <DisplayName>Status</DisplayName>
+    <References>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=5014</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6004" BrowseName="1:FiltrationFineness" ParentNodeId="ns=1;i=1002" DataType="Double">
+    <DisplayName>FiltrationFineness</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=17497</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6005</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=1002</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6005" BrowseName="EngineeringUnits" ParentNodeId="ns=1;i=6004" DataType="EUInformation">
+    <DisplayName>EngineeringUnits</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6004</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAObject NodeId="ns=1;i=5007" BrowseName="1:HydraulicPressure" ParentNodeId="ns=1;i=1002">
+    <DisplayName>HydraulicPressure</DisplayName>
+    <References>
+      <Reference ReferenceType="HasComponent">ns=1;i=6143</Reference>
+      <Reference ReferenceType="HasComponent">ns=1;i=6145</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6148</Reference>
+      <Reference ReferenceType="HasComponent">ns=1;i=5008</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6077</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=1002</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6080</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6142</Reference>
+      <Reference ReferenceType="HasComponent">ns=1;i=6163</Reference>
+      <Reference ReferenceType="HasComponent">ns=1;i=6170</Reference>
+      <Reference ReferenceType="HasComponent">ns=1;i=5015</Reference>
+      <Reference ReferenceType="HasComponent">ns=1;i=6178</Reference>
+      <Reference ReferenceType="HasTypeDefinition">ns=3;i=1064</Reference>
+      <Reference ReferenceType="HasComponent">ns=1;i=6186</Reference>
+      <Reference ReferenceType="HasComponent">ns=1;i=6188</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6191</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6192</Reference>
+      <Reference ReferenceType="HasComponent">ns=1;i=7005</Reference>
+      <Reference ReferenceType="HasComponent">ns=1;i=6193</Reference>
+      <Reference ReferenceType="HasComponent">ns=1;i=6195</Reference>
+      <Reference ReferenceType="HasComponent">ns=1;i=6197</Reference>
+      <Reference ReferenceType="HasComponent">ns=1;i=5016</Reference>
+      <Reference ReferenceType="HasComponent">ns=1;i=6200</Reference>
+      <Reference ReferenceType="HasComponent">ns=1;i=6202</Reference>
+    </References>
+  </UAObject>
+  <UAVariable NodeId="ns=1;i=6143" BrowseName="3:ActualValue" ParentNodeId="ns=1;i=5007" DataType="Double">
+    <DisplayName>ActualValue</DisplayName>
+    <Description>Actual value of the monitored parameter</Description>
+    <References>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=5007</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=2368</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6204</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6144</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+    </References>
+    <Value>
+      <uax:Double xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd">0</uax:Double>
+    </Value>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6204" BrowseName="EngineeringUnits" ParentNodeId="ns=1;i=6143" DataType="EUInformation">
+    <DisplayName>EngineeringUnits</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6143</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6144" BrowseName="EURange" ParentNodeId="ns=1;i=6143" DataType="Range">
+    <DisplayName>EURange</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6143</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6145" BrowseName="3:AlarmSuppression" ParentNodeId="ns=1;i=5007" DataType="UInt16" AccessLevel="3">
+    <DisplayName>AlarmSuppression</DisplayName>
+    <Description>The start-up alarm suppression deactivates alarms of a monitored parameter during start up or a setpoint jump</Description>
+    <References>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=5007</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6146</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=11238</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6147</Reference>
+    </References>
+    <Value>
+      <uax:UInt16 xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd">0</uax:UInt16>
+    </Value>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6146" BrowseName="EnumValues" ParentNodeId="ns=1;i=6145" DataType="EnumValueType" ValueRank="1">
+    <DisplayName>EnumValues</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6145</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6147" BrowseName="ValueAsText" ParentNodeId="ns=1;i=6145" DataType="LocalizedText">
+    <DisplayName>ValueAsText</DisplayName>
+    <References>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6145</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6148" BrowseName="3:AutomaticMonitoring" ParentNodeId="ns=1;i=5007" DataType="Boolean" AccessLevel="3">
+    <DisplayName>AutomaticMonitoring</DisplayName>
+    <Description>Determination if monitoring tolerance parameters are determined by auto-tuning itself (TRUE) or can be manually adjusted (FALSE)</Description>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=5007</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+    <Value>
+      <uax:Boolean xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd">false</uax:Boolean>
+    </Value>
+  </UAVariable>
+  <UAObject NodeId="ns=1;i=5008" BrowseName="3:ClosedLoopControl" ParentNodeId="ns=1;i=5007">
+    <DisplayName>ClosedLoopControl</DisplayName>
+    <Description>With this type the client can do settings for the closed loop control on the device for a parameter</Description>
+    <References>
+      <Reference ReferenceType="HasProperty">ns=1;i=6206</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6205</Reference>
+      <Reference ReferenceType="HasComponent">ns=1;i=7007</Reference>
+      <Reference ReferenceType="HasComponent">ns=1;i=7008</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=5007</Reference>
+      <Reference ReferenceType="HasTypeDefinition">ns=3;i=1054</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6207</Reference>
+    </References>
+  </UAObject>
+  <UAVariable NodeId="ns=1;i=6206" BrowseName="3:AutomaticControllerMode" ParentNodeId="ns=1;i=5008" DataType="Boolean" AccessLevel="3">
+    <DisplayName>AutomaticControllerMode</DisplayName>
+    <Description>Determination if PID Parameters are determined by auto-tuning itself (TRUE) or can be manually adjusted (FALSE)</Description>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=5008</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6205" BrowseName="3:AutoTuningActive" ParentNodeId="ns=1;i=5008" DataType="Boolean">
+    <DisplayName>AutoTuningActive</DisplayName>
+    <Description>Informs if the automatic tuning is currently active</Description>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=5008</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+    <Value>
+      <uax:Boolean xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd">false</uax:Boolean>
+    </Value>
+  </UAVariable>
+  <UAMethod NodeId="ns=1;i=7007" BrowseName="3:AutoTuningOff" ParentNodeId="ns=1;i=5008" MethodDeclarationId="ns=3;i=7048">
+    <DisplayName>AutoTuningOff</DisplayName>
+    <Description>Stops an already active self-optimisation process (no control parameters are changed)</Description>
+    <References>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=5008</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+    </References>
+  </UAMethod>
+  <UAMethod NodeId="ns=1;i=7008" BrowseName="3:AutoTuningOn" ParentNodeId="ns=1;i=5008" MethodDeclarationId="ns=3;i=7047">
+    <DisplayName>AutoTuningOn</DisplayName>
+    <Description>Starts the self-optimisation of the controller</Description>
+    <References>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=5008</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+    </References>
+  </UAMethod>
+  <UAVariable NodeId="ns=1;i=6207" BrowseName="3:PIDParameters" ParentNodeId="ns=1;i=5008" DataType="PIDParametersDataType" ValueRank="1" ArrayDimensions="0" AccessLevel="3">
+    <DisplayName>PIDParameters</DisplayName>
+    <Description>PID Parameters as array if several input signals (sensors) are used for the control</Description>
+    <References>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=5008</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6077" BrowseName="3:ControlMode" ParentNodeId="ns=1;i=5007" DataType="ControlModeEnumeration">
+    <DisplayName>ControlMode</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=5007</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+    <Value>
+      <uax:Int32 xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd">0</uax:Int32>
+    </Value>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6080" BrowseName="3:Id" ParentNodeId="ns=1;i=5007" DataType="String">
+    <DisplayName>Id</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=5007</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+    <Value>
+      <uax:String xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd"></uax:String>
+    </Value>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6142" BrowseName="3:IsPresent" ParentNodeId="ns=1;i=5007" DataType="Boolean">
+    <DisplayName>IsPresent</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=5007</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+    <Value>
+      <uax:Boolean xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd">false</uax:Boolean>
+    </Value>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6163" BrowseName="3:LowerTolerance" ParentNodeId="ns=1;i=5007" DataType="Double" AccessLevel="3">
+    <DisplayName>LowerTolerance</DisplayName>
+    <Description>Lower relative tolerance value of the process parameter</Description>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=2368</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6208</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6164</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=5007</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+    </References>
+    <Value>
+      <uax:Double xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd">0</uax:Double>
+    </Value>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6208" BrowseName="EngineeringUnits" ParentNodeId="ns=1;i=6163" DataType="EUInformation">
+    <DisplayName>EngineeringUnits</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6163</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6164" BrowseName="EURange" ParentNodeId="ns=1;i=6163" DataType="Range">
+    <DisplayName>EURange</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6163</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6170" BrowseName="3:LowerTolerance2" ParentNodeId="ns=1;i=5007" DataType="Double" AccessLevel="3">
+    <DisplayName>LowerTolerance2</DisplayName>
+    <Description>Second lower relative tolerance value of the process parameter</Description>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=2368</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6209</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6171</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=5007</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+    </References>
+    <Value>
+      <uax:Double xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd">0</uax:Double>
+    </Value>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6209" BrowseName="EngineeringUnits" ParentNodeId="ns=1;i=6170" DataType="EUInformation">
+    <DisplayName>EngineeringUnits</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6170</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6171" BrowseName="EURange" ParentNodeId="ns=1;i=6170" DataType="Range">
+    <DisplayName>EURange</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6170</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAObject NodeId="ns=1;i=5015" BrowseName="3:Maintenance" ParentNodeId="ns=1;i=5007">
+    <DisplayName>Maintenance</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty">ns=1;i=6210</Reference>
+      <Reference ReferenceType="HasComponent">ns=1;i=6211</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=5007</Reference>
+      <Reference ReferenceType="HasTypeDefinition">ns=3;i=1053</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasComponent">ns=1;i=6214</Reference>
+      <Reference ReferenceType="HasComponent">ns=1;i=7002</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6177</Reference>
+      <Reference ReferenceType="HasComponent">ns=1;i=6217</Reference>
+    </References>
+  </UAObject>
+  <UAVariable NodeId="ns=1;i=6210" BrowseName="3:AdditionalInformation" ParentNodeId="ns=1;i=5015" DataType="String">
+    <DisplayName>AdditionalInformation</DisplayName>
+    <Description>Additional information on the necessary maintenance. Can be also a link to another document.</Description>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=5015</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6211" BrowseName="3:Interval" ParentNodeId="ns=1;i=5015" DataType="Double">
+    <DisplayName>Interval</DisplayName>
+    <Description>Regular interval between two maintenances</Description>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=2368</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6212</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6213</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=5015</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+    </References>
+    <Value>
+      <uax:Double xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd">0</uax:Double>
+    </Value>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6212" BrowseName="EngineeringUnits" ParentNodeId="ns=1;i=6211" DataType="EUInformation">
+    <DisplayName>EngineeringUnits</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6211</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6213" BrowseName="EURange" ParentNodeId="ns=1;i=6211" DataType="Range">
+    <DisplayName>EURange</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6211</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6214" BrowseName="3:RemainingInterval" ParentNodeId="ns=1;i=5015" DataType="Double">
+    <DisplayName>RemainingInterval</DisplayName>
+    <Description>Interval before next maintenance is due</Description>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=2368</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6215</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6216</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=5015</Reference>
+    </References>
+    <Value>
+      <uax:Double xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd">0</uax:Double>
+    </Value>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6215" BrowseName="EngineeringUnits" ParentNodeId="ns=1;i=6214" DataType="EUInformation">
+    <DisplayName>EngineeringUnits</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6214</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6216" BrowseName="EURange" ParentNodeId="ns=1;i=6214" DataType="Range">
+    <DisplayName>EURange</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6214</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAMethod NodeId="ns=1;i=7002" BrowseName="3:Reset" ParentNodeId="ns=1;i=5015" MethodDeclarationId="ns=3;i=7046">
+    <DisplayName>Reset</DisplayName>
+    <Description>This Method sets the CurrentInterval to 0 and Status to NOT_DUE_0</Description>
+    <References>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=5015</Reference>
+    </References>
+  </UAMethod>
+  <UAVariable NodeId="ns=1;i=6177" BrowseName="3:Status" ParentNodeId="ns=1;i=5015" DataType="MaintenanceStatusEnumeration">
+    <DisplayName>Status</DisplayName>
+    <Description>Maintenance status of the machine/device/component (represented by the parent element)</Description>
+    <References>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=5015</Reference>
+    </References>
+    <Value>
+      <uax:Int32 xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd">0</uax:Int32>
+    </Value>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6217" BrowseName="3:TotalOperation" ParentNodeId="ns=1;i=5015" DataType="Double">
+    <DisplayName>TotalOperation</DisplayName>
+    <Description>How long is the component running in total</Description>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=2368</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6218</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6219</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=5015</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6218" BrowseName="EngineeringUnits" ParentNodeId="ns=1;i=6217" DataType="EUInformation">
+    <DisplayName>EngineeringUnits</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6217</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6219" BrowseName="EURange" ParentNodeId="ns=1;i=6217" DataType="Range">
+    <DisplayName>EURange</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6217</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6178" BrowseName="3:MaxValue" ParentNodeId="ns=1;i=5007" DataType="Double" AccessLevel="3">
+    <DisplayName>MaxValue</DisplayName>
+    <Description>Maximum absolute value of the process parameter</Description>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=2368</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6220</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6185</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=5007</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+    </References>
+    <Value>
+      <uax:Double xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd">0</uax:Double>
+    </Value>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6220" BrowseName="EngineeringUnits" ParentNodeId="ns=1;i=6178" DataType="EUInformation">
+    <DisplayName>EngineeringUnits</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6178</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6185" BrowseName="EURange" ParentNodeId="ns=1;i=6178" DataType="Range">
+    <DisplayName>EURange</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6178</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6186" BrowseName="3:MinValue" ParentNodeId="ns=1;i=5007" DataType="Double" AccessLevel="3">
+    <DisplayName>MinValue</DisplayName>
+    <Description>Minimum absolute value of the process parameter</Description>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=2368</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6221</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6187</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=5007</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+    </References>
+    <Value>
+      <uax:Double xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd">0</uax:Double>
+    </Value>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6221" BrowseName="EngineeringUnits" ParentNodeId="ns=1;i=6186" DataType="EUInformation">
+    <DisplayName>EngineeringUnits</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6186</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6187" BrowseName="EURange" ParentNodeId="ns=1;i=6186" DataType="Range">
+    <DisplayName>EURange</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6186</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6188" BrowseName="3:MonitoringSensitivity" ParentNodeId="ns=1;i=5007" DataType="UInt16" AccessLevel="3">
+    <DisplayName>MonitoringSensitivity</DisplayName>
+    <Description>Defines how closely the tolerances are set during the automatic limit setting</Description>
+    <References>
+      <Reference ReferenceType="HasProperty">ns=1;i=6189</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=5007</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=11238</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6190</Reference>
+    </References>
+    <Value>
+      <uax:UInt16 xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd">0</uax:UInt16>
+    </Value>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6189" BrowseName="EnumValues" ParentNodeId="ns=1;i=6188" DataType="EnumValueType" ValueRank="1">
+    <DisplayName>EnumValues</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6188</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6190" BrowseName="ValueAsText" ParentNodeId="ns=1;i=6188" DataType="LocalizedText">
+    <DisplayName>ValueAsText</DisplayName>
+    <References>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6188</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6191" BrowseName="3:Name" ParentNodeId="ns=1;i=5007" DataType="LocalizedText">
+    <DisplayName>Name</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=5007</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+    <Value>
+      <uax:LocalizedText xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd" />
+    </Value>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6192" BrowseName="3:Position" ParentNodeId="ns=1;i=5007" DataType="String">
+    <DisplayName>Position</DisplayName>
+    <References>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=5007</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAMethod NodeId="ns=1;i=7005" BrowseName="3:ResetMonitoring" ParentNodeId="ns=1;i=5007" MethodDeclarationId="ns=3;i=7053">
+    <DisplayName>ResetMonitoring</DisplayName>
+    <Description>With this method the tolerance values are set according to the actual value and the set monitoring sensitivity</Description>
+    <References>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=5007</Reference>
+    </References>
+  </UAMethod>
+  <UAVariable NodeId="ns=1;i=6193" BrowseName="3:SetRampDown" ParentNodeId="ns=1;i=5007" DataType="Double" AccessLevel="3">
+    <DisplayName>SetRampDown</DisplayName>
+    <Description>Indication if SetValue that is lower than the actual value shall be reached as fast as possible (SetRampDown = 0) or within a given value change per time</Description>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=2368</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6273</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6194</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=5007</Reference>
+    </References>
+    <Value>
+      <uax:Double xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd">0</uax:Double>
+    </Value>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6273" BrowseName="EngineeringUnits" ParentNodeId="ns=1;i=6193" DataType="EUInformation">
+    <DisplayName>EngineeringUnits</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6193</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6194" BrowseName="EURange" ParentNodeId="ns=1;i=6193" DataType="Range">
+    <DisplayName>EURange</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6193</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6195" BrowseName="3:SetRampUp" ParentNodeId="ns=1;i=5007" DataType="Double" AccessLevel="3">
+    <DisplayName>SetRampUp</DisplayName>
+    <Description>Indication if a SetValue that is higher than the actual value shall be reached as fast as possible (SetRampUp = 0) or within a given value change per time</Description>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=2368</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6278</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6196</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=5007</Reference>
+    </References>
+    <Value>
+      <uax:Double xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd">0</uax:Double>
+    </Value>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6278" BrowseName="EngineeringUnits" ParentNodeId="ns=1;i=6195" DataType="EUInformation">
+    <DisplayName>EngineeringUnits</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6195</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6196" BrowseName="EURange" ParentNodeId="ns=1;i=6195" DataType="Range">
+    <DisplayName>EURange</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6195</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6197" BrowseName="3:SetValue" ParentNodeId="ns=1;i=5007" DataType="Double" AccessLevel="3">
+    <DisplayName>SetValue</DisplayName>
+    <Description>Set/nominal/target value of the monitored parameter</Description>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=2368</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6279</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6198</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=5007</Reference>
+    </References>
+    <Value>
+      <uax:Double xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd">0</uax:Double>
+    </Value>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6279" BrowseName="EngineeringUnits" ParentNodeId="ns=1;i=6197" DataType="EUInformation">
+    <DisplayName>EngineeringUnits</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6197</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6198" BrowseName="EURange" ParentNodeId="ns=1;i=6197" DataType="Range">
+    <DisplayName>EURange</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6197</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAObject NodeId="ns=1;i=5016" BrowseName="3:StartDevice" ParentNodeId="ns=1;i=5007">
+    <DisplayName>StartDevice</DisplayName>
+    <References>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6283</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=5007</Reference>
+      <Reference ReferenceType="HasTypeDefinition">ns=3;i=1023</Reference>
+      <Reference ReferenceType="HasComponent">ns=1;i=7009</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6199</Reference>
+      <Reference ReferenceType="HasComponent">ns=1;i=7011</Reference>
+    </References>
+  </UAObject>
+  <UAVariable NodeId="ns=1;i=6283" BrowseName="3:StartBlockedByClient" ParentNodeId="ns=1;i=5016" DataType="Boolean" AccessLevel="3">
+    <DisplayName>StartBlockedByClient</DisplayName>
+    <References>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=5016</Reference>
+    </References>
+  </UAVariable>
+  <UAMethod NodeId="ns=1;i=7009" BrowseName="3:StartRequest" ParentNodeId="ns=1;i=5016" MethodDeclarationId="ns=3;i=7051">
+    <DisplayName>StartRequest</DisplayName>
+    <References>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=5016</Reference>
+    </References>
+  </UAMethod>
+  <UAVariable NodeId="ns=1;i=6199" BrowseName="3:Status" ParentNodeId="ns=1;i=5016" DataType="StartEnumeration">
+    <DisplayName>Status</DisplayName>
+    <References>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=5016</Reference>
+    </References>
+    <Value>
+      <uax:Int32 xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd">0</uax:Int32>
+    </Value>
+  </UAVariable>
+  <UAMethod NodeId="ns=1;i=7011" BrowseName="3:StopRequest" ParentNodeId="ns=1;i=5016" MethodDeclarationId="ns=3;i=7056">
+    <DisplayName>StopRequest</DisplayName>
+    <References>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=5016</Reference>
+    </References>
+  </UAMethod>
+  <UAVariable NodeId="ns=1;i=6200" BrowseName="3:UpperTolerance" ParentNodeId="ns=1;i=5007" DataType="Double" AccessLevel="3">
+    <DisplayName>UpperTolerance</DisplayName>
+    <Description>Upper relative tolerance value of the process parameter</Description>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=2368</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6280</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6201</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=5007</Reference>
+    </References>
+    <Value>
+      <uax:Double xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd">0</uax:Double>
+    </Value>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6280" BrowseName="EngineeringUnits" ParentNodeId="ns=1;i=6200" DataType="EUInformation">
+    <DisplayName>EngineeringUnits</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6200</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6201" BrowseName="EURange" ParentNodeId="ns=1;i=6200" DataType="Range">
+    <DisplayName>EURange</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6200</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6202" BrowseName="3:UpperTolerance2" ParentNodeId="ns=1;i=5007" DataType="Double" AccessLevel="3">
+    <DisplayName>UpperTolerance2</DisplayName>
+    <Description>Second upper relative tolerance value of the process parameter</Description>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=2368</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6281</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6203</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=5007</Reference>
+    </References>
+    <Value>
+      <uax:Double xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd">0</uax:Double>
+    </Value>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6281" BrowseName="EngineeringUnits" ParentNodeId="ns=1;i=6202" DataType="EUInformation">
+    <DisplayName>EngineeringUnits</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6202</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6203" BrowseName="EURange" ParentNodeId="ns=1;i=6202" DataType="Range">
+    <DisplayName>EURange</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6202</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAObject NodeId="ns=1;i=5001" BrowseName="1:MeltPressureZones" ParentNodeId="ns=1;i=1002">
+    <DisplayName>MeltPressureZones</DisplayName>
+    <References>
+      <Reference ReferenceType="GeneratesEvent">i=2133</Reference>
+      <Reference ReferenceType="HasTypeDefinition">ns=3;i=1065</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=1002</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6001</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+    </References>
+  </UAObject>
+  <UAVariable NodeId="ns=1;i=6001" BrowseName="NodeVersion" ParentNodeId="ns=1;i=5001" DataType="String">
+    <DisplayName>NodeVersion</DisplayName>
+    <References>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=5001</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+    <Value>
+      <uax:String xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd"></uax:String>
+    </Value>
+  </UAVariable>
+  <UAObject NodeId="ns=1;i=5011" BrowseName="1:MeltTemperatureZones" ParentNodeId="ns=1;i=1002">
+    <DisplayName>MeltTemperatureZones</DisplayName>
+    <References>
+      <Reference ReferenceType="GeneratesEvent">i=2133</Reference>
+      <Reference ReferenceType="HasTypeDefinition">ns=3;i=1065</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=1002</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6149</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+    </References>
+  </UAObject>
+  <UAVariable NodeId="ns=1;i=6149" BrowseName="NodeVersion" ParentNodeId="ns=1;i=5011" DataType="String">
+    <DisplayName>NodeVersion</DisplayName>
+    <References>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=5011</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+    <Value>
+      <uax:String xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd"></uax:String>
+    </Value>
+  </UAVariable>
+  <UAObject NodeId="ns=1;i=5006" BrowseName="1:SpecificWasteOutput" ParentNodeId="ns=1;i=1002">
+    <DisplayName>SpecificWasteOutput</DisplayName>
+    <References>
+      <Reference ReferenceType="HasComponent">ns=1;i=6016</Reference>
+      <Reference ReferenceType="HasComponent">ns=1;i=6046</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6049</Reference>
+      <Reference ReferenceType="HasComponent">ns=1;i=6050</Reference>
+      <Reference ReferenceType="HasComponent">ns=1;i=6052</Reference>
+      <Reference ReferenceType="HasComponent">ns=1;i=6054</Reference>
+      <Reference ReferenceType="HasComponent">ns=1;i=6056</Reference>
+      <Reference ReferenceType="HasTypeDefinition">ns=3;i=1056</Reference>
+      <Reference ReferenceType="HasComponent">ns=1;i=6058</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasComponent">ns=1;i=7004</Reference>
+      <Reference ReferenceType="HasComponent">ns=1;i=6061</Reference>
+      <Reference ReferenceType="HasComponent">ns=1;i=6063</Reference>
+      <Reference ReferenceType="HasComponent">ns=1;i=6065</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=1002</Reference>
+      <Reference ReferenceType="HasComponent">ns=1;i=6067</Reference>
+      <Reference ReferenceType="HasComponent">ns=1;i=6069</Reference>
+    </References>
+  </UAObject>
+  <UAVariable NodeId="ns=1;i=6016" BrowseName="3:ActualValue" ParentNodeId="ns=1;i=5006" DataType="Double" AccessLevel="5">
+    <DisplayName>ActualValue</DisplayName>
+    <References>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=5006</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=2368</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6045</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6018</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+    </References>
+    <Value>
+      <uax:Double xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd">0</uax:Double>
+    </Value>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6045" BrowseName="EngineeringUnits" ParentNodeId="ns=1;i=6016" DataType="EUInformation">
+    <DisplayName>EngineeringUnits</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6016</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6018" BrowseName="EURange" ParentNodeId="ns=1;i=6016" DataType="Range">
+    <DisplayName>EURange</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6016</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6046" BrowseName="3:AlarmSuppression" ParentNodeId="ns=1;i=5006" DataType="UInt16" AccessLevel="3">
+    <DisplayName>AlarmSuppression</DisplayName>
+    <References>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=5006</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6047</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=11238</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6048</Reference>
+    </References>
+    <Value>
+      <uax:UInt16 xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd">0</uax:UInt16>
+    </Value>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6047" BrowseName="EnumValues" ParentNodeId="ns=1;i=6046" DataType="EnumValueType" ValueRank="1">
+    <DisplayName>EnumValues</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6046</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6048" BrowseName="ValueAsText" ParentNodeId="ns=1;i=6046" DataType="LocalizedText">
+    <DisplayName>ValueAsText</DisplayName>
+    <References>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6046</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6049" BrowseName="3:AutomaticMonitoring" ParentNodeId="ns=1;i=5006" DataType="Boolean" AccessLevel="3">
+    <DisplayName>AutomaticMonitoring</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=5006</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+    <Value>
+      <uax:Boolean xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd">false</uax:Boolean>
+    </Value>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6050" BrowseName="3:LowerTolerance" ParentNodeId="ns=1;i=5006" DataType="Double" AccessLevel="3">
+    <DisplayName>LowerTolerance</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=2368</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6222</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6051</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=5006</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+    </References>
+    <Value>
+      <uax:Double xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd">0</uax:Double>
+    </Value>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6222" BrowseName="EngineeringUnits" ParentNodeId="ns=1;i=6050" DataType="EUInformation">
+    <DisplayName>EngineeringUnits</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6050</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6051" BrowseName="EURange" ParentNodeId="ns=1;i=6050" DataType="Range">
+    <DisplayName>EURange</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6050</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6052" BrowseName="3:LowerTolerance2" ParentNodeId="ns=1;i=5006" DataType="Double" AccessLevel="3">
+    <DisplayName>LowerTolerance2</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=2368</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6223</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6053</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=5006</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+    </References>
+    <Value>
+      <uax:Double xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd">0</uax:Double>
+    </Value>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6223" BrowseName="EngineeringUnits" ParentNodeId="ns=1;i=6052" DataType="EUInformation">
+    <DisplayName>EngineeringUnits</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6052</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6053" BrowseName="EURange" ParentNodeId="ns=1;i=6052" DataType="Range">
+    <DisplayName>EURange</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6052</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6054" BrowseName="3:MaxValue" ParentNodeId="ns=1;i=5006" DataType="Double" AccessLevel="3">
+    <DisplayName>MaxValue</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=2368</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6224</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6055</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=5006</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+    </References>
+    <Value>
+      <uax:Double xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd">0</uax:Double>
+    </Value>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6224" BrowseName="EngineeringUnits" ParentNodeId="ns=1;i=6054" DataType="EUInformation">
+    <DisplayName>EngineeringUnits</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6054</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6055" BrowseName="EURange" ParentNodeId="ns=1;i=6054" DataType="Range">
+    <DisplayName>EURange</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6054</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6056" BrowseName="3:MinValue" ParentNodeId="ns=1;i=5006" DataType="Double" AccessLevel="3">
+    <DisplayName>MinValue</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=2368</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6225</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6057</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=5006</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+    </References>
+    <Value>
+      <uax:Double xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd">0</uax:Double>
+    </Value>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6225" BrowseName="EngineeringUnits" ParentNodeId="ns=1;i=6056" DataType="EUInformation">
+    <DisplayName>EngineeringUnits</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6056</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6057" BrowseName="EURange" ParentNodeId="ns=1;i=6056" DataType="Range">
+    <DisplayName>EURange</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6056</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6058" BrowseName="3:MonitoringSensitivity" ParentNodeId="ns=1;i=5006" DataType="UInt16">
+    <DisplayName>MonitoringSensitivity</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty">ns=1;i=6059</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=5006</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=11238</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6060</Reference>
+    </References>
+    <Value>
+      <uax:UInt16 xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd">0</uax:UInt16>
+    </Value>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6059" BrowseName="EnumValues" ParentNodeId="ns=1;i=6058" DataType="EnumValueType" ValueRank="1">
+    <DisplayName>EnumValues</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6058</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6060" BrowseName="ValueAsText" ParentNodeId="ns=1;i=6058" DataType="LocalizedText">
+    <DisplayName>ValueAsText</DisplayName>
+    <References>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6058</Reference>
+    </References>
+  </UAVariable>
+  <UAMethod NodeId="ns=1;i=7004" BrowseName="3:ResetMonitoring" ParentNodeId="ns=1;i=5006" MethodDeclarationId="ns=3;i=7053">
+    <DisplayName>ResetMonitoring</DisplayName>
+    <References>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=5006</Reference>
+    </References>
+  </UAMethod>
+  <UAVariable NodeId="ns=1;i=6061" BrowseName="3:SetRampDown" ParentNodeId="ns=1;i=5006" DataType="Double">
+    <DisplayName>SetRampDown</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=2368</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6226</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6062</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=5006</Reference>
+    </References>
+    <Value>
+      <uax:Double xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd">0</uax:Double>
+    </Value>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6226" BrowseName="EngineeringUnits" ParentNodeId="ns=1;i=6061" DataType="EUInformation">
+    <DisplayName>EngineeringUnits</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6061</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6062" BrowseName="EURange" ParentNodeId="ns=1;i=6061" DataType="Range">
+    <DisplayName>EURange</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6061</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6063" BrowseName="3:SetRampUp" ParentNodeId="ns=1;i=5006" DataType="Double">
+    <DisplayName>SetRampUp</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=2368</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6227</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6064</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=5006</Reference>
+    </References>
+    <Value>
+      <uax:Double xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd">0</uax:Double>
+    </Value>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6227" BrowseName="EngineeringUnits" ParentNodeId="ns=1;i=6063" DataType="EUInformation">
+    <DisplayName>EngineeringUnits</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6063</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6064" BrowseName="EURange" ParentNodeId="ns=1;i=6063" DataType="Range">
+    <DisplayName>EURange</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6063</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6065" BrowseName="3:SetValue" ParentNodeId="ns=1;i=5006" DataType="Double" AccessLevel="3">
+    <DisplayName>SetValue</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=2368</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6228</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6066</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=5006</Reference>
+    </References>
+    <Value>
+      <uax:Double xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd">0</uax:Double>
+    </Value>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6228" BrowseName="EngineeringUnits" ParentNodeId="ns=1;i=6065" DataType="EUInformation">
+    <DisplayName>EngineeringUnits</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6065</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6066" BrowseName="EURange" ParentNodeId="ns=1;i=6065" DataType="Range">
+    <DisplayName>EURange</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6065</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6067" BrowseName="3:UpperTolerance" ParentNodeId="ns=1;i=5006" DataType="Double" AccessLevel="3">
+    <DisplayName>UpperTolerance</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=2368</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6229</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6068</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=5006</Reference>
+    </References>
+    <Value>
+      <uax:Double xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd">0</uax:Double>
+    </Value>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6229" BrowseName="EngineeringUnits" ParentNodeId="ns=1;i=6067" DataType="EUInformation">
+    <DisplayName>EngineeringUnits</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6067</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6068" BrowseName="EURange" ParentNodeId="ns=1;i=6067" DataType="Range">
+    <DisplayName>EURange</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6067</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6069" BrowseName="3:UpperTolerance2" ParentNodeId="ns=1;i=5006" DataType="Double" AccessLevel="3">
+    <DisplayName>UpperTolerance2</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=2368</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6230</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6070</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=5006</Reference>
+    </References>
+    <Value>
+      <uax:Double xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd">0</uax:Double>
+    </Value>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6230" BrowseName="EngineeringUnits" ParentNodeId="ns=1;i=6069" DataType="EUInformation">
+    <DisplayName>EngineeringUnits</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6069</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6070" BrowseName="EURange" ParentNodeId="ns=1;i=6069" DataType="Range">
+    <DisplayName>EURange</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6069</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAObject NodeId="ns=1;i=5005" BrowseName="1:TemperatureZones" ParentNodeId="ns=1;i=1002">
+    <DisplayName>TemperatureZones</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">ns=2;i=1017</Reference>
+      <Reference ReferenceType="GeneratesEvent">i=2133</Reference>
+      <Reference ReferenceType="HasComponent">ns=1;i=5009</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6014</Reference>
+      <Reference ReferenceType="HasComponent">ns=1;i=5010</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=1002</Reference>
+    </References>
+  </UAObject>
+  <UAObject NodeId="ns=1;i=5009" BrowseName="2:Maintenance" ParentNodeId="ns=1;i=5005">
+    <DisplayName>Maintenance</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty">ns=1;i=6132</Reference>
+      <Reference ReferenceType="HasComponent">ns=1;i=6133</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=5005</Reference>
+      <Reference ReferenceType="HasTypeDefinition">ns=3;i=1053</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasComponent">ns=1;i=6135</Reference>
+      <Reference ReferenceType="HasComponent">ns=1;i=7001</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6015</Reference>
+      <Reference ReferenceType="HasComponent">ns=1;i=6137</Reference>
+    </References>
+  </UAObject>
+  <UAVariable NodeId="ns=1;i=6132" BrowseName="3:AdditionalInformation" ParentNodeId="ns=1;i=5009" DataType="String">
+    <DisplayName>AdditionalInformation</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=5009</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6133" BrowseName="3:Interval" ParentNodeId="ns=1;i=5009" DataType="Double">
+    <DisplayName>Interval</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=2368</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6241</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6134</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=5009</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+    </References>
+    <Value>
+      <uax:Double xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd">0</uax:Double>
+    </Value>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6241" BrowseName="EngineeringUnits" ParentNodeId="ns=1;i=6133" DataType="EUInformation">
+    <DisplayName>EngineeringUnits</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6133</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6134" BrowseName="EURange" ParentNodeId="ns=1;i=6133" DataType="Range">
+    <DisplayName>EURange</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6133</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6135" BrowseName="3:RemainingInterval" ParentNodeId="ns=1;i=5009" DataType="Double">
+    <DisplayName>RemainingInterval</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=2368</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6242</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6136</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=5009</Reference>
+    </References>
+    <Value>
+      <uax:Double xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd">0</uax:Double>
+    </Value>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6242" BrowseName="EngineeringUnits" ParentNodeId="ns=1;i=6135" DataType="EUInformation">
+    <DisplayName>EngineeringUnits</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6135</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6136" BrowseName="EURange" ParentNodeId="ns=1;i=6135" DataType="Range">
+    <DisplayName>EURange</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6135</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAMethod NodeId="ns=1;i=7001" BrowseName="3:Reset" ParentNodeId="ns=1;i=5009" MethodDeclarationId="ns=3;i=7046">
+    <DisplayName>Reset</DisplayName>
+    <References>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=5009</Reference>
+    </References>
+  </UAMethod>
+  <UAVariable NodeId="ns=1;i=6015" BrowseName="3:Status" ParentNodeId="ns=1;i=5009" DataType="MaintenanceStatusEnumeration">
+    <DisplayName>Status</DisplayName>
+    <References>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=5009</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6137" BrowseName="3:TotalOperation" ParentNodeId="ns=1;i=5009" DataType="Double">
+    <DisplayName>TotalOperation</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=2368</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6284</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6138</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=5009</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6284" BrowseName="EngineeringUnits" ParentNodeId="ns=1;i=6137" DataType="EUInformation">
+    <DisplayName>EngineeringUnits</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6137</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6138" BrowseName="EURange" ParentNodeId="ns=1;i=6137" DataType="Range">
+    <DisplayName>EURange</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6137</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6014" BrowseName="NodeVersion" ParentNodeId="ns=1;i=5005" DataType="String">
+    <DisplayName>NodeVersion</DisplayName>
+    <References>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=5005</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+    <Value>
+      <uax:String xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd">0</uax:String>
+    </Value>
+  </UAVariable>
+  <UAObject NodeId="ns=1;i=5010" BrowseName="2:StartTempering" ParentNodeId="ns=1;i=5005">
+    <DisplayName>StartTempering</DisplayName>
+    <References>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6240</Reference>
+      <Reference ReferenceType="HasTypeDefinition">ns=3;i=1023</Reference>
+      <Reference ReferenceType="HasComponent">ns=1;i=7015</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=5005</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6017</Reference>
+      <Reference ReferenceType="HasComponent">ns=1;i=7016</Reference>
+    </References>
+  </UAObject>
+  <UAVariable NodeId="ns=1;i=6240" BrowseName="3:StartBlockedByClient" ParentNodeId="ns=1;i=5010" DataType="Boolean" AccessLevel="3">
+    <DisplayName>StartBlockedByClient</DisplayName>
+    <References>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=5010</Reference>
+    </References>
+  </UAVariable>
+  <UAMethod NodeId="ns=1;i=7015" BrowseName="3:StartRequest" ParentNodeId="ns=1;i=5010" MethodDeclarationId="ns=3;i=7051">
+    <DisplayName>StartRequest</DisplayName>
+    <References>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=5010</Reference>
+    </References>
+  </UAMethod>
+  <UAVariable NodeId="ns=1;i=6017" BrowseName="3:Status" ParentNodeId="ns=1;i=5010" DataType="StartEnumeration">
+    <DisplayName>Status</DisplayName>
+    <References>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=5010</Reference>
+    </References>
+  </UAVariable>
+  <UAMethod NodeId="ns=1;i=7016" BrowseName="3:StopRequest" ParentNodeId="ns=1;i=5010" MethodDeclarationId="ns=3;i=7056">
+    <DisplayName>StopRequest</DisplayName>
+    <References>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=5010</Reference>
+    </References>
+  </UAMethod>
+  <UAObject NodeId="ns=1;i=5003" BrowseName="1:WasteOutput" ParentNodeId="ns=1;i=1002">
+    <DisplayName>WasteOutput</DisplayName>
+    <References>
+      <Reference ReferenceType="HasComponent">ns=1;i=6007</Reference>
+      <Reference ReferenceType="HasComponent">ns=1;i=6020</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6023</Reference>
+      <Reference ReferenceType="HasComponent">ns=1;i=6024</Reference>
+      <Reference ReferenceType="HasComponent">ns=1;i=6026</Reference>
+      <Reference ReferenceType="HasComponent">ns=1;i=6028</Reference>
+      <Reference ReferenceType="HasComponent">ns=1;i=6030</Reference>
+      <Reference ReferenceType="HasTypeDefinition">ns=3;i=1056</Reference>
+      <Reference ReferenceType="HasComponent">ns=1;i=6032</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasComponent">ns=1;i=7003</Reference>
+      <Reference ReferenceType="HasComponent">ns=1;i=6035</Reference>
+      <Reference ReferenceType="HasComponent">ns=1;i=6037</Reference>
+      <Reference ReferenceType="HasComponent">ns=1;i=6039</Reference>
+      <Reference ReferenceType="HasComponent">ns=1;i=6041</Reference>
+      <Reference ReferenceType="HasComponent">ns=1;i=6043</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=1002</Reference>
+    </References>
+  </UAObject>
+  <UAVariable NodeId="ns=1;i=6007" BrowseName="3:ActualValue" ParentNodeId="ns=1;i=5003" DataType="Double" AccessLevel="5">
+    <DisplayName>ActualValue</DisplayName>
+    <References>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=5003</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=2368</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6019</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6008</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+    </References>
+    <Value>
+      <uax:Double xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd">0</uax:Double>
+    </Value>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6019" BrowseName="EngineeringUnits" ParentNodeId="ns=1;i=6007" DataType="EUInformation">
+    <DisplayName>EngineeringUnits</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6007</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6008" BrowseName="EURange" ParentNodeId="ns=1;i=6007" DataType="Range">
+    <DisplayName>EURange</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6007</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6020" BrowseName="3:AlarmSuppression" ParentNodeId="ns=1;i=5003" DataType="UInt16" AccessLevel="3">
+    <DisplayName>AlarmSuppression</DisplayName>
+    <References>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=5003</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6021</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=11238</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6022</Reference>
+    </References>
+    <Value>
+      <uax:UInt16 xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd">0</uax:UInt16>
+    </Value>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6021" BrowseName="EnumValues" ParentNodeId="ns=1;i=6020" DataType="EnumValueType" ValueRank="1">
+    <DisplayName>EnumValues</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6020</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6022" BrowseName="ValueAsText" ParentNodeId="ns=1;i=6020" DataType="LocalizedText">
+    <DisplayName>ValueAsText</DisplayName>
+    <References>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6020</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6023" BrowseName="3:AutomaticMonitoring" ParentNodeId="ns=1;i=5003" DataType="Boolean" AccessLevel="3">
+    <DisplayName>AutomaticMonitoring</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=5003</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+    <Value>
+      <uax:Boolean xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd">false</uax:Boolean>
+    </Value>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6024" BrowseName="3:LowerTolerance" ParentNodeId="ns=1;i=5003" DataType="Double" AccessLevel="3">
+    <DisplayName>LowerTolerance</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=2368</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6243</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6025</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=5003</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+    </References>
+    <Value>
+      <uax:Double xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd">0</uax:Double>
+    </Value>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6243" BrowseName="EngineeringUnits" ParentNodeId="ns=1;i=6024" DataType="EUInformation">
+    <DisplayName>EngineeringUnits</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6024</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6025" BrowseName="EURange" ParentNodeId="ns=1;i=6024" DataType="Range">
+    <DisplayName>EURange</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6024</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6026" BrowseName="3:LowerTolerance2" ParentNodeId="ns=1;i=5003" DataType="Double" AccessLevel="3">
+    <DisplayName>LowerTolerance2</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=2368</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6244</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6027</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=5003</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+    </References>
+    <Value>
+      <uax:Double xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd">0</uax:Double>
+    </Value>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6244" BrowseName="EngineeringUnits" ParentNodeId="ns=1;i=6026" DataType="EUInformation">
+    <DisplayName>EngineeringUnits</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6026</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6027" BrowseName="EURange" ParentNodeId="ns=1;i=6026" DataType="Range">
+    <DisplayName>EURange</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6026</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6028" BrowseName="3:MaxValue" ParentNodeId="ns=1;i=5003" DataType="Double" AccessLevel="3">
+    <DisplayName>MaxValue</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=2368</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6245</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6029</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=5003</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+    </References>
+    <Value>
+      <uax:Double xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd">0</uax:Double>
+    </Value>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6245" BrowseName="EngineeringUnits" ParentNodeId="ns=1;i=6028" DataType="EUInformation">
+    <DisplayName>EngineeringUnits</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6028</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6029" BrowseName="EURange" ParentNodeId="ns=1;i=6028" DataType="Range">
+    <DisplayName>EURange</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6028</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6030" BrowseName="3:MinValue" ParentNodeId="ns=1;i=5003" DataType="Double" AccessLevel="3">
+    <DisplayName>MinValue</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=2368</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6246</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6031</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=5003</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+    </References>
+    <Value>
+      <uax:Double xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd">0</uax:Double>
+    </Value>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6246" BrowseName="EngineeringUnits" ParentNodeId="ns=1;i=6030" DataType="EUInformation">
+    <DisplayName>EngineeringUnits</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6030</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6031" BrowseName="EURange" ParentNodeId="ns=1;i=6030" DataType="Range">
+    <DisplayName>EURange</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6030</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6032" BrowseName="3:MonitoringSensitivity" ParentNodeId="ns=1;i=5003" DataType="UInt16">
+    <DisplayName>MonitoringSensitivity</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty">ns=1;i=6033</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=5003</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=11238</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6034</Reference>
+    </References>
+    <Value>
+      <uax:UInt16 xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd">0</uax:UInt16>
+    </Value>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6033" BrowseName="EnumValues" ParentNodeId="ns=1;i=6032" DataType="EnumValueType" ValueRank="1">
+    <DisplayName>EnumValues</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6032</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6034" BrowseName="ValueAsText" ParentNodeId="ns=1;i=6032" DataType="LocalizedText">
+    <DisplayName>ValueAsText</DisplayName>
+    <References>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6032</Reference>
+    </References>
+  </UAVariable>
+  <UAMethod NodeId="ns=1;i=7003" BrowseName="3:ResetMonitoring" ParentNodeId="ns=1;i=5003" MethodDeclarationId="ns=3;i=7053">
+    <DisplayName>ResetMonitoring</DisplayName>
+    <References>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=5003</Reference>
+    </References>
+  </UAMethod>
+  <UAVariable NodeId="ns=1;i=6035" BrowseName="3:SetRampDown" ParentNodeId="ns=1;i=5003" DataType="Double">
+    <DisplayName>SetRampDown</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=2368</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6247</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6036</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=5003</Reference>
+    </References>
+    <Value>
+      <uax:Double xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd">0</uax:Double>
+    </Value>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6247" BrowseName="EngineeringUnits" ParentNodeId="ns=1;i=6035" DataType="EUInformation">
+    <DisplayName>EngineeringUnits</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6035</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6036" BrowseName="EURange" ParentNodeId="ns=1;i=6035" DataType="Range">
+    <DisplayName>EURange</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6035</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6037" BrowseName="3:SetRampUp" ParentNodeId="ns=1;i=5003" DataType="Double">
+    <DisplayName>SetRampUp</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=2368</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6248</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6038</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=5003</Reference>
+    </References>
+    <Value>
+      <uax:Double xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd">0</uax:Double>
+    </Value>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6248" BrowseName="EngineeringUnits" ParentNodeId="ns=1;i=6037" DataType="EUInformation">
+    <DisplayName>EngineeringUnits</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6037</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6038" BrowseName="EURange" ParentNodeId="ns=1;i=6037" DataType="Range">
+    <DisplayName>EURange</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6037</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6039" BrowseName="3:SetValue" ParentNodeId="ns=1;i=5003" DataType="Double" AccessLevel="3">
+    <DisplayName>SetValue</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=2368</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6249</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6040</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=5003</Reference>
+    </References>
+    <Value>
+      <uax:Double xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd">0</uax:Double>
+    </Value>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6249" BrowseName="EngineeringUnits" ParentNodeId="ns=1;i=6039" DataType="EUInformation">
+    <DisplayName>EngineeringUnits</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6039</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6040" BrowseName="EURange" ParentNodeId="ns=1;i=6039" DataType="Range">
+    <DisplayName>EURange</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6039</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6041" BrowseName="3:UpperTolerance" ParentNodeId="ns=1;i=5003" DataType="Double" AccessLevel="3">
+    <DisplayName>UpperTolerance</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=2368</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6250</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6042</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=5003</Reference>
+    </References>
+    <Value>
+      <uax:Double xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd">0</uax:Double>
+    </Value>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6250" BrowseName="EngineeringUnits" ParentNodeId="ns=1;i=6041" DataType="EUInformation">
+    <DisplayName>EngineeringUnits</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6041</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6042" BrowseName="EURange" ParentNodeId="ns=1;i=6041" DataType="Range">
+    <DisplayName>EURange</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6041</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6043" BrowseName="3:UpperTolerance2" ParentNodeId="ns=1;i=5003" DataType="Double" AccessLevel="3">
+    <DisplayName>UpperTolerance2</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=2368</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6251</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6044</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=5003</Reference>
+    </References>
+    <Value>
+      <uax:Double xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd">0</uax:Double>
+    </Value>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6251" BrowseName="EngineeringUnits" ParentNodeId="ns=1;i=6043" DataType="EUInformation">
+    <DisplayName>EngineeringUnits</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6043</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6044" BrowseName="EURange" ParentNodeId="ns=1;i=6043" DataType="Range">
+    <DisplayName>EURange</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6043</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAObjectType NodeId="ns=1;i=1004" BrowseName="1:FilterPackageType">
+    <DisplayName>FilterPackageType</DisplayName>
+    <Category>OPC 40084-6 Basic</Category>
+    <Documentation>https://reference.opcfoundation.org/v105/PlasticsRubber/Extrusion/Filter/v200/docs/8.1.1</Documentation>
+    <References>
+      <Reference ReferenceType="HasComponent">ns=1;i=6166</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6169</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6168</Reference>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=58</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6276</Reference>
+      <Reference ReferenceType="HasComponent">ns=1;i=5013</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6165</Reference>
+    </References>
+  </UAObjectType>
+  <UAVariable NodeId="ns=1;i=6166" BrowseName="1:Area" ParentNodeId="ns=1;i=1004" DataType="Double">
+    <DisplayName>Area</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=17497</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=1004</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6013</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6013" BrowseName="EngineeringUnits" ParentNodeId="ns=1;i=6166" DataType="EUInformation">
+    <DisplayName>EngineeringUnits</DisplayName>
+    <References>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6166</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6169" BrowseName="1:BackflushCounter" ParentNodeId="ns=1;i=1004" DataType="UInt32">
+    <DisplayName>BackflushCounter</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=1004</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6168" BrowseName="1:BackflushTime" ParentNodeId="ns=1;i=1004" DataType="Duration" AccessLevel="3">
+    <DisplayName>BackflushTime</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=1004</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6276" BrowseName="1:Name" ParentNodeId="ns=1;i=1004" DataType="LocalizedText">
+    <DisplayName>Name</DisplayName>
+    <References>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=1004</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAObject NodeId="ns=1;i=5013" BrowseName="1:ScreenPackage_&lt;Nr&gt;" SymbolicName="ScreenPackage__Nr_" ParentNodeId="ns=1;i=1004">
+    <DisplayName>ScreenPackage_&lt;Nr&gt;</DisplayName>
+    <References>
+      <Reference ReferenceType="HasComponent">ns=1;i=6157</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6152</Reference>
+      <Reference ReferenceType="HasModellingRule">i=11508</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6175</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=1004</Reference>
+      <Reference ReferenceType="HasTypeDefinition">ns=1;i=1003</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6176</Reference>
+    </References>
+  </UAObject>
+  <UAVariable NodeId="ns=1;i=6157" BrowseName="1:Area" ParentNodeId="ns=1;i=5013" DataType="Double">
+    <DisplayName>Area</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=17497</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=5013</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6167</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6167" BrowseName="EngineeringUnits" ParentNodeId="ns=1;i=6157" DataType="EUInformation">
+    <DisplayName>EngineeringUnits</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6157</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6152" BrowseName="1:Name" ParentNodeId="ns=1;i=5013" DataType="LocalizedText">
+    <DisplayName>Name</DisplayName>
+    <References>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=5013</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6175" BrowseName="1:PackageSetup" ParentNodeId="ns=1;i=5013" DataType="String">
+    <DisplayName>PackageSetup</DisplayName>
+    <References>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=5013</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+    <Value>
+      <uax:String xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd"></uax:String>
+    </Value>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6176" BrowseName="1:SerialNr" ParentNodeId="ns=1;i=5013" DataType="String">
+    <DisplayName>SerialNr</DisplayName>
+    <References>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=5013</Reference>
+    </References>
+    <Value>
+      <uax:String xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd"></uax:String>
+    </Value>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6165" BrowseName="1:Status" ParentNodeId="ns=1;i=1004" DataType="FilterPackageStatusEnumeration">
+    <DisplayName>Status</DisplayName>
+    <References>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=1004</Reference>
+    </References>
+  </UAVariable>
+  <UAObjectType NodeId="ns=1;i=1003" BrowseName="1:ScreenPackageType">
+    <DisplayName>ScreenPackageType</DisplayName>
+    <Category>OPC 40084-6 Basic</Category>
+    <Documentation>https://reference.opcfoundation.org/v105/PlasticsRubber/Extrusion/Filter/v200/docs/8.2.1</Documentation>
+    <References>
+      <Reference ReferenceType="HasComponent">ns=1;i=6155</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6151</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6153</Reference>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=58</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6154</Reference>
+    </References>
+  </UAObjectType>
+  <UAVariable NodeId="ns=1;i=6155" BrowseName="1:Area" ParentNodeId="ns=1;i=1003" DataType="Double">
+    <DisplayName>Area</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=17497</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=1003</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6156</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6156" BrowseName="EngineeringUnits" ParentNodeId="ns=1;i=6155" DataType="EUInformation">
+    <DisplayName>EngineeringUnits</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=6155</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6151" BrowseName="1:Name" ParentNodeId="ns=1;i=1003" DataType="LocalizedText">
+    <DisplayName>Name</DisplayName>
+    <References>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=1003</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6153" BrowseName="1:PackageSetup" ParentNodeId="ns=1;i=1003" DataType="String">
+    <DisplayName>PackageSetup</DisplayName>
+    <References>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=1003</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+    <Value>
+      <uax:String xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd"></uax:String>
+    </Value>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6154" BrowseName="1:SerialNr" ParentNodeId="ns=1;i=1003" DataType="String">
+    <DisplayName>SerialNr</DisplayName>
+    <References>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=1003</Reference>
+    </References>
+    <Value>
+      <uax:String xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd"></uax:String>
+    </Value>
+  </UAVariable>
+  <UAObject NodeId="ns=1;i=5023" BrowseName="1:http://opcfoundation.org/UA/PlasticsRubber/Extrusion_v2/Filter/" SymbolicName="http___opcfoundation_org_UA_PlasticsRubber_Extrusion_v2_Filter_">
+    <DisplayName>http://opcfoundation.org/UA/PlasticsRubber/Extrusion_v2/Filter/</DisplayName>
+    <Documentation>https://reference.opcfoundation.org/v105/PlasticsRubber/Extrusion/Filter/v200/docs/10.1</Documentation>
+    <References>
+      <Reference ReferenceType="HasProperty">ns=1;i=6172</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=11616</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">i=11715</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6173</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6174</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6180</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6181</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6184</Reference>
+      <Reference ReferenceType="HasProperty">ns=1;i=6252</Reference>
+    </References>
+  </UAObject>
+  <UAVariable NodeId="ns=1;i=6172" BrowseName="IsNamespaceSubset" ParentNodeId="ns=1;i=5023" DataType="Boolean">
+    <DisplayName>IsNamespaceSubset</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=5023</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+    <Value>
+      <uax:Boolean xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd">false</uax:Boolean>
+    </Value>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6173" BrowseName="NamespacePublicationDate" ParentNodeId="ns=1;i=5023" DataType="DateTime">
+    <DisplayName>NamespacePublicationDate</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=5023</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+    <Value>
+      <uax:DateTime xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd">2022-05-01T00:00:00Z</uax:DateTime>
+    </Value>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6174" BrowseName="NamespaceUri" ParentNodeId="ns=1;i=5023" DataType="String">
+    <DisplayName>NamespaceUri</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=5023</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+    <Value>
+      <uax:String xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd">http://opcfoundation.org/UA/PlasticsRubber/Extrusion_v2/Filter/</uax:String>
+    </Value>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6180" BrowseName="NamespaceVersion" ParentNodeId="ns=1;i=5023" DataType="String">
+    <DisplayName>NamespaceVersion</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=5023</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+    <Value>
+      <uax:String xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd">2.00</uax:String>
+    </Value>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6181" BrowseName="StaticNodeIdTypes" ParentNodeId="ns=1;i=5023" DataType="IdType" ValueRank="1" ArrayDimensions="0">
+    <DisplayName>StaticNodeIdTypes</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=5023</Reference>
+    </References>
+    <Value>
+      <uax:ListOfInt32 xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd">
+                <uax:Int32>0</uax:Int32>
+            </uax:ListOfInt32>
+    </Value>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6184" BrowseName="StaticNumericNodeIdRange" ParentNodeId="ns=1;i=5023" DataType="NumericRange" ValueRank="1" ArrayDimensions="0">
+    <DisplayName>StaticNumericNodeIdRange</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=5023</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=6252" BrowseName="StaticStringNodeIdPattern" ParentNodeId="ns=1;i=5023" DataType="String">
+    <DisplayName>StaticStringNodeIdPattern</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=5023</Reference>
+    </References>
+  </UAVariable>
+</UANodeSet>

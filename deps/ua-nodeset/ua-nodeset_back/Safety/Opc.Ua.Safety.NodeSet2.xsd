@@ -1,0 +1,49 @@
+<xs:schema elementFormDefault="qualified" targetNamespace="http://opcfoundation.org/UA/Safety/Types.xsd" xmlns:tns="http://opcfoundation.org/UA/Safety/Types.xsd" xmlns:ua="http://opcfoundation.org/UA/2008/02/Types.xsd" xmlns:xs="http://www.w3.org/2001/XMLSchema">
+    <xs:import namespace="http://opcfoundation.org/UA/2008/02/Types.xsd"/>
+    <xs:complexType name="NonSafetyDataPlaceholderDataType">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="1" type="xs:boolean" name="Dummy"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:NonSafetyDataPlaceholderDataType" name="NonSafetyDataPlaceholderDataType"/>
+    <xs:complexType name="ListOfNonSafetyDataPlaceholderDataType">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="unbounded" type="tns:NonSafetyDataPlaceholderDataType" name="NonSafetyDataPlaceholderDataType" nillable="true"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:ListOfNonSafetyDataPlaceholderDataType" name="ListOfNonSafetyDataPlaceholderDataType" nillable="true"/>
+    <xs:complexType name="RequestSPDUDataType">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="1" type="xs:unsignedInt" name="InSafetyConsumerID"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="xs:unsignedInt" name="InMonitoringNumber"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="xs:unsignedByte" name="InFlags"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:RequestSPDUDataType" name="RequestSPDUDataType"/>
+    <xs:complexType name="ListOfRequestSPDUDataType">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="unbounded" type="tns:RequestSPDUDataType" name="RequestSPDUDataType" nillable="true"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:ListOfRequestSPDUDataType" name="ListOfRequestSPDUDataType" nillable="true"/>
+    <xs:complexType name="ResponseSPDUDataType">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="1" type="ua:Structure" name="OutSafetyData"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="xs:unsignedByte" name="OutFlags"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="xs:unsignedInt" name="OutSPDU_ID_1"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="xs:unsignedInt" name="OutSPDU_ID_2"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="xs:unsignedInt" name="OutSPDU_ID_3"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="xs:unsignedInt" name="OutSafetyConsumerID"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="xs:unsignedInt" name="OutMonitoringNumber"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="xs:unsignedInt" name="OutCRC"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="ua:Structure" name="OutNonSafetyData"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:ResponseSPDUDataType" name="ResponseSPDUDataType"/>
+    <xs:complexType name="ListOfResponseSPDUDataType">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="unbounded" type="tns:ResponseSPDUDataType" name="ResponseSPDUDataType" nillable="true"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:ListOfResponseSPDUDataType" name="ListOfResponseSPDUDataType" nillable="true"/>
+</xs:schema>

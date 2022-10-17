@@ -1,0 +1,19 @@
+<xs:schema elementFormDefault="qualified" targetNamespace="http://opcfoundation.org/UA/PlasticsRubber/Extrusion_v2/Filter/Types.xsd" xmlns:tns="http://opcfoundation.org/UA/PlasticsRubber/Extrusion_v2/Filter/Types.xsd" xmlns:ua="http://opcfoundation.org/UA/2008/02/Types.xsd" xmlns:xs="http://www.w3.org/2001/XMLSchema">
+    <xs:import namespace="http://opcfoundation.org/UA/2008/02/Types.xsd"/>
+    <xs:simpleType name="FilterPackageStatusEnumeration">
+        <xs:restriction base="xs:string">
+            <xs:enumeration value="NOT_ACTIVE_0"/>
+            <xs:enumeration value="ACTIVE_1"/>
+            <xs:enumeration value="CHANGE_REQUIRED_2"/>
+            <xs:enumeration value="IN_CHANGE_POSITION_3"/>
+            <xs:enumeration value="BACKFLUSH_ACTIVE_4"/>
+        </xs:restriction>
+    </xs:simpleType>
+    <xs:element type="tns:FilterPackageStatusEnumeration" name="FilterPackageStatusEnumeration"/>
+    <xs:complexType name="ListOfFilterPackageStatusEnumeration">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="unbounded" type="tns:FilterPackageStatusEnumeration" name="FilterPackageStatusEnumeration" nillable="true"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:ListOfFilterPackageStatusEnumeration" name="ListOfFilterPackageStatusEnumeration" nillable="true"/>
+</xs:schema>

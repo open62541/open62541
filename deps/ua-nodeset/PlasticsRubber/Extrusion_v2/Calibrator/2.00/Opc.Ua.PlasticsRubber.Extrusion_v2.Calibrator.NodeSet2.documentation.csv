@@ -1,0 +1,5 @@
+Id,Name,Link,ConformanceUnits
+1002,CalibrationZoneType,"https://reference.opcfoundation.org/v105/PlasticsRubber/Extrusion/Calibrator/v200/docs/6.5.3","OPC 40084-10 Basic;"
+1003,CalibrationZonesType,"https://reference.opcfoundation.org/v105/PlasticsRubber/Extrusion/Calibrator/v200/docs/6.5.1","OPC 40084-10 Basic;"
+1004,Calibrator_InterfaceType,"https://reference.opcfoundation.org/v105/PlasticsRubber/Extrusion/Calibrator/v200/docs/6.1","OPC 40084-10 Basic;"
+5064,http://opcfoundation.org/UA/PlasticsRubber/Extrusion_v2/Calibrator/,"https://reference.opcfoundation.org/v105/PlasticsRubber/Extrusion/Calibrator/v200/docs/8.1",""

@@ -1,0 +1,8 @@
+Id,Name,Link,ConformanceUnits
+1002,DozerType,"https://reference.opcfoundation.org/Mining/DevelopmentSupport/Dozer/v100/docs/6.1.2","Dozer Functional Variables;Dozer Methods;"
+3002,DozerJobMissionEnum,"https://reference.opcfoundation.org/Mining/DevelopmentSupport/Dozer/v100/docs/7.1",""
+5004,http://opcfoundation.org/UA/Mining/DevelopmentSupport/Dozer/,"https://reference.opcfoundation.org/Mining/DevelopmentSupport/Dozer/v100/docs/9.1",""
+7001,SetWorkJob,"https://reference.opcfoundation.org/Mining/DevelopmentSupport/Dozer/v100/docs/6.1.6",""
+7002,Clearway,"https://reference.opcfoundation.org/Mining/DevelopmentSupport/Dozer/v100/docs/6.1.3",""
+7003,RequestResumeOperation,"https://reference.opcfoundation.org/Mining/DevelopmentSupport/Dozer/v100/docs/6.1.4",""
+7004,RequestStopOperation,"https://reference.opcfoundation.org/Mining/DevelopmentSupport/Dozer/v100/docs/6.1.5",""

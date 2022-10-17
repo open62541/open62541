@@ -1,0 +1,7 @@
+Id,Name,Link,ConformanceUnits
+1002,FeedersType,"https://reference.opcfoundation.org/v105/PlasticsRubber/Extrusion/Extruder/v200/docs/7.6",""
+1003,HopperType,"https://reference.opcfoundation.org/v105/PlasticsRubber/Extrusion/Extruder/v200/docs/7.8.1",""
+1015,Extruder_InterfaceType,"https://reference.opcfoundation.org/v105/PlasticsRubber/Extrusion/Extruder/v200/docs/6.1","OPC 40084-3 Basic;"
+1063,FeederType,"https://reference.opcfoundation.org/v105/PlasticsRubber/Extrusion/Extruder/v200/docs/7.7.1",""
+3003,FeedingModeEnumeration,"https://reference.opcfoundation.org/v105/PlasticsRubber/Extrusion/Extruder/v200/docs/7.7.7",""
+5022,http://opcfoundation.org/UA/PlasticsRubber/Extrusion_v2/Extruder/,"https://reference.opcfoundation.org/v105/PlasticsRubber/Extrusion/Extruder/v200/docs/9.1",""
