@@ -226,7 +226,9 @@ UA_PubSubManager_freeIds(UA_Server *server) {
         }
         if(!is_active) {
             server->pubSubManager.reserveIdsSize--;
+            UA_String_clear(&reserveId1->transportProfileUri);
             LIST_REMOVE(reserveId1, listEntry);
+            UA_free(reserveId1);
         }
     }
 }
