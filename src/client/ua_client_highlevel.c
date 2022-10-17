@@ -373,7 +373,7 @@ __UA_Client_readAttribute(UA_Client *client, const UA_NodeId *nodeId,
         else
             retval = UA_STATUSCODE_BADUNEXPECTEDERROR;
     }
-    if(!UA_StatusCode_equal(retval,UA_STATUSCODE_GOOD)) {
+    if(!UA_StatusCode_isEqualTop(retval,UA_STATUSCODE_GOOD)) {
         UA_ReadResponse_clear(&response);
         return retval;
     }
@@ -421,7 +421,7 @@ processReadArrayDimensionsResult(UA_ReadResponse *response,
         return UA_STATUSCODE_BADUNEXPECTEDERROR;
 
     retval = response->results[0].status;
-    if(!UA_StatusCode_equal(retval,UA_STATUSCODE_GOOD))
+    if(!UA_StatusCode_isEqualTop(retval,UA_STATUSCODE_GOOD))
         return retval;
 
     UA_DataValue *res = &response->results[0];
@@ -522,7 +522,7 @@ cleanup:    UA_HistoryReadResponse_clear(&response);
             else
                 retval = UA_STATUSCODE_BADUNEXPECTEDERROR;
         }
-        if (!UA_StatusCode_equal(retval,UA_STATUSCODE_GOOD))
+        if (!UA_StatusCode_isEqualTop(retval,UA_STATUSCODE_GOOD))
             goto cleanup;
 
         UA_HistoryReadResult *res = response.results;
