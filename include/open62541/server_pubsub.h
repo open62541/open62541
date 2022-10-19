@@ -917,7 +917,7 @@ typedef struct {
  * @param securityGroupNodeId The output nodeId of the new SecurityGroup
  * @return UA_StatusCode The return status code
  */
-UA_StatusCode UA_EXPORT
+UA_StatusCode UA_EXPORT UA_THREADSAFE
 UA_Server_addSecurityGroup(UA_Server *server, UA_NodeId securityGroupFolderNodeId,
                            const UA_SecurityGroupConfig *securityGroupConfig,
                            UA_NodeId *securityGroupNodeId);

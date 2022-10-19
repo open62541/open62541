@@ -142,6 +142,7 @@ updateSKSKeyStorage(UA_Server *server, UA_SecurityGroup *securityGroup){
 
 static UA_StatusCode
 initializeKeyStorageWithKeys(UA_Server *server, UA_SecurityGroup *securityGroup) {
+    UA_LOCK_ASSERT(&server->serviceMutex, 1);
     size_t keyLength;
     UA_StatusCode retval = UA_STATUSCODE_BAD;
 
@@ -177,9 +178,9 @@ initializeKeyStorageWithKeys(UA_Server *server, UA_SecurityGroup *securityGroup)
 
     securityGroup->baseTime = UA_DateTime_nowMonotonic();
 
-    retval = UA_Server_addRepeatedCallback(server, (UA_ServerCallback)updateSKSKeyStorage,
-                                           securityGroup, securityGroup->config.keyLifeTime,
-                                           &securityGroup->callbackId);
+    retval = addRepeatedCallback(server, (UA_ServerCallback)updateSKSKeyStorage,
+                                 securityGroup, securityGroup->config.keyLifeTime,
+                                 &securityGroup->callbackId);
     if(retval != UA_STATUSCODE_GOOD)
         goto error;
 
@@ -189,8 +190,8 @@ error:
     return retval;
 }
 
-UA_StatusCode
-UA_Server_addSecurityGroup(UA_Server *server, UA_NodeId securityGroupFolderNodeId,
+static UA_StatusCode
+addSecurityGroup(UA_Server *server, UA_NodeId securityGroupFolderNodeId,
                            const UA_SecurityGroupConfig *securityGroupConfig,
                            UA_NodeId *securityGroupNodeId) {
     if(!securityGroupConfig)
@@ -270,6 +271,17 @@ UA_Server_addSecurityGroup(UA_Server *server, UA_NodeId securityGroupFolderNodeI
                           listEntry);
     }
     server->pubSubManager.securityGroupsSize++;
+    return retval;
+}
+
+UA_StatusCode
+UA_Server_addSecurityGroup(UA_Server *server, UA_NodeId securityGroupFolderNodeId,
+                           const UA_SecurityGroupConfig *securityGroupConfig,
+                           UA_NodeId *securityGroupNodeId) {
+    UA_LOCK(&server->serviceMutex);
+    UA_StatusCode retval = addSecurityGroup(server, securityGroupFolderNodeId,
+                                            securityGroupConfig, securityGroupNodeId);
+    UA_UNLOCK(&server->serviceMutex);
     return retval;
 }
 

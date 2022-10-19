@@ -1526,33 +1526,33 @@ updateSecurityGroupProperties(UA_Server *server, UA_NodeId *securityGroupNodeId,
     UA_Variant value;
     UA_Variant_init(&value);
     UA_Variant_setScalar(&value, &config->securityGroupName, &UA_TYPES[UA_TYPES_STRING]);
-    retval = UA_Server_writeObjectProperty(server, *securityGroupNodeId,
-                                           UA_QUALIFIEDNAME(0, "SecurityGroupId"), value);
+    retval = writeObjectProperty(server, *securityGroupNodeId,
+                                 UA_QUALIFIEDNAME(0, "SecurityGroupId"), value);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
     /*AddValueCallback*/
     UA_Variant_setScalar(&value, &config->securityPolicyUri, &UA_TYPES[UA_TYPES_STRING]);
-    retval = UA_Server_writeObjectProperty(
-        server, *securityGroupNodeId, UA_QUALIFIEDNAME(0, "SecurityPolicyUri"), value);
+    retval = writeObjectProperty(server, *securityGroupNodeId,
+                                 UA_QUALIFIEDNAME(0, "SecurityPolicyUri"), value);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
     UA_Variant_setScalar(&value, &config->keyLifeTime, &UA_TYPES[UA_TYPES_DURATION]);
-    retval = UA_Server_writeObjectProperty(server, *securityGroupNodeId,
-                                           UA_QUALIFIEDNAME(0, "KeyLifetime"), value);
+    retval = writeObjectProperty(server, *securityGroupNodeId,
+                                 UA_QUALIFIEDNAME(0, "KeyLifetime"), value);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
     UA_Variant_setScalar(&value, &config->maxFutureKeyCount, &UA_TYPES[UA_TYPES_UINT32]);
-    retval = UA_Server_writeObjectProperty(
-        server, *securityGroupNodeId, UA_QUALIFIEDNAME(0, "MaxFutureKeyCount"), value);
+    retval = writeObjectProperty(server, *securityGroupNodeId,
+                                 UA_QUALIFIEDNAME(0, "MaxFutureKeyCount"), value);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
     UA_Variant_setScalar(&value, &config->maxPastKeyCount, &UA_TYPES[UA_TYPES_UINT32]);
-    retval = UA_Server_writeObjectProperty(server, *securityGroupNodeId,
-                                           UA_QUALIFIEDNAME(0, "MaxPastKeyCount"), value);
+    retval = writeObjectProperty(server, *securityGroupNodeId,
+                                 UA_QUALIFIEDNAME(0, "MaxPastKeyCount"), value);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
@@ -1561,6 +1561,7 @@ updateSecurityGroupProperties(UA_Server *server, UA_NodeId *securityGroupNodeId,
 
 UA_StatusCode
 addSecurityGroupRepresentation(UA_Server *server, UA_SecurityGroup *securityGroup) {
+    UA_LOCK_ASSERT(&server->serviceMutex, 1);
     UA_StatusCode retval = UA_STATUSCODE_BAD;
 
     UA_SecurityGroupConfig *securityGroupConfig = &securityGroup->config;
@@ -1582,17 +1583,19 @@ addSecurityGroupRepresentation(UA_Server *server, UA_SecurityGroup *securityGrou
 
     UA_ObjectAttributes object_attr = UA_ObjectAttributes_default;
     object_attr.displayName = UA_LOCALIZEDTEXT("", sgName);
-
-    retval = UA_Server_addObjectNode(
-        server, UA_NODEID_NUMERIC(1, 0), securityGroup->securityGroupFolderId,
-        UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT), UA_QUALIFIEDNAME(0, sgName),
-        UA_NODEID_NUMERIC(0, UA_NS0ID_SECURITYGROUPTYPE), object_attr, NULL,
-        &securityGroup->securityGroupNodeId);
+    UA_NodeId refType = UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT);
+    UA_NodeId nodeType = UA_NODEID_NUMERIC(0, UA_NS0ID_SECURITYGROUPTYPE);
+    retval = addNode(
+        server, UA_NODECLASS_OBJECT, &UA_NODEID_NULL,
+        &securityGroup->securityGroupFolderId, &refType, UA_QUALIFIEDNAME(0, sgName),
+        &nodeType, (const UA_NodeAttributes *)&object_attr,
+        &UA_TYPES[UA_TYPES_OBJECTATTRIBUTES], NULL, &securityGroup->securityGroupNodeId);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
                      "Add SecurityGroup failed with error: %s.",
                      UA_StatusCode_name(retval));
-        goto cleanup;;
+        UA_free(sgName);
+        return retval;
     }
 
     retval = updateSecurityGroupProperties(server, &securityGroup->securityGroupNodeId,
@@ -1603,9 +1606,6 @@ addSecurityGroupRepresentation(UA_Server *server, UA_SecurityGroup *securityGrou
                      UA_StatusCode_name(retval));
         UA_removeSecurityGroupRepresentation(server, securityGroup);
     }
-cleanup:
-    if(sgName)
-        UA_free(sgName);
     return retval;
 }
 
