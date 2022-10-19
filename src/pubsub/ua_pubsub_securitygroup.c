@@ -289,34 +289,32 @@ UA_SecurityGroup_delete(UA_SecurityGroup *securityGroup) {
     UA_free(securityGroup);
 }
 
-UA_StatusCode
-removeSecurityGroup(UA_Server *server, UA_NodeId securityGroup) {
-    UA_SecurityGroup *sg = UA_SecurityGroup_findSGbyId(server, securityGroup);
-    if(!sg)
-        return UA_STATUSCODE_BADNOTFOUND;
+void
+removeSecurityGroup(UA_Server *server, UA_SecurityGroup *securityGroup) {
 
 #ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL
-    UA_removeSecurityGroupRepresentation(server, sg);
+    UA_removeSecurityGroupRepresentation(server, securityGroup);
 #endif
     /* Unlink from the server */
-    TAILQ_REMOVE(&server->pubSubManager.securityGroups, sg, listEntry);
+    TAILQ_REMOVE(&server->pubSubManager.securityGroups, securityGroup, listEntry);
     server->pubSubManager.securityGroupsSize--;
-    if(sg->callbackId > 0)
-        removeCallback(server, sg->callbackId);
+    if(securityGroup->callbackId > 0)
+        removeCallback(server, securityGroup->callbackId);
 
-    UA_PubSubKeyStorage_removeKeyStorage(server, sg->keyStorage);
+    UA_PubSubKeyStorage_removeKeyStorage(server, securityGroup->keyStorage);
 
-    UA_SecurityGroup_delete(sg);
-
-    return UA_STATUSCODE_GOOD;
+    UA_SecurityGroup_delete(securityGroup);
 }
 
 UA_StatusCode
 UA_Server_removeSecurityGroup(UA_Server *server, const UA_NodeId securityGroup) {
     UA_LOCK(&server->serviceMutex);
-    UA_StatusCode retval = removeSecurityGroup(server, securityGroup);
+    UA_SecurityGroup *sg = UA_SecurityGroup_findSGbyId(server, securityGroup);
+    if(!sg)
+        return UA_STATUSCODE_BADBOUNDNOTFOUND;
+    removeSecurityGroup(server, sg);
     UA_UNLOCK(&server->serviceMutex);
-    return retval;
+    return UA_STATUSCODE_GOOD;
 }
 
 #endif

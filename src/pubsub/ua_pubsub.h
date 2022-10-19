@@ -619,8 +619,8 @@ UA_SecurityGroup_findSGbyId(UA_Server *server, UA_NodeId identifier);
 void
 UA_SecurityGroup_delete(UA_SecurityGroup *securityGroup);
 
-UA_StatusCode
-removeSecurityGroup(UA_Server *server, const UA_NodeId securityGroupNodeId);
+void
+removeSecurityGroup(UA_Server *server, UA_SecurityGroup *securityGroup);
 
 #endif /* UA_ENABLE_PUBSUB_SKS */
 
