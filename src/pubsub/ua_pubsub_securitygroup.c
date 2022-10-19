@@ -74,8 +74,12 @@ generateKeyData(const UA_PubSubSecurityPolicy *policy, UA_ByteString *key) {
 static void
 updateSKSKeyStorage(UA_Server *server, UA_SecurityGroup *securityGroup){
 
-    if(!securityGroup)
+    if(!securityGroup) {
+        UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_PUBSUB,
+                       "UpdateSKSKeyStorage callback failed with Error: %s ",
+                       UA_StatusCode_name(UA_STATUSCODE_BADINVALIDARGUMENT));
         return;
+    }
 
     UA_PubSubKeyStorage *keyStorage = securityGroup->keyStorage;
 
@@ -84,8 +88,12 @@ updateSKSKeyStorage(UA_Server *server, UA_SecurityGroup *securityGroup){
     size_t keyLength = keyStorage->policy->symmetricModule.secureChannelNonceLength;
 
     retval = UA_ByteString_allocBuffer(&newKey, keyLength);
-    if(retval != UA_STATUSCODE_GOOD)
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_PUBSUB,
+                       "UpdateSKSKeyStorage callback failed to allocate memory for new key with Error: %s ",
+                       UA_StatusCode_name(retval));
         return;
+    }
 
     generateKeyData(keyStorage->policy, &newKey);
     UA_UInt32 newKeyID = TAILQ_LAST(&keyStorage->keyList, keyListItems)->keyID;
@@ -96,20 +104,28 @@ updateSKSKeyStorage(UA_Server *server, UA_SecurityGroup *securityGroup){
         ++newKeyID;
 
     if(keyStorage->keyListSize >= keyStorage->maxKeyListSize) {
-        /*the first item has the oldest key*/
+        /* reusing the preallocated memory of the oldest key */
+        /* the first item has the oldest key */
         UA_PubSubKeyListItem *oldestKey = TAILQ_FIRST(&keyStorage->keyList);
-        /*shift head to second oldest*/
+        /* shift head to second oldest */
         TAILQ_INSERT_HEAD(&keyStorage->keyList, oldestKey->keyListEntry.tqe_next, keyListEntry);
-        /*move oldest to the tail*/
+        /* move oldest to the tail */
         TAILQ_INSERT_TAIL(&keyStorage->keyList, oldestKey, keyListEntry);
-        /*copy new key over the oldest key locatio*/
+        /* copy new key over the oldest key locatio */
         oldestKey->keyID = newKeyID;
         UA_ByteString_copy(&newKey, &oldestKey->key);
     } else {
         UA_PubSubKeyListItem *newItem =
             UA_PubSubKeyStorage_push(keyStorage, &newKey, newKeyID);
-        if(!newItem)
-            goto error;
+        if(!newItem) {
+            UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_PUBSUB,
+                           "UpdateSKSKeyStorage callback failed to add new key to the "
+                           "sks keystorage for the SecurityGroup %.*s",
+                           (int)securityGroup->securityGroupId.length,
+                           securityGroup->securityGroupId.data);
+            UA_Byte_delete(newKey.data);
+            return;
+        }
         keyStorage->keyListSize++;
     }
 
@@ -119,9 +135,9 @@ updateSKSKeyStorage(UA_Server *server, UA_SecurityGroup *securityGroup){
 
     securityGroup->baseTime = UA_DateTime_nowMonotonic();
 
+    /* We allocated memory for data with allocBuffer so now we free it */
+    UA_Byte_delete(newKey.data);
     return;
-error:
-    UA_ByteString_delete(&newKey);
 }
 
 static UA_StatusCode
