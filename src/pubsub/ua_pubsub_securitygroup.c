@@ -258,18 +258,15 @@ addSecurityGroup(UA_Server *server, UA_NodeId securityGroupFolderNodeId,
     UA_PubSubManager_generateUniqueNodeId(&server->pubSubManager,
                                           &newSecurityGroup->securityGroupNodeId);
 #endif
-
     if(securityGroupNodeId)
         UA_NodeId_copy(&newSecurityGroup->securityGroupNodeId, securityGroupNodeId);
 
-    if(server->pubSubManager.securityGroupsSize != 0) {
-        TAILQ_INSERT_TAIL(&server->pubSubManager.securityGroups, newSecurityGroup,
-                          listEntry);
-    } else {
+    if(server->pubSubManager.securityGroupsSize == 0)
         TAILQ_INIT(&server->pubSubManager.securityGroups);
-        TAILQ_INSERT_HEAD(&server->pubSubManager.securityGroups, newSecurityGroup,
+
+    TAILQ_INSERT_TAIL(&server->pubSubManager.securityGroups, newSecurityGroup,
                           listEntry);
-    }
+
     server->pubSubManager.securityGroupsSize++;
     return retval;
 }
