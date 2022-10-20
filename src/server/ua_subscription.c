@@ -25,7 +25,7 @@
 #define UA_MAX_RETRANSMISSIONQUEUESIZE 256
 
 UA_Subscription *
-UA_Subscription_new() {
+UA_Subscription_new(void) {
     /* Allocate the memory */
     UA_Subscription *newSub = (UA_Subscription*)UA_calloc(1, sizeof(UA_Subscription));
     if(!newSub)

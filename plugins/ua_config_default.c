@@ -42,7 +42,7 @@ UA_DURATIONRANGE(UA_Duration min, UA_Duration max) {
 }
 
 UA_Server *
-UA_Server_new() {
+UA_Server_new(void) {
     UA_ServerConfig config;
     memset(&config, 0, sizeof(UA_ServerConfig));
     /* Set a default logger and NodeStore for the initialization */
@@ -732,7 +732,7 @@ UA_ServerConfig_setDefaultWithSecurityPolicies(UA_ServerConfig *conf,
 /* Default Client Settings */
 /***************************/
 
-UA_Client * UA_Client_new() {
+UA_Client * UA_Client_new(void) {
     UA_ClientConfig config;
     memset(&config, 0, sizeof(UA_ClientConfig));
     config.logger.log = UA_Log_Stdout_log;

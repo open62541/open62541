@@ -282,7 +282,7 @@ UA_Server_removePublishedDataSet(UA_Server *server, const UA_NodeId pds) {
 /* Calculate the time difference between current time and UTC (00:00) on January
  * 1, 2000. */
 UA_UInt32
-UA_PubSubConfigurationVersionTimeDifference() {
+UA_PubSubConfigurationVersionTimeDifference(void) {
     UA_UInt32 timeDiffSince2000 = (UA_UInt32) (UA_DateTime_now() - UA_DATETIMESTAMP_2000);
     return timeDiffSince2000;
 }

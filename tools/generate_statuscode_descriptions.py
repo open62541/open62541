@@ -98,7 +98,7 @@ printc(u'''    {0xffffffff, "Unknown StatusCode"}
 
 const char * UA_StatusCode_name(UA_StatusCode code) {
     for (size_t i = 0; i < statusCodeDescriptionsSize; ++i) {
-        if (statusCodeDescriptions[i].code == code)
+        if (UA_StatusCode_isEqualTop(statusCodeDescriptions[i].code,code))
             return statusCodeDescriptions[i].name;
     }
     return statusCodeDescriptions[statusCodeDescriptionsSize-1].name;
