@@ -58,6 +58,8 @@ typedef struct UA_PubSubManager {
 
 #ifdef UA_ENABLE_PUBSUB_SKS
     LIST_HEAD(PubSubKeyList, UA_PubSubKeyStorage) pubSubKeyList;
+    size_t securityGroupsSize;
+    TAILQ_HEAD(UA_ListOfSecurityGroup, UA_SecurityGroup) securityGroups;
 #endif
 
 #ifndef UA_ENABLE_PUBSUB_INFORMATIONMODEL

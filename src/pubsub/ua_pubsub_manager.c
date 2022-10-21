@@ -779,6 +779,14 @@ UA_PubSubManager_delete(UA_Server *server, UA_PubSubManager *pubSubManager) {
     }
 
 #ifdef UA_ENABLE_PUBSUB_SKS
+    /* Remove the SecurityGroups */
+    UA_SecurityGroup *tmpSG1, *tmpSG2;
+    TAILQ_FOREACH_SAFE(tmpSG1, &server->pubSubManager.securityGroups, listEntry, tmpSG2) {
+        removeSecurityGroup(server, tmpSG1);
+    }
+#endif
+
+#ifdef UA_ENABLE_PUBSUB_SKS
     /* Remove the keyStorages */
     UA_PubSubKeyStorage *ks, *ksTmp;
     LIST_FOREACH_SAFE(ks, &server->pubSubManager.pubSubKeyList, keyStorageList, ksTmp)

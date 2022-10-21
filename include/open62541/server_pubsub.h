@@ -877,6 +877,63 @@ UA_Server_setReaderGroupEncryptionKeys(UA_Server *server, UA_NodeId readerGroup,
                                        UA_ByteString keyNonce);
 #endif
 
+#ifdef UA_ENABLE_PUBSUB_SKS
+/**
+ * SecurityGroup
+ * -------------
+ *
+ * A SecurityGroup is an abstraction that represents the message security settings and
+ * security keys for a subset of NetworkMessages exchanged between Publishers and
+ * Subscribers. The SecurityGroup objects are created on a Security Key Service (SKS). The
+ * SKS manages the access to the keys based on the role permission for a user assigned to
+ * a SecurityGroup Object. A SecurityGroup is identified with a unique identifier called
+ * the SecurityGroupId. It is unique within the SKS.
+ *
+ * .. note:: The access to the SecurityGroup and therefore the securitykeys managed by SKS
+ *           requires management of Roles and Permissions in the SKS. The Role Permission
+ *           model is not supported at the time of writing. However, the access control plugin can
+ *           be used to create and manage role permission on SecurityGroup object.
+ */
+
+typedef struct {
+    UA_String securityGroupName;
+    UA_Duration keyLifeTime;
+    UA_String securityPolicyUri;
+    UA_UInt32 maxFutureKeyCount;
+    UA_UInt32 maxPastKeyCount;
+} UA_SecurityGroupConfig;
+
+/**
+ * @brief Creates a SecurityGroup object and add it to the list in PubSub Manager. If the
+ * information model is enabled then the SecurityGroup object Node is also created in the
+ * server. A keyStorage with initial list of keys is created with a SecurityGroup. A
+ * callback is added to new SecurityGroup which updates the keys periodically at each
+ * KeyLifeTime expire.
+ *
+ * @param server The server instance
+ * @param securityGroupFolderNodeId The parent node of the SecurityGroup. It must be of
+ * SecurityGroupFolderType
+ * @param securityGroupConfig The security settings of a SecurityGroup
+ * @param securityGroupNodeId The output nodeId of the new SecurityGroup
+ * @return UA_StatusCode The return status code
+ */
+UA_StatusCode UA_EXPORT UA_THREADSAFE
+UA_Server_addSecurityGroup(UA_Server *server, UA_NodeId securityGroupFolderNodeId,
+                           const UA_SecurityGroupConfig *securityGroupConfig,
+                           UA_NodeId *securityGroupNodeId);
+
+/**
+ * @brief Removes the SecurityGroup from PubSub Manager. It removes the KeyStorage
+ * associated with the SecurityGroup from the server.
+ *
+ * @param server The server instance
+ * @param securityGroup The nodeId of the securityGroup to be removed
+ * @return UA_StatusCode The returned status code.
+ */
+UA_StatusCode UA_EXPORT UA_THREADSAFE
+UA_Server_removeSecurityGroup(UA_Server *server, const UA_NodeId securityGroup);
+
+#endif /* UA_ENABLE_PUBSUB_SKS */
 
 #endif /* UA_ENABLE_PUBSUB */
 

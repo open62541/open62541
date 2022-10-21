@@ -1498,6 +1498,125 @@ addReaderGroupAction(UA_Server *server,
 }
 #endif
 
+#ifdef UA_ENABLE_PUBSUB_SKS
+#ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL
+static UA_Boolean
+isValidParentNode(UA_Server *server, UA_NodeId parentId) {
+    UA_Boolean retval = UA_TRUE;
+    const UA_Node *parentNodeType;
+    const UA_NodeId parentNodeTypeId =
+        UA_NODEID_NUMERIC(0, UA_NS0ID_SECURITYGROUPFOLDERTYPE);
+    const UA_Node *parentNode = UA_NODESTORE_GET(server, &parentId);
+
+    if(parentNode) {
+        parentNodeType = getNodeType(server, &parentNode->head);
+        if(parentNodeType) {
+            retval = UA_NodeId_equal(&parentNodeType->head.nodeId, &parentNodeTypeId);
+            UA_NODESTORE_RELEASE(server, parentNodeType);
+        }
+        UA_NODESTORE_RELEASE(server, parentNode);
+    }
+    return retval;
+}
+
+static UA_StatusCode
+updateSecurityGroupProperties(UA_Server *server, UA_NodeId *securityGroupNodeId,
+                              UA_SecurityGroupConfig *config) {
+    UA_StatusCode retval = UA_STATUSCODE_BAD;
+    UA_Variant value;
+    UA_Variant_init(&value);
+    UA_Variant_setScalar(&value, &config->securityGroupName, &UA_TYPES[UA_TYPES_STRING]);
+    retval = writeObjectProperty(server, *securityGroupNodeId,
+                                 UA_QUALIFIEDNAME(0, "SecurityGroupId"), value);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
+
+    /*AddValueCallback*/
+    UA_Variant_setScalar(&value, &config->securityPolicyUri, &UA_TYPES[UA_TYPES_STRING]);
+    retval = writeObjectProperty(server, *securityGroupNodeId,
+                                 UA_QUALIFIEDNAME(0, "SecurityPolicyUri"), value);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
+
+    UA_Variant_setScalar(&value, &config->keyLifeTime, &UA_TYPES[UA_TYPES_DURATION]);
+    retval = writeObjectProperty(server, *securityGroupNodeId,
+                                 UA_QUALIFIEDNAME(0, "KeyLifetime"), value);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
+
+    UA_Variant_setScalar(&value, &config->maxFutureKeyCount, &UA_TYPES[UA_TYPES_UINT32]);
+    retval = writeObjectProperty(server, *securityGroupNodeId,
+                                 UA_QUALIFIEDNAME(0, "MaxFutureKeyCount"), value);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
+
+    UA_Variant_setScalar(&value, &config->maxPastKeyCount, &UA_TYPES[UA_TYPES_UINT32]);
+    retval = writeObjectProperty(server, *securityGroupNodeId,
+                                 UA_QUALIFIEDNAME(0, "MaxPastKeyCount"), value);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
+
+    return retval;
+}
+
+UA_StatusCode
+addSecurityGroupRepresentation(UA_Server *server, UA_SecurityGroup *securityGroup) {
+    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+    UA_StatusCode retval = UA_STATUSCODE_BAD;
+
+    UA_SecurityGroupConfig *securityGroupConfig = &securityGroup->config;
+    if(!isValidParentNode(server, securityGroup->securityGroupFolderId))
+        return UA_STATUSCODE_BADPARENTNODEIDINVALID;
+
+    if(securityGroupConfig->securityGroupName.length <= 0)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+
+    size_t sgNamelength = securityGroupConfig->securityGroupName.length;
+    char *sgName = (char *)UA_malloc(sgNamelength);
+    if(!sgName)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+
+    memset(sgName, 0, sgNamelength);
+    memcpy(sgName, securityGroupConfig->securityGroupName.data,
+           securityGroupConfig->securityGroupName.length);
+    sgName[securityGroupConfig->securityGroupName.length] = '\0';
+
+    UA_ObjectAttributes object_attr = UA_ObjectAttributes_default;
+    object_attr.displayName = UA_LOCALIZEDTEXT("", sgName);
+    UA_NodeId refType = UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT);
+    UA_NodeId nodeType = UA_NODEID_NUMERIC(0, UA_NS0ID_SECURITYGROUPTYPE);
+    retval = addNode(
+        server, UA_NODECLASS_OBJECT, &UA_NODEID_NULL,
+        &securityGroup->securityGroupFolderId, &refType, UA_QUALIFIEDNAME(0, sgName),
+        &nodeType, (const UA_NodeAttributes *)&object_attr,
+        &UA_TYPES[UA_TYPES_OBJECTATTRIBUTES], NULL, &securityGroup->securityGroupNodeId);
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                     "Add SecurityGroup failed with error: %s.",
+                     UA_StatusCode_name(retval));
+        UA_free(sgName);
+        return retval;
+    }
+
+    retval = updateSecurityGroupProperties(server, &securityGroup->securityGroupNodeId,
+                                           securityGroupConfig);
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                     "Add SecurityGroup failed with error: %s.",
+                     UA_StatusCode_name(retval));
+        UA_removeSecurityGroupRepresentation(server, securityGroup);
+    }
+    return retval;
+}
+
+UA_StatusCode
+UA_removeSecurityGroupRepresentation(UA_Server *server, UA_SecurityGroup *securityGroup) {
+    UA_StatusCode retval = deleteNode(server, securityGroup->securityGroupNodeId, true);
+    return  retval;
+}
+#endif /* UA_ENABLE_PUBSUB_INFORMATIONMODEL*/
+#endif /* UA_ENABLE_PUBSUB_SKS */
+
 /**********************************************/
 /*               DataSetWriter                */
 /**********************************************/

@@ -38,6 +38,9 @@ typedef struct UA_WriterGroup UA_WriterGroup;
 struct UA_ReaderGroup;
 typedef struct UA_ReaderGroup UA_ReaderGroup;
 
+struct UA_SecurityGroup;
+typedef struct UA_SecurityGroup UA_SecurityGroup;
+
 /**********************************************/
 /*            PublishedDataSet                */
 /**********************************************/
@@ -583,6 +586,43 @@ void processMqttSubscriberCallback(UA_Server *server, UA_ReaderGroup *readerGrou
 UA_StatusCode
 decodeNetworkMessageJson(UA_Server *server, UA_ByteString *buffer, size_t *pos,
                          UA_NetworkMessage *nm, UA_PubSubConnection *connection);
+
+#ifdef UA_ENABLE_PUBSUB_SKS
+/*********************************************************/
+/*                    SecurityGroup                      */
+/*********************************************************/
+struct UA_SecurityGroup {
+    UA_String securityGroupId;
+    UA_SecurityGroupConfig config;
+    UA_PubSubKeyStorage *keyStorage;
+    UA_NodeId securityGroupNodeId;
+    UA_UInt64 callbackId;
+    UA_DateTime baseTime;
+#ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL
+    UA_NodeId securityGroupFolderId;
+#endif
+    TAILQ_ENTRY(UA_SecurityGroup) listEntry;
+};
+
+UA_StatusCode
+UA_SecurityGroupConfig_copy(const UA_SecurityGroupConfig *src,
+                            UA_SecurityGroupConfig *dst);
+
+/* finds the SecurityGroup within the server by SecurityGroup Name/Id*/
+UA_SecurityGroup *
+UA_SecurityGroup_findSGbyName(UA_Server *server, UA_String securityGroupName);
+
+/* finds the SecurityGroup within the server by NodeId*/
+UA_SecurityGroup *
+UA_SecurityGroup_findSGbyId(UA_Server *server, UA_NodeId identifier);
+
+void
+UA_SecurityGroup_delete(UA_SecurityGroup *securityGroup);
+
+void
+removeSecurityGroup(UA_Server *server, UA_SecurityGroup *securityGroup);
+
+#endif /* UA_ENABLE_PUBSUB_SKS */
 
 #endif /* UA_ENABLE_PUBSUB */
 
