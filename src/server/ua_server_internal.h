@@ -396,6 +396,14 @@ setVariableNode_dataSource(UA_Server *server, const UA_NodeId nodeId,
                            const UA_DataSource dataSource);
 
 UA_StatusCode
+setVariableNode_valueCallback(UA_Server *server, const UA_NodeId nodeId,
+                              const UA_ValueCallback callback);
+
+UA_StatusCode
+setMethodNode_callback(UA_Server *server, const UA_NodeId methodNodeId,
+                       UA_MethodCallback methodCallback);
+
+UA_StatusCode
 writeAttribute(UA_Server *server, UA_Session *session,
                const UA_NodeId *nodeId, const UA_AttributeId attributeId,
                const void *attr, const UA_DataType *attr_type);

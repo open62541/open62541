@@ -21,11 +21,6 @@
 #include "ua_server_internal.h"
 #include "ua_services.h"
 
-static UA_StatusCode
-setMethodNode_callback(UA_Server *server,
-                       const UA_NodeId methodNodeId,
-                       UA_MethodCallback methodCallback);
-
 /*********************/
 /* Edit Node Context */
 /*********************/
@@ -2269,6 +2264,16 @@ setValueCallback(UA_Server *server, UA_Session *session,
 }
 
 UA_StatusCode
+setVariableNode_valueCallback(UA_Server *server, const UA_NodeId nodeId,
+                              const UA_ValueCallback callback) {
+    return UA_Server_editNode(server, &server->adminSession, &nodeId,
+                              (UA_EditNodeCallback)setValueCallback,
+                              /* cast away const because
+                               * callback uses const anyway */
+                              (UA_ValueCallback *)(uintptr_t) &callback);
+}
+
+UA_StatusCode
 UA_Server_setVariableNode_valueCallback(UA_Server *server,
                                         const UA_NodeId nodeId,
                                         const UA_ValueCallback callback) {
@@ -2643,7 +2648,7 @@ editMethodCallback(UA_Server *server, UA_Session* session,
     return UA_STATUSCODE_GOOD;
 }
 
-static UA_StatusCode
+UA_StatusCode
 setMethodNode_callback(UA_Server *server,
                        const UA_NodeId methodNodeId,
                        UA_MethodCallback methodCallback) {
