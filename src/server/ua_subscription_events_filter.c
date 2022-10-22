@@ -1134,25 +1134,18 @@ UA_SimpleAttributeOperandValidation(UA_Server *server,
     if(sao->attributeId == 0 || sao->attributeId >= 28)
         return UA_STATUSCODE_BADATTRIBUTEIDINVALID;
 
-    /* BrowsePath not empty?
-     *
-     * TODO: Check the following workaround. In UaExpert Event View the
-     * selection of the Server Object set up 7 select filter entries by default.
-     * The last element ist from node 2782 (A&C ConditionType). Since the
-     * reduced information model dos not contain this type, the result has a
-     * browse path of "null" which results in an error. */
-    UA_NodeId ac_conditionType = UA_NODEID_NUMERIC(0, UA_NS0ID_CONDITIONTYPE);
-    if(!UA_NodeId_equal(&sao->typeDefinitionId, &ac_conditionType) &&
-       sao->browsePathSize == 0)
-        return UA_STATUSCODE_BADBROWSENAMEINVALID;
+    /* If the BrowsePath is empty, the Node is the instance of the
+     * TypeDefinition. (Part 4, 7.4.4.5) */
+    if(sao->browsePathSize == 0)
+        return UA_STATUSCODE_GOOD;
 
-    /* browsePath contains empty browsenames? */
+    /* BrowsePath contains empty BrowseNames? */
     for(size_t j = 0; j < sao->browsePathSize; ++j) {
         if(UA_QualifiedName_isNull(&sao->browsePath[j]))
             return UA_STATUSCODE_BADBROWSENAMEINVALID;
     }
 
-    /* Get the list of subtypes from event type (including the event type) */
+    /* Get the list of subtypes from event type (including the event type itself) */
     UA_ReferenceTypeSet reftypes_interface =
         UA_REFTYPESET(UA_REFERENCETYPEINDEX_HASSUBTYPE);
     UA_ExpandedNodeId *childTypeNodes = NULL;
@@ -1188,7 +1181,7 @@ UA_SimpleAttributeOperandValidation(UA_Server *server,
             return UA_STATUSCODE_BADINDEXRANGEINVALID;
         UA_free(numericRange.dimensions);
 
-        /* AttributeId is value? */
+        /* AttributeId has to be a value if an IndexRange is defined */
         if(sao->attributeId != UA_ATTRIBUTEID_VALUE)
             return UA_STATUSCODE_BADTYPEMISMATCH;
     }
