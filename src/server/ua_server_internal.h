@@ -259,7 +259,7 @@ UA_Session *
 getSessionByToken(UA_Server *server, const UA_NodeId *token);
 
 UA_Session *
-UA_Server_getSessionById(UA_Server *server, const UA_NodeId *sessionId);
+getSessionById(UA_Server *server, const UA_NodeId *sessionId);
 
 /*****************/
 /* Node Handling */
