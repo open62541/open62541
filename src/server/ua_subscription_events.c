@@ -29,14 +29,11 @@ generateEventId(UA_ByteString *generatedId) {
 }
 
 UA_StatusCode
-UA_Server_createEvent(UA_Server *server, const UA_NodeId eventType,
-                      UA_NodeId *outNodeId) {
-    UA_LOCK(&server->serviceMutex);
+createEvent(UA_Server *server, const UA_NodeId eventType, UA_NodeId *outNodeId) {
     if(!outNodeId) {
         UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_USERLAND,
                      "outNodeId must not be NULL. The event's NodeId must be returned "
                      "so it can be triggered.");
-        UA_UNLOCK(&server->serviceMutex);
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     }
 
@@ -46,7 +43,6 @@ UA_Server_createEvent(UA_Server *server, const UA_NodeId eventType,
                                UA_REFERENCETYPEINDEX_HASSUBTYPE)) {
         UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_USERLAND,
                      "Event type must be a subtype of BaseEventType!");
-        UA_UNLOCK(&server->serviceMutex);
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     }
 
@@ -69,7 +65,6 @@ UA_Server_createEvent(UA_Server *server, const UA_NodeId eventType,
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_USERLAND,
                      "Adding event failed. StatusCode %s", UA_StatusCode_name(retval));
-        UA_UNLOCK(&server->serviceMutex);
         return retval;
     }
 
@@ -81,7 +76,6 @@ UA_Server_createEvent(UA_Server *server, const UA_NodeId eventType,
         UA_BrowsePathResult_clear(&bpr);
         deleteNode(server, newNodeId, true);
         UA_NodeId_clear(&newNodeId);
-        UA_UNLOCK(&server->serviceMutex);
         return retval;
     }
 
@@ -95,13 +89,20 @@ UA_Server_createEvent(UA_Server *server, const UA_NodeId eventType,
     if(retval != UA_STATUSCODE_GOOD) {
         deleteNode(server, newNodeId, true);
         UA_NodeId_clear(&newNodeId);
-        UA_UNLOCK(&server->serviceMutex);
         return retval;
     }
 
     *outNodeId = newNodeId;
-    UA_UNLOCK(&server->serviceMutex);
     return UA_STATUSCODE_GOOD;
+}
+
+UA_StatusCode
+UA_Server_createEvent(UA_Server *server, const UA_NodeId eventType,
+                      UA_NodeId *outNodeId) {
+    UA_LOCK(&server->serviceMutex);
+    UA_StatusCode res = createEvent(server, eventType, outNodeId);
+    UA_UNLOCK(&server->serviceMutex);
+    return res;
 }
 
 static UA_StatusCode

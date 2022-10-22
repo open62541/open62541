@@ -446,6 +446,11 @@ UA_Subscription *
 UA_Server_getSubscriptionById(UA_Server *server, UA_UInt32 subscriptionId);
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
+
+UA_StatusCode
+createEvent(UA_Server *server, const UA_NodeId eventType,
+            UA_NodeId *outNodeId);
+
 UA_StatusCode
 triggerEvent(UA_Server *server, const UA_NodeId eventNodeId,
              const UA_NodeId origin, UA_ByteString *outEventId,
@@ -459,6 +464,7 @@ filterEvent(UA_Server *server, UA_Session *session,
             UA_EventFieldList *efl, UA_EventFilterResult *result);
 
 #endif /* UA_ENABLE_SUBSCRIPTIONS_EVENTS */
+
 #endif /* UA_ENABLE_SUBSCRIPTIONS */
 
 UA_BrowsePathResult
