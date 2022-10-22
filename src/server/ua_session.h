@@ -140,7 +140,7 @@ UA_Session_dequeuePublishReq(UA_Session *session);
         UA_UInt32 chanId = ((SESSION) && (SESSION)->header.channel) ?   \
             (SESSION)->header.channel->securityToken.channelId : 0;     \
         UA_LOG_##LEVEL(LOGGER, UA_LOGCATEGORY_SESSION,                  \
-                       "TCP %lu\t| SecureChannel %" PRIu32 "\t| Session \"%.*s\"\t| " MSG "%.0s", \
+                       "TCP %lu\t| SC %" PRIu32 "\t| Session \"%.*s\"\t| " MSG "%.0s", \
                        sockId, chanId, nameLen, nameStr, __VA_ARGS__);   \
     }
 
