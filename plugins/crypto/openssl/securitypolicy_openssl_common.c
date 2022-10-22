@@ -884,6 +884,8 @@ EVP_PKEY *
 UA_OpenSSL_LoadPrivateKey(const UA_ByteString *privateKey) {
     const unsigned char * pkData = privateKey->data;
     long len = (long) privateKey->length;
+    if(len == 0)
+        return NULL;
 
     EVP_PKEY *result = NULL;
 
