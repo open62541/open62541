@@ -1542,7 +1542,7 @@ writeNodeValueAttribute(UA_Server *server, UA_Session *session,
 }
 
 static UA_StatusCode
-writeIsAbstractAttribute(UA_Node *node, UA_Boolean value) {
+writeIsAbstract(UA_Node *node, UA_Boolean value) {
     switch(node->head.nodeClass) {
     case UA_NODECLASS_OBJECTTYPE:
         node->objectTypeNode.isAbstract = value;
@@ -1690,7 +1690,7 @@ copyAttributeIntoNode(UA_Server *server, UA_Session *session,
     case UA_ATTRIBUTEID_ISABSTRACT:
         CHECK_USERWRITEMASK(UA_WRITEMASK_ISABSTRACT);
         CHECK_DATATYPE_SCALAR(BOOLEAN);
-        retval = writeIsAbstractAttribute(node, *(const UA_Boolean*)value);
+        retval = writeIsAbstract(node, *(const UA_Boolean*)value);
         break;
     case UA_ATTRIBUTEID_SYMMETRIC:
         CHECK_NODECLASS_WRITE(UA_NODECLASS_REFERENCETYPE);
