@@ -128,7 +128,7 @@ readSubscriptionDiagnosticsArray(UA_Server *server,
     UA_Session *session = NULL;
     session_list_entry *sentry;
     if(nodeContext) {
-        session = UA_Server_getSessionById(server, sessionId);
+        session = getSessionById(server, sessionId);
         if(!session)
             return UA_STATUSCODE_BADINTERNALERROR;
         sdSize = session->subscriptionsSize;
@@ -329,7 +329,7 @@ readSessionDiagnostics(UA_Server *server,
                        UA_Boolean sourceTimestamp,
                        const UA_NumericRange *range, UA_DataValue *value) {
     /* Get the Session */
-    UA_Session *session = UA_Server_getSessionById(server, sessionId);
+    UA_Session *session = getSessionById(server, sessionId);
     if(!session)
         return UA_STATUSCODE_BADINTERNALERROR;
 

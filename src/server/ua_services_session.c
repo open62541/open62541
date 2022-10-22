@@ -153,7 +153,7 @@ getSessionByToken(UA_Server *server, const UA_NodeId *token) {
 }
 
 UA_Session *
-UA_Server_getSessionById(UA_Server *server, const UA_NodeId *sessionId) {
+getSessionById(UA_Server *server, const UA_NodeId *sessionId) {
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
 
     session_list_entry *current = NULL;
