@@ -415,6 +415,13 @@ writeValueAttribute(UA_Server *server, UA_Session *session,
                           value, &UA_TYPES[UA_TYPES_VARIANT]);
 }
 
+static UA_INLINE UA_StatusCode
+writeIsAbstractAttribute(UA_Server *server, UA_Session *session,
+                         const UA_NodeId *nodeId, UA_Boolean value) {
+    return writeAttribute(server, session, nodeId, UA_ATTRIBUTEID_ISABSTRACT,
+                          &value, &UA_TYPES[UA_TYPES_BOOLEAN]);
+}
+
 UA_DataValue
 readAttribute(UA_Server *server, const UA_ReadValueId *item,
               UA_TimestampsToReturn timestamps);
