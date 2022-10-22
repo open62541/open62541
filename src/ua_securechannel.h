@@ -343,7 +343,7 @@ signAndEncryptSym(UA_MessageContext *messageContext,
 #define UA_LOG_CHANNEL_INTERNAL(LOGGER, LEVEL, CHANNEL, MSG, ...)       \
     if(UA_LOGLEVEL <= UA_LOGLEVEL_##LEVEL) {                            \
         UA_LOG_##LEVEL(LOGGER, UA_LOGCATEGORY_SECURECHANNEL,            \
-                       "TCP %lu\t| SecureChannel %" PRIu32 "\t| " MSG "%.0s", \
+                       "TCP %lu\t| SC %" PRIu32 "\t| " MSG "%.0s", \
                        (long unsigned)(CHANNEL)->connectionId,          \
                        (CHANNEL)->securityToken.channelId, __VA_ARGS__); \
     }
