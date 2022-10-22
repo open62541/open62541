@@ -490,7 +490,7 @@ START_TEST(selectFilterValidation) {
     filter.selectClauses->browsePath = NULL;
     filter.selectClauses->browsePathSize = 0;
     createResult = addMonitoredItem(handler_events_simple, &filter, true);
-    ck_assert_uint_eq(createResult.statusCode, UA_STATUSCODE_BADBROWSENAMEINVALID);
+    ck_assert_uint_eq(createResult.statusCode, UA_STATUSCODE_GOOD);
     UA_EventFilter_clear(&filter);
 } END_TEST
 
@@ -808,7 +808,7 @@ START_TEST(inListOperatorValidation) {
 static Suite *testSuite_Client(void) {
     Suite *s = suite_create("Server Subscription Event Filters");
     TCase *tc_server = tcase_create("Basic Event Filters");
-    tcase_add_unchecked_fixture(tc_server, setup, teardown);
+    tcase_add_checked_fixture(tc_server, setup, teardown);
     tcase_add_test(tc_server, selectFilterValidation);
     tcase_add_test(tc_server, notOperatorValidation);
     tcase_add_test(tc_server, ofTypeOperatorValidation);
