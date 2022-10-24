@@ -119,15 +119,17 @@ GET_PROPERTY(ua_architecture_headers_beginning GLOBAL PROPERTY UA_ARCHITECTURE_H
 
 GET_PROPERTY(ua_architecture_sources GLOBAL PROPERTY UA_ARCHITECTURE_SOURCES)
 
-set(ua_architecture_sources ${ua_architecture_sources}
-    ${PROJECT_SOURCE_DIR}/arch/eventloop_posix.h
-    ${PROJECT_SOURCE_DIR}/arch/eventloop_posix.c
-    ${PROJECT_SOURCE_DIR}/arch/eventloop_posix_select.c
-    ${PROJECT_SOURCE_DIR}/arch/eventloop_posix_epoll.c
-    ${PROJECT_SOURCE_DIR}/arch/eventloop_posix_tcp.c
-    ${PROJECT_SOURCE_DIR}/arch/eventloop_posix_udp.c
-    ${PROJECT_SOURCE_DIR}/arch/eventloop_posix_interrupt.c
-)
+if(${UA_ARCHITECTURE} STREQUAL "posix" OR ${UA_ARCHITECTURE} STREQUAL "win32")
+    set(ua_architecture_sources ${ua_architecture_sources}
+        ${PROJECT_SOURCE_DIR}/arch/eventloop_posix.h
+        ${PROJECT_SOURCE_DIR}/arch/eventloop_posix.c
+        ${PROJECT_SOURCE_DIR}/arch/eventloop_posix_select.c
+        ${PROJECT_SOURCE_DIR}/arch/eventloop_posix_epoll.c
+        ${PROJECT_SOURCE_DIR}/arch/eventloop_posix_tcp.c
+        ${PROJECT_SOURCE_DIR}/arch/eventloop_posix_udp.c
+        ${PROJECT_SOURCE_DIR}/arch/eventloop_posix_interrupt.c
+    )
+endif()
 
 set(ua_architecture_headers ${ua_architecture_headers}
     ${PROJECT_SOURCE_DIR}/include/open62541/architecture_functions.h

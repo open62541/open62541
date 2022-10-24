@@ -338,6 +338,8 @@ extern UA_THREAD_LOCAL void * (*UA_reallocSingleton)(void *ptr, size_t size);
 # if defined(_LIL_END)
 #  define UA_LITTLE_ENDIAN 1
 # endif
+#elif defined(__wasm__)
+# define UA_LITTLE_ENDIAN 1
 #endif
 #ifndef UA_LITTLE_ENDIAN
 # define UA_LITTLE_ENDIAN 0
@@ -365,7 +367,7 @@ UA_STATIC_ASSERT(sizeof(bool) == 1, cannot_overlay_integers_with_large_bool);
 # define UA_FLOAT_IEEE754 1
 #elif defined(__i386__) || defined(__x86_64__) || defined(__amd64__) || \
     defined(__ia64__) || defined(__powerpc__) || defined(__sparc__) || \
-    defined(__arm__)
+    defined(__arm__) || defined(__wasm__)
 # define UA_FLOAT_IEEE754 1
 #elif defined(__STDC_IEC_559__)
 # define UA_FLOAT_IEEE754 1
@@ -380,7 +382,8 @@ UA_STATIC_ASSERT(sizeof(bool) == 1, cannot_overlay_integers_with_large_bool);
  * while integers are represented in little-endian form. */
 #if defined(_WIN32)
 # define UA_FLOAT_LITTLE_ENDIAN 1
-#elif defined(__i386__) || defined(__x86_64__) || defined(__amd64__)
+#elif defined(__i386__) || defined(__x86_64__) || defined(__amd64__) || \
+    defined(__wasm__)
 # define UA_FLOAT_LITTLE_ENDIAN 1
 #elif defined(__FLOAT_WORD_ORDER__) && defined(__ORDER_LITTLE_ENDIAN__) && \
     (__FLOAT_WORD_ORDER__ == __ORDER_LITTLE_ENDIAN__) /* Defined only in GCC */
