@@ -1203,7 +1203,14 @@ START_TEST(ReserveIdsMultipleTimes){
         UA_Variant defaultPublisherId;
         const UA_UInt16 numRegWriterGroupIds = 3;
         const UA_UInt16 numRegDataSetWriterIds = 3;
-        const UA_UInt16 start = 0x8000;
+        const UA_UInt16 firstId = 0x8000;
+#ifdef UA_ENABLE_REDUCED_ITERATIONS_FOR_TESTING        
+        const UA_UInt16 lastId = 0x8000 + 10;
+#else
+        const UA_UInt16 lastId = UA_UINT16_MAX;
+        #pragma message "Running this test without enabling UA_ENABLE_REDUCED_ITERATIONS takes very long time."
+#endif
+
         UA_Variant regWriterGroupIds;
         UA_Variant regDataSetWriterIds;
         UA_String transportProfileUri =
@@ -1252,8 +1259,8 @@ START_TEST(ReserveIdsMultipleTimes){
         /* Call ReserveIds 2nd time within the same session and try to reserve
          * as many IDs as needed to consume the whole pool (and roll over the ID counter). */
         retVal = CallReserveIds(client, &transportProfileUri,
-            (UA_UInt16)(UA_UINT16_MAX - start - numRegWriterGroupIds + 2),
-            (UA_UInt16)(UA_UINT16_MAX - start - numRegDataSetWriterIds + 2),
+            (UA_UInt16)(lastId - firstId - numRegWriterGroupIds + 1),
+            (UA_UInt16)(lastId - firstId - numRegDataSetWriterIds + 1),
             &defaultPublisherId, &regWriterGroupIds, &regDataSetWriterIds);
         ck_assert(UA_StatusCode_isGood(retVal));
 
@@ -1266,7 +1273,7 @@ START_TEST(ReserveIdsMultipleTimes){
         retVal = CallReserveIds(client, &transportProfileUri, 1, 1,
             &defaultPublisherId, &regWriterGroupIds, &regDataSetWriterIds);
         /* TODO: Currently Part 14 doesn't define what should happen if the ID cannot be reserved.
-         * See if that will be defined in future releases. */
+         * There is an open Mantis issue #8415. */
         // ck_assert(UA_StatusCode_isBad(retVal));
         ck_assert_uint_eq(regWriterGroupIds.arrayLength, 1);
         ck_assert_uint_eq(((UA_UInt16 *)regWriterGroupIds.data)[0], 0);
@@ -1295,14 +1302,14 @@ START_TEST(ReserveIdsMultipleTimes){
         ck_assert_str_eq("UInt16", regWriterGroupIds.type->typeName);
         ck_assert_uint_eq(numRegWriterGroupIds, regWriterGroupIds.arrayLength);
         for(size_t i = 0; i < regWriterGroupIds.arrayLength; i++) {
-            ck_assert_uint_eq(start + i + 1, ((UA_UInt16 *)regWriterGroupIds.data)[i]); // Here check if the reservations started from 0x8000 + 1
+            ck_assert_uint_eq(firstId + i + 1, ((UA_UInt16 *)regWriterGroupIds.data)[i]); // Here check if the reservations started from 0x8000 + 1
         }
 
         /* Check reserved DataSetWriterIds */
         ck_assert_str_eq("UInt16", regDataSetWriterIds.type->typeName);
         ck_assert_uint_eq(numRegDataSetWriterIds, regDataSetWriterIds.arrayLength);
         for(size_t i = 0; i < regDataSetWriterIds.arrayLength; i++) {
-            ck_assert_uint_eq(start + i + 1, ((UA_UInt16 *)regDataSetWriterIds.data)[i]); // Here check if the reservations started from 0x8000 + 1
+            ck_assert_uint_eq(firstId + i + 1, ((UA_UInt16 *)regDataSetWriterIds.data)[i]); // Here check if the reservations started from 0x8000 + 1
         }
 
         UA_Variant_clear(&defaultPublisherId);
