@@ -256,6 +256,9 @@ if(UA_ENABLE_PUBSUB)
             target_link_libraries(pubsub_publish_encrypted_tpm_keystore tpm2_pkcs11 ssl crypto)
             target_link_libraries(pubsub_subscribe_encrypted_tpm_keystore tpm2_pkcs11 ssl crypto)
         endif()
+        if(UA_ENABLE_PUBSUB_SKS)
+        add_subdirectory(pubsub/sks)
+        endif()
     endif()
 
 
