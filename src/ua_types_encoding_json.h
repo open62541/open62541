@@ -11,8 +11,6 @@
 
 #include <open62541/types.h>
 
-#include "ua_types_encoding_binary.h"
-#include "ua_types_encoding_json.h"
 #include "ua_util_internal.h"
 
 #include "../deps/cj5.h"
@@ -36,6 +34,10 @@ typedef struct {
 
     size_t serverUrisSize;
     const UA_String *serverUris;
+
+    UA_Boolean prettyPrint;
+    UA_Boolean unquotedKeys;
+    UA_Boolean stringNodeIds;
 } CtxJson;
 
 UA_StatusCode writeJsonObjStart(CtxJson *ctx);
@@ -49,32 +51,38 @@ UA_StatusCode writeJsonArrElm(CtxJson *ctx, const void *value,
 UA_StatusCode writeJsonArrEnd(CtxJson *ctx);
 
 UA_StatusCode writeJsonKey(CtxJson *ctx, const char* key);
-UA_StatusCode writeJsonCommaIfNeeded(CtxJson *ctx);
-UA_StatusCode writeJsonNull(CtxJson *ctx);
 
-status
-encodeJsonInternal(const void *src, const UA_DataType *type, CtxJson *ctx);
+/* Adds a comma if needed. Distinct elements go on a new line if pretty-printing
+ * is enabled. */
+UA_StatusCode writeJsonBeforeElement(CtxJson *ctx, UA_Boolean distinct);
 
 typedef struct {
-    cj5_token *tokenArray;
-    size_t tokenCount;
-    UA_UInt16 index;
+    const char *json5;
+    cj5_token *tokens;
+    unsigned int tokensSize;
+    unsigned int index;
+    UA_Byte depth;
+
+    size_t namespacesSize;
+    const UA_String *namespaces;
+
+    size_t serverUrisSize;
+    const UA_String *serverUris;
+
+    const UA_DataTypeArray *customTypes;
 
     /* Additonal data for special cases such as networkmessage/datasetmessage
      * Currently only used for dataSetWriterIds */
     size_t numCustom;
     void * custom;
     size_t currentCustomIndex;
-
-    const UA_DataTypeArray *customTypes;
 } ParseCtx;
 
 typedef UA_StatusCode
-(*encodeJsonSignature)(const void *src, const UA_DataType *type, CtxJson *ctx);
+(*encodeJsonSignature)(CtxJson *ctx, const void *src, const UA_DataType *type);
 
 typedef UA_StatusCode
-(*decodeJsonSignature)(void *dst, const UA_DataType *type,
-                       CtxJson *ctx, ParseCtx *parseCtx);
+(*decodeJsonSignature)(ParseCtx *ctx, void *dst, const UA_DataType *type);
 
 /* Map for decoding a Json Object. An array of this is passed to the
  * decodeFields function. If the key "fieldName" is found in the json object
@@ -90,27 +98,22 @@ typedef struct {
                               * type->typeKind. */
 } DecodeEntry;
 
-UA_StatusCode
-decodeFields(CtxJson *ctx, ParseCtx *parseCtx,
-             DecodeEntry *entries, size_t entryCount);
+UA_StatusCode decodeFields(ParseCtx *ctx, DecodeEntry *entries, size_t entryCount);
 
 /* Expose the jump tables and some methods for PubSub JSON decoding */
 extern const encodeJsonSignature encodeJsonJumpTable[UA_DATATYPEKINDS];
 extern const decodeJsonSignature decodeJsonJumpTable[UA_DATATYPEKINDS];
 
-UA_StatusCode lookAheadForKey(const char* search, CtxJson *ctx,
-                              ParseCtx *parseCtx, size_t *resultIndex);
-UA_StatusCode tokenize(ParseCtx *parseCtx, CtxJson *ctx,
-                       const UA_ByteString *src, size_t tokensSize);
-UA_Boolean isJsonNull(const CtxJson *ctx, const ParseCtx *parseCtx);
+UA_StatusCode lookAheadForKey(ParseCtx *ctx, const char *search, size_t *resultIndex);
+UA_StatusCode tokenize(ParseCtx *ctx, const UA_ByteString *src, size_t tokensSize);
 
 static UA_INLINE
-cj5_token_type currentTokenType(const ParseCtx *parseCtx) {
-    return parseCtx->tokenArray[parseCtx->index].type;
+cj5_token_type currentTokenType(const ParseCtx *ctx) {
+    return ctx->tokens[ctx->index].type;
 }
 
 static UA_INLINE
-size_t getTokenLength(cj5_token *t) {
+size_t getTokenLength(const cj5_token *t) {
     return (size_t)(1u + t->end - t->start);
 }
 

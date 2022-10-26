@@ -117,11 +117,10 @@ struct UA_EventLoop {
     UA_DateTime (*dateTime_nowMonotonic)(UA_EventLoop *el);
     UA_Int64    (*dateTime_localTimeUtcOffset)(UA_EventLoop *el);
 
-    /* Cyclic and Delayed Callbacks
-     * ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-     * Cyclic callbacks are executed regularly with an interval. A delayed
-     * callback is executed in the next cycle of the EventLoop. The memory for
-     * the delayed callback is freed after the execution. */
+    /* Timed Callbacks
+     * ~~~~~~~~~~~~~~~
+     * Cyclic callbacks are executed regularly with an interval.
+     * A timed callback is executed only once. */
 
     /* Time of the next cyclic callback. Returns the max DateTime if no cyclic
      * callback is registered. */
@@ -146,7 +145,19 @@ struct UA_EventLoop {
     (*addTimedCallback)(UA_EventLoop *el, UA_Callback cb, void *application,
                         void *data, UA_DateTime date, UA_UInt64 *callbackId);
 
+    /* Delayed Callbacks
+     * ~~~~~~~~~~~~~~~~~
+     * Delayed callbacks are executed once in the next iteration of the
+     * EventLoop and then deregistered automatically. A typical use case is to
+     * delay a resource cleanup to a point where it is known that the resource
+     * has no remaining users.
+     *
+     * The delayed callbacks are processed in each of the cycle of the EventLoop
+     * between the handling of timed cyclic callbacks and polling for (network)
+     * events. The memory for the delayed callback is *NOT* automatically freed
+     * after the execution. */
     void (*addDelayedCallback)(UA_EventLoop *el, UA_DelayedCallback *dc);
+    void (*removeDelayedCallback)(UA_EventLoop *el, UA_DelayedCallback *dc);
 
     /* EventSources
      * ~~~~~~~~~~~~
@@ -455,17 +466,24 @@ UA_ConnectionManager_new_POSIX_TCP(const UA_String eventSourceName);
  * effect.
  *
  * Configuration Parameters:
- * - 0:listen-port [uint16]: Port to listen for new connections (default: do not
- *                           listen on any port).
- * - 0:listen-hostnames [string | string array]: Hostnames of the devices to
- *                                               listen on (default: listen on
- *                                               all devices).
+
  * - 0:recv-bufsize [uint32]: Size of the buffer that is allocated for receiving
  *                            messages (default 64kB).
  *
  * Open Connection Parameters:
- * - 0:hostname [string]: Hostname (or IPv4/v6 address) to connect to (required).
- * - 0:port [uint16]: Port of the target host (required).
+ *
+ * - Active Connection
+ * -   0:hostname [string]: Hostname (or IPv4/v6 address) to connect to (required).
+ * -   0:port [uint16]: Port of the target host (required).
+ * - Passive Connection
+ * -   0:listen-port [uint16]: Port to listen for new connections (default: do not
+ *                           listen on any port).
+ * -   0:listen-hostnames [string | string array]: Hostnames of the devices to
+ *                                               listen on (default: listen on
+ *                                               all devices).
+ *
+ * - 0:network-interface [string]: Network interface to listen on or send through when using
+ *                                 multicast addresses
  * - 0:ttl [uint32]: Multicast time to live, (optional, default: 1 - meaning multicast is
  *                   available only to the local subnet).
  * - 0:loopback [boolean]: Whether or not to use multicast loopback, enabling
@@ -478,6 +496,9 @@ UA_ConnectionManager_new_POSIX_TCP(const UA_String eventSourceName);
  *                            processed first depending on the selected device queueing
  *                            discipline.  Setting a priority outside the range 0 to 6
  *                            requires the CAP_NET_ADMIN capability.
+ * - 0:validate [boolean]: If true, the connection setup will act as a dry-run without
+ *                         actually creating any connection but solely validating the
+ *                         provided parameters, hostname(s) and port. (optional, default: false)
  *
  * Connection Callback Paramters:
  * - 0:remote-hostname [string]: When a new connection is opened by listening on

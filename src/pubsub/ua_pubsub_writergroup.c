@@ -8,6 +8,7 @@
  * Copyright (c) 2020 Yannick Wallerer, Siemens AG
  * Copyright (c) 2020 Thomas Fischer, Siemens AG
  * Copyright (c) 2021 Fraunhofer IOSB (Author: Jan Hermes)
+ * Copyright (c) 2022 Linutronix GmbH (Author: Muddasir Shakil)
  */
 
 #include <open62541/server_pubsub.h>
@@ -46,6 +47,9 @@ UA_StatusCode
 UA_Server_addWriterGroup(UA_Server *server, const UA_NodeId connection,
                          const UA_WriterGroupConfig *writerGroupConfig,
                          UA_NodeId *writerGroupIdentifier) {
+
+    /* Delete the reserved IDs if the related session no longer exists. */
+    UA_PubSubManager_freeIds(server);
     if(!writerGroupConfig)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
 
@@ -114,6 +118,34 @@ UA_Server_addWriterGroup(UA_Server *server, const UA_NodeId connection,
     UA_PubSubManager_generateUniqueNodeId(&server->pubSubManager,
                                           &newWriterGroup->identifier);
 #endif
+
+#ifdef UA_ENABLE_PUBSUB_SKS
+    if(writerGroupConfig->securityMode == UA_MESSAGESECURITYMODE_SIGN ||
+       writerGroupConfig->securityMode == UA_MESSAGESECURITYMODE_SIGNANDENCRYPT) {
+        if(!UA_String_isEmpty(&writerGroupConfig->securityGroupId) &&
+           writerGroupConfig->securityPolicy) {
+            UA_String policyUri = writerGroupConfig->securityPolicy->policyUri;
+
+            newWriterGroup->keyStorage =
+                UA_Server_findKeyStorage(
+                    server, writerGroupConfig->securityGroupId);
+            if(!newWriterGroup->keyStorage) {
+                newWriterGroup->keyStorage = (UA_PubSubKeyStorage *)UA_calloc(1, sizeof(UA_PubSubKeyStorage));
+                if(!newWriterGroup)
+                    return UA_STATUSCODE_BADOUTOFMEMORY;
+            }
+
+            res = UA_PubSubKeyStorage_init(server, &writerGroupConfig->securityGroupId,
+                                           &policyUri, 0, 0, newWriterGroup->keyStorage);
+            if(res != UA_STATUSCODE_GOOD) {
+                UA_free(newWriterGroup);
+                return res;
+            }
+        }
+    }
+
+#endif
+
     if(writerGroupIdentifier)
         UA_NodeId_copy(&newWriterGroup->identifier, writerGroupIdentifier);
     return res;
@@ -330,10 +362,8 @@ UA_Server_freezeWriterGroupConfiguration(UA_Server *server,
         goto cleanup_dsm;
 
     memset(&wg->bufferedMessage, 0, sizeof(UA_NetworkMessageOffsetBuffer));
-    UA_NetworkMessage_calcSizeBinary(&networkMessage, &wg->bufferedMessage);
+    msgSize = UA_NetworkMessage_calcSizeBinary(&networkMessage, &wg->bufferedMessage);
 
-    /* Allocate the buffer. Allocate on the stack if the buffer is small. */
-    msgSize = UA_NetworkMessage_calcSizeBinary(&networkMessage, NULL);
 #ifdef UA_ENABLE_PUBSUB_ENCRYPTION
     if(wg->config.securityMode > UA_MESSAGESECURITYMODE_NONE) {
         UA_PubSubSecurityPolicy *sp = wg->config.securityPolicy;
@@ -585,7 +615,11 @@ UA_Server_setWriterGroupEncryptionKeys(UA_Server *server, const UA_NodeId writer
     UA_WriterGroup *wg = UA_WriterGroup_findWGbyId(server, writerGroup);
     if(!wg)
         return UA_STATUSCODE_BADNOTFOUND;
-
+    if(wg->config.encodingMimeType == UA_PUBSUB_ENCODING_JSON) {
+        UA_LOG_WARNING_WRITERGROUP(&server->config.logger, wg,
+                                   "JSON encoding is enabled. The message security is only defined for the UADP message mapping.");
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
     if(!wg->config.securityPolicy) {
         UA_LOG_WARNING_WRITERGROUP(&server->config.logger, wg,
                                    "No SecurityPolicy configured for the WriterGroup");
@@ -637,6 +671,15 @@ UA_WriterGroup_clear(UA_Server *server, UA_WriterGroup *writerGroup) {
     if(writerGroup->config.securityPolicy && writerGroup->securityPolicyContext) {
         writerGroup->config.securityPolicy->deleteContext(writerGroup->securityPolicyContext);
         writerGroup->securityPolicyContext = NULL;
+    }
+#endif
+
+#ifdef UA_ENABLE_PUBSUB_SKS
+    if(writerGroup->config.securityMode == UA_MESSAGESECURITYMODE_SIGN ||
+       writerGroup->config.securityMode == UA_MESSAGESECURITYMODE_SIGNANDENCRYPT) {
+            UA_PubSubKeyStorage_removeKeyStorage(server,
+                                                 writerGroup->keyStorage);
+            writerGroup->keyStorage = NULL;
     }
 #endif
 

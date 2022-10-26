@@ -419,10 +419,9 @@ UA_Server_addRepeatedCallback(UA_Server *server, UA_ServerCallback callback,
                               void *data, UA_Double interval_ms,
                               UA_UInt64 *callbackId) {
     UA_LOCK(&server->serviceMutex);
-    UA_StatusCode retval =
-        addRepeatedCallback(server, callback, data, interval_ms, callbackId);
+    UA_StatusCode res = addRepeatedCallback(server, callback, data, interval_ms, callbackId);
     UA_UNLOCK(&server->serviceMutex);
-    return retval;
+    return res;
 }
 
 UA_StatusCode
@@ -445,8 +444,8 @@ UA_Server_changeRepeatedCallbackInterval(UA_Server *server, UA_UInt64 callbackId
 
 void
 removeCallback(UA_Server *server, UA_UInt64 callbackId) {
-    server->config.eventLoop->removeCyclicCallback(server->config.eventLoop,
-                                                   callbackId);
+    UA_EventLoop *el = server->config.eventLoop;
+    el->removeCyclicCallback(el, callbackId);
 }
 
 void
@@ -551,21 +550,14 @@ verifyServerApplicationURI(const UA_Server *server) {
 UA_ServerStatistics
 UA_Server_getStatistics(UA_Server *server) {
     UA_ServerStatistics stat;
-    stat.ns = server->networkStatistics;
     stat.scs = server->secureChannelStatistics;
-
+    UA_ServerDiagnosticsSummaryDataType *sds = &server->serverDiagnosticsSummary;
     stat.ss.currentSessionCount = server->activeSessionCount;
-    stat.ss.cumulatedSessionCount =
-        server->serverDiagnosticsSummary.cumulatedSessionCount;
-    stat.ss.securityRejectedSessionCount =
-        server->serverDiagnosticsSummary.securityRejectedSessionCount;
-    stat.ss.rejectedSessionCount =
-        server->serverDiagnosticsSummary.rejectedSessionCount;
-    stat.ss.sessionTimeoutCount =
-        server->serverDiagnosticsSummary.sessionTimeoutCount;
-    stat.ss.sessionAbortCount =
-        server->serverDiagnosticsSummary.sessionAbortCount;
-
+    stat.ss.cumulatedSessionCount = sds->cumulatedSessionCount;
+    stat.ss.securityRejectedSessionCount = sds->securityRejectedSessionCount;
+    stat.ss.rejectedSessionCount = sds->rejectedSessionCount;
+    stat.ss.sessionTimeoutCount = sds->sessionTimeoutCount;
+    stat.ss.sessionAbortCount = sds->sessionAbortCount;
     return stat;
 }
 
@@ -710,6 +702,11 @@ UA_Server_run_startup(UA_Server *server) {
 #ifdef UA_ENABLE_ENCRYPTION
     retVal = verifyServerApplicationURI(server);
     UA_CHECK_STATUS(retVal, return retVal);
+#endif
+
+#ifdef UA_ENABLE_PUBSUB
+    /* Initialized PubSubManager */
+    UA_PubSubManager_init(server, &server->pubSubManager);
 #endif
 
     /* Sample the start time and set it to the Server object */

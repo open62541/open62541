@@ -259,49 +259,46 @@ checkAdjustMonitoredItemParams(UA_Server *server, UA_Session *session,
 static UA_StatusCode
 checkEventFilterParam(UA_Server *server, UA_Session *session,
                       const UA_MonitoredItem *mon,
-                      UA_MonitoringParameters *params){
+                      UA_MonitoringParameters *params) {
+    /* Is an Event MonitoredItem? */
     if(mon->itemToMonitor.attributeId != UA_ATTRIBUTEID_EVENTNOTIFIER)
         return UA_STATUSCODE_GOOD;
 
-    UA_EventFilter *eventFilter =
-        (UA_EventFilter *) params->filter.content.decoded.data;
-
-    if(eventFilter == NULL)
+    /* Correct data type? */
+    if(params->filter.encoding != UA_EXTENSIONOBJECT_DECODED &&
+       params->filter.encoding != UA_EXTENSIONOBJECT_DECODED_NODELETE)
+        return UA_STATUSCODE_BADEVENTFILTERINVALID;
+    if(params->filter.content.decoded.type != &UA_TYPES[UA_TYPES_EVENTFILTER])
         return UA_STATUSCODE_BADEVENTFILTERINVALID;
 
-    //TODO make the maximum select clause size param an server-config parameter
-    if(eventFilter->selectClausesSize > 128)
-        return UA_STATUSCODE_BADCONFIGURATIONERROR;
+    UA_EventFilter *eventFilter = (UA_EventFilter *)params->filter.content.decoded.data;
 
-    //check the where clause for logical consistency
-    if(eventFilter->whereClause.elementsSize != 0) {
-        UA_ContentFilterResult contentFilterResult;
-        UA_Event_staticWhereClauseValidation(server, &eventFilter->whereClause,
-                                             &contentFilterResult);
-        for(size_t i = 0; i < contentFilterResult.elementResultsSize; ++i) {
-            if(contentFilterResult.elementResults[i].statusCode != UA_STATUSCODE_GOOD){
-                //ToDo currently we return the first non good status code, check if
-                //we can use the detailed contentFilterResult later
-                UA_StatusCode whereResult =
-                    contentFilterResult.elementResults[i].statusCode;
-                UA_ContentFilterResult_clear(&contentFilterResult);
-                return whereResult;
-            }
-        }
-        UA_ContentFilterResult_clear(&contentFilterResult);
-    }
-    //check the select clause for logical consistency
-    UA_StatusCode selectClauseValidationResult[128];
-    UA_Event_staticSelectClauseValidation(server,eventFilter,
-                                          selectClauseValidationResult);
-    for(size_t i = 0; i < eventFilter->selectClausesSize; ++i){
-        //ToDo currently we return the first non good status code, check if
-        //we can use the detailed status code list later
-        if(selectClauseValidationResult[i] != UA_STATUSCODE_GOOD){
-            return selectClauseValidationResult[i];
-        }
-    }
+    /* Correct number of elements? */
+    if(eventFilter->selectClausesSize == 0 ||
+       eventFilter->selectClausesSize > UA_EVENTFILTER_MAXELEMENTS)
+        return UA_STATUSCODE_BADEVENTFILTERINVALID;
 
+    /* Allow empty where clauses --> select every event */
+    if(eventFilter->whereClause.elementsSize > UA_EVENTFILTER_MAXELEMENTS)
+        return UA_STATUSCODE_BADEVENTFILTERINVALID;
+
+    /* Check the where clause for logical consistency */
+    UA_ContentFilterResult cfr;
+    UA_StatusCode res = UA_ContentFilterValidation(server, &eventFilter->whereClause, &cfr);
+    UA_ContentFilterResult_clear(&cfr);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
+
+    /* Acceptable number of select clauses */
+    if(eventFilter->selectClausesSize > UA_EVENTFILTER_MAXSELECT)
+        return UA_STATUSCODE_BADEVENTFILTERINVALID;
+
+    /* Check the select clause for consistency */
+    for(size_t i = 0; i < eventFilter->selectClausesSize; i++) {
+        res = UA_SimpleAttributeOperandValidation(server, &eventFilter->selectClauses[i]);
+        if(res != UA_STATUSCODE_GOOD)
+            return res;
+    }
     return UA_STATUSCODE_GOOD;
 }
 #endif
@@ -448,7 +445,7 @@ Operation_CreateMonitoredItem(UA_Server *server, UA_Session *session,
                                                          valueType, &newMon->parameters);
 #ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
     result->statusCode |= checkEventFilterParam(server, session, newMon,
-                                                         &newMon->parameters);
+                                                &newMon->parameters);
 #endif
     if(result->statusCode != UA_STATUSCODE_GOOD) {
         UA_LOG_INFO_SUBSCRIPTION(&server->config.logger, cmc->sub,

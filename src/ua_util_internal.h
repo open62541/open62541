@@ -175,6 +175,9 @@ const UA_DataType *
 UA_findDataTypeWithCustom(const UA_NodeId *typeId,
                           const UA_DataTypeArray *customTypes);
 
+void
+UA_cleanupDataTypeWithCustom(const UA_DataTypeArray *customTypes);
+
 /* Get the number of optional fields contained in an structure type */
 size_t UA_EXPORT
 getCountOfOptionalFields(const UA_DataType *type);
@@ -294,6 +297,9 @@ UA_String_equal_ignorecase(const UA_String *s1, const UA_String *s2);
 /********************/
 /* Encoding Helpers */
 /********************/
+
+/* out must be a buffer with at least 36 elements, the length of every guid */
+void UA_Guid_to_hex(const UA_Guid *guid, u8* out, UA_Boolean lower);
 
 #define UA_ENCODING_HELPERS(TYPE, UPCASE_TYPE)                          \
     static UA_INLINE size_t                                             \

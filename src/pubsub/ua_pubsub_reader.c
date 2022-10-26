@@ -78,6 +78,7 @@ UA_PubSubDataSetReader_generateKeyFrameMessage(UA_Server *server,
     dataSetMessage->data.keyFrameData.fieldCount = (UA_UInt16) tv->targetVariablesSize;
     dataSetMessage->data.keyFrameData.dataSetFields = (UA_DataValue *)
             UA_Array_new(tv->targetVariablesSize, &UA_TYPES[UA_TYPES_DATAVALUE]);
+    dataSetMessage->data.keyFrameData.dataSetMetaDataType = &dataSetReader->config.dataSetMetaData;
     if(!dataSetMessage->data.keyFrameData.dataSetFields)
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
@@ -1044,6 +1045,15 @@ DataSetReader_processRaw(UA_Server *server, UA_ReaderGroup *rg,
         UA_StatusCode res =
             UA_decodeBinaryInternal(&msg->data.keyFrameData.rawFields,
                                     &offset, value, type, NULL);
+        if(dsr->config.dataSetMetaData.fields[i].maxStringLength != 0) {
+            if(type->typeKind == UA_DATATYPEKIND_STRING ||
+                type->typeKind == UA_DATATYPEKIND_BYTESTRING) {
+                UA_ByteString *bs = (UA_ByteString *) value;
+                //check if length < maxStringLength, The types ByteString and String are equal in their base definition
+                size_t lengthDifference = dsr->config.dataSetMetaData.fields[i].maxStringLength - bs->length;
+                offset += lengthDifference;
+            }
+        }
         if(res != UA_STATUSCODE_GOOD) {
             UA_LOG_INFO_READER(&server->config.logger, dsr,
                                "Error during Raw-decode KeyFrame field %u: %s",

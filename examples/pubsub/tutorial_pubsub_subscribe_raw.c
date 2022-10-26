@@ -328,7 +328,7 @@ run(UA_String *transportProfile, UA_NetworkAddressUrlDataType *networkAddressUrl
     types[0] = PointType;
     types[0].members = pointMembers;
 
-    UA_DataTypeArray customDataTypes = {config->customDataTypes, 1, types};
+    UA_DataTypeArray customDataTypes = {config->customDataTypes, 1, types, UA_FALSE};
     config->customDataTypes = &customDataTypes;
 
     add3DPointDataType(server);

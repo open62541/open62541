@@ -71,12 +71,12 @@ UA_ClientConfig_clear(UA_ClientConfig *config) {
         config->certificateVerification.clear(&config->certificateVerification);
 
     /* Delete the SecurityPolicies */
-    if(config->securityPolicies == 0)
-        return;
-    for(size_t i = 0; i < config->securityPoliciesSize; i++)
-        config->securityPolicies[i].clear(&config->securityPolicies[i]);
-    UA_free(config->securityPolicies);
-    config->securityPolicies = 0;
+    if(config->securityPolicies != 0) {
+        for(size_t i = 0; i < config->securityPoliciesSize; i++)
+            config->securityPolicies[i].clear(&config->securityPolicies[i]);
+        UA_free(config->securityPolicies);
+        config->securityPolicies = 0;
+    }
 
     /* Stop and delete the EventLoop */
     UA_EventLoop *el = config->eventLoop;
@@ -104,6 +104,9 @@ UA_ClientConfig_clear(UA_ClientConfig *config) {
     }
     config->sessionLocaleIds = NULL;
     config->sessionLocaleIdsSize = 0;
+
+    /* Custom Data Types */
+    UA_cleanupDataTypeWithCustom(config->customDataTypes);
 }
 
 static void
@@ -446,16 +449,17 @@ __UA_Client_Service(UA_Client *client, const void *request,
     /* Temporarily insert to the async service list */
     LIST_INSERT_HEAD(&client->asyncServiceCalls, &ac, pointers);
 
+    /* Update the first timeout. Call the event-loop at least once with a
+     * timeout of zero. This is also important to have for debugging. */
+    UA_UInt32 timeout = 0;
+    UA_DateTime now = UA_DateTime_nowMonotonic();
+    if(now > maxDate)
+        timeout = (UA_UInt32)((maxDate - now) / UA_DATETIME_MSEC);
+
     /* Run the EventLoop until the request was processed, the request has timed
      * out or the client connection fails */
     while(true) {
-        /* Compute the remaining timeout and run the EventLoop */
-        UA_DateTime now = UA_DateTime_nowMonotonic();
-        if(now > maxDate) {
-            retval = UA_STATUSCODE_BADTIMEOUT;
-            break;
-        }
-        retval = el->run(el, (UA_UInt32)((maxDate - now) / UA_DATETIME_MSEC));
+        retval = el->run(el, timeout);
 
         /* Was the response received? In that case we can directly return. The
          * ac was already removed from the internal linked list. */
@@ -479,6 +483,14 @@ __UA_Client_Service(UA_Client *client, const void *request,
             retval = UA_STATUSCODE_BADSECURECHANNELCLOSED;
             break;
         }
+
+        /* Compute the remaining timeout and run the EventLoop */
+        now = UA_DateTime_nowMonotonic();
+        if(now > maxDate) {
+            retval = UA_STATUSCODE_BADTIMEOUT;
+            break;
+        }
+        timeout = (UA_UInt32)((maxDate - now) / UA_DATETIME_MSEC);
     }
 
     /* Detach from the internal async service list */

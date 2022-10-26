@@ -134,13 +134,13 @@ UA_Session_dequeuePublishReq(UA_Session *session);
     if(UA_LOGLEVEL <= UA_LOGLEVEL_##LEVEL) {                           \
         int nameLen = (SESSION) ? (int)(SESSION)->sessionName.length : 0; \
         const char *nameStr = (SESSION) ?                               \
-            (const char*)(SESSION)->sessionName.data : NULL;            \
+            (const char*)(SESSION)->sessionName.data : "";              \
         unsigned long sockId = ((SESSION) && (SESSION)->header.channel) ? \
             (unsigned long)(SESSION)->header.channel->connectionId : 0; \
         UA_UInt32 chanId = ((SESSION) && (SESSION)->header.channel) ?   \
             (SESSION)->header.channel->securityToken.channelId : 0;     \
         UA_LOG_##LEVEL(LOGGER, UA_LOGCATEGORY_SESSION,                  \
-                       "TCP %lu\t| SecureChannel %" PRIu32 "\t| Session \"%.*s\"\t| " MSG "%.0s", \
+                       "TCP %lu\t| SC %" PRIu32 "\t| Session \"%.*s\"\t| " MSG "%.0s", \
                        sockId, chanId, nameLen, nameStr, __VA_ARGS__);   \
     }
 

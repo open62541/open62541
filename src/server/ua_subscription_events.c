@@ -14,7 +14,7 @@
 
 /* We use a 16-Byte ByteString as an identifier */
 UA_StatusCode
-UA_Event_generateEventId(UA_ByteString *generatedId) {
+generateEventId(UA_ByteString *generatedId) {
     /* EventId is a ByteString, which is basically just a string
      * We will use a 16-Byte ByteString as an identifier */
     UA_StatusCode res = UA_ByteString_allocBuffer(generatedId, 16 * sizeof(UA_Byte));
@@ -29,14 +29,11 @@ UA_Event_generateEventId(UA_ByteString *generatedId) {
 }
 
 UA_StatusCode
-UA_Server_createEvent(UA_Server *server, const UA_NodeId eventType,
-                      UA_NodeId *outNodeId) {
-    UA_LOCK(&server->serviceMutex);
+createEvent(UA_Server *server, const UA_NodeId eventType, UA_NodeId *outNodeId) {
     if(!outNodeId) {
         UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_USERLAND,
                      "outNodeId must not be NULL. The event's NodeId must be returned "
                      "so it can be triggered.");
-        UA_UNLOCK(&server->serviceMutex);
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     }
 
@@ -46,7 +43,6 @@ UA_Server_createEvent(UA_Server *server, const UA_NodeId eventType,
                                UA_REFERENCETYPEINDEX_HASSUBTYPE)) {
         UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_USERLAND,
                      "Event type must be a subtype of BaseEventType!");
-        UA_UNLOCK(&server->serviceMutex);
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     }
 
@@ -69,7 +65,6 @@ UA_Server_createEvent(UA_Server *server, const UA_NodeId eventType,
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_USERLAND,
                      "Adding event failed. StatusCode %s", UA_StatusCode_name(retval));
-        UA_UNLOCK(&server->serviceMutex);
         return retval;
     }
 
@@ -81,7 +76,6 @@ UA_Server_createEvent(UA_Server *server, const UA_NodeId eventType,
         UA_BrowsePathResult_clear(&bpr);
         deleteNode(server, newNodeId, true);
         UA_NodeId_clear(&newNodeId);
-        UA_UNLOCK(&server->serviceMutex);
         return retval;
     }
 
@@ -95,13 +89,20 @@ UA_Server_createEvent(UA_Server *server, const UA_NodeId eventType,
     if(retval != UA_STATUSCODE_GOOD) {
         deleteNode(server, newNodeId, true);
         UA_NodeId_clear(&newNodeId);
-        UA_UNLOCK(&server->serviceMutex);
         return retval;
     }
 
     *outNodeId = newNodeId;
-    UA_UNLOCK(&server->serviceMutex);
     return UA_STATUSCODE_GOOD;
+}
+
+UA_StatusCode
+UA_Server_createEvent(UA_Server *server, const UA_NodeId eventType,
+                      UA_NodeId *outNodeId) {
+    UA_LOCK(&server->serviceMutex);
+    UA_StatusCode res = createEvent(server, eventType, outNodeId);
+    UA_UNLOCK(&server->serviceMutex);
+    return res;
 }
 
 static UA_StatusCode
@@ -144,7 +145,7 @@ eventSetStandardFields(UA_Server *server, const UA_NodeId *event,
 
     /* Set the EventId */
     UA_ByteString eventId = UA_BYTESTRING_NULL;
-    retval = UA_Event_generateEventId(&eventId);
+    retval = generateEventId(&eventId);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
     name = UA_QUALIFIEDNAME(0, "EventId");
@@ -177,8 +178,8 @@ eventSetStandardFields(UA_Server *server, const UA_NodeId *event,
 /* Filters an event according to the filter specified by mon and then adds it to
  * mons notification queue */
 UA_StatusCode
-UA_Event_addEventToMonitoredItem(UA_Server *server, const UA_NodeId *event,
-                                 UA_MonitoredItem *mon) {
+UA_MonitoredItem_addEvent(UA_Server *server, UA_MonitoredItem *mon,
+                          const UA_NodeId *event) {
     UA_Notification *notification = UA_Notification_new();
     if(!notification)
         return UA_STATUSCODE_BADOUTOFMEMORY;
@@ -248,8 +249,7 @@ setHistoricalEvent(UA_Server *server, const UA_NodeId *origin,
     UA_EventFilter *filter = (UA_EventFilter*) historicalEventFilterValue.data;
     UA_EventFieldList efl;
     UA_EventFilterResult result;
-    retval = filterEvent(server, &server->adminSession,
-                         eventNodeId, filter, &efl, &result);
+    retval = filterEvent(server, &server->adminSession, eventNodeId, filter, &efl, &result);
     if(retval == UA_STATUSCODE_GOOD)
         server->config.historyDatabase.setEvent(server, server->config.historyDatabase.context,
                                                 origin, emitNodeId, filter, &efl);
@@ -394,7 +394,7 @@ triggerEvent(UA_Server *server, const UA_NodeId eventNodeId,
             /* Is this an Event-MonitoredItem? */
             if(mon->itemToMonitor.attributeId != UA_ATTRIBUTEID_EVENTNOTIFIER)
                 continue;
-            retval = UA_Event_addEventToMonitoredItem(server, &eventNodeId, mon);
+            retval = UA_MonitoredItem_addEvent(server, mon, &eventNodeId);
             if(retval != UA_STATUSCODE_GOOD) {
                 UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
                                "Events: Could not add the event to a listening "

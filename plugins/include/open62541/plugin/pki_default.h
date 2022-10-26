@@ -30,11 +30,21 @@ UA_CertificateVerification_Trustlist(UA_CertificateVerification *cv,
                                      size_t certificateRevocationListSize);
 
 #ifdef __linux__ /* Linux only so far */
+
+#ifdef UA_ENABLE_CERT_REJECTED_DIR
+UA_EXPORT UA_StatusCode
+UA_CertificateVerification_CertFolders(UA_CertificateVerification *cv,
+                                       const char *trustListFolder,
+                                       const char *issuerListFolder,
+                                       const char *revocationListFolder,
+                                       const char *rejectedListFolder);
+#else
 UA_EXPORT UA_StatusCode
 UA_CertificateVerification_CertFolders(UA_CertificateVerification *cv,
                                        const char *trustListFolder,
                                        const char *issuerListFolder,
                                        const char *revocationListFolder);
+#endif
 #endif
 
 #endif

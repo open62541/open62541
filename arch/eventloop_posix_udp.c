@@ -30,6 +30,12 @@
 /* A registered file descriptor with an additional method pointer */
 typedef struct {
     UA_RegisteredFD fd;
+    struct sockaddr_storage sendAddr;
+#ifdef _WIN32
+    size_t sendAddrLength;
+#else
+    socklen_t sendAddrLength;
+#endif
     UA_ConnectionManager_connectionCallback connectionCallback;
 } UDP_FD;
 
@@ -127,7 +133,7 @@ getNetworkInterfaceFromParams(size_t paramsSize, const UA_KeyValuePair *params,
     /* Prepare the networkinterface string */
     const UA_String *networkInterface = (const UA_String*)
         UA_KeyValueMap_getScalar(params, paramsSize,
-                                 UA_QUALIFIEDNAME(0, "networkInterface"),
+                                 UA_QUALIFIEDNAME(0, "network-interface"),
                                  &UA_TYPES[UA_TYPES_STRING]);
     if(!networkInterface) {
         UA_LOG_DEBUG(logger, UA_LOGCATEGORY_NETWORK,
@@ -290,7 +296,8 @@ setConnectionConfig(UA_FD socket, const UA_KeyValuePair *connectionProperties,
     UA_String hostnameParam = UA_STRING("hostname");
     UA_String portParam = UA_STRING("port");
     UA_String listenHostnamesParam = UA_STRING("listen-hostnames");
-    UA_String listenPortParam= UA_STRING("listen-port");
+    UA_String listenPortParam = UA_STRING("listen-port");
+    UA_String networkInterfaceParam = UA_STRING("network-interface");
 
 #ifdef __linux__
     UA_String socketPriorityParam = UA_STRING("sockpriority");
@@ -330,8 +337,9 @@ setConnectionConfig(UA_FD socket, const UA_KeyValuePair *connectionProperties,
         } else if (UA_String_equal(&prop->key.name, &hostnameParam) ||
                    UA_String_equal(&prop->key.name, &portParam) ||
                    UA_String_equal(&prop->key.name, &listenHostnamesParam) ||
-                   UA_String_equal(&prop->key.name, &listenPortParam)) {
-            /* ignore, required args are handled elsewhere explicitly */
+                   UA_String_equal(&prop->key.name, &listenPortParam) ||
+                   UA_String_equal(&prop->key.name, &networkInterfaceParam)) {
+                /* ignore, required args are handled elsewhere explicitly */
         } else {
             UA_LOG_WARNING(logger, UA_LOGCATEGORY_SERVER,
                            "PubSub Connection creation. Unknown connection parameter: '%.*s'.",
@@ -377,6 +385,8 @@ setupSendMulticastIPv4(UA_FD socket, struct sockaddr_in *addr, size_t paramsSize
         memcpy(interfaceAsChar, netif.data, netif.length);
         interfaceAsChar[netif.length] = 0;
 
+        UA_String_clear(&netif);
+
         if(UA_inet_pton(AF_INET, interfaceAsChar, &ipMulticastRequest.ipv4.imr_interface) <= 0) {
             UA_LOG_ERROR(logger, UA_LOGCATEGORY_SERVER,
                          "PubSub Connection creation problem. "
@@ -415,6 +425,8 @@ setupListenMulticastIPv4(UA_FD socket, size_t paramsSize, const UA_KeyValuePair 
         UA_STACKARRAY(char, interfaceAsChar, sizeof(char) * (netif).length + 1);
         memcpy(interfaceAsChar, netif.data, netif.length);
         interfaceAsChar[netif.length] = 0;
+
+        UA_String_clear(&netif);
 
         if(UA_inet_pton(AF_INET, interfaceAsChar, &ipMulticastRequest.ipv4.imr_interface) <= 0) {
             UA_LOG_ERROR(logger, UA_LOGCATEGORY_SERVER,
@@ -617,14 +629,13 @@ UDP_close(UDPConnectionManager *ucm, UA_RegisteredFD *rfd) {
 
 static void
 UDP_delayedClose(void *application, void *context) {
-    UA_ConnectionManager *cm = (UA_ConnectionManager*)application;
-    UDPConnectionManager *ucm = (UDPConnectionManager*)cm;
+    UDPConnectionManager *ucm = (UDPConnectionManager*)application;
+    UA_ConnectionManager *cm = &ucm->cm;
     UA_RegisteredFD* rfd = (UA_RegisteredFD *)context;
     UA_LOG_DEBUG(cm->eventSource.eventLoop->logger, UA_LOGCATEGORY_EVENTLOOP,
                  "UDP %u\t| Delayed closing of the connection", (unsigned)rfd->fd);
     UDP_close(ucm, rfd);
-    /* Don't call free here. This is done automatically via the delayed callback
-     * mechanism. */
+    UA_free(rfd);
 }
 
 /* Gets called when a socket receives data or closes */
@@ -681,7 +692,7 @@ UDP_connectionSocketCallback(UA_ConnectionManager *cm, UA_RegisteredFD *rfd,
                         "UDP %u\t| recv signaled the socket was shutdown (%s)",
                         (unsigned)rfd->fd, errno_str));
         UDP_close(ucm, rfd);
-        UA_free(rfd);
+        UA_free((UDP_FD*)rfd);
         return;
     }
 
@@ -723,11 +734,12 @@ checkForListenMulticastAndConfigure(struct addrinfo *info, size_t paramsSize, co
     return res;
 }
 
-static void
+static UA_StatusCode
 UDP_registerListenSocket(UA_ConnectionManager *cm, UA_UInt16 port, struct addrinfo *info,
                          size_t paramsSize, const UA_KeyValuePair *params,
                          void *application, void *context,
-                         UA_ConnectionManager_connectionCallback connectionCallback) {
+                         UA_ConnectionManager_connectionCallback connectionCallback,
+                         UA_Boolean validate) {
     UDPConnectionManager *ucm = (UDPConnectionManager*)cm;
     UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX*)cm->eventSource.eventLoop;
 
@@ -742,6 +754,9 @@ UDP_registerListenSocket(UA_ConnectionManager *cm, UA_UInt16 port, struct addrin
            UA_LOG_WARNING(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
                           "UDP\t| getnameinfo(...) could not resolve the hostname (%s)",
                           errno_str));
+        if(validate) {
+            return UA_STATUSCODE_BADCONNECTIONREJECTED;
+        }
     }
 
     /* Create the listen socket */
@@ -752,7 +767,7 @@ UDP_registerListenSocket(UA_ConnectionManager *cm, UA_UInt16 port, struct addrin
                           "UDP %u\t| Error opening the listen socket for "
                           "\"%s\" on port %u (%s)",
                           (unsigned)listenSocket, hoststr, port, errno_str));
-        return;
+        return UA_STATUSCODE_BADCONNECTIONREJECTED;
     }
 
     UA_LOG_INFO(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
@@ -764,7 +779,7 @@ UDP_registerListenSocket(UA_ConnectionManager *cm, UA_UInt16 port, struct addrin
         UA_LOG_ERROR(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
                      "UDP\t| Configuring listen multicast failed");
         UA_close(listenSocket);
-        return;
+        return UA_STATUSCODE_BADCONNECTIONREJECTED;
     }
     /* Some Linux distributions have net.ipv6.bindv6only not activated. So
      * sockets can double-bind to IPv4 and IPv6. This leads to problems. Use
@@ -778,7 +793,7 @@ UDP_registerListenSocket(UA_ConnectionManager *cm, UA_UInt16 port, struct addrin
                        "UDP %u\t| Could not set an IPv6 socket to IPv6 only, closing",
                        (unsigned)listenSocket);
         UA_close(listenSocket);
-        return;
+        return UA_STATUSCODE_BADCONNECTIONREJECTED;
     }
 #endif
 
@@ -789,7 +804,7 @@ UDP_registerListenSocket(UA_ConnectionManager *cm, UA_UInt16 port, struct addrin
                        "UDP %u\t| Could not make the socket reusable, closing",
                        (unsigned)listenSocket);
         UA_close(listenSocket);
-        return;
+        return UA_STATUSCODE_BADCONNECTIONREJECTED;
     }
 
     /* Set the socket non-blocking */
@@ -798,7 +813,7 @@ UDP_registerListenSocket(UA_ConnectionManager *cm, UA_UInt16 port, struct addrin
                        "UDP %u\t| Could not set the socket non-blocking, closing",
                        (unsigned)listenSocket);
         UA_close(listenSocket);
-        return;
+        return UA_STATUSCODE_BADCONNECTIONREJECTED;
     }
 
     /* Supress interrupts from the socket */
@@ -807,7 +822,7 @@ UDP_registerListenSocket(UA_ConnectionManager *cm, UA_UInt16 port, struct addrin
                        "UDP %u\t| Could not disable SIGPIPE, closing",
                        (unsigned)listenSocket);
         UA_close(listenSocket);
-        return;
+        return UA_STATUSCODE_BADCONNECTIONREJECTED;
     }
 
     /* Bind socket to address */
@@ -818,7 +833,12 @@ UDP_registerListenSocket(UA_ConnectionManager *cm, UA_UInt16 port, struct addrin
                           "UDP %u\t| Error binding the socket to the address (%s), closing",
                           (unsigned)listenSocket, errno_str));
         UA_close(listenSocket);
-        return;
+        return UA_STATUSCODE_BADCONNECTIONREJECTED;
+    }
+
+    if(validate) {
+        UA_close(listenSocket);
+        return UA_STATUSCODE_GOOD;
     }
 
     /* Allocate the UA_RegisteredFD */
@@ -828,7 +848,7 @@ UDP_registerListenSocket(UA_ConnectionManager *cm, UA_UInt16 port, struct addrin
                        "UDP %u\t| Error allocating memory for the socket, closing",
                        (unsigned)listenSocket);
         UA_close(listenSocket);
-        return;
+        return UA_STATUSCODE_BADCONNECTIONREJECTED;
     }
 
     newudpfd->fd.fd = listenSocket;
@@ -847,7 +867,7 @@ UDP_registerListenSocket(UA_ConnectionManager *cm, UA_UInt16 port, struct addrin
                        (unsigned)listenSocket);
         UA_free(newudpfd);
         UA_close(listenSocket);
-        return;
+        return res;
     }
 
     /* Register the listen socket in the application */
@@ -855,13 +875,15 @@ UDP_registerListenSocket(UA_ConnectionManager *cm, UA_UInt16 port, struct addrin
                        application, &newudpfd->fd.context,
                        UA_CONNECTIONSTATE_ESTABLISHED,
                        0, NULL, UA_BYTESTRING_NULL);
+    return UA_STATUSCODE_GOOD;
 }
 
 static UA_StatusCode
 UDP_registerListenSockets(UA_ConnectionManager *cm, const char *hostname, UA_UInt16 port,
                           size_t paramsSize, const UA_KeyValuePair *params,
                           void *application, void *context,
-                          UA_ConnectionManager_connectionCallback connectionCallback) {
+                          UA_ConnectionManager_connectionCallback connectionCallback,
+                          UA_Boolean validate) {
     /* Get all the interface and IPv4/6 combinations for the configured hostname */
     struct addrinfo hints, *res;
     memset(&hints, 0, sizeof hints);
@@ -889,13 +911,18 @@ UDP_registerListenSockets(UA_ConnectionManager *cm, const char *hostname, UA_UIn
                           UA_LOGCATEGORY_NETWORK,
                           "UDP\t| getaddrinfo lookup for \"%s\" on port %u failed (%s)",
                           hostname, port, errno_str));
-        return UA_STATUSCODE_BADINTERNALERROR;
+        return UA_STATUSCODE_BADCONNECTIONREJECTED;
     }
 
     /* Add listen sockets */
     struct addrinfo *ai = res;
+    UA_StatusCode rv = UA_STATUSCODE_GOOD;
     while(ai) {
-        UDP_registerListenSocket(cm, port, ai, paramsSize, params, application, context, connectionCallback);
+        rv = UDP_registerListenSocket(cm, port, ai, paramsSize, params, application, context, connectionCallback, validate);
+        if(rv != UA_STATUSCODE_GOOD && validate) {
+            UA_freeaddrinfo(res);
+            return rv;
+        }
         ai = ai->ai_next;
     }
     UA_freeaddrinfo(res);
@@ -951,7 +978,6 @@ UDP_shutdownConnection(UA_ConnectionManager *cm, uintptr_t connectionId) {
     return UA_STATUSCODE_GOOD;
 }
 
-
 static UA_StatusCode
 UDP_sendWithConnection(UA_ConnectionManager *cm, uintptr_t connectionId,
                        size_t paramsSize, const UA_KeyValuePair *params,
@@ -966,6 +992,7 @@ UDP_sendWithConnection(UA_ConnectionManager *cm, uintptr_t connectionId,
     /* Send the full buffer. This may require several calls to send */
     size_t nWritten = 0;
 
+    UDP_FD *ufd = (UDP_FD *) UDP_findRegisteredFD((UDPConnectionManager *)cm, connectionId);
     do {
         ssize_t n = 0;
         do {
@@ -973,9 +1000,9 @@ UDP_sendWithConnection(UA_ConnectionManager *cm, uintptr_t connectionId,
                          UA_LOGCATEGORY_NETWORK,
                          "UDP %u\t| Attempting to send", (unsigned)connectionId);
             size_t bytes_to_send = buf->length - nWritten;
-            n = UA_send((UA_FD)connectionId,
+            n = UA_sendto((UA_FD)connectionId,
                         (const char*)buf->data + nWritten,
-                        bytes_to_send, flags);
+                          bytes_to_send, flags, (struct sockaddr*) &ufd->sendAddr, ufd->sendAddrLength);
             if(n < 0) {
                 /* An error we cannot recover from? */
                 if(UA_ERRNO != UA_INTERRUPTED &&
@@ -1052,7 +1079,7 @@ checkForSendMulticastAndConfigure(size_t paramsSize, const UA_KeyValuePair *para
 static UA_StatusCode
 registerSocketAndDestinationForSend(size_t paramsSize, const UA_KeyValuePair *params,
                                     const char *hostname, struct addrinfo *info,
-                                    int error, UA_FD *sock, const UA_Logger *logger) {
+                                    int error, UDP_FD * ufd, UA_FD *sock, const UA_Logger *logger) {
     UA_FD newSock = socket(info->ai_family, info->ai_socktype, info->ai_protocol);
     *sock = newSock;
     if(newSock == UA_INVALID_FD) {
@@ -1076,18 +1103,9 @@ registerSocketAndDestinationForSend(size_t paramsSize, const UA_KeyValuePair *pa
                      "UDP\t| Configuring send multicast failed");
         return UA_STATUSCODE_BADINTERNALERROR;
     }
-    /* Non-blocking connect */
-    error = UA_connect(newSock, info->ai_addr, info->ai_addrlen);
-    if(error != 0 &&
-       UA_ERRNO != UA_INPROGRESS &&
-       UA_ERRNO != UA_WOULDBLOCK) {
-        UA_LOG_SOCKET_ERRNO_WRAP(
-            UA_LOG_WARNING(logger, UA_LOGCATEGORY_NETWORK,
-                           "UDP\t| Connecting the socket to %s failed (%s)",
-                           hostname, errno_str));
-        UA_close(newSock);
-        return UA_STATUSCODE_BADDISCONNECT;
-    }
+    memcpy(&ufd->sendAddr, info->ai_addr, info->ai_addrlen);
+    ufd->sendAddrLength = info->ai_addrlen;
+
     return res;
 }
 
@@ -1095,7 +1113,8 @@ static UA_StatusCode
 UDP_openSendConnection(UA_ConnectionManager *cm,
                        size_t paramsSize, const UA_KeyValuePair *params,
                        void *application, void *context,
-                       UA_ConnectionManager_connectionCallback connectionCallback) {
+                       UA_ConnectionManager_connectionCallback connectionCallback,
+                       UA_Boolean validate) {
     UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX *)cm->eventSource.eventLoop;
 
     /* Get the connection parameters */
@@ -1111,27 +1130,36 @@ UDP_openSendConnection(UA_ConnectionManager *cm,
         }
         UA_LOG_ERROR(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
                      "UDP\t| Opening a connection failed");
-        return UA_STATUSCODE_BADINTERNALERROR;
+        return UA_STATUSCODE_BADCONNECTIONREJECTED;
     }
     UA_LOG_DEBUG(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
                  "UDP\t| Open a connection to \"%s\" on port %s", hostname, portStr);
-    /* Create a socket and register the destination address from the provided parameters */
-    UA_FD newSock = UA_INVALID_FD;
-    UA_StatusCode res =
-        registerSocketAndDestinationForSend(paramsSize, params, hostname, info,
-                                            error, &newSock, el->eventLoop.logger);
-    UA_freeaddrinfo(info);
-    if(res != UA_STATUSCODE_GOOD)
-        return res;
 
     /* Allocate the UA_RegisteredFD */
     UDP_FD *newudpfd = (UDP_FD*)UA_calloc(1, sizeof(UDP_FD));
     if(!newudpfd) {
         UA_LOG_WARNING(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
-                       "UDP %u\t| Error allocating memory for the socket, closing",
-                       (unsigned)newSock);
-        UA_close(newSock);
+                       "UDP\t| Error allocating memory for the socket, closing");
         return UA_STATUSCODE_BADOUTOFMEMORY;
+    }
+
+    /* Create a socket and register the destination address from the provided parameters */
+    UA_FD newSock = UA_INVALID_FD;
+    UA_StatusCode res =
+        registerSocketAndDestinationForSend(paramsSize, params, hostname, info,
+                                            error, newudpfd, &newSock, el->eventLoop.logger);
+    UA_freeaddrinfo(info);
+    if(validate && res == UA_STATUSCODE_GOOD) {
+        UA_LOG_INFO(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
+                    "UDP %u\t| Connection validated to \"%s\" on port %s",
+                    (unsigned)newSock, hostname, portStr);
+        UA_close(newSock);
+        UA_free(newudpfd);
+        return UA_STATUSCODE_GOOD;
+    }
+    if(res != UA_STATUSCODE_GOOD) {
+        UA_free(newudpfd);
+        return res;
     }
 
     newudpfd->fd.fd = newSock;
@@ -1170,7 +1198,8 @@ static UA_StatusCode
 UDP_openReceiveConnection(UA_ConnectionManager *cm,
                           size_t paramsSize, const UA_KeyValuePair *params,
                           void *application, void *context,
-                          UA_ConnectionManager_connectionCallback connectionCallback) {
+                          UA_ConnectionManager_connectionCallback connectionCallback,
+                          UA_Boolean validate) {
     UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX*)cm->eventSource.eventLoop;
 
     /* Get the socket */
@@ -1193,7 +1222,8 @@ UDP_openReceiveConnection(UA_ConnectionManager *cm,
         UA_LOG_INFO(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
                     "UDP\t| Listening on all interfaces");
         return UDP_registerListenSockets(cm, NULL, *port, paramsSize, params,
-                                         application, context, connectionCallback);
+                                         application, context, connectionCallback,
+                                         validate);
     }
 
     /* Correct datatype for the hostnames? */
@@ -1209,9 +1239,11 @@ UDP_openReceiveConnection(UA_ConnectionManager *cm,
         UA_LOG_WARNING(el->eventLoop.logger, UA_LOGCATEGORY_EVENTLOOP,
                      "UDP\t| Listening on all interfaces");
         return UDP_registerListenSockets(cm, NULL, *port, paramsSize, params,
-                                         application, context, connectionCallback);
+                                         application, context, connectionCallback,
+                                         validate);
     }
 
+    UA_StatusCode rv = UA_STATUSCODE_GOOD;
     /* Iterate over the configured hostnames */
     UA_String *hostStrings = (UA_String*)hostNames->data;
     for(size_t i = 0; i < hostNames->arrayLength; i++) {
@@ -1220,21 +1252,30 @@ UDP_openReceiveConnection(UA_ConnectionManager *cm,
             continue;
         memcpy(hostname, hostStrings[i].data, hostStrings->length);
         hostname[hostStrings->length] = '\0';
-        UDP_registerListenSockets(cm, hostname, *port,
-                                  paramsSize, params,
-                                  application,
-                                  context, connectionCallback);
+        rv = UDP_registerListenSockets(cm, hostname, *port, paramsSize, params,
+                                  application, context, connectionCallback, validate);
+        if(rv != UA_STATUSCODE_GOOD) {
+            return rv;
+        }
     }
 
     return UA_STATUSCODE_GOOD;
 }
-
 
 static UA_StatusCode
 UDP_openConnection(UA_ConnectionManager *cm,
                    size_t paramsSize, const UA_KeyValuePair *params,
                    void *application, void *context,
                    UA_ConnectionManager_connectionCallback connectionCallback) {
+
+    const UA_Variant *validationValue = UA_KeyValueMap_get(params, paramsSize,
+                                               UA_QUALIFIEDNAME(0, "validate"));
+    UA_Boolean validate = false;
+    if(validationValue) {
+        if(UA_Variant_hasScalarType(validationValue, &UA_TYPES[UA_TYPES_BOOLEAN])) {
+            validate = *(UA_Boolean *)validationValue->data;
+        }
+    }
     /* If the "port"-parameter is defined, then try to open a send connection.
      * Otherwise try to open a socket that listens for incoming TCP
      * connections. */
@@ -1242,10 +1283,10 @@ UDP_openConnection(UA_ConnectionManager *cm,
                                                UA_QUALIFIEDNAME(0, "port"));
     if(val) {
         return UDP_openSendConnection(cm, paramsSize, params,
-                                      application, context, connectionCallback);
+                                      application, context, connectionCallback, validate);
     } else {
         return UDP_openReceiveConnection(cm, paramsSize, params,
-                                         application, context, connectionCallback);
+                                         application, context, connectionCallback, validate);
     }
 }
 

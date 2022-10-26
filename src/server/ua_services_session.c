@@ -22,6 +22,7 @@ removeSessionCallback(UA_Server *server, session_list_entry *entry) {
     UA_LOCK(&server->serviceMutex);
     UA_Session_clear(&entry->session, server);
     UA_UNLOCK(&server->serviceMutex);
+    UA_free(entry);
 }
 
 void
@@ -93,8 +94,8 @@ UA_Server_removeSession(UA_Server *server, session_list_entry *sentry,
     sentry->cleanupCallback.callback = (UA_Callback)removeSessionCallback;
     sentry->cleanupCallback.application = server;
     sentry->cleanupCallback.context = sentry;
-    server->config.eventLoop->
-        addDelayedCallback(server->config.eventLoop, &sentry->cleanupCallback);
+    UA_EventLoop *el = server->config.eventLoop;
+    el->addDelayedCallback(el, &sentry->cleanupCallback);
 }
 
 UA_StatusCode
@@ -152,7 +153,7 @@ getSessionByToken(UA_Server *server, const UA_NodeId *token) {
 }
 
 UA_Session *
-UA_Server_getSessionById(UA_Server *server, const UA_NodeId *sessionId) {
+getSessionById(UA_Server *server, const UA_NodeId *sessionId) {
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
 
     session_list_entry *current = NULL;

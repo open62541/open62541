@@ -120,7 +120,6 @@ GET_PROPERTY(ua_architecture_headers_beginning GLOBAL PROPERTY UA_ARCHITECTURE_H
 GET_PROPERTY(ua_architecture_sources GLOBAL PROPERTY UA_ARCHITECTURE_SOURCES)
 
 set(ua_architecture_sources ${ua_architecture_sources}
-    ${PROJECT_SOURCE_DIR}/arch/network_tcp.c
     ${PROJECT_SOURCE_DIR}/arch/eventloop_posix.h
     ${PROJECT_SOURCE_DIR}/arch/eventloop_posix.c
     ${PROJECT_SOURCE_DIR}/arch/eventloop_posix_select.c
@@ -131,7 +130,6 @@ set(ua_architecture_sources ${ua_architecture_sources}
 )
 
 set(ua_architecture_headers ${ua_architecture_headers}
-    ${PROJECT_SOURCE_DIR}/include/open62541/network_tcp.h
     ${PROJECT_SOURCE_DIR}/include/open62541/architecture_functions.h
 )
 
@@ -166,7 +164,8 @@ option(UA_ENABLE_SUBSCRIPTIONS_EVENTS "Enable event monitoring" ON)
 option(UA_ENABLE_DA "Enable OPC UA DataAccess (Part 8) definitions" ON)
 option(UA_ENABLE_HISTORIZING "Enable basic support for historical access (client and server)" OFF)
 option(UA_ENABLE_DISCOVERY "Enable Discovery Service (LDS)" OFF)
-option(UA_ENABLE_JSON_ENCODING "Enable JSON encoding" OFF)
+option(UA_ENABLE_JSON_ENCODING "Enable JSON encoding" ON)
+option(UA_ENABLE_NODESETLOADER "Enable nodesetLoader public API" OFF)
 
 set(MULTITHREADING_DEFAULT 0)
 if(WIN32 OR UNIX)
@@ -200,6 +199,9 @@ mark_as_advanced(UA_ENABLE_ENCRYPTION_OPENSSL)
 option(UA_ENABLE_ENCRYPTION_MBEDTLS "Deprecated: Enable encryption support (uses mbedTLS)" OFF)
 mark_as_advanced(UA_ENABLE_ENCRYPTION_MBEDTLS)
 
+option(UA_ENABLE_CERT_REJECTED_DIR  "Enable specifying directory for rejected certificates (with mbedTLS)" OFF)
+mark_as_advanced(UA_ENABLE_CERT_REJECTED_DIR)
+
 list (FIND UA_ENCRYPTION_PLUGINS ${UA_ENABLE_ENCRYPTION} _tmp)
 if(UA_ENABLE_ENCRYPTION STREQUAL "OFF" OR ${_tmp} GREATER -1)
     set(UA_ENABLE_ENCRYPTION_OPENSSL OFF)
@@ -209,8 +211,10 @@ if(UA_ENABLE_ENCRYPTION STREQUAL "OFF" OR ${_tmp} GREATER -1)
         set(UA_ENABLE_ENCRYPTION_MBEDTLS ON)
     elseif(UA_ENABLE_ENCRYPTION STREQUAL "OPENSSL")
         set(UA_ENABLE_ENCRYPTION_OPENSSL ON)
+        set(UA_ENABLE_CERT_REJECTED_DIR OFF)
     elseif(UA_ENABLE_ENCRYPTION STREQUAL "LIBRESSL")
         set(UA_ENABLE_ENCRYPTION_LIBRESSL ON)
+        set(UA_ENABLE_CERT_REJECTED_DIR OFF)
     endif()
 # Only for backward compatability
 elseif(UA_ENABLE_ENCRYPTION)
@@ -227,6 +231,7 @@ else()
     if(UA_ENABLE_ENCRYPTION_OPENSSL)
         set(UA_ENABLE_ENCRYPTION "OPENSSL")
         set(UA_ENABLE_ENCRYPTION_MBEDTLS OFF)
+        set(UA_ENABLE_CERT_REJECTED_DIR OFF)
     endif()
 endif()
 
@@ -383,6 +388,16 @@ mark_as_advanced(UA_ENABLE_PUBSUB_MONITORING)
 
 option(UA_ENABLE_PUBSUB_BUFMALLOC "Enable allocation with static memory buffer for time critical PubSub parts" OFF)
 mark_as_advanced(UA_ENABLE_PUBSUB_BUFMALLOC)
+
+option(UA_ENABLE_PUBSUB_SKS "Enable Security Key Service support for publisher and subscriber" OFF)
+mark_as_advanced(UA_ENABLE_PUBSUB_SKS)
+
+if(UA_ENABLE_PUBSUB_SKS)
+    message(WARNING "The PubSub SKS feature is under development and not yet ready.")
+    if(NOT UA_ENABLE_PUBSUB_ENCRYPTION)
+        message(FATAL_ERROR "PubSub SKS cannot be used with disabled UA_ENABLE_PUBSUB_ENCRYPTION")
+    endif()
+endif()
 
 #RT and Transport PubSub settings
 option(UA_ENABLE_PUBSUB_ETH_UADP "Enable publish/subscribe UADP over Ethernet" OFF)
@@ -940,6 +955,7 @@ set(internal_headers ${PROJECT_SOURCE_DIR}/deps/open62541_queue.h
                      ${PROJECT_SOURCE_DIR}/deps/pcg_basic.h
                      ${PROJECT_SOURCE_DIR}/deps/libc_time.h
                      ${PROJECT_SOURCE_DIR}/deps/base64.h
+                     ${PROJECT_SOURCE_DIR}/deps/itoa.h
                      ${PROJECT_SOURCE_DIR}/src/ua_types_encoding_binary.h
                      ${PROJECT_SOURCE_DIR}/src/ua_util_internal.h
                      ${PROJECT_BINARY_DIR}/src_generated/open62541/transport_generated.h
@@ -952,6 +968,7 @@ set(internal_headers ${PROJECT_SOURCE_DIR}/deps/open62541_queue.h
                      ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub.h
                      ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_manager.h
                      ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_ns0.h
+                     ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_keystorage.h
                      ${PROJECT_SOURCE_DIR}/src/server/ua_server_async.h
                      ${PROJECT_SOURCE_DIR}/src/server/ua_server_internal.h
                      ${PROJECT_SOURCE_DIR}/src/server/ua_services.h
@@ -961,7 +978,6 @@ set(internal_headers ${PROJECT_SOURCE_DIR}/deps/open62541_queue.h
 # TODO: make client optional
 set(lib_sources ${PROJECT_SOURCE_DIR}/src/ua_types.c
                 ${PROJECT_SOURCE_DIR}/src/ua_types_encoding_binary.c
-                ${PROJECT_SOURCE_DIR}/src/ua_types_print.c
                 ${PROJECT_BINARY_DIR}/src_generated/open62541/types_generated.c
                 ${PROJECT_BINARY_DIR}/src_generated/open62541/transport_generated.c
                 ${PROJECT_BINARY_DIR}/src_generated/open62541/statuscodes.c
@@ -986,6 +1002,8 @@ set(lib_sources ${PROJECT_SOURCE_DIR}/src/ua_types.c
                 ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_readergroup.c
                 ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_manager.c
                 ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_ns0.c
+                ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_keystorage.c
+                ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_securitygroup.c
                 # services
                 ${PROJECT_SOURCE_DIR}/src/server/ua_services_view.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_services_method.c
@@ -1008,6 +1026,7 @@ set(lib_sources ${PROJECT_SOURCE_DIR}/src/ua_types.c
                 ${PROJECT_SOURCE_DIR}/deps/libc_time.c
                 ${PROJECT_SOURCE_DIR}/deps/pcg_basic.c
                 ${PROJECT_SOURCE_DIR}/deps/base64.c
+                ${PROJECT_SOURCE_DIR}/deps/itoa.c
                 ${PROJECT_SOURCE_DIR}/deps/aa_tree.c
                 ${PROJECT_SOURCE_DIR}/deps/ziptree.c
 
@@ -1154,17 +1173,16 @@ if(UA_ENABLE_PUBSUB)
 endif()
 
 if(UA_ENABLE_JSON_ENCODING)
+    if(UA_ENABLE_PUBSUB_ENCRYPTION)
+        MESSAGE(WARNING "Payload encryption with JSON encoding is not possible according to the specification.The message security is only defined for the UADP message mapping.")
+    endif()
     if(UA_ENABLE_PUBSUB)
         list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_networkmessage_json.c)
     endif()
     list(APPEND internal_headers ${PROJECT_SOURCE_DIR}/deps/cj5.h
-                                 ${PROJECT_SOURCE_DIR}/deps/string_escape.h
-                                 ${PROJECT_SOURCE_DIR}/deps/itoa.h
                                  ${PROJECT_SOURCE_DIR}/deps/parse_num.h
                                  ${PROJECT_SOURCE_DIR}/src/ua_types_encoding_json.h)
     list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/deps/cj5.c
-                            ${PROJECT_SOURCE_DIR}/deps/string_escape.c
-                            ${PROJECT_SOURCE_DIR}/deps/itoa.c
                             ${PROJECT_SOURCE_DIR}/deps/parse_num.c
                             ${PROJECT_SOURCE_DIR}/src/ua_types_encoding_json.c)
 endif()
@@ -1210,6 +1228,22 @@ if(UA_BUILD_FUZZING OR UA_BUILD_OSS_FUZZ)
     set(lib_sources
         ${lib_sources}
         ${PROJECT_SOURCE_DIR}/tests/fuzz/custom_memory_manager.c)
+endif()
+
+if(UA_ENABLE_NODESETLOADER)
+    # This is required because of issues with policy CMP0077.
+    # Source: https://stackoverflow.com/a/54404924
+    option(ENABLE_BUILD_INTO_OPEN62541 "make nodesetLoader part of the open62541 library" off)
+    set(ENABLE_BUILD_INTO_OPEN62541 on)
+
+    add_subdirectory(${PROJECT_SOURCE_DIR}/deps/nodesetLoader)
+
+    list(APPEND lib_sources ${NODESETLOADER_SOURCES})
+    list(APPEND default_plugin_headers
+                ${PROJECT_SOURCE_DIR}/plugins/include/open62541/plugin/nodesetloader.h)
+    list(APPEND default_plugin_sources
+                ${PROJECT_SOURCE_DIR}/plugins/ua_nodesetloader.c)
+    list(APPEND open62541_LIBRARIES ${NODESETLOADER_DEPS_LIBS})
 endif()
 
 #########################
@@ -1497,6 +1531,10 @@ else()
                                "${PROJECT_SOURCE_DIR}/src/pubsub"
                                "${PROJECT_BINARY_DIR}/src_generated")
 
+    if(UA_ENABLE_NODESETLOADER)
+        include_directories_public(${NODESETLOADER_PUBLIC_INCLUDES})
+    endif()
+
     # Private includes
     include_directories_private("${PROJECT_BINARY_DIR}")
 
@@ -1509,12 +1547,14 @@ else()
     if(UA_ENABLE_ENCRYPTION_LIBRESSL)
         include_directories_private(${LIBRESSL_INCLUDE_DIR})
     endif()
+    if(UA_ENABLE_NODESETLOADER)
+        include_directories_private(${NODESETLOADER_PRIVATE_INCLUDES})
+    endif()
 
     # Option-specific includes
     if(UA_ENABLE_DISCOVERY)
         include_directories_private("${PROJECT_SOURCE_DIR}/src/client")
     endif()
-
 endif()
 
 add_dependencies(open62541-object open62541-code-generation)
@@ -1744,6 +1784,7 @@ install(DIRECTORY ${UA_install_tools_dirs}
     FILES_MATCHING
     PATTERN "*"
     PATTERN "*.pyc" EXCLUDE
+    PATTERN ".git*" EXCLUDE
     )
 
 install(FILES ${UA_install_tools_files} DESTINATION ${open62541_install_tools_dir})

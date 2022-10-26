@@ -58,7 +58,6 @@ endif()
 
 # Use different plugins for testing
 set(test_plugin_sources
-    ${PROJECT_SOURCE_DIR}/arch/network_tcp.c
     ${PROJECT_SOURCE_DIR}/arch/eventloop_posix.c
     ${PROJECT_SOURCE_DIR}/arch/eventloop_posix_select.c
     ${PROJECT_SOURCE_DIR}/arch/eventloop_posix_epoll.c
@@ -138,6 +137,10 @@ if(UA_ENABLE_PUBSUB)
            ${PROJECT_SOURCE_DIR}/plugins/ua_pubsub_mqtt.c
            ${PROJECT_SOURCE_DIR}/plugins/mqtt/ua_mqtt-c_adapter.c)
     endif()
+endif()
+
+if(UA_ENABLE_NODESETLOADER)
+    list(APPEND test_plugin_sources ${PROJECT_SOURCE_DIR}/plugins/ua_nodesetloader.c)
 endif()
 
 if(UA_NAMESPACE_ZERO STREQUAL "FULL")
@@ -315,6 +318,11 @@ if(UA_ENABLE_PUBSUB)
         ua_add_test(pubsub/check_pubsub_decryption.c)
         ua_add_test(pubsub/check_pubsub_subscribe_encrypted.c)
         ua_add_test(pubsub/check_pubsub_encrypted_rt_levels.c)
+        if(UA_ENABLE_PUBSUB_SKS)
+            ua_add_test(pubsub/check_pubsub_keystorage.c)
+            ua_add_test(pubsub/check_pubsub_sks_push.c)
+            ua_add_test(pubsub/check_pubsub_sks_securitygroups.c)
+        endif()
     endif()
 
     if (UA_ENABLE_PUBSUB_MONITORING)
@@ -398,6 +406,10 @@ if(UA_ENABLE_ENCRYPTION_MBEDTLS)
     ua_add_test(encryption/check_encryption_aes128sha256rsaoaep.c)
 endif()
 
+if(UA_ENABLE_ENCRYPTION_MBEDTLS AND UA_ENABLE_CERT_REJECTED_DIR)
+    ua_add_test(encryption/check_save_rejected_cert.c)
+endif()
+
 if(UA_ENABLE_ENCRYPTION_OPENSSL OR UA_ENABLE_ENCRYPTION_LIBRESSL)
     ua_add_test(encryption/check_encryption_basic128rsa15.c)
     ua_add_test(encryption/check_encryption_basic256.c)
@@ -408,6 +420,11 @@ endif()
 
 # Tests for Nodeset Compiler
 add_subdirectory(nodeset-compiler)
+
+# Tests for Nodeset Loader
+if(UA_ENABLE_NODESETLOADER)
+    add_subdirectory(nodeset-loader)
+endif()
 
 # Tests for interfaces
 if(UA_NAMESPACE_ZERO STREQUAL "FULL")

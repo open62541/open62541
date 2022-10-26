@@ -1437,9 +1437,30 @@ UA_DataSetMessage_encodeBinary(const UA_DataSetMessage* src, UA_Byte **bufPos,
             }
         } else if(src->header.fieldEncoding == UA_FIELDENCODING_RAWDATA) {
             for (UA_UInt16 i = 0; i < src->data.keyFrameData.fieldCount; i++) {
-                rv = UA_encodeBinaryInternal(src->data.keyFrameData.dataSetFields[i].value.data,
-                                             src->data.keyFrameData.dataSetFields[i].value.type,
-                                             bufPos, &bufEnd, NULL, NULL);
+                if(src->data.keyFrameData.dataSetMetaDataType->fields[i].maxStringLength != 0 &&
+                   (src->data.keyFrameData.dataSetFields[i].value.type->typeKind == UA_DATATYPEKIND_STRING ||
+                    src->data.keyFrameData.dataSetFields[i].value.type->typeKind == UA_DATATYPEKIND_BYTESTRING)){
+                    // copy string with original length
+                    rv = UA_encodeBinaryInternal(src->data.keyFrameData.dataSetFields[i].value.data,
+                                                 src->data.keyFrameData.dataSetFields[i].value.type,
+                                                 bufPos, &bufEnd, NULL, NULL);
+                    // zero out overhanging
+                    size_t lengthDifference = src->data.keyFrameData.dataSetMetaDataType->fields[i].maxStringLength -
+                                              ((UA_String *) src->data.keyFrameData.dataSetFields[i].value.data)->length;
+                    memset(*bufPos, 0, lengthDifference);
+                    //move bus pos
+                    *bufPos += lengthDifference;
+                } else if (src->data.keyFrameData.dataSetMetaDataType->fields[i].maxStringLength != 0 &&
+                           src->data.keyFrameData.dataSetFields[i].value.type->typeKind == UA_DATATYPEKIND_LOCALIZEDTEXT){
+                    //currently not supported!
+                    rv = UA_encodeBinaryInternal(src->data.keyFrameData.dataSetFields[i].value.data,
+                                                 src->data.keyFrameData.dataSetFields[i].value.type,
+                                                 bufPos, &bufEnd, NULL, NULL);
+                } else {
+                    rv = UA_encodeBinaryInternal(src->data.keyFrameData.dataSetFields[i].value.data,
+                                                 src->data.keyFrameData.dataSetFields[i].value.type,
+                                                 bufPos, &bufEnd, NULL, NULL);
+                }
                 UA_CHECK_STATUS(rv, return rv);
             }
         } else if(src->header.fieldEncoding == UA_FIELDENCODING_DATAVALUE) {
@@ -1678,8 +1699,25 @@ UA_DataSetMessage_calcSizeBinary(UA_DataSetMessage* p, UA_NetworkMessageOffsetBu
                     //count the memory size of the specific field
                     offsetBuffer->rawMessageLength += p->data.keyFrameData.dataSetFields[i].value.type->memSize;
                 }
-                size += UA_calcSizeBinary(p->data.keyFrameData.dataSetFields[i].value.data,
-                                          p->data.keyFrameData.dataSetFields[i].value.type);
+                if(p->data.keyFrameData.dataSetMetaDataType->fields[i].maxStringLength != 0){
+                    if(p->data.keyFrameData.dataSetFields[i].value.type->typeKind == UA_DATATYPEKIND_STRING ||
+                       p->data.keyFrameData.dataSetFields[i].value.type->typeKind == UA_DATATYPEKIND_BYTESTRING){
+                        size += UA_calcSizeBinary(p->data.keyFrameData.dataSetFields[i].value.data,
+                                                  p->data.keyFrameData.dataSetFields[i].value.type);
+                        //check if length < maxStringLength, The types ByteString and String are equal in their base definition
+                        size_t lengthDifference = p->data.keyFrameData.dataSetMetaDataType->fields[i].maxStringLength -
+                            ((UA_String *) p->data.keyFrameData.dataSetFields[i].value.data)->length;
+                        size += lengthDifference;
+                    }
+                    if(p->data.keyFrameData.dataSetFields[i].value.type->typeKind == UA_DATATYPEKIND_LOCALIZEDTEXT){
+                        //currently not supported!
+                        size += UA_calcSizeBinary(p->data.keyFrameData.dataSetFields[i].value.data,
+                                                  p->data.keyFrameData.dataSetFields[i].value.type);
+                    }
+                } else {
+                    size += UA_calcSizeBinary(p->data.keyFrameData.dataSetFields[i].value.data,
+                                              p->data.keyFrameData.dataSetFields[i].value.type);
+                }
             }
         } else if(p->header.fieldEncoding == UA_FIELDENCODING_DATAVALUE) {
             for (UA_UInt16 i = 0; i < p->data.keyFrameData.fieldCount; i++) {

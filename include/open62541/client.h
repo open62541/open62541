@@ -147,12 +147,6 @@ typedef struct {
     /* Certificate Verification Plugin */
     UA_CertificateVerification certificateVerification;
 
-    /* Callbacks for async connection handshakes */
-    UA_ConnectClientConnection initConnectionFunc;
-    UA_StatusCode (*pollConnectionFunc)(UA_Connection *connection,
-                                        UA_UInt32 timeout,
-                                        const UA_Logger *logger);
-
     /* Callback for state changes. The client state is differentated into the
      * SecureChannel state and the Session state. The connectStatus is set if
      * the client connection (including reconnects) has failed and the client
@@ -378,7 +372,7 @@ UA_Client_findServersOnNetwork(UA_Client *client, const char *serverUrl,
  * Services
  * --------
  *
- * The raw OPC UA services are exposed to the client. But most of them time, it
+ * The raw OPC UA services are exposed to the client. But most of the time, it
  * is better to use the convenience functions from ``ua_client_highlevel.h``
  * that wrap the raw services. */
 /* Don't use this function. Use the type versions below instead. */
@@ -569,7 +563,7 @@ UA_Client_Service_queryNext(UA_Client *client,
  * explicitly.
  *
  * Connection and session management are also performed in
- * `UA_Client_run_iterate`, so to keep a connection healthy any client need to
+ * `UA_Client_run_iterate`, so to keep a connection healthy any client needs to
  * consider how and when it is appropriate to do the call.
  * This is especially true for the periodic renewal of a SecureChannel's
  * SecurityToken which is designed to have a limited lifetime and will
@@ -588,7 +582,7 @@ UA_Client_Service_queryNext(UA_Client *client,
  * The statusCode received when the client is shutting down is
  * UA_STATUSCODE_BADSHUTDOWN.
  *
- * The statusCode received when the client don't receive response
+ * The statusCode received when the client doesn't receive response
  * after specified config->timeout (in ms) is
  * UA_STATUSCODE_BADTIMEOUT.
  *
@@ -617,7 +611,7 @@ UA_Client_sendAsyncRequest(UA_Client *client, const void *request,
  * @param client Pointer to the UA_Client
  * @param requestId RequestId of the request, which was returned by
  *        UA_Client_sendAsyncRequest before
- * @param userdata The new userdata.
+ * @param userdata The new userdata
  * @param callback The new callback
  * @return UA_StatusCode UA_STATUSCODE_GOOD on success
  *         UA_STATUSCODE_BADNOTFOUND when no request with requestId is found. */
@@ -635,7 +629,7 @@ UA_Client_run_iterate(UA_Client *client, UA_UInt32 timeout);
  * SecureChannel during a downtime when no time-critical operations are
  * performed. This method is asynchronous. The renewal is triggered (the OPN
  * message is sent) but not completed. The OPN response is handled with
- * ``UA_Client_run_iterate`` or a synchronous servica-call operation.
+ * ``UA_Client_run_iterate`` or a synchronous service-call operation.
  *
  * @return The return value is UA_STATUSCODE_GOODCALLAGAIN if the SecureChannel
  *         has not elapsed at least 75% of its lifetime. Otherwise the
@@ -655,7 +649,7 @@ UA_Client_renewSecureChannel(UA_Client *client);
  * The statusCode received when the client is shutting down is
  * UA_STATUSCODE_BADSHUTDOWN.
  *
- * The statusCode received when the client don't receive response
+ * The statusCode received when the client doesn't receive response
  * after specified timeout (in ms) is
  * UA_STATUSCODE_BADTIMEOUT.
  *
@@ -686,7 +680,7 @@ typedef void (*UA_ClientCallback)(UA_Client *client, void *data);
  * @param callback The callback that shall be added.
  * @param data Data that is forwarded to the callback.
  * @param date The timestamp for the execution time.
- * @param callbackId Set to the identifier of the repeated callback . This can
+ * @param callbackId Set to the identifier of the repeated callback. This can
  *        be used to cancel the callback later on. If the pointer is null, the
  *        identifier is not set.
  * @return Upon success, UA_STATUSCODE_GOOD is returned. An error code
@@ -703,7 +697,7 @@ UA_Client_addTimedCallback(UA_Client *client, UA_ClientCallback callback,
  * @param interval_ms The callback shall be repeatedly executed with the given
  *        interval (in ms). The interval must be positive. The first execution
  *        occurs at now() + interval at the latest.
- * @param callbackId Set to the identifier of the repeated callback . This can
+ * @param callbackId Set to the identifier of the repeated callback. This can
  *        be used to cancel the callback later on. If the pointer is null, the
  *        identifier is not set.
  * @return Upon success, UA_STATUSCODE_GOOD is returned. An error code
@@ -720,6 +714,9 @@ UA_Client_changeRepeatedCallbackInterval(UA_Client *client,
 
 void UA_EXPORT
 UA_Client_removeCallback(UA_Client *client, UA_UInt64 callbackId);
+
+#define UA_Client_removeRepeatedCallback(server, callbackId)    \
+    UA_Client_removeCallback(server, callbackId);
 
 /**
  * Client Utility Functions

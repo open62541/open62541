@@ -809,7 +809,6 @@ START_TEST(UA_Int64_smallbuf_Number_json_encode) {
 }
 END_TEST
 
-
 START_TEST(UA_Double_json_encode) {
     UA_Double src = 1.1234;
     const UA_DataType *type = &UA_TYPES[UA_TYPES_DOUBLE];
@@ -3242,6 +3241,30 @@ START_TEST(UA_UInt64_Min_json_decode) {
 }
 END_TEST
 
+START_TEST(UA_UInt64_json_decode_wrapped) {
+    UA_ByteString buf = UA_STRING("\"184467440737095516\"");
+    // when
+
+    UA_UInt64 out;
+    UA_StatusCode retval = UA_decodeJson(&buf, &out, &UA_TYPES[UA_TYPES_UINT64], NULL);
+    // then
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(out, 184467440737095516);
+}
+END_TEST
+
+START_TEST(UA_UInt64_json_decode_unwrapped) {
+    UA_ByteString buf = UA_STRING("184467440737095516");
+    // when
+
+    UA_UInt64 out;
+    UA_StatusCode retval = UA_decodeJson(&buf, &out, &UA_TYPES[UA_TYPES_UINT64], NULL);
+    // then
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(out, 184467440737095516);
+}
+END_TEST
+
 START_TEST(UA_UInt64_Max_json_decode) {
     UA_Variant out;
     UA_Variant_init(&out);
@@ -3860,15 +3883,16 @@ END_TEST
 START_TEST(UA_String_escape_unicode_json_decode) {
     UA_Variant out;
     UA_Variant_init(&out);
-    UA_ByteString buf = UA_STRING("{\"Type\":12,\"Body\":\"\\u002c\"}");
+    UA_ByteString buf = UA_STRING("{\"Type\":12,\"Body\":\"\\u002c#\"}");
     // when
 
     UA_StatusCode retval = UA_decodeJson(&buf, &out, &UA_TYPES[UA_TYPES_VARIANT], NULL);
     // then
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
     ck_assert_int_eq(out.type->typeKind, UA_DATATYPEKIND_STRING);
-    ck_assert_uint_eq(  ((UA_String*)out.data)->length, 1);
+    ck_assert_uint_eq(  ((UA_String*)out.data)->length, 2);
     ck_assert_int_eq( ((UA_String*)out.data)->data[0], ',');
+    ck_assert_int_eq( ((UA_String*)out.data)->data[1], '#');
 
     UA_Variant_clear(&out);
 }
@@ -5367,7 +5391,6 @@ START_TEST(UA_JsonHelper) {
     ck_assert_int_eq(writeJsonObjStart(&ctx), UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED);
     ck_assert_int_eq(writeJsonObjEnd(&ctx), UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED);
     ck_assert_int_eq(writeJsonArrEnd(&ctx), UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED);
-    ck_assert_int_eq(writeJsonNull(&ctx), UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED);
 
     ctx.calcOnly = true;
     ctx.end = (const UA_Byte*)(uintptr_t)SIZE_MAX;
@@ -5375,7 +5398,6 @@ START_TEST(UA_JsonHelper) {
     ck_assert_int_eq(writeJsonObjStart(&ctx), UA_STATUSCODE_GOOD);
     ck_assert_int_eq(writeJsonObjEnd(&ctx), UA_STATUSCODE_GOOD);
     ck_assert_int_eq(writeJsonArrEnd(&ctx), UA_STATUSCODE_GOOD);
-    ck_assert_int_eq(writeJsonNull(&ctx), UA_STATUSCODE_GOOD);
 }
 END_TEST
 
@@ -5628,6 +5650,8 @@ static Suite *testSuite_builtin_json(void) {
     tcase_add_test(tc_json_decode, UA_Int64_TooBig_json_decode);
     tcase_add_test(tc_json_decode, UA_Int64_NoDigit_json_decode);
 
+    tcase_add_test(tc_json_decode, UA_UInt64_json_decode_wrapped);
+    tcase_add_test(tc_json_decode, UA_UInt64_json_decode_unwrapped);
     tcase_add_test(tc_json_decode, UA_UInt64_Min_json_decode);
     tcase_add_test(tc_json_decode, UA_UInt64_Max_json_decode);
     tcase_add_test(tc_json_decode, UA_UInt64_Overflow_json_decode);

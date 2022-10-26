@@ -153,7 +153,7 @@ connectMqtt(UA_PubSubChannelDataMQTT* channelData){
 #endif
 #if defined(UA_ENABLE_MQTT_TLS_OPENSSL) // Extend condition when mbedTLS support is added
         /* open the non-blocking TCP socket (connecting to the broker) */
-        UA_StatusCode rv = open_nb_socket(&sockfd, &ctx, addr, port, mqttCaFilePath, NULL, NULL, NULL);;
+        UA_StatusCode rv = open_nb_socket(&sockfd, &ctx, addr, port, mqttCaFilePath, NULL, mqttClientCertPath, mqttClientKeyPath);
         if(rv != UA_STATUSCODE_GOOD){
             UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "PubSub MQTT: Connection creation failed.");
             UA_free(mqttCaFilePath);
@@ -310,7 +310,7 @@ disconnectMqtt(UA_PubSubChannelDataMQTT* channelData){
         mqtt_disconnect(client);
         yieldMqtt(channelData, 10);
 #ifdef UA_ENABLE_MQTT_TLS_OPENSSL //mbedTLS condition is missing
-        BIO_free_all(client->socketfd);
+        client->socketfd = NULL;
 #endif
     }
 

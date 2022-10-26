@@ -16,12 +16,12 @@ set(PROJECT_BINARY_DIR ${CMAKE_BINARY_DIR})
 ua_generate_nodeset_and_datatypes(
     NAME "example_publisher"
     FILE_NS "${FILE_NS_DIRPREFIX}/pubDataModel.xml"
-    DEPENDS "${CMAKE_SOURCE_DIR}/tools/schema/Opc.Ua.NodeSet2.Reduced.xml"
+    DEPENDS "${CMAKE_CURRENT_LIST_DIR}/../../../tools/schema/Opc.Ua.NodeSet2.Reduced.xml"
 )
 ua_generate_nodeset_and_datatypes(
     NAME "example_subscriber"
     FILE_NS "${FILE_NS_DIRPREFIX}/subDataModel.xml"
-    DEPENDS "${CMAKE_SOURCE_DIR}/tools/schema/Opc.Ua.NodeSet2.Reduced.xml"
+    DEPENDS "${CMAKE_CURRENT_LIST_DIR}/../../../tools/schema/Opc.Ua.NodeSet2.Reduced.xml"
 )
 # The .csv file can be created from within UaModeler or manually
 ua_generate_nodeid_header(

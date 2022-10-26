@@ -171,7 +171,6 @@ struct UA_Server {
 #endif
 
     /* Statistics */
-    UA_NetworkStatistics networkStatistics;
     UA_SecureChannelStatistics secureChannelStatistics;
     UA_ServerDiagnosticsSummaryDataType serverDiagnosticsSummary;
 };
@@ -260,7 +259,7 @@ UA_Session *
 getSessionByToken(UA_Server *server, const UA_NodeId *token);
 
 UA_Session *
-UA_Server_getSessionById(UA_Server *server, const UA_NodeId *sessionId);
+getSessionById(UA_Server *server, const UA_NodeId *sessionId);
 
 /*****************/
 /* Node Handling */
@@ -397,6 +396,14 @@ setVariableNode_dataSource(UA_Server *server, const UA_NodeId nodeId,
                            const UA_DataSource dataSource);
 
 UA_StatusCode
+setVariableNode_valueCallback(UA_Server *server, const UA_NodeId nodeId,
+                              const UA_ValueCallback callback);
+
+UA_StatusCode
+setMethodNode_callback(UA_Server *server, const UA_NodeId methodNodeId,
+                       UA_MethodCallback methodCallback);
+
+UA_StatusCode
 writeAttribute(UA_Server *server, UA_Session *session,
                const UA_NodeId *nodeId, const UA_AttributeId attributeId,
                const void *attr, const UA_DataType *attr_type);
@@ -406,6 +413,13 @@ writeValueAttribute(UA_Server *server, UA_Session *session,
                     const UA_NodeId *nodeId, const UA_Variant *value) {
     return writeAttribute(server, session, nodeId, UA_ATTRIBUTEID_VALUE,
                           value, &UA_TYPES[UA_TYPES_VARIANT]);
+}
+
+static UA_INLINE UA_StatusCode
+writeIsAbstractAttribute(UA_Server *server, UA_Session *session,
+                         const UA_NodeId *nodeId, UA_Boolean value) {
+    return writeAttribute(server, session, nodeId, UA_ATTRIBUTEID_ISABSTRACT,
+                          &value, &UA_TYPES[UA_TYPES_BOOLEAN]);
 }
 
 UA_DataValue
@@ -432,6 +446,11 @@ UA_Subscription *
 UA_Server_getSubscriptionById(UA_Server *server, UA_UInt32 subscriptionId);
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
+
+UA_StatusCode
+createEvent(UA_Server *server, const UA_NodeId eventType,
+            UA_NodeId *outNodeId);
+
 UA_StatusCode
 triggerEvent(UA_Server *server, const UA_NodeId eventNodeId,
              const UA_NodeId origin, UA_ByteString *outEventId,
@@ -445,6 +464,7 @@ filterEvent(UA_Server *server, UA_Session *session,
             UA_EventFieldList *efl, UA_EventFilterResult *result);
 
 #endif /* UA_ENABLE_SUBSCRIPTIONS_EVENTS */
+
 #endif /* UA_ENABLE_SUBSCRIPTIONS */
 
 UA_BrowsePathResult

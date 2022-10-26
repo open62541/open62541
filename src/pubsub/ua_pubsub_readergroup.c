@@ -6,6 +6,8 @@
  * Copyright (c) 2019 Fraunhofer IOSB (Author: Julius Pfrommer)
  * Copyright (c) 2019 Kalycito Infotech Private Limited
  * Copyright (c) 2021 Fraunhofer IOSB (Author: Jan Hermes)
+ * Copyright (c) 2022 Linutronix GmbH (Author: Muddasir Shakil)
+ *
  */
 
 #include <open62541/server_pubsub.h>
@@ -157,6 +159,33 @@ UA_Server_addReaderGroup(UA_Server *server, UA_NodeId connectionIdentifier,
     UA_PubSubManager_generateUniqueNodeId(&server->pubSubManager,
                                           &newGroup->identifier);
 #endif
+
+#ifdef UA_ENABLE_PUBSUB_SKS
+    if(readerGroupConfig->securityMode == UA_MESSAGESECURITYMODE_SIGN ||
+       readerGroupConfig->securityMode == UA_MESSAGESECURITYMODE_SIGNANDENCRYPT) {
+        if(!UA_String_isEmpty(&readerGroupConfig->securityGroupId) &&
+           readerGroupConfig->securityPolicy) {
+            UA_String policyUri = readerGroupConfig->securityPolicy->policyUri;
+
+            newGroup->keyStorage = UA_Server_findKeyStorage(
+                server, readerGroupConfig->securityGroupId);
+            if(!newGroup->keyStorage) {
+                newGroup->keyStorage = (UA_PubSubKeyStorage *)UA_calloc(1, sizeof(UA_PubSubKeyStorage));
+                if(!newGroup->keyStorage)
+                    return UA_STATUSCODE_BADOUTOFMEMORY;
+            }
+
+            retval = UA_PubSubKeyStorage_init(server, &readerGroupConfig->securityGroupId,
+                                              &policyUri, 0, 0, newGroup->keyStorage);
+            if(retval != UA_STATUSCODE_GOOD) {
+                UA_free(newGroup);
+                return retval;
+            }
+        }
+    }
+
+#endif
+
     if(readerGroupIdentifier)
         UA_NodeId_copy(&newGroup->identifier, readerGroupIdentifier);
 
@@ -263,6 +292,15 @@ UA_Server_ReaderGroup_clear(UA_Server* server, UA_ReaderGroup *readerGroup) {
         readerGroup->config.securityPolicy->deleteContext(readerGroup->securityPolicyContext);
         readerGroup->securityPolicyContext = NULL;
     }
+#endif
+
+#ifdef UA_ENABLE_PUBSUB_SKS
+    if(readerGroup->config.securityMode == UA_MESSAGESECURITYMODE_SIGN ||
+       readerGroup->config.securityMode == UA_MESSAGESECURITYMODE_SIGNANDENCRYPT) {
+        UA_PubSubKeyStorage_removeKeyStorage(server, readerGroup->keyStorage);
+        readerGroup->keyStorage = NULL;
+    }
+
 #endif
 
     UA_ReaderGroupConfig_clear(&readerGroup->config);
@@ -451,7 +489,11 @@ UA_Server_setReaderGroupEncryptionKeys(UA_Server *server, const UA_NodeId reader
                                        const UA_ByteString keyNonce) {
     UA_ReaderGroup *rg = UA_ReaderGroup_findRGbyId(server, readerGroup);
     UA_CHECK_MEM(rg, return UA_STATUSCODE_BADNOTFOUND);
-
+    if(rg->config.encodingMimeType == UA_PUBSUB_ENCODING_JSON) {
+        UA_LOG_WARNING_READERGROUP(&server->config.logger, rg,
+                                   "JSON encoding is enabled. The message security is only defined for the UADP message mapping.");
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
     if(!rg->config.securityPolicy) {
         UA_LOG_WARNING_READERGROUP(&server->config.logger, rg,
                                    "No SecurityPolicy configured for the ReaderGroup");

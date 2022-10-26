@@ -9,6 +9,7 @@
  * Copyright (c) 2021 Fraunhofer IOSB (Author: Jan Hermes)
  * Copyright (c) 2022 Siemens AG (Author: Thomas Fischer)
  * Copyright (c) 2022 Fraunhofer IOSB (Author: Noel Graf)
+ * Copyright (c) 2022 Linutronix GmbH (Author: Muddasir Shakil)
  */
 
 #ifndef UA_PUBSUB_H_
@@ -21,6 +22,10 @@
 #include "open62541_queue.h"
 #include "ua_pubsub_networkmessage.h"
 
+#ifdef UA_ENABLE_PUBSUB_SKS
+#include <ua_pubsub_keystorage.h>
+#endif
+
 /* The public configuration structs are defined in include/ua_plugin_pubsub.h */
 
 _UA_BEGIN_DECLS
@@ -32,6 +37,9 @@ typedef struct UA_WriterGroup UA_WriterGroup;
 
 struct UA_ReaderGroup;
 typedef struct UA_ReaderGroup UA_ReaderGroup;
+
+struct UA_SecurityGroup;
+typedef struct UA_SecurityGroup UA_SecurityGroup;
 
 /**********************************************/
 /*            PublishedDataSet                */
@@ -77,7 +85,7 @@ UA_StandaloneSubscribedDataSet_findSDSbyId(UA_Server *server, UA_NodeId identifi
 UA_StandaloneSubscribedDataSet *
 UA_StandaloneSubscribedDataSet_findSDSbyName(UA_Server *server, UA_String identifier);
 void
-UA_StandaloneSubscribedDataSet_clear(UA_Server *server, UA_StandaloneSubscribedDataSet *subscribedDataSet); 
+UA_StandaloneSubscribedDataSet_clear(UA_Server *server, UA_StandaloneSubscribedDataSet *subscribedDataSet);
 
 #define UA_LOG_PDS_INTERNAL(LOGGER, LEVEL, PDS, MSG, ...)               \
     if(UA_LOGLEVEL <= UA_LOGLEVEL_##LEVEL) {                            \
@@ -274,6 +282,9 @@ struct UA_WriterGroup {
     UA_UInt32 securityTokenId;
     UA_UInt32 nonceSequenceNumber; /* To be part of the MessageNonce */
     void *securityPolicyContext;
+#ifdef UA_ENABLE_PUBSUB_SKS
+    UA_PubSubKeyStorage *keyStorage; /* non-owning pointer to keyStorage*/
+#endif
 #endif
 };
 
@@ -465,6 +476,9 @@ struct UA_ReaderGroup {
     UA_UInt32 securityTokenId;
     UA_UInt32 nonceSequenceNumber; /* To be part of the MessageNonce */
     void *securityPolicyContext;
+#ifdef UA_ENABLE_PUBSUB_SKS
+    UA_PubSubKeyStorage *keyStorage;
+#endif
 #endif
 };
 
@@ -572,6 +586,43 @@ void processMqttSubscriberCallback(UA_Server *server, UA_ReaderGroup *readerGrou
 UA_StatusCode
 decodeNetworkMessageJson(UA_Server *server, UA_ByteString *buffer, size_t *pos,
                          UA_NetworkMessage *nm, UA_PubSubConnection *connection);
+
+#ifdef UA_ENABLE_PUBSUB_SKS
+/*********************************************************/
+/*                    SecurityGroup                      */
+/*********************************************************/
+struct UA_SecurityGroup {
+    UA_String securityGroupId;
+    UA_SecurityGroupConfig config;
+    UA_PubSubKeyStorage *keyStorage;
+    UA_NodeId securityGroupNodeId;
+    UA_UInt64 callbackId;
+    UA_DateTime baseTime;
+#ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL
+    UA_NodeId securityGroupFolderId;
+#endif
+    TAILQ_ENTRY(UA_SecurityGroup) listEntry;
+};
+
+UA_StatusCode
+UA_SecurityGroupConfig_copy(const UA_SecurityGroupConfig *src,
+                            UA_SecurityGroupConfig *dst);
+
+/* finds the SecurityGroup within the server by SecurityGroup Name/Id*/
+UA_SecurityGroup *
+UA_SecurityGroup_findSGbyName(UA_Server *server, UA_String securityGroupName);
+
+/* finds the SecurityGroup within the server by NodeId*/
+UA_SecurityGroup *
+UA_SecurityGroup_findSGbyId(UA_Server *server, UA_NodeId identifier);
+
+void
+UA_SecurityGroup_delete(UA_SecurityGroup *securityGroup);
+
+void
+removeSecurityGroup(UA_Server *server, UA_SecurityGroup *securityGroup);
+
+#endif /* UA_ENABLE_PUBSUB_SKS */
 
 #endif /* UA_ENABLE_PUBSUB */
 
