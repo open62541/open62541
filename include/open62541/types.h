@@ -174,6 +174,15 @@ UA_StatusCode_isGood(UA_StatusCode code) {
     return ((code >> 30) == 0x00);
 }
 
+/* Compares the top 16 bits of two StatusCodes for equality. This should only
+ * be used when processing user-defined StatusCodes e.g when processing a ReadResponse.
+ * As a convention, the lower bits of StatusCodes should not be used internally, meaning
+ * can compare them without the use of this function. */
+static UA_INLINE UA_Boolean
+UA_StatusCode_isEqualTop (UA_StatusCode s1, UA_StatusCode s2) {
+  return ((s1 & 0xFFFF0000) == (s2 & 0xFFFF0000));
+}
+
 /**
  * String
  * ^^^^^^
