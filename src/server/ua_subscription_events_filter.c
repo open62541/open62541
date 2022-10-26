@@ -1054,7 +1054,7 @@ filterEvent(UA_Server *server, UA_Session *session,
         result->whereClauseResult.elementResultsSize = filter->whereClause.elementsSize;
         result->whereClauseResult.elementResults = (UA_ContentFilterElementResult *)
             UA_Array_new(filter->whereClause.elementsSize,
-            &UA_TYPES[UA_TYPES_CONTENTFILTERELEMENTRESULT]);
+                         &UA_TYPES[UA_TYPES_CONTENTFILTERELEMENTRESULT]);
         if(!result->whereClauseResult.elementResults) {
             UA_EventFieldList_clear(efl);
             UA_EventFilterResult_clear(result);
