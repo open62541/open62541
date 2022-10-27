@@ -67,7 +67,7 @@ handlePOSIXInterruptEvent(UA_EventSource *es, UA_RegisteredFD *rfd, short event)
                  (unsigned)rfd->fd, fdsi.ssi_signo);
 
     rs->signalCallback((UA_InterruptManager *)es,
-                       (uintptr_t)rfd->fd, rfd->context, 0, NULL);
+                       (uintptr_t)rfd->fd, rfd->context, &UA_KEYVALUEMAP_NULL);
 }
 
 static void
@@ -240,7 +240,7 @@ executeTriggeredPOSIXInterrupts(UA_EventSource *es, UA_RegisteredFD *rfd, short 
         TAILQ_REMOVE(&singletonIM->triggered, rs, triggeredEntry);
         rs->triggered = false;
         rs->signalCallback(&singletonIM->im, (uintptr_t)rs->signal,
-                           rs->rfd.context, 0, NULL);
+                           rs->rfd.context, &UA_KEYVALUEMAP_NULL);
     }
 }
 
@@ -248,10 +248,10 @@ executeTriggeredPOSIXInterrupts(UA_EventSource *es, UA_RegisteredFD *rfd, short 
 
 static UA_StatusCode
 registerPOSIXInterrupt(UA_InterruptManager *im, uintptr_t interruptHandle,
-                       size_t paramsSize, const UA_KeyValuePair *params,
+                       const UA_KeyValueMap *params,
                        UA_InterruptCallback callback, void *interruptContext) {
     UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX *)im->eventSource.eventLoop;
-    if(paramsSize > 0) {
+    if(!UA_KeyValueMap_isEmpty(params)) {
         UA_LOG_ERROR(el->eventLoop.logger, UA_LOGCATEGORY_EVENTLOOP,
                      "Interrupt\t| Supplied parameters invalid for the "
                      "POSIX InterruptManager");

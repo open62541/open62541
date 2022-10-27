@@ -9,10 +9,10 @@
 
 UA_StatusCode
 UA_KeyValueRestriction_validate(const UA_KeyValueRestriction *restrictions, size_t restrictionsSize,
-                                const UA_KeyValuePair *params, size_t paramsSize) {
+                                const UA_KeyValueMap *map) {
     for(size_t i = 0; i < restrictionsSize; i++) {
         const UA_KeyValueRestriction *r = &restrictions[i];
-        const UA_Variant *val = UA_KeyValueMap_get(params, paramsSize, r->name);
+        const UA_Variant *val = UA_KeyValueMap_get(map, r->name);
 
         /* Value not present but required? */
         if(!val) {

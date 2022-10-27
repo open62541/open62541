@@ -51,8 +51,7 @@ typedef struct {
     UA_UInt16         availableContinuationPoints;
     ContinuationPoint *continuationPoints;
 
-    size_t attributesSize;
-    UA_KeyValuePair *attributes;
+    UA_KeyValueMap *attributes;
 
     /* Localization information */
     size_t localeIdsSize;

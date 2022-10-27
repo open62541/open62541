@@ -120,7 +120,7 @@ UA_SecureChannel_sendError(UA_SecureChannel *channel, UA_TcpErrorMessage *error)
                                       &bufPos, &bufEnd, NULL, NULL);
     (void)retval; /* Encoding of these cannot fail */
     msg.length = header.messageSize;
-    cm->sendWithConnection(cm, channel->connectionId, 0, NULL, &msg);
+    cm->sendWithConnection(cm, channel->connectionId, &UA_KEYVALUEMAP_NULL, &msg);
 }
 
 static void
@@ -294,7 +294,7 @@ UA_SecureChannel_sendAsymmetricOPNMessage(UA_SecureChannel *channel,
 
     /* Send the message, the buffer is freed in the network layer */
     buf.length = encryptedLength;
-    return cm->sendWithConnection(cm, channel->connectionId, 0, NULL, &buf);
+    return cm->sendWithConnection(cm, channel->connectionId, &UA_KEYVALUEMAP_NULL, &buf);
 
  error:
     cm->freeNetworkBuffer(cm, channel->connectionId, &buf);
@@ -420,7 +420,7 @@ sendSymmetricChunk(UA_MessageContext *mc) {
      * wrong, the connection is removed in the next iteration of the
      * SecureChannel. Set the SecureChannel to closing already. */
     res = cm->sendWithConnection(cm, channel->connectionId,
-                                 0, NULL, &mc->messageBuffer);
+                                 &UA_KEYVALUEMAP_NULL, &mc->messageBuffer);
     if(res != UA_STATUSCODE_GOOD && UA_SecureChannel_isConnected(channel))
         channel->state = UA_SECURECHANNELSTATE_CLOSING;
 

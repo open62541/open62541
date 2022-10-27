@@ -368,7 +368,7 @@ void
 UA_Server_networkCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
                           void *application, void **connectionContext,
                           UA_ConnectionState state,
-                          size_t paramsSize, const UA_KeyValuePair *params,
+                          const UA_KeyValueMap *params,
                           UA_ByteString msg);
 
 /******************************************/

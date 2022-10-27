@@ -227,15 +227,25 @@ UA_ByteString_fromBase64(UA_ByteString *bs,
 
 /* Key Value Map */
 
+const UA_KeyValueMap UA_KEYVALUEMAP_NULL = {0};
+
+UA_KeyValueMap *
+UA_KeyValueMap_new(void) {
+    return (UA_KeyValueMap*)UA_calloc(1, sizeof(UA_KeyValueMap));
+}
+
 UA_StatusCode
-UA_KeyValueMap_set(UA_KeyValuePair **map, size_t *mapSize,
+UA_KeyValueMap_set(UA_KeyValueMap *map,
                    const UA_QualifiedName key,
                    const UA_Variant *value) {
-    /* Parameter exists already */
-    const UA_Variant *v = UA_KeyValueMap_get(*map, *mapSize, key);
+    if(map == NULL || value == NULL)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+
+    /* Key exists already */
+    const UA_Variant *v = UA_KeyValueMap_get(map, key);
     if(v) {
         UA_Variant copyV;
-        UA_StatusCode res = UA_Variant_copy(v, &copyV);
+        UA_StatusCode res = UA_Variant_copy(value, &copyV);
         if(res != UA_STATUSCODE_GOOD)
             return res;
         UA_Variant *target = (UA_Variant*)(uintptr_t)v;
@@ -248,60 +258,153 @@ UA_KeyValueMap_set(UA_KeyValuePair **map, size_t *mapSize,
     UA_KeyValuePair pair;
     pair.key = key;
     pair.value = *value;
-    return UA_Array_appendCopy((void**)map, mapSize, &pair,
+    return UA_Array_appendCopy((void**)&map->map, &map->mapSize, &pair,
                                &UA_TYPES[UA_TYPES_KEYVALUEPAIR]);
 }
 
+UA_StatusCode
+UA_KeyValueMap_setScalar(UA_KeyValueMap *map,
+                         const UA_QualifiedName key,
+                         void * UA_RESTRICT p,
+                         const UA_DataType *type) {
+    if(p == NULL || type == NULL)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    UA_Variant v;
+    UA_Variant_init(&v);
+    v.type = type;
+    v.arrayLength = 0;
+    v.data = p;
+    return UA_KeyValueMap_set(map, key, &v);
+}
+
 const UA_Variant *
-UA_KeyValueMap_get(const UA_KeyValuePair *map, size_t mapSize,
+UA_KeyValueMap_get(const UA_KeyValueMap *map,
                    const UA_QualifiedName key) {
-    for(size_t i = 0; i < mapSize; i++) {
-        if(map[i].key.namespaceIndex == key.namespaceIndex &&
-           UA_String_equal(&map[i].key.name, &key.name))
-            return &map[i].value;
+    if(!map)
+        return NULL;
+    for(size_t i = 0; i < map->mapSize; i++) {
+        if(map->map[i].key.namespaceIndex == key.namespaceIndex &&
+           UA_String_equal(&map->map[i].key.name, &key.name))
+            return &map->map[i].value;
 
     }
     return NULL;
 }
 
-/* Returns NULL if the parameter is not defined or not of the right datatype */
+UA_Boolean
+UA_KeyValueMap_isEmpty(const UA_KeyValueMap *map) {
+    if(!map)
+        return true;
+    return map->mapSize == 0;
+}
+
 const void *
-UA_KeyValueMap_getScalar(const UA_KeyValuePair *map, size_t mapSize,
+UA_KeyValueMap_getScalar(const UA_KeyValueMap *map,
                          const UA_QualifiedName key,
                          const UA_DataType *type) {
-    const UA_Variant *v = UA_KeyValueMap_get(map, mapSize, key);
+    const UA_Variant *v = UA_KeyValueMap_get(map, key);
     if(!v || !UA_Variant_hasScalarType(v, type))
         return NULL;
     return v->data;
 }
 
+void
+UA_KeyValueMap_clear(UA_KeyValueMap *map) {
+    if(!map)
+        return;
+    UA_Array_delete(map->map, map->mapSize, &UA_TYPES[UA_TYPES_KEYVALUEPAIR]);
+    map->mapSize = 0;
+}
+
+void
+UA_KeyValueMap_delete(UA_KeyValueMap *map) {
+    UA_KeyValueMap_clear(map);
+    UA_free(map);
+}
+
 UA_StatusCode
-UA_KeyValueMap_delete(UA_KeyValuePair **map, size_t *mapSize,
+UA_KeyValueMap_remove(UA_KeyValueMap *map,
                       const UA_QualifiedName key) {
-    UA_KeyValuePair *m = *map;
-    size_t s = *mapSize;
-    for(size_t i = 0; i < s; i++) {
-        if(m[i].key.namespaceIndex != key.namespaceIndex ||
-           !UA_String_equal(&m[i].key.name, &key.name))
-            continue;
+    if(!map)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
 
-        /* Clean the pair */
-        UA_KeyValuePair_clear(&m[i]);
+    UA_KeyValuePair *m = map->map;
+    size_t s = map->mapSize;
+    size_t i = 0;
+    for(; i < s; i++) {
+        if(m[i].key.namespaceIndex == key.namespaceIndex &&
+           UA_String_equal(&m[i].key.name, &key.name))
+            break;
+    }
+    if(i == s)
+        return UA_STATUSCODE_BADNOTFOUND;
 
-        /* Move the last pair to fill the empty slot */
-        if(s > 1 && i < s - 1) {
-            m[i] = m[s-1];
-            UA_KeyValuePair_init(&m[s-1]);
-        }
+    /* Clean the slot and move the last entry to fill the slot */
+    UA_KeyValuePair_clear(&m[i]);
+    if(s > 1 && i < s - 1) {
+        m[i] = m[s-1];
+        UA_KeyValuePair_init(&m[s-1]);
+    }
+    
+    /* Ignore the result. In case resize fails, keep the longer original array
+     * around. Resize never fails when reducing the size to zero. Reduce the
+     * size integer in any case. */
+    UA_StatusCode res =
+        UA_Array_resize((void**)&map->map, &map->mapSize, map->mapSize - 1,
+                          &UA_TYPES[UA_TYPES_KEYVALUEPAIR]);
+    (void)res;
+    map->mapSize--;
+    return UA_STATUSCODE_GOOD;
+}
 
-        UA_StatusCode res = UA_Array_resize((void**)map, mapSize, *mapSize-1,
-                                            &UA_TYPES[UA_TYPES_KEYVALUEPAIR]);
-        (void)res;
-        *mapSize = s - 1; /* In case resize fails, keep the longer original
-                           * array around. Resize never fails when reducing
-                           * the size to zero. Reduce the size integer in
-                           * any case. */
+UA_StatusCode
+UA_KeyValueMap_copy(const UA_KeyValueMap *src, UA_KeyValueMap *dst) {
+    if(!dst)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    if(!src) {
+        dst->map = NULL;
+        dst->mapSize = 0;
         return UA_STATUSCODE_GOOD;
     }
-    return UA_STATUSCODE_BADNOTFOUND;
+    UA_StatusCode res = UA_Array_copy(src->map, src->mapSize, (void**)&dst->map,
+                                      &UA_TYPES[UA_TYPES_KEYVALUEPAIR]);
+    if(res == UA_STATUSCODE_GOOD)
+        dst->mapSize = src->mapSize;
+    return res;
+}
+
+UA_Boolean
+UA_KeyValueMap_contains(const UA_KeyValueMap *map, const UA_QualifiedName key) {
+    if(!map)
+        return false;
+    for(size_t i = 0; i < map->mapSize; ++i) {
+        if(UA_QualifiedName_equal(&map->map[i].key, &key))
+            return true;
+    }
+    return false;
+}
+
+UA_StatusCode
+UA_KeyValueMap_merge(UA_KeyValueMap *lhs, const UA_KeyValueMap *rhs) {
+    if(!lhs)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    if(!rhs)
+        return UA_STATUSCODE_GOOD;
+
+    UA_KeyValueMap merge;
+    UA_StatusCode res = UA_KeyValueMap_copy(lhs, &merge);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
+
+    for(size_t i = 0; i < rhs->mapSize; ++i) {
+        res = UA_KeyValueMap_set(&merge, rhs->map[i].key, &rhs->map[i].value);
+        if(res != UA_STATUSCODE_GOOD) {
+            UA_KeyValueMap_clear(&merge);
+            return res;
+        }
+    }
+
+    UA_KeyValueMap_clear(lhs);
+    *lhs = merge;
+    return UA_STATUSCODE_GOOD;
 }

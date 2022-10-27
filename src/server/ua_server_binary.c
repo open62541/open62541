@@ -382,7 +382,7 @@ processHEL(UA_Server *server, UA_SecureChannel *channel, const UA_ByteString *ms
     }
 
     ack_msg.length = ackHeader.messageSize;
-    retval = cm->sendWithConnection(cm, channel->connectionId, 0, NULL, &ack_msg);
+    retval = cm->sendWithConnection(cm, channel->connectionId, &UA_KEYVALUEMAP_NULL, &ack_msg);
     if(retval == UA_STATUSCODE_GOOD)
         channel->state = UA_SECURECHANNELSTATE_ACK_SENT;
     return retval;
@@ -893,7 +893,7 @@ void
 UA_Server_networkCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
                           void *application, void **connectionContext,
                           UA_ConnectionState state,
-                          size_t paramsSize, const UA_KeyValuePair *params,
+                          const UA_KeyValueMap *params,
                           UA_ByteString msg) {
     UA_Server *server = (UA_Server*)application;
 

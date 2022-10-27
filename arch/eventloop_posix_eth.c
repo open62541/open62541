@@ -280,7 +280,7 @@ ETH_close(ETHConnectionManager *ecm, UA_RegisteredFD *rfd) {
     erfd->connectionCallback(&ecm->cm, (uintptr_t)rfd->fd,
                               rfd->application, &rfd->context,
                               UA_CONNECTIONSTATE_CLOSING,
-                              0, NULL, UA_BYTESTRING_NULL);
+                              &UA_KEYVALUEMAP_NULL, UA_BYTESTRING_NULL);
 
     /* Close the socket */
     int ret = UA_close(rfd->fd);
@@ -331,7 +331,7 @@ ETH_connectionSocketCallback(UA_ConnectionManager *cm, UA_RegisteredFD *rfd,
         efd->connectionCallback(cm, (uintptr_t)rfd->fd,
                                 rfd->application, &rfd->context,
                                 UA_CONNECTIONSTATE_CLOSING,
-                                0, NULL, UA_BYTESTRING_NULL);
+                                &UA_KEYVALUEMAP_NULL, UA_BYTESTRING_NULL);
         ETH_close(ecm, rfd);
         UA_free(rfd);
         return;
@@ -360,8 +360,10 @@ ETH_connectionSocketCallback(UA_ConnectionManager *cm, UA_RegisteredFD *rfd,
 
     /* Receive has failed */
     if(ret <= 0) {
-        if(UA_ERRNO == UA_INTERRUPTED)
-            goto finish;
+        if(UA_ERRNO == UA_INTERRUPTED) {
+            UA_ByteString_clear(&response);
+            return;
+        }
 
         /* Orderly shutdown of the socket. We can immediately close as no method
          * "below" in the call stack will use the socket in this iteration of
@@ -372,7 +374,8 @@ ETH_connectionSocketCallback(UA_ConnectionManager *cm, UA_RegisteredFD *rfd,
                         (unsigned)rfd->fd, errno_str));
         ETH_close(ecm, rfd);
         UA_free(rfd);
-        goto finish;
+        UA_ByteString_clear(&response);
+        return;
     }
 
     /* Set the length of the received buffer */
@@ -391,8 +394,10 @@ ETH_connectionSocketCallback(UA_ConnectionManager *cm, UA_RegisteredFD *rfd,
     UA_Boolean dei = 0;
     size_t headerSize = parseETHHeader(&response, destAddr, sourceAddr,
                                        &etherType, &vid, &pcp, &dei);
-    if(headerSize == 0)
-        goto finish;
+    if(headerSize == 0) {
+        UA_ByteString_clear(&response);
+        return;
+    }
 
     /* Set up the parameter arguments */
     unsigned char destAddrBytes[18];
@@ -423,21 +428,21 @@ ETH_connectionSocketCallback(UA_ConnectionManager *cm, UA_RegisteredFD *rfd,
         paramsSize += 3;
     }
 
+    UA_KeyValueMap map = {paramsSize, params};
+
     /* Callback to the application layer with the Ethernet header hidden */
     response.data += headerSize;
     response.length -= headerSize;
     efd->connectionCallback(cm, (uintptr_t)rfd->fd, rfd->application, &rfd->context,
-                              UA_CONNECTIONSTATE_ESTABLISHED, paramsSize, params, response);
+                              UA_CONNECTIONSTATE_ESTABLISHED, &map, response);
     response.data -= headerSize;
     response.length += headerSize;
-
- finish:
     UA_ByteString_clear(&response);
 }
 
 static UA_StatusCode
 ETH_openListenConnection(UA_EventLoop *el, ETH_FD *fd,
-                         size_t paramsSize, const UA_KeyValuePair *params,
+                         const UA_KeyValueMap *params,
                          int ifindex, UA_UInt16 etherType) {
     /* Bind the socket to interface and EtherType. Don't receive anything else. */
     struct sockaddr_ll sll = {0};
@@ -453,8 +458,7 @@ ETH_openListenConnection(UA_EventLoop *el, ETH_FD *fd,
 
     /* Set receiving to promiscuous (all target host addresses) */
     const UA_Boolean *promiscuous = (const UA_Boolean*)
-        UA_KeyValueMap_getScalar(params, paramsSize,
-                                 ETHConfigParameters[ETH_PARAMINDEX_PROMISCUOUS].name,
+        UA_KeyValueMap_getScalar(params, ETHConfigParameters[ETH_PARAMINDEX_PROMISCUOUS].name,
                                  &UA_TYPES[UA_TYPES_BOOLEAN]);
     if(promiscuous && *promiscuous) {
         struct packet_mreq mreq = {0};
@@ -475,8 +479,7 @@ ETH_openListenConnection(UA_EventLoop *el, ETH_FD *fd,
 
     /* Register for multicast if an address is defined */
     const UA_String *address = (const UA_String*)
-        UA_KeyValueMap_getScalar(params, paramsSize,
-                                 ETHConfigParameters[ETH_PARAMINDEX_ADDR].name,
+        UA_KeyValueMap_getScalar(params, ETHConfigParameters[ETH_PARAMINDEX_ADDR].name,
                                  &UA_TYPES[UA_TYPES_STRING]);
     if(address) {
         UA_Byte addr[ETHER_ADDR_LEN];
@@ -513,12 +516,11 @@ ETH_openListenConnection(UA_EventLoop *el, ETH_FD *fd,
 
 static UA_StatusCode
 ETH_openSendConnection(UA_EventLoop *el, ETH_FD *fd,
-                       size_t paramsSize, const UA_KeyValuePair *params,
+                       const UA_KeyValueMap *params,
                        UA_Byte source[ETHER_ADDR_LEN], int ifindex, UA_UInt16 etherType) {
     /* Parse the target address (has to exist) */
     const UA_String *address = (const UA_String*)
-        UA_KeyValueMap_getScalar(params, paramsSize,
-                                 ETHConfigParameters[ETH_PARAMINDEX_ADDR].name,
+        UA_KeyValueMap_getScalar(params, ETHConfigParameters[ETH_PARAMINDEX_ADDR].name,
                                  &UA_TYPES[UA_TYPES_STRING]);
     UA_Byte dest[ETHER_ADDR_LEN];
     UA_StatusCode res = parseEthAddress(address, dest);
@@ -535,22 +537,19 @@ ETH_openSendConnection(UA_EventLoop *el, ETH_FD *fd,
     UA_Boolean eid = false;
 
     const UA_UInt16 *vidp = (const UA_UInt16*)
-        UA_KeyValueMap_getScalar(params, paramsSize,
-                                 ETHConfigParameters[ETH_PARAMINDEX_VID].name,
+        UA_KeyValueMap_getScalar(params, ETHConfigParameters[ETH_PARAMINDEX_VID].name,
                                  &UA_TYPES[UA_TYPES_UINT16]);
     if(vidp)
         vid = *vidp;
 
     const UA_Byte *pcpp = (const UA_Byte*)
-        UA_KeyValueMap_getScalar(params, paramsSize,
-                                 ETHConfigParameters[ETH_PARAMINDEX_PCP].name,
+        UA_KeyValueMap_getScalar(params, ETHConfigParameters[ETH_PARAMINDEX_PCP].name,
                                  &UA_TYPES[UA_TYPES_BYTE]);
     if(pcpp)
         pcp = *pcpp;
 
     const UA_Boolean *eidp = (const UA_Boolean*)
-        UA_KeyValueMap_getScalar(params, paramsSize,
-                                 ETHConfigParameters[ETH_PARAMINDEX_DEI].name,
+        UA_KeyValueMap_getScalar(params, ETHConfigParameters[ETH_PARAMINDEX_DEI].name,
                                  &UA_TYPES[UA_TYPES_BOOLEAN]);
     if(eidp)
         eid = *eidp;
@@ -567,7 +566,7 @@ ETH_openSendConnection(UA_EventLoop *el, ETH_FD *fd,
 }
 
 static UA_StatusCode
-ETH_openConnection(UA_ConnectionManager *cm, size_t paramsSize, const UA_KeyValuePair *params,
+ETH_openConnection(UA_ConnectionManager *cm, const UA_KeyValueMap *params,
                    void *application, void *context,
                    UA_ConnectionManager_connectionCallback connectionCallback) {
     ETHConnectionManager *ecm = (ETHConnectionManager*)cm;
@@ -575,8 +574,7 @@ ETH_openConnection(UA_ConnectionManager *cm, size_t paramsSize, const UA_KeyValu
 
     /* Listen or send connection? */
     const UA_Boolean *listen = (const UA_Boolean*)
-        UA_KeyValueMap_getScalar(params, paramsSize,
-                                 ETHConfigParameters[ETH_PARAMINDEX_LISTEN].name,
+        UA_KeyValueMap_getScalar(params, ETHConfigParameters[ETH_PARAMINDEX_LISTEN].name,
                                  &UA_TYPES[UA_TYPES_BOOLEAN]);
     size_t ethParams = ETH_PARAMETERSSIZE;
     if(!listen || !*listen)
@@ -584,24 +582,21 @@ ETH_openConnection(UA_ConnectionManager *cm, size_t paramsSize, const UA_KeyValu
 
     /* Validate the parameters */
     UA_StatusCode res =
-        UA_KeyValueRestriction_validate(ETHConfigParameters, ETH_PARAMETERSSIZE,
-                                        params, paramsSize);
+        UA_KeyValueRestriction_validate(ETHConfigParameters, ETH_PARAMETERSSIZE, params);
     if(res != UA_STATUSCODE_GOOD)
         return res;
 
     /* Get the EtherType parameter */
     UA_UInt16 etherType = ETH_P_ALL;
     const UA_UInt16 *etParam =  (const UA_UInt16*)
-        UA_KeyValueMap_getScalar(params, paramsSize,
-                                 ETHConfigParameters[ETH_PARAMINDEX_ETHERTYPE].name,
+        UA_KeyValueMap_getScalar(params, ETHConfigParameters[ETH_PARAMINDEX_ETHERTYPE].name,
                                  &UA_TYPES[UA_TYPES_UINT16]);
     if(etParam)
         etherType = *etParam;
 
     /* Get the interface index */
     const UA_String *interface = (const UA_String*)
-        UA_KeyValueMap_getScalar(params, paramsSize,
-                                 ETHConfigParameters[ETH_PARAMINDEX_IFACE].name,
+        UA_KeyValueMap_getScalar(params, ETHConfigParameters[ETH_PARAMINDEX_IFACE].name,
                                  &UA_TYPES[UA_TYPES_STRING]);
     if(interface->length >= 128)
         return UA_STATUSCODE_BADINTERNALERROR;
@@ -660,11 +655,11 @@ ETH_openConnection(UA_ConnectionManager *cm, size_t paramsSize, const UA_KeyValu
             res = UA_STATUSCODE_BADCONNECTIONREJECTED;
             goto cleanup;
         }
-        res = ETH_openSendConnection(el, fd, paramsSize, params,
+        res = ETH_openSendConnection(el, fd, params,
                                      (unsigned char*)ifr.ifr_hwaddr.sa_data,
                                      ifindex, etherType);
     } else {
-        res = ETH_openListenConnection(el, fd, paramsSize, params, ifindex, etherType);
+        res = ETH_openListenConnection(el, fd, params, ifindex, etherType);
     }
     if(res != UA_STATUSCODE_GOOD)
         goto cleanup;
@@ -675,7 +670,8 @@ ETH_openConnection(UA_ConnectionManager *cm, size_t paramsSize, const UA_KeyValu
 
     /* Register the listen socket in the application */
     connectionCallback(cm, (uintptr_t)sockfd, application, &fd->fd.context,
-                       UA_CONNECTIONSTATE_ESTABLISHED, 0, NULL, UA_BYTESTRING_NULL);
+                       UA_CONNECTIONSTATE_ESTABLISHED, &UA_KEYVALUEMAP_NULL,
+                       UA_BYTESTRING_NULL);
     return UA_STATUSCODE_GOOD;
 
  cleanup:
@@ -723,8 +719,7 @@ ETH_shutdownConnection(UA_ConnectionManager *cm, uintptr_t connectionId) {
 
 static UA_StatusCode
 ETH_sendWithConnection(UA_ConnectionManager *cm, uintptr_t connectionId,
-                       size_t paramsSize, const UA_KeyValuePair *params,
-                       UA_ByteString *buf) {
+                       const UA_KeyValueMap *params, UA_ByteString *buf) {
     ETHConnectionManager *ecm = (ETHConnectionManager*)cm;
     UA_EventLoop *el = cm->eventSource.eventLoop;
     UA_RegisteredFD *rfd = ETHConnectionManager_findRegisteredFD(ecm, connectionId);
@@ -843,12 +838,7 @@ ETH_eventSourceDelete(UA_ConnectionManager *cm) {
     }
 
     /* Delete the parameters */
-    UA_Array_delete(cm->eventSource.params,
-                    cm->eventSource.paramsSize,
-                    &UA_TYPES[UA_TYPES_KEYVALUEPAIR]);
-    cm->eventSource.params = NULL;
-    cm->eventSource.paramsSize = 0;
-
+    UA_KeyValueMap_clear(cm->eventSource.params);
     UA_String_clear(&cm->eventSource.name);
     UA_free(cm);
     return UA_STATUSCODE_GOOD;

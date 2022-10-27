@@ -75,8 +75,7 @@ struct UA_EventLoop {
      * ~~~~~~~~~~~~~~~
      * The configuration should be set before the EventLoop is started */
     const UA_Logger *logger;
-    size_t paramsSize;
-    UA_KeyValuePair *params; /* See the implementation-specific documentation */
+    UA_KeyValueMap *params; /* See the implementation-specific documentation */
 
     /* EventLoop Lifecycle
      * ~~~~~~~~~~~~~~~~~~~~ */
@@ -213,8 +212,7 @@ struct UA_EventSource {
      * ~~~~~~~~~~~~~ */
     UA_String name;                 /* Unique name of the ES */
     UA_EventLoop *eventLoop;        /* EventLoop where the ES is registered */
-    size_t paramsSize;              /* Configuration parameters */
-    UA_KeyValuePair *params;
+    UA_KeyValueMap *params;
 
     /* Lifecycle
      * ~~~~~~~~~ */
@@ -259,7 +257,7 @@ typedef void
 (*UA_ConnectionManager_connectionCallback)
      (UA_ConnectionManager *cm, uintptr_t connectionId,
       void *application, void **connectionContext, UA_ConnectionState state,
-      size_t paramsSize, const UA_KeyValuePair *params, UA_ByteString msg);
+      const UA_KeyValueMap *params, UA_ByteString msg);
 
 struct UA_ConnectionManager {
     /* Every ConnectionManager is treated like an EventSource from the
@@ -307,7 +305,7 @@ struct UA_ConnectionManager {
      * connections might be opened at once. */
     UA_StatusCode
     (*openConnection)(UA_ConnectionManager *cm,
-                      size_t paramsSize, const UA_KeyValuePair *params,
+                      const UA_KeyValueMap *params,
                       void *application, void *context,
                       UA_ConnectionManager_connectionCallback connectionCallback);
 
@@ -322,7 +320,7 @@ struct UA_ConnectionManager {
      * example a tx-time for sending in time-synchronized TSN settings. */
     UA_StatusCode
     (*sendWithConnection)(UA_ConnectionManager *cm, uintptr_t connectionId,
-                          size_t paramsSize, const UA_KeyValuePair *params,
+                          const UA_KeyValueMap *params,
                           UA_ByteString *buf);
 
     /* Close a Connection
@@ -369,8 +367,7 @@ struct UA_ConnectionManager {
 typedef void
 (*UA_InterruptCallback)(UA_InterruptManager *im,
                         uintptr_t interruptHandle, void *interruptContext,
-                        size_t instanceInfosSize,
-                        const UA_KeyValuePair *instanceInfos);
+                        const UA_KeyValueMap *instanceInfos);
 
 struct UA_InterruptManager {
     /* Every InterruptManager is treated like an EventSource from the
@@ -390,7 +387,7 @@ struct UA_InterruptManager {
      * through to the callback without modification. */
     UA_StatusCode
     (*registerInterrupt)(UA_InterruptManager *im, uintptr_t interruptHandle,
-                         size_t paramsSize, const UA_KeyValuePair *params,
+                         const UA_KeyValueMap *params,
                          UA_InterruptCallback callback, void *interruptContext);
 
     /* Remove a registered interrupt. Returns no error code if the interrupt is

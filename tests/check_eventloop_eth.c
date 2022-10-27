@@ -26,8 +26,7 @@ typedef struct TestContext {
 static void
 connectionCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
                    void *application, void **connectionContext,
-                   UA_ConnectionState status,
-                   size_t paramsSize, const UA_KeyValuePair *params,
+                   UA_ConnectionState status, const UA_KeyValueMap *params,
                    UA_ByteString msg) {
     TestContext *ctx = (TestContext*) *connectionContext;
     if(status == UA_CONNECTIONSTATE_CLOSING) {
@@ -48,10 +47,9 @@ connectionCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
         clientId = connectionId;
 
         /* The remote-hostname is set during the first callback */
-        if(paramsSize > 0) {
+        if(params->mapSize> 0) {
             const void *hn =
-                UA_KeyValueMap_getScalar(params, paramsSize,
-                                         UA_QUALIFIEDNAME(0, "remote-hostname"),
+                UA_KeyValueMap_getScalar(params, UA_QUALIFIEDNAME(0, "remote-hostname"),
                                          &UA_TYPES[UA_TYPES_STRING]);
             ck_assert(hn != NULL);
         }
@@ -79,7 +77,7 @@ START_TEST(listenETH) {
     UA_String address = UA_STRING(MULTICAST_MAC_ADDRESS);
     UA_Boolean listen = true;
 
-    UA_KeyValuePair params[5];
+    UA_KeyValuePair params[3];
     params[0].key = UA_QUALIFIEDNAME(0, "interface");
     UA_Variant_setScalar(&params[0].value, &interface, &UA_TYPES[UA_TYPES_STRING]);
     params[1].key = UA_QUALIFIEDNAME(0, "address");
@@ -87,7 +85,8 @@ START_TEST(listenETH) {
     params[2].key = UA_QUALIFIEDNAME(0, "listen");
     UA_Variant_setScalar(&params[2].value, &listen, &UA_TYPES[UA_TYPES_BOOLEAN]);
 
-    UA_StatusCode res = cm->openConnection(cm, 3, params, NULL, &testContext, connectionCallback);
+    UA_KeyValueMap kvm = {3, params};
+    UA_StatusCode res = cm->openConnection(cm, &kvm, NULL, &testContext, connectionCallback);
     ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
 
     ck_assert(testContext.connCount == 1);
@@ -138,15 +137,17 @@ START_TEST(connectETH) {
     testContext.connCount = 0;
 
     /* Don't use the address parameter for listening */
+    UA_KeyValueMap kvm = {3, &params[1]};
     UA_StatusCode retval =
-        cm->openConnection(cm, 3, &params[1], NULL, &testContext, connectionCallback);
+        cm->openConnection(cm, &kvm, NULL, &testContext, connectionCallback);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
     size_t listenSockets = testContext.connCount;
 
     /* Open a client connection. Don't use the listen parameter.*/
+    kvm.map = params;
     clientId = 0;
-    retval = cm->openConnection(cm, 3, params, NULL, &testContext, connectionCallback);
+    retval = cm->openConnection(cm, &kvm, NULL, &testContext, connectionCallback);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     for(size_t i = 0; i < 2; i++) {
         UA_DateTime next = el->run(el, 1);
@@ -161,7 +162,7 @@ START_TEST(connectETH) {
     retval = cm->allocNetworkBuffer(cm, clientId, &snd, strlen(testMsg));
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     memcpy(snd.data, testMsg, strlen(testMsg));
-    retval = cm->sendWithConnection(cm, clientId, 0, NULL, &snd);
+    retval = cm->sendWithConnection(cm, clientId, NULL, &snd);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
     while(!received) {
