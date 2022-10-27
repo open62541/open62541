@@ -58,19 +58,18 @@ typedef union {
 
 /* Retrieves hostname and port from given key value parameters.
  *
- * @param[in] paramsSize the size of the parameter list
- * @param[in] params the parameter list to retrieve from
+ * @param[in] params the parameter map to retrieve from
  * @param[out] hostname the retrieved hostname when present, NULL otherwise
  * @param[out] portStr the retrieved port when present, NULL otherwise
  * @param[in] logger the logger to log information
  * @return -1 upon error, 0 if there was no host or port parameter, 1 if
  *         host and port are present */
 static int
-getHostAndPortFromParams(size_t paramsSize, const UA_KeyValuePair *params,
+getHostAndPortFromParams(const UA_KeyValueMap *params,
                          char *hostname, char *portStr, const UA_Logger *logger) {
     /* Prepare the port parameter as a string */
     const UA_UInt16 *port = (const UA_UInt16*)
-        UA_KeyValueMap_getScalar(params, paramsSize,
+        UA_KeyValueMap_getScalar(params,
                                  UA_QUALIFIEDNAME(0, "port"),
                                  &UA_TYPES[UA_TYPES_UINT16]);
     if(!port) {
@@ -82,7 +81,7 @@ getHostAndPortFromParams(size_t paramsSize, const UA_KeyValuePair *params,
 
     /* Prepare the hostname string */
     const UA_String *host = (const UA_String*)
-        UA_KeyValueMap_getScalar(params, paramsSize,
+        UA_KeyValueMap_getScalar(params,
                                  UA_QUALIFIEDNAME(0, "hostname"),
                                  &UA_TYPES[UA_TYPES_STRING]);
     if(!host) {
@@ -101,11 +100,11 @@ getHostAndPortFromParams(size_t paramsSize, const UA_KeyValuePair *params,
 }
 
 static int
-getNetworkInterfaceFromParams(size_t paramsSize, const UA_KeyValuePair *params,
+getNetworkInterfaceFromParams(const UA_KeyValueMap *params,
                               UA_String *outNetworkInterface, const UA_Logger *logger) {
     /* Prepare the networkinterface string */
     const UA_String *networkInterface = (const UA_String*)
-        UA_KeyValueMap_getScalar(params, paramsSize,
+        UA_KeyValueMap_getScalar(params,
                                  UA_QUALIFIEDNAME(0, "network-interface"),
                                  &UA_TYPES[UA_TYPES_STRING]);
     if(!networkInterface) {
@@ -118,11 +117,11 @@ getNetworkInterfaceFromParams(size_t paramsSize, const UA_KeyValuePair *params,
 }
 
 static int
-getConnectionInfoFromParams(size_t paramsSize, const UA_KeyValuePair *params,
+getConnectionInfoFromParams(const UA_KeyValueMap *params,
                             char *hostname, char *portStr,
                             struct addrinfo **info, const UA_Logger *logger) {
 
-    int foundParams = getHostAndPortFromParams(paramsSize, params,
+    int foundParams = getHostAndPortFromParams(params,
                                                hostname, portStr, logger);
     if (foundParams < 0) {
         UA_LOG_ERROR(logger, UA_LOGCATEGORY_EVENTLOOP,
@@ -258,8 +257,7 @@ isIPv6MulticastAddress(const UA_Byte *address) {
 #endif
 
 static UA_StatusCode
-setConnectionConfig(UA_FD socket, const UA_KeyValuePair *connectionProperties,
-                    const size_t connectionPropertiesSize,
+setConnectionConfig(UA_FD socket, const UA_KeyValueMap *connectionProperties,
                     int ai_family, const UA_Logger *logger) {
     /* Iterate over the given KeyValuePair parameters */
     UA_String ttlParam = UA_STRING("ttl");
@@ -275,8 +273,8 @@ setConnectionConfig(UA_FD socket, const UA_KeyValuePair *connectionProperties,
 #ifdef __linux__
     UA_String socketPriorityParam = UA_STRING("sockpriority");
 #endif
-    for(size_t i = 0; i < connectionPropertiesSize; i++) {
-        const UA_KeyValuePair *prop = &connectionProperties[i];
+    for(size_t i = 0; i < connectionProperties->mapSize; i++) {
+        const UA_KeyValuePair *prop = &connectionProperties->map[i];
         if(UA_String_equal(&prop->key.name, &ttlParam)) {
             if(UA_Variant_hasScalarType(&prop->value, &UA_TYPES[UA_TYPES_UINT32])){
                 UA_UInt32 messageTTL = *(UA_UInt32*)prop->value.data;
@@ -336,7 +334,7 @@ setConnectionConfig(UA_FD socket, const UA_KeyValuePair *connectionProperties,
     return UA_STATUSCODE_GOOD;
 }
 static UA_StatusCode
-setupSendMulticastIPv4(UA_FD socket, struct sockaddr_in *addr, size_t paramsSize, const UA_KeyValuePair *params,
+setupSendMulticastIPv4(UA_FD socket, struct sockaddr_in *addr, const UA_KeyValueMap *params,
                        const UA_Logger *logger) {
     struct in_addr address = addr->sin_addr;
 
@@ -346,7 +344,7 @@ setupSendMulticastIPv4(UA_FD socket, struct sockaddr_in *addr, size_t paramsSize
     ipMulticastRequest.ipv4.imr_interface.s_addr = UA_htonl(INADDR_ANY);
 
     UA_String netif = UA_STRING_NULL;
-    int foundInterface = getNetworkInterfaceFromParams(paramsSize, params, &netif, logger);
+    int foundInterface = getNetworkInterfaceFromParams(params, &netif, logger);
     if(foundInterface < 0) {
         UA_LOG_ERROR(logger, UA_LOGCATEGORY_NETWORK,
                      "UDP\t| Opening a connection failed");
@@ -377,7 +375,7 @@ setupSendMulticastIPv4(UA_FD socket, struct sockaddr_in *addr, size_t paramsSize
 }
 
 static UA_StatusCode
-setupListenMulticastIPv4(UA_FD socket, size_t paramsSize, const UA_KeyValuePair *params, struct sockaddr_in *addr,
+setupListenMulticastIPv4(UA_FD socket, const UA_KeyValueMap *params, struct sockaddr_in *addr,
                          const UA_Logger *logger) {
     struct in_addr address = addr->sin_addr;
 
@@ -387,7 +385,7 @@ setupListenMulticastIPv4(UA_FD socket, size_t paramsSize, const UA_KeyValuePair 
     ipMulticastRequest.ipv4.imr_interface.s_addr = UA_htonl(INADDR_ANY);
 
     UA_String netif = UA_STRING_NULL;
-    int foundInterface = getNetworkInterfaceFromParams(paramsSize, params, &netif, logger);
+    int foundInterface = getNetworkInterfaceFromParams(params, &netif, logger);
     if(foundInterface < 0) {
         UA_LOG_ERROR(logger, UA_LOGCATEGORY_NETWORK,
                      "UDP\t| Opening a connection failed");
@@ -422,7 +420,7 @@ setupListenMulticastIPv4(UA_FD socket, size_t paramsSize, const UA_KeyValuePair 
 
 #if UA_IPV6
 static UA_StatusCode
-setupListenMulticastIPv6(UA_FD socket, size_t paramsSize, const UA_KeyValuePair *params, struct sockaddr_in6 *addr,
+setupListenMulticastIPv6(UA_FD socket, const UA_KeyValueMap *params, struct sockaddr_in6 *addr,
                          const UA_Logger *logger) {
 
     struct in6_addr address = addr->sin6_addr;
@@ -433,7 +431,7 @@ setupListenMulticastIPv6(UA_FD socket, size_t paramsSize, const UA_KeyValuePair 
     ipMulticastRequest.ipv6.ipv6mr_interface = 0;
 
     UA_String netif = UA_STRING_NULL;
-    int foundInterface = getNetworkInterfaceFromParams(paramsSize, params, &netif, logger);
+    int foundInterface = getNetworkInterfaceFromParams(params, &netif, logger);
     if(foundInterface < 0) {
         UA_LOG_ERROR(logger, UA_LOGCATEGORY_NETWORK,
                      "UDP\t| Opening a connection failed");
@@ -466,7 +464,7 @@ setupListenMulticastIPv6(UA_FD socket, size_t paramsSize, const UA_KeyValuePair 
 }
 
 static UA_StatusCode
-setupSendMulticastIPv6(UA_FD socket, struct sockaddr_in6 *addr, size_t paramsSize, const UA_KeyValuePair *params,
+setupSendMulticastIPv6(UA_FD socket, struct sockaddr_in6 *addr, const UA_KeyValueMap *params,
                        const UA_Logger *logger) {
     struct in6_addr address = addr->sin6_addr;
 
@@ -476,7 +474,7 @@ setupSendMulticastIPv6(UA_FD socket, struct sockaddr_in6 *addr, size_t paramsSiz
     ipMulticastRequest.ipv6.ipv6mr_interface = 0;
 
     UA_String netif = UA_STRING_NULL;
-    int foundInterface = getNetworkInterfaceFromParams(paramsSize, params, &netif, logger);
+    int foundInterface = getNetworkInterfaceFromParams(params, &netif, logger);
     if(foundInterface < 0) {
         UA_LOG_ERROR(logger, UA_LOGCATEGORY_NETWORK,
                      "UDP\t| Opening a connection failed");
@@ -578,7 +576,7 @@ UDP_close(UDPConnectionManager *ucm, UA_RegisteredFD *rfd) {
     udpfd->connectionCallback(&ucm->cm, (uintptr_t)rfd->fd,
                               rfd->application, &rfd->context,
                               UA_CONNECTIONSTATE_CLOSING,
-                              0, NULL, UA_BYTESTRING_NULL);
+                              &UA_KEYVALUEMAP_NULL, UA_BYTESTRING_NULL);
 
     /* Close the socket */
     int ret = UA_close(rfd->fd);
@@ -630,7 +628,7 @@ UDP_connectionSocketCallback(UA_ConnectionManager *cm, UA_RegisteredFD *rfd,
         udpfd->connectionCallback(cm, (uintptr_t)rfd->fd,
                                   rfd->application, &rfd->context,
                                   UA_CONNECTIONSTATE_ESTABLISHED,
-                                  0, NULL, UA_BYTESTRING_NULL);
+                                  &UA_KEYVALUEMAP_NULL, UA_BYTESTRING_NULL);
 
         /* Now we are interested in read-events. */
         rfd->listenEvents = UA_FDEVENT_IN;
@@ -677,18 +675,18 @@ UDP_connectionSocketCallback(UA_ConnectionManager *cm, UA_RegisteredFD *rfd,
     response.length = (size_t)ret; /* Set the length of the received buffer */
     udpfd->connectionCallback(cm, (uintptr_t)rfd->fd,
                               rfd->application, &rfd->context,
-                              UA_CONNECTIONSTATE_ESTABLISHED, 0, NULL, response);
+                              UA_CONNECTIONSTATE_ESTABLISHED, &UA_KEYVALUEMAP_NULL, response);
 }
 
 static UA_StatusCode
-checkForListenMulticastAndConfigure(struct addrinfo *info, size_t paramsSize, const UA_KeyValuePair *params,
+checkForListenMulticastAndConfigure(struct addrinfo *info, const UA_KeyValueMap *params,
                                     UA_FD listenSocket, const UA_Logger *logger) {
     UA_StatusCode res = UA_STATUSCODE_GOOD;
     if(info->ai_family == AF_INET) {
         UA_Byte *addressVal = (UA_Byte *) &((struct sockaddr_in *)info->ai_addr)->sin_addr;
         if(isIPv4MulticastAddress(addressVal)) {
             res = setupListenMulticastIPv4(listenSocket,
-                                           paramsSize, params, (struct sockaddr_in *)info->ai_addr,
+                                           params, (struct sockaddr_in *)info->ai_addr,
                                            logger);
         }
 #if UA_IPV6
@@ -696,7 +694,7 @@ checkForListenMulticastAndConfigure(struct addrinfo *info, size_t paramsSize, co
         UA_Byte *addressVal = (UA_Byte *) &((struct sockaddr_in6 *)info->ai_addr)->sin6_addr;
         if(isIPv6MulticastAddress(addressVal)) {
             res = setupListenMulticastIPv6(listenSocket,
-                                           paramsSize, params, (struct sockaddr_in6 *)info->ai_addr, logger);
+                                           params, (struct sockaddr_in6 *)info->ai_addr, logger);
         }
 #endif
     } else {
@@ -709,7 +707,7 @@ checkForListenMulticastAndConfigure(struct addrinfo *info, size_t paramsSize, co
 
 static UA_StatusCode
 UDP_registerListenSocket(UA_ConnectionManager *cm, UA_UInt16 port, struct addrinfo *info,
-                         size_t paramsSize, const UA_KeyValuePair *params,
+                         const UA_KeyValueMap *params,
                          void *application, void *context,
                          UA_ConnectionManager_connectionCallback connectionCallback,
                          UA_Boolean validate) {
@@ -747,7 +745,7 @@ UDP_registerListenSocket(UA_ConnectionManager *cm, UA_UInt16 port, struct addrin
                 "UDP %u\t| New listen socket for \"%s\" on port %u",
                 (unsigned)listenSocket, hoststr, port);
 
-    UA_StatusCode res = checkForListenMulticastAndConfigure(info, paramsSize, params, listenSocket, el->eventLoop.logger);
+    UA_StatusCode res = checkForListenMulticastAndConfigure(info, params, listenSocket, el->eventLoop.logger);
     if(res != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
                      "UDP\t| Configuring listen multicast failed");
@@ -847,13 +845,13 @@ UDP_registerListenSocket(UA_ConnectionManager *cm, UA_UInt16 port, struct addrin
     connectionCallback(cm, (uintptr_t)newudpfd->fd.fd,
                        application, &newudpfd->fd.context,
                        UA_CONNECTIONSTATE_ESTABLISHED,
-                       0, NULL, UA_BYTESTRING_NULL);
+                       &UA_KEYVALUEMAP_NULL, UA_BYTESTRING_NULL);
     return UA_STATUSCODE_GOOD;
 }
 
 static UA_StatusCode
 UDP_registerListenSockets(UA_ConnectionManager *cm, const char *hostname, UA_UInt16 port,
-                          size_t paramsSize, const UA_KeyValuePair *params,
+                          const UA_KeyValueMap *params,
                           void *application, void *context,
                           UA_ConnectionManager_connectionCallback connectionCallback,
                           UA_Boolean validate) {
@@ -891,7 +889,8 @@ UDP_registerListenSockets(UA_ConnectionManager *cm, const char *hostname, UA_UIn
     struct addrinfo *ai = res;
     UA_StatusCode rv = UA_STATUSCODE_GOOD;
     while(ai) {
-        rv = UDP_registerListenSocket(cm, port, ai, paramsSize, params, application, context, connectionCallback, validate);
+        rv = UDP_registerListenSocket(cm, port, ai, params, application,
+                                      context, connectionCallback, validate);
         if(rv != UA_STATUSCODE_GOOD && validate) {
             UA_freeaddrinfo(res);
             return rv;
@@ -953,7 +952,7 @@ UDP_shutdownConnection(UA_ConnectionManager *cm, uintptr_t connectionId) {
 
 static UA_StatusCode
 UDP_sendWithConnection(UA_ConnectionManager *cm, uintptr_t connectionId,
-                       size_t paramsSize, const UA_KeyValuePair *params,
+                       const UA_KeyValueMap *params,
                        UA_ByteString *buf) {
     /* Prevent OS signals when sending to a closed socket */
     int flags = MSG_NOSIGNAL;
@@ -1019,7 +1018,7 @@ UDP_sendWithConnection(UA_ConnectionManager *cm, uintptr_t connectionId,
 
 
 static UA_StatusCode
-checkForSendMulticastAndConfigure(size_t paramsSize, const UA_KeyValuePair *params, struct addrinfo *info, UA_FD newSock,
+checkForSendMulticastAndConfigure(const UA_KeyValueMap *params, struct addrinfo *info, UA_FD newSock,
                                   const UA_Logger *logger) {
     UA_StatusCode res = UA_STATUSCODE_GOOD;
     if(info->ai_family == AF_INET) {
@@ -1028,7 +1027,6 @@ checkForSendMulticastAndConfigure(size_t paramsSize, const UA_KeyValuePair *para
 
         if(isIPv4MulticastAddress(addressVal)) {
             res = setupSendMulticastIPv4(newSock, (struct sockaddr_in *)info->ai_addr,
-                                         paramsSize,
                                          params, logger);
         }
 #if UA_IPV6
@@ -1037,7 +1035,6 @@ checkForSendMulticastAndConfigure(size_t paramsSize, const UA_KeyValuePair *para
         UA_Byte *addressVal = (UA_Byte *) &addr->sin6_addr;
         if(isIPv6MulticastAddress(addressVal)) {
             res = setupSendMulticastIPv6(newSock, (struct sockaddr_in6 *)info->ai_addr,
-                                         paramsSize,
                                          params, logger);
         }
 #endif
@@ -1050,7 +1047,7 @@ checkForSendMulticastAndConfigure(size_t paramsSize, const UA_KeyValuePair *para
 }
 
 static UA_StatusCode
-registerSocketAndDestinationForSend(size_t paramsSize, const UA_KeyValuePair *params,
+registerSocketAndDestinationForSend(const UA_KeyValueMap *params,
                                     const char *hostname, struct addrinfo *info,
                                     int error, UDP_FD * ufd, UA_FD *sock, const UA_Logger *logger) {
     UA_FD newSock = socket(info->ai_family, info->ai_socktype, info->ai_protocol);
@@ -1062,14 +1059,14 @@ registerSocketAndDestinationForSend(size_t paramsSize, const UA_KeyValuePair *pa
                            hostname, errno_str));
         return UA_STATUSCODE_BADDISCONNECT;
     }
-    UA_StatusCode res = setConnectionConfig(newSock, params, paramsSize,
+    UA_StatusCode res = setConnectionConfig(newSock, params,
                                             info->ai_family, logger);
     if(res != UA_STATUSCODE_GOOD) {
         UA_close(newSock);
         return res;
     }
 
-    res = checkForSendMulticastAndConfigure(paramsSize, params, info, newSock, logger);
+    res = checkForSendMulticastAndConfigure(params, info, newSock, logger);
     if(res != UA_STATUSCODE_GOOD) {
         UA_close(newSock);
         UA_LOG_ERROR(logger, UA_LOGCATEGORY_NETWORK,
@@ -1084,7 +1081,7 @@ registerSocketAndDestinationForSend(size_t paramsSize, const UA_KeyValuePair *pa
 
 static UA_StatusCode
 UDP_openSendConnection(UA_ConnectionManager *cm,
-                       size_t paramsSize, const UA_KeyValuePair *params,
+                       const UA_KeyValueMap *params,
                        void *application, void *context,
                        UA_ConnectionManager_connectionCallback connectionCallback,
                        UA_Boolean validate) {
@@ -1095,7 +1092,7 @@ UDP_openSendConnection(UA_ConnectionManager *cm,
     char portStr[UA_MAXPORTSTR_LENGTH];
     struct addrinfo *info = NULL;
 
-    int error = getConnectionInfoFromParams(paramsSize, params, hostname,
+    int error = getConnectionInfoFromParams(params, hostname,
                                             portStr, &info, el->eventLoop.logger);
     if(error < 0 || info == NULL) {
         if(info != NULL) {
@@ -1119,7 +1116,7 @@ UDP_openSendConnection(UA_ConnectionManager *cm,
     /* Create a socket and register the destination address from the provided parameters */
     UA_FD newSock = UA_INVALID_FD;
     UA_StatusCode res =
-        registerSocketAndDestinationForSend(paramsSize, params, hostname, info,
+        registerSocketAndDestinationForSend(params, hostname, info,
                                             error, newudpfd, &newSock, el->eventLoop.logger);
     UA_freeaddrinfo(info);
     if(validate && res == UA_STATUSCODE_GOOD) {
@@ -1162,14 +1159,14 @@ UDP_openSendConnection(UA_ConnectionManager *cm,
     /* Signal the connection as opening. The connection fully opens in the next
      * iteration of the EventLoop */
     connectionCallback(cm, (uintptr_t)newSock, application, &newudpfd->fd.context,
-                       UA_CONNECTIONSTATE_OPENING, 0, NULL, UA_BYTESTRING_NULL);
+                       UA_CONNECTIONSTATE_OPENING, &UA_KEYVALUEMAP_NULL, UA_BYTESTRING_NULL);
 
     return UA_STATUSCODE_GOOD;
 }
 
 static UA_StatusCode
 UDP_openReceiveConnection(UA_ConnectionManager *cm,
-                          size_t paramsSize, const UA_KeyValuePair *params,
+                          const UA_KeyValueMap *params,
                           void *application, void *context,
                           UA_ConnectionManager_connectionCallback connectionCallback,
                           UA_Boolean validate) {
@@ -1177,7 +1174,7 @@ UDP_openReceiveConnection(UA_ConnectionManager *cm,
 
     /* Get the socket */
     const UA_UInt16 *port = (const UA_UInt16*)
-        UA_KeyValueMap_getScalar(params, paramsSize,
+        UA_KeyValueMap_getScalar(params,
                                  UA_QUALIFIEDNAME(0, "listen-port"),
                                  &UA_TYPES[UA_TYPES_UINT16]);
     if(!port) {
@@ -1188,15 +1185,14 @@ UDP_openReceiveConnection(UA_ConnectionManager *cm,
 
     /* Get the hostnames configuration */
     const UA_Variant *hostNames =
-        UA_KeyValueMap_get(params, paramsSize,
+        UA_KeyValueMap_get(params,
                            UA_QUALIFIEDNAME(0, "listen-hostnames"));
     if(!hostNames) {
         /* No hostnames configured -> listen on all interfaces*/
         UA_LOG_INFO(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
                     "UDP\t| Listening on all interfaces");
-        return UDP_registerListenSockets(cm, NULL, *port, paramsSize, params,
-                                         application, context, connectionCallback,
-                                         validate);
+        return UDP_registerListenSockets(cm, NULL, *port, params, application,
+                                         context, connectionCallback, validate);
     }
 
     /* Correct datatype for the hostnames? */
@@ -1211,9 +1207,8 @@ UDP_openReceiveConnection(UA_ConnectionManager *cm,
     if(interfaces == 0) {
         UA_LOG_WARNING(el->eventLoop.logger, UA_LOGCATEGORY_EVENTLOOP,
                      "UDP\t| Listening on all interfaces");
-        return UDP_registerListenSockets(cm, NULL, *port, paramsSize, params,
-                                         application, context, connectionCallback,
-                                         validate);
+        return UDP_registerListenSockets(cm, NULL, *port, params, application,
+                                         context, connectionCallback, validate);
     }
 
     UA_StatusCode rv = UA_STATUSCODE_GOOD;
@@ -1225,8 +1220,8 @@ UDP_openReceiveConnection(UA_ConnectionManager *cm,
             continue;
         memcpy(hostname, hostStrings[i].data, hostStrings->length);
         hostname[hostStrings->length] = '\0';
-        rv = UDP_registerListenSockets(cm, hostname, *port, paramsSize, params,
-                                  application, context, connectionCallback, validate);
+        rv = UDP_registerListenSockets(cm, hostname, *port, params, application,
+                                  context, connectionCallback, validate);
         if(rv != UA_STATUSCODE_GOOD) {
             return rv;
         }
@@ -1237,11 +1232,11 @@ UDP_openReceiveConnection(UA_ConnectionManager *cm,
 
 static UA_StatusCode
 UDP_openConnection(UA_ConnectionManager *cm,
-                   size_t paramsSize, const UA_KeyValuePair *params,
+                   const UA_KeyValueMap *params,
                    void *application, void *context,
                    UA_ConnectionManager_connectionCallback connectionCallback) {
 
-    const UA_Variant *validationValue = UA_KeyValueMap_get(params, paramsSize,
+    const UA_Variant *validationValue = UA_KeyValueMap_get(params,
                                                UA_QUALIFIEDNAME(0, "validate"));
     UA_Boolean validate = false;
     if(validationValue) {
@@ -1252,14 +1247,14 @@ UDP_openConnection(UA_ConnectionManager *cm,
     /* If the "port"-parameter is defined, then try to open a send connection.
      * Otherwise try to open a socket that listens for incoming TCP
      * connections. */
-    const UA_Variant *val = UA_KeyValueMap_get(params, paramsSize,
+    const UA_Variant *val = UA_KeyValueMap_get(params,
                                                UA_QUALIFIEDNAME(0, "port"));
     if(val) {
-        return UDP_openSendConnection(cm, paramsSize, params,
-                                      application, context, connectionCallback, validate);
+        return UDP_openSendConnection(cm, params, application, context,
+                                      connectionCallback, validate);
     } else {
-        return UDP_openReceiveConnection(cm, paramsSize, params,
-                                         application, context, connectionCallback, validate);
+        return UDP_openReceiveConnection(cm, params, application, context,
+                                         connectionCallback, validate);
     }
 }
 
@@ -1279,13 +1274,14 @@ UDP_eventSourceStart(UA_ConnectionManager *cm) {
     /* The receive buffersize was configured? */
     UDPConnectionManager *ucm = (UDPConnectionManager*)cm;
     UA_UInt32 rxBufSize = 2u << 16; /* The default is 64kb */
-    const UA_UInt32 *configRxBufSize = (const UA_UInt32*)
-        UA_KeyValueMap_getScalar(cm->eventSource.params,
-                                 cm->eventSource.paramsSize,
-                                 UA_QUALIFIEDNAME(0, "recv-bufsize"),
-                                 &UA_TYPES[UA_TYPES_UINT32]);
-    if(configRxBufSize)
-        rxBufSize = *configRxBufSize;
+    if(cm->eventSource.params != NULL) {
+        const UA_UInt32 *configRxBufSize = (const UA_UInt32 *)
+            UA_KeyValueMap_getScalar(cm->eventSource.params,
+                                     UA_QUALIFIEDNAME(0, "recv-bufsize"),
+                                     &UA_TYPES[UA_TYPES_UINT32]);
+        if(configRxBufSize)
+            rxBufSize = *configRxBufSize;
+    }
     UA_StatusCode res = UA_ByteString_allocBuffer(&ucm->rxBuffer, rxBufSize);
     if(res != UA_STATUSCODE_GOOD)
         return res;
@@ -1325,12 +1321,10 @@ UDP_eventSourceDelete(UA_ConnectionManager *cm) {
     }
 
     /* Delete the parameters */
-    UA_Array_delete(cm->eventSource.params,
-                    cm->eventSource.paramsSize,
-                    &UA_TYPES[UA_TYPES_KEYVALUEPAIR]);
-    cm->eventSource.params = NULL;
-    cm->eventSource.paramsSize = 0;
-
+    if(cm->eventSource.params != NULL) {
+        UA_KeyValueMap_delete(cm->eventSource.params);
+        cm->eventSource.params = NULL;
+    }
     UA_String_clear(&cm->eventSource.name);
     UA_free(cm);
     return UA_STATUSCODE_GOOD;

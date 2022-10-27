@@ -333,7 +333,7 @@ sendHELMessage(UA_Client *client) {
     /* Send the HEL message */
     message.length = messageHeader.messageSize;
     retval = cm->sendWithConnection(cm, client->channel.connectionId,
-                                    0, NULL, &message);
+                                    &UA_KEYVALUEMAP_NULL, &message);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_INFO(&client->config.logger, UA_LOGCATEGORY_CLIENT, "Sending HEL failed");
         closeSecureChannel(client);
@@ -1065,7 +1065,7 @@ static void
 UA_Client_networkCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
                           void *application, void **connectionContext,
                           UA_ConnectionState state,
-                          size_t paramsSize, const UA_KeyValuePair *params,
+                          const UA_KeyValueMap *params,
                           UA_ByteString msg) {
     UA_Client *client = (UA_Client*)application;
 
@@ -1255,8 +1255,12 @@ initConnect(UA_Client *client) {
         params[1].key = UA_QUALIFIEDNAME(0, "hostname");
         UA_Variant_setScalar(&params[1].value, &hostname, &UA_TYPES[UA_TYPES_STRING]);
 
+        UA_KeyValueMap paramMap;
+        paramMap.map = params;
+        paramMap.mapSize = 2;
+
         /* Open the client TCP connection */
-        res = cm->openConnection(cm, 2, params, client, NULL, UA_Client_networkCallback);
+        res = cm->openConnection(cm, &paramMap, client, NULL, UA_Client_networkCallback);
         if(res == UA_STATUSCODE_GOOD)
             break;
     }

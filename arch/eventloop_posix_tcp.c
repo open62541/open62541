@@ -94,7 +94,7 @@ TCP_close(TCPConnectionManager *tcm, UA_RegisteredFD *rfd) {
     tcpfd->connectionCallback(&tcm->cm, (uintptr_t)rfd->fd,
                               rfd->application, &rfd->context,
                               UA_CONNECTIONSTATE_CLOSING,
-                              0, NULL, UA_BYTESTRING_NULL);
+                              &UA_KEYVALUEMAP_NULL, UA_BYTESTRING_NULL);
 
     /* Close the socket */
     int ret = UA_close(rfd->fd);
@@ -184,7 +184,7 @@ TCP_connectionSocketCallback(UA_ConnectionManager *cm, UA_RegisteredFD *rfd,
         /* A new socket has opened. Signal it to the application. */
         tcpfd->connectionCallback(cm, (uintptr_t)rfd->fd,
                                   rfd->application, &rfd->context,
-                                  UA_CONNECTIONSTATE_ESTABLISHED, 0, NULL,
+                                  UA_CONNECTIONSTATE_ESTABLISHED, &UA_KEYVALUEMAP_NULL,
                                   UA_BYTESTRING_NULL);
 
         return;
@@ -229,7 +229,7 @@ TCP_connectionSocketCallback(UA_ConnectionManager *cm, UA_RegisteredFD *rfd,
     tcpfd->connectionCallback(cm, (uintptr_t)rfd->fd,
                               rfd->application, &rfd->context,
                               UA_CONNECTIONSTATE_ESTABLISHED,
-                              0, NULL, response);
+                              &UA_KEYVALUEMAP_NULL, response);
 }
 
 /* Gets called when a new connection opens or if the listenSocket is closed */
@@ -327,11 +327,15 @@ TCP_listenSocketCallback(UA_ConnectionManager *cm, UA_RegisteredFD *rfd, short e
     UA_String hostName = UA_STRING(hoststr);
     UA_Variant_setScalar(&kvp.value, &hostName, &UA_TYPES[UA_TYPES_STRING]);
 
+    UA_KeyValueMap kvm;
+    kvm.mapSize = 1;
+    kvm.map = &kvp;
+
     /* The socket has opened. Signal it to the application. */
     tcpfd->connectionCallback(cm, (uintptr_t)newsockfd,
                               newtcpfd->fd.application, &newtcpfd->fd.context,
                               UA_CONNECTIONSTATE_ESTABLISHED,
-                              1, &kvp, UA_BYTESTRING_NULL);
+                              &kvm, UA_BYTESTRING_NULL);
 }
 
 static UA_StatusCode
@@ -467,20 +471,22 @@ TCP_registerListenSocket(UA_ConnectionManager *cm, struct addrinfo *ai,
     UA_KeyValuePair params[2];
     params[0].key = UA_QUALIFIEDNAME(0, "listen-hostname");
     params[1].key = UA_QUALIFIEDNAME(0, "listen-port");
+    UA_KeyValueMap paramMap;
+    paramMap.mapSize = 0;
     UA_String hostname;
-    size_t paramsSize = 0;
     if(hoststr[0] != 0) {
-        paramsSize = 2;
+        paramMap.mapSize = 2;
         hostname = UA_STRING(hoststr);
         UA_Variant_setScalar(&params[0].value, &hostname, &UA_TYPES[UA_TYPES_STRING]);
         UA_Variant_setScalar(&params[1].value, &port, &UA_TYPES[UA_TYPES_UINT16]);
+        paramMap.map = params;
     }
 
     /* Announce the listen-socket in the application */
     connectionCallback(cm, (uintptr_t)listenSocket, application,
                        &newtcpfd->fd.context,
                        UA_CONNECTIONSTATE_ESTABLISHED,
-                       paramsSize, params, UA_BYTESTRING_NULL);
+                       &paramMap, UA_BYTESTRING_NULL);
 
     return UA_STATUSCODE_GOOD;
 }
@@ -599,7 +605,7 @@ TCP_shutdownConnection(UA_ConnectionManager *cm, uintptr_t connectionId) {
 
 static UA_StatusCode
 TCP_sendWithConnection(UA_ConnectionManager *cm, uintptr_t connectionId,
-                       size_t paramsSize, const UA_KeyValuePair *params,
+                       const UA_KeyValueMap *params,
                        UA_ByteString *buf) {
     /* Prevent OS signals when sending to a closed socket */
     int flags = MSG_NOSIGNAL;
@@ -655,14 +661,14 @@ TCP_sendWithConnection(UA_ConnectionManager *cm, uintptr_t connectionId,
 /* Create a listen-socket that waits for incoming connections */
 static UA_StatusCode
 TCP_openPassiveConnection(UA_ConnectionManager *cm,
-                          size_t paramsSize, const UA_KeyValuePair *params,
+                          const UA_KeyValueMap *params,
                           void *application, void *context,
                           UA_ConnectionManager_connectionCallback connectionCallback) {
     UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX*)cm->eventSource.eventLoop;
 
     /* Get the port parameter */
     const UA_UInt16 *port = (const UA_UInt16*)
-        UA_KeyValueMap_getScalar(params, paramsSize,
+        UA_KeyValueMap_getScalar(params,
                                  UA_QUALIFIEDNAME(0, "listen-port"),
                                  &UA_TYPES[UA_TYPES_UINT16]);
     if(!port) {
@@ -673,7 +679,7 @@ TCP_openPassiveConnection(UA_ConnectionManager *cm,
 
     /* Get the hostnames parameter */
     const UA_Variant *hostNames =
-        UA_KeyValueMap_get(params, paramsSize, UA_QUALIFIEDNAME(0, "listen-hostnames"));
+        UA_KeyValueMap_get(params, UA_QUALIFIEDNAME(0, "listen-hostnames"));
     if(!hostNames) {
         /* No listen-hostnames parameter -> listen on all interfaces */
         UA_LOG_INFO(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
@@ -717,13 +723,13 @@ TCP_openPassiveConnection(UA_ConnectionManager *cm,
 /* Open a TCP connection to a remote host */
 static UA_StatusCode
 TCP_openActiveConnection(UA_ConnectionManager *cm,
-                         size_t paramsSize, const UA_KeyValuePair *params,
+                         const UA_KeyValueMap *params,
                          void *application, void *context,
                          UA_ConnectionManager_connectionCallback connectionCallback) {
     TCPConnectionManager *tcm = (TCPConnectionManager*)cm;
     UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX*)cm->eventSource.eventLoop;
 
-    if(paramsSize != 2) {
+    if(params->mapSize != 2) {
         UA_LOG_ERROR(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
                      "TCP\t| Port and hostname need to be defined for the connection");
         return UA_STATUSCODE_BADINTERNALERROR;
@@ -735,7 +741,7 @@ TCP_openActiveConnection(UA_ConnectionManager *cm,
 
     /* Prepare the port parameter as a string */
     const UA_UInt16 *port = (const UA_UInt16*)
-        UA_KeyValueMap_getScalar(params, paramsSize, UA_QUALIFIEDNAME(0, "port"),
+        UA_KeyValueMap_getScalar(params, UA_QUALIFIEDNAME(0, "port"),
                                  &UA_TYPES[UA_TYPES_UINT16]);
     if(!port) {
         UA_LOG_ERROR(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
@@ -746,7 +752,7 @@ TCP_openActiveConnection(UA_ConnectionManager *cm,
 
     /* Prepare the hostname string */
     const UA_String *host = (const UA_String*)
-        UA_KeyValueMap_getScalar(params, paramsSize, UA_QUALIFIEDNAME(0, "hostname"),
+        UA_KeyValueMap_getScalar(params, UA_QUALIFIEDNAME(0, "hostname"),
                                  &UA_TYPES[UA_TYPES_STRING]);
     if(!host) {
         UA_LOG_ERROR(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
@@ -859,7 +865,7 @@ TCP_openActiveConnection(UA_ConnectionManager *cm,
     /* Signal the new connection to the application as asynchonously opening */
     connectionCallback(cm, (uintptr_t)newSock,
                        application, &newtcpfd->fd.context,
-                       UA_CONNECTIONSTATE_OPENING, 0, NULL,
+                       UA_CONNECTIONSTATE_OPENING, &UA_KEYVALUEMAP_NULL,
                        UA_BYTESTRING_NULL);
 
     return UA_STATUSCODE_GOOD;
@@ -867,7 +873,7 @@ TCP_openActiveConnection(UA_ConnectionManager *cm,
 
 static UA_StatusCode
 TCP_openConnection(UA_ConnectionManager *cm,
-                   size_t paramsSize, const UA_KeyValuePair *params,
+                   const UA_KeyValueMap *params,
                    void *application, void *context,
                    UA_ConnectionManager_connectionCallback connectionCallback) {
     UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX*)cm->eventSource.eventLoop;
@@ -882,12 +888,12 @@ TCP_openConnection(UA_ConnectionManager *cm,
      * connection. Otherwise try to open a socket that listens for incoming TCP
      * connections. */
     const UA_Variant *val =
-        UA_KeyValueMap_get(params, paramsSize, UA_QUALIFIEDNAME(0, "port"));
+        UA_KeyValueMap_get(params, UA_QUALIFIEDNAME(0, "port"));
     if(val) {
-        return TCP_openActiveConnection(cm, paramsSize, params,
+        return TCP_openActiveConnection(cm, params,
                                         application, context, connectionCallback);
     } else {
-        return TCP_openPassiveConnection(cm, paramsSize, params,
+        return TCP_openPassiveConnection(cm, params,
                                          application, context, connectionCallback);
     }
 }
@@ -904,15 +910,17 @@ TCP_eventSourceStart(UA_ConnectionManager *cm) {
                      "registered in an EventLoop and not started yet");
         return UA_STATUSCODE_BADINTERNALERROR;
     }
-
     /* Configure the receive buffer */
     UA_UInt32 rxBufSize = 2u << 16; /* The default is 64kb */
-    const UA_UInt32 *configRxBufSize = (const UA_UInt32*)
-        UA_KeyValueMap_getScalar(cm->eventSource.params, cm->eventSource.paramsSize,
-                                 UA_QUALIFIEDNAME(0, "recv-bufsize"),
-                                 &UA_TYPES[UA_TYPES_UINT32]);
-    if(configRxBufSize)
-        rxBufSize = *configRxBufSize;
+
+    if(cm->eventSource.params != NULL) {
+       const UA_UInt32 *configRxBufSize = (const UA_UInt32 *)
+            UA_KeyValueMap_getScalar(cm->eventSource.params,
+                                     UA_QUALIFIEDNAME(0, "recv-bufsize"),
+                                     &UA_TYPES[UA_TYPES_UINT32]);
+        if(configRxBufSize)
+            rxBufSize = *configRxBufSize;
+    }
     UA_StatusCode res = UA_ByteString_allocBuffer(&tcm->rxBuffer, rxBufSize);
     if(res != UA_STATUSCODE_GOOD)
         return res;
@@ -950,12 +958,10 @@ TCP_eventSourceDelete(UA_ConnectionManager *cm) {
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
-    /* Delete the parameters */
-    UA_Array_delete(cm->eventSource.params, cm->eventSource.paramsSize,
-                    &UA_TYPES[UA_TYPES_KEYVALUEPAIR]);
-    cm->eventSource.params = NULL;
-    cm->eventSource.paramsSize = 0;
-
+    if(cm->eventSource.params != NULL) {
+        /* Delete the parameters */
+        UA_KeyValueMap_clear(cm->eventSource.params);
+    }
     UA_String_clear(&cm->eventSource.name);
     UA_free(cm);
     return UA_STATUSCODE_GOOD;

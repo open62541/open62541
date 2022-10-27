@@ -602,9 +602,12 @@ UA_Server_createServerConnection(UA_Server *server, const UA_String *serverUrl) 
             UA_Variant_setArray(&params[2].value, &hostname, 1, &UA_TYPES[UA_TYPES_STRING]);
             paramsSize = 3;
         }
+        UA_KeyValueMap paramsMap;
+        paramsMap.map = params;
+        paramsMap.mapSize = paramsSize;
 
         /* Open the server connection */
-        res = cm->openConnection(cm, paramsSize, params, server, NULL,
+        res = cm->openConnection(cm, &paramsMap, server, NULL,
                                  UA_Server_networkCallback);
         if(res == UA_STATUSCODE_GOOD)
             return res;

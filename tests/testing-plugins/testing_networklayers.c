@@ -8,7 +8,7 @@ UA_ByteString *testConnectionLastSentBuf;
 
 static UA_StatusCode
 testOpenConnection(UA_ConnectionManager *cm,
-                    size_t paramsSize, const UA_KeyValuePair *params,
+                    const UA_KeyValueMap *params,
                     void *application, void *context,
                     UA_ConnectionManager_connectionCallback connectionCallback) {
     return UA_STATUSCODE_BADNOTCONNECTED;
@@ -16,7 +16,7 @@ testOpenConnection(UA_ConnectionManager *cm,
 
 static UA_StatusCode
 testSendWithConnection(UA_ConnectionManager *cm, uintptr_t connectionId,
-                       size_t paramsSize, const UA_KeyValuePair *params,
+                       const UA_KeyValueMap *params,
                        UA_ByteString *buf) {
     if(testConnectionLastSentBuf) {
         UA_ByteString_clear(testConnectionLastSentBuf);
