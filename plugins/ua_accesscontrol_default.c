@@ -95,13 +95,19 @@ activateSession_default(UA_Server *server, UA_AccessControl *ac,
 
         /* Try to match username/pw */
         UA_Boolean match = false;
-        for(size_t i = 0; i < context->usernamePasswordLoginSize; i++) {
-            if(UA_String_equal(&userToken->userName, &context->usernamePasswordLogin[i].username) &&
-               UA_String_equal(&userToken->password, &context->usernamePasswordLogin[i].password)) {
-                match = true;
-                break;
+        UA_ServerConfig *config = UA_Server_getConfig(server);
+        if (config->accessControl.checkUserDatabase != NULL)
+            match = config->accessControl.checkUserDatabase(userToken);
+        else{
+            for(size_t i = 0; i < context->usernamePasswordLoginSize; i++) {
+                if(UA_String_equal(&userToken->userName, &context->usernamePasswordLogin[i].username) &&
+                UA_String_equal(&userToken->password, &context->usernamePasswordLogin[i].password)) {
+                    match = true;
+                    break;
+                }
             }
         }
+
         if(!match)
             return UA_STATUSCODE_BADUSERACCESSDENIED;
 

@@ -127,6 +127,7 @@ struct UA_AccessControl {
                                                       UA_DateTime endTimestamp,
                                                       bool isDeleteModified);
 #endif
+    UA_Boolean (*checkUserDatabase)(const UA_UserNameIdentityToken *userToken);
 };
 
 _UA_END_DECLS
