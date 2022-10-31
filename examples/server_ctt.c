@@ -44,7 +44,8 @@ readTimeData(UA_Server *server,
              const UA_NodeId *sessionId, void *sessionContext,
              const UA_NodeId *nodeId, void *nodeContext,
              UA_Boolean sourceTimeStamp,
-             const UA_NumericRange *range, UA_DataValue *value) {
+             const UA_NumericRange *range, UA_DataValue *value,
+             void *callbackContext) {
     if(range) {
         value->hasStatus = true;
         value->status = UA_STATUSCODE_BADINDEXRANGEINVALID;
@@ -65,7 +66,8 @@ readRandomBoolData(UA_Server *server,
              const UA_NodeId *sessionId, void *sessionContext,
              const UA_NodeId *nodeId, void *nodeContext,
              UA_Boolean sourceTimeStamp,
-             const UA_NumericRange *range, UA_DataValue *value) {
+             const UA_NumericRange *range, UA_DataValue *value,
+             void *callbackContext) {
     if(range) {
         value->hasStatus = true;
         value->status = UA_STATUSCODE_BADINDEXRANGEINVALID;
@@ -86,7 +88,8 @@ readRandomInt16Data(UA_Server *server,
              const UA_NodeId *sessionId, void *sessionContext,
              const UA_NodeId *nodeId, void *nodeContext,
              UA_Boolean sourceTimeStamp,
-             const UA_NumericRange *range, UA_DataValue *value) {
+             const UA_NumericRange *range, UA_DataValue *value,
+             void *callbackContext) {
     if(range) {
         value->hasStatus = true;
         value->status = UA_STATUSCODE_BADINDEXRANGEINVALID;
@@ -107,7 +110,8 @@ readRandomInt32Data(UA_Server *server,
              const UA_NodeId *sessionId, void *sessionContext,
              const UA_NodeId *nodeId, void *nodeContext,
              UA_Boolean sourceTimeStamp,
-             const UA_NumericRange *range, UA_DataValue *value) {
+             const UA_NumericRange *range, UA_DataValue *value,
+             void *callbackContext) {
     if(range) {
         value->hasStatus = true;
         value->status = UA_STATUSCODE_BADINDEXRANGEINVALID;
@@ -128,7 +132,8 @@ readRandomInt64Data(UA_Server *server,
              const UA_NodeId *sessionId, void *sessionContext,
              const UA_NodeId *nodeId, void *nodeContext,
              UA_Boolean sourceTimeStamp,
-             const UA_NumericRange *range, UA_DataValue *value) {
+             const UA_NumericRange *range, UA_DataValue *value,
+             void *callbackContext) {
     if(range) {
     value->hasStatus = true;
     value->status = UA_STATUSCODE_BADINDEXRANGEINVALID;
@@ -149,7 +154,8 @@ readRandomUInt16Data(UA_Server *server,
              const UA_NodeId *sessionId, void *sessionContext,
              const UA_NodeId *nodeId, void *nodeContext,
              UA_Boolean sourceTimeStamp,
-             const UA_NumericRange *range, UA_DataValue *value) {
+             const UA_NumericRange *range, UA_DataValue *value,
+             void *callbackContext) {
     if(range) {
         value->hasStatus = true;
         value->status = UA_STATUSCODE_BADINDEXRANGEINVALID;
@@ -170,7 +176,8 @@ readRandomUInt32Data(UA_Server *server,
              const UA_NodeId *sessionId, void *sessionContext,
              const UA_NodeId *nodeId, void *nodeContext,
              UA_Boolean sourceTimeStamp,
-             const UA_NumericRange *range, UA_DataValue *value) {
+             const UA_NumericRange *range, UA_DataValue *value,
+             void *callbackContext) {
     if(range) {
         value->hasStatus = true;
         value->status = UA_STATUSCODE_BADINDEXRANGEINVALID;
@@ -191,7 +198,8 @@ readRandomUInt64Data(UA_Server *server,
              const UA_NodeId *sessionId, void *sessionContext,
              const UA_NodeId *nodeId, void *nodeContext,
              UA_Boolean sourceTimeStamp,
-             const UA_NumericRange *range, UA_DataValue *value) {
+             const UA_NumericRange *range, UA_DataValue *value,
+             void *callbackContext) {
     if(range) {
         value->hasStatus = true;
         value->status = UA_STATUSCODE_BADINDEXRANGEINVALID;
@@ -212,7 +220,8 @@ readRandomStringData (UA_Server *server,
              const UA_NodeId *sessionId, void *sessionContext,
              const UA_NodeId *nodeId, void *nodeContext,
              UA_Boolean sourceTimeStamp,
-             const UA_NumericRange *range, UA_DataValue *value) {
+             const UA_NumericRange *range, UA_DataValue *value,
+             void *callbackContext) {
     if(range) {
         value->hasStatus = true;
         value->status = UA_STATUSCODE_BADINDEXRANGEINVALID;
@@ -235,7 +244,8 @@ readRandomFloatData (UA_Server *server,
              const UA_NodeId *sessionId, void *sessionContext,
              const UA_NodeId *nodeId, void *nodeContext,
              UA_Boolean sourceTimeStamp,
-             const UA_NumericRange *range, UA_DataValue *value) {
+             const UA_NumericRange *range, UA_DataValue *value,
+             void *callbackContext) {
     if(range) {
         value->hasStatus = true;
         value->status = UA_STATUSCODE_BADINDEXRANGEINVALID;
@@ -256,7 +266,8 @@ readRandomDoubleData (UA_Server *server,
              const UA_NodeId *sessionId, void *sessionContext,
              const UA_NodeId *nodeId, void *nodeContext,
              UA_Boolean sourceTimeStamp,
-             const UA_NumericRange *range, UA_DataValue *value) {
+             const UA_NumericRange *range, UA_DataValue *value,
+             void *callbackContext) {
     if(range) {
         value->hasStatus = true;
         value->status = UA_STATUSCODE_BADINDEXRANGEINVALID;
@@ -276,7 +287,8 @@ readByteString (UA_Server *server,
              const UA_NodeId *sessionId, void *sessionContext,
              const UA_NodeId *nodeId, void *nodeContext,
              UA_Boolean sourceTimeStamp,
-             const UA_NumericRange *range, UA_DataValue *value) {
+             const UA_NumericRange *range, UA_DataValue *value,
+             void *callbackContext) {
     if(range) {
         value->hasStatus = true;
         value->status = UA_STATUSCODE_BADINDEXRANGEINVALID;
@@ -300,7 +312,7 @@ static void
 writeEventTrigger(UA_Server *server, const UA_NodeId *sessionId,
                   void *sessionContext, const UA_NodeId *nodeId,
                   void *nodeContext, const UA_NumericRange *range,
-                  const UA_DataValue *data) {
+                  const UA_DataValue *data, void *callbackContext) {
     UA_Server_triggerEvent(server, eventId,
                            UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER),
                            NULL, false);
@@ -407,9 +419,7 @@ setInformationModel(UA_Server *server) {
                               accessDeniedName, baseDataVariableType, myVar, NULL, NULL);
 
     /* add a variable with the datetime data source */
-    UA_DataSource dateDataSource;
-    dateDataSource.read = readTimeData;
-    dateDataSource.write = NULL;
+    UA_DataSource dateDataSource = {readTimeData, NULL, NULL, NULL};
     UA_VariableAttributes v_attr = UA_VariableAttributes_default;
     v_attr.description = UA_LOCALIZEDTEXT("en-US", "current time");
     v_attr.displayName = UA_LOCALIZEDTEXT("en-US", "current time");

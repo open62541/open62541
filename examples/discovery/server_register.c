@@ -30,7 +30,8 @@ static UA_StatusCode
 readInteger(UA_Server *server, const UA_NodeId *sessionId,
             void *sessionContext, const UA_NodeId *nodeId,
             void *nodeContext, UA_Boolean includeSourceTimeStamp,
-            const UA_NumericRange *range, UA_DataValue *value) {
+            const UA_NumericRange *range, UA_DataValue *value,
+            void *callbackContext) {
     UA_Int32 *myInteger = (UA_Int32*)nodeContext;
     value->hasValue = true;
     UA_Variant_setScalarCopy(&value->value, myInteger, &UA_TYPES[UA_TYPES_INT32]);
@@ -48,7 +49,7 @@ static UA_StatusCode
 writeInteger(UA_Server *server, const UA_NodeId *sessionId,
              void *sessionContext, const UA_NodeId *nodeId,
              void *nodeContext, const UA_NumericRange *range,
-             const UA_DataValue *value) {
+             const UA_DataValue *value, void *callbackContext) {
     UA_Int32 *myInteger = (UA_Int32*)nodeContext;
     if(value->hasValue && UA_Variant_isScalar(&value->value) &&
        value->value.type == &UA_TYPES[UA_TYPES_INT32] && value->value.data)

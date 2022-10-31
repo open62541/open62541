@@ -56,7 +56,8 @@ static void
 beforeReadTime(UA_Server *tmpserver,
                const UA_NodeId *sessionId, void *sessionContext,
                const UA_NodeId *nodeid, void *nodeContext,
-               const UA_NumericRange *range, const UA_DataValue *data) {
+               const UA_NumericRange *range, const UA_DataValue *data,
+               void *callbackContext) {
     updateCurrentTime();
 }
 
@@ -64,16 +65,15 @@ static void
 afterWriteTime(UA_Server *tmpServer,
                const UA_NodeId *sessionId, void *sessionContext,
                const UA_NodeId *nodeId, void *nodeContext,
-               const UA_NumericRange *range, const UA_DataValue *data) {
+               const UA_NumericRange *range, const UA_DataValue *data,
+               void *callbackContext) {
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "The variable was updated");
 }
 
 static void
 addValueCallbackToCurrentTimeVariable(void) {
     UA_NodeId currentNodeId = UA_NODEID_STRING(1, "current-time-value-callback");
-    UA_ValueCallback callback ;
-    callback.onRead = beforeReadTime;
-    callback.onWrite = afterWriteTime;
+    UA_ValueCallback callback = {beforeReadTime, afterWriteTime, NULL, NULL};
     UA_Server_setVariableNode_valueCallback(server, currentNodeId, callback);
 }
 
@@ -82,7 +82,7 @@ readTemperature(UA_Server *tmpServer,
                 const UA_NodeId *sessionId, void *sessionContext,
                 const UA_NodeId *nodeId, void *nodeContext,
                 UA_Boolean sourceTimeStamp, const UA_NumericRange *range,
-                UA_DataValue *dataValue) {
+                UA_DataValue *dataValue, void *callbackContext) {
     if (counter < 2)
         counter++;
     else
@@ -97,7 +97,8 @@ static UA_StatusCode
 writeTemperature(UA_Server *tmpServer,
                  const UA_NodeId *sessionId, void *sessionContext,
                  const UA_NodeId *nodeId, void *nodeContext,
-                 const UA_NumericRange *range, const UA_DataValue *data) {
+                 const UA_NumericRange *range, const UA_DataValue *data,
+                 void *callbackContext) {
     temperature = *(UA_Int32 *) data->value.data;
     if (deleteNodeWhileWriting)
         UA_Server_deleteNode(server, temperatureNodeId, true);
@@ -156,9 +157,7 @@ addDataSourceVariable(void) {
     attr.displayName = UA_LOCALIZEDTEXT("en-US", "Temperature");
     attr.accessLevel = UA_ACCESSLEVELMASK_READ | UA_ACCESSLEVELMASK_WRITE;
 
-    UA_DataSource temperatureSource;
-    temperatureSource.read = readTemperature;
-    temperatureSource.write = writeTemperature;
+    UA_DataSource temperatureSource = {readTemperature, writeTemperature, NULL, NULL};
     UA_StatusCode retval = UA_Server_addDataSourceVariableNode(server, temperatureNodeId, UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
                                         UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES), UA_QUALIFIEDNAME(1, "Temperature"),
                                         UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE), attr,

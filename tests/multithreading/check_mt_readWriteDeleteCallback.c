@@ -29,7 +29,7 @@ readTemperature(UA_Server *tmpServer,
                 const UA_NodeId *sessionId, void *sessionContext,
                 const UA_NodeId *nodeId, void *nodeContext,
                 UA_Boolean sourceTimeStamp, const UA_NumericRange *range,
-                UA_DataValue *dataValue) {
+                UA_DataValue *dataValue, void *callbackContext) {
     UA_LOCK(&mu);
     UA_Variant_setScalarCopy(&dataValue->value, &temperature, &UA_TYPES[UA_TYPES_INT32]);
     UA_UNLOCK(&mu);
@@ -41,7 +41,8 @@ static UA_StatusCode
 writeTemperature(UA_Server *tmpServer,
                  const UA_NodeId *sessionId, void *sessionContext,
                  const UA_NodeId *nodeId, void *nodeContext,
-                 const UA_NumericRange *range, const UA_DataValue *data) {
+                 const UA_NumericRange *range, const UA_DataValue *data,
+                 void *callbackContext) {
     UA_LOCK(&mu);
     temperature = *(UA_Int32 *) data->value.data;
     UA_UNLOCK(&mu);
@@ -54,9 +55,7 @@ void AddVariableNode(void) {
     attr.displayName = UA_LOCALIZEDTEXT("en-US", "Temperature");
     attr.accessLevel = UA_ACCESSLEVELMASK_READ | UA_ACCESSLEVELMASK_WRITE;
 
-    UA_DataSource temperatureSource;
-    temperatureSource.read = readTemperature;
-    temperatureSource.write = writeTemperature;
+    UA_DataSource temperatureSource = {readTemperature, writeTemperature, NULL, NULL};
     UA_StatusCode retval = UA_Server_addDataSourceVariableNode(tc.server, pumpTypeId, UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
                                                                UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES), UA_QUALIFIEDNAME(1, "Temperature"),
                                                                UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE), attr,

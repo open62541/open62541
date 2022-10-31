@@ -836,7 +836,7 @@ UA_Server_initNS0(UA_Server *server) {
     /* StartTime will be sampled in UA_Server_run_startup()*/
 
     /* CurrentTime */
-    UA_DataSource currentTime = {readCurrentTime, NULL};
+    UA_DataSource currentTime = {readCurrentTime, NULL, NULL, NULL};
     UA_NodeId currTime = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_CURRENTTIME);
     retVal |= UA_Server_setVariableNode_dataSource(server, currTime, currentTime);
     retVal |= UA_Server_writeMinimumSamplingInterval(server, currTime, 100.0);
@@ -1023,7 +1023,7 @@ UA_Server_initNS0(UA_Server *server) {
 
 #ifdef UA_ENABLE_DIAGNOSTICS
     /* ServerDiagnostics - ServerDiagnosticsSummary */
-    UA_DataSource serverDiagSummary = {readDiagnostics, NULL};
+    UA_DataSource serverDiagSummary = {readDiagnostics, NULL, NULL, NULL};
     retVal |= UA_Server_setVariableNode_dataSource(server,
                         UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERDIAGNOSTICS_SERVERDIAGNOSTICSSUMMARY), serverDiagSummary);
 
@@ -1077,18 +1077,18 @@ UA_Server_initNS0(UA_Server *server) {
 
     /* ServerDiagnostics - SubscriptionDiagnosticsArray */
 #ifdef UA_ENABLE_SUBSCRIPTIONS
-    UA_DataSource serverSubDiagSummary = {readSubscriptionDiagnosticsArray, NULL};
+    UA_DataSource serverSubDiagSummary = {readSubscriptionDiagnosticsArray, NULL, NULL, NULL};
     retVal |= UA_Server_setVariableNode_dataSource(server,
                         UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERDIAGNOSTICS_SUBSCRIPTIONDIAGNOSTICSARRAY), serverSubDiagSummary);
 #endif
 
     /* ServerDiagnostics - SessionDiagnosticsSummary - SessionDiagnosticsArray */
-    UA_DataSource sessionDiagSummary = {readSessionDiagnosticsArray, NULL};
+    UA_DataSource sessionDiagSummary = {readSessionDiagnosticsArray, NULL, NULL, NULL};
     retVal |= UA_Server_setVariableNode_dataSource(server,
                         UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERDIAGNOSTICS_SESSIONSDIAGNOSTICSSUMMARY_SESSIONDIAGNOSTICSARRAY), sessionDiagSummary);
 
     /* ServerDiagnostics - SessionDiagnosticsSummary - SessionSecurityDiagnosticsArray */
-    UA_DataSource sessionSecDiagSummary = {readSessionSecurityDiagnostics, NULL};
+    UA_DataSource sessionSecDiagSummary = {readSessionSecurityDiagnostics, NULL, NULL, NULL};
     retVal |= UA_Server_setVariableNode_dataSource(server,
                         UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERDIAGNOSTICS_SESSIONSDIAGNOSTICSSUMMARY_SESSIONSECURITYDIAGNOSTICSARRAY), sessionSecDiagSummary);
 

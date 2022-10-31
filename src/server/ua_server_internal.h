@@ -668,28 +668,31 @@ void createSubscriptionObject(UA_Server *server, UA_Session *session,
 UA_StatusCode
 readDiagnostics(UA_Server *server, const UA_NodeId *sessionId, void *sessionContext,
                 const UA_NodeId *nodeId, void *nodeContext, UA_Boolean sourceTimestamp,
-                const UA_NumericRange *range, UA_DataValue *value);
+                const UA_NumericRange *range, UA_DataValue *value, void *callbackContext);
 
 UA_StatusCode
 readSubscriptionDiagnosticsArray(UA_Server *server,
                                  const UA_NodeId *sessionId, void *sessionContext,
                                  const UA_NodeId *nodeId, void *nodeContext,
                                  UA_Boolean sourceTimestamp,
-                                 const UA_NumericRange *range, UA_DataValue *value);
+                                 const UA_NumericRange *range, UA_DataValue *value,
+                                 void *callbackContext);
 
 UA_StatusCode
 readSessionDiagnosticsArray(UA_Server *server,
                             const UA_NodeId *sessionId, void *sessionContext,
                             const UA_NodeId *nodeId, void *nodeContext,
                             UA_Boolean sourceTimestamp,
-                            const UA_NumericRange *range, UA_DataValue *value);
+                            const UA_NumericRange *range, UA_DataValue *value,
+                            void *callbackContext);
 
 UA_StatusCode
 readSessionSecurityDiagnostics(UA_Server *server,
                                const UA_NodeId *sessionId, void *sessionContext,
                                const UA_NodeId *nodeId, void *nodeContext,
                                UA_Boolean sourceTimestamp,
-                               const UA_NumericRange *range, UA_DataValue *value);
+                               const UA_NumericRange *range, UA_DataValue *value,
+                               void *callbackContext);
 #endif
 
 /***************************/

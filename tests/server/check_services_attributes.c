@@ -26,7 +26,7 @@ readCPUTemperature(UA_Server *server_,
                    const UA_NodeId *sessionId, void *sessionContext,
                    const UA_NodeId *nodeId, void *nodeContext,
                    UA_Boolean sourceTimeStamp, const UA_NumericRange *range,
-                   UA_DataValue *dataValue) {
+                   UA_DataValue *dataValue, void *callbackContext) {
     UA_Float temp = 20.5f;
     UA_Variant_setScalarCopy(&dataValue->value, &temp, &UA_TYPES[UA_TYPES_FLOAT]);
     dataValue->hasValue = true;
@@ -74,9 +74,7 @@ static void setup(void) {
 
     /* DataSource VariableNode */
     vattr = UA_VariableAttributes_default;
-    UA_DataSource temperatureDataSource;
-    temperatureDataSource.read = readCPUTemperature;
-    temperatureDataSource.write = NULL;
+    UA_DataSource temperatureDataSource = {readCPUTemperature, NULL, NULL, NULL};
     vattr.description = UA_LOCALIZEDTEXT("en-US","temperature");
     vattr.displayName = UA_LOCALIZEDTEXT("en-US","temperature");
     retval = UA_Server_addDataSourceVariableNode(server, UA_NODEID_STRING(1, "cpu.temperature"),

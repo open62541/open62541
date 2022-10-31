@@ -891,7 +891,8 @@ static void
 afterWriteCallbackEnabledStateChange(UA_Server *server,
                                      const UA_NodeId *sessionId, void *sessionContext,
                                      const UA_NodeId *nodeId, void *nodeContext,
-                                     const UA_NumericRange *range, const UA_DataValue *data) {
+                                     const UA_NumericRange *range, const UA_DataValue *data,
+                                     void *callbackContext) {
     UA_LOCK_ASSERT(&server->serviceMutex, 0);
 
     /* Callback for change in EnabledState/Id property.
@@ -941,7 +942,8 @@ static void
 afterWriteCallbackAckedStateChange(UA_Server *server,
                                    const UA_NodeId *sessionId, void *sessionContext,
                                    const UA_NodeId *nodeId, void *nodeContext,
-                                   const UA_NumericRange *range, const UA_DataValue *data) {
+                                   const UA_NumericRange *range, const UA_DataValue *data,
+                                   void *callbackContext) {
     UA_LOCK_ASSERT(&server->serviceMutex, 0);
 
     /* Get the AckedState NodeId then The Condition NodeId */
@@ -1033,7 +1035,8 @@ static void
 afterWriteCallbackConfirmedStateChange(UA_Server *server,
                                        const UA_NodeId *sessionId, void *sessionContext,
                                        const UA_NodeId *nodeId, void *nodeContext,
-                                       const UA_NumericRange *range, const UA_DataValue *data) {
+                                       const UA_NumericRange *range, const UA_DataValue *data,
+                                       void *callbackContext) {
     UA_LOCK_ASSERT(&server->serviceMutex, 0);
 
     UA_Variant value;
@@ -1128,7 +1131,8 @@ static void
 afterWriteCallbackActiveStateChange(UA_Server *server,
                                     const UA_NodeId *sessionId, void *sessionContext,
                                     const UA_NodeId *nodeId, void *nodeContext,
-                                    const UA_NumericRange *range, const UA_DataValue *data) {
+                                    const UA_NumericRange *range, const UA_DataValue *data,
+                                    void *callbackContext) {
     UA_LOCK_ASSERT(&server->serviceMutex, 0);
 
     UA_Variant value;
@@ -1267,7 +1271,8 @@ static void
 afterWriteCallbackQualityChange(UA_Server *server,
                                 const UA_NodeId *sessionId, void *sessionContext,
                                 const UA_NodeId *nodeId, void *nodeContext,
-                                const UA_NumericRange *range, const UA_DataValue *data) {
+                                const UA_NumericRange *range, const UA_DataValue *data,
+                                void *callbackContext) {
     //TODO
 }
 
@@ -1275,7 +1280,8 @@ static void
 afterWriteCallbackSeverityChange(UA_Server *server,
                                  const UA_NodeId *sessionId, void *sessionContext,
                                  const UA_NodeId *nodeId, void *nodeContext,
-                                 const UA_NumericRange *range, const UA_DataValue *data) {
+                                 const UA_NumericRange *range, const UA_DataValue *data,
+                                 void *callbackContext) {
     UA_LOCK_ASSERT(&server->serviceMutex, 0);
 
     UA_QualifiedName fieldLastSeverity = UA_QUALIFIEDNAME(0, CONDITION_FIELD_LASTSEVERITY);

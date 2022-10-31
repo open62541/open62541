@@ -161,7 +161,7 @@ static void
 afterWriteCallbackVariable_1(UA_Server *server, const UA_NodeId *sessionId,
                              void *sessionContext, const UA_NodeId *nodeId,
                              void *nodeContext, const UA_NumericRange *range,
-                             const UA_DataValue *data) {
+                             const UA_DataValue *data, void *callbackContext) {
     UA_QualifiedName activeStateField = UA_QUALIFIEDNAME(0,"ActiveState");
     UA_QualifiedName activeStateIdField = UA_QUALIFIEDNAME(0,"Id");
     UA_Variant value;
@@ -224,7 +224,7 @@ static void
 afterWriteCallbackVariable_2(UA_Server *server, const UA_NodeId *sessionId,
                              void *sessionContext, const UA_NodeId *nodeId,
                              void *nodeContext, const UA_NumericRange *range,
-                             const UA_DataValue *data) {
+                             const UA_DataValue *data, void *callbackContext) {
    /* Another way to set fields of conditions */
     UA_Server_writeObjectProperty_scalar(server, conditionInstance_2,
                                          UA_QUALIFIEDNAME(0, "Severity"),
@@ -243,7 +243,8 @@ static void
 afterWriteCallbackVariable_3(UA_Server *server,
                const UA_NodeId *sessionId, void *sessionContext,
                const UA_NodeId *nodeId, void *nodeContext,
-               const UA_NumericRange *range, const UA_DataValue *data) {
+               const UA_NumericRange *range, const UA_DataValue *data,
+               void *callbackContext) {
 
     //UA_QualifiedName enabledStateField = UA_QUALIFIEDNAME(0,"EnabledState");
     UA_QualifiedName ackedStateField = UA_QUALIFIEDNAME(0,"AckedState");

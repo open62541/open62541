@@ -64,7 +64,7 @@ findSingleChildNode(UA_Server *server, UA_QualifiedName targetName,
 static void
 onRead(UA_Server *server, const UA_NodeId *sessionId, void *sessionContext,
        const UA_NodeId *nodeid, void *context,
-       const UA_NumericRange *range, const UA_DataValue *data) {
+       const UA_NumericRange *range, const UA_DataValue *data, void* callbackContext) {
     UA_Variant value;
     UA_Variant_init(&value);
     const UA_NodePropertyContext *nodeContext = (const UA_NodePropertyContext*)context;
@@ -222,7 +222,7 @@ onRead(UA_Server *server, const UA_NodeId *sessionId, void *sessionContext,
 static void
 onWrite(UA_Server *server, const UA_NodeId *sessionId, void *sessionContext,
         const UA_NodeId *nodeId, void *nodeContext,
-        const UA_NumericRange *range, const UA_DataValue *data){
+        const UA_NumericRange *range, const UA_DataValue *data, void* callbackContext){
     UA_Variant value;
     UA_NodeId myNodeId;
     UA_WriterGroup *writerGroup = NULL;
@@ -622,9 +622,7 @@ addPubSubConnectionRepresentation(UA_Server *server, UA_PubSubConnection *connec
     connectionPublisherIdContext->parentClassifier = UA_NS0ID_PUBSUBCONNECTIONTYPE;
     connectionPublisherIdContext->elementClassiefier =
         UA_NS0ID_PUBSUBCONNECTIONTYPE_PUBLISHERID;
-    UA_ValueCallback valueCallback;
-    valueCallback.onRead = onRead;
-    valueCallback.onWrite = NULL;
+    UA_ValueCallback valueCallback = {onRead, NULL, NULL, NULL};
     retVal |= addVariableValueSource(server, valueCallback, publisherIdNode,
                                      connectionPublisherIdContext);
 
@@ -805,9 +803,7 @@ addDataSetReaderRepresentation(UA_Server *server, UA_DataSetReader *dataSetReade
     dataSetReaderPublisherIdContext->parentNodeId = dataSetReader->identifier;
     dataSetReaderPublisherIdContext->parentClassifier = UA_NS0ID_DATASETREADERTYPE;
     dataSetReaderPublisherIdContext->elementClassiefier = UA_NS0ID_DATASETREADERTYPE_PUBLISHERID;
-    UA_ValueCallback valueCallback;
-    valueCallback.onRead = onRead;
-    valueCallback.onWrite = NULL;
+    UA_ValueCallback valueCallback = {onRead, NULL, NULL, NULL};
     retVal |= addVariableValueSource(server, valueCallback, publisherIdNode,
                                      dataSetReaderPublisherIdContext);
 
@@ -945,9 +941,7 @@ addPublishedDataItemsRepresentation(UA_Server *server,
                        object_attr, NULL, &publishedDataSet->identifier);
     UA_CHECK_STATUS(retVal, return retVal);
 
-    UA_ValueCallback valueCallback;
-    valueCallback.onRead = onRead;
-    valueCallback.onWrite = NULL;
+    UA_ValueCallback valueCallback = {onRead, NULL, NULL, NULL};
     //ToDo: Need to move the browse name from namespaceindex 0 to 1
     UA_NodeId configurationVersionNode =
         findSingleChildNode(server, UA_QUALIFIEDNAME(0, "ConfigurationVersion"),
@@ -1166,9 +1160,7 @@ addStandaloneSubscribedDataSetRepresentation(UA_Server *server, UA_StandaloneSub
     isConnectedNodeContext->parentClassifier = UA_NS0ID_STANDALONESUBSCRIBEDDATASETREFDATATYPE;
     isConnectedNodeContext->elementClassiefier = UA_NS0ID_STANDALONESUBSCRIBEDDATASETTYPE_ISCONNECTED;
 
-    UA_ValueCallback valueCallback;
-    valueCallback.onRead = onRead;
-    valueCallback.onWrite = NULL;
+    UA_ValueCallback valueCallback = {onRead, NULL, NULL, NULL};
     ret |= addVariableValueSource(server, valueCallback, connectedId, isConnectedNodeContext);
 
     UA_NodePropertyContext *metaDataContext = (UA_NodePropertyContext *)
@@ -1194,7 +1186,7 @@ static UA_StatusCode
 readContentMask(UA_Server *server, const UA_NodeId *sessionId,
                 void *sessionContext, const UA_NodeId *nodeId,
                 void *nodeContext, UA_Boolean includeSourceTimeStamp,
-                const UA_NumericRange *range, UA_DataValue *value) {
+                const UA_NumericRange *range, UA_DataValue *value, void* callbackContext) {
     UA_WriterGroup *writerGroup = (UA_WriterGroup*)nodeContext;
     if((writerGroup->config.messageSettings.encoding != UA_EXTENSIONOBJECT_DECODED &&
         writerGroup->config.messageSettings.encoding != UA_EXTENSIONOBJECT_DECODED_NODELETE) ||
@@ -1214,7 +1206,7 @@ static UA_StatusCode
 writeContentMask(UA_Server *server, const UA_NodeId *sessionId,
                  void *sessionContext, const UA_NodeId *nodeId,
                  void *nodeContext, const UA_NumericRange *range,
-                 const UA_DataValue *value) {
+                 const UA_DataValue *value, void* callbackContext) {
     UA_WriterGroup *writerGroup = (UA_WriterGroup*)nodeContext;
     if((writerGroup->config.messageSettings.encoding != UA_EXTENSIONOBJECT_DECODED &&
         writerGroup->config.messageSettings.encoding != UA_EXTENSIONOBJECT_DECODED_NODELETE) ||
@@ -1269,9 +1261,7 @@ addWriterGroupRepresentation(UA_Server *server, UA_WriterGroup *writerGroup){
     publishingIntervalContext->parentNodeId = writerGroup->identifier;
     publishingIntervalContext->parentClassifier = UA_NS0ID_WRITERGROUPTYPE;
     publishingIntervalContext->elementClassiefier = UA_NS0ID_WRITERGROUPTYPE_PUBLISHINGINTERVAL;
-    UA_ValueCallback valueCallback;
-    valueCallback.onRead = onRead;
-    valueCallback.onWrite = onWrite;
+    UA_ValueCallback valueCallback = {onRead, onWrite, NULL, NULL};
     retVal |= addVariableValueSource(server, valueCallback,
                                      publishingIntervalNode, publishingIntervalContext);
     UA_Server_writeAccessLevel(server, publishingIntervalNode,
@@ -1316,9 +1306,7 @@ addWriterGroupRepresentation(UA_Server *server, UA_WriterGroup *writerGroup){
                             UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY), messageSettingsId);
     if(!UA_NodeId_isNull(&contentMaskId)) {
         /* Set the callback */
-        UA_DataSource ds;
-        ds.read = readContentMask;
-        ds.write = writeContentMask;
+        UA_DataSource ds = {readContentMask, writeContentMask, NULL, NULL};
         UA_Server_setVariableNode_dataSource(server, contentMaskId, ds);
         UA_Server_setNodeContext(server, contentMaskId, writerGroup);
 
@@ -1669,9 +1657,7 @@ addDataSetWriterRepresentation(UA_Server *server, UA_DataSetWriter *dataSetWrite
     dataSetWriterIdContext->parentNodeId = dataSetWriter->identifier;
     dataSetWriterIdContext->parentClassifier = UA_NS0ID_DATASETWRITERTYPE;
     dataSetWriterIdContext->elementClassiefier = UA_NS0ID_DATASETWRITERTYPE_DATASETWRITERID;
-    UA_ValueCallback valueCallback;
-    valueCallback.onRead = onRead;
-    valueCallback.onWrite = NULL;
+    UA_ValueCallback valueCallback = {onRead, NULL, NULL, NULL};
     retVal |= addVariableValueSource(server, valueCallback,
                                      dataSetWriterIdNode, dataSetWriterIdContext);
 

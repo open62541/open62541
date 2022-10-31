@@ -544,15 +544,15 @@ typedef struct {
                     void *nodeContext, const UA_NumericRange *range,
                     const UA_DataValue *data, void *callbackContext);
 
-    /* @param Context object for write callback. This is usually a pointer to an object
-     * that you want to modify in your callback.
-     */
-    void *writeContext;
-
     /* @param Context object for read callback. This is usually a pointer to an object
      * that you want to fetch the data from in your callback.
      */
     void *readContext;
+
+    /* @param Context object for write callback. This is usually a pointer to an object
+     * that you want to modify in your callback.
+     */
+    void *writeContext;
 } UA_ValueCallback;
 
 typedef struct {
@@ -623,16 +623,15 @@ typedef struct {
                            void *sessionContext, const UA_NodeId *nodeId,
                            void *nodeContext, const UA_NumericRange *range,
                            const UA_DataValue *value, void* callbackContext);
+    /* @param readContext Context object for read callback. This is usually a pointer to
+     * an object that you want to fetch the data from in your callback.
+     */
+    void *readContext;
 
     /* @param writeContext Context object for write callback. This is usually a pointer to an object
      * that you want to modify in your callback.
      */
     void *writeContext;
-
-    /* @param readContext Context object for read callback. This is usually a pointer to an object
-     * that you want to fetch the data from in your callback.
-     */
-    void *readContext;
 } UA_DataSource;
 
 /**

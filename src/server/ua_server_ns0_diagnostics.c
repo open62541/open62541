@@ -72,7 +72,8 @@ readSubscriptionDiagnostics(UA_Server *server,
                             const UA_NodeId *sessionId, void *sessionContext,
                             const UA_NodeId *nodeId, void *nodeContext,
                             UA_Boolean sourceTimestamp,
-                            const UA_NumericRange *range, UA_DataValue *value) {
+                            const UA_NumericRange *range, UA_DataValue *value,
+                            void *callbackContext) {
     /* Check the Subscription pointer */
     UA_Subscription *sub = (UA_Subscription*)nodeContext;
     if(!sub)
@@ -122,7 +123,8 @@ readSubscriptionDiagnosticsArray(UA_Server *server,
                                  const UA_NodeId *sessionId, void *sessionContext,
                                  const UA_NodeId *nodeId, void *nodeContext,
                                  UA_Boolean sourceTimestamp,
-                                 const UA_NumericRange *range, UA_DataValue *value) {
+                                 const UA_NumericRange *range, UA_DataValue *value,
+                                 void *callbackContext) {
     /* Get the current session */
     size_t sdSize = 0;
     UA_Session *session = NULL;
@@ -225,7 +227,7 @@ createSubscriptionObject(UA_Server *server, UA_Session *session,
         goto cleanup;
 
     /* Add the callback to all variables  */
-    UA_DataSource subDiagSource = {readSubscriptionDiagnostics, NULL};
+    UA_DataSource subDiagSource = {readSubscriptionDiagnostics, NULL, NULL, NULL};
     for(size_t i = 0; i < childrenSize; i++) {
         setVariableNode_dataSource(server, children[i].nodeId, subDiagSource);
         setNodeContext(server, children[i].nodeId, sub);
@@ -284,7 +286,8 @@ readSessionDiagnosticsArray(UA_Server *server,
                             const UA_NodeId *sessionId, void *sessionContext,
                             const UA_NodeId *nodeId, void *nodeContext,
                             UA_Boolean sourceTimestamp,
-                            const UA_NumericRange *range, UA_DataValue *value) {
+                            const UA_NumericRange *range, UA_DataValue *value,
+                            void *callbackContext) {
     /* Allocate the output array */
     UA_SessionDiagnosticsDataType *sd = (UA_SessionDiagnosticsDataType*)
         UA_Array_new(server->sessionCount,
@@ -327,7 +330,8 @@ readSessionDiagnostics(UA_Server *server,
                        const UA_NodeId *sessionId, void *sessionContext,
                        const UA_NodeId *nodeId, void *nodeContext,
                        UA_Boolean sourceTimestamp,
-                       const UA_NumericRange *range, UA_DataValue *value) {
+                       const UA_NumericRange *range, UA_DataValue *value,
+                       void *callbackContext) {
     /* Get the Session */
     UA_Session *session = getSessionById(server, sessionId);
     if(!session)
@@ -358,7 +362,7 @@ readSessionDiagnostics(UA_Server *server,
          * session. */
         res = readSubscriptionDiagnosticsArray(server, sessionId, sessionContext,
                                                nodeId, (void*)0x01,
-                                               sourceTimestamp, range, value);
+                                               sourceTimestamp, range, value, NULL);
         goto cleanup;
     } else if(equalBrowseName(&bn.name, "SessionDiagnostics")) {
         setSessionDiagnostics(session, &data.sddt);
@@ -420,7 +424,8 @@ readSessionSecurityDiagnostics(UA_Server *server,
                                const UA_NodeId *sessionId, void *sessionContext,
                                const UA_NodeId *nodeId, void *nodeContext,
                                UA_Boolean sourceTimestamp,
-                               const UA_NumericRange *range, UA_DataValue *value) {
+                               const UA_NumericRange *range, UA_DataValue *value,
+                               void *callbackContext) {
     /* Allocate the output array */
     UA_SessionSecurityDiagnosticsDataType *sd = (UA_SessionSecurityDiagnosticsDataType*)
         UA_Array_new(server->sessionCount,
@@ -476,7 +481,7 @@ createSessionObject(UA_Server *server, UA_Session *session) {
         goto cleanup;
 
     /* Add the callback to all variables  */
-    UA_DataSource sessionDiagSource = {readSessionDiagnostics, NULL};
+    UA_DataSource sessionDiagSource = {readSessionDiagnostics, NULL, NULL, NULL};
     for(size_t i = 0; i < childrenSize; i++) {
         setVariableNode_dataSource(server, children[i].nodeId, sessionDiagSource);
     }
@@ -497,7 +502,7 @@ createSessionObject(UA_Server *server, UA_Session *session) {
 UA_StatusCode
 readDiagnostics(UA_Server *server, const UA_NodeId *sessionId, void *sessionContext,
                 const UA_NodeId *nodeId, void *nodeContext, UA_Boolean sourceTimestamp,
-                const UA_NumericRange *range, UA_DataValue *value) {
+                const UA_NumericRange *range, UA_DataValue *value, void *callbackContext) {
     if(range) {
         value->hasStatus = true;
         value->status = UA_STATUSCODE_BADINDEXRANGEINVALID;
