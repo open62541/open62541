@@ -164,7 +164,7 @@ readValueAttributeFromNode(UA_Server *server, UA_Session *session,
                                        session ? &session->sessionId : NULL,
                                        session ? session->sessionHandle : NULL,
                                        &vn->head.nodeId, vn->head.context, rangeptr,
-                                       &vn->value.data.value);
+                                       &vn->value.data.value, vn->value.data.callback.readContext);
         UA_LOCK(&server->serviceMutex);
         vn = (const UA_VariableNode*)
             UA_NODESTORE_GET_SELECTIVE(server, &vn->head.nodeId,
@@ -203,7 +203,7 @@ readValueAttributeFromDataSource(UA_Server *server, UA_Session *session,
              session ? &session->sessionId : NULL,
              session ? session->sessionHandle : NULL,
              &vn->head.nodeId, vn->head.context,
-             sourceTimeStamp, rangeptr, &v2);
+             sourceTimeStamp, rangeptr, &v2, vn->value.dataSource.readContext);
     UA_LOCK(&server->serviceMutex);
     if(v2.hasValue && v2.value.storageType == UA_VARIANT_DATA_NODELETE) {
         retval = UA_DataValue_copy(&v2, v);
@@ -1500,8 +1500,8 @@ writeNodeValueAttribute(UA_Server *server, UA_Session *session,
                     UA_UNLOCK(&server->serviceMutex);
                     node->value.data.callback.
                         onWrite(server, &session->sessionId, session->sessionHandle,
-                                &node->head.nodeId, node->head.context,
-                                rangeptr, &adjustedValue);
+                                &node->head.nodeId, node->head.context, rangeptr, &adjustedValue,
+                                node->value.data.callback.writeContext);
                     UA_LOCK(&server->serviceMutex);
 
                 }
@@ -1510,8 +1510,8 @@ writeNodeValueAttribute(UA_Server *server, UA_Session *session,
                     UA_UNLOCK(&server->serviceMutex);
                     retval = node->value.dataSource.
                         write(server, &session->sessionId, session->sessionHandle,
-                              &node->head.nodeId, node->head.context,
-                              rangeptr, &adjustedValue);
+                              &node->head.nodeId, node->head.context, rangeptr, &adjustedValue,
+                              node->value.dataSource.writeContext);
                     UA_LOCK(&server->serviceMutex);
                 } else {
                     retval = UA_STATUSCODE_BADWRITENOTSUPPORTED;

@@ -513,11 +513,14 @@ typedef struct {
      * @param nodeid The identifier of the node.
      * @param data Points to the current node value.
      * @param range Points to the numeric range the client wants to read from
-     *        (or NULL). */
+     *        (or NULL).
+     * @param callbackContext Will contain the same value as readContext once
+     *        the callback is triggered
+     */
     void (*onRead)(UA_Server *server, const UA_NodeId *sessionId,
                    void *sessionContext, const UA_NodeId *nodeid,
                    void *nodeContext, const UA_NumericRange *range,
-                   const UA_DataValue *value);
+                   const UA_DataValue *value, void *callbackContext);
 
     /* Called after writing the value attribute. The node is re-opened after
      * writing so that the new value is visible in the callback.
@@ -532,11 +535,24 @@ typedef struct {
      * @param nodeConstructorContext Additional data attached to the node
      *        by the type constructor(s).
      * @param range Points to the numeric range the client wants to write to (or
-     *        NULL). */
+     *        NULL).
+     * @param callbackContext Will contain the same value as writeContext once
+     *        the callback is triggered
+     */
     void (*onWrite)(UA_Server *server, const UA_NodeId *sessionId,
                     void *sessionContext, const UA_NodeId *nodeId,
                     void *nodeContext, const UA_NumericRange *range,
-                    const UA_DataValue *data);
+                    const UA_DataValue *data, void *callbackContext);
+
+    /* @param Context object for write callback. This is usually a pointer to an object
+     * that you want to modify in your callback.
+     */
+    void *writeContext;
+
+    /* @param Context object for read callback. This is usually a pointer to an object
+     * that you want to fetch the data from in your callback.
+     */
+    void *readContext;
 } UA_ValueCallback;
 
 typedef struct {
@@ -569,6 +585,8 @@ typedef struct {
      * @param value The (non-null) DataValue that is returned to the client. The
      *        data source sets the read data, the result status and optionally a
      *        sourcetimestamp.
+     * @param callbackContext Will contain the same value as readContext once
+     *        the callback is triggered
      * @return Returns a status code for logging. Error codes intended for the
      *         original caller are set in the value. If an error is returned,
      *         then no releasing of the value is done
@@ -576,7 +594,8 @@ typedef struct {
     UA_StatusCode (*read)(UA_Server *server, const UA_NodeId *sessionId,
                           void *sessionContext, const UA_NodeId *nodeId,
                           void *nodeContext, UA_Boolean includeSourceTimeStamp,
-                          const UA_NumericRange *range, UA_DataValue *value);
+                          const UA_NumericRange *range, UA_DataValue *value,
+                          void *callbackContext);
 
     /* Write into a data source. This method pointer can be NULL if the
      * operation is unsupported.
@@ -594,6 +613,8 @@ typedef struct {
      * @param value The (non-NULL) DataValue that has been written by the client.
      *        The data source contains the written data, the result status and
      *        optionally a sourcetimestamp
+     * @param callbackContext Will contain the same value as writeContext once
+     *        the callback is triggered
      * @return Returns a status code for logging. Error codes intended for the
      *         original caller are set in the value. If an error is returned,
      *         then no releasing of the value is done
@@ -601,7 +622,17 @@ typedef struct {
     UA_StatusCode (*write)(UA_Server *server, const UA_NodeId *sessionId,
                            void *sessionContext, const UA_NodeId *nodeId,
                            void *nodeContext, const UA_NumericRange *range,
-                           const UA_DataValue *value);
+                           const UA_DataValue *value, void* callbackContext);
+
+    /* @param writeContext Context object for write callback. This is usually a pointer to an object
+     * that you want to modify in your callback.
+     */
+    void *writeContext;
+
+    /* @param readContext Context object for read callback. This is usually a pointer to an object
+     * that you want to fetch the data from in your callback.
+     */
+    void *readContext;
 } UA_DataSource;
 
 /**

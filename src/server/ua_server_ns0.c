@@ -276,7 +276,7 @@ UA_Server_createNS0_base(UA_Server *server) {
 static UA_StatusCode
 readStatus(UA_Server *server, const UA_NodeId *sessionId, void *sessionContext,
            const UA_NodeId *nodeId, void *nodeContext, UA_Boolean sourceTimestamp,
-           const UA_NumericRange *range, UA_DataValue *value) {
+           const UA_NumericRange *range, UA_DataValue *value, void* callbackContext) {
     if(range) {
         value->hasStatus = true;
         value->status = UA_STATUSCODE_BADINDEXRANGEINVALID;
@@ -393,7 +393,7 @@ readStatus(UA_Server *server, const UA_NodeId *sessionId, void *sessionContext,
 static UA_StatusCode
 readServiceLevel(UA_Server *server, const UA_NodeId *sessionId, void *sessionContext,
                  const UA_NodeId *nodeId, void *nodeContext, UA_Boolean includeSourceTimeStamp,
-                 const UA_NumericRange *range, UA_DataValue *value) {
+                 const UA_NumericRange *range, UA_DataValue *value, void* callbackContext) {
     if(range) {
         value->hasStatus = true;
         value->status = UA_STATUSCODE_BADINDEXRANGEINVALID;
@@ -417,8 +417,8 @@ readServiceLevel(UA_Server *server, const UA_NodeId *sessionId, void *sessionCon
 
 static UA_StatusCode
 readAuditing(UA_Server *server, const UA_NodeId *sessionId, void *sessionContext,
-             const UA_NodeId *nodeId, void *nodeContext, UA_Boolean includeSourceTimeStamp,
-             const UA_NumericRange *range, UA_DataValue *value) {
+             const UA_NodeId *nodeId, void *nodeContext, UA_Boolean includeSourceTimeStamp, const UA_NumericRange *range,
+             UA_DataValue *value, void *callbackContext) {
     if(range) {
         value->hasStatus = true;
         value->status = UA_STATUSCODE_BADINDEXRANGEINVALID;
@@ -445,7 +445,7 @@ static UA_StatusCode
 readNamespaces(UA_Server *server, const UA_NodeId *sessionId, void *sessionContext,
                const UA_NodeId *nodeid, void *nodeContext, UA_Boolean includeSourceTimeStamp,
                const UA_NumericRange *range,
-               UA_DataValue *value) {
+               UA_DataValue *value, void* callbackContext) {
     /* ensure that the uri for ns1 is set up from the app description */
     setupNs1Uri(server);
 
@@ -470,7 +470,7 @@ readNamespaces(UA_Server *server, const UA_NodeId *sessionId, void *sessionConte
 static UA_StatusCode
 writeNamespaces(UA_Server *server, const UA_NodeId *sessionId, void *sessionContext,
                 const UA_NodeId *nodeid, void *nodeContext, const UA_NumericRange *range,
-                const UA_DataValue *value) {
+                const UA_DataValue *value, void* callbackContext) {
     /* Check the data type */
     if(!value->hasValue ||
        value->value.type != &UA_TYPES[UA_TYPES_STRING])
@@ -509,7 +509,7 @@ writeNamespaces(UA_Server *server, const UA_NodeId *sessionId, void *sessionCont
 static UA_StatusCode
 readCurrentTime(UA_Server *server, const UA_NodeId *sessionId, void *sessionContext,
                 const UA_NodeId *nodeid, void *nodeContext, UA_Boolean sourceTimeStamp,
-                const UA_NumericRange *range, UA_DataValue *value) {
+                const UA_NumericRange *range, UA_DataValue *value, void* callbackContext) {
     if(range) {
         value->hasStatus = true;
         value->status = UA_STATUSCODE_BADINDEXRANGEINVALID;
@@ -532,8 +532,7 @@ readCurrentTime(UA_Server *server, const UA_NodeId *sessionId, void *sessionCont
 static UA_StatusCode
 readMinSamplingInterval(UA_Server *server, const UA_NodeId *sessionId, void *sessionContext,
                const UA_NodeId *nodeid, void *nodeContext, UA_Boolean includeSourceTimeStamp,
-               const UA_NumericRange *range,
-               UA_DataValue *value) {
+               const UA_NumericRange *range, UA_DataValue *value, void *callbackContext) {
     if(range) {
         value->hasStatus = true;
         value->status = UA_STATUSCODE_BADINDEXRANGEINVALID;
@@ -817,7 +816,7 @@ UA_Server_initNS0(UA_Server *server) {
     }
 
     /* NamespaceArray */
-    UA_DataSource namespaceDataSource = {readNamespaces, writeNamespaces};
+    UA_DataSource namespaceDataSource = {readNamespaces, writeNamespaces, NULL, NULL};
     retVal |= UA_Server_setVariableNode_dataSource(server,
                                                    UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_NAMESPACEARRAY),
                                                    namespaceDataSource);
@@ -830,7 +829,7 @@ UA_Server_initNS0(UA_Server *server) {
     retVal |= UA_Server_writeValueRank(server, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERARRAY), 1);
 
     /* ServerStatus */
-    UA_DataSource serverStatus = {readStatus, NULL};
+    UA_DataSource serverStatus = {readStatus, NULL, NULL, NULL};
     retVal |= UA_Server_setVariableNode_dataSource(server,
                         UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS), serverStatus);
 
@@ -895,7 +894,7 @@ UA_Server_initNS0(UA_Server *server) {
                                &shutdownReason, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]);
 
     /* ServiceLevel */
-    UA_DataSource serviceLevel = {readServiceLevel, NULL};
+    UA_DataSource serviceLevel = {readServiceLevel, NULL, NULL, NULL};
     retVal |= UA_Server_setVariableNode_dataSource(server,
                         UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVICELEVEL), serviceLevel);
 
@@ -917,7 +916,7 @@ UA_Server_initNS0(UA_Server *server) {
                                          UA_ACCESSLEVELMASK_READ);
 
     /* Auditing */
-    UA_DataSource auditing = {readAuditing, NULL};
+    UA_DataSource auditing = {readAuditing, NULL, NULL, NULL};
     retVal |= UA_Server_setVariableNode_dataSource(server,
                         UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_AUDITING), auditing);
 
@@ -967,7 +966,7 @@ UA_Server_initNS0(UA_Server *server) {
                                &maxHistoryContinuationPoints, &UA_TYPES[UA_TYPES_UINT16]);
 
     /* ServerCapabilities - MinSupportedSampleRate */
-    UA_DataSource samplingInterval = {readMinSamplingInterval, NULL};
+    UA_DataSource samplingInterval = {readMinSamplingInterval, NULL, NULL, NULL};
     retVal |= UA_Server_setVariableNode_dataSource(server,
                  UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERCAPABILITIES_MINSUPPORTEDSAMPLERATE),
                                                    samplingInterval);
