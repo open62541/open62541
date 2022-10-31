@@ -2250,9 +2250,9 @@ UA_Server_deleteReference(UA_Server *server, const UA_NodeId sourceNodeId,
     return retval;
 }
 
-/**********************/
-/* Set Value Callback */
-/**********************/
+/****************************/
+/* Get / Set Value Callback */
+/****************************/
 
 static UA_StatusCode
 setValueCallback(UA_Server *server, UA_Session *session,
@@ -2286,6 +2286,30 @@ UA_Server_setVariableNode_valueCallback(UA_Server *server,
     UA_UNLOCK(&server->serviceMutex);
     return retval;
 }
+
+UA_StatusCode
+UA_Server_getVariableNode_valueCallback(UA_Server *server,
+                                       const UA_NodeId nodeId,
+                                       UA_ValueCallback *outValue) {
+    UA_LOCK(&server->serviceMutex);
+    const UA_Node *node = UA_NODESTORE_GET(server, &nodeId);
+    if(!node) {
+        UA_UNLOCK(&server->serviceMutex);
+        return UA_STATUSCODE_BADNODEIDUNKNOWN;
+    }
+
+    if(node->head.nodeClass != UA_NODECLASS_VARIABLE) {
+        UA_NODESTORE_RELEASE(server, node);
+        UA_UNLOCK(&server->serviceMutex);
+        return UA_STATUSCODE_BADNODECLASSINVALID;
+    }
+
+    *outValue = node->variableNode.value.data.callback;
+    UA_NODESTORE_RELEASE(server, node);
+    UA_UNLOCK(&server->serviceMutex);
+    return UA_STATUSCODE_GOOD;
+}
+
 
 /***************************************************/
 /* Special Handling of Variables with Data Sources */
@@ -2375,6 +2399,28 @@ UA_Server_setVariableNode_dataSource(UA_Server *server, const UA_NodeId nodeId,
     UA_StatusCode retval = setVariableNode_dataSource(server, nodeId, dataSource);
     UA_UNLOCK(&server->serviceMutex);
     return retval;
+}
+
+UA_StatusCode
+UA_Server_getVariableNode_dataSource(UA_Server *server, const UA_NodeId nodeId,
+                                     UA_DataSource *outValue) {
+    UA_LOCK(&server->serviceMutex);
+    const UA_Node *node = UA_NODESTORE_GET(server, &nodeId);
+    if(!node) {
+        UA_UNLOCK(&server->serviceMutex);
+        return UA_STATUSCODE_BADNODEIDUNKNOWN;
+    }
+
+    if(node->head.nodeClass != UA_NODECLASS_VARIABLE) {
+        UA_NODESTORE_RELEASE(server, node);
+        UA_UNLOCK(&server->serviceMutex);
+        return UA_STATUSCODE_BADNODECLASSINVALID;
+    }
+
+    *outValue = node->variableNode.value.dataSource;
+    UA_NODESTORE_RELEASE(server, node);
+    UA_UNLOCK(&server->serviceMutex);
+    return UA_STATUSCODE_GOOD;
 }
 
 /******************************/

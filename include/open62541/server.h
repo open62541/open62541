@@ -1085,9 +1085,17 @@ UA_Server_setVariableNode_dataSource(UA_Server *server, const UA_NodeId nodeId,
                                      const UA_DataSource dataSource);
 
 UA_StatusCode UA_EXPORT UA_THREADSAFE
+UA_Server_getVariableNode_dataSource(UA_Server *server, const UA_NodeId nodeId,
+                                     UA_DataSource *outValue);
+
+UA_StatusCode UA_EXPORT UA_THREADSAFE
 UA_Server_setVariableNode_valueCallback(UA_Server *server,
                                         const UA_NodeId nodeId,
                                         const UA_ValueCallback callback);
+
+UA_StatusCode
+UA_Server_getVariableNode_valueCallback(UA_Server *server, const UA_NodeId nodeId,
+                                        UA_ValueCallback *outValue);
 
 UA_StatusCode UA_EXPORT UA_THREADSAFE
 UA_Server_setVariableNode_valueBackend(UA_Server *server,
