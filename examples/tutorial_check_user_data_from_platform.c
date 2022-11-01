@@ -6,7 +6,7 @@
  * -------------------------------------------------
  * This example will check login user is available in user database
  */
-#include <open62541/plugin/accesscontrol_custom.h>
+#include <open62541/plugin/accesscontrol_default.h>
 #include <open62541/client_config_default.h>
 #include <open62541/plugin/log_stdout.h>
 #include <open62541/server.h>
@@ -211,7 +211,7 @@ int main(int argc, char **argv) {
 
     /* Disable anonymous logins, enable two user/password logins */
     config->accessControl.clear(&config->accessControl);
-    UA_StatusCode retval = UA_AccessControl_custom(config, false, NULL,
+    UA_StatusCode retval = UA_AccessControl_default(config, false, NULL,
              &config->securityPolicies[config->securityPoliciesSize-1].policyUri, 0, NULL);
     if(retval != UA_STATUSCODE_GOOD)
         printf("\nAccessControlDefaultFailed\n");
