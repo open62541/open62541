@@ -743,8 +743,6 @@ UA_DataSetReaderConfig_copy(const UA_DataSetReaderConfig *src,
     dst->dataSetFieldContentMask = src->dataSetFieldContentMask;
     dst->messageReceiveTimeout = src->messageReceiveTimeout;
 
-    /* Currently memcpy is used to copy the securityParameters */
-    memcpy(&dst->securityParameters, &src->securityParameters, sizeof(UA_PubSubSecurityParameters));
     retVal = UA_ExtensionObject_copy(&src->messageSettings, &dst->messageSettings);
     if(retVal != UA_STATUSCODE_GOOD)
         return retVal;

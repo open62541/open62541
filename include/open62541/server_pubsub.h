@@ -695,14 +695,6 @@ UA_Server_DataSetReader_createTargetVariables(UA_Server *server,
  * on the Subscriber side. DataSetReader must be linked with a
  * SubscribedDataSet and be contained within a ReaderGroup. */
 
-/* Parameters for PubSubSecurity */
-typedef struct {
-    UA_Int32 securityMode;          /* placeholder datatype 'MessageSecurityMode' */
-    UA_String securityGroupId;
-    size_t keyServersSize;
-    UA_Int32 *keyServers;
-} UA_PubSubSecurityParameters;
-
 typedef enum {
     UA_PUBSUB_RT_UNKNOWN = 0,
     UA_PUBSUB_RT_VARIANT = 1,
@@ -719,7 +711,6 @@ typedef struct {
     UA_DataSetMetaDataType dataSetMetaData;
     UA_DataSetFieldContentMask dataSetFieldContentMask;
     UA_Double messageReceiveTimeout;
-    UA_PubSubSecurityParameters securityParameters;
     UA_ExtensionObject messageSettings;
     UA_ExtensionObject transportSettings;
     UA_SubscribedDataSetEnumType subscribedDataSetType;
@@ -793,7 +784,6 @@ UA_Server_removeStandaloneSubscribedDataSet(UA_Server *server, const UA_NodeId s
 /* ReaderGroup configuration */
 typedef struct {
     UA_String name;
-    UA_PubSubSecurityParameters securityParameters;
     /* PubSub Manager Callback */
     UA_PubSub_CallbackLifecycle pubsubManagerCallback;
     /* non std. field */
