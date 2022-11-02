@@ -73,6 +73,14 @@ UA_ReaderGroupConfig_copy(const UA_ReaderGroupConfig *src,
         UA_String_clear(&dst->name);
         return res;
     }
+#ifdef UA_ENABLE_PUBSUB_ENCRYPTION
+    res = UA_String_copy(&src->securityGroupId, &dst->securityGroupId);
+    if(res != UA_STATUSCODE_GOOD) {
+        UA_String_clear(&dst->name);
+        UA_String_clear(&dst->securityGroupId);
+        return res;
+    }
+#endif
     dst->groupPropertiesSize = src->groupPropertiesSize;
     return UA_STATUSCODE_GOOD;
 }
@@ -85,6 +93,9 @@ UA_ReaderGroupConfig_clear(UA_ReaderGroupConfig *readerGroupConfig) {
                     &UA_TYPES[UA_TYPES_KEYVALUEPAIR]);
     readerGroupConfig->groupProperties = NULL;
     readerGroupConfig->groupPropertiesSize = 0;
+#ifdef UA_ENABLE_PUBSUB_ENCRYPTION
+    UA_String_clear(&readerGroupConfig->securityGroupId);
+#endif
 }
 
 /* ReaderGroup Lifecycle */
