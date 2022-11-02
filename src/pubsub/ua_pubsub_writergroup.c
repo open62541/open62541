@@ -505,6 +505,9 @@ UA_WriterGroupConfig_copy(const UA_WriterGroupConfig *src,
             res |= UA_KeyValuePair_copy(&src->groupProperties[i], &dst->groupProperties[i]);
         }
     }
+#ifdef UA_ENABLE_PUBSUB_ENCRYPTION
+    res |= UA_String_copy(&src->securityGroupId, &dst->securityGroupId);
+#endif
     if(res != UA_STATUSCODE_GOOD)
         UA_WriterGroupConfig_clear(dst);
     return res;
@@ -654,6 +657,9 @@ UA_WriterGroupConfig_clear(UA_WriterGroupConfig *writerGroupConfig) {
                     writerGroupConfig->groupPropertiesSize,
                     &UA_TYPES[UA_TYPES_KEYVALUEPAIR]);
     writerGroupConfig->groupProperties = NULL;
+#ifdef UA_ENABLE_PUBSUB_ENCRYPTION
+    UA_String_clear(&writerGroupConfig->securityGroupId);
+#endif
 }
 
 static void
