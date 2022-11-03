@@ -28,6 +28,15 @@ getSecurityPolicy(UA_Client *client, UA_String policyUri) {
     return NULL;
 }
 
+static UA_SecurityPolicy *
+getAuthSecurityPolicy(UA_Client *client, UA_String policyUri) {
+    for(size_t i = 0; i < client->config.authSecurityPoliciesSize; i++) {
+        if(UA_String_equal(&policyUri, &client->config.authSecurityPolicies[i].policyUri))
+            return &client->config.authSecurityPolicies[i];
+    }
+    return NULL;
+}
+
 static UA_Boolean
 endpointUnconfigured(UA_Client *client) {
     char test = 0;
@@ -53,7 +62,7 @@ signActivateSessionRequest(UA_Client *client, UA_SecureChannel *channel,
     const UA_SecurityPolicy *sp = channel->securityPolicy;
     UA_SignatureData *sd = &request->clientSignature;
 
-    /* Prepare the signature */
+    /* Prepare the clientSignature */
     size_t signatureSize = sp->certificateSigningAlgorithm.
         getLocalSignatureSize(channel->channelContext);
     UA_StatusCode retval = UA_String_copy(&sp->certificateSigningAlgorithm.uri,
@@ -75,14 +84,66 @@ signActivateSessionRequest(UA_Client *client, UA_SecureChannel *channel,
     if(retval != UA_STATUSCODE_GOOD)
         return retval; /* sd->signature is cleaned up with the response */
 
-    /* Sign the signature */
+    /* Sign the clientSignature */
     memcpy(dataToSign.data, channel->remoteCertificate.data,
            channel->remoteCertificate.length);
     memcpy(dataToSign.data + channel->remoteCertificate.length,
            client->remoteNonce.data, client->remoteNonce.length);
     retval = sp->certificateSigningAlgorithm.sign(channel->channelContext,
                                                   &dataToSign, &sd->signature);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
 
+    /* Prepare the userTokenSignature */
+if(client->config.userTokenPolicy.tokenType == UA_USERTOKENTYPE_CERTIFICATE) {
+    UA_SignatureData *utsd = &request->userTokenSignature;
+    UA_X509IdentityToken *userIdentityToken = (UA_X509IdentityToken *)
+        request->userIdentityToken.content.decoded.data;
+
+    /* Get the correct securityPolicy for authentication */
+    UA_SecurityPolicy* securityPolicy;
+    securityPolicy = getAuthSecurityPolicy(client, sp->policyUri);
+
+    /* We need a channel context with the user certificate in order to reuse
+    * the code for signing. */
+    void *tempChannelContext;
+    retval = securityPolicy->channelModule.
+        newContext(securityPolicy, &userIdentityToken->certificateData, &tempChannelContext);
+    if(retval != UA_STATUSCODE_GOOD)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
+    size_t userTokenSignatureSize = securityPolicy->certificateSigningAlgorithm.
+        getLocalSignatureSize(tempChannelContext);
+    retval = UA_String_copy(&securityPolicy->certificateSigningAlgorithm.uri,
+                            &utsd->algorithm);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
+
+    retval = UA_ByteString_allocBuffer(&utsd->signature, userTokenSignatureSize);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
+
+    /* Allocate a temporary buffer */
+    size_t userTokenSignSize = userIdentityToken->certificateData.length + client->remoteNonce.length;
+    if(dataToSignSize > MAX_DATA_SIZE)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
+    UA_ByteString userTokenSign;
+    retval = UA_ByteString_allocBuffer(&userTokenSign, userTokenSignSize);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval; /* sd->signature is cleaned up with the response */
+
+    /* Create the userTokenSignature */
+    memcpy(userTokenSign.data, userIdentityToken->certificateData.data,
+           userIdentityToken->certificateData.length);
+    memcpy(userTokenSign.data + userIdentityToken->certificateData.length,
+           client->remoteNonce.data, client->remoteNonce.length);
+    retval = securityPolicy->certificateSigningAlgorithm.sign(tempChannelContext,
+                                                  &userTokenSign, &utsd->signature);
+    /* Clean up */
+    UA_ByteString_clear(&userTokenSign);
+    securityPolicy->channelModule.deleteContext(tempChannelContext);
+}
     /* Clean up */
     UA_ByteString_clear(&dataToSign);
     return retval;
@@ -579,9 +640,10 @@ activateSessionAsync(UA_Client *client) {
     }
 
     /* Set the policy-Id from the endpoint. Every IdentityToken starts with a
-     * string. */
-    retval = UA_String_copy(&client->config.userTokenPolicy.policyId,
-                            (UA_String*)request.userIdentityToken.content.decoded.data);
+     * string. With an X509IdentityToken, the policy-Id is already set. */
+    if(client->config.userTokenPolicy.tokenType != UA_USERTOKENTYPE_CERTIFICATE)
+        retval = UA_String_copy(&client->config.userTokenPolicy.policyId,
+                                (UA_String*)request.userIdentityToken.content.decoded.data);
 
 #ifdef UA_ENABLE_ENCRYPTION
     /* Encrypt the UserIdentityToken */

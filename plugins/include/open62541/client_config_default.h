@@ -24,6 +24,10 @@ UA_ClientConfig_setDefaultEncryption(UA_ClientConfig *config,
                                      UA_ByteString localCertificate, UA_ByteString privateKey,
                                      const UA_ByteString *trustList, size_t trustListSize,
                                      const UA_ByteString *revocationList, size_t revocationListSize);
+
+UA_StatusCode UA_EXPORT
+UA_ClientConfig_setCertAuthentication(UA_ClientConfig *config,
+                                   UA_ByteString certificateAuth, UA_ByteString privateKeyAuth);
 #endif
 
 _UA_END_DECLS

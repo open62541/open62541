@@ -415,8 +415,8 @@ Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
 
 static UA_StatusCode
 checkSignature(const UA_Server *server, const UA_SecurityPolicy *securityPolicy,
-               void *channelContext, const UA_ByteString *serverNonce,
-               const UA_SignatureData *signature) {
+               void *channelContext, const UA_ByteString *serverNonce,const UA_UserTokenPolicy *userTokenPolicy,
+               const UA_ExtensionObject *userToken, const UA_SignatureData *signature) {
     /* Check for zero signature length */
     if(signature->signature.length == 0)
         return UA_STATUSCODE_BADAPPLICATIONSIGNATUREINVALID;
@@ -424,7 +424,17 @@ checkSignature(const UA_Server *server, const UA_SecurityPolicy *securityPolicy,
     if(!securityPolicy)
         return UA_STATUSCODE_BADINTERNALERROR;
 
-    const UA_ByteString *localCertificate = &securityPolicy->localCertificate;
+    const UA_ByteString *localCertificate;
+    localCertificate = &securityPolicy->localCertificate;
+
+    if(userTokenPolicy != NULL && userToken != NULL) {
+        if(userTokenPolicy->tokenType == UA_USERTOKENTYPE_CERTIFICATE) {
+            UA_X509IdentityToken *userIdentityToken = (UA_X509IdentityToken *)
+                userToken->content.decoded.data;
+            localCertificate = &userIdentityToken->certificateData;
+        }
+    }
+
     /* Data to verify is calculated by appending the serverNonce to the local certificate */
     UA_ByteString dataToVerify;
     size_t dataToVerifySize = localCertificate->length + serverNonce->length;
@@ -654,7 +664,7 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
        channel->securityMode == UA_MESSAGESECURITYMODE_SIGNANDENCRYPT) {
         response->responseHeader.serviceResult =
             checkSignature(server, channel->securityPolicy, channel->channelContext,
-                           &session->serverNonce, &request->clientSignature);
+                           &session->serverNonce,NULL, NULL,&request->clientSignature);
         if(response->responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
             UA_LOG_WARNING_SESSION(&server->config.logger, session,
                                    "ActivateSession: Client signature check failed with StatusCode %s",
@@ -785,7 +795,7 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
         /* Check the user token signature */
         response->responseHeader.serviceResult =
             checkSignature(server, channel->securityPolicy, tempChannelContext,
-                           &session->serverNonce, &request->userTokenSignature);
+                           &session->serverNonce, utp, &request->userIdentityToken, &request->userTokenSignature);
 
         /* Delete the temporary channel context */
         UA_UNLOCK(&server->serviceMutex);

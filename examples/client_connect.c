@@ -3,8 +3,8 @@
 
 #include <open62541/client_config_default.h>
 #include <open62541/client_highlevel.h>
-#include <open62541/client_subscriptions.h>
 #include <open62541/plugin/log_stdout.h>
+#include <open62541/plugin/pki_default.h>
 
 #include "common.h"
 
@@ -26,6 +26,9 @@ int main(int argc, char *argv[]) {
 #ifdef UA_ENABLE_ENCRYPTION
     char *certfile = NULL;
     char *keyfile = NULL;
+    char *certAuthFile = NULL;
+    char *keyAuthFile = NULL;
+    char *trustList = NULL;
 #endif
 
     /* At least one argument is required for the server uri */
@@ -72,6 +75,24 @@ int main(int argc, char *argv[]) {
             continue;
         }
 
+        if(strcmp(argv[argpos], "-certAuth") == 0) {
+            argpos++;
+            certAuthFile = argv[argpos];
+            continue;
+        }
+
+        if(strcmp(argv[argpos], "-keyAuth") == 0) {
+            argpos++;
+            keyAuthFile = argv[argpos];
+            continue;
+        }
+
+        if(strcmp(argv[argpos], "-trustList") == 0) {
+            argpos++;
+            trustList = argv[argpos];
+            continue;
+        }
+
         if(strcmp(argv[argpos], "-securityMode") == 0) {
             argpos++;
             if(sscanf(argv[argpos], "%i", (int*)&securityMode) != 1) {
@@ -96,28 +117,62 @@ int main(int argc, char *argv[]) {
     UA_Client *client = UA_Client_new();
     UA_ClientConfig *cc = UA_Client_getConfig(client);
 
+    /* Set securityMode and securityPolicyUri */
+    cc->securityMode = securityMode;
+    cc->securityPolicyUri = securityPolicyUri;
+
 #ifdef UA_ENABLE_ENCRYPTION
     if(certfile) {
         UA_ByteString certificate = loadFile(certfile);
         UA_ByteString privateKey  = loadFile(keyfile);
-        UA_ClientConfig_setDefaultEncryption(cc, certificate, privateKey,
-                                             NULL, 0, NULL, 0);
+        if(trustList) {
+            /* Load the trust list */
+            size_t trustListSize = 1;
+            UA_STACKARRAY(UA_ByteString, trustListAuth, trustListSize);
+            trustListAuth[0] = loadFile(trustList);
+            UA_ClientConfig_setDefaultEncryption(cc, certificate, privateKey,
+                                                 trustListAuth, trustListSize, NULL, 0);
+            UA_ByteString_clear(&trustListAuth[0]);
+        }else {
+            /* If no trust list is passed, all certificates are accepted. */
+            UA_ClientConfig_setDefaultEncryption(cc, certificate, privateKey,
+                                                 NULL, 0, NULL, 0);
+            UA_CertificateVerification_AcceptAll(&cc->certificateVerification);
+        }
         UA_ByteString_clear(&certificate);
         UA_ByteString_clear(&privateKey);
     } else {
         UA_ClientConfig_setDefault(cc);
+        cc->securityMode = UA_MESSAGESECURITYMODE_NONE;
+        UA_ByteString_clear(&cc->securityPolicyUri);
+        cc->securityPolicyUri = UA_String_fromChars("http://opcfoundation.org/UA/SecurityPolicy#None");
     }
 #else
     UA_ClientConfig_setDefault(cc);
 #endif
 
-    cc->securityMode = securityMode;
-    cc->securityPolicyUri = securityPolicyUri;
+    /* The application URI must be the same as the one in the certificate.
+     * The script for creating a self-created certificate generates a certificate
+     * with the Uri specified below.*/
+    UA_ApplicationDescription_clear(&cc->clientDescription);
+    cc->clientDescription.applicationUri = UA_STRING_ALLOC("urn:open62541.server.application");
+    cc->clientDescription.applicationType = UA_APPLICATIONTYPE_CLIENT;
 
     /* Connect to the server */
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     if(username)
         retval = UA_Client_connectUsername(client, serverurl, username, password);
+#ifdef UA_ENABLE_ENCRYPTION
+    else if(certAuthFile && certfile) {
+        UA_ByteString certificateAuth = loadFile(certAuthFile);
+        UA_ByteString privateKeyAuth  = loadFile(keyAuthFile);
+        UA_ClientConfig_setCertAuthentication(cc, certificateAuth, privateKeyAuth);
+        retval = UA_Client_connectCertificate(client, serverurl, certificateAuth, privateKeyAuth);
+
+        UA_ByteString_clear(&certificateAuth);
+        UA_ByteString_clear(&privateKeyAuth);
+    }
+#endif
     else
         retval = UA_Client_connect(client, serverurl);
     if(retval != UA_STATUSCODE_GOOD) {
