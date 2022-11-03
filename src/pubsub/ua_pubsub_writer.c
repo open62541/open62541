@@ -1191,6 +1191,8 @@ UA_PubSubDataSetWriter_generateKeyFrameMessage(UA_Server *server,
     return UA_STATUSCODE_GOOD;
 }
 
+/* the input message is already initialized and that the method 
+ * must not be called twice for the same message */
 #ifdef UA_ENABLE_PUBSUB_DELTAFRAMES
 static UA_StatusCode
 UA_PubSubDataSetWriter_generateDeltaFrameMessage(UA_Server *server,
@@ -1202,7 +1204,6 @@ UA_PubSubDataSetWriter_generateDeltaFrameMessage(UA_Server *server,
         return UA_STATUSCODE_BADNOTFOUND;
 
     /* Prepare DataSetMessageContent */
-    memset(dataSetMessage, 0, sizeof(UA_DataSetMessage));
     dataSetMessage->header.dataSetMessageValid = true;
     dataSetMessage->header.dataSetMessageType = UA_DATASETMESSAGE_DATADELTAFRAME;
     if(currentDataSet->fieldSize == 0)
