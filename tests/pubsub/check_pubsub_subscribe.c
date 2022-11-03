@@ -1899,7 +1899,7 @@ START_TEST(AddAndRemoveReaderUsingStandaloneDataSet) {
     ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
     UA_StandaloneSubscribedDataSet *ssds = NULL;
     ssds = UA_StandaloneSubscribedDataSet_findSDSbyId(server, ret);
-    ck_assert_ptr_ne(ssds, NULL); 
+    ck_assert_ptr_ne(ssds, NULL);
     /* Reader Group */
     UA_ReaderGroupConfig readerGroupConfig;
     memset (&readerGroupConfig, 0, sizeof (UA_ReaderGroupConfig));
@@ -1928,6 +1928,10 @@ START_TEST(AddAndRemoveReaderUsingStandaloneDataSet) {
     UA_Server_removeDataSetReader(server, readerIdentifier);
     /* SSDS no longer connected, isConnected has to reset(false) */
     ck_assert_uint_eq(ssds->config.isConnected, UA_FALSE);
+} END_TEST
+
+START_TEST(SinglePublishOnDemand) {
+//ToDo create test-case
 } END_TEST
 
 int main(void) {
@@ -1970,6 +1974,8 @@ int main(void) {
     tcase_add_test(tc_pubsub_publish_subscribe, SinglePublishSubscribewithValidIdentifiers);
     tcase_add_test(tc_pubsub_publish_subscribe, SinglePublishSubscribeHeartbeat);
     tcase_add_test(tc_pubsub_publish_subscribe, MultiPublishSubscribeInt32);
+    tcase_add_test(tc_pubsub_publish_subscribe, SinglePublishOnDemand);
+
 
     /*Test cases for the standalone datasets */
     TCase *tc_pubsub_standalone_datasets = tcase_create("Subscriber using standalone datasets");

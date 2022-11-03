@@ -594,6 +594,28 @@ UA_Server_WriterGroup_getState(UA_Server *server, UA_NodeId writerGroupIdentifie
     return UA_STATUSCODE_GOOD;
 }
 
+UA_StatusCode UA_EXPORT
+UA_Server_WriterGroup_publish(UA_Server *server, const UA_NodeId writerGroupIdentifier){
+    //search WriterGroup ToDo create lookup table for more efficiency
+    UA_WriterGroup *writerGroup;
+    writerGroup = UA_WriterGroup_findWGbyId(server, writerGroupIdentifier);
+    if(writerGroup == NULL){
+        return UA_STATUSCODE_BADNOTFOUND;
+    }
+    UA_WriterGroup_publishCallback(server, writerGroup);
+}
+
+UA_DateTime UA_EXPORT
+UA_WriterGroup_lastPublishTimestamp(UA_Server *server, const UA_NodeId writerGroupId){
+    //search WriterGroup ToDo create lookup table for more efficiency
+    UA_WriterGroup *writerGroup;
+    writerGroup = UA_WriterGroup_findWGbyId(server, writerGroupId);
+    if(writerGroup == NULL){
+        return UA_STATUSCODE_BADNOTFOUND;
+    }
+    return writerGroup->lastPublishTimeStamp;
+}
+
 UA_WriterGroup *
 UA_WriterGroup_findWGbyId(UA_Server *server, UA_NodeId identifier) {
     UA_PubSubConnection *tmpConnection;
@@ -1248,6 +1270,7 @@ UA_WriterGroup_publishCallback(UA_Server *server, UA_WriterGroup *writerGroup) {
 
         /* There is no promoted field -> send right away */
         if(pds && pds->promotedFieldsCount > 0) {
+            writerGroup->lastPublishTimeStamp = UA_DateTime_nowMonotonic();
             sendNetworkMessage(server, writerGroup, connection, &dsmStore[dsmCount],
                                &dsWriterIds[dsmCount], 1);
 
@@ -1271,6 +1294,7 @@ UA_WriterGroup_publishCallback(UA_Server *server, UA_WriterGroup *writerGroup) {
         /* How many dsm are batched in this iteration? */
         nmDsmCount = (i + maxDSM > dsmCount) ? (UA_Byte)(dsmCount - i) : maxDSM;
 
+        writerGroup->lastPublishTimeStamp = UA_DateTime_nowMonotonic();
         /* Send the batched messages */
         sendNetworkMessage(server, writerGroup, connection, &dsmStore[i],
                            &dsWriterIds[i], nmDsmCount);

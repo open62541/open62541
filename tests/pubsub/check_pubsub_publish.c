@@ -467,6 +467,12 @@ START_TEST(PublishDataSetFieldAsDeltaFrame){
             UA_WriterGroup_publishCallback(server, wg);
         } END_TEST
 
+START_TEST(LastPublishTimestamp){
+//ToDo create test-case
+    } END_TEST
+
+
+
 int main(void) {
     TCase *tc_add_pubsub_writergroup = tcase_create("PubSub WriterGroup items handling");
     tcase_add_checked_fixture(tc_add_pubsub_writergroup, setup, teardown);
@@ -499,6 +505,7 @@ int main(void) {
     tcase_add_checked_fixture(tc_pubsub_publish, setup, teardown);
     tcase_add_test(tc_pubsub_publish, SinglePublishDataSetField);
     tcase_add_test(tc_pubsub_publish, PublishDataSetFieldAsDeltaFrame);
+    tcase_add_test(tc_pubsub_publish, LastPublishTimestamp);
 
     Suite *s = suite_create("PubSub WriterGroups/Writer/Fields handling and publishing");
     suite_add_tcase(s, tc_add_pubsub_writergroup);
