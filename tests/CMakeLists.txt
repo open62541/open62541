@@ -229,6 +229,10 @@ if(UA_ENABLE_JSON_ENCODING)
     endif()
 endif()
 
+if(UA_ENABLE_XML_ENCODING)
+    ua_add_test(check_types_builtin_xml.c)
+endif()
+
 ua_add_test(check_types_memory.c)
 ua_add_test(check_types_range.c)
 

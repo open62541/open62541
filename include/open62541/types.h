@@ -1325,6 +1325,65 @@ UA_decodeJson(const UA_ByteString *src, void *dst, const UA_DataType *type,
 #endif /* UA_ENABLE_JSON_ENCODING */
 
 /**
+ * XML En/Decoding
+ * ----------------
+ *
+ * The XML decoding can parse the official encoding from the OPC UA
+ * specification.
+ *
+ * These extensions are not intended to be used for the OPC UA protocol on the
+ * network. They were rather added to allow more convenient configuration file
+ * formats that also include data in the OPC UA type system.
+ */
+
+#ifdef UA_ENABLE_XML_ENCODING
+
+typedef struct {
+    UA_Boolean prettyPrint;   /* Add newlines and spaces for legibility */
+} UA_EncodeXmlOptions;
+
+/* Returns the number of bytes the value src takes in xml encoding. Returns
+ * zero if an error occurs. */
+UA_EXPORT size_t
+UA_calcSizeXml(const void *src, const UA_DataType *type,
+               const UA_EncodeXmlOptions *options);
+
+/* Encodes the scalar value described by type to xml encoding.
+ *
+ * @param src The value. Must not be NULL.
+ * @param type The value type. Must not be NULL.
+ * @param outBuf Pointer to ByteString containing the result if the encoding
+ *        was successful
+ * @return Returns a statuscode whether encoding succeeded. */
+UA_StatusCode UA_EXPORT
+UA_encodeXml(const void *src, const UA_DataType *type, UA_ByteString *outBuf,
+             const UA_EncodeXmlOptions *options);
+
+/* The structure with the decoding options may be extended in the future.
+ * Zero-out the entire structure initially to ensure code-compatibility when
+ * more fields are added in a later release. */
+typedef struct {
+    const UA_DataTypeArray *customTypes; /* Begin of a linked list with custom
+                                          * datatype definitions */
+} UA_DecodeXmlOptions;
+
+/* Decodes a scalar value described by type from xml encoding.
+ *
+ * @param src The buffer with the xml encoded value. Must not be NULL.
+ * @param dst The target value. Must not be NULL. The target is assumed to have
+ *        size type->memSize. The value is reset to zero before decoding. If
+ *        decoding fails, members are deleted and the value is reset (zeroed)
+ *        again.
+ * @param type The value type. Must not be NULL.
+ * @param options The options struct for decoding, currently unused
+ * @return Returns a statuscode whether decoding succeeded. */
+UA_StatusCode UA_EXPORT
+UA_decodeXml(const UA_ByteString *src, void *dst, const UA_DataType *type,
+             const UA_DecodeXmlOptions *options);
+
+#endif /* UA_ENABLE_XML_ENCODING */
+
+/**
  * .. _array-handling:
  *
  * Array handling
