@@ -175,6 +175,7 @@ option(UA_ENABLE_DA "Enable OPC UA DataAccess (Part 8) definitions" ON)
 option(UA_ENABLE_HISTORIZING "Enable basic support for historical access (client and server)" OFF)
 option(UA_ENABLE_DISCOVERY "Enable Discovery Service (LDS)" OFF)
 option(UA_ENABLE_JSON_ENCODING "Enable JSON encoding" ON)
+option(UA_ENABLE_XML_ENCODING "Enable XML encoding" OFF)
 option(UA_ENABLE_NODESETLOADER "Enable nodesetLoader public API" OFF)
 
 set(MULTITHREADING_DEFAULT 0)
@@ -1198,6 +1199,16 @@ if(UA_ENABLE_JSON_ENCODING)
     list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/deps/cj5.c
                             ${PROJECT_SOURCE_DIR}/deps/parse_num.c
                             ${PROJECT_SOURCE_DIR}/src/ua_types_encoding_json.c)
+endif()
+
+if(UA_ENABLE_XML_ENCODING)
+    add_definitions(-DUA_ENABLE_XML_ENCODING)
+    if(NOT UA_ENABLE_JSON_ENCODING)
+        list(APPEND internal_headers ${PROJECT_SOURCE_DIR}/deps/parse_num.h)
+        list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/deps/parse_num.c)
+    endif()
+    list(APPEND internal_headers ${PROJECT_SOURCE_DIR}/src/ua_types_encoding_xml.h)
+    list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/src/ua_types_encoding_xml.c)
 endif()
 
 if(UA_ENABLE_SUBSCRIPTIONS)
