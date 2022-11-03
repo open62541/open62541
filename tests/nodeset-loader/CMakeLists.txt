@@ -32,4 +32,7 @@ if(UA_NAMESPACE_ZERO STREQUAL "FULL")
     target_link_libraries(check_nodeset_loader_compare_di ${LIBS})
     add_test_valgrind(check_nodeset_loader_compare_di ${TESTS_BINARY_DIR}/check_nodeset_loader_compare_di)
 
+    add_compile_definitions(OPEN62541_TESTNODESET_DIR="${CMAKE_BINARY_DIR}/../deps/nodesetloader/nodesets/open62541/")
+    ua_add_test(check_nodeset_loader_testnodeset.c)
+
 endif()
