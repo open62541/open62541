@@ -125,6 +125,7 @@ typedef struct {
      * @param targetParentNodeId Parent of the potential new child node
      * @param referenceTypeId Identifies the reference type which that the parent
      *        node has to the new node.
+     * @param parentNodeContext Additional data attached to the parent node by the user
      * @return Return UA_TRUE if the child node shall be instantiated,
      *         UA_FALSE otherwise. */
     UA_Boolean (*createOptionalChild)(UA_Server *server,
@@ -132,7 +133,8 @@ typedef struct {
                                       void *sessionContext,
                                       const UA_NodeId *sourceNodeId,
                                       const UA_NodeId *targetParentNodeId,
-                                      const UA_NodeId *referenceTypeId);
+                                      const UA_NodeId *referenceTypeId,
+                                      void* parentNodeContext);
 
     /* Can be NULL. Called when a node is to be copied during recursive
      * node instantiation. Allows definition of the NodeId for the new node.

@@ -603,12 +603,14 @@ copyChild(UA_Server *server, UA_Session *session,
     /* Is the child mandatory? If not, ask callback whether child should be instantiated.
      * If not, skip. */
     if(!isMandatoryChild(server, session, &rd->nodeId.nodeId)) {
+        const UA_Node *node = UA_NODESTORE_GET(server, destinationNodeId);
+
         if(!server->config.nodeLifecycle.createOptionalChild)
             return UA_STATUSCODE_GOOD;
         UA_UNLOCK(&server->serviceMutex);
         UA_Boolean createChild = server->config.nodeLifecycle.
-            createOptionalChild(server, &session->sessionId, session->sessionHandle,
-                                &rd->nodeId.nodeId, destinationNodeId, &rd->referenceTypeId);
+            createOptionalChild(server, &session->sessionId, session->sessionHandle, &rd->nodeId.nodeId,
+            destinationNodeId, &rd->referenceTypeId, node->head.context);
         UA_LOCK(&server->serviceMutex);
         if(!createChild)
             return UA_STATUSCODE_GOOD;
