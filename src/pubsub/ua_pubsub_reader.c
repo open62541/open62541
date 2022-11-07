@@ -335,66 +335,64 @@ UA_DataSetReader_generateNetworkMessage(UA_PubSubConnection *pubSubConnection,
     return UA_STATUSCODE_GOOD;
 }
 
+static UA_Boolean
+publisherIdIsMatching(UA_NetworkMessage *msg, UA_Variant publisherId) {
+    switch(msg->publisherIdType) {
+        case UA_PUBLISHERIDTYPE_BYTE:
+            return (publisherId.type == &UA_TYPES[UA_TYPES_BYTE] &&
+               msg->publisherId.byte == *(UA_Byte*)publisherId.data);
+        case UA_PUBLISHERIDTYPE_UINT16:
+            return (publisherId.type == &UA_TYPES[UA_TYPES_UINT16] &&
+               msg->publisherId.uint16 == *(UA_UInt16*)publisherId.data);
+        case UA_PUBLISHERIDTYPE_UINT32:
+            return (publisherId.type == &UA_TYPES[UA_TYPES_UINT32] &&
+               msg->publisherId.uint32 == *(UA_UInt32*)publisherId.data);
+        case UA_PUBLISHERIDTYPE_UINT64:
+            return (publisherId.type == &UA_TYPES[UA_TYPES_UINT64] &&
+               msg->publisherId.uint64 == *(UA_UInt64*)publisherId.data);
+        case UA_PUBLISHERIDTYPE_STRING:
+            return (publisherId.type == &UA_TYPES[UA_TYPES_STRING] &&
+               UA_String_equal(&msg->publisherId.string, (UA_String*)publisherId.data));
+        default:
+            return false;
+    }
+    return true;
+}
+
 static UA_StatusCode
 checkReaderIdentifier(UA_Server *server, UA_NetworkMessage *msg,
                       UA_DataSetReader *reader, UA_ReaderGroupConfig readerGroupConfig) {
-if(readerGroupConfig.encodingMimeType != UA_PUBSUB_ENCODING_JSON){
-    if(!msg->groupHeaderEnabled || !msg->groupHeader.writerGroupIdEnabled ||
-       !msg->payloadHeaderEnabled) {
-        UA_LOG_INFO_READER(&server->config.logger, reader,
-                           "Cannot process DataSetReader without WriterGroup"
-                           "and DataSetWriter identifiers");
-        return UA_STATUSCODE_BADNOTIMPLEMENTED;
-    }
 
-    switch(msg->publisherIdType) {
-    case UA_PUBLISHERIDTYPE_BYTE:
-        if(reader->config.publisherId.type == &UA_TYPES[UA_TYPES_BYTE] &&
-           msg->publisherId.byte == *(UA_Byte*)reader->config.publisherId.data)
-            break;
-        return UA_STATUSCODE_BADNOTFOUND;
-    case UA_PUBLISHERIDTYPE_UINT16:
-        if(reader->config.publisherId.type == &UA_TYPES[UA_TYPES_UINT16] &&
-           msg->publisherId.uint16 == *(UA_UInt16*)reader->config.publisherId.data)
-            break;
-        return UA_STATUSCODE_BADNOTFOUND;
-    case UA_PUBLISHERIDTYPE_UINT32:
-        if(reader->config.publisherId.type == &UA_TYPES[UA_TYPES_UINT32] &&
-           msg->publisherId.uint32 == *(UA_UInt32*)reader->config.publisherId.data)
-            break;
-        return UA_STATUSCODE_BADNOTFOUND;
-    case UA_PUBLISHERIDTYPE_UINT64:
-        if(reader->config.publisherId.type == &UA_TYPES[UA_TYPES_UINT64] &&
-           msg->publisherId.uint64 == *(UA_UInt64*)reader->config.publisherId.data)
-            break;
-        return UA_STATUSCODE_BADNOTFOUND;
-    case UA_PUBLISHERIDTYPE_STRING:
-        if(reader->config.publisherId.type == &UA_TYPES[UA_TYPES_STRING] &&
-           UA_String_equal(&msg->publisherId.string, (UA_String*)reader->config.publisherId.data))
-            break;
-        return UA_STATUSCODE_BADNOTFOUND;
-    default:
-        return UA_STATUSCODE_BADNOTFOUND;
-    }
 
-    if(reader->config.writerGroupId == msg->groupHeader.writerGroupId &&
-       reader->config.dataSetWriterId == *msg->payloadHeader.dataSetPayloadHeader.dataSetWriterIds) {
-        UA_LOG_DEBUG_READER(&server->config.logger, reader,
-                            "DataSetReader found, process NetworkMessage");
+    if(readerGroupConfig.encodingMimeType != UA_PUBSUB_ENCODING_JSON){
+        if(!publisherIdIsMatching(msg, reader->config.publisherId)) {
+            return UA_STATUSCODE_BADNOTFOUND;
+        }
+        if(msg->groupHeaderEnabled && msg->groupHeader.writerGroupIdEnabled) {
+            if(reader->config.writerGroupId != msg->groupHeader.writerGroupId) {
+                UA_LOG_INFO_READER(&server->config.logger, reader,
+                                   "WriterGroupId doesn't match");
+                return UA_STATUSCODE_BADNOTFOUND;
+            }
+        }
+        if(msg->payloadHeaderEnabled) {
+            if(reader->config.dataSetWriterId != *msg->payloadHeader.dataSetPayloadHeader.dataSetWriterIds) {
+                UA_LOG_INFO_READER(&server->config.logger, reader, "DataSetWriterId doesn't match");
+                return UA_STATUSCODE_BADNOTFOUND;
+            }
+        }
         return UA_STATUSCODE_GOOD;
-    }
+    }else{
+        if(reader->config.publisherId.type != &UA_TYPES[UA_TYPES_UINT32] &&
+           msg->publisherId.uint32 != *(UA_UInt32*)reader->config.publisherId.data)
+            return UA_STATUSCODE_BADNOTFOUND;
 
-}else{
-    if(reader->config.publisherId.type != &UA_TYPES[UA_TYPES_UINT32] &&
-       msg->publisherId.uint32 != *(UA_UInt32*)reader->config.publisherId.data)
-        return UA_STATUSCODE_BADNOTFOUND;
-
-    if(reader->config.dataSetWriterId == *msg->payloadHeader.dataSetPayloadHeader.dataSetWriterIds) {
-        UA_LOG_DEBUG(&server->config.logger, UA_LOGCATEGORY_SERVER,
-                     "DataSetReader found. Process NetworkMessage");
-        return UA_STATUSCODE_GOOD;
+        if(reader->config.dataSetWriterId == *msg->payloadHeader.dataSetPayloadHeader.dataSetWriterIds) {
+            UA_LOG_DEBUG(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                         "DataSetReader found. Process NetworkMessage");
+            return UA_STATUSCODE_GOOD;
+        }
     }
-}
     return UA_STATUSCODE_BADNOTFOUND;
 }
 
