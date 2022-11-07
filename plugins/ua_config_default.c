@@ -137,6 +137,9 @@ setDefaultConfig(UA_ServerConfig *conf, UA_UInt16 portNumber) {
     /* EventLoop */
     if(conf->eventLoop == NULL) {
         conf->eventLoop = UA_EventLoop_new_POSIX(&conf->logger);
+        if(conf->eventLoop == NULL) {
+           return UA_STATUSCODE_BADOUTOFMEMORY;
+        }
         conf->externalEventLoop = false;
 
         /* Add the TCP connection manager */
@@ -150,6 +153,14 @@ setDefaultConfig(UA_ServerConfig *conf, UA_UInt16 portNumber) {
             UA_ConnectionManager_new_POSIX_UDP(UA_STRING("udp connection manager"));
         if(udpCM)
             conf->eventLoop->registerEventSource(conf->eventLoop, (UA_EventSource *)udpCM);
+    }
+    if(conf->eventLoop != NULL) {
+        if(conf->eventLoop->state != UA_EVENTLOOPSTATE_STARTED) {
+            UA_StatusCode statusCode = conf->eventLoop->start(conf->eventLoop);
+            if(statusCode != UA_STATUSCODE_GOOD) {
+                return statusCode;
+            }
+        }
     }
 
     /* --> Start setting the default static config <-- */

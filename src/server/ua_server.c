@@ -631,6 +631,9 @@ UA_Server_createServerConnection(UA_Server *server, const UA_String *serverUrl) 
 
 UA_StatusCode
 UA_Server_run_startup(UA_Server *server) {
+    if(server == NULL) {
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    }
     UA_ServerConfig *config = &server->config;
 
 #ifdef FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
@@ -649,9 +652,15 @@ UA_Server_run_startup(UA_Server *server) {
                                       NULL, 1000.0, &server->houseKeepingCallbackId);
     }
 
-    /* Start the EventLoop */
-    UA_StatusCode retVal = config->eventLoop->start(config->eventLoop);
-    UA_CHECK_STATUS(retVal, return retVal);
+    UA_StatusCode retVal = UA_STATUSCODE_GOOD;
+    /* Start the EventLoop if not already started */
+    UA_CHECK_MEM_ERROR(config->eventLoop, return UA_STATUSCODE_BADINTERNALERROR,
+                       &config->logger, UA_LOGCATEGORY_SERVER,
+                       "eventloop must be set");
+    if (config->eventLoop->state != UA_EVENTLOOPSTATE_STARTED) {
+        retVal = config->eventLoop->start(config->eventLoop);
+        UA_CHECK_STATUS(retVal, return retVal);
+    }
 
     /* Open server sockets */
     UA_Boolean haveServerSocket = false;
