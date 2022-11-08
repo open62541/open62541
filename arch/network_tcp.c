@@ -579,7 +579,7 @@ ServerNetworkLayerTCP_listen(UA_ServerNetworkLayer *nl, UA_Server *server,
         } else if(retval == UA_STATUSCODE_BADOUTOFMEMORY) {
             UA_TcpErrorMessage error;
             
-            error.error = retval;
+            error.error = UA_STATUSCODE_BADTCPNOTENOUGHRESOURCES;
             error.reason = UA_STRING_NULL;
             UA_Connection_sendError(&e->connection, &error);
             (&e->connection)->close(&e->connection);
