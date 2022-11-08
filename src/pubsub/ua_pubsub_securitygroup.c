@@ -104,14 +104,10 @@ updateSKSKeyStorage(UA_Server *server, UA_SecurityGroup *securityGroup){
         ++newKeyID;
 
     if(keyStorage->keyListSize >= keyStorage->maxKeyListSize) {
-        /* reusing the preallocated memory of the oldest key */
-        /* the first item has the oldest key */
+        /* reusing the preallocated memory of the oldest key for the new key material */
         UA_PubSubKeyListItem *oldestKey = TAILQ_FIRST(&keyStorage->keyList);
-        /* shift head to second oldest */
-        TAILQ_INSERT_HEAD(&keyStorage->keyList, oldestKey->keyListEntry.tqe_next, keyListEntry);
-        /* move oldest to the tail */
+        TAILQ_REMOVE(&keyStorage->keyList, oldestKey, keyListEntry);
         TAILQ_INSERT_TAIL(&keyStorage->keyList, oldestKey, keyListEntry);
-        /* copy new key over the oldest key locatio */
         oldestKey->keyID = newKeyID;
         UA_ByteString_copy(&newKey, &oldestKey->key);
     } else {
