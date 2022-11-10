@@ -42,6 +42,8 @@ UA_Server *server_lds;
 UA_Boolean *running_lds;
 THREAD_HANDLE server_thread_lds;
 UA_Client *clientRegisterRepeated;
+UA_Boolean allRecordsReceived = false;
+UA_ServerOnNetwork foundServer;
 
 THREAD_CALLBACK(serverloop_lds) {
     while(*running_lds)
@@ -902,6 +904,90 @@ START_TEST(Add_default_interface_ipv6) {
 }
 END_TEST
 #endif /*endif UA_IPV6*/
+
+static void
+serverOnNetworkCallback(const UA_ServerOnNetwork *serverOnNetwork, UA_Boolean isServerAnnounce,
+                        UA_Boolean isTxtReceived, void *data) {
+    if(!isTxtReceived)
+        return;
+
+    foundServer = *serverOnNetwork;
+    allRecordsReceived = true;
+}
+
+START_TEST(testMulticastDiscovery4) {
+    char *ipAddrAsChar = getValidIntefaceIp(AF_INET);
+
+    setOutboundMdnsInterface(ipAddrAsChar);
+    UA_Server_run_startup(server_lds);
+
+    UA_Server *ldsme_listen_server = UA_Server_new();
+    configure_lds_server(ldsme_listen_server);
+    UA_String_clear(&ldsme_listen_server->config.mdnsConfig.mdnsServerName);
+    ldsme_listen_server->config.mdnsConfig.mdnsServerName =
+        UA_String_fromChars("Multicast Listen Server");
+    ldsme_listen_server->config.mdnsInterfaceIP = UA_String_fromChars(ipAddrAsChar);
+    UA_Server_run_startup(ldsme_listen_server);
+    UA_Server_setServerOnNetworkCallback(ldsme_listen_server, serverOnNetworkCallback,
+                                         NULL);
+
+    while(!allRecordsReceived){
+        UA_Server_run_iterate(server_lds, true);
+        UA_Server_run_iterate(ldsme_listen_server, true);
+        UA_fakeSleep(100);
+    }
+    /* check discoveryUrl */
+    ck_assert(UA_String_equal(server_lds->config.applicationDescription.discoveryUrls, &foundServer.discoveryUrl));
+    /* check txt */
+    ck_assert(foundServer.serverCapabilitiesSize == server_lds->config.mdnsConfig.serverCapabilitiesSize);
+    for (size_t i = 0; i < foundServer.serverCapabilitiesSize; i++) {
+        ck_assert(UA_String_equal(&foundServer.serverCapabilities[i], &server_lds->config.mdnsConfig.serverCapabilities[i]));
+    }
+    cleanup(server_lds);
+    UA_Server_run_shutdown(ldsme_listen_server);
+    UA_Server_delete(ldsme_listen_server);
+    UA_free(ipAddrAsChar);
+}
+END_TEST
+
+#if UA_IPV6
+START_TEST(testMulticastDiscovery6) {
+    allRecordsReceived = false;
+    char *ipAddrAsChar = getValidIntefaceIp(AF_INET6);
+
+    setOutboundMdnsInterface(ipAddrAsChar);
+    UA_Server_run_startup(server_lds);
+
+    UA_Server *ldsme_listen_server = UA_Server_new();
+    configure_lds_server(ldsme_listen_server);
+    UA_String_clear(&ldsme_listen_server->config.mdnsConfig.mdnsServerName);
+    ldsme_listen_server->config.mdnsConfig.mdnsServerName =
+        UA_String_fromChars("Multicast Listen Server");
+    ldsme_listen_server->config.mdnsInterfaceIP = UA_String_fromChars(ipAddrAsChar);
+    UA_Server_run_startup(ldsme_listen_server);
+    UA_Server_setServerOnNetworkCallback(ldsme_listen_server, serverOnNetworkCallback,
+                                         NULL);
+
+    while(!allRecordsReceived){
+        UA_Server_run_iterate(server_lds, true);
+        UA_Server_run_iterate(ldsme_listen_server, true);
+        UA_fakeSleep(100);
+    }
+    /* check discoveryUrl */
+    ck_assert(UA_String_equal(server_lds->config.applicationDescription.discoveryUrls, &foundServer.discoveryUrl));
+    /* check txt */
+    ck_assert(foundServer.serverCapabilitiesSize == server_lds->config.mdnsConfig.serverCapabilitiesSize);
+    for (size_t i = 0; i < foundServer.serverCapabilitiesSize; i++) {
+        ck_assert(UA_String_equal(&foundServer.serverCapabilities[i], &server_lds->config.mdnsConfig.serverCapabilities[i]));
+    }
+    UA_free(ipAddrAsChar);
+    cleanup(server_lds);
+    UA_Server_run_shutdown(ldsme_listen_server);
+    UA_Server_delete(ldsme_listen_server);
+}
+END_TEST
+#endif /*endif UA_IPV6*/
+
 #endif  // End #ifdef UA_ENABLE_DISCOVERY_MULTICAST
 
 static Suite* testSuite_Client(void) {
@@ -951,6 +1037,8 @@ static Suite* testSuite_Client(void) {
     tcase_add_test(tc_mdns_interface_selection, Add_interface_with_invalid_ipv6_address);
     tcase_add_test(tc_mdns_interface_selection, Add_interface_with_wrong_ipv6_address);
     tcase_add_test(tc_mdns_interface_selection, Add_default_interface_ipv6);
+    tcase_add_test(tc_mdns_interface_selection, testMulticastDiscovery4);
+    tcase_add_test(tc_mdns_interface_selection, testMulticastDiscovery6);
     suite_add_tcase(s, tc_mdns_interface_selection);
 #endif
 #endif
