@@ -478,7 +478,7 @@ UA_CertificateVerification_Verify (void *                verificationContext,
         ret = UA_STATUSCODE_BADINTERNALERROR;
         goto cleanup;
     }
-#if OPENSSL_API_COMPAT < 0x10100000L
+#if defined(OPENSSL_API_COMPAT) && OPENSSL_API_COMPAT < 0x10100000L
 	(void) X509_STORE_CTX_trusted_stack (storeCtx, ctx->skTrusted);
 #else
 	(void) X509_STORE_CTX_set0_trusted_stack (storeCtx, ctx->skTrusted);
