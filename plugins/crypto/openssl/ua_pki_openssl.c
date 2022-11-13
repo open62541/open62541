@@ -600,14 +600,6 @@ cleanup:
 }
 
 static UA_StatusCode
-UA_VerifyCertificateAllowAll (void *                verificationContext,
-                              const UA_ByteString * certificate) {
-    (void) verificationContext;
-    (void) certificate;
-    return UA_STATUSCODE_GOOD;
-}
-
-static UA_StatusCode
 UA_CertificateVerification_VerifyApplicationURI (void *                verificationContext,
                                                  const UA_ByteString * certificate,
                                                  const UA_String *     applicationURI) {
@@ -692,10 +684,7 @@ UA_CertificateVerification_Trustlist(UA_CertificateVerification * cv,
     cv->verifyApplicationURI = UA_CertificateVerification_VerifyApplicationURI;
     cv->clear = UA_CertificateVerification_clear;
     cv->context = context;
-    if (certificateTrustListSize > 0)
-        cv->verifyCertificate = UA_CertificateVerification_Verify;
-    else
-        cv->verifyCertificate = UA_VerifyCertificateAllowAll;
+    cv->verifyCertificate = UA_CertificateVerification_Verify;
     
     if (certificateTrustListSize > 0) {
         if (UA_skTrusted_Cert2X509 (certificateTrustList, certificateTrustListSize,
