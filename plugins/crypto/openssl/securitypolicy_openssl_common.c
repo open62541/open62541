@@ -683,16 +683,28 @@ UA_OpenSSL_Encrypt (const UA_ByteString * iv,
         ret = UA_STATUSCODE_BADINTERNALERROR;
         goto errout;
     }
+
+    /* Disable padding. Padding is done in the stack before calling encryption.
+     * Ensure that we have a multiple of the block size */
+    if(data->length % (size_t)EVP_CIPHER_CTX_block_size(ctx)) {
+        ret = UA_STATUSCODE_BADINTERNALERROR;
+        goto errout;
+    }
+    opensslRet = EVP_CIPHER_CTX_set_padding(ctx, 0);
+    if (opensslRet != 1) {
+        ret = UA_STATUSCODE_BADINTERNALERROR;
+        goto errout;
+    }
+
+    /* Encrypt the data */
     opensslRet = EVP_EncryptUpdate (ctx, data->data, &outLen,
                                     plainTxt.data, (int) plainTxt.length);
     if (opensslRet != 1) {
         ret = UA_STATUSCODE_BADINTERNALERROR;
         goto errout;
     }
-    /*
-     * Buffer passed to EVP_EncryptFinal() must be after data just
-     * encrypted to avoid overwriting it.
-     */
+
+    /* Encrypt-final does nothing as padding is disabled */
     opensslRet = EVP_EncryptFinal_ex(ctx, data->data + outLen, &tmpLen);
     if (opensslRet != 1) {
         ret = UA_STATUSCODE_BADINTERNALERROR;
