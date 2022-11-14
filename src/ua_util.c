@@ -7,6 +7,10 @@
  *    Copyright 2017 (c) Stefan Profanter, fortiss GmbH
  */
 
+/* If UA_ENABLE_INLINABLE_EXPORT is enabled, then this file is the compilation
+ * unit for the generated code from UA_INLINABLE definitions. */
+#define UA_INLINABLE_IMPL 1
+
 #include <open62541/types_generated_handling.h>
 #include <open62541/util.h>
 

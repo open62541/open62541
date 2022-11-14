@@ -195,6 +195,9 @@ mark_as_advanced(UA_ENABLE_NODEMANAGEMENT)
 option(UA_ENABLE_PARSING "Utility functions that require parsing (e.g. NodeId expressions)" ON)
 mark_as_advanced(UA_ENABLE_PARSING)
 
+option(UA_ENABLE_INLINABLE_EXPORT "Export 'static inline' methods as regular API" OFF)
+mark_as_advanced(UA_ENABLE_INLINABLE_EXPORT)
+
 option(UA_ENABLE_DISCOVERY_MULTICAST "Enable Discovery Service with multicast support (LDS-ME)" OFF)
 mark_as_advanced(UA_ENABLE_DISCOVERY_MULTICAST)
 
