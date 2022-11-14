@@ -471,9 +471,11 @@ UA_CertificateVerification_Verify (void *                verificationContext,
         ret = UA_STATUSCODE_BADINTERNALERROR;
         goto cleanup;
     }
-
-    (void) X509_STORE_CTX_set0_trusted_stack (storeCtx, ctx->skTrusted);
-
+#if defined(OPENSSL_API_COMPAT) && OPENSSL_API_COMPAT < 0x10100000L
+	(void) X509_STORE_CTX_trusted_stack (storeCtx, ctx->skTrusted);
+#else
+	(void) X509_STORE_CTX_set0_trusted_stack (storeCtx, ctx->skTrusted);
+#endif
 
     /* Set crls to ctx */
     if (sk_X509_CRL_num (ctx->skCrls) > 0) {
@@ -580,14 +582,6 @@ cleanup:
 }
 
 static UA_StatusCode
-UA_VerifyCertificateAllowAll (void *                verificationContext,
-                              const UA_ByteString * certificate) {
-    (void) verificationContext;
-    (void) certificate;
-    return UA_STATUSCODE_GOOD;
-}
-
-static UA_StatusCode
 UA_CertificateVerification_VerifyApplicationURI (void *                verificationContext,
                                                  const UA_ByteString * certificate,
                                                  const UA_String *     applicationURI) {
@@ -672,10 +666,7 @@ UA_CertificateVerification_Trustlist(UA_CertificateVerification * cv,
     cv->verifyApplicationURI = UA_CertificateVerification_VerifyApplicationURI;
     cv->clear = UA_CertificateVerification_clear;
     cv->context = context;
-    if (certificateTrustListSize > 0)
-        cv->verifyCertificate = UA_CertificateVerification_Verify;
-    else
-        cv->verifyCertificate = UA_VerifyCertificateAllowAll;
+    cv->verifyCertificate = UA_CertificateVerification_Verify;
     
     if (certificateTrustListSize > 0) {
         if (UA_skTrusted_Cert2X509 (certificateTrustList, certificateTrustListSize,
@@ -731,13 +722,7 @@ UA_CertificateVerification_CertFolders(UA_CertificateVerification * cv,
     cv->verifyApplicationURI = UA_CertificateVerification_VerifyApplicationURI;
     cv->clear = UA_CertificateVerification_clear;
     cv->context = context;
-    if(trustListFolder == NULL &&
-       issuerListFolder == NULL &&
-       revocationListFolder == NULL) {
-        cv->verifyCertificate = UA_VerifyCertificateAllowAll;
-    } else {
-        cv->verifyCertificate = UA_CertificateVerification_Verify;
-    }
+    cv->verifyCertificate = UA_CertificateVerification_Verify;
 
     /* Only set the folder paths. They will be reloaded during runtime. */
 
