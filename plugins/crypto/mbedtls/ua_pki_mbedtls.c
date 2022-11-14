@@ -237,12 +237,6 @@ reloadCertificates(CertInfo *ci) {
 #endif
 
 static UA_StatusCode
-certificateVerification_allow(void *verificationContext,
-                              const UA_ByteString *certificate) {
-    return UA_STATUSCODE_GOOD;  
-}
-
-static UA_StatusCode
 certificateVerification_verify(void *verificationContext,
                                const UA_ByteString *certificate) {
     CertInfo *ci = (CertInfo*)verificationContext;
@@ -539,10 +533,7 @@ UA_CertificateVerification_Trustlist(UA_CertificateVerification *cv,
     mbedtls_x509_crt_init(&ci->certificateIssuerList);
 
     cv->context = (void*)ci;
-    if(certificateTrustListSize > 0)
-        cv->verifyCertificate = certificateVerification_verify;
-    else
-        cv->verifyCertificate = certificateVerification_allow;
+    cv->verifyCertificate = certificateVerification_verify;
     cv->clear = certificateVerification_clear;
     cv->verifyApplicationURI = certificateVerification_verifyApplicationURI;
 
