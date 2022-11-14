@@ -1,0 +1,34 @@
+<opc:TypeDictionary xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:tns="http://opcfoundation.org/UA/IA/" DefaultByteOrder="LittleEndian" xmlns:opc="http://opcfoundation.org/BinarySchema/" xmlns:ua="http://opcfoundation.org/UA/" TargetNamespace="http://opcfoundation.org/UA/IA/">
+    <opc:Import Namespace="http://opcfoundation.org/UA/"/>
+    <opc:EnumeratedType LengthInBits="32" Name="LevelDisplayMode">
+        <opc:Documentation>Contains the values used to indicate how a percentual value is displayed if the stacklight unit works in Levelmeter mode.</opc:Documentation>
+        <opc:EnumeratedValue Name="Dimmed" Value="0"/>
+        <opc:EnumeratedValue Name="Blinking" Value="1"/>
+        <opc:EnumeratedValue Name="Other" Value="2"/>
+    </opc:EnumeratedType>
+    <opc:EnumeratedType LengthInBits="32" Name="SignalColor">
+        <opc:Documentation>Holds the possible colour values for stacklight lamps.</opc:Documentation>
+        <opc:EnumeratedValue Name="Off" Value="0"/>
+        <opc:EnumeratedValue Name="Red" Value="1"/>
+        <opc:EnumeratedValue Name="Green" Value="2"/>
+        <opc:EnumeratedValue Name="Blue" Value="3"/>
+        <opc:EnumeratedValue Name="Yellow" Value="4"/>
+        <opc:EnumeratedValue Name="Purple" Value="5"/>
+        <opc:EnumeratedValue Name="Cyan" Value="6"/>
+        <opc:EnumeratedValue Name="White" Value="7"/>
+    </opc:EnumeratedType>
+    <opc:EnumeratedType LengthInBits="32" Name="SignalModeLight">
+        <opc:Documentation>Contains the values used to indicate in what way a lamp behaves when switched on.</opc:Documentation>
+        <opc:EnumeratedValue Name="Continuous" Value="0"/>
+        <opc:EnumeratedValue Name="Blinking" Value="1"/>
+        <opc:EnumeratedValue Name="Flashing" Value="2"/>
+        <opc:EnumeratedValue Name="Other" Value="3"/>
+    </opc:EnumeratedType>
+    <opc:EnumeratedType LengthInBits="32" Name="StacklightOperationMode">
+        <opc:Documentation>Contains the values used to indicate how a stacklight (as a whole unit) is used.</opc:Documentation>
+        <opc:EnumeratedValue Name="Segmented" Value="0"/>
+        <opc:EnumeratedValue Name="Levelmeter" Value="1"/>
+        <opc:EnumeratedValue Name="Running_Light" Value="2"/>
+        <opc:EnumeratedValue Name="Other" Value="3"/>
+    </opc:EnumeratedType>
+</opc:TypeDictionary>

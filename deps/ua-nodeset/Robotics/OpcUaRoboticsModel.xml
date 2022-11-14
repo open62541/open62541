@@ -1,0 +1,665 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<!--
+ * Copyright (c) 2005-2021 The OPC Foundation, Inc. All rights reserved.
+ *
+ * OPC Foundation MIT License 1.00
+ * 
+ * Permission is hereby granted, free of charge, to any person
+ * obtaining a copy of this software and associated documentation
+ * files (the "Software"), to deal in the Software without
+ * restriction, including without limitation the rights to use,
+ * copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the
+ * Software is furnished to do so, subject to the following
+ * conditions:
+ * 
+ * The above copyright notice and this permission notice shall be
+ * included in all copies or substantial portions of the Software.
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+ * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
+ * OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+ * NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
+ * HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+ * WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+ * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+ * OTHER DEALINGS IN THE SOFTWARE.
+ *
+ * The complete license agreement can be found here:
+ * http://opcfoundation.org/License/MIT/1.00/
+-->
+
+<ModelDesign
+		xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd"
+		xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+		xmlns:OpcUa="http://opcfoundation.org/UA/"
+		xmlns:DI="http://opcfoundation.org/UA/DI/"
+		xmlns:ROB="http://opcfoundation.org/UA/Robotics/"
+		xmlns:xsd="http://www.w3.org/2001/XMLSchema"
+		TargetNamespace="http://opcfoundation.org/UA/Robotics/"
+		TargetXmlNamespace="http://opcfoundation.org/UA/Robotics/"
+		TargetVersion="1.01.2"
+		TargetPublicationDate="2021-05-20T00:00:00Z"
+		xmlns="http://opcfoundation.org/UA/ModelDesign.xsd"
+		xsi:noNamespaceSchemaLocation=".\UA Model Design.xsd"> 
+
+	<Namespaces>
+		<Namespace Name="OpcUaRobotics" Prefix="Opc.Ua.Robotics" XmlNamespace="http://opcfoundation.org/UA/Robotics/Types.xsd" XmlPrefix="Robotics">http://opcfoundation.org/UA/Robotics/</Namespace>
+		<Namespace Name="OpcUaDi" Prefix="Opc.Ua.Di" XmlNamespace="http://opcfoundation.org/UA/DI/Types.xsd" XmlPrefix="DI" FilePath="OpcUaDiModel">http://opcfoundation.org/UA/DI/</Namespace>
+		<Namespace Name="OpcUa" Version="1.04" PublicationDate="2019-05-01T00:00:00Z" Prefix="Opc.Ua" InternalPrefix="Opc.Ua.Server" XmlNamespace="http://opcfoundation.org/UA/2008/02/Types.xsd" XmlPrefix="OpcUa">http://opcfoundation.org/UA/</Namespace>
+	</Namespaces>
+
+	<Object SymbolicName="ROB:OPCUAROBOTICSNamespaceMetadata" TypeDefinition="OpcUa:NamespaceMetadataType">
+		<BrowseName>http://opcfoundation.org/UA/Robotics/</BrowseName>
+		<Children>
+			<Property SymbolicName="OpcUa:NamespaceUri" DataType="OpcUa:String">
+				<DefaultValue>
+					<uax:String>http://opcfoundation.org/UA/Robotics/</uax:String>
+				</DefaultValue>
+			</Property>
+			<Property SymbolicName="OpcUa:NamespaceVersion" DataType="OpcUa:String">
+				<DefaultValue>
+					<uax:String>1.01</uax:String>
+				</DefaultValue>
+			</Property>
+			<Property SymbolicName="OpcUa:NamespacePublicationDate" DataType="OpcUa:DateTime">
+				<DefaultValue>
+					<uax:DateTime>2020-05-20T00:00:00Z</uax:DateTime>
+				</DefaultValue>
+			</Property>
+			<Property SymbolicName="OpcUa:IsNamespaceSubset" DataType="OpcUa:Boolean">
+				<DefaultValue>
+					<uax:Boolean>false</uax:Boolean>
+				</DefaultValue>
+			</Property>
+			<Property SymbolicName="OpcUa:StaticNodeIdTypes" DataType="OpcUa:IdType" ValueRank="Array">
+				<DefaultValue>
+					<uax:ListOfInt32>
+						<uax:Int32>0</uax:Int32>
+					</uax:ListOfInt32>
+				</DefaultValue>
+			</Property>
+      <Property SymbolicName="OpcUa:StaticNumericNodeIdRange" DataType="OpcUa:NumericRange" ValueRank="Array"/>
+      <Property SymbolicName="OpcUa:StaticStringNodeIdPattern" DataType="OpcUa:String">
+        <DefaultValue>
+          <uax:String></uax:String>
+        </DefaultValue>
+      </Property>
+			<Property SymbolicName="OpcUa:DefaultRolePermissions" ModellingRule="Mandatory" />
+			<Property SymbolicName="OpcUa:DefaultUserRolePermissions" ModellingRule="Mandatory" />
+			<Property SymbolicName="OpcUa:DefaultAccessRestrictions" ModellingRule="Mandatory" />
+		</Children>
+		<References>
+			<Reference IsInverse="true">
+				<ReferenceType>OpcUa:HasComponent</ReferenceType>
+				<TargetId>OpcUa:Server_Namespaces</TargetId>
+			</Reference>
+		</References>
+	</Object>
+
+	<!-- ### Object Types ###-->
+	<!-- 7.1 MotionDeviceSystemType ObjectType Definition -->
+	<ObjectType SymbolicName="ROB:MotionDeviceSystemType" BaseType="DI:ComponentType" IsAbstract="false" SupportsEvents="true">
+		<Description>Contains the set of controllers and motion devices in a closely-coupled motion device system.</Description>
+		<Children>
+			<Object SymbolicName="ROB:MotionDevices" TypeDefinition="OpcUa:FolderType" ModellingRule="Mandatory">
+				<Description>Contains any kinematic or motion device which is part of the motion device system.</Description>
+				<Children>
+					<Object SymbolicName="ROB:MotionDeviceIdentifier" TypeDefinition="ROB:MotionDeviceType" ModellingRule="MandatoryPlaceholder">
+						<BrowseName>&lt;MotionDeviceIdentifier&gt;</BrowseName>
+					</Object>
+				</Children>
+			</Object>
+			<Object SymbolicName="ROB:Controllers" TypeDefinition="OpcUa:FolderType" ModellingRule="Mandatory">
+				<Description>Contains the set of controllers in the motion device system.</Description>
+				<Children>
+					<Object SymbolicName="ROB:ControllerIdentifier" TypeDefinition="ROB:ControllerType" ModellingRule="MandatoryPlaceholder">
+						<BrowseName>&lt;ControllerIdentifier&gt;</BrowseName>
+					</Object>
+				</Children>
+			</Object>
+			<Object SymbolicName="ROB:SafetyStates" TypeDefinition="OpcUa:FolderType" ModellingRule="Mandatory">
+				<Description>Contains safety-related data from motion device system.</Description>
+				<Children>
+					<Object SymbolicName="ROB:SafetyStateIdentifier" TypeDefinition="ROB:SafetyStateType" ModellingRule="MandatoryPlaceholder">
+						<BrowseName>&lt;SafetyStateIdentifier&gt;</BrowseName>
+					</Object>
+				</Children>
+			</Object>
+		</Children>
+	</ObjectType>
+
+	<!-- 7.2	MotionDeviceType ObjectType Definition -->
+	<ObjectType SymbolicName="ROB:MotionDeviceType" BaseType="DI:ComponentType" IsAbstract="false">
+		<Description>Represents a specific motion device in the motion device system like a robot, a linear unit or a positioner. A MotionDevice should have at least one axis.</Description>
+		<Children>
+			<Property SymbolicName="DI:SerialNumber" DataType="OpcUa:String" ValueRank="Scalar" ModellingRule="Mandatory" />
+			<Property SymbolicName="DI:Manufacturer" DataType="OpcUa:LocalizedText" ValueRank="Scalar" ModellingRule="Mandatory" />
+			<Property SymbolicName="DI:Model" DataType="OpcUa:LocalizedText" ValueRank="Scalar" ModellingRule="Mandatory" />
+			<Property SymbolicName="DI:ProductCode" DataType="OpcUa:String" ValueRank="Scalar" ModellingRule="Mandatory" />
+
+			<Property SymbolicName="ROB:MotionDeviceCategory" DataType="ROB:MotionDeviceCategoryEnumeration" ValueRank="Scalar" ModellingRule="Mandatory">
+				<Description>The variable MotionDeviceCategory provides the kind of motion device defined by MotionDeviceCategoryEnumeration based on ISO 8373.</Description>
+			</Property>
+
+			<Object SymbolicName="DI:ParameterSet" ModellingRule="Mandatory">
+				<Children>
+					<Variable SymbolicName="ROB:OnPath" TypeDefinition="OpcUa:BaseDataVariableType" DataType="OpcUa:Boolean" ModellingRule="Optional">
+						<Description>OnPath is true if the motion device is on or near enough the planned program path such that program execution can continue. If the MotionDevice deviates too much from this path in case of errors or an emergency stop, this value becomes false. If OnPath is false, the motion device needs repositioning to continue program execution.</Description>
+					</Variable>
+					<Variable SymbolicName="ROB:InControl" TypeDefinition="OpcUa:BaseDataVariableType" DataType="OpcUa:Boolean" ModellingRule="Optional">
+						<Description>InControl provides the information if the actuators (in most cases a motor) of the motion device are powered up and in control: "true". The motion device might be in a standstill.</Description>
+					</Variable>
+					<Variable SymbolicName="ROB:SpeedOverride" TypeDefinition="OpcUa:BaseDataVariableType" DataType="OpcUa:Double" ModellingRule="Mandatory">
+						<Description>SpeedOverride provides the current speed setting in percent of programmed speed (0 - 100%).</Description>
+					</Variable>
+				</Children>
+			</Object>
+
+			<Object SymbolicName="ROB:Axes" TypeDefinition="OpcUa:FolderType" ModellingRule="Mandatory">
+				<Description>Axes is a container for one or more instances of the AxisType.</Description>
+				<Children>
+					<Object SymbolicName="ROB:AxisIdentifier" TypeDefinition="ROB:AxisType" ModellingRule="MandatoryPlaceholder">
+						<BrowseName>&lt;AxisIdentifier&gt;</BrowseName>
+					</Object>
+				</Children>
+			</Object>
+
+			<Object SymbolicName="ROB:PowerTrains" TypeDefinition="OpcUa:FolderType" ModellingRule="Mandatory">
+				<Description>PowerTrains is a container for one or more instances of the PowerTrainType.</Description>
+				<Children>
+					<Object SymbolicName="ROB:PowerTrainIdentifier" TypeDefinition="ROB:PowerTrainType" ModellingRule="MandatoryPlaceholder">
+						<BrowseName>&lt;PowerTrainIdentifier&gt;</BrowseName>
+					</Object>
+				</Children>
+			</Object>
+
+			<Object SymbolicName="ROB:FlangeLoad" TypeDefinition="ROB:LoadType" ModellingRule="Optional">
+				<Description>The FlangeLoad is the load on the flange or at the mounting point of the MotionDevice. This can be the maximum load of the MotionDevice.</Description>
+			</Object>
+
+			<Object SymbolicName="ROB:AdditionalComponents" TypeDefinition="OpcUa:FolderType" ModellingRule="Optional">
+				<Description>AdditionalComponents is a container for one or more instances of subtypes of ComponentType defined in OPC UA DI. The listed components are installed at the motion device, e.g. an IO-board.</Description>
+				<Children>
+					<Object SymbolicName="ROB:AdditionalComponentIdentifier" TypeDefinition="DI:ComponentType" ModellingRule="MandatoryPlaceholder">
+						<BrowseName>&lt;AdditionalComponentIdentifier&gt;</BrowseName>
+					</Object>
+				</Children>
+			</Object>
+
+		</Children>
+	</ObjectType>
+
+	<!-- 7.3	AxisType ObjectType Definition -->
+	<ObjectType SymbolicName="ROB:AxisType" BaseType="DI:ComponentType" IsAbstract="false">
+		<Description>The AxisType describes an axis of a motion device.</Description>
+		<Children>
+			<Property SymbolicName="ROB:MotionProfile" DataType="ROB:AxisMotionProfileEnumeration" ValueRank="Scalar" ModellingRule="Mandatory">
+				<Description>The kind of axis motion as defined with the AxisMotionProfileEnumeration.</Description>
+			</Property>
+
+			<Object SymbolicName="ROB:AdditionalLoad" TypeDefinition="ROB:LoadType" ModellingRule="Optional">
+				<Description>The additional load which is mounted on this axis. E.g. for process-need a transformer for welding.</Description>
+			</Object>
+
+			<Object SymbolicName="DI:ParameterSet" ModellingRule="Mandatory">
+				<Children>
+					<Variable SymbolicName="ROB:ActualPosition" TypeDefinition="OpcUa:AnalogUnitType" DataType="OpcUa:Double" ModellingRule="Mandatory">
+						<Description>The axis position inclusive Unit and RangeOfMotion.</Description>
+					</Variable>
+					<Variable SymbolicName="ROB:ActualSpeed" TypeDefinition="OpcUa:AnalogUnitType" DataType="OpcUa:Double" ModellingRule="Optional">
+						<Description>The axis speed on load side (after gear/spindle) inclusive Unit.</Description>
+					</Variable>
+					<Variable SymbolicName="ROB:ActualAcceleration" TypeDefinition="OpcUa:AnalogUnitType" DataType="OpcUa:Double" ModellingRule="Optional">
+						<Description>: The ActualAcceleration variable provides the axis acceleration. Applicable acceleration limits of the axis shall be provided by the EURange property of the AnalogUnitType.</Description>
+					</Variable>
+				</Children>
+			</Object>
+
+			<Object SymbolicName="ROB:PowerTrainIdentifier" TypeDefinition="ROB:PowerTrainType" ModellingRule="OptionalPlaceholder">
+				<BrowseName>&lt;PowerTrainIdentifier&gt;</BrowseName>
+				<Description>The Requires reference provides the relationship of axes to powertrains. For complex kinematics this does not need to be a one to one relationship, because more than one powertrain might influence the motion of one axis. This reference connects all powertrains to an axis that must be actively driven when only this axis should move and all other axes should stand still. Virtual axes that are not actively driven by a powertrain do not have this reference.</Description>
+				<ReferenceType>ROB:Requires</ReferenceType>
+			</Object>
+
+		</Children>
+	</ObjectType>
+
+	<!-- 7.4 PowerTrainType ObjectType Definition -->
+	<ObjectType SymbolicName="ROB:PowerTrainType" BaseType="DI:ComponentType" IsAbstract="false">
+		<Description>The PowerTrainType represents instances of powertrains of a motion device.</Description>
+		<Children>
+
+			<Object SymbolicName="ROB:MotorIdentifier" TypeDefinition="ROB:MotorType" ModellingRule="MandatoryPlaceholder">
+				<BrowseName>&lt;MotorIdentifier&gt;</BrowseName>
+			</Object>
+
+			<Object SymbolicName="ROB:GearIdentifier" TypeDefinition="ROB:GearType" ModellingRule="OptionalPlaceholder">
+				<BrowseName>&lt;GearIdentifier&gt;</BrowseName>
+			</Object>
+
+			<Object SymbolicName="ROB:AxisIdentifier" TypeDefinition="ROB:AxisType" ModellingRule="OptionalPlaceholder">
+				<BrowseName>&lt;AxisIdentifier&gt;</BrowseName>
+				<Description>Moves is a reference to provide the relationship of powertrains to axes. For complex kinematics this does not need to be a one to one relationship, because a powertrain might influence the motion of more than one axis. This reference connects all axis to a powertrain that that move when only this powertrain moves and all other powertrains stand still.</Description>
+				<ReferenceType>ROB:Moves</ReferenceType>
+			</Object>
+
+			<Object SymbolicName="ROB:PowerTrainIdentifier" TypeDefinition="ROB:PowerTrainType" ModellingRule="OptionalPlaceholder">
+				<BrowseName>&lt;PowerTrainIdentifier&gt;</BrowseName>
+				<Description>HasSlave is a reference to provide the master-slave relationship of powertrains which provide torque for a common axis. The InverseName is IsSlaveOf.</Description>
+				<ReferenceType>ROB:HasSlave</ReferenceType>
+			</Object>
+
+		</Children>
+	</ObjectType>
+
+	<!-- 7.5 MotorType ObjectType Definition -->
+	<ObjectType SymbolicName="ROB:MotorType" BaseType="DI:ComponentType" IsAbstract="false">
+		<Description>The MotorType is for representing instances of electric motors.</Description>
+		<Children>
+			<Property SymbolicName="DI:SerialNumber" DataType="OpcUa:String" ValueRank="Scalar" ModellingRule="Mandatory" />
+			<Property SymbolicName="DI:Manufacturer" DataType="OpcUa:LocalizedText" ValueRank="Scalar" ModellingRule="Mandatory" />
+			<Property SymbolicName="DI:Model" DataType="OpcUa:LocalizedText" ValueRank="Scalar" ModellingRule="Mandatory" />
+			<Property SymbolicName="DI:ProductCode" DataType="OpcUa:String" ValueRank="Scalar" ModellingRule="Mandatory" />
+
+			<Object SymbolicName="DI:ParameterSet" ModellingRule="Mandatory">
+				<Children>
+					<Variable SymbolicName="ROB:BrakeReleased" TypeDefinition="OpcUa:BaseDataVariableType" DataType="OpcUa:Boolean" ModellingRule="Optional">
+						<Description>Indicates an optional variable used only for motors with brakes. If BrakeReleased is TRUE the motor is free to run. FALSE means that the motor shaft is locked by the brake.</Description>
+					</Variable>
+					<Variable SymbolicName="ROB:MotorTemperature" TypeDefinition="OpcUa:AnalogUnitType" DataType="OpcUa:Double" ModellingRule="Mandatory">
+						<Description>The motor temperature provides the temperature of the motor. If there is no temperature sensor the value is set to \"null\".</Description>
+					</Variable>
+					<Variable SymbolicName="ROB:EffectiveLoadRate" TypeDefinition="OpcUa:BaseDataVariableType" DataType="OpcUa:UInt16" ModellingRule="Optional">
+						<Description>EffectiveLoadRate is expressed as a percentage of maximum continuous load. The Joule integral is typically used to calculate the current load. Duration should be defined and documented by the vendor.</Description>
+					</Variable>
+				</Children>
+			</Object>
+
+			<Object SymbolicName="ROB:DriveIdentifier" TypeDefinition="OpcUa:BaseObjectType" ModellingRule="OptionalPlaceholder">
+				<BrowseName>&lt;DriveIdentifier&gt;</BrowseName>
+				<Description>IsDrivenBy is a reference to provide a relationship from a motor to a drive, which can be a multi-slot-drive or single slot drive. The TypeDefinition of the reference destination as BaseObjectType provides the possibility to point to a slot of a multi-slot-drive or a motor-integrated-drive. If this reference points to a physical drive (and not a drive slot) it should point to an DriveType.</Description>
+				<ReferenceType>ROB:IsDrivenBy</ReferenceType>
+			</Object>		
+		</Children>
+	</ObjectType>
+
+	<!-- 7.6 GearType ObjectType Definition -->
+	<ObjectType SymbolicName="ROB:GearType" BaseType="DI:ComponentType" IsAbstract="false">
+		<Description>The GearType describes a gear in a powertrain, e.g. a gear box or a spindle.</Description>
+		<Children>
+			<Property SymbolicName="DI:SerialNumber" DataType="OpcUa:String" ValueRank="Scalar" ModellingRule="Mandatory" />
+			<Property SymbolicName="DI:Manufacturer" DataType="OpcUa:LocalizedText" ValueRank="Scalar" ModellingRule="Mandatory" />
+			<Property SymbolicName="DI:Model" DataType="OpcUa:LocalizedText" ValueRank="Scalar" ModellingRule="Mandatory" />
+			<Property SymbolicName="DI:ProductCode" DataType="OpcUa:String" ValueRank="Scalar" ModellingRule="Mandatory" />
+
+			<Variable SymbolicName="ROB:GearRatio" TypeDefinition="OpcUa:RationalNumberType"  DataType="OpcUa:RationalNumber" ValueRank="Scalar" ModellingRule="Mandatory">
+				<Description>The transmission ratio of the gear expressed as a fraction as input velocity (motor side) by output velocity (load side).</Description>
+			</Variable>
+
+			<Variable SymbolicName="ROB:Pitch" TypeDefinition="OpcUa:BaseDataVariableType" DataType="OpcUa:Double" ValueRank="Scalar" ModellingRule="Optional">
+				<Description>Pitch describes the distance covered in millimeters (mm) for linear motion per one revolution of the output side of the driving unit. Pitch is used in combination with GearRatio to describe the overall transmission from input to output of the gear.</Description>
+			</Variable>
+
+		</Children>
+	</ObjectType>
+
+	<!-- 7.7	SafetyStateType ObjectType Definition -->
+	<ObjectType SymbolicName="ROB:SafetyStateType" BaseType="DI:ComponentType" IsAbstract="false">
+		<Description>SafetyStateType describes the safety states of the motion devices and controllers. One motion device system is associated with one or more instances of the SafetyStateType.</Description>
+
+		<Children>
+			<Object SymbolicName="ROB:EmergencyStopFunctions" TypeDefinition="OpcUa:FolderType" ModellingRule="Optional">
+				<Description>EmergencyStopFunctions is a container for one or more instances of the EmergencyStopFunctionType.</Description>
+				<Children>
+					<Object SymbolicName="ROB:EmergencyStopFunctionIdentifier" TypeDefinition="ROB:EmergencyStopFunctionType" ModellingRule="MandatoryPlaceholder">
+						<BrowseName>&lt;EmergencyStopFunctionIdentifier&gt;</BrowseName>
+					</Object>
+				</Children>
+			</Object>
+
+			<Object SymbolicName="ROB:ProtectiveStopFunctions" TypeDefinition="OpcUa:FolderType" ModellingRule="Optional">
+				<Description>ProtectiveStopFunctions is a container for one or more instances of the ProtectiveStopFunctionType.</Description>
+				<Children>
+					<Object SymbolicName="ROB:ProtectiveStopFunctionIdentifier" TypeDefinition="ROB:ProtectiveStopFunctionType" ModellingRule="MandatoryPlaceholder">
+						<BrowseName>&lt;ProtectiveStopFunctionIdentifier&gt;</BrowseName>
+					</Object>
+				</Children>
+			</Object>
+
+			<Object SymbolicName="DI:ParameterSet" ModellingRule="Mandatory">
+				<Children>
+					<Variable SymbolicName="ROB:OperationalMode" TypeDefinition="OpcUa:BaseDataVariableType" DataType="ROB:OperationalModeEnumeration" ModellingRule="Mandatory">
+						<Description>The OperationalMode variable provides information about the current operational mode. Allowed values are described in OperationalModeEnumeration, see ISO 10218-1:2011 Ch.5.7 Operational Modes.</Description>
+					</Variable>
+					<Variable SymbolicName="ROB:EmergencyStop" TypeDefinition="OpcUa:BaseDataVariableType" DataType="OpcUa:Boolean" ModellingRule="Mandatory">
+						<Description>The EmergencyStop variable is TRUE if one or more of the emergency stop functions in the robot system are active, FALSE otherwise. If the EmergencyStopFunctions object is provided, then the value of this variable is TRUE if one or more of the listed emergency stop functions are active.</Description>
+					</Variable>
+					<Variable SymbolicName="ROB:ProtectiveStop" TypeDefinition="OpcUa:BaseDataVariableType" DataType="OpcUa:Boolean" ModellingRule="Mandatory">
+						<Description>The ProtectiveStop variable is TRUE if one or more of the enabled protective stop functions in the system are active, FALSE otherwise. If the ProtectiveStopFunctions object is provided, then the value of this variable is TRUE if one or more of the listed protective stop functions are enabled and active.</Description>
+					</Variable>
+				</Children>
+			</Object>
+
+		</Children>
+	</ObjectType>
+
+	<ObjectType SymbolicName="ROB:EmergencyStopFunctionType" BaseType="OpcUa:BaseObjectType" IsAbstract="false">
+		<Description>According to ISO 10218-1:2011 Ch.5.5.2 Emergency stop the robot shall have one or more emergency stop functions.</Description>
+		<Children>
+			<Property SymbolicName="ROB:Name" DataType="OpcUa:String" ModellingRule="Mandatory">
+				<Description>The Name of the EmergencyStopFunctionType provides a manufacturer-specific emergency stop function identifier within the safety system.</Description>
+			</Property>
+			<Variable SymbolicName="ROB:Active" TypeDefinition="OpcUa:BaseDataVariableType" DataType="OpcUa:Boolean" ModellingRule="Mandatory">
+				<Description>The Active variable is TRUE if this particular emergency stop function is active, e.g. that the emergency stop button is pressed, FALSE otherwise.</Description>
+			</Variable>
+		</Children>
+	</ObjectType>
+
+	<ObjectType SymbolicName="ROB:ProtectiveStopFunctionType" BaseType="OpcUa:BaseObjectType" IsAbstract="false">
+		<Description>According to ISO 10218-1:2011 Ch.5.5.3 the robot shall have one or more protective stop functions designed for the connection of external protective devices.</Description>
+		<Children>
+			<Property SymbolicName="ROB:Name" DataType="OpcUa:String" ModellingRule="Mandatory">
+				<Description>The Name of the ProtectiveStopFunctionType provides a manufacturer-specific protective stop function identifier within the safety system.</Description>
+			</Property>
+			<Variable SymbolicName="ROB:Enabled" TypeDefinition="OpcUa:BaseDataVariableType" DataType="OpcUa:Boolean" ModellingRule="Mandatory">
+				<Description>–	The Enabled variable is TRUE if this protective stop function is currently supervising the system, FALSE otherwise. A protective stop function may or may not be enabled at all times, e.g. the protective stop function of the safety doors are typically enabled in automatic operational mode and disabled in manual mode. On the other hand for example, the protective stop function of the teach pendant enabling device is enabled in manual modes and disabled in automatic modes.</Description>
+			</Variable>
+			<Variable SymbolicName="ROB:Active" TypeDefinition="OpcUa:BaseDataVariableType" DataType="OpcUa:Boolean" ModellingRule="Mandatory">
+				<Description>–	The Active variable is TRUE if this particular protective stop function is active, i.e. that a stop is initiated, FALSE otherwise. If Enabled is FALSE then Active shall be FALSE.</Description>
+			</Variable>
+		</Children>
+	</ObjectType>
+
+	<!-- 7.8	ControllerType ObjectType Definition -->
+	<ObjectType SymbolicName="ROB:ControllerType" BaseType="DI:ComponentType" IsAbstract="false" SupportsEvents="true">
+		<Description>The ControllerType describes the control unit of motion devices. One motion device system can have one or more instances of the ControllerType.</Description>
+		<Children>
+			<Property SymbolicName="DI:SerialNumber" DataType="OpcUa:String" ValueRank="Scalar" ModellingRule="Mandatory" />
+			<Property SymbolicName="DI:Manufacturer" DataType="OpcUa:LocalizedText" ValueRank="Scalar" ModellingRule="Mandatory" />
+			<Property SymbolicName="DI:Model" DataType="OpcUa:LocalizedText" ValueRank="Scalar" ModellingRule="Mandatory" />
+			<Property SymbolicName="DI:ProductCode" DataType="OpcUa:String" ValueRank="Scalar" ModellingRule="Mandatory" />
+
+			<Object SymbolicName="ROB:CurrentUser" TypeDefinition="ROB:UserType" ModellingRule="Mandatory">
+				<Description>The given name of the device.</Description>
+			</Object>
+
+			<Object SymbolicName="ROB:Components" TypeDefinition="OpcUa:FolderType" ModellingRule="Optional">
+				<Description>Components is a container for one or more instances of subtypes of ComponentType defined in OPC UA DI. The listed components are installed in the motion device system, e.g. a processing-unit, a power-supply, an IO-board or a drive, and have an electrical interface to the controller.</Description>
+				<Children>
+					<Object SymbolicName="ROB:ComponentIdentifier" TypeDefinition="DI:ComponentType" ModellingRule="MandatoryPlaceholder">
+						<BrowseName>&lt;ComponentIdentifier&gt;</BrowseName>
+						<Description>The intention is to integrate inside this container devices which are defined in other companion specifications using DI.</Description>
+					</Object>
+				</Children>
+			</Object>
+
+			<Object SymbolicName="ROB:Software" TypeDefinition="OpcUa:FolderType" ModellingRule="Mandatory">
+				<Description>Software is a container for one or more instances of SoftwareType defined in OPC UA DI.</Description>
+				<Children>
+					<Object SymbolicName="ROB:SoftwareIdentifier" TypeDefinition="DI:SoftwareType" ModellingRule="MandatoryPlaceholder">
+						<BrowseName>&lt;SoftwareIdentifier&gt;</BrowseName>
+					</Object>
+				</Children>
+			</Object>
+
+			<Object SymbolicName="ROB:TaskControls" TypeDefinition="OpcUa:FolderType" ModellingRule="Mandatory">
+				<Description>TaskControls is a container for one or more instances of TaskControlType.</Description>
+				<Children>
+					<Object SymbolicName="ROB:TaskControlIdentifier" TypeDefinition="ROB:TaskControlType" ModellingRule="MandatoryPlaceholder">
+						<BrowseName>&lt;TaskControlIdentifier&gt;</BrowseName>
+					</Object>
+				</Children>
+			</Object>
+
+			<Object SymbolicName="DI:ParameterSet" ModellingRule="Optional">
+				<Children>
+					<Variable SymbolicName="ROB:TotalPowerOnTime" TypeDefinition="OpcUa:BaseDataVariableType" DataType="OpcUa:DurationString" ModellingRule="Optional">
+						<Description>The total accumulated time the controller was powered on.</Description>
+					</Variable>
+					<Variable SymbolicName="ROB:StartUpTime" TypeDefinition="OpcUa:BaseDataVariableType" DataType="OpcUa:DateTime" ModellingRule="Optional">
+						<Description>The date and time of the last start-up of the controller.</Description>
+					</Variable>
+					<Variable SymbolicName="ROB:UpsState" TypeDefinition="OpcUa:BaseDataVariableType" DataType="OpcUa:String" ModellingRule="Optional">
+						<Description>The vendor specific status of an integrated UPS or accumulator system.</Description>
+					</Variable>
+					<Variable SymbolicName="ROB:TotalEnergyConsumption" TypeDefinition="OpcUa:AnalogUnitType" DataType="OpcUa:Double" ModellingRule="Optional">
+						<Description>The total accumulated energy consumed by the motion devices related with this controller instance.</Description>
+					</Variable>
+
+					<Variable SymbolicName="ROB:CabinetFanSpeed" TypeDefinition="OpcUa:AnalogUnitType" DataType="OpcUa:Double" ModellingRule="Optional">
+						<Description>The speed of the cabinet fan.</Description>
+					</Variable>
+					<Variable SymbolicName="ROB:CPUFanSpeed" TypeDefinition="OpcUa:AnalogUnitType" DataType="OpcUa:Double" ModellingRule="Optional">
+						<Description>The speed of the CPU fan.</Description>
+					</Variable>
+					<Variable SymbolicName="ROB:InputVoltage" TypeDefinition="OpcUa:AnalogUnitType" DataType="OpcUa:Double" ModellingRule="Optional">
+						<Description>The input voltage of the controller which can be a configured value. To distinguish between an AC or DC supply the optional property Definition of the base type DataItemType shall be used.</Description>
+					</Variable>
+					<Variable SymbolicName="ROB:Temperature" TypeDefinition="OpcUa:AnalogUnitType" DataType="OpcUa:Double" ModellingRule="Optional">
+						<Description>The controller temperature given by a temperature sensor inside of the controller.</Description>
+					</Variable>
+				</Children>
+			</Object>
+
+			<Object SymbolicName="ROB:SafetyStatesIdentifier" TypeDefinition="ROB:SafetyStateType"  ModellingRule="OptionalPlaceholder">
+				<BrowseName>&lt;SafetyStatesIdentifier&gt;</BrowseName>
+				<Description>The relationship of safety states to a controller.</Description>
+				<ReferenceType>ROB:HasSafetyStates</ReferenceType>
+			</Object>
+			<Object SymbolicName="ROB:MotionDeviceIdentifier" TypeDefinition="ROB:MotionDeviceType"  ModellingRule="OptionalPlaceholder">
+				<BrowseName>&lt;MotionDeviceIdentifier&gt;</BrowseName>
+				<Description>The relationship of a motion device and controller.</Description>
+				<ReferenceType>ROB:Controls</ReferenceType>
+			</Object>
+
+		</Children>
+	</ObjectType>
+
+	<!-- 7.9 AuxiliaryComponentType ObjectType Definition -->
+	<ObjectType SymbolicName="ROB:AuxiliaryComponentType" BaseType="DI:DeviceType" IsAbstract="false">
+		<Description>Components mounted in a controller cabinet or a motion device e.g. an IO-board or a power supply.</Description>
+		<Children>
+			<Property SymbolicName="DI:ProductCode" DataType="OpcUa:String" ValueRank="Scalar" ModellingRule="Mandatory">
+				<Description>The ProductCode property provides a unique combination of numbers and letters used to identify the product. It may be the order information displayed on type shields or in ERP systems.</Description>
+			</Property>
+		</Children>
+	</ObjectType>
+
+	<!-- 7.10 DriveType ObjectType Definition -->
+	<ObjectType SymbolicName="ROB:DriveType" BaseType="DI:DeviceType" IsAbstract="false">
+		<Description>Drives (multi-slot or single-slot axis amplifier) mounted in a controller cabinet or a motion device.</Description>
+		<Children>
+			<Property SymbolicName="DI:ProductCode" DataType="OpcUa:String" ValueRank="Scalar" ModellingRule="Mandatory">
+				<Description>The ProductCode property provides a unique combination of numbers and letters used to identify the product. It may be the order information displayed on type shields or in ERP systems.</Description>
+			</Property>
+		</Children>
+	</ObjectType>
+
+	<!-- 7.11	TaskControlType ObjectType Definition -->
+	<ObjectType SymbolicName="ROB:TaskControlType" BaseType="DI:ComponentType" IsAbstract="false">
+		<Description>Represents a specific task control active on the controller.</Description>
+		<Children>
+			<Property SymbolicName="DI:ComponentName" DataType="OpcUa:LocalizedText" ValueRank="Scalar" ModellingRule="Mandatory">
+				<Description>A user writable name provided by the vendor, integrator or user of the device.</Description>
+			</Property>
+
+			<Object SymbolicName="DI:ParameterSet" ModellingRule="Mandatory">
+				<Children>
+					<Variable SymbolicName="ROB:TaskProgramName" TypeDefinition="OpcUa:BaseDataVariableType" DataType="OpcUa:String" ModellingRule="Mandatory">
+						<Description>A customer given identifier for the task program.</Description>
+					</Variable>
+					<Variable SymbolicName="ROB:TaskProgramLoaded" TypeDefinition="OpcUa:BaseDataVariableType" DataType="OpcUa:Boolean" ModellingRule="Mandatory">
+						<Description>The TaskProgramLoaded variable is TRUE if a task program is loaded in the task control, FALSE otherwise.</Description>
+					</Variable>
+					<Variable SymbolicName="ROB:ExecutionMode" TypeDefinition="OpcUa:BaseDataVariableType" DataType="ROB:ExecutionModeEnumeration" ModellingRule="Optional">
+						<Description>Execution mode of the task control (continuous or step-wise).</Description>
+					</Variable>
+				</Children>
+			</Object>
+
+			<Object SymbolicName="ROB:MotionDeviceIdentifier" TypeDefinition="ROB:MotionDeviceType" ModellingRule="OptionalPlaceholder">
+				<BrowseName>&lt;MotionDeviceIdentifier&gt;</BrowseName>
+				<Description>Controls is a reference to provide the relationship between a task control and a motion device.</Description>
+				<ReferenceType>ROB:Controls</ReferenceType>
+			</Object>		
+
+		</Children>
+	</ObjectType>
+
+	<!-- 7.12	LoadType ObjectType Definition -->
+	<ObjectType SymbolicName="ROB:LoadType" BaseType="OpcUa:BaseObjectType" IsAbstract="false">
+		<Description>The LoadType is for describing loads mounted on the motion device typically by an integrator or a customer.</Description>
+		<Children>
+			<Variable SymbolicName="ROB:Mass" TypeDefinition="OpcUa:AnalogUnitType" DataType="OpcUa:Double" ModellingRule="Mandatory">
+				<Description>The weight of the load mounted on one mounting point.</Description>
+			</Variable>
+			<Variable SymbolicName="ROB:CenterOfMass" TypeDefinition="OpcUa:ThreeDFrameType" DataType="OpcUa:ThreeDFrame" ModellingRule="Optional">
+				<Description>The position and orientation of the center of the mass related to the mounting point using a FrameType. X, Y, Z define the position of the center of gravity relative to the mounting point coordinate system. A, B, C define the orientation of the principal axes of inertia relative to the mounting point coordinate system. Orientation A, B, C can be "0" for systems which do not need these  values.</Description>
+			</Variable>
+			<Variable SymbolicName="ROB:Inertia" TypeDefinition="OpcUa:ThreeDVectorType" DataType="OpcUa:ThreeDVector" ModellingRule="Optional">
+				<Description>The Inertia uses the VectorType to describe the three values of the principal moments of inertia with respect to the mounting point coordinate system. If inertia values are provided for rotary axis the CenterOfMass shall be completely filled as well.</Description>
+			</Variable>
+		</Children>
+	</ObjectType>
+
+	<!-- 7.13 UserType ObjectType Definition -->
+	<ObjectType SymbolicName="ROB:UserType" BaseType="OpcUa:BaseObjectType" IsAbstract="false">
+		<Description>The UserType ObjectType describes information of the registered user groups within the control system.</Description>
+		<Children>
+			<Property SymbolicName="ROB:Level" DataType="OpcUa:String" ModellingRule="Mandatory">
+				<Description>The weight of the load mounted on one mounting point.</Description>
+			</Property>
+			<Property SymbolicName="ROB:Name" DataType="OpcUa:String" ModellingRule="Optional">
+				<Description>The name for the current user within the control system.</Description>
+			</Property>
+		</Children>
+	</ObjectType>
+
+	<!-- ### 8 OPC UA ReferenceTypes  ###-->
+	<!-- 8.2 Controls (IsControlledBy) Reference Type -->
+	<ReferenceType SymbolicName="ROB:Controls" BaseType="OpcUa:HierarchicalReferences" Symmetric="false" IsAbstract="false">
+		<Description>Reference: Describe dependencies between objects which have a controlling character.</Description>
+		<InverseName>IsControlledBy</InverseName>
+	</ReferenceType>
+
+	<!-- 8.3 Moves (IsMovedBy) Reference Type -->
+	<ReferenceType SymbolicName="ROB:Moves" BaseType="OpcUa:HierarchicalReferences" Symmetric="false" IsAbstract="false">
+		<Description>Reference: Describe the coupling between a powertrain and the axes from the powertrain point of view.</Description>
+		<InverseName>IsMovedBy</InverseName>
+	</ReferenceType>
+
+	<!-- 8.4 Requires (IsRequiredBy) Reference Type -->
+	<ReferenceType SymbolicName="ROB:Requires" BaseType="OpcUa:HierarchicalReferences" Symmetric="false" IsAbstract="false">
+		<Description>Reference: Describe the coupling between a powertrain and axes from the axis point of view. An axis has a Requires reference to all powertrains that need to move such that only this single axis moves.</Description>
+		<InverseName>IsRequiredBy</InverseName>
+	</ReferenceType>
+
+	<!-- 8.5 IsDrivenBy (Drives) Reference Type -->
+	<ReferenceType SymbolicName="ROB:IsDrivenBy" BaseType="OpcUa:HierarchicalReferences" Symmetric="false" IsAbstract="false">
+		<Description>Reference: Describe dependencies between objects which have a driving or powering character. The BrowseName IsDrivenBy and the InverseName Drives describe semantically the hierarchical dependency.</Description>
+		<InverseName>Drives</InverseName>
+	</ReferenceType>
+
+	<!-- 8.6 IsConnectedTo Reference Type -->
+	<ReferenceType SymbolicName="ROB:IsConnectedTo" BaseType="OpcUa:NonHierarchicalReferences" Symmetric="true" IsAbstract="false">
+		<Description>Reference: Describe dependencies between objects which are mounted or mechanically linked or connected to each other. The IsConnectedTo reference is symmetric and has no InverseName.</Description>
+	</ReferenceType>
+
+	<!-- 8.7 HasSafetyStates (SafetyStatesOf) Reference Type -->
+	<ReferenceType SymbolicName="ROB:HasSafetyStates" BaseType="OpcUa:HierarchicalReferences" Symmetric="false" IsAbstract="false">
+		<Description>Reference: Describe dependencies between objects to show which (controller) object is responsible for the execution of the safety-functionality. The BrowseName HasSafetyStates and the InverseName SafetyStatesOf describe semantically the hierarchical dependency.</Description>
+		<InverseName>SafetyStatesOf</InverseName>
+	</ReferenceType>
+
+	<!-- 8.8 HasSlave (IsSlaveOf) Reference Type -->
+	<ReferenceType SymbolicName="ROB:HasSlave" BaseType="OpcUa:HierarchicalReferences" Symmetric="false" IsAbstract="false">
+		<Description>Reference: Provide the master-slave relationship of powertrains which provide torque for a common axis. The InverseName is IsSlaveOf.</Description>
+		<InverseName>IsSlaveOf</InverseName>
+	</ReferenceType>
+
+	<!-- ### 9	OPC UA VariableTypes ###-->
+	<!-- ExecutionModeEnumeration -->
+	<DataType SymbolicName="ROB:ExecutionModeEnumeration" BaseType="OpcUa:Enumeration">
+		<Fields>
+			<Field Name="CYCLE" Identifier="0">
+				<Description>Single execution of a task program according to ISO 8373.</Description>
+			</Field>
+			<Field Name="CONTINUOUS" Identifier="1">
+				<Description>Task program is executed continuously and starts again automatically.</Description>
+			</Field>
+			<Field Name="STEP" Identifier="2">
+				<Description>Task program is executed in steps.</Description>
+			</Field>
+		</Fields>
+	</DataType>
+
+	<!-- MotionDeviceCategoryEnumeration -->
+	<DataType SymbolicName="ROB:MotionDeviceCategoryEnumeration" BaseType="OpcUa:Enumeration">
+		<Fields>
+			<Field Name="OTHER" Identifier="0">
+				<Description>Any MotionDevice which is not defined by the MotionDeviceCategoryEnumeration.</Description>
+			</Field>
+			<Field Name="ARTICULATED_ROBOT" Identifier="1">
+				<Description>This robot design features rotary joints and can range from simple two joint structures to 10 or more joints. The arm is connected to the base with a twisting joint. The links in the arm are connected by rotary joints.</Description>
+			</Field>
+			<Field Name="SCARA_ROBOT" Identifier="2">
+				<Description>The robot has two parallel rotary joints that ensure compliance in a specified plane.</Description>
+			</Field>
+			<Field Name="CARTESIAN_ROBOT" Identifier="3">
+				<Description>Cartesian robots have three linear joints that use the Cartesian coordinate system (X, Y, and Z). They also may have an attached wrist to allow for rotational movement. The three prismatic joints provide linear movement along the axis.</Description>
+			</Field>
+			<Field Name="SPHERICAL_ROBOT" Identifier="4">
+				<Description>The arm is connected to the base with a twisting joint and a combination of two rotary joints and one linear joint. The axes form a polar coordinate system and create a spherical shaped work envelope.</Description>
+			</Field>
+			<Field Name="PARALLEL_ROBOT" Identifier="5">
+				<Description>These spider like robots are built from jointed parallelograms connected to a common base. The parallelograms move a single EOAT in a dome-shaped work area.</Description>
+			</Field>
+			<Field Name="CYLINDRICAL_ROBOT" Identifier="6">
+				<Description>The robot has at least one rotary joint at the base and at least one prismatic joint to connect the links. The rotary joint uses a rotational motion along the joint axis, while the prismatic joint moves in a linear motion. Cylindrical robots operate within a cylindrical-shaped work envelope.</Description>
+			</Field>
+		</Fields>
+	</DataType>
+
+	<!-- AxisMotionProfileEnumeration -->
+	<DataType SymbolicName="ROB:AxisMotionProfileEnumeration" BaseType="OpcUa:Enumeration">
+		<Fields>
+			<Field Name="OTHER" Identifier="0">
+				<Description>Any motion-profile which is not defined by the AxisMotionProfileEnumeration.</Description>
+			</Field>
+			<Field Name="ROTARY" Identifier="1">
+				<Description>Rotary motion is a rotation along a circular path with defined limits. Motion movement is not going always in the same direction. Control unit is mainly degree.</Description>
+			</Field>
+			<Field Name="ROTARY_ENDLESS" Identifier="2">
+				<Description>Rotary motion is a rotation along a circular path with no limits. Motion movement is going endless in the same direction. Control unit is mainly degree.</Description>
+			</Field>
+			<Field Name="LINEAR" Identifier="3">
+				<Description>Linear motion is a one dimensional motion along a straight line with defined limits. Motion movement is not going always in the same direction. Control unit is mainly mm.</Description>
+			</Field>
+			<Field Name="LINEAR_ENDLESS" Identifier="4">
+				<Description>Linear motion is a one dimensional motion along a straight line with no limits. Motion movement is going endless in the same direction. Control unit is mainly mm.</Description>
+			</Field>
+		</Fields>
+	</DataType>
+
+	<!-- OperationalModeEnumeration -->
+	<DataType SymbolicName="ROB:OperationalModeEnumeration" BaseType="OpcUa:Enumeration">
+		<Fields>
+			<Field Name="OTHER" Identifier="0">
+				<Description>Other for when there is a system-boot (unknown) or a failure of the safety, there is no valid operational mode.</Description>
+			</Field>
+			<Field Name="MANUAL_REDUCED_SPEED" Identifier="1">
+				<Description>"Manual reduced speed" - name according to ISO 10218-1:2011.</Description>
+			</Field>
+			<Field Name="MANUAL_HIGH_SPEED" Identifier="2">
+				<Description>"Manual high speed" - name according to ISO 10218-1:2011.</Description>
+			</Field>
+			<Field Name="AUTOMATIC" Identifier="3">
+				<Description>"Automatic" - name according to ISO 10218-1:2011.</Description>
+			</Field>
+			<Field Name="AUTOMATIC_EXTERNAL" Identifier="4">
+				<Description>"Automatic external" - Same as "Automatic" but with external control, e.g. by a PLC.</Description>
+			</Field>
+		</Fields>
+	</DataType>
+
+</ModelDesign>

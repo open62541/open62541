@@ -1,0 +1,260 @@
+<xs:schema elementFormDefault="qualified" targetNamespace="http://opcfoundation.org/UA/IJT/Types.xsd" xmlns:tns="http://opcfoundation.org/UA/IJT/Types.xsd" xmlns:ua="http://opcfoundation.org/UA/2008/02/Types.xsd" xmlns:xs="http://www.w3.org/2001/XMLSchema">
+    <xs:import namespace="http://opcfoundation.org/UA/2008/02/Types.xsd"/>
+    <xs:simpleType name="ResultEvaluation">
+        <xs:annotation>
+            <xs:documentation>The enumeration ResultEvaluation indicates whether the operation is successful or not.</xs:documentation>
+        </xs:annotation>
+        <xs:restriction base="xs:string">
+            <xs:enumeration value="UNDEFINED_0"/>
+            <xs:enumeration value="OK_1"/>
+            <xs:enumeration value="NOT_OK_2"/>
+        </xs:restriction>
+    </xs:simpleType>
+    <xs:element type="tns:ResultEvaluation" name="ResultEvaluation"/>
+    <xs:complexType name="ListOfResultEvaluation">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="unbounded" type="tns:ResultEvaluation" name="ResultEvaluation" nillable="true"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:ListOfResultEvaluation" name="ListOfResultEvaluation" nillable="true"/>
+    <xs:complexType name="ErrorInformationDataType">
+        <xs:annotation>
+            <xs:documentation>It is used report errors occurred in the system which are outside the boundaries of the given program.</xs:documentation>
+        </xs:annotation>
+        <xs:sequence>
+            <xs:element minOccurs="0" type="xs:unsignedInt" name="EncodingMask"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="xs:unsignedByte" name="ErrorType"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="ua:Guid" name="ErrorId"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="xs:string" name="LegacyError"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="ua:LocalizedText" name="ErrorMessage"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:ErrorInformationDataType" name="ErrorInformationDataType"/>
+    <xs:complexType name="ListOfErrorInformationDataType">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="unbounded" type="tns:ErrorInformationDataType" name="ErrorInformationDataType" nillable="true"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:ListOfErrorInformationDataType" name="ListOfErrorInformationDataType" nillable="true"/>
+    <xs:complexType name="ProcessingTimesDataType">
+        <xs:annotation>
+            <xs:documentation>This structure contains measured times that were generated during the execution of a joining process. These measured values provide information about the duration required by the various sub-functions.</xs:documentation>
+        </xs:annotation>
+        <xs:sequence>
+            <xs:element minOccurs="0" type="xs:unsignedInt" name="EncodingMask"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="xs:dateTime" name="StartTime"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="xs:dateTime" name="EndTime"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="xs:double" name="AcquisitionDuration"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="xs:double" name="ProcessingDuration"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:ProcessingTimesDataType" name="ProcessingTimesDataType"/>
+    <xs:complexType name="ListOfProcessingTimesDataType">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="unbounded" type="tns:ProcessingTimesDataType" name="ProcessingTimesDataType" nillable="true"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:ListOfProcessingTimesDataType" name="ListOfProcessingTimesDataType" nillable="true"/>
+    <xs:complexType name="ResultDataType">
+        <xs:annotation>
+            <xs:documentation>This structure contains the aggregated information of the Result data represented by ResultType variable.</xs:documentation>
+        </xs:annotation>
+        <xs:sequence>
+            <xs:element minOccurs="0" type="xs:unsignedInt" name="EncodingMask"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="ua:Guid" name="ResultId"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="tns:ProcessingTimesDataType" name="ProcessingTimes"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="xs:dateTime" name="CreationTime"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="tns:ResultEvaluation" name="ResultEvaluation"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="xs:int" name="ResultEvaluationCode"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="ua:LocalizedText" name="ResultEvaluationDetails"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="xs:int" name="SequenceNumber"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="tns:ListOfTagDataType" name="Tags"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="xs:unsignedByte" name="Classification"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="xs:unsignedByte" name="OperationMode"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="xs:boolean" name="IsSimulated"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="xs:boolean" name="IsPartial"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="ua:Guid" name="ReporterAssetId"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="ua:Guid" name="GeneratorAssetId"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="ua:Variant" name="ResultContent"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:ResultDataType" name="ResultDataType"/>
+    <xs:complexType name="ListOfResultDataType">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="unbounded" type="tns:ResultDataType" name="ResultDataType" nillable="true"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:ListOfResultDataType" name="ListOfResultDataType" nillable="true"/>
+    <xs:complexType name="ResultValueDataType">
+        <xs:annotation>
+            <xs:documentation>It is used to report measurement values of the joining operation.</xs:documentation>
+        </xs:annotation>
+        <xs:sequence>
+            <xs:element minOccurs="0" type="xs:unsignedInt" name="EncodingMask"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="xs:double" name="Value"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="xs:string" name="Name"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="tns:ResultEvaluation" name="ResultEvaluation"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="ua:Guid" name="ValueId"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="xs:unsignedByte" name="ValueTag"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="xs:int" name="TracePointIndex"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="xs:double" name="TracePointTimeOffset"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="ua:Guid" name="ReporterId"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="xs:unsignedByte" name="ViolationType"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="xs:unsignedByte" name="ViolationConsequence"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="ua:Guid" name="SensorId"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="xs:double" name="LowLimit"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="xs:double" name="HighLimit"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="xs:double" name="TargetValue"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="xs:string" name="ResultStep"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="xs:unsignedByte" name="PhysicalQuantity"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="ua:EUInformation" name="EngineeringUnits"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:ResultValueDataType" name="ResultValueDataType"/>
+    <xs:complexType name="ListOfResultValueDataType">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="unbounded" type="tns:ResultValueDataType" name="ResultValueDataType" nillable="true"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:ListOfResultValueDataType" name="ListOfResultValueDataType" nillable="true"/>
+    <xs:complexType name="StepResultDataType">
+        <xs:annotation>
+            <xs:documentation>It is used report measurement values corresponding to a given step in the program.</xs:documentation>
+        </xs:annotation>
+        <xs:sequence>
+            <xs:element minOccurs="0" type="xs:unsignedInt" name="EncodingMask"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="ua:Guid" name="StepResultId"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="ua:Guid" name="ProgramStepId"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="xs:string" name="ProgramStep"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="xs:string" name="Name"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="tns:ResultEvaluation" name="ResultEvaluation"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="xs:double" name="StartTimeOffset"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="ua:Guid" name="StepTraceId"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="tns:ListOfResultValueDataType" name="StepResultValues"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:StepResultDataType" name="StepResultDataType"/>
+    <xs:complexType name="ListOfStepResultDataType">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="unbounded" type="tns:StepResultDataType" name="StepResultDataType" nillable="true"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:ListOfStepResultDataType" name="ListOfStepResultDataType" nillable="true"/>
+    <xs:complexType name="StepTraceDataType">
+        <xs:annotation>
+            <xs:documentation>It is to describe of the trace for a given program step.</xs:documentation>
+        </xs:annotation>
+        <xs:sequence>
+            <xs:element minOccurs="0" type="xs:unsignedInt" name="EncodingMask"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="ua:Guid" name="StepTraceId"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="ua:Guid" name="StepResultId"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="xs:unsignedInt" name="NumberOfTracePoints"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="xs:double" name="SamplingInterval"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="xs:double" name="StartTimeOffset"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="tns:ListOfTraceContentDataType" name="StepTraceContent"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:StepTraceDataType" name="StepTraceDataType"/>
+    <xs:complexType name="ListOfStepTraceDataType">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="unbounded" type="tns:StepTraceDataType" name="StepTraceDataType" nillable="true"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:ListOfStepTraceDataType" name="ListOfStepTraceDataType" nillable="true"/>
+    <xs:complexType name="TagDataType">
+        <xs:annotation>
+            <xs:documentation>This structure contains aggregated information to identify one or more Tags corresponding to the Tags attribute defined in ResultType and ResultDataType.</xs:documentation>
+        </xs:annotation>
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="1" type="xs:string" name="Name"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="xs:string" name="Value"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:TagDataType" name="TagDataType"/>
+    <xs:complexType name="ListOfTagDataType">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="unbounded" type="tns:TagDataType" name="TagDataType" nillable="true"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:ListOfTagDataType" name="ListOfTagDataType" nillable="true"/>
+    <xs:complexType name="TighteningResultDataType">
+        <xs:annotation>
+            <xs:documentation>It is used report data associated with Tightening Result and the corresponding measurement values.</xs:documentation>
+        </xs:annotation>
+        <xs:sequence>
+            <xs:element minOccurs="0" type="xs:unsignedInt" name="EncodingMask"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="ua:Guid" name="ProgramId"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="ua:Guid" name="ProgramVersionId"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="xs:unsignedByte" name="FailureReason"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="tns:ListOfResultValueDataType" name="OverallResultValues"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="tns:ListOfStepResultDataType" name="StepResults"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="tns:ListOfErrorInformationDataType" name="Errors"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="ua:Guid" name="FailingStepResultId"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="ua:Guid" name="JointId"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="tns:TighteningTraceDataType" name="Trace"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:TighteningResultDataType" name="TighteningResultDataType"/>
+    <xs:complexType name="ListOfTighteningResultDataType">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="unbounded" type="tns:TighteningResultDataType" name="TighteningResultDataType" nillable="true"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:ListOfTighteningResultDataType" name="ListOfTighteningResultDataType" nillable="true"/>
+    <xs:complexType name="TraceContentDataType">
+        <xs:annotation>
+            <xs:documentation>It is to describe of the trace samples for a given program step.</xs:documentation>
+        </xs:annotation>
+        <xs:sequence>
+            <xs:element minOccurs="0" type="xs:unsignedInt" name="EncodingMask"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="ua:ListOfDouble" name="Values"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="ua:Guid" name="SensorId"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="xs:string" name="Name"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="xs:string" name="Description"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="xs:unsignedByte" name="PhysicalQuantity"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="ua:EUInformation" name="EngineeringUnits"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:TraceContentDataType" name="TraceContentDataType"/>
+    <xs:complexType name="ListOfTraceContentDataType">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="unbounded" type="tns:TraceContentDataType" name="TraceContentDataType" nillable="true"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:ListOfTraceContentDataType" name="ListOfTraceContentDataType" nillable="true"/>
+    <xs:complexType name="TraceDataType">
+        <xs:annotation>
+            <xs:documentation>It is a base type to encapsulate common data for a Trace.</xs:documentation>
+        </xs:annotation>
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="1" type="ua:Guid" name="TraceId"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="ua:Guid" name="ResultId"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:TraceDataType" name="TraceDataType"/>
+    <xs:complexType name="ListOfTraceDataType">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="unbounded" type="tns:TraceDataType" name="TraceDataType" nillable="true"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:ListOfTraceDataType" name="ListOfTraceDataType" nillable="true"/>
+    <xs:complexType name="TighteningTraceDataType">
+        <xs:annotation>
+            <xs:documentation>This structure contains the aggregated information of the Tightening Trace which is used in TighteningResultDataType and which is represented as TighteningTraceType variable.</xs:documentation>
+        </xs:annotation>
+        <xs:complexContent mixed="false">
+            <xs:extension base="tns:TraceDataType">
+                <xs:sequence>
+                    <xs:element minOccurs="0" maxOccurs="1" type="tns:ListOfStepTraceDataType" name="StepTraces"/>
+                </xs:sequence>
+            </xs:extension>
+        </xs:complexContent>
+    </xs:complexType>
+    <xs:element type="tns:TighteningTraceDataType" name="TighteningTraceDataType"/>
+    <xs:complexType name="ListOfTighteningTraceDataType">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="unbounded" type="tns:TighteningTraceDataType" name="TighteningTraceDataType" nillable="true"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:ListOfTighteningTraceDataType" name="ListOfTighteningTraceDataType" nillable="true"/>
+</xs:schema>
