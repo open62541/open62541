@@ -138,13 +138,15 @@ encrypt_sp_pubsub_aes128ctr(const PUBSUB_AES128CTR_ChannelContext *cc,
     if(mbedErr)
         return UA_STATUSCODE_BADINTERNALERROR;
 
-    /* Prepare the counterBlock required for encryption/decryption */
+    /* Prepare the counterBlock required for encryption/decryption 
+     * Block counter starts at 1 according to part 14 (7.2.2.4.3.2)*/
     UA_Byte counterBlockCopy[UA_AES128CTR_ENCRYPTION_BLOCK_SIZE];
+    UA_Byte counterInitialValue[4] = {0,0,0,1};
     memcpy(counterBlockCopy, cc->keyNonce, UA_AES128CTR_KEYNONCE_LENGTH);
     memcpy(counterBlockCopy + UA_AES128CTR_KEYNONCE_LENGTH,
            cc->messageNonce, UA_AES128CTR_MESSAGENONCE_LENGTH);
-    memset(counterBlockCopy + UA_AES128CTR_KEYNONCE_LENGTH +
-           UA_AES128CTR_MESSAGENONCE_LENGTH, 0, 4);
+    memcpy(counterBlockCopy + UA_AES128CTR_KEYNONCE_LENGTH +
+           UA_AES128CTR_MESSAGENONCE_LENGTH, &counterInitialValue, 4);
 
     size_t counterblockoffset = 0;
     UA_Byte aesBuffer[UA_AES128CTR_ENCRYPTION_BLOCK_SIZE];
