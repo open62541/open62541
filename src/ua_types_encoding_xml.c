@@ -39,7 +39,7 @@
     TYPE##_encodeXml(CtxXml *ctx, const UA_##TYPE *src, const UA_DataType *type)
 
 static status UA_FUNC_ATTR_WARN_UNUSED_RESULT
-writeChars(CtxXml *ctx, const char *c, size_t len) {
+xmlEncodeWriteChars(CtxXml *ctx, const char *c, size_t len) {
     if(ctx->pos + len > ctx->end)
         return UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED;
     if(!ctx->calcOnly)
@@ -51,18 +51,18 @@ writeChars(CtxXml *ctx, const char *c, size_t len) {
 /* Boolean */
 ENCODE_XML(Boolean) {
     if(*src == true)
-        return writeChars(ctx, "true", 4);
-    return writeChars(ctx, "false", 5);
+        return xmlEncodeWriteChars(ctx, "true", 4);
+    return xmlEncodeWriteChars(ctx, "false", 5);
 }
 
 static status encodeSigned(CtxXml *ctx, UA_Int64 value, char* buffer) {
     UA_UInt16 digits = itoaSigned(value, buffer);
-    return writeChars(ctx, buffer, digits);
+    return xmlEncodeWriteChars(ctx, buffer, digits);
 }
 
 static status encodeUnsigned(CtxXml *ctx, UA_UInt64 value, char* buffer) {
     UA_UInt16 digits = itoaUnsigned(value, buffer, 10);
-    return writeChars(ctx, buffer, digits);
+    return xmlEncodeWriteChars(ctx, buffer, digits);
 }
 
 /* signed Byte */
@@ -133,7 +133,7 @@ ENCODE_XML(Float) {
     if(len == 0)
         return UA_STATUSCODE_BADENCODINGERROR;
 
-    return writeChars(ctx, buffer, len);
+    return xmlEncodeWriteChars(ctx, buffer, len);
 }
 
 /* Double */
@@ -156,14 +156,14 @@ ENCODE_XML(Double) {
     if(len == 0)
         return UA_STATUSCODE_BADENCODINGERROR;
 
-    return writeChars(ctx, buffer, len);
+    return xmlEncodeWriteChars(ctx, buffer, len);
 }
 
 /* String */
 ENCODE_XML(String) {
     if(!src->data)
-        return writeChars(ctx, "null", 4);
-    return writeChars(ctx, (const char*)src->data, src->length);
+        return xmlEncodeWriteChars(ctx, "null", 4);
+    return xmlEncodeWriteChars(ctx, (const char*)src->data, src->length);
 }
 
 /* Guid */
@@ -178,7 +178,7 @@ ENCODE_XML(Guid) {
 
 /* DateTime */
 static u8
-printNumber(i32 n, char *pos, u8 min_digits) {
+xmlEncodePrintNumber(i32 n, char *pos, u8 min_digits) {
     char digits[10];
     u8 len = 0;
     /* Handle negative values */
@@ -207,21 +207,21 @@ ENCODE_XML(DateTime) {
      * Note the optional minus for negative years. */
     char buffer[UA_XML_DATETIME_LENGTH];
     char *pos = buffer;
-    pos += printNumber(tSt.year, pos, 4);
+    pos += xmlEncodePrintNumber(tSt.year, pos, 4);
     *(pos++) = '-';
-    pos += printNumber(tSt.month, pos, 2);
+    pos += xmlEncodePrintNumber(tSt.month, pos, 2);
     *(pos++) = '-';
-    pos += printNumber(tSt.day, pos, 2);
+    pos += xmlEncodePrintNumber(tSt.day, pos, 2);
     *(pos++) = 'T';
-    pos += printNumber(tSt.hour, pos, 2);
+    pos += xmlEncodePrintNumber(tSt.hour, pos, 2);
     *(pos++) = ':';
-    pos += printNumber(tSt.min, pos, 2);
+    pos += xmlEncodePrintNumber(tSt.min, pos, 2);
     *(pos++) = ':';
-    pos += printNumber(tSt.sec, pos, 2);
+    pos += xmlEncodePrintNumber(tSt.sec, pos, 2);
     *(pos++) = '.';
-    pos += printNumber(tSt.milliSec, pos, 3);
-    pos += printNumber(tSt.microSec, pos, 3);
-    pos += printNumber(tSt.nanoSec, pos, 3);
+    pos += xmlEncodePrintNumber(tSt.milliSec, pos, 3);
+    pos += xmlEncodePrintNumber(tSt.microSec, pos, 3);
+    pos += xmlEncodePrintNumber(tSt.nanoSec, pos, 3);
 
     UA_assert(pos <= &buffer[UA_XML_DATETIME_LENGTH]);
 
@@ -235,7 +235,7 @@ ENCODE_XML(DateTime) {
     *(++pos) = 'Z';
     UA_String str = {((uintptr_t)pos - (uintptr_t)buffer)+1, (UA_Byte*)buffer};
 
-    return writeChars(ctx, (const char*)str.data, str.length);
+    return xmlEncodeWriteChars(ctx, (const char*)str.data, str.length);
 }
 
 /* NodeId */
@@ -401,7 +401,7 @@ DECODE_XML(Boolean) {
 }
 
 static UA_StatusCode
-parseSignedInteger(const char *data, size_t dataSize, UA_Int64 *dst) {
+decodeSigned(const char *data, size_t dataSize, UA_Int64 *dst) {
     size_t len = parseInt64(data, dataSize, dst);
     if(len == 0)
         return UA_STATUSCODE_BADDECODINGERROR;
@@ -417,7 +417,7 @@ parseSignedInteger(const char *data, size_t dataSize, UA_Int64 *dst) {
 }
 
 static UA_StatusCode
-parseUnsignedInteger(const char *data, size_t dataSize, UA_UInt64 *dst) {
+decodeUnsigned(const char *data, size_t dataSize, UA_UInt64 *dst) {
     size_t len = parseUInt64(data, dataSize, dst);
     if(len == 0)
         return UA_STATUSCODE_BADDECODINGERROR;
@@ -438,7 +438,7 @@ DECODE_XML(SByte) {
      *   2. Add support for optional leading zeros.
      *   3. Check if the value is in hex, octal or binray. */
     UA_Int64 out = 0;
-    UA_StatusCode s = parseSignedInteger(ctx->data, ctx->length, &out);
+    UA_StatusCode s = decodeSigned(ctx->data, ctx->length, &out);
 
     if(s != UA_STATUSCODE_GOOD || out < UA_SBYTE_MIN || out > UA_SBYTE_MAX)
         return UA_STATUSCODE_BADDECODINGERROR;
@@ -454,7 +454,7 @@ DECODE_XML(Byte) {
      *   3. Check if the value is in hex, octal or binray.
      *   4. Check if decimal point exists. */
     UA_UInt64 out = 0;
-    UA_StatusCode s = parseUnsignedInteger(ctx->data, ctx->length, &out);
+    UA_StatusCode s = decodeUnsigned(ctx->data, ctx->length, &out);
 
     if(s != UA_STATUSCODE_GOOD || out > UA_BYTE_MAX)
         return UA_STATUSCODE_BADDECODINGERROR;
@@ -470,7 +470,7 @@ DECODE_XML(Int16) {
      *   3. Check if the value is in hex, octal or binray.
      *   4. Check if decimal point exists. */
     UA_Int64 out = 0;
-    UA_StatusCode s = parseSignedInteger(ctx->data, ctx->length, &out);
+    UA_StatusCode s = decodeSigned(ctx->data, ctx->length, &out);
 
     if(s != UA_STATUSCODE_GOOD || out < UA_INT16_MIN || out > UA_INT16_MAX)
         return UA_STATUSCODE_BADDECODINGERROR;
@@ -486,7 +486,7 @@ DECODE_XML(UInt16) {
      *   3. Check if the value is in hex, octal or binray.
      *   4. Check if decimal point exists. */
     UA_UInt64 out = 0;
-    UA_StatusCode s = parseUnsignedInteger(ctx->data, ctx->length, &out);
+    UA_StatusCode s = decodeUnsigned(ctx->data, ctx->length, &out);
 
     if(s != UA_STATUSCODE_GOOD || out > UA_UINT16_MAX)
         return UA_STATUSCODE_BADDECODINGERROR;
@@ -503,7 +503,7 @@ DECODE_XML(Int32) {
      *   4. Check if decimal point exists.
      *   5. Check "-0" and "+0", and just remove the sign. */
     UA_Int64 out = 0;
-    UA_StatusCode s = parseSignedInteger(ctx->data, ctx->length, &out);
+    UA_StatusCode s = decodeSigned(ctx->data, ctx->length, &out);
 
     if(s != UA_STATUSCODE_GOOD || out < UA_INT32_MIN || out > UA_INT32_MAX)
         return UA_STATUSCODE_BADDECODINGERROR;
@@ -519,7 +519,7 @@ DECODE_XML(UInt32) {
      *   3. Check if the value is in hex, octal or binray.
      *   4. Check if decimal point exists. */
     UA_UInt64 out = 0;
-    UA_StatusCode s = parseUnsignedInteger(ctx->data, ctx->length, &out);
+    UA_StatusCode s = decodeUnsigned(ctx->data, ctx->length, &out);
 
     if(s != UA_STATUSCODE_GOOD || out > UA_UINT32_MAX)
         return UA_STATUSCODE_BADDECODINGERROR;
@@ -535,7 +535,7 @@ DECODE_XML(Int64) {
      *   3. Check if the value is in hex, octal or binray.
      *   4. Check if decimal point exists. */
     UA_Int64 out = 0;
-    UA_StatusCode s = parseSignedInteger(ctx->data, ctx->length, &out);
+    UA_StatusCode s = decodeSigned(ctx->data, ctx->length, &out);
 
     if(s != UA_STATUSCODE_GOOD)
         return UA_STATUSCODE_BADDECODINGERROR;
@@ -551,7 +551,7 @@ DECODE_XML(UInt64) {
      *   3. Check if the value is in hex, octal or binray.
      *   4. Check if decimal point exists. */
     UA_UInt64 out = 0;
-    UA_StatusCode s = parseUnsignedInteger(ctx->data, ctx->length, &out);
+    UA_StatusCode s = decodeUnsigned(ctx->data, ctx->length, &out);
 
     if(s != UA_STATUSCODE_GOOD)
         return UA_STATUSCODE_BADDECODINGERROR;
