@@ -36,3 +36,5 @@ if(UA_NAMESPACE_ZERO STREQUAL "FULL")
     ua_add_test(check_nodeset_loader_testnodeset.c)
 
 endif()
+
+add_subdirectory(add_node_integration_test)
