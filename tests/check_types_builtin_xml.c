@@ -10,6 +10,7 @@
 #include "ua_types_encoding_xml.h"
 
 #include <check.h>
+#include <math.h>
 
 #if defined(_MSC_VER)
 # pragma warning(disable: 4146)
