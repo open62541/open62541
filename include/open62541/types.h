@@ -159,21 +159,29 @@ UA_StatusCode_name(UA_StatusCode code);
 
 /* Extracts the severity from a StatusCode. See Part 4, Section 7.34 for
  * details. */
-UA_INLINABLE(UA_Boolean UA_StatusCode_isBad(UA_StatusCode code),
-             { return ((code >> 30) >= 0x02); })
+UA_INLINABLE(UA_Boolean
+             UA_StatusCode_isBad(UA_StatusCode code), {
+    return ((code >> 30) >= 0x02);
+})
 
-UA_INLINABLE(UA_Boolean UA_StatusCode_isUncertain(UA_StatusCode code),
-             { return ((code >> 30) == 0x01); })
+UA_INLINABLE(UA_Boolean
+             UA_StatusCode_isUncertain(UA_StatusCode code), {
+    return ((code >> 30) == 0x01);
+})
 
-UA_INLINABLE(UA_Boolean UA_StatusCode_isGood(UA_StatusCode code),
-             { return ((code >> 30) == 0x00); })
+UA_INLINABLE(UA_Boolean
+             UA_StatusCode_isGood(UA_StatusCode code), {
+    return ((code >> 30) == 0x00);
+})
 
 /* Compares the top 16 bits of two StatusCodes for equality. This should only
  * be used when processing user-defined StatusCodes e.g when processing a ReadResponse.
  * As a convention, the lower bits of StatusCodes should not be used internally, meaning
  * can compare them without the use of this function. */
-UA_INLINABLE(UA_Boolean UA_StatusCode_isEqualTop(UA_StatusCode s1, UA_StatusCode s2),
-             { return ((s1 & 0xFFFF0000) == (s2 & 0xFFFF0000)); })
+UA_INLINABLE(UA_Boolean
+             UA_StatusCode_isEqualTop(UA_StatusCode s1, UA_StatusCode s2), {
+    return ((s1 & 0xFFFF0000) == (s2 & 0xFFFF0000));
+})
 
 /**
  * String
@@ -200,7 +208,8 @@ UA_EXPORT extern const UA_String UA_STRING_NULL;
  * ``UA_STRING`` returns a string pointing to the original char-array.
  * ``UA_STRING_ALLOC`` is shorthand for ``UA_String_fromChars`` and makes a copy
  * of the char-array. */
-UA_INLINABLE(UA_String UA_STRING(char *chars), {
+UA_INLINABLE(UA_String
+             UA_STRING(char *chars), {
     UA_String s = {0};
     if(!chars)
         return s;
@@ -270,15 +279,15 @@ UA_DateTime UA_EXPORT UA_DateTime_fromStruct(UA_DateTimeStruct ts);
 /* Datetime of 1 Jan 1970 00:00 */
 #define UA_DATETIME_UNIX_EPOCH (11644473600LL * UA_DATETIME_SEC)
 
-static UA_INLINE UA_Int64
-UA_DateTime_toUnixTime(UA_DateTime date) {
+UA_INLINABLE(UA_Int64
+             UA_DateTime_toUnixTime(UA_DateTime date), {
     return (date - UA_DATETIME_UNIX_EPOCH) / UA_DATETIME_SEC;
-}
+})
 
-static UA_INLINE UA_DateTime
-UA_DateTime_fromUnixTime(UA_Int64 unixDate) {
+UA_INLINABLE(UA_DateTime
+             UA_DateTime_fromUnixTime(UA_Int64 unixDate), {
     return (unixDate * UA_DATETIME_SEC) + UA_DATETIME_UNIX_EPOCH;
-}
+})
 
 /**
  * Guid
@@ -312,12 +321,12 @@ UA_Guid_print(const UA_Guid *guid, UA_String *output);
 UA_StatusCode UA_EXPORT
 UA_Guid_parse(UA_Guid *guid, const UA_String str);
 
-static UA_INLINE UA_Guid
-UA_GUID(const char *chars) {
+UA_INLINABLE(UA_Guid
+             UA_GUID(const char *chars), {
     UA_Guid guid;
     UA_Guid_parse(&guid, UA_STRING((char*)(uintptr_t)chars));
     return guid;
-}
+})
 #endif
 
 /**
@@ -336,34 +345,17 @@ UA_ByteString_allocBuffer(UA_ByteString *bs, size_t length);
 /* Converts a ByteString to the corresponding
  * base64 representation */
 UA_StatusCode UA_EXPORT
-UA_ByteString_toBase64(const UA_ByteString *bs,
-                       UA_String *output);
+UA_ByteString_toBase64(const UA_ByteString *bs, UA_String *output);
 
 /* Parse a ByteString from a base64 representation */
 UA_StatusCode UA_EXPORT
 UA_ByteString_fromBase64(UA_ByteString *bs,
                          const UA_String *input);
 
-static UA_INLINE UA_ByteString
-UA_BYTESTRING(char *chars) {
-    UA_ByteString bs; bs.length = 0; bs.data = NULL;
-    if(!chars)
-        return bs;
-    bs.length = strlen(chars); bs.data = (UA_Byte*)chars; return bs;
-}
+#define UA_BYTESTRING(chars) UA_STRING(chars)
+#define UA_BYTESTRING_ALLOC(chars) UA_STRING_ALLOC(chars)
 
-static UA_INLINE UA_ByteString
-UA_BYTESTRING_ALLOC(const char *chars) {
-    UA_String str = UA_String_fromChars(chars); UA_ByteString bstr;
-    bstr.length = str.length; bstr.data = str.data; return bstr;
-}
-
-static UA_INLINE UA_Boolean
-UA_ByteString_equal(const UA_ByteString *string1,
-                    const UA_ByteString *string2) {
-    return UA_String_equal((const UA_String*)string1,
-                           (const UA_String*)string2);
-}
+#define UA_ByteString_equal(s1, s2) UA_String_equal(s1, s2)
 
 /* Returns a non-cryptographic hash of a bytestring */
 UA_UInt32 UA_EXPORT
@@ -428,66 +420,81 @@ UA_NodeId_print(const UA_NodeId *id, UA_String *output);
 UA_StatusCode UA_EXPORT
 UA_NodeId_parse(UA_NodeId *id, const UA_String str);
 
-static UA_INLINE UA_NodeId
-UA_NODEID(const char *chars) {
+UA_INLINABLE(UA_NodeId
+             UA_NODEID(const char *chars), {
     UA_NodeId id;
     UA_NodeId_parse(&id, UA_STRING((char*)(uintptr_t)chars));
     return id;
-}
+})
 #endif
 
-/** The following functions are shorthand for creating NodeIds. */
-static UA_INLINE UA_NodeId
-UA_NODEID_NUMERIC(UA_UInt16 nsIndex, UA_UInt32 identifier) {
-    UA_NodeId id; id.namespaceIndex = nsIndex;
+/** The following methods are a shorthand for creating NodeIds. */
+UA_INLINABLE(UA_NodeId
+             UA_NODEID_NUMERIC(UA_UInt16 nsIndex,
+                               UA_UInt32 identifier), {
+    UA_NodeId id;
+    id.namespaceIndex = nsIndex;
     id.identifierType = UA_NODEIDTYPE_NUMERIC;
-    id.identifier.numeric = identifier; return id;
-}
+    id.identifier.numeric = identifier;
+    return id;
+})
 
-static UA_INLINE UA_NodeId
-UA_NODEID_STRING(UA_UInt16 nsIndex, char *chars) {
-    UA_NodeId id; id.namespaceIndex = nsIndex;
+UA_INLINABLE(UA_NodeId
+             UA_NODEID_STRING(UA_UInt16 nsIndex, char *chars), {
+    UA_NodeId id;
+    id.namespaceIndex = nsIndex;
     id.identifierType = UA_NODEIDTYPE_STRING;
-    id.identifier.string = UA_STRING(chars); return id;
-}
+    id.identifier.string = UA_STRING(chars);
+    return id;
+})
 
-static UA_INLINE UA_NodeId
-UA_NODEID_STRING_ALLOC(UA_UInt16 nsIndex, const char *chars) {
-    UA_NodeId id; id.namespaceIndex = nsIndex;
+UA_INLINABLE(UA_NodeId
+             UA_NODEID_STRING_ALLOC(UA_UInt16 nsIndex,
+                                    const char *chars), {
+    UA_NodeId id;
+    id.namespaceIndex = nsIndex;
     id.identifierType = UA_NODEIDTYPE_STRING;
-    id.identifier.string = UA_STRING_ALLOC(chars); return id;
-}
+    id.identifier.string = UA_STRING_ALLOC(chars);
+    return id;
+})
 
-static UA_INLINE UA_NodeId
-UA_NODEID_GUID(UA_UInt16 nsIndex, UA_Guid guid) {
-    UA_NodeId id; id.namespaceIndex = nsIndex;
+UA_INLINABLE(UA_NodeId
+             UA_NODEID_GUID(UA_UInt16 nsIndex, UA_Guid guid), {
+    UA_NodeId id;
+    id.namespaceIndex = nsIndex;
     id.identifierType = UA_NODEIDTYPE_GUID;
-    id.identifier.guid = guid; return id;
-}
+    id.identifier.guid = guid;
+    return id;
+})
 
-static UA_INLINE UA_NodeId
-UA_NODEID_BYTESTRING(UA_UInt16 nsIndex, char *chars) {
-    UA_NodeId id; id.namespaceIndex = nsIndex;
+UA_INLINABLE(UA_NodeId
+             UA_NODEID_BYTESTRING(UA_UInt16 nsIndex, char *chars), {
+    UA_NodeId id;
+    id.namespaceIndex = nsIndex;
     id.identifierType = UA_NODEIDTYPE_BYTESTRING;
-    id.identifier.byteString = UA_BYTESTRING(chars); return id;
-}
+    id.identifier.byteString = UA_BYTESTRING(chars);
+    return id;
+})
 
-static UA_INLINE UA_NodeId
-UA_NODEID_BYTESTRING_ALLOC(UA_UInt16 nsIndex, const char *chars) {
-    UA_NodeId id; id.namespaceIndex = nsIndex;
+UA_INLINABLE(UA_NodeId
+             UA_NODEID_BYTESTRING_ALLOC(UA_UInt16 nsIndex,
+                                        const char *chars), {
+    UA_NodeId id;
+    id.namespaceIndex = nsIndex;
     id.identifierType = UA_NODEIDTYPE_BYTESTRING;
-    id.identifier.byteString = UA_BYTESTRING_ALLOC(chars); return id;
-}
+    id.identifier.byteString = UA_BYTESTRING_ALLOC(chars);
+    return id;
+})
 
 /* Total ordering of NodeId */
 UA_Order UA_EXPORT
 UA_NodeId_order(const UA_NodeId *n1, const UA_NodeId *n2);
 
 /* Check for equality */
-static UA_INLINE UA_Boolean
-UA_NodeId_equal(const UA_NodeId *n1, const UA_NodeId *n2) {
+UA_INLINABLE(UA_Boolean
+             UA_NodeId_equal(const UA_NodeId *n1, const UA_NodeId *n2), {
     return (UA_NodeId_order(n1, n2) == UA_ORDER_EQ);
-}
+})
 
 /* Returns a non-cryptographic hash for NodeId */
 UA_UInt32 UA_EXPORT UA_NodeId_hash(const UA_NodeId *n);
@@ -525,55 +532,56 @@ UA_ExpandedNodeId_print(const UA_ExpandedNodeId *id, UA_String *output);
 UA_StatusCode UA_EXPORT
 UA_ExpandedNodeId_parse(UA_ExpandedNodeId *id, const UA_String str);
 
-static UA_INLINE UA_ExpandedNodeId
-UA_EXPANDEDNODEID(const char *chars) {
+UA_INLINABLE(UA_ExpandedNodeId
+             UA_EXPANDEDNODEID(const char *chars), {
     UA_ExpandedNodeId id;
     UA_ExpandedNodeId_parse(&id, UA_STRING((char*)(uintptr_t)chars));
     return id;
-}
+})
 #endif
 
 /** The following functions are shorthand for creating ExpandedNodeIds. */
-static UA_INLINE UA_ExpandedNodeId
-UA_EXPANDEDNODEID_NUMERIC(UA_UInt16 nsIndex, UA_UInt32 identifier) {
+UA_INLINABLE(UA_ExpandedNodeId
+             UA_EXPANDEDNODEID_NUMERIC(UA_UInt16 nsIndex, UA_UInt32 identifier), {
     UA_ExpandedNodeId id; id.nodeId = UA_NODEID_NUMERIC(nsIndex, identifier);
     id.serverIndex = 0; id.namespaceUri = UA_STRING_NULL; return id;
-}
+})
 
-static UA_INLINE UA_ExpandedNodeId
-UA_EXPANDEDNODEID_STRING(UA_UInt16 nsIndex, char *chars) {
+UA_INLINABLE(UA_ExpandedNodeId
+             UA_EXPANDEDNODEID_STRING(UA_UInt16 nsIndex, char *chars), {
     UA_ExpandedNodeId id; id.nodeId = UA_NODEID_STRING(nsIndex, chars);
     id.serverIndex = 0; id.namespaceUri = UA_STRING_NULL; return id;
-}
+})
 
-static UA_INLINE UA_ExpandedNodeId
-UA_EXPANDEDNODEID_STRING_ALLOC(UA_UInt16 nsIndex, const char *chars) {
+UA_INLINABLE(UA_ExpandedNodeId
+             UA_EXPANDEDNODEID_STRING_ALLOC(UA_UInt16 nsIndex, const char *chars), {
     UA_ExpandedNodeId id; id.nodeId = UA_NODEID_STRING_ALLOC(nsIndex, chars);
     id.serverIndex = 0; id.namespaceUri = UA_STRING_NULL; return id;
-}
+})
 
-static UA_INLINE UA_ExpandedNodeId
-UA_EXPANDEDNODEID_STRING_GUID(UA_UInt16 nsIndex, UA_Guid guid) {
+UA_INLINABLE(UA_ExpandedNodeId
+             UA_EXPANDEDNODEID_STRING_GUID(UA_UInt16 nsIndex, UA_Guid guid), {
     UA_ExpandedNodeId id; id.nodeId = UA_NODEID_GUID(nsIndex, guid);
     id.serverIndex = 0; id.namespaceUri = UA_STRING_NULL; return id;
-}
+})
 
-static UA_INLINE UA_ExpandedNodeId
-UA_EXPANDEDNODEID_BYTESTRING(UA_UInt16 nsIndex, char *chars) {
+UA_INLINABLE(UA_ExpandedNodeId
+             UA_EXPANDEDNODEID_BYTESTRING(UA_UInt16 nsIndex, char *chars), {
     UA_ExpandedNodeId id; id.nodeId = UA_NODEID_BYTESTRING(nsIndex, chars);
     id.serverIndex = 0; id.namespaceUri = UA_STRING_NULL; return id;
-}
+})
 
-static UA_INLINE UA_ExpandedNodeId
-UA_EXPANDEDNODEID_BYTESTRING_ALLOC(UA_UInt16 nsIndex, const char *chars) {
+UA_INLINABLE(UA_ExpandedNodeId
+             UA_EXPANDEDNODEID_BYTESTRING_ALLOC(UA_UInt16 nsIndex, const char *chars), {
     UA_ExpandedNodeId id; id.nodeId = UA_NODEID_BYTESTRING_ALLOC(nsIndex, chars);
     id.serverIndex = 0; id.namespaceUri = UA_STRING_NULL; return id;
-}
+})
 
-static UA_INLINE UA_ExpandedNodeId
-UA_EXPANDEDNODEID_NODEID(UA_NodeId nodeId) {
-    UA_ExpandedNodeId id; memset(&id, 0, sizeof(UA_ExpandedNodeId)); id.nodeId = nodeId; return id;
-}
+UA_INLINABLE(UA_ExpandedNodeId
+             UA_EXPANDEDNODEID_NODEID(UA_NodeId nodeId), {
+    UA_ExpandedNodeId id; memset(&id, 0, sizeof(UA_ExpandedNodeId));
+    id.nodeId = nodeId; return id;
+})
 
 /* Does the ExpandedNodeId point to a local node? That is, are namespaceUri and
  * serverIndex empty? */
@@ -586,11 +594,11 @@ UA_ExpandedNodeId_order(const UA_ExpandedNodeId *n1,
                         const UA_ExpandedNodeId *n2);
 
 /* Check for equality */
-static UA_INLINE UA_Boolean
-UA_ExpandedNodeId_equal(const UA_ExpandedNodeId *n1,
-                        const UA_ExpandedNodeId *n2) {
+UA_INLINABLE(UA_Boolean
+             UA_ExpandedNodeId_equal(const UA_ExpandedNodeId *n1,
+                                     const UA_ExpandedNodeId *n2), {
     return (UA_ExpandedNodeId_order(n1, n2) == UA_ORDER_EQ);
-}
+})
 
 /* Returns a non-cryptographic hash for ExpandedNodeId. The hash of an
  * ExpandedNodeId is identical to the hash of the embedded (simple) NodeId if
@@ -609,26 +617,30 @@ typedef struct {
     UA_String name;
 } UA_QualifiedName;
 
-static UA_INLINE UA_Boolean
-UA_QualifiedName_isNull(const UA_QualifiedName *q) {
+UA_INLINABLE(UA_Boolean
+             UA_QualifiedName_isNull(const UA_QualifiedName *q), {
     return (q->namespaceIndex == 0 && q->name.length == 0);
-}
+})
 
 /* Returns a non-cryptographic hash for QualifiedName */
 UA_UInt32 UA_EXPORT
 UA_QualifiedName_hash(const UA_QualifiedName *q);
 
-static UA_INLINE UA_QualifiedName
-UA_QUALIFIEDNAME(UA_UInt16 nsIndex, char *chars) {
-    UA_QualifiedName qn; qn.namespaceIndex = nsIndex;
-    qn.name = UA_STRING(chars); return qn;
-}
+UA_INLINABLE(UA_QualifiedName
+             UA_QUALIFIEDNAME(UA_UInt16 nsIndex, char *chars), {
+    UA_QualifiedName qn;
+    qn.namespaceIndex = nsIndex;
+    qn.name = UA_STRING(chars);
+    return qn;
+})
 
-static UA_INLINE UA_QualifiedName
-UA_QUALIFIEDNAME_ALLOC(UA_UInt16 nsIndex, const char *chars) {
-    UA_QualifiedName qn; qn.namespaceIndex = nsIndex;
-    qn.name = UA_STRING_ALLOC(chars); return qn;
-}
+UA_INLINABLE(UA_QualifiedName
+             UA_QUALIFIEDNAME_ALLOC(UA_UInt16 nsIndex, const char *chars), {
+    UA_QualifiedName qn;
+    qn.namespaceIndex = nsIndex;
+    qn.name = UA_STRING_ALLOC(chars);
+    return qn;
+})
 
 UA_Boolean UA_EXPORT
 UA_QualifiedName_equal(const UA_QualifiedName *qn1,
@@ -643,17 +655,21 @@ typedef struct {
     UA_String text;
 } UA_LocalizedText;
 
-static UA_INLINE UA_LocalizedText
-UA_LOCALIZEDTEXT(char *locale, char *text) {
-    UA_LocalizedText lt; lt.locale = UA_STRING(locale);
-    lt.text = UA_STRING(text); return lt;
-}
+UA_INLINABLE(UA_LocalizedText
+             UA_LOCALIZEDTEXT(char *locale, char *text), {
+    UA_LocalizedText lt;
+    lt.locale = UA_STRING(locale);
+    lt.text = UA_STRING(text);
+    return lt;
+})
 
-static UA_INLINE UA_LocalizedText
-UA_LOCALIZEDTEXT_ALLOC(const char *locale, const char *text) {
-    UA_LocalizedText lt; lt.locale = UA_STRING_ALLOC(locale);
-    lt.text = UA_STRING_ALLOC(text); return lt;
-}
+UA_INLINABLE(UA_LocalizedText
+             UA_LOCALIZEDTEXT_ALLOC(const char *locale, const char *text), {
+    UA_LocalizedText lt;
+    lt.locale = UA_STRING_ALLOC(locale);
+    lt.text = UA_STRING_ALLOC(text);
+    return lt;
+})
 
 /**
  * .. _numericrange:
@@ -679,11 +695,12 @@ typedef struct  {
 UA_StatusCode UA_EXPORT
 UA_NumericRange_parse(UA_NumericRange *range, const UA_String str);
 
-static UA_INLINE UA_NumericRange
-UA_NUMERICRANGE(const char *s) {
-    UA_NumericRange nr; nr.dimensionsSize = 0; nr.dimensions = NULL;
-    UA_NumericRange_parse(&nr, UA_STRING((char*)(uintptr_t)s)); return nr;
-}
+UA_INLINABLE(UA_NumericRange
+             UA_NUMERICRANGE(const char *s), {
+    UA_NumericRange nr = {0};
+    UA_NumericRange_parse(&nr, UA_STRING((char*)(uintptr_t)s));
+    return nr;
+})
 
 /**
  * .. _variant:
@@ -746,40 +763,42 @@ typedef struct {
  *
  * @param v The variant
  * @return Is the variant empty */
-static UA_INLINE UA_Boolean
-UA_Variant_isEmpty(const UA_Variant *v) {
+UA_INLINABLE(UA_Boolean
+             UA_Variant_isEmpty(const UA_Variant *v), {
     return v->type == NULL;
-}
+})
 
 /* Returns true if the variant contains a scalar value. Note that empty variants
  * contain an array of length -1 (undefined).
  *
  * @param v The variant
  * @return Does the variant contain a scalar value */
-static UA_INLINE UA_Boolean
-UA_Variant_isScalar(const UA_Variant *v) {
+UA_INLINABLE(UA_Boolean
+             UA_Variant_isScalar(const UA_Variant *v), {
     return (v->arrayLength == 0 && v->data > UA_EMPTY_ARRAY_SENTINEL);
-}
+})
 
 /* Returns true if the variant contains a scalar value of the given type.
  *
  * @param v The variant
  * @param type The data type
  * @return Does the variant contain a scalar value of the given type */
-static UA_INLINE UA_Boolean
-UA_Variant_hasScalarType(const UA_Variant *v, const UA_DataType *type) {
+UA_INLINABLE(UA_Boolean
+             UA_Variant_hasScalarType(const UA_Variant *v,
+                                      const UA_DataType *type), {
     return UA_Variant_isScalar(v) && type == v->type;
-}
+})
 
 /* Returns true if the variant contains an array of the given type.
  *
  * @param v The variant
  * @param type The data type
  * @return Does the variant contain an array of the given type */
-static UA_INLINE UA_Boolean
-UA_Variant_hasArrayType(const UA_Variant *v, const UA_DataType *type) {
+UA_INLINABLE(UA_Boolean
+             UA_Variant_hasArrayType(const UA_Variant *v,
+                                     const UA_DataType *type), {
     return (!UA_Variant_isScalar(v)) && type == v->type;
-}
+})
 
 /* Set the variant to a scalar value that already resides in memory. The value
  * takes on the lifecycle of the variant and is deleted with it.
@@ -1123,10 +1142,10 @@ void UA_EXPORT * UA_new(const UA_DataType *type) UA_FUNC_ATTR_MALLOC;
  *
  * @param p The memory location of the variable
  * @param type The datatype description */
-static UA_INLINE void
-UA_init(void *p, const UA_DataType *type) {
+UA_INLINABLE(void
+             UA_init(void *p, const UA_DataType *type), {
     memset(p, 0, type->memSize);
-}
+})
 
 /* Copies the content of two variables. If copying fails (e.g. because no memory
  * was available for an array), then dst is emptied and initialized to prevent
