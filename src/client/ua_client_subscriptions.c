@@ -80,9 +80,13 @@ UA_Client_Subscriptions_create(UA_Client *client,
     __UA_Client_Service(client,
                         &request, &UA_TYPES[UA_TYPES_CREATESUBSCRIPTIONREQUEST],
                         &response, &UA_TYPES[UA_TYPES_CREATESUBSCRIPTIONRESPONSE]);
-
+    if (response.responseHeader.serviceResult != UA_STATUSCODE_GOOD)
+    {
+        UA_free (sub);
+        return response;
+    }
+    
     ua_Subscriptions_create(client, sub, &response);
-
     return response;
 }
 
