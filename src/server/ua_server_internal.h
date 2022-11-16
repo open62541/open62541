@@ -19,6 +19,7 @@
 #ifndef UA_SERVER_INTERNAL_H_
 #define UA_SERVER_INTERNAL_H_
 
+#define UA_INTERNAL
 #include <open62541/server.h>
 #include <open62541/plugin/nodestore.h>
 

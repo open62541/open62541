@@ -10,11 +10,11 @@
  * Copyright (c) 2022 Linutronix GmbH (Author: Muddasir Shakil)
  */
 
-#include <open62541/server_pubsub.h>
+#include "ua_pubsub.h"
+#include "server/ua_server_internal.h"
 
 #ifdef UA_ENABLE_PUBSUB /* conditional compilation */
 
-#include "server/ua_server_internal.h"
 #include "ua_pubsub_ns0.h"
 #ifdef UA_ENABLE_PUBSUB_SKS
 #include "ua_pubsub_keystorage.h"
@@ -434,14 +434,16 @@ UA_PubSubConnection_regist(UA_Server *server, UA_NodeId *connectionIdentifier, c
     if(readerGroupConfig != NULL) {
         UA_ExtensionObject transportSettings = readerGroupConfig->transportSettings;
         retval = connection->channel->regist(connection->channel, &transportSettings, NULL);
-    }else
+    } else {
         retval = connection->channel->regist(connection->channel, NULL, NULL);
+    }
 
-    if(retval != UA_STATUSCODE_GOOD)
+    if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
                        "register channel failed: 0x%" PRIx32 "!", retval);
+    }
 
-    connection->isRegistered = UA_TRUE;
+    connection->isRegistered = true;
     return retval;
 }
 

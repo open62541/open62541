@@ -189,20 +189,20 @@ entryMatchesCapabilityFilter(size_t serverCapabilityFilterSize, UA_String *serve
                    serverOnNetwork_list_entry* current) {
     // if the entry has less capabilities defined than the filter, there's no match
     if (serverCapabilityFilterSize > current->serverOnNetwork.serverCapabilitiesSize)
-        return UA_FALSE;
+        return false;
     for(size_t i = 0; i < serverCapabilityFilterSize; i++) {
-        UA_Boolean capabilityFound = UA_FALSE;
+        UA_Boolean capabilityFound = false;
         for(size_t j = 0; j < current->serverOnNetwork.serverCapabilitiesSize; j++) {
             if(UA_String_equal_ignorecase(&serverCapabilityFilter[i],
                                &current->serverOnNetwork.serverCapabilities[j])) {
-                capabilityFound = UA_TRUE;
+                capabilityFound = true;
                 break;
             }
         }
         if (!capabilityFound)
-            return UA_FALSE; // entry does not match capability
+            return false; // entry does not match capability
     }
-    return UA_TRUE;
+    return true;
 }
 
 void Service_FindServersOnNetwork(UA_Server *server, UA_Session *session,

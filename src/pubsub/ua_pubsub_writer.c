@@ -10,12 +10,11 @@
  * Copyright (c) 2021 Fraunhofer IOSB (Author: Jan Hermes)
  */
 
-#include <open62541/server_pubsub.h>
+#include "ua_pubsub.h"
 #include "server/ua_server_internal.h"
 
 #ifdef UA_ENABLE_PUBSUB /* conditional compilation */
 
-#include "ua_pubsub.h"
 #include "ua_pubsub_networkmessage.h"
 
 #ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL
@@ -1105,7 +1104,7 @@ UA_PubSubDataSetField_sampleValue(UA_Server *server, UA_DataSetField *field,
         *value = **rtNode->valueBackend.backend.external.value;
         value->value.storageType = UA_VARIANT_DATA_NODELETE;
         UA_NODESTORE_RELEASE(server, (const UA_Node *) rtNode);
-    } else if(field->config.field.variable.rtValueSource.rtFieldSourceEnabled == UA_FALSE){
+    } else if(field->config.field.variable.rtValueSource.rtFieldSourceEnabled == false){
         UA_ReadValueId rvid;
         UA_ReadValueId_init(&rvid);
         rvid.nodeId = params->publishedVariable;

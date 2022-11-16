@@ -10,13 +10,10 @@
  * Copyright (c) 2022 Fraunhofer IOSB (Author: Noel Graf)
  */
 
-#include <open62541/server_pubsub.h>
-
+#include "ua_pubsub.h"
 #include "server/ua_server_internal.h"
 
 #ifdef UA_ENABLE_PUBSUB /* conditional compilation */
-
-#include "ua_pubsub.h"
 
 #ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL
 #include "ua_pubsub_networkmessage.h"
@@ -801,13 +798,13 @@ UA_DataSetReader_setState_disabled(UA_Server *server, UA_DataSetReader *dsr) {
     case UA_PUBSUBSTATE_OPERATIONAL:
 #ifdef UA_ENABLE_PUBSUB_MONITORING
         /* Stop MessageReceiveTimeout timer */
-        if(dsr->msgRcvTimeoutTimerRunning == UA_TRUE) {
+        if(dsr->msgRcvTimeoutTimerRunning == true) {
             ret = server->config.pubSubConfig.monitoringInterface.
                 stopMonitoring(server, dsr->identifier,
                                UA_PUBSUB_COMPONENT_DATASETREADER,
                                UA_PUBSUB_MONITORING_MESSAGE_RECEIVE_TIMEOUT, dsr);
             if(ret == UA_STATUSCODE_GOOD) {
-                dsr->msgRcvTimeoutTimerRunning = UA_FALSE;
+                dsr->msgRcvTimeoutTimerRunning = false;
             } else {
                 UA_LOG_ERROR_READER(&server->config.logger, dsr,
                                     "Disable ReaderGroup failed. Stop message receive "

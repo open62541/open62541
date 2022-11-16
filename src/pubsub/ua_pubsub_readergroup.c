@@ -10,13 +10,10 @@
  *
  */
 
-#include <open62541/server_pubsub.h>
-
+#include "ua_pubsub.h"
 #include "server/ua_server_internal.h"
 
 #ifdef UA_ENABLE_PUBSUB /* conditional compilation */
-
-#include "ua_pubsub.h"
 
 #ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL
 #include "ua_pubsub_networkmessage.h"
@@ -548,18 +545,18 @@ UA_Server_freezeReaderGroupConfiguration(UA_Server *server,
     UA_PubSubConnection *pubSubConnection =
         UA_PubSubConnection_findConnectionbyId(server, pubSubConnectionId);
     pubSubConnection->configurationFreezeCounter++;
-    pubSubConnection->configurationFrozen = UA_TRUE;
+    pubSubConnection->configurationFrozen = true;
 
     /* ReaderGroup freeze */
     /* TODO: Clarify on the freeze functionality in multiple DSR, multiple
      * networkMessage conf in a RG */
-    rg->configurationFrozen = UA_TRUE;
+    rg->configurationFrozen = true;
 
     /* DataSetReader freeze */
     UA_DataSetReader *dataSetReader;
     UA_UInt16 dsrCount = 0;
     LIST_FOREACH(dataSetReader, &rg->readers, listEntry){
-        dataSetReader->configurationFrozen = UA_TRUE;
+        dataSetReader->configurationFrozen = true;
         dsrCount++;
         /* TODO: Configuration frozen for subscribedDataSet once
          * UA_Server_DataSetReader_addTargetVariables API modified to support
@@ -694,16 +691,16 @@ UA_Server_unfreezeReaderGroupConfiguration(UA_Server *server,
         UA_PubSubConnection_findConnectionbyId(server, pubSubConnectionId);
     pubSubConnection->configurationFreezeCounter--;
     if(pubSubConnection->configurationFreezeCounter == 0){
-        pubSubConnection->configurationFrozen = UA_FALSE;
+        pubSubConnection->configurationFrozen = false;
     }
 
     /* ReaderGroup unfreeze */
-    rg->configurationFrozen = UA_FALSE;
+    rg->configurationFrozen = false;
 
     /* DataSetReader unfreeze */
     UA_DataSetReader *dataSetReader;
     LIST_FOREACH(dataSetReader, &rg->readers, listEntry) {
-        dataSetReader->configurationFrozen = UA_FALSE;
+        dataSetReader->configurationFrozen = false;
         UA_NetworkMessageOffsetBuffer_clear(&dataSetReader->bufferedMessage);
     }
 
@@ -750,7 +747,7 @@ UA_ReaderGroup_addSubscribeCallback(UA_Server *server, UA_ReaderGroup *readerGro
                UA_TIMER_HANDLE_CYCLEMISS_WITH_CURRENTTIME,
                &readerGroup->subscribeCallbackId);
     else {
-        if(readerGroup->config.enableBlockingSocket == UA_TRUE) {
+        if(readerGroup->config.enableBlockingSocket == true) {
             UA_LOG_WARNING_READERGROUP(&server->config.logger, readerGroup,
                                        "addSubscribeCallback() failed, blocking socket "
                                        "functionality only supported in customcallback");
@@ -770,7 +767,7 @@ UA_ReaderGroup_addSubscribeCallback(UA_Server *server, UA_ReaderGroup *readerGro
     /* When using blocking socket functionality, the server mechanism might get
      * blocked. It is highly recommended to use custom callback when using
      * blockingsocket. */
-    if(readerGroup->config.enableBlockingSocket != UA_TRUE)
+    if(readerGroup->config.enableBlockingSocket != true)
         UA_ReaderGroup_subscribeCallback(server, readerGroup);
 
     return retval;

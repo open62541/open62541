@@ -11,8 +11,8 @@
 #ifndef UA_PUBSUB_NS0_H_
 #define UA_PUBSUB_NS0_H_
 
-#include "server/ua_server_internal.h"
 #include "ua_pubsub.h"
+#include "server/ua_server_internal.h"
 
 _UA_BEGIN_DECLS
 

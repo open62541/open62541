@@ -11,12 +11,11 @@
  * Copyright (c) 2022 Linutronix GmbH (Author: Muddasir Shakil)
  */
 
-#include <open62541/server_pubsub.h>
+#include "ua_pubsub.h"
 #include "server/ua_server_internal.h"
 
 #ifdef UA_ENABLE_PUBSUB /* conditional compilation */
 
-#include "ua_pubsub.h"
 #include "ua_pubsub_networkmessage.h"
 
 #ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL
@@ -433,7 +432,7 @@ UA_Server_unfreezeWriterGroupConfiguration(UA_Server *server,
     UA_PubSubConnection *pubSubConnection =  wg->linkedConnection;
     pubSubConnection->configurationFreezeCounter--;
     if(pubSubConnection->configurationFreezeCounter == 0){
-        pubSubConnection->configurationFrozen = UA_FALSE;
+        pubSubConnection->configurationFrozen = false;
     }
 
     //DataSetWriter unfreeze
@@ -445,13 +444,13 @@ UA_Server_unfreezeWriterGroupConfiguration(UA_Server *server,
         if(publishedDataSet != NULL){ /* This means the DSW is a heartbeat configuration */
             publishedDataSet->configurationFreezeCounter--;
             if(publishedDataSet->configurationFreezeCounter == 0){
-                publishedDataSet->configurationFrozen = UA_FALSE;
+                publishedDataSet->configurationFrozen = false;
                 UA_DataSetField *dataSetField;
                 TAILQ_FOREACH(dataSetField, &publishedDataSet->fields, listEntry){
-                    dataSetField->configurationFrozen = UA_FALSE;
+                    dataSetField->configurationFrozen = false;
                 }
             }
-            dataSetWriter->configurationFrozen = UA_FALSE;
+            dataSetWriter->configurationFrozen = false;
         }
     }
 
