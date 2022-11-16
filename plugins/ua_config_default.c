@@ -274,7 +274,7 @@ setDefaultConfig(UA_ServerConfig *conf, UA_UInt16 portNumber) {
     /* conf->nodeLifecycle.destructor = NULL; */
     /* conf->nodeLifecycle.createOptionalChild = NULL; */
     /* conf->nodeLifecycle.generateChildNodeId = NULL; */
-    conf->modellingRulesOnInstances = UA_TRUE;
+    conf->modellingRulesOnInstances = true;
 
     /* Limits for SecureChannels */
     conf->maxSecureChannels = 40;
@@ -306,25 +306,25 @@ setDefaultConfig(UA_ServerConfig *conf, UA_UInt16 portNumber) {
 #endif
 
 #ifdef UA_ENABLE_HISTORIZING
-    /* conf->accessHistoryDataCapability = UA_FALSE; */
+    /* conf->accessHistoryDataCapability = false; */
     /* conf->maxReturnDataValues = 0; */
 
-    /* conf->accessHistoryEventsCapability = UA_FALSE; */
+    /* conf->accessHistoryEventsCapability = false; */
     /* conf->maxReturnEventValues = 0; */
 
-    /* conf->insertDataCapability = UA_FALSE; */
-    /* conf->insertEventCapability = UA_FALSE; */
-    /* conf->insertAnnotationsCapability = UA_FALSE; */
+    /* conf->insertDataCapability = false; */
+    /* conf->insertEventCapability = false; */
+    /* conf->insertAnnotationsCapability = false; */
 
-    /* conf->replaceDataCapability = UA_FALSE; */
-    /* conf->replaceEventCapability = UA_FALSE; */
+    /* conf->replaceDataCapability = false; */
+    /* conf->replaceEventCapability = false; */
 
-    /* conf->updateDataCapability = UA_FALSE; */
-    /* conf->updateEventCapability = UA_FALSE; */
+    /* conf->updateDataCapability = false; */
+    /* conf->updateEventCapability = false; */
 
-    /* conf->deleteRawCapability = UA_FALSE; */
-    /* conf->deleteEventCapability = UA_FALSE; */
-    /* conf->deleteAtTimeDataCapability = UA_FALSE; */
+    /* conf->deleteRawCapability = false; */
+    /* conf->deleteEventCapability = false; */
+    /* conf->deleteAtTimeDataCapability = false; */
 #endif
 
 #if UA_MULTITHREADING >= 100

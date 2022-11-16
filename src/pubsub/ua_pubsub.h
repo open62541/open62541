@@ -15,6 +15,7 @@
 #ifndef UA_PUBSUB_H_
 #define UA_PUBSUB_H_
 
+#define UA_INTERNAL
 #include <open62541/plugin/pubsub.h>
 #include <open62541/server.h>
 #include <open62541/server_pubsub.h>

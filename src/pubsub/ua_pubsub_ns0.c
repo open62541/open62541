@@ -9,7 +9,6 @@
  * Copyright (c) 2022 Linutronix GmbH (Author: Muddasir Shakil)
  */
 
-#include <open62541/types.h>
 #include "ua_pubsub_ns0.h"
 
 #ifdef UA_ENABLE_PUBSUB_FILE_CONFIG
@@ -1502,7 +1501,7 @@ addReaderGroupAction(UA_Server *server,
 #ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL
 static UA_Boolean
 isValidParentNode(UA_Server *server, UA_NodeId parentId) {
-    UA_Boolean retval = UA_TRUE;
+    UA_Boolean retval = true;
     const UA_Node *parentNodeType;
     const UA_NodeId parentNodeTypeId =
         UA_NODEID_NUMERIC(0, UA_NS0ID_SECURITYGROUPFOLDERTYPE);
@@ -1894,7 +1893,7 @@ getSecurityKeysAction(UA_Server *server, const UA_NodeId *sessionId, void *sessi
     if(!ks)
         return UA_STATUSCODE_BADNOTFOUND;
 
-    UA_Boolean executable = UA_FALSE;
+    UA_Boolean executable = false;
     UA_SecurityGroup *sg = UA_SecurityGroup_findSGbyName(server, *securityGroupId);
     void *sgNodeCtx;
     getNodeContext(server, sg->securityGroupNodeId, (void **)&sgNodeCtx);
@@ -2312,9 +2311,9 @@ connectDataSetReaderToDataSet(UA_Server *server, UA_NodeId dsrId, UA_NodeId stan
     UA_NODESTORE_REMOVE(server, &subscribedDataSetOnDsrId);
 
     retVal |= UA_Server_addReference(server, dsrId, UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY),
-        UA_EXPANDEDNODEID_NUMERIC(dataSetMetaDataOnSdsId.namespaceIndex, dataSetMetaDataOnSdsId.identifier.numeric), UA_TRUE);
+        UA_EXPANDEDNODEID_NUMERIC(dataSetMetaDataOnSdsId.namespaceIndex, dataSetMetaDataOnSdsId.identifier.numeric), true);
     retVal |= UA_Server_addReference(server, dsrId, UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY),
-        UA_EXPANDEDNODEID_NUMERIC(subscribedDataSetOnSdsId.namespaceIndex, subscribedDataSetOnSdsId.identifier.numeric), UA_TRUE);
+        UA_EXPANDEDNODEID_NUMERIC(subscribedDataSetOnSdsId.namespaceIndex, subscribedDataSetOnSdsId.identifier.numeric), true);
 
     return retVal;
 }
