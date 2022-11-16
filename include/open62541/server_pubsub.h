@@ -552,6 +552,9 @@ UA_EXPORT UA_StatusCode UA_THREADSAFE
 UA_Server_unfreezeWriterGroupConfiguration(UA_Server *server, const UA_NodeId writerGroup);
 
 UA_EXPORT UA_StatusCode UA_THREADSAFE
+UA_Server_setWriterGroupPreOperational(UA_Server *server, const UA_NodeId writerGroup);
+
+UA_StatusCode UA_EXPORT UA_THREADSAFE
 UA_Server_setWriterGroupOperational(UA_Server *server, const UA_NodeId writerGroup);
 
 UA_EXPORT UA_StatusCode UA_THREADSAFE
@@ -609,6 +612,9 @@ UA_EXPORT UA_StatusCode UA_THREADSAFE
 UA_Server_getDataSetWriterConfig(UA_Server *server, const UA_NodeId dsw,
                                  UA_DataSetWriterConfig *config);
 
+UA_StatusCode UA_EXPORT UA_THREADSAFE
+UA_Server_setDataSetWriterOperational(UA_Server *server,
+                                    const UA_NodeId dataSetWriterIdent);
 /* Get state of DataSetWriter */
 UA_EXPORT UA_StatusCode UA_THREADSAFE
 UA_Server_DataSetWriter_getState(UA_Server *server, UA_NodeId dataSetWriterIdentifier,
