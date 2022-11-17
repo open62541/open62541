@@ -5,7 +5,7 @@
 /* Test case for all standardized companion nodesets. You can
  * find the specifications at https://github.com/OPCFoundation/UA-Nodeset.
  *      - branch: latest
- *      - commit: a2208e8
+ *      - commit: 54e3513
  * 
  * Currently this test case is missing the following UA-Nodesets:
  *    * NodesetLoader related issues:
@@ -83,6 +83,13 @@ END_TEST
 START_TEST(Server_loadAutoIDNodeset) {
     bool retVal = UA_Server_loadNodeset(server,
         OPEN62541_NODESET_DIR "AutoID/Opc.Ua.AutoID.NodeSet2.xml", NULL);
+    ck_assert_uint_eq(retVal, true);
+}
+END_TEST
+
+START_TEST(Server_loadBACnetNodeset) {
+    bool retVal = UA_Server_loadNodeset(server,
+        OPEN62541_NODESET_DIR "BACnet/Opc.Ua.BACnet.NodeSet2.xml", NULL);
     ck_assert_uint_eq(retVal, true);
 }
 END_TEST
@@ -654,6 +661,12 @@ static Suite* testSuite_Client(void) {
         tcase_add_unchecked_fixture(tc_server, setup, teardown);
         tcase_add_test(tc_server, Server_loadDINodeset);
         tcase_add_test(tc_server, Server_loadAutoIDNodeset);
+        suite_add_tcase(s, tc_server);
+    }
+    {
+        TCase *tc_server = tcase_create("Server load BACnet nodeset");
+        tcase_add_unchecked_fixture(tc_server, setup, teardown);
+        tcase_add_test(tc_server, Server_loadBACnetNodeset);
         suite_add_tcase(s, tc_server);
     }
     {
