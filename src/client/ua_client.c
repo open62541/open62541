@@ -40,6 +40,14 @@ UA_Client_newWithConfig(const UA_ClientConfig *config) {
         return NULL;
     memset(client, 0, sizeof(UA_Client));
     client->config = *config;
+    /* Fix up known logger pointers now that the config has "moved" into the
+     * client struct */
+    if(client->config.eventLoop->logger == &config->logger)
+        client->config.eventLoop->logger = &client->config.logger;
+    for(size_t i = 0; i < client->config.securityPoliciesSize; i++) {
+        if(client->config.securityPolicies[i].logger == &config->logger)
+            client->config.securityPolicies[i].logger = &client->config.logger;
+    }
 
     UA_SecureChannel_init(&client->channel);
     client->channel.config = client->config.localConnectionConfig;
