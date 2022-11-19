@@ -168,6 +168,15 @@ struct UA_Client {
     UA_UInt32 monitoredItemHandles;
     UA_UInt16 currentlyOutStandingPublishRequests;
 #endif
+
+    /* Internal locking for thread-safety. Methods starting with UA_Client_ that
+     * are marked with UA_THREADSAFE take the lock. The lock is released before
+     * dropping into the EventLoop and before calling user-defined callbacks.
+     * That way user-defined callbacks can themselves call thread-safe client
+     * methods. */
+#if UA_MULTITHREADING >= 100
+    UA_Lock clientMutex;
+#endif
 };
 
 UA_StatusCode

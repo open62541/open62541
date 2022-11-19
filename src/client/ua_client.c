@@ -45,6 +45,10 @@ UA_Client_newWithConfig(const UA_ClientConfig *config) {
     client->channel.config = client->config.localConnectionConfig;
     client->connectStatus = UA_STATUSCODE_GOOD;
 
+#if UA_MULTITHREADING >= 100
+    UA_LOCK_INIT(&client->clientMutex);
+#endif
+
     /* Set up the regular callback for checking the internal state */
     UA_StatusCode res =
         UA_Client_addRepeatedCallback(client,
@@ -128,6 +132,10 @@ UA_Client_clear(UA_Client *client) {
     /* Remove the internal regular callback */
     UA_Client_removeCallback(client, client->houseKeepingCallbackId);
     client->houseKeepingCallbackId = 0;
+
+#if UA_MULTITHREADING >= 100
+    UA_LOCK_DESTROY(&client->clientMutex);
+#endif
 }
 
 void
