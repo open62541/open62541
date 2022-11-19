@@ -247,7 +247,6 @@ void UA_Server_delete(UA_Server *server) {
     UA_ServerConfig_clean(&server->config);
 
 #if UA_MULTITHREADING >= 100
-    UA_LOCK_DESTROY(&server->networkMutex);
     UA_LOCK_DESTROY(&server->serviceMutex);
 #endif
 
@@ -296,7 +295,6 @@ UA_Server_init(UA_Server *server) {
 #endif
 
 #if UA_MULTITHREADING >= 100
-    UA_LOCK_INIT(&server->networkMutex);
     UA_LOCK_INIT(&server->serviceMutex);
 #endif
 

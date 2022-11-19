@@ -162,7 +162,6 @@ struct UA_Server {
 #endif
 
 #if UA_MULTITHREADING >= 100
-    UA_Lock networkMutex;
     UA_Lock serviceMutex;
 #endif
 
