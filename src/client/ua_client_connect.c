@@ -1226,18 +1226,8 @@ initConnect(UA_Client *client) {
     }
 
     /* Start the EventLoop if not already started */
-    UA_EventLoop *el = client->config.eventLoop;
-    if(!el) {
-        UA_LOG_WARNING(&client->config.logger, UA_LOGCATEGORY_CLIENT,
-                       "No EventLoop configured");
-        return UA_STATUSCODE_BADINTERNALERROR;
-    }
-
-    UA_StatusCode res =  UA_STATUSCODE_GOOD;
-    if(el->state != UA_EVENTLOOPSTATE_STARTED) {
-        res = el->start(el);
-        UA_CHECK_STATUS(res, return res);
-    }
+    UA_StatusCode res = __UA_Client_startup(client);
+    UA_CHECK_STATUS(res, return res);
 
     /* Consistency check the client's own ApplicationURI */
     verifyClientApplicationURI(client);
