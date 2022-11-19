@@ -795,16 +795,7 @@ UA_Client * UA_Client_new(void) {
         config.eventLoop->registerEventSource(config.eventLoop, (UA_EventSource *)udpCM);
     }
 
-    UA_Client *c = UA_Client_newWithConfig(&config);
-
-    if(c) {
-        /* Update the EventLoop to the logger in the new location inside the
-         * client */
-        UA_ClientConfig *cc = UA_Client_getConfig(c);
-        cc->eventLoop->logger = &cc->logger;
-    }
-
-    return c;
+    return UA_Client_newWithConfig(&config);
 }
 
 UA_StatusCode
