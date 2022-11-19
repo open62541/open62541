@@ -193,6 +193,9 @@ __Client_Service(UA_Client *client, const void *request,
                  const UA_DataType *responseType);
 
 UA_StatusCode
+__UA_Client_startup(UA_Client *client);
+
+UA_StatusCode
 __Client_renewSecureChannel(UA_Client *client);
 
 UA_StatusCode

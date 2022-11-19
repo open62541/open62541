@@ -57,15 +57,6 @@ UA_Client_newWithConfig(const UA_ClientConfig *config) {
     UA_LOCK_INIT(&client->clientMutex);
 #endif
 
-    /* Set up the regular callback for checking the internal state */
-    UA_StatusCode res =
-        UA_Client_addRepeatedCallback(client,
-                                      (UA_ClientCallback)clientHouseKeeping,
-                                      NULL, 1000.0, &client->houseKeepingCallbackId);
-    if(res != UA_STATUSCODE_GOOD) {
-        UA_Client_delete(client);
-        return NULL;
-    }
     return client;
 }
 
@@ -871,22 +862,42 @@ clientHouseKeeping(UA_Client *client, void *_) {
 }
 
 UA_StatusCode
-UA_Client_run_iterate(UA_Client *client, UA_UInt32 timeout) {
-    UA_ClientConfig *cc = &client->config;
-    UA_EventLoop *el = cc->eventLoop;
+__UA_Client_startup(UA_Client *client)
+{
+    /* On entry, the client mutex is already locked */
+    UA_EventLoop *el = client->config.eventLoop;
     UA_CHECK_ERROR(el != NULL,
                    return UA_STATUSCODE_BADINTERNALERROR,
                    &client->config.logger, UA_LOGCATEGORY_CLIENT,
                    "No EventLoop configured");
 
-    /* Start the EventLoop? */
+    /* Set up the regular callback for checking the internal state? */
     UA_StatusCode rv = UA_STATUSCODE_GOOD;
+    if(!client->houseKeepingCallbackId) {
+        /* As per UA_Client_addRepeatedCallback but without locking mutex */
+        rv = el->addCyclicCallback(el, (UA_Callback)clientHouseKeeping,
+                                   client, NULL, 1000.0, NULL,
+                                   UA_TIMER_HANDLE_CYCLEMISS_WITH_CURRENTTIME,
+                                   &client->houseKeepingCallbackId);
+        UA_CHECK_STATUS(rv, return rv);
+    }
+
+    /* Start the EventLoop? */
     if(el->state == UA_EVENTLOOPSTATE_FRESH) {
         rv = el->start(el);
         UA_CHECK_STATUS(rv, return rv);
     }
 
+    return UA_STATUSCODE_GOOD;
+}
+
+UA_StatusCode
+UA_Client_run_iterate(UA_Client *client, UA_UInt32 timeout) {
+    UA_StatusCode rv = __UA_Client_startup(client);
+    UA_CHECK_STATUS(rv, return rv);
+
     /* Process timed and network events in the EventLoop */
+    UA_EventLoop *el = client->config.eventLoop;
     rv = el->run(el, timeout);
     UA_CHECK_STATUS(rv, return rv);
     return client->connectStatus;
