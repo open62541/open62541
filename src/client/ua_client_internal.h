@@ -76,17 +76,17 @@ struct UA_Client_MonitoredItem_ForDelete {
 };
 
 void
-UA_Client_Subscriptions_clean(UA_Client *client);
+__Client_Subscriptions_clean(UA_Client *client);
 
 /* Exposed for fuzzing */
 UA_StatusCode
-UA_Client_preparePublishRequest(UA_Client *client, UA_PublishRequest *request);
+__Client_preparePublishRequest(UA_Client *client, UA_PublishRequest *request);
 
 void
-UA_Client_Subscriptions_backgroundPublish(UA_Client *client);
+__Client_Subscriptions_backgroundPublish(UA_Client *client);
 
 void
-UA_Client_Subscriptions_backgroundPublishInactivityCheck(UA_Client *client);
+__Client_Subscriptions_backgroundPublishInactivityCheck(UA_Client *client);
 
 #endif /* UA_ENABLE_SUBSCRIPTIONS */
 
@@ -110,7 +110,7 @@ typedef struct AsyncServiceCall {
 typedef LIST_HEAD(UA_AsyncServiceList, AsyncServiceCall) UA_AsyncServiceList;
 
 void
-UA_Client_AsyncService_removeAll(UA_Client *client, UA_StatusCode statusCode);
+__Client_AsyncService_removeAll(UA_Client *client, UA_StatusCode statusCode);
 
 typedef struct CustomCallback {
     UA_UInt32 callbackId;
@@ -178,6 +178,22 @@ struct UA_Client {
     UA_Lock clientMutex;
 #endif
 };
+
+UA_StatusCode
+__Client_AsyncServiceEx(UA_Client *client, const void *request,
+                        const UA_DataType *requestType,
+                        UA_ClientAsyncServiceCallback callback,
+                        const UA_DataType *responseType,
+                        void *userdata, UA_UInt32 *requestId,
+                        UA_UInt32 timeout);
+
+void
+__Client_Service(UA_Client *client, const void *request,
+                 const UA_DataType *requestType, void *response,
+                 const UA_DataType *responseType);
+
+UA_StatusCode
+__Client_renewSecureChannel(UA_Client *client);
 
 UA_StatusCode
 processServiceResponse(void *application, UA_SecureChannel *channel,
