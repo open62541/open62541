@@ -17,7 +17,6 @@
 #define MAX_DATA_SIZE 4096
 
 static UA_StatusCode initConnect(UA_Client *client);
-static void closeSession(UA_Client *client);
 static UA_StatusCode createSessionAsync(UA_Client *client);
 
 static UA_SecurityPolicy *
@@ -512,10 +511,10 @@ responseActivateSession(UA_Client *client, void *userdata,
         if(ar->responseHeader.serviceResult == UA_STATUSCODE_BADSESSIONIDINVALID ||
            ar->responseHeader.serviceResult == UA_STATUSCODE_BADSESSIONCLOSED) {
             /* The session is no longer usable. Create a brand new one. */
-            closeSession(client);
-            client->connectStatus = createSessionAsync(client);
+            cleanupSession(client);
             UA_LOG_ERROR(&client->config.logger, UA_LOGCATEGORY_CLIENT,
                          "Session cannot be activated. Create a new Session.");
+            client->connectStatus = createSessionAsync(client);
         } else {
             /* Something else is wrong. Give up. */
             client->connectStatus = ar->responseHeader.serviceResult;
@@ -1483,16 +1482,8 @@ sendCloseSession(UA_Client *client) {
     client->sessionState = UA_SESSIONSTATE_CLOSING;
 }
 
-static void
-closeSession(UA_Client *client) {
-    if(client->sessionState == UA_SESSIONSTATE_CLOSED ||
-       client->sessionState == UA_SESSIONSTATE_CLOSING)
-        return;
-
-    /* Is a session established? */
-    if(client->sessionState == UA_SESSIONSTATE_ACTIVATED)
-        sendCloseSession(client);
-
+void
+cleanupSession(UA_Client *client) {
     UA_NodeId_clear(&client->authenticationToken);
     client->requestHandle = 0;
 
@@ -1518,7 +1509,7 @@ static void
 closeSessionCallback(UA_Client *client, void *userdata,
                      UA_UInt32 requestId, void *response) {
     UA_LOCK(&client->clientMutex);
-    closeSession(client);
+    cleanupSession(client);
     closeSecureChannel(client);
     notifyClientState(client);
     UA_UNLOCK(&client->clientMutex);
@@ -1551,8 +1542,9 @@ UA_Client_disconnectAsync(UA_Client *client) {
                                 &UA_TYPES[UA_TYPES_CLOSESESSIONRESPONSE], NULL, NULL,
                                 client->config.timeout);
     if(res != UA_STATUSCODE_GOOD) {
-        /* Sending the close request failed. Continue to close the connection anyway. */
-        closeSession(client);
+        /* Sending the close request failed. Continue to close the connection
+         * anyway. */
+        cleanupSession(client);
         closeSecureChannel(client);
     }
     notifyClientState(client);
@@ -1593,7 +1585,9 @@ UA_StatusCode
 UA_Client_disconnect(UA_Client *client) {
     UA_LOCK(&client->clientMutex);
     client->noReconnect = true;
-    closeSession(client);
+    if(client->sessionState == UA_SESSIONSTATE_ACTIVATED)
+        sendCloseSession(client);
+    cleanupSession(client);
     UA_UNLOCK(&client->clientMutex);
     UA_StatusCode res = UA_Client_disconnectSecureChannel(client);
     return res;

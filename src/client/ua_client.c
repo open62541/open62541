@@ -292,8 +292,6 @@ processMSGResponse(UA_Client *client, UA_UInt32 requestId,
     UA_Response *response = (ac->syncResponse) ? ac->syncResponse : &asyncResponse;
     const UA_DataType *responseType = ac->responseType;
 
-    /* TODO: Handle UA_STATUSCODE_BADSESSIONCLOSED et al. here */
-
     /* Dequeue ac. We might disconnect the client (remove all ac) in the callback. */
     LIST_REMOVE(ac, pointers);
 
@@ -342,6 +340,16 @@ processMSGResponse(UA_Client *client, UA_UInt32 requestId,
                        "Could not decode the response with RequestId %u with status %s",
                        (unsigned)requestId, UA_StatusCode_name(retval));
         response->responseHeader.serviceResult = retval;
+    }
+
+    /* Warn if the Session closed */
+    if(responseType != &UA_TYPES[UA_TYPES_ACTIVATESESSIONRESPONSE] &&
+       (response->responseHeader.serviceResult == UA_STATUSCODE_BADSESSIONIDINVALID ||
+        response->responseHeader.serviceResult == UA_STATUSCODE_BADSESSIONCLOSED)) {
+        UA_LOG_WARNING(&client->config.logger, UA_LOGCATEGORY_CLIENT,
+                       "Session no longer valid. A new Session is created for the next "
+                       "Service request but we do not re-send the current request.");
+        cleanupSession(client);
     }
 
     /* Call the async callback. This is the only thread with access to ac. So we
@@ -425,7 +433,8 @@ __Client_Service(UA_Client *client, const void *request,
     UA_DateTime maxDate = UA_DateTime_nowMonotonic() +
         ((UA_DateTime)client->config.timeout * UA_DATETIME_MSEC);
 
-    /* Check that the SecureChannel is open. Otherwise reopen. */
+    /* Check that the SecureChannel is open and also a Session active (if we
+     * want a Session). Otherwise reopen. */
     if((client->sessionState != UA_SESSIONSTATE_ACTIVATED && !client->noSession) ||
        client->channel.state != UA_SECURECHANNELSTATE_OPEN) {
         UA_LOG_INFO(&client->config.logger, UA_LOGCATEGORY_CLIENT,

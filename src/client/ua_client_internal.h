@@ -206,6 +206,7 @@ void processERRResponse(UA_Client *client, const UA_ByteString *chunk);
 void processACKResponse(UA_Client *client, const UA_ByteString *chunk);
 void processOPNResponse(UA_Client *client, const UA_ByteString *message);
 void closeSecureChannel(UA_Client *client);
+void cleanupSession(UA_Client *client);
 
 _UA_END_DECLS
 
