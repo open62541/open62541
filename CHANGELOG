@@ -1,6 +1,14 @@
 This changelog reports changes visible through the public API. Internal refactorings and bug
 fixes are not reported here.
 
+2022-11-19 Julius Pfrommer <julius.pfrommer at iosb.fraunhofer.de>
+
+ * Thread-safe client
+
+   A large portion of the client API is now marked UA_THREADSAFE. For
+   those methods, if multithreading is enabled, an internal mutex
+   protects the client.
+
 2022-08-04 Robert Mak <makr at keba.com>
 
  * Saving unknown client certificates

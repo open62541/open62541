@@ -30,11 +30,6 @@
 
 _UA_BEGIN_DECLS
 
-#if UA_MULTITHREADING >= 100
-#undef UA_THREADSAFE
-#define UA_THREADSAFE UA_DEPRECATED
-#endif
-
 #ifdef UA_ENABLE_PUBSUB
 #include "ua_pubsub_manager.h"
 #endif
@@ -167,7 +162,6 @@ struct UA_Server {
 #endif
 
 #if UA_MULTITHREADING >= 100
-    UA_Lock networkMutex;
     UA_Lock serviceMutex;
 #endif
 
