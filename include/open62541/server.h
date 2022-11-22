@@ -1901,29 +1901,16 @@ UA_Server_getStatistics(UA_Server *server);
   */
 
 /**
-  * The CONNECTED state refers to the secure channel and is reached once the secure channel
-  * has been opened.
-  */
-typedef enum {
-    UA_REVERSECONNECTSTATE_DISCONNECTED = 0,
-    UA_REVERSECONNECTSTATE_CONNECTING,
-    UA_REVERSECONNECTSTATE_CONNECTED,
-} UA_ReverseConnectState;
-
-/**
  * The reverse connect state change callback is called whenever the state of a reverse
- * connect is modified by a connection attempt, a successful connection or a connection
+ * connect is changed by a connection attempt, a successful connection or a connection
  * loss.
  *
- * Each attempt to establish a connection will lead to a call with
- * UA_REVERSECONNECTSTATE_CONNECTING followed by either UA_REVERSECONNECTSTATE_CONNECTED
- * if a secure channel was successfully opened or UA_REVERSECONNECTSTATE_DISCONNECTED if
- * the connection attempt was not successful.
- * A connection break leads to a call with UA_REVERSECONNECTSTATE_DISCONNECTED followed by
- * UA_REVERSECONNECTSTATE_CONNECTING when the next reconnect attempt is made.
+ * The reverse connect states reflect the state of the secure channel currently associated
+ * with a reverse connect. The state will remain UA_SECURECHANNELSTATE_CONNECTING while
+ * the server attempts repeatedly to establish a connection.
  */
 typedef void (*UA_Server_ReverseConnectStateCallback)(UA_Server *server, UA_UInt64 handle,
-                                                      UA_ReverseConnectState state,
+                                                      UA_SecureChannelState state,
                                                       void *context);
 
 /**

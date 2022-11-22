@@ -649,12 +649,10 @@ UA_StatusCode UA_Server_attemptReverseConnect(UA_Server *server, reverse_connect
 
         if (res != UA_STATUSCODE_GOOD) {
             context->currentConnection.connectionId = 0;
-            context->state = UA_REVERSECONNECTSTATE_DISCONNECTED;
-            if (context->stateCallback)
-                context->stateCallback(server, context->handle, context->state,
-                                       context->callbackContext);
-        } else {
-            context->state = UA_REVERSECONNECTSTATE_CONNECTING;
+        }
+
+        if (context->state != UA_SECURECHANNELSTATE_CONNECTING) {
+            context->state = UA_SECURECHANNELSTATE_CONNECTING;
             if (context->stateCallback)
                 context->stateCallback(server, context->handle, context->state,
                                        context->callbackContext);
@@ -705,9 +703,8 @@ UA_StatusCode UA_Server_removeReverseConnect(UA_Server *server, UA_UInt64 handle
         if (rev->handle == handle) {
             SLIST_REMOVE(&server->reverseConnects, rev, reverse_connect_context, next);
 
-            if (rev->state != UA_REVERSECONNECTSTATE_DISCONNECTED) {
-                UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_SERVER, "Teardown required");
-
+            if (rev->currentConnection.connectionId) {
+                rev->destruction = true;
                 /* Request disconnect and run the event loop for one iteration */
                 if (rev->currentConnection.connectionId) {
                     rev->currentConnection.connectionManager->closeConnection(
@@ -715,6 +712,10 @@ UA_StatusCode UA_Server_removeReverseConnect(UA_Server *server, UA_UInt64 handle
                                 rev->currentConnection.connectionId);
                     server->config.eventLoop->run(server->config.eventLoop, 0);
                 }
+            } else {
+                if (!rev->currentConnection.connectionId && rev->stateCallback)
+                    rev->stateCallback(server, rev->handle, UA_SECURECHANNELSTATE_CLOSED,
+                                       rev->callbackContext);
             }
             UA_String_clear(&rev->hostname);
             free(rev);
@@ -926,6 +927,15 @@ UA_Server_run_shutdown(UA_Server *server) {
     /* Stop the regular housekeeping tasks */
     UA_Server_removeCallback(server, server->houseKeepingCallbackId);
     server->houseKeepingCallbackId = 0;
+
+    /* Mark all reverse connects as destroying */
+    reverse_connect_context *rev = NULL;
+    SLIST_FOREACH(rev, &server->reverseConnects, next) {
+        rev->destruction = true;
+        if (!rev->currentConnection.connectionId && rev->stateCallback)
+            rev->stateCallback(server, rev->handle, UA_SECURECHANNELSTATE_CLOSED,
+                               rev->callbackContext);
+    }
 
     /* Stop all SecureChannels */
     UA_Server_deleteSecureChannels(server);

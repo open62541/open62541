@@ -94,9 +94,12 @@ typedef struct reverse_connect_context {
     UA_UInt16 port;
     UA_UInt64 handle;
 
-    UA_ReverseConnectState state;
+    UA_SecureChannelState state;
     UA_Server_ReverseConnectStateCallback stateCallback;
     void *callbackContext;
+
+     /* If this is set to true, the state won't change to connecting on disconnect */
+    UA_Boolean destruction;
 
     UA_ServerConnection currentConnection;
     UA_SecureChannel *channel;

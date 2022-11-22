@@ -15,7 +15,7 @@ static void stopHandler(int sig) {
 }
 
 static void reverseConnectStateCallback(UA_Server *server, UA_UInt64 handle,
-                                        UA_ReverseConnectState state, void *context) {
+                                        UA_SecureChannelState state, void *context) {
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
                 "Reverse connect state callback for %lu with context %p: State %d", handle, context,  state);
 }
