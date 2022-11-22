@@ -800,8 +800,26 @@ UA_Client * UA_Client_new(void) {
 
 UA_StatusCode
 UA_ClientConfig_setDefault(UA_ClientConfig *config) {
-    config->timeout = 5000;
-    config->secureChannelLifeTime = 10 * 60 * 1000; /* 10 minutes */
+    /* The following fields are untouched and OK to leave as NULL or 0:
+     *  clientContext
+     *  userIdentityToken
+     *  securityMode
+     *  securityPolicyUri
+     *  endpoint
+     *  userTokenPolicy
+     *  customDataTypes
+     *  connectivityCheckInterval
+     *  stateCallback
+     *  inactivityCallback
+     *  outStandingPublishRequests
+     *  subscriptionInactivityCallback
+     *  sessionLocaleIds
+     *  sessionLocaleIdsSize */
+
+    if(config->timeout == 0)
+        config->timeout = 5000;
+    if(config->secureChannelLifeTime == 0)
+        config->secureChannelLifeTime = 10 * 60 * 1000; /* 10 minutes */
 
     if(!config->logger.log) {
         config->logger = UA_Log_Stdout_withLevel(UA_LOGLEVEL_INFO);
@@ -823,57 +841,45 @@ UA_ClientConfig_setDefault(UA_ClientConfig *config) {
         config->eventLoop->registerEventSource(config->eventLoop, (UA_EventSource *)udpCM);
     }
 
-    if(config->sessionLocaleIdsSize > 0 && config->sessionLocaleIds) {
-        UA_Array_delete(config->sessionLocaleIds,
-                        config->sessionLocaleIdsSize, &UA_TYPES[UA_TYPES_LOCALEID]);
+    if(config->localConnectionConfig.recvBufferSize == 0)
+        config->localConnectionConfig = UA_ConnectionConfig_default;
+
+    if(!config->certificateVerification.verifyCertificate) {
+        /* Certificate Verification that accepts every certificate. Can be
+         * overwritten when the policy is specialized. */
+        UA_CertificateVerification_AcceptAll(&config->certificateVerification);
+        UA_LOG_WARNING(&config->logger, UA_LOGCATEGORY_USERLAND,
+                       "AcceptAll Certificate Verification. "
+                       "Any remote certificate will be accepted.");
     }
-    config->sessionLocaleIds = NULL;
-    config->sessionLocaleIds = 0;
-
-    config->localConnectionConfig = UA_ConnectionConfig_default;
-
-    /* Certificate Verification that accepts every certificate. Can be
-     * overwritten when the policy is specialized. */
-    UA_CertificateVerification_AcceptAll(&config->certificateVerification);
-    UA_LOG_WARNING(&config->logger, UA_LOGCATEGORY_USERLAND,
-                   "AcceptAll Certificate Verification. "
-                   "Any remote certificate will be accepted.");
 
     /* With encryption enabled, the applicationUri needs to match the URI from
      * the certificate */
-    config->clientDescription.applicationUri = UA_STRING_ALLOC(APPLICATION_URI);
-    config->clientDescription.applicationType = UA_APPLICATIONTYPE_CLIENT;
+    if(!config->clientDescription.applicationUri.data)
+        config->clientDescription.applicationUri = UA_STRING_ALLOC(APPLICATION_URI);
+    if(config->clientDescription.applicationType == 0)
+        config->clientDescription.applicationType = UA_APPLICATIONTYPE_CLIENT;
 
-    if(config->securityPoliciesSize > 0) {
-        UA_LOG_ERROR(&config->logger, UA_LOGCATEGORY_NETWORK,
-                     "Could not initialize a config that already has SecurityPolicies");
-        return UA_STATUSCODE_BADINTERNALERROR;
+    if(config->securityPoliciesSize == 0) {
+        config->securityPolicies = (UA_SecurityPolicy*)UA_malloc(sizeof(UA_SecurityPolicy));
+        if(!config->securityPolicies)
+            return UA_STATUSCODE_BADOUTOFMEMORY;
+        UA_StatusCode retval = UA_SecurityPolicy_None(config->securityPolicies,
+                                                      UA_BYTESTRING_NULL, &config->logger);
+        if(retval != UA_STATUSCODE_GOOD) {
+            UA_free(config->securityPolicies);
+            config->securityPolicies = NULL;
+            return retval;
+        }
+        config->securityPoliciesSize = 1;
     }
 
-    config->securityPolicies = (UA_SecurityPolicy*)UA_malloc(sizeof(UA_SecurityPolicy));
-    if(!config->securityPolicies)
-        return UA_STATUSCODE_BADOUTOFMEMORY;
-    UA_StatusCode retval = UA_SecurityPolicy_None(config->securityPolicies,
-                                                  UA_BYTESTRING_NULL, &config->logger);
-    if(retval != UA_STATUSCODE_GOOD) {
-        UA_free(config->securityPolicies);
-        config->securityPolicies = NULL;
-        return retval;
-    }
-    config->securityPoliciesSize = 1;
-
-    config->customDataTypes = NULL;
-    config->stateCallback = NULL;
-    config->connectivityCheckInterval = 0;
-
-    config->requestedSessionTimeout = 1200000; /* requestedSessionTimeout */
-
-    config->inactivityCallback = NULL;
-    config->clientContext = NULL;
+    if(config->requestedSessionTimeout == 0)
+        config->requestedSessionTimeout = 1200000;
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS
-    config->outStandingPublishRequests = 10;
-    config->subscriptionInactivityCallback = NULL;
+    if(config->outStandingPublishRequests == 0)
+        config->outStandingPublishRequests = 10;
 #endif
 
     return UA_STATUSCODE_GOOD;
