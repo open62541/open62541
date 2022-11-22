@@ -1182,7 +1182,7 @@ addStandaloneSubscribedDataSetRepresentation(UA_Server *server, UA_StandaloneSub
 
 UA_StatusCode
 removeStandaloneSubscribedDataSetRepresentation(UA_Server *server, UA_StandaloneSubscribedDataSet *subscribedDataSet) {
-    return UA_Server_deleteNode(server, subscribedDataSet->identifier, true);
+    return deleteNode(server, subscribedDataSet->identifier, true);
 }
 
 /**********************************************/
