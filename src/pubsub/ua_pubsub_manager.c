@@ -669,8 +669,8 @@ UA_Server_addStandaloneSubscribedDataSet(UA_Server *server, const UA_StandaloneS
     return UA_STATUSCODE_GOOD;
 }
 
-UA_StatusCode
-UA_Server_removeStandaloneSubscribedDataSet(UA_Server *server, const UA_NodeId sds) {
+static UA_StatusCode
+removeStandaloneSubscribedDataSet(UA_Server *server, const UA_NodeId sds) {
     UA_StandaloneSubscribedDataSet *subscribedDataSet = UA_StandaloneSubscribedDataSet_findSDSbyId(server, sds);
     if(!subscribedDataSet){
         return UA_STATUSCODE_BADNOTFOUND;
@@ -684,7 +684,7 @@ UA_Server_removeStandaloneSubscribedDataSet(UA_Server *server, const UA_NodeId s
             UA_DataSetReader *currentReader, *tmpReader;
             LIST_FOREACH_SAFE(currentReader, &readerGroup->readers, listEntry, tmpReader){
                 if(UA_NodeId_equal(&currentReader->identifier, &subscribedDataSet->connectedReader)){
-                    UA_Server_removeDataSetReader(server, currentReader->identifier);
+                    removeDataSetReader(server, currentReader->identifier);
                     // todo -> break out of loop
                 }
             }
@@ -699,6 +699,14 @@ UA_Server_removeStandaloneSubscribedDataSet(UA_Server *server, const UA_NodeId s
     TAILQ_REMOVE(&server->pubSubManager.subscribedDataSets, subscribedDataSet, listEntry);
     UA_free(subscribedDataSet);
     return UA_STATUSCODE_GOOD;
+}
+
+UA_StatusCode
+UA_Server_removeStandaloneSubscribedDataSet(UA_Server *server, const UA_NodeId sds) {
+    UA_LOCK(&server->serviceMutex);
+    UA_StatusCode res = removeStandaloneSubscribedDataSet(server, sds);
+    UA_UNLOCK(&server->serviceMutex);
+    return res;
 }
 
 /* Generate a new unique NodeId. This NodeId will be used for the information
