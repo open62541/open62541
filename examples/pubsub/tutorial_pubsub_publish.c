@@ -105,7 +105,7 @@ addWriterGroup(UA_Server *server) {
     UA_WriterGroupConfig writerGroupConfig;
     memset(&writerGroupConfig, 0, sizeof(UA_WriterGroupConfig));
     writerGroupConfig.name = UA_STRING("Demo WriterGroup");
-    writerGroupConfig.publishingInterval = 100;
+    writerGroupConfig.publishingInterval = 1000;
     writerGroupConfig.enabled = UA_FALSE;
     writerGroupConfig.writerGroupId = 100;
     writerGroupConfig.encodingMimeType = UA_PUBSUB_ENCODING_UADP;
@@ -170,6 +170,11 @@ static void stopHandler(int sign) {
     running = false;
 }
 
+static void
+onDemandPublish(UA_Server *server, void *data){
+    UA_Server_WriterGroup_publish(server, writerGroupIdent);
+}
+
 static int run(UA_String *transportProfile,
                UA_NetworkAddressUrlDataType *networkAddressUrl) {
     signal(SIGINT, stopHandler);
@@ -191,6 +196,9 @@ static int run(UA_String *transportProfile,
     addDataSetField(server);
     addWriterGroup(server);
     addDataSetWriter(server);
+
+    UA_Server_addRepeatedCallback(server, onDemandPublish, NULL, 5000, NULL);
+
 
     UA_StatusCode retval = UA_Server_run(server, &running);
 
@@ -229,6 +237,7 @@ int main(int argc, char **argv) {
             return EXIT_FAILURE;
         }
     }
+
 
     return run(&transportProfile, &networkAddressUrl);
 }

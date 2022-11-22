@@ -603,6 +603,7 @@ UA_Server_WriterGroup_publish(UA_Server *server, const UA_NodeId writerGroupIden
         return UA_STATUSCODE_BADNOTFOUND;
     }
     UA_WriterGroup_publishCallback(server, writerGroup);
+    return UA_STATUSCODE_GOOD;
 }
 
 UA_DateTime UA_EXPORT
