@@ -777,24 +777,10 @@ UA_ServerConfig_setDefaultWithSecurityPolicies(UA_ServerConfig *conf,
 UA_Client * UA_Client_new(void) {
     UA_ClientConfig config;
     memset(&config, 0, sizeof(UA_ClientConfig));
-    config.logger = UA_Log_Stdout_withLevel(UA_LOGLEVEL_INFO);
-
-    /* EventLoop */
-    if(config.eventLoop == NULL) {
-        config.eventLoop = UA_EventLoop_new_POSIX(&config.logger);
-        config.externalEventLoop = false;
-
-        /* Add the TCP connection manager */
-        UA_ConnectionManager *tcpCM =
-            UA_ConnectionManager_new_POSIX_TCP(UA_STRING("tcp connection manager"));
-        config.eventLoop->registerEventSource(config.eventLoop, (UA_EventSource *)tcpCM);
-
-        /* Add the UDP connection manager */
-        UA_ConnectionManager *udpCM =
-            UA_ConnectionManager_new_POSIX_UDP(UA_STRING("udp connection manager"));
-        config.eventLoop->registerEventSource(config.eventLoop, (UA_EventSource *)udpCM);
-    }
-
+    /* Set up basic usable config including logger and event loop */
+    UA_StatusCode res = UA_ClientConfig_setDefault(&config);
+    if(res != UA_STATUSCODE_GOOD)
+        return NULL;
     return UA_Client_newWithConfig(&config);
 }
 
