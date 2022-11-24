@@ -838,7 +838,7 @@ ETH_eventSourceDelete(UA_ConnectionManager *cm) {
     }
 
     /* Delete the parameters */
-    UA_KeyValueMap_clear(cm->eventSource.params);
+    UA_KeyValueMap_clear(&cm->eventSource.params);
     UA_String_clear(&cm->eventSource.name);
     UA_free(cm);
     return UA_STATUSCODE_GOOD;
