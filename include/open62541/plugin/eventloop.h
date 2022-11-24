@@ -197,7 +197,6 @@ typedef enum {
 /* Type-tag for proper casting of the difference EventSource (e.g. when they are
  * looked up via UA_EventLoop_findEventSource). */
 typedef enum {
-    UA_EVENTSOURCETYPE_ANY = 0,
     UA_EVENTSOURCETYPE_CONNECTIONMANAGER,
     UA_EVENTSOURCETYPE_INTERRUPTMANAGER
 } UA_EventSourceType;
