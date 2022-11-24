@@ -913,14 +913,12 @@ TCP_eventSourceStart(UA_ConnectionManager *cm) {
     /* Configure the receive buffer */
     UA_UInt32 rxBufSize = 2u << 16; /* The default is 64kb */
 
-    if(cm->eventSource.params != NULL) {
-       const UA_UInt32 *configRxBufSize = (const UA_UInt32 *)
-            UA_KeyValueMap_getScalar(cm->eventSource.params,
-                                     UA_QUALIFIEDNAME(0, "recv-bufsize"),
-                                     &UA_TYPES[UA_TYPES_UINT32]);
-        if(configRxBufSize)
-            rxBufSize = *configRxBufSize;
-    }
+    const UA_UInt32 *configRxBufSize = (const UA_UInt32 *)
+        UA_KeyValueMap_getScalar(&cm->eventSource.params,
+                                 UA_QUALIFIEDNAME(0, "recv-bufsize"),
+                                 &UA_TYPES[UA_TYPES_UINT32]);
+    if(configRxBufSize)
+        rxBufSize = *configRxBufSize;
     UA_StatusCode res = UA_ByteString_allocBuffer(&tcm->rxBuffer, rxBufSize);
     if(res != UA_STATUSCODE_GOOD)
         return res;
@@ -958,12 +956,10 @@ TCP_eventSourceDelete(UA_ConnectionManager *cm) {
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
-    if(cm->eventSource.params != NULL) {
-        /* Delete the parameters */
-        UA_KeyValueMap_clear(cm->eventSource.params);
-    }
+    UA_KeyValueMap_clear(&cm->eventSource.params);
     UA_String_clear(&cm->eventSource.name);
     UA_free(cm);
+
     return UA_STATUSCODE_GOOD;
 }
 

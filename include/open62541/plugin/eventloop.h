@@ -211,7 +211,7 @@ struct UA_EventSource {
      * ~~~~~~~~~~~~~ */
     UA_String name;                 /* Unique name of the ES */
     UA_EventLoop *eventLoop;        /* EventLoop where the ES is registered */
-    UA_KeyValueMap *params;
+    UA_KeyValueMap params;
 
     /* Lifecycle
      * ~~~~~~~~~ */
@@ -303,8 +303,7 @@ struct UA_ConnectionManager {
      * hostname. Each protocol implementation documents whether multiple
      * connections might be opened at once. */
     UA_StatusCode
-    (*openConnection)(UA_ConnectionManager *cm,
-                      const UA_KeyValueMap *params,
+    (*openConnection)(UA_ConnectionManager *cm, const UA_KeyValueMap *params,
                       void *application, void *context,
                       UA_ConnectionManager_connectionCallback connectionCallback);
 
@@ -319,8 +318,7 @@ struct UA_ConnectionManager {
      * example a tx-time for sending in time-synchronized TSN settings. */
     UA_StatusCode
     (*sendWithConnection)(UA_ConnectionManager *cm, uintptr_t connectionId,
-                          const UA_KeyValueMap *params,
-                          UA_ByteString *buf);
+                          const UA_KeyValueMap *params, UA_ByteString *buf);
 
     /* Close a Connection
      * ~~~~~~~~~~~~~~~~~~

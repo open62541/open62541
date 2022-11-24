@@ -1274,14 +1274,12 @@ UDP_eventSourceStart(UA_ConnectionManager *cm) {
     /* The receive buffersize was configured? */
     UDPConnectionManager *ucm = (UDPConnectionManager*)cm;
     UA_UInt32 rxBufSize = 2u << 16; /* The default is 64kb */
-    if(cm->eventSource.params != NULL) {
-        const UA_UInt32 *configRxBufSize = (const UA_UInt32 *)
-            UA_KeyValueMap_getScalar(cm->eventSource.params,
-                                     UA_QUALIFIEDNAME(0, "recv-bufsize"),
-                                     &UA_TYPES[UA_TYPES_UINT32]);
-        if(configRxBufSize)
-            rxBufSize = *configRxBufSize;
-    }
+    const UA_UInt32 *configRxBufSize = (const UA_UInt32 *)
+        UA_KeyValueMap_getScalar(&cm->eventSource.params,
+                                 UA_QUALIFIEDNAME(0, "recv-bufsize"),
+                                 &UA_TYPES[UA_TYPES_UINT32]);
+    if(configRxBufSize)
+        rxBufSize = *configRxBufSize;
     UA_StatusCode res = UA_ByteString_allocBuffer(&ucm->rxBuffer, rxBufSize);
     if(res != UA_STATUSCODE_GOOD)
         return res;
@@ -1320,13 +1318,10 @@ UDP_eventSourceDelete(UA_ConnectionManager *cm) {
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
-    /* Delete the parameters */
-    if(cm->eventSource.params != NULL) {
-        UA_KeyValueMap_delete(cm->eventSource.params);
-        cm->eventSource.params = NULL;
-    }
+    UA_KeyValueMap_clear(&cm->eventSource.params);
     UA_String_clear(&cm->eventSource.name);
     UA_free(cm);
+
     return UA_STATUSCODE_GOOD;
 }
 
