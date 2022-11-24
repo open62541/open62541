@@ -877,13 +877,6 @@ UA_Server_run_startup(UA_Server *server) {
 
     server->state = UA_SERVERLIFECYCLE_FRESH;
 
-    if (!SLIST_EMPTY(&server->reverseConnects)) {
-        reverse_connect_context *rev = NULL;
-        SLIST_FOREACH(rev, &server->reverseConnects, next) {
-            UA_Server_attemptReverseConnect(server, rev);
-        }
-    }
-
     return UA_STATUSCODE_GOOD;
 }
 
@@ -932,9 +925,13 @@ UA_Server_run_shutdown(UA_Server *server) {
     reverse_connect_context *rev = NULL;
     SLIST_FOREACH(rev, &server->reverseConnects, next) {
         rev->destruction = true;
-        if (!rev->currentConnection.connectionId && rev->stateCallback)
+        if (rev->currentConnection.connectionId) {
+            rev->currentConnection.connectionManager->closeConnection(rev->currentConnection.connectionManager,
+                                                                      rev->currentConnection.connectionId);
+        } else if (rev->stateCallback) {
             rev->stateCallback(server, rev->handle, UA_SECURECHANNELSTATE_CLOSED,
                                rev->callbackContext);
+        }
     }
 
     /* Stop all SecureChannels */
