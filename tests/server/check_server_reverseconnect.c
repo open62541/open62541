@@ -52,7 +52,7 @@ static void listenCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
     if (msg.length) {
         UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "Message: %ld %.*s",
                     msg.length, (int) msg.length, (char *)msg.data);
-        rheReceived = msg.length >= 5 && !strncmp((char *)msg.data, "RHEFD", 5);
+        rheReceived = msg.length >= 3 && !strncmp((char *)msg.data, "RHE", 3);
     }
 
     listening = state == UA_CONNECTIONSTATE_ESTABLISHED;
