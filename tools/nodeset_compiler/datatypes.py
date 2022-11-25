@@ -284,8 +284,9 @@ class Value(object):
                                 extobj.value.append(values)
                             else:
                                 t = self.getTypeByString(e.member_type.name, None)
-                                t.alias = ebodypart.localName
-                                t.parseXML(ebodypart)
+                                if t is not None:   # cannot get Type for 'Variant' now
+                                    t.alias = ebodypart.localName
+                                    t.parseXML(ebodypart)
                                 extobj.value.append(t)
                         elif isinstance(e.member_type, StructType):
                             # information is_array!
@@ -851,8 +852,11 @@ class Guid(Value):
         # <Guid>
         #   <String>01234567-89AB-CDEF-ABCD-0123456789AB</String>
         # </Guid>
+        val = None  # set to None before check
         if len(xmlvalue.getElementsByTagName("String")) != 0:
             val = getXmlTextTrimmed(xmlvalue.getElementsByTagName("String")[0].firstChild)
+        else:
+            val = getXmlTextTrimmed(xmlvalue.firstChild)    # no 'String' like 'DataSetFieldId'
 
         if val is None:
             self.value = ['00000000', '0000', '0000', '0000', '000000000000']  # Catch XML <Guid /> by setting the value to a default
