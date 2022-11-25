@@ -10,7 +10,7 @@ open62541 Documentation
    protocol
    types
    services
-   nodestore
+   information_modelling
    server
    client
    pubsub
