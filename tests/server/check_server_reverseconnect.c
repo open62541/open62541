@@ -65,7 +65,7 @@ static void setupListeningSocket(void) {
     eventLoop->registerEventSource(eventLoop, &connectionManager->eventSource);
     eventLoop->start(eventLoop);
 
-    UA_String listenHost = UA_STRING_STATIC("127.0.0.1");
+    UA_String listenHost = UA_STRING_STATIC("localhost");
     UA_UInt16 listenPort = 4841;
 
     UA_KeyValuePair params[3];
@@ -152,7 +152,7 @@ static void stateCallback(UA_Server *s, UA_UInt64 handle,
 START_TEST(addBeforeStart) {
     UA_StatusCode ret = UA_STATUSCODE_BADINTERNALERROR;
 
-    ret = UA_Server_addReverseConnect(server, UA_STRING("opc.tcp://127.0.0.1:4841"),
+    ret = UA_Server_addReverseConnect(server, UA_STRING("opc.tcp://localhost:4841"),
                                       stateCallback, (void *)1234, &reverseConnectHandle);
 
     ck_assert_uint_eq(ret, UA_STATUSCODE_GOOD);
@@ -192,7 +192,7 @@ START_TEST(addAfterStart) {
         eventLoop->run(eventLoop, 1);
 
         if (i == 10) {
-            ret = UA_Server_addReverseConnect(server, UA_STRING("opc.tcp://127.0.0.1:4841"),
+            ret = UA_Server_addReverseConnect(server, UA_STRING("opc.tcp://localhost:4841"),
                                               stateCallback, (void *)1234, &reverseConnectHandle);
 
             ck_assert_uint_eq(ret, UA_STATUSCODE_GOOD);
@@ -218,7 +218,7 @@ START_TEST(addAfterStart) {
 START_TEST(checkReconnect) {
     UA_StatusCode ret = UA_STATUSCODE_BADINTERNALERROR;
 
-    ret = UA_Server_addReverseConnect(server, UA_STRING("opc.tcp://127.0.0.1:4841"),
+    ret = UA_Server_addReverseConnect(server, UA_STRING("opc.tcp://localhost:4841"),
                                       stateCallback, (void *)1234, &reverseConnectHandle);
 
     ck_assert_uint_eq(ret, UA_STATUSCODE_GOOD);
@@ -295,7 +295,7 @@ START_TEST(checkReconnect) {
 START_TEST(removeOnShutdownWithConnection) {
     UA_StatusCode ret = UA_STATUSCODE_BADINTERNALERROR;
 
-    ret = UA_Server_addReverseConnect(server, UA_STRING("opc.tcp://127.0.0.1:4841"),
+    ret = UA_Server_addReverseConnect(server, UA_STRING("opc.tcp://localhost:4841"),
                                       stateCallback, (void *)1234, &reverseConnectHandle);
 
     ck_assert_uint_eq(ret, UA_STATUSCODE_GOOD);
@@ -326,7 +326,7 @@ START_TEST(removeOnShutdownWithoutConnection) {
 
     UA_StatusCode ret = UA_STATUSCODE_BADINTERNALERROR;
 
-    ret = UA_Server_addReverseConnect(server, UA_STRING("opc.tcp://127.0.0.1:4841"),
+    ret = UA_Server_addReverseConnect(server, UA_STRING("opc.tcp://localhost:4841"),
                                       stateCallback, (void *)1234, &reverseConnectHandle);
 
     ck_assert_uint_eq(ret, UA_STATUSCODE_GOOD);
