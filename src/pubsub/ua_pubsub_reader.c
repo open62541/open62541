@@ -373,7 +373,14 @@ checkReaderIdentifier(UA_Server *server, UA_NetworkMessage *msg,
             }
         }
         if(msg->payloadHeaderEnabled) {
-            if(reader->config.dataSetWriterId != *msg->payloadHeader.dataSetPayloadHeader.dataSetWriterIds) {
+            UA_Byte totalDataSets = msg->payloadHeader.dataSetPayloadHeader.count;
+            UA_Byte iterator = 0;
+            for(iterator = 0; iterator < totalDataSets; iterator++) { 
+                if(reader->config.dataSetWriterId == msg->payloadHeader.dataSetPayloadHeader.dataSetWriterIds[iterator]) {
+                    return UA_STATUSCODE_GOOD;
+                }
+            }
+            if (iterator == totalDataSets) {
                 UA_LOG_INFO_READER(&server->config.logger, reader, "DataSetWriterId doesn't match");
                 return UA_STATUSCODE_BADNOTFOUND;
             }
@@ -1321,10 +1328,14 @@ processMessageWithReader(UA_Server *server, UA_ReaderGroup *readerGroup,
     if(msg->payloadHeaderEnabled)
         totalDataSets = msg->payloadHeader.dataSetPayloadHeader.count;
     for(UA_Byte i = 0; i < totalDataSets; i++) {
-        UA_LOG_DEBUG_READER(&server->config.logger, reader,
+        /* map dataset reader to dataset message since multiple dataset reader may read this network message
+           otherwise the dataset message may be written to the wrong dataset reader.  */
+        if (reader->config.dataSetWriterId == msg->payloadHeader.dataSetPayloadHeader.dataSetWriterIds[i]) {
+            UA_LOG_DEBUG_READER(&server->config.logger, reader,
                             "Process Msg with DataSetReader!");
-        UA_DataSetReader_process(server, readerGroup, reader,
+            UA_DataSetReader_process(server, readerGroup, reader,
                                  &msg->payload.dataSetPayload.dataSetMessages[i]);
+        }
     }
 }
 
