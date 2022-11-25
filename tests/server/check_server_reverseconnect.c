@@ -47,11 +47,11 @@ static void listenCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
 
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
                 "Listen callback was called with state %d and connection id %lu", state,
-                connectionId);
+                (unsigned long)connectionId);
 
     if (msg.length) {
         UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "Message: %ld %.*s",
-                    msg.length, (int) msg.length, (char *)msg.data);
+                    (unsigned long)msg.length, (int) msg.length, (char *)msg.data);
         rheReceived = msg.length >= 3 && !strncmp((char *)msg.data, "RHE", 3);
     }
 
