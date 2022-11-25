@@ -500,6 +500,8 @@ UA_INLINABLE(UA_Boolean
 UA_UInt32 UA_EXPORT UA_NodeId_hash(const UA_NodeId *n);
 
 /**
+ * .. _expandednodeid:
+ *
  * ExpandedNodeId
  * ^^^^^^^^^^^^^^
  * A NodeId that allows the namespace URI to be specified instead of an index. */
