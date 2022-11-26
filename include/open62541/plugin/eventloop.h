@@ -69,7 +69,8 @@ typedef enum {
 
 typedef void (*UA_Callback)(void *application, void *context);
 
-/* To be executed in the next EventLoop cycle */
+/* Delayed callbacks are executed not when they are registered, but in the
+ * following EventLoop cycle */
 typedef struct UA_DelayedCallback {
     struct UA_DelayedCallback *next; /* Singly-linked list */
     UA_Callback callback;
@@ -89,11 +90,18 @@ struct UA_EventLoop {
     /* Configuration
      * ~~~~~~~~~~~~~~~
      * The configuration should be set before the EventLoop is started */
+
     const UA_Logger *logger;
     UA_KeyValueMap *params; /* See the implementation-specific documentation */
 
     /* EventLoop Lifecycle
-     * ~~~~~~~~~~~~~~~~~~~~ */
+     * ~~~~~~~~~~~~~~~~~~~~
+     * The EventLoop state also controls the state of the configured
+     * EventSources. Stopping the EventLoop gracefully closes e.g. the open
+     * network connections. The only way to process incoming events is to call
+     * the 'run' method. Events are then triggering their respective callbacks
+     * from within that method.*/
+
     const volatile UA_EventLoopState state; /* Only read the state from outside */
 
     /* Start the EventLoop and start all already registered EventSources */
@@ -127,6 +135,7 @@ struct UA_EventLoop {
      * The time domain of the EventLoop is exposed via the following functons.
      * See `open62541/types.h` for the documentation of their equivalent
      * globally defined functions. */
+
     UA_DateTime (*dateTime_now)(UA_EventLoop *el);
     UA_DateTime (*dateTime_nowMonotonic)(UA_EventLoop *el);
     UA_Int64    (*dateTime_localTimeUtcOffset)(UA_EventLoop *el);
@@ -170,6 +179,7 @@ struct UA_EventLoop {
      * between the handling of timed cyclic callbacks and polling for (network)
      * events. The memory for the delayed callback is *NOT* automatically freed
      * after the execution. */
+
     void (*addDelayedCallback)(UA_EventLoop *el, UA_DelayedCallback *dc);
     void (*removeDelayedCallback)(UA_EventLoop *el, UA_DelayedCallback *dc);
 
