@@ -54,7 +54,6 @@ master_doc = 'toc'
 
 # General information about the project.
 project = u'open62541'
-copyright = u'2016, The open62541 authors'
 author = u'The open62541 authors'
 
 # The version info for the project you're documenting, acts as replacement for
@@ -82,7 +81,7 @@ language = "en"
 
 # List of patterns, relative to source directory, that match files and
 # directories to ignore when looking for source files.
-exclude_patterns = ["client_config.rst", "server_config.rst"]
+#exclude_patterns = ["client_config.rst", "server_config.rst"]
 
 # The reST default role (used for this markup: `text`) to use for all
 # documents.
@@ -158,7 +157,7 @@ html_static_path = ['.']
 
 # If true, SmartyPants will be used to convert quotes and dashes to
 # typographically correct entities.
-#html_use_smartypants = True
+html_use_smartypants = True
 
 # Custom sidebar templates, maps document names to template names.
 #html_sidebars = {}
@@ -215,6 +214,16 @@ htmlhelp_basename = 'doc/open62541doc'
 latex_elements = {
 # The paper size ('letterpaper' or 'a4paper').
 'papersize': 'a4paper',
+
+# The chapter title style
+'fncychap': '\\usepackage[Sonny]{fncychap}',
+
+# Font settings
+'fontpkg': r"""
+\usepackage{sourcesanspro}
+\usepackage{newtx}
+\usepackage[scaled=.98,varqu,varl]{zi4}
+""",
 
 # The font size ('10pt', '11pt' or '12pt').
 #'pointsize': '10pt',
