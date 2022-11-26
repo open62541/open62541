@@ -17,23 +17,18 @@
 #ifndef UA_SERVER_H_
 #define UA_SERVER_H_
 
-#include <open62541/util.h>
 #include <open62541/types.h>
 #include <open62541/common.h>
-#include <open62541/nodeids.h>
-#include <open62541/types_generated.h>
-#include <open62541/types_generated_handling.h>
 
-#include <open62541/plugin/eventloop.h>
-#include <open62541/plugin/securitypolicy.h>
-#include <open62541/plugin/accesscontrol.h>
-#include <open62541/plugin/nodestore.h>
-#include <open62541/plugin/network.h>
 #include <open62541/plugin/log.h>
 #include <open62541/plugin/pki.h>
+#include <open62541/plugin/network.h>
+#include <open62541/plugin/nodestore.h>
+#include <open62541/plugin/eventloop.h>
+#include <open62541/plugin/accesscontrol.h>
+#include <open62541/plugin/securitypolicy.h>
 
 #ifdef UA_ENABLE_PUBSUB
-#include <open62541/plugin/pubsub.h>
 #include <open62541/server_pubsub.h>
 #endif
 
@@ -1739,23 +1734,23 @@ UA_Server_deleteCondition(UA_Server *server,
                           const UA_NodeId conditionSource);
 
 /*
-* Set the LimitState of the LimitAlarmType
-*
-* @param server The server object
-* @param conditionId The NodeId of the node representation of the Condition Instance
-* @param limitValue The value from the trigger node
-*/
+ * Set the LimitState of the LimitAlarmType
+ *
+ * @param server The server object
+ * @param conditionId The NodeId of the node representation of the Condition Instance
+ * @param limitValue The value from the trigger node
+ */
 UA_StatusCode UA_EXPORT
 UA_Server_setLimitState(UA_Server *server, const UA_NodeId conditionId,
                         UA_Double limitValue);
 
 /*
-* Parse the certifcate and set Expiration date
-*
-* @param server The server object
-* @param conditionId The NodeId of the node representation of the Condition Instance
-* @param cert The certificate for parsing
-*/
+ * Parse the certifcate and set Expiration date
+ *
+ * @param server The server object
+ * @param conditionId The NodeId of the node representation of the Condition Instance
+ * @param cert The certificate for parsing
+ */
 UA_StatusCode UA_EXPORT
 UA_Server_setExpirationDate(UA_Server *server, const UA_NodeId conditionId,
                             UA_ByteString  cert);
@@ -1872,11 +1867,11 @@ UA_Server_setAsyncOperationResult(UA_Server *server,
 #endif /* !UA_MULTITHREADING >= 100 */
 
 /**
-* Statistics
-* ----------
-*
-* Statistic counters keeping track of the current state of the stack. Counters
-* are structured per OPC UA communication layer. */
+ * Statistics
+ * ----------
+ *
+ * Statistic counters keeping track of the current state of the stack. Counters
+ * are structured per OPC UA communication layer. */
 
 typedef struct {
    UA_SecureChannelStatistics scs;

@@ -18,16 +18,13 @@
 #ifndef UA_CLIENT_H_
 #define UA_CLIENT_H_
 
-#include <open62541/config.h>
-#include <open62541/nodeids.h>
 #include <open62541/types.h>
-#include <open62541/types_generated.h>
-#include <open62541/types_generated_handling.h>
+#include <open62541/common.h>
 
 #include <open62541/plugin/log.h>
 #include <open62541/plugin/network.h>
-#include <open62541/plugin/securitypolicy.h>
 #include <open62541/plugin/eventloop.h>
+#include <open62541/plugin/securitypolicy.h>
 
 _UA_BEGIN_DECLS
 
