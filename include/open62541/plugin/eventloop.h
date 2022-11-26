@@ -45,6 +45,21 @@ typedef struct UA_InterruptManager UA_InterruptManager;
  * ConnectionManager implementations. So the EventLoop can extract socket
  * information, etc. from the ConnectionManagers.
  *
+ * Timer Policies
+ * --------------
+ *
+ * A timer comes with a cyclic interval in which a callback is executed. If an
+ * application is congested the interval can be missed. Two different policies
+ * can be used when this happens. Either schedule the next execution after the
+ * interval has elapsed again from the current time onwards or stay within the
+ * regular interval with respect to the original basetime. */
+
+typedef enum {
+    UA_TIMER_HANDLE_CYCLEMISS_WITH_CURRENTTIME,
+    UA_TIMER_HANDLE_CYCLEMISS_WITH_BASETIME
+} UA_TimerPolicy;
+
+/**
  * Event Loop
  * ----------
  * The EventLoop implementation is part of the selected architecture. For

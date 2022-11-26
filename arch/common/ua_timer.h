@@ -10,7 +10,7 @@
 #define UA_TIMER_H_
 
 #include <open62541/types.h>
-#include <open62541/util.h>
+#include <open62541/plugin/eventloop.h>
 #include "aa_tree.h"
 
 _UA_BEGIN_DECLS

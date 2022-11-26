@@ -30,12 +30,6 @@ typedef void (*UA_ServerCallback)(UA_Server *server, void *data);
 struct UA_Client;
 typedef struct UA_Client UA_Client;
 
-/* Timer policy to handle cycle misses */
-typedef enum {
-    UA_TIMER_HANDLE_CYCLEMISS_WITH_CURRENTTIME,
-    UA_TIMER_HANDLE_CYCLEMISS_WITH_BASETIME
-} UA_TimerPolicy;
-
 /**
  * Random Number Generator
  * -----------------------
