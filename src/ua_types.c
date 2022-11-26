@@ -23,7 +23,6 @@
 #include "../deps/itoa.h"
 #include "../deps/base64.h"
 #include "libc_time.h"
-#include "pcg_basic.h"
 
 #define UA_MAX_ARRAY_DIMS 100 /* Max dimensions of an array */
 
@@ -102,23 +101,6 @@ UA_cleanupDataTypeWithCustom(const UA_DataTypeArray *customTypes) {
         }
         customTypes = next;
     }
-}
-
-/***************************/
-/* Random Number Generator */
-/***************************/
-
-//TODO is this safe for multithreading?
-static pcg32_random_t UA_rng = PCG32_INITIALIZER;
-
-void
-UA_random_seed(u64 seed) {
-    pcg32_srandom_r(&UA_rng, seed, (u64)UA_DateTime_now());
-}
-
-u32
-UA_UInt32_random(void) {
-    return (u32)pcg32_random_r(&UA_rng);
 }
 
 /*****************/
@@ -275,26 +257,6 @@ UA_DateTime_fromStruct(UA_DateTimeStruct ts) {
 UA_Boolean
 UA_Guid_equal(const UA_Guid *g1, const UA_Guid *g2) {
     return (guidOrder(g1, g2, NULL) == UA_ORDER_EQ);
-}
-
-UA_Guid
-UA_Guid_random(void) {
-    UA_Guid result;
-    result.data1 = (u32)pcg32_random_r(&UA_rng);
-    u32 r = (u32)pcg32_random_r(&UA_rng);
-    result.data2 = (u16) r;
-    result.data3 = (u16) (r >> 16);
-    r = (u32)pcg32_random_r(&UA_rng);
-    result.data4[0] = (u8)r;
-    result.data4[1] = (u8)(r >> 4);
-    result.data4[2] = (u8)(r >> 8);
-    result.data4[3] = (u8)(r >> 12);
-    r = (u32)pcg32_random_r(&UA_rng);
-    result.data4[4] = (u8)r;
-    result.data4[5] = (u8)(r >> 4);
-    result.data4[6] = (u8)(r >> 8);
-    result.data4[7] = (u8)(r >> 12);
-    return result;
 }
 
 static const u8 hexmapLower[16] =

@@ -15,6 +15,7 @@
 #include <open62541/util.h>
 
 #include "ua_util_internal.h"
+#include "pcg_basic.h"
 #include "base64.h"
 
 size_t
@@ -411,4 +412,41 @@ UA_KeyValueMap_merge(UA_KeyValueMap *lhs, const UA_KeyValueMap *rhs) {
     UA_KeyValueMap_clear(lhs);
     *lhs = merge;
     return UA_STATUSCODE_GOOD;
+}
+
+/***************************/
+/* Random Number Generator */
+/***************************/
+
+/* TODO is this safe for multithreading? */
+static pcg32_random_t UA_rng = PCG32_INITIALIZER;
+
+void
+UA_random_seed(u64 seed) {
+    pcg32_srandom_r(&UA_rng, seed, (u64)UA_DateTime_now());
+}
+
+u32
+UA_UInt32_random(void) {
+    return (u32)pcg32_random_r(&UA_rng);
+}
+
+UA_Guid
+UA_Guid_random(void) {
+    UA_Guid result;
+    result.data1 = (u32)pcg32_random_r(&UA_rng);
+    u32 r = (u32)pcg32_random_r(&UA_rng);
+    result.data2 = (u16) r;
+    result.data3 = (u16) (r >> 16);
+    r = (u32)pcg32_random_r(&UA_rng);
+    result.data4[0] = (u8)r;
+    result.data4[1] = (u8)(r >> 4);
+    result.data4[2] = (u8)(r >> 8);
+    result.data4[3] = (u8)(r >> 12);
+    r = (u32)pcg32_random_r(&UA_rng);
+    result.data4[4] = (u8)r;
+    result.data4[5] = (u8)(r >> 4);
+    result.data4[6] = (u8)(r >> 8);
+    result.data4[7] = (u8)(r >> 12);
+    return result;
 }

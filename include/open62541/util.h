@@ -37,6 +37,22 @@ typedef enum {
 } UA_TimerPolicy;
 
 /**
+ * Random Number Generator
+ * -----------------------
+ * If UA_MULTITHREADING is defined, then the seed is stored in thread
+ * local storage. The seed is initialized for every thread in the
+ * server/client. */
+
+void UA_EXPORT
+UA_random_seed(UA_UInt64 seed);
+
+UA_UInt32 UA_EXPORT
+UA_UInt32_random(void); /* no cryptographic entropy */
+
+UA_Guid UA_EXPORT
+UA_Guid_random(void);   /* no cryptographic entropy */
+
+/**
  * Key Value Map
  * -------------
  * Helper functions to work with configuration parameters in an array of
