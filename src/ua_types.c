@@ -35,11 +35,11 @@
 
 /* Global definition of NULL type instances. These are always zeroed out, as
  * mandated by the C/C++ standard for global values with no initializer. */
-const UA_String UA_STRING_NULL = {0};
-const UA_ByteString UA_BYTESTRING_NULL = {0};
-const UA_Guid UA_GUID_NULL = {0};
-const UA_NodeId UA_NODEID_NULL = {0};
-const UA_ExpandedNodeId UA_EXPANDEDNODEID_NULL = { {0}, {0}, 0 };
+const UA_String UA_STRING_NULL = {0, NULL};
+const UA_ByteString UA_BYTESTRING_NULL = {0, NULL};
+const UA_Guid UA_GUID_NULL = {0, 0, 0, {0,0,0,0,0,0,0,0}};
+const UA_NodeId UA_NODEID_NULL = {0, UA_NODEIDTYPE_NUMERIC, {0}};
+const UA_ExpandedNodeId UA_EXPANDEDNODEID_NULL = {{0, UA_NODEIDTYPE_NUMERIC, {0}}, {0, NULL}, 0};
 
 typedef UA_StatusCode
 (*UA_copySignature)(const void *src, void *dst, const UA_DataType *type);

@@ -232,7 +232,7 @@ UA_ByteString_fromBase64(UA_ByteString *bs,
 
 /* Key Value Map */
 
-const UA_KeyValueMap UA_KEYVALUEMAP_NULL = {0};
+const UA_KeyValueMap UA_KEYVALUEMAP_NULL = {0, NULL};
 
 UA_KeyValueMap *
 UA_KeyValueMap_new(void) {

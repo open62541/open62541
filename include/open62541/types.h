@@ -210,7 +210,8 @@ UA_EXPORT extern const UA_String UA_STRING_NULL;
  * of the char-array. */
 UA_INLINABLE(UA_String
              UA_STRING(char *chars), {
-    UA_String s = {0};
+    UA_String s;
+    memset(&s, 0, sizeof(s));
     if(!chars)
         return s;
     s.length = strlen(chars); s.data = (UA_Byte*)chars;
@@ -699,7 +700,8 @@ UA_NumericRange_parse(UA_NumericRange *range, const UA_String str);
 
 UA_INLINABLE(UA_NumericRange
              UA_NUMERICRANGE(const char *s), {
-    UA_NumericRange nr = {0};
+    UA_NumericRange nr;
+    memset(&nr, 0, sizeof(nr)); 
     UA_NumericRange_parse(&nr, UA_STRING((char*)(uintptr_t)s));
     return nr;
 })

@@ -23,16 +23,16 @@
 UA_StatusCode open_nb_socket(int* sockfd, const char* addr, const char* port);
 
 UA_StatusCode open_nb_socket(int* sockfd, const char* addr, const char* port) {
-    struct addrinfo hints = {0};
-
+    struct addrinfo hints;
+    memset(&hints, 0, sizeof(struct addrinfo));
     hints.ai_family = AF_UNSPEC; /* IPv4 or IPv6 */
     hints.ai_socktype = SOCK_STREAM; /* Must be TCP */
+
     *sockfd = -1;
-    int rv;
     struct addrinfo *p, *servinfo;
 
     /* get address information */
-    rv = getaddrinfo(addr, port, &hints, &servinfo);
+    int rv = getaddrinfo(addr, port, &hints, &servinfo);
     if(rv != 0) {
         UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
                      "MQTT PubSub: Failed to open socket (getaddrinfo): %s", gai_strerror(rv));

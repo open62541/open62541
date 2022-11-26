@@ -1354,7 +1354,8 @@ UA_print(const void *p, const UA_DataType *type, UA_String *output) {
     if(!p || !type || !output)
         return UA_STATUSCODE_BADINTERNALERROR;
 
-    UA_EncodeJsonOptions options = {0};
+    UA_EncodeJsonOptions options;
+    memset(&options, 0, sizeof(UA_EncodeJsonOptions));
     options.useReversible = true;
     options.prettyPrint = true;
     options.unquotedKeys = true;

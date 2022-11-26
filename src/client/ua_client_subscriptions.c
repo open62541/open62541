@@ -269,7 +269,8 @@ static void
 __Client_Subscription_deleteInternal(UA_Client *client,
                                      UA_Client_Subscription *sub) {
     /* Remove the MonitoredItems */
-    struct UA_Client_MonitoredItem_ForDelete deleteMonitoredItem = {0};
+    struct UA_Client_MonitoredItem_ForDelete deleteMonitoredItem;
+    memset(&deleteMonitoredItem, 0, sizeof(struct UA_Client_MonitoredItem_ForDelete));
     deleteMonitoredItem.client = client;
     deleteMonitoredItem.sub = sub;
     ZIP_ITER(MonitorItemsTree, &sub->monitoredItems,
@@ -794,7 +795,8 @@ ua_MonitoredItems_delete(UA_Client *client, UA_Client_Subscription *sub,
 #endif
 
     /* Loop over deleted MonitoredItems */
-    struct UA_Client_MonitoredItem_ForDelete deleteMonitoredItem = {0};
+    struct UA_Client_MonitoredItem_ForDelete deleteMonitoredItem;
+    memset(&deleteMonitoredItem, 0, sizeof(struct UA_Client_MonitoredItem_ForDelete));
     deleteMonitoredItem.client = client;
     deleteMonitoredItem.sub = sub;
 
