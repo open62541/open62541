@@ -445,7 +445,8 @@ ETH_openListenConnection(UA_EventLoop *el, ETH_FD *fd,
                          const UA_KeyValueMap *params,
                          int ifindex, UA_UInt16 etherType) {
     /* Bind the socket to interface and EtherType. Don't receive anything else. */
-    struct sockaddr_ll sll = {0};
+    struct sockaddr_ll sll;
+    memset(&sll, 0, sizeof(struct sockaddr_ll));
     sll.sll_family = AF_PACKET;
     sll.sll_protocol = htons(etherType);
     sll.sll_ifindex = ifindex;
@@ -461,7 +462,8 @@ ETH_openListenConnection(UA_EventLoop *el, ETH_FD *fd,
         UA_KeyValueMap_getScalar(params, ETHConfigParameters[ETH_PARAMINDEX_PROMISCUOUS].name,
                                  &UA_TYPES[UA_TYPES_BOOLEAN]);
     if(promiscuous && *promiscuous) {
-        struct packet_mreq mreq = {0};
+        struct packet_mreq mreq;
+        memset(&mreq, 0, sizeof(struct packet_mreq));
         mreq.mr_ifindex = ifindex;
         mreq.mr_type = PACKET_MR_PROMISC;
         int ret = setsockopt(fd->fd.fd, SOL_PACKET, PACKET_ADD_MEMBERSHIP, &mreq, sizeof(mreq));

@@ -381,7 +381,8 @@ static UA_DataSetFieldResult
 addDataSetField(UA_Server *server, const UA_NodeId publishedDataSet,
                 const UA_DataSetFieldConfig *fieldConfig,
                 UA_NodeId *fieldIdentifier) {
-    UA_DataSetFieldResult result = {0};
+    UA_DataSetFieldResult result;
+    memset(&result, 0, sizeof(UA_DataSetFieldResult));
     if(!fieldConfig) {
         result.result = UA_STATUSCODE_BADINVALIDARGUMENT;
         return result;
@@ -495,7 +496,8 @@ UA_Server_addDataSetField(UA_Server *server, const UA_NodeId publishedDataSet,
 
 UA_DataSetFieldResult
 removeDataSetField(UA_Server *server, const UA_NodeId dsf) {
-    UA_DataSetFieldResult result = {0};
+    UA_DataSetFieldResult result;
+    memset(&result, 0, sizeof(UA_DataSetFieldResult));
 
     UA_DataSetField *currentField = UA_DataSetField_findDSFbyId(server, dsf);
     if(!currentField) {
@@ -1050,12 +1052,12 @@ valueChangedVariant(UA_Variant *oldValue, UA_Variant *newValue) {
     if(oldValueEncodingSize != newValueEncodingSize)
         return true;
 
-    UA_ByteString oldValueEncoding = {0};
+    UA_ByteString oldValueEncoding = UA_BYTESTRING_NULL;
     UA_StatusCode res = UA_ByteString_allocBuffer(&oldValueEncoding, oldValueEncodingSize);
     if(res != UA_STATUSCODE_GOOD)
         return false;
 
-    UA_ByteString newValueEncoding = {0};
+    UA_ByteString newValueEncoding = UA_BYTESTRING_NULL;
     res = UA_ByteString_allocBuffer(&newValueEncoding, newValueEncodingSize);
     if(res != UA_STATUSCODE_GOOD) {
         UA_ByteString_clear(&oldValueEncoding);

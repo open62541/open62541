@@ -264,6 +264,9 @@ See the following general rules for comments: [\[1\]](https://www.kernel.org/doc
 
 1. Public types are prefixed with `UA_`
 2. Types are CamelCased starting with *upper* case. Example: `UA_ResponseHeader`
+3. Don't use `var = {0}` to zero-initialize variables. This results in warnings
+   for some exotic environments (e.g. some versions of the Android NDK). Use
+   `memset(ptr, 0, size)` insted.
 
 ### Constants, enums, defines
 
