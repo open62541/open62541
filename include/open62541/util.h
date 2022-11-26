@@ -15,22 +15,6 @@
 _UA_BEGIN_DECLS
 
 /**
- * Forward Declarations
- * --------------------
- * Opaque pointers used by the plugins. */
-
-struct UA_Server;
-typedef struct UA_Server UA_Server;
-
-struct UA_ServerConfig;
-typedef struct UA_ServerConfig UA_ServerConfig;
-
-typedef void (*UA_ServerCallback)(UA_Server *server, void *data);
-
-struct UA_Client;
-typedef struct UA_Client UA_Client;
-
-/**
  * Random Number Generator
  * -----------------------
  * If UA_MULTITHREADING is defined, then the seed is stored in thread

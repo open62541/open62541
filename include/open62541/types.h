@@ -1498,6 +1498,9 @@ UA_Array_delete(void *p, size_t size, const UA_DataType *type);
 # define UA_TYPENAME(name)
 #endif
 
+#include <open62541/types_generated.h>
+#include <open62541/types_generated_handling.h>
+
 /**
  * .. include:: types_generated.rst */
 

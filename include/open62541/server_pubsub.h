@@ -12,9 +12,11 @@
 #ifndef UA_SERVER_PUBSUB_H
 #define UA_SERVER_PUBSUB_H
 
-#include <open62541/util.h>
+#include <open62541/common.h>
 #include <open62541/plugin/pubsub.h>
 #include <open62541/plugin/securitypolicy.h>
+
+#include <open62541/plugin/eventloop.h>
 
 _UA_BEGIN_DECLS
 

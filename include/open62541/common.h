@@ -13,6 +13,7 @@
 #define UA_COMMON_H_
 
 #include <open62541/config.h>
+#include <open62541/nodeids.h>
 
 _UA_BEGIN_DECLS
 
@@ -215,6 +216,22 @@ typedef struct {
     size_t sessionTimeoutCount;          /* only used by servers */
     size_t sessionAbortCount;            /* only used by servers */
 } UA_SessionStatistics;
+
+/**
+ * Forward Declarations
+ * --------------------
+ * Opaque pointers used in Client, Server and PubSub. */
+
+struct UA_Server;
+typedef struct UA_Server UA_Server;
+
+struct UA_ServerConfig;
+typedef struct UA_ServerConfig UA_ServerConfig;
+
+typedef void (*UA_ServerCallback)(UA_Server *server, void *data);
+
+struct UA_Client;
+typedef struct UA_Client UA_Client;
 
 /**
  * .. include:: util.rst */
