@@ -137,7 +137,7 @@ For custom development that shall eventually become part of the open62541 librar
 
 ### Development
 
-As an open source project, new contributors are encouraged to help improve open62541. The following are good starting points for new contributors:
+As an open source project, new contributors are encouraged to help improve open62541. The file [CONTRIBUTING.md](CONTRIBUTING.md) aggregates good practices that we expect for code contributions. The following are good starting points for new contributors:
 
 - [Report bugs](https://github.com/open62541/open62541/issues)
 - Improve the [documentation](http://open62541.org/doc/current)
