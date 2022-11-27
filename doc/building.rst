@@ -3,13 +3,12 @@
 Building open62541
 ==================
 
-open62541 uses CMake to build the library and binaries. The library version is automatically
-detected using ``git describe``. This command returns a valid version string based on the current tag.
-If you did not directly clone the sources, but use the tar or zip package from a release, you need
-to manually specify the version. In that case use e.g. ``cmake -DOPEN62541_VERSION=v1.0.3``.
-
 Building the Library
 --------------------
+
+open62541 uses CMake to build the library and binaries. CMake generates a
+Makefile or a Visual Studio project. This is then used to perform the actual
+build.
 
 Building with CMake on Ubuntu or Debian
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -38,6 +37,30 @@ Building with CMake on Ubuntu or Debian
    # build documentation
    make doc # html documentation
    make doc_pdf # pdf documentation (requires LaTeX)
+
+You can install open62541 using the well known `make install` command. This
+allows you to use pre-built libraries and headers for your own project. In order
+to use open62541 as a shared library (.dll or .so) make sure to activate the
+``BUILD_SHARED_LIBS`` CMake option.
+
+To override the default installation directory use ``cmake
+-DCMAKE_INSTALL_PREFIX=/some/path``. Based on the SDK Features you selected, as
+described in :ref:`build_options`, these features will also be included in the
+installation. Thus we recommend to enable as many non-experimental features as
+possible for the installed binary.
+
+In your own CMake project you can then include the open62541 library using:
+
+.. code-block:: cmake
+
+   # optionally you can also specify a specific version
+   # e.g. find_package(open62541 1.0.0)
+   find_package(open62541 REQUIRED COMPONENTS Events FullNamespace)
+   add_executable(main main.cpp)
+   target_link_libraries(main open62541::open62541)
+
+A full list of enabled features during build time is stored in the CMake
+Variable ``open62541_COMPONENTS_ALL``
 
 Building with CMake on Windows
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -87,7 +110,9 @@ Follow Ubuntu instructions without the ``apt-get`` commands as these are taken c
 
 Building on OpenBSD
 ^^^^^^^^^^^^^^^^^^^
-The procedure below works on OpenBSD 5.8 with gcc version 4.8.4, cmake version 3.2.3 and Python version 2.7.10.
+
+The procedure below works on OpenBSD 5.8 with gcc version 4.8.4, cmake version
+3.2.3 and Python version 2.7.10.
 
 - Install a recent gcc, python and cmake:
 
@@ -412,12 +437,48 @@ The RAM requirements of a server are mostly due to the following settings:
 - The number of connected clients
 - The configured maximum message size that is preallocated
 
+Prebuilt packages
+-----------------
+
+Debian
+^^^^^^
+Debian packages can be found in our official PPA:
+
+ * Daily Builds (based on master branch): https://launchpad.net/~open62541-team/+archive/ubuntu/daily
+ * Release Builds (starting with Version 0.4): https://launchpad.net/~open62541-team/+archive/ubuntu/ppa
+
+Install them with:
+
+.. code-block:: bash
+
+    sudo add-apt-repository ppa:open62541-team/ppa
+    sudo apt-get update
+    sudo apt-get install libopen62541-1-dev
+
+Arch
+^^^^
+Arch packages are available in the AUR:
+
+ * Stable Builds: https://aur.archlinux.org/packages/open62541/
+ * Unstable Builds (current master): https://aur.archlinux.org/packages/open62541-git/
+ * In order to add custom build options (:ref:`build_options`), you can set the environment variable ``OPEN62541_CMAKE_FLAGS``
+
+OpenBSD
+^^^^^^^
+Starting with OpenBSD 6.7 the ports directory misc/open62541 can
+build the released version of open62541.
+Install the binary package from the OpenBSD mirrors:
+
+.. code-block:: bash
+   
+   pkg_add open62541
 
 Building the Examples
 ---------------------
 
-Make sure that you can build the shared library as explained in the previous steps. Even easier way
-to build the examples is to install open62541 in your operating system (see :ref:`installing`).
+Make sure that you have installed the shared library as explained in the
+previous steps. Even easier way to build the examples is to install open62541 in
+your operating system (see :ref:`installing`).
 
 Then the compiler should automatically find the includes and the shared library.
 
