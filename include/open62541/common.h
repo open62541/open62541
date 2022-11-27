@@ -61,6 +61,8 @@ typedef enum {
 } UA_AttributeId;
 
 /**
+ * .. _access-level-mask:
+ *
  * Access Level Masks
  * ------------------
  * The access level to a node is given by the following constants that are ANDed
@@ -75,6 +77,8 @@ typedef enum {
 #define UA_ACCESSLEVELMASK_TIMESTAMPWRITE (0x01u << 6u)
 
 /**
+ * .. _write-mask:
+ *
  * Write Masks
  * -----------
  * The write mask and user write mask is given by the following constants that
@@ -104,8 +108,10 @@ typedef enum {
 #define UA_WRITEMASK_VALUEFORVARIABLETYPE    (0x01u << 21u)
 
 /**
- * ValueRanks
- * ----------
+ * .. _valuerank-defines:
+ *
+ * ValueRank
+ * ---------
  * The following are the most common ValueRanks used for Variables,
  * VariableTypes and method arguments. ValueRanks higher than 3 are valid as
  * well (but less common). */
@@ -119,6 +125,8 @@ typedef enum {
 #define UA_VALUERANK_THREE_DIMENSIONS          3
 
 /**
+ * .. _eventnotifier:
+ *
  * EventNotifier
  * -------------
  * The following are the available EventNotifier used for Nodes.
