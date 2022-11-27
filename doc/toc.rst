@@ -16,4 +16,5 @@ open62541 Documentation
    pubsub
    common
    nodeset_compiler
-   internal
+   plugin
+   generated

@@ -39,13 +39,17 @@ generate_rst(${PROJECT_SOURCE_DIR}/include/open62541/server.h ${DOC_SRC_DIR}/ser
 generate_rst(${PROJECT_SOURCE_DIR}/include/open62541/client_subscriptions.h ${DOC_SRC_DIR}/client_subscriptions.rst)
 generate_rst(${PROJECT_SOURCE_DIR}/include/open62541/client.h ${DOC_SRC_DIR}/client.rst)
 generate_rst(${PROJECT_SOURCE_DIR}/include/open62541/client_highlevel.h ${DOC_SRC_DIR}/client_highlevel.rst)
-generate_rst(${PROJECT_SOURCE_DIR}/include/open62541/plugin/log.h ${DOC_SRC_DIR}/plugin_log.rst)
-generate_rst(${PROJECT_SOURCE_DIR}/include/open62541/plugin/network.h ${DOC_SRC_DIR}/plugin_network.rst)
-generate_rst(${PROJECT_SOURCE_DIR}/include/open62541/plugin/accesscontrol.h ${DOC_SRC_DIR}/plugin_accesscontrol.rst)
 generate_rst(${PROJECT_SOURCE_DIR}/src/server/ua_services.h ${DOC_SRC_DIR}/services.rst)
-generate_rst(${PROJECT_SOURCE_DIR}/include/open62541/plugin/nodestore.h ${DOC_SRC_DIR}/nodestore.rst)
-generate_rst(${PROJECT_SOURCE_DIR}/include/open62541/plugin/pubsub.h ${DOC_SRC_DIR}/plugin_pubsub_connection.rst)
 generate_rst(${PROJECT_SOURCE_DIR}/include/open62541/server_pubsub.h ${DOC_SRC_DIR}/pubsub.rst)
+
+generate_rst(${PROJECT_SOURCE_DIR}/include/open62541/plugin/accesscontrol.h ${DOC_SRC_DIR}/plugin_accesscontrol.rst)
+generate_rst(${PROJECT_SOURCE_DIR}/include/open62541/plugin/network.h ${DOC_SRC_DIR}/plugin_network.rst)
+generate_rst(${PROJECT_SOURCE_DIR}/include/open62541/plugin/log.h ${DOC_SRC_DIR}/plugin_log.rst)
+generate_rst(${PROJECT_SOURCE_DIR}/include/open62541/plugin/nodestore.h ${DOC_SRC_DIR}/plugin_nodestore.rst)
+generate_rst(${PROJECT_SOURCE_DIR}/include/open62541/plugin/pubsub.h ${DOC_SRC_DIR}/plugin_pubsub.rst)
+generate_rst(${PROJECT_SOURCE_DIR}/include/open62541/plugin/eventloop.h ${DOC_SRC_DIR}/plugin_eventloop.rst)
+generate_rst(${PROJECT_SOURCE_DIR}/include/open62541/plugin/pki.h ${DOC_SRC_DIR}/plugin_pki.rst)
+generate_rst(${PROJECT_SOURCE_DIR}/include/open62541/plugin/securitypolicy.h ${DOC_SRC_DIR}/plugin_securitypolicy.rst)
 
 # Doc from tutorial code
 generate_rst(${PROJECT_SOURCE_DIR}/examples/tutorial_datatypes.c ${DOC_SRC_DIR}/tutorial_datatypes.rst)
