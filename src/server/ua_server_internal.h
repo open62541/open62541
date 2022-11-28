@@ -791,8 +791,10 @@ UA_Node_insertOrUpdateDescription(UA_NodeHead *head,
 
 
 /* Reverse connect */
-UA_StatusCode UA_Server_attemptReverseConnect(UA_Server *server, reverse_connect_context *context);
-UA_StatusCode UA_Server_setReverseConnectRetryCallback(UA_Server *server, UA_Boolean enabled);
+void setReverseConnectState(UA_Server *server, reverse_connect_context *context,
+                            UA_SecureChannelState newState);
+UA_StatusCode attemptReverseConnect(UA_Server *server, reverse_connect_context *context);
+UA_StatusCode setReverseConnectRetryCallback(UA_Server *server, UA_Boolean enabled);
 
 _UA_END_DECLS
 

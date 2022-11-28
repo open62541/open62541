@@ -1067,12 +1067,12 @@ static void retryReverseConnectCallback(UA_Server *server, void *context) {
             UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_SERVER,
                         "Attempt to reverse reconnect to %.*s:%d", (int)rc->hostname.length,
                         rc->hostname.data, rc->port);
-            UA_Server_attemptReverseConnect(server, rc);
+            attemptReverseConnect(server, rc);
         }
     }
 }
 
-UA_StatusCode UA_Server_setReverseConnectRetryCallback(UA_Server *server, UA_Boolean enabled) {
+UA_StatusCode setReverseConnectRetryCallback(UA_Server *server, UA_Boolean enabled) {
     if (enabled && !server->reverseConnectsCheckHandle) {
         const UA_UInt32 reconnectInterval = server->config.reverseReconnectInterval ?
                     server->config.reverseReconnectInterval : 15000;
@@ -1087,7 +1087,7 @@ UA_StatusCode UA_Server_setReverseConnectRetryCallback(UA_Server *server, UA_Boo
     return UA_STATUSCODE_GOOD;
 }
 
-static void setReverseConnectState(UA_Server *server, reverse_connect_context *context,
+void setReverseConnectState(UA_Server *server, reverse_connect_context *context,
                                    UA_SecureChannelState newState) {
     if (context->state == newState)
         return;
