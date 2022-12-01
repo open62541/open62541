@@ -594,27 +594,33 @@ UA_Server_WriterGroup_getState(UA_Server *server, UA_NodeId writerGroupIdentifie
     return UA_STATUSCODE_GOOD;
 }
 
-UA_StatusCode UA_EXPORT
+UA_StatusCode
 UA_Server_WriterGroup_publish(UA_Server *server, const UA_NodeId writerGroupIdentifier){
+    UA_LOCK(&server->serviceMutex);
+
     //search WriterGroup ToDo create lookup table for more efficiency
     UA_WriterGroup *writerGroup;
     writerGroup = UA_WriterGroup_findWGbyId(server, writerGroupIdentifier);
     if(writerGroup == NULL){
         return UA_STATUSCODE_BADNOTFOUND;
     }
+    UA_UNLOCK(&server->serviceMutex);
     UA_WriterGroup_publishCallback(server, writerGroup);
     return UA_STATUSCODE_GOOD;
 }
 
-UA_DateTime UA_EXPORT
-UA_WriterGroup_lastPublishTimestamp(UA_Server *server, const UA_NodeId writerGroupId){
+UA_StatusCode
+UA_WriterGroup_lastPublishTimestamp(UA_Server *server, const UA_NodeId writerGroupId, UA_DateTime *timestamp){
+    UA_LOCK(&server->serviceMutex);
     //search WriterGroup ToDo create lookup table for more efficiency
     UA_WriterGroup *writerGroup;
     writerGroup = UA_WriterGroup_findWGbyId(server, writerGroupId);
     if(writerGroup == NULL){
         return UA_STATUSCODE_BADNOTFOUND;
     }
-    return writerGroup->lastPublishTimeStamp;
+    *timestamp = writerGroup->lastPublishTimeStamp;
+    return UA_STATUSCODE_BADNOTFOUND;
+    UA_UNLOCK(&server->serviceMutex);
 }
 
 UA_WriterGroup *
