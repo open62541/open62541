@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  *
- *    Copyright 2020 (c) Fraunhofer IOSB (Author: Andreas Ebner)
+ *    Copyright 2020-2022 (c) Fraunhofer IOSB (Author: Andreas Ebner)
  *    Copyright 2014-2017 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
  *    Copyright 2014, 2016-2017 (c) Florian Palm
  *    Copyright 2014-2016 (c) Sten Grüner
@@ -124,6 +124,15 @@ UA_String_fromChars(const char *src) {
         s.data = (u8*)UA_EMPTY_ARRAY_SENTINEL;
     }
     return s;
+}
+
+UA_StatusCode
+UA_String_toCharArray(UA_String *s, char *c, size_t maxLength) {
+    if(s->length+1 > maxLength)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    memcpy(c, s->data, s->length);
+    c[s->length] = '\0';
+    return UA_STATUSCODE_GOOD;
 }
 
 static UA_Order

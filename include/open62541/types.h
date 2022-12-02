@@ -11,6 +11,8 @@
  *    Copyright 2015-2016 (c) Oleksiy Vasylyev
  *    Copyright 2017 (c) Stefan Profanter, fortiss GmbH
  *    Copyright 2017 (c) Thomas Stalder, Blue Time Concept SA
+ *    Copyright 2020-2022 (c) Fraunhofer IOSB (Author: Andreas Ebner)
+
  */
 
 #ifndef UA_TYPES_H_
@@ -195,6 +197,9 @@ typedef struct {
 /* Copies the content on the heap. Returns a null-string when alloc fails */
 UA_String UA_EXPORT
 UA_String_fromChars(const char *src) UA_FUNC_ATTR_WARN_UNUSED_RESULT;
+
+UA_StatusCode UA_EXPORT
+UA_String_toCharArray(UA_String *s, char * c, size_t maxLength);
 
 UA_Boolean UA_EXPORT
 UA_String_equal(const UA_String *s1, const UA_String *s2);
