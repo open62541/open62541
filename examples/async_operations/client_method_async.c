@@ -1,12 +1,12 @@
 /* This work is licensed under a Creative Commons CCZero 1.0 Universal License.
  * See http://creativecommons.org/publicdomain/zero/1.0/ for more information. */
 
-#include <open62541/client_config_default.h>
-#include <open62541/client_highlevel_async.h>
-#include <open62541/client_subscriptions.h>
-#include <open62541/plugin/log_stdout.h>
-#include <open62541/server_config_default.h>
-#include <open62541/client_subscriptions.h>
+#include "open62541/client_config_default.h"
+#include "open62541/client_highlevel_async.h"
+#include "open62541/client_subscriptions.h"
+#include "open62541/plugin/log_stdout.h"
+#include "open62541/server_config_default.h"
+#include "open62541/client_subscriptions.h"
 
 #include <stdlib.h>
 #include <signal.h>
@@ -17,8 +17,8 @@ static void InitCallMulti(UA_Client* client);
 #ifdef UA_ENABLE_METHODCALLS
 
 static void
-methodCalled(UA_Client *client, void *userdata, UA_UInt32 requestId,
-    UA_CallResponse *response) {
+methodCalledCallback(UA_Client *client, void *userdata, UA_UInt32 requestId,
+             UA_CallResponse *response) {
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
                 "**** CallRequest Response - Req:%u with %u results",
                 requestId, (UA_UInt32)response->resultsSize);
@@ -53,9 +53,9 @@ methodCalled(UA_Client *client, void *userdata, UA_UInt32 requestId,
 
 static UA_StatusCode
 UA_Client_call_asyncMulti(UA_Client *client,
-    const UA_NodeId objectId1, const UA_NodeId methodId1, size_t inputSize1, const UA_Variant *input1,
-    const UA_NodeId objectId2, const UA_NodeId methodId2, size_t inputSize2, const UA_Variant *input2,
-    UA_ClientAsyncServiceCallback callback, void *userdata, UA_UInt32 *reqId) {
+                          const UA_NodeId objectId1, const UA_NodeId methodId1, size_t inputSize1, const UA_Variant *input1,
+                          const UA_NodeId objectId2, const UA_NodeId methodId2, size_t inputSize2, const UA_Variant *input2,
+                          UA_ClientAsyncServiceCallback callback, void *userdata, UA_UInt32 *reqId) {
     UA_CallRequest request;
     UA_CallRequest_init(&request);
     UA_CallMethodRequest item[2];
@@ -75,8 +75,8 @@ UA_Client_call_asyncMulti(UA_Client *client,
     request.methodsToCallSize = 2;
 
     return __UA_Client_AsyncService(client, &request,
-        &UA_TYPES[UA_TYPES_CALLREQUEST], callback,
-        &UA_TYPES[UA_TYPES_CALLRESPONSE], userdata, reqId);
+                                    &UA_TYPES[UA_TYPES_CALLREQUEST], callback,
+                                    &UA_TYPES[UA_TYPES_CALLRESPONSE], userdata, reqId);
 }
 /* End Workaround */
 
@@ -89,11 +89,11 @@ static void InitCallMulti(UA_Client* client) {
 
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "**** Initiating CallRequest 3");
     UA_Client_call_asyncMulti(client,
-        UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
-        UA_NODEID_NUMERIC(1, 62542), 1, &input,
-        UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
-        UA_NODEID_NUMERIC(1, 62541), 1, &input,
-        (UA_ClientAsyncServiceCallback)methodCalled, NULL, &reqId);
+                              UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
+                              UA_NODEID_NUMERIC(1, 62542), 1, &input,
+                              UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
+                              UA_NODEID_NUMERIC(1, 62541), 1, &input,
+                              (UA_ClientAsyncServiceCallback)methodCalledCallback, NULL, &reqId);
     UA_String_clear(&stringValue);
 }
 #endif
@@ -107,7 +107,7 @@ static void stopHandler(int sign) {
 #ifdef UA_ENABLE_SUBSCRIPTIONS
 static void
 handler_currentTimeChanged(UA_Client *client, UA_UInt32 subId, void *subContext,
-    UA_UInt32 monId, void *monContext, UA_DataValue *value) {
+                           UA_UInt32 monId, void *monContext, UA_DataValue *value) {
     if(UA_Variant_hasScalarType(&value->value, &UA_TYPES[UA_TYPES_DATETIME])) {
         UA_DateTime raw_date = *(UA_DateTime *)value->value.data;
         UA_DateTimeStruct dts = UA_DateTime_toStruct(raw_date);
@@ -142,7 +142,7 @@ stateCallback(UA_Client *client, UA_SecureChannelState channelState,
         /* Create a subscription */
         UA_CreateSubscriptionRequest request = UA_CreateSubscriptionRequest_default();
         UA_CreateSubscriptionResponse response = UA_Client_Subscriptions_create(client, request,
-            NULL, NULL, deleteSubscriptionCallback);
+                                                                                NULL, NULL, deleteSubscriptionCallback);
 
         if(response.responseHeader.serviceResult == UA_STATUSCODE_GOOD)
             UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
@@ -159,14 +159,14 @@ stateCallback(UA_Client *client, UA_SecureChannelState channelState,
         UA_MonitoredItemCreateResult monResponse =
             UA_Client_MonitoredItems_createDataChange(client, response.subscriptionId,
                                                       UA_TIMESTAMPSTORETURN_BOTH,
-                monRequest, NULL, handler_currentTimeChanged, NULL);
+                                                      monRequest, NULL, handler_currentTimeChanged, NULL);
         if(monResponse.statusCode == UA_STATUSCODE_GOOD)
             UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
                         "Monitoring UA_NS0ID_SERVER_SERVERSTATUS_CURRENTTIME', id %u",
                         monResponse.monitoredItemId);
 #endif
 
-#ifdef UA_ENABLE_METHODCALLS		
+#ifdef UA_ENABLE_METHODCALLS
         UA_UInt32 reqId = 0;
         UA_Variant input;
         UA_Variant_init(&input);
@@ -178,7 +178,7 @@ stateCallback(UA_Client *client, UA_SecureChannelState channelState,
                     "**** Initiating CallRequest 1");
         UA_Client_call_async(client, UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
                              UA_NODEID_NUMERIC(1, 62541), 1, &input,
-                             methodCalled, NULL, &reqId);
+                             methodCalledCallback, NULL, &reqId);
         UA_String_clear(&stringValue);
 
         /* Initiate Call 2 */
@@ -189,7 +189,7 @@ stateCallback(UA_Client *client, UA_SecureChannelState channelState,
         UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "**** Initiating CallRequest 2");
         UA_Client_call_async(client, UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
                              UA_NODEID_NUMERIC(1, 62542), 1, &input,
-                             methodCalled, NULL, &reqId);
+                             methodCalledCallback, NULL, &reqId);
         UA_String_clear(&stringValue);
 
 #endif /* UA_ENABLE_METHODCALLS */
