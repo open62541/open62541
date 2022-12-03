@@ -597,8 +597,8 @@ addPubSubConnectionRepresentation(UA_Server *server, UA_PubSubConnection *connec
     }
 
     retVal |= writePubSubNs0VariableArray(server, connectionPropertieNode.identifier.numeric,
-                                          connection->config->connectionProperties,
-                                          connection->config->connectionPropertiesSize,
+                                          connection->config->connectionProperties.map,
+                                          connection->config->connectionProperties.mapSize,
                                           &UA_TYPES[UA_TYPES_KEYVALUEPAIR]);
 
     UA_NetworkAddressUrlDataType *networkAddressUrl=

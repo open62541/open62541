@@ -28,20 +28,8 @@ UA_PubSubConnectionConfig_copy(const UA_PubSubConnectionConfig *src,
     res |= UA_String_copy(&src->transportProfileUri, &dst->transportProfileUri);
     res |= UA_Variant_copy(&src->connectionTransportSettings,
                            &dst->connectionTransportSettings);
-    if(src->connectionPropertiesSize > 0) {
-        dst->connectionProperties = (UA_KeyValuePair *)
-            UA_calloc(src->connectionPropertiesSize, sizeof(UA_KeyValuePair));
-        if(!dst->connectionProperties) {
-            UA_PubSubConnectionConfig_clear(dst);
-            return UA_STATUSCODE_BADOUTOFMEMORY;
-        }
-        for(size_t i = 0; i < src->connectionPropertiesSize; i++){
-            res |= UA_QualifiedName_copy(&src->connectionProperties[i].key,
-                                            &dst->connectionProperties[i].key);
-            res |= UA_Variant_copy(&src->connectionProperties[i].value,
-                                      &dst->connectionProperties[i].value);
-        }
-    }
+    res |= UA_KeyValueMap_copy(&src->connectionProperties,
+                               &dst->connectionProperties);
     if(res != UA_STATUSCODE_GOOD)
         UA_PubSubConnectionConfig_clear(dst);
     return res;
@@ -78,11 +66,7 @@ UA_PubSubConnectionConfig_clear(UA_PubSubConnectionConfig *connectionConfig) {
     UA_String_clear(&connectionConfig->transportProfileUri);
     UA_Variant_clear(&connectionConfig->connectionTransportSettings);
     UA_Variant_clear(&connectionConfig->address);
-    for(size_t i = 0; i < connectionConfig->connectionPropertiesSize; i++){
-        UA_QualifiedName_clear(&connectionConfig->connectionProperties[i].key);
-        UA_Variant_clear(&connectionConfig->connectionProperties[i].value);
-    }
-    UA_free(connectionConfig->connectionProperties);
+    UA_KeyValueMap_clear(&connectionConfig->connectionProperties);
 }
 
 void

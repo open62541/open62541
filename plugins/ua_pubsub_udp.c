@@ -126,8 +126,7 @@ chooseValidAddrInfoAndCreateSocket(UA_SOCKET *sockfd, struct addrinfo* addrInfoL
 
 static void
 UA_setConnectionConfigurationProperties(UA_PubSubChannelDataUDPMC *channelDataUDPMC,
-                                        const UA_KeyValuePair *connectionProperties,
-                                        const size_t connectionPropertiesSize) {
+                                        const UA_KeyValueMap *connectionProperties) {
     /* Set default values */
     memset(channelDataUDPMC, 0, sizeof(UA_PubSubChannelDataUDPMC));
     channelDataUDPMC->messageTTL = 255;
@@ -142,8 +141,8 @@ UA_setConnectionConfigurationProperties(UA_PubSubChannelDataUDPMC *channelDataUD
 #ifdef __linux__
     UA_String socketPriorityParam = UA_STRING("sockpriority");
 #endif
-    for(size_t i = 0; i < connectionPropertiesSize; i++) {
-        const UA_KeyValuePair *prop = &connectionProperties[i];
+    for(size_t i = 0; i < connectionProperties->mapSize; i++) {
+        const UA_KeyValuePair *prop = &connectionProperties->map[i];
         if(UA_String_equal(&prop->key.name, &ttlParam)) {
             if(UA_Variant_hasScalarType(&prop->value, &UA_TYPES[UA_TYPES_UINT32])){
                 channelDataUDPMC->messageTTL = *(UA_UInt32*)prop->value.data;
@@ -312,8 +311,7 @@ UA_PubSubChannelDataUDPMC_new(UA_PubSubChannel *channel, const UA_PubSubConnecti
                      "PubSub Connection creation failed. Out of memory.");
         goto error;
     }
-    UA_setConnectionConfigurationProperties(channelDataUDPMC, connectionConfig->connectionProperties,
-                                            connectionConfig->connectionPropertiesSize);
+    UA_setConnectionConfigurationProperties(channelDataUDPMC, &connectionConfig->connectionProperties);
     UA_NetworkAddressUrlDataType *address =
         (UA_NetworkAddressUrlDataType *)connectionConfig->address.data;
 

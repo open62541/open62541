@@ -83,46 +83,47 @@ UA_PubSubChannelMQTT_open(const UA_PubSubConnectionConfig *connectionConfig) {
             username = UA_STRING("mqttUsername"), password = UA_STRING("mqttPassword"), caFilePath = UA_STRING("mqttCaFilePath"),
             caPath = UA_STRING("mqttCaPath"), useTLS = UA_STRING("mqttUseTLS"), clientCertPath = UA_STRING("mqttClientCertPath"),
             clientKeyPath = UA_STRING("mqttClientKeyPath");
-    for(size_t i = 0; i < connectionConfig->connectionPropertiesSize; i++){
-        if(UA_String_equal(&connectionConfig->connectionProperties[i].key.name, &sendBuffer)){
-            if(UA_Variant_hasScalarType(&connectionConfig->connectionProperties[i].value, &UA_TYPES[UA_TYPES_UINT32])){
-                channelDataMQTT->mqttSendBufferSize = *(UA_UInt32 *) connectionConfig->connectionProperties[i].value.data;
+    for(size_t i = 0; i < connectionConfig->connectionProperties.mapSize; i++){
+        UA_KeyValuePair *prop = &connectionConfig->connectionProperties.map[i];
+        if(UA_String_equal(&prop->key.name, &sendBuffer)){
+            if(UA_Variant_hasScalarType(&prop->value, &UA_TYPES[UA_TYPES_UINT32])){
+                channelDataMQTT->mqttSendBufferSize = *(UA_UInt32 *) prop->value.data;
             }
-        } else if(UA_String_equal(&connectionConfig->connectionProperties[i].key.name, &recvBuffer)){
-            if(UA_Variant_hasScalarType(&connectionConfig->connectionProperties[i].value, &UA_TYPES[UA_TYPES_UINT32])){
-                channelDataMQTT->mqttRecvBufferSize = *(UA_UInt32 *) connectionConfig->connectionProperties[i].value.data;
+        } else if(UA_String_equal(&prop->key.name, &recvBuffer)){
+            if(UA_Variant_hasScalarType(&prop->value, &UA_TYPES[UA_TYPES_UINT32])){
+                channelDataMQTT->mqttRecvBufferSize = *(UA_UInt32 *) prop->value.data;
             }
-        } else if(UA_String_equal(&connectionConfig->connectionProperties[i].key.name, &clientId)){
-            if(UA_Variant_hasScalarType(&connectionConfig->connectionProperties[i].value, &UA_TYPES[UA_TYPES_STRING])){
-                channelDataMQTT->mqttClientId = (UA_String *) connectionConfig->connectionProperties[i].value.data;
+        } else if(UA_String_equal(&prop->key.name, &clientId)){
+            if(UA_Variant_hasScalarType(&prop->value, &UA_TYPES[UA_TYPES_STRING])){
+                channelDataMQTT->mqttClientId = (UA_String *) prop->value.data;
             }
-        } else if(UA_String_equal(&connectionConfig->connectionProperties[i].key.name, &username)){
-            if(UA_Variant_hasScalarType(&connectionConfig->connectionProperties[i].value, &UA_TYPES[UA_TYPES_STRING])){
-                UA_String_copy((UA_String *) connectionConfig->connectionProperties[i].value.data, &channelDataMQTT->mqttUsername);
+        } else if(UA_String_equal(&prop->key.name, &username)){
+            if(UA_Variant_hasScalarType(&prop->value, &UA_TYPES[UA_TYPES_STRING])){
+                UA_String_copy((UA_String *) prop->value.data, &channelDataMQTT->mqttUsername);
             }
-        } else if(UA_String_equal(&connectionConfig->connectionProperties[i].key.name, &password)){
-            if(UA_Variant_hasScalarType(&connectionConfig->connectionProperties[i].value, &UA_TYPES[UA_TYPES_STRING])){
-                UA_String_copy((UA_String *) connectionConfig->connectionProperties[i].value.data, &channelDataMQTT->mqttPassword);
+        } else if(UA_String_equal(&prop->key.name, &password)){
+            if(UA_Variant_hasScalarType(&prop->value, &UA_TYPES[UA_TYPES_STRING])){
+                UA_String_copy((UA_String *) prop->value.data, &channelDataMQTT->mqttPassword);
             }
-        } else if(UA_String_equal(&connectionConfig->connectionProperties[i].key.name, &caFilePath)){
-            if(UA_Variant_hasScalarType(&connectionConfig->connectionProperties[i].value, &UA_TYPES[UA_TYPES_STRING])){
-                UA_String_copy((UA_String *) connectionConfig->connectionProperties[i].value.data, &channelDataMQTT->mqttCaFilePath);
+        } else if(UA_String_equal(&prop->key.name, &caFilePath)){
+            if(UA_Variant_hasScalarType(&prop->value, &UA_TYPES[UA_TYPES_STRING])){
+                UA_String_copy((UA_String *) prop->value.data, &channelDataMQTT->mqttCaFilePath);
             }
-        } else if(UA_String_equal(&connectionConfig->connectionProperties[i].key.name, &caPath)){
-            if(UA_Variant_hasScalarType(&connectionConfig->connectionProperties[i].value, &UA_TYPES[UA_TYPES_STRING])){
-                UA_String_copy((UA_String *) connectionConfig->connectionProperties[i].value.data, &channelDataMQTT->mqttCaPath);
+        } else if(UA_String_equal(&prop->key.name, &caPath)){
+            if(UA_Variant_hasScalarType(&prop->value, &UA_TYPES[UA_TYPES_STRING])){
+                UA_String_copy((UA_String *) prop->value.data, &channelDataMQTT->mqttCaPath);
             }
-        } else if(UA_String_equal(&connectionConfig->connectionProperties[i].key.name, &useTLS)){
-            if(UA_Variant_hasScalarType(&connectionConfig->connectionProperties[i].value, &UA_TYPES[UA_TYPES_BOOLEAN])){
-                channelDataMQTT->mqttUseTLS = *(UA_Boolean *) connectionConfig->connectionProperties[i].value.data;
+        } else if(UA_String_equal(&prop->key.name, &useTLS)){
+            if(UA_Variant_hasScalarType(&prop->value, &UA_TYPES[UA_TYPES_BOOLEAN])){
+                channelDataMQTT->mqttUseTLS = *(UA_Boolean *) prop->value.data;
             }
-        } else if(UA_String_equal(&connectionConfig->connectionProperties[i].key.name, &clientCertPath)){
-            if(UA_Variant_hasScalarType(&connectionConfig->connectionProperties[i].value, &UA_TYPES[UA_TYPES_STRING])){
-                UA_String_copy((UA_String *) connectionConfig->connectionProperties[i].value.data, &channelDataMQTT->mqttClientCertPath);
+        } else if(UA_String_equal(&prop->key.name, &clientCertPath)){
+            if(UA_Variant_hasScalarType(&prop->value, &UA_TYPES[UA_TYPES_STRING])){
+                UA_String_copy((UA_String *) prop->value.data, &channelDataMQTT->mqttClientCertPath);
             }
-        } else if(UA_String_equal(&connectionConfig->connectionProperties[i].key.name, &clientKeyPath)){
-            if(UA_Variant_hasScalarType(&connectionConfig->connectionProperties[i].value, &UA_TYPES[UA_TYPES_STRING])){
-                UA_String_copy((UA_String *) connectionConfig->connectionProperties[i].value.data, &channelDataMQTT->mqttClientKeyPath);
+        } else if(UA_String_equal(&prop->key.name, &clientKeyPath)){
+            if(UA_Variant_hasScalarType(&prop->value, &UA_TYPES[UA_TYPES_STRING])){
+                UA_String_copy((UA_String *) prop->value.data, &channelDataMQTT->mqttClientKeyPath);
             }
         }  else {
             UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "PubSub MQTT Connection creation. Unknown connection parameter.");
