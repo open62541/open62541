@@ -1,6 +1,13 @@
 This changelog reports changes visible through the public API. Internal refactorings and bug
 fixes are not reported here.
 
+2022-12-03 Julius Pfrommer <julius.pfrommer at iosb.fraunhofer.de>
+
+ * KeyValueMap in PubSub configuration
+
+   The UA_KeyValueMap structure is used everywhere instead of raw
+   arrays of UA_KeyValuePair.
+
 2022-11-19 Julius Pfrommer <julius.pfrommer at iosb.fraunhofer.de>
 
  * Thread-safe client

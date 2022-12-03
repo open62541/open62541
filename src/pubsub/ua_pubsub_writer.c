@@ -33,16 +33,9 @@ UA_DataSetWriterConfig_copy(const UA_DataSetWriterConfig *src,
     retVal |= UA_String_copy(&src->name, &dst->name);
     retVal |= UA_String_copy(&src->dataSetName, &dst->dataSetName);
     retVal |= UA_ExtensionObject_copy(&src->messageSettings, &dst->messageSettings);
-    if(src->dataSetWriterPropertiesSize > 0) {
-        dst->dataSetWriterProperties = (UA_KeyValuePair *)
-            UA_calloc(src->dataSetWriterPropertiesSize, sizeof(UA_KeyValuePair));
-        if(!dst->dataSetWriterProperties)
-            return UA_STATUSCODE_BADOUTOFMEMORY;
-        for(size_t i = 0; i < src->dataSetWriterPropertiesSize; i++){
-            retVal |= UA_KeyValuePair_copy(&src->dataSetWriterProperties[i],
-                                           &dst->dataSetWriterProperties[i]);
-        }
-    }
+    retVal |= UA_KeyValueMap_copy(&src->dataSetWriterProperties, &dst->dataSetWriterProperties);
+    if(retVal != UA_STATUSCODE_GOOD)
+        UA_DataSetWriterConfig_clear(dst);
     return retVal;
 }
 
@@ -91,11 +84,9 @@ void
 UA_DataSetWriterConfig_clear(UA_DataSetWriterConfig *pdsConfig) {
     UA_String_clear(&pdsConfig->name);
     UA_String_clear(&pdsConfig->dataSetName);
-    for(size_t i = 0; i < pdsConfig->dataSetWriterPropertiesSize; i++) {
-        UA_KeyValuePair_clear(&pdsConfig->dataSetWriterProperties[i]);
-    }
-    UA_free(pdsConfig->dataSetWriterProperties);
+    UA_KeyValueMap_clear(&pdsConfig->dataSetWriterProperties);
     UA_ExtensionObject_clear(&pdsConfig->messageSettings);
+    memset(pdsConfig, 0, sizeof(UA_DataSetWriterConfig));
 }
 
 static void
