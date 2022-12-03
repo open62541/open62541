@@ -8,8 +8,6 @@
 #include <open62541/server.h>
 #include <open62541/server_config_default.h>
 
-#include <open62541/plugin/pubsub_mqtt.h>
-
 #include "ua_server_internal.h"
 
 #include <check.h>
@@ -36,7 +34,6 @@ static void setup(void) {
     server = UA_Server_new();
     config = UA_Server_getConfig(server);
     UA_ServerConfig_setDefault(config);
-    UA_ServerConfig_addPubSubTransportLayer(config, UA_PubSubTransportLayerMQTT());
     UA_Server_run_startup(server);
 
     //add connection

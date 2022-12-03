@@ -563,4 +563,58 @@ UA_PubSubDataSetField_sampleValue(UA_Server *server, UA_DataSetField *field,
     }
 }
 
+UA_StandaloneSubscribedDataSet *
+UA_StandaloneSubscribedDataSet_findSDSbyId(UA_Server *server, UA_NodeId identifier) {
+    UA_StandaloneSubscribedDataSet *subscribedDataSet;
+    TAILQ_FOREACH(subscribedDataSet, &server->pubSubManager.subscribedDataSets,
+                  listEntry) {
+        if(UA_NodeId_equal(&identifier, &subscribedDataSet->identifier))
+            return subscribedDataSet;
+    }
+    return NULL;
+}
+
+UA_StandaloneSubscribedDataSet *
+UA_StandaloneSubscribedDataSet_findSDSbyName(UA_Server *server, UA_String identifier) {
+    UA_StandaloneSubscribedDataSet *subscribedDataSet;
+    TAILQ_FOREACH(subscribedDataSet, &server->pubSubManager.subscribedDataSets,
+                  listEntry) {
+        if(UA_String_equal(&identifier, &subscribedDataSet->config.name))
+            return subscribedDataSet;
+    }
+    return NULL;
+}
+
+UA_StatusCode
+UA_StandaloneSubscribedDataSetConfig_copy(const UA_StandaloneSubscribedDataSetConfig *src,
+                                          UA_StandaloneSubscribedDataSetConfig *dst) {
+    UA_StatusCode res = UA_STATUSCODE_GOOD;
+    memcpy(dst, src, sizeof(UA_StandaloneSubscribedDataSetConfig));
+    res = UA_DataSetMetaDataType_copy(&src->dataSetMetaData, &dst->dataSetMetaData);
+    res |= UA_String_copy(&src->name, &dst->name);
+    res |= UA_Boolean_copy(&src->isConnected, &dst->isConnected);
+    res |= UA_TargetVariablesDataType_copy(&src->subscribedDataSet.target,
+                                           &dst->subscribedDataSet.target);
+
+    if(res != UA_STATUSCODE_GOOD)
+        UA_StandaloneSubscribedDataSetConfig_clear(dst);
+    return res;
+}
+
+void
+UA_StandaloneSubscribedDataSetConfig_clear(
+    UA_StandaloneSubscribedDataSetConfig *sdsConfig) {
+    UA_String_clear(&sdsConfig->name);
+    UA_DataSetMetaDataType_clear(&sdsConfig->dataSetMetaData);
+    UA_TargetVariablesDataType_clear(&sdsConfig->subscribedDataSet.target);
+}
+
+void
+UA_StandaloneSubscribedDataSet_clear(UA_Server *server,
+                                     UA_StandaloneSubscribedDataSet *subscribedDataSet) {
+    UA_StandaloneSubscribedDataSetConfig_clear(&subscribedDataSet->config);
+    UA_NodeId_clear(&subscribedDataSet->identifier);
+    UA_NodeId_clear(&subscribedDataSet->connectedReader);
+}
+
 #endif /* UA_ENABLE_PUBSUB */
