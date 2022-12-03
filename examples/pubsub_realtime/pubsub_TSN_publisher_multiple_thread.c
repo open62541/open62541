@@ -611,11 +611,11 @@ addPubSubConnection(UA_Server *server, UA_String *transportProfile,
     connectionOptions[1].key = UA_QUALIFIEDNAME(0, "enablesotxtime");
     UA_Variant_setScalar(&connectionOptions[1].value, &disableSoTxtime, &UA_TYPES[UA_TYPES_BOOLEAN]);
 #endif
-    connectionConfig.connectionProperties     = connectionOptions;
+    connectionConfig.connectionProperties.map = connectionOptions;
 #ifdef UA_ENABLE_PUBSUB_ETH_UADP
-    connectionConfig.connectionPropertiesSize = 2;
+    connectionConfig.connectionProperties.mapSize = 2;
 #else
-    connectionConfig.connectionPropertiesSize = 1;
+    connectionConfig.connectionProperties.mapSize = 1;
 #endif
     UA_Server_addPubSubConnection(server, &connectionConfig, &connectionIdent);
 }

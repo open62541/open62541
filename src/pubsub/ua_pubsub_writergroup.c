@@ -495,15 +495,7 @@ UA_WriterGroupConfig_copy(const UA_WriterGroupConfig *src,
     res |= UA_String_copy(&src->name, &dst->name);
     res |= UA_ExtensionObject_copy(&src->transportSettings, &dst->transportSettings);
     res |= UA_ExtensionObject_copy(&src->messageSettings, &dst->messageSettings);
-    if(src->groupPropertiesSize > 0) {
-        dst->groupProperties = (UA_KeyValuePair*)
-            UA_calloc(src->groupPropertiesSize, sizeof(UA_KeyValuePair));
-        if(!dst->groupProperties)
-            return UA_STATUSCODE_BADOUTOFMEMORY;
-        for(size_t i = 0; i < src->groupPropertiesSize; i++) {
-            res |= UA_KeyValuePair_copy(&src->groupProperties[i], &dst->groupProperties[i]);
-        }
-    }
+    res |= UA_KeyValueMap_copy(&src->groupProperties, &dst->groupProperties);
 #ifdef UA_ENABLE_PUBSUB_ENCRYPTION
     res |= UA_String_copy(&src->securityGroupId, &dst->securityGroupId);
 #endif
@@ -652,13 +644,11 @@ UA_WriterGroupConfig_clear(UA_WriterGroupConfig *writerGroupConfig) {
     UA_String_clear(&writerGroupConfig->name);
     UA_ExtensionObject_clear(&writerGroupConfig->transportSettings);
     UA_ExtensionObject_clear(&writerGroupConfig->messageSettings);
-    UA_Array_delete(writerGroupConfig->groupProperties,
-                    writerGroupConfig->groupPropertiesSize,
-                    &UA_TYPES[UA_TYPES_KEYVALUEPAIR]);
-    writerGroupConfig->groupProperties = NULL;
+    UA_KeyValueMap_clear(&writerGroupConfig->groupProperties);
 #ifdef UA_ENABLE_PUBSUB_ENCRYPTION
     UA_String_clear(&writerGroupConfig->securityGroupId);
 #endif
+    memset(writerGroupConfig, 0, sizeof(UA_WriterGroupConfig));
 }
 
 static void

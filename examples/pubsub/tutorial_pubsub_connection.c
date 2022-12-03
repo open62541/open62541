@@ -45,7 +45,7 @@ int main(void) {
     memset(&connectionConfig, 0, sizeof(connectionConfig));
     connectionConfig.name = UA_STRING("UDP-UADP Connection 1");
     connectionConfig.transportProfileUri = UA_STRING("http://opcfoundation.org/UA-Profile/Transport/pubsub-udp-uadp");
-    connectionConfig.enabled = UA_TRUE;
+    connectionConfig.enabled = true;
     /* The address and interface is part of the standard
      * defined UA_NetworkAddressUrlDataType. */
     UA_NetworkAddressUrlDataType networkAddressUrl = {UA_STRING_NULL , UA_STRING("opc.udp://224.0.0.22:4840/")};
@@ -59,13 +59,13 @@ int main(void) {
     UA_UInt32 ttl = 10;
     UA_Variant_setScalar(&connectionOptions[0].value, &ttl, &UA_TYPES[UA_TYPES_UINT32]);
     connectionOptions[1].key = UA_QUALIFIEDNAME(0, "loopback");
-    UA_Boolean loopback = UA_FALSE;
+    UA_Boolean loopback = false;
     UA_Variant_setScalar(&connectionOptions[1].value, &loopback, &UA_TYPES[UA_TYPES_BOOLEAN]);
     connectionOptions[2].key = UA_QUALIFIEDNAME(0, "reuse");
-    UA_Boolean reuse = UA_TRUE;
+    UA_Boolean reuse = true;
     UA_Variant_setScalar(&connectionOptions[2].value, &reuse, &UA_TYPES[UA_TYPES_BOOLEAN]);
-    connectionConfig.connectionProperties = connectionOptions;
-    connectionConfig.connectionPropertiesSize = 3;
+    connectionConfig.connectionProperties.map = connectionOptions;
+    connectionConfig.connectionProperties.mapSize = 3;
     /* Create a new concrete connection and add the connection
      * to the current PubSub configuration. */
     UA_NodeId connectionIdentifier;

@@ -174,8 +174,7 @@ struct UA_PubSubConnectionConfig {
     UA_PublisherId publisherId;
     UA_String transportProfileUri;
     UA_Variant address;
-    size_t connectionPropertiesSize;
-    UA_KeyValuePair *connectionProperties;
+    UA_KeyValueMap connectionProperties;
     UA_Variant connectionTransportSettings;
 };
 
@@ -505,8 +504,7 @@ typedef struct {
     UA_Byte priority;
     UA_ExtensionObject transportSettings;
     UA_ExtensionObject messageSettings;
-    size_t groupPropertiesSize;
-    UA_KeyValuePair *groupProperties;
+    UA_KeyValueMap groupProperties;
     UA_PubSubEncodingType encodingMimeType;
     /* PubSub Manager Callback */
     UA_PubSub_CallbackLifecycle pubsubManagerCallback;
@@ -593,8 +591,7 @@ typedef struct {
     UA_ExtensionObject messageSettings;
     UA_ExtensionObject transportSettings;
     UA_String dataSetName;
-    size_t dataSetWriterPropertiesSize;
-    UA_KeyValuePair *dataSetWriterProperties;
+    UA_KeyValueMap dataSetWriterProperties;
 } UA_DataSetWriterConfig;
 
 void UA_EXPORT
@@ -793,8 +790,7 @@ typedef struct {
     UA_Boolean enableBlockingSocket; // To enable or disable blocking socket option
     UA_UInt32 timeout; // Timeout for receive to wait for the packets
     UA_PubSubRTLevel rtLevel;
-    size_t groupPropertiesSize;
-    UA_KeyValuePair *groupProperties;
+    UA_KeyValueMap groupProperties;
     UA_PubSubEncodingType encodingMimeType;
     UA_ExtensionObject transportSettings;
 
