@@ -871,9 +871,10 @@ encodeNetworkMessage(UA_WriterGroup *wg, UA_NetworkMessage *nm,
 static void
 sendNetworkMessageBuffer(UA_Server *server, UA_WriterGroup *wg,
                          UA_PubSubConnection *connection, UA_ByteString *buffer) {
-    UA_StatusCode res =
-        connection->channel->send(connection->channel,
-                                  &wg->config.transportSettings, buffer);
+    UA_StatusCode res = connection->cm->
+        sendWithConnection(connection->cm, connection->sendConnection,
+                           &UA_KEYVALUEMAP_NULL, buffer);
+
     /* Failure, set the WriterGroup into an error mode */
     if(res != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR_WRITERGROUP(&server->config.logger, wg,
@@ -900,39 +901,34 @@ sendNetworkMessageJson(UA_Server *server, UA_PubSubConnection *connection, UA_Wr
     nm.payloadHeader.dataSetPayloadHeader.dataSetWriterIds = writerIds;
     nm.payload.dataSetPayload.dataSetMessages = dsm;
     nm.publisherIdEnabled = true;
-    nm.publisherIdType = connection->config->publisherIdType;
-    nm.publisherId = connection->config->publisherId;
+    nm.publisherIdType = connection->config.publisherIdType;
+    nm.publisherId = connection->config.publisherId;
 
     /* Compute the message length */
     size_t msgSize = UA_NetworkMessage_calcSizeJson(&nm, NULL, 0, NULL, 0, true);
 
-    /* Allocate the buffer. Allocate on the stack if the buffer is small. */
+    UA_ConnectionManager *cm = connection->cm;
+    if(!cm)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
+    /* Allocate the buffer */
     UA_ByteString buf;
-    UA_Byte stackBuf[UA_MAX_STACKBUF];
-    buf.data = stackBuf;
-    buf.length = msgSize;
-    UA_StatusCode res = UA_STATUSCODE_GOOD;
-    if(msgSize > UA_MAX_STACKBUF) {
-        res = UA_ByteString_allocBuffer(&buf, msgSize);
-        if(res != UA_STATUSCODE_GOOD)
-            return res;
-    }
+    UA_StatusCode res = cm->allocNetworkBuffer(cm, connection->sendConnection, &buf, msgSize);
+    UA_CHECK_STATUS(res, return res);
 
     /* Encode the message */
     UA_Byte *bufPos = buf.data;
     const UA_Byte *bufEnd = &buf.data[msgSize];
     res = UA_NetworkMessage_encodeJson(&nm, &bufPos, &bufEnd, NULL, 0, NULL, 0, true);
-    if(res != UA_STATUSCODE_GOOD)
-        goto cleanup;
+    if(res != UA_STATUSCODE_GOOD) {
+        cm->freeNetworkBuffer(cm, connection->sendConnection, &buf);
+        return res;
+    }
     UA_assert(bufPos == bufEnd);
 
     /* Send the prepared messages */
     sendNetworkMessageBuffer(server, wg, connection, &buf);
-
- cleanup:
-    if(msgSize > UA_MAX_STACKBUF)
-        UA_ByteString_clear(&buf);
-    return res;
+    return UA_STATUSCODE_GOOD;
 }
 #endif
 
@@ -1007,11 +1003,11 @@ generateNetworkMessage(UA_PubSubConnection *connection, UA_WriterGroup *wg,
 
     networkMessage->version = 1;
     networkMessage->networkMessageType = UA_NETWORKMESSAGE_DATASET;
-    networkMessage->publisherIdType = connection->config->publisherIdType;
+    networkMessage->publisherIdType = connection->config.publisherIdType;
     /* shallow copy of the PublisherId from connection configuration
         -> the configuration needs to be stable during publishing process
         -> it must not be cleaned after network message has been sent */
-    networkMessage->publisherId = connection->config->publisherId;
+    networkMessage->publisherId = connection->config.publisherId;
 
     if(networkMessage->groupHeader.sequenceNumberEnabled)
         networkMessage->groupHeader.sequenceNumber = wg->sequenceNumber;
@@ -1060,29 +1056,27 @@ sendNetworkMessageBinary(UA_Server *server, UA_PubSubConnection *connection, UA_
     }
 #endif
 
+    UA_ConnectionManager *cm = connection->cm;
+    if(!cm)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
     /* Allocate the buffer. Allocate on the stack if the buffer is small. */
     UA_ByteString buf;
-    UA_Byte stackBuf[UA_MAX_STACKBUF];
-    buf.data = stackBuf;
-    buf.length = msgSize;
-    if(msgSize > UA_MAX_STACKBUF) {
-        rv = UA_ByteString_allocBuffer(&buf, msgSize);
-        UA_CHECK_STATUS(rv, goto cleanup);
-    }
-
+    rv = cm->allocNetworkBuffer(cm, connection->sendConnection, &buf, msgSize);
+    UA_CHECK_STATUS(rv, return rv);
+    
     /* Encode and encrypt the message */
     rv = encodeNetworkMessage(wg, &nm, &buf);
-    UA_CHECK_STATUS(rv, goto cleanup_with_msg_size);
+    if(rv != UA_STATUSCODE_GOOD) {
+        cm->freeNetworkBuffer(cm, connection->sendConnection, &buf);
+        UA_free(nm.payload.dataSetPayload.sizes);
+        return rv;
+    }
 
     /* Send out the message */
     sendNetworkMessageBuffer(server, wg, connection, &buf);
-
-cleanup_with_msg_size:
-    if(msgSize > UA_MAX_STACKBUF)
-        UA_ByteString_clear(&buf);
-cleanup:
     UA_free(nm.payload.dataSetPayload.sizes);
-    return rv;
+    return UA_STATUSCODE_GOOD;
 }
 
 static void

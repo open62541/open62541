@@ -16,7 +16,6 @@
 #define UA_PUBSUB_H_
 
 #define UA_INTERNAL
-#include <open62541/plugin/pubsub.h>
 #include <open62541/server.h>
 #include <open62541/server_pubsub.h>
 
@@ -118,22 +117,44 @@ UA_StandaloneSubscribedDataSet_clear(UA_Server *server, UA_StandaloneSubscribedD
 
 typedef struct UA_PubSubConnection {
     UA_PubSubComponentEnumType componentType;
-    UA_PubSubConnectionConfig *config;
-    UA_PubSubChannel *channel;
-    UA_NodeId identifier;
-    LIST_HEAD(UA_ListOfWriterGroup, UA_WriterGroup) writerGroups;
-    size_t writerGroupsSize;
-    LIST_HEAD(UA_ListOfPubSubReaderGroup, UA_ReaderGroup) readerGroups;
-    size_t readerGroupsSize;
+
     TAILQ_ENTRY(UA_PubSubConnection) listEntry;
+    UA_NodeId identifier;
+
+    /* The send/recv connections are only opened if the state is operational */
+    UA_PubSubState state;
+    UA_PubSubConnectionConfig config;
+    UA_Boolean json; /* Extracted from the TransportProfileUrl */
+
+    /* The sendConnection is only opened if at least one writerGroup is added.
+     * The recvConnection is only opened if at least one readerGroup is added. */
+    UA_ConnectionManager *cm;
+    uintptr_t sendConnection;
+    uintptr_t recvConnection;
+    UA_Boolean sendConnectionOpening;
+    UA_Boolean recvConnectionOpening;
+
+    size_t writerGroupsSize;
+    LIST_HEAD(UA_ListOfWriterGroup, UA_WriterGroup) writerGroups;
+
+    size_t readerGroupsSize;
+    LIST_HEAD(UA_ListOfPubSubReaderGroup, UA_ReaderGroup) readerGroups;
+
     UA_UInt16 configurationFreezeCounter;
-    UA_Boolean isRegistered; /* Subscriber requires connection channel regist */
     UA_Boolean configurationFrozen;
+
+    UA_Boolean deleteFlag; /* To be deleted - in addition to the PubSubState */
+    UA_DelayedCallback dc; /* For delayed freeing */
 } UA_PubSubConnection;
 
 UA_StatusCode
 UA_PubSubConnectionConfig_copy(const UA_PubSubConnectionConfig *src,
                                UA_PubSubConnectionConfig *dst);
+
+UA_StatusCode
+UA_PubSubConnection_create(UA_Server *server,
+                           const UA_PubSubConnectionConfig *connectionConfig,
+                           UA_NodeId *connectionIdentifier);
 
 UA_PubSubConnection *
 UA_PubSubConnection_findConnectionbyId(UA_Server *server,
@@ -142,15 +163,17 @@ UA_PubSubConnection_findConnectionbyId(UA_Server *server,
 void
 UA_PubSubConnectionConfig_clear(UA_PubSubConnectionConfig *connectionConfig);
 
-UA_StatusCode
-removePubSubConnection(UA_Server *server, const UA_NodeId connection);
+void
+UA_PubSubConnection_delete(UA_Server *server, UA_PubSubConnection *c);
 
 void
 UA_PubSubConnection_clear(UA_Server *server, UA_PubSubConnection *connection);
 
-/* Register channel for given connectionIdentifier */
 UA_StatusCode
-UA_PubSubConnection_regist(UA_Server *server, UA_NodeId *connectionIdentifier, const UA_ReaderGroupConfig *readerGroupConfig);
+UA_PubSubConnection_setPubSubState(UA_Server *server,
+                                   UA_PubSubConnection *connection,
+                                   UA_PubSubState state,
+                                   UA_StatusCode cause);
 
 #define UA_LOG_CONNECTION_INTERNAL(LOGGER, LEVEL, CONNECTION, MSG, ...) \
     if(UA_LOGLEVEL <= UA_LOGLEVEL_##LEVEL) {                            \
@@ -304,6 +327,12 @@ UA_WriterGroup_setPubSubState(UA_Server *server,
                               UA_WriterGroup *writerGroup,
                               UA_PubSubState state,
                               UA_StatusCode cause);
+
+UA_StatusCode
+UA_WriterGroup_addPublishCallback(UA_Server *server, UA_WriterGroup *writerGroup);
+
+void
+UA_WriterGroup_publishCallback(UA_Server *server, UA_WriterGroup *writerGroup);
 
 #define UA_LOG_WRITERGROUP_INTERNAL(LOGGER, LEVEL, WRITERGROUP, MSG, ...) \
     if(UA_LOGLEVEL <= UA_LOGLEVEL_##LEVEL) {                            \
@@ -473,7 +502,6 @@ struct UA_ReaderGroup {
     LIST_HEAD(UA_ListOfPubSubDataSetReader, UA_DataSetReader) readers;
     /* for simplified information access */
     UA_UInt32 readersCount;
-    UA_UInt64 subscribeCallbackId;
     UA_PubSubState state;
     UA_Boolean configurationFrozen;
 
@@ -508,28 +536,17 @@ UA_ReaderGroup_setPubSubState(UA_Server *server,
                               UA_PubSubState state,
                               UA_StatusCode cause);
 
-/*********************************************************/
-/*               PublishValues handling                  */
-/*********************************************************/
+UA_Boolean
+UA_ReaderGroup_process(UA_Server *server, UA_ReaderGroup *readerGroup,
+                       UA_NetworkMessage *nm);
 
-UA_StatusCode
-UA_WriterGroup_addPublishCallback(UA_Server *server, UA_WriterGroup *writerGroup);
-
-void
-UA_WriterGroup_publishCallback(UA_Server *server, UA_WriterGroup *writerGroup);
+UA_Boolean
+UA_ReaderGroup_decodeAndProcessRT(UA_Server *server, UA_ReaderGroup *readerGroup,
+                                  UA_ByteString *buf);
 
 /*********************************************************/
 /*               SubscribeValues handling                */
 /*********************************************************/
-
-UA_StatusCode
-UA_ReaderGroup_addSubscribeCallback(UA_Server *server, UA_ReaderGroup *readerGroup);
-
-void
-UA_ReaderGroup_removeSubscribeCallback(UA_Server *server, UA_ReaderGroup *readerGroup);
-
-void
-UA_ReaderGroup_subscribeCallback(UA_Server *server, UA_ReaderGroup *readerGroup);
 
 #define UA_LOG_READERGROUP_INTERNAL(LOGGER, LEVEL, RG, MSG, ...)        \
     if(UA_LOGLEVEL <= UA_LOGLEVEL_##LEVEL) {                            \
@@ -577,20 +594,6 @@ verifyAndDecryptNetworkMessage(const UA_Logger *logger, UA_ByteString *buffer,
 UA_StatusCode
 decodeNetworkMessage(UA_Server *server, UA_ByteString *buffer, size_t *pos,
                      UA_NetworkMessage *nm, UA_PubSubConnection *connection);
-
-UA_StatusCode
-receiveBufferedNetworkMessage(UA_Server *server, UA_ReaderGroup *readerGroup,
-                              UA_PubSubConnection *connection);
-
-/* It serves as the entry point into reader processing and is called when
- * a publish is received, and the topic matches with one or more readers. */
-void processMqttSubscriberCallback(UA_Server *server, UA_ReaderGroup *readerGroup,
-                      UA_PubSubConnection *connection, UA_ByteString *msg,
-                      UA_ByteString *topic);
-
-UA_StatusCode
-decodeNetworkMessageJson(UA_Server *server, UA_ByteString *buffer, size_t *pos,
-                         UA_NetworkMessage *nm, UA_PubSubConnection *connection);
 
 #ifdef UA_ENABLE_PUBSUB_SKS
 /*********************************************************/

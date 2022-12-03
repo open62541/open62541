@@ -1,4 +1,3 @@
-#include <open62541/plugin/pubsub_udp.h>
 #include <open62541/server_config_default.h>
 #include <open62541/server_pubsub.h>
 #include <open62541/plugin/log_stdout.h>
@@ -29,7 +28,6 @@ static void setup(void) {
     UA_ServerConfig *config = UA_Server_getConfig(server);
     ck_assert(config != 0);
     ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_ServerConfig_setDefault(config));
-    ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_ServerConfig_addPubSubTransportLayer(config, UA_PubSubTransportLayerUDPMP()));
     ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_run_startup(server));
 }
 
@@ -71,7 +69,6 @@ static void AddConnection(
     /* deep copy is not needed (not even for string) because UA_Server_addPubSubConnection performs deep copy */
     connectionConfig.publisherId = publisherId;
     ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_addPubSubConnection(server, &connectionConfig, opConnectionId));
-    ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_PubSubConnection_regist(server, opConnectionId, NULL));
 }
 
 /***************************************************************************************************/

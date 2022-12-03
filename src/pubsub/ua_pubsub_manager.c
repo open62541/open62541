@@ -20,70 +20,11 @@
 #include "ua_pubsub_keystorage.h"
 #endif
 
-#ifdef UA_ENABLE_PUBSUB_MQTT
-#include "../../plugins/mqtt/ua_mqtt-c_adapter.h"
-#include "mqtt.h"
-#endif
-
 #define UA_DATETIMESTAMP_2000 125911584000000000
 #define UA_RESERVEID_FIRST_ID 0x8000
 #ifdef UA_ENABLE_REDUCED_ITERATIONS_FOR_TESTING
 #define UA_RESERVEID_LAST_ID UA_RESERVEID_FIRST_ID + 10
 #endif
-
-static UA_PubSubTransportLayer *
-getTransportProtocolLayer(const UA_Server *server,
-                          const UA_String *transportProfileUri) {
-    /* Find the matching UA_PubSubTransportLayers */
-    UA_PubSubTransportLayer *tl = NULL;
-    for(size_t i = 0; i < server->config.pubSubConfig.transportLayersSize; i++) {
-        if(UA_String_equal(&server->config.pubSubConfig.transportLayers[i].transportProfileUri,
-                           transportProfileUri)) {
-            tl = &server->config.pubSubConfig.transportLayers[i];
-        }
-    }
-    if(!tl) {
-        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
-                     "PubSub Connection creation failed. Requested transport layer not found.");
-        return NULL;
-    }
-    return tl;
-}
-
-static void
-UA_PubSubConfig_delete(UA_PubSubConnectionConfig *tmpConnectionConfig) {
-    UA_PubSubConnectionConfig_clear(tmpConnectionConfig);
-    UA_free(tmpConnectionConfig);
-}
-
-static UA_StatusCode
-copyConnectionConfig(const UA_PubSubConnectionConfig *srcConfig, UA_PubSubConnectionConfig **dstConfig, UA_Logger *logger) {
-    /* Create a copy of the connection config */
-    *dstConfig = (UA_PubSubConnectionConfig *) UA_calloc(1, sizeof(UA_PubSubConnectionConfig));
-    UA_CHECK_MEM_ERROR(dstConfig, return UA_STATUSCODE_BADOUTOFMEMORY,
-                       logger, UA_LOGCATEGORY_SERVER,
-                       "PubSub Connection creation failed. Out of Memory.");
-
-    UA_StatusCode retval = UA_PubSubConnectionConfig_copy(srcConfig, *dstConfig);
-    UA_CHECK_STATUS_ERROR(retval, goto copy_error, logger, UA_LOGCATEGORY_SERVER,
-                          "PubSub Connection creation failed. Could not copy the config.");
-
-    return UA_STATUSCODE_GOOD;
-copy_error:
-    UA_free(*dstConfig);
-    return retval;
-}
-
-static void
-UA_PubSubManager_addConnection(UA_PubSubManager *pubSubManager, UA_PubSubConnection *connection) {
-    if (pubSubManager->connectionsSize != 0) {
-        TAILQ_INSERT_TAIL(&pubSubManager->connections, connection, listEntry);
-    } else {
-        TAILQ_INIT(&pubSubManager->connections);
-        TAILQ_INSERT_HEAD(&pubSubManager->connections, connection, listEntry);
-    }
-    pubSubManager->connectionsSize++;
-}
 
 static void
 UA_PubSubManager_addTopic(UA_PubSubManager *pubSubManager, UA_TopicAssign *topicAssign) {
@@ -151,14 +92,16 @@ UA_ReserveId_isFree(UA_Server *server,  UA_UInt16 id, UA_String transportProfile
         UA_WriterGroup *writerGroup;
         LIST_FOREACH(writerGroup, &tmpConnection->writerGroups, listEntry) {
             if(reserveIdType == UA_WRITER_GROUP) {
-                if(UA_String_equal(&tmpConnection->config->transportProfileUri, &transportProfileUri) && writerGroup->config.writerGroupId == id)
+                if(UA_String_equal(&tmpConnection->config.transportProfileUri,
+                                   &transportProfileUri) && writerGroup->config.writerGroupId == id)
                     return false;
             /* reserveIdType == UA_DATA_SET_WRITER */
             } else {
                 UA_DataSetWriter *currentWriter;
                 LIST_FOREACH(currentWriter, &writerGroup->writers, listEntry) {
-                    if(UA_String_equal(&tmpConnection->config->transportProfileUri, &transportProfileUri) &&
-                    currentWriter->config.dataSetWriterId == id)
+                    if(UA_String_equal(&tmpConnection->config.transportProfileUri,
+                                       &transportProfileUri) &&
+                       currentWriter->config.dataSetWriterId == id)
                        return false;
                 }
             }
@@ -267,184 +210,6 @@ UA_PubSubManager_reserveIds(UA_Server *server, UA_NodeId sessionId, UA_UInt16 nu
         (*dataSetWriterIds)[i] = UA_ReserveId_createId(server, sessionId, transportProfileUri, UA_DATA_SET_WRITER);
     }
     return UA_STATUSCODE_GOOD;
-}
-
-static UA_PubSubConnection *
-UA_PubSubConnection_new(UA_PubSubConnectionConfig *connectionConfig,
-                        UA_Logger *logger) {
-    /* Create new connection and add to UA_PubSubManager */
-    UA_PubSubConnection *newConnectionsField = (UA_PubSubConnection *)
-        UA_calloc(1, sizeof(UA_PubSubConnection));
-    if(!newConnectionsField) {
-        UA_LOG_ERROR(logger, UA_LOGCATEGORY_SERVER,
-                     "PubSub Connection creation failed. Out of Memory.");
-        return NULL;
-    }
-    newConnectionsField->componentType = UA_PUBSUB_COMPONENT_CONNECTION;
-    LIST_INIT(&newConnectionsField->writerGroups);
-    newConnectionsField->config = connectionConfig;
-    return newConnectionsField;
-}
-
-static UA_StatusCode
-channelErrorHandling(UA_Server *server, UA_PubSubConnection *newConnectionsField) {
-    UA_PubSubConnection_clear(server, newConnectionsField);
-    TAILQ_REMOVE(&server->pubSubManager.connections, newConnectionsField, listEntry);
-    server->pubSubManager.connectionsSize--;
-    UA_free(newConnectionsField);
-    UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
-                 "PubSub Connection creation failed. Transport layer creation problem.");
-    return UA_STATUSCODE_BADINTERNALERROR;
-}
-
-static UA_StatusCode
-createAndAddConnection(UA_Server *server, const UA_PubSubConnectionConfig *connectionConfig,
-                       UA_PubSubConnection **connection) {
-    /* Create a copy of the connection config */
-    UA_PubSubConnectionConfig *tmpConnectionConfig = NULL;
-    UA_StatusCode retval = copyConnectionConfig(connectionConfig, &tmpConnectionConfig, &server->config.logger);
-    UA_CHECK_STATUS(retval, return retval);
-
-    *connection = UA_PubSubConnection_new(tmpConnectionConfig, &server->config.logger);
-    UA_CHECK_MEM(*connection, UA_PubSubConfig_delete(tmpConnectionConfig); return UA_STATUSCODE_BADOUTOFMEMORY;);
-
-    UA_PubSubManager *pubSubManager = &server->pubSubManager;
-    UA_PubSubManager_addConnection(pubSubManager, *connection);
-    return UA_STATUSCODE_GOOD;
-}
-
-static void
-assignConnectionIdentifier(UA_Server *server, UA_PubSubConnection *newConnectionsField,
-                           UA_NodeId *connectionIdentifier) {
-#ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL
-    /* Internally createa a unique id */
-    addPubSubConnectionRepresentation(server, newConnectionsField);
-#else
-    /* Create a unique NodeId that does not correspond to a Node */
-    UA_PubSubManager_generateUniqueNodeId(&server->pubSubManager,
-                                          &newConnectionsField->identifier);
-#endif
-    if(connectionIdentifier) {
-        UA_NodeId_copy(&newConnectionsField->identifier, connectionIdentifier);
-    }
-}
-
-UA_StatusCode
-UA_Server_addPubSubConnection(UA_Server *server,
-                              const UA_PubSubConnectionConfig *connectionConfig,
-                              UA_NodeId *connectionIdentifier) {
-
-    /* validate preconditions */
-    UA_CHECK_MEM(server, return UA_STATUSCODE_BADINTERNALERROR);
-    UA_CHECK_MEM_ERROR(connectionConfig, return UA_STATUSCODE_BADINTERNALERROR, &server->config.logger,
-                       UA_LOGCATEGORY_SERVER, "PubSub Connection creation failed. No connection configuration supplied.");
-
-    /* Retrieve the transport layer for the given profile uri */
-    UA_PubSubTransportLayer *tl = getTransportProtocolLayer(server, &connectionConfig->transportProfileUri);
-    UA_CHECK_MEM_ERROR(tl, return UA_STATUSCODE_BADNOTFOUND, &server->config.logger,
-                       UA_LOGCATEGORY_SERVER, "PubSub Connection creation failed. Requested transport layer not found.");
-
-    /* create and add new connection from connection config */
-    UA_PubSubConnection *newConnectionsField = NULL;
-    UA_StatusCode retval = createAndAddConnection(server, connectionConfig, &newConnectionsField);
-    UA_CHECK_STATUS(retval, return retval);
-
-    /* Open the communication channel */
-    newConnectionsField->channel = tl->createPubSubChannel(newConnectionsField->config);
-    UA_CHECK_MEM(newConnectionsField->channel, return channelErrorHandling(server, newConnectionsField));
-
-#ifdef UA_ENABLE_PUBSUB_MQTT
-    /* If the transport layer is MQTT, attach the server pointer to the callback function
-     * that is called when a PUBLISH is received. */
-    const UA_String transport_uri = UA_STRING("http://opcfoundation.org/UA-Profile/Transport/pubsub-mqtt");
-    if(UA_String_equal(&newConnectionsField->config->transportProfileUri, &transport_uri)) {
-        UA_PubSubChannelDataMQTT *channelDataMQTT = (UA_PubSubChannelDataMQTT *)newConnectionsField->channel->handle;
-        struct mqtt_client* client = (struct mqtt_client*)channelDataMQTT->mqttClient;
-        client->publish_response_callback_state = server;
-    }
-#endif
-
-    assignConnectionIdentifier(server, newConnectionsField, connectionIdentifier);
-
-    return UA_STATUSCODE_GOOD;
-}
-
-UA_StatusCode
-removePubSubConnection(UA_Server *server, const UA_NodeId connection) {
-    /* Find the connection */
-    UA_PubSubConnection *c =
-        UA_PubSubConnection_findConnectionbyId(server, connection);
-    if(!c)
-        return UA_STATUSCODE_BADNOTFOUND;
-
-    /* Stop, unfreeze and delete all WriterGroups attached to the Connection */
-    UA_WriterGroup *writerGroup, *tmpWriterGroup;
-    LIST_FOREACH_SAFE(writerGroup, &c->writerGroups, listEntry, tmpWriterGroup) {
-        UA_WriterGroup_setPubSubState(server, writerGroup, UA_PUBSUBSTATE_DISABLED,
-                                      UA_STATUSCODE_BADSHUTDOWN);
-        UA_Server_unfreezeWriterGroupConfiguration(server, writerGroup->identifier);
-        removeWriterGroup(server, writerGroup->identifier);
-    }
-
-    /* Stop, unfreeze and delete all ReaderGroups attached to the Connection */
-    UA_ReaderGroup *readerGroup, *tmpReaderGroup;
-    LIST_FOREACH_SAFE(readerGroup, &c->readerGroups, listEntry, tmpReaderGroup) {
-        UA_ReaderGroup_setPubSubState(server, readerGroup, UA_PUBSUBSTATE_DISABLED,
-                                      UA_STATUSCODE_BADSHUTDOWN);
-        UA_Server_unfreezeReaderGroupConfiguration(server, readerGroup->identifier);
-        removeReaderGroup(server, readerGroup->identifier);
-    }
-
-    /* Remove from the information model */
-#ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL
-    removePubSubConnectionRepresentation(server, c);
-#endif
-
-    /* Unlink from the server */
-    TAILQ_REMOVE(&server->pubSubManager.connections, c, listEntry);
-    server->pubSubManager.connectionsSize--;
-
-    /* Clean up the connection structure */
-    UA_PubSubConnection_clear(server, c);
-    UA_free(c);
-
-    return UA_STATUSCODE_GOOD;
-}
-
-UA_StatusCode
-UA_Server_removePubSubConnection(UA_Server *server, const UA_NodeId connection) {
-    UA_LOCK(&server->serviceMutex);
-    UA_StatusCode res = removePubSubConnection(server, connection);
-    UA_UNLOCK(&server->serviceMutex);
-    return res;
-}
-
-UA_StatusCode
-UA_PubSubConnection_regist(UA_Server *server, UA_NodeId *connectionIdentifier, const UA_ReaderGroupConfig *readerGroupConfig) {
-    UA_PubSubConnection *connection =
-        UA_PubSubConnection_findConnectionbyId(server, *connectionIdentifier);
-    if(!connection)
-        return UA_STATUSCODE_BADNOTFOUND;
-
-    if(connection->isRegistered) {
-        UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_SERVER, "Connection already registered");
-        return UA_STATUSCODE_GOOD;
-    }
-    UA_StatusCode retval = UA_STATUSCODE_BAD;
-    if(readerGroupConfig != NULL) {
-        UA_ExtensionObject transportSettings = readerGroupConfig->transportSettings;
-        retval = connection->channel->regist(connection->channel, &transportSettings, NULL);
-    } else {
-        retval = connection->channel->regist(connection->channel, NULL, NULL);
-    }
-
-    if(retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
-                       "register channel failed: 0x%" PRIx32 "!", retval);
-    }
-
-    connection->isRegistered = true;
-    return retval;
 }
 
 UA_AddPublishedDataSetResult
@@ -760,7 +525,7 @@ UA_PubSubManager_delete(UA_Server *server, UA_PubSubManager *pubSubManager) {
     UA_PubSubConnection *tmpConnection1, *tmpConnection2;
     TAILQ_FOREACH_SAFE(tmpConnection1, &server->pubSubManager.connections,
                        listEntry, tmpConnection2) {
-        removePubSubConnection(server, tmpConnection1->identifier);
+        UA_PubSubConnection_delete(server, tmpConnection1);
     }
 
     /* Remove the DataSets */
@@ -788,12 +553,7 @@ UA_PubSubManager_delete(UA_Server *server, UA_PubSubManager *pubSubManager) {
         UA_free(tmpReserveId1);
     }
 
-    /* Free the list of transport layers */
-    if(server->config.pubSubConfig.transportLayersSize > 0) {
-        UA_free(server->config.pubSubConfig.transportLayers);
-        server->config.pubSubConfig.transportLayersSize = 0;
-    }
-    /* delete subscribed datasets */
+    /* Delete subscribed datasets */
     UA_StandaloneSubscribedDataSet *tmpSDS1, *tmpSDS2;
     TAILQ_FOREACH_SAFE(tmpSDS1, &server->pubSubManager.subscribedDataSets, listEntry, tmpSDS2){
         removeStandaloneSubscribedDataSet(server, tmpSDS1->identifier);
