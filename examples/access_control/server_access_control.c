@@ -41,6 +41,24 @@ allowDeleteReference(UA_Server *server, UA_AccessControl *ac,
     return UA_TRUE;
 }
 
+static UA_Boolean
+getUserExecutable(UA_Server *server, UA_AccessControl *ac,
+                                const UA_NodeId *sessionId, void *sessionContext,
+                                const UA_NodeId *methodId, void *methodContext){
+    printf("Called getUserExecutable\n");
+    return false;
+}
+
+
+static UA_Boolean
+getUserExecutableOnObject(UA_Server *server, UA_AccessControl *ac,
+                                        const UA_NodeId *sessionId, void *sessionContext,
+                                        const UA_NodeId *methodId, void *methodContext,
+                                        const UA_NodeId *objectId, void *objectContext){
+    printf("Called getUserExecutableOnObject\n");
+    return false;
+}
+
 UA_Boolean running = true;
 static void stopHandler(int sign) {
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "received ctrl-c");
@@ -72,6 +90,8 @@ int main(void) {
     config->accessControl.allowAddReference = allowAddReference;
     config->accessControl.allowDeleteNode = allowDeleteNode;
     config->accessControl.allowDeleteReference = allowDeleteReference;
+    config->accessControl.getUserExecutable = getUserExecutable;
+    config->accessControl.getUserExecutableOnObject = getUserExecutableOnObject;
 
     retval = UA_Server_run(server, &running);
 
