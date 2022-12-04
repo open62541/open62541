@@ -61,6 +61,15 @@ int main(void) {
     retCode = UA_Client_deleteNode(client, newVariableId, UA_TRUE);
     printf("deleteNode returned: %s\n", UA_StatusCode_name(retCode));
 
+    UA_UInt32 inputValue = 42;
+    UA_Variant inputVariant;
+    UA_Variant_setScalar(&inputVariant, &inputValue, &UA_TYPES[UA_TYPES_UINT32]);
+    retCode = UA_Client_call(client, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER),
+                             UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_GETMONITOREDITEMS),
+                             1, &inputVariant, NULL, NULL);
+    printf("call method returned: %s\n", UA_StatusCode_name(retCode));
+
+
     /* Clean up */
     UA_VariableAttributes_clear(&newVariableAttributes);
     UA_Client_delete(client); /* Disconnects the client internally */
