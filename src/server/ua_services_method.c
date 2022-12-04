@@ -407,6 +407,22 @@ Operation_CallMethodAsync(UA_Server *server, UA_Session *session, UA_UInt32 requ
 
     /* <-- Async method call --> */
 
+    /* Verify access rights in case of async execution*/
+    UA_Boolean executable = method->methodNode.executable;
+    if(session != &server->adminSession) {
+        UA_UNLOCK(&server->serviceMutex);
+        executable = executable && server->config.accessControl.
+            getUserExecutableOnObject(server, &server->config.accessControl,
+                                      &session->sessionId, session->sessionHandle,
+                                      &opRequest->methodId, method->head.context,
+                                      &opRequest->objectId, object->head.context);
+        UA_LOCK(&server->serviceMutex);
+    }
+    if(!executable) {
+        opResult->statusCode = UA_STATUSCODE_BADNOTEXECUTABLE;
+        goto cleanup;
+    }
+
     /* No AsyncResponse allocated so far */
     if(!*ar) {
         opResult->statusCode =
