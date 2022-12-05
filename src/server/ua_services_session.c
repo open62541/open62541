@@ -424,13 +424,14 @@ checkSignature(const UA_Server *server, const UA_SecurityPolicy *securityPolicy,
     if(!securityPolicy)
         return UA_STATUSCODE_BADINTERNALERROR;
 
-    const UA_ByteString *localCertificate;
-    localCertificate = &securityPolicy->localCertificate;
+    /* Server certificate */
+    const UA_ByteString *localCertificate = &securityPolicy->localCertificate;
 
     if(userTokenPolicy != NULL && userToken != NULL) {
         if(userTokenPolicy->tokenType == UA_USERTOKENTYPE_CERTIFICATE) {
             UA_X509IdentityToken *userIdentityToken = (UA_X509IdentityToken *)
                 userToken->content.decoded.data;
+            /* Client certificate */
             localCertificate = &userIdentityToken->certificateData;
         }
     }
@@ -794,7 +795,7 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
 
         /* Check the user token signature */
         response->responseHeader.serviceResult =
-            checkSignature(server, channel->securityPolicy, tempChannelContext,
+            checkSignature(server, securityPolicy, tempChannelContext,
                            &session->serverNonce, utp, &request->userIdentityToken, &request->userTokenSignature);
 
         /* Delete the temporary channel context */

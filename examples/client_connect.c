@@ -160,14 +160,18 @@ int main(int argc, char *argv[]) {
 
     /* Connect to the server */
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
-    if(username)
-        retval = UA_Client_connectUsername(client, serverurl, username, password);
+    if(username) {
+        UA_ClientConfig_setAuthenticationUsername(cc, username, password);
+        retval = UA_Client_connect(client, serverurl);
+        /* Alternative */
+        //retval = UA_Client_connectUsername(client, serverurl, username, password);
+    }
 #ifdef UA_ENABLE_ENCRYPTION
     else if(certAuthFile && certfile) {
         UA_ByteString certificateAuth = loadFile(certAuthFile);
         UA_ByteString privateKeyAuth  = loadFile(keyAuthFile);
-        UA_ClientConfig_setCertAuthentication(cc, certificateAuth, privateKeyAuth);
-        retval = UA_Client_connectCertificate(client, serverurl, certificateAuth, privateKeyAuth);
+        UA_ClientConfig_setAuthenticationCert(cc, certificateAuth, privateKeyAuth);
+        retval = UA_Client_connect(client, serverurl);
 
         UA_ByteString_clear(&certificateAuth);
         UA_ByteString_clear(&privateKeyAuth);

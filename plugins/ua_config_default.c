@@ -871,6 +871,22 @@ UA_ClientConfig_setDefault(UA_ClientConfig *config) {
     return UA_STATUSCODE_GOOD;
 }
 
+UA_StatusCode
+UA_ClientConfig_setAuthenticationUsername(UA_ClientConfig *config,
+                                          const char *username, const char *password) {
+    /* Create UserIdentityToken */
+    UA_UserNameIdentityToken* identityToken = UA_UserNameIdentityToken_new();
+    if(!identityToken)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    identityToken->userName = UA_STRING_ALLOC(username);
+    identityToken->password = UA_STRING_ALLOC(password);
+    UA_ExtensionObject_clear(&config->userIdentityToken);
+    config->userIdentityToken.encoding = UA_EXTENSIONOBJECT_DECODED;
+    config->userIdentityToken.content.decoded.type = &UA_TYPES[UA_TYPES_USERNAMEIDENTITYTOKEN];
+    config->userIdentityToken.content.decoded.data = identityToken;
+    return UA_STATUSCODE_GOOD;
+}
+
 #ifdef UA_ENABLE_ENCRYPTION
 UA_StatusCode
 UA_ClientConfig_setDefaultEncryption(UA_ClientConfig *config,
@@ -944,8 +960,21 @@ UA_ClientConfig_setDefaultEncryption(UA_ClientConfig *config,
 }
 
 UA_StatusCode
-UA_ClientConfig_setCertAuthentication(UA_ClientConfig *config,
+UA_ClientConfig_setAuthenticationCert(UA_ClientConfig *config,
                                    UA_ByteString certificateAuth, UA_ByteString privateKeyAuth) {
+    /* Create UserIdentityToken */
+    UA_X509IdentityToken* identityToken = UA_X509IdentityToken_new();
+    if(!identityToken)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    identityToken->policyId = UA_STRING_ALLOC("open62541-certificate-policy");
+    UA_StatusCode retval = UA_ByteString_copy(&certificateAuth, &identityToken->certificateData);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
+    UA_ExtensionObject_clear(&config->userIdentityToken);
+    config->userIdentityToken.encoding = UA_EXTENSIONOBJECT_DECODED;
+    config->userIdentityToken.content.decoded.type = &UA_TYPES[UA_TYPES_X509IDENTITYTOKEN];
+    config->userIdentityToken.content.decoded.data = identityToken;
+
     /* Populate SecurityPolicies */
     UA_SecurityPolicy *sp = (UA_SecurityPolicy*)
         UA_realloc(config->authSecurityPolicies, sizeof(UA_SecurityPolicy) * 5);
@@ -953,7 +982,7 @@ UA_ClientConfig_setCertAuthentication(UA_ClientConfig *config,
         return UA_STATUSCODE_BADOUTOFMEMORY;
     config->authSecurityPolicies = sp;
 
-    UA_StatusCode retval = UA_SecurityPolicy_Basic128Rsa15(&config->authSecurityPolicies[config->authSecurityPoliciesSize],
+    retval = UA_SecurityPolicy_Basic128Rsa15(&config->authSecurityPolicies[config->authSecurityPoliciesSize],
                                                            certificateAuth, privateKeyAuth, &config->logger);
     if(retval == UA_STATUSCODE_GOOD) {
         ++config->authSecurityPoliciesSize;

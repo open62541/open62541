@@ -28,6 +28,7 @@ getSecurityPolicy(UA_Client *client, UA_String policyUri) {
     return NULL;
 }
 
+#ifdef UA_ENABLE_ENCRYPTION
 static UA_SecurityPolicy *
 getAuthSecurityPolicy(UA_Client *client, UA_String policyUri) {
     for(size_t i = 0; i < client->config.authSecurityPoliciesSize; i++) {
@@ -36,6 +37,7 @@ getAuthSecurityPolicy(UA_Client *client, UA_String policyUri) {
     }
     return NULL;
 }
+#endif
 
 static UA_Boolean
 endpointUnconfigured(UA_Client *client) {
@@ -102,7 +104,7 @@ if(client->config.userTokenPolicy.tokenType == UA_USERTOKENTYPE_CERTIFICATE) {
 
     /* Get the correct securityPolicy for authentication */
     UA_SecurityPolicy* securityPolicy;
-    securityPolicy = getAuthSecurityPolicy(client, sp->policyUri);
+    securityPolicy = getAuthSecurityPolicy(client, client->config.authSecurityPolicyUri);
 
     /* We need a channel context with the user certificate in order to reuse
     * the code for signing. */
@@ -822,6 +824,7 @@ responseGetEndpoints(UA_Client *client, void *userdata,
             UA_String *securityPolicyUri = &tokenPolicy->securityPolicyUri;
             if(securityPolicyUri->length == 0)
                 securityPolicyUri = &endpoint->securityPolicyUri;
+            UA_String_copy(securityPolicyUri, &client->config.authSecurityPolicyUri);
 
             /* Log the selected endpoint */
             UA_LOG_INFO(&client->config.logger, UA_LOGCATEGORY_CLIENT,

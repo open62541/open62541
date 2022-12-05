@@ -144,9 +144,13 @@ typedef struct {
     /* Certificate Verification Plugin */
     UA_CertificateVerification certificateVerification;
 
-    /* Available SecurityPolicies for Authentication. */
+    /* Available SecurityPolicies for Authentication. The policy defined by the
+     * AccessControl is selected. If no policy is defined, the policy of the secure channel
+     * is selected.*/
     size_t authSecurityPoliciesSize;
     UA_SecurityPolicy *authSecurityPolicies;
+    /* SecurityPolicyUri for the Authentication. */
+    UA_String authSecurityPolicyUri;
 
     /* Callback for state changes. The client state is differentated into the
      * SecureChannel state and the Session state. The connectStatus is set if
@@ -281,28 +285,6 @@ UA_Client_connectUsername(UA_Client *client, const char *endpointUrl,
     /* Silence a false-positive deprecated warning */
     return UA_Client_connect(client, endpointUrl);
 }
-#ifdef UA_ENABLE_ENCRYPTION
-/* Connect to the server and create+activate a Session with the given X.509 certificate.
- * This first set the X509IdentityToken in the client config and
- * then calls the regular connect method. */
-static UA_INLINE UA_StatusCode
-UA_Client_connectCertificate(UA_Client *client, const char *endpointUrl,
-                             UA_ByteString certificate, UA_ByteString privateKey) {
-    UA_X509IdentityToken* identityToken = UA_X509IdentityToken_new();
-    if(!identityToken)
-        return UA_STATUSCODE_BADOUTOFMEMORY;
-    identityToken->policyId = UA_STRING_ALLOC("open62541-certificate-policy");
-    UA_StatusCode retval = UA_ByteString_copy(&certificate, &identityToken->certificateData);
-    if(retval != UA_STATUSCODE_GOOD)
-        return retval;
-    UA_ClientConfig *cc = UA_Client_getConfig(client);
-    UA_ExtensionObject_clear(&cc->userIdentityToken);
-    cc->userIdentityToken.encoding = UA_EXTENSIONOBJECT_DECODED;
-    cc->userIdentityToken.content.decoded.type = &UA_TYPES[UA_TYPES_X509IDENTITYTOKEN];
-    cc->userIdentityToken.content.decoded.data = identityToken;
-    return UA_Client_connect(client, endpointUrl);
-}
-#endif
 
 /* Disconnect and close a connection to the selected server. Disconnection is
  * always performed async (without blocking). */

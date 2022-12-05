@@ -74,6 +74,7 @@ UA_ClientConfig_clear(UA_ClientConfig *config) {
         config->authSecurityPolicies = 0;
     }
     UA_String_clear(&config->securityPolicyUri);
+    UA_String_clear(&config->authSecurityPolicyUri);
 
     UA_EndpointDescription_clear(&config->endpoint);
     UA_UserTokenPolicy_clear(&config->userTokenPolicy);
