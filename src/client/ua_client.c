@@ -194,6 +194,13 @@ UA_ClientConfig_clear(UA_ClientConfig *config) {
     UA_cleanupDataTypeWithCustom(config->customDataTypes);
 }
 
+void
+UA_ClientConfig_delete(UA_ClientConfig *config){
+    UA_assert(config != NULL);
+    UA_ClientConfig_clear(config);
+    UA_free(config);
+}
+
 static void
 UA_Client_clear(UA_Client *client) {
     /* Delete the async service calls with BADHSUTDOWN */
