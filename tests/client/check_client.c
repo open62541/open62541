@@ -69,6 +69,25 @@ static void teardown(void) {
     UA_Server_delete(server);
 }
 
+START_TEST(ClientConfig_Copy){
+    UA_ClientConfig dstConfig;
+    memset(&dstConfig, 0, sizeof(UA_ClientConfig));
+    UA_ClientConfig srcConfig;
+    memset(&srcConfig, 0, sizeof(UA_ClientConfig));
+    UA_ClientConfig_setDefault(&srcConfig);
+
+    UA_StatusCode retval = UA_ClientConfig_copy(&srcConfig, &dstConfig);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    UA_Client *dstConfigClient = UA_Client_newWithConfig(&dstConfig);
+    retval = UA_Client_connect(dstConfigClient, "opc.tcp://localhost:4840");
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    UA_Client_disconnect(dstConfigClient);
+    UA_Client_delete(dstConfigClient);
+    UA_ApplicationDescription_clear(&srcConfig.clientDescription);
+}
+END_TEST
+
 START_TEST(Client_connect) {
     UA_Client *client = UA_Client_new();
     UA_ClientConfig_setDefault(UA_Client_getConfig(client));
@@ -412,6 +431,7 @@ static Suite* testSuite_Client(void) {
     Suite *s = suite_create("Client");
     TCase *tc_client = tcase_create("Client Basic");
     tcase_add_checked_fixture(tc_client, setup, teardown);
+    tcase_add_test(tc_client, ClientConfig_Copy);
     tcase_add_test(tc_client, Client_connect);
     tcase_add_test(tc_client, Client_connect_username);
     tcase_add_test(tc_client, Client_delete_without_connect);

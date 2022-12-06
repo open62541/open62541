@@ -17,6 +17,7 @@
  *    Copyright 2018 (c) Kalycito Infotech Private Limited
  *    Copyright 2020 (c) Christian von Arnim, ISW University of Stuttgart
  *    Copyright 2021 (c) Fraunhofer IOSB (Author: Jan Hermes)
+ *    Copyright 2022 (c) Linutronix GmbH (Author: Muddasir Shakil)
  */
 
 #include <open62541/transport_generated.h>
@@ -30,6 +31,75 @@ clientHouseKeeping(UA_Client *client, void *_);
 /********************/
 /* Client Lifecycle */
 /********************/
+
+UA_StatusCode
+UA_ClientConfig_copy(UA_ClientConfig const *src, UA_ClientConfig *dst){
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+
+    retval = UA_ApplicationDescription_copy(&src->clientDescription, &dst->clientDescription);
+    if(retval != UA_STATUSCODE_GOOD)
+        goto cleanup;
+
+    retval = UA_ExtensionObject_copy(&src->userIdentityToken, &dst->userIdentityToken);
+    if(retval != UA_STATUSCODE_GOOD)
+        goto cleanup;
+
+    retval = UA_String_copy(&src->securityPolicyUri, &dst->securityPolicyUri);
+    if(retval != UA_STATUSCODE_GOOD)
+        goto cleanup;
+
+    retval = UA_EndpointDescription_copy(&src->endpoint, &dst->endpoint);
+    if(retval != UA_STATUSCODE_GOOD)
+        goto cleanup;
+
+    retval = UA_UserTokenPolicy_copy(&src->userTokenPolicy, &dst->userTokenPolicy);
+    if(retval != UA_STATUSCODE_GOOD)
+        goto cleanup;
+
+    retval = UA_Array_copy(src->sessionLocaleIds, src->sessionLocaleIdsSize,
+                           (void **)&dst->sessionLocaleIds, &UA_TYPES[UA_TYPES_LOCALEID]);
+    if(retval != UA_STATUSCODE_GOOD)
+        goto cleanup;
+
+    dst->sessionLocaleIdsSize = src->sessionLocaleIdsSize;
+    dst->connectivityCheckInterval = src->connectivityCheckInterval;
+    dst->certificateVerification = src->certificateVerification;
+    dst->clientContext = src->clientContext;
+    dst->customDataTypes = src->customDataTypes;
+    dst->eventLoop = src->eventLoop;
+    dst->externalEventLoop = src->externalEventLoop;
+    dst->inactivityCallback = src->inactivityCallback;
+    dst->localConnectionConfig = src->localConnectionConfig;
+    dst->logger = src->logger;
+#ifdef UA_ENABLE_SUBSCRIPTIONS
+    dst->outStandingPublishRequests = src->outStandingPublishRequests;
+#endif
+    dst->requestedSessionTimeout = src->requestedSessionTimeout;
+    dst->secureChannelLifeTime = src->secureChannelLifeTime;
+    dst->securityMode = src->securityMode;
+    dst->stateCallback = src->stateCallback;
+#ifdef UA_ENABLE_SUBSCRIPTIONS
+    dst->subscriptionInactivityCallback = src->subscriptionInactivityCallback;
+#endif
+    dst->timeout = src->timeout;
+    dst->userTokenPolicy = src->userTokenPolicy;
+    dst->securityPolicies = src->securityPolicies;
+    dst->securityPoliciesSize = src->securityPoliciesSize;
+    dst->authSecurityPolicies = src->authSecurityPolicies;
+    dst->authSecurityPoliciesSize = src->authSecurityPoliciesSize;
+
+cleanup:
+    if(retval != UA_STATUSCODE_GOOD) {
+        /* _clear will free the plugins in dst that are a shallow copy from src. */
+        dst->authSecurityPolicies = NULL;
+        dst->certificateVerification.context = NULL;
+        dst->eventLoop = NULL;
+        dst->logger.context = NULL;
+        dst->securityPolicies = NULL;
+        UA_ClientConfig_clear(dst);
+    }
+    return retval;
+}
 
 UA_Client *
 UA_Client_newWithConfig(const UA_ClientConfig *config) {

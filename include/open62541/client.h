@@ -13,6 +13,7 @@
  *    Copyright 2018 (c) Thomas Stalder, Blue Time Concept SA
  *    Copyright 2018 (c) Kalycito Infotech Private Limited
  *    Copyright 2020 (c) Christian von Arnim, ISW University of Stuttgart
+ *    Copyright 2022 (c) Linutronix GmbH (Author: Muddasir Shakil)
  */
 
 #ifndef UA_CLIENT_H_
@@ -185,6 +186,17 @@ typedef struct {
     UA_LocaleId *sessionLocaleIds;
     size_t sessionLocaleIdsSize;
 } UA_ClientConfig;
+
+/**
+ * @brief It makes a partial deep copy of the clientconfig. It makes a shallow
+ * copies of the plugins (logger, eventloop, securitypolicy).
+ *
+ * NOTE: It makes a shallow copy of all the plugins from source to destination.
+ * Therefore calling _clear on the dst object will also delete the plugins in src
+ * object.
+ */
+UA_EXPORT UA_StatusCode
+UA_ClientConfig_copy(UA_ClientConfig const *src, UA_ClientConfig *dst);
 
  /**
  * Client Lifecycle
