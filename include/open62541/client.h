@@ -198,6 +198,12 @@ typedef struct {
 UA_EXPORT UA_StatusCode
 UA_ClientConfig_copy(UA_ClientConfig const *src, UA_ClientConfig *dst);
 
+/**
+ * @brief It cleans the client config and frees the pointer.
+ */
+UA_EXPORT void
+UA_ClientConfig_delete(UA_ClientConfig *config);
+
  /**
  * Client Lifecycle
  * ---------------- */
