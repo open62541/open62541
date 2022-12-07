@@ -48,7 +48,7 @@ UA_readNumber(const UA_Byte *buf, size_t buflen, UA_UInt32 *number) {
 
 UA_StatusCode
 UA_parseEndpointUrl(const UA_String *endpointUrl, UA_String *outHostname,
-                    u16 *outPort, UA_String *outPath) {
+                    UA_UInt16 *outPort, UA_String *outPath) {
     UA_Boolean ipv6 = false;
 
     /* Url must begin with "opc.tcp://" or opc.udp:// (if pubsub enabled) */
@@ -124,18 +124,19 @@ UA_parseEndpointUrl(const UA_String *endpointUrl, UA_String *outHostname,
     UA_assert(curr < endpointUrl->length);
     if(endpointUrl->data[curr] != '/')
         return UA_STATUSCODE_BADTCPENDPOINTURLINVALID;
-    if(++curr == endpointUrl->length)
-        return UA_STATUSCODE_GOOD;
-    outPath->data = &endpointUrl->data[curr];
-    outPath->length = endpointUrl->length - curr;
 
-    /* Remove trailing slash from the path */
-    if(endpointUrl->data[endpointUrl->length - 1] == '/')
-        outPath->length--;
+    if(outPath && ++curr < endpointUrl->length) {
+        outPath->data = &endpointUrl->data[curr];
+        outPath->length = endpointUrl->length - curr;
 
-    /* Empty string? */
-    if(outPath->length == 0)
-        outPath->data = NULL;
+        /* Remove trailing slash from the path */
+        if(endpointUrl->data[endpointUrl->length - 1] == '/')
+            outPath->length--;
+
+        /* Empty string? */
+        if(outPath->length == 0)
+            outPath->data = NULL;
+    }
 
     return UA_STATUSCODE_GOOD;
 }
