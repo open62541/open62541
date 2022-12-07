@@ -508,6 +508,10 @@ processServiceResponse(void *application, UA_SecureChannel *channel,
     }
 
     switch(messageType) {
+    case UA_MESSAGETYPE_RHE:
+        UA_LOG_DEBUG_CHANNEL(&client->config.logger, channel, "Process RHE message");
+        processRHEMessage(client, message);
+        return UA_STATUSCODE_GOOD;
     case UA_MESSAGETYPE_ACK:
         UA_LOG_DEBUG_CHANNEL(&client->config.logger, channel, "Process ACK message");
         processACKResponse(client, message);

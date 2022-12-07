@@ -409,6 +409,25 @@ sendHELMessage(UA_Client *client) {
     return UA_STATUSCODE_GOOD;
 }
 
+void processRHEMessage(UA_Client *client, const UA_ByteString *chunk) {
+    UA_LOG_INFO(&client->config.logger, UA_LOGCATEGORY_CLIENT, "RHE received");
+
+    size_t offset = 0; /* Go to the beginning of the TcpHelloMessage */
+    UA_TcpReverseHelloMessage rheMessage;
+    UA_StatusCode retval =
+        UA_decodeBinaryInternal(chunk, &offset, &rheMessage,
+                                &UA_TRANSPORT[UA_TRANSPORT_TCPREVERSEHELLOMESSAGE], NULL);
+
+    if(retval == UA_STATUSCODE_GOOD) {
+        UA_String_clear(&client->endpointUrl);
+        UA_String_copy(&rheMessage.endpointUrl, &client->endpointUrl);
+    }
+
+    UA_TcpReverseHelloMessage_clear(&rheMessage);
+
+    sendHELMessage(client);
+}
+
 void
 processOPNResponse(UA_Client *client, const UA_ByteString *message) {
     /* Is the content of the expected type? */
@@ -1050,11 +1069,14 @@ connectActivity(UA_Client *client) {
         /* Nothing to do if the connection has not opened fully */
     case UA_SECURECHANNELSTATE_CONNECTING:
     case UA_SECURECHANNELSTATE_CLOSING:
+    case UA_SECURECHANNELSTATE_HEL_SENT:
         return;
 
         /* Send HEL */
     case UA_SECURECHANNELSTATE_CONNECTED:
-        client->connectStatus = sendHELMessage(client);
+        if (!client->isReverseConnect) {
+            client->connectStatus = sendHELMessage(client);
+        }
         return;
 
         /* ACK receieved. Send OPN. */
@@ -1291,11 +1313,33 @@ __Client_networkCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
     UA_UNLOCK(&client->clientMutex);
 }
 
+static void closeListeningReverseConnectSocket(UA_Client *client) {
+    if (client->reverseConnectListeningConnectionState <= UA_CONNECTIONSTATE_CLOSING
+            || !client->reverseConnectCm || !client->reverseConnectListenConnectionId
+            || client->listenerDisconnected)
+        return;
+
+    client->reverseConnectCm->closeConnection(client->reverseConnectCm, client->reverseConnectListenConnectionId);
+
+    UA_EventLoop *el = client->config.eventLoop;
+    if(el &&
+       el->state != UA_EVENTLOOPSTATE_FRESH &&
+       el->state != UA_EVENTLOOPSTATE_STOPPED) {
+        UA_UNLOCK(&client->clientMutex);
+        while(client->reverseConnectListeningConnectionState > UA_CONNECTIONSTATE_CLOSING) {
+            el->run(el, 100);
+        }
+        UA_LOCK(&client->clientMutex);
+    }
+}
+
 /* Initialize a TCP connection. Writes the result to client->connectStatus. */
 static UA_StatusCode
 initConnect(UA_Client *client) {
     if(client->noReconnect)
         return UA_STATUSCODE_BADNOTCONNECTED;
+
+    closeListeningReverseConnectSocket(client);
 
     if(client->channel.state != UA_SECURECHANNELSTATE_FRESH &&
        client->channel.state != UA_SECURECHANNELSTATE_CLOSED) {
@@ -1513,6 +1557,128 @@ UA_Client_connectSecureChannel(UA_Client *client, const char *endpointUrl) {
     return client->connectStatus;
 }
 
+static void
+__Client_reverseConnectCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
+                         void *application, void **connectionContext,
+                         UA_ConnectionState state, const UA_KeyValueMap *params,
+                         UA_ByteString msg) {
+    UA_Client *client = (UA_Client*)application;
+
+    UA_LOCK(&client->clientMutex);
+
+    if (!client->reverseConnectListenConnectionId && !client->listenerDisconnected) {
+        client->reverseConnectListenConnectionId = connectionId;
+    }
+
+    if (connectionId == client->reverseConnectListenConnectionId) {
+        client->reverseConnectListeningConnectionState = state;
+    }
+
+    if (connectionId == client->reverseConnectListenConnectionId && state == UA_CONNECTIONSTATE_CLOSING) {
+        client->reverseConnectListenConnectionId = 0;
+        UA_UNLOCK(&client->clientMutex);
+        return;
+    }
+
+    if (connectionId != client->reverseConnectListenConnectionId && !client->listenerDisconnected) {
+        cm->closeConnection(cm, client->reverseConnectListenConnectionId);
+        client->listenerDisconnected = true;
+    }
+
+    if (connectionId != client->reverseConnectListenConnectionId) {
+        UA_UNLOCK(&client->clientMutex);
+        __Client_networkCallback(cm, connectionId, application, connectionContext, state, params, msg);
+        return;
+    }
+
+    UA_UNLOCK(&client->clientMutex);
+}
+
+UA_StatusCode UA_Client_startListeningForReverseConnect(UA_Client *client, const UA_String *listenHostnames,
+                                                        size_t listenHostnamesLength,
+                                                        UA_UInt16 port) {
+    UA_Client_disconnect(client);
+
+    UA_LOCK(&client->clientMutex);
+
+    const UA_String tcpString = UA_STRING_STATIC("tcp");
+    UA_StatusCode res = UA_STATUSCODE_BADINTERNALERROR;
+
+    // FIXME: Are these good default values?
+    client->noReconnect = true;
+    client->isReverseConnect = true;
+    client->listenerDisconnected = false;
+    client->reverseConnectListenConnectionId = 0;
+    client->channel.config.recvBufferSize = 8192;
+    client->channel.config.sendBufferSize = 8192;
+
+    client->connectStatus = UA_STATUSCODE_GOOD;
+    client->channel.renewState = UA_SECURECHANNELRENEWSTATE_NORMAL;
+
+    UA_SecureChannel_init(&client->channel);
+    client->channel.config = client->config.localConnectionConfig;
+    client->channel.certificateVerification = &client->config.certificateVerification;
+    client->channel.processOPNHeader = verifyClientSecurechannelHeader;
+
+    initSecurityPolicy(client);
+
+    UA_EventLoop *el = client->config.eventLoop;
+    if(!el) {
+        UA_LOG_WARNING(&client->config.logger, UA_LOGCATEGORY_CLIENT,
+                       "No EventLoop configured");
+        UA_UNLOCK(&client->clientMutex);
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
+
+    if(el->state != UA_EVENTLOOPSTATE_STARTED) {
+        res = el->start(el);
+        UA_CHECK_STATUS(res, UA_UNLOCK(&client->clientMutex); return res);
+    }
+
+    for(UA_EventSource *es = client->config.eventLoop->eventSources; es != NULL; es = es->next) {
+
+        if(es->eventSourceType != UA_EVENTSOURCETYPE_CONNECTIONMANAGER)
+            continue;
+
+        UA_ConnectionManager *cm = (UA_ConnectionManager*)es;
+        if(!UA_String_equal(&tcpString, &cm->protocol))
+            continue;
+
+        client->reverseConnectCm = cm;
+
+        UA_KeyValuePair params[3];
+        bool booleanTrue = true;
+        params[0].key = UA_QUALIFIEDNAME(0, "port");
+        UA_Variant_setScalar(&params[0].value, &port, &UA_TYPES[UA_TYPES_UINT16]);
+        params[1].key = UA_QUALIFIEDNAME(0, "address");
+        UA_Variant_setArray(&params[1].value, (void *)(uintptr_t)listenHostnames,
+                listenHostnamesLength, &UA_TYPES[UA_TYPES_STRING]);
+        params[2].key = UA_QUALIFIEDNAME(0, "listen");
+        UA_Variant_setScalar(&params[2].value, &booleanTrue, &UA_TYPES[UA_TYPES_BOOLEAN]);
+
+        UA_KeyValueMap paramMap;
+        paramMap.map = params;
+        paramMap.mapSize = 3;
+
+        UA_UNLOCK(&client->clientMutex);
+        res = cm->openConnection(cm, &paramMap, client, NULL, __Client_reverseConnectCallback);
+        UA_LOCK(&client->clientMutex);
+        if(res == UA_STATUSCODE_GOOD)
+            break;
+    }
+
+    /* Opening the TCP connection failed */
+    if(res != UA_STATUSCODE_GOOD) {
+        UA_LOG_WARNING(&client->config.logger, UA_LOGCATEGORY_CLIENT,
+                       "Failed to open a listening TCP socket for reverse connect");
+        res = UA_STATUSCODE_BADCONNECTIONCLOSED;
+    }
+
+    UA_UNLOCK(&client->clientMutex);
+
+    return res;
+}
+
 /************************/
 /* Close the Connection */
 /************************/
@@ -1601,6 +1767,8 @@ closeSessionCallback(UA_Client *client, void *userdata,
 
 UA_StatusCode
 UA_Client_disconnectAsync(UA_Client *client) {
+    closeListeningReverseConnectSocket(client);
+
     UA_LOCK(&client->clientMutex);
 
     client->noReconnect = true;
@@ -1636,6 +1804,7 @@ UA_Client_disconnectAsync(UA_Client *client) {
 
 UA_StatusCode
 UA_Client_disconnectSecureChannel(UA_Client *client) {
+    closeListeningReverseConnectSocket(client);
     UA_LOCK(&client->clientMutex);
 
     client->noReconnect = true;
@@ -1651,7 +1820,8 @@ UA_Client_disconnectSecureChannel(UA_Client *client) {
        el->state != UA_EVENTLOOPSTATE_FRESH &&
        el->state != UA_EVENTLOOPSTATE_STOPPED) {
         UA_UNLOCK(&client->clientMutex);
-        while(client->channel.state != UA_SECURECHANNELSTATE_CLOSED) {
+        while(client->channel.state != UA_SECURECHANNELSTATE_CLOSED &&
+              client->channel.state != UA_SECURECHANNELSTATE_FRESH) {
             el->run(el, 100);
         }
         UA_LOCK(&client->clientMutex);
@@ -1665,7 +1835,10 @@ UA_Client_disconnectSecureChannel(UA_Client *client) {
 
 UA_StatusCode
 UA_Client_disconnect(UA_Client *client) {
-    UA_LOCK(&client->clientMutex);
+    closeListeningReverseConnectSocket(client);
+
+    UA_LOCK(&client->clientMutex);        
+
     client->noReconnect = true;
     if(client->sessionState == UA_SESSIONSTATE_ACTIVATED)
         sendCloseSession(client);
