@@ -1928,7 +1928,7 @@ START_TEST(AddAndRemoveReaderUsingStandaloneDataSet) {
     UA_Server_removeDataSetReader(server, readerIdentifier);
     /* SSDS no longer connected, isConnected has to reset(false) */
     ck_assert_uint_eq(ssds->config.isConnected, UA_FALSE);
-}
+} END_TEST
 
 int main(void) {
     TCase *tc_add_pubsub_readergroup = tcase_create("PubSub readerGroup items handling");
