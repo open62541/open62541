@@ -173,9 +173,9 @@ setLoopBackData(UA_SOCKET sockfd, UA_Boolean enableLoopback,
     {
         UA_LOG_SOCKET_ERRNO_WRAP(
             UA_LOG_ERROR(logger, UA_LOGCATEGORY_NETWORK,
-                         "PubSub Connection creation failed. Loopback setup failed: "
+                         "UDP %u\t| Loopback setup failed: "
                          "Cannot set socket option IP_MULTICAST_LOOP. Error: %s",
-                         errno_str));
+                         (unsigned)sockfd, errno_str));
         return UA_STATUSCODE_BADINTERNALERROR;
     }
     return UA_STATUSCODE_GOOD;
@@ -199,9 +199,9 @@ setTimeToLive(UA_SOCKET sockfd, UA_UInt32 messageTTL,
     {
         UA_LOG_SOCKET_ERRNO_WRAP(
             UA_LOG_WARNING(logger, UA_LOGCATEGORY_NETWORK,
-                           "PubSub Connection creation problem. Time to live setup failed: "
+                           "UDP %u\t| Time to live setup failed: "
                            "Cannot set socket option IP_MULTICAST_TTL. Error: %s",
-                           errno_str));
+                           (unsigned)sockfd, errno_str));
     }
 }
 
@@ -216,9 +216,9 @@ setReuseAddress(UA_SOCKET sockfd, UA_Boolean enableReuse, const UA_Logger *logge
                      (const char*)&enableReuseVal, sizeof(enableReuseVal)) < 0) {
         UA_LOG_SOCKET_ERRNO_WRAP(
             UA_LOG_WARNING(logger, UA_LOGCATEGORY_NETWORK,
-                           "PubSub Connection creation problem. Reuse address setup failed: "
+                           "UDP %u\t| Reuse address setup failed: "
                            "Cannot set socket option SO_REUSEADDR. Error: %s",
-                           errno_str));
+                           (unsigned)sockfd, errno_str));
     }
 }
 
@@ -231,8 +231,9 @@ setSocketPriority(UA_SOCKET sockfd, UA_UInt32 *socketPriority,
                       socketPriority, sizeof(*socketPriority)) < 0) {
         UA_LOG_SOCKET_ERRNO_WRAP(
             UA_LOG_ERROR(logger, UA_LOGCATEGORY_NETWORK,
-                         "PubSub Connection creation problem. Priority setup failed: "
-                         "Cannot set socket option SO_PRIORITY. Error: %s", errno_str));
+                         "UDP %u\t| Socket priority setup failed: "
+                         "Cannot set socket option SO_PRIORITY. Error: %s",
+                         (unsigned)sockfd, errno_str));
         return UA_STATUSCODE_BADINTERNALERROR;
     }
     return UA_STATUSCODE_GOOD;
@@ -360,8 +361,8 @@ setupSendMulticastIPv4(UA_FD socket, struct sockaddr_in *addr, const UA_KeyValue
 
         if(UA_inet_pton(AF_INET, interfaceAsChar, &ipMulticastRequest.ipv4.imr_interface) <= 0) {
             UA_LOG_ERROR(logger, UA_LOGCATEGORY_SERVER,
-                         "PubSub Connection creation problem. "
-                         "Interface configuration preparation failed.");
+                         "UDP %u\t| Interface configuration preparation failed",
+                         (unsigned)socket);
             return UA_STATUSCODE_BADINTERNALERROR;
         }
     }
@@ -401,8 +402,7 @@ setupListenMulticastIPv4(UA_FD socket, const UA_KeyValueMap *params, struct sock
 
         if(UA_inet_pton(AF_INET, interfaceAsChar, &ipMulticastRequest.ipv4.imr_interface) <= 0) {
             UA_LOG_ERROR(logger, UA_LOGCATEGORY_SERVER,
-                         "PubSub Connection creation problem. "
-                         "Interface configuration preparation failed.");
+                         "UDP\t| Interface configuration preparation failed.");
             return UA_STATUSCODE_BADINTERNALERROR;
         }
     }
@@ -410,7 +410,7 @@ setupListenMulticastIPv4(UA_FD socket, const UA_KeyValueMap *params, struct sock
                      &ipMulticastRequest.ipv4, sizeof(ipMulticastRequest.ipv4)) < 0) {
         UA_LOG_SOCKET_ERRNO_WRAP(
             UA_LOG_ERROR(logger, UA_LOGCATEGORY_NETWORK,
-                         "PubSub Connection regist failed. IP membership setup failed: "
+                         "UDP\t| Multicast IP membership setup failed: "
                          "Cannot set socket option IP_ADD_MEMBERSHIP. Error: %s",
                          errno_str));
         return UA_STATUSCODE_BADINTERNALERROR;
@@ -446,8 +446,7 @@ setupListenMulticastIPv6(UA_FD socket, const UA_KeyValueMap *params, struct sock
         ipMulticastRequest.ipv6.ipv6mr_interface = UA_if_nametoindex(interfaceAsChar);
         if(ipMulticastRequest.ipv6.ipv6mr_interface == 0) {
             UA_LOG_ERROR(logger, UA_LOGCATEGORY_SERVER,
-                         "PubSub Connection creation problem. "
-                         "Interface configuration preparation failed.");
+                         "UDP\t| Interface configuration preparation failed.");
             return UA_STATUSCODE_BADINTERNALERROR;
         }
     }
@@ -455,7 +454,7 @@ setupListenMulticastIPv6(UA_FD socket, const UA_KeyValueMap *params, struct sock
                      &ipMulticastRequest.ipv6,sizeof(ipMulticastRequest.ipv6)) < 0) {
         UA_LOG_SOCKET_ERRNO_WRAP(
             UA_LOG_ERROR(logger, UA_LOGCATEGORY_NETWORK,
-                         "PubSub Connection regist failed. IP membership setup failed: "
+                         "UDP\t| Multicast IP membership setup failed: "
                          "Cannot set socket option IP_ADD_MEMBERSHIP. Error: %s",
                          errno_str));
         return UA_STATUSCODE_BADINTERNALERROR;
@@ -489,8 +488,7 @@ setupSendMulticastIPv6(UA_FD socket, struct sockaddr_in6 *addr, const UA_KeyValu
         ipMulticastRequest.ipv6.ipv6mr_interface = UA_if_nametoindex(interfaceAsChar);
         if(ipMulticastRequest.ipv6.ipv6mr_interface == 0) {
             UA_LOG_ERROR(logger, UA_LOGCATEGORY_SERVER,
-                         "PubSub Connection creation problem. "
-                         "Interface configuration preparation failed.");
+                         "UDP\t| Interface configuration preparation failed.");
             return UA_STATUSCODE_BADINTERNALERROR;
         }
     }
@@ -503,8 +501,7 @@ setupSendMulticastIPv6(UA_FD socket, struct sockaddr_in6 *addr, const UA_KeyValu
 #endif
         UA_LOG_SOCKET_ERRNO_WRAP(
             UA_LOG_ERROR(logger, UA_LOGCATEGORY_NETWORK,
-                         "Opening UDP connection failed: "
-                         "Cannot set socket option IPV6_MULTICAST_IF. Error: %s",
+                         "UDP\t| Cannot set socket option IPV6_MULTICAST_IF. Error: %s",
                          errno_str));
         return UA_STATUSCODE_BADINTERNALERROR;
     }
