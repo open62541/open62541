@@ -267,9 +267,8 @@ setConnectionConfig(UA_FD socket, const UA_KeyValueMap *connectionProperties,
 
     UA_String hostnameParam = UA_STRING("hostname");
     UA_String portParam = UA_STRING("port");
-    UA_String listenHostnamesParam = UA_STRING("listen-hostnames");
-    UA_String listenPortParam = UA_STRING("listen-port");
-    UA_String networkInterfaceParam = UA_STRING("network-interface");
+    UA_String listenParam = UA_STRING("listen");
+    UA_String interfaceParam = UA_STRING("interface");
 
 #ifdef __linux__
     UA_String socketPriorityParam = UA_STRING("sockpriority");
@@ -295,29 +294,22 @@ setConnectionConfig(UA_FD socket, const UA_KeyValueMap *connectionProperties,
 #ifdef __linux__
         } else if(UA_String_equal(&prop->key.name, &socketPriorityParam)){
             if(UA_Variant_hasScalarType(&prop->value, &UA_TYPES[UA_TYPES_UINT32])){
-                UA_UInt32 *socketPriority = (UA_UInt32 *) UA_malloc(sizeof(UA_UInt32));
-                if(!socketPriority) {
-                    UA_LOG_WARNING(logger, UA_LOGCATEGORY_SERVER,
-                                   "PubSub Connection creation. Could not set socket priority due to out of memory.");
-                    continue;
-                }
-                UA_UInt32_copy((UA_UInt32 *) prop->value.data, socketPriority);
-                setSocketPriority(socket, socketPriority, logger);
-                UA_free(socketPriority);
+                UA_UInt32 socketPriority = *(UA_UInt32 *) prop->value.data;
+                setSocketPriority(socket, &socketPriority, logger);
             }
 #endif
         } else if (UA_String_equal(&prop->key.name, &hostnameParam) ||
                    UA_String_equal(&prop->key.name, &portParam) ||
-                   UA_String_equal(&prop->key.name, &listenHostnamesParam) ||
-                   UA_String_equal(&prop->key.name, &listenPortParam) ||
-                   UA_String_equal(&prop->key.name, &networkInterfaceParam)) {
+                   UA_String_equal(&prop->key.name, &listenParam) ||
+                   UA_String_equal(&prop->key.name, &interfaceParam)) {
                 /* ignore, required args are handled elsewhere explicitly */
         } else {
             UA_LOG_WARNING(logger, UA_LOGCATEGORY_SERVER,
-                           "PubSub Connection creation. Unknown connection parameter: '%.*s'.",
+                           "UDP\t| Unknown connection parameter: '%.*s'.",
                            (int)prop->key.name.length, (char*)prop->key.name.data);
         }
     }
+
     /* Set the socket options also there might be external requirements for
      * socket options how to handle and set those either
      * - passed in parameters
@@ -1171,8 +1163,7 @@ UDP_openReceiveConnection(UA_ConnectionManager *cm,
 
     /* Get the socket */
     const UA_UInt16 *port = (const UA_UInt16*)
-        UA_KeyValueMap_getScalar(params,
-                                 UA_QUALIFIEDNAME(0, "listen-port"),
+        UA_KeyValueMap_getScalar(params, UA_QUALIFIEDNAME(0, "port"),
                                  &UA_TYPES[UA_TYPES_UINT16]);
     if(!port) {
         UA_LOG_ERROR(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
@@ -1180,48 +1171,42 @@ UDP_openReceiveConnection(UA_ConnectionManager *cm,
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
-    /* Get the hostnames configuration */
-    const UA_Variant *hostNames =
-        UA_KeyValueMap_get(params,
-                           UA_QUALIFIEDNAME(0, "listen-hostnames"));
-    if(!hostNames) {
-        /* No hostnames configured -> listen on all interfaces*/
-        UA_LOG_INFO(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
-                    "UDP\t| Listening on all interfaces");
-        return UDP_registerListenSockets(cm, NULL, *port, params, application,
-                                         context, connectionCallback, validate);
-    }
+    /* Get the hostname configuration */
+    const UA_Variant *hostname =
+        UA_KeyValueMap_get(params, UA_QUALIFIEDNAME(0, "hostname"));
 
-    /* Correct datatype for the hostnames? */
-    if(hostNames->type != &UA_TYPES[UA_TYPES_STRING] ||
-       UA_Variant_isScalar(hostNames)) {
-        UA_LOG_ERROR(el->eventLoop.logger, UA_LOGCATEGORY_EVENTLOOP,
-                     "UDP\t| The hostnames have to be an array of string");
-        return UA_STATUSCODE_BADINTERNALERROR;
-    }
-
-    size_t interfaces = hostNames->arrayLength;
-    if(interfaces == 0) {
-        UA_LOG_WARNING(el->eventLoop.logger, UA_LOGCATEGORY_EVENTLOOP,
+    /* No hostname configured -> listen on all interfaces */
+    if(!hostname || (!UA_Variant_isScalar(hostname) && hostname->arrayLength == 0))  {
+        UA_LOG_DEBUG(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
                      "UDP\t| Listening on all interfaces");
         return UDP_registerListenSockets(cm, NULL, *port, params, application,
                                          context, connectionCallback, validate);
     }
 
-    UA_StatusCode rv = UA_STATUSCODE_GOOD;
+    /* Correct datatype for the hostname? */
+    if(hostname->type != &UA_TYPES[UA_TYPES_STRING]) {
+        UA_LOG_ERROR(el->eventLoop.logger, UA_LOGCATEGORY_EVENTLOOP,
+                     "UDP\t| The hostname parameter needs to be of type string");
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
+
+    size_t hostNamesSize = hostname->arrayLength;
+    if(UA_Variant_isScalar(hostname))
+        hostNamesSize = 1;
+
     /* Iterate over the configured hostnames */
-    UA_String *hostStrings = (UA_String*)hostNames->data;
-    for(size_t i = 0; i < hostNames->arrayLength; i++) {
-        char hostname[512];
-        if(hostStrings[i].length >= sizeof(hostname))
+    UA_String *hostStrings = (UA_String*)hostname->data;
+    for(size_t i = 0; i < hostNamesSize; i++) {
+        char hn[512];
+        if(hostStrings[i].length >= sizeof(hn))
             continue;
-        memcpy(hostname, hostStrings[i].data, hostStrings->length);
-        hostname[hostStrings->length] = '\0';
-        rv = UDP_registerListenSockets(cm, hostname, *port, params, application,
-                                  context, connectionCallback, validate);
-        if(rv != UA_STATUSCODE_GOOD) {
+        memcpy(hn, hostStrings[i].data, hostStrings->length);
+        hn[hostStrings->length] = '\0';
+        UA_StatusCode rv =
+            UDP_registerListenSockets(cm, hn, *port, params, application,
+                                      context, connectionCallback, validate);
+        if(rv != UA_STATUSCODE_GOOD)
             return rv;
-        }
     }
 
     return UA_STATUSCODE_GOOD;
@@ -1232,26 +1217,26 @@ UDP_openConnection(UA_ConnectionManager *cm,
                    const UA_KeyValueMap *params,
                    void *application, void *context,
                    UA_ConnectionManager_connectionCallback connectionCallback) {
-
-    const UA_Variant *validationValue = UA_KeyValueMap_get(params,
-                                               UA_QUALIFIEDNAME(0, "validate"));
     UA_Boolean validate = false;
-    if(validationValue) {
-        if(UA_Variant_hasScalarType(validationValue, &UA_TYPES[UA_TYPES_BOOLEAN])) {
-            validate = *(UA_Boolean *)validationValue->data;
-        }
-    }
-    /* If the "port"-parameter is defined, then try to open a send connection.
-     * Otherwise try to open a socket that listens for incoming TCP
-     * connections. */
-    const UA_Variant *val = UA_KeyValueMap_get(params,
-                                               UA_QUALIFIEDNAME(0, "port"));
-    if(val) {
-        return UDP_openSendConnection(cm, params, application, context,
-                                      connectionCallback, validate);
-    } else {
+    const UA_Variant *validationValue =
+        UA_KeyValueMap_get(params, UA_QUALIFIEDNAME(0, "validate"));
+    if(validationValue &&
+       UA_Variant_hasScalarType(validationValue, &UA_TYPES[UA_TYPES_BOOLEAN]))
+        validate = *(UA_Boolean *)validationValue->data;
+
+    UA_Boolean listen = false;
+    const UA_Variant *listenValue =
+        UA_KeyValueMap_get(params, UA_QUALIFIEDNAME(0, "listen"));
+    if(listenValue &&
+       UA_Variant_hasScalarType(listenValue, &UA_TYPES[UA_TYPES_BOOLEAN]))
+        listen = *(UA_Boolean *)listenValue->data;
+
+    if(listen) {
         return UDP_openReceiveConnection(cm, params, application, context,
                                          connectionCallback, validate);
+    } else {
+        return UDP_openSendConnection(cm, params, application, context,
+                                      connectionCallback, validate);
     }
 }
 
