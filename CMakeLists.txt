@@ -1065,6 +1065,7 @@ set(default_plugin_headers ${PROJECT_SOURCE_DIR}/plugins/include/open62541/plugi
 
 set(default_plugin_sources ${PROJECT_SOURCE_DIR}/plugins/ua_log_stdout.c
                            ${PROJECT_SOURCE_DIR}/plugins/ua_accesscontrol_default.c
+                           ${PROJECT_SOURCE_DIR}/plugins/ua_accesscontrol_custom.c
                            ${PROJECT_SOURCE_DIR}/plugins/ua_nodestore_ziptree.c
                            ${PROJECT_SOURCE_DIR}/plugins/ua_nodestore_hashmap.c
                            ${PROJECT_SOURCE_DIR}/plugins/ua_config_default.c

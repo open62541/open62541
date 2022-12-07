@@ -472,6 +472,7 @@ UA_CommonVariableNode_copy(const UA_VariableNode *src, UA_VariableNode *dst) {
 static UA_StatusCode
 UA_VariableNode_copy(const UA_VariableNode *src, UA_VariableNode *dst) {
     dst->accessLevel = src->accessLevel;
+    dst->userAccessLevel = src->accessLevel;
     dst->minimumSamplingInterval = src->minimumSamplingInterval;
     dst->historizing = src->historizing;
     dst->isDynamic = src->isDynamic;
@@ -488,6 +489,7 @@ UA_VariableTypeNode_copy(const UA_VariableTypeNode *src,
 static UA_StatusCode
 UA_MethodNode_copy(const UA_MethodNode *src, UA_MethodNode *dst) {
     dst->executable = src->executable;
+    dst->userExecutable = src->executable;
     dst->method = src->method;
 #if UA_MULTITHREADING >= 100
     dst->async = src->async;
@@ -771,6 +773,7 @@ static UA_StatusCode
 copyVariableNodeAttributes(UA_VariableNode *vnode,
                            const UA_VariableAttributes *attr) {
     vnode->accessLevel = attr->accessLevel;
+    vnode->userAccessLevel = attr->accessLevel;
     vnode->historizing = attr->historizing;
     vnode->minimumSamplingInterval = attr->minimumSamplingInterval;
     return copyCommonVariableAttributes(vnode, attr);
@@ -823,6 +826,7 @@ static UA_StatusCode
 copyMethodNodeAttributes(UA_MethodNode *mnode,
                          const UA_MethodAttributes *attr) {
     mnode->executable = attr->executable;
+    mnode->userExecutable = attr->executable;
     return UA_STATUSCODE_GOOD;
 }
 

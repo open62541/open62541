@@ -606,6 +606,7 @@ typedef struct {
     UA_NodeHead head;
     UA_NODE_VARIABLEATTRIBUTES
     UA_Byte accessLevel;
+    UA_Byte userAccessLevel;
     UA_Double minimumSamplingInterval;
     UA_Boolean historizing;
 
@@ -645,6 +646,7 @@ typedef UA_StatusCode
 typedef struct {
     UA_NodeHead head;
     UA_Boolean executable;
+    UA_Boolean userExecutable;
 
     /* Members specific to open62541 */
     UA_MethodCallback method;

@@ -102,6 +102,15 @@ struct UA_AccessControl {
                                   const UA_NodeId *sessionId, void *sessionContext,
                                   const UA_NodeId *nodeId, void *nodeContext);
 
+    /* Check access to Node */
+    UA_Boolean (*hasAccessToNode)(UA_Server *server, UA_AccessControl *ac,
+                                  const UA_NodeId *sessionId, void *sessionContext,
+                                  const UA_NodeId *nodeId, void *nodeContext, UA_Byte* serviceAccessLevel);
+    /* Check access to Node */
+    UA_Boolean (*hasAccessToMethod)(UA_Server *server, UA_AccessControl *ac,
+                          const UA_NodeId *sessionId, void *sessionContext,
+                          const UA_NodeId *methodId, void *methodContext);
+
 #ifdef UA_ENABLE_SUBSCRIPTIONS
     /* Allow transfer of a subscription to another session. The Server shall
      * validate that the Client of that Session is operating on behalf of the
@@ -127,7 +136,10 @@ struct UA_AccessControl {
                                                       UA_DateTime endTimestamp,
                                                       bool isDeleteModified);
 #endif
-    UA_Boolean (*checkUserDatabase)(const UA_UserNameIdentityToken *userToken);
+#ifdef UA_ENABLE_ROLE_PERMISSION
+    UA_Boolean (*checkUserDatabase)(const UA_UserNameIdentityToken *userToken, UA_String *roleName);
+   // UA_StatusCode (*checkTheRoleSessionLoggedIn)(UA_Server *server);
+#endif
 };
 
 _UA_END_DECLS
