@@ -120,9 +120,10 @@ UA_KeyValueMap_merge(UA_KeyValueMap *lhs, const UA_KeyValueMap *rhs);
  *        original endpointUrl, so no memory is allocated. If an IPv6 address is
  *        given, hostname contains e.g. '[2001:0db8:85a3::8a2e:0370:7334]'
  * @param outPort Set to the port of the url or left unchanged.
- * @param outPath Set to the path if one is present in the endpointUrl.
- *        Starting or trailing '/' are NOT included in the path. The string
- *        points into the original endpointUrl, so no memory is allocated.
+ * @param outPath Set to the path if one is present in the endpointUrl. Can be
+ *        NULL. Then not path is returned. Starting or trailing '/' are NOT
+ *        included in the path. The string points into the original endpointUrl,
+ *        so no memory is allocated.
  * @return Returns UA_STATUSCODE_BADTCPENDPOINTURLINVALID if parsing failed. */
 UA_StatusCode UA_EXPORT
 UA_parseEndpointUrl(const UA_String *endpointUrl, UA_String *outHostname,
