@@ -185,6 +185,12 @@ onRead(UA_Server *server, const UA_NodeId *sessionId, void *sessionContext,
                                      &UA_TYPES[UA_TYPES_CONFIGURATIONVERSIONDATATYPE]);
             break;
         }
+        default:
+            UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                           "Read error! Unknown property.");
+        }
+        break;
+    }    
     case UA_NS0ID_STANDALONESUBSCRIBEDDATASETREFDATATYPE: {
         UA_StandaloneSubscribedDataSet *sds = UA_StandaloneSubscribedDataSet_findSDSbyId(server, *myNodeId);
         switch(nodeContext->elementClassiefier) {
