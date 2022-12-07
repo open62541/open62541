@@ -796,7 +796,7 @@ UA_PubSubManager_delete(UA_Server *server, UA_PubSubManager *pubSubManager) {
     /* delete subscribed datasets */
     UA_StandaloneSubscribedDataSet *tmpSDS1, *tmpSDS2;
     TAILQ_FOREACH_SAFE(tmpSDS1, &server->pubSubManager.subscribedDataSets, listEntry, tmpSDS2){
-        UA_Server_removeStandaloneSubscribedDataSet(server, tmpSDS1->identifier);
+        removeStandaloneSubscribedDataSet(server, tmpSDS1->identifier);
     }
 
 #ifdef UA_ENABLE_PUBSUB_SKS

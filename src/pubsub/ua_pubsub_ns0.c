@@ -185,26 +185,26 @@ onRead(UA_Server *server, const UA_NodeId *sessionId, void *sessionContext,
                                      &UA_TYPES[UA_TYPES_CONFIGURATIONVERSIONDATATYPE]);
             break;
         }
-        case UA_NS0ID_STANDALONESUBSCRIBEDDATASETREFDATATYPE: {
-            UA_StandaloneSubscribedDataSet *sds = UA_StandaloneSubscribedDataSet_findSDSbyId(server, *myNodeId);
-            switch(nodeContext->elementClassiefier) {
-                case UA_NS0ID_STANDALONESUBSCRIBEDDATASETTYPE_ISCONNECTED: {
-                    UA_Variant_setScalar(&value, &sds->config.isConnected, &UA_TYPES[UA_TYPES_BOOLEAN]);
-                    break;
-                }
-                case UA_NS0ID_STANDALONESUBSCRIBEDDATASETTYPE_DATASETMETADATA: {
-                    UA_Variant_setScalar(&value, &sds->config.dataSetMetaData, &UA_TYPES[UA_TYPES_DATASETMETADATATYPE]);
-                    break;
-                }
-                default:
-                UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
-                                "Read error! Unknown property.");
-            }
-            break;
-        }
         default:
             UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
                            "Read error! Unknown property.");
+        }
+        break;
+    }    
+    case UA_NS0ID_STANDALONESUBSCRIBEDDATASETREFDATATYPE: {
+        UA_StandaloneSubscribedDataSet *sds = UA_StandaloneSubscribedDataSet_findSDSbyId(server, *myNodeId);
+        switch(nodeContext->elementClassiefier) {
+            case UA_NS0ID_STANDALONESUBSCRIBEDDATASETTYPE_ISCONNECTED: {
+                UA_Variant_setScalar(&value, &sds->config.isConnected, &UA_TYPES[UA_TYPES_BOOLEAN]);
+                break;
+            }
+            case UA_NS0ID_STANDALONESUBSCRIBEDDATASETTYPE_DATASETMETADATA: {
+                UA_Variant_setScalar(&value, &sds->config.dataSetMetaData, &UA_TYPES[UA_TYPES_DATASETMETADATATYPE]);
+                break;
+            }
+            default:
+            UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                            "Read error! Unknown property.");
         }
         break;
     }
@@ -2200,12 +2200,6 @@ UA_Server_initPubSubNS0(UA_Server *server) {
     retVal |= writePubSubNs0VariableArray(server, UA_NS0ID_PUBLISHSUBSCRIBE_SUPPORTEDTRANSPORTPROFILES,
                                     profileArray, 1, &UA_TYPES[UA_TYPES_STRING]);
 
-    UA_ObjectAttributes oAttr = UA_ObjectAttributes_default;
-    oAttr.displayName = UA_LOCALIZEDTEXT("", "SubscribedDataSets");
-    UA_Server_addObjectNode(server, UA_NODEID_NUMERIC(0, UA_NS0ID_PUBLISHSUBSCRIBE_SUBSCRIBEDDATASETS),
-                            UA_NODEID_NUMERIC(0, UA_NS0ID_PUBLISHSUBSCRIBE), UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
-                            UA_QUALIFIEDNAME(0, "SubscribedDataSets"), UA_NODEID_NUMERIC(0, UA_NS0ID_SUBSCRIBEDDATASETFOLDERTYPE),
-                            oAttr, NULL, NULL);
 #ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL_METHODS
     /* Add missing references */
     retVal |= UA_Server_addReference(server, UA_NODEID_NUMERIC(0, UA_NS0ID_PUBLISHSUBSCRIBE_PUBLISHEDDATASETS),

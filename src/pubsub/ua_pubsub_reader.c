@@ -482,7 +482,7 @@ UA_Server_addDataSetReader(UA_Server *server, UA_NodeId readerGroupIdentifier,
     LIST_INSERT_HEAD(&readerGroup->readers, newDataSetReader, listEntry);
     readerGroup->readersCount++;
 
-    if(newDataSetReader->config.linkedStandaloneSubscribedDataSetName.length != 0) {
+    if(!UA_String_isEmpty(&newDataSetReader->config.linkedStandaloneSubscribedDataSetName)) {
         // find sds by name
         UA_StandaloneSubscribedDataSet *subscribedDataSet =
             UA_StandaloneSubscribedDataSet_findSDSbyName(
@@ -591,6 +591,15 @@ removeDataSetReader(UA_Server *server, UA_NodeId readerIdentifier) {
                             (int) dsr->config.name.length, dsr->config.name.data);
     }
 #endif /* UA_ENABLE_PUBSUB_MONITORING */
+    /* check if a Standalone-SubscribedDataSet is associated with this reader and disconnect it*/
+    if(!UA_String_isEmpty(&dsr->config.linkedStandaloneSubscribedDataSetName)) {
+        UA_StandaloneSubscribedDataSet *subscribedDataSet =
+            UA_StandaloneSubscribedDataSet_findSDSbyName(
+                server, dsr->config.linkedStandaloneSubscribedDataSetName);
+        if(subscribedDataSet != NULL) {
+            subscribedDataSet->config.isConnected = false;
+        }
+    }
 
     /* Delete DataSetReader config */
     UA_DataSetReaderConfig_clear(&dsr->config);

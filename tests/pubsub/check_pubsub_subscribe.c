@@ -1865,6 +1865,71 @@ START_TEST(ReceiveStandaloneDataSetFrame) {
 
 } END_TEST
 
+START_TEST(AddAndRemoveReaderUsingStandaloneDataSet) {
+    addTargetVariable();
+    UA_StandaloneSubscribedDataSetConfig cfg;
+    UA_NodeId ret;
+    memset(&cfg, 0, sizeof(UA_StandaloneSubscribedDataSetConfig));
+
+    /* Fill the SSDS MetaData */
+    UA_DataSetMetaDataType_init(&cfg.dataSetMetaData);
+    cfg.dataSetMetaData.name = UA_STRING("DemoStandaloneSDS");
+    cfg.dataSetMetaData.fieldsSize = 1;
+    UA_FieldMetaData fieldMetaData;
+    cfg.dataSetMetaData.fields = &fieldMetaData;
+
+    /* DateTime DataType */
+    UA_FieldMetaData_init(&cfg.dataSetMetaData.fields[0]);
+    UA_NodeId_copy(&UA_TYPES[UA_TYPES_DATETIME].typeId, &cfg.dataSetMetaData.fields[0].dataType);
+    cfg.dataSetMetaData.fields[0].builtInType = UA_NS0ID_DATETIME;
+    cfg.dataSetMetaData.fields[0].name = UA_STRING("subscribedTargetVar");
+    cfg.dataSetMetaData.fields[0].valueRank = -1; /* scalar */
+
+    cfg.name = UA_STRING("DemoStandaloneSDS");
+    cfg.isConnected = UA_FALSE;
+    cfg.subscribedDataSet.target.targetVariablesSize = 1;
+    UA_FieldTargetDataType fieldTargetDataType;
+    cfg.subscribedDataSet.target.targetVariables = &fieldTargetDataType;
+
+    UA_FieldTargetDataType_init(&cfg.subscribedDataSet.target.targetVariables[0]);
+    cfg.subscribedDataSet.target.targetVariables[0].attributeId = UA_ATTRIBUTEID_VALUE;
+    cfg.subscribedDataSet.target.targetVariables[0].targetNodeId =
+    UA_NODEID_STRING(1, "demoVar");
+    UA_StatusCode retVal = UA_Server_addStandaloneSubscribedDataSet(server, &cfg, &ret);
+    ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+    UA_StandaloneSubscribedDataSet *ssds = NULL;
+    ssds = UA_StandaloneSubscribedDataSet_findSDSbyId(server, ret);
+    ck_assert_ptr_ne(ssds, NULL); 
+    /* Reader Group */
+    UA_ReaderGroupConfig readerGroupConfig;
+    memset (&readerGroupConfig, 0, sizeof (UA_ReaderGroupConfig));
+    readerGroupConfig.name = UA_STRING ("ReaderGroup Test");
+    retVal |=  UA_Server_addReaderGroup(server, connectionId, &readerGroupConfig, &readerGroupId);
+
+    /* Data Set Reader */
+    /* Parameters to filter received NetworkMessage */
+    UA_DataSetReaderConfig readerConfig;
+    memset (&readerConfig, 0, sizeof (UA_DataSetReaderConfig));
+    readerConfig.name             = UA_STRING ("DataSetReader Test");
+    UA_UInt16 publisherIdentifier = PUBLISHER_ID;
+    readerConfig.publisherId.type = &UA_TYPES[UA_TYPES_UINT16];
+    readerConfig.publisherId.data = &publisherIdentifier;
+    readerConfig.writerGroupId    = WRITER_GROUP_ID;
+    readerConfig.dataSetWriterId  = DATASET_WRITER_ID;
+    readerConfig.linkedStandaloneSubscribedDataSetName = cfg.name;
+    /* DataSetMetaData already contained in Standalone SDS no need to set up */
+    UA_NodeId readerIdentifier;
+    retVal |= UA_Server_addDataSetReader(server, readerGroupId, &readerConfig,
+                                         &readerIdentifier);
+    ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+    /* SSDS is now connected to this reader -> isConnected shall be true */
+    ck_assert_uint_eq(ssds->config.isConnected, UA_TRUE);
+
+    UA_Server_removeDataSetReader(server, readerIdentifier);
+    /* SSDS no longer connected, isConnected has to reset(false) */
+    ck_assert_uint_eq(ssds->config.isConnected, UA_FALSE);
+} END_TEST
+
 int main(void) {
     TCase *tc_add_pubsub_readergroup = tcase_create("PubSub readerGroup items handling");
     tcase_add_checked_fixture(tc_add_pubsub_readergroup, setup, teardown);
@@ -1910,6 +1975,7 @@ int main(void) {
     TCase *tc_pubsub_standalone_datasets = tcase_create("Subscriber using standalone datasets");
     tcase_add_test(tc_pubsub_publish_subscribe, ValidStandaloneDataSetConfigurationAddAndRemove);
     tcase_add_test(tc_pubsub_publish_subscribe, ReceiveStandaloneDataSetFrame);
+    tcase_add_test(tc_pubsub_publish_subscribe, AddAndRemoveReaderUsingStandaloneDataSet);
 
 
     Suite *suite = suite_create("PubSub readerGroups/reader/Fields handling and publishing");
