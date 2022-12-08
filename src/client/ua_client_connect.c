@@ -103,20 +103,20 @@ if(client->config.userTokenPolicy.tokenType == UA_USERTOKENTYPE_CERTIFICATE) {
         request->userIdentityToken.content.decoded.data;
 
     /* Get the correct securityPolicy for authentication */
-    UA_SecurityPolicy* securityPolicy;
-    securityPolicy = getAuthSecurityPolicy(client, client->config.authSecurityPolicyUri);
+    UA_SecurityPolicy* utpSecurityPolicy;
+    utpSecurityPolicy = getAuthSecurityPolicy(client, client->config.authSecurityPolicyUri);
 
     /* We need a channel context with the user certificate in order to reuse
     * the code for signing. */
     void *tempChannelContext;
-    retval = securityPolicy->channelModule.
-        newContext(securityPolicy, &userIdentityToken->certificateData, &tempChannelContext);
+    retval = utpSecurityPolicy->channelModule.
+        newContext(utpSecurityPolicy, &userIdentityToken->certificateData, &tempChannelContext);
     if(retval != UA_STATUSCODE_GOOD)
         return UA_STATUSCODE_BADINTERNALERROR;
 
-    size_t userTokenSignatureSize = securityPolicy->certificateSigningAlgorithm.
+    size_t userTokenSignatureSize = utpSecurityPolicy->certificateSigningAlgorithm.
         getLocalSignatureSize(tempChannelContext);
-    retval = UA_String_copy(&securityPolicy->certificateSigningAlgorithm.uri,
+    retval = UA_String_copy(&utpSecurityPolicy->certificateSigningAlgorithm.uri,
                             &utsd->algorithm);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
@@ -126,7 +126,7 @@ if(client->config.userTokenPolicy.tokenType == UA_USERTOKENTYPE_CERTIFICATE) {
         return retval;
 
     /* Allocate a temporary buffer */
-    size_t userTokenSignSize = userIdentityToken->certificateData.length + client->remoteNonce.length;
+    size_t userTokenSignSize = channel->remoteCertificate.length + client->remoteNonce.length;
     if(dataToSignSize > MAX_DATA_SIZE)
         return UA_STATUSCODE_BADINTERNALERROR;
 
@@ -136,15 +136,15 @@ if(client->config.userTokenPolicy.tokenType == UA_USERTOKENTYPE_CERTIFICATE) {
         return retval; /* sd->signature is cleaned up with the response */
 
     /* Create the userTokenSignature */
-    memcpy(userTokenSign.data, userIdentityToken->certificateData.data,
-           userIdentityToken->certificateData.length);
-    memcpy(userTokenSign.data + userIdentityToken->certificateData.length,
+    memcpy(userTokenSign.data, channel->remoteCertificate.data,
+           channel->remoteCertificate.length);
+    memcpy(userTokenSign.data + channel->remoteCertificate.length,
            client->remoteNonce.data, client->remoteNonce.length);
-    retval = securityPolicy->certificateSigningAlgorithm.sign(tempChannelContext,
+    retval = utpSecurityPolicy->certificateSigningAlgorithm.sign(tempChannelContext,
                                                   &userTokenSign, &utsd->signature);
     /* Clean up */
     UA_ByteString_clear(&userTokenSign);
-    securityPolicy->channelModule.deleteContext(tempChannelContext);
+    utpSecurityPolicy->channelModule.deleteContext(tempChannelContext);
 }
     /* Clean up */
     UA_ByteString_clear(&dataToSign);

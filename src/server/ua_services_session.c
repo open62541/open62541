@@ -415,8 +415,7 @@ Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
 
 static UA_StatusCode
 checkSignature(const UA_Server *server, const UA_SecurityPolicy *securityPolicy,
-               void *channelContext, const UA_ByteString *serverNonce,const UA_UserTokenPolicy *userTokenPolicy,
-               const UA_ExtensionObject *userToken, const UA_SignatureData *signature) {
+               void *channelContext, const UA_ByteString *serverNonce, const UA_SignatureData *signature) {
     /* Check for zero signature length */
     if(signature->signature.length == 0)
         return UA_STATUSCODE_BADAPPLICATIONSIGNATUREINVALID;
@@ -426,16 +425,6 @@ checkSignature(const UA_Server *server, const UA_SecurityPolicy *securityPolicy,
 
     /* Server certificate */
     const UA_ByteString *localCertificate = &securityPolicy->localCertificate;
-
-    if(userTokenPolicy != NULL && userToken != NULL) {
-        if(userTokenPolicy->tokenType == UA_USERTOKENTYPE_CERTIFICATE) {
-            UA_X509IdentityToken *userIdentityToken = (UA_X509IdentityToken *)
-                userToken->content.decoded.data;
-            /* Client certificate */
-            localCertificate = &userIdentityToken->certificateData;
-        }
-    }
-
     /* Data to verify is calculated by appending the serverNonce to the local certificate */
     UA_ByteString dataToVerify;
     size_t dataToVerifySize = localCertificate->length + serverNonce->length;
@@ -665,7 +654,7 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
        channel->securityMode == UA_MESSAGESECURITYMODE_SIGNANDENCRYPT) {
         response->responseHeader.serviceResult =
             checkSignature(server, channel->securityPolicy, channel->channelContext,
-                           &session->serverNonce,NULL, NULL,&request->clientSignature);
+                           &session->serverNonce, &request->clientSignature);
         if(response->responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
             UA_LOG_WARNING_SESSION(&server->config.logger, session,
                                    "ActivateSession: Client signature check failed with StatusCode %s",
@@ -768,12 +757,12 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
 
         /* If the userTokenPolicy doesn't specify a security policy the security
          * policy of the secure channel is used. */
-        UA_SecurityPolicy* securityPolicy;
+        UA_SecurityPolicy* utpSecurityPolicy;
         if(!utp->securityPolicyUri.data)
-            securityPolicy = getSecurityPolicyByUri(server, &ed->securityPolicyUri);
+            utpSecurityPolicy = getSecurityPolicyByUri(server, &ed->securityPolicyUri);
         else
-            securityPolicy = getSecurityPolicyByUri(server, &utp->securityPolicyUri);
-        if(!securityPolicy) {
+            utpSecurityPolicy = getSecurityPolicyByUri(server, &utp->securityPolicyUri);
+        if(!utpSecurityPolicy) {
             response->responseHeader.serviceResult = UA_STATUSCODE_BADINTERNALERROR;
             goto securityRejected;
         }
@@ -782,25 +771,25 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
          * the signature checking code. */
         void *tempChannelContext;
         UA_UNLOCK(&server->serviceMutex);
-        response->responseHeader.serviceResult = securityPolicy->channelModule.
-            newContext(securityPolicy, &userCertToken->certificateData, &tempChannelContext);
+        response->responseHeader.serviceResult = utpSecurityPolicy->channelModule.
+            newContext(utpSecurityPolicy, &userCertToken->certificateData, &tempChannelContext);
         UA_LOCK(&server->serviceMutex);
         if(response->responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
             UA_LOG_WARNING_SESSION(&server->config.logger, session, "ActivateSession: "
                                    "Failed to create a context for the SecurityPolicy %.*s",
-                                   (int)securityPolicy->policyUri.length,
-                                   securityPolicy->policyUri.data);
+                                   (int)utpSecurityPolicy->policyUri.length,
+                                   utpSecurityPolicy->policyUri.data);
             goto securityRejected;
         }
 
         /* Check the user token signature */
         response->responseHeader.serviceResult =
-            checkSignature(server, securityPolicy, tempChannelContext,
-                           &session->serverNonce, utp, &request->userIdentityToken, &request->userTokenSignature);
+            checkSignature(server, utpSecurityPolicy, tempChannelContext,
+                           &session->serverNonce, &request->userTokenSignature);
 
         /* Delete the temporary channel context */
         UA_UNLOCK(&server->serviceMutex);
-        securityPolicy->channelModule.deleteContext(tempChannelContext);
+        utpSecurityPolicy->channelModule.deleteContext(tempChannelContext);
         UA_LOCK(&server->serviceMutex);
         if(response->responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
             UA_LOG_WARNING_SESSION(&server->config.logger, session,

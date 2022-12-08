@@ -413,7 +413,11 @@ if(UA_ENABLE_ENCRYPTION)
     target_link_libraries(check_client_encryption ${LIBS})
     add_test_valgrind(client_encryption ${TESTS_BINARY_DIR}/check_client_encryption)
 
-    ua_add_test(client/check_client_authentication.c)
+    if(UA_ENABLE_ENCRYPTION_OPENSSL OR UA_ENABLE_ENCRYPTION_MBEDTLS)
+        ua_add_test(client/check_client_authentication.c)
+    else()
+        MESSAGE(WARNING "Certificate authentication with LibreSSL as crypto backend is not supported.")
+    endif()
 endif()
 
 if(UA_ENABLE_ENCRYPTION_MBEDTLS)

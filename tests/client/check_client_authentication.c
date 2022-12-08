@@ -114,7 +114,8 @@ START_TEST(Client_connect_certificate) {
 
     /* Set the ApplicationUri used in the certificate */
     UA_String_clear(&cc->clientDescription.applicationUri);
-    cc->clientDescription.applicationUri = UA_STRING_ALLOC("urn:open62541.server.application");
+    //cc->clientDescription.applicationUri = UA_STRING_ALLOC("urn:open62541.server.application");
+    cc->clientDescription.applicationUri = UA_STRING_ALLOC("http://test.de/root");
 
     UA_ClientConfig_setAuthenticationCert(cc, certificateAuth, privateKeyAuth);
     UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");

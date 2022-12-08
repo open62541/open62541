@@ -958,10 +958,17 @@ UA_ClientConfig_setDefaultEncryption(UA_ClientConfig *config,
 
     return UA_STATUSCODE_GOOD;
 }
+#endif
 
+#if defined(UA_ENABLE_ENCRYPTION_OPENSSL) || defined(UA_ENABLE_ENCRYPTION_MBEDTLS)
 UA_StatusCode
 UA_ClientConfig_setAuthenticationCert(UA_ClientConfig *config,
                                    UA_ByteString certificateAuth, UA_ByteString privateKeyAuth) {
+#ifdef UA_ENABLE_ENCRYPTION_LIBRESSL
+    UA_LOG_WARNING(&config->logger, UA_LOGCATEGORY_USERLAND,
+                   "Certificate authentication with LibreSSL as crypto backend is not supported.");
+    return UA_STATUSCODE_BADNOTIMPLEMENTED;
+#endif
     /* Create UserIdentityToken */
     UA_X509IdentityToken* identityToken = UA_X509IdentityToken_new();
     if(!identityToken)

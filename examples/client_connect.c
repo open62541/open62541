@@ -26,9 +26,11 @@ int main(int argc, char *argv[]) {
 #ifdef UA_ENABLE_ENCRYPTION
     char *certfile = NULL;
     char *keyfile = NULL;
+    char *trustList = NULL;
+#endif
+#if defined(UA_ENABLE_ENCRYPTION_OPENSSL) || defined(UA_ENABLE_ENCRYPTION_MBEDTLS)
     char *certAuthFile = NULL;
     char *keyAuthFile = NULL;
-    char *trustList = NULL;
 #endif
 
     /* At least one argument is required for the server uri */
@@ -75,18 +77,6 @@ int main(int argc, char *argv[]) {
             continue;
         }
 
-        if(strcmp(argv[argpos], "-certAuth") == 0) {
-            argpos++;
-            certAuthFile = argv[argpos];
-            continue;
-        }
-
-        if(strcmp(argv[argpos], "-keyAuth") == 0) {
-            argpos++;
-            keyAuthFile = argv[argpos];
-            continue;
-        }
-
         if(strcmp(argv[argpos], "-trustList") == 0) {
             argpos++;
             trustList = argv[argpos];
@@ -108,7 +98,19 @@ int main(int argc, char *argv[]) {
             continue;
         }
 #endif
+#if defined(UA_ENABLE_ENCRYPTION_OPENSSL) || defined(UA_ENABLE_ENCRYPTION_MBEDTLS)
+        if(strcmp(argv[argpos], "-certAuth") == 0) {
+            argpos++;
+            certAuthFile = argv[argpos];
+            continue;
+        }
 
+        if(strcmp(argv[argpos], "-keyAuth") == 0) {
+            argpos++;
+            keyAuthFile = argv[argpos];
+            continue;
+        }
+#endif
         usage();
         return EXIT_FAILURE;
     }
@@ -166,7 +168,7 @@ int main(int argc, char *argv[]) {
         /* Alternative */
         //retval = UA_Client_connectUsername(client, serverurl, username, password);
     }
-#ifdef UA_ENABLE_ENCRYPTION
+#if defined(UA_ENABLE_ENCRYPTION_OPENSSL) || defined(UA_ENABLE_ENCRYPTION_MBEDTLS)
     else if(certAuthFile && certfile) {
         UA_ByteString certificateAuth = loadFile(certAuthFile);
         UA_ByteString privateKeyAuth  = loadFile(keyAuthFile);
