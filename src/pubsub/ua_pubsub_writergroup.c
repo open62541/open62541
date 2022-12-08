@@ -602,6 +602,7 @@ UA_Server_WriterGroup_publish(UA_Server *server, const UA_NodeId writerGroupIden
     UA_WriterGroup *writerGroup;
     writerGroup = UA_WriterGroup_findWGbyId(server, writerGroupIdentifier);
     if(writerGroup == NULL){
+        UA_UNLOCK(&server->serviceMutex);
         return UA_STATUSCODE_BADNOTFOUND;
     }
     UA_UNLOCK(&server->serviceMutex);
@@ -616,11 +617,12 @@ UA_WriterGroup_lastPublishTimestamp(UA_Server *server, const UA_NodeId writerGro
     UA_WriterGroup *writerGroup;
     writerGroup = UA_WriterGroup_findWGbyId(server, writerGroupId);
     if(writerGroup == NULL){
+        UA_UNLOCK(&server->serviceMutex);
         return UA_STATUSCODE_BADNOTFOUND;
     }
     *timestamp = writerGroup->lastPublishTimeStamp;
-    return UA_STATUSCODE_BADNOTFOUND;
     UA_UNLOCK(&server->serviceMutex);
+    return UA_STATUSCODE_BADNOTFOUND;
 }
 
 UA_WriterGroup *

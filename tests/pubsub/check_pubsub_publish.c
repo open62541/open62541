@@ -402,7 +402,7 @@ START_TEST(GetDataSetFieldConfigurationAndCompareValues){
     } END_TEST
 
 
-START_TEST(SinglePublishDataSetField){
+START_TEST(SinglePublishDataSetFieldAndPublishTimestampTest){
         UA_WriterGroupConfig writerGroupConfig;
         memset(&writerGroupConfig, 0, sizeof(writerGroupConfig));
         writerGroupConfig.name = UA_STRING("WriterGroup 1");
@@ -440,8 +440,12 @@ START_TEST(SinglePublishDataSetField){
         dataSetFieldConfig.field.variable.publishParameters.attributeId = UA_ATTRIBUTEID_VALUE;
         UA_Server_addDataSetField(server, publishedDataSet1, &dataSetFieldConfig, NULL);
 
+        UA_DateTime currentTime = UA_DateTime_now();
         UA_WriterGroup *wg = UA_WriterGroup_findWGbyId(server, writerGroup1);
         UA_WriterGroup_publishCallback(server, wg);
+        UA_DateTime publishTime;
+        UA_WriterGroup_lastPublishTimestamp(server, writerGroup1, &publishTime);
+        ck_assert((publishTime - currentTime) < UA_DATETIME_MSEC * 100);
     } END_TEST
 
 START_TEST(PublishDataSetFieldAsDeltaFrame){
@@ -466,12 +470,6 @@ START_TEST(PublishDataSetFieldAsDeltaFrame){
             UA_WriterGroup_publishCallback(server, wg);
             UA_WriterGroup_publishCallback(server, wg);
         } END_TEST
-
-START_TEST(LastPublishTimestamp){
-//ToDo create test-case
-    } END_TEST
-
-
 
 int main(void) {
     TCase *tc_add_pubsub_writergroup = tcase_create("PubSub WriterGroup items handling");
@@ -503,9 +501,8 @@ int main(void) {
 
     TCase *tc_pubsub_publish = tcase_create("PubSub publish DataSetFields");
     tcase_add_checked_fixture(tc_pubsub_publish, setup, teardown);
-    tcase_add_test(tc_pubsub_publish, SinglePublishDataSetField);
+    tcase_add_test(tc_pubsub_publish, SinglePublishDataSetFieldAndPublishTimestampTest);
     tcase_add_test(tc_pubsub_publish, PublishDataSetFieldAsDeltaFrame);
-    tcase_add_test(tc_pubsub_publish, LastPublishTimestamp);
 
     Suite *s = suite_create("PubSub WriterGroups/Writer/Fields handling and publishing");
     suite_add_tcase(s, tc_add_pubsub_writergroup);
