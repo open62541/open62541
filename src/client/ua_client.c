@@ -65,7 +65,16 @@ UA_ClientConfig_clear(UA_ClientConfig *config) {
     UA_ApplicationDescription_clear(&config->clientDescription);
 
     UA_ExtensionObject_clear(&config->userIdentityToken);
+
+    /* Delete the SecurityPolicies for Authentication */
+    if(config->authSecurityPolicies != 0) {
+        for(size_t i = 0; i < config->authSecurityPoliciesSize; i++)
+            config->authSecurityPolicies[i].clear(&config->authSecurityPolicies[i]);
+        UA_free(config->authSecurityPolicies);
+        config->authSecurityPolicies = 0;
+    }
     UA_String_clear(&config->securityPolicyUri);
+    UA_String_clear(&config->authSecurityPolicyUri);
 
     UA_EndpointDescription_clear(&config->endpoint);
     UA_UserTokenPolicy_clear(&config->userTokenPolicy);
