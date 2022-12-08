@@ -36,13 +36,6 @@ typedef struct UA_ReserveId {
     LIST_ENTRY(UA_ReserveId) listEntry;
 } UA_ReserveId;
 
-/*
- * typedef struct UA_WriterGroup_Lookup {
-    UA_NodeId writerGroupNodeId;
-    UA_WriterGroup *writerGroupPtr;
-};
- */
-
 typedef struct UA_PubSubManager {
     UA_UInt64 defaultPublisherId;
     /* Connections and PublishedDataSets can exist alone (own lifecycle) -> top
