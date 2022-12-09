@@ -389,6 +389,8 @@ if(UA_ENABLE_ASYNCOPERATIONS)
     ua_add_test(server/check_server_asyncop.c)
 endif()
 
+ua_add_test(server/check_server_reverseconnect.c)
+
 # Test Client
 
 ua_add_test(client/check_client.c)
