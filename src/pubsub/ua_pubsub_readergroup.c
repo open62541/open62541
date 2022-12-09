@@ -303,12 +303,16 @@ UA_Server_ReaderGroup_getState(UA_Server *server, UA_NodeId readerGroupIdentifie
                                UA_PubSubState *state) {
     if((server == NULL) || (state == NULL))
         return UA_STATUSCODE_BADINVALIDARGUMENT;
+    UA_LOCK(&server->serviceMutex);
+    UA_StatusCode ret = UA_STATUSCODE_BADNOTFOUND;
     UA_ReaderGroup *currentReaderGroup =
         UA_ReaderGroup_findRGbyId(server, readerGroupIdentifier);
-    if(!currentReaderGroup)
-        return UA_STATUSCODE_BADNOTFOUND;
-    *state = currentReaderGroup->state;
-    return UA_STATUSCODE_GOOD;
+    if(currentReaderGroup) {
+        *state = currentReaderGroup->state;
+        ret = UA_STATUSCODE_GOOD;
+    }
+    UA_UNLOCK(&server->serviceMutex);
+    return ret;
 }
 
 /* ReaderGroup State */
