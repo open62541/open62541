@@ -80,10 +80,10 @@ UA_ReaderGroupConfig_clear(UA_ReaderGroupConfig *readerGroupConfig) {
 
 /* ReaderGroup Lifecycle */
 
-UA_StatusCode
-UA_Server_addReaderGroup(UA_Server *server, UA_NodeId connectionIdentifier,
-                         const UA_ReaderGroupConfig *readerGroupConfig,
-                         UA_NodeId *readerGroupIdentifier) {
+static UA_StatusCode
+addReaderGroup(UA_Server *server, UA_NodeId connectionIdentifier,
+               const UA_ReaderGroupConfig *readerGroupConfig,
+               UA_NodeId *readerGroupIdentifier) {
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
 
     /* Check for valid readergroup configuration */
@@ -185,6 +185,17 @@ UA_Server_addReaderGroup(UA_Server *server, UA_NodeId connectionIdentifier,
         retval |= UA_PubSubManager_addPubSubTopicAssign(server, newGroup, topic);
     }
     return retval;
+}
+
+UA_StatusCode
+UA_Server_addReaderGroup(UA_Server *server, UA_NodeId connectionIdentifier,
+                         const UA_ReaderGroupConfig *readerGroupConfig,
+                         UA_NodeId *readerGroupIdentifier) {
+    UA_LOCK(&server->serviceMutex);
+    UA_StatusCode res =
+        addReaderGroup(server, connectionIdentifier, readerGroupConfig, readerGroupIdentifier);
+    UA_UNLOCK(&server->serviceMutex);
+    return res;
 }
 
 UA_StatusCode
