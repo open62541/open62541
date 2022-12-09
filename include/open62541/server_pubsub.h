@@ -833,7 +833,7 @@ UA_Server_removeDataSetReader(UA_Server *server, UA_NodeId readerIdentifier);
  */
 
 /* Get configuraiton of ReaderGroup */
-UA_StatusCode UA_EXPORT
+UA_StatusCode UA_EXPORT UA_THREADSAFE
 UA_Server_ReaderGroup_getConfig(UA_Server *server, UA_NodeId readerGroupIdentifier,
                                 UA_ReaderGroupConfig *config);
 
