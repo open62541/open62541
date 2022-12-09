@@ -245,17 +245,21 @@ UA_Server_ReaderGroup_getConfig(UA_Server *server, UA_NodeId readerGroupIdentifi
     if(!config)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
 
+    UA_LOCK(&server->serviceMutex);
+
     /* Identify the readergroup through the readerGroupIdentifier */
     UA_ReaderGroup *currentReaderGroup =
         UA_ReaderGroup_findRGbyId(server, readerGroupIdentifier);
-    if(!currentReaderGroup)
+    if(!currentReaderGroup) {
+        UA_UNLOCK(&server->serviceMutex);
         return UA_STATUSCODE_BADNOTFOUND;
+    }
 
-    UA_ReaderGroupConfig tmpReaderGroupConfig;
-    /* deep copy of the actual config */
-    UA_ReaderGroupConfig_copy(&currentReaderGroup->config, &tmpReaderGroupConfig);
-    *config = tmpReaderGroupConfig;
-    return UA_STATUSCODE_GOOD;
+    UA_StatusCode ret =
+        UA_ReaderGroupConfig_copy(&currentReaderGroup->config, config);
+
+    UA_UNLOCK(&server->serviceMutex);
+    return ret;
 }
 
 static void
