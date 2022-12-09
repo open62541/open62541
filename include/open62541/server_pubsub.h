@@ -830,10 +830,10 @@ UA_Server_freezeReaderGroupConfiguration(UA_Server *server, const UA_NodeId read
 UA_StatusCode UA_EXPORT
 UA_Server_unfreezeReaderGroupConfiguration(UA_Server *server, const UA_NodeId readerGroupId);
 
-UA_StatusCode UA_EXPORT
+UA_StatusCode UA_EXPORT UA_THREADSAFE
 UA_Server_setReaderGroupOperational(UA_Server *server, const UA_NodeId readerGroupId);
 
-UA_StatusCode UA_EXPORT
+UA_StatusCode UA_EXPORT UA_THREADSAFE
 UA_Server_setReaderGroupDisabled(UA_Server *server, const UA_NodeId readerGroupId);
 
 #ifdef UA_ENABLE_PUBSUB_ENCRYPTION
