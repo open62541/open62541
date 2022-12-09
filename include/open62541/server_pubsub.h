@@ -843,7 +843,7 @@ UA_Server_ReaderGroup_getState(UA_Server *server, UA_NodeId readerGroupIdentifie
                                UA_PubSubState *state);
 
 /* Add ReaderGroup to the created connection */
-UA_StatusCode UA_EXPORT
+UA_StatusCode UA_EXPORT UA_THREADSAFE
 UA_Server_addReaderGroup(UA_Server *server, UA_NodeId connectionIdentifier,
                          const UA_ReaderGroupConfig *readerGroupConfig,
                          UA_NodeId *readerGroupIdentifier);
