@@ -716,7 +716,7 @@ UA_Server_DataSetReader_getConfig(UA_Server *server, UA_NodeId dataSetReaderIden
                                   UA_DataSetReaderConfig *config);
 
 /* Get state of DataSetReader */
-UA_StatusCode UA_EXPORT
+UA_StatusCode UA_EXPORT UA_THREADSAFE
 UA_Server_DataSetReader_getState(UA_Server *server, UA_NodeId dataSetReaderIdentifier,
                                  UA_PubSubState *state);
 

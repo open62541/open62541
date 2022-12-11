@@ -809,15 +809,18 @@ UA_DataSetReaderConfig_clear(UA_DataSetReaderConfig *cfg) {
 
 UA_StatusCode
 UA_Server_DataSetReader_getState(UA_Server *server, UA_NodeId dataSetReaderIdentifier,
-                               UA_PubSubState *state) {
-
-    if((server == NULL) || (state == NULL))
+                                 UA_PubSubState *state) {
+    if(!server || !state)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
-    UA_DataSetReader *currentDataSetReader =
-        UA_ReaderGroup_findDSRbyId(server, dataSetReaderIdentifier);
-    if(currentDataSetReader == NULL)
-        return UA_STATUSCODE_BADNOTFOUND;
-    *state = currentDataSetReader->state;
+
+    UA_LOCK(&server->serviceMutex);
+    UA_StatusCode res = UA_STATUSCODE_BADNOTFOUND;
+    UA_DataSetReader *dsr = UA_ReaderGroup_findDSRbyId(server, dataSetReaderIdentifier);
+    if(dsr) {
+        res = UA_STATUSCODE_GOOD;
+        *state = dsr->state;
+    }
+    UA_UNLOCK(&server->serviceMutex);
     return UA_STATUSCODE_GOOD;
 }
 
