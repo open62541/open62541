@@ -950,10 +950,13 @@ UDP_sendWithConnection(UA_ConnectionManager *cm, uintptr_t connectionId,
     tmp_poll_fd.fd = (UA_FD)connectionId;
     tmp_poll_fd.events = UA_POLLOUT;
 
+    /* Look up the registered UDP socket */
+    UDP_FD *ufd = (UDP_FD *)UDP_findRegisteredFD((UDPConnectionManager *)cm, connectionId);
+    if(!ufd)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
     /* Send the full buffer. This may require several calls to send */
     size_t nWritten = 0;
-
-    UDP_FD *ufd = (UDP_FD *) UDP_findRegisteredFD((UDPConnectionManager *)cm, connectionId);
     do {
         ssize_t n = 0;
         do {
