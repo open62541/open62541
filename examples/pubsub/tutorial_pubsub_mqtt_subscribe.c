@@ -4,15 +4,11 @@
  * Copyright (c) 2022 Fraunhofer IOSB (Author: Noel Graf)
  */
 
-#include <open62541/plugin/log_stdout.h>
 #include <open62541/server.h>
+#include <open62541/plugin/log_stdout.h>
 #include <open62541/server_config_default.h>
-#include <open62541/plugin/securitypolicy_default.h>
 
 #include <signal.h>
-
-#include <open62541/plugin/pubsub_mqtt.h>
-#include "ua_pubsub_manager.h"
 
 #define CONNECTION_NAME               "MQTT Subscriber Connection"
 #define TRANSPORT_PROFILE_URI         "http://opcfoundation.org/UA-Profile/Transport/pubsub-mqtt"
@@ -86,8 +82,7 @@ addPubSubConnection(UA_Server *server, char *addressUrl) {
                          &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
     /* Changed to static publisherId from random generation to identify
      * the publisher on Subscriber side */
-    connectionConfig.publisherIdType = UA_PUBLISHERIDTYPE_UINT16;
-    connectionConfig.publisherId.uint16 = 2234;
+    connectionConfig.publisherId = UA_PUBLISHERID_UINT16(2234);
 
     /* configure options, set mqtt client id */
     const int connectionOptionsCount = 1
@@ -126,8 +121,8 @@ addPubSubConnection(UA_Server *server, char *addressUrl) {
     UA_Variant_setScalar(&connectionOptions[connectionOptionIndex++].value, &mqttCaFile, &UA_TYPES[UA_TYPES_STRING]);
 #endif
 
-    connectionConfig.connectionProperties = connectionOptions;
-    connectionConfig.connectionPropertiesSize = connectionOptionIndex;
+    connectionConfig.connectionProperties.map = connectionOptions;
+    connectionConfig.connectionProperties.mapSize = connectionOptionIndex;
 
     retval |= UA_Server_addPubSubConnection(server, &connectionConfig, &connectionIdent);
 
@@ -222,9 +217,7 @@ addDataSetReader(UA_Server *server) {
     /* The following parameters are used to show that the data published by
      * tutorial_pubsub_mqtt_publish.c is being subscribed and is being updated in
      * the information model */
-    UA_UInt16 publisherIdentifier = 2234;
-    readerConfig.publisherId.type = &UA_TYPES[UA_TYPES_UINT16];
-    readerConfig.publisherId.data = &publisherIdentifier;
+    readerConfig.publisherId      = UA_PUBLISHERID_UINT16(2234);
     readerConfig.writerGroupId    = 100;
     readerConfig.dataSetWriterId  = 62541;
 #ifdef UA_ENABLE_PUBSUB_MONITORING
@@ -400,8 +393,6 @@ int main(int argc, char **argv) {
     UA_PubSubSecurityPolicy_Aes128Ctr(config->pubSubConfig.securityPolicies,
                                       &config->logger);
 #endif
-
-    UA_ServerConfig_addPubSubTransportLayer(config, UA_PubSubTransportLayerMQTT());
 
     /* API calls */
     /* Add PubSubConnection */

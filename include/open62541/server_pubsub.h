@@ -150,28 +150,48 @@ typedef enum {
     UA_PUBLISHERIDTYPE_STRING = 4
 } UA_PublisherIdType;
 
-/* Publisher Id
-    Valid types are defined in Part 14, 7.2.2.2.2 NetworkMessage Layout:
-
-    Bit range 0-2: PublisherId Type
-    000 The PublisherId is of DataType Byte This is the default value if ExtendedFlags1 is omitted
-    001 The PublisherId is of DataType UInt16
-    010 The PublisherId is of DataType UInt32
-    011 The PublisherId is of DataType UInt64
-    100 The PublisherId is of DataType String
-*/
-typedef union {
-    UA_Byte byte;
-    UA_UInt16 uint16;
-    UA_UInt32 uint32;
-    UA_UInt64 uint64;
-    UA_String string;
+typedef struct {
+    UA_PublisherIdType idType;
+    union {
+        UA_Byte byte;
+        UA_UInt16 uint16;
+        UA_UInt32 uint32;
+        UA_UInt64 uint64;
+        UA_String string;
+    } id;
 } UA_PublisherId;
+
+void UA_EXPORT
+UA_PublisherId_init(UA_PublisherId *id);
+
+void UA_EXPORT
+UA_PublisherId_clear(UA_PublisherId *id);
+
+UA_StatusCode UA_EXPORT
+UA_PublisherId_copy(const UA_PublisherId *src, UA_PublisherId *dst);
+
+UA_Boolean UA_EXPORT
+UA_PublisherId_equal(const UA_PublisherId *id1, const UA_PublisherId *id2);
+
+UA_INLINABLE(UA_PublisherId UA_PUBLISHERID_BYTE(UA_Byte b), {
+    UA_PublisherId id; id.idType = UA_PUBLISHERIDTYPE_BYTE;
+    id.id.byte = b; return id; })
+UA_INLINABLE(UA_PublisherId UA_PUBLISHERID_UINT16(UA_UInt16 ui16), {
+    UA_PublisherId id; id.idType = UA_PUBLISHERIDTYPE_UINT16;
+    id.id.uint16 = ui16; return id; })
+UA_INLINABLE(UA_PublisherId UA_PUBLISHERID_UINT32(UA_UInt32 ui32), {
+    UA_PublisherId id; id.idType = UA_PUBLISHERIDTYPE_UINT32;
+    id.id.uint32 = ui32; return id; })
+UA_INLINABLE(UA_PublisherId UA_PUBLISHERID_UINT64(UA_UInt64 ui64), {
+    UA_PublisherId id; id.idType = UA_PUBLISHERIDTYPE_UINT64;
+    id.id.uint64 = ui64; return id; })
+UA_INLINABLE(UA_PublisherId UA_PUBLISHERID_STRING(char *s), {
+    UA_PublisherId id; id.idType = UA_PUBLISHERIDTYPE_STRING;
+    id.id.string = UA_STRING(s); return id; })
 
 typedef struct {
     UA_String name;
     UA_Boolean enabled;
-    UA_PublisherIdType publisherIdType;
     UA_PublisherId publisherId;
     UA_String transportProfileUri;
     UA_Variant address;
@@ -687,7 +707,7 @@ typedef enum {
 /* Parameters for PubSub DataSetReader Configuration */
 typedef struct {
     UA_String name;
-    UA_Variant publisherId;
+    UA_PublisherId publisherId;
     UA_UInt16 writerGroupId;
     UA_UInt16 dataSetWriterId;
     UA_DataSetMetaDataType dataSetMetaData;

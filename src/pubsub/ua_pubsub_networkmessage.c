@@ -111,18 +111,18 @@ UA_NetworkMessage_updateBufferedNwMessage(UA_NetworkMessageOffsetBuffer *buffer,
                 return rv;
             break;
         case UA_PUBSUB_OFFSETTYPE_PUBLISHERID:
-            switch (buffer->nm->publisherIdType) {
+            switch (buffer->nm->publisherId.idType) {
             case UA_PUBLISHERIDTYPE_BYTE:
-                rv = UA_Byte_decodeBinary(src, &offset, &(buffer->nm->publisherId.byte));
+                rv = UA_Byte_decodeBinary(src, &offset, &(buffer->nm->publisherId.id.byte));
                 break;
             case UA_PUBLISHERIDTYPE_UINT16:
-                rv = UA_UInt16_decodeBinary(src, &offset, &(buffer->nm->publisherId.uint16));
+                rv = UA_UInt16_decodeBinary(src, &offset, &(buffer->nm->publisherId.id.uint16));
                 break;
             case UA_PUBLISHERIDTYPE_UINT32:
-                rv = UA_UInt32_decodeBinary(src, &offset, &(buffer->nm->publisherId.uint32));
+                rv = UA_UInt32_decodeBinary(src, &offset, &(buffer->nm->publisherId.id.uint32));
                 break;
             case UA_PUBLISHERIDTYPE_UINT64:
-                rv = UA_UInt64_decodeBinary(src, &offset, &(buffer->nm->publisherId.uint64));
+                rv = UA_UInt64_decodeBinary(src, &offset, &(buffer->nm->publisherId.id.uint64));
                 break;
             default:
                 // UA_PUBLISHERIDTYPE_STRING is not supported because of UA_PUBSUB_RT_FIXED_SIZE
@@ -205,7 +205,7 @@ UA_NetworkMessageHeader_encodeBinary(const UA_NetworkMessage *src, UA_Byte **buf
     UA_CHECK_STATUS(rv, return rv);
     // ExtendedFlags1
     if(UA_NetworkMessage_ExtendedFlags1Enabled(src)) {
-        v = (UA_Byte)src->publisherIdType;
+        v = (UA_Byte)src->publisherId.idType;
 
         if(src->dataSetClassIdEnabled)
             v |= NM_DATASET_CLASSID_ENABLED_MASK;
@@ -244,27 +244,22 @@ UA_NetworkMessageHeader_encodeBinary(const UA_NetworkMessage *src, UA_Byte **buf
 
     // PublisherId
     if(src->publisherIdEnabled) {
-        switch (src->publisherIdType) {
+        switch (src->publisherId.idType) {
         case UA_PUBLISHERIDTYPE_BYTE:
-            rv = UA_Byte_encodeBinary(&(src->publisherId.byte), bufPos, bufEnd);
+            rv = UA_Byte_encodeBinary(&src->publisherId.id.byte, bufPos, bufEnd);
             break;
-
         case UA_PUBLISHERIDTYPE_UINT16:
-            rv = UA_UInt16_encodeBinary(&(src->publisherId.uint16), bufPos, bufEnd);
+            rv = UA_UInt16_encodeBinary(&src->publisherId.id.uint16, bufPos, bufEnd);
             break;
-
         case UA_PUBLISHERIDTYPE_UINT32:
-            rv = UA_UInt32_encodeBinary(&(src->publisherId.uint32), bufPos, bufEnd);
+            rv = UA_UInt32_encodeBinary(&src->publisherId.id.uint32, bufPos, bufEnd);
             break;
-
         case UA_PUBLISHERIDTYPE_UINT64:
-            rv = UA_UInt64_encodeBinary(&(src->publisherId.uint64), bufPos, bufEnd);
+            rv = UA_UInt64_encodeBinary(&src->publisherId.id.uint64, bufPos, bufEnd);
             break;
-
         case UA_PUBLISHERIDTYPE_STRING:
-            rv = UA_String_encodeBinary(&(src->publisherId.string), bufPos, bufEnd);
+            rv = UA_String_encodeBinary(&src->publisherId.id.string, bufPos, bufEnd);
             break;
-
         default:
             rv = UA_STATUSCODE_BADINTERNALERROR;
             break;
@@ -552,7 +547,7 @@ UA_NetworkMessageHeader_decodeBinary(const UA_ByteString *src, size_t *offset, U
         rv = UA_Byte_decodeBinary(src, offset, &decoded);
         UA_CHECK_STATUS(rv, return rv);
 
-        dst->publisherIdType = (UA_PublisherIdType)(decoded & NM_PUBLISHER_ID_MASK);
+        dst->publisherId.idType = (UA_PublisherIdType)(decoded & NM_PUBLISHER_ID_MASK);
         if((decoded & NM_DATASET_CLASSID_ENABLED_MASK) != 0)
             dst->dataSetClassIdEnabled = true;
 
@@ -583,27 +578,22 @@ UA_NetworkMessageHeader_decodeBinary(const UA_ByteString *src, size_t *offset, U
     }
 
     if(dst->publisherIdEnabled) {
-        switch (dst->publisherIdType) {
+        switch (dst->publisherId.idType) {
             case UA_PUBLISHERIDTYPE_BYTE:
-                rv = UA_Byte_decodeBinary(src, offset, &(dst->publisherId.byte));
+                rv = UA_Byte_decodeBinary(src, offset, &(dst->publisherId.id.byte));
                 break;
-
             case UA_PUBLISHERIDTYPE_UINT16:
-                rv = UA_UInt16_decodeBinary(src, offset, &(dst->publisherId.uint16));
+                rv = UA_UInt16_decodeBinary(src, offset, &(dst->publisherId.id.uint16));
                 break;
-
             case UA_PUBLISHERIDTYPE_UINT32:
-                rv = UA_UInt32_decodeBinary(src, offset, &(dst->publisherId.uint32));
+                rv = UA_UInt32_decodeBinary(src, offset, &(dst->publisherId.id.uint32));
                 break;
-
             case UA_PUBLISHERIDTYPE_UINT64:
-                rv = UA_UInt64_decodeBinary(src, offset, &(dst->publisherId.uint64));
+                rv = UA_UInt64_decodeBinary(src, offset, &(dst->publisherId.id.uint64));
                 break;
-
             case UA_PUBLISHERIDTYPE_STRING:
-                rv = UA_String_decodeBinary(src, offset, &(dst->publisherId.string));
+                rv = UA_String_decodeBinary(src, offset, &(dst->publisherId.id.string));
                 break;
-
             default:
                 rv = UA_STATUSCODE_BADINTERNALERROR;
                 break;
@@ -949,29 +939,24 @@ UA_NetworkMessage_calcSizeBinary(UA_NetworkMessage *p,
             size_t pos = offsetBuffer->offsetsSize;
             if(!increaseOffsetArray(offsetBuffer))
                 return 0;
-
             offsetBuffer->offsets[pos].offset = size;
             offsetBuffer->offsets[pos].contentType = UA_PUBSUB_OFFSETTYPE_PUBLISHERID;
         }
-        switch (p->publisherIdType) {
+        switch (p->publisherId.idType) {
             case UA_PUBLISHERIDTYPE_BYTE:
-                size += UA_Byte_calcSizeBinary(&p->publisherId.byte);
+                size += UA_Byte_calcSizeBinary(&p->publisherId.id.byte);
                 break;
-
             case UA_PUBLISHERIDTYPE_UINT16:
-                size += UA_UInt16_calcSizeBinary(&p->publisherId.uint16);
+                size += UA_UInt16_calcSizeBinary(&p->publisherId.id.uint16);
                 break;
-
             case UA_PUBLISHERIDTYPE_UINT32:
-                size += UA_UInt32_calcSizeBinary(&p->publisherId.uint32);
+                size += UA_UInt32_calcSizeBinary(&p->publisherId.id.uint32);
                 break;
-
             case UA_PUBLISHERIDTYPE_UINT64:
-                size += UA_UInt64_calcSizeBinary(&p->publisherId.uint64);
+                size += UA_UInt64_calcSizeBinary(&p->publisherId.id.uint64);
                 break;
-
             case UA_PUBLISHERIDTYPE_STRING:
-                size += UA_String_calcSizeBinary(&p->publisherId.string);
+                size += UA_String_calcSizeBinary(&p->publisherId.id.string);
                 break;
         }
     }
@@ -1128,11 +1113,7 @@ UA_NetworkMessage_clear(UA_NetworkMessage* p) {
 
     UA_ByteString_clear(&p->securityFooter);
     UA_String_clear(&p->messageId);
-
-    if(p->publisherIdEnabled &&
-       p->publisherIdType == UA_PUBLISHERIDTYPE_STRING)
-       UA_String_clear(&p->publisherId.string);
-
+    UA_PublisherId_clear(&p->publisherId);
     memset(p, 0, sizeof(UA_NetworkMessage));
 }
 
@@ -1140,7 +1121,7 @@ UA_Boolean
 UA_NetworkMessage_ExtendedFlags1Enabled(const UA_NetworkMessage* src) {
     UA_Boolean retval = false;
 
-    if((src->publisherIdType != UA_PUBLISHERIDTYPE_BYTE)
+    if((src->publisherId.idType != UA_PUBLISHERIDTYPE_BYTE)
         || src->dataSetClassIdEnabled
         || src->securityEnabled
         || src->timestampEnabled
@@ -1826,6 +1807,45 @@ UA_NetworkMessageOffsetBuffer_clear(UA_NetworkMessageOffsetBuffer *nmob) {
     memset(nmob, 0, sizeof(UA_NetworkMessageOffsetBuffer));
 }
 
+void
+UA_PublisherId_init(UA_PublisherId *id) {
+    memset(id, 0, sizeof(UA_PublisherId));
+}
+
+void
+UA_PublisherId_clear(UA_PublisherId *id) {
+    if(id->idType == UA_PUBLISHERIDTYPE_STRING)
+        UA_String_clear(&id->id.string);
+    UA_PublisherId_init(id);
+}
+
+UA_StatusCode
+UA_PublisherId_copy(const UA_PublisherId *src, UA_PublisherId *dst) {
+    *dst = *src;
+    if(src->idType == UA_PUBLISHERIDTYPE_STRING) {
+        UA_StatusCode res = UA_String_copy(&src->id.string, &dst->id.string);
+        if(res != UA_STATUSCODE_GOOD) {
+            UA_PublisherId_clear(dst);
+            return res;
+        }
+    }
+    return UA_STATUSCODE_GOOD;
+}
+
+UA_Boolean
+UA_PublisherId_equal(const UA_PublisherId *id1, const UA_PublisherId *id2) {
+    if(id1->idType != id2->idType)
+        return false;
+    switch(id1->idType) {
+    case UA_PUBLISHERIDTYPE_BYTE: return id1->id.byte == id2->id.byte;
+    case UA_PUBLISHERIDTYPE_UINT16 : return id1->id.uint16 == id2->id.uint16;
+    case UA_PUBLISHERIDTYPE_UINT32 : return id1->id.uint32 == id2->id.uint32;
+    case UA_PUBLISHERIDTYPE_UINT64 : return id1->id.uint64 == id2->id.uint64;
+    case UA_PUBLISHERIDTYPE_STRING: return UA_String_equal(&id1->id.string, &id2->id.string);
+    default: break;
+    }
+    return false;
+}
 
 #endif /* UA_ENABLE_PUBSUB */
 

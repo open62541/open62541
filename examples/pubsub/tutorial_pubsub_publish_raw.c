@@ -8,11 +8,9 @@
  *
  */
 
-#include <open62541/plugin/log_stdout.h>
-#include <open62541/plugin/pubsub_ethernet.h>
-#include <open62541/plugin/pubsub_udp.h>
 #include <open62541/server.h>
 #include <open62541/server_config_default.h>
+#include <open62541/plugin/log_stdout.h>
 
 #include <signal.h>
 
@@ -92,8 +90,7 @@ addPubSubConnection(UA_Server *server, UA_String *transportProfile,
                          &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
     /* Changed to static publisherId from random generation to identify
      * the publisher on Subscriber side */
-    connectionConfig.publisherIdType = UA_PUBLISHERIDTYPE_UINT16;
-    connectionConfig.publisherId.uint16 = 2234;
+    connectionConfig.publisherId = UA_PUBLISHERID_UINT16(2234);
     UA_Server_addPubSubConnection(server, &connectionConfig, &connectionIdent);
 }
 
@@ -292,13 +289,6 @@ static int run(UA_String *transportProfile,
     add3DPointDataType(server);
     add3DPointVariableType(server);
     add3DPointVariable(server);
-
-    /* Details about the connection configuration and handling are located in
-     * the pubsub connection tutorial */
-    UA_ServerConfig_addPubSubTransportLayer(config, UA_PubSubTransportLayerUDPMP());
-#ifdef UA_ENABLE_PUBSUB_ETH_UADP
-    UA_ServerConfig_addPubSubTransportLayer(config, UA_PubSubTransportLayerEthernet());
-#endif
 
     //add string variable to information model
     UA_VariableAttributes variableAttributes = UA_VariableAttributes_default;

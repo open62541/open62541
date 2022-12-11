@@ -1,14 +1,13 @@
 /* This work is licensed under a Creative Commons CCZero 1.0 Universal License.
  * See http://creativecommons.org/publicdomain/zero/1.0/ for more information. */
 
-#include <open62541/plugin/log_stdout.h>
-#include <open62541/plugin/pubsub_udp.h>
 #include <open62541/server.h>
+#include <open62541/server_pubsub.h>
 #include <open62541/server_config_default.h>
+#include <open62541/plugin/log_stdout.h>
 
 #include <signal.h>
 #include <stdlib.h>
-#include <open62541/server_pubsub.h>
 
 /* possible options: PUBSUB_CONFIG_FASTPATH_NONE, PUBSUB_CONFIG_FASTPATH_FIXED_OFFSETS, PUBSUB_CONFIG_FASTPATH_STATIC_VALUES */
 #define PUBSUB_CONFIG_FASTPATH_FIXED_OFFSETS
@@ -52,14 +51,15 @@ addMinimalPubSubConfiguration(UA_Server * server){
     connectionConfig.enabled = UA_TRUE;
     UA_NetworkAddressUrlDataType networkAddressUrl = {UA_STRING_NULL , UA_STRING("opc.udp://224.0.0.22:4840/")};
     UA_Variant_setScalar(&connectionConfig.address, &networkAddressUrl, &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
-    connectionConfig.publisherIdType = UA_PUBLISHERIDTYPE_UINT16;
-    connectionConfig.publisherId.uint16 = 2234;
+    connectionConfig.publisherId = UA_PUBLISHERID_UINT16(2234);
     UA_Server_addPubSubConnection(server, &connectionConfig, &connectionIdentifier);
+
     /* Add one PublishedDataSet */
     UA_PublishedDataSetConfig publishedDataSetConfig;
     memset(&publishedDataSetConfig, 0, sizeof(UA_PublishedDataSetConfig));
     publishedDataSetConfig.publishedDataSetType = UA_PUBSUB_DATASET_PUBLISHEDITEMS;
     publishedDataSetConfig.name = UA_STRING("Demo PDS");
+
     /* Add one DataSetField to the PDS */
     UA_Server_addPublishedDataSet(server, &publishedDataSetConfig, &publishedDataSetIdent);
 }
@@ -100,7 +100,6 @@ int main(void) {
     UA_Server *server = UA_Server_new();
     UA_ServerConfig *config = UA_Server_getConfig(server);
     UA_ServerConfig_setDefault(config);
-    UA_ServerConfig_addPubSubTransportLayer(config, UA_PubSubTransportLayerUDPMP());
 
     /*Add standard PubSub configuration (no difference to the std. configuration)*/
     addMinimalPubSubConfiguration(server);

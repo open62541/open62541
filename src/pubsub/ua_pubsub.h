@@ -423,6 +423,10 @@ UA_DataSetReader_process(UA_Server *server,
 UA_StatusCode
 removeDataSetReader(UA_Server *server, UA_NodeId readerIdentifier);
 
+UA_StatusCode
+checkReaderIdentifier(UA_Server *server, UA_NetworkMessage *msg,
+                      UA_DataSetReader *reader, UA_ReaderGroupConfig *readerGroupConfig);
+
 /* Copy the configuration of DataSetReader */
 UA_StatusCode UA_DataSetReaderConfig_copy(const UA_DataSetReaderConfig *src,
                                           UA_DataSetReaderConfig *dst);

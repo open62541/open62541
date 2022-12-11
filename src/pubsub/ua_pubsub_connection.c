@@ -223,7 +223,7 @@ decodeNetworkMessage(UA_Server *server, UA_ByteString *buffer, size_t *pos,
      * (there could be multiple) */
     LIST_FOREACH(readerGroup, &connection->readerGroups, listEntry) {
         LIST_FOREACH(reader, &readerGroup->readers, listEntry) {
-            UA_StatusCode retval = checkReaderIdentifier(server, nm, reader, readerGroup->config);
+            UA_StatusCode retval = checkReaderIdentifier(server, nm, reader, &readerGroup->config);
             if(retval != UA_STATUSCODE_GOOD)
                 continue;
             processed = true;
@@ -376,11 +376,11 @@ PubSubConnectionCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
     if(res != UA_STATUSCODE_GOOD) {
         UA_LOG_WARNING_CONNECTION(&server->config.logger, psc,
                                   "Verify, decrypt and decode network message failed.");
-        goto done;
+        goto cleanup;
     }
 
     /* Check if the publisher ID is enabled */
-    if(!nm.publisherIdEnabled) {
+    if(!UA_PublisherId_equal(&psc->config.publisherId, &nm.publisherId)) {
         UA_LOG_INFO_CONNECTION(&server->config.logger, psc,
                                "Cannot process DataSetReader without PublisherId");
         goto cleanup;
@@ -412,9 +412,7 @@ UA_PubSubConnectionConfig_copy(const UA_PubSubConnectionConfig *src,
                                UA_PubSubConnectionConfig *dst) {
     UA_StatusCode res = UA_STATUSCODE_GOOD;
     memcpy(dst, src, sizeof(UA_PubSubConnectionConfig));
-    if (src->publisherIdType == UA_PUBLISHERIDTYPE_STRING) {
-        res |= UA_String_copy(&src->publisherId.string, &dst->publisherId.string);
-    }
+    res |= UA_PublisherId_copy(&src->publisherId, &dst->publisherId);
     res |= UA_String_copy(&src->name, &dst->name);
     res |= UA_Variant_copy(&src->address, &dst->address);
     res |= UA_String_copy(&src->transportProfileUri, &dst->transportProfileUri);
@@ -451,8 +449,7 @@ UA_PubSubConnection_findConnectionbyId(UA_Server *server, UA_NodeId connectionId
 
 void
 UA_PubSubConnectionConfig_clear(UA_PubSubConnectionConfig *connectionConfig) {
-    if(connectionConfig->publisherIdType == UA_PUBLISHERIDTYPE_STRING)
-        UA_String_clear(&connectionConfig->publisherId.string);
+    UA_PublisherId_clear(&connectionConfig->publisherId);
     UA_String_clear(&connectionConfig->name);
     UA_String_clear(&connectionConfig->transportProfileUri);
     UA_Variant_clear(&connectionConfig->connectionTransportSettings);

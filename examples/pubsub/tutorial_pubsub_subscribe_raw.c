@@ -12,22 +12,12 @@
 #define METADATA_SOURCE_SERVER "opc.tcp://localhost:4840"
 #define METADATA_DATASET_NAME "Demo PDS"
 
-
 #include <open62541/plugin/log_stdout.h>
-#include <open62541/plugin/pubsub_udp.h>
 #include <open62541/server.h>
 #include <open62541/server_config_default.h>
-#include <open62541/types_generated.h>
-#include "ua_pubsub.h"
-
-#ifdef UA_ENABLE_PUBSUB_ETH_UADP
-#include <open62541/plugin/pubsub_ethernet.h>
-#endif
 
 #include <open62541/client_config_default.h>
 #include <open62541/client_highlevel.h>
-
-#include <server/ua_server_internal.h>
 
 #include <signal.h>
 #include <stdio.h>
@@ -62,13 +52,8 @@ addPubSubConnection(UA_Server *server, UA_String *transportProfile,
     connectionConfig.enabled = UA_TRUE;
     UA_Variant_setScalar(&connectionConfig.address, networkAddressUrl,
                          &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
-    connectionConfig.publisherIdType = UA_PUBLISHERIDTYPE_UINT32;
-    connectionConfig.publisherId.uint32 = UA_UInt32_random();
+    connectionConfig.publisherId = UA_PUBLISHERID_UINT32(UA_UInt32_random());
     retval |= UA_Server_addPubSubConnection (server, &connectionConfig, &connectionIdentifier);
-    if (retval != UA_STATUSCODE_GOOD) {
-        return retval;
-    }
-    retval |= UA_PubSubConnection_regist(server, &connectionIdentifier, NULL);
     return retval;
 }
 
@@ -104,9 +89,7 @@ addDataSetReader(UA_Server *server) {
     /* The following parameters are used to show that the data published by
      * tutorial_pubsub_publish.c is being subscribed and is being updated in
      * the information model */
-    UA_UInt16 publisherIdentifier = 2234;
-    readerConfig.publisherId.type = &UA_TYPES[UA_TYPES_UINT16];
-    readerConfig.publisherId.data = &publisherIdentifier;
+    readerConfig.publisherId = UA_PUBLISHERID_UINT16(2234);
     readerConfig.writerGroupId    = 100;
     readerConfig.dataSetWriterId  = 62541;
 
@@ -263,7 +246,7 @@ UA_Server_DataSetReader_getMetaDataFromRemote(UA_Server *server, UA_String remot
     UA_BrowseRequest_clear(&browseRequest);
 
     if(UA_NodeId_isNull(&resultMetaDataNodeId)){
-        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER, "Unable to request metadata from remote server!");
+        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "Unable to request metadata from remote server!");
     } else {
         UA_Variant value;
         retval = UA_Client_readValueAttribute(client, resultMetaDataNodeId, &value);
@@ -271,7 +254,7 @@ UA_Server_DataSetReader_getMetaDataFromRemote(UA_Server *server, UA_String remot
             UA_DataSetMetaDataType_copy((UA_DataSetMetaDataType *) value.data, dsMetaData);
         }
         UA_Variant_clear(&value);
-        UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_SERVER, "Found requested Metadata node");
+        UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "Found requested Metadata node");
     }
     UA_Client_delete(client);
     return retval;
@@ -287,7 +270,7 @@ collectDataSetMetaDataFromServer(UA_Server *server, UA_DataSetMetaDataType *pMet
                                                   UA_QUALIFIEDNAME(0, METADATA_DATASET_NAME),
                                                   pMetaData);
     if(getMetaDataResult != UA_STATUSCODE_GOOD){
-        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER, "Unable to get metadata from remote server");
+        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "Unable to get metadata from remote server");
         return;
     }
     printDataSetMetaDataType(pMetaData);
@@ -332,15 +315,6 @@ run(UA_String *transportProfile, UA_NetworkAddressUrlDataType *networkAddressUrl
     config->customDataTypes = &customDataTypes;
 
     add3DPointDataType(server);
-
-    /* Add the PubSub network layer implementation to the server config.
-     * The TransportLayer is acting as factory to create new connections
-     * on runtime. Details about the PubSubTransportLayer can be found inside the
-     * tutorial_pubsub_connection */
-    UA_ServerConfig_addPubSubTransportLayer(config, UA_PubSubTransportLayerUDPMP());
-#ifdef UA_ENABLE_PUBSUB_ETH_UADP
-    UA_ServerConfig_addPubSubTransportLayer(config, UA_PubSubTransportLayerEthernet());
-#endif
 
     /* API calls */
     /* Add PubSubConnection */

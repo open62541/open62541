@@ -141,8 +141,7 @@ START_TEST(AddSingleConnectionWithMaximalConfiguration){
     connectionConf.name = UA_STRING("MQTT Connection");
     connectionConf.transportProfileUri = UA_STRING("http://opcfoundation.org/UA-Profile/Transport/pubsub-mqtt");
     connectionConf.enabled = true;
-    connectionConf.publisherIdType = UA_PUBLISHERIDTYPE_UINT32;
-    connectionConf.publisherId.uint32 = 223344;
+    connectionConf.publisherId = UA_PUBLISHERID_UINT32(223344);
     connectionConf.connectionProperties.mapSize = 3;
     connectionConf.connectionProperties.map = connectionOptions;
     connectionConf.address = address;
@@ -174,8 +173,7 @@ START_TEST(GetMaximalConnectionConfigurationAndCompareValues){
     connectionConf.name = UA_STRING("MQTT Connection");
     connectionConf.transportProfileUri = UA_STRING("http://opcfoundation.org/UA-Profile/Transport/pubsub-mqtt");
     connectionConf.enabled = true;
-    connectionConf.publisherIdType = UA_PUBLISHERIDTYPE_UINT32;
-    connectionConf.publisherId.uint32 = 223344;
+    connectionConf.publisherId = UA_PUBLISHERID_UINT32(223344);
     connectionConf.connectionProperties.mapSize = 3;
     connectionConf.connectionProperties.map = connectionOptions;
     connectionConf.address = address;

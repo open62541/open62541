@@ -51,8 +51,7 @@ static void setup(void) {
                          &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
     /* Changed to static publisherId from random generation to identify
      * the publisher on Subscriber side */
-    connectionConfig.publisherIdType = UA_PUBLISHERIDTYPE_UINT16;
-    connectionConfig.publisherId.uint16 = 2234;
+    connectionConfig.publisherId = UA_PUBLISHERID_UINT16(2234);
 
     /* configure options, set mqtt client id */
     const int connectionOptionsCount = 1;
@@ -242,9 +241,7 @@ START_TEST(SinglePublishSubscribeDateTime){
         // add DataSetReader
         memset (&readerConfig, 0, sizeof(UA_DataSetReaderConfig));
         readerConfig.name = UA_STRING("DataSet Reader 1");
-        UA_UInt32 publisherIdentifier = 2234;
-        readerConfig.publisherId.type = &UA_TYPES[UA_TYPES_UINT32];
-        readerConfig.publisherId.data = &publisherIdentifier;
+        readerConfig.publisherId = UA_PUBLISHERID_UINT32(2234);
         readerConfig.writerGroupId    = 100;
         readerConfig.dataSetWriterId  = 62541;
 
