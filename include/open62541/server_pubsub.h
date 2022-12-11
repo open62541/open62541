@@ -683,7 +683,7 @@ typedef struct {
 } UA_TargetVariables;
 
 /* Return Status Code after creating TargetVariables in Subscriber AddressSpace */
-UA_StatusCode UA_EXPORT
+UA_StatusCode UA_EXPORT UA_THREADSAFE
 UA_Server_DataSetReader_createTargetVariables(UA_Server *server,
                                               UA_NodeId dataSetReaderIdentifier,
                                               size_t targetVariablesSize,
