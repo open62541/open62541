@@ -1100,7 +1100,7 @@ DataSetReader_processRaw(UA_Server *server, UA_ReaderGroup *rg,
         writeVal.nodeId = tv->targetVariable.targetNodeId;
         UA_Variant_setScalar(&writeVal.value.value, value, type);
         writeVal.value.hasValue = true;
-        res = UA_Server_write(server, &writeVal);
+        Operation_Write(server, &server->adminSession, NULL, &writeVal, &res);
         UA_clear(value, type);
         if(res != UA_STATUSCODE_GOOD) {
             UA_LOG_INFO_READER(&server->config.logger, dsr,
@@ -1235,7 +1235,7 @@ UA_DataSetReader_process(UA_Server *server, UA_ReaderGroup *rg,
         writeVal.indexRange = tv->targetVariable.receiverIndexRange;
         writeVal.nodeId = tv->targetVariable.targetNodeId;
         writeVal.value = msg->data.keyFrameData.dataSetFields[i];
-        res = UA_Server_write(server, &writeVal);
+        Operation_Write(server, &server->adminSession, NULL, &writeVal, &res);
         if(res != UA_STATUSCODE_GOOD)
             UA_LOG_INFO_READER(&server->config.logger, dsr,
                                "Error writing KeyFrame field %u: %s",
