@@ -1815,7 +1815,7 @@ copyAttributeIntoNode(UA_Server *server, UA_Session *session,
     return UA_STATUSCODE_GOOD;
 }
 
-static void
+void
 Operation_Write(UA_Server *server, UA_Session *session, void *context,
                 const UA_WriteValue *wv, UA_StatusCode *result) {
     UA_assert(session != NULL);

@@ -441,6 +441,10 @@ UA_StatusCode
 setMethodNode_callback(UA_Server *server, const UA_NodeId methodNodeId,
                        UA_MethodCallback methodCallback);
 
+void
+Operation_Write(UA_Server *server, UA_Session *session, void *context,
+                const UA_WriteValue *wv, UA_StatusCode *result);
+
 UA_StatusCode
 writeAttribute(UA_Server *server, UA_Session *session,
                const UA_NodeId *nodeId, const UA_AttributeId attributeId,
