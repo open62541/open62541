@@ -894,9 +894,9 @@ UA_DataSetReader_setPubSubState(UA_Server *server,
     }
     if (state != oldState) {
         /* inform application about state change */
-        UA_ServerConfig *pConfig = UA_Server_getConfig(server);
-        if(pConfig->pubSubConfig.stateChangeCallback != 0) {
-            pConfig->pubSubConfig.
+        UA_ServerConfig *config = &server->config;
+        if(config->pubSubConfig.stateChangeCallback != 0) {
+            config->pubSubConfig.
                 stateChangeCallback(server, &dataSetReader->identifier, state, cause);
         }
     }
