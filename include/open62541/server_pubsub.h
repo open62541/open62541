@@ -789,7 +789,7 @@ void UA_EXPORT
 UA_ReaderGroupConfig_clear(UA_ReaderGroupConfig *readerGroupConfig);
 
 /* Add DataSetReader to the ReaderGroup */
-UA_StatusCode UA_EXPORT
+UA_StatusCode UA_EXPORT UA_THREADSAFE
 UA_Server_addDataSetReader(UA_Server *server, UA_NodeId readerGroupIdentifier,
                            const UA_DataSetReaderConfig *dataSetReaderConfig,
                            UA_NodeId *readerIdentifier);

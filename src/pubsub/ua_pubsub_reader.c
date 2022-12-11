@@ -398,10 +398,10 @@ checkReaderIdentifier(UA_Server *server, UA_NetworkMessage *msg,
     return UA_STATUSCODE_BADNOTFOUND;
 }
 
-UA_StatusCode
-UA_Server_addDataSetReader(UA_Server *server, UA_NodeId readerGroupIdentifier,
-                           const UA_DataSetReaderConfig *dataSetReaderConfig,
-                           UA_NodeId *readerIdentifier) {
+static UA_StatusCode
+addDataSetReader(UA_Server *server, UA_NodeId readerGroupIdentifier,
+                 const UA_DataSetReaderConfig *dataSetReaderConfig,
+                 UA_NodeId *readerIdentifier) {
     /* Search the reader group by the given readerGroupIdentifier */
     UA_ReaderGroup *readerGroup = UA_ReaderGroup_findRGbyId(server, readerGroupIdentifier);
     if(readerGroup == NULL)
@@ -544,6 +544,17 @@ UA_Server_addDataSetReader(UA_Server *server, UA_NodeId readerGroupIdentifier,
         UA_NodeId_copy(&newDataSetReader->identifier, readerIdentifier);
 
     return retVal;
+}
+
+UA_StatusCode
+UA_Server_addDataSetReader(UA_Server *server, UA_NodeId readerGroupIdentifier,
+                           const UA_DataSetReaderConfig *dataSetReaderConfig,
+                           UA_NodeId *readerIdentifier) {
+    UA_LOCK(&server->serviceMutex);
+    UA_StatusCode res = addDataSetReader(server, readerGroupIdentifier,
+                                         dataSetReaderConfig, readerIdentifier);
+    UA_UNLOCK(&server->serviceMutex);
+    return res;
 }
 
 UA_StatusCode
