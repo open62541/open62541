@@ -733,7 +733,7 @@ typedef struct {
 } UA_DataSetReaderConfig;
 
 /* Update configuration to the dataSetReader */
-UA_StatusCode UA_EXPORT
+UA_StatusCode UA_EXPORT UA_THREADSAFE
 UA_Server_DataSetReader_updateConfig(UA_Server *server, UA_NodeId dataSetReaderIdentifier,
                                      UA_NodeId readerGroupIdentifier,
                                      const UA_DataSetReaderConfig *config);

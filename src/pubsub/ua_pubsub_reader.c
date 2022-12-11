@@ -652,6 +652,74 @@ UA_Server_removeDataSetReader(UA_Server *server, UA_NodeId readerIdentifier) {
     return res;
 }
 
+static UA_StatusCode
+DataSetReader_updateConfig(UA_Server *server, UA_ReaderGroup *rg, UA_DataSetReader *dsr,
+                           const UA_DataSetReaderConfig *config) {
+    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+
+    if(dsr->configurationFrozen) {
+        UA_LOG_WARNING_READER(&server->config.logger, dsr,
+                              "Update DataSetReader config failed. "
+                              "Subscriber configuration is frozen.");
+        return UA_STATUSCODE_BADCONFIGURATIONERROR;
+    }
+
+    if(rg->configurationFrozen) {
+        UA_LOG_WARNING_READER(&server->config.logger, dsr,
+                              "Update DataSetReader config failed. "
+                              "Subscriber configuration is frozen.");
+        return UA_STATUSCODE_BADCONFIGURATIONERROR;
+    }
+
+    if(dsr->config.subscribedDataSetType != UA_PUBSUB_SDS_TARGET) {
+        UA_LOG_WARNING_READER(&server->config.logger, dsr,
+                              "Unsupported SubscribedDataSetType.");
+        return UA_STATUSCODE_BADCONFIGURATIONERROR;
+    }
+
+    /* The update functionality will be extended during the next PubSub batches.
+     * Currently changes for writerGroupId, dataSetWriterId and TargetVariables are possible. */
+    if(dsr->config.writerGroupId != config->writerGroupId)
+        dsr->config.writerGroupId = config->writerGroupId;
+    if(dsr->config.dataSetWriterId != config->dataSetWriterId)
+        dsr->config.dataSetWriterId = config->dataSetWriterId;
+
+    UA_TargetVariables *oldTV = &dsr->config.subscribedDataSet.subscribedDataSetTarget;
+    const UA_TargetVariables *newTV = &config->subscribedDataSet.subscribedDataSetTarget;
+    if(oldTV->targetVariablesSize == newTV->targetVariablesSize) {
+        for(size_t i = 0; i < newTV->targetVariablesSize; i++) {
+            if(!UA_NodeId_equal(&oldTV->targetVariables[i].targetVariable.targetNodeId,
+                                &newTV->targetVariables[i].targetVariable.targetNodeId)) {
+                DataSetReader_createTargetVariables(server, dsr,
+                                                    newTV->targetVariablesSize,
+                                                    newTV->targetVariables);
+                break;
+            }
+        }
+    } else {
+        DataSetReader_createTargetVariables(server, dsr, newTV->targetVariablesSize,
+                                            newTV->targetVariables);
+    }
+
+    UA_StatusCode res = UA_STATUSCODE_GOOD;
+#ifdef UA_ENABLE_PUBSUB_MONITORING
+    if(dsr->config.messageReceiveTimeout != config->messageReceiveTimeout) {
+        /* Update message receive timeout timer interval */
+        dsr->config.messageReceiveTimeout = config->messageReceiveTimeout;
+        res = server->config.pubSubConfig.monitoringInterface.
+            updateMonitoringInterval(server, dsr->identifier,
+                                     UA_PUBSUB_COMPONENT_DATASETREADER,
+                                     UA_PUBSUB_MONITORING_MESSAGE_RECEIVE_TIMEOUT,
+                                     dsr);
+        if(res != UA_STATUSCODE_GOOD) {
+            UA_LOG_ERROR_READER(&server->config.logger, dsr,
+                                "Update DataSetReader message receive timeout timer failed.");
+        }
+    }
+#endif /* UA_ENABLE_PUBSUB_MONITORING */
+    return res;
+}
+
 UA_StatusCode
 UA_Server_DataSetReader_updateConfig(UA_Server *server, UA_NodeId dataSetReaderIdentifier,
                                      UA_NodeId readerGroupIdentifier,
@@ -659,74 +727,15 @@ UA_Server_DataSetReader_updateConfig(UA_Server *server, UA_NodeId dataSetReaderI
     if(config == NULL)
        return UA_STATUSCODE_BADINVALIDARGUMENT;
 
-    UA_DataSetReader *currentDataSetReader =
-        UA_ReaderGroup_findDSRbyId(server, dataSetReaderIdentifier);
-    if(!currentDataSetReader)
-       return UA_STATUSCODE_BADNOTFOUND;
-
-    if(currentDataSetReader->configurationFrozen) {
-        UA_LOG_WARNING_READER(&server->config.logger, currentDataSetReader,
-                              "Update DataSetReader config failed. "
-                              "Subscriber configuration is frozen.");
-        return UA_STATUSCODE_BADCONFIGURATIONERROR;
+    UA_LOCK(&server->serviceMutex);
+    UA_DataSetReader *dsr = UA_ReaderGroup_findDSRbyId(server, dataSetReaderIdentifier);
+    UA_ReaderGroup *rg = UA_ReaderGroup_findRGbyId(server, readerGroupIdentifier);
+    if(!dsr || !rg) {
+        UA_UNLOCK(&server->serviceMutex);
+        return UA_STATUSCODE_BADNOTFOUND;
     }
-
-    UA_ReaderGroup *currentReaderGroup =
-        UA_ReaderGroup_findRGbyId(server, readerGroupIdentifier);
-    if(currentReaderGroup->configurationFrozen) {
-        UA_LOG_WARNING_READER(&server->config.logger, currentDataSetReader,
-                              "Update DataSetReader config failed. "
-                              "Subscriber configuration is frozen.");
-        return UA_STATUSCODE_BADCONFIGURATIONERROR;
-    }
-
-    /* The update functionality will be extended during the next PubSub batches.
-     * Currently changes for writerGroupId, dataSetWriterId and TargetVariables are possible. */
-    if(currentDataSetReader->config.writerGroupId != config->writerGroupId)
-        currentDataSetReader->config.writerGroupId = config->writerGroupId;
-
-    if(currentDataSetReader->config.dataSetWriterId != config->dataSetWriterId)
-        currentDataSetReader->config.dataSetWriterId = config->dataSetWriterId;
-
-    if(currentDataSetReader->config.subscribedDataSetType != UA_PUBSUB_SDS_TARGET) {
-        UA_LOG_WARNING_READER(&server->config.logger, currentDataSetReader,
-                              "Unsupported SubscribedDataSetType.");
-        return UA_STATUSCODE_BADCONFIGURATIONERROR;
-    }
-
-    UA_TargetVariables *oldTV =
-        &currentDataSetReader->config.subscribedDataSet.subscribedDataSetTarget;
-    const UA_TargetVariables *newTV =
-        &config->subscribedDataSet.subscribedDataSetTarget;
-    if(oldTV->targetVariablesSize == newTV->targetVariablesSize) {
-        for(size_t i = 0; i < config->subscribedDataSet.subscribedDataSetTarget.targetVariablesSize; i++) {
-            if(!UA_NodeId_equal(&oldTV->targetVariables[i].targetVariable.targetNodeId,
-                                &newTV->targetVariables[i].targetVariable.targetNodeId)) {
-                UA_Server_DataSetReader_createTargetVariables(server, currentDataSetReader->identifier,
-                                                              newTV->targetVariablesSize, newTV->targetVariables);
-            }
-        }
-    } else {
-        UA_Server_DataSetReader_createTargetVariables(server, currentDataSetReader->identifier,
-                                                      newTV->targetVariablesSize, newTV->targetVariables);
-    }
-
-    UA_StatusCode res = UA_STATUSCODE_GOOD;
-#ifdef UA_ENABLE_PUBSUB_MONITORING
-    if(currentDataSetReader->config.messageReceiveTimeout != config->messageReceiveTimeout) {
-        /* Update message receive timeout timer interval */
-        currentDataSetReader->config.messageReceiveTimeout = config->messageReceiveTimeout;
-        res = server->config.pubSubConfig.monitoringInterface.
-            updateMonitoringInterval(server, currentDataSetReader->identifier,
-                                     UA_PUBSUB_COMPONENT_DATASETREADER,
-                                     UA_PUBSUB_MONITORING_MESSAGE_RECEIVE_TIMEOUT,
-                                     currentDataSetReader);
-        if(res != UA_STATUSCODE_GOOD) {
-            UA_LOG_ERROR_READER(&server->config.logger, currentDataSetReader,
-                                "Update DataSetReader message receive timeout timer failed.");
-        }
-    }
-#endif /* UA_ENABLE_PUBSUB_MONITORING */
+    UA_StatusCode res = DataSetReader_updateConfig(server, rg, dsr, config);
+    UA_UNLOCK(&server->serviceMutex);
     return res;
 }
 
