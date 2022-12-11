@@ -739,7 +739,7 @@ UA_Server_DataSetReader_updateConfig(UA_Server *server, UA_NodeId dataSetReaderI
                                      const UA_DataSetReaderConfig *config);
 
 /* Get configuration of the dataSetReader */
-UA_StatusCode UA_EXPORT
+UA_StatusCode UA_EXPORT UA_THREADSAFE
 UA_Server_DataSetReader_getConfig(UA_Server *server, UA_NodeId dataSetReaderIdentifier,
                                   UA_DataSetReaderConfig *config);
 
