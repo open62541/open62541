@@ -111,6 +111,7 @@ START_TEST(connectUDPValidationSucceeds) {
     UA_ConnectionManager *cm = UA_ConnectionManager_new_POSIX_UDP(UA_STRING("udpCM"));
     el = UA_EventLoop_new_POSIX(UA_Log_Stdout);
     el->registerEventSource(el, &cm->eventSource);
+    el->start(el);
 
     UA_UInt16 port = 30000;
     UA_Boolean validate = true;
@@ -148,6 +149,10 @@ START_TEST(connectUDPValidationSucceeds) {
     retval = cm->openConnection(cm, &paramsMap, NULL, &testContext, connectionCallback);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
+    el->stop(el);
+    while(el->state != UA_EVENTLOOPSTATE_STOPPED) {
+        el->run(el, 100);
+    }
     el->free(el);
     el = NULL;
 }
@@ -157,6 +162,7 @@ START_TEST(connectUDPValidationFails) {
     UA_ConnectionManager *cm = UA_ConnectionManager_new_POSIX_UDP(UA_STRING("udpCM"));
     el = UA_EventLoop_new_POSIX(UA_Log_Stdout);
     el->registerEventSource(el, &cm->eventSource);
+    el->start(el);
 
     UA_UInt16 port = 30000;
     UA_Boolean validate = true;
@@ -189,6 +195,10 @@ START_TEST(connectUDPValidationFails) {
     retval = cm->openConnection(cm, &paramsMap, NULL, &testContext, connectionCallback);
     ck_assert_uint_eq(retval, UA_STATUSCODE_BADCONNECTIONREJECTED);
 
+    el->stop(el);
+    while(el->state != UA_EVENTLOOPSTATE_STOPPED) {
+        el->run(el, 100);
+    }
     el->free(el);
     el = NULL;
 }
