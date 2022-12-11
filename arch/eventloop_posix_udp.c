@@ -1186,10 +1186,17 @@ UDP_openReceiveConnection(UA_ConnectionManager *cm,
 }
 
 static UA_StatusCode
-UDP_openConnection(UA_ConnectionManager *cm,
-                   const UA_KeyValueMap *params,
+UDP_openConnection(UA_ConnectionManager *cm, const UA_KeyValueMap *params,
                    void *application, void *context,
                    UA_ConnectionManager_connectionCallback connectionCallback) {
+    UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX*)cm->eventSource.eventLoop;
+    if(cm->eventSource.state != UA_EVENTSOURCESTATE_STARTED) {
+        UA_LOG_ERROR(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
+                     "UDP\t| Cannot open a connection for a "
+                     "ConnectionManager that is not started");
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
+
     UA_Boolean validate = false;
     const UA_Variant *validationValue =
         UA_KeyValueMap_get(params, UA_QUALIFIEDNAME(0, "validate"));
