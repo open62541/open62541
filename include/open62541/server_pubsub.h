@@ -54,7 +54,18 @@ _UA_BEGIN_DECLS
  * can be used with broker based protocols like MQTT and AMQP or brokerless
  * implementations like UDP-Multicasting.
  *
- * The PubSub API uses the following scheme:
+ * The configuration model for PubSub uses the following components: */
+
+typedef enum  {
+    UA_PUBSUB_COMPONENT_CONNECTION,
+    UA_PUBSUB_COMPONENT_WRITERGROUP,
+    UA_PUBSUB_COMPONENT_DATASETWRITER,
+    UA_PUBSUB_COMPONENT_READERGROUP,
+    UA_PUBSUB_COMPONENT_DATASETREADER
+} UA_PubSubComponentEnumType;
+
+/**
+ * The open62541 PubSub API uses the following scheme:
  *
  * 1. Create a configuration for the needed PubSub element.
  *
@@ -128,20 +139,11 @@ _UA_BEGIN_DECLS
  * The PubSub connections are the abstraction between the concrete transport protocol
  * and the PubSub functionality. It is possible to create multiple connections with
  * different transport protocols at runtime.
- *
- * Take a look on the PubSub Tutorials for mor details about the API usage.
  */
 
-typedef enum  {
-    UA_PUBSUB_COMPONENT_CONNECTION,
-    UA_PUBSUB_COMPONENT_WRITERGROUP,
-    UA_PUBSUB_COMPONENT_DATASETWRITER,
-    UA_PUBSUB_COMPONENT_READERGROUP,
-    UA_PUBSUB_COMPONENT_DATASETREADER
-} UA_PubSubComponentEnumType;
-
+/* Valid PublisherId types from Part 14 */
 typedef enum {
-    UA_PUBLISHERIDTYPE_BYTE = 0,
+    UA_PUBLISHERIDTYPE_BYTE   = 0,
     UA_PUBLISHERIDTYPE_UINT16 = 1,
     UA_PUBLISHERIDTYPE_UINT32 = 2,
     UA_PUBLISHERIDTYPE_UINT64 = 3,
