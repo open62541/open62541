@@ -821,7 +821,7 @@ UA_Server_DataSetReader_getState(UA_Server *server, UA_NodeId dataSetReaderIdent
         *state = dsr->state;
     }
     UA_UNLOCK(&server->serviceMutex);
-    return UA_STATUSCODE_GOOD;
+    return res;
 }
 
 static UA_StatusCode
