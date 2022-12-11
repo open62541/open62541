@@ -386,7 +386,7 @@ checkReaderIdentifier(UA_Server *server, UA_NetworkMessage *msg,
             }
         }
         return UA_STATUSCODE_GOOD;
-    }else{
+    } else {
         if(reader->config.publisherId.type != &UA_TYPES[UA_TYPES_UINT32] &&
            msg->publisherId.uint32 != *(UA_UInt32*)reader->config.publisherId.data)
             return UA_STATUSCODE_BADNOTFOUND;
@@ -458,15 +458,14 @@ addDataSetReader(UA_Server *server, UA_NodeId readerGroupIdentifier,
 #endif
 
 #ifdef UA_ENABLE_PUBSUB_MONITORING
-    /* create message receive timeout timer */
-    retVal = server->config.pubSubConfig.monitoringInterface.createMonitoring(
-        server,
-        newDataSetReader->identifier,
-        UA_PUBSUB_COMPONENT_DATASETREADER,
-        UA_PUBSUB_MONITORING_MESSAGE_RECEIVE_TIMEOUT,
-        newDataSetReader,
-        (void (*)(UA_Server *, void *))
-        UA_DataSetReader_handleMessageReceiveTimeout);
+    /* Create message receive timeout timer */
+    retVal = server->config.pubSubConfig.monitoringInterface.
+        createMonitoring(server, newDataSetReader->identifier,
+                         UA_PUBSUB_COMPONENT_DATASETREADER,
+                         UA_PUBSUB_MONITORING_MESSAGE_RECEIVE_TIMEOUT,
+                         newDataSetReader,
+                         (void (*)(UA_Server *, void *))
+                         UA_DataSetReader_handleMessageReceiveTimeout);
     if(retVal != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR_READERGROUP(&server->config.logger, readerGroup,
                                  "Add DataSetReader failed, create message "
@@ -485,8 +484,8 @@ addDataSetReader(UA_Server *server, UA_NodeId readerGroupIdentifier,
     if(!UA_String_isEmpty(&newDataSetReader->config.linkedStandaloneSubscribedDataSetName)) {
         // find sds by name
         UA_StandaloneSubscribedDataSet *subscribedDataSet =
-            UA_StandaloneSubscribedDataSet_findSDSbyName(
-                server, newDataSetReader->config.linkedStandaloneSubscribedDataSetName);
+            UA_StandaloneSubscribedDataSet_findSDSbyName(server,
+               newDataSetReader->config.linkedStandaloneSubscribedDataSetName);
         if(subscribedDataSet != NULL) {
             if(subscribedDataSet->config.subscribedDataSetType != UA_PUBSUB_SDS_TARGET) {
                 UA_LOG_ERROR_READER(&server->config.logger, newDataSetReader,
