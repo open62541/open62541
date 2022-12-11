@@ -36,6 +36,11 @@ static void
 UA_DataSetReader_handleMessageReceiveTimeout(UA_Server *server, UA_DataSetReader *dsr);
 #endif
 
+static UA_StatusCode
+DataSetReader_createTargetVariables(UA_Server *server, UA_DataSetReader *dsr,
+                                    size_t targetVariablesSize,
+                                    const UA_FieldTargetVariable *targetVariables);
+
 /* This functionality of this API will be used in future to create mirror Variables - TODO */
 /* #define UA_MAX_SIZENAME           64 */ /* Max size of Qualified Name of Subscribed Variable */
 
@@ -404,6 +409,8 @@ static UA_StatusCode
 addDataSetReader(UA_Server *server, UA_NodeId readerGroupIdentifier,
                  const UA_DataSetReaderConfig *dataSetReaderConfig,
                  UA_NodeId *readerIdentifier) {
+    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+
     /* Search the reader group by the given readerGroupIdentifier */
     UA_ReaderGroup *readerGroup = UA_ReaderGroup_findRGbyId(server, readerGroupIdentifier);
     if(readerGroup == NULL)
@@ -516,11 +523,10 @@ addDataSetReader(UA_Server *server, UA_NodeId readerGroupIdentifier,
                                  .targetVariables[index],
                             &targetVars[index].targetVariable);
                     }
-                    UA_Server_DataSetReader_createTargetVariables(
-                        server, newDataSetReader->identifier,
-                        subscribedDataSet->config.subscribedDataSet.target
-                            .targetVariablesSize,
-                        targetVars);
+
+                    DataSetReader_createTargetVariables(server, newDataSetReader,
+                                                        subscribedDataSet->config.subscribedDataSet.
+                                                        target.targetVariablesSize, targetVars);
                     subscribedDataSet->connectedReader = newDataSetReader->identifier;
 
                     for(size_t index = 0;
@@ -924,31 +930,45 @@ UA_TargetVariables_clear(UA_TargetVariables *subscribedDataSetTarget) {
 /* This Method is used to initially set the SubscribedDataSet to
  * TargetVariablesType and to create the list of target Variables of a
  * SubscribedDataSetType. */
-UA_StatusCode
-UA_Server_DataSetReader_createTargetVariables(UA_Server *server,
-                                              UA_NodeId dataSetReaderIdentifier,
-                                              size_t targetVariablesSize,
-                                              const UA_FieldTargetVariable *targetVariables) {
-    UA_DataSetReader *dataSetReader = UA_ReaderGroup_findDSRbyId(server, dataSetReaderIdentifier);
-    if(!dataSetReader)
-        return UA_STATUSCODE_BADINVALIDARGUMENT;
+static UA_StatusCode
+DataSetReader_createTargetVariables(UA_Server *server, UA_DataSetReader *dsr,
+                                    size_t targetVariablesSize,
+                                    const UA_FieldTargetVariable *targetVariables) {
+    UA_LOCK_ASSERT(&server->serviceMutex, 1);
 
-    if(dataSetReader->configurationFrozen) {
-        UA_LOG_WARNING_READER(&server->config.logger, dataSetReader,
+    if(dsr->configurationFrozen) {
+        UA_LOG_WARNING_READER(&server->config.logger, dsr,
                               "Create Target Variables failed. "
                               "Subscriber configuration is frozen.");
         return UA_STATUSCODE_BADCONFIGURATIONERROR;
     }
 
-    if(dataSetReader->config.subscribedDataSet.subscribedDataSetTarget.targetVariablesSize > 0)
-        UA_TargetVariables_clear(&dataSetReader->config.subscribedDataSet.subscribedDataSetTarget);
+    if(dsr->config.subscribedDataSet.subscribedDataSetTarget.targetVariablesSize > 0)
+        UA_TargetVariables_clear(&dsr->config.subscribedDataSet.subscribedDataSetTarget);
 
     /* Set subscribed dataset to TargetVariableType */
-    dataSetReader->config.subscribedDataSetType = UA_PUBSUB_SDS_TARGET;
+    dsr->config.subscribedDataSetType = UA_PUBSUB_SDS_TARGET;
     UA_TargetVariables tmp;
     tmp.targetVariablesSize = targetVariablesSize;
     tmp.targetVariables = (UA_FieldTargetVariable*)(uintptr_t)targetVariables;
-    return UA_TargetVariables_copy(&tmp, &dataSetReader->config.subscribedDataSet.subscribedDataSetTarget);
+    return UA_TargetVariables_copy(&tmp, &dsr->config.subscribedDataSet.subscribedDataSetTarget);
+}
+
+UA_StatusCode
+UA_Server_DataSetReader_createTargetVariables(UA_Server *server,
+                                              UA_NodeId dataSetReaderIdentifier,
+                                              size_t targetVariablesSize,
+                                              const UA_FieldTargetVariable *targetVariables) {
+    UA_LOCK(&server->serviceMutex);
+    UA_DataSetReader *dataSetReader = UA_ReaderGroup_findDSRbyId(server, dataSetReaderIdentifier);
+    if(!dataSetReader) {
+        UA_UNLOCK(&server->serviceMutex);
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    }
+    UA_StatusCode res = DataSetReader_createTargetVariables(server, dataSetReader,
+                                                            targetVariablesSize, targetVariables);
+    UA_UNLOCK(&server->serviceMutex);
+    return res;
 }
 
 /* This functionality of this API will be used in future to create mirror Variables - TODO */
