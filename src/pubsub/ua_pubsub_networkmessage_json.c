@@ -152,7 +152,7 @@ UA_NetworkMessage_encodeJson_internal(const UA_NetworkMessage* src, CtxJson *ctx
     /* PublisherId */
     if(src->publisherIdEnabled) {
         rv = writeJsonKey(ctx, UA_DECODEKEY_PUBLISHERID);
-        switch (src->publisherIdType) {
+        switch(src->publisherId.idType) {
         case UA_PUBLISHERIDTYPE_BYTE:
             publisherIdType = &UA_TYPES[UA_TYPES_BYTE];
             break;
@@ -170,7 +170,7 @@ UA_NetworkMessage_encodeJson_internal(const UA_NetworkMessage* src, CtxJson *ctx
             break;
         }
         rv |= encodeJsonJumpTable[publisherIdType->typeKind]
-            (ctx, &src->publisherId, publisherIdType);
+            (ctx, &src->publisherId.id, publisherIdType);
     }
     if(rv != UA_STATUSCODE_GOOD)
         return rv;
@@ -430,9 +430,9 @@ NetworkMessage_decodeJsonInternal(ParseCtx *ctx, UA_NetworkMessage *dst) {
             // string is expected in the json. Therefore, the maximum value is
             // set to UInt32.
             pubIdType = &UA_TYPES[UA_TYPES_UINT32];
-            dst->publisherIdType = UA_PUBLISHERIDTYPE_UINT32;
+            dst->publisherId.idType = UA_PUBLISHERIDTYPE_UINT32;
         } else if(publishIdToken->type == CJ5_TOKEN_STRING) {
-            dst->publisherIdType = UA_PUBLISHERIDTYPE_STRING;
+            dst->publisherId.idType = UA_PUBLISHERIDTYPE_STRING;
         } else {
             return UA_STATUSCODE_BADDECODINGERROR;
         }
@@ -482,7 +482,7 @@ NetworkMessage_decodeJsonInternal(ParseCtx *ctx, UA_NetworkMessage *dst) {
     DecodeEntry entries[5] = {
         {UA_DECODEKEY_MESSAGEID, &dst->messageId, NULL, false, &UA_TYPES[UA_TYPES_STRING]},
         {UA_DECODEKEY_MESSAGETYPE, &messageType, NULL, false, NULL},
-        {UA_DECODEKEY_PUBLISHERID, &dst->publisherId, NULL, false, pubIdType},
+        {UA_DECODEKEY_PUBLISHERID, &dst->publisherId.id, NULL, false, pubIdType},
         {UA_DECODEKEY_DATASETCLASSID, &dst->dataSetClassId, NULL, false, &UA_TYPES[UA_TYPES_GUID]},
         {UA_DECODEKEY_MESSAGES, &dst->payload.dataSetPayload.dataSetMessages, &DatasetMessage_Array_decodeJsonInternal, false, NULL}
     };
@@ -493,13 +493,6 @@ NetworkMessage_decodeJsonInternal(ParseCtx *ctx, UA_NetworkMessage *dst) {
 
     dst->messageIdEnabled = entries[0].found;
     dst->publisherIdEnabled = entries[2].found;
-    if(dst->publisherIdEnabled) {
-        if(pubIdType == &UA_TYPES[UA_TYPES_UINT32]) {
-            dst->publisherIdType = UA_PUBLISHERIDTYPE_UINT32;
-        } else {
-            dst->publisherIdType = UA_PUBLISHERIDTYPE_STRING;
-        }
-    }
     dst->dataSetClassIdEnabled = entries[3].found;
     dst->payloadHeaderEnabled = true;
     dst->payloadHeader.dataSetPayloadHeader.count = (UA_Byte)messageCount;

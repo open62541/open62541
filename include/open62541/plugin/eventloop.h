@@ -478,48 +478,45 @@ UA_ConnectionManager_new_POSIX_TCP(const UA_String eventSourceName);
 /**
  * UDP Connection Manager
  * ~~~~~~~~~~~~~~~~~~~~~~
- * Listens on the network and manages UDP connections. This should be available
- * for all architectures.
+ *
+ * Manages UDP connections. This should be available for all architectures.
  *
  * The configuration parameters have to set before calling _start to take
  * effect.
  *
  * Configuration Parameters:
-
+ *
  * - 0:recv-bufsize [uint32]: Size of the buffer that is allocated for receiving
  *                            messages (default 64kB).
  *
  * Open Connection Parameters:
  *
- * - Active Connection
- * -   0:hostname [string]: Hostname (or IPv4/v6 address) to connect to (required).
- * -   0:port [uint16]: Port of the target host (required).
- * - Passive Connection
- * -   0:listen-port [uint16]: Port to listen for new connections (default: do not
- *                           listen on any port).
- * -   0:listen-hostnames [string | string array]: Hostnames of the devices to
- *                                               listen on (default: listen on
- *                                               all devices).
- *
- * - 0:network-interface [string]: Network interface to listen on or send through when using
- *                                 multicast addresses
- * - 0:ttl [uint32]: Multicast time to live, (optional, default: 1 - meaning multicast is
- *                   available only to the local subnet).
+ * - 0:listen [boolean]: Use the connection for listening or for sending
+ *       (default: false)
+ * - 0:hostname [string | string array]: Hostname (or IPv4/v6 address) for
+ *       sending or receiving. A scalar is required for sending. For listening a
+ *       string array for the list-hostnames is possible as well (default: list
+ *       on all hostnames).
+ * - 0:port [uint16]: Port for sending or listening (required).
+ * - 0:interface [string]: Network interface for listening or sending (e.g. when
+ *       using multicast addresses)
+ * - 0:ttl [uint32]: Multicast time to live, (optional, default: 1 - meaning
+ *       multicast is available only to the local subnet).
  * - 0:loopback [boolean]: Whether or not to use multicast loopback, enabling
- *                         local interfaces belonging to the multicast group
- *                         to receive packages. (optional, default: enabled).
- * - 0:reuse [boolean]: Set reuse address -> enables sharing of the same
- *                      listening address on different sockets (optional, default: disabled).
- * - 0:sockpriority [uint32]: The socket priority (optional) - only available on linux.
- *                            packets with a higher priority may be
- *                            processed first depending on the selected device queueing
- *                            discipline.  Setting a priority outside the range 0 to 6
- *                            requires the CAP_NET_ADMIN capability.
- * - 0:validate [boolean]: If true, the connection setup will act as a dry-run without
- *                         actually creating any connection but solely validating the
- *                         provided parameters, hostname(s) and port. (optional, default: false)
+ *       local interfaces belonging to the multicast group to receive packages.
+ *       (default: enabled).
+ * - 0:reuse [boolean]: Enables sharing of the same listening address on
+ *       different sockets (default: disabled).
+ * - 0:sockpriority [uint32]: The socket priority (optional) - only available on
+ *       linux. packets with a higher priority may be processed first depending
+ *       on the selected device queueing discipline. Setting a priority outside
+ *       the range 0 to 6 requires the CAP_NET_ADMIN capability (on Linux).
+ * - 0:validate [boolean]: If true, the connection setup will act as a dry-run
+ *       without actually creating any connection but solely validating the
+ *       provided parameters (default: false)
  *
  * Connection Callback Paramters:
+ *
  * - 0:remote-hostname [string]: When a new connection is opened by listening on
  *                               a port, the first callback contains the remote
  *                               hostname parameter.
@@ -560,6 +557,37 @@ UA_ConnectionManager_new_POSIX_UDP(const UA_String eventSourceName);
  * No additional parameters for sending over an Ethernet connection defined. */
 UA_EXPORT UA_ConnectionManager *
 UA_ConnectionManager_new_POSIX_Ethernet(const UA_String eventSourceName);
+
+/**
+ * MQTT Connection Manager
+ * ~~~~~~~~~~~~~~~~~~~~~~~
+ *
+ * The MQTT ConnectionManager reuses the TCP ConnectionManager that is
+ * configured in the EventLoop. Hence the MQTT ConnectionManager is platform
+ * agnostic and does not require porting. An MQTT connection is for a
+ * combination of broker and topic. The MQTT ConnectionManager can group
+ * connections to the same broker in the background. Hence adding multiple
+ * connections for the same broker is "cheap". To have individual control,
+ * separate connections are created for each topic and for each direction
+ * (publishing / subscribing).
+ *
+ * Open Connection Parameters:
+ * - 0:hostname [string]: Hostname (or IPv4/v6 address) of the MQTT broker (required).
+ * - 0:port [uint16]: Port of the MQTT broker (default: 1883).
+ * - 0:username [string]: Username to use (default: none)
+ * - 0:password [string]: Password to use (default: none)
+ * - 0:keep-alive [uint16]: Number of seconds for the keep-alive (ping) (default: 400).
+ *
+ * - 0:topic [string]: Topic to which the connection is associated (required).
+ * - 0:subscribe [bool]: Subscribe to the topic (default: false).
+ *                       Otherwise it is only possible to publish on the topic.
+ *                       Subscribed topics can also be published to.
+ *
+ * Connection Callback Parameters:
+ * - 0:topic [string]: The value set during connect.
+ * - 0:subscribe [bool]: The value set during connect. */
+UA_EXPORT UA_ConnectionManager *
+UA_ConnectionManager_new_MQTT(const UA_String eventSourceName);
 
 /**
  * Signal Interrupt Manager

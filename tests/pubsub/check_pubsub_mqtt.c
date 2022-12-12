@@ -8,8 +8,6 @@
 #include <open62541/server.h>
 #include <open62541/server_config_default.h>
 
-#include <open62541/plugin/pubsub_mqtt.h>
-
 #include "ua_server_internal.h"
 
 #include <check.h>
@@ -36,7 +34,6 @@ static void setup(void) {
     server = UA_Server_new();
     config = UA_Server_getConfig(server);
     UA_ServerConfig_setDefault(config);
-    UA_ServerConfig_addPubSubTransportLayer(config, UA_PubSubTransportLayerMQTT());
     UA_Server_run_startup(server);
 
     //add connection
@@ -54,8 +51,7 @@ static void setup(void) {
                          &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
     /* Changed to static publisherId from random generation to identify
      * the publisher on Subscriber side */
-    connectionConfig.publisherIdType = UA_PUBLISHERIDTYPE_UINT16;
-    connectionConfig.publisherId.uint16 = 2234;
+    connectionConfig.publisherId = UA_PUBLISHERID_UINT16(2234);
 
     /* configure options, set mqtt client id */
     const int connectionOptionsCount = 1;
@@ -67,8 +63,8 @@ static void setup(void) {
     UA_String mqttClientId = UA_STRING(MQTT_CLIENT_ID);
     UA_Variant_setScalar(&connectionOptions[connectionOptionIndex++].value, &mqttClientId, &UA_TYPES[UA_TYPES_STRING]);
 
-    connectionConfig.connectionProperties = connectionOptions;
-    connectionConfig.connectionPropertiesSize = connectionOptionIndex;
+    connectionConfig.connectionProperties.map = connectionOptions;
+    connectionConfig.connectionProperties.mapSize = connectionOptionIndex;
 
     UA_Server_addPubSubConnection(server, &connectionConfig, &connectionIdent);
 }
@@ -245,9 +241,7 @@ START_TEST(SinglePublishSubscribeDateTime){
         // add DataSetReader
         memset (&readerConfig, 0, sizeof(UA_DataSetReaderConfig));
         readerConfig.name = UA_STRING("DataSet Reader 1");
-        UA_UInt32 publisherIdentifier = 2234;
-        readerConfig.publisherId.type = &UA_TYPES[UA_TYPES_UINT32];
-        readerConfig.publisherId.data = &publisherIdentifier;
+        readerConfig.publisherId = UA_PUBLISHERID_UINT32(2234);
         readerConfig.writerGroupId    = 100;
         readerConfig.dataSetWriterId  = 62541;
 

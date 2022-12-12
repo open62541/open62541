@@ -5,7 +5,6 @@
  * Copyright (c) 2019 Fraunhofer IOSB (Author: Andreas Ebner)
  */
 
-#include <open62541/plugin/pubsub_udp.h>
 #include <open62541/server.h>
 #include <open62541/server_config_default.h>
 
@@ -49,7 +48,6 @@ static void setup(void) {
     server = UA_Server_new();
     UA_ServerConfig *config = UA_Server_getConfig(server);
     UA_ServerConfig_setDefault(config);
-    UA_ServerConfig_addPubSubTransportLayer(config, UA_PubSubTransportLayerUDPMP());
     UA_Server_run_startup(server);
 }
 

@@ -826,9 +826,7 @@ START_TEST(UA_PubSub_EnDecode_ShallWorkOn1DS2ValuesVariantDeltaFramePublDSCID) {
     m.version = 1;
     m.networkMessageType = UA_NETWORKMESSAGE_DATASET;
     m.publisherIdEnabled = true;
-    m.publisherIdType = UA_PUBLISHERIDTYPE_UINT32;
-    UA_UInt32 publisherId = 1469;
-    m.publisherId.uint32 = publisherId;
+    m.publisherId = UA_PUBLISHERID_UINT32(1469);
     m.dataSetClassIdEnabled = true;
     UA_Guid dataSetClassId = UA_Guid_random();
     m.dataSetClassId = dataSetClassId;
@@ -891,8 +889,7 @@ START_TEST(UA_PubSub_EnDecode_ShallWorkOn1DS2ValuesVariantDeltaFramePublDSCID) {
     ck_assert(m.picosecondsEnabled == m2.picosecondsEnabled);
     ck_assert(m.promotedFieldsEnabled == m2.promotedFieldsEnabled);
     ck_assert(m.publisherIdEnabled == m2.publisherIdEnabled);
-    ck_assert_int_eq(m2.publisherIdType, m.publisherIdType);
-    ck_assert_uint_eq(m2.publisherId.uint32, publisherId);
+    ck_assert(UA_PublisherId_equal(&m2.publisherId, &m.publisherId));
     ck_assert(m.securityEnabled == m2.securityEnabled);
     ck_assert(m.chunkMessage == m2.chunkMessage);
 

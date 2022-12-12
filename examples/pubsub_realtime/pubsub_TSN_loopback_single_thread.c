@@ -46,7 +46,11 @@
  *          ----------------------------------------------------------------
  */
 
-#define _GNU_SOURCE
+#include <open62541/server.h>
+#include <open62541/plugin/log_stdout.h>
+#include <open62541/server_config_default.h>
+
+#include "ua_pubsub.h"
 
 #include <sched.h>
 #include <signal.h>
@@ -59,16 +63,6 @@
 
 /* For thread operations */
 #include <pthread.h>
-
-#include <open62541/server.h>
-#include <open62541/server_config_default.h>
-#include <open62541/plugin/log_stdout.h>
-#include <open62541/plugin/log.h>
-#include <open62541/types_generated.h>
-#include <open62541/plugin/pubsub_ethernet.h>
-#include <open62541/plugin/pubsub_udp.h>
-
-#include "ua_pubsub.h"
 
 /*to find load of each thread
  * ps -L -o pid,pri,%cpu -C pubsub_TSN_loopback_single_thread */
@@ -349,8 +343,7 @@ addPubSubConnectionSubscriber(UA_Server *server, UA_String *transportProfile,
     UA_NetworkAddressUrlDataType networkAddressUrlsubscribe = *networkAddressUrlSubscriber;
     connectionConfig.transportProfileUri                    = *transportProfile;
     UA_Variant_setScalar(&connectionConfig.address, &networkAddressUrlsubscribe, &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
-    connectionConfig.publisherIdType                        = UA_PUBLISHERIDTYPE_UINT32;
-    connectionConfig.publisherId.uint32                     = UA_UInt32_random();
+    connectionConfig.publisherId                            = UA_PUBLISHERID_UINT32(UA_UInt32_random());
     retval |= UA_Server_addPubSubConnection(server, &connectionConfig, &connectionIdentSubscriber);
     if (retval == UA_STATUSCODE_GOOD)
          UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,"The PubSub Connection was created successfully!");
@@ -508,9 +501,7 @@ addDataSetReader(UA_Server *server) {
 
     memset (&readerConfig, 0, sizeof(UA_DataSetReaderConfig));
     readerConfig.name                 = UA_STRING("DataSet Reader");
-    UA_UInt16 publisherIdentifier     = PUBLISHER_ID_SUB;
-    readerConfig.publisherId.type     = &UA_TYPES[UA_TYPES_UINT16];
-    readerConfig.publisherId.data     = &publisherIdentifier;
+    readerConfig.publisherId          = UA_PUBLISHERID_UINT16(PUBLISHER_ID_SUB);
     readerConfig.writerGroupId        = WRITER_GROUP_ID_SUB;
     readerConfig.dataSetWriterId      = DATA_SET_WRITER_ID_SUB;
 
@@ -585,8 +576,7 @@ addPubSubConnection(UA_Server *server, UA_String *transportProfile,
     connectionConfig.transportProfileUri                    = *transportProfile;
     UA_Variant_setScalar(&connectionConfig.address, &networkAddressUrl,
                          &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
-    connectionConfig.publisherIdType                        = UA_PUBLISHERIDTYPE_UINT16;
-    connectionConfig.publisherId.uint16                     = PUBLISHER_ID;
+    connectionConfig.publisherId                            = UA_PUBLISHERID_UINT16(PUBLISHER_ID_SUB);
 
 #ifdef UA_ENABLE_PUBSUB_ETH_UADP
     /* Connection options are given as Key/Value Pairs - Sockprio and Txtime */
@@ -600,11 +590,11 @@ addPubSubConnection(UA_Server *server, UA_String *transportProfile,
     connectionOptions[1].key = UA_QUALIFIEDNAME(0, "enablesotxtime");
     UA_Variant_setScalar(&connectionOptions[1].value, &disableSoTxtime, &UA_TYPES[UA_TYPES_BOOLEAN]);
 #endif
-    connectionConfig.connectionProperties     = connectionOptions;
+    connectionConfig.connectionProperties.map     = connectionOptions;
 #ifdef UA_ENABLE_PUBSUB_ETH_UADP
-    connectionConfig.connectionPropertiesSize = 2;
+    connectionConfig.connectionProperties.mapSize = 2;
 #else
-    connectionConfig.connectionPropertiesSize = 1;
+    connectionConfig.connectionProperties.mapSize = 1;
 #endif
 
     UA_Server_addPubSubConnection(server, &connectionConfig, &connectionIdent);
@@ -1312,13 +1302,8 @@ int main(int argc, char **argv) {
 #ifdef TWO_WAY_COMMUNICATION
     if (enableCsvLog)
         fpPublisher                   = fopen(filePublishedData, "w");
+#endif
 
-#ifdef UA_ENABLE_PUBSUB_ETH_UADP
-    UA_ServerConfig_addPubSubTransportLayer(config, UA_PubSubTransportLayerEthernet());
-#else
-    UA_ServerConfig_addPubSubTransportLayer(config, UA_PubSubTransportLayerUDPMP());
-#endif
-#endif
     /* Initialize arguments required for the thread to run */
     threadArgPubSub1 = (threadArgPubSub *) UA_malloc(sizeof(threadArgPubSub));
 
@@ -1334,12 +1319,6 @@ int main(int argc, char **argv) {
     addDataSetWriter(server);
     UA_Server_freezeWriterGroupConfiguration(server, writerGroupIdent);
     UA_Server_setWriterGroupOperational(server, writerGroupIdent);
-#endif
-
-#ifdef UA_ENABLE_PUBSUB_ETH_UADP
-    UA_ServerConfig_addPubSubTransportLayer(config, UA_PubSubTransportLayerEthernet());
-#else
-    UA_ServerConfig_addPubSubTransportLayer(config, UA_PubSubTransportLayerUDPMP());
 #endif
 
     addPubSubConnectionSubscriber(server, &transportProfile, &networkAddressUrlSub);

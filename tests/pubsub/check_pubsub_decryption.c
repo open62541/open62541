@@ -5,13 +5,12 @@
  * Copyright (c) 2017 - 2018 Fraunhofer IOSB (Author: Jan Hermes)
  */
 
-#include <open62541/plugin/pubsub_udp.h>
-#include <open62541/plugin/securitypolicy_default.h>
-#include <open62541/server_config_default.h>
 #include <open62541/server_pubsub.h>
+#include <open62541/plugin/log_stdout.h>
+#include <open62541/server_config_default.h>
+#include <open62541/plugin/securitypolicy_default.h>
 
 #include "ua_pubsub.h"
-#include "ua_server_internal.h"
 
 #include <check.h>
 #include <ctype.h>
@@ -47,14 +46,13 @@ UA_Byte keyNonce[UA_AES128CTR_KEYNONCE_LENGTH] = {0};
 UA_Server *server = NULL;
 UA_NodeId writerGroupId, readerGroupId, connectionId;
 
-UA_Logger *logger = NULL;
+const UA_Logger *logger;
 
 static void
 setup(void) {
     server = UA_Server_new();
     UA_ServerConfig *config = UA_Server_getConfig(server);
     UA_ServerConfig_setDefault(config);
-    UA_ServerConfig_addPubSubTransportLayer(config, UA_PubSubTransportLayerUDPMP());
 
     config->pubSubConfig.securityPolicies =
         (UA_PubSubSecurityPolicy *)UA_malloc(sizeof(UA_PubSubSecurityPolicy));
@@ -73,11 +71,10 @@ setup(void) {
                          &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
     connectionConfig.transportProfileUri =
         UA_STRING("http://opcfoundation.org/UA-Profile/Transport/pubsub-udp-uadp");
-    connectionConfig.publisherIdType = UA_PUBLISHERIDTYPE_UINT16;
-    connectionConfig.publisherId.uint16 = 2234;
+    connectionConfig.publisherId = UA_PUBLISHERID_UINT16(2234);
     UA_Server_addPubSubConnection(server, &connectionConfig, &connectionId);
 
-    logger = &server->config.logger;
+    logger = UA_Log_Stdout;
 }
 
 static void
@@ -220,9 +217,7 @@ newReaderGroupWithSecurity(UA_MessageSecurityMode mode) {
     /* Parameters to filter received NetworkMessage */
     memset (&readerConfig, 0, sizeof (UA_DataSetReaderConfig));
     readerConfig.name             = UA_STRING ("DataSetReader Test");
-    UA_UInt16 publisherIdentifier = PUBLISHER_ID;
-    readerConfig.publisherId.type = &UA_TYPES[UA_TYPES_UINT16];
-    readerConfig.publisherId.data = &publisherIdentifier;
+    readerConfig.publisherId      = UA_PUBLISHERID_UINT16(PUBLISHER_ID);
     readerConfig.writerGroupId    = WRITER_GROUP_ID;
     readerConfig.dataSetWriterId  = DATASET_WRITER_ID;
     /* Setting up Meta data configuration in DataSetReader */

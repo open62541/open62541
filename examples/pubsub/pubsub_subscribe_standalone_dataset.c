@@ -9,17 +9,9 @@
  * This example shows, how to configure a SSDS.
  */
 
-#include <open62541/plugin/log_stdout.h>
-#include <open62541/plugin/pubsub_udp.h>
 #include <open62541/server.h>
+#include <open62541/plugin/log_stdout.h>
 #include <open62541/server_config_default.h>
-
-#include "ua_pubsub.h"
-
-#ifdef UA_ENABLE_PUBSUB_ETH_UADP
-#include <open62541/plugin/pubsub_ethernet.h>
-#endif
-
 
 #include <signal.h>
 
@@ -100,13 +92,8 @@ addPubSubConnection(UA_Server *server, UA_String *transportProfile,
     connectionConfig.enabled = UA_TRUE;
     UA_Variant_setScalar(&connectionConfig.address, networkAddressUrl,
                          &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
-    connectionConfig.publisherId.uint32 = UA_UInt32_random();
-    retval |=
-        UA_Server_addPubSubConnection(server, &connectionConfig, &connectionIdentifier);
-    if(retval != UA_STATUSCODE_GOOD) {
-        return retval;
-    }
-    retval |= UA_PubSubConnection_regist(server, &connectionIdentifier, NULL);
+    connectionConfig.publisherId = UA_PUBLISHERID_UINT32(UA_UInt32_random());
+    retval |= UA_Server_addPubSubConnection(server, &connectionConfig, &connectionIdentifier);
     return retval;
 }
 
@@ -134,7 +121,6 @@ addDataSetReader(UA_Server *server) {
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
-    UA_StatusCode retval = UA_STATUSCODE_GOOD;
     memset(&readerConfig, 0, sizeof(UA_DataSetReaderConfig));
     readerConfig.name = UA_STRING("DataSet Reader 1");
     /* Parameters to filter which DataSetMessage has to be processed
@@ -142,20 +128,14 @@ addDataSetReader(UA_Server *server) {
     /* The following parameters are used to show that the data published by
      * tutorial_pubsub_publish.c is being subscribed and is being updated in
      * the information model */
-    UA_UInt16 publisherIdentifier = 2234;
-    readerConfig.publisherId.type = &UA_TYPES[UA_TYPES_UINT16];
-    readerConfig.publisherId.data = &publisherIdentifier;
+    readerConfig.publisherId = UA_PUBLISHERID_UINT16(2234);
     readerConfig.writerGroupId = 100;
     readerConfig.dataSetWriterId = 62541;
     readerConfig.linkedStandaloneSubscribedDataSetName = UA_STRING("DemoStandaloneSDS");
 
     /* DataSetMetaData already contained in Standalone SDS no need to set up */
-    retval |= UA_Server_addDataSetReader(server, readerGroupIdentifier, &readerConfig,
-                                         &readerIdentifier);
-
-    readerConfig.publisherId.data = NULL;
-
-    return retval;
+    return UA_Server_addDataSetReader(server, readerGroupIdentifier, &readerConfig,
+                                      &readerIdentifier);
 }
 
 UA_Boolean running = true;
@@ -174,13 +154,6 @@ run(UA_String *transportProfile, UA_NetworkAddressUrlDataType *networkAddressUrl
     UA_Server *server = UA_Server_new();
     UA_ServerConfig *config = UA_Server_getConfig(server);
     UA_ServerConfig_setDefault(config);
-
-    /* Details about the connection configuration and handling are located in
-     * the pubsub connection tutorial */
-    UA_ServerConfig_addPubSubTransportLayer(config, UA_PubSubTransportLayerUDPMP());
-    #ifdef UA_ENABLE_PUBSUB_ETH_UADP
-        UA_ServerConfig_addPubSubTransportLayer(config, UA_PubSubTransportLayerEthernet());
-    #endif
 
     addTargetVariable(server);
     addStandaloneSubscribedDataSet(server);

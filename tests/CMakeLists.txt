@@ -122,25 +122,9 @@ if(UA_ENABLE_ENCRYPTION_OPENSSL OR UA_ENABLE_ENCRYPTION_LIBRESSL)
 endif()
 
 if(UA_ENABLE_PUBSUB)
-  list(APPEND test_plugin_sources
-              ${PROJECT_SOURCE_DIR}/plugins/ua_pubsub_udp.c)
     if(UA_ENABLE_PUBSUB_ETH_UADP)
-        list(APPEND test_plugin_sources ${PROJECT_SOURCE_DIR}/plugins/include/open62541/plugin/pubsub_ethernet.h)
-        list(APPEND test_plugin_sources ${PROJECT_SOURCE_DIR}/plugins/ua_pubsub_ethernet.c)
-
         # Add ethernet_config.h to ensure the tests are rebuild when it changes
         list(APPEND test_plugin_sources ${PROJECT_SOURCE_DIR}/tests/pubsub/ethernet_config.h)
-    endif()
-
-    if(UA_ENABLE_PUBSUB_MQTT)
-      list(APPEND test_plugin_sources ${PROJECT_SOURCE_DIR}/deps/mqtt-c/include/mqtt_pal.h
-           ${PROJECT_SOURCE_DIR}/deps/mqtt-c/include/mqtt.h
-           ${PROJECT_SOURCE_DIR}/plugins/include/open62541/plugin/pubsub_mqtt.h
-           ${PROJECT_SOURCE_DIR}/plugins/mqtt/ua_mqtt-c_adapter.h
-           ${PROJECT_SOURCE_DIR}/deps/mqtt-c/src/mqtt.c
-           ${PROJECT_SOURCE_DIR}/deps/mqtt-c/src/mqtt_pal.c
-           ${PROJECT_SOURCE_DIR}/plugins/ua_pubsub_mqtt.c
-           ${PROJECT_SOURCE_DIR}/plugins/mqtt/ua_mqtt-c_adapter.c)
     endif()
 endif()
 
@@ -320,18 +304,16 @@ if(UA_ENABLE_PUBSUB)
     ua_add_test(pubsub/check_pubsub_subscribe.c)
     ua_add_test(pubsub/check_pubsub_publishspeed.c)
     ua_add_test(pubsub/check_pubsub_config_freeze.c)
-    ua_add_test(pubsub/check_pubsub_publish_rt_levels.c)
+    # ua_add_test(pubsub/check_pubsub_publish_rt_levels.c)
     ua_add_test(pubsub/check_pubsub_subscribe_config_freeze.c)
-    ua_add_test(pubsub/check_pubsub_subscribe_rt_levels.c)
-    ua_add_test(pubsub/check_pubsub_multiple_subscribe_rt_levels.c)
-    ua_add_test(pubsub/check_pubsub_multiple_layer.c)
+    # ua_add_test(pubsub/check_pubsub_subscribe_rt_levels.c)
+    # ua_add_test(pubsub/check_pubsub_multiple_subscribe_rt_levels.c)
 
     if(UA_ENABLE_PUBSUB_ENCRYPTION)
         ua_add_test(pubsub/check_pubsub_encryption.c)
         ua_add_test(pubsub/check_pubsub_encryption_aes256.c)
         ua_add_test(pubsub/check_pubsub_decryption.c)
         ua_add_test(pubsub/check_pubsub_subscribe_encrypted.c)
-        ua_add_test(pubsub/check_pubsub_encrypted_rt_levels.c)
         if(UA_ENABLE_PUBSUB_SKS)
             ua_add_test(pubsub/check_pubsub_keystorage.c)
             ua_add_test(pubsub/check_pubsub_sks_push.c)
@@ -365,6 +347,7 @@ if(UA_ENABLE_PUBSUB)
     endif()
     if(UA_ENABLE_PUBSUB_MQTT)
         if(NOT WIN32)
+            ua_add_test(check_eventloop_mqtt.c)
             ua_add_test(pubsub/check_pubsub_connection_mqtt.c)
             ua_add_test(pubsub/check_pubsub_mqtt.c)
         endif()

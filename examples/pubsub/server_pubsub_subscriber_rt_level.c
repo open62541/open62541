@@ -7,17 +7,9 @@
  * to receive and display values that are published by tutorial_pubsub_publish
  * example in the TargetVariables of Subscriber Information Model .
  */
-#include <open62541/plugin/log_stdout.h>
-#include <open62541/plugin/pubsub_udp.h>
 #include <open62541/server.h>
+#include <open62541/plugin/log_stdout.h>
 #include <open62541/server_config_default.h>
-#include <open62541/types_generated.h>
-
-#include "ua_pubsub.h"
-
-#ifdef UA_ENABLE_PUBSUB_ETH_UADP
-#include <open62541/plugin/pubsub_ethernet.h>
-#endif
 
 #include <stdio.h>
 #include <signal.h>
@@ -180,8 +172,7 @@ addPubSubConnection(UA_Server *server, UA_String *transportProfile,
     connectionConfig.enabled = UA_TRUE;
     UA_Variant_setScalar(&connectionConfig.address, networkAddressUrl,
                          &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
-    connectionConfig.publisherIdType = UA_PUBLISHERIDTYPE_UINT32;
-    connectionConfig.publisherId.uint32 = UA_UInt32_random();
+    connectionConfig.publisherId = UA_PUBLISHERID_UINT32(UA_UInt32_random());
     retval |= UA_Server_addPubSubConnection (server, &connectionConfig, &connectionIdentifier);
     if (retval != UA_STATUSCODE_GOOD)
         return retval;
@@ -304,9 +295,7 @@ addDataSetReader(UA_Server *server) {
     /* The following parameters are used to show that the data published by
      * tutorial_pubsub_publish.c is being subscribed and is being updated in
      * the information model */
-    UA_UInt16 publisherIdentifier = 2234;
-    readerConfig.publisherId.type = &UA_TYPES[UA_TYPES_UINT16];
-    readerConfig.publisherId.data = &publisherIdentifier;
+    readerConfig.publisherId      = UA_PUBLISHERID_UINT16(2234);
     readerConfig.writerGroupId    = 100;
     readerConfig.dataSetWriterId  = 62541;
     readerConfig.messageSettings.encoding = UA_EXTENSIONOBJECT_DECODED;
@@ -355,12 +344,6 @@ run(UA_String *transportProfile, UA_NetworkAddressUrlDataType *networkAddressUrl
     UA_Server *server = UA_Server_new();
     UA_ServerConfig *config = UA_Server_getConfig(server);
     UA_ServerConfig_setMinimal(config, 4801, NULL);
-
-    /* Add the PubSub network layer implementation to the server config.
-     * The TransportLayer is acting as factory to create new connections
-     * on runtime. Details about the PubSubTransportLayer can be found inside the
-     * tutorial_pubsub_connection */
-    UA_ServerConfig_addPubSubTransportLayer(config, UA_PubSubTransportLayerUDPMP());
 
     /* API calls */
     /* Add PubSubConnection */

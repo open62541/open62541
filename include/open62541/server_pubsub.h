@@ -13,7 +13,6 @@
 #define UA_SERVER_PUBSUB_H
 
 #include <open62541/common.h>
-#include <open62541/plugin/pubsub.h>
 #include <open62541/plugin/securitypolicy.h>
 
 #include <open62541/plugin/eventloop.h>
@@ -55,7 +54,18 @@ _UA_BEGIN_DECLS
  * can be used with broker based protocols like MQTT and AMQP or brokerless
  * implementations like UDP-Multicasting.
  *
- * The PubSub API uses the following scheme:
+ * The configuration model for PubSub uses the following components: */
+
+typedef enum  {
+    UA_PUBSUB_COMPONENT_CONNECTION,
+    UA_PUBSUB_COMPONENT_WRITERGROUP,
+    UA_PUBSUB_COMPONENT_DATASETWRITER,
+    UA_PUBSUB_COMPONENT_READERGROUP,
+    UA_PUBSUB_COMPONENT_DATASETREADER
+} UA_PubSubComponentEnumType;
+
+/**
+ * The open62541 PubSub API uses the following scheme:
  *
  * 1. Create a configuration for the needed PubSub element.
  *
@@ -129,55 +139,65 @@ _UA_BEGIN_DECLS
  * The PubSub connections are the abstraction between the concrete transport protocol
  * and the PubSub functionality. It is possible to create multiple connections with
  * different transport protocols at runtime.
- *
- * Take a look on the PubSub Tutorials for mor details about the API usage.
  */
 
-typedef enum  {
-    UA_PUBSUB_COMPONENT_CONNECTION,
-    UA_PUBSUB_COMPONENT_WRITERGROUP,
-    UA_PUBSUB_COMPONENT_DATASETWRITER,
-    UA_PUBSUB_COMPONENT_READERGROUP,
-    UA_PUBSUB_COMPONENT_DATASETREADER
-} UA_PubSubComponentEnumType;
-
+/* Valid PublisherId types from Part 14 */
 typedef enum {
-    UA_PUBLISHERIDTYPE_BYTE = 0,
+    UA_PUBLISHERIDTYPE_BYTE   = 0,
     UA_PUBLISHERIDTYPE_UINT16 = 1,
     UA_PUBLISHERIDTYPE_UINT32 = 2,
     UA_PUBLISHERIDTYPE_UINT64 = 3,
     UA_PUBLISHERIDTYPE_STRING = 4
 } UA_PublisherIdType;
 
-/* Publisher Id
-    Valid types are defined in Part 14, 7.2.2.2.2 NetworkMessage Layout:
-
-    Bit range 0-2: PublisherId Type
-    000 The PublisherId is of DataType Byte This is the default value if ExtendedFlags1 is omitted
-    001 The PublisherId is of DataType UInt16
-    010 The PublisherId is of DataType UInt32
-    011 The PublisherId is of DataType UInt64
-    100 The PublisherId is of DataType String
-*/
-typedef union {
-    UA_Byte byte;
-    UA_UInt16 uint16;
-    UA_UInt32 uint32;
-    UA_UInt64 uint64;
-    UA_String string;
+typedef struct {
+    UA_PublisherIdType idType;
+    union {
+        UA_Byte byte;
+        UA_UInt16 uint16;
+        UA_UInt32 uint32;
+        UA_UInt64 uint64;
+        UA_String string;
+    } id;
 } UA_PublisherId;
 
-struct UA_PubSubConnectionConfig {
+void UA_EXPORT
+UA_PublisherId_init(UA_PublisherId *id);
+
+void UA_EXPORT
+UA_PublisherId_clear(UA_PublisherId *id);
+
+UA_StatusCode UA_EXPORT
+UA_PublisherId_copy(const UA_PublisherId *src, UA_PublisherId *dst);
+
+UA_Boolean UA_EXPORT
+UA_PublisherId_equal(const UA_PublisherId *id1, const UA_PublisherId *id2);
+
+UA_INLINABLE(UA_PublisherId UA_PUBLISHERID_BYTE(UA_Byte b), {
+    UA_PublisherId id; id.idType = UA_PUBLISHERIDTYPE_BYTE;
+    id.id.byte = b; return id; })
+UA_INLINABLE(UA_PublisherId UA_PUBLISHERID_UINT16(UA_UInt16 ui16), {
+    UA_PublisherId id; id.idType = UA_PUBLISHERIDTYPE_UINT16;
+    id.id.uint16 = ui16; return id; })
+UA_INLINABLE(UA_PublisherId UA_PUBLISHERID_UINT32(UA_UInt32 ui32), {
+    UA_PublisherId id; id.idType = UA_PUBLISHERIDTYPE_UINT32;
+    id.id.uint32 = ui32; return id; })
+UA_INLINABLE(UA_PublisherId UA_PUBLISHERID_UINT64(UA_UInt64 ui64), {
+    UA_PublisherId id; id.idType = UA_PUBLISHERIDTYPE_UINT64;
+    id.id.uint64 = ui64; return id; })
+UA_INLINABLE(UA_PublisherId UA_PUBLISHERID_STRING(char *s), {
+    UA_PublisherId id; id.idType = UA_PUBLISHERIDTYPE_STRING;
+    id.id.string = UA_STRING(s); return id; })
+
+typedef struct {
     UA_String name;
     UA_Boolean enabled;
-    UA_PublisherIdType publisherIdType;
     UA_PublisherId publisherId;
     UA_String transportProfileUri;
     UA_Variant address;
-    size_t connectionPropertiesSize;
-    UA_KeyValuePair *connectionProperties;
+    UA_KeyValueMap connectionProperties;
     UA_Variant connectionTransportSettings;
-};
+} UA_PubSubConnectionConfig;
 
 #ifdef UA_ENABLE_PUBSUB_MONITORING
 
@@ -211,10 +231,6 @@ typedef struct {
 
 /* General PubSub configuration */
 struct UA_PubSubConfiguration {
-    /* PubSub network layer */
-    size_t transportLayersSize;
-    UA_PubSubTransportLayer *transportLayers;
-
     /* Callback for PubSub component state changes: If provided this callback
      * informs the application about PubSub component state changes. E.g. state
      * change from operational to error in case of a DataSetReader
@@ -235,20 +251,6 @@ struct UA_PubSubConfiguration {
 #endif
 };
 
-
-/**
- * The UA_ServerConfig_addPubSubTransportLayer is used to add a transport layer
- * to the server configuration. The list memory is allocated and will be freed
- * with UA_PubSubManager_delete.
- *
- * .. note:: If the UA_String transportProfileUri was dynamically allocated
- *           the memory has to be freed when no longer required.
- *
- * .. note:: This has to be done before the server is started with UA_Server_run. */
-
-UA_StatusCode UA_EXPORT
-UA_ServerConfig_addPubSubTransportLayer(UA_ServerConfig *config,
-                                        UA_PubSubTransportLayer pubsubTransportLayer);
 /**
  * Add a new PubSub connection to the given server and open it.
  * @param[in] server the server to add the connection to
@@ -505,8 +507,7 @@ typedef struct {
     UA_Byte priority;
     UA_ExtensionObject transportSettings;
     UA_ExtensionObject messageSettings;
-    size_t groupPropertiesSize;
-    UA_KeyValuePair *groupProperties;
+    UA_KeyValueMap groupProperties;
     UA_PubSubEncodingType encodingMimeType;
     /* PubSub Manager Callback */
     UA_PubSub_CallbackLifecycle pubsubManagerCallback;
@@ -593,8 +594,7 @@ typedef struct {
     UA_ExtensionObject messageSettings;
     UA_ExtensionObject transportSettings;
     UA_String dataSetName;
-    size_t dataSetWriterPropertiesSize;
-    UA_KeyValuePair *dataSetWriterProperties;
+    UA_KeyValueMap dataSetWriterProperties;
 } UA_DataSetWriterConfig;
 
 void UA_EXPORT
@@ -677,7 +677,7 @@ typedef struct {
 } UA_TargetVariables;
 
 /* Return Status Code after creating TargetVariables in Subscriber AddressSpace */
-UA_StatusCode UA_EXPORT
+UA_StatusCode UA_EXPORT UA_THREADSAFE
 UA_Server_DataSetReader_createTargetVariables(UA_Server *server,
                                               UA_NodeId dataSetReaderIdentifier,
                                               size_t targetVariablesSize,
@@ -707,7 +707,7 @@ typedef enum {
 /* Parameters for PubSub DataSetReader Configuration */
 typedef struct {
     UA_String name;
-    UA_Variant publisherId;
+    UA_PublisherId publisherId;
     UA_UInt16 writerGroupId;
     UA_UInt16 dataSetWriterId;
     UA_DataSetMetaDataType dataSetMetaData;
@@ -727,18 +727,18 @@ typedef struct {
 } UA_DataSetReaderConfig;
 
 /* Update configuration to the dataSetReader */
-UA_StatusCode UA_EXPORT
+UA_StatusCode UA_EXPORT UA_THREADSAFE
 UA_Server_DataSetReader_updateConfig(UA_Server *server, UA_NodeId dataSetReaderIdentifier,
                                      UA_NodeId readerGroupIdentifier,
                                      const UA_DataSetReaderConfig *config);
 
 /* Get configuration of the dataSetReader */
-UA_StatusCode UA_EXPORT
+UA_StatusCode UA_EXPORT UA_THREADSAFE
 UA_Server_DataSetReader_getConfig(UA_Server *server, UA_NodeId dataSetReaderIdentifier,
                                   UA_DataSetReaderConfig *config);
 
 /* Get state of DataSetReader */
-UA_StatusCode UA_EXPORT
+UA_StatusCode UA_EXPORT UA_THREADSAFE
 UA_Server_DataSetReader_getState(UA_Server *server, UA_NodeId dataSetReaderIdentifier,
                                  UA_PubSubState *state);
 
@@ -793,8 +793,7 @@ typedef struct {
     UA_Boolean enableBlockingSocket; // To enable or disable blocking socket option
     UA_UInt32 timeout; // Timeout for receive to wait for the packets
     UA_PubSubRTLevel rtLevel;
-    size_t groupPropertiesSize;
-    UA_KeyValuePair *groupProperties;
+    UA_KeyValueMap groupProperties;
     UA_PubSubEncodingType encodingMimeType;
     UA_ExtensionObject transportSettings;
 
@@ -812,7 +811,7 @@ void UA_EXPORT
 UA_ReaderGroupConfig_clear(UA_ReaderGroupConfig *readerGroupConfig);
 
 /* Add DataSetReader to the ReaderGroup */
-UA_StatusCode UA_EXPORT
+UA_StatusCode UA_EXPORT UA_THREADSAFE
 UA_Server_addDataSetReader(UA_Server *server, UA_NodeId readerGroupIdentifier,
                            const UA_DataSetReaderConfig *dataSetReaderConfig,
                            UA_NodeId *readerIdentifier);
@@ -828,17 +827,17 @@ UA_Server_removeDataSetReader(UA_Server *server, UA_NodeId readerIdentifier);
  */
 
 /* Get configuraiton of ReaderGroup */
-UA_StatusCode UA_EXPORT
+UA_StatusCode UA_EXPORT UA_THREADSAFE
 UA_Server_ReaderGroup_getConfig(UA_Server *server, UA_NodeId readerGroupIdentifier,
                                 UA_ReaderGroupConfig *config);
 
 /* Get state of ReaderGroup */
-UA_StatusCode UA_EXPORT
+UA_StatusCode UA_EXPORT UA_THREADSAFE
 UA_Server_ReaderGroup_getState(UA_Server *server, UA_NodeId readerGroupIdentifier,
                                UA_PubSubState *state);
 
 /* Add ReaderGroup to the created connection */
-UA_StatusCode UA_EXPORT
+UA_StatusCode UA_EXPORT UA_THREADSAFE
 UA_Server_addReaderGroup(UA_Server *server, UA_NodeId connectionIdentifier,
                          const UA_ReaderGroupConfig *readerGroupConfig,
                          UA_NodeId *readerGroupIdentifier);
@@ -853,10 +852,10 @@ UA_Server_freezeReaderGroupConfiguration(UA_Server *server, const UA_NodeId read
 UA_StatusCode UA_EXPORT
 UA_Server_unfreezeReaderGroupConfiguration(UA_Server *server, const UA_NodeId readerGroupId);
 
-UA_StatusCode UA_EXPORT
+UA_StatusCode UA_EXPORT UA_THREADSAFE
 UA_Server_setReaderGroupOperational(UA_Server *server, const UA_NodeId readerGroupId);
 
-UA_StatusCode UA_EXPORT
+UA_StatusCode UA_EXPORT UA_THREADSAFE
 UA_Server_setReaderGroupDisabled(UA_Server *server, const UA_NodeId readerGroupId);
 
 #ifdef UA_ENABLE_PUBSUB_ENCRYPTION

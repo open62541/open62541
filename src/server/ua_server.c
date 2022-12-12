@@ -903,18 +903,6 @@ UA_Server_run_startup(UA_Server *server) {
 
 UA_UInt16
 UA_Server_run_iterate(UA_Server *server, UA_Boolean waitInternal) {
-    /* Listen on the pubsublayer, but only if the yield function is set.
-     * TODO: Integrate into the EventLoop */
-#if defined(UA_ENABLE_PUBSUB_MQTT)
-    UA_PubSubConnection *connection;
-    TAILQ_FOREACH(connection, &server->pubSubManager.connections, listEntry){
-        UA_PubSubConnection *ps = connection;
-        if(ps && ps->channel && ps->channel->yield){
-            ps->channel->yield(ps->channel, 0);
-        }
-    }
-#endif
-
     /* Process timed and network events in the EventLoop */
     server->config.eventLoop->run(server->config.eventLoop, UA_MAXTIMEOUT);
 

@@ -900,13 +900,15 @@ TCP_openConnection(UA_ConnectionManager *cm,
 
 static UA_StatusCode
 TCP_eventSourceStart(UA_ConnectionManager *cm) {
-    UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX*)cm->eventSource.eventLoop;
     TCPConnectionManager *tcm = (TCPConnectionManager*)cm;
+    UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX*)cm->eventSource.eventLoop;
+    if(!el)
+        return UA_STATUSCODE_BADINTERNALERROR;
 
     /* Check the state */
     if(cm->eventSource.state != UA_EVENTSOURCESTATE_STOPPED) {
         UA_LOG_ERROR(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
-                     "To start the TCP ConnectionManager, it has to be "
+                     "TCP\t| To start the ConnectionManager, it has to be "
                      "registered in an EventLoop and not started yet");
         return UA_STATUSCODE_BADINTERNALERROR;
     }
