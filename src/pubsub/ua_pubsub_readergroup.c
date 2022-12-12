@@ -239,14 +239,6 @@ UA_Server_removeReaderGroup(UA_Server *server, UA_NodeId groupIdentifier) {
     return res;
 }
 
-/* TODO: Implement
-UA_StatusCode
-UA_Server_ReaderGroup_updateConfig(UA_Server *server, UA_NodeId readerGroupIdentifier,
-                                   const UA_ReaderGroupConfig *config) {
-    return UA_STATUSCODE_BADNOTIMPLEMENTED;
-}
-*/
-
 UA_StatusCode
 UA_Server_ReaderGroup_getConfig(UA_Server *server, UA_NodeId readerGroupIdentifier,
                                 UA_ReaderGroupConfig *config) {
