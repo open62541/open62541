@@ -190,9 +190,9 @@ signCreateSessionResponse(UA_Server *server, UA_SecureChannel *channel,
     UA_SignatureData *signatureData = &response->serverSignature;
 
     /* Prepare the signature */
-    size_t signatureSize = securityPolicy->certificateSigningAlgorithm.
+    size_t signatureSize = securityPolicy->asymmetricModule.cryptoModule.signatureAlgorithm.
         getLocalSignatureSize(channel->channelContext);
-    UA_StatusCode retval = UA_String_copy(&securityPolicy->certificateSigningAlgorithm.uri,
+    UA_StatusCode retval = UA_String_copy(&securityPolicy->asymmetricModule.cryptoModule.signatureAlgorithm.uri,
                                           &signatureData->algorithm);
     retval |= UA_ByteString_allocBuffer(&signatureData->signature, signatureSize);
     if(retval != UA_STATUSCODE_GOOD)
@@ -209,7 +209,7 @@ signCreateSessionResponse(UA_Server *server, UA_SecureChannel *channel,
     memcpy(dataToSign.data, request->clientCertificate.data, request->clientCertificate.length);
     memcpy(dataToSign.data + request->clientCertificate.length,
            request->clientNonce.data, request->clientNonce.length);
-    retval = securityPolicy->certificateSigningAlgorithm.
+    retval = securityPolicy->asymmetricModule.cryptoModule.signatureAlgorithm.
         sign(channel->channelContext, &dataToSign, &signatureData->signature);
 
     /* Clean up */
@@ -435,7 +435,7 @@ checkSignature(const UA_Server *server, const UA_SecurityPolicy *securityPolicy,
     memcpy(dataToVerify.data, localCertificate->data, localCertificate->length);
     memcpy(dataToVerify.data + localCertificate->length,
            serverNonce->data, serverNonce->length);
-    retval = securityPolicy->certificateSigningAlgorithm.
+    retval = securityPolicy->asymmetricModule.cryptoModule.signatureAlgorithm.
         verify(channelContext, &dataToVerify, &signature->signature);
     UA_ByteString_clear(&dataToVerify);
     if(retval != UA_STATUSCODE_GOOD)

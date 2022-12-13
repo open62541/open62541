@@ -57,7 +57,7 @@ mbedtls_encrypt_rsaOaep(mbedtls_rsa_context *context,
 UA_StatusCode
 mbedtls_decrypt_rsaOaep(mbedtls_pk_context *localPrivateKey,
                         mbedtls_ctr_drbg_context *drbgContext,
-                        UA_ByteString *data);
+                        UA_ByteString *data, int hash_id);
 
 int UA_mbedTLS_LoadPrivateKey(const UA_ByteString *key, mbedtls_pk_context *target, void *p_rng);
 
