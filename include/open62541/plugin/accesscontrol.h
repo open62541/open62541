@@ -16,6 +16,33 @@ _UA_BEGIN_DECLS
 struct UA_AccessControl;
 typedef struct UA_AccessControl UA_AccessControl;
 
+#ifdef UA_ENABLE_ROLE_PERMISSION
+
+typedef enum {
+    UA_ANONYMOUS_WELL_KNOWN_RULE = 0,
+    UA_AUTHENTICATEDUSER_WELL_KNOWN_RULE = 1,
+    UA_CONFIGUREADMIN_WELL_KNOWN_RULE = 2,
+    UA_ENGINEER_WELL_KNOWN_RULE = 3,
+    UA_OBSERVER_WELL_KNOWN_RULE = 4,
+    UA_OPERATOR_WELL_KNOWN_RULE = 5,
+    UA_SECURITYADMIN_WELL_KNOWN_RULE = 6,
+    UA_SUPERVISOR_WELL_KNOWN_RULE = 7,
+}UA_AccessControlGroup;
+
+typedef struct {
+    UA_AccessControlGroup  accessControlGroup;
+    UA_UInt32              accessPermissions;
+    UA_Boolean             methodAccessPermission;
+    UA_IdentityMappingRuleType identityMappingRule;
+} UA_AccessControlSettings;
+
+typedef struct {
+    UA_String *username;
+    UA_String *rolename;
+    UA_AccessControlSettings *accessControlSettings;
+} UA_UsernameRoleInfo;
+#endif
+
 /**
  * .. _access-control:
  *
@@ -136,10 +163,10 @@ struct UA_AccessControl {
                                                       UA_DateTime endTimestamp,
                                                       bool isDeleteModified);
 #endif
-#ifdef UA_ENABLE_ROLE_PERMISSION
     UA_Boolean (*checkUserDatabase)(const UA_UserNameIdentityToken *userToken, UA_String *roleName);
+
+    UA_StatusCode (*setRoleAccessPermission)(UA_String roleName, UA_AccessControlSettings* accessControlSettings);
    // UA_StatusCode (*checkTheRoleSessionLoggedIn)(UA_Server *server);
-#endif
 };
 
 _UA_END_DECLS

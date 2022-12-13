@@ -192,7 +192,7 @@ mark_as_advanced(UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS)
 option(UA_ENABLE_NODEMANAGEMENT "Enable dynamic addition and removal of nodes at runtime" ON)
 mark_as_advanced(UA_ENABLE_NODEMANAGEMENT)
 
-option(UA_ENABLE_ROLE_PERMISSION "Enable role access permission" ON)
+option(UA_ENABLE_ROLE_PERMISSION "Enable role access permission" OFF)
 mark_as_advanced(UA_ENABLE_ROLE_PERMISSION)
 
 option(UA_ENABLE_PARSING "Utility functions that require parsing (e.g. NodeId expressions)" ON)

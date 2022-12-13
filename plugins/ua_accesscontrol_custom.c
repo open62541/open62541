@@ -13,82 +13,19 @@
  * For TransferSubscriptions, we check whether the transfer happens between
  * Sessions for the same user. */
 
-typedef struct { 
+#ifdef UA_ENABLE_ROLE_PERMISSION
+typedef struct {
     UA_Boolean allowAnonymous;
     size_t usernamePasswordLoginSize;
     UA_UsernamePasswordLogin *usernamePasswordLogin;
     UA_CertificateVerification verifyX509;
 } AccessControlContext;
 
-#define ANONYMOUS_POLICY "open62541-anonymous-policy"
-#define CERTIFICATE_POLICY "open62541-certificate-policy"
-#define USERNAME_POLICY "open62541-username-policy"
-#define ANONYMOUS_WELL_KNOWN_RULE "Anonymous"
-#define AUTHENTICATEDUSER_WELL_KNOWN_RULE "AuthenticatedUser"
-#define CONFIGUREADMIN_WELL_KNOWN_RULE "ConfigureAdmin"
-#define ENGINEER_WELL_KNOWN_RULE "Engineer"
-#define OBSERVER_WELL_KNOWN_RULE "Observer"
-#define OPERATOR_WELL_KNOWN_RULE "Operator"
-#define SECURITYADMIN_WELL_KNOWN_RULE "SecurityAdmin"
-#define SUPERVISOR_WELL_KNOWN_RULE "Supervisor"
 static UA_String anonymous_policy = UA_STRING_STATIC(ANONYMOUS_POLICY);
 static UA_String certificate_policy = UA_STRING_STATIC(CERTIFICATE_POLICY);
 static UA_String username_policy = UA_STRING_STATIC(USERNAME_POLICY);
 
-static UA_StatusCode setUserRole_settings(UA_String roleName, 
-                                          UA_AccessControlSettings* accessControlSettings){
-    const UA_String anonymous = UA_STRING_STATIC(ANONYMOUS_WELL_KNOWN_RULE);
-    const UA_String authenticatedUser = UA_STRING_STATIC(AUTHENTICATEDUSER_WELL_KNOWN_RULE);
-    const UA_String configureAdmin = UA_STRING_STATIC(CONFIGUREADMIN_WELL_KNOWN_RULE);
-    const UA_String engineer = UA_STRING_STATIC(ENGINEER_WELL_KNOWN_RULE);
-    const UA_String observer = UA_STRING_STATIC(OBSERVER_WELL_KNOWN_RULE);
-    const UA_String operatorRole = UA_STRING_STATIC(OPERATOR_WELL_KNOWN_RULE);
-    const UA_String securityAdmin = UA_STRING_STATIC(SECURITYADMIN_WELL_KNOWN_RULE);
-    const UA_String supervisor = UA_STRING_STATIC(SUPERVISOR_WELL_KNOWN_RULE);
 
-    if (UA_String_equal(&roleName, &anonymous) == true){
-        accessControlSettings->accessControlGroup = UA_ANONYMOUS_WELL_KNOWN_RULE;
-        accessControlSettings->accessPermissions = UA_ACCESSLEVELMASK_READ;
-        accessControlSettings->methodAccessPermission = false;
-    }
-    if (UA_String_equal(&roleName, &authenticatedUser) == true){
-        accessControlSettings->accessControlGroup = UA_AUTHENTICATEDUSER_WELL_KNOWN_RULE;
-        accessControlSettings->accessPermissions = UA_ACCESSLEVELMASK_READ | UA_ACCESSLEVELMASK_WRITE; 
-        accessControlSettings->methodAccessPermission = true;
-    }
-    if (UA_String_equal(&roleName, &configureAdmin) == true){
-        accessControlSettings->accessControlGroup = UA_CONFIGUREADMIN_WELL_KNOWN_RULE;
-        accessControlSettings->accessPermissions = UA_ACCESSLEVELMASK_READ | UA_ACCESSLEVELMASK_WRITE | UA_ACCESSLEVELMASK_HISTORYREAD;
-        accessControlSettings->methodAccessPermission = true;
-    }
-    if (UA_String_equal(&roleName, &engineer) == true){
-        accessControlSettings->accessControlGroup = UA_ENGINEER_WELL_KNOWN_RULE;
-        accessControlSettings->accessPermissions = UA_ACCESSLEVELMASK_READ | UA_ACCESSLEVELMASK_WRITE; 
-        accessControlSettings->methodAccessPermission = true;
-    }
-    if (UA_String_equal(&roleName, &observer) == true){
-        accessControlSettings->accessControlGroup = UA_OBSERVER_WELL_KNOWN_RULE;
-        accessControlSettings->accessPermissions = UA_ACCESSLEVELMASK_READ | UA_ACCESSLEVELMASK_HISTORYREAD;    
-        accessControlSettings->methodAccessPermission = false;
-    }
-    if (UA_String_equal(&roleName, &operatorRole) == true){
-        accessControlSettings->accessControlGroup = UA_OPERATOR_WELL_KNOWN_RULE;
-        accessControlSettings->accessPermissions = UA_ACCESSLEVELMASK_READ | UA_ACCESSLEVELMASK_WRITE;  
-        accessControlSettings->methodAccessPermission = true;
-    }
-    if (UA_String_equal(&roleName, &securityAdmin) == true){
-        accessControlSettings->accessControlGroup = UA_SECURITYADMIN_WELL_KNOWN_RULE;
-        accessControlSettings->accessPermissions = UA_ACCESSLEVELMASK_READ | UA_ACCESSLEVELMASK_WRITE | UA_ACCESSLEVELMASK_HISTORYREAD; 
-        accessControlSettings->methodAccessPermission = true;
-    }
-    if (UA_String_equal(&roleName, &supervisor) == true){
-        accessControlSettings->accessControlGroup = UA_SUPERVISOR_WELL_KNOWN_RULE;
-        accessControlSettings->accessPermissions = UA_ACCESSLEVELMASK_READ | UA_ACCESSLEVELMASK_WRITE;  
-        accessControlSettings->methodAccessPermission = false;
-    }
-
-    return UA_STATUSCODE_GOOD;
-}
 /************************/
 /* Access Control Logic */
 /************************/
@@ -101,6 +38,8 @@ activateSession_custom(UA_Server *server, UA_AccessControl *ac,
                         const UA_ExtensionObject *userIdentityToken,
                         void **sessionContext) {
     AccessControlContext *context = (AccessControlContext*)ac->context;
+    UA_ServerConfig *config = UA_Server_getConfig(server);
+
     /* The empty token is interpreted as anonymous */
     if(userIdentityToken->encoding == UA_EXTENSIONOBJECT_ENCODED_NOBODY) {
         if(!context->allowAnonymous)
@@ -138,11 +77,15 @@ activateSession_custom(UA_Server *server, UA_AccessControl *ac,
         usernameAndRoleInfo->rolename = UA_String_new();
         if(usernameAndRoleInfo->rolename)
             UA_String_copy(&roleName, usernameAndRoleInfo->rolename);
-        
+
         usernameAndRoleInfo->accessControlSettings = (UA_AccessControlSettings*)malloc(sizeof(UA_AccessControlSettings));
-        setUserRole_settings(roleName, usernameAndRoleInfo->accessControlSettings);
+        if (config->accessControl.setRoleAccessPermission != NULL) {
+            config->accessControl.setRoleAccessPermission(roleName, usernameAndRoleInfo->accessControlSettings);
+        }
+        else {
+            setUserRole_settings(roleName, usernameAndRoleInfo->accessControlSettings);
+        }
         /* No userdata atm */
-      //  *sessionContext = NULL;
         *sessionContext = usernameAndRoleInfo;
         return UA_STATUSCODE_GOOD;
     }
@@ -163,16 +106,13 @@ activateSession_custom(UA_Server *server, UA_AccessControl *ac,
         if(userToken->userName.length == 0 && userToken->password.length == 0)
             return UA_STATUSCODE_BADIDENTITYTOKENINVALID;
 
-        //printf("\nUSername Access:%s\n", userToken->userName.data);
-        //printf("\nPassword Access:%s\n", userToken->password.data);
         /* Try to match username/pw */
         UA_Boolean match = false;
-        UA_ServerConfig *config = UA_Server_getConfig(server);
         UA_String roleName = UA_STRING_NULL;
-        if (config->accessControl.checkUserDatabase != NULL){
+        if (config->accessControl.checkUserDatabase != NULL) {
             match = config->accessControl.checkUserDatabase(userToken, &roleName);
         }
-        else{
+        else {
             for(size_t i = 0; i < context->usernamePasswordLoginSize; i++) {
                 if(UA_String_equal(&userToken->userName, &context->usernamePasswordLogin[i].username) &&
                 UA_String_equal(&userToken->password, &context->usernamePasswordLogin[i].password)) {
@@ -181,7 +121,7 @@ activateSession_custom(UA_Server *server, UA_AccessControl *ac,
                 }
             }
         }
-        
+
         if(!match)
             return UA_STATUSCODE_BADUSERACCESSDENIED;
 
@@ -193,11 +133,19 @@ activateSession_custom(UA_Server *server, UA_AccessControl *ac,
          usernameAndRoleInfo->rolename = UA_String_new();
          if(usernameAndRoleInfo->rolename)
              UA_String_copy(&roleName, usernameAndRoleInfo->rolename);
-        
+
          usernameAndRoleInfo->accessControlSettings = (UA_AccessControlSettings*)malloc(sizeof(UA_AccessControlSettings));
-         setUserRole_settings(roleName,  usernameAndRoleInfo->accessControlSettings);
+        if (config->accessControl.setRoleAccessPermission != NULL) {
+            config->accessControl.setRoleAccessPermission(roleName, usernameAndRoleInfo->accessControlSettings);
+        }
+        else {
+            setUserRole_settings(roleName, usernameAndRoleInfo->accessControlSettings);
+        }
 
         *sessionContext = usernameAndRoleInfo;
+
+        if(roleName.data != NULL)
+            UA_free(roleName.data);
 
         return UA_STATUSCODE_GOOD;
     }
@@ -225,8 +173,23 @@ activateSession_custom(UA_Server *server, UA_AccessControl *ac,
 static void
 closeSession_custom(UA_Server *server, UA_AccessControl *ac,
                      const UA_NodeId *sessionId, void *sessionContext) {
-    if(sessionContext)
-        UA_ByteString_delete((UA_ByteString*)sessionContext);
+
+    UA_UsernameRoleInfo *userAndRoleInfo = (UA_UsernameRoleInfo*)sessionContext;
+
+    if(userAndRoleInfo->accessControlSettings->identityMappingRule.criteria.data != NULL)
+        UA_IdentityMappingRuleType_clear(&userAndRoleInfo->accessControlSettings->identityMappingRule);
+
+    if(userAndRoleInfo->accessControlSettings != NULL)
+        UA_free(userAndRoleInfo->accessControlSettings);
+
+    if (userAndRoleInfo->rolename->data != NULL)
+        UA_String_delete(userAndRoleInfo->rolename);
+
+    if (userAndRoleInfo->username->data != NULL) {
+        UA_String_delete(userAndRoleInfo->username);
+    }
+
+    UA_free(userAndRoleInfo);
 }
 
 static UA_UInt32
@@ -310,12 +273,12 @@ hasAccessToNode_custom(UA_Server *server, UA_AccessControl *ac,
     UA_Server_readAccessLevel(server, *nodeId, &outAccessLevel);
     UA_Byte accessLevelPermission = (((UA_Byte)userAndRoleInfo->accessControlSettings->accessPermissions) & \
                                      outAccessLevel);
-    if ((accessLevelPermission & *serviceAccessLevel) == *serviceAccessLevel){
+    if ((accessLevelPermission & *serviceAccessLevel) == *serviceAccessLevel) {
         *serviceAccessLevel = accessLevelPermission;
         return true;
     }
-    else{
-        *serviceAccessLevel = accessLevelPermission;        
+    else {
+        *serviceAccessLevel = accessLevelPermission;
         return false;
     }
 }
@@ -323,10 +286,16 @@ hasAccessToNode_custom(UA_Server *server, UA_AccessControl *ac,
 static UA_Boolean
 hasAccessToMethod_custom(UA_Server *server, UA_AccessControl *ac,
                           const UA_NodeId *sessionId, void *sessionContext,
-                          const UA_NodeId *methodId, void *methodContext){
-    UA_UsernameRoleInfo *userAndRoleInfo = (UA_UsernameRoleInfo*)sessionContext;
+                          const UA_NodeId *methodId, void *methodContext) {
 
-    return userAndRoleInfo->accessControlSettings->methodAccessPermission;
+    UA_Boolean outExecutable;
+    UA_Server_readExecutable(server, *methodId, &outExecutable);
+    if (outExecutable == false)
+        return false;
+    else {
+        UA_UsernameRoleInfo *userAndRoleInfo = (UA_UsernameRoleInfo*)sessionContext;
+        return userAndRoleInfo->accessControlSettings->methodAccessPermission;
+    }
 }
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS
@@ -524,3 +493,5 @@ UA_AccessControl_custom(UA_ServerConfig *config,
     }
     return UA_STATUSCODE_GOOD;
 }
+
+#endif /* UA_SERVER_ROLE_ACCESS_H_ */

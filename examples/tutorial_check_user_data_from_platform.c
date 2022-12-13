@@ -22,7 +22,7 @@
 #include <fcntl.h>
 
 // structure for user Data Queue
-typedef struct __attribute__((__packed__)) user_data_buffer {
+typedef struct user_data_buffer {
     bool userAvailable;
     UA_String username;
     UA_String password;
@@ -31,13 +31,61 @@ typedef struct __attribute__((__packed__)) user_data_buffer {
     uint64_t userID;
 } userDatabase;
 
-int checkUser (userDatabase* userData);
-UA_Boolean checkUserDatabase(const UA_UserNameIdentityToken *userToken, UA_String *roleName);
+UA_NodeId outNewNodeId;
+
+int           checkUser (userDatabase* userData);
+UA_Boolean    checkUserDatabase(const UA_UserNameIdentityToken *userToken, UA_String *roleName);
 UA_StatusCode addNewNamespaceandSetDefaultPermission(UA_Server *server);
 UA_StatusCode createNewRoleMethodCall(UA_Server *server);
-//UA_StatusCode removeRoleMethodCall(UA_Server *server);
 UA_StatusCode checkTheRoleSessionLoggedIn(UA_Server *server);
-//void  checkTheRoleSessionLoggedIn(UA_Server *server, void *data);
+UA_NodeId     findIdentityNodeID(UA_Server *server, UA_NodeId startingNode);
+
+UA_NodeId
+findIdentityNodeID(UA_Server *server, UA_NodeId startingNode) {
+    UA_NodeId resultNodeId;
+    UA_RelativePathElement rpe;
+    UA_RelativePathElement_init(&rpe);
+    rpe.referenceTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY);
+    rpe.isInverse = false;
+    rpe.includeSubtypes = false;
+    rpe.targetName = UA_QUALIFIEDNAME(0, "Identities");
+    UA_BrowsePath bp;
+    UA_BrowsePath_init(&bp);
+    bp.startingNode = startingNode;
+    bp.relativePath.elementsSize = 1;
+    bp.relativePath.elements = &rpe;
+    UA_BrowsePathResult bpr = UA_Server_translateBrowsePathToNodeIds(server, &bp);
+    if(bpr.statusCode != UA_STATUSCODE_GOOD ||
+       bpr.targetsSize < 1)
+        return UA_NODEID_NULL;
+
+    UA_StatusCode res = UA_NodeId_copy(&bpr.targets[0].targetId.nodeId, &resultNodeId);
+    if(res != UA_STATUSCODE_GOOD){
+        UA_BrowsePathResult_clear(&bpr);
+        return UA_NODEID_NULL;
+    }
+
+    UA_BrowsePathResult_clear(&bpr);
+    return resultNodeId;
+}
+
+static UA_Boolean
+addRoleBasedNodes(UA_Server *server,
+                  const UA_NodeId *sessionId,
+                  void *sessionContext,
+                  const UA_NodeId *sourceNodeId,
+                  const UA_NodeId *targetParentNodeId,
+                  const UA_NodeId *referenceTypeId)
+ {
+    UA_NodeId addIdentityNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_ROLETYPE_ADDIDENTITY);
+    UA_NodeId removeIdentityNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_ROLETYPE_REMOVEIDENTITY);
+
+    //  Add the AddIdentity Method and RemoveIdentity Method, when creating the RoleType Object
+    if ((UA_NodeId_equal(sourceNodeId, &addIdentityNodeId)) || (UA_NodeId_equal(sourceNodeId, &removeIdentityNodeId)))
+        return UA_TRUE;
+    else
+        return UA_FALSE;
+}
 
 static UA_StatusCode
 roleIdentificationMethodCallback(UA_Server *server,
@@ -46,16 +94,16 @@ roleIdentificationMethodCallback(UA_Server *server,
                                  const UA_NodeId *objectId, void *objectContext,
                                  size_t inputSize, const UA_Variant *input,
                                  size_t outputSize, UA_Variant *output) {
-    //UA_ServerConfig *config = UA_Server_getConfig(server);
-    if (sessionContext == NULL){
+    if (sessionContext == NULL) {
         UA_String userRoleInfo = UA_STRING("Anonymous");
         UA_Variant_setScalarCopy(output, &userRoleInfo, &UA_TYPES[UA_TYPES_STRING]);
         return UA_STATUSCODE_GOOD;
     }
+
 #ifdef UA_ENABLE_ROLE_PERMISSION
     UA_UsernameRoleInfo *userAndRoleInfo = (UA_UsernameRoleInfo*)sessionContext;
-    printf("\nSessionUsername:%s\n", userAndRoleInfo->username->data);
-    printf("\nSessionRolename:%s\n", userAndRoleInfo->rolename->data);
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "SessionUsername: %s", userAndRoleInfo->username->data);
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "SessionRolename: %s", userAndRoleInfo->rolename->data);
     UA_Variant_setScalarCopy(output, userAndRoleInfo->rolename, &UA_TYPES[UA_TYPES_STRING]);
 #endif
 
@@ -84,14 +132,13 @@ addSessionRoleIdentificationMethodCall(UA_Server *server) {
                             0, NULL, 1, &outputArgument, NULL, NULL);
 }
 
-UA_StatusCode addNewNamespaceandSetDefaultPermission(UA_Server *server){
- UA_UInt16 nsIdx = UA_Server_addNamespace(server, "http://yourorganisation.org/test/");
-    printf("\nnameSpaceIndex:%d\n", nsIdx);
-    UA_NodeId outNewNodeId;
+UA_StatusCode addNewNamespaceandSetDefaultPermission(UA_Server *server) {
+    UA_UInt16 nsIdx = UA_Server_addNamespace(server, "http://yourorganisation.org/test/");
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "NameSpaceIndex: %d", nsIdx);
     UA_ObjectAttributes attr = UA_ObjectAttributes_default;
     attr.description = UA_LOCALIZEDTEXT("en-US", "http://yourorganisation.org/test/");
     attr.displayName = UA_LOCALIZEDTEXT("en-US", "http://yourorganisation.org/test/");
-    UA_Server_addObjectNode(server, UA_NODEID_STRING(nsIdx, "http://yourorganisation.org/test/"), 
+    UA_Server_addObjectNode(server, UA_NODEID_STRING(nsIdx, "http://yourorganisation.org/test/"),
                             UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_NAMESPACES), UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
                             UA_QUALIFIEDNAME(nsIdx, "http://yourorganisation.org/test/"), UA_NODEID_NUMERIC(0, UA_NS0ID_NAMESPACEMETADATATYPE),
                             attr, NULL, &outNewNodeId);
@@ -148,7 +195,6 @@ UA_StatusCode addNewNamespaceandSetDefaultPermission(UA_Server *server){
     attributes.displayName = UA_LOCALIZEDTEXT("en-US", "DefaultUserRolePermissions");
     attributes.accessLevel = UA_ACCESSLEVELMASK_READ | UA_ACCESSLEVELMASK_WRITE;
     attributes.dataType = UA_TYPES[UA_TYPES_ROLEPERMISSIONTYPE].typeId;
-    //UA_Variant_setScalar(&attributes.value, &permissionValue, &UA_TYPES[UA_TYPES_ROLEPERMISSIONTYPE]);
     UA_Server_addVariableNode(
         server, UA_NODEID_STRING(nsIdx, "DefaultUserRolePermissions"), outNewNodeId,
         UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY),
@@ -158,7 +204,9 @@ UA_StatusCode addNewNamespaceandSetDefaultPermission(UA_Server *server){
     return UA_STATUSCODE_GOOD;
 }
 
-UA_StatusCode createNewRoleMethodCall(UA_Server *server){
+/* Note: Uncomment the below codesection to add new Role node via the open62541 server */
+/*
+UA_StatusCode createNewRoleMethodCall(UA_Server *server) {
     UA_Variant inputArguments[2];
     UA_Variant_init(&inputArguments[0]);
     UA_String newRole = UA_STRING("KalycitoWorker");
@@ -178,65 +226,43 @@ UA_StatusCode createNewRoleMethodCall(UA_Server *server){
     UA_CallMethodResult_init(&result);
     result = UA_Server_call(server, &callMethodRequest);
     if (result.statusCode != UA_STATUSCODE_GOOD)
-        printf("\nMethodCall Failed\n");
-    
-    printf("\nOutputArgumentSize:%ld\n", result.outputArgumentsSize);
+        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "MethodCall Failed to add KalycitoWorker Role Node");
+
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
+                "OutputArgumentSize: %ld", result.outputArgumentsSize);
+
     UA_NodeId *roleNodeId = (UA_NodeId *)result.outputArguments[0].data;
-    printf("\nroleNodeId:%s\n", roleNodeId->identifier.string.data);
-    printf("\nroleNodeIdNmaespaceIndex:%d\n", roleNodeId->namespaceIndex);
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
+                "RoleNodeId: %s", roleNodeId->identifier.string.data);
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
+                "RoleNodeIdNamespaceIndex: %d", roleNodeId->namespaceIndex);
+
+    // Add IdentityMappingRule to the KalycitoWorker's Identity Node (Child node of the KalycitoWorker Role)
+    UA_IdentityMappingRuleType identityMappingRule;
+    identityMappingRule.criteria = UA_STRING("Engineer");
+    identityMappingRule.criteriaType = UA_IDENTITYCRITERIATYPE_ROLE;
+
+    UA_Variant value;
+    UA_Variant_setArray(&value, &identityMappingRule, 1, &UA_TYPES[UA_TYPES_IDENTITYMAPPINGRULETYPE]);
+
+    UA_NodeId identityChildNodeId = findIdentityNodeID(server, *roleNodeId);
+
+    UA_StatusCode ret = UA_Server_writeValue(server, identityChildNodeId, value);
+    if (ret != UA_STATUSCODE_GOOD)
+        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "Error in writing the RoleIdentity: %s", UA_StatusCode_name(ret));
+
+    UA_Variant_clear(&inputArguments[0]);
+    UA_Variant_clear(&inputArguments[1]);
+    callMethodRequest.inputArguments = NULL;
+    callMethodRequest.inputArgumentsSize = 0;
+    UA_CallMethodRequest_clear(&callMethodRequest);
+    UA_CallMethodResult_clear(&result);
 
     return result.statusCode;
 }
+*/
 
-/*UA_StatusCode removeRoleMethodCall(UA_Server *server){
-    UA_Variant inputArguments[1];
-    UA_Variant_init(&inputArguments[0]);
-    UA_NodeId removeRole;
-    removeRole.identifier.string = UA_STRING("KalycitoWorker");
-    removeRole.identifierType = UA_NODEIDTYPE_STRING;
-    removeRole.namespaceIndex = 2;
-    UA_Variant_setScalarCopy(&inputArguments[0], &removeRole, &UA_TYPES[UA_TYPES_NODEID]);
-
-    UA_CallMethodRequest callMethodRequest;
-    UA_CallMethodRequest_init(&callMethodRequest);
-    callMethodRequest.inputArgumentsSize = 1;         // 1 would be correct
-    callMethodRequest.inputArguments = (UA_Variant*)&inputArguments;
-    callMethodRequest.methodId = UA_NODEID_NUMERIC(0, UA_NS0ID_ROLESETTYPE_REMOVEROLE);
-    callMethodRequest.objectId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERCAPABILITIES_ROLESET);
-
-    UA_CallMethodResult result;
-    UA_CallMethodResult_init(&result);
-    result = UA_Server_call(server, &callMethodRequest);
-    if (result.statusCode != UA_STATUSCODE_GOOD)
-        printf("\nMethodCall Failed\n");
-
-    return result.statusCode;
-}*/
-
-//void  checkTheRoleSessionLoggedIn(UA_Server *server, void *data){
-/*UA_StatusCode checkTheRoleSessionLoggedIn(UA_Server *server){
-    printf("\ncheckTheRoleSessionLoggedIn\n");
-    UA_CallMethodRequest callMethodRequest;
-    UA_CallMethodRequest_init(&callMethodRequest);
-    callMethodRequest.methodId = UA_NODEID_STRING(1, "SessionRoleIdentification");
-    callMethodRequest.objectId = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER);
-
-    UA_CallMethodResult result;
-    UA_CallMethodResult_init(&result);
-    result = UA_Server_call(server, &callMethodRequest);
-    if (result.statusCode != UA_STATUSCODE_GOOD)
-        printf("\nMethodCall Failed\n");
-    else{
-    printf("\ncheckTheRoleSessionStartedEnd\n");
-    printf("\nOutputArgumentSize:%ld\n", result.outputArgumentsSize);
-    UA_String *roleNameSessionLoggedIn = (UA_String *)result.outputArguments[0].data;
-    printf("\nroleNameSessionLoggedIn:%s\n", roleNameSessionLoggedIn->data);
-    }
-
-    return result.statusCode;
-}*/
-
-UA_Boolean checkUserDatabase(const UA_UserNameIdentityToken *userToken, UA_String *roleName){
+UA_Boolean checkUserDatabase(const UA_UserNameIdentityToken *userToken, UA_String *roleName) {
     userDatabase userData;
     userData.userAvailable = false;
     UA_String_copy(&userToken->userName, &userData.username);
@@ -245,13 +271,13 @@ UA_Boolean checkUserDatabase(const UA_UserNameIdentityToken *userToken, UA_Strin
     if (userData.userAvailable != true)
        return false;
 
-    printf("\nPlatformUseravailale:%d\n", userData.userAvailable);
-    printf("\nPlatformUserNmae:%s\n", userData.username.data);
-    printf("\nPlatformPassword:%s\n", userData.password.data);
-    printf("\nPlatformRole:%s\n", userData.role.data);
-    printf("\nPlatformLength:%ld\n", userData.role.length);
-    printf("\nPlatformGroupID:%ld\n", userData.GroupID);
-    printf("\nPlatformUserID:%ld\n", userData.userID);
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "PlatformUseravailale: %d", userData.userAvailable);
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "PlatformUserName: %s", userData.username.data);
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "PlatformPassword: %s", userData.password.data);
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "PlatformRole: %s", userData.role.data);
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "PlatformLength: %ld", userData.role.length);
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "PlatformGroupID: %ld", userData.GroupID);
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "PlatformUserID: %ld", userData.userID);
     UA_String_copy(&userData.role, roleName);
 
     if (userData.username.data != NULL)
@@ -263,14 +289,12 @@ UA_Boolean checkUserDatabase(const UA_UserNameIdentityToken *userToken, UA_Strin
     if (userData.password.data != NULL)
         free(userData.role.data );
 
-    //checkTheRoleSessionStarted(server);
-
     return true;
 }
 
-/** It follows the main server code, making use of the above definitions. */
-
+/* It follows the main server code, making use of the above definitions. */
 static volatile UA_Boolean running = true;
+
 static void stopHandler(int sign) {
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "received ctrl-c");
     running = false;
@@ -283,24 +307,26 @@ int main(int argc, char **argv) {
     UA_Server *server = UA_Server_new();
     UA_ServerConfig *config = UA_Server_getConfig(server);
     UA_ServerConfig_setDefault(config);
-    //UA_UInt64 callbackId;
+    config->nodeLifecycle.createOptionalChild = addRoleBasedNodes;
+
     addNewNamespaceandSetDefaultPermission(server);
     addSessionRoleIdentificationMethodCall(server);
-    createNewRoleMethodCall(server);
-   // UA_Server_addRepeatedCallback(server, checkTheRoleSessionLoggedIn,NULL,5000, &callbackId);
-   // removeRoleMethodCall(server);
-    //checkTheRoleSessionStarted(server);
+    // Uncomment to add new Role Node via the open62541 server
+    // createNewRoleMethodCall(server);
+
     config->accessControl.checkUserDatabase = checkUserDatabase;
-  //  config->accessControl.checkTheRoleSessionLoggedIn = checkTheRoleSessionLoggedIn;
 
     /* Disable anonymous logins, enable two user/password logins */
     config->accessControl.clear(&config->accessControl);
     UA_StatusCode retval = UA_AccessControl_custom(config, true, NULL,
-             &config->securityPolicies[config->securityPoliciesSize-1].policyUri, 0, NULL);
+                           &config->securityPolicies[config->securityPoliciesSize-1].policyUri, 0, NULL);
     if(retval != UA_STATUSCODE_GOOD)
-        printf("\nAccessControlDefaultFailed\n");
+        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "AccessControlDefaultFailed");
 
     retval = UA_Server_run(server, &running);
+
+    UA_Server_deleteNode(server, outNewNodeId, true);
+    UA_NodeId_clear(&outNewNodeId);
     UA_Server_delete(server);
     return retval == UA_STATUSCODE_GOOD ? EXIT_SUCCESS : EXIT_FAILURE;
 }

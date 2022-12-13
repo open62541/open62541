@@ -9,6 +9,18 @@
 #include <open62541/plugin/accesscontrol.h>
 #include <open62541/server.h>
 
+#define ANONYMOUS_POLICY                  "open62541-anonymous-policy"
+#define CERTIFICATE_POLICY                "open62541-certificate-policy"
+#define USERNAME_POLICY                   "open62541-username-policy"
+#define ANONYMOUS_WELL_KNOWN_RULE         "Anonymous"
+#define AUTHENTICATEDUSER_WELL_KNOWN_RULE "AuthenticatedUser"
+#define CONFIGUREADMIN_WELL_KNOWN_RULE    "ConfigureAdmin"
+#define ENGINEER_WELL_KNOWN_RULE          "Engineer"
+#define OBSERVER_WELL_KNOWN_RULE          "Observer"
+#define OPERATOR_WELL_KNOWN_RULE          "Operator"
+#define SECURITYADMIN_WELL_KNOWN_RULE     "SecurityAdmin"
+#define SUPERVISOR_WELL_KNOWN_RULE        "Supervisor"
+
 _UA_BEGIN_DECLS
 
 typedef struct {
@@ -16,31 +28,6 @@ typedef struct {
     UA_String password;
 } UA_UsernamePasswordLogin;
 
-#ifdef UA_ENABLE_ROLE_PERMISSION
-
-typedef enum {
-    UA_ANONYMOUS_WELL_KNOWN_RULE = 0,
-    UA_AUTHENTICATEDUSER_WELL_KNOWN_RULE = 1,
-    UA_CONFIGUREADMIN_WELL_KNOWN_RULE = 2,
-    UA_ENGINEER_WELL_KNOWN_RULE = 3,
-    UA_OBSERVER_WELL_KNOWN_RULE = 4,
-    UA_OPERATOR_WELL_KNOWN_RULE = 5,
-    UA_SECURITYADMIN_WELL_KNOWN_RULE = 6,
-    UA_SUPERVISOR_WELL_KNOWN_RULE = 7,
-}UA_AccessControlGroup;
-
-typedef struct {
-    UA_AccessControlGroup  accessControlGroup;
-    UA_UInt32              accessPermissions;
-    UA_Boolean             methodAccessPermission;
-} UA_AccessControlSettings;
-
-typedef struct {
-    UA_String *username;
-    UA_String *rolename;
-    UA_AccessControlSettings *accessControlSettings;
-} UA_UsernameRoleInfo;
-#endif
 /* Default access control. The log-in can be anonymous or username-password. A
  * logged-in user has all access rights.
  *

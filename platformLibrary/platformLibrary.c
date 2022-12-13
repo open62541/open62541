@@ -14,7 +14,7 @@ typedef struct {
 } string;
 
 // structure for user Data Queue
-typedef struct __attribute__((__packed__)) user_data_buffer {
+typedef struct user_data_buffer {
     bool userAvailable;
     string username;
     string password;
@@ -45,7 +45,7 @@ int checkUser (userDatabase* userData){
         while (ptr != NULL) {
             if (databaseIndex == 0){
                 if (strncmp(userData->username.data, ptr, userData->username.length) == 0)
-                    printf("Userfound Succesfully\n");
+                    printf("User found Succesfully\n");
                 else{
                     userData->role.length = 0;
                     userData->GroupID = 0;
@@ -70,18 +70,14 @@ int checkUser (userDatabase* userData){
                 userData->role.data = (uint8_t*)malloc(strlen(ptr));
                 strncpy(userData->role.data, ptr, strlen(ptr));
                 userData->role.length = strlen(userData->role.data);
-                printf("\nRoleLength:%ld\n", userData->role.length);
-                printf("Role: %s\n", ptr);
             }
             else if ((databaseIndex == 3) && (userData->userAvailable == true)){
                 int groupID = atoi(ptr);
                 userData->GroupID = groupID;
-                printf("GroupID: %d\n", userData->GroupID);
             }
             else if ((databaseIndex == 4) && (userData->userAvailable == true)){
                 int userID = atoi(ptr);
                 userData->userID = userID;
-                printf("userID: %d\n", userData->userID );
             }
 
             ptr = strtok (NULL, ",");

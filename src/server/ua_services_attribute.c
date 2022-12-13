@@ -125,7 +125,6 @@ getUserExecutable(UA_Server *server, const UA_Session *session,
     return userExecutable;
 }
 
-
 static UA_Boolean
 hasAccessToNode(UA_Server *server, const UA_Session *session,
                 const UA_VariableNode *node, UA_Byte* serviceAccessLevel) {
@@ -540,22 +539,22 @@ ReadWithNode(const UA_Node *node, UA_Server *server, UA_Session *session,
         break;
     case UA_ATTRIBUTEID_USERACCESSLEVEL: {
         CHECK_NODECLASS(UA_NODECLASS_VARIABLE);
-        if(session != &server->adminSession){
+        if(session != &server->adminSession) {
             //Check Whether the Access available
             UA_Byte currentServiceLevel = UA_ACCESSLEVELMASK_READ;
-            UA_Boolean checkAccessToNode = hasAccessToNode(server, session, &node->variableNode, 
+            UA_Boolean checkAccessToNode = hasAccessToNode(server, session, &node->variableNode,
                                                            &currentServiceLevel);
-            if (checkAccessToNode != true){
+            if (checkAccessToNode != true) {
                 UA_Variant_setScalarCopy(&v->value, &currentServiceLevel,
                                         &UA_TYPES[UA_TYPES_BYTE]);
                 retval = UA_STATUSCODE_BADUSERACCESSDENIED;
                 break;
             }
-                    
+
             retval = UA_Variant_setScalarCopy(&v->value, &currentServiceLevel,
                                               &UA_TYPES[UA_TYPES_BYTE]);
         }
-        else{
+        else {
              UA_Byte userAccessLevel = getUserAccessLevel(server, session, &node->variableNode);
              retval = UA_Variant_setScalarCopy(&v->value, &userAccessLevel,
                                               &UA_TYPES[UA_TYPES_BYTE]);
@@ -581,10 +580,10 @@ ReadWithNode(const UA_Node *node, UA_Server *server, UA_Session *session,
     case UA_ATTRIBUTEID_USEREXECUTABLE: {
         CHECK_NODECLASS(UA_NODECLASS_METHOD);
         UA_Boolean userExecutable;
-        if(session != &server->adminSession){
+        if(session != &server->adminSession) {
             userExecutable = hasAccessToMethod(server, session, &node->methodNode);
         }
-        else{
+        else {
             userExecutable =
                 getUserExecutable(server, session, &node->methodNode);
         }
@@ -1119,7 +1118,7 @@ compatibleValue(UA_Server *server, UA_Session *session, const UA_NodeId *targetD
        value->arrayLength == 0) {
         /* There is no way to check type compatibility here. Leave it for the upper layers to
          * decide, if empty array is okay. */
-        return true;        
+        return true;
     }
 
     /* Is the datatype compatible? */
@@ -1783,22 +1782,25 @@ copyAttributeIntoNode(UA_Server *server, UA_Session *session,
                 retval = UA_STATUSCODE_BADNOTWRITABLE;
                 break;
             }
-            if(session != &server->adminSession){
+#ifdef UA_ENABLE_ROLE_PERMISSION
+            if(session != &server->adminSession) {
                 UA_Byte currentServiceLevel = UA_ACCESSLEVELMASK_WRITE;
                 UA_Boolean checkAccessToNode = hasAccessToNode(server, session, &node->variableNode, &currentServiceLevel);
-                if (checkAccessToNode != true){
+                if (checkAccessToNode != true) {
                     retval = UA_STATUSCODE_BADUSERACCESSDENIED;
                     break;
                 }
             }
-            else{
+            else {
+#endif
                 accessLevel = getUserAccessLevel(server, session, &node->variableNode);
                 if(!(accessLevel & (UA_ACCESSLEVELMASK_WRITE))) {
                     retval = UA_STATUSCODE_BADUSERACCESSDENIED;
                     break;
                 }
+#ifdef UA_ENABLE_ROLE_PERMISSION
             }
-
+#endif
         } else { /* UA_NODECLASS_VARIABLETYPE */
             CHECK_USERWRITEMASK(UA_WRITEMASK_VALUEFORVARIABLETYPE);
         }
@@ -1837,16 +1839,16 @@ copyAttributeIntoNode(UA_Server *server, UA_Session *session,
         CHECK_NODECLASS_WRITE(UA_NODECLASS_VARIABLE);
         CHECK_USERWRITEMASK(UA_WRITEMASK_USERACCESSLEVEL);
         CHECK_DATATYPE_SCALAR(BYTE);
-        if(session != &server->adminSession){
+        if(session != &server->adminSession) {
             UA_Byte currentServiceLevel = UA_ACCESSLEVELMASK_WRITE;
             UA_Boolean checkAccessToNode = hasAccessToNode(server, session, &node->variableNode, &currentServiceLevel);
-            if (checkAccessToNode != true){
+            if (checkAccessToNode != true) {
                 retval = UA_STATUSCODE_BADUSERACCESSDENIED;
                 break;
             }
             node->variableNode.userAccessLevel = currentServiceLevel;
         }
-        else{
+        else {
             node->variableNode.userAccessLevel = *(const UA_Byte*)value;
         }
 
@@ -2220,7 +2222,7 @@ UA_Server_writeObjectProperty_scalar(UA_Server *server, const UA_NodeId objectId
                                      const UA_QualifiedName propertyName,
                                      const void *value, const UA_DataType *type) {
     UA_LOCK(&server->serviceMutex);
-    UA_StatusCode retval = 
+    UA_StatusCode retval =
         writeObjectProperty_scalar(server, objectId, propertyName, value, type);
     UA_UNLOCK(&server->serviceMutex);
     return retval;

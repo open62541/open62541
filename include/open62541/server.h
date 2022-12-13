@@ -1988,4 +1988,8 @@ _UA_END_DECLS
 #include <open62541/server_pubsub.h>
 #endif
 
+UA_EXPORT UA_StatusCode
+setUserRole_settings(UA_String roleName,
+                     UA_AccessControlSettings* accessControlSettings);
+
 #endif /* UA_SERVER_H_ */
