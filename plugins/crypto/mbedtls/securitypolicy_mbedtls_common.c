@@ -230,12 +230,13 @@ mbedtls_encrypt_rsaOaep(mbedtls_rsa_context *context,
 UA_StatusCode
 mbedtls_decrypt_rsaOaep(mbedtls_pk_context *localPrivateKey,
                         mbedtls_ctr_drbg_context *drbgContext,
-                        UA_ByteString *data) {
+                        UA_ByteString *data, int hash_id) {
     mbedtls_rsa_context *rsaContext = mbedtls_pk_rsa(*localPrivateKey);
-    mbedtls_rsa_set_padding(rsaContext, MBEDTLS_RSA_PKCS_V21, MBEDTLS_MD_SHA1);
 #if MBEDTLS_VERSION_NUMBER >= 0x02060000 && MBEDTLS_VERSION_NUMBER < 0x03000000
+    mbedtls_rsa_set_padding(rsaContext, MBEDTLS_RSA_PKCS_V21, hash_id);
     size_t keylen = rsaContext->len;
 #else
+    mbedtls_rsa_set_padding(rsaContext, MBEDTLS_RSA_PKCS_V21, (mbedtls_md_type_t)hash_id);
     size_t keylen = mbedtls_rsa_get_len(rsaContext);
 #endif
     if(data->length % keylen != 0)

@@ -5,6 +5,7 @@
  *    Copyright 2020 (c) Wind River Systems, Inc.
  *    Copyright 2020 (c) basysKom GmbH
  *    Copyright 2022 (c) Wind River Systems, Inc.
+ *    Copyright 2022 (c) Fraunhofer IOSB (Author: Noel Graf)
  */
 
 /*
@@ -132,6 +133,18 @@ UA_OpenSSL_RSA_Public_Verify (const UA_ByteString * message,
         goto errout;
     }
     EVP_PKEY_CTX_set_rsa_padding (evpKeyCtx, padding);
+    if(padding == RSA_PKCS1_PSS_PADDING) {
+        opensslRet = EVP_PKEY_CTX_set_rsa_pss_saltlen(evpKeyCtx, RSA_PSS_SALTLEN_DIGEST);
+        if(opensslRet != 1) {
+            ret = UA_STATUSCODE_BADINTERNALERROR;
+            goto errout;
+        }
+        opensslRet = EVP_PKEY_CTX_set_rsa_mgf1_md(evpKeyCtx, EVP_sha256());
+        if (opensslRet != 1) {
+            ret = UA_STATUSCODE_BADINTERNALERROR;
+            goto errout;
+        }
+    }
     opensslRet = EVP_DigestVerifyUpdate (mdctx, message->data, message->length);
     if (opensslRet != 1) {
         ret = UA_STATUSCODE_BADINTERNALERROR;
@@ -160,7 +173,16 @@ UA_OpenSSL_RSA_PKCS1_V15_SHA256_Verify (const UA_ByteString * msg,
                                         const UA_ByteString * signature
                                        ) {
     return UA_OpenSSL_RSA_Public_Verify (msg, EVP_sha256(), publicKeyX509,
-                                         NID_sha256, signature);
+                                         RSA_PKCS1_PADDING, signature);
+}
+
+UA_StatusCode
+UA_OpenSSL_RSA_PSS_SHA256_Verify (const UA_ByteString * msg,
+                                        X509 *                publicKeyX509,
+                                        const UA_ByteString * signature
+) {
+    return UA_OpenSSL_RSA_Public_Verify (msg, EVP_sha256(), publicKeyX509,
+                                         RSA_PKCS1_PSS_PADDING, signature);
 }
 
 /* Get certificate thumbprint, and allocate the buffer. */
@@ -205,7 +227,8 @@ UA_Openssl_X509_GetCertificateThumbprint (const UA_ByteString * certficate,
 static UA_StatusCode
 UA_Openssl_RSA_Private_Decrypt (UA_ByteString *      data,
                                EVP_PKEY *            privateKey,
-                               UA_Int16              padding) {
+                               UA_Int16              padding,
+                               UA_Boolean            withSha256) {
     if (data == NULL || privateKey == NULL) {
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     }
@@ -227,15 +250,24 @@ UA_Openssl_RSA_Private_Decrypt (UA_ByteString *      data,
         return UA_STATUSCODE_BADOUTOFMEMORY;
     }
     opensslRet = EVP_PKEY_decrypt_init (ctx);
-    if (opensslRet != 1)
-        {
+    if (opensslRet != 1) {
         EVP_PKEY_CTX_free (ctx);
         return UA_STATUSCODE_BADINTERNALERROR;
-        }
+    }
     opensslRet = EVP_PKEY_CTX_set_rsa_padding (ctx, padding);
     if (opensslRet != 1) {
         EVP_PKEY_CTX_free (ctx);
         return UA_STATUSCODE_BADINTERNALERROR;
+    }
+    if(withSha256) {
+        opensslRet = EVP_PKEY_CTX_set_rsa_oaep_md(ctx, EVP_sha256());
+        if (opensslRet != 1) {
+            return UA_STATUSCODE_BADINTERNALERROR;
+        }
+        opensslRet = EVP_PKEY_CTX_set_rsa_mgf1_md(ctx, EVP_sha256());
+        if (opensslRet != 1) {
+            return UA_STATUSCODE_BADINTERNALERROR;
+        }
     }
 
     while (cipherOffset < data->length) {
@@ -264,7 +296,14 @@ UA_StatusCode
 UA_Openssl_RSA_Oaep_Decrypt (UA_ByteString *       data,
                              EVP_PKEY * privateKey) {
     return  UA_Openssl_RSA_Private_Decrypt (data, privateKey,
-                                            RSA_PKCS1_OAEP_PADDING);
+                                            RSA_PKCS1_OAEP_PADDING, false);
+}
+
+UA_StatusCode
+UA_Openssl_RSA_Oaep_Sha2_Decrypt (UA_ByteString *       data,
+                             EVP_PKEY * privateKey) {
+    return  UA_Openssl_RSA_Private_Decrypt (data, privateKey,
+                                            RSA_PKCS1_OAEP_PADDING, true);
 }
 
 static UA_StatusCode
@@ -272,7 +311,8 @@ UA_Openssl_RSA_Public_Encrypt  (const UA_ByteString * message,
                                 X509 *                publicX509,
                                 UA_Int16              padding,
                                 size_t                paddingSize,
-                                UA_ByteString *       encrypted) {
+                                UA_ByteString *       encrypted,
+                                UA_Boolean withSha256) {
     EVP_PKEY_CTX *   ctx          = NULL;
     EVP_PKEY *       evpPublicKey = NULL;
     int              opensslRet;
@@ -303,6 +343,18 @@ UA_Openssl_RSA_Public_Encrypt  (const UA_ByteString * message,
     if (opensslRet != 1) {
         ret = UA_STATUSCODE_BADINTERNALERROR;
         goto errout;
+    }
+    if(withSha256) {
+        opensslRet = EVP_PKEY_CTX_set_rsa_oaep_md(ctx, EVP_sha256());
+        if (opensslRet != 1) {
+            ret = UA_STATUSCODE_BADINTERNALERROR;
+            goto errout;
+        }
+        opensslRet = EVP_PKEY_CTX_set_rsa_mgf1_md(ctx, EVP_sha256());
+        if (opensslRet != 1) {
+            ret = UA_STATUSCODE_BADINTERNALERROR;
+            goto errout;
+        }
     }
 
     /* get the encrypted block size */
@@ -375,7 +427,26 @@ UA_Openssl_RSA_OAEP_Encrypt (UA_ByteString * data,
     ret = UA_Openssl_RSA_Public_Encrypt (&message, publicX509,
                                             RSA_PKCS1_OAEP_PADDING,
                                             paddingSize,
-                                            data);
+                                            data, false);
+    UA_ByteString_clear (&message);
+    return ret;
+}
+
+UA_StatusCode
+UA_Openssl_RSA_OAEP_SHA2_Encrypt (UA_ByteString * data,
+                             size_t          paddingSize,
+                             X509 *          publicX509) {
+    UA_ByteString message;
+    UA_StatusCode ret;
+
+    ret = UA_ByteString_copy (data, &message);
+    if (ret != UA_STATUSCODE_GOOD) {
+        return ret;
+    }
+    ret = UA_Openssl_RSA_Public_Encrypt (&message, publicX509,
+                                         RSA_PKCS1_OAEP_PADDING,
+                                         paddingSize,
+                                         data, true);
     UA_ByteString_clear (&message);
     return ret;
 }
@@ -511,7 +582,18 @@ UA_Openssl_RSA_Private_Sign (const UA_ByteString * message,
         goto errout;
     }
     EVP_PKEY_CTX_set_rsa_padding (evpKeyCtx, padding);
-
+    if(padding == RSA_PKCS1_PSS_PADDING) {
+        opensslRet = EVP_PKEY_CTX_set_rsa_pss_saltlen(evpKeyCtx, RSA_PSS_SALTLEN_DIGEST); //RSA_PSS_SALTLEN_DIGEST
+        if (opensslRet != 1) {
+            ret = UA_STATUSCODE_BADINTERNALERROR;
+            goto errout;
+        }
+        opensslRet = EVP_PKEY_CTX_set_rsa_mgf1_md(evpKeyCtx, EVP_sha256());
+        if (opensslRet != 1) {
+            ret = UA_STATUSCODE_BADINTERNALERROR;
+            goto errout;
+        }
+    }
     opensslRet = EVP_DigestSignUpdate (mdctx, message->data, message->length);
     if (opensslRet != 1) {
         ret = UA_STATUSCODE_BADINTERNALERROR;
@@ -536,7 +618,15 @@ UA_Openssl_RSA_PKCS1_V15_SHA256_Sign (const UA_ByteString * message,
                                       EVP_PKEY * privateKey,
                                       UA_ByteString *       outSignature) {
     return UA_Openssl_RSA_Private_Sign (message, privateKey, EVP_sha256(),
-                NID_sha256, outSignature);
+                                        RSA_PKCS1_PADDING , outSignature);
+}
+
+UA_StatusCode
+UA_Openssl_RSA_PSS_SHA256_Sign (const UA_ByteString * message,
+                                      EVP_PKEY * privateKey,
+                                      UA_ByteString *       outSignature) {
+    return UA_Openssl_RSA_Private_Sign (message, privateKey, EVP_sha256(),
+                                        RSA_PKCS1_PSS_PADDING, outSignature);
 }
 
 UA_StatusCode
@@ -883,7 +973,7 @@ UA_StatusCode
 UA_Openssl_RSA_PKCS1_V15_Decrypt (UA_ByteString *       data,
                                   EVP_PKEY * privateKey) {
     return  UA_Openssl_RSA_Private_Decrypt (data, privateKey,
-                                            RSA_PKCS1_PADDING);
+                                            RSA_PKCS1_PADDING, false);
 }
 
 UA_StatusCode
@@ -898,7 +988,7 @@ UA_Openssl_RSA_PKCS1_V15_Encrypt (UA_ByteString * data,
     ret = UA_Openssl_RSA_Public_Encrypt (&message, publicX509,
                                          RSA_PKCS1_PADDING,
                                          paddingSize,
-                                         data);
+                                         data, false);
     UA_ByteString_clear (&message);
     return ret;
 }
