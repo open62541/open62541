@@ -263,7 +263,9 @@ artifacts can be specified by the following options:
    Compile example servers and clients from :file:`examples/*.c`.
 
 **UA_BUILD_UNIT_TESTS**
-   Compile unit tests. The tests can be executed with ``make test``
+   Compile unit tests. The tests can be executed with ``make test``.
+   An individual test can be executed with ``make test ARGS="-R <test_name> -V"``.
+   The list of available tests can be displayed with ``make test ARGS="-N"``.
 
 **UA_BUILD_SELFSIGNED_CERTIFICATE**
    Generate a self-signed certificate for the server (openSSL required)
