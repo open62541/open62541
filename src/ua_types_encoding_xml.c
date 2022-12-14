@@ -12,6 +12,8 @@
 #include "../deps/libc_time.h"
 #include "../deps/dtoa.h"
 
+#include <libxml/parser.h>
+
 #ifndef UA_ENABLE_PARSING
 #error UA_ENABLE_PARSING required for XML encoding
 #endif
@@ -31,12 +33,90 @@
 /* Have some slack at the end. E.g. for negative and very long years. */
 #define UA_XML_DATETIME_LENGTH 40
 
+/* Map for decoding a XML complex object type. An array of this is passed to the
+ * decodeXmlFields function. If the xml element with name "fieldName" is found
+ * in the xml complex object (mark as found) decode the value with the "function"
+ * and write result into "fieldPointer" (destination). */
+typedef struct {
+    const char *fieldName;
+    void *fieldPointer;
+    decodeXmlSignature function;
+    UA_Boolean found;
+    const UA_DataType *type; /* Must be set for values that can be "null". If
+                              * the function is not set, decode via the
+                              * type->typeKind. */
+} XmlDecodeEntry;
+
+XmlEncTypeDef xmlEncTypeDefs[UA_DATATYPEKINDS] = {
+    {"<xs:element name=\"Boolean\" nillable=\"true\" type=\"xs:boolean\"/>", 62},       /* Boolean */
+    {"<xs:element name=\"SByte\" nillable=\"true\" type=\"xs:byte\"/>", 57},            /* SByte */
+    {"<xs:element name=\"Byte\" nillable=\"true\" type=\"xs:unsignedByte\"/>", 64},     /* Byte */
+    {"<xs:element name=\"Int16\" nillable=\"true\" type=\"xs:short\"/>", 58},           /* Int16 */
+    {"<xs:element name=\"UInt16\" nillable=\"true\" type=\"xs:unsignedShort\"/>", 67},  /* UInt16 */
+    {"<xs:element name=\"Int32\" nillable=\"true\" type=\"xs:int\"/>", 56},             /* Int32 */
+    {"<xs:element name=\"UInt32\" nillable=\"true\" type=\"xs:unsignedInt\"/>", 65},    /* UInt32 */
+    {"<xs:element name=\"Int64\" nillable=\"true\" type=\"xs:long\"/>", 57},            /* Int64 */
+    {"<xs:element name=\"UInt64\" nillable=\"true\" type=\"xs:unsignedLong\"/>", 66},   /* UInt64 */
+    {"<xs:element name=\"Float\" nillable=\"true\" type=\"xs:float\"/>", 58},           /* Float */
+    {"<xs:element name=\"Double\" nillable=\"true\" type=\"xs:double\"/>", 60},         /* Double */
+    {"<xs:element name=\"String\" nillable=\"true\" type=\"xs:string\"/>", 60},         /* String */
+    {"<xs:element name=\"DateTime\" nillable=\"true\" type=\"xs:dateTime\"/>", 64},     /* DateTime */
+    {"<xs:complexType name=\"Guid\">"
+       "<xs:sequence>"
+         "<xs:element name=\"String\" type=\"xs:string\" minOccurs=\"0\" />"
+       "</xs:sequence>"
+     "</xs:complexType>", 131},                                                         /* Guid */
+    {"", 0},                                                                            /* ByteString */
+    {"", 0},                                                                            /* XmlElement */
+    {"<xs:complexType name=\"NodeId\">"
+       "<xs:sequence>"
+         "<xs:element name=\"Identifier\" type=\"xs:string\" minOccurs=\"0\" />"
+       "</xs:sequence>"
+     "</xs:complexType>", 137},                                                         /* NodeId */
+    {"<xs:complexType name=\"ExpandedNodeId\">"
+       "<xs:sequence>"
+         "<xs:element name=\"Identifier\" type=\"xs:string\" minOccurs=\"0\" />"
+       "</xs:sequence>"
+     "</xs:complexType>", 145},                                                         /* ExpandedNodeId */
+    {"", 0},                                                                            /* StatusCode */
+    {"", 0},                                                                            /* QualifiedName */
+    {"", 0},                                                                            /* LocalizedText */
+    {"", 0},                                                                            /* ExtensionObject */
+    {"", 0},                                                                            /* DataValue */
+    {"", 0},                                                                            /* Variant */
+    {"", 0},                                                                            /* DiagnosticInfo */
+    {"", 0},                                                                            /* Decimal */
+    {"", 0},                                                                            /* Enum */
+    {"", 0},                                                                            /* Structure */
+    {"", 0},                                                                            /* Structure with optional fields */
+    {"", 0},                                                                            /* Union */
+    {"", 0}                                                                             /* BitfieldCluster */
+};
+
+/* Elements for XML complex types */
+
+/* Guid */
+static const char* UA_XML_GUID_STRING = "String"; // String
+
+/* NodeId */
+static const char* UA_XML_NODEID_IDENTIFIER = "Identifier"; //String
+
+/* ExpandedNodeId */
+static const char* UA_XML_EXPANDEDNODEID_IDENTIFIER = "Identifier"; //String
+
 /************/
 /* Encoding */
 /************/
 
 #define ENCODE_XML(TYPE) static status \
     TYPE##_encodeXml(CtxXml *ctx, const UA_##TYPE *src, const UA_DataType *type)
+
+#define ENCODE_DIRECT_XML(SRC, TYPE) \
+    TYPE##_encodeXml(ctx, (const UA_##TYPE*)SRC, NULL)
+
+#define XML_TYPE_IS_PRIMITIVE \
+    (type->typeKind < UA_DATATYPEKIND_GUID || \
+    type->typeKind == UA_DATATYPEKIND_BYTESTRING)
 
 static status UA_FUNC_ATTR_WARN_UNUSED_RESULT
 xmlEncodeWriteChars(CtxXml *ctx, const char *c, size_t len) {
@@ -46,6 +126,43 @@ xmlEncodeWriteChars(CtxXml *ctx, const char *c, size_t len) {
         memcpy(ctx->pos, c, len);
     ctx->pos += len;
     return UA_STATUSCODE_GOOD;
+}
+
+static status UA_FUNC_ATTR_WARN_UNUSED_RESULT
+writeXmlElemNameBegin(CtxXml *ctx, const char* name) {
+    status ret = UA_STATUSCODE_GOOD;
+    if(!ctx->printValOnly) {
+        ret |= xmlEncodeWriteChars(ctx, "<", 1);
+        ret |= xmlEncodeWriteChars(ctx, name, strlen(name));
+        ret |= xmlEncodeWriteChars(ctx, ">", 1);
+    }
+    return ret;
+}
+
+static status UA_FUNC_ATTR_WARN_UNUSED_RESULT
+writeXmlElemNameEnd(CtxXml *ctx, const char* name) {
+    status ret = UA_STATUSCODE_GOOD;
+    if(!ctx->printValOnly) {
+        ret |= xmlEncodeWriteChars(ctx, "</", 2);
+        ret |= xmlEncodeWriteChars(ctx, name, strlen(name));
+        ret |= xmlEncodeWriteChars(ctx, ">", 1);
+    }
+    return ret;
+}
+
+static status UA_FUNC_ATTR_WARN_UNUSED_RESULT
+writeXmlElement(CtxXml *ctx, const char *name,
+                const void *value, const UA_DataType *type) {
+    status ret = UA_STATUSCODE_GOOD;
+    UA_Boolean prevPrintVal = ctx->printValOnly;
+    ctx->printValOnly = false;
+    ret |= writeXmlElemNameBegin(ctx, name);
+    ctx->printValOnly = XML_TYPE_IS_PRIMITIVE;
+    ret |= encodeXmlJumpTable[type->typeKind](ctx, value, type);
+    ctx->printValOnly = false;
+    ret |= writeXmlElemNameEnd(ctx, name);
+    ctx->printValOnly = prevPrintVal;
+    return ret;
 }
 
 /* Boolean */
@@ -160,12 +277,17 @@ ENCODE_XML(String) {
 
 /* Guid */
 ENCODE_XML(Guid) {
-    if(ctx->pos + 36 > ctx->end)
-        return UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED;
-    if(!ctx->calcOnly)
-        UA_Guid_to_hex(src, ctx->pos, false);
-    ctx->pos += 36;
-    return UA_STATUSCODE_GOOD;
+    UA_StatusCode ret = UA_STATUSCODE_GOOD;
+    UA_ByteString hexBuf;
+    UA_ByteString_allocBuffer(&hexBuf, 36);
+    UA_Guid_to_hex(src, hexBuf.data, false);
+
+    ret |= writeXmlElement(ctx, UA_XML_GUID_STRING,
+                           &hexBuf, &UA_TYPES[UA_TYPES_STRING]);
+
+    UA_ByteString_clear(&hexBuf);
+
+    return ret;
 }
 
 /* DateTime */
@@ -236,9 +358,10 @@ ENCODE_XML(NodeId) {
     UA_String out = UA_STRING_NULL;
 
     ret |= UA_NodeId_print(src, &out);
-    ret |= encodeXmlJumpTable[UA_DATATYPEKIND_STRING](ctx, &out, NULL);
-
+    ret |= writeXmlElement(ctx, UA_XML_NODEID_IDENTIFIER,
+                           &out, &UA_TYPES[UA_TYPES_STRING]);
     UA_String_clear(&out);
+
     return ret;
 }
 
@@ -248,9 +371,10 @@ ENCODE_XML(ExpandedNodeId) {
     UA_String out = UA_STRING_NULL;
 
     ret |= UA_ExpandedNodeId_print(src, &out);
-    ret |= encodeXmlJumpTable[UA_DATATYPEKIND_STRING](ctx, &out, NULL);
-
+    ret |= writeXmlElement(ctx, UA_XML_EXPANDEDNODEID_IDENTIFIER,
+                           &out, &UA_TYPES[UA_TYPES_STRING]);
     UA_String_clear(&out);
+
     return ret;
 }
 
@@ -318,17 +442,22 @@ UA_encodeXml(const void *src, const UA_DataType *type, UA_ByteString *outBuf,
     ctx.end = &outBuf->data[outBuf->length];
     ctx.depth = 0;
     ctx.calcOnly = false;
+    ctx.printValOnly = false;
     if(options)
         ctx.prettyPrint = options->prettyPrint;
 
     /* Encode */
-    res = encodeXmlJumpTable[type->typeKind](&ctx, src, type);
+    res |= xmlEncodeWriteChars(&ctx,
+            xmlEncTypeDefs[type->typeKind].xmlEncTypeDef,
+            xmlEncTypeDefs[type->typeKind].xmlEncTypeDefLen);
+    res |= writeXmlElement(&ctx, type->typeName, src, type);
 
     /* Clean up */
     if(res == UA_STATUSCODE_GOOD)
         outBuf->length = (size_t)((uintptr_t)ctx.pos - (uintptr_t)outBuf->data);
     else if(allocated)
         UA_ByteString_clear(outBuf);
+
     return res;
 }
 
@@ -348,6 +477,7 @@ UA_calcSizeXml(const void *src, const UA_DataType *type,
     ctx.pos = NULL;
     ctx.end = (const UA_Byte*)(uintptr_t)SIZE_MAX;
     ctx.depth = 0;
+    ctx.printValOnly = false;
     if(options) {
         ctx.prettyPrint = options->prettyPrint;
     }
@@ -355,7 +485,10 @@ UA_calcSizeXml(const void *src, const UA_DataType *type,
     ctx.calcOnly = true;
 
     /* Encode */
-    status ret = encodeXmlJumpTable[type->typeKind](&ctx, src, type);
+    status ret = xmlEncodeWriteChars(&ctx,
+                    xmlEncTypeDefs[type->typeKind].xmlEncTypeDef,
+                    xmlEncTypeDefs[type->typeKind].xmlEncTypeDefLen);
+    ret |= writeXmlElement(&ctx, type->typeName, src, type);
     if(ret != UA_STATUSCODE_GOOD)
         return 0;
     return (size_t)ctx.pos;
@@ -365,10 +498,34 @@ UA_calcSizeXml(const void *src, const UA_DataType *type,
 /* Decode */
 /**********/
 
-#define CHECK_TOKEN_BOUNDS do {                   \
-    if(ctx->index >= ctx->tokensSize)             \
-        return UA_STATUSCODE_BADDECODINGERROR;    \
+#define CHECK_DATA_BOUNDS                           \
+    do {                                            \
+        if(ctx->index >= ctx->membersSize)          \
+            return UA_STATUSCODE_BADDECODINGERROR;  \
     } while(0)
+
+#define GET_DATA_VALUE                                                  \
+    const char *data = NULL;                                            \
+    size_t length = 0;                                                  \
+    if(ctx->dataMembers[ctx->index]->type == XML_DATA_TYPE_PRIMITIVE) { \
+        data = ctx->dataMembers[ctx->index]->value.primitive.value;     \
+        length = ctx->dataMembers[ctx->index]->value.primitive.length;  \
+    }                                                                   \
+    do {} while(0)
+
+static void
+skipXmlObject(ParseCtxXml *ctx) {
+    if(ctx->value->data->type == XML_DATA_TYPE_PRIMITIVE)
+        ctx->index++;
+    else {
+        size_t objMemberIdx = 0;
+        do {
+            ctx->index++;
+            objMemberIdx++;
+        } while(ctx->index < ctx->membersSize &&
+                objMemberIdx < ctx->dataMembers[ctx->index]->value.complex.membersSize);
+    }
+}
 
 /* Forward declarations*/
 #define DECODE_XML(TYPE) static status                   \
@@ -376,19 +533,23 @@ UA_calcSizeXml(const void *src, const UA_DataType *type,
                       const UA_DataType *type)
 
 DECODE_XML(Boolean) {
-    if(ctx->length == 4 &&
-       ctx->data[0] == 't' && ctx->data[1] == 'r' &&
-       ctx->data[2] == 'u' && ctx->data[3] == 'e') {
+    CHECK_DATA_BOUNDS;
+    GET_DATA_VALUE;
+
+    if(length == 4 &&
+       data[0] == 't' && data[1] == 'r' &&
+       data[2] == 'u' && data[3] == 'e') {
         *dst = true;
-    } else if(ctx->length == 5 &&
-              ctx->data[0] == 'f' && ctx->data[1] == 'a' &&
-              ctx->data[2] == 'l' && ctx->data[3] == 's' &&
-              ctx->data[4] == 'e') {
+    } else if(length == 5 &&
+              data[0] == 'f' && data[1] == 'a' &&
+              data[2] == 'l' && data[3] == 's' &&
+              data[4] == 'e') {
         *dst = false;
     } else {
         return UA_STATUSCODE_BADDECODINGERROR;
     }
 
+    ctx->index++;
     return UA_STATUSCODE_GOOD;
 }
 
@@ -429,13 +590,17 @@ DECODE_XML(SByte) {
      *   1. Add support for optional "+" sign.
      *   2. Add support for optional leading zeros.
      *   3. Check if the value is in hex, octal or binray. */
+    CHECK_DATA_BOUNDS;
+    GET_DATA_VALUE;
+
     UA_Int64 out = 0;
-    UA_StatusCode s = decodeSigned(ctx->data, ctx->length, &out);
+    UA_StatusCode s = decodeSigned(data, length, &out);
 
     if(s != UA_STATUSCODE_GOOD || out < UA_SBYTE_MIN || out > UA_SBYTE_MAX)
         return UA_STATUSCODE_BADDECODINGERROR;
 
     *dst = (UA_SByte)out;
+    ctx->index++;
     return UA_STATUSCODE_GOOD;
 }
 
@@ -445,13 +610,17 @@ DECODE_XML(Byte) {
      *   2. Add support for optional leading zeros.
      *   3. Check if the value is in hex, octal or binray.
      *   4. Check if decimal point exists. */
+    CHECK_DATA_BOUNDS;
+    GET_DATA_VALUE;
+
     UA_UInt64 out = 0;
-    UA_StatusCode s = decodeUnsigned(ctx->data, ctx->length, &out);
+    UA_StatusCode s = decodeUnsigned(data, length, &out);
 
     if(s != UA_STATUSCODE_GOOD || out > UA_BYTE_MAX)
         return UA_STATUSCODE_BADDECODINGERROR;
 
     *dst = (UA_Byte)out;
+    ctx->index++;
     return UA_STATUSCODE_GOOD;
 }
 
@@ -461,13 +630,17 @@ DECODE_XML(Int16) {
      *   2. Add support for optional leading zeros.
      *   3. Check if the value is in hex, octal or binray.
      *   4. Check if decimal point exists. */
+    CHECK_DATA_BOUNDS;
+    GET_DATA_VALUE;
+
     UA_Int64 out = 0;
-    UA_StatusCode s = decodeSigned(ctx->data, ctx->length, &out);
+    UA_StatusCode s = decodeSigned(data, length, &out);
 
     if(s != UA_STATUSCODE_GOOD || out < UA_INT16_MIN || out > UA_INT16_MAX)
         return UA_STATUSCODE_BADDECODINGERROR;
 
     *dst = (UA_Int16)out;
+    ctx->index++;
     return UA_STATUSCODE_GOOD;
 }
 
@@ -477,13 +650,17 @@ DECODE_XML(UInt16) {
      *   2. Add support for optional leading zeros.
      *   3. Check if the value is in hex, octal or binray.
      *   4. Check if decimal point exists. */
+    CHECK_DATA_BOUNDS;
+    GET_DATA_VALUE;
+
     UA_UInt64 out = 0;
-    UA_StatusCode s = decodeUnsigned(ctx->data, ctx->length, &out);
+    UA_StatusCode s = decodeUnsigned(data, length, &out);
 
     if(s != UA_STATUSCODE_GOOD || out > UA_UINT16_MAX)
         return UA_STATUSCODE_BADDECODINGERROR;
 
     *dst = (UA_UInt16)out;
+    ctx->index++;
     return UA_STATUSCODE_GOOD;
 }
 
@@ -494,13 +671,17 @@ DECODE_XML(Int32) {
      *   3. Check if the value is in hex, octal or binray.
      *   4. Check if decimal point exists.
      *   5. Check "-0" and "+0", and just remove the sign. */
+    CHECK_DATA_BOUNDS;
+    GET_DATA_VALUE;
+
     UA_Int64 out = 0;
-    UA_StatusCode s = decodeSigned(ctx->data, ctx->length, &out);
+    UA_StatusCode s = decodeSigned(data, length, &out);
 
     if(s != UA_STATUSCODE_GOOD || out < UA_INT32_MIN || out > UA_INT32_MAX)
         return UA_STATUSCODE_BADDECODINGERROR;
 
     *dst = (UA_Int32)out;
+    ctx->index++;
     return UA_STATUSCODE_GOOD;
 }
 
@@ -510,13 +691,17 @@ DECODE_XML(UInt32) {
      *   2. Add support for optional leading zeros.
      *   3. Check if the value is in hex, octal or binray.
      *   4. Check if decimal point exists. */
+    CHECK_DATA_BOUNDS;
+    GET_DATA_VALUE;
+
     UA_UInt64 out = 0;
-    UA_StatusCode s = decodeUnsigned(ctx->data, ctx->length, &out);
+    UA_StatusCode s = decodeUnsigned(data, length, &out);
 
     if(s != UA_STATUSCODE_GOOD || out > UA_UINT32_MAX)
         return UA_STATUSCODE_BADDECODINGERROR;
 
     *dst = (UA_UInt32)out;
+    ctx->index++;
     return UA_STATUSCODE_GOOD;
 }
 
@@ -526,13 +711,17 @@ DECODE_XML(Int64) {
      *   2. Add support for optional leading zeros.
      *   3. Check if the value is in hex, octal or binray.
      *   4. Check if decimal point exists. */
+    CHECK_DATA_BOUNDS;
+    GET_DATA_VALUE;
+
     UA_Int64 out = 0;
-    UA_StatusCode s = decodeSigned(ctx->data, ctx->length, &out);
+    UA_StatusCode s = decodeSigned(data, length, &out);
 
     if(s != UA_STATUSCODE_GOOD)
         return UA_STATUSCODE_BADDECODINGERROR;
 
     *dst = (UA_Int64)out;
+    ctx->index++;
     return UA_STATUSCODE_GOOD;
 }
 
@@ -542,48 +731,56 @@ DECODE_XML(UInt64) {
      *   2. Add support for optional leading zeros.
      *   3. Check if the value is in hex, octal or binray.
      *   4. Check if decimal point exists. */
+    CHECK_DATA_BOUNDS;
+    GET_DATA_VALUE;
+
     UA_UInt64 out = 0;
-    UA_StatusCode s = decodeUnsigned(ctx->data, ctx->length, &out);
+    UA_StatusCode s = decodeUnsigned(data, length, &out);
 
     if(s != UA_STATUSCODE_GOOD)
         return UA_STATUSCODE_BADDECODINGERROR;
 
     *dst = (UA_UInt64)out;
+    ctx->index++;
     return UA_STATUSCODE_GOOD;
 }
 
 DECODE_XML(Double) {
+    CHECK_DATA_BOUNDS;
+    GET_DATA_VALUE;
 
     /* https://www.exploringbinary.com/maximum-number-of-decimal-digits-in-binary-floating-point-numbers/
      * Maximum digit counts for select IEEE floating-point formats: 1074
      * Sanity check.
      */
-    if(ctx->length > 1075)
+    if(length > 1075)
         return UA_STATUSCODE_BADDECODINGERROR;
 
-    if(ctx->length == 3 && memcmp(ctx->data, "INF", 3) == 0) {
+    ctx->index++;
+
+    if(length == 3 && memcmp(data, "INF", 3) == 0) {
         *dst = INFINITY;
         return UA_STATUSCODE_GOOD;
     }
 
-    if(ctx->length == 4 && memcmp(ctx->data, "-INF", 4) == 0) {
+    if(length == 4 && memcmp(data, "-INF", 4) == 0) {
         *dst = -INFINITY;
         return UA_STATUSCODE_GOOD;
     }
 
-    if(ctx->length == 3 && memcmp(ctx->data, "NaN", 3) == 0) {
+    if(length == 3 && memcmp(data, "NaN", 3) == 0) {
         *dst = NAN;
         return UA_STATUSCODE_GOOD;
     }
 
-    size_t len = parseDouble(ctx->data, ctx->length, dst);
+    size_t len = parseDouble(data, length, dst);
     if(len == 0)
         return UA_STATUSCODE_BADDECODINGERROR;
 
     /* There must only be whitespace between the end of the parsed number and
      * the end of the token */
-    for(size_t i = len; i < ctx->length; i++) {
-        if(ctx->data[i] != ' ' && ctx->data[i] -'\t' >= 5)
+    for(size_t i = len; i < length; i++) {
+        if(data[i] != ' ' && data[i] -'\t' >= 5)
             return UA_STATUSCODE_BADDECODINGERROR;
     }
 
@@ -598,28 +795,37 @@ DECODE_XML(Float) {
 }
 
 DECODE_XML(String) {
+    CHECK_DATA_BOUNDS;
+    GET_DATA_VALUE;
+
     /* Empty string? */
-    if(ctx->length == 0) {
+    if(length == 0) {
         dst->data = (UA_Byte*)UA_EMPTY_ARRAY_SENTINEL;
         dst->length = 0;
+        ctx->index++;
         return UA_STATUSCODE_GOOD;
     }
 
     /* Set the output */
-    dst->length = ctx->length;
+    dst->length = length;
     if(dst->length > 0) {
-        dst->data = (UA_Byte*)(uintptr_t)ctx->data;
+        UA_String str = {length, (UA_Byte*)(uintptr_t)data};
+        UA_String_copy(&str, dst);
     } else {
         dst->data = (UA_Byte*)UA_EMPTY_ARRAY_SENTINEL;
     }
 
+    ctx->index++;
     return UA_STATUSCODE_GOOD;
 }
 
 DECODE_XML(DateTime) {
+    CHECK_DATA_BOUNDS;
+    GET_DATA_VALUE;
+
     /* The last character has to be 'Z'. We can omit some length checks later on
      * because we know the atoi functions stop before the 'Z'. */
-    if(ctx->length == 0 || ctx->data[ctx->length - 1] != 'Z')
+    if(length == 0 || data[length - 1] != 'Z')
         return UA_STATUSCODE_BADDECODINGERROR;
 
     struct mytm dts;
@@ -633,58 +839,58 @@ DECODE_XML(DateTime) {
      * DateTime 64bit integer. But in that case we require the year and the
      * month to be separated by a '-'. Otherwise we cannot know where the month
      * starts. */
-    if(ctx->data[0] == '-' || ctx->data[0] == '+')
+    if(data[0] == '-' || data[0] == '+')
         pos++;
     UA_Int64 year = 0;
-    len = parseInt64(&ctx->data[pos], 5, &year);
+    len = parseInt64(&data[pos], 5, &year);
     pos += len;
-    if(len != 4 && ctx->data[pos] != '-')
+    if(len != 4 && data[pos] != '-')
         return UA_STATUSCODE_BADDECODINGERROR;
-    if(ctx->data[0] == '-')
+    if(data[0] == '-')
         year = -year;
     dts.tm_year = (UA_Int16)year - 1900;
-    if(ctx->data[pos] == '-')
+    if(data[pos] == '-')
         pos++;
 
     /* Parse the month */
     UA_UInt64 month = 0;
-    len = parseUInt64(&ctx->data[pos], 2, &month);
+    len = parseUInt64(&data[pos], 2, &month);
     pos += len;
     UA_CHECK(len == 2, return UA_STATUSCODE_BADDECODINGERROR);
     dts.tm_mon = (UA_UInt16)month - 1;
-    if(ctx->data[pos] == '-')
+    if(data[pos] == '-')
         pos++;
 
     /* Parse the day and check the T between date and time */
     UA_UInt64 day = 0;
-    len = parseUInt64(&ctx->data[pos], 2, &day);
+    len = parseUInt64(&data[pos], 2, &day);
     pos += len;
-    UA_CHECK(len == 2 || ctx->data[pos] != 'T',
+    UA_CHECK(len == 2 || data[pos] != 'T',
              return UA_STATUSCODE_BADDECODINGERROR);
     dts.tm_mday = (UA_UInt16)day;
     pos++;
 
     /* Parse the hour */
     UA_UInt64 hour = 0;
-    len = parseUInt64(&ctx->data[pos], 2, &hour);
+    len = parseUInt64(&data[pos], 2, &hour);
     pos += len;
     UA_CHECK(len == 2, return UA_STATUSCODE_BADDECODINGERROR);
     dts.tm_hour = (UA_UInt16)hour;
-    if(ctx->data[pos] == ':')
+    if(data[pos] == ':')
         pos++;
 
     /* Parse the minute */
     UA_UInt64 min = 0;
-    len = parseUInt64(&ctx->data[pos], 2, &min);
+    len = parseUInt64(&data[pos], 2, &min);
     pos += len;
     UA_CHECK(len == 2, return UA_STATUSCODE_BADDECODINGERROR);
     dts.tm_min = (UA_UInt16)min;
-    if(ctx->data[pos] == ':')
+    if(data[pos] == ':')
         pos++;
 
     /* Parse the second */
     UA_UInt64 sec = 0;
-    len = parseUInt64(&ctx->data[pos], 2, &sec);
+    len = parseUInt64(&data[pos], 2, &sec);
     pos += len;
     UA_CHECK(len == 2, return UA_STATUSCODE_BADDECODINGERROR);
     dts.tm_sec = (UA_UInt16)sec;
@@ -710,12 +916,12 @@ DECODE_XML(DateTime) {
         (sinceunix + (UA_DATETIME_UNIX_EPOCH / UA_DATETIME_SEC)) * UA_DATETIME_SEC;
 
     /* Parse the fraction of the second if defined */
-    if(ctx->data[pos] == ',' || ctx->data[pos] == '.') {
+    if(data[pos] == ',' || data[pos] == '.') {
         pos++;
         double frac = 0.0;
         double denom = 0.1;
-        while(pos < ctx->length && ctx->data[pos] >= '0' && ctx->data[pos] <= '9') {
-            frac += denom * (ctx->data[pos] - '0');
+        while(pos < length && data[pos] >= '0' && data[pos] <= '9') {
+            frac += denom * (data[pos] - '0');
             denom *= 0.1;
             pos++;
         }
@@ -735,27 +941,136 @@ DECODE_XML(DateTime) {
     }
 
     /* We must be at the end of the string (ending with 'Z' as checked above) */
-    if(pos != ctx->length - 1)
+    if(pos != length - 1)
         return UA_STATUSCODE_BADDECODINGERROR;
 
     *dst = dt;
+
+    ctx->index++;
+    return UA_STATUSCODE_GOOD;
+}
+
+static status
+decodeXmlFields(ParseCtxXml *ctx, XmlDecodeEntry *entries, size_t entryCount) {
+    CHECK_DATA_BOUNDS;
+
+    size_t objectCount = 0;
+    if(ctx->dataMembers[ctx->index]->type == XML_DATA_TYPE_COMPLEX)
+        objectCount = ctx->dataMembers[ctx->index]->value.complex.membersSize;
+
+    /* Empty object, nothing to decode */
+    if(objectCount == 0) {
+        ctx->index++; /* Jump to the element after the empty object */
+        return UA_STATUSCODE_GOOD;
+    }
+
+    ctx->index++; /* Go to first entry element */
+
+    status ret = UA_STATUSCODE_GOOD;
+    for(size_t currObj = 0; currObj < objectCount &&
+            ctx->index < ctx->membersSize; currObj++) {
+        /* For every object -> check if any of the entries
+         * match this (order of entries is not needed).
+         * Start searching at the index of currObj */
+        for(size_t i = currObj; i < entryCount + currObj; i++) {
+            /* Search for key, if found outer loop will be one less. Best case
+             * if objectCount is in order! */
+            size_t index = i % entryCount;
+
+            /* CHECK_DATA_BOUNDS */
+            if(ctx->index >= ctx->membersSize)
+                return UA_STATUSCODE_BADDECODINGERROR;
+
+            if(strcmp(ctx->dataMembers[ctx->index]->name, entries[index].fieldName))
+                continue;
+
+            /* Duplicate key found, abort */
+            if(entries[index].found)
+                return UA_STATUSCODE_BADDECODINGERROR;
+
+            entries[index].found = true;
+
+            /* An entry that was expected, but shall not be decoded.
+             * Jump over it. */
+            if(!entries[index].function && !entries[index].type) {
+                skipXmlObject(ctx);
+                break;
+            }
+
+            /* A null-value -> skip the decoding. */
+            if(!entries[index].fieldPointer && entries[index].type) {
+                ctx->index++;
+                break;
+            }
+
+            /* Decode */
+            if(entries[index].function) /* Specialized decoding function */
+                ret = entries[index].function(ctx, entries[index].fieldPointer,
+                                              entries[index].type);
+            else /* Decode by type-kind */
+                ret = decodeXmlJumpTable[entries[index].type->typeKind]
+                    (ctx, entries[index].fieldPointer, entries[index].type);
+            if(ret != UA_STATUSCODE_GOOD)
+                return ret;
+            break;
+        }
+    }
 
     return UA_STATUSCODE_GOOD;
 }
 
 DECODE_XML(Guid) {
-    UA_String str = {ctx->length, (UA_Byte*)(uintptr_t)ctx->data};
-    return UA_Guid_parse(dst, str);
+    CHECK_DATA_BOUNDS;
+
+    UA_String str;
+    UA_String_init(&str);
+    XmlDecodeEntry entry = {
+        UA_XML_GUID_STRING, &str, NULL, false, &UA_TYPES[UA_TYPES_STRING]
+    };
+
+    status ret = decodeXmlFields(ctx, &entry, 1);
+    ret |= UA_Guid_parse(dst, str);
+
+    UA_String_clear(&str);
+    return ret;
 }
 
 DECODE_XML(NodeId) {
-    UA_String str = {ctx->length, (UA_Byte*)(uintptr_t)ctx->data};
-    return UA_NodeId_parse(dst, str);
+    CHECK_DATA_BOUNDS;
+
+    UA_String str;
+    UA_String_init(&str);
+    XmlDecodeEntry entry = {
+        UA_XML_NODEID_IDENTIFIER, &str, NULL, false, &UA_TYPES[UA_TYPES_STRING]
+    };
+
+    status ret = decodeXmlFields(ctx, &entry, 1);
+    ret |= UA_NodeId_parse(dst, str);
+
+    UA_String_clear(&str);
+    return ret;
 }
 
 DECODE_XML(ExpandedNodeId) {
-    UA_String str = {ctx->length, (UA_Byte*)(uintptr_t)ctx->data};
-    return UA_ExpandedNodeId_parse(dst, str);
+    CHECK_DATA_BOUNDS;
+
+    UA_String str;
+    UA_String_init(&str);
+    XmlDecodeEntry entry = {
+        UA_XML_EXPANDEDNODEID_IDENTIFIER, &str, NULL, false, &UA_TYPES[UA_TYPES_STRING]
+    };
+
+    status ret = decodeXmlFields(ctx, &entry, 1);
+    ret |= UA_ExpandedNodeId_parse(dst, str);
+
+    UA_String_clear(&str);
+    return ret;
+}
+
+static status
+Array_decodeXml(ParseCtxXml *ctx, void **dst, const UA_DataType *type) {
+    (void)dst, (void)type, (void)ctx;
+    return UA_STATUSCODE_BADNOTIMPLEMENTED;
 }
 
 static status
@@ -798,6 +1113,146 @@ const decodeXmlSignature decodeXmlJumpTable[UA_DATATYPEKINDS] = {
     (decodeXmlSignature)decodeXmlNotImplemented     /* BitfieldCluster */
 };
 
+static XmlData*
+newXmlData(const char *name, XmlDataType type) {
+    XmlData *newData = (XmlData*)calloc(1, sizeof(XmlData));
+    newData->type = type;
+    size_t nameLen = strlen(name) + 1;
+    newData->name = (const char*)calloc(1, nameLen);
+    memcpy((void*)(uintptr_t)newData->name, (void*)(uintptr_t)name, nameLen);
+    return newData;
+}
+
+static XmlData*
+addNewXmlMember(XmlData *parent, const char *name) {
+    parent->type = XML_DATA_TYPE_COMPLEX;
+    parent->value.complex.members =
+        (XmlData**)UA_realloc(parent->value.complex.members,
+        (parent->value.complex.membersSize + 1) * sizeof(XmlData*));
+
+    XmlData *newData = (XmlData*)UA_calloc(1, sizeof(XmlData));
+    parent->value.complex.members[parent->value.complex.membersSize] = newData;
+
+    parent->value.complex.membersSize++;
+    newData->type = XML_DATA_TYPE_PRIMITIVE;
+    size_t nameLen = strlen(name) + 1;
+    newData->name = (const char*)calloc(1, nameLen);
+    memcpy((void*)(uintptr_t)newData->name, (void*)(uintptr_t)name, nameLen);
+    return newData;
+}
+
+static void
+deleteData(XmlData *data) {
+    if(data->type == XML_DATA_TYPE_PRIMITIVE) {
+        if(data->value.primitive.value != NULL)
+            UA_free((void*)(uintptr_t)data->value.primitive.value);
+    }
+    else {
+        for(size_t cnt = 0LU; cnt < data->value.complex.membersSize; ++cnt)
+            deleteData(data->value.complex.members[cnt]);
+        UA_free(data->value.complex.members);
+    }
+    UA_free((void*)(uintptr_t)data->name);
+    UA_free(data);
+}
+
+static void
+OnStartElementNsXml(void *ctx, const xmlChar *localname,
+                    const xmlChar *prefix, const xmlChar *URI,
+                    int nb_namespaces, const xmlChar **namespaces,
+                    int nb_attributes, int nb_defaulted,
+                    const xmlChar **attributes) {
+
+    ParseCtxXml *ctxt = (ParseCtxXml*)ctx;
+    XmlParsingCtx *pctxt = ctxt->parseCtx;
+    XmlValue *val = ctxt->value;
+    const char *localNameChr = (const char*)localname;
+
+    if(!strncmp(localNameChr, "ListOf", strlen("ListOf")))
+        val->isArray = UA_TRUE;
+
+    if(!pctxt->data) {
+        val->data = newXmlData(localNameChr, XML_DATA_TYPE_PRIMITIVE);
+        pctxt->data = val->data;
+    }
+    else {
+        XmlData *newData = addNewXmlMember(pctxt->data, localNameChr);
+        XmlData *parent = pctxt->data;
+        pctxt->data = newData;
+        pctxt->data->parent = parent;
+    }
+    ctxt->dataMembers[ctxt->membersSize++] = pctxt->data;
+}
+
+static void
+OnEndElementNsXml(void *ctx, const xmlChar *localname,
+                  const xmlChar *prefix, const xmlChar *URI) {
+    ParseCtxXml *ctxt = (ParseCtxXml*)ctx;
+    XmlParsingCtx *pctxt = ctxt->parseCtx;
+    __attribute__((unused)) const char *localNameChr = (const char*)localname;
+
+    /* Names must be the same for the start and end segment. */
+    UA_assert(!strcmp(localNameChr, pctxt->data->name));
+
+    if(pctxt->onCharacters != NULL) {
+        pctxt->data->value.primitive.value = pctxt->onCharacters;
+        pctxt->data->value.primitive.length = pctxt->onCharLength;
+        pctxt->onCharacters = NULL;
+        pctxt->onCharLength = 0;
+    }
+
+    pctxt->data = pctxt->data->parent;
+}
+
+static void
+OnCharactersXml(void *ctx, const xmlChar *ch, int len) {
+
+    ParseCtxXml *ctxt = (ParseCtxXml*)ctx;
+    XmlParsingCtx *pctxt = ctxt->parseCtx;
+    size_t length = (size_t)len;
+    size_t pos = 0;
+    if(pctxt->onCharacters == NULL) {
+        char *newValue = (char*)UA_malloc(length + 1);
+        pctxt->onCharacters = newValue;
+        memset(pctxt->onCharacters, 0, length + 1);
+    }
+    else {
+        pos += pctxt->onCharLength;
+        pctxt->onCharacters = (char*)UA_realloc(pctxt->onCharacters, length + 1);
+        void* pStart = pctxt->onCharacters + pos;
+        memset(pStart, 0, length + 1);
+    }
+
+    memcpy(pctxt->onCharacters + pos, (const char*)ch, length);
+    pctxt->onCharLength += length;
+}
+
+static status
+parseXml(ParseCtxXml *ctx, const char *data, size_t length) {
+
+    xmlSAXHandler SAXHander;
+
+    memset(&SAXHander, 0, sizeof(xmlSAXHandler));
+
+    SAXHander.initialized = XML_SAX2_MAGIC;
+    SAXHander.startElementNs = OnStartElementNsXml;
+    SAXHander.endElementNs = OnEndElementNsXml;
+    SAXHander.characters = OnCharactersXml;
+ 
+    xmlParserCtxtPtr ctxt = xmlCreatePushParserCtxt(&SAXHander, (void*)ctx, NULL, 0, NULL);
+
+    int ret = xmlParseChunk(ctxt, data, (int)length, 0);
+    if(ret != XML_ERR_OK) {
+        xmlParserError(ctxt, "xmlParseChunk");
+        return UA_STATUSCODE_BADDECODINGERROR;
+    }
+
+    xmlParseChunk(ctxt, data, 0, 1);
+    xmlFreeParserCtxt(ctxt);
+    xmlCleanupParser();
+    return UA_STATUSCODE_GOOD;
+}
+
 UA_StatusCode
 UA_decodeXml(const UA_ByteString *src, void *dst, const UA_DataType *type,
               const UA_DecodeXmlOptions *options) {
@@ -806,21 +1261,49 @@ UA_decodeXml(const UA_ByteString *src, void *dst, const UA_DataType *type,
 
     /* Set up the context */
     ParseCtxXml ctx;
+    XmlParsingCtx parseCtx;
+    XmlValue value;
+
+    memset(&value, 0, sizeof(XmlValue));
+    memset(&parseCtx, 0, sizeof(XmlParsingCtx));
     memset(&ctx, 0, sizeof(ParseCtxXml));
-    ctx.data = (const char*)src->data;
-    ctx.length = src->length;
-    ctx.depth = 0;
+    memset(dst, 0, type->memSize);
+
+    ctx.dataMembers = (XmlData**)UA_malloc(UA_XML_MAXMEMBERSCOUNT * sizeof(XmlData*));
+    ctx.parseCtx = &parseCtx;
+    ctx.value = &value;
+    ctx.index = 0;
     if(options) {
         ctx.customTypes = options->customTypes;
     }
 
-    /* Decode */
-    memset(dst, 0, type->memSize); /* Initialize the value */
-    status ret = decodeXmlJumpTable[type->typeKind](&ctx, dst, type);
-
+    status ret = parseXml(&ctx, (const char*)src->data, src->length);
     if(ret != UA_STATUSCODE_GOOD) {
         UA_clear(dst, type);
+        UA_free(ctx.dataMembers);
         memset(dst, 0, type->memSize);
+        goto finish;
     }
+
+    /* Decode */
+    memset(dst, 0, type->memSize); /* Initialize the value */
+
+    if(ctx.value->isArray)
+        ret = Array_decodeXml(&ctx, (void**)dst, type);
+    else
+        ret = decodeXmlJumpTable[type->typeKind](&ctx, dst, type);
+
+    if(ret != UA_STATUSCODE_GOOD) {
+        deleteData(ctx.value->data);
+        UA_free(ctx.dataMembers);
+        UA_clear(dst, type);
+        memset(dst, 0, type->memSize);
+        goto finish;
+    }
+
+    deleteData(ctx.value->data);
+    UA_free(ctx.dataMembers);
+
+finish:
     return ret;
 }

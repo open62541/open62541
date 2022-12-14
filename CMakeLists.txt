@@ -904,6 +904,14 @@ if(UA_ENABLE_JSON_ENCODING)
 endif()
 
 if(UA_ENABLE_XML_ENCODING)
+    # libXML2 is already included by the NodesetLoader
+    if(NOT UA_ENABLE_NODESETLOADER)
+        find_package(LibXml2 REQUIRED)
+        set(ua_architecture_directories_to_include
+            ${ua_architecture_directories_to_include}
+            ${LIBXML2_INCLUDE_DIRS})
+        list(APPEND open62541_LIBRARIES ${LIBXML2_LIBRARIES})
+    endif()
     if(NOT UA_ENABLE_JSON_ENCODING)
         list(APPEND lib_headers ${PROJECT_SOURCE_DIR}/deps/parse_num.h)
         list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/deps/parse_num.c)
