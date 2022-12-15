@@ -42,7 +42,8 @@ UA_Client_newWithConfig(const UA_ClientConfig *config) {
     client->config = *config;
     /* Fix up known logger pointers now that the config has "moved" into the
      * client struct */
-    if(client->config.eventLoop->logger == &config->logger)
+    if(client->config.eventLoop &&
+       (client->config.eventLoop->logger == &config->logger))
         client->config.eventLoop->logger = &client->config.logger;
     for(size_t i = 0; i < client->config.securityPoliciesSize; i++) {
         if(client->config.securityPolicies[i].logger == &config->logger)
