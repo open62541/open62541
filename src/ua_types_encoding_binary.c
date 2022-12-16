@@ -1336,9 +1336,10 @@ encodeBinaryStructWithOptFields(const void *src, const UA_DataType *type, Ctx *c
                 encodingMask |= (UA_UInt32) 1 << optFieldCounter;
             ptr += sizeof(void *);
             optFieldCounter++;
+        } else if (m->isArray) {
+            ptr += sizeof(size_t);
+            ptr += sizeof(void *);
         } else {
-            if(m->isArray)
-                ptr += sizeof(size_t);
             ptr += mt->memSize;
         }
     }
