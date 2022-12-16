@@ -445,7 +445,7 @@ START_TEST(parseCustomStructureWithOptionalFieldsWithArrayNotContained) {
         oa.description = UA_STRING_ALLOC("TestDesc");
         oa.b = NULL;
         oa.cSize = 3;
-        oa.c = (UA_Float *) UA_Array_new(oa.cSize, &ArrayOptType);
+        oa.c = (UA_Float *) UA_Array_new(oa.cSize, &UA_TYPES[UA_TYPES_FLOAT]);
         oa.c[0] = (UA_Float)1.1;
         oa.c[1] = (UA_Float)1.2;
         oa.c[2] = (UA_Float)1.3;
@@ -492,12 +492,12 @@ START_TEST(parseCustomStructureWithOptionalFieldsWithArrayContained) {
         OptArray oa;
         oa.description = UA_STRING_ALLOC("TestDesc");
         oa.bSize = 3;
-        oa.b = (UA_Float *) UA_Array_new(oa.bSize, &ArrayOptType);
+        oa.b = (UA_Float *) UA_Array_new(oa.bSize, &UA_TYPES[UA_TYPES_FLOAT]);
         oa.b[0] = (UA_Float)1.1;
         oa.b[1] = (UA_Float)1.2;
         oa.b[2] = (UA_Float)1.3;
         oa.cSize = 3;
-        oa.c = (UA_Float *) UA_Array_new(oa.cSize, &ArrayOptType);
+        oa.c = (UA_Float *) UA_Array_new(oa.cSize, &UA_TYPES[UA_TYPES_FLOAT]);
         oa.c[0] = (UA_Float)2.1;
         oa.c[1] = (UA_Float)2.2;
         oa.c[2] = (UA_Float)2.3;
