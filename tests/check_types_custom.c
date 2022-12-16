@@ -85,9 +85,10 @@ typedef struct {
     UA_Int16 a;
     UA_Float *b;
     UA_Float *c;
+    UA_String *d;
 } Opt;
 
-static UA_DataTypeMember Opt_members[3] = {
+static UA_DataTypeMember Opt_members[4] = {
         /* a */
         {
                 UA_TYPENAME("a")           /* .memberName */
@@ -111,6 +112,14 @@ static UA_DataTypeMember Opt_members[3] = {
                 offsetof(Opt,c) - offsetof(Opt,b) - sizeof(void *),
                 false,
                 true        /* b is an optional field */
+        },
+        /* d */
+        {
+                UA_TYPENAME("d")
+                &UA_TYPES[UA_TYPES_STRING], /* .memberType */
+                offsetof(Opt,d) - offsetof(Opt,c) - sizeof(void *),
+                false,
+                true        /* d is an optional field */
         }
 };
 
@@ -125,7 +134,7 @@ static const UA_DataType OptType = {
         false,                            /* .pointerFree */
         false,                           /* .overlayable (depends on endianness and
                                          the absence of padding) */
-        3,                               /* .membersSize */
+        4,                               /* .membersSize */
         Opt_members
 };
 
@@ -399,6 +408,8 @@ START_TEST(parseCustomStructureWithOptionalFields) {
         o.b = NULL;
         o.c = UA_Float_new();
         *o.c = (UA_Float) 10.10;
+        o.d = UA_String_new();
+        *o.d = UA_STRING_ALLOC("Test");
 
         UA_Variant var;
         UA_Variant_init(&var);

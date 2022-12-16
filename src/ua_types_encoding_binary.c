@@ -1953,8 +1953,13 @@ calcSizeBinaryStructureWithOptFields(const void *p, const UA_DataType *type) {
             continue;
         }
         /* Scalar */
-        s += calcSizeBinaryJumpTable[membertype->typeKind]((const void*)ptr, membertype);
-        member->isOptional ? (ptr += sizeof(void *)) : (ptr += membertype->memSize);
+        if (member->isOptional) {
+            s += calcSizeBinaryJumpTable[membertype->typeKind](*(void* const*)ptr, membertype);
+            ptr += sizeof(void *);
+        } else {
+            s += calcSizeBinaryJumpTable[membertype->typeKind]((const void*)ptr, membertype);
+            ptr += membertype->memSize;
+        }
     }
     return s;
 }
