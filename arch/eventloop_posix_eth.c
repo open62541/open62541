@@ -17,7 +17,6 @@
 
 /* Configuration parameters */
 #define ETH_PARAMETERSSIZE 8
-
 #define ETH_PARAMINDEX_ADDR 0
 #define ETH_PARAMINDEX_LISTEN 1
 #define ETH_PARAMINDEX_IFACE 2

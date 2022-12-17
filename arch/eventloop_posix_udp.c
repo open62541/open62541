@@ -15,18 +15,6 @@
 #   define IPV6_MULTICAST_PREFIX 0xFF
 #endif
 
-#define UA_MAXBACKLOG 100
-#define UA_MAXHOSTNAME_LENGTH 256
-#define UA_MAXPORTSTR_LENGTH 6
-
-#ifndef MSG_NOSIGNAL
-#define MSG_NOSIGNAL 0
-#endif
-
-#ifndef MSG_DONTWAIT
-#define MSG_DONTWAIT 0
-#endif
-
 /* A registered file descriptor with an additional method pointer */
 typedef struct {
     UA_RegisteredFD fd;
