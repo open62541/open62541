@@ -285,7 +285,7 @@ START_TEST(StatusCode_msg) {
                      "BadMaxConnectionsReached");
 
         // an invalid status code
-    ck_assert_str_eq(UA_StatusCode_name(0x80123456), "Unknown StatusCode");
+    ck_assert_str_eq(UA_StatusCode_name(0x70123456), "Unknown StatusCode");
 }
 END_TEST
 
@@ -300,11 +300,6 @@ static void assertNodeIdString(const UA_String *gotStr, const char* expectedStr)
     UA_free(gotChars);
 }
 
-START_TEST(idToStringNull) {
-    UA_String str = UA_STRING_NULL;
-    ck_assert_int_eq(UA_NodeId_print(NULL, &str), UA_STATUSCODE_GOOD);
-} END_TEST
-
 START_TEST(idToStringNumeric) {
     UA_NodeId n;
     UA_String str = UA_STRING_NULL;
@@ -312,15 +307,16 @@ START_TEST(idToStringNumeric) {
     n = UA_NODEID_NUMERIC(0,0);
     UA_NodeId_print(&n, &str);
     assertNodeIdString(&str, "i=0");
+    UA_String_clear(&str);
 
     n = UA_NODEID_NUMERIC(12345,1234567890);
     UA_NodeId_print(&n, &str);
     assertNodeIdString(&str, "ns=12345;i=1234567890");
+    UA_String_clear(&str);
 
     n = UA_NODEID_NUMERIC(0xFFFF,0xFFFFFFFF);
     UA_NodeId_print(&n, &str);
     assertNodeIdString(&str, "ns=65535;i=4294967295");
-
     UA_String_clear(&str);
 } END_TEST
 
@@ -331,15 +327,16 @@ START_TEST(idToStringString) {
     n = UA_NODEID_STRING(0,"");
     UA_NodeId_print(&n, &str);
     assertNodeIdString(&str, "s=");
+    UA_String_clear(&str);
 
     n = UA_NODEID_STRING(54321,"Some String");
     UA_NodeId_print(&n, &str);
     assertNodeIdString(&str, "ns=54321;s=Some String");
+    UA_String_clear(&str);
 
     n = UA_NODEID_STRING(0,"Some String");
     UA_NodeId_print(&n, &str);
     assertNodeIdString(&str, "s=Some String");
-
     UA_String_clear(&str);
 } END_TEST
 
@@ -352,6 +349,7 @@ START_TEST(idToStringGuid) {
     n = UA_NODEID_GUID(0,UA_GUID_NULL);
     UA_NodeId_print(&n, &str);
     assertNodeIdString(&str, "g=00000000-0000-0000-0000-000000000000");
+    UA_String_clear(&str);
 
     g.data1 = 0xA123456C;
     g.data2 = 0x0ABC;
@@ -368,6 +366,7 @@ START_TEST(idToStringGuid) {
     n = UA_NODEID_GUID(65535,g);
     UA_NodeId_print(&n, &str);
     assertNodeIdString(&str, "ns=65535;g=a123456c-0abc-1a2b-815f-687212aaee1b");
+    UA_String_clear(&str);
 
     g.data1 = 0xFFFFFFFF;
     g.data2 = 0xFFFF;
@@ -384,7 +383,6 @@ START_TEST(idToStringGuid) {
     n = UA_NODEID_GUID(65535,g);
     UA_NodeId_print(&n, &str);
     assertNodeIdString(&str, "ns=65535;g=ffffffff-ffff-ffff-ffff-ffffffffffff");
-
     UA_String_clear(&str);
 } END_TEST
 
@@ -398,6 +396,7 @@ START_TEST(idToStringByte) {
     n.identifier.byteString.length = 0;
     UA_NodeId_print(&n, &str);
     assertNodeIdString(&str, "b=");
+    UA_String_clear(&str);
 
     UA_ByteString bs = UA_BYTESTRING_NULL;
 
@@ -409,6 +408,7 @@ START_TEST(idToStringByte) {
     UA_NodeId_print(&n, &str);
     assertNodeIdString(&str, "ns=123;b=AA==");
     UA_free(bs.data);
+    UA_String_clear(&str);
 
     bs.length = 1;
     bs.data = (UA_Byte*)UA_malloc(bs.length);
@@ -418,6 +418,7 @@ START_TEST(idToStringByte) {
     UA_NodeId_print(&n, &str);
     assertNodeIdString(&str, "ns=123;b=LA==");
     UA_free(bs.data);
+    UA_String_clear(&str);
 
     bs.length = 5;
     bs.data = (UA_Byte*)UA_malloc(bs.length);
@@ -431,7 +432,6 @@ START_TEST(idToStringByte) {
     UA_NodeId_print(&n, &str);
     assertNodeIdString(&str, "ns=599;b=IYPgVHg=");
     UA_free(bs.data);
-
     UA_String_clear(&str);
 } END_TEST
 
@@ -638,7 +638,6 @@ static Suite* testSuite_Utils(void) {
 
 
     TCase *tc1 = tcase_create("test nodeid string");
-    tcase_add_test(tc1, idToStringNull);
     tcase_add_test(tc1, idToStringNumeric);
     tcase_add_test(tc1, idToStringString);
     tcase_add_test(tc1, idToStringGuid);

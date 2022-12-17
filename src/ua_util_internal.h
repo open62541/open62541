@@ -28,55 +28,20 @@ _UA_BEGIN_DECLS
 #define UA_MACRO_EXPAND(x) x
 
 /* Print a NodeId in logs */
-#define UA_LOG_NODEID_INTERNAL(NODEID, LOG)          \
-    do {                                             \
-    UA_String nodeIdStr = UA_STRING_NULL;            \
-    UA_NodeId_print(NODEID, &nodeIdStr);             \
-    LOG;                                             \
-    UA_String_clear(&nodeIdStr);                     \
-    } while(0)
+#define UA_LOG_NODEID_INTERNAL(NODEID, LEVEL, LOG)   \
+    if(UA_LOGLEVEL <= UA_LOGLEVEL_##LEVEL) {         \
+        UA_String nodeIdStr = UA_STRING_NULL;        \
+        UA_NodeId_print(NODEID, &nodeIdStr);         \
+        LOG;                                         \
+        UA_String_clear(&nodeIdStr);                 \
+    }
 
-#if UA_LOGLEVEL <= 100
-# define UA_LOG_NODEID_TRACE(NODEID, LOG)       \
-    UA_LOG_NODEID_INTERNAL(NODEID, LOG)
-#else
-# define UA_LOG_NODEID_TRACE(NODEID, LOG)
-#endif
-
-#if UA_LOGLEVEL <= 200
-# define UA_LOG_NODEID_DEBUG(NODEID, LOG)       \
-    UA_LOG_NODEID_INTERNAL(NODEID, LOG)
-#else
-# define UA_LOG_NODEID_DEBUG(NODEID, LOG)
-#endif
-
-#if UA_LOGLEVEL <= 300
-# define UA_LOG_NODEID_INFO(NODEID, LOG)       \
-    UA_LOG_NODEID_INTERNAL(NODEID, LOG)
-#else
-# define UA_LOG_NODEID_INFO(NODEID, LOG)
-#endif
-
-#if UA_LOGLEVEL <= 400
-# define UA_LOG_NODEID_WARNING(NODEID, LOG)     \
-    UA_LOG_NODEID_INTERNAL(NODEID, LOG)
-#else
-# define UA_LOG_NODEID_WARNING(NODEID, LOG)
-#endif
-
-#if UA_LOGLEVEL <= 500
-# define UA_LOG_NODEID_ERROR(NODEID, LOG)       \
-    UA_LOG_NODEID_INTERNAL(NODEID, LOG)
-#else
-# define UA_LOG_NODEID_ERROR(NODEID, LOG)
-#endif
-
-#if UA_LOGLEVEL <= 600
-# define UA_LOG_NODEID_FATAL(NODEID, LOG)       \
-    UA_LOG_NODEID_INTERNAL(NODEID, LOG)
-#else
-# define UA_LOG_NODEID_FATAL(NODEID, LOG)
-#endif
+#define UA_LOG_NODEID_TRACE(NODEID, LOG) UA_LOG_NODEID_INTERNAL(NODEID, TRACE, LOG)
+#define UA_LOG_NODEID_DEBUG(NODEID, LOG) UA_LOG_NODEID_INTERNAL(NODEID, DEBUG, LOG)
+#define UA_LOG_NODEID_INFO(NODEID, LOG) UA_LOG_NODEID_INTERNAL(NODEID, INFO, LOG)
+#define UA_LOG_NODEID_WARNING(NODEID, LOG) UA_LOG_NODEID_INTERNAL(NODEID, WARNING, LOG)
+#define UA_LOG_NODEID_ERROR(NODEID, LOG) UA_LOG_NODEID_INTERNAL(NODEID, ERROR, LOG)
+#define UA_LOG_NODEID_FATAL(NODEID, LOG) UA_LOG_NODEID_INTERNAL(NODEID, FATAL, LOG)
 
 /* Short names for integer. These are not exposed on the public API, since many
  * user-applications make the same definitions in their headers. */
@@ -210,6 +175,9 @@ const UA_DataType *
 UA_findDataTypeWithCustom(const UA_NodeId *typeId,
                           const UA_DataTypeArray *customTypes);
 
+void
+UA_cleanupDataTypeWithCustom(const UA_DataTypeArray *customTypes);
+
 /* Get the number of optional fields contained in an structure type */
 size_t UA_EXPORT
 getCountOfOptionalFields(const UA_DataType *type);
@@ -329,6 +297,9 @@ UA_String_equal_ignorecase(const UA_String *s1, const UA_String *s2);
 /********************/
 /* Encoding Helpers */
 /********************/
+
+/* out must be a buffer with at least 36 elements, the length of every guid */
+void UA_Guid_to_hex(const UA_Guid *guid, u8* out, UA_Boolean lower);
 
 #define UA_ENCODING_HELPERS(TYPE, UPCASE_TYPE)                          \
     static UA_INLINE size_t                                             \

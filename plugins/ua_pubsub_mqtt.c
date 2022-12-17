@@ -295,7 +295,7 @@ UA_PubSubChannelMQTT_send(UA_PubSubChannel *channel, UA_ExtensionObject *transpo
         return ret;
     }
 
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "PubSub MQTT: Publish");
+    UA_LOG_TRACE(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "PubSub MQTT: Publish");
     return ret;
 }
 
@@ -350,6 +350,22 @@ UA_PubSubChannelMQTT_yield(UA_PubSubChannel *channel, UA_UInt16 timeout){
 }
 
 /**
+ * Receive a message. The regist function should be called before.
+ *
+ * @param timeout in msec
+ * @param Buffer to recieve messages
+ *
+ * @return UA_STATUSCODE_GOOD if success
+ */
+static UA_StatusCode
+UA_PubSubChannelMQTT_receive(UA_PubSubChannel *channel, UA_ExtensionObject *transportSettings, UA_PubSubReceiveCallback receiveCallback,
+                              void *receiveCallbackContext, UA_UInt32 timeout){
+
+    /* Nothing to do */
+    return UA_STATUSCODE_GOOD;
+}
+
+/**
  * Generate a new MQTT channel. Based on the given configuration. Uses yield and no recv call.
  *
  * @param connectionConfig connection configuration
@@ -365,6 +381,7 @@ TransportLayerMQTT_addChannel(UA_PubSubConnectionConfig *connectionConfig) {
         pubSubChannel->send = UA_PubSubChannelMQTT_send;
         pubSubChannel->close = UA_PubSubChannelMQTT_close;
         pubSubChannel->yield = UA_PubSubChannelMQTT_yield;
+        pubSubChannel->receive = UA_PubSubChannelMQTT_receive;
 
         pubSubChannel->connectionConfig = connectionConfig;
     }

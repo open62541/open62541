@@ -37,8 +37,8 @@ const char *logLevelNames[6] = {"trace", "debug",
                                 ANSI_COLOR_RED "error",
                                 ANSI_COLOR_MAGENTA "fatal"};
 const char *logCategoryNames[UA_LOGCATEGORIES] =
-    {"network", "channel", "session", "server",
-     "client", "userland", "securitypolicy", "eventloop"};
+    {"network", "channel", "session", "server", "client",
+     "userland", "securitypolicy", "eventloop", "pubsub", "discovery"};
 
 typedef struct {
     UA_LogLevel minlevel;
@@ -68,9 +68,13 @@ UA_Log_Stdout_log(void *context, UA_LogLevel level, UA_LogCategory category,
     UA_Int64 tOffset = UA_DateTime_localTimeUtcOffset();
     UA_DateTimeStruct dts = UA_DateTime_toStruct(UA_DateTime_now() + tOffset);
 
+    int logLevelSlot = ((int)level / 100) - 1;
+    if(logLevelSlot < 0 || logLevelSlot > 5)
+        logLevelSlot = 5; /* Set to fatal if the level is outside the range */
+
     printf("[%04u-%02u-%02u %02u:%02u:%02u.%03u (UTC%+05d)] %s/%s" ANSI_COLOR_RESET "\t",
            dts.year, dts.month, dts.day, dts.hour, dts.min, dts.sec, dts.milliSec,
-           (int)(tOffset / UA_DATETIME_SEC / 36), logLevelNames[level],
+           (int)(tOffset / UA_DATETIME_SEC / 36), logLevelNames[logLevelSlot],
            logCategoryNames[category]);
     vprintf(msg, args);
     printf("\n");

@@ -15,7 +15,6 @@
 #include <stdlib.h>
 
 #include "testing_clock.h"
-#include "testing_networklayers.h"
 #include "thread_wrapper.h"
 
 UA_Server *server;
@@ -77,11 +76,7 @@ START_TEST(Client_highlevel_async_readValue) {
         UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
         ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
-        UA_Client_recv = client->connection.recv;
-        client->connection.recv = UA_Client_recvTesting;
-
         UA_UInt16 asyncCounter = 0;
-
         UA_UInt32 reqId = 0;
         retval = UA_Client_readValueAttribute_async(client,
                 UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_CURRENTTIME),
@@ -96,8 +91,11 @@ START_TEST(Client_highlevel_async_readValue) {
         ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
         ck_assert_uint_eq(asyncCounter, 1);
 
-        /* Simulate network cable unplugged (no response from server) */
-        UA_Client_recvTesting_result = UA_STATUSCODE_GOODNONCRITICALTIMEOUT;
+        /* Simulate network cable unplugged */
+        UA_ConnectionManager *cm = client->channel.connectionManager;
+        cm->closeConnection(cm, client->channel.connectionId);
+        UA_EventLoop *el = client->config.eventLoop;
+        el->run(el, 0);
 
         UA_Client_disconnect(client);
         UA_Client_delete(client);
@@ -154,9 +152,6 @@ START_TEST(Client_read_async_timed) {
         UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
         ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
-        UA_Client_recv = client->connection.recv;
-        client->connection.recv = UA_Client_recvTesting;
-
         UA_UInt16 asyncCounter = 0;
 
         UA_ReadRequest rr;
@@ -185,8 +180,8 @@ START_TEST(Client_read_async_timed) {
         /* Manually close the connection. The connection is internally closed at the
          * next iteration of the EventLoop. Hence the next request is sent out. But
          * the connection "actually closes" before receiving the response. */
-        UA_ConnectionManager *cm = (UA_ConnectionManager*)client->connection.handle;
-        uintptr_t connId = (unsigned)client->connection.sockfd;
+        UA_ConnectionManager *cm = client->channel.connectionManager;
+        uintptr_t connId = client->channel.connectionId;
         cm->closeConnection(cm, connId);
 
         retval = __UA_Client_AsyncServiceEx(client, &rr,
@@ -220,9 +215,6 @@ START_TEST(Client_connectivity_check) {
 
         UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
         ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
-
-        UA_Client_recv = client->connection.recv;
-        client->connection.recv = UA_Client_recvTesting;
 
         inactivityCallbackTriggered = false;
 

@@ -68,7 +68,7 @@ addPubSubConnection(UA_Server *server, UA_String *transportProfile,
     if (retval != UA_STATUSCODE_GOOD) {
         return retval;
     }
-    retval |= UA_PubSubConnection_regist(server, &connectionIdentifier);
+    retval |= UA_PubSubConnection_regist(server, &connectionIdentifier, NULL);
     return retval;
 }
 
@@ -328,7 +328,7 @@ run(UA_String *transportProfile, UA_NetworkAddressUrlDataType *networkAddressUrl
     types[0] = PointType;
     types[0].members = pointMembers;
 
-    UA_DataTypeArray customDataTypes = {config->customDataTypes, 1, types};
+    UA_DataTypeArray customDataTypes = {config->customDataTypes, 1, types, UA_FALSE};
     config->customDataTypes = &customDataTypes;
 
     add3DPointDataType(server);

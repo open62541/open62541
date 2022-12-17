@@ -45,6 +45,21 @@ typedef struct UA_InterruptManager UA_InterruptManager;
  * ConnectionManager implementations. So the EventLoop can extract socket
  * information, etc. from the ConnectionManagers.
  *
+ * Timer Policies
+ * --------------
+ *
+ * A timer comes with a cyclic interval in which a callback is executed. If an
+ * application is congested the interval can be missed. Two different policies
+ * can be used when this happens. Either schedule the next execution after the
+ * interval has elapsed again from the current time onwards or stay within the
+ * regular interval with respect to the original basetime. */
+
+typedef enum {
+    UA_TIMER_HANDLE_CYCLEMISS_WITH_CURRENTTIME,
+    UA_TIMER_HANDLE_CYCLEMISS_WITH_BASETIME
+} UA_TimerPolicy;
+
+/**
  * Event Loop
  * ----------
  * The EventLoop implementation is part of the selected architecture. For
@@ -54,7 +69,8 @@ typedef struct UA_InterruptManager UA_InterruptManager;
 
 typedef void (*UA_Callback)(void *application, void *context);
 
-/* To be executed in the next EventLoop cycle */
+/* Delayed callbacks are executed not when they are registered, but in the
+ * following EventLoop cycle */
 typedef struct UA_DelayedCallback {
     struct UA_DelayedCallback *next; /* Singly-linked list */
     UA_Callback callback;
@@ -74,12 +90,18 @@ struct UA_EventLoop {
     /* Configuration
      * ~~~~~~~~~~~~~~~
      * The configuration should be set before the EventLoop is started */
+
     const UA_Logger *logger;
-    size_t paramsSize;
-    UA_KeyValuePair *params; /* See the implementation-specific documentation */
+    UA_KeyValueMap *params; /* See the implementation-specific documentation */
 
     /* EventLoop Lifecycle
-     * ~~~~~~~~~~~~~~~~~~~~ */
+     * ~~~~~~~~~~~~~~~~~~~~
+     * The EventLoop state also controls the state of the configured
+     * EventSources. Stopping the EventLoop gracefully closes e.g. the open
+     * network connections. The only way to process incoming events is to call
+     * the 'run' method. Events are then triggering their respective callbacks
+     * from within that method.*/
+
     const volatile UA_EventLoopState state; /* Only read the state from outside */
 
     /* Start the EventLoop and start all already registered EventSources */
@@ -113,15 +135,15 @@ struct UA_EventLoop {
      * The time domain of the EventLoop is exposed via the following functons.
      * See `open62541/types.h` for the documentation of their equivalent
      * globally defined functions. */
+
     UA_DateTime (*dateTime_now)(UA_EventLoop *el);
     UA_DateTime (*dateTime_nowMonotonic)(UA_EventLoop *el);
     UA_Int64    (*dateTime_localTimeUtcOffset)(UA_EventLoop *el);
 
-    /* Cyclic and Delayed Callbacks
-     * ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-     * Cyclic callbacks are executed regularly with an interval. A delayed
-     * callback is executed in the next cycle of the EventLoop. The memory for
-     * the delayed callback is freed after the execution. */
+    /* Timed Callbacks
+     * ~~~~~~~~~~~~~~~
+     * Cyclic callbacks are executed regularly with an interval.
+     * A timed callback is executed only once. */
 
     /* Time of the next cyclic callback. Returns the max DateTime if no cyclic
      * callback is registered. */
@@ -146,7 +168,20 @@ struct UA_EventLoop {
     (*addTimedCallback)(UA_EventLoop *el, UA_Callback cb, void *application,
                         void *data, UA_DateTime date, UA_UInt64 *callbackId);
 
+    /* Delayed Callbacks
+     * ~~~~~~~~~~~~~~~~~
+     * Delayed callbacks are executed once in the next iteration of the
+     * EventLoop and then deregistered automatically. A typical use case is to
+     * delay a resource cleanup to a point where it is known that the resource
+     * has no remaining users.
+     *
+     * The delayed callbacks are processed in each of the cycle of the EventLoop
+     * between the handling of timed cyclic callbacks and polling for (network)
+     * events. The memory for the delayed callback is *NOT* automatically freed
+     * after the execution. */
+
     void (*addDelayedCallback)(UA_EventLoop *el, UA_DelayedCallback *dc);
+    void (*removeDelayedCallback)(UA_EventLoop *el, UA_DelayedCallback *dc);
 
     /* EventSources
      * ~~~~~~~~~~~~
@@ -187,7 +222,6 @@ typedef enum {
 /* Type-tag for proper casting of the difference EventSource (e.g. when they are
  * looked up via UA_EventLoop_findEventSource). */
 typedef enum {
-    UA_EVENTSOURCETYPE_ANY = 0,
     UA_EVENTSOURCETYPE_CONNECTIONMANAGER,
     UA_EVENTSOURCETYPE_INTERRUPTMANAGER
 } UA_EventSourceType;
@@ -202,8 +236,7 @@ struct UA_EventSource {
      * ~~~~~~~~~~~~~ */
     UA_String name;                 /* Unique name of the ES */
     UA_EventLoop *eventLoop;        /* EventLoop where the ES is registered */
-    size_t paramsSize;              /* Configuration parameters */
-    UA_KeyValuePair *params;
+    UA_KeyValueMap params;
 
     /* Lifecycle
      * ~~~~~~~~~ */
@@ -248,7 +281,7 @@ typedef void
 (*UA_ConnectionManager_connectionCallback)
      (UA_ConnectionManager *cm, uintptr_t connectionId,
       void *application, void **connectionContext, UA_ConnectionState state,
-      size_t paramsSize, const UA_KeyValuePair *params, UA_ByteString msg);
+      const UA_KeyValueMap *params, UA_ByteString msg);
 
 struct UA_ConnectionManager {
     /* Every ConnectionManager is treated like an EventSource from the
@@ -295,8 +328,7 @@ struct UA_ConnectionManager {
      * hostname. Each protocol implementation documents whether multiple
      * connections might be opened at once. */
     UA_StatusCode
-    (*openConnection)(UA_ConnectionManager *cm,
-                      size_t paramsSize, const UA_KeyValuePair *params,
+    (*openConnection)(UA_ConnectionManager *cm, const UA_KeyValueMap *params,
                       void *application, void *context,
                       UA_ConnectionManager_connectionCallback connectionCallback);
 
@@ -311,8 +343,7 @@ struct UA_ConnectionManager {
      * example a tx-time for sending in time-synchronized TSN settings. */
     UA_StatusCode
     (*sendWithConnection)(UA_ConnectionManager *cm, uintptr_t connectionId,
-                          size_t paramsSize, const UA_KeyValuePair *params,
-                          UA_ByteString *buf);
+                          const UA_KeyValueMap *params, UA_ByteString *buf);
 
     /* Close a Connection
      * ~~~~~~~~~~~~~~~~~~
@@ -358,8 +389,7 @@ struct UA_ConnectionManager {
 typedef void
 (*UA_InterruptCallback)(UA_InterruptManager *im,
                         uintptr_t interruptHandle, void *interruptContext,
-                        size_t instanceInfosSize,
-                        const UA_KeyValuePair *instanceInfos);
+                        const UA_KeyValueMap *instanceInfos);
 
 struct UA_InterruptManager {
     /* Every InterruptManager is treated like an EventSource from the
@@ -379,7 +409,7 @@ struct UA_InterruptManager {
      * through to the callback without modification. */
     UA_StatusCode
     (*registerInterrupt)(UA_InterruptManager *im, uintptr_t interruptHandle,
-                         size_t paramsSize, const UA_KeyValuePair *params,
+                         const UA_KeyValueMap *params,
                          UA_InterruptCallback callback, void *interruptContext);
 
     /* Remove a registered interrupt. Returns no error code if the interrupt is
@@ -455,17 +485,24 @@ UA_ConnectionManager_new_POSIX_TCP(const UA_String eventSourceName);
  * effect.
  *
  * Configuration Parameters:
- * - 0:listen-port [uint16]: Port to listen for new connections (default: do not
- *                           listen on any port).
- * - 0:listen-hostnames [string | string array]: Hostnames of the devices to
- *                                               listen on (default: listen on
- *                                               all devices).
+
  * - 0:recv-bufsize [uint32]: Size of the buffer that is allocated for receiving
  *                            messages (default 64kB).
  *
  * Open Connection Parameters:
- * - 0:hostname [string]: Hostname (or IPv4/v6 address) to connect to (required).
- * - 0:port [uint16]: Port of the target host (required).
+ *
+ * - Active Connection
+ * -   0:hostname [string]: Hostname (or IPv4/v6 address) to connect to (required).
+ * -   0:port [uint16]: Port of the target host (required).
+ * - Passive Connection
+ * -   0:listen-port [uint16]: Port to listen for new connections (default: do not
+ *                           listen on any port).
+ * -   0:listen-hostnames [string | string array]: Hostnames of the devices to
+ *                                               listen on (default: listen on
+ *                                               all devices).
+ *
+ * - 0:network-interface [string]: Network interface to listen on or send through when using
+ *                                 multicast addresses
  * - 0:ttl [uint32]: Multicast time to live, (optional, default: 1 - meaning multicast is
  *                   available only to the local subnet).
  * - 0:loopback [boolean]: Whether or not to use multicast loopback, enabling
@@ -478,6 +515,9 @@ UA_ConnectionManager_new_POSIX_TCP(const UA_String eventSourceName);
  *                            processed first depending on the selected device queueing
  *                            discipline.  Setting a priority outside the range 0 to 6
  *                            requires the CAP_NET_ADMIN capability.
+ * - 0:validate [boolean]: If true, the connection setup will act as a dry-run without
+ *                         actually creating any connection but solely validating the
+ *                         provided parameters, hostname(s) and port. (optional, default: false)
  *
  * Connection Callback Paramters:
  * - 0:remote-hostname [string]: When a new connection is opened by listening on
@@ -485,9 +525,41 @@ UA_ConnectionManager_new_POSIX_TCP(const UA_String eventSourceName);
  *                               hostname parameter.
  *
  * Send Parameters:
- * No additional parameters for sending over an established UDP socket defined. */
+ * No additional parameters for sending over an UDP connection defined. */
 UA_EXPORT UA_ConnectionManager *
 UA_ConnectionManager_new_POSIX_UDP(const UA_String eventSourceName);
+
+/**
+ * Ethernet Connection Manager
+ * ~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ * Listens on the network and manages UDP connections. This should be available
+ * for all architectures.
+ *
+ * The configuration parameters have to set before calling _start to take
+ * effect.
+ *
+ * Open Connection Parameters:
+ * - 0:listen [bool]: The connection is either for sending or for listening
+ *                    (default: false).
+ * - 0:interface [string]: The name of the Ethernet interface to use (required).
+ * - 0:address [string]: MAC target address consisting of six groups of
+ *                       hexadecimal digits separated by hyphens such as
+ *                       01-23-45-67-89-ab. For sending this is a required
+ *                       parameter. For listening this is a multicast address
+ *                       that the connections tries to register for.
+ * - 0:ethertype [uint16]: EtherType for sending and receiving frames (optional).
+ *                         For listening connections, this filters out all frames
+ *                         with different EtherTypes.
+ * - 0:promiscuous [bool]: Receive frames also for different target addresses.
+ *                         Defined only for listening connections (default: false).
+ * - 0:vid [uint16]: 12-bit VLAN identifier (optional for send connections).
+ * - 0:pcp [byte]: 3-bit priority code point (optional for send connections).
+ * - 0:dei [bool]: 1-bit drop eligible indicator (optional for seond connections).
+ *
+ * Send Parameters:
+ * No additional parameters for sending over an Ethernet connection defined. */
+UA_EXPORT UA_ConnectionManager *
+UA_ConnectionManager_new_POSIX_Ethernet(const UA_String eventSourceName);
 
 /**
  * Signal Interrupt Manager

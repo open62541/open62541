@@ -24,7 +24,7 @@ static void
 connectionCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
                    void *application, void **connectionContext,
                    UA_ConnectionState status,
-                   size_t paramsSize, const UA_KeyValuePair *params,
+                   const UA_KeyValueMap *params,
                    UA_ByteString msg) {
     TestContext *ctx = (TestContext*) *connectionContext;
     if(status == UA_CONNECTIONSTATE_CLOSING) {
@@ -45,9 +45,9 @@ connectionCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
         clientId = connectionId;
 
         /* The remote-hostname is set during the first callback */
-        if(paramsSize > 0) {
+        if(!UA_KeyValueMap_isEmpty(params)) {
             const void *hn =
-                UA_KeyValueMap_getScalar(params, paramsSize,
+                UA_KeyValueMap_getScalar(params,
                                          UA_QUALIFIEDNAME(0, "remote-hostname"),
                                          &UA_TYPES[UA_TYPES_STRING]);
             ck_assert(hn != NULL);
@@ -79,8 +79,11 @@ START_TEST(listenUDP) {
     UA_KeyValuePair params[1];
     params[0].key = UA_QUALIFIEDNAME(0, "listen-port");
     params[0].value = portVar;
+    UA_KeyValueMap paramsMap;
+    paramsMap.map = params;
+    paramsMap.mapSize = 1;
 
-    cm->openConnection(cm, 1, params, NULL, &testContext, connectionCallback);
+    cm->openConnection(cm, &paramsMap, NULL, &testContext, connectionCallback);
 
     ck_assert(testContext.connCount > 0);
 
@@ -105,6 +108,115 @@ START_TEST(listenUDP) {
     ck_assert_uint_eq(testContext.connCount, 0);
 } END_TEST
 
+START_TEST(connectUDPValidationSucceeds) {
+        UA_ConnectionManager *cm = UA_ConnectionManager_new_POSIX_UDP(UA_STRING("udpCM"));
+        el = UA_EventLoop_new_POSIX(UA_Log_Stdout);
+        el->registerEventSource(el, &cm->eventSource);
+
+        UA_UInt16 port = 30000;
+        UA_Variant portVar;
+        UA_Variant_setScalar(&portVar, &port, &UA_TYPES[UA_TYPES_UINT16]);
+
+        UA_Boolean validate = true;
+        UA_Variant validateVar;
+        UA_Variant_setScalar(&validateVar, &validate, &UA_TYPES[UA_TYPES_BOOLEAN]);
+
+
+        UA_KeyValuePair params[3];
+        params[0].key = UA_QUALIFIEDNAME(0, "listen-port");
+        params[0].value = portVar;
+
+        UA_String hostname = UA_STRING("127.0.0.1");
+        params[1].key = UA_QUALIFIEDNAME(0, "listen-hostnames");
+        UA_Variant_setArray(&params[1].value, &hostname, 1, &UA_TYPES[UA_TYPES_STRING]);
+
+        params[2].key = UA_QUALIFIEDNAME(0, "validate");
+        params[2].value = validateVar;
+
+        TestContext testContext;
+        testContext.connCount = 0;
+
+        UA_KeyValueMap paramsMap;
+        paramsMap.map = params;
+        paramsMap.mapSize = 3;
+
+        UA_StatusCode retval =
+            cm->openConnection(cm, &paramsMap, NULL, &testContext, connectionCallback);
+        ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+        /* Open a client connection */
+        clientId = 0;
+        UA_String targetHost = UA_STRING("localhost");
+        params[0].key = UA_QUALIFIEDNAME(0, "port");
+        params[0].value = portVar;
+        params[1].key = UA_QUALIFIEDNAME(0, "hostname");
+        UA_Variant_setScalar(&params[1].value, &targetHost, &UA_TYPES[UA_TYPES_STRING]);
+
+        params[2].key = UA_QUALIFIEDNAME(0, "validate");
+        params[2].value = validateVar;
+
+        paramsMap.map = params;
+        paramsMap.mapSize = 3;
+
+        retval = cm->openConnection(cm, &paramsMap, NULL, &testContext, connectionCallback);
+        ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+        el->free(el);
+        el = NULL;
+    } END_TEST
+
+START_TEST(connectUDPValidationFails) {
+        UA_ConnectionManager *cm = UA_ConnectionManager_new_POSIX_UDP(UA_STRING("udpCM"));
+        el = UA_EventLoop_new_POSIX(UA_Log_Stdout);
+        el->registerEventSource(el, &cm->eventSource);
+
+        UA_UInt16 port = 30000;
+        UA_Variant portVar;
+        UA_Variant_setScalar(&portVar, &port, &UA_TYPES[UA_TYPES_UINT16]);
+
+        UA_Boolean validate = true;
+        UA_Variant validateVar;
+        UA_Variant_setScalar(&validateVar, &validate, &UA_TYPES[UA_TYPES_BOOLEAN]);
+
+
+        UA_KeyValuePair params[3];
+        params[0].key = UA_QUALIFIEDNAME(0, "listen-port");
+        params[0].value = portVar;
+
+        UA_String hostname = UA_STRING("300.300.300.300");
+        params[1].key = UA_QUALIFIEDNAME(0, "listen-hostnames");
+        UA_Variant_setArray(&params[1].value, &hostname, 1, &UA_TYPES[UA_TYPES_STRING]);
+
+        params[2].key = UA_QUALIFIEDNAME(0, "validate");
+        params[2].value = validateVar;
+
+        TestContext testContext;
+        testContext.connCount = 0;
+
+        UA_KeyValueMap paramsMap;
+        paramsMap.map = params;
+        paramsMap.mapSize = 3;
+
+        UA_StatusCode retval =
+            cm->openConnection(cm, &paramsMap, NULL, &testContext, connectionCallback);
+        ck_assert_uint_eq(retval, UA_STATUSCODE_BADCONNECTIONREJECTED);
+
+        /* Open a client connection */
+        clientId = 0;
+        UA_String targetHost = UA_STRING("localho");
+        params[0].key = UA_QUALIFIEDNAME(0, "port");
+        params[0].value = portVar;
+        params[1].key = UA_QUALIFIEDNAME(0, "hostname");
+        UA_Variant_setScalar(&params[1].value, &targetHost, &UA_TYPES[UA_TYPES_STRING]);
+
+        params[2].key = UA_QUALIFIEDNAME(0, "validate");
+        params[2].value = validateVar;
+
+        retval = cm->openConnection(cm, &paramsMap, NULL, &testContext, connectionCallback);
+        ck_assert_uint_eq(retval, UA_STATUSCODE_BADCONNECTIONREJECTED);
+        el->free(el);
+        el = NULL;
+    } END_TEST
+
 START_TEST(connectUDP) {
     UA_ConnectionManager *cm = UA_ConnectionManager_new_POSIX_UDP(UA_STRING("udpCM"));
     el = UA_EventLoop_new_POSIX(UA_Log_Stdout);
@@ -118,12 +230,15 @@ START_TEST(connectUDP) {
     UA_KeyValuePair params[2];
     params[0].key = UA_QUALIFIEDNAME(0, "listen-port");
     params[0].value = portVar;
+    UA_KeyValueMap paramsMap;
+    paramsMap.map = params;
+    paramsMap.mapSize = 1;
 
     TestContext testContext;
     testContext.connCount = 0;
 
     UA_StatusCode retval =
-        cm->openConnection(cm, 1, params, NULL, &testContext, connectionCallback);
+        cm->openConnection(cm, &paramsMap, NULL, &testContext, connectionCallback);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
     size_t listenSockets = testContext.connCount;
@@ -136,7 +251,9 @@ START_TEST(connectUDP) {
     params[1].key = UA_QUALIFIEDNAME(0, "hostname");
     UA_Variant_setScalar(&params[1].value, &targetHost, &UA_TYPES[UA_TYPES_STRING]);
 
-    retval = cm->openConnection(cm, 2, params, NULL, &testContext, connectionCallback);
+    paramsMap.mapSize = 2;
+
+    retval = cm->openConnection(cm, &paramsMap, NULL, &testContext, connectionCallback);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     for(size_t i = 0; i < 2; i++) {
         UA_DateTime next = el->run(el, 1);
@@ -151,7 +268,7 @@ START_TEST(connectUDP) {
     retval = cm->allocNetworkBuffer(cm, clientId, &snd, strlen(testMsg));
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     memcpy(snd.data, testMsg, strlen(testMsg));
-    retval = cm->sendWithConnection(cm, clientId, 0, NULL, &snd);
+    retval = cm->sendWithConnection(cm, clientId, &UA_KEYVALUEMAP_NULL, &snd);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     for(size_t i = 0; i < 2; i++) {
         UA_DateTime next = el->run(el, 1);
@@ -204,11 +321,15 @@ START_TEST(udpTalkerAndListener) {
     params[0].key = UA_QUALIFIEDNAME(0, "listen-port");
     params[0].value = portVar;
 
+    UA_KeyValueMap paramsMap;
+    paramsMap.map = params;
+    paramsMap.mapSize = 1;
+
     TestContext testContext;
     testContext.connCount = 0;
 
     UA_StatusCode retval =
-        cmListener->openConnection(cmListener, 1, params, NULL, &testContext,
+        cmListener->openConnection(cmListener, &paramsMap, NULL, &testContext,
                                    connectionCallback);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
@@ -223,7 +344,9 @@ START_TEST(udpTalkerAndListener) {
     params[1].key = UA_QUALIFIEDNAME(0, "hostname");
     UA_Variant_setScalar(&params[1].value, &targetHost, &UA_TYPES[UA_TYPES_STRING]);
 
-    retval = cmTalker->openConnection(cmTalker, 2, params, NULL, &testContext,
+    paramsMap.mapSize = 2;
+
+    retval = cmTalker->openConnection(cmTalker, &paramsMap, NULL, &testContext,
                                       connectionCallback);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
@@ -242,7 +365,7 @@ START_TEST(udpTalkerAndListener) {
     retval = cmTalker->allocNetworkBuffer(cmTalker, clientId, &snd, strlen(testMsg));
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     memcpy(snd.data, testMsg, strlen(testMsg));
-    retval = cmTalker->sendWithConnection(cmTalker, clientId, 0, NULL, &snd);
+    retval = cmTalker->sendWithConnection(cmTalker, clientId, &UA_KEYVALUEMAP_NULL, &snd);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     for(size_t i = 0; i < 2; i++) {
         UA_DateTime next = elListener->run(elListener, 1);
@@ -310,12 +433,15 @@ START_TEST(udpTalkerAndListenerDifferentDestination) {
     UA_KeyValuePair listenParams[2];
     listenParams[0].key = UA_QUALIFIEDNAME(0, "listen-port");
     listenParams[0].value = portVar;
+    UA_KeyValueMap listenParamsMap;
+    listenParamsMap.map = listenParams;
+    listenParamsMap.mapSize = 1;
 
     TestContext testContext;
     testContext.connCount = 0;
 
     UA_StatusCode retval =
-        cmListener->openConnection(cmListener, 1, listenParams, NULL, &testContext,
+        cmListener->openConnection(cmListener, &listenParamsMap, NULL, &testContext,
                                    connectionCallback);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
@@ -330,8 +456,11 @@ START_TEST(udpTalkerAndListenerDifferentDestination) {
     connectionParams[0].value = portVar;
     connectionParams[1].key = UA_QUALIFIEDNAME(0, "hostname");
     UA_Variant_setScalar(&connectionParams[1].value, &connectionTargetHost, &UA_TYPES[UA_TYPES_STRING]);
+    UA_KeyValueMap connectionParamsMap;
+    connectionParamsMap.map = connectionParams;
+    connectionParamsMap.mapSize = 2;
 
-    retval = cmTalker->openConnection(cmTalker, 2, connectionParams, NULL, &testContext,
+    retval = cmTalker->openConnection(cmTalker, &connectionParamsMap, NULL, &testContext,
                                       connectionCallback);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
@@ -358,7 +487,11 @@ START_TEST(udpTalkerAndListenerDifferentDestination) {
     sendParams[1].key = UA_QUALIFIEDNAME(0, "hostname");
     UA_Variant_setScalar(&sendParams[1].value, &sendTargetHost, &UA_TYPES[UA_TYPES_STRING]);
 
-    retval = cmTalker->sendWithConnection(cmTalker, clientId, 2, sendParams, &snd);
+    UA_KeyValueMap sendParamsMap;
+    sendParamsMap.map = sendParams;
+    sendParamsMap.mapSize = 2;
+
+    retval = cmTalker->sendWithConnection(cmTalker, clientId, &sendParamsMap, &snd);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     for(size_t i = 0; i < 2; i++) {
         UA_DateTime next = elListener->run(elListener, 1);
@@ -412,6 +545,8 @@ int main(void) {
     TCase *tc = tcase_create("test cases");
     tcase_add_test(tc, listenUDP);
     tcase_add_test(tc, connectUDP);
+    tcase_add_test(tc, connectUDPValidationFails);
+    tcase_add_test(tc, connectUDPValidationSucceeds);
     tcase_add_test(tc, udpTalkerAndListener);
     tcase_add_test(tc, udpTalkerAndListenerDifferentDestination);
     suite_add_tcase(s, tc);

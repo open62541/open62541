@@ -19,6 +19,7 @@
     <opc:EnumeratedValue Name="OPN" Value="0x4E504F" />
     <opc:EnumeratedValue Name="CLO" Value="0x4F4C43" />
     <opc:EnumeratedValue Name="ERR" Value="0x525245" />
+    <opc:EnumeratedValue Name="RHE" Value="0x454852" />
     <opc:EnumeratedValue Name="INVALID" Value="0x0" />
   </opc:EnumeratedType>
   
@@ -44,7 +45,12 @@
 	<opc:Field Name="MaxChunkCount" TypeName="opc:UInt32" />
     <opc:Field Name="EndpointUrl" TypeName="opc:String" />
   </opc:StructuredType>
-  
+
+  <opc:StructuredType Name="TcpReverseHelloMessage">
+    <opc:Field Name="ServerUri" TypeName="opc:String" />
+    <opc:Field Name="EndpointUrl" TypeName="opc:String" />
+  </opc:StructuredType>
+
    <opc:StructuredType Name="TcpAcknowledgeMessage">
     <opc:Documentation>Acknowledge Message</opc:Documentation>
     <opc:Field Name="ProtocolVersion" TypeName="opc:UInt32" />

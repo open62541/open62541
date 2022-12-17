@@ -53,6 +53,8 @@ if is_c:
 # define MDNSD_DYNAMIC_LINKING
 #endif
 
+#define UA_INLINABLE_IMPL 1
+
 /* Disable security warnings for BSD sockets on MSVC */
 #if defined(_MSC_VER) && !defined(_CRT_SECURE_NO_WARNINGS)
 # define _CRT_SECURE_NO_WARNINGS

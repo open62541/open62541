@@ -429,9 +429,6 @@ verifySignature(const UA_SecureChannel *channel,
     const UA_ByteString sig = {sigsize, chunk->data + chunk->length - sigsize};
     UA_StatusCode retval = cryptoModule->signatureAlgorithm.
         verify(channel->channelContext, &content, &sig);
-#ifdef UA_ENABLE_UNIT_TEST_FAILURE_HOOKS
-    retval |= decrypt_verifySignatureFailure;
-#endif
     return retval;
 }
 
@@ -564,7 +561,7 @@ checkSymHeader(UA_SecureChannel *channel, const UA_UInt32 tokenId) {
        timeout < UA_DateTime_nowMonotonic()) {
         UA_LOG_WARNING_CHANNEL(channel->securityPolicy->logger, channel,
                                "SecurityToken timed out");
-        UA_SecureChannel_close(channel);
+        UA_SecureChannel_shutdown(channel);
         return UA_STATUSCODE_BADSECURECHANNELCLOSED;
     }
 

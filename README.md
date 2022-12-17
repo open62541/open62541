@@ -137,7 +137,7 @@ For custom development that shall eventually become part of the open62541 librar
 
 ### Development
 
-As an open source project, new contributors are encouraged to help improve open62541. The following are good starting points for new contributors:
+As an open source project, new contributors are encouraged to help improve open62541. The file [CONTRIBUTING.md](CONTRIBUTING.md) aggregates good practices that we expect for code contributions. The following are good starting points for new contributors:
 
 - [Report bugs](https://github.com/open62541/open62541/issues)
 - Improve the [documentation](http://open62541.org/doc/current)
@@ -181,7 +181,7 @@ To build the examples, we recommend to install the open62541 project as mentione
 
 The following simple server example can be built using gcc, after you installed open62541 on your system.
 
-Using the GCC compiler, just run ```gcc -std=c99 -lopen62541 -DUA_ARCHITECTURE_POSIX <server.c> -o server``` (under Windows you may need to add ``` -lws2_32``` 
+Using the GCC compiler, just run ```gcc -std=c99 -DUA_ARCHITECTURE_POSIX <server.c> -lopen62541 -o server``` (under Windows you may need to add ``` -lws2_32``` 
 and change `-DUA_ARCHITECTURE_POSIX` to `-DUA_ARCHITECTURE_WIN32`).
 ```c
 #include <signal.h>

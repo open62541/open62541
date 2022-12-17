@@ -67,7 +67,7 @@ handlePOSIXInterruptEvent(UA_EventSource *es, UA_RegisteredFD *rfd, short event)
                  (unsigned)rfd->fd, fdsi.ssi_signo);
 
     rs->signalCallback((UA_InterruptManager *)es,
-                       (uintptr_t)rfd->fd, rfd->context, 0, NULL);
+                       (uintptr_t)rfd->fd, rfd->context, &UA_KEYVALUEMAP_NULL);
 }
 
 static void
@@ -240,7 +240,7 @@ executeTriggeredPOSIXInterrupts(UA_EventSource *es, UA_RegisteredFD *rfd, short 
         TAILQ_REMOVE(&singletonIM->triggered, rs, triggeredEntry);
         rs->triggered = false;
         rs->signalCallback(&singletonIM->im, (uintptr_t)rs->signal,
-                           rs->rfd.context, 0, NULL);
+                           rs->rfd.context, &UA_KEYVALUEMAP_NULL);
     }
 }
 
@@ -248,10 +248,10 @@ executeTriggeredPOSIXInterrupts(UA_EventSource *es, UA_RegisteredFD *rfd, short 
 
 static UA_StatusCode
 registerPOSIXInterrupt(UA_InterruptManager *im, uintptr_t interruptHandle,
-                       size_t paramsSize, const UA_KeyValuePair *params,
+                       const UA_KeyValueMap *params,
                        UA_InterruptCallback callback, void *interruptContext) {
     UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX *)im->eventSource.eventLoop;
-    if(paramsSize > 0) {
+    if(!UA_KeyValueMap_isEmpty(params)) {
         UA_LOG_ERROR0(el->eventLoop.logger, UA_LOGCATEGORY_EVENTLOOP,
                      "Interrupt\t| Supplied parameters invalid for the "
                      "POSIX InterruptManager");
@@ -330,6 +330,23 @@ pair(SOCKET fds[2]) {
 }
 #endif
 
+#if !defined(UA_HAVE_EPOLL) && !defined(_WIN32)
+/* mark fd as non-blocking */
+static int
+markNonBlock(int fd)
+{
+    int flags;
+
+    flags = fcntl(fd, F_GETFL);
+    if (flags < 0)
+        return flags;
+
+    flags |= O_NONBLOCK;
+
+    return fcntl(fd, F_SETFL, flags);
+}
+#endif
+
 static UA_StatusCode
 startPOSIXInterruptManager(UA_EventSource *es) {
     /* Check the state */
@@ -361,7 +378,7 @@ startPOSIXInterruptManager(UA_EventSource *es) {
 #ifdef _WIN32
     int err = pair(pipefd);
 #else
-    int err = pipe2(pipefd, O_NONBLOCK);
+    int err = pipe(pipefd);
 #endif
     if(err != 0) {
         UA_LOG_SOCKET_ERRNO_WRAP(
@@ -370,6 +387,21 @@ startPOSIXInterruptManager(UA_EventSource *es) {
                           "self-signaling (%s)", errno_str));
         return UA_STATUSCODE_BADINTERNALERROR;
     }
+
+#ifndef _WIN32
+    /* Mark pipes as non-blocking */
+    for (size_t i = 0; i < (sizeof(pipefd) / sizeof(*pipefd)); ++i) {
+        err = markNonBlock(pipefd[i]);
+        if (err != 0) {
+            UA_LOG_SOCKET_ERRNO_WRAP(
+                UA_LOG_WARNING(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
+                               "Interrupt\t| Could mark pipe for "
+                               "self-signaling as non-blocking(%s)",
+                               errno_str));
+            return UA_STATUSCODE_BADINTERNALERROR;
+        }
+    }
+#endif
 
     UA_LOG_DEBUG(es->eventLoop->logger, UA_LOGCATEGORY_EVENTLOOP,
                  "Interrupt\t| Socket pair for the self-pipe: %u,%u",

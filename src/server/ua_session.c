@@ -55,10 +55,8 @@ void UA_Session_clear(UA_Session *session, UA_Server* server) {
     session->continuationPoints = NULL;
     session->availableContinuationPoints = UA_MAXCONTINUATIONPOINTS;
 
-    UA_Array_delete(session->attributes, session->attributesSize,
-                    &UA_TYPES[UA_TYPES_KEYVALUEPAIR]);
+    UA_KeyValueMap_delete(session->attributes);
     session->attributes = NULL;
-    session->attributesSize = 0;
 
     UA_Array_delete(session->localeIds, session->localeIdsSize,
                     &UA_TYPES[UA_TYPES_STRING]);
@@ -275,10 +273,10 @@ UA_Server_setSessionAttribute(UA_Server *server, const UA_NodeId *sessionId,
     if(protectedAttribute(key))
         return UA_STATUSCODE_BADNOTWRITABLE;
     UA_LOCK(&server->serviceMutex);
-    UA_Session *session = UA_Server_getSessionById(server, sessionId);
+    UA_Session *session = getSessionById(server, sessionId);
     UA_StatusCode res = UA_STATUSCODE_BADSESSIONIDINVALID;
     if(session)
-        res = UA_KeyValueMap_set(&session->attributes, &session->attributesSize,
+        res = UA_KeyValueMap_set(session->attributes,
                                  key, value);
     UA_UNLOCK(&server->serviceMutex);
     return res;
@@ -290,11 +288,11 @@ UA_Server_deleteSessionAttribute(UA_Server *server, const UA_NodeId *sessionId,
     if(protectedAttribute(key))
         return UA_STATUSCODE_BADNOTWRITABLE;
     UA_LOCK(&server->serviceMutex);
-    UA_Session *session = UA_Server_getSessionById(server, sessionId);
+    UA_Session *session = getSessionById(server, sessionId);
     if(!session)
         return UA_STATUSCODE_BADSESSIONIDINVALID;
     UA_StatusCode res =
-        UA_KeyValueMap_delete(&session->attributes, &session->attributesSize, key);
+        UA_KeyValueMap_remove(session->attributes, key);
     UA_UNLOCK(&server->serviceMutex);
     return res;
 }
@@ -306,7 +304,7 @@ getSessionAttribute(UA_Server *server, const UA_NodeId *sessionId,
     if(!outValue)
         return UA_STATUSCODE_BADINTERNALERROR;
 
-    UA_Session *session = UA_Server_getSessionById(server, sessionId);
+    UA_Session *session = getSessionById(server, sessionId);
     if(!session)
         return UA_STATUSCODE_BADSESSIONIDINVALID;
 
@@ -330,7 +328,7 @@ getSessionAttribute(UA_Server *server, const UA_NodeId *sessionId,
         attr = &localAttr;
     } else {
         /* Get from the actual key-value list */
-        attr = UA_KeyValueMap_get(session->attributes, session->attributesSize, key);
+        attr = UA_KeyValueMap_get(session->attributes, key);
         if(!attr)
             return UA_STATUSCODE_BADNOTFOUND;
     }

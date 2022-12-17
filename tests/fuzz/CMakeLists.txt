@@ -4,8 +4,6 @@ include_directories("${PROJECT_SOURCE_DIR}/src")
 include_directories("${PROJECT_SOURCE_DIR}/src/server")
 include_directories("${PROJECT_SOURCE_DIR}/tests/testing-plugins")
 
-add_definitions(-DUA_sleep_ms=UA_comboSleep)
-
 if(NOT MSVC)
     add_definitions(-Wno-deprecated-declarations)
 endif()
@@ -61,7 +59,7 @@ list(APPEND LIBS "${open62541_LIBRARIES}")
 link_libraries("-fsanitize=fuzzer")
 
 # Use different plugins for testing
-set(fuzzing_plugin_sources ${PROJECT_SOURCE_DIR}/arch/network_tcp.c
+set(fuzzing_plugin_sources
     ${PROJECT_SOURCE_DIR}/arch/eventloop_posix.c
     ${PROJECT_SOURCE_DIR}/arch/eventloop_posix_select.c
     ${PROJECT_SOURCE_DIR}/arch/eventloop_posix_epoll.c

@@ -28,6 +28,12 @@ UA_base64(const unsigned char *src, size_t len, size_t *out_len) {
 	if(!out)
 		return NULL;
 
+    *out_len = UA_base64_buf(src, len, out);
+    return out;
+}
+
+size_t
+UA_base64_buf(const unsigned char *src, size_t len, unsigned char *out) {
 	const unsigned char *end = src + len;
 	const unsigned char *in = src;
 	unsigned char *pos = out;
@@ -51,8 +57,7 @@ UA_base64(const unsigned char *src, size_t len, size_t *out_len) {
 		*pos++ = '=';
 	}
 
-    *out_len = (size_t)(pos - out);
-	return out;
+    return (size_t)(pos - out);
 }
 
 static const uint32_t from_b64[256] = {

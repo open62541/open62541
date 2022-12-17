@@ -83,6 +83,8 @@ add_example(tutorial_server_variabletype tutorial_server_variabletype.c)
 
 add_example(tutorial_server_object tutorial_server_object.c)
 
+add_example(tutorial_server_reverseconnect tutorial_server_reverseconnect.c)
+
 if(UA_ENABLE_METHODCALLS)
     add_example(tutorial_server_method tutorial_server_method.c)
     if (UA_MULTITHREADING EQUAL 100)
@@ -260,6 +262,7 @@ if(UA_ENABLE_PUBSUB)
         if(NOT WIN32)
             include_directories(${PROJECT_SOURCE_DIR}/../plugins)
             add_example(tutorial_pubsub_mqtt_publish pubsub/tutorial_pubsub_mqtt_publish.c)
+            add_example(tutorial_pubsub_mqtt_subscribe pubsub/tutorial_pubsub_mqtt_subscribe.c)
         endif()
     endif()
     if(UA_ENABLE_PUBSUB_FILE_CONFIG)
@@ -272,4 +275,11 @@ if(UA_ENABLE_PUBSUB)
             message(WARNING "PubSub subscriber monitoring example build needs LINUX OS. Skip build.")
         endif()
     endif()
+endif()
+
+###########################
+# Nodeser Loader Examples #
+###########################
+if(UA_ENABLE_NODESETLOADER)
+    add_subdirectory(nodeset_loader)
 endif()

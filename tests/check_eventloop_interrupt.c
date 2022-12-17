@@ -23,7 +23,7 @@ unsigned counter = 0;
 static void
 interruptCallback(UA_InterruptManager *im,
                   uintptr_t interruptHandle, void *interruptContext,
-                  size_t instanceInfosSize, const UA_KeyValuePair *instanceInfos) {
+                  const UA_KeyValueMap *instanceInfos) {
     counter++;
 }
 
@@ -32,7 +32,7 @@ START_TEST(catchInterrupt) {
     UA_InterruptManager *im = UA_InterruptManager_new_POSIX(UA_STRING("im1"));
     el->registerEventSource(el, &im->eventSource);
 
-    im->registerInterrupt(im, TESTSIG, 0, NULL, interruptCallback, NULL);
+    im->registerInterrupt(im, TESTSIG, &UA_KEYVALUEMAP_NULL, interruptCallback, NULL);
     el->start(el);
 
     /* Send signal to self*/
@@ -63,11 +63,11 @@ START_TEST(registerDuplicate) {
     el->start(el);
 
     UA_StatusCode res =
-        im->registerInterrupt(im, TESTSIG, 0, NULL, interruptCallback, NULL);
+        im->registerInterrupt(im, TESTSIG, &UA_KEYVALUEMAP_NULL, interruptCallback, NULL);
     ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
 
     /* Registering the same signal twice must fail */
-    res = im->registerInterrupt(im, TESTSIG, 0, NULL, interruptCallback, NULL);
+    res = im->registerInterrupt(im, TESTSIG, &UA_KEYVALUEMAP_NULL, interruptCallback, NULL);
     ck_assert_uint_ne(res, UA_STATUSCODE_GOOD);
 
     /* Stop the EventLoop */

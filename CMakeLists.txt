@@ -46,7 +46,7 @@ set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 # overwritten with more detailed information if git is available.
 set(OPEN62541_VER_MAJOR 1)
 set(OPEN62541_VER_MINOR 3)
-set(OPEN62541_VER_PATCH 2)
+set(OPEN62541_VER_PATCH 3)
 set(OPEN62541_VER_LABEL "-undefined") # like "-rc1" or "-g4538abcd" or "-g4538abcd-dirty"
 set(OPEN62541_VER_COMMIT "unknown-commit")
 
@@ -101,6 +101,10 @@ if("${UA_ARCHITECTURE}" STREQUAL "None")
     endif(UNIX)
 endif()
 
+if(${CMAKE_SYSTEM_NAME} STREQUAL "Linux")
+  set(LINUX TRUE)
+endif()
+
 message(STATUS "The selected architecture is: ${UA_ARCHITECTURE}")
 string(TOUPPER ${UA_ARCHITECTURE} UA_ARCHITECTURE_UPPER)
 add_definitions(-DUA_ARCHITECTURE_${UA_ARCHITECTURE_UPPER})
@@ -120,7 +124,8 @@ GET_PROPERTY(ua_architecture_headers_beginning GLOBAL PROPERTY UA_ARCHITECTURE_H
 GET_PROPERTY(ua_architecture_sources GLOBAL PROPERTY UA_ARCHITECTURE_SOURCES)
 
 set(ua_architecture_sources ${ua_architecture_sources}
-    ${PROJECT_SOURCE_DIR}/arch/network_tcp.c
+    ${PROJECT_SOURCE_DIR}/arch/eventloop_common.h
+    ${PROJECT_SOURCE_DIR}/arch/eventloop_common.c
     ${PROJECT_SOURCE_DIR}/arch/eventloop_posix.h
     ${PROJECT_SOURCE_DIR}/arch/eventloop_posix.c
     ${PROJECT_SOURCE_DIR}/arch/eventloop_posix_select.c
@@ -128,10 +133,13 @@ set(ua_architecture_sources ${ua_architecture_sources}
     ${PROJECT_SOURCE_DIR}/arch/eventloop_posix_tcp.c
     ${PROJECT_SOURCE_DIR}/arch/eventloop_posix_udp.c
     ${PROJECT_SOURCE_DIR}/arch/eventloop_posix_interrupt.c
-)
+  )
+
+if(LINUX)
+    list(APPEND ua_architecture_sources ${PROJECT_SOURCE_DIR}/arch/eventloop_posix_eth.c)
+endif()
 
 set(ua_architecture_headers ${ua_architecture_headers}
-    ${PROJECT_SOURCE_DIR}/include/open62541/network_tcp.h
     ${PROJECT_SOURCE_DIR}/include/open62541/architecture_functions.h
 )
 
@@ -166,7 +174,9 @@ option(UA_ENABLE_SUBSCRIPTIONS_EVENTS "Enable event monitoring" ON)
 option(UA_ENABLE_DA "Enable OPC UA DataAccess (Part 8) definitions" ON)
 option(UA_ENABLE_HISTORIZING "Enable basic support for historical access (client and server)" OFF)
 option(UA_ENABLE_DISCOVERY "Enable Discovery Service (LDS)" OFF)
-option(UA_ENABLE_JSON_ENCODING "Enable JSON encoding" OFF)
+option(UA_ENABLE_JSON_ENCODING "Enable JSON encoding" ON)
+option(UA_ENABLE_XML_ENCODING "Enable XML encoding (EXPERIMENTAL)" OFF)
+option(UA_ENABLE_NODESETLOADER "Enable nodesetLoader public API" OFF)
 
 set(MULTITHREADING_DEFAULT 0)
 if(WIN32 OR UNIX)
@@ -185,6 +195,9 @@ mark_as_advanced(UA_ENABLE_NODEMANAGEMENT)
 option(UA_ENABLE_PARSING "Utility functions that require parsing (e.g. NodeId expressions)" ON)
 mark_as_advanced(UA_ENABLE_PARSING)
 
+option(UA_ENABLE_INLINABLE_EXPORT "Export 'static inline' methods as regular API" OFF)
+mark_as_advanced(UA_ENABLE_INLINABLE_EXPORT)
+
 option(UA_ENABLE_DISCOVERY_MULTICAST "Enable Discovery Service with multicast support (LDS-ME)" OFF)
 mark_as_advanced(UA_ENABLE_DISCOVERY_MULTICAST)
 
@@ -200,6 +213,9 @@ mark_as_advanced(UA_ENABLE_ENCRYPTION_OPENSSL)
 option(UA_ENABLE_ENCRYPTION_MBEDTLS "Deprecated: Enable encryption support (uses mbedTLS)" OFF)
 mark_as_advanced(UA_ENABLE_ENCRYPTION_MBEDTLS)
 
+option(UA_ENABLE_CERT_REJECTED_DIR  "Enable specifying directory for rejected certificates (with mbedTLS)" OFF)
+mark_as_advanced(UA_ENABLE_CERT_REJECTED_DIR)
+
 list (FIND UA_ENCRYPTION_PLUGINS ${UA_ENABLE_ENCRYPTION} _tmp)
 if(UA_ENABLE_ENCRYPTION STREQUAL "OFF" OR ${_tmp} GREATER -1)
     set(UA_ENABLE_ENCRYPTION_OPENSSL OFF)
@@ -209,8 +225,10 @@ if(UA_ENABLE_ENCRYPTION STREQUAL "OFF" OR ${_tmp} GREATER -1)
         set(UA_ENABLE_ENCRYPTION_MBEDTLS ON)
     elseif(UA_ENABLE_ENCRYPTION STREQUAL "OPENSSL")
         set(UA_ENABLE_ENCRYPTION_OPENSSL ON)
+        set(UA_ENABLE_CERT_REJECTED_DIR OFF)
     elseif(UA_ENABLE_ENCRYPTION STREQUAL "LIBRESSL")
         set(UA_ENABLE_ENCRYPTION_LIBRESSL ON)
+        set(UA_ENABLE_CERT_REJECTED_DIR OFF)
     endif()
 # Only for backward compatability
 elseif(UA_ENABLE_ENCRYPTION)
@@ -227,6 +245,7 @@ else()
     if(UA_ENABLE_ENCRYPTION_OPENSSL)
         set(UA_ENABLE_ENCRYPTION "OPENSSL")
         set(UA_ENABLE_ENCRYPTION_MBEDTLS OFF)
+        set(UA_ENABLE_CERT_REJECTED_DIR OFF)
     endif()
 endif()
 
@@ -384,6 +403,16 @@ mark_as_advanced(UA_ENABLE_PUBSUB_MONITORING)
 option(UA_ENABLE_PUBSUB_BUFMALLOC "Enable allocation with static memory buffer for time critical PubSub parts" OFF)
 mark_as_advanced(UA_ENABLE_PUBSUB_BUFMALLOC)
 
+option(UA_ENABLE_PUBSUB_SKS "Enable Security Key Service support for publisher and subscriber" OFF)
+mark_as_advanced(UA_ENABLE_PUBSUB_SKS)
+
+if(UA_ENABLE_PUBSUB_SKS)
+    message(WARNING "The PubSub SKS feature is under development and not yet ready.")
+    if(NOT UA_ENABLE_PUBSUB_ENCRYPTION)
+        message(FATAL_ERROR "PubSub SKS cannot be used with disabled UA_ENABLE_PUBSUB_ENCRYPTION")
+    endif()
+endif()
+
 #RT and Transport PubSub settings
 option(UA_ENABLE_PUBSUB_ETH_UADP "Enable publish/subscribe UADP over Ethernet" OFF)
 
@@ -446,19 +475,28 @@ if(UA_ENABLE_PUBSUB_MQTT)
         set(UA_FILE_MQTT ${open62541_MQTT_DIR}/src/mqtt.c)
     endif()
     if(NOT EXISTS "${UA_FILE_MQTT}")
-        message(FATAL_ERROR "File ${UA_FILE_MQTT} not found.You probably need to initialize the git submodule for deps/mqtt-c.Therefore execute the following command \ngit submodule update --init --recursive")
-    else()
-        # Warn if run in Windows
-        if(WIN32)
-            MESSAGE(WARNING "Multithreading is enabled in MQTT plugin. This feature is under development and marked as EXPERIMENTAL")
+        message(STATUS "Submodule update")
+        execute_process(COMMAND ${GIT_EXECUTABLE} submodule update --init --recursive
+                        RESULT_VARIABLE GIT_SUBMOD_RESULT)
+        if(NOT GIT_SUBMOD_RESULT EQUAL "0")
+            message(FATAL_ERROR "git submodule update --init --recursive failed with ${GIT_SUBMOD_RESULT}")
         endif()
-        if(NOT UA_ENABLE_PUBSUB)
-        message(FATAL_ERROR "Mqtt cannot be used with disabled PubSub function.")
-        endif()
-        configure_file(${PROJECT_SOURCE_DIR}/deps/mqtt-c/include/mqtt.h "${PROJECT_BINARY_DIR}/src_generated/mqtt.h" COPYONLY)
-        configure_file(${PROJECT_SOURCE_DIR}/deps/mqtt-c/include/mqtt_pal.h "${PROJECT_BINARY_DIR}/src_generated/mqtt_pal.h" COPYONLY)
-        configure_file(${PROJECT_SOURCE_DIR}/plugins/mqtt/templates/posix_sockets.h "${PROJECT_BINARY_DIR}/src_generated/posix_sockets.h" COPYONLY)
     endif()
+    # Warn if run in Windows
+    if(WIN32)
+        MESSAGE(WARNING "Multithreading is enabled in MQTT plugin. This feature is under development and marked as EXPERIMENTAL")
+    endif()
+    # Warn if run in Windows and the MSVC Version is lower than VS 12.0
+    if(WIN32 AND MSVC_VERSION LESS 1800)
+        message(WARNING "The MSVC version does not support the C99 standard. Therefore the file stdint.h will be included.")
+        configure_file(${PROJECT_SOURCE_DIR}/deps/ms_stdint.h "${PROJECT_BINARY_DIR}/src_generated/stdint.h" COPYONLY)
+    endif()
+    if(NOT UA_ENABLE_PUBSUB)
+        message(FATAL_ERROR "Mqtt cannot be used with disabled PubSub function.")
+    endif()
+    configure_file(${PROJECT_SOURCE_DIR}/deps/mqtt-c/include/mqtt.h "${PROJECT_BINARY_DIR}/src_generated/mqtt.h" COPYONLY)
+    configure_file(${PROJECT_SOURCE_DIR}/deps/mqtt-c/include/mqtt_pal.h "${PROJECT_BINARY_DIR}/src_generated/mqtt_pal.h" COPYONLY)
+    configure_file(${PROJECT_SOURCE_DIR}/plugins/mqtt/templates/posix_sockets.h "${PROJECT_BINARY_DIR}/src_generated/posix_sockets.h" COPYONLY)
 endif()
 
 option(UA_ENABLE_MQTT_TLS_OPENSSL "Enable TLS support for publish/subscribe with mqtt (use OpenSSL)" OFF)
@@ -527,9 +565,8 @@ mark_as_advanced(UA_ENABLE_DISCOVERY_SEMAPHORE)
 option(UA_ENABLE_UNIT_TESTS_MEMCHECK "Use Valgrind (Linux) or DrMemory (Windows) to detect memory leaks when running the unit tests" OFF)
 mark_as_advanced(UA_ENABLE_UNIT_TESTS_MEMCHECK)
 
-option(UA_ENABLE_UNIT_TEST_FAILURE_HOOKS
-       "Add hooks to force failure modes for additional unit tests. Not for production use!" OFF)
-mark_as_advanced(UA_ENABLE_UNIT_TEST_FAILURE_HOOKS)
+option(UA_ENABLE_REDUCED_ITERATIONS_FOR_TESTING "Reduce the number of iterations required for testing a feature (e.g. to roll over a counter)" OFF)
+mark_as_advanced(UA_ENABLE_REDUCED_ITERATIONS_FOR_TESTING)
 
 set(UA_VALGRIND_INTERACTIVE_INTERVAL 1000 CACHE STRING "The number of iterations to wait before creating the next dump")
 mark_as_advanced(UA_VALGRIND_INTERACTIVE_INTERVAL)
@@ -935,11 +972,11 @@ set(internal_headers ${PROJECT_SOURCE_DIR}/deps/open62541_queue.h
                      ${PROJECT_SOURCE_DIR}/deps/pcg_basic.h
                      ${PROJECT_SOURCE_DIR}/deps/libc_time.h
                      ${PROJECT_SOURCE_DIR}/deps/base64.h
+                     ${PROJECT_SOURCE_DIR}/deps/itoa.h
                      ${PROJECT_SOURCE_DIR}/src/ua_types_encoding_binary.h
                      ${PROJECT_SOURCE_DIR}/src/ua_util_internal.h
                      ${PROJECT_BINARY_DIR}/src_generated/open62541/transport_generated.h
                      ${PROJECT_BINARY_DIR}/src_generated/open62541/transport_generated_handling.h
-                     ${PROJECT_SOURCE_DIR}/src/ua_connection_internal.h
                      ${PROJECT_SOURCE_DIR}/src/ua_securechannel.h
                      ${PROJECT_SOURCE_DIR}/arch/common/ua_timer.h
                      ${PROJECT_SOURCE_DIR}/src/server/ua_session.h
@@ -948,6 +985,7 @@ set(internal_headers ${PROJECT_SOURCE_DIR}/deps/open62541_queue.h
                      ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub.h
                      ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_manager.h
                      ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_ns0.h
+                     ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_keystorage.h
                      ${PROJECT_SOURCE_DIR}/src/server/ua_server_async.h
                      ${PROJECT_SOURCE_DIR}/src/server/ua_server_internal.h
                      ${PROJECT_SOURCE_DIR}/src/server/ua_services.h
@@ -957,13 +995,11 @@ set(internal_headers ${PROJECT_SOURCE_DIR}/deps/open62541_queue.h
 # TODO: make client optional
 set(lib_sources ${PROJECT_SOURCE_DIR}/src/ua_types.c
                 ${PROJECT_SOURCE_DIR}/src/ua_types_encoding_binary.c
-                ${PROJECT_SOURCE_DIR}/src/ua_types_print.c
                 ${PROJECT_BINARY_DIR}/src_generated/open62541/types_generated.c
                 ${PROJECT_BINARY_DIR}/src_generated/open62541/transport_generated.c
                 ${PROJECT_BINARY_DIR}/src_generated/open62541/statuscodes.c
                 ${PROJECT_SOURCE_DIR}/src/ua_util.c
                 ${PROJECT_SOURCE_DIR}/arch/common/ua_timer.c
-                ${PROJECT_SOURCE_DIR}/src/ua_connection.c
                 ${PROJECT_SOURCE_DIR}/src/ua_securechannel.c
                 ${PROJECT_SOURCE_DIR}/src/ua_securechannel_crypto.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_session.c
@@ -983,6 +1019,8 @@ set(lib_sources ${PROJECT_SOURCE_DIR}/src/ua_types.c
                 ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_readergroup.c
                 ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_manager.c
                 ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_ns0.c
+                ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_keystorage.c
+                ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_securitygroup.c
                 # services
                 ${PROJECT_SOURCE_DIR}/src/server/ua_services_view.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_services_method.c
@@ -1005,6 +1043,7 @@ set(lib_sources ${PROJECT_SOURCE_DIR}/src/ua_types.c
                 ${PROJECT_SOURCE_DIR}/deps/libc_time.c
                 ${PROJECT_SOURCE_DIR}/deps/pcg_basic.c
                 ${PROJECT_SOURCE_DIR}/deps/base64.c
+                ${PROJECT_SOURCE_DIR}/deps/itoa.c
                 ${PROJECT_SOURCE_DIR}/deps/aa_tree.c
                 ${PROJECT_SOURCE_DIR}/deps/ziptree.c
 
@@ -1151,21 +1190,27 @@ if(UA_ENABLE_PUBSUB)
 endif()
 
 if(UA_ENABLE_JSON_ENCODING)
+    if(UA_ENABLE_PUBSUB_ENCRYPTION)
+        MESSAGE(WARNING "Payload encryption with JSON encoding is not possible according to the specification.The message security is only defined for the UADP message mapping.")
+    endif()
     if(UA_ENABLE_PUBSUB)
         list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_networkmessage_json.c)
     endif()
-    list(APPEND internal_headers ${PROJECT_SOURCE_DIR}/deps/jsmn/jsmn.h
-                                 ${PROJECT_SOURCE_DIR}/deps/cj5.h
-                                 ${PROJECT_SOURCE_DIR}/deps/string_escape.h
-                                 ${PROJECT_SOURCE_DIR}/deps/itoa.h
+    list(APPEND internal_headers ${PROJECT_SOURCE_DIR}/deps/cj5.h
                                  ${PROJECT_SOURCE_DIR}/deps/parse_num.h
                                  ${PROJECT_SOURCE_DIR}/src/ua_types_encoding_json.h)
-    list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/deps/jsmn/jsmn.c
-                            ${PROJECT_SOURCE_DIR}/deps/cj5.c
-                            ${PROJECT_SOURCE_DIR}/deps/string_escape.c
-                            ${PROJECT_SOURCE_DIR}/deps/itoa.c
+    list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/deps/cj5.c
                             ${PROJECT_SOURCE_DIR}/deps/parse_num.c
                             ${PROJECT_SOURCE_DIR}/src/ua_types_encoding_json.c)
+endif()
+
+if(UA_ENABLE_XML_ENCODING)
+    if(NOT UA_ENABLE_JSON_ENCODING)
+        list(APPEND internal_headers ${PROJECT_SOURCE_DIR}/deps/parse_num.h)
+        list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/deps/parse_num.c)
+    endif()
+    list(APPEND internal_headers ${PROJECT_SOURCE_DIR}/src/ua_types_encoding_xml.h)
+    list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/src/ua_types_encoding_xml.c)
 endif()
 
 if(UA_ENABLE_SUBSCRIPTIONS)
@@ -1211,6 +1256,22 @@ if(UA_BUILD_FUZZING OR UA_BUILD_OSS_FUZZ)
         ${PROJECT_SOURCE_DIR}/tests/fuzz/custom_memory_manager.c)
 endif()
 
+if(UA_ENABLE_NODESETLOADER)
+    # This is required because of issues with policy CMP0077.
+    # Source: https://stackoverflow.com/a/54404924
+    option(ENABLE_BUILD_INTO_OPEN62541 "make nodesetLoader part of the open62541 library" off)
+    set(ENABLE_BUILD_INTO_OPEN62541 on)
+
+    add_subdirectory(${PROJECT_SOURCE_DIR}/deps/nodesetLoader)
+
+    list(APPEND lib_sources ${NODESETLOADER_SOURCES})
+    list(APPEND default_plugin_headers
+                ${PROJECT_SOURCE_DIR}/plugins/include/open62541/plugin/nodesetloader.h)
+    list(APPEND default_plugin_sources
+                ${PROJECT_SOURCE_DIR}/plugins/ua_nodesetloader.c)
+    list(APPEND open62541_LIBRARIES ${NODESETLOADER_DEPS_LIBS})
+endif()
+
 #########################
 # Generate source files #
 #########################
@@ -1225,7 +1286,12 @@ if(UA_NAMESPACE_ZERO STREQUAL "FULL")
     set(UA_FILE_NODESETS "${UA_FILE_NS0}")
 
     if(NOT EXISTS "${UA_FILE_NS0}")
-        message(FATAL_ERROR "File ${UA_FILE_NS0} not found. You probably need to initialize the git submodule for deps/ua-nodeset or set UA_NODESET_DIR.")
+        message(STATUS "Submodule update")
+        execute_process(COMMAND ${GIT_EXECUTABLE} submodule update --init --recursive
+                        RESULT_VARIABLE GIT_SUBMOD_RESULT)
+        if(NOT GIT_SUBMOD_RESULT EQUAL "0")
+            message(FATAL_ERROR "git submodule update --init --recursive failed with ${GIT_SUBMOD_RESULT}")
+        endif()
     endif()
 
 
@@ -1491,6 +1557,10 @@ else()
                                "${PROJECT_SOURCE_DIR}/src/pubsub"
                                "${PROJECT_BINARY_DIR}/src_generated")
 
+    if(UA_ENABLE_NODESETLOADER)
+        include_directories_public(${NODESETLOADER_PUBLIC_INCLUDES})
+    endif()
+
     # Private includes
     include_directories_private("${PROJECT_BINARY_DIR}")
 
@@ -1503,12 +1573,14 @@ else()
     if(UA_ENABLE_ENCRYPTION_LIBRESSL)
         include_directories_private(${LIBRESSL_INCLUDE_DIR})
     endif()
+    if(UA_ENABLE_NODESETLOADER)
+        include_directories_private(${NODESETLOADER_PRIVATE_INCLUDES})
+    endif()
 
     # Option-specific includes
     if(UA_ENABLE_DISCOVERY)
         include_directories_private("${PROJECT_SOURCE_DIR}/src/client")
     endif()
-
 endif()
 
 add_dependencies(open62541-object open62541-code-generation)
@@ -1738,6 +1810,7 @@ install(DIRECTORY ${UA_install_tools_dirs}
     FILES_MATCHING
     PATTERN "*"
     PATTERN "*.pyc" EXCLUDE
+    PATTERN ".git*" EXCLUDE
     )
 
 install(FILES ${UA_install_tools_files} DESTINATION ${open62541_install_tools_dir})

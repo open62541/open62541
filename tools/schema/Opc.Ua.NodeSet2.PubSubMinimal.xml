@@ -54,6 +54,7 @@
       <Reference ReferenceType="HasComponent">i=23622</Reference>
       <Reference ReferenceType="HasComponent">i=16598</Reference>
       <Reference ReferenceType="HasComponent">i=14432</Reference>
+      <Reference ReferenceType="HasProperty">i=25432</Reference> <!--DefaultDatagramPublisherId-->
       <Reference ReferenceType="HasSubtype" IsForward="false">i=15906</Reference>
     </References>
   </UAObjectType>
@@ -65,7 +66,14 @@
       <Reference ReferenceType="HasProperty" IsForward="false">i=14416</Reference>
     </References>
   </UAVariable>
-
+  <UAVariable NodeId="i=25432" BrowseName="DefaultDatagramPublisherId" ParentNodeId="i=14416" DataType="UInt64">
+    <DisplayName>DefaultDatagramPublisherId</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">i=14416</Reference>
+    </References>
+  </UAVariable>
   <UAObjectType NodeId="i=14477" BrowseName="DataSetFolderType">
     <DisplayName>DataSetFolderType</DisplayName>
     <References>
@@ -936,7 +944,6 @@
       <Reference ReferenceType="HasProperty">i=17485</Reference>  <!--ConnectionProperties-->
       <Reference ReferenceType="HasComponent">i=14600</Reference> <!--Status -->
       <Reference ReferenceType="HasComponent">i=17203</Reference> <!--TransportSettings-->
-
 
       <!--
             <Reference ReferenceType="HasComponent">i=17325</Reference> ReaderGroupName
@@ -2161,8 +2168,30 @@
       <Reference ReferenceType="HasComponent">i=17366</Reference> <!-- addConnection -->
       <Reference ReferenceType="HasComponent">i=17369</Reference>
       <Reference ReferenceType="HasComponent">i=17371</Reference>
+      <Reference ReferenceType="HasComponent">i=23658</Reference> <!-- SubscribedDataSets -->
       <Reference ReferenceType="HasComponent" IsForward="false">i=2253</Reference>
+      <Reference ReferenceType="HasComponent">i=25451</Reference> <!-- PubSubConfiguration -->
+      <Reference ReferenceType="HasProperty">i=25480</Reference> <!-- DefaultDatagramPublisherId -->
       <Reference ReferenceType="HasTypeDefinition">i=14416</Reference>
+    </References>
+  </UAObject>
+  <UAObject NodeId="i=25451" BrowseName="PubSubConfiguration" ParentNodeId="i=14443">
+    <DisplayName>PubSubConfiguration</DisplayName>
+    <References>
+      <!--Reference ReferenceType="HasProperty">i=25452</Reference>
+      <Reference ReferenceType="HasProperty">i=25453</Reference>
+      <Reference ReferenceType="HasProperty">i=25454</Reference>
+      <Reference ReferenceType="HasProperty">i=25455</Reference>
+      <Reference ReferenceType="HasComponent">i=25459</Reference>
+      <Reference ReferenceType="HasComponent">i=25462</Reference>
+      <Reference ReferenceType="HasComponent">i=25464</Reference>
+      <Reference ReferenceType="HasComponent">i=25467</Reference>
+      <Reference ReferenceType="HasComponent">i=25469</Reference>
+      <Reference ReferenceType="HasComponent">i=25472</Reference-->
+      <Reference ReferenceType="HasComponent">i=25474</Reference> <!--ReserveIds-->
+      <!--Reference ReferenceType="HasComponent">i=25477</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=25482</Reference-->
+      <Reference ReferenceType="HasComponent" IsForward="false">i=14443</Reference>
     </References>
   </UAObject>
   <UAReferenceType NodeId="i=14476" BrowseName="HasPubSubConnection">
@@ -2389,8 +2418,22 @@
           <Reference ReferenceType="HasComponent" IsForward="false">i=14443</Reference>
       </References>
   </UAObject>
+  <UAObject NodeId="i=23658" BrowseName="SubscribedDataSets" ParentNodeId="i=14443">
+    <DisplayName>SubscribedDataSets</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=23795</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">i=14443</Reference>
+    </References>
+  </UAObject>
   <UAVariable NodeId="i=17481" BrowseName="SupportedTransportProfiles" ParentNodeId="i=14443" DataType="String" ValueRank="1">
     <DisplayName>SupportedTransportProfiles</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">i=14443</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="i=25480" BrowseName="DefaultDatagramPublisherId" ParentNodeId="i=14443" DataType="UInt64">
+    <DisplayName>DefaultDatagramPublisherId</DisplayName>
     <References>
       <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
       <Reference ReferenceType="HasProperty" IsForward="false">i=14443</Reference>
@@ -2879,6 +2922,126 @@
               <ValueRank>-1</ValueRank>
               <ArrayDimensions />
               <Description p5:nil="true" xmlns:p5="http://www.w3.org/2001/XMLSchema-instance" />
+            </Argument>
+          </Body>
+        </ExtensionObject>
+      </ListOfExtensionObject>
+    </Value>
+  </UAVariable>
+  <UAMethod NodeId="i=25474" BrowseName="ReserveIds" ParentNodeId="i=25451" MethodDeclarationId="i=25505">
+    <DisplayName>ReserveIds</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty">i=25475</Reference>
+      <Reference ReferenceType="HasProperty">i=25476</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">i=25451</Reference>
+    </References>
+  </UAMethod>
+  <UAVariable NodeId="i=25475" BrowseName="InputArguments" ParentNodeId="i=25474" DataType="i=296" ValueRank="1" ArrayDimensions="3">
+    <DisplayName>InputArguments</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">i=25474</Reference>
+    </References>
+    <Value>
+      <ListOfExtensionObject xmlns="http://opcfoundation.org/UA/2008/02/Types.xsd">
+        <ExtensionObject>
+          <TypeId>
+            <Identifier>i=297</Identifier>
+          </TypeId>
+          <Body>
+            <Argument>
+              <Name>TransportProfileUri</Name>
+              <DataType>
+                <Identifier>i=12</Identifier>
+              </DataType>
+              <ValueRank>-1</ValueRank>
+              <ArrayDimensions />
+            </Argument>
+          </Body>
+        </ExtensionObject>
+        <ExtensionObject>
+          <TypeId>
+            <Identifier>i=297</Identifier>
+          </TypeId>
+          <Body>
+            <Argument>
+              <Name>NumReqWriterGroupIds</Name>
+              <DataType>
+                <Identifier>i=5</Identifier>
+              </DataType>
+              <ValueRank>-1</ValueRank>
+              <ArrayDimensions />
+            </Argument>
+          </Body>
+        </ExtensionObject>
+        <ExtensionObject>
+          <TypeId>
+            <Identifier>i=297</Identifier>
+          </TypeId>
+          <Body>
+            <Argument>
+              <Name>NumReqDataSetWriterIds</Name>
+              <DataType>
+                <Identifier>i=5</Identifier>
+              </DataType>
+              <ValueRank>-1</ValueRank>
+              <ArrayDimensions />
+            </Argument>
+          </Body>
+        </ExtensionObject>
+      </ListOfExtensionObject>
+    </Value>
+  </UAVariable>
+  <UAVariable NodeId="i=25476" BrowseName="OutputArguments" ParentNodeId="i=25474" DataType="i=296" ValueRank="1" ArrayDimensions="3">
+    <DisplayName>OutputArguments</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">i=25474</Reference>
+    </References>
+    <Value>
+      <ListOfExtensionObject xmlns="http://opcfoundation.org/UA/2008/02/Types.xsd">
+        <ExtensionObject>
+          <TypeId>
+            <Identifier>i=297</Identifier>
+          </TypeId>
+          <Body>
+            <Argument>
+              <Name>DefaultPublisherId</Name>
+              <DataType>
+                <Identifier>i=24</Identifier>
+              </DataType>
+              <ValueRank>-1</ValueRank>
+              <ArrayDimensions />
+            </Argument>
+          </Body>
+        </ExtensionObject>
+        <ExtensionObject>
+          <TypeId>
+            <Identifier>i=297</Identifier>
+          </TypeId>
+          <Body>
+            <Argument>
+              <Name>WriterGroupIds</Name>
+              <DataType>
+                <Identifier>i=5</Identifier>
+              </DataType>
+              <ValueRank>-1</ValueRank>
+              <ArrayDimensions />
+            </Argument>
+          </Body>
+        </ExtensionObject>
+        <ExtensionObject>
+          <TypeId>
+            <Identifier>i=297</Identifier>
+          </TypeId>
+          <Body>
+            <Argument>
+              <Name>DataSetWriterIds</Name>
+              <DataType>
+                <Identifier>i=5</Identifier>
+              </DataType>
+              <ValueRank>-1</ValueRank>
+              <ArrayDimensions />
             </Argument>
           </Body>
         </ExtensionObject>

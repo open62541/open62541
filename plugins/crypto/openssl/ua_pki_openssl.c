@@ -19,6 +19,7 @@
 #include <openssl/pem.h>
 
 #include "ua_openssl_version_abstraction.h"
+#include "libc_time.h"
 
 /* Find binary substring. Taken and adjusted from
  * http://tungchingkai.blogspot.com/2011/07/binary-strstr.html */
@@ -68,6 +69,8 @@ typedef struct {
     UA_String             trustListFolder;
     UA_String             issuerListFolder;
     UA_String             revocationListFolder;
+    /* Used with mbedTLS and UA_ENABLE_CERT_REJECTED_DIR option */
+    UA_String             rejectedListFolder;
 
     STACK_OF(X509) *      skIssue;
     STACK_OF(X509) *      skTrusted;
@@ -99,6 +102,7 @@ UA_CertContext_Init (CertContext * context) {
     UA_ByteString_init (&context->trustListFolder);
     UA_ByteString_init (&context->issuerListFolder);
     UA_ByteString_init (&context->revocationListFolder);
+    UA_ByteString_init (&context->rejectedListFolder);
     return UA_CertContext_sk_Init (context);
 }
 
@@ -114,6 +118,7 @@ UA_CertificateVerification_clear (UA_CertificateVerification * cv) {
     UA_ByteString_clear (&context->trustListFolder);
     UA_ByteString_clear (&context->issuerListFolder);
     UA_ByteString_clear (&context->revocationListFolder);
+    UA_ByteString_clear (&context->rejectedListFolder);
 
     UA_CertContext_sk_free (context);
     UA_free (context);
@@ -471,9 +476,11 @@ UA_CertificateVerification_Verify (void *                verificationContext,
         ret = UA_STATUSCODE_BADINTERNALERROR;
         goto cleanup;
     }
-
-    (void) X509_STORE_CTX_set0_trusted_stack (storeCtx, ctx->skTrusted);
-
+#if defined(OPENSSL_API_COMPAT) && OPENSSL_API_COMPAT < 0x10100000L
+	(void) X509_STORE_CTX_trusted_stack (storeCtx, ctx->skTrusted);
+#else
+	(void) X509_STORE_CTX_set0_trusted_stack (storeCtx, ctx->skTrusted);
+#endif
 
     /* Set crls to ctx */
     if (sk_X509_CRL_num (ctx->skCrls) > 0) {
@@ -580,14 +587,6 @@ cleanup:
 }
 
 static UA_StatusCode
-UA_VerifyCertificateAllowAll (void *                verificationContext,
-                              const UA_ByteString * certificate) {
-    (void) verificationContext;
-    (void) certificate;
-    return UA_STATUSCODE_GOOD;
-}
-
-static UA_StatusCode
 UA_CertificateVerification_VerifyApplicationURI (void *                verificationContext,
                                                  const UA_ByteString * certificate,
                                                  const UA_String *     applicationURI) {
@@ -649,6 +648,40 @@ UA_CertificateVerification_VerifyApplicationURI (void *                verificat
     return ret;
 }
 
+#ifdef UA_ENABLE_ENCRYPTION_OPENSSL
+static UA_StatusCode
+UA_GetCertificate_ExpirationDate(UA_DateTime *expiryDateTime, 
+                                 UA_ByteString *certificate) {
+    const unsigned char * pData;
+    pData = certificate->data;
+    X509 * x509 = d2i_X509 (NULL, &pData, (long) certificate->length);
+    if (x509 == NULL) {
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
+
+    /* Get the certificate Expiry date */
+    ASN1_TIME *not_after = X509_get_notAfter(x509);
+
+    struct tm dtTime;
+    ASN1_TIME_to_tm(not_after, &dtTime);
+
+    struct mytm dateTime;
+    memset(&dateTime, 0, sizeof(struct mytm));
+    dateTime.tm_year = dtTime.tm_year;
+    dateTime.tm_mon = dtTime.tm_mon;
+    dateTime.tm_mday = dtTime.tm_mday;
+    dateTime.tm_hour = dtTime.tm_hour;
+    dateTime.tm_min = dtTime.tm_min;
+    dateTime.tm_sec = dtTime.tm_sec;
+
+    long long sec_epoch = __tm_to_secs(&dateTime);
+
+    *expiryDateTime = UA_DATETIME_UNIX_EPOCH;
+    *expiryDateTime += sec_epoch * UA_DATETIME_SEC;
+
+    return UA_STATUSCODE_GOOD;
+}
+#endif
 /* main entry */
 
 UA_StatusCode
@@ -677,11 +710,11 @@ UA_CertificateVerification_Trustlist(UA_CertificateVerification * cv,
     cv->verifyApplicationURI = UA_CertificateVerification_VerifyApplicationURI;
     cv->clear = UA_CertificateVerification_clear;
     cv->context = context;
-    if (certificateTrustListSize > 0)
-        cv->verifyCertificate = UA_CertificateVerification_Verify;
-    else
-        cv->verifyCertificate = UA_VerifyCertificateAllowAll;
-
+    cv->verifyCertificate = UA_CertificateVerification_Verify;
+#ifdef UA_ENABLE_ENCRYPTION_OPENSSL
+    cv->getExpirationDate     = UA_GetCertificate_ExpirationDate;
+#endif
+    
     if (certificateTrustListSize > 0) {
         if (UA_skTrusted_Cert2X509 (certificateTrustList, certificateTrustListSize,
                                     context) != UA_STATUSCODE_GOOD) {
@@ -736,13 +769,7 @@ UA_CertificateVerification_CertFolders(UA_CertificateVerification * cv,
     cv->verifyApplicationURI = UA_CertificateVerification_VerifyApplicationURI;
     cv->clear = UA_CertificateVerification_clear;
     cv->context = context;
-    if(trustListFolder == NULL &&
-       issuerListFolder == NULL &&
-       revocationListFolder == NULL) {
-        cv->verifyCertificate = UA_VerifyCertificateAllowAll;
-    } else {
-        cv->verifyCertificate = UA_CertificateVerification_Verify;
-    }
+    cv->verifyCertificate = UA_CertificateVerification_Verify;
 
     /* Only set the folder paths. They will be reloaded during runtime. */
 

@@ -19,22 +19,16 @@
 #ifndef UA_SERVER_INTERNAL_H_
 #define UA_SERVER_INTERNAL_H_
 
+#define UA_INTERNAL
 #include <open62541/server.h>
 #include <open62541/plugin/nodestore.h>
 
-#include "ua_connection_internal.h"
 #include "ua_session.h"
 #include "ua_server_async.h"
-#include "common/ua_timer.h" /* arch-folder, TODO: Remove after the EventLoop is integrated */
 #include "ua_util_internal.h"
 #include "ziptree.h"
 
 _UA_BEGIN_DECLS
-
-#if UA_MULTITHREADING >= 100
-#undef UA_THREADSAFE
-#define UA_THREADSAFE UA_DEPRECATED
-#endif
 
 #ifdef UA_ENABLE_PUBSUB
 #include "ua_pubsub_manager.h"
@@ -68,9 +62,9 @@ typedef enum {
 } UA_DiagnosticEvent;
 
 typedef struct channel_entry {
-    UA_DelayedCallback cleanupCallback;
     TAILQ_ENTRY(channel_entry) pointers;
     UA_SecureChannel channel;
+    UA_DiagnosticEvent closeEvent;
 } channel_entry;
 
 typedef struct session_list_entry {
@@ -94,6 +88,23 @@ typedef struct {
     uintptr_t connectionId;
     UA_ConnectionManager *connectionManager;
 } UA_ServerConnection;
+
+typedef struct reverse_connect_context {
+    UA_String hostname;
+    UA_UInt16 port;
+    UA_UInt64 handle;
+
+    UA_SecureChannelState state;
+    UA_Server_ReverseConnectStateCallback stateCallback;
+    void *callbackContext;
+
+     /* If this is set to true, the state won't change to connecting on disconnect */
+    UA_Boolean destruction;
+
+    UA_ServerConnection currentConnection;
+    UA_SecureChannel *channel;
+    SLIST_ENTRY(reverse_connect_context) next;
+} reverse_connect_context;
 
 struct UA_Server {
     /* Config */
@@ -168,14 +179,16 @@ struct UA_Server {
 #endif
 
 #if UA_MULTITHREADING >= 100
-    UA_Lock networkMutex;
     UA_Lock serviceMutex;
 #endif
 
     /* Statistics */
-    UA_NetworkStatistics networkStatistics;
     UA_SecureChannelStatistics secureChannelStatistics;
     UA_ServerDiagnosticsSummaryDataType serverDiagnosticsSummary;
+
+    SLIST_HEAD(, reverse_connect_context) reverseConnects;
+    UA_UInt64 reverseConnectsCheckHandle;
+    UA_UInt64 lastReverseConnectHandle;
 };
 
 /***********************/
@@ -197,20 +210,28 @@ UA_Server_deleteSecureChannels(UA_Server *server);
 void
 UA_Server_cleanupTimedOutSecureChannels(UA_Server *server, UA_DateTime nowMonotonic);
 
-UA_StatusCode
-UA_Server_createSecureChannel(UA_Server *server, UA_Connection *connection);
-
-UA_StatusCode
-UA_Server_configSecureChannel(void *application, UA_SecureChannel *channel,
-                              const UA_AsymmetricAlgorithmSecurityHeader *asymHeader);
 
 UA_StatusCode
 sendServiceFault(UA_SecureChannel *channel, UA_UInt32 requestId,
                  UA_UInt32 requestHandle, UA_StatusCode statusCode);
 
+/* Called only from within the network callback */
+UA_StatusCode
+createServerSecureChannel(UA_Server *server, UA_ConnectionManager *cm,
+                          uintptr_t connectionId, UA_SecureChannel **outChannel);
+
+UA_StatusCode
+configServerSecureChannel(void *application, UA_SecureChannel *channel,
+                          const UA_AsymmetricAlgorithmSecurityHeader *asymHeader);
+
+/* Can be called at any time */
 void
-UA_Server_closeSecureChannel(UA_Server *server, UA_SecureChannel *channel,
-                             UA_DiagnosticEvent event);
+shutdownServerSecureChannel(UA_Server *server, UA_SecureChannel *channel,
+                            UA_DiagnosticEvent event);
+
+/* Called only from within the network callback */
+void
+deleteServerSecureChannel(UA_Server *server, UA_SecureChannel *channel);
 
 /* Gets the a pointer to the context of a security policy supported by the
  * server matched by the security policy uri. */
@@ -254,7 +275,7 @@ UA_Session *
 getSessionByToken(UA_Server *server, const UA_NodeId *token);
 
 UA_Session *
-UA_Server_getSessionById(UA_Server *server, const UA_NodeId *sessionId);
+getSessionById(UA_Server *server, const UA_NodeId *sessionId);
 
 /*****************/
 /* Node Handling */
@@ -358,6 +379,21 @@ UA_Server_processServiceOperations(UA_Server *server, UA_Session *session,
                                    const UA_DataType *responseOperationsType)
     UA_FUNC_ATTR_WARN_UNUSED_RESULT;
 
+/* Processing for the binary protocol (SecureChannel) */
+void
+UA_Server_networkCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
+                          void *application, void **connectionContext,
+                          UA_ConnectionState state,
+                          const UA_KeyValueMap *params,
+                          UA_ByteString msg);
+
+/* Processing for reverse connect */
+void
+UA_Server_reverseConnectCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
+                                 void *application, void **connectionContext,
+                                 UA_ConnectionState state, const UA_KeyValueMap *params,
+                                 UA_ByteString msg);
+
 /******************************************/
 /* Internal function calls, without locks */
 /******************************************/
@@ -366,7 +402,8 @@ deleteNode(UA_Server *server, const UA_NodeId nodeId,
            UA_Boolean deleteReferences);
 
 UA_StatusCode
-addNode(UA_Server *server, const UA_NodeClass nodeClass, const UA_NodeId *requestedNewNodeId,
+addNode(UA_Server *server, const UA_NodeClass nodeClass,
+        const UA_NodeId *requestedNewNodeId,
         const UA_NodeId *parentNodeId, const UA_NodeId *referenceTypeId,
         const UA_QualifiedName browseName, const UA_NodeId *typeDefinition,
         const UA_NodeAttributes *attr, const UA_DataType *attributeType,
@@ -382,6 +419,14 @@ setVariableNode_dataSource(UA_Server *server, const UA_NodeId nodeId,
                            const UA_DataSource dataSource);
 
 UA_StatusCode
+setVariableNode_valueCallback(UA_Server *server, const UA_NodeId nodeId,
+                              const UA_ValueCallback callback);
+
+UA_StatusCode
+setMethodNode_callback(UA_Server *server, const UA_NodeId methodNodeId,
+                       UA_MethodCallback methodCallback);
+
+UA_StatusCode
 writeAttribute(UA_Server *server, UA_Session *session,
                const UA_NodeId *nodeId, const UA_AttributeId attributeId,
                const void *attr, const UA_DataType *attr_type);
@@ -391,6 +436,13 @@ writeValueAttribute(UA_Server *server, UA_Session *session,
                     const UA_NodeId *nodeId, const UA_Variant *value) {
     return writeAttribute(server, session, nodeId, UA_ATTRIBUTEID_VALUE,
                           value, &UA_TYPES[UA_TYPES_VARIANT]);
+}
+
+static UA_INLINE UA_StatusCode
+writeIsAbstractAttribute(UA_Server *server, UA_Session *session,
+                         const UA_NodeId *nodeId, UA_Boolean value) {
+    return writeAttribute(server, session, nodeId, UA_ATTRIBUTEID_ISABSTRACT,
+                          &value, &UA_TYPES[UA_TYPES_BOOLEAN]);
 }
 
 UA_DataValue
@@ -417,6 +469,11 @@ UA_Subscription *
 UA_Server_getSubscriptionById(UA_Server *server, UA_UInt32 subscriptionId);
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
+
+UA_StatusCode
+createEvent(UA_Server *server, const UA_NodeId eventType,
+            UA_NodeId *outNodeId);
+
 UA_StatusCode
 triggerEvent(UA_Server *server, const UA_NodeId eventNodeId,
              const UA_NodeId origin, UA_ByteString *outEventId,
@@ -430,6 +487,7 @@ filterEvent(UA_Server *server, UA_Session *session,
             UA_EventFieldList *efl, UA_EventFilterResult *result);
 
 #endif /* UA_ENABLE_SUBSCRIPTIONS_EVENTS */
+
 #endif /* UA_ENABLE_SUBSCRIPTIONS */
 
 UA_BrowsePathResult
@@ -455,7 +513,8 @@ void
 removeCallback(UA_Server *server, UA_UInt64 callbackId);
 
 UA_StatusCode
-changeRepeatedCallbackInterval(UA_Server *server, UA_UInt64 callbackId, UA_Double interval_ms);
+changeRepeatedCallbackInterval(UA_Server *server, UA_UInt64 callbackId,
+                               UA_Double interval_ms);
 
 UA_StatusCode
 addRepeatedCallback(UA_Server *server, UA_ServerCallback callback,
@@ -463,8 +522,7 @@ addRepeatedCallback(UA_Server *server, UA_ServerCallback callback,
 
 #ifdef UA_ENABLE_DISCOVERY
 UA_StatusCode
-register_server_with_discovery_server(UA_Server *server,
-                                      void *client,
+register_server_with_discovery_server(UA_Server *server, void *client,
                                       const UA_Boolean isUnregister,
                                       const char* semaphoreFilePath);
 #endif
@@ -730,6 +788,13 @@ UA_Node_insertOrUpdateDisplayName(UA_NodeHead *head,
 UA_StatusCode
 UA_Node_insertOrUpdateDescription(UA_NodeHead *head,
                                   const UA_LocalizedText *value);
+
+
+/* Reverse connect */
+void setReverseConnectState(UA_Server *server, reverse_connect_context *context,
+                            UA_SecureChannelState newState);
+UA_StatusCode attemptReverseConnect(UA_Server *server, reverse_connect_context *context);
+UA_StatusCode setReverseConnectRetryCallback(UA_Server *server, UA_Boolean enabled);
 
 _UA_END_DECLS
 

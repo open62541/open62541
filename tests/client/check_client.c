@@ -12,7 +12,6 @@
 #include <stdlib.h>
 
 #include "testing_clock.h"
-#include "testing_networklayers.h"
 #include "thread_wrapper.h"
 
 UA_Server *server;
@@ -351,15 +350,14 @@ START_TEST(Client_activateSessionTimeout) {
     /* Manually close the connection. The connection is internally closed at the
      * next iteration of the EventLoop. Hence the next request is sent out. But
      * the connection "actually closes" before receiving the response. */
-    UA_ConnectionManager *cm = (UA_ConnectionManager*)client->connection.handle;
-    uintptr_t connId = (unsigned)client->connection.sockfd;
+    UA_ConnectionManager *cm = client->channel.connectionManager;
+    uintptr_t connId = client->channel.connectionId;
     cm->closeConnection(cm, connId);
 
     UA_Variant_init(&val);
     retval = UA_Client_readValueAttribute(client, nodeId, &val);
     ck_assert_uint_eq(retval, UA_STATUSCODE_BADSECURECHANNELCLOSED);
 
-    UA_Client_recvTesting_result = UA_STATUSCODE_GOOD;
     retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(server->sessionCount, 1);

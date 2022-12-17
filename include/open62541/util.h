@@ -15,58 +15,95 @@
 _UA_BEGIN_DECLS
 
 /**
- * Forward Declarations
- * --------------------
- * Opaque pointers used by the plugins. */
+ * Random Number Generator
+ * -----------------------
+ * If UA_MULTITHREADING is defined, then the seed is stored in thread
+ * local storage. The seed is initialized for every thread in the
+ * server/client. */
 
-struct UA_Server;
-typedef struct UA_Server UA_Server;
+void UA_EXPORT
+UA_random_seed(UA_UInt64 seed);
 
-struct UA_ServerConfig;
-typedef struct UA_ServerConfig UA_ServerConfig;
+UA_UInt32 UA_EXPORT
+UA_UInt32_random(void); /* no cryptographic entropy */
 
-typedef void (*UA_ServerCallback)(UA_Server *server, void *data);
-
-struct UA_Client;
-typedef struct UA_Client UA_Client;
-
-/* Timer policy to handle cycle misses */
-typedef enum {
-    UA_TIMER_HANDLE_CYCLEMISS_WITH_CURRENTTIME,
-    UA_TIMER_HANDLE_CYCLEMISS_WITH_BASETIME
-} UA_TimerPolicy;
+UA_Guid UA_EXPORT
+UA_Guid_random(void);   /* no cryptographic entropy */
 
 /**
  * Key Value Map
  * -------------
  * Helper functions to work with configuration parameters in an array of
- * UA_KeyValuePair. Lookup is linear. So this is for small numbers of
- * keys. */
+ * UA_KeyValuePair. Lookup is linear. So this is for small numbers of keys. The
+ * methods below that accept a `const UA_KeyValueMap` as an argument also accept
+ * NULL for that argument and treat it as an empty map. */
 
-/* Makes a copy of the value. Can reallocate the underlying array. This
+typedef struct {
+    size_t mapSize;
+    UA_KeyValuePair *map;
+} UA_KeyValueMap;
+
+UA_EXPORT extern const UA_KeyValueMap UA_KEYVALUEMAP_NULL;
+
+UA_EXPORT UA_KeyValueMap *
+UA_KeyValueMap_new(void);
+
+UA_EXPORT void
+UA_KeyValueMap_clear(UA_KeyValueMap *map);
+
+UA_EXPORT void
+UA_KeyValueMap_delete(UA_KeyValueMap *map);
+
+/* Is the map empty (or NULL)? */
+UA_EXPORT UA_Boolean
+UA_KeyValueMap_isEmpty(const UA_KeyValueMap *map);
+
+/* Does the map contain an entry for the key? */
+UA_EXPORT UA_Boolean
+UA_KeyValueMap_contains(const UA_KeyValueMap *map, const UA_QualifiedName key);
+
+/* Insert a copy of the value. Can reallocate the underlying array. This
  * invalidates pointers into the previous array. If the key exists already, the
- * value is overwritten. */
+ * value is overwritten (upsert semantics). */
 UA_EXPORT UA_StatusCode
-UA_KeyValueMap_set(UA_KeyValuePair **map, size_t *mapSize,
+UA_KeyValueMap_set(UA_KeyValueMap *map,
                    const UA_QualifiedName key,
                    const UA_Variant *value);
 
-/* Returns a pointer to the value or NULL if the key is not found.*/
+/* Helper function for scalar insertion that internally calls
+ * `UA_KeyValueMap_set` */
+UA_EXPORT UA_StatusCode
+UA_KeyValueMap_setScalar(UA_KeyValueMap *map,
+                         const UA_QualifiedName key,
+                         void * UA_RESTRICT p,
+                         const UA_DataType *type);
+
+/* Returns a pointer to the value or NULL if the key is not found */
 UA_EXPORT const UA_Variant *
-UA_KeyValueMap_get(const UA_KeyValuePair *map, size_t mapSize,
+UA_KeyValueMap_get(const UA_KeyValueMap *map,
                    const UA_QualifiedName key);
 
-/* Returns NULL if the value for the key is not defined or not of the right
- * datatype and scalar/array */
+/* Returns NULL if the value for the key is not defined, not of the right
+ * datatype or not a scalar */
 UA_EXPORT const void *
-UA_KeyValueMap_getScalar(const UA_KeyValuePair *map, size_t mapSize,
+UA_KeyValueMap_getScalar(const UA_KeyValueMap *map,
                          const UA_QualifiedName key,
                          const UA_DataType *type);
 
-/* Remove a single entry. To delete the entire map, use UA_Array_delete. */
+/* Remove a single entry. To delete the entire map, use `UA_KeyValueMap_clear`. */
 UA_EXPORT UA_StatusCode
-UA_KeyValueMap_delete(UA_KeyValuePair **map, size_t *mapSize,
+UA_KeyValueMap_remove(UA_KeyValueMap *map,
                       const UA_QualifiedName key);
+
+/* Create a deep copy of the given KeyValueMap */
+UA_EXPORT UA_StatusCode
+UA_KeyValueMap_copy(const UA_KeyValueMap *src, UA_KeyValueMap *dst);
+
+/* Copy entries from the right-hand-side into the left-hand-size. Reallocates
+ * previous memory in the left-hand-side. If the operation fails, both maps are
+ * left untouched. */
+UA_EXPORT UA_StatusCode
+UA_KeyValueMap_merge(UA_KeyValueMap *lhs, const UA_KeyValueMap *rhs);
 
 /**
  * Endpoint URL Parser
@@ -195,7 +232,7 @@ UA_constantTimeEqual(const void *ptr1, const void *ptr2, size_t length) {
     volatile UA_Byte c = 0;
     for(size_t i = 0; i < length; ++i) {
         UA_Byte x = a[i], y = b[i];
-        c |= x ^ y;
+        c = c | (x ^ y);
     }
     return !c;
 }

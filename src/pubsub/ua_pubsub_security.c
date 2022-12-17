@@ -21,9 +21,9 @@ needsDecryption(const UA_Logger *logger,
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
 
     if(isEncrypted && requiresEncryption) {
-        *doDecrypt = UA_TRUE;
+        *doDecrypt = true;
     } else if(!isEncrypted && !requiresEncryption) {
-        *doDecrypt = UA_FALSE;
+        *doDecrypt = false;
     } else {
         if(isEncrypted) {
             UA_LOG_ERROR(logger, UA_LOGCATEGORY_SECURITYPOLICY,
@@ -40,23 +40,20 @@ needsDecryption(const UA_Logger *logger,
     return retval;
 }
 
-static
-UA_StatusCode
+static UA_StatusCode
 needsValidation(const UA_Logger *logger,
-                    const UA_NetworkMessage *networkMessage,
-                    const UA_MessageSecurityMode securityMode,
-                    UA_Boolean *doValidate) {
-
+                const UA_NetworkMessage *networkMessage,
+                const UA_MessageSecurityMode securityMode,
+                UA_Boolean *doValidate) {
     UA_Boolean isSigned = networkMessage->securityHeader.networkMessageSigned;
     UA_Boolean requiresSignature = securityMode > UA_MESSAGESECURITYMODE_NONE;
-
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
 
     if(isSigned &&
        requiresSignature) {
-        *doValidate = UA_TRUE;
+        *doValidate = true;
     } else if(!isSigned && !requiresSignature) {
-        *doValidate = UA_FALSE;
+        *doValidate = false;
     } else {
 
         if(isSigned) {

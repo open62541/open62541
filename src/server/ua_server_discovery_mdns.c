@@ -68,7 +68,7 @@ UA_DiscoveryManager_addEntryToServersOnNetwork(UA_Server *server, const char *fq
 
     struct serverOnNetwork_list_entry *entry =
             mdns_record_add_or_get(server, fqdnMdnsRecord, serverName,
-                                   serverNameLen, UA_FALSE);
+                                   serverNameLen, false);
     if (entry) {
         if (addedEntry != NULL)
             *addedEntry = entry;
@@ -179,7 +179,7 @@ UA_DiscoveryManager_removeEntryFromServersOnNetwork(UA_Server *server, const cha
 
     struct serverOnNetwork_list_entry *entry =
             mdns_record_add_or_get(server, fqdnMdnsRecord, serverName,
-                                   serverNameLen, UA_FALSE);
+                                   serverNameLen, false);
     if (!entry)
         return UA_STATUSCODE_BADNOTFOUND;
 

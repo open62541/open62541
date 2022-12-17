@@ -5,15 +5,15 @@ open62541 Documentation
 
    index
    building
-   installing
    tutorials
    protocol
    types
    services
-   nodestore
+   information_modelling
    server
    client
    pubsub
    common
    nodeset_compiler
-   internal
+   plugin
+   generated

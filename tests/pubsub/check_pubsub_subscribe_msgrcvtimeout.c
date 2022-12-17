@@ -99,7 +99,7 @@ static void AddConnection(
     connectionConfig.publisherId.uint32 = PublisherId;
 
     ck_assert(UA_Server_addPubSubConnection(server, &connectionConfig, opConnectionId) == UA_STATUSCODE_GOOD);
-    ck_assert(UA_PubSubConnection_regist(server, opConnectionId) == UA_STATUSCODE_GOOD);
+    ck_assert(UA_PubSubConnection_regist(server, opConnectionId, NULL) == UA_STATUSCODE_GOOD);
 }
 
 /***************************************************************************************************/

@@ -84,12 +84,12 @@
 #define             PUBLISHER_ID                          2235
 #define             WRITER_GROUP_ID                       100
 #define             DATA_SET_WRITER_ID                    62541
-#define             DEFAULT_PUBLISHING_MAC_ADDRESS        "opc.eth://01-00-5E-00-00-01:8.7"
+#define             DEFAULT_PUBLISHING_MAC_ADDRESS        "opc.eth://01-00-5E-00-00-01:8.3"
 #define             DEFAULT_PUBLISHER_MULTICAST_ADDRESS   "opc.udp://224.0.0.32:4840/"
 #define             PUBLISHER_ID_SUB                      2234
 #define             WRITER_GROUP_ID_SUB                   101
 #define             DATA_SET_WRITER_ID_SUB                62541
-#define             DEFAULT_SUBSCRIBING_MAC_ADDRESS       "opc.eth://01-00-5E-7F-00-01:8.7"
+#define             DEFAULT_SUBSCRIBING_MAC_ADDRESS       "opc.eth://01-00-5E-7F-00-01:8.3"
 #define             DEFAULT_SUBSCRIBER_MULTICAST_ADDRESS  "opc.udp://224.0.0.22:4840/"
 #define             REPEATED_NODECOUNTS                   2   // Default to publish 64 bytes
 #define             PORT_NUMBER                           62541

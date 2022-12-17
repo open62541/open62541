@@ -42,9 +42,3 @@ UA_realSleep(UA_UInt32 duration) {
     nanosleep(&sleepValue, NULL);
 #endif
 }
-
-void
-UA_comboSleep(unsigned long duration) {
-    UA_fakeSleep((UA_UInt32)duration);
-    UA_realSleep((UA_UInt32)duration);
-}

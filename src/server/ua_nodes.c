@@ -44,7 +44,7 @@
 #endif
 
 const UA_ReferenceTypeSet UA_REFERENCETYPESET_NONE = {{0}};
-const UA_ReferenceTypeSet UA_REFERENCETYPESET_ALL  = {{UA_REFTYPES_ALL_ARRAY}};
+const UA_ReferenceTypeSet UA_REFERENCETYPESET_ALL = {{UA_REFTYPES_ALL_ARRAY}};
 
 /*****************/
 /* Node Pointers */

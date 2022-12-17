@@ -71,7 +71,7 @@ static void AddConnection(
     /* deep copy is not needed (not even for string) because UA_Server_addPubSubConnection performs deep copy */
     connectionConfig.publisherId = publisherId;
     ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_addPubSubConnection(server, &connectionConfig, opConnectionId));
-    ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_PubSubConnection_regist(server, opConnectionId));
+    ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_PubSubConnection_regist(server, opConnectionId, NULL));
 }
 
 /***************************************************************************************************/
@@ -979,13 +979,14 @@ START_TEST(Test_multiple_connections) {
 } END_TEST
 
 /***************************************************************************************************/
-static void Test_string_PublisherId_InformationModel(
-    const UA_NodeId connectionId,
-    const UA_String expectedStringIdValue) {
 
-    /* read PublisherId value of PubSub information model -> check that string read works correctly */
+#ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL
 
-    /* get PublisherId node */
+ /* Read PublisherId value of PubSub information model -> check that string read works correctly */
+static void
+Test_string_PublisherId_InformationModel(const UA_NodeId connectionId,
+                                         const UA_String expectedStringIdValue) {
+    /* Get PublisherId node */
     UA_RelativePathElement rpe;
     UA_RelativePathElement_init(&rpe);
     rpe.referenceTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_HIERARCHICALREFERENCES);;
@@ -1005,16 +1006,19 @@ static void Test_string_PublisherId_InformationModel(
     ck_assert_uint_eq(1, bpr.targetsSize);
     UA_NodeId PublisherIdNode = bpr.targets[0].targetId.nodeId;
 
-    /* read value */
+    /* Read value */
     UA_Variant PublisherIdValue;
     UA_Variant_init(&PublisherIdValue);
-    ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_readValue(server, PublisherIdNode, &PublisherIdValue));
+    UA_StatusCode res = UA_Server_readValue(server, PublisherIdNode, &PublisherIdValue);
+    ck_assert_int_eq(UA_STATUSCODE_GOOD, res);
     ck_assert(true == UA_Variant_hasScalarType(&PublisherIdValue, &UA_TYPES[UA_TYPES_STRING]));
     ck_assert(true == UA_String_equal(&expectedStringIdValue, (UA_String*) PublisherIdValue.data));
     UA_Variant_clear(&PublisherIdValue);
 
     UA_BrowsePathResult_clear(&bpr);
 }
+
+#endif
 
 /***************************************************************************************************/
 static void DoTest_string_PublisherId(void) {
@@ -1250,6 +1254,7 @@ static void DoTest_string_PublisherId(void) {
         fastPathSubscriberDataValues, 100, (UA_UInt32) 100, 3);
 
     /* check PubSub information model - string Ids */
+#ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL
     char *expectedPublisherIds[] = {
         "H",
         "h",
@@ -1261,6 +1266,7 @@ static void DoTest_string_PublisherId(void) {
     for (UA_UInt32 i = 0; i < DOTEST_STRING_PUBLISHERID_MAX_COMPONENTS; i++) {
         Test_string_PublisherId_InformationModel(ConnectionIds[i], UA_STRING(expectedPublisherIds[i]));
     }
+#endif
 
     /* set groups to disabled */
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "disable groups");

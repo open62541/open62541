@@ -22,7 +22,7 @@ _UA_BEGIN_DECLS
 
 typedef void (*UA_ClientAsyncReadCallback)(UA_Client *client, void *userdata,
                                            UA_UInt32 requestId, UA_ReadResponse *rr);
-static UA_INLINE UA_StatusCode
+static UA_INLINE UA_THREADSAFE UA_StatusCode
 UA_Client_sendAsyncReadRequest(UA_Client *client, UA_ReadRequest *request,
                                UA_ClientAsyncReadCallback readCallback, void *userdata,
                                UA_UInt32 *reqId) {
@@ -33,7 +33,7 @@ UA_Client_sendAsyncReadRequest(UA_Client *client, UA_ReadRequest *request,
 
 typedef void (*UA_ClientAsyncWriteCallback)(UA_Client *client, void *userdata,
                                             UA_UInt32 requestId, UA_WriteResponse *wr);
-static UA_INLINE UA_StatusCode
+static UA_INLINE UA_THREADSAFE UA_StatusCode
 UA_Client_sendAsyncWriteRequest(UA_Client *client, UA_WriteRequest *request,
                                 UA_ClientAsyncWriteCallback writeCallback, void *userdata,
                                 UA_UInt32 *reqId) {
@@ -44,7 +44,7 @@ UA_Client_sendAsyncWriteRequest(UA_Client *client, UA_WriteRequest *request,
 
 typedef void (*UA_ClientAsyncBrowseCallback)(UA_Client *client, void *userdata,
                                              UA_UInt32 requestId, UA_BrowseResponse *wr);
-static UA_INLINE UA_StatusCode
+static UA_INLINE UA_THREADSAFE UA_StatusCode
 UA_Client_sendAsyncBrowseRequest(UA_Client *client, UA_BrowseRequest *request,
                                  UA_ClientAsyncBrowseCallback browseCallback,
                                  void *userdata, UA_UInt32 *reqId) {

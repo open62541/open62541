@@ -1,6 +1,44 @@
 This changelog reports changes visible through the public API. Internal refactorings and bug
 fixes are not reported here.
 
+2022-11-19 Julius Pfrommer <julius.pfrommer at iosb.fraunhofer.de>
+
+ * Thread-safe client
+
+   A large portion of the client API is now marked UA_THREADSAFE. For
+   those methods, if multithreading is enabled, an internal mutex
+   protects the client.
+
+2022-08-04 Robert Mak <makr at keba.com>
+
+ * Saving unknown client certificates
+
+   'UA_CertificateVerification_CertFolders()' has been extended with
+   an additional parameter - path to the folder where the rejected
+   certificate should be stored. This change applies if
+   `UA_ENABLE_CERT_REJECTED_DIR` is set.
+
+   The change was done with pull request #5260.
+
+2022-08-07 Julius Pfrommer <julius.pfrommer at iosb.fraunhofer.de>
+
+ * JSON decoding based on JSON5
+
+   The JSON decoding can parse the official encoding from the OPC UA
+   specification. It now further allows the following extensions:
+
+   - The strict JSON format is relaxed to also allow the JSON5 extensions
+     (https://json5.org/). This allows for more human-readable encoding
+     and adds convenience features such as trailing commas in arrays and
+     comments within JSON documents.
+   - If `UA_ENABLE_PARSING` is set, NodeIds and ExpandedNodeIds can be given in
+     the string encoding (see `UA_NodeId_parse`). The standard encoding is to
+     express NodeIds as JSON objects.
+
+   These extensions are not intended to be used for the OPC UA protocol on the
+   network. They were rather added to allow more convenient configuration file
+   formats that also include data in the OPC UA type system.
+
 2022-07-14 Jannis Voelker <jannis.voelker at basyskom.com>
 
  * LocaleId support in the server

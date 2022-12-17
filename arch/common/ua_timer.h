@@ -10,7 +10,7 @@
 #define UA_TIMER_H_
 
 #include <open62541/types.h>
-#include <open62541/util.h>
+#include <open62541/plugin/eventloop.h>
 #include "aa_tree.h"
 
 _UA_BEGIN_DECLS
@@ -63,12 +63,6 @@ UA_StatusCode
 UA_Timer_addTimedCallback(UA_Timer *t, UA_ApplicationCallback callback,
                           void *application, void *data, UA_DateTime date,
                           UA_UInt64 *callbackId);
-
-/* Add a pre-allocated and pre-filled UA_TimerEntry. This cannot fail. It is
- * used, for example, for delayed memory reclamation where the data structure
- * begins with a UA_TimerEntry. */
-void
-UA_Timer_addTimerEntry(UA_Timer *t, UA_TimerEntry *te, UA_UInt64 *callbackId);
 
 UA_StatusCode
 UA_Timer_addRepeatedCallback(UA_Timer *t, UA_ApplicationCallback callback,

@@ -17,23 +17,18 @@
 #ifndef UA_SERVER_H_
 #define UA_SERVER_H_
 
-#include <open62541/util.h>
 #include <open62541/types.h>
 #include <open62541/common.h>
-#include <open62541/nodeids.h>
-#include <open62541/types_generated.h>
-#include <open62541/types_generated_handling.h>
 
-#include <open62541/plugin/eventloop.h>
-#include <open62541/plugin/securitypolicy.h>
-#include <open62541/plugin/accesscontrol.h>
-#include <open62541/plugin/nodestore.h>
-#include <open62541/plugin/network.h>
 #include <open62541/plugin/log.h>
 #include <open62541/plugin/pki.h>
+#include <open62541/plugin/network.h>
+#include <open62541/plugin/nodestore.h>
+#include <open62541/plugin/eventloop.h>
+#include <open62541/plugin/accesscontrol.h>
+#include <open62541/plugin/securitypolicy.h>
 
 #ifdef UA_ENABLE_PUBSUB
-#include <open62541/plugin/pubsub.h>
 #include <open62541/server_pubsub.h>
 #endif
 
@@ -363,6 +358,11 @@ struct UA_ServerConfig {
     UA_Boolean deleteEventCapability;
     UA_Boolean deleteAtTimeDataCapability;
 #endif
+
+    /**
+     * Reverse Connect
+     * ^^^^^^^^^^^^^^^ */
+    UA_UInt32 reverseReconnectInterval; /* Default is 15000 ms */
 };
 
 void UA_EXPORT
@@ -1738,6 +1738,28 @@ UA_Server_deleteCondition(UA_Server *server,
                           const UA_NodeId condition,
                           const UA_NodeId conditionSource);
 
+/*
+ * Set the LimitState of the LimitAlarmType
+ *
+ * @param server The server object
+ * @param conditionId The NodeId of the node representation of the Condition Instance
+ * @param limitValue The value from the trigger node
+ */
+UA_StatusCode UA_EXPORT
+UA_Server_setLimitState(UA_Server *server, const UA_NodeId conditionId,
+                        UA_Double limitValue);
+
+/*
+ * Parse the certifcate and set Expiration date
+ *
+ * @param server The server object
+ * @param conditionId The NodeId of the node representation of the Condition Instance
+ * @param cert The certificate for parsing
+ */
+UA_StatusCode UA_EXPORT
+UA_Server_setExpirationDate(UA_Server *server, const UA_NodeId conditionId,
+                            UA_ByteString  cert);
+
 #endif /* UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS */
 
 /**
@@ -1850,20 +1872,69 @@ UA_Server_setAsyncOperationResult(UA_Server *server,
 #endif /* !UA_MULTITHREADING >= 100 */
 
 /**
-* Statistics
-* ----------
-*
-* Statistic counters keeping track of the current state of the stack. Counters
-* are structured per OPC UA communication layer. */
+ * Statistics
+ * ----------
+ *
+ * Statistic counters keeping track of the current state of the stack. Counters
+ * are structured per OPC UA communication layer. */
 
 typedef struct {
-   UA_NetworkStatistics ns;
    UA_SecureChannelStatistics scs;
    UA_SessionStatistics ss;
 } UA_ServerStatistics;
 
 UA_ServerStatistics UA_EXPORT
 UA_Server_getStatistics(UA_Server *server);
+
+/**
+  * Reverse Connect
+  * ---------------
+  *
+  * The reverse connect feature of OPC UA permits the server instead of the client to
+  * establish the connection.
+  * The client must expose the listening port so the server is able to reach it.
+  */
+
+/**
+ * The reverse connect state change callback is called whenever the state of a reverse
+ * connect is changed by a connection attempt, a successful connection or a connection
+ * loss.
+ *
+ * The reverse connect states reflect the state of the secure channel currently associated
+ * with a reverse connect. The state will remain UA_SECURECHANNELSTATE_CONNECTING while
+ * the server attempts repeatedly to establish a connection.
+ */
+typedef void (*UA_Server_ReverseConnectStateCallback)(UA_Server *server, UA_UInt64 handle,
+                                                      UA_SecureChannelState state,
+                                                      void *context);
+
+/**
+ * Registers a reverse connect in the server.
+ * The server periodically attempts to establish a connection if the initial connect fails
+ * or if the connection breaks.
+ *
+ * @param server The server object
+ * @param url The URL of the remote client
+ * @param stateCallback The callback which will be called on state changes
+ * @param callbackContext The context for the state callback
+ * @param handle Is set to the handle of the reverse connect if not NULL
+ * @return Returns UA_STATUSCODE_GOOD if the reverse connect has been registered
+ */
+UA_StatusCode UA_EXPORT
+UA_Server_addReverseConnect(UA_Server *server, UA_String url,
+                                          UA_Server_ReverseConnectStateCallback stateCallback,
+                                          void *callbackContext, UA_UInt64 *handle);
+
+/**
+ * Removes a reverse connect from the server and closes the connection if it is currently
+ * open.
+ *
+ * @param server The server object
+ * @param handle The handle of the reverse connect to remove
+ * @return Returns UA_STATUSCODE_GOOD if the reverse connect has been successfully removed
+ */
+UA_StatusCode UA_EXPORT
+UA_Server_removeReverseConnect(UA_Server *server, UA_UInt64 handle);
 
 _UA_END_DECLS
 

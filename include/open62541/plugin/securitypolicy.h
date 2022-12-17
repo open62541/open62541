@@ -22,8 +22,8 @@ struct UA_SecurityPolicy;
 typedef struct UA_SecurityPolicy UA_SecurityPolicy;
 
 /**
- * SecurityPolicy Interface Definition
- * ----------------------------------- */
+ * SecurityPolicy 
+ * -------------- */
 
 typedef struct {
     UA_String uri;

@@ -54,7 +54,6 @@ master_doc = 'toc'
 
 # General information about the project.
 project = u'open62541'
-copyright = u'2016, The open62541 authors'
 author = u'The open62541 authors'
 
 # The version info for the project you're documenting, acts as replacement for
@@ -82,7 +81,7 @@ language = "en"
 
 # List of patterns, relative to source directory, that match files and
 # directories to ignore when looking for source files.
-exclude_patterns = ["client_config.rst", "server_config.rst"]
+#exclude_patterns = ["client_config.rst", "server_config.rst"]
 
 # The reST default role (used for this markup: `text`) to use for all
 # documents.
@@ -158,7 +157,7 @@ html_static_path = ['.']
 
 # If true, SmartyPants will be used to convert quotes and dashes to
 # typographically correct entities.
-#html_use_smartypants = True
+html_use_smartypants = True
 
 # Custom sidebar templates, maps document names to template names.
 #html_sidebars = {}
@@ -216,11 +215,53 @@ latex_elements = {
 # The paper size ('letterpaper' or 'a4paper').
 'papersize': 'a4paper',
 
-# The font size ('10pt', '11pt' or '12pt').
-#'pointsize': '10pt',
+# Font settings
+'fontpkg': r"""
+\usepackage[scaled=.98,varqu,varl]{zi4}
+\usepackage[default,semibold]{sourcesanspro}
+""",
 
-# Additional stuff for the LaTeX preamble.
-#'preamble': '',
+# The font size ('10pt', '11pt' or '12pt').
+'pointsize': '11pt',
+
+# Clean up the header and footer
+'preamble': r"""
+\fancypagestyle{normal}{
+    \fancyhf{}
+    \fancyfoot[RO,LE]{\thepage}
+    \renewcommand{\headrulewidth}{0pt}
+    \renewcommand{\footrulewidth}{0pt}
+}
+\fancypagestyle{plain}{
+    \fancyhf{}
+    \fancyfoot[RO,LE]{\thepage}
+    \renewcommand{\headrulewidth}{0pt}
+    \renewcommand{\footrulewidth}{0pt}
+}""",
+
+'maketitle': r"""
+    \makeatletter
+ \begin{titlepage}%
+      \begingroup % for PDF information dictionary
+       \def\endgraf{ }\def\and{\& }%
+       \pdfstringdefDisableCommands{\def\\{, }}% overwrite hyperref setup
+       \hypersetup{pdfauthor={\@author}, pdftitle={\@title}}%
+      \endgroup
+    \begin{flushright}%
+	\vspace*{2\baselineskip}
+      \begin{minipage}{.75\linewidth}
+      \sphinxlogo
+      \end{minipage} \bigskip \par
+      \py@HeaderFamily
+      {\Huge \@title \par}
+      {\itshape\LARGE \py@release\releaseinfo \par}
+      \bigskip
+      {\large \@date \par}%
+    \end{flushright}
+  \end{titlepage}%
+  \if@openright\cleardoublepage\else\clearpage\fi
+\makeatother
+""",
 
 # Latex figure (float) alignment
 #'figure_align': 'htbp',

@@ -20,7 +20,7 @@
 
 #define UA_IPV4_PREFIX_MASK 0xF0000000
 #define UA_IPV4_MULTICAST_PREFIX 0xE0000000
-#ifdef UA_IPV6
+#if UA_IPV6
 #   define UA_IPV6_MULTICAST_PREFIX 0xFF
 #endif
 
@@ -200,6 +200,8 @@ setupNetworkInterface(UA_PubSubChannelDataUDPMC *channelDataUDPMC,
                          "Interface configuration preparation failed.");
             return UA_STATUSCODE_BADINTERNALERROR;
         }
+        memcpy(&channelDataUDPMC->intf_addr, &channelDataUDPMC->ipMulticastRequest.ipv6.ipv6mr_interface,
+               sizeof(channelDataUDPMC->ipMulticastRequest.ipv6.ipv6mr_interface));
 #endif
     } else {
         UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_NETWORK,
@@ -210,7 +212,7 @@ setupNetworkInterface(UA_PubSubChannelDataUDPMC *channelDataUDPMC,
     return UA_STATUSCODE_GOOD;
 }
 
-#ifdef UA_IPV6
+#if UA_IPV6
 static UA_INLINE UA_StatusCode
 setMulticastInfoIPV6(UA_PubSubChannelDataUDPMC *channelDataUDPMC, const char *addressAsChar) {
     int convertTextAddressToBinarySuccessful = UA_inet_pton(AF_INET6, addressAsChar,
@@ -264,7 +266,7 @@ configureMulticast(UA_PubSubChannelDataUDPMC *channelDataUDPMC,
     /* Check if the ip address is a multicast address */
     if(channelDataUDPMC->ai_family == AF_INET) {
         res = setMulticastInfoIPv4(channelDataUDPMC, addressAsChar);
-#ifdef UA_IPV6
+#if UA_IPV6
     } else if(channelDataUDPMC->ai_family == AF_INET6) {
         res = setMulticastInfoIPV6(channelDataUDPMC, addressAsChar);
 #endif
@@ -594,6 +596,7 @@ UA_PubSubChannelUDPMC_regist(UA_PubSubChannel *channel, UA_ExtensionObject *tran
         memcpy(&groupV6.ipv6mr_multiaddr,
                &((const struct sockaddr_in6 *) &connectionConfig->ai_addr)->sin6_addr,
                sizeof(struct in6_addr));
+        memcpy(&groupV6.ipv6mr_interface, &connectionConfig->intf_addr, sizeof(int));
 
         if(UA_setsockopt(channel->sockfd,
             connectionConfig->ai_family == PF_INET6 ? IPPROTO_IPV6 : IPPROTO_IP,

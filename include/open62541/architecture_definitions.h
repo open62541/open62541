@@ -17,6 +17,7 @@
  * --------------- */
 #include <string.h>
 #include <stddef.h>
+#include <float.h>
 
 /* Include stdint.h and stdbool.h or workaround for older Visual Studios */
 #ifdef UNDER_CE
@@ -208,6 +209,22 @@ extern UA_THREAD_LOCAL void * (*UA_reallocSingleton)(void *ptr, size_t size);
 # define UA_INLINE __inline
 #else
 # define UA_INLINE inline
+#endif
+
+/* An inlinable method is typically defined as "static inline". Some
+ * applications, such as language bindings with a C FFI (foreign function
+ * interface), can however not work with static inline methods. These can set
+ * the global UA_ENABLE_INLINABLE_EXPORT macro which causes all inlinable
+ * methods to be exported as a regular public API method.
+ *
+ * Note that UA_ENABLE_INLINABLE_EXPORT has a negative impact for both size and
+ * performance of the library. */
+#if defined(UA_ENABLE_INLINABLE_EXPORT) && defined(UA_INLINABLE_IMPL)
+# define UA_INLINABLE(decl, impl) UA_EXPORT decl; decl impl
+#elif defined(UA_ENABLE_INLINABLE_EXPORT)
+# define UA_INLINABLE(decl, impl) UA_EXPORT decl;
+#else
+# define UA_INLINABLE(decl, impl) static UA_INLINE decl impl
 #endif
 
 /**
