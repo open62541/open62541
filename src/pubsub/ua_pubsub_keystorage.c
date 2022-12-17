@@ -54,11 +54,11 @@ UA_PubSubKeyStorage_clearKeyList(UA_PubSubKeyStorage *keyStorage) {
     if(TAILQ_EMPTY(&keyStorage->keyList))
         return;
 
-    UA_PubSubKeyListItem *item;
-    TAILQ_FOREACH(item, &keyStorage->keyList, keyListEntry){
-            TAILQ_REMOVE(&keyStorage->keyList, item, keyListEntry);
-            UA_ByteString_clear(&item->key);
-            UA_free(item);
+    UA_PubSubKeyListItem *item, *item_tmp;
+    TAILQ_FOREACH_SAFE(item, &keyStorage->keyList, keyListEntry, item_tmp) {
+        TAILQ_REMOVE(&keyStorage->keyList, item, keyListEntry);
+        UA_ByteString_clear(&item->key);
+        UA_free(item);
     }
     keyStorage->keyListSize = 0;
 }
