@@ -9,16 +9,6 @@
 #include "eventloop_posix.h"
 #include "eventloop_common.h"
 
-#define UA_MAXBACKLOG 100
-
-#ifndef MSG_NOSIGNAL
-#define MSG_NOSIGNAL 0
-#endif
-
-#ifndef MSG_DONTWAIT
-#define MSG_DONTWAIT 0
-#endif
-
 /* Configuration parameters */
 #define TCP_PARAMETERSSIZE 5
 #define TCP_PARAMINDEX_RECVBUF 0
@@ -281,7 +271,7 @@ TCP_listenSocketCallback(UA_ConnectionManager *cm, UA_RegisteredFD *rfd, short e
     }
 
     /* Log the name of the remote host */
-    char hoststr[256];
+    char hoststr[UA_MAXHOSTNAME_LENGTH];
     int get_res = UA_getnameinfo((struct sockaddr *)&remote, sizeof(remote),
                                  hoststr, sizeof(hoststr),
                                  NULL, 0, NI_NUMERICHOST);
@@ -363,10 +353,9 @@ TCP_registerListenSocket(UA_ConnectionManager *cm, struct addrinfo *ai,
     UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX*)cm->eventSource.eventLoop;
 
     /* Get the hostname information */
-    char hoststr[256];
-    int get_res = UA_getnameinfo(ai->ai_addr, ai->ai_addrlen,
-                                 hoststr, sizeof(hoststr),
-                                 NULL, 0, NI_NUMERICHOST);
+    char hoststr[UA_MAXHOSTNAME_LENGTH];
+    int get_res = UA_getnameinfo(ai->ai_addr, ai->ai_addrlen, hoststr,
+                                 sizeof(hoststr), NULL, 0, NI_NUMERICHOST);
     if(get_res != 0) {
         hoststr[0] = 0;
         UA_LOG_SOCKET_ERRNO_WRAP(
@@ -731,15 +720,15 @@ TCP_openActiveConnection(UA_ConnectionManager *cm, const UA_KeyValueMap *params,
     UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX*)cm->eventSource.eventLoop;
 
     /* Get the connection parameters */
-    char hostname[256];
-    char portStr[16];
+    char hostname[UA_MAXHOSTNAME_LENGTH];
+    char portStr[UA_MAXPORTSTR_LENGTH];
 
     /* Prepare the port parameter as a string */
     const UA_UInt16 *port = (const UA_UInt16*)
         UA_KeyValueMap_getScalar(params, TCPConfigParameters[TCP_PARAMINDEX_PORT].name,
                                  &UA_TYPES[UA_TYPES_UINT16]);
     UA_assert(port); /* existence is checked before */
-    UA_snprintf(portStr, 6, "%d", *port);
+    UA_snprintf(portStr, UA_MAXPORTSTR_LENGTH, "%d", *port);
 
     /* Prepare the hostname string */
     const UA_String *addr = (const UA_String*)
@@ -750,7 +739,7 @@ TCP_openActiveConnection(UA_ConnectionManager *cm, const UA_KeyValueMap *params,
                      "TCP\t| Open TCP Connection: No hostname defined, aborting");
         return UA_STATUSCODE_BADINTERNALERROR;
     }
-    if(addr->length >= 256) {
+    if(addr->length >= UA_MAXHOSTNAME_LENGTH) {
         UA_LOG_ERROR(el->eventLoop.logger, UA_LOGCATEGORY_EVENTLOOP,
                      "TCP\t| Open TCP Connection: Hostname too long, aborting");
         return UA_STATUSCODE_BADINTERNALERROR;

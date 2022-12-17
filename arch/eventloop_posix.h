@@ -23,6 +23,18 @@
 # include <sys/epoll.h>
 #endif
 
+#define UA_MAXBACKLOG 100
+#define UA_MAXHOSTNAME_LENGTH 256
+#define UA_MAXPORTSTR_LENGTH 6
+
+#ifndef MSG_NOSIGNAL
+#define MSG_NOSIGNAL 0
+#endif
+
+#ifndef MSG_DONTWAIT
+#define MSG_DONTWAIT 0
+#endif
+
 _UA_BEGIN_DECLS
 
 /* POSIX events are based on sockets / file descriptors. The EventSources can
