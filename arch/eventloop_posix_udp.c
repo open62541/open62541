@@ -262,6 +262,7 @@ setConnectionConfig(UA_FD socket, const UA_KeyValueMap *connectionProperties,
     UA_String portParam = UA_STRING("port");
     UA_String listenParam = UA_STRING("listen");
     UA_String interfaceParam = UA_STRING("interface");
+    UA_String validateParam = UA_STRING("validate");
 
 #ifdef __linux__
     UA_String socketPriorityParam = UA_STRING("sockpriority");
@@ -294,7 +295,8 @@ setConnectionConfig(UA_FD socket, const UA_KeyValueMap *connectionProperties,
         } else if (UA_String_equal(&prop->key.name, &hostnameParam) ||
                    UA_String_equal(&prop->key.name, &portParam) ||
                    UA_String_equal(&prop->key.name, &listenParam) ||
-                   UA_String_equal(&prop->key.name, &interfaceParam)) {
+                   UA_String_equal(&prop->key.name, &interfaceParam) ||
+                   UA_String_equal(&prop->key.name, &validateParam)) {
                 /* ignore, required args are handled elsewhere explicitly */
         } else {
             UA_LOG_WARNING(logger, UA_LOGCATEGORY_SERVER,
