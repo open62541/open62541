@@ -58,16 +58,17 @@ START_TEST(listenTCP) {
     el->start(el);
 
     UA_UInt16 port = 4840;
-    UA_Variant portVar;
-    UA_Variant_setScalar(&portVar, &port, &UA_TYPES[UA_TYPES_UINT16]);
+    UA_Boolean listen = true;
 
     UA_KeyValuePair params[2];
-    params[0].key = UA_QUALIFIEDNAME(0, "listen-port");
-    params[0].value = portVar;
+    params[0].key = UA_QUALIFIEDNAME(0, "port");
+    UA_Variant_setScalar(&params[0].value, &port, &UA_TYPES[UA_TYPES_UINT16]);
+    params[1].key = UA_QUALIFIEDNAME(0, "listen");
+    UA_Variant_setScalar(&params[1].value, &listen, &UA_TYPES[UA_TYPES_BOOLEAN]);
 
     UA_KeyValueMap paramsMap;
     paramsMap.map = params;
-    paramsMap.mapSize = 1;
+    paramsMap.mapSize = 2;
 
     ck_assert_uint_eq(connCount, 0);
 
@@ -103,16 +104,20 @@ START_TEST(connectTCP) {
     el->start(el);
 
     UA_UInt16 port = 4840;
-    UA_Variant portVar;
-    UA_Variant_setScalar(&portVar, &port, &UA_TYPES[UA_TYPES_UINT16]);
+    UA_Boolean listen = true;
+    UA_String host = UA_STRING("localhost");
 
-    UA_KeyValuePair params[2];
-    params[0].key = UA_QUALIFIEDNAME(0, "listen-port");
-    params[0].value = portVar;
+    UA_KeyValuePair params[3];
+    params[0].key = UA_QUALIFIEDNAME(0, "port");
+    UA_Variant_setScalar(&params[0].value, &port, &UA_TYPES[UA_TYPES_UINT16]);
+    params[1].key = UA_QUALIFIEDNAME(0, "listen");
+    UA_Variant_setScalar(&params[1].value, &listen, &UA_TYPES[UA_TYPES_BOOLEAN]);
+    params[2].key = UA_QUALIFIEDNAME(0, "address");
+    UA_Variant_setScalar(&params[2].value, &host, &UA_TYPES[UA_TYPES_STRING]);
 
     UA_KeyValueMap paramsMap;
     paramsMap.map = params;
-    paramsMap.mapSize = 1;
+    paramsMap.mapSize = 3;
 
     connCount = 0;
 
@@ -122,14 +127,7 @@ START_TEST(connectTCP) {
 
     /* Open a client connection */
     clientId = 0;
-
-    UA_String targetHost = UA_STRING("localhost");
-    params[0].key = UA_QUALIFIEDNAME(0, "port");
-    params[0].value = portVar;
-    params[1].key = UA_QUALIFIEDNAME(0, "hostname");
-    UA_Variant_setScalar(&params[1].value, &targetHost, &UA_TYPES[UA_TYPES_STRING]);
-
-    paramsMap.mapSize = 2;
+    listen = false;
 
     UA_StatusCode retval =
         cm->openConnection(cm, &paramsMap, NULL, (void*)0x01, connectionCallback);

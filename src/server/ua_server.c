@@ -587,28 +587,26 @@ UA_Server_createServerConnection(UA_Server *server, const UA_String *serverUrl) 
         UA_KeyValuePair params[3];
         size_t paramsSize = 2;
 
-        params[0].key = UA_QUALIFIEDNAME(0, "listen-port");
+        params[0].key = UA_QUALIFIEDNAME(0, "port");
         UA_Variant_setScalar(&params[0].value, &port, &UA_TYPES[UA_TYPES_UINT16]);
 
-        UA_UInt32 bufSize = config->tcpBufSize;
-        if(bufSize == 0)
-            bufSize = 1 << 16; /* 64kB */
-        params[1].key = UA_QUALIFIEDNAME(0, "recv-bufsize");
-        UA_Variant_setScalar(&params[1].value, &bufSize, &UA_TYPES[UA_TYPES_UINT32]);
+        UA_Boolean listen = true;
+        params[1].key = UA_QUALIFIEDNAME(0, "listen");
+        UA_Variant_setScalar(&params[1].value, &listen, &UA_TYPES[UA_TYPES_BOOLEAN]);
 
-        /* If the hostname is non-empty */
         if(hostname.length > 0) {
-            params[2].key = UA_QUALIFIEDNAME(0, "listen-hostnames");
+            /* The hostname is non-empty */
+            params[2].key = UA_QUALIFIEDNAME(0, "address");
             UA_Variant_setArray(&params[2].value, &hostname, 1, &UA_TYPES[UA_TYPES_STRING]);
             paramsSize = 3;
         }
+
         UA_KeyValueMap paramsMap;
         paramsMap.map = params;
         paramsMap.mapSize = paramsSize;
 
         /* Open the server connection */
-        res = cm->openConnection(cm, &paramsMap, server, NULL,
-                                 UA_Server_networkCallback);
+        res = cm->openConnection(cm, &paramsMap, server, NULL, UA_Server_networkCallback);
         if(res == UA_STATUSCODE_GOOD)
             return res;
     }
@@ -636,10 +634,10 @@ UA_StatusCode attemptReverseConnect(UA_Server *server, reverse_connect_context *
         UA_KeyValueMap params;
         params.mapSize = 0;
         params.map = NULL;
-        UA_KeyValueMap_setScalar(&params, UA_QUALIFIEDNAME(0, "hostname"), &context->hostname,
-                                 &UA_TYPES[UA_TYPES_STRING]);
-        UA_KeyValueMap_setScalar(&params, UA_QUALIFIEDNAME(0, "port"), &context->port,
-                                 &UA_TYPES[UA_TYPES_UINT16]);
+        UA_KeyValueMap_setScalar(&params, UA_QUALIFIEDNAME(0, "address"),
+                                 &context->hostname, &UA_TYPES[UA_TYPES_STRING]);
+        UA_KeyValueMap_setScalar(&params, UA_QUALIFIEDNAME(0, "port"),
+                                 &context->port, &UA_TYPES[UA_TYPES_UINT16]);
 
         /* Open the server connection */
         res = cm->openConnection(cm, &params, server, context,

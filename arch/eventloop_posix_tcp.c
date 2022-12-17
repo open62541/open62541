@@ -7,6 +7,7 @@
  */
 
 #include "eventloop_posix.h"
+#include "eventloop_common.h"
 
 #define UA_MAXBACKLOG 100
 
@@ -17,6 +18,22 @@
 #ifndef MSG_DONTWAIT
 #define MSG_DONTWAIT 0
 #endif
+
+/* Configuration parameters */
+#define TCP_PARAMETERSSIZE 5
+#define TCP_PARAMINDEX_RECVBUF 0
+#define TCP_PARAMINDEX_ADDR 1
+#define TCP_PARAMINDEX_PORT 2
+#define TCP_PARAMINDEX_LISTEN 3
+#define TCP_PARAMINDEX_VALIDATE 4
+
+static UA_KeyValueRestriction TCPConfigParameters[TCP_PARAMETERSSIZE] = {
+    {{0, UA_STRING_STATIC("recv-bufsize")}, &UA_TYPES[UA_TYPES_UINT32], false, true, false},
+    {{0, UA_STRING_STATIC("address")}, &UA_TYPES[UA_TYPES_STRING], false, true, true},
+    {{0, UA_STRING_STATIC("port")}, &UA_TYPES[UA_TYPES_UINT16], true, true, false},
+    {{0, UA_STRING_STATIC("listen")}, &UA_TYPES[UA_TYPES_BOOLEAN], false, true, false},
+    {{0, UA_STRING_STATIC("validate")}, &UA_TYPES[UA_TYPES_BOOLEAN], false, true, false}
+};
 
 /* A registered file descriptor with an additional method pointer */
 typedef struct {
@@ -323,7 +340,7 @@ TCP_listenSocketCallback(UA_ConnectionManager *cm, UA_RegisteredFD *rfd, short e
 
     /* Forward the remote hostname to the application */
     UA_KeyValuePair kvp;
-    kvp.key = UA_QUALIFIEDNAME(0, "remote-hostname");
+    kvp.key = UA_QUALIFIEDNAME(0, "remote-address");
     UA_String hostName = UA_STRING(hoststr);
     UA_Variant_setScalar(&kvp.value, &hostName, &UA_TYPES[UA_TYPES_STRING]);
 
@@ -469,7 +486,7 @@ TCP_registerListenSocket(UA_ConnectionManager *cm, struct addrinfo *ai,
 
     /* Set up the callback parameters */
     UA_KeyValuePair params[2];
-    params[0].key = UA_QUALIFIEDNAME(0, "listen-hostname");
+    params[0].key = UA_QUALIFIEDNAME(0, "listen-address");
     params[1].key = UA_QUALIFIEDNAME(0, "listen-port");
     UA_KeyValueMap paramMap;
     paramMap.mapSize = 0;
@@ -520,7 +537,7 @@ TCP_registerListenSockets(UA_ConnectionManager *cm, const char *hostname,
 #ifdef _WIN32
         UA_LOG_SOCKET_ERRNO_WRAP(
         UA_LOG_WARNING(cm->eventSource.eventLoop->logger, UA_LOGCATEGORY_NETWORK,
-                       "tcp\t| Lookup for \"%s\" on port %u failed (%s)",
+                       "TCP\t| Lookup for \"%s\" on port %u failed (%s)",
                        hostname, port, errno_str));
 #else
         UA_LOG_WARNING(cm->eventSource.eventLoop->logger, UA_LOGCATEGORY_NETWORK,
@@ -605,8 +622,7 @@ TCP_shutdownConnection(UA_ConnectionManager *cm, uintptr_t connectionId) {
 
 static UA_StatusCode
 TCP_sendWithConnection(UA_ConnectionManager *cm, uintptr_t connectionId,
-                       const UA_KeyValueMap *params,
-                       UA_ByteString *buf) {
+                       const UA_KeyValueMap *params, UA_ByteString *buf) {
     /* Prevent OS signals when sending to a closed socket */
     int flags = MSG_NOSIGNAL;
 
@@ -660,54 +676,40 @@ TCP_sendWithConnection(UA_ConnectionManager *cm, uintptr_t connectionId,
 
 /* Create a listen-socket that waits for incoming connections */
 static UA_StatusCode
-TCP_openPassiveConnection(UA_ConnectionManager *cm,
-                          const UA_KeyValueMap *params,
+TCP_openPassiveConnection(UA_ConnectionManager *cm, const UA_KeyValueMap *params,
                           void *application, void *context,
                           UA_ConnectionManager_connectionCallback connectionCallback) {
     UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX*)cm->eventSource.eventLoop;
 
     /* Get the port parameter */
     const UA_UInt16 *port = (const UA_UInt16*)
-        UA_KeyValueMap_getScalar(params,
-                                 UA_QUALIFIEDNAME(0, "listen-port"),
+        UA_KeyValueMap_getScalar(params, TCPConfigParameters[TCP_PARAMINDEX_PORT].name,
                                  &UA_TYPES[UA_TYPES_UINT16]);
-    if(!port) {
-        UA_LOG_ERROR(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
-                     "TCP\t| The listen-port was not correctly configured");
-        return UA_STATUSCODE_BADINTERNALERROR;
+    UA_assert(port); /* existence is checked before */
+
+    /* Get the address parameter */
+    const UA_Variant *addrs =
+        UA_KeyValueMap_get(params, TCPConfigParameters[TCP_PARAMINDEX_ADDR].name);
+    size_t addrsSize = 0;
+    if(addrs) {
+        UA_assert(addrs->type == &UA_TYPES[UA_TYPES_STRING]);
+        if(UA_Variant_isScalar(addrs))
+            addrsSize = 1;
+        else
+            addrsSize = addrs->arrayLength;
     }
 
-    /* Get the hostnames parameter */
-    const UA_Variant *hostNames =
-        UA_KeyValueMap_get(params, UA_QUALIFIEDNAME(0, "listen-hostnames"));
-    if(!hostNames) {
-        /* No listen-hostnames parameter -> listen on all interfaces */
+    /* Undefined or empty addresses array -> listen on all interfaces */
+    if(addrsSize == 0) {
         UA_LOG_INFO(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
                     "TCP\t| Listening on all interfaces");
         return TCP_registerListenSockets(cm, NULL, *port, application,
                                          context, connectionCallback);
     }
 
-    /* Wrong datatype for the hostnames */
-    if(hostNames->type != &UA_TYPES[UA_TYPES_STRING] ||
-       UA_Variant_isScalar(hostNames)) {
-        UA_LOG_ERROR(el->eventLoop.logger, UA_LOGCATEGORY_EVENTLOOP,
-                     "TCP\t| The listen-hostnames have to be an array of strings");
-        return UA_STATUSCODE_BADINTERNALERROR;
-    }
-
-    /* Empty array -> listen on all interfaces */
-    size_t interfaces = hostNames->arrayLength;
-    if(interfaces == 0) {
-        UA_LOG_INFO(el->eventLoop.logger, UA_LOGCATEGORY_EVENTLOOP,
-                     "TCP\t| Listening on all interfaces");
-        return TCP_registerListenSockets(cm, NULL, *port, application,
-                                         context, connectionCallback);
-    }
-
     /* Iterate over the configured hostnames */
-    UA_String *hostStrings = (UA_String*)hostNames->data;
-    for(size_t i = 0; i < hostNames->arrayLength; i++) {
+    UA_String *hostStrings = (UA_String*)addrs->data;
+    for(size_t i = 0; i < addrsSize; i++) {
         char hostname[512];
         if(hostStrings[i].length >= sizeof(hostname))
             continue;
@@ -722,18 +724,11 @@ TCP_openPassiveConnection(UA_ConnectionManager *cm,
 
 /* Open a TCP connection to a remote host */
 static UA_StatusCode
-TCP_openActiveConnection(UA_ConnectionManager *cm,
-                         const UA_KeyValueMap *params,
+TCP_openActiveConnection(UA_ConnectionManager *cm, const UA_KeyValueMap *params,
                          void *application, void *context,
                          UA_ConnectionManager_connectionCallback connectionCallback) {
     TCPConnectionManager *tcm = (TCPConnectionManager*)cm;
     UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX*)cm->eventSource.eventLoop;
-
-    if(params->mapSize != 2) {
-        UA_LOG_ERROR(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
-                     "TCP\t| Port and hostname need to be defined for the connection");
-        return UA_STATUSCODE_BADINTERNALERROR;
-    }
 
     /* Get the connection parameters */
     char hostname[256];
@@ -741,31 +736,27 @@ TCP_openActiveConnection(UA_ConnectionManager *cm,
 
     /* Prepare the port parameter as a string */
     const UA_UInt16 *port = (const UA_UInt16*)
-        UA_KeyValueMap_getScalar(params, UA_QUALIFIEDNAME(0, "port"),
+        UA_KeyValueMap_getScalar(params, TCPConfigParameters[TCP_PARAMINDEX_PORT].name,
                                  &UA_TYPES[UA_TYPES_UINT16]);
-    if(!port) {
-        UA_LOG_ERROR(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
-                     "TCP\t| Open TCP Connection: No port defined, aborting");
-        return UA_STATUSCODE_BADINTERNALERROR;
-    }
+    UA_assert(port); /* existence is checked before */
     UA_snprintf(portStr, 6, "%d", *port);
 
     /* Prepare the hostname string */
-    const UA_String *host = (const UA_String*)
-        UA_KeyValueMap_getScalar(params, UA_QUALIFIEDNAME(0, "hostname"),
+    const UA_String *addr = (const UA_String*)
+        UA_KeyValueMap_getScalar(params, TCPConfigParameters[TCP_PARAMINDEX_ADDR].name,
                                  &UA_TYPES[UA_TYPES_STRING]);
-    if(!host) {
+    if(!addr) {
         UA_LOG_ERROR(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
                      "TCP\t| Open TCP Connection: No hostname defined, aborting");
         return UA_STATUSCODE_BADINTERNALERROR;
     }
-    if(host->length >= 256) {
+    if(addr->length >= 256) {
         UA_LOG_ERROR(el->eventLoop.logger, UA_LOGCATEGORY_EVENTLOOP,
                      "TCP\t| Open TCP Connection: Hostname too long, aborting");
         return UA_STATUSCODE_BADINTERNALERROR;
     }
-    strncpy(hostname, (const char*)host->data, host->length);
-    hostname[host->length] = 0;
+    strncpy(hostname, (const char*)addr->data, addr->length);
+    hostname[addr->length] = 0;
 
     UA_LOG_DEBUG(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
                  "TCP\t| Open a connection to \"%s\" on port %s", hostname, portStr);
@@ -872,8 +863,7 @@ TCP_openActiveConnection(UA_ConnectionManager *cm,
 }
 
 static UA_StatusCode
-TCP_openConnection(UA_ConnectionManager *cm,
-                   const UA_KeyValueMap *params,
+TCP_openConnection(UA_ConnectionManager *cm, const UA_KeyValueMap *params,
                    void *application, void *context,
                    UA_ConnectionManager_connectionCallback connectionCallback) {
     UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX*)cm->eventSource.eventLoop;
@@ -884,18 +874,28 @@ TCP_openConnection(UA_ConnectionManager *cm,
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
-    /* If the "port"-parameter is defined, then try to open an active
-     * connection. Otherwise try to open a socket that listens for incoming TCP
-     * connections. */
-    const UA_Variant *val =
-        UA_KeyValueMap_get(params, UA_QUALIFIEDNAME(0, "port"));
-    if(val) {
-        return TCP_openActiveConnection(cm, params,
-                                        application, context, connectionCallback);
-    } else {
-        return TCP_openPassiveConnection(cm, params,
-                                         application, context, connectionCallback);
-    }
+    /* Check the parameters */
+    UA_StatusCode res =
+        UA_KeyValueRestriction_validate(&TCPConfigParameters[1],
+                                        TCP_PARAMETERSSIZE-1, params);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
+
+    /* Listen or active connection? */
+    UA_Boolean listen = false;
+    const UA_Boolean *listenParam = (const UA_Boolean*)
+        UA_KeyValueMap_getScalar(params,
+                                 TCPConfigParameters[TCP_PARAMINDEX_LISTEN].name,
+                                 &UA_TYPES[UA_TYPES_BOOLEAN]);
+    if(listenParam)
+        listen = *listenParam;
+
+    if(listen)
+        return TCP_openPassiveConnection(cm, params, application,
+                                         context, connectionCallback);
+    else
+        return TCP_openActiveConnection(cm, params, application,
+                                        context, connectionCallback);
 }
 
 static UA_StatusCode
@@ -912,16 +912,22 @@ TCP_eventSourceStart(UA_ConnectionManager *cm) {
                      "registered in an EventLoop and not started yet");
         return UA_STATUSCODE_BADINTERNALERROR;
     }
+
+    /* Check the parameters */
+    UA_StatusCode res = UA_KeyValueRestriction_validate(TCPConfigParameters, 1,
+                                                        &cm->eventSource.params);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
+
     /* Configure the receive buffer */
     UA_UInt32 rxBufSize = 2u << 16; /* The default is 64kb */
-
     const UA_UInt32 *configRxBufSize = (const UA_UInt32 *)
         UA_KeyValueMap_getScalar(&cm->eventSource.params,
-                                 UA_QUALIFIEDNAME(0, "recv-bufsize"),
+                                 TCPConfigParameters[TCP_PARAMINDEX_RECVBUF].name,
                                  &UA_TYPES[UA_TYPES_UINT32]);
     if(configRxBufSize)
         rxBufSize = *configRxBufSize;
-    UA_StatusCode res = UA_ByteString_allocBuffer(&tcm->rxBuffer, rxBufSize);
+    res = UA_ByteString_allocBuffer(&tcm->rxBuffer, rxBufSize);
     if(res != UA_STATUSCODE_GOOD)
         return res;
 

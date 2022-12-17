@@ -1339,7 +1339,7 @@ initConnect(UA_Client *client) {
         UA_KeyValuePair params[2];
         params[0].key = UA_QUALIFIEDNAME(0, "port");
         UA_Variant_setScalar(&params[0].value, &port, &UA_TYPES[UA_TYPES_UINT16]);
-        params[1].key = UA_QUALIFIEDNAME(0, "hostname");
+        params[1].key = UA_QUALIFIEDNAME(0, "address");
         UA_Variant_setScalar(&params[1].value, &hostname, &UA_TYPES[UA_TYPES_STRING]);
 
         UA_KeyValueMap paramMap;
