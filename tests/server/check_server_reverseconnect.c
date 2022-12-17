@@ -67,32 +67,26 @@ static void setupListeningSocket(void) {
 
     UA_String listenHost = UA_STRING_STATIC("localhost");
     UA_UInt16 listenPort = 4841;
+    UA_Boolean listen = true;
 
     UA_KeyValuePair params[3];
-    size_t paramsSize = 2;
+    params[0].key = UA_QUALIFIEDNAME(0, "port");
+    UA_Variant_setScalar(&params[0].value, &listenPort, &UA_TYPES[UA_TYPES_UINT16]);
+    params[1].key = UA_QUALIFIEDNAME(0, "listen");
+    UA_Variant_setScalar(&params[1].value, &listen, &UA_TYPES[UA_TYPES_BOOLEAN]);
+    params[2].key = UA_QUALIFIEDNAME(0, "address");
+    UA_Variant_setArray(&params[2].value, &listenHost, 1, &UA_TYPES[UA_TYPES_STRING]);
 
-    params[0].key = UA_QUALIFIEDNAME(0, "listen-port");
-    UA_Variant_setScalar(&params[0].value, (void *)&listenPort, &UA_TYPES[UA_TYPES_UINT16]);
-
-    UA_UInt32 bufSize = 1 << 16; /* 64kB */
-    params[1].key = UA_QUALIFIEDNAME(0, "recv-bufsize");
-    UA_Variant_setScalar(&params[1].value, &bufSize, &UA_TYPES[UA_TYPES_UINT32]);
-
-    params[2].key = UA_QUALIFIEDNAME(0, "listen-hostnames");
-    UA_Variant_setArray(&params[2].value, (void *)&listenHost, 1, &UA_TYPES[UA_TYPES_STRING]);
-    paramsSize = 3;
     UA_KeyValueMap paramsMap;
     paramsMap.map = params;
-    paramsMap.mapSize = paramsSize;
+    paramsMap.mapSize = 3;
 
-    UA_StatusCode res = connectionManager->openConnection(connectionManager, &paramsMap, NULL, NULL,
-                             listenCallback);
-
+    UA_StatusCode res = connectionManager->openConnection(connectionManager, &paramsMap,
+                                                          NULL, NULL, listenCallback);
     ck_assert_int_eq(res, UA_STATUSCODE_GOOD);
 
     for (int i = 0; i < 100; ++i) {
         eventLoop->run(eventLoop, 100);
-
         if (listening)
             break;
     }
