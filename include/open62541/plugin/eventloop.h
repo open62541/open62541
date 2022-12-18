@@ -492,7 +492,7 @@ UA_ConnectionManager_new_POSIX_TCP(const UA_String eventSourceName);
  *
  * - 0:listen [boolean]: Use the connection for listening or for sending
  *       (default: false)
- * - 0:hostname [string | string array]: Hostname (or IPv4/v6 address) for
+ * - 0:address [string | string array]: Hostname (or IPv4/v6 address) for
  *       sending or receiving. A scalar is required for sending. For listening a
  *       string array for the list-hostnames is possible as well (default: list
  *       on all hostnames).

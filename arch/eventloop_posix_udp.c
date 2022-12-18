@@ -7,6 +7,7 @@
  */
 
 #include "eventloop_posix.h"
+#include "eventloop_common.h"
 
 #define IPV4_PREFIX_MASK 0xF0
 #define IPV4_MULTICAST_PREFIX 0xE0
@@ -14,6 +15,32 @@
 #   define IPV6_PREFIX_MASK 0xFF
 #   define IPV6_MULTICAST_PREFIX 0xFF
 #endif
+
+/* Configuration parameters */
+#define UDP_PARAMETERSSIZE 10
+#define UDP_PARAMINDEX_RECVBUF 0
+#define UDP_PARAMINDEX_LISTEN 1
+#define UDP_PARAMINDEX_ADDR 2
+#define UDP_PARAMINDEX_PORT 3
+#define UDP_PARAMINDEX_INTERFACE 4
+#define UDP_PARAMINDEX_TTL 5
+#define UDP_PARAMINDEX_LOOPBACK 6
+#define UDP_PARAMINDEX_REUSE 7
+#define UDP_PARAMINDEX_SOCKPRIO 8
+#define UDP_PARAMINDEX_VALIDATE 9
+
+static UA_KeyValueRestriction UDPConfigParameters[UDP_PARAMETERSSIZE] = {
+    {{0, UA_STRING_STATIC("recv-bufsize")}, &UA_TYPES[UA_TYPES_UINT32], false, true, false},
+    {{0, UA_STRING_STATIC("listen")}, &UA_TYPES[UA_TYPES_BOOLEAN], false, true, false},
+    {{0, UA_STRING_STATIC("address")}, &UA_TYPES[UA_TYPES_STRING], false, true, true},
+    {{0, UA_STRING_STATIC("port")}, &UA_TYPES[UA_TYPES_UINT16], true, true, false},
+    {{0, UA_STRING_STATIC("interface")}, &UA_TYPES[UA_TYPES_STRING], false, true, false},
+    {{0, UA_STRING_STATIC("ttl")}, &UA_TYPES[UA_TYPES_UINT32], false, true, false},
+    {{0, UA_STRING_STATIC("loopback")}, &UA_TYPES[UA_TYPES_BOOLEAN], false, true, false},
+    {{0, UA_STRING_STATIC("reuse")}, &UA_TYPES[UA_TYPES_BOOLEAN], false, true, false},
+    {{0, UA_STRING_STATIC("sockpriority")}, &UA_TYPES[UA_TYPES_UINT32], false, true, false},
+    {{0, UA_STRING_STATIC("validate")}, &UA_TYPES[UA_TYPES_BOOLEAN], false, true, false}
+};
 
 /* A registered file descriptor with an additional method pointer */
 typedef struct {
@@ -57,25 +84,19 @@ getHostAndPortFromParams(const UA_KeyValueMap *params,
                          char *hostname, char *portStr, const UA_Logger *logger) {
     /* Prepare the port parameter as a string */
     const UA_UInt16 *port = (const UA_UInt16*)
-        UA_KeyValueMap_getScalar(params,
-                                 UA_QUALIFIEDNAME(0, "port"),
+        UA_KeyValueMap_getScalar(params, UDPConfigParameters[UDP_PARAMINDEX_PORT].name,
                                  &UA_TYPES[UA_TYPES_UINT16]);
-    if(!port) {
-        UA_LOG_DEBUG(logger, UA_LOGCATEGORY_NETWORK,
-                     "UDP\t| No port found");
-        return 0;
-    }
+    UA_assert(port); /* checked before */
     UA_snprintf(portStr, UA_MAXPORTSTR_LENGTH, "%d", *port);
 
     /* Prepare the hostname string */
     const UA_String *host = (const UA_String*)
-        UA_KeyValueMap_getScalar(params,
-                                 UA_QUALIFIEDNAME(0, "hostname"),
+        UA_KeyValueMap_getScalar(params, UDPConfigParameters[UDP_PARAMINDEX_ADDR].name,
                                  &UA_TYPES[UA_TYPES_STRING]);
     if(!host) {
         UA_LOG_DEBUG(logger, UA_LOGCATEGORY_NETWORK,
-                     "UDP\t| No hostname found");
-        return 0;
+                     "UDP\t| No address configured");
+        return -1;
     }
     if(host->length >= UA_MAXHOSTNAME_LENGTH) {
         UA_LOG_ERROR(logger, UA_LOGCATEGORY_EVENTLOOP,
@@ -87,33 +108,14 @@ getHostAndPortFromParams(const UA_KeyValueMap *params,
     return 1;
 }
 
-static void
-getNetworkInterfaceFromParams(const UA_KeyValueMap *params, UA_String *outIf) {
-    /* Prepare the networkinterface string */
-    const UA_String *networkInterface = (const UA_String*)
-        UA_KeyValueMap_getScalar(params, UA_QUALIFIEDNAME(0, "network-interface"),
-                                 &UA_TYPES[UA_TYPES_STRING]);
-    if(networkInterface)
-        *outIf = *networkInterface;
-}
-
 static int
 getConnectionInfoFromParams(const UA_KeyValueMap *params,
                             char *hostname, char *portStr,
                             struct addrinfo **info, const UA_Logger *logger) {
-
-    int foundParams = getHostAndPortFromParams(params,
-                                               hostname, portStr, logger);
-    if (foundParams < 0) {
-        UA_LOG_ERROR(logger, UA_LOGCATEGORY_EVENTLOOP,
-                     "UDP\t| Failed retrieving host and port parameters");
+    int foundParams = getHostAndPortFromParams(params, hostname, portStr, logger);
+    if(foundParams < 0)
         return -1;
-    }
-    if(foundParams == 0) {
-        UA_LOG_DEBUG(logger, UA_LOGCATEGORY_EVENTLOOP,
-                     "UDP\t| Hostname or Port not present");
-        return 0;
-    }
+
     /* Create the socket description from the connectString
      * TODO: Make this non-blocking */
     struct addrinfo hints;
@@ -162,7 +164,7 @@ setLoopBackData(UA_SOCKET sockfd, UA_Boolean enableLoopback,
     return UA_STATUSCODE_GOOD;
 }
 
-static void
+static UA_StatusCode
 setTimeToLive(UA_SOCKET sockfd, UA_UInt32 messageTTL,
               int ai_family, const UA_Logger *logger) {
     /* Set Time to live (TTL). Value of 1 prevent forward beyond the local network. */
@@ -183,10 +185,12 @@ setTimeToLive(UA_SOCKET sockfd, UA_UInt32 messageTTL,
                            "UDP %u\t| Time to live setup failed: "
                            "Cannot set socket option IP_MULTICAST_TTL. Error: %s",
                            (unsigned)sockfd, errno_str));
+        return UA_STATUSCODE_BADINTERNALERROR;
     }
+    return UA_STATUSCODE_GOOD;
 }
 
-static void
+static UA_StatusCode
 setReuseAddress(UA_SOCKET sockfd, UA_Boolean enableReuse, const UA_Logger *logger) {
     /* Set reuse address -> enables sharing of the same listening address on
      * different sockets */
@@ -200,16 +204,17 @@ setReuseAddress(UA_SOCKET sockfd, UA_Boolean enableReuse, const UA_Logger *logge
                            "UDP %u\t| Reuse address setup failed: "
                            "Cannot set socket option SO_REUSEADDR. Error: %s",
                            (unsigned)sockfd, errno_str));
+        return UA_STATUSCODE_BADINTERNALERROR;
     }
+    return UA_STATUSCODE_GOOD;
 }
 
 #ifdef __linux__
 static UA_StatusCode
-setSocketPriority(UA_SOCKET sockfd, UA_UInt32 *socketPriority,
+setSocketPriority(UA_SOCKET sockfd, UA_UInt32 socketPriority,
                   const UA_Logger *logger) {
-    /* Setting the socket priority to the socket */
-    if (UA_setsockopt(sockfd, SOL_SOCKET, SO_PRIORITY,
-                      socketPriority, sizeof(*socketPriority)) < 0) {
+    int prio = (int)socketPriority;
+    if(UA_setsockopt(sockfd, SOL_SOCKET, SO_PRIORITY, &prio, sizeof(int)) < 0) {
         UA_LOG_SOCKET_ERRNO_WRAP(
             UA_LOG_ERROR(logger, UA_LOGCATEGORY_NETWORK,
                          "UDP %u\t| Socket priority setup failed: "
@@ -239,75 +244,46 @@ isIPv6MulticastAddress(const UA_Byte *address) {
 #endif
 
 static UA_StatusCode
-setConnectionConfig(UA_FD socket, const UA_KeyValueMap *connectionProperties,
+setConnectionConfig(UA_FD socket, const UA_KeyValueMap *params,
                     int ai_family, const UA_Logger *logger) {
-    /* Iterate over the given KeyValuePair parameters */
-    UA_String ttlParam = UA_STRING("ttl");
-    UA_String loopbackParam = UA_STRING("loopback");
-    UA_String reuseParam = UA_STRING("reuse");
-
-    UA_String hostnameParam = UA_STRING("hostname");
-    UA_String portParam = UA_STRING("port");
-    UA_String listenParam = UA_STRING("listen");
-    UA_String interfaceParam = UA_STRING("interface");
-    UA_String validateParam = UA_STRING("validate");
-
-#ifdef __linux__
-    UA_String socketPriorityParam = UA_STRING("sockpriority");
-#endif
-    for(size_t i = 0; i < connectionProperties->mapSize; i++) {
-        const UA_KeyValuePair *prop = &connectionProperties->map[i];
-        if(UA_String_equal(&prop->key.name, &ttlParam)) {
-            if(UA_Variant_hasScalarType(&prop->value, &UA_TYPES[UA_TYPES_UINT32])){
-                UA_UInt32 messageTTL = *(UA_UInt32*)prop->value.data;
-                setTimeToLive(socket, messageTTL, ai_family, logger);
-            }
-        } else if(UA_String_equal(&prop->key.name, &loopbackParam)) {
-            if(UA_Variant_hasScalarType(&prop->value, &UA_TYPES[UA_TYPES_BOOLEAN])) {
-                UA_Boolean enableLoopback = *(UA_Boolean*)prop->value.data;
-                UA_StatusCode res = setLoopBackData(socket, enableLoopback, ai_family, logger);
-                if (res != UA_STATUSCODE_GOOD) return res;
-            }
-        } else if(UA_String_equal(&prop->key.name, &reuseParam)) {
-            if(UA_Variant_hasScalarType(&prop->value, &UA_TYPES[UA_TYPES_BOOLEAN])) {
-                UA_Boolean enableReuse = *(UA_Boolean *)prop->value.data;
-                setReuseAddress(socket, enableReuse, logger);
-            }
-#ifdef __linux__
-        } else if(UA_String_equal(&prop->key.name, &socketPriorityParam)){
-            if(UA_Variant_hasScalarType(&prop->value, &UA_TYPES[UA_TYPES_UINT32])){
-                UA_UInt32 socketPriority = *(UA_UInt32 *) prop->value.data;
-                setSocketPriority(socket, &socketPriority, logger);
-            }
-#endif
-        } else if (UA_String_equal(&prop->key.name, &hostnameParam) ||
-                   UA_String_equal(&prop->key.name, &portParam) ||
-                   UA_String_equal(&prop->key.name, &listenParam) ||
-                   UA_String_equal(&prop->key.name, &interfaceParam) ||
-                   UA_String_equal(&prop->key.name, &validateParam)) {
-                /* ignore, required args are handled elsewhere explicitly */
-        } else {
-            UA_LOG_WARNING(logger, UA_LOGCATEGORY_SERVER,
-                           "UDP\t| Unknown connection parameter: '%.*s'.",
-                           (int)prop->key.name.length, (char*)prop->key.name.data);
-        }
-    }
-
-    /* Set the socket options also there might be external requirements for
-     * socket options how to handle and set those either
-     * - passed in parameters
-     * - specific callback that gives access to the allocated socket */
+    /* Set socket config that is always set */
     UA_StatusCode res = UA_STATUSCODE_GOOD;
     res |= UA_EventLoopPOSIX_setNonBlocking(socket);
     res |= UA_EventLoopPOSIX_setNoSigPipe(socket);
+
+    /* Set socket settings from the parameters */
+    const UA_UInt32 *messageTTL = (const UA_UInt32*)
+        UA_KeyValueMap_getScalar(params, UDPConfigParameters[UDP_PARAMINDEX_TTL].name,
+                                 &UA_TYPES[UA_TYPES_UINT32]);
+    if(messageTTL)
+        res |= setTimeToLive(socket, *messageTTL, ai_family, logger);
+
+    const UA_Boolean *enableLoopback = (const UA_Boolean*)
+        UA_KeyValueMap_getScalar(params, UDPConfigParameters[UDP_PARAMINDEX_LOOPBACK].name,
+                                 &UA_TYPES[UA_TYPES_BOOLEAN]);
+    if(enableLoopback)
+        res |= setLoopBackData(socket, *enableLoopback, ai_family, logger);
+
+    const UA_Boolean *enableReuse = (const UA_Boolean*)
+        UA_KeyValueMap_getScalar(params, UDPConfigParameters[UDP_PARAMINDEX_REUSE].name,
+                                 &UA_TYPES[UA_TYPES_BOOLEAN]);
+    if(enableReuse)
+        res |= setReuseAddress(socket, *enableReuse, logger);
+
+#ifdef __linux__
+    const UA_UInt32 *socketPriority = (const UA_UInt32*)
+        UA_KeyValueMap_getScalar(params, UDPConfigParameters[UDP_PARAMINDEX_SOCKPRIO].name,
+                                 &UA_TYPES[UA_TYPES_UINT32]);
+    if(socketPriority)
+        res |= setSocketPriority(socket, *socketPriority, logger);
+#endif
+
     if(res != UA_STATUSCODE_GOOD) {
         UA_LOG_SOCKET_ERRNO_WRAP(
             UA_LOG_WARNING(logger, UA_LOGCATEGORY_NETWORK,
                            "UDP\t| Could not set socket options: %s", errno_str));
-        return res;
     }
-
-    return UA_STATUSCODE_GOOD;
+    return res;
 }
 static UA_StatusCode
 setupSendMulticastIPv4(UA_FD socket, struct sockaddr_in *addr, const UA_KeyValueMap *params,
@@ -317,12 +293,13 @@ setupSendMulticastIPv4(UA_FD socket, struct sockaddr_in *addr, const UA_KeyValue
     ipMulticastRequest.ipv4.imr_interface.s_addr = UA_htonl(INADDR_ANY); /* default ANY */
 
     /* Use a defined network interface */
-    UA_String netif = UA_STRING_NULL;
-    getNetworkInterfaceFromParams(params, &netif);
-    if(!UA_String_isEmpty(&netif)) {
-        UA_STACKARRAY(char, interfaceAsChar, sizeof(char) * (netif).length + 1);
-        memcpy(interfaceAsChar, netif.data, netif.length);
-        interfaceAsChar[netif.length] = 0;
+    const UA_String *netif = (const UA_String*)
+        UA_KeyValueMap_getScalar(params, UDPConfigParameters[UDP_PARAMINDEX_INTERFACE].name,
+                                 &UA_TYPES[UA_TYPES_STRING]);
+    if(netif) {
+        UA_STACKARRAY(char, interfaceAsChar, sizeof(char) * netif->length + 1);
+        memcpy(interfaceAsChar, netif->data, netif->length);
+        interfaceAsChar[netif->length] = 0;
         if(UA_inet_pton(AF_INET, interfaceAsChar, &ipMulticastRequest.ipv4.imr_interface) <= 0) {
             UA_LOG_ERROR(logger, UA_LOGCATEGORY_SERVER,
                          "UDP %u\t| Interface configuration preparation failed",
@@ -358,12 +335,13 @@ setupListenMulticastIPv4(UA_FD socket, const UA_KeyValueMap *params, struct sock
     ipMulticastRequest.ipv4.imr_interface.s_addr = UA_htonl(INADDR_ANY); /* default ANY */
 
     /* Use a defined interface */
-    UA_String netif = UA_STRING_NULL;
-    getNetworkInterfaceFromParams(params, &netif);
-    if(!UA_String_isEmpty(&netif)) {
-        UA_STACKARRAY(char, interfaceAsChar, sizeof(char) * (netif).length + 1);
-        memcpy(interfaceAsChar, netif.data, netif.length);
-        interfaceAsChar[netif.length] = 0;
+    const UA_String *netif = (const UA_String*)
+        UA_KeyValueMap_getScalar(params, UDPConfigParameters[UDP_PARAMINDEX_INTERFACE].name,
+                                 &UA_TYPES[UA_TYPES_STRING]);
+    if(netif) {
+        UA_STACKARRAY(char, interfaceAsChar, sizeof(char) * netif->length + 1);
+        memcpy(interfaceAsChar, netif->data, netif->length);
+        interfaceAsChar[netif->length] = 0;
         if(UA_inet_pton(AF_INET, interfaceAsChar, &ipMulticastRequest.ipv4.imr_interface) <= 0) {
             UA_LOG_ERROR(logger, UA_LOGCATEGORY_SERVER,
                          "UDP\t| Interface configuration preparation failed.");
@@ -394,12 +372,13 @@ setupListenMulticastIPv6(UA_FD socket, const UA_KeyValueMap *params, struct sock
     ipMulticastRequest.ipv6.ipv6mr_interface = 0; /* default ANY interface */
 
     /* Bind to a defined interface */
-    UA_String netif = UA_STRING_NULL;
-    getNetworkInterfaceFromParams(params, &netif);
-    if(!UA_String_isEmpty(&netif)) {
-        UA_STACKARRAY(char, interfaceAsChar, sizeof(char) * (netif).length + 1);
-        memcpy(interfaceAsChar, netif.data, netif.length);
-        interfaceAsChar[netif.length] = 0;
+    const UA_String *netif = (const UA_String*)
+        UA_KeyValueMap_getScalar(params, UDPConfigParameters[UDP_PARAMINDEX_INTERFACE].name,
+                                 &UA_TYPES[UA_TYPES_STRING]);
+    if(netif) {
+        UA_STACKARRAY(char, interfaceAsChar, sizeof(char) * netif->length + 1);
+        memcpy(interfaceAsChar, netif->data, netif->length);
+        interfaceAsChar[netif->length] = 0;
         ipMulticastRequest.ipv6.ipv6mr_interface = UA_if_nametoindex(interfaceAsChar);
         if(ipMulticastRequest.ipv6.ipv6mr_interface == 0) {
             UA_LOG_ERROR(logger, UA_LOGCATEGORY_SERVER,
@@ -428,12 +407,13 @@ setupSendMulticastIPv6(UA_FD socket, struct sockaddr_in6 *addr, const UA_KeyValu
     ipMulticastRequest.ipv6.ipv6mr_interface = 0; /* default ANY interface */
 
     /* Use a defined network interface */
-    UA_String netif = UA_STRING_NULL;
-    getNetworkInterfaceFromParams(params, &netif);
-    if(!UA_String_isEmpty(&netif)) {
-        UA_STACKARRAY(char, interfaceAsChar, sizeof(char) * (netif).length + 1);
-        memcpy(interfaceAsChar, netif.data, netif.length);
-        interfaceAsChar[netif.length] = 0;
+    const UA_String *netif = (const UA_String*)
+        UA_KeyValueMap_getScalar(params, UDPConfigParameters[UDP_PARAMINDEX_INTERFACE].name,
+                                 &UA_TYPES[UA_TYPES_STRING]);
+    if(netif) {
+        UA_STACKARRAY(char, interfaceAsChar, sizeof(char) * netif->length + 1);
+        memcpy(interfaceAsChar, netif->data, netif->length);
+        interfaceAsChar[netif->length] = 0;
         ipMulticastRequest.ipv6.ipv6mr_interface = UA_if_nametoindex(interfaceAsChar);
         if(ipMulticastRequest.ipv6.ipv6mr_interface == 0) {
             UA_LOG_ERROR(logger, UA_LOGCATEGORY_SERVER,
@@ -1117,8 +1097,7 @@ UDP_openSendConnection(UA_ConnectionManager *cm,
 }
 
 static UA_StatusCode
-UDP_openReceiveConnection(UA_ConnectionManager *cm,
-                          const UA_KeyValueMap *params,
+UDP_openReceiveConnection(UA_ConnectionManager *cm, const UA_KeyValueMap *params,
                           void *application, void *context,
                           UA_ConnectionManager_connectionCallback connectionCallback,
                           UA_Boolean validate) {
@@ -1126,41 +1105,34 @@ UDP_openReceiveConnection(UA_ConnectionManager *cm,
 
     /* Get the socket */
     const UA_UInt16 *port = (const UA_UInt16*)
-        UA_KeyValueMap_getScalar(params, UA_QUALIFIEDNAME(0, "port"),
+        UA_KeyValueMap_getScalar(params, UDPConfigParameters[UDP_PARAMINDEX_PORT].name,
                                  &UA_TYPES[UA_TYPES_UINT16]);
-    if(!port) {
-        UA_LOG_ERROR(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
-                     "UDP\t| Port information required for UDP listening");
-        return UA_STATUSCODE_BADINTERNALERROR;
-    }
+    UA_assert(port); /* checked before */
 
     /* Get the hostname configuration */
-    const UA_Variant *hostname =
-        UA_KeyValueMap_get(params, UA_QUALIFIEDNAME(0, "hostname"));
+    const UA_Variant *addrs =
+        UA_KeyValueMap_get(params, UDPConfigParameters[UDP_PARAMINDEX_ADDR].name);
+    size_t addrsSize = 0;
+    if(addrs) {
+        UA_assert(addrs->type == &UA_TYPES[UA_TYPES_STRING]);
+        if(UA_Variant_isScalar(addrs))
+            addrsSize = 1;
+        else
+            addrsSize = addrs->arrayLength;
+    }
 
     /* No hostname configured -> listen on all interfaces */
-    if(!hostname || (!UA_Variant_isScalar(hostname) && hostname->arrayLength == 0))  {
+    if(addrsSize == 0) {
         UA_LOG_DEBUG(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
                      "UDP\t| Listening on all interfaces");
         return UDP_registerListenSockets(cm, NULL, *port, params, application,
                                          context, connectionCallback, validate);
     }
 
-    /* Correct datatype for the hostname? */
-    if(hostname->type != &UA_TYPES[UA_TYPES_STRING]) {
-        UA_LOG_ERROR(el->eventLoop.logger, UA_LOGCATEGORY_EVENTLOOP,
-                     "UDP\t| The hostname parameter needs to be of type string");
-        return UA_STATUSCODE_BADINTERNALERROR;
-    }
-
-    size_t hostNamesSize = hostname->arrayLength;
-    if(UA_Variant_isScalar(hostname))
-        hostNamesSize = 1;
-
     /* Iterate over the configured hostnames */
-    UA_String *hostStrings = (UA_String*)hostname->data;
-    for(size_t i = 0; i < hostNamesSize; i++) {
-        char hn[512];
+    UA_String *hostStrings = (UA_String*)addrs->data;
+    for(size_t i = 0; i < addrsSize; i++) {
+        char hn[UA_MAXHOSTNAME_LENGTH];
         if(hostStrings[i].length >= sizeof(hn))
             continue;
         memcpy(hn, hostStrings[i].data, hostStrings->length);
@@ -1187,19 +1159,26 @@ UDP_openConnection(UA_ConnectionManager *cm, const UA_KeyValueMap *params,
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
+    /* Check the parameters */
+    UA_StatusCode res =
+        UA_KeyValueRestriction_validate(&UDPConfigParameters[1],
+                                        UDP_PARAMETERSSIZE-1, params);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
+
     UA_Boolean validate = false;
-    const UA_Variant *validationValue =
-        UA_KeyValueMap_get(params, UA_QUALIFIEDNAME(0, "validate"));
-    if(validationValue &&
-       UA_Variant_hasScalarType(validationValue, &UA_TYPES[UA_TYPES_BOOLEAN]))
-        validate = *(UA_Boolean *)validationValue->data;
+    const UA_Boolean *validationValue = (const UA_Boolean*)
+        UA_KeyValueMap_getScalar(params, UDPConfigParameters[UDP_PARAMINDEX_VALIDATE].name,
+                                 &UA_TYPES[UA_TYPES_BOOLEAN]);
+    if(validationValue)
+        validate = *validationValue;
 
     UA_Boolean listen = false;
-    const UA_Variant *listenValue =
-        UA_KeyValueMap_get(params, UA_QUALIFIEDNAME(0, "listen"));
-    if(listenValue &&
-       UA_Variant_hasScalarType(listenValue, &UA_TYPES[UA_TYPES_BOOLEAN]))
-        listen = *(UA_Boolean *)listenValue->data;
+    const UA_Boolean *listenValue = (const UA_Boolean*)
+        UA_KeyValueMap_getScalar(params, UDPConfigParameters[UDP_PARAMINDEX_LISTEN].name,
+                                 &UA_TYPES[UA_TYPES_BOOLEAN]);
+    if(listenValue)
+        listen = *listenValue;
 
     if(listen) {
         return UDP_openReceiveConnection(cm, params, application, context,
@@ -1223,16 +1202,22 @@ UDP_eventSourceStart(UA_ConnectionManager *cm) {
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
+    /* Check the parameters */
+    UA_StatusCode res = UA_KeyValueRestriction_validate(UDPConfigParameters, 1,
+                                                        &cm->eventSource.params);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
+
     /* The receive buffersize was configured? */
     UDPConnectionManager *ucm = (UDPConnectionManager*)cm;
     UA_UInt32 rxBufSize = 2u << 16; /* The default is 64kb */
     const UA_UInt32 *configRxBufSize = (const UA_UInt32 *)
         UA_KeyValueMap_getScalar(&cm->eventSource.params,
-                                 UA_QUALIFIEDNAME(0, "recv-bufsize"),
+                                 UDPConfigParameters[UDP_PARAMINDEX_RECVBUF].name,
                                  &UA_TYPES[UA_TYPES_UINT32]);
     if(configRxBufSize)
         rxBufSize = *configRxBufSize;
-    UA_StatusCode res = UA_ByteString_allocBuffer(&ucm->rxBuffer, rxBufSize);
+    res = UA_ByteString_allocBuffer(&ucm->rxBuffer, rxBufSize);
     if(res != UA_STATUSCODE_GOOD)
         return res;
 
