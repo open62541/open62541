@@ -123,23 +123,27 @@ UA_Server_addWriterGroup(UA_Server *server, const UA_NodeId connection,
        writerGroupConfig->securityMode == UA_MESSAGESECURITYMODE_SIGNANDENCRYPT) {
         if(!UA_String_isEmpty(&writerGroupConfig->securityGroupId) &&
            writerGroupConfig->securityPolicy) {
-            UA_String policyUri = writerGroupConfig->securityPolicy->policyUri;
-
+            /* Does the key storage already exist? */
             newWriterGroup->keyStorage =
-                UA_Server_findKeyStorage(
-                    server, writerGroupConfig->securityGroupId);
+                UA_Server_findKeyStorage(server, writerGroupConfig->securityGroupId);
+
             if(!newWriterGroup->keyStorage) {
-                newWriterGroup->keyStorage = (UA_PubSubKeyStorage *)UA_calloc(1, sizeof(UA_PubSubKeyStorage));
+                /* Create a new key storage */
+                newWriterGroup->keyStorage = (UA_PubSubKeyStorage *)
+                    UA_calloc(1, sizeof(UA_PubSubKeyStorage));
                 if(!newWriterGroup)
                     return UA_STATUSCODE_BADOUTOFMEMORY;
+                res = UA_PubSubKeyStorage_init(server, newWriterGroup->keyStorage,
+                                               &writerGroupConfig->securityGroupId,
+                                               writerGroupConfig->securityPolicy, 0, 0);
+                if(res != UA_STATUSCODE_GOOD) {
+                    UA_free(newWriterGroup);
+                    return res;
+                }
             }
 
-            res = UA_PubSubKeyStorage_init(server, &writerGroupConfig->securityGroupId,
-                                           &policyUri, 0, 0, newWriterGroup->keyStorage);
-            if(res != UA_STATUSCODE_GOOD) {
-                UA_free(newWriterGroup);
-                return res;
-            }
+            /* Increase the ref count */
+            newWriterGroup->keyStorage->referenceCount++;
         }
     }
 
@@ -194,7 +198,9 @@ removeWriterGroup(UA_Server *server, const UA_NodeId writerGroup) {
     removeGroupRepresentation(server, wg);
 #endif
 
+    /* _clear also removes the refcount in the key storage */
     UA_WriterGroup_clear(server, wg);
+
     LIST_REMOVE(wg, listEntry);
     UA_free(wg);
     return UA_STATUSCODE_GOOD;
@@ -653,9 +659,6 @@ UA_WriterGroupConfig_clear(UA_WriterGroupConfig *writerGroupConfig) {
 
 static void
 UA_WriterGroup_clear(UA_Server *server, UA_WriterGroup *writerGroup) {
-    UA_WriterGroupConfig_clear(&writerGroup->config);
-    UA_NodeId_clear(&writerGroup->identifier);
-
     /* Delete all writers */
     UA_DataSetWriter *dataSetWriter, *tmpDataSetWriter;
     LIST_FOREACH_SAFE(dataSetWriter, &writerGroup->writers, listEntry, tmpDataSetWriter){
@@ -670,14 +673,14 @@ UA_WriterGroup_clear(UA_Server *server, UA_WriterGroup *writerGroup) {
 #endif
 
 #ifdef UA_ENABLE_PUBSUB_SKS
-    if(writerGroup->config.securityMode == UA_MESSAGESECURITYMODE_SIGN ||
-       writerGroup->config.securityMode == UA_MESSAGESECURITYMODE_SIGNANDENCRYPT) {
-            UA_PubSubKeyStorage_removeKeyStorage(server,
-                                                 writerGroup->keyStorage);
-            writerGroup->keyStorage = NULL;
+    if(writerGroup->keyStorage) {
+        UA_PubSubKeyStorage_detachKeyStorage(server, writerGroup->keyStorage);
+        writerGroup->keyStorage = NULL;
     }
 #endif
 
+    UA_WriterGroupConfig_clear(&writerGroup->config);
+    UA_NodeId_clear(&writerGroup->identifier);
     UA_NetworkMessageOffsetBuffer_clear(&writerGroup->bufferedMessage);
 }
 
