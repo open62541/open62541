@@ -124,7 +124,7 @@ START_TEST(connectUDPValidationSucceeds) {
     UA_Variant_setScalar(&params[0].value, &port, &UA_TYPES[UA_TYPES_UINT16]);
 
     UA_String hostname = UA_STRING("127.0.0.1");
-    params[1].key = UA_QUALIFIEDNAME(0, "hostname");
+    params[1].key = UA_QUALIFIEDNAME(0, "address");
     UA_Variant_setArray(&params[1].value, &hostname, 1, &UA_TYPES[UA_TYPES_STRING]);
 
     params[2].key = UA_QUALIFIEDNAME(0, "validate");
@@ -174,7 +174,7 @@ START_TEST(connectUDPValidationFails) {
     UA_Variant_setScalar(&params[0].value, &port, &UA_TYPES[UA_TYPES_UINT16]);
 
     UA_String hostname = UA_STRING("300.300.300.300");
-    params[1].key = UA_QUALIFIEDNAME(0, "hostnames");
+    params[1].key = UA_QUALIFIEDNAME(0, "address");
     UA_Variant_setArray(&params[1].value, &hostname, 1, &UA_TYPES[UA_TYPES_STRING]);
 
     params[2].key = UA_QUALIFIEDNAME(0, "validate");
@@ -219,7 +219,7 @@ START_TEST(connectUDP) {
     UA_Variant_setScalar(&params[0].value, &port, &UA_TYPES[UA_TYPES_UINT16]);
     params[1].key = UA_QUALIFIEDNAME(0, "listen");
     UA_Variant_setScalar(&params[1].value, &listen, &UA_TYPES[UA_TYPES_BOOLEAN]);
-    params[2].key = UA_QUALIFIEDNAME(0, "hostname");
+    params[2].key = UA_QUALIFIEDNAME(0, "address");
     UA_Variant_setScalar(&params[2].value, &targetHost, &UA_TYPES[UA_TYPES_STRING]);
 
     UA_KeyValueMap paramsMap = {2, params}; /* hide the third parameter */
@@ -321,7 +321,7 @@ START_TEST(udpTalkerAndListener) {
     listen = false;
 
     UA_String targetHost = UA_STRING("localhost");
-    params[2].key = UA_QUALIFIEDNAME(0, "hostname");
+    params[2].key = UA_QUALIFIEDNAME(0, "address");
     UA_Variant_setScalar(&params[2].value, &targetHost, &UA_TYPES[UA_TYPES_STRING]);
     paramsMap.mapSize = 3;
 
@@ -432,7 +432,7 @@ START_TEST(udpTalkerAndListenerDifferentDestination) {
     listen = false;
 
     UA_String connectionTargetHost = UA_STRING("localhost");
-    params[2].key = UA_QUALIFIEDNAME(0, "hostname");
+    params[2].key = UA_QUALIFIEDNAME(0, "address");
     UA_Variant_setScalar(&params[2].value, &connectionTargetHost, &UA_TYPES[UA_TYPES_STRING]);
     paramsMap.mapSize = 3;
 
@@ -460,7 +460,7 @@ START_TEST(udpTalkerAndListenerDifferentDestination) {
     UA_String sendTargetHost = UA_STRING("127.0.0.1");
     sendParams[0].key = UA_QUALIFIEDNAME(0, "port");
     UA_Variant_setScalar(&sendParams[0].value, &port, &UA_TYPES[UA_TYPES_UINT16]);
-    sendParams[1].key = UA_QUALIFIEDNAME(0, "hostname");
+    sendParams[1].key = UA_QUALIFIEDNAME(0, "address");
     UA_Variant_setScalar(&sendParams[1].value, &sendTargetHost, &UA_TYPES[UA_TYPES_STRING]);
 
     UA_KeyValueMap sendParamsMap;
