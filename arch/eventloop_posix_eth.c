@@ -583,7 +583,8 @@ ETH_openConnection(UA_ConnectionManager *cm, const UA_KeyValueMap *params,
 
     /* Validate the parameters */
     UA_StatusCode res =
-        UA_KeyValueRestriction_validate(ETHConfigParameters, ETH_PARAMETERSSIZE, params);
+        UA_KeyValueRestriction_validate(el->logger, "ETH", ETHConfigParameters,
+                                        ETH_PARAMETERSSIZE, params);
     if(res != UA_STATUSCODE_GOOD)
         return res;
 
@@ -607,7 +608,7 @@ ETH_openConnection(UA_ConnectionManager *cm, const UA_KeyValueMap *params,
     int ifindex = (int)if_nametoindex(ifname);
     if(ifindex == 0) {
         UA_LOG_ERROR(el->logger, UA_LOGCATEGORY_NETWORK,
-                     "ETH \t| Could not find the interface %s", ifname);
+                     "ETH\t| Could not find the interface %s", ifname);
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
@@ -620,7 +621,7 @@ ETH_openConnection(UA_ConnectionManager *cm, const UA_KeyValueMap *params,
         sockfd = UA_socket(PF_PACKET, SOCK_RAW, 0); /* Don't receive */
     if(sockfd == -1) {
         UA_LOG_ERROR(el->logger, UA_LOGCATEGORY_NETWORK,
-                     "ETH \t| Could not create a raw Ethernet socket (are you root?)");
+                     "ETH\t| Could not create a raw Ethernet socket (are you root?)");
         return UA_STATUSCODE_BADINTERNALERROR;
     }
     res |= UA_EventLoopPOSIX_setReusable(sockfd);

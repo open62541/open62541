@@ -1161,7 +1161,8 @@ UDP_openConnection(UA_ConnectionManager *cm, const UA_KeyValueMap *params,
 
     /* Check the parameters */
     UA_StatusCode res =
-        UA_KeyValueRestriction_validate(&UDPConfigParameters[1],
+        UA_KeyValueRestriction_validate(el->eventLoop.logger, "UDP",
+                                        &UDPConfigParameters[1],
                                         UDP_PARAMETERSSIZE-1, params);
     if(res != UA_STATUSCODE_GOOD)
         return res;
@@ -1203,8 +1204,10 @@ UDP_eventSourceStart(UA_ConnectionManager *cm) {
     }
 
     /* Check the parameters */
-    UA_StatusCode res = UA_KeyValueRestriction_validate(UDPConfigParameters, 1,
-                                                        &cm->eventSource.params);
+    UA_StatusCode res =
+        UA_KeyValueRestriction_validate(el->eventLoop.logger, "UDP",
+                                        UDPConfigParameters, 1,
+                                        &cm->eventSource.params);
     if(res != UA_STATUSCODE_GOOD)
         return res;
 
