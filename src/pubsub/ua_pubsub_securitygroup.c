@@ -136,55 +136,65 @@ updateSKSKeyStorage(UA_Server *server, UA_SecurityGroup *securityGroup){
     securityGroup->baseTime = UA_DateTime_nowMonotonic();
 
     /* We allocated memory for data with allocBuffer so now we free it */
-    UA_Byte_delete(newKey.data);
-    return;
+    UA_ByteString_clear(&newKey);
 }
 
 static UA_StatusCode
 initializeKeyStorageWithKeys(UA_Server *server, UA_SecurityGroup *securityGroup) {
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
-    size_t keyLength;
-    UA_StatusCode retval = UA_STATUSCODE_BAD;
 
-    UA_ByteString futurekeys[securityGroup->config.maxFutureKeyCount];
-    UA_ByteString currentKey;
-    UA_UInt32 startingKeyId = 1;
-    UA_PubSubKeyStorage *ks = (UA_PubSubKeyStorage *)UA_calloc(1, sizeof(UA_PubSubKeyStorage));
+    UA_PubSubSecurityPolicy *policy = NULL;
+    UA_StatusCode retval =
+        UA_Server_findPubSubSecurityPolicy(server,
+                                           &securityGroup->config.securityPolicyUri,
+                                           &policy);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
+
+    UA_PubSubKeyStorage *ks = (UA_PubSubKeyStorage *)
+        UA_calloc(1, sizeof(UA_PubSubKeyStorage));
     if(!ks)
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
-    securityGroup->keyStorage = ks;
-    retval = UA_PubSubKeyStorage_init(server, &securityGroup->securityGroupId,
-                                            &securityGroup->config.securityPolicyUri,
-                                            securityGroup->config.maxPastKeyCount,
-                                            securityGroup->config.maxFutureKeyCount, ks);
-    if(retval != UA_STATUSCODE_GOOD)
-        goto error;
+    retval = UA_PubSubKeyStorage_init(server, ks, &securityGroup->securityGroupId,
+                                      policy, securityGroup->config.maxPastKeyCount,
+                                      securityGroup->config.maxFutureKeyCount);
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_free(ks);
+        return retval;
+    }
 
-    keyLength = ks->policy->symmetricModule.secureChannelNonceLength;
+    ks->referenceCount++;
+    securityGroup->keyStorage = ks;
+
+    UA_ByteString currentKey;
+    size_t keyLength = ks->policy->symmetricModule.secureChannelNonceLength;
     retval = UA_ByteString_allocBuffer(&currentKey, keyLength);
     retval = generateKeyData(ks->policy, &currentKey);
 
+    UA_ByteString futurekeys[securityGroup->config.maxFutureKeyCount];
     for(size_t i = 0; i < securityGroup->config.maxFutureKeyCount; i++) {
         retval = UA_ByteString_allocBuffer(&futurekeys[i], keyLength);
         retval = generateKeyData(ks->policy, &futurekeys[i]);
     }
 
-    retval = UA_PubSubKeyStorage_storeSecurityKeys(
-        server, securityGroup->keyStorage, startingKeyId, &currentKey, futurekeys,
-        securityGroup->config.maxFutureKeyCount, securityGroup->config.keyLifeTime);
+    UA_UInt32 startingKeyId = 1;
+    retval = UA_PubSubKeyStorage_storeSecurityKeys(server, securityGroup->keyStorage,
+                                                   startingKeyId, &currentKey, futurekeys,
+                                                   securityGroup->config.maxFutureKeyCount,
+                                                   securityGroup->config.keyLifeTime);
     if(retval != UA_STATUSCODE_GOOD)
         goto error;
 
     securityGroup->baseTime = UA_DateTime_nowMonotonic();
-
     retval = addRepeatedCallback(server, (UA_ServerCallback)updateSKSKeyStorage,
                                  securityGroup, securityGroup->config.keyLifeTime,
                                  &securityGroup->callbackId);
     if(retval != UA_STATUSCODE_GOOD)
         goto error;
 
-    return retval;
+    return UA_STATUSCODE_GOOD;
+
 error:
     UA_PubSubKeyStorage_delete(server, ks);
     return retval;
@@ -192,8 +202,8 @@ error:
 
 static UA_StatusCode
 addSecurityGroup(UA_Server *server, UA_NodeId securityGroupFolderNodeId,
-                           const UA_SecurityGroupConfig *securityGroupConfig,
-                           UA_NodeId *securityGroupNodeId) {
+                 const UA_SecurityGroupConfig *securityGroupConfig,
+                 UA_NodeId *securityGroupNodeId) {
     if(!securityGroupConfig)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
 
@@ -316,17 +326,20 @@ UA_SecurityGroup_delete(UA_SecurityGroup *securityGroup) {
 
 void
 removeSecurityGroup(UA_Server *server, UA_SecurityGroup *securityGroup) {
-
 #ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL
     UA_removeSecurityGroupRepresentation(server, securityGroup);
 #endif
+
     /* Unlink from the server */
     TAILQ_REMOVE(&server->pubSubManager.securityGroups, securityGroup, listEntry);
     server->pubSubManager.securityGroupsSize--;
     if(securityGroup->callbackId > 0)
         removeCallback(server, securityGroup->callbackId);
 
-    UA_PubSubKeyStorage_removeKeyStorage(server, securityGroup->keyStorage);
+    if(securityGroup->keyStorage) {
+        UA_PubSubKeyStorage_detachKeyStorage(server, securityGroup->keyStorage);
+        securityGroup->keyStorage = NULL;
+    }
 
     UA_SecurityGroup_delete(securityGroup);
 }

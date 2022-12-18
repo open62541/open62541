@@ -156,22 +156,27 @@ UA_Server_addReaderGroup(UA_Server *server, UA_NodeId connectionIdentifier,
        readerGroupConfig->securityMode == UA_MESSAGESECURITYMODE_SIGNANDENCRYPT) {
         if(!UA_String_isEmpty(&readerGroupConfig->securityGroupId) &&
            readerGroupConfig->securityPolicy) {
-            UA_String policyUri = readerGroupConfig->securityPolicy->policyUri;
+            /* Does the key storage already exist? */
+            newGroup->keyStorage =
+                UA_Server_findKeyStorage(server, readerGroupConfig->securityGroupId);
 
-            newGroup->keyStorage = UA_Server_findKeyStorage(
-                server, readerGroupConfig->securityGroupId);
             if(!newGroup->keyStorage) {
-                newGroup->keyStorage = (UA_PubSubKeyStorage *)UA_calloc(1, sizeof(UA_PubSubKeyStorage));
+                /* Create a new key storage */
+                newGroup->keyStorage = (UA_PubSubKeyStorage *)
+                    UA_calloc(1, sizeof(UA_PubSubKeyStorage));
                 if(!newGroup->keyStorage)
                     return UA_STATUSCODE_BADOUTOFMEMORY;
+                retval = UA_PubSubKeyStorage_init(server, newGroup->keyStorage,
+                                                  &readerGroupConfig->securityGroupId,
+                                                  readerGroupConfig->securityPolicy, 0, 0);
+                if(retval != UA_STATUSCODE_GOOD) {
+                    UA_free(newGroup);
+                    return retval;
+                }
             }
 
-            retval = UA_PubSubKeyStorage_init(server, &readerGroupConfig->securityGroupId,
-                                              &policyUri, 0, 0, newGroup->keyStorage);
-            if(retval != UA_STATUSCODE_GOOD) {
-                UA_free(newGroup);
-                return retval;
-            }
+            /* Increase the ref count */
+            newGroup->keyStorage->referenceCount++;
         }
     }
 
@@ -286,12 +291,10 @@ UA_Server_ReaderGroup_clear(UA_Server* server, UA_ReaderGroup *readerGroup) {
 #endif
 
 #ifdef UA_ENABLE_PUBSUB_SKS
-    if(readerGroup->config.securityMode == UA_MESSAGESECURITYMODE_SIGN ||
-       readerGroup->config.securityMode == UA_MESSAGESECURITYMODE_SIGNANDENCRYPT) {
-        UA_PubSubKeyStorage_removeKeyStorage(server, readerGroup->keyStorage);
+    if(readerGroup->keyStorage) {
+        UA_PubSubKeyStorage_detachKeyStorage(server, readerGroup->keyStorage);
         readerGroup->keyStorage = NULL;
     }
-
 #endif
 
     UA_ReaderGroupConfig_clear(&readerGroup->config);

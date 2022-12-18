@@ -230,19 +230,19 @@ UA_PubSubKeyStorage_delete(UA_Server *server, UA_PubSubKeyStorage *keyStorage);
  * @brief Initializes an empty Keystorage for the SecurityGroupId and add it to the Server
  * KeyStorageList
  *
- * @param server the server object
- * @param securityGroupId the identifier of the SecurityGroup
- * @param securityPolicyUri the security policy assocaited with the security algorithm
+ * @param server The server object
+ * @param keyStorage Pointer to the keystorage to be initialized
+ * @param securityGroupId The identifier of the SecurityGroup
+ * @param policy The security policy assocaited with the security algorithm
  * @param maxPastKeyCount maximum number of past keys a keystorage is allowed to store
  * @param maxFutureKeyCount maximum number of future keys a keystorage is allowed to store
- * @param keyStorage pointer to the keystorage to be initialized
  * @return UA_StatusCode return status code
  */
 UA_StatusCode
-UA_PubSubKeyStorage_init(UA_Server *server, const UA_String *securityGroupId,
-                               const UA_String *securityPolicyUri,
-                               UA_UInt32 maxPastKeyCount, UA_UInt32 maxFutureKeyCount,
-                               UA_PubSubKeyStorage *keyStorage);
+UA_PubSubKeyStorage_init(UA_Server *server, UA_PubSubKeyStorage *keyStorage,
+                         const UA_String *securityGroupId,
+                         UA_PubSubSecurityPolicy *policy,
+                         UA_UInt32 maxPastKeyCount, UA_UInt32 maxFutureKeyCount);
 
 /**
  * @brief After Keystorage is initialized and added to the server, this method is called
@@ -355,17 +355,11 @@ UA_PubSubKeyStorage_update(UA_Server *server, UA_PubSubKeyStorage *keyStorage,
                            const size_t futureKeySize, UA_ByteString *futureKeys,
                            UA_Duration msKeyLifeTime);
 
-/**
- * @brief KeyStorage must be referenced by atleast one PubSubGroup. This method checks if
- * KeyStorage is referenced by more then 1 PubSubGroup, then it decreases the
- * referenceCount by one. If the referenceCount is exactly one then removes the KeyStorage
- * from the server and PubSubGroup.
- *
- * @param server that holds the keystorage and PubSubGroups0
- * @param keyStorage to be removed from server
- */
+/* KeyStorage must be referenced by atleast one PubSubGroup. This method reduces
+ * the reference count by one. If no PubSubGroup uses the key storage, then it
+ * is deleted. */
 void
-UA_PubSubKeyStorage_removeKeyStorage(UA_Server *server, UA_PubSubKeyStorage *keyStorage);
+UA_PubSubKeyStorage_detachKeyStorage(UA_Server *server, UA_PubSubKeyStorage *keyStorage);
 
 #endif
 
