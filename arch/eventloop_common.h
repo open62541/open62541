@@ -26,7 +26,9 @@ typedef struct {
 } UA_KeyValueRestriction;
 
 UA_StatusCode
-UA_KeyValueRestriction_validate(const UA_KeyValueRestriction *restrictions,
+UA_KeyValueRestriction_validate(const UA_Logger *logger,
+                                const char *logprefix,
+                                const UA_KeyValueRestriction *restrictions,
                                 size_t restrictionsSiz,
                                 const UA_KeyValueMap *map);
 

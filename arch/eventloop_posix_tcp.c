@@ -865,7 +865,8 @@ TCP_openConnection(UA_ConnectionManager *cm, const UA_KeyValueMap *params,
 
     /* Check the parameters */
     UA_StatusCode res =
-        UA_KeyValueRestriction_validate(&TCPConfigParameters[1],
+        UA_KeyValueRestriction_validate(el->eventLoop.logger, "TCP",
+                                        &TCPConfigParameters[1],
                                         TCP_PARAMETERSSIZE-1, params);
     if(res != UA_STATUSCODE_GOOD)
         return res;
@@ -903,8 +904,10 @@ TCP_eventSourceStart(UA_ConnectionManager *cm) {
     }
 
     /* Check the parameters */
-    UA_StatusCode res = UA_KeyValueRestriction_validate(TCPConfigParameters, 1,
-                                                        &cm->eventSource.params);
+    UA_StatusCode res =
+        UA_KeyValueRestriction_validate(el->eventLoop.logger, "TCP",
+                                        TCPConfigParameters, 1,
+                                        &cm->eventSource.params);
     if(res != UA_STATUSCODE_GOOD)
         return res;
 
