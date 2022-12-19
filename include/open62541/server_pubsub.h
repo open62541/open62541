@@ -550,6 +550,13 @@ UA_Server_WriterGroup_getState(UA_Server *server, UA_NodeId writerGroupIdentifie
                                UA_PubSubState *state);
 
 UA_StatusCode UA_EXPORT UA_THREADSAFE
+UA_Server_WriterGroup_publish(UA_Server *server, const UA_NodeId writerGroupIdentifier);
+
+UA_StatusCode UA_EXPORT UA_THREADSAFE
+UA_WriterGroup_lastPublishTimestamp(UA_Server *server, const UA_NodeId writerGroupId,
+                                    UA_DateTime *timestamp);
+
+UA_StatusCode UA_EXPORT UA_THREADSAFE
 UA_Server_removeWriterGroup(UA_Server *server, const UA_NodeId writerGroup);
 
 UA_StatusCode UA_EXPORT
