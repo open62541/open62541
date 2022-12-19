@@ -632,41 +632,42 @@ UA_PubSubChannelEthernet_open(const UA_PubSubConnectionConfig *connectionConfig)
     UA_String enableErrorReport = UA_STRING("enableerrorreport");
 
     /* iterate over the given KeyValuePair paramters */
-    for(size_t i = 0; i < connectionConfig->connectionPropertiesSize; i++){
-        if(UA_String_equal(&connectionConfig->connectionProperties[i].key.name, &socketPriority)){
-            if(UA_Variant_hasScalarType(&connectionConfig->connectionProperties[i].value, &UA_TYPES[UA_TYPES_UINT32])){
+    for(size_t i = 0; i < connectionConfig->connectionProperties.mapSize; i++){
+        UA_KeyValuePair *prop = &connectionConfig->connectionProperties.map[i];
+        if(UA_String_equal(&prop->key.name, &socketPriority)){
+            if(UA_Variant_hasScalarType(&prop->value, &UA_TYPES[UA_TYPES_UINT32])){
                 sockOptions.socketPriority = (UA_UInt32 *) UA_malloc(sizeof(UA_UInt32));
-                UA_UInt32_copy((UA_UInt32 *) connectionConfig->connectionProperties[i].value.data, sockOptions.socketPriority);
+                UA_UInt32_copy((UA_UInt32 *) prop->value.data, sockOptions.socketPriority);
             }
-        } else if(UA_String_equal(&connectionConfig->connectionProperties[i].key.name, &enableSocketTxtime)){
-            if(UA_Variant_hasScalarType(&connectionConfig->connectionProperties[i].value, &UA_TYPES[UA_TYPES_BOOLEAN])){
-                sockOptions.enableSocketTxTime = *(UA_Boolean *) connectionConfig->connectionProperties[i].value.data;
+        } else if(UA_String_equal(&prop->key.name, &enableSocketTxtime)){
+            if(UA_Variant_hasScalarType(&prop->value, &UA_TYPES[UA_TYPES_BOOLEAN])){
+                sockOptions.enableSocketTxTime = *(UA_Boolean *) prop->value.data;
             }
-        } else if(UA_String_equal(&connectionConfig->connectionProperties[i].key.name, &enableDeadlineMode)){
-            if(UA_Variant_hasScalarType(&connectionConfig->connectionProperties[i].value, &UA_TYPES[UA_TYPES_BOOLEAN])){
-                if(*(UA_Boolean *) connectionConfig->connectionProperties[i].value.data == UA_TRUE)
+        } else if(UA_String_equal(&prop->key.name, &enableDeadlineMode)){
+            if(UA_Variant_hasScalarType(&prop->value, &UA_TYPES[UA_TYPES_BOOLEAN])){
+                if(*(UA_Boolean *) prop->value.data == UA_TRUE)
                     sockOptions.sotxtimeDeadlinemode = SOF_TXTIME_DEADLINE_MODE;
             }
-        } else if(UA_String_equal(&connectionConfig->connectionProperties[i].key.name, &enableErrorReport)){
-            if(UA_Variant_hasScalarType(&connectionConfig->connectionProperties[i].value, &UA_TYPES[UA_TYPES_BOOLEAN])){
-                if(*(UA_Boolean *) connectionConfig->connectionProperties[i].value.data == UA_TRUE)
+        } else if(UA_String_equal(&prop->key.name, &enableErrorReport)){
+            if(UA_Variant_hasScalarType(&prop->value, &UA_TYPES[UA_TYPES_BOOLEAN])){
+                if(*(UA_Boolean *) prop->value.data == UA_TRUE)
                     sockOptions.sotxtimeDeadlinemode = SOF_TXTIME_REPORT_ERRORS;
             }
-        } else if(UA_String_equal(&connectionConfig->connectionProperties[i].key.name, &xdpSocketParam)){
-            if(UA_Variant_hasScalarType(&connectionConfig->connectionProperties[i].value, &UA_TYPES[UA_TYPES_BOOLEAN])){
-                sockOptions.enableXdpSocket = *(UA_Boolean *) connectionConfig->connectionProperties[i].value.data;
+        } else if(UA_String_equal(&prop->key.name, &xdpSocketParam)){
+            if(UA_Variant_hasScalarType(&prop->value, &UA_TYPES[UA_TYPES_BOOLEAN])){
+                sockOptions.enableXdpSocket = *(UA_Boolean *) prop->value.data;
             }
-        } else if(UA_String_equal(&connectionConfig->connectionProperties[i].key.name, &xdpFlagParam)){
-            if(UA_Variant_hasScalarType(&connectionConfig->connectionProperties[i].value, &UA_TYPES[UA_TYPES_UINT32])){
-                sockOptions.xdp_flags = *(UA_UInt32 *) connectionConfig->connectionProperties[i].value.data;
+        } else if(UA_String_equal(&prop->key.name, &xdpFlagParam)){
+            if(UA_Variant_hasScalarType(&prop->value, &UA_TYPES[UA_TYPES_UINT32])){
+                sockOptions.xdp_flags = *(UA_UInt32 *) prop->value.data;
             }
-        } else if(UA_String_equal(&connectionConfig->connectionProperties[i].key.name, &hwReceiveQueueParam)){
-            if(UA_Variant_hasScalarType(&connectionConfig->connectionProperties[i].value, &UA_TYPES[UA_TYPES_UINT32])){
-                sockOptions.hw_receive_queue = *(UA_UInt32 *) connectionConfig->connectionProperties[i].value.data;
+        } else if(UA_String_equal(&prop->key.name, &hwReceiveQueueParam)){
+            if(UA_Variant_hasScalarType(&prop->value, &UA_TYPES[UA_TYPES_UINT32])){
+                sockOptions.hw_receive_queue = *(UA_UInt32 *) prop->value.data;
             }
-        } else if(UA_String_equal(&connectionConfig->connectionProperties[i].key.name, &xdpBindFlagParam)){
-            if(UA_Variant_hasScalarType(&connectionConfig->connectionProperties[i].value, &UA_TYPES[UA_TYPES_UINT16])){
-                sockOptions.xdp_bind_flags = *(UA_UInt16 *) connectionConfig->connectionProperties[i].value.data;
+        } else if(UA_String_equal(&prop->key.name, &xdpBindFlagParam)){
+            if(UA_Variant_hasScalarType(&prop->value, &UA_TYPES[UA_TYPES_UINT16])){
+                sockOptions.xdp_bind_flags = *(UA_UInt16 *) prop->value.data;
             }
         } else {
             UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "PubSub Ethernet Connection creation. Unknown connection parameter.");

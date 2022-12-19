@@ -356,6 +356,10 @@ UA_DataSetField_findDSFbyId(UA_Server *server, UA_NodeId identifier);
 UA_DataSetFieldResult
 removeDataSetField(UA_Server *server, const UA_NodeId dsf);
 
+void
+UA_PubSubDataSetField_sampleValue(UA_Server *server, UA_DataSetField *field,
+                                  UA_DataValue *value);
+
 /**********************************************/
 /*               DataSetReader                */
 /**********************************************/

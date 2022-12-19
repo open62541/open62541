@@ -25,6 +25,9 @@ clearVerifyAllowAll(UA_CertificateVerification *cv) {
 }
 
 void UA_CertificateVerification_AcceptAll(UA_CertificateVerification *cv) {
+    /* Clear the structure, as it may have already been initialized. */
+    if(cv->clear)
+        cv->clear(cv);
     cv->verifyCertificate = verifyCertificateAllowAll;
     cv->verifyApplicationURI = verifyApplicationURIAllowAll;
     cv->clear = clearVerifyAllowAll;

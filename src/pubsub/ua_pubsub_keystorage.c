@@ -14,16 +14,13 @@
 
 UA_PubSubKeyStorage *
 UA_Server_findKeyStorage(UA_Server *server, UA_String securityGroupId) {
-
     if(!server || UA_String_isEmpty(&securityGroupId))
         return NULL;
 
-    UA_PubSubKeyStorage *outKeyStorage, *keyStorageTemp;
-    LIST_FOREACH_SAFE(outKeyStorage, &server->pubSubManager.pubSubKeyList, keyStorageList,
-                      keyStorageTemp) {
-        if(UA_String_equal(&outKeyStorage->securityGroupID, &securityGroupId)) {
+    UA_PubSubKeyStorage *outKeyStorage;
+    LIST_FOREACH(outKeyStorage, &server->pubSubManager.pubSubKeyList, keyStorageList) {
+        if(UA_String_equal(&outKeyStorage->securityGroupID, &securityGroupId))
             return outKeyStorage;
-        }
     }
     return NULL;
 }
@@ -54,11 +51,11 @@ UA_PubSubKeyStorage_clearKeyList(UA_PubSubKeyStorage *keyStorage) {
     if(TAILQ_EMPTY(&keyStorage->keyList))
         return;
 
-    UA_PubSubKeyListItem *item;
-    TAILQ_FOREACH(item, &keyStorage->keyList, keyListEntry){
-            TAILQ_REMOVE(&keyStorage->keyList, item, keyListEntry);
-            UA_ByteString_clear(&item->key);
-            UA_free(item);
+    UA_PubSubKeyListItem *item, *item_tmp;
+    TAILQ_FOREACH_SAFE(item, &keyStorage->keyList, keyListEntry, item_tmp) {
+        TAILQ_REMOVE(&keyStorage->keyList, item, keyListEntry);
+        UA_ByteString_clear(&item->key);
+        UA_free(item);
     }
     keyStorage->keyListSize = 0;
 }
@@ -312,33 +309,29 @@ setPubSubGroupEncryptingKeyForMatchingSecurityGroupId(
     UA_StatusCode retval = UA_STATUSCODE_BAD;
     UA_PubSubConnection *tmpPubSubConnections;
 
-    /* key storage is the same for all reader / writer groups, channel context isn't
+    /* Key storage is the same for all reader / writer groups, channel context isn't
      * => Update channelcontext in all Writergroups / ReaderGroups which have the same
      * securityGroupId*/
     TAILQ_FOREACH(tmpPubSubConnections, &server->pubSubManager.connections, listEntry) {
-        /*ForEach writerGroup in server with matching SecurityGroupId*/
+        /* For each writerGroup in server with matching SecurityGroupId */
         UA_WriterGroup *tmpWriterGroup;
         LIST_FOREACH(tmpWriterGroup, &tmpPubSubConnections->writerGroups, listEntry) {
-
-            if(UA_String_equal(&tmpWriterGroup->config.securityGroupId,
-                               &securityGroupId)) {
-                retval = UA_Server_setWriterGroupEncryptionKeys(
-                    server, tmpWriterGroup->identifier, securityTokenId, signingKey,
-                    encryptingKey, keyNonce);
+            if(UA_String_equal(&tmpWriterGroup->config.securityGroupId, &securityGroupId)) {
+                retval = UA_Server_setWriterGroupEncryptionKeys(server, tmpWriterGroup->identifier,
+                                                                securityTokenId, signingKey,
+                                                                encryptingKey, keyNonce);
                 if(retval != UA_STATUSCODE_GOOD)
                     return retval;
             }
         }
 
-        /*ForEach readerGroup in server with matching SecurityGroupId*/
+        /* For each readerGroup in server with matching SecurityGroupId */
         UA_ReaderGroup *tmpReaderGroup;
         LIST_FOREACH(tmpReaderGroup, &tmpPubSubConnections->readerGroups, listEntry) {
-
-            if(UA_String_equal(&tmpReaderGroup->config.securityGroupId,
-                               &securityGroupId)) {
-                retval = UA_Server_setReaderGroupEncryptionKeys(
-                    server, tmpReaderGroup->identifier, securityTokenId, signingKey,
-                    encryptingKey, keyNonce);
+            if(UA_String_equal(&tmpReaderGroup->config.securityGroupId, &securityGroupId)) {
+                retval = UA_Server_setReaderGroupEncryptionKeys(server, tmpReaderGroup->identifier,
+                                                                securityTokenId, signingKey,
+                                                                encryptingKey, keyNonce);
                 if(retval != UA_STATUSCODE_GOOD)
                     return retval;
             }
@@ -466,6 +459,5 @@ UA_PubSubKeyStorage_removeKeyStorage(UA_Server *server, UA_PubSubKeyStorage *key
         LIST_REMOVE(keyStorage, keyStorageList);
         UA_PubSubKeyStorage_delete(server, keyStorage);
     }
-    return;
 }
 #endif

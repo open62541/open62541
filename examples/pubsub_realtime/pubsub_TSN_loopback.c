@@ -466,8 +466,8 @@ addPubSubConnectionSubscriber(UA_Server *server,
     connectionOptions[3].key = UA_QUALIFIEDNAME(0, "xdpbindflag");
     UA_UInt32 bindflags = xdpBindFlag;
     UA_Variant_setScalar(&connectionOptions[3].value, &bindflags, &UA_TYPES[UA_TYPES_UINT16]);
-    connectionConfig.connectionProperties = connectionOptions;
-    connectionConfig.connectionPropertiesSize = 4;
+    connectionConfig.connectionProperties.map = connectionOptions;
+    connectionConfig.connectionProperties.mapSize = 4;
 
 
     UA_NetworkAddressUrlDataType networkAddressUrlsubscribe = *networkAddressUrlSubscriber;
@@ -750,8 +750,8 @@ addPubSubConnection(UA_Server *server, UA_NetworkAddressUrlDataType *networkAddr
     connectionOptions[1].key = UA_QUALIFIEDNAME(0, "enablesotxtime");
     UA_Variant_setScalar(&connectionOptions[1].value, &disableSoTxtime,
                          &UA_TYPES[UA_TYPES_BOOLEAN]);
-    connectionConfig.connectionProperties = connectionOptions;
-    connectionConfig.connectionPropertiesSize = 2;
+    connectionConfig.connectionProperties.map = connectionOptions;
+    connectionConfig.connectionProperties.mapSize = 2;
     UA_Server_addPubSubConnection(server, &connectionConfig, &connectionIdent);
 }
 

@@ -42,7 +42,8 @@ UA_Client_newWithConfig(const UA_ClientConfig *config) {
     client->config = *config;
     /* Fix up known logger pointers now that the config has "moved" into the
      * client struct */
-    if(client->config.eventLoop->logger == &config->logger)
+    if(client->config.eventLoop &&
+       (client->config.eventLoop->logger == &config->logger))
         client->config.eventLoop->logger = &client->config.logger;
     for(size_t i = 0; i < client->config.securityPoliciesSize; i++) {
         if(client->config.securityPolicies[i].logger == &config->logger)
@@ -65,7 +66,16 @@ UA_ClientConfig_clear(UA_ClientConfig *config) {
     UA_ApplicationDescription_clear(&config->clientDescription);
 
     UA_ExtensionObject_clear(&config->userIdentityToken);
+
+    /* Delete the SecurityPolicies for Authentication */
+    if(config->authSecurityPolicies != 0) {
+        for(size_t i = 0; i < config->authSecurityPoliciesSize; i++)
+            config->authSecurityPolicies[i].clear(&config->authSecurityPolicies[i]);
+        UA_free(config->authSecurityPolicies);
+        config->authSecurityPolicies = 0;
+    }
     UA_String_clear(&config->securityPolicyUri);
+    UA_String_clear(&config->authSecurityPolicyUri);
 
     UA_EndpointDescription_clear(&config->endpoint);
     UA_UserTokenPolicy_clear(&config->userTokenPolicy);
@@ -166,8 +176,8 @@ UA_Client_getConfig(UA_Client *client) {
 }
 
 #if UA_LOGLEVEL <= 300
-static const char *channelStateTexts[11] = {
-    "Fresh", "Connecting", "Connected", "HELSent", "HELReceived", "ACKSent",
+static const char *channelStateTexts[12] = {
+    "Fresh", "Connecting", "Connected", "RHESent", "HELSent", "HELReceived", "ACKSent",
     "AckReceived", "OPNSent", "Open", "Closing", "Closed"};
 static const char *sessionStateTexts[6] =
     {"Closed", "CreateRequested", "Created",

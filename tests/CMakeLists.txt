@@ -389,6 +389,8 @@ if(UA_ENABLE_ASYNCOPERATIONS)
     ua_add_test(server/check_server_asyncop.c)
 endif()
 
+ua_add_test(server/check_server_reverseconnect.c)
+
 # Test Client
 
 ua_add_test(client/check_client.c)
@@ -406,12 +408,18 @@ if(UA_ENABLE_HISTORIZING)
     ua_add_test(client/check_client_historical_data.c)
 endif()
 
-# Test Encryption
+# Test Encryption and Authentication
 
 if(UA_ENABLE_ENCRYPTION)
     add_executable(check_client_encryption client/check_client_encryption.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
     target_link_libraries(check_client_encryption ${LIBS})
     add_test_valgrind(client_encryption ${TESTS_BINARY_DIR}/check_client_encryption)
+
+    if(UA_ENABLE_ENCRYPTION_OPENSSL OR UA_ENABLE_ENCRYPTION_MBEDTLS)
+        ua_add_test(client/check_client_authentication.c)
+    else()
+        MESSAGE(WARNING "Certificate authentication with LibreSSL as crypto backend is not supported.")
+    endif()
 endif()
 
 if(UA_ENABLE_ENCRYPTION_MBEDTLS)

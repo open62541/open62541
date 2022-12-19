@@ -67,8 +67,8 @@ static void setup(void) {
     UA_String mqttClientId = UA_STRING(MQTT_CLIENT_ID);
     UA_Variant_setScalar(&connectionOptions[connectionOptionIndex++].value, &mqttClientId, &UA_TYPES[UA_TYPES_STRING]);
 
-    connectionConfig.connectionProperties = connectionOptions;
-    connectionConfig.connectionPropertiesSize = connectionOptionIndex;
+    connectionConfig.connectionProperties.map = connectionOptions;
+    connectionConfig.connectionProperties.mapSize = connectionOptionIndex;
 
     UA_Server_addPubSubConnection(server, &connectionConfig, &connectionIdent);
 }

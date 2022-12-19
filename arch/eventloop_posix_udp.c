@@ -99,21 +99,14 @@ getHostAndPortFromParams(const UA_KeyValueMap *params,
     return 1;
 }
 
-static int
-getNetworkInterfaceFromParams(const UA_KeyValueMap *params,
-                              UA_String *outNetworkInterface, const UA_Logger *logger) {
+static void
+getNetworkInterfaceFromParams(const UA_KeyValueMap *params, UA_String *outIf) {
     /* Prepare the networkinterface string */
     const UA_String *networkInterface = (const UA_String*)
-        UA_KeyValueMap_getScalar(params,
-                                 UA_QUALIFIEDNAME(0, "network-interface"),
+        UA_KeyValueMap_getScalar(params, UA_QUALIFIEDNAME(0, "network-interface"),
                                  &UA_TYPES[UA_TYPES_STRING]);
-    if(!networkInterface) {
-        UA_LOG_DEBUG(logger, UA_LOGCATEGORY_NETWORK,
-                     "UDP\t| No network interface found");
-        return 0;
-    }
-    UA_String_copy(networkInterface, outNetworkInterface);
-    return 1;
+    if(networkInterface)
+        *outIf = *networkInterface;
 }
 
 static int
@@ -173,9 +166,9 @@ setLoopBackData(UA_SOCKET sockfd, UA_Boolean enableLoopback,
     {
         UA_LOG_SOCKET_ERRNO_WRAP(
             UA_LOG_ERROR(logger, UA_LOGCATEGORY_NETWORK,
-                         "PubSub Connection creation failed. Loopback setup failed: "
+                         "UDP %u\t| Loopback setup failed: "
                          "Cannot set socket option IP_MULTICAST_LOOP. Error: %s",
-                         errno_str));
+                         (unsigned)sockfd, errno_str));
         return UA_STATUSCODE_BADINTERNALERROR;
     }
     return UA_STATUSCODE_GOOD;
@@ -199,9 +192,9 @@ setTimeToLive(UA_SOCKET sockfd, UA_UInt32 messageTTL,
     {
         UA_LOG_SOCKET_ERRNO_WRAP(
             UA_LOG_WARNING(logger, UA_LOGCATEGORY_NETWORK,
-                           "PubSub Connection creation problem. Time to live setup failed: "
+                           "UDP %u\t| Time to live setup failed: "
                            "Cannot set socket option IP_MULTICAST_TTL. Error: %s",
-                           errno_str));
+                           (unsigned)sockfd, errno_str));
     }
 }
 
@@ -216,9 +209,9 @@ setReuseAddress(UA_SOCKET sockfd, UA_Boolean enableReuse, const UA_Logger *logge
                      (const char*)&enableReuseVal, sizeof(enableReuseVal)) < 0) {
         UA_LOG_SOCKET_ERRNO_WRAP(
             UA_LOG_WARNING(logger, UA_LOGCATEGORY_NETWORK,
-                           "PubSub Connection creation problem. Reuse address setup failed: "
+                           "UDP %u\t| Reuse address setup failed: "
                            "Cannot set socket option SO_REUSEADDR. Error: %s",
-                           errno_str));
+                           (unsigned)sockfd, errno_str));
     }
 }
 
@@ -231,8 +224,9 @@ setSocketPriority(UA_SOCKET sockfd, UA_UInt32 *socketPriority,
                       socketPriority, sizeof(*socketPriority)) < 0) {
         UA_LOG_SOCKET_ERRNO_WRAP(
             UA_LOG_ERROR(logger, UA_LOGCATEGORY_NETWORK,
-                         "PubSub Connection creation problem. Priority setup failed: "
-                         "Cannot set socket option SO_PRIORITY. Error: %s", errno_str));
+                         "UDP %u\t| Socket priority setup failed: "
+                         "Cannot set socket option SO_PRIORITY. Error: %s",
+                         (unsigned)sockfd, errno_str));
         return UA_STATUSCODE_BADINTERNALERROR;
     }
     return UA_STATUSCODE_GOOD;
@@ -266,9 +260,9 @@ setConnectionConfig(UA_FD socket, const UA_KeyValueMap *connectionProperties,
 
     UA_String hostnameParam = UA_STRING("hostname");
     UA_String portParam = UA_STRING("port");
-    UA_String listenHostnamesParam = UA_STRING("listen-hostnames");
-    UA_String listenPortParam = UA_STRING("listen-port");
-    UA_String networkInterfaceParam = UA_STRING("network-interface");
+    UA_String listenParam = UA_STRING("listen");
+    UA_String interfaceParam = UA_STRING("interface");
+    UA_String validateParam = UA_STRING("validate");
 
 #ifdef __linux__
     UA_String socketPriorityParam = UA_STRING("sockpriority");
@@ -294,29 +288,23 @@ setConnectionConfig(UA_FD socket, const UA_KeyValueMap *connectionProperties,
 #ifdef __linux__
         } else if(UA_String_equal(&prop->key.name, &socketPriorityParam)){
             if(UA_Variant_hasScalarType(&prop->value, &UA_TYPES[UA_TYPES_UINT32])){
-                UA_UInt32 *socketPriority = (UA_UInt32 *) UA_malloc(sizeof(UA_UInt32));
-                if(!socketPriority) {
-                    UA_LOG_WARNING(logger, UA_LOGCATEGORY_SERVER,
-                                   "PubSub Connection creation. Could not set socket priority due to out of memory.");
-                    continue;
-                }
-                UA_UInt32_copy((UA_UInt32 *) prop->value.data, socketPriority);
-                setSocketPriority(socket, socketPriority, logger);
-                UA_free(socketPriority);
+                UA_UInt32 socketPriority = *(UA_UInt32 *) prop->value.data;
+                setSocketPriority(socket, &socketPriority, logger);
             }
 #endif
         } else if (UA_String_equal(&prop->key.name, &hostnameParam) ||
                    UA_String_equal(&prop->key.name, &portParam) ||
-                   UA_String_equal(&prop->key.name, &listenHostnamesParam) ||
-                   UA_String_equal(&prop->key.name, &listenPortParam) ||
-                   UA_String_equal(&prop->key.name, &networkInterfaceParam)) {
+                   UA_String_equal(&prop->key.name, &listenParam) ||
+                   UA_String_equal(&prop->key.name, &interfaceParam) ||
+                   UA_String_equal(&prop->key.name, &validateParam)) {
                 /* ignore, required args are handled elsewhere explicitly */
         } else {
             UA_LOG_WARNING(logger, UA_LOGCATEGORY_SERVER,
-                           "PubSub Connection creation. Unknown connection parameter: '%.*s'.",
+                           "UDP\t| Unknown connection parameter: '%.*s'.",
                            (int)prop->key.name.length, (char*)prop->key.name.data);
         }
     }
+
     /* Set the socket options also there might be external requirements for
      * socket options how to handle and set those either
      * - passed in parameters
@@ -336,85 +324,76 @@ setConnectionConfig(UA_FD socket, const UA_KeyValueMap *connectionProperties,
 static UA_StatusCode
 setupSendMulticastIPv4(UA_FD socket, struct sockaddr_in *addr, const UA_KeyValueMap *params,
                        const UA_Logger *logger) {
-    struct in_addr address = addr->sin_addr;
-
     IpMulticastRequest ipMulticastRequest;
-    ipMulticastRequest.ipv4.imr_multiaddr = address;
-    /* default outgoing interface ANY */
-    ipMulticastRequest.ipv4.imr_interface.s_addr = UA_htonl(INADDR_ANY);
+    ipMulticastRequest.ipv4.imr_multiaddr = addr->sin_addr;
+    ipMulticastRequest.ipv4.imr_interface.s_addr = UA_htonl(INADDR_ANY); /* default ANY */
 
+    /* Use a defined network interface */
     UA_String netif = UA_STRING_NULL;
-    int foundInterface = getNetworkInterfaceFromParams(params, &netif, logger);
-    if(foundInterface < 0) {
-        UA_LOG_ERROR(logger, UA_LOGCATEGORY_NETWORK,
-                     "UDP\t| Opening a connection failed");
-        return UA_STATUSCODE_BADINTERNALERROR;
-    }
-
-    if(netif.length > 0) {
+    getNetworkInterfaceFromParams(params, &netif);
+    if(!UA_String_isEmpty(&netif)) {
         UA_STACKARRAY(char, interfaceAsChar, sizeof(char) * (netif).length + 1);
         memcpy(interfaceAsChar, netif.data, netif.length);
         interfaceAsChar[netif.length] = 0;
-
-        UA_String_clear(&netif);
-
         if(UA_inet_pton(AF_INET, interfaceAsChar, &ipMulticastRequest.ipv4.imr_interface) <= 0) {
             UA_LOG_ERROR(logger, UA_LOGCATEGORY_SERVER,
-                         "PubSub Connection creation problem. "
-                         "Interface configuration preparation failed.");
+                         "UDP %u\t| Interface configuration preparation failed",
+                         (unsigned)socket);
             return UA_STATUSCODE_BADINTERNALERROR;
         }
     }
-    setsockopt(socket, IPPROTO_IP, IP_MULTICAST_IF,
+
+    int res = setsockopt(socket, IPPROTO_IP, IP_MULTICAST_IF,
 #ifdef _WIN32
-               (const char *)&ipMulticastRequest.ipv4.imr_interface, sizeof(struct in_addr));
+                         (const char *)&ipMulticastRequest.ipv4.imr_interface,
 #else
-               &ipMulticastRequest.ipv4.imr_interface, sizeof(struct in_addr));
+                         &ipMulticastRequest.ipv4.imr_interface,
 #endif
+                         sizeof(struct in_addr));
+    if(res < 0) {
+        UA_LOG_SOCKET_ERRNO_WRAP(
+            UA_LOG_ERROR(logger, UA_LOGCATEGORY_NETWORK,
+                         "UDP\t| Multicast IP membership setup failed: "
+                         "Cannot set socket option IP_MULTICAST_IF. Error: %s",
+                         errno_str));
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
+
     return UA_STATUSCODE_GOOD;
 }
 
 static UA_StatusCode
 setupListenMulticastIPv4(UA_FD socket, const UA_KeyValueMap *params, struct sockaddr_in *addr,
                          const UA_Logger *logger) {
-    struct in_addr address = addr->sin_addr;
-
     IpMulticastRequest ipMulticastRequest;
-    ipMulticastRequest.ipv4.imr_multiaddr = address;
-    /* default outgoing interface ANY */
-    ipMulticastRequest.ipv4.imr_interface.s_addr = UA_htonl(INADDR_ANY);
+    ipMulticastRequest.ipv4.imr_multiaddr = addr->sin_addr;
+    ipMulticastRequest.ipv4.imr_interface.s_addr = UA_htonl(INADDR_ANY); /* default ANY */
 
+    /* Use a defined interface */
     UA_String netif = UA_STRING_NULL;
-    int foundInterface = getNetworkInterfaceFromParams(params, &netif, logger);
-    if(foundInterface < 0) {
-        UA_LOG_ERROR(logger, UA_LOGCATEGORY_NETWORK,
-                     "UDP\t| Opening a connection failed");
-        return UA_STATUSCODE_BADINTERNALERROR;
-    }
-
-    if(netif.length > 0) {
+    getNetworkInterfaceFromParams(params, &netif);
+    if(!UA_String_isEmpty(&netif)) {
         UA_STACKARRAY(char, interfaceAsChar, sizeof(char) * (netif).length + 1);
         memcpy(interfaceAsChar, netif.data, netif.length);
         interfaceAsChar[netif.length] = 0;
-
-        UA_String_clear(&netif);
-
         if(UA_inet_pton(AF_INET, interfaceAsChar, &ipMulticastRequest.ipv4.imr_interface) <= 0) {
             UA_LOG_ERROR(logger, UA_LOGCATEGORY_SERVER,
-                         "PubSub Connection creation problem. "
-                         "Interface configuration preparation failed.");
+                         "UDP\t| Interface configuration preparation failed.");
             return UA_STATUSCODE_BADINTERNALERROR;
         }
     }
-    if(UA_setsockopt(socket, IPPROTO_IP, IP_ADD_MEMBERSHIP,
-                     &ipMulticastRequest.ipv4, sizeof(ipMulticastRequest.ipv4)) < 0) {
+
+    int res = UA_setsockopt(socket, IPPROTO_IP, IP_ADD_MEMBERSHIP,
+                            &ipMulticastRequest.ipv4, sizeof(ipMulticastRequest.ipv4));
+    if(res < 0) {
         UA_LOG_SOCKET_ERRNO_WRAP(
             UA_LOG_ERROR(logger, UA_LOGCATEGORY_NETWORK,
-                         "PubSub Connection regist failed. IP membership setup failed: "
+                         "UDP\t| Multicast IP membership setup failed: "
                          "Cannot set socket option IP_ADD_MEMBERSHIP. Error: %s",
                          errno_str));
         return UA_STATUSCODE_BADINTERNALERROR;
     }
+
     return UA_STATUSCODE_GOOD;
 }
 
@@ -422,40 +401,30 @@ setupListenMulticastIPv4(UA_FD socket, const UA_KeyValueMap *params, struct sock
 static UA_StatusCode
 setupListenMulticastIPv6(UA_FD socket, const UA_KeyValueMap *params, struct sockaddr_in6 *addr,
                          const UA_Logger *logger) {
-
-    struct in6_addr address = addr->sin6_addr;
-
     IpMulticastRequest ipMulticastRequest;
-    ipMulticastRequest.ipv6.ipv6mr_multiaddr = address;
-    /* default outgoing interface ANY */
-    ipMulticastRequest.ipv6.ipv6mr_interface = 0;
+    ipMulticastRequest.ipv6.ipv6mr_multiaddr = addr->sin6_addr;
+    ipMulticastRequest.ipv6.ipv6mr_interface = 0; /* default ANY interface */
 
+    /* Bind to a defined interface */
     UA_String netif = UA_STRING_NULL;
-    int foundInterface = getNetworkInterfaceFromParams(params, &netif, logger);
-    if(foundInterface < 0) {
-        UA_LOG_ERROR(logger, UA_LOGCATEGORY_NETWORK,
-                     "UDP\t| Opening a connection failed");
-        return UA_STATUSCODE_BADINTERNALERROR;
-    }
-
-    if(netif.length > 0) {
+    getNetworkInterfaceFromParams(params, &netif);
+    if(!UA_String_isEmpty(&netif)) {
         UA_STACKARRAY(char, interfaceAsChar, sizeof(char) * (netif).length + 1);
         memcpy(interfaceAsChar, netif.data, netif.length);
         interfaceAsChar[netif.length] = 0;
-
         ipMulticastRequest.ipv6.ipv6mr_interface = UA_if_nametoindex(interfaceAsChar);
         if(ipMulticastRequest.ipv6.ipv6mr_interface == 0) {
             UA_LOG_ERROR(logger, UA_LOGCATEGORY_SERVER,
-                         "PubSub Connection creation problem. "
-                         "Interface configuration preparation failed.");
+                         "UDP\t| Interface configuration preparation failed.");
             return UA_STATUSCODE_BADINTERNALERROR;
         }
     }
+
     if(UA_setsockopt(socket, IPPROTO_IPV6,IPV6_JOIN_GROUP,
                      &ipMulticastRequest.ipv6,sizeof(ipMulticastRequest.ipv6)) < 0) {
         UA_LOG_SOCKET_ERRNO_WRAP(
             UA_LOG_ERROR(logger, UA_LOGCATEGORY_NETWORK,
-                         "PubSub Connection regist failed. IP membership setup failed: "
+                         "UDP\t| Multicast IP membership setup failed: "
                          "Cannot set socket option IP_ADD_MEMBERSHIP. Error: %s",
                          errno_str));
         return UA_STATUSCODE_BADINTERNALERROR;
@@ -466,50 +435,42 @@ setupListenMulticastIPv6(UA_FD socket, const UA_KeyValueMap *params, struct sock
 static UA_StatusCode
 setupSendMulticastIPv6(UA_FD socket, struct sockaddr_in6 *addr, const UA_KeyValueMap *params,
                        const UA_Logger *logger) {
-    struct in6_addr address = addr->sin6_addr;
-
     IpMulticastRequest ipMulticastRequest;
-    ipMulticastRequest.ipv6.ipv6mr_multiaddr = address;
-    /* default outgoing interface ANY */
-    ipMulticastRequest.ipv6.ipv6mr_interface = 0;
+    ipMulticastRequest.ipv6.ipv6mr_multiaddr = addr->sin6_addr;
+    ipMulticastRequest.ipv6.ipv6mr_interface = 0; /* default ANY interface */
 
+    /* Use a defined network interface */
     UA_String netif = UA_STRING_NULL;
-    int foundInterface = getNetworkInterfaceFromParams(params, &netif, logger);
-    if(foundInterface < 0) {
-        UA_LOG_ERROR(logger, UA_LOGCATEGORY_NETWORK,
-                     "UDP\t| Opening a connection failed");
-        return UA_STATUSCODE_BADINTERNALERROR;
-    }
-
-    if(netif.length > 0) {
+    getNetworkInterfaceFromParams(params, &netif);
+    if(!UA_String_isEmpty(&netif)) {
         UA_STACKARRAY(char, interfaceAsChar, sizeof(char) * (netif).length + 1);
         memcpy(interfaceAsChar, netif.data, netif.length);
         interfaceAsChar[netif.length] = 0;
-
         ipMulticastRequest.ipv6.ipv6mr_interface = UA_if_nametoindex(interfaceAsChar);
         if(ipMulticastRequest.ipv6.ipv6mr_interface == 0) {
             UA_LOG_ERROR(logger, UA_LOGCATEGORY_SERVER,
-                         "PubSub Connection creation problem. "
-                         "Interface configuration preparation failed.");
+                         "UDP\t| Interface configuration preparation failed.");
             return UA_STATUSCODE_BADINTERNALERROR;
         }
     }
 
-    if(setsockopt(socket, IPPROTO_IPV6, IPV6_MULTICAST_IF,
+    int res = setsockopt(socket, IPPROTO_IPV6, IPV6_MULTICAST_IF,
 #ifdef _WIN32
-        (const char *)&ipMulticastRequest.ipv6.ipv6mr_interface, sizeof(ipMulticastRequest.ipv6.ipv6mr_interface)) < 0) {
+                         (const char *)&ipMulticastRequest.ipv6.ipv6mr_interface,
 #else
-        &ipMulticastRequest.ipv6.ipv6mr_interface, sizeof(ipMulticastRequest.ipv6.ipv6mr_interface)) < 0) {
+                         &ipMulticastRequest.ipv6.ipv6mr_interface,
 #endif
+                         sizeof(ipMulticastRequest.ipv6.ipv6mr_interface));
+    if(res < 0) {
         UA_LOG_SOCKET_ERRNO_WRAP(
             UA_LOG_ERROR(logger, UA_LOGCATEGORY_NETWORK,
-                         "Opening UDP connection failed: "
-                         "Cannot set socket option IPV6_MULTICAST_IF. Error: %s",
+                         "UDP\t| Cannot set socket option IPV6_MULTICAST_IF. Error: %s",
                          errno_str));
         return UA_STATUSCODE_BADINTERNALERROR;
     }
     return UA_STATUSCODE_GOOD;
 }
+
 #endif
 
 static UA_StatusCode
@@ -961,10 +922,13 @@ UDP_sendWithConnection(UA_ConnectionManager *cm, uintptr_t connectionId,
     tmp_poll_fd.fd = (UA_FD)connectionId;
     tmp_poll_fd.events = UA_POLLOUT;
 
+    /* Look up the registered UDP socket */
+    UDP_FD *ufd = (UDP_FD *)UDP_findRegisteredFD((UDPConnectionManager *)cm, connectionId);
+    if(!ufd)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
     /* Send the full buffer. This may require several calls to send */
     size_t nWritten = 0;
-
-    UDP_FD *ufd = (UDP_FD *) UDP_findRegisteredFD((UDPConnectionManager *)cm, connectionId);
     do {
         ssize_t n = 0;
         do {
@@ -1174,8 +1138,7 @@ UDP_openReceiveConnection(UA_ConnectionManager *cm,
 
     /* Get the socket */
     const UA_UInt16 *port = (const UA_UInt16*)
-        UA_KeyValueMap_getScalar(params,
-                                 UA_QUALIFIEDNAME(0, "listen-port"),
+        UA_KeyValueMap_getScalar(params, UA_QUALIFIEDNAME(0, "port"),
                                  &UA_TYPES[UA_TYPES_UINT16]);
     if(!port) {
         UA_LOG_ERROR(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
@@ -1183,78 +1146,79 @@ UDP_openReceiveConnection(UA_ConnectionManager *cm,
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
-    /* Get the hostnames configuration */
-    const UA_Variant *hostNames =
-        UA_KeyValueMap_get(params,
-                           UA_QUALIFIEDNAME(0, "listen-hostnames"));
-    if(!hostNames) {
-        /* No hostnames configured -> listen on all interfaces*/
-        UA_LOG_INFO(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
-                    "UDP\t| Listening on all interfaces");
-        return UDP_registerListenSockets(cm, NULL, *port, params, application,
-                                         context, connectionCallback, validate);
-    }
+    /* Get the hostname configuration */
+    const UA_Variant *hostname =
+        UA_KeyValueMap_get(params, UA_QUALIFIEDNAME(0, "hostname"));
 
-    /* Correct datatype for the hostnames? */
-    if(hostNames->type != &UA_TYPES[UA_TYPES_STRING] ||
-       UA_Variant_isScalar(hostNames)) {
-        UA_LOG_ERROR(el->eventLoop.logger, UA_LOGCATEGORY_EVENTLOOP,
-                     "UDP\t| The hostnames have to be an array of string");
-        return UA_STATUSCODE_BADINTERNALERROR;
-    }
-
-    size_t interfaces = hostNames->arrayLength;
-    if(interfaces == 0) {
-        UA_LOG_WARNING(el->eventLoop.logger, UA_LOGCATEGORY_EVENTLOOP,
+    /* No hostname configured -> listen on all interfaces */
+    if(!hostname || (!UA_Variant_isScalar(hostname) && hostname->arrayLength == 0))  {
+        UA_LOG_DEBUG(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
                      "UDP\t| Listening on all interfaces");
         return UDP_registerListenSockets(cm, NULL, *port, params, application,
                                          context, connectionCallback, validate);
     }
 
-    UA_StatusCode rv = UA_STATUSCODE_GOOD;
+    /* Correct datatype for the hostname? */
+    if(hostname->type != &UA_TYPES[UA_TYPES_STRING]) {
+        UA_LOG_ERROR(el->eventLoop.logger, UA_LOGCATEGORY_EVENTLOOP,
+                     "UDP\t| The hostname parameter needs to be of type string");
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
+
+    size_t hostNamesSize = hostname->arrayLength;
+    if(UA_Variant_isScalar(hostname))
+        hostNamesSize = 1;
+
     /* Iterate over the configured hostnames */
-    UA_String *hostStrings = (UA_String*)hostNames->data;
-    for(size_t i = 0; i < hostNames->arrayLength; i++) {
-        char hostname[512];
-        if(hostStrings[i].length >= sizeof(hostname))
+    UA_String *hostStrings = (UA_String*)hostname->data;
+    for(size_t i = 0; i < hostNamesSize; i++) {
+        char hn[512];
+        if(hostStrings[i].length >= sizeof(hn))
             continue;
-        memcpy(hostname, hostStrings[i].data, hostStrings->length);
-        hostname[hostStrings->length] = '\0';
-        rv = UDP_registerListenSockets(cm, hostname, *port, params, application,
-                                  context, connectionCallback, validate);
-        if(rv != UA_STATUSCODE_GOOD) {
+        memcpy(hn, hostStrings[i].data, hostStrings->length);
+        hn[hostStrings->length] = '\0';
+        UA_StatusCode rv =
+            UDP_registerListenSockets(cm, hn, *port, params, application,
+                                      context, connectionCallback, validate);
+        if(rv != UA_STATUSCODE_GOOD)
             return rv;
-        }
     }
 
     return UA_STATUSCODE_GOOD;
 }
 
 static UA_StatusCode
-UDP_openConnection(UA_ConnectionManager *cm,
-                   const UA_KeyValueMap *params,
+UDP_openConnection(UA_ConnectionManager *cm, const UA_KeyValueMap *params,
                    void *application, void *context,
                    UA_ConnectionManager_connectionCallback connectionCallback) {
-
-    const UA_Variant *validationValue = UA_KeyValueMap_get(params,
-                                               UA_QUALIFIEDNAME(0, "validate"));
-    UA_Boolean validate = false;
-    if(validationValue) {
-        if(UA_Variant_hasScalarType(validationValue, &UA_TYPES[UA_TYPES_BOOLEAN])) {
-            validate = *(UA_Boolean *)validationValue->data;
-        }
+    UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX*)cm->eventSource.eventLoop;
+    if(cm->eventSource.state != UA_EVENTSOURCESTATE_STARTED) {
+        UA_LOG_ERROR(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
+                     "UDP\t| Cannot open a connection for a "
+                     "ConnectionManager that is not started");
+        return UA_STATUSCODE_BADINTERNALERROR;
     }
-    /* If the "port"-parameter is defined, then try to open a send connection.
-     * Otherwise try to open a socket that listens for incoming TCP
-     * connections. */
-    const UA_Variant *val = UA_KeyValueMap_get(params,
-                                               UA_QUALIFIEDNAME(0, "port"));
-    if(val) {
-        return UDP_openSendConnection(cm, params, application, context,
-                                      connectionCallback, validate);
-    } else {
+
+    UA_Boolean validate = false;
+    const UA_Variant *validationValue =
+        UA_KeyValueMap_get(params, UA_QUALIFIEDNAME(0, "validate"));
+    if(validationValue &&
+       UA_Variant_hasScalarType(validationValue, &UA_TYPES[UA_TYPES_BOOLEAN]))
+        validate = *(UA_Boolean *)validationValue->data;
+
+    UA_Boolean listen = false;
+    const UA_Variant *listenValue =
+        UA_KeyValueMap_get(params, UA_QUALIFIEDNAME(0, "listen"));
+    if(listenValue &&
+       UA_Variant_hasScalarType(listenValue, &UA_TYPES[UA_TYPES_BOOLEAN]))
+        listen = *(UA_Boolean *)listenValue->data;
+
+    if(listen) {
         return UDP_openReceiveConnection(cm, params, application, context,
                                          connectionCallback, validate);
+    } else {
+        return UDP_openSendConnection(cm, params, application, context,
+                                      connectionCallback, validate);
     }
 }
 
