@@ -1058,6 +1058,94 @@ START_TEST(UA_Guid_smallbuf_xml_encode) {
 }
 END_TEST
 
+/* ByteString */
+START_TEST(UA_ByteString_xml_encode) {
+    UA_ByteString *src = UA_ByteString_new();
+    UA_ByteString_init(src);
+    *src = UA_BYTESTRING_ALLOC("asdfasdf");
+    const UA_DataType *type = &UA_TYPES[UA_TYPES_BYTESTRING];
+    size_t size = UA_calcSizeXml((void*)src, type, NULL);
+
+    UA_ByteString buf;
+    UA_ByteString_allocBuffer(&buf, size + 1);
+
+    status s = UA_encodeXml((void*)src, type, &buf, NULL);
+    ck_assert_int_eq(s, UA_STATUSCODE_GOOD);
+
+    char result[size + 1];
+    sprintf(result, "%s"
+                    "<ByteString>YXNkZmFzZGY=</ByteString>",
+                    xmlEncTypeDefs[type->typeKind].xmlEncTypeDef);
+    buf.data[size] = 0; /* zero terminate */
+    ck_assert_str_eq(result, (char*)buf.data);
+
+    UA_ByteString_clear(&buf);
+    UA_ByteString_delete(src);
+}
+END_TEST
+
+START_TEST(UA_ByteString2_xml_encode) {
+    UA_ByteString *src = UA_ByteString_new();
+    UA_ByteString_init(src);
+    *src = UA_BYTESTRING_ALLOC("Lorem ipsum dolor sit amet, consectetur adipiscing elit.");
+    const UA_DataType *type = &UA_TYPES[UA_TYPES_BYTESTRING];
+    size_t size = UA_calcSizeXml((void*)src, type, NULL);
+
+    UA_ByteString buf;
+    UA_ByteString_allocBuffer(&buf, size + 1);
+
+    status s = UA_encodeXml((void*)src, type, &buf, NULL);
+    ck_assert_int_eq(s, UA_STATUSCODE_GOOD);
+
+    char result[size + 1];
+    sprintf(result, "%s"
+                    "<ByteString>TG9yZW0gaXBzdW0gZG9sb3Igc2l0IGFtZXQsIGNvbnNlY3RldHVyIGFkaXBpc2NpbmcgZWxpdC4=</ByteString>",
+                    xmlEncTypeDefs[type->typeKind].xmlEncTypeDef);
+    buf.data[size] = 0; /* zero terminate */
+    ck_assert_str_eq(result, (char*)buf.data);
+
+    UA_ByteString_clear(&buf);
+    UA_ByteString_delete(src);
+}
+END_TEST
+
+START_TEST(UA_ByteString3_xml_encode) {
+    UA_ByteString *src = UA_ByteString_new();
+    UA_ByteString_init(src);
+    *src = UA_BYTESTRING_ALLOC("Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor "
+                               "incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud "
+                               "exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure "
+                               "dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. "
+                               "Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt "
+                               "mollit anim id est laborum.");
+    const UA_DataType *type = &UA_TYPES[UA_TYPES_BYTESTRING];
+    size_t size = UA_calcSizeXml((void*)src, type, NULL);
+
+    UA_ByteString buf;
+    UA_ByteString_allocBuffer(&buf, size + 1);
+
+    status retval = UA_encodeXml((void*)src, type, &buf, NULL);
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+    buf.data[size] = 0; /* zero terminate */
+
+    UA_ByteString in;
+    UA_ByteString_init(&in);
+    /* Skip XML Schema definiton. */
+    in = UA_BYTESTRING_ALLOC((const char*)&buf.data[xmlEncTypeDefs[type->typeKind].xmlEncTypeDefLen]);
+
+    UA_ByteString out;
+    UA_ByteString_init(&out);
+    retval |= UA_decodeXml(&in, &out, &UA_TYPES[UA_TYPES_BYTESTRING], NULL);
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert(UA_ByteString_equal(src, &out));
+
+    UA_ByteString_clear(&buf);
+    UA_ByteString_clear(&in);
+    UA_ByteString_clear(&out);
+    UA_ByteString_delete(src);
+}
+END_TEST
+
 /* NodeId */
 START_TEST(UA_NodeId_Numeric_xml_encode) {
     UA_NodeId *src = UA_NodeId_new();
@@ -1332,6 +1420,251 @@ START_TEST(UA_ExpandedNodeId_MissingNamespaceUri_xml_encode) {
 
     UA_ByteString_clear(&buf);
     UA_ExpandedNodeId_delete(src);
+}
+END_TEST
+
+/* StatusCode */
+START_TEST(UA_StatusCode_xml_encode) {
+    UA_StatusCode *src = UA_StatusCode_new();
+    *src = UA_STATUSCODE_BADAGGREGATECONFIGURATIONREJECTED;
+    const UA_DataType *type = &UA_TYPES[UA_TYPES_STATUSCODE];
+    const size_t statusCodeXmlSectLen = 38;
+    size_t size = UA_calcSizeXml((void*)src, type, NULL);
+    ck_assert_uint_eq(size,
+        xmlEncTypeDefs[type->typeKind].xmlEncTypeDefLen + statusCodeXmlSectLen + 10);
+
+    UA_ByteString buf;
+    UA_ByteString_allocBuffer(&buf, size + 1);
+
+    status s = UA_encodeXml((void*)src, type, &buf, NULL);
+    ck_assert_int_eq(s, UA_STATUSCODE_GOOD);
+
+    char result[size + 1];
+    sprintf(result, "%s"
+                    "<StatusCode>"
+                      "<Code>2161770496</Code>"
+                    "</StatusCode>",
+                    xmlEncTypeDefs[type->typeKind].xmlEncTypeDef);
+    buf.data[size] = 0; /* zero terminate */
+    ck_assert_str_eq(result, (char*)buf.data);
+
+    UA_ByteString_clear(&buf);
+    UA_StatusCode_delete(src);
+}
+END_TEST
+
+START_TEST(UA_StatusCode_good_xml_encode) {
+    UA_StatusCode *src = UA_StatusCode_new();
+    *src = UA_STATUSCODE_GOOD;
+    const UA_DataType *type = &UA_TYPES[UA_TYPES_STATUSCODE];
+    size_t size = UA_calcSizeXml((void*)src, type, NULL);
+
+    UA_ByteString buf;
+    UA_ByteString_allocBuffer(&buf, size + 1);
+
+    status s = UA_encodeXml((void*)src, type, &buf, NULL);
+    ck_assert_int_eq(s, UA_STATUSCODE_GOOD);
+
+    char result[size + 1];
+    sprintf(result, "%s"
+                    "<StatusCode>"
+                      "<Code>0</Code>"
+                    "</StatusCode>",
+                    xmlEncTypeDefs[type->typeKind].xmlEncTypeDef);
+    buf.data[size] = 0; /* zero terminate */
+    ck_assert_str_eq(result, (char*)buf.data);
+
+    UA_ByteString_clear(&buf);
+    UA_StatusCode_delete(src);
+}
+END_TEST
+
+START_TEST(UA_StatusCode_smallbuf_xml_encode) {
+    UA_StatusCode *src = UA_StatusCode_new();
+    *src = UA_STATUSCODE_BADAGGREGATECONFIGURATIONREJECTED;
+    const UA_DataType *type = &UA_TYPES[UA_TYPES_STATUSCODE];
+
+    UA_ByteString buf;
+    UA_ByteString_allocBuffer(&buf, 1);
+
+    status s = UA_encodeXml((void*)src, type, &buf, NULL);
+    ck_assert_int_eq(s, UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED);
+
+    UA_ByteString_clear(&buf);
+    UA_StatusCode_delete(src);
+}
+END_TEST
+
+/* QualifiedName */
+START_TEST(UA_QualifiedName_xml_encode_1) {
+    UA_QualifiedName *src = UA_QualifiedName_new();
+    UA_QualifiedName_init(src);
+    src->name = UA_STRING_ALLOC("derName");
+    src->namespaceIndex = 1;
+    const UA_DataType *type = &UA_TYPES[UA_TYPES_QUALIFIEDNAME];
+    size_t size = UA_calcSizeXml((void*)src, type, NULL);
+
+    UA_ByteString buf;
+    UA_ByteString_allocBuffer(&buf, size + 1);
+
+    status s = UA_encodeXml((void*)src, type, &buf, NULL);
+    ck_assert_int_eq(s, UA_STATUSCODE_GOOD);
+
+    char result[size + 1];
+    sprintf(result, "%s"
+                    "<QualifiedName>"
+                      "<NamespaceIndex>1</NamespaceIndex>"
+                      "<Name>derName</Name>"
+                    "</QualifiedName>",
+                    xmlEncTypeDefs[type->typeKind].xmlEncTypeDef);
+    buf.data[size] = 0; /* zero terminate */
+    ck_assert_str_eq(result, (char*)buf.data);
+
+    UA_ByteString_clear(&buf);
+    UA_QualifiedName_delete(src);
+}
+END_TEST
+
+START_TEST(UA_QualifiedName_xml_encode_2) {
+    UA_QualifiedName *src = UA_QualifiedName_new();
+    UA_QualifiedName_init(src);
+    src->name = UA_STRING_ALLOC("derName");
+    src->namespaceIndex = 6789;
+    const UA_DataType *type = &UA_TYPES[UA_TYPES_QUALIFIEDNAME];
+    size_t size = UA_calcSizeXml((void*)src, type, NULL);
+
+    UA_ByteString buf;
+    UA_ByteString_allocBuffer(&buf, size + 1);
+
+    status s = UA_encodeXml((void*)src, type, &buf, NULL);
+    ck_assert_int_eq(s, UA_STATUSCODE_GOOD);
+
+    char result[size + 1];
+    sprintf(result, "%s"
+                    "<QualifiedName>"
+                      "<NamespaceIndex>6789</NamespaceIndex>"
+                      "<Name>derName</Name>"
+                    "</QualifiedName>",
+                    xmlEncTypeDefs[type->typeKind].xmlEncTypeDef);
+    buf.data[size] = 0; /* zero terminate */
+    ck_assert_str_eq(result, (char*)buf.data);
+
+    UA_ByteString_clear(&buf);
+    UA_QualifiedName_delete(src);
+}
+END_TEST
+
+/* LocalizedText */
+START_TEST(UA_LocalizedText_xml_encode) {
+    UA_LocalizedText src;
+    UA_LocalizedText_init(&src);
+    src.locale = UA_STRING_ALLOC("en");
+    src.text = UA_STRING_ALLOC("enabled");;
+    const UA_DataType *type = &UA_TYPES[UA_TYPES_LOCALIZEDTEXT];
+    size_t size = UA_calcSizeXml((void*)&src, type, NULL);
+
+    UA_ByteString buf;
+    UA_ByteString_allocBuffer(&buf, size + 1);
+
+    status s = UA_encodeXml((void*)&src, type, &buf, NULL);
+    ck_assert_int_eq(s, UA_STATUSCODE_GOOD);
+
+    char result[size + 1];
+    sprintf(result, "%s"
+                    "<LocalizedText>"
+                      "<Locale>en</Locale>"
+                      "<Text>enabled</Text>"
+                    "</LocalizedText>",
+                    xmlEncTypeDefs[type->typeKind].xmlEncTypeDef);
+    buf.data[size] = 0; /* zero terminate */
+    ck_assert_str_eq(result, (char*)buf.data);
+
+    UA_ByteString_clear(&buf);
+    UA_LocalizedText_clear(&src);
+}
+END_TEST
+
+START_TEST(UA_LocalizedText_empty_text_xml_encode) {
+    UA_LocalizedText src;
+    UA_LocalizedText_init(&src);
+    src.locale = UA_STRING_ALLOC("en");
+    src.text = UA_STRING_ALLOC("");
+    const UA_DataType *type = &UA_TYPES[UA_TYPES_LOCALIZEDTEXT];
+    size_t size = UA_calcSizeXml((void*)&src, type, NULL);
+
+    UA_ByteString buf;
+    UA_ByteString_allocBuffer(&buf, size + 1);
+
+    status s = UA_encodeXml((void*)&src, type, &buf, NULL);
+    ck_assert_int_eq(s, UA_STATUSCODE_GOOD);
+
+    char result[size + 1];
+    sprintf(result, "%s"
+                    "<LocalizedText>"
+                      "<Locale>en</Locale>"
+                      "<Text></Text>"
+                    "</LocalizedText>",
+                    xmlEncTypeDefs[type->typeKind].xmlEncTypeDef);
+    buf.data[size] = 0; /* zero terminate */
+    ck_assert_str_eq(result, (char*)buf.data);
+
+    UA_ByteString_clear(&buf);
+    UA_LocalizedText_clear(&src);
+}
+END_TEST
+
+START_TEST(UA_LocalizedText_null_locale_xml_encode) {
+    UA_LocalizedText src;
+    UA_LocalizedText_init(&src);
+    src.locale = UA_STRING_ALLOC("en");
+    const UA_DataType *type = &UA_TYPES[UA_TYPES_LOCALIZEDTEXT];
+    size_t size = UA_calcSizeXml((void*)&src, type, NULL);
+
+    UA_ByteString buf;
+    UA_ByteString_allocBuffer(&buf, size + 1);
+
+    status s = UA_encodeXml((void*)&src, type, &buf, NULL);
+    ck_assert_int_eq(s, UA_STATUSCODE_GOOD);
+
+    char result[size + 1];
+    sprintf(result, "%s"
+                    "<LocalizedText>"
+                      "<Locale>en</Locale>"
+                      "<Text>null</Text>"
+                    "</LocalizedText>",
+                    xmlEncTypeDefs[type->typeKind].xmlEncTypeDef);
+    buf.data[size] = 0; /* zero terminate */
+    ck_assert_str_eq(result, (char*)buf.data);
+
+    UA_ByteString_clear(&buf);
+    UA_LocalizedText_clear(&src);
+}
+END_TEST
+
+START_TEST(UA_LocalizedText_null_xml_encode) {
+    UA_LocalizedText src;
+    UA_LocalizedText_init(&src);
+    const UA_DataType *type = &UA_TYPES[UA_TYPES_LOCALIZEDTEXT];
+    size_t size = UA_calcSizeXml((void*)&src, type, NULL);
+
+    UA_ByteString buf;
+    UA_ByteString_allocBuffer(&buf, size + 1);
+
+    status s = UA_encodeXml((void*)&src, type, &buf, NULL);
+    ck_assert_int_eq(s, UA_STATUSCODE_GOOD);
+
+    char result[size + 1];
+    sprintf(result, "%s"
+                    "<LocalizedText>"
+                      "<Locale>null</Locale>"
+                      "<Text>null</Text>"
+                    "</LocalizedText>",
+                    xmlEncTypeDefs[type->typeKind].xmlEncTypeDef);
+    buf.data[size] = 0; /* zero terminate */
+    ck_assert_str_eq(result, (char*)buf.data);
+
+    UA_ByteString_clear(&buf);
+    UA_LocalizedText_clear(&src);
 }
 END_TEST
 
@@ -2437,6 +2770,56 @@ START_TEST(UA_Guid_wrong_xml_decode) {
 }
 END_TEST
 
+/* ByteString */
+START_TEST(UA_ByteString_xml_decode) {
+    UA_ByteString out;
+    UA_ByteString_init(&out);
+    UA_ByteString buf = UA_STRING("<ByteString>YXNkZmFzZGY=</ByteString>");
+
+    UA_StatusCode retval = UA_decodeXml(&buf, &out, &UA_TYPES[UA_TYPES_BYTESTRING], NULL);
+
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(out.length, 8);
+    ck_assert_int_eq(out.data[0], 'a');
+    ck_assert_int_eq(out.data[1], 's');
+    ck_assert_int_eq(out.data[2], 'd');
+    ck_assert_int_eq(out.data[3], 'f');
+    ck_assert_int_eq(out.data[4], 'a');
+    ck_assert_int_eq(out.data[5], 's');
+    ck_assert_int_eq(out.data[6], 'd');
+    ck_assert_int_eq(out.data[7], 'f');
+
+    UA_ByteString_clear(&out);
+}
+END_TEST
+
+/* TODO: Add option for escaping special chars. */
+// START_TEST(UA_ByteString_bad_xml_decode) {
+//     UA_ByteString out;
+//     UA_ByteString_init(&out);
+//     UA_ByteString buf = UA_STRING("<ByteString>\x90!\xc5 c{</ByteString>");
+
+//     UA_StatusCode retval = UA_decodeXml(&buf, &out, &UA_TYPES[UA_TYPES_BYTESTRING], NULL);
+
+//     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+
+//     UA_ByteString_clear(&out);
+// }
+// END_TEST
+
+START_TEST(UA_ByteString_null_xml_decode) {
+    UA_ByteString out;
+    UA_ByteString_init(&out);
+    UA_ByteString buf = UA_STRING("<ByteString>null</ByteString>");
+
+    UA_StatusCode retval = UA_decodeXml(&buf, &out, &UA_TYPES[UA_TYPES_BYTESTRING], NULL);
+
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+
+    UA_ByteString_clear(&out);
+}
+END_TEST
+
 /* NodeId */
 START_TEST(UA_NodeId_Nummeric_xml_decode) {
     UA_NodeId out;
@@ -2705,6 +3088,54 @@ START_TEST(UA_ExpandedNodeId_ByteString_xml_decode) {
 }
 END_TEST
 
+/* StatusCode */
+START_TEST(UA_StatusCode_0_xml_decode) {
+    UA_StatusCode out;
+    UA_StatusCode_init(&out);
+    UA_ByteString buf = UA_STRING("<StatusCode>"
+                                    "<Code>0</Code>"
+                                  "</StatusCode>");
+
+    UA_StatusCode retval = UA_decodeXml(&buf, &out, &UA_TYPES[UA_TYPES_STATUSCODE], NULL);
+
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(out, 0);
+
+    UA_StatusCode_clear(&out);
+}
+END_TEST
+
+START_TEST(UA_StatusCode_2_xml_decode) {
+    UA_StatusCode out;
+    UA_StatusCode_init(&out);
+    UA_ByteString buf = UA_STRING("<StatusCode>"
+                                    "<Code>2</Code>"
+                                  "</StatusCode>");
+
+    UA_StatusCode retval = UA_decodeXml(&buf, &out, &UA_TYPES[UA_TYPES_STATUSCODE], NULL);
+
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(out, 2);
+
+    UA_StatusCode_clear(&out);
+}
+END_TEST
+
+START_TEST(UA_StatusCode_3_xml_decode) {
+    UA_StatusCode out;
+    UA_StatusCode_init(&out);
+    UA_ByteString buf = UA_STRING("<StatusCode>"
+                                    "<Code>222222222222222222222222222222222222</Code>"
+                                  "</StatusCode>");
+
+    UA_StatusCode retval = UA_decodeXml(&buf, &out, &UA_TYPES[UA_TYPES_STATUSCODE], NULL);
+
+    ck_assert_int_eq(retval, UA_STATUSCODE_BADDECODINGERROR);
+
+    UA_StatusCode_clear(&out);
+}
+END_TEST
+
 /* QualifiedName */
 START_TEST(UA_QualifiedName_1_xml_decode) {
     UA_QualifiedName out;
@@ -2716,7 +3147,11 @@ START_TEST(UA_QualifiedName_1_xml_decode) {
 
     UA_StatusCode retval = UA_decodeXml(&buf, &out, &UA_TYPES[UA_TYPES_QUALIFIEDNAME], NULL);
 
-    ck_assert_int_eq(retval, UA_STATUSCODE_BADNOTIMPLEMENTED);
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(out.name.length, 7);
+    ck_assert_int_eq(out.name.data[1], 'e');
+    ck_assert_int_eq(out.name.data[6], 'e');
+    ck_assert_int_eq(out.namespaceIndex, 1);
 
     UA_QualifiedName_clear(&out);
 }
@@ -2732,9 +3167,92 @@ START_TEST(UA_QualifiedName_2_xml_decode) {
 
     UA_StatusCode retval = UA_decodeXml(&buf, &out, &UA_TYPES[UA_TYPES_QUALIFIEDNAME], NULL);
 
-    ck_assert_int_eq(retval, UA_STATUSCODE_BADNOTIMPLEMENTED);
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(out.name.length, 7);
+    ck_assert_int_eq(out.name.data[1], 'e');
+    ck_assert_int_eq(out.name.data[6], 'e');
+    ck_assert_int_eq(out.namespaceIndex, 6789);
 
     UA_QualifiedName_clear(&out);
+}
+END_TEST
+
+/* LocalizedText */
+START_TEST(UA_LocalizedText_xml_decode) {
+    UA_LocalizedText out;
+    UA_LocalizedText_init(&out);
+    UA_ByteString buf = UA_STRING("<LocalizedText>"
+                                    "<Locale>t1</Locale>"
+                                    "<Text>t2</Text>"
+                                  "</LocalizedText>");
+
+    UA_StatusCode retval = UA_decodeXml(&buf, &out, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT], NULL);
+
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_int_eq(out.locale.data[0], 't');
+    ck_assert_int_eq(out.text.data[0], 't');
+    ck_assert_int_eq(out.locale.data[1], '1');
+    ck_assert_int_eq(out.text.data[1], '2');
+
+    UA_LocalizedText_clear(&out);
+}
+END_TEST
+
+START_TEST(UA_LocalizedText_missing_text_xml_decode) {
+    UA_LocalizedText out;
+    UA_LocalizedText_init(&out);
+    UA_ByteString buf = UA_STRING("<LocalizedText>"
+                                    "<Locale>t1</Locale>"
+                                  "</LocalizedText>");
+
+    UA_StatusCode retval = UA_decodeXml(&buf, &out, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT], NULL);
+
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(out.locale.length, 2);
+    ck_assert_int_eq(out.locale.data[0], 't');
+    ck_assert_int_eq(out.locale.data[1], '1');
+    ck_assert_ptr_eq(out.text.data, NULL);
+    ck_assert_uint_eq(out.text.length, 0);
+
+    UA_LocalizedText_clear(&out);
+}
+END_TEST
+
+START_TEST(UA_LocalizedText_empty_locale_xml_decode) {
+    UA_LocalizedText out;
+    UA_LocalizedText_init(&out);
+    UA_ByteString buf = UA_STRING("<LocalizedText>"
+                                    "<Locale />"
+                                    "<Text>t2</Text>"
+                                  "</LocalizedText>");
+
+    UA_StatusCode retval = UA_decodeXml(&buf, &out, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT], NULL);
+
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_ptr_eq(out.locale.data, (UA_Byte*)UA_EMPTY_ARRAY_SENTINEL);
+    ck_assert_uint_eq(out.locale.length, 0);
+    ck_assert_int_eq(out.text.data[0], 't');
+    ck_assert_int_eq(out.text.data[1], '2');
+    ck_assert_uint_eq(out.text.length, 2);
+
+    UA_LocalizedText_clear(&out);
+}
+END_TEST
+
+START_TEST(UA_LocalizedText_empty_xml_decode) {
+    UA_LocalizedText out;
+    UA_LocalizedText_init(&out);
+    UA_ByteString buf = UA_STRING("<LocalizedText />");
+
+    UA_StatusCode retval = UA_decodeXml(&buf, &out, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT], NULL);
+
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_ptr_eq(out.locale.data, NULL);
+    ck_assert_uint_eq(out.locale.length, 0);
+    ck_assert_ptr_eq(out.text.data, NULL);
+    ck_assert_uint_eq(out.text.length, 0);
+
+    UA_LocalizedText_clear(&out);
 }
 END_TEST
 
@@ -2807,6 +3325,10 @@ static Suite *testSuite_builtin_xml(void) {
     tcase_add_test(tc_xml_encode, UA_Guid_xml_encode);
     tcase_add_test(tc_xml_encode, UA_Guid_smallbuf_xml_encode);
 
+    tcase_add_test(tc_xml_encode, UA_ByteString_xml_encode);
+    tcase_add_test(tc_xml_encode, UA_ByteString2_xml_encode);
+    tcase_add_test(tc_xml_encode, UA_ByteString3_xml_encode);
+
     tcase_add_test(tc_xml_encode, UA_NodeId_Numeric_xml_encode);
     tcase_add_test(tc_xml_encode, UA_NodeId_Numeric_Namespace_xml_encode);
     tcase_add_test(tc_xml_encode, UA_NodeId_String_xml_encode);
@@ -2818,6 +3340,18 @@ static Suite *testSuite_builtin_xml(void) {
 
     tcase_add_test(tc_xml_encode, UA_ExpandedNodeId_xml_encode);
     tcase_add_test(tc_xml_encode, UA_ExpandedNodeId_MissingNamespaceUri_xml_encode);
+
+    tcase_add_test(tc_xml_encode, UA_StatusCode_xml_encode);
+    tcase_add_test(tc_xml_encode, UA_StatusCode_good_xml_encode);
+    tcase_add_test(tc_xml_encode, UA_StatusCode_smallbuf_xml_encode);
+
+    tcase_add_test(tc_xml_encode, UA_QualifiedName_xml_encode_1);
+    tcase_add_test(tc_xml_encode, UA_QualifiedName_xml_encode_2);
+
+    tcase_add_test(tc_xml_encode, UA_LocalizedText_xml_encode);
+    tcase_add_test(tc_xml_encode, UA_LocalizedText_empty_text_xml_encode);
+    tcase_add_test(tc_xml_encode, UA_LocalizedText_null_locale_xml_encode);
+    tcase_add_test(tc_xml_encode, UA_LocalizedText_null_xml_encode);
 
     suite_add_tcase(s, tc_xml_encode);
 
@@ -2892,6 +3426,9 @@ static Suite *testSuite_builtin_xml(void) {
     tcase_add_test(tc_xml_decode, UA_Guid_tooLong_xml_decode);
     tcase_add_test(tc_xml_decode, UA_Guid_wrong_xml_decode);
 
+    tcase_add_test(tc_xml_decode, UA_ByteString_xml_decode);
+    tcase_add_test(tc_xml_decode, UA_ByteString_null_xml_decode);
+
     tcase_add_test(tc_xml_decode, UA_NodeId_Nummeric_xml_decode);
     tcase_add_test(tc_xml_decode, UA_NodeId_Nummeric_Namespace_xml_decode);
     tcase_add_test(tc_xml_decode, UA_NodeId_String_xml_decode);
@@ -2905,8 +3442,17 @@ static Suite *testSuite_builtin_xml(void) {
     tcase_add_test(tc_xml_decode, UA_ExpandedNodeId_String_Namespace_ServerUri_xml_decode);
     tcase_add_test(tc_xml_decode, UA_ExpandedNodeId_ByteString_xml_decode);
 
+    tcase_add_test(tc_xml_decode, UA_StatusCode_0_xml_decode);
+    tcase_add_test(tc_xml_decode, UA_StatusCode_2_xml_decode);
+    tcase_add_test(tc_xml_decode, UA_StatusCode_3_xml_decode);
+
     tcase_add_test(tc_xml_decode, UA_QualifiedName_1_xml_decode);
     tcase_add_test(tc_xml_decode, UA_QualifiedName_2_xml_decode);
+
+    tcase_add_test(tc_xml_decode, UA_LocalizedText_xml_decode);
+    tcase_add_test(tc_xml_decode, UA_LocalizedText_missing_text_xml_decode);
+    tcase_add_test(tc_xml_decode, UA_LocalizedText_empty_locale_xml_decode);
+    tcase_add_test(tc_xml_decode, UA_LocalizedText_empty_xml_decode);
 
     suite_add_tcase(s, tc_xml_decode);
 

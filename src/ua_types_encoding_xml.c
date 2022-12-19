@@ -9,6 +9,7 @@
 
 #include "../deps/itoa.h"
 #include "../deps/parse_num.h"
+#include "../deps/base64.h"
 #include "../deps/libc_time.h"
 #include "../deps/dtoa.h"
 
@@ -48,49 +49,63 @@ typedef struct {
 } XmlDecodeEntry;
 
 XmlEncTypeDef xmlEncTypeDefs[UA_DATATYPEKINDS] = {
-    {"<xs:element name=\"Boolean\" nillable=\"true\" type=\"xs:boolean\"/>", 62},       /* Boolean */
-    {"<xs:element name=\"SByte\" nillable=\"true\" type=\"xs:byte\"/>", 57},            /* SByte */
-    {"<xs:element name=\"Byte\" nillable=\"true\" type=\"xs:unsignedByte\"/>", 64},     /* Byte */
-    {"<xs:element name=\"Int16\" nillable=\"true\" type=\"xs:short\"/>", 58},           /* Int16 */
-    {"<xs:element name=\"UInt16\" nillable=\"true\" type=\"xs:unsignedShort\"/>", 67},  /* UInt16 */
-    {"<xs:element name=\"Int32\" nillable=\"true\" type=\"xs:int\"/>", 56},             /* Int32 */
-    {"<xs:element name=\"UInt32\" nillable=\"true\" type=\"xs:unsignedInt\"/>", 65},    /* UInt32 */
-    {"<xs:element name=\"Int64\" nillable=\"true\" type=\"xs:long\"/>", 57},            /* Int64 */
-    {"<xs:element name=\"UInt64\" nillable=\"true\" type=\"xs:unsignedLong\"/>", 66},   /* UInt64 */
-    {"<xs:element name=\"Float\" nillable=\"true\" type=\"xs:float\"/>", 58},           /* Float */
-    {"<xs:element name=\"Double\" nillable=\"true\" type=\"xs:double\"/>", 60},         /* Double */
-    {"<xs:element name=\"String\" nillable=\"true\" type=\"xs:string\"/>", 60},         /* String */
-    {"<xs:element name=\"DateTime\" nillable=\"true\" type=\"xs:dateTime\"/>", 64},     /* DateTime */
+    {"<xs:element name=\"Boolean\" nillable=\"true\" type=\"xs:boolean\"/>", 62},           /* Boolean */
+    {"<xs:element name=\"SByte\" nillable=\"true\" type=\"xs:byte\"/>", 57},                /* SByte */
+    {"<xs:element name=\"Byte\" nillable=\"true\" type=\"xs:unsignedByte\"/>", 64},         /* Byte */
+    {"<xs:element name=\"Int16\" nillable=\"true\" type=\"xs:short\"/>", 58},               /* Int16 */
+    {"<xs:element name=\"UInt16\" nillable=\"true\" type=\"xs:unsignedShort\"/>", 67},      /* UInt16 */
+    {"<xs:element name=\"Int32\" nillable=\"true\" type=\"xs:int\"/>", 56},                 /* Int32 */
+    {"<xs:element name=\"UInt32\" nillable=\"true\" type=\"xs:unsignedInt\"/>", 65},        /* UInt32 */
+    {"<xs:element name=\"Int64\" nillable=\"true\" type=\"xs:long\"/>", 57},                /* Int64 */
+    {"<xs:element name=\"UInt64\" nillable=\"true\" type=\"xs:unsignedLong\"/>", 66},       /* UInt64 */
+    {"<xs:element name=\"Float\" nillable=\"true\" type=\"xs:float\"/>", 58},               /* Float */
+    {"<xs:element name=\"Double\" nillable=\"true\" type=\"xs:double\"/>", 60},             /* Double */
+    {"<xs:element name=\"String\" nillable=\"true\" type=\"xs:string\"/>", 60},             /* String */
+    {"<xs:element name=\"DateTime\" nillable=\"true\" type=\"xs:dateTime\"/>", 64},         /* DateTime */
     {"<xs:complexType name=\"Guid\">"
        "<xs:sequence>"
          "<xs:element name=\"String\" type=\"xs:string\" minOccurs=\"0\" />"
        "</xs:sequence>"
-     "</xs:complexType>", 131},                                                         /* Guid */
-    {"", 0},                                                                            /* ByteString */
-    {"", 0},                                                                            /* XmlElement */
+     "</xs:complexType>", 131},                                                             /* Guid */
+    {"<xs:element name=\"ByteString\" nillable=\"true\" type=\"xs:base64Binary\"/>", 70},   /* ByteString */
+    {"", 0},                                                                                /* XmlElement */
     {"<xs:complexType name=\"NodeId\">"
        "<xs:sequence>"
          "<xs:element name=\"Identifier\" type=\"xs:string\" minOccurs=\"0\" />"
        "</xs:sequence>"
-     "</xs:complexType>", 137},                                                         /* NodeId */
+     "</xs:complexType>", 137},                                                             /* NodeId */
     {"<xs:complexType name=\"ExpandedNodeId\">"
        "<xs:sequence>"
          "<xs:element name=\"Identifier\" type=\"xs:string\" minOccurs=\"0\" />"
        "</xs:sequence>"
-     "</xs:complexType>", 145},                                                         /* ExpandedNodeId */
-    {"", 0},                                                                            /* StatusCode */
-    {"", 0},                                                                            /* QualifiedName */
-    {"", 0},                                                                            /* LocalizedText */
-    {"", 0},                                                                            /* ExtensionObject */
-    {"", 0},                                                                            /* DataValue */
-    {"", 0},                                                                            /* Variant */
-    {"", 0},                                                                            /* DiagnosticInfo */
-    {"", 0},                                                                            /* Decimal */
-    {"", 0},                                                                            /* Enum */
-    {"", 0},                                                                            /* Structure */
-    {"", 0},                                                                            /* Structure with optional fields */
-    {"", 0},                                                                            /* Union */
-    {"", 0}                                                                             /* BitfieldCluster */
+     "</xs:complexType>", 145},                                                             /* ExpandedNodeId */
+    {"<xs:complexType name=\"StatusCode\">"
+       "<xs:sequence>"
+          "<xs:element name=\"Code\" type=\"xs:unsignedInt\" minOccurs=\"0\" />"
+       "</xs:sequence>"
+     "</xs:complexType>", 140},                                                             /* StatusCode */
+    {"<xs:complexType name=\"QualifiedName\">"
+       "<xs:sequence>"
+         "<xs:element name=\"NamespaceIndex\" type=\"xs:int\" minOccurs=\"0\" />"
+         "<xs:element name=\"Name\" type=\"xs:string\" minOccurs=\"0\" />"
+       "</xs:sequence>"
+     "</xs:complexType>", 202},                                                             /* QualifiedName */
+    {"<xs:complexType name=\"LocalizedText\">"
+       "<xs:sequence>"
+         "<xs:element name=\"Locale\" type=\"xs:string\" minOccurs=\"0\" />"
+         "<xs:element name=\"Text\" type=\"xs:string\" minOccurs=\"0\" />"
+       "</xs:sequence>"
+     "</xs:complexType>", 197},                                                             /* LocalizedText */
+    {"", 0},                                                                                /* ExtensionObject */
+    {"", 0},                                                                                /* DataValue */
+    {"", 0},                                                                                /* Variant */
+    {"", 0},                                                                                /* DiagnosticInfo */
+    {"", 0},                                                                                /* Decimal */
+    {"", 0},                                                                                /* Enum */
+    {"", 0},                                                                                /* Structure */
+    {"", 0},                                                                                /* Structure with optional fields */
+    {"", 0},                                                                                /* Union */
+    {"", 0}                                                                                 /* BitfieldCluster */
 };
 
 /* Elements for XML complex types */
@@ -103,6 +118,17 @@ static const char* UA_XML_NODEID_IDENTIFIER = "Identifier"; //String
 
 /* ExpandedNodeId */
 static const char* UA_XML_EXPANDEDNODEID_IDENTIFIER = "Identifier"; //String
+
+/* StatusCode */
+static const char* UA_XML_STATUSCODE_CODE = "Code"; // UInt32
+
+/* QualifiedName */
+static const char* UA_XML_QUALIFIEDNAME_NAMESPACEINDEX = "NamespaceIndex"; // Int32
+static const char* UA_XML_QUALIFIEDNAME_NAME = "Name";                     // String
+
+/* LocalizedText */
+static const char* UA_XML_LOCALIZEDTEXT_LOCALE = "Locale"; // String
+static const char* UA_XML_LOCALIZEDTEXT_TEXT = "Text";     // String
 
 /************/
 /* Encoding */
@@ -352,6 +378,34 @@ ENCODE_XML(DateTime) {
     return xmlEncodeWriteChars(ctx, (const char*)str.data, str.length);
 }
 
+/* ByteString */
+ENCODE_XML(ByteString) {
+    if(!src->data)
+        return xmlEncodeWriteChars(ctx, "null", 4);
+
+    size_t flen = 0;
+    unsigned char *ba64 = UA_base64(src->data, src->length, &flen);
+
+    /* Not converted, no mem */
+    if(!ba64)
+        return UA_STATUSCODE_BADENCODINGERROR;
+
+    if(ctx->pos + flen > ctx->end) {
+        UA_free(ba64);
+        return UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED;
+    }
+
+    /* Copy flen bytes to output stream. */
+    if(!ctx->calcOnly)
+        memcpy(ctx->pos, ba64, flen);
+    ctx->pos += flen;
+
+    /* Base64 result no longer needed */
+    UA_free(ba64);
+
+    return UA_STATUSCODE_GOOD;
+}
+
 /* NodeId */
 ENCODE_XML(NodeId) {
     UA_StatusCode ret = UA_STATUSCODE_GOOD;
@@ -378,6 +432,36 @@ ENCODE_XML(ExpandedNodeId) {
     return ret;
 }
 
+/* StatusCode */
+ENCODE_XML(StatusCode) {
+    return writeXmlElement(ctx, UA_XML_STATUSCODE_CODE,
+                           src, &UA_TYPES[UA_TYPES_UINT32]);
+}
+
+/* QualifiedName */
+ENCODE_XML(QualifiedName) {
+    UA_StatusCode ret =
+        writeXmlElement(ctx, UA_XML_QUALIFIEDNAME_NAMESPACEINDEX,
+                        &src->namespaceIndex, &UA_TYPES[UA_TYPES_INT32]);
+
+    if(ret == UA_STATUSCODE_GOOD)
+        ret = writeXmlElement(ctx, UA_XML_QUALIFIEDNAME_NAME,
+                              &src->name, &UA_TYPES[UA_TYPES_STRING]);
+    return ret;
+}
+
+/* LocalizedText */
+ENCODE_XML(LocalizedText) {
+    UA_StatusCode ret =
+        writeXmlElement(ctx, UA_XML_LOCALIZEDTEXT_LOCALE,
+                        &src->locale, &UA_TYPES[UA_TYPES_STRING]);
+
+    if(ret == UA_STATUSCODE_GOOD)
+        ret = writeXmlElement(ctx, UA_XML_LOCALIZEDTEXT_TEXT,
+                              &src->text, &UA_TYPES[UA_TYPES_STRING]);
+    return ret;
+}
+
 static status
 encodeXmlNotImplemented(CtxXml *ctx, const void *src, const UA_DataType *type) {
     (void)ctx, (void)src, (void)type;
@@ -399,13 +483,13 @@ const encodeXmlSignature encodeXmlJumpTable[UA_DATATYPEKINDS] = {
     (encodeXmlSignature)String_encodeXml,           /* String */
     (encodeXmlSignature)DateTime_encodeXml,         /* DateTime */
     (encodeXmlSignature)Guid_encodeXml,             /* Guid */
-    (encodeXmlSignature)encodeXmlNotImplemented,    /* ByteString */
+    (encodeXmlSignature)ByteString_encodeXml,       /* ByteString */
     (encodeXmlSignature)encodeXmlNotImplemented,    /* XmlElement */
     (encodeXmlSignature)NodeId_encodeXml,           /* NodeId */
     (encodeXmlSignature)ExpandedNodeId_encodeXml,   /* ExpandedNodeId */
-    (encodeXmlSignature)encodeXmlNotImplemented,    /* StatusCode */
-    (encodeXmlSignature)encodeXmlNotImplemented,    /* QualifiedName */
-    (encodeXmlSignature)encodeXmlNotImplemented,    /* LocalizedText */
+    (encodeXmlSignature)StatusCode_encodeXml,       /* StatusCode */
+    (encodeXmlSignature)QualifiedName_encodeXml,    /* QualifiedName */
+    (encodeXmlSignature)LocalizedText_encodeXml,    /* LocalizedText */
     (encodeXmlSignature)encodeXmlNotImplemented,    /* ExtensionObject */
     (encodeXmlSignature)encodeXmlNotImplemented,    /* DataValue */
     (encodeXmlSignature)encodeXmlNotImplemented,    /* Variant */
@@ -1035,6 +1119,28 @@ DECODE_XML(Guid) {
     return ret;
 }
 
+DECODE_XML(ByteString) {
+    CHECK_DATA_BOUNDS;
+    GET_DATA_VALUE;
+
+    /* Empty bytestring? */
+    if(length == 0) {
+        dst->data = (UA_Byte*)UA_EMPTY_ARRAY_SENTINEL;
+        dst->length = 0;
+    } else {
+        size_t flen = 0;
+        unsigned char* unB64 =
+            UA_unbase64((const unsigned char*)data, length, &flen);
+        if(unB64 == 0)
+            return UA_STATUSCODE_BADDECODINGERROR;
+        dst->data = (UA_Byte*)unB64;
+        dst->length = flen;
+    }
+
+    ctx->index++;
+    return UA_STATUSCODE_GOOD;
+}
+
 DECODE_XML(NodeId) {
     CHECK_DATA_BOUNDS;
 
@@ -1067,6 +1173,38 @@ DECODE_XML(ExpandedNodeId) {
     return ret;
 }
 
+DECODE_XML(StatusCode) {
+    CHECK_DATA_BOUNDS;
+
+    XmlDecodeEntry entry = {
+        UA_XML_STATUSCODE_CODE, dst, NULL, false, &UA_TYPES[UA_TYPES_UINT32]
+    };
+
+    return decodeXmlFields(ctx, &entry, 1);
+}
+
+DECODE_XML(QualifiedName) {
+    CHECK_DATA_BOUNDS;
+
+    XmlDecodeEntry entries[2] = {
+        {UA_XML_QUALIFIEDNAME_NAMESPACEINDEX, &dst->namespaceIndex, NULL, false, &UA_TYPES[UA_TYPES_UINT16]},
+        {UA_XML_QUALIFIEDNAME_NAME, &dst->name, NULL, false, &UA_TYPES[UA_TYPES_STRING]}
+    };
+
+    return decodeXmlFields(ctx, entries, 2);
+}
+
+DECODE_XML(LocalizedText) {
+    CHECK_DATA_BOUNDS;
+
+    XmlDecodeEntry entries[2] = {
+        {UA_XML_LOCALIZEDTEXT_LOCALE, &dst->locale, NULL, false, &UA_TYPES[UA_TYPES_STRING]},
+        {UA_XML_LOCALIZEDTEXT_TEXT, &dst->text, NULL, false, &UA_TYPES[UA_TYPES_STRING]}
+    };
+
+    return decodeXmlFields(ctx, entries, 2);
+}
+
 static status
 Array_decodeXml(ParseCtxXml *ctx, void **dst, const UA_DataType *type) {
     (void)dst, (void)type, (void)ctx;
@@ -1094,13 +1232,13 @@ const decodeXmlSignature decodeXmlJumpTable[UA_DATATYPEKINDS] = {
     (decodeXmlSignature)String_decodeXml,           /* String */
     (decodeXmlSignature)DateTime_decodeXml,         /* DateTime */
     (decodeXmlSignature)Guid_decodeXml,             /* Guid */
-    (decodeXmlSignature)decodeXmlNotImplemented,    /* ByteString */
+    (decodeXmlSignature)ByteString_decodeXml,       /* ByteString */
     (decodeXmlSignature)decodeXmlNotImplemented,    /* XmlElement */
     (decodeXmlSignature)NodeId_decodeXml,           /* NodeId */
     (decodeXmlSignature)ExpandedNodeId_decodeXml,   /* ExpandedNodeId */
-    (decodeXmlSignature)decodeXmlNotImplemented,    /* StatusCode */
-    (decodeXmlSignature)decodeXmlNotImplemented,    /* QualifiedName */
-    (decodeXmlSignature)decodeXmlNotImplemented,    /* LocalizedText */
+    (decodeXmlSignature)StatusCode_decodeXml,       /* StatusCode */
+    (decodeXmlSignature)QualifiedName_decodeXml,    /* QualifiedName */
+    (decodeXmlSignature)LocalizedText_decodeXml,    /* LocalizedText */
     (decodeXmlSignature)decodeXmlNotImplemented,    /* ExtensionObject */
     (decodeXmlSignature)decodeXmlNotImplemented,    /* DataValue */
     (decodeXmlSignature)decodeXmlNotImplemented,    /* Variant */

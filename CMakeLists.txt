@@ -906,7 +906,51 @@ endif()
 if(UA_ENABLE_XML_ENCODING)
     # libXML2 is already included by the NodesetLoader
     if(NOT UA_ENABLE_NODESETLOADER)
-        find_package(LibXml2 REQUIRED)
+        find_package(LibXml2 REQUIRED QUIET)
+        if(${UA_FORCE_32BIT})
+            # Currently supported 32-bit architectures
+            set(supported_32bit_arch "armhf" "i386")
+            set(supported_32bit_prefix "arm-linux-gnueabihf" "i386-linux-gnu")
+            list(LENGTH supported_32bit_arch supported_32bit_count)
+            math(EXPR supported_32bit_len "${supported_32bit_count} - 1")
+            set(foreign_architecture TRUE)
+            set(libxml2_found FALSE)
+            execute_process(COMMAND dpkg --print-architecture
+                            OUTPUT_VARIABLE ARCH_PREFIX)
+            foreach(i RANGE ${supported_32bit_len})
+                list(GET supported_32bit_arch ${i} 32bit_arch)
+                if("${ARCH_PREFIX}" MATCHES "^${32bit_arch}.$")
+                    set(foreign_architecture FALSE)
+                    set(libxml2_found TRUE)
+                endif()
+            endforeach()
+            if(foreign_architecture)
+                execute_process(COMMAND dpkg --print-foreign-architectures
+                                OUTPUT_VARIABLE ARCH_PREFIX)
+                foreach(i RANGE ${supported_32bit_len})
+                    list(GET supported_32bit_arch ${i} 32bit_arch)
+                    if("${ARCH_PREFIX}" MATCHES "^${32bit_arch}.$")
+                        set(libxml2_found TRUE)
+                        list(GET supported_32bit_prefix ${i} libxml2_32bit_prefix)
+                    endif()
+                endforeach()
+            endif()
+            if(libxml2_found)
+                find_library(LIBXML2_LIBRARIES_32BIT
+                             NAMES xml2
+                             HINTS "/usr/lib/${libxml2_32bit_prefix}"
+                             NO_CACHE
+                             REQUIRED
+                             NO_DEFAULT_PATH
+                             NO_PACKAGE_ROOT_PATH
+                             NO_CMAKE_PATH
+                             NO_CMAKE_ENVIRONMENT_PATH)
+            else()
+                message(FATAL_ERROR "Not supported 32-bit compiler architecture")
+            endif()
+            unset(LIBXML2_LIBRARIES)
+            set(LIBXML2_LIBRARIES ${LIBXML2_LIBRARIES_32BIT})
+        endif()
         set(ua_architecture_directories_to_include
             ${ua_architecture_directories_to_include}
             ${LIBXML2_INCLUDE_DIRS})
