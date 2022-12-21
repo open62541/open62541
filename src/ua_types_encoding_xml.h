@@ -80,6 +80,7 @@ typedef struct {
     XmlData **dataMembers;      /* Ordered XML data elements (for better iterating). */
     unsigned int membersSize;   /* Number of data members (>= 1 for complex types). */
     unsigned int index;         /* Index of current value member being processed. */
+    UA_Byte depth;
 
     const UA_DataTypeArray *customTypes;
 } ParseCtxXml;
