@@ -156,17 +156,23 @@ xmlEncodeWriteChars(CtxXml *ctx, const char *c, size_t len) {
 
 static status UA_FUNC_ATTR_WARN_UNUSED_RESULT
 writeXmlElemNameBegin(CtxXml *ctx, const char* name) {
+    if(ctx->depth >= UA_XML_ENCODING_MAX_RECURSION - 1)
+        return UA_STATUSCODE_BADENCODINGERROR;
     status ret = UA_STATUSCODE_GOOD;
     if(!ctx->printValOnly) {
         ret |= xmlEncodeWriteChars(ctx, "<", 1);
         ret |= xmlEncodeWriteChars(ctx, name, strlen(name));
         ret |= xmlEncodeWriteChars(ctx, ">", 1);
     }
+    ctx->depth++;
     return ret;
 }
 
 static status UA_FUNC_ATTR_WARN_UNUSED_RESULT
 writeXmlElemNameEnd(CtxXml *ctx, const char* name) {
+    if(ctx->depth == 0)
+        return UA_STATUSCODE_BADENCODINGERROR;
+    ctx->depth--;
     status ret = UA_STATUSCODE_GOOD;
     if(!ctx->printValOnly) {
         ret |= xmlEncodeWriteChars(ctx, "</", 2);
@@ -1038,17 +1044,28 @@ static status
 decodeXmlFields(ParseCtxXml *ctx, XmlDecodeEntry *entries, size_t entryCount) {
     CHECK_DATA_BOUNDS;
 
+    if(ctx->depth >= UA_XML_ENCODING_MAX_RECURSION - 1)
+        return UA_STATUSCODE_BADENCODINGERROR;
+    ctx->depth++;
+
     size_t objectCount = 0;
     if(ctx->dataMembers[ctx->index]->type == XML_DATA_TYPE_COMPLEX)
         objectCount = ctx->dataMembers[ctx->index]->value.complex.membersSize;
 
     /* Empty object, nothing to decode */
     if(objectCount == 0) {
+        ctx->depth--;
         ctx->index++; /* Jump to the element after the empty object */
         return UA_STATUSCODE_GOOD;
     }
 
     ctx->index++; /* Go to first entry element */
+
+    /* CHECK_DATA_BOUNDS */
+    if(ctx->index >= ctx->membersSize) {
+        ctx->depth--;
+        return UA_STATUSCODE_BADDECODINGERROR;
+    }
 
     status ret = UA_STATUSCODE_GOOD;
     for(size_t currObj = 0; currObj < objectCount &&
@@ -1062,15 +1079,19 @@ decodeXmlFields(ParseCtxXml *ctx, XmlDecodeEntry *entries, size_t entryCount) {
             size_t index = i % entryCount;
 
             /* CHECK_DATA_BOUNDS */
-            if(ctx->index >= ctx->membersSize)
-                return UA_STATUSCODE_BADDECODINGERROR;
+            if(ctx->index >= ctx->membersSize) {
+                ret = UA_STATUSCODE_BADDECODINGERROR;
+                goto cleanup;
+            }
 
             if(strcmp(ctx->dataMembers[ctx->index]->name, entries[index].fieldName))
                 continue;
 
             /* Duplicate key found, abort */
-            if(entries[index].found)
-                return UA_STATUSCODE_BADDECODINGERROR;
+            if(entries[index].found) {
+                ret = UA_STATUSCODE_BADDECODINGERROR;
+                goto cleanup;
+            }
 
             entries[index].found = true;
 
@@ -1095,12 +1116,14 @@ decodeXmlFields(ParseCtxXml *ctx, XmlDecodeEntry *entries, size_t entryCount) {
                 ret = decodeXmlJumpTable[entries[index].type->typeKind]
                     (ctx, entries[index].fieldPointer, entries[index].type);
             if(ret != UA_STATUSCODE_GOOD)
-                return ret;
+                goto cleanup;
             break;
         }
     }
 
-    return UA_STATUSCODE_GOOD;
+cleanup:
+    ctx->depth--;
+    return ret;
 }
 
 DECODE_XML(Guid) {
@@ -1411,6 +1434,7 @@ UA_decodeXml(const UA_ByteString *src, void *dst, const UA_DataType *type,
     ctx.parseCtx = &parseCtx;
     ctx.value = &value;
     ctx.index = 0;
+    ctx.depth = 0;
     if(options) {
         ctx.customTypes = options->customTypes;
     }
