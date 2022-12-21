@@ -124,19 +124,18 @@ UA_parseEndpointUrl(const UA_String *endpointUrl, UA_String *outHostname,
     UA_assert(curr < endpointUrl->length);
     if(endpointUrl->data[curr] != '/')
         return UA_STATUSCODE_BADTCPENDPOINTURLINVALID;
+    if(++curr == endpointUrl->length)
+        return UA_STATUSCODE_GOOD;
+    outPath->data = &endpointUrl->data[curr];
+    outPath->length = endpointUrl->length - curr;
 
-    if(outPath && ++curr < endpointUrl->length) {
-        outPath->data = &endpointUrl->data[curr];
-        outPath->length = endpointUrl->length - curr;
+    /* Remove trailing slash from the path */
+    if(endpointUrl->data[endpointUrl->length - 1] == '/')
+        outPath->length--;
 
-        /* Remove trailing slash from the path */
-        if(endpointUrl->data[endpointUrl->length - 1] == '/')
-            outPath->length--;
-
-        /* Empty string? */
-        if(outPath->length == 0)
-            outPath->data = NULL;
-    }
+    /* Empty string? */
+    if(outPath->length == 0)
+        outPath->data = NULL;
 
     return UA_STATUSCODE_GOOD;
 }
