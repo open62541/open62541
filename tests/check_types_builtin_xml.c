@@ -1668,6 +1668,101 @@ START_TEST(UA_LocalizedText_null_xml_encode) {
 }
 END_TEST
 
+/* Print */
+START_TEST(UA_UInt32_print_xml_encode) {
+    UA_UInt32 *src = UA_UInt32_new();
+    *src = 12345678;
+    const UA_DataType *type = &UA_TYPES[UA_TYPES_UINT32];
+
+    UA_EncodeXmlOptions options;
+    memset(&options, 0, sizeof(UA_EncodeXmlOptions));
+    options.prettyPrint = true;
+    size_t size = UA_calcSizeXml((void*)src, type, &options);
+
+    UA_ByteString buf;
+    UA_ByteString_allocBuffer(&buf, size + 1);
+
+    status s = UA_printXml((void*)src, type, &buf);
+    ck_assert_int_eq(s, UA_STATUSCODE_GOOD);
+
+    char result[size + 1];
+    sprintf(result, "%s"
+                    "\n<UInt32>12345678</UInt32>",
+                    xmlEncTypeDefs[type->typeKind].xmlEncTypeDef);
+    buf.data[size] = 0; /* zero terminate */
+    ck_assert_str_eq(result, (char*)buf.data);
+
+    UA_ByteString_clear(&buf);
+    UA_UInt32_delete(src);
+}
+END_TEST
+
+START_TEST(UA_ExpandedNodeId_print_xml_encode) {
+    UA_ExpandedNodeId *src = UA_ExpandedNodeId_new();
+    UA_ExpandedNodeId_init(src);
+    *src = UA_EXPANDEDNODEID_STRING_ALLOC(23, "testtestTest");
+    src->namespaceUri = UA_STRING_ALLOC("asdf");
+    src->serverIndex = 1345;
+    const UA_DataType *type = &UA_TYPES[UA_TYPES_EXPANDEDNODEID];
+
+    UA_EncodeXmlOptions options;
+    memset(&options, 0, sizeof(UA_EncodeXmlOptions));
+    options.prettyPrint = true;
+    size_t size = UA_calcSizeXml((void*)src, type, &options);
+
+    UA_ByteString buf;
+    UA_ByteString_allocBuffer(&buf, size + 1);
+
+    status s = UA_printXml((void*)src, type, &buf);
+    ck_assert_int_eq(s, UA_STATUSCODE_GOOD);
+
+    char result[size + 1];
+    sprintf(result, "%s"
+                    "\n<ExpandedNodeId>"
+                    "\n\t<Identifier>svr=1345;nsu=asdf;s=testtestTest</Identifier>"
+                    "\n</ExpandedNodeId>",
+                    xmlEncTypeDefs[type->typeKind].xmlEncTypeDef);
+    buf.data[size] = 0; /* zero terminate */
+    ck_assert_str_eq(result, (char*)buf.data);
+
+    UA_ByteString_clear(&buf);
+    UA_ExpandedNodeId_delete(src);
+}
+END_TEST
+
+START_TEST(UA_QualifiedName_print_xml_encode) {
+    UA_QualifiedName *src = UA_QualifiedName_new();
+    UA_QualifiedName_init(src);
+    src->name = UA_STRING_ALLOC("derName");
+    src->namespaceIndex = 6789;
+    const UA_DataType *type = &UA_TYPES[UA_TYPES_QUALIFIEDNAME];
+
+    UA_EncodeXmlOptions options;
+    memset(&options, 0, sizeof(UA_EncodeXmlOptions));
+    options.prettyPrint = true;
+    size_t size = UA_calcSizeXml((void*)src, type, &options);
+
+    UA_ByteString buf;
+    UA_ByteString_allocBuffer(&buf, size + 1);
+
+    status s = UA_printXml((void*)src, type, &buf);
+    ck_assert_int_eq(s, UA_STATUSCODE_GOOD);
+
+    char result[size + 1];
+    sprintf(result, "%s"
+                    "\n<QualifiedName>"
+                    "\n\t<NamespaceIndex>6789</NamespaceIndex>"
+                    "\n\t<Name>derName</Name>"
+                    "\n</QualifiedName>",
+                    xmlEncTypeDefs[type->typeKind].xmlEncTypeDef);
+    buf.data[size] = 0; /* zero terminate */
+    ck_assert_str_eq(result, (char*)buf.data);
+
+    UA_ByteString_clear(&buf);
+    UA_QualifiedName_delete(src);
+}
+END_TEST
+
 
 // ---------------------------DECODE-------------------------------------
 
@@ -3352,6 +3447,10 @@ static Suite *testSuite_builtin_xml(void) {
     tcase_add_test(tc_xml_encode, UA_LocalizedText_empty_text_xml_encode);
     tcase_add_test(tc_xml_encode, UA_LocalizedText_null_locale_xml_encode);
     tcase_add_test(tc_xml_encode, UA_LocalizedText_null_xml_encode);
+
+    tcase_add_test(tc_xml_encode, UA_UInt32_print_xml_encode);
+    tcase_add_test(tc_xml_encode, UA_ExpandedNodeId_print_xml_encode);
+    tcase_add_test(tc_xml_encode, UA_QualifiedName_print_xml_encode);
 
     suite_add_tcase(s, tc_xml_encode);
 

@@ -160,6 +160,11 @@ writeXmlElemNameBegin(CtxXml *ctx, const char* name) {
         return UA_STATUSCODE_BADENCODINGERROR;
     status ret = UA_STATUSCODE_GOOD;
     if(!ctx->printValOnly) {
+        if(ctx->prettyPrint) {
+            ret |= xmlEncodeWriteChars(ctx, "\n", 1);
+            for(size_t i = 0; i < ctx->depth; ++i)
+                ret |= xmlEncodeWriteChars(ctx, "\t", 1);
+        }
         ret |= xmlEncodeWriteChars(ctx, "<", 1);
         ret |= xmlEncodeWriteChars(ctx, name, strlen(name));
         ret |= xmlEncodeWriteChars(ctx, ">", 1);
@@ -169,12 +174,18 @@ writeXmlElemNameBegin(CtxXml *ctx, const char* name) {
 }
 
 static status UA_FUNC_ATTR_WARN_UNUSED_RESULT
-writeXmlElemNameEnd(CtxXml *ctx, const char* name) {
+writeXmlElemNameEnd(CtxXml *ctx, const char* name,
+                    const UA_DataType *type) {
     if(ctx->depth == 0)
         return UA_STATUSCODE_BADENCODINGERROR;
     ctx->depth--;
     status ret = UA_STATUSCODE_GOOD;
     if(!ctx->printValOnly) {
+        if(ctx->prettyPrint && !XML_TYPE_IS_PRIMITIVE) {
+            ret |= xmlEncodeWriteChars(ctx, "\n", 1);
+            for(size_t i = 0; i < ctx->depth; ++i)
+                ret |= xmlEncodeWriteChars(ctx, "\t", 1);
+        }
         ret |= xmlEncodeWriteChars(ctx, "</", 2);
         ret |= xmlEncodeWriteChars(ctx, name, strlen(name));
         ret |= xmlEncodeWriteChars(ctx, ">", 1);
@@ -192,7 +203,7 @@ writeXmlElement(CtxXml *ctx, const char *name,
     ctx->printValOnly = XML_TYPE_IS_PRIMITIVE;
     ret |= encodeXmlJumpTable[type->typeKind](ctx, value, type);
     ctx->printValOnly = false;
-    ret |= writeXmlElemNameEnd(ctx, name);
+    ret |= writeXmlElemNameEnd(ctx, name, type);
     ctx->printValOnly = prevPrintVal;
     return ret;
 }
@@ -549,6 +560,18 @@ UA_encodeXml(const void *src, const UA_DataType *type, UA_ByteString *outBuf,
         UA_ByteString_clear(outBuf);
 
     return res;
+}
+
+UA_StatusCode
+UA_printXml(const void *p, const UA_DataType *type, UA_String *output) {
+    if(!p || !type || !output)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
+    UA_EncodeXmlOptions options;
+    memset(&options, 0, sizeof(UA_EncodeXmlOptions));
+    options.prettyPrint = true;
+
+    return UA_encodeXml(p, type, output, &options);
 }
 
 /************/
