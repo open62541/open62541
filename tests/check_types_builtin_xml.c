@@ -1763,6 +1763,146 @@ START_TEST(UA_QualifiedName_print_xml_encode) {
 }
 END_TEST
 
+/* ExtensionObject */
+START_TEST(UA_ExtensionObject_xml_xml_encode) {
+    UA_ExtensionObject *src = UA_ExtensionObject_new();
+    UA_ExtensionObject_init(src);
+    src->encoding = UA_EXTENSIONOBJECT_ENCODED_XML;
+    src->content.encoded.typeId = UA_NODEID_NUMERIC(2, 1234);
+
+    UA_ByteString b = UA_BYTESTRING_ALLOC("<Elemement></Element>");
+    src->content.encoded.body = b;
+
+    const UA_DataType *type = &UA_TYPES[UA_TYPES_EXTENSIONOBJECT];
+    size_t size = UA_calcSizeXml((void *) src, type, NULL);
+
+    UA_ByteString buf;
+    UA_ByteString_allocBuffer(&buf, size + 1);
+
+    status s = UA_encodeXml((void*)src, type, &buf, NULL);
+    ck_assert_int_eq(s, UA_STATUSCODE_GOOD);
+
+    char result[size + 1];
+    sprintf(result, "%s"
+                    "<ExtensionObject>"
+                      "<TypeId>"
+                        "<Identifier>ns=2;i=1234</Identifier>"
+                      "</TypeId>"
+                      "<Body>"
+                        "<Elemement></Element>"
+                      "</Body>"
+                    "</ExtensionObject>",
+                    xmlEncTypeDefs[type->typeKind].xmlEncTypeDef);
+    buf.data[size] = 0; /* zero terminate */
+    ck_assert_str_eq(result, (char*)buf.data);
+
+    UA_ByteString_clear(&buf);
+    UA_ExtensionObject_delete(src);
+}
+END_TEST
+
+
+START_TEST(UA_ExtensionObject_byteString_xml_encode) {
+    UA_ExtensionObject *src = UA_ExtensionObject_new();
+    UA_ExtensionObject_init(src);
+    src->encoding = UA_EXTENSIONOBJECT_ENCODED_BYTESTRING;
+    src->content.encoded.typeId = UA_NODEID_NUMERIC(2, 1234);
+
+    UA_ByteString b = UA_BYTESTRING_ALLOC("123456789012345678901234567890");
+    src->content.encoded.body = b;
+
+    const UA_DataType *type = &UA_TYPES[UA_TYPES_EXTENSIONOBJECT];
+    size_t size = UA_calcSizeXml((void*)src, type, NULL);
+
+    UA_ByteString buf;
+    UA_ByteString_allocBuffer(&buf, size + 1);
+
+    status s = UA_encodeXml((void*)src, type, &buf, NULL);
+    ck_assert_int_eq(s, UA_STATUSCODE_GOOD);
+
+    char result[size + 1];
+    sprintf(result, "%s"
+                    "<ExtensionObject>"
+                      "<TypeId>"
+                        "<Identifier>ns=2;i=1234</Identifier>"
+                      "</TypeId>"
+                      "<Body>"
+                        "<ByteString>123456789012345678901234567890</ByteString>"
+                      "</Body>"
+                    "</ExtensionObject>",
+                    xmlEncTypeDefs[type->typeKind].xmlEncTypeDef);
+    buf.data[size] = 0; /* zero terminate */
+    ck_assert_str_eq(result, (char*)buf.data);
+
+    UA_ByteString_clear(&buf);
+    UA_ExtensionObject_delete(src);
+}
+END_TEST
+
+START_TEST(UA_ExtensionObject_null_xml_encode) {
+    UA_ExtensionObject *src = UA_ExtensionObject_new();
+    UA_ExtensionObject_init(src);
+    src->encoding = UA_EXTENSIONOBJECT_ENCODED_NOBODY;
+    const UA_DataType *type = &UA_TYPES[UA_TYPES_EXTENSIONOBJECT];
+    size_t size = UA_calcSizeXml((void*)src, type, NULL);
+
+    UA_ByteString buf;
+    UA_ByteString_allocBuffer(&buf, size + 1);
+
+    status s = UA_encodeXml((void*)src, type, &buf, NULL);
+    ck_assert_int_eq(s, UA_STATUSCODE_GOOD);
+
+    char result[size + 1];
+    sprintf(result, "%s"
+                    "<ExtensionObject>null</ExtensionObject>",
+                    xmlEncTypeDefs[type->typeKind].xmlEncTypeDef);
+    buf.data[size] = 0; /* zero terminate */
+    ck_assert_str_eq(result, (char*)buf.data);
+
+    UA_ByteString_clear(&buf);
+    UA_ExtensionObject_delete(src);
+}
+END_TEST
+
+START_TEST(UA_ExtensionObject_print_xml_encode) {
+    UA_ExtensionObject *src = UA_ExtensionObject_new();
+    UA_ExtensionObject_init(src);
+    src->encoding = UA_EXTENSIONOBJECT_ENCODED_BYTESTRING;
+    src->content.encoded.typeId = UA_NODEID_NUMERIC(2, 1234);
+
+    UA_ByteString b = UA_BYTESTRING_ALLOC("123456789012345678901234567890");
+    src->content.encoded.body = b;
+
+    UA_EncodeXmlOptions options;
+    memset(&options, 0, sizeof(UA_EncodeXmlOptions));
+    options.prettyPrint = true;
+    const UA_DataType *type = &UA_TYPES[UA_TYPES_EXTENSIONOBJECT];
+    size_t size = UA_calcSizeXml((void*)src, type, &options);
+
+    UA_ByteString buf;
+    UA_ByteString_allocBuffer(&buf, size + 1);
+
+    status s = UA_printXml((void*)src, type, &buf);
+    ck_assert_int_eq(s, UA_STATUSCODE_GOOD);
+
+    char result[size + 1];
+    sprintf(result, "%s"
+                    "\n<ExtensionObject>"
+                      "\n\t<TypeId>"
+                        "\n\t\t<Identifier>ns=2;i=1234</Identifier>"
+                      "\n\t</TypeId>"
+                      "\n\t<Body>"
+                        "\n\t\t<ByteString>123456789012345678901234567890</ByteString>"
+                      "\n\t</Body>"
+                    "\n</ExtensionObject>",
+                    xmlEncTypeDefs[type->typeKind].xmlEncTypeDef);
+    buf.data[size] = 0; /* zero terminate */
+    ck_assert_str_eq(result, (char*)buf.data);
+
+    UA_ByteString_clear(&buf);
+    UA_ExtensionObject_delete(src);
+}
+
 
 // ---------------------------DECODE-------------------------------------
 
@@ -3351,6 +3491,223 @@ START_TEST(UA_LocalizedText_empty_xml_decode) {
 }
 END_TEST
 
+/* ExtensionObject */
+START_TEST(UA_ExtensionObject_EncodedByteString_xml_decode) {
+    UA_ExtensionObject out;
+    UA_ExtensionObject_init(&out);
+    UA_ByteString buf = UA_STRING("<ExtensionObject>"
+                                    "<TypeId>"
+                                      "<Identifier>i=42</Identifier>"
+                                    "</TypeId>"
+                                    "<Body>"
+                                      "<ByteString>YXNkZmFzZGY=</ByteString>"
+                                    "</Body>"
+                                  "</ExtensionObject>");
+
+    UA_StatusCode retval = UA_decodeXml(&buf, &out, &UA_TYPES[UA_TYPES_EXTENSIONOBJECT], NULL);
+
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_int_eq(out.encoding, UA_EXTENSIONOBJECT_ENCODED_BYTESTRING);
+    ck_assert_int_eq(out.content.encoded.body.data[0], 'Y');
+    ck_assert_int_eq(out.content.encoded.body.data[0], 'Y');
+    ck_assert_int_eq(out.content.encoded.body.data[1], 'X');
+    ck_assert_int_eq(out.content.encoded.body.data[2], 'N');
+    ck_assert_int_eq(out.content.encoded.body.data[3], 'k');
+    ck_assert_int_eq(out.content.encoded.body.data[4], 'Z');
+    ck_assert_int_eq(out.content.encoded.body.data[5], 'm');
+    ck_assert_int_eq(out.content.encoded.body.data[6], 'F');
+    ck_assert_int_eq(out.content.encoded.typeId.identifier.numeric, 42);
+
+    UA_ExtensionObject_clear(&out);
+}
+END_TEST
+
+START_TEST(UA_ExtensionObject_EncodedXml_1_xml_decode) {
+    UA_ExtensionObject out;
+    UA_ExtensionObject_init(&out);
+    UA_ByteString buf = UA_STRING("<ExtensionObject>"
+                                    "<TypeId>"
+                                      "<Identifier>i=42</Identifier>"
+                                    "</TypeId>"
+                                    "<Body>"
+                                      "<Element></Element>"
+                                    "</Body>"
+                                  "</ExtensionObject>");
+
+    UA_StatusCode retval = UA_decodeXml(&buf, &out, &UA_TYPES[UA_TYPES_EXTENSIONOBJECT], NULL);
+
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_int_eq(out.encoding, UA_EXTENSIONOBJECT_ENCODED_XML);
+    UA_ByteString testBufData = UA_STRING("<Element />");
+    ck_assert(UA_ByteString_equal(&out.content.encoded.body, &testBufData));
+    ck_assert_int_eq(out.content.encoded.typeId.identifier.numeric, 42);
+
+    UA_ExtensionObject_clear(&out);
+}
+END_TEST
+
+START_TEST(UA_ExtensionObject_EncodedXml_2_xml_decode) {
+    UA_ExtensionObject out;
+    UA_ExtensionObject_init(&out);
+    UA_ByteString buf = UA_STRING("<ExtensionObject>"
+                                    "<TypeId>"
+                                      "<Identifier>ns=1;i=5006</Identifier>"
+                                    "</TypeId>"
+                                    "<Body>"
+                                      "<PointWithOffset>"
+                                        "<offset>"
+                                            "<x>1</x>"
+                                            "<y>2</y>"
+                                        "</offset>"
+                                        "<x>20</x>"
+                                        "<y>30</y>"
+                                      "</PointWithOffset>"
+                                    "</Body>"
+                                  "</ExtensionObject>");
+
+    UA_StatusCode retval = UA_decodeXml(&buf, &out, &UA_TYPES[UA_TYPES_EXTENSIONOBJECT], NULL);
+
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_int_eq(out.encoding, UA_EXTENSIONOBJECT_ENCODED_XML);
+    UA_ByteString testBufData = UA_STRING("<PointWithOffset>"
+                                            "<offset>"
+                                              "<x>1</x>"
+                                              "<y>2</y>"
+                                            "</offset>"
+                                            "<x>20</x>"
+                                            "<y>30</y>"
+                                          "</PointWithOffset>");
+    ck_assert(UA_ByteString_equal(&out.content.encoded.body, &testBufData));
+    ck_assert_int_eq(out.content.encoded.typeId.namespaceIndex, 1);
+    ck_assert_int_eq(out.content.encoded.typeId.identifier.numeric, 5006);
+
+    UA_ExtensionObject_clear(&out);
+}
+END_TEST
+
+START_TEST(UA_ExtensionObject_EncodedXml_3_xml_decode) {
+    UA_ExtensionObject out;
+    UA_ExtensionObject_init(&out);
+    UA_ByteString buf = UA_STRING("<ExtensionObject>"
+                                    "<TypeId>"
+                                      "<Identifier>i=863</Identifier>"
+                                    "</TypeId>"
+                                    "<Body>"
+                                      "<ServerStatusDataType xmlns=\"http://opcfoundation.org/UA/2008/02/Types.xsd\">"
+                                        "<StartTime>2000-01-01T00:00:00Z</StartTime>"
+                                        "<CurrentTime>2000-01-01T00:00:00Z</CurrentTime>"
+                                        "<State>5</State>"
+                                        "<BuildInfo>"
+                                          "<ProductUri>open62541</ProductUri>"
+                                          "<ManufacturerName>oss</ManufacturerName>"
+                                          "<ProductName>open62541</ProductName>"
+                                          "<SoftwareVersion>master</SoftwareVersion>"
+                                          "<BuildNumber>latest</BuildNumber>"
+                                          "<BuildDate>2000-01-01T00:00:00Z</BuildDate>"
+                                        "</BuildInfo>"
+                                        "<SecondsTillShutdown>0</SecondsTillShutdown>"
+                                        "<ShutdownReason>"
+                                          "<Locale>en</Locale>"
+                                          "<Text></Text>"
+                                        "</ShutdownReason>"
+                                      "</ServerStatusDataType>"
+                                    "</Body>"
+                                  "</ExtensionObject>");
+
+    UA_StatusCode retval = UA_decodeXml(&buf, &out, &UA_TYPES[UA_TYPES_EXTENSIONOBJECT], NULL);
+
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_int_eq(out.encoding, UA_EXTENSIONOBJECT_ENCODED_XML);
+    UA_ByteString testBufData = UA_STRING("<ServerStatusDataType>"
+                                            "<StartTime>2000-01-01T00:00:00Z</StartTime>"
+                                            "<CurrentTime>2000-01-01T00:00:00Z</CurrentTime>"
+                                            "<State>5</State>"
+                                            "<BuildInfo>"
+                                              "<ProductUri>open62541</ProductUri>"
+                                              "<ManufacturerName>oss</ManufacturerName>"
+                                              "<ProductName>open62541</ProductName>"
+                                              "<SoftwareVersion>master</SoftwareVersion>"
+                                              "<BuildNumber>latest</BuildNumber>"
+                                              "<BuildDate>2000-01-01T00:00:00Z</BuildDate>"
+                                            "</BuildInfo>"
+                                            "<SecondsTillShutdown>0</SecondsTillShutdown>"
+                                            "<ShutdownReason>"
+                                              "<Locale>en</Locale>"
+                                              "<Text />"
+                                            "</ShutdownReason>"
+                                          "</ServerStatusDataType>");
+    ck_assert(UA_ByteString_equal(&out.content.encoded.body, &testBufData));
+    ck_assert_int_eq(out.content.encoded.typeId.identifier.numeric, 863);
+
+    UA_ExtensionObject_clear(&out);
+}
+END_TEST
+
+START_TEST(UA_ExtensionObject_EncodedXml_4_xml_decode) {
+    UA_ExtensionObject out;
+    UA_ExtensionObject_init(&out);
+    UA_ByteString buf = UA_STRING("<ExtensionObject>"
+                                    "<TypeId>"
+                                        "<Identifier>i=297</Identifier>"
+                                    "</TypeId>"
+                                    "<Body>"
+                                      "<Argument>"
+                                        "<Name>TransferID</Name>"
+                                        "<DataType>"
+                                          "<Identifier>i=6</Identifier>"
+                                        "</DataType>"
+                                        "<ValueRank>-1</ValueRank>"
+                                        "<ArrayDimensions />"
+                                        "<Description>"
+                                          "<Locale>en</Locale>"
+                                          "<Text>Enabled</Text>"
+                                        "</Description>"
+                                      "</Argument>"
+                                    "</Body>"
+                                  "</ExtensionObject>");
+
+    UA_StatusCode retval = UA_decodeXml(&buf, &out, &UA_TYPES[UA_TYPES_EXTENSIONOBJECT], NULL);
+
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_int_eq(out.encoding, UA_EXTENSIONOBJECT_ENCODED_XML);
+    UA_ByteString testBufData = UA_STRING("<Argument>"
+                                            "<Name>TransferID</Name>"
+                                            "<DataType>"
+                                              "<Identifier>i=6</Identifier>"
+                                            "</DataType>"
+                                            "<ValueRank>-1</ValueRank>"
+                                            "<ArrayDimensions />"
+                                            "<Description>"
+                                              "<Locale>en</Locale>"
+                                              "<Text>Enabled</Text>"
+                                            "</Description>"
+                                          "</Argument>");
+    ck_assert(UA_ByteString_equal(&out.content.encoded.body, &testBufData));
+    ck_assert_int_eq(out.content.encoded.typeId.identifier.numeric, 297);
+
+    UA_ExtensionObject_clear(&out);
+}
+END_TEST
+
+START_TEST(UA_ExtensionObject_InvalidBody_xml_decode) {
+    UA_ExtensionObject out;
+    UA_ExtensionObject_init(&out);
+    UA_ByteString buf = UA_STRING("<ExtensionObject>"
+                                    "<TypeId>"
+                                        "<Identifier>i=297</Identifier>"
+                                    "</TypeId>"
+                                    "<Body>"
+                                      "SomeString"
+                                    "</Body>"
+                                  "</ExtensionObject>");
+
+    UA_StatusCode retval = UA_decodeXml(&buf, &out, &UA_TYPES[UA_TYPES_EXTENSIONOBJECT], NULL);
+    ck_assert_int_eq(retval, UA_STATUSCODE_BADDECODINGERROR);
+
+    UA_ExtensionObject_clear(&out);
+}
+END_TEST
+
 
 static Suite *testSuite_builtin_xml(void) {
     Suite *s = suite_create("Built-in Data Types 62541-5 Xml");
@@ -3452,6 +3809,11 @@ static Suite *testSuite_builtin_xml(void) {
     tcase_add_test(tc_xml_encode, UA_ExpandedNodeId_print_xml_encode);
     tcase_add_test(tc_xml_encode, UA_QualifiedName_print_xml_encode);
 
+    tcase_add_test(tc_xml_encode, UA_ExtensionObject_xml_xml_encode);
+    tcase_add_test(tc_xml_encode, UA_ExtensionObject_byteString_xml_encode);
+    tcase_add_test(tc_xml_encode, UA_ExtensionObject_null_xml_encode);
+    tcase_add_test(tc_xml_encode, UA_ExtensionObject_print_xml_encode);
+
     suite_add_tcase(s, tc_xml_encode);
 
     TCase *tc_xml_decode = tcase_create("xml_decode");
@@ -3552,6 +3914,13 @@ static Suite *testSuite_builtin_xml(void) {
     tcase_add_test(tc_xml_decode, UA_LocalizedText_missing_text_xml_decode);
     tcase_add_test(tc_xml_decode, UA_LocalizedText_empty_locale_xml_decode);
     tcase_add_test(tc_xml_decode, UA_LocalizedText_empty_xml_decode);
+
+    tcase_add_test(tc_xml_decode, UA_ExtensionObject_EncodedByteString_xml_decode);
+    tcase_add_test(tc_xml_decode, UA_ExtensionObject_EncodedXml_1_xml_decode);
+    tcase_add_test(tc_xml_decode, UA_ExtensionObject_EncodedXml_2_xml_decode);
+    tcase_add_test(tc_xml_decode, UA_ExtensionObject_EncodedXml_3_xml_decode);
+    tcase_add_test(tc_xml_decode, UA_ExtensionObject_EncodedXml_4_xml_decode);
+    tcase_add_test(tc_xml_decode, UA_ExtensionObject_InvalidBody_xml_decode);
 
     suite_add_tcase(s, tc_xml_decode);
 
