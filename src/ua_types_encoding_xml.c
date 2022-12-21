@@ -96,7 +96,18 @@ XmlEncTypeDef xmlEncTypeDefs[UA_DATATYPEKINDS] = {
          "<xs:element name=\"Text\" type=\"xs:string\" minOccurs=\"0\" />"
        "</xs:sequence>"
      "</xs:complexType>", 197},                                                             /* LocalizedText */
-    {"", 0},                                                                                /* ExtensionObject */
+    {"<xs:complexType name=\"ExtensionObject\">"
+       "<xs:sequence>"
+         "<xs:element name=\"TypeId\" type=\"tns:NodeId\" minOccurs=\"0\" nillable=\"true\"/>"
+         "<xs:element name=\"Body\" minOccurs=\"0\" nillable=\"true\">"
+           "<xs:complexType>"
+             "<xs:sequence>"
+               "<xs:any minOccurs=\"0\" processContents=\"lax\"/>"
+             "</xs:sequence>"
+           "</xs:complexType>"
+         "</xs:element>"
+       "</xs:sequence>"
+     "</xs:complexType>", 330},                                                             /* ExtensionObject */
     {"", 0},                                                                                /* DataValue */
     {"", 0},                                                                                /* Variant */
     {"", 0},                                                                                /* DiagnosticInfo */
@@ -129,6 +140,11 @@ static const char* UA_XML_QUALIFIEDNAME_NAME = "Name";                     // St
 /* LocalizedText */
 static const char* UA_XML_LOCALIZEDTEXT_LOCALE = "Locale"; // String
 static const char* UA_XML_LOCALIZEDTEXT_TEXT = "Text";     // String
+
+/* ExtensionObject */
+static const char* UA_XML_EXTENSIONOBJECT_TYPEID = "TypeId"; // NodeId
+static const char* UA_XML_EXTENSIONOBJECT_BODY = "Body";
+static const char* UA_XML_EXTENSIONOBJECT_BYTESTRING = "ByteString";
 
 /************/
 /* Encoding */
@@ -479,6 +495,44 @@ ENCODE_XML(LocalizedText) {
     return ret;
 }
 
+/* ExtensionObject */
+ENCODE_XML(ExtensionObject) {
+    if(src->encoding == UA_EXTENSIONOBJECT_ENCODED_NOBODY)
+        return xmlEncodeWriteChars(ctx, "null", 4);
+
+    /* The body of the ExtensionObject contains a single element
+     * which is either a ByteString or XML encoded Structure:
+     * https://reference.opcfoundation.org/Core/Part6/v104/docs/5.3.1.16. */
+    if(src->encoding != UA_EXTENSIONOBJECT_ENCODED_BYTESTRING &&
+       src->encoding != UA_EXTENSIONOBJECT_ENCODED_XML)
+        return UA_STATUSCODE_BADENCODINGERROR;
+
+    /* Write the type NodeId */
+    UA_StatusCode ret =
+        writeXmlElement(ctx, UA_XML_EXTENSIONOBJECT_TYPEID,
+                        &src->content.encoded.typeId, &UA_TYPES[UA_TYPES_NODEID]);
+
+    /* Write the body */
+    UA_Boolean prevPrintVal = ctx->printValOnly;
+    ctx->printValOnly = false;
+    ret |= writeXmlElemNameBegin(ctx, UA_XML_EXTENSIONOBJECT_BODY);
+    if(src->encoding == UA_EXTENSIONOBJECT_ENCODED_BYTESTRING)
+        ret |= writeXmlElemNameBegin(ctx, UA_XML_EXTENSIONOBJECT_BYTESTRING);
+
+    ctx->printValOnly = true;
+    ret |= ENCODE_DIRECT_XML(&src->content.encoded.body, String);
+    ctx->printValOnly = false;
+
+    if(src->encoding == UA_EXTENSIONOBJECT_ENCODED_BYTESTRING)
+        ret |= writeXmlElemNameEnd(ctx, UA_XML_EXTENSIONOBJECT_BYTESTRING,
+                                   &UA_TYPES[UA_TYPES_BYTESTRING]);
+    ret |= writeXmlElemNameEnd(ctx, UA_XML_EXTENSIONOBJECT_BODY,
+                               &UA_TYPES[UA_TYPES_EXTENSIONOBJECT]);
+    ctx->printValOnly = prevPrintVal;
+
+    return ret;
+}
+
 static status
 encodeXmlNotImplemented(CtxXml *ctx, const void *src, const UA_DataType *type) {
     (void)ctx, (void)src, (void)type;
@@ -507,7 +561,7 @@ const encodeXmlSignature encodeXmlJumpTable[UA_DATATYPEKINDS] = {
     (encodeXmlSignature)StatusCode_encodeXml,       /* StatusCode */
     (encodeXmlSignature)QualifiedName_encodeXml,    /* QualifiedName */
     (encodeXmlSignature)LocalizedText_encodeXml,    /* LocalizedText */
-    (encodeXmlSignature)encodeXmlNotImplemented,    /* ExtensionObject */
+    (encodeXmlSignature)ExtensionObject_encodeXml,  /* ExtensionObject */
     (encodeXmlSignature)encodeXmlNotImplemented,    /* DataValue */
     (encodeXmlSignature)encodeXmlNotImplemented,    /* Variant */
     (encodeXmlSignature)encodeXmlNotImplemented,    /* DiagnosticInfo */
@@ -1251,6 +1305,170 @@ DECODE_XML(LocalizedText) {
     return decodeXmlFields(ctx, entries, 2);
 }
 
+static UA_FUNC_ATTR_WARN_UNUSED_RESULT status
+lookAheadForXmlElemName(XmlData *data, const char *name) {
+    status ret = UA_STATUSCODE_BADNOTFOUND;
+    if(!strcmp(data->name, name)) {
+        ret = UA_STATUSCODE_GOOD;
+        goto finish;
+    }
+    if(data->type != XML_DATA_TYPE_PRIMITIVE) {
+        for(size_t i = 0; i < data->value.complex.membersSize; ++i) {
+            ret = lookAheadForXmlElemName(data->value.complex.members[i], name);
+            if(ret == UA_STATUSCODE_GOOD)
+                goto finish;
+        }
+    }
+
+finish:
+    return ret;
+}
+
+static UA_FUNC_ATTR_WARN_UNUSED_RESULT size_t
+calcExtObjStrSize(XmlData* data) {
+    size_t retSize = 0;
+    UA_Boolean emptyElement = false;
+    /* XML element start sequence. */
+    retSize += strlen("<>");
+    retSize += strlen(data->name);
+    if(data->type == XML_DATA_TYPE_PRIMITIVE) {
+        /* Empty primitive XML object. */
+        if(data->value.primitive.value == NULL)
+            emptyElement = true;
+        else
+            retSize += strlen(data->value.primitive.value);
+    }
+    else {
+        /* Empty complex XML object. */
+        if(data->value.complex.membersSize == 0)
+            emptyElement = true;
+        else {
+            for(size_t i = 0; i < data->value.complex.membersSize; ++i)
+                retSize += calcExtObjStrSize(data->value.complex.members[i]);
+        }
+    }
+    /* XML element end sequence. */
+    if(emptyElement) {
+        retSize += strlen(" /");
+        return retSize;
+    }
+
+    retSize += strlen(data->name);
+    retSize += strlen("</>");
+    return retSize;
+}
+
+static __attribute__ ((unused)) size_t
+xmlExtObjBody(ParseCtxXml *ctx, UA_Byte* outData) {
+    size_t curPos = 0;
+    UA_Boolean emptyElement = false;
+    XmlData *data = ctx->dataMembers[ctx->index];
+
+    /* XML element start sequence. */
+    outData[curPos++] = '<';
+    for(size_t i = 0; i < strlen(data->name); ++i)
+        outData[curPos + i] = (UA_Byte)data->name[i];
+    curPos += strlen(data->name);
+
+    if(data->type == XML_DATA_TYPE_PRIMITIVE) {
+        /* Empty primitive XML object. */
+        if(data->value.primitive.value == NULL)
+            emptyElement = true;
+        else {
+            outData[curPos++] = '>';
+            for(size_t i = 0; i < strlen(data->value.primitive.value); ++i)
+                outData[curPos + i] = (UA_Byte)data->value.primitive.value[i];
+            curPos += strlen(data->value.primitive.value);
+        }
+        ctx->index++;
+    }
+    else {
+        /* Empty complex XML object. */
+        if(data->value.complex.membersSize == 0)
+            emptyElement = true;
+        else {
+            outData[curPos++] = '>';
+            /* Go to the next element inside complex type. */
+            ctx->index++;
+            for(size_t i = 0; i < data->value.complex.membersSize; ++i)
+                curPos += xmlExtObjBody(ctx, outData + curPos);
+        }
+    }
+
+    /* XML element end sequence. */
+    if(emptyElement) {
+        outData[curPos++] = ' ';
+        outData[curPos++] = '/';
+        outData[curPos++] = '>';
+        return curPos;
+    }
+
+    outData[curPos++] = '<';
+    outData[curPos++] = '/';
+    for(size_t i = 0; i < strlen(data->name); ++i)
+        outData[curPos + i] = (UA_Byte)data->name[i];
+    curPos += strlen(data->name);
+    outData[curPos++] = '>';
+
+    return curPos;
+}
+
+DECODE_XML(ExtensionObject) {
+    CHECK_DATA_BOUNDS;
+
+    /* Empty object -> Null ExtensionObject */
+    if(ctx->dataMembers[ctx->index]->type == XML_DATA_TYPE_PRIMITIVE &&
+       !strcmp(ctx->dataMembers[ctx->index]->value.primitive.value, "null")) {
+        ctx->index++; /* Skip the empty ExtensionObject */
+        return UA_STATUSCODE_GOOD;
+    }
+
+    /* Search for ByteString encoding */
+    status ret = lookAheadForXmlElemName(ctx->dataMembers[ctx->index], UA_XML_EXTENSIONOBJECT_BYTESTRING);
+
+    /* ByteString encoding found */
+    if(ret == UA_STATUSCODE_GOOD)
+        dst->encoding = UA_EXTENSIONOBJECT_ENCODED_BYTESTRING;
+    else
+        dst->encoding = UA_EXTENSIONOBJECT_ENCODED_XML;
+
+    /* Check fields of the ExtensionObject typeId. */
+    XmlDecodeEntry entryTypeId = {
+        UA_XML_EXTENSIONOBJECT_TYPEID, &dst->content.encoded.typeId, NULL, false, &UA_TYPES[UA_TYPES_NODEID]
+    };
+    ret = decodeXmlFields(ctx, &entryTypeId, 1);
+
+    if(ret != UA_STATUSCODE_GOOD)
+        return ret;
+
+    if(dst->encoding == UA_EXTENSIONOBJECT_ENCODED_BYTESTRING) {
+        /* Check ExtensionObject body separate from TypeId (Body element
+         * is not of an XML complex object type, rather a wrapper around
+         * either a ByteString or XML encoded Structure (String)). */
+        XmlDecodeEntry entriesBody[2] = {
+            {UA_XML_EXTENSIONOBJECT_BODY, NULL, NULL, false, &UA_TYPES[UA_TYPES_BYTESTRING]},
+            {UA_XML_EXTENSIONOBJECT_BYTESTRING, &dst->content.encoded.body, NULL, false, &UA_TYPES[UA_TYPES_STRING]}
+        };
+        return decodeXmlFields(ctx, entriesBody, 2);
+    }
+
+    /* Current element must have `Body` name, and also must include
+     * additional XML elements. */
+    if(strcmp(ctx->dataMembers[ctx->index]->name, UA_XML_EXTENSIONOBJECT_BODY) ||
+       ctx->dataMembers[ctx->index]->type == XML_DATA_TYPE_PRIMITIVE)
+        return UA_STATUSCODE_BADDECODINGERROR;
+
+    /* Go to the next element inside Body segment. */
+    ctx->index++;
+
+    size_t xmlBodySize = calcExtObjStrSize(ctx->dataMembers[ctx->index]);
+    UA_ByteString_allocBuffer(&dst->content.encoded.body, xmlBodySize);
+
+    (void)xmlExtObjBody(ctx, dst->content.encoded.body.data);
+
+    return UA_STATUSCODE_GOOD;
+}
+
 static status
 Array_decodeXml(ParseCtxXml *ctx, void **dst, const UA_DataType *type) {
     (void)dst, (void)type, (void)ctx;
@@ -1285,7 +1503,7 @@ const decodeXmlSignature decodeXmlJumpTable[UA_DATATYPEKINDS] = {
     (decodeXmlSignature)StatusCode_decodeXml,       /* StatusCode */
     (decodeXmlSignature)QualifiedName_decodeXml,    /* QualifiedName */
     (decodeXmlSignature)LocalizedText_decodeXml,    /* LocalizedText */
-    (decodeXmlSignature)decodeXmlNotImplemented,    /* ExtensionObject */
+    (decodeXmlSignature)ExtensionObject_decodeXml,  /* ExtensionObject */
     (decodeXmlSignature)decodeXmlNotImplemented,    /* DataValue */
     (decodeXmlSignature)decodeXmlNotImplemented,    /* Variant */
     (decodeXmlSignature)decodeXmlNotImplemented,    /* DiagnosticInfo */
