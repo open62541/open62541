@@ -123,7 +123,7 @@ endif()
 
 if(UA_ENABLE_PUBSUB)
   list(APPEND test_plugin_sources
-              ${PROJECT_SOURCE_DIR}/plugins/ua_pubsub_udp.c)
+       ${PROJECT_SOURCE_DIR}/plugins/ua_pubsub_udp_multicast.c)
     if(UA_ENABLE_PUBSUB_ETH_UADP)
         list(APPEND test_plugin_sources ${PROJECT_SOURCE_DIR}/plugins/include/open62541/plugin/pubsub_ethernet.h)
         list(APPEND test_plugin_sources ${PROJECT_SOURCE_DIR}/plugins/ua_pubsub_ethernet.c)
