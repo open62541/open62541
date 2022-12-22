@@ -325,14 +325,20 @@ UA_ReaderGroup_setPubSubState_disable(UA_Server *server,
         return UA_STATUSCODE_GOOD;
     case UA_PUBSUBSTATE_PAUSED:
         break;
-    case UA_PUBSUBSTATE_OPERATIONAL:
+    case UA_PUBSUBSTATE_OPERATIONAL: {
         UA_ReaderGroup_removeSubscribeCallback(server, rg);
+        UA_PubSubConnection *connection = UA_PubSubConnection_findConnectionbyId(server, rg->linkedConnection);
+        UA_PubSubChannel *channel = connection->channel;
+        if(channel->closeSubscriber) {
+            channel->closeSubscriber(channel);
+        }
         LIST_FOREACH(dataSetReader, &rg->readers, listEntry) {
             UA_DataSetReader_setPubSubState(server, dataSetReader,
                                             UA_PUBSUBSTATE_DISABLED, cause);
         }
         rg->state = UA_PUBSUBSTATE_DISABLED;
         break;
+    }
     case UA_PUBSUBSTATE_ERROR:
         break;
     default:
@@ -372,14 +378,20 @@ UA_ReaderGroup_setPubSubState_operational(UA_Server *server,
                                           UA_StatusCode cause) {
     UA_DataSetReader *dataSetReader;
     switch(rg->state) {
-    case UA_PUBSUBSTATE_DISABLED:
+    case UA_PUBSUBSTATE_DISABLED: {
         LIST_FOREACH(dataSetReader, &rg->readers, listEntry) {
             UA_DataSetReader_setPubSubState(server, dataSetReader, UA_PUBSUBSTATE_OPERATIONAL,
                                             cause);
         }
+        UA_PubSubConnection *connection = UA_PubSubConnection_findConnectionbyId(server, rg->linkedConnection);
+        UA_PubSubChannel *channel = connection->channel;
+        if(channel->openSubscriber) {
+            channel->openSubscriber(channel);
+        }
         UA_ReaderGroup_addSubscribeCallback(server, rg);
         rg->state = UA_PUBSUBSTATE_OPERATIONAL;
         return UA_STATUSCODE_GOOD;
+    }
     case UA_PUBSUBSTATE_PAUSED:
         break;
     case UA_PUBSUBSTATE_OPERATIONAL:

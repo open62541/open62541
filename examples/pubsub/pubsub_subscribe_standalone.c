@@ -19,6 +19,7 @@
 #include "ua_types_encoding_binary.h"
 #include "ua_pubsub_networkmessage.h"
 #include "ua_util_internal.h"
+#include "ua_pubsub.h"
 
 #include <signal.h>
 
@@ -137,7 +138,7 @@ int main(int argc, char **argv) {
                          &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
 
     UA_PubSubChannel *psc =
-        udpLayer.createPubSubChannel(&connectionConfig);
+        udpLayer.createPubSubChannel(&udpLayer, &connectionConfig);
     psc->regist(psc, NULL, NULL);
 
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
