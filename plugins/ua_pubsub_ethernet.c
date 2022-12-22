@@ -57,6 +57,7 @@ static UA_THREAD_LOCAL UA_Byte ReceiveMsgBufferETH[UA_RECEIVE_MSG_BUFFER_SIZE];
 #endif
 
 #include <time.h>
+
 #define ETHERTYPE_UADP                       0xb62c
 #define MIN_ETHERNET_PACKET_SIZE_WITHOUT_FCS 60
 #define VLAN_HEADER_SIZE                     4
@@ -1028,7 +1029,7 @@ sendWithTxTime(UA_PubSubChannel *channel, UA_ExtensionObject *transportSettings,
 static UA_StatusCode
 UA_PubSubChannelEthernet_send(UA_PubSubChannel *channel,
                               UA_ExtensionObject *transportSettings,
-                              const UA_ByteString *buf) {
+                              UA_ByteString *buf) {
     UA_PubSubChannelDataEthernet *channelDataEthernet =
         (UA_PubSubChannelDataEthernet *) channel->handle;
 
@@ -1299,6 +1300,18 @@ UA_PubSubChannelEthernet_close(UA_PubSubChannel *channel) {
     UA_free(channel);
     return UA_STATUSCODE_GOOD;
 }
+static UA_StatusCode
+UA_PubSubChannelEthernet_allocNetworkBuffer(UA_PubSubChannel *channel, UA_ByteString *buf, size_t bufSize) {
+
+    UA_StatusCode rv = UA_ByteString_allocBuffer(buf, bufSize);
+    return rv;
+}
+
+static UA_StatusCode
+UA_PubSubChannelEthernet_freeNetworkBuffer(UA_PubSubChannel *channel, UA_ByteString *buf) {
+    UA_ByteString_clear(buf);
+    return UA_STATUSCODE_GOOD;
+}
 
 /**
  * Generate a new channel. based on the given configuration.
@@ -1307,8 +1320,11 @@ UA_PubSubChannelEthernet_close(UA_PubSubChannel *channel) {
  * @return  ref to created channel, NULL on error
  */
 static UA_PubSubChannel *
-TransportLayerEthernet_addChannel(UA_PubSubConnectionConfig *connectionConfig) {
+TransportLayerEthernet_addChannel(UA_PubSubTransportLayer *tl, void *ctx) {
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "PubSub channel requested");
+    UA_TransportLayerContext *tctx  = (UA_TransportLayerContext *) ctx;
+    UA_PubSubConnectionConfig *connectionConfig = tctx->connectionConfig;
+
     UA_PubSubChannel * pubSubChannel = UA_PubSubChannelEthernet_open(connectionConfig);
     if(pubSubChannel) {
         pubSubChannel->regist = UA_PubSubChannelEthernet_regist;
@@ -1316,7 +1332,14 @@ TransportLayerEthernet_addChannel(UA_PubSubConnectionConfig *connectionConfig) {
         pubSubChannel->send = UA_PubSubChannelEthernet_send;
         pubSubChannel->receive = UA_PubSubChannelEthernet_receive;
         pubSubChannel->close = UA_PubSubChannelEthernet_close;
+        pubSubChannel->openPublisher = NULL;
+        pubSubChannel->openSubscriber = NULL;
+        pubSubChannel->closePublisher = NULL;
+        pubSubChannel->closeSubscriber = NULL;
         pubSubChannel->connectionConfig = connectionConfig;
+        pubSubChannel->allocNetworkBuffer = UA_PubSubChannelEthernet_allocNetworkBuffer;
+        pubSubChannel->freeNetworkBuffer = UA_PubSubChannelEthernet_freeNetworkBuffer;
+
     }
     return pubSubChannel;
 }
@@ -1324,8 +1347,11 @@ TransportLayerEthernet_addChannel(UA_PubSubConnectionConfig *connectionConfig) {
 UA_PubSubTransportLayer
 UA_PubSubTransportLayerEthernet(void) {
     UA_PubSubTransportLayer pubSubTransportLayer;
+
     pubSubTransportLayer.transportProfileUri =
         UA_STRING("http://opcfoundation.org/UA-Profile/Transport/pubsub-eth-uadp");
     pubSubTransportLayer.createPubSubChannel = &TransportLayerEthernet_addChannel;
+    pubSubTransportLayer.connectionManager = NULL;
+
     return pubSubTransportLayer;
 }

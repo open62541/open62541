@@ -1501,13 +1501,20 @@ decodeNetworkMessageJson(UA_Server *server, UA_ByteString *buffer, size_t *pos,
 
 static UA_StatusCode
 decodeAndProcessNetworkMessage(UA_Server *server, UA_PubSubConnection *connection,
-                               UA_ReaderGroup *readerGroup, UA_ByteString *buf) {
+                                  UA_PubSubEncodingType encodingMimeType, UA_ByteString *buf) {
     UA_NetworkMessage nm;
     memset(&nm, 0, sizeof(UA_NetworkMessage));
 
+    UA_ReaderGroup *readerGroup = LIST_FIRST(&connection->readerGroups);
+    if(!readerGroup) {
+        UA_LOG_WARNING_CONNECTION(&server->config.logger, connection,
+                                  "Received message, but no reader configured");
+        return UA_STATUSCODE_GOOD;
+    }
+
     size_t currentPosition = 0;
     UA_StatusCode rv;
-    if(readerGroup->config.encodingMimeType == UA_PUBSUB_ENCODING_UADP){
+    if(encodingMimeType == UA_PUBSUB_ENCODING_UADP){
         rv = decodeNetworkMessage(server, buf, &currentPosition,
                                   &nm, connection);
     } else { /* if(writerGroup->config.encodingMimeType == UA_PUBSUB_ENCODING_JSON) */
@@ -1533,6 +1540,13 @@ decodeAndProcessNetworkMessage(UA_Server *server, UA_PubSubConnection *connectio
 cleanup:
     UA_NetworkMessage_clear(&nm);
     return rv;
+}
+
+UA_StatusCode
+UA_decodeAndProcessNetworkMessage(UA_Server *server,
+                                  UA_PubSubConnection *connection,
+                                  UA_ByteString *buffer) {
+    return decodeAndProcessNetworkMessage(server, connection, UA_PUBSUB_ENCODING_UADP, buffer);
 }
 
 static UA_StatusCode
@@ -1612,7 +1626,8 @@ decodeAndProcessFun(UA_PubSubChannel *channel, void *cbContext,
                     const UA_ByteString *buf) {
     UA_RGContext *ctx = (UA_RGContext*)cbContext;
     UA_ByteString mutableBuffer = {buf->length, buf->data};
-    return decodeAndProcessNetworkMessage(ctx->server, ctx->connection, ctx->readerGroup, &mutableBuffer);
+    return decodeAndProcessNetworkMessage(ctx->server, ctx->connection,
+                                          ctx->readerGroup->config.encodingMimeType, &mutableBuffer);
 }
 
 static UA_StatusCode

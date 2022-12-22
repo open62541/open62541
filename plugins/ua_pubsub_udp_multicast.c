@@ -678,7 +678,7 @@ UA_PubSubChannelUDPMC_unregist(UA_PubSubChannel *channel, UA_ExtensionObject *tr
  */
 static UA_StatusCode
 UA_PubSubChannelUDPMC_send(UA_PubSubChannel *channel, UA_ExtensionObject *transportSettings,
-                           const UA_ByteString *buf) {
+                           UA_ByteString *buf) {
     UA_PubSubChannelDataUDPMC *channelConfigUDPMC = (UA_PubSubChannelDataUDPMC *) channel->handle;
     if(!(channel->state == UA_PUBSUB_CHANNEL_PUB || channel->state == UA_PUBSUB_CHANNEL_PUB_SUB)){
         UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
@@ -826,22 +826,45 @@ UA_PubSubChannelUDPMC_close(UA_PubSubChannel *channel) {
     return UA_STATUSCODE_GOOD;
 }
 
+static UA_StatusCode
+UA_PubSubChannelUDPMC_allocNetworkBuffer(UA_PubSubChannel *channel, UA_ByteString *buf, size_t bufSize) {
+
+    UA_StatusCode rv = UA_ByteString_allocBuffer(buf, bufSize);
+    return rv;
+}
+
+static UA_StatusCode
+UA_PubSubChannelUDPMC_freeNetworkBuffer(UA_PubSubChannel *channel, UA_ByteString *buf) {
+    UA_ByteString_clear(buf);
+    return UA_STATUSCODE_GOOD;
+}
+
 /**
  * Generate a new channel. based on the given configuration.
- *
- * @param connectionConfig connection configuration
+ * @param tl the transport layer to use for the channel
+ * @param ctx connection configuration ctx
  * @return  ref to created channel, NULL on error
  */
 static UA_PubSubChannel *
-TransportLayerUDPMC_addChannel(UA_PubSubConnectionConfig *connectionConfig) {
+TransportLayerUDPMC_addChannel(UA_PubSubTransportLayer *tl, void *ctx) {
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "PubSub channel requested");
+
+    UA_TransportLayerContext *tctx  = (UA_TransportLayerContext *) ctx;
+    UA_PubSubConnectionConfig *connectionConfig = tctx->connectionConfig;
     UA_PubSubChannel * pubSubChannel = UA_PubSubChannelUDPMC_open(connectionConfig);
+
     if(pubSubChannel){
         pubSubChannel->regist = UA_PubSubChannelUDPMC_regist;
         pubSubChannel->unregist = UA_PubSubChannelUDPMC_unregist;
         pubSubChannel->send = UA_PubSubChannelUDPMC_send;
         pubSubChannel->receive = UA_PubSubChannelUDPMC_receive;
         pubSubChannel->close = UA_PubSubChannelUDPMC_close;
+        pubSubChannel->openPublisher = NULL;
+        pubSubChannel->openSubscriber = NULL;
+        pubSubChannel->closePublisher = NULL;
+        pubSubChannel->closeSubscriber = NULL;
+        pubSubChannel->allocNetworkBuffer = UA_PubSubChannelUDPMC_allocNetworkBuffer;
+        pubSubChannel->freeNetworkBuffer = UA_PubSubChannelUDPMC_freeNetworkBuffer;
         pubSubChannel->connectionConfig = connectionConfig;
     }
     return pubSubChannel;

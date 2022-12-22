@@ -176,6 +176,11 @@ UA_PubSubConnection_regist(UA_Server *server, UA_NodeId *connectionIdentifier, c
 #define UA_LOG_FATAL_CONNECTION(LOGGER, CONNECTION, ...)                \
     UA_MACRO_EXPAND(UA_LOG_CONNECTION_INTERNAL(LOGGER, FATAL, CONNECTION, __VA_ARGS__, ""))
 
+UA_StatusCode
+UA_decodeAndProcessNetworkMessage(UA_Server *server,
+                                  UA_PubSubConnection *connection,
+                                  UA_ByteString *buf);
+
 /**********************************************/
 /*              DataSetWriter                 */
 /**********************************************/

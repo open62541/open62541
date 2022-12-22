@@ -270,7 +270,7 @@ UA_PubSubChannelMQTT_unregist(UA_PubSubChannel *channel, UA_ExtensionObject *tra
  * @return UA_STATUSCODE_GOOD if success
  */
 static UA_StatusCode
-UA_PubSubChannelMQTT_send(UA_PubSubChannel *channel, UA_ExtensionObject *transportSettings, const UA_ByteString *buf) {
+UA_PubSubChannelMQTT_send(UA_PubSubChannel *channel, UA_ExtensionObject *transportSettings, UA_ByteString *buf) {
     if(channel->state != UA_PUBSUB_CHANNEL_RDY){
         UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "PubSub MQTT: sending failed. Invalid state.");
         return UA_STATUSCODE_BADCONNECTIONCLOSED;
@@ -365,6 +365,18 @@ UA_PubSubChannelMQTT_receive(UA_PubSubChannel *channel, UA_ExtensionObject *tran
     /* Nothing to do */
     return UA_STATUSCODE_GOOD;
 }
+static UA_StatusCode
+UA_PubSubChannelMQTT_allocNetworkBuffer(UA_PubSubChannel *channel, UA_ByteString *buf, size_t bufSize) {
+
+    UA_StatusCode rv = UA_ByteString_allocBuffer(buf, bufSize);
+    return rv;
+}
+
+static UA_StatusCode
+UA_PubSubChannelMQTT_freeNetworkBuffer(UA_PubSubChannel *channel, UA_ByteString *buf) {
+    UA_ByteString_clear(buf);
+    return UA_STATUSCODE_GOOD;
+}
 
 /**
  * Generate a new MQTT channel. Based on the given configuration. Uses yield and no recv call.
@@ -373,8 +385,11 @@ UA_PubSubChannelMQTT_receive(UA_PubSubChannel *channel, UA_ExtensionObject *tran
  * @return  ref to created channel, NULL on error
  */
 static UA_PubSubChannel *
-TransportLayerMQTT_addChannel(UA_PubSubConnectionConfig *connectionConfig) {
+TransportLayerMQTT_addChannel(UA_PubSubTransportLayer *tl, void *ctx) {
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "PubSub MQTT: channel requested.");
+    UA_TransportLayerContext *tctx  = (UA_TransportLayerContext *) ctx;
+    UA_PubSubConnectionConfig *connectionConfig = tctx->connectionConfig;
+
     UA_PubSubChannel * pubSubChannel = UA_PubSubChannelMQTT_open(connectionConfig);
     if(pubSubChannel){
         pubSubChannel->regist = UA_PubSubChannelMQTT_regist;
@@ -382,6 +397,13 @@ TransportLayerMQTT_addChannel(UA_PubSubConnectionConfig *connectionConfig) {
         pubSubChannel->send = UA_PubSubChannelMQTT_send;
         pubSubChannel->close = UA_PubSubChannelMQTT_close;
         pubSubChannel->yield = UA_PubSubChannelMQTT_yield;
+        pubSubChannel->openPublisher = NULL;
+        pubSubChannel->openSubscriber = NULL;
+        pubSubChannel->closePublisher = NULL;
+        pubSubChannel->closeSubscriber = NULL;
+        pubSubChannel->allocNetworkBuffer = UA_PubSubChannelMQTT_allocNetworkBuffer;
+        pubSubChannel->freeNetworkBuffer = UA_PubSubChannelMQTT_freeNetworkBuffer;
+
         pubSubChannel->receive = UA_PubSubChannelMQTT_receive;
 
         pubSubChannel->connectionConfig = connectionConfig;
@@ -391,10 +413,12 @@ TransportLayerMQTT_addChannel(UA_PubSubConnectionConfig *connectionConfig) {
 
 //MQTT channel factory
 UA_PubSubTransportLayer
-UA_PubSubTransportLayerMQTT(){
+UA_PubSubTransportLayerMQTT(void){
     UA_PubSubTransportLayer pubSubTransportLayer;
+
     pubSubTransportLayer.transportProfileUri = UA_STRING("http://opcfoundation.org/UA-Profile/Transport/pubsub-mqtt");
     pubSubTransportLayer.createPubSubChannel = &TransportLayerMQTT_addChannel;
+    pubSubTransportLayer.connectionManager = NULL;
     return pubSubTransportLayer;
 }
 
