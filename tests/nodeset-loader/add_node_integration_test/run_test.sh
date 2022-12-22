@@ -3,7 +3,7 @@
 # Test case for all standardized companion nodesets. You can
 # find the specifications at https://github.com/OPCFoundation/UA-Nodeset.
 #      - branch: latest
-#      - commit: a2208e8
+#      - commit: 54e3513
 # 
 # Currently this test case is missing the following UA-Nodesets:
 #   * NodesetLoader related issues:
@@ -12,8 +12,14 @@
 #      - ${OPEN62541_NODESET_DIR}PNRIO/Opc.Ua.PnRio.Nodeset2.xml
 #      - ${OPEN62541_NODESET_DIR}TMC/Opc.Ua.TMC.NodeSet2.xml
 #
+#   * NodesetLoader XML decoding not supported for certain types issues:
+#      - ${OPEN62541_NODESET_DIR}IJT/Tightening/Opc.Ua.Ijt.Tightening.NodeSet2.xml
+#      - ${OPEN62541_NODESET_DIR}MachineVision/Opc.Ua.MachineVision.NodeSet2.xml
+#      - ${OPEN62541_NODESET_DIR}Pumps/Opc.Ua.Pumps.NodeSet2.xml
+#
 #   * Nodesets with known 'AddNode()' issues:
 #      - ${OPEN62541_NODESET_DIR}AML/Opc.Ua.AMLBaseTypes.NodeSet2.xml
+#      - ${OPEN62541_NODESET_DIR}CSPPlusForMachine/Opc.Ua.CSPPlusForMachine.NodeSet2.xml
 #      - ${OPEN62541_NODESET_DIR}FDI/Opc.Ua.Fdi5.NodeSet2.xml
 #      - ${OPEN62541_NODESET_DIR}FDI/Opc.Ua.Fdi7.NodeSet2.xml
 #      - ${OPEN62541_NODESET_DIR}IEC61850/Opc.Ua.IEC61850-6.NodeSet2.xml
@@ -30,6 +36,8 @@
 #
 
 IFS=
+
+SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" && pwd )
 
 argv=("$@")
 argc=$#
@@ -109,7 +117,7 @@ function add_node_integration_test() {
     NodeIdFiles=()
 }
 
-UA_NODESET_PATH=/usr/local/share/open62541/tools/ua-nodeset
+UA_NODESET_PATH=$SCRIPT_DIR/../../../deps/ua-nodeset
 
 add_node_integration_test "ADI" \
     $UA_NODESET_PATH/DI/Opc.Ua.Di.NodeSet2.xml \
@@ -121,6 +129,9 @@ add_node_integration_test "AMB" \
 add_node_integration_test "AutoID" \
     $UA_NODESET_PATH/DI/Opc.Ua.Di.NodeSet2.xml \
     $UA_NODESET_PATH/AutoID/Opc.Ua.AutoID.NodeSet2.xml
+
+add_node_integration_test "BACnet" \
+    $UA_NODESET_PATH/BACnet/Opc.Ua.BACnet.NodeSet2.xml
 
 add_node_integration_test "CAS" \
     $UA_NODESET_PATH/DI/Opc.Ua.Di.NodeSet2.xml \
@@ -134,10 +145,6 @@ add_node_integration_test "CNC" \
 add_node_integration_test "CommercialKitchenEquipment" \
     $UA_NODESET_PATH/DI/Opc.Ua.Di.NodeSet2.xml \
     $UA_NODESET_PATH/CommercialKitchenEquipment/Opc.Ua.CommercialKitchenEquipment.NodeSet2.xml
-
-add_node_integration_test "CSPPlusForMachine" \
-    $UA_NODESET_PATH/DI/Opc.Ua.Di.NodeSet2.xml \
-    $UA_NODESET_PATH/CSPPlusForMachine/Opc.Ua.CSPPlusForMachine.NodeSet2.xml
 
 add_node_integration_test "DEXPI" \
     $UA_NODESET_PATH/DEXPI/Opc.Ua.DEXPI.NodeSet2.xml
@@ -182,11 +189,6 @@ add_node_integration_test "IEC61850-7-4" \
     $UA_NODESET_PATH/IEC61850/Opc.Ua.IEC61850-7-3.NodeSet2.xml \
     $UA_NODESET_PATH/IEC61850/Opc.Ua.IEC61850-7-4.NodeSet2.xml
 
-add_node_integration_test "IJT" \
-    $UA_NODESET_PATH/DI/Opc.Ua.Di.NodeSet2.xml \
-    $UA_NODESET_PATH/Machinery/Opc.Ua.Machinery.NodeSet2.xml \
-    $UA_NODESET_PATH/IJT/Tightening/Opc.Ua.Ijt.Tightening.NodeSet2.xml
-
 add_node_integration_test "IOLinkIODD" \
     $UA_NODESET_PATH/IOLink/Opc.Ua.IOLinkIODD.NodeSet2.xml
 
@@ -208,9 +210,6 @@ add_node_integration_test "MachineTool" \
     $UA_NODESET_PATH/Machinery/Opc.Ua.Machinery.NodeSet2.xml \
     $UA_NODESET_PATH/IA/Opc.Ua.IA.NodeSet2.xml \
     $UA_NODESET_PATH/MachineTool/Opc.Ua.MachineTool.NodeSet2.xml
-
-add_node_integration_test "MachineVision" \
-    $UA_NODESET_PATH/MachineVision/Opc.Ua.MachineVision.NodeSet2.xml
 
 add_node_integration_test "MDIS" \
     $UA_NODESET_PATH/MDIS/Opc.MDIS.NodeSet2.xml
@@ -512,11 +511,6 @@ add_node_integration_test "PNEM" \
 
 add_node_integration_test "PROFINET" \
     $UA_NODESET_PATH/PROFINET/Opc.Ua.Pn.NodeSet2.xml
-
-add_node_integration_test "Pumps" \
-    $UA_NODESET_PATH/DI/Opc.Ua.Di.NodeSet2.xml \
-    $UA_NODESET_PATH/Machinery/Opc.Ua.Machinery.NodeSet2.xml \
-    $UA_NODESET_PATH/Pumps/Opc.Ua.Pumps.NodeSet2.xml
 
 add_node_integration_test "Robotics" \
     $UA_NODESET_PATH/DI/Opc.Ua.Di.NodeSet2.xml \

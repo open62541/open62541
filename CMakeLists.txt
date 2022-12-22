@@ -1157,7 +1157,7 @@ endif()
 
 if(UA_ENABLE_PUBSUB)
     list(APPEND default_plugin_headers ${PROJECT_SOURCE_DIR}/plugins/include/open62541/plugin/pubsub_udp.h)
-    list(APPEND default_plugin_sources ${PROJECT_SOURCE_DIR}/plugins/ua_pubsub_udp.c)
+    list(APPEND default_plugin_sources ${PROJECT_SOURCE_DIR}/plugins/ua_pubsub_udp_multicast.c)
     if(UA_ENABLE_PUBSUB_ETH_UADP)
         list(APPEND default_plugin_headers ${PROJECT_SOURCE_DIR}/plugins/include/open62541/plugin/pubsub_ethernet.h)
         list(APPEND default_plugin_sources ${PROJECT_SOURCE_DIR}/plugins/ua_pubsub_ethernet.c)
@@ -1272,6 +1272,11 @@ if(UA_ENABLE_NODESETLOADER)
     list(APPEND default_plugin_sources
                 ${PROJECT_SOURCE_DIR}/plugins/ua_nodesetloader.c)
     list(APPEND open62541_LIBRARIES ${NODESETLOADER_DEPS_LIBS})
+
+    if(UA_ENABLE_AMALGAMATION)
+        list(APPEND exported_headers ${NODESETLOADER_PUBLIC_HEADERS})
+        list(APPEND internal_headers ${NODESETLOADER_PRIVATE_HEADERS})
+    endif()
 endif()
 
 #########################
@@ -1472,6 +1477,11 @@ if(UA_ENABLE_AMALGAMATION)
     endif()
     if(UA_ENABLE_ENCRYPTION_LIBRESSL)
         target_include_directories(open62541-object PRIVATE ${LIBRESSL_INCLUDE_DIR})
+    endif()
+    if(UA_ENABLE_NODESETLOADER)
+        target_include_directories(open62541-object PRIVATE
+                                   ${NODESETLOADER_PUBLIC_INCLUDES}
+                                   ${NODESETLOADER_PRIVATE_INCLUDES})
     endif()
 
     # make sure the open62541_amalgamation target builds before so that amalgamation is finished and it is not executed again for open62541-object
