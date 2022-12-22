@@ -541,6 +541,10 @@ cj5_parse(const char *json5, unsigned int len,
     r.num_tokens = parser.token_count; // How many tokens (would) have been
                                        // consumed by the parser?
 
+    // Not a single token was parsed -> return an error
+    if(r.num_tokens == 0)
+        r.error = CJ5_ERROR_INCOMPLETE;
+
     // Set the tokens and original string only if successfully parsed
     if(r.error == CJ5_ERROR_NONE) {
         r.tokens = tokens;
