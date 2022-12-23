@@ -105,6 +105,53 @@ UA_Server_addWriterGroup(UA_Server *server, const UA_NodeId connection,
             &UA_TYPES[UA_TYPES_UADPWRITERGROUPMESSAGEDATATYPE];
         newConfig->messageSettings.encoding = UA_EXTENSIONOBJECT_DECODED;
     }
+    /* writerGroupTransportSettings */
+    newWriterGroup->channel = NULL;
+    const UA_ExtensionObject *writerGroupTransportSettings = &writerGroupConfig->transportSettings;
+    if(writerGroupTransportSettings && writerGroupTransportSettings->content.decoded.type == &UA_TYPES[UA_TYPES_DATAGRAMWRITERGROUPTRANSPORT2DATATYPE]) {
+        UA_DatagramWriterGroupTransport2DataType *ts = (UA_DatagramWriterGroupTransport2DataType *) writerGroupTransportSettings->content.decoded.data;
+        if(UA_Variant_hasScalarType(&currentConnectionContext->config->address,
+                                     &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE])) {
+            UA_NetworkAddressUrlDataType *address =
+                (UA_NetworkAddressUrlDataType *)currentConnectionContext->config->address.data;
+            const char *prefix = "opc.udp://localhost:";
+
+            if(strncmp(prefix, (char *) address->url.data, strlen(prefix)) != 0) {
+
+                UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                             "PubSub WriterGroup creating failed. Invalid Address of PubSub Connection.");
+                UA_free(newWriterGroup);
+                return UA_STATUSCODE_BADINTERNALERROR;
+            }
+        }
+
+        if(ts->address.content.decoded.type == &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]) {
+            UA_NetworkAddressUrlDataType *address = (UA_NetworkAddressUrlDataType *) ts->address.content.decoded.data;
+            const char *prefix = "opc.udp://";
+            if(strncmp(prefix, (char *) address->url.data, strlen(prefix)) == 0) {
+
+                UA_LOG_DEBUG(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                             "adding udp unicast WriterGroup connecting to "
+
+                             );
+                /* Retrieve the transport layer for the given profile uri */
+                UA_PubSubTransportLayer *tl = UA_getTransportProtocolLayer(server, &currentConnectionContext->config->transportProfileUri);
+                UA_CHECK_MEM_ERROR(tl, UA_free(newWriterGroup); return UA_STATUSCODE_BADNOTFOUND, &server->config.logger,
+                                   UA_LOGCATEGORY_SERVER, "PubSub Connection creation failed. Requested transport layer not found.");
+                UA_TransportLayerContext ctx;
+                ctx.writerGroupAddress = address;
+                ctx.connection = currentConnectionContext;
+                ctx.connectionConfig = currentConnectionContext->config;
+                /* TODO: The callback is for readers, not writers. Currently unused. */
+                ctx.decodeAndProcessNetworkMessage =
+                    (UA_StatusCode (*)(UA_Server *, void *, UA_ByteString *))
+                     UA_decodeAndProcessNetworkMessage;
+                ctx.server = server;
+
+                newWriterGroup->channel = tl->createPubSubChannel(tl, &ctx);
+            }
+        }
+    }
 
     /* Attach to the connection */
     LIST_INSERT_HEAD(&currentConnectionContext->writerGroups, newWriterGroup, listEntry);
@@ -713,6 +760,9 @@ UA_WriterGroup_clear(UA_Server *server, UA_WriterGroup *writerGroup) {
     UA_WriterGroupConfig_clear(&writerGroup->config);
     UA_NodeId_clear(&writerGroup->identifier);
     UA_NetworkMessageOffsetBuffer_clear(&writerGroup->bufferedMessage);
+    if(writerGroup->channel) {
+        writerGroup->channel->close(writerGroup->channel);
+    }
 }
 
 UA_StatusCode
@@ -729,7 +779,7 @@ UA_WriterGroup_setPubSubState(UA_Server *server, UA_WriterGroup *writerGroup,
                     break;
                 case UA_PUBSUBSTATE_PAUSED:
                     break;
-                case UA_PUBSUBSTATE_OPERATIONAL:
+                case UA_PUBSUBSTATE_OPERATIONAL: {
                     if(writerGroup->config.pubsubManagerCallback.removeCustomCallback)
                         writerGroup->config.pubsubManagerCallback.
                             removeCustomCallback(server, writerGroup->identifier, writerGroup->publishCallbackId);
@@ -740,8 +790,18 @@ UA_WriterGroup_setPubSubState(UA_Server *server, UA_WriterGroup *writerGroup,
                         UA_DataSetWriter_setPubSubState(server, dataSetWriter, UA_PUBSUBSTATE_DISABLED,
                                                         UA_STATUSCODE_BADRESOURCEUNAVAILABLE);
                     }
+
+                    UA_PubSubChannel *channel = writerGroup->channel;
+                    if(!channel) {
+                        UA_PubSubConnection *connection = writerGroup->linkedConnection;
+                        channel = connection->channel;
+                    }
+                    if(channel->closePublisher) {
+                        channel->closePublisher(channel);
+                    }
                     writerGroup->state = UA_PUBSUBSTATE_DISABLED;
                     break;
+                }
                 case UA_PUBSUBSTATE_ERROR:
                     break;
                 default:
@@ -766,7 +826,7 @@ UA_WriterGroup_setPubSubState(UA_Server *server, UA_WriterGroup *writerGroup,
             break;
         case UA_PUBSUBSTATE_OPERATIONAL:
             switch (writerGroup->state) {
-                case UA_PUBSUBSTATE_DISABLED:
+                case UA_PUBSUBSTATE_DISABLED: {
                     writerGroup->state = UA_PUBSUBSTATE_OPERATIONAL;
                     if(writerGroup->config.pubsubManagerCallback.removeCustomCallback)
                         writerGroup->config.pubsubManagerCallback.
@@ -779,8 +839,17 @@ UA_WriterGroup_setPubSubState(UA_Server *server, UA_WriterGroup *writerGroup,
                         UA_DataSetWriter_setPubSubState(server, dataSetWriter,
                                                         UA_PUBSUBSTATE_OPERATIONAL, cause);
                     }
+                    UA_PubSubChannel *channel = writerGroup->channel;
+                    if(!channel) {
+                        UA_PubSubConnection *connection = writerGroup->linkedConnection;
+                        channel = connection->channel;
+                    }
+                    if(channel->openPublisher) {
+                        channel->openPublisher(channel);
+                    }
                     UA_WriterGroup_addPublishCallback(server, writerGroup);
                     break;
+                }
                 case UA_PUBSUBSTATE_PAUSED:
                     break;
                 case UA_PUBSUBSTATE_OPERATIONAL:
@@ -905,8 +974,16 @@ encodeNetworkMessage(UA_WriterGroup *wg, UA_NetworkMessage *nm,
 static void
 sendNetworkMessageBuffer(UA_Server *server, UA_WriterGroup *wg,
                          UA_PubSubConnection *connection, UA_ByteString *buffer) {
+    /* Choose the channel */
+    UA_PubSubChannel *channel = NULL;
+
+    if(wg->channel != NULL) {
+        channel = wg->channel;
+    } else {
+        channel = connection->channel;
+    }
     UA_StatusCode res =
-        connection->channel->send(connection->channel,
+        channel->send(channel,
                                   &wg->config.transportSettings, buffer);
     /* Failure, set the WriterGroup into an error mode */
     if(res != UA_STATUSCODE_GOOD) {
@@ -1094,15 +1171,17 @@ sendNetworkMessageBinary(UA_Server *server, UA_PubSubConnection *connection, UA_
     }
 #endif
 
-    /* Allocate the buffer. Allocate on the stack if the buffer is small. */
-    UA_ByteString buf;
-    UA_Byte stackBuf[UA_MAX_STACKBUF];
-    buf.data = stackBuf;
-    buf.length = msgSize;
-    if(msgSize > UA_MAX_STACKBUF) {
-        rv = UA_ByteString_allocBuffer(&buf, msgSize);
-        UA_CHECK_STATUS(rv, goto cleanup);
+        /* Choose the channel */
+    UA_PubSubChannel *channel = NULL;
+    if(wg->channel != NULL) {
+        channel = wg->channel;
+    } else {
+        channel = connection->channel;
     }
+
+    UA_ByteString buf = UA_BYTESTRING_NULL;
+    rv = channel->allocNetworkBuffer(channel, &buf, msgSize);
+    UA_CHECK_STATUS(rv, goto cleanup);
 
     /* Encode and encrypt the message */
     rv = encodeNetworkMessage(wg, &nm, &buf);
@@ -1112,8 +1191,9 @@ sendNetworkMessageBinary(UA_Server *server, UA_PubSubConnection *connection, UA_
     sendNetworkMessageBuffer(server, wg, connection, &buf);
 
 cleanup_with_msg_size:
-    if(msgSize > UA_MAX_STACKBUF)
-        UA_ByteString_clear(&buf);
+    rv = channel->freeNetworkBuffer(channel, &buf);
+    // if(msgSize > UA_MAX_STACKBUF)
+    //     UA_ByteString_clear(&buf);
 cleanup:
     UA_free(nm.payload.dataSetPayload.sizes);
     return rv;
