@@ -1,3 +1,4 @@
+add_compile_options(-Wno-unused-variable -Wno-unused-function)
 # Load CMake Packages
 find_package(Check REQUIRED)
 set(LIBS ${CHECK_LIBRARIES} ${open62541_LIBRARIES})
@@ -124,6 +125,8 @@ endif()
 if(UA_ENABLE_PUBSUB)
   list(APPEND test_plugin_sources
        ${PROJECT_SOURCE_DIR}/plugins/ua_pubsub_udp_multicast.c)
+  list(APPEND test_plugin_sources
+       ${PROJECT_SOURCE_DIR}/plugins/ua_pubsub_udp.c)
     if(UA_ENABLE_PUBSUB_ETH_UADP)
         list(APPEND test_plugin_sources ${PROJECT_SOURCE_DIR}/plugins/include/open62541/plugin/pubsub_ethernet.h)
         list(APPEND test_plugin_sources ${PROJECT_SOURCE_DIR}/plugins/ua_pubsub_ethernet.c)
@@ -314,6 +317,7 @@ if(UA_ENABLE_PUBSUB)
     ua_add_test(pubsub/check_pubsub_publish.c)
     ua_add_test(pubsub/check_pubsub_publish_uadp.c)
     ua_add_test(pubsub/check_pubsub_get_state.c)
+    ua_add_test(pubsub/check_pubsub_udp_unicast.c)
     ua_add_test(pubsub/check_pubsub_publisherid.c)
 
     #Link libraries for executing subscriber unit test
