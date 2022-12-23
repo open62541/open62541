@@ -125,7 +125,7 @@ getNamespaceByIndex(UA_Server *server, const size_t namespaceIndex,
     /* ensure that the uri for ns1 is set up from the app description */
     setupNs1Uri(server);
     UA_StatusCode res = UA_STATUSCODE_BADNOTFOUND;
-    if(namespaceIndex > server->namespacesSize)
+    if(namespaceIndex >= server->namespacesSize)
         return res;
     res = UA_String_copy(&server->namespaces[namespaceIndex], foundUri);
     return res;
