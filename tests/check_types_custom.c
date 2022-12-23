@@ -85,9 +85,10 @@ typedef struct {
     UA_Int16 a;
     UA_Float *b;
     UA_Float *c;
+    UA_String *d;
 } Opt;
 
-static UA_DataTypeMember Opt_members[3] = {
+static UA_DataTypeMember Opt_members[4] = {
         /* a */
         {
                 UA_TYPENAME("a")           /* .memberName */
@@ -111,6 +112,14 @@ static UA_DataTypeMember Opt_members[3] = {
                 offsetof(Opt,c) - offsetof(Opt,b) - sizeof(void *),
                 false,
                 true        /* b is an optional field */
+        },
+        /* d */
+        {
+                UA_TYPENAME("d")
+                &UA_TYPES[UA_TYPES_STRING], /* .memberType */
+                offsetof(Opt,d) - offsetof(Opt,c) - sizeof(void *),
+                false,
+                true        /* d is an optional field */
         }
 };
 
@@ -125,7 +134,7 @@ static const UA_DataType OptType = {
         false,                            /* .pointerFree */
         false,                           /* .overlayable (depends on endianness and
                                          the absence of padding) */
-        3,                               /* .membersSize */
+        4,                               /* .membersSize */
         Opt_members
 };
 
@@ -134,12 +143,14 @@ const UA_DataTypeArray customDataTypesOptStruct = {&customDataTypes, 2, &OptType
 typedef struct {
     UA_String description;
     size_t bSize;
-    UA_Float *b;
+    UA_String *b;
     size_t cSize;
     UA_Float *c;
+    size_t dSize;
+    UA_Float *d;
 } OptArray;
 
-static UA_DataTypeMember ArrayOptStruct_members[3] = {
+static UA_DataTypeMember ArrayOptStruct_members[4] = {
     {
         UA_TYPENAME("Measurement description") /* .memberName */
         &UA_TYPES[UA_TYPES_STRING],            /* .memberType */
@@ -149,15 +160,22 @@ static UA_DataTypeMember ArrayOptStruct_members[3] = {
     },
     {
         UA_TYPENAME("TestArray1") /* .memberName */
-        &UA_TYPES[UA_TYPES_FLOAT], /* .memberType */
+        &UA_TYPES[UA_TYPES_STRING], /* .memberType */
         offsetof(OptArray, bSize) - offsetof(OptArray, description) - sizeof(UA_String),               /* .padding */
         true,                      /* .isArray */
-        true
+        false
     },
     {
         UA_TYPENAME("TestArray2")  /* .memberName */
         &UA_TYPES[UA_TYPES_FLOAT], /* .memberType */
         offsetof(OptArray, cSize) - offsetof(OptArray, b) - sizeof(void *),               /* .padding */
+        true,                      /* .isArray */
+        true
+    },
+    {
+        UA_TYPENAME("TestArray3")  /* .memberName */
+        &UA_TYPES[UA_TYPES_FLOAT], /* .memberType */
+        offsetof(OptArray, dSize) - offsetof(OptArray, c) - sizeof(void *),               /* .padding */
         true,                      /* .isArray */
         false
     }
@@ -174,7 +192,7 @@ static const UA_DataType ArrayOptType = {
     false,                            /* .pointerFree */
     false,                           /* .overlayable (depends on endianness and
                                          the absence of padding) */
-    3,                               /* .membersSize */
+    4,                               /* .membersSize */
     ArrayOptStruct_members
 };
 
@@ -399,6 +417,8 @@ START_TEST(parseCustomStructureWithOptionalFields) {
         o.b = NULL;
         o.c = UA_Float_new();
         *o.c = (UA_Float) 10.10;
+        o.d = UA_String_new();
+        *o.d = UA_STRING_ALLOC("Test");
 
         UA_Variant var;
         UA_Variant_init(&var);
@@ -432,12 +452,15 @@ START_TEST(parseCustomStructureWithOptionalFields) {
 START_TEST(parseCustomStructureWithOptionalFieldsWithArrayNotContained) {
         OptArray oa;
         oa.description = UA_STRING_ALLOC("TestDesc");
-        oa.b = NULL;
-        oa.cSize = 3;
-        oa.c = (UA_Float *) UA_Array_new(oa.cSize, &ArrayOptType);
-        oa.c[0] = (UA_Float)1.1;
-        oa.c[1] = (UA_Float)1.2;
-        oa.c[2] = (UA_Float)1.3;
+        oa.bSize = 1;
+        oa.b = (UA_String *)UA_Array_new(oa.bSize, &UA_TYPES[UA_TYPES_STRING]);
+        oa.b[0] = UA_STRING_ALLOC("Test");
+        oa.c = NULL;
+        oa.dSize = 3;
+        oa.d = (UA_Float *) UA_Array_new(oa.dSize, &UA_TYPES[UA_TYPES_FLOAT]);
+        oa.d[0] = (UA_Float)1.1;
+        oa.d[1] = (UA_Float)1.2;
+        oa.d[2] = (UA_Float)1.3;
 
         UA_StatusCode retval;
         UA_Variant var;
@@ -449,7 +472,7 @@ START_TEST(parseCustomStructureWithOptionalFieldsWithArrayNotContained) {
         retval = UA_ByteString_allocBuffer(&buf, buflen);
         ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
         size_t binSize = UA_calcSizeBinary(&oa, &ArrayOptType);
-        ck_assert_uint_eq(binSize, 32);
+        ck_assert_uint_eq(binSize, 44);
         UA_Byte *pos = buf.data;
         const UA_Byte *end = &buf.data[buf.length];
         retval = UA_encodeBinaryInternal(&var, &UA_TYPES[UA_TYPES_VARIANT],
@@ -464,12 +487,15 @@ START_TEST(parseCustomStructureWithOptionalFieldsWithArrayNotContained) {
         OptArray *optStruct2 = (OptArray *) var2.data;
         UA_String compare = UA_STRING("TestDesc");
         ck_assert(UA_String_equal(&optStruct2->description, &compare));
-        ck_assert(optStruct2->bSize == 0);
-        ck_assert(optStruct2->b == NULL);
-        ck_assert(optStruct2->cSize == 3);
-        ck_assert((fabs(optStruct2->c[0] - 1.1)) < 0.005);
-        ck_assert((fabs(optStruct2->c[1] - 1.2)) < 0.005);
-        ck_assert((fabs(optStruct2->c[2] - 1.3)) < 0.005);
+        ck_assert(optStruct2->bSize == 1);
+        compare = UA_STRING("Test");
+        ck_assert(UA_String_equal(&optStruct2->b[0], &compare));
+        ck_assert(optStruct2->cSize == 0);
+        ck_assert(optStruct2->c == NULL);
+        ck_assert(optStruct2->dSize == 3);
+        ck_assert((fabs(optStruct2->d[0] - 1.1)) < 0.005);
+        ck_assert((fabs(optStruct2->d[1] - 1.2)) < 0.005);
+        ck_assert((fabs(optStruct2->d[2] - 1.3)) < 0.005);
 
         UA_clear(&oa, &ArrayOptType);
         UA_Variant_clear(&var);
@@ -480,16 +506,19 @@ START_TEST(parseCustomStructureWithOptionalFieldsWithArrayNotContained) {
 START_TEST(parseCustomStructureWithOptionalFieldsWithArrayContained) {
         OptArray oa;
         oa.description = UA_STRING_ALLOC("TestDesc");
-        oa.bSize = 3;
-        oa.b = (UA_Float *) UA_Array_new(oa.bSize, &ArrayOptType);
-        oa.b[0] = (UA_Float)1.1;
-        oa.b[1] = (UA_Float)1.2;
-        oa.b[2] = (UA_Float)1.3;
+        oa.bSize = 1;
+        oa.b = (UA_String *)UA_Array_new(oa.bSize, &UA_TYPES[UA_TYPES_STRING]);
+        oa.b[0] = UA_STRING_ALLOC("Test");
         oa.cSize = 3;
-        oa.c = (UA_Float *) UA_Array_new(oa.cSize, &ArrayOptType);
-        oa.c[0] = (UA_Float)2.1;
-        oa.c[1] = (UA_Float)2.2;
-        oa.c[2] = (UA_Float)2.3;
+        oa.c = (UA_Float *) UA_Array_new(oa.cSize, &UA_TYPES[UA_TYPES_FLOAT]);
+        oa.c[0] = (UA_Float)1.1;
+        oa.c[1] = (UA_Float)1.2;
+        oa.c[2] = (UA_Float)1.3;
+        oa.dSize = 3;
+        oa.d = (UA_Float *)UA_Array_new(oa.dSize, &UA_TYPES[UA_TYPES_FLOAT]);
+        oa.d[0] = (UA_Float)2.1;
+        oa.d[1] = (UA_Float)2.2;
+        oa.d[2] = (UA_Float)2.3;
 
         UA_StatusCode retval;
         UA_Variant var;
@@ -501,7 +530,7 @@ START_TEST(parseCustomStructureWithOptionalFieldsWithArrayContained) {
         retval = UA_ByteString_allocBuffer(&buf, buflen);
         ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
         size_t binSize = UA_calcSizeBinary(&oa, &ArrayOptType);
-        ck_assert_uint_eq(binSize, 48);
+        ck_assert_uint_eq(binSize, 60);
         UA_Byte *pos = buf.data;
         const UA_Byte *end = &buf.data[buf.length];
         retval = UA_encodeBinaryInternal(&var, &UA_TYPES[UA_TYPES_VARIANT],
@@ -516,14 +545,17 @@ START_TEST(parseCustomStructureWithOptionalFieldsWithArrayContained) {
         OptArray *optStruct2 = (OptArray *) var2.data;
         UA_String compare = UA_STRING("TestDesc");
         ck_assert(UA_String_equal(&optStruct2->description, &compare));
-        ck_assert(optStruct2->bSize == 3);
-        ck_assert((fabs(optStruct2->b[0] - 1.1)) < 0.005);
-        ck_assert((fabs(optStruct2->b[1] - 1.2)) < 0.005);
-        ck_assert((fabs(optStruct2->b[2] - 1.3)) < 0.005);
+        ck_assert(optStruct2->bSize == 1);
+        compare = UA_STRING("Test");
+        ck_assert(UA_String_equal(&optStruct2->b[0], &compare));
         ck_assert(optStruct2->cSize == 3);
-        ck_assert((fabs(optStruct2->c[0] - 2.1)) < 0.005);
-        ck_assert((fabs(optStruct2->c[1] - 2.2)) < 0.005);
-        ck_assert((fabs(optStruct2->c[2] - 2.3)) < 0.005);
+        ck_assert((fabs(optStruct2->c[0] - 1.1)) < 0.005);
+        ck_assert((fabs(optStruct2->c[1] - 1.2)) < 0.005);
+        ck_assert((fabs(optStruct2->c[2] - 1.3)) < 0.005);
+        ck_assert(optStruct2->dSize == 3);
+        ck_assert((fabs(optStruct2->d[0] - 2.1)) < 0.005);
+        ck_assert((fabs(optStruct2->d[1] - 2.2)) < 0.005);
+        ck_assert((fabs(optStruct2->d[2] - 2.3)) < 0.005);
 
         UA_clear(&oa, &ArrayOptType);
         UA_Variant_clear(&var);
