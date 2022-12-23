@@ -445,10 +445,10 @@ ServerNetworkLayerTCP_start(UA_ServerNetworkLayer *nl, const UA_Logger *logger,
         addServerSocket(layer, ai);
     }
     UA_freeaddrinfo(res);
-    
+
     if(layer->serverSocketsSize == 0) {
         return UA_STATUSCODE_BADCOMMUNICATIONERROR;
-    }    
+    }
 
     /* Get the discovery url from the hostname */
     UA_String du = UA_STRING_NULL;
@@ -846,9 +846,16 @@ UA_ClientConnectionTCP_poll(UA_Connection *connection, UA_UInt32 timeout,
     socklen_t len = sizeof(so_error);
     ret = UA_getsockopt(connection->sockfd, SOL_SOCKET, SO_ERROR, &so_error, &len);
     if(ret != 0 || so_error != 0) {
-        // UA_LOG_SOCKET_ERRNO_GAI_WRAP because of so_error
+        // no UA_LOG_SOCKET_ERRNO_GAI_WRAP because of so_error
 #ifndef _WIN32
         char *errno_str = strerror(ret == 0 ? so_error : UA_ERRNO);
+#elif defined(UNDER_CE)
+        LPVOID errno_str = NULL;
+        FormatMessageW(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM |
+                        FORMAT_MESSAGE_IGNORE_INSERTS,
+                        NULL, ret == 0 ? so_error : WSAGetLastError(),
+                        MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), (LPWSTR)&errno_str, 0,
+                        NULL);
 #else
         char *errno_str = NULL;
         FormatMessageA(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM |

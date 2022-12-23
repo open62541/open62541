@@ -1,6 +1,6 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. 
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  *
  *    Copyright 2020 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
  */
@@ -8,7 +8,9 @@
 #include "aa_tree.h"
 #include <stddef.h>
 
-#if !defined(_MSC_VER) || _MSC_VER >= 1800
+#ifdef UNDER_CE
+  /* Windows CE: uintptr_t has already been defined by windows.h */
+#elif !defined(_MSC_VER) || _MSC_VER >= 1800
 # include <inttypes.h>
 #elif !defined(uintptr_t)
   /* Workaround missing standard includes in older Visual Studio */
