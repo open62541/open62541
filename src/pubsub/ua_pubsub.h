@@ -284,6 +284,7 @@ struct UA_WriterGroup {
     UA_UInt16 sequenceNumber; /* Increased after every succressuly sent message */
     UA_Boolean configurationFrozen;
     UA_DateTime lastPublishTimeStamp;
+    UA_PubSubChannel *channel; /* channel used for udp unicast communication */
 
 #ifdef UA_ENABLE_PUBSUB_ENCRYPTION
     UA_UInt32 securityTokenId;
