@@ -44,12 +44,24 @@ START_TEST(certificate_generation) {
     ck_assert(derCert.length > 0);
 
     UA_ServerConfig *config = UA_Server_getConfig(server);
-    status = UA_ServerConfig_setDefaultWithSecurityPolicies(
-                config, 4840, &derCert, &derPrivKey,
-                NULL, 0,
-                NULL, 0,
-                NULL, 0);
+    status = UA_ServerConfig_setDefaultWithSecurityPolicies(config, 4840, NULL);
     ck_assert(status == UA_STATUSCODE_GOOD);
+
+    /* Save certificate in PKI Store */
+ 	status = UA_ServerConfig_PKIStore_storeCertificate(
+ 		UA_ServerConfig_PKIStore_getDefault(server),
+ 		UA_NODEID_NUMERIC(0, UA_NS0ID_RSAMINAPPLICATIONCERTIFICATETYPE),
+ 		&derCert
+ 	);
+ 	ck_assert(status == UA_STATUSCODE_GOOD);
+
+    /* Save private key in PKI Store */
+ 	status = UA_ServerConfig_PKIStore_storePrivateKey(
+ 		UA_ServerConfig_PKIStore_getDefault(server),
+ 		UA_NODEID_NUMERIC(0, UA_NS0ID_RSAMINAPPLICATIONCERTIFICATETYPE),
+ 		&derPrivKey
+ 	);
+ 	ck_assert(status == UA_STATUSCODE_GOOD);
 
     UA_ByteString_clear(&derCert);
     UA_ByteString_clear(&derPrivKey);

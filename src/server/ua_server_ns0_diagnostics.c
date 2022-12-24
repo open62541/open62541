@@ -315,7 +315,7 @@ setSessionSecurityDiagnostics(UA_Session *session,
     UA_SecureChannel *channel = session->header.channel;
     if(channel) {
         UA_ByteString_copy(&channel->remoteCertificate, &sd->clientCertificate);
-        UA_String_copy(&channel->securityPolicy->policyUri, &sd->securityPolicyUri);
+        UA_String_copy(&channel->endpoint->securityPolicy->policyUri, &sd->securityPolicyUri);
         sd->securityMode = channel->securityMode;
         sd->encoding = UA_STRING_ALLOC("UA Binary"); /* The only one atm */
         sd->transportProtocol = UA_STRING_ALLOC("opc.tcp"); /* The only one atm */

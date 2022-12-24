@@ -25,6 +25,7 @@
 #include <open62541/plugin/network.h>
 #include <open62541/plugin/eventloop.h>
 #include <open62541/plugin/securitypolicy.h>
+#include <open62541/endpoint.h>
 
 _UA_BEGIN_DECLS
 
@@ -106,7 +107,7 @@ typedef struct {
      *
      * The information in the advanced configuration is used during reconnect
      * when the SecureChannel was broken. */
-    UA_EndpointDescription endpoint;
+    UA_EndpointDescription endpointDescription;
     UA_UserTokenPolicy userTokenPolicy;
 
     /**
@@ -141,8 +142,14 @@ typedef struct {
     size_t securityPoliciesSize;
     UA_SecurityPolicy *securityPolicies;
 
+    /* One PKIStore corresponds to one certificate Group */
+    UA_String* pkiDir;
+    UA_NodeId certificateGroupId;
+    size_t pkiStoresSize;
+    UA_PKIStore *pkiStores;
+
     /* Certificate Verification Plugin */
-    UA_CertificateVerification certificateVerification;
+    UA_CertificateManager certificateManager;
 
     /* Available SecurityPolicies for Authentication. The policy defined by the
      * AccessControl is selected. If no policy is defined, the policy of the secure channel
@@ -151,6 +158,7 @@ typedef struct {
     UA_SecurityPolicy *authSecurityPolicies;
     /* SecurityPolicyUri for the Authentication. */
     UA_String authSecurityPolicyUri;
+    UA_ByteString privateKeyAuth;
 
     /* Callback for state changes. The client state is differentated into the
      * SecureChannel state and the Session state. The connectStatus is set if

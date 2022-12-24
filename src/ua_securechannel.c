@@ -36,34 +36,35 @@ UA_SecureChannel_init(UA_SecureChannel *channel) {
 }
 
 UA_StatusCode
-UA_SecureChannel_setSecurityPolicy(UA_SecureChannel *channel,
-                                   const UA_SecurityPolicy *securityPolicy,
-                                   const UA_ByteString *remoteCertificate) {
-    /* Is a policy already configured? */
-    UA_CHECK_ERROR(!channel->securityPolicy, return UA_STATUSCODE_BADINTERNALERROR,
-                   securityPolicy->logger, UA_LOGCATEGORY_SECURITYPOLICY,
-                   "Security policy already configured");
+UA_SecureChannel_setEndpoint(UA_SecureChannel *channel, const UA_Endpoint *endpoint) {
+    /* Is a endpoint already configured? */
+    UA_CHECK_ERROR(!channel->endpoint, return UA_STATUSCODE_BADINTERNALERROR,
+                   endpoint->securityPolicy->logger, UA_LOGCATEGORY_SECURITYPOLICY,
+                   "Endpoint and security policy already configured for securechannel");
 
     /* Create the context */
-    UA_StatusCode res = securityPolicy->channelModule.
-        newContext(securityPolicy, remoteCertificate, &channel->channelContext);
-    res |= UA_ByteString_copy(remoteCertificate, &channel->remoteCertificate);
-    UA_CHECK_STATUS_WARN(res, return res, securityPolicy->logger,
+    UA_StatusCode res = endpoint->securityPolicy->channelModule.newContext(
+        endpoint->securityPolicy, endpoint->pkiStore,
+        &channel->remoteCertificate, &channel->channelContext
+	);
+    UA_CHECK_STATUS_WARN(res, return res, endpoint->securityPolicy->logger,
                          UA_LOGCATEGORY_SECURITYPOLICY,
                          "Could not set up the SecureChannel context");
 
     /* Compute the certificate thumbprint */
     UA_ByteString remoteCertificateThumbprint =
         {20, channel->remoteCertificateThumbprint};
-    res = securityPolicy->asymmetricModule.
-        makeCertificateThumbprint(securityPolicy, &channel->remoteCertificate,
-                                  &remoteCertificateThumbprint);
-    UA_CHECK_STATUS_WARN(res, return res, securityPolicy->logger,
+    res = endpoint->securityPolicy->asymmetricModule.makeCertificateThumbprint(
+    	endpoint->securityPolicy,
+		&channel->remoteCertificate,
+        &remoteCertificateThumbprint
+	);
+    UA_CHECK_STATUS_WARN(res, return res, endpoint->securityPolicy->logger,
                          UA_LOGCATEGORY_SECURITYPOLICY,
                          "Could not create the certificate thumbprint");
 
-    /* Set the policy */
-    channel->securityPolicy = securityPolicy;
+    /* Set the endpoint */
+    channel->endpoint = endpoint;
     return UA_STATUSCODE_GOOD;
 }
 
@@ -159,7 +160,10 @@ UA_SecureChannel_shutdown(UA_SecureChannel *channel) {
 }
 
 void
-UA_SecureChannel_clear(UA_SecureChannel *channel) {
+UA_SecureChannel_clear(
+	UA_SecureChannel *channel,
+	bool deleteEndpoint
+) {
     /* Detach Sessions from the SecureChannel. This also removes outstanding
      * Publish requests whose RequestId is valid only for the SecureChannel. */
     UA_SessionHeader *sh, *sh_tmp;
@@ -173,10 +177,23 @@ UA_SecureChannel_clear(UA_SecureChannel *channel) {
     }
 
     /* Delete the channel context for the security policy */
-    if(channel->securityPolicy) {
-        channel->securityPolicy->channelModule.deleteContext(channel->channelContext);
-        channel->securityPolicy = NULL;
+    if(channel->endpoint != NULL && channel->endpoint->securityPolicy != NULL) {
+        channel->endpoint->securityPolicy->channelModule.deleteContext(channel->channelContext);
         channel->channelContext = NULL;
+    }
+
+    /* Delete endpoint */
+    if (deleteEndpoint) {
+    	UA_Endpoint_clear((UA_Endpoint*)(unsigned long)channel->endpoint);
+    	UA_free((UA_Endpoint*)(unsigned long)channel->endpoint);
+    }
+    channel->endpoint = NULL;
+
+    /* Remove endpoint candidates */
+    if(channel->endpointCandidates != NULL) {
+        UA_free(channel->endpointCandidates);
+        channel->endpointCandidates = NULL;
+        channel->endpointCandidatesSize = 0;
     }
 
     /* Delete members */
@@ -237,7 +254,7 @@ UA_SecureChannel_sendAsymmetricOPNMessage(UA_SecureChannel *channel,
     if(!UA_SecureChannel_isConnected(channel))
         return UA_STATUSCODE_BADCONNECTIONCLOSED;
 
-    const UA_SecurityPolicy *sp = channel->securityPolicy;
+    const UA_SecurityPolicy *sp = channel->endpoint->securityPolicy;
     UA_CHECK_MEM(sp, return UA_STATUSCODE_BADINTERNALERROR);
 
     /* Allocate the message buffer */
@@ -267,7 +284,7 @@ UA_SecureChannel_sendAsymmetricOPNMessage(UA_SecureChannel *channel,
      * need to encrypt. */
 #ifdef UA_ENABLE_ENCRYPTION
     if(channel->securityMode != UA_MESSAGESECURITYMODE_NONE)
-        padChunk(channel, &channel->securityPolicy->asymmetricModule.cryptoModule,
+        padChunk(channel, &channel->endpoint->securityPolicy->asymmetricModule.cryptoModule,
                  &buf.data[UA_SECURECHANNEL_CHANNELHEADER_LENGTH + securityHeaderLength],
                  &buf_pos);
 #endif
@@ -354,7 +371,7 @@ encodeHeadersSym(UA_MessageContext *mc, size_t totalLength) {
 static UA_StatusCode
 sendSymmetricChunk(UA_MessageContext *mc) {
     UA_SecureChannel *channel = mc->channel;
-    const UA_SecurityPolicy *sp = channel->securityPolicy;
+    const UA_SecurityPolicy *sp = channel->endpoint->securityPolicy;
     UA_ConnectionManager *cm = channel->connectionManager;
     if(!UA_SecureChannel_isConnected(channel))
         return UA_STATUSCODE_BADCONNECTIONCLOSED;
@@ -580,22 +597,29 @@ unpackPayloadOPN(UA_SecureChannel *channel, UA_Chunk *chunk, void *application) 
              &UA_TRANSPORT[UA_TRANSPORT_ASYMMETRICALGORITHMSECURITYHEADER], NULL);
     UA_CHECK_STATUS(res, return res);
 
-    if(asymHeader.senderCertificate.length > 0) {
-        if(channel->certificateVerification)
-            res = channel->certificateVerification->
-                verifyCertificate(channel->certificateVerification->context,
-                                  &asymHeader.senderCertificate);
-        else
+    /* New channel, create a security policy context and attach */
+    if(!channel->endpoint) {
+        if(channel->processOPNHeader)
+            res = channel->processOPNHeader(application, channel, &asymHeader);
+        if(!channel->endpoint)
             res = UA_STATUSCODE_BADINTERNALERROR;
         UA_CHECK_STATUS(res, goto error);
     }
 
-    /* New channel, create a security policy context and attach */
-    if(!channel->securityPolicy) {
-        if(channel->processOPNHeader)
-            res = channel->processOPNHeader(application, channel, &asymHeader);
-        if(!channel->securityPolicy)
+    if(asymHeader.senderCertificate.length > 0) {
+        if(channel->certificateManager) {
+            res = channel->certificateManager->
+                verifyCertificate(channel->certificateManager,
+                                  channel->endpoint->pkiStore,
+                                  &asymHeader.senderCertificate);
+
+            if(!UA_StatusCode_isGood(res)) {
+                channel->endpoint->pkiStore->appendRejectedList(channel->endpoint->pkiStore, &asymHeader.senderCertificate);
+            }
+        }               
+        else {
             res = UA_STATUSCODE_BADINTERNALERROR;
+        }
         UA_CHECK_STATUS(res, goto error);
     }
 
@@ -624,7 +648,7 @@ unpackPayloadOPN(UA_SecureChannel *channel, UA_Chunk *chunk, void *application) 
 
     /* Decrypt the chunk payload */
     res = decryptAndVerifyChunk(channel,
-                                &channel->securityPolicy->asymmetricModule.cryptoModule,
+                                &channel->endpoint->securityPolicy->asymmetricModule.cryptoModule,
                                 chunk->messageType, &chunk->bytes, offset);
     UA_CHECK_STATUS(res, return res);
 
@@ -650,7 +674,8 @@ error:
 
 static UA_StatusCode
 unpackPayloadMSG(UA_SecureChannel *channel, UA_Chunk *chunk) {
-    UA_CHECK_MEM(channel->securityPolicy, return UA_STATUSCODE_BADINTERNALERROR);
+    UA_CHECK_MEM(channel->endpoint, return UA_STATUSCODE_BADINTERNALERROR);
+    UA_CHECK_MEM(channel->endpoint->securityPolicy, return UA_STATUSCODE_BADINTERNALERROR);
 
     UA_assert(chunk->bytes.length >= UA_SECURECHANNEL_MESSAGE_MIN_LENGTH);
     size_t offset = UA_SECURECHANNEL_MESSAGEHEADER_LENGTH; /* Skip the message header */
@@ -674,7 +699,7 @@ unpackPayloadMSG(UA_SecureChannel *channel, UA_Chunk *chunk) {
 
     /* Decrypt the chunk payload */
     res = decryptAndVerifyChunk(channel,
-                                &channel->securityPolicy->symmetricModule.cryptoModule,
+                                &channel->endpoint->securityPolicy->symmetricModule.cryptoModule,
                                 chunk->messageType, &chunk->bytes, offset);
     UA_CHECK_STATUS(res, return res);
 
@@ -800,16 +825,20 @@ processChunks(UA_SecureChannel *channel, void *application,
         if(chunk->messageType == UA_MESSAGETYPE_OPN) {
             if(channel->state != UA_SECURECHANNELSTATE_OPEN &&
                channel->state != UA_SECURECHANNELSTATE_OPN_SENT &&
-               channel->state != UA_SECURECHANNELSTATE_ACK_SENT)
+               channel->state != UA_SECURECHANNELSTATE_ACK_SENT) {
                 res = UA_STATUSCODE_BADINVALIDSTATE;
-            else
+            }
+            else {
                 res = unpackPayloadOPN(channel, chunk, application);
+            }
         } else if(chunk->messageType == UA_MESSAGETYPE_MSG ||
                   chunk->messageType == UA_MESSAGETYPE_CLO) {
-            if(channel->state == UA_SECURECHANNELSTATE_CLOSED)
+            if(channel->state == UA_SECURECHANNELSTATE_CLOSED) {
                 res = UA_STATUSCODE_BADSECURECHANNELCLOSED;
-            else
+            }
+            else {
                 res = unpackPayloadMSG(channel, chunk);
+            }
         } else {
             chunk->bytes.data += UA_SECURECHANNEL_MESSAGEHEADER_LENGTH;
             chunk->bytes.length -= UA_SECURECHANNEL_MESSAGEHEADER_LENGTH;

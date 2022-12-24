@@ -42,7 +42,7 @@ typedef struct {
     const UA_PubSubSecurityPolicy *securityPolicy;
     mbedtls_ctr_drbg_context drbgContext;
     mbedtls_entropy_context entropyContext;
-    mbedtls_md_context_t sha256MdContext;
+    mbedtls_md_context_t mdContext;
 } PUBSUB_AES128CTR_PolicyContext;
 
 typedef struct {
@@ -75,7 +75,7 @@ verify_sp_pubsub_aes128ctr(PUBSUB_AES128CTR_ChannelContext *cc,
     unsigned char mac[UA_SHA256_LENGTH];
     UA_ByteString signingKey =
         {UA_AES128CTR_SIGNING_KEY_LENGTH, cc->signingKey};
-    mbedtls_hmac(&pc->sha256MdContext, &signingKey, message, mac);
+    mbedtls_hmac(&pc->mdContext, &signingKey, message, mac);
 
     /* Compare with Signature */
     if(!UA_constantTimeEqual(signature->data, mac, UA_SHA256_LENGTH))
@@ -91,7 +91,7 @@ sign_sp_pubsub_aes128ctr(PUBSUB_AES128CTR_ChannelContext *cc,
 
     UA_ByteString signingKey =
         {UA_AES128CTR_SIGNING_KEY_LENGTH, cc->signingKey};
-    mbedtls_hmac(&cc->policyContext->sha256MdContext, &signingKey, message,
+    mbedtls_hmac(&cc->policyContext->mdContext, &signingKey, message,
                  signature->data);
     return UA_STATUSCODE_GOOD;
 }
@@ -205,7 +205,7 @@ channelContext_newContext_sp_pubsub_aes128ctr(void *policyContext,
        (encryptingKey && encryptingKey->length != UA_AES128CTR_KEY_LENGTH) ||
        (keyNonce && keyNonce->length != UA_AES128CTR_KEYNONCE_LENGTH))
         return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
-
+        
     /* Allocate the channel context */
     PUBSUB_AES128CTR_ChannelContext *cc = (PUBSUB_AES128CTR_ChannelContext *)
         UA_calloc(1, sizeof(PUBSUB_AES128CTR_ChannelContext));
@@ -264,7 +264,7 @@ deleteMembers_sp_pubsub_aes128ctr(UA_PubSubSecurityPolicy *securityPolicy) {
 
     mbedtls_ctr_drbg_free(&pc->drbgContext);
     mbedtls_entropy_free(&pc->entropyContext);
-    mbedtls_md_free(&pc->sha256MdContext);
+    mbedtls_md_free(&pc->mdContext);
     UA_LOG_DEBUG(securityPolicy->logger, UA_LOGCATEGORY_SECURITYPOLICY,
                  "Deleted members of EndpointContext for sp_PUBSUB_AES128CTR");
     UA_free(pc);
@@ -289,12 +289,12 @@ policyContext_newContext_sp_pubsub_aes128ctr(UA_PubSubSecurityPolicy *securityPo
     memset(pc, 0, sizeof(PUBSUB_AES128CTR_PolicyContext));
     mbedtls_ctr_drbg_init(&pc->drbgContext);
     mbedtls_entropy_init(&pc->entropyContext);
-    mbedtls_md_init(&pc->sha256MdContext);
+    mbedtls_md_init(&pc->mdContext);
     pc->securityPolicy = securityPolicy;
 
     /* Initialized the message digest */
     const mbedtls_md_info_t *const mdInfo = mbedtls_md_info_from_type(MBEDTLS_MD_SHA256);
-    int mbedErr = mbedtls_md_setup(&pc->sha256MdContext, mdInfo, MBEDTLS_MD_SHA256);
+    int mbedErr = mbedtls_md_setup(&pc->mdContext, mdInfo, MBEDTLS_MD_SHA256);
     if(mbedErr) {
         retval = UA_STATUSCODE_BADOUTOFMEMORY;
         goto error;

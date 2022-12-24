@@ -21,12 +21,14 @@
 #include <open62541/common.h>
 
 #include <open62541/plugin/log.h>
-#include <open62541/plugin/pki.h>
 #include <open62541/plugin/network.h>
 #include <open62541/plugin/nodestore.h>
 #include <open62541/plugin/eventloop.h>
 #include <open62541/plugin/accesscontrol.h>
 #include <open62541/plugin/securitypolicy.h>
+#include <open62541/plugin/certificate_manager.h>
+#include <open62541/plugin/certstore.h>
+#include <open62541/endpoint.h>
 
 #ifdef UA_ENABLE_PUBSUB
 #include <open62541/server_pubsub.h>
@@ -183,8 +185,14 @@ struct UA_ServerConfig {
     size_t securityPoliciesSize;
     UA_SecurityPolicy* securityPolicies;
 
+    /* One PKIStore corresponds to one certificate Group */
+    size_t pkiStoresSize;
+    UA_PKIStore *pkiStores;
+    size_t rejectedListMethodMaxListSize;
+    UA_String* pkiDir;
+
     size_t endpointsSize;
-    UA_EndpointDescription *endpoints;
+    UA_Endpoint *endpoints;
 
     /* Only allow the following discovery services to be executed on a
      * SecureChannel with SecurityPolicyNone: GetEndpointsRequest,
@@ -195,7 +203,7 @@ struct UA_ServerConfig {
      * securityPolicies list. */
     UA_Boolean securityPolicyNoneDiscoveryOnly;
 
-    UA_CertificateVerification certificateVerification;
+    UA_CertificateManager certificateManager;
 
     /**
      * See the section for :ref:`access-control
@@ -364,6 +372,62 @@ struct UA_ServerConfig {
      * ^^^^^^^^^^^^^^^ */
     UA_UInt32 reverseReconnectInterval; /* Default is 15000 ms */
 };
+
+/* Add a new capability to the server configuration object */
+UA_StatusCode UA_EXPORT
+UA_Server_configAddCapability(UA_Server *server, const UA_String *newCapability);
+
+/* Add a new supported private key format to the server configuration */
+UA_StatusCode UA_EXPORT
+UA_Server_configAddKeyFormat(UA_Server *server, const UA_String *newKeyFormat);
+
+/* Set max trust list size of server configuration */
+UA_StatusCode UA_EXPORT
+UA_Server_configSetMaxTrustListSize(UA_Server *server, UA_UInt32 size);
+
+/* Create a Certificate Signing Request (CSR) */
+UA_StatusCode UA_EXPORT
+createSigningRequest(UA_Server *server,
+                                const UA_NodeId *sessionId, void *sessionHandle,
+                                const UA_NodeId *methodId, void *methodContext,
+                                const UA_NodeId *objectId, void *objectContext,
+                                size_t inputSize, const UA_Variant *input,
+                                size_t outputSize, UA_Variant *output);
+
+/* Get the list of rejected certificates */
+UA_StatusCode
+UA_Server_getRejectedList(
+	UA_Server *server,
+	UA_ByteString **list,
+	size_t *listSize,
+	size_t listSizeMax
+);
+
+UA_StatusCode UA_EXPORT
+getRejectedListMethod(
+	UA_Server *server,
+	const UA_NodeId *sessionId, void *sessionHandle,
+    const UA_NodeId *methodId, void *methodContext,
+    const UA_NodeId *objectId, void *objectContext,
+    size_t inputSize, const UA_Variant *input,
+    size_t outputSize, UA_Variant *output
+);
+
+UA_StatusCode UA_EXPORT
+updateCertificateMethod(
+	UA_Server *server,
+	const UA_NodeId *sessionId, void *sessionHandle,
+    const UA_NodeId *methodId, void *methodContext,
+    const UA_NodeId *objectId, void *objectContext,
+    size_t inputSize, const UA_Variant *input,
+    size_t outputSize, UA_Variant *output
+);
+
+#ifdef UA_ENABLE_ENCRYPTION
+/* Setup the Certificate Manager */
+UA_EXPORT UA_StatusCode
+UA_ServerConfig_setupCertificateManager(UA_Server *server);
+#endif
 
 void UA_EXPORT
 UA_ServerConfig_clean(UA_ServerConfig *config);
@@ -1766,10 +1830,11 @@ UA_Server_setExpirationDate(UA_Server *server, const UA_NodeId conditionId,
  * Update the Server Certificate at Runtime
  * ---------------------------------------- */
 UA_StatusCode UA_EXPORT
-UA_Server_updateCertificate(UA_Server *server,
-                            const UA_ByteString *oldCertificate,
-                            const UA_ByteString *newCertificate,
-                            const UA_ByteString *newPrivateKey,
+UA_Server_updateCertificate(UA_Server* server,
+                  	  	    const UA_NodeId* certificateGroupId,
+							const UA_NodeId* certificateTypeId,
+                            const UA_ByteString* certificate,
+                            const UA_ByteString* privateKey,
                             UA_Boolean closeSessions,
                             UA_Boolean closeSecureChannels);
 

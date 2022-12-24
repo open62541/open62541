@@ -8,44 +8,20 @@
 #ifndef UA_PKI_CERTIFICATE_H_
 #define UA_PKI_CERTIFICATE_H_
 
-#include <open62541/plugin/pki.h>
+#include <open62541/plugin/certificate_manager.h>
+#include <open62541/plugin/certstore.h>
 
 _UA_BEGIN_DECLS
 
 /* Default implementation that accepts all certificates */
 UA_EXPORT void
-UA_CertificateVerification_AcceptAll(UA_CertificateVerification *cv);
+UA_CertificateManager_AcceptAll(UA_CertificateManager *cv);
 
 #ifdef UA_ENABLE_ENCRYPTION
 
-/* Accept certificates based on a trust-list and a revocation-list. Based on
- * mbedTLS. */
+/* Initialize the Certificate Manager, internal */
 UA_EXPORT UA_StatusCode
-UA_CertificateVerification_Trustlist(UA_CertificateVerification *cv,
-                                     const UA_ByteString *certificateTrustList,
-                                     size_t certificateTrustListSize,
-                                     const UA_ByteString *certificateIssuerList,
-                                     size_t certificateIssuerListSize,
-                                     const UA_ByteString *certificateRevocationList,
-                                     size_t certificateRevocationListSize);
-
-#ifdef __linux__ /* Linux only so far */
-
-#ifdef UA_ENABLE_CERT_REJECTED_DIR
-UA_EXPORT UA_StatusCode
-UA_CertificateVerification_CertFolders(UA_CertificateVerification *cv,
-                                       const char *trustListFolder,
-                                       const char *issuerListFolder,
-                                       const char *revocationListFolder,
-                                       const char *rejectedListFolder);
-#else
-UA_EXPORT UA_StatusCode
-UA_CertificateVerification_CertFolders(UA_CertificateVerification *cv,
-                                       const char *trustListFolder,
-                                       const char *issuerListFolder,
-                                       const char *revocationListFolder);
-#endif
-#endif
+UA_CertificateManager_create(UA_CertificateManager *certificateManager);
 
 #endif
 

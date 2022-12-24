@@ -20,6 +20,101 @@
 
 _UA_BEGIN_DECLS
 
+typedef struct {
+    const UA_Logger *logger;
+} Policy_Context_openssl;
+
+typedef struct {
+    UA_PKIStore *pkiStore;
+    UA_NodeId certificateTypeId;
+
+    UA_ByteString localSymSigningKey;
+    UA_ByteString localSymEncryptingKey;
+    UA_ByteString localSymIv;
+    UA_ByteString remoteSymSigningKey;
+    UA_ByteString remoteSymEncryptingKey;
+    UA_ByteString remoteSymIv;
+
+    Policy_Context_openssl *policyContext;
+    UA_ByteString remoteCertificate;
+    X509 *remoteCertificateX509; /* X509 */
+} Channel_Context_openssl;
+
+UA_StatusCode
+channelContext_loadKeyThenDecrypt(
+	const Channel_Context_openssl* channelContext,
+	UA_ByteString* data,
+	UA_StatusCode (*callback)(const Channel_Context_openssl* channelContext, UA_ByteString* data, EVP_PKEY* privateKey)
+);
+
+UA_StatusCode
+channelContext_parseKeyThenSign(
+	const Channel_Context_openssl* channelContext,
+	const UA_ByteString * message,
+	UA_ByteString *signature,
+	UA_ByteString *privateKeyStr,
+	UA_StatusCode (*callback)(
+		const Channel_Context_openssl* channelContext,
+		const UA_ByteString * message,
+		UA_ByteString *signature,
+		EVP_PKEY* privateKey
+	)
+);
+
+UA_StatusCode
+channelContext_loadKeyThenSign(
+	const Channel_Context_openssl* channelContext,
+	const UA_ByteString * message,
+	UA_ByteString *signature,
+	UA_StatusCode (*callback)(
+		const Channel_Context_openssl* channelContext,
+		const UA_ByteString * message,
+		UA_ByteString *signature,
+		EVP_PKEY* privateKey
+	)
+);
+
+size_t
+channelContext_loadKeyThenGetSize(
+	const Channel_Context_openssl* channelContext,
+	size_t (*callback)(
+		const Channel_Context_openssl* channelContext, EVP_PKEY* privateKey
+	)
+);
+
+UA_StatusCode
+channelContext_loadCertThenCompareCertThumbPrint(
+	const UA_SecurityPolicy* securityPolicy,
+	UA_PKIStore *pkiStore,
+	const UA_ByteString* certificateThumbprint,
+	UA_StatusCode (*callback)(
+		const UA_SecurityPolicy* securityPolicy,
+		const UA_ByteString* certificateThumbprint,
+		const UA_ByteString* certificate
+	)
+);
+
+UA_StatusCode
+compareCertificateThumbprint(
+	const UA_SecurityPolicy* securityPolicy,
+    const UA_ByteString* certificateThumbprint,
+	const UA_ByteString* certificate
+);
+
+UA_StatusCode
+UA_compareCertificateThumbprint(
+	const UA_SecurityPolicy* securityPolicy,
+	UA_PKIStore *pkiStore,
+    const UA_ByteString* certificateThumbprint
+);
+
+UA_StatusCode
+UA_makeCertificateThumbprint(
+	const UA_SecurityPolicy* securityPolicy,
+    const UA_ByteString* certificate,
+    UA_ByteString* thumbprint
+);
+
 void saveDataToFile(const char *fileName, const UA_ByteString *str);
 void UA_Openssl_Init(void);
 
@@ -138,7 +233,11 @@ X509 *
 UA_OpenSSL_LoadPemCertificate(const UA_ByteString *certificate);
 
 UA_StatusCode
-UA_OpenSSL_LoadLocalCertificate(const UA_ByteString *certificate, UA_ByteString *target);
+UA_OpenSSL_LoadLocalCertificate(
+	const UA_SecurityPolicy *policy,
+	UA_PKIStore *pkiStore,
+	UA_ByteString *target
+);
 
 _UA_END_DECLS
 

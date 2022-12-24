@@ -203,10 +203,37 @@ UA_Client *getRegisterClient(UA_EndpointDescription *endpointRegister, int argc,
     /* Secure client initialization */
     UA_Client *clientRegister = UA_Client_new();
     UA_ClientConfig *cc = UA_Client_getConfig(clientRegister);
-    UA_ClientConfig_setDefaultEncryption(cc, certificate, privateKey,
-                                         trustList, trustListSize,
-                                         revocationList, revocationListSize);
+    UA_ClientConfig_setDefaultEncryption(cc);
     cc->securityMode = UA_MESSAGESECURITYMODE_SIGNANDENCRYPT;
+
+	UA_ClientConfig_PKIStore_storeCertificate(
+ 		UA_ClientConfig_PKIStore_getDefault(clientRegister),
+ 		UA_NODEID_NUMERIC(0, UA_NS0ID_RSAMINAPPLICATIONCERTIFICATETYPE),
+ 		&certificate
+ 	);
+ 	UA_ClientConfig_PKIStore_storeCertificate(
+ 		UA_ClientConfig_PKIStore_getDefault(clientRegister),
+ 		UA_NODEID_NUMERIC(0, UA_NS0ID_RSASHA256APPLICATIONCERTIFICATETYPE),
+ 		&certificate
+ 	);
+ 	UA_ClientConfig_PKIStore_storePrivateKey(
+ 		UA_ClientConfig_PKIStore_getDefault(clientRegister),
+ 		UA_NODEID_NUMERIC(0, UA_NS0ID_RSAMINAPPLICATIONCERTIFICATETYPE),
+ 		&privateKey
+ 	);
+ 	UA_ClientConfig_PKIStore_storePrivateKey(
+ 		UA_ClientConfig_PKIStore_getDefault(clientRegister),
+ 		UA_NODEID_NUMERIC(0, UA_NS0ID_RSASHA256APPLICATIONCERTIFICATETYPE),
+ 		&privateKey
+ 	);
+
+ 	UA_ClientConfig_PKIStore_storeTrustList(
+ 		UA_ClientConfig_PKIStore_getDefault(clientRegister),
+		trustListSize, trustList,
+		revocationListSize, revocationList,
+		0, NULL,
+ 		0, NULL
+ 	);
 
     UA_ByteString_clear(&certificate);
     UA_ByteString_clear(&privateKey);

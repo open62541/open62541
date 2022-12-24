@@ -190,6 +190,7 @@ START_TEST(check_interface_instantiation) {
             break;
         }
     }
+    UA_BrowseResult_clear(&br);
     ck_assert(found == true);
 
 } END_TEST

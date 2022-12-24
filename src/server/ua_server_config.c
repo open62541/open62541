@@ -18,6 +18,7 @@ UA_ServerConfig_clean(UA_ServerConfig *config) {
     /* Server Description */
     UA_BuildInfo_clear(&config->buildInfo);
     UA_ApplicationDescription_clear(&config->applicationDescription);
+
 #ifdef UA_ENABLE_DISCOVERY_MULTICAST
     UA_MdnsDiscoveryConfiguration_clear(&config->mdnsConfig);
     UA_String_clear(&config->mdnsInterfaceIP);
@@ -57,12 +58,15 @@ UA_ServerConfig_clean(UA_ServerConfig *config) {
     config->securityPolicies = NULL;
     config->securityPoliciesSize = 0;
 
-    for(size_t i = 0; i < config->endpointsSize; ++i)
-        UA_EndpointDescription_clear(&config->endpoints[i]);
+    if(config->endpoints != NULL) {
+        for(size_t i = 0; i < config->endpointsSize; ++i) {
+            UA_Endpoint_clear(&config->endpoints[i]);
+        }
 
-    UA_free(config->endpoints);
-    config->endpoints = NULL;
-    config->endpointsSize = 0;
+        UA_free(config->endpoints);
+        config->endpoints = NULL;
+        config->endpointsSize = 0;
+    }
 
     /* Nodestore */
     if(config->nodestore.context && config->nodestore.clear) {
@@ -70,9 +74,9 @@ UA_ServerConfig_clean(UA_ServerConfig *config) {
         config->nodestore.context = NULL;
     }
 
-    /* Certificate Validation */
-    if(config->certificateVerification.clear)
-        config->certificateVerification.clear(&config->certificateVerification);
+    /* Certificate Manager */
+    if (config->certificateManager.clear)
+        config->certificateManager.clear(&config->certificateManager);
 
     /* Access Control */
     if(config->accessControl.clear)
@@ -83,6 +87,26 @@ UA_ServerConfig_clean(UA_ServerConfig *config) {
     if(config->historyDatabase.clear)
         config->historyDatabase.clear(&config->historyDatabase);
 #endif
+
+    /* Certificate Validation */
+    if(config->certificateManager.clear)
+        config->certificateManager.clear(&config->certificateManager);
+
+    /* PKI Store */
+    if (config->pkiDir != NULL) {
+    	UA_free(config->pkiDir);
+    	config->pkiDir = NULL;
+    }
+    if(config->pkiStores != NULL) {
+        for(size_t i = 0; i < config->pkiStoresSize; ++i) {
+            if(config->pkiStores[i].clear)
+                config->pkiStores[i].clear(&config->pkiStores[i]);
+        }
+        UA_free(config->pkiStores);
+        config->pkiStores = NULL;
+        config->pkiStoresSize = 0;
+    }
+    config->rejectedListMethodMaxListSize = 0;
 
     /* Logger */
     if(config->logger.clear)

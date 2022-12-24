@@ -1,6 +1,6 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/.
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. 
  *
  *    Copyright 2014-2017 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
  *    Copyright 2014, 2017 (c) Florian Palm
@@ -23,7 +23,7 @@ deleteServerSecureChannel(UA_Server *server, UA_SecureChannel *channel) {
 
     /* Clean up the SecureChannel. This is the only place where
      * UA_SecureChannel_clear must be called within the server code-base. */
-    UA_SecureChannel_clear(channel);
+    UA_SecureChannel_clear(channel, false);
 
     /* Detach the channel from the server list */
     struct channel_entry *entry = container_of(channel, channel_entry, channel);
@@ -176,7 +176,7 @@ createServerSecureChannel(UA_Server *server, UA_ConnectionManager *cm,
     /* Set up the new SecureChannel */
     UA_SecureChannel_init(&entry->channel);
     entry->channel.config = connConfig;
-    entry->channel.certificateVerification = &config->certificateVerification;
+    entry->channel.certificateManager = &config->certificateManager;
     entry->channel.processOPNHeader = configServerSecureChannel;
     entry->channel.connectionManager = cm;
     entry->channel.connectionId = connectionId;
@@ -212,33 +212,41 @@ createServerSecureChannel(UA_Server *server, UA_ConnectionManager *cm,
 UA_StatusCode
 configServerSecureChannel(void *application, UA_SecureChannel *channel,
                           const UA_AsymmetricAlgorithmSecurityHeader *asymHeader) {
+    UA_StatusCode retval = UA_ByteString_copy(&asymHeader->senderCertificate, &channel->remoteCertificate);
+    if(retval != UA_STATUSCODE_GOOD) {
+        return retval;
+    }
+
     /* Iterate over available endpoints and choose the correct one */
-    UA_SecurityPolicy *securityPolicy = NULL;
-    UA_Server *const server = (UA_Server *const) application;
-    for(size_t i = 0; i < server->config.securityPoliciesSize; ++i) {
-        UA_SecurityPolicy *policy = &server->config.securityPolicies[i];
-        if(!UA_ByteString_equal(&asymHeader->securityPolicyUri, &policy->policyUri))
+    const UA_Endpoint *endpoint = NULL;
+    for(size_t i = 0; i < channel->endpointCandidatesSize; ++i) {
+        const UA_Endpoint *endpointCandidate = channel->endpointCandidates[i];
+        if(!UA_ByteString_equal(&asymHeader->securityPolicyUri, &endpointCandidate->securityPolicy->policyUri))
             continue;
 
-        UA_StatusCode res = policy->asymmetricModule.
-            compareCertificateThumbprint(policy, &asymHeader->receiverCertificateThumbprint);
-        if(res != UA_STATUSCODE_GOOD)
+        retval = endpointCandidate->securityPolicy->asymmetricModule.
+            compareCertificateThumbprint(endpointCandidate->securityPolicy,
+                                         endpointCandidate->pkiStore,
+                                         &asymHeader->receiverCertificateThumbprint);
+        if(retval != UA_STATUSCODE_GOOD)
             continue;
 
-        /* We found the correct policy (except for security mode). The endpoint
-         * needs to be selected by the client / server to match the security
-         * mode in the endpoint for the session. */
-        securityPolicy = policy;
+        endpoint = endpointCandidate;
         break;
     }
 
-    if(!securityPolicy)
+    if(endpoint == NULL) {
         return UA_STATUSCODE_BADSECURITYPOLICYREJECTED;
+    }
 
     /* Create the channel context and parse the sender (remote) certificate used
      * for the secureChannel. */
-    return UA_SecureChannel_setSecurityPolicy(channel, securityPolicy,
-                                              &asymHeader->senderCertificate);
+    retval = UA_SecureChannel_setEndpoint(channel, endpoint);
+    if(retval != UA_STATUSCODE_GOOD) {
+        return retval;
+    }
+
+    return UA_STATUSCODE_GOOD;
 }
 
 static UA_StatusCode
@@ -252,12 +260,12 @@ UA_SecureChannelManager_open(UA_Server *server, UA_SecureChannel *channel,
     }
 
     /* Set the SecurityMode */
-    const UA_SecurityPolicy *sp = channel->securityPolicy;
     if(request->securityMode != UA_MESSAGESECURITYMODE_NONE &&
-       UA_ByteString_equal(&sp->policyUri, &UA_SECURITY_POLICY_NONE_URI))
+       UA_ByteString_equal(&channel->endpoint->securityPolicy->policyUri, &UA_SECURITY_POLICY_NONE_URI)) {
         return UA_STATUSCODE_BADSECURITYMODEREJECTED;
+    }
     channel->securityMode = request->securityMode;
-
+   
     /* Set the initial SecurityToken. Set the alternative token that is moved to
      * the primary token when the first symmetric message triggers a token
      * revolve. Lifetime 0 -> set the maximum possible lifetime */
@@ -386,8 +394,8 @@ Service_OpenSecureChannel(UA_Server *server, UA_SecureChannel *channel,
     UA_LOG_INFO_CHANNEL(&server->config.logger, channel,
                         "SecureChannel opened with SecurityPolicy %.*s "
                         "and a revised lifetime of %.2fs",
-                        (int)channel->securityPolicy->policyUri.length,
-                        channel->securityPolicy->policyUri.data, lifetime);
+                        (int)channel->endpoint->securityPolicy->policyUri.length,
+                        channel->endpoint->securityPolicy->policyUri.data, lifetime);
 }
 
 /* The server does not send a CloseSecureChannel response */

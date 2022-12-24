@@ -3133,15 +3133,15 @@ UA_Server_setExpirationDate(UA_Server *server, const UA_NodeId conditionId,
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
-    UA_CertificateVerification *cv = &server->config.certificateVerification;
+    UA_CertificateManager *cm = &server->config.certificateManager;
     UA_DateTime getExpiryDateAndTime;
-    if(cv == NULL && cv->getExpirationDate == NULL) {
+    if(cm == NULL && cm->getExpirationDate == NULL) {
         UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
                     "Certificate verification and get Expiration date function is not registered");
         return UA_STATUSCODE_BADINTERNALERROR;
     }
     
-    retval = cv->getExpirationDate(&getExpiryDateAndTime, &cert);
+    retval = cm->getExpirationDate(&getExpiryDateAndTime, &cert);
     if(retval != UA_STATUSCODE_GOOD){
         UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
                     "Failed to get certificate expiration date");

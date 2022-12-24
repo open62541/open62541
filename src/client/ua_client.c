@@ -33,12 +33,14 @@ clientHouseKeeping(UA_Client *client, void *_);
 
 UA_Client *
 UA_Client_newWithConfig(const UA_ClientConfig *config) {
-    if(!config)
-        return NULL;
+	UA_CHECK_MEM(config, return NULL);
+
     UA_Client *client = (UA_Client*)UA_malloc(sizeof(UA_Client));
-    if(!client)
+    if(!client) {
         return NULL;
+    }
     memset(client, 0, sizeof(UA_Client));
+
     client->config = *config;
     /* Fix up known logger pointers now that the config has "moved" into the
      * client struct */
@@ -66,6 +68,7 @@ UA_ClientConfig_clear(UA_ClientConfig *config) {
     UA_ApplicationDescription_clear(&config->clientDescription);
 
     UA_ExtensionObject_clear(&config->userIdentityToken);
+    UA_ByteString_clear(&config->privateKeyAuth);
 
     /* Delete the SecurityPolicies for Authentication */
     if(config->authSecurityPolicies != 0) {
@@ -77,11 +80,29 @@ UA_ClientConfig_clear(UA_ClientConfig *config) {
     UA_String_clear(&config->securityPolicyUri);
     UA_String_clear(&config->authSecurityPolicyUri);
 
-    UA_EndpointDescription_clear(&config->endpoint);
+    UA_EndpointDescription_clear(&config->endpointDescription);
     UA_UserTokenPolicy_clear(&config->userTokenPolicy);
 
-    if(config->certificateVerification.clear)
-        config->certificateVerification.clear(&config->certificateVerification);
+    UA_String_clear(&config->clientDescription.applicationUri);
+
+    /* Delete certificate manager */
+    if(config->certificateManager.clear) {
+        config->certificateManager.clear(&config->certificateManager);
+    }
+
+    /* Delete pki stores **/
+    if (config->pkiDir) {
+    	UA_free(config->pkiDir);
+    	config->pkiDir = NULL;
+    }
+    if(config->pkiStores != 0) {
+        for(size_t i = 0; i < config->pkiStoresSize; i++) {
+            config->pkiStores[i].clear(&config->pkiStores[i]);
+        }
+        UA_free(config->pkiStores);
+        config->pkiStores = 0;
+        config->pkiStoresSize = 0;
+    }
 
     /* Delete the SecurityPolicies */
     if(config->securityPolicies != 0) {
@@ -89,6 +110,7 @@ UA_ClientConfig_clear(UA_ClientConfig *config) {
             config->securityPolicies[i].clear(&config->securityPolicies[i]);
         UA_free(config->securityPolicies);
         config->securityPolicies = 0;
+        config->securityPoliciesSize = 0;
     }
 
     /* Stop and delete the EventLoop */

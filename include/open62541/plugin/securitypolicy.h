@@ -12,7 +12,8 @@
 
 #include <open62541/util.h>
 #include <open62541/plugin/log.h>
-#include <open62541/plugin/pki.h>
+#include <open62541/plugin/certificate_manager.h>
+#include "certstore.h"
 
 _UA_BEGIN_DECLS
 
@@ -49,6 +50,8 @@ typedef struct {
      *                  attribute of this module. */
     UA_StatusCode (*sign)(void *channelContext, const UA_ByteString *message,
                           UA_ByteString *signature) UA_FUNC_ATTR_WARN_UNUSED_RESULT;
+    UA_StatusCode (*signAuth)(void *channelContext, const UA_ByteString *message,
+                           UA_ByteString *signature, UA_ByteString *privateKey) UA_FUNC_ATTR_WARN_UNUSED_RESULT;
 
     /* Gets the signature size that depends on the local (private) key.
      *
@@ -167,6 +170,7 @@ typedef struct {
      * @return if the thumbprints match UA_STATUSCODE_GOOD is returned. If they
      *         don't match or an error occurred an error code is returned. */
     UA_StatusCode (*compareCertificateThumbprint)(const UA_SecurityPolicy *securityPolicy,
+                                                  UA_PKIStore *pkiStore,
                                                   const UA_ByteString *certificateThumbprint)
     UA_FUNC_ATTR_WARN_UNUSED_RESULT;
 
@@ -216,6 +220,9 @@ typedef struct {
      * @param securityPolicy the policy context of the endpoint that is connected
      *                       to. It will be stored in the channelContext for
      *                       further access by the policy.
+     * @param pkiStore the PKIStore object that contains the keys associated with
+     *                 the created channel. The SecurityPolicy will store and load
+     *                 keys to and from this pki store.
      * @param remoteCertificate the remote certificate contains the remote
      *                          asymmetric key. The certificate will be verified
      *                          and then stored in the context so that its
@@ -223,6 +230,7 @@ typedef struct {
      * @param channelContext the initialized channelContext that is passed to
      *                       functions that work on a context. */
     UA_StatusCode (*newContext)(const UA_SecurityPolicy *securityPolicy,
+                                UA_PKIStore *pkiStore,
                                 const UA_ByteString *remoteCertificate,
                                 void **channelContext)
     UA_FUNC_ATTR_WARN_UNUSED_RESULT;
@@ -298,9 +306,8 @@ struct UA_SecurityPolicy {
     /* The policy uri that identifies the implemented algorithms */
     UA_String policyUri;
 
-    /* The local certificate is specific for each SecurityPolicy since it
-     * depends on the used key length. */
-    UA_ByteString localCertificate;
+    /* The certificate type id identifies the certificate group */
+    UA_NodeId certificateTypeId;
 
     /* Function pointers grouped into modules */
     UA_SecurityPolicyAsymmetricModule asymmetricModule;
@@ -310,11 +317,11 @@ struct UA_SecurityPolicy {
 
     const UA_Logger *logger;
 
-    /* Updates the ApplicationInstanceCertificate and the corresponding private
-     * key at runtime. */
-    UA_StatusCode (*updateCertificateAndPrivateKey)(UA_SecurityPolicy *policy,
-                                                    const UA_ByteString newCertificate,
-                                                    const UA_ByteString newPrivateKey);
+    /* Gets the certificate associated with this security policy. */
+    UA_StatusCode (*getLocalCertificate)(const UA_SecurityPolicy *policy, UA_PKIStore *pkiStore, UA_ByteString *cert);
+
+    /* Checks if the certificates and keys in the pkiStore are valid and can be loaded */
+    UA_StatusCode (*sanityCheckPKIStore)(const UA_SecurityPolicy *policy, UA_PKIStore *pkiStore);
 
     /* Deletes the dynamic content of the policy */
     void (*clear)(UA_SecurityPolicy *policy);

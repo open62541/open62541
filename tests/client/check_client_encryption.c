@@ -26,6 +26,8 @@
 #include "testing_networklayers.h"
 #include "thread_wrapper.h"
 
+
+
 UA_Server *server;
 UA_Boolean running;
 THREAD_HANDLE server_thread;
@@ -39,36 +41,49 @@ THREAD_CALLBACK(serverloop) {
 static void setup(void) {
     running = true;
 
-    /* Load certificate and private key */
+    /* Save certificate and private key in pki store */
     UA_ByteString certificate;
-    certificate.length = CERT_DER_LENGTH;
-    certificate.data = CERT_DER_DATA;
+    certificate.length = server_cert_der_len;
+    certificate.data = server_cert_der;
 
     UA_ByteString privateKey;
-    privateKey.length = KEY_DER_LENGTH;
-    privateKey.data = KEY_DER_DATA;
+    privateKey.length = server_key_der_len;
+    privateKey.data = server_key_der;
 
-    size_t trustListSize = 0;
-    UA_ByteString *trustList = NULL;
-    size_t issuerListSize = 0;
-    UA_ByteString *issuerList = NULL;
-    UA_ByteString *revocationList = NULL;
-    size_t revocationListSize = 0;
-
+    /* Create server instance */
     server = UA_Server_new();
     UA_ServerConfig *config = UA_Server_getConfig(server);
-    UA_ServerConfig_setDefaultWithSecurityPolicies(config, 4840, &certificate, &privateKey,
-                                                   trustList, trustListSize,
-                                                   issuerList, issuerListSize,
-                                                   revocationList, revocationListSize);
+    UA_ServerConfig_setDefaultWithSecurityPolicies(config, 4840, NULL);
 
-    config->certificateVerification.clear(&config->certificateVerification);
-    UA_CertificateVerification_AcceptAll(&config->certificateVerification);
+	UA_ServerConfig_PKIStore_removeContentAll(UA_ServerConfig_PKIStore_getDefault(server));
+	UA_ServerConfig_PKIStore_storeCertificate(
+		UA_ServerConfig_PKIStore_getDefault(server),
+		UA_NODEID_NUMERIC(0, UA_NS0ID_RSAMINAPPLICATIONCERTIFICATETYPE),
+		&certificate
+	);
+	UA_ServerConfig_PKIStore_storeCertificate(
+		UA_ServerConfig_PKIStore_getDefault(server),
+		UA_NODEID_NUMERIC(0, UA_NS0ID_RSASHA256APPLICATIONCERTIFICATETYPE),
+		&certificate
+	);
+	UA_ServerConfig_PKIStore_storePrivateKey(
+		UA_ServerConfig_PKIStore_getDefault(server),
+		UA_NODEID_NUMERIC(0, UA_NS0ID_RSAMINAPPLICATIONCERTIFICATETYPE),
+		&privateKey
+	);
+	UA_ServerConfig_PKIStore_storePrivateKey(
+		UA_ServerConfig_PKIStore_getDefault(server),
+		UA_NODEID_NUMERIC(0, UA_NS0ID_RSASHA256APPLICATIONCERTIFICATETYPE),
+		&privateKey
+	);
 
-    /* Set the ApplicationUri used in the certificate */
-    UA_String_clear(&config->applicationDescription.applicationUri);
-    config->applicationDescription.applicationUri =
-        UA_STRING_ALLOC("urn:unconfigured:application");
+	UA_ServerConfig_PKIStore_storeTrustList(
+		UA_ServerConfig_PKIStore_getDefault(server),
+		1, &certificate,
+		0, NULL,
+		0, NULL,
+		0, NULL
+	);
 
     UA_Server_run_startup(server);
     THREAD_CREATE(server_thread, serverloop);
@@ -84,32 +99,16 @@ static void teardown(void) {
 /* Test re-activating a Session on a new SecureChannel */
 START_TEST(encryption_reconnect_session) {
     UA_Client *client = NULL;
-    UA_ByteString *trustList = NULL;
-    size_t trustListSize = 0;
-    UA_ByteString *revocationList = NULL;
-    size_t revocationListSize = 0;
-
-    /* Load certificate and private key */
-    UA_ByteString certificate;
-    certificate.length = CERT_DER_LENGTH;
-    certificate.data = CERT_DER_DATA;
-    ck_assert_uint_ne(certificate.length, 0);
-
-    UA_ByteString privateKey;
-    privateKey.length = KEY_DER_LENGTH;
-    privateKey.data = KEY_DER_DATA;
-    ck_assert_uint_ne(privateKey.length, 0);
 
     /* Secure client initialization */
     client = UA_Client_new();
     UA_ClientConfig *cc = UA_Client_getConfig(client);
-    UA_ClientConfig_setDefaultEncryption(cc, certificate, privateKey,
-                                         trustList, trustListSize,
-                                         revocationList, revocationListSize);
-    cc->certificateVerification.clear(&cc->certificateVerification);
-    UA_CertificateVerification_AcceptAll(&cc->certificateVerification);
-    cc->securityPolicyUri =
-        UA_STRING_ALLOC("http://opcfoundation.org/UA/SecurityPolicy#Basic256Sha256");
+    UA_ClientConfig_setDefaultEncryption(cc);
+
+    UA_String_clear(&cc->clientDescription.applicationUri);
+    cc->clientDescription.applicationUri = UA_STRING_ALLOC("urn:open62541.server.application");
+    cc->securityPolicyUri = UA_STRING_ALLOC("http://opcfoundation.org/UA/SecurityPolicy#Basic256Sha256");
+    cc->securityMode = UA_MESSAGESECURITYMODE_SIGNANDENCRYPT;
     ck_assert(client != NULL);
 
     /* Secure client connect */

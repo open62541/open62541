@@ -5,11 +5,12 @@
  *    Copyright 2018 (c) Mark Giraud, Fraunhofer IOSB
  */
 
-#ifndef UA_PLUGIN_PKI_H_
-#define UA_PLUGIN_PKI_H_
+#ifndef UA_PLUGIN_CERTIFICATE_MANAGER_H_
+#define UA_PLUGIN_CERTIFICATE_MANAGER_H_
 
 #include <open62541/types.h>
 #include <open62541/types_generated.h>
+#include <open62541/plugin/certstore.h>
 
 _UA_BEGIN_DECLS
 
@@ -29,27 +30,40 @@ _UA_BEGIN_DECLS
  * The lifecycle of the plugin is attached to a server or client config. The
  * ``clear`` method is called automatically when the config is destroyed. */
 
-struct UA_CertificateVerification;
-typedef struct UA_CertificateVerification UA_CertificateVerification;
+struct UA_CertificateManager;
+typedef struct UA_CertificateManager UA_CertificateManager;
 
-struct UA_CertificateVerification {
-    void *context;
-
+struct UA_CertificateManager {
     /* Verify the certificate against the configured policies and trust chain. */
-    UA_StatusCode (*verifyCertificate)(void *verificationContext,
+    UA_StatusCode (*verifyCertificate)(UA_CertificateManager *certificateManager,
+    	    	                       UA_PKIStore *pkiStore,
                                        const UA_ByteString *certificate);
 
     /* Verify that the certificate has the applicationURI in the subject name. */
-    UA_StatusCode (*verifyApplicationURI)(void *verificationContext,
+    UA_StatusCode (*verifyApplicationURI)(UA_CertificateManager *certificateManager,
+    		                              UA_PKIStore *pkiStore,
                                           const UA_ByteString *certificate,
                                           const UA_String *applicationURI);
 
     /* Get the expire date from certificate */
-    UA_StatusCode (*getExpirationDate)(UA_DateTime *expiryDateTime, 
+    UA_StatusCode (*getExpirationDate)(UA_DateTime *expiryDateTime,
                                        UA_ByteString *certificate);
 
+    /* Reloads the trust list from storage, discarding all unsaved changes. */
+    UA_StatusCode (*reloadTrustList)(void *certificateManager);
+
+    /* Create certificate signing request */
+    UA_StatusCode (*createCertificateSigningRequest)(
+    	UA_CertificateManager *certificateManager,
+		UA_PKIStore* pkiStore,
+		const UA_NodeId certificateTypeId,
+        const UA_String *subject,
+        const UA_ByteString *entropy,
+        UA_ByteString **csr
+	);
+
     /* Delete the certificate verification context */
-    void (*clear)(UA_CertificateVerification *cv);
+    void (*clear)(UA_CertificateManager *certificateManager);
 };
 
 _UA_END_DECLS
