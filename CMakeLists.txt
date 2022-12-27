@@ -737,6 +737,7 @@ if(NOT UA_FORCE_CPP AND (CMAKE_COMPILER_IS_GNUCC OR CMAKE_C_COMPILER_ID STREQUAL
     check_add_cc_flag("-Wno-static-in-inline") # Clang doesn't like the use of static inline methods inside static inline methods
     check_add_cc_flag("-Wno-overlength-strings") # May happen in the nodeset compiler when complex values are directly encoded
     check_add_cc_flag("-Wno-unused-parameter") # some methods may require unused arguments to cast to a method pointer
+    check_add_cc_flag("-Wno-maybe-uninitialized") # too many false positives
 
     # Use a strict subset of the C and C++ languages
     check_add_cc_flag("-Wc++-compat")
