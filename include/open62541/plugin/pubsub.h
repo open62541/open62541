@@ -112,14 +112,17 @@ typedef struct UA_PubSubTransportLayer {
     UA_ConnectionManager *connectionManager;
     // UA_Server *server;
     UA_PubSubChannel *(*createPubSubChannel)(struct UA_PubSubTransportLayer *tl, void *ctx);
+    UA_StatusCode (*createWriterGroupPubSubChannel)(UA_PubSubChannel** outChannel, struct UA_PubSubTransportLayer *tl, const UA_ExtensionObject *writerGroupTransportSettings, void *ctx);
 } UA_PubSubTransportLayer;
 
 
 typedef struct {
     void *connection;
+    UA_NetworkAddressUrlDataType *connectionAddress;
     UA_PubSubConnectionConfig *connectionConfig;
     UA_NetworkAddressUrlDataType  *writerGroupAddress;
     UA_Server *server;
+    UA_Logger *logger;
     UA_StatusCode (*decodeAndProcessNetworkMessage)(UA_Server *server,
                                                     void *connection,
                                                     UA_ByteString *buffer);

@@ -23,7 +23,7 @@ static void setup(void) {
     UA_ServerConfig *config = UA_Server_getConfig(server);
     UA_ServerConfig_setDefault(config);
 
-    UA_ServerConfig_addPubSubTransportLayer(config, UA_PubSubTransportLayerUDPMP());
+    UA_ServerConfig_addPubSubTransportLayer(config, UA_PubSubTransportLayerUDP());
 
     UA_Server_run_startup(server);
     UA_PubSubConnectionConfig connectionConfig;
