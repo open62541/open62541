@@ -183,7 +183,7 @@ setup(void) {
     SecurityGroupId = UA_STRING("TestSecurityGroup");
     UA_ServerConfig *config = UA_Server_getConfig(server);
     UA_ServerConfig_setDefault(config);
-    UA_ServerConfig_addPubSubTransportLayer(config, UA_PubSubTransportLayerUDPMP());
+    UA_ServerConfig_addPubSubTransportLayer(config, UA_PubSubTransportLayerUDP());
 
     config->pubSubConfig.securityPolicies = (UA_PubSubSecurityPolicy*)
         UA_malloc(sizeof(UA_PubSubSecurityPolicy));

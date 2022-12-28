@@ -411,6 +411,12 @@ TransportLayerMQTT_addChannel(UA_PubSubTransportLayer *tl, void *ctx) {
     return pubSubChannel;
 }
 
+static UA_StatusCode
+TransportLayerMQTT_addWritergroupChannel(UA_PubSubChannel **out, UA_PubSubTransportLayer *tl, const UA_ExtensionObject *writerGroupTransportSettings, void* ctx)  {
+    *out = NULL;
+    return UA_STATUSCODE_GOOD;
+}
+
 //MQTT channel factory
 UA_PubSubTransportLayer
 UA_PubSubTransportLayerMQTT(void){
@@ -418,6 +424,7 @@ UA_PubSubTransportLayerMQTT(void){
 
     pubSubTransportLayer.transportProfileUri = UA_STRING("http://opcfoundation.org/UA-Profile/Transport/pubsub-mqtt");
     pubSubTransportLayer.createPubSubChannel = &TransportLayerMQTT_addChannel;
+    pubSubTransportLayer.createWriterGroupPubSubChannel= &TransportLayerMQTT_addWritergroupChannel;
     pubSubTransportLayer.connectionManager = NULL;
     return pubSubTransportLayer;
 }

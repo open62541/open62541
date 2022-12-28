@@ -106,52 +106,32 @@ UA_Server_addWriterGroup(UA_Server *server, const UA_NodeId connection,
         newConfig->messageSettings.encoding = UA_EXTENSIONOBJECT_DECODED;
     }
     /* writerGroupTransportSettings */
-    newWriterGroup->channel = NULL;
-    const UA_ExtensionObject *writerGroupTransportSettings = &writerGroupConfig->transportSettings;
-    if(writerGroupTransportSettings && writerGroupTransportSettings->content.decoded.type == &UA_TYPES[UA_TYPES_DATAGRAMWRITERGROUPTRANSPORT2DATATYPE]) {
-        UA_DatagramWriterGroupTransport2DataType *ts = (UA_DatagramWriterGroupTransport2DataType *) writerGroupTransportSettings->content.decoded.data;
-        if(UA_Variant_hasScalarType(&currentConnectionContext->config->address,
-                                     &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE])) {
-            UA_NetworkAddressUrlDataType *address =
-                (UA_NetworkAddressUrlDataType *)currentConnectionContext->config->address.data;
-            const char *prefix = "opc.udp://localhost:";
-
-            if(strncmp(prefix, (char *) address->url.data, strlen(prefix)) != 0) {
-
-                UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
-                             "PubSub WriterGroup creating failed. Invalid Address of PubSub Connection.");
-                UA_free(newWriterGroup);
-                return UA_STATUSCODE_BADINTERNALERROR;
-            }
-        }
-
-        if(ts->address.content.decoded.type == &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]) {
-            UA_NetworkAddressUrlDataType *address = (UA_NetworkAddressUrlDataType *) ts->address.content.decoded.data;
-            const char *prefix = "opc.udp://";
-            if(strncmp(prefix, (char *) address->url.data, strlen(prefix)) == 0) {
-
-                UA_LOG_DEBUG(&server->config.logger, UA_LOGCATEGORY_SERVER,
-                             "adding udp unicast WriterGroup connecting to "
-
-                             );
-                /* Retrieve the transport layer for the given profile uri */
-                UA_PubSubTransportLayer *tl = UA_getTransportProtocolLayer(server, &currentConnectionContext->config->transportProfileUri);
-                UA_CHECK_MEM_ERROR(tl, UA_free(newWriterGroup); return UA_STATUSCODE_BADNOTFOUND, &server->config.logger,
-                                   UA_LOGCATEGORY_SERVER, "PubSub Connection creation failed. Requested transport layer not found.");
-                UA_TransportLayerContext ctx;
-                ctx.writerGroupAddress = address;
-                ctx.connection = currentConnectionContext;
-                ctx.connectionConfig = currentConnectionContext->config;
-                /* TODO: The callback is for readers, not writers. Currently unused. */
-                ctx.decodeAndProcessNetworkMessage =
-                    (UA_StatusCode (*)(UA_Server *, void *, UA_ByteString *))
-                     UA_decodeAndProcessNetworkMessage;
-                ctx.server = server;
-
-                newWriterGroup->channel = tl->createPubSubChannel(tl, &ctx);
-            }
-        }
+    /* Retrieve the transport layer for the given profile uri */
+    UA_PubSubTransportLayer *tl = UA_getTransportProtocolLayer(server, &currentConnectionContext->config->transportProfileUri);
+    UA_CHECK_MEM_ERROR(tl, UA_free(newWriterGroup); return UA_STATUSCODE_BADNOTFOUND, &server->config.logger,
+                       UA_LOGCATEGORY_SERVER, "PubSub Connection creation failed. Requested transport layer not found.");
+    UA_TransportLayerContext ctx;
+    ctx.writerGroupAddress = NULL;
+    ctx.connection = currentConnectionContext;
+    if(UA_Variant_hasScalarType(&currentConnectionContext->config->address,
+                                &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE])) {
+        UA_NetworkAddressUrlDataType *address =
+            (UA_NetworkAddressUrlDataType *)currentConnectionContext->config->address.data;
+        ctx.connectionAddress = address;
+    } else {
+        UA_free(newWriterGroup);
+        return UA_STATUSCODE_BADCONNECTIONREJECTED;
     }
+    ctx.connectionConfig = currentConnectionContext->config;
+    /* TODO: The callback is for readers, not writers. Currently unused. */
+    ctx.decodeAndProcessNetworkMessage =
+        (UA_StatusCode (*)(UA_Server *, void *, UA_ByteString *))
+            UA_decodeAndProcessNetworkMessage;
+    ctx.server = server;
+    ctx.logger = &server->config.logger;
+    res = tl->createWriterGroupPubSubChannel(&newWriterGroup->channel, tl, &writerGroupConfig->transportSettings, &ctx);
+    UA_CHECK_STATUS_ERROR(res, UA_free(newWriterGroup); return res, &server->config.logger, UA_LOGCATEGORY_PUBSUB,
+                          "PubSub Connection creation failed. WriterGroup specific PubSub channel failed");
 
     /* Attach to the connection */
     LIST_INSERT_HEAD(&currentConnectionContext->writerGroups, newWriterGroup, listEntry);

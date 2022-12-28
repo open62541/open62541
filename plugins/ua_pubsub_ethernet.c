@@ -1344,6 +1344,12 @@ TransportLayerEthernet_addChannel(UA_PubSubTransportLayer *tl, void *ctx) {
     return pubSubChannel;
 }
 
+static UA_StatusCode
+TransportLayerEthernet_addWritergroupChannel(UA_PubSubChannel **out, UA_PubSubTransportLayer *tl, const UA_ExtensionObject *writerGroupTransportSettings, void* ctx)  {
+    *out = NULL;
+    return UA_STATUSCODE_GOOD;
+}
+
 UA_PubSubTransportLayer
 UA_PubSubTransportLayerEthernet(void) {
     UA_PubSubTransportLayer pubSubTransportLayer;
@@ -1351,6 +1357,7 @@ UA_PubSubTransportLayerEthernet(void) {
     pubSubTransportLayer.transportProfileUri =
         UA_STRING("http://opcfoundation.org/UA-Profile/Transport/pubsub-eth-uadp");
     pubSubTransportLayer.createPubSubChannel = &TransportLayerEthernet_addChannel;
+    pubSubTransportLayer.createWriterGroupPubSubChannel= &TransportLayerEthernet_addWritergroupChannel;
     pubSubTransportLayer.connectionManager = NULL;
 
     return pubSubTransportLayer;

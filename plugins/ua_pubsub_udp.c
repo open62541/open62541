@@ -523,6 +523,40 @@ TransportLayerUDP_addChannel(UA_PubSubTransportLayer *tl, void *ctx) {
     return pubSubChannel;
 }
 
+static UA_StatusCode
+TransportLayerUDP_addWritergroupChannel(UA_PubSubChannel **out, UA_PubSubTransportLayer *tl, const UA_ExtensionObject *writerGroupTransportSettings, void* ctx)  {
+    UA_TransportLayerContext *tctx  = (UA_TransportLayerContext *) ctx;
+    if(writerGroupTransportSettings && writerGroupTransportSettings->content.decoded.type == &UA_TYPES[UA_TYPES_DATAGRAMWRITERGROUPTRANSPORT2DATATYPE]) {
+        UA_DatagramWriterGroupTransport2DataType *ts = (UA_DatagramWriterGroupTransport2DataType *) writerGroupTransportSettings->content.decoded.data;
+        const char *assertedPrefix = "opc.udp://localhost:";
+
+        if(strncmp(assertedPrefix, (char *) tctx->connectionAddress->url.data, strlen(assertedPrefix)) != 0) {
+
+            UA_LOG_ERROR(tctx->logger, UA_LOGCATEGORY_PUBSUB,
+                         "PubSub WriterGroup creating failed. Invalid Address of PubSub Connection.");
+            return UA_STATUSCODE_BADCONNECTIONREJECTED;
+        }
+
+        if(ts->address.content.decoded.type == &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]) {
+            UA_NetworkAddressUrlDataType *address = (UA_NetworkAddressUrlDataType *) ts->address.content.decoded.data;
+            const char *prefix = "opc.udp://";
+            if(strncmp(prefix, (char *) address->url.data, strlen(prefix)) == 0) {
+
+                /* Retrieve the transport layer for the given profile uri */
+                tctx->writerGroupAddress = address;
+                *out = tl->createPubSubChannel(tl, tctx);
+                return UA_STATUSCODE_GOOD;
+            } else {
+                return UA_STATUSCODE_BADCONNECTIONREJECTED;
+            }
+        } else {
+            return UA_STATUSCODE_BADCONNECTIONREJECTED;
+        }
+    } else {
+        return UA_STATUSCODE_GOOD;
+    }
+}
+
 //UDP channel factory
 UA_PubSubTransportLayer
 UA_PubSubTransportLayerUDP(void) {
@@ -538,6 +572,7 @@ UA_PubSubTransportLayerUDP(void) {
     pubSubTransportLayer.transportProfileUri =
         UA_STRING("http://opcfoundation.org/UA-Profile/Transport/pubsub-udp-uadp");
     pubSubTransportLayer.createPubSubChannel = &TransportLayerUDP_addChannel;
+    pubSubTransportLayer.createWriterGroupPubSubChannel= &TransportLayerUDP_addWritergroupChannel;
     pubSubTransportLayer.connectionManager = NULL;
     return pubSubTransportLayer;
 }

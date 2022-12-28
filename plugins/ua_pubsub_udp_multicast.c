@@ -869,6 +869,11 @@ TransportLayerUDPMC_addChannel(UA_PubSubTransportLayer *tl, void *ctx) {
     }
     return pubSubChannel;
 }
+static UA_StatusCode
+TransportLayerUDPMC_addWritergroupChannel(UA_PubSubChannel **out, UA_PubSubTransportLayer *tl, const UA_ExtensionObject *writerGroupTransportSettings, void* ctx)  {
+    *out = NULL;
+    return UA_STATUSCODE_GOOD;
+}
 
 //UDPMC channel factory
 UA_PubSubTransportLayer
@@ -877,5 +882,6 @@ UA_PubSubTransportLayerUDPMP(void) {
     pubSubTransportLayer.transportProfileUri =
         UA_STRING("http://opcfoundation.org/UA-Profile/Transport/pubsub-udp-uadp");
     pubSubTransportLayer.createPubSubChannel = &TransportLayerUDPMC_addChannel;
+    pubSubTransportLayer.createWriterGroupPubSubChannel= &TransportLayerUDPMC_addWritergroupChannel;
     return pubSubTransportLayer;
 }
