@@ -11,8 +11,8 @@
 #include <open62541/types.h>
 #include <open62541/types_generated.h>
 #include <open62541/util.h>
+#include <open62541/plugin/log.h>
 
-#include <open62541/plugin/eventloop.h>
 
 _UA_BEGIN_DECLS
 
@@ -109,7 +109,7 @@ struct UA_PubSubChannel {
 
 typedef struct UA_PubSubTransportLayer {
     UA_String transportProfileUri;
-    UA_ConnectionManager *connectionManager;
+    void *connectionManager;
     // UA_Server *server;
     UA_PubSubChannel *(*createPubSubChannel)(struct UA_PubSubTransportLayer *tl, void *ctx);
     UA_StatusCode (*createWriterGroupPubSubChannel)(UA_PubSubChannel** outChannel, struct UA_PubSubTransportLayer *tl, const UA_ExtensionObject *writerGroupTransportSettings, void *ctx);
