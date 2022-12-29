@@ -95,7 +95,7 @@ UA_PubSub_udpCallbackPublish(UA_ConnectionManager *cm, uintptr_t connectionId,
                              UA_ConnectionState state, const UA_KeyValueMap *params,
                              UA_ByteString msg) {
 
-    if(state == UA_CONNECTIONSTATE_CLOSED || state == UA_CONNECTIONSTATE_CLOSING) {
+    if(state == UA_CONNECTIONSTATE_CLOSED || state == UA_CONNECTIONSTATE_CLOSING || !application) {
         return;
     }
     UA_PubSubChannel *channel = (UA_PubSubChannel *) application;
