@@ -499,9 +499,9 @@ TransportLayerUDP_addChannel(UA_PubSubTransportLayer *tl, void *ctx) {
         (UA_NetworkAddressUrlDataType *)connectionConfig->address.data;
 
     if(tctx->writerGroupAddress)  {
-        pubSubChannel = UA_PubSubChannelUDP_openUnicast(tl->connectionManager, tctx, tctx->writerGroupAddress);
+        pubSubChannel = UA_PubSubChannelUDP_openUnicast((UA_ConnectionManager*) tl->connectionManager, tctx, tctx->writerGroupAddress);
     } else {
-        pubSubChannel = UA_PubSubChannelUDP_open(tl->connectionManager, tctx, address);
+        pubSubChannel = UA_PubSubChannelUDP_open((UA_ConnectionManager*) tl->connectionManager, tctx, address);
     }
 
     if(pubSubChannel){
