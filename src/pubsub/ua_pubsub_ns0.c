@@ -1584,11 +1584,11 @@ addSecurityGroupRepresentation(UA_Server *server, UA_SecurityGroup *securityGrou
     object_attr.displayName = UA_LOCALIZEDTEXT("", sgName);
     UA_NodeId refType = UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT);
     UA_NodeId nodeType = UA_NODEID_NUMERIC(0, UA_NS0ID_SECURITYGROUPTYPE);
-    retval = addNode(
-        server, UA_NODECLASS_OBJECT, &UA_NODEID_NULL,
-        &securityGroup->securityGroupFolderId, &refType, UA_QUALIFIEDNAME(0, sgName),
-        &nodeType, (const UA_NodeAttributes *)&object_attr,
-        &UA_TYPES[UA_TYPES_OBJECTATTRIBUTES], NULL, &securityGroup->securityGroupNodeId);
+    retval = addNode(server, UA_NODECLASS_OBJECT, UA_NODEID_NULL,
+                     securityGroup->securityGroupFolderId, refType,
+                     UA_QUALIFIEDNAME(0, sgName), nodeType, &object_attr,
+                     &UA_TYPES[UA_TYPES_OBJECTATTRIBUTES], NULL,
+                     &securityGroup->securityGroupNodeId);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
                      "Add SecurityGroup failed with error: %s.",

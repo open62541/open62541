@@ -363,7 +363,9 @@ typeCheckVariableNode(UA_Server *server, UA_Session *session,
     if(!compatibleValue(server, session, &node->dataType, node->valueRank,
                         node->arrayDimensionsSize, node->arrayDimensions,
                         &value.value, NULL, &reason)) {
-        retval = writeValueAttribute(server, session, &node->head.nodeId, &value.value);
+        retval = writeAttribute(server, session, &node->head.nodeId,
+                                UA_ATTRIBUTEID_VALUE, &value.value,
+                                &UA_TYPES[UA_TYPES_VARIANT]);
         if(retval != UA_STATUSCODE_GOOD) {
             logAddNode(&server->config.logger, session, &node->head.nodeId,
                        "The value is incompatible with the variable definition");
@@ -408,7 +410,9 @@ useVariableTypeAttributes(UA_Server *server, UA_Session *session,
         UA_DataValue_init(&v);
         retval = readValueAttribute(server, session, (const UA_VariableNode*)vt, &v);
         if(retval == UA_STATUSCODE_GOOD && v.hasValue) {
-            retval = writeValueAttribute(server, session, &node->head.nodeId, &v.value);
+            retval = writeAttribute(server, session, &node->head.nodeId,
+                                    UA_ATTRIBUTEID_VALUE, &v.value,
+                                    &UA_TYPES[UA_TYPES_VARIANT]);
         }
         UA_DataValue_clear(&v);
 
@@ -527,9 +531,9 @@ Operation_addReference(UA_Server *server, UA_Session *session, void *context,
                        const UA_AddReferencesItem *item, UA_StatusCode *retval);
 
 UA_StatusCode
-addRef(UA_Server *server, UA_Session *session, const UA_NodeId *sourceId,
-       const UA_NodeId *referenceTypeId, const UA_NodeId *targetId,
-       UA_Boolean forward) {
+addRefWithSession(UA_Server *server, UA_Session *session, const UA_NodeId *sourceId,
+                  const UA_NodeId *referenceTypeId, const UA_NodeId *targetId,
+                  UA_Boolean forward) {
     UA_AddReferencesItem ref_item;
     UA_AddReferencesItem_init(&ref_item);
     ref_item.sourceNodeId = *sourceId;
@@ -540,6 +544,14 @@ addRef(UA_Server *server, UA_Session *session, const UA_NodeId *sourceId,
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     Operation_addReference(server, session, NULL, &ref_item, &retval);
     return retval;
+}
+
+UA_StatusCode
+addRef(UA_Server *server, const UA_NodeId sourceId,
+       const UA_NodeId referenceTypeId, const UA_NodeId targetId,
+       UA_Boolean forward) {
+    return addRefWithSession(server, &server->adminSession, &sourceId,
+                             &referenceTypeId, &targetId, forward);
 }
 
 static UA_StatusCode
@@ -564,7 +576,7 @@ addInterfaceChildren(UA_Server *server, UA_Session *session,
 
     for(size_t i = 0; i < hierarchySize; ++i) {
         UA_NodeId refId = UA_NODEID_NUMERIC(0, UA_NS0ID_HASINTERFACE);
-        retval = addRef(server, &server->adminSession, nodeId, &refId, &hierarchy[i], true);
+        retval = addRef(server, *nodeId, refId, hierarchy[i], true);
 
         /* Don't add the original HasInterface reference to ObjectType sub nodes */
         if(retval == UA_STATUSCODE_BADDUPLICATEREFERENCENOTALLOWED) {
@@ -974,8 +986,8 @@ AddNode_addRefs(UA_Server *server, UA_Session *session, const UA_NodeId *nodeId,
             goto cleanup;
         }
 
-        retval = addRef(server, session, &head->nodeId, referenceTypeId,
-                        parentNodeId, false);
+        retval = addRefWithSession(server, session, &head->nodeId, referenceTypeId,
+                                   parentNodeId, false);
         if(retval != UA_STATUSCODE_GOOD) {
             logAddNode(&server->config.logger, session, nodeId,
                        "Adding reference to parent failed");
@@ -987,8 +999,8 @@ AddNode_addRefs(UA_Server *server, UA_Session *session, const UA_NodeId *nodeId,
     if(head->nodeClass == UA_NODECLASS_VARIABLE ||
        head->nodeClass == UA_NODECLASS_OBJECT) {
         UA_assert(type != NULL); /* see above */
-        retval = addRef(server, session, &head->nodeId, &hasTypeDefinition,
-                        &type->head.nodeId, true);
+        retval = addRefWithSession(server, session, &head->nodeId, &hasTypeDefinition,
+                                   &type->head.nodeId, true);
         if(retval != UA_STATUSCODE_GOOD) {
             logAddNode(&server->config.logger, session, nodeId,
                        "Adding a reference to the type definition failed");
@@ -1589,10 +1601,10 @@ Service_AddNodes(UA_Server *server, UA_Session *session,
 }
 
 UA_StatusCode
-addNode(UA_Server *server, const UA_NodeClass nodeClass, const UA_NodeId *requestedNewNodeId,
-        const UA_NodeId *parentNodeId, const UA_NodeId *referenceTypeId,
-        const UA_QualifiedName browseName, const UA_NodeId *typeDefinition,
-        const UA_NodeAttributes *attr, const UA_DataType *attributeType,
+addNode(UA_Server *server, const UA_NodeClass nodeClass, const UA_NodeId requestedNewNodeId,
+        const UA_NodeId parentNodeId, const UA_NodeId referenceTypeId,
+        const UA_QualifiedName browseName, const UA_NodeId typeDefinition,
+        const void *attr, const UA_DataType *attributeType,
         void *nodeContext, UA_NodeId *outNewNodeId) {
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
 
@@ -1600,11 +1612,11 @@ addNode(UA_Server *server, const UA_NodeClass nodeClass, const UA_NodeId *reques
     UA_AddNodesItem item;
     UA_AddNodesItem_init(&item);
     item.nodeClass = nodeClass;
-    item.requestedNewNodeId.nodeId = *requestedNewNodeId;
+    item.requestedNewNodeId.nodeId = requestedNewNodeId;
     item.browseName = browseName;
-    item.parentNodeId.nodeId = *parentNodeId;
-    item.referenceTypeId = *referenceTypeId;
-    item.typeDefinition.nodeId = *typeDefinition;
+    item.parentNodeId.nodeId = parentNodeId;
+    item.referenceTypeId = referenceTypeId;
+    item.typeDefinition.nodeId = typeDefinition;
     UA_ExtensionObject_setValueNoDelete(&item.nodeAttributes,
                                         (void*)(uintptr_t)attr, attributeType);
 
@@ -1631,8 +1643,8 @@ __UA_Server_addNode(UA_Server *server, const UA_NodeClass nodeClass,
                     void *nodeContext, UA_NodeId *outNewNodeId) {
     UA_LOCK(&server->serviceMutex);
     UA_StatusCode reval =
-        addNode(server, nodeClass, requestedNewNodeId, parentNodeId,
-                referenceTypeId, browseName, typeDefinition, attr,
+        addNode(server, nodeClass, *requestedNewNodeId, *parentNodeId,
+                *referenceTypeId, browseName, *typeDefinition, attr,
                 attributeType, nodeContext, outNewNodeId);
     UA_UNLOCK(&server->serviceMutex);
     return reval;
@@ -2372,7 +2384,7 @@ setDataSource(UA_Server *server, UA_Session *session,
 
 UA_StatusCode
 setVariableNode_dataSource(UA_Server *server, const UA_NodeId nodeId,
-                                     const UA_DataSource dataSource) {
+                           const UA_DataSource dataSource) {
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
     return UA_Server_editNode(server, &server->adminSession, &nodeId,
                               (UA_EditNodeCallback)setDataSource,
@@ -2530,10 +2542,9 @@ UA_Server_addMethodNodeEx_finish(UA_Server *server, const UA_NodeId nodeId,
         attr.arrayDimensionsSize = 1;
         UA_Variant_setArray(&attr.value, (void *)(uintptr_t)inputArguments,
                             inputArgumentsSize, &UA_TYPES[UA_TYPES_ARGUMENT]);
-        retval = addNode(server, UA_NODECLASS_VARIABLE, &inputArgumentsRequestedNewNodeId,
-                         &nodeId, &hasproperty, UA_QUALIFIEDNAME(0, name),
-                         &propertytype, (const UA_NodeAttributes*)&attr,
-                         &UA_TYPES[UA_TYPES_VARIABLEATTRIBUTES],
+        retval = addNode(server, UA_NODECLASS_VARIABLE, inputArgumentsRequestedNewNodeId,
+                         nodeId, hasproperty, UA_QUALIFIEDNAME(0, name),
+                         propertytype, &attr, &UA_TYPES[UA_TYPES_VARIABLEATTRIBUTES],
                          NULL, &inputArgsId);
         if(retval != UA_STATUSCODE_GOOD)
             goto error;
@@ -2551,10 +2562,9 @@ UA_Server_addMethodNodeEx_finish(UA_Server *server, const UA_NodeId nodeId,
         attr.arrayDimensionsSize = 1;
         UA_Variant_setArray(&attr.value, (void *)(uintptr_t)outputArguments,
                             outputArgumentsSize, &UA_TYPES[UA_TYPES_ARGUMENT]);
-        retval = addNode(server, UA_NODECLASS_VARIABLE, &outputArgumentsRequestedNewNodeId,
-                         &nodeId, &hasproperty, UA_QUALIFIEDNAME(0, name),
-                         &propertytype, (const UA_NodeAttributes*)&attr,
-                         &UA_TYPES[UA_TYPES_VARIABLEATTRIBUTES],
+        retval = addNode(server, UA_NODECLASS_VARIABLE, outputArgumentsRequestedNewNodeId,
+                         nodeId, hasproperty, UA_QUALIFIEDNAME(0, name),
+                         propertytype, &attr, &UA_TYPES[UA_TYPES_VARIABLEATTRIBUTES],
                          NULL, &outputArgsId);
         if(retval != UA_STATUSCODE_GOOD)
             goto error;

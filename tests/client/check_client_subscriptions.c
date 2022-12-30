@@ -962,8 +962,7 @@ START_TEST(Client_subscription_statusChange) {
     THREAD_JOIN(server_thread);
 
     /* Manually set the StatusChange */
-    UA_Subscription *sub =
-        UA_Server_getSubscriptionById(server, response.subscriptionId);
+    UA_Subscription *sub = getSubscriptionById(server, response.subscriptionId);
     sub->statusChange = 1234; /* some statuscode */
 
     /* Send publish requests and receive them on the server side */

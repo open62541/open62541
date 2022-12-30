@@ -2324,7 +2324,7 @@ setTwoStateVariableCallbacks(UA_Server *server, const UA_NodeId* condition,
         /* add reference from Condition to Confirm Method */
         UA_NodeId hasComponent = UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT);
         UA_NodeId confirm = UA_NODEID_NUMERIC(0, UA_NS0ID_ACKNOWLEDGEABLECONDITIONTYPE_CONFIRM);
-        retval = addRef(server, &server->adminSession, condition, &hasComponent, &confirm, true);
+        retval = addRef(server, *condition, hasComponent, confirm, true);
         CONDITION_ASSERT_RETURN_RETVAL(retval,
                                        "Adding HasComponent Reference to Confirm Method failed",
                                        UA_NodeId_clear(&twoStateVariableIdNodeId););
@@ -2467,8 +2467,7 @@ addCondition_finish(UA_Server *server, const UA_NodeId conditionId,
     if(!doesHasEventSourceReferenceExist(server, conditionSource) &&
        !UA_NodeId_equal(&serverObject, &conditionSource)) {
          UA_NodeId hasHasEventSourceId = UA_NODEID_NUMERIC(0, UA_NS0ID_HASEVENTSOURCE);
-         retval = addRef(server, &server->adminSession, &serverObject, &hasHasEventSourceId,
-                         &conditionSource, true);
+         retval = addRef(server, serverObject, hasHasEventSourceId, conditionSource, true);
           CONDITION_ASSERT_RETURN_RETVAL(retval, "Creating HasHasEventSource Reference "
                                          "to the Server Object failed",);
     }
@@ -2481,17 +2480,14 @@ addCondition_finish(UA_Server *server, const UA_NodeId conditionId,
         /* Create hierarchical Reference to ConditionSource to expose the
          * ConditionNode in Address Space */
         // only Check hierarchialReferenceType
-        retval = addRef(server, &server->adminSession, &conditionSource,
-                        &hierarchialReferenceType, &conditionId, true);
+        retval = addRef(server, conditionSource, hierarchialReferenceType, conditionId, true);
         CONDITION_ASSERT_RETURN_RETVAL(retval, "Creating hierarchical Reference to "
                                        "ConditionSource failed",);
 
-        retval = addRef(server, &server->adminSession, &conditionSource,
-                        &hasCondition, &conditionId, true);
+        retval = addRef(server, conditionSource, hasCondition, conditionId, true);
         CONDITION_ASSERT_RETURN_RETVAL(retval, "Creating HasCondition Reference failed",);
     } else {
-        retval = addRef(server, &server->adminSession, &conditionSource,
-                        &hasCondition, &conditionType, true);
+        retval = addRef(server, conditionSource, hasCondition, conditionType, true);
         if(retval != UA_STATUSCODE_BADDUPLICATEREFERENCENOTALLOWED)
             CONDITION_ASSERT_RETURN_RETVAL(retval, "Creating HasCondition Reference failed",);
     }
@@ -2519,8 +2515,8 @@ addCondition_finish(UA_Server *server, const UA_NodeId conditionId,
 
     UA_Boolean inner = (startAbstract == false && endAbstract == false);
     if(inner) {
-        writeIsAbstractAttribute(server, &server->adminSession, &refreshStartEventTypeNodeId, false);
-        writeIsAbstractAttribute(server, &server->adminSession, &refreshEndEventTypeNodeId, false);
+        writeIsAbstractAttribute(server, refreshStartEventTypeNodeId, false);
+        writeIsAbstractAttribute(server, refreshEndEventTypeNodeId, false);
     }
 
     /* append Condition to list */
@@ -2592,8 +2588,8 @@ UA_Server_addCondition_begin(UA_Server *server, const UA_NodeId conditionId,
     UA_StatusCode retval =
         UA_Server_addNode_begin(server, UA_NODECLASS_OBJECT, conditionId,
                                 UA_NODEID_NULL, UA_NODEID_NULL, conditionName,
-                                conditionType, (const UA_NodeAttributes *)&oAttr,
-                                &UA_TYPES[UA_TYPES_OBJECTATTRIBUTES], NULL, outNodeId);
+                                conditionType, &oAttr, &UA_TYPES[UA_TYPES_OBJECTATTRIBUTES],
+                                NULL, outNodeId);
     CONDITION_ASSERT_RETURN_RETVAL(retval, "Adding Condition failed", );
     return UA_STATUSCODE_GOOD;
 }
@@ -2665,10 +2661,10 @@ addOptionalVariableField(UA_Server *server, const UA_NodeId *originCondition,
     /* Set a random unused NodeId with specified Namespace Index*/
     UA_NodeId optionalVariable = {originCondition->namespaceIndex, UA_NODEIDTYPE_NUMERIC, {0}};
     UA_StatusCode retval =
-        addNode(server, UA_NODECLASS_VARIABLE, &optionalVariable,
-                originCondition, &referenceToParent, *fieldName,
-                &type->head.nodeId, (const UA_NodeAttributes*)&vAttr,
-                &UA_TYPES[UA_TYPES_VARIABLEATTRIBUTES], NULL, outOptionalVariable);
+        addNode(server, UA_NODECLASS_VARIABLE, optionalVariable,
+                *originCondition, referenceToParent, *fieldName,
+                type->head.nodeId, &vAttr, &UA_TYPES[UA_TYPES_VARIABLEATTRIBUTES],
+                NULL, outOptionalVariable);
     UA_NODESTORE_RELEASE(server, type);
     return retval;
 }
@@ -2702,11 +2698,10 @@ addOptionalObjectField(UA_Server *server, const UA_NodeId *originCondition,
         referenceToParent = UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT);
 
     UA_NodeId optionalObject = {originCondition->namespaceIndex, UA_NODEIDTYPE_NUMERIC, {0}};
-    UA_StatusCode retval = addNode(server, UA_NODECLASS_OBJECT,
-                                   &optionalObject, originCondition,
-                                   &referenceToParent, *fieldName, &type->head.nodeId,
-                                   (const UA_NodeAttributes*)&oAttr,
-                                   &UA_TYPES[UA_TYPES_OBJECTATTRIBUTES], NULL, outOptionalObject);
+    UA_StatusCode retval = addNode(server, UA_NODECLASS_OBJECT, optionalObject,
+                                   *originCondition, referenceToParent, *fieldName,
+                                   type->head.nodeId, &oAttr, &UA_TYPES[UA_TYPES_OBJECTATTRIBUTES],
+                                   NULL, outOptionalObject);
     UA_NODESTORE_RELEASE(server, type);
     return retval;
 }
@@ -2817,8 +2812,7 @@ setConditionField(UA_Server *server, const UA_NodeId condition,
     if(bpr.statusCode != UA_STATUSCODE_GOOD)
         return bpr.statusCode;
 
-    UA_StatusCode retval = writeValueAttribute(server, &server->adminSession,
-                                               &bpr.targets[0].targetId.nodeId, value);
+    UA_StatusCode retval = writeValueAttribute(server, bpr.targets[0].targetId.nodeId, value);
     UA_BrowsePathResult_clear(&bpr);
 
     return retval;
@@ -2864,8 +2858,7 @@ setConditionVariableFieldProperty(UA_Server *server, const UA_NodeId condition,
     }
 
     UA_StatusCode retval =
-        writeValueAttribute(server, &server->adminSession,
-                            &bprVariableFieldProperty.targets[0].targetId.nodeId, value);
+        writeValueAttribute(server, bprVariableFieldProperty.targets[0].targetId.nodeId, value);
     UA_BrowsePathResult_clear(&bprConditionVariableField);
     UA_BrowsePathResult_clear(&bprVariableFieldProperty);
     return retval;

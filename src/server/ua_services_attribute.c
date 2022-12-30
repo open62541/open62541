@@ -1258,9 +1258,9 @@ writeArrayDimensionsAttribute(UA_Server *server, UA_Session *session,
 
 /* Stack layout: ... | node | type */
 static UA_StatusCode
-writeValueRankAttribute(UA_Server *server, UA_Session *session,
-                        UA_VariableNode *node, const UA_VariableTypeNode *type,
-                        UA_Int32 valueRank) {
+writeValueRank(UA_Server *server, UA_Session *session,
+               UA_VariableNode *node, const UA_VariableTypeNode *type,
+               UA_Int32 valueRank) {
     UA_assert(node != NULL);
     UA_assert(type != NULL);
 
@@ -1756,8 +1756,8 @@ copyAttributeIntoNode(UA_Server *server, UA_Session *session,
         CHECK_USERWRITEMASK(UA_WRITEMASK_VALUERANK);
         CHECK_DATATYPE_SCALAR(INT32);
         GET_NODETYPE;
-        retval = writeValueRankAttribute(server, session, &node->variableNode,
-                                         type, *(const UA_Int32*)value);
+        retval = writeValueRank(server, session, &node->variableNode,
+                                type, *(const UA_Int32*)value);
         UA_NODESTORE_RELEASE(server, (const UA_Node*)type);
         break;
     case UA_ATTRIBUTEID_ARRAYDIMENSIONS:
@@ -2112,8 +2112,7 @@ writeObjectProperty(UA_Server *server, const UA_NodeId objectId,
         return retval;
     }
 
-    retval = writeValueAttribute(server, &server->adminSession,
-                                 &bpr.targets[0].targetId.nodeId, &value);
+    retval = writeValueAttribute(server, bpr.targets[0].targetId.nodeId, &value);
 
     UA_BrowsePathResult_clear(&bpr);
     return retval;
