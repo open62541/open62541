@@ -454,7 +454,7 @@ Operation_TransferSubscription(UA_Server *server, UA_Session *session,
                                UA_TransferResult *result) {
     /* Get the subscription. This requires a server-wide lookup instead of the
      * usual session-wide lookup. */
-    UA_Subscription *sub = UA_Server_getSubscriptionById(server, *subscriptionId);
+    UA_Subscription *sub = getSubscriptionById(server, *subscriptionId);
     if(!sub) {
         result->statusCode = UA_STATUSCODE_BADSUBSCRIPTIONIDINVALID;
         return;

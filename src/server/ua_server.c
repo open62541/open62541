@@ -294,9 +294,8 @@ UA_Server_init(UA_Server *server) {
     UA_random_seed((UA_UInt64)UA_DateTime_now());
 #endif
 
-#if UA_MULTITHREADING >= 100
     UA_LOCK_INIT(&server->serviceMutex);
-#endif
+    UA_LOCK(&server->serviceMutex);
 
     /* Initialize the adminSession */
     UA_Session_init(&server->adminSession);
@@ -329,13 +328,15 @@ UA_Server_init(UA_Server *server) {
 #endif
 
     /* Initialize namespace 0*/
-    res = UA_Server_initNS0(server);
+    res = initNS0(server);
     UA_CHECK_STATUS(res, goto cleanup);
 
 #ifdef UA_ENABLE_PUBSUB
     /* Build PubSub information model */
 #ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL
+    UA_UNLOCK(&server->serviceMutex);
     UA_Server_initPubSubNS0(server);
+    UA_LOCK(&server->serviceMutex);
 #endif
 
 #ifdef UA_ENABLE_PUBSUB_MONITORING
@@ -344,9 +345,12 @@ UA_Server_init(UA_Server *server) {
     UA_CHECK_STATUS(res, goto cleanup);
 #endif /* UA_ENABLE_PUBSUB_MONITORING */
 #endif /* UA_ENABLE_PUBSUB */
+
+    UA_UNLOCK(&server->serviceMutex);
     return server;
 
  cleanup:
+    UA_UNLOCK(&server->serviceMutex);
     UA_Server_delete(server);
     return NULL;
 }
@@ -790,7 +794,7 @@ UA_Server_run_startup(UA_Server *server) {
     UA_CHECK_MEM_ERROR(config->eventLoop, return UA_STATUSCODE_BADINTERNALERROR,
                        &config->logger, UA_LOGCATEGORY_SERVER,
                        "eventloop must be set");
-    if (config->eventLoop->state != UA_EVENTLOOPSTATE_STARTED) {
+    if(config->eventLoop->state != UA_EVENTLOOPSTATE_STARTED) {
         retVal = config->eventLoop->start(config->eventLoop);
         UA_CHECK_STATUS(retVal, return retVal);
     }
@@ -814,6 +818,8 @@ UA_Server_run_startup(UA_Server *server) {
         }
     }
 
+    UA_LOCK(&server->serviceMutex);
+
     /* Warn if no socket available */
     if(!haveServerSocket) {
         UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
@@ -827,10 +833,14 @@ UA_Server_run_startup(UA_Server *server) {
     retVal = writeNs0VariableArray(server, UA_NS0ID_SERVER_SERVERARRAY,
                                    &server->config.applicationDescription.applicationUri,
                                    1, &UA_TYPES[UA_TYPES_STRING]);
-    UA_CHECK_STATUS(retVal, return retVal);
+    UA_CHECK_STATUS(retVal,
+                    UA_UNLOCK(&server->serviceMutex);
+                    return retVal);
 
-    if(server->state > UA_SERVERLIFECYCLE_FRESH)
+    if(server->state > UA_SERVERLIFECYCLE_FRESH) {
+        UA_UNLOCK(&server->serviceMutex);
         return UA_STATUSCODE_GOOD;
+    }
 
     /* At least one endpoint has to be configured */
     if(server->config.endpointsSize == 0) {
@@ -848,6 +858,8 @@ UA_Server_run_startup(UA_Server *server) {
     retVal = verifyServerApplicationURI(server);
     UA_CHECK_STATUS(retVal, return retVal);
 #endif
+
+    UA_UNLOCK(&server->serviceMutex); /* TODO: Make PubSub initialization thread-safe */
 
 #ifdef UA_ENABLE_PUBSUB
     /* Initialized PubSubManager */
