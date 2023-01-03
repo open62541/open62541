@@ -13,14 +13,6 @@
 /* Timer */
 /*********/
 
-static void
-timerExecutionTrampoline(void *executionApplication,
-                         UA_ApplicationCallback cb,
-                         void *callbackApplication,
-                         void *data) {
-    cb(callbackApplication, data);
-}
-
 static UA_DateTime
 UA_EventLoopPOSIX_nextCyclicTime(UA_EventLoop *public_el) {
     UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX*)public_el;
@@ -253,9 +245,7 @@ UA_EventLoopPOSIX_run(UA_EventLoopPOSIX *el, UA_UInt32 timeout) {
         el->eventLoop.dateTime_nowMonotonic(&el->eventLoop);
 
     UA_UNLOCK(&el->elMutex);
-    UA_DateTime dateNext =
-        UA_Timer_process(&el->timer, dateBefore,
-                         timerExecutionTrampoline, NULL);
+    UA_DateTime dateNext = UA_Timer_process(&el->timer, dateBefore);
     UA_LOCK(&el->elMutex);
 
     /* Process delayed callbacks here:
