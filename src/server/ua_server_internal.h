@@ -195,7 +195,17 @@ struct UA_Server {
 /* References Handling */
 /***********************/
 
-extern const struct aa_head refNameTree;
+enum ZIP_CMP
+cmpRefTargetId(const void *a, const void *b);
+
+enum ZIP_CMP
+cmpRefTargetName(const void *a, const void *b);
+
+/* Static inline methods for tree handling */
+ZIP_FUNCTIONS(UA_ReferenceIdTree, UA_ReferenceTargetTreeElem, idTreeEntry,
+              UA_ReferenceTargetTreeElem, target, cmpRefTargetId)
+ZIP_FUNCTIONS(UA_ReferenceNameTree, UA_ReferenceTargetTreeElem, nameTreeEntry,
+              UA_ReferenceTarget, target, cmpRefTargetName)
 
 /**************************/
 /* SecureChannel Handling */
