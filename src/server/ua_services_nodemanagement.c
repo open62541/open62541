@@ -2036,10 +2036,18 @@ Operation_addReference(UA_Server *server, UA_Session *session, void *context,
     /* Check the ReferenceType and get the index */
     const UA_Node *refType = UA_NODESTORE_GET(server, &item->referenceTypeId);
     if(!refType) {
+        UA_LOG_NODEID_DEBUG(&item->referenceTypeId,
+            UA_LOG_DEBUG_SESSION(&server->config.logger, session,
+                                 "Cannot add reference - ReferenceType %.*s unknown",
+                                 (int)nodeIdStr.length, nodeIdStr.data));
         *retval = UA_STATUSCODE_BADREFERENCETYPEIDINVALID;
         return;
     }
     if(refType->head.nodeClass != UA_NODECLASS_REFERENCETYPE) {
+        UA_LOG_NODEID_DEBUG(&item->referenceTypeId,
+            UA_LOG_DEBUG_SESSION(&server->config.logger, session,
+                                 "Cannot add reference - ReferenceType %.*s with wrong NodeClass",
+                                 (int)nodeIdStr.length, nodeIdStr.data));
         UA_NODESTORE_RELEASE(server, refType);
         *retval = UA_STATUSCODE_BADREFERENCETYPEIDINVALID;
         return;
@@ -2050,6 +2058,10 @@ Operation_addReference(UA_Server *server, UA_Session *session, void *context,
     /* Get the source and target node BrowseName hash */
     const UA_Node *targetNode = UA_NODESTORE_GET(server, &item->targetNodeId.nodeId);
     if(!targetNode) {
+        UA_LOG_NODEID_DEBUG(&item->targetNodeId.nodeId,
+            UA_LOG_DEBUG_SESSION(&server->config.logger, session,
+                                 "Cannot add reference - target %.*s does not exist",
+                                 (int)nodeIdStr.length, nodeIdStr.data));
         *retval = UA_STATUSCODE_BADTARGETNODEIDINVALID;
         return;
     }
