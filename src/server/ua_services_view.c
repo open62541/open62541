@@ -286,7 +286,7 @@ RefTree_add(RefTree *rt, UA_NodePointer target, UA_Boolean *duplicate) {
                                (sizeof(RefEntry) * rt->size));
     re->target = &rt->targets[rt->size];
     re->targetHash = dummy.targetHash;
-    ZIP_INSERT(RefHead, &rt->head, re, UA_UInt32_random());
+    ZIP_INSERT(RefHead, &rt->head, re);
     rt->size++;
     return UA_STATUSCODE_GOOD;
 }
