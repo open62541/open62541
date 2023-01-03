@@ -489,8 +489,8 @@ findChildByBrowsename(UA_Server *server, UA_Session *session,
     return retval;
 }
 
-static const UA_NodeId mandatoryId =
-    {0, UA_NODEIDTYPE_NUMERIC, {UA_NS0ID_MODELLINGRULE_MANDATORY}};
+static const UA_ExpandedNodeId mandatoryId =
+    {{0, UA_NODEIDTYPE_NUMERIC, {UA_NS0ID_MODELLINGRULE_MANDATORY}}, {0, NULL}, 0};
 
 static UA_Boolean
 isMandatoryChild(UA_Server *server, UA_Session *session,
@@ -501,7 +501,7 @@ isMandatoryChild(UA_Server *server, UA_Session *session,
         return false;
 
     /* Look for the reference making the child mandatory */
-    UA_NodePointer mandatoryP = UA_NodePointer_fromNodeId(&mandatoryId);
+    UA_Boolean found = false;
     for(size_t i = 0; i < child->head.referencesSize; ++i) {
         UA_NodeReferenceKind *rk = &child->head.references[i];
         if(rk->referenceTypeIndex != UA_REFERENCETYPEINDEX_HASMODELLINGRULE)
@@ -509,17 +509,14 @@ isMandatoryChild(UA_Server *server, UA_Session *session,
         if(rk->isInverse)
             continue;
 
-        const UA_ReferenceTarget *t = NULL;
-        while((t = UA_NodeReferenceKind_iterate(rk, t))) {
-            if(UA_NodePointer_equal(mandatoryP, t->targetId)) {
-                UA_NODESTORE_RELEASE(server, child);
-                return true;
-            }
+        if(UA_NodeReferenceKind_findTarget(rk, &mandatoryId)) {
+            found = true;
+            break;
         }
     }
 
     UA_NODESTORE_RELEASE(server, child);
-    return false;
+    return found;
 }
 
 static UA_StatusCode
@@ -1690,28 +1687,55 @@ static void
 Operation_deleteReference(UA_Server *server, UA_Session *session, void *context,
                           const UA_DeleteReferencesItem *item, UA_StatusCode *retval);
 
+struct RemoveIncomingContext {
+    UA_Server *server;
+    UA_Session *session;
+    UA_DeleteReferencesItem *item;
+};
+
+static void *
+removeIncomingReferencesCallback(void *context, UA_ReferenceTarget *t) {
+    struct RemoveIncomingContext *ctx = (struct RemoveIncomingContext *)context;
+    if(!UA_NodePointer_isLocal(t->targetId))
+        return NULL;
+    UA_StatusCode dummy;
+    ctx->item->sourceNodeId = UA_NodePointer_toNodeId(t->targetId);
+    Operation_deleteReference(ctx->server, ctx->session, NULL, ctx->item, &dummy);
+    return NULL;
+}
+
 /* Remove references to this node (in the other nodes) */
 static void
-removeIncomingReferences(UA_Server *server, UA_Session *session, const UA_NodeHead *head) {
+removeIncomingReferences(UA_Server *server, UA_Session *session,
+                         const UA_NodeHead *head) {
     UA_DeleteReferencesItem item;
     UA_DeleteReferencesItem_init(&item);
     item.targetNodeId.nodeId = head->nodeId;
     item.deleteBidirectional = false;
 
-    UA_StatusCode dummy;
+    struct RemoveIncomingContext ctx;
+    ctx.server = server;
+    ctx.session = session;
+    ctx.item = &item;
+
     for(size_t i = 0; i < head->referencesSize; ++i) {
-        const UA_NodeReferenceKind *rk = &head->references[i];
+        UA_NodeReferenceKind *rk = &head->references[i];
         item.isForward = rk->isInverse;
         item.referenceTypeId =
             *UA_NODESTORE_GETREFERENCETYPEID(server, rk->referenceTypeIndex);
-        const UA_ReferenceTarget *t = NULL;
-        while((t = UA_NodeReferenceKind_iterate(rk, t))) {
-            if(!UA_NodePointer_isLocal(t->targetId))
-                continue;
-            item.sourceNodeId = UA_NodePointer_toNodeId(t->targetId);
-            Operation_deleteReference(server, session, NULL, &item, &dummy);
-        }
+        UA_NodeReferenceKind_iterate(rk, removeIncomingReferencesCallback, &ctx);
     }
+}
+
+static void *
+checkTargetInRefTree(void *context, UA_ReferenceTarget *t) {
+    RefTree *refTree = (RefTree*)context;
+    if(!UA_NodePointer_isLocal(t->targetId))
+        return NULL;
+    UA_NodeId tmpId = UA_NodePointer_toNodeId(t->targetId);
+    if(!RefTree_containsNodeId(refTree, &tmpId))
+        return (void*)0x1;
+    return NULL;
 }
 
 /* A node is auto-deleted if all its hierarchical parents are being deleted */
@@ -1719,19 +1743,13 @@ static UA_Boolean
 hasParentRef(const UA_NodeHead *head, const UA_ReferenceTypeSet *refSet,
              RefTree *refTree) {
     for(size_t i = 0; i < head->referencesSize; i++) {
-        const UA_NodeReferenceKind *rk = &head->references[i];
+        UA_NodeReferenceKind *rk = &head->references[i];
         if(!rk->isInverse)
             continue;
         if(!UA_ReferenceTypeSet_contains(refSet, rk->referenceTypeIndex))
             continue;
-        const UA_ReferenceTarget *t = NULL;
-        while((t = UA_NodeReferenceKind_iterate(rk, t))) {
-            if(!UA_NodePointer_isLocal(t->targetId))
-                continue;
-            UA_NodeId tmpId = UA_NodePointer_toNodeId(t->targetId);
-            if(!RefTree_containsNodeId(refTree, &tmpId))
-                return true;
-        }
+        if(UA_NodeReferenceKind_iterate(rk, checkTargetInRefTree, refTree) != NULL)
+            return true;
     }
     return false;
 }
@@ -1791,6 +1809,30 @@ deconstructNodeSet(UA_Server *server, UA_Session *session,
     }
 }
 
+struct DeleteChildrenContext {
+    UA_Server *server;
+    const UA_ReferenceTypeSet *hierarchRefsSet;
+    RefTree *refTree;
+    UA_StatusCode res;
+};
+
+static void *
+deleteChildrenCallback(void *context, UA_ReferenceTarget *t) {
+    struct DeleteChildrenContext *ctx = (struct DeleteChildrenContext*)context;
+
+    /* Get the child */
+    const UA_Node *child = UA_NODESTORE_GETFROMREF(ctx->server, t->targetId);
+    if(!child)
+        return NULL;
+
+    /* Only delete child nodes that have no other parent */
+    if(!hasParentRef(&child->head, ctx->hierarchRefsSet, ctx->refTree))
+        ctx->res = RefTree_addNodeId(ctx->refTree, &child->head.nodeId, NULL);
+
+    UA_NODESTORE_RELEASE(ctx->server, child);
+    return (ctx->res == UA_STATUSCODE_GOOD) ? NULL : (void*)0x01;
+}
+
 /* The processNodeLayer function searches all children's of the head node and
  * adds the children node to the RefTree if all incoming references sources are
  * contained in the RefTree (No external references to this node --> node can be
@@ -1798,32 +1840,26 @@ deconstructNodeSet(UA_Server *server, UA_Session *session,
 static UA_StatusCode
 autoDeleteChildren(UA_Server *server, UA_Session *session, RefTree *refTree,
                    const UA_ReferenceTypeSet *hierarchRefsSet, const UA_NodeHead *head){
-    UA_StatusCode res = UA_STATUSCODE_GOOD;
+    struct DeleteChildrenContext ctx;
+    ctx.server = server;
+    ctx.hierarchRefsSet = hierarchRefsSet;
+    ctx.refTree = refTree;
+    ctx.res = UA_STATUSCODE_GOOD;
+
     for(size_t i = 0; i < head->referencesSize; ++i) {
         /* Check if the ReferenceType is hierarchical */
-        UA_NodeReferenceKind *refs = &head->references[i];
-        if(!UA_ReferenceTypeSet_contains(hierarchRefsSet, refs->referenceTypeIndex))
+        UA_NodeReferenceKind *rk = &head->references[i];
+        if(!UA_ReferenceTypeSet_contains(hierarchRefsSet, rk->referenceTypeIndex))
             continue;
 
         /* Check if the references are forward (to a child) */
-        if(refs->isInverse)
+        if(rk->isInverse)
             continue;
 
         /* Loop over the references */
-        const UA_ReferenceTarget *t = NULL;
-        while((t = UA_NodeReferenceKind_iterate(refs, t))) {
-            /* Get the child */
-            const UA_Node *child = UA_NODESTORE_GETFROMREF(server, t->targetId);
-            if(!child)
-                continue;
-
-            /* Only delete child nodes that have no other parent */
-            if(!hasParentRef(&child->head, hierarchRefsSet, refTree))
-                res = RefTree_addNodeId(refTree, &child->head.nodeId, NULL);
-            UA_NODESTORE_RELEASE(server, child);
-            if(res != UA_STATUSCODE_GOOD)
-                return res;
-        }
+        UA_NodeReferenceKind_iterate(rk, deleteChildrenCallback, &ctx);
+        if(ctx.res != UA_STATUSCODE_GOOD)
+            return ctx.res;
     }
     return UA_STATUSCODE_GOOD;
 }

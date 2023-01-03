@@ -364,17 +364,25 @@ UA_Server_callConditionTwoStateVariableCallback(UA_Server *server, const UA_Node
     return res;
 }
 
+static void *
+copyFieldParent(void *context, UA_ReferenceTarget *t) {
+    UA_NodeId *parent = (UA_NodeId*)context;
+    if(!UA_NodePointer_isLocal(t->targetId))
+        return NULL;
+    UA_NodeId tmpNodeId = UA_NodePointer_toNodeId(t->targetId);
+    UA_StatusCode res = UA_NodeId_copy(&tmpNodeId, parent);
+    return (res == UA_STATUSCODE_GOOD) ? (void*)0x1 : NULL;
+}
+
 /* Gets the parent NodeId of a Field (e.g. Severity) or Field Property (e.g.
  * EnabledState/Id) */
 static UA_StatusCode
 getFieldParentNodeId(UA_Server *server, const UA_NodeId *field, UA_NodeId *parent) {
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
-
     *parent = UA_NODEID_NULL;
     const UA_Node *fieldNode = UA_NODESTORE_GET(server, field);
     if(!fieldNode)
         return UA_STATUSCODE_BADNOTFOUND;
-    UA_StatusCode retval = UA_STATUSCODE_BADNOTFOUND;
     for(size_t i = 0; i < fieldNode->head.referencesSize; i++) {
         UA_NodeReferenceKind *rk = &fieldNode->head.references[i];
         if(rk->referenceTypeIndex != UA_REFERENCETYPEINDEX_HASPROPERTY &&
@@ -383,18 +391,14 @@ getFieldParentNodeId(UA_Server *server, const UA_NodeId *field, UA_NodeId *paren
         if(!rk->isInverse)
             continue;
         /* Take the first hierarchical inverse reference */
-        const UA_ReferenceTarget *target = NULL;
-        while((target = UA_NodeReferenceKind_iterate(rk, target))) {
-            if(!UA_NodePointer_isLocal(target->targetId))
-                continue;
-            UA_NodeId tmpNodeId = UA_NodePointer_toNodeId(target->targetId);
-            retval = UA_NodeId_copy(&tmpNodeId, parent);
-            goto finish;
+        void *success = UA_NodeReferenceKind_iterate(rk, copyFieldParent, parent);
+        if(success) {
+            UA_NODESTORE_RELEASE(server, (const UA_Node *)fieldNode);
+            return UA_STATUSCODE_GOOD;
         }
     }
- finish:
     UA_NODESTORE_RELEASE(server, (const UA_Node *)fieldNode);
-    return retval;
+    return UA_STATUSCODE_BADNOTFOUND;
 }
 
 static UA_StatusCode

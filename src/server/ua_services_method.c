@@ -20,33 +20,45 @@
 
 #define UA_MAX_METHOD_ARGUMENTS 64
 
+struct GetArgumentsNodeContext {
+    UA_Server *server;
+    UA_String withBrowseName;
+};
+
+static void *
+getArgumentsNodeCallback(void *context, UA_ReferenceTarget *t) {
+    struct GetArgumentsNodeContext *ctx = (struct GetArgumentsNodeContext*)context;
+    const UA_Node *refTarget =
+        UA_NODESTORE_GETFROMREF_SELECTIVE(ctx->server, t->targetId,
+                                          UA_NODEATTRIBUTESMASK_NODECLASS |
+                                          UA_NODEATTRIBUTESMASK_VALUE,
+                                          UA_REFERENCETYPESET_NONE,
+                                          UA_BROWSEDIRECTION_INVALID);
+    if(!refTarget)
+        return NULL;
+    if(refTarget->head.nodeClass == UA_NODECLASS_VARIABLE &&
+       refTarget->head.browseName.namespaceIndex == 0 &&
+       UA_String_equal(&ctx->withBrowseName, &refTarget->head.browseName.name)) {
+        return (void*)(uintptr_t)&refTarget->variableNode;
+    }
+    UA_NODESTORE_RELEASE(ctx->server, refTarget);
+    return NULL;
+}
+
 static const UA_VariableNode *
 getArgumentsVariableNode(UA_Server *server, const UA_NodeHead *head,
                          UA_String withBrowseName) {
     for(size_t i = 0; i < head->referencesSize; ++i) {
-        const UA_NodeReferenceKind *rk = &head->references[i];
+        UA_NodeReferenceKind *rk = &head->references[i];
         if(rk->isInverse)
             continue;
         if(rk->referenceTypeIndex != UA_REFERENCETYPEINDEX_HASPROPERTY)
             continue;
-        const UA_ReferenceTarget *t = NULL;
-        while((t = UA_NodeReferenceKind_iterate(rk, t))) {
-            /* Get only the NodeClass and Value attributes, no references */
-            const UA_Node *refTarget =
-                UA_NODESTORE_GETFROMREF_SELECTIVE(server, t->targetId,
-                                                  UA_NODEATTRIBUTESMASK_NODECLASS |
-                                                  UA_NODEATTRIBUTESMASK_VALUE,
-                                                  UA_REFERENCETYPESET_NONE,
-                                                  UA_BROWSEDIRECTION_INVALID);
-            if(!refTarget)
-                continue;
-            if(refTarget->head.nodeClass == UA_NODECLASS_VARIABLE &&
-               refTarget->head.browseName.namespaceIndex == 0 &&
-               UA_String_equal(&withBrowseName, &refTarget->head.browseName.name)) {
-                return &refTarget->variableNode;
-            }
-            UA_NODESTORE_RELEASE(server, refTarget);
-        }
+        struct GetArgumentsNodeContext ctx;
+        ctx.server = server;
+        ctx.withBrowseName = withBrowseName;
+        return (const UA_VariableNode*)
+            UA_NodeReferenceKind_iterate(rk, getArgumentsNodeCallback, &ctx);
     }
     return NULL;
 }
@@ -121,6 +133,19 @@ checkMethodReference(const UA_NodeHead *h, UA_ReferenceTypeSet refs,
     return false;
 }
 
+static void *
+iterateFunctionGroupSearch(void *context, UA_ReferenceTarget *t) {
+    UA_Server *server = (UA_Server*)context;
+    if(!UA_NodePointer_isLocal(t->targetId))
+        return NULL;
+
+    UA_NodeId tmpId = UA_NodePointer_toNodeId(t->targetId);
+    if(isNodeInTree_singleRef(server, &tmpId, &functionGroupNodeId,
+                               UA_REFERENCETYPEINDEX_HASSUBTYPE))
+        return (void*)0x01;
+    return NULL;
+}
+
 static UA_StatusCode
 checkFunctionalGroupMethodReference(UA_Server *server, const UA_NodeHead *h,
                                     const UA_ExpandedNodeId *methodId,
@@ -139,7 +164,7 @@ checkFunctionalGroupMethodReference(UA_Server *server, const UA_NodeHead *h,
     /* Search for a HasTypeDefinition (or sub-) reference to the FunctionGroupType */
     UA_Boolean isFunctionGroup = false;
     for(size_t i = 0; i < h->referencesSize && !isFunctionGroup; ++i) {
-        const UA_NodeReferenceKind *rk = &h->references[i];
+        UA_NodeReferenceKind *rk = &h->references[i];
         if(rk->isInverse)
             continue;
 
@@ -149,18 +174,11 @@ checkFunctionalGroupMethodReference(UA_Server *server, const UA_NodeHead *h,
 
         /* Reference points to FunctionGroupType (or sub-type) from the DI
          * model? */
-        const UA_ReferenceTarget *t = NULL;
-        while((t = UA_NodeReferenceKind_iterate(rk, t))) {
-            if(!UA_NodePointer_isLocal(t->targetId))
-                continue;
-
-            UA_NodeId tmpId = UA_NodePointer_toNodeId(t->targetId);
-            if(!isNodeInTree_singleRef(server, &tmpId, &functionGroupNodeId,
-                                       UA_REFERENCETYPEINDEX_HASSUBTYPE))
-                continue;
-            isFunctionGroup = true;
+        isFunctionGroup =
+            (UA_NodeReferenceKind_iterate(rk, iterateFunctionGroupSearch,
+                                          server) != NULL);
+        if(isFunctionGroup)
             break;
-        }
     }
     if(!isFunctionGroup)
         return UA_STATUSCODE_GOOD;
