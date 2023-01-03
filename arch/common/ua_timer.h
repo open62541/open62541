@@ -11,7 +11,7 @@
 
 #include <open62541/types.h>
 #include <open62541/plugin/eventloop.h>
-#include "aa_tree.h"
+#include "ziptree.h"
 
 _UA_BEGIN_DECLS
 
@@ -27,30 +27,38 @@ _UA_BEGIN_DECLS
 typedef void (*UA_ApplicationCallback)(void *application, void *data);
 
 typedef struct UA_TimerEntry {
-    struct aa_entry treeEntry;
-    UA_TimerPolicy timerPolicy;              /* Timer policy to handle cycle misses */
-    UA_DateTime nextTime;                    /* The next time when the callback
-                                              * is to be executed */
-    UA_UInt64 interval;                      /* Interval in 100ns resolution. If
-                                                the interval is zero, the
-                                                callback is not repeated and
-                                                removed after execution. */
-    UA_ApplicationCallback callback;
+    ZIP_ENTRY(UA_TimerEntry) treeEntry;
+    UA_TimerPolicy timerPolicy;      /* Timer policy to handle cycle misses */
+    UA_DateTime nextTime;            /* The next time when the callback is to be
+                                      * executed */
+    UA_UInt64 interval;              /* Interval in 100ns resolution. If the
+                                      * interval is zero, the callback is not
+                                      * repeated and removed after execution. */
+    UA_ApplicationCallback callback; /* This is also a sentinel value. If the
+                                      * callback is NULL, then the entry is
+                                      * marked for deletion. */
     void *application;
     void *data;
 
-    struct aa_entry idTreeEntry;
+    ZIP_ENTRY(UA_TimerEntry) idTreeEntry;
     UA_UInt64 id;                            /* Id of the entry */
 } UA_TimerEntry;
 
+typedef ZIP_HEAD(UA_TimerTree, UA_TimerEntry) UA_TimerTree;
+typedef ZIP_HEAD(UA_TimerIdTree, UA_TimerEntry) UA_TimerIdTree;
+
 typedef struct {
-    struct aa_head root;   /* The root of the time-sorted tree */
-    struct aa_head idRoot; /* The root of the id-sorted tree */
+    UA_TimerTree tree;     /* The root of the time-sorted tree */
+    UA_TimerIdTree idTree; /* The root of the id-sorted tree */
     UA_UInt64 idCounter;   /* Generate unique identifiers. Identifiers are
                             * always above zero. */
 #if UA_MULTITHREADING >= 100
     UA_Lock timerMutex;
 #endif
+
+    UA_TimerTree processTree; /* When the timer is processed, all entries that
+                               * need processing now are moved to processTree.
+                               * Then we iterate over that tree. */
 } UA_Timer;
 
 void
@@ -78,18 +86,8 @@ UA_Timer_changeRepeatedCallback(UA_Timer *t, UA_UInt64 callbackId,
 void
 UA_Timer_removeCallback(UA_Timer *t, UA_UInt64 callbackId);
 
-/* Process (dispatch) the repeated callbacks that have timed out. Returns the
- * timestamp of the next scheduled repeated callback. Not thread-safe.
- * Application is a pointer to the client / server environment for the callback.
- * Dispatched is set to true when at least one callback was run / dispatched. */
-typedef void
-(*UA_TimerExecutionCallback)(void *executionApplication, UA_ApplicationCallback cb,
-                             void *callbackApplication, void *data);
-
 UA_DateTime
-UA_Timer_process(UA_Timer *t, UA_DateTime nowMonotonic,
-                 UA_TimerExecutionCallback executionCallback,
-                 void *executionApplication);
+UA_Timer_process(UA_Timer *t, UA_DateTime nowMonotonic);
 
 void
 UA_Timer_clear(UA_Timer *t);

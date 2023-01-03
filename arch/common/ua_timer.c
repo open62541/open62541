@@ -11,28 +11,31 @@
 /* There may be several entries with the same nextTime in the tree. We give them
  * an absolute order by considering the memory address to break ties. Because of
  * this, the nextTime property cannot be used to lookup specific entries. */
-static enum aa_cmp
+static enum ZIP_CMP
 cmpDateTime(const UA_DateTime *a, const UA_DateTime *b) {
     if(*a < *b)
-        return AA_CMP_LESS;
+        return ZIP_CMP_LESS;
     if(*a > *b)
-        return AA_CMP_MORE;
+        return ZIP_CMP_MORE;
     if(a == b)
-        return AA_CMP_EQ;
+        return ZIP_CMP_EQ;
     if(a < b)
-        return AA_CMP_LESS;
-    return AA_CMP_MORE;
+        return ZIP_CMP_LESS;
+    return ZIP_CMP_MORE;
 }
 
 /* The identifiers of entries are unique */
-static enum aa_cmp
+static enum ZIP_CMP
 cmpId(const UA_UInt64 *a, const UA_UInt64 *b) {
     if(*a < *b)
-        return AA_CMP_LESS;
+        return ZIP_CMP_LESS;
     if(*a == *b)
-        return AA_CMP_EQ;
-    return AA_CMP_MORE;
+        return ZIP_CMP_EQ;
+    return ZIP_CMP_MORE;
 }
+
+ZIP_FUNCTIONS(UA_TimerTree, UA_TimerEntry, treeEntry, UA_DateTime, nextTime, (zip_cmp_cb)cmpDateTime)
+ZIP_FUNCTIONS(UA_TimerIdTree, UA_TimerEntry, idTreeEntry, UA_UInt64, id, (zip_cmp_cb)cmpId)
 
 static UA_DateTime
 calculateNextTime(UA_DateTime currentTime, UA_DateTime baseTime,
@@ -55,14 +58,6 @@ calculateNextTime(UA_DateTime currentTime, UA_DateTime baseTime,
 void
 UA_Timer_init(UA_Timer *t) {
     memset(t, 0, sizeof(UA_Timer));
-    aa_init(&t->root,
-            (enum aa_cmp (*)(const void*, const void*))cmpDateTime,
-            offsetof(UA_TimerEntry, treeEntry),
-            offsetof(UA_TimerEntry, nextTime));
-    aa_init(&t->idRoot,
-            (enum aa_cmp (*)(const void*, const void*))cmpId,
-            offsetof(UA_TimerEntry, idTreeEntry),
-            offsetof(UA_TimerEntry, id));
     UA_LOCK_INIT(&t->timerMutex);
 }
 
@@ -92,8 +87,8 @@ addCallback(UA_Timer *t, UA_ApplicationCallback callback, void *application,
     if(callbackId)
         *callbackId = te->id;
 
-    aa_insert(&t->root, te);
-    aa_insert(&t->idRoot, te);
+    ZIP_INSERT(UA_TimerTree, &t->tree, te);
+    ZIP_INSERT(UA_TimerIdTree, &t->idTree, te);
     return UA_STATUSCODE_GOOD;
 }
 
@@ -155,12 +150,12 @@ UA_Timer_changeRepeatedCallback(UA_Timer *t, UA_UInt64 callbackId,
     UA_LOCK(&t->timerMutex);
 
     /* Remove from the sorted tree */
-    UA_TimerEntry *te = (UA_TimerEntry*)aa_find(&t->idRoot, &callbackId);
+    UA_TimerEntry *te = ZIP_FIND(UA_TimerIdTree, &t->idTree, &callbackId);
     if(!te) {
         UA_UNLOCK(&t->timerMutex);
         return UA_STATUSCODE_BADNOTFOUND;
     }
-    aa_remove(&t->root, te);
+    ZIP_REMOVE(UA_TimerTree, &t->tree, te);
 
     /* Compute the next time for execution. The logic is identical to the
      * creation of a new repeated callback. */
@@ -175,7 +170,7 @@ UA_Timer_changeRepeatedCallback(UA_Timer *t, UA_UInt64 callbackId,
     /* Update the remaining parameters and re-insert */
     te->interval = interval;
     te->timerPolicy = timerPolicy;
-    aa_insert(&t->root, te);
+    ZIP_INSERT(UA_TimerTree, &t->tree, te);
 
     UA_UNLOCK(&t->timerMutex);
     return UA_STATUSCODE_GOOD;
@@ -184,100 +179,135 @@ UA_Timer_changeRepeatedCallback(UA_Timer *t, UA_UInt64 callbackId,
 void
 UA_Timer_removeCallback(UA_Timer *t, UA_UInt64 callbackId) {
     UA_LOCK(&t->timerMutex);
-    UA_TimerEntry *te = (UA_TimerEntry*)aa_find(&t->idRoot, &callbackId);
+    UA_TimerEntry *te = ZIP_FIND(UA_TimerIdTree, &t->idTree, &callbackId);
     if(UA_LIKELY(te != NULL)) {
-        aa_remove(&t->root, te);
-        aa_remove(&t->idRoot, te);
-        UA_free(te);
+        if(t->processTree.root == NULL) {
+            /* Remove/free the entry */
+            ZIP_REMOVE(UA_TimerTree, &t->tree, te);
+            ZIP_REMOVE(UA_TimerIdTree, &t->idTree, te);
+            UA_free(te);
+        } else {
+            /* We are currently processing. Only mark the entry to be deleted.
+             * Will be removed/freed the next time we reach it in the processing
+             * callback. */
+            te->callback = NULL;
+        }
     }
     UA_UNLOCK(&t->timerMutex);
 }
 
-UA_DateTime
-UA_Timer_process(UA_Timer *t, UA_DateTime nowMonotonic,
-                 UA_TimerExecutionCallback executionCallback,
-                 void *executionApplication) {
-    UA_LOCK(&t->timerMutex);
-    UA_TimerEntry *first;
-    while((first = (UA_TimerEntry*)aa_min(&t->root)) &&
-          first->nextTime <= nowMonotonic) {
-        /* Remove before modifying the nextTime timestamp.
-         * aa_remove gets confused if we remove later. */
-        aa_remove(&t->root, first);
+struct TimerProcessContext {
+    UA_Timer *t;
+    UA_DateTime nowMonotonic;
+};
 
-        if(first->interval == 0) {
-            aa_remove(&t->idRoot, first);
-            UA_UNLOCK(&t->timerMutex);
-            executionCallback(executionApplication, first->callback,
-                              first->application, first->data);
-            UA_LOCK(&t->timerMutex);
-            UA_free(first);
-            continue;
-        }
+static void *
+processEntryCallback(void *context, UA_TimerEntry *te) {
+    struct TimerProcessContext *tpc = (struct TimerProcessContext*)context;
+    UA_Timer *t = tpc->t;
 
-        /* Set the time for the next execution. Prevent an infinite loop by
-         * forcing the execution time in the next iteration.
-         *
-         * If the timer policy is "CurrentTime", then there is at least the
-         * interval between executions. This is used for Monitoreditems, for
-         * which the spec says: The sampling interval indicates the fastest rate
-         * at which the Server should sample its underlying source for data
-         * changes. (Part 4, 5.12.1.2) */
-        first->nextTime += (UA_DateTime)first->interval;
-        if(first->nextTime < nowMonotonic) {
-            if(first->timerPolicy == UA_TIMER_HANDLE_CYCLEMISS_WITH_BASETIME)
-                first->nextTime = calculateNextTime(nowMonotonic, first->nextTime,
-                                                    (UA_DateTime)first->interval);
-            else
-                first->nextTime = nowMonotonic + (UA_DateTime)first->interval;
-        }
-
-        /* Insert before running the callback. The entry can be removed from the
-         * callback itself. */
-        aa_insert(&t->root, first);
-
-        /* Unlock the mutex before dropping into the callback. So that the timer
-         * itself can be removed / edited within the callback. When we return,
-         * only the pointer to t must still exist. */
-        UA_ApplicationCallback cb = first->callback;
-        void *app = first->application;
-        void *data = first->data;
+    /* Execute the callback. The memory is not freed during the callback.
+     * Instead, whenever t->processTree != NULL, the entries are only marked for
+     * deletion by setting elm->callback to NULL. */
+    if(te->callback) {
         UA_UNLOCK(&t->timerMutex);
-        executionCallback(executionApplication, cb, app, data);
+        te->callback(te->application, te->data);
         UA_LOCK(&t->timerMutex);
     }
 
-    /* Return the timestamp of the earliest next callback */
-    first = (UA_TimerEntry*)aa_min(&t->root);
+    /* Remove and free the entry if marked for deletion or a one-time timed
+     * callback */
+    if(!te->callback || te->interval == 0) {
+        ZIP_REMOVE(UA_TimerIdTree, &t->idTree, te);
+        UA_free(te);
+        return NULL;
+    }
+
+    /* Set the time for the next regular execution */
+    te->nextTime += (UA_DateTime)te->interval;
+
+    /* Handle the case where the "window" was missed. E.g. due to congestion of
+     * the application or if the clock was shifted.
+     *
+     * If the timer policy is "CurrentTime", then there is at least the
+     * interval between executions. This is used for Monitoreditems, for
+     * which the spec says: The sampling interval indicates the fastest rate
+     * at which the Server should sample its underlying source for data
+     * changes. (Part 4, 5.12.1.2) */
+    if(te->nextTime < tpc->nowMonotonic) {
+        if(te->timerPolicy == UA_TIMER_HANDLE_CYCLEMISS_WITH_BASETIME)
+            te->nextTime = calculateNextTime(tpc->nowMonotonic, te->nextTime,
+                                              (UA_DateTime)te->interval);
+        else
+            te->nextTime = tpc->nowMonotonic + (UA_DateTime)te->interval;
+    }
+
+    /* Insert back into the time-sorted tree */
+    ZIP_INSERT(UA_TimerTree, &t->tree, te);
+    return NULL;
+}
+
+UA_DateTime
+UA_Timer_process(UA_Timer *t, UA_DateTime nowMonotonic) {
+    UA_LOCK(&t->timerMutex);
+
+    /* Not reentrant. Don't call _process from within _process. */
+    if(!t->processTree.root) {
+        /* Move all entries <= nowMonotonic to processTree */
+        ZIP_UNZIP(UA_TimerTree, &t->tree, &nowMonotonic,
+                  &t->processTree, &t->tree);
+
+        /* Consistency check. The smallest not-processed entry isn't ready. */
+        UA_assert(!ZIP_MIN(UA_TimerTree, &t->tree) ||
+                  ZIP_MIN(UA_TimerTree, &t->tree)->nextTime > nowMonotonic);
+        
+        /* Iterate over the entries that need processing in-order. This also
+         * moves them back to the regular time-ordered tree. */
+        struct TimerProcessContext ctx;
+        ctx.t = t;
+        ctx.nowMonotonic = nowMonotonic;
+        ZIP_ITER(UA_TimerTree, &t->processTree, processEntryCallback, &ctx);
+        
+        /* Reset processTree. All entries are already moved to the normal tree. */
+        t->processTree.root = NULL;
+    }
+
+    /* Compute the timestamp of the earliest next callback */
+    UA_TimerEntry *first = ZIP_MIN(UA_TimerTree, &t->tree);
     UA_DateTime next = (first) ? first->nextTime : UA_INT64_MAX;
     if(next < nowMonotonic)
         next = nowMonotonic;
+
     UA_UNLOCK(&t->timerMutex);
     return next;
 }
 
 UA_DateTime
 UA_Timer_nextRepeatedTime(UA_Timer *t) {
-    UA_TimerEntry *first = (UA_TimerEntry*)aa_min(&t->root);
-    return (first) ? first->nextTime : UA_INT64_MAX;
+    UA_LOCK(&t->timerMutex);
+    UA_TimerEntry *first = ZIP_MIN(UA_TimerTree, &t->tree);
+    UA_DateTime next = (first) ? first->nextTime : UA_INT64_MAX;
+    UA_UNLOCK(&t->timerMutex);
+    return next;
+}
+
+static void *
+freeEntryCallback(void *context, UA_TimerEntry *entry) {
+    UA_free(entry);
+    return NULL;
 }
 
 void
 UA_Timer_clear(UA_Timer *t) {
     UA_LOCK(&t->timerMutex);
 
-    /* Free all entries */
-    UA_TimerEntry *top;
-    while((top = (UA_TimerEntry*)aa_min(&t->idRoot))) {
-        aa_remove(&t->idRoot, top);
-        UA_free(top);
-    }
-
-    /* Reset the trees to avoid future access */
-    t->root.root = NULL;
-    t->idRoot.root = NULL;
+    ZIP_ITER(UA_TimerIdTree, &t->idTree, freeEntryCallback, NULL);
+    t->tree.root = NULL;
+    t->idTree.root = NULL;
+    t->idCounter = 0;
 
     UA_UNLOCK(&t->timerMutex);
+
 #if UA_MULTITHREADING >= 100
     UA_LOCK_DESTROY(&t->timerMutex);
 #endif
