@@ -273,7 +273,7 @@ zipNsInsertNode(void *nsCtx, UA_Node *node, UA_NodeId *addedNodeId) {
 
     /* Insert the node */
     entry->nodeIdHash = dummy.nodeIdHash;
-    ZIP_INSERT(NodeTree, &ns->root, entry, UA_UInt32_random());
+    ZIP_INSERT(NodeTree, &ns->root, entry);
     return UA_STATUSCODE_GOOD;
 }
 
@@ -302,7 +302,7 @@ zipNsReplaceNode(void *nsCtx, UA_Node *node) {
     ZipContext *ns = (ZipContext*)nsCtx;
     ZIP_REMOVE(NodeTree, &ns->root, oldEntry);
     entry->nodeIdHash = oldEntry->nodeIdHash;
-    ZIP_INSERT(NodeTree, &ns->root, entry, ZIP_RANK(entry, zipfields));
+    ZIP_INSERT(NodeTree, &ns->root, entry);
     oldEntry->deleted = true;
 
     zipNsReleaseNode(nsCtx, oldNode);
@@ -337,10 +337,11 @@ struct VisitorData {
     void *visitorContext;
 };
 
-static void
-nodeVisitor(NodeEntry *entry, void *data) {
+static void *
+nodeVisitor(void *data, NodeEntry *entry) {
     struct VisitorData *d = (struct VisitorData*)data;
     d->visitor(d->visitorContext, (UA_Node*)&entry->nodeId);
+    return NULL;
 }
 
 static void
@@ -353,9 +354,10 @@ zipNsIterate(void *nsCtx, UA_NodestoreVisitor visitor,
     ZIP_ITER(NodeTree, &ns->root, nodeVisitor, &d);
 }
 
-static void
-deleteNodeVisitor(NodeEntry *entry, void *data) {
+static void *
+deleteNodeVisitor(void *data, NodeEntry *entry) {
     deleteEntry(entry);
+    return NULL;
 }
 
 /***********************/

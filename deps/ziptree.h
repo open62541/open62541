@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. 
  *
- *    Copyright 2018, 2021 (c) Julius Pfrommer
+ *    Copyright 2018, 2021-2022 (c) Julius Pfrommer
  */
 
 #ifndef	ZIPTREE_H_
@@ -16,7 +16,6 @@
 # define ZIP_INLINE inline
 #endif
 
-/* Prevent warnings on unused static inline functions for some compilers */
 #if defined(__GNUC__) || defined(__clang__)
 # define ZIP_UNUSED __attribute__((unused))
 #else
@@ -32,8 +31,12 @@ extern "C" {
  *
  * Zip trees were developed in: Tarjan, R. E., Levy, C. C., and Timmel, S. "Zip
  * Trees." arXiv preprint arXiv:1806.06726 (2018). The original definition was
- * modified so that several elements with the same key can be inserted. However,
- * ZIP_FIND will only return the topmost of these elements in the tree.
+ * modified in two ways:
+ *
+ * - Multiple elements with the same key can be inserted. These appear adjacent
+ *   in the tree. ZIP_FIND will return the topmost of these elements.
+ * - The pointer-value of the elements are used as the rank. This simplifies the
+ *   code and is (empirically) faster.
  *
  * The ZIP_ENTRY definitions are to be contained in the tree entries themselves.
  * Use ZIP_FUNCTIONS to define the signature of the zip tree functions. */
@@ -47,7 +50,6 @@ struct name {                                   \
 struct {                                        \
     struct type *left;                          \
     struct type *right;                         \
-    unsigned char rank;                         \
 }
 
 enum ZIP_CMP {
@@ -56,74 +58,51 @@ enum ZIP_CMP {
     ZIP_CMP_MORE = 1
 };
 
+/* The comparison method "cmp" for a zip tree has the signature.
+ * Provide this to the ZIP_FUNCTIONS macro.
+ *
+ *   enum ZIP_CMP cmpMethod(const keytype *a, const keytype *b);
+ */
 typedef enum ZIP_CMP (*zip_cmp_cb)(const void *key1, const void *key2);
 
 #define ZIP_INIT(head) do { (head)->root = NULL; } while (0)
 #define ZIP_ROOT(head) (head)->root
 #define ZIP_LEFT(elm, field) (elm)->field.left
 #define ZIP_RIGHT(elm, field) (elm)->field.right
-#define ZIP_RANK(elm, field) (elm)->field.rank
 
-/* Internal definitions. Don't use directly. */
-
-typedef void (*__zip_iter_cb)(void *elm, void *context);
-
-void *
-__ZIP_INSERT(zip_cmp_cb cmp, unsigned short fieldoffset,
-             unsigned short keyoffset, void *root, void *elm);
-
-void *
-__ZIP_REMOVE(zip_cmp_cb cmp, unsigned short fieldoffset,
-             unsigned short keyoffset, void *root, void *elm);
-
-void *
-__ZIP_FIND(zip_cmp_cb cmp, unsigned short fieldoffset,
-           unsigned short keyoffset, void *root,
-           const void *key);
-
-void
-__ZIP_ITER(unsigned short fieldoffset, __zip_iter_cb cb,
-           void *context, void *elm);
-
-void * __ZIP_MIN(unsigned short fieldoffset, void *elm);
-void * __ZIP_MAX(unsigned short fieldoffset, void *elm);
-
-/* Zip trees are a probabilistic data structure. Entries are assigned a
- * (non-negative) rank k with probability 1/2^{k+1}. A uniformly sampled random
- * number has to be supplied with the insert method. __ZIP_FFS32 extracts from
- * it least significant nonzero bit of a 32bit number. This then has the correct
- * distribution. */
-unsigned char __ZIP_FFS32(unsigned int v);
-
-/* Generate zip tree method definitions with the ZIP_FUNCTIONS macro. The
- * comparison method "cmp" defined for every zip tree has the signature
+/* ZIP_ITER uses in-order traversal of the tree (in the order of the keys). The
+ * memory if a node is not accessed by ZIP_ITER after the callback has been
+ * executed for it. So a tree can be cleaned by calling free on each node from
+ * within the iteration callback.
  *
- *   enum ZIP_CMP cmpDateTime(const keytype *a, const keytype *b); */
+ * ZIP_ITER returns a void pointer. The first callback to return non-NULL aborts
+ * the iteration. This pointer is then returned. */
+typedef void * (*zip_iter_cb)(void *context, void *elm);
 
-#define ZIP_INSERT(name, head, elm, rank) name##_ZIP_INSERT(head, elm, rank)
+/* Generate typed method definitions with the ZIP_FUNCTIONS macro */
+
+#define ZIP_INSERT(name, head, elm) name##_ZIP_INSERT(head, elm)
 #define ZIP_REMOVE(name, head, elm) name##_ZIP_REMOVE(head, elm)
 #define ZIP_FIND(name, head, key) name##_ZIP_FIND(head, key)
+#define ZIP_ITER(name, head, cb, d) name##_ZIP_ITER(head, cb, d)
 #define ZIP_MIN(name, head) name##_ZIP_MIN(head)
 #define ZIP_MAX(name, head) name##_ZIP_MAX(head)
-#define ZIP_ITER(name, head, cb, d) name##_ZIP_ITER(head, cb, d)
+#define ZIP_ZIP(name, left, right) name##_ZIP_ZIP(left, right)
+#define ZIP_UNZIP(name, head, key, left, right) \
+    name##_ZIP_UNZIP(head, key, left, right)
 
 #define ZIP_FUNCTIONS(name, type, field, keytype, keyfield, cmp)        \
+                                                                        \
 ZIP_UNUSED static ZIP_INLINE void                                       \
-name##_ZIP_INSERT(struct name *head, struct type *elm,                  \
-                  unsigned int r) {                                     \
-    ZIP_RANK(elm, field) = __ZIP_FFS32(r);                              \
-    ZIP_ROOT(head) = (struct type*)                                     \
-        __ZIP_INSERT(cmp, offsetof(struct type, field),                 \
-                     offsetof(struct type, keyfield),                   \
-                     ZIP_ROOT(head), elm);                              \
+name##_ZIP_INSERT(struct name *head, struct type *el) {                 \
+    __ZIP_INSERT(head, cmp, offsetof(struct type, field),               \
+                 offsetof(struct type, keyfield), el);                  \
 }                                                                       \
                                                                         \
 ZIP_UNUSED static ZIP_INLINE void                                       \
 name##_ZIP_REMOVE(struct name *head, struct type *elm) {                \
-    ZIP_ROOT(head) = (struct type*)                                     \
-        __ZIP_REMOVE(cmp, offsetof(struct type, field),                 \
-                     offsetof(struct type, keyfield),                   \
-                     ZIP_ROOT(head), elm);                              \
+    __ZIP_REMOVE(head, cmp, offsetof(struct type, field),               \
+                 offsetof(struct type, keyfield), elm);                 \
 }                                                                       \
                                                                         \
 ZIP_UNUSED static ZIP_INLINE struct type *                              \
@@ -145,13 +124,57 @@ name##_ZIP_MAX(struct name *head) {                                     \
                                     ZIP_ROOT(head));                    \
 }                                                                       \
                                                                         \
-typedef void (*name##_cb)(struct type *elm, void *context);             \
+typedef void * (*name##_cb)(void *context, struct type *elm);           \
+                                                                        \
+ZIP_UNUSED static ZIP_INLINE void *                                     \
+name##_ZIP_ITER(struct name *head, name##_cb cb, void *context) {       \
+    return __ZIP_ITER(offsetof(struct type, field), (zip_iter_cb)cb,    \
+                      context, ZIP_ROOT(head));                         \
+}                                                                       \
+                                                                        \
+ZIP_UNUSED static ZIP_INLINE struct type *                              \
+name##_ZIP_ZIP(struct type *left, struct type *right) {                 \
+    return (struct type*)                                               \
+        __ZIP_ZIP(offsetof(struct type, field), left, right);           \
+}                                                                       \
                                                                         \
 ZIP_UNUSED static ZIP_INLINE void                                       \
-name##_ZIP_ITER(struct name *head, name##_cb cb, void *context) {       \
-    __ZIP_ITER(offsetof(struct type, field), (__zip_iter_cb)cb,         \
-               context, ZIP_ROOT(head));                                \
+name##_ZIP_UNZIP(struct name *head, const keytype *key,                 \
+                 struct name *left, struct name *right) {               \
+    __ZIP_UNZIP(cmp, offsetof(struct type, field),                      \
+                offsetof(struct type, keyfield), key,                   \
+                head, left, right);                                     \
 }
+
+/* Internal definitions. Don't use directly. */
+
+void
+__ZIP_INSERT(void *h, zip_cmp_cb cmp, unsigned short fieldoffset,
+             unsigned short keyoffset, void *elm);
+
+void
+__ZIP_REMOVE(void *h, zip_cmp_cb cmp, unsigned short fieldoffset,
+             unsigned short keyoffset, void *elm);
+
+void *
+__ZIP_FIND(zip_cmp_cb cmp, unsigned short fieldoffset,
+           unsigned short keyoffset, void *root,
+           const void *key);
+
+void *
+__ZIP_ITER(unsigned short fieldoffset, zip_iter_cb cb,
+           void *context, void *elm);
+
+void * __ZIP_MIN(unsigned short fieldoffset, void *elm);
+void * __ZIP_MAX(unsigned short fieldoffset, void *elm);
+
+void *
+__ZIP_ZIP(unsigned short fieldoffset, void *left, void *right);
+
+void
+__ZIP_UNZIP(zip_cmp_cb cmp, unsigned short fieldoffset,
+            unsigned short keyoffset, const void *key,
+            void *h, void *l, void *r);
 
 #ifdef __cplusplus
 } /* extern "C" */
