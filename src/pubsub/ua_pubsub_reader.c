@@ -36,11 +36,6 @@ static void
 UA_DataSetReader_handleMessageReceiveTimeout(UA_Server *server, UA_DataSetReader *dsr);
 #endif
 
-static UA_StatusCode
-DataSetReader_createTargetVariables(UA_Server *server, UA_DataSetReader *dsr,
-                                    size_t targetVariablesSize,
-                                    const UA_FieldTargetVariable *targetVariables);
-
 /* This functionality of this API will be used in future to create mirror Variables - TODO */
 /* #define UA_MAX_SIZENAME           64 */ /* Max size of Qualified Name of Subscribed Variable */
 
@@ -405,10 +400,10 @@ checkReaderIdentifier(UA_Server *server, UA_NetworkMessage *msg,
     return UA_STATUSCODE_BADNOTFOUND;
 }
 
-static UA_StatusCode
-addDataSetReader(UA_Server *server, UA_NodeId readerGroupIdentifier,
-                 const UA_DataSetReaderConfig *dataSetReaderConfig,
-                 UA_NodeId *readerIdentifier) {
+UA_StatusCode
+UA_DataSetReader_create(UA_Server *server, UA_NodeId readerGroupIdentifier,
+                        const UA_DataSetReaderConfig *dataSetReaderConfig,
+                        UA_NodeId *readerIdentifier) {
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
 
     /* Search the reader group by the given readerGroupIdentifier */
@@ -558,8 +553,8 @@ UA_Server_addDataSetReader(UA_Server *server, UA_NodeId readerGroupIdentifier,
                            const UA_DataSetReaderConfig *dataSetReaderConfig,
                            UA_NodeId *readerIdentifier) {
     UA_LOCK(&server->serviceMutex);
-    UA_StatusCode res = addDataSetReader(server, readerGroupIdentifier,
-                                         dataSetReaderConfig, readerIdentifier);
+    UA_StatusCode res = UA_DataSetReader_create(server, readerGroupIdentifier,
+                                                dataSetReaderConfig, readerIdentifier);
     UA_UNLOCK(&server->serviceMutex);
     return res;
 }
@@ -579,7 +574,7 @@ removeDataSetReader(UA_Server *server, UA_NodeId readerIdentifier) {
     }
 
 #ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL
-    removeDataSetReaderRepresentation(server, dsr);
+    deleteNode(server, dsr->identifier, true);
 #endif
 
 #ifdef UA_ENABLE_PUBSUB_MONITORING
@@ -938,7 +933,7 @@ UA_TargetVariables_clear(UA_TargetVariables *subscribedDataSetTarget) {
 /* This Method is used to initially set the SubscribedDataSet to
  * TargetVariablesType and to create the list of target Variables of a
  * SubscribedDataSetType. */
-static UA_StatusCode
+UA_StatusCode
 DataSetReader_createTargetVariables(UA_Server *server, UA_DataSetReader *dsr,
                                     size_t targetVariablesSize,
                                     const UA_FieldTargetVariable *targetVariables) {

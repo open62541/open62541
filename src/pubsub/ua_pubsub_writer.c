@@ -195,11 +195,11 @@ UA_DataSetWriter_setPubSubState(UA_Server *server,
     return ret;
 }
 
-static UA_StatusCode
-addDataSetWriter(UA_Server *server,
-                 const UA_NodeId writerGroup, const UA_NodeId dataSet,
-                 const UA_DataSetWriterConfig *dataSetWriterConfig,
-                 UA_NodeId *writerIdentifier) {
+UA_StatusCode
+UA_DataSetWriter_create(UA_Server *server,
+                        const UA_NodeId writerGroup, const UA_NodeId dataSet,
+                        const UA_DataSetWriterConfig *dataSetWriterConfig,
+                        UA_NodeId *writerIdentifier) {
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
     if(!dataSetWriterConfig)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
@@ -330,8 +330,8 @@ UA_Server_addDataSetWriter(UA_Server *server,
     /* Delete the reserved IDs if the related session no longer exists. */
     UA_PubSubManager_freeIds(server);
     UA_LOCK(&server->serviceMutex);
-    UA_StatusCode res = addDataSetWriter(server, writerGroup, dataSet,
-                                         dataSetWriterConfig, writerIdentifier);
+    UA_StatusCode res = UA_DataSetWriter_create(server, writerGroup, dataSet,
+                                                dataSetWriterConfig, writerIdentifier);
     UA_UNLOCK(&server->serviceMutex);
     return res;
 }
@@ -350,7 +350,7 @@ UA_DataSetWriter_remove(UA_Server *server, UA_WriterGroup *linkedWriterGroup,
 
     /* Remove from information model */
 #ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL
-    removeDataSetWriterRepresentation(server, dataSetWriter);
+    deleteNode(server, dataSetWriter->identifier, true);
 #endif
 
     /* Remove DataSetWriter from group */

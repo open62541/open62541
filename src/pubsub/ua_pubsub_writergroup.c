@@ -43,10 +43,9 @@ generateNetworkMessage(UA_PubSubConnection *connection, UA_WriterGroup *wg,
                        UA_NetworkMessage *networkMessage);
 
 UA_StatusCode
-UA_Server_addWriterGroup(UA_Server *server, const UA_NodeId connection,
-                         const UA_WriterGroupConfig *writerGroupConfig,
-                         UA_NodeId *writerGroupIdentifier) {
-
+UA_WriterGroup_create(UA_Server *server, const UA_NodeId connection,
+                      const UA_WriterGroupConfig *writerGroupConfig,
+                      UA_NodeId *writerGroupIdentifier) {
     /* Delete the reserved IDs if the related session no longer exists. */
     UA_PubSubManager_freeIds(server);
     if(!writerGroupConfig)
@@ -182,6 +181,17 @@ UA_Server_addWriterGroup(UA_Server *server, const UA_NodeId connection,
 }
 
 UA_StatusCode
+UA_Server_addWriterGroup(UA_Server *server, const UA_NodeId connection,
+                         const UA_WriterGroupConfig *writerGroupConfig,
+                         UA_NodeId *writerGroupIdentifier) {
+    UA_LOCK(&server->serviceMutex);
+    UA_StatusCode res = UA_WriterGroup_create(server, connection, writerGroupConfig,
+                                              writerGroupIdentifier);
+    UA_UNLOCK(&server->serviceMutex);
+    return res;
+}
+
+UA_StatusCode
 removeWriterGroup(UA_Server *server, const UA_NodeId writerGroup) {
     UA_WriterGroup *wg = UA_WriterGroup_findWGbyId(server, writerGroup);
     if(!wg)
@@ -221,8 +231,9 @@ removeWriterGroup(UA_Server *server, const UA_NodeId writerGroup) {
     }
 
     connection->writerGroupsSize--;
+
 #ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL
-    removeGroupRepresentation(server, wg);
+    deleteNode(server, wg->identifier, true);
 #endif
 
     /* _clear also removes the refcount in the key storage */
@@ -241,12 +252,10 @@ UA_Server_removeWriterGroup(UA_Server *server, const UA_NodeId writerGroup) {
     return res;
 }
 
+
 UA_StatusCode
-UA_Server_freezeWriterGroupConfiguration(UA_Server *server,
-                                         const UA_NodeId writerGroup) {
-    UA_WriterGroup *wg = UA_WriterGroup_findWGbyId(server, writerGroup);
-    if(!wg)
-        return UA_STATUSCODE_BADNOTFOUND;
+UA_WriterGroup_freezeConfiguration(UA_Server *server, UA_WriterGroup *wg) {
+    UA_LOCK_ASSERT(&server->serviceMutex, 1);
 
     if(wg->configurationFrozen)
         return UA_STATUSCODE_GOOD;
@@ -445,11 +454,22 @@ UA_Server_freezeWriterGroupConfiguration(UA_Server *server,
 }
 
 UA_StatusCode
-UA_Server_unfreezeWriterGroupConfiguration(UA_Server *server,
-                                           const UA_NodeId writerGroup) {
+UA_Server_freezeWriterGroupConfiguration(UA_Server *server,
+                                         const UA_NodeId writerGroup) {
+    UA_LOCK(&server->serviceMutex);
     UA_WriterGroup *wg = UA_WriterGroup_findWGbyId(server, writerGroup);
-    if(!wg)
+    if(!wg) {
+        UA_UNLOCK(&server->serviceMutex);
         return UA_STATUSCODE_BADNOTFOUND;
+    }
+    UA_StatusCode res = UA_WriterGroup_freezeConfiguration(server, wg);
+    UA_UNLOCK(&server->serviceMutex);
+    return res;
+}
+
+UA_StatusCode
+UA_WriterGroup_unfreezeConfiguration(UA_Server *server, UA_WriterGroup *wg) {
+    UA_LOCK_ASSERT(&server->serviceMutex, 1);
 
     /* Already unfrozen */
     if(!wg->configurationFrozen)
@@ -495,6 +515,20 @@ UA_Server_unfreezeWriterGroupConfiguration(UA_Server *server,
 }
 
 UA_StatusCode
+UA_Server_unfreezeWriterGroupConfiguration(UA_Server *server,
+                                           const UA_NodeId writerGroup) {
+    UA_LOCK(&server->serviceMutex);
+    UA_WriterGroup *wg = UA_WriterGroup_findWGbyId(server, writerGroup);
+    if(!wg) {
+        UA_UNLOCK(&server->serviceMutex);
+        return UA_STATUSCODE_BADNOTFOUND;
+    }
+    UA_StatusCode res = UA_WriterGroup_unfreezeConfiguration(server, wg);
+    UA_UNLOCK(&server->serviceMutex);
+    return res;
+}
+
+UA_StatusCode
 UA_Server_setWriterGroupOperational(UA_Server *server,
                                     const UA_NodeId writerGroup) {
     UA_LOCK(&server->serviceMutex);
@@ -522,7 +556,7 @@ UA_Server_setWriterGroupDisabled(UA_Server *server,
 
 UA_StatusCode
 UA_WriterGroupConfig_copy(const UA_WriterGroupConfig *src,
-                          UA_WriterGroupConfig *dst){
+                          UA_WriterGroupConfig *dst) {
     UA_StatusCode res = UA_STATUSCODE_GOOD;
     memcpy(dst, src, sizeof(UA_WriterGroupConfig));
     res |= UA_String_copy(&src->name, &dst->name);
@@ -549,61 +583,67 @@ UA_Server_getWriterGroupConfig(UA_Server *server, const UA_NodeId writerGroup,
 }
 
 UA_StatusCode
-UA_Server_updateWriterGroupConfig(UA_Server *server, UA_NodeId writerGroupIdentifier,
-                                  const UA_WriterGroupConfig *config){
+UA_WriterGroup_updateConfig(UA_Server *server, UA_WriterGroup *wg,
+                            const UA_WriterGroupConfig *config) {
     if(!config)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
 
-    UA_LOCK(&server->serviceMutex);
-    UA_WriterGroup *currentWriterGroup =
-        UA_WriterGroup_findWGbyId(server, writerGroupIdentifier);
-    if(!currentWriterGroup) {
-        UA_UNLOCK(&server->serviceMutex);
-        return UA_STATUSCODE_BADNOTFOUND;
-    }
-
-    if(currentWriterGroup->configurationFrozen){
-        UA_LOG_WARNING_WRITERGROUP(&server->config.logger, currentWriterGroup,
+    if(wg->configurationFrozen){
+        UA_LOG_WARNING_WRITERGROUP(&server->config.logger, wg,
                                    "Modify WriterGroup failed. WriterGroup is frozen.");
-        UA_UNLOCK(&server->serviceMutex);
         return UA_STATUSCODE_BADCONFIGURATIONERROR;
     }
 
     //The update functionality will be extended during the next PubSub batches.
     //Currently is only a change of the publishing interval possible.
-    if(currentWriterGroup->config.maxEncapsulatedDataSetMessageCount != config->maxEncapsulatedDataSetMessageCount) {
-        currentWriterGroup->config.maxEncapsulatedDataSetMessageCount = config->maxEncapsulatedDataSetMessageCount;
-        if(currentWriterGroup->config.messageSettings.encoding == UA_EXTENSIONOBJECT_ENCODED_NOBODY) {
-            UA_LOG_WARNING_WRITERGROUP(&server->config.logger, currentWriterGroup,
+    if(wg->config.maxEncapsulatedDataSetMessageCount != config->maxEncapsulatedDataSetMessageCount) {
+        wg->config.maxEncapsulatedDataSetMessageCount = config->maxEncapsulatedDataSetMessageCount;
+        if(wg->config.messageSettings.encoding == UA_EXTENSIONOBJECT_ENCODED_NOBODY) {
+            UA_LOG_WARNING_WRITERGROUP(&server->config.logger, wg,
                                        "MaxEncapsulatedDataSetMessag need enabled "
                                        "'PayloadHeader' within the message settings.");
         }
     }
 
-    if(currentWriterGroup->config.publishingInterval != config->publishingInterval) {
-        if(currentWriterGroup->config.rtLevel == UA_PUBSUB_RT_NONE &&
-           currentWriterGroup->state == UA_PUBSUBSTATE_OPERATIONAL) {
-            if(currentWriterGroup->config.pubsubManagerCallback.removeCustomCallback)
-                currentWriterGroup->config.pubsubManagerCallback.
-                    removeCustomCallback(server, currentWriterGroup->identifier,
-                                         currentWriterGroup->publishCallbackId);
+    if(wg->config.publishingInterval != config->publishingInterval) {
+        if(wg->config.rtLevel == UA_PUBSUB_RT_NONE &&
+           wg->state == UA_PUBSUBSTATE_OPERATIONAL) {
+            if(wg->config.pubsubManagerCallback.removeCustomCallback)
+                wg->config.pubsubManagerCallback.
+                    removeCustomCallback(server, wg->identifier,
+                                         wg->publishCallbackId);
             else
-                UA_PubSubManager_removeRepeatedPubSubCallback(server, currentWriterGroup->publishCallbackId);
+                UA_PubSubManager_removeRepeatedPubSubCallback(server, wg->publishCallbackId);
 
-            currentWriterGroup->config.publishingInterval = config->publishingInterval;
-            UA_WriterGroup_addPublishCallback(server, currentWriterGroup);
+            wg->config.publishingInterval = config->publishingInterval;
+            UA_WriterGroup_addPublishCallback(server, wg);
         } else {
-            currentWriterGroup->config.publishingInterval = config->publishingInterval;
+            wg->config.publishingInterval = config->publishingInterval;
         }
     }
 
-    if(currentWriterGroup->config.priority != config->priority) {
-        UA_LOG_WARNING_WRITERGROUP(&server->config.logger, currentWriterGroup,
-                                   "No or unsupported WriterGroup update.");
+    if(wg->config.priority != config->priority) {
+        UA_LOG_WARNING_WRITERGROUP(&server->config.logger, wg,
+                                   "Priority parameter is not yet "
+                                   "supported for WriterGroup updates");
     }
 
-    UA_UNLOCK(&server->serviceMutex);
     return UA_STATUSCODE_GOOD;
+}
+
+UA_StatusCode
+UA_Server_updateWriterGroupConfig(UA_Server *server, UA_NodeId writerGroupIdentifier,
+                                  const UA_WriterGroupConfig *config) {
+    UA_LOCK(&server->serviceMutex);
+    UA_WriterGroup *wg = UA_WriterGroup_findWGbyId(server, writerGroupIdentifier);
+    if(!wg) {
+        UA_UNLOCK(&server->serviceMutex);
+        return UA_STATUSCODE_BADNOTFOUND;
+    }
+
+    UA_StatusCode res = UA_WriterGroup_updateConfig(server, wg, config);
+    UA_UNLOCK(&server->serviceMutex);
+    return res;
 }
 
 UA_StatusCode

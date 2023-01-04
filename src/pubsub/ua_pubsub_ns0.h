@@ -19,13 +19,10 @@ _UA_BEGIN_DECLS
 #ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL /* conditional compilation */
 
 UA_StatusCode
-UA_Server_initPubSubNS0(UA_Server *server);
+initPubSubNS0(UA_Server *server);
 
 UA_StatusCode
 addPubSubConnectionRepresentation(UA_Server *server, UA_PubSubConnection *connection);
-
-UA_StatusCode
-removePubSubConnectionRepresentation(UA_Server *server, UA_PubSubConnection *connection);
 
 UA_StatusCode
 addWriterGroupRepresentation(UA_Server *server, UA_WriterGroup *writerGroup);
@@ -34,13 +31,7 @@ UA_StatusCode
 addReaderGroupRepresentation(UA_Server *server, UA_ReaderGroup *readerGroup);
 
 UA_StatusCode
-removeGroupRepresentation(UA_Server *server, UA_WriterGroup *writerGroup);
-
-UA_StatusCode
 addDataSetWriterRepresentation(UA_Server *server, UA_DataSetWriter *dataSetWriter);
-
-UA_StatusCode
-removeDataSetWriterRepresentation(UA_Server *server, UA_DataSetWriter *dataSetWriter);
 
 UA_StatusCode
 addPublishedDataItemsRepresentation(UA_Server *server, UA_PublishedDataSet *publishedDataSet);
@@ -49,19 +40,7 @@ UA_StatusCode
 addStandaloneSubscribedDataSetRepresentation(UA_Server *server, UA_StandaloneSubscribedDataSet *subscribedDataSet);
 
 UA_StatusCode
-removePublishedDataSetRepresentation(UA_Server *server, UA_PublishedDataSet *publishedDataSet);
-
-UA_StatusCode
-removeStandaloneSubscribedDataSetRepresentation(UA_Server *server, UA_StandaloneSubscribedDataSet *subscribedDataSet);
-
-UA_StatusCode
 addDataSetReaderRepresentation(UA_Server *server, UA_DataSetReader *dataSetReader);
-
-UA_StatusCode
-removeDataSetReaderRepresentation(UA_Server *server, UA_DataSetReader *dataSetReader);
-
-UA_StatusCode
-removeReaderGroupRepresentation(UA_Server *server, UA_ReaderGroup *readerGroup);
 
 UA_StatusCode
 connectDataSetReaderToDataSet(UA_Server *server, UA_NodeId dsrId, UA_NodeId standaloneSdsId);
@@ -69,9 +48,6 @@ connectDataSetReaderToDataSet(UA_Server *server, UA_NodeId dsrId, UA_NodeId stan
 #ifdef UA_ENABLE_PUBSUB_SKS
 UA_StatusCode
 addSecurityGroupRepresentation(UA_Server *server, UA_SecurityGroup *securityGroup);
-
-UA_StatusCode
-UA_removeSecurityGroupRepresentation(UA_Server *server, UA_SecurityGroup *securityGroup);
 #endif /* UA_ENABLE_PUBSUB_SKS */
 
 #endif /* UA_ENABLE_PUBSUB_INFORMATIONMODEL */

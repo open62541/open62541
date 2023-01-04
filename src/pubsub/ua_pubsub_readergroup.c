@@ -80,10 +80,10 @@ UA_ReaderGroupConfig_clear(UA_ReaderGroupConfig *readerGroupConfig) {
 
 /* ReaderGroup Lifecycle */
 
-static UA_StatusCode
-addReaderGroup(UA_Server *server, UA_NodeId connectionIdentifier,
-               const UA_ReaderGroupConfig *readerGroupConfig,
-               UA_NodeId *readerGroupIdentifier) {
+UA_StatusCode
+UA_ReaderGroup_create(UA_Server *server, UA_NodeId connectionIdentifier,
+                      const UA_ReaderGroupConfig *readerGroupConfig,
+                      UA_NodeId *readerGroupIdentifier) {
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
 
     /* Check for valid readergroup configuration */
@@ -200,7 +200,8 @@ UA_Server_addReaderGroup(UA_Server *server, UA_NodeId connectionIdentifier,
                          UA_NodeId *readerGroupIdentifier) {
     UA_LOCK(&server->serviceMutex);
     UA_StatusCode res =
-        addReaderGroup(server, connectionIdentifier, readerGroupConfig, readerGroupIdentifier);
+        UA_ReaderGroup_create(server, connectionIdentifier,
+                              readerGroupConfig, readerGroupIdentifier);
     UA_UNLOCK(&server->serviceMutex);
     return res;
 }
@@ -230,7 +231,7 @@ removeReaderGroup(UA_Server *server, UA_NodeId groupIdentifier) {
         UA_ReaderGroup_removeSubscribeCallback(server, readerGroup);
 
 #ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL
-    removeReaderGroupRepresentation(server, readerGroup);
+    deleteNode(server, readerGroup->identifier, true);
 #endif
 
     /* UA_Server_ReaderGroup_clear also removes itself from the list */
@@ -546,12 +547,8 @@ UA_Server_setReaderGroupEncryptionKeys(UA_Server *server, const UA_NodeId reader
 /* Freezing of the configuration */
 
 UA_StatusCode
-UA_Server_freezeReaderGroupConfiguration(UA_Server *server,
-                                         const UA_NodeId readerGroupId) {
-    UA_ReaderGroup *rg = UA_ReaderGroup_findRGbyId(server, readerGroupId);
-    if(!rg)
-        return UA_STATUSCODE_BADNOTFOUND;
-
+UA_ReaderGroup_freezeConfiguration(UA_Server *server, UA_ReaderGroup *rg) {
+    UA_LOCK_ASSERT(&server->serviceMutex, 1);
     if(rg->configurationFrozen)
         return UA_STATUSCODE_GOOD;
 
@@ -694,11 +691,22 @@ UA_Server_freezeReaderGroupConfiguration(UA_Server *server,
 }
 
 UA_StatusCode
-UA_Server_unfreezeReaderGroupConfiguration(UA_Server *server,
-                                           const UA_NodeId readerGroupId) {
+UA_Server_freezeReaderGroupConfiguration(UA_Server *server,
+                                         const UA_NodeId readerGroupId) {
+    UA_LOCK(&server->serviceMutex);
     UA_ReaderGroup *rg = UA_ReaderGroup_findRGbyId(server, readerGroupId);
-    if(!rg)
+    if(!rg) {
+        UA_UNLOCK(&server->serviceMutex);
         return UA_STATUSCODE_BADNOTFOUND;
+    }
+    UA_StatusCode res = UA_ReaderGroup_freezeConfiguration(server, rg);
+    UA_UNLOCK(&server->serviceMutex);
+    return res;
+}
+
+UA_StatusCode
+UA_ReaderGroup_unfreezeConfiguration(UA_Server *server, UA_ReaderGroup *rg) {
+    UA_LOCK_ASSERT(&server->serviceMutex, 1);
 
     /* PubSubConnection freezeCounter-- */
     UA_NodeId pubSubConnectionId =  rg->linkedConnection;
@@ -720,6 +728,20 @@ UA_Server_unfreezeReaderGroupConfiguration(UA_Server *server,
     }
 
     return UA_STATUSCODE_GOOD;
+}
+
+UA_StatusCode
+UA_Server_unfreezeReaderGroupConfiguration(UA_Server *server,
+                                           const UA_NodeId readerGroupId) {
+    UA_LOCK(&server->serviceMutex);
+    UA_ReaderGroup *rg = UA_ReaderGroup_findRGbyId(server, readerGroupId);
+    if(!rg) {
+        UA_UNLOCK(&server->serviceMutex);
+        return UA_STATUSCODE_BADNOTFOUND;
+    }
+    UA_StatusCode res = UA_ReaderGroup_unfreezeConfiguration(server, rg);
+    UA_UNLOCK(&server->serviceMutex);
+    return res;
 }
 
 /* This triggers the collection and reception of NetworkMessages and the

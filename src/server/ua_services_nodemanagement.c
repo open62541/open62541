@@ -2303,10 +2303,10 @@ Service_DeleteReferences(UA_Server *server, UA_Session *session,
 }
 
 UA_StatusCode
-UA_Server_deleteReference(UA_Server *server, const UA_NodeId sourceNodeId,
-                          const UA_NodeId referenceTypeId, UA_Boolean isForward,
-                          const UA_ExpandedNodeId targetNodeId,
-                          UA_Boolean deleteBidirectional) {
+deleteReference(UA_Server *server, const UA_NodeId sourceNodeId,
+                const UA_NodeId referenceTypeId, UA_Boolean isForward,
+                const UA_ExpandedNodeId targetNodeId,
+                UA_Boolean deleteBidirectional) {
     UA_DeleteReferencesItem item;
     item.sourceNodeId = sourceNodeId;
     item.referenceTypeId = referenceTypeId;
@@ -2315,10 +2315,20 @@ UA_Server_deleteReference(UA_Server *server, const UA_NodeId sourceNodeId,
     item.deleteBidirectional = deleteBidirectional;
 
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
-    UA_LOCK(&server->serviceMutex);
     Operation_deleteReference(server, &server->adminSession, NULL, &item, &retval);
-    UA_UNLOCK(&server->serviceMutex);
     return retval;
+}
+
+UA_StatusCode
+UA_Server_deleteReference(UA_Server *server, const UA_NodeId sourceNodeId,
+                          const UA_NodeId referenceTypeId, UA_Boolean isForward,
+                          const UA_ExpandedNodeId targetNodeId,
+                          UA_Boolean deleteBidirectional) {
+    UA_LOCK(&server->serviceMutex);
+    UA_StatusCode res = deleteReference(server, sourceNodeId, referenceTypeId,
+                                        isForward, targetNodeId, deleteBidirectional);
+    UA_UNLOCK(&server->serviceMutex);
+    return res;
 }
 
 /**********************/

@@ -327,7 +327,7 @@ UA_SecurityGroup_delete(UA_SecurityGroup *securityGroup) {
 void
 removeSecurityGroup(UA_Server *server, UA_SecurityGroup *securityGroup) {
 #ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL
-    UA_removeSecurityGroupRepresentation(server, securityGroup);
+    deleteNode(server, securityGroup->securityGroupNodeId, true);
 #endif
 
     /* Unlink from the server */
