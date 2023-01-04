@@ -330,19 +330,21 @@ assignConnectionIdentifier(UA_Server *server, UA_PubSubConnection *newConnection
 }
 
 UA_StatusCode
-UA_Server_addPubSubConnection(UA_Server *server,
-                              const UA_PubSubConnectionConfig *connectionConfig,
-                              UA_NodeId *connectionIdentifier) {
-
-    /* validate preconditions */
+UA_PubSubConnection_create(UA_Server *server,
+                          const UA_PubSubConnectionConfig *connectionConfig,
+                          UA_NodeId *connectionIdentifier) {
+    /* Validate preconditions */
     UA_CHECK_MEM(server, return UA_STATUSCODE_BADINTERNALERROR);
-    UA_CHECK_MEM_ERROR(connectionConfig, return UA_STATUSCODE_BADINTERNALERROR, &server->config.logger,
-                       UA_LOGCATEGORY_SERVER, "PubSub Connection creation failed. No connection configuration supplied.");
+    UA_CHECK_MEM_ERROR(connectionConfig, return UA_STATUSCODE_BADINTERNALERROR,
+                       &server->config.logger, UA_LOGCATEGORY_SERVER,
+                       "PubSub Connection creation failed. No connection configuration supplied.");
 
     /* Retrieve the transport layer for the given profile uri */
-    UA_PubSubTransportLayer *tl = UA_getTransportProtocolLayer(server, &connectionConfig->transportProfileUri);
-    UA_CHECK_MEM_ERROR(tl, return UA_STATUSCODE_BADNOTFOUND, &server->config.logger,
-                       UA_LOGCATEGORY_SERVER, "PubSub Connection creation failed. Requested transport layer not found.");
+    UA_PubSubTransportLayer *tl =
+        UA_getTransportProtocolLayer(server, &connectionConfig->transportProfileUri);
+    UA_CHECK_MEM_ERROR(tl, return UA_STATUSCODE_BADNOTFOUND,
+                       &server->config.logger, UA_LOGCATEGORY_SERVER,
+                       "PubSub Connection creation failed. Requested transport layer not found.");
 
     /* create and add new connection from connection config */
     UA_PubSubConnection *newConnectionsField = NULL;
@@ -360,14 +362,17 @@ UA_Server_addPubSubConnection(UA_Server *server,
 
     /* Open the communication channel */
     newConnectionsField->channel = tl->createPubSubChannel(tl, &ctx);
-    UA_CHECK_MEM(newConnectionsField->channel, return channelErrorHandling(server, newConnectionsField));
+    UA_CHECK_MEM(newConnectionsField->channel,
+                 return channelErrorHandling(server, newConnectionsField));
 
 #ifdef UA_ENABLE_PUBSUB_MQTT
     /* If the transport layer is MQTT, attach the server pointer to the callback function
      * that is called when a PUBLISH is received. */
-    const UA_String transport_uri = UA_STRING("http://opcfoundation.org/UA-Profile/Transport/pubsub-mqtt");
+    const UA_String transport_uri =
+        UA_STRING("http://opcfoundation.org/UA-Profile/Transport/pubsub-mqtt");
     if(UA_String_equal(&newConnectionsField->config->transportProfileUri, &transport_uri)) {
-        UA_PubSubChannelDataMQTT *channelDataMQTT = (UA_PubSubChannelDataMQTT *)newConnectionsField->channel->handle;
+        UA_PubSubChannelDataMQTT *channelDataMQTT = (UA_PubSubChannelDataMQTT *)
+            newConnectionsField->channel->handle;
         struct mqtt_client* client = (struct mqtt_client*)channelDataMQTT->mqttClient;
         client->publish_response_callback_state = server;
     }
@@ -376,6 +381,16 @@ UA_Server_addPubSubConnection(UA_Server *server,
     assignConnectionIdentifier(server, newConnectionsField, connectionIdentifier);
 
     return UA_STATUSCODE_GOOD;
+}
+
+UA_StatusCode
+UA_Server_addPubSubConnection(UA_Server *server,
+                              const UA_PubSubConnectionConfig *connectionConfig,
+                              UA_NodeId *connectionIdentifier) {
+    UA_LOCK(&server->serviceMutex);
+    UA_StatusCode res = UA_PubSubConnection_create(server, connectionConfig, connectionIdentifier);
+    UA_UNLOCK(&server->serviceMutex);
+    return res;
 }
 
 UA_StatusCode
@@ -391,7 +406,7 @@ removePubSubConnection(UA_Server *server, const UA_NodeId connection) {
     LIST_FOREACH_SAFE(writerGroup, &c->writerGroups, listEntry, tmpWriterGroup) {
         UA_WriterGroup_setPubSubState(server, writerGroup, UA_PUBSUBSTATE_DISABLED,
                                       UA_STATUSCODE_BADSHUTDOWN);
-        UA_Server_unfreezeWriterGroupConfiguration(server, writerGroup->identifier);
+        UA_WriterGroup_unfreezeConfiguration(server, writerGroup);
         removeWriterGroup(server, writerGroup->identifier);
     }
 
@@ -400,13 +415,13 @@ removePubSubConnection(UA_Server *server, const UA_NodeId connection) {
     LIST_FOREACH_SAFE(readerGroup, &c->readerGroups, listEntry, tmpReaderGroup) {
         UA_ReaderGroup_setPubSubState(server, readerGroup, UA_PUBSUBSTATE_DISABLED,
                                       UA_STATUSCODE_BADSHUTDOWN);
-        UA_Server_unfreezeReaderGroupConfiguration(server, readerGroup->identifier);
+        UA_ReaderGroup_unfreezeConfiguration(server, readerGroup);
         removeReaderGroup(server, readerGroup->identifier);
     }
 
     /* Remove from the information model */
 #ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL
-    removePubSubConnectionRepresentation(server, c);
+    deleteNode(server, c->identifier, true);
 #endif
 
     /* Unlink from the server */
@@ -429,7 +444,10 @@ UA_Server_removePubSubConnection(UA_Server *server, const UA_NodeId connection) 
 }
 
 UA_StatusCode
-UA_PubSubConnection_regist(UA_Server *server, UA_NodeId *connectionIdentifier, const UA_ReaderGroupConfig *readerGroupConfig) {
+UA_PubSubConnection_regist(UA_Server *server, UA_NodeId *connectionIdentifier,
+                           const UA_ReaderGroupConfig *readerGroupConfig) {
+    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+
     UA_PubSubConnection *connection =
         UA_PubSubConnection_findConnectionbyId(server, *connectionIdentifier);
     if(!connection)
@@ -456,10 +474,12 @@ UA_PubSubConnection_regist(UA_Server *server, UA_NodeId *connectionIdentifier, c
     return retval;
 }
 
-UA_AddPublishedDataSetResult
-UA_Server_addPublishedDataSet(UA_Server *server,
-                              const UA_PublishedDataSetConfig *publishedDataSetConfig,
-                              UA_NodeId *pdsIdentifier) {
+static UA_AddPublishedDataSetResult
+addPublishedDataSet(UA_Server *server,
+                    const UA_PublishedDataSetConfig *publishedDataSetConfig,
+                    UA_NodeId *pdsIdentifier) {
+    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+
     UA_AddPublishedDataSetResult result = {UA_STATUSCODE_BADINVALIDARGUMENT, 0, NULL, {0, 0}};
     if(!publishedDataSetConfig){
         UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
@@ -473,16 +493,14 @@ UA_Server_addPublishedDataSet(UA_Server *server,
         return result;
     }
 
-    if(UA_String_isEmpty(&publishedDataSetConfig->name))
-    {
+    if(UA_String_isEmpty(&publishedDataSetConfig->name)) {
         // DataSet has to have a valid name
         UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
                      "PublishedDataSet creation failed. Invalid name.");
         return result;
     }
 
-    if(UA_PublishedDataSet_findPDSbyName(server, publishedDataSetConfig->name))
-    {
+    if(UA_PublishedDataSet_findPDSbyName(server, publishedDataSetConfig->name)) {
         // DataSet name has to be unique in the publisher
         UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
                      "PublishedDataSet creation failed. DataSet with the same name already exists.");
@@ -576,6 +594,17 @@ UA_Server_addPublishedDataSet(UA_Server *server,
     return result;
 }
 
+UA_AddPublishedDataSetResult
+UA_Server_addPublishedDataSet(UA_Server *server,
+                              const UA_PublishedDataSetConfig *publishedDataSetConfig,
+                              UA_NodeId *pdsIdentifier) {
+    UA_LOCK(&server->serviceMutex);
+    UA_AddPublishedDataSetResult res =
+        addPublishedDataSet(server, publishedDataSetConfig, pdsIdentifier);
+    UA_UNLOCK(&server->serviceMutex);
+    return res;
+}
+
 static UA_StatusCode
 removePublishedDataSet(UA_Server *server, const UA_NodeId pds) {
     //search the identified PublishedDataSet and store the PDS index
@@ -602,9 +631,11 @@ removePublishedDataSet(UA_Server *server, const UA_NodeId pds) {
             }
         }
     }
+
 #ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL
-    removePublishedDataSetRepresentation(server, publishedDataSet);
+    deleteNode(server, publishedDataSet->identifier, true);
 #endif
+
     UA_PublishedDataSet_clear(server, publishedDataSet);
     server->pubSubManager.publishedDataSetsSize--;
 
@@ -628,10 +659,14 @@ UA_PubSubConfigurationVersionTimeDifference(void) {
     UA_UInt32 timeDiffSince2000 = (UA_UInt32) (UA_DateTime_now() - UA_DATETIMESTAMP_2000);
     return timeDiffSince2000;
 }
-UA_StatusCode
-UA_Server_addStandaloneSubscribedDataSet(UA_Server *server, const UA_StandaloneSubscribedDataSetConfig *subscribedDataSetConfig,
-                              UA_NodeId *sdsIdentifier) {
-    if(!subscribedDataSetConfig){
+
+static UA_StatusCode
+addStandaloneSubscribedDataSet(UA_Server *server,
+                               const UA_StandaloneSubscribedDataSetConfig *sdsConfig,
+                               UA_NodeId *sdsIdentifier) {
+    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+
+    if(!sdsConfig){
         UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
                      "SubscribedDataSet creation failed. No config passed in.");
         return UA_STATUSCODE_BADINVALIDARGUMENT;
@@ -639,7 +674,7 @@ UA_Server_addStandaloneSubscribedDataSet(UA_Server *server, const UA_StandaloneS
 
     UA_StandaloneSubscribedDataSetConfig tmpSubscribedDataSetConfig;
     memset(&tmpSubscribedDataSetConfig, 0, sizeof(UA_StandaloneSubscribedDataSetConfig));
-    if(UA_StandaloneSubscribedDataSetConfig_copy(subscribedDataSetConfig, &tmpSubscribedDataSetConfig) != UA_STATUSCODE_GOOD){
+    if(UA_StandaloneSubscribedDataSetConfig_copy(sdsConfig, &tmpSubscribedDataSetConfig) != UA_STATUSCODE_GOOD){
         UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
                      "SubscribedDataSet creation failed. Configuration copy failed.");
         return UA_STATUSCODE_BADINTERNALERROR;
@@ -671,16 +706,28 @@ UA_Server_addStandaloneSubscribedDataSet(UA_Server *server, const UA_StandaloneS
     UA_PubSubManager_generateUniqueNodeId(&server->pubSubManager, &newSubscribedDataSet->identifier);
 #endif
 
-    if(sdsIdentifier){
+    if(sdsIdentifier)
         UA_NodeId_copy(&newSubscribedDataSet->identifier, sdsIdentifier);
-    }
 
     return UA_STATUSCODE_GOOD;
 }
 
+UA_StatusCode
+UA_Server_addStandaloneSubscribedDataSet(UA_Server *server,
+                                         const UA_StandaloneSubscribedDataSetConfig *sdsConfig,
+                                         UA_NodeId *sdsIdentifier) {
+    UA_LOCK(&server->serviceMutex);
+    UA_StatusCode res = addStandaloneSubscribedDataSet(server, sdsConfig, sdsIdentifier);
+    UA_UNLOCK(&server->serviceMutex);
+    return res;
+}
+
 static UA_StatusCode
 removeStandaloneSubscribedDataSet(UA_Server *server, const UA_NodeId sds) {
-    UA_StandaloneSubscribedDataSet *subscribedDataSet = UA_StandaloneSubscribedDataSet_findSDSbyId(server, sds);
+    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+
+    UA_StandaloneSubscribedDataSet *subscribedDataSet =
+        UA_StandaloneSubscribedDataSet_findSDSbyId(server, sds);
     if(!subscribedDataSet){
         return UA_STATUSCODE_BADNOTFOUND;
     }
@@ -699,9 +746,11 @@ removeStandaloneSubscribedDataSet(UA_Server *server, const UA_NodeId sds) {
             }
         }
     }
+
 #ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL
-    removeStandaloneSubscribedDataSetRepresentation(server, subscribedDataSet);
+    deleteNode(server, subscribedDataSet->identifier, true);
 #endif
+
     UA_StandaloneSubscribedDataSet_clear(server, subscribedDataSet);
     server->pubSubManager.subscribedDataSetsSize--;
 

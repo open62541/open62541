@@ -139,6 +139,11 @@ UA_PubSubConnection *
 UA_PubSubConnection_findConnectionbyId(UA_Server *server,
                                        UA_NodeId connectionIdentifier);
 
+UA_StatusCode
+UA_PubSubConnection_create(UA_Server *server,
+                           const UA_PubSubConnectionConfig *connectionConfig,
+                           UA_NodeId *connectionIdentifier);
+
 void
 UA_PubSubConnectionConfig_clear(UA_PubSubConnectionConfig *connectionConfig);
 
@@ -233,6 +238,12 @@ UA_DataSetWriter_remove(UA_Server *server, UA_WriterGroup *linkedWriterGroup,
                         UA_DataSetWriter *dataSetWriter);
 
 UA_StatusCode
+UA_DataSetWriter_create(UA_Server *server,
+                        const UA_NodeId writerGroup, const UA_NodeId dataSet,
+                        const UA_DataSetWriterConfig *dataSetWriterConfig,
+                        UA_NodeId *writerIdentifier);
+
+UA_StatusCode
 removeDataSetWriter(UA_Server *server, const UA_NodeId dsw);
 
 #define UA_LOG_WRITER_INTERNAL(LOGGER, LEVEL, WRITER, MSG, ...)         \
@@ -297,6 +308,11 @@ struct UA_WriterGroup {
 };
 
 UA_StatusCode
+UA_WriterGroup_create(UA_Server *server, const UA_NodeId connection,
+                      const UA_WriterGroupConfig *writerGroupConfig,
+                      UA_NodeId *writerGroupIdentifier);
+
+UA_StatusCode
 removeWriterGroup(UA_Server *server, const UA_NodeId writerGroup);
 
 UA_StatusCode
@@ -307,10 +323,20 @@ UA_WriterGroup *
 UA_WriterGroup_findWGbyId(UA_Server *server, UA_NodeId identifier);
 
 UA_StatusCode
+UA_WriterGroup_freezeConfiguration(UA_Server *server, UA_WriterGroup *wg);
+
+UA_StatusCode
+UA_WriterGroup_unfreezeConfiguration(UA_Server *server, UA_WriterGroup *wg);
+
+UA_StatusCode
 UA_WriterGroup_setPubSubState(UA_Server *server,
                               UA_WriterGroup *writerGroup,
                               UA_PubSubState state,
                               UA_StatusCode cause);
+
+UA_StatusCode
+UA_WriterGroup_updateConfig(UA_Server *server, UA_WriterGroup *wg,
+                            const UA_WriterGroupConfig *config);
 
 #define UA_LOG_WRITERGROUP_INTERNAL(LOGGER, LEVEL, WRITERGROUP, MSG, ...) \
     if(UA_LOGLEVEL <= UA_LOGLEVEL_##LEVEL) {                            \
@@ -399,6 +425,11 @@ UA_DataSetReader_process(UA_Server *server,
                          UA_DataSetMessage *dataSetMsg);
 
 UA_StatusCode
+UA_DataSetReader_create(UA_Server *server, UA_NodeId readerGroupIdentifier,
+                        const UA_DataSetReaderConfig *dataSetReaderConfig,
+                        UA_NodeId *readerIdentifier);
+
+UA_StatusCode
 removeDataSetReader(UA_Server *server, UA_NodeId readerIdentifier);
 
 /* Copy the configuration of DataSetReader */
@@ -418,6 +449,11 @@ void UA_TargetVariables_clear(UA_TargetVariables *subscribedDataSetTarget);
 /* Copy the configuration of Field Target Variables */
 UA_StatusCode UA_FieldTargetVariable_copy(const UA_FieldTargetVariable *src,
                                           UA_FieldTargetVariable *dst);
+
+UA_StatusCode
+DataSetReader_createTargetVariables(UA_Server *server, UA_DataSetReader *dsr,
+                                    size_t targetVariablesSize,
+                                    const UA_FieldTargetVariable *targetVariables);
 
 UA_StatusCode
 UA_DataSetReader_setPubSubState(UA_Server *server,
@@ -495,6 +531,11 @@ struct UA_ReaderGroup {
 };
 
 UA_StatusCode
+UA_ReaderGroup_create(UA_Server *server, UA_NodeId connectionIdentifier,
+                      const UA_ReaderGroupConfig *readerGroupConfig,
+                      UA_NodeId *readerGroupIdentifier);
+
+UA_StatusCode
 removeReaderGroup(UA_Server *server, UA_NodeId groupIdentifier);
 
 UA_StatusCode
@@ -508,6 +549,12 @@ UA_ReaderGroup_findRGbyId(UA_Server *server, UA_NodeId identifier);
 
 UA_DataSetReader *
 UA_ReaderGroup_findDSRbyId(UA_Server *server, UA_NodeId identifier);
+
+UA_StatusCode
+UA_ReaderGroup_freezeConfiguration(UA_Server *server, UA_ReaderGroup *rg);
+
+UA_StatusCode
+UA_ReaderGroup_unfreezeConfiguration(UA_Server *server, UA_ReaderGroup *rg);
 
 UA_StatusCode
 UA_ReaderGroup_setPubSubState(UA_Server *server,

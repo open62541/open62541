@@ -332,11 +332,9 @@ UA_Server_init(UA_Server *server) {
     UA_CHECK_STATUS(res, goto cleanup);
 
 #ifdef UA_ENABLE_PUBSUB
-    /* Build PubSub information model */
 #ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL
-    UA_UNLOCK(&server->serviceMutex);
-    UA_Server_initPubSubNS0(server);
-    UA_LOCK(&server->serviceMutex);
+    /* Build PubSub information model */
+    initPubSubNS0(server);
 #endif
 
 #ifdef UA_ENABLE_PUBSUB_MONITORING

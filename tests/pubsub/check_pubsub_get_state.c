@@ -4,6 +4,7 @@
 #include <open62541/plugin/log_stdout.h>
 
 #include "ua_pubsub.h"
+#include "ua_server_internal.h"
 #include <check.h>
 #include <assert.h>
 
@@ -57,7 +58,9 @@ static void AddConnection(
     connectionConfig.publisherId.uint32 = PublisherId;
 
     ck_assert(UA_Server_addPubSubConnection(server, &connectionConfig, opConnectionId) == UA_STATUSCODE_GOOD);
+    UA_LOCK(&server->serviceMutex);
     ck_assert(UA_PubSubConnection_regist(server, opConnectionId, NULL) == UA_STATUSCODE_GOOD);
+    UA_UNLOCK(&server->serviceMutex);
 }
 
 /***************************************************************************************************/

@@ -412,17 +412,15 @@ deleteNode(UA_Server *server, const UA_NodeId nodeId,
            UA_Boolean deleteReferences);
 
 UA_StatusCode
-addNode(UA_Server *server, const UA_NodeClass nodeClass,
-        const UA_NodeId requestedNewNodeId,
-        const UA_NodeId parentNodeId, const UA_NodeId referenceTypeId,
-        const UA_QualifiedName browseName, const UA_NodeId typeDefinition,
-        const void *attr, const UA_DataType *attributeType,
-        void *nodeContext, UA_NodeId *outNewNodeId);
-
-UA_StatusCode
 addRef(UA_Server *server, const UA_NodeId sourceId,
        const UA_NodeId referenceTypeId, const UA_NodeId targetId,
        UA_Boolean forward);
+
+UA_StatusCode
+deleteReference(UA_Server *server, const UA_NodeId sourceNodeId,
+                const UA_NodeId referenceTypeId, UA_Boolean isForward,
+                const UA_ExpandedNodeId targetNodeId,
+                UA_Boolean deleteBidirectional);
 
 UA_StatusCode
 addRefWithSession(UA_Server *server, UA_Session *session, const UA_NodeId *sourceId,
@@ -440,6 +438,10 @@ setVariableNode_valueCallback(UA_Server *server, const UA_NodeId nodeId,
 UA_StatusCode
 setMethodNode_callback(UA_Server *server, const UA_NodeId methodNodeId,
                        UA_MethodCallback methodCallback);
+
+UA_StatusCode
+setNodeTypeLifecycle(UA_Server *server, UA_NodeId nodeId,
+                     UA_NodeTypeLifecycle lifecycle);
 
 void
 Operation_Write(UA_Server *server, UA_Session *session, void *context,
