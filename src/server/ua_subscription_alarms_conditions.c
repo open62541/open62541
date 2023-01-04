@@ -2463,7 +2463,7 @@ addCondition_finish(UA_Server *server, const UA_NodeId conditionId,
                     const UA_NodeId conditionSource, const UA_NodeId hierarchialReferenceType) {
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
 
-    UA_StatusCode retval = AddNode_finish(server, &server->adminSession, &conditionId);
+    UA_StatusCode retval = addNode_finish(server, &server->adminSession, &conditionId);
     CONDITION_ASSERT_RETURN_RETVAL(retval, "Finish node failed",);
 
     /* Make sure the ConditionSource has HasEventSource or one of its SubTypes ReferenceType */

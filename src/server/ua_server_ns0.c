@@ -19,7 +19,7 @@
 #include "ua_subscription.h"
 
 static UA_StatusCode
-addNode_raw(UA_Server *server, UA_NodeClass nodeClass,
+ns0_addNode_raw(UA_Server *server, UA_NodeClass nodeClass,
             UA_UInt32 nodeId, char *name, void *attributes,
             const UA_DataType *attributesType) {
     UA_AddNodesItem item;
@@ -29,11 +29,11 @@ addNode_raw(UA_Server *server, UA_NodeClass nodeClass,
     item.browseName = UA_QUALIFIEDNAME(0, name);
     UA_ExtensionObject_setValueNoDelete(&item.nodeAttributes,
                                         attributes, attributesType);
-    return AddNode_raw(server, &server->adminSession, NULL, &item, NULL);
+    return addNode_raw(server, &server->adminSession, NULL, &item, NULL);
 }
 
 static UA_StatusCode
-addNode_finish(UA_Server *server, UA_UInt32 nodeId,
+ns0_addNode_finish(UA_Server *server, UA_UInt32 nodeId,
                UA_UInt32 parentNodeId, UA_UInt32 referenceTypeId) {
     const UA_NodeId sourceId = UA_NODEID_NUMERIC(0, nodeId);
     const UA_NodeId refTypeId = UA_NODEID_NUMERIC(0, referenceTypeId);
@@ -41,7 +41,7 @@ addNode_finish(UA_Server *server, UA_UInt32 nodeId,
     UA_StatusCode retval = addRef(server, sourceId, refTypeId, targetId, false);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
-    return AddNode_finish(server, &server->adminSession, &sourceId);
+    return addNode_finish(server, &server->adminSession, &sourceId);
 }
 
 static UA_StatusCode
@@ -90,24 +90,24 @@ createNS0_base(UA_Server *server) {
     references_attr.isAbstract = true;
     references_attr.symmetric = true;
     references_attr.inverseName = UA_LOCALIZEDTEXT("", "References");
-    ret |= addNode_raw(server, UA_NODECLASS_REFERENCETYPE, UA_NS0ID_REFERENCES, "References",
-                       &references_attr, &UA_TYPES[UA_TYPES_REFERENCETYPEATTRIBUTES]);
+    ret |= ns0_addNode_raw(server, UA_NODECLASS_REFERENCETYPE, UA_NS0ID_REFERENCES, "References",
+                           &references_attr, &UA_TYPES[UA_TYPES_REFERENCETYPEATTRIBUTES]);
 
     UA_ReferenceTypeAttributes hassubtype_attr = UA_ReferenceTypeAttributes_default;
     hassubtype_attr.displayName = UA_LOCALIZEDTEXT("", "HasSubtype");
     hassubtype_attr.isAbstract = false;
     hassubtype_attr.symmetric = false;
     hassubtype_attr.inverseName = UA_LOCALIZEDTEXT("", "HasSupertype");
-    ret |= addNode_raw(server, UA_NODECLASS_REFERENCETYPE, UA_NS0ID_HASSUBTYPE, "HasSubtype",
-                       &hassubtype_attr, &UA_TYPES[UA_TYPES_REFERENCETYPEATTRIBUTES]);
+    ret |= ns0_addNode_raw(server, UA_NODECLASS_REFERENCETYPE, UA_NS0ID_HASSUBTYPE, "HasSubtype",
+                           &hassubtype_attr, &UA_TYPES[UA_TYPES_REFERENCETYPEATTRIBUTES]);
 
     UA_ReferenceTypeAttributes aggregates_attr = UA_ReferenceTypeAttributes_default;
     aggregates_attr.displayName = UA_LOCALIZEDTEXT("", "Aggregates");
     aggregates_attr.isAbstract = true;
     aggregates_attr.symmetric = false;
     aggregates_attr.inverseName = UA_LOCALIZEDTEXT("", "AggregatedBy");
-    ret |= addNode_raw(server, UA_NODECLASS_REFERENCETYPE, UA_NS0ID_AGGREGATES, "Aggregates",
-                       &aggregates_attr, &UA_TYPES[UA_TYPES_REFERENCETYPEATTRIBUTES]);
+    ret |= ns0_addNode_raw(server, UA_NODECLASS_REFERENCETYPE, UA_NS0ID_AGGREGATES, "Aggregates",
+                           &aggregates_attr, &UA_TYPES[UA_TYPES_REFERENCETYPEATTRIBUTES]);
 
     ret |= addReferenceTypeNode(server, "HierarchicalReferences", NULL,
                          UA_NS0ID_HIERARCHICALREFERENCES, true, false, UA_NS0ID_REFERENCES);
@@ -140,10 +140,10 @@ createNS0_base(UA_Server *server) {
                          false, false, UA_NS0ID_NONHIERARCHICALREFERENCES);
 
     /* Complete bootstrap of Aggregates */
-    ret |= addNode_finish(server, UA_NS0ID_AGGREGATES, UA_NS0ID_HASCHILD, UA_NS0ID_HASSUBTYPE);
+    ret |= ns0_addNode_finish(server, UA_NS0ID_AGGREGATES, UA_NS0ID_HASCHILD, UA_NS0ID_HASSUBTYPE);
 
     /* Complete bootstrap of HasSubtype */
-    ret |= addNode_finish(server, UA_NS0ID_HASSUBTYPE, UA_NS0ID_HASCHILD, UA_NS0ID_HASSUBTYPE);
+    ret |= ns0_addNode_finish(server, UA_NS0ID_HASSUBTYPE, UA_NS0ID_HASCHILD, UA_NS0ID_HASSUBTYPE);
 
     ret |= addReferenceTypeNode(server, "HasProperty", "PropertyOf", UA_NS0ID_HASPROPERTY,
                          false, false, UA_NS0ID_AGGREGATES);
@@ -168,8 +168,8 @@ createNS0_base(UA_Server *server) {
     UA_DataTypeAttributes basedatatype_attr = UA_DataTypeAttributes_default;
     basedatatype_attr.displayName = UA_LOCALIZEDTEXT("", "BaseDataType");
     basedatatype_attr.isAbstract = true;
-    ret |= addNode_raw(server, UA_NODECLASS_DATATYPE, UA_NS0ID_BASEDATATYPE, "BaseDataType",
-                       &basedatatype_attr, &UA_TYPES[UA_TYPES_DATATYPEATTRIBUTES]);
+    ret |= ns0_addNode_raw(server, UA_NODECLASS_DATATYPE, UA_NS0ID_BASEDATATYPE, "BaseDataType",
+                           &basedatatype_attr, &UA_TYPES[UA_TYPES_DATATYPEATTRIBUTES]);
 
     /*****************/
     /* VariableTypes */
@@ -180,8 +180,9 @@ createNS0_base(UA_Server *server) {
     basevar_attr.isAbstract = true;
     basevar_attr.valueRank = UA_VALUERANK_ANY;
     basevar_attr.dataType = UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATATYPE);
-    ret |= addNode_raw(server, UA_NODECLASS_VARIABLETYPE, UA_NS0ID_BASEVARIABLETYPE, "BaseVariableType",
-                       &basevar_attr, &UA_TYPES[UA_TYPES_VARIABLETYPEATTRIBUTES]);
+    ret |= ns0_addNode_raw(server, UA_NODECLASS_VARIABLETYPE,
+                           UA_NS0ID_BASEVARIABLETYPE, "BaseVariableType",
+                           &basevar_attr, &UA_TYPES[UA_TYPES_VARIABLETYPEATTRIBUTES]);
 
     UA_VariableTypeAttributes bdv_attr = UA_VariableTypeAttributes_default;
     bdv_attr.displayName = UA_LOCALIZEDTEXT("", "BaseDataVariableType");
@@ -211,8 +212,9 @@ createNS0_base(UA_Server *server) {
 
     UA_ObjectTypeAttributes baseobj_attr = UA_ObjectTypeAttributes_default;
     baseobj_attr.displayName = UA_LOCALIZEDTEXT("", "BaseObjectType");
-    ret |= addNode_raw(server, UA_NODECLASS_OBJECTTYPE, UA_NS0ID_BASEOBJECTTYPE, "BaseObjectType",
-                       &baseobj_attr, &UA_TYPES[UA_TYPES_OBJECTTYPEATTRIBUTES]);
+    ret |= ns0_addNode_raw(server, UA_NODECLASS_OBJECTTYPE,
+                           UA_NS0ID_BASEOBJECTTYPE, "BaseObjectType",
+                           &baseobj_attr, &UA_TYPES[UA_TYPES_OBJECTTYPEATTRIBUTES]);
 
     UA_ObjectTypeAttributes folder_attr = UA_ObjectTypeAttributes_default;
     folder_attr.displayName = UA_LOCALIZEDTEXT("", "FolderType");
@@ -237,23 +239,23 @@ createNS0_base(UA_Server *server) {
 
     ret |= addObjectNode(server, "ReferenceTypes", UA_NS0ID_REFERENCETYPESFOLDER, UA_NS0ID_TYPESFOLDER,
                   UA_NS0ID_ORGANIZES, UA_NS0ID_FOLDERTYPE);
-    ret |= addNode_finish(server, UA_NS0ID_REFERENCES, UA_NS0ID_REFERENCETYPESFOLDER,
-                   UA_NS0ID_ORGANIZES);
+    ret |= ns0_addNode_finish(server, UA_NS0ID_REFERENCES,
+                              UA_NS0ID_REFERENCETYPESFOLDER, UA_NS0ID_ORGANIZES);
 
     ret |= addObjectNode(server, "DataTypes", UA_NS0ID_DATATYPESFOLDER, UA_NS0ID_TYPESFOLDER,
                   UA_NS0ID_ORGANIZES, UA_NS0ID_FOLDERTYPE);
-    ret |= addNode_finish(server, UA_NS0ID_BASEDATATYPE, UA_NS0ID_DATATYPESFOLDER,
-                   UA_NS0ID_ORGANIZES);
+    ret |= ns0_addNode_finish(server, UA_NS0ID_BASEDATATYPE,
+                              UA_NS0ID_DATATYPESFOLDER, UA_NS0ID_ORGANIZES);
 
     ret |= addObjectNode(server, "VariableTypes", UA_NS0ID_VARIABLETYPESFOLDER, UA_NS0ID_TYPESFOLDER,
                   UA_NS0ID_ORGANIZES, UA_NS0ID_FOLDERTYPE);
-    ret |= addNode_finish(server, UA_NS0ID_BASEVARIABLETYPE, UA_NS0ID_VARIABLETYPESFOLDER,
-                   UA_NS0ID_ORGANIZES);
+    ret |= ns0_addNode_finish(server, UA_NS0ID_BASEVARIABLETYPE,
+                              UA_NS0ID_VARIABLETYPESFOLDER, UA_NS0ID_ORGANIZES);
 
     ret |= addObjectNode(server, "ObjectTypes", UA_NS0ID_OBJECTTYPESFOLDER, UA_NS0ID_TYPESFOLDER,
                   UA_NS0ID_ORGANIZES, UA_NS0ID_FOLDERTYPE);
-    ret |= addNode_finish(server, UA_NS0ID_BASEOBJECTTYPE, UA_NS0ID_OBJECTTYPESFOLDER,
-                   UA_NS0ID_ORGANIZES);
+    ret |= ns0_addNode_finish(server, UA_NS0ID_BASEOBJECTTYPE,
+                              UA_NS0ID_OBJECTTYPESFOLDER, UA_NS0ID_ORGANIZES);
 
     ret |= addObjectNode(server, "EventTypes", UA_NS0ID_EVENTTYPESFOLDER, UA_NS0ID_TYPESFOLDER,
                   UA_NS0ID_ORGANIZES, UA_NS0ID_FOLDERTYPE);
@@ -264,10 +266,11 @@ createNS0_base(UA_Server *server) {
     /* Add BaseEventType */
     UA_ObjectTypeAttributes eventtype_attr = UA_ObjectTypeAttributes_default;
     eventtype_attr.displayName = UA_LOCALIZEDTEXT("", "BaseEventType");
-    ret |= addNode_raw(server, UA_NODECLASS_OBJECTTYPE, UA_NS0ID_BASEEVENTTYPE, "BaseEventType",
-                       &eventtype_attr, &UA_TYPES[UA_TYPES_OBJECTTYPEATTRIBUTES]);
-    ret |= addNode_finish(server, UA_NS0ID_BASEEVENTTYPE, UA_NS0ID_EVENTTYPESFOLDER,
-                   UA_NS0ID_ORGANIZES);
+    ret |= ns0_addNode_raw(server, UA_NODECLASS_OBJECTTYPE,
+                           UA_NS0ID_BASEEVENTTYPE, "BaseEventType",
+                           &eventtype_attr, &UA_TYPES[UA_TYPES_OBJECTTYPEATTRIBUTES]);
+    ret |= ns0_addNode_finish(server, UA_NS0ID_BASEEVENTTYPE,
+                              UA_NS0ID_EVENTTYPESFOLDER, UA_NS0ID_ORGANIZES);
 
     if(ret != UA_STATUSCODE_GOOD)
         ret = UA_STATUSCODE_BADINTERNALERROR;
