@@ -292,7 +292,7 @@ Here are some examples for the ``DI`` and ``PLCOpen`` nodesets::
     # Generate types and namespace for DI
     ua_generate_nodeset_and_datatypes(
         NAME "di"
-        FILE_CSV "${UA_NODESET_DIR}/DI/OpcUaDiModel.csv"
+        FILE_CSV "${UA_NODESET_DIR}/DI/Opc.Ua.Di.NodeIds.csv"
         FILE_BSD "${UA_NODESET_DIR}/DI/Opc.Ua.Di.Types.bsd"
         NAMESPACE_MAP "2:http://opcfoundation.org/UA/DI/"
         FILE_NS "${UA_NODESET_DIR}/DI/Opc.Ua.Di.NodeSet2.xml"
@@ -401,7 +401,7 @@ This DI nodeset makes use of some additional data types in ``deps/ua-nodeset/DI/
         NAME "ua_types_di"
         TARGET_SUFFIX "types-di"
         NAMESPACE_MAP "2:http://opcfoundation.org/UA/DI/"
-        FILE_CSV "${UA_NODESET_DIR}/DI/OpcUaDiModel.csv"
+        FILE_CSV "${UA_NODESET_DIR}/DI/Opc.Ua.Di.NodeIds.csv"
         FILES_BSD "${UA_NODESET_DIR}/DI/Opc.Ua.Di.Types.bsd"
     )
 

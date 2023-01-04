@@ -80,7 +80,7 @@ if(UA_NAMESPACE_ZERO STREQUAL "FULL")
     # Generate types and namespace for DI
     ua_generate_nodeset_and_datatypes(
         NAME "di"
-        FILE_CSV "${FILE_CSV_DIRPREFIX}/DI/OpcUaDiModel.csv"
+        FILE_CSV "${FILE_CSV_DIRPREFIX}/DI/Opc.Ua.Di.NodeIds.csv"
         FILE_BSD "${FILE_BSD_PLCOPEN_DIRPREFIX}/DI/Opc.Ua.Di.Types.bsd"
         NAMESPACE_MAP "2:http://opcfoundation.org/UA/DI/"
         FILE_NS "${FILE_NS_DIRPREFIX}/DI/Opc.Ua.Di.NodeSet2.xml"

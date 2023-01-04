@@ -11,7 +11,7 @@ if(UA_NAMESPACE_ZERO STREQUAL "FULL")
     # Generate types and namespace for DI
     ua_generate_nodeset_and_datatypes(
         NAME "tests-di"
-        FILE_CSV "${UA_NODESET_DIR}/DI/OpcUaDiModel.csv"
+        FILE_CSV "${UA_NODESET_DIR}/DI/Opc.Ua.Di.NodeIds.csv"
         FILE_BSD "${UA_NODESET_DIR}/DI/Opc.Ua.Di.Types.bsd"
         NAMESPACE_MAP "2:http://opcfoundation.org/UA/DI/"
         OUTPUT_DIR "${GENERATE_OUTPUT_DIR}"
