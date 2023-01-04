@@ -686,24 +686,53 @@ UA_Server_readWithSession(UA_Server *server, UA_Session *session,
                           const UA_ReadValueId *item,
                           UA_TimestampsToReturn timestampsToReturn);
 
-/*****************************/
-/* AddNodes Begin and Finish */
-/*****************************/
+/************/
+/* AddNodes */
+/************/
+
+UA_StatusCode
+addNode(UA_Server *server, const UA_NodeClass nodeClass,
+        const UA_NodeId requestedNewNodeId,
+        const UA_NodeId parentNodeId, const UA_NodeId referenceTypeId,
+        const UA_QualifiedName browseName, const UA_NodeId typeDefinition,
+        const void *attr, const UA_DataType *attributeType,
+        void *nodeContext, UA_NodeId *outNewNodeId);
+
+UA_StatusCode
+addMethodNode(UA_Server *server, const UA_NodeId requestedNewNodeId,
+              const UA_NodeId parentNodeId, const UA_NodeId referenceTypeId,
+              const UA_QualifiedName browseName,
+              const UA_MethodAttributes *attr, UA_MethodCallback method,
+              size_t inputArgumentsSize, const UA_Argument *inputArguments,
+              const UA_NodeId inputArgumentsRequestedNewNodeId,
+              UA_NodeId *inputArgumentsOutNewNodeId,
+              size_t outputArgumentsSize, const UA_Argument *outputArguments,
+              const UA_NodeId outputArgumentsRequestedNewNodeId,
+              UA_NodeId *outputArgumentsOutNewNodeId,
+              void *nodeContext, UA_NodeId *outNewNodeId);
+
+UA_StatusCode
+addNode_begin(UA_Server *server, const UA_NodeClass nodeClass,
+              const UA_NodeId requestedNewNodeId, const UA_NodeId parentNodeId,
+              const UA_NodeId referenceTypeId, const UA_QualifiedName browseName,
+              const UA_NodeId typeDefinition, const void *attr,
+              const UA_DataType *attributeType, void *nodeContext,
+              UA_NodeId *outNewNodeId);
 
 /* Creates a new node in the nodestore. */
 UA_StatusCode
-AddNode_raw(UA_Server *server, UA_Session *session, void *nodeContext,
+addNode_raw(UA_Server *server, UA_Session *session, void *nodeContext,
             const UA_AddNodesItem *item, UA_NodeId *outNewNodeId);
 
 /* Check the reference to the parent node; Add references. */
 UA_StatusCode
-AddNode_addRefs(UA_Server *server, UA_Session *session, const UA_NodeId *nodeId,
+addNode_addRefs(UA_Server *server, UA_Session *session, const UA_NodeId *nodeId,
                 const UA_NodeId *parentNodeId, const UA_NodeId *referenceTypeId,
                 const UA_NodeId *typeDefinitionId);
 
 /* Type-check type-definition; Run the constructors */
 UA_StatusCode
-AddNode_finish(UA_Server *server, UA_Session *session, const UA_NodeId *nodeId);
+addNode_finish(UA_Server *server, UA_Session *session, const UA_NodeId *nodeId);
 
 /**********************/
 /* Create Namespace 0 */
