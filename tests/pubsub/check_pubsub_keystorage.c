@@ -116,15 +116,16 @@ addTestReaderGroup(UA_String securitygroupId){
 
 static UA_PubSubKeyStorage*
 createKeyStoragewithkeys(UA_UInt32 currentTokenId, UA_UInt32 keysize,
-                         UA_Duration msKeyLifeTime, UA_Duration msTimeToNextKey, UA_String testSecurityGroupId) {
-
+                         UA_Duration msKeyLifeTime, UA_Duration msTimeToNextKey,
+                         UA_String testSecurityGroupId) {
     UA_StatusCode retval = UA_STATUSCODE_BAD;
     UA_Duration callbackTime;
     addTestWriterGroup(SecurityGroupId);
     addTestReaderGroup(SecurityGroupId);
 
+    UA_LOCK(&server->serviceMutex);
     UA_PubSubKeyStorage *tKeyStorage =
-        UA_Server_findKeyStorage(server, SecurityGroupId);
+        UA_PubSubKeyStorage_findKeyStorage(server, SecurityGroupId);
 
     size_t keyLength = server->config.pubSubConfig.securityPolicies->symmetricModule
                            .secureChannelNonceLength;
@@ -159,6 +160,7 @@ createKeyStoragewithkeys(UA_UInt32 currentTokenId, UA_UInt32 keysize,
     retval = UA_PubSubKeyStorage_addKeyRolloverCallback(
         server, tKeyStorage, (UA_ServerCallback)UA_PubSubKeyStorage_keyRolloverCallback, callbackTime,
         &tKeyStorage->callBackId);
+    UA_UNLOCK(&server->serviceMutex);
 
     return tKeyStorage;
 }
@@ -201,7 +203,6 @@ setup(void) {
                          &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
     connectionConfig.transportProfileUri = UA_STRING("http://opcfoundation.org/UA-Profile/Transport/pubsub-udp-uadp");
     UA_Server_addPubSubConnection(server, &connectionConfig, &connection);
-
 }
 
 static void teardown(void) {
@@ -222,6 +223,9 @@ START_TEST(TestPubSubKeyStorage_initialize) {
     UA_PubSubKeyStorage *tKeyStorage = (UA_PubSubKeyStorage *)
         UA_calloc(1, sizeof(UA_PubSubKeyStorage));
     ck_assert_ptr_ne(tKeyStorage, NULL);
+
+    UA_LOCK(&server->serviceMutex);
+
     retval =
         UA_PubSubKeyStorage_init(server, tKeyStorage,
                                  &SecurityGroupId, server->config.pubSubConfig.securityPolicies,
@@ -238,6 +242,8 @@ START_TEST(TestPubSubKeyStorage_initialize) {
     ck_assert_msg(UA_String_equal(&tKeyStorage->securityGroupID, &SecurityGroupId), "Expected SecurityGroupId to be equal to keystorage->securityGroupID");
     /*check if the keystorage is in the Server Keystorage list*/
     ck_assert_ptr_eq(server->pubSubManager.pubSubKeyList.lh_first, tKeyStorage);
+
+    UA_UNLOCK(&server->serviceMutex);
 } END_TEST
 
 START_TEST(TestPubSubKeyStorageSetKeys){
@@ -246,6 +252,7 @@ START_TEST(TestPubSubKeyStorageSetKeys){
     UA_Duration msTimeToNextKey = 2000;
     UA_String testSecurityGroupId = UA_STRING("TestSecurityGroup");
     UA_PubSubKeyStorage *tKeyStorage = createKeyStoragewithkeys(currentTokenId, futureKeySize, msTimeToNextKey, 0, testSecurityGroupId);
+    UA_LOCK(&server->serviceMutex);
     UA_PubSubKeyListItem *keyListIterator;
     ck_assert_ptr_ne(tKeyStorage, NULL);
     ck_assert_msg(UA_ByteString_equal(&currentKey, &tKeyStorage->keyList.tqh_first->key), "Expected CurrentKey to be equal to the first key in the KeyList");
@@ -259,6 +266,7 @@ START_TEST(TestPubSubKeyStorageSetKeys){
     ck_assert_msg(UA_ByteString_equal(&futureKey[futureKeySize - 1], &keyListIterator->key), "Expected lastItem to be equal to the last FutureKey");
     ck_assert_msg(futureKeySize + 1 == tKeyStorage->keyListSize,"Expected KeyListSize to be equal to FutureKeySize + 1");
     ck_assert_msg(tKeyStorage->keyLifeTime == msTimeToNextKey, "Expected keyLifetime to be equal to the Keystorage->keyLifeTime");
+    UA_UNLOCK(&server->serviceMutex);
 } END_TEST
 
 START_TEST(TestPubSubKeyStorage_MovetoNextKeyCallback){
@@ -266,10 +274,14 @@ START_TEST(TestPubSubKeyStorage_MovetoNextKeyCallback){
     futureKeySize = 2;
     UA_Duration msTimeToNextKey = 2000;
     UA_String testSecurityGroupId = UA_STRING("TestSecurityGroup");
+
     UA_PubSubKeyStorage *tKeyStorage = createKeyStoragewithkeys(currentTokenId, futureKeySize, msTimeToNextKey, 0, testSecurityGroupId);
+    UA_LOCK(&server->serviceMutex);
     ck_assert_ptr_ne(tKeyStorage, NULL);
     UA_PubSubKeyListItem *nextCurrentKey = TAILQ_NEXT(tKeyStorage->currentItem, keyListEntry);
     UA_fakeSleep(2000);
+    UA_UNLOCK(&server->serviceMutex);
+
     UA_Server_run_iterate(server,false);
     ck_assert_ptr_eq(nextCurrentKey, tKeyStorage->currentItem);
     ck_assert_msg(UA_ByteString_equal(&nextCurrentKey->key, &tKeyStorage->currentItem->key), "Expected Current key to be the First Future key after first TimeToNextKey expires");
@@ -300,6 +312,7 @@ START_TEST(TestPubSubKeystorage_ImportedKey){
     UA_ByteString_copy(&buffer, &expect_buf);
 
     createKeyStoragewithkeys(currentTokenId, futureKeySize, msTimeToNextKey,0, testSecurityGroupId);
+    UA_LOCK(&server->serviceMutex);
 
     /*encrypt and sign with Writer channelContext*/
 
@@ -323,49 +336,63 @@ START_TEST(TestPubSubKeystorage_ImportedKey){
     UA_ByteString_clear(&expect_buf);
     UA_ByteString_clear(&signature);
     UA_ByteString_clear(&buffer);
+
+    UA_UNLOCK(&server->serviceMutex);
 } END_TEST
 
 START_TEST(TestPubSubKeyStorage_InitWithWriterGroup){
     addTestWriterGroup(SecurityGroupId);
+    UA_LOCK(&server->serviceMutex);
     UA_WriterGroup *wg = UA_WriterGroup_findWGbyId(server, writerGroup);
-    UA_PubSubKeyStorage *ks = UA_Server_findKeyStorage(server, SecurityGroupId);
+    UA_PubSubKeyStorage *ks = UA_PubSubKeyStorage_findKeyStorage(server, SecurityGroupId);
     ck_assert_ptr_ne(wg->keyStorage, NULL);
     ck_assert_ptr_eq(ks, wg->keyStorage);
+    UA_UNLOCK(&server->serviceMutex);
 } END_TEST
 
 START_TEST(TestPubSubKeyStorage_InitWithReaderGroup){
     addTestReaderGroup(SecurityGroupId);
+    UA_LOCK(&server->serviceMutex);
     UA_ReaderGroup *rg = UA_ReaderGroup_findRGbyId(server, readerGroup);
-    UA_PubSubKeyStorage *ks = UA_Server_findKeyStorage(server, SecurityGroupId);
+    UA_PubSubKeyStorage *ks = UA_PubSubKeyStorage_findKeyStorage(server, SecurityGroupId);
     ck_assert_ptr_ne(rg->keyStorage, NULL);
     ck_assert_ptr_eq(ks, rg->keyStorage);
+    UA_UNLOCK(&server->serviceMutex);
 } END_TEST
 
 START_TEST(TestAddingNewGroupToExistingKeyStorage){
     addTestWriterGroup(SecurityGroupId);
-    UA_PubSubKeyStorage *ks = UA_Server_findKeyStorage(server, SecurityGroupId);
+    UA_LOCK(&server->serviceMutex);
+    UA_PubSubKeyStorage *ks = UA_PubSubKeyStorage_findKeyStorage(server, SecurityGroupId);
     ck_assert_msg(ks->referenceCount == 1, "Expected the reference Count to be exactly 1 after adding one Group");
+    UA_UNLOCK(&server->serviceMutex);
     addTestReaderGroup(SecurityGroupId);
+    UA_LOCK(&server->serviceMutex);
     ck_assert_msg(ks->referenceCount == 2, "Expected the reference Count to be exactly 2 after adding second Group same SecurityGroupId");
     UA_WriterGroup *wg = UA_WriterGroup_findWGbyId(server, writerGroup);
     UA_ReaderGroup *rg = UA_ReaderGroup_findRGbyId(server, readerGroup);
     ck_assert_ptr_eq(ks, rg->keyStorage);
     ck_assert_ptr_eq(ks, wg->keyStorage);
     ck_assert_ptr_eq(rg->keyStorage, wg->keyStorage);
+    UA_UNLOCK(&server->serviceMutex);
 } END_TEST
 
 START_TEST(TestRemoveAPubSubGroupWithKeyStorage){
     addTestWriterGroup(SecurityGroupId);
     addTestReaderGroup(SecurityGroupId);
-    UA_PubSubKeyStorage *ks = UA_Server_findKeyStorage(server, SecurityGroupId);
+    UA_LOCK(&server->serviceMutex);
+    UA_PubSubKeyStorage *ks = UA_PubSubKeyStorage_findKeyStorage(server, SecurityGroupId);
     UA_UInt32 refCountBefore = ks->referenceCount;
+    UA_UNLOCK(&server->serviceMutex);
     UA_Server_removeWriterGroup(server, writerGroup);
     --refCountBefore;
     ck_assert_msg(ks->referenceCount == refCountBefore, "Expected keyStroage referenceCount to be One less then before after removing a Group");
     UA_Server_removeReaderGroup(server, readerGroup);
+    UA_LOCK(&server->serviceMutex);
     ks = NULL;
-    ks = UA_Server_findKeyStorage(server, SecurityGroupId);
+    ks = UA_PubSubKeyStorage_findKeyStorage(server, SecurityGroupId);
     ck_assert_ptr_eq(ks, NULL);
+    UA_UNLOCK(&server->serviceMutex);
 } END_TEST
 
 int

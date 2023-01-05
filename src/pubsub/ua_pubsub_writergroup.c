@@ -151,7 +151,7 @@ UA_WriterGroup_create(UA_Server *server, const UA_NodeId connection,
            writerGroupConfig->securityPolicy) {
             /* Does the key storage already exist? */
             newWriterGroup->keyStorage =
-                UA_Server_findKeyStorage(server, writerGroupConfig->securityGroupId);
+                UA_PubSubKeyStorage_findKeyStorage(server, writerGroupConfig->securityGroupId);
 
             if(!newWriterGroup->keyStorage) {
                 /* Create a new key storage */
@@ -712,7 +712,7 @@ UA_WriterGroup_findWGbyId(UA_Server *server, UA_NodeId identifier) {
 }
 
 #ifdef UA_ENABLE_PUBSUB_ENCRYPTION
-static UA_StatusCode
+UA_StatusCode
 setWriterGroupEncryptionKeys(UA_Server *server, const UA_NodeId writerGroup,
                              UA_UInt32 securityTokenId,
                              const UA_ByteString signingKey,

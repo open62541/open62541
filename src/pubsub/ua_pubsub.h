@@ -325,6 +325,13 @@ UA_StatusCode
 removeWriterGroup(UA_Server *server, const UA_NodeId writerGroup);
 
 UA_StatusCode
+setWriterGroupEncryptionKeys(UA_Server *server, const UA_NodeId writerGroup,
+                             UA_UInt32 securityTokenId,
+                             const UA_ByteString signingKey,
+                             const UA_ByteString encryptingKey,
+                             const UA_ByteString keyNonce);
+
+UA_StatusCode
 UA_WriterGroupConfig_copy(const UA_WriterGroupConfig *src,
                           UA_WriterGroupConfig *dst);
 
@@ -551,6 +558,13 @@ UA_ReaderGroup_create(UA_Server *server, UA_NodeId connectionIdentifier,
 
 UA_StatusCode
 removeReaderGroup(UA_Server *server, UA_NodeId groupIdentifier);
+
+UA_StatusCode
+setReaderGroupEncryptionKeys(UA_Server *server, const UA_NodeId readerGroup,
+                             UA_UInt32 securityTokenId,
+                             const UA_ByteString signingKey,
+                             const UA_ByteString encryptingKey,
+                             const UA_ByteString keyNonce);
 
 UA_StatusCode
 UA_ReaderGroupConfig_copy(const UA_ReaderGroupConfig *src,

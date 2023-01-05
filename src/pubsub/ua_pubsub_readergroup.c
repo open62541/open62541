@@ -158,7 +158,7 @@ UA_ReaderGroup_create(UA_Server *server, UA_NodeId connectionIdentifier,
            readerGroupConfig->securityPolicy) {
             /* Does the key storage already exist? */
             newGroup->keyStorage =
-                UA_Server_findKeyStorage(server, readerGroupConfig->securityGroupId);
+                UA_PubSubKeyStorage_findKeyStorage(server, readerGroupConfig->securityGroupId);
 
             if(!newGroup->keyStorage) {
                 /* Create a new key storage */
@@ -509,7 +509,7 @@ UA_Server_setReaderGroupDisabled(UA_Server *server, const UA_NodeId readerGroupI
 }
 
 #ifdef UA_ENABLE_PUBSUB_ENCRYPTION
-static UA_StatusCode
+UA_StatusCode
 setReaderGroupEncryptionKeys(UA_Server *server, const UA_NodeId readerGroup,
                              UA_UInt32 securityTokenId,
                              const UA_ByteString signingKey,
