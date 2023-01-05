@@ -576,10 +576,13 @@ UA_Server_getWriterGroupConfig(UA_Server *server, const UA_NodeId writerGroup,
                                UA_WriterGroupConfig *config) {
     if(!config)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
+    UA_LOCK(&server->serviceMutex);
     UA_WriterGroup *currentWG = UA_WriterGroup_findWGbyId(server, writerGroup);
-    if(!currentWG)
-        return UA_STATUSCODE_BADNOTFOUND;
-    return UA_WriterGroupConfig_copy(&currentWG->config, config);
+    UA_StatusCode res = UA_STATUSCODE_BADNOTFOUND;
+    if(currentWG)
+        res = UA_WriterGroupConfig_copy(&currentWG->config, config);
+    UA_UNLOCK(&server->serviceMutex);
+    return res;
 }
 
 UA_StatusCode
@@ -651,12 +654,17 @@ UA_Server_WriterGroup_getState(UA_Server *server, UA_NodeId writerGroupIdentifie
                                UA_PubSubState *state) {
     if((server == NULL) || (state == NULL))
         return UA_STATUSCODE_BADINVALIDARGUMENT;
+    UA_LOCK(&server->serviceMutex);
     UA_WriterGroup *currentWriterGroup =
         UA_WriterGroup_findWGbyId(server, writerGroupIdentifier);
-    if(currentWriterGroup == NULL)
-        return UA_STATUSCODE_BADNOTFOUND;
-    *state = currentWriterGroup->state;
-    return UA_STATUSCODE_GOOD;
+    UA_StatusCode res = UA_STATUSCODE_GOOD;
+    if(currentWriterGroup) {
+        *state = currentWriterGroup->state;
+    } else {
+        res = UA_STATUSCODE_BADNOTFOUND;
+    }
+    UA_UNLOCK(&server->serviceMutex);
+    return res;
 }
 
 UA_StatusCode
@@ -704,12 +712,12 @@ UA_WriterGroup_findWGbyId(UA_Server *server, UA_NodeId identifier) {
 }
 
 #ifdef UA_ENABLE_PUBSUB_ENCRYPTION
-UA_StatusCode
-UA_Server_setWriterGroupEncryptionKeys(UA_Server *server, const UA_NodeId writerGroup,
-                                       UA_UInt32 securityTokenId,
-                                       const UA_ByteString signingKey,
-                                       const UA_ByteString encryptingKey,
-                                       const UA_ByteString keyNonce) {
+static UA_StatusCode
+setWriterGroupEncryptionKeys(UA_Server *server, const UA_NodeId writerGroup,
+                             UA_UInt32 securityTokenId,
+                             const UA_ByteString signingKey,
+                             const UA_ByteString encryptingKey,
+                             const UA_ByteString keyNonce) {
     UA_WriterGroup *wg = UA_WriterGroup_findWGbyId(server, writerGroup);
     if(!wg)
         return UA_STATUSCODE_BADNOTFOUND;
@@ -741,6 +749,19 @@ UA_Server_setWriterGroupEncryptionKeys(UA_Server *server, const UA_NodeId writer
     return wg->config.securityPolicy->
         setSecurityKeys(wg->securityPolicyContext, &signingKey, &encryptingKey, &keyNonce);
 }
+
+UA_StatusCode
+UA_Server_setWriterGroupEncryptionKeys(UA_Server *server, const UA_NodeId writerGroup,
+                                       UA_UInt32 securityTokenId,
+                                       const UA_ByteString signingKey,
+                                       const UA_ByteString encryptingKey,
+                                       const UA_ByteString keyNonce) {
+    UA_LOCK(&server->serviceMutex);
+    UA_StatusCode res = setWriterGroupEncryptionKeys(server, writerGroup, securityTokenId,
+                                                     signingKey, encryptingKey, keyNonce);
+    UA_UNLOCK(&server->serviceMutex);
+    return res;
+}
 #endif
 
 void
@@ -760,7 +781,7 @@ UA_WriterGroup_clear(UA_Server *server, UA_WriterGroup *writerGroup) {
     /* Delete all writers */
     UA_DataSetWriter *dataSetWriter, *tmpDataSetWriter;
     LIST_FOREACH_SAFE(dataSetWriter, &writerGroup->writers, listEntry, tmpDataSetWriter){
-        UA_Server_removeDataSetWriter(server, dataSetWriter->identifier);
+        removeDataSetWriter(server, dataSetWriter->identifier);
     }
 
 #ifdef UA_ENABLE_PUBSUB_ENCRYPTION
@@ -910,7 +931,7 @@ UA_WriterGroup_setPubSubState(UA_Server *server, UA_WriterGroup *writerGroup,
 
     if(state != oldState) {
         /* inform application about state change */
-        UA_ServerConfig *pConfig = UA_Server_getConfig(server);
+        UA_ServerConfig *pConfig = &server->config;
         if(pConfig->pubSubConfig.stateChangeCallback != 0) {
             pConfig->pubSubConfig.
                 stateChangeCallback(server, &writerGroup->identifier, state, cause);

@@ -1563,7 +1563,9 @@ START_TEST(Test_string_publisherId_file_config) {
     UA_PubSubConfigurationDataType_clear(&config);
 }
     /* load and apply config from ByteString buffer */
+    UA_LOCK(&server->serviceMutex);
     ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_PubSubManager_loadPubSubConfigFromByteString(server, encodedConfigDataBuffer));
+    UA_UNLOCK(&server->serviceMutex);
 
     /* groups are already operational */
     /* check that publish/subscribe works -> set some test values */

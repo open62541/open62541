@@ -50,7 +50,7 @@ UA_DataSetReader *UA_ReaderGroup_findDSRbyId(UA_Server *server, UA_NodeId identi
 
 /* Clear ReaderGroup */
 static void
-UA_Server_ReaderGroup_clear(UA_Server* server, UA_ReaderGroup *readerGroup);
+ReaderGroup_clear(UA_Server* server, UA_ReaderGroup *readerGroup);
 
 /* ReaderGroup Config Handling */
 
@@ -235,7 +235,7 @@ removeReaderGroup(UA_Server *server, UA_NodeId groupIdentifier) {
 #endif
 
     /* UA_Server_ReaderGroup_clear also removes itself from the list */
-    UA_Server_ReaderGroup_clear(server, readerGroup);
+    ReaderGroup_clear(server, readerGroup);
 
     /* Remove readerGroup from Connection */
     LIST_REMOVE(readerGroup, listEntry);
@@ -275,7 +275,9 @@ UA_Server_ReaderGroup_getConfig(UA_Server *server, UA_NodeId readerGroupIdentifi
 }
 
 static void
-UA_Server_ReaderGroup_clear(UA_Server* server, UA_ReaderGroup *readerGroup) {
+ReaderGroup_clear(UA_Server* server, UA_ReaderGroup *readerGroup) {
+    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+
     UA_ReaderGroupConfig_clear(&readerGroup->config);
     UA_DataSetReader *dataSetReader;
     UA_DataSetReader *tmpDataSetReader;
@@ -449,6 +451,8 @@ UA_ReaderGroup_setPubSubState(UA_Server *server,
                               UA_ReaderGroup *readerGroup,
                               UA_PubSubState state,
                               UA_StatusCode cause) {
+    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+
     UA_StatusCode ret = UA_STATUSCODE_BADINVALIDARGUMENT;
     UA_PubSubState oldState = readerGroup->state;
     switch(state) {
@@ -469,9 +473,9 @@ UA_ReaderGroup_setPubSubState(UA_Server *server,
                                        "Received unknown PubSub state!");
             break;
     }
-    if (state != oldState) {
+    if(state != oldState) {
         /* inform application about state change */
-        UA_ServerConfig *pConfig = UA_Server_getConfig(server);
+        UA_ServerConfig *pConfig = &server->config;
         if(pConfig->pubSubConfig.stateChangeCallback != 0) {
             pConfig->pubSubConfig.
                 stateChangeCallback(server, &readerGroup->identifier, state, cause);
@@ -505,17 +509,18 @@ UA_Server_setReaderGroupDisabled(UA_Server *server, const UA_NodeId readerGroupI
 }
 
 #ifdef UA_ENABLE_PUBSUB_ENCRYPTION
-UA_StatusCode
-UA_Server_setReaderGroupEncryptionKeys(UA_Server *server, const UA_NodeId readerGroup,
-                                       UA_UInt32 securityTokenId,
-                                       const UA_ByteString signingKey,
-                                       const UA_ByteString encryptingKey,
-                                       const UA_ByteString keyNonce) {
+static UA_StatusCode
+setReaderGroupEncryptionKeys(UA_Server *server, const UA_NodeId readerGroup,
+                             UA_UInt32 securityTokenId,
+                             const UA_ByteString signingKey,
+                             const UA_ByteString encryptingKey,
+                             const UA_ByteString keyNonce) {
     UA_ReaderGroup *rg = UA_ReaderGroup_findRGbyId(server, readerGroup);
     UA_CHECK_MEM(rg, return UA_STATUSCODE_BADNOTFOUND);
     if(rg->config.encodingMimeType == UA_PUBSUB_ENCODING_JSON) {
         UA_LOG_WARNING_READERGROUP(&server->config.logger, rg,
-                                   "JSON encoding is enabled. The message security is only defined for the UADP message mapping.");
+                                   "JSON encoding is enabled. The message security is "
+                                   "only defined for the UADP message mapping.");
         return UA_STATUSCODE_BADINTERNALERROR;
     }
     if(!rg->config.securityPolicy) {
@@ -541,6 +546,20 @@ UA_Server_setReaderGroupEncryptionKeys(UA_Server *server, const UA_NodeId reader
     return rg->config.securityPolicy->
         setSecurityKeys(rg->securityPolicyContext, &signingKey,
                         &encryptingKey, &keyNonce);
+}
+
+UA_StatusCode
+UA_Server_setReaderGroupEncryptionKeys(UA_Server *server, const UA_NodeId readerGroup,
+                                       UA_UInt32 securityTokenId,
+                                       const UA_ByteString signingKey,
+                                       const UA_ByteString encryptingKey,
+                                       const UA_ByteString keyNonce) {
+    UA_LOCK(&server->serviceMutex);
+    UA_StatusCode res = setReaderGroupEncryptionKeys(server, readerGroup,
+                                                     securityTokenId, signingKey,
+                                                     encryptingKey, keyNonce);
+    UA_UNLOCK(&server->serviceMutex);
+    return res;
 }
 #endif
 

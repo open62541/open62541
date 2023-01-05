@@ -38,13 +38,18 @@ UA_PubSubConnectionConfig_copy(const UA_PubSubConnectionConfig *src,
 UA_StatusCode
 UA_Server_getPubSubConnectionConfig(UA_Server *server, const UA_NodeId connection,
                                     UA_PubSubConnectionConfig *config) {
-    if(!config)
+    UA_LOCK(&server->serviceMutex);
+    if(!config) {
+        UA_UNLOCK(&server->serviceMutex);
         return UA_STATUSCODE_BADINVALIDARGUMENT;
+    }
     UA_PubSubConnection *currentPubSubConnection =
         UA_PubSubConnection_findConnectionbyId(server, connection);
-    if(!currentPubSubConnection)
-        return UA_STATUSCODE_BADNOTFOUND;
-    return UA_PubSubConnectionConfig_copy(currentPubSubConnection->config, config);
+    UA_StatusCode res = UA_STATUSCODE_BADNOTFOUND;
+    if(currentPubSubConnection)
+        res = UA_PubSubConnectionConfig_copy(currentPubSubConnection->config, config);
+    UA_UNLOCK(&server->serviceMutex);
+    return res;
 }
 
 UA_PubSubConnection *

@@ -66,14 +66,24 @@ UA_PublishedDataSetConfig_copy(const UA_PublishedDataSetConfig *src,
 }
 
 UA_StatusCode
-UA_Server_getPublishedDataSetConfig(UA_Server *server, const UA_NodeId pds,
-                                    UA_PublishedDataSetConfig *config) {
+getPublishedDataSetConfig(UA_Server *server, const UA_NodeId pds,
+                          UA_PublishedDataSetConfig *config) {
     if(!config)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     UA_PublishedDataSet *currentPDS = UA_PublishedDataSet_findPDSbyId(server, pds);
-    if(!currentPDS)
-        return UA_STATUSCODE_BADNOTFOUND;
-    return UA_PublishedDataSetConfig_copy(&currentPDS->config, config);
+    UA_StatusCode res = UA_STATUSCODE_BADNOTFOUND;
+    if(currentPDS)
+        res = UA_PublishedDataSetConfig_copy(&currentPDS->config, config);
+    return res;
+}
+
+UA_StatusCode
+UA_Server_getPublishedDataSetConfig(UA_Server *server, const UA_NodeId pds,
+                                    UA_PublishedDataSetConfig *config) {
+    UA_LOCK(&server->serviceMutex);
+    UA_StatusCode res = getPublishedDataSetConfig(server, pds, config);
+    UA_UNLOCK(&server->serviceMutex);
+    return res;
 }
 
 UA_StatusCode
@@ -81,10 +91,13 @@ UA_Server_getPublishedDataSetMetaData(UA_Server *server, const UA_NodeId pds,
                                       UA_DataSetMetaDataType *metaData) {
     if(!metaData)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
+    UA_LOCK(&server->serviceMutex);
     UA_PublishedDataSet *currentPDS = UA_PublishedDataSet_findPDSbyId(server, pds);
-    if(!currentPDS)
-        return UA_STATUSCODE_BADNOTFOUND;
-    return UA_DataSetMetaDataType_copy(&currentPDS->dataSetMetaData, metaData);
+    UA_StatusCode res = UA_STATUSCODE_BADNOTFOUND;
+    if(currentPDS)
+        res = UA_DataSetMetaDataType_copy(&currentPDS->dataSetMetaData, metaData);
+    UA_UNLOCK(&server->serviceMutex);
+    return res;
 }
 
 UA_PublishedDataSet *
@@ -271,10 +284,10 @@ generateFieldMetaData(UA_Server *server, UA_PublishedDataSet *pds,
     return UA_STATUSCODE_GOOD;
 }
 
-static UA_DataSetFieldResult
-addDataSetField(UA_Server *server, const UA_NodeId publishedDataSet,
-                const UA_DataSetFieldConfig *fieldConfig,
-                UA_NodeId *fieldIdentifier) {
+UA_DataSetFieldResult
+UA_DataSetField_create(UA_Server *server, const UA_NodeId publishedDataSet,
+                       const UA_DataSetFieldConfig *fieldConfig,
+                       UA_NodeId *fieldIdentifier) {
     UA_DataSetFieldResult result;
     memset(&result, 0, sizeof(UA_DataSetFieldResult));
     if(!fieldConfig) {
@@ -383,7 +396,7 @@ UA_Server_addDataSetField(UA_Server *server, const UA_NodeId publishedDataSet,
                           UA_NodeId *fieldIdentifier) {
     UA_LOCK(&server->serviceMutex);
     UA_DataSetFieldResult res =
-        addDataSetField(server, publishedDataSet, fieldConfig, fieldIdentifier);
+        UA_DataSetField_create(server, publishedDataSet, fieldConfig, fieldIdentifier);
     UA_UNLOCK(&server->serviceMutex);
     return res;
 }
@@ -509,10 +522,13 @@ UA_Server_getDataSetFieldConfig(UA_Server *server, const UA_NodeId dsf,
                                 UA_DataSetFieldConfig *config) {
     if(!config)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
+    UA_LOCK(&server->serviceMutex);
     UA_DataSetField *currentDataSetField = UA_DataSetField_findDSFbyId(server, dsf);
-    if(!currentDataSetField)
-        return UA_STATUSCODE_BADNOTFOUND;
-    return UA_DataSetFieldConfig_copy(&currentDataSetField->config, config);
+    UA_StatusCode res = UA_STATUSCODE_BADNOTFOUND;
+    if(currentDataSetField)
+        res = UA_DataSetFieldConfig_copy(&currentDataSetField->config, config);
+    UA_UNLOCK(&server->serviceMutex);
+    return res;
 }
 
 UA_DataSetField *
