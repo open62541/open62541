@@ -474,10 +474,10 @@ UA_PubSubConnection_regist(UA_Server *server, UA_NodeId *connectionIdentifier,
     return retval;
 }
 
-static UA_AddPublishedDataSetResult
-addPublishedDataSet(UA_Server *server,
-                    const UA_PublishedDataSetConfig *publishedDataSetConfig,
-                    UA_NodeId *pdsIdentifier) {
+UA_AddPublishedDataSetResult
+UA_PublishedDataSet_create(UA_Server *server,
+                           const UA_PublishedDataSetConfig *publishedDataSetConfig,
+                           UA_NodeId *pdsIdentifier) {
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
 
     UA_AddPublishedDataSetResult result = {UA_STATUSCODE_BADINVALIDARGUMENT, 0, NULL, {0, 0}};
@@ -600,7 +600,7 @@ UA_Server_addPublishedDataSet(UA_Server *server,
                               UA_NodeId *pdsIdentifier) {
     UA_LOCK(&server->serviceMutex);
     UA_AddPublishedDataSetResult res =
-        addPublishedDataSet(server, publishedDataSetConfig, pdsIdentifier);
+        UA_PublishedDataSet_create(server, publishedDataSetConfig, pdsIdentifier);
     UA_UNLOCK(&server->serviceMutex);
     return res;
 }

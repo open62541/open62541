@@ -58,9 +58,9 @@ START_TEST(AddPublisherUsingBinaryFile) {
             }
         }
     }
-    ck_assert_int_eq(connectionCount, 1);
-    ck_assert_int_eq(writerGroupCount, 1);
-    ck_assert_int_eq(dataSetWriterCount, 1);
+    ck_assert_uint_eq(connectionCount, 1);
+    ck_assert_uint_eq(writerGroupCount, 1);
+    ck_assert_uint_eq(dataSetWriterCount, 1);
     UA_ByteString_clear(&publisherConfiguration);
 } END_TEST
 
@@ -91,9 +91,9 @@ START_TEST(AddSubscriberUsingBinaryFile) {
             }
         }
     }
-    ck_assert_int_eq(connectionCount, 1);
-    ck_assert_int_eq(readerGroupCount, 1);
-    ck_assert_int_eq(dataSetReaderCount, 1);
+    ck_assert_uint_eq(connectionCount, 1);
+    ck_assert_uint_eq(readerGroupCount, 1);
+    ck_assert_uint_eq(dataSetReaderCount, 1);
     UA_ByteString_clear(&subscriberConfiguration);
 } END_TEST
 

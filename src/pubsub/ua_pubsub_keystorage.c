@@ -32,9 +32,7 @@ UA_Server_findPubSubSecurityPolicy(UA_Server *server, const UA_String *securityP
         return UA_STATUSCODE_BADINVALIDARGUMENT;
 
     UA_StatusCode retval = UA_STATUSCODE_BADNOTFOUND;
-
-    UA_ServerConfig *config = UA_Server_getConfig(server);
-
+    UA_ServerConfig *config = &server->config;
     for(size_t i = 0; i < config->pubSubConfig.securityPoliciesSize; i++) {
         if(UA_String_equal(securityPolicyUri,
                            &config->pubSubConfig.securityPolicies[i].policyUri)) {
@@ -201,22 +199,17 @@ UA_PubSubKeyStorage_push(UA_PubSubKeyStorage *keyStorage, const UA_ByteString *k
 
 UA_StatusCode
 UA_PubSubKeyStorage_addKeyRolloverCallback(UA_Server *server,
-                                          UA_PubSubKeyStorage *keyStorage,
-                                          UA_ServerCallback callback,
-                                          UA_Duration timeToNextMs,
-                                          UA_UInt64 *callbackID) {
+                                           UA_PubSubKeyStorage *keyStorage,
+                                           UA_ServerCallback callback,
+                                           UA_Duration timeToNextMs,
+                                           UA_UInt64 *callbackID) {
     if(!server || !keyStorage || !callback || timeToNextMs <= 0)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
-
-    UA_StatusCode retval = UA_STATUSCODE_GOOD;
-    UA_DateTime now = UA_DateTime_nowMonotonic();
-
-    UA_DateTime dateTimeToNextKey = now + (UA_DateTime)(UA_DATETIME_MSEC * timeToNextMs);
-
-    retval = UA_Server_addTimedCallback(server, callback, keyStorage, dateTimeToNextKey,
-                                        callbackID);
-
-    return retval;
+    UA_DateTime dateTimeToNextKey = UA_DateTime_nowMonotonic() +
+        (UA_DateTime)(UA_DATETIME_MSEC * timeToNextMs);
+    UA_EventLoop *el = server->config.eventLoop;
+    return el->addTimedCallback(el, (UA_Callback)callback, server, keyStorage,
+                                dateTimeToNextKey, callbackID);
 }
 
 static UA_StatusCode

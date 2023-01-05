@@ -44,10 +44,13 @@ UA_Server_getDataSetWriterConfig(UA_Server *server, const UA_NodeId dsw,
                                  UA_DataSetWriterConfig *config) {
     if(!config)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
+    UA_LOCK(&server->serviceMutex);
     UA_DataSetWriter *currentDataSetWriter = UA_DataSetWriter_findDSWbyId(server, dsw);
-    if(!currentDataSetWriter)
-        return UA_STATUSCODE_BADNOTFOUND;
-    return UA_DataSetWriterConfig_copy(&currentDataSetWriter->config, config);
+    UA_StatusCode res = UA_STATUSCODE_BADNOTFOUND;
+    if(currentDataSetWriter)
+        res = UA_DataSetWriterConfig_copy(&currentDataSetWriter->config, config);
+    UA_UNLOCK(&server->serviceMutex);
+    return res;
 }
 
 UA_StatusCode
@@ -55,12 +58,17 @@ UA_Server_DataSetWriter_getState(UA_Server *server, UA_NodeId dataSetWriterIdent
                                UA_PubSubState *state) {
     if((server == NULL) || (state == NULL))
         return UA_STATUSCODE_BADINVALIDARGUMENT;
+    UA_LOCK(&server->serviceMutex);
     UA_DataSetWriter *currentDataSetWriter =
         UA_DataSetWriter_findDSWbyId(server, dataSetWriterIdentifier);
-    if(currentDataSetWriter == NULL)
-        return UA_STATUSCODE_BADNOTFOUND;
-    *state = currentDataSetWriter->state;
-    return UA_STATUSCODE_GOOD;
+    UA_StatusCode res = UA_STATUSCODE_GOOD;
+    if(currentDataSetWriter) {
+        *state = currentDataSetWriter->state;
+    } else {
+        res = UA_STATUSCODE_BADNOTFOUND;
+    }
+    UA_UNLOCK(&server->serviceMutex);
+    return res;
 }
 
 UA_DataSetWriter *
@@ -186,7 +194,7 @@ UA_DataSetWriter_setPubSubState(UA_Server *server,
     }
     if (state != oldState) {
         /* inform application about state change */
-        UA_ServerConfig *pConfig = UA_Server_getConfig(server);
+        UA_ServerConfig *pConfig = &server->config;
         if(pConfig->pubSubConfig.stateChangeCallback != 0) {
             pConfig->pubSubConfig.
                 stateChangeCallback(server, &dataSetWriter->identifier, state, cause);
@@ -327,9 +335,9 @@ UA_Server_addDataSetWriter(UA_Server *server,
                            const UA_NodeId writerGroup, const UA_NodeId dataSet,
                            const UA_DataSetWriterConfig *dataSetWriterConfig,
                            UA_NodeId *writerIdentifier) {
+    UA_LOCK(&server->serviceMutex);
     /* Delete the reserved IDs if the related session no longer exists. */
     UA_PubSubManager_freeIds(server);
-    UA_LOCK(&server->serviceMutex);
     UA_StatusCode res = UA_DataSetWriter_create(server, writerGroup, dataSet,
                                                 dataSetWriterConfig, writerIdentifier);
     UA_UNLOCK(&server->serviceMutex);

@@ -68,9 +68,18 @@ UA_PublishedDataSet_findPDSbyId(UA_Server *server, UA_NodeId identifier);
 UA_PublishedDataSet *
 UA_PublishedDataSet_findPDSbyName(UA_Server *server, UA_String name);
 
+UA_AddPublishedDataSetResult
+UA_PublishedDataSet_create(UA_Server *server,
+                           const UA_PublishedDataSetConfig *publishedDataSetConfig,
+                           UA_NodeId *pdsIdentifier);
+
 void
 UA_PublishedDataSet_clear(UA_Server *server,
                           UA_PublishedDataSet *publishedDataSet);
+
+UA_StatusCode
+getPublishedDataSetConfig(UA_Server *server, const UA_NodeId pds,
+                          UA_PublishedDataSetConfig *config);
 
 typedef struct UA_StandaloneSubscribedDataSet{
     UA_StandaloneSubscribedDataSetConfig config;
@@ -387,6 +396,11 @@ UA_DataSetField_findDSFbyId(UA_Server *server, UA_NodeId identifier);
 
 UA_DataSetFieldResult
 removeDataSetField(UA_Server *server, const UA_NodeId dsf);
+
+UA_DataSetFieldResult
+UA_DataSetField_create(UA_Server *server, const UA_NodeId publishedDataSet,
+                       const UA_DataSetFieldConfig *fieldConfig,
+                       UA_NodeId *fieldIdentifier);
 
 void
 UA_PubSubDataSetField_sampleValue(UA_Server *server, UA_DataSetField *field,

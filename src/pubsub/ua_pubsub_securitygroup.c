@@ -348,11 +348,14 @@ UA_StatusCode
 UA_Server_removeSecurityGroup(UA_Server *server, const UA_NodeId securityGroup) {
     UA_LOCK(&server->serviceMutex);
     UA_SecurityGroup *sg = UA_SecurityGroup_findSGbyId(server, securityGroup);
-    if(!sg)
-        return UA_STATUSCODE_BADBOUNDNOTFOUND;
-    removeSecurityGroup(server, sg);
+    UA_StatusCode res = UA_STATUSCODE_GOOD;
+    if(sg) {
+        removeSecurityGroup(server, sg);
+    } else {
+        res = UA_STATUSCODE_BADBOUNDNOTFOUND;
+    }
     UA_UNLOCK(&server->serviceMutex);
-    return UA_STATUSCODE_GOOD;
+    return res;
 }
 
 #endif
