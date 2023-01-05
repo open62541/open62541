@@ -751,37 +751,15 @@ browseWithNode(struct BrowseContext *bc, const UA_NodeHead *head ) {
  * Including the BrowseDescription. Returns whether there are remaining
  * references. */
 static void
-browse(struct BrowseContext *bc, UA_BrowseResult *result) {
+browse(struct BrowseContext *bc) {
+    /* Is the browsedirection valid? */
     struct ContinuationPoint *cp = bc->cp;
     const UA_BrowseDescription *descr = &cp->browseDescription;
-
-    /* Is the browsedirection valid? */
     if(descr->browseDirection != UA_BROWSEDIRECTION_BOTH &&
        descr->browseDirection != UA_BROWSEDIRECTION_FORWARD &&
        descr->browseDirection != UA_BROWSEDIRECTION_INVERSE) {
-        result->statusCode = UA_STATUSCODE_BADBROWSEDIRECTIONINVALID;
+        bc->status = UA_STATUSCODE_BADBROWSEDIRECTIONINVALID;
         return;
-    }
-
-    /* Is the reference type valid? */
-    if(!UA_NodeId_isNull(&descr->referenceTypeId)) {
-        const UA_Node *reftype =
-            UA_NODESTORE_GET_SELECTIVE(bc->server, &descr->referenceTypeId,
-                                       UA_NODEATTRIBUTESMASK_NODECLASS,
-                                       UA_REFERENCETYPESET_NONE,
-                                       UA_BROWSEDIRECTION_INVALID);
-        if(!reftype) {
-            result->statusCode = UA_STATUSCODE_BADREFERENCETYPEIDINVALID;
-            return;
-        }
-
-        UA_Boolean isRef = (reftype->head.nodeClass == UA_NODECLASS_REFERENCETYPE);
-        UA_NODESTORE_RELEASE(bc->server, reftype);
-
-        if(!isRef) {
-            result->statusCode = UA_STATUSCODE_BADREFERENCETYPEIDINVALID;
-            return;
-        }
     }
 
     /* Get node with only the selected references and attributes */
@@ -808,6 +786,29 @@ browse(struct BrowseContext *bc, UA_BrowseResult *result) {
     /* Browse the node */
     browseWithNode(bc, &node->head);
     UA_NODESTORE_RELEASE(bc->server, node);
+
+    /* Is the reference type valid? This is very infrequent. So we only test
+     * this if browsing came up empty. If the node has references of that type,
+     * we know the reftype to be good. */
+    if(bc->rr.size == 0 && !UA_NodeId_isNull(&descr->referenceTypeId)) {
+        const UA_Node *reftype =
+            UA_NODESTORE_GET_SELECTIVE(bc->server, &descr->referenceTypeId,
+                                       UA_NODEATTRIBUTESMASK_NODECLASS,
+                                       UA_REFERENCETYPESET_NONE,
+                                       UA_BROWSEDIRECTION_INVALID);
+        if(!reftype) {
+            bc->status = UA_STATUSCODE_BADREFERENCETYPEIDINVALID;
+            return;
+        }
+
+        UA_Boolean isRef = (reftype->head.nodeClass == UA_NODECLASS_REFERENCETYPE);
+        UA_NODESTORE_RELEASE(bc->server, reftype);
+
+        if(!isRef) {
+            bc->status = UA_STATUSCODE_BADREFERENCETYPEIDINVALID;
+            return;
+        }
+    }
 }
 
 /* Start to browse with no previous cp */
@@ -862,7 +863,7 @@ Operation_Browse(UA_Server *server, UA_Session *session, const UA_UInt32 *maxref
         return;
 
     /* Perform the browse */
-    browse(&bc, result);
+    browse(&bc);
 
     if(bc.status != UA_STATUSCODE_GOOD || bc.rr.size == 0) {
         /* No relevant references, return array of length zero */
@@ -1023,7 +1024,7 @@ Operation_BrowseNext(UA_Server *server, UA_Session *session,
         return;
 
     /* Continue browsing */
-    browse(&bc, result);
+    browse(&bc);
 
     if(bc.status != UA_STATUSCODE_GOOD || bc.rr.size == 0) {
         /* No relevant references, return array of length zero */
@@ -1046,12 +1047,13 @@ Operation_BrowseNext(UA_Server *server, UA_Session *session,
         UA_BrowseResult_clear(result);
         result->statusCode = bc.status;
     }
+    return;
 
  remove_cp:
-        /* Remove the cp */
-        *prev = ContinuationPoint_clear(cp);
-        UA_free(cp);
-        ++session->availableContinuationPoints;
+    /* Remove the cp */
+    *prev = ContinuationPoint_clear(cp);
+    UA_free(cp);
+    ++session->availableContinuationPoints;
 }
 
 void
