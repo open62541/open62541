@@ -808,22 +808,6 @@ browse(struct BrowseContext *bc, UA_BrowseResult *result) {
     /* Browse the node */
     browseWithNode(bc, &node->head);
     UA_NODESTORE_RELEASE(bc->server, node);
-
-    if(bc->status != UA_STATUSCODE_GOOD) {
-        result->statusCode = bc->status;
-        RefResult_clear(&bc->rr);
-        return;
-    }
-
-    /* Move results */
-    if(bc->rr.size > 0) {
-        result->references = bc->rr.descr;
-        result->referencesSize = bc->rr.size;
-    } else {
-        /* No relevant references, return array of length zero */
-        RefResult_clear(&bc->rr);
-        result->references = (UA_ReferenceDescription*)UA_EMPTY_ARRAY_SENTINEL;
-    }
 }
 
 /* Start to browse with no previous cp */
@@ -880,8 +864,20 @@ Operation_Browse(UA_Server *server, UA_Session *session, const UA_UInt32 *maxref
     /* Perform the browse */
     browse(&bc, result);
 
+    if(bc.status != UA_STATUSCODE_GOOD || bc.rr.size == 0) {
+        /* No relevant references, return array of length zero */
+        RefResult_clear(&bc.rr);
+        result->references = (UA_ReferenceDescription*)UA_EMPTY_ARRAY_SENTINEL;
+        result->statusCode = bc.status;
+        return;
+    }
+
+    /* Move results */
+    result->references = bc.rr.descr;
+    result->referencesSize = bc.rr.size;
+
     /* Exit early if done */
-    if(bc.done || result->statusCode != UA_STATUSCODE_GOOD)
+    if(bc.done)
         return;
 
     /* Persist the continuation point */
@@ -1029,20 +1025,33 @@ Operation_BrowseNext(UA_Server *server, UA_Session *session,
     /* Continue browsing */
     browse(&bc, result);
 
-    if(bc.done || result->statusCode != UA_STATUSCODE_GOOD) {
+    if(bc.status != UA_STATUSCODE_GOOD || bc.rr.size == 0) {
+        /* No relevant references, return array of length zero */
+        RefResult_clear(&bc.rr);
+        result->references = (UA_ReferenceDescription*)UA_EMPTY_ARRAY_SENTINEL;
+        result->statusCode = bc.status;
+        goto remove_cp;
+    }
+
+    /* Move results */
+    result->references = bc.rr.descr;
+    result->referencesSize = bc.rr.size;
+
+    if(bc.done)
+        goto remove_cp;
+
+    /* Return the cp identifier to signal that there are references left */
+    bc.status = UA_ByteString_copy(&cp->identifier, &result->continuationPoint);
+    if(bc.status != UA_STATUSCODE_GOOD) {
+        UA_BrowseResult_clear(result);
+        result->statusCode = bc.status;
+    }
+
+ remove_cp:
         /* Remove the cp */
         *prev = ContinuationPoint_clear(cp);
         UA_free(cp);
         ++session->availableContinuationPoints;
-    } else {
-        /* Return the cp identifier to signal that there are references left */
-        UA_StatusCode retval =
-            UA_ByteString_copy(&cp->identifier, &result->continuationPoint);
-        if(retval != UA_STATUSCODE_GOOD) {
-            UA_BrowseResult_clear(result);
-            result->statusCode = retval;
-        }
-    }
 }
 
 void
