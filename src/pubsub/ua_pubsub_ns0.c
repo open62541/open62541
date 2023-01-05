@@ -1957,7 +1957,7 @@ setSecurityKeysLocked(UA_Server *server, const UA_NodeId *sessionId, void *sessi
     UA_Duration msKeyLifeTime = *(UA_Duration *)input[6].data;
 
     UA_PubSubKeyStorage *ks =
-        UA_Server_findKeyStorage(server, *securityGroupId);
+        UA_PubSubKeyStorage_findKeyStorage(server, *securityGroupId);
     if(!ks)
         return UA_STATUSCODE_BADNOTFOUND;
 
@@ -1965,8 +1965,8 @@ setSecurityKeysLocked(UA_Server *server, const UA_NodeId *sessionId, void *sessi
         return UA_STATUSCODE_BADSECURITYPOLICYREJECTED;
 
     if(ks->keyListSize == 0) {
-        retval = UA_PubSubKeyStorage_storeSecurityKeys(
-            server, ks, currentKeyId, currentKey, futureKeys, futureKeySize,
+        retval = UA_PubSubKeyStorage_storeSecurityKeys(server, ks, currentKeyId,
+                                                       currentKey, futureKeys, futureKeySize,
             msKeyLifeTime);
         if(retval != UA_STATUSCODE_GOOD)
             return retval;
@@ -2054,7 +2054,7 @@ getSecurityKeysLocked(UA_Server *server, const UA_NodeId *sessionId, void *sessi
     UA_UInt32 requestedKeyCount = *(UA_UInt32 *)input[2].data;
 
     UA_PubSubKeyStorage *ks =
-        UA_Server_findKeyStorage(server, *securityGroupId);
+        UA_PubSubKeyStorage_findKeyStorage(server, *securityGroupId);
     if(!ks)
         return UA_STATUSCODE_BADNOTFOUND;
 

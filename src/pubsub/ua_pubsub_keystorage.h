@@ -202,7 +202,7 @@ typedef struct UA_PubSubKeyStorage {
  * @return Pointer to the keystorage on success, null pointer on failure
  */
 UA_PubSubKeyStorage *
-UA_Server_findKeyStorage(UA_Server *server, UA_String securityGroupId);
+UA_PubSubKeyStorage_findKeyStorage(UA_Server *server, UA_String securityGroupId);
 
 /**
  * @brief retreives the security policy pointer from the PubSub configuration by
@@ -213,9 +213,8 @@ UA_Server_findKeyStorage(UA_Server *server, UA_String securityGroupId);
  * @param policy the pointer to the security policy
  * @return UA_StatusCode return status code
  */
-UA_StatusCode
-UA_Server_findPubSubSecurityPolicy(UA_Server *server, const UA_String *securityPolicyUri,
-                                   UA_PubSubSecurityPolicy **policy);
+UA_PubSubSecurityPolicy *
+findPubSubSecurityPolicy(UA_Server *server, const UA_String *securityPolicyUri);
 
 /**
  * @brief Deletes the keystorage from the server and its members

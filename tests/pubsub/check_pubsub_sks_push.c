@@ -280,10 +280,13 @@ START_TEST(TestSetSecurityKeys_GOOD) {
 
     UA_StatusCode retval = encyrptedclientconnect(client);
 
-    UA_PubSubKeyStorage *ks = UA_Server_findKeyStorage(server, securityGroupId);
+    UA_LOCK(&server->serviceMutex);
+    UA_PubSubKeyStorage *ks = UA_PubSubKeyStorage_findKeyStorage(server, securityGroupId);
+    UA_UNLOCK(&server->serviceMutex);
 
     retval = callSetSecurityKey(client, securityGroupId, currentTokenId, futureKeySize);
-    ck_assert_msg(retval == UA_STATUSCODE_GOOD, "Expected StatusCode Good but erorr code : %s \n", UA_StatusCode_name(retval));
+    ck_assert_msg(retval == UA_STATUSCODE_GOOD, "Expected StatusCode Good but erorr code : %s \n",
+                  UA_StatusCode_name(retval));
     ck_assert_uint_eq(ks->currentItem->keyID, currentTokenId);
 
     startingTokenId = currentTokenId;
@@ -304,7 +307,9 @@ START_TEST(TestSetSecurityKeys_UpdateCurrentKeyFromExistingList){
 
     UA_StatusCode retval = encyrptedclientconnect(client);
 
-    UA_PubSubKeyStorage *ks = UA_Server_findKeyStorage(server, securityGroupId);
+    UA_LOCK(&server->serviceMutex);
+    UA_PubSubKeyStorage *ks = UA_PubSubKeyStorage_findKeyStorage(server, securityGroupId);
+    UA_UNLOCK(&server->serviceMutex);
 
     retval = callSetSecurityKey(client, securityGroupId, currentTokenId, futureKeySize);
     ck_assert_msg(retval == UA_STATUSCODE_GOOD, "Expected StatusCode Good but erorr code : %s \n", UA_StatusCode_name(retval));
@@ -324,7 +329,10 @@ START_TEST(TestSetSecurityKeys_UpdateCurrentKeyFromExistingListAndAddNewFutureKe
     size_t keyListSize;
     UA_StatusCode retval = encyrptedclientconnect(client);
 
-    UA_PubSubKeyStorage *ks = UA_Server_findKeyStorage(server, securityGroupId);
+    UA_LOCK(&server->serviceMutex);
+    UA_PubSubKeyStorage *ks = UA_PubSubKeyStorage_findKeyStorage(server, securityGroupId);
+    UA_UNLOCK(&server->serviceMutex);
+
     retval = callSetSecurityKey(client, securityGroupId, currentTokenId, futureKeySize);
     ck_assert_msg(retval == UA_STATUSCODE_GOOD, "Expected StatusCode Good but erorr code : %s \n", UA_StatusCode_name(retval));
 
@@ -353,7 +361,9 @@ START_TEST(TestSetSecurityKeys_ReplaceExistingKeyListWithFetchedKeyList){
 
     UA_StatusCode retval = encyrptedclientconnect(client);
 
-    UA_PubSubKeyStorage *ks = UA_Server_findKeyStorage(server, securityGroupId);
+    UA_LOCK(&server->serviceMutex);
+    UA_PubSubKeyStorage *ks = UA_PubSubKeyStorage_findKeyStorage(server, securityGroupId);
+    UA_UNLOCK(&server->serviceMutex);
 
     retval = callSetSecurityKey(client, securityGroupId, currentTokenId, futureKeySize);
     ck_assert_msg(retval == UA_STATUSCODE_GOOD, "Expected StatusCode Good but erorr code : %s \n", UA_StatusCode_name(retval));

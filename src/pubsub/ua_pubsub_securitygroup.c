@@ -143,22 +143,20 @@ static UA_StatusCode
 initializeKeyStorageWithKeys(UA_Server *server, UA_SecurityGroup *securityGroup) {
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
 
-    UA_PubSubSecurityPolicy *policy = NULL;
-    UA_StatusCode retval =
-        UA_Server_findPubSubSecurityPolicy(server,
-                                           &securityGroup->config.securityPolicyUri,
-                                           &policy);
-    if(retval != UA_STATUSCODE_GOOD)
-        return retval;
+    UA_PubSubSecurityPolicy *policy =
+        findPubSubSecurityPolicy(server, &securityGroup->config.securityPolicyUri);
+    if(!policy)
+        return UA_STATUSCODE_BADSECURITYPOLICYREJECTED;
 
     UA_PubSubKeyStorage *ks = (UA_PubSubKeyStorage *)
         UA_calloc(1, sizeof(UA_PubSubKeyStorage));
     if(!ks)
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
-    retval = UA_PubSubKeyStorage_init(server, ks, &securityGroup->securityGroupId,
-                                      policy, securityGroup->config.maxPastKeyCount,
-                                      securityGroup->config.maxFutureKeyCount);
+    UA_StatusCode retval =
+        UA_PubSubKeyStorage_init(server, ks, &securityGroup->securityGroupId,
+                                 policy, securityGroup->config.maxPastKeyCount,
+                                 securityGroup->config.maxFutureKeyCount);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_free(ks);
         return retval;
@@ -216,9 +214,8 @@ addSecurityGroup(UA_Server *server, UA_NodeId securityGroupFolderNodeId,
     if(UA_SecurityGroup_findSGbyName(server, securityGroupConfig->securityGroupName))
         return UA_STATUSCODE_BADNODEIDEXISTS;
 
-    UA_PubSubSecurityPolicy *policy = NULL;
-    UA_Server_findPubSubSecurityPolicy(server, &securityGroupConfig->securityPolicyUri,
-                                       &policy);
+    UA_PubSubSecurityPolicy *policy =
+        findPubSubSecurityPolicy(server, &securityGroupConfig->securityPolicyUri);
     if(!policy)
         return UA_STATUSCODE_BADSECURITYPOLICYREJECTED;
 
