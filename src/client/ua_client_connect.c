@@ -1249,8 +1249,9 @@ __Client_networkCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
         goto continue_connect;
     }
 
-    /* The connection has oepened, set the SecureChannel state to reflect this.
-     * Otherwise later consistency checks for the received messages fail. */
+    /* The connection has opened on the TCP level. Set the SecureChannel state
+     * to reflect this. Otherwise later consistency checks for the received
+     * messages fail. */
     if(client->channel.state < UA_SECURECHANNELSTATE_CONNECTED)
         client->channel.state = UA_SECURECHANNELSTATE_CONNECTED;
 
@@ -1259,14 +1260,23 @@ __Client_networkCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
         UA_SecureChannel_processBuffer(&client->channel, client,
                                        processServiceResponse, &msg);
     if(res != UA_STATUSCODE_GOOD) {
-        UA_LOG_WARNING(&client->config.logger, UA_LOGCATEGORY_CLIENT,
-                       "Processing the message returned the error code %s",
-                       UA_StatusCode_name(res));
+        UA_LOG_ERROR(&client->config.logger, UA_LOGCATEGORY_CLIENT,
+                     "Processing the message returned the error code %s",
+                     UA_StatusCode_name(res));
+
+        /* If connecting has failed before the SecureChannel has opened, then
+         * the client cannot recover. Set the connectStatus to reflect this. The
+         * application is notified when the socket has closed. */
+        if(client->channel.state != UA_SECURECHANNELSTATE_OPEN)
+            client->connectStatus = res;
 
         /* Close the SecureChannel, but don't notify the client right away.
          * Return immediately. notifyClientState will be called in the next
          * callback from the ConnectionManager when the connection closes with a
-         * StatusCode. */
+         * StatusCode.
+         *
+         * If the connectStatus is still good (the SecureChannel was fully
+         * opened before), then a reconnect is attempted. */
         closeSecureChannel(client);
         UA_UNLOCK(&client->clientMutex);
         return;
