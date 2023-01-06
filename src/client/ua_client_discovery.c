@@ -9,6 +9,34 @@
 
 #include "ua_client_internal.h"
 
+/* Helper method for additional warnings */
+void
+Client_warnEndpointsResult(UA_Client *client,
+                           const UA_GetEndpointsResponse *response,
+                           const UA_String *endpointUrl) {
+    if(response->endpointsSize == 0) {
+        UA_LOG_WARNING(&client->config.logger, UA_LOGCATEGORY_CLIENT,
+                       "The server did not return any endpoints. "
+                       "Did you use the correct endpointUrl?");
+        return;
+    }
+
+    if(!UA_String_equal(endpointUrl, &response->endpoints[0].endpointUrl) ||
+       (response->endpoints[0].server.discoveryUrlsSize > 0 &&
+        !UA_String_equal(endpointUrl, &response->endpoints[0].server.discoveryUrls[0]))) {
+        UA_String *betterUrl = &response->endpoints[0].endpointUrl;
+        if(response->endpoints[0].server.discoveryUrlsSize > 0)
+            betterUrl = &response->endpoints[0].server.discoveryUrls[0];
+        UA_LOG_WARNING(&client->config.logger, UA_LOGCATEGORY_CLIENT,
+                       "The server returned Endpoints with a different EndpointUrl %.*s than was "
+                       "used to initialize the connection: %.*s. Some servers require a complete "
+                       "match of the EndpointUrl/DiscoveryUrl (including the path) "
+                       "to return all endpoints.",
+                       (int)betterUrl->length, betterUrl->data,
+                       (int)endpointUrl->length, endpointUrl->data);
+    }
+}
+
 /* Gets a list of endpoints. Memory is allocated for endpointDescription array */
 static UA_StatusCode
 getEndpointsInternal(UA_Client *client, const UA_String endpointUrl,
@@ -35,6 +63,10 @@ getEndpointsInternal(UA_Client *client, const UA_String endpointUrl,
         UA_GetEndpointsResponse_clear(&response);
         return retval;
     }
+
+    /* Warn if the Endpoints look incomplete / don't match the EndpointUrl */
+    Client_warnEndpointsResult(client, &response, &endpointUrl);
+
     *endpointDescriptions = response.endpoints;
     *endpointDescriptionsSize = response.endpointsSize;
     response.endpoints = NULL;

@@ -211,6 +211,11 @@ void processOPNResponse(UA_Client *client, const UA_ByteString *message);
 void closeSecureChannel(UA_Client *client);
 void cleanupSession(UA_Client *client);
 
+void
+Client_warnEndpointsResult(UA_Client *client,
+                           const UA_GetEndpointsResponse *response,
+                           const UA_String *endpointUrl);
+
 _UA_END_DECLS
 
 #endif /* UA_CLIENT_INTERNAL_H_ */
