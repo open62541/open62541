@@ -598,6 +598,9 @@ responseGetEndpoints(UA_Client *client, void *userdata, UA_UInt32 requestId,
         return;
     }
 
+    /* Warn if the Endpoints look incomplete / don't match the EndpointUrl */
+    Client_warnEndpointsResult(client, resp, &client->endpointUrl);
+
     UA_Boolean endpointFound = false;
     UA_Boolean tokenFound = false;
     const UA_String binaryTransport = UA_STRING("http://opcfoundation.org/UA-Profile/"
