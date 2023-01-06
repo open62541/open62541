@@ -166,6 +166,11 @@ connectIterate(UA_Client *client, UA_UInt32 timeout);
 UA_StatusCode
 receiveResponseAsync(UA_Client *client, UA_UInt32 timeout);
 
+void
+Client_warnEndpointsResult(UA_Client *client,
+                           const UA_GetEndpointsResponse *response,
+                           const UA_String *endpointUrl);
+
 _UA_END_DECLS
 
 #endif /* UA_CLIENT_INTERNAL_H_ */
