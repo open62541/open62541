@@ -8,7 +8,6 @@
 #include <open62541/server_config_default.h>
 
 #include <signal.h>
-#include <stdlib.h>
 
 UA_Boolean running = true;
 static void stopHandler(int sign) {
@@ -28,7 +27,7 @@ int main(int argc, char** argv) {
 
     /* Should the server networklayer block (with a timeout) until a message
        arrives or should it return immediately? */
-    UA_Boolean waitInternal = false;
+    UA_Boolean waitInternal = true;
 
     UA_StatusCode retval = UA_Server_run_startup(server);
     if(retval != UA_STATUSCODE_GOOD)
@@ -42,15 +41,7 @@ int main(int argc, char** argv) {
          * It will be handled on the next call, which may be too late for requesting clients.
          * if needed, the select with timeout on the multicast socket server->mdnsSocket (see example in mdnsd library)
          */
-        UA_UInt16 timeout = UA_Server_run_iterate(server, waitInternal);
-
-        /* Now we can use the max timeout to do something else. In this case, we
-           just sleep. (select is used as a platform-independent sleep
-           function.) */
-        struct timeval tv;
-        tv.tv_sec = 0;
-        tv.tv_usec = timeout * 1000;
-        select(0, NULL, NULL, NULL, &tv);
+        UA_Server_run_iterate(server, waitInternal);
     }
     retval = UA_Server_run_shutdown(server);
 
