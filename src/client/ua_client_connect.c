@@ -303,6 +303,7 @@ processERRResponse(UA_Client *client, const UA_ByteString *chunk) {
                              "Received an ERR response that could not be decoded "
                              "with StatusCode %s", UA_StatusCode_name(res));
         client->connectStatus = res;
+        closeSecureChannel(client);
         return;
     }
 
@@ -311,6 +312,7 @@ processERRResponse(UA_Client *client, const UA_ByteString *chunk) {
                          "reason: %.*s", UA_StatusCode_name(errMessage.error),
                          (int)errMessage.reason.length, errMessage.reason.data);
     client->connectStatus = errMessage.error;
+    closeSecureChannel(client);
     UA_TcpErrorMessage_clear(&errMessage);
 }
 
@@ -320,8 +322,8 @@ processACKResponse(UA_Client *client, const UA_ByteString *chunk) {
     if(channel->state != UA_SECURECHANNELSTATE_HEL_SENT) {
         UA_LOG_ERROR_CHANNEL(&client->config.logger, channel,
                              "SecureChannel not in the HEL-sent state");
-        closeSecureChannel(client);
         client->connectStatus = UA_STATUSCODE_BADSECURECHANNELCLOSED;
+        closeSecureChannel(client);
         return;
     }
 
@@ -527,10 +529,10 @@ sendOPNAsync(UA_Client *client, UA_Boolean renew) {
         UA_SecureChannel_sendAsymmetricOPNMessage(&client->channel, requestId, &opnSecRq,
                                                   &UA_TYPES[UA_TYPES_OPENSECURECHANNELREQUEST]);
     if(retval != UA_STATUSCODE_GOOD) {
-        client->connectStatus = retval;
         UA_LOG_ERROR(&client->config.logger, UA_LOGCATEGORY_SECURECHANNEL,
                       "Sending OPN message failed with error %s",
                       UA_StatusCode_name(retval));
+        client->connectStatus = retval;
         closeSecureChannel(client);
         return retval;
     }
@@ -581,6 +583,7 @@ responseActivateSession(UA_Client *client, void *userdata,
         } else {
             /* Something else is wrong. Give up. */
             client->connectStatus = ar->responseHeader.serviceResult;
+            closeSecureChannel(client);
         }
         UA_UNLOCK(&client->clientMutex);
         return;
@@ -691,6 +694,7 @@ responseGetEndpoints(UA_Client *client, void *userdata,
          * the connectStatus should come from there. */
         if(UA_SecureChannel_isConnected(&client->channel)) {
            client->connectStatus = resp->responseHeader.serviceResult;
+           closeSecureChannel(client);
            UA_LOG_ERROR(&client->config.logger, UA_LOGCATEGORY_CLIENT,
                         "GetEndpointRequest failed with error code %s",
                         UA_StatusCode_name(client->connectStatus));
@@ -867,10 +871,12 @@ responseGetEndpoints(UA_Client *client, void *userdata,
         UA_LOG_ERROR(&client->config.logger, UA_LOGCATEGORY_CLIENT,
                      "No suitable endpoint found");
         client->connectStatus = UA_STATUSCODE_BADINTERNALERROR;
+        closeSecureChannel(client);
     } else if(!tokenFound) {
         UA_LOG_ERROR(&client->config.logger, UA_LOGCATEGORY_CLIENT,
                      "No suitable UserTokenPolicy found for the possible endpoints");
         client->connectStatus = UA_STATUSCODE_BADINTERNALERROR;
+        closeSecureChannel(client);
     }
 
     /* Close the SecureChannel if a different SecurityPolicy is defined by the Endpoint */
@@ -1434,16 +1440,16 @@ connectSync(UA_Client *client) {
             break;
         now = UA_DateTime_nowMonotonic();
         if(maxDate < now) {
-            /* TODO: Close the SecureChannel properly */
-            client->connectStatus = UA_STATUSCODE_BADTIMEOUT;
-            return;
+            if(client->connectStatus == UA_STATUSCODE_GOOD)
+                client->connectStatus = UA_STATUSCODE_BADTIMEOUT;
+            closeSecureChannel(client);
         }
         UA_UNLOCK(&client->clientMutex);
         UA_StatusCode res = el->run(el, (UA_UInt32)((maxDate - now) / UA_DATETIME_MSEC));
         UA_LOCK(&client->clientMutex);
         if(res != UA_STATUSCODE_GOOD) {
-            closeSecureChannel(client);
             client->connectStatus = res;
+            closeSecureChannel(client);
         }
     }
 }
