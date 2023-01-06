@@ -1448,17 +1448,32 @@ connectSync(UA_Client *client) {
     /* Run the EventLoop until connected, connect fail or timeout. Write the
      * iterate result to the connectStatus. So we do not attempt to restore a
      * failed connection during the sync connect. */
-    while(client->connectStatus == UA_STATUSCODE_GOOD) {
+    while(true) {
+        /* If the connection has aborted (bad connectStatus), wait until the
+         * channel is truly closed */
+        if(client->connectStatus != UA_STATUSCODE_GOOD &&
+           client->channel.state == UA_SECURECHANNELSTATE_CLOSED)
+            break;
+
+        /* Sufficiently connected? */
         if(client->sessionState == UA_SESSIONSTATE_ACTIVATED)
             break;
         if(client->noSession && client->channel.state == UA_SECURECHANNELSTATE_OPEN)
             break;
+
+        /* Timeout -> abort */
         now = UA_DateTime_nowMonotonic();
         if(maxDate < now) {
             if(client->connectStatus == UA_STATUSCODE_GOOD)
                 client->connectStatus = UA_STATUSCODE_BADTIMEOUT;
             closeSecureChannel(client);
         }
+
+        /* Aborting. Run the EventLoop with a zero timeout. */
+        if(client->connectStatus != UA_STATUSCODE_GOOD)
+            maxDate = now;
+
+        /* Drop into the EventLoop */
         UA_UNLOCK(&client->clientMutex);
         UA_StatusCode res = el->run(el, (UA_UInt32)((maxDate - now) / UA_DATETIME_MSEC));
         UA_LOCK(&client->clientMutex);
