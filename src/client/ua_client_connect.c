@@ -824,15 +824,19 @@ responseGetEndpoints(UA_Client *client, void *userdata,
 
             /* Endpoint with matching usertokenpolicy found */
 
+            /* If not explicit PolicyUri for authentication is configured, use
+             * that from the TokenPolicy or (if that is not defined) from the
+             * Endpoint SecurityPolicy. */
+            UA_String *securityPolicyUri = &tokenPolicy->securityPolicyUri;
+            if(securityPolicyUri->length == 0)
+                securityPolicyUri = &endpoint->securityPolicyUri;
+            if(UA_String_isEmpty(&client->config.authSecurityPolicyUri))
+                UA_String_copy(securityPolicyUri, &client->config.authSecurityPolicyUri);
+
 #if UA_LOGLEVEL <= 300
             const char *securityModeNames[3] = {"None", "Sign", "SignAndEncrypt"};
             const char *userTokenTypeNames[4] = {"Anonymous", "UserName",
                                                  "Certificate", "IssuedToken"};
-            UA_String *securityPolicyUri = &tokenPolicy->securityPolicyUri;
-            if(securityPolicyUri->length == 0)
-                securityPolicyUri = &endpoint->securityPolicyUri;
-            UA_String_copy(securityPolicyUri, &client->config.authSecurityPolicyUri);
-
             /* Log the selected endpoint */
             UA_LOG_INFO(&client->config.logger, UA_LOGCATEGORY_CLIENT,
                         "Selected endpoint %lu in URL %.*s with SecurityMode "
