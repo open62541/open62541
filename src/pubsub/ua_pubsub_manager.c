@@ -52,23 +52,13 @@ UA_getTransportProtocolLayer(const UA_Server *server,
 
 static void
 UA_PubSubManager_addConnection(UA_PubSubManager *pubSubManager, UA_PubSubConnection *connection) {
-    if(pubSubManager->connectionsSize != 0) {
-        TAILQ_INSERT_TAIL(&pubSubManager->connections, connection, listEntry);
-    } else {
-        TAILQ_INIT(&pubSubManager->connections);
-        TAILQ_INSERT_HEAD(&pubSubManager->connections, connection, listEntry);
-    }
+    TAILQ_INSERT_TAIL(&pubSubManager->connections, connection, listEntry);
     pubSubManager->connectionsSize++;
 }
 
 static void
 UA_PubSubManager_addTopic(UA_PubSubManager *pubSubManager, UA_TopicAssign *topicAssign) {
-    if(pubSubManager->topicAssignSize != 0) {
-        TAILQ_INSERT_TAIL(&pubSubManager->topicAssign, topicAssign, listEntry);
-    } else {
-        TAILQ_INIT(&pubSubManager->topicAssign);
-        TAILQ_INSERT_HEAD(&pubSubManager->topicAssign, topicAssign, listEntry);
-    }
+    TAILQ_INSERT_TAIL(&pubSubManager->topicAssign, topicAssign, listEntry);
     pubSubManager->topicAssignSize++;
 }
 
@@ -542,14 +532,7 @@ UA_PublishedDataSet_create(UA_Server *server,
     }
 
     /* Insert into the queue of the manager */
-    if(server->pubSubManager.publishedDataSetsSize != 0) {
-        TAILQ_INSERT_TAIL(&server->pubSubManager.publishedDataSets,
-                          newPDS, listEntry);
-    } else {
-        TAILQ_INIT(&server->pubSubManager.publishedDataSets);
-        TAILQ_INSERT_HEAD(&server->pubSubManager.publishedDataSets,
-                          newPDS, listEntry);
-    }
+    TAILQ_INSERT_TAIL(&server->pubSubManager.publishedDataSets, newPDS, listEntry);
     server->pubSubManager.publishedDataSetsSize++;
 
 #ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL
@@ -663,14 +646,9 @@ addStandaloneSubscribedDataSet(UA_Server *server,
     newSubscribedDataSet->config = tmpSubscribedDataSetConfig;
     newSubscribedDataSet->connectedReader = UA_NODEID_NULL;
 
-    if (server->pubSubManager.subscribedDataSetsSize != 0)
-        TAILQ_INSERT_TAIL(&server->pubSubManager.subscribedDataSets, newSubscribedDataSet, listEntry);
-    else {
-        TAILQ_INIT(&server->pubSubManager.subscribedDataSets);
-        TAILQ_INSERT_HEAD(&server->pubSubManager.subscribedDataSets, newSubscribedDataSet, listEntry);
-    }
-
+    TAILQ_INSERT_TAIL(&server->pubSubManager.subscribedDataSets, newSubscribedDataSet, listEntry);
     server->pubSubManager.subscribedDataSetsSize++;
+
 #ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL
     addStandaloneSubscribedDataSetRepresentation(server, newSubscribedDataSet);
 #else
@@ -775,6 +753,15 @@ UA_PubSubManager_init(UA_Server *server, UA_PubSubManager *pubSubManager) {
     //TODO: Using the Mac address to generate the defaultPublisherId.
     // In the future, this can be retrieved from the eventloop.
     pubSubManager->defaultPublisherId = generateRandomUInt64(server);
+
+    TAILQ_INIT(&pubSubManager->connections);
+    TAILQ_INIT(&pubSubManager->publishedDataSets);
+    TAILQ_INIT(&pubSubManager->subscribedDataSets);
+    TAILQ_INIT(&pubSubManager->topicAssign);
+
+#ifdef UA_ENABLE_PUBSUB_SKS
+    TAILQ_INIT(&pubSubManager->securityGroups);
+#endif
 }
 
 /* Delete the current PubSub configuration including all nested members. This
