@@ -666,9 +666,8 @@ receiveBufferedNetworkMessage(UA_Server *server, UA_ReaderGroup *readerGroup,
 
 /* It serves as the entry point into reader processing and is called when
  * a publish is received, and the topic matches with one or more readers. */
-void processMqttSubscriberCallback(UA_Server *server, UA_ReaderGroup *readerGroup,
-                      UA_PubSubConnection *connection, UA_ByteString *msg,
-                      UA_ByteString *topic);
+void processMqttSubscriberCallback(UA_Server *server, UA_PubSubConnection *connection,
+                                   UA_ByteString *msg);
 
 UA_StatusCode
 decodeNetworkMessageJson(UA_Server *server, UA_ByteString *buffer, size_t *pos,
