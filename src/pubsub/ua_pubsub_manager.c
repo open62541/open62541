@@ -237,29 +237,6 @@ UA_PubSubManager_reserveIds(UA_Server *server, UA_NodeId sessionId, UA_UInt16 nu
     return UA_STATUSCODE_GOOD;
 }
 
-static UA_PubSubConnection *
-UA_PubSubConnection_new(const UA_PubSubConnectionConfig *connectionConfig,
-                        UA_Logger *logger) {
-    /* Create new connection and add to UA_PubSubManager */
-    UA_PubSubConnection *newConnectionsField = (UA_PubSubConnection *)
-        UA_calloc(1, sizeof(UA_PubSubConnection));
-    if(!newConnectionsField) {
-        UA_LOG_ERROR(logger, UA_LOGCATEGORY_SERVER,
-                     "PubSub Connection creation failed. Out of Memory.");
-        return NULL;
-    }
-    newConnectionsField->componentType = UA_PUBSUB_COMPONENT_CONNECTION;
-    LIST_INIT(&newConnectionsField->writerGroups);
-    UA_StatusCode res =
-        UA_PubSubConnectionConfig_copy(connectionConfig, &newConnectionsField->config);
-    if(res != UA_STATUSCODE_GOOD) {
-        UA_free(newConnectionsField);
-        return NULL;
-    }
-        
-    return newConnectionsField;
-}
-
 static UA_StatusCode
 channelErrorHandling(UA_Server *server, UA_PubSubConnection *newConnectionsField) {
     UA_PubSubConnection_clear(server, newConnectionsField);
@@ -304,14 +281,27 @@ UA_PubSubConnection_create(UA_Server *server,
                        &server->config.logger, UA_LOGCATEGORY_SERVER,
                        "PubSub Connection creation failed. Requested transport layer not found.");
 
-    /* create and add new connection from connection config */
-    UA_PubSubConnection *newConnectionsField = 
-        UA_PubSubConnection_new(connectionConfig, &server->config.logger);
-    UA_CHECK_MEM(newConnectionsField, return UA_STATUSCODE_BADOUTOFMEMORY);
+    /* Create new connection from connection config */
+    UA_PubSubConnection *newConnectionsField = (UA_PubSubConnection *)
+        UA_calloc(1, sizeof(UA_PubSubConnection));
+    if(!newConnectionsField) {
+        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                     "PubSub Connection creation failed. Out of Memory.");
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    }
+    newConnectionsField->componentType = UA_PUBSUB_COMPONENT_CONNECTION;
+    UA_StatusCode res = UA_PubSubConnectionConfig_copy(connectionConfig,
+                                                       &newConnectionsField->config);
+    if(res != UA_STATUSCODE_GOOD) {
+        UA_free(newConnectionsField);
+        return res;
+    }
 
+    /* Register in the PubSubManager */
     UA_PubSubManager *pubSubManager = &server->pubSubManager;
     UA_PubSubManager_addConnection(pubSubManager, newConnectionsField);
 
+    /* Open the communication channel */
     UA_TransportLayerContext ctx;
     ctx.connection = newConnectionsField;
     ctx.connectionConfig = &newConnectionsField->config;
@@ -321,7 +311,6 @@ UA_PubSubConnection_create(UA_Server *server,
     ctx.writerGroupAddress = NULL;
     ctx.server = server;
 
-    /* Open the communication channel */
     newConnectionsField->channel = tl->createPubSubChannel(tl, &ctx);
     UA_CHECK_MEM(newConnectionsField->channel,
                  return channelErrorHandling(server, newConnectionsField));
