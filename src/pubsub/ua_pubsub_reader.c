@@ -1651,7 +1651,6 @@ decodeAndProcessNetworkMessageRT(UA_Server *server, UA_ReaderGroup *readerGroup,
 typedef struct {
     UA_Server *server;
     UA_PubSubConnection *connection;
-    UA_ReaderGroup *readerGroup;
 } UA_RGContext;
 
 static UA_StatusCode
@@ -1659,8 +1658,16 @@ decodeAndProcessFun(UA_PubSubChannel *channel, void *cbContext,
                     const UA_ByteString *buf) {
     UA_RGContext *ctx = (UA_RGContext*)cbContext;
     UA_ByteString mutableBuffer = {buf->length, buf->data};
+
+    /* If there is no ReaderGroup attached -> nothing to do.
+     * Otherwise assume they all have the same encoding mime-type. */
+    UA_ReaderGroup *rg = LIST_FIRST(&ctx->connection->readerGroups);
+    if(!rg)
+        return UA_STATUSCODE_BADNOTHINGTODO;
+
     return decodeAndProcessNetworkMessage(ctx->server, ctx->connection,
-                                          ctx->readerGroup->config.encodingMimeType, &mutableBuffer);
+                                          rg->config.encodingMimeType,
+                                          &mutableBuffer);
 }
 
 static UA_StatusCode
@@ -1668,21 +1675,27 @@ decodeAndProcessFunRT(UA_PubSubChannel *channel, void *cbContext,
                       const UA_ByteString *buf) {
     UA_RGContext *ctx = (UA_RGContext*)cbContext;
     UA_ByteString mutableBuffer = {buf->length, buf->data};
-    return decodeAndProcessNetworkMessageRT(ctx->server, ctx->readerGroup,
-                                            ctx->connection, &mutableBuffer);
+
+    /* Process for all ReaderGroups that are operational and linked to the connection */
+    UA_ReaderGroup *rg;
+    UA_StatusCode res = UA_STATUSCODE_GOOD;
+    LIST_FOREACH(rg, &ctx->connection->readerGroups, listEntry) {
+        res |= decodeAndProcessNetworkMessageRT(ctx->server, rg, ctx->connection,
+                                                &mutableBuffer);
+    }
+    return res;
 }
 
-void processMqttSubscriberCallback(UA_Server *server, UA_ReaderGroup *readerGroup,
-                      UA_PubSubConnection *connection, UA_ByteString *msg,
-                      UA_ByteString *topic) {
-    UA_RGContext ctx = {server, connection, readerGroup};
+void processMqttSubscriberCallback(UA_Server *server, UA_PubSubConnection *connection,
+                                   UA_ByteString *msg) {
+    UA_RGContext ctx = {server, connection};
     decodeAndProcessFun(connection->channel, &ctx, msg);
 }
 
 UA_StatusCode
 receiveBufferedNetworkMessage(UA_Server *server, UA_ReaderGroup *readerGroup,
                               UA_PubSubConnection *connection) {
-    UA_RGContext ctx = {server, connection, readerGroup};
+    UA_RGContext ctx = {server, connection};
     UA_PubSubReceiveCallback receiveCB;
     if(readerGroup->config.rtLevel == UA_PUBSUB_RT_FIXED_SIZE)
         receiveCB = decodeAndProcessFunRT;
