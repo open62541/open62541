@@ -14,7 +14,6 @@
 #include <open62541/plugin/pubsub_ethernet.h>
 
 #include "ua_pubsub.h"
-#include "ua_pubsub_manager.h"
 
 #include <linux/if_packet.h>
 #include <netinet/ether.h>

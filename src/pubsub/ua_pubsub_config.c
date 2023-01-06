@@ -17,7 +17,6 @@
 
 #include "pubsub/ua_pubsub_config.h"
 #include "pubsub/ua_pubsub.h"
-#include "pubsub/ua_pubsub_manager.h"
 #include "server/ua_server_internal.h"
 
 #ifdef UA_ENABLE_PUBSUB_FILE_CONFIG

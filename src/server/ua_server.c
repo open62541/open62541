@@ -25,10 +25,6 @@
 #include "ua_pubsub_ns0.h"
 #endif
 
-#ifdef UA_ENABLE_PUBSUB
-#include "ua_pubsub_manager.h"
-#endif
-
 #ifdef UA_ENABLE_SUBSCRIPTIONS
 #include "ua_subscription.h"
 #endif

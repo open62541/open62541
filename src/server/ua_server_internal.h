@@ -31,7 +31,7 @@
 _UA_BEGIN_DECLS
 
 #ifdef UA_ENABLE_PUBSUB
-#include "ua_pubsub_manager.h"
+#include "ua_pubsub.h"
 #endif
 
 #ifdef UA_ENABLE_DISCOVERY
