@@ -127,7 +127,7 @@ UA_StandaloneSubscribedDataSet_clear(UA_Server *server, UA_StandaloneSubscribedD
 
 typedef struct UA_PubSubConnection {
     UA_PubSubComponentEnumType componentType;
-    UA_PubSubConnectionConfig *config;
+    UA_PubSubConnectionConfig config;
     UA_PubSubChannel *channel;
     UA_NodeId identifier;
     LIST_HEAD(UA_ListOfWriterGroup, UA_WriterGroup) writerGroups;

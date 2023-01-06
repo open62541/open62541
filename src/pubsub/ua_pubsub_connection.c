@@ -38,16 +38,14 @@ UA_PubSubConnectionConfig_copy(const UA_PubSubConnectionConfig *src,
 UA_StatusCode
 UA_Server_getPubSubConnectionConfig(UA_Server *server, const UA_NodeId connection,
                                     UA_PubSubConnectionConfig *config) {
-    UA_LOCK(&server->serviceMutex);
-    if(!config) {
-        UA_UNLOCK(&server->serviceMutex);
+    if(!config)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
-    }
+    UA_LOCK(&server->serviceMutex);
     UA_PubSubConnection *currentPubSubConnection =
         UA_PubSubConnection_findConnectionbyId(server, connection);
     UA_StatusCode res = UA_STATUSCODE_BADNOTFOUND;
     if(currentPubSubConnection)
-        res = UA_PubSubConnectionConfig_copy(currentPubSubConnection->config, config);
+        res = UA_PubSubConnectionConfig_copy(&currentPubSubConnection->config, config);
     UA_UNLOCK(&server->serviceMutex);
     return res;
 }
@@ -92,8 +90,7 @@ UA_PubSubConnection_clear(UA_Server *server, UA_PubSubConnection *connection) {
     if(connection->channel)
         connection->channel->close(connection->channel);
 
-    UA_PubSubConnectionConfig_clear(connection->config);
-    UA_free(connection->config);
+    UA_PubSubConnectionConfig_clear(&connection->config);
 }
 
 

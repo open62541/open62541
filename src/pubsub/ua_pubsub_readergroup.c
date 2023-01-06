@@ -187,8 +187,9 @@ UA_ReaderGroup_create(UA_Server *server, UA_NodeId connectionIdentifier,
 
     /* Set the assigment between ReaderGroup and Topic if the transport layer is MQTT. */
     const UA_String transport_uri = UA_STRING("http://opcfoundation.org/UA-Profile/Transport/pubsub-mqtt");
-    if(UA_String_equal(&currentConnectionContext->config->transportProfileUri, &transport_uri)) {
-        UA_String topic = ((UA_BrokerWriterGroupTransportDataType *)readerGroupConfig->transportSettings.content.decoded.data)->queueName;
+    if(UA_String_equal(&currentConnectionContext->config.transportProfileUri, &transport_uri)) {
+        UA_String topic = ((UA_BrokerWriterGroupTransportDataType *)
+                           readerGroupConfig->transportSettings.content.decoded.data)->queueName;
         retval |= UA_PubSubManager_addPubSubTopicAssign(server, newGroup, topic);
     }
     return retval;
