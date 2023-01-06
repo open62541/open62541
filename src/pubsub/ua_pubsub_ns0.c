@@ -83,25 +83,25 @@ onReadLocked(UA_Server *server, const UA_NodeId *sessionId, void *sessionContext
             UA_PubSubConnection_findConnectionbyId(server, *myNodeId);
         switch(nodeContext->elementClassiefier) {
         case UA_NS0ID_PUBSUBCONNECTIONTYPE_PUBLISHERID:
-            switch (pubSubConnection->config->publisherIdType) {
+            switch (pubSubConnection->config.publisherIdType) {
                 case UA_PUBLISHERIDTYPE_BYTE:
-                    UA_Variant_setScalar(&value, &pubSubConnection->config->publisherId.byte,
+                    UA_Variant_setScalar(&value, &pubSubConnection->config.publisherId.byte,
                                          &UA_TYPES[UA_TYPES_BYTE]);
                     break;
                 case UA_PUBLISHERIDTYPE_UINT16:
-                    UA_Variant_setScalar(&value, &pubSubConnection->config->publisherId.uint16,
+                    UA_Variant_setScalar(&value, &pubSubConnection->config.publisherId.uint16,
                                          &UA_TYPES[UA_TYPES_UINT16]);
                     break;
                 case UA_PUBLISHERIDTYPE_UINT32:
-                    UA_Variant_setScalar(&value, &pubSubConnection->config->publisherId.uint32,
+                    UA_Variant_setScalar(&value, &pubSubConnection->config.publisherId.uint32,
                                          &UA_TYPES[UA_TYPES_UINT32]);
                     break;
                 case UA_PUBLISHERIDTYPE_UINT64:
-                    UA_Variant_setScalar(&value, &pubSubConnection->config->publisherId.uint64,
+                    UA_Variant_setScalar(&value, &pubSubConnection->config.publisherId.uint64,
                                          &UA_TYPES[UA_TYPES_UINT64]);
                     break;
                 case UA_PUBLISHERIDTYPE_STRING:
-                    UA_Variant_setScalar(&value, &pubSubConnection->config->publisherId.string,
+                    UA_Variant_setScalar(&value, &pubSubConnection->config.publisherId.string,
                                          &UA_TYPES[UA_TYPES_STRING]);
                     break;
                 default:
@@ -606,11 +606,11 @@ addDataSetReaderConfig(UA_Server *server, UA_NodeId readerGroupId,
 UA_StatusCode
 addPubSubConnectionRepresentation(UA_Server *server, UA_PubSubConnection *connection) {
     UA_StatusCode retVal = UA_STATUSCODE_GOOD;
-    if(connection->config->name.length > 512)
+    if(connection->config.name.length > 512)
         return UA_STATUSCODE_BADOUTOFMEMORY;
     char connectionName[513];
-    memcpy(connectionName, connection->config->name.data, connection->config->name.length);
-    connectionName[connection->config->name.length] = '\0';
+    memcpy(connectionName, connection->config.name.data, connection->config.name.length);
+    connectionName[connection->config.name.length] = '\0';
 
     UA_ObjectAttributes attr = UA_ObjectAttributes_default;
     attr.displayName = UA_LOCALIZEDTEXT("", connectionName);
@@ -664,12 +664,12 @@ addPubSubConnectionRepresentation(UA_Server *server, UA_PubSubConnection *connec
     }
 
     retVal |= writePubSubNs0VariableArray(server, connectionPropertieNode.identifier.numeric,
-                                          connection->config->connectionProperties.map,
-                                          connection->config->connectionProperties.mapSize,
+                                          connection->config.connectionProperties.map,
+                                          connection->config.connectionProperties.mapSize,
                                           &UA_TYPES[UA_TYPES_KEYVALUEPAIR]);
 
     UA_NetworkAddressUrlDataType *networkAddressUrl=
-        ((UA_NetworkAddressUrlDataType*)connection->config->address.data);
+        ((UA_NetworkAddressUrlDataType*)connection->config.address.data);
     UA_Variant value;
     UA_Variant_init(&value);
 
@@ -679,7 +679,7 @@ addPubSubConnectionRepresentation(UA_Server *server, UA_PubSubConnection *connec
     UA_Variant_setScalar(&value, &networkAddressUrl->networkInterface, &UA_TYPES[UA_TYPES_STRING]);
     writeValueAttribute(server, interfaceNode, &value);
 
-    UA_Variant_setScalar(&value, &connection->config->transportProfileUri, &UA_TYPES[UA_TYPES_STRING]);
+    UA_Variant_setScalar(&value, &connection->config.transportProfileUri, &UA_TYPES[UA_TYPES_STRING]);
     writeValueAttribute(server, transportProfileUri, &value);
 
     UA_NodePropertyContext *connectionPublisherIdContext =

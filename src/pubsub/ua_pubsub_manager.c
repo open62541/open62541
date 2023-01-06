@@ -51,32 +51,8 @@ UA_getTransportProtocolLayer(const UA_Server *server,
 }
 
 static void
-UA_PubSubConfig_delete(UA_PubSubConnectionConfig *tmpConnectionConfig) {
-    UA_PubSubConnectionConfig_clear(tmpConnectionConfig);
-    UA_free(tmpConnectionConfig);
-}
-
-static UA_StatusCode
-copyConnectionConfig(const UA_PubSubConnectionConfig *srcConfig, UA_PubSubConnectionConfig **dstConfig, UA_Logger *logger) {
-    /* Create a copy of the connection config */
-    *dstConfig = (UA_PubSubConnectionConfig *) UA_calloc(1, sizeof(UA_PubSubConnectionConfig));
-    UA_CHECK_MEM_ERROR(dstConfig, return UA_STATUSCODE_BADOUTOFMEMORY,
-                       logger, UA_LOGCATEGORY_SERVER,
-                       "PubSub Connection creation failed. Out of Memory.");
-
-    UA_StatusCode retval = UA_PubSubConnectionConfig_copy(srcConfig, *dstConfig);
-    UA_CHECK_STATUS_ERROR(retval, goto copy_error, logger, UA_LOGCATEGORY_SERVER,
-                          "PubSub Connection creation failed. Could not copy the config.");
-
-    return UA_STATUSCODE_GOOD;
-copy_error:
-    UA_free(*dstConfig);
-    return retval;
-}
-
-static void
 UA_PubSubManager_addConnection(UA_PubSubManager *pubSubManager, UA_PubSubConnection *connection) {
-    if (pubSubManager->connectionsSize != 0) {
+    if(pubSubManager->connectionsSize != 0) {
         TAILQ_INSERT_TAIL(&pubSubManager->connections, connection, listEntry);
     } else {
         TAILQ_INIT(&pubSubManager->connections);
@@ -87,7 +63,7 @@ UA_PubSubManager_addConnection(UA_PubSubManager *pubSubManager, UA_PubSubConnect
 
 static void
 UA_PubSubManager_addTopic(UA_PubSubManager *pubSubManager, UA_TopicAssign *topicAssign) {
-    if (pubSubManager->topicAssignSize != 0) {
+    if(pubSubManager->topicAssignSize != 0) {
         TAILQ_INSERT_TAIL(&pubSubManager->topicAssign, topicAssign, listEntry);
     } else {
         TAILQ_INIT(&pubSubManager->topicAssign);
@@ -151,13 +127,15 @@ UA_ReserveId_isFree(UA_Server *server,  UA_UInt16 id, UA_String transportProfile
         UA_WriterGroup *writerGroup;
         LIST_FOREACH(writerGroup, &tmpConnection->writerGroups, listEntry) {
             if(reserveIdType == UA_WRITER_GROUP) {
-                if(UA_String_equal(&tmpConnection->config->transportProfileUri, &transportProfileUri) && writerGroup->config.writerGroupId == id)
+                if(UA_String_equal(&tmpConnection->config.transportProfileUri,
+                                   &transportProfileUri) && writerGroup->config.writerGroupId == id)
                     return false;
             /* reserveIdType == UA_DATA_SET_WRITER */
             } else {
                 UA_DataSetWriter *currentWriter;
                 LIST_FOREACH(currentWriter, &writerGroup->writers, listEntry) {
-                    if(UA_String_equal(&tmpConnection->config->transportProfileUri, &transportProfileUri) &&
+                    if(UA_String_equal(&tmpConnection->config.transportProfileUri,
+                                       &transportProfileUri) &&
                     currentWriter->config.dataSetWriterId == id)
                        return false;
                 }
@@ -270,7 +248,7 @@ UA_PubSubManager_reserveIds(UA_Server *server, UA_NodeId sessionId, UA_UInt16 nu
 }
 
 static UA_PubSubConnection *
-UA_PubSubConnection_new(UA_PubSubConnectionConfig *connectionConfig,
+UA_PubSubConnection_new(const UA_PubSubConnectionConfig *connectionConfig,
                         UA_Logger *logger) {
     /* Create new connection and add to UA_PubSubManager */
     UA_PubSubConnection *newConnectionsField = (UA_PubSubConnection *)
@@ -282,7 +260,13 @@ UA_PubSubConnection_new(UA_PubSubConnectionConfig *connectionConfig,
     }
     newConnectionsField->componentType = UA_PUBSUB_COMPONENT_CONNECTION;
     LIST_INIT(&newConnectionsField->writerGroups);
-    newConnectionsField->config = connectionConfig;
+    UA_StatusCode res =
+        UA_PubSubConnectionConfig_copy(connectionConfig, &newConnectionsField->config);
+    if(res != UA_STATUSCODE_GOOD) {
+        UA_free(newConnectionsField);
+        return NULL;
+    }
+        
     return newConnectionsField;
 }
 
@@ -295,22 +279,6 @@ channelErrorHandling(UA_Server *server, UA_PubSubConnection *newConnectionsField
     UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
                  "PubSub Connection creation failed. Transport layer creation problem.");
     return UA_STATUSCODE_BADINTERNALERROR;
-}
-
-static UA_StatusCode
-createAndAddConnection(UA_Server *server, const UA_PubSubConnectionConfig *connectionConfig,
-                       UA_PubSubConnection **connection) {
-    /* Create a copy of the connection config */
-    UA_PubSubConnectionConfig *tmpConnectionConfig = NULL;
-    UA_StatusCode retval = copyConnectionConfig(connectionConfig, &tmpConnectionConfig, &server->config.logger);
-    UA_CHECK_STATUS(retval, return retval);
-
-    *connection = UA_PubSubConnection_new(tmpConnectionConfig, &server->config.logger);
-    UA_CHECK_MEM(*connection, UA_PubSubConfig_delete(tmpConnectionConfig); return UA_STATUSCODE_BADOUTOFMEMORY;);
-
-    UA_PubSubManager *pubSubManager = &server->pubSubManager;
-    UA_PubSubManager_addConnection(pubSubManager, *connection);
-    return UA_STATUSCODE_GOOD;
 }
 
 static void
@@ -347,13 +315,16 @@ UA_PubSubConnection_create(UA_Server *server,
                        "PubSub Connection creation failed. Requested transport layer not found.");
 
     /* create and add new connection from connection config */
-    UA_PubSubConnection *newConnectionsField = NULL;
-    UA_StatusCode retval = createAndAddConnection(server, connectionConfig, &newConnectionsField);
-    UA_CHECK_STATUS(retval, return retval);
+    UA_PubSubConnection *newConnectionsField = 
+        UA_PubSubConnection_new(connectionConfig, &server->config.logger);
+    UA_CHECK_MEM(newConnectionsField, return UA_STATUSCODE_BADOUTOFMEMORY);
+
+    UA_PubSubManager *pubSubManager = &server->pubSubManager;
+    UA_PubSubManager_addConnection(pubSubManager, newConnectionsField);
 
     UA_TransportLayerContext ctx;
     ctx.connection = newConnectionsField;
-    ctx.connectionConfig = newConnectionsField->config;
+    ctx.connectionConfig = &newConnectionsField->config;
     ctx.decodeAndProcessNetworkMessage =
         (UA_StatusCode (*)(UA_Server *, void *, UA_ByteString *))
         UA_decodeAndProcessNetworkMessage;

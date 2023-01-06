@@ -106,22 +106,24 @@ UA_WriterGroup_create(UA_Server *server, const UA_NodeId connection,
     }
     /* writerGroupTransportSettings */
     /* Retrieve the transport layer for the given profile uri */
-    UA_PubSubTransportLayer *tl = UA_getTransportProtocolLayer(server, &currentConnectionContext->config->transportProfileUri);
-    UA_CHECK_MEM_ERROR(tl, UA_free(newWriterGroup); return UA_STATUSCODE_BADNOTFOUND, &server->config.logger,
-                       UA_LOGCATEGORY_SERVER, "PubSub Connection creation failed. Requested transport layer not found.");
+    UA_PubSubTransportLayer *tl =
+        UA_getTransportProtocolLayer(server, &currentConnectionContext->config.transportProfileUri);
+    UA_CHECK_MEM_ERROR(tl, UA_free(newWriterGroup); return UA_STATUSCODE_BADNOTFOUND,
+                       &server->config.logger, UA_LOGCATEGORY_SERVER,
+                       "PubSub Connection creation failed. Requested transport layer not found.");
     UA_TransportLayerContext ctx;
     ctx.writerGroupAddress = NULL;
     ctx.connection = currentConnectionContext;
-    if(UA_Variant_hasScalarType(&currentConnectionContext->config->address,
+    if(UA_Variant_hasScalarType(&currentConnectionContext->config.address,
                                 &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE])) {
         UA_NetworkAddressUrlDataType *address =
-            (UA_NetworkAddressUrlDataType *)currentConnectionContext->config->address.data;
+            (UA_NetworkAddressUrlDataType *)currentConnectionContext->config.address.data;
         ctx.connectionAddress = address;
     } else {
         UA_free(newWriterGroup);
         return UA_STATUSCODE_BADCONNECTIONREJECTED;
     }
-    ctx.connectionConfig = currentConnectionContext->config;
+    ctx.connectionConfig = &currentConnectionContext->config;
     /* TODO: The callback is for readers, not writers. Currently unused. */
     ctx.decodeAndProcessNetworkMessage =
         (UA_StatusCode (*)(UA_Server *, void *, UA_ByteString *))
@@ -1052,8 +1054,8 @@ sendNetworkMessageJson(UA_Server *server, UA_PubSubConnection *connection, UA_Wr
     nm.payloadHeader.dataSetPayloadHeader.dataSetWriterIds = writerIds;
     nm.payload.dataSetPayload.dataSetMessages = dsm;
     nm.publisherIdEnabled = true;
-    nm.publisherIdType = connection->config->publisherIdType;
-    nm.publisherId = connection->config->publisherId;
+    nm.publisherIdType = connection->config.publisherIdType;
+    nm.publisherId = connection->config.publisherId;
 
     /* Compute the message length */
     size_t msgSize = UA_NetworkMessage_calcSizeJson(&nm, NULL, 0, NULL, 0, true);
@@ -1159,11 +1161,11 @@ generateNetworkMessage(UA_PubSubConnection *connection, UA_WriterGroup *wg,
 
     networkMessage->version = 1;
     networkMessage->networkMessageType = UA_NETWORKMESSAGE_DATASET;
-    networkMessage->publisherIdType = connection->config->publisherIdType;
+    networkMessage->publisherIdType = connection->config.publisherIdType;
     /* shallow copy of the PublisherId from connection configuration
         -> the configuration needs to be stable during publishing process
         -> it must not be cleaned after network message has been sent */
-    networkMessage->publisherId = connection->config->publisherId;
+    networkMessage->publisherId = connection->config.publisherId;
 
     if(networkMessage->groupHeader.sequenceNumberEnabled)
         networkMessage->groupHeader.sequenceNumber = wg->sequenceNumber;

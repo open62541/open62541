@@ -334,7 +334,7 @@ publish_callback(void** ptrServer, struct mqtt_response_publish *published)
 
     UA_PubSubConnection *pubSubConnection;
     TAILQ_FOREACH(pubSubConnection, &server->pubSubManager.connections, listEntry){
-        if(!UA_String_equal(&pubSubConnection->config->transportProfileUri, &transport_uri))
+        if(!UA_String_equal(&pubSubConnection->config.transportProfileUri, &transport_uri))
             break;
         UA_ReaderGroup* readerGroup = NULL;
         LIST_FOREACH(readerGroup, &pubSubConnection->readerGroups, listEntry) {
