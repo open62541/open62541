@@ -268,11 +268,7 @@ addSecurityGroup(UA_Server *server, UA_NodeId securityGroupFolderNodeId,
     if(securityGroupNodeId)
         UA_NodeId_copy(&newSecurityGroup->securityGroupNodeId, securityGroupNodeId);
 
-    if(server->pubSubManager.securityGroupsSize == 0)
-        TAILQ_INIT(&server->pubSubManager.securityGroups);
-
-    TAILQ_INSERT_TAIL(&server->pubSubManager.securityGroups, newSecurityGroup,
-                          listEntry);
+    TAILQ_INSERT_TAIL(&server->pubSubManager.securityGroups, newSecurityGroup, listEntry);
 
     server->pubSubManager.securityGroupsSize++;
     return retval;

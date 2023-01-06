@@ -328,6 +328,9 @@ UA_Server_init(UA_Server *server) {
     UA_CHECK_STATUS(res, goto cleanup);
 
 #ifdef UA_ENABLE_PUBSUB
+    /* Initialized PubSubManager */
+    UA_PubSubManager_init(server, &server->pubSubManager);
+
 #ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL
     /* Build PubSub information model */
     initPubSubNS0(server);
@@ -854,11 +857,6 @@ UA_Server_run_startup(UA_Server *server) {
 #endif
 
     UA_UNLOCK(&server->serviceMutex); /* TODO: Make PubSub initialization thread-safe */
-
-#ifdef UA_ENABLE_PUBSUB
-    /* Initialized PubSubManager */
-    UA_PubSubManager_init(server, &server->pubSubManager);
-#endif
 
     /* Sample the start time and set it to the Server object */
     server->startTime = UA_DateTime_now();
