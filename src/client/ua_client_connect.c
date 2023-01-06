@@ -1284,8 +1284,9 @@ __Client_networkCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
 
     /* Trigger the next action from our end to fully open up the connection */
  continue_connect:
-    if((client->noSession && client->channel.state != UA_SECURECHANNELSTATE_OPEN) ||
-       client->sessionState < UA_SESSIONSTATE_ACTIVATED) {
+    if(client->connectStatus == UA_STATUSCODE_GOOD &&
+       ((client->noSession && client->channel.state != UA_SECURECHANNELSTATE_OPEN) ||
+        client->sessionState < UA_SESSIONSTATE_ACTIVATED)) {
         connectActivity(client);
     }
 
