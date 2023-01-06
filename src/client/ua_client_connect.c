@@ -1655,7 +1655,8 @@ UA_Client_disconnectSecureChannel(UA_Client *client) {
     closeSecureChannel(client);
 
     /* Manually set the status to closed to prevent an automatic reconnection */
-    client->connectStatus = UA_STATUSCODE_BADCONNECTIONCLOSED;
+    if(client->connectStatus == UA_STATUSCODE_GOOD)
+        client->connectStatus = UA_STATUSCODE_BADCONNECTIONCLOSED;
 
     /* Closing is async. Loop until the client has actually closed. */
     UA_EventLoop *el = client->config.eventLoop;
