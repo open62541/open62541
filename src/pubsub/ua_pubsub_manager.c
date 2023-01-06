@@ -563,9 +563,9 @@ static UA_StatusCode
 removePublishedDataSet(UA_Server *server, const UA_NodeId pds) {
     //search the identified PublishedDataSet and store the PDS index
     UA_PublishedDataSet *publishedDataSet = UA_PublishedDataSet_findPDSbyId(server, pds);
-    if(!publishedDataSet){
+    if(!publishedDataSet)
         return UA_STATUSCODE_BADNOTFOUND;
-    }
+
     if(publishedDataSet->configurationFrozen){
         UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
                        "Remove PublishedDataSet failed. PublishedDataSet is frozen.");
@@ -821,13 +821,12 @@ UA_PubSubManager_delete(UA_Server *server, UA_PubSubManager *pubSubManager) {
     TAILQ_FOREACH_SAFE(tmpSG1, &server->pubSubManager.securityGroups, listEntry, tmpSG2) {
         removeSecurityGroup(server, tmpSG1);
     }
-#endif
 
-#ifdef UA_ENABLE_PUBSUB_SKS
     /* Remove the keyStorages */
     UA_PubSubKeyStorage *ks, *ksTmp;
-    LIST_FOREACH_SAFE(ks, &server->pubSubManager.pubSubKeyList, keyStorageList, ksTmp)
+    LIST_FOREACH_SAFE(ks, &server->pubSubManager.pubSubKeyList, keyStorageList, ksTmp) {
         UA_PubSubKeyStorage_delete(server, ks);
+    }
 #endif
 }
 
