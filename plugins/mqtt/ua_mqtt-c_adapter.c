@@ -8,7 +8,6 @@
  */
 
 #include "ua_mqtt-c_adapter.h"
-#include "ua_pubsub_manager.h"
 #include "server/ua_server_internal.h"
 #include <mqtt.h>
 #include <open62541/plugin/log_stdout.h>

@@ -12,7 +12,7 @@
 #include <signal.h>
 
 #include <open62541/plugin/pubsub_mqtt.h>
-#include "ua_pubsub_manager.h"
+#include "ua_pubsub.h"
 
 #define CONNECTION_NAME               "MQTT Subscriber Connection"
 #define TRANSPORT_PROFILE_URI         "http://opcfoundation.org/UA-Profile/Transport/pubsub-mqtt"
