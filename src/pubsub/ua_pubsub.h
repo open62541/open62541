@@ -49,9 +49,9 @@ typedef struct UA_SecurityGroup UA_SecurityGroup;
 typedef struct UA_PublishedDataSet {
     UA_PublishedDataSetConfig config;
     UA_DataSetMetaDataType dataSetMetaData;
-    TAILQ_HEAD(UA_ListOfDataSetField, UA_DataSetField) fields;
-    UA_NodeId identifier;
+    TAILQ_HEAD(, UA_DataSetField) fields;
     UA_UInt16 fieldSize;
+    UA_NodeId identifier;
     UA_UInt16 promotedFieldsCount;
     UA_UInt16 configurationFreezeCounter;
     TAILQ_ENTRY(UA_PublishedDataSet) listEntry;
@@ -89,13 +89,15 @@ typedef struct UA_StandaloneSubscribedDataSet{
 } UA_StandaloneSubscribedDataSet;
 
 UA_StatusCode
-UA_StandaloneSubscribedDataSetConfig_copy(const UA_StandaloneSubscribedDataSetConfig *src, UA_StandaloneSubscribedDataSetConfig *dst);
+UA_StandaloneSubscribedDataSetConfig_copy(const UA_StandaloneSubscribedDataSetConfig *src,
+                                          UA_StandaloneSubscribedDataSetConfig *dst);
 UA_StandaloneSubscribedDataSet *
 UA_StandaloneSubscribedDataSet_findSDSbyId(UA_Server *server, UA_NodeId identifier);
 UA_StandaloneSubscribedDataSet *
 UA_StandaloneSubscribedDataSet_findSDSbyName(UA_Server *server, UA_String identifier);
 void
-UA_StandaloneSubscribedDataSet_clear(UA_Server *server, UA_StandaloneSubscribedDataSet *subscribedDataSet);
+UA_StandaloneSubscribedDataSet_clear(UA_Server *server,
+                                     UA_StandaloneSubscribedDataSet *subscribedDataSet);
 
 #define UA_LOG_PDS_INTERNAL(LOGGER, LEVEL, PDS, MSG, ...)               \
     if(UA_LOGLEVEL <= UA_LOGLEVEL_##LEVEL) {                            \
@@ -130,10 +132,13 @@ typedef struct UA_PubSubConnection {
     UA_PubSubConnectionConfig config;
     UA_PubSubChannel *channel;
     UA_NodeId identifier;
-    LIST_HEAD(UA_ListOfWriterGroup, UA_WriterGroup) writerGroups;
+
+    LIST_HEAD(, UA_WriterGroup) writerGroups;
     size_t writerGroupsSize;
-    LIST_HEAD(UA_ListOfPubSubReaderGroup, UA_ReaderGroup) readerGroups;
+
+    LIST_HEAD(, UA_ReaderGroup) readerGroups;
     size_t readerGroupsSize;
+
     TAILQ_ENTRY(UA_PubSubConnection) listEntry;
     UA_UInt16 configurationFreezeCounter;
     UA_Boolean isRegistered; /* Subscriber requires connection channel regist */
@@ -164,7 +169,8 @@ UA_PubSubConnection_clear(UA_Server *server, UA_PubSubConnection *connection);
 
 /* Register channel for given connectionIdentifier */
 UA_StatusCode
-UA_PubSubConnection_regist(UA_Server *server, UA_NodeId *connectionIdentifier, const UA_ReaderGroupConfig *readerGroupConfig);
+UA_PubSubConnection_regist(UA_Server *server, UA_NodeId *connectionIdentifier,
+                           const UA_ReaderGroupConfig *readerGroupConfig);
 
 #define UA_LOG_CONNECTION_INTERNAL(LOGGER, LEVEL, CONNECTION, MSG, ...) \
     if(UA_LOGLEVEL <= UA_LOGLEVEL_##LEVEL) {                            \
@@ -295,7 +301,7 @@ struct UA_WriterGroup {
     LIST_ENTRY(UA_WriterGroup) listEntry;
     UA_NodeId identifier;
     UA_PubSubConnection *linkedConnection;
-    LIST_HEAD(UA_ListOfDataSetWriter, UA_DataSetWriter) writers;
+    LIST_HEAD(, UA_DataSetWriter) writers;
     UA_UInt32 writersCount;
     UA_UInt64 publishCallbackId;
     UA_Boolean publishCallbackIsRegistered;
@@ -534,7 +540,7 @@ struct UA_ReaderGroup {
     UA_NodeId identifier;
     UA_NodeId linkedConnection;
     LIST_ENTRY(UA_ReaderGroup) listEntry;
-    LIST_HEAD(UA_ListOfPubSubDataSetReader, UA_DataSetReader) readers;
+    LIST_HEAD(, UA_DataSetReader) readers;
     /* for simplified information access */
     UA_UInt32 readersCount;
     UA_UInt64 subscribeCallbackId;
@@ -738,23 +744,25 @@ typedef struct UA_PubSubManager {
     /* Connections and PublishedDataSets can exist alone (own lifecycle) -> top
      * level components */
     size_t connectionsSize;
-    TAILQ_HEAD(UA_ListOfPubSubConnection, UA_PubSubConnection) connections;
+    TAILQ_HEAD(, UA_PubSubConnection) connections;
 
     size_t publishedDataSetsSize;
-    TAILQ_HEAD(UA_ListOfPublishedDataSet, UA_PublishedDataSet) publishedDataSets;
+    TAILQ_HEAD(, UA_PublishedDataSet) publishedDataSets;
+
     size_t subscribedDataSetsSize;
-    TAILQ_HEAD(UA_ListOfStandaloneSubscribedDataSet, UA_StandaloneSubscribedDataSet) subscribedDataSets;
+    TAILQ_HEAD(, UA_StandaloneSubscribedDataSet) subscribedDataSets;
 
     size_t topicAssignSize;
-    TAILQ_HEAD(UA_ListOfTopicAssign, UA_TopicAssign) topicAssign;
+    TAILQ_HEAD(, UA_TopicAssign) topicAssign;
 
     size_t reserveIdsSize;
-    LIST_HEAD(UA_ListOfReserveIds, UA_ReserveId) reserveIds;
+    LIST_HEAD(, UA_ReserveId) reserveIds;
 
 #ifdef UA_ENABLE_PUBSUB_SKS
-    LIST_HEAD(PubSubKeyList, UA_PubSubKeyStorage) pubSubKeyList;
+    LIST_HEAD(, UA_PubSubKeyStorage) pubSubKeyList;
+
     size_t securityGroupsSize;
-    TAILQ_HEAD(UA_ListOfSecurityGroup, UA_SecurityGroup) securityGroups;
+    TAILQ_HEAD(, UA_SecurityGroup) securityGroups;
 #endif
 
 #ifndef UA_ENABLE_PUBSUB_INFORMATIONMODEL
@@ -763,7 +771,8 @@ typedef struct UA_PubSubManager {
 } UA_PubSubManager;
 
 UA_StatusCode
-UA_PubSubManager_addPubSubTopicAssign(UA_Server *server, UA_ReaderGroup *readerGroup, UA_String topic);
+UA_PubSubManager_addPubSubTopicAssign(UA_Server *server, UA_ReaderGroup *readerGroup,
+                                      UA_String topic);
 
 UA_StatusCode
 UA_PubSubManager_reserveIds(UA_Server *server, UA_NodeId sessionId, UA_UInt16 numRegWriterGroupIds,
