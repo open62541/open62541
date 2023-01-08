@@ -736,8 +736,10 @@ typedef struct UA_ReserveId {
     UA_ReserveIdType reserveIdType;
     UA_String transportProfileUri;
     UA_NodeId sessionId;
-    LIST_ENTRY(UA_ReserveId) listEntry;
+    ZIP_ENTRY(UA_ReserveId) treeEntry;
 } UA_ReserveId;
+
+typedef ZIP_HEAD(UA_ReserveIdTree, UA_ReserveId) UA_ReserveIdTree;
 
 typedef struct UA_PubSubManager {
     UA_UInt64 defaultPublisherId;
@@ -756,7 +758,7 @@ typedef struct UA_PubSubManager {
     TAILQ_HEAD(, UA_TopicAssign) topicAssign;
 
     size_t reserveIdsSize;
-    LIST_HEAD(, UA_ReserveId) reserveIds;
+    UA_ReserveIdTree reserveIds;
 
 #ifdef UA_ENABLE_PUBSUB_SKS
     LIST_HEAD(, UA_PubSubKeyStorage) pubSubKeyList;
