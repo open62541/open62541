@@ -404,7 +404,7 @@ TCP_registerListenSocket(UA_ConnectionManager *cm, struct addrinfo *ai,
         UA_close(listenSocket);
         return UA_STATUSCODE_BADINTERNALERROR;
     }
-
+#ifndef _WIN32
     /* Allow rebinding to the IP/port combination. Eg. to restart the server. */
     if(UA_setsockopt(listenSocket, SOL_SOCKET, SO_REUSEPORT,
                      (const char *)&optval, sizeof(optval)) == -1) {
@@ -414,7 +414,7 @@ TCP_registerListenSocket(UA_ConnectionManager *cm, struct addrinfo *ai,
         UA_close(listenSocket);
         return UA_STATUSCODE_BADINTERNALERROR;
     }
-
+#endif
     /* Set the socket non-blocking */
     if(UA_EventLoopPOSIX_setNonBlocking(listenSocket) != UA_STATUSCODE_GOOD) {
         UA_LOG_WARNING(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
