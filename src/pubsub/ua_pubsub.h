@@ -303,8 +303,7 @@ struct UA_WriterGroup {
     UA_PubSubConnection *linkedConnection;
     LIST_HEAD(, UA_DataSetWriter) writers;
     UA_UInt32 writersCount;
-    UA_UInt64 publishCallbackId;
-    UA_Boolean publishCallbackIsRegistered;
+    UA_UInt64 publishCallbackId; /* registered if != 0 */
     UA_PubSubState state;
     UA_NetworkMessageOffsetBuffer bufferedMessage;
     UA_UInt16 sequenceNumber; /* Increased after every succressuly sent message */
@@ -349,6 +348,9 @@ UA_WriterGroup_freezeConfiguration(UA_Server *server, UA_WriterGroup *wg);
 
 UA_StatusCode
 UA_WriterGroup_unfreezeConfiguration(UA_Server *server, UA_WriterGroup *wg);
+
+void
+UA_ReaderGroup_removePublishCallback(UA_Server *server, UA_WriterGroup *wg);
 
 UA_StatusCode
 UA_WriterGroup_setPubSubState(UA_Server *server,
@@ -538,7 +540,7 @@ struct UA_ReaderGroup {
     UA_PubSubComponentEnumType componentType;
     UA_ReaderGroupConfig config;
     UA_NodeId identifier;
-    UA_NodeId linkedConnection;
+    UA_PubSubConnection *linkedConnection;
     LIST_ENTRY(UA_ReaderGroup) listEntry;
     LIST_HEAD(, UA_DataSetReader) readers;
     /* for simplified information access */
@@ -800,20 +802,6 @@ UA_PubSubManager_generateUniqueGuid(UA_Server *server);
 
 UA_UInt32
 UA_PubSubConfigurationVersionTimeDifference(void);
-
-/***********************************/
-/*      PubSub Jobs abstraction    */
-/***********************************/
-UA_StatusCode
-UA_PubSubManager_addRepeatedCallback(UA_Server *server, UA_ServerCallback callback,
-                                     void *data, UA_Double interval_ms, UA_DateTime *baseTime,
-                                     UA_TimerPolicy timerPolicy, UA_UInt64 *callbackId);
-UA_StatusCode
-UA_PubSubManager_changeRepeatedCallback(UA_Server *server, UA_UInt64 callbackId,
-                                        UA_Double interval_ms, UA_DateTime *baseTime,
-                                        UA_TimerPolicy timerPolicy);
-void
-UA_PubSubManager_removeRepeatedPubSubCallback(UA_Server *server, UA_UInt64 callbackId);
 
 UA_PubSubTransportLayer *
 UA_getTransportProtocolLayer(const UA_Server *server,

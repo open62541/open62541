@@ -1597,7 +1597,8 @@ addReaderGroupRepresentation(UA_Server *server, UA_ReaderGroup *readerGroup) {
     object_attr.displayName = UA_LOCALIZEDTEXT("", rgName);
     UA_StatusCode retVal =
         addNode(server, UA_NODECLASS_OBJECT, UA_NODEID_NUMERIC(1, 0), /* create an id */
-                readerGroup->linkedConnection, UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
+                readerGroup->linkedConnection->identifier,
+                UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
                 UA_QUALIFIEDNAME(0, rgName), UA_NODEID_NUMERIC(0, UA_NS0ID_READERGROUPTYPE),
                 &object_attr, &UA_TYPES[UA_TYPES_OBJECTATTRIBUTES],
                 NULL, &readerGroup->identifier);
