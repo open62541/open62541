@@ -126,7 +126,7 @@ UA_ReaderGroup_create(UA_Server *server, UA_NodeId connectionIdentifier,
     newGroup->componentType = UA_PUBSUB_COMPONENT_READERGROUP;
 
     /* Deep copy of the config */
-    retval |= UA_NodeId_copy(&currentConnectionContext->identifier, &newGroup->linkedConnection);
+    newGroup->linkedConnection = currentConnectionContext;
     retval |= UA_ReaderGroupConfig_copy(readerGroupConfig, &newGroup->config);
 
     /* Check user configured params and define it accordingly */
@@ -214,18 +214,12 @@ removeReaderGroup(UA_Server *server, UA_NodeId groupIdentifier) {
     if(readerGroup == NULL)
         return UA_STATUSCODE_BADNOTFOUND;
 
-    if(readerGroup->configurationFrozen){
+    if(readerGroup->configurationFrozen) {
         UA_LOG_WARNING_READERGROUP(&server->config.logger, readerGroup,
                                    "Remove ReaderGroup failed. "
                                    "Subscriber configuration is frozen.");
         return UA_STATUSCODE_BADCONFIGURATIONERROR;
     }
-
-    /* Search the connection to which the given readergroup is connected to */
-    UA_PubSubConnection *connection =
-        UA_PubSubConnection_findConnectionbyId(server, readerGroup->linkedConnection);
-    if(connection == NULL)
-        return UA_STATUSCODE_BADNOTFOUND;
 
     /* Unregister subscribe callback */
     if(readerGroup->state == UA_PUBSUBSTATE_OPERATIONAL)
@@ -285,13 +279,11 @@ ReaderGroup_clear(UA_Server* server, UA_ReaderGroup *readerGroup) {
     LIST_FOREACH_SAFE(dataSetReader, &readerGroup->readers, listEntry, tmpDataSetReader) {
         removeDataSetReader(server, dataSetReader->identifier);
     }
-    UA_PubSubConnection* pConn =
-        UA_PubSubConnection_findConnectionbyId(server, readerGroup->linkedConnection);
+    UA_PubSubConnection* pConn = readerGroup->linkedConnection;
     if(pConn != NULL)
         pConn->readerGroupsSize--;
 
     /* Delete ReaderGroup and its members */
-    UA_NodeId_clear(&readerGroup->linkedConnection);
     UA_NodeId_clear(&readerGroup->identifier);
 
 #ifdef UA_ENABLE_PUBSUB_ENCRYPTION
@@ -342,7 +334,7 @@ UA_ReaderGroup_setPubSubState_disable(UA_Server *server,
         break;
     case UA_PUBSUBSTATE_OPERATIONAL: {
         UA_ReaderGroup_removeSubscribeCallback(server, rg);
-        UA_PubSubConnection *connection = UA_PubSubConnection_findConnectionbyId(server, rg->linkedConnection);
+        UA_PubSubConnection *connection = rg->linkedConnection;
         UA_PubSubChannel *channel = connection->channel;
         if(channel->closeSubscriber) {
             channel->closeSubscriber(channel);
@@ -398,7 +390,7 @@ UA_ReaderGroup_setPubSubState_operational(UA_Server *server,
             UA_DataSetReader_setPubSubState(server, dataSetReader, UA_PUBSUBSTATE_OPERATIONAL,
                                             cause);
         }
-        UA_PubSubConnection *connection = UA_PubSubConnection_findConnectionbyId(server, rg->linkedConnection);
+        UA_PubSubConnection *connection = rg->linkedConnection;
         UA_PubSubChannel *channel = connection->channel;
         if(channel->openSubscriber) {
             channel->openSubscriber(channel);
@@ -573,9 +565,7 @@ UA_ReaderGroup_freezeConfiguration(UA_Server *server, UA_ReaderGroup *rg) {
         return UA_STATUSCODE_GOOD;
 
     /* PubSubConnection freezeCounter++ */
-    UA_NodeId pubSubConnectionId =  rg->linkedConnection;
-    UA_PubSubConnection *pubSubConnection =
-        UA_PubSubConnection_findConnectionbyId(server, pubSubConnectionId);
+    UA_PubSubConnection *pubSubConnection = rg->linkedConnection;
     pubSubConnection->configurationFreezeCounter++;
     pubSubConnection->configurationFrozen = true;
 
@@ -729,9 +719,7 @@ UA_ReaderGroup_unfreezeConfiguration(UA_Server *server, UA_ReaderGroup *rg) {
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
 
     /* PubSubConnection freezeCounter-- */
-    UA_NodeId pubSubConnectionId =  rg->linkedConnection;
-    UA_PubSubConnection *pubSubConnection =
-        UA_PubSubConnection_findConnectionbyId(server, pubSubConnectionId);
+    UA_PubSubConnection *pubSubConnection = rg->linkedConnection;
     pubSubConnection->configurationFreezeCounter--;
     if(pubSubConnection->configurationFreezeCounter == 0){
         pubSubConnection->configurationFrozen = false;
@@ -776,8 +764,7 @@ UA_ReaderGroup_subscribeCallback(UA_Server *server,
     UA_LOG_DEBUG_READERGROUP(&server->config.logger, readerGroup,
                              "PubSub subscribe callback");
 
-    UA_PubSubConnection *connection =
-        UA_PubSubConnection_findConnectionbyId(server, readerGroup->linkedConnection);
+    UA_PubSubConnection *connection = readerGroup->linkedConnection;
     if(!connection) {
         UA_LOG_ERROR_READERGROUP(&server->config.logger, readerGroup,
                      "SubscribeCallback(): Find linked connection failed");
@@ -793,32 +780,27 @@ UA_ReaderGroup_subscribeCallback(UA_Server *server,
  * creation. */
 UA_StatusCode
 UA_ReaderGroup_addSubscribeCallback(UA_Server *server, UA_ReaderGroup *readerGroup) {
-    UA_StatusCode retval = UA_STATUSCODE_GOOD;
-    if(readerGroup->config.pubsubManagerCallback.addCustomCallback)
-        retval = readerGroup->config.pubsubManagerCallback.
-            addCustomCallback(server, readerGroup->identifier,
-               (UA_ServerCallback)UA_ReaderGroup_subscribeCallback,
-               readerGroup, readerGroup->config.subscribingInterval,
-               NULL, // TODO: Send base time from reader group config
-               // TODO: Send timer policy from reader group config
-               UA_TIMER_HANDLE_CYCLEMISS_WITH_CURRENTTIME,
-               &readerGroup->subscribeCallbackId);
-    else {
-        if(readerGroup->config.enableBlockingSocket == true) {
-            UA_LOG_WARNING_READERGROUP(&server->config.logger, readerGroup,
-                                       "addSubscribeCallback() failed, blocking socket "
-                                       "functionality only supported in customcallback");
-            return UA_STATUSCODE_BADNOTSUPPORTED;
-        }
+    /* Already registered */
+    if(readerGroup->subscribeCallbackId != 0)
+        return UA_STATUSCODE_BADINTERNALERROR;
 
-        retval = UA_PubSubManager_addRepeatedCallback(server,
-                    (UA_ServerCallback)UA_ReaderGroup_subscribeCallback,
-                    readerGroup, readerGroup->config.subscribingInterval,
-                    NULL, // TODO: Send base time from reader group config
-                    // TODO: Send timer policy from reader group config
-                    UA_TIMER_HANDLE_CYCLEMISS_WITH_CURRENTTIME,
-                    &readerGroup->subscribeCallbackId);
-    }
+    UA_EventLoop *el = readerGroup->linkedConnection->config.eventLoop;
+    if(!el)
+        el = server->config.eventLoop;
+
+    UA_StatusCode retval =
+        el->addCyclicCallback(el, (UA_Callback)UA_ReaderGroup_subscribeCallback,
+                              server, readerGroup,
+                              readerGroup->config.subscribingInterval,
+                              NULL /* TODO: use basetime */,
+                              UA_TIMER_HANDLE_CYCLEMISS_WITH_CURRENTTIME /* TODO: Send
+                                                                          * timer policy
+                                                                          * from writer
+                                                                          * group
+                                                                          * config */,
+                              &readerGroup->subscribeCallbackId);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
 
     /* Run once after creation */
     /* When using blocking socket functionality, the server mechanism might get
@@ -832,13 +814,12 @@ UA_ReaderGroup_addSubscribeCallback(UA_Server *server, UA_ReaderGroup *readerGro
 
 void
 UA_ReaderGroup_removeSubscribeCallback(UA_Server *server, UA_ReaderGroup *readerGroup) {
-    if(readerGroup->config.pubsubManagerCallback.removeCustomCallback)
-        readerGroup->config.pubsubManagerCallback.
-            removeCustomCallback(server, readerGroup->identifier,
-                                 readerGroup->subscribeCallbackId);
-    else
-        UA_PubSubManager_removeRepeatedPubSubCallback(server,
-                                                      readerGroup->subscribeCallbackId);
+    UA_EventLoop *el = readerGroup->linkedConnection->config.eventLoop;
+    if(!el)
+        el = server->config.eventLoop;
+    if(readerGroup->subscribeCallbackId != 0)
+        el->removeCyclicCallback(el, readerGroup->subscribeCallbackId);
+    readerGroup->subscribeCallbackId = 0;
 }
 
 #endif /* UA_ENABLE_PUBSUB */

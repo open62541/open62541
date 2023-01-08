@@ -178,6 +178,11 @@ struct UA_PubSubConnectionConfig {
     UA_Variant address;
     UA_KeyValueMap connectionProperties;
     UA_Variant connectionTransportSettings;
+
+    UA_EventLoop *eventLoop; /* Use an external EventLoop (use the EventLoop of
+                              * the server if this is NULL). Propagates to the
+                              * ReaderGroup/WriterGroup attached to the
+                              * Connection. */
 };
 
 #ifdef UA_ENABLE_PUBSUB_MONITORING

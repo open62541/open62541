@@ -375,8 +375,7 @@ publish_callback(void** ptrServer, struct mqtt_response_publish *published)
     UA_TopicAssign *topicAssign1;
     TAILQ_FOREACH(topicAssign1, &pubSubManager.topicAssign, listEntry){
         if(UA_String_equal(&topicAssign1->topic, topic)) {
-            UA_PubSubConnection* pConn =
-                UA_PubSubConnection_findConnectionbyId(server, topicAssign1->rgIdentifier->linkedConnection);
+            UA_PubSubConnection* pConn = topicAssign1->rgIdentifier->linkedConnection;
             processMqttSubscriberCallback(server, pConn, msg);
         }
     }

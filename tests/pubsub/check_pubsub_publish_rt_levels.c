@@ -16,8 +16,11 @@
 #include <check.h>
 #include <stdio.h>
 
+UA_EventLoop *rtEventLoop = NULL;
 UA_Server *server = NULL;
 UA_NodeId connectionIdentifier, publishedDataSetIdent, writerGroupIdent, dataSetWriterIdent, dataSetFieldIdent;
+
+UA_DataValue *staticSource1, *staticSource2;
 
 static UA_StatusCode
 addMinimalPubSubConfiguration(void){
@@ -28,6 +31,7 @@ addMinimalPubSubConfiguration(void){
     connectionConfig.name = UA_STRING("UDP-UADP Connection 1");
     connectionConfig.transportProfileUri = UA_STRING("http://opcfoundation.org/UA-Profile/Transport/pubsub-udp-uadp");
     connectionConfig.enabled = UA_TRUE;
+    connectionConfig.eventLoop = rtEventLoop;
     UA_NetworkAddressUrlDataType networkAddressUrl = {UA_STRING_NULL , UA_STRING("opc.udp://224.0.0.22:4840/")};
     UA_Variant_setScalar(&connectionConfig.address, &networkAddressUrl, &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
     connectionConfig.publisherIdType = UA_PUBLISHERIDTYPE_UINT32;
@@ -51,11 +55,48 @@ static void setup(void) {
     UA_ServerConfig_setDefault(config);
     UA_ServerConfig_addPubSubTransportLayer(config, UA_PubSubTransportLayerUDPMP());
     UA_Server_run_startup(server);
+
+    rtEventLoop = UA_EventLoop_new_POSIX(&server->config.logger);
+
+    /* Add the TCP connection manager */
+    UA_ConnectionManager *tcpCM =
+        UA_ConnectionManager_new_POSIX_TCP(UA_STRING("tcp connection manager"));
+    rtEventLoop->registerEventSource(rtEventLoop, (UA_EventSource *)tcpCM);
+
+    /* Add the UDP connection manager */
+    UA_ConnectionManager *udpCM =
+        UA_ConnectionManager_new_POSIX_UDP(UA_STRING("udp connection manager"));
+    rtEventLoop->registerEventSource(rtEventLoop, (UA_EventSource *)udpCM);
+
+    rtEventLoop->start(rtEventLoop);
 }
 
 static void teardown(void) {
     UA_Server_run_shutdown(server);
+
+    if(rtEventLoop->state != UA_EVENTLOOPSTATE_FRESH &&
+       rtEventLoop->state != UA_EVENTLOOPSTATE_STOPPED) {
+        rtEventLoop->stop(rtEventLoop);
+        while(rtEventLoop->state != UA_EVENTLOOPSTATE_STOPPED) {
+            rtEventLoop->run(rtEventLoop, 100);
+        }
+    }
+
     UA_Server_delete(server);
+    rtEventLoop->free(rtEventLoop);
+
+    rtEventLoop = NULL;
+    server = NULL;
+
+    /* Clean these up only after the server is done */
+    if(staticSource1) {
+        UA_DataValue_delete(staticSource1);
+        staticSource1 = NULL;
+    }
+    if(staticSource2) {
+        UA_DataValue_delete(staticSource2);
+        staticSource2 = NULL;
+    }
 }
 
 typedef struct {
@@ -133,10 +174,10 @@ START_TEST(PublishSingleFieldWithStaticValueSource) {
         /* Create Variant and configure as DataSetField source */
         UA_UInt32 *intValue = UA_UInt32_new();
         *intValue = 1000;
-        UA_DataValue *dataValue = UA_DataValue_new();
-        UA_Variant_setScalar(&dataValue->value, intValue, &UA_TYPES[UA_TYPES_UINT32]);
+        staticSource1 = UA_DataValue_new();
+        UA_Variant_setScalar(&staticSource1->value, intValue, &UA_TYPES[UA_TYPES_UINT32]);
         dsfConfig.field.variable.rtValueSource.rtFieldSourceEnabled = UA_TRUE;
-        dsfConfig.field.variable.rtValueSource.staticValueSource = &dataValue;
+        dsfConfig.field.variable.rtValueSource.staticValueSource = &staticSource1;
         ck_assert(UA_Server_addDataSetField(server, publishedDataSetIdent, &dsfConfig, &dataSetFieldIdent).result == UA_STATUSCODE_GOOD);
 
         /* DataSetWriter muste be added AFTER addDataSetField otherwize lastSamples will be uninitialized */
@@ -150,8 +191,7 @@ START_TEST(PublishSingleFieldWithStaticValueSource) {
         receiveSingleMessage(buffer, connection, &networkMessage);
         ck_assert((*((UA_UInt32 *)networkMessage.payload.dataSetPayload.dataSetMessages->data.keyFrameData.dataSetFields->value.data)) == 1000);
         UA_NetworkMessage_clear(&networkMessage);
-        UA_DataValue_delete(dataValue);
-    } END_TEST
+} END_TEST
 
 START_TEST(PublishSingleFieldWithDifferentBinarySizes) {
         ck_assert(addMinimalPubSubConfiguration() == UA_STATUSCODE_GOOD);
@@ -183,11 +223,11 @@ START_TEST(PublishSingleFieldWithDifferentBinarySizes) {
         memset(&dsfConfig, 0, sizeof(UA_DataSetFieldConfig));
         /* Create Variant and configure as DataSetField source */
         UA_String stringValue = UA_STRING_ALLOC("12345");
-        UA_DataValue *dataValue = UA_DataValue_new();
-        UA_Variant_setScalar(&dataValue->value, &stringValue, &UA_TYPES[UA_TYPES_STRING]);
-        dataValue->value.storageType = UA_VARIANT_DATA_NODELETE;
+        staticSource1 = UA_DataValue_new();
+        UA_Variant_setScalar(&staticSource1->value, &stringValue, &UA_TYPES[UA_TYPES_STRING]);
+        staticSource1->value.storageType = UA_VARIANT_DATA_NODELETE;
         dsfConfig.field.variable.rtValueSource.rtFieldSourceEnabled = UA_TRUE;
-        dsfConfig.field.variable.rtValueSource.staticValueSource = &dataValue;
+        dsfConfig.field.variable.rtValueSource.staticValueSource = &staticSource1;
         dsfConfig.field.variable.publishParameters.attributeId = UA_ATTRIBUTEID_VALUE;
         ck_assert(UA_Server_addDataSetField(server, publishedDataSetIdent, &dsfConfig, &dataSetFieldIdent).result == UA_STATUSCODE_GOOD);
         ck_assert(UA_Server_addDataSetWriter(server, writerGroupIdent, publishedDataSetIdent, &dataSetWriterConfig, &dataSetWriterIdent) == UA_STATUSCODE_GOOD);
@@ -213,7 +253,6 @@ START_TEST(PublishSingleFieldWithDifferentBinarySizes) {
         ck_assert(UA_String_equal(((UA_String *) networkMessage.payload.dataSetPayload.dataSetMessages->data.keyFrameData.dataSetFields->value.data), &compareString) == UA_TRUE);
         UA_NetworkMessage_clear(&networkMessage);
         UA_String_clear(&stringValue);
-        UA_DataValue_delete(dataValue);
     } END_TEST
 
 START_TEST(SetupInvalidPubSubConfigWithStaticValueSource) {
@@ -287,10 +326,10 @@ START_TEST(PublishSingleFieldWithFixedOffsets) {
         // Create Variant and configure as DataSetField source
         UA_UInt32 *intValue = UA_UInt32_new();
         *intValue = (UA_UInt32) 1000;
-        UA_DataValue *dataValue = UA_DataValue_new();
-        UA_Variant_setScalar(&dataValue->value, intValue, &UA_TYPES[UA_TYPES_UINT32]);
+        staticSource1 = UA_DataValue_new();
+        UA_Variant_setScalar(&staticSource1->value, intValue, &UA_TYPES[UA_TYPES_UINT32]);
         dsfConfig.field.variable.rtValueSource.rtFieldSourceEnabled = UA_TRUE;
-        dsfConfig.field.variable.rtValueSource.staticValueSource = &dataValue;
+        dsfConfig.field.variable.rtValueSource.staticValueSource = &staticSource1;
         dsfConfig.field.variable.publishParameters.attributeId = UA_ATTRIBUTEID_VALUE;
         ck_assert(UA_Server_addDataSetField(server, publishedDataSetIdent, &dsfConfig, &dataSetFieldIdent).result == UA_STATUSCODE_GOOD);
 
@@ -304,10 +343,6 @@ START_TEST(PublishSingleFieldWithFixedOffsets) {
         receiveSingleMessage(buffer, connection, &networkMessage);
         ck_assert((*((UA_UInt32 *)networkMessage.payload.dataSetPayload.dataSetMessages->data.keyFrameData.dataSetFields->value.data)) == 1000);
         UA_NetworkMessage_clear(&networkMessage);
-        UA_DataValue_delete(dataValue);
-
-        UA_Server_run_shutdown(server);
-        UA_Server_delete(server);
     } END_TEST
 
 START_TEST(PublishPDSWithMultipleFieldsAndFixedOffset) {
@@ -341,18 +376,18 @@ START_TEST(PublishPDSWithMultipleFieldsAndFixedOffset) {
         // Create Variant and configure as DataSetField source
         UA_UInt32 *intValue = UA_UInt32_new();
         *intValue = (UA_UInt32) 1000;
-        UA_DataValue *dataValue = UA_DataValue_new();
-        UA_Variant_setScalar(&dataValue->value, intValue, &UA_TYPES[UA_TYPES_UINT32]);
+        staticSource1 = UA_DataValue_new();
+        UA_Variant_setScalar(&staticSource1->value, intValue, &UA_TYPES[UA_TYPES_UINT32]);
         dsfConfig.field.variable.rtValueSource.rtFieldSourceEnabled = UA_TRUE;
         dsfConfig.field.variable.rtValueSource.rtInformationModelNode = UA_FALSE;
-        dsfConfig.field.variable.rtValueSource.staticValueSource = &dataValue;
+        dsfConfig.field.variable.rtValueSource.staticValueSource = &staticSource1;
         dsfConfig.field.variable.publishParameters.attributeId = UA_ATTRIBUTEID_VALUE;
         ck_assert(UA_Server_addDataSetField(server, publishedDataSetIdent, &dsfConfig, NULL).result == UA_STATUSCODE_GOOD);
         UA_UInt32 *intValue2 = UA_UInt32_new();
         *intValue2 = (UA_UInt32) 2000;
-        UA_DataValue *dataValue2 = UA_DataValue_new();
-        UA_Variant_setScalar(&dataValue2->value, intValue2, &UA_TYPES[UA_TYPES_UINT32]);
-        dsfConfig.field.variable.rtValueSource.staticValueSource = &dataValue2;
+        staticSource2 = UA_DataValue_new();
+        UA_Variant_setScalar(&staticSource2->value, intValue2, &UA_TYPES[UA_TYPES_UINT32]);
+        dsfConfig.field.variable.rtValueSource.staticValueSource = &staticSource2;
         ck_assert(UA_Server_addDataSetField(server, publishedDataSetIdent, &dsfConfig, NULL).result == UA_STATUSCODE_GOOD);
 
         ck_assert(UA_Server_addDataSetWriter(server, writerGroupIdent, publishedDataSetIdent, &dataSetWriterConfig, &dataSetWriterIdent) == UA_STATUSCODE_GOOD);
@@ -377,44 +412,7 @@ START_TEST(PublishPDSWithMultipleFieldsAndFixedOffset) {
         ck_assert((*((UA_UInt32 *)networkMessage.payload.dataSetPayload.dataSetMessages->data.keyFrameData.dataSetFields->value.data)) == 1001);
         ck_assert(*((UA_UInt32 *) networkMessage.payload.dataSetPayload.dataSetMessages->data.keyFrameData.dataSetFields[1].value.data) == 2001);
         UA_NetworkMessage_clear(&networkMessage);
-
-        UA_Server_run_shutdown(server);
-        UA_Server_delete(server);
-        UA_DataValue_delete(dataValue);
-        UA_DataValue_delete(dataValue2);
 } END_TEST
-
-/* Custom callbacks for add, change and remove pubsub callbacks */
-static UA_StatusCode
-addPubSubApplicationCallback(UA_Server *server_local, UA_NodeId identifier,
-                             UA_ServerCallback callback,
-                             void *data, UA_Double interval_ms,
-                             UA_DateTime *baseTime, UA_TimerPolicy timerPolicy,
-                             UA_UInt64 *callbackId) {
-    UA_StatusCode retval = UA_STATUSCODE_GOOD;
-    UA_WriterGroup *writerGroup = (UA_WriterGroup *)data;
-    /* User defined threads can be called here. For testing, internal repeated callbacks are used */
-    retval = UA_PubSubManager_addRepeatedCallback(server_local,
-                                                  (UA_ServerCallback) callback,
-                                                  writerGroup, writerGroup->config.publishingInterval,
-                                                  baseTime, timerPolicy,
-                                                  &writerGroup->publishCallbackId);
-    return retval;
-}
-
-static UA_StatusCode
-changePubSubApplicationCallback(UA_Server *server_local, UA_NodeId identifier,
-                                UA_UInt64 callbackId, UA_Double interval_ms,
-                                UA_DateTime *baseTime, UA_TimerPolicy timerPolicy) {
-    return UA_STATUSCODE_GOOD;
-}
-
-static void
-removePubSubApplicationCallback(UA_Server *server_local, UA_NodeId identifier, UA_UInt64 callbackId) {
-    /* Using the internal repeated callbacks for the tests. */
-    UA_WriterGroup *writerGroup = UA_WriterGroup_findWGbyId(server_local, identifier);
-    UA_PubSubManager_removeRepeatedPubSubCallback(server_local, writerGroup->publishCallbackId);
-}
 
 START_TEST(PublishSingleFieldInCustomCallback) {
         ck_assert(addMinimalPubSubConfiguration() == UA_STATUSCODE_GOOD);
@@ -430,9 +428,6 @@ START_TEST(PublishSingleFieldInCustomCallback) {
         writerGroupConfig.writerGroupId = 100;
         writerGroupConfig.encodingMimeType = UA_PUBSUB_ENCODING_UADP;
         writerGroupConfig.rtLevel = UA_PUBSUB_RT_FIXED_SIZE;
-        writerGroupConfig.pubsubManagerCallback.addCustomCallback = addPubSubApplicationCallback;
-        writerGroupConfig.pubsubManagerCallback.changeCustomCallback = changePubSubApplicationCallback;
-        writerGroupConfig.pubsubManagerCallback.removeCustomCallback = removePubSubApplicationCallback;
         UA_UadpWriterGroupMessageDataType *wgm = UA_UadpWriterGroupMessageDataType_new();
         wgm->networkMessageContentMask = UA_UADPNETWORKMESSAGECONTENTMASK_PAYLOADHEADER;
         writerGroupConfig.messageSettings.content.decoded.data = wgm;
@@ -450,10 +445,10 @@ START_TEST(PublishSingleFieldInCustomCallback) {
         // Create Variant and configure as DataSetField source
         UA_UInt32 *intValue = UA_UInt32_new();
         *intValue = (UA_UInt32) 1000;
-        UA_DataValue *dataValue = UA_DataValue_new();
-        UA_Variant_setScalar(&dataValue->value, intValue, &UA_TYPES[UA_TYPES_UINT32]);
+        staticSource1 = UA_DataValue_new();
+        UA_Variant_setScalar(&staticSource1->value, intValue, &UA_TYPES[UA_TYPES_UINT32]);
         dsfConfig.field.variable.rtValueSource.rtFieldSourceEnabled = UA_TRUE;
-        dsfConfig.field.variable.rtValueSource.staticValueSource = &dataValue;
+        dsfConfig.field.variable.rtValueSource.staticValueSource = &staticSource1;
         dsfConfig.field.variable.publishParameters.attributeId = UA_ATTRIBUTEID_VALUE;
         ck_assert(UA_Server_addDataSetField(server, publishedDataSetIdent, &dsfConfig, &dataSetFieldIdent).result == UA_STATUSCODE_GOOD);
 
@@ -467,10 +462,6 @@ START_TEST(PublishSingleFieldInCustomCallback) {
         receiveSingleMessage(buffer, connection, &networkMessage);
         ck_assert((*((UA_UInt32 *)networkMessage.payload.dataSetPayload.dataSetMessages->data.keyFrameData.dataSetFields->value.data)) == 1000);
         UA_NetworkMessage_clear(&networkMessage);
-        UA_DataValue_delete(dataValue);
-
-        UA_Server_run_shutdown(server);
-        UA_Server_delete(server);
 } END_TEST
 
 static UA_StatusCode
@@ -650,7 +641,7 @@ int main(void) {
     tcase_add_test(tc_pubsub_rt_static_value_source, PubSubConfigWithMultipleInformationModelRTVariables);
 
     TCase *tc_pubsub_rt_fixed_offsets = tcase_create("PubSub RT publish with fixed offsets");
-    tcase_add_checked_fixture(tc_pubsub_rt_fixed_offsets, setup, NULL);
+    tcase_add_checked_fixture(tc_pubsub_rt_fixed_offsets, setup, teardown);
     tcase_add_test(tc_pubsub_rt_fixed_offsets, PublishSingleFieldWithFixedOffsets);
     tcase_add_test(tc_pubsub_rt_fixed_offsets, PublishPDSWithMultipleFieldsAndFixedOffset);
     tcase_add_test(tc_pubsub_rt_fixed_offsets, PublishSingleFieldInCustomCallback);
