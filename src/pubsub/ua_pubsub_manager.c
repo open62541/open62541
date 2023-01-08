@@ -73,6 +73,20 @@ UA_PubSubManager_addPubSubTopicAssign(UA_Server *server, UA_ReaderGroup *readerG
     return UA_STATUSCODE_GOOD;
 }
 
+static enum ZIP_CMP
+cmpReserveId(const void *a, const void *b) {
+    const UA_ReserveId *aa = (const UA_ReserveId*)a;
+    const UA_ReserveId *bb = (const UA_ReserveId*)b;
+    if(aa->id != bb->id)
+        return (aa->id < bb->id) ? ZIP_CMP_LESS : ZIP_CMP_MORE;
+    if(aa->reserveIdType != bb->reserveIdType)
+        return (aa->reserveIdType < bb->reserveIdType) ? ZIP_CMP_LESS : ZIP_CMP_MORE;
+    return (enum ZIP_CMP)UA_order(&aa->transportProfileUri,
+                                  &bb->transportProfileUri, &UA_TYPES[UA_TYPES_STRING]);
+}
+
+ZIP_FUNCTIONS(UA_ReserveIdTree, UA_ReserveId, treeEntry, UA_ReserveId, id, cmpReserveId)
+
 static UA_ReserveId *
 UA_ReserveId_new(UA_Server *server, UA_UInt16 id, UA_String transportProfileUri,
                  UA_ReserveIdType reserveIdType, UA_NodeId sessionId) {
@@ -91,15 +105,17 @@ UA_ReserveId_new(UA_Server *server, UA_UInt16 id, UA_String transportProfileUri,
 }
 
 static UA_Boolean
-UA_ReserveId_isFree(UA_Server *server,  UA_UInt16 id, UA_String transportProfileUri, UA_ReserveIdType reserveIdType) {
+UA_ReserveId_isFree(UA_Server *server,  UA_UInt16 id,
+                    UA_String transportProfileUri, UA_ReserveIdType reserveIdType) {
     UA_PubSubManager *pubSubManager = &server->pubSubManager;
 
-    UA_ReserveId *reserveId1;
-    LIST_FOREACH(reserveId1, &pubSubManager->reserveIds, listEntry){
-        if(UA_String_equal(&reserveId1->transportProfileUri, &transportProfileUri) && reserveId1->reserveIdType == reserveIdType && reserveId1->id == id) {
-            return false;
-        }
-    }
+    /* Is the id already in use? */
+    UA_ReserveId compare;
+    compare.id = id;
+    compare.reserveIdType = reserveIdType;
+    compare.transportProfileUri = transportProfileUri;
+    if(ZIP_FIND(UA_ReserveIdTree, &pubSubManager->reserveIds, &compare))
+        return false;
 
     UA_PubSubConnection *tmpConnection;
     TAILQ_FOREACH(tmpConnection, &server->pubSubManager.connections, listEntry) {
@@ -107,7 +123,8 @@ UA_ReserveId_isFree(UA_Server *server,  UA_UInt16 id, UA_String transportProfile
         LIST_FOREACH(writerGroup, &tmpConnection->writerGroups, listEntry) {
             if(reserveIdType == UA_WRITER_GROUP) {
                 if(UA_String_equal(&tmpConnection->config.transportProfileUri,
-                                   &transportProfileUri) && writerGroup->config.writerGroupId == id)
+                                   &transportProfileUri) &&
+                   writerGroup->config.writerGroupId == id)
                     return false;
             /* reserveIdType == UA_DATA_SET_WRITER */
             } else {
@@ -116,7 +133,7 @@ UA_ReserveId_isFree(UA_Server *server,  UA_UInt16 id, UA_String transportProfile
                     if(UA_String_equal(&tmpConnection->config.transportProfileUri,
                                        &transportProfileUri) &&
                     currentWriter->config.dataSetWriterId == id)
-                       return false;
+                        return false;
                 }
             }
         }
@@ -125,7 +142,8 @@ UA_ReserveId_isFree(UA_Server *server,  UA_UInt16 id, UA_String transportProfile
 }
 
 static UA_UInt16
-UA_ReserveId_createId(UA_Server *server,  UA_NodeId sessionId, UA_String transportProfileUri, UA_ReserveIdType reserveIdType) {
+UA_ReserveId_createId(UA_Server *server,  UA_NodeId sessionId,
+                      UA_String transportProfileUri, UA_ReserveIdType reserveIdType) {
     /* Total number of possible Ids */
     UA_UInt16 numberOfIds = 0x8000;
     /* Contains next possible free Id */
@@ -163,53 +181,76 @@ UA_ReserveId_createId(UA_Server *server,  UA_NodeId sessionId, UA_String transpo
     else
         next_id_writer = (UA_UInt16)(next_id + 1);
 
-    UA_ReserveId *reserveId = UA_ReserveId_new(server, next_id, transportProfileUri, reserveIdType, sessionId);
+    UA_ReserveId *reserveId =
+        UA_ReserveId_new(server, next_id, transportProfileUri, reserveIdType, sessionId);
+    if(!reserveId)
+        return 0;
     UA_PubSubManager *pubSubManager = &server->pubSubManager;
-    if(reserveId != NULL) {
-        /* The reserveIds list is already initialized in the pubsubmanager_init. */
-        LIST_INSERT_HEAD(&pubSubManager->reserveIds, reserveId, listEntry);
-        pubSubManager->reserveIdsSize++;
-        return next_id;
+    ZIP_INSERT(UA_ReserveIdTree, &pubSubManager->reserveIds, reserveId);
+    pubSubManager->reserveIdsSize++;
+    return next_id;
+}
+
+static void *
+removeReserveId(void *context, UA_ReserveId *elem) {
+    UA_String_clear(&elem->transportProfileUri);
+    UA_free(elem);
+    return NULL;
+}
+
+struct RemoveInactiveReserveIdContext {
+    UA_Server *server;
+    UA_ReserveIdTree newTree;
+};
+
+/* Remove ReserveIds that are not attached to any session */
+static void *
+removeInactiveReserveId(void *context, UA_ReserveId *elem) {
+    struct RemoveInactiveReserveIdContext *ctx =
+        (struct RemoveInactiveReserveIdContext*)context;
+
+    if(UA_NodeId_equal(&ctx->server->adminSession.sessionId, &elem->sessionId))
+        goto still_active;
+
+    session_list_entry *session;
+    LIST_FOREACH(session, &ctx->server->sessions, pointers) {
+        if(UA_NodeId_equal(&session->session.sessionId, &elem->sessionId))
+            goto still_active;
     }
-    return 0;
+
+    ctx->server->pubSubManager.reserveIdsSize--;
+    UA_String_clear(&elem->transportProfileUri);
+    UA_free(elem);
+    return NULL;
+
+ still_active:
+    ZIP_INSERT(UA_ReserveIdTree, &ctx->newTree, elem);
+    return NULL;
 }
 
 void
 UA_PubSubManager_freeIds(UA_Server *server) {
-    bool is_active = false;
-    UA_ReserveId *reserveId1, *reserveId2;
-    LIST_FOREACH_SAFE(reserveId1, &server->pubSubManager.reserveIds, listEntry, reserveId2){
-        if(UA_NodeId_equal(&server->adminSession.sessionId, &reserveId1->sessionId))
-            continue;
-        is_active = false;
-        session_list_entry *session;
-        LIST_FOREACH(session, &server->sessions , pointers) {
-            if(UA_NodeId_equal(&session->session.sessionId, &reserveId1->sessionId)) {
-                is_active = true;
-                break;
-            }
-        }
-        if(!is_active) {
-            server->pubSubManager.reserveIdsSize--;
-            UA_String_clear(&reserveId1->transportProfileUri);
-            LIST_REMOVE(reserveId1, listEntry);
-            UA_free(reserveId1);
-        }
-    }
+    struct RemoveInactiveReserveIdContext removeCtx;
+    removeCtx.server = server;
+    removeCtx.newTree.root = NULL;
+    ZIP_ITER(UA_ReserveIdTree, &server->pubSubManager.reserveIds,
+             removeInactiveReserveId, &removeCtx);
+    server->pubSubManager.reserveIds = removeCtx.newTree;
 }
 
 UA_StatusCode
 UA_PubSubManager_reserveIds(UA_Server *server, UA_NodeId sessionId, UA_UInt16 numRegWriterGroupIds,
                             UA_UInt16 numRegDataSetWriterIds, UA_String transportProfileUri,
                             UA_UInt16 **writerGroupIds, UA_UInt16 **dataSetWriterIds) {
-
     UA_PubSubManager_freeIds(server);
+
     /* Check the validation of the transportProfileUri */
     UA_String profile_1 = UA_STRING("http://opcfoundation.org/UA-Profile/Transport/pubsub-mqtt-uadp");
     UA_String profile_2 = UA_STRING("http://opcfoundation.org/UA-Profile/Transport/pubsub-mqtt-json");
     UA_String profile_3 = UA_STRING("http://opcfoundation.org/UA-Profile/Transport/pubsub-udp-uadp");
-    if(!UA_String_equal(&transportProfileUri, &profile_1) && !UA_String_equal(&transportProfileUri, &profile_2) &&
-        !UA_String_equal(&transportProfileUri, &profile_3)) {
+    if(!UA_String_equal(&transportProfileUri, &profile_1) &&
+       !UA_String_equal(&transportProfileUri, &profile_2) &&
+       !UA_String_equal(&transportProfileUri, &profile_3)) {
         UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
                      "PubSub ReserveId creation failed. No valid transport profile uri.");
         return UA_STATUSCODE_BADINVALIDARGUMENT;
@@ -218,10 +259,12 @@ UA_PubSubManager_reserveIds(UA_Server *server, UA_NodeId sessionId, UA_UInt16 nu
     *dataSetWriterIds = (UA_UInt16*)UA_Array_new(numRegDataSetWriterIds, &UA_TYPES[UA_TYPES_UINT16]);
 
     for(int i = 0; i < numRegWriterGroupIds; i++) {
-        (*writerGroupIds)[i] = UA_ReserveId_createId(server, sessionId, transportProfileUri, UA_WRITER_GROUP);
+        (*writerGroupIds)[i] =
+            UA_ReserveId_createId(server, sessionId, transportProfileUri, UA_WRITER_GROUP);
     }
     for(int i = 0; i < numRegDataSetWriterIds; i++) {
-        (*dataSetWriterIds)[i] = UA_ReserveId_createId(server, sessionId, transportProfileUri, UA_DATA_SET_WRITER);
+        (*dataSetWriterIds)[i] =
+            UA_ReserveId_createId(server, sessionId, transportProfileUri, UA_DATA_SET_WRITER);
     }
     return UA_STATUSCODE_GOOD;
 }
@@ -587,13 +630,8 @@ UA_PubSubManager_delete(UA_Server *server, UA_PubSubManager *pubSubManager) {
     }
 
     /* Remove the ReserveIds*/
-    UA_ReserveId *tmpReserveId1, *tmpReserveId2;
-    LIST_FOREACH_SAFE(tmpReserveId1, &server->pubSubManager.reserveIds, listEntry, tmpReserveId2){
-        server->pubSubManager.reserveIdsSize--;
-        UA_String_clear(&tmpReserveId1->transportProfileUri);
-        LIST_REMOVE(tmpReserveId1, listEntry);
-        UA_free(tmpReserveId1);
-    }
+    ZIP_ITER(UA_ReserveIdTree, &server->pubSubManager.reserveIds, removeReserveId, NULL);
+    server->pubSubManager.reserveIdsSize = 0;
 
     /* Free the list of transport layers */
     if(server->config.pubSubConfig.transportLayersSize > 0) {
