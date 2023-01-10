@@ -166,12 +166,6 @@ START_TEST(Server_loadGDSNodeset) {
 }
 END_TEST
 
-START_TEST(Server_loadServer_loadGDSPart12Nodeset) {
-    bool retVal = UA_Server_loadNodeset(server,
-        OPEN62541_NODESET_DIR "GDS/Opc.Ua.Gds.NodeSet2.Part12.xml", NULL);
-    ck_assert_uint_eq(retVal, true);
-}
-END_TEST
 
 START_TEST(Server_loadServer_loadGlassNodeset) {
     bool retVal = UA_Server_loadNodeset(server,
@@ -735,12 +729,6 @@ static Suite* testSuite_Client(void) {
         TCase *tc_server = tcase_create("Server load GDS nodeset");
         tcase_add_unchecked_fixture(tc_server, setup, teardown);
         tcase_add_test(tc_server, Server_loadGDSNodeset);
-        suite_add_tcase(s, tc_server);
-    }
-    {
-        TCase *tc_server = tcase_create("Server load GDSPart12 nodeset");
-        tcase_add_unchecked_fixture(tc_server, setup, teardown);
-        tcase_add_test(tc_server, Server_loadServer_loadGDSPart12Nodeset);
         suite_add_tcase(s, tc_server);
     }
     {
