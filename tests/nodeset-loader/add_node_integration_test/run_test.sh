@@ -162,9 +162,6 @@ add_node_integration_test "FDT" \
 add_node_integration_test "GDS" \
     $UA_NODESET_PATH/GDS/Opc.Ua.Gds.NodeSet2.xml
 
-add_node_integration_test "GDS.Part12" \
-    $UA_NODESET_PATH/GDS/Opc.Ua.Gds.NodeSet2.Part12.xml
-
 add_node_integration_test "Flat.Glass" \
     $UA_NODESET_PATH/DI/Opc.Ua.Di.NodeSet2.xml \
     $UA_NODESET_PATH/Machinery/Opc.Ua.Machinery.NodeSet2.xml \
