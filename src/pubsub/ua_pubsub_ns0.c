@@ -1751,6 +1751,7 @@ addSecurityGroupRepresentation(UA_Server *server, UA_SecurityGroup *securityGrou
                      UA_StatusCode_name(retval));
         deleteNode(server, securityGroup->securityGroupNodeId, true);
     }
+    UA_free(sgName);
     return retval;
 }
 
