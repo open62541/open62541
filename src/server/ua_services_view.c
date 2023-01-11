@@ -228,29 +228,21 @@ RefTree_double(RefTree *rt) {
     if(!newTargets)
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
-    /* Repair the pointers for the realloced array+tree  */
-    // What is this sorcery?
-    // FIXME: This needs some cleaning up or explanation.
-    // IMO uintptr could be completely avoided here.
-    uintptr_t arraydiff = (uintptr_t)newTargets - (uintptr_t)rt->targets;
+    /* Move the entries to the new location  */
     RefEntry *reArray = (RefEntry*)
         ((uintptr_t)newTargets + (capacity * sizeof(UA_ExpandedNodeId)));
-    uintptr_t entrydiff = (uintptr_t)reArray -
-        ((uintptr_t)rt->targets + (rt->capacity * sizeof(UA_ExpandedNodeId)));
     RefEntry *oldReArray = (RefEntry*)
         ((uintptr_t)newTargets + (rt->capacity * sizeof(UA_ExpandedNodeId)));
     memmove(reArray, oldReArray, rt->size * sizeof(RefEntry));
+
+    /* Reinsert all entries into the tree. The new pointer location has changed
+     * their ziptree rank. */
+    rt->head.root = NULL;
     for(size_t i = 0; i < rt->size; i++) {
-        uintptr_t *left = (uintptr_t*)&ZIP_LEFT(&reArray[i], zipfields);
-        uintptr_t *right = (uintptr_t*)&ZIP_RIGHT(&reArray[i], zipfields);
-        if(*left != 0)
-            *left += entrydiff;
-        if(*right != 0)
-            *right += entrydiff;
-        reArray[i].target = (UA_ExpandedNodeId*)((uintptr_t)reArray[i].target + arraydiff);
+        reArray[i].target = &newTargets[i];
+        ZIP_INSERT(RefHead, &rt->head, &reArray[i]);
     }
 
-    ZIP_ROOT(&rt->head) = (RefEntry*)((uintptr_t)ZIP_ROOT(&rt->head) + entrydiff);
     rt->capacity = capacity;
     rt->targets = newTargets;
     return UA_STATUSCODE_GOOD;
