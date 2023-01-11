@@ -50,6 +50,30 @@ __ZIP_KEY_CMP(zip_cmp_cb cmp, unsigned short keyoffset,
     return order;
 }
 
+#if 0
+#include <assert.h>
+ZIP_UNUSED static ZIP_INLINE void
+__ZIP_VALIDATE(zip_cmp_cb cmp, unsigned short fieldoffset,
+               unsigned short keyoffset, void *elm,
+               void *min_elm, void *max_elm) {
+    if(!elm)
+        return;
+    enum ZIP_CMP c1 = __ZIP_KEY_CMP(cmp, ZIP_KEY_PTR(min_elm), ZIP_KEY_PTR(elm));
+    assert((elm == min_elm && c1 == ZIP_CMP_EQ) || c1 == ZIP_CMP_LESS);
+
+    enum ZIP_CMP c2 = __ZIP_KEY_CMP(cmp, ZIP_KEY_PTR(max_elm), ZIP_KEY_PTR(elm));
+    assert((elm == max_elm && c2 == ZIP_CMP_EQ) || c2 == ZIP_CMP_MORE);
+
+    assert(!ZIP_ENTRY_PTR(elm)->right ||
+           __ZIP_RANK_CMP(elm, ZIP_ENTRY_PTR(elm)->right) == ZIP_CMP_MORE);
+    assert(!ZIP_ENTRY_PTR(elm)->left ||
+           __ZIP_RANK_CMP(elm, ZIP_ENTRY_PTR(elm)->left) == ZIP_CMP_MORE);
+
+    __ZIP_VALIDATE(cmp, fieldoffset, keyoffset, ZIP_ENTRY_PTR(elm)->right, elm, max_elm);
+    __ZIP_VALIDATE(cmp, fieldoffset, keyoffset, ZIP_ENTRY_PTR(elm)->left, min_elm, elm);
+}
+#endif
+
 void
 __ZIP_INSERT(void *h, zip_cmp_cb cmp, unsigned short fieldoffset,
              unsigned short keyoffset, void *elm) {
