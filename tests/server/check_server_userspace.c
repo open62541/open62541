@@ -70,7 +70,7 @@ struct nodeIterData {
 };
 
 #ifdef UA_GENERATED_NAMESPACE_ZERO_FULL
-#define NODE_ITER_DATA_SIZE 4
+#define NODE_ITER_DATA_SIZE 5
 #else
 #define NODE_ITER_DATA_SIZE 3
 #endif
@@ -128,6 +128,11 @@ START_TEST(Server_forEachChildNodeCall) {
     objectsFolderChildren[3].isInverse = UA_FALSE;
     objectsFolderChildren[3].referenceTypeID = UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES);
     objectsFolderChildren[3].hit = UA_FALSE;
+
+    objectsFolderChildren[4].id = UA_NODEID_NUMERIC(0, UA_NS0ID_LOCATIONS);
+    objectsFolderChildren[4].isInverse = UA_FALSE;
+    objectsFolderChildren[4].referenceTypeID = UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES);
+    objectsFolderChildren[4].hit = UA_FALSE;
 #endif
 
     UA_StatusCode retval =
