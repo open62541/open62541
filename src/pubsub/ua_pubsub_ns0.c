@@ -1717,11 +1717,10 @@ addSecurityGroupRepresentation(UA_Server *server, UA_SecurityGroup *securityGrou
         return UA_STATUSCODE_BADINVALIDARGUMENT;
 
     size_t sgNamelength = securityGroupConfig->securityGroupName.length;
-    char *sgName = (char *)UA_malloc(sgNamelength);
+    char *sgName = (char *)UA_calloc(1, sgNamelength + 1);
     if(!sgName)
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
-    memset(sgName, 0, sgNamelength);
     memcpy(sgName, securityGroupConfig->securityGroupName.data,
            securityGroupConfig->securityGroupName.length);
     sgName[securityGroupConfig->securityGroupName.length] = '\0';
