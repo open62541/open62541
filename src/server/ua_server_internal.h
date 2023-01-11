@@ -169,6 +169,7 @@ struct UA_Server {
 
 # ifdef UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS
     LIST_HEAD(, UA_ConditionSource) conditionSources;
+    UA_NodeId refreshEvents[2];
 # endif
 
 #endif
