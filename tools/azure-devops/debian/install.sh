@@ -12,17 +12,17 @@ sudo apt install -y \
     graphviz \
     latexmk \
     libsubunit-dev \
-    python-sphinx \
+    python3-sphinx \
     python3-pip \
     tar \
     texlive-fonts-recommended \
-    texlive-generic-extra \
+    texlive-extra-utils \
     texlive-latex-extra \
     wget
 
-wget https://github.com/ARMmbed/mbedtls/archive/mbedtls-2.7.1.tar.gz
-tar xf mbedtls-2.7.1.tar.gz
-cd mbedtls-mbedtls-2.7.1
+wget https://github.com/ARMmbed/mbedtls/archive/mbedtls-2.28.2.tar.gz
+tar xf mbedtls-2.28.2.tar.gz
+cd mbedtls-mbedtls-2.28.2
 cmake -DENABLE_TESTING=Off .
 make -j
 sudo make install
