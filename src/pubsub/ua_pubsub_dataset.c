@@ -187,7 +187,8 @@ generateFieldMetaData(UA_Server *server, UA_PublishedDataSet *pds,
         }
         fieldMetaData->arrayDimensionsSize = svs->value.arrayDimensionsSize;
 
-        res = UA_NodeId_copy(&svs->value.type->typeId, &fieldMetaData->dataType);
+        if(svs->value.type)
+            res = UA_NodeId_copy(&svs->value.type->typeId, &fieldMetaData->dataType);
         UA_CHECK_STATUS(res, return res);
 
         //TODO collect value rank for the static field source
