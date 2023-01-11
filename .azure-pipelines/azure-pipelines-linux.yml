@@ -5,7 +5,7 @@ jobs:
 - job: 'cross_freeRTOS'
   displayName: 'Arch (freeRTOS)'
   pool:
-    vmImage: 'ubuntu-18.04'
+    vmImage: 'ubuntu-20.04'
   variables:
     IDF_PATH: $(Build.BinariesDirectory)/esp-idf
   steps:
