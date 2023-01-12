@@ -166,7 +166,7 @@ initializeKeyStorageWithKeys(UA_Server *server, UA_SecurityGroup *securityGroup)
     retval = UA_ByteString_allocBuffer(&currentKey, keyLength);
     retval = generateKeyData(ks->policy, &currentKey);
 
-    UA_ByteString futurekeys[securityGroup->config.maxFutureKeyCount];
+    UA_ByteString *futurekeys = (UA_ByteString *)UA_calloc(securityGroup->config.maxFutureKeyCount, sizeof(UA_ByteString));
     for(size_t i = 0; i < securityGroup->config.maxFutureKeyCount; i++) {
         retval = UA_ByteString_allocBuffer(&futurekeys[i], keyLength);
         retval = generateKeyData(ks->policy, &futurekeys[i]);
@@ -186,6 +186,7 @@ initializeKeyStorageWithKeys(UA_Server *server, UA_SecurityGroup *securityGroup)
                                  &securityGroup->callbackId);
 
 cleanup:
+    UA_Array_delete(futurekeys, securityGroup->config.maxFutureKeyCount, &UA_TYPES[UA_TYPES_BYTESTRING]);
     UA_ByteString_clear(&currentKey);
     if(retval != UA_STATUSCODE_GOOD)
         UA_PubSubKeyStorage_delete(server, ks);
