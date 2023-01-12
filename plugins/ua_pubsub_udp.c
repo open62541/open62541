@@ -275,6 +275,7 @@ UA_PubSubChannelUDP_open(UA_ConnectionManager *connectionManager, UA_TransportLa
     UA_initialize_architecture_network();
 
     UA_PubSubConnectionConfig *connectionConfig = ctx->connectionConfig;
+    UA_UDPConnectionContext *context = NULL;
     UA_PubSubChannel *newChannel = (UA_PubSubChannel *)
         UA_calloc(1, sizeof(UA_PubSubChannel));
     if(!newChannel) {
@@ -289,7 +290,7 @@ UA_PubSubChannelUDP_open(UA_ConnectionManager *connectionManager, UA_TransportLa
     if(res != UA_STATUSCODE_GOOD) {
         goto error;
     }
-    UA_UDPConnectionContext *context = (UA_UDPConnectionContext *) UA_calloc(1, sizeof(UA_UDPConnectionContext));
+    context = (UA_UDPConnectionContext *) UA_calloc(1, sizeof(UA_UDPConnectionContext));
     if(!context) {
         goto error;
     }
@@ -316,6 +317,10 @@ UA_PubSubChannelUDP_open(UA_ConnectionManager *connectionManager, UA_TransportLa
     }
     return newChannel;
 error:
+    if(context != NULL) {
+        newChannel->handle = NULL;
+        UA_free(context);
+    }
     UA_PubSubChannelUDP_close(newChannel);
     return NULL;
 }
@@ -325,6 +330,7 @@ UA_PubSubChannelUDP_openUnicast(UA_ConnectionManager *connectionManager, UA_Tran
     UA_initialize_architecture_network();
 
     UA_PubSubConnectionConfig *connectionConfig = ctx->connectionConfig;
+    UA_UDPConnectionContext *context = NULL;
     UA_PubSubChannel *newChannel = (UA_PubSubChannel *)
         UA_calloc(1, sizeof(UA_PubSubChannel));
     if(!newChannel) {
@@ -340,7 +346,7 @@ UA_PubSubChannelUDP_openUnicast(UA_ConnectionManager *connectionManager, UA_Tran
         goto error;
     }
 
-    UA_UDPConnectionContext *context = (UA_UDPConnectionContext *) UA_calloc(1, sizeof(UA_UDPConnectionContext));
+    context = (UA_UDPConnectionContext *) UA_calloc(1, sizeof(UA_UDPConnectionContext));
     context->server = ctx->server;
     context->connection = ctx->connection;
     context->connectionManager = connectionManager;
@@ -353,6 +359,10 @@ UA_PubSubChannelUDP_openUnicast(UA_ConnectionManager *connectionManager, UA_Tran
 
     return newChannel;
 error:
+    if(context != NULL) {
+        newChannel->handle = NULL;
+        UA_free(context);
+    }
     UA_free(newChannel);
     return NULL;
 }
