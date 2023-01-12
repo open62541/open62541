@@ -10,6 +10,7 @@
 #include <open62541/plugin/create_certificate.h>
 
 #include "securitypolicy_openssl_common.h"
+#include "ua_openssl_version_abstraction.h"
 
 #if defined(UA_ENABLE_ENCRYPTION_OPENSSL) || defined(UA_ENABLE_ENCRYPTION_LIBRESSL)
 
@@ -84,7 +85,7 @@ add_x509V3ext(const UA_Logger *logger, X509 *x509, int nid, char *value) {
         int line =  0;
         const char * data =  NULL;
         int flags =  0;
-        ERR_get_error_line_data(&file, &line, &data, &flags);
+        get_error_line_data(&file, &line, &data, &flags);
         UA_LOG_INFO(logger, UA_LOGCATEGORY_SECURECHANNEL,
                      "Internal SSL error file: %s:%d data: %s", file, line, data);
 #endif
