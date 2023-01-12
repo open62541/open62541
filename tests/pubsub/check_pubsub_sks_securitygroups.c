@@ -199,6 +199,7 @@ START_TEST(AddSecurityGroupWithvalidConfig) {
                                           UA_QUALIFIEDNAME(0, "MaxPastKeyCount"), &value);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     ck_assert(config.maxPastKeyCount == *(UA_UInt32 *)value.data);
+    UA_Variant_clear(&value);
 #endif /*UA_ENABLE_PUBSUB_INFORMATIONMODEL */
 }
 END_TEST
