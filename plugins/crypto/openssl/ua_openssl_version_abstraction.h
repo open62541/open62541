@@ -35,5 +35,11 @@
 #define X509_get0_subject_key_id(PX509_CERT) (const ASN1_OCTET_STRING *)X509_get_ext_d2i(PX509_CERT, NID_subject_key_identifier, NULL, NULL);
 #endif
 
+#if OPENSSL_VERSION_NUMBER < 0x2000000fL || defined(LIBRESSL_VERSION_NUMBER)
+#define get_error_line_data(pFile, pLine, pData, pFlags) ERR_get_error_line_data(pFile, pLine, pData, pFlags)
+#else
+#define get_error_line_data(pFile, pLine, pData, pFlags) ERR_get_error_all(pFile, pLine, NULL, pData, pFlags)
+#endif
+
 #endif /* defined(UA_ENABLE_ENCRYPTION_OPENSSL) || defined(UA_ENABLE_ENCRYPTION_LIBRESSL) */
 #endif /* UA_OPENSSL_VERSION_ABSTRACTION_H_ */
