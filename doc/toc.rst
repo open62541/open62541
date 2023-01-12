@@ -4,12 +4,11 @@ open62541 Documentation
 .. toctree::
 
    index
+   core_concepts
    building
    tutorials
-   protocol
    types
    services
-   information_modelling
    server
    client
    pubsub
