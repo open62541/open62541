@@ -114,9 +114,11 @@ UA_PubSub_udpCallbackPublish(UA_ConnectionManager *cm, uintptr_t connectionId,
 static UA_StatusCode
 UA_PubSubChannelUDP_close(UA_PubSubChannel *channel) {
     UA_UDPConnectionContext *ctx = (UA_UDPConnectionContext *) channel->handle;
-    UA_KeyValueMap_clear(&ctx->subscriberParams);
-    UA_KeyValueMap_clear(&ctx->publisherParams);
-    UA_free(ctx);
+    if (ctx != NULL) {
+        UA_KeyValueMap_clear(&ctx->subscriberParams);
+        UA_KeyValueMap_clear(&ctx->publisherParams);
+        UA_free(ctx);
+    }
     UA_free(channel);
     return UA_STATUSCODE_GOOD;
 }
