@@ -108,6 +108,7 @@ updateSKSKeyStorage(UA_Server *server, UA_SecurityGroup *securityGroup){
         UA_PubSubKeyListItem *oldestKey = TAILQ_FIRST(&keyStorage->keyList);
         TAILQ_REMOVE(&keyStorage->keyList, oldestKey, keyListEntry);
         TAILQ_INSERT_TAIL(&keyStorage->keyList, oldestKey, keyListEntry);
+        UA_ByteString_clear(&oldestKey->key);
         oldestKey->keyID = newKeyID;
         UA_ByteString_copy(&newKey, &oldestKey->key);
     } else {
