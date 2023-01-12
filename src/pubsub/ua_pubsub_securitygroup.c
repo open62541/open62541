@@ -178,19 +178,17 @@ initializeKeyStorageWithKeys(UA_Server *server, UA_SecurityGroup *securityGroup)
                                                    securityGroup->config.maxFutureKeyCount,
                                                    securityGroup->config.keyLifeTime);
     if(retval != UA_STATUSCODE_GOOD)
-        goto error;
+        goto cleanup;
 
     securityGroup->baseTime = UA_DateTime_nowMonotonic();
     retval = addRepeatedCallback(server, (UA_ServerCallback)updateSKSKeyStorage,
                                  securityGroup, securityGroup->config.keyLifeTime,
                                  &securityGroup->callbackId);
+
+cleanup:
+    UA_ByteString_clear(&currentKey);
     if(retval != UA_STATUSCODE_GOOD)
-        goto error;
-
-    return UA_STATUSCODE_GOOD;
-
-error:
-    UA_PubSubKeyStorage_delete(server, ks);
+        UA_PubSubKeyStorage_delete(server, ks);
     return retval;
 }
 
