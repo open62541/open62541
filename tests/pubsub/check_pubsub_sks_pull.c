@@ -31,6 +31,7 @@ UA_NodeId sgNodeId;
 UA_UInt32 maxKeyCount;
 UA_NodeId connection;
 UA_Boolean running;
+UA_ByteString allowedUsername;
 THREAD_HANDLE server_thread;
 
 THREAD_CALLBACK(serverloop) {
@@ -57,11 +58,8 @@ addSecurityGroup(void) {
     UA_Server_addSecurityGroup(sksServer, securityGroupParent, &config, &outNodeId);
     UA_String_copy(&config.securityGroupName, &securityGroupId);
 
-    UA_String allowedUsername = UA_STRING("user1");
-
-    UA_ByteString *username = UA_ByteString_new();
-    UA_ByteString_copy(&allowedUsername, username);
-    UA_Server_setNodeContext(sksServer, outNodeId, username);
+    allowedUsername = UA_STRING("user1");
+    UA_Server_setNodeContext(sksServer, outNodeId, &allowedUsername);
     UA_NodeId_copy(&outNodeId, &sgNodeId);
 }
 
@@ -141,6 +139,7 @@ setup(void) {
 
 static void
 teardown(void) {
+    UA_String_clear(&securityGroupId);
     running = false;
     THREAD_JOIN(server_thread);
     UA_Server_run_shutdown(sksServer);
@@ -185,11 +184,11 @@ callGetSecurityKeys(UA_Client *client, UA_String sksSecurityGroupId,
                     UA_UInt32 startingTokenId, UA_UInt32 requestedKeyCount) {
     UA_Variant *inputArguments = (UA_Variant *)UA_calloc(3, (sizeof(UA_Variant)));
 
-    UA_Variant_setScalarCopy(&inputArguments[0], &sksSecurityGroupId,
+    UA_Variant_setScalar(&inputArguments[0], &sksSecurityGroupId,
                              &UA_TYPES[UA_TYPES_STRING]);
-    UA_Variant_setScalarCopy(&inputArguments[1], &startingTokenId,
+    UA_Variant_setScalar(&inputArguments[1], &startingTokenId,
                              &UA_TYPES[UA_TYPES_UINT32]);
-    UA_Variant_setScalarCopy(&inputArguments[2], &requestedKeyCount,
+    UA_Variant_setScalar(&inputArguments[2], &requestedKeyCount,
                              &UA_TYPES[UA_TYPES_UINT32]);
 
     // Call method from client
@@ -204,7 +203,9 @@ callGetSecurityKeys(UA_Client *client, UA_String sksSecurityGroupId,
     item.methodId = UA_NODEID_NUMERIC(0, UA_NS0ID_PUBLISHSUBSCRIBE_GETSECURITYKEYS);
     item.inputArguments = (UA_Variant *)inputArguments;
     item.inputArgumentsSize = 3;
-    return UA_Client_Service_call(client, callMethodRequestFromClient);
+    UA_CallResponse response = UA_Client_Service_call(client, callMethodRequestFromClient);
+    UA_free(inputArguments);
+    return response;
 }
 
 START_TEST(getSecuritykeysBadSecurityModeInsufficient) {
@@ -219,6 +220,8 @@ START_TEST(getSecuritykeysBadSecurityModeInsufficient) {
     ck_assert_msg(response.results->statusCode == expectedCode,
                   "Expected %s but erorr code : %s \n", UA_StatusCode_name(expectedCode),
                   UA_StatusCode_name(response.results->statusCode));
+    UA_CallResponse_clear(&response);
+    UA_Client_delete(client);
 }
 END_TEST
 
@@ -231,6 +234,8 @@ START_TEST(getSecuritykeysBadNotFound) {
     ck_assert_msg(response.results->statusCode == expectedCode,
                   "Expected %s but erorr code : %s \n", UA_StatusCode_name(expectedCode),
                   UA_StatusCode_name(response.results->statusCode));
+    UA_CallResponse_clear(&response);
+    UA_Client_delete(sksClient);
 }
 END_TEST
 
@@ -247,6 +252,8 @@ START_TEST(getSecuritykeysBadUserAccessDenied) {
     ck_assert_msg(response.results->statusCode == expectedCode,
                   "Expected %s but erorr code : %s \n", UA_StatusCode_name(expectedCode),
                   UA_StatusCode_name(response.results->statusCode));
+    UA_CallResponse_clear(&response);
+    UA_Client_delete(sksClient);
 }
 END_TEST
 
@@ -289,6 +296,8 @@ START_TEST(getSecuritykeysGoodAndValidOutput) {
     for(size_t i = 0; i < retKeyCount; i++) {
         ck_assert(UA_ByteString_equal(&keys[i], &UA_BYTESTRING_NULL) == UA_FALSE);
     }
+    UA_CallResponse_clear(&response);
+    UA_Client_delete(sksClient);
 }
 END_TEST
 
@@ -321,7 +330,8 @@ START_TEST(requestCurrentKeyWithFutureKeys) {
         ++firstTokenId;
         iterator = TAILQ_NEXT(iterator, keyListEntry);
     }
-
+    UA_CallResponse_clear(&response);
+    UA_Client_delete(sksClient);
 }
 END_TEST
 
@@ -354,6 +364,8 @@ START_TEST(requestCurrentKeyOnly) {
         ++firstTokenId;
         iterator = TAILQ_NEXT(iterator, keyListEntry);
     }
+    UA_CallResponse_clear(&response);
+    UA_Client_delete(sksClient);
 }
 END_TEST
 
@@ -385,6 +397,8 @@ START_TEST(requestPastKey) {
     ck_assert(firstItem->keyID == firstTokenId);
     ck_assert(UA_ByteString_equal(retKeys, &firstItem->key) == UA_TRUE);
     ck_assert(UA_ByteString_equal(retKeys, &sg->keyStorage->currentItem->key) != UA_TRUE);
+    UA_CallResponse_clear(&response);
+    UA_Client_delete(sksClient);
 }
 END_TEST
 
@@ -418,7 +432,8 @@ START_TEST(requestUnknownStartingTokenId){
         ++firstTokenId;
         iterator = TAILQ_NEXT(iterator, keyListEntry);
     }
-
+    UA_CallResponse_clear(&response);
+    UA_Client_delete(sksClient);
 }END_TEST
 
 START_TEST(requestMaxFutureKeys) {
@@ -450,6 +465,8 @@ START_TEST(requestMaxFutureKeys) {
         ++firstTokenId;
         iterator = TAILQ_NEXT(iterator, keyListEntry);
     }
+    UA_CallResponse_clear(&response);
+    UA_Client_delete(sksClient);
 }
 END_TEST
 
