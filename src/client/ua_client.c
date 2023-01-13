@@ -133,7 +133,7 @@ UA_Client_newWithConfig(const UA_ClientConfig *config) {
     return client;
 }
 
-static void
+void
 UA_ClientConfig_clear(UA_ClientConfig *config) {
     UA_ApplicationDescription_clear(&config->clientDescription);
 
