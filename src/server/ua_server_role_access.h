@@ -25,7 +25,7 @@ UA_Server_addRole(UA_Server *server, UA_NodeId parentNodeId, UA_NodeId targetNod
 UA_StatusCode
 UA_Server_removeRole(UA_Server *server, UA_NodeId targetNodeId);
 
-UA_StatusCode setRuntimeUserPermission(UA_UsernameRoleInfo *userAndRoleInfo);
+UA_StatusCode setRuntimeUserPermission(UA_Server *server, UA_UsernameRoleInfo *userAndRoleInfo);
 
 UA_StatusCode
 UA_Server_addRoleAction(UA_Server *server,

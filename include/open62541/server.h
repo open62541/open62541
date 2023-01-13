@@ -747,6 +747,20 @@ UA_Server_readUserExecutable(UA_Server *server, const UA_NodeId nodeId,
                             outExecutable);
 }
 
+static UA_INLINE UA_THREADSAFE UA_StatusCode
+UA_Server_readRolePermissions(UA_Server *server, const UA_NodeId nodeId,
+                              UA_Variant *rolePermissions) {
+    return __UA_Server_read(server, &nodeId, UA_ATTRIBUTEID_ROLEPERMISSIONS,
+                            rolePermissions);
+}
+
+static UA_INLINE UA_THREADSAFE UA_StatusCode
+UA_Server_readUserRolePermissions(UA_Server *server, const UA_NodeId nodeId,
+                                  UA_Variant *userRolePermissions) {
+    return __UA_Server_read(server, &nodeId, UA_ATTRIBUTEID_USERROLEPERMISSIONS,
+                            userRolePermissions);
+}
+
 /**
  * The following node attributes cannot be changed once a node has been created:
  *
@@ -908,6 +922,19 @@ UA_Server_writeExecutable(UA_Server *server, const UA_NodeId nodeId,
     return __UA_Server_write(server, &nodeId, UA_ATTRIBUTEID_EXECUTABLE,
                              &UA_TYPES[UA_TYPES_BOOLEAN], &executable); }
 
+static UA_INLINE UA_THREADSAFE UA_StatusCode
+UA_Server_writeRolePermissions(UA_Server *server, const UA_NodeId nodeId,
+                               const UA_Variant rolePermissions) {
+    return __UA_Server_write(server, &nodeId, UA_ATTRIBUTEID_ROLEPERMISSIONS,
+                             &UA_TYPES[UA_TYPES_VARIANT], &rolePermissions);
+}
+
+static UA_INLINE UA_THREADSAFE UA_StatusCode
+UA_Server_writeUserRolePermissions(UA_Server *server, const UA_NodeId nodeId,
+                                   const UA_Variant userRolePermissions) {
+    return __UA_Server_write(server, &nodeId, UA_ATTRIBUTEID_USERROLEPERMISSIONS,
+                             &UA_TYPES[UA_TYPES_VARIANT], &userRolePermissions);
+}
 /**
  * Browsing
  * -------- */
@@ -1988,8 +2015,13 @@ _UA_END_DECLS
 #include <open62541/server_pubsub.h>
 #endif
 
+#ifdef UA_ENABLE_ROLE_PERMISSION
 UA_EXPORT UA_StatusCode
-setUserRole_settings(UA_String roleName,
+setUserRole_settings(UA_Server* server, UA_String roleName,
                      UA_AccessControlSettings* accessControlSettings);
+UA_EXPORT UA_Boolean
+checkUserAccess(const UA_Node *node, void *sessionContext,
+                UA_UInt32 permissionBit);
+#endif /* UA_ENABLE_ROLE_PERMISSION */
 
 #endif /* UA_SERVER_H_ */

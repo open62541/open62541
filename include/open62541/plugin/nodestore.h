@@ -411,6 +411,12 @@ struct UA_NodeHead {
     UA_MonitoredItem *monitoredItems; /* MonitoredItems for Events and immediate
                                        * DataChanges (no sampling interval). */
 #endif
+#ifdef UA_ENABLE_ROLE_PERMISSION
+    size_t rolePermissionsSize;
+    UA_RolePermissionType *rolePermissions;
+    size_t userRolePermissionsSize;
+    UA_RolePermissionType *userRolePermissions;
+#endif
 };
 
 /**

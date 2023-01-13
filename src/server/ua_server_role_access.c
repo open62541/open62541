@@ -10,6 +10,26 @@
 #include "ua_server_role_access.h"
 
 #ifdef UA_ENABLE_ROLE_PERMISSION
+UA_Boolean checkUserAccess(const UA_Node *node, void *sessionContext, UA_UInt32 permissionBit) {
+    UA_UsernameRoleInfo *userAndRoleInfo = (UA_UsernameRoleInfo*)sessionContext;
+    if ((node->head.userRolePermissionsSize != 0)) {
+        for (size_t index = 0; index < node->head.userRolePermissionsSize; index++) {
+            if (UA_NodeId_equal(&node->head.userRolePermissions[index].roleId,  \
+                                &userAndRoleInfo->accessControlSettings->role.roleId) == true) {
+                if ((node->head.userRolePermissions[index].permissions & permissionBit) == permissionBit) {
+                    return true;
+                }
+            }
+        }
+    }
+    else{
+        if ((userAndRoleInfo->accessControlSettings->role.permissions & permissionBit) \
+            == permissionBit){
+            return true;
+        }
+    }
+    return false;
+}
 
 UA_NodeId
 findRoleIdentityNodeID(UA_Server *server, UA_NodeId startingNode) {
@@ -41,7 +61,7 @@ findRoleIdentityNodeID(UA_Server *server, UA_NodeId startingNode) {
 }
 
 UA_StatusCode
-setUserRole_settings(UA_String roleName,
+setUserRole_settings(UA_Server* server, UA_String roleName,
                      UA_AccessControlSettings* accessControlSettings) {
     const UA_String anonymous = UA_STRING_STATIC(ANONYMOUS_WELL_KNOWN_RULE);
     const UA_String authenticatedUser = UA_STRING_STATIC(AUTHENTICATEDUSER_WELL_KNOWN_RULE);
@@ -52,10 +72,23 @@ setUserRole_settings(UA_String roleName,
     const UA_String securityAdmin = UA_STRING_STATIC(SECURITYADMIN_WELL_KNOWN_RULE);
     const UA_String supervisor = UA_STRING_STATIC(SUPERVISOR_WELL_KNOWN_RULE);
 
+    UA_PermissionType setCustomRolePermission = 0x0;
     if (UA_String_equal(&roleName, &anonymous) == true) {
         accessControlSettings->accessControlGroup = UA_ANONYMOUS_WELL_KNOWN_RULE;
         accessControlSettings->accessPermissions = UA_ACCESSLEVELMASK_READ;
         accessControlSettings->methodAccessPermission = true;
+        accessControlSettings->role.roleId = UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_ANONYMOUS);
+
+        /* Set the RolePermission for the node */
+        if (server->config.accessControl.readUserDefinedRolePermission != NULL) {
+            setCustomRolePermission = server->config.accessControl.readUserDefinedRolePermission(server, accessControlSettings);
+            accessControlSettings->role.permissions = setCustomRolePermission;
+            UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_SERVER, "Provided userRolePermision UA_ANONYMOUS_WELL_KNOWN_RULE: %X", accessControlSettings->role.permissions);
+        }
+        else {
+            accessControlSettings->role.permissions = 0x27;
+        }
+
         const UA_IdentityMappingRuleType identityMappingRule = {UA_IDENTITYCRITERIATYPE_ANONYMOUS, anonymous};
         UA_IdentityMappingRuleType_copy(&identityMappingRule,
                                         &accessControlSettings->identityMappingRule);
@@ -65,6 +98,16 @@ setUserRole_settings(UA_String roleName,
         accessControlSettings->accessControlGroup = UA_AUTHENTICATEDUSER_WELL_KNOWN_RULE;
         accessControlSettings->accessPermissions = UA_ACCESSLEVELMASK_READ | UA_ACCESSLEVELMASK_WRITE;
         accessControlSettings->methodAccessPermission = true;
+        accessControlSettings->role.roleId = UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_AUTHENTICATEDUSER);
+        /* Set the RolePermission for the node */
+        if (server->config.accessControl.readUserDefinedRolePermission != NULL) {
+            setCustomRolePermission = server->config.accessControl.readUserDefinedRolePermission(server, accessControlSettings);
+            accessControlSettings->role.permissions = setCustomRolePermission;
+            UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_SERVER, "Provided userRolePermision UA_AUTHENTICATEDUSER_WELL_KNOWN_RULE: %X", accessControlSettings->role.permissions);
+        }
+        else {
+            accessControlSettings->role.permissions = 0x1FFFF;
+        }
         const UA_IdentityMappingRuleType identityMappingRule = {UA_IDENTITYCRITERIATYPE_AUTHENTICATEDUSER, authenticatedUser};
         UA_IdentityMappingRuleType_copy(&identityMappingRule,
                                         &accessControlSettings->identityMappingRule);
@@ -74,6 +117,16 @@ setUserRole_settings(UA_String roleName,
         accessControlSettings->accessControlGroup = UA_CONFIGUREADMIN_WELL_KNOWN_RULE;
         accessControlSettings->accessPermissions = UA_ACCESSLEVELMASK_READ | UA_ACCESSLEVELMASK_WRITE | UA_ACCESSLEVELMASK_HISTORYREAD;
         accessControlSettings->methodAccessPermission = true;
+        accessControlSettings->role.roleId = UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_CONFIGUREADMIN);
+        /* Set the RolePermission for the node */
+        if (server->config.accessControl.readUserDefinedRolePermission != NULL) {
+            setCustomRolePermission = server->config.accessControl.readUserDefinedRolePermission(server, accessControlSettings);
+            accessControlSettings->role.permissions = setCustomRolePermission;
+            UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_SERVER, "Provided userRolePermision UA_CONFIGUREADMIN_WELL_KNOWN_RULE: %X", accessControlSettings->role.permissions);
+        }
+        else {
+            accessControlSettings->role.permissions = 0x1FFFF;
+        }
         const UA_IdentityMappingRuleType identityMappingRule = {UA_IDENTITYCRITERIATYPE_ROLE, configureAdmin};
         UA_IdentityMappingRuleType_copy(&identityMappingRule,
                                         &accessControlSettings->identityMappingRule);
@@ -83,6 +136,16 @@ setUserRole_settings(UA_String roleName,
         accessControlSettings->accessControlGroup = UA_ENGINEER_WELL_KNOWN_RULE;
         accessControlSettings->accessPermissions = UA_ACCESSLEVELMASK_READ | UA_ACCESSLEVELMASK_WRITE;
         accessControlSettings->methodAccessPermission = true;
+        accessControlSettings->role.roleId = UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_ENGINEER);
+        /* Set the RolePermission for the node */
+        if (server->config.accessControl.readUserDefinedRolePermission != NULL) {
+            setCustomRolePermission = server->config.accessControl.readUserDefinedRolePermission(server, accessControlSettings);
+            accessControlSettings->role.permissions = setCustomRolePermission;
+            UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_SERVER, "Provided userRolePermision UA_ENGINEER_WELL_KNOWN_RULE: %X", accessControlSettings->role.permissions);
+        }
+        else {
+            accessControlSettings->role.permissions = 0x1FFFF;
+        }
         const UA_IdentityMappingRuleType identityMappingRule = {UA_IDENTITYCRITERIATYPE_ROLE, engineer};
         UA_IdentityMappingRuleType_copy(&identityMappingRule,
                                         &accessControlSettings->identityMappingRule);
@@ -92,6 +155,16 @@ setUserRole_settings(UA_String roleName,
         accessControlSettings->accessControlGroup = UA_OBSERVER_WELL_KNOWN_RULE;
         accessControlSettings->accessPermissions = UA_ACCESSLEVELMASK_READ | UA_ACCESSLEVELMASK_HISTORYREAD;
         accessControlSettings->methodAccessPermission = false;
+        /* Set the RolePermission for the node */
+        if (server->config.accessControl.readUserDefinedRolePermission != NULL) {
+            setCustomRolePermission = server->config.accessControl.readUserDefinedRolePermission(server, accessControlSettings);
+            accessControlSettings->role.permissions = setCustomRolePermission;
+            UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_SERVER, "Provided userRolePermision UA_OBSERVER_WELL_KNOWN_RULE: %X", accessControlSettings->role.permissions);
+        }
+        else {
+            accessControlSettings->role.permissions = 0x1FFFF;
+        }
+        accessControlSettings->role.roleId = UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_OBSERVER);
         const UA_IdentityMappingRuleType identityMappingRule = {UA_IDENTITYCRITERIATYPE_ROLE, observer};
         UA_IdentityMappingRuleType_copy(&identityMappingRule,
                                         &accessControlSettings->identityMappingRule);
@@ -101,6 +174,16 @@ setUserRole_settings(UA_String roleName,
         accessControlSettings->accessControlGroup = UA_OPERATOR_WELL_KNOWN_RULE;
         accessControlSettings->accessPermissions = UA_ACCESSLEVELMASK_READ | UA_ACCESSLEVELMASK_WRITE;
         accessControlSettings->methodAccessPermission = true;
+        accessControlSettings->role.roleId = UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_OPERATOR);
+        /* Set the RolePermission for the node */
+        if (server->config.accessControl.readUserDefinedRolePermission != NULL) {
+            setCustomRolePermission = server->config.accessControl.readUserDefinedRolePermission(server, accessControlSettings);
+            accessControlSettings->role.permissions = setCustomRolePermission;
+            UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_SERVER, "Provided userRolePermision UA_OPERATOR_WELL_KNOWN_RULE: %X", accessControlSettings->role.permissions);
+        }
+        else {
+            accessControlSettings->role.permissions = 0x06;
+        }
         const UA_IdentityMappingRuleType identityMappingRule = {UA_IDENTITYCRITERIATYPE_ROLE, operatorRole};
         UA_IdentityMappingRuleType_copy(&identityMappingRule,
                                         &accessControlSettings->identityMappingRule);
@@ -110,6 +193,16 @@ setUserRole_settings(UA_String roleName,
         accessControlSettings->accessControlGroup = UA_SECURITYADMIN_WELL_KNOWN_RULE;
         accessControlSettings->accessPermissions = UA_ACCESSLEVELMASK_READ | UA_ACCESSLEVELMASK_WRITE | UA_ACCESSLEVELMASK_HISTORYREAD;
         accessControlSettings->methodAccessPermission = true;
+        accessControlSettings->role.roleId = UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_SECURITYADMIN);
+        /* Set the RolePermission for the node */
+        if (server->config.accessControl.readUserDefinedRolePermission != NULL) {
+            setCustomRolePermission = server->config.accessControl.readUserDefinedRolePermission(server, accessControlSettings);
+            accessControlSettings->role.permissions = setCustomRolePermission;
+            UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_SERVER, "Provided userRolePermision UA_SECURITYADMIN_WELL_KNOWN_RULE: %X", accessControlSettings->role.permissions);
+        }
+        else {
+            accessControlSettings->role.permissions = 0x1FFFF;
+        }
         const UA_IdentityMappingRuleType identityMappingRule = {UA_IDENTITYCRITERIATYPE_ROLE, securityAdmin};
         UA_IdentityMappingRuleType_copy(&identityMappingRule,
                                         &accessControlSettings->identityMappingRule);
@@ -119,37 +212,69 @@ setUserRole_settings(UA_String roleName,
         accessControlSettings->accessControlGroup = UA_SUPERVISOR_WELL_KNOWN_RULE;
         accessControlSettings->accessPermissions = UA_ACCESSLEVELMASK_READ | UA_ACCESSLEVELMASK_WRITE;
         accessControlSettings->methodAccessPermission = false;
+        accessControlSettings->role.roleId = UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_SUPERVISOR);
+        /* Set the RolePermission for the node */
+        if (server->config.accessControl.readUserDefinedRolePermission != NULL) {
+            setCustomRolePermission = server->config.accessControl.readUserDefinedRolePermission(server, accessControlSettings);
+            accessControlSettings->role.permissions = setCustomRolePermission;
+            UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_SERVER, "Provided userRolePermision UA_SUPERVISOR_WELL_KNOWN_RULE: %X", accessControlSettings->role.permissions);
+        }
+        else {
+            UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER, "Invalid Role provided");
+            accessControlSettings->role.permissions = 0x1FFFF;
+        }
         const UA_IdentityMappingRuleType identityMappingRule = {UA_IDENTITYCRITERIATYPE_ROLE, supervisor};
         UA_IdentityMappingRuleType_copy(&identityMappingRule,
                                         &accessControlSettings->identityMappingRule);
     }
     else {
-        return UA_STATUSCODE_BADNOTFOUND;
+        accessControlSettings->accessPermissions = UA_ACCESSLEVELMASK_READ | UA_ACCESSLEVELMASK_WRITE;
+        accessControlSettings->methodAccessPermission = true;
+        accessControlSettings->role.roleId = UA_NODEID_STRING(0, (char*)roleName.data);
+        accessControlSettings->role.permissions = 0x1FFFF;
+        const UA_IdentityMappingRuleType identityMappingRule = {UA_IDENTITYCRITERIATYPE_ROLE, roleName};
+        UA_IdentityMappingRuleType_copy(&identityMappingRule,
+                                        &accessControlSettings->identityMappingRule);
     }
 
     return UA_STATUSCODE_GOOD;
 }
 
 UA_StatusCode
-setRuntimeUserPermission(UA_UsernameRoleInfo *userAndRoleInfo) {
+setRuntimeUserPermission(UA_Server *server, UA_UsernameRoleInfo *userAndRoleInfo) {
+    UA_PermissionType setCustomRolePermission = 0x0;
     if (userAndRoleInfo->accessControlSettings->identityMappingRule.criteriaType == UA_IDENTITYCRITERIATYPE_ANONYMOUS) {
         userAndRoleInfo->accessControlSettings->accessPermissions = UA_ACCESSLEVELMASK_READ;
         userAndRoleInfo->accessControlSettings->methodAccessPermission = true;
+        userAndRoleInfo->accessControlSettings->role.roleId = UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_ANONYMOUS);
+        /* Set the RolePermission for the node */
+        if (server->config.accessControl.readUserDefinedRolePermission != NULL) {
+            setCustomRolePermission = server->config.accessControl.readUserDefinedRolePermission(server, userAndRoleInfo->accessControlSettings);
+            userAndRoleInfo->accessControlSettings->role.permissions = setCustomRolePermission;
+            UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_SERVER, "Provided userRolePermision UA_SECURITYADMIN_WELL_KNOWN_RULE: %X", userAndRoleInfo->accessControlSettings->role.permissions);
+        }
+        else {
+            userAndRoleInfo->accessControlSettings->role.permissions = 0x27;
+        }
+
     }
     else if(userAndRoleInfo->accessControlSettings->identityMappingRule.criteriaType == UA_IDENTITYCRITERIATYPE_AUTHENTICATEDUSER) {
         userAndRoleInfo->accessControlSettings->accessPermissions = UA_ACCESSLEVELMASK_READ | UA_ACCESSLEVELMASK_WRITE;
         userAndRoleInfo->accessControlSettings->methodAccessPermission = true;
+        userAndRoleInfo->accessControlSettings->role.roleId = UA_NODEID_NUMERIC(0, UA_IDENTITYCRITERIATYPE_AUTHENTICATEDUSER);
+        /* Set the RolePermission for the node */
+        if (server->config.accessControl.readUserDefinedRolePermission != NULL) {
+            setCustomRolePermission = server->config.accessControl.readUserDefinedRolePermission(server, userAndRoleInfo->accessControlSettings);
+            userAndRoleInfo->accessControlSettings->role.permissions = setCustomRolePermission;
+            UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_SERVER, "Provided userRolePermision UA_SECURITYADMIN_WELL_KNOWN_RULE: %X", userAndRoleInfo->accessControlSettings->role.permissions);
+        }
+        else {
+            userAndRoleInfo->accessControlSettings->role.permissions = 0x1FFFF;
+        }
     }
     else if(userAndRoleInfo->accessControlSettings->identityMappingRule.criteriaType == UA_IDENTITYCRITERIATYPE_ROLE) {
         UA_String roleName = userAndRoleInfo->accessControlSettings->identityMappingRule.criteria;
-        UA_StatusCode retVal = setUserRole_settings(roleName, userAndRoleInfo->accessControlSettings);
-        if (retVal == UA_STATUSCODE_BADNOTFOUND) {
-            userAndRoleInfo->accessControlSettings->accessPermissions = UA_ACCESSLEVELMASK_READ;
-            userAndRoleInfo->accessControlSettings->methodAccessPermission = false;
-            const UA_IdentityMappingRuleType identityMappingRule = {UA_IDENTITYCRITERIATYPE_ROLE, roleName};
-            UA_IdentityMappingRuleType_copy(&identityMappingRule,
-                                            &userAndRoleInfo->accessControlSettings->identityMappingRule);
-        }
+        setUserRole_settings(server, roleName, userAndRoleInfo->accessControlSettings);
     }
     else {
         /* Only 3 IdentityMappingRuleType is defined */
@@ -170,7 +295,7 @@ UA_Server_addIdentityActionForWellKonwnRules(UA_Server *server,
     UA_IdentityMappingRuleType *rule = (UA_IdentityMappingRuleType *)input[0].data;
     UA_IdentityMappingRuleType_copy(rule,
                                     &userAndRoleInfo->accessControlSettings->identityMappingRule);
-    setRuntimeUserPermission(userAndRoleInfo);
+    setRuntimeUserPermission(server, userAndRoleInfo);
 
 /*
     // Find IdentityNode and provide the value
@@ -484,6 +609,11 @@ UA_Server_setDefaultRoles(UA_Server *server) {
     UA_Server_setMethodNodeCallback(server, UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_SUPERVISOR_ADDIDENTITY),
                                     UA_Server_addIdentityActionForWellKonwnRules);
     UA_Server_setMethodNodeCallback(server, UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_SUPERVISOR_REMOVEIDENTITY),
+                                    UA_Server_removeIdentityActionForWellKonwnRules);
+
+    UA_Server_setMethodNodeCallback(server, UA_NODEID_NUMERIC(0, UA_NS0ID_ROLETYPE_ADDIDENTITY),
+                                    UA_Server_addIdentityActionForWellKonwnRules);
+    UA_Server_setMethodNodeCallback(server, UA_NODEID_NUMERIC(0, UA_NS0ID_ROLETYPE_REMOVEIDENTITY),
                                     UA_Server_removeIdentityActionForWellKonwnRules);
 
     return UA_STATUSCODE_GOOD;

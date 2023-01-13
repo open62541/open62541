@@ -316,6 +316,8 @@ class CGenerator(object):
             returnstr += "    } fields;\n"
         if struct.is_recursive:
             return returnstr + "};"
+        elif struct.name == "NodeAttributes" or struct.name == "ObjectAttributes" or struct.name == "VariableAttributes" or struct.name == "ReferenceTypeAttributes" or struct.name == "MethodAttributes": #Workaround to bring optional parameter of node
+            return returnstr + "    size_t rolePermissionsSize;\n" + "    UA_RolePermissionType *rolePermissions;\n" + "    size_t userRolePermissionsSize;\n" + "    UA_RolePermissionType *userRolePermissions;\n" "} UA_%s;" % makeCIdentifier(struct.name)
         else:
             return returnstr + "} UA_%s;" % makeCIdentifier(struct.name)
 

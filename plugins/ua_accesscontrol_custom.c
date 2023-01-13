@@ -25,7 +25,6 @@ static UA_String anonymous_policy = UA_STRING_STATIC(ANONYMOUS_POLICY);
 static UA_String certificate_policy = UA_STRING_STATIC(CERTIFICATE_POLICY);
 static UA_String username_policy = UA_STRING_STATIC(USERNAME_POLICY);
 
-
 /************************/
 /* Access Control Logic */
 /************************/
@@ -83,7 +82,7 @@ activateSession_custom(UA_Server *server, UA_AccessControl *ac,
             config->accessControl.setRoleAccessPermission(roleName, usernameAndRoleInfo->accessControlSettings);
         }
         else {
-            setUserRole_settings(roleName, usernameAndRoleInfo->accessControlSettings);
+            setUserRole_settings(server, roleName, usernameAndRoleInfo->accessControlSettings);
         }
         /* No userdata atm */
         *sessionContext = usernameAndRoleInfo;
@@ -139,7 +138,7 @@ activateSession_custom(UA_Server *server, UA_AccessControl *ac,
             config->accessControl.setRoleAccessPermission(roleName, usernameAndRoleInfo->accessControlSettings);
         }
         else {
-            setUserRole_settings(roleName, usernameAndRoleInfo->accessControlSettings);
+            setUserRole_settings(server, roleName, usernameAndRoleInfo->accessControlSettings);
         }
 
         *sessionContext = usernameAndRoleInfo;
@@ -174,22 +173,25 @@ static void
 closeSession_custom(UA_Server *server, UA_AccessControl *ac,
                      const UA_NodeId *sessionId, void *sessionContext) {
 
-    UA_UsernameRoleInfo *userAndRoleInfo = (UA_UsernameRoleInfo*)sessionContext;
+    if (sessionContext != NULL) {
+        UA_UsernameRoleInfo *userAndRoleInfo = (UA_UsernameRoleInfo*)sessionContext;
 
-    if(userAndRoleInfo->accessControlSettings->identityMappingRule.criteria.data != NULL)
-        UA_IdentityMappingRuleType_clear(&userAndRoleInfo->accessControlSettings->identityMappingRule);
+        if(userAndRoleInfo->accessControlSettings->identityMappingRule.criteria.data != NULL)
+            UA_IdentityMappingRuleType_clear(&userAndRoleInfo->accessControlSettings->identityMappingRule);
 
-    if(userAndRoleInfo->accessControlSettings != NULL)
-        UA_free(userAndRoleInfo->accessControlSettings);
+        if(userAndRoleInfo->accessControlSettings != NULL)
+            UA_free(userAndRoleInfo->accessControlSettings);
 
-    if (userAndRoleInfo->rolename->data != NULL)
-        UA_String_delete(userAndRoleInfo->rolename);
+        if (userAndRoleInfo->rolename->data != NULL)
+            UA_String_delete(userAndRoleInfo->rolename);
 
-    if (userAndRoleInfo->username->data != NULL) {
-        UA_String_delete(userAndRoleInfo->username);
+        if (userAndRoleInfo->username->data != NULL) {
+            UA_String_delete(userAndRoleInfo->username);
+        }
+
+        UA_free(userAndRoleInfo);
     }
 
-    UA_free(userAndRoleInfo);
 }
 
 static UA_UInt32
@@ -231,37 +233,159 @@ getUserExecutableOnObject_custom(UA_Server *server, UA_AccessControl *ac,
 
 static UA_Boolean
 allowAddNode_custom(UA_Server *server, UA_AccessControl *ac,
-                     const UA_NodeId *sessionId, void *sessionContext,
-                     const UA_AddNodesItem *item) {
+                    const UA_NodeId *sessionId, void *sessionContext,
+                    const UA_AddNodesItem *item, UA_RolePermissionType *userRolePermission,size_t userRolePermissionSize) {
+#ifdef UA_ENABLE_ROLE_PERMISSION
+    UA_UsernameRoleInfo *userAndRoleInfo = (UA_UsernameRoleInfo*)sessionContext;
+    if (userRolePermissionSize != 0){
+        for (size_t index = 0; index < userRolePermissionSize; index++){
+            if (UA_NodeId_equal(&userRolePermission[index].roleId,
+                                &userAndRoleInfo->accessControlSettings->role.roleId) == true){
+                if ((userRolePermission[index].permissions & UA_PERMISSIONTYPE_ADDNODE) ==
+                        UA_PERMISSIONTYPE_ADDNODE){
+                    return true;
+                }
+            }
+        }
+    }
+    else{
+        if ((userAndRoleInfo->accessControlSettings->role.permissions & UA_PERMISSIONTYPE_ADDNODE) \
+            == UA_PERMISSIONTYPE_ADDNODE){
+            return true;
+        }
+    }
+
+    return false;
+#else
     return true;
+#endif
 }
 
 static UA_Boolean
 allowAddReference_custom(UA_Server *server, UA_AccessControl *ac,
-                          const UA_NodeId *sessionId, void *sessionContext,
-                          const UA_AddReferencesItem *item) {
+                         const UA_NodeId *sessionId, void *sessionContext,
+                         const UA_AddReferencesItem *item,
+                         UA_RolePermissionType *userRolePermission, size_t userRolePermissionSize) {
+#ifdef UA_ENABLE_ROLE_PERMISSION
+    UA_UsernameRoleInfo *userAndRoleInfo = (UA_UsernameRoleInfo*)sessionContext;
+    if (userRolePermissionSize != 0) {
+        for (size_t index = 0; index < userRolePermissionSize; index++) {
+            if (UA_NodeId_equal(&userRolePermission[index].roleId,
+                                &userAndRoleInfo->accessControlSettings->role.roleId) == true) {
+                if ((userRolePermission[index].permissions & UA_PERMISSIONTYPE_ADDREFERENCE) ==
+                        UA_PERMISSIONTYPE_ADDREFERENCE){
+                    return true;
+                }
+            }
+        }
+    }
+    else{
+        if ((userAndRoleInfo->accessControlSettings->role.permissions & UA_PERMISSIONTYPE_ADDREFERENCE) \
+            == UA_PERMISSIONTYPE_ADDREFERENCE){
+            return true;
+        }
+    }
+
+    return false;
+#else
     return true;
+#endif
 }
 
 static UA_Boolean
 allowDeleteNode_custom(UA_Server *server, UA_AccessControl *ac,
                         const UA_NodeId *sessionId, void *sessionContext,
-                        const UA_DeleteNodesItem *item) {
+                        const UA_DeleteNodesItem *item, UA_RolePermissionType *userRolePermission, size_t userRolePermissionSize) {
+#ifdef UA_ENABLE_ROLE_PERMISSION
+    UA_UsernameRoleInfo *userAndRoleInfo = (UA_UsernameRoleInfo*)sessionContext;
+    if (userRolePermissionSize != 0) {
+        for (size_t index = 0; index < userRolePermissionSize; index++) {
+            if (UA_NodeId_equal(&userRolePermission[index].roleId,
+                                &userAndRoleInfo->accessControlSettings->role.roleId) == true) {
+                if ((userRolePermission[index].permissions & UA_PERMISSIONTYPE_DELETENODE) \
+                     == UA_PERMISSIONTYPE_DELETENODE){
+                    return true;
+                }
+            }
+        }
+    }
+    else{
+        if ((userAndRoleInfo->accessControlSettings->role.permissions & UA_PERMISSIONTYPE_DELETENODE) \
+            == UA_PERMISSIONTYPE_DELETENODE){
+            return true;
+        }
+    }
+
+    return false;
+#else
     return true;
+#endif
 }
 
 static UA_Boolean
 allowDeleteReference_custom(UA_Server *server, UA_AccessControl *ac,
                              const UA_NodeId *sessionId, void *sessionContext,
-                             const UA_DeleteReferencesItem *item) {
+                             const UA_DeleteReferencesItem *item,
+                             UA_RolePermissionType *userRolePermission, size_t userRolePermissionSize) {
+#ifdef UA_ENABLE_ROLE_PERMISSION
+    UA_UsernameRoleInfo *userAndRoleInfo = (UA_UsernameRoleInfo*)sessionContext;
+    if (userRolePermissionSize != 0){
+        for (size_t index = 0; index < userRolePermissionSize; index++){
+            if (UA_NodeId_equal(&userRolePermission[index].roleId,
+                                &userAndRoleInfo->accessControlSettings->role.roleId) == true){
+                if ((userRolePermission[index].permissions & UA_PERMISSIONTYPE_REMOVEREFERENCE) \
+                    == UA_PERMISSIONTYPE_REMOVEREFERENCE){
+                    return true;
+                }
+            }
+        }
+    }
+    else{
+        if ((userAndRoleInfo->accessControlSettings->role.permissions & UA_PERMISSIONTYPE_REMOVEREFERENCE) \
+            == UA_PERMISSIONTYPE_REMOVEREFERENCE){
+            return true;
+        }
+    }
+
+    return false;
+#else
     return true;
+#endif
 }
 
 static UA_Boolean
 allowBrowseNode_custom(UA_Server *server, UA_AccessControl *ac,
                         const UA_NodeId *sessionId, void *sessionContext,
-                        const UA_NodeId *nodeId, void *nodeContext) {
+                        const UA_NodeId *nodeId, void *nodeContext,
+                        UA_RolePermissionType *userRolePermission, size_t userRolePermissionSize) {
+#ifdef UA_ENABLE_ROLE_PERMISSION
+    if (nodeId->namespaceIndex != 0) {
+        UA_UsernameRoleInfo *userAndRoleInfo = (UA_UsernameRoleInfo*)sessionContext;
+        if (userRolePermissionSize != 0) {
+            for (size_t index = 0; index < userRolePermissionSize; index++){
+                if (UA_NodeId_equal(&userRolePermission[index].roleId,
+                                    &userAndRoleInfo->accessControlSettings->role.roleId) == true) {
+                    if ((userRolePermission[index].permissions & UA_PERMISSIONTYPE_BROWSE) \
+                        == UA_PERMISSIONTYPE_BROWSE){
+                        return true;
+                    }
+                }
+            }
+        }
+        else{
+            if ((userAndRoleInfo->accessControlSettings->role.permissions & UA_PERMISSIONTYPE_BROWSE) \
+                == UA_PERMISSIONTYPE_BROWSE){
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     return true;
+#else
+    return true;
+#endif
 }
 
 static UA_Boolean

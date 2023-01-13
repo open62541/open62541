@@ -345,7 +345,9 @@ const UA_ObjectAttributes UA_ObjectAttributes_default = {
     {{0, NULL}, {0, NULL}}, /* displayName */
     {{0, NULL}, {0, NULL}}, /* description */
     0, 0,                   /* writeMask (userWriteMask) */
-    0                       /* eventNotifier */
+    0,                      /* eventNotifier */
+    0, NULL,                /* Role Permission*/
+    0, NULL                 /* UserRole permission*/
 };
 
 const UA_VariableAttributes UA_VariableAttributes_default = {
@@ -361,7 +363,9 @@ const UA_VariableAttributes UA_VariableAttributes_default = {
     0, NULL,                     /* arrayDimensions */
     UA_ACCESSLEVELMASK_READ, 0,  /* accessLevel (userAccessLevel) */
     0.0,                         /* minimumSamplingInterval */
-    false                        /* historizing */
+    false,                       /* historizing */
+    0, NULL,                     /* Role Permission*/
+    0, NULL                      /* UserRole permission*/
 };
 
 const UA_MethodAttributes UA_MethodAttributes_default = {
@@ -369,7 +373,9 @@ const UA_MethodAttributes UA_MethodAttributes_default = {
     {{0, NULL}, {0, NULL}}, /* displayName */
     {{0, NULL}, {0, NULL}}, /* description */
     0, 0,                   /* writeMask (userWriteMask) */
-    true, true              /* executable (userExecutable) */
+    true, true,             /* executable (userExecutable) */
+    0, NULL,                /* Role Permission*/
+    0, NULL                 /* UserRole permission*/
 };
 
 const UA_ObjectTypeAttributes UA_ObjectTypeAttributes_default = {
@@ -401,7 +407,9 @@ const UA_ReferenceTypeAttributes UA_ReferenceTypeAttributes_default = {
     0, 0,                   /* writeMask (userWriteMask) */
     false,                  /* isAbstract */
     false,                  /* symmetric */
-    {{0, NULL}, {0, NULL}}  /* inverseName */
+    {{0, NULL}, {0, NULL}}, /* inverseName */
+    0, NULL,                /* Role Permission*/
+    0, NULL                 /* UserRole permission*/
 };
 
 const UA_DataTypeAttributes UA_DataTypeAttributes_default = {

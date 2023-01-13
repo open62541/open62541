@@ -409,10 +409,34 @@ void UA_Node_clear(UA_Node *node) {
 
     /* Delete unique content of the nodeclass */
     switch(head->nodeClass) {
-    case UA_NODECLASS_OBJECT:
+    case UA_NODECLASS_OBJECT: {
+#ifdef UA_ENABLE_ROLE_PERMISSION
+        UA_ObjectNode *obj = &node->objectNode;
+        UA_Array_delete(obj->head.rolePermissions, obj->head.rolePermissionsSize,
+                        &UA_TYPES[UA_TYPES_ROLEPERMISSIONTYPE]);
+        obj->head.rolePermissions= NULL;
+        obj->head.rolePermissionsSize = 0;
+        UA_Array_delete(obj->head.userRolePermissions, obj->head.userRolePermissionsSize,
+                        &UA_TYPES[UA_TYPES_ROLEPERMISSIONTYPE]);
+        obj->head.userRolePermissions= NULL;
+        obj->head.userRolePermissionsSize = 0;
+#endif
         break;
-    case UA_NODECLASS_METHOD:
+    }
+    case UA_NODECLASS_METHOD:{
+#ifdef UA_ENABLE_ROLE_PERMISSION
+        UA_MethodNode *method = &node->methodNode;
+        UA_Array_delete(method->head.rolePermissions, method->head.rolePermissionsSize,
+                        &UA_TYPES[UA_TYPES_ROLEPERMISSIONTYPE]);
+        method->head.rolePermissions= NULL;
+        method->head.rolePermissionsSize = 0;
+        UA_Array_delete(method->head.userRolePermissions, method->head.userRolePermissionsSize,
+                        &UA_TYPES[UA_TYPES_ROLEPERMISSIONTYPE]);
+        method->head.userRolePermissions= NULL;
+        method->head.userRolePermissionsSize = 0;
+#endif
         break;
+    }
     case UA_NODECLASS_OBJECTTYPE:
         break;
     case UA_NODECLASS_VARIABLE:
@@ -423,13 +447,33 @@ void UA_Node_clear(UA_Node *node) {
                         &UA_TYPES[UA_TYPES_INT32]);
         p->arrayDimensions = NULL;
         p->arrayDimensionsSize = 0;
+#ifdef UA_ENABLE_ROLE_PERMISSION
+        UA_Array_delete(p->head.rolePermissions, p->head.rolePermissionsSize,
+                        &UA_TYPES[UA_TYPES_ROLEPERMISSIONTYPE]);
+        p->head.rolePermissions= NULL;
+        p->head.rolePermissionsSize = 0;
+        UA_Array_delete(p->head.userRolePermissions, p->head.userRolePermissionsSize,
+                        &UA_TYPES[UA_TYPES_ROLEPERMISSIONTYPE]);
+        p->head.userRolePermissions= NULL;
+        p->head.userRolePermissionsSize = 0;
+#endif
         if(p->valueSource == UA_VALUESOURCE_DATA)
             UA_DataValue_clear(&p->value.data.value);
         break;
     }
     case UA_NODECLASS_REFERENCETYPE: {
-        UA_ReferenceTypeNode *p = &node->referenceTypeNode;
-        UA_LocalizedText_clear(&p->inverseName);
+        UA_ReferenceTypeNode *ref = &node->referenceTypeNode;
+        UA_LocalizedText_clear(&ref->inverseName);
+#ifdef UA_ENABLE_ROLE_PERMISSION
+        UA_Array_delete(ref->head.rolePermissions, ref->head.rolePermissionsSize,
+                        &UA_TYPES[UA_TYPES_ROLEPERMISSIONTYPE]);
+        ref->head.rolePermissions= NULL;
+        ref->head.rolePermissionsSize = 0;
+        UA_Array_delete(ref->head.userRolePermissions, ref->head.userRolePermissionsSize,
+                        &UA_TYPES[UA_TYPES_ROLEPERMISSIONTYPE]);
+        ref->head.userRolePermissions= NULL;
+        ref->head.userRolePermissionsSize = 0;
+#endif
         break;
     }
     case UA_NODECLASS_DATATYPE:
@@ -723,6 +767,99 @@ UA_Node_copy_alloc(const UA_Node *src) {
 /******************************/
 /* Copy Attributes into Nodes */
 /******************************/
+#ifdef UA_ENABLE_ROLE_PERMISSION
+static UA_StatusCode
+copyVariableRolePermissionAttributes(UA_VariableNode *vnode,
+                                 const UA_VariableAttributes *attr){
+    if (attr->rolePermissionsSize != 0){
+        UA_StatusCode retval = UA_Array_copy(attr->rolePermissions, attr->rolePermissionsSize,
+                               (void**)&vnode->head.rolePermissions, &UA_TYPES[UA_TYPES_ROLEPERMISSIONTYPE]);
+
+        if(retval != UA_STATUSCODE_GOOD)
+            return retval;
+        vnode->head.rolePermissionsSize = attr->rolePermissionsSize;
+    }
+
+    if (attr->userRolePermissionsSize != 0){
+        UA_StatusCode retval = UA_Array_copy(attr->userRolePermissions, attr->userRolePermissionsSize,
+                               (void**)&vnode->head.userRolePermissions, &UA_TYPES[UA_TYPES_ROLEPERMISSIONTYPE]);
+        if(retval != UA_STATUSCODE_GOOD)
+            return retval;
+        vnode->head.userRolePermissionsSize = attr->userRolePermissionsSize;
+    }
+
+    return UA_STATUSCODE_GOOD;
+
+}
+
+static UA_StatusCode
+copyObjectRolePermissionAttributes(UA_ObjectNode *onode, const UA_ObjectAttributes *attr){
+    if (attr->rolePermissionsSize != 0){
+        UA_StatusCode retval = UA_Array_copy(attr->rolePermissions, attr->rolePermissionsSize,
+                               (void**)&onode->head.rolePermissions, &UA_TYPES[UA_TYPES_ROLEPERMISSIONTYPE]);
+        if(retval != UA_STATUSCODE_GOOD)
+            return retval;
+        onode->head.rolePermissionsSize = attr->rolePermissionsSize;
+    }
+
+    if (attr->userRolePermissionsSize != 0){
+        UA_StatusCode retval = UA_Array_copy(attr->userRolePermissions, attr->userRolePermissionsSize,
+                               (void**)&onode->head.userRolePermissions, &UA_TYPES[UA_TYPES_ROLEPERMISSIONTYPE]);
+        if(retval != UA_STATUSCODE_GOOD)
+            return retval;
+        onode->head.userRolePermissionsSize = attr->userRolePermissionsSize;
+    }
+
+    return UA_STATUSCODE_GOOD;
+
+}
+
+static UA_StatusCode
+copyReferenceRolePermissionAttributes(UA_ReferenceTypeNode *rtnode,
+                                          const UA_ReferenceTypeAttributes *attr){
+    if (attr->rolePermissionsSize != 0){
+        UA_StatusCode retval = UA_Array_copy(attr->rolePermissions, attr->rolePermissionsSize,
+                               (void**)&rtnode->head.rolePermissions, &UA_TYPES[UA_TYPES_ROLEPERMISSIONTYPE]);
+        if(retval != UA_STATUSCODE_GOOD)
+            return retval;
+        rtnode->head.rolePermissionsSize = attr->rolePermissionsSize;
+    }
+
+    if (attr->userRolePermissionsSize != 0){
+        UA_StatusCode retval = UA_Array_copy(attr->userRolePermissions, attr->userRolePermissionsSize,
+                               (void**)&rtnode->head.userRolePermissions, &UA_TYPES[UA_TYPES_ROLEPERMISSIONTYPE]);
+        if(retval != UA_STATUSCODE_GOOD)
+            return retval;
+        rtnode->head.userRolePermissionsSize = attr->userRolePermissionsSize;
+    }
+
+    return UA_STATUSCODE_GOOD;
+
+}
+
+static UA_StatusCode
+copyMethodRolePermissionAttributes(UA_MethodNode *mnode,
+                                   const UA_MethodAttributes *attr){
+    if (attr->rolePermissionsSize != 0){
+        UA_StatusCode retval = UA_Array_copy(attr->rolePermissions, attr->rolePermissionsSize,
+                               (void**)&mnode->head.rolePermissions, &UA_TYPES[UA_TYPES_ROLEPERMISSIONTYPE]);
+        if(retval != UA_STATUSCODE_GOOD)
+            return retval;
+        mnode->head.rolePermissionsSize = attr->rolePermissionsSize;
+    }
+
+    if (attr->userRolePermissionsSize != 0){
+        UA_StatusCode retval = UA_Array_copy(attr->userRolePermissions, attr->userRolePermissionsSize,
+                               (void**)&mnode->head.userRolePermissions, &UA_TYPES[UA_TYPES_ROLEPERMISSIONTYPE]);
+        if(retval != UA_STATUSCODE_GOOD)
+            return retval;
+        mnode->head.userRolePermissionsSize = attr->userRolePermissionsSize;
+    }
+
+    return UA_STATUSCODE_GOOD;
+
+}
+#endif
 
 static UA_StatusCode
 copyStandardAttributes(UA_NodeHead *head, const UA_NodeAttributes *attr) {
@@ -776,6 +913,9 @@ copyVariableNodeAttributes(UA_VariableNode *vnode,
     vnode->userAccessLevel = attr->accessLevel;
     vnode->historizing = attr->historizing;
     vnode->minimumSamplingInterval = attr->minimumSamplingInterval;
+#ifdef UA_ENABLE_ROLE_PERMISSION
+    copyVariableRolePermissionAttributes(vnode, attr);
+#endif
     return copyCommonVariableAttributes(vnode, attr);
 }
 
@@ -790,6 +930,9 @@ copyVariableTypeNodeAttributes(UA_VariableTypeNode *vtnode,
 static UA_StatusCode
 copyObjectNodeAttributes(UA_ObjectNode *onode, const UA_ObjectAttributes *attr) {
     onode->eventNotifier = attr->eventNotifier;
+#ifdef UA_ENABLE_ROLE_PERMISSION
+    copyObjectRolePermissionAttributes(onode, attr);
+#endif
     return UA_STATUSCODE_GOOD;
 }
 
@@ -798,6 +941,9 @@ copyReferenceTypeNodeAttributes(UA_ReferenceTypeNode *rtnode,
                                 const UA_ReferenceTypeAttributes *attr) {
     rtnode->isAbstract = attr->isAbstract;
     rtnode->symmetric = attr->symmetric;
+#ifdef UA_ENABLE_ROLE_PERMISSION
+    copyReferenceRolePermissionAttributes(rtnode, attr);
+#endif
     return UA_LocalizedText_copy(&attr->inverseName, &rtnode->inverseName);
 }
 
@@ -827,6 +973,9 @@ copyMethodNodeAttributes(UA_MethodNode *mnode,
                          const UA_MethodAttributes *attr) {
     mnode->executable = attr->executable;
     mnode->userExecutable = attr->executable;
+#ifdef UA_ENABLE_ROLE_PERMISSION
+    copyMethodRolePermissionAttributes(mnode, attr);
+#endif
     return UA_STATUSCODE_GOOD;
 }
 

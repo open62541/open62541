@@ -383,6 +383,16 @@ Operation_CallMethodAsync(UA_Server *server, UA_Session *session, UA_UInt32 requ
         return;
     }
 
+#ifdef UA_ENABLE_ROLE_PERMISSION
+    if (session != &server->adminSession && (method->head.nodeId.namespaceIndex != 0)) {
+        UA_Boolean checkAccess = checkUserAccess(method, session->sessionHandle, UA_PERMISSIONTYPE_CALL);
+        if (checkAccess != true) {
+            opResult->statusCode = UA_STATUSCODE_BADUSERACCESSDENIED;
+            return;
+        }
+    }
+#endif /* UA_ENABLE_ROLE_PERMISSION */
+
     /* Get the object node. We only need the NodeClass attribute. But take all
      * references for now.
      *
@@ -479,6 +489,16 @@ Operation_CallMethod(UA_Server *server, UA_Session *session, void *context,
         result->statusCode = UA_STATUSCODE_BADNODEIDUNKNOWN;
         return;
     }
+
+#ifdef UA_ENABLE_ROLE_PERMISSION
+    if (session != &server->adminSession && (method->head.nodeId.namespaceIndex != 0)) {
+        UA_Boolean checkAccess = checkUserAccess(method, session->sessionHandle, UA_PERMISSIONTYPE_CALL);
+        if (checkAccess != true) {
+            result->statusCode = UA_STATUSCODE_BADUSERACCESSDENIED;
+            return;
+        }
+    }
+#endif /* UA_ENABLE_ROLE_PERMISSION */
 
     /* Get the object node. We only need the NodeClass attribute. But take all
      * references for now.

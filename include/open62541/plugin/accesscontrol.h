@@ -34,6 +34,7 @@ typedef struct {
     UA_UInt32              accessPermissions;
     UA_Boolean             methodAccessPermission;
     UA_IdentityMappingRuleType identityMappingRule;
+    UA_RolePermissionType  role;
 } UA_AccessControlSettings;
 
 typedef struct {
@@ -107,27 +108,27 @@ struct UA_AccessControl {
     /* Allow adding a node */
     UA_Boolean (*allowAddNode)(UA_Server *server, UA_AccessControl *ac,
                                const UA_NodeId *sessionId, void *sessionContext,
-                               const UA_AddNodesItem *item);
+                               const UA_AddNodesItem *item, UA_RolePermissionType *userRolePermission, size_t userRoleSize);
 
     /* Allow adding a reference */
     UA_Boolean (*allowAddReference)(UA_Server *server, UA_AccessControl *ac,
                                     const UA_NodeId *sessionId, void *sessionContext,
-                                    const UA_AddReferencesItem *item);
+                                    const UA_AddReferencesItem *item, UA_RolePermissionType *userRolePermission, size_t userRoleSize);
 
     /* Allow deleting a node */
     UA_Boolean (*allowDeleteNode)(UA_Server *server, UA_AccessControl *ac,
                                   const UA_NodeId *sessionId, void *sessionContext,
-                                  const UA_DeleteNodesItem *item);
+                                  const UA_DeleteNodesItem *item, UA_RolePermissionType *userRolePermission,size_t userRolePermissionSize);
 
     /* Allow deleting a reference */
     UA_Boolean (*allowDeleteReference)(UA_Server *server, UA_AccessControl *ac,
                                        const UA_NodeId *sessionId, void *sessionContext,
-                                       const UA_DeleteReferencesItem *item);
+                                       const UA_DeleteReferencesItem *item, UA_RolePermissionType *userRolePermission, size_t userRoleSize);
 
     /* Allow browsing a node */
     UA_Boolean (*allowBrowseNode)(UA_Server *server, UA_AccessControl *ac,
                                   const UA_NodeId *sessionId, void *sessionContext,
-                                  const UA_NodeId *nodeId, void *nodeContext);
+                                  const UA_NodeId *nodeId, void *nodeContext, UA_RolePermissionType *userRolePermission,size_t userRoleSize);
 
     /* Check access to Node */
     UA_Boolean (*hasAccessToNode)(UA_Server *server, UA_AccessControl *ac,
@@ -165,8 +166,11 @@ struct UA_AccessControl {
 #endif
     UA_Boolean (*checkUserDatabase)(const UA_UserNameIdentityToken *userToken, UA_String *roleName);
 
+#ifdef UA_ENABLE_ROLE_PERMISSION
     UA_StatusCode (*setRoleAccessPermission)(UA_String roleName, UA_AccessControlSettings* accessControlSettings);
+    UA_PermissionType (*readUserDefinedRolePermission)(UA_Server *server, UA_AccessControlSettings* accessControlSettings);
    // UA_StatusCode (*checkTheRoleSessionLoggedIn)(UA_Server *server);
+#endif /* UA_ENABLE_ROLE_PERMISSION */
 };
 
 _UA_END_DECLS
