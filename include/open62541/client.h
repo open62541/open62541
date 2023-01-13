@@ -204,6 +204,12 @@ UA_ClientConfig_copy(UA_ClientConfig const *src, UA_ClientConfig *dst);
 UA_EXPORT void
 UA_ClientConfig_delete(UA_ClientConfig *config);
 
+/**
+ * @brief It cleans the client config and deletes the plugins, whereas
+ * _copy makes a shallow copy of the plugins.
+ */
+UA_EXPORT void
+UA_ClientConfig_clear(UA_ClientConfig *config);
  /**
  * Client Lifecycle
  * ---------------- */
