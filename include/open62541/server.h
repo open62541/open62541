@@ -388,22 +388,28 @@ UA_EXPORT UA_Server * UA_Server_new(void);
 
 /* Creates a new server. Moves the config into the server with a shallow copy.
  * The config content is cleared together with the server. */
-UA_Server UA_EXPORT *
+UA_EXPORT UA_Server *
 UA_Server_newWithConfig(UA_ServerConfig *config);
 
-void UA_EXPORT UA_Server_delete(UA_Server *server);
+/* Delete the server. */
+UA_EXPORT void UA_Server_delete(UA_Server *server);
 
-UA_ServerConfig UA_EXPORT *
+/* Get the configuration. Always succeeds as this simplfy resolves a pointer.
+ * Attention! Do not adjust the configuration while the server is running! */
+UA_EXPORT UA_ServerConfig *
 UA_Server_getConfig(UA_Server *server);
 
-/* Runs the main loop of the server. In each iteration, this calls into the
- * networklayers to see if messages have arrived.
+/* Runs the server until interrupted. On Unix/Windows this registers an
+ * interrupt for SIGINT (ctrl-c). The method only returns after having received
+ * the interrupt. The logical sequence is as follows:
+ *
+ * - UA_Server_run_startup
+ * - Loop until interrupt: UA_Server_run_iterate
+ * - UA_Server_run_shutdown
  *
  * @param server The server object.
- * @param running The loop is run as long as *running is true.
- *        Otherwise, the server shuts down.
- * @return Returns the statuscode of the UA_Server_run_shutdown method */
-UA_StatusCode UA_EXPORT
+ * @return Returns a bad statuscode if an error occurred internally. */
+UA_EXPORT UA_StatusCode
 UA_Server_run(UA_Server *server, const volatile UA_Boolean *running);
 
 /* Runs the server until interrupted. On Unix/Windows this registers an
@@ -422,12 +428,12 @@ UA_Server_run(UA_Server *server, const volatile UA_Boolean *running);
  *
  * @param server The server object.
  * @return Returns a bad statuscode if an error occurred internally. */
-UA_StatusCode UA_EXPORT
+UA_EXPORT UA_StatusCode
 UA_Server_runUntilInterrupt(UA_Server *server);
 
 /* The prologue part of UA_Server_run (no need to use if you call
- * UA_Server_run) */
-UA_StatusCode UA_EXPORT
+ * UA_Server_run or UA_Server_runUntilInterrupt) */
+UA_EXPORT UA_StatusCode
 UA_Server_run_startup(UA_Server *server);
 
 /* Executes a single iteration of the server's main loop.
@@ -438,12 +444,12 @@ UA_Server_run_startup(UA_Server *server);
  *        The default max wait time is 200ms.
  * @return Returns how long we can wait until the next scheduled
  *         callback (in ms) */
-UA_UInt16 UA_EXPORT
+UA_EXPORT UA_UInt16
 UA_Server_run_iterate(UA_Server *server, UA_Boolean waitInternal);
 
 /* The epilogue part of UA_Server_run (no need to use if you call
- * UA_Server_run) */
-UA_StatusCode UA_EXPORT
+ * UA_Server_run or UA_Server_runUntilInterrupt) */
+UA_EXPORT UA_StatusCode
 UA_Server_run_shutdown(UA_Server *server);
 
 /**
