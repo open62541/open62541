@@ -264,6 +264,38 @@ serverHouseKeeping(UA_Server *server, void *_) {
     UA_UNLOCK(&server->serviceMutex);
 }
 
+/* Some subsystems require regula polling of the network. This is a holdover
+ * from before the EventLoop model.
+ *
+ * TODO: Refactor to use the EventLoop instead of polling. Get rid of this
+ * entirely. */
+static void
+serverPolling(UA_Server *server, void *_) {
+    /* Listen on the pubsublayer, but only if the yield function is set. */
+#if defined(UA_ENABLE_PUBSUB_MQTT)
+    UA_PubSubConnection *connection;
+    TAILQ_FOREACH(connection, &server->pubSubManager.connections, listEntry){
+        UA_PubSubConnection *ps = connection;
+        if(ps && ps->channel && ps->channel->yield){
+            ps->channel->yield(ps->channel, 0);
+        }
+    }
+#endif
+
+#if defined(UA_ENABLE_DISCOVERY_MULTICAST) && (UA_MULTITHREADING < 200)
+    UA_LOCK(&server->serviceMutex);
+    if(server->config.mdnsEnabled) {
+        /* TODO multicastNextRepeat does not consider new input data (requests)
+         * on the socket. It will be handled on the next call. if needed, we
+         * need to use select with timeout on the multicast socket
+         * server->mdnsSocket (see example in mdnsd library) on higher level. */
+        UA_DateTime multicastNextRepeat = 0;
+        iterateMulticastDiscoveryServer(server, &multicastNextRepeat, true);
+    }
+    UA_UNLOCK(&server->serviceMutex);
+#endif
+}
+
 /********************/
 /* Server Lifecycle */
 /********************/
@@ -786,6 +818,15 @@ UA_Server_run_startup(UA_Server *server) {
                                       NULL, 1000.0, &server->houseKeepingCallbackId);
     }
 
+    /* Add a regular callback for network polling tasks. With a 200ms interval.
+     *
+     * TODO: Move this to the EventLoop model without polling.
+     */
+    if(server->pollingCallbackId == 0) {
+        UA_Server_addRepeatedCallback(server, (UA_ServerCallback)serverPolling,
+                                      NULL, 200.0, &server->pollingCallbackId);
+    }
+
     UA_StatusCode retVal = UA_STATUSCODE_GOOD;
     /* Start the EventLoop if not already started */
     UA_CHECK_MEM_ERROR(config->eventLoop, return UA_STATUSCODE_BADINTERNALERROR,
@@ -905,33 +946,8 @@ UA_Server_run_startup(UA_Server *server) {
 
 UA_UInt16
 UA_Server_run_iterate(UA_Server *server, UA_Boolean waitInternal) {
-    /* Listen on the pubsublayer, but only if the yield function is set.
-     * TODO: Integrate into the EventLoop */
-#if defined(UA_ENABLE_PUBSUB_MQTT)
-    UA_PubSubConnection *connection;
-    TAILQ_FOREACH(connection, &server->pubSubManager.connections, listEntry){
-        UA_PubSubConnection *ps = connection;
-        if(ps && ps->channel && ps->channel->yield){
-            ps->channel->yield(ps->channel, 0);
-        }
-    }
-#endif
-
     /* Process timed and network events in the EventLoop */
     server->config.eventLoop->run(server->config.eventLoop, UA_MAXTIMEOUT);
-
-#if defined(UA_ENABLE_DISCOVERY_MULTICAST) && (UA_MULTITHREADING < 200)
-    UA_LOCK(&server->serviceMutex);
-    if(server->config.mdnsEnabled) {
-        /* TODO multicastNextRepeat does not consider new input data (requests)
-         * on the socket. It will be handled on the next call. if needed, we
-         * need to use select with timeout on the multicast socket
-         * server->mdnsSocket (see example in mdnsd library) on higher level. */
-        UA_DateTime multicastNextRepeat = 0;
-        iterateMulticastDiscoveryServer(server, &multicastNextRepeat, true);
-    }
-    UA_UNLOCK(&server->serviceMutex);
-#endif
 
     /* Return the time until the next scheduled callback */
     return (UA_UInt16)((server->config.eventLoop->nextCyclicTime(server->config.eventLoop)
@@ -941,8 +957,16 @@ UA_Server_run_iterate(UA_Server *server, UA_Boolean waitInternal) {
 UA_StatusCode
 UA_Server_run_shutdown(UA_Server *server) {
     /* Stop the regular housekeeping tasks */
-    UA_Server_removeCallback(server, server->houseKeepingCallbackId);
-    server->houseKeepingCallbackId = 0;
+    if(server->houseKeepingCallbackId != 0) {
+        UA_Server_removeCallback(server, server->houseKeepingCallbackId);
+        server->houseKeepingCallbackId = 0;
+    }
+
+    /* Stop the polling tasks */
+    if(server->pollingCallbackId != 0) {
+        UA_Server_removeCallback(server, server->pollingCallbackId);
+        server->pollingCallbackId = 0;
+    }
 
     /* Mark all reverse connects as destroying */
     reverse_connect_context *rev = NULL;

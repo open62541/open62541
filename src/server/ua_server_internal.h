@@ -117,6 +117,9 @@ struct UA_Server {
 
     UA_ServerLifecycle state;
     UA_UInt64 houseKeepingCallbackId;
+    UA_UInt64 pollingCallbackId; /* TODO: Move all subsystems that poll on the
+                                  * network to a true EventLoop
+                                  * implementation */
 
     UA_ServerConnection serverConnections[UA_MAXSERVERCONNECTIONS];
     size_t serverConnectionsSize;
