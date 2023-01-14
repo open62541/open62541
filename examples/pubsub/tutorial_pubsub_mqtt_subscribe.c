@@ -6,13 +6,8 @@
 
 #include <open62541/plugin/log_stdout.h>
 #include <open62541/server.h>
-#include <open62541/server_config_default.h>
 #include <open62541/plugin/securitypolicy_default.h>
-
-#include <signal.h>
-
 #include <open62541/plugin/pubsub_mqtt.h>
-#include "ua_pubsub.h"
 
 #define CONNECTION_NAME               "MQTT Subscriber Connection"
 #define TRANSPORT_PROFILE_URI         "http://opcfoundation.org/UA-Profile/Transport/pubsub-mqtt"
@@ -371,17 +366,8 @@ static void fillTestDataSetMetaData(UA_DataSetMetaDataType *pMetaData) {
 
 /**
  * Followed by the main server code, making use of the above definitions */
-UA_Boolean running = true;
-static void stopHandler(int sign) {
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "received ctrl-c");
-    running = false;
-}
-
 
 int main(int argc, char **argv) {
-    signal(SIGINT, stopHandler);
-    signal(SIGTERM, stopHandler);
-
     char *addressUrl = BROKER_ADDRESS_URL;
     //char *topic = SUBSCRIBER_TOPIC;
     int interval = SUBSCRIBE_INTERVAL;
@@ -390,7 +376,6 @@ int main(int argc, char **argv) {
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     UA_Server *server = UA_Server_new();
     UA_ServerConfig *config = UA_Server_getConfig(server);
-    UA_ServerConfig_setMinimal(config, 4841, NULL);
 
 #if defined(UA_ENABLE_PUBSUB_ENCRYPTION) && !defined(UA_ENABLE_JSON_ENCODING)
     /* Instantiate the PubSub SecurityPolicy */
@@ -424,7 +409,7 @@ int main(int argc, char **argv) {
     if (retval != UA_STATUSCODE_GOOD)
         return EXIT_FAILURE;
 
-    retval = UA_Server_run(server, &running);
+    retval = UA_Server_runUntilInterrupt(server);
     UA_Server_delete(server);
     return retval == UA_STATUSCODE_GOOD ? EXIT_SUCCESS : EXIT_FAILURE;
 }
