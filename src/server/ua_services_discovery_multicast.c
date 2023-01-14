@@ -97,25 +97,130 @@ addMdnsRecordForNetworkLayer(UA_Server *server, const UA_String *appName,
     return UA_STATUSCODE_GOOD;
 }
 
+#ifndef IN_ZERONET
+#define IN_ZERONET(addr) ((addr & IN_CLASSA_NET) == 0)
+#endif
+
+/* Create multicast 224.0.0.251:5353 socket */
+static UA_SOCKET
+discovery_createMulticastSocket(UA_Server* server) {
+    int flag = 1, ittl = 255;
+    struct sockaddr_in in;
+    struct ip_mreq mc;
+    char ttl = (char)255; // publish to complete net, not only subnet. See:
+                          // https://docs.oracle.com/cd/E23824_01/html/821-1602/sockets-137.html
+
+    memset(&in, 0, sizeof(in));
+    in.sin_family = AF_INET;
+    in.sin_port = htons(5353);
+    in.sin_addr.s_addr = 0;
+
+    UA_SOCKET s = UA_socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+    if(s == UA_INVALID_SOCKET)
+        return UA_INVALID_SOCKET;
+
+#ifdef SO_REUSEPORT
+    UA_setsockopt(s, SOL_SOCKET, SO_REUSEPORT, (char *)&flag, sizeof(flag));
+#endif
+    UA_setsockopt(s, SOL_SOCKET, SO_REUSEADDR, (char *)&flag, sizeof(flag));
+    if(UA_bind(s, (struct sockaddr *)&in, sizeof(in))) {
+        UA_close(s);
+        return UA_INVALID_SOCKET;
+    }
+
+    /* Custom outbound multicast interface */
+    size_t length = server->config.mdnsInterfaceIP.length;
+    if(length > 0){
+        char* interfaceName = (char*)UA_malloc(length+1);
+        if(!interfaceName) {
+            UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_DISCOVERY,
+                         "Multicast DNS: cannot alloc memory for iface name");
+            return 0;
+        }
+        struct in_addr ina;
+        memset(&ina, 0, sizeof(ina));
+        memcpy(interfaceName, server->config.mdnsInterfaceIP.data, length);
+        interfaceName[length] = '\0';
+        inet_pton(AF_INET, interfaceName, &ina);
+        UA_free(interfaceName);
+        /* Set interface for outbound multicast */
+        if(setsockopt(s, IPPROTO_IP, IP_MULTICAST_IF, (char*)&ina, sizeof(ina)) < 0)
+            UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_DISCOVERY,
+                         "Multicast DNS: failed setting IP_MULTICAST_IF to %s: %s",
+                         inet_ntoa(ina), strerror(errno));
+    }
+
+    /* Check outbound multicast interface parameters */
+    struct in_addr interface_addr;
+    socklen_t addr_size = sizeof(struct in_addr);
+    if(getsockopt(s, IPPROTO_IP, IP_MULTICAST_IF, (char*)&interface_addr, &addr_size) <  0) {
+        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_DISCOVERY,
+                     "Multicast DNS: getsockopt(IP_MULTICAST_IF) failed");
+    }
+
+    if(IN_ZERONET(ntohl(interface_addr.s_addr))) {
+        UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_DISCOVERY,
+                       "Multicast DNS: outbound interface 0.0.0.0, it means that "
+                       "the first OS interface is used (you can explicitly set the "
+                       "interface by using 'discovery.mdnsInterfaceIP' config parameter)");
+    } else {
+        char buf[16];
+        inet_ntop(AF_INET, &interface_addr, buf, 16);
+        UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_DISCOVERY,
+                    "Multicast DNS: outbound interface is %s", buf);
+    }
+
+    mc.imr_multiaddr.s_addr = inet_addr("224.0.0.251");
+    mc.imr_interface.s_addr = htonl(INADDR_ANY);
+    UA_setsockopt(s, IPPROTO_IP, IP_ADD_MEMBERSHIP, (char*)&mc, sizeof(mc));
+    UA_setsockopt(s, IPPROTO_IP, IP_MULTICAST_TTL, (char*)&ttl, sizeof(ttl));
+    UA_setsockopt(s, IPPROTO_IP, IP_MULTICAST_TTL, (char*)&ittl, sizeof(ittl));
+
+    UA_socket_set_nonblocking(s); //TODO: check return value
+    return s;
+}
+
 void
 startMulticastDiscoveryServer(UA_Server *server) {
+    /* Initialize the mdns daemon */
+    UA_DiscoveryManager *dm = &server->discoveryManager;
+    if(!dm->mdnsDaemon) {
+        server->discoveryManager.mdnsDaemon = mdnsd_new(QCLASS_IN, 1000);
+        mdnsd_register_receive_callback(dm->mdnsDaemon,
+                                        mdns_record_received, server);
+    }
+
+    /* Open the mdns listen socket */
+    UA_initialize_architecture_network();
+    if(dm->mdnsSocket == UA_INVALID_SOCKET)
+        dm->mdnsSocket = discovery_createMulticastSocket(server);
+    if(dm->mdnsSocket == UA_INVALID_SOCKET) {
+        UA_LOG_SOCKET_ERRNO_WRAP(
+                UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_DISCOVERY,
+                             "Could not create multicast socket. Error: %d - %s",
+                             errno, errno_str));
+        return;
+    }
+
+    /* Add record for the server itself */
     UA_String *appName = &server->config.mdnsConfig.mdnsServerName;
     for(size_t i = 0; i < server->config.serverUrlsSize; i++)
-        addMdnsRecordForNetworkLayer(server, appName, &server->config.serverUrls[i]);
+        addMdnsRecordForNetworkLayer(server, appName,
+                                     &server->config.serverUrls[i]);
 
     /* Send a multicast probe to find any other OPC UA server on the network
      * through mDNS */
-    mdnsd_query(server->discoveryManager.mdnsDaemon, "_opcua-tcp._tcp.local.",
+    mdnsd_query(dm->mdnsDaemon, "_opcua-tcp._tcp.local.",
                 QTYPE_PTR,discovery_multicastQueryAnswer, server);
 
     /* Start the cyclic polling callback */
-    if(server->discoveryManager.mdnsCallbackId == 0) {
+    if(dm->mdnsCallbackId == 0) {
         UA_EventLoop *el = server->config.eventLoop;
         if(el) {
             el->addCyclicCallback(el, (UA_Callback)multicastPolling,
                                   server, NULL, 200, NULL,
                                   UA_TIMER_HANDLE_CYCLEMISS_WITH_CURRENTTIME,
-                                  &server->discoveryManager.mdnsCallbackId);
+                                  &dm->mdnsCallbackId);
         }
     }
 }
@@ -140,14 +245,27 @@ stopMulticastDiscoveryServer(UA_Server *server) {
     }
 
     /* Stop the cyclic polling callback */
-    if(server->discoveryManager.mdnsCallbackId != 0) {
+    UA_DiscoveryManager *dm = &server->discoveryManager;
+    if(dm->mdnsCallbackId != 0) {
         UA_EventLoop *el = server->config.eventLoop;
         if(el) {
-            el->removeCyclicCallback(el, server->discoveryManager.mdnsCallbackId);
-            server->discoveryManager.mdnsCallbackId = 0;
+            el->removeCyclicCallback(el, dm->mdnsCallbackId);
+            dm->mdnsCallbackId = 0;
         }
     }
-    mdnsd_shutdown(server->discoveryManager.mdnsDaemon);
+
+    /* Clean up mdns daemon */
+    if(dm->mdnsDaemon) {
+        mdnsd_shutdown(dm->mdnsDaemon);
+        mdnsd_free(dm->mdnsDaemon);
+        dm->mdnsDaemon = NULL;
+    }
+
+    /* Close the socket */
+    if(dm->mdnsSocket != UA_INVALID_SOCKET) {
+        UA_close(dm->mdnsSocket);
+        dm->mdnsSocket = UA_INVALID_SOCKET;
+    }
 }
 
 /* All filter criteria must be fulfilled in the list entry. The comparison is
