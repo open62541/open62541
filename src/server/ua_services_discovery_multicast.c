@@ -45,68 +45,27 @@ UA_Discovery_removeRecord(UA_Server *server, const UA_String *servername,
 static int
 discovery_multicastQueryAnswer(mdns_answer_t *a, void *arg);
 
-#if UA_MULTITHREADING >= 100
-
-static void *
-multicastWorkerLoop(UA_Server *server) {
+static void
+multicastPolling(UA_Server *server, void *_) {
     struct timeval next_sleep = {.tv_sec = 0, .tv_usec = 0};
-    volatile UA_Boolean *running = &server->discoveryManager.mdnsRunning;
     fd_set fds;
+    FD_ZERO(&fds);
+    UA_fd_set(server->discoveryManager.mdnsSocket, &fds);
+    select(server->discoveryManager.mdnsSocket + 1, &fds, 0, 0, &next_sleep);
 
-    while(*running) {
-        FD_ZERO(&fds);
-        UA_fd_set(server->discoveryManager.mdnsSocket, &fds);
-        select(server->discoveryManager.mdnsSocket + 1, &fds, 0, 0, &next_sleep);
-
-        if(!*running)
-            break;
-
-        unsigned short retVal =
-            mdnsd_step(server->discoveryManager.mdnsDaemon, server->discoveryManager.mdnsSocket,
-                       FD_ISSET(server->discoveryManager.mdnsSocket, &fds), true, &next_sleep);
-        if(retVal == 1) {
-            UA_LOG_SOCKET_ERRNO_WRAP(
-                UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_DISCOVERY,
-                          "Multicast error: Can not read from socket. %s", errno_str));
-            break;
-        } else if (retVal == 2) {
-            UA_LOG_SOCKET_ERRNO_WRAP(
-                UA_LOG_DEBUG(&server->config.logger, UA_LOGCATEGORY_DISCOVERY,
-                         "Multicast error: Can not write to socket. %s", errno_str));
-            break;
+    unsigned short retVal =
+        mdnsd_step(server->discoveryManager.mdnsDaemon, server->discoveryManager.mdnsSocket,
+                   FD_ISSET(server->discoveryManager.mdnsSocket, &fds), true, &next_sleep);
+    if(retVal == 1) {
+        UA_LOG_SOCKET_ERRNO_WRAP(
+           UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_DISCOVERY,
+                        "Multicast error: Can not read from socket. %s", errno_str));
+    } else if (retVal == 2) {
+        UA_LOG_SOCKET_ERRNO_WRAP(
+           UA_LOG_DEBUG(&server->config.logger, UA_LOGCATEGORY_DISCOVERY,
+                        "Multicast error: Can not write to socket. %s", errno_str));
         }
-    }
-    return NULL;
 }
-
-static UA_StatusCode
-multicastListenStart(UA_Server* server) {
-    int err = pthread_create(&server->discoveryManager.mdnsThread, NULL,
-                             (void* (*)(void*))multicastWorkerLoop, server);
-    if(err != 0) {
-        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_DISCOVERY,
-                     "Multicast error: Can not create multicast thread.");
-        return UA_STATUSCODE_BADUNEXPECTEDERROR;
-    }
-    return UA_STATUSCODE_GOOD;
-}
-
-static UA_StatusCode
-multicastListenStop(UA_Server* server) {
-    mdnsd_shutdown(server->discoveryManager.mdnsDaemon);
-    // wake up select
-    if (write(server->discoveryManager.mdnsSocket, "\0", 1)) {
-        // TODO: if makes no sense here?
-    }  // TODO: move to arch?
-    if (pthread_join(server->discoveryManager.mdnsThread, NULL)) {
-        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_DISCOVERY,
-                     "Multicast error: Can not stop thread.");
-        return UA_STATUSCODE_BADUNEXPECTEDERROR;
-    }
-    return UA_STATUSCODE_BADNOTIMPLEMENTED;
-}
-
-# endif /* UA_MULTITHREADING */
 
 static UA_StatusCode
 addMdnsRecordForNetworkLayer(UA_Server *server, const UA_String *appName,
@@ -136,7 +95,8 @@ addMdnsRecordForNetworkLayer(UA_Server *server, const UA_String *appName,
     return UA_STATUSCODE_GOOD;
 }
 
-void startMulticastDiscoveryServer(UA_Server *server) {
+void
+startMulticastDiscoveryServer(UA_Server *server) {
     UA_String *appName = &server->config.mdnsConfig.mdnsServerName;
     for(size_t i = 0; i < server->config.serverUrlsSize; i++)
         addMdnsRecordForNetworkLayer(server, appName, &server->config.serverUrls[i]);
@@ -146,16 +106,20 @@ void startMulticastDiscoveryServer(UA_Server *server) {
     mdnsd_query(server->discoveryManager.mdnsDaemon, "_opcua-tcp._tcp.local.",
                 QTYPE_PTR,discovery_multicastQueryAnswer, server);
 
-#if UA_MULTITHREADING >= 100
-    multicastListenStart(server);
-# endif
+    /* Start the cyclic polling callback */
+    if(server->discoveryManager.mdnsCallbackId == 0) {
+        UA_EventLoop *el = server->config.eventLoop;
+        if(el) {
+            el->addCyclicCallback(el, (UA_Callback)multicastPolling,
+                                  server, NULL, 200, NULL,
+                                  UA_TIMER_HANDLE_CYCLEMISS_WITH_CURRENTTIME,
+                                  &server->discoveryManager.mdnsCallbackId);
+        }
+    }
 }
 
 void
 stopMulticastDiscoveryServer(UA_Server *server) {
-    if(!server->discoveryManager.mdnsDaemon)
-        return;
-
     for(size_t i = 0; i < server->config.serverUrlsSize; i++) {
         UA_String hostname = UA_STRING_NULL;
         UA_String path = UA_STRING_NULL;
@@ -172,12 +136,15 @@ stopMulticastDiscoveryServer(UA_Server *server) {
                                   &hostname, port, true);
     }
 
-#if UA_MULTITHREADING >= 100
-    multicastListenStop(server);
-# else
-    // send out last package with TTL = 0
-    iterateMulticastDiscoveryServer(server, NULL, false);
-# endif
+    /* Stop the cyclic polling callback */
+    if(server->discoveryManager.mdnsCallbackId != 0) {
+        UA_EventLoop *el = server->config.eventLoop;
+        if(el) {
+            el->removeCyclicCallback(el, server->discoveryManager.mdnsCallbackId);
+            server->discoveryManager.mdnsCallbackId = 0;
+        }
+    }
+    mdnsd_shutdown(server->discoveryManager.mdnsDaemon);
 }
 
 /* All filter criteria must be fulfilled in the list entry. The comparison is case
@@ -607,32 +574,6 @@ UA_Discovery_removeRecord(UA_Server *server, const UA_String *servername,
         r2 = next;
     }
 
-    return UA_STATUSCODE_GOOD;
-}
-
-UA_StatusCode
-iterateMulticastDiscoveryServer(UA_Server* server, UA_DateTime *nextRepeat,
-                                UA_Boolean processIn) {
-    struct timeval next_sleep = { 0, 0 };
-    unsigned short retval = mdnsd_step(server->discoveryManager.mdnsDaemon,
-                                       (int)server->discoveryManager.mdnsSocket,
-                                       processIn, true, &next_sleep);
-    if(retval == 1) {
-        UA_LOG_SOCKET_ERRNO_WRAP(
-               UA_LOG_DEBUG(&server->config.logger, UA_LOGCATEGORY_DISCOVERY,
-                     "Multicast error: Can not read from socket. %s", errno_str));
-        return UA_STATUSCODE_BADNOCOMMUNICATION;
-    } else if(retval == 2) {
-        UA_LOG_SOCKET_ERRNO_WRAP(
-                UA_LOG_DEBUG(&server->config.logger, UA_LOGCATEGORY_DISCOVERY,
-                     "Multicast error: Can not write to socket. %s", errno_str));
-        return UA_STATUSCODE_BADNOCOMMUNICATION;
-    }
-
-    if(nextRepeat)
-        *nextRepeat = UA_DateTime_now() +
-            (UA_DateTime)((next_sleep.tv_sec * UA_DATETIME_SEC) +
-                          (next_sleep.tv_usec * UA_DATETIME_USEC));
     return UA_STATUSCODE_GOOD;
 }
 

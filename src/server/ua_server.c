@@ -281,19 +281,6 @@ serverPolling(UA_Server *server, void *_) {
         }
     }
 #endif
-
-#if defined(UA_ENABLE_DISCOVERY_MULTICAST) && (UA_MULTITHREADING < 200)
-    UA_LOCK(&server->serviceMutex);
-    if(server->config.mdnsEnabled) {
-        /* TODO multicastNextRepeat does not consider new input data (requests)
-         * on the socket. It will be handled on the next call. if needed, we
-         * need to use select with timeout on the multicast socket
-         * server->mdnsSocket (see example in mdnsd library) on higher level. */
-        UA_DateTime multicastNextRepeat = 0;
-        iterateMulticastDiscoveryServer(server, &multicastNextRepeat, true);
-    }
-    UA_UNLOCK(&server->serviceMutex);
-#endif
 }
 
 /********************/
