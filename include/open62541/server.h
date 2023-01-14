@@ -401,6 +401,25 @@ UA_Server_getConfig(UA_Server *server);
 UA_StatusCode UA_EXPORT
 UA_Server_run(UA_Server *server, const volatile UA_Boolean *running);
 
+/* Runs the server until interrupted. On Unix/Windows this registers an
+ * interrupt for SIGINT (ctrl-c). The method only returns after having received
+ * the interrupt or upon an error condition. The logical sequence is as follows:
+ *
+ * - Register the interrupt
+ * - UA_Server_run_startup
+ * - Loop until interrupt: UA_Server_run_iterate
+ * - UA_Server_run_shutdown
+ * - Deregister the interrupt
+ *
+ * Attention! This method is implemented individually for the different
+ * platforms (POSIX/Win32/etc.). The default implementation is in
+ * /plugins/ua_config_default.c under the CC0 license. Adjust as needed.
+ *
+ * @param server The server object.
+ * @return Returns a bad statuscode if an error occurred internally. */
+UA_StatusCode UA_EXPORT
+UA_Server_runUntilInterrupt(UA_Server *server);
+
 /* The prologue part of UA_Server_run (no need to use if you call
  * UA_Server_run) */
 UA_StatusCode UA_EXPORT
