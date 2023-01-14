@@ -159,35 +159,62 @@ const UA_ConnectionConfig UA_ConnectionConfig_default = {
     STRINGIFY(MAJOR) "." STRINGIFY(MINOR) "." STRINGIFY(PATCH) LABEL
 
 static UA_StatusCode
-createEndpoint(UA_ServerConfig *conf, UA_EndpointDescription *endpoint,
-               const UA_SecurityPolicy *securityPolicy,
-               UA_MessageSecurityMode securityMode) {
+addEndpoint(UA_ServerConfig *conf,
+            const UA_SecurityPolicy *securityPolicy,
+            UA_MessageSecurityMode securityMode) {
+    /* Test if the endpoint already exists */
+    for(size_t i = 0; i < conf->endpointsSize; i++) {
+        UA_EndpointDescription *ep = &conf->endpoints[i];
+        if(!UA_String_equal(&securityPolicy->policyUri, &ep->securityPolicyUri))
+            continue;
+        if(ep->securityMode != securityMode)
+            continue;
+        return UA_STATUSCODE_GOOD;
+    }
+
+    /* Reallocate the array size */
+    UA_EndpointDescription *tmp = (UA_EndpointDescription *)
+        UA_realloc(conf->endpoints,
+                   sizeof(UA_EndpointDescription) * (1 + conf->endpointsSize));
+    if(!tmp)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    conf->endpoints = tmp;
+
+    UA_EndpointDescription *endpoint = &conf->endpoints[conf->endpointsSize];
     UA_EndpointDescription_init(endpoint);
 
-    endpoint->securityMode = securityMode;
-    UA_String_copy(&securityPolicy->policyUri, &endpoint->securityPolicyUri);
-    endpoint->transportProfileUri =
-        UA_STRING_ALLOC("http://opcfoundation.org/UA-Profile/Transport/uatcp-uasc-uabinary");
-
     /* Add security level value for the corresponding message security mode */
-    endpoint->securityLevel = (UA_Byte) securityMode;
+    endpoint->securityMode = securityMode;
+    endpoint->securityLevel = (UA_Byte)securityMode;
 
     /* Enable all login mechanisms from the access control plugin  */
-    UA_StatusCode retval = UA_Array_copy(conf->accessControl.userTokenPolicies,
-                                         conf->accessControl.userTokenPoliciesSize,
-                                         (void **)&endpoint->userIdentityTokens,
-                                         &UA_TYPES[UA_TYPES_USERTOKENPOLICY]);
-    if(retval != UA_STATUSCODE_GOOD){
-        UA_String_clear(&endpoint->securityPolicyUri);
-        UA_String_clear(&endpoint->transportProfileUri);
-        return retval;
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+    retval |= UA_Array_copy(conf->accessControl.userTokenPolicies,
+                            conf->accessControl.userTokenPoliciesSize,
+                            (void **)&endpoint->userIdentityTokens,
+                            &UA_TYPES[UA_TYPES_USERTOKENPOLICY]);
+    if(retval == UA_STATUSCODE_GOOD)
+        endpoint->userIdentityTokensSize = conf->accessControl.userTokenPoliciesSize;
+
+    retval |= UA_String_copy(&securityPolicy->policyUri, &endpoint->securityPolicyUri);
+    endpoint->transportProfileUri =
+        UA_STRING_ALLOC("http://opcfoundation.org/UA-Profile/Transport/uatcp-uasc-uabinary");
+    retval |= UA_String_copy(&securityPolicy->localCertificate,
+                             &endpoint->serverCertificate);
+    retval |= UA_ApplicationDescription_copy(&conf->applicationDescription,
+                                             &endpoint->server);
+
+    if(retval == UA_STATUSCODE_GOOD) {
+        conf->endpointsSize++;
+    } else {
+        UA_EndpointDescription_clear(endpoint);
+        if(conf->endpointsSize == 0) {
+            UA_free(conf->endpoints);
+            conf->endpoints = NULL;
+        }
     }
-    endpoint->userIdentityTokensSize = conf->accessControl.userTokenPoliciesSize;
 
-    UA_String_copy(&securityPolicy->localCertificate, &endpoint->serverCertificate);
-    UA_ApplicationDescription_copy(&conf->applicationDescription, &endpoint->server);
-
-    return UA_STATUSCODE_GOOD;
+    return retval;
 }
 
 static const size_t usernamePasswordsSize = 2;
@@ -490,15 +517,6 @@ UA_ServerConfig_addSecurityPolicyNone(UA_ServerConfig *config,
 UA_EXPORT UA_StatusCode
 UA_ServerConfig_addEndpoint(UA_ServerConfig *config, const UA_String securityPolicyUri,
                             UA_MessageSecurityMode securityMode) {
-    /* Allocate the endpoint */
-    UA_EndpointDescription *tmp = (UA_EndpointDescription *)
-        UA_realloc(config->endpoints,
-                   sizeof(UA_EndpointDescription) * (1 + config->endpointsSize));
-    if(!tmp) {
-        return UA_STATUSCODE_BADOUTOFMEMORY;
-    }
-    config->endpoints = tmp;
-
     /* Lookup the security policy */
     const UA_SecurityPolicy *policy = NULL;
     for (size_t i = 0; i < config->securityPoliciesSize; ++i) {
@@ -507,55 +525,31 @@ UA_ServerConfig_addEndpoint(UA_ServerConfig *config, const UA_String securityPol
             break;
         }
     }
-    if (!policy)
+    if(!policy)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
 
     /* Populate the endpoint */
-    UA_StatusCode retval =
-        createEndpoint(config, &config->endpoints[config->endpointsSize],
-                       policy, securityMode);
-    if(retval != UA_STATUSCODE_GOOD)
-        return retval;
-    config->endpointsSize++;
-
-    return UA_STATUSCODE_GOOD;
+    return addEndpoint(config, policy, securityMode);
 }
 
 UA_EXPORT UA_StatusCode
 UA_ServerConfig_addAllEndpoints(UA_ServerConfig *config) {
-    /* Allocate the endpoints */
-    UA_EndpointDescription * tmp = (UA_EndpointDescription *)
-        UA_realloc(config->endpoints,
-                   sizeof(UA_EndpointDescription) *
-                   (2 * config->securityPoliciesSize + config->endpointsSize));
-    if(!tmp) {
-        return UA_STATUSCODE_BADOUTOFMEMORY;
-    }
-    config->endpoints = tmp;
-
     /* Populate the endpoints */
     for(size_t i = 0; i < config->securityPoliciesSize; ++i) {
         if(UA_String_equal(&UA_SECURITY_POLICY_NONE_URI, &config->securityPolicies[i].policyUri)) {
             UA_StatusCode retval =
-                createEndpoint(config, &config->endpoints[config->endpointsSize],
-                               &config->securityPolicies[i], UA_MESSAGESECURITYMODE_NONE);
+                addEndpoint(config, &config->securityPolicies[i], UA_MESSAGESECURITYMODE_NONE);
             if(retval != UA_STATUSCODE_GOOD)
                 return retval;
-            config->endpointsSize++;
         } else {
             UA_StatusCode retval =
-                createEndpoint(config, &config->endpoints[config->endpointsSize],
-                               &config->securityPolicies[i], UA_MESSAGESECURITYMODE_SIGN);
+                addEndpoint(config, &config->securityPolicies[i], UA_MESSAGESECURITYMODE_SIGN);
             if(retval != UA_STATUSCODE_GOOD)
                 return retval;
-            config->endpointsSize++;
-
-            retval = createEndpoint(config, &config->endpoints[config->endpointsSize],
-                                    &config->securityPolicies[i],
-                                    UA_MESSAGESECURITYMODE_SIGNANDENCRYPT);
+            retval = addEndpoint(config, &config->securityPolicies[i],
+                                 UA_MESSAGESECURITYMODE_SIGNANDENCRYPT);
             if(retval != UA_STATUSCODE_GOOD)
                 return retval;
-            config->endpointsSize++;
         }
     }
 
