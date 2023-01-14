@@ -229,6 +229,15 @@ setDefaultConfig(UA_ServerConfig *conf, UA_UInt16 portNumber) {
             UA_ConnectionManager_new_POSIX_UDP(UA_STRING("udp connection manager"));
         if(udpCM)
             conf->eventLoop->registerEventSource(conf->eventLoop, (UA_EventSource *)udpCM);
+
+        /* Add the interrupt manager */
+        UA_InterruptManager *im = UA_InterruptManager_new_POSIX(UA_STRING("interrupt manager"));
+        if(im) {
+            conf->eventLoop->registerEventSource(conf->eventLoop, &im->eventSource);
+        } else {
+            UA_LOG_WARNING(&conf->logger, UA_LOGCATEGORY_USERLAND,
+                           "Cannot create the Interrupt Manager (only relevant if used)");
+        }
     }
     if(conf->eventLoop != NULL) {
         if(conf->eventLoop->state != UA_EVENTLOOPSTATE_STARTED) {

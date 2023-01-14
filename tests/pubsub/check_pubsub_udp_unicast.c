@@ -58,11 +58,19 @@ static void setupFolder(UA_Server *server, UA_NodeId *folderId) {
 }
 
 
-static void setupPubSubServer(UA_Server **server, UA_ServerConfig **config, UA_UInt16 portNumber) {
-    *server = UA_Server_new();
+static void
+setupPubSubServer(UA_Server **server, UA_ServerConfig **config, UA_UInt16 portNumber,
+                  UA_EventLoop *el) {
+    UA_ServerConfig stack_config;
+    memset(&stack_config, 0, sizeof(UA_ServerConfig));
+    if(el) {
+        stack_config.eventLoop = el;
+        stack_config.externalEventLoop = true;
+    }
+    UA_ServerConfig_setMinimal(&stack_config, portNumber, NULL);
+    *server = UA_Server_newWithConfig(&stack_config);
     *config = UA_Server_getConfig(*server);
 
-    UA_ServerConfig_setMinimal(*config, portNumber, NULL);
     UA_Server_run_startup(*server);
     UA_ServerConfig_addPubSubTransportLayer(*config, UA_PubSubTransportLayerUDP());
 }
@@ -264,13 +272,14 @@ static void setupSubscribing(UA_Server *server, UA_NodeId connectionId, UA_NodeI
 /* setup() is to create an environment for test cases */
 static void setup(void) {
     /*Add setup by creating new server with valid configuration */
-    setupPubSubServer(&serverPublisher, &configPublisher, UA_PUBLISHER_PORT);
+    setupPubSubServer(&serverPublisher, &configPublisher, UA_PUBLISHER_PORT, NULL);
     UA_NodeId publisherConnectionId;
     addUDPConnection(serverPublisher, "localhost", UA_PUBLISHER_PORT, &publisherConnectionId);
     setupPublishingUnicast(serverPublisher, publisherConnectionId, "127.0.0.1", UA_SUBSCRIBER_PORT,
                            PUBLISHVARIABLE_NODEID);
 
-    setupPubSubServer(&serverSubscriber, &configSubscriber, UA_SUBSCRIBER_PORT);
+    setupPubSubServer(&serverSubscriber, &configSubscriber, UA_SUBSCRIBER_PORT,
+                      configPublisher->eventLoop);
     UA_NodeId folderId;
     setupFolder(serverSubscriber, &folderId);
     UA_NodeId subscriberConnectionId;
@@ -281,11 +290,13 @@ static void setup(void) {
 /* teardown() is to delete the environment set for test cases */
 static void teardown(void) {
     /*Call server delete functions */
-    UA_Server_run_shutdown(serverPublisher);
-    UA_Server_delete(serverPublisher);
-    /*Call server delete functions */
     UA_Server_run_shutdown(serverSubscriber);
     UA_Server_delete(serverSubscriber);
+
+    /* Call server delete functions (this deletes the eventloop also used in the
+     * other server) */
+    UA_Server_run_shutdown(serverPublisher);
+    UA_Server_delete(serverPublisher);
 }
 
 static void checkReceived(UA_Server *publisher, UA_UInt32 publishVariableNodeId, UA_Server *subscriber, UA_UInt32 subscribeVariableNodeId) {
