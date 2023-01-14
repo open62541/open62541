@@ -48,7 +48,6 @@ THREAD_CALLBACK(serverloop_lds) {
 static void
 configure_lds_server(UA_Server *pServer) {
     UA_ServerConfig *config_lds = UA_Server_getConfig(pServer);
-    UA_ServerConfig_setDefault(config_lds);
 
     config_lds->applicationDescription.applicationType =
         UA_APPLICATIONTYPE_DISCOVERYSERVER;

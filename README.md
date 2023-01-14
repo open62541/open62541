@@ -184,25 +184,16 @@ The following simple server example can be built using gcc, after you installed 
 Using the GCC compiler, just run ```gcc -std=c99 -DUA_ARCHITECTURE_POSIX <server.c> -lopen62541 -o server``` (under Windows you may need to add ``` -lws2_32``` 
 and change `-DUA_ARCHITECTURE_POSIX` to `-DUA_ARCHITECTURE_WIN32`).
 ```c
-#include <signal.h>
 #include <open62541/server.h>
-#include <open62541/server_config_default.h>
-
-UA_Boolean running = true;
-void signalHandler(int sig) {
-    running = false;
-}
 
 int main(int argc, char** argv)
 {
-    signal(SIGINT, signalHandler); /* catch ctrl-c */
-
-    /* Create a server listening on port 4840 */
+    /* Create a server listening on port 4840 (default) */
     UA_Server *server = UA_Server_new();
-    UA_ServerConfig_setDefault(UA_Server_getConfig(server));
 
-    /* Add a variable node */
-    /* 1) Define the node attributes */
+    /* Add a variable node to the server */
+
+    /* 1) Define the variable attributes */
     UA_VariableAttributes attr = UA_VariableAttributes_default;
     attr.displayName = UA_LOCALIZEDTEXT("en-US", "the answer");
     UA_Int32 myInteger = 42;
@@ -216,14 +207,16 @@ int main(int argc, char** argv)
     UA_QualifiedName browseName = UA_QUALIFIEDNAME(1, "the answer");
 
     /* 3) Add the node */
-    UA_Server_addVariableNode(server, newNodeId, parentNodeId, parentReferenceNodeId,
-                              browseName, variableType, attr, NULL, NULL);
+    UA_Server_addVariableNode(server, newNodeId, parentNodeId,
+                              parentReferenceNodeId, browseName,
+                              variableType, attr, NULL, NULL);
 
-    /* Run the server loop */
-    UA_StatusCode status = UA_Server_run(server, &running);
+    /* Run the server (until ctrl-c interrupt) */
+    UA_StatusCode status = UA_Server_runUntilInterrupt(server);
 
+    /* Clean up */
     UA_Server_delete(server);
-    return status;
+    return status == UA_STATUSCODE_GOOD ? EXIT_SUCCESS : EXIT_FAILURE;
 }
 ```
 

@@ -374,12 +374,17 @@ UA_ServerConfig_clean(UA_ServerConfig *config);
  * Server Lifecycle
  * ---------------- */
 
-/* The method UA_Server_new is defined in server_config_default.h. So default
- * plugins outside of the core library (for logging, etc) are already available
- * during the initialization.
+/* Create a new server with a default configuration that adds plugins for
+ * networking, security, logging and so on. See `server_config_default.h` for
+ * more detailed options.
  *
- * UA_Server UA_EXPORT * UA_Server_new(void);
- */
+ * The default configuration can be used as the starting point to adjust the
+ * server configuration to individual needs. UA_Server_new is implemented in the
+ * /plugins folder under the CC0 license. Furthermore the server confiugration
+ * only uses the public server API.
+ *
+ * @return Returns the configured server or NULL if an error occurs. */
+UA_EXPORT UA_Server * UA_Server_new(void);
 
 /* Creates a new server. Moves the config into the server with a shallow copy.
  * The config content is cleared together with the server. */
