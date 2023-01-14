@@ -21,14 +21,10 @@
  * C source-file called ``myServer.c`` with the following content: */
 
 #include <open62541/server.h>
-#include <open62541/server_config_default.h>
 
 int main(void) {
     UA_Server *server = UA_Server_new();
-    UA_ServerConfig_setDefault(UA_Server_getConfig(server));
-
     UA_StatusCode retval = UA_Server_runUntilInterrupt(server);
-
     UA_Server_delete(server);
     return retval == UA_STATUSCODE_GOOD ? EXIT_SUCCESS : EXIT_FAILURE;
 }
@@ -39,13 +35,13 @@ int main(void) {
  *
  * .. code-block:: bash
  *
- *    $ gcc -std=c99 open62541.c myServer.c -o myServer
+ *    $ gcc -std=c99 myServer.c -lopen62541 -o myServer
  *
  * In a MinGW environment, the Winsock library must be added.
  *
  * .. code-block:: bash
  *
- *    $ gcc -std=c99 open62541.c myServer.c -lws2_32 -o myServer.exe
+ *    $ gcc -std=c99 myServer.c -lopen62541 -lws2_32 -o myServer.exe
  *
  * Now start the server (stop with ctrl-c):
  *
@@ -55,8 +51,8 @@ int main(void) {
  *
  * You have now compiled and run your first OPC UA server. You can go ahead and
  * browse the information model with client. The server is listening on
- * ``opc.tcp://localhost:4840``. In the next two sections, we will continue to
- * explain the different parts of the code in detail.
+ * ``opc.tcp://localhost:4840``.
+ *
  *
  * Server Configuration and Plugins
  * ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -80,23 +76,12 @@ int main(void) {
  * The code in this example shows the three parts for server lifecycle
  * management: Creating a server, running the server, and deleting the server.
  * Creating and deleting a server is trivial once the configuration is set up.
- * The server is started with ``UA_Server_run``. Internally, the server then
- * uses timeouts to schedule regular tasks. Between the timeouts, the server
- * listens on the network layer for incoming messages.
- *
- * You might ask how the server knows when to stop running. For this, we have
- * created a global variable ``running``. Furthermore, we have registered the
- * method ``stopHandler`` that catches the signal (interrupt) the program
- * receives when the operating systems tries to close it. This happens for
- * example when you press ctrl-c in a terminal program. The signal handler then
- * sets the variable ``running`` to false and the server shuts down once it
- * takes back control.
+ * The server is started with ``UA_Server_run``. Internally, the server
+ * schedules regular tasks. Between the timeouts, the server listens on the
+ * network layer for incoming messages.
  *
  * In order to integrate OPC UA in a single-threaded application with its own
  * mainloop (for example provided by a GUI toolkit), one can alternatively drive
  * the server manually. See the section of the server documentation on
  * :ref:`server-lifecycle` for details.
- *
- * The server configuration and lifecycle management is needed for all servers.
- * We will use it in the following tutorials without further comment.
  */
