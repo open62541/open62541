@@ -47,11 +47,9 @@ UA_Server *
 UA_Server_new(void) {
     UA_ServerConfig config;
     memset(&config, 0, sizeof(UA_ServerConfig));
-
-    UA_StatusCode res = setDefaultConfig(&config, 4840);
+    UA_StatusCode res = UA_ServerConfig_setDefault(&config);
     if(res != UA_STATUSCODE_GOOD)
         return NULL;
-
     return UA_Server_newWithConfig(&config);
 }
 
