@@ -786,7 +786,7 @@ UA_StatusCode UA_Server_removeReverseConnect(UA_Server *server, UA_UInt64 handle
 /* Main Server Loop */
 /********************/
 
-#define UA_MAXTIMEOUT 50 /* Max timeout in ms between main-loop iterations */
+#define UA_MAXTIMEOUT 200 /* Max timeout in ms between main-loop iterations */
 
 /* Start: Spin up the workers and the network layer and sample the server's
  *        start time.
@@ -947,11 +947,16 @@ UA_Server_run_startup(UA_Server *server) {
 UA_UInt16
 UA_Server_run_iterate(UA_Server *server, UA_Boolean waitInternal) {
     /* Process timed and network events in the EventLoop */
-    server->config.eventLoop->run(server->config.eventLoop, UA_MAXTIMEOUT);
+    UA_UInt32 timeout = (waitInternal) ? UA_MAXTIMEOUT : 0;
+    server->config.eventLoop->run(server->config.eventLoop, timeout);
 
     /* Return the time until the next scheduled callback */
-    return (UA_UInt16)((server->config.eventLoop->nextCyclicTime(server->config.eventLoop)
-                        - UA_DateTime_nowMonotonic()) / UA_DATETIME_MSEC);
+    UA_DateTime nextTimeout =
+        ((server->config.eventLoop->nextCyclicTime(server->config.eventLoop)
+         - UA_DateTime_nowMonotonic()) / UA_DATETIME_MSEC);
+    if(nextTimeout > UA_UINT16_MAX)
+        return UA_UINT16_MAX;
+    return (UA_UInt16)nextTimeout;
 }
 
 UA_StatusCode
