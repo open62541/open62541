@@ -224,7 +224,6 @@ int main(int argc, char** argv)
 ```c
 #include <stdio.h>
 #include <open62541/client.h>
-#include <open62541/client_config_default.h>
 #include <open62541/client_highlevel.h>
 
 int main(int argc, char *argv[])
@@ -251,6 +250,6 @@ int main(int argc, char *argv[])
     /* Clean up */
     UA_Variant_clear(&value);
     UA_Client_delete(client); /* Disconnects the client internally */
-    return status;
+    return status == UA_STATUSCODE_GOOD ? EXIT_SUCCESS : EXIT_FAILURE;
 }
 ```
