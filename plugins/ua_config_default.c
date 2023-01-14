@@ -55,6 +55,82 @@ UA_Server_new(void) {
     return UA_Server_newWithConfig(&config);
 }
 
+#if defined(UA_ARCHITECTURE_POSIX) || defined(UA_ARCHITECTURE_WIN32)
+
+/* Required for the definition of SIGINT */
+#include <signal.h>
+
+struct InterruptContext {
+    UA_Server *server;
+    UA_Boolean running;
+};
+
+static void
+interruptServer(UA_InterruptManager *im, uintptr_t interruptHandle,
+                void *context, const UA_KeyValueMap *parameters) {
+    struct InterruptContext *ic = (struct InterruptContext*)context;
+    UA_ServerConfig *config = UA_Server_getConfig(ic->server);
+    UA_LOG_INFO(&config->logger, UA_LOGCATEGORY_USERLAND,
+                "Received SIGINT interrupt. Stopping the server.");
+    ic->running = false;
+}
+
+UA_StatusCode
+UA_Server_runUntilInterrupt(UA_Server *server) {
+    if(!server)
+        return UA_STATUSCODE_BADINTERNALERROR;
+    UA_ServerConfig *config = UA_Server_getConfig(server);
+    UA_EventLoop *el = config->eventLoop;
+    if(!el)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
+    /* Get the interrupt manager */
+    UA_EventSource *es = el->eventSources;
+    while(es) {
+        if(es->eventSourceType == UA_EVENTSOURCETYPE_INTERRUPTMANAGER)
+            break;
+        es = es->next;
+    }
+    if(!es) {
+        UA_LOG_ERROR(&config->logger, UA_LOGCATEGORY_USERLAND,
+                       "No Interrupt EventSource configured");
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
+    UA_InterruptManager *im = (UA_InterruptManager*)es;
+
+    /* Register the interrupt */
+    struct InterruptContext ic;
+    ic.server = server;
+    ic.running = true;
+    UA_StatusCode retval =
+        im->registerInterrupt(im, SIGINT, &UA_KEYVALUEMAP_NULL,
+                              interruptServer, &ic);
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_LOG_ERROR(&config->logger, UA_LOGCATEGORY_USERLAND,
+                     "Could not register the interrupt with status code %s",
+                     UA_StatusCode_name(retval));
+        return retval;
+    }
+
+    /* Run the server */
+    retval = UA_Server_run_startup(server);
+    if(retval != UA_STATUSCODE_GOOD)
+        goto deregister_interrupt;
+    while(ic.running) {
+        UA_Server_run_iterate(server, true);
+    }
+
+    /* Shut down the server */
+    retval = UA_Server_run_shutdown(server);
+
+    /* Deregister the interrupt */
+ deregister_interrupt:
+    im->deregisterInterrupt(im, SIGINT);
+    return retval;
+}
+
+#endif /* defined(UA_ARCHITECTURE_POSIX) || defined(UA_ARCHITECTURE_WIN32) */
+
 /*******************************/
 /* Default Connection Settings */
 /*******************************/
