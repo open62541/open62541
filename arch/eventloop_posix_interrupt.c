@@ -349,6 +349,9 @@ markNonBlock(int fd)
 
 static UA_StatusCode
 startPOSIXInterruptManager(UA_EventSource *es) {
+    UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX *)es->eventLoop;
+    (void)el;
+
     /* Check the state */
     if(es->state != UA_EVENTSOURCESTATE_STOPPED) {
         UA_LOG_ERROR(es->eventLoop->logger, UA_LOGCATEGORY_EVENTLOOP,
@@ -356,17 +359,6 @@ startPOSIXInterruptManager(UA_EventSource *es) {
                      "it has to be registered in an EventLoop and not started");
         return UA_STATUSCODE_BADINTERNALERROR;
     }
-
-#ifndef UA_HAVE_EPOLL
-    UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX *)es->eventLoop;
-    /* Set the global pointer */
-    if(singletonIM != NULL) {
-        UA_LOG_ERROR(es->eventLoop->logger, UA_LOGCATEGORY_EVENTLOOP,
-                     "Interrupt\t| There can be at most one active "
-                     "InterruptManager at a time");
-        return UA_STATUSCODE_BADINTERNALERROR;
-    }
-#endif
 
     POSIXInterruptManager *pim = (POSIXInterruptManager *)es;
     UA_LOG_DEBUG(es->eventLoop->logger, UA_LOGCATEGORY_EVENTLOOP,
@@ -420,9 +412,6 @@ startPOSIXInterruptManager(UA_EventSource *es) {
         UA_close(pipefd[1]);
         return UA_STATUSCODE_BADINTERNALERROR;
     }
-
-    /* Register the singleton pointer */
-    singletonIM = pim;
 #endif
 
     /* Activate the registered signal handlers */
@@ -457,9 +446,6 @@ stopPOSIXInterruptManager(UA_EventSource *es) {
     UA_EventLoopPOSIX_deregisterFD(el, &pim->readFD);
     UA_close(pim->readFD.fd);
     UA_close(pim->writeFD);
-
-    /* Reset the global pointer */
-    singletonIM = NULL;
 #endif
 
     /* Immediately set to stopped */
@@ -485,19 +471,32 @@ freePOSIXInterruptmanager(UA_EventSource *es) {
 
     UA_String_clear(&es->name);
     UA_free(es);
+
+#ifndef UA_HAVE_EPOLL
+    singletonIM = NULL; /* Reset the global singleton pointer */
+#endif
+
     return UA_STATUSCODE_GOOD;
 }
 
 UA_InterruptManager *
 UA_InterruptManager_new_POSIX(const UA_String eventSourceName) {
+#ifndef UA_HAVE_EPOLL
+    /* There can be only one InterruptManager if epoll is not present */
+    if(singletonIM)
+        return NULL;
+#endif
+
     POSIXInterruptManager *pim =
         (POSIXInterruptManager *)UA_calloc(1, sizeof(POSIXInterruptManager));
     if(!pim)
         return NULL;
 
     LIST_INIT(&pim->signals);
+
 #ifndef UA_HAVE_EPOLL
     TAILQ_INIT(&pim->triggered);
+    singletonIM = pim; /* Register the singleton singleton pointer */
 #endif
 
     UA_InterruptManager *im = &pim->im;
