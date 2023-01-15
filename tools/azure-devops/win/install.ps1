@@ -52,6 +52,13 @@ try {
         #$env:Path = 'C:\Program Files (x86)\Dr. Memory\bin;' + $env:Path
         #[System.Environment]::SetEnvironmentVariable('Path', $path, 'Machine')
     } elseif ($env:CC_SHORTNAME -eq "vs2019") {
+             Write-Host -ForegroundColor Green "`n### Installing pthreads via vcpkg ###`n"
+             & vcpkg install pthreads:x64-windows-static
+             if ($LASTEXITCODE -and $LASTEXITCODE -ne 0) {
+                 Write-Host -ForegroundColor Red "`n`n*** Install failed. Exiting ... ***"
+                 exit $LASTEXITCODE
+             }
+
              Write-Host -ForegroundColor Green "`n### Installing mbedtls via vcpkg ###`n"
              & vcpkg install mbedtls:x64-windows-static
              if ($LASTEXITCODE -and $LASTEXITCODE -ne 0) {
