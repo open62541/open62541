@@ -2,6 +2,8 @@ SET(SOURCE_GROUP ${SOURCE_GROUP}\\win32)
 
 ua_add_architecture("win32")
 SET(FIND_LIBRARY_USE_LIB64_PATHS TRUE)
+# list(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/tools/cmake")
+message(STATUS ${CMAKE_MODULE_PATH})
 
 list (FIND UA_AMALGAMATION_ARCHITECTURES "win32" _index)
 if (${_index} GREATER -1 OR "${UA_ARCHITECTURE}" STREQUAL "win32")
@@ -14,7 +16,7 @@ if (${_index} GREATER -1 OR "${UA_ARCHITECTURE}" STREQUAL "win32")
     ua_add_architecture_file(${CMAKE_CURRENT_SOURCE_DIR}/ua_architecture_functions.c)
 
     if("${UA_ARCHITECTURE}" STREQUAL "win32")
-        find_library(WinSock REQUIRED)
+        find_package(WinSock REQUIRED)
         ua_include_directories(${WINSOCK_INCLUDE_DIRS})
         ua_architecture_append_to_library(${WINSOCK_LIBRARIES})
         ua_architecture_append_to_library(iphlpapi)
