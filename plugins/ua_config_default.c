@@ -40,9 +40,6 @@ UA_DURATIONRANGE(UA_Duration min, UA_Duration max) {
     return range;
 }
 
-static UA_StatusCode
-setDefaultConfig(UA_ServerConfig *conf, UA_UInt16 portNumber);
-
 UA_Server *
 UA_Server_new(void) {
     UA_ServerConfig config;
