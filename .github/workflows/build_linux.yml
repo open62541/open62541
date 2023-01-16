@@ -15,7 +15,9 @@ jobs:
             cmd_deps: |
                 sudo dpkg --add-architecture i386
                 sudo apt-get update
-                sudo apt-get install -y -qq gcc-multilib libsubunit-dev:i386 check:i386 libxml2-dev:i386
+                sudo apt-get install -y -qq gcc-multilib libsubunit-dev:i386 libxml2-dev:i386
+                wget http://ftp.debian.org/debian/pool/main/c/check/check_0.15.2-2_i386.deb
+                sudo dpkg -i check_0.15.2-2_i386.deb
             cmd_action: unit_tests_32
           - build_name: "Debug Build & Unit Tests without Subscriptions (gcc)"
             cmd_deps: ""
@@ -110,6 +112,8 @@ jobs:
       run: |
         sudo apt-get update
         sudo apt-get install -y -qq python3-sphinx graphviz check
+        wget http://ftp.debian.org/debian/pool/main/c/check/check_0.15.2-2_amd64.deb
+        sudo dpkg -i check_0.15.2-2_amd64.deb
         ${{ matrix.cmd_deps }}
     - name: ${{matrix.build_name}}
       run: source tools/ci.sh && ${{matrix.cmd_action}}
