@@ -94,6 +94,21 @@ UA_ServerConfig_setDefault(UA_ServerConfig *config) {
 UA_EXPORT UA_StatusCode
 UA_ServerConfig_setBasics(UA_ServerConfig *conf);
 
+/* Creates a new server config with no security policies and no endpoints.
+ *
+ * It initializes reasonable defaults for many things, but does not
+ * add any security policies and endpoints.
+ * Use the various UA_ServerConfig_addXxx functions to add them.
+ * The config will set the tcp network layer to the given port if the
+ * eventloop is not already set.
+ *
+ * @param conf The configuration to manipulate
+ * @param portNumber The port number for the tcp network layer
+ */
+UA_EXPORT UA_StatusCode
+UA_ServerConfig_setBasics_withPort(UA_ServerConfig *conf,
+                                   UA_UInt16 portNumber);
+
 #ifdef UA_ENABLE_WEBSOCKET_SERVER
 /* Adds a Websocket network layer with custom buffer sizes
  *
