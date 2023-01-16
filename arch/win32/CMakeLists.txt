@@ -14,8 +14,9 @@ if (${_index} GREATER -1 OR "${UA_ARCHITECTURE}" STREQUAL "win32")
     ua_add_architecture_file(${CMAKE_CURRENT_SOURCE_DIR}/ua_architecture_functions.c)
 
     if("${UA_ARCHITECTURE}" STREQUAL "win32")
-        find_library(WS2_32_LIBRARY ws2_32 REQUIRED)
-        ua_architecture_append_to_library(WS2_32_LIBRARY)
+        find_library(WinSock REQUIRED)
+        ua_include_directories(${WINSOCK_INCLUDE_DIRS})
+        ua_architecture_append_to_library(${WINSOCK_LIBRARIES})
         ua_architecture_append_to_library(iphlpapi)
         # ua_architecture_append_to_library(${CMAKE_THREAD_LIBS_INIT})
 	#append iphlpapi permanently. Problem: PUBSUB Flag is configured after execution.
