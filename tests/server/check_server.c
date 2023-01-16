@@ -51,6 +51,13 @@ START_TEST(checkGetNamespaceById) {
     UA_StatusCode notFound = UA_Server_getNamespaceByIndex(server, 10, &searchResultNamespace);
     ck_assert_uint_eq(notFound, UA_STATUSCODE_BADNOTFOUND);
 
+    UA_StatusCode found1 = UA_Server_getNamespaceByIndex(server, 1, &searchResultNamespace);
+    ck_assert_uint_eq(found1, UA_STATUSCODE_GOOD);
+    UA_String_clear(&searchResultNamespace);
+
+    UA_StatusCode notFound2 = UA_Server_getNamespaceByIndex(server, 2, &searchResultNamespace);
+    ck_assert_uint_eq(notFound2, UA_STATUSCODE_BADNOTFOUND);
+
     UA_String compareNamespace = UA_STRING("http://opcfoundation.org/UA/");
     UA_StatusCode found = UA_Server_getNamespaceByIndex(server, 0, &searchResultNamespace);
     ck_assert(UA_String_equal(&compareNamespace, &searchResultNamespace));

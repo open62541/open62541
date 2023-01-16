@@ -197,7 +197,7 @@ UA_Session_getSubscriptionById(UA_Session *session, UA_UInt32 subscriptionId) {
 }
 
 UA_Subscription *
-UA_Server_getSubscriptionById(UA_Server *server, UA_UInt32 subscriptionId) {
+getSubscriptionById(UA_Server *server, UA_UInt32 subscriptionId) {
     UA_Subscription *sub;
     LIST_FOREACH(sub, &server->subscriptions, serverListEntry) {
         /* Prevent lookup of subscriptions that are to be deleted with a statuschange */

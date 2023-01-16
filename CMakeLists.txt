@@ -663,7 +663,7 @@ if(UA_ENABLE_ENCRYPTION_OPENSSL OR UA_ENABLE_MQTT_TLS_OPENSSL)
     # use the OpenSSL encryption library
     # https://cmake.org/cmake/help/v3.0/module/FindOpenSSL.html
     find_package(OpenSSL REQUIRED)
-    list(APPEND open62541_LIBRARIES ${OPENSSL_LIBRARIES})
+    list(APPEND open62541_LIBRARIES OpenSSL::Crypto OpenSSL::SSL)
     endif ()
 
 if(UA_ENABLE_ENCRYPTION_LIBRESSL)
@@ -737,6 +737,7 @@ if(NOT UA_FORCE_CPP AND (CMAKE_COMPILER_IS_GNUCC OR CMAKE_C_COMPILER_ID STREQUAL
     check_add_cc_flag("-Wno-static-in-inline") # Clang doesn't like the use of static inline methods inside static inline methods
     check_add_cc_flag("-Wno-overlength-strings") # May happen in the nodeset compiler when complex values are directly encoded
     check_add_cc_flag("-Wno-unused-parameter") # some methods may require unused arguments to cast to a method pointer
+    check_add_cc_flag("-Wno-maybe-uninitialized") # too many false positives
 
     # Use a strict subset of the C and C++ languages
     check_add_cc_flag("-Wc++-compat")
@@ -957,7 +958,6 @@ set(exported_headers ${PROJECT_BINARY_DIR}/src_generated/open62541/config.h
                      ${PROJECT_SOURCE_DIR}/include/open62541/plugin/securitypolicy.h
                      ${PROJECT_SOURCE_DIR}/include/open62541/plugin/pubsub.h
                      ${PROJECT_SOURCE_DIR}/deps/ziptree.h
-                     ${PROJECT_SOURCE_DIR}/deps/aa_tree.h
                      ${PROJECT_SOURCE_DIR}/include/open62541/plugin/eventloop.h
                      ${PROJECT_SOURCE_DIR}/include/open62541/plugin/nodestore.h
                      ${historizing_exported_headers}
@@ -983,7 +983,6 @@ set(internal_headers ${PROJECT_SOURCE_DIR}/deps/open62541_queue.h
                      ${PROJECT_SOURCE_DIR}/src/server/ua_subscription.h
                      ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_networkmessage.h
                      ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub.h
-                     ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_manager.h
                      ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_ns0.h
                      ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_keystorage.h
                      ${PROJECT_SOURCE_DIR}/src/server/ua_server_async.h
@@ -1013,6 +1012,8 @@ set(lib_sources ${PROJECT_SOURCE_DIR}/src/ua_types.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_server_discovery.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_server_async.c
                 ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_networkmessage.c
+                ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_connection.c
+                ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_dataset.c
                 ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_writer.c
                 ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_writergroup.c
                 ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_reader.c
@@ -1044,7 +1045,6 @@ set(lib_sources ${PROJECT_SOURCE_DIR}/src/ua_types.c
                 ${PROJECT_SOURCE_DIR}/deps/pcg_basic.c
                 ${PROJECT_SOURCE_DIR}/deps/base64.c
                 ${PROJECT_SOURCE_DIR}/deps/itoa.c
-                ${PROJECT_SOURCE_DIR}/deps/aa_tree.c
                 ${PROJECT_SOURCE_DIR}/deps/ziptree.c
 
                 ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_config.c)
@@ -1155,6 +1155,7 @@ endif()
 
 if(UA_ENABLE_PUBSUB)
     list(APPEND default_plugin_headers ${PROJECT_SOURCE_DIR}/plugins/include/open62541/plugin/pubsub_udp.h)
+    list(APPEND default_plugin_sources ${PROJECT_SOURCE_DIR}/plugins/ua_pubsub_udp_multicast.c)
     list(APPEND default_plugin_sources ${PROJECT_SOURCE_DIR}/plugins/ua_pubsub_udp.c)
     if(UA_ENABLE_PUBSUB_ETH_UADP)
         list(APPEND default_plugin_headers ${PROJECT_SOURCE_DIR}/plugins/include/open62541/plugin/pubsub_ethernet.h)
@@ -1270,6 +1271,11 @@ if(UA_ENABLE_NODESETLOADER)
     list(APPEND default_plugin_sources
                 ${PROJECT_SOURCE_DIR}/plugins/ua_nodesetloader.c)
     list(APPEND open62541_LIBRARIES ${NODESETLOADER_DEPS_LIBS})
+
+    if(UA_ENABLE_AMALGAMATION)
+        list(APPEND exported_headers ${NODESETLOADER_PUBLIC_HEADERS})
+        list(APPEND internal_headers ${NODESETLOADER_PRIVATE_HEADERS})
+    endif()
 endif()
 
 #########################
@@ -1470,6 +1476,11 @@ if(UA_ENABLE_AMALGAMATION)
     endif()
     if(UA_ENABLE_ENCRYPTION_LIBRESSL)
         target_include_directories(open62541-object PRIVATE ${LIBRESSL_INCLUDE_DIR})
+    endif()
+    if(UA_ENABLE_NODESETLOADER)
+        target_include_directories(open62541-object PRIVATE
+                                   ${NODESETLOADER_PUBLIC_INCLUDES}
+                                   ${NODESETLOADER_PRIVATE_INCLUDES})
     endif()
 
     # make sure the open62541_amalgamation target builds before so that amalgamation is finished and it is not executed again for open62541-object

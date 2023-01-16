@@ -21,22 +21,27 @@ UA_Server_findDataType(UA_Server *server, const UA_NodeId *typeId) {
 /* Information Model Operations */
 /********************************/
 
+static void *
+returnFirstType(void *context, UA_ReferenceTarget *t) {
+    UA_Server *server = (UA_Server*)context;
+    /* Don't release the node that is returned.
+     * Continues to iterate if NULL is returned. */
+    return (void*)(uintptr_t)UA_NODESTORE_GETFROMREF(server, t->targetId);
+}
+
 const UA_Node *
 getNodeType(UA_Server *server, const UA_NodeHead *head) {
     /* The reference to the parent is different for variable and variabletype */
     UA_Byte parentRefIndex;
     UA_Boolean inverse;
-    UA_NodeClass typeNodeClass;
     switch(head->nodeClass) {
     case UA_NODECLASS_OBJECT:
         parentRefIndex = UA_REFERENCETYPEINDEX_HASTYPEDEFINITION;
         inverse = false;
-        typeNodeClass = UA_NODECLASS_OBJECTTYPE;
         break;
     case UA_NODECLASS_VARIABLE:
         parentRefIndex = UA_REFERENCETYPEINDEX_HASTYPEDEFINITION;
         inverse = false;
-        typeNodeClass = UA_NODECLASS_VARIABLETYPE;
         break;
     case UA_NODECLASS_OBJECTTYPE:
     case UA_NODECLASS_VARIABLETYPE:
@@ -44,7 +49,6 @@ getNodeType(UA_Server *server, const UA_NodeHead *head) {
     case UA_NODECLASS_DATATYPE:
         parentRefIndex = UA_REFERENCETYPEINDEX_HASSUBTYPE;
         inverse = true;
-        typeNodeClass = head->nodeClass;
         break;
     default:
         return NULL;
@@ -57,16 +61,10 @@ getNodeType(UA_Server *server, const UA_NodeHead *head) {
             continue;
         if(rk->referenceTypeIndex != parentRefIndex)
             continue;
-
-        const UA_ReferenceTarget *t = NULL;
-        while((t = UA_NodeReferenceKind_iterate(rk, t))) {
-            const UA_Node *type = UA_NODESTORE_GETFROMREF(server, t->targetId);
-            if(!type)
-                continue;
-            if(type->head.nodeClass == typeNodeClass)
-                return type; /* Don't release the node that is returned */
-            UA_NODESTORE_RELEASE(server, type);
-        }
+        const UA_Node *type = (const UA_Node*)
+            UA_NodeReferenceKind_iterate(rk, returnFirstType, server);
+        if(type)
+            return type;
     }
 
     return NULL;

@@ -4,6 +4,7 @@
 #include <open62541/plugin/log_stdout.h>
 
 #include "testing_clock.h"
+#include "ua_server_internal.h"
 #include "ua_pubsub.h"
 
 #include <check.h>
@@ -99,7 +100,9 @@ static void AddConnection(
     connectionConfig.publisherId.uint32 = PublisherId;
 
     ck_assert(UA_Server_addPubSubConnection(server, &connectionConfig, opConnectionId) == UA_STATUSCODE_GOOD);
+    UA_LOCK(&server->serviceMutex);
     ck_assert(UA_PubSubConnection_regist(server, opConnectionId, NULL) == UA_STATUSCODE_GOOD);
+    UA_UNLOCK(&server->serviceMutex);
 }
 
 /***************************************************************************************************/
@@ -410,31 +413,33 @@ static void ValidatePublishSubscribe_fast_path(
 static void PubSubStateChangeCallback_basic (UA_Server *hostServer,
                                 UA_NodeId *pubsubComponentId,
                                 UA_PubSubState state,
-                                UA_StatusCode status) {
+                                UA_StatusCode reason) {
     ck_assert(hostServer == server);
 
     UA_String strId;
     UA_String_init(&strId);
     UA_NodeId_print(pubsubComponentId, &strId);
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "PubSubStateChangeCallback(): "
-        "Component Id = %.*s, state = %i, status = 0x%08x %s", (UA_Int32) strId.length, strId.data, state, status, UA_StatusCode_name(status));
+                "Component Id = %.*s, state = %i, status = 0x%08x %s",
+                (UA_Int32) strId.length, strId.data, state, reason, UA_StatusCode_name(reason));
     UA_String_clear(&strId);
 
     ck_assert(ExpectedCallbackStateChange == state);
-    ck_assert(ExpectedCallbackStatus == status);
+    ck_assert(ExpectedCallbackStatus == reason);
 
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "PubSubStateChangeCallback(): "
-        "Callback Cnt = %u", CallbackCnt);
+                "Callback Cnt = %u", CallbackCnt);
 
     ck_assert(CallbackCnt < ExpectedCallbackCnt);
     ck_assert(pExpectedComponentCallbackIds != 0);
     UA_String_init(&strId);
     UA_NodeId_print(&(pExpectedComponentCallbackIds[CallbackCnt]), &strId);
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "PubSubStateChangeCallback(): "
-        "Expected Id = %.*s", (UA_Int32) strId.length, strId.data);
+                "Expected Id = %.*s", (UA_Int32) strId.length, strId.data);
     UA_String_clear(&strId);
 
-    ck_assert(UA_NodeId_equal(pubsubComponentId, &(pExpectedComponentCallbackIds[CallbackCnt])) == UA_TRUE);
+    ck_assert(UA_NodeId_equal(pubsubComponentId,
+                              &(pExpectedComponentCallbackIds[CallbackCnt])) == UA_TRUE);
     CallbackCnt++;
 }
 
@@ -718,7 +723,7 @@ START_TEST(Test_basic) {
 
 static void
 PubSubStateChangeCallback_different_timeouts(UA_Server *hostServer, UA_NodeId *pubsubComponentId,
-                                             UA_PubSubState state, UA_StatusCode status) {
+                                             UA_PubSubState state, UA_StatusCode reason) {
     ck_assert(hostServer == server);
 
     /* Disable some checks during shutdown */
@@ -729,11 +734,12 @@ PubSubStateChangeCallback_different_timeouts(UA_Server *hostServer, UA_NodeId *p
     UA_String_init(&strId);
     UA_NodeId_print(pubsubComponentId, &strId);
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "PubSubStateChangeCallback(): "
-        "Component Id = %.*s, state = %i, status = 0x%08x %s", (UA_Int32) strId.length, strId.data, state, status, UA_StatusCode_name(status));
+                "Component Id = %.*s, state = %i, status = 0x%08x %s",
+                (UA_Int32) strId.length, strId.data, state, reason, UA_StatusCode_name(reason));
     UA_String_clear(&strId);
 
     ck_assert(ExpectedCallbackStateChange == state);
-    ck_assert(ExpectedCallbackStatus == status);
+    ck_assert(ExpectedCallbackStatus == reason);
 
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "PubSubStateChangeCallback(): "
         "Callback Cnt = %u", CallbackCnt);
@@ -942,11 +948,9 @@ START_TEST(Test_different_timeouts) {
 /* Test wrong message receive timeout setting (receive timeout is smaller than publishing interval)*/
 
 /***************************************************************************************************/
-static void PubSubStateChangeCallback_wrong_timeout (
-    UA_Server *hostServer,
-    UA_NodeId *pubsubComponentId,
-    UA_PubSubState state,
-    UA_StatusCode status) {
+static void
+PubSubStateChangeCallback_wrong_timeout (UA_Server *hostServer, UA_NodeId *pubsubComponentId,
+                                         UA_PubSubState state, UA_StatusCode reason) {
 
     ck_assert(hostServer == server);
 
@@ -954,12 +958,13 @@ static void PubSubStateChangeCallback_wrong_timeout (
     UA_String_init(&strId);
     UA_NodeId_print(pubsubComponentId, &strId);
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "PubSubStateChangeCallback(): "
-        "Component Id = %.*s, state = %i, status = 0x%08x %s", (UA_Int32) strId.length, strId.data, state, status, UA_StatusCode_name(status));
+                "Component Id = %.*s, state = %i, status = 0x%08x %s",
+                (UA_Int32) strId.length, strId.data, state, reason, UA_StatusCode_name(reason));
     UA_String_clear(&strId);
 
     if ((UA_NodeId_equal(pubsubComponentId, &ExpectedCallbackComponentNodeId) == UA_TRUE) &&
         (state == ExpectedCallbackStateChange) &&
-        (status == ExpectedCallbackStatus)) {
+        (reason == ExpectedCallbackStatus)) {
 
         CallbackCnt++;
     }
@@ -1064,7 +1069,7 @@ START_TEST(Test_wrong_timeout) {
 /***************************************************************************************************/
 static void
 PubSubStateChangeCallback_many_components(UA_Server *hostServer, UA_NodeId *pubsubComponentId,
-                                          UA_PubSubState state, UA_StatusCode status) {
+                                          UA_PubSubState state, UA_StatusCode reason) {
     ck_assert(hostServer == server);
 
     if(!runtime)
@@ -1074,7 +1079,7 @@ PubSubStateChangeCallback_many_components(UA_Server *hostServer, UA_NodeId *pubs
     UA_String_init(&strId);
     UA_NodeId_print(pubsubComponentId, &strId);
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "PubSubStateChangeCallback(): "
-        "Component Id = %.*s, state = %i, status = 0x%08x %s", (UA_Int32) strId.length, strId.data, state, status, UA_StatusCode_name(status));
+        "Component Id = %.*s, state = %i, status = 0x%08x %s", (UA_Int32) strId.length, strId.data, state, reason, UA_StatusCode_name(reason));
     UA_String_clear(&strId);
 
     ck_assert(pExpectedComponentCallbackIds != 0);
@@ -1087,7 +1092,7 @@ PubSubStateChangeCallback_many_components(UA_Server *hostServer, UA_NodeId *pubs
     UA_String_clear(&strId);
 
     ck_assert(state == ExpectedCallbackStateChange);
-    ck_assert(status == ExpectedCallbackStatus);
+    ck_assert(reason == ExpectedCallbackStatus);
     if (ExpectedCallbackStateChange == UA_PUBSUBSTATE_ERROR) {
         /*  On error we want to verify the order of DataSetReader timeouts */
         ck_assert(UA_NodeId_equal(pubsubComponentId, &pExpectedComponentCallbackIds[CallbackCnt]) == UA_TRUE);
@@ -1635,7 +1640,7 @@ START_TEST(Test_many_components) {
 */
 static void
 PubSubStateChangeCallback_update_config(UA_Server *hostServer, UA_NodeId *pubsubComponentId,
-                                        UA_PubSubState state, UA_StatusCode status) {
+                                        UA_PubSubState state, UA_StatusCode reason) {
     ck_assert(hostServer == server);
 
     if(!runtime)
@@ -1646,13 +1651,13 @@ PubSubStateChangeCallback_update_config(UA_Server *hostServer, UA_NodeId *pubsub
     UA_NodeId_print(pubsubComponentId, &strId);
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "PubSubStateChangeCallback(): "
                 "Component Id = %.*s, state = %i, status = 0x%08x %s",
-                (UA_Int32) strId.length, strId.data, state, status,
-                UA_StatusCode_name(status));
+                (UA_Int32) strId.length, strId.data, state, reason,
+                UA_StatusCode_name(reason));
     UA_String_clear(&strId);
 
     if (UA_NodeId_equal(pubsubComponentId, &ExpectedCallbackComponentNodeId) == UA_TRUE) {
         ck_assert(ExpectedCallbackStateChange == state);
-        ck_assert(ExpectedCallbackStatus == status);
+        ck_assert(ExpectedCallbackStatus == reason);
         CallbackCnt++;
     }
 }
@@ -1819,21 +1824,21 @@ START_TEST(Test_add_remove) {
 
 
 /***************************************************************************************************/
-static void PubSubStateChangeCallback_fast_path (UA_Server *hostServer, UA_NodeId *pubsubComponentId,
-                                UA_PubSubState state,
-                                UA_StatusCode status) {
+static void
+PubSubStateChangeCallback_fast_path (UA_Server *hostServer, UA_NodeId *pubsubComponentId,
+                                     UA_PubSubState state, UA_StatusCode reason) {
     ck_assert(hostServer == server);
 
     UA_String strId;
     UA_String_init(&strId);
     UA_NodeId_print(pubsubComponentId, &strId);
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "PubSubStateChangeCallback_fast_path(): "
-        "Component Id = %.*s, state = %i, status = 0x%08x %s", (UA_Int32) strId.length, strId.data, state, status, UA_StatusCode_name(status));
+        "Component Id = %.*s, state = %i, status = 0x%08x %s", (UA_Int32) strId.length, strId.data, state, reason, UA_StatusCode_name(reason));
     UA_String_clear(&strId);
 
     if (UA_NodeId_equal(pubsubComponentId, &ExpectedCallbackComponentNodeId) == UA_TRUE) {
         ck_assert(ExpectedCallbackStateChange == state);
-        ck_assert(ExpectedCallbackStatus == status);
+        ck_assert(ExpectedCallbackStatus == reason);
         CallbackCnt++;
     }
 }

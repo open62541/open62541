@@ -25,10 +25,6 @@
 #include "ua_pubsub_ns0.h"
 #endif
 
-#ifdef UA_ENABLE_PUBSUB
-#include "ua_pubsub_manager.h"
-#endif
-
 #ifdef UA_ENABLE_SUBSCRIPTIONS
 #include "ua_subscription.h"
 #endif
@@ -128,7 +124,7 @@ getNamespaceByIndex(UA_Server *server, const size_t namespaceIndex,
     /* ensure that the uri for ns1 is set up from the app description */
     setupNs1Uri(server);
     UA_StatusCode res = UA_STATUSCODE_BADNOTFOUND;
-    if(namespaceIndex > server->namespacesSize)
+    if(namespaceIndex >= server->namespacesSize)
         return res;
     res = UA_String_copy(&server->namespaces[namespaceIndex], foundUri);
     return res;
@@ -268,6 +264,25 @@ serverHouseKeeping(UA_Server *server, void *_) {
     UA_UNLOCK(&server->serviceMutex);
 }
 
+/* Some subsystems require regula polling of the network. This is a holdover
+ * from before the EventLoop model.
+ *
+ * TODO: Refactor to use the EventLoop instead of polling. Get rid of this
+ * entirely. */
+static void
+serverPolling(UA_Server *server, void *_) {
+    /* Listen on the pubsublayer, but only if the yield function is set. */
+#if defined(UA_ENABLE_PUBSUB_MQTT)
+    UA_PubSubConnection *connection;
+    TAILQ_FOREACH(connection, &server->pubSubManager.connections, listEntry){
+        UA_PubSubConnection *ps = connection;
+        if(ps && ps->channel && ps->channel->yield){
+            ps->channel->yield(ps->channel, 0);
+        }
+    }
+#endif
+}
+
 /********************/
 /* Server Lifecycle */
 /********************/
@@ -294,9 +309,8 @@ UA_Server_init(UA_Server *server) {
     UA_random_seed((UA_UInt64)UA_DateTime_now());
 #endif
 
-#if UA_MULTITHREADING >= 100
     UA_LOCK_INIT(&server->serviceMutex);
-#endif
+    UA_LOCK(&server->serviceMutex);
 
     /* Initialize the adminSession */
     UA_Session_init(&server->adminSession);
@@ -329,13 +343,16 @@ UA_Server_init(UA_Server *server) {
 #endif
 
     /* Initialize namespace 0*/
-    res = UA_Server_initNS0(server);
+    res = initNS0(server);
     UA_CHECK_STATUS(res, goto cleanup);
 
 #ifdef UA_ENABLE_PUBSUB
-    /* Build PubSub information model */
+    /* Initialized PubSubManager */
+    UA_PubSubManager_init(server, &server->pubSubManager);
+
 #ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL
-    UA_Server_initPubSubNS0(server);
+    /* Build PubSub information model */
+    initPubSubNS0(server);
 #endif
 
 #ifdef UA_ENABLE_PUBSUB_MONITORING
@@ -344,9 +361,12 @@ UA_Server_init(UA_Server *server) {
     UA_CHECK_STATUS(res, goto cleanup);
 #endif /* UA_ENABLE_PUBSUB_MONITORING */
 #endif /* UA_ENABLE_PUBSUB */
+
+    UA_UNLOCK(&server->serviceMutex);
     return server;
 
  cleanup:
+    UA_UNLOCK(&server->serviceMutex);
     UA_Server_delete(server);
     return NULL;
 }
@@ -587,28 +607,26 @@ UA_Server_createServerConnection(UA_Server *server, const UA_String *serverUrl) 
         UA_KeyValuePair params[3];
         size_t paramsSize = 2;
 
-        params[0].key = UA_QUALIFIEDNAME(0, "listen-port");
+        params[0].key = UA_QUALIFIEDNAME(0, "port");
         UA_Variant_setScalar(&params[0].value, &port, &UA_TYPES[UA_TYPES_UINT16]);
 
-        UA_UInt32 bufSize = config->tcpBufSize;
-        if(bufSize == 0)
-            bufSize = 1 << 16; /* 64kB */
-        params[1].key = UA_QUALIFIEDNAME(0, "recv-bufsize");
-        UA_Variant_setScalar(&params[1].value, &bufSize, &UA_TYPES[UA_TYPES_UINT32]);
+        UA_Boolean listen = true;
+        params[1].key = UA_QUALIFIEDNAME(0, "listen");
+        UA_Variant_setScalar(&params[1].value, &listen, &UA_TYPES[UA_TYPES_BOOLEAN]);
 
-        /* If the hostname is non-empty */
         if(hostname.length > 0) {
-            params[2].key = UA_QUALIFIEDNAME(0, "listen-hostnames");
+            /* The hostname is non-empty */
+            params[2].key = UA_QUALIFIEDNAME(0, "address");
             UA_Variant_setArray(&params[2].value, &hostname, 1, &UA_TYPES[UA_TYPES_STRING]);
             paramsSize = 3;
         }
+
         UA_KeyValueMap paramsMap;
         paramsMap.map = params;
         paramsMap.mapSize = paramsSize;
 
         /* Open the server connection */
-        res = cm->openConnection(cm, &paramsMap, server, NULL,
-                                 UA_Server_networkCallback);
+        res = cm->openConnection(cm, &paramsMap, server, NULL, UA_Server_networkCallback);
         if(res == UA_STATUSCODE_GOOD)
             return res;
     }
@@ -616,11 +634,146 @@ UA_Server_createServerConnection(UA_Server *server, const UA_String *serverUrl) 
     return UA_STATUSCODE_BADINTERNALERROR;
 }
 
+UA_StatusCode attemptReverseConnect(UA_Server *server, reverse_connect_context *context) {
+    UA_ServerConfig *config = UA_Server_getConfig(server);
+
+    UA_StatusCode res = UA_STATUSCODE_BADINTERNALERROR;
+    UA_String tcpString = UA_STRING_STATIC("tcp");
+    for(UA_EventSource *es = config->eventLoop->eventSources; es != NULL; es = es->next) {
+        /* Is this a usable connection manager? */
+        if(es->eventSourceType != UA_EVENTSOURCETYPE_CONNECTIONMANAGER)
+            continue;
+        UA_ConnectionManager *cm = (UA_ConnectionManager*)es;
+        if(!UA_String_equal(&tcpString, &cm->protocol))
+            continue;
+
+        if (es->state != UA_EVENTSOURCESTATE_STARTED)
+            return UA_STATUSCODE_GOODCOMPLETESASYNCHRONOUSLY;
+
+        /* Set up the parameters */
+        UA_KeyValueMap params;
+        params.mapSize = 0;
+        params.map = NULL;
+        UA_KeyValueMap_setScalar(&params, UA_QUALIFIEDNAME(0, "address"),
+                                 &context->hostname, &UA_TYPES[UA_TYPES_STRING]);
+        UA_KeyValueMap_setScalar(&params, UA_QUALIFIEDNAME(0, "port"),
+                                 &context->port, &UA_TYPES[UA_TYPES_UINT16]);
+
+        /* Open the server connection */
+        res = cm->openConnection(cm, &params, server, context,
+                                 UA_Server_reverseConnectCallback);
+
+        UA_KeyValueMap_clear(&params);
+
+        if (res != UA_STATUSCODE_GOOD) {
+            UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                           "Failed to create connection for reverse connect: %s\n",
+                           UA_StatusCode_name(res));
+            context->currentConnection.connectionId = 0;
+        }
+
+        if (context->state != UA_SECURECHANNELSTATE_CONNECTING) {
+            context->state = UA_SECURECHANNELSTATE_CONNECTING;
+            if (context->stateCallback)
+                context->stateCallback(server, context->handle, context->state,
+                                       context->callbackContext);
+        }
+    }
+
+    return res;
+}
+
+UA_StatusCode UA_Server_addReverseConnect(UA_Server *server, UA_String url,
+                                          UA_Server_ReverseConnectStateCallback stateCallback,
+                                          void *callbackContext, UA_UInt64 *handle) {
+    UA_ServerConfig *config = UA_Server_getConfig(server);
+
+    UA_String hostname = UA_STRING_NULL;
+    UA_UInt16 port = 0;
+    UA_StatusCode res = UA_parseEndpointUrl(&url, &hostname, &port, NULL);
+    if(res != UA_STATUSCODE_GOOD) {
+        UA_LOG_WARNING(&config->logger, UA_LOGCATEGORY_SERVER,
+                       "OPC UA URL is invalid: %.*s",
+                       (int)url.length, url.data);
+        return res;
+    }
+
+    if (SLIST_EMPTY(&server->reverseConnects))
+        setReverseConnectRetryCallback(server, true);
+
+    reverse_connect_context *newContext = (reverse_connect_context *)calloc(1, sizeof(reverse_connect_context));
+    if (newContext == NULL)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    UA_String_copy(&hostname, &newContext->hostname);
+    newContext->port = port;
+    newContext->handle = ++server->lastReverseConnectHandle;
+    newContext->stateCallback = stateCallback;
+    newContext->callbackContext = callbackContext;
+    SLIST_INSERT_HEAD(&server->reverseConnects, newContext, next);
+
+    if (handle)
+        *handle = newContext->handle;
+
+    return attemptReverseConnect(server, newContext);
+}
+
+static void freeReverseConnectCallback(void *application, void *context) {
+    reverse_connect_context *reverseConnect = (reverse_connect_context *)context;
+
+    if (reverseConnect) {
+        UA_String_clear(&reverseConnect->hostname);
+        free(reverseConnect);
+    }
+
+    if (application)
+        free(application);
+}
+
+UA_StatusCode UA_Server_removeReverseConnect(UA_Server *server, UA_UInt64 handle) {
+    reverse_connect_context *rev = NULL;
+    reverse_connect_context *temp = NULL;
+    UA_StatusCode result = UA_STATUSCODE_BADNOTFOUND;
+
+    SLIST_FOREACH_SAFE(rev, &server->reverseConnects, next, temp) {
+        if (rev->handle == handle) {
+            SLIST_REMOVE(&server->reverseConnects, rev, reverse_connect_context, next);
+
+            if (rev->currentConnection.connectionId) {
+                rev->destruction = true;
+                /* Request disconnect and run the event loop for one iteration */
+                if (rev->currentConnection.connectionId) {
+                    UA_DelayedCallback *freeCallback = (UA_DelayedCallback *)calloc(1, sizeof(UA_DelayedCallback));
+                    freeCallback->context = rev;
+                    freeCallback->application = freeCallback;
+                    freeCallback->callback = freeReverseConnectCallback;
+
+                    server->config.eventLoop->addDelayedCallback(server->config.eventLoop, freeCallback);
+
+                    rev->currentConnection.connectionManager->closeConnection(
+                                rev->currentConnection.connectionManager,
+                                rev->currentConnection.connectionId);
+                }
+            } else {
+                setReverseConnectState(server, rev, UA_SECURECHANNELSTATE_CLOSED);
+                UA_String_clear(&rev->hostname);
+                free(rev);
+            }
+            result = UA_STATUSCODE_GOOD;
+            break;
+        }
+    }
+
+    if (SLIST_EMPTY(&server->reverseConnects))
+         setReverseConnectRetryCallback(server, false);
+
+    return result;
+}
+
 /********************/
 /* Main Server Loop */
 /********************/
 
-#define UA_MAXTIMEOUT 50 /* Max timeout in ms between main-loop iterations */
+#define UA_MAXTIMEOUT 200 /* Max timeout in ms between main-loop iterations */
 
 /* Start: Spin up the workers and the network layer and sample the server's
  *        start time.
@@ -652,12 +805,21 @@ UA_Server_run_startup(UA_Server *server) {
                                       NULL, 1000.0, &server->houseKeepingCallbackId);
     }
 
+    /* Add a regular callback for network polling tasks. With a 200ms interval.
+     *
+     * TODO: Move this to the EventLoop model without polling.
+     */
+    if(server->pollingCallbackId == 0) {
+        UA_Server_addRepeatedCallback(server, (UA_ServerCallback)serverPolling,
+                                      NULL, 200.0, &server->pollingCallbackId);
+    }
+
     UA_StatusCode retVal = UA_STATUSCODE_GOOD;
     /* Start the EventLoop if not already started */
     UA_CHECK_MEM_ERROR(config->eventLoop, return UA_STATUSCODE_BADINTERNALERROR,
                        &config->logger, UA_LOGCATEGORY_SERVER,
                        "eventloop must be set");
-    if (config->eventLoop->state != UA_EVENTLOOPSTATE_STARTED) {
+    if(config->eventLoop->state != UA_EVENTLOOPSTATE_STARTED) {
         retVal = config->eventLoop->start(config->eventLoop);
         UA_CHECK_STATUS(retVal, return retVal);
     }
@@ -681,6 +843,8 @@ UA_Server_run_startup(UA_Server *server) {
         }
     }
 
+    UA_LOCK(&server->serviceMutex);
+
     /* Warn if no socket available */
     if(!haveServerSocket) {
         UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
@@ -694,10 +858,14 @@ UA_Server_run_startup(UA_Server *server) {
     retVal = writeNs0VariableArray(server, UA_NS0ID_SERVER_SERVERARRAY,
                                    &server->config.applicationDescription.applicationUri,
                                    1, &UA_TYPES[UA_TYPES_STRING]);
-    UA_CHECK_STATUS(retVal, return retVal);
+    UA_CHECK_STATUS(retVal,
+                    UA_UNLOCK(&server->serviceMutex);
+                    return retVal);
 
-    if(server->state > UA_SERVERLIFECYCLE_FRESH)
+    if(server->state > UA_SERVERLIFECYCLE_FRESH) {
+        UA_UNLOCK(&server->serviceMutex);
         return UA_STATUSCODE_GOOD;
+    }
 
     /* At least one endpoint has to be configured */
     if(server->config.endpointsSize == 0) {
@@ -716,10 +884,7 @@ UA_Server_run_startup(UA_Server *server) {
     UA_CHECK_STATUS(retVal, return retVal);
 #endif
 
-#ifdef UA_ENABLE_PUBSUB
-    /* Initialized PubSubManager */
-    UA_PubSubManager_init(server, &server->pubSubManager);
-#endif
+    UA_UNLOCK(&server->serviceMutex); /* TODO: Make PubSub initialization thread-safe */
 
     /* Sample the start time and set it to the Server object */
     server->startTime = UA_DateTime_now();
@@ -768,44 +933,44 @@ UA_Server_run_startup(UA_Server *server) {
 
 UA_UInt16
 UA_Server_run_iterate(UA_Server *server, UA_Boolean waitInternal) {
-    /* Listen on the pubsublayer, but only if the yield function is set.
-     * TODO: Integrate into the EventLoop */
-#if defined(UA_ENABLE_PUBSUB_MQTT)
-    UA_PubSubConnection *connection;
-    TAILQ_FOREACH(connection, &server->pubSubManager.connections, listEntry){
-        UA_PubSubConnection *ps = connection;
-        if(ps && ps->channel && ps->channel->yield){
-            ps->channel->yield(ps->channel, 0);
-        }
-    }
-#endif
-
     /* Process timed and network events in the EventLoop */
-    server->config.eventLoop->run(server->config.eventLoop, UA_MAXTIMEOUT);
-
-#if defined(UA_ENABLE_DISCOVERY_MULTICAST) && (UA_MULTITHREADING < 200)
-    UA_LOCK(&server->serviceMutex);
-    if(server->config.mdnsEnabled) {
-        /* TODO multicastNextRepeat does not consider new input data (requests)
-         * on the socket. It will be handled on the next call. if needed, we
-         * need to use select with timeout on the multicast socket
-         * server->mdnsSocket (see example in mdnsd library) on higher level. */
-        UA_DateTime multicastNextRepeat = 0;
-        iterateMulticastDiscoveryServer(server, &multicastNextRepeat, true);
-    }
-    UA_UNLOCK(&server->serviceMutex);
-#endif
+    UA_UInt32 timeout = (waitInternal) ? UA_MAXTIMEOUT : 0;
+    server->config.eventLoop->run(server->config.eventLoop, timeout);
 
     /* Return the time until the next scheduled callback */
-    return (UA_UInt16)((server->config.eventLoop->nextCyclicTime(server->config.eventLoop)
-                        - UA_DateTime_nowMonotonic()) / UA_DATETIME_MSEC);
+    UA_DateTime nextTimeout =
+        ((server->config.eventLoop->nextCyclicTime(server->config.eventLoop)
+         - UA_DateTime_nowMonotonic()) / UA_DATETIME_MSEC);
+    if(nextTimeout > UA_UINT16_MAX)
+        return UA_UINT16_MAX;
+    return (UA_UInt16)nextTimeout;
 }
 
 UA_StatusCode
 UA_Server_run_shutdown(UA_Server *server) {
     /* Stop the regular housekeeping tasks */
-    UA_Server_removeCallback(server, server->houseKeepingCallbackId);
-    server->houseKeepingCallbackId = 0;
+    if(server->houseKeepingCallbackId != 0) {
+        UA_Server_removeCallback(server, server->houseKeepingCallbackId);
+        server->houseKeepingCallbackId = 0;
+    }
+
+    /* Stop the polling tasks */
+    if(server->pollingCallbackId != 0) {
+        UA_Server_removeCallback(server, server->pollingCallbackId);
+        server->pollingCallbackId = 0;
+    }
+
+    /* Mark all reverse connects as destroying */
+    reverse_connect_context *rev = NULL;
+    SLIST_FOREACH(rev, &server->reverseConnects, next) {
+        rev->destruction = true;
+        if (rev->currentConnection.connectionId) {
+            rev->currentConnection.connectionManager->closeConnection(rev->currentConnection.connectionManager,
+                                                                      rev->currentConnection.connectionId);
+        }
+
+        setReverseConnectState(server, rev, UA_SECURECHANNELSTATE_CLOSED);
+    }
 
     /* Stop all SecureChannels */
     UA_Server_deleteSecureChannels(server);
@@ -836,6 +1001,15 @@ UA_Server_run_shutdown(UA_Server *server) {
     if(server->config.mdnsEnabled)
         stopMulticastDiscoveryServer(server);
 #endif
+
+    setReverseConnectRetryCallback(server, false);
+    reverse_connect_context *next = server->reverseConnects.slh_first;
+    while (next) {
+        reverse_connect_context *current = next;
+        next = current->next.sle_next;
+        UA_String_clear(&current->hostname);
+        free(current);
+    }
 
     return UA_STATUSCODE_GOOD;
 }

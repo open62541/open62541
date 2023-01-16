@@ -10,12 +10,14 @@
 #include <open62541/plugin/create_certificate.h>
 
 #include "securitypolicy_openssl_common.h"
+#include "ua_openssl_version_abstraction.h"
 
 #if defined(UA_ENABLE_ENCRYPTION_OPENSSL) || defined(UA_ENABLE_ENCRYPTION_LIBRESSL)
 
 
 #include <openssl/pem.h>
 #include <openssl/x509v3.h>
+#include <openssl/err.h>
 
 /**
  * Join an array of UA_String to a single NULL-Terminated UA_String
@@ -70,14 +72,25 @@ UA_String_chr(const UA_String *pUaStr, char needl) {
 
 /* char *value cannot be const due to openssl 1.0 compatibility */
 static UA_StatusCode
-add_x509V3ext(X509 *x509, int nid, char *value) {
+add_x509V3ext(const UA_Logger *logger, X509 *x509, int nid, char *value) {
     X509_EXTENSION *ex;
     X509V3_CTX ctx;
     X509V3_set_ctx_nodb(&ctx);
     X509V3_set_ctx(&ctx, x509, x509, NULL, NULL, 0);
     ex = X509V3_EXT_conf_nid(NULL, &ctx, nid, value);
     if(!ex)
+    {
+#if UA_LOGLEVEL <= 300
+        const char * file =  NULL;
+        int line =  0;
+        const char * data =  NULL;
+        int flags =  0;
+        get_error_line_data(&file, &line, &data, &flags);
+        UA_LOG_INFO(logger, UA_LOGCATEGORY_SECURECHANNEL,
+                     "Internal SSL error file: %s:%d data: %s", file, line, data);
+#endif
         return UA_STATUSCODE_BADINTERNALERROR;
+    }
     X509_add_ext(x509, ex, -1);
     X509_EXTENSION_free(ex);
     return UA_STATUSCODE_GOOD;
@@ -244,7 +257,7 @@ UA_CreateCertificate(const UA_Logger *logger,
         goto cleanup;
     }
 
-    errRet = add_x509V3ext(x509, NID_basic_constraints, "CA:FALSE");
+    errRet = add_x509V3ext(logger, x509, NID_basic_constraints, "CA:FALSE");
     if(errRet != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(logger, UA_LOGCATEGORY_SECURECHANNEL,
                      "Create Certificate: Setting 'Basic Constraints' failed.");
@@ -253,7 +266,7 @@ UA_CreateCertificate(const UA_Logger *logger,
 
     /* See https://datatracker.ietf.org/doc/html/rfc5280#section-4.2.1.3 for
      * possible values */
-    errRet = add_x509V3ext(x509, NID_key_usage,
+    errRet = add_x509V3ext(logger, x509, NID_key_usage,
                            "digitalSignature,nonRepudiation,keyEncipherment,dataEncipherment,keyCertSign");
     if(errRet != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(logger, UA_LOGCATEGORY_SECURECHANNEL,
@@ -261,14 +274,14 @@ UA_CreateCertificate(const UA_Logger *logger,
         goto cleanup;
     }
 
-    errRet = add_x509V3ext(x509, NID_ext_key_usage, "serverAuth,clientAuth");
+    errRet = add_x509V3ext(logger, x509, NID_ext_key_usage, "serverAuth,clientAuth");
     if(errRet != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(logger, UA_LOGCATEGORY_SECURECHANNEL,
                      "Create Certificate: Setting 'Extended Key Usage' failed.");
         goto cleanup;
     }
 
-    errRet = add_x509V3ext(x509, NID_subject_key_identifier, "hash");
+    errRet = add_x509V3ext(logger, x509, NID_subject_key_identifier, "hash");
     if(errRet != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(logger, UA_LOGCATEGORY_SECURECHANNEL,
                      "Create Certificate: Setting 'Subject Key Identifier' failed.");
@@ -282,10 +295,10 @@ UA_CreateCertificate(const UA_Logger *logger,
         goto cleanup;
     }
 
-    errRet = add_x509V3ext(x509, NID_subject_alt_name, (char*) fullAltSubj.data);
+    errRet = add_x509V3ext(logger, x509, NID_subject_alt_name, (char*) fullAltSubj.data);
     if(errRet != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(logger, UA_LOGCATEGORY_SECURECHANNEL,
-                     "Create Certificate: Setting 'Subject Alternative Name:' failed.");
+                     "Create Certificate: Setting 'Subject Alternative Name' failed.");
         goto cleanup;
     }
 

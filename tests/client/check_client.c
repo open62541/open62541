@@ -198,7 +198,7 @@ START_TEST(Client_renewSecureChannelWithActiveSubscription) {
     UA_Client *client = UA_Client_new();
     UA_ClientConfig_setDefault(UA_Client_getConfig(client));
     UA_ClientConfig *cc = UA_Client_getConfig(client);
-    cc->secureChannelLifeTime = 10000;
+    cc->secureChannelLifeTime = 60000;
 
     UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);

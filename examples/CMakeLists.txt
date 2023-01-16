@@ -83,6 +83,8 @@ add_example(tutorial_server_variabletype tutorial_server_variabletype.c)
 
 add_example(tutorial_server_object tutorial_server_object.c)
 
+add_example(tutorial_server_reverseconnect tutorial_server_reverseconnect.c)
+
 if(UA_ENABLE_METHODCALLS)
     add_example(tutorial_server_method tutorial_server_method.c)
     if (UA_MULTITHREADING EQUAL 100)
@@ -207,6 +209,7 @@ add_subdirectory(nodeset)
 if(UA_ENABLE_PUBSUB)
     add_example(tutorial_pubsub_connection pubsub/tutorial_pubsub_connection.c)
     add_example(tutorial_pubsub_publish pubsub/tutorial_pubsub_publish.c)
+    add_example(server_pubsub_publish_on_demand pubsub/server_pubsub_publisher_on_demand.c)
     add_example(tutorial_pubsub_publish_raw pubsub/tutorial_pubsub_publish_raw.c)
     add_example(tutorial_pubsub_subscribe_raw pubsub/tutorial_pubsub_subscribe_raw.c)
     add_example(server_pubsub_publisher_iop pubsub/server_pubsub_publisher_iop.c)

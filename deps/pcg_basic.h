@@ -24,7 +24,11 @@
 #ifndef PCG_BASIC_H_
 #define PCG_BASIC_H_
 
-#include <open62541/config.h>
+#if defined(UNDER_CE) || !defined(_MSC_VER) || _MSC_VER >= 1800
+# include <stdint.h>
+#else
+# include "ms_stdint.h"
+#endif
 
 #ifdef __cplusplus
 extern "C" {

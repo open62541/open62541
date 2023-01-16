@@ -1666,8 +1666,7 @@ START_TEST(UA_Float_xml_nan_decode) {
     UA_StatusCode retval = UA_decodeXml(&buf, &out, &UA_TYPES[UA_TYPES_FLOAT], NULL);
 
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
-#if (defined(__GNUC__) && (defined(__armhf__) || defined(__i386__))) || \
-    (defined(__linux__) && defined(__clang__))
+#if !defined(__TINYC__) && (defined(__clang__) || (!defined(__aarch64__) && !defined(__amd64__)))
     // gcc 32-bit and linux clang specific
     // 0 11111111 10000000000000000000000
     // 7f c0 00 00
@@ -1804,8 +1803,7 @@ START_TEST(UA_Double_nan_xml_decode) {
     UA_StatusCode retval = UA_decodeXml(&buf, &out, &UA_TYPES[UA_TYPES_DOUBLE], NULL);
 
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
-#if (defined(__GNUC__) && (defined(__armhf__) || defined(__i386__))) || \
-    (defined(__linux__) && defined(__clang__))
+#if !defined(__TINYC__) && (defined(__clang__) || (!defined(__aarch64__) && !defined(__amd64__)))
     // gcc 32-bit and linux clang specific
     // 0 11111111111 1000000000000000000000000000000000000000000000000000
     // ff f8 00 00 00 00 00 00

@@ -57,6 +57,7 @@ static UA_THREAD_LOCAL UA_Byte ReceiveMsgBufferETH[UA_RECEIVE_MSG_BUFFER_SIZE];
 #endif
 
 #include <time.h>
+
 #define ETHERTYPE_UADP                       0xb62c
 #define MIN_ETHERNET_PACKET_SIZE_WITHOUT_FCS 60
 #define VLAN_HEADER_SIZE                     4
@@ -632,41 +633,42 @@ UA_PubSubChannelEthernet_open(const UA_PubSubConnectionConfig *connectionConfig)
     UA_String enableErrorReport = UA_STRING("enableerrorreport");
 
     /* iterate over the given KeyValuePair paramters */
-    for(size_t i = 0; i < connectionConfig->connectionPropertiesSize; i++){
-        if(UA_String_equal(&connectionConfig->connectionProperties[i].key.name, &socketPriority)){
-            if(UA_Variant_hasScalarType(&connectionConfig->connectionProperties[i].value, &UA_TYPES[UA_TYPES_UINT32])){
+    for(size_t i = 0; i < connectionConfig->connectionProperties.mapSize; i++){
+        UA_KeyValuePair *prop = &connectionConfig->connectionProperties.map[i];
+        if(UA_String_equal(&prop->key.name, &socketPriority)){
+            if(UA_Variant_hasScalarType(&prop->value, &UA_TYPES[UA_TYPES_UINT32])){
                 sockOptions.socketPriority = (UA_UInt32 *) UA_malloc(sizeof(UA_UInt32));
-                UA_UInt32_copy((UA_UInt32 *) connectionConfig->connectionProperties[i].value.data, sockOptions.socketPriority);
+                UA_UInt32_copy((UA_UInt32 *) prop->value.data, sockOptions.socketPriority);
             }
-        } else if(UA_String_equal(&connectionConfig->connectionProperties[i].key.name, &enableSocketTxtime)){
-            if(UA_Variant_hasScalarType(&connectionConfig->connectionProperties[i].value, &UA_TYPES[UA_TYPES_BOOLEAN])){
-                sockOptions.enableSocketTxTime = *(UA_Boolean *) connectionConfig->connectionProperties[i].value.data;
+        } else if(UA_String_equal(&prop->key.name, &enableSocketTxtime)){
+            if(UA_Variant_hasScalarType(&prop->value, &UA_TYPES[UA_TYPES_BOOLEAN])){
+                sockOptions.enableSocketTxTime = *(UA_Boolean *) prop->value.data;
             }
-        } else if(UA_String_equal(&connectionConfig->connectionProperties[i].key.name, &enableDeadlineMode)){
-            if(UA_Variant_hasScalarType(&connectionConfig->connectionProperties[i].value, &UA_TYPES[UA_TYPES_BOOLEAN])){
-                if(*(UA_Boolean *) connectionConfig->connectionProperties[i].value.data == UA_TRUE)
+        } else if(UA_String_equal(&prop->key.name, &enableDeadlineMode)){
+            if(UA_Variant_hasScalarType(&prop->value, &UA_TYPES[UA_TYPES_BOOLEAN])){
+                if(*(UA_Boolean *) prop->value.data == UA_TRUE)
                     sockOptions.sotxtimeDeadlinemode = SOF_TXTIME_DEADLINE_MODE;
             }
-        } else if(UA_String_equal(&connectionConfig->connectionProperties[i].key.name, &enableErrorReport)){
-            if(UA_Variant_hasScalarType(&connectionConfig->connectionProperties[i].value, &UA_TYPES[UA_TYPES_BOOLEAN])){
-                if(*(UA_Boolean *) connectionConfig->connectionProperties[i].value.data == UA_TRUE)
+        } else if(UA_String_equal(&prop->key.name, &enableErrorReport)){
+            if(UA_Variant_hasScalarType(&prop->value, &UA_TYPES[UA_TYPES_BOOLEAN])){
+                if(*(UA_Boolean *) prop->value.data == UA_TRUE)
                     sockOptions.sotxtimeDeadlinemode = SOF_TXTIME_REPORT_ERRORS;
             }
-        } else if(UA_String_equal(&connectionConfig->connectionProperties[i].key.name, &xdpSocketParam)){
-            if(UA_Variant_hasScalarType(&connectionConfig->connectionProperties[i].value, &UA_TYPES[UA_TYPES_BOOLEAN])){
-                sockOptions.enableXdpSocket = *(UA_Boolean *) connectionConfig->connectionProperties[i].value.data;
+        } else if(UA_String_equal(&prop->key.name, &xdpSocketParam)){
+            if(UA_Variant_hasScalarType(&prop->value, &UA_TYPES[UA_TYPES_BOOLEAN])){
+                sockOptions.enableXdpSocket = *(UA_Boolean *) prop->value.data;
             }
-        } else if(UA_String_equal(&connectionConfig->connectionProperties[i].key.name, &xdpFlagParam)){
-            if(UA_Variant_hasScalarType(&connectionConfig->connectionProperties[i].value, &UA_TYPES[UA_TYPES_UINT32])){
-                sockOptions.xdp_flags = *(UA_UInt32 *) connectionConfig->connectionProperties[i].value.data;
+        } else if(UA_String_equal(&prop->key.name, &xdpFlagParam)){
+            if(UA_Variant_hasScalarType(&prop->value, &UA_TYPES[UA_TYPES_UINT32])){
+                sockOptions.xdp_flags = *(UA_UInt32 *) prop->value.data;
             }
-        } else if(UA_String_equal(&connectionConfig->connectionProperties[i].key.name, &hwReceiveQueueParam)){
-            if(UA_Variant_hasScalarType(&connectionConfig->connectionProperties[i].value, &UA_TYPES[UA_TYPES_UINT32])){
-                sockOptions.hw_receive_queue = *(UA_UInt32 *) connectionConfig->connectionProperties[i].value.data;
+        } else if(UA_String_equal(&prop->key.name, &hwReceiveQueueParam)){
+            if(UA_Variant_hasScalarType(&prop->value, &UA_TYPES[UA_TYPES_UINT32])){
+                sockOptions.hw_receive_queue = *(UA_UInt32 *) prop->value.data;
             }
-        } else if(UA_String_equal(&connectionConfig->connectionProperties[i].key.name, &xdpBindFlagParam)){
-            if(UA_Variant_hasScalarType(&connectionConfig->connectionProperties[i].value, &UA_TYPES[UA_TYPES_UINT16])){
-                sockOptions.xdp_bind_flags = *(UA_UInt16 *) connectionConfig->connectionProperties[i].value.data;
+        } else if(UA_String_equal(&prop->key.name, &xdpBindFlagParam)){
+            if(UA_Variant_hasScalarType(&prop->value, &UA_TYPES[UA_TYPES_UINT16])){
+                sockOptions.xdp_bind_flags = *(UA_UInt16 *) prop->value.data;
             }
         } else {
             UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "PubSub Ethernet Connection creation. Unknown connection parameter.");
@@ -1027,7 +1029,7 @@ sendWithTxTime(UA_PubSubChannel *channel, UA_ExtensionObject *transportSettings,
 static UA_StatusCode
 UA_PubSubChannelEthernet_send(UA_PubSubChannel *channel,
                               UA_ExtensionObject *transportSettings,
-                              const UA_ByteString *buf) {
+                              UA_ByteString *buf) {
     UA_PubSubChannelDataEthernet *channelDataEthernet =
         (UA_PubSubChannelDataEthernet *) channel->handle;
 
@@ -1298,6 +1300,18 @@ UA_PubSubChannelEthernet_close(UA_PubSubChannel *channel) {
     UA_free(channel);
     return UA_STATUSCODE_GOOD;
 }
+static UA_StatusCode
+UA_PubSubChannelEthernet_allocNetworkBuffer(UA_PubSubChannel *channel, UA_ByteString *buf, size_t bufSize) {
+
+    UA_StatusCode rv = UA_ByteString_allocBuffer(buf, bufSize);
+    return rv;
+}
+
+static UA_StatusCode
+UA_PubSubChannelEthernet_freeNetworkBuffer(UA_PubSubChannel *channel, UA_ByteString *buf) {
+    UA_ByteString_clear(buf);
+    return UA_STATUSCODE_GOOD;
+}
 
 /**
  * Generate a new channel. based on the given configuration.
@@ -1306,8 +1320,11 @@ UA_PubSubChannelEthernet_close(UA_PubSubChannel *channel) {
  * @return  ref to created channel, NULL on error
  */
 static UA_PubSubChannel *
-TransportLayerEthernet_addChannel(UA_PubSubConnectionConfig *connectionConfig) {
+TransportLayerEthernet_addChannel(UA_PubSubTransportLayer *tl, void *ctx) {
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "PubSub channel requested");
+    UA_TransportLayerContext *tctx  = (UA_TransportLayerContext *) ctx;
+    UA_PubSubConnectionConfig *connectionConfig = tctx->connectionConfig;
+
     UA_PubSubChannel * pubSubChannel = UA_PubSubChannelEthernet_open(connectionConfig);
     if(pubSubChannel) {
         pubSubChannel->regist = UA_PubSubChannelEthernet_regist;
@@ -1315,16 +1332,33 @@ TransportLayerEthernet_addChannel(UA_PubSubConnectionConfig *connectionConfig) {
         pubSubChannel->send = UA_PubSubChannelEthernet_send;
         pubSubChannel->receive = UA_PubSubChannelEthernet_receive;
         pubSubChannel->close = UA_PubSubChannelEthernet_close;
+        pubSubChannel->openPublisher = NULL;
+        pubSubChannel->openSubscriber = NULL;
+        pubSubChannel->closePublisher = NULL;
+        pubSubChannel->closeSubscriber = NULL;
         pubSubChannel->connectionConfig = connectionConfig;
+        pubSubChannel->allocNetworkBuffer = UA_PubSubChannelEthernet_allocNetworkBuffer;
+        pubSubChannel->freeNetworkBuffer = UA_PubSubChannelEthernet_freeNetworkBuffer;
+
     }
     return pubSubChannel;
+}
+
+static UA_StatusCode
+TransportLayerEthernet_addWritergroupChannel(UA_PubSubChannel **out, UA_PubSubTransportLayer *tl, const UA_ExtensionObject *writerGroupTransportSettings, void* ctx)  {
+    *out = NULL;
+    return UA_STATUSCODE_GOOD;
 }
 
 UA_PubSubTransportLayer
 UA_PubSubTransportLayerEthernet(void) {
     UA_PubSubTransportLayer pubSubTransportLayer;
+
     pubSubTransportLayer.transportProfileUri =
         UA_STRING("http://opcfoundation.org/UA-Profile/Transport/pubsub-eth-uadp");
     pubSubTransportLayer.createPubSubChannel = &TransportLayerEthernet_addChannel;
+    pubSubTransportLayer.createWriterGroupPubSubChannel= &TransportLayerEthernet_addWritergroupChannel;
+    pubSubTransportLayer.connectionManager = NULL;
+
     return pubSubTransportLayer;
 }

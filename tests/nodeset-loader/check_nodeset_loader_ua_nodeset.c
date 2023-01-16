@@ -5,7 +5,7 @@
 /* Test case for all standardized companion nodesets. You can
  * find the specifications at https://github.com/OPCFoundation/UA-Nodeset.
  *      - branch: latest
- *      - commit: a2208e8
+ *      - commit: 54e3513
  * 
  * Currently this test case is missing the following UA-Nodesets:
  *    * NodesetLoader related issues:
@@ -87,6 +87,13 @@ START_TEST(Server_loadAutoIDNodeset) {
 }
 END_TEST
 
+START_TEST(Server_loadBACnetNodeset) {
+    bool retVal = UA_Server_loadNodeset(server,
+        OPEN62541_NODESET_DIR "BACnet/Opc.Ua.BACnet.NodeSet2.xml", NULL);
+    ck_assert_uint_eq(retVal, true);
+}
+END_TEST
+
 START_TEST(Server_loadCASNodeset) {
     bool retVal = UA_Server_loadNodeset(server,
         OPEN62541_NODESET_DIR "CAS/Opc.Ua.CAS.NodeSet2.xml", NULL);
@@ -159,12 +166,6 @@ START_TEST(Server_loadGDSNodeset) {
 }
 END_TEST
 
-START_TEST(Server_loadServer_loadGDSPart12Nodeset) {
-    bool retVal = UA_Server_loadNodeset(server,
-        OPEN62541_NODESET_DIR "GDS/Opc.Ua.Gds.NodeSet2.Part12.xml", NULL);
-    ck_assert_uint_eq(retVal, true);
-}
-END_TEST
 
 START_TEST(Server_loadServer_loadGlassNodeset) {
     bool retVal = UA_Server_loadNodeset(server,
@@ -657,6 +658,12 @@ static Suite* testSuite_Client(void) {
         suite_add_tcase(s, tc_server);
     }
     {
+        TCase *tc_server = tcase_create("Server load BACnet nodeset");
+        tcase_add_unchecked_fixture(tc_server, setup, teardown);
+        tcase_add_test(tc_server, Server_loadBACnetNodeset);
+        suite_add_tcase(s, tc_server);
+    }
+    {
         TCase *tc_server = tcase_create("Server load CAS nodeset");
         tcase_add_unchecked_fixture(tc_server, setup, teardown);
         tcase_add_test(tc_server, Server_loadDINodeset);
@@ -722,12 +729,6 @@ static Suite* testSuite_Client(void) {
         TCase *tc_server = tcase_create("Server load GDS nodeset");
         tcase_add_unchecked_fixture(tc_server, setup, teardown);
         tcase_add_test(tc_server, Server_loadGDSNodeset);
-        suite_add_tcase(s, tc_server);
-    }
-    {
-        TCase *tc_server = tcase_create("Server load GDSPart12 nodeset");
-        tcase_add_unchecked_fixture(tc_server, setup, teardown);
-        tcase_add_test(tc_server, Server_loadServer_loadGDSPart12Nodeset);
         suite_add_tcase(s, tc_server);
     }
     {

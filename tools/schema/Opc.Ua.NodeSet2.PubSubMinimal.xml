@@ -2168,6 +2168,7 @@
       <Reference ReferenceType="HasComponent">i=17366</Reference> <!-- addConnection -->
       <Reference ReferenceType="HasComponent">i=17369</Reference>
       <Reference ReferenceType="HasComponent">i=17371</Reference>
+      <Reference ReferenceType="HasComponent">i=23658</Reference> <!-- SubscribedDataSets -->
       <Reference ReferenceType="HasComponent" IsForward="false">i=2253</Reference>
       <Reference ReferenceType="HasComponent">i=25451</Reference> <!-- PubSubConfiguration -->
       <Reference ReferenceType="HasProperty">i=25480</Reference> <!-- DefaultDatagramPublisherId -->
@@ -2416,6 +2417,13 @@
           <Reference ReferenceType="HasTypeDefinition">i=14477</Reference>
           <Reference ReferenceType="HasComponent" IsForward="false">i=14443</Reference>
       </References>
+  </UAObject>
+  <UAObject NodeId="i=23658" BrowseName="SubscribedDataSets" ParentNodeId="i=14443">
+    <DisplayName>SubscribedDataSets</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=23795</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">i=14443</Reference>
+    </References>
   </UAObject>
   <UAVariable NodeId="i=17481" BrowseName="SupportedTransportProfiles" ParentNodeId="i=14443" DataType="String" ValueRank="1">
     <DisplayName>SupportedTransportProfiles</DisplayName>

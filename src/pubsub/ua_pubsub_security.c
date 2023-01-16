@@ -5,7 +5,7 @@
  * Copyright (c) 2021 Fraunhofer IOSB (Author: Jan Hermes)
  */
 
-#include "ua_pubsub_manager.h"
+#include "ua_pubsub.h"
 #include "ua_util_internal.h"
 
 static

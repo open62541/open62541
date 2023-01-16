@@ -17,12 +17,6 @@ timerCallback(void *application, void *data) {
     count++;
 }
 
-static void
-executionCallback(void *executionApplication, UA_ApplicationCallback cb,
-                  void *callbackApplication, void *data) {
-    cb(callbackApplication, data);
-}
-
 /* Create empty events with different callback intervals */
 static void
 createEvents(UA_Timer *t, UA_UInt32 events) {
@@ -42,7 +36,7 @@ START_TEST(benchmarkTimer) {
     clock_t begin = clock();
     UA_DateTime now = 0;
     for(size_t i = 0; i < 1000; i++) {
-        UA_DateTime next = UA_Timer_process(&timer, now, executionCallback, NULL);
+        UA_DateTime next = UA_Timer_process(&timer, now);
         /* At least 100 msec distance between _process */
         now = next + (UA_DATETIME_MSEC * 100);
         if(next > now)

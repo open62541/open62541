@@ -378,8 +378,8 @@ void
 ReadWithNode(const UA_Node *node, UA_Server *server, UA_Session *session,
              UA_TimestampsToReturn timestampsToReturn,
              const UA_ReadValueId *id, UA_DataValue *v) {
-    UA_LOG_NODEID_DEBUG(&node->head.nodeId,
-                        UA_LOG_DEBUG_SESSION(&server->config.logger, session,
+    UA_LOG_NODEID_TRACE(&node->head.nodeId,
+                        UA_LOG_TRACE_SESSION(&server->config.logger, session,
                                              "Read attribute %"PRIi32 " of Node %.*s",
                                              id->attributeId, (int)nodeIdStr.length,
                                              nodeIdStr.data));
@@ -1258,9 +1258,9 @@ writeArrayDimensionsAttribute(UA_Server *server, UA_Session *session,
 
 /* Stack layout: ... | node | type */
 static UA_StatusCode
-writeValueRankAttribute(UA_Server *server, UA_Session *session,
-                        UA_VariableNode *node, const UA_VariableTypeNode *type,
-                        UA_Int32 valueRank) {
+writeValueRank(UA_Server *server, UA_Session *session,
+               UA_VariableNode *node, const UA_VariableTypeNode *type,
+               UA_Int32 valueRank) {
     UA_assert(node != NULL);
     UA_assert(type != NULL);
 
@@ -1652,8 +1652,8 @@ copyAttributeIntoNode(UA_Server *server, UA_Session *session,
     UA_UInt32 userWriteMask = getUserWriteMask(server, session, &node->head);
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
 
-    UA_LOG_NODEID_DEBUG(&node->head.nodeId,
-                        UA_LOG_DEBUG_SESSION(&server->config.logger, session,
+    UA_LOG_NODEID_TRACE(&node->head.nodeId,
+                        UA_LOG_TRACE_SESSION(&server->config.logger, session,
                                              "Write attribute %"PRIi32 " of Node %.*s",
                                              wvalue->attributeId, (int)nodeIdStr.length,
                                              nodeIdStr.data));
@@ -1756,8 +1756,8 @@ copyAttributeIntoNode(UA_Server *server, UA_Session *session,
         CHECK_USERWRITEMASK(UA_WRITEMASK_VALUERANK);
         CHECK_DATATYPE_SCALAR(INT32);
         GET_NODETYPE;
-        retval = writeValueRankAttribute(server, session, &node->variableNode,
-                                         type, *(const UA_Int32*)value);
+        retval = writeValueRank(server, session, &node->variableNode,
+                                type, *(const UA_Int32*)value);
         UA_NODESTORE_RELEASE(server, (const UA_Node*)type);
         break;
     case UA_ATTRIBUTEID_ARRAYDIMENSIONS:
@@ -1815,7 +1815,7 @@ copyAttributeIntoNode(UA_Server *server, UA_Session *session,
     return UA_STATUSCODE_GOOD;
 }
 
-static void
+void
 Operation_Write(UA_Server *server, UA_Session *session, void *context,
                 const UA_WriteValue *wv, UA_StatusCode *result) {
     UA_assert(session != NULL);
@@ -2112,8 +2112,7 @@ writeObjectProperty(UA_Server *server, const UA_NodeId objectId,
         return retval;
     }
 
-    retval = writeValueAttribute(server, &server->adminSession,
-                                 &bpr.targets[0].targetId.nodeId, &value);
+    retval = writeValueAttribute(server, bpr.targets[0].targetId.nodeId, &value);
 
     UA_BrowsePathResult_clear(&bpr);
     return retval;

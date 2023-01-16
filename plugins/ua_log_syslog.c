@@ -85,7 +85,7 @@ UA_Log_Syslog(void) {
 
 UA_Logger
 UA_Log_Syslog_withLevel(UA_LogLevel minlevel) {
-    UA_Logger logger = {UA_Log_Syslog_log, (void*)minlevel, UA_Log_Syslog_clear};
+    UA_Logger logger = {UA_Log_Syslog_log, (void*)(uintptr_t)minlevel, UA_Log_Syslog_clear};
     return logger;
 }
 

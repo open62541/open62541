@@ -55,7 +55,18 @@ _UA_BEGIN_DECLS
  * can be used with broker based protocols like MQTT and AMQP or brokerless
  * implementations like UDP-Multicasting.
  *
- * The PubSub API uses the following scheme:
+ * The configuration model for PubSub uses the following components: */
+
+typedef enum  {
+    UA_PUBSUB_COMPONENT_CONNECTION,
+    UA_PUBSUB_COMPONENT_WRITERGROUP,
+    UA_PUBSUB_COMPONENT_DATASETWRITER,
+    UA_PUBSUB_COMPONENT_READERGROUP,
+    UA_PUBSUB_COMPONENT_DATASETREADER
+} UA_PubSubComponentEnumType;
+
+/**
+ * The open62541 PubSub API uses the following scheme:
  *
  * 1. Create a configuration for the needed PubSub element.
  *
@@ -129,20 +140,11 @@ _UA_BEGIN_DECLS
  * The PubSub connections are the abstraction between the concrete transport protocol
  * and the PubSub functionality. It is possible to create multiple connections with
  * different transport protocols at runtime.
- *
- * Take a look on the PubSub Tutorials for mor details about the API usage.
  */
 
-typedef enum  {
-    UA_PUBSUB_COMPONENT_CONNECTION,
-    UA_PUBSUB_COMPONENT_WRITERGROUP,
-    UA_PUBSUB_COMPONENT_DATASETWRITER,
-    UA_PUBSUB_COMPONENT_READERGROUP,
-    UA_PUBSUB_COMPONENT_DATASETREADER
-} UA_PubSubComponentEnumType;
-
+/* Valid PublisherId types from Part 14 */
 typedef enum {
-    UA_PUBLISHERIDTYPE_BYTE = 0,
+    UA_PUBLISHERIDTYPE_BYTE   = 0,
     UA_PUBLISHERIDTYPE_UINT16 = 1,
     UA_PUBLISHERIDTYPE_UINT32 = 2,
     UA_PUBLISHERIDTYPE_UINT64 = 3,
@@ -174,9 +176,13 @@ struct UA_PubSubConnectionConfig {
     UA_PublisherId publisherId;
     UA_String transportProfileUri;
     UA_Variant address;
-    size_t connectionPropertiesSize;
-    UA_KeyValuePair *connectionProperties;
+    UA_KeyValueMap connectionProperties;
     UA_Variant connectionTransportSettings;
+
+    UA_EventLoop *eventLoop; /* Use an external EventLoop (use the EventLoop of
+                              * the server if this is NULL). Propagates to the
+                              * ReaderGroup/WriterGroup attached to the
+                              * Connection. */
 };
 
 #ifdef UA_ENABLE_PUBSUB_MONITORING
@@ -258,13 +264,13 @@ UA_ServerConfig_addPubSubTransportLayer(UA_ServerConfig *config,
  * @return UA_STATUSCODE_GOOD if connection was successfully added, otherwise an
  *         error code.
  */
-UA_StatusCode UA_EXPORT
+UA_StatusCode UA_EXPORT UA_THREADSAFE
 UA_Server_addPubSubConnection(UA_Server *server,
                               const UA_PubSubConnectionConfig *connectionConfig,
                               UA_NodeId *connectionIdentifier);
 
 /* Returns a deep copy of the config */
-UA_StatusCode UA_EXPORT
+UA_StatusCode UA_EXPORT UA_THREADSAFE
 UA_Server_getPubSubConnectionConfig(UA_Server *server,
                                     const UA_NodeId connection,
                                     UA_PubSubConnectionConfig *config);
@@ -336,18 +342,18 @@ typedef struct {
     UA_ConfigurationVersionDataType configurationVersion;
 } UA_AddPublishedDataSetResult;
 
-UA_AddPublishedDataSetResult UA_EXPORT
+UA_EXPORT UA_AddPublishedDataSetResult UA_THREADSAFE
 UA_Server_addPublishedDataSet(UA_Server *server,
                               const UA_PublishedDataSetConfig *publishedDataSetConfig,
                               UA_NodeId *pdsIdentifier);
 
 /* Returns a deep copy of the config */
-UA_StatusCode UA_EXPORT
+UA_EXPORT UA_StatusCode UA_THREADSAFE
 UA_Server_getPublishedDataSetConfig(UA_Server *server, const UA_NodeId pds,
                                     UA_PublishedDataSetConfig *config);
 
 /* Returns a deep copy of the DataSetMetaData for an specific PDS */
-UA_StatusCode UA_EXPORT
+UA_EXPORT UA_StatusCode UA_THREADSAFE
 UA_Server_getPublishedDataSetMetaData(UA_Server *server, const UA_NodeId pds,
                                       UA_DataSetMetaDataType *metaData);
 
@@ -406,18 +412,18 @@ typedef struct {
     UA_ConfigurationVersionDataType configurationVersion;
 } UA_DataSetFieldResult;
 
-UA_DataSetFieldResult UA_EXPORT UA_THREADSAFE
+UA_EXPORT UA_DataSetFieldResult UA_THREADSAFE
 UA_Server_addDataSetField(UA_Server *server,
                           const UA_NodeId publishedDataSet,
                           const UA_DataSetFieldConfig *fieldConfig,
                           UA_NodeId *fieldIdentifier);
 
 /* Returns a deep copy of the config */
-UA_StatusCode UA_EXPORT
+UA_EXPORT UA_StatusCode UA_THREADSAFE
 UA_Server_getDataSetFieldConfig(UA_Server *server, const UA_NodeId dsf,
                                 UA_DataSetFieldConfig *config);
 
-UA_DataSetFieldResult UA_EXPORT UA_THREADSAFE
+UA_EXPORT UA_DataSetFieldResult UA_THREADSAFE
 UA_Server_removeDataSetField(UA_Server *server, const UA_NodeId dsf);
 
 /**
@@ -505,8 +511,7 @@ typedef struct {
     UA_Byte priority;
     UA_ExtensionObject transportSettings;
     UA_ExtensionObject messageSettings;
-    size_t groupPropertiesSize;
-    UA_KeyValuePair *groupProperties;
+    UA_KeyValueMap groupProperties;
     UA_PubSubEncodingType encodingMimeType;
     /* PubSub Manager Callback */
     UA_PubSub_CallbackLifecycle pubsubManagerCallback;
@@ -530,43 +535,50 @@ void UA_EXPORT
 UA_WriterGroupConfig_clear(UA_WriterGroupConfig *writerGroupConfig);
 
 /* Add a new WriterGroup to an existing Connection */
-UA_StatusCode UA_EXPORT
+UA_EXPORT UA_StatusCode UA_THREADSAFE
 UA_Server_addWriterGroup(UA_Server *server, const UA_NodeId connection,
                          const UA_WriterGroupConfig *writerGroupConfig,
                          UA_NodeId *writerGroupIdentifier);
 
 /* Returns a deep copy of the config */
-UA_StatusCode UA_EXPORT
+UA_EXPORT UA_StatusCode UA_THREADSAFE
 UA_Server_getWriterGroupConfig(UA_Server *server, const UA_NodeId writerGroup,
                                UA_WriterGroupConfig *config);
 
-UA_StatusCode UA_EXPORT UA_THREADSAFE
+UA_EXPORT UA_StatusCode UA_THREADSAFE
 UA_Server_updateWriterGroupConfig(UA_Server *server, UA_NodeId writerGroupIdentifier,
                                   const UA_WriterGroupConfig *config);
 
 /* Get state of WriterGroup */
-UA_StatusCode UA_EXPORT
+UA_EXPORT UA_StatusCode UA_THREADSAFE
 UA_Server_WriterGroup_getState(UA_Server *server, UA_NodeId writerGroupIdentifier,
                                UA_PubSubState *state);
 
-UA_StatusCode UA_EXPORT UA_THREADSAFE
+UA_EXPORT UA_StatusCode UA_THREADSAFE
+UA_Server_WriterGroup_publish(UA_Server *server, const UA_NodeId writerGroupIdentifier);
+
+UA_EXPORT UA_StatusCode UA_THREADSAFE
+UA_WriterGroup_lastPublishTimestamp(UA_Server *server, const UA_NodeId writerGroupId,
+                                    UA_DateTime *timestamp);
+
+UA_EXPORT UA_StatusCode UA_THREADSAFE
 UA_Server_removeWriterGroup(UA_Server *server, const UA_NodeId writerGroup);
 
-UA_StatusCode UA_EXPORT
+UA_EXPORT UA_StatusCode UA_THREADSAFE
 UA_Server_freezeWriterGroupConfiguration(UA_Server *server, const UA_NodeId writerGroup);
 
-UA_StatusCode UA_EXPORT
+UA_EXPORT UA_StatusCode UA_THREADSAFE
 UA_Server_unfreezeWriterGroupConfiguration(UA_Server *server, const UA_NodeId writerGroup);
 
-UA_StatusCode UA_EXPORT UA_THREADSAFE
+UA_EXPORT UA_StatusCode UA_THREADSAFE
 UA_Server_setWriterGroupOperational(UA_Server *server, const UA_NodeId writerGroup);
 
-UA_StatusCode UA_EXPORT UA_THREADSAFE
+UA_EXPORT UA_StatusCode UA_THREADSAFE
 UA_Server_setWriterGroupDisabled(UA_Server *server, const UA_NodeId writerGroup);
 
 #ifdef UA_ENABLE_PUBSUB_ENCRYPTION
 /* Set the group key for the message encryption */
-UA_StatusCode UA_EXPORT
+UA_StatusCode UA_EXPORT UA_THREADSAFE
 UA_Server_setWriterGroupEncryptionKeys(UA_Server *server, const UA_NodeId writerGroup,
                                        UA_UInt32 securityTokenId,
                                        const UA_ByteString signingKey,
@@ -593,8 +605,7 @@ typedef struct {
     UA_ExtensionObject messageSettings;
     UA_ExtensionObject transportSettings;
     UA_String dataSetName;
-    size_t dataSetWriterPropertiesSize;
-    UA_KeyValuePair *dataSetWriterProperties;
+    UA_KeyValueMap dataSetWriterProperties;
 } UA_DataSetWriterConfig;
 
 void UA_EXPORT
@@ -606,23 +617,23 @@ UA_DataSetWriterConfig_clear(UA_DataSetWriterConfig *pdsConfig);
  * Part 14, 7.1.5.2.1 defines: The link between the PublishedDataSet and
  * DataSetWriter shall be created when an instance of the DataSetWriterType is
  * created. */
-UA_StatusCode UA_EXPORT UA_THREADSAFE
+UA_EXPORT UA_StatusCode UA_THREADSAFE
 UA_Server_addDataSetWriter(UA_Server *server,
                            const UA_NodeId writerGroup, const UA_NodeId dataSet,
                            const UA_DataSetWriterConfig *dataSetWriterConfig,
                            UA_NodeId *writerIdentifier);
 
 /* Returns a deep copy of the config */
-UA_StatusCode UA_EXPORT
+UA_EXPORT UA_StatusCode UA_THREADSAFE
 UA_Server_getDataSetWriterConfig(UA_Server *server, const UA_NodeId dsw,
                                  UA_DataSetWriterConfig *config);
 
 /* Get state of DataSetWriter */
-UA_StatusCode UA_EXPORT
+UA_EXPORT UA_StatusCode UA_THREADSAFE
 UA_Server_DataSetWriter_getState(UA_Server *server, UA_NodeId dataSetWriterIdentifier,
-                               UA_PubSubState *state);
+                                 UA_PubSubState *state);
 
-UA_StatusCode UA_EXPORT UA_THREADSAFE
+UA_EXPORT UA_StatusCode UA_THREADSAFE
 UA_Server_removeDataSetWriter(UA_Server *server, const UA_NodeId dsw);
 
 /**
@@ -677,7 +688,7 @@ typedef struct {
 } UA_TargetVariables;
 
 /* Return Status Code after creating TargetVariables in Subscriber AddressSpace */
-UA_StatusCode UA_EXPORT
+UA_EXPORT UA_StatusCode UA_THREADSAFE
 UA_Server_DataSetReader_createTargetVariables(UA_Server *server,
                                               UA_NodeId dataSetReaderIdentifier,
                                               size_t targetVariablesSize,
@@ -727,18 +738,18 @@ typedef struct {
 } UA_DataSetReaderConfig;
 
 /* Update configuration to the dataSetReader */
-UA_StatusCode UA_EXPORT
+UA_EXPORT UA_StatusCode UA_THREADSAFE
 UA_Server_DataSetReader_updateConfig(UA_Server *server, UA_NodeId dataSetReaderIdentifier,
                                      UA_NodeId readerGroupIdentifier,
                                      const UA_DataSetReaderConfig *config);
 
 /* Get configuration of the dataSetReader */
-UA_StatusCode UA_EXPORT
+UA_EXPORT UA_StatusCode UA_THREADSAFE
 UA_Server_DataSetReader_getConfig(UA_Server *server, UA_NodeId dataSetReaderIdentifier,
                                   UA_DataSetReaderConfig *config);
 
 /* Get state of DataSetReader */
-UA_StatusCode UA_EXPORT
+UA_EXPORT UA_StatusCode UA_THREADSAFE
 UA_Server_DataSetReader_getState(UA_Server *server, UA_NodeId dataSetReaderIdentifier,
                                  UA_PubSubState *state);
 
@@ -756,19 +767,19 @@ typedef struct {
 void
 UA_StandaloneSubscribedDataSetConfig_clear(UA_StandaloneSubscribedDataSetConfig *sdsConfig);
 
-UA_StatusCode UA_EXPORT
+UA_EXPORT UA_StatusCode UA_THREADSAFE
 UA_Server_addStandaloneSubscribedDataSet(UA_Server *server,
                                const UA_StandaloneSubscribedDataSetConfig *subscribedDataSetConfig,
                                UA_NodeId *sdsIdentifier);
 
 /* Remove StandaloneSubscribedDataSet, identified by the NodeId. */
-UA_StatusCode UA_EXPORT
+UA_EXPORT UA_StatusCode UA_THREADSAFE
 UA_Server_removeStandaloneSubscribedDataSet(UA_Server *server, const UA_NodeId sds);
 
 /**
  * ReaderGroup
  * -----------
-
+ *
  * ReaderGroup is used to group a list of DataSetReaders. All ReaderGroups are
  * created within a PubSubConnection and automatically deleted if the connection
  * is removed. All network message related filters are only available in the
@@ -793,8 +804,7 @@ typedef struct {
     UA_Boolean enableBlockingSocket; // To enable or disable blocking socket option
     UA_UInt32 timeout; // Timeout for receive to wait for the packets
     UA_PubSubRTLevel rtLevel;
-    size_t groupPropertiesSize;
-    UA_KeyValuePair *groupProperties;
+    UA_KeyValueMap groupProperties;
     UA_PubSubEncodingType encodingMimeType;
     UA_ExtensionObject transportSettings;
 
@@ -812,13 +822,13 @@ void UA_EXPORT
 UA_ReaderGroupConfig_clear(UA_ReaderGroupConfig *readerGroupConfig);
 
 /* Add DataSetReader to the ReaderGroup */
-UA_StatusCode UA_EXPORT
+UA_EXPORT UA_StatusCode UA_THREADSAFE
 UA_Server_addDataSetReader(UA_Server *server, UA_NodeId readerGroupIdentifier,
                            const UA_DataSetReaderConfig *dataSetReaderConfig,
                            UA_NodeId *readerIdentifier);
 
 /* Remove DataSetReader from ReaderGroup */
-UA_StatusCode UA_EXPORT
+UA_EXPORT UA_StatusCode UA_THREADSAFE
 UA_Server_removeDataSetReader(UA_Server *server, UA_NodeId readerIdentifier);
 
 /* To Do: Update Configuration of ReaderGroup
@@ -828,40 +838,40 @@ UA_Server_removeDataSetReader(UA_Server *server, UA_NodeId readerIdentifier);
  */
 
 /* Get configuraiton of ReaderGroup */
-UA_StatusCode UA_EXPORT
+UA_EXPORT UA_StatusCode UA_THREADSAFE
 UA_Server_ReaderGroup_getConfig(UA_Server *server, UA_NodeId readerGroupIdentifier,
                                 UA_ReaderGroupConfig *config);
 
 /* Get state of ReaderGroup */
-UA_StatusCode UA_EXPORT
+UA_EXPORT UA_StatusCode UA_THREADSAFE
 UA_Server_ReaderGroup_getState(UA_Server *server, UA_NodeId readerGroupIdentifier,
                                UA_PubSubState *state);
 
 /* Add ReaderGroup to the created connection */
-UA_StatusCode UA_EXPORT
+UA_EXPORT UA_StatusCode UA_THREADSAFE
 UA_Server_addReaderGroup(UA_Server *server, UA_NodeId connectionIdentifier,
                          const UA_ReaderGroupConfig *readerGroupConfig,
                          UA_NodeId *readerGroupIdentifier);
 
 /* Remove ReaderGroup from connection */
-UA_StatusCode UA_EXPORT UA_THREADSAFE
+UA_EXPORT UA_StatusCode UA_THREADSAFE
 UA_Server_removeReaderGroup(UA_Server *server, UA_NodeId groupIdentifier);
 
-UA_StatusCode UA_EXPORT
+UA_EXPORT UA_StatusCode UA_THREADSAFE
 UA_Server_freezeReaderGroupConfiguration(UA_Server *server, const UA_NodeId readerGroupId);
 
-UA_StatusCode UA_EXPORT
+UA_EXPORT UA_StatusCode UA_THREADSAFE
 UA_Server_unfreezeReaderGroupConfiguration(UA_Server *server, const UA_NodeId readerGroupId);
 
-UA_StatusCode UA_EXPORT
+UA_EXPORT UA_StatusCode UA_THREADSAFE
 UA_Server_setReaderGroupOperational(UA_Server *server, const UA_NodeId readerGroupId);
 
-UA_StatusCode UA_EXPORT
+UA_EXPORT UA_StatusCode UA_THREADSAFE
 UA_Server_setReaderGroupDisabled(UA_Server *server, const UA_NodeId readerGroupId);
 
 #ifdef UA_ENABLE_PUBSUB_ENCRYPTION
 /* Set the group key for the message encryption */
-UA_StatusCode UA_EXPORT
+UA_EXPORT UA_StatusCode UA_THREADSAFE
 UA_Server_setReaderGroupEncryptionKeys(UA_Server *server, UA_NodeId readerGroup,
                                        UA_UInt32 securityTokenId,
                                        UA_ByteString signingKey,
@@ -870,6 +880,7 @@ UA_Server_setReaderGroupEncryptionKeys(UA_Server *server, UA_NodeId readerGroup,
 #endif
 
 #ifdef UA_ENABLE_PUBSUB_SKS
+
 /**
  * SecurityGroup
  * -------------
@@ -909,7 +920,7 @@ typedef struct {
  * @param securityGroupNodeId The output nodeId of the new SecurityGroup
  * @return UA_StatusCode The return status code
  */
-UA_StatusCode UA_EXPORT UA_THREADSAFE
+UA_EXPORT UA_StatusCode UA_THREADSAFE
 UA_Server_addSecurityGroup(UA_Server *server, UA_NodeId securityGroupFolderNodeId,
                            const UA_SecurityGroupConfig *securityGroupConfig,
                            UA_NodeId *securityGroupNodeId);
@@ -922,7 +933,7 @@ UA_Server_addSecurityGroup(UA_Server *server, UA_NodeId securityGroupFolderNodeI
  * @param securityGroup The nodeId of the securityGroup to be removed
  * @return UA_StatusCode The returned status code.
  */
-UA_StatusCode UA_EXPORT UA_THREADSAFE
+UA_EXPORT UA_StatusCode UA_THREADSAFE
 UA_Server_removeSecurityGroup(UA_Server *server, const UA_NodeId securityGroup);
 
 #endif /* UA_ENABLE_PUBSUB_SKS */

@@ -50,7 +50,7 @@ UA_DataSetReader *UA_ReaderGroup_findDSRbyId(UA_Server *server, UA_NodeId identi
 
 /* Clear ReaderGroup */
 static void
-UA_Server_ReaderGroup_clear(UA_Server* server, UA_ReaderGroup *readerGroup);
+ReaderGroup_clear(UA_Server* server, UA_ReaderGroup *readerGroup);
 
 /* ReaderGroup Config Handling */
 
@@ -58,38 +58,21 @@ UA_StatusCode
 UA_ReaderGroupConfig_copy(const UA_ReaderGroupConfig *src,
                           UA_ReaderGroupConfig *dst) {
     memcpy(dst, src, sizeof(UA_ReaderGroupConfig));
-
-    UA_StatusCode res = UA_String_copy(&src->name, &dst->name);
-    if(res != UA_STATUSCODE_GOOD)
-        return res;
-
-    res = UA_Array_copy(src->groupProperties, src->groupPropertiesSize,
-                        (void**)&dst->groupProperties,
-                        &UA_TYPES[UA_TYPES_KEYVALUEPAIR]);
-    if(res != UA_STATUSCODE_GOOD) {
-        UA_String_clear(&dst->name);
-        return res;
-    }
+    UA_StatusCode res = UA_STATUSCODE_GOOD;
+    res |= UA_String_copy(&src->name, &dst->name);
+    res |= UA_KeyValueMap_copy(&src->groupProperties, &dst->groupProperties);
 #ifdef UA_ENABLE_PUBSUB_ENCRYPTION
     res = UA_String_copy(&src->securityGroupId, &dst->securityGroupId);
-    if(res != UA_STATUSCODE_GOOD) {
-        UA_String_clear(&dst->name);
-        UA_String_clear(&dst->securityGroupId);
-        return res;
-    }
 #endif
-    dst->groupPropertiesSize = src->groupPropertiesSize;
-    return UA_STATUSCODE_GOOD;
+    if(res != UA_STATUSCODE_GOOD)
+        UA_ReaderGroupConfig_clear(dst);
+    return res;
 }
 
 void
 UA_ReaderGroupConfig_clear(UA_ReaderGroupConfig *readerGroupConfig) {
     UA_String_clear(&readerGroupConfig->name);
-    UA_Array_delete(readerGroupConfig->groupProperties,
-                    readerGroupConfig->groupPropertiesSize,
-                    &UA_TYPES[UA_TYPES_KEYVALUEPAIR]);
-    readerGroupConfig->groupProperties = NULL;
-    readerGroupConfig->groupPropertiesSize = 0;
+    UA_KeyValueMap_clear(&readerGroupConfig->groupProperties);
 #ifdef UA_ENABLE_PUBSUB_ENCRYPTION
     UA_String_clear(&readerGroupConfig->securityGroupId);
 #endif
@@ -98,9 +81,9 @@ UA_ReaderGroupConfig_clear(UA_ReaderGroupConfig *readerGroupConfig) {
 /* ReaderGroup Lifecycle */
 
 UA_StatusCode
-UA_Server_addReaderGroup(UA_Server *server, UA_NodeId connectionIdentifier,
-                         const UA_ReaderGroupConfig *readerGroupConfig,
-                         UA_NodeId *readerGroupIdentifier) {
+UA_ReaderGroup_create(UA_Server *server, UA_NodeId connectionIdentifier,
+                      const UA_ReaderGroupConfig *readerGroupConfig,
+                      UA_NodeId *readerGroupIdentifier) {
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
 
     /* Check for valid readergroup configuration */
@@ -143,7 +126,7 @@ UA_Server_addReaderGroup(UA_Server *server, UA_NodeId connectionIdentifier,
     newGroup->componentType = UA_PUBSUB_COMPONENT_READERGROUP;
 
     /* Deep copy of the config */
-    retval |= UA_NodeId_copy(&currentConnectionContext->identifier, &newGroup->linkedConnection);
+    newGroup->linkedConnection = currentConnectionContext;
     retval |= UA_ReaderGroupConfig_copy(readerGroupConfig, &newGroup->config);
 
     /* Check user configured params and define it accordingly */
@@ -173,22 +156,27 @@ UA_Server_addReaderGroup(UA_Server *server, UA_NodeId connectionIdentifier,
        readerGroupConfig->securityMode == UA_MESSAGESECURITYMODE_SIGNANDENCRYPT) {
         if(!UA_String_isEmpty(&readerGroupConfig->securityGroupId) &&
            readerGroupConfig->securityPolicy) {
-            UA_String policyUri = readerGroupConfig->securityPolicy->policyUri;
+            /* Does the key storage already exist? */
+            newGroup->keyStorage =
+                UA_PubSubKeyStorage_findKeyStorage(server, readerGroupConfig->securityGroupId);
 
-            newGroup->keyStorage = UA_Server_findKeyStorage(
-                server, readerGroupConfig->securityGroupId);
             if(!newGroup->keyStorage) {
-                newGroup->keyStorage = (UA_PubSubKeyStorage *)UA_calloc(1, sizeof(UA_PubSubKeyStorage));
+                /* Create a new key storage */
+                newGroup->keyStorage = (UA_PubSubKeyStorage *)
+                    UA_calloc(1, sizeof(UA_PubSubKeyStorage));
                 if(!newGroup->keyStorage)
                     return UA_STATUSCODE_BADOUTOFMEMORY;
+                retval = UA_PubSubKeyStorage_init(server, newGroup->keyStorage,
+                                                  &readerGroupConfig->securityGroupId,
+                                                  readerGroupConfig->securityPolicy, 0, 0);
+                if(retval != UA_STATUSCODE_GOOD) {
+                    UA_free(newGroup);
+                    return retval;
+                }
             }
 
-            retval = UA_PubSubKeyStorage_init(server, &readerGroupConfig->securityGroupId,
-                                              &policyUri, 0, 0, newGroup->keyStorage);
-            if(retval != UA_STATUSCODE_GOOD) {
-                UA_free(newGroup);
-                return retval;
-            }
+            /* Increase the ref count */
+            newGroup->keyStorage->referenceCount++;
         }
     }
 
@@ -199,11 +187,24 @@ UA_Server_addReaderGroup(UA_Server *server, UA_NodeId connectionIdentifier,
 
     /* Set the assigment between ReaderGroup and Topic if the transport layer is MQTT. */
     const UA_String transport_uri = UA_STRING("http://opcfoundation.org/UA-Profile/Transport/pubsub-mqtt");
-    if(UA_String_equal(&currentConnectionContext->config->transportProfileUri, &transport_uri)) {
-        UA_String topic = ((UA_BrokerWriterGroupTransportDataType *)readerGroupConfig->transportSettings.content.decoded.data)->queueName;
+    if(UA_String_equal(&currentConnectionContext->config.transportProfileUri, &transport_uri)) {
+        UA_String topic = ((UA_BrokerWriterGroupTransportDataType *)
+                           readerGroupConfig->transportSettings.content.decoded.data)->queueName;
         retval |= UA_PubSubManager_addPubSubTopicAssign(server, newGroup, topic);
     }
     return retval;
+}
+
+UA_StatusCode
+UA_Server_addReaderGroup(UA_Server *server, UA_NodeId connectionIdentifier,
+                         const UA_ReaderGroupConfig *readerGroupConfig,
+                         UA_NodeId *readerGroupIdentifier) {
+    UA_LOCK(&server->serviceMutex);
+    UA_StatusCode res =
+        UA_ReaderGroup_create(server, connectionIdentifier,
+                              readerGroupConfig, readerGroupIdentifier);
+    UA_UNLOCK(&server->serviceMutex);
+    return res;
 }
 
 UA_StatusCode
@@ -213,29 +214,23 @@ removeReaderGroup(UA_Server *server, UA_NodeId groupIdentifier) {
     if(readerGroup == NULL)
         return UA_STATUSCODE_BADNOTFOUND;
 
-    if(readerGroup->configurationFrozen){
+    if(readerGroup->configurationFrozen) {
         UA_LOG_WARNING_READERGROUP(&server->config.logger, readerGroup,
                                    "Remove ReaderGroup failed. "
                                    "Subscriber configuration is frozen.");
         return UA_STATUSCODE_BADCONFIGURATIONERROR;
     }
 
-    /* Search the connection to which the given readergroup is connected to */
-    UA_PubSubConnection *connection =
-        UA_PubSubConnection_findConnectionbyId(server, readerGroup->linkedConnection);
-    if(connection == NULL)
-        return UA_STATUSCODE_BADNOTFOUND;
-
     /* Unregister subscribe callback */
     if(readerGroup->state == UA_PUBSUBSTATE_OPERATIONAL)
         UA_ReaderGroup_removeSubscribeCallback(server, readerGroup);
 
 #ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL
-    removeReaderGroupRepresentation(server, readerGroup);
+    deleteNode(server, readerGroup->identifier, true);
 #endif
 
     /* UA_Server_ReaderGroup_clear also removes itself from the list */
-    UA_Server_ReaderGroup_clear(server, readerGroup);
+    ReaderGroup_clear(server, readerGroup);
 
     /* Remove readerGroup from Connection */
     LIST_REMOVE(readerGroup, listEntry);
@@ -251,48 +246,44 @@ UA_Server_removeReaderGroup(UA_Server *server, UA_NodeId groupIdentifier) {
     return res;
 }
 
-/* TODO: Implement
-UA_StatusCode
-UA_Server_ReaderGroup_updateConfig(UA_Server *server, UA_NodeId readerGroupIdentifier,
-                                   const UA_ReaderGroupConfig *config) {
-    return UA_STATUSCODE_BADNOTIMPLEMENTED;
-}
-*/
-
 UA_StatusCode
 UA_Server_ReaderGroup_getConfig(UA_Server *server, UA_NodeId readerGroupIdentifier,
                                 UA_ReaderGroupConfig *config) {
     if(!config)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
 
+    UA_LOCK(&server->serviceMutex);
+
     /* Identify the readergroup through the readerGroupIdentifier */
     UA_ReaderGroup *currentReaderGroup =
         UA_ReaderGroup_findRGbyId(server, readerGroupIdentifier);
-    if(!currentReaderGroup)
+    if(!currentReaderGroup) {
+        UA_UNLOCK(&server->serviceMutex);
         return UA_STATUSCODE_BADNOTFOUND;
+    }
 
-    UA_ReaderGroupConfig tmpReaderGroupConfig;
-    /* deep copy of the actual config */
-    UA_ReaderGroupConfig_copy(&currentReaderGroup->config, &tmpReaderGroupConfig);
-    *config = tmpReaderGroupConfig;
-    return UA_STATUSCODE_GOOD;
+    UA_StatusCode ret =
+        UA_ReaderGroupConfig_copy(&currentReaderGroup->config, config);
+
+    UA_UNLOCK(&server->serviceMutex);
+    return ret;
 }
 
 static void
-UA_Server_ReaderGroup_clear(UA_Server* server, UA_ReaderGroup *readerGroup) {
+ReaderGroup_clear(UA_Server* server, UA_ReaderGroup *readerGroup) {
+    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+
     UA_ReaderGroupConfig_clear(&readerGroup->config);
     UA_DataSetReader *dataSetReader;
     UA_DataSetReader *tmpDataSetReader;
     LIST_FOREACH_SAFE(dataSetReader, &readerGroup->readers, listEntry, tmpDataSetReader) {
         removeDataSetReader(server, dataSetReader->identifier);
     }
-    UA_PubSubConnection* pConn =
-        UA_PubSubConnection_findConnectionbyId(server, readerGroup->linkedConnection);
+    UA_PubSubConnection* pConn = readerGroup->linkedConnection;
     if(pConn != NULL)
         pConn->readerGroupsSize--;
 
     /* Delete ReaderGroup and its members */
-    UA_NodeId_clear(&readerGroup->linkedConnection);
     UA_NodeId_clear(&readerGroup->identifier);
 
 #ifdef UA_ENABLE_PUBSUB_ENCRYPTION
@@ -303,12 +294,10 @@ UA_Server_ReaderGroup_clear(UA_Server* server, UA_ReaderGroup *readerGroup) {
 #endif
 
 #ifdef UA_ENABLE_PUBSUB_SKS
-    if(readerGroup->config.securityMode == UA_MESSAGESECURITYMODE_SIGN ||
-       readerGroup->config.securityMode == UA_MESSAGESECURITYMODE_SIGNANDENCRYPT) {
-        UA_PubSubKeyStorage_removeKeyStorage(server, readerGroup->keyStorage);
+    if(readerGroup->keyStorage) {
+        UA_PubSubKeyStorage_detachKeyStorage(server, readerGroup->keyStorage);
         readerGroup->keyStorage = NULL;
     }
-
 #endif
 
     UA_ReaderGroupConfig_clear(&readerGroup->config);
@@ -319,12 +308,16 @@ UA_Server_ReaderGroup_getState(UA_Server *server, UA_NodeId readerGroupIdentifie
                                UA_PubSubState *state) {
     if((server == NULL) || (state == NULL))
         return UA_STATUSCODE_BADINVALIDARGUMENT;
+    UA_LOCK(&server->serviceMutex);
+    UA_StatusCode ret = UA_STATUSCODE_BADNOTFOUND;
     UA_ReaderGroup *currentReaderGroup =
         UA_ReaderGroup_findRGbyId(server, readerGroupIdentifier);
-    if(!currentReaderGroup)
-        return UA_STATUSCODE_BADNOTFOUND;
-    *state = currentReaderGroup->state;
-    return UA_STATUSCODE_GOOD;
+    if(currentReaderGroup) {
+        *state = currentReaderGroup->state;
+        ret = UA_STATUSCODE_GOOD;
+    }
+    UA_UNLOCK(&server->serviceMutex);
+    return ret;
 }
 
 /* ReaderGroup State */
@@ -339,14 +332,20 @@ UA_ReaderGroup_setPubSubState_disable(UA_Server *server,
         return UA_STATUSCODE_GOOD;
     case UA_PUBSUBSTATE_PAUSED:
         break;
-    case UA_PUBSUBSTATE_OPERATIONAL:
+    case UA_PUBSUBSTATE_OPERATIONAL: {
         UA_ReaderGroup_removeSubscribeCallback(server, rg);
+        UA_PubSubConnection *connection = rg->linkedConnection;
+        UA_PubSubChannel *channel = connection->channel;
+        if(channel->closeSubscriber) {
+            channel->closeSubscriber(channel);
+        }
         LIST_FOREACH(dataSetReader, &rg->readers, listEntry) {
             UA_DataSetReader_setPubSubState(server, dataSetReader,
                                             UA_PUBSUBSTATE_DISABLED, cause);
         }
         rg->state = UA_PUBSUBSTATE_DISABLED;
         break;
+    }
     case UA_PUBSUBSTATE_ERROR:
         break;
     default:
@@ -386,14 +385,20 @@ UA_ReaderGroup_setPubSubState_operational(UA_Server *server,
                                           UA_StatusCode cause) {
     UA_DataSetReader *dataSetReader;
     switch(rg->state) {
-    case UA_PUBSUBSTATE_DISABLED:
+    case UA_PUBSUBSTATE_DISABLED: {
         LIST_FOREACH(dataSetReader, &rg->readers, listEntry) {
             UA_DataSetReader_setPubSubState(server, dataSetReader, UA_PUBSUBSTATE_OPERATIONAL,
                                             cause);
         }
+        UA_PubSubConnection *connection = rg->linkedConnection;
+        UA_PubSubChannel *channel = connection->channel;
+        if(channel->openSubscriber) {
+            channel->openSubscriber(channel);
+        }
         UA_ReaderGroup_addSubscribeCallback(server, rg);
         rg->state = UA_PUBSUBSTATE_OPERATIONAL;
         return UA_STATUSCODE_GOOD;
+    }
     case UA_PUBSUBSTATE_PAUSED:
         break;
     case UA_PUBSUBSTATE_OPERATIONAL:
@@ -439,6 +444,8 @@ UA_ReaderGroup_setPubSubState(UA_Server *server,
                               UA_ReaderGroup *readerGroup,
                               UA_PubSubState state,
                               UA_StatusCode cause) {
+    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+
     UA_StatusCode ret = UA_STATUSCODE_BADINVALIDARGUMENT;
     UA_PubSubState oldState = readerGroup->state;
     switch(state) {
@@ -459,9 +466,9 @@ UA_ReaderGroup_setPubSubState(UA_Server *server,
                                        "Received unknown PubSub state!");
             break;
     }
-    if (state != oldState) {
+    if(state != oldState) {
         /* inform application about state change */
-        UA_ServerConfig *pConfig = UA_Server_getConfig(server);
+        UA_ServerConfig *pConfig = &server->config;
         if(pConfig->pubSubConfig.stateChangeCallback != 0) {
             pConfig->pubSubConfig.
                 stateChangeCallback(server, &readerGroup->identifier, state, cause);
@@ -472,34 +479,41 @@ UA_ReaderGroup_setPubSubState(UA_Server *server,
 
 UA_StatusCode
 UA_Server_setReaderGroupOperational(UA_Server *server, const UA_NodeId readerGroupId){
+    UA_LOCK(&server->serviceMutex);
+    UA_StatusCode ret = UA_STATUSCODE_BADNOTFOUND;
     UA_ReaderGroup *rg = UA_ReaderGroup_findRGbyId(server, readerGroupId);
-    if(!rg)
-        return UA_STATUSCODE_BADNOTFOUND;
-    return UA_ReaderGroup_setPubSubState(server, rg, UA_PUBSUBSTATE_OPERATIONAL,
-                                         UA_STATUSCODE_GOOD);
+    if(rg)
+        ret = UA_ReaderGroup_setPubSubState(server, rg, UA_PUBSUBSTATE_OPERATIONAL,
+                                            UA_STATUSCODE_GOOD);
+    UA_UNLOCK(&server->serviceMutex);
+    return ret;
 }
 
 UA_StatusCode
 UA_Server_setReaderGroupDisabled(UA_Server *server, const UA_NodeId readerGroupId){
+    UA_LOCK(&server->serviceMutex);
+    UA_StatusCode ret = UA_STATUSCODE_BADNOTFOUND;
     UA_ReaderGroup *rg = UA_ReaderGroup_findRGbyId(server, readerGroupId);
-    if(!rg)
-        return UA_STATUSCODE_BADNOTFOUND;
-    return UA_ReaderGroup_setPubSubState(server, rg, UA_PUBSUBSTATE_DISABLED,
-                                         UA_STATUSCODE_BADRESOURCEUNAVAILABLE);
+    if(rg)
+        ret = UA_ReaderGroup_setPubSubState(server, rg, UA_PUBSUBSTATE_DISABLED,
+                                            UA_STATUSCODE_BADRESOURCEUNAVAILABLE);
+    UA_UNLOCK(&server->serviceMutex);
+    return ret;
 }
 
 #ifdef UA_ENABLE_PUBSUB_ENCRYPTION
 UA_StatusCode
-UA_Server_setReaderGroupEncryptionKeys(UA_Server *server, const UA_NodeId readerGroup,
-                                       UA_UInt32 securityTokenId,
-                                       const UA_ByteString signingKey,
-                                       const UA_ByteString encryptingKey,
-                                       const UA_ByteString keyNonce) {
+setReaderGroupEncryptionKeys(UA_Server *server, const UA_NodeId readerGroup,
+                             UA_UInt32 securityTokenId,
+                             const UA_ByteString signingKey,
+                             const UA_ByteString encryptingKey,
+                             const UA_ByteString keyNonce) {
     UA_ReaderGroup *rg = UA_ReaderGroup_findRGbyId(server, readerGroup);
     UA_CHECK_MEM(rg, return UA_STATUSCODE_BADNOTFOUND);
     if(rg->config.encodingMimeType == UA_PUBSUB_ENCODING_JSON) {
         UA_LOG_WARNING_READERGROUP(&server->config.logger, rg,
-                                   "JSON encoding is enabled. The message security is only defined for the UADP message mapping.");
+                                   "JSON encoding is enabled. The message security is "
+                                   "only defined for the UADP message mapping.");
         return UA_STATUSCODE_BADINTERNALERROR;
     }
     if(!rg->config.securityPolicy) {
@@ -526,24 +540,32 @@ UA_Server_setReaderGroupEncryptionKeys(UA_Server *server, const UA_NodeId reader
         setSecurityKeys(rg->securityPolicyContext, &signingKey,
                         &encryptingKey, &keyNonce);
 }
+
+UA_StatusCode
+UA_Server_setReaderGroupEncryptionKeys(UA_Server *server, const UA_NodeId readerGroup,
+                                       UA_UInt32 securityTokenId,
+                                       const UA_ByteString signingKey,
+                                       const UA_ByteString encryptingKey,
+                                       const UA_ByteString keyNonce) {
+    UA_LOCK(&server->serviceMutex);
+    UA_StatusCode res = setReaderGroupEncryptionKeys(server, readerGroup,
+                                                     securityTokenId, signingKey,
+                                                     encryptingKey, keyNonce);
+    UA_UNLOCK(&server->serviceMutex);
+    return res;
+}
 #endif
 
 /* Freezing of the configuration */
 
 UA_StatusCode
-UA_Server_freezeReaderGroupConfiguration(UA_Server *server,
-                                         const UA_NodeId readerGroupId) {
-    UA_ReaderGroup *rg = UA_ReaderGroup_findRGbyId(server, readerGroupId);
-    if(!rg)
-        return UA_STATUSCODE_BADNOTFOUND;
-
+UA_ReaderGroup_freezeConfiguration(UA_Server *server, UA_ReaderGroup *rg) {
+    UA_LOCK_ASSERT(&server->serviceMutex, 1);
     if(rg->configurationFrozen)
         return UA_STATUSCODE_GOOD;
 
     /* PubSubConnection freezeCounter++ */
-    UA_NodeId pubSubConnectionId =  rg->linkedConnection;
-    UA_PubSubConnection *pubSubConnection =
-        UA_PubSubConnection_findConnectionbyId(server, pubSubConnectionId);
+    UA_PubSubConnection *pubSubConnection = rg->linkedConnection;
     pubSubConnection->configurationFreezeCounter++;
     pubSubConnection->configurationFrozen = true;
 
@@ -679,16 +701,25 @@ UA_Server_freezeReaderGroupConfiguration(UA_Server *server,
 }
 
 UA_StatusCode
-UA_Server_unfreezeReaderGroupConfiguration(UA_Server *server,
-                                           const UA_NodeId readerGroupId) {
+UA_Server_freezeReaderGroupConfiguration(UA_Server *server,
+                                         const UA_NodeId readerGroupId) {
+    UA_LOCK(&server->serviceMutex);
     UA_ReaderGroup *rg = UA_ReaderGroup_findRGbyId(server, readerGroupId);
-    if(!rg)
+    if(!rg) {
+        UA_UNLOCK(&server->serviceMutex);
         return UA_STATUSCODE_BADNOTFOUND;
+    }
+    UA_StatusCode res = UA_ReaderGroup_freezeConfiguration(server, rg);
+    UA_UNLOCK(&server->serviceMutex);
+    return res;
+}
+
+UA_StatusCode
+UA_ReaderGroup_unfreezeConfiguration(UA_Server *server, UA_ReaderGroup *rg) {
+    UA_LOCK_ASSERT(&server->serviceMutex, 1);
 
     /* PubSubConnection freezeCounter-- */
-    UA_NodeId pubSubConnectionId =  rg->linkedConnection;
-    UA_PubSubConnection *pubSubConnection =
-        UA_PubSubConnection_findConnectionbyId(server, pubSubConnectionId);
+    UA_PubSubConnection *pubSubConnection = rg->linkedConnection;
     pubSubConnection->configurationFreezeCounter--;
     if(pubSubConnection->configurationFreezeCounter == 0){
         pubSubConnection->configurationFrozen = false;
@@ -707,6 +738,20 @@ UA_Server_unfreezeReaderGroupConfiguration(UA_Server *server,
     return UA_STATUSCODE_GOOD;
 }
 
+UA_StatusCode
+UA_Server_unfreezeReaderGroupConfiguration(UA_Server *server,
+                                           const UA_NodeId readerGroupId) {
+    UA_LOCK(&server->serviceMutex);
+    UA_ReaderGroup *rg = UA_ReaderGroup_findRGbyId(server, readerGroupId);
+    if(!rg) {
+        UA_UNLOCK(&server->serviceMutex);
+        return UA_STATUSCODE_BADNOTFOUND;
+    }
+    UA_StatusCode res = UA_ReaderGroup_unfreezeConfiguration(server, rg);
+    UA_UNLOCK(&server->serviceMutex);
+    return res;
+}
+
 /* This triggers the collection and reception of NetworkMessages and the
  * contained DataSetMessages. */
 void
@@ -719,8 +764,7 @@ UA_ReaderGroup_subscribeCallback(UA_Server *server,
     UA_LOG_DEBUG_READERGROUP(&server->config.logger, readerGroup,
                              "PubSub subscribe callback");
 
-    UA_PubSubConnection *connection =
-        UA_PubSubConnection_findConnectionbyId(server, readerGroup->linkedConnection);
+    UA_PubSubConnection *connection = readerGroup->linkedConnection;
     if(!connection) {
         UA_LOG_ERROR_READERGROUP(&server->config.logger, readerGroup,
                      "SubscribeCallback(): Find linked connection failed");
@@ -736,32 +780,27 @@ UA_ReaderGroup_subscribeCallback(UA_Server *server,
  * creation. */
 UA_StatusCode
 UA_ReaderGroup_addSubscribeCallback(UA_Server *server, UA_ReaderGroup *readerGroup) {
-    UA_StatusCode retval = UA_STATUSCODE_GOOD;
-    if(readerGroup->config.pubsubManagerCallback.addCustomCallback)
-        retval = readerGroup->config.pubsubManagerCallback.
-            addCustomCallback(server, readerGroup->identifier,
-               (UA_ServerCallback)UA_ReaderGroup_subscribeCallback,
-               readerGroup, readerGroup->config.subscribingInterval,
-               NULL, // TODO: Send base time from reader group config
-               // TODO: Send timer policy from reader group config
-               UA_TIMER_HANDLE_CYCLEMISS_WITH_CURRENTTIME,
-               &readerGroup->subscribeCallbackId);
-    else {
-        if(readerGroup->config.enableBlockingSocket == true) {
-            UA_LOG_WARNING_READERGROUP(&server->config.logger, readerGroup,
-                                       "addSubscribeCallback() failed, blocking socket "
-                                       "functionality only supported in customcallback");
-            return UA_STATUSCODE_BADNOTSUPPORTED;
-        }
+    /* Already registered */
+    if(readerGroup->subscribeCallbackId != 0)
+        return UA_STATUSCODE_BADINTERNALERROR;
 
-        retval = UA_PubSubManager_addRepeatedCallback(server,
-                    (UA_ServerCallback)UA_ReaderGroup_subscribeCallback,
-                    readerGroup, readerGroup->config.subscribingInterval,
-                    NULL, // TODO: Send base time from reader group config
-                    // TODO: Send timer policy from reader group config
-                    UA_TIMER_HANDLE_CYCLEMISS_WITH_CURRENTTIME,
-                    &readerGroup->subscribeCallbackId);
-    }
+    UA_EventLoop *el = readerGroup->linkedConnection->config.eventLoop;
+    if(!el)
+        el = server->config.eventLoop;
+
+    UA_StatusCode retval =
+        el->addCyclicCallback(el, (UA_Callback)UA_ReaderGroup_subscribeCallback,
+                              server, readerGroup,
+                              readerGroup->config.subscribingInterval,
+                              NULL /* TODO: use basetime */,
+                              UA_TIMER_HANDLE_CYCLEMISS_WITH_CURRENTTIME /* TODO: Send
+                                                                          * timer policy
+                                                                          * from writer
+                                                                          * group
+                                                                          * config */,
+                              &readerGroup->subscribeCallbackId);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
 
     /* Run once after creation */
     /* When using blocking socket functionality, the server mechanism might get
@@ -775,13 +814,12 @@ UA_ReaderGroup_addSubscribeCallback(UA_Server *server, UA_ReaderGroup *readerGro
 
 void
 UA_ReaderGroup_removeSubscribeCallback(UA_Server *server, UA_ReaderGroup *readerGroup) {
-    if(readerGroup->config.pubsubManagerCallback.removeCustomCallback)
-        readerGroup->config.pubsubManagerCallback.
-            removeCustomCallback(server, readerGroup->identifier,
-                                 readerGroup->subscribeCallbackId);
-    else
-        UA_PubSubManager_removeRepeatedPubSubCallback(server,
-                                                      readerGroup->subscribeCallbackId);
+    UA_EventLoop *el = readerGroup->linkedConnection->config.eventLoop;
+    if(!el)
+        el = server->config.eventLoop;
+    if(readerGroup->subscribeCallbackId != 0)
+        el->removeCyclicCallback(el, readerGroup->subscribeCallbackId);
+    readerGroup->subscribeCallbackId = 0;
 }
 
 #endif /* UA_ENABLE_PUBSUB */

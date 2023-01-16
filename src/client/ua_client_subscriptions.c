@@ -252,17 +252,18 @@ UA_Client_Subscriptions_modify_async(UA_Client *client,
                                     cc, requestId);
 }
 
-static void
-UA_MonitoredItem_delete_wrapper(UA_Client_MonitoredItem *mon, void *data) {
+static void *
+UA_MonitoredItem_delete_wrapper(void *data, UA_Client_MonitoredItem *mon) {
     struct UA_Client_MonitoredItem_ForDelete *deleteMonitoredItem =
         (struct UA_Client_MonitoredItem_ForDelete *)data;
     if(deleteMonitoredItem != NULL) {
         if(deleteMonitoredItem->monitoredItemId != NULL &&
            (mon->monitoredItemId != *deleteMonitoredItem->monitoredItemId)) {
-            return;
+            return NULL;
         }
         MonitoredItem_delete(deleteMonitoredItem->client, deleteMonitoredItem->sub, mon);
     }
+    return NULL;
 }
 
 static void
@@ -505,7 +506,7 @@ ua_MonitoredItems_create(UA_Client *client, MonitoredItems_CreateData *data,
                 data->handlingCallbacks[i];
         newMon->isEventMonitoredItem =
             (request->itemsToCreate[i].itemToMonitor.attributeId == UA_ATTRIBUTEID_EVENTNOTIFIER);
-        ZIP_INSERT(MonitorItemsTree, &sub->monitoredItems, newMon, UA_UInt32_random());
+        ZIP_INSERT(MonitorItemsTree, &sub->monitoredItems, newMon);
 
         UA_LOG_DEBUG(&client->config.logger, UA_LOGCATEGORY_CLIENT,
                      "Subscription %" PRIu32 " | Added a MonitoredItem with handle %" PRIu32,
@@ -929,15 +930,14 @@ UA_Client_MonitoredItems_deleteSingle(UA_Client *client, UA_UInt32 subscriptionI
     return retval;
 }
 
-static void
-UA_MonitoredItem_change_clientHandle(UA_Client_MonitoredItem *mon, void *data) {
+static void *
+UA_MonitoredItem_change_clientHandle(void *data, UA_Client_MonitoredItem *mon) {
     UA_MonitoredItemModifyRequest *monitoredItemModifyRequest =
         (UA_MonitoredItemModifyRequest *)data;
-    if(monitoredItemModifyRequest != NULL) {
-        if(mon->monitoredItemId == monitoredItemModifyRequest->monitoredItemId) {
-            monitoredItemModifyRequest->requestedParameters.clientHandle = mon->clientHandle;
-        }
-    }
+    if(monitoredItemModifyRequest &&
+       mon->monitoredItemId == monitoredItemModifyRequest->monitoredItemId)
+        monitoredItemModifyRequest->requestedParameters.clientHandle = mon->clientHandle;
+    return NULL;
 }
 
 UA_ModifyMonitoredItemsResponse
@@ -1171,6 +1171,16 @@ __Client_Subscriptions_processPublishResponse(UA_Client *client, UA_PublishReque
 
     if(response->responseHeader.serviceResult == UA_STATUSCODE_BADSHUTDOWN)
         return;
+
+    if(response->responseHeader.serviceResult == UA_STATUSCODE_BADNOSUBSCRIPTION) 
+    {
+        UA_LOG_WARNING(&client->config.logger, UA_LOGCATEGORY_CLIENT,
+                       "Received BadNoSubscription, delete internal information about subscription");
+        UA_Client_Subscription *sub = findSubscription(client, response->subscriptionId);
+        if(sub != NULL)
+            __Client_Subscription_deleteInternal(client, sub);
+        return;
+    }
 
     if(!LIST_FIRST(&client->subscriptions)) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADNOSUBSCRIPTION;

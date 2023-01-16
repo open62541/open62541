@@ -48,7 +48,7 @@ UA_readNumber(const UA_Byte *buf, size_t buflen, UA_UInt32 *number) {
 
 UA_StatusCode
 UA_parseEndpointUrl(const UA_String *endpointUrl, UA_String *outHostname,
-                    u16 *outPort, UA_String *outPath) {
+                    UA_UInt16 *outPort, UA_String *outPath) {
     UA_Boolean ipv6 = false;
 
     /* Url must begin with "opc.tcp://" or opc.udp:// (if pubsub enabled) */
@@ -317,8 +317,10 @@ void
 UA_KeyValueMap_clear(UA_KeyValueMap *map) {
     if(!map)
         return;
-    UA_Array_delete(map->map, map->mapSize, &UA_TYPES[UA_TYPES_KEYVALUEPAIR]);
-    map->mapSize = 0;
+    if(map->mapSize > 0) {
+        UA_Array_delete(map->map, map->mapSize, &UA_TYPES[UA_TYPES_KEYVALUEPAIR]);
+        map->mapSize = 0;
+    }
 }
 
 void

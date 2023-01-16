@@ -33,10 +33,6 @@
 #include <open62541/client_config_default.h>
 #include <open62541/plugin/log_stdout.h>
 #include <open62541/server.h>
-#include <open62541/server_config_default.h>
-
-#include <signal.h>
-#include <stdlib.h>
 
 #ifndef WIN32
 #include <pthread.h>
@@ -54,11 +50,6 @@
 
 static UA_Server* globalServer;
 static volatile UA_Boolean running = true;
-
-static void stopHandler(int sign) {
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "received ctrl-c");
-    running = false;
-}
 
 static UA_StatusCode
 helloWorldMethodCallback1(UA_Server *server,
@@ -199,19 +190,14 @@ THREAD_CALLBACK(ThreadWorker) {
 /* This callback will be called when a new entry is added to the Callrequest queue */
 static void
 TestCallback(UA_Server *server) {
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
-                "Dispatched an async method");
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "Dispatched an async method");
 }
 
 int main(void) {
-    signal(SIGINT, stopHandler);
-    signal(SIGTERM, stopHandler);
-
     globalServer = UA_Server_new();
-    UA_ServerConfig *config = UA_Server_getConfig(globalServer);
-    UA_ServerConfig_setDefault(config);
 
     /* Set the NotifyCallback */
+    UA_ServerConfig *config = UA_Server_getConfig(globalServer);
     config->asyncOperationNotifyCallback = TestCallback;
 
     /* Start the Worker-Thread */
@@ -222,7 +208,7 @@ int main(void) {
     addHelloWorldMethod1(globalServer);
 	addHelloWorldMethod2(globalServer);
 
-    UA_StatusCode retval = UA_Server_run(globalServer, &running);
+    UA_StatusCode retval = UA_Server_runUntilInterrupt(globalServer);
 
     /* Shutdown the thread */
     THREAD_JOIN(hThread);

@@ -144,6 +144,14 @@ typedef struct {
     /* Certificate Verification Plugin */
     UA_CertificateVerification certificateVerification;
 
+    /* Available SecurityPolicies for Authentication. The policy defined by the
+     * AccessControl is selected. If no policy is defined, the policy of the secure channel
+     * is selected.*/
+    size_t authSecurityPoliciesSize;
+    UA_SecurityPolicy *authSecurityPolicies;
+    /* SecurityPolicyUri for the Authentication. */
+    UA_String authSecurityPolicyUri;
+
     /* Callback for state changes. The client state is differentated into the
      * SecureChannel state and the Session state. The connectStatus is set if
      * the client connection (including reconnects) has failed and the client
@@ -182,12 +190,17 @@ typedef struct {
  * Client Lifecycle
  * ---------------- */
 
-/* The method UA_Client_new is defined in client_config_default.h. So default
- * plugins outside of the core library (for logging, etc) are already available
- * during the initialization.
+/* Create a new client with a default configuration that adds plugins for
+ * networking, security, logging and so on. See `client_config_default.h` for
+ * more detailed options.
  *
- * UA_Client UA_EXPORT * UA_Client_new(void);
- */
+ * The default configuration can be used as the starting point to adjust the
+ * client configuration to individual needs. UA_Client_new is implemented in the
+ * /plugins folder under the CC0 license. Furthermore the client confiugration
+ * only uses the public server API.
+ *
+ * @return Returns the configured client or NULL if an error occurs. */
+UA_EXPORT UA_Client * UA_Client_new(void);
 
 /* Creates a new client. Moves the config into the client with a shallow copy.
  * The config content is cleared together with the client. */

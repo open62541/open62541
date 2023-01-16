@@ -4,6 +4,7 @@
 #include <open62541/plugin/log_stdout.h>
 
 #include "testing_clock.h"
+#include "ua_server_internal.h"
 #include "ua_pubsub.h"
 
 #ifdef UA_ENABLE_PUBSUB_FILE_CONFIG
@@ -71,7 +72,9 @@ static void AddConnection(
     /* deep copy is not needed (not even for string) because UA_Server_addPubSubConnection performs deep copy */
     connectionConfig.publisherId = publisherId;
     ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_addPubSubConnection(server, &connectionConfig, opConnectionId));
+    UA_LOCK(&server->serviceMutex);
     ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_PubSubConnection_regist(server, opConnectionId, NULL));
+    UA_UNLOCK(&server->serviceMutex);
 }
 
 /***************************************************************************************************/
@@ -1560,7 +1563,9 @@ START_TEST(Test_string_publisherId_file_config) {
     UA_PubSubConfigurationDataType_clear(&config);
 }
     /* load and apply config from ByteString buffer */
+    UA_LOCK(&server->serviceMutex);
     ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_PubSubManager_loadPubSubConfigFromByteString(server, encodedConfigDataBuffer));
+    UA_UNLOCK(&server->serviceMutex);
 
     /* groups are already operational */
     /* check that publish/subscribe works -> set some test values */

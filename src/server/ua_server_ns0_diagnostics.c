@@ -201,18 +201,16 @@ createSubscriptionObject(UA_Server *server, UA_Session *session,
     UA_QualifiedName browseName = UA_QUALIFIEDNAME(0, subIdStr);
     UA_NodeId typeId = UA_NODEID_NUMERIC(0, UA_NS0ID_SUBSCRIPTIONDIAGNOSTICSTYPE);
     UA_NodeId objId = UA_NODEID_NUMERIC(1, 0); /* 0 => assign a random free id */
-    UA_StatusCode res = addNode(server, UA_NODECLASS_VARIABLE,
-                                &objId,
-                                &bpr.targets[0].targetId.nodeId /* parent */,
-                                &refId, browseName, &typeId,
-                                (UA_NodeAttributes*)&var_attr,
+    UA_StatusCode res = addNode(server, UA_NODECLASS_VARIABLE, objId,
+                                bpr.targets[0].targetId.nodeId,
+                                refId, browseName, typeId, &var_attr,
                                 &UA_TYPES[UA_TYPES_VARIABLEATTRIBUTES], NULL, &objId);
     UA_CHECK_STATUS(res, goto cleanup);
 
     /* Add a second reference from the overall SubscriptionDiagnosticsArray variable */
     const UA_NodeId subDiagArray =
         UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERDIAGNOSTICS_SUBSCRIPTIONDIAGNOSTICSARRAY);
-    res = addRef(server, session,  &subDiagArray, &refId, &objId, true);
+    res = addRefWithSession(server, session,  &subDiagArray, &refId, &objId, true);
 
     /* Get all children (including the variable itself) and set the contenxt + callback */
     res = referenceTypeIndices(server, &hasComponent, &refTypes, false);
@@ -458,9 +456,8 @@ createSessionObject(UA_Server *server, UA_Session *session) {
     UA_QualifiedName browseName = UA_QUALIFIEDNAME(0, "");
     browseName.name = session->sessionName; /* shallow copy */
     UA_NodeId typeId = UA_NODEID_NUMERIC(0, UA_NS0ID_SESSIONDIAGNOSTICSOBJECTTYPE);
-    UA_StatusCode res = addNode(server, UA_NODECLASS_OBJECT,
-                                &session->sessionId, &parentId, &refId, browseName, &typeId,
-                                (UA_NodeAttributes*)&object_attr,
+    UA_StatusCode res = addNode(server, UA_NODECLASS_OBJECT, session->sessionId,
+                                parentId, refId, browseName, typeId, &object_attr,
                                 &UA_TYPES[UA_TYPES_OBJECTATTRIBUTES], NULL, NULL);
     if(res != UA_STATUSCODE_GOOD)
         goto cleanup;

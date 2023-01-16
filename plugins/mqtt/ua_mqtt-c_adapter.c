@@ -8,7 +8,6 @@
  */
 
 #include "ua_mqtt-c_adapter.h"
-#include "ua_pubsub_manager.h"
 #include "server/ua_server_internal.h"
 #include <mqtt.h>
 #include <open62541/plugin/log_stdout.h>
@@ -335,7 +334,7 @@ publish_callback(void** ptrServer, struct mqtt_response_publish *published)
 
     UA_PubSubConnection *pubSubConnection;
     TAILQ_FOREACH(pubSubConnection, &server->pubSubManager.connections, listEntry){
-        if(!UA_String_equal(&pubSubConnection->config->transportProfileUri, &transport_uri))
+        if(!UA_String_equal(&pubSubConnection->config.transportProfileUri, &transport_uri))
             break;
         UA_ReaderGroup* readerGroup = NULL;
         LIST_FOREACH(readerGroup, &pubSubConnection->readerGroups, listEntry) {
@@ -375,10 +374,9 @@ publish_callback(void** ptrServer, struct mqtt_response_publish *published)
 
     UA_TopicAssign *topicAssign1;
     TAILQ_FOREACH(topicAssign1, &pubSubManager.topicAssign, listEntry){
-        if(UA_String_equal(&topicAssign1->topic, topic)){
-            UA_PubSubConnection* pConn =
-                UA_PubSubConnection_findConnectionbyId(server, topicAssign1->rgIdentifier->linkedConnection);
-            processMqttSubscriberCallback(server, topicAssign1->rgIdentifier,pConn, msg, topic);
+        if(UA_String_equal(&topicAssign1->topic, topic)) {
+            UA_PubSubConnection* pConn = topicAssign1->rgIdentifier->linkedConnection;
+            processMqttSubscriberCallback(server, pConn, msg);
         }
     }
 }

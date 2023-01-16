@@ -191,8 +191,8 @@ START_TEST(AddSingleConnectionWithMaximalConfiguration){
     connectionConf.enabled = true;
     connectionConf.publisherIdType = UA_PUBLISHERIDTYPE_UINT64;
     connectionConf.publisherId.uint64 = 223344;
-    connectionConf.connectionPropertiesSize = 3;
-    connectionConf.connectionProperties = connectionOptions;
+    connectionConf.connectionProperties.mapSize = 3;
+    connectionConf.connectionProperties.map = connectionOptions;
     connectionConf.address = address;
     UA_NodeId connection;
     UA_StatusCode retVal = UA_Server_addPubSubConnection(server, &connectionConf, &connection);
@@ -223,8 +223,8 @@ START_TEST(GetMaximalConnectionConfigurationAndCompareValues){
     connectionConf.enabled = true;
     connectionConf.publisherIdType = UA_PUBLISHERIDTYPE_UINT64;
     connectionConf.publisherId.uint64 = 223344;
-    connectionConf.connectionPropertiesSize = 3;
-    connectionConf.connectionProperties = connectionOptions;
+    connectionConf.connectionProperties.mapSize = 3;
+    connectionConf.connectionProperties.map = connectionOptions;
     connectionConf.address = address;
     UA_NodeId connection;
     UA_StatusCode retVal = UA_Server_addPubSubConnection(server, &connectionConf, &connection);
@@ -233,15 +233,15 @@ START_TEST(GetMaximalConnectionConfigurationAndCompareValues){
     memset(&connectionConfig, 0, sizeof(UA_PubSubConnectionConfig));
     retVal |= UA_Server_getPubSubConnectionConfig(server, connection, &connectionConfig);
     ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
-    ck_assert(connectionConfig.connectionPropertiesSize == connectionConf.connectionPropertiesSize);
+    ck_assert(connectionConfig.connectionProperties.mapSize == connectionConf.connectionProperties.mapSize);
     ck_assert(UA_String_equal(&connectionConfig.name, &connectionConf.name) == UA_TRUE);
     ck_assert(UA_String_equal(&connectionConfig.transportProfileUri, &connectionConf.transportProfileUri) == UA_TRUE);
     UA_NetworkAddressUrlDataType networkAddressUrlDataCopy = *((UA_NetworkAddressUrlDataType *)connectionConfig.address.data);
     ck_assert(UA_calcSizeBinary(&networkAddressUrlDataCopy, &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]) ==
               UA_calcSizeBinary(&networkAddressUrlData, &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]));
-    for(size_t i = 0; i < connectionConfig.connectionPropertiesSize; i++){
-        ck_assert(UA_String_equal(&connectionConfig.connectionProperties[i].key.name, &connectionConf.connectionProperties[i].key.name) == UA_TRUE);
-        ck_assert(UA_Variant_calcSizeBinary(&connectionConfig.connectionProperties[i].value) == UA_Variant_calcSizeBinary(&connectionConf.connectionProperties[i].value));
+    for(size_t i = 0; i < connectionConfig.connectionProperties.mapSize; i++){
+        ck_assert(UA_String_equal(&connectionConfig.connectionProperties.map[i].key.name, &connectionConf.connectionProperties.map[i].key.name) == UA_TRUE);
+        ck_assert(UA_Variant_calcSizeBinary(&connectionConfig.connectionProperties.map[i].value) == UA_Variant_calcSizeBinary(&connectionConf.connectionProperties.map[i].value));
     }
     UA_PubSubConnectionConfig_clear(&connectionConfig);
     } END_TEST
