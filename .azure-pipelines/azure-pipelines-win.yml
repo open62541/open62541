@@ -33,6 +33,7 @@ jobs:
     displayName: "Publish Artifact: open62541-$(CC_SHORTNAME)"
 
 - job: 'win_msys64'
+  timeoutInMinutes: 120
   displayName: 'Windows (msys64)'
   pool:
     vmImage: 'windows-2019'
