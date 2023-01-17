@@ -392,6 +392,9 @@ UA_Server_newWithConfig(UA_ServerConfig *config) {
     if(server->config.eventLoop->logger == &config->logger)
         server->config.eventLoop->logger = &server->config.logger;
 
+    if(server->config.certificateVerification.logger == &config->logger)
+        server->config.certificateVerification.logger = &server->config.logger;
+
     /* Reset the old config */
     memset(config, 0, sizeof(UA_ServerConfig));
     return UA_Server_init(server);

@@ -372,6 +372,11 @@ setDefaultConfig(UA_ServerConfig *conf, UA_UInt16 portNumber) {
     /* Endpoints */
     /* conf->endpoints = {0, NULL}; */
 
+    if(!conf->certificateVerification.logger) {
+        /* Set Logger for Certificate Verification */
+        conf->certificateVerification.logger = &conf->logger;
+    }
+
     /* Certificate Verification that accepts every certificate. Can be
      * overwritten when the policy is specialized. */
     UA_CertificateVerification_AcceptAll(&conf->certificateVerification);
@@ -826,6 +831,7 @@ UA_ServerConfig_setDefaultWithSecurityPolicies(UA_ServerConfig *conf,
     }
 
     UA_CertificateVerification accessControlVerification;
+    memset(&accessControlVerification, 0, sizeof(accessControlVerification));
     retval = UA_CertificateVerification_Trustlist(&accessControlVerification,
                                                   trustList, trustListSize,
                                                   issuerList, issuerListSize,
@@ -908,6 +914,11 @@ UA_ClientConfig_setDefault(UA_ClientConfig *config) {
 
     if(config->localConnectionConfig.recvBufferSize == 0)
         config->localConnectionConfig = UA_ConnectionConfig_default;
+
+    if(!config->certificateVerification.logger) {
+        /* Set Logger for Certificate Verification */
+        config->certificateVerification.logger = &config->logger;
+    }
 
     if(!config->certificateVerification.verifyCertificate) {
         /* Certificate Verification that accepts every certificate. Can be
