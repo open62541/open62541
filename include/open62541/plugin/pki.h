@@ -10,6 +10,7 @@
 
 #include <open62541/types.h>
 #include <open62541/types_generated.h>
+#include <open62541/plugin/log.h>
 
 _UA_BEGIN_DECLS
 
@@ -50,6 +51,8 @@ struct UA_CertificateVerification {
 
     /* Delete the certificate verification context */
     void (*clear)(UA_CertificateVerification *cv);
+
+    const UA_Logger *logger;
 };
 
 _UA_END_DECLS

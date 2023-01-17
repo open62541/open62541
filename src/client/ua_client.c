@@ -45,6 +45,8 @@ UA_Client_newWithConfig(const UA_ClientConfig *config) {
     if(client->config.eventLoop &&
        (client->config.eventLoop->logger == &config->logger))
         client->config.eventLoop->logger = &client->config.logger;
+    if(client->config.certificateVerification.logger == &config->logger)
+        client->config.certificateVerification.logger = &client->config.logger;
     for(size_t i = 0; i < client->config.securityPoliciesSize; i++) {
         if(client->config.securityPolicies[i].logger == &config->logger)
             client->config.securityPolicies[i].logger = &client->config.logger;
