@@ -375,7 +375,7 @@ static void setup(void) {
     size_t revocationListSize = 0;
 
     UA_StatusCode res =
-        UA_ServerConfig_setDefaultWithSecurityPolicies(*config, 4840,
+        UA_ServerConfig_setDefaultWithSecurityPolicies(config, 4840,
                                                        &certificate, &privateKey,
                                                        trustList, trustListSize,
                                                        issuerList, issuerListSize,
