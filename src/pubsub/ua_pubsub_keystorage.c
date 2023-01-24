@@ -710,7 +710,7 @@ UA_Server_setSksClient(UA_Server *server, UA_String securityGroupId,
         return retval;
     }
 
-    ks->sksConfig.clientConfig = *clientConfig;
+    UA_ClientConfig_copy(clientConfig, &ks->sksConfig.clientConfig);
     memset(clientConfig, 0, sizeof(UA_ClientConfig));
     ks->sksConfig.endpointUrl = endpointUrl;
     ks->sksConfig.userNotifyCallback = callback;

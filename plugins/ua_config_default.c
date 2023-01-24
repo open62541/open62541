@@ -231,6 +231,8 @@ setDefaultConfig(UA_ServerConfig *conf, UA_UInt16 portNumber) {
     /* Logging */
     if(!conf->logger.log)
         conf->logger = UA_Log_Stdout_withLevel(UA_LOGLEVEL_TRACE);
+    if(conf->logging == NULL)
+        conf->logging = &conf->logger;
 
     /* EventLoop */
     if(conf->eventLoop == NULL) {
@@ -372,10 +374,10 @@ setDefaultConfig(UA_ServerConfig *conf, UA_UInt16 portNumber) {
     /* Endpoints */
     /* conf->endpoints = {0, NULL}; */
 
-    if(!conf->certificateVerification.logger) {
+    if(!conf->certificateVerification.logging) {
         /* Set Logger for Certificate Verification */
-        conf->certificateVerification.logger = &conf->logger;
-    }
+        conf->certificateVerification.logging = &conf->logging;
+   }
 
     /* Certificate Verification that accepts every certificate. Can be
      * overwritten when the policy is specialized. */
@@ -832,6 +834,7 @@ UA_ServerConfig_setDefaultWithSecurityPolicies(UA_ServerConfig *conf,
 
     UA_CertificateVerification accessControlVerification;
     memset(&accessControlVerification, 0, sizeof(accessControlVerification));
+    accessControlVerification.logging = &conf->logging;
     retval = UA_CertificateVerification_Trustlist(&accessControlVerification,
                                                   trustList, trustListSize,
                                                   issuerList, issuerListSize,
@@ -897,6 +900,8 @@ UA_ClientConfig_setDefault(UA_ClientConfig *config) {
     if(!config->logger.log) {
         config->logger = UA_Log_Stdout_withLevel(UA_LOGLEVEL_INFO);
     }
+    if(config->logging == NULL)
+        config->logging = &config->logger;
 
     /* EventLoop */
     if(config->eventLoop == NULL) {
@@ -917,9 +922,9 @@ UA_ClientConfig_setDefault(UA_ClientConfig *config) {
     if(config->localConnectionConfig.recvBufferSize == 0)
         config->localConnectionConfig = UA_ConnectionConfig_default;
 
-    if(!config->certificateVerification.logger) {
+    if(!config->certificateVerification.logging) {
         /* Set Logger for Certificate Verification */
-        config->certificateVerification.logger = &config->logger;
+        config->certificateVerification.logging = &config->logging;
     }
 
     if(!config->certificateVerification.verifyCertificate) {

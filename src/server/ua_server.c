@@ -395,8 +395,13 @@ UA_Server_newWithConfig(UA_ServerConfig *config) {
     if(server->config.eventLoop->logger == &config->logger)
         server->config.eventLoop->logger = &server->config.logger;
 
-    if(server->config.certificateVerification.logger == &config->logger)
-        server->config.certificateVerification.logger = &server->config.logger;
+    if((server->config.logging == NULL) ||
+       (server->config.logging == &config->logger)) {
+        /* re-set the logger pointer */
+        server->config.logging = &server->config.logger;
+    }
+    if(server->config.certificateVerification.logging == &config->logging)
+        server->config.certificateVerification.logging = &server->config.logging;
 
     /* Reset the old config */
     memset(config, 0, sizeof(UA_ServerConfig));
@@ -557,7 +562,7 @@ verifyServerApplicationURI(const UA_Server *server) {
         if(UA_String_equal(&sp->policyUri, &securityPolicyNoneUri) && (sp->localCertificate.length == 0))
             continue;
         UA_StatusCode retval = server->config.certificateVerification.
-            verifyApplicationURI(server->config.certificateVerification.context,
+            verifyApplicationURI(&server->config.certificateVerification,
                                  &sp->localCertificate,
                                  &server->config.applicationDescription.applicationUri);
 

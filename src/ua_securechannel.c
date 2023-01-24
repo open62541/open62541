@@ -583,7 +583,7 @@ unpackPayloadOPN(UA_SecureChannel *channel, UA_Chunk *chunk, void *application) 
     if(asymHeader.senderCertificate.length > 0) {
         if(channel->certificateVerification)
             res = channel->certificateVerification->
-                verifyCertificate(channel->certificateVerification->context,
+                verifyCertificate(channel->certificateVerification,
                                   &asymHeader.senderCertificate);
         else
             res = UA_STATUSCODE_BADINTERNALERROR;

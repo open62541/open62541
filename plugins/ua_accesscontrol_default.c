@@ -125,7 +125,7 @@ activateSession_default(UA_Server *server, UA_AccessControl *ac,
             return UA_STATUSCODE_BADIDENTITYTOKENINVALID;
 
         return context->verifyX509.
-            verifyCertificate(context->verifyX509.context,
+            verifyCertificate(&context->verifyX509,
                               &userToken->certificateData);
     }
 
@@ -319,16 +319,19 @@ UA_AccessControl_default(UA_ServerConfig *config,
                     "AccessControl: Anonymous login is enabled");
     }
 
+    if(config->logging == NULL) {
+        config->logging = &config->logger;
+    }
     /* Allow x509 certificates? Move the plugin over. */
     if(verifyX509) {
         context->verifyX509 = *verifyX509;
         memset(verifyX509, 0, sizeof(UA_CertificateVerification));
-        if (context->verifyX509.logger == NULL) {
-            context->verifyX509.logger = &config->logger;
+        if(context->verifyX509.logging == NULL) {
+            context->verifyX509.logging = &config->logging;
         }
     } else {
         memset(&context->verifyX509, 0, sizeof(UA_CertificateVerification));
-        context->verifyX509.logger = &config->logger;
+        context->verifyX509.logging = &config->logging;
         UA_LOG_INFO(&config->logger, UA_LOGCATEGORY_SERVER,
                     "AccessControl: x509 certificate user authentication is enabled");
     }
