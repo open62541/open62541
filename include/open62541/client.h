@@ -70,7 +70,10 @@ _UA_BEGIN_DECLS
 
 typedef struct {
     void *clientContext; /* User-defined pointer attached to the client */
-    UA_Logger logger;    /* Logger used by the client */
+    UA_Logger logger;    /* Logger used by the client.
+                            logger is deprecated but still supported at this time.
+                            Use logging pointer instead. */
+    UA_Logger *logging; /* If NULL and "logger" is set, make this point to "logger" */
 
     /* Response timeout in ms (0 -> no timeout). If the server does not answer a
      * request within this time a StatusCode UA_STATUSCODE_BADTIMEOUT is

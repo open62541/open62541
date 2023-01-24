@@ -71,6 +71,15 @@ UA_ClientConfig_copy(UA_ClientConfig const *src, UA_ClientConfig *dst){
     dst->inactivityCallback = src->inactivityCallback;
     dst->localConnectionConfig = src->localConnectionConfig;
     dst->logger = src->logger;
+    if(src->logging == &src->logger) {
+        dst->logging = &dst->logger;
+    } else {
+        dst->logging = src->logging;
+    }
+    if((src->certificateVerification.logging == NULL) ||
+       (src->certificateVerification.logging == &src->logging)) {
+        dst->certificateVerification.logging = &dst->logging;
+    }
 #ifdef UA_ENABLE_SUBSCRIPTIONS
     dst->outStandingPublishRequests = src->outStandingPublishRequests;
 #endif
@@ -95,6 +104,7 @@ cleanup:
         dst->certificateVerification.context = NULL;
         dst->eventLoop = NULL;
         dst->logger.context = NULL;
+        dst->logging = NULL;
         dst->securityPolicies = NULL;
         UA_ClientConfig_clear(dst);
     }
@@ -115,12 +125,18 @@ UA_Client_newWithConfig(const UA_ClientConfig *config) {
     if(client->config.eventLoop &&
        (client->config.eventLoop->logger == &config->logger))
         client->config.eventLoop->logger = &client->config.logger;
-    if(client->config.certificateVerification.logger == &config->logger)
-        client->config.certificateVerification.logger = &client->config.logger;
     for(size_t i = 0; i < client->config.securityPoliciesSize; i++) {
         if(client->config.securityPolicies[i].logger == &config->logger)
             client->config.securityPolicies[i].logger = &client->config.logger;
     }
+
+    if((client->config.logging == NULL) ||
+       (client->config.logging == &config->logger)) {
+        /* re-set the logger pointer */
+        client->config.logging = &client->config.logger;
+    }
+    if(client->config.certificateVerification.logging == &config->logging)
+        client->config.certificateVerification.logging = &client->config.logging;
 
     UA_SecureChannel_init(&client->channel);
     client->channel.config = client->config.localConnectionConfig;
@@ -178,6 +194,13 @@ UA_ClientConfig_clear(UA_ClientConfig *config) {
     }
 
     /* Logger */
+    if(config->logging != NULL) {
+        if((config->logging != &config->logger) &&
+           (config->logging->clear != NULL)) {
+            config->logging->clear(config->logging->context);
+        }
+        config->logging = NULL;
+    }
     if(config->logger.clear)
         config->logger.clear(config->logger.context);
     config->logger.log = NULL;

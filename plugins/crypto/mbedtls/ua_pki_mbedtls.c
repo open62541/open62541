@@ -97,8 +97,6 @@ typedef struct {
     mbedtls_x509_crt certificateTrustList;
     mbedtls_x509_crt certificateIssuerList;
     mbedtls_x509_crl certificateRevocationList;
-
-    const UA_Logger *logger;
 } CertInfo;
 
 #ifdef __linux__ /* Linux only so far */
@@ -153,14 +151,14 @@ fileNamesFromFolder(const UA_String *folder, size_t *pathsSize, UA_String **path
 }
 
 static UA_StatusCode
-reloadCertificates(CertInfo *ci) {
+reloadCertificates(const UA_CertificateVerification *cv, CertInfo *ci) {
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     int err = 0;
     int internalErrorFlag = 0;
 
     /* Load the trustlists */
     if(ci->trustListFolder.length > 0) {
-        UA_LOG_INFO(ci->logger, UA_LOGCATEGORY_SERVER, "Reloading the trust-list");
+        UA_LOG_INFO(*(cv->logging), UA_LOGCATEGORY_SERVER, "Reloading the trust-list");
         mbedtls_x509_crt_free(&ci->certificateTrustList);
         mbedtls_x509_crt_init(&ci->certificateTrustList);
 
@@ -169,12 +167,12 @@ reloadCertificates(CertInfo *ci) {
         f[ci->trustListFolder.length] = 0;
         err = mbedtls_x509_crt_parse_path(&ci->certificateTrustList, f);
         if(err == 0) {
-            UA_LOG_INFO(ci->logger, UA_LOGCATEGORY_SERVER,
+            UA_LOG_INFO(*(cv->logging), UA_LOGCATEGORY_SERVER,
                         "Loaded certificate from %s", f);
         } else {
             char errBuff[300];
             mbedtls_strerror(err, errBuff, 300);
-            UA_LOG_INFO(ci->logger, UA_LOGCATEGORY_SERVER,
+            UA_LOG_INFO(*(cv->logging), UA_LOGCATEGORY_SERVER,
                         "Failed to load certificate from %s, mbedTLS error: %s (error code: %d)", f, errBuff, err);
             internalErrorFlag = 1;
         }
@@ -182,7 +180,7 @@ reloadCertificates(CertInfo *ci) {
 
     /* Load the revocationlists */
     if(ci->revocationListFolder.length > 0) {
-        UA_LOG_INFO(ci->logger, UA_LOGCATEGORY_SERVER, "Reloading the revocation-list");
+        UA_LOG_INFO(*(cv->logging), UA_LOGCATEGORY_SERVER, "Reloading the revocation-list");
         size_t pathsSize = 0;
         UA_String *paths = NULL;
         retval = fileNamesFromFolder(&ci->revocationListFolder, &pathsSize, &paths);
@@ -196,13 +194,13 @@ reloadCertificates(CertInfo *ci) {
             f[paths[i].length] = 0;
             err = mbedtls_x509_crl_parse_file(&ci->certificateRevocationList, f);
             if(err == 0) {
-                UA_LOG_INFO(ci->logger, UA_LOGCATEGORY_SERVER,
+                UA_LOG_INFO(*(cv->logging), UA_LOGCATEGORY_SERVER,
                             "Loaded certificate from %.*s",
                             (int)paths[i].length, paths[i].data);
             } else {
                 char errBuff[300];
                 mbedtls_strerror(err, errBuff, 300);
-                UA_LOG_INFO(ci->logger, UA_LOGCATEGORY_SERVER,
+                UA_LOG_INFO(*(cv->logging), UA_LOGCATEGORY_SERVER,
                             "Failed to load certificate from %.*s, mbedTLS error: %s (error code: %d)",
                             (int)paths[i].length, paths[i].data, errBuff, err);
                 internalErrorFlag = 1;
@@ -215,7 +213,7 @@ reloadCertificates(CertInfo *ci) {
 
     /* Load the issuerlists */
     if(ci->issuerListFolder.length > 0) {
-        UA_LOG_INFO(ci->logger, UA_LOGCATEGORY_SERVER, "Reloading the issuer-list");
+        UA_LOG_INFO(*(cv->logging), UA_LOGCATEGORY_SERVER, "Reloading the issuer-list");
         mbedtls_x509_crt_free(&ci->certificateIssuerList);
         mbedtls_x509_crt_init(&ci->certificateIssuerList);
         char f[PATH_MAX];
@@ -223,12 +221,12 @@ reloadCertificates(CertInfo *ci) {
         f[ci->issuerListFolder.length] = 0;
         err = mbedtls_x509_crt_parse_path(&ci->certificateIssuerList, f);
         if(err == 0) {
-            UA_LOG_INFO(ci->logger, UA_LOGCATEGORY_SERVER,
+            UA_LOG_INFO(*(cv->logging), UA_LOGCATEGORY_SERVER,
                         "Loaded certificate from %s", f);
         } else {
             char errBuff[300];
             mbedtls_strerror(err, errBuff, 300);
-            UA_LOG_INFO(ci->logger, UA_LOGCATEGORY_SERVER,
+            UA_LOG_INFO(*(cv->logging), UA_LOGCATEGORY_SERVER,
                         "Failed to load certificate from %s, mbedTLS error: %s (error code: %d)",
                         f, errBuff, err);
             internalErrorFlag = 1;
@@ -244,14 +242,17 @@ reloadCertificates(CertInfo *ci) {
 #endif
 
 static UA_StatusCode
-certificateVerification_verify(void *verificationContext,
+certificateVerification_verify(const UA_CertificateVerification *cv,
                                const UA_ByteString *certificate) {
-    CertInfo *ci = (CertInfo*)verificationContext;
+    CertInfo *ci;
+    if(!cv)
+        return UA_STATUSCODE_BADINTERNALERROR;
+    ci = (CertInfo*)cv->context;
     if(!ci)
         return UA_STATUSCODE_BADINTERNALERROR;
 
 #ifdef __linux__ /* Reload certificates if folder paths are specified */
-    UA_StatusCode certFlag = reloadCertificates(ci);
+    UA_StatusCode certFlag = reloadCertificates(cv, ci);
     if(certFlag != UA_STATUSCODE_GOOD) {
         return certFlag;
     }
@@ -264,7 +265,7 @@ certificateVerification_verify(void *verificationContext,
        ci->certificateTrustList.raw.len == 0 &&
        ci->certificateIssuerList.raw.len == 0 &&
        ci->certificateRevocationList.raw.len == 0) {
-        UA_LOG_WARNING(ci->logger, UA_LOGCATEGORY_SERVER,
+        UA_LOG_WARNING(*(cv->logging), UA_LOGCATEGORY_SERVER,
                        "PKI plugin unconfigured. Accepting the certificate.");
         return UA_STATUSCODE_GOOD;
     }
@@ -459,7 +460,7 @@ certificateVerification_verify(void *verificationContext,
 #if UA_LOGLEVEL <= 400
         char buff[100];
         int len = mbedtls_x509_crt_verify_info(buff, 100, "", flags);
-        UA_LOG_WARNING(ci->logger, UA_LOGCATEGORY_SECURITYPOLICY,
+        UA_LOG_WARNING(*(cv->logging), UA_LOGCATEGORY_SECURITYPOLICY,
                        "Verifying the certificate failed with error: %.*s", len-1, buff);
 #endif
         if(flags & (uint32_t)MBEDTLS_X509_BADCERT_NOT_TRUSTED) {
@@ -513,10 +514,13 @@ certificateVerification_verify(void *verificationContext,
 }
 
 static UA_StatusCode
-certificateVerification_verifyApplicationURI(void *verificationContext,
+certificateVerification_verifyApplicationURI(const UA_CertificateVerification *cv,
                                              const UA_ByteString *certificate,
                                              const UA_String *applicationURI) {
-    CertInfo *ci = (CertInfo*)verificationContext;
+    CertInfo *ci;
+    if(!cv)
+        return UA_STATUSCODE_BADINTERNALERROR;
+    ci = (CertInfo*)cv->context;
     if(!ci)
         return UA_STATUSCODE_BADINTERNALERROR;
 
@@ -556,7 +560,6 @@ certificateVerification_clear(UA_CertificateVerification *cv) {
 #ifdef UA_ENABLE_CERT_REJECTED_DIR
     UA_String_clear(&ci->rejectedListFolder);
 #endif
-    ci->logger = NULL;
     UA_free(ci);
     cv->context = NULL;
 }
@@ -594,6 +597,13 @@ UA_CertificateVerification_Trustlist(UA_CertificateVerification *cv,
                                      size_t certificateIssuerListSize,
                                      const UA_ByteString *certificateRevocationList,
                                      size_t certificateRevocationListSize) {
+
+    if(cv == NULL) {
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
+    if(cv->logging == NULL) {
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
     CertInfo *ci = (CertInfo*)UA_malloc(sizeof(CertInfo));
     if(!ci)
         return UA_STATUSCODE_BADOUTOFMEMORY;
@@ -601,12 +611,6 @@ UA_CertificateVerification_Trustlist(UA_CertificateVerification *cv,
     mbedtls_x509_crt_init(&ci->certificateTrustList);
     mbedtls_x509_crl_init(&ci->certificateRevocationList);
     mbedtls_x509_crt_init(&ci->certificateIssuerList);
-
-    if(cv->logger) {
-        ci->logger = cv->logger;
-    } else {
-        ci->logger = UA_Log_Stdout;
-    }
 
     cv->context = (void*)ci;
     cv->verifyCertificate = certificateVerification_verify;
@@ -668,6 +672,12 @@ UA_CertificateVerification_CertFolders(UA_CertificateVerification *cv,
                                        const char *issuerListFolder,
                                        const char *revocationListFolder) {
 #endif
+    if(cv == NULL) {
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
+    if(cv->logging == NULL) {
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
     CertInfo *ci = (CertInfo*)UA_malloc(sizeof(CertInfo));
     if(!ci)
         return UA_STATUSCODE_BADOUTOFMEMORY;
@@ -675,12 +685,6 @@ UA_CertificateVerification_CertFolders(UA_CertificateVerification *cv,
     mbedtls_x509_crt_init(&ci->certificateTrustList);
     mbedtls_x509_crl_init(&ci->certificateRevocationList);
     mbedtls_x509_crt_init(&ci->certificateIssuerList);
-
-    if(cv->logger) {
-        ci->logger = cv->logger;
-    } else {
-        ci->logger = UA_Log_Stdout;
-    }
 
     /* Only set the folder paths. They will be reloaded during runtime.
      * TODO: Add a more efficient reloading of only the changes */
@@ -691,7 +695,7 @@ UA_CertificateVerification_CertFolders(UA_CertificateVerification *cv,
     ci->rejectedListFolder = UA_STRING_ALLOC(rejectedListFolder);
 #endif
 
-    reloadCertificates(ci);
+    reloadCertificates(cv, ci);
 
     cv->context = (void*)ci;
     cv->verifyCertificate = certificateVerification_verify;

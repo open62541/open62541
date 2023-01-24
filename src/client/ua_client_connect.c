@@ -1144,7 +1144,7 @@ verifyClientApplicationURI(const UA_Client *client) {
 
         UA_StatusCode retval =
             client->config.certificateVerification.
-            verifyApplicationURI(client->config.certificateVerification.context,
+            verifyApplicationURI(&client->config.certificateVerification,
                                  &sp->localCertificate,
                                  &client->config.clientDescription.applicationUri);
         if(retval != UA_STATUSCODE_GOOD) {
