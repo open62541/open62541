@@ -711,6 +711,10 @@ UA_ClientConnectionTCP_poll(UA_Connection *connection, UA_UInt32 timeout,
 
     /* Connection timeout? */
     TCPClientConnection *tcpConnection = (TCPClientConnection*) connection->handle;
+    if(tcpConnection == NULL) {
+        connection->state = UA_CONNECTIONSTATE_CLOSED;
+        return UA_STATUSCODE_BADDISCONNECT;  // some thing is wrong
+    }
     if((UA_Double) (UA_DateTime_nowMonotonic() - tcpConnection->connStart)
        > (UA_Double) tcpConnection->timeout * UA_DATETIME_MSEC ) {
         UA_LOG_WARNING(logger, UA_LOGCATEGORY_NETWORK, "Timed out");
