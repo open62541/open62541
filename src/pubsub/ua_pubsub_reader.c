@@ -801,7 +801,19 @@ DataSetReader_processRaw(UA_Server *server, UA_ReaderGroup *rg,
         const UA_DataType *type =
             UA_findDataTypeWithCustom(&dsr->config.dataSetMetaData.fields[i].dataType,
                                       server->config.customDataTypes);
-        msg->data.keyFrameData.rawFields.length += type->memSize;
+        size_t fieldLength = 0;
+        if(type->typeKind == UA_DATATYPEKIND_STRING || type->typeKind == UA_DATATYPEKIND_BYTESTRING)
+        {
+            UA_assert(dsr->config.dataSetMetaData.fields[i].maxStringLength != 0);
+            // Length of binary encoded string = 4 (string length encoded as uint32) + N (actual string data) bytes.
+            // For fixed message layout N equals maxStringlength.
+            fieldLength = sizeof(UA_UInt32) + dsr->config.dataSetMetaData.fields[i].maxStringLength;
+        }
+        else
+        {
+            fieldLength = type->memSize;
+        }
+        msg->data.keyFrameData.rawFields.length += fieldLength;
         UA_STACKARRAY(UA_Byte, value, type->memSize);
         UA_StatusCode res =
             UA_decodeBinaryInternal(&msg->data.keyFrameData.rawFields,
