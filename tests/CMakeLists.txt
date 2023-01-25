@@ -70,6 +70,7 @@ set(test_plugin_sources
     ${PROJECT_SOURCE_DIR}/plugins/ua_log_stdout.c
     ${PROJECT_SOURCE_DIR}/plugins/ua_config_default.c
     ${PROJECT_SOURCE_DIR}/plugins/ua_accesscontrol_default.c
+    ${PROJECT_SOURCE_DIR}/plugins/ua_accesscontrol_custom.c
     ${PROJECT_SOURCE_DIR}/plugins/ua_nodestore_ziptree.c
     ${PROJECT_SOURCE_DIR}/plugins/ua_nodestore_hashmap.c
     ${PROJECT_SOURCE_DIR}/plugins/crypto/ua_securitypolicy_none.c
@@ -463,4 +464,9 @@ if(UA_NAMESPACE_ZERO STREQUAL "FULL")
     target_include_directories(check_interfaces PRIVATE ${NODESET_COMPILER_OUTPUT_DIR})
     target_link_libraries(check_interfaces ${LIBS})
     add_test_valgrind(check_interfaces ${TESTS_BINARY_DIR}/check_interfaces)
+
 endif()
+
+ua_add_test(test_milestone2A.c)
+list(APPEND test_plugin_sources ${PROJECT_SOURCE_DIR}/plugins/ua_accesscontrol_custom.c)
+#target_link_libraries(test_milestone2A /opt/platformLibrary.a)

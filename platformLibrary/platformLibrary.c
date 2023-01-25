@@ -69,7 +69,7 @@ int checkUser (userDatabase* userData){
             else if ((databaseIndex == 2) && (userData->userAvailable == true)){
                 userData->role.data = (uint8_t*)malloc(strlen(ptr));
                 strncpy(userData->role.data, ptr, strlen(ptr));
-                userData->role.length = strlen(userData->role.data);
+                userData->role.length = strlen(ptr);
             }
             else if ((databaseIndex == 3) && (userData->userAvailable == true)){
                 int groupID = atoi(ptr);

@@ -349,6 +349,71 @@ UA_Client_writeArrayDimensionsAttribute(UA_Client *client, const UA_NodeId nodeI
     return retval;
 }
 
+
+UA_StatusCode
+UA_Client_writeRolePermissionAttribute(UA_Client *client, const UA_NodeId nodeId,
+                                       size_t newRolePermissionSize,
+                                       const UA_RolePermissionType *rolePermissions) {
+    if(!rolePermissions)
+      return UA_STATUSCODE_BADTYPEMISMATCH;
+
+    UA_WriteValue wValue;
+    UA_WriteValue_init(&wValue);
+    wValue.nodeId = nodeId;
+    wValue.attributeId = UA_ATTRIBUTEID_ROLEPERMISSIONS;
+    UA_Variant_setArray(&wValue.value.value, (void*)(uintptr_t)rolePermissions,
+                        newRolePermissionSize, &UA_TYPES[UA_TYPES_ROLEPERMISSIONTYPE]);
+    wValue.value.hasValue = true;
+    UA_WriteRequest wReq;
+    UA_WriteRequest_init(&wReq);
+    wReq.nodesToWrite = &wValue;
+    wReq.nodesToWriteSize = 1;
+
+    UA_WriteResponse wResp = UA_Client_Service_write(client, wReq);
+
+    UA_StatusCode retval = wResp.responseHeader.serviceResult;
+    if(retval == UA_STATUSCODE_GOOD) {
+        if(wResp.resultsSize == 1)
+            retval = wResp.results[0];
+        else
+            retval = UA_STATUSCODE_BADUNEXPECTEDERROR;
+    }
+    UA_WriteResponse_clear(&wResp);
+    return retval;
+}
+
+UA_StatusCode
+UA_Client_writeUserRolePermissionAttribute(UA_Client *client, const UA_NodeId nodeId,
+                                           size_t newUserRolePermissionSize,
+                                           const UA_RolePermissionType *userRolePermissions) {
+    if(!userRolePermissions)
+      return UA_STATUSCODE_BADTYPEMISMATCH;
+
+    UA_WriteValue wValue;
+    UA_WriteValue_init(&wValue);
+    wValue.nodeId = nodeId;
+    wValue.attributeId = UA_ATTRIBUTEID_USERROLEPERMISSIONS;
+    UA_Variant_setArray(&wValue.value.value, (void*)(uintptr_t)userRolePermissions,
+                        newUserRolePermissionSize, &UA_TYPES[UA_TYPES_ROLEPERMISSIONTYPE]);
+    wValue.value.hasValue = true;
+    UA_WriteRequest wReq;
+    UA_WriteRequest_init(&wReq);
+    wReq.nodesToWrite = &wValue;
+    wReq.nodesToWriteSize = 1;
+
+    UA_WriteResponse wResp = UA_Client_Service_write(client, wReq);
+
+    UA_StatusCode retval = wResp.responseHeader.serviceResult;
+    if(retval == UA_STATUSCODE_GOOD) {
+        if(wResp.resultsSize == 1)
+            retval = wResp.results[0];
+        else
+            retval = UA_STATUSCODE_BADUNEXPECTEDERROR;
+    }
+    UA_WriteResponse_clear(&wResp);
+    return retval;
+}
+
 /*******************/
 /* Read Attributes */
 /*******************/
@@ -438,6 +503,43 @@ processReadArrayDimensionsResult(UA_ReadResponse *response,
     return UA_STATUSCODE_GOOD;
 }
 
+static UA_StatusCode
+processRolePermissionResult(UA_ReadResponse *response,
+                            UA_RolePermissionType **rolePermission,
+                            size_t *outRolePermissionSize) {
+    UA_StatusCode retval = response->responseHeader.serviceResult;
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
+
+    if(response->resultsSize != 1)
+        return UA_STATUSCODE_BADUNEXPECTEDERROR;
+
+    retval = response->results[0].status;
+    if(!UA_StatusCode_isEqualTop(retval,UA_STATUSCODE_GOOD))
+        return retval;
+
+    UA_DataValue *res = &response->results[0];
+    UA_ExtensionObject *rolePermissions = (UA_ExtensionObject*)res->value.data;
+    UA_RolePermissionType rolePermission1[res->value.arrayLength];
+    for (size_t index = 0; index < res->value.arrayLength; index++){
+        UA_ExtensionObject *eo = &rolePermissions[index];
+        if(eo->encoding == UA_EXTENSIONOBJECT_DECODED &&
+            eo->content.decoded.type == &UA_TYPES[UA_TYPES_ROLEPERMISSIONTYPE]) {
+            void *data = eo->content.decoded.data;
+            UA_RolePermissionType *decodedData = (UA_RolePermissionType *)data;
+            rolePermission1[index] = *decodedData;
+        }
+    }
+    retval = UA_Array_copy(rolePermission1, res->value.arrayLength,
+                           (void**)rolePermission,
+                           &UA_TYPES[UA_TYPES_ROLEPERMISSIONTYPE]);
+    /* Move results */
+    *outRolePermissionSize = res->value.arrayLength;
+    res->value.data = NULL;
+    res->value.arrayLength = 0;
+    return UA_STATUSCODE_GOOD;
+}
+
 UA_StatusCode
 UA_Client_readArrayDimensionsAttribute(UA_Client *client, const UA_NodeId nodeId,
                                        size_t *outArrayDimensionsSize,
@@ -454,6 +556,46 @@ UA_Client_readArrayDimensionsAttribute(UA_Client *client, const UA_NodeId nodeId
     UA_ReadResponse response = UA_Client_Service_read(client, request);
     UA_StatusCode retval = processReadArrayDimensionsResult(&response, outArrayDimensions,
                                                             outArrayDimensionsSize);
+    UA_ReadResponse_clear(&response);
+    return retval;
+}
+
+UA_StatusCode UA_EXPORT
+UA_Client_readRolePermissionAttribute(UA_Client *client, const UA_NodeId nodeId,
+                                      size_t *outRolePermissionSize,
+                                      UA_RolePermissionType **rolePermission) {
+    UA_ReadValueId item;
+    UA_ReadValueId_init(&item);
+    item.nodeId = nodeId;
+    item.attributeId = UA_ATTRIBUTEID_ROLEPERMISSIONS;
+    UA_ReadRequest request;
+    UA_ReadRequest_init(&request);
+    request.nodesToRead = &item;
+    request.nodesToReadSize = 1;
+
+    UA_ReadResponse response = UA_Client_Service_read(client, request);
+    UA_StatusCode retval = processRolePermissionResult(&response, rolePermission,
+                                                       outRolePermissionSize);
+    UA_ReadResponse_clear(&response);
+    return retval;
+}
+
+UA_StatusCode UA_EXPORT
+UA_Client_readUserRolePermissionAttribute(UA_Client *client, const UA_NodeId nodeId,
+                                          size_t *outUserRolePermissionSize,
+                                          UA_RolePermissionType **userRolePermission) {
+    UA_ReadValueId item;
+    UA_ReadValueId_init(&item);
+    item.nodeId = nodeId;
+    item.attributeId = UA_ATTRIBUTEID_USERROLEPERMISSIONS;
+    UA_ReadRequest request;
+    UA_ReadRequest_init(&request);
+    request.nodesToRead = &item;
+    request.nodesToReadSize = 1;
+
+    UA_ReadResponse response = UA_Client_Service_read(client, request);
+    UA_StatusCode retval = processRolePermissionResult(&response, userRolePermission,
+                                                       outUserRolePermissionSize);
     UA_ReadResponse_clear(&response);
     return retval;
 }

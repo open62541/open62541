@@ -563,7 +563,7 @@ UA_StatusCode addNewTestNode(UA_Server *server) {
     attributes.rolePermissions[1].roleId = UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_ENGINEER);
     attributes.rolePermissions[1].permissions = 0x1FFFF;
     attributes.userRolePermissions[0].roleId = UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_CONFIGUREADMIN);
-    attributes.userRolePermissions[0].permissions = 0x1867;
+    attributes.userRolePermissions[0].permissions = 0x186F;
     attributes.userRolePermissions[1].roleId = UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_ENGINEER);
     attributes.userRolePermissions[1].permissions = 0x1867;
     value = 15;
