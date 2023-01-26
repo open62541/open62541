@@ -612,9 +612,6 @@ activateSessionAsync(UA_Client *client) {
 
     UA_ActivateSessionRequest request;
     UA_ActivateSessionRequest_init(&request);
-    request.requestHeader.requestHandle = ++client->requestHandle;
-    request.requestHeader.timestamp = UA_DateTime_now ();
-    request.requestHeader.timeoutHint = 600000;
     UA_StatusCode retval =
         UA_ExtensionObject_copy(&client->config.userIdentityToken,
                                 &request.userIdentityToken);
@@ -897,8 +894,6 @@ requestGetEndpoints(UA_Client *client) {
 
     UA_GetEndpointsRequest request;
     UA_GetEndpointsRequest_init(&request);
-    request.requestHeader.timestamp = UA_DateTime_now();
-    request.requestHeader.timeoutHint = 10000;
     request.endpointUrl = client->endpointUrl;
     UA_StatusCode retval =
         __Client_AsyncServiceEx(client, &request, &UA_TYPES[UA_TYPES_GETENDPOINTSREQUEST],
@@ -987,9 +982,6 @@ createSessionAsync(UA_Client *client) {
     /* Prepare and send the request */
     UA_CreateSessionRequest request;
     UA_CreateSessionRequest_init(&request);
-    request.requestHeader.requestHandle = ++client->requestHandle;
-    request.requestHeader.timestamp = UA_DateTime_now();
-    request.requestHeader.timeoutHint = 10000;
     request.clientNonce = client->localNonce;
     request.requestedSessionTimeout = client->config.requestedSessionTimeout;
     request.maxResponseMessageSize = UA_INT32_MAX;
@@ -1541,11 +1533,13 @@ closeSecureChannel(UA_Client *client) {
     if(client->channel.state == UA_SECURECHANNELSTATE_OPEN) {
         UA_LOG_DEBUG_CHANNEL(&client->config.logger, &client->channel,
                              "Sending the CLO message");
+
+        /* Manually set up the header (otherwise done in sendRequest) */
         UA_CloseSecureChannelRequest request;
         UA_CloseSecureChannelRequest_init(&request);
         request.requestHeader.requestHandle = ++client->requestHandle;
         request.requestHeader.timestamp = UA_DateTime_now();
-        request.requestHeader.timeoutHint = 10000;
+        request.requestHeader.timeoutHint = client->config.timeout;
         request.requestHeader.authenticationToken = client->authenticationToken;
         UA_SecureChannel_sendSymmetricMessage(&client->channel, ++client->requestId,
                                               UA_MESSAGETYPE_CLO, &request,
@@ -1562,8 +1556,6 @@ static void
 sendCloseSession(UA_Client *client) {
     UA_CloseSessionRequest request;
     UA_CloseSessionRequest_init(&request);
-    request.requestHeader.timestamp = UA_DateTime_now();
-    request.requestHeader.timeoutHint = 10000;
     request.deleteSubscriptions = true;
     UA_CloseSessionResponse response;
     __Client_Service(client, &request, &UA_TYPES[UA_TYPES_CLOSESESSIONREQUEST],
@@ -1627,8 +1619,6 @@ UA_Client_disconnectAsync(UA_Client *client) {
 
     UA_CloseSessionRequest request;
     UA_CloseSessionRequest_init(&request);
-    request.requestHeader.timestamp = UA_DateTime_now();
-    request.requestHeader.timeoutHint = 10000;
     request.deleteSubscriptions = true;
     UA_StatusCode res =
         __Client_AsyncServiceEx(client, &request, &UA_TYPES[UA_TYPES_CLOSESESSIONREQUEST],
