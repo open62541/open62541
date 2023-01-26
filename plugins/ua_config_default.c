@@ -888,7 +888,7 @@ UA_ClientConfig_setDefault(UA_ClientConfig *config) {
      *  sessionLocaleIdsSize */
 
     if(config->timeout == 0)
-        config->timeout = 5000;
+        config->timeout = 5 * 1000; /* 5 seconds */
     if(config->secureChannelLifeTime == 0)
         config->secureChannelLifeTime = 10 * 60 * 1000; /* 10 minutes */
 
