@@ -660,11 +660,11 @@ createDataChanges_async(UA_Client *client, const UA_CreateMonitoredItemsRequest 
         return res;
     }
 
-    return __Client_AsyncServiceEx(client, &data->request,
-                                   &UA_TYPES[UA_TYPES_CREATEMONITOREDITEMSREQUEST],
-                                   ua_MonitoredItems_create_async_handler,
-                                   &UA_TYPES[UA_TYPES_CREATEMONITOREDITEMSRESPONSE],
-                                   data, requestId, client->config.timeout);
+    return __Client_AsyncService(client, &data->request,
+                                 &UA_TYPES[UA_TYPES_CREATEMONITOREDITEMSREQUEST],
+                                 ua_MonitoredItems_create_async_handler,
+                                 &UA_TYPES[UA_TYPES_CREATEMONITOREDITEMSRESPONSE],
+                                 data, requestId);
 }
 
 UA_CreateMonitoredItemsResponse
@@ -1364,20 +1364,17 @@ __Client_Subscriptions_backgroundPublish(UA_Client *client) {
             return;
         }
 
-        UA_UInt32 requestId;
-        client->currentlyOutStandingPublishRequests++;
-
-        /* Disable the timeout, it is treat in
-         * UA_Client_Subscriptions_backgroundPublishInactivityCheck */
-        retval = __Client_AsyncServiceEx(client, request,
+        retval = __Client_AsyncService(client, request,
                                          &UA_TYPES[UA_TYPES_PUBLISHREQUEST],
                                          processPublishResponseAsync,
                                          &UA_TYPES[UA_TYPES_PUBLISHRESPONSE],
-                                         (void*)request, &requestId, 0);
+                                         (void*)request, NULL);
         if(retval != UA_STATUSCODE_GOOD) {
             UA_PublishRequest_delete(request);
             return;
         }
+
+        client->currentlyOutStandingPublishRequests++;
     }
 }
 

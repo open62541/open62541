@@ -702,12 +702,11 @@ UA_Client_modifyAsyncCallback(UA_Client *client, UA_UInt32 requestId,
 }
 
 UA_StatusCode
-__Client_AsyncServiceEx(UA_Client *client, const void *request,
-                        const UA_DataType *requestType,
-                        UA_ClientAsyncServiceCallback callback,
-                        const UA_DataType *responseType,
-                        void *userdata, UA_UInt32 *requestId,
-                        UA_UInt32 timeout) {
+__Client_AsyncService(UA_Client *client, const void *request,
+                      const UA_DataType *requestType,
+                      UA_ClientAsyncServiceCallback callback,
+                      const UA_DataType *responseType,
+                      void *userdata, UA_UInt32 *requestId) {
     UA_LOCK_ASSERT(&client->clientMutex, 1);
 
     if(client->channel.state != UA_SECURECHANNELSTATE_OPEN) {
@@ -720,11 +719,6 @@ __Client_AsyncServiceEx(UA_Client *client, const void *request,
     AsyncServiceCall *ac = (AsyncServiceCall*)UA_malloc(sizeof(AsyncServiceCall));
     if(!ac)
         return UA_STATUSCODE_BADOUTOFMEMORY;
-    ac->callback = callback;
-    ac->responseType = responseType;
-    ac->userdata = userdata;
-    ac->timeout = timeout;
-    ac->syncResponse = NULL;
 
     /* Call the service and set the requestId */
     UA_StatusCode retval = sendRequest(client, request, requestType, &ac->requestId);
@@ -738,31 +732,27 @@ __Client_AsyncServiceEx(UA_Client *client, const void *request,
         return retval;
     }
 
+    /* Set up the AsyncServiceCall for processing the response */
+    const UA_RequestHeader *rh = (const UA_RequestHeader*)request;
+    ac->callback = callback;
+    ac->responseType = responseType;
+    ac->userdata = userdata;
+    ac->syncResponse = NULL;
     ac->start = UA_DateTime_nowMonotonic();
+    ac->timeout = rh->timeoutHint;
+    if(ac->timeout == 0)
+        ac->timeout = UA_UINT32_MAX; /* 0 -> unlimited */
 
-    /* Store the entry for async processing */
     LIST_INSERT_HEAD(&client->asyncServiceCalls, ac, pointers);
+
+    /* Return the generated request id */
     if(requestId)
         *requestId = ac->requestId;
 
+    /* Notify the userland if a change happened */
     notifyClientState(client);
 
     return UA_STATUSCODE_GOOD;
-}
-
-UA_StatusCode
-__UA_Client_AsyncServiceEx(UA_Client *client, const void *request,
-                           const UA_DataType *requestType,
-                           UA_ClientAsyncServiceCallback callback,
-                           const UA_DataType *responseType,
-                           void *userdata, UA_UInt32 *requestId,
-                           UA_UInt32 timeout) {
-    UA_LOCK(&client->clientMutex);
-    UA_StatusCode res =
-        __Client_AsyncServiceEx(client, request, requestType, callback, responseType,
-                                userdata, requestId, timeout);
-    UA_UNLOCK(&client->clientMutex);
-    return res;
 }
 
 UA_StatusCode
@@ -773,8 +763,8 @@ __UA_Client_AsyncService(UA_Client *client, const void *request,
                          void *userdata, UA_UInt32 *requestId) {
     UA_LOCK(&client->clientMutex);
     UA_StatusCode res =
-        __Client_AsyncServiceEx(client, request, requestType, callback, responseType,
-                                userdata, requestId, client->config.timeout);
+        __Client_AsyncService(client, request, requestType, callback, responseType,
+                              userdata, requestId);
     UA_UNLOCK(&client->clientMutex);
     return res;
 }
@@ -902,10 +892,9 @@ __Client_backgroundConnectivity(UA_Client *client) {
     request.nodesToRead = &rvid;
     request.nodesToReadSize = 1;
     UA_StatusCode retval =
-        __Client_AsyncServiceEx(client, &request, &UA_TYPES[UA_TYPES_READREQUEST],
-                                (UA_ClientAsyncServiceCallback)backgroundConnectivityCallback,
-                                &UA_TYPES[UA_TYPES_READRESPONSE], NULL, NULL,
-                                client->config.timeout);
+        __Client_AsyncService(client, &request, &UA_TYPES[UA_TYPES_READREQUEST],
+                              (UA_ClientAsyncServiceCallback)backgroundConnectivityCallback,
+                              &UA_TYPES[UA_TYPES_READRESPONSE], NULL, NULL);
     if(retval == UA_STATUSCODE_GOOD)
         client->pendingConnectivityCheck = true;
 }

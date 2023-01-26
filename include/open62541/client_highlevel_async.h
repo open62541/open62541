@@ -14,6 +14,8 @@
 _UA_BEGIN_DECLS
 
 /**
+ * .. _client_async:
+ *
  * Async Services
  * ^^^^^^^^^^^^^^
  *

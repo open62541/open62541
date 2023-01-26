@@ -657,11 +657,11 @@ activateSessionAsync(UA_Client *client) {
 #endif
 
     if(retval == UA_STATUSCODE_GOOD)
-        retval = __Client_AsyncServiceEx(client, &request,
-                                         &UA_TYPES[UA_TYPES_ACTIVATESESSIONREQUEST],
-                                         (UA_ClientAsyncServiceCallback)responseActivateSession,
-                                         &UA_TYPES[UA_TYPES_ACTIVATESESSIONRESPONSE],
-                                         NULL, NULL, client->config.timeout);
+        retval = __Client_AsyncService(client, &request,
+                                       &UA_TYPES[UA_TYPES_ACTIVATESESSIONREQUEST],
+                                       (UA_ClientAsyncServiceCallback)responseActivateSession,
+                                       &UA_TYPES[UA_TYPES_ACTIVATESESSIONRESPONSE],
+                                       NULL, NULL);
 
     UA_ActivateSessionRequest_clear(&request);
     if(retval == UA_STATUSCODE_GOOD)
@@ -896,10 +896,9 @@ requestGetEndpoints(UA_Client *client) {
     UA_GetEndpointsRequest_init(&request);
     request.endpointUrl = client->endpointUrl;
     UA_StatusCode retval =
-        __Client_AsyncServiceEx(client, &request, &UA_TYPES[UA_TYPES_GETENDPOINTSREQUEST],
-                                (UA_ClientAsyncServiceCallback) responseGetEndpoints,
-                                &UA_TYPES[UA_TYPES_GETENDPOINTSRESPONSE], NULL, NULL,
-                                client->config.timeout);
+        __Client_AsyncService(client, &request, &UA_TYPES[UA_TYPES_GETENDPOINTSREQUEST],
+                              (UA_ClientAsyncServiceCallback) responseGetEndpoints,
+                              &UA_TYPES[UA_TYPES_GETENDPOINTSRESPONSE], NULL, NULL);
     if(retval == UA_STATUSCODE_GOOD)
         client->endpointsHandshake = true;
     else
@@ -992,11 +991,10 @@ createSessionAsync(UA_Client *client) {
         request.clientCertificate = client->channel.securityPolicy->localCertificate;
     }
 
-    res = __Client_AsyncServiceEx(client, &request,
-                                  &UA_TYPES[UA_TYPES_CREATESESSIONREQUEST],
-                                  (UA_ClientAsyncServiceCallback)responseSessionCallback,
-                                  &UA_TYPES[UA_TYPES_CREATESESSIONRESPONSE], NULL, NULL,
-                                  client->config.timeout);
+    res = __Client_AsyncService(client, &request,
+                                &UA_TYPES[UA_TYPES_CREATESESSIONREQUEST],
+                                (UA_ClientAsyncServiceCallback)responseSessionCallback,
+                                &UA_TYPES[UA_TYPES_CREATESESSIONRESPONSE], NULL, NULL);
 
     if(res == UA_STATUSCODE_GOOD)
         client->sessionState = UA_SESSIONSTATE_CREATE_REQUESTED;
@@ -1621,10 +1619,9 @@ UA_Client_disconnectAsync(UA_Client *client) {
     UA_CloseSessionRequest_init(&request);
     request.deleteSubscriptions = true;
     UA_StatusCode res =
-        __Client_AsyncServiceEx(client, &request, &UA_TYPES[UA_TYPES_CLOSESESSIONREQUEST],
-                                (UA_ClientAsyncServiceCallback)closeSessionCallback,
-                                &UA_TYPES[UA_TYPES_CLOSESESSIONRESPONSE], NULL, NULL,
-                                client->config.timeout);
+        __Client_AsyncService(client, &request, &UA_TYPES[UA_TYPES_CLOSESESSIONREQUEST],
+                              (UA_ClientAsyncServiceCallback)closeSessionCallback,
+                              &UA_TYPES[UA_TYPES_CLOSESESSIONRESPONSE], NULL, NULL);
     if(res != UA_STATUSCODE_GOOD) {
         /* Sending the close request failed. Continue to close the connection
          * anyway. */
