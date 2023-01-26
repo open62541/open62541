@@ -71,7 +71,12 @@ _UA_BEGIN_DECLS
 typedef struct {
     void *clientContext; /* User-defined pointer attached to the client */
     UA_Logger logger;    /* Logger used by the client */
-    UA_UInt32 timeout;   /* Response timeout in ms */
+
+    /* Response timeout in ms (0 -> no timeout). If the server does not answer a
+     * request within this time a StatusCode UA_STATUSCODE_BADTIMEOUT is
+     * returned. This timeout can be overridden for individual requests by
+     * setting a non-null "timeoutHint" in the request header. */
+    UA_UInt32 timeout;
 
     /* The description must be internally consistent.
      * - The ApplicationUri set in the ApplicationDescription must match the

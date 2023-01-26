@@ -329,6 +329,12 @@ sendRequest(UA_Client *client, const void *request,
     rr->authenticationToken = client->authenticationToken;
     rr->timestamp = UA_DateTime_now();
     rr->requestHandle = ++client->requestHandle;
+
+    /* Set the timeout hint if not manually defined */
+    if(rr->timeoutHint == 0)
+        rr->timeoutHint = client->config.timeout;
+
+    /* Generate the request id */
     UA_UInt32 rqId = ++client->requestId;
 
 #ifdef UA_ENABLE_TYPEDESCRIPTION
