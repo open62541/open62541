@@ -334,11 +334,6 @@ UA_ReaderGroup_setPubSubState_disable(UA_Server *server,
         break;
     case UA_PUBSUBSTATE_OPERATIONAL: {
         UA_ReaderGroup_removeSubscribeCallback(server, rg);
-        UA_PubSubConnection *connection = rg->linkedConnection;
-        UA_PubSubChannel *channel = connection->channel;
-        if(channel->closeSubscriber) {
-            channel->closeSubscriber(channel);
-        }
         LIST_FOREACH(dataSetReader, &rg->readers, listEntry) {
             UA_DataSetReader_setPubSubState(server, dataSetReader,
                                             UA_PUBSUBSTATE_DISABLED, cause);
@@ -389,11 +384,6 @@ UA_ReaderGroup_setPubSubState_operational(UA_Server *server,
         LIST_FOREACH(dataSetReader, &rg->readers, listEntry) {
             UA_DataSetReader_setPubSubState(server, dataSetReader, UA_PUBSUBSTATE_OPERATIONAL,
                                             cause);
-        }
-        UA_PubSubConnection *connection = rg->linkedConnection;
-        UA_PubSubChannel *channel = connection->channel;
-        if(channel->openSubscriber) {
-            channel->openSubscriber(channel);
         }
         UA_ReaderGroup_addSubscribeCallback(server, rg);
         rg->state = UA_PUBSUBSTATE_OPERATIONAL;
