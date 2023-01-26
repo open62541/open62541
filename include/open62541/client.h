@@ -641,16 +641,11 @@ __UA_Client_AsyncService(UA_Client *client, const void *request,
                          const UA_DataType *responseType,
                          void *userdata, UA_UInt32 *requestId);
 
-UA_StatusCode UA_EXPORT UA_THREADSAFE
-UA_Client_sendAsyncRequest(UA_Client *client, const void *request,
-        const UA_DataType *requestType, UA_ClientAsyncServiceCallback callback,
-        const UA_DataType *responseType, void *userdata, UA_UInt32 *requestId);
-
 /* Set new userdata and callback for an existing request.
  *
  * @param client Pointer to the UA_Client
  * @param requestId RequestId of the request, which was returned by
- *        UA_Client_sendAsyncRequest before
+ *        __UA_Client_AsyncService before
  * @param userdata The new userdata
  * @param callback The new callback
  * @return UA_StatusCode UA_STATUSCODE_GOOD on success
