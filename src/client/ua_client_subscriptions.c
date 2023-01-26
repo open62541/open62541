@@ -1355,7 +1355,9 @@ __Client_Subscriptions_backgroundPublish(UA_Client *client) {
         if(!request)
             return;
 
-        request->requestHeader.timeoutHint = 60000;
+        /* Publish requests are valid for 10 minutes */
+        request->requestHeader.timeoutHint = 10 * 60 * 1000;
+
         UA_StatusCode retval = __Client_preparePublishRequest(client, request);
         if(retval != UA_STATUSCODE_GOOD) {
             UA_PublishRequest_delete(request);
