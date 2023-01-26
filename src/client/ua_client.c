@@ -351,8 +351,10 @@ sendRequest(UA_Client *client, const void *request,
     UA_StatusCode retval =
         UA_SecureChannel_sendSymmetricMessage(&client->channel, rqId,
                                               UA_MESSAGETYPE_MSG, rr, requestType);
-    rr->authenticationToken = oldToken; /* Set the original token */
 
+    rr->authenticationToken = oldToken; /* Set back to the original token */
+
+    /* Return the request id */
     *requestId = rqId;
     return retval;
 }
