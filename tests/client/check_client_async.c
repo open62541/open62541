@@ -166,10 +166,11 @@ START_TEST(Client_read_async_timed) {
         rr.nodesToRead = &rvid;
         rr.nodesToReadSize = 1;
 
-        retval = __UA_Client_AsyncServiceEx(client, &rr,
-                &UA_TYPES[UA_TYPES_READREQUEST],
-                (UA_ClientAsyncServiceCallback) asyncReadCallback,
-                &UA_TYPES[UA_TYPES_READRESPONSE], &asyncCounter, NULL, 999);
+        rr.requestHeader.timeoutHint = 999;
+        retval = __UA_Client_AsyncService(client, &rr,
+                                          &UA_TYPES[UA_TYPES_READREQUEST],
+                                          (UA_ClientAsyncServiceCallback) asyncReadCallback,
+                                          &UA_TYPES[UA_TYPES_READRESPONSE], &asyncCounter, NULL);
         ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
         /* Process async responses during 1s */
@@ -184,10 +185,11 @@ START_TEST(Client_read_async_timed) {
         uintptr_t connId = client->channel.connectionId;
         cm->closeConnection(cm, connId);
 
-        retval = __UA_Client_AsyncServiceEx(client, &rr,
-                &UA_TYPES[UA_TYPES_READREQUEST],
-                (UA_ClientAsyncServiceCallback) asyncReadCallback,
-                &UA_TYPES[UA_TYPES_READRESPONSE], &asyncCounter, NULL, 100);
+        rr.requestHeader.timeoutHint = 100;
+        retval = __UA_Client_AsyncService(client, &rr,
+                                          &UA_TYPES[UA_TYPES_READREQUEST],
+                                          (UA_ClientAsyncServiceCallback) asyncReadCallback,
+                                          &UA_TYPES[UA_TYPES_READRESPONSE], &asyncCounter, NULL);
         ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
         /* Process async responses during 1s */
         UA_Client_run_iterate(client, 100 + 1);

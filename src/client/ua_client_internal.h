@@ -180,12 +180,11 @@ struct UA_Client {
 };
 
 UA_StatusCode
-__Client_AsyncServiceEx(UA_Client *client, const void *request,
-                        const UA_DataType *requestType,
-                        UA_ClientAsyncServiceCallback callback,
-                        const UA_DataType *responseType,
-                        void *userdata, UA_UInt32 *requestId,
-                        UA_UInt32 timeout);
+__Client_AsyncService(UA_Client *client, const void *request,
+                      const UA_DataType *requestType,
+                      UA_ClientAsyncServiceCallback callback,
+                      const UA_DataType *responseType,
+                      void *userdata, UA_UInt32 *requestId);
 
 void
 __Client_Service(UA_Client *client, const void *request,

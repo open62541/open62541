@@ -608,26 +608,25 @@ UA_Client_Service_queryNext(UA_Client *client,
  * This is especially true for the periodic renewal of a SecureChannel's
  * SecurityToken which is designed to have a limited lifetime and will
  * invalidate the connection if not renewed.
+ *
+ * Use the typed wrappers instead of `__UA_Client_AsyncService` directly. See
+ * :ref:`client_async`. However, the general mechanism of async service calls is
+ * explained here.
  */
 
-/* Use the type versions of this method. See below. However, the general
- * mechanism of async service calls is explained here.
+/* We say that an async service call has been dispatched once
+ * __UA_Client_AsyncService returns UA_STATUSCODE_GOOD. If there is an error
+ * after an async service has been dispatched, the callback is called with an
+ * "empty" response where the StatusCode has been set accordingly. This is also
+ * done if the client is shutting down and the list of dispatched async services
+ * is emptied.
  *
- * We say that an async service call has been dispatched once this method
- * returns UA_STATUSCODE_GOOD. If there is an error after an async service has
- * been dispatched, the callback is called with an "empty" response where the
- * statusCode has been set accordingly. This is also done if the client is
- * shutting down and the list of dispatched async services is emptied.
- *
- * The statusCode received when the client is shutting down is
+ * The StatusCode received when the client is shutting down is
  * UA_STATUSCODE_BADSHUTDOWN.
  *
- * The statusCode received when the client doesn't receive response
- * after specified config->timeout (in ms) is
- * UA_STATUSCODE_BADTIMEOUT.
- *
- * Instead, you can use __UA_Client_AsyncServiceEx to specify
- * a custom timeout
+ * The StatusCode received when the client doesn't receive response after the
+ * specified in config->timeout (can be overridden via the "timeoutHint" in the
+ * request header) is UA_STATUSCODE_BADTIMEOUT.
  *
  * The userdata and requestId arguments can be NULL. */
 
@@ -671,33 +670,6 @@ UA_Client_run_iterate(UA_Client *client, UA_UInt32 timeout);
  *         ``connectStatus`` is returned. */
 UA_StatusCode UA_EXPORT UA_THREADSAFE
 UA_Client_renewSecureChannel(UA_Client *client);
-
-/* Use the type versions of this method. See below. However, the general
- * mechanism of async service calls is explained here.
- *
- * We say that an async service call has been dispatched once this method
- * returns UA_STATUSCODE_GOOD. If there is an error after an async service has
- * been dispatched, the callback is called with an "empty" response where the
- * statusCode has been set accordingly. This is also done if the client is
- * shutting down and the list of dispatched async services is emptied.
- *
- * The statusCode received when the client is shutting down is
- * UA_STATUSCODE_BADSHUTDOWN.
- *
- * The statusCode received when the client doesn't receive response
- * after specified timeout (in ms) is
- * UA_STATUSCODE_BADTIMEOUT.
- *
- * The timeout can be disabled by setting timeout to 0
- *
- * The userdata and requestId arguments can be NULL. */
-UA_StatusCode UA_EXPORT
-__UA_Client_AsyncServiceEx(UA_Client *client, const void *request,
-                           const UA_DataType *requestType,
-                           UA_ClientAsyncServiceCallback callback,
-                           const UA_DataType *responseType,
-                           void *userdata, UA_UInt32 *requestId,
-                           UA_UInt32 timeout);
 
 /**
  * Timed Callbacks
