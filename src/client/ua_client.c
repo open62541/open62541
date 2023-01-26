@@ -785,16 +785,6 @@ __UA_Client_AsyncService(UA_Client *client, const void *request,
     return res;
 }
 
-UA_StatusCode
-UA_Client_sendAsyncRequest(UA_Client *client, const void *request,
-                           const UA_DataType *requestType,
-                           UA_ClientAsyncServiceCallback callback,
-                           const UA_DataType *responseType, void *userdata,
-                           UA_UInt32 *requestId) {
-    return __UA_Client_AsyncService(client, request, requestType, callback,
-                                    responseType, userdata, requestId);
-}
-
 /*******************/
 /* Timed Callbacks */
 /*******************/
