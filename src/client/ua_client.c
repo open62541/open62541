@@ -511,8 +511,8 @@ processServiceResponse(void *application, UA_SecureChannel *channel,
 
 void
 __Client_Service(UA_Client *client, const void *request,
-                    const UA_DataType *requestType, void *response,
-                    const UA_DataType *responseType) {
+                 const UA_DataType *requestType, void *response,
+                 const UA_DataType *responseType) {
     UA_ResponseHeader *respHeader = (UA_ResponseHeader*)response;
 
     /* Initialize. Response is valied in case of aborting. */
@@ -524,10 +524,6 @@ __Client_Service(UA_Client *client, const void *request,
         respHeader->serviceResult = UA_STATUSCODE_BADINTERNALERROR;
 		return;
     }
-
-    /* Store the time until which the request has to be answered */
-    UA_DateTime maxDate = UA_DateTime_nowMonotonic() +
-        ((UA_DateTime)client->config.timeout * UA_DATETIME_MSEC);
 
     /* Check that the SecureChannel is open and also a Session active (if we
      * want a Session). Otherwise reopen. */
@@ -546,16 +542,9 @@ __Client_Service(UA_Client *client, const void *request,
      * reconnection within the EventLoop run method. */
     UA_UInt32 channelId = client->channel.securityToken.channelId;
 
-    /* Send the request. This adds the ac variable to the async call linked list
-     * even though it is stack-allocated. */
-    AsyncServiceCall ac;
-    ac.callback = NULL;
-    ac.userdata = NULL;
-    ac.responseType = responseType;
-    ac.timeout = client->config.timeout;
-    ac.syncResponse = (UA_Response*)response;
-
-    UA_StatusCode retval = sendRequest(client, request, requestType, &ac.requestId);
+    /* Send the request */
+    UA_UInt32 requestId = 0;
+    UA_StatusCode retval = sendRequest(client, request, requestType, &requestId);
     if(retval != UA_STATUSCODE_GOOD) {
         /* If sending failed, the status is set to closing. The SecureChannel is
          * the actually closed in the next iteration of the EventLoop. */
@@ -569,33 +558,38 @@ __Client_Service(UA_Client *client, const void *request,
         return;
     }
 
-    /* Begin counting for the timeout after sending */
-    ac.start = UA_DateTime_nowMonotonic();
+    /* Temporarily insert an AsyncServiceCall */
+    const UA_RequestHeader *rh = (const UA_RequestHeader*)request;
+    AsyncServiceCall ac;
+    ac.callback = NULL;
+    ac.userdata = NULL;
+    ac.responseType = responseType;
+    ac.syncResponse = (UA_Response*)response;
+    ac.requestId = requestId;
+    ac.start = UA_DateTime_nowMonotonic(); /* Start timeout after sending */
+    ac.timeout = rh->timeoutHint;
+    if(ac.timeout == 0)
+        ac.timeout = UA_UINT32_MAX; /* 0 -> unlimited */
 
-    /* Temporarily insert to the async service list */
     LIST_INSERT_HEAD(&client->asyncServiceCalls, &ac, pointers);
 
-    /* Update the first timeout. Call the event-loop at least once with a
-     * timeout of zero. This is also important to have for debugging. */
-    UA_UInt32 timeout = 0;
-    UA_DateTime now = UA_DateTime_nowMonotonic();
-    if(now > maxDate)
-        timeout = (UA_UInt32)((maxDate - now) / UA_DATETIME_MSEC);
+    /* Time until which the request has to be answered */
+    UA_DateTime maxDate = ac.start + ((UA_DateTime)ac.timeout * UA_DATETIME_MSEC);
 
     /* Run the EventLoop until the request was processed, the request has timed
      * out or the client connection fails */
+    UA_UInt32 timeout_remaining = ac.timeout;
     while(true) {
         /* Unlock before dropping into the EventLoop. The client lock is
          * re-taken in the network callback if an event occurs. */
         UA_UNLOCK(&client->clientMutex);
-        retval = el->run(el, timeout);
+        retval = el->run(el, timeout_remaining);
         UA_LOCK(&client->clientMutex);
 
         /* Was the response received? In that case we can directly return. The
          * ac was already removed from the internal linked list. */
         if(ac.syncResponse == NULL)
             return;
-
 
         /* Check the status. Do not try to resend if the connection breaks.
          * Leave this to the application-level user. For example, we do not want
@@ -615,13 +609,13 @@ __Client_Service(UA_Client *client, const void *request,
             break;
         }
 
-        /* Compute the remaining timeout and run the EventLoop */
-        now = UA_DateTime_nowMonotonic();
+        /* Update the remaining timeout or break */
+        UA_DateTime now = UA_DateTime_nowMonotonic();
         if(now > maxDate) {
             retval = UA_STATUSCODE_BADTIMEOUT;
             break;
         }
-        timeout = (UA_UInt32)((maxDate - now) / UA_DATETIME_MSEC);
+        timeout_remaining = (UA_UInt32)((maxDate - now) / UA_DATETIME_MSEC);
     }
 
     /* Detach from the internal async service list */
