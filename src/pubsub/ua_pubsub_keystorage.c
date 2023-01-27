@@ -399,7 +399,7 @@ UA_PubSubKeyStorage_keyRolloverCallback(UA_Server *server, UA_PubSubKeyStorage *
                          (int)keyStorage->securityGroupID.length, keyStorage->securityGroupID.data,
                          UA_StatusCode_name(retval));
         }
-    } else if(keyStorage->sksConfig.endpointUrl) {
+    } else if(keyStorage->sksConfig.endpointUrl && keyStorage->sksConfig.reqId == 0) {
         UA_DateTime now = UA_DateTime_nowMonotonic();
         /*Publishers using a central SKS shall call GetSecurityKeys at a period of half the KeyLifetime */
         UA_Duration msTimeToNextGetSecurityKeys = keyStorage->keyLifeTime / 2;
@@ -594,6 +594,7 @@ cleanup:
     UA_UNLOCK(&server->serviceMutex);
     if(ks->sksConfig.userNotifyCallback)
         ks->sksConfig.userNotifyCallback(server, retval, ks->sksConfig.context);
+    ks->sksConfig.reqId = 0;
     UA_Client_disconnectAsync(client);
     addDelayedSksClientCleanupCb(client);
     return;
@@ -665,6 +666,12 @@ getSecurityKeysAndStoreFetchedKeys(UA_Server *server, UA_PubSubKeyStorage *keySt
     UA_StatusCode retval = UA_STATUSCODE_BAD;
     UA_UInt32 startingTokenId = UA_REQ_CURRENT_TOKEN;
     UA_UInt32 requestKeyCount = UA_UINT32_MAX;
+
+    if(keyStorage->sksConfig.reqId != 0) {
+        UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                    "SKS Client: SKS Pull request in process ");
+        return UA_STATUSCODE_GOOD;
+    }
 
     UA_ClientConfig cc;
     memset(&cc, 0, sizeof(UA_ClientConfig));

@@ -124,6 +124,7 @@ typedef struct UA_PubSubSKSConfig {
     const char *endpointUrl;
     UA_Server_sksPullRequestCallback userNotifyCallback;
     void *context;
+    UA_UInt32 reqId;
 } UA_PubSubSKSConfig;
 
 /**
