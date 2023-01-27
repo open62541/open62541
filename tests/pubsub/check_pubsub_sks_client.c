@@ -784,7 +784,7 @@ START_TEST(FetchNextbatchOfKeys) {
         if(sksPullIteration > 10 &&
            subKs->currentItem->keyID == pubKs->currentItem->keyID)
             break;
-        UA_fakeSleep(100);
+        UA_fakeSleep(1);
     }
     ck_assert(subKs->currentItem->keyID == pubKs->currentItem->keyID);
     ck_assert(UA_ByteString_equal(&subKs->currentItem->key, &pubKs->currentItem->key));
