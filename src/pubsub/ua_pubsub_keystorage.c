@@ -626,7 +626,9 @@ static void
 onConnect(UA_Client *client, UA_SecureChannelState channelState,
           UA_SessionState sessionState, UA_StatusCode connectStatus) {
     UA_Boolean triggerSKSCleanup = false;
-    if(connectStatus != UA_STATUSCODE_GOOD && channelState == UA_SECURECHANNELSTATE_CLOSED && sessionState == UA_SESSIONSTATE_CLOSED) {
+    if(connectStatus != UA_STATUSCODE_GOOD &&
+       connectStatus != UA_STATUSCODE_BADNOTCONNECTED &&
+       sessionState != UA_SESSIONSTATE_ACTIVATED) {
         UA_LOG_ERROR(&client->config.logger, UA_LOGCATEGORY_CLIENT,
                      "SKS Client: Failed to connect SKS server with error: %s ",
                      UA_StatusCode_name(connectStatus));
@@ -650,6 +652,8 @@ onConnect(UA_Client *client, UA_SecureChannelState channelState,
         if(ks->sksConfig.userNotifyCallback)
             ks->sksConfig.userNotifyCallback(ctx->server, connectStatus,
                                              ks->sksConfig.context);
+        UA_Client_disconnectAsync(client);
+        addDelayedSksClientCleanupCb(client);
     }
     return;
 }
