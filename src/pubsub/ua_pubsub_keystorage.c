@@ -509,6 +509,7 @@ sksClientCleanupCb(void *client, void *context) {
         sksClient->config.securityPoliciesSize = 0;
         sksClient->config.certificateVerification.context = NULL;
         sksClient->config.logger.context = NULL;
+        UA_free(sksClient->config.clientContext);
         UA_Client_delete(sksClient);
     } else {
         addDelayedSksClientCleanupCb(sksClient);
