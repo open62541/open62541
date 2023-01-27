@@ -574,11 +574,22 @@ START_TEST(SetInvalidSKSEndpointUrl) {
     ck_assert_msg(retval == UA_STATUSCODE_BADTCPENDPOINTURLINVALID,
                   "Expected Statuscode to be BADTCPENDPOINTURLINVALID, but failed with: %s ",
                   UA_StatusCode_name(retval));
+    UA_Client_delete(client);
+}
+END_TEST
+
+START_TEST(SetWrongSKSEndpointUrl) {
+    UA_StatusCode retval = UA_STATUSCODE_BAD;
+    retval = addPublisher(publisherApp);
+    UA_Client *client = UA_Client_new();
+    UA_ClientConfig *config = UA_Client_getConfig(client);
+    UA_ClientConfig_setDefault(config);
 
     retval = UA_Server_setSksClient(publisherApp, securityGroupId, config, "opc.tcp://WrongHost:4840", sksPullRequestCallback, NULL);
     ck_assert_msg(retval == UA_STATUSCODE_BADCONNECTIONCLOSED,
                   "Expected Statuscode to be BADCONNECTIONCLOSED, but failed with: %s ",
                   UA_StatusCode_name(retval));
+    UA_Client_delete(client);
 }
 END_TEST
 
@@ -797,6 +808,7 @@ main(void) {
     tcase_add_test(tc_pubsub_sks_client, AddValidSksClientwithReaderGroup);
     tcase_add_test(tc_pubsub_sks_client, SetInvalidSKSClient);
     tcase_add_test(tc_pubsub_sks_client, SetInvalidSKSEndpointUrl);
+    tcase_add_test(tc_pubsub_sks_client, SetWrongSKSEndpointUrl);
     tcase_add_test(tc_pubsub_sks_client, CheckPublishedValuesInUserLand);
     tcase_add_test(tc_pubsub_sks_client, PublisherSubscriberTogethor);
     tcase_add_test(tc_pubsub_sks_client, PublisherDelayedSubscriberTogethor);
