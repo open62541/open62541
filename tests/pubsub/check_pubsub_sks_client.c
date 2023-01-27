@@ -42,6 +42,7 @@ THREAD_HANDLE server_thread;
 UA_Server *sksServer, *publisherApp, *subscriberApp;
 UA_NodeId writerGroupId, readerGroupId;
 UA_NodeId publisherConnection, subscriberConnection;
+UA_ByteString allowedUsername;
 THREAD_CALLBACK(serverloop) {
     while(running)
         UA_Server_run_iterate(sksServer, true);
@@ -91,13 +92,10 @@ addSecurityGroup(void) {
     maxKeyCount = config.maxPastKeyCount + 1 + config.maxFutureKeyCount;
 
     UA_Server_addSecurityGroup(sksServer, securityGroupParent, &config, &outNodeId);
-    UA_String_copy(&config.securityGroupName, &securityGroupId);
+    securityGroupId = config.securityGroupName;
 
-    UA_String allowedUsername = UA_STRING("user1");
-
-    UA_ByteString *username = UA_ByteString_new();
-    UA_ByteString_copy(&allowedUsername, username);
-    UA_Server_setNodeContext(sksServer, outNodeId, username);
+    allowedUsername = UA_STRING("user1");
+    UA_Server_setNodeContext(sksServer, outNodeId, &allowedUsername);
 }
 
 static UA_Boolean
