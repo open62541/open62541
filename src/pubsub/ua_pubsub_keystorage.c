@@ -564,6 +564,18 @@ storeFetchedKeys(UA_Client *client, void *userdata, UA_UInt32 requestId,
             goto cleanup;
     }
 
+    /**
+     * After a new batch of keys is fetched from SKS server, the key storage is updated
+     * with new keys and new keylifetime. Also the remaining time for current
+     * keyRollover is also returned. When setting a new keyRollover callback, the
+     * previous callback must be removed so that the keyRollover does not happen twice
+     */
+    if(ks->callBackId != 0) {
+        server->config.eventLoop->removeCyclicCallback(server->config.eventLoop,
+                                                       ks->callBackId);
+        ks->callBackId = 0;
+    }
+
     UA_Duration msTimeToNextKey =
         *(UA_Duration *)response->results->outputArguments[3].data;
     if(!(msTimeToNextKey > 0))
