@@ -34,6 +34,7 @@ UA_EventLoopPOSIX_registerFD(UA_EventLoopPOSIX *el, UA_RegisteredFD *rfd) {
 UA_StatusCode
 UA_EventLoopPOSIX_modifyFD(UA_EventLoopPOSIX *el, UA_RegisteredFD *rfd) {
     struct epoll_event event;
+    memset(&event, 0, sizeof(struct epoll_event));
     event.data.ptr = rfd;
     event.events = 0;
     if(rfd->listenEvents & UA_FDEVENT_IN)
