@@ -591,20 +591,21 @@ callGetSecurityKeysMethod(UA_Client *client) {
 
     sksClientContext *ctx = (sksClientContext *)client->config.clientContext;
 
-    UA_Variant *inputArguments = (UA_Variant *)UA_calloc(3, (sizeof(UA_Variant)));
-    UA_Variant_setScalarCopy(&inputArguments[0], &ctx->ks->securityGroupID,
-                             &UA_TYPES[UA_TYPES_STRING]);
-    UA_Variant_setScalarCopy(&inputArguments[1], &ctx->startingTokenId,
-                             &UA_TYPES[UA_TYPES_UINT32]);
-    UA_Variant_setScalarCopy(&inputArguments[2], &ctx->requestedKeyCount,
-                             &UA_TYPES[UA_TYPES_UINT32]);
+    UA_Variant inputArguments[3];
+    UA_Variant_setScalar(&inputArguments[0], &ctx->ks->securityGroupID,
+                         &UA_TYPES[UA_TYPES_STRING]);
+    UA_Variant_setScalar(&inputArguments[1], &ctx->startingTokenId,
+                         &UA_TYPES[UA_TYPES_UINT32]);
+    UA_Variant_setScalar(&inputArguments[2], &ctx->requestedKeyCount,
+                         &UA_TYPES[UA_TYPES_UINT32]);
 
     UA_NodeId objectId = UA_NODEID_NUMERIC(0, UA_NS0ID_PUBLISHSUBSCRIBE);
     UA_NodeId methodId = UA_NODEID_NUMERIC(0, UA_NS0ID_PUBLISHSUBSCRIBE_GETSECURITYKEYS);
     size_t inputArgumentsSize = 3;
 
-    return UA_Client_call_async(client, objectId, methodId, inputArgumentsSize,
-                                inputArguments, storeFetchedKeys, (void *)ctx, NULL);
+    UA_StatusCode retval = UA_Client_call_async(client, objectId, methodId, inputArgumentsSize,
+                                inputArguments, storeFetchedKeys, (void *)ctx, &ctx->ks->sksConfig.reqId);
+    return retval;
 }
 
 static void
