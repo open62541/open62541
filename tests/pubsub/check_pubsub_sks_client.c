@@ -501,6 +501,7 @@ START_TEST(AddValidSksClientwithWriterGroup) {
         sksKsItr = TAILQ_NEXT(sksKsItr, keyListEntry);
         wgKsItr = TAILQ_NEXT(wgKsItr, keyListEntry);
     }
+    UA_free(config);
 }
 END_TEST
 
@@ -545,6 +546,7 @@ START_TEST(AddValidSksClientwithReaderGroup) {
         rgKsItr = TAILQ_NEXT(rgKsItr, keyListEntry);
     }
     ck_assert(rg->keyStorage->keyListSize > 0);
+    UA_free(config);
 }
 END_TEST
 
@@ -560,6 +562,7 @@ START_TEST(SetInvalidSKSClient) {
     ck_assert_msg(sksPullStatus != UA_STATUSCODE_GOOD,
                   "Expected Statuscode to be not GOOD, but failed with: %s ",
                   UA_StatusCode_name(sksPullStatus));
+    UA_Client_delete(client);
 }
 END_TEST
 
@@ -637,6 +640,8 @@ START_TEST(CheckPublishedValuesInUserLand) {
                      *(UA_Int32 *)subscribedNodeData->data);
     UA_Variant_delete(subscribedNodeData);
     UA_Variant_delete(publishedNodeData);
+    UA_free(pubSksClientConfig);
+    UA_free(subSksClientConfig);
 }
 END_TEST
 
@@ -674,6 +679,7 @@ START_TEST(PublisherSubscriberTogethor) {
                      *(UA_Int32 *)subscribedNodeData->data);
     UA_Variant_delete(subscribedNodeData);
     UA_Variant_delete(publishedNodeData);
+    UA_free(pubSksClientConfig);
 }
 END_TEST
 
@@ -717,6 +723,7 @@ START_TEST(PublisherDelayedSubscriberTogethor) {
                      *(UA_Int32 *)subscribedNodeData->data);
     UA_Variant_delete(subscribedNodeData);
     UA_Variant_delete(publishedNodeData);
+    UA_free(pubSksClientConfig);
 }
 END_TEST
 
@@ -794,6 +801,8 @@ START_TEST(FetchNextbatchOfKeys) {
                      *(UA_Int32 *)subscribedNodeData->data);
     UA_Variant_delete(subscribedNodeData);
     UA_Variant_delete(publishedNodeData);
+    UA_free(pubSksClientConfig);
+    UA_free(subSksClientConfig);
 }
 END_TEST
 
