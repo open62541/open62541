@@ -127,6 +127,10 @@ struct UA_ServerConfig {
      * empty variant value. The default behaviour is to auto-create a matching
      * zeroed-out value for empty VariableNodes when they are added. */
     UA_RuleHandling allowEmptyVariables;
+    
+    /* A server creates a MonitoredItem even the statuscode 
+     * is bad, e.g. BadUnknownNodeId. */
+    UA_RuleHandling allowCreateMonItemBadStatusCode; 
 
     /**
      * Custom Data Types

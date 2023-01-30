@@ -4,8 +4,8 @@
  *    Copyright 2016-2017 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
  *    Copyright 2017 (c) Stefan Profanter, fortiss GmbH
  *    Copyright 2019 (c) HMS Industrial Networks AB (Author: Jonas Green)
+ *    Copyright 2021 (c) Hilscher Gesellschaft für Systemautomation mbH (Author: Martin Lang)
  */
-
 #include <open62541/plugin/accesscontrol_default.h>
 
 /* Example access control management. Anonymous and username / password login.
@@ -216,6 +216,14 @@ allowTransferSubscription_default(UA_Server *server, UA_AccessControl *ac,
                                    (UA_ByteString*)newSessionContext);
     return false;
 }
+
+static UA_Boolean
+allowCreateMonitoredItemNodeId_default(UA_Server *server, const UA_NodeId *sessionId,
+                               void *sessionContext, const UA_NodeId *nodeId,
+                               const UA_UInt32 attributeId)
+{
+  return true;
+}
 #endif
 
 #ifdef UA_ENABLE_HISTORIZING
@@ -295,6 +303,7 @@ UA_AccessControl_default(UA_ServerConfig *config,
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS
     ac->allowTransferSubscription = allowTransferSubscription_default;
+    ac->allowCreateMonitoredItemNodeId = allowCreateMonitoredItemNodeId_default;
 #endif
 
 #ifdef UA_ENABLE_HISTORIZING

@@ -1,6 +1,6 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. 
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  *
  *    Copyright 2014-2018 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
  *    Copyright 2016-2017 (c) Florian Palm
@@ -96,7 +96,7 @@ Service_SetTriggering(UA_Server *server, UA_Session *session,
         response->responseHeader.serviceResult = UA_STATUSCODE_BADSUBSCRIPTIONIDINVALID;
         return;
     }
-    
+
     /* Get the MonitoredItem */
     UA_MonitoredItem *mon = UA_Subscription_getMonitoredItem(sub, request->triggeringItemId);
     if(!mon) {
@@ -216,8 +216,11 @@ checkAdjustMonitoredItemParams(UA_Server *server, UA_Session *session,
                 params->samplingInterval = vn->minimumSamplingInterval;
             UA_NODESTORE_RELEASE(server, node);
         }
+        else{
+          params->samplingInterval = server->config.samplingIntervalLimits.min;
+        }
     }
-        
+
     /* Adjust to sampling interval to lie within the limits */
     if(params->samplingInterval <= 0.0) {
         /* A sampling interval of zero is possible and indicates that the
@@ -362,21 +365,45 @@ Operation_CreateMonitoredItem(UA_Server *server, UA_Session *session,
     UA_DataValue v = UA_Server_readWithSession(server, session, &request->itemToMonitor,
                                                cmc->timestampsToReturn);
     if(v.hasStatus &&
-       (v.status == UA_STATUSCODE_BADNODEIDUNKNOWN ||
-        v.status == UA_STATUSCODE_BADATTRIBUTEIDINVALID ||
+        (v.status == UA_STATUSCODE_BADATTRIBUTEIDINVALID ||
         v.status == UA_STATUSCODE_BADDATAENCODINGUNSUPPORTED ||
         v.status == UA_STATUSCODE_BADDATAENCODINGINVALID ||
-        v.status == UA_STATUSCODE_BADINDEXRANGEINVALID
+        v.status == UA_STATUSCODE_BADINDEXRANGEINVALID ||
+        /* Part 4, 5.12.2 CreateMonitoredItems: Monitored Nodes can be
+         * removed from the AddressSpace after the creation of a MonitoredItem.
+         * This does not affect the validity of the MonitoredItem but
+         * a Bad_NodeIdUnknown shall be returned in the Publish response.
+         * It is possible that the MonitoredItem becomes valid again if the Node is
+         * added again to the AddressSpace and the MonitoredItem still exists. */
+        (
+         server->config.allowCreateMonItemBadStatusCode <= UA_RULEHANDLING_ABORT &&
+         v.status == UA_STATUSCODE_BADNODEIDUNKNOWN
+        ) ||
+        ( server->config.allowCreateMonItemBadStatusCode == UA_RULEHANDLING_ACCEPT &&
+          server->config.accessControl.allowCreateMonitoredItemNodeId != NULL &&
+          !server->config.accessControl.allowCreateMonitoredItemNodeId(server,
+                                                                       &session->sessionId,
+                                                                       session->sessionHandle,
+                                                                       &request->itemToMonitor.nodeId,
+                                                                       request->itemToMonitor.attributeId) &&
+          v.status == UA_STATUSCODE_BADNODEIDUNKNOWN
+        )
         /* Part 4, 5.12.2 CreateMonitoredItems: When a user adds a monitored
          * item that the user is denied read access to, the add operation for
          * the item shall succeed and the bad status Bad_NotReadable or
          * Bad_UserAccessDenied shall be returned in the Publish response.
          * v.status == UA_STATUSCODE_BADNOTREADABLE
          * v.status == UA_STATUSCODE_BADUSERACCESSDENIED
-         *
          * The IndexRange error can change depending on the value.
          * v.status == UA_STATUSCODE_BADINDEXRANGENODATA */
         )) {
+        if(server->config.allowCreateMonItemBadStatusCode == UA_RULEHANDLING_WARN &&
+           v.status == UA_STATUSCODE_BADNODEIDUNKNOWN)
+            UA_LOG_INFO_SUBSCRIPTION(&server->config.logger, cmc->sub,
+                                     "Could not create a MonitoredItem "
+                                     "with Operation Level Result Code %s",
+                                     UA_StatusCode_name(v.status));
+
         result->statusCode = v.status;
         UA_DataValue_clear(&v);
         return;
