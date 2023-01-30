@@ -25,6 +25,7 @@ static UA_NodeId readNodeIds[READNODES];
 
 static void setup(void) {
     server = UA_Server_new();
+    ck_assert(server != NULL);
 }
 
 static void teardown(void) {

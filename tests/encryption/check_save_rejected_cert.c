@@ -359,6 +359,7 @@ static void setup(void) {
     privateKey.data = KEY_PEM_DATA;
 
     server = UA_Server_new();
+    ck_assert(server != NULL);
     UA_ServerConfig *config = UA_Server_getConfig(server);
 
 #ifndef __linux__

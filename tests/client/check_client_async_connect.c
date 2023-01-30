@@ -31,6 +31,7 @@ currentState(UA_Client *client, UA_SecureChannelState channelState,
 
 static void setup(void) {
     server = UA_Server_new();
+    ck_assert(server != NULL);
     UA_ServerConfig_setDefault(UA_Server_getConfig(server));
     UA_Server_run_startup(server);
 }

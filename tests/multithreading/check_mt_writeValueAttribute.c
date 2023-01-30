@@ -41,6 +41,7 @@ void addVariableNode(void) {
 static void setup(void) {
     tc.running = true;
     tc.server = UA_Server_new();
+    ck_assert(tc.server != NULL);
     UA_ServerConfig_setDefault(UA_Server_getConfig(tc.server));
     addVariableNode();
     UA_Server_run_startup(tc.server);
