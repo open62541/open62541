@@ -47,6 +47,7 @@ static void setup(void) {
     clientCounter = 0;
     running = true;
     server = UA_Server_new();
+    ck_assert(server != NULL);
     UA_ServerConfig *config = UA_Server_getConfig(server);
     UA_ServerConfig_setDefault(config);
     config->asyncOperationTimeout = 2000.0; /* 2 seconds */

@@ -39,6 +39,7 @@ static void teardown(void) {
 
 static void setup(void) {
     server = UA_Server_new();
+    ck_assert(server != NULL);
     UA_ServerConfig_setDefault(UA_Server_getConfig(server));
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
 

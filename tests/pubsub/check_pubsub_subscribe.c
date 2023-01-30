@@ -92,6 +92,7 @@ static void addVariables(void) {
 static void setup(void) {
     /*Add setup by creating new server with valid configuration */
     server = UA_Server_new();
+    ck_assert(server != NULL);
     config = UA_Server_getConfig(server);
     UA_ServerConfig_setMinimal(config, UA_SUBSCRIBER_PORT, NULL);
     UA_Server_run_startup(server);

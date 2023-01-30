@@ -33,6 +33,7 @@ UA_NodeId connection_test;
 static void setup(void) {
     /*Add setup by creating new server with valid configuration */
     server = UA_Server_new();
+    ck_assert(server != NULL);
     config = UA_Server_getConfig(server);
     UA_ServerConfig_setMinimal(config, UA_SUBSCRIBER_PORT, NULL);
     UA_ServerConfig_addPubSubTransportLayer(config, UA_PubSubTransportLayerEthernet());
