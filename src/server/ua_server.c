@@ -179,6 +179,9 @@ cleanup:
 
 /* The server needs to be stopped before it can be deleted */
 void UA_Server_delete(UA_Server *server) {
+    if(server == NULL) {
+        return;
+    }
     UA_LOCK(&server->serviceMutex);
 
     UA_Server_deleteSecureChannels(server);
@@ -951,6 +954,9 @@ UA_Server_run_iterate(UA_Server *server, UA_Boolean waitInternal) {
 
 UA_StatusCode
 UA_Server_run_shutdown(UA_Server *server) {
+    if(server == NULL) {
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    }
     /* Stop the regular housekeeping tasks */
     if(server->houseKeepingCallbackId != 0) {
         UA_Server_removeCallback(server, server->houseKeepingCallbackId);
