@@ -11,7 +11,7 @@
  *    Copyright 2018 (c) Ari Breitkreuz, fortiss GmbH
  *    Copyright 2017 (c) Mattias Bornhager
  *    Copyright 2017 (c) Henrik Norrman
- *    Copyright 2017-2018 (c) Thomas Stalder, Blue Time Concept SA
+ *    Copyright 2017-2023 (c) Thomas Stalder, Blue Time Concept SA
  *    Copyright 2018 (c) Fabian Arndt, Root-Core
  *    Copyright 2020 (c) Kalycito Infotech Private Limited
  *    Copyright 2021 (c) Uranik, Berisha
@@ -219,10 +219,14 @@ checkAdjustMonitoredItemParams(UA_Server *server, UA_Session *session,
     }
         
     /* Adjust to sampling interval to lie within the limits */
-    if(params->samplingInterval <= 0.0) {
-        /* A sampling interval of zero is possible and indicates that the
-         * MonitoredItem is checked for every write operation */
-        params->samplingInterval = 0.0;
+    if(params->samplingInterval < 0.0) {
+        /* A negative number indicates that the default sampling interval
+         * defined by the publishing interval of the Subscriptionis requested. */
+        if (mon->subscription) {
+            params->samplingInterval = mon->subscription->publishingInterval;
+        } else {
+            params->samplingInterval = server->config.samplingIntervalLimits.min;
+        }
     } else {
         UA_BOUNDEDVALUE_SETWBOUNDS(server->config.samplingIntervalLimits,
                                    params->samplingInterval, params->samplingInterval);
