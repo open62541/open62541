@@ -390,7 +390,8 @@ triggerEvent(UA_Server *server, const UA_NodeId eventNodeId,
         }
 
         /* Add event to monitoreditems */
-        for(UA_MonitoredItem *mon = node->head.monitoredItems; mon != NULL; mon = mon->next) {
+        UA_MonitoredItem *mon = node->head.monitoredItems;
+        for(; mon != NULL; mon = mon->sampling.nodeListNext) {
             /* Is this an Event-MonitoredItem? */
             if(mon->itemToMonitor.attributeId != UA_ATTRIBUTEID_EVENTNOTIFIER)
                 continue;
