@@ -436,8 +436,7 @@ UA_Subscription_isLate(UA_Subscription *sub) {
 static void
 delayedPublishNotifications(UA_Server *server, UA_Subscription *sub);
 
-/* Returns true if done */
-static UA_Boolean
+static void
 publishNotifications(UA_Server *server, UA_Subscription *sub) {
     /* Dequeue a response */
     UA_PublishResponseEntry *pre = NULL;
@@ -463,7 +462,7 @@ publishNotifications(UA_Server *server, UA_Subscription *sub) {
      * Subscription */
     if(sub->statusChange != UA_STATUSCODE_GOOD) {
         sendStatusChangeDelete(server, sub, pre);
-        return true;
+        return;
     }
 
     /* Count the available notifications */
@@ -477,7 +476,7 @@ publishNotifications(UA_Server *server, UA_Subscription *sub) {
         if(sub->currentKeepAliveCount < sub->maxKeepAliveCount) {
             if(pre)
                 UA_Session_queuePublishReq(sub->session, pre, true); /* Re-enqueue */
-            return true;
+            return;
         }
         UA_LOG_DEBUG_SUBSCRIPTION(&server->config.logger, sub, "Sending a KeepAlive");
     }
@@ -492,7 +491,7 @@ publishNotifications(UA_Server *server, UA_Subscription *sub) {
         UA_Subscription_isLate(sub);
         if(pre)
             UA_Session_queuePublishReq(sub->session, pre, true); /* Re-enqueue */
-        return true;
+        return;
     }
 
     UA_assert(pre);
@@ -518,7 +517,7 @@ publishNotifications(UA_Server *server, UA_Subscription *sub) {
 
                 UA_Subscription_isLate(sub);
                 UA_Session_queuePublishReq(sub->session, pre, true); /* Re-enqueue */
-                return true;
+                return;
             }
         }
 
@@ -534,7 +533,7 @@ publishNotifications(UA_Server *server, UA_Subscription *sub) {
                 UA_free(retransmission);
             UA_Subscription_isLate(sub);
             UA_Session_queuePublishReq(sub->session, pre, true); /* Re-enqueue */
-            return true;
+            return;
         }
     }
 
@@ -626,8 +625,6 @@ publishNotifications(UA_Server *server, UA_Subscription *sub) {
         UA_EventLoop *el = server->config.eventLoop;
         el->addDelayedCallback(el, &sub->delayedMoreNotifications);
     }
-
-    return true;
 }
 
 static void
