@@ -454,6 +454,13 @@ UA_Subscription_publish(UA_Server *server, UA_Subscription *sub) {
     UA_LOG_DEBUG_SUBSCRIPTION(&server->config.logger, sub, "Publish Callback");
     UA_assert(sub);
 
+    /* Sample the MonitoredItems with sampling interval <0 (which implies
+     * sampling in the same interval as the subscription) */
+    UA_MonitoredItem *mon;
+    LIST_FOREACH(mon, &sub->samplingMonitoredItems, sampling.samplingListEntry) {
+        monitoredItem_sampleCallback(server, mon);
+    }
+
     /* Dequeue a response */
     UA_PublishResponseEntry *pre = NULL;
     if(sub->session)
