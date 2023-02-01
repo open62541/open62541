@@ -96,6 +96,10 @@ UA_Timer_process(UA_Timer *t, UA_DateTime nowMonotonic,
 void
 UA_Timer_clear(UA_Timer *t);
 
+UA_DateTime
+UA_Timer_calculateNextTime(UA_DateTime currentTime, UA_DateTime baseTime,
+                           UA_DateTime interval);
+
 _UA_END_DECLS
 
 #endif /* UA_TIMER_H_ */

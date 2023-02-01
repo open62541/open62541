@@ -292,6 +292,7 @@ struct UA_Subscription {
     /* MonitoredItems that are sampled in every publish callback (with the
      * publish interval of the subscription) */
     LIST_HEAD(, UA_MonitoredItem) samplingMonitoredItems;
+    UA_DateTime nextSamplingListEntry;
 
     /* Global list of notifications from the MonitoredItems */
     TAILQ_HEAD(, UA_Notification) notificationQueue;

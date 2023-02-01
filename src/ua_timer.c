@@ -35,8 +35,8 @@ cmpId(const UA_UInt64 *a, const UA_UInt64 *b) {
     return AA_CMP_MORE;
 }
 
-static UA_DateTime
-calculateNextTime(UA_DateTime currentTime, UA_DateTime baseTime,
+UA_DateTime
+UA_Timer_calculateNextTime(UA_DateTime currentTime, UA_DateTime baseTime,
                   UA_DateTime interval) {
     /* Take the difference between current and base time */
     UA_DateTime diffCurrentTimeBaseTime = currentTime - baseTime;
@@ -143,7 +143,7 @@ UA_Timer_addRepeatedCallback(UA_Timer *t, UA_ApplicationCallback callback,
         /* Use "now" as the basetime */
         nextTime = currentTime + (UA_DateTime)interval;
     } else {
-        nextTime = calculateNextTime(currentTime, *baseTime, (UA_DateTime)interval);
+        nextTime = UA_Timer_calculateNextTime(currentTime, *baseTime, (UA_DateTime)interval);
     }
 
     UA_LOCK(&t->timerMutex);
@@ -181,7 +181,7 @@ UA_Timer_changeRepeatedCallback(UA_Timer *t, UA_UInt64 callbackId,
         /* Use "now" as the basetime */
         te->nextTime = currentTime + (UA_DateTime)interval;
     } else {
-        te->nextTime = calculateNextTime(currentTime, *baseTime, (UA_DateTime)interval);
+        te->nextTime = UA_Timer_calculateNextTime(currentTime, *baseTime, (UA_DateTime)interval);
     }
 
     /* Update the remaining parameters and re-insert */
@@ -242,7 +242,7 @@ UA_Timer_process(UA_Timer *t, UA_DateTime nowMonotonic,
         first->nextTime += (UA_DateTime)first->interval;
         if(first->nextTime < nowMonotonic) {
             if(first->timerPolicy == UA_TIMER_HANDLE_CYCLEMISS_WITH_BASETIME)
-                first->nextTime = calculateNextTime(nowMonotonic, first->nextTime,
+                first->nextTime = UA_Timer_calculateNextTime(nowMonotonic, first->nextTime,
                                                     (UA_DateTime)first->interval);
             else
                 first->nextTime = nowMonotonic + (UA_DateTime)first->interval;

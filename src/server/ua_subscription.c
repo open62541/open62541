@@ -438,10 +438,15 @@ UA_Subscription_publish(UA_Server *server, UA_Subscription *sub) {
     UA_assert(sub);
 
     /* Sample the MonitoredItems with sampling interval <0 (which implies
-     * sampling in the same interval as the subscription) */
-    UA_MonitoredItem *mon;
-    LIST_FOREACH(mon, &sub->samplingMonitoredItems, sampling.samplingListEntry) {
-        monitoredItem_sampleCallback(server, mon);
+     * sampling in the publishingInterval subscription interval ) */
+    UA_DateTime currentTime = UA_DateTime_nowMonotonic();
+    if (sub->nextSamplingListEntry <= currentTime) {
+        UA_MonitoredItem *mon;
+        LIST_FOREACH(mon, &sub->samplingMonitoredItems, sampling.samplingListEntry) {
+            monitoredItem_sampleCallback(server, mon);
+        }
+        sub->nextSamplingListEntry = UA_Timer_calculateNextTime(currentTime, sub->nextSamplingListEntry, 
+                                                       (UA_DateTime)(sub->publishingInterval * UA_DATETIME_MSEC));
     }
 
     /* Dequeue a response */
