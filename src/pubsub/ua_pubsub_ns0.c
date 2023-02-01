@@ -111,6 +111,21 @@ onReadLocked(UA_Server *server, const UA_NodeId *sessionId, void *sessionContext
         }
         break;
     }
+    case UA_NS0ID_READERGROUPTYPE: {
+        UA_ReaderGroup *readerGroup = UA_ReaderGroup_findRGbyId(server, *myNodeId);
+        if(!readerGroup)
+            return;
+        switch(nodeContext->elementClassiefier){
+        case UA_NS0ID_READERGROUPTYPE_STATUS_STATE:
+            UA_Variant_setScalar(&value, &readerGroup->state,
+                                 &UA_TYPES[UA_TYPES_PUBSUBSTATE]);
+            break;
+        default:
+            UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                           "Read error! Unknown property.");
+        }
+        break;
+    }
     case UA_NS0ID_DATASETREADERTYPE: {
         UA_DataSetReader *dataSetReader = UA_ReaderGroup_findDSRbyId(server, *myNodeId);
         if(!dataSetReader)
@@ -140,6 +155,10 @@ onReadLocked(UA_Server *server, const UA_NodeId *sessionId, void *sessionContext
             UA_Variant_setScalar(&value, &writerGroup->config.publishingInterval,
                                  &UA_TYPES[UA_TYPES_DURATION]);
             break;
+        case UA_NS0ID_WRITERGROUPTYPE_STATUS_STATE:
+            UA_Variant_setScalar(&value, &writerGroup->state,
+                                 &UA_TYPES[UA_TYPES_PUBSUBSTATE]);
+            break;
         default:
             UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
                            "Read error! Unknown property.");
@@ -155,6 +174,10 @@ onReadLocked(UA_Server *server, const UA_NodeId *sessionId, void *sessionContext
             case UA_NS0ID_DATASETWRITERTYPE_DATASETWRITERID:
                 UA_Variant_setScalar(&value, &dataSetWriter->config.dataSetWriterId,
                                      &UA_TYPES[UA_TYPES_UINT16]);
+                break;
+            case UA_NS0ID_DATASETWRITERTYPE_STATUS_STATE:
+                UA_Variant_setScalar(&value, &dataSetWriter->state,
+                                     &UA_TYPES[UA_TYPES_PUBSUBSTATE]);
                 break;
             default:
                 UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
@@ -864,7 +887,7 @@ addDataSetReaderRepresentation(UA_Server *server, UA_DataSetReader *dataSetReade
     dsrName[dataSetReader->config.name.length] = '\0';
 
     UA_StatusCode retVal = UA_STATUSCODE_GOOD;
-    UA_NodeId publisherIdNode, writerGroupIdNode, dataSetwriterIdNode, stateParentNode, stateNode;
+    UA_NodeId publisherIdNode, writerGroupIdNode, dataSetwriterIdNode, statusIdNode, stateIdNode;
 
     UA_ObjectAttributes object_attr = UA_ObjectAttributes_default;
     object_attr.displayName = UA_LOCALIZEDTEXT("", dsrName);
@@ -887,16 +910,22 @@ addDataSetReaderRepresentation(UA_Server *server, UA_DataSetReader *dataSetReade
     dataSetwriterIdNode = findSingleChildNode(server, UA_QUALIFIEDNAME(0, "DataSetWriterId"),
                                               UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY),
                                               dataSetReader->identifier);
-    stateParentNode = findSingleChildNode(server, UA_QUALIFIEDNAME(0, "Status"),
+    statusIdNode = findSingleChildNode(server, UA_QUALIFIEDNAME(0, "Status"),
                                               UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
                                               dataSetReader->identifier);
-    stateNode = findSingleChildNode(server, UA_QUALIFIEDNAME(0, "State"),
-                                            UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
-                                            stateParentNode);
+
+    if(UA_NodeId_isNull(&statusIdNode)) {
+        return UA_STATUSCODE_BADNOTFOUND;
+    }
+
+    stateIdNode = findSingleChildNode(server, UA_QUALIFIEDNAME(0, "State"),
+                                              UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
+                                              statusIdNode);
 
     if(UA_NodeId_isNull(&publisherIdNode) ||
        UA_NodeId_isNull(&writerGroupIdNode) ||
-       UA_NodeId_isNull(&dataSetwriterIdNode)) {
+       UA_NodeId_isNull(&dataSetwriterIdNode) ||
+       UA_NodeId_isNull(&stateIdNode)) {
         return UA_STATUSCODE_BADNOTFOUND;
     }
 
@@ -916,7 +945,8 @@ addDataSetReaderRepresentation(UA_Server *server, UA_DataSetReader *dataSetReade
     dataSetReaderStateContext->parentNodeId = dataSetReader->identifier;
     dataSetReaderStateContext->parentClassifier = UA_NS0ID_DATASETREADERTYPE;
     dataSetReaderStateContext->elementClassiefier = UA_NS0ID_DATASETREADERTYPE_STATUS_STATE;
-    retVal |= addVariableValueSource(server, valueCallback, stateNode,
+
+    retVal |= addVariableValueSource(server, valueCallback, stateIdNode,
                                      dataSetReaderStateContext);
 
     /* Update childNode with values from Publisher */
@@ -939,7 +969,7 @@ addDataSetReaderLocked(UA_Server *server,
                        const UA_NodeId *methodId, void *methodContext,
                        const UA_NodeId *objectId, void *objectContext,
                        size_t inputSize, const UA_Variant *input,
-                       size_t outputSize, UA_Variant *output){
+                       size_t outputSize, UA_Variant *output) {
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
     UA_StatusCode retVal = UA_STATUSCODE_GOOD;
     UA_ReaderGroup *rg = UA_ReaderGroup_findRGbyId(server, *objectId);
@@ -1390,8 +1420,22 @@ addWriterGroupRepresentation(UA_Server *server, UA_WriterGroup *writerGroup) {
         findSingleChildNode(server, UA_QUALIFIEDNAME(0, "PublishingInterval"),
                             UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY),
                             writerGroup->identifier);
+    UA_NodeId statusIdNode = 
+        findSingleChildNode(server, UA_QUALIFIEDNAME(0, "Status"),
+                            UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
+                            writerGroup->identifier);
+
+    if(UA_NodeId_isNull(&statusIdNode))
+        return UA_STATUSCODE_BADNOTFOUND;
+
+    UA_NodeId stateIdNode = 
+        findSingleChildNode(server, UA_QUALIFIEDNAME(0, "State"),
+                            UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
+                            statusIdNode);
+
     if(UA_NodeId_isNull(&keepAliveNode) ||
-       UA_NodeId_isNull(&publishingIntervalNode))
+       UA_NodeId_isNull(&publishingIntervalNode) ||
+       UA_NodeId_isNull(&stateIdNode))
         return UA_STATUSCODE_BADNOTFOUND;
 
     UA_NodePropertyContext * publishingIntervalContext = (UA_NodePropertyContext *)
@@ -1406,6 +1450,18 @@ addWriterGroupRepresentation(UA_Server *server, UA_WriterGroup *writerGroup) {
                                      publishingIntervalNode, publishingIntervalContext);
     writeAccessLevelAttribute(server, publishingIntervalNode,
                               UA_ACCESSLEVELMASK_READ ^ UA_ACCESSLEVELMASK_WRITE);
+
+    UA_NodePropertyContext * stateContext = (UA_NodePropertyContext *)
+        UA_malloc(sizeof(UA_NodePropertyContext));
+    stateContext->parentNodeId = writerGroup->identifier;
+    stateContext->parentClassifier = UA_NS0ID_WRITERGROUPTYPE;
+    stateContext->elementClassiefier = UA_NS0ID_WRITERGROUPTYPE_STATUS_STATE;
+    UA_ValueCallback stateValueCallback;
+    stateValueCallback.onRead = onRead;
+    stateValueCallback.onWrite = NULL;
+    retVal |= addVariableValueSource(server, stateValueCallback,
+                                     stateIdNode, stateContext);
+
 
     UA_NodeId priorityNode =
         findSingleChildNode(server, UA_QUALIFIEDNAME(0, "Priority"),
@@ -1616,6 +1672,34 @@ addReaderGroupRepresentation(UA_Server *server, UA_ReaderGroup *readerGroup) {
                 UA_QUALIFIEDNAME(0, rgName), UA_NODEID_NUMERIC(0, UA_NS0ID_READERGROUPTYPE),
                 &object_attr, &UA_TYPES[UA_TYPES_OBJECTATTRIBUTES],
                 NULL, &readerGroup->identifier);
+
+    UA_NodeId statusIdNode = 
+        findSingleChildNode(server, UA_QUALIFIEDNAME(0, "Status"),
+                            UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
+                            readerGroup->identifier);
+
+    if(UA_NodeId_isNull(&statusIdNode))
+        return UA_STATUSCODE_BADNOTFOUND;
+
+    UA_NodeId stateIdNode = 
+        findSingleChildNode(server, UA_QUALIFIEDNAME(0, "State"),
+                            UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
+                            statusIdNode);
+
+    if(UA_NodeId_isNull(&stateIdNode))
+        return UA_STATUSCODE_BADNOTFOUND;
+
+    UA_NodePropertyContext * stateContext = (UA_NodePropertyContext *)
+        UA_malloc(sizeof(UA_NodePropertyContext));
+    stateContext->parentNodeId = readerGroup->identifier;
+    stateContext->parentClassifier = UA_NS0ID_READERGROUPTYPE;
+    stateContext->elementClassiefier = UA_NS0ID_READERGROUPTYPE_STATUS_STATE;
+    UA_ValueCallback stateValueCallback;
+    stateValueCallback.onRead = onRead;
+    stateValueCallback.onWrite = NULL;
+    retVal |= addVariableValueSource(server, stateValueCallback,
+                                     stateIdNode, stateContext);
+
 #ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL_METHODS
     retVal |= addRef(server, readerGroup->identifier,
                      UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
@@ -1771,6 +1855,8 @@ addSecurityGroupRepresentation(UA_Server *server, UA_SecurityGroup *securityGrou
 
 UA_StatusCode
 addDataSetWriterRepresentation(UA_Server *server, UA_DataSetWriter *dataSetWriter) {
+
+    printf("addDataSetWriterRepresentation\n");
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
 
     UA_StatusCode retVal = UA_STATUSCODE_GOOD;
@@ -1780,6 +1866,8 @@ addDataSetWriterRepresentation(UA_Server *server, UA_DataSetWriter *dataSetWrite
     char dswName[513];
     memcpy(dswName, dataSetWriter->config.name.data, dataSetWriter->config.name.length);
     dswName[dataSetWriter->config.name.length] = '\0';
+
+    printf("addDataSetWriterRepresentation dd\n");
 
     UA_ObjectAttributes object_attr = UA_ObjectAttributes_default;
     object_attr.displayName = UA_LOCALIZEDTEXT("", dswName);
@@ -1810,6 +1898,27 @@ addDataSetWriterRepresentation(UA_Server *server, UA_DataSetWriter *dataSetWrite
                             UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY),
                             dataSetWriter->identifier);
 
+    UA_NodeId statusIdNode = 
+        findSingleChildNode(server, UA_QUALIFIEDNAME(0, "Status"),
+                            UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
+                            dataSetWriter->identifier);
+    
+    if(UA_NodeId_isNull(&statusIdNode)) {
+        return UA_STATUSCODE_BADNOTFOUND;
+    }
+
+    UA_NodeId stateIdNode = 
+        findSingleChildNode(server, UA_QUALIFIEDNAME(0, "State"),
+                            UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
+                            statusIdNode);
+
+    if(UA_NodeId_isNull(&dataSetWriterIdNode) ||
+        UA_NodeId_isNull(&keyFrameNode) ||
+        UA_NodeId_isNull(&dataSetFieldContentMaskNode) ||
+        UA_NodeId_isNull(&stateIdNode)) {
+             return UA_STATUSCODE_BADNOTFOUND;
+     }
+
     UA_NodePropertyContext *dataSetWriterIdContext = (UA_NodePropertyContext *)
         UA_malloc(sizeof(UA_NodePropertyContext));
     dataSetWriterIdContext->parentNodeId = dataSetWriter->identifier;
@@ -1820,6 +1929,14 @@ addDataSetWriterRepresentation(UA_Server *server, UA_DataSetWriter *dataSetWrite
     valueCallback.onWrite = NULL;
     retVal |= addVariableValueSource(server, valueCallback,
                                      dataSetWriterIdNode, dataSetWriterIdContext);
+
+    UA_NodePropertyContext *dataSetWriterStateContext =
+        (UA_NodePropertyContext *) UA_malloc(sizeof(UA_NodePropertyContext));
+    dataSetWriterStateContext->parentNodeId = dataSetWriter->identifier;
+    dataSetWriterStateContext->parentClassifier = UA_NS0ID_DATASETWRITERTYPE;
+    dataSetWriterStateContext->elementClassiefier = UA_NS0ID_DATASETWRITERTYPE_STATUS_STATE;
+    retVal |= addVariableValueSource(server, valueCallback,
+                                     stateIdNode, dataSetWriterStateContext);
 
     UA_Variant value;
     UA_Variant_init(&value);
@@ -2200,9 +2317,20 @@ writerGroupTypeDestructor(UA_Server *server,
     UA_NodeId intervalNode =
         findSingleChildNode(server, UA_QUALIFIEDNAME(0, "PublishingInterval"),
                             UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY), *nodeId);
+
+    UA_NodeId statusNode = findSingleChildNode(server, UA_QUALIFIEDNAME(0, "Status"),
+                                          UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
+                                          *nodeId);
+    UA_NodeId stateNode = findSingleChildNode(server, UA_QUALIFIEDNAME(0, "State"),
+                                    UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
+                                    statusNode);
     UA_NodePropertyContext *ctx;
     getNodeContext(server, intervalNode, (void **)&ctx);
     if(!UA_NodeId_isNull(&intervalNode))
+        UA_free(ctx);
+
+    getNodeContext(server, stateNode, (void **)&ctx);
+    if(!UA_NodeId_isNull(&stateNode))
         UA_free(ctx);
     UA_UNLOCK(&server->serviceMutex);
 }
@@ -2214,6 +2342,19 @@ readerGroupTypeDestructor(UA_Server *server,
                           const UA_NodeId *nodeId, void **nodeContext) {
     UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_USERLAND,
                 "ReaderGroup destructor called!");
+    UA_LOCK(&server->serviceMutex);
+    UA_NodeId statusNode = findSingleChildNode(server, UA_QUALIFIEDNAME(0, "Status"),
+                                          UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
+                                          *nodeId);
+    UA_NodeId stateNode = findSingleChildNode(server, UA_QUALIFIEDNAME(0, "State"),
+                                    UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
+                                    statusNode);
+
+    UA_NodePropertyContext *ctx;
+    getNodeContext(server, stateNode, (void **)&ctx);
+    if(!UA_NodeId_isNull(&stateNode))
+        UA_free(ctx);
+    UA_UNLOCK(&server->serviceMutex);
 }
 
 static void
@@ -2227,9 +2368,18 @@ dataSetWriterTypeDestructor(UA_Server *server,
     UA_NodeId dataSetWriterIdNode =
         findSingleChildNode(server, UA_QUALIFIEDNAME(0, "DataSetWriterId"),
                             UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY), *nodeId);
+    UA_NodeId statusNode = findSingleChildNode(server, UA_QUALIFIEDNAME(0, "Status"),
+                                          UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
+                                          *nodeId);
+    UA_NodeId stateNode = findSingleChildNode(server, UA_QUALIFIEDNAME(0, "State"),
+                                    UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
+                                    statusNode);
     UA_NodePropertyContext *ctx;
     getNodeContext(server, dataSetWriterIdNode, (void **)&ctx);
     if(!UA_NodeId_isNull(&dataSetWriterIdNode))
+        UA_free(ctx);
+    getNodeContext(server, stateNode, (void **)&ctx);
+    if(!UA_NodeId_isNull(&stateNode))
         UA_free(ctx);
     UA_UNLOCK(&server->serviceMutex);
 }
@@ -2245,16 +2395,20 @@ dataSetReaderTypeDestructor(UA_Server *server,
     UA_NodeId publisherIdNode =
         findSingleChildNode(server, UA_QUALIFIEDNAME(0, "PublisherId"),
                             UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY), *nodeId);
-    UA_NodeId stateParentNode = findSingleChildNode(server, UA_QUALIFIEDNAME(0, "Status"),
+    UA_NodeId statusNode = findSingleChildNode(server, UA_QUALIFIEDNAME(0, "Status"),
                                           UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
                                           *nodeId);
     UA_NodeId stateNode = findSingleChildNode(server, UA_QUALIFIEDNAME(0, "State"),
                                     UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
-                                    stateParentNode);
+                                    statusNode);
 
     UA_NodePropertyContext *ctx;
     getNodeContext(server, publisherIdNode, (void **)&ctx);
     if(!UA_NodeId_isNull(&publisherIdNode))
+        UA_free(ctx);
+
+    getNodeContext(server, stateNode, (void **)&ctx);
+    if(!UA_NodeId_isNull(&stateNode))
         UA_free(ctx);
     UA_UNLOCK(&server->serviceMutex);
 }
