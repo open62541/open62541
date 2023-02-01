@@ -215,11 +215,6 @@ Client_warnEndpointsResult(UA_Client *client,
                            const UA_GetEndpointsResponse *response,
                            const UA_String *endpointUrl);
 
-void
-Client_warnEndpointsResult(UA_Client *client,
-                           const UA_GetEndpointsResponse *response,
-                           const UA_String *endpointUrl);
-
 _UA_END_DECLS
 
 #endif /* UA_CLIENT_INTERNAL_H_ */
