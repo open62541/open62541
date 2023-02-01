@@ -282,6 +282,10 @@ UA_Server_getPubSubConnectionConfig(UA_Server *server,
 UA_StatusCode UA_EXPORT UA_THREADSAFE
 UA_Server_removePubSubConnection(UA_Server *server, const UA_NodeId connection);
 
+UA_StatusCode
+UA_Server_setConnectionOperational(UA_Server *server,
+                                    const UA_NodeId connectionIdent);
+
 /**
  * PublishedDataSets
  * -----------------

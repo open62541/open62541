@@ -109,6 +109,10 @@ onReadLocked(UA_Server *server, const UA_NodeId *sessionId, void *sessionContext
                            "Read error! Unknown PublisherId type.");
                 }
             break;
+        case UA_NS0ID_PUBSUBCONNECTIONTYPE_STATUS_STATE:
+            UA_Variant_setScalar(&value, &pubSubConnection->state,
+                                 &UA_TYPES[UA_TYPES_PUBSUBSTATE]);
+            break;
         default:
             UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
                            "Read error! Unknown property.");
@@ -661,7 +665,8 @@ addPubSubConnectionRepresentation(UA_Server *server, UA_PubSubConnection *connec
     addNode_finish(server, &server->adminSession, &connection->identifier);
 
     UA_NodeId addressNode, urlNode, interfaceNode, publisherIdNode,
-        connectionPropertieNode, transportProfileUri;
+        connectionPropertieNode, transportProfileUri, statusIdNode,
+        stateIdNode;
     addressNode = findSingleChildNode(server, UA_QUALIFIEDNAME(0, "Address"),
                                       UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
                                       connection->identifier);
@@ -683,10 +688,23 @@ addPubSubConnectionRepresentation(UA_Server *server, UA_PubSubConnection *connec
                                               UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
                                               connection->identifier);
 
+    statusIdNode = findSingleChildNode(server, UA_QUALIFIEDNAME(0, "Status"),
+                                              UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
+                                              connection->identifier);
+
+    if(UA_NodeId_isNull(&statusIdNode)) {
+        return UA_STATUSCODE_BADNOTFOUND;
+    }
+
+    stateIdNode = findSingleChildNode(server, UA_QUALIFIEDNAME(0, "State"),
+                                              UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
+                                              statusIdNode);
+
     if(UA_NodeId_isNull(&addressNode) || UA_NodeId_isNull(&urlNode) ||
        UA_NodeId_isNull(&interfaceNode) || UA_NodeId_isNull(&publisherIdNode) ||
        UA_NodeId_isNull(&connectionPropertieNode) ||
-       UA_NodeId_isNull(&transportProfileUri)) {
+       UA_NodeId_isNull(&transportProfileUri) ||
+       UA_NodeId_isNull(&stateIdNode)) {
         return UA_STATUSCODE_BADNOTFOUND;
     }
 
@@ -720,6 +738,15 @@ addPubSubConnectionRepresentation(UA_Server *server, UA_PubSubConnection *connec
     valueCallback.onWrite = NULL;
     retVal |= addVariableValueSource(server, valueCallback, publisherIdNode,
                                      connectionPublisherIdContext);
+
+    UA_NodePropertyContext *connectionStateContext =
+        (UA_NodePropertyContext *) UA_malloc(sizeof(UA_NodePropertyContext));
+    connectionStateContext->parentNodeId = connection->identifier;
+    connectionStateContext->parentClassifier = UA_NS0ID_PUBSUBCONNECTIONTYPE;
+    connectionStateContext->elementClassiefier = UA_NS0ID_PUBSUBCONNECTIONTYPE_STATUS_STATE;
+
+    retVal |= addVariableValueSource(server, valueCallback, stateIdNode,
+                                     connectionStateContext);
 
 #ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL_METHODS
     retVal |= addRef(server, connection->identifier,
@@ -2311,9 +2338,19 @@ connectionTypeDestructor(UA_Server *server,
     UA_NodeId publisherIdNode =
         findSingleChildNode(server, UA_QUALIFIEDNAME(0, "PublisherId"),
                             UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY), *nodeId);
+    UA_NodeId statusNode = findSingleChildNode(server, UA_QUALIFIEDNAME(0, "Status"),
+                                          UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
+                                          *nodeId);
+    UA_NodeId stateNode = findSingleChildNode(server, UA_QUALIFIEDNAME(0, "State"),
+                                    UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
+                                    statusNode);
     UA_NodePropertyContext *ctx;
     getNodeContext(server, publisherIdNode, (void **)&ctx);
     if(!UA_NodeId_isNull(&publisherIdNode))
+        UA_free(ctx);
+
+    getNodeContext(server, stateNode, (void **)&ctx);
+    if(!UA_NodeId_isNull(&stateNode))
         UA_free(ctx);
     UA_UNLOCK(&server->serviceMutex);
 }

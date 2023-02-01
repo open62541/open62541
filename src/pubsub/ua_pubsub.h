@@ -132,8 +132,8 @@ typedef struct UA_PubSubConnection {
     UA_PubSubConnectionConfig config;
     UA_PubSubChannel *channel;
     UA_NodeId identifier;
-
-    LIST_HEAD(, UA_WriterGroup) writerGroups;
+    UA_PubSubState state;
+    LIST_HEAD(UA_ListOfWriterGroup, UA_WriterGroup) writerGroups;
     size_t writerGroupsSize;
 
     LIST_HEAD(, UA_ReaderGroup) readerGroups;
@@ -171,6 +171,13 @@ UA_PubSubConnection_clear(UA_Server *server, UA_PubSubConnection *connection);
 UA_StatusCode
 UA_PubSubConnection_regist(UA_Server *server, UA_NodeId *connectionIdentifier,
                            const UA_ReaderGroupConfig *readerGroupConfig);
+
+UA_StatusCode
+UA_PubSubConnection_setPubSubState(UA_Server *server,
+                                UA_PubSubConnection *connection,
+                                UA_PubSubState state,
+                                UA_StatusCode cause);
+
 
 #define UA_LOG_CONNECTION_INTERNAL(LOGGER, LEVEL, CONNECTION, MSG, ...) \
     if(UA_LOGLEVEL <= UA_LOGLEVEL_##LEVEL) {                            \
