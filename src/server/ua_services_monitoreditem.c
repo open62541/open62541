@@ -11,7 +11,7 @@
  *    Copyright 2018 (c) Ari Breitkreuz, fortiss GmbH
  *    Copyright 2017 (c) Mattias Bornhager
  *    Copyright 2017 (c) Henrik Norrman
- *    Copyright 2017-2018 (c) Thomas Stalder, Blue Time Concept SA
+ *    Copyright 2017-2023 (c) Thomas Stalder, Blue Time Concept SA
  *    Copyright 2018 (c) Fabian Arndt, Root-Core
  *    Copyright 2020 (c) Kalycito Infotech Private Limited
  *    Copyright 2021 (c) Uranik, Berisha
@@ -211,19 +211,40 @@ checkAdjustMonitoredItemParams(UA_Server *server, UA_Session *session,
         const UA_Node *node = UA_NODESTORE_GET(server, &mon->itemToMonitor.nodeId);
         if(node) {
             const UA_VariableNode *vn = &node->variableNode;
-            if(node->head.nodeClass == UA_NODECLASS_VARIABLE &&
-               params->samplingInterval < vn->minimumSamplingInterval)
-                params->samplingInterval = vn->minimumSamplingInterval;
+            if(node->head.nodeClass == UA_NODECLASS_VARIABLE) {
+                /* Take into account if the publishing interval is used for sampling */
+                UA_Double samplingInterval = params->samplingInterval;
+                if(samplingInterval < 0 && mon->subscription)
+                    samplingInterval = mon->subscription->publishingInterval;
+                /* Adjust if smaller than the allowed minimum for the variable */
+                if(samplingInterval < vn->minimumSamplingInterval)
+                    params->samplingInterval = vn->minimumSamplingInterval;
+            }
             UA_NODESTORE_RELEASE(server, node);
         }
     }
-
-    /* Adjust to sampling interval to lie within the limits */
-    if(params->samplingInterval <= 0.0) {
-        /* A sampling interval of zero is possible and indicates that the
-         * MonitoredItem is checked for every write operation */
-        params->samplingInterval = 0.0;
+        
+    /* Adjust sampling interval */
+    if(params->samplingInterval < 0.0) {
+        /* A negative number indicates that the sampling interval is the
+         * publishing interval of the Subscription. */
+        if(!mon->subscription) {
+            /* Not possible for local MonitoredItems */
+            params->samplingInterval = server->config.samplingIntervalLimits.min;
+        } else {
+            /* Test if the publishing interval is a valid sampling interval. If
+             * not, adjust to lie within the limits. */
+            UA_BOUNDEDVALUE_SETWBOUNDS(server->config.samplingIntervalLimits,
+                                       mon->subscription->publishingInterval,
+                                       params->samplingInterval);
+            if(params->samplingInterval == mon->subscription->publishingInterval) {
+                /* The publishing interval is valid also for sampling. The
+                 * standard says any negative number is interpreted as -1.*/
+                params->samplingInterval = -1.0;
+            }
+        }
     } else {
+        /* Adjust positive sampling interval to lie within the limits */
         UA_BOUNDEDVALUE_SETWBOUNDS(server->config.samplingIntervalLimits,
                                    params->samplingInterval, params->samplingInterval);
         /* Check for NaN */
