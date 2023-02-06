@@ -1021,6 +1021,9 @@ afterWriteCallbackAckedStateChange(UA_Server *server,
     CONDITION_ASSERT_RETURN_VOID(retval, "Triggering condition event failed",
                                  UA_NodeId_clear(&conditionNode);
                                  UA_NodeId_clear(&conditionSource););
+
+    UA_NodeId_clear(&conditionNode);
+    UA_NodeId_clear(&conditionSource);
 }
 
 #ifdef CONDITIONOPTIONALFIELDS_SUPPORT
