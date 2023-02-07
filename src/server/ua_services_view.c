@@ -764,12 +764,22 @@ browse(struct BrowseContext *bc) {
         return;
     }
 
+#ifdef UA_ENABLE_ROLE_PERMISSION
     /* Check AccessControl rights */
     if(bc->session != &bc->server->adminSession &&
        !bc->server->config.accessControl.
          allowBrowseNode(bc->server, &bc->server->config.accessControl,
                          &bc->session->sessionId, bc->session->sessionHandle,
-                         &descr->nodeId, node->head.context)) {
+                         &descr->nodeId, node->head.context, node->head.userRolePermissions,
+                         node->head.userRolePermissionsSize)) {
+#else
+    if(bc->session != &bc->server->adminSession &&
+       !bc->server->config.accessControl.
+         allowBrowseNode(bc->server, &bc->server->config.accessControl,
+                         &bc->session->sessionId, bc->session->sessionHandle,
+                         &descr->nodeId, node->head.context, NULL,
+                         0)) {
+#endif
         UA_NODESTORE_RELEASE(bc->server, node);
         bc->status = UA_STATUSCODE_BADUSERACCESSDENIED;
         return;
@@ -801,63 +811,6 @@ browse(struct BrowseContext *bc) {
             return;
         }
     }
-
-    /* Get node with only the selected references and attributes */
-    const UA_Node *node =
-        UA_NODESTORE_GET_SELECTIVE(server, &descr->nodeId,
-                                   resultMask2AttributesMask(descr->resultMask),
-                                   cp->relevantReferences, descr->browseDirection);
-    if(!node) {
-        result->statusCode = UA_STATUSCODE_BADNODEIDUNKNOWN;
-        return true;
-    }
-
-#ifdef UA_ENABLE_ROLE_PERMISSION
-    if(session != &server->adminSession &&
-       !server->config.accessControl.
-         allowBrowseNode(server, &server->config.accessControl,
-                         &session->sessionId, session->sessionHandle,
-                         &descr->nodeId, node->head.context, node->head.userRolePermissions,
-                         node->head.userRolePermissionsSize)) {
-#else
-    if(session != &server->adminSession &&
-       !server->config.accessControl.
-         allowBrowseNode(server, &server->config.accessControl,
-                         &session->sessionId, session->sessionHandle,
-                         &descr->nodeId, node->head.context, NULL, 0)) {
-#endif /* #ifdef UA_ENABLE_ROLE_PERMISSION */
-        result->statusCode = UA_STATUSCODE_BADUSERACCESSDENIED;
-        UA_NODESTORE_RELEASE(server, node);
-        return true;
-    }
-
-    RefResult rr;
-    result->statusCode = RefResult_init(&rr);
-    if(result->statusCode != UA_STATUSCODE_GOOD) {
-        UA_NODESTORE_RELEASE(server, node);
-        return true;
-    }
-
-    /* Browse the references */
-    UA_Boolean done = false;
-    result->statusCode = browseReferences(server, session, &node->head, cp, &rr, &done);
-    UA_NODESTORE_RELEASE(server, node);
-    if(result->statusCode != UA_STATUSCODE_GOOD) {
-        RefResult_clear(&rr);
-        return true;
-    }
-
-    /* Move results */
-    if(rr.size > 0) {
-        result->references = rr.descr;
-        result->referencesSize = rr.size;
-    } else {
-        /* No relevant references, return array of length zero */
-        RefResult_clear(&rr);
-        result->references = (UA_ReferenceDescription*)UA_EMPTY_ARRAY_SENTINEL;
-    }
-
-    return done;
 }
 
 /* Start to browse with no previous cp */

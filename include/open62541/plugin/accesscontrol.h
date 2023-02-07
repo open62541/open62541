@@ -169,7 +169,7 @@ struct UA_AccessControl {
 #ifdef UA_ENABLE_ROLE_PERMISSION
     UA_StatusCode (*setRoleAccessPermission)(UA_String roleName, UA_AccessControlSettings* accessControlSettings);
     UA_PermissionType (*readUserDefinedRolePermission)(UA_Server *server, UA_AccessControlSettings* accessControlSettings);
-   // UA_StatusCode (*checkTheRoleSessionLoggedIn)(UA_Server *server);
+    UA_StatusCode (*checkTheRoleSessionLoggedIn)(UA_Server *server);
 #endif /* UA_ENABLE_ROLE_PERMISSION */
 };
 

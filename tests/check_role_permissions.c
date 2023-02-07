@@ -29,7 +29,7 @@
 THREAD_HANDLE server_thread;
 
 // structure for user Data Queue
-typedef struct __attribute__((__packed__)) user_data_buffer {
+typedef struct user_data_buffer {
     bool userAvailable;
     UA_String username;
     UA_String password;
@@ -761,11 +761,11 @@ START_TEST(node11_read_access)
 
     retval = UA_Client_readValueAttribute(client, node_11, &variant);
 
-    if(retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_CLIENT, "SUCCESS: ReadValue of restricted Node 11 FOR ENGINEER");
+    if(retval == UA_STATUSCODE_GOOD) {
+        UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_CLIENT, "SUCCESS: ReadValue Node 11 FOR ENGINEER");
     }
     else {
-        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_CLIENT, "FAILURE: ReadValue of restricted Node 11 FOR ENGINEER: %s", UA_StatusCode_name(retval));
+        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_CLIENT, "FAILURE: ReadValue Node 11 FOR ENGINEER: %s", UA_StatusCode_name(retval));
     }
 
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
@@ -957,7 +957,6 @@ START_TEST(node1_write_role_permission)
 
 START_TEST(add_new_node_Engineer)
 {
-
     UA_StatusCode retval;
 
     /* Add new variable */
@@ -1115,15 +1114,15 @@ START_TEST(method_call_to_add_kalycito_worker_identity)
 
     if(response_2.results->statusCode == UA_STATUSCODE_GOOD) {
         UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_CLIENT, "SUCCESS: Added KalycitoWorker identity to the server");
+    /* Clean up */
         UA_free(inputArguments_2);
-         UA_CallResponse_clear(&response_2);
-
+        UA_CallResponse_clear(&response_2);
         ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     }
     else {
         UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_CLIENT, "FAILURE to Add KalycitoWorker identity to the server");
     }
-    /* Clean up */
+
 
     UA_Client_disconnect(client);    // Disconnect as ENGINEER
 
@@ -1147,7 +1146,6 @@ START_TEST(node13_read_kalycito_worker)
     UA_NodeId node_13 = UA_NODEID_NUMERIC(1, 1013);  // Only accessed by KalycitoWorker Role
     UA_Variant variant;
 
-    /* "User does not have permission to read the value of the Node ID 13" */
     retval = UA_Client_readValueAttribute(client, node_13, &variant);
     UA_Client_disconnect(client);    // Disconnect as KalycitoWorker
 
@@ -1171,14 +1169,13 @@ START_TEST(node1_read_user_operator)
     UA_NodeId node_1 = UA_NODEID_NUMERIC(1, 1001);
     UA_Variant variant;
 
-     /* "User does not have permission to read the value of the Node ID 1." */
     UA_StatusCode retval = UA_Client_readValueAttribute(client, node_1, &variant);
 
     if(retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_CLIENT, "SUCCESS: ReadValue of restricted Node 1 FOR OPERATOR");
+        UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_CLIENT, "SUCCESS: ReadValue Node 1 FOR OPERATOR");
     }
     else {
-        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_CLIENT, "FAILURE: ReadValue of restricted Node 1 FOR OPERATOR: %s", UA_StatusCode_name(retval));
+        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_CLIENT, "FAILURE: ReadValue Node 1 FOR OPERATOR: %s", UA_StatusCode_name(retval));
     }
 
     ck_assert_uint_ne(retval, UA_STATUSCODE_GOOD);
@@ -1190,14 +1187,13 @@ START_TEST(node9_read_user_operator)
     UA_NodeId node_9 = UA_NODEID_NUMERIC(1, 1009);
     UA_Variant variant;
 
-    /* "User does not have permission to read the value of the Node ID 1." */
     UA_StatusCode retval = UA_Client_readValueAttribute(client, node_9, &variant);
 
     if(retval == UA_STATUSCODE_GOOD) {
-        UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_CLIENT, "SUCCESS: ReadValue of restricted Node 9 FOR OPERATOR");
+        UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_CLIENT, "SUCCESS: ReadValue Node 9 FOR OPERATOR");
     }
     else {
-        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_CLIENT, "FAILURE: ReadValue of restricted Node 9 FOR OPERATOR: %s", UA_StatusCode_name(retval));
+        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_CLIENT, "FAILURE: ReadValue Node 9 FOR OPERATOR: %s", UA_StatusCode_name(retval));
     }
 
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
@@ -1230,7 +1226,6 @@ START_TEST(read_role_permission_user_operator)
     UA_UInt32 roleValue[3];
 
     // Write and Read Role permission
-
     UA_RolePermissionType *readRolePermission = (UA_RolePermissionType *)UA_Array_new(3, &UA_TYPES[UA_TYPES_ROLEPERMISSIONTYPE]);;
     size_t  readRolePermissionsize = 2;
 
@@ -1269,7 +1264,7 @@ START_TEST(read_user_role_permission_user_operator)
         UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_CLIENT, "FAILURE: Read UserRolePermission of Node 9");
     }
     UA_Array_delete(readUserRolePermission, 2, &UA_TYPES[UA_TYPES_ROLEPERMISSIONTYPE]);
-    UA_Client_disconnect(client);    // Disconnect as Operator
+    UA_Client_disconnect(client);
 
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
@@ -1291,14 +1286,13 @@ START_TEST(node8_read_user_observer)
     UA_NodeId node_8 = UA_NODEID_NUMERIC(1, 1008);
     UA_Variant variant;
 
-     /* "User does not have permission to read the value of the Node ID 1." */
     UA_StatusCode retval = UA_Client_readValueAttribute(client, node_8, &variant);
 
     if(retval == UA_STATUSCODE_GOOD) {
-        UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_CLIENT, "SUCCESS: ReadValue of restricted Node 8 FOR OBSERVER");
+        UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_CLIENT, "SUCCESS: ReadValue Node 8 FOR OBSERVER");
     }
     else {
-        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_CLIENT, "FAILURE: ReadValue of restricted Node 8 FOR OBSERVER: %s", UA_StatusCode_name(retval));
+        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_CLIENT, "FAILURE: ReadValue Node 8 FOR OBSERVER: %s", UA_StatusCode_name(retval));
     }
 
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
@@ -1341,14 +1335,13 @@ START_TEST(node11_read_user_securityadmin)
     UA_NodeId node_11 = UA_NODEID_NUMERIC(1, 1011);
     UA_Variant variant;
 
-     /* "User does not have permission to read the value of the Node ID 1." */
     UA_StatusCode retval = UA_Client_readValueAttribute(client, node_11, &variant);
 
     if(retval == UA_STATUSCODE_GOOD) {
-        UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_CLIENT, "SUCCESS: ReadValue of restricted Node 11 FOR securityadmin");
+        UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_CLIENT, "SUCCESS: ReadValue Node 11 FOR securityadmin");
     }
     else {
-        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_CLIENT, "FAILURE: ReadValue of restricted Node 11 FOR securityadmin: %s", UA_StatusCode_name(retval));
+        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_CLIENT, "FAILURE: ReadValue Node 11 FOR securityadmin: %s", UA_StatusCode_name(retval));
     }
 
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
@@ -1380,14 +1373,13 @@ START_TEST(node12_read_user_securityadmin)
     UA_NodeId node_12 = UA_NODEID_NUMERIC(1, 1012);
     UA_Variant variant;
 
-     /* "User does not have permission to read the value of the Node ID 1." */
     UA_StatusCode retval = UA_Client_readValueAttribute(client, node_12, &variant);
 
     if(retval == UA_STATUSCODE_GOOD) {
-        UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_CLIENT, "SUCCESS: ReadValue of restricted Node 12 FOR securityadmin");
+        UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_CLIENT, "SUCCESS: ReadValue Node 12 FOR securityadmin");
     }
     else {
-        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_CLIENT, "FAILURE: ReadValue of restricted Node 12 FOR securityadmin: %s", UA_StatusCode_name(retval));
+        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_CLIENT, "FAILURE: ReadValue Node 12 FOR securityadmin: %s", UA_StatusCode_name(retval));
     }
 
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
@@ -1431,14 +1423,13 @@ START_TEST(node10_read_user_supervisor)
     UA_NodeId node_10 = UA_NODEID_NUMERIC(1, 1010);
     UA_Variant variant;
 
-     /* "User does not have permission to read the value of the Node ID 1." */
     UA_StatusCode retval = UA_Client_readValueAttribute(client, node_10, &variant);
 
     if(retval == UA_STATUSCODE_GOOD) {
-        UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_CLIENT, "SUCCESS: ReadValue of restricted Node 10 FOR supervisor");
+        UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_CLIENT, "SUCCESS: ReadValue Node 10 FOR supervisor");
     }
     else {
-        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_CLIENT, "FAILURE: ReadValue of restricted Node 10 FOR supervisor: %s", UA_StatusCode_name(retval));
+        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_CLIENT, "FAILURE: ReadValue Node 10 FOR supervisor: %s", UA_StatusCode_name(retval));
     }
 
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
@@ -1481,14 +1472,14 @@ START_TEST(node7_read_user_configureadmin)
 {
     UA_NodeId node_7 = UA_NODEID_NUMERIC(1, 1007);
     UA_Variant variant;
-     /* "User does not have permission to read the value of the Node ID 1." */
+
     UA_StatusCode retval = UA_Client_readValueAttribute(client, node_7, &variant);
 
     if(retval == UA_STATUSCODE_GOOD) {
-        UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_CLIENT, "SUCCESS: ReadValue of restricted Node 7 FOR configureadmin");
+        UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_CLIENT, "SUCCESS: ReadValue Node 7 FOR configureadmin");
     }
     else {
-        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_CLIENT, "FAILURE: ReadValue of restricted Node 7 FOR configureadmin: %s", UA_StatusCode_name(retval));
+        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_CLIENT, "FAILURE: ReadValue Node 7 FOR configureadmin: %s", UA_StatusCode_name(retval));
     }
 
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
@@ -1532,14 +1523,13 @@ START_TEST(node3_read_anon)
     UA_NodeId node_3 = UA_NODEID_NUMERIC(1, 1003);
     UA_Variant variant;
 
-     /* "User does not have permission to read the value of the Node ID 1." */
     UA_StatusCode retval = UA_Client_readValueAttribute(client, node_3, &variant);
 
-    if(retval == UA_STATUSCODE_GOOD) {
-        UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_CLIENT, "SUCCESS: ReadValue of restricted Node 5 FOR anonymous");
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_CLIENT, "SUCCESS: ReadValue Node 3 FOR anonymous");
     }
     else {
-        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_CLIENT, "FAILURE: ReadValue of restricted Node 5 FOR anonymous: %s", UA_StatusCode_name(retval));
+        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_CLIENT, "FAILURE: ReadValue Node 3 FOR anonymous: %s", UA_StatusCode_name(retval));
     }
 
     ck_assert_uint_ne(retval, UA_STATUSCODE_GOOD);
@@ -1551,14 +1541,13 @@ START_TEST(node4_read_anon)
     UA_NodeId node_4 = UA_NODEID_NUMERIC(1, 1004);
     UA_Variant variant;
 
-     /* "User does not have permission to read the value of the Node ID 1." */
     UA_StatusCode retval = UA_Client_readValueAttribute(client, node_4, &variant);
 
     if(retval == UA_STATUSCODE_GOOD) {
-        UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_CLIENT, "SUCCESS: ReadValue of restricted Node 4 FOR anonymous");
+        UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_CLIENT, "SUCCESS: ReadValue Node 4 FOR anonymous");
     }
     else {
-        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_CLIENT, "FAILURE: ReadValue of restricted Node 4 FOR anonymous: %s", UA_StatusCode_name(retval));
+        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_CLIENT, "FAILURE: ReadValue Node 4 FOR anonymous: %s", UA_StatusCode_name(retval));
     }
 
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
@@ -1574,7 +1563,7 @@ START_TEST(node4_write_anon)
     UA_Variant_setScalar(&val, &value, &UA_TYPES[UA_TYPES_UINT16]);
     UA_StatusCode retval = UA_Client_writeValueAttribute(client, node_4, &val);
 
-    if(retval == UA_STATUSCODE_GOOD) {
+    if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_CLIENT, "SUCCESS: WriteValue of Node 4 FOR anonymous");
     }
     else {
@@ -1590,14 +1579,13 @@ START_TEST(node5_read_anon)
     UA_NodeId node_5 = UA_NODEID_NUMERIC(1, 1005);
     UA_Variant variant;
 
-    /* "User does not have permission to read the value of the Node ID 1." */
     UA_StatusCode retval = UA_Client_readValueAttribute(client, node_5, &variant);
 
     if(retval == UA_STATUSCODE_GOOD) {
-        UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_CLIENT, "SUCCESS: ReadValue of restricted Node 5 FOR anonymous");
+        UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_CLIENT, "SUCCESS: read of Node 5 FOR anonymous");
     }
     else {
-        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_CLIENT, "FAILURE: ReadValue of restricted Node 5 FOR anonymous: %s", UA_StatusCode_name(retval));
+        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_CLIENT, "FAILURE: read of Node 5 FOR anonymous: %s", UA_StatusCode_name(retval));
     }
 
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
@@ -1613,8 +1601,9 @@ START_TEST(node5_write_anon)
     UA_Variant_setScalar(&val, &value, &UA_TYPES[UA_TYPES_UINT16]);
     UA_StatusCode retval = UA_Client_writeValueAttribute(client, node_5, &val);
 
-    if(retval == UA_STATUSCODE_GOOD) {
-        UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_CLIENT, "SUCCESS: WriteValue of Node 5 FOR anonymous");
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_CLIENT, "SUCCESS: WriteValue of Node 5 FOR ANONYMOUS");
+        UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_CLIENT, "Since, user access level is restricted, Role permission will not override this parameter");
     }
     else {
         UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_CLIENT, "FAILURE: WriteValue of Node 5 FOR anonymous: %s", UA_StatusCode_name(retval));
@@ -1642,14 +1631,13 @@ START_TEST(node1_read_user_auth)
     UA_NodeId node_1 = UA_NODEID_NUMERIC(1, 1001);
     UA_Variant variant;
 
-     /* "User does not have permission to read the value of the Node ID 1." */
     UA_StatusCode retval = UA_Client_readValueAttribute(client, node_1, &variant);
 
     if(retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_CLIENT, "SUCCESS: ReadValue of restricted Node 1 FOR user_auth");
+        UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_CLIENT, "SUCCESS: ReadValue Node 1 FOR user_auth");
     }
     else {
-        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_CLIENT, "FAILURE: ReadValue of restricted Node 1 FOR user_auth %s", UA_StatusCode_name(retval));
+        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_CLIENT, "FAILURE: ReadValue Node 1 FOR user_auth %s", UA_StatusCode_name(retval));
     }
 
     ck_assert_uint_ne(retval, UA_STATUSCODE_GOOD);
@@ -1662,14 +1650,13 @@ START_TEST(node6_read_user_auth)
     UA_NodeId node_6 = UA_NODEID_NUMERIC(1, 1006);
     UA_Variant variant;
 
-     /* "User does not have permission to read the value of the Node ID 1." */
     UA_StatusCode retval = UA_Client_readValueAttribute(client, node_6, &variant);
 
     if(retval == UA_STATUSCODE_GOOD) {
-        UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_CLIENT, "SUCCESS: ReadValue of restricted Node 6 FOR user_auth");
+        UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_CLIENT, "SUCCESS: ReadValue Node 6 FOR user_auth");
     }
     else {
-        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_CLIENT, "FAILURE: ReadValue of restricted Node 6 FOR user_auth: %s", UA_StatusCode_name(retval));
+        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_CLIENT, "FAILURE: ReadValue Node 6 FOR user_auth: %s", UA_StatusCode_name(retval));
     }
 
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
@@ -1726,22 +1713,19 @@ START_TEST(read_user_role_permission_user_auth)
 {
     UA_NodeId node_6 = UA_NODEID_NUMERIC(1, 1006);
 
-    UA_UInt32 roleValue[3];
 
     UA_RolePermissionType * readUserRolePermission = (UA_RolePermissionType *)UA_Array_new(3, &UA_TYPES[UA_TYPES_ROLEPERMISSIONTYPE]);
     size_t readUserRolePermissionsize = 2;
     UA_StatusCode retval = UA_Client_readUserRolePermissionAttribute(client, node_6, &readUserRolePermissionsize , &readUserRolePermission);
-    for (size_t index = 0; index < 2; index++)
-        roleValue[index] = readUserRolePermission[index].permissions;
 
-    if ((roleValue[0] == 0x7867) && (roleValue[1] == 0x1ffff)) {
+    if (retval == UA_STATUSCODE_GOOD ) {
         UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_CLIENT, "SUCCESS: Read UserRolePermission of Node 6");
     }
     else {
         UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_CLIENT, "FAILURE: Read UserRolePermission of Node 6");
     }
     UA_Array_delete(readUserRolePermission, 2, &UA_TYPES[UA_TYPES_ROLEPERMISSIONTYPE]);
-    UA_Client_disconnect(client);    // Disconnect as Operator
+    UA_Client_disconnect(client);
 
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
@@ -1819,7 +1803,7 @@ int main(void) {
     running = true;
     UA_Server * server = UA_Server_new();
     config = UA_Server_getConfig(server);
-    UA_ServerConfig_setDefault(config);
+
     client = UA_Client_new();
     UA_ClientConfig_setDefault(UA_Client_getConfig(client));
     config->nodeLifecycle.createOptionalChild = addRoleBasedNodes;
@@ -1830,7 +1814,7 @@ int main(void) {
     addNewTestNodeObject(server);
 
     config->accessControl.checkUserDatabase = checkUserDatabase;
-    config->accessControl.checkTheRoleSessionLoggedIn = checkTheRoleSessionLoggedIn;
+
     config->accessControl.readUserDefinedRolePermission = readUserProvidedRoles;
 
     config->accessControl.clear(&config->accessControl);

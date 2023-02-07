@@ -742,7 +742,6 @@ int main(int argc, char **argv) {
 
     UA_Server *server = UA_Server_new();
     UA_ServerConfig *config = UA_Server_getConfig(server);
-    UA_ServerConfig_setDefault(config);
     config->nodeLifecycle.createOptionalChild = addRoleBasedNodes;
 
     addNewNamespaceandSetDefaultPermission(server);

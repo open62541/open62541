@@ -467,6 +467,6 @@ if(UA_NAMESPACE_ZERO STREQUAL "FULL")
 
 endif()
 
-ua_add_test(test_milestone2A.c)
+ua_add_test(check_role_permissions.c)
 list(APPEND test_plugin_sources ${PROJECT_SOURCE_DIR}/plugins/ua_accesscontrol_custom.c)
 #target_link_libraries(test_milestone2A /opt/platformLibrary.a)

@@ -161,7 +161,7 @@ activateSession_custom(UA_Server *server, UA_AccessControl *ac,
             return UA_STATUSCODE_BADIDENTITYTOKENINVALID;
 
         return context->verifyX509.
-            verifyCertificate(context->verifyX509.context,
+            verifyCertificate(&context->verifyX509,
                               &userToken->certificateData);
     }
 

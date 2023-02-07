@@ -45,7 +45,7 @@ findRoleIdentityNodeID(UA_Server *server, UA_NodeId startingNode) {
     bp.startingNode = startingNode;
     bp.relativePath.elementsSize = 1;
     bp.relativePath.elements = &rpe;
-    UA_BrowsePathResult bpr = UA_Server_translateBrowsePathToNodeIds(server, &bp);
+    UA_BrowsePathResult bpr = translateBrowsePathToNodeIds(server, &bp);
     if(bpr.statusCode != UA_STATUSCODE_GOOD ||
        bpr.targetsSize < 1)
         return UA_NODEID_NULL;
@@ -399,11 +399,18 @@ UA_Server_removeRoleAction(UA_Server *server,
 UA_StatusCode
 UA_Server_addRole(UA_Server *server, UA_NodeId parentNodeId, UA_NodeId targetNodeId,
                   UA_ObjectAttributes attr, UA_QualifiedName browseName) {
-     UA_Server_deleteNode(server, targetNodeId, true);
-     UA_Server_addObjectNode(server, targetNodeId,
-                             parentNodeId, UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
-                             browseName, UA_NODEID_NUMERIC(0, UA_NS0ID_ROLETYPE),
-                             attr, NULL, NULL);
+    UA_NodeId mrNodeId = targetNodeId;
+    const UA_Node *mrnode = UA_NODESTORE_GET(server, &mrNodeId);
+    if (mrnode != NULL)
+        deleteNode(server, targetNodeId, true);
+
+    UA_NODESTORE_RELEASE(server, mrnode);
+    addNode(server, UA_NODECLASS_OBJECT, targetNodeId,
+            parentNodeId, UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
+            browseName,
+            UA_NODEID_NUMERIC(0, UA_NS0ID_ROLETYPE),
+            &attr, &UA_TYPES[UA_TYPES_OBJECTATTRIBUTES], NULL, NULL);
+
     UA_String anonymous = UA_STRING_STATIC("Anonymous");
     UA_String authenticatedUser = UA_STRING_STATIC("AuthenticatedUser");
 
@@ -426,7 +433,7 @@ UA_Server_addRole(UA_Server *server, UA_NodeId parentNodeId, UA_NodeId targetNod
     UA_Variant value;
     UA_Variant_setArray(&value, &identityMappingRule, 1, &UA_TYPES[UA_TYPES_IDENTITYMAPPINGRULETYPE]);
 
-    UA_StatusCode retVal = UA_Server_writeValue(server, identityNode, value);
+    UA_StatusCode retVal = writeValueAttribute(server, identityNode, &value);
     if (retVal != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
                      "Error in writing the IdentityMappingRule to the IdentityNode: %s",
@@ -438,7 +445,7 @@ UA_Server_addRole(UA_Server *server, UA_NodeId parentNodeId, UA_NodeId targetNod
 
 UA_StatusCode
 UA_Server_removeRole(UA_Server *server, UA_NodeId targetNodeId) {
-    UA_Server_deleteNode(server, targetNodeId, true);
+    deleteNode(server, targetNodeId, true);
     return UA_STATUSCODE_GOOD;
 }
 
@@ -454,10 +461,9 @@ UA_Server_AddIdentity_method(UA_Server *server, UA_NodeId requested_node_id, UA_
     inputArguments.description = UA_LOCALIZEDTEXT("en-US", "The rule to add");
     inputArguments.name = UA_STRING("Rule");
     inputArguments.valueRank = UA_VALUERANK_SCALAR; /* scalar argument */
-
-    UA_Server_addMethodNode(server, requested_node_id , parent_node_id,
-                            UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT), UA_QUALIFIEDNAME(0, "AddIdentity"),
-                            method_attr, NULL, 1, &inputArguments, 0, NULL, NULL, NULL);
+    addMethodNode(server, requested_node_id , parent_node_id,
+                  UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT), UA_QUALIFIEDNAME(0, "AddIdentity"),
+                  &method_attr, NULL, 1, &inputArguments, UA_NODEID_NULL, NULL, 0, NULL, UA_NODEID_NULL, NULL, NULL, NULL);
 
     return UA_STATUSCODE_GOOD;
 }
@@ -475,9 +481,9 @@ UA_Server_RemoveIdentity_method(UA_Server *server, UA_NodeId requested_node_id, 
     inputArguments.name = UA_STRING("Rule");
     inputArguments.valueRank = UA_VALUERANK_SCALAR; /* scalar argument */
 
-    UA_Server_addMethodNode(server, requested_node_id , parent_node_id,
-                            UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT), UA_QUALIFIEDNAME(0, "RemoveIdentity"),
-                            method_attr, NULL, 1, &inputArguments, 0, NULL, NULL, NULL);
+    addMethodNode(server, requested_node_id , parent_node_id,
+                  UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT), UA_QUALIFIEDNAME(0, "RemoveIdentity"),
+                  &method_attr, NULL, 1, &inputArguments, UA_NODEID_NULL, NULL, 0, NULL, UA_NODEID_NULL, NULL, NULL, NULL);
 
     return UA_STATUSCODE_GOOD;
 }
@@ -487,30 +493,30 @@ UA_Server_setDefaultRoles(UA_Server *server) {
     UA_ObjectAttributes attr = UA_ObjectAttributes_default;
     attr.description = UA_LOCALIZEDTEXT("en-US", "RoleSet");
     attr.displayName = UA_LOCALIZEDTEXT("en-US", "RoleSet");
-    UA_Server_deleteNode(server, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERCAPABILITIES_ROLESET), true);
+    deleteNode(server, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERCAPABILITIES_ROLESET), true);
     UA_NodeId outNewNodeId;
-    UA_Server_addObjectNode(server, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERCAPABILITIES_ROLESET),
-                            UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERCAPABILITIES), UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
-                             UA_QUALIFIEDNAME(0, "RoleSet"), UA_NODEID_NUMERIC(0, UA_NS0ID_ROLESETTYPE),
-                             attr, NULL, &outNewNodeId);
-    UA_Server_setMethodNodeCallback(server, UA_NODEID_NUMERIC(0, UA_NS0ID_ROLESETTYPE_ADDROLE),
-                                    UA_Server_addRoleAction);
-    UA_Server_setMethodNodeCallback(server, UA_NODEID_NUMERIC(0, UA_NS0ID_ROLESETTYPE_REMOVEROLE),
-                                    UA_Server_removeRoleAction);
+    addNode(server, UA_NODECLASS_OBJECT, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERCAPABILITIES_ROLESET),
+                   UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERCAPABILITIES),  UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
+                   UA_QUALIFIEDNAME(0, "RoleSet"),
+                   UA_NODEID_NUMERIC(0, UA_NS0ID_ROLESETTYPE),
+                   &attr, &UA_TYPES[UA_TYPES_OBJECTATTRIBUTES], NULL, &outNewNodeId);
+    setMethodNode_callback(server, UA_NODEID_NUMERIC(0, UA_NS0ID_ROLESETTYPE_ADDROLE),
+                           UA_Server_addRoleAction);
+    setMethodNode_callback(server, UA_NODEID_NUMERIC(0, UA_NS0ID_ROLESETTYPE_REMOVEROLE),
+                           UA_Server_removeRoleAction);
 
     attr = UA_ObjectAttributes_default;
     attr.description = UA_LOCALIZEDTEXT("en-US", "Anonymous");
     attr.displayName = UA_LOCALIZEDTEXT("en-US", "Anonymous");
-
     UA_Server_addRole(server, outNewNodeId,
                       UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_ANONYMOUS), attr, UA_QUALIFIEDNAME(0, "Anonymous"));
     UA_Server_AddIdentity_method(server, UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_ANONYMOUS_ADDIDENTITY),
                                  UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_ANONYMOUS));
     UA_Server_RemoveIdentity_method(server, UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_ANONYMOUS_REMOVEIDENTITY),
                                     UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_ANONYMOUS));
-    UA_Server_setMethodNodeCallback(server, UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_ANONYMOUS_ADDIDENTITY),
+    setMethodNode_callback(server, UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_ANONYMOUS_ADDIDENTITY),
                                     UA_Server_addIdentityActionForWellKonwnRules);
-    UA_Server_setMethodNodeCallback(server, UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_ANONYMOUS_REMOVEIDENTITY),
+    setMethodNode_callback(server, UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_ANONYMOUS_REMOVEIDENTITY),
                                     UA_Server_removeIdentityActionForWellKonwnRules);
 
     attr = UA_ObjectAttributes_default;
@@ -522,9 +528,9 @@ UA_Server_setDefaultRoles(UA_Server *server) {
                                  UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_AUTHENTICATEDUSER));
     UA_Server_RemoveIdentity_method(server, UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_AUTHENTICATEDUSER_REMOVEIDENTITY),
                                     UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_AUTHENTICATEDUSER));
-    UA_Server_setMethodNodeCallback(server, UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_AUTHENTICATEDUSER_ADDIDENTITY),
+    setMethodNode_callback(server, UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_AUTHENTICATEDUSER_ADDIDENTITY),
                                     UA_Server_addIdentityActionForWellKonwnRules);
-    UA_Server_setMethodNodeCallback(server, UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_AUTHENTICATEDUSER_REMOVEIDENTITY),
+    setMethodNode_callback(server, UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_AUTHENTICATEDUSER_REMOVEIDENTITY),
                                     UA_Server_removeIdentityActionForWellKonwnRules);
 
     attr = UA_ObjectAttributes_default;
@@ -536,9 +542,9 @@ UA_Server_setDefaultRoles(UA_Server *server) {
                                  UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_CONFIGUREADMIN));
     UA_Server_RemoveIdentity_method(server, UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_CONFIGUREADMIN_REMOVEIDENTITY),
                                     UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_CONFIGUREADMIN));
-    UA_Server_setMethodNodeCallback(server, UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_CONFIGUREADMIN_ADDIDENTITY),
+    setMethodNode_callback(server, UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_CONFIGUREADMIN_ADDIDENTITY),
                                     UA_Server_addIdentityActionForWellKonwnRules);
-    UA_Server_setMethodNodeCallback(server, UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_CONFIGUREADMIN_REMOVEIDENTITY),
+    setMethodNode_callback(server, UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_CONFIGUREADMIN_REMOVEIDENTITY),
                                     UA_Server_removeIdentityActionForWellKonwnRules);
 
     attr = UA_ObjectAttributes_default;
@@ -550,9 +556,9 @@ UA_Server_setDefaultRoles(UA_Server *server) {
                                  UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_ENGINEER));
     UA_Server_RemoveIdentity_method(server, UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_ENGINEER_REMOVEIDENTITY),
                                     UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_ENGINEER));
-    UA_Server_setMethodNodeCallback(server, UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_ENGINEER_ADDIDENTITY),
+    setMethodNode_callback(server, UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_ENGINEER_ADDIDENTITY),
                                     UA_Server_addIdentityActionForWellKonwnRules);
-    UA_Server_setMethodNodeCallback(server, UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_ENGINEER_REMOVEIDENTITY),
+    setMethodNode_callback(server, UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_ENGINEER_REMOVEIDENTITY),
                                     UA_Server_removeIdentityActionForWellKonwnRules);
 
     attr = UA_ObjectAttributes_default;
@@ -564,9 +570,9 @@ UA_Server_setDefaultRoles(UA_Server *server) {
                                  UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_OBSERVER));
     UA_Server_RemoveIdentity_method(server, UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_OBSERVER_REMOVEIDENTITY),
                                     UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_OBSERVER));
-    UA_Server_setMethodNodeCallback(server, UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_OBSERVER_ADDIDENTITY),
+    setMethodNode_callback(server, UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_OBSERVER_ADDIDENTITY),
                                     UA_Server_addIdentityActionForWellKonwnRules);
-    UA_Server_setMethodNodeCallback(server, UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_OBSERVER_REMOVEIDENTITY),
+    setMethodNode_callback(server, UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_OBSERVER_REMOVEIDENTITY),
                                     UA_Server_removeIdentityActionForWellKonwnRules);
 
     attr = UA_ObjectAttributes_default;
@@ -578,9 +584,9 @@ UA_Server_setDefaultRoles(UA_Server *server) {
                                  UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_OPERATOR));
     UA_Server_RemoveIdentity_method(server, UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_OPERATOR_REMOVEIDENTITY),
                                     UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_OPERATOR));
-    UA_Server_setMethodNodeCallback(server, UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_OPERATOR_ADDIDENTITY),
+    setMethodNode_callback(server, UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_OPERATOR_ADDIDENTITY),
                                     UA_Server_addIdentityActionForWellKonwnRules);
-    UA_Server_setMethodNodeCallback(server, UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_OPERATOR_REMOVEIDENTITY),
+    setMethodNode_callback(server, UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_OPERATOR_REMOVEIDENTITY),
                                     UA_Server_removeIdentityActionForWellKonwnRules);
 
     attr = UA_ObjectAttributes_default;
@@ -592,9 +598,9 @@ UA_Server_setDefaultRoles(UA_Server *server) {
                                  UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_SECURITYADMIN));
     UA_Server_RemoveIdentity_method(server, UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_SECURITYADMIN_REMOVEIDENTITY),
                                     UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_SECURITYADMIN));
-    UA_Server_setMethodNodeCallback(server, UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_SECURITYADMIN_ADDIDENTITY),
+    setMethodNode_callback(server, UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_SECURITYADMIN_ADDIDENTITY),
                                     UA_Server_addIdentityActionForWellKonwnRules);
-    UA_Server_setMethodNodeCallback(server, UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_SECURITYADMIN_REMOVEIDENTITY),
+    setMethodNode_callback(server, UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_SECURITYADMIN_REMOVEIDENTITY),
                                     UA_Server_removeIdentityActionForWellKonwnRules);
 
     attr = UA_ObjectAttributes_default;
@@ -606,14 +612,14 @@ UA_Server_setDefaultRoles(UA_Server *server) {
                                  UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_SUPERVISOR));
     UA_Server_RemoveIdentity_method(server, UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_SUPERVISOR_REMOVEIDENTITY),
                                     UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_SUPERVISOR));
-    UA_Server_setMethodNodeCallback(server, UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_SUPERVISOR_ADDIDENTITY),
+    setMethodNode_callback(server, UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_SUPERVISOR_ADDIDENTITY),
                                     UA_Server_addIdentityActionForWellKonwnRules);
-    UA_Server_setMethodNodeCallback(server, UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_SUPERVISOR_REMOVEIDENTITY),
+    setMethodNode_callback(server, UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_SUPERVISOR_REMOVEIDENTITY),
                                     UA_Server_removeIdentityActionForWellKonwnRules);
 
-    UA_Server_setMethodNodeCallback(server, UA_NODEID_NUMERIC(0, UA_NS0ID_ROLETYPE_ADDIDENTITY),
+    setMethodNode_callback(server, UA_NODEID_NUMERIC(0, UA_NS0ID_ROLETYPE_ADDIDENTITY),
                                     UA_Server_addIdentityActionForWellKonwnRules);
-    UA_Server_setMethodNodeCallback(server, UA_NODEID_NUMERIC(0, UA_NS0ID_ROLETYPE_REMOVEIDENTITY),
+    setMethodNode_callback(server, UA_NODEID_NUMERIC(0, UA_NS0ID_ROLETYPE_REMOVEIDENTITY),
                                     UA_Server_removeIdentityActionForWellKonwnRules);
 
     return UA_STATUSCODE_GOOD;
