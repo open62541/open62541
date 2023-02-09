@@ -49,7 +49,7 @@ addPubSubConnection(UA_Server *server, UA_String *transportProfile,
     connectionConfig.publisherId.uint16 = 2234;
     UA_Server_addPubSubConnection(server, &connectionConfig, &connectionIdent);
 
-    UA_Server_setConnectionOperational(server, connectionIdent);
+    UA_Server_setPubSubConnectionOperational(server, connectionIdent);
 }
 
 /**

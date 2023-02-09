@@ -357,7 +357,7 @@ UA_StatusCode
 UA_WriterGroup_unfreezeConfiguration(UA_Server *server, UA_WriterGroup *wg);
 
 void
-UA_ReaderGroup_removePublishCallback(UA_Server *server, UA_WriterGroup *wg);
+UA_WriterGroup_removePublishCallback(UA_Server *server, UA_WriterGroup *wg);
 
 UA_StatusCode
 UA_WriterGroup_setPubSubState(UA_Server *server,

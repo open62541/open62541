@@ -200,6 +200,11 @@ UA_PubSubConnection_create(UA_Server *server,
     if(newConnectionsField->channel->openSubscriber) {
         newConnectionsField->channel->openSubscriber(newConnectionsField->channel);
     }
+
+    if (connectionConfig->enabled)
+    {
+        UA_Server_enablePubSubConnection(server, *connectionIdentifier);
+    }
     return UA_STATUSCODE_GOOD;
 }
 
@@ -296,6 +301,236 @@ UA_PubSubConnection_regist(UA_Server *server, UA_NodeId *connectionIdentifier,
 
     connection->isRegistered = true;
     return retval;
+}
+
+
+/* Connection State */
+
+static UA_StatusCode
+setPubSubState_disable(UA_Server *server,
+                                      UA_PubSubConnection *connection,
+                                      UA_StatusCode cause) {
+    UA_WriterGroup *wg;
+    UA_ReaderGroup *rg;
+    switch (connection->state){
+        case UA_PUBSUBSTATE_DISABLED:
+            break;
+        case UA_PUBSUBSTATE_PAUSED:
+            break;
+        case UA_PUBSUBSTATE_PREOPERATIONAL:
+        case UA_PUBSUBSTATE_OPERATIONAL:
+            LIST_FOREACH(wg, &connection->writerGroups, listEntry){
+                UA_WriterGroup_setPubSubState(server, wg, UA_PUBSUBSTATE_DISABLED,
+                                                cause);
+            }
+            LIST_FOREACH(rg, &connection->readerGroups, listEntry){
+                UA_ReaderGroup_setPubSubState(server, rg, UA_PUBSUBSTATE_DISABLED,
+                                                cause);
+            }
+
+            break;
+        case UA_PUBSUBSTATE_ERROR:
+            break;
+        default:
+            UA_LOG_WARNING_CONNECTION(&server->config.logger, connection,
+                                        "Received unknown PubSub state!");
+    }
+    connection->state = UA_PUBSUBSTATE_DISABLED;
+    return UA_STATUSCODE_GOOD;
+}
+
+static UA_StatusCode
+setPubSubState_paused(UA_Server *server,
+                                     UA_PubSubConnection *connection,
+                                     UA_StatusCode cause) {
+    UA_LOG_DEBUG_CONNECTION(&server->config.logger, connection,
+                             "PubSub state paused is unsupported at the moment!");
+    (void)cause;
+    switch (connection->state) {
+        case UA_PUBSUBSTATE_DISABLED:
+            break;
+        case UA_PUBSUBSTATE_PAUSED:
+            break;
+        case UA_PUBSUBSTATE_PREOPERATIONAL:
+            break;
+        case UA_PUBSUBSTATE_OPERATIONAL:
+            break;
+        case UA_PUBSUBSTATE_ERROR:
+            break;
+        default:
+            UA_LOG_WARNING_CONNECTION(&server->config.logger, connection,
+                                        "Received unknown PubSub state!");
+    }
+    return UA_STATUSCODE_BADNOTSUPPORTED;
+}
+
+static UA_StatusCode
+setPubSubState_preoperational(UA_Server *server,
+                                            UA_PubSubConnection *connection,
+                                            UA_StatusCode cause) {
+    switch(connection->state) {
+        case UA_PUBSUBSTATE_DISABLED:
+        case UA_PUBSUBSTATE_PAUSED:
+            connection->state = UA_PUBSUBSTATE_PREOPERATIONAL;
+            return UA_STATUSCODE_GOOD;
+        case UA_PUBSUBSTATE_PREOPERATIONAL:
+            break;
+        case UA_PUBSUBSTATE_OPERATIONAL:
+            return UA_STATUSCODE_GOOD;
+        case UA_PUBSUBSTATE_ERROR:
+            connection->state = UA_PUBSUBSTATE_PREOPERATIONAL;
+            return UA_STATUSCODE_GOOD;
+        default:
+            UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                           "Unknown PubSub state!");
+            return UA_STATUSCODE_BADINTERNALERROR;
+    }
+    return UA_STATUSCODE_BADNOTSUPPORTED;
+}
+
+static UA_StatusCode
+setPubSubState_operational(UA_Server *server,
+                                          UA_PubSubConnection *connection,
+                                          UA_StatusCode cause) {
+    UA_WriterGroup *wg;
+    UA_ReaderGroup *rg;
+    switch(connection->state) {
+    case UA_PUBSUBSTATE_DISABLED:
+        break;
+    case UA_PUBSUBSTATE_PAUSED:
+        break;
+    case UA_PUBSUBSTATE_ERROR:
+    case UA_PUBSUBSTATE_PREOPERATIONAL:
+        connection->state = UA_PUBSUBSTATE_OPERATIONAL;
+        LIST_FOREACH(wg, &connection->writerGroups, listEntry){
+            UA_WriterGroup_setPubSubState(server, wg, UA_PUBSUBSTATE_PREOPERATIONAL,
+                                            cause);
+        }
+        LIST_FOREACH(rg, &connection->readerGroups, listEntry){
+            UA_ReaderGroup_setPubSubState(server, rg, UA_PUBSUBSTATE_PREOPERATIONAL,
+                                            cause);
+        }
+
+        return UA_STATUSCODE_GOOD;
+    case UA_PUBSUBSTATE_OPERATIONAL:
+        return UA_STATUSCODE_GOOD;
+
+    default:
+        UA_LOG_WARNING_CONNECTION(&server->config.logger, connection, "Unknown PubSub state!");
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
+    return UA_STATUSCODE_BADNOTSUPPORTED;
+}
+
+static UA_StatusCode
+setPubSubState_error(UA_Server *server,
+                                    UA_PubSubConnection *connection,
+                                    UA_StatusCode cause) {
+    UA_WriterGroup *wg;
+    UA_ReaderGroup *rg;
+    switch (connection->state){
+        case UA_PUBSUBSTATE_DISABLED:
+            break;
+        case UA_PUBSUBSTATE_PAUSED:
+            break;
+        case UA_PUBSUBSTATE_PREOPERATIONAL:
+            break;
+        case UA_PUBSUBSTATE_OPERATIONAL:
+            LIST_FOREACH(wg, &connection->writerGroups, listEntry){
+                UA_WriterGroup_setPubSubState(server, wg, UA_PUBSUBSTATE_ERROR,
+                                                cause);
+            }
+            LIST_FOREACH(rg, &connection->readerGroups, listEntry){
+                UA_ReaderGroup_setPubSubState(server, rg, UA_PUBSUBSTATE_ERROR,
+                                                cause);
+            }
+
+            break;
+        case UA_PUBSUBSTATE_ERROR:
+            break;
+        default:
+            UA_LOG_WARNING_CONNECTION(&server->config.logger, connection,
+                            "Received unknown PubSub state!");
+    }
+    connection->state = UA_PUBSUBSTATE_ERROR;
+    return UA_STATUSCODE_GOOD;
+}
+
+UA_StatusCode
+UA_PubSubConnection_setPubSubState(UA_Server *server, UA_PubSubConnection *connection,
+                              UA_PubSubState state, UA_StatusCode cause) {
+    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+    UA_StatusCode ret = UA_STATUSCODE_GOOD;
+    UA_PubSubState oldState = connection->state;
+
+    switch(state) {
+        case UA_PUBSUBSTATE_DISABLED:
+            ret = setPubSubState_disable(server, connection, cause);
+            break;
+        case UA_PUBSUBSTATE_PAUSED:
+            ret = setPubSubState_paused(server, connection, cause);
+            break;
+        case UA_PUBSUBSTATE_PREOPERATIONAL:
+            ret = setPubSubState_preoperational(server, connection, cause);
+            break;
+        case UA_PUBSUBSTATE_OPERATIONAL:
+            ret = setPubSubState_operational(server, connection, cause);
+            break;
+        case UA_PUBSUBSTATE_ERROR: 
+            ret = setPubSubState_error(server, connection, cause);
+            break;
+        default:
+            UA_LOG_WARNING_CONNECTION(&server->config.logger, connection,
+                                       "Received unknown PubSub state!");
+    }
+    if(state != oldState) {
+        /* inform application about state change */
+        UA_ServerConfig *pConfig = &server->config;
+        if(pConfig->pubSubConfig.stateChangeCallback != 0) {
+            pConfig->pubSubConfig.
+                stateChangeCallback(server, &connection->identifier, state, cause);
+        }
+    }
+    return ret;
+}
+
+UA_StatusCode
+UA_Server_enablePubSubConnection(UA_Server *server,
+                                    const UA_NodeId connectionIdent) {
+    UA_LOCK(&server->serviceMutex);
+    UA_StatusCode res = UA_STATUSCODE_BADNOTFOUND;
+    UA_PubSubConnection *conn = UA_PubSubConnection_findConnectionbyId(server, connectionIdent);
+    if(conn)
+        res = UA_PubSubConnection_setPubSubState(server, conn, UA_PUBSUBSTATE_PREOPERATIONAL,
+                                            UA_STATUSCODE_GOOD);
+    UA_UNLOCK(&server->serviceMutex);
+    return res;
+}
+
+UA_StatusCode
+UA_Server_setPubSubConnectionOperational(UA_Server *server,
+                                    const UA_NodeId connectionIdent) {
+    UA_LOCK(&server->serviceMutex);
+    UA_StatusCode res = UA_STATUSCODE_BADNOTFOUND;
+    UA_PubSubConnection *conn = UA_PubSubConnection_findConnectionbyId(server, connectionIdent);
+    if(conn)
+        res = UA_PubSubConnection_setPubSubState(server, conn, UA_PUBSUBSTATE_OPERATIONAL,
+                                            UA_STATUSCODE_GOOD);
+    UA_UNLOCK(&server->serviceMutex);
+    return res;
+}
+
+UA_StatusCode
+UA_Server_disablePubSubConnection(UA_Server *server,
+                                 const UA_NodeId connectionIdent) {
+    UA_LOCK(&server->serviceMutex);
+    UA_StatusCode res = UA_STATUSCODE_BADNOTFOUND;
+    UA_PubSubConnection *conn = UA_PubSubConnection_findConnectionbyId(server, connectionIdent);
+    if(conn)
+        res = UA_PubSubConnection_setPubSubState(server, conn, UA_PUBSUBSTATE_DISABLED,
+                                                UA_STATUSCODE_BADRESOURCEUNAVAILABLE);
+    UA_UNLOCK(&server->serviceMutex);
+    return res;
 }
 
 #endif /* UA_ENABLE_PUBSUB */

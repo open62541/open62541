@@ -218,7 +218,7 @@ removeWriterGroup(UA_Server *server, const UA_NodeId writerGroup) {
     }
 
     if(wg->state == UA_PUBSUBSTATE_OPERATIONAL) {
-        UA_ReaderGroup_removePublishCallback(server, wg);
+        UA_WriterGroup_removePublishCallback(server, wg);
     }
 
     UA_DataSetWriter *dsw, *dsw_tmp;
@@ -633,7 +633,7 @@ UA_WriterGroup_updateConfig(UA_Server *server, UA_WriterGroup *wg,
         wg->config.publishingInterval = config->publishingInterval;
         if(wg->config.rtLevel == UA_PUBSUB_RT_NONE &&
            wg->state == UA_PUBSUBSTATE_OPERATIONAL) {
-            UA_ReaderGroup_removePublishCallback(server, wg);
+            UA_WriterGroup_removePublishCallback(server, wg);
             UA_WriterGroup_addPublishCallback(server, wg);
         }
     }
@@ -833,7 +833,7 @@ UA_WriterGroup_setPubSubState_disable(UA_Server *server,
             break;
         case UA_PUBSUBSTATE_PREOPERATIONAL:
         case UA_PUBSUBSTATE_OPERATIONAL:
-            UA_ReaderGroup_removePublishCallback(server, writerGroup);
+            UA_WriterGroup_removePublishCallback(server, writerGroup);
 
             LIST_FOREACH(dataSetWriter, &writerGroup->writers, listEntry){
                 UA_DataSetWriter_setPubSubState(server, dataSetWriter, UA_PUBSUBSTATE_DISABLED,
@@ -920,7 +920,7 @@ UA_WriterGroup_setPubSubState_operational(UA_Server *server,
         break;
     case UA_PUBSUBSTATE_PREOPERATIONAL:
         writerGroup->state = UA_PUBSUBSTATE_OPERATIONAL;
-        UA_ReaderGroup_removePublishCallback(server, writerGroup);
+        UA_WriterGroup_removePublishCallback(server, writerGroup);
 
         LIST_FOREACH(dataSetWriter, &writerGroup->writers, listEntry){
             UA_DataSetWriter_setPubSubState(server, dataSetWriter,
@@ -961,7 +961,7 @@ UA_WriterGroup_setPubSubState_error(UA_Server *server,
         case UA_PUBSUBSTATE_PREOPERATIONAL:
             break;
         case UA_PUBSUBSTATE_OPERATIONAL:
-            UA_ReaderGroup_removePublishCallback(server, writerGroup);
+            UA_WriterGroup_removePublishCallback(server, writerGroup);
 
             LIST_FOREACH(dataSetWriter, &writerGroup->writers, listEntry){
                 UA_DataSetWriter_setPubSubState(server, dataSetWriter, UA_PUBSUBSTATE_ERROR,
@@ -1548,7 +1548,7 @@ UA_WriterGroup_addPublishCallback(UA_Server *server, UA_WriterGroup *writerGroup
 }
 
 void
-UA_ReaderGroup_removePublishCallback(UA_Server *server, UA_WriterGroup *wg) {
+UA_WriterGroup_removePublishCallback(UA_Server *server, UA_WriterGroup *wg) {
     UA_EventLoop *el = server->config.eventLoop;
     if(wg->linkedConnection && wg->linkedConnection->config.eventLoop)
         el = wg->linkedConnection->config.eventLoop;
