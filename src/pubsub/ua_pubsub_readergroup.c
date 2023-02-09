@@ -360,7 +360,8 @@ UA_ReaderGroup_setPubSubState_paused(UA_Server *server,
     (void)cause;
     switch(rg->state) {
     case UA_PUBSUBSTATE_DISABLED:
-        break;
+        rg->state = UA_PUBSUBSTATE_PAUSED;
+        return UA_STATUSCODE_GOOD;
     case UA_PUBSUBSTATE_PAUSED:
         return UA_STATUSCODE_GOOD;
     case UA_PUBSUBSTATE_OPERATIONAL:
@@ -378,17 +379,11 @@ static UA_StatusCode
 UA_ReaderGroup_setPubSubState_preoperational(UA_Server *server,
                                             UA_ReaderGroup *rg,
                                             UA_StatusCode cause) {
-    UA_DataSetReader *dataSetReader;
     switch(rg->state) {
         case UA_PUBSUBSTATE_DISABLED:
-            LIST_FOREACH(dataSetReader, &rg->readers, listEntry) {
-                UA_DataSetReader_setPubSubState(server, dataSetReader, UA_PUBSUBSTATE_PREOPERATIONAL,
-                                                cause);
-            }
+        case UA_PUBSUBSTATE_PAUSED:
             rg->state = UA_PUBSUBSTATE_PREOPERATIONAL;
             return UA_STATUSCODE_GOOD;
-        case UA_PUBSUBSTATE_PAUSED:
-            break;
         case UA_PUBSUBSTATE_PREOPERATIONAL:
             break;
         case UA_PUBSUBSTATE_OPERATIONAL:
@@ -409,7 +404,11 @@ UA_ReaderGroup_setPubSubState_operational(UA_Server *server,
                                           UA_StatusCode cause) {
     UA_DataSetReader *dataSetReader;
     switch(rg->state) {
-    case UA_PUBSUBSTATE_DISABLED: {
+    case UA_PUBSUBSTATE_DISABLED:
+        break;
+    case UA_PUBSUBSTATE_PAUSED:
+        break;
+    case UA_PUBSUBSTATE_PREOPERATIONAL: {
         LIST_FOREACH(dataSetReader, &rg->readers, listEntry) {
             UA_DataSetReader_setPubSubState(server, dataSetReader, UA_PUBSUBSTATE_PREOPERATIONAL,
                                             cause);
@@ -418,8 +417,6 @@ UA_ReaderGroup_setPubSubState_operational(UA_Server *server,
         rg->state = UA_PUBSUBSTATE_OPERATIONAL;
         return UA_STATUSCODE_GOOD;
     }
-    case UA_PUBSUBSTATE_PAUSED:
-        break;
     case UA_PUBSUBSTATE_OPERATIONAL:
         return UA_STATUSCODE_GOOD;
     case UA_PUBSUBSTATE_ERROR:
@@ -517,6 +514,24 @@ UA_Server_setReaderGroupOperational(UA_Server *server, const UA_NodeId readerGro
 #endif
         ret = UA_ReaderGroup_setPubSubState(server, rg, UA_PUBSUBSTATE_OPERATIONAL,
                                             UA_STATUSCODE_GOOD);
+    }
+    UA_UNLOCK(&server->serviceMutex);
+    return ret;
+}
+
+UA_StatusCode
+UA_Server_enableReaderGroup(UA_Server *server, const UA_NodeId readerGroupId){
+    UA_LOCK(&server->serviceMutex);
+    UA_StatusCode ret = UA_STATUSCODE_BADNOTFOUND;
+    UA_ReaderGroup *rg = UA_ReaderGroup_findRGbyId(server, readerGroupId);
+    if(rg)
+    {
+        UA_PubSubConnection *connection = rg->linkedConnection;
+        if (connection->state == UA_PUBSUBSTATE_OPERATIONAL)
+            ret = UA_ReaderGroup_setPubSubState(server, rg, UA_PUBSUBSTATE_PREOPERATIONAL,
+                                            UA_STATUSCODE_GOOD);
+        else if (connection->state == UA_PUBSUBSTATE_DISABLED || connection->state == UA_PUBSUBSTATE_PAUSED || connection->state == UA_PUBSUBSTATE_PREOPERATIONAL)
+            ret = UA_ReaderGroup_setPubSubState(server, rg, UA_PUBSUBSTATE_PAUSED, UA_STATUSCODE_GOOD);
     }
     UA_UNLOCK(&server->serviceMutex);
     return ret;

@@ -291,7 +291,9 @@ UA_Server_setPubSubConnectionOperational(UA_Server *server,
 UA_StatusCode
 UA_Server_disablePubSubConnection(UA_Server *server,
                                     const UA_NodeId connectionIdent);
-
+UA_StatusCode
+UA_Server_PubSubConnection_getState(UA_Server *server, UA_NodeId connectionIdent,
+                                    UA_PubSubState *state);
 /**
  * PublishedDataSets
  * -----------------
@@ -583,7 +585,7 @@ UA_EXPORT UA_StatusCode UA_THREADSAFE
 UA_Server_unfreezeWriterGroupConfiguration(UA_Server *server, const UA_NodeId writerGroup);
 
 UA_EXPORT UA_StatusCode UA_THREADSAFE
-UA_Server_setWriterGroupPreOperational(UA_Server *server, const UA_NodeId writerGroup);
+UA_Server_enableWriterGroup(UA_Server *server, const UA_NodeId writerGroup);
 
 UA_StatusCode UA_EXPORT UA_THREADSAFE
 UA_Server_setWriterGroupOperational(UA_Server *server, const UA_NodeId writerGroup);
@@ -883,6 +885,9 @@ UA_Server_unfreezeReaderGroupConfiguration(UA_Server *server, const UA_NodeId re
 
 UA_EXPORT UA_StatusCode UA_THREADSAFE
 UA_Server_setReaderGroupOperational(UA_Server *server, const UA_NodeId readerGroupId);
+
+UA_EXPORT UA_StatusCode UA_THREADSAFE
+UA_Server_enableReaderGroup(UA_Server *server, const UA_NodeId readerGroupId);
 
 UA_EXPORT UA_StatusCode UA_THREADSAFE
 UA_Server_setReaderGroupDisabled(UA_Server *server, const UA_NodeId readerGroupId);

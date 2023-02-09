@@ -203,7 +203,15 @@ UA_PubSubConnection_create(UA_Server *server,
 
     if (connectionConfig->enabled)
     {
-        UA_Server_enablePubSubConnection(server, *connectionIdentifier);
+        UA_PubSubConnection *conn = UA_PubSubConnection_findConnectionbyId(server, *connectionIdentifier);
+        if(conn) {
+            res = UA_PubSubConnection_setPubSubState(server, conn, UA_PUBSUBSTATE_PREOPERATIONAL,
+                                            UA_STATUSCODE_GOOD);
+            if(res != UA_STATUSCODE_GOOD) {
+                return res;
+            }
+        }
+            
     }
     return UA_STATUSCODE_GOOD;
 }
@@ -376,7 +384,7 @@ setPubSubState_preoperational(UA_Server *server,
         case UA_PUBSUBSTATE_PREOPERATIONAL:
             break;
         case UA_PUBSUBSTATE_OPERATIONAL:
-            return UA_STATUSCODE_GOOD;
+            break;
         case UA_PUBSUBSTATE_ERROR:
             connection->state = UA_PUBSUBSTATE_PREOPERATIONAL;
             return UA_STATUSCODE_GOOD;
@@ -529,6 +537,23 @@ UA_Server_disablePubSubConnection(UA_Server *server,
     if(conn)
         res = UA_PubSubConnection_setPubSubState(server, conn, UA_PUBSUBSTATE_DISABLED,
                                                 UA_STATUSCODE_BADRESOURCEUNAVAILABLE);
+    UA_UNLOCK(&server->serviceMutex);
+    return res;
+}
+
+UA_StatusCode
+UA_Server_PubSubConnection_getState(UA_Server *server, UA_NodeId connectionIdent,
+                               UA_PubSubState *state) {
+    if((server == NULL) || (state == NULL))
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    UA_LOCK(&server->serviceMutex);
+    UA_PubSubConnection *conn = UA_PubSubConnection_findConnectionbyId(server, connectionIdent);
+    UA_StatusCode res = UA_STATUSCODE_GOOD;
+    if(conn) {
+        *state = conn->state;
+    } else {
+        res = UA_STATUSCODE_BADNOTFOUND;
+    }
     UA_UNLOCK(&server->serviceMutex);
     return res;
 }

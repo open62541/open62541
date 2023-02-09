@@ -511,14 +511,22 @@ UA_WriterGroup_unfreezeConfiguration(UA_Server *server, UA_WriterGroup *wg) {
 }
 
 UA_StatusCode
-UA_Server_setWriterGroupPreOperational(UA_Server *server,
+UA_Server_enableWriterGroup(UA_Server *server,
                                     const UA_NodeId writerGroup) {
     UA_LOCK(&server->serviceMutex);
     UA_StatusCode res = UA_STATUSCODE_BADNOTFOUND;
     UA_WriterGroup *wg = UA_WriterGroup_findWGbyId(server, writerGroup);
     if(wg)
-        res = UA_WriterGroup_setPubSubState(server, wg, UA_PUBSUBSTATE_PREOPERATIONAL,
+    {
+        UA_PubSubConnection *connection = wg->linkedConnection;
+        if (connection->state == UA_PUBSUBSTATE_OPERATIONAL)
+            res = UA_WriterGroup_setPubSubState(server, wg, UA_PUBSUBSTATE_PREOPERATIONAL,
                                             UA_STATUSCODE_GOOD);
+        else if (connection->state == UA_PUBSUBSTATE_DISABLED || connection->state == UA_PUBSUBSTATE_PAUSED || connection->state == UA_PUBSUBSTATE_PREOPERATIONAL)
+            res = UA_WriterGroup_setPubSubState(server, wg, UA_PUBSUBSTATE_PAUSED,
+                                            UA_STATUSCODE_GOOD);
+    }
+        
     UA_UNLOCK(&server->serviceMutex);
     return res;
 }
@@ -868,7 +876,8 @@ UA_WriterGroup_setPubSubState_paused(UA_Server *server,
     (void)cause;
     switch (writerGroup->state) {
         case UA_PUBSUBSTATE_DISABLED:
-            break;
+            writerGroup->state = UA_PUBSUBSTATE_PAUSED;
+            return UA_STATUSCODE_GOOD;
         case UA_PUBSUBSTATE_PAUSED:
             break;
         case UA_PUBSUBSTATE_PREOPERATIONAL:
