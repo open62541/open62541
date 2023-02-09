@@ -347,7 +347,7 @@ UA_DataSetField_create(UA_Server *server, const UA_NodeId publishedDataSet,
     }
 
     /* Append to the metadata fields array. Point of last return. */
-    result.result = UA_Array_append((void**)&currDS->dataSetMetaData.fields,
+    result.result = UA_Array_appendCopy((void**)&currDS->dataSetMetaData.fields,
                                     &currDS->dataSetMetaData.fieldsSize,
                                     &fmd, &UA_TYPES[UA_TYPES_FIELDMETADATA]);
     if(result.result != UA_STATUSCODE_GOOD) {
@@ -362,6 +362,7 @@ UA_DataSetField_create(UA_Server *server, const UA_NodeId publishedDataSet,
     newField->identifier = UA_NODEID_GUID(1, fmd.dataSetFieldId);
     if(fieldIdentifier)
         UA_NodeId_copy(&newField->identifier, fieldIdentifier);
+    UA_FieldMetaData_clear(&fmd);
 
     /* Register the field. The order of DataSetFields should be the same in both
      * creating and publishing. So adding DataSetFields at the the end of the
@@ -479,7 +480,8 @@ removeDataSetField(UA_Server *server, const UA_NodeId dsf) {
                                        "after removing a field!");
                 break;
             }
-            counter++;
+            // The contents of the metadata is shared between the PDS and its fields.
+            tmpDSF->fieldMetaData = fieldMetaData[counter++];
         }
         pds->dataSetMetaData.fields = fieldMetaData;
     } else {
