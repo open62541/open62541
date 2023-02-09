@@ -147,7 +147,22 @@ void
 UA_PublishedDataSet_clear(UA_Server *server, UA_PublishedDataSet *publishedDataSet) {
     UA_DataSetField *field, *tmpField;
     TAILQ_FOREACH_SAFE(field, &publishedDataSet->fields, listEntry, tmpField) {
-        removeDataSetField(server, field->identifier);
+        /* Code in this block is a duplication of similar code in removeDataSetField, but
+         * this is intentional. We don't want to call removeDataSetField here as that
+         * function regenerates DataSetMetaData, which is not necessary if we want to
+         * clear the whole PDS anyway. */
+        if(field->configurationFrozen) {
+            UA_LOG_WARNING_DATASET(&server->config.logger, publishedDataSet,
+                                   "Clearing a frozen field.");
+        }
+        field->fieldMetaData.arrayDimensions = NULL;
+        field->fieldMetaData.properties = NULL;
+        field->fieldMetaData.name = UA_STRING_NULL;
+        field->fieldMetaData.description.locale = UA_STRING_NULL;
+        field->fieldMetaData.description.text = UA_STRING_NULL;
+        UA_DataSetField_clear(field);
+        TAILQ_REMOVE(&publishedDataSet->fields, field, listEntry);
+        UA_free(field);
     }
     UA_PublishedDataSetConfig_clear(&publishedDataSet->config);
     UA_DataSetMetaDataType_clear(&publishedDataSet->dataSetMetaData);
