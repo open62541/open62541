@@ -626,12 +626,6 @@ removeDataSetReader(UA_Server *server, UA_NodeId readerIdentifier) {
 
     UA_NodeId_clear(&dsr->identifier);
     UA_NodeId_clear(&dsr->linkedReaderGroup);
-    if(dsr->config.subscribedDataSetType == UA_PUBSUB_SDS_TARGET) {
-        UA_TargetVariables_clear(&dsr->config.subscribedDataSet.subscribedDataSetTarget);
-    } else {
-        UA_LOG_ERROR_READER(&server->config.logger, dsr,
-                     "UA_DataSetReader_delete(): unsupported subscribed dataset enum type");
-    }
 
     /* Free memory allocated for DataSetReader */
     UA_free(dsr);
