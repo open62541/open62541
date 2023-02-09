@@ -526,11 +526,12 @@ UA_Server_enableReaderGroup(UA_Server *server, const UA_NodeId readerGroupId){
     UA_ReaderGroup *rg = UA_ReaderGroup_findRGbyId(server, readerGroupId);
     if(rg)
     {
-        // TODO: Check connection state to decide the taget state
-        // If connection is operational -> switch to preoperational
-        // otherwise switch to paused 
-        ret = UA_ReaderGroup_setPubSubState(server, rg, UA_PUBSUBSTATE_PREOPERATIONAL,
+        UA_PubSubConnection *connection = rg->linkedConnection;
+        if (connection->state == UA_PUBSUBSTATE_OPERATIONAL)
+            ret = UA_ReaderGroup_setPubSubState(server, rg, UA_PUBSUBSTATE_PREOPERATIONAL,
                                             UA_STATUSCODE_GOOD);
+        else if (connection->state == UA_PUBSUBSTATE_DISABLED || connection->state == UA_PUBSUBSTATE_PAUSED || connection->state == UA_PUBSUBSTATE_PREOPERATIONAL)
+            ret = UA_ReaderGroup_setPubSubState(server, rg, UA_PUBSUBSTATE_PAUSED, UA_STATUSCODE_GOOD);
     }
     UA_UNLOCK(&server->serviceMutex);
     return ret;

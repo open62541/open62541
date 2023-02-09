@@ -291,7 +291,9 @@ UA_Server_setPubSubConnectionOperational(UA_Server *server,
 UA_StatusCode
 UA_Server_disablePubSubConnection(UA_Server *server,
                                     const UA_NodeId connectionIdent);
-
+UA_StatusCode
+UA_Server_PubSubConnection_getState(UA_Server *server, UA_NodeId connectionIdent,
+                                    UA_PubSubState *state);
 /**
  * PublishedDataSets
  * -----------------
