@@ -240,7 +240,7 @@ generateFieldMetaData(UA_Server *server, UA_PublishedDataSet *pds,
 #endif
         /* Check if the datatype is a builtInType, if yes set the builtinType. */
         if(currentDataType->typeKind <= UA_DATATYPEKIND_ENUM)
-            fieldMetaData->builtInType = (UA_Byte)currentDataType->typeKind;
+            fieldMetaData->builtInType = (UA_Byte)currentDataType->typeId.identifier.numeric;
         /* set the maxStringLength attribute */
         if(field->config.field.variable.maxStringLength != 0){
             if(currentDataType->typeKind == UA_DATATYPEKIND_BYTESTRING ||
