@@ -1110,7 +1110,8 @@ UA_NetworkMessage_clear(UA_NetworkMessage* p) {
     }
 
     if(p->networkMessageType == UA_NETWORKMESSAGE_DATASET) {
-        if(p->payloadHeader.dataSetPayloadHeader.dataSetWriterIds)
+        if(p->payloadHeader.dataSetPayloadHeader.dataSetWriterIds &&
+           p->payloadHeader.dataSetPayloadHeader.dataSetWriterIds != UA_EMPTY_ARRAY_SENTINEL)
             UA_free(p->payloadHeader.dataSetPayloadHeader.dataSetWriterIds);
 
         if(p->payload.dataSetPayload.sizes)
