@@ -321,7 +321,7 @@ Service_Publish(UA_Server *server, UA_Session *session,
 
         UA_LOG_DEBUG_SUBSCRIPTION(&server->config.logger, late,
                                   "Send PublishResponse on a late subscription");
-        UA_Subscription_publish(server, late);
+        UA_Subscription_publishOnce(server, late);
 
         /* The subscription was detached from the session during publish? */
         if(!late->session)
@@ -573,9 +573,11 @@ Operation_TransferSubscription(UA_Server *server, UA_Session *session,
      * queued to send a StatusChangeNotification. */
     sub->statusChange = UA_STATUSCODE_GOODSUBSCRIPTIONTRANSFERRED;
     UA_Subscription_publish(server, sub);
+
+    /* The original subscription has been deactivated */
     UA_assert(sub->publishCallbackId == 0);
 
-    /* Create notifications with the current values */
+    /* Re-create notifications with the current values for the new subscription */
     if(*sendInitialValues) {
         LIST_FOREACH(mon, &newSub->monitoredItems, listEntry) {
 

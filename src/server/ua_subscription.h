@@ -343,6 +343,12 @@ UA_Subscription_getMonitoredItem(UA_Subscription *sub,
                                  UA_UInt32 monitoredItemId);
 
 void
+UA_Subscription_sampleAndPublish(UA_Server *server, UA_Subscription *sub);
+
+UA_Boolean
+UA_Subscription_publishOnce(UA_Server *server, UA_Subscription *sub);
+
+void
 UA_Subscription_publish(UA_Server *server, UA_Subscription *sub);
 
 UA_StatusCode
