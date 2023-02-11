@@ -630,11 +630,16 @@ responseGetEndpoints(UA_Client *client, void *userdata, UA_UInt32 requestId,
     const UA_String binaryTransport = UA_STRING("http://opcfoundation.org/UA-Profile/"
                                                 "Transport/uatcp-uasc-uabinary");
 
-    // TODO: compare endpoint information with client->endpointUri
-    UA_EndpointDescription* endpointArray = resp->endpoints;
-    size_t endpointArraySize = resp->endpointsSize;
-    for(size_t i = 0; i < endpointArraySize; ++i) {
-        UA_EndpointDescription* endpoint = &endpointArray[i];
+    /* Find a matching combination of Endpoint and UserTokenPolicy */
+    for(size_t i = 0; i < resp->endpointsSize; ++i) {
+        UA_EndpointDescription* endpoint = &resp->endpoints[i];
+
+        /* Filter by the ApplicationURI if defined */
+        if(client->config.applicationUri.length > 0 &&
+           !UA_String_equal(&client->config.applicationUri,
+                            &endpoint->server.applicationUri))
+            continue;
+
         /* Look out for binary transport endpoints.
          * Note: Siemens returns empty ProfileUrl, we will accept it as binary. */
         if(endpoint->transportProfileUri.length != 0 &&
@@ -839,6 +844,13 @@ responseFindServers(UA_Client *client, void *userdata,
     /* Check if one of the returned servers matches the EndpointURL already used */
     for(size_t i = 0; i < fsr->serversSize; i++) {
         UA_ApplicationDescription *server = &fsr->servers[i];
+
+        /* Filter by the ApplicationURI if defined */
+        if(client->config.applicationUri.length > 0 &&
+           !UA_String_equal(&client->config.applicationUri,
+                            &server->applicationUri))
+            continue;
+
         for(size_t j = 0; j < server->discoveryUrlsSize; j++) {
             if(UA_String_equal(&client->endpointUrl, &server->discoveryUrls[i])) {
                 UA_LOG_INFO(&client->config.logger, UA_LOGCATEGORY_CLIENT,
@@ -859,6 +871,12 @@ responseFindServers(UA_Client *client, void *userdata,
         if(server->applicationType != UA_APPLICATIONTYPE_SERVER)
             continue;
         if(server->discoveryUrlsSize == 0)
+            continue;
+
+        /* Filter by the ApplicationURI if defined */
+        if(client->config.applicationUri.length > 0 &&
+           !UA_String_equal(&client->config.applicationUri,
+                            &server->applicationUri))
             continue;
 
         /* Use this DiscoveryUrl in the client */
