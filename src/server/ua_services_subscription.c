@@ -309,6 +309,12 @@ Service_Publish(UA_Server *server, UA_Session *session,
     UA_Session_queuePublishReq(session, entry, false);
     UA_LOG_DEBUG_SESSION(&server->config.logger, session, "Queued a publication message");
 
+    /* If we still had publish requests in the queue, none of the subscriptions
+     * is late. So we don't have to search for one. */
+    if(session->responseQueueSize > 1) {
+        return UA_STATUSCODE_GOOD;
+    }
+
     /* If there are late subscriptions, the new publish request is used to
      * answer them immediately. Late subscriptions with higher priority are
      * considered earlier. However, a single subscription that generates many
