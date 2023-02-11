@@ -314,8 +314,8 @@ Service_Publish(UA_Server *server, UA_Session *session,
      * considered earlier. However, a single subscription that generates many
      * notifications must not "starve" other late subscriptions. Hence we move
      * it to the end of the queue for the subscriptions of that priority. */
-    UA_Subscription *late = NULL;
-    TAILQ_FOREACH(late, &session->subscriptions, sessionListEntry) {
+    UA_Subscription *late, *late_tmp;
+    TAILQ_FOREACH_SAFE(late, &session->subscriptions, sessionListEntry, late_tmp) {
         if(late->state != UA_SUBSCRIPTIONSTATE_LATE)
             continue;
 
@@ -323,24 +323,25 @@ Service_Publish(UA_Server *server, UA_Session *session,
                                   "Send PublishResponse on a late subscription");
         UA_Subscription_publishOnce(server, late);
 
-        /* The subscription was detached from the session during publish? */
-        if(!late->session)
+        /* Skip re-insert if the subscription was deleted during publishOnce */
+        if(late->session) {
+            /* Find the first element with smaller priority and insert before
+             * that. If there is none, insert at the end of the queue. */
+            UA_Subscription *after = TAILQ_NEXT(late, sessionListEntry);
+            while(after && after->priority >= late->priority)
+                after = TAILQ_NEXT(after, sessionListEntry);
+            TAILQ_REMOVE(&session->subscriptions, late, sessionListEntry);
+            if(after)
+                TAILQ_INSERT_BEFORE(after, late, sessionListEntry);
+            else
+                TAILQ_INSERT_TAIL(&session->subscriptions, late, sessionListEntry);
+        }
+
+        /* In case of an error we might not have used the publish request that
+         * was just enqueued. Continue to find late subscriptions in that
+         * case. */
+        if(session->responseQueueSize == 0)
             break;
-
-        /* Find the first element with smaller priority. If there is none,
-         * insert at the end. */
-        UA_Subscription *after = TAILQ_NEXT(late, sessionListEntry);
-        while(after && after->priority >= late->priority)
-            after = TAILQ_NEXT(after, sessionListEntry);
-
-        TAILQ_REMOVE(&session->subscriptions, late, sessionListEntry);
-
-        if(after)
-            TAILQ_INSERT_BEFORE(after, late, sessionListEntry);
-        else
-            TAILQ_INSERT_TAIL(&session->subscriptions, late, sessionListEntry);
-
-        break;
     }
 
     return UA_STATUSCODE_GOOD;
