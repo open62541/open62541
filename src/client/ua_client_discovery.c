@@ -62,9 +62,6 @@ UA_Client_getEndpointsInternal(UA_Client *client, const UA_String endpointUrl,
         return retval;
     }
 
-    /* Warn if the Endpoints look incomplete / don't match the EndpointUrl */
-    Client_warnEndpointsResult(client, &response, &endpointUrl);
-
     *endpointDescriptions = response.endpoints;
     *endpointDescriptionsSize = response.endpointsSize;
     response.endpoints = NULL;
