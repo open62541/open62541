@@ -90,6 +90,7 @@ UA_Client_clear(UA_Client *client) {
 
     UA_Client_disconnect(client);
     UA_String_clear(&client->endpointUrl);
+    UA_String_clear(&client->discoveryUrl);
 
     UA_String_clear(&client->remoteNonce);
     UA_String_clear(&client->localNonce);
@@ -690,7 +691,9 @@ UA_Client_run_iterate(UA_Client *client, UA_UInt32 timeout) {
 
     /* Make sure we have an open channel */
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
-    if((client->noSession && client->channel.state != UA_SECURECHANNELSTATE_OPEN) ||
+    if(client->endpointsHandshake || client->findServersHandshake ||
+       client->discoveryUrl.length == 0 ||
+       (client->noSession && client->channel.state != UA_SECURECHANNELSTATE_OPEN) ||
        client->sessionState < UA_SESSIONSTATE_ACTIVATED) {
         retval = connectIterate(client, timeout);
         notifyClientState(client);
