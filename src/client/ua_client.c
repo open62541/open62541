@@ -59,6 +59,8 @@ UA_ClientConfig_clear(UA_ClientConfig *config) {
     UA_EndpointDescription_clear(&config->endpoint);
     UA_UserTokenPolicy_clear(&config->userTokenPolicy);
 
+    UA_String_clear(&config->applicationUri);
+
     if(config->certificateVerification.clear)
         config->certificateVerification.clear(&config->certificateVerification);
 
