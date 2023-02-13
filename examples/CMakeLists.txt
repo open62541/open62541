@@ -87,8 +87,6 @@ add_example(tutorial_server_reverseconnect tutorial_server_reverseconnect.c)
 
 if(UA_ENABLE_METHODCALLS)
     add_example(tutorial_server_method tutorial_server_method.c)
-    add_example(tutorial_check_user_data_from_platform tutorial_check_user_data_from_platform.c)
-    target_link_libraries(tutorial_check_user_data_from_platform /opt/platformLibrary.a)
     if (UA_MULTITHREADING EQUAL 100)
         add_example(tutorial_server_method_async tutorial_server_method_async.c)
     endif()
