@@ -35,7 +35,7 @@ int main(int argc, char *argv[]) {
     /* Listing endpoints */
     UA_EndpointDescription* endpointArray = NULL;
     size_t endpointArraySize = 0;
-    UA_StatusCode retval = UA_Client_getEndpoints(client, "opc.tcp://172.17.7.62:4840",
+    UA_StatusCode retval = UA_Client_getEndpoints(client, "opc.tcp://localhost:4840",
                                                   &endpointArraySize, &endpointArray);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_Array_delete(endpointArray, endpointArraySize, &UA_TYPES[UA_TYPES_ENDPOINTDESCRIPTION]);
@@ -51,24 +51,12 @@ int main(int argc, char *argv[]) {
     UA_Array_delete(endpointArray,endpointArraySize, &UA_TYPES[UA_TYPES_ENDPOINTDESCRIPTION]);
 
     /* Connect to a server */
-     retval = UA_Client_connect(client, "opc.tcp://172.17.7.62:4840");
-    //retval = UA_Client_connectUsername(client, "opc.tcp://172.17.7.62:4840", "keerthi", "123456");
+    /* anonymous connect would be: retval = UA_Client_connect(client, "opc.tcp://localhost:4840"); */
+    retval = UA_Client_connectUsername(client, "opc.tcp://localhost:4840", "user1", "password");
     if(retval != UA_STATUSCODE_GOOD) {
-        printf("\n#######################ClienConnectFailed\n");
         UA_Client_delete(client);
         return EXIT_FAILURE;
     }
-
-    const UA_NodeAttributes attributes = {0, UA_LOCALIZEDTEXT("en-US", "RuntimeNode"), UA_LOCALIZEDTEXT("en-US", "RuntimeNode"), 255,255,0,NULL,0,NULL};
-    //attributes.displayName = UA_LOCALIZEDTEXT("en-US", "RuntimeNode");
-   // attributes.accessLevel = UA_ACCESSLEVELMASK_READ | UA_ACCESSLEVELMASK_WRITE;
-   // UA_UInt16 value1 = 65;
-    //UA_Variant_setScalar(&attributes.value, &value1, &UA_TYPES[UA_TYPES_UINT16]);
-
-    UA_StatusCode retVal =__UA_Client_addNode(client, UA_NODECLASS_VARIABLE, UA_NODEID_NUMERIC(1, 1002), UA_NODEID_NUMERIC(1, 100000),
-                        UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT), UA_QUALIFIEDNAME(1, "RuntimeNode"), UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
-                        &attributes,NULL, NULL);
-    printf("\n############StatusCode :%s\n", UA_StatusCode_name(retVal));
 
     /* Browse some objects */
     printf("Browsing nodes in objects folder:\n");
