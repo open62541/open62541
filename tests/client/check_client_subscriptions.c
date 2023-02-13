@@ -252,10 +252,12 @@ START_TEST(Client_subscription_async) {
         createDataChangesCallback, &monResponse, &requestId);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
-    UA_Server_run_iterate(server, true);
-    UA_Server_run_iterate(server, true);
-    retval = UA_Client_run_iterate(client, 0);
-    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    do {
+        UA_Server_run_iterate(server, true);
+        retval = UA_Client_run_iterate(client, 0);
+        ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    } while(monResponse.resultsSize == 0 &&
+            monResponse.responseHeader.serviceResult == UA_STATUSCODE_GOOD);
 
     ck_assert_uint_eq(monResponse.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(monResponse.resultsSize, 1);
