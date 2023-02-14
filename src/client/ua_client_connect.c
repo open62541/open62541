@@ -1767,8 +1767,6 @@ closeSessionCallback(UA_Client *client, void *userdata,
 
 UA_StatusCode
 UA_Client_disconnectAsync(UA_Client *client) {
-    closeListeningReverseConnectSocket(client);
-
     UA_LOCK(&client->clientMutex);
 
     client->noReconnect = true;
@@ -1835,8 +1833,6 @@ UA_Client_disconnectSecureChannel(UA_Client *client) {
 
 UA_StatusCode
 UA_Client_disconnect(UA_Client *client) {
-    closeListeningReverseConnectSocket(client);
-
     UA_LOCK(&client->clientMutex);        
 
     client->noReconnect = true;
