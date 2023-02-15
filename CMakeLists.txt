@@ -101,10 +101,6 @@ if("${UA_ARCHITECTURE}" STREQUAL "None")
     endif(UNIX)
 endif()
 
-if(${CMAKE_SYSTEM_NAME} STREQUAL "Linux")
-  set(LINUX TRUE)
-endif()
-
 message(STATUS "The selected architecture is: ${UA_ARCHITECTURE}")
 string(TOUPPER ${UA_ARCHITECTURE} UA_ARCHITECTURE_UPPER)
 add_definitions(-DUA_ARCHITECTURE_${UA_ARCHITECTURE_UPPER})
@@ -123,7 +119,7 @@ GET_PROPERTY(ua_architecture_headers_beginning GLOBAL PROPERTY UA_ARCHITECTURE_H
 
 GET_PROPERTY(ua_architecture_sources GLOBAL PROPERTY UA_ARCHITECTURE_SOURCES)
 
-set(ua_architecture_sources ${ua_architecture_sources}
+list(APPEND ua_architecture_sources
     ${PROJECT_SOURCE_DIR}/arch/eventloop_common.h
     ${PROJECT_SOURCE_DIR}/arch/eventloop_common.c
     ${PROJECT_SOURCE_DIR}/arch/eventloop_posix.h
@@ -135,30 +131,28 @@ set(ua_architecture_sources ${ua_architecture_sources}
     ${PROJECT_SOURCE_DIR}/arch/eventloop_posix_interrupt.c
   )
 
-if(LINUX)
+if(${CMAKE_SYSTEM_NAME} STREQUAL "Linux")
     list(APPEND ua_architecture_sources ${PROJECT_SOURCE_DIR}/arch/eventloop_posix_eth.c)
 endif()
 
-set(ua_architecture_headers ${ua_architecture_headers}
-    ${PROJECT_SOURCE_DIR}/include/open62541/architecture_functions.h
-)
+list(APPEND ua_architecture_headers
+     ${PROJECT_SOURCE_DIR}/include/open62541/architecture_functions.h)
 
 if(UA_ENABLE_WEBSOCKET_SERVER)
-    set(ua_architecture_sources ${ua_architecture_sources}
-                                ${PROJECT_SOURCE_DIR}/arch/network_ws.c)
-
-    set(ua_architecture_headers ${ua_architecture_headers}
-                                ${PROJECT_SOURCE_DIR}/include/open62541/network_ws.h)
+    list(APPEND ua_architecture_sources ${PROJECT_SOURCE_DIR}/arch/network_ws.c)
+    list(APPEND ua_architecture_headers ${PROJECT_SOURCE_DIR}/include/open62541/network_ws.h)
 endif()
 
 if(${UA_ARCHITECTURE} STREQUAL "None")
   message(FATAL_ERROR "No architecture was selected. Please select the architecture of your target platform")
 endif(${UA_ARCHITECTURE} STREQUAL "None")
 
-# Create a list of ifdefs for all the architectures.
-# This is needed to enable a default architecture if none is selected through gcc compiler def.
-# Especially if someone is using the amalgamated file on Linux/Windows he should not need to define an architecture.
-set(UA_ARCHITECTURES_NODEF "1 ") #to make it easier to append later the && symbol
+# Create a list of ifdefs for all the architectures. This is needed to enable a
+# default architecture if none is selected through gcc compiler def. Especially
+# if someone is using the amalgamated file on Linux/Windows he should not need
+# to define an architecture.
+
+set(UA_ARCHITECTURES_NODEF "1 ") # to make it easier to append later the && symbol
 foreach(arch_ ${architectures})
     string(TOUPPER ${arch_} UA_ARCHITECTURE_UPPER_)
     set(UA_ARCHITECTURES_NODEF "${UA_ARCHITECTURES_NODEF} && !defined(UA_ARCHITECTURE_${UA_ARCHITECTURE_UPPER_})")
@@ -599,7 +593,6 @@ endif()
 
 # Build Targets
 option(UA_BUILD_EXAMPLES "Build example servers and clients" OFF)
-option(UA_BUILD_TOOLS "Build OPC UA shell tools" OFF)
 option(UA_BUILD_UNIT_TESTS "Build the unit tests" OFF)
 option(UA_BUILD_FUZZING "Build the fuzzing executables" OFF)
 mark_as_advanced(UA_BUILD_FUZZING)
@@ -694,9 +687,7 @@ if(UA_ENABLE_WEBSOCKET_SERVER)
     # defined in /tools/cmake/Findlibwebsockets.cmake
     find_package(libwebsockets REQUIRED)
     list(APPEND open62541_LIBRARIES ${LIBWEBSOCKETS_LIBRARIES})
-
-    set(ua_architecture_directories_to_include ${ua_architecture_directories_to_include}
-                                               ${LIBWEBSOCKETS_INCLUDE_DIR})
+    list(APPEND ua_architecture_directories_to_include ${LIBWEBSOCKETS_INCLUDE_DIR})
 endif()
 
 if(MINGW)
@@ -936,8 +927,7 @@ endif()
 
 if(UA_ENABLE_HISTORIZING)
     # Historizing needs to be included before server.h
-    set(historizing_exported_headers
-         ${PROJECT_SOURCE_DIR}/include/open62541/plugin/historydatabase.h)
+    set(historizing_exported_headers ${PROJECT_SOURCE_DIR}/include/open62541/plugin/historydatabase.h)
 endif()
 
 set(exported_headers ${PROJECT_BINARY_DIR}/src_generated/open62541/config.h
@@ -1252,9 +1242,7 @@ if(UA_ENABLE_DISCOVERY_MULTICAST)
 endif()
 
 if(UA_BUILD_FUZZING OR UA_BUILD_OSS_FUZZ)
-    set(lib_sources
-        ${lib_sources}
-        ${PROJECT_SOURCE_DIR}/tests/fuzz/custom_memory_manager.c)
+    list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/tests/fuzz/custom_memory_manager.c)
 endif()
 
 if(UA_ENABLE_NODESETLOADER)
@@ -1465,78 +1453,108 @@ assign_source_group(${default_plugin_sources})
 assign_source_group(${ua_architecture_sources})
 
 if(UA_ENABLE_AMALGAMATION)
-    add_library(open62541-object OBJECT ${PROJECT_BINARY_DIR}/open62541.c ${PROJECT_BINARY_DIR}/open62541.h)
-    target_include_directories(open62541-object PRIVATE ${PROJECT_BINARY_DIR})
-    target_include_directories(open62541-object PRIVATE "${ua_architecture_directories_to_include}")
+
+    ##############
+    # Algamation #
+    ##############
+
+    add_library(open62541-object OBJECT
+                ${PROJECT_BINARY_DIR}/open62541.c ${PROJECT_BINARY_DIR}/open62541.h)
+    target_include_directories(open62541-object PRIVATE
+                               ${PROJECT_BINARY_DIR})
+    target_include_directories(open62541-object PRIVATE
+                               "${ua_architecture_directories_to_include}")
+
     if(UA_ENABLE_ENCRYPTION_MBEDTLS)
-        target_include_directories(open62541-object PRIVATE ${MBEDTLS_INCLUDE_DIRS})
+        target_include_directories(open62541-object PRIVATE
+                                   ${MBEDTLS_INCLUDE_DIRS})
     endif()
     if(UA_ENABLE_ENCRYPTION_OPENSSL OR UA_ENABLE_MQTT_TLS_OPENSSL)
-        target_include_directories(open62541-object PRIVATE ${OPENSSL_INCLUDE_DIR})
+        target_include_directories(open62541-object PRIVATE
+                                   ${OPENSSL_INCLUDE_DIR})
     endif()
     if(UA_ENABLE_ENCRYPTION_LIBRESSL)
-        target_include_directories(open62541-object PRIVATE ${LIBRESSL_INCLUDE_DIR})
+        target_include_directories(open62541-object PRIVATE
+                                   ${LIBRESSL_INCLUDE_DIR})
     endif()
+
     if(UA_ENABLE_NODESETLOADER)
         target_include_directories(open62541-object PRIVATE
                                    ${NODESETLOADER_PUBLIC_INCLUDES}
                                    ${NODESETLOADER_PRIVATE_INCLUDES})
     endif()
 
-    # make sure the open62541_amalgamation target builds before so that amalgamation is finished and it is not executed again for open62541-object
-    # and thus may overwrite the amalgamation result during multiprocessor compilation
-    # the header is already a dependency of open62541 target itself
-    add_custom_target(open62541-code-generation DEPENDS
+    # Make sure the open62541_amalgamation target builds before so that
+    # amalgamation is finished and it is not executed again for open62541-object
+    # and thus may overwrite the amalgamation result during multiprocessor
+    # compilation the header is already a dependency of open62541 target itself
+
+    add_custom_target(open62541-amalgamation-generation DEPENDS
                       open62541-amalgamation-header
+                      open62541-amalgamation-source
                       open62541-generator-types
                       open62541-generator-transport
-                      open62541-generator-statuscode
-                      open62541-amalgamation-source
-    )
+                      open62541-generator-statuscode)
 
-    add_library(open62541 $<TARGET_OBJECTS:open62541-object>)
-    # the only directory that needs to be included if open62541 (amalgameted) target from
-    # the build directory is ${PROJECT_BINARY_DIR}, that contains the generated open62541.h
-    target_include_directories(open62541 PUBLIC $<BUILD_INTERFACE:${PROJECT_BINARY_DIR}>)
+    add_dependencies(open62541-object open62541-amalgamation-generation)
+    add_dependencies(open62541-amalgamation-source open62541-generator-namespace)
+    add_dependencies(open62541-amalgamation-header open62541-generator-namespace)
 
     if(UA_FORCE_CPP)
         set_source_files_properties(${PROJECT_BINARY_DIR}/open62541.c PROPERTIES LANGUAGE CXX)
     endif()
 
-    add_dependencies(open62541-amalgamation-source open62541-generator-namespace)
-    add_dependencies(open62541-amalgamation-header open62541-generator-namespace)
-else()
-    add_library(open62541-object OBJECT ${lib_sources} ${internal_headers} ${exported_headers})
+    # Define the library target
+    add_library(open62541 $<TARGET_OBJECTS:open62541-object>)
 
+    # The only directory that needs to be included for open62541 (amalgameted)
+    # is ${PROJECT_BINARY_DIR}, that contains the generated open62541.h.
+    target_include_directories(open62541 PUBLIC $<BUILD_INTERFACE:${PROJECT_BINARY_DIR}>)
+
+else()
+
+    #################
+    # No Algamation #
+    #################
+
+    # Code generation target
     add_custom_target(open62541-code-generation DEPENDS
                       open62541-generator-types
                       open62541-generator-transport
                       open62541-generator-statuscode
-                      open62541-generator-namespace
-                      )
+                      open62541-generator-namespace)
+
+    # Define object target
+    add_library(open62541-object OBJECT
+                ${lib_sources} ${internal_headers} ${exported_headers})
+
+    add_dependencies(open62541-object open62541-code-generation)
+
     if(UA_ENABLE_COVERAGE)
         add_coverage(open62541-object)
     endif()
     target_include_directories(open62541-object PRIVATE ${PROJECT_SOURCE_DIR}/src)
-    target_include_directories(open62541-object PRIVATE ${PROJECT_SOURCE_DIR}/arch) # TODO: Remove once the EventLoop is integrated
+    target_include_directories(open62541-object PRIVATE ${PROJECT_SOURCE_DIR}/arch)
 
-    add_library(open62541-plugins OBJECT ${default_plugin_sources} ${ua_architecture_sources} ${exported_headers})
-    add_dependencies(open62541-plugins open62541-generator-types open62541-generator-transport open62541-generator-namespace)
+    # Define plugins target
+    add_library(open62541-plugins OBJECT
+                ${default_plugin_sources} ${ua_architecture_sources} ${exported_headers})
+    add_dependencies(open62541-plugins open62541-generator-types
+                     open62541-generator-transport open62541-generator-namespace)
     target_include_directories(open62541-plugins PRIVATE ${PROJECT_SOURCE_DIR}/plugins)
     target_include_directories(open62541-plugins PRIVATE ${PROJECT_BINARY_DIR}/src_generated)
     target_compile_definitions(open62541-plugins PRIVATE -DUA_DYNAMIC_LINKING_EXPORT)
     set_target_properties(open62541-plugins PROPERTIES FOLDER "open62541/lib")
 
-    if(UA_PACK_DEBIAN)
-        add_library(open62541-static STATIC $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-plugins>)
-        set_target_properties(open62541-static PROPERTIES OUTPUT_NAME open62541)
-    endif()
-    add_library(open62541 $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-plugins>)
-
+    # Force C++ on source files
     if(UA_FORCE_CPP)
-        set_source_files_properties(${lib_sources} PROPERTIES LANGUAGE CXX)
-        set_source_files_properties(${default_plugin_sources} ${ua_architecture_sources} PROPERTIES LANGUAGE CXX)
+        set_source_files_properties(${lib_sources} ${default_plugin_sources} ${ua_architecture_sources}
+                                    PROPERTIES LANGUAGE CXX)
     endif()
+
+    # Define the library target
+    add_library(open62541
+                $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-plugins>)
 
     if(UA_ENABLE_ENCRYPTION_LIBRESSL)
         # Prevent Wincrypt override warning.
@@ -1594,8 +1612,6 @@ else()
     endif()
 endif()
 
-add_dependencies(open62541-object open62541-code-generation)
-
 # Ensure that the open62541::open62541 alias can be used inside open62541's build
 add_library(open62541::open62541 ALIAS open62541)
 
@@ -1606,6 +1622,7 @@ if(UA_ENABLE_DISCOVERY_MULTICAST)
     target_compile_definitions(open62541-object PRIVATE -DMDNSD_DYNAMIC_LINKING_EXPORT)
     target_compile_definitions(open62541 PRIVATE -DMDNSD_DYNAMIC_LINKING_EXPORT)
 endif()
+
 # Generate properly versioned shared library links on Linux
 SET_TARGET_PROPERTIES(open62541 PROPERTIES SOVERSION "${OPEN62541_VER_MAJOR}" VERSION "${OPEN62541_VER_MAJOR}.${OPEN62541_VER_MINOR}.${OPEN62541_VER_PATCH}")
 
@@ -1666,14 +1683,15 @@ if(UA_BUILD_FUZZING OR UA_BUILD_OSS_FUZZ OR UA_BUILD_FUZZING_CORPUS)
     add_subdirectory(tests/fuzz)
 endif()
 
-if(UA_BUILD_TOOLS)
-    add_subdirectory(tools/ua-tool)
-    if(UA_ENABLE_JSON_ENCODING)
-        add_subdirectory(tools/ua2json)
-    endif()
-    if(UA_ENABLE_TPM2_KEYSTORE)
-        add_subdirectory(tools/tpm_keystore)
-    endif()
+# Tools
+add_subdirectory(tools/ua-tool)
+
+if(UA_ENABLE_JSON_ENCODING)
+    add_subdirectory(tools/ua2json)
+endif()
+
+if(UA_ENABLE_TPM2_KEYSTORE)
+    add_subdirectory(tools/tpm_keystore)
 endif()
 
 ########################

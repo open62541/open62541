@@ -1,6 +1,6 @@
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 
-add_executable(ua ua.c)
+add_executable(ua EXCLUDE_FROM_ALL ua.c)
 target_link_libraries(ua open62541 ${open62541_LIBRARIES})
 assign_source_group(ua-tool)
 add_dependencies(ua open62541-object)
