@@ -601,7 +601,6 @@ endif()
 
 # Build Targets
 option(UA_BUILD_EXAMPLES "Build example servers and clients" OFF)
-option(UA_BUILD_TOOLS "Build OPC UA shell tools" OFF)
 option(UA_BUILD_UNIT_TESTS "Build the unit tests" OFF)
 option(UA_BUILD_FUZZING "Build the fuzzing executables" OFF)
 mark_as_advanced(UA_BUILD_FUZZING)
@@ -1697,14 +1696,15 @@ if(UA_BUILD_FUZZING OR UA_BUILD_OSS_FUZZ OR UA_BUILD_FUZZING_CORPUS)
     add_subdirectory(tests/fuzz)
 endif()
 
-if(UA_BUILD_TOOLS)
-    add_subdirectory(tools/ua-tool)
-    if(UA_ENABLE_JSON_ENCODING)
-        add_subdirectory(tools/ua2json)
-    endif()
-    if(UA_ENABLE_TPM2_KEYSTORE)
-        add_subdirectory(tools/tpm_keystore)
-    endif()
+# Tools
+add_subdirectory(tools/ua-tool)
+
+if(UA_ENABLE_JSON_ENCODING)
+    add_subdirectory(tools/ua2json)
+endif()
+
+if(UA_ENABLE_TPM2_KEYSTORE)
+    add_subdirectory(tools/tpm_keystore)
 endif()
 
 ########################

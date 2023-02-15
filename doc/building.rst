@@ -35,8 +35,12 @@ Building with CMake on Ubuntu or Debian
    make
 
    # build documentation
-   make doc # html documentation
+   make doc     # html documentation
    make doc_pdf # pdf documentation (requires LaTeX)
+
+   # build tools based on open62541
+   make ua      # command-line OPC UA client (not yet feature-complete)
+   make ua2json # command-line conversion between binary and JSON format
 
 You can install open62541 using the well known `make install` command. This
 allows you to use pre-built libraries and headers for your own project. In order
