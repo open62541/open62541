@@ -86,6 +86,9 @@ typedef struct {
 
 struct UA_ServerConfig {
     UA_Logger logger;
+    void *context; /* Used to attach custom data to a server config. This can
+                    * then be retrieved e.g. in a callback that forwards a
+                    * pointer to the server. */
 
     /**
      * Server Description
