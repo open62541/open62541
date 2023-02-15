@@ -393,6 +393,10 @@ if(UA_ENABLE_PUBSUB_INFORMATIONMODEL)
     endif()
 endif()
 
+if(UA_ENABLE_PUBSUB AND UA_MULTITHREADING GREATER_EQUAL 100)
+    MESSAGE(WARNING "PubSub is not thread-safe for the 1.3 releases. Switch to a more current release for this feature.")
+endif()
+
 if(UA_ENABLE_PUBSUB_FILE_CONFIG)
     if(NOT UA_ENABLE_PUBSUB)
         message(FATAL_ERROR "PubSub needs to be enabled")
