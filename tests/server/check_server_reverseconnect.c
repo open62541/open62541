@@ -30,7 +30,7 @@ static UA_SecureChannelState serverCallbackStates[10];
 static UA_UInt64 reverseConnectHandle = 0;
 
 static int numClientCallbackCalled = 0;
-static UA_SecureChannelState clientCallbackStates[20];
+static UA_SecureChannelState clientCallbackStates[100];
 
 bool runServer = false;
 THREAD_HANDLE server_thread;
@@ -45,6 +45,7 @@ static void clientStateCallback(UA_Client *c,
                       UA_SecureChannelState channelState,
                       UA_SessionState sessionState,
                           UA_StatusCode connectStatus) {
+    assert(numClientCallbackCalled < (int)(sizeof(clientCallbackStates) / sizeof(UA_SecureChannelState)));
     clientCallbackStates[numClientCallbackCalled++] = channelState;
 
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
