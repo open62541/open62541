@@ -1347,7 +1347,9 @@ initConnect(UA_Client *client) {
     if(client->noReconnect)
         return UA_STATUSCODE_BADNOTCONNECTED;
 
+    UA_UNLOCK(&client->clientMutex);
     closeListeningReverseConnectSocket(client);
+    UA_LOCK(&client->clientMutex);
 
     if(client->channel.state != UA_SECURECHANNELSTATE_FRESH &&
        client->channel.state != UA_SECURECHANNELSTATE_CLOSED) {

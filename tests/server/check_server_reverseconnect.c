@@ -20,6 +20,7 @@
 
 #include "check.h"
 #include "testing_clock.h"
+#include "thread_wrapper.h"
 
 static UA_Server *server = NULL;
 static UA_Client *client = NULL;
@@ -30,6 +31,15 @@ static UA_UInt64 reverseConnectHandle = 0;
 
 static int numClientCallbackCalled = 0;
 static UA_SecureChannelState clientCallbackStates[20];
+
+bool runServer = false;
+THREAD_HANDLE server_thread;
+
+THREAD_CALLBACK(serverloop) {
+    while (runServer)
+        UA_Server_run_iterate(server, true);
+    return 0;
+}
 
 static void clientStateCallback(UA_Client *c,
                       UA_SecureChannelState channelState,
@@ -62,6 +72,11 @@ static void setup(void) {
 }
 
 static void teardown(void) {
+    if (runServer) {
+        runServer = false;
+        THREAD_JOIN(server_thread);
+    }
+
     UA_Server_delete(server);
     UA_Client_delete(client);
 }
@@ -105,6 +120,27 @@ START_TEST(listenAndTeardown) {
 
 } END_TEST
 
+START_TEST(noListenWhileConnected) {
+    UA_StatusCode ret = UA_STATUSCODE_BADINTERNALERROR;
+
+    runServer = true;
+    UA_Server_run_startup(server);
+    THREAD_CREATE(server_thread, serverloop);
+
+    UA_Client_connect(client, "opc.tcp://127.0.0.1");
+
+    ck_assert_int_gt(numClientCallbackCalled, 5);
+    ck_assert_int_eq(clientCallbackStates[3], UA_SECURECHANNELSTATE_OPEN);
+
+    const UA_String listenHost = UA_STRING("127.0.0.1");
+    ret = UA_Client_startListeningForReverseConnect(client, &listenHost, 1, 4841);
+    ck_assert_uint_eq(ret, UA_STATUSCODE_BADINVALIDSTATE);
+
+    UA_Client_disconnect(client);
+
+    ret = UA_Client_startListeningForReverseConnect(client, &listenHost, 1, 4841);
+    ck_assert_uint_eq(ret, UA_STATUSCODE_GOOD);
+} END_TEST
 
 START_TEST(addBeforeStart) {
     UA_StatusCode ret = UA_STATUSCODE_BADINTERNALERROR;
@@ -327,6 +363,7 @@ int main(void) {
     TCase *tc_call = tcase_create("basics");
     tcase_add_checked_fixture(tc_call, setup, teardown);
     tcase_add_test(tc_call, listenAndTeardown);
+    tcase_add_test(tc_call, noListenWhileConnected);
     tcase_add_test(tc_call, addBeforeStart);
     tcase_add_test(tc_call, addAfterStart);
     tcase_add_test(tc_call, checkReconnect);
