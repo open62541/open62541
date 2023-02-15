@@ -119,7 +119,7 @@ GET_PROPERTY(ua_architecture_headers_beginning GLOBAL PROPERTY UA_ARCHITECTURE_H
 
 GET_PROPERTY(ua_architecture_sources GLOBAL PROPERTY UA_ARCHITECTURE_SOURCES)
 
-set(ua_architecture_sources ${ua_architecture_sources}
+list(APPEND ua_architecture_sources
     ${PROJECT_SOURCE_DIR}/arch/eventloop_common.h
     ${PROJECT_SOURCE_DIR}/arch/eventloop_common.c
     ${PROJECT_SOURCE_DIR}/arch/eventloop_posix.h
@@ -135,16 +135,12 @@ if(${CMAKE_SYSTEM_NAME} STREQUAL "Linux")
     list(APPEND ua_architecture_sources ${PROJECT_SOURCE_DIR}/arch/eventloop_posix_eth.c)
 endif()
 
-set(ua_architecture_headers ${ua_architecture_headers}
-    ${PROJECT_SOURCE_DIR}/include/open62541/architecture_functions.h
-)
+list(APPEND ua_architecture_headers
+     ${PROJECT_SOURCE_DIR}/include/open62541/architecture_functions.h)
 
 if(UA_ENABLE_WEBSOCKET_SERVER)
-    set(ua_architecture_sources ${ua_architecture_sources}
-                                ${PROJECT_SOURCE_DIR}/arch/network_ws.c)
-
-    set(ua_architecture_headers ${ua_architecture_headers}
-                                ${PROJECT_SOURCE_DIR}/include/open62541/network_ws.h)
+    list(APPEND ua_architecture_sources ${PROJECT_SOURCE_DIR}/arch/network_ws.c)
+    list(APPEND ua_architecture_headers ${PROJECT_SOURCE_DIR}/include/open62541/network_ws.h)
 endif()
 
 if(${UA_ARCHITECTURE} STREQUAL "None")
@@ -691,9 +687,7 @@ if(UA_ENABLE_WEBSOCKET_SERVER)
     # defined in /tools/cmake/Findlibwebsockets.cmake
     find_package(libwebsockets REQUIRED)
     list(APPEND open62541_LIBRARIES ${LIBWEBSOCKETS_LIBRARIES})
-
-    set(ua_architecture_directories_to_include ${ua_architecture_directories_to_include}
-                                               ${LIBWEBSOCKETS_INCLUDE_DIR})
+    list(APPEND ua_architecture_directories_to_include ${LIBWEBSOCKETS_INCLUDE_DIR})
 endif()
 
 if(MINGW)
@@ -933,8 +927,7 @@ endif()
 
 if(UA_ENABLE_HISTORIZING)
     # Historizing needs to be included before server.h
-    set(historizing_exported_headers
-         ${PROJECT_SOURCE_DIR}/include/open62541/plugin/historydatabase.h)
+    set(historizing_exported_headers ${PROJECT_SOURCE_DIR}/include/open62541/plugin/historydatabase.h)
 endif()
 
 set(exported_headers ${PROJECT_BINARY_DIR}/src_generated/open62541/config.h
@@ -1249,9 +1242,7 @@ if(UA_ENABLE_DISCOVERY_MULTICAST)
 endif()
 
 if(UA_BUILD_FUZZING OR UA_BUILD_OSS_FUZZ)
-    set(lib_sources
-        ${lib_sources}
-        ${PROJECT_SOURCE_DIR}/tests/fuzz/custom_memory_manager.c)
+    list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/tests/fuzz/custom_memory_manager.c)
 endif()
 
 if(UA_ENABLE_NODESETLOADER)
