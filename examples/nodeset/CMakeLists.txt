@@ -1,42 +1,20 @@
-####################
-# Nodeset Examples #
-####################
-
 ###################
 # Custom XML      #
 ###################
 
-set(FILE_CSV_DIRPREFIX ${PROJECT_SOURCE_DIR}/nodeset)
-set(FILE_BSD_DIRPREFIX ${PROJECT_SOURCE_DIR}/nodeset)
-set(FILE_NS_DIRPREFIX ${PROJECT_SOURCE_DIR}/nodeset)
+set(FILE_CSV_DIRPREFIX ${PROJECT_SOURCE_DIR}/examples/nodeset)
+set(FILE_BSD_DIRPREFIX ${PROJECT_SOURCE_DIR}/examples/nodeset)
+set(FILE_NS_DIRPREFIX ${PROJECT_SOURCE_DIR}/examples/nodeset)
 
-if(NOT CMAKE_PROJECT_NAME STREQUAL PROJECT_NAME)
-    # needed or cmake doesn't recognize dependencies of generated files
-    set(PROJECT_BINARY_DIR ${CMAKE_BINARY_DIR})
-endif()
-
-# generate namespace from XML file
-if(NOT CMAKE_PROJECT_NAME STREQUAL PROJECT_NAME)
-    ua_generate_nodeset_and_datatypes(
-        NAME "example"
+ua_generate_nodeset_and_datatypes(NAME "example"
         FILE_NS "${FILE_NS_DIRPREFIX}/server_nodeset.xml"
-        DEPENDS "${CMAKE_CURRENT_LIST_DIR}/../../tools/schema/Opc.Ua.NodeSet2.Reduced.xml"
-    )
-else()
-    # standalone examples build expects already installed Opc.Ua.NodeSet2.Reduced.xml
-    ua_generate_nodeset_and_datatypes(
-        NAME "example"
-        FILE_NS "${FILE_NS_DIRPREFIX}/server_nodeset.xml"
-    )
-endif()
+        DEPENDS "${PROJECT_SOURCE_DIR}/tools/schema/Opc.Ua.NodeSet2.Reduced.xml")
 
 # The .csv file can be created from within UaModeler or manually
-ua_generate_nodeid_header(
-    NAME "example_nodeids"
+ua_generate_nodeid_header(NAME "example_nodeids"
     ID_PREFIX "EXAMPLE_NS"
     TARGET_SUFFIX "ids_example"
-    FILE_CSV "${FILE_CSV_DIRPREFIX}/server_nodeset.csv"
-)
+    FILE_CSV "${FILE_CSV_DIRPREFIX}/server_nodeset.csv")
 
 add_example(server_nodeset server_nodeset.c
             ${UA_NODESET_EXAMPLE_SOURCES}
@@ -49,8 +27,7 @@ if(UA_NAMESPACE_ZERO STREQUAL "FULL")
         FILE_BSD "${FILE_BSD_DIRPREFIX}/testtypes.bsd"
         NAMESPACE_MAP "2:http://yourorganisation.org/test/"
         FILE_NS "${FILE_NS_DIRPREFIX}/testnodeset.xml"
-        INTERNAL
-    )
+        INTERNAL)
     add_example(server_testnodeset server_testnodeset.c
                 ${UA_NODESET_TESTNODESET_SOURCES}
                 ${UA_TYPES_TESTNODESET_SOURCES})
@@ -62,17 +39,10 @@ endif()
 # PLCopen Nodeset #
 ###################
 
-if(NOT CMAKE_PROJECT_NAME STREQUAL PROJECT_NAME)
-    set(FILE_CSV_DIRPREFIX ${UA_NODESET_DIR})
-    set(FILE_BSD_PLCOPEN_DIRPREFIX ${UA_NODESET_DIR})
-    set(FILE_BSD_POWERLINK_DIRPREFIX ${PROJECT_SOURCE_DIR}/nodeset)
-    set(FILE_NS_DIRPREFIX ${UA_NODESET_DIR})
-else()
-    set(FILE_CSV_DIRPREFIX ${UA_NODESET_DIR})
-    set(FILE_BSD_PLCOPEN_DIRPREFIX ${UA_NODESET_DIR})
-    set(FILE_BSD_POWERLINK_DIRPREFIX ${PROJECT_SOURCE_DIR}/nodeset)
-    set(FILE_NS_DIRPREFIX ${UA_NODESET_DIR})
-endif()
+set(FILE_CSV_DIRPREFIX ${UA_NODESET_DIR})
+set(FILE_BSD_PLCOPEN_DIRPREFIX ${UA_NODESET_DIR})
+set(FILE_BSD_POWERLINK_DIRPREFIX ${PROJECT_SOURCE_DIR}/examples/nodeset)
+set(FILE_NS_DIRPREFIX ${UA_NODESET_DIR})
 
 # PLCopen requires the full ns0 as basis
 if(UA_NAMESPACE_ZERO STREQUAL "FULL")
@@ -123,6 +93,5 @@ if(UA_NAMESPACE_ZERO STREQUAL "FULL")
                 ${UA_TYPES_DI_SOURCES}
                 ${UA_TYPES_POWERLINK_SOURCES})
     add_dependencies(server_nodeset_powerlink open62541-generator-ns-powerlink)
-    
 
 endif()
