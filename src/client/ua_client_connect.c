@@ -1074,7 +1074,7 @@ connectActivity(UA_Client *client) {
 
         /* Send HEL */
     case UA_SECURECHANNELSTATE_CONNECTED:
-        if (!client->isReverseConnect) {
+        if (!client->channel.isReverseConnect) {
             client->connectStatus = sendHELMessage(client);
         }
         return;
@@ -1314,19 +1314,17 @@ __Client_networkCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
 }
 
 static void closeListeningReverseConnectSocket(UA_Client *client) {
-    if (client->reverseConnectListeningConnectionState <= UA_CONNECTIONSTATE_CLOSING
-            || !client->reverseConnectCm || !client->reverseConnectListenConnectionId
-            || client->listenerDisconnected)
+    if (client->channel.state != UA_SECURECHANNELSTATE_REVERSE_LISTENING)
         return;
 
-    client->reverseConnectCm->closeConnection(client->reverseConnectCm, client->reverseConnectListenConnectionId);
+    client->channel.connectionManager->closeConnection(client->channel.connectionManager, client->channel.connectionId);
 
     UA_EventLoop *el = client->config.eventLoop;
     if(el &&
        el->state != UA_EVENTLOOPSTATE_FRESH &&
        el->state != UA_EVENTLOOPSTATE_STOPPED) {
         UA_UNLOCK(&client->clientMutex);
-        while(client->reverseConnectListeningConnectionState > UA_CONNECTIONSTATE_CLOSING) {
+        while(client->channel.state < UA_SECURECHANNELSTATE_CLOSED) {
             el->run(el, 100);
         }
         UA_LOCK(&client->clientMutex);
@@ -1562,30 +1560,41 @@ __Client_reverseConnectCallback(UA_ConnectionManager *cm, uintptr_t connectionId
                          void *application, void **connectionContext,
                          UA_ConnectionState state, const UA_KeyValueMap *params,
                          UA_ByteString msg) {
+    void *reverseConnectIndicator = (void *)0xFFFFFFFF;
+
     UA_Client *client = (UA_Client*)application;
 
     UA_LOCK(&client->clientMutex);
 
-    if (!client->reverseConnectListenConnectionId && !client->listenerDisconnected) {
-        client->reverseConnectListenConnectionId = connectionId;
+    if (!client->channel.connectionId && !client->channel.listenerDisconnected) {
+        client->channel.connectionId = connectionId;
+        *connectionContext = reverseConnectIndicator;
     }
 
-    if (connectionId == client->reverseConnectListenConnectionId) {
-        client->reverseConnectListeningConnectionState = state;
-    }
-
-    if (connectionId == client->reverseConnectListenConnectionId && state == UA_CONNECTIONSTATE_CLOSING) {
-        client->reverseConnectListenConnectionId = 0;
+    if (*connectionContext == reverseConnectIndicator && state == UA_CONNECTIONSTATE_CLOSING) {
         UA_UNLOCK(&client->clientMutex);
         return;
     }
 
-    if (connectionId != client->reverseConnectListenConnectionId && !client->listenerDisconnected) {
-        cm->closeConnection(cm, client->reverseConnectListenConnectionId);
-        client->listenerDisconnected = true;
+    if (client->channel.connectionId == connectionId &&  *connectionContext == reverseConnectIndicator) {
+        client->channel.state = UA_SECURECHANNELSTATE_REVERSE_LISTENING;
+        notifyClientState(client);
     }
 
-    if (connectionId != client->reverseConnectListenConnectionId) {
+    if (client->channel.connectionId != connectionId && !client->channel.listenerDisconnected) {
+        cm->closeConnection(cm, client->channel.connectionId);
+        client->channel.listenerDisconnected = true;
+    }
+
+    if (client->channel.connectionId != connectionId && *connectionContext == reverseConnectIndicator) {
+        *connectionContext = NULL;
+        client->channel.connectionId = 0;
+        client->channel.state = UA_SECURECHANNELSTATE_REVERSE_CONNECTED;
+        notifyClientState(client);
+        client->channel.state = UA_SECURECHANNELSTATE_FRESH;
+    }
+
+    if (*connectionContext != reverseConnectIndicator) {
         UA_UNLOCK(&client->clientMutex);
         __Client_networkCallback(cm, connectionId, application, connectionContext, state, params, msg);
         return;
@@ -1606,9 +1615,6 @@ UA_StatusCode UA_Client_startListeningForReverseConnect(UA_Client *client, const
 
     // FIXME: Are these good default values?
     client->noReconnect = true;
-    client->isReverseConnect = true;
-    client->listenerDisconnected = false;
-    client->reverseConnectListenConnectionId = 0;
     client->channel.config.recvBufferSize = 8192;
     client->channel.config.sendBufferSize = 8192;
 
@@ -1619,6 +1625,9 @@ UA_StatusCode UA_Client_startListeningForReverseConnect(UA_Client *client, const
     client->channel.config = client->config.localConnectionConfig;
     client->channel.certificateVerification = &client->config.certificateVerification;
     client->channel.processOPNHeader = verifyClientSecurechannelHeader;
+    client->channel.isReverseConnect = true;
+    client->channel.connectionId = 0;
+    client->channel.listenerDisconnected = false;
 
     initSecurityPolicy(client);
 
@@ -1644,7 +1653,7 @@ UA_StatusCode UA_Client_startListeningForReverseConnect(UA_Client *client, const
         if(!UA_String_equal(&tcpString, &cm->protocol))
             continue;
 
-        client->reverseConnectCm = cm;
+        client->channel.connectionManager = cm;
 
         UA_KeyValuePair params[3];
         bool booleanTrue = true;

@@ -177,12 +177,6 @@ struct UA_Client {
 #if UA_MULTITHREADING >= 100
     UA_Lock clientMutex;
 #endif
-
-    UA_Boolean isReverseConnect;
-    UA_Boolean listenerDisconnected;
-    UA_ConnectionState reverseConnectListeningConnectionState;
-    UA_ConnectionManager *reverseConnectCm;
-    uintptr_t reverseConnectListenConnectionId;
 };
 
 UA_StatusCode
