@@ -436,8 +436,9 @@ UA_Subscription_isLate(UA_Subscription *sub) {
 static void
 delayedPublishNotifications(UA_Server *server, UA_Subscription *sub);
 
-static void
-publishNotifications(UA_Server *server, UA_Subscription *sub) {
+/* Returns true if done */
+UA_Boolean
+UA_Subscription_publishOnce(UA_Server *server, UA_Subscription *sub) {
     /* Dequeue a response */
     UA_PublishResponseEntry *pre = NULL;
     if(sub->session)
@@ -462,7 +463,7 @@ publishNotifications(UA_Server *server, UA_Subscription *sub) {
      * Subscription */
     if(sub->statusChange != UA_STATUSCODE_GOOD) {
         sendStatusChangeDelete(server, sub, pre);
-        return;
+        return true; /* Return "done" */
     }
 
     /* Count the available notifications */
@@ -476,7 +477,7 @@ publishNotifications(UA_Server *server, UA_Subscription *sub) {
         if(sub->currentKeepAliveCount < sub->maxKeepAliveCount) {
             if(pre)
                 UA_Session_queuePublishReq(sub->session, pre, true); /* Re-enqueue */
-            return;
+            return true; /* Return "done" */
         }
         UA_LOG_DEBUG_SUBSCRIPTION(&server->config.logger, sub, "Sending a KeepAlive");
     }
@@ -491,7 +492,7 @@ publishNotifications(UA_Server *server, UA_Subscription *sub) {
         UA_Subscription_isLate(sub);
         if(pre)
             UA_Session_queuePublishReq(sub->session, pre, true); /* Re-enqueue */
-        return;
+        return true; /* Return "done" */
     }
 
     UA_assert(pre);
@@ -517,7 +518,7 @@ publishNotifications(UA_Server *server, UA_Subscription *sub) {
 
                 UA_Subscription_isLate(sub);
                 UA_Session_queuePublishReq(sub->session, pre, true); /* Re-enqueue */
-                return;
+                return true; /* Return "done" */
             }
         }
 
@@ -533,7 +534,7 @@ publishNotifications(UA_Server *server, UA_Subscription *sub) {
                 UA_free(retransmission);
             UA_Subscription_isLate(sub);
             UA_Session_queuePublishReq(sub->session, pre, true); /* Re-enqueue */
-            return;
+            return true; /* Return "done" */
         }
     }
 
@@ -611,10 +612,29 @@ publishNotifications(UA_Server *server, UA_Subscription *sub) {
     sub->notificationsCount += (sentDCN + sentEN);
 #endif
 
-    /* Repeat sending notifications if there are more notifications to send. But
-     * only call monitoredItem_sampleCallback in the regular publish
-     * callback. */
+    /* Outstanding notifications? */
     UA_Boolean done = (sub->notificationQueueSize == 0);
+    return done;
+}
+
+static void
+delayedPublishNotifications(UA_Server *server, UA_Subscription *sub) {
+    UA_LOCK(&server->serviceMutex);
+    sub->delayedCallbackRegistered = false;
+    UA_Subscription_publish (server, sub);
+    UA_UNLOCK(&server->serviceMutex);
+}
+
+/* Repeat the main publishing callback until all notifications are sent out or
+ * we have to stop */
+void
+UA_Subscription_publish(UA_Server *server, UA_Subscription *sub) {
+    /* Publish a single notification */
+    UA_Boolean done = UA_Subscription_publishOnce(server, sub);
+
+    /* Repeat sending notifications if there are more notifications to send. But
+     * only call UA_Subscription_publishOnce in the regular publish
+     * callback. */
     if(!done && !sub->delayedCallbackRegistered) {
         sub->delayedCallbackRegistered = true;
 
@@ -627,29 +647,22 @@ publishNotifications(UA_Server *server, UA_Subscription *sub) {
     }
 }
 
-static void
-delayedPublishNotifications(UA_Server *server, UA_Subscription *sub) {
-    UA_LOCK(&server->serviceMutex);
-    sub->delayedCallbackRegistered = false;
-    publishNotifications(server, sub);
-    UA_UNLOCK(&server->serviceMutex);
-}
-
 void
-UA_Subscription_publish(UA_Server *server, UA_Subscription *sub) {
+UA_Subscription_sampleAndPublish(UA_Server *server, UA_Subscription *sub) {
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
-    UA_LOG_DEBUG_SUBSCRIPTION(&server->config.logger, sub, "Publish Callback");
+    UA_LOG_DEBUG_SUBSCRIPTION(&server->config.logger, sub,
+                              "Sample and Publish Callback");
     UA_assert(sub);
 
     /* Sample the MonitoredItems with sampling interval <0 (which implies
      * sampling in the same interval as the subscription) */
     UA_MonitoredItem *mon;
     LIST_FOREACH(mon, &sub->samplingMonitoredItems, sampling.samplingListEntry) {
-        monitoredItem_sampleCallback(server, mon);
+        UA_MonitoredItem_sampleCallback(server, mon);
     }
 
     /* Publish waiting notifications */
-    publishNotifications(server, sub);
+    UA_Subscription_publish(server, sub);
 }
 
 UA_Boolean
@@ -697,7 +710,7 @@ UA_Session_reachedPublishReqLimit(UA_Server *server, UA_Session *session) {
 static void
 repeatedPublishCallback(UA_Server *server, UA_Subscription *sub) {
     UA_LOCK(&server->serviceMutex);
-    UA_Subscription_publish(server, sub);
+    UA_Subscription_sampleAndPublish(server, sub);
     UA_UNLOCK(&server->serviceMutex);
 }
 

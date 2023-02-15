@@ -168,6 +168,8 @@ UA_ClientConfig_clear(UA_ClientConfig *config) {
     UA_EndpointDescription_clear(&config->endpoint);
     UA_UserTokenPolicy_clear(&config->userTokenPolicy);
 
+    UA_String_clear(&config->applicationUri);
+
     if(config->certificateVerification.clear)
         config->certificateVerification.clear(&config->certificateVerification);
 
@@ -231,6 +233,7 @@ UA_Client_clear(UA_Client *client) {
 
     UA_Client_disconnect(client);
     UA_String_clear(&client->endpointUrl);
+    UA_String_clear(&client->discoveryUrl);
 
     UA_String_clear(&client->remoteNonce);
     UA_String_clear(&client->localNonce);
@@ -550,7 +553,9 @@ __Client_Service(UA_Client *client, const void *request,
 
     /* Check that the SecureChannel is open and also a Session active (if we
      * want a Session). Otherwise reopen. */
-    if((client->sessionState != UA_SESSIONSTATE_ACTIVATED && !client->noSession) ||
+    if(client->endpointsHandshake || client->findServersHandshake ||
+       client->discoveryUrl.length == 0 ||
+       (client->sessionState != UA_SESSIONSTATE_ACTIVATED && !client->noSession) ||
        client->channel.state != UA_SECURECHANNELSTATE_OPEN) {
         UA_LOG_INFO(&client->config.logger, UA_LOGCATEGORY_CLIENT,
                     "Re-establish the connction for the synchronous service call");
@@ -955,8 +960,7 @@ clientHouseKeeping(UA_Client *client, void *_) {
 }
 
 UA_StatusCode
-__UA_Client_startup(UA_Client *client)
-{
+__UA_Client_startup(UA_Client *client) {
     /* On entry, the client mutex is already locked */
     UA_EventLoop *el = client->config.eventLoop;
     UA_CHECK_ERROR(el != NULL,
