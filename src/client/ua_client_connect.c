@@ -1219,8 +1219,12 @@ __Client_networkCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
          * before sending the HEL message. */
         if(state == UA_CONNECTIONSTATE_OPENING)
             client->channel.state = UA_SECURECHANNELSTATE_CONNECTING;
-        else /* state == UA_CONNECTIONSTATE_ESTABLISHED */
-            client->channel.state = UA_SECURECHANNELSTATE_CONNECTED;
+        else {
+            if (client->channel.isReverseConnect)
+                client->channel.state = UA_SECURECHANNELSTATE_REVERSE_CONNECTED;
+            else /* state == UA_CONNECTIONSTATE_ESTABLISHED */
+                client->channel.state = UA_SECURECHANNELSTATE_CONNECTED;
+        }
         
         goto continue_connect;
     }
@@ -1314,9 +1318,13 @@ __Client_networkCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
 }
 
 static void closeListeningReverseConnectSocket(UA_Client *client) {
-    if (client->channel.state != UA_SECURECHANNELSTATE_REVERSE_LISTENING)
+    UA_LOCK(&client->clientMutex);
+    if (client->channel.state != UA_SECURECHANNELSTATE_REVERSE_LISTENING) {
+        UA_UNLOCK(&client->clientMutex);
         return;
+    }
 
+    client->channel.listenerDisconnected = true;
     client->channel.connectionManager->closeConnection(client->channel.connectionManager, client->channel.connectionId);
 
     UA_EventLoop *el = client->config.eventLoop;
@@ -1329,6 +1337,8 @@ static void closeListeningReverseConnectSocket(UA_Client *client) {
         }
         UA_LOCK(&client->clientMutex);
     }
+
+    UA_UNLOCK(&client->clientMutex);
 }
 
 /* Initialize a TCP connection. Writes the result to client->connectStatus. */
@@ -1560,7 +1570,7 @@ __Client_reverseConnectCallback(UA_ConnectionManager *cm, uintptr_t connectionId
                          void *application, void **connectionContext,
                          UA_ConnectionState state, const UA_KeyValueMap *params,
                          UA_ByteString msg) {
-    void *reverseConnectIndicator = (void *)0xFFFFFFFF;
+    void *reverseConnectIndicator = (void *)(uintptr_t)0xFFFFFFFF;
 
     UA_Client *client = (UA_Client*)application;
 
@@ -1572,6 +1582,10 @@ __Client_reverseConnectCallback(UA_ConnectionManager *cm, uintptr_t connectionId
     }
 
     if (*connectionContext == reverseConnectIndicator && state == UA_CONNECTIONSTATE_CLOSING) {
+        if (client->channel.state == UA_SECURECHANNELSTATE_REVERSE_LISTENING && client->channel.connectionId == connectionId) {
+            client->channel.state = UA_SECURECHANNELSTATE_CLOSED;
+            notifyClientState(client);
+        }
         UA_UNLOCK(&client->clientMutex);
         return;
     }
@@ -1581,16 +1595,17 @@ __Client_reverseConnectCallback(UA_ConnectionManager *cm, uintptr_t connectionId
         notifyClientState(client);
     }
 
+    /* This is a connection initiated by a server, disconnect the listener */
     if (client->channel.connectionId != connectionId && !client->channel.listenerDisconnected) {
-        cm->closeConnection(cm, client->channel.connectionId);
         client->channel.listenerDisconnected = true;
+        cm->closeConnection(cm, client->channel.connectionId);
     }
 
+    /* First call with the new connection from the server, reset secure channel information */
     if (client->channel.connectionId != connectionId && *connectionContext == reverseConnectIndicator) {
         *connectionContext = NULL;
         client->channel.connectionId = 0;
-        client->channel.state = UA_SECURECHANNELSTATE_REVERSE_CONNECTED;
-        notifyClientState(client);
+        /* Reset to fresh state, the standard network callback will set REVERSE_CONNECTED */
         client->channel.state = UA_SECURECHANNELSTATE_FRESH;
     }
 
@@ -1606,7 +1621,8 @@ __Client_reverseConnectCallback(UA_ConnectionManager *cm, uintptr_t connectionId
 UA_StatusCode UA_Client_startListeningForReverseConnect(UA_Client *client, const UA_String *listenHostnames,
                                                         size_t listenHostnamesLength,
                                                         UA_UInt16 port) {
-    UA_Client_disconnect(client);
+    if (client->channel.state > UA_SECURECHANNELSTATE_FRESH && client->channel.state < UA_SECURECHANNELSTATE_CLOSED)
+        return UA_STATUSCODE_BADINVALIDSTATE;
 
     UA_LOCK(&client->clientMutex);
 

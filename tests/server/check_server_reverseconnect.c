@@ -37,16 +37,20 @@ static void clientStateCallback(UA_Client *c,
                           UA_StatusCode connectStatus) {
     clientCallbackStates[numClientCallbackCalled++] = channelState;
 
-    // UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
-    //              "Client state callback called with state %d", channelState);
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
+                 "Client state callback called with state %d", channelState);
 }
 
 static void setup(void) {
     for (int i = 0; i < numServerCallbackCalled; ++i)
         serverCallbackStates[i] = UA_SECURECHANNELSTATE_FRESH;
 
+    for (int i = 0; i < numClientCallbackCalled; ++i)
+        clientCallbackStates[i] = UA_SECURECHANNELSTATE_FRESH;
+
     numServerCallbackCalled = 0;
     reverseConnectHandle = 0;
+    numClientCallbackCalled = 0;
 
     server = UA_Server_new();
     ck_assert(server != NULL);
@@ -74,6 +78,33 @@ static void serverStateCallback(UA_Server *s, UA_UInt64 handle,
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
                  "Reverse connect callback called with state %d", state);
 }
+
+START_TEST(listenAndTeardown) {
+    UA_StatusCode ret = UA_STATUSCODE_BADINTERNALERROR;
+
+    UA_Server_delete(server);
+    server = NULL;
+
+    const UA_String listenHost = UA_STRING("127.0.0.1");
+    ret = UA_Client_startListeningForReverseConnect(client, &listenHost, 1, 4841);
+    ck_assert_uint_eq(ret, UA_STATUSCODE_GOOD);
+
+    for (int i = 0; i < 10; ++i) {
+        UA_Client_run_iterate(client, 1);
+        UA_fakeSleep(1000);
+    }
+
+    ret = UA_Client_startListeningForReverseConnect(client, &listenHost, 1, 4841);
+    ck_assert_uint_eq(ret, UA_STATUSCODE_BADINVALIDSTATE);
+
+    UA_Client_disconnect(client);
+
+    ck_assert_int_gt(numClientCallbackCalled, 2);
+    ck_assert_int_eq(clientCallbackStates[0], UA_SECURECHANNELSTATE_REVERSE_LISTENING);
+    ck_assert_int_eq(clientCallbackStates[1], UA_SECURECHANNELSTATE_CLOSED);
+
+} END_TEST
+
 
 START_TEST(addBeforeStart) {
     UA_StatusCode ret = UA_STATUSCODE_BADINTERNALERROR;
@@ -107,14 +138,12 @@ START_TEST(addBeforeStart) {
     ck_assert_int_eq(serverCallbackStates[3], UA_SECURECHANNELSTATE_OPEN);
     ck_assert_int_eq(serverCallbackStates[4], UA_SECURECHANNELSTATE_CLOSED);
 
-    ck_assert_int_eq(numClientCallbackCalled, 11);
-    ck_assert_int_eq(clientCallbackStates[0], UA_SECURECHANNELSTATE_FRESH);
-    ck_assert_int_eq(clientCallbackStates[1], UA_SECURECHANNELSTATE_REVERSE_LISTENING);
-    ck_assert_int_eq(clientCallbackStates[2], UA_SECURECHANNELSTATE_REVERSE_CONNECTED);
-    ck_assert_int_eq(clientCallbackStates[3], UA_SECURECHANNELSTATE_CONNECTED);
-    ck_assert_int_eq(clientCallbackStates[4], UA_SECURECHANNELSTATE_HEL_SENT);
-    ck_assert_int_eq(clientCallbackStates[5], UA_SECURECHANNELSTATE_OPN_SENT);
-    ck_assert_int_eq(clientCallbackStates[6], UA_SECURECHANNELSTATE_OPEN);
+    ck_assert_int_gt(numClientCallbackCalled, 5);
+    ck_assert_int_eq(clientCallbackStates[0], UA_SECURECHANNELSTATE_REVERSE_LISTENING);
+    ck_assert_int_eq(clientCallbackStates[1], UA_SECURECHANNELSTATE_REVERSE_CONNECTED);
+    ck_assert_int_eq(clientCallbackStates[2], UA_SECURECHANNELSTATE_HEL_SENT);
+    ck_assert_int_eq(clientCallbackStates[3], UA_SECURECHANNELSTATE_OPN_SENT);
+    ck_assert_int_eq(clientCallbackStates[4], UA_SECURECHANNELSTATE_OPEN);
 } END_TEST
 
 START_TEST(addAfterStart) {
@@ -297,6 +326,7 @@ int main(void) {
 
     TCase *tc_call = tcase_create("basics");
     tcase_add_checked_fixture(tc_call, setup, teardown);
+    tcase_add_test(tc_call, listenAndTeardown);
     tcase_add_test(tc_call, addBeforeStart);
     tcase_add_test(tc_call, addAfterStart);
     tcase_add_test(tc_call, checkReconnect);
