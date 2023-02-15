@@ -22,10 +22,6 @@ if(CMAKE_PROJECT_NAME STREQUAL PROJECT_NAME)
         find_package(open62541 REQUIRED)
     endif()
 
-    if(NOT UA_TOOLS_DIR)
-        set(UA_TOOLS_DIR ${open62541_TOOLS_DIR})
-    endif()
-
     function(assign_source_group)
         # define empty function. We don't need it in standalone
     endfunction(assign_source_group)
