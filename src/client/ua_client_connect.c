@@ -972,7 +972,7 @@ responseFindServers(UA_Client *client, void *userdata,
             continue;
 
         for(size_t j = 0; j < server->discoveryUrlsSize; j++) {
-            if(UA_String_equal(&client->endpointUrl, &server->discoveryUrls[i])) {
+            if(UA_String_equal(&client->endpointUrl, &server->discoveryUrls[j])) {
                 UA_LOG_INFO(&client->config.logger, UA_LOGCATEGORY_CLIENT,
                             "The initially defined EndpointURL %.*s"
                             "is valid for the server",

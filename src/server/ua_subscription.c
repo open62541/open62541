@@ -587,8 +587,18 @@ UA_Subscription_publishOnce(UA_Server *server, UA_Subscription *sub) {
     sendResponse(server, sub->session, sub->session->header.channel, pre->requestId,
                  (UA_Response*)response, &UA_TYPES[UA_TYPES_PUBLISHRESPONSE]);
 
-    /* Reset subscription state to normal */
-    sub->state = UA_SUBSCRIPTIONSTATE_NORMAL;
+    /* Reset the Subscription state to NORMAL. But only if all notifications
+     * have been sent out. Otherwise keep the Subscription in the LATE state. So
+     * we immediately answer incoming Publish requests.
+     *
+     * (We also check that session->responseQueueSize > 0 in Service_Publish. To
+     * avoid answering Publish requests out of order. As we additionally may
+     * schedule an immediate next publishOnce if UA_Subscription_publishOnce
+     * returns "not done".) */
+    if(sub->notificationQueueSize == 0)
+        sub->state = UA_SUBSCRIPTIONSTATE_NORMAL;
+
+    /* Reset the KeepAlive after publishing */
     sub->currentKeepAliveCount = 0;
 
     /* Free the response */
