@@ -282,7 +282,7 @@ __ZIP_UNZIP(zip_cmp_cb cmp, unsigned short fieldoffset,
         while(ZIP_ENTRY_PTR(cur)->left) {
             prev = cur;
             cur = ZIP_ENTRY_PTR(cur)->left;
-            if(cmp(key, ZIP_KEY_PTR(cur)) != ZIP_CMP_LESS) {
+            if(__ZIP_KEY_CMP(cmp, key, ZIP_KEY_PTR(cur)) != ZIP_CMP_LESS) {
                 ZIP_ENTRY_PTR(prev)->left = ZIP_ENTRY_PTR(cur)->right;
                 ZIP_ENTRY_PTR(cur)->right = NULL;
                 ZIP_ENTRY_PTR(left_rightmost)->right = cur;
@@ -306,7 +306,7 @@ __ZIP_UNZIP(zip_cmp_cb cmp, unsigned short fieldoffset,
         while(ZIP_ENTRY_PTR(cur)->right) {
             prev = cur;
             cur = ZIP_ENTRY_PTR(cur)->right;
-            if(cmp(key, ZIP_KEY_PTR(cur)) == ZIP_CMP_LESS) {
+            if(__ZIP_KEY_CMP(cmp, key, ZIP_KEY_PTR(cur)) == ZIP_CMP_LESS) {
                 ZIP_ENTRY_PTR(prev)->right = ZIP_ENTRY_PTR(cur)->left;
                 ZIP_ENTRY_PTR(cur)->left = NULL;
                 ZIP_ENTRY_PTR(right_leftmost)->left = cur;
