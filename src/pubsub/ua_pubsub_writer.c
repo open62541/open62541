@@ -290,6 +290,7 @@ generateFieldMetaData(UA_Server *server, UA_DataSetField *field,
                sizeof(UA_UInt32)*value.arrayDimensionsSize);
     }
     fieldMetaData->arrayDimensionsSize = value.arrayDimensionsSize;
+    UA_Variant_clear(&value);
 
     /* Set the DataType */
     res = UA_Server_readDataType(server, pp->publishedVariable,
