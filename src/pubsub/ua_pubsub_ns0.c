@@ -653,29 +653,34 @@ addPubSubConnectionAction(UA_Server *server,
 
     for(size_t i = 0; i < pubSubConnectionDataType.readerGroupsSize; i++){
         UA_NodeId readerGroupId;
-        UA_ReaderGroupDataType *readerGroupDataType = &pubSubConnectionDataType.readerGroups[i];
-        retVal |= addReaderGroupConfig(server, connectionId, readerGroupDataType, &readerGroupId);
+        UA_ReaderGroupDataType *rg = &pubSubConnectionDataType.readerGroups[i];
+        retVal |= addReaderGroupConfig(server, connectionId, rg, &readerGroupId);
         if(retVal != UA_STATUSCODE_GOOD) {
+            UA_NodeId_clear(&readerGroupId);
             UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER, "addReaderGroup failed");
             return retVal;
         }
 
-        for(size_t j = 0; j < pubSubConnectionDataType.readerGroups[i].dataSetReadersSize; j++){
+        for(size_t j = 0; j < rg->dataSetReadersSize; j++) {
             UA_NodeId dataSetReaderId;
-            UA_DataSetReaderDataType *dataSetReaderDataType =  &readerGroupDataType->dataSetReaders[j];
+            UA_DataSetReaderDataType *dataSetReaderDataType =  &rg->dataSetReaders[j];
             retVal |= addDataSetReaderConfig(server, readerGroupId, dataSetReaderDataType, &dataSetReaderId);
             if(retVal != UA_STATUSCODE_GOOD) {
+                UA_NodeId_clear(&readerGroupId);
                 UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER, "addDataSetReader failed");
                 return retVal;
             }
         }
+
         //TODO: Need to handle the UA_Server_setReaderGroupOperational based on the status variable in information model
         if(pubSubConnectionDataType.enabled) {
             UA_Server_freezeReaderGroupConfiguration(server, readerGroupId);
             UA_Server_setReaderGroupOperational(server, readerGroupId);
-        }
-        else
+        } else {
             UA_Server_setReaderGroupDisabled(server, readerGroupId);
+        }
+
+        UA_NodeId_clear(&readerGroupId);
     }
     //set ouput value
     UA_Variant_setScalarCopy(output, &connectionId, &UA_TYPES[UA_TYPES_NODEID]);
