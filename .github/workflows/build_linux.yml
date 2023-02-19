@@ -82,12 +82,18 @@ jobs:
           - build_name: Amalgamation Build with Multithreading
             cmd_deps: ""
             cmd_action: build_amalgamation_mt
-          - build_name: "Valgrind Build & Unit Tests with MbedTLS (gcc)"
+          - build_name: "Valgrind Unit Tests with MbedTLS (gcc)"
             cmd_deps: sudo apt-get install -y -qq valgrind libmbedtls-dev
             cmd_action: unit_tests_valgrind MBEDTLS
-          - build_name: "Valgrind Build & Unit Tests with OpenSSL (gcc)"
+          - build_name: "Valgrind Unit Tests with OpenSSL (gcc)"
             cmd_deps: sudo apt-get install -y -qq valgrind openssl
             cmd_action: unit_tests_valgrind OPENSSL
+          - build_name: "Valgrind Examples with MbedTLS (gcc)"
+            cmd_deps: sudo apt-get install -y -qq valgrind libmbedtls-dev
+            cmd_action: examples_valgrind MBEDTLS
+          - build_name: "Valgrind Examples  with OpenSSL (gcc)"
+            cmd_deps: sudo apt-get install -y -qq valgrind openssl
+            cmd_action: examples_valgrind OPENSSL
           - build_name: "Clang Static Analyzer"
             cmd_deps: sudo apt-get install -y -qq clang-11 clang-tools-11 libmbedtls-dev
             cmd_action: build_clang_analyzer
