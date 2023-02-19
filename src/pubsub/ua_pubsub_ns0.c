@@ -404,16 +404,20 @@ addSubscribedVariables(UA_Server *server, UA_NodeId dataSetReaderId,
             /* Variable to subscribe data */
             UA_VariableAttributes vAttr = UA_VariableAttributes_default;
             UA_LocalizedText_copy(&pMetaData->fields[i].description,
-                                &vAttr.description);
+                                  &vAttr.description);
             vAttr.displayName.locale = UA_STRING("");
             vAttr.displayName.text = pMetaData->fields[i].name;
             vAttr.dataType = pMetaData->fields[i].dataType;
+
+            UA_QualifiedName browseName;
+            browseName.namespaceIndex = 1;
+            browseName.name = pMetaData->fields[i].name;
 
             UA_NodeId newNode;
             retVal |= UA_Server_addVariableNode(server, targetVars.targetVariables[i].targetNodeId,
                                                 folderId,
                                                 UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
-                                                UA_QUALIFIEDNAME(1, (char *)pMetaData->fields[i].name.data),
+                                                browseName,
                                                 UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
                                                 vAttr, NULL, &newNode);
 
