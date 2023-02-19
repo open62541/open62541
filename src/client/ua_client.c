@@ -87,8 +87,15 @@ UA_ClientConfig_clear(UA_ClientConfig *config) {
 
 static void
 UA_Client_clear(UA_Client *client) {
+    /* Prevent new async service calls in UA_Client_AsyncService_removeAll */
+    UA_SessionState oldState = client->sessionState;
+    client->sessionState = UA_SESSIONSTATE_CLOSING;
+
     /* Delete the async service calls with BADHSUTDOWN */
     UA_Client_AsyncService_removeAll(client, UA_STATUSCODE_BADSHUTDOWN);
+
+    /* Reset to the old state to properly close the session */
+    client->sessionState = oldState;
 
     UA_Client_disconnect(client);
     UA_String_clear(&client->endpointUrl);

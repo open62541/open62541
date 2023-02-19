@@ -44,12 +44,16 @@ static void setup(void) {
 }
 
 static void teardown(void) {
-    if (running) {
+    if(!server)
+        return;
+
+    if(running) {
         running = false;
         THREAD_JOIN(server_thread);
     }
     UA_Server_run_shutdown(server);
     UA_Server_delete(server);
+    server = NULL;
 }
 
 UA_Boolean notificationReceived = false;
@@ -1429,6 +1433,55 @@ START_TEST(Client_subscription_reconnect) {
 }
 END_TEST
 
+START_TEST(Client_subscription_server_disappears) {
+    UA_Client *client = UA_Client_new();
+    UA_ClientConfig_setDefault(UA_Client_getConfig(client));
+
+    /* Set stateCallback */
+    UA_ClientConfig *cc = UA_Client_getConfig(client);
+    cc->stateCallback = stateCallback;
+    cc->subscriptionInactivityCallback = subscriptionInactivityCallback;
+    inactivityCallbackCalled = false;
+
+    /* Activate background publish request */
+    cc->outStandingPublishRequests = 10;
+
+    UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(sessState, UA_SESSIONSTATE_ACTIVATED);
+
+    UA_Client_recv = client->connection.recv;
+    client->connection.recv = UA_Client_recvTesting;
+
+    /* Create a Subscription */
+    UA_CreateSubscriptionRequest request = UA_CreateSubscriptionRequest_default();
+    UA_CreateSubscriptionResponse response = UA_Client_Subscriptions_create(client, request,
+                                                                            NULL, NULL, NULL);
+    ck_assert_uint_eq(response.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
+
+    /* Create a MonitoredItem */
+    UA_MonitoredItemCreateRequest monRequest =
+        UA_MonitoredItemCreateRequest_default(UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_STATE));
+
+    UA_MonitoredItemCreateResult monResponse =
+        UA_Client_MonitoredItems_createDataChange(client, response.subscriptionId,
+                                                  UA_TIMESTAMPSTORETURN_BOTH,
+                                                  monRequest, NULL, dataChangeHandler, NULL);
+    ck_assert_uint_eq(monResponse.statusCode, UA_STATUSCODE_GOOD);
+
+    UA_fakeSleep((UA_UInt32)publishingInterval + 1);
+    UA_Client_run_iterate(client, 1);
+
+    /* Shut down the server */
+    teardown();
+
+    UA_fakeSleep((UA_UInt32)publishingInterval + 1);
+    UA_Client_run_iterate(client, 1);
+
+    UA_Client_delete(client);
+}
+END_TEST
+
 START_TEST(Client_subscription_transfer) {
     UA_Client *client = UA_Client_new();
     UA_ClientConfig_setDefault(UA_Client_getConfig(client));
@@ -1574,6 +1627,7 @@ static Suite* testSuite_Client(void) {
     tcase_add_test(tc_client, Client_subscription_without_notification);
     tcase_add_test(tc_client, Client_subscription_async_sub);
     tcase_add_test(tc_client, Client_subscription_reconnect);
+    tcase_add_test(tc_client, Client_subscription_server_disappears);
     tcase_add_test(tc_client, Client_subscription_transfer);
     tcase_add_test(tc_client, Client_subscription_writeBurst);
     suite_add_tcase(s,tc_client);
