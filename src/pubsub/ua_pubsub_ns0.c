@@ -76,11 +76,11 @@ onRead(UA_Server *server, const UA_NodeId *sessionId, void *sessionContext,
         switch(nodeContext->elementClassiefier) {
         case UA_NS0ID_PUBSUBCONNECTIONTYPE_PUBLISHERID:
             if(pubSubConnection->config->publisherIdType == UA_PUBSUB_PUBLISHERID_STRING) {
-                UA_Variant_setScalar(&value, &pubSubConnection->config->publisherId.numeric,
-                                     &UA_TYPES[UA_TYPES_STRING]);
+                UA_Variant_setScalarCopy(&value, &pubSubConnection->config->publisherId.numeric,
+                                         &UA_TYPES[UA_TYPES_STRING]);
             } else {
-                UA_Variant_setScalar(&value, &pubSubConnection->config->publisherId.numeric,
-                                     &UA_TYPES[UA_TYPES_UINT32]);
+                UA_Variant_setScalarCopy(&value, &pubSubConnection->config->publisherId.numeric,
+                                         &UA_TYPES[UA_TYPES_UINT32]);
             }
             break;
         default:
@@ -96,8 +96,8 @@ onRead(UA_Server *server, const UA_NodeId *sessionId, void *sessionContext,
 
         switch(nodeContext->elementClassiefier) {
         case UA_NS0ID_DATASETREADERTYPE_PUBLISHERID:
-            UA_Variant_setScalar(&value, dataSetReader->config.publisherId.data,
-                                 dataSetReader->config.publisherId.type);
+            UA_Variant_setScalarCopy(&value, dataSetReader->config.publisherId.data,
+                                     dataSetReader->config.publisherId.type);
             break;
         default:
             UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
@@ -111,8 +111,8 @@ onRead(UA_Server *server, const UA_NodeId *sessionId, void *sessionContext,
             return;
         switch(nodeContext->elementClassiefier){
         case UA_NS0ID_WRITERGROUPTYPE_PUBLISHINGINTERVAL:
-            UA_Variant_setScalar(&value, &writerGroup->config.publishingInterval,
-                                 &UA_TYPES[UA_TYPES_DURATION]);
+            UA_Variant_setScalarCopy(&value, &writerGroup->config.publishingInterval,
+                                     &UA_TYPES[UA_TYPES_DURATION]);
             break;
         default:
             UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
@@ -127,8 +127,8 @@ onRead(UA_Server *server, const UA_NodeId *sessionId, void *sessionContext,
 
         switch(nodeContext->elementClassiefier) {
             case UA_NS0ID_DATASETWRITERTYPE_DATASETWRITERID:
-                UA_Variant_setScalar(&value, &dataSetWriter->config.dataSetWriterId,
-                                     &UA_TYPES[UA_TYPES_UINT16]);
+                UA_Variant_setScalarCopy(&value, &dataSetWriter->config.dataSetWriterId,
+                                         &UA_TYPES[UA_TYPES_UINT16]);
                 break;
             default:
                 UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
@@ -148,8 +148,7 @@ onRead(UA_Server *server, const UA_NodeId *sessionId, void *sessionContext,
             UA_DataSetField *field;
             TAILQ_FOREACH(field, &publishedDataSet->fields, listEntry) {
                 pvd[counter].attributeId = UA_ATTRIBUTEID_VALUE;
-                pvd[counter].publishedVariable = field->config.field.variable.publishParameters.publishedVariable;
-                //UA_NodeId_copy(&field->config.field.variable.publishParameters.publishedVariable, &pvd[counter].publishedVariable);
+                UA_NodeId_copy(&field->config.field.variable.publishParameters.publishedVariable, &pvd[counter].publishedVariable);
                 counter++;
             }
             UA_Variant_setArray(&value, pvd, publishedDataSet->fieldSize,
@@ -176,6 +175,7 @@ onRead(UA_Server *server, const UA_NodeId *sessionId, void *sessionContext,
                        "Read error! Unknown parent element.");
     }
     UA_Server_writeValue(server, *nodeid, value);
+    UA_Variant_clear(&value);
 }
 
 static void
