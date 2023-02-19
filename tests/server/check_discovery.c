@@ -457,7 +457,7 @@ END_TEST
 
 // Test if registered server is returned from LDS using FindServersOnNetwork
 START_TEST(Client_find_on_network_registered) {
-    char urls[2][64];
+    char urls[2][512];
     UA_String expectedUris[2];
     char hostname[256];
 
@@ -466,8 +466,8 @@ START_TEST(Client_find_on_network_registered) {
     //DNS limits name to max 63 chars (+ \0)
     //We need this ugly casting, otherwise gcc >7.2 will complain about format-truncation, but we want it here
     void *hostnameVoid = (void*)hostname;
-    snprintf(urls[0], 64, "LDS_test-%s", (char*)hostnameVoid);
-    snprintf(urls[1], 64, "Register_test-%s", (char*)hostnameVoid);
+    snprintf(urls[0], 512, "LDS_test-%s", (char*)hostnameVoid);
+    snprintf(urls[1], 512, "Register_test-%s", (char*)hostnameVoid);
     expectedUris[0] = UA_STRING(urls[0]);
     expectedUris[1] = UA_STRING(urls[1]);
     FindOnNetworkAndCheck(expectedUris, 2, NULL, NULL, NULL, 0);
