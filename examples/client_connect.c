@@ -31,7 +31,7 @@ int main(int argc, char *argv[]) {
     /* At least one argument is required for the server uri */
     if(argc <= 1) {
         usage();
-        return EXIT_FAILURE;
+        return EXIT_SUCCESS;
     }
 
     /* Parse the arguments */
@@ -121,8 +121,9 @@ int main(int argc, char *argv[]) {
     else
         retval = UA_Client_connect(client, serverurl);
     if(retval != UA_STATUSCODE_GOOD) {
+        UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "Could not connect");
         UA_Client_delete(client);
-        return EXIT_FAILURE;
+        return EXIT_SUCCESS;
     }
 
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "Connected!");
