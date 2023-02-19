@@ -300,9 +300,14 @@ static int run(UA_String *transportProfile,
     UA_StatusCode retval = UA_Server_run(server, &running);
 
     UA_Server_delete(server);
-    UA_Server_delete(server);
     UA_free(pointMembers);
     UA_free(types);
+
+    UA_NodeId_clear(&connectionIdent);
+    UA_NodeId_clear(&publishedDataSetIdent);
+    UA_NodeId_clear(&writerGroupIdent);
+    UA_NodeId_clear(&pointVariableNode);
+
     return retval == UA_STATUSCODE_GOOD ? EXIT_SUCCESS : EXIT_FAILURE;
 }
 

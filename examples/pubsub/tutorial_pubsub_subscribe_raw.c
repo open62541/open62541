@@ -178,6 +178,7 @@ addSubscribedVariables (UA_Server *server, UA_NodeId dataSetReaderId) {
     retval = UA_Server_DataSetReader_createTargetVariables(server, dataSetReaderId,
                                                            readerConfig.dataSetMetaData.fieldsSize, targetVars);
     UA_free(readerConfig.dataSetMetaData.fields);
+    UA_free(targetVars);
     return retval;
 }
 
