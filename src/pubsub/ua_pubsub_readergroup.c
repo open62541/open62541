@@ -576,11 +576,10 @@ UA_Server_freezeReaderGroupConfiguration(UA_Server *server,
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
-    memset(&dataSetReader->bufferedMessage, 0, sizeof(UA_NetworkMessageOffsetBuffer));
-    dataSetReader->bufferedMessage.RTsubscriberEnabled = true;
-
     /* Fix the offsets necessary to decode */
+    memset(&dataSetReader->bufferedMessage, 0, sizeof(UA_NetworkMessageOffsetBuffer));
     UA_NetworkMessage_calcSizeBinary(networkMessage, &dataSetReader->bufferedMessage);
+    dataSetReader->bufferedMessage.RTsubscriberEnabled = true;
     dataSetReader->bufferedMessage.nm = networkMessage;
 
     return UA_STATUSCODE_GOOD;
@@ -608,31 +607,8 @@ UA_Server_unfreezeReaderGroupConfiguration(UA_Server *server,
     /* DataSetReader unfreeze */
     UA_DataSetReader *dataSetReader;
     LIST_FOREACH(dataSetReader, &rg->readers, listEntry) {
-        dataSetReader->configurationFrozen = UA_FALSE;
-    }
-
-    if(rg->config.rtLevel != UA_PUBSUB_RT_FIXED_SIZE)
-        return UA_STATUSCODE_GOOD;
-
-    dataSetReader = LIST_FIRST(&rg->readers);
-    if(dataSetReader->bufferedMessage.offsetsSize > 0) {
-        for(size_t i = 0; i < dataSetReader->bufferedMessage.offsetsSize; i++) {
-            UA_NetworkMessageOffset *offset = &dataSetReader->bufferedMessage.offsets[i];
-            if((offset->contentType == UA_PUBSUB_OFFSETTYPE_PAYLOAD_VARIANT) ||
-                (offset->contentType == UA_PUBSUB_OFFSETTYPE_PAYLOAD_RAW)) {
-                UA_DataValue_delete(offset->offsetData.value.value);
-            } else if(offset->contentType == UA_PUBSUB_OFFSETTYPE_NETWORKMESSAGE_FIELDENCDODING) {
-                offset->offsetData.value.value->value.data = NULL;
-                UA_DataValue_delete(offset->offsetData.value.value);
-            }
-        }
-        UA_free(dataSetReader->bufferedMessage.offsets);
-    }
-
-    if(dataSetReader->bufferedMessage.RTsubscriberEnabled &&
-       dataSetReader->bufferedMessage.nm) {
-        UA_NetworkMessage_delete(dataSetReader->bufferedMessage.nm);
-        UA_free(dataSetReader->bufferedMessage.nm);
+        UA_NetworkMessageOffsetBuffer_clear(&dataSetReader->bufferedMessage);
+        dataSetReader->configurationFrozen = false;
     }
 
     return UA_STATUSCODE_GOOD;

@@ -1142,10 +1142,6 @@ UA_NetworkMessage_clear(UA_NetworkMessage* p) {
     memset(p, 0, sizeof(UA_NetworkMessage));
 }
 
-void UA_NetworkMessage_delete(UA_NetworkMessage* p) {
-    UA_NetworkMessage_clear(p);
-}
-
 UA_Boolean
 UA_NetworkMessage_ExtendedFlags1Enabled(const UA_NetworkMessage* src) {
     UA_Boolean retval = false;
@@ -1739,4 +1735,38 @@ UA_DataSetMessage_clear(const UA_DataSetMessage* p) {
         }
     }
 }
+
+void
+UA_NetworkMessageOffsetBuffer_clear(UA_NetworkMessageOffsetBuffer *ob) {
+    UA_ByteString_clear(&ob->buffer);
+    if(ob->nm) {
+        UA_NetworkMessage_clear(ob->nm);
+        UA_free(ob->nm);
+    }
+    ob->nm = NULL;
+    ob->rawMessageLength = 0;
+
+    for(size_t i = 0; i < ob->offsetsSize; i++) {
+        UA_NetworkMessageOffset *nmo = &ob->offsets[i];
+        if(nmo->contentType == UA_PUBSUB_OFFSETTYPE_PAYLOAD_VARIANT ||
+           nmo->contentType == UA_PUBSUB_OFFSETTYPE_PAYLOAD_RAW ||
+           nmo->contentType == UA_PUBSUB_OFFSETTYPE_PAYLOAD_DATAVALUE) {
+            UA_DataValue_delete(nmo->offsetData.value.value);
+        } else if(nmo->contentType == UA_PUBSUB_OFFSETTYPE_DATASETMESSAGE_SEQUENCENUMBER ||
+                  nmo->contentType == UA_PUBSUB_OFFSETTYPE_NETWORKMESSAGE_SEQUENCENUMBER) {
+            UA_DataValue_delete(nmo->offsetData.value.value);
+        } else if(nmo->contentType == UA_PUBSUB_OFFSETTYPE_NETWORKMESSAGE_FIELDENCDODING) {
+            nmo->offsetData.value.value->value.data = NULL;
+            UA_DataValue_delete(nmo->offsetData.value.value);
+        }
+    }
+
+    UA_free(ob->offsets);
+    ob->offsets = NULL;
+    ob->offsetsSize = 0;
+
+    ob->RTsubscriberEnabled = false;
+
+}
+
 #endif /* UA_ENABLE_PUBSUB */

@@ -281,6 +281,7 @@ UA_Server_freezeWriterGroupConfiguration(UA_Server *server,
     if(res != UA_STATUSCODE_GOOD)
         goto cleanup_dsm;
 
+    /* Generate the offset-buffer (done inside calcSizeBinary) */
     memset(&wg->bufferedMessage, 0, sizeof(UA_NetworkMessageOffsetBuffer));
     UA_NetworkMessage_calcSizeBinary(&networkMessage, &wg->bufferedMessage);
 
@@ -348,8 +349,8 @@ UA_Server_unfreezeWriterGroupConfiguration(UA_Server *server,
         }
         dataSetWriter->configurationFrozen = UA_FALSE;
     }
-    if(wg->config.rtLevel == UA_PUBSUB_RT_FIXED_SIZE)
-        UA_ByteString_clear(&wg->bufferedMessage.buffer);
+
+    UA_NetworkMessageOffsetBuffer_clear(&wg->bufferedMessage);
 
     return UA_STATUSCODE_GOOD;
 }
@@ -541,19 +542,7 @@ UA_WriterGroup_clear(UA_Server *server, UA_WriterGroup *writerGroup) {
         UA_Server_removeDataSetWriter(server, dataSetWriter->identifier);
     }
 
-    if(writerGroup->bufferedMessage.offsetsSize > 0){
-        for(size_t i = 0; i < writerGroup->bufferedMessage.offsetsSize; i++) {
-            if((writerGroup->bufferedMessage.offsets[i].contentType == UA_PUBSUB_OFFSETTYPE_PAYLOAD_VARIANT) ||
-                (writerGroup->bufferedMessage.offsets[i].contentType == UA_PUBSUB_OFFSETTYPE_PAYLOAD_RAW)) {
-                UA_DataValue_delete(writerGroup->bufferedMessage.offsets[i].offsetData.value.value);
-            } else if(writerGroup->bufferedMessage.offsets[i].contentType == UA_PUBSUB_OFFSETTYPE_NETWORKMESSAGE_FIELDENCDODING) {
-                writerGroup->bufferedMessage.offsets[i].offsetData.value.value->value.data = NULL;
-                UA_DataValue_delete(writerGroup->bufferedMessage.offsets[i].offsetData.value.value);
-            }
-        }
-        UA_ByteString_clear(&writerGroup->bufferedMessage.buffer);
-        UA_free(writerGroup->bufferedMessage.offsets);
-    }
+    UA_NetworkMessageOffsetBuffer_clear(&writerGroup->bufferedMessage);
 
 #ifdef UA_ENABLE_PUBSUB_ENCRYPTION
     if(writerGroup->config.securityPolicy && writerGroup->securityPolicyContext) {
