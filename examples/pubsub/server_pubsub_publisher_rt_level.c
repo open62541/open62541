@@ -202,9 +202,12 @@ int main(void) {
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     retval |= UA_Server_run(server, &running);
 
+    UA_Server_delete(server);
+
+    /* Remove the source after deleting the server.
+     * It might be accessed during shutdown. */
 #if defined PUBSUB_CONFIG_FASTPATH_FIXED_OFFSETS || defined PUBSUB_CONFIG_FASTPATH_STATIC_VALUES
     UA_DataValue_delete(staticValueSource);
 #endif
-    UA_Server_delete(server);
     return retval == UA_STATUSCODE_GOOD ? EXIT_SUCCESS : EXIT_FAILURE;
 }

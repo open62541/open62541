@@ -199,11 +199,11 @@ int main(void) {
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     retval |= UA_Server_run(server, &running);
 
+    UA_Server_delete(server);
 #if defined PUBSUB_CONFIG_FASTPATH_FIXED_OFFSETS || defined PUBSUB_CONFIG_FASTPATH_STATIC_VALUES
     for(int i = 0; i < PUBSUB_CONFIG_FIELD_COUNT; ++i) {
         UA_DataValue_clear(staticValueSource[i]);
     }
 #endif
-    UA_Server_delete(server);
     return retval == UA_STATUSCODE_GOOD ? EXIT_SUCCESS : EXIT_FAILURE;
 }
