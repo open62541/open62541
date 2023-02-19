@@ -26,6 +26,8 @@ static UA_NodeId ds1Int32FastId;
 static UA_Int32 ds1Int32FastVal = 0;
 static UA_NodeId ds1DateTimeId;
 
+#define ds2StringArrayLen 26
+
 static UA_NodeId ds2BoolToggleId;
 static UA_Boolean ds2BoolToggleVal = false;
 static UA_NodeId ds2ByteId;
@@ -48,8 +50,7 @@ static UA_NodeId ds2FloatId;
 static UA_Float ds2FloatVal = 0;
 static UA_NodeId ds2DoubleId;
 static UA_Double ds2DoubleVal = 0;
-static UA_String *ds2StringArray = NULL;
-static size_t ds2StringArrayLen = 0;
+static UA_String ds2StringArray[ds2StringArrayLen];
 static size_t ds2StringIndex = 0;
 static UA_NodeId ds2StringId;
 static UA_NodeId ds2ByteStringId;
@@ -318,34 +319,32 @@ static void addPublisher2(UA_Server *server, UA_NodeId publishedDataSetId) {
         UA_QUALIFIEDNAME(1, "Double"),
         UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE), doubleAttr, NULL, &ds2DoubleId);
 
-    ds2StringArrayLen = 26;
-    ds2StringArray = (UA_String*)UA_Array_new(ds2StringArrayLen, &UA_TYPES[UA_TYPES_STRING]);
-    ds2StringArray[0] = UA_STRING_ALLOC("Alpha");
-    ds2StringArray[1] = UA_STRING_ALLOC("Bravo");
-    ds2StringArray[2] = UA_STRING_ALLOC("Charlie");
-    ds2StringArray[3] = UA_STRING_ALLOC("Delta");
-    ds2StringArray[4] = UA_STRING_ALLOC("Echo");
-    ds2StringArray[5] = UA_STRING_ALLOC("Foxtrot");
-    ds2StringArray[6] = UA_STRING_ALLOC("Golf");
-    ds2StringArray[7] = UA_STRING_ALLOC("Hotel");
-    ds2StringArray[8] = UA_STRING_ALLOC("India");
-    ds2StringArray[9] = UA_STRING_ALLOC("Juliet");
-    ds2StringArray[10] = UA_STRING_ALLOC("Kilo");
-    ds2StringArray[11] = UA_STRING_ALLOC("Lima");
-    ds2StringArray[12] = UA_STRING_ALLOC("Mike");
-    ds2StringArray[13] = UA_STRING_ALLOC("November");
-    ds2StringArray[14] = UA_STRING_ALLOC("Oscar");
-    ds2StringArray[15] = UA_STRING_ALLOC("Papa");
-    ds2StringArray[16] = UA_STRING_ALLOC("Quebec");
-    ds2StringArray[17] = UA_STRING_ALLOC("Romeo");
-    ds2StringArray[18] = UA_STRING_ALLOC("Sierra");
-    ds2StringArray[19] = UA_STRING_ALLOC("Tango");
-    ds2StringArray[20] = UA_STRING_ALLOC("Uniform");
-    ds2StringArray[21] = UA_STRING_ALLOC("Victor");
-    ds2StringArray[22] = UA_STRING_ALLOC("Whiskey");
-    ds2StringArray[23] = UA_STRING_ALLOC("X-ray");
-    ds2StringArray[24] = UA_STRING_ALLOC("Yankee");
-    ds2StringArray[25] = UA_STRING_ALLOC("Zulu");
+    ds2StringArray[0] = UA_STRING("Alpha");
+    ds2StringArray[1] = UA_STRING("Bravo");
+    ds2StringArray[2] = UA_STRING("Charlie");
+    ds2StringArray[3] = UA_STRING("Delta");
+    ds2StringArray[4] = UA_STRING("Echo");
+    ds2StringArray[5] = UA_STRING("Foxtrot");
+    ds2StringArray[6] = UA_STRING("Golf");
+    ds2StringArray[7] = UA_STRING("Hotel");
+    ds2StringArray[8] = UA_STRING("India");
+    ds2StringArray[9] = UA_STRING("Juliet");
+    ds2StringArray[10] = UA_STRING("Kilo");
+    ds2StringArray[11] = UA_STRING("Lima");
+    ds2StringArray[12] = UA_STRING("Mike");
+    ds2StringArray[13] = UA_STRING("November");
+    ds2StringArray[14] = UA_STRING("Oscar");
+    ds2StringArray[15] = UA_STRING("Papa");
+    ds2StringArray[16] = UA_STRING("Quebec");
+    ds2StringArray[17] = UA_STRING("Romeo");
+    ds2StringArray[18] = UA_STRING("Sierra");
+    ds2StringArray[19] = UA_STRING("Tango");
+    ds2StringArray[20] = UA_STRING("Uniform");
+    ds2StringArray[21] = UA_STRING("Victor");
+    ds2StringArray[22] = UA_STRING("Whiskey");
+    ds2StringArray[23] = UA_STRING("X-ray");
+    ds2StringArray[24] = UA_STRING("Yankee");
+    ds2StringArray[25] = UA_STRING("Zulu");
 
     UA_String stringVal;
     UA_String_init(&stringVal);
@@ -708,6 +707,30 @@ timerCallback(UA_Server *server, void *data) {
     UA_Server_writeValue(server, ds2UInt32ArrId, tmpVari);
 }
 
+/* Clean up global variables */
+static void cleanup(void) {
+    UA_NodeId_clear(&ds1BoolToggleId);
+    UA_NodeId_clear(&ds1Int32Id);
+    UA_NodeId_clear(&ds1Int32FastId);
+    UA_NodeId_clear(&ds1DateTimeId);
+    UA_NodeId_clear(&ds2BoolToggleId);
+    UA_NodeId_clear(&ds2ByteId);
+    UA_NodeId_clear(&ds2Int16Id);
+    UA_NodeId_clear(&ds2Int32Id);
+    UA_NodeId_clear(&ds2Int64Id);
+    UA_NodeId_clear(&ds2SByteId);
+    UA_NodeId_clear(&ds2UInt16Id);
+    UA_NodeId_clear(&ds2UInt32Id);
+    UA_NodeId_clear(&ds2UInt64Id);
+    UA_NodeId_clear(&ds2FloatId);
+    UA_NodeId_clear(&ds2DoubleId);
+    UA_NodeId_clear(&ds2StringId);
+    UA_NodeId_clear(&ds2ByteStringId);
+    UA_NodeId_clear(&ds2GuidId);
+    UA_NodeId_clear(&ds2DateTimeId);
+    UA_NodeId_clear(&ds2UInt32ArrId);
+}
+
 UA_Boolean running = true;
 static void stopHandler(int sig) {
     running = false;
@@ -801,6 +824,8 @@ static int run(UA_String *transportProfile,
     UA_StatusCode retval = UA_Server_run(server, &running);
 
     UA_Server_delete(server);
+    cleanup();
+
     return retval == UA_STATUSCODE_GOOD ? EXIT_SUCCESS : EXIT_FAILURE;
 }
 
