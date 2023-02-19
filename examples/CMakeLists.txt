@@ -142,8 +142,6 @@ endif()
 
 add_example(client_connect_loop client_connect_loop.c)
 
-add_example(client_connectivitycheck_loop client_connectivitycheck_loop.c)
-
 if(UA_ENABLE_SUBSCRIPTIONS)
     add_example(client_subscription_loop client_subscription_loop.c)
 endif()
