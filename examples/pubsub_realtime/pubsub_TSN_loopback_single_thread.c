@@ -1176,8 +1176,6 @@ int main(int argc, char **argv) {
 
     UA_Int32         returnValue         = 0;
     UA_StatusCode    retval              = UA_STATUSCODE_GOOD;
-    UA_Server       *server              = UA_Server_new();
-    UA_ServerConfig *config              = UA_Server_getConfig(server);
     char            *interface           = NULL;
     UA_Int32         argInputs           = 0;
     UA_Int32         long_index          = 0;
@@ -1269,7 +1267,7 @@ int main(int argc, char **argv) {
     if (!interface) {
         UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "Need a network interface to run");
         usage(progname);
-        return -1;
+        return 0;
     }
 
     if (cycleTimeInMsec < 0.125) {
@@ -1285,6 +1283,8 @@ int main(int argc, char **argv) {
     }
 #endif
 
+    UA_Server       *server              = UA_Server_new();
+    UA_ServerConfig *config              = UA_Server_getConfig(server);
     UA_ServerConfig_setMinimal(config, PORT_NUMBER, NULL);
 #ifdef TWO_WAY_COMMUNICATION
     UA_NetworkAddressUrlDataType networkAddressUrlPub;

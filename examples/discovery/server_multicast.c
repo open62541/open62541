@@ -278,7 +278,7 @@ int main(int argc, char **argv) {
     if(!running) {
         UA_Server_delete(server);
         UA_free(discovery_url);
-        return EXIT_FAILURE;
+        return EXIT_SUCCESS;
     }
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "LDS-ME server found on %s", discovery_url);
 
