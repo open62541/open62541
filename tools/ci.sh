@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Exit immediately if a command exits with a non-zero status
-set -e 
+set -e
 
 # Use the error status of the first failure in a pipeline
 set -o pipefail
@@ -252,7 +252,6 @@ function unit_tests_encryption_mbedtls_pubsub {
 function unit_tests_valgrind {
     mkdir -p build; cd build; rm -rf *
     cmake -DCMAKE_BUILD_TYPE=Debug \
-          -DUA_BUILD_EXAMPLES=ON \
           -DUA_BUILD_UNIT_TESTS=ON \
           -DUA_ENABLE_DISCOVERY=ON \
           -DUA_ENABLE_DISCOVERY_MULTICAST=ON \
@@ -268,6 +267,46 @@ function unit_tests_valgrind {
           ..
     make ${MAKEOPTS}
     make test ARGS="-V"
+}
+
+########################################
+# Build and Run Examples with Valgrind #
+########################################
+
+function examples_valgrind {
+    mkdir -p build; cd build; rm -rf *
+    cmake -DCMAKE_BUILD_TYPE=Debug \
+          -DUA_BUILD_EXAMPLES=ON \
+          -DUA_ENABLE_DISCOVERY=ON \
+          -DUA_ENABLE_DISCOVERY_MULTICAST=ON \
+          -DUA_ENABLE_ENCRYPTION=$1 \
+          -DUA_ENABLE_SUBSCRIPTIONS_EVENTS=ON \
+          -DUA_ENABLE_HISTORIZING=ON \
+          -DUA_ENABLE_JSON_ENCODING=ON \
+          -DUA_ENABLE_PUBSUB=ON \
+          -DUA_ENABLE_PUBSUB_DELTAFRAMES=ON \
+          -DUA_ENABLE_PUBSUB_INFORMATIONMODEL=ON \
+          -DUA_ENABLE_PUBSUB_MONITORING=ON \
+          -DUA_ENABLE_UNIT_TESTS_MEMCHECK=ON \
+          ..
+    make ${MAKEOPTS}
+
+    # Run each example with valgrind. Wait 10 seconds and send the SIGINT
+    # signal. Wait for the process to terminate and collect the exit status.
+    # Abort when the exit status is non-null.
+    FILES="./bin/examples/*"
+    for f in $FILES
+    do
+	    echo "Processing $f"
+	    valgrind --leak-check=yes --error-exitcode=1 $f &
+	    sleep 10
+	    kill -INT %1
+	    wait $!; EXIT_CODE=$?
+	    if [[ $EXIT_CODE -ne 0 ]]; then
+		   echo "Processing $f failed with exit code $EXIT_CODE "
+		   exit $EXIT_CODE	
+	    fi
+    done
 }
 
 ##############################
