@@ -363,75 +363,70 @@ addSubscribedVariables(UA_Server *server, UA_NodeId dataSetReaderId,
                        UA_DataSetReaderDataType *dataSetReaderDataType,
                        UA_DataSetMetaDataType *pMetaData) {
     UA_StatusCode retVal = UA_STATUSCODE_GOOD;
-    UA_TargetVariablesDataType targetVars;
     UA_ExtensionObject *eoTargetVar = &dataSetReaderDataType->subscribedDataSet;
-    if(eoTargetVar->encoding == UA_EXTENSIONOBJECT_DECODED){
-        if(eoTargetVar->content.decoded.type == &UA_TYPES[UA_TYPES_TARGETVARIABLESDATATYPE]){
-            if(UA_TargetVariablesDataType_copy((UA_TargetVariablesDataType *) eoTargetVar->content.decoded.data,
-                                                &targetVars) != UA_STATUSCODE_GOOD){
-                return UA_STATUSCODE_BADOUTOFMEMORY;
-            }
-        }
-        UA_NodeId folderId;
-        UA_String folderName = pMetaData->name;
-        UA_ObjectAttributes oAttr = UA_ObjectAttributes_default;
-        UA_QualifiedName folderBrowseName;
-        if(folderName.length > 0) {
-            oAttr.displayName.locale = UA_STRING("");
-            oAttr.displayName.text = folderName;
-            folderBrowseName.namespaceIndex = 1;
-            folderBrowseName.name = folderName;
-        } else {
-            oAttr.displayName = UA_LOCALIZEDTEXT("", "Subscribed Variables");
-            folderBrowseName = UA_QUALIFIEDNAME(1, "Subscribed Variables");
-        }
+    if(eoTargetVar->encoding != UA_EXTENSIONOBJECT_DECODED ||
+       eoTargetVar->content.decoded.type != &UA_TYPES[UA_TYPES_TARGETVARIABLESDATATYPE])
+        return UA_STATUSCODE_BADINTERNALERROR;
 
-        UA_Server_addObjectNode(server, UA_NODEID_NULL,
-                                UA_NODEID_NUMERIC (0, UA_NS0ID_OBJECTSFOLDER),
-                                UA_NODEID_NUMERIC (0, UA_NS0ID_ORGANIZES),
-                                folderBrowseName, UA_NODEID_NUMERIC (0,
-                                UA_NS0ID_BASEOBJECTTYPE), oAttr, NULL, &folderId);
-        /**
-        * **TargetVariables**
-        *
-        * The SubscribedDataSet option TargetVariables defines a list of Variable mappings between
-        * received DataSet fields and target Variables in the Subscriber AddressSpace.
-        * The values subscribed from the Publisher are updated in the value field of these variables */
-        /* Create the TargetVariables with respect to DataSetMetaData fields */
-        UA_FieldTargetVariable *targetVarsData = (UA_FieldTargetVariable *)
-            UA_calloc(targetVars.targetVariablesSize, sizeof(UA_FieldTargetVariable));
-        for(size_t i = 0; i < targetVars.targetVariablesSize; i++) {
-            /* Variable to subscribe data */
-            UA_VariableAttributes vAttr = UA_VariableAttributes_default;
-            UA_LocalizedText_copy(&pMetaData->fields[i].description,
-                                  &vAttr.description);
-            vAttr.displayName.locale = UA_STRING("");
-            vAttr.displayName.text = pMetaData->fields[i].name;
-            vAttr.dataType = pMetaData->fields[i].dataType;
+    const UA_TargetVariablesDataType *targetVars =
+        (UA_TargetVariablesDataType *) eoTargetVar->content.decoded.data;
 
-            UA_QualifiedName browseName;
-            browseName.namespaceIndex = 1;
-            browseName.name = pMetaData->fields[i].name;
-
-            UA_NodeId newNode;
-            retVal |= UA_Server_addVariableNode(server, targetVars.targetVariables[i].targetNodeId,
-                                                folderId,
-                                                UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
-                                                browseName,
-                                                UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
-                                                vAttr, NULL, &newNode);
-
-            /* For creating Targetvariables */
-            UA_FieldTargetDataType_init(&targetVarsData[i].targetVariable);
-            targetVarsData[i].targetVariable.attributeId  = targetVars.targetVariables[i].attributeId;
-            targetVarsData[i].targetVariable.targetNodeId = newNode;
-        }
-        retVal = UA_Server_DataSetReader_createTargetVariables(server, dataSetReaderId,
-                                                                targetVars.targetVariablesSize, targetVarsData);
-        for(size_t j = 0; j < targetVars.targetVariablesSize; j++)
-            UA_FieldTargetDataType_clear(&targetVarsData[j].targetVariable);
-        UA_free(targetVarsData);
+    UA_NodeId folderId;
+    UA_String folderName = pMetaData->name;
+    UA_ObjectAttributes oAttr = UA_ObjectAttributes_default;
+    UA_QualifiedName folderBrowseName;
+    if(folderName.length > 0) {
+        oAttr.displayName.locale = UA_STRING("");
+        oAttr.displayName.text = folderName;
+        folderBrowseName.namespaceIndex = 1;
+        folderBrowseName.name = folderName;
+    } else {
+        oAttr.displayName = UA_LOCALIZEDTEXT("", "Subscribed Variables");
+        folderBrowseName = UA_QUALIFIEDNAME(1, "Subscribed Variables");
     }
+
+    UA_Server_addObjectNode(server, UA_NODEID_NULL, UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
+                            UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES), folderBrowseName,
+                            UA_NODEID_NUMERIC(0, UA_NS0ID_BASEOBJECTTYPE), oAttr, NULL, &folderId);
+    /**
+     * **TargetVariables**
+     *
+     * The SubscribedDataSet option TargetVariables defines a list of Variable
+     * mappings between received DataSet fields and target Variables in the Subscriber
+     * AddressSpace. The values subscribed from the Publisher are updated in the value
+     * field of these variables */
+    /* Create the TargetVariables with respect to DataSetMetaData fields */
+    UA_FieldTargetVariable *targetVarsData = (UA_FieldTargetVariable *)
+        UA_calloc(targetVars->targetVariablesSize, sizeof(UA_FieldTargetVariable));
+    for(size_t i = 0; i < targetVars->targetVariablesSize; i++) {
+        /* Variable to subscribe data */
+        UA_VariableAttributes vAttr = UA_VariableAttributes_default;
+        UA_LocalizedText_copy(&pMetaData->fields[i].description, &vAttr.description);
+        vAttr.displayName.locale = UA_STRING("");
+        vAttr.displayName.text = pMetaData->fields[i].name;
+        vAttr.dataType = pMetaData->fields[i].dataType;
+
+        UA_QualifiedName browseName;
+        browseName.namespaceIndex = 1;
+        browseName.name = pMetaData->fields[i].name;
+
+        UA_NodeId newNode;
+        retVal |= UA_Server_addVariableNode(
+            server, targetVars->targetVariables[i].targetNodeId, folderId,
+            UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT), browseName,
+            UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE), vAttr, NULL, &newNode);
+
+        /* For creating Targetvariables */
+        targetVarsData[i].targetVariable.attributeId =
+            targetVars->targetVariables[i].attributeId;
+        targetVarsData[i].targetVariable.targetNodeId = newNode;
+    }
+    retVal =
+        UA_Server_DataSetReader_createTargetVariables(server, dataSetReaderId,
+                                                      targetVars->targetVariablesSize, targetVarsData);
+    for(size_t j = 0; j < targetVars->targetVariablesSize; j++)
+        UA_FieldTargetDataType_clear(&targetVarsData[j].targetVariable);
+    UA_free(targetVarsData);
 
     return retVal;
 }
