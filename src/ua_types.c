@@ -302,15 +302,12 @@ NodeId_copy(UA_NodeId const *src, UA_NodeId *dst, const UA_DataType *_) {
         *dst = *src;
         return UA_STATUSCODE_GOOD;
     case UA_NODEIDTYPE_STRING:
-        retval |= UA_String_copy(&src->identifier.string,
-                                 &dst->identifier.string);
+    case UA_NODEIDTYPE_BYTESTRING:
+        retval |= String_copy(&src->identifier.string,
+                              &dst->identifier.string, NULL);
         break;
     case UA_NODEIDTYPE_GUID:
-        retval |= UA_Guid_copy(&src->identifier.guid, &dst->identifier.guid);
-        break;
-    case UA_NODEIDTYPE_BYTESTRING:
-        retval |= UA_ByteString_copy(&src->identifier.byteString,
-                                     &dst->identifier.byteString);
+        dst->identifier.guid = src->identifier.guid;
         break;
     default:
         return UA_STATUSCODE_BADINTERNALERROR;
@@ -403,7 +400,7 @@ static UA_StatusCode
 ExpandedNodeId_copy(UA_ExpandedNodeId const *src, UA_ExpandedNodeId *dst,
                     const UA_DataType *_) {
     UA_StatusCode retval = NodeId_copy(&src->nodeId, &dst->nodeId, NULL);
-    retval |= UA_String_copy(&src->namespaceUri, &dst->namespaceUri);
+    retval |= String_copy(&src->namespaceUri, &dst->namespaceUri, NULL);
     dst->serverIndex = src->serverIndex;
     return retval;
 }
@@ -464,8 +461,9 @@ ExtensionObject_copy(UA_ExtensionObject const *src, UA_ExtensionObject *dst,
         dst->encoding = src->encoding;
         retval = NodeId_copy(&src->content.encoded.typeId,
                              &dst->content.encoded.typeId, NULL);
-        retval |= UA_ByteString_copy(&src->content.encoded.body,
-                                     &dst->content.encoded.body);
+        /* ByteString -> copy as string */
+        retval |= String_copy(&src->content.encoded.body,
+                              &dst->content.encoded.body, NULL);
         break;
     case UA_EXTENSIONOBJECT_DECODED:
     case UA_EXTENSIONOBJECT_DECODED_NODELETE:
@@ -961,8 +959,8 @@ LocalizedText_clear(UA_LocalizedText *p, const UA_DataType *_) {
 static UA_StatusCode
 LocalizedText_copy(UA_LocalizedText const *src, UA_LocalizedText *dst,
                    const UA_DataType *_) {
-    UA_StatusCode retval = UA_String_copy(&src->locale, &dst->locale);
-    retval |= UA_String_copy(&src->text, &dst->text);
+    UA_StatusCode retval = String_copy(&src->locale, &dst->locale, NULL);
+    retval |= String_copy(&src->text, &dst->text, NULL);
     return retval;
 }
 
@@ -1012,7 +1010,7 @@ DiagnosticInfo_copy(UA_DiagnosticInfo const *src, UA_DiagnosticInfo *dst,
     dst->innerDiagnosticInfo = NULL;
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     if(src->hasAdditionalInfo)
-       retval = UA_String_copy(&src->additionalInfo, &dst->additionalInfo);
+        retval = String_copy(&src->additionalInfo, &dst->additionalInfo, NULL);
     if(src->hasInnerDiagnosticInfo && src->innerDiagnosticInfo) {
         dst->innerDiagnosticInfo = (UA_DiagnosticInfo*)
             UA_malloc(sizeof(UA_DiagnosticInfo));
