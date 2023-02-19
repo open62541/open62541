@@ -1078,6 +1078,7 @@ START_TEST(AddNewPubSubConnectionWithReaderGroupandDataSetReader){
         ck_assert_int_eq(response.results->statusCode, UA_STATUSCODE_GOOD);
         UA_ExtensionObject_clear(&eo);
         UA_free(targetVars.targetVariables);
+        UA_free(pMetaData->fields);
         UA_free(pubSubConnection.readerGroups->dataSetReaders);
         UA_free(pubSubConnection.readerGroups);
         UA_CallResponse_clear(&response);
