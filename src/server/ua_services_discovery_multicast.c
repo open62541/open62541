@@ -104,6 +104,8 @@ addMdnsRecordForNetworkLayer(UA_Server *server, const UA_String *appName,
 }
 
 void startMulticastDiscoveryServer(UA_Server *server) {
+    initMulticastDiscoveryServer(&server->discoveryManager, server);
+
     UA_String *appName = &server->config.mdnsConfig.mdnsServerName;
     for(size_t i = 0; i < server->config.networkLayersSize; i++)
         addMdnsRecordForNetworkLayer(server, appName, &server->config.networkLayers[i]);

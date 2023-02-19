@@ -144,6 +144,9 @@ mdns_record_t *
 mdns_find_record(mdns_daemon_t *mdnsDaemon, unsigned short type,
                  const char *host, const char *rdname);
 
+UA_StatusCode
+initMulticastDiscoveryServer(UA_DiscoveryManager *dm, UA_Server* server);
+
 void startMulticastDiscoveryServer(UA_Server *server);
 
 void stopMulticastDiscoveryServer(UA_Server *server);
