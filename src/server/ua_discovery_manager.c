@@ -92,7 +92,7 @@ discovery_createMulticastSocket(UA_Server* server) {
     return s;
 }
 
-static UA_StatusCode
+UA_StatusCode
 initMulticastDiscoveryServer(UA_DiscoveryManager *dm, UA_Server* server) {
     server->discoveryManager.mdnsDaemon = mdnsd_new(QCLASS_IN, 1000);
     UA_initialize_architecture_network();
@@ -136,9 +136,6 @@ UA_DiscoveryManager_init(UA_DiscoveryManager *dm, UA_Server *server) {
     dm->mdnsDaemon = NULL;
     dm->mdnsSocket = UA_INVALID_SOCKET;
     dm->mdnsMainSrvAdded = false;
-    if(server->config.mdnsEnabled)
-        initMulticastDiscoveryServer(dm, server);
-
     dm->selfFqdnMdnsRecord = UA_STRING_NULL;
 
     LIST_INIT(&dm->serverOnNetwork);

@@ -327,6 +327,11 @@ UA_Server_init(UA_Server *server) {
     UA_AsyncManager_init(&server->asyncManager, server);
 #endif
 
+    /* Initialized discovery */
+#ifdef UA_ENABLE_DISCOVERY
+    UA_DiscoveryManager_init(&server->discoveryManager, server);
+#endif
+
     /* Add a regular callback for cleanup and maintenance. With a 10s interval. */
     UA_Server_addRepeatedCallback(server, (UA_ServerCallback)UA_Server_cleanup, NULL,
                                   10000.0, NULL);
@@ -606,11 +611,6 @@ UA_Server_run_startup(UA_Server *server) {
         UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
                        "There has to be at least one endpoint.");
     }
-
-    /* Initialized discovery */
-#ifdef UA_ENABLE_DISCOVERY
-    UA_DiscoveryManager_init(&server->discoveryManager, server);
-#endif
 
     /* Does the ApplicationURI match the local certificates? */
 #ifdef UA_ENABLE_ENCRYPTION
