@@ -107,6 +107,18 @@ UA_Server_removePubSubConnection(UA_Server *server, const UA_NodeId connection) 
     if(!currentConnection)
         return UA_STATUSCODE_BADNOTFOUND;
 
+    UA_WriterGroup *wg, *wg_tmp;
+    LIST_FOREACH_SAFE(wg, &currentConnection->writerGroups, listEntry, wg_tmp) {
+        UA_Server_unfreezeWriterGroupConfiguration(server, wg->identifier);
+        UA_Server_removeWriterGroup(server, wg->identifier);
+    }
+
+    UA_ReaderGroup *rg, *rg_tmp;
+    LIST_FOREACH_SAFE(rg, &currentConnection->readerGroups, listEntry, rg_tmp) {
+        UA_Server_unfreezeReaderGroupConfiguration(server, rg->identifier);
+        UA_Server_removeReaderGroup(server, rg->identifier);
+    }
+
 #ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL
     removePubSubConnectionRepresentation(server, currentConnection);
 #endif
