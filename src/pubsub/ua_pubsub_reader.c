@@ -1144,7 +1144,8 @@ DataSetReader_processFixedSize(UA_Server *server, UA_ReaderGroup *rg,
                                UA_DataSetReader *dsr, UA_DataSetMessage *msg,
                                size_t fieldCount) {
     for(size_t i = 0; i < fieldCount; i++) {
-        if(!msg->data.keyFrameData.dataSetFields[i].hasValue)
+        if(!msg->data.keyFrameData.dataSetFields[i].hasValue ||
+           !msg->data.keyFrameData.dataSetFields[i].value.type)
             continue;
 
         UA_FieldTargetVariable *tv =

@@ -155,8 +155,10 @@ UA_NetworkMessage_updateBufferedNwMessage(UA_NetworkMessageOffsetBuffer *buffer,
         case UA_PUBSUB_OFFSETTYPE_PAYLOAD_VARIANT:
             rv = UA_Variant_decodeBinary(src, &offset,
                                          &dsm->data.keyFrameData.dataSetFields[payloadCounter].value);
-            UA_CHECK_STATUS(rv, return rv);
-            dsm->data.keyFrameData.dataSetFields[payloadCounter].hasValue = true;
+            dsm->data.keyFrameData.dataSetFields[payloadCounter].hasValue =
+                (rv == UA_STATUSCODE_GOOD);
+            if(rv != UA_STATUSCODE_GOOD)
+               return rv;
             payloadCounter++;
             break;
         case UA_PUBSUB_OFFSETTYPE_PAYLOAD_RAW:
@@ -171,8 +173,11 @@ UA_NetworkMessage_updateBufferedNwMessage(UA_NetworkMessageOffsetBuffer *buffer,
         default:
             return UA_STATUSCODE_BADNOTSUPPORTED;
         }
+        if(rv != UA_STATUSCODE_GOOD)
+            return rv;
     }
-    //check if the frame is of type "raw" payload
+
+    /* Check if the frame is of type "raw" payload */
     if(smallestRawOffset != UA_UINT32_MAX){
         *bufferPosition = smallestRawOffset + buffer->rawMessageLength;
     } else {
@@ -1525,9 +1530,10 @@ UA_DataSetMessage_decodeBinary(const UA_ByteString *src, size_t *offset, UA_Data
                 for (UA_UInt16 i = 0; i < dst->data.keyFrameData.fieldCount; i++) {
                     UA_DataValue_init(&dst->data.keyFrameData.dataSetFields[i]);
                     rv = UA_Variant_decodeBinary(src, offset, &dst->data.keyFrameData.dataSetFields[i].value);
+                    dst->data.keyFrameData.dataSetFields[i].hasValue =
+                        (rv == UA_STATUSCODE_GOOD);
                     UA_CHECK_STATUS(rv, return rv);
 
-                    dst->data.keyFrameData.dataSetFields[i].hasValue = true;
                 }
                 break;
             }
@@ -1574,9 +1580,9 @@ UA_DataSetMessage_decodeBinary(const UA_ByteString *src, size_t *offset, UA_Data
 
                     UA_DataValue_init(&dst->data.deltaFrameData.deltaFrameFields[i].fieldValue);
                     rv = UA_Variant_decodeBinary(src, offset, &dst->data.deltaFrameData.deltaFrameFields[i].fieldValue.value);
+                    dst->data.deltaFrameData.deltaFrameFields[i].fieldValue.hasValue =
+                        (rv == UA_STATUSCODE_GOOD);
                     UA_CHECK_STATUS(rv, return rv);
-
-                    dst->data.deltaFrameData.deltaFrameFields[i].fieldValue.hasValue = true;
                 }
                 break;
             }
