@@ -692,10 +692,10 @@ UA_ReaderGroup_freezeConfiguration(UA_Server *server, UA_ReaderGroup *rg) {
     /* The offset buffer is already clear if the ReaderGroup was unfrozen
      * UA_NetworkMessageOffsetBuffer_clear(&dataSetReader->bufferedMessage); */
     memset(&dataSetReader->bufferedMessage, 0, sizeof(UA_NetworkMessageOffsetBuffer));
-    dataSetReader->bufferedMessage.RTsubscriberEnabled = true;
 
     /* Compute and store the offsets necessary to decode */
     UA_NetworkMessage_calcSizeBinary(networkMessage, &dataSetReader->bufferedMessage);
+    dataSetReader->bufferedMessage.RTsubscriberEnabled = true;
     dataSetReader->bufferedMessage.nm = networkMessage;
 
     return UA_STATUSCODE_GOOD;

@@ -23,9 +23,10 @@ UA_Boolean running;
 THREAD_HANDLE server_thread;
 
 THREAD_CALLBACK(serverloop) {
-        while (running)
+    while(running) {
         UA_Server_run_iterate(server, true);
-        return 0;
+    }
+    return 0;
 }
 
 static void setup(void) {
@@ -1117,6 +1118,7 @@ START_TEST(AddNewPubSubConnectionWithReaderGroupandDataSetReader){
         ck_assert_int_eq(response.results->statusCode, UA_STATUSCODE_GOOD);
         UA_ExtensionObject_clear(&eo);
         UA_free(targetVars.targetVariables);
+        UA_free(pMetaData->fields);
         UA_free(pubSubConnection.readerGroups->dataSetReaders);
         UA_free(pubSubConnection.readerGroups);
         UA_CallResponse_clear(&response);

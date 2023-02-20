@@ -85,24 +85,24 @@ onReadLocked(UA_Server *server, const UA_NodeId *sessionId, void *sessionContext
         case UA_NS0ID_PUBSUBCONNECTIONTYPE_PUBLISHERID:
             switch (pubSubConnection->config.publisherIdType) {
                 case UA_PUBLISHERIDTYPE_BYTE:
-                    UA_Variant_setScalar(&value, &pubSubConnection->config.publisherId.byte,
-                                         &UA_TYPES[UA_TYPES_BYTE]);
+                    UA_Variant_setScalarCopy(&value, &pubSubConnection->config.publisherId.byte,
+                                             &UA_TYPES[UA_TYPES_BYTE]);
                     break;
                 case UA_PUBLISHERIDTYPE_UINT16:
-                    UA_Variant_setScalar(&value, &pubSubConnection->config.publisherId.uint16,
-                                         &UA_TYPES[UA_TYPES_UINT16]);
+                    UA_Variant_setScalarCopy(&value, &pubSubConnection->config.publisherId.uint16,
+                                             &UA_TYPES[UA_TYPES_UINT16]);
                     break;
                 case UA_PUBLISHERIDTYPE_UINT32:
-                    UA_Variant_setScalar(&value, &pubSubConnection->config.publisherId.uint32,
-                                         &UA_TYPES[UA_TYPES_UINT32]);
+                    UA_Variant_setScalarCopy(&value, &pubSubConnection->config.publisherId.uint32,
+                                             &UA_TYPES[UA_TYPES_UINT32]);
                     break;
                 case UA_PUBLISHERIDTYPE_UINT64:
-                    UA_Variant_setScalar(&value, &pubSubConnection->config.publisherId.uint64,
-                                         &UA_TYPES[UA_TYPES_UINT64]);
+                    UA_Variant_setScalarCopy(&value, &pubSubConnection->config.publisherId.uint64,
+                                             &UA_TYPES[UA_TYPES_UINT64]);
                     break;
                 case UA_PUBLISHERIDTYPE_STRING:
-                    UA_Variant_setScalar(&value, &pubSubConnection->config.publisherId.string,
-                                         &UA_TYPES[UA_TYPES_STRING]);
+                    UA_Variant_setScalarCopy(&value, &pubSubConnection->config.publisherId.string,
+                                             &UA_TYPES[UA_TYPES_STRING]);
                     break;
                 default:
                     UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
@@ -122,8 +122,8 @@ onReadLocked(UA_Server *server, const UA_NodeId *sessionId, void *sessionContext
 
         switch(nodeContext->elementClassiefier) {
         case UA_NS0ID_DATASETREADERTYPE_PUBLISHERID:
-            UA_Variant_setScalar(&value, dataSetReader->config.publisherId.data,
-                                 dataSetReader->config.publisherId.type);
+            UA_Variant_setScalarCopy(&value, dataSetReader->config.publisherId.data,
+                                     dataSetReader->config.publisherId.type);
             break;
         default:
             UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
@@ -137,8 +137,8 @@ onReadLocked(UA_Server *server, const UA_NodeId *sessionId, void *sessionContext
             return;
         switch(nodeContext->elementClassiefier){
         case UA_NS0ID_WRITERGROUPTYPE_PUBLISHINGINTERVAL:
-            UA_Variant_setScalar(&value, &writerGroup->config.publishingInterval,
-                                 &UA_TYPES[UA_TYPES_DURATION]);
+            UA_Variant_setScalarCopy(&value, &writerGroup->config.publishingInterval,
+                                     &UA_TYPES[UA_TYPES_DURATION]);
             break;
         default:
             UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
@@ -153,8 +153,8 @@ onReadLocked(UA_Server *server, const UA_NodeId *sessionId, void *sessionContext
 
         switch(nodeContext->elementClassiefier) {
             case UA_NS0ID_DATASETWRITERTYPE_DATASETWRITERID:
-                UA_Variant_setScalar(&value, &dataSetWriter->config.dataSetWriterId,
-                                     &UA_TYPES[UA_TYPES_UINT16]);
+                UA_Variant_setScalarCopy(&value, &dataSetWriter->config.dataSetWriterId,
+                                         &UA_TYPES[UA_TYPES_UINT16]);
                 break;
             default:
                 UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
@@ -174,10 +174,8 @@ onReadLocked(UA_Server *server, const UA_NodeId *sessionId, void *sessionContext
             UA_DataSetField *field;
             TAILQ_FOREACH(field, &publishedDataSet->fields, listEntry) {
                 pvd[counter].attributeId = UA_ATTRIBUTEID_VALUE;
-                pvd[counter].publishedVariable =
-                    field->config.field.variable.publishParameters.publishedVariable;
-                //UA_NodeId_copy(&field->config.field.variable.publishParameters.publishedVariable,
-                //               &pvd[counter].publishedVariable);
+                UA_NodeId_copy(&field->config.field.variable.publishParameters.publishedVariable,
+                               &pvd[counter].publishedVariable);
                 counter++;
             }
             UA_Variant_setArray(&value, pvd, publishedDataSet->fieldSize,
@@ -185,12 +183,12 @@ onReadLocked(UA_Server *server, const UA_NodeId *sessionId, void *sessionContext
             break;
         }
         case UA_NS0ID_PUBLISHEDDATAITEMSTYPE_DATASETMETADATA: {
-            UA_Variant_setScalar(&value, &publishedDataSet->dataSetMetaData,
-                                 &UA_TYPES[UA_TYPES_DATASETMETADATATYPE]);
+            UA_Variant_setScalarCopy(&value, &publishedDataSet->dataSetMetaData,
+                                     &UA_TYPES[UA_TYPES_DATASETMETADATATYPE]);
             break;
         }
         case UA_NS0ID_PUBLISHEDDATAITEMSTYPE_CONFIGURATIONVERSION: {
-            UA_Variant_setScalar(&value, &publishedDataSet->dataSetMetaData.configurationVersion,
+            UA_Variant_setScalarCopy(&value, &publishedDataSet->dataSetMetaData.configurationVersion,
                                      &UA_TYPES[UA_TYPES_CONFIGURATIONVERSIONDATATYPE]);
             break;
         }
@@ -205,13 +203,13 @@ onReadLocked(UA_Server *server, const UA_NodeId *sessionId, void *sessionContext
             UA_StandaloneSubscribedDataSet_findSDSbyId(server, *myNodeId);
         switch(nodeContext->elementClassiefier) {
             case UA_NS0ID_STANDALONESUBSCRIBEDDATASETTYPE_ISCONNECTED: {
-                UA_Variant_setScalar(&value, &sds->config.isConnected,
-                                     &UA_TYPES[UA_TYPES_BOOLEAN]);
+                UA_Variant_setScalarCopy(&value, &sds->config.isConnected,
+                                         &UA_TYPES[UA_TYPES_BOOLEAN]);
                 break;
             }
             case UA_NS0ID_STANDALONESUBSCRIBEDDATASETTYPE_DATASETMETADATA: {
-                UA_Variant_setScalar(&value, &sds->config.dataSetMetaData,
-                                     &UA_TYPES[UA_TYPES_DATASETMETADATATYPE]);
+                UA_Variant_setScalarCopy(&value, &sds->config.dataSetMetaData,
+                                         &UA_TYPES[UA_TYPES_DATASETMETADATATYPE]);
                 break;
             }
             default:
@@ -226,10 +224,7 @@ onReadLocked(UA_Server *server, const UA_NodeId *sessionId, void *sessionContext
     }
 
     writeValueAttribute(server, *nodeid, &value);
-    if(pvd && publishedDataSet) {
-        UA_Array_delete(pvd, publishedDataSet->fieldSize,
-                        &UA_TYPES[UA_TYPES_PUBLISHEDVARIABLEDATATYPE]);
-    }
+    UA_Variant_clear(&value);
 }
 
 static void
@@ -505,11 +500,13 @@ addSubscribedVariables(UA_Server *server, UA_NodeId dataSetReaderId,
             &oAttr, &UA_TYPES[UA_TYPES_OBJECTATTRIBUTES],
             NULL, &folderId);
 
-    /* The SubscribedDataSet option TargetVariables defines a list of Variable
-     * mappings between received DataSet fields and target Variables in the
-     * Subscriber AddressSpace. The values subscribed from the Publisher are
-     * updated in the value field of these variables */
-
+    /**
+     * **TargetVariables**
+     *
+     * The SubscribedDataSet option TargetVariables defines a list of Variable
+     * mappings between received DataSet fields and target Variables in the Subscriber
+     * AddressSpace. The values subscribed from the Publisher are updated in the value
+     * field of these variables */
     /* Create the TargetVariables with respect to DataSetMetaData fields */
     UA_FieldTargetVariable *targetVarsData = (UA_FieldTargetVariable *)
         UA_calloc(targetVars->targetVariablesSize, sizeof(UA_FieldTargetVariable));
@@ -1132,8 +1129,14 @@ addPublishedDataItemsAction(UA_Server *server,
     size_t fieldFlagsSize = input[2].arrayLength;
     UA_DataSetFieldFlags * fieldFlags = (UA_DataSetFieldFlags *) input[2].data;
     size_t variablesToAddSize = input[3].arrayLength;
-    UA_PublishedVariableDataType *eoAddVar =
-        (UA_PublishedVariableDataType *)input[3].data;
+    UA_PublishedVariableDataType *variablesToAdd = NULL;
+    UA_ExtensionObject *eoAddVar = NULL;
+    if(input[3].type == &UA_TYPES[UA_TYPES_PUBLISHEDVARIABLEDATATYPE])
+        variablesToAdd = (UA_PublishedVariableDataType*)input[3].data;
+    else if(input[3].type == &UA_TYPES[UA_TYPES_EXTENSIONOBJECT])
+        eoAddVar = (UA_ExtensionObject *)input[3].data;
+    else
+        return UA_STATUSCODE_BADINTERNALERROR;
 
     if(fieldNameAliasesSize != fieldFlagsSize ||
        fieldFlagsSize != variablesToAddSize)
@@ -1155,12 +1158,26 @@ addPublishedDataItemsAction(UA_Server *server,
 
     UA_DataSetFieldConfig dataSetFieldConfig;
     for(size_t j = 0; j < variablesToAddSize; ++j) {
+        /* Prepare the config */
         memset(&dataSetFieldConfig, 0, sizeof(UA_DataSetFieldConfig));
         dataSetFieldConfig.dataSetFieldType = UA_PUBSUB_DATASETFIELD_VARIABLE;
         dataSetFieldConfig.field.variable.fieldNameAlias = fieldNameAliases[j];
-        dataSetFieldConfig.field.variable.publishParameters = eoAddVar[j];
         if(fieldFlags[j] == UA_DATASETFIELDFLAGS_PROMOTEDFIELD)
             dataSetFieldConfig.field.variable.promotedField = true;
+
+        UA_PublishedVariableDataType *variableToAdd;
+        if(variablesToAdd) {
+            variableToAdd = &variablesToAdd[j];
+        } else {
+            if(eoAddVar[j].content.decoded.type !=
+               &UA_TYPES[UA_TYPES_PUBLISHEDVARIABLEDATATYPE])
+                return UA_STATUSCODE_BADINTERNALERROR;
+            variableToAdd = (UA_PublishedVariableDataType*)
+                eoAddVar[j].content.decoded.data;
+        }
+        dataSetFieldConfig.field.variable.publishParameters = *variableToAdd;
+
+        /* Add the dataset field */
         retVal |= UA_Server_addDataSetField(server, dataSetItemsNodeId,
                                             &dataSetFieldConfig, NULL).result;
         if(retVal != UA_STATUSCODE_GOOD) {
