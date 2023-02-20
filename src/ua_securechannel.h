@@ -105,10 +105,6 @@ struct UA_SecureChannel {
     UA_ConnectionManager *connectionManager;
     uintptr_t connectionId;
 
-    /* Reverse connect */
-    uintptr_t reverseConnectListenConnectionId;
-    UA_Boolean listenerDisconnected;
-
     /* Rules for revolving the token with a renew OPN request: The client is
      * allowed to accept messages with the old token until the OPN response has
      * arrived. The server accepts the old token until one message secured with

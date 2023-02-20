@@ -1320,7 +1320,6 @@ static void closeListeningReverseConnectSocket(UA_Client *client) {
     if (client->channel.state != UA_SECURECHANNELSTATE_REVERSE_LISTENING)
         return;
 
-    client->channel.listenerDisconnected = true;
     client->channel.connectionManager->closeConnection(client->channel.connectionManager, client->channel.connectionId);
 
     UA_EventLoop *el = client->config.eventLoop;
@@ -1570,7 +1569,7 @@ __Client_reverseConnectCallback(UA_ConnectionManager *cm, uintptr_t connectionId
 
     UA_LOCK(&client->clientMutex);
 
-    if (!client->channel.connectionId && !client->channel.listenerDisconnected) {
+    if (!client->channel.connectionId) {
         client->channel.connectionId = connectionId;
         *connectionContext = reverseConnectIndicator;
     }
@@ -1590,8 +1589,7 @@ __Client_reverseConnectCallback(UA_ConnectionManager *cm, uintptr_t connectionId
     }
 
     /* This is a connection initiated by a server, disconnect the listener */
-    if (client->channel.connectionId != connectionId && !client->channel.listenerDisconnected) {
-        client->channel.listenerDisconnected = true;
+    if (client->channel.connectionId != connectionId) {
         cm->closeConnection(cm, client->channel.connectionId);
     }
 
@@ -1638,7 +1636,6 @@ UA_StatusCode UA_Client_startListeningForReverseConnect(UA_Client *client, const
     client->channel.certificateVerification = &client->config.certificateVerification;
     client->channel.processOPNHeader = verifyClientSecurechannelHeader;
     client->channel.connectionId = 0;
-    client->channel.listenerDisconnected = false;
 
     initSecurityPolicy(client);
 
