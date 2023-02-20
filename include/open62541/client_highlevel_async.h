@@ -307,7 +307,7 @@ UA_Client_readUserExecutableAttribute_async(UA_Client *client, const UA_NodeId n
 
 /**
  * Write Attribute
- * ^^^^^^^^^^^^^^ */
+ * ^^^^^^^^^^^^^^^ */
 
 UA_StatusCode UA_EXPORT
 __UA_Client_writeAttribute_async(UA_Client *client, const UA_NodeId *nodeId,
