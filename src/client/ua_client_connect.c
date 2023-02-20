@@ -1613,8 +1613,11 @@ __Client_reverseConnectCallback(UA_ConnectionManager *cm, uintptr_t connectionId
 UA_StatusCode UA_Client_startListeningForReverseConnect(UA_Client *client, const UA_String *listenHostnames,
                                                         size_t listenHostnamesLength,
                                                         UA_UInt16 port) {
-    if (client->channel.state > UA_SECURECHANNELSTATE_FRESH && client->channel.state < UA_SECURECHANNELSTATE_CLOSED)
+    if (client->channel.state > UA_SECURECHANNELSTATE_FRESH && client->channel.state < UA_SECURECHANNELSTATE_CLOSED) {
+        UA_LOG_WARNING(&client->config.logger, UA_LOGCATEGORY_CLIENT,
+                       "Unable to listen for reverse connect while the client is connected or already listening");
         return UA_STATUSCODE_BADINVALIDSTATE;
+    }
 
     UA_LOCK(&client->clientMutex);
 
