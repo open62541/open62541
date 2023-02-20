@@ -1599,7 +1599,7 @@ decodeAndProcessNetworkMessageRT(UA_Server *server, UA_ReaderGroup *readerGroup,
     rv = UA_NetworkMessage_decodeHeaders(buf, &payLoadPosition, &currentNetworkMessage);
     if(rv != UA_STATUSCODE_GOOD) {
         UA_LOG_WARNING_READER(&server->config.logger, dataSetReader,
-                           "PubSub receive. decoding headers failed");
+                           "PubSub receive failed. Could not decode headers.");
         return rv;
     }
 
@@ -1607,7 +1607,8 @@ decodeAndProcessNetworkMessageRT(UA_Server *server, UA_ReaderGroup *readerGroup,
                                         &currentNetworkMessage, readerGroup);
     if(rv != UA_STATUSCODE_GOOD) {
         UA_LOG_WARNING_READER(&server->config.logger, dataSetReader,
-                              "Subscribe failed. verify and decrypt network message failed.");
+                              "PubSub receive failed. "
+                              "verify and decrypt network message failed.");
         return rv;
     }
     UA_NetworkMessage_clear(&currentNetworkMessage);
@@ -1618,7 +1619,8 @@ decodeAndProcessNetworkMessageRT(UA_Server *server, UA_ReaderGroup *readerGroup,
                                                    buf, &currentPosition);
     if(rv != UA_STATUSCODE_GOOD) {
         UA_LOG_INFO_READER(&server->config.logger, dataSetReader,
-                           "PubSub receive. Unknown field type.");
+                           "PubSub receive failed. Could not decode with "
+                           "StatusCode %s.", UA_StatusCode_name(rv));
         rv = UA_STATUSCODE_UNCERTAIN;
         goto cleanup;
     }
@@ -1627,7 +1629,8 @@ decodeAndProcessNetworkMessageRT(UA_Server *server, UA_ReaderGroup *readerGroup,
     rv = checkReaderIdentifier(server, nm, dataSetReader, readerGroup->config);
     if(rv != UA_STATUSCODE_GOOD) {
         UA_LOG_INFO_READER(&server->config.logger, dataSetReader,
-                           "PubSub receive. Unknown message received. Will not be processed.");
+                           "PubSub receive failed. Could not validate the "
+                           "Reader identifier.");
         rv = UA_STATUSCODE_UNCERTAIN;
         goto cleanup;
     }
