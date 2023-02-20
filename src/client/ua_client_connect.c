@@ -1623,11 +1623,7 @@ UA_StatusCode UA_Client_startListeningForReverseConnect(UA_Client *client, const
     const UA_String tcpString = UA_STRING_STATIC("tcp");
     UA_StatusCode res = UA_STATUSCODE_BADINTERNALERROR;
 
-    // FIXME: Are these good default values?
     client->noReconnect = true;
-    client->channel.config.recvBufferSize = 8192;
-    client->channel.config.sendBufferSize = 8192;
-
     client->connectStatus = UA_STATUSCODE_GOOD;
     client->channel.renewState = UA_SECURECHANNELRENEWSTATE_NORMAL;
 
