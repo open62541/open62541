@@ -107,7 +107,6 @@ struct UA_SecureChannel {
 
     /* Reverse connect */
     uintptr_t reverseConnectListenConnectionId;
-    UA_Boolean isReverseConnect;
     UA_Boolean listenerDisconnected;
 
     /* Rules for revolving the token with a renew OPN request: The client is

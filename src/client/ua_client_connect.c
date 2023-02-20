@@ -1074,9 +1074,7 @@ connectActivity(UA_Client *client) {
 
         /* Send HEL */
     case UA_SECURECHANNELSTATE_CONNECTED:
-        if (!client->channel.isReverseConnect) {
-            client->connectStatus = sendHELMessage(client);
-        }
+        client->connectStatus = sendHELMessage(client);
         return;
 
         /* ACK receieved. Send OPN. */
@@ -1201,7 +1199,8 @@ __Client_networkCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
 
         /* Inconsistent SecureChannel state. Has to be fresh for a new
          * connection. */
-        if(client->channel.state != UA_SECURECHANNELSTATE_FRESH) {
+        if(client->channel.state != UA_SECURECHANNELSTATE_FRESH &&
+                client->channel.state != UA_SECURECHANNELSTATE_REVERSE_LISTENING) {
             UA_LOG_ERROR(&client->config.logger, UA_LOGCATEGORY_CLIENT,
                          "Cannot open a connection for SecureChannel that is already used");
             client->connectStatus = UA_STATUSCODE_BADINTERNALERROR;
@@ -1220,7 +1219,7 @@ __Client_networkCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
         if(state == UA_CONNECTIONSTATE_OPENING)
             client->channel.state = UA_SECURECHANNELSTATE_CONNECTING;
         else {
-            if (client->channel.isReverseConnect)
+            if (client->channel.state == UA_SECURECHANNELSTATE_REVERSE_LISTENING)
                 client->channel.state = UA_SECURECHANNELSTATE_REVERSE_CONNECTED;
             else /* state == UA_CONNECTIONSTATE_ESTABLISHED */
                 client->channel.state = UA_SECURECHANNELSTATE_CONNECTED;
@@ -1607,8 +1606,6 @@ __Client_reverseConnectCallback(UA_ConnectionManager *cm, uintptr_t connectionId
     if (client->channel.connectionId != connectionId && *connectionContext == reverseConnectIndicator) {
         *connectionContext = NULL;
         client->channel.connectionId = 0;
-        /* Reset to fresh state, the standard network callback will set REVERSE_CONNECTED */
-        client->channel.state = UA_SECURECHANNELSTATE_FRESH;
     }
 
     if (*connectionContext != reverseConnectIndicator) {
@@ -1643,7 +1640,6 @@ UA_StatusCode UA_Client_startListeningForReverseConnect(UA_Client *client, const
     client->channel.config = client->config.localConnectionConfig;
     client->channel.certificateVerification = &client->config.certificateVerification;
     client->channel.processOPNHeader = verifyClientSecurechannelHeader;
-    client->channel.isReverseConnect = true;
     client->channel.connectionId = 0;
     client->channel.listenerDisconnected = false;
 
