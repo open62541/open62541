@@ -115,9 +115,10 @@ START_TEST(listenAndTeardown) {
 
     UA_Client_disconnect(client);
 
-    ck_assert_int_gt(numClientCallbackCalled, 2);
+    ck_assert_int_ge(numClientCallbackCalled, 3);
     ck_assert_int_eq(clientCallbackStates[0], UA_SECURECHANNELSTATE_REVERSE_LISTENING);
-    ck_assert_int_eq(clientCallbackStates[1], UA_SECURECHANNELSTATE_CLOSED);
+    ck_assert_int_eq(clientCallbackStates[1], UA_SECURECHANNELSTATE_CLOSING);
+    ck_assert_int_eq(clientCallbackStates[2], UA_SECURECHANNELSTATE_CLOSED);
 
 } END_TEST
 

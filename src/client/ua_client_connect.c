@@ -1316,31 +1316,11 @@ __Client_networkCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
     UA_UNLOCK(&client->clientMutex);
 }
 
-static void closeListeningReverseConnectSocket(UA_Client *client) {
-    if (client->channel.state != UA_SECURECHANNELSTATE_REVERSE_LISTENING)
-        return;
-
-    client->channel.connectionManager->closeConnection(client->channel.connectionManager, client->channel.connectionId);
-
-    UA_EventLoop *el = client->config.eventLoop;
-    if(el &&
-       el->state != UA_EVENTLOOPSTATE_FRESH &&
-       el->state != UA_EVENTLOOPSTATE_STOPPED) {
-        while(client->channel.state < UA_SECURECHANNELSTATE_CLOSED) {
-            el->run(el, 100);
-        }
-    }
-}
-
 /* Initialize a TCP connection. Writes the result to client->connectStatus. */
 static UA_StatusCode
 initConnect(UA_Client *client) {
     if(client->noReconnect)
         return UA_STATUSCODE_BADNOTCONNECTED;
-
-    UA_UNLOCK(&client->clientMutex);
-    closeListeningReverseConnectSocket(client);
-    UA_LOCK(&client->clientMutex);
 
     if(client->channel.state != UA_SECURECHANNELSTATE_FRESH &&
        client->channel.state != UA_SECURECHANNELSTATE_CLOSED) {
@@ -1575,7 +1555,8 @@ __Client_reverseConnectCallback(UA_ConnectionManager *cm, uintptr_t connectionId
     }
 
     if (*connectionContext == reverseConnectIndicator && state == UA_CONNECTIONSTATE_CLOSING) {
-        if (client->channel.state == UA_SECURECHANNELSTATE_REVERSE_LISTENING && client->channel.connectionId == connectionId) {
+        if ((client->channel.state == UA_SECURECHANNELSTATE_REVERSE_LISTENING || client->channel.state == UA_SECURECHANNELSTATE_CLOSING)
+                && client->channel.connectionId == connectionId) {
             client->channel.state = UA_SECURECHANNELSTATE_CLOSED;
             notifyClientState(client);
         }
@@ -1815,7 +1796,6 @@ UA_Client_disconnectAsync(UA_Client *client) {
 
 UA_StatusCode
 UA_Client_disconnectSecureChannel(UA_Client *client) {
-    closeListeningReverseConnectSocket(client);
     UA_LOCK(&client->clientMutex);
 
     client->noReconnect = true;
