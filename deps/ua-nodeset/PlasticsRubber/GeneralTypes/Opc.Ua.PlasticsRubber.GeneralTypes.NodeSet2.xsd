@@ -1,0 +1,549 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<!--
+ * Copyright (c) 2005-2021 The OPC Foundation, Inc. All rights reserved.
+ *
+ * OPC Foundation MIT License 1.00
+ * 
+ * Permission is hereby granted, free of charge, to any person
+ * obtaining a copy of this software and associated documentation
+ * files (the "Software"), to deal in the Software without
+ * restriction, including without limitation the rights to use,
+ * copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the
+ * Software is furnished to do so, subject to the following
+ * conditions:
+ * 
+ * The above copyright notice and this permission notice shall be
+ * included in all copies or substantial portions of the Software.
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+ * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
+ * OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+ * NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
+ * HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+ * WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+ * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+ * OTHER DEALINGS IN THE SOFTWARE.
+ *
+ * The complete license agreement can be found here:
+ * http://opcfoundation.org/License/MIT/1.00/
+-->
+
+<xs:schema elementFormDefault="qualified" targetNamespace="http://opcfoundation.org/UA/PlasticsRubber/GeneralTypes/Types.xsd" xmlns:tns="http://opcfoundation.org/UA/PlasticsRubber/GeneralTypes/Types.xsd" xmlns:ua="http://opcfoundation.org/UA/2008/02/Types.xsd" xmlns:xs="http://www.w3.org/2001/XMLSchema">
+    <xs:import namespace="http://opcfoundation.org/UA/2008/02/Types.xsd"/>
+    <xs:simpleType name="CavityCycleQualityEnumeration">
+        <xs:annotation>
+            <xs:documentation>Quality of the cycle for each cavity</xs:documentation>
+        </xs:annotation>
+        <xs:restriction base="xs:string">
+            <xs:enumeration value="NO_PART_0"/>
+            <xs:enumeration value="GOOD_PART_1"/>
+            <xs:enumeration value="BAD_PART_2"/>
+            <xs:enumeration value="REWORK_3"/>
+        </xs:restriction>
+    </xs:simpleType>
+    <xs:element type="tns:CavityCycleQualityEnumeration" name="CavityCycleQualityEnumeration"/>
+    <xs:complexType name="ListOfCavityCycleQualityEnumeration">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="unbounded" type="tns:CavityCycleQualityEnumeration" name="CavityCycleQualityEnumeration" nillable="true"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:ListOfCavityCycleQualityEnumeration" name="ListOfCavityCycleQualityEnumeration" nillable="true"/>
+    <xs:simpleType name="ControlModeEnumeration">
+        <xs:annotation>
+            <xs:documentation>Indication how the parameter is currently controlled</xs:documentation>
+        </xs:annotation>
+        <xs:restriction base="xs:string">
+            <xs:enumeration value="OTHER_0"/>
+            <xs:enumeration value="OFF_1"/>
+            <xs:enumeration value="AUTOMATIC_2"/>
+            <xs:enumeration value="TUNING_3"/>
+            <xs:enumeration value="STANDBY_4"/>
+            <xs:enumeration value="OPEN_LOOP_5"/>
+            <xs:enumeration value="ONLY_MEASUREMENT_6"/>
+        </xs:restriction>
+    </xs:simpleType>
+    <xs:element type="tns:ControlModeEnumeration" name="ControlModeEnumeration"/>
+    <xs:complexType name="ListOfControlModeEnumeration">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="unbounded" type="tns:ControlModeEnumeration" name="ControlModeEnumeration" nillable="true"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:ListOfControlModeEnumeration" name="ListOfControlModeEnumeration" nillable="true"/>
+    <xs:simpleType name="CycleQualityEnumeration">
+        <xs:annotation>
+            <xs:documentation>Quality of the whole cycle</xs:documentation>
+        </xs:annotation>
+        <xs:restriction base="xs:string">
+            <xs:enumeration value="GOOD_CYCLE_0"/>
+            <xs:enumeration value="BAD_CYCLE_1"/>
+            <xs:enumeration value="TEST_SAMPLE_CYCLE_2"/>
+            <xs:enumeration value="FAILED_CYCLE_3"/>
+        </xs:restriction>
+    </xs:simpleType>
+    <xs:element type="tns:CycleQualityEnumeration" name="CycleQualityEnumeration"/>
+    <xs:complexType name="ListOfCycleQualityEnumeration">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="unbounded" type="tns:CycleQualityEnumeration" name="CycleQualityEnumeration" nillable="true"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:ListOfCycleQualityEnumeration" name="ListOfCycleQualityEnumeration" nillable="true"/>
+    <xs:simpleType name="DiagnosticsStatusEnumeration">
+        <xs:restriction base="xs:string">
+            <xs:enumeration value="OFF_0"/>
+            <xs:enumeration value="ACTIVE_OK_1"/>
+            <xs:enumeration value="ACTIVE_ERROR_DETECTED_2"/>
+            <xs:enumeration value="COMPLETE_3"/>
+            <xs:enumeration value="COMPLETE_ERROR_DETECTED_4"/>
+        </xs:restriction>
+    </xs:simpleType>
+    <xs:element type="tns:DiagnosticsStatusEnumeration" name="DiagnosticsStatusEnumeration"/>
+    <xs:complexType name="ListOfDiagnosticsStatusEnumeration">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="unbounded" type="tns:DiagnosticsStatusEnumeration" name="DiagnosticsStatusEnumeration" nillable="true"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:ListOfDiagnosticsStatusEnumeration" name="ListOfDiagnosticsStatusEnumeration" nillable="true"/>
+    <xs:simpleType name="EventOriginatorEnumeration">
+        <xs:annotation>
+            <xs:documentation>Originator of an event</xs:documentation>
+        </xs:annotation>
+        <xs:restriction base="xs:string">
+            <xs:enumeration value="OTHER_0"/>
+            <xs:enumeration value="MACHINE_1"/>
+            <xs:enumeration value="OPERATOR_2"/>
+            <xs:enumeration value="MES_3"/>
+            <xs:enumeration value="PERIPHERAL_DEVICE_4"/>
+        </xs:restriction>
+    </xs:simpleType>
+    <xs:element type="tns:EventOriginatorEnumeration" name="EventOriginatorEnumeration"/>
+    <xs:complexType name="ListOfEventOriginatorEnumeration">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="unbounded" type="tns:EventOriginatorEnumeration" name="EventOriginatorEnumeration" nillable="true"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:ListOfEventOriginatorEnumeration" name="ListOfEventOriginatorEnumeration" nillable="true"/>
+    <xs:simpleType name="JobStatusEnumeration">
+        <xs:annotation>
+            <xs:documentation>Current status of the job</xs:documentation>
+        </xs:annotation>
+        <xs:restriction base="xs:string">
+            <xs:enumeration value="OTHER_0"/>
+            <xs:enumeration value="TRANSFERRED_ASSIGNED_1"/>
+            <xs:enumeration value="SET_UP_ACTIVE_2"/>
+            <xs:enumeration value="SET_UP_INTERRUPTED_3"/>
+            <xs:enumeration value="SET_UP_FINISHED_4"/>
+            <xs:enumeration value="START_UP_ACTIVE_5"/>
+            <xs:enumeration value="JOB_IN_PRODUCTION_6"/>
+            <xs:enumeration value="JOB_INTERRUPTED_7"/>
+            <xs:enumeration value="JOB_FINISHED_8"/>
+            <xs:enumeration value="TEAR_DOWN_ACTIVE_9"/>
+            <xs:enumeration value="TEAR_DOWN_INTERRUPTED_10"/>
+            <xs:enumeration value="TEAR_DOWN_FINISHED_11"/>
+        </xs:restriction>
+    </xs:simpleType>
+    <xs:element type="tns:JobStatusEnumeration" name="JobStatusEnumeration"/>
+    <xs:complexType name="ListOfJobStatusEnumeration">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="unbounded" type="tns:JobStatusEnumeration" name="JobStatusEnumeration" nillable="true"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:ListOfJobStatusEnumeration" name="ListOfJobStatusEnumeration" nillable="true"/>
+    <xs:simpleType name="LogbookEventsEnumeration">
+        <xs:annotation>
+            <xs:documentation>Information which LogbookEvents are supported by the machine</xs:documentation>
+        </xs:annotation>
+        <xs:restriction base="xs:string">
+            <xs:enumeration value="PARAMETER_CHANGE_0"/>
+            <xs:enumeration value="USER_1"/>
+            <xs:enumeration value="REMOTE_ACCESS_2"/>
+            <xs:enumeration value="SEQUENCE_CHANGE_3"/>
+            <xs:enumeration value="MACHINE_MODE_CHANGE_4"/>
+            <xs:enumeration value="PRODUCTION_STATUS_CHANGE_5"/>
+            <xs:enumeration value="PRODUCTION_DATASET_CHANGE_6"/>
+            <xs:enumeration value="PRODUCTION_DATASET_FROZEN_7"/>
+            <xs:enumeration value="STANDSTILL_REASON_8"/>
+            <xs:enumeration value="MESSAGE_9"/>
+            <xs:enumeration value="USER_FEEDBACK_10"/>
+        </xs:restriction>
+    </xs:simpleType>
+    <xs:element type="tns:LogbookEventsEnumeration" name="LogbookEventsEnumeration"/>
+    <xs:complexType name="ListOfLogbookEventsEnumeration">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="unbounded" type="tns:LogbookEventsEnumeration" name="LogbookEventsEnumeration" nillable="true"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:ListOfLogbookEventsEnumeration" name="ListOfLogbookEventsEnumeration" nillable="true"/>
+    <xs:simpleType name="MachineModeEnumeration">
+        <xs:annotation>
+            <xs:documentation>Current machine mode (as defined by mode selector on the machine)</xs:documentation>
+        </xs:annotation>
+        <xs:restriction base="xs:string">
+            <xs:enumeration value="OTHER_0"/>
+            <xs:enumeration value="AUTOMATIC_1"/>
+            <xs:enumeration value="SEMI_AUTOMATIC_2"/>
+            <xs:enumeration value="MANUAL_3"/>
+            <xs:enumeration value="SETUP_4"/>
+            <xs:enumeration value="SLEEP_5"/>
+        </xs:restriction>
+    </xs:simpleType>
+    <xs:element type="tns:MachineModeEnumeration" name="MachineModeEnumeration"/>
+    <xs:complexType name="ListOfMachineModeEnumeration">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="unbounded" type="tns:MachineModeEnumeration" name="MachineModeEnumeration" nillable="true"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:ListOfMachineModeEnumeration" name="ListOfMachineModeEnumeration" nillable="true"/>
+    <xs:simpleType name="MaintenanceStatusEnumeration">
+        <xs:annotation>
+            <xs:documentation>Maintenance status of a machine/device/component</xs:documentation>
+        </xs:annotation>
+        <xs:restriction base="xs:string">
+            <xs:enumeration value="NOT_DUE_0"/>
+            <xs:enumeration value="WARNING_1"/>
+            <xs:enumeration value="DUE_2"/>
+        </xs:restriction>
+    </xs:simpleType>
+    <xs:element type="tns:MaintenanceStatusEnumeration" name="MaintenanceStatusEnumeration"/>
+    <xs:complexType name="ListOfMaintenanceStatusEnumeration">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="unbounded" type="tns:MaintenanceStatusEnumeration" name="MaintenanceStatusEnumeration" nillable="true"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:ListOfMaintenanceStatusEnumeration" name="ListOfMaintenanceStatusEnumeration" nillable="true"/>
+    <xs:simpleType name="MouldStatusEnumeration">
+        <xs:annotation>
+            <xs:documentation>Current (physical) status of the mould</xs:documentation>
+        </xs:annotation>
+        <xs:restriction base="xs:string">
+            <xs:enumeration value="OTHER_0"/>
+            <xs:enumeration value="MOULD_NOT_INSTALLED_1"/>
+            <xs:enumeration value="MOULD_CHANGE_2"/>
+            <xs:enumeration value="MOULD_INSTALLED_3"/>
+        </xs:restriction>
+    </xs:simpleType>
+    <xs:element type="tns:MouldStatusEnumeration" name="MouldStatusEnumeration"/>
+    <xs:complexType name="ListOfMouldStatusEnumeration">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="unbounded" type="tns:MouldStatusEnumeration" name="MouldStatusEnumeration" nillable="true"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:ListOfMouldStatusEnumeration" name="ListOfMouldStatusEnumeration" nillable="true"/>
+    <xs:simpleType name="ProductionStatusEnumeration">
+        <xs:annotation>
+            <xs:documentation>Production status of the machine</xs:documentation>
+        </xs:annotation>
+        <xs:restriction base="xs:string">
+            <xs:enumeration value="OTHER_0"/>
+            <xs:enumeration value="NO_PRODUCTION_1"/>
+            <xs:enumeration value="START_UP_2"/>
+            <xs:enumeration value="READY_FOR_PRODUCTION_3"/>
+            <xs:enumeration value="PRODUCTION_4"/>
+            <xs:enumeration value="DRY_RUN_5"/>
+        </xs:restriction>
+    </xs:simpleType>
+    <xs:element type="tns:ProductionStatusEnumeration" name="ProductionStatusEnumeration"/>
+    <xs:complexType name="ListOfProductionStatusEnumeration">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="unbounded" type="tns:ProductionStatusEnumeration" name="ProductionStatusEnumeration" nillable="true"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:ListOfProductionStatusEnumeration" name="ListOfProductionStatusEnumeration" nillable="true"/>
+    <xs:simpleType name="SequenceChangeEnumeration">
+        <xs:annotation>
+            <xs:documentation>Classification of production sequence change</xs:documentation>
+        </xs:annotation>
+        <xs:restriction base="xs:string">
+            <xs:enumeration value="UPDATE_0"/>
+            <xs:enumeration value="ADD_1"/>
+            <xs:enumeration value="MODIFY_2"/>
+            <xs:enumeration value="MOVE_3"/>
+            <xs:enumeration value="DELETE_4"/>
+        </xs:restriction>
+    </xs:simpleType>
+    <xs:element type="tns:SequenceChangeEnumeration" name="SequenceChangeEnumeration"/>
+    <xs:complexType name="ListOfSequenceChangeEnumeration">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="unbounded" type="tns:SequenceChangeEnumeration" name="SequenceChangeEnumeration" nillable="true"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:ListOfSequenceChangeEnumeration" name="ListOfSequenceChangeEnumeration" nillable="true"/>
+    <xs:simpleType name="StartEnumeration">
+        <xs:restriction base="xs:string">
+            <xs:enumeration value="NOT_READY_TO_START_0"/>
+            <xs:enumeration value="START_BLOCKED_BY_CLIENT_1"/>
+            <xs:enumeration value="READY_TO_START_2"/>
+            <xs:enumeration value="START_REQUESTED_3"/>
+            <xs:enumeration value="STARTED_4"/>
+            <xs:enumeration value="STOP_REQUESTED_5"/>
+        </xs:restriction>
+    </xs:simpleType>
+    <xs:element type="tns:StartEnumeration" name="StartEnumeration"/>
+    <xs:complexType name="ListOfStartEnumeration">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="unbounded" type="tns:StartEnumeration" name="StartEnumeration" nillable="true"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:ListOfStartEnumeration" name="ListOfStartEnumeration" nillable="true"/>
+    <xs:simpleType name="StorageEnumeration">
+        <xs:annotation>
+            <xs:documentation>Indication which parts of the production dataset shall be activated in the machine control after writing</xs:documentation>
+        </xs:annotation>
+        <xs:restriction base="xs:string">
+            <xs:enumeration value="PRODUCTION_1"/>
+            <xs:enumeration value="PREPARATION_2"/>
+            <xs:enumeration value="FILE_SYSTEM_4"/>
+        </xs:restriction>
+    </xs:simpleType>
+    <xs:element type="tns:StorageEnumeration" name="StorageEnumeration"/>
+    <xs:complexType name="ListOfStorageEnumeration">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="unbounded" type="tns:StorageEnumeration" name="StorageEnumeration" nillable="true"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:ListOfStorageEnumeration" name="ListOfStorageEnumeration" nillable="true"/>
+    <xs:simpleType name="TemperatureZoneClassificationEnumeration">
+        <xs:annotation>
+            <xs:documentation>Type of the temperature zone</xs:documentation>
+        </xs:annotation>
+        <xs:restriction base="xs:string">
+            <xs:enumeration value="OTHER_0"/>
+            <xs:enumeration value="HEATING_1"/>
+            <xs:enumeration value="COOLING_2"/>
+            <xs:enumeration value="TEMPERATURE_CONTROL_3"/>
+            <xs:enumeration value="HOT_RUNNER_4"/>
+            <xs:enumeration value="MEASURING_5"/>
+        </xs:restriction>
+    </xs:simpleType>
+    <xs:element type="tns:TemperatureZoneClassificationEnumeration" name="TemperatureZoneClassificationEnumeration"/>
+    <xs:complexType name="ListOfTemperatureZoneClassificationEnumeration">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="unbounded" type="tns:TemperatureZoneClassificationEnumeration" name="TemperatureZoneClassificationEnumeration" nillable="true"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:ListOfTemperatureZoneClassificationEnumeration" name="ListOfTemperatureZoneClassificationEnumeration" nillable="true"/>
+    <xs:simpleType name="UserChangeEnumeration">
+        <xs:annotation>
+            <xs:documentation>Information if a user logs in or off</xs:documentation>
+        </xs:annotation>
+        <xs:restriction base="xs:string">
+            <xs:enumeration value="LOG_ON_0"/>
+            <xs:enumeration value="LOG_OFF_1"/>
+        </xs:restriction>
+    </xs:simpleType>
+    <xs:element type="tns:UserChangeEnumeration" name="UserChangeEnumeration"/>
+    <xs:complexType name="ListOfUserChangeEnumeration">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="unbounded" type="tns:UserChangeEnumeration" name="UserChangeEnumeration" nillable="true"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:ListOfUserChangeEnumeration" name="ListOfUserChangeEnumeration" nillable="true"/>
+    <xs:complexType name="ActiveErrorDataType">
+        <xs:annotation>
+            <xs:documentation>Iinformation about an active error in a device</xs:documentation>
+        </xs:annotation>
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="1" type="xs:string" name="Id"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="xs:unsignedShort" name="Severity"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="ua:LocalizedText" name="Message"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:ActiveErrorDataType" name="ActiveErrorDataType"/>
+    <xs:complexType name="ListOfActiveErrorDataType">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="unbounded" type="tns:ActiveErrorDataType" name="ActiveErrorDataType" nillable="true"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:ListOfActiveErrorDataType" name="ListOfActiveErrorDataType" nillable="true"/>
+    <xs:complexType name="ConfigurationParameterType">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="1" type="xs:unsignedInt" name="Id"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="ua:LocalizedText" name="Description"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="ua:Variant" name="DefaultValue"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="ua:EUInformation" name="Unit"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:ConfigurationParameterType" name="ConfigurationParameterType"/>
+    <xs:complexType name="ListOfConfigurationParameterType">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="unbounded" type="tns:ConfigurationParameterType" name="ConfigurationParameterType" nillable="true"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:ListOfConfigurationParameterType" name="ListOfConfigurationParameterType" nillable="true"/>
+    <xs:complexType name="JobListElementType">
+        <xs:annotation>
+            <xs:documentation>Description of a job in a job list</xs:documentation>
+        </xs:annotation>
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="1" type="xs:string" name="JobName"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="xs:string" name="JobDescription"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="xs:string" name="JobClassification"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="xs:string" name="CustomerName"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="xs:string" name="ProductionDatasetName"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="xs:string" name="ProductionDatasetDescription"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="ua:ListOfString" name="Material"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="ua:ListOfString" name="ProductName"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="ua:ListOfString" name="ProductDescription"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="xs:string" name="JobPriority"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="xs:dateTime" name="PlannedStart"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="xs:double" name="PlannedProductionTime"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="xs:dateTime" name="LatestEnd"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:JobListElementType" name="JobListElementType"/>
+    <xs:complexType name="ListOfJobListElementType">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="unbounded" type="tns:JobListElementType" name="JobListElementType" nillable="true"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:ListOfJobListElementType" name="ListOfJobListElementType" nillable="true"/>
+    <xs:complexType name="CyclicJobListElementType">
+        <xs:annotation>
+            <xs:documentation>Description of a job in a cyclic job list</xs:documentation>
+        </xs:annotation>
+        <xs:complexContent mixed="false">
+            <xs:extension base="tns:JobListElementType">
+                <xs:sequence>
+                    <xs:element minOccurs="0" maxOccurs="1" type="xs:unsignedLong" name="NominalParts"/>
+                    <xs:element minOccurs="0" maxOccurs="1" type="xs:unsignedLong" name="NominalBoxParts"/>
+                    <xs:element minOccurs="0" maxOccurs="1" type="xs:double" name="ExpectedCycleTime"/>
+                    <xs:element minOccurs="0" maxOccurs="1" type="xs:string" name="MouldId"/>
+                    <xs:element minOccurs="0" maxOccurs="1" type="xs:unsignedInt" name="NumCavities"/>
+                </xs:sequence>
+            </xs:extension>
+        </xs:complexContent>
+    </xs:complexType>
+    <xs:element type="tns:CyclicJobListElementType" name="CyclicJobListElementType"/>
+    <xs:complexType name="ListOfCyclicJobListElementType">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="unbounded" type="tns:CyclicJobListElementType" name="CyclicJobListElementType" nillable="true"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:ListOfCyclicJobListElementType" name="ListOfCyclicJobListElementType" nillable="true"/>
+    <xs:complexType name="PageEntryDataType">
+        <xs:annotation>
+            <xs:documentation>Information on a page that is implemented in the machine control system and shown on the screen of the machine</xs:documentation>
+        </xs:annotation>
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="1" type="xs:string" name="Id"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="ua:LocalizedText" name="Title"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:PageEntryDataType" name="PageEntryDataType"/>
+    <xs:complexType name="ListOfPageEntryDataType">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="unbounded" type="tns:PageEntryDataType" name="PageEntryDataType" nillable="true"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:ListOfPageEntryDataType" name="ListOfPageEntryDataType" nillable="true"/>
+    <xs:complexType name="ParameterSettingType">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="1" type="xs:unsignedInt" name="Id"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="ua:Variant" name="Value"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:ParameterSettingType" name="ParameterSettingType"/>
+    <xs:complexType name="ListOfParameterSettingType">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="unbounded" type="tns:ParameterSettingType" name="ParameterSettingType" nillable="true"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:ListOfParameterSettingType" name="ListOfParameterSettingType" nillable="true"/>
+    <xs:complexType name="PIDParametersDataType">
+        <xs:annotation>
+            <xs:documentation>Structure for storing the parameters of a PID controller</xs:documentation>
+        </xs:annotation>
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="1" type="xs:double" name="P"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="xs:double" name="I"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="xs:double" name="D"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:PIDParametersDataType" name="PIDParametersDataType"/>
+    <xs:complexType name="ListOfPIDParametersDataType">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="unbounded" type="tns:PIDParametersDataType" name="PIDParametersDataType" nillable="true"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:ListOfPIDParametersDataType" name="ListOfPIDParametersDataType" nillable="true"/>
+    <xs:complexType name="ProductionDatasetInformationType">
+        <xs:annotation>
+            <xs:documentation>Information on a production dataset</xs:documentation>
+        </xs:annotation>
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="1" type="xs:string" name="Name"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="xs:string" name="Description"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="xs:string" name="MESId"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="xs:dateTime" name="CreationTimestamp"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="xs:dateTime" name="LastModificationTimestamp"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="xs:dateTime" name="LastSaveTimestamp"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="xs:string" name="UserName"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="ua:ListOfUInt16" name="Components"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="xs:string" name="Manufacturer"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="xs:string" name="SerialNumber"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="xs:string" name="Model"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="xs:string" name="ControllerName"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="xs:string" name="UserMachineName"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="xs:string" name="LocationName"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="ua:ListOfString" name="ProductName"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="xs:string" name="MouldId"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="xs:unsignedInt" name="NumCavities"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:ProductionDatasetInformationType" name="ProductionDatasetInformationType"/>
+    <xs:complexType name="ListOfProductionDatasetInformationType">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="unbounded" type="tns:ProductionDatasetInformationType" name="ProductionDatasetInformationType" nillable="true"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:ListOfProductionDatasetInformationType" name="ListOfProductionDatasetInformationType" nillable="true"/>
+    <xs:complexType name="ProductionDatasetReadOptionsType">
+        <xs:annotation>
+            <xs:documentation>Used as GenerateOptions in the Method GenerateFileForRead in ProductionDatasetTransfer</xs:documentation>
+        </xs:annotation>
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="1" type="tns:StorageEnumeration" name="Storage"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="xs:string" name="Name"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:ProductionDatasetReadOptionsType" name="ProductionDatasetReadOptionsType"/>
+    <xs:complexType name="ListOfProductionDatasetReadOptionsType">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="unbounded" type="tns:ProductionDatasetReadOptionsType" name="ProductionDatasetReadOptionsType" nillable="true"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:ListOfProductionDatasetReadOptionsType" name="ListOfProductionDatasetReadOptionsType" nillable="true"/>
+    <xs:complexType name="ProductionDatasetWriteOptionsType">
+        <xs:annotation>
+            <xs:documentation>Used as GenerateOptions in the Method GenerateFileForWrite in ProductionDatasetTransfer</xs:documentation>
+        </xs:annotation>
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="1" type="tns:StorageEnumeration" name="Storage"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="xs:string" name="Name"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="ua:ListOfUInt16" name="Components"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:ProductionDatasetWriteOptionsType" name="ProductionDatasetWriteOptionsType"/>
+    <xs:complexType name="ListOfProductionDatasetWriteOptionsType">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="unbounded" type="tns:ProductionDatasetWriteOptionsType" name="ProductionDatasetWriteOptionsType" nillable="true"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:ListOfProductionDatasetWriteOptionsType" name="ListOfProductionDatasetWriteOptionsType" nillable="true"/>
+    <xs:complexType name="StandstillReasonType">
+        <xs:annotation>
+            <xs:documentation>Description of a standstill reason</xs:documentation>
+        </xs:annotation>
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="1" type="xs:string" name="Id"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="ua:LocalizedText" name="Text"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="xs:boolean" name="LockedByMES"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:StandstillReasonType" name="StandstillReasonType"/>
+    <xs:complexType name="ListOfStandstillReasonType">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="unbounded" type="tns:StandstillReasonType" name="StandstillReasonType" nillable="true"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:ListOfStandstillReasonType" name="ListOfStandstillReasonType" nillable="true"/>
+</xs:schema>

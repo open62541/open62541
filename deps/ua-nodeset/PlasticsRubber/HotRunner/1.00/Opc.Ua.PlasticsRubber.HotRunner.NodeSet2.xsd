@@ -1,0 +1,57 @@
+<xs:schema elementFormDefault="qualified" targetNamespace="http://opcfoundation.org/UA/PlasticsRubber/HotRunner/Types.xsd" xmlns:tns="http://opcfoundation.org/UA/PlasticsRubber/HotRunner/Types.xsd" xmlns:ua="http://opcfoundation.org/UA/2008/02/Types.xsd" xmlns:xs="http://www.w3.org/2001/XMLSchema">
+    <xs:import namespace="http://opcfoundation.org/UA/2008/02/Types.xsd"/>
+    <xs:simpleType name="ControllerTypeEnumeration">
+        <xs:restriction base="xs:string">
+            <xs:enumeration value="CLOSED_LOOP_CONTROL_0"/>
+            <xs:enumeration value="MANUAL_1"/>
+            <xs:enumeration value="SYNCHRONOUS_ZONE_2"/>
+            <xs:enumeration value="CASCADE_3"/>
+            <xs:enumeration value="COOL_ZONE_4"/>
+            <xs:enumeration value="MEASURING_ZONE_5"/>
+            <xs:enumeration value="NOT_USED_6"/>
+        </xs:restriction>
+    </xs:simpleType>
+    <xs:element type="tns:ControllerTypeEnumeration" name="ControllerTypeEnumeration"/>
+    <xs:complexType name="ListOfControllerTypeEnumeration">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="unbounded" type="tns:ControllerTypeEnumeration" name="ControllerTypeEnumeration" nillable="true"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:ListOfControllerTypeEnumeration" name="ListOfControllerTypeEnumeration" nillable="true"/>
+    <xs:simpleType name="ZoneStatusEnumeration">
+        <xs:restriction base="xs:string">
+            <xs:enumeration value="OTHER_0"/>
+            <xs:enumeration value="GOOD_1"/>
+            <xs:enumeration value="SENSOR_FAULT_2"/>
+            <xs:enumeration value="TEMPERATURE_SENSOR_BROKEN_3"/>
+            <xs:enumeration value="TEMPERATURE_SENSOR_REVERSED_4"/>
+            <xs:enumeration value="POWER_UNIT_FAILED_5"/>
+            <xs:enumeration value="HEATING_OUTPUT_TO_LOW_6"/>
+            <xs:enumeration value="ERROR_7"/>
+            <xs:enumeration value="WARNING_8"/>
+            <xs:enumeration value="LEAKAGE_DETECTED_9"/>
+        </xs:restriction>
+    </xs:simpleType>
+    <xs:element type="tns:ZoneStatusEnumeration" name="ZoneStatusEnumeration"/>
+    <xs:complexType name="ListOfZoneStatusEnumeration">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="unbounded" type="tns:ZoneStatusEnumeration" name="ZoneStatusEnumeration" nillable="true"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:ListOfZoneStatusEnumeration" name="ListOfZoneStatusEnumeration" nillable="true"/>
+    <xs:complexType name="TimeMethodPIDParametersDataType">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="1" type="xs:double" name="Xp"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="xs:double" name="Tn"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="xs:double" name="Tv"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="xs:double" name="Ts"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:TimeMethodPIDParametersDataType" name="TimeMethodPIDParametersDataType"/>
+    <xs:complexType name="ListOfTimeMethodPIDParametersDataType">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="unbounded" type="tns:TimeMethodPIDParametersDataType" name="TimeMethodPIDParametersDataType" nillable="true"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:ListOfTimeMethodPIDParametersDataType" name="ListOfTimeMethodPIDParametersDataType" nillable="true"/>
+</xs:schema>

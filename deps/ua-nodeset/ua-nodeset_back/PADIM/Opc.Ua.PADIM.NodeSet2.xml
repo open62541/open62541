@@ -1,0 +1,1009 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<!--
+ * Copyright (c) 2005-2021 The OPC Foundation, Inc. All rights reserved.
+ *
+ * OPC Foundation MIT License 1.00
+ * 
+ * Permission is hereby granted, free of charge, to any person
+ * obtaining a copy of this software and associated documentation
+ * files (the "Software"), to deal in the Software without
+ * restriction, including without limitation the rights to use,
+ * copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the
+ * Software is furnished to do so, subject to the following
+ * conditions:
+ * 
+ * The above copyright notice and this permission notice shall be
+ * included in all copies or substantial portions of the Software.
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+ * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
+ * OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+ * NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
+ * HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+ * WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+ * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+ * OTHER DEALINGS IN THE SOFTWARE.
+ *
+ * The complete license agreement can be found here:
+ * http://opcfoundation.org/License/MIT/1.00/
+-->
+
+<UANodeSet xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema" LastModified="2021-07-21T00:00:00Z" xmlns="http://opcfoundation.org/UA/2011/03/UANodeSet.xsd">
+  <NamespaceUris>
+    <Uri>http://opcfoundation.org/UA/Dictionary/IRDI</Uri>
+    <Uri>http://opcfoundation.org/UA/DI/</Uri>
+    <Uri>http://opcfoundation.org/UA/PADIM/</Uri>
+  </NamespaceUris>
+  <Models>
+    <Model ModelUri="http://opcfoundation.org/UA/PADIM/" Version="1.0.2" PublicationDate="2021-07-21T00:00:00Z">
+      <RequiredModel ModelUri="http://opcfoundation.org/UA/" Version="1.04.4" PublicationDate="2019-11-20T00:00:00Z" />
+      <RequiredModel ModelUri="http://opcfoundation.org/UA/Dictionary/IRDI" Version="1.00" PublicationDate="2020-02-04T00:00:00Z" />
+      <RequiredModel ModelUri="http://opcfoundation.org/UA/DI/" Version="1.02" PublicationDate="2019-05-01T00:00:00Z" />
+    </Model>
+  </Models>
+  <Aliases>
+    <Alias Alias="Boolean">i=1</Alias>
+    <Alias Alias="Int32">i=6</Alias>
+    <Alias Alias="UInt32">i=7</Alias>
+    <Alias Alias="Float">i=10</Alias>
+    <Alias Alias="DateTime">i=13</Alias>
+    <Alias Alias="String">i=12</Alias>
+    <Alias Alias="LocalizedText">i=21</Alias>
+    <Alias Alias="Number">i=26</Alias>
+    <Alias Alias="HasComponent">i=47</Alias>
+    <Alias Alias="HasProperty">i=46</Alias>
+    <Alias Alias="HasSubtype">i=45</Alias>
+    <Alias Alias="HasTypeDefinition">i=40</Alias>
+    <Alias Alias="HasModellingRule">i=37</Alias>
+    <Alias Alias="HasDictionaryEntry">i=17597</Alias>
+    <Alias Alias="HasInterface">i=17603</Alias>
+  </Aliases>
+  <UAObject NodeId="ns=3;i=1000" BrowseName="3:http://opcfoundation.org/UA/PADIM/" SymbolicName="http___opcfoundation_org_UA_PADIM_">
+    <DisplayName>http://opcfoundation.org/UA/PADIM/</DisplayName>
+    <Documentation>https://reference.opcfoundation.org/v104/PADIM/v100/docs/12.1</Documentation>
+    <References>
+      <Reference ReferenceType="HasComponent" IsForward="false">i=11715</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=11616</Reference>
+    </References>
+  </UAObject>
+  <UAVariable NodeId="ns=3;i=1001" BrowseName="IsNamespaceSubset" ParentNodeId="ns=3;i=1000" DataType="Boolean">
+    <DisplayName>IsNamespaceSubset</DisplayName>
+    <Description>If TRUE then the server only supports a subset of the namespace.</Description>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=3;i=1000</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+    <Value>
+      <uax:Boolean xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd">false</uax:Boolean>
+    </Value>
+  </UAVariable>
+  <UAVariable NodeId="ns=3;i=1002" BrowseName="NamespacePublicationDate" ParentNodeId="ns=3;i=1000" DataType="DateTime">
+    <DisplayName>NamespacePublicationDate</DisplayName>
+    <Description>The publication date for the namespace.</Description>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=3;i=1000</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+    <Value>
+      <uax:DateTime xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd">2021-07-21T00:00:00Z</uax:DateTime>
+    </Value>
+  </UAVariable>
+  <UAVariable NodeId="ns=3;i=1003" BrowseName="NamespaceUri" ParentNodeId="ns=3;i=1000" DataType="String">
+    <DisplayName>NamespaceUri</DisplayName>
+    <Description>The URI of the namespace.</Description>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=3;i=1000</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+    <Value>
+      <uax:String xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd">http://opcfoundation.org/UA/PADIM/</uax:String>
+    </Value>
+  </UAVariable>
+  <UAVariable NodeId="ns=3;i=1004" BrowseName="NamespaceVersion" ParentNodeId="ns=3;i=1000" DataType="String">
+    <DisplayName>NamespaceVersion</DisplayName>
+    <Description>The human readable string representing version of the namespace.</Description>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=3;i=1000</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+    <Value>
+      <uax:String xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd">1.0.2</uax:String>
+    </Value>
+  </UAVariable>
+  <UAVariable NodeId="ns=3;i=1005" BrowseName="StaticNodeIdTypes" ParentNodeId="ns=3;i=1000" DataType="i=256" ValueRank="1">
+    <DisplayName>StaticNodeIdTypes</DisplayName>
+    <Description>A list of IdTypes for nodes which are the same in every server that exposes them.</Description>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=3;i=1000</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+    <Value>
+      <uax:ListOfInt32 xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd">
+        <uax:Int32>0</uax:Int32>
+      </uax:ListOfInt32>
+    </Value>
+  </UAVariable>
+  <UAVariable NodeId="ns=3;i=1006" BrowseName="StaticNumericNodeIdRange" ParentNodeId="ns=3;i=1000" DataType="i=291" ValueRank="1">
+    <DisplayName>StaticNumericNodeIdRange</DisplayName>
+    <Description>A list of ranges for numeric node ids which are the same in every server that exposes them.</Description>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=3;i=1000</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=3;i=1007" BrowseName="StaticStringNodeIdPattern" ParentNodeId="ns=3;i=1000" DataType="String">
+    <DisplayName>StaticStringNodeIdPattern</DisplayName>
+    <Description>A regular expression which matches string node ids are the same in every server that exposes them.</Description>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=3;i=1000</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAObjectType NodeId="ns=3;i=1009" BrowseName="3:PADIMType">
+    <DisplayName>PADIMType</DisplayName>
+    <Documentation>https://reference.opcfoundation.org/v104/PADIM/v100/docs/7.2</Documentation>
+    <References>
+      <Reference ReferenceType="HasSubtype" IsForward="false">ns=2;i=15063</Reference>
+      <Reference ReferenceType="HasInterface">ns=3;i=1050</Reference>
+      <Reference ReferenceType="HasInterface">ns=3;i=1052</Reference>
+      <Reference ReferenceType="HasInterface">ns=2;i=15051</Reference>
+      <Reference ReferenceType="HasDictionaryEntry">i=17590</Reference>
+    </References>
+  </UAObjectType>
+  <UAVariable NodeId="ns=3;i=1010" BrowseName="2:Manufacturer" ParentNodeId="ns=3;i=1009" DataType="LocalizedText">
+    <DisplayName>Manufacturer</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=3;i=1009</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasDictionaryEntry">ns=1;s=0112/2///61987#ABA565#007</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=3;i=1011" BrowseName="2:ManufacturerUri" ParentNodeId="ns=3;i=1009" DataType="String">
+    <DisplayName>URI of Manufacturer</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=3;i=1009</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasDictionaryEntry">ns=1;s=0112/2///61987#ABN591#001</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=3;i=1012" BrowseName="2:Model" ParentNodeId="ns=3;i=1009" DataType="LocalizedText">
+    <DisplayName>Model</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=3;i=1009</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasDictionaryEntry">ns=1;s=0112/2///61987#ABA567#007</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=3;i=1013" BrowseName="2:SerialNumber" ParentNodeId="ns=3;i=1009" DataType="String">
+    <DisplayName>Serial number</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=3;i=1009</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasDictionaryEntry">ns=1;s=0112/2///61987#ABA951#007</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=3;i=1014" BrowseName="2:SoftwareRevision" ParentNodeId="ns=3;i=1009" DataType="String">
+    <DisplayName>Software revision</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=3;i=1009</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasDictionaryEntry">ns=1;s=0112/2///61987#ABA601#006</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=3;i=1015" BrowseName="2:HardwareRevision" ParentNodeId="ns=3;i=1009" DataType="String">
+    <DisplayName>Hardware revision</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=3;i=1009</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasDictionaryEntry">ns=1;s=0112/2///61987#ABA926#006</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=3;i=1016" BrowseName="2:ProductCode" ParentNodeId="ns=3;i=1009" DataType="String">
+    <DisplayName>Product code</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=3;i=1009</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasDictionaryEntry">ns=1;s=0112/2///61987#ABA300#006</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=3;i=1029" BrowseName="2:DeviceHealth" ParentNodeId="ns=3;i=1009" DataType="ns=2;i=6244">
+    <DisplayName>Device diagnostic status</DisplayName>
+    <References>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=3;i=1009</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=63</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasDictionaryEntry">ns=1;s=0112/2///61987#ABN972#001</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=3;i=1032" BrowseName="3:DateOfLastChange" ParentNodeId="ns=3;i=1009" DataType="DateTime">
+    <DisplayName>Date of last change</DisplayName>
+    <References>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=3;i=1009</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=63</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasDictionaryEntry">ns=1;s=0112/2///61987#ABN604#001</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=3;i=1033" BrowseName="3:DisplayLanguage" ParentNodeId="ns=3;i=1009" DataType="i=295" AccessLevel="3">
+    <DisplayName>Display language</DisplayName>
+    <References>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=3;i=1009</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=63</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasDictionaryEntry">ns=1;s=0112/2///61987#ABN597#001</Reference>
+    </References>
+  </UAVariable>
+  <UAObject NodeId="ns=3;i=1034" BrowseName="3:SignalSet" SymbolicName="SignalSet_no_" ParentNodeId="ns=3;i=1009">
+    <DisplayName>SignalSet</DisplayName>
+    <References>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=3;i=1009</Reference>
+      <Reference ReferenceType="HasTypeDefinition">ns=3;i=1021</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+    </References>
+  </UAObject>
+  <UAVariable NodeId="ns=3;i=1020" BrowseName="2:ProductInstanceUri" ParentNodeId="ns=3;i=1009" DataType="String">
+    <DisplayName>URI of Product instance</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=3;i=1009</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasDictionaryEntry">ns=1;s=0112/2///61987#ABN590#001</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+    </References>
+  </UAVariable>
+  <UAObject NodeId="ns=3;i=1018" BrowseName="2:DeviceHealthAlarms" ParentNodeId="ns=3;i=1009">
+    <DisplayName>DeviceHealthAlarms</DisplayName>
+    <References>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=3;i=1009</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=61</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+    </References>
+  </UAObject>
+  <UAObjectType NodeId="ns=3;i=1021" BrowseName="3:SignalSetType">
+    <DisplayName>SignalSetType</DisplayName>
+    <Documentation>https://reference.opcfoundation.org/v104/PADIM/v100/docs/7.3</Documentation>
+    <References>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=58</Reference>
+    </References>
+  </UAObjectType>
+  <UAObject NodeId="ns=3;i=1025" BrowseName="3:SubDevices" ParentNodeId="ns=3;i=1009">
+    <DisplayName>SubDevices</DisplayName>
+    <References>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=3;i=1009</Reference>
+      <Reference ReferenceType="HasTypeDefinition">ns=2;i=1004</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+    </References>
+  </UAObject>
+  <UAObject NodeId="ns=3;i=1026" BrowseName="2:SupportedTypes" ParentNodeId="ns=3;i=1025">
+    <DisplayName>SupportedTypes</DisplayName>
+    <References>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=3;i=1025</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=61</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+    </References>
+  </UAObject>
+  <UAMethod NodeId="ns=3;i=1028" BrowseName="3:FactoryReset" ParentNodeId="ns=3;i=1009">
+    <DisplayName>Factory reset</DisplayName>
+    <Documentation>https://reference.opcfoundation.org/v104/PADIM/v100/docs/9.1</Documentation>
+    <References>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=3;i=1009</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasDictionaryEntry">ns=1;s=0112/2///61987#ABN609#001</Reference>
+    </References>
+  </UAMethod>
+  <UAVariable NodeId="ns=3;i=1030" BrowseName="InputArguments" ParentNodeId="ns=3;i=1028" DataType="i=296" ValueRank="1" ArrayDimensions="1" AccessLevel="3">
+    <DisplayName>InputArguments</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=3;i=1028</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+    </References>
+    <Value>
+      <uax:ListOfExtensionObject xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd">
+        <uax:ExtensionObject>
+          <uax:TypeId>
+            <uax:Identifier>i=297</uax:Identifier>
+          </uax:TypeId>
+          <uax:Body>
+            <uax:Argument>
+              <uax:Name>ResetMode</uax:Name>
+              <uax:DataType>
+                <uax:Identifier>ns=3;i=1156</uax:Identifier>
+              </uax:DataType>
+              <uax:ValueRank>-1</uax:ValueRank>
+              <uax:ArrayDimensions />
+              <uax:Description />
+            </uax:Argument>
+          </uax:Body>
+        </uax:ExtensionObject>
+      </uax:ListOfExtensionObject>
+    </Value>
+  </UAVariable>
+  <UAObjectType NodeId="ns=3;i=1050" BrowseName="3:IAdministrationType" IsAbstract="true">
+    <DisplayName>IAdministrationType</DisplayName>
+    <Documentation>https://reference.opcfoundation.org/v104/PADIM/v100/docs/7.1.1</Documentation>
+    <References>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=17602</Reference>
+    </References>
+  </UAObjectType>
+  <UAObjectType NodeId="ns=3;i=1052" BrowseName="3:ISignalSetType" IsAbstract="true">
+    <DisplayName>ISignalSetType</DisplayName>
+    <Documentation>https://reference.opcfoundation.org/v104/PADIM/v100/docs/7.1.2</Documentation>
+    <References>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=17602</Reference>
+    </References>
+  </UAObjectType>
+  <UAVariable NodeId="ns=3;i=1068" BrowseName="3:DisplayLanguage" ParentNodeId="ns=3;i=1050" DataType="i=295" AccessLevel="3">
+    <DisplayName>Display language</DisplayName>
+    <References>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=3;i=1050</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=63</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasDictionaryEntry">ns=1;s=0112/2///61987#ABN597#001</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=3;i=1070" BrowseName="3:DateOfLastChange" ParentNodeId="ns=3;i=1050" DataType="DateTime">
+    <DisplayName>Date of last change</DisplayName>
+    <References>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=3;i=1050</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=63</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasDictionaryEntry">ns=1;s=0112/2///61987#ABN604#001</Reference>
+    </References>
+  </UAVariable>
+  <UAMethod NodeId="ns=3;i=1072" BrowseName="3:FactoryReset" ParentNodeId="ns=3;i=1050">
+    <DisplayName>Factory reset</DisplayName>
+    <Documentation>https://reference.opcfoundation.org/v104/PADIM/v100/docs/9.1</Documentation>
+    <References>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=3;i=1050</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasDictionaryEntry">ns=1;s=0112/2///61987#ABN609#001</Reference>
+    </References>
+  </UAMethod>
+  <UAVariable NodeId="ns=3;i=1080" BrowseName="InputArguments" ParentNodeId="ns=3;i=1072" DataType="i=296" ValueRank="1" ArrayDimensions="1" AccessLevel="3">
+    <DisplayName>InputArguments</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=3;i=1072</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+    </References>
+    <Value>
+      <uax:ListOfExtensionObject xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd">
+        <uax:ExtensionObject>
+          <uax:TypeId>
+            <uax:Identifier>i=297</uax:Identifier>
+          </uax:TypeId>
+          <uax:Body>
+            <uax:Argument>
+              <uax:Name>ResetMode</uax:Name>
+              <uax:DataType>
+                <uax:Identifier>ns=3;i=1156</uax:Identifier>
+              </uax:DataType>
+              <uax:ValueRank>-1</uax:ValueRank>
+              <uax:ArrayDimensions />
+              <uax:Description />
+            </uax:Argument>
+          </uax:Body>
+        </uax:ExtensionObject>
+      </uax:ListOfExtensionObject>
+    </Value>
+  </UAVariable>
+  <UAObject NodeId="ns=3;i=1074" BrowseName="3:SignalSet" ParentNodeId="ns=3;i=1052">
+    <DisplayName>SignalSet</DisplayName>
+    <References>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=3;i=1052</Reference>
+      <Reference ReferenceType="HasTypeDefinition">ns=3;i=1021</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+    </References>
+  </UAObject>
+  <UAVariable NodeId="ns=3;i=1019" BrowseName="2:AssetId" ParentNodeId="ns=3;i=1009" DataType="String" AccessLevel="3">
+    <DisplayName>Asset ID</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=3;i=1009</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasDictionaryEntry">ns=1;s=0112/2///61987#ABA038#003</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=3;i=1017" BrowseName="2:RevisionCounter" ParentNodeId="ns=3;i=1009" DataType="Int32">
+    <DisplayName>Revision counter</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=3;i=1009</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasDictionaryEntry">ns=1;s=0112/2///61987#ABN603#001</Reference>
+    </References>
+  </UAVariable>
+  <UAMethod NodeId="ns=3;i=1109" BrowseName="3:ZeroPointAdjustment" ParentNodeId="ns=3;i=1022">
+    <DisplayName>Zero point adjustment</DisplayName>
+    <Documentation>https://reference.opcfoundation.org/v104/PADIM/v100/docs/9.2</Documentation>
+    <References>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=3;i=1022</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasDictionaryEntry">ns=1;s=0112/2///61987#ABN614#001</Reference>
+    </References>
+  </UAMethod>
+  <UAMethod NodeId="ns=3;i=1116" BrowseName="3:AutoAdjustPositioner" ParentNodeId="ns=3;i=1023">
+    <DisplayName>Autoadjust</DisplayName>
+    <Documentation>https://reference.opcfoundation.org/v104/PADIM/v100/docs/9.3</Documentation>
+    <References>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=3;i=1023</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasDictionaryEntry">ns=1;s=0112/2///61987#ABN726#001</Reference>
+    </References>
+  </UAMethod>
+  <UAVariable NodeId="ns=3;i=1119" BrowseName="InputArguments" ParentNodeId="ns=3;i=1116" DataType="i=296" ValueRank="1" ArrayDimensions="1" AccessLevel="3">
+    <DisplayName>InputArguments</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=3;i=1116</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+    </References>
+    <Value>
+      <uax:ListOfExtensionObject xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd">
+        <uax:ExtensionObject>
+          <uax:TypeId>
+            <uax:Identifier>i=297</uax:Identifier>
+          </uax:TypeId>
+          <uax:Body>
+            <uax:Argument>
+              <uax:Name>ExecutionMode</uax:Name>
+              <uax:DataType>
+                <uax:Identifier>ns=3;i=1158</uax:Identifier>
+              </uax:DataType>
+              <uax:ValueRank>-1</uax:ValueRank>
+              <uax:ArrayDimensions />
+              <uax:Description />
+            </uax:Argument>
+          </uax:Body>
+        </uax:ExtensionObject>
+      </uax:ListOfExtensionObject>
+    </Value>
+  </UAVariable>
+  <UAVariableType NodeId="ns=3;i=1111" BrowseName="3:AnalogSignalVariableType" DataType="i=26" ValueRank="-2">
+    <DisplayName>AnalogSignalVariableType</DisplayName>
+    <Documentation>https://reference.opcfoundation.org/v104/PADIM/v100/docs/8.2.2</Documentation>
+    <References>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=17570</Reference>
+      <Reference ReferenceType="HasDictionaryEntry">ns=1;s=0112/2///61987#ABN634#001</Reference>
+    </References>
+  </UAVariableType>
+  <UAVariable NodeId="ns=3;i=1113" BrowseName="3:SimulationState" ParentNodeId="ns=3;i=1111" DataType="Boolean" AccessLevel="3">
+    <DisplayName>Simulation state</DisplayName>
+    <References>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=3;i=1111</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=63</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasDictionaryEntry">ns=1;s=0112/2///61987#ABN611#001</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=3;i=1115" BrowseName="3:ActualValue" ParentNodeId="ns=3;i=1111" DataType="Number" ValueRank="-2" AccessLevel="3">
+    <DisplayName>Actual value</DisplayName>
+    <References>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=3;i=1111</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasDictionaryEntry">ns=1;s=0112/2///61987#ABN644#001</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=63</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=3;i=1117" BrowseName="3:SimulationValue" ParentNodeId="ns=3;i=1111" DataType="Number" ValueRank="-2" AccessLevel="3">
+    <DisplayName>Simulation value</DisplayName>
+    <References>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=3;i=1111</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasDictionaryEntry">ns=1;s=0112/2///61987#ABN613#001</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=63</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=3;i=1118" BrowseName="3:Damping" ParentNodeId="ns=3;i=1111" DataType="Float" AccessLevel="3">
+    <DisplayName>Damping</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=3;i=1111</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasDictionaryEntry">ns=1;s=0112/2///61987#ABH526#002</Reference>
+    </References>
+  </UAVariable>
+  <UAVariableType NodeId="ns=3;i=1120" BrowseName="3:TemperatureMeasurementVariableType" DataType="i=10" ValueRank="-2">
+    <DisplayName>TemperatureMeasurementVariableType</DisplayName>
+    <Documentation>https://reference.opcfoundation.org/v104/PADIM/v100/docs/8.3</Documentation>
+    <References>
+      <Reference ReferenceType="HasSubtype" IsForward="false">ns=3;i=1111</Reference>
+      <Reference ReferenceType="HasDictionaryEntry">ns=1;s=0112/2///61987#ABA927#005</Reference>
+    </References>
+  </UAVariableType>
+  <UAVariableType NodeId="ns=3;i=1121" BrowseName="3:PressureMeasurementVariableType" DataType="i=10" ValueRank="-2">
+    <DisplayName>PressureMeasurementVariableType</DisplayName>
+    <Documentation>https://reference.opcfoundation.org/v104/PADIM/v100/docs/8.5</Documentation>
+    <References>
+      <Reference ReferenceType="HasSubtype" IsForward="false">ns=3;i=1111</Reference>
+      <Reference ReferenceType="HasDictionaryEntry">ns=1;s=0112/2///61987#ABN616#001</Reference>
+    </References>
+  </UAVariableType>
+  <UAVariableType NodeId="ns=3;i=1122" BrowseName="3:FlowMeasurementVariableType" DataType="i=10" ValueRank="-2">
+    <DisplayName>FlowMeasurementVariableType</DisplayName>
+    <Documentation>https://reference.opcfoundation.org/v104/PADIM/v100/docs/8.4</Documentation>
+    <References>
+      <Reference ReferenceType="HasSubtype" IsForward="false">ns=3;i=1111</Reference>
+    </References>
+  </UAVariableType>
+  <UAVariableType NodeId="ns=3;i=1123" BrowseName="3:LevelMeasurementVariableType" DataType="i=10" ValueRank="-2">
+    <DisplayName>LevelMeasurementVariableType</DisplayName>
+    <Documentation>https://reference.opcfoundation.org/v104/PADIM/v100/docs/8.6</Documentation>
+    <References>
+      <Reference ReferenceType="HasSubtype" IsForward="false">ns=3;i=1111</Reference>
+      <Reference ReferenceType="HasDictionaryEntry">ns=1;s=0112/2///61987#ABH329#002</Reference>
+    </References>
+  </UAVariableType>
+  <UAVariableType NodeId="ns=3;i=1124" BrowseName="3:ActualDensityVariableType" DataType="i=10" ValueRank="-2">
+    <DisplayName>ActualDensityVariableType</DisplayName>
+    <Documentation>https://reference.opcfoundation.org/v104/PADIM/v100/docs/8.10</Documentation>
+    <References>
+      <Reference ReferenceType="HasSubtype" IsForward="false">ns=3;i=1111</Reference>
+      <Reference ReferenceType="HasDictionaryEntry">ns=1;s=0112/2///61987#ABA946#004</Reference>
+    </References>
+  </UAVariableType>
+  <UAVariableType NodeId="ns=3;i=1125" BrowseName="3:ControlVariableType" DataType="i=10" ValueRank="-2">
+    <DisplayName>ControlVariableType</DisplayName>
+    <Documentation>https://reference.opcfoundation.org/v104/PADIM/v100/docs/8.11</Documentation>
+    <References>
+      <Reference ReferenceType="HasSubtype" IsForward="false">ns=3;i=1111</Reference>
+      <Reference ReferenceType="HasDictionaryEntry">ns=1;s=0112/2///61987#ABJ683#001</Reference>
+    </References>
+  </UAVariableType>
+  <UAVariableType NodeId="ns=3;i=1126" BrowseName="3:TotalizerVariableType" DataType="i=26" ValueRank="-2">
+    <DisplayName>TotalizerVariableType</DisplayName>
+    <Documentation>https://reference.opcfoundation.org/v104/PADIM/v100/docs/8.12</Documentation>
+    <References>
+      <Reference ReferenceType="HasSubtype" IsForward="false">ns=3;i=1111</Reference>
+    </References>
+  </UAVariableType>
+  <UAVariableType NodeId="ns=3;i=1127" BrowseName="3:AnalyticalMeasurementVariableType" DataType="i=10" ValueRank="-2">
+    <DisplayName>AnalyticalMeasurementVariableType</DisplayName>
+    <Documentation>https://reference.opcfoundation.org/v104/PADIM/v100/docs/8.13</Documentation>
+    <References>
+      <Reference ReferenceType="HasSubtype" IsForward="false">ns=3;i=1111</Reference>
+    </References>
+  </UAVariableType>
+  <UAVariable NodeId="ns=3;i=1128" BrowseName="3:SensorType" ParentNodeId="ns=3;i=1120" DataType="UInt32" ValueRank="-2" AccessLevel="3">
+    <DisplayName>Sensor type</DisplayName>
+    <References>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=3;i=1120</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=19084</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=3;i=1129" BrowseName="3:SensorConnection" ParentNodeId="ns=3;i=1120" DataType="UInt32" ValueRank="-2" AccessLevel="3">
+    <DisplayName>RTD-Sensor connection</DisplayName>
+    <References>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=3;i=1120</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=19084</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasDictionaryEntry">ns=1;s=0112/2///61987#ABB091#002</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=3;i=1130" BrowseName="3:SensorReference" ParentNodeId="ns=3;i=1120" DataType="UInt32" ValueRank="-2" AccessLevel="3">
+    <DisplayName>TC-Sensor reference</DisplayName>
+    <References>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=3;i=1120</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=19084</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasDictionaryEntry">ns=1;s=0112/2///61987#ABB093#002</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=3;i=1131" BrowseName="3:LowFlowCutOff" ParentNodeId="ns=3;i=1122" DataType="Float" ValueRank="-2" AccessLevel="3">
+    <DisplayName>Low flow cut off</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=3;i=1122</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasDictionaryEntry">ns=1;s=0112/2///61987#ABJ724#002</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=3;i=1132" BrowseName="3:FlowDirection" ParentNodeId="ns=3;i=1122" DataType="UInt32" ValueRank="-2" AccessLevel="3">
+    <DisplayName>Flow direction</DisplayName>
+    <References>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=3;i=1122</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=19084</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasDictionaryEntry">ns=1;s=0112/2///61987#ABN594#002</Reference>
+    </References>
+  </UAVariable>
+  <UAVariableType NodeId="ns=3;i=1133" BrowseName="3:MassFlowRateVariableType" DataType="i=10" ValueRank="-2">
+    <DisplayName>MassFlowRateVariableType</DisplayName>
+    <Documentation>https://reference.opcfoundation.org/v104/PADIM/v100/docs/8.7</Documentation>
+    <References>
+      <Reference ReferenceType="HasSubtype" IsForward="false">ns=3;i=1122</Reference>
+      <Reference ReferenceType="HasDictionaryEntry">ns=1;s=0112/2///61987#ABB290#005</Reference>
+    </References>
+  </UAVariableType>
+  <UAVariableType NodeId="ns=3;i=1134" BrowseName="3:ActualVolumeFlowRateVariableType" DataType="i=10" ValueRank="-2">
+    <DisplayName>ActualVolumeFlowRateVariableType</DisplayName>
+    <Documentation>https://reference.opcfoundation.org/v104/PADIM/v100/docs/8.8</Documentation>
+    <References>
+      <Reference ReferenceType="HasSubtype" IsForward="false">ns=3;i=1122</Reference>
+      <Reference ReferenceType="HasDictionaryEntry">ns=1;s=0112/2///61987#ABB291#005</Reference>
+    </References>
+  </UAVariableType>
+  <UAVariableType NodeId="ns=3;i=1135" BrowseName="3:NormalizedVolumeFlowRateVariableType" DataType="i=10" ValueRank="-2">
+    <DisplayName>NormalizedVolumeFlowRateVariableType</DisplayName>
+    <Documentation>https://reference.opcfoundation.org/v104/PADIM/v100/docs/8.9</Documentation>
+    <References>
+      <Reference ReferenceType="HasSubtype" IsForward="false">ns=3;i=1122</Reference>
+      <Reference ReferenceType="HasDictionaryEntry">ns=1;s=0112/2///61987#ABB292#005</Reference>
+    </References>
+  </UAVariableType>
+  <UAVariable NodeId="ns=3;i=1136" BrowseName="3:Setpoint" ParentNodeId="ns=3;i=1125" DataType="Float" ValueRank="-2" AccessLevel="3">
+    <DisplayName>Setpoint</DisplayName>
+    <References>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=3;i=1125</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=15318</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasDictionaryEntry">ns=1;s=0112/2///61987#ABN607#001</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=3;i=1137" BrowseName="3:OperatingDirection" ParentNodeId="ns=3;i=1125" DataType="UInt32" AccessLevel="3">
+    <DisplayName>Operating direction</DisplayName>
+    <References>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=3;i=1125</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=19084</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasDictionaryEntry">ns=1;s=0112/2///61987#ABD740#002</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=3;i=1138" BrowseName="3:ActuatorType" ParentNodeId="ns=3;i=1125" DataType="UInt32" AccessLevel="3">
+    <DisplayName>Actuator type</DisplayName>
+    <References>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=3;i=1125</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=19084</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasDictionaryEntry">ns=1;s=0112/2///61987#ABD742#002</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=3;i=1139" BrowseName="3:PulseValue" ParentNodeId="ns=3;i=1126" DataType="Number" AccessLevel="3">
+    <DisplayName>Pulse value</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=3;i=1126</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=3;i=1140" BrowseName="3:PulseWidth" ParentNodeId="ns=3;i=1126" DataType="Float" AccessLevel="3">
+    <DisplayName>Pulse width</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=3;i=1126</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasDictionaryEntry">ns=1;s=0112/2///61987#ABA635#002</Reference>
+    </References>
+  </UAVariable>
+  <UAVariableType NodeId="ns=3;i=1141" BrowseName="3:TwoStateDiscreteSignalVariableType" DataType="Boolean" ValueRank="-2">
+    <DisplayName>TwoStateDiscreteSignalVariableType</DisplayName>
+    <Documentation>https://reference.opcfoundation.org/v104/PADIM/v100/docs/8.14</Documentation>
+    <References>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=2373</Reference>
+      <Reference ReferenceType="HasDictionaryEntry">ns=1;s=0112/2///61987#ABN635#001</Reference>
+    </References>
+  </UAVariableType>
+  <UAVariableType NodeId="ns=3;i=1142" BrowseName="3:MultiStateDiscreteSignalVariableType" DataType="UInt32">
+    <DisplayName>MultiStateDiscreteSignalVariableType</DisplayName>
+    <Documentation>https://reference.opcfoundation.org/v104/PADIM/v100/docs/8.15</Documentation>
+    <References>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=19077</Reference>
+      <Reference ReferenceType="HasDictionaryEntry">ns=1;s=0112/2///61987#ABN636#001</Reference>
+    </References>
+  </UAVariableType>
+  <UAVariableType NodeId="ns=3;i=1143" BrowseName="3:DiscreteSignalVariableType" ValueRank="-2">
+    <DisplayName>DiscreteSignalVariableType</DisplayName>
+    <Documentation>https://reference.opcfoundation.org/v104/PADIM/v100/docs/8.16.2</Documentation>
+    <References>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=2372</Reference>
+    </References>
+  </UAVariableType>
+  <UAVariable NodeId="ns=3;i=1144" BrowseName="3:ActualValue" ParentNodeId="ns=3;i=1141" DataType="Boolean" ValueRank="-2" AccessLevel="3">
+    <DisplayName>ActualValue</DisplayName>
+    <References>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=3;i=1141</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=63</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasDictionaryEntry">ns=1;s=0112/2///61987#ABN645#001</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=3;i=1145" BrowseName="3:SimulationValue" ParentNodeId="ns=3;i=1141" DataType="Boolean" ValueRank="-2" AccessLevel="3">
+    <DisplayName>SimulationValue</DisplayName>
+    <References>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=3;i=1141</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=63</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasDictionaryEntry">ns=1;s=0112/2///61987#ABN632#001</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=3;i=1147" BrowseName="3:SimulationState" ParentNodeId="ns=3;i=1141" DataType="Boolean" AccessLevel="3">
+    <DisplayName>Simulation state</DisplayName>
+    <References>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=3;i=1141</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=63</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasDictionaryEntry">ns=1;s=0112/2///61987#ABN611#001</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=3;i=1148" BrowseName="3:ActualValue" ParentNodeId="ns=3;i=1142" DataType="UInt32" AccessLevel="3">
+    <DisplayName>ActualValue</DisplayName>
+    <References>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=3;i=1142</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=63</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasDictionaryEntry">ns=1;s=0112/2///61987#ABN646#001</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=3;i=1149" BrowseName="3:SimulationValue" ParentNodeId="ns=3;i=1142" DataType="UInt32" AccessLevel="3">
+    <DisplayName>SimulationValue</DisplayName>
+    <References>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=3;i=1142</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=63</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasDictionaryEntry">ns=1;s=0112/2///61987#ABN637#001</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=3;i=1151" BrowseName="3:SimulationState" ParentNodeId="ns=3;i=1142" DataType="Boolean" AccessLevel="3">
+    <DisplayName>Simulation state</DisplayName>
+    <References>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=3;i=1142</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=63</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasDictionaryEntry">ns=1;s=0112/2///61987#ABN611#001</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=3;i=1152" BrowseName="3:ActualValue" ParentNodeId="ns=3;i=1143" ValueRank="-2" AccessLevel="3">
+    <DisplayName>Actual value</DisplayName>
+    <References>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=3;i=1143</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=63</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasDictionaryEntry">ns=1;s=0112/2///61987#ABN644#001</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=3;i=1153" BrowseName="3:SimulationValue" ParentNodeId="ns=3;i=1143" ValueRank="-2" AccessLevel="3">
+    <DisplayName>Simulation value</DisplayName>
+    <References>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=3;i=1143</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=63</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasDictionaryEntry">ns=1;s=0112/2///61987#ABN613#001</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=3;i=1155" BrowseName="3:SimulationState" ParentNodeId="ns=3;i=1143" DataType="Boolean" AccessLevel="3">
+    <DisplayName>Simulation state</DisplayName>
+    <References>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=3;i=1143</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=63</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasDictionaryEntry">ns=1;s=0112/2///61987#ABN611#001</Reference>
+    </References>
+  </UAVariable>
+  <UADataType NodeId="ns=3;i=1156" BrowseName="3:ResetModeEnum">
+    <DisplayName>ResetModeEnum</DisplayName>
+    <Documentation>https://reference.opcfoundation.org/v104/PADIM/v100/docs/10.1</Documentation>
+    <References>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=29</Reference>
+    </References>
+    <Definition Name="3:ResetModeEnum">
+      <Field Name="Application" Value="1" />
+      <Field Name="Communication" Value="2712" />
+      <Field Name="Factory" Value="2713" />
+    </Definition>
+  </UADataType>
+  <UAVariable NodeId="ns=3;i=1157" BrowseName="EnumValues" ParentNodeId="ns=3;i=1156" DataType="i=7594" ValueRank="1" ArrayDimensions="3">
+    <DisplayName>EnumValues</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=3;i=1156</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+    <Value>
+      <uax:ListOfExtensionObject xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd">
+        <uax:ExtensionObject>
+          <uax:TypeId>
+            <uax:Identifier>i=7616</uax:Identifier>
+          </uax:TypeId>
+          <uax:Body>
+            <uax:EnumValueType>
+              <uax:Value>1</uax:Value>
+              <uax:DisplayName>
+                <uax:Text>Application</uax:Text>
+              </uax:DisplayName>
+              <uax:Description />
+            </uax:EnumValueType>
+          </uax:Body>
+        </uax:ExtensionObject>
+        <uax:ExtensionObject>
+          <uax:TypeId>
+            <uax:Identifier>i=7616</uax:Identifier>
+          </uax:TypeId>
+          <uax:Body>
+            <uax:EnumValueType>
+              <uax:Value>2712</uax:Value>
+              <uax:DisplayName>
+                <uax:Text>Communication</uax:Text>
+              </uax:DisplayName>
+              <uax:Description />
+            </uax:EnumValueType>
+          </uax:Body>
+        </uax:ExtensionObject>
+        <uax:ExtensionObject>
+          <uax:TypeId>
+            <uax:Identifier>i=7616</uax:Identifier>
+          </uax:TypeId>
+          <uax:Body>
+            <uax:EnumValueType>
+              <uax:Value>2713</uax:Value>
+              <uax:DisplayName>
+                <uax:Text>Factory</uax:Text>
+              </uax:DisplayName>
+              <uax:Description />
+            </uax:EnumValueType>
+          </uax:Body>
+        </uax:ExtensionObject>
+      </uax:ListOfExtensionObject>
+    </Value>
+  </UAVariable>
+  <UADataType NodeId="ns=3;i=1158" BrowseName="3:ExecutionModeEnum">
+    <DisplayName>ExecutionModeEnum</DisplayName>
+    <Documentation>https://reference.opcfoundation.org/v104/PADIM/v100/docs/10.2</Documentation>
+    <References>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=29</Reference>
+    </References>
+    <Definition Name="3:ExecutionModeEnum">
+      <Field Name="Start" Value="2" />
+      <Field Name="Abort" Value="255" />
+    </Definition>
+  </UADataType>
+  <UAVariable NodeId="ns=3;i=1159" BrowseName="EnumValues" ParentNodeId="ns=3;i=1158" DataType="i=7594" ValueRank="1" ArrayDimensions="2">
+    <DisplayName>EnumValues</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=3;i=1158</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+    <Value>
+      <uax:ListOfExtensionObject xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd">
+        <uax:ExtensionObject>
+          <uax:TypeId>
+            <uax:Identifier>i=7616</uax:Identifier>
+          </uax:TypeId>
+          <uax:Body>
+            <uax:EnumValueType>
+              <uax:Value>2</uax:Value>
+              <uax:DisplayName>
+                <uax:Text>Start</uax:Text>
+              </uax:DisplayName>
+              <uax:Description />
+            </uax:EnumValueType>
+          </uax:Body>
+        </uax:ExtensionObject>
+        <uax:ExtensionObject>
+          <uax:TypeId>
+            <uax:Identifier>i=7616</uax:Identifier>
+          </uax:TypeId>
+          <uax:Body>
+            <uax:EnumValueType>
+              <uax:Value>255</uax:Value>
+              <uax:DisplayName>
+                <uax:Text>Abort</uax:Text>
+              </uax:DisplayName>
+              <uax:Description />
+            </uax:EnumValueType>
+          </uax:Body>
+        </uax:ExtensionObject>
+      </uax:ListOfExtensionObject>
+    </Value>
+  </UAVariable>
+  <UAObjectType NodeId="ns=3;i=1008" BrowseName="3:SignalType">
+    <DisplayName>SignalType</DisplayName>
+    <Documentation>https://reference.opcfoundation.org/v104/PADIM/v100/docs/7.4</Documentation>
+    <References>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=58</Reference>
+    </References>
+  </UAObjectType>
+  <UAObjectType NodeId="ns=3;i=1022" BrowseName="3:AnalogSignalType">
+    <DisplayName>AnalogSignalType</DisplayName>
+    <Documentation>https://reference.opcfoundation.org/v104/PADIM/v100/docs/7.5</Documentation>
+    <References>
+      <Reference ReferenceType="HasSubtype" IsForward="false">ns=3;i=1008</Reference>
+    </References>
+  </UAObjectType>
+  <UAObjectType NodeId="ns=3;i=1023" BrowseName="3:ControlSignalType">
+    <DisplayName>ControlSignalType</DisplayName>
+    <Documentation>https://reference.opcfoundation.org/v104/PADIM/v100/docs/7.6</Documentation>
+    <References>
+      <Reference ReferenceType="HasSubtype" IsForward="false">ns=3;i=1008</Reference>
+    </References>
+  </UAObjectType>
+  <UAObject NodeId="ns=3;i=1024" BrowseName="3:&lt;SignalIdentifier&gt;" SymbolicName="S_SignalIdentifier_" ParentNodeId="ns=3;i=1021">
+    <DisplayName>&lt;SignalIdentifier&gt;</DisplayName>
+    <References>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=3;i=1021</Reference>
+      <Reference ReferenceType="HasTypeDefinition">ns=3;i=1008</Reference>
+      <Reference ReferenceType="HasModellingRule">i=11508</Reference>
+    </References>
+  </UAObject>
+  <UAVariable NodeId="ns=3;i=1027" BrowseName="3:AnalogSignal" ParentNodeId="ns=3;i=1022" DataType="Number" ValueRank="-2" AccessLevel="3">
+    <DisplayName>AnalogSignal</DisplayName>
+    <References>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=3;i=1022</Reference>
+      <Reference ReferenceType="HasTypeDefinition">ns=3;i=1111</Reference>
+      <Reference ReferenceType="HasDictionaryEntry">ns=1;s=0112/2///61987#ABN634#001</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=3;i=1031" BrowseName="3:ControlSignal" ParentNodeId="ns=3;i=1023" DataType="Float" ValueRank="-2" AccessLevel="3">
+    <DisplayName>ControlSignal</DisplayName>
+    <References>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=3;i=1023</Reference>
+      <Reference ReferenceType="HasTypeDefinition">ns=3;i=1125</Reference>
+      <Reference ReferenceType="HasDictionaryEntry">ns=1;s=0112/2///61987#ABJ683#001</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=3;i=1035" BrowseName="3:SignalTag" ParentNodeId="ns=3;i=1008" DataType="String" AccessLevel="3">
+    <DisplayName>Tag</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=3;i=1008</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasDictionaryEntry">ns=1;s=0112/2///61987#ABB271#007</Reference>
+    </References>
+  </UAVariable>
+  <UAObjectType NodeId="ns=3;i=1036" BrowseName="3:DiscreteSignalType">
+    <DisplayName>DiscreteSignalType</DisplayName>
+    <Documentation>https://reference.opcfoundation.org/v104/PADIM/v100/docs/7.9</Documentation>
+    <References>
+      <Reference ReferenceType="HasSubtype" IsForward="false">ns=3;i=1008</Reference>
+    </References>
+  </UAObjectType>
+  <UAObjectType NodeId="ns=3;i=1037" BrowseName="3:TwoStateDiscreteSignalType">
+    <DisplayName>TwoStateDiscreteSignalType</DisplayName>
+    <Documentation>https://reference.opcfoundation.org/v104/PADIM/v100/docs/7.7</Documentation>
+    <References>
+      <Reference ReferenceType="HasSubtype" IsForward="false">ns=3;i=1008</Reference>
+    </References>
+  </UAObjectType>
+  <UAObjectType NodeId="ns=3;i=1038" BrowseName="3:MultiStateDiscreteSignalType">
+    <DisplayName>MultiStateDiscreteSignalType</DisplayName>
+    <Documentation>https://reference.opcfoundation.org/v104/PADIM/v100/docs/7.8</Documentation>
+    <References>
+      <Reference ReferenceType="HasSubtype" IsForward="false">ns=3;i=1008</Reference>
+    </References>
+  </UAObjectType>
+  <UAVariable NodeId="ns=3;i=1039" BrowseName="3:DiscreteSignal" ParentNodeId="ns=3;i=1036" ValueRank="-2" AccessLevel="3">
+    <DisplayName>DiscreteSignal</DisplayName>
+    <References>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=3;i=1036</Reference>
+      <Reference ReferenceType="HasTypeDefinition">ns=3;i=1143</Reference>
+      <Reference ReferenceType="HasDictionaryEntry">ns=1;s=0112/2///61987#ABN634#001</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=3;i=1040" BrowseName="3:TwoStateDiscreteSignal" ParentNodeId="ns=3;i=1037" DataType="Boolean" ValueRank="-2" AccessLevel="3">
+    <DisplayName>TwoStateDiscreteSignal</DisplayName>
+    <References>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=3;i=1037</Reference>
+      <Reference ReferenceType="HasTypeDefinition">ns=3;i=1141</Reference>
+      <Reference ReferenceType="HasDictionaryEntry">ns=1;s=0112/2///61987#ABN635#001</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=3;i=1041" BrowseName="3:MultiStateDiscreteSignal" ParentNodeId="ns=3;i=1038" DataType="UInt32" AccessLevel="3">
+    <DisplayName>MultiStateDiscreteSignal</DisplayName>
+    <References>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=3;i=1038</Reference>
+      <Reference ReferenceType="HasTypeDefinition">ns=3;i=1142</Reference>
+      <Reference ReferenceType="HasDictionaryEntry">ns=1;s=0112/2///61987#ABN636#001</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+    </References>
+  </UAVariable>
+</UANodeSet>

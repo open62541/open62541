@@ -1,0 +1,16 @@
+Document: open62541
+Title: open62541 Manual
+Author: The open62541 Team <open62541-core@googlegroups.com>
+Abstract: open62541 (http://open62541.org) is an open source 
+ and free implementation of OPC UA (OPC Unified Architecture) 
+ written in the common subset of the C99 and C++98 languages.   
+ This manual contains an introduction to the open62541 library 
+ and describes how to use it for server and client applications. 
+Section: Network/Communication
+
+Format: HTML
+Index: /usr/share/doc/open62541/open62541.html/index.html
+Files: /usr/share/doc/open62541/open62541.html/*
+
+Format: PDF
+Files: /usr/share/doc/open62541/open62541.pdf.gz

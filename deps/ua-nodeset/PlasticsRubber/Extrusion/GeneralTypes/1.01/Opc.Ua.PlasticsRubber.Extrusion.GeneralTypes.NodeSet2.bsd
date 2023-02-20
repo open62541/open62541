@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<!--
+ * Copyright (c) 2005-2021 The OPC Foundation, Inc. All rights reserved.
+ *
+ * OPC Foundation MIT License 1.00
+ * 
+ * Permission is hereby granted, free of charge, to any person
+ * obtaining a copy of this software and associated documentation
+ * files (the "Software"), to deal in the Software without
+ * restriction, including without limitation the rights to use,
+ * copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the
+ * Software is furnished to do so, subject to the following
+ * conditions:
+ * 
+ * The above copyright notice and this permission notice shall be
+ * included in all copies or substantial portions of the Software.
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+ * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
+ * OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+ * NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
+ * HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+ * WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+ * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+ * OTHER DEALINGS IN THE SOFTWARE.
+ *
+ * The complete license agreement can be found here:
+ * http://opcfoundation.org/License/MIT/1.00/
+-->
+
+<opc:TypeDictionary xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:tns="http://opcfoundation.org/UA/PlasticsRubber/Extrusion/GeneralTypes/" DefaultByteOrder="LittleEndian" xmlns:opc="http://opcfoundation.org/BinarySchema/" xmlns:ua="http://opcfoundation.org/UA/" TargetNamespace="http://opcfoundation.org/UA/PlasticsRubber/Extrusion/GeneralTypes/">
+    <opc:Import Namespace="http://opcfoundation.org/UA/"/>
+    <opc:EnumeratedType LengthInBits="32" Name="ComponentStatusEnumeration">
+        <opc:EnumeratedValue Name="OFFLINE" Value="0"/>
+        <opc:EnumeratedValue Name="IDLE" Value="1"/>
+        <opc:EnumeratedValue Name="PREPARING" Value="2"/>
+        <opc:EnumeratedValue Name="READY_TO_RUN" Value="3"/>
+        <opc:EnumeratedValue Name="MANUAL_RUN" Value="4"/>
+        <opc:EnumeratedValue Name="CONTROLLED_RUN" Value="5"/>
+        <opc:EnumeratedValue Name="MALFUNCTION" Value="6"/>
+        <opc:EnumeratedValue Name="MAINTENANCE" Value="7"/>
+    </opc:EnumeratedType>
+    <opc:EnumeratedType LengthInBits="32" Name="ExtrusionMessageClassificationEnumeration">
+        <opc:EnumeratedValue Name="OTHER" Value="0"/>
+        <opc:EnumeratedValue Name="LINE_CONTROL" Value="1"/>
+        <opc:EnumeratedValue Name="MATERIAL_HANDLING" Value="2"/>
+        <opc:EnumeratedValue Name="PRE_HEATING" Value="3"/>
+        <opc:EnumeratedValue Name="FEEDING" Value="4"/>
+        <opc:EnumeratedValue Name="DOSING" Value="5"/>
+        <opc:EnumeratedValue Name="EXTRUDER" Value="6"/>
+        <opc:EnumeratedValue Name="VACUUM_STATION" Value="7"/>
+        <opc:EnumeratedValue Name="FILTER" Value="8"/>
+        <opc:EnumeratedValue Name="MELT_PUMP" Value="9"/>
+        <opc:EnumeratedValue Name="DIE" Value="10"/>
+        <opc:EnumeratedValue Name="COOLING" Value="11"/>
+        <opc:EnumeratedValue Name="HAUL_OFF" Value="12"/>
+        <opc:EnumeratedValue Name="CORRUGATOR" Value="13"/>
+        <opc:EnumeratedValue Name="SAW" Value="14"/>
+        <opc:EnumeratedValue Name="CALIBRATION" Value="15"/>
+        <opc:EnumeratedValue Name="ROLL_STACK" Value="16"/>
+        <opc:EnumeratedValue Name="MDO" Value="17"/>
+        <opc:EnumeratedValue Name="BIAX" Value="18"/>
+        <opc:EnumeratedValue Name="CUTTING" Value="19"/>
+        <opc:EnumeratedValue Name="WINDER" Value="20"/>
+        <opc:EnumeratedValue Name="PELLETIZING" Value="21"/>
+        <opc:EnumeratedValue Name="DRYER" Value="22"/>
+        <opc:EnumeratedValue Name="HANDLING_SYSTEM" Value="23"/>
+        <opc:EnumeratedValue Name="LAMINATION_SYSTEM" Value="24"/>
+        <opc:EnumeratedValue Name="MEASURING_SYSTEM" Value="25"/>
+        <opc:EnumeratedValue Name="QUALITY_SYSTEM" Value="26"/>
+        <opc:EnumeratedValue Name="MANUAL_INSPECTION" Value="27"/>
+        <opc:EnumeratedValue Name="MANUAL_OPERATION" Value="28"/>
+    </opc:EnumeratedType>
+</opc:TypeDictionary>
