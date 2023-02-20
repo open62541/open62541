@@ -85,7 +85,7 @@ hideErrors(UA_TcpErrorMessage *const error) {
 
 UA_Boolean
 UA_SecureChannel_isConnected(UA_SecureChannel *channel) {
-    return (channel->state >= UA_SECURECHANNELSTATE_CONNECTING &&
+    return (channel->state >= UA_SECURECHANNELSTATE_REVERSE_LISTENING &&
             channel->state < UA_SECURECHANNELSTATE_CLOSING);
 }
 
