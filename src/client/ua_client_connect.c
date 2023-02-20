@@ -1317,11 +1317,8 @@ __Client_networkCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
 }
 
 static void closeListeningReverseConnectSocket(UA_Client *client) {
-    UA_LOCK(&client->clientMutex);
-    if (client->channel.state != UA_SECURECHANNELSTATE_REVERSE_LISTENING) {
-        UA_UNLOCK(&client->clientMutex);
+    if (client->channel.state != UA_SECURECHANNELSTATE_REVERSE_LISTENING)
         return;
-    }
 
     client->channel.listenerDisconnected = true;
     client->channel.connectionManager->closeConnection(client->channel.connectionManager, client->channel.connectionId);
@@ -1330,14 +1327,10 @@ static void closeListeningReverseConnectSocket(UA_Client *client) {
     if(el &&
        el->state != UA_EVENTLOOPSTATE_FRESH &&
        el->state != UA_EVENTLOOPSTATE_STOPPED) {
-        UA_UNLOCK(&client->clientMutex);
         while(client->channel.state < UA_SECURECHANNELSTATE_CLOSED) {
             el->run(el, 100);
         }
-        UA_LOCK(&client->clientMutex);
     }
-
-    UA_UNLOCK(&client->clientMutex);
 }
 
 /* Initialize a TCP connection. Writes the result to client->connectStatus. */
