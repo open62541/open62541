@@ -16,6 +16,8 @@
 #define UA_SESSION_LOCALNONCELENGTH 32
 #define MAX_DATA_SIZE 4096
 
+#define REVERSE_CONNECT_INDICATOR (void *)(uintptr_t)0xFFFFFFFF
+
 static UA_StatusCode initConnect(UA_Client *client);
 static UA_StatusCode createSessionAsync(UA_Client *client);
 
@@ -1548,18 +1550,21 @@ __Client_reverseConnectCallback(UA_ConnectionManager *cm, uintptr_t connectionId
                          void *application, void **connectionContext,
                          UA_ConnectionState state, const UA_KeyValueMap *params,
                          UA_ByteString msg) {
-    void *reverseConnectIndicator = (void *)(uintptr_t)0xFFFFFFFF;
 
     UA_Client *client = (UA_Client*)application;
 
     UA_LOCK(&client->clientMutex);
 
+    /* This is the first call for the listening socket, attach the REVERSE_CONNECT_INDICATOR marker
+     * and set the ID to the channel */
     if (!client->channel.connectionId) {
         client->channel.connectionId = connectionId;
-        *connectionContext = reverseConnectIndicator;
+        *connectionContext = REVERSE_CONNECT_INDICATOR;
     }
 
-    if (*connectionContext == reverseConnectIndicator && state == UA_CONNECTIONSTATE_CLOSING) {
+    /* Last call for the listening connection while it is being closed.
+     * Only notify a state change if no reverse connection is being or has been established by now */
+    if (*connectionContext == REVERSE_CONNECT_INDICATOR && state == UA_CONNECTIONSTATE_CLOSING) {
         if ((client->channel.state == UA_SECURECHANNELSTATE_REVERSE_LISTENING || client->channel.state == UA_SECURECHANNELSTATE_CLOSING)
                 && client->channel.connectionId == connectionId) {
             client->channel.state = UA_SECURECHANNELSTATE_CLOSED;
@@ -1569,7 +1574,8 @@ __Client_reverseConnectCallback(UA_ConnectionManager *cm, uintptr_t connectionId
         return;
     }
 
-    if (client->channel.connectionId == connectionId &&  *connectionContext == reverseConnectIndicator) {
+    /* Second callback for the listening socket, it is now listening for incoming connections */
+    if (client->channel.connectionId == connectionId &&  *connectionContext == REVERSE_CONNECT_INDICATOR) {
         client->channel.state = UA_SECURECHANNELSTATE_REVERSE_LISTENING;
         notifyClientState(client);
     }
@@ -1580,12 +1586,13 @@ __Client_reverseConnectCallback(UA_ConnectionManager *cm, uintptr_t connectionId
     }
 
     /* First call with the new connection from the server, reset secure channel information */
-    if (client->channel.connectionId != connectionId && *connectionContext == reverseConnectIndicator) {
+    if (client->channel.connectionId != connectionId && *connectionContext == REVERSE_CONNECT_INDICATOR) {
         *connectionContext = NULL;
         client->channel.connectionId = 0;
     }
 
-    if (*connectionContext != reverseConnectIndicator) {
+    /* Forward all calls belonging to the reverse connection estblished by the server to the regular network callback */
+    if (*connectionContext != REVERSE_CONNECT_INDICATOR) {
         UA_UNLOCK(&client->clientMutex);
         __Client_networkCallback(cm, connectionId, application, connectionContext, state, params, msg);
         return;
