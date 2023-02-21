@@ -85,7 +85,7 @@ hideErrors(UA_TcpErrorMessage *const error) {
 
 UA_Boolean
 UA_SecureChannel_isConnected(UA_SecureChannel *channel) {
-    return (channel->state >= UA_SECURECHANNELSTATE_CONNECTING &&
+    return (channel->state >= UA_SECURECHANNELSTATE_REVERSE_LISTENING &&
             channel->state < UA_SECURECHANNELSTATE_CLOSING);
 }
 
@@ -900,7 +900,7 @@ extractCompleteChunk(UA_SecureChannel *channel, const UA_ByteString *buffer,
     chunkPayload.data = &buffer->data[*offset];
     chunkPayload.length = hdr.messageSize;
 
-    if(msgType == UA_MESSAGETYPE_HEL || msgType == UA_MESSAGETYPE_ACK ||
+    if(msgType == UA_MESSAGETYPE_RHE || msgType == UA_MESSAGETYPE_HEL || msgType == UA_MESSAGETYPE_ACK ||
        msgType == UA_MESSAGETYPE_ERR || msgType == UA_MESSAGETYPE_OPN) {
         if(chunkType != UA_CHUNKTYPE_FINAL)
             return UA_STATUSCODE_BADTCPMESSAGETYPEINVALID;

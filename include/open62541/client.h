@@ -323,6 +323,22 @@ UA_Client_connectUsername(UA_Client *client, const char *endpointUrl,
     return UA_Client_connect(client, endpointUrl);
 }
 
+/* Sets up a listening socket for incoming reverse connect requests by OPC UA servers.
+ * After the first server has connected, the listening socket is removed.
+ * The client state callback is also used for reverse connect. An implementation could
+ * for example issue a new call to UA_Client_startListeningForReverseConnect after the
+ * server has closed the connection. If the client is connected to any server while
+ * UA_Client_startListeningForReverseConnect is called, the connection will be closed.
+ *
+ * The reverse connect is closed by calling the standard disconnect functions like
+ * for a "normal" connection that was initiated by the client. Calling one of the connect
+ * methods will also close the listening socket and the connection to the remote server.
+ */
+UA_StatusCode UA_EXPORT
+UA_Client_startListeningForReverseConnect(UA_Client *client, const UA_String *listenHostnames,
+                                          size_t listenHostnamesLength,
+                                          UA_UInt16 port);
+
 /* Disconnect and close a connection to the selected server. Disconnection is
  * always performed async (without blocking). */
 UA_StatusCode UA_EXPORT UA_THREADSAFE

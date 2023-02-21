@@ -204,6 +204,7 @@ processServiceResponse(void *application, UA_SecureChannel *channel,
 
 void connectSync(UA_Client *client);
 void notifyClientState(UA_Client *client);
+void processRHEMessage(UA_Client *client, const UA_ByteString *chunk);
 void processERRResponse(UA_Client *client, const UA_ByteString *chunk);
 void processACKResponse(UA_Client *client, const UA_ByteString *chunk);
 void processOPNResponse(UA_Client *client, const UA_ByteString *message);

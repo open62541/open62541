@@ -278,8 +278,8 @@ UA_Client_getConfig(UA_Client *client) {
 }
 
 #if UA_LOGLEVEL <= 300
-static const char *channelStateTexts[12] = {
-    "Fresh", "Connecting", "Connected", "RHESent", "HELSent", "HELReceived", "ACKSent",
+static const char *channelStateTexts[14] = {
+    "Fresh", "ReverseListening", "Connecting", "Connected", "ReverseConnected", "RHESent", "HELSent", "HELReceived", "ACKSent",
     "AckReceived", "OPNSent", "Open", "Closing", "Closed"};
 static const char *sessionStateTexts[6] =
     {"Closed", "CreateRequested", "Created",
@@ -508,6 +508,10 @@ processServiceResponse(void *application, UA_SecureChannel *channel,
     }
 
     switch(messageType) {
+    case UA_MESSAGETYPE_RHE:
+        UA_LOG_DEBUG_CHANNEL(&client->config.logger, channel, "Process RHE message");
+        processRHEMessage(client, message);
+        return UA_STATUSCODE_GOOD;
     case UA_MESSAGETYPE_ACK:
         UA_LOG_DEBUG_CHANNEL(&client->config.logger, channel, "Process ACK message");
         processACKResponse(client, message);
