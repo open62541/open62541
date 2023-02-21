@@ -418,10 +418,15 @@ void processRHEMessage(UA_Client *client, const UA_ByteString *chunk) {
         UA_decodeBinaryInternal(chunk, &offset, &rheMessage,
                                 &UA_TRANSPORT[UA_TRANSPORT_TCPREVERSEHELLOMESSAGE], NULL);
 
-    if(retval == UA_STATUSCODE_GOOD) {
-        UA_String_clear(&client->endpointUrl);
-        UA_String_copy(&rheMessage.endpointUrl, &client->endpointUrl);
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_LOG_WARNING(&client->config.logger, UA_LOGCATEGORY_NETWORK,
+                     "Decoding RHE message failed");
+        closeSecureChannel(client);
+        return;
     }
+
+    UA_String_clear(&client->endpointUrl);
+    UA_String_copy(&rheMessage.endpointUrl, &client->endpointUrl);
 
     UA_TcpReverseHelloMessage_clear(&rheMessage);
 
