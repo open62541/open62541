@@ -1565,8 +1565,7 @@ __Client_reverseConnectCallback(UA_ConnectionManager *cm, uintptr_t connectionId
     /* Last call for the listening connection while it is being closed.
      * Only notify a state change if no reverse connection is being or has been established by now */
     if (*connectionContext == REVERSE_CONNECT_INDICATOR && state == UA_CONNECTIONSTATE_CLOSING) {
-        if ((client->channel.state == UA_SECURECHANNELSTATE_REVERSE_LISTENING || client->channel.state == UA_SECURECHANNELSTATE_CLOSING)
-                && client->channel.connectionId == connectionId) {
+        if (client->channel.connectionId == connectionId) {
             client->channel.state = UA_SECURECHANNELSTATE_CLOSED;
             notifyClientState(client);
         }
