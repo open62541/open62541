@@ -1579,15 +1579,11 @@ __Client_reverseConnectCallback(UA_ConnectionManager *cm, uintptr_t connectionId
         notifyClientState(client);
     }
 
-    /* This is a connection initiated by a server, disconnect the listener */
+    /* This is a connection initiated by a server, disconnect the listener and reset secure channel information */
     if (client->channel.connectionId != connectionId) {
         cm->closeConnection(cm, client->channel.connectionId);
-    }
-
-    /* First call with the new connection from the server, reset secure channel information */
-    if (client->channel.connectionId != connectionId && *connectionContext == REVERSE_CONNECT_INDICATOR) {
-        *connectionContext = NULL;
         client->channel.connectionId = 0;
+        *connectionContext = NULL;
     }
 
     /* Forward all calls belonging to the reverse connection estblished by the server to the regular network callback */
