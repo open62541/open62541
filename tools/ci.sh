@@ -100,6 +100,8 @@ function build_amalgamation {
           -DUA_ENABLE_PUBSUB_DELTAFRAMES=ON \
           -DUA_ENABLE_PUBSUB_INFORMATIONMODEL=ON \
           -DUA_ENABLE_PUBSUB_MONITORING=ON \
+		  -DUA_ENABLE_PUBSUB_INFORMATIONMODEL_METHODS=ON \
+		  -DUA_ENABLE_PUBSUB_FILE_CONFIG=ON \
           ..
     make ${MAKEOPTS}
 }
@@ -118,6 +120,8 @@ function build_amalgamation_mt {
           -DUA_ENABLE_PUBSUB_DELTAFRAMES=ON \
           -DUA_ENABLE_PUBSUB_INFORMATIONMODEL=ON \
           -DUA_ENABLE_PUBSUB_MONITORING=ON \
+		  -DUA_ENABLE_PUBSUB_INFORMATIONMODEL_METHODS=ON \
+		  -DUA_ENABLE_PUBSUB_FILE_CONFIG=ON \
           -DUA_MULTITHREADING=100 \
           ..
     make ${MAKEOPTS}
@@ -154,6 +158,7 @@ function unit_tests {
           -DUA_ENABLE_REDUCED_ITERATIONS_FOR_TESTING=ON \
           -DUA_ENABLE_PUBSUB_MONITORING=ON \
           -DUA_ENABLE_PUBSUB_MQTT=ON \
+		  -DUA_ENABLE_PUBSUB_FILE_CONFIG=ON \
           ..
     make ${MAKEOPTS}
     set_capabilities
@@ -176,6 +181,8 @@ function unit_tests_32 {
           -DUA_ENABLE_PUBSUB_DELTAFRAMES=ON \
           -DUA_ENABLE_PUBSUB_INFORMATIONMODEL=ON \
           -DUA_ENABLE_PUBSUB_MONITORING=ON \
+		  -DUA_ENABLE_PUBSUB_INFORMATIONMODEL_METHODS=ON \
+		  -DUA_ENABLE_PUBSUB_FILE_CONFIG=ON \
           -DUA_FORCE_32BIT=ON \
           ..
           #-DUA_ENABLE_PUBSUB_ETH_UADP=ON \ # TODO: Enable this
@@ -216,6 +223,7 @@ function unit_tests_diag {
           -DUA_ENABLE_PUBSUB_INFORMATIONMODEL_METHODS=ON \
           -DUA_ENABLE_REDUCED_ITERATIONS_FOR_TESTING=ON \
           -DUA_ENABLE_PUBSUB_MONITORING=ON \
+		  -DUA_ENABLE_PUBSUB_FILE_CONFIG=ON \
           ..
     make ${MAKEOPTS}
     set_capabilities
@@ -283,6 +291,7 @@ function unit_tests_encryption_mbedtls_pubsub {
           -DUA_ENABLE_PUBSUB_INFORMATIONMODEL=ON \
           -DUA_ENABLE_PUBSUB_MONITORING=ON \
           -DUA_ENABLE_PUBSUB_ENCRYPTION=ON \
+		  -DUA_ENABLE_PUBSUB_FILE_CONFIG=ON \
           ..
     make ${MAKEOPTS}
     set_capabilities
@@ -306,6 +315,7 @@ function unit_tests_pubsub_sks {
           -DUA_ENABLE_PUBSUB_MONITORING=ON \
           -DUA_ENABLE_PUBSUB_ENCRYPTION=ON \
           -DUA_ENABLE_PUBSUB_SKS=ON \
+		  -DUA_ENABLE_PUBSUB_FILE_CONFIG=ON \
           ..
     make ${MAKEOPTS}
     set_capabilities
@@ -369,6 +379,7 @@ function unit_tests_valgrind {
           -DUA_ENABLE_PUBSUB_INFORMATIONMODEL_METHODS=ON \
           -DUA_ENABLE_REDUCED_ITERATIONS_FOR_TESTING=ON \
           -DUA_ENABLE_PUBSUB_MONITORING=ON \
+		  -DUA_ENABLE_PUBSUB_FILE_CONFIG=ON \
           -DUA_ENABLE_UNIT_TESTS_MEMCHECK=ON \
           ..
     make ${MAKEOPTS}
@@ -396,6 +407,7 @@ function build_clang_analyzer {
           -DUA_ENABLE_PUBSUB_DELTAFRAMES=ON \
           -DUA_ENABLE_PUBSUB_INFORMATIONMODEL=ON \
           -DUA_ENABLE_PUBSUB_MONITORING=ON \
+		  -DUA_ENABLE_PUBSUB_FILE_CONFIG=ON \
           ..
     scan-build-11 --status-bugs make ${MAKEOPTS}
 }
