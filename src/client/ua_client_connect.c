@@ -1639,27 +1639,34 @@ UA_StatusCode UA_Client_startListeningForReverseConnect(UA_Client *client, const
             continue;
 
         client->channel.connectionManager = cm;
-
-        UA_KeyValuePair params[3];
-        bool booleanTrue = true;
-        params[0].key = UA_QUALIFIEDNAME(0, "port");
-        UA_Variant_setScalar(&params[0].value, &port, &UA_TYPES[UA_TYPES_UINT16]);
-        params[1].key = UA_QUALIFIEDNAME(0, "address");
-        UA_Variant_setArray(&params[1].value, (void *)(uintptr_t)listenHostnames,
-                listenHostnamesLength, &UA_TYPES[UA_TYPES_STRING]);
-        params[2].key = UA_QUALIFIEDNAME(0, "listen");
-        UA_Variant_setScalar(&params[2].value, &booleanTrue, &UA_TYPES[UA_TYPES_BOOLEAN]);
-
-        UA_KeyValueMap paramMap;
-        paramMap.map = params;
-        paramMap.mapSize = 3;
-
-        UA_UNLOCK(&client->clientMutex);
-        res = cm->openConnection(cm, &paramMap, client, NULL, __Client_reverseConnectCallback);
-        UA_LOCK(&client->clientMutex);
-        if(res == UA_STATUSCODE_GOOD)
-            break;
+        break;
     }
+
+    if (!client->channel.connectionManager) {
+        UA_LOG_WARNING(&client->config.logger, UA_LOGCATEGORY_CLIENT,
+                       "Could not find a TCP connection manager, unable to listen for reverse connect");
+        UA_UNLOCK(&client->clientMutex);
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
+
+    UA_KeyValuePair params[3];
+    bool booleanTrue = true;
+    params[0].key = UA_QUALIFIEDNAME(0, "port");
+    UA_Variant_setScalar(&params[0].value, &port, &UA_TYPES[UA_TYPES_UINT16]);
+    params[1].key = UA_QUALIFIEDNAME(0, "address");
+    UA_Variant_setArray(&params[1].value, (void *)(uintptr_t)listenHostnames,
+            listenHostnamesLength, &UA_TYPES[UA_TYPES_STRING]);
+    params[2].key = UA_QUALIFIEDNAME(0, "listen");
+    UA_Variant_setScalar(&params[2].value, &booleanTrue, &UA_TYPES[UA_TYPES_BOOLEAN]);
+
+    UA_KeyValueMap paramMap;
+    paramMap.map = params;
+    paramMap.mapSize = 3;
+
+    UA_UNLOCK(&client->clientMutex);
+    res = client->channel.connectionManager->openConnection(client->channel.connectionManager, &paramMap,
+                                                            client, NULL, __Client_reverseConnectCallback);
+    UA_LOCK(&client->clientMutex);
 
     /* Opening the TCP connection failed */
     if(res != UA_STATUSCODE_GOOD) {
