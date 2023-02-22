@@ -47,7 +47,7 @@ START_TEST(AddPublisherUsingBinaryFile) {
     TAILQ_FOREACH(connection, &server->pubSubManager.connections, listEntry) {
         connectionCount++;
         tmp = UA_STRING("UADP Connection 1");
-        ck_assert(UA_String_equal(&tmp, &connection->config->name));
+        ck_assert(UA_String_equal(&tmp, &connection->config.name));
         LIST_FOREACH(writerGroup, &connection->writerGroups, listEntry){
             writerGroupCount++;
             tmp = UA_STRING("Demo WriterGroup");
@@ -80,7 +80,7 @@ START_TEST(AddSubscriberUsingBinaryFile) {
     TAILQ_FOREACH(connection, &server->pubSubManager.connections, listEntry) {
         connectionCount++;
         tmp = UA_STRING("UDPMC Connection 1");
-        ck_assert(UA_String_equal(&tmp, &connection->config->name));
+        ck_assert(UA_String_equal(&tmp, &connection->config.name));
         LIST_FOREACH(readerGroup, &connection->readerGroups, listEntry){
             readerGroupCount++;
             tmp = UA_STRING("ReaderGroup1");
