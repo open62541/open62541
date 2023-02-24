@@ -297,19 +297,34 @@ START_TEST(Test_normal_operation) {
     ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_DataSetReader_getState(server, DSRId_Conn1_RG1_DSR1, &state));
     ck_assert_int_eq(UA_PUBSUBSTATE_DISABLED, state);
 
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "enable groups");
+    
+    ck_assert(UA_Server_enableWriterGroup(server, WGId_Conn1_WG1) == UA_STATUSCODE_GOOD);
+    ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_WriterGroup_getState(server, WGId_Conn1_WG1, &state));
+    ck_assert_int_eq(UA_PUBSUBSTATE_PREOPERATIONAL, state);
+
+    ck_assert(UA_Server_enableReaderGroup(server, RGId_Conn1_RG1) == UA_STATUSCODE_GOOD);
+    ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_ReaderGroup_getState(server, RGId_Conn1_RG1, &state));
+    ck_assert_int_eq(UA_PUBSUBSTATE_PREOPERATIONAL, state);
+
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "set groups operational");
 
     ck_assert(UA_Server_setWriterGroupOperational(server, WGId_Conn1_WG1) == UA_STATUSCODE_GOOD);
     ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_WriterGroup_getState(server, WGId_Conn1_WG1, &state));
     ck_assert_int_eq(UA_PUBSUBSTATE_OPERATIONAL, state);
     ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_DataSetWriter_getState(server, DsWId_Conn1_WG1_DS1, &state));
-    ck_assert_int_eq(UA_PUBSUBSTATE_OPERATIONAL, state);
+    ck_assert_int_eq(UA_PUBSUBSTATE_PREOPERATIONAL, state);
 
     ck_assert(UA_Server_setReaderGroupOperational(server, RGId_Conn1_RG1) == UA_STATUSCODE_GOOD);
     ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_ReaderGroup_getState(server, RGId_Conn1_RG1, &state));
     ck_assert_int_eq(UA_PUBSUBSTATE_OPERATIONAL, state);
     ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_DataSetReader_getState(server, DSRId_Conn1_RG1_DSR1, &state));
     ck_assert_int_eq(UA_PUBSUBSTATE_PREOPERATIONAL, state);
+
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "set DSW operational");
+    ck_assert(UA_Server_setDataSetWriterOperational(server, DsWId_Conn1_WG1_DS1) == UA_STATUSCODE_GOOD);
+    ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_DataSetWriter_getState(server, DsWId_Conn1_WG1_DS1, &state));
+    ck_assert_int_eq(UA_PUBSUBSTATE_OPERATIONAL, state);
 
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "set groups disabled");
     ck_assert(UA_Server_setWriterGroupDisabled(server, WGId_Conn1_WG1) == UA_STATUSCODE_GOOD);
@@ -350,13 +365,16 @@ START_TEST(Test_corner_cases) {
     UA_UInt32 PublisherNo_Conn1 = 1;
     AddConnection("Conn1", PublisherNo_Conn1, &ConnId_1);
 
+
     UA_NodeId WGId_Conn1_WG1;
     UA_NodeId_init(&WGId_Conn1_WG1);
     UA_UInt32 WGNo_Conn1_WG1 = 1;
     UA_Duration PublishingInterval_Conn1_WG1 = 500.0;
     AddWriterGroup(&ConnId_1, "Conn1_WG1", WGNo_Conn1_WG1, PublishingInterval_Conn1_WG1, &WGId_Conn1_WG1);
-
+    
+    ck_assert(UA_Server_enableWriterGroup(server, WGId_Conn1_WG1) == UA_STATUSCODE_GOOD);
     ck_assert(UA_Server_setWriterGroupOperational(server, WGId_Conn1_WG1) == UA_STATUSCODE_GOOD);
+
 
     UA_NodeId DsWId_Conn1_WG1_DS1;
     UA_NodeId_init(&DsWId_Conn1_WG1_DS1);
@@ -367,6 +385,8 @@ START_TEST(Test_corner_cases) {
     UA_UInt32 DSWNo_Conn1_WG1_DS1 = 1;
     AddPublishedDataSet(&WGId_Conn1_WG1, "Conn1_WG1_PDS1", "Conn1_WG1_DS1", DSWNo_Conn1_WG1_DS1, &PDSId_Conn1_WG1_PDS1,
         &VarId_Conn1_WG1_DS1, &DsWId_Conn1_WG1_DS1);
+
+    ck_assert(UA_Server_setDataSetWriterOperational(server, DsWId_Conn1_WG1_DS1) == UA_STATUSCODE_GOOD);
 
     ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_WriterGroup_getState(server, WGId_Conn1_WG1, &state));
     ck_assert_int_eq(UA_PUBSUBSTATE_OPERATIONAL, state);
@@ -379,6 +399,7 @@ START_TEST(Test_corner_cases) {
     UA_NodeId_init(&RGId_Conn1_RG1);
     AddReaderGroup(&ConnId_1, "Conn1_RG1", &RGId_Conn1_RG1);
 
+    ck_assert(UA_Server_enableReaderGroup(server, RGId_Conn1_RG1) == UA_STATUSCODE_GOOD);
     ck_assert(UA_Server_setReaderGroupOperational(server, RGId_Conn1_RG1) == UA_STATUSCODE_GOOD);
 
     UA_NodeId DSRId_Conn1_RG1_DSR1;
