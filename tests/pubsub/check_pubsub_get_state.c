@@ -287,6 +287,9 @@ START_TEST(Test_normal_operation) {
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "check state");
     UA_PubSubState state = UA_PUBSUBSTATE_ERROR;
 
+    ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_PubSubConnection_getState(server, ConnId_1, &state));
+    ck_assert_int_eq(UA_PUBSUBSTATE_PREOPERATIONAL, state);
+
     ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_WriterGroup_getState(server, WGId_Conn1_WG1, &state));
     ck_assert_int_eq(UA_PUBSUBSTATE_DISABLED, state);
     ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_DataSetWriter_getState(server, DsWId_Conn1_WG1_DS1, &state));
@@ -301,9 +304,22 @@ START_TEST(Test_normal_operation) {
     
     ck_assert(UA_Server_enableWriterGroup(server, WGId_Conn1_WG1) == UA_STATUSCODE_GOOD);
     ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_WriterGroup_getState(server, WGId_Conn1_WG1, &state));
-    ck_assert_int_eq(UA_PUBSUBSTATE_PREOPERATIONAL, state);
+    ck_assert_int_eq(UA_PUBSUBSTATE_PAUSED, state);
 
     ck_assert(UA_Server_enableReaderGroup(server, RGId_Conn1_RG1) == UA_STATUSCODE_GOOD);
+    ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_ReaderGroup_getState(server, RGId_Conn1_RG1, &state));
+    ck_assert_int_eq(UA_PUBSUBSTATE_PAUSED, state);
+    
+    
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "set connection operational");
+
+    ck_assert(UA_Server_setPubSubConnectionOperational(server, ConnId_1) == UA_STATUSCODE_GOOD);
+    ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_PubSubConnection_getState(server, ConnId_1, &state));
+    ck_assert_int_eq(UA_PUBSUBSTATE_OPERATIONAL, state);
+
+    ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_WriterGroup_getState(server, WGId_Conn1_WG1, &state));
+    ck_assert_int_eq(UA_PUBSUBSTATE_PREOPERATIONAL, state);
+
     ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_ReaderGroup_getState(server, RGId_Conn1_RG1, &state));
     ck_assert_int_eq(UA_PUBSUBSTATE_PREOPERATIONAL, state);
 
@@ -365,6 +381,7 @@ START_TEST(Test_corner_cases) {
     UA_UInt32 PublisherNo_Conn1 = 1;
     AddConnection("Conn1", PublisherNo_Conn1, &ConnId_1);
 
+    ck_assert(UA_Server_setPubSubConnectionOperational(server, ConnId_1) == UA_STATUSCODE_GOOD);
 
     UA_NodeId WGId_Conn1_WG1;
     UA_NodeId_init(&WGId_Conn1_WG1);
