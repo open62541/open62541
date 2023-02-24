@@ -1129,8 +1129,8 @@ processNetworkMessage(UA_Server *server, UA_PubSubConnection *connection,
 
     if(!processed) {
         UA_LOG_INFO_CONNECTION(&server->config.logger, connection,
-                               "Dataset reader not found. Check PublisherID, "
-                               "WriterGroupID and DatasetWriterID");
+                               "DatasetReader not found. Check PublisherId, "
+                               "WriterGroupId and DatasetWriterId");
     }
 
     return UA_STATUSCODE_GOOD;
