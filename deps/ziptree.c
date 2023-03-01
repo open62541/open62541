@@ -73,6 +73,42 @@ __ZIP_VALIDATE(zip_cmp_cb cmp, unsigned short fieldoffset,
 }
 #endif
 
+/* Walk down the right-side spine of cur. Elements that are larger than x_key
+ * are moved under x->right. */
+static void
+__ZIP_INSERT_MOVE_RIGHT(zip_cmp_cb cmp, unsigned short fieldoffset,
+                        unsigned short keyoffset, const void *x_key,
+                        zip_elem **fix_edge, zip_elem *cur) {
+    while(ZIP_ENTRY_PTR(cur)->right) {
+        zip_elem *move_candidate = ZIP_ENTRY_PTR(cur)->right;
+        if(__ZIP_UNIQUE_CMP(cmp, x_key, ZIP_KEY_PTR(move_candidate)) == ZIP_CMP_MORE) {
+            cur = ZIP_ENTRY_PTR(cur)->right;
+            continue;
+        }
+        ZIP_ENTRY_PTR(cur)->right = ZIP_ENTRY_PTR(move_candidate)->left;
+        ZIP_ENTRY_PTR(move_candidate)->left = NULL;
+        *fix_edge = move_candidate;
+        fix_edge = &ZIP_ENTRY_PTR(move_candidate)->left;
+    }
+}
+
+static void
+__ZIP_INSERT_MOVE_LEFT(zip_cmp_cb cmp, unsigned short fieldoffset,
+                       unsigned short keyoffset, const void *x_key,
+                       zip_elem **fix_edge, zip_elem *cur) {
+    while(ZIP_ENTRY_PTR(cur)->left) {
+        zip_elem *move_candidate = ZIP_ENTRY_PTR(cur)->left;
+        if(__ZIP_UNIQUE_CMP(cmp, x_key, ZIP_KEY_PTR(move_candidate)) == ZIP_CMP_LESS) {
+            cur = ZIP_ENTRY_PTR(cur)->left;
+            continue;
+        }
+        ZIP_ENTRY_PTR(cur)->left = ZIP_ENTRY_PTR(move_candidate)->right;
+        ZIP_ENTRY_PTR(move_candidate)->right = NULL;
+        *fix_edge = move_candidate;
+        fix_edge = &ZIP_ENTRY_PTR(move_candidate)->right;
+    }
+}
+
 void
 __ZIP_INSERT(void *h, zip_cmp_cb cmp, unsigned short fieldoffset,
              unsigned short keyoffset, void *elm) {
@@ -87,14 +123,16 @@ __ZIP_INSERT(void *h, zip_cmp_cb cmp, unsigned short fieldoffset,
         return;
     }
 
+    /* Go down the tree to find the top element "cur" that has a rank smaller
+     * than "x" */
     zip_elem *prev = NULL;
     zip_elem *cur = head->root;
     enum ZIP_CMP cur_order, prev_order;
     do {
-        if(x == cur)
-            return;
         cur_order = __ZIP_UNIQUE_CMP(cmp, x_key, ZIP_KEY_PTR(cur));
-        if(__ZIP_RANK_CMP(x, cur) == ZIP_CMP_MORE)
+        if(cur_order == ZIP_CMP_EQ)
+            return; /* x is already inserted */
+        if(__ZIP_RANK_CMP(cur, x) == ZIP_CMP_LESS)
             break;
         prev = cur;
         prev_order = cur_order;
@@ -102,6 +140,7 @@ __ZIP_INSERT(void *h, zip_cmp_cb cmp, unsigned short fieldoffset,
             ZIP_ENTRY_PTR(cur)->right : ZIP_ENTRY_PTR(cur)->left;
     } while(cur);
 
+    /* Insert "x" instead of "cur" under its parent "prev" */
     if(cur == head->root) {
         head->root = x;
     } else {
@@ -114,39 +153,17 @@ __ZIP_INSERT(void *h, zip_cmp_cb cmp, unsigned short fieldoffset,
     if(!cur)
         return;
 
-    if(cur_order != ZIP_CMP_LESS) {
+    /* Re-insert "cur" under "x". Repair by moving elements that ended up on the
+     * wrong side of "x". */
+    if(cur_order == ZIP_CMP_MORE) {
         ZIP_ENTRY_PTR(x)->left = cur;
+        __ZIP_INSERT_MOVE_RIGHT(cmp, fieldoffset, keyoffset,
+                                x_key, &ZIP_ENTRY_PTR(x)->right, cur);
     } else {
         ZIP_ENTRY_PTR(x)->right = cur;
+        __ZIP_INSERT_MOVE_LEFT(cmp, fieldoffset, keyoffset,
+                               x_key, &ZIP_ENTRY_PTR(x)->left, cur);
     }
-
-    prev = x;
-    do {
-        zip_elem *fix = prev;
-        if(cur_order == ZIP_CMP_MORE) {
-            do {
-                prev = cur;
-                cur = ZIP_ENTRY_PTR(cur)->right;
-                if(!cur)
-                    break;
-                cur_order = __ZIP_UNIQUE_CMP(cmp, x_key, ZIP_KEY_PTR(cur));
-            } while(cur_order == ZIP_CMP_MORE);
-        } else {
-            do {
-                prev = cur;
-                cur = ZIP_ENTRY_PTR(cur)->left;
-                if(!cur)
-                    break;
-                cur_order = __ZIP_UNIQUE_CMP(cmp, x_key, ZIP_KEY_PTR(cur));
-            } while(cur_order == ZIP_CMP_LESS);
-        }
-
-        if(__ZIP_UNIQUE_CMP(cmp, x_key, ZIP_KEY_PTR(fix)) == ZIP_CMP_LESS ||
-           (fix == x && __ZIP_UNIQUE_CMP(cmp, x_key, ZIP_KEY_PTR(prev)) == ZIP_CMP_LESS))
-            ZIP_ENTRY_PTR(fix)->left = cur;
-        else
-            ZIP_ENTRY_PTR(fix)->right = cur;
-    } while(cur);
 }
 
 void
