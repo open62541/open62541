@@ -192,21 +192,6 @@ __ZIP_REMOVE(void *h, zip_cmp_cb cmp, unsigned short fieldoffset,
 }
 
 void *
-__ZIP_FIND(zip_cmp_cb cmp, unsigned short fieldoffset,
-           unsigned short keyoffset, void *cur, const void *key) {
-    while(cur) {
-        enum ZIP_CMP eq = cmp(key, ZIP_KEY_PTR(cur));
-        if(eq == ZIP_CMP_EQ)
-            return cur;
-        if(eq == ZIP_CMP_LESS)
-            cur = ZIP_ENTRY_PTR(cur)->left;
-        else
-            cur = ZIP_ENTRY_PTR(cur)->right;
-    }
-    return NULL;
-}
-
-void *
 __ZIP_MIN(unsigned short fieldoffset, void *elm) {
     if(!elm)
         return NULL;
