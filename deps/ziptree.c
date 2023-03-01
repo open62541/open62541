@@ -192,26 +192,6 @@ __ZIP_REMOVE(void *h, zip_cmp_cb cmp, unsigned short fieldoffset,
 }
 
 void *
-__ZIP_MIN(unsigned short fieldoffset, void *elm) {
-    if(!elm)
-        return NULL;
-    while(ZIP_ENTRY_PTR(elm)->left) {
-        elm = ZIP_ENTRY_PTR(elm)->left;
-    }
-    return elm;
-}
-
-void *
-__ZIP_MAX(unsigned short fieldoffset, void *elm) {
-    if(!elm)
-        return NULL;
-    while(ZIP_ENTRY_PTR(elm)->right) {
-        elm = ZIP_ENTRY_PTR(elm)->right;
-    }
-    return elm;
-}
-
-void *
 __ZIP_ITER(unsigned short fieldoffset, zip_iter_cb cb,
            void *context, void *elm) {
     if(!elm)
