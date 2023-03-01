@@ -69,6 +69,14 @@ typedef enum ZIP_CMP (*zip_cmp_cb)(const void *key1, const void *key2);
 #define ZIP_ROOT(head) (head)->root
 #define ZIP_LEFT(elm, field) (elm)->field.left
 #define ZIP_RIGHT(elm, field) (elm)->field.right
+#define ZIP_INSERT(name, head, elm) name##_ZIP_INSERT(head, elm)
+#define ZIP_REMOVE(name, head, elm) name##_ZIP_REMOVE(head, elm)
+#define ZIP_FIND(name, head, key) name##_ZIP_FIND(head, key)
+#define ZIP_MIN(name, head) name##_ZIP_MIN(head)
+#define ZIP_MAX(name, head) name##_ZIP_MAX(head)
+#define ZIP_ZIP(name, left, right) name##_ZIP_ZIP(left, right)
+#define ZIP_UNZIP(name, head, key, left, right) \
+    name##_ZIP_UNZIP(head, key, left, right)
 
 /* ZIP_ITER uses in-order traversal of the tree (in the order of the keys). The
  * memory if a node is not accessed by ZIP_ITER after the callback has been
@@ -78,19 +86,12 @@ typedef enum ZIP_CMP (*zip_cmp_cb)(const void *key1, const void *key2);
  * ZIP_ITER returns a void pointer. The first callback to return non-NULL aborts
  * the iteration. This pointer is then returned. */
 typedef void * (*zip_iter_cb)(void *context, void *elm);
+#define ZIP_ITER(name, head, cb, ctx) name##_ZIP_ITER(head, cb, ctx)
 
-/* Generate typed method definitions with the ZIP_FUNCTIONS macro */
+/* Same as _ITER, but only visits elements with the given key */
+#define ZIP_ITER_KEY(name, head, key, cb, ctx) name##_ZIP_ITER_KEY(head, key, cb, ctx)
 
-#define ZIP_INSERT(name, head, elm) name##_ZIP_INSERT(head, elm)
-#define ZIP_REMOVE(name, head, elm) name##_ZIP_REMOVE(head, elm)
-#define ZIP_FIND(name, head, key) name##_ZIP_FIND(head, key)
-#define ZIP_ITER(name, head, cb, d) name##_ZIP_ITER(head, cb, d)
-#define ZIP_MIN(name, head) name##_ZIP_MIN(head)
-#define ZIP_MAX(name, head) name##_ZIP_MAX(head)
-#define ZIP_ZIP(name, left, right) name##_ZIP_ZIP(left, right)
-#define ZIP_UNZIP(name, head, key, left, right) \
-    name##_ZIP_UNZIP(head, key, left, right)
-
+/* Macro to generate typed ziptree methods */
 #define ZIP_FUNCTIONS(name, type, field, keytype, keyfield, cmp)        \
                                                                         \
 ZIP_UNUSED static ZIP_INLINE void                                       \
@@ -150,6 +151,14 @@ name##_ZIP_ITER(struct name *head, name##_cb cb, void *context) {       \
                       context, ZIP_ROOT(head));                         \
 }                                                                       \
                                                                         \
+ZIP_UNUSED static ZIP_INLINE void *                                     \
+name##_ZIP_ITER_KEY(struct name *head, const keytype *key,              \
+                    name##_cb cb, void *context) {                      \
+    return __ZIP_ITER_KEY((zip_cmp_cb)cmp, offsetof(struct type, field), \
+                          offsetof(struct type, keyfield), key,         \
+                          (zip_iter_cb)cb, context, ZIP_ROOT(head));    \
+}                                                                       \
+                                                                        \
 ZIP_UNUSED static ZIP_INLINE struct type *                              \
 name##_ZIP_ZIP(struct type *left, struct type *right) {                 \
     return (struct type*)                                               \
@@ -177,6 +186,11 @@ __ZIP_REMOVE(void *h, zip_cmp_cb cmp, unsigned short fieldoffset,
 void *
 __ZIP_ITER(unsigned short fieldoffset, zip_iter_cb cb,
            void *context, void *elm);
+
+void *
+__ZIP_ITER_KEY(zip_cmp_cb cmp, unsigned short fieldoffset,
+               unsigned short keyoffset, const void *key,
+               zip_iter_cb cb, void *context, void *elm);
 
 void *
 __ZIP_ZIP(unsigned short fieldoffset, void *left, void *right);

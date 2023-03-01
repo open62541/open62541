@@ -208,6 +208,38 @@ __ZIP_ITER(unsigned short fieldoffset, zip_iter_cb cb,
 }
 
 void *
+__ZIP_ITER_KEY(zip_cmp_cb cmp, unsigned short fieldoffset,
+               unsigned short keyoffset, const void *key,
+               zip_iter_cb cb, void *context, void *elm) {
+    if(!elm)
+        return NULL;
+
+    void *res;
+    enum ZIP_CMP eq = cmp(key, ZIP_KEY_PTR(elm));
+    if(eq != ZIP_CMP_MORE) {
+        res = __ZIP_ITER_KEY(cmp, fieldoffset, keyoffset, key,
+                             cb, context, ZIP_ENTRY_PTR(elm)->left);
+        if(res)
+            return res;
+    }
+
+    if(eq == ZIP_CMP_EQ) {
+        res = cb(context, elm);
+        if(res)
+            return res;
+    }
+
+    if(eq != ZIP_CMP_LESS) {
+        res = __ZIP_ITER_KEY(cmp, fieldoffset, keyoffset, key,
+                             cb, context, ZIP_ENTRY_PTR(elm)->right);
+        if(res)
+            return res;
+    }
+
+    return NULL;
+}
+
+void *
 __ZIP_ZIP(unsigned short fieldoffset, void *left, void *right) {
     if(!left)
         return right;
