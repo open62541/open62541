@@ -122,14 +122,24 @@ name##_ZIP_FIND(struct name *head, const keytype *key) {                \
                                                                         \
 ZIP_UNUSED static ZIP_INLINE struct type *                              \
 name##_ZIP_MIN(struct name *head) {                                     \
-    return (struct type *)__ZIP_MIN(offsetof(struct type, field),       \
-                                    ZIP_ROOT(head));                    \
+    struct type *cur = ZIP_ROOT(head);                                  \
+    if(!cur)                                                            \
+        return NULL;                                                    \
+    while(ZIP_LEFT(cur, field)) {                                       \
+        cur = ZIP_LEFT(cur, field);                                     \
+    }                                                                   \
+    return cur;                                                         \
 }                                                                       \
                                                                         \
 ZIP_UNUSED static ZIP_INLINE struct type *                              \
 name##_ZIP_MAX(struct name *head) {                                     \
-    return (struct type *)__ZIP_MAX(offsetof(struct type, field),       \
-                                    ZIP_ROOT(head));                    \
+    struct type *cur = ZIP_ROOT(head);                                  \
+    if(!cur)                                                            \
+        return NULL;                                                    \
+    while(ZIP_RIGHT(cur, field)) {                                      \
+        cur = ZIP_RIGHT(cur, field);                                    \
+    }                                                                   \
+    return cur;                                                         \
 }                                                                       \
                                                                         \
 typedef void * (*name##_cb)(void *context, struct type *elm);           \
@@ -167,9 +177,6 @@ __ZIP_REMOVE(void *h, zip_cmp_cb cmp, unsigned short fieldoffset,
 void *
 __ZIP_ITER(unsigned short fieldoffset, zip_iter_cb cb,
            void *context, void *elm);
-
-void * __ZIP_MIN(unsigned short fieldoffset, void *elm);
-void * __ZIP_MAX(unsigned short fieldoffset, void *elm);
 
 void *
 __ZIP_ZIP(unsigned short fieldoffset, void *left, void *right);
