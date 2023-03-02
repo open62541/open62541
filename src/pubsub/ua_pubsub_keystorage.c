@@ -736,7 +736,15 @@ UA_Server_setSksClient(UA_Server *server, UA_String securityGroupId,
     }
 
     UA_ClientConfig_copy(clientConfig, &ks->sksConfig.clientConfig);
-    memset(clientConfig, 0, sizeof(UA_ClientConfig));
+    /*Clear the content of original config, so that no body can access the original config */
+    clientConfig->authSecurityPolicies = NULL;
+    clientConfig->certificateVerification.context = NULL;
+    clientConfig->eventLoop = NULL;
+    clientConfig->logger.context = NULL;
+    clientConfig->logging = NULL;
+    clientConfig->securityPolicies = NULL;
+    UA_ClientConfig_clear(clientConfig);
+
     ks->sksConfig.endpointUrl = endpointUrl;
     ks->sksConfig.userNotifyCallback = callback;
     ks->sksConfig.context = context;
