@@ -615,6 +615,7 @@ browseReferences(UA_Server *server, const UA_NodeHead *head,
                 /* Make a deep copy */
                 UA_ExpandedNodeId tmpEn =
                     UA_NodePointer_toExpandedNodeId(ref->targetId);
+                UA_ExpandedNodeId_clear(&cp->nextTarget);
                 return UA_ExpandedNodeId_copy(&tmpEn, &cp->nextTarget);
             }
 
