@@ -45,7 +45,7 @@ static void clientStateCallback(UA_Client *c,
                       UA_SecureChannelState channelState,
                       UA_SessionState sessionState,
                           UA_StatusCode connectStatus) {
-    assert(numClientCallbackCalled < (int)(sizeof(clientCallbackStates) / sizeof(UA_SecureChannelState)));
+    ck_assert(numClientCallbackCalled < (int)(sizeof(clientCallbackStates) / sizeof(UA_SecureChannelState)));
     clientCallbackStates[numClientCallbackCalled++] = channelState;
 
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
