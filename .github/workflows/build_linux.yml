@@ -7,7 +7,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        include: 
+        include:
           - build_name: "Debug Build & Unit Tests (gcc)"
             cmd_deps: sudo apt-get install -y -qq mosquitto
             cmd_action: unit_tests
@@ -42,7 +42,7 @@ jobs:
             cmd_deps: sudo apt-get install -y -qq libmbedtls-dev
             cmd_action: unit_tests_encryption_mbedtls_pubsub
           - build_name: "PubSub SKS Build & Unit Tests (gcc)"
-            cmd_deps: sudo apt-get install -y -qq libmbedtls-dev
+            cmd_deps: sudo apt-get install -y -qq valgrind libmbedtls-dev
             cmd_action: unit_tests_pubsub_sks
           - build_name: "Encryption (OpenSSL) Build & Unit Tests (gcc)"
             cmd_deps: sudo apt-get install -y -qq openssl
@@ -115,4 +115,3 @@ jobs:
       run: source tools/ci.sh && ${{matrix.cmd_action}}
       env:
         ETHERNET_INTERFACE: eth0
-

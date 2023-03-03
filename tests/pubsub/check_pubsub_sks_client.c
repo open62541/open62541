@@ -42,6 +42,7 @@ THREAD_HANDLE server_thread;
 UA_Server *sksServer, *publisherApp, *subscriberApp;
 UA_NodeId writerGroupId, readerGroupId;
 UA_NodeId publisherConnection, subscriberConnection;
+UA_ByteString allowedUsername;
 THREAD_CALLBACK(serverloop) {
     while(running)
         UA_Server_run_iterate(sksServer, true);
@@ -91,13 +92,10 @@ addSecurityGroup(void) {
     maxKeyCount = config.maxPastKeyCount + 1 + config.maxFutureKeyCount;
 
     UA_Server_addSecurityGroup(sksServer, securityGroupParent, &config, &outNodeId);
-    UA_String_copy(&config.securityGroupName, &securityGroupId);
+    securityGroupId = config.securityGroupName;
 
-    UA_String allowedUsername = UA_STRING("user1");
-
-    UA_ByteString *username = UA_ByteString_new();
-    UA_ByteString_copy(&allowedUsername, username);
-    UA_Server_setNodeContext(sksServer, outNodeId, username);
+    allowedUsername = UA_STRING("user1");
+    UA_Server_setNodeContext(sksServer, outNodeId, &allowedUsername);
 }
 
 static UA_Boolean
@@ -503,6 +501,7 @@ START_TEST(AddValidSksClientwithWriterGroup) {
         sksKsItr = TAILQ_NEXT(sksKsItr, keyListEntry);
         wgKsItr = TAILQ_NEXT(wgKsItr, keyListEntry);
     }
+    UA_free(config);
 }
 END_TEST
 
@@ -547,6 +546,7 @@ START_TEST(AddValidSksClientwithReaderGroup) {
         rgKsItr = TAILQ_NEXT(rgKsItr, keyListEntry);
     }
     ck_assert(rg->keyStorage->keyListSize > 0);
+    UA_free(config);
 }
 END_TEST
 
@@ -562,6 +562,7 @@ START_TEST(SetInvalidSKSClient) {
     ck_assert_msg(sksPullStatus != UA_STATUSCODE_GOOD,
                   "Expected Statuscode to be not GOOD, but failed with: %s ",
                   UA_StatusCode_name(sksPullStatus));
+    UA_Client_delete(client);
 }
 END_TEST
 
@@ -576,11 +577,22 @@ START_TEST(SetInvalidSKSEndpointUrl) {
     ck_assert_msg(retval == UA_STATUSCODE_BADTCPENDPOINTURLINVALID,
                   "Expected Statuscode to be BADTCPENDPOINTURLINVALID, but failed with: %s ",
                   UA_StatusCode_name(retval));
+    UA_Client_delete(client);
+}
+END_TEST
+
+START_TEST(SetWrongSKSEndpointUrl) {
+    UA_StatusCode retval = UA_STATUSCODE_BAD;
+    retval = addPublisher(publisherApp);
+    UA_Client *client = UA_Client_new();
+    UA_ClientConfig *config = UA_Client_getConfig(client);
+    UA_ClientConfig_setDefault(config);
 
     retval = UA_Server_setSksClient(publisherApp, securityGroupId, config, "opc.tcp://WrongHost:4840", sksPullRequestCallback, NULL);
     ck_assert_msg(retval == UA_STATUSCODE_BADCONNECTIONCLOSED,
                   "Expected Statuscode to be BADCONNECTIONCLOSED, but failed with: %s ",
                   UA_StatusCode_name(retval));
+    UA_Client_delete(client);
 }
 END_TEST
 
@@ -628,6 +640,8 @@ START_TEST(CheckPublishedValuesInUserLand) {
                      *(UA_Int32 *)subscribedNodeData->data);
     UA_Variant_delete(subscribedNodeData);
     UA_Variant_delete(publishedNodeData);
+    UA_free(pubSksClientConfig);
+    UA_free(subSksClientConfig);
 }
 END_TEST
 
@@ -665,6 +679,7 @@ START_TEST(PublisherSubscriberTogethor) {
                      *(UA_Int32 *)subscribedNodeData->data);
     UA_Variant_delete(subscribedNodeData);
     UA_Variant_delete(publishedNodeData);
+    UA_free(pubSksClientConfig);
 }
 END_TEST
 
@@ -708,6 +723,7 @@ START_TEST(PublisherDelayedSubscriberTogethor) {
                      *(UA_Int32 *)subscribedNodeData->data);
     UA_Variant_delete(subscribedNodeData);
     UA_Variant_delete(publishedNodeData);
+    UA_free(pubSksClientConfig);
 }
 END_TEST
 
@@ -768,7 +784,7 @@ START_TEST(FetchNextbatchOfKeys) {
         if(sksPullIteration > 10 &&
            subKs->currentItem->keyID == pubKs->currentItem->keyID)
             break;
-        UA_fakeSleep(100);
+        UA_fakeSleep(1);
     }
     ck_assert(subKs->currentItem->keyID == pubKs->currentItem->keyID);
     ck_assert(UA_ByteString_equal(&subKs->currentItem->key, &pubKs->currentItem->key));
@@ -785,6 +801,8 @@ START_TEST(FetchNextbatchOfKeys) {
                      *(UA_Int32 *)subscribedNodeData->data);
     UA_Variant_delete(subscribedNodeData);
     UA_Variant_delete(publishedNodeData);
+    UA_free(pubSksClientConfig);
+    UA_free(subSksClientConfig);
 }
 END_TEST
 
@@ -799,6 +817,7 @@ main(void) {
     tcase_add_test(tc_pubsub_sks_client, AddValidSksClientwithReaderGroup);
     tcase_add_test(tc_pubsub_sks_client, SetInvalidSKSClient);
     tcase_add_test(tc_pubsub_sks_client, SetInvalidSKSEndpointUrl);
+    tcase_add_test(tc_pubsub_sks_client, SetWrongSKSEndpointUrl);
     tcase_add_test(tc_pubsub_sks_client, CheckPublishedValuesInUserLand);
     tcase_add_test(tc_pubsub_sks_client, PublisherSubscriberTogethor);
     tcase_add_test(tc_pubsub_sks_client, PublisherDelayedSubscriberTogethor);

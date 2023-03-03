@@ -108,6 +108,7 @@ updateSKSKeyStorage(UA_Server *server, UA_SecurityGroup *securityGroup){
         UA_PubSubKeyListItem *oldestKey = TAILQ_FIRST(&keyStorage->keyList);
         TAILQ_REMOVE(&keyStorage->keyList, oldestKey, keyListEntry);
         TAILQ_INSERT_TAIL(&keyStorage->keyList, oldestKey, keyListEntry);
+        UA_ByteString_clear(&oldestKey->key);
         oldestKey->keyID = newKeyID;
         UA_ByteString_copy(&newKey, &oldestKey->key);
     } else {
@@ -166,7 +167,7 @@ initializeKeyStorageWithKeys(UA_Server *server, UA_SecurityGroup *securityGroup)
     retval = UA_ByteString_allocBuffer(&currentKey, keyLength);
     retval = generateKeyData(ks->policy, &currentKey);
 
-    UA_ByteString futurekeys[securityGroup->config.maxFutureKeyCount];
+    UA_ByteString *futurekeys = (UA_ByteString *)UA_calloc(securityGroup->config.maxFutureKeyCount, sizeof(UA_ByteString));
     for(size_t i = 0; i < securityGroup->config.maxFutureKeyCount; i++) {
         retval = UA_ByteString_allocBuffer(&futurekeys[i], keyLength);
         retval = generateKeyData(ks->policy, &futurekeys[i]);
@@ -178,19 +179,18 @@ initializeKeyStorageWithKeys(UA_Server *server, UA_SecurityGroup *securityGroup)
                                                    securityGroup->config.maxFutureKeyCount,
                                                    securityGroup->config.keyLifeTime);
     if(retval != UA_STATUSCODE_GOOD)
-        goto error;
+        goto cleanup;
 
     securityGroup->baseTime = UA_DateTime_nowMonotonic();
     retval = addRepeatedCallback(server, (UA_ServerCallback)updateSKSKeyStorage,
                                  securityGroup, securityGroup->config.keyLifeTime,
                                  &securityGroup->callbackId);
+
+cleanup:
+    UA_Array_delete(futurekeys, securityGroup->config.maxFutureKeyCount, &UA_TYPES[UA_TYPES_BYTESTRING]);
+    UA_ByteString_clear(&currentKey);
     if(retval != UA_STATUSCODE_GOOD)
-        goto error;
-
-    return UA_STATUSCODE_GOOD;
-
-error:
-    UA_PubSubKeyStorage_delete(server, ks);
+        UA_PubSubKeyStorage_delete(server, ks);
     return retval;
 }
 
