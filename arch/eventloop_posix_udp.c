@@ -461,19 +461,6 @@ UDPConnectionManager_deregister(UDPConnectionManager *ucm, UA_RegisteredFD *rfd)
     ucm->fdsSize--;
 }
 
-static UA_StatusCode
-UDP_allocNetworkBuffer(UA_ConnectionManager *cm, uintptr_t connectionId,
-                       UA_ByteString *buf, size_t bufSize) {
-    return UA_ByteString_allocBuffer(buf, bufSize);
-}
-
-static void
-UDP_freeNetworkBuffer(UA_ConnectionManager *cm, uintptr_t connectionId,
-                      UA_ByteString *buf) {
-    UA_ByteString_clear(buf);
-}
-
-
 /* Test if the ConnectionManager can be stopped */
 static void
 UDP_checkStopped(UDPConnectionManager *ucm) {
@@ -1281,8 +1268,8 @@ UA_ConnectionManager_new_POSIX_UDP(const UA_String eventSourceName) {
     cm->cm.eventSource.free = (UA_StatusCode (*)(UA_EventSource *))UDP_eventSourceDelete;
     cm->cm.protocol = UA_STRING((char*)(uintptr_t)udpName);
     cm->cm.openConnection = UDP_openConnection;
-    cm->cm.allocNetworkBuffer = UDP_allocNetworkBuffer;
-    cm->cm.freeNetworkBuffer = UDP_freeNetworkBuffer;
+    cm->cm.allocNetworkBuffer = UA_EventLoopPOSIX_allocNetworkBuffer;
+    cm->cm.freeNetworkBuffer = UA_EventLoopPOSIX_freeNetworkBuffer;
     cm->cm.sendWithConnection = UDP_sendWithConnection;
     cm->cm.closeConnection = UDP_shutdownConnection;
     return &cm->cm;
