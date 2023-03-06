@@ -55,18 +55,6 @@ TCPConnectionManager_register(TCPConnectionManager *tcm, UA_RegisteredFD *rfd) {
     return UA_STATUSCODE_GOOD;
 }
 
-static UA_StatusCode
-TCP_allocNetworkBuffer(UA_ConnectionManager *cm, uintptr_t connectionId,
-                       UA_ByteString *buf, size_t bufSize) {
-    return UA_ByteString_allocBuffer(buf, bufSize);
-}
-
-static void
-TCP_freeNetworkBuffer(UA_ConnectionManager *cm, uintptr_t connectionId,
-                      UA_ByteString *buf) {
-    UA_ByteString_clear(buf);
-}
-
 /* Do not merge packets on the socket (disable Nagle's algorithm) */
 static UA_StatusCode
 TCP_setNoNagle(UA_FD sockfd) {
@@ -989,8 +977,8 @@ UA_ConnectionManager_new_POSIX_TCP(const UA_String eventSourceName) {
     cm->cm.eventSource.free = (UA_StatusCode (*)(UA_EventSource *))TCP_eventSourceDelete;
     cm->cm.protocol = UA_STRING((char*)(uintptr_t)tcpName);
     cm->cm.openConnection = TCP_openConnection;
-    cm->cm.allocNetworkBuffer = TCP_allocNetworkBuffer;
-    cm->cm.freeNetworkBuffer = TCP_freeNetworkBuffer;
+    cm->cm.allocNetworkBuffer = UA_EventLoopPOSIX_allocNetworkBuffer;
+    cm->cm.freeNetworkBuffer = UA_EventLoopPOSIX_freeNetworkBuffer;
     cm->cm.sendWithConnection = TCP_sendWithConnection;
     cm->cm.closeConnection = TCP_shutdownConnection;
     return &cm->cm;
