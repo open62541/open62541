@@ -8,6 +8,7 @@
 # Currently this test case is missing the following UA-Nodesets:
 #   * NodesetLoader related issues:
 #      - ${OPEN62541_NODESET_DIR}AML/Opc.Ua.AMLLibraries.NodeSet2.xml
+#      - ${OPEN62541_NODESET_DIR}CNC/Opc.Ua.CNC.NodeSet.xml
 #      - ${OPEN62541_NODESET_DIR}ISA95-JOBCONTROL/opc.ua.isa95-jobcontrol.nodeset2.xml
 #      - ${OPEN62541_NODESET_DIR}PNRIO/Opc.Ua.PnRio.Nodeset2.xml
 #      - ${OPEN62541_NODESET_DIR}TMC/Opc.Ua.TMC.NodeSet2.xml
@@ -138,9 +139,6 @@ add_node_integration_test "CAS" \
     $UA_NODESET_PATH/IA/Opc.Ua.IA.NodeSet2.xml \
     $UA_NODESET_PATH/Machinery/Opc.Ua.Machinery.NodeSet2.xml \
     $UA_NODESET_PATH/CAS/Opc.Ua.CAS.NodeSet2.xml
-
-add_node_integration_test "CNC" \
-    $UA_NODESET_PATH/CNC/Opc.Ua.CNC.NodeSet.xml
 
 add_node_integration_test "CommercialKitchenEquipment" \
     $UA_NODESET_PATH/DI/Opc.Ua.Di.NodeSet2.xml \
