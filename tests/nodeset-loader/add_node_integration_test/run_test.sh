@@ -10,7 +10,6 @@
 #      - ${OPEN62541_NODESET_DIR}AML/Opc.Ua.AMLLibraries.NodeSet2.xml
 #      - ${OPEN62541_NODESET_DIR}CNC/Opc.Ua.CNC.NodeSet.xml
 #      - ${OPEN62541_NODESET_DIR}ISA95-JOBCONTROL/opc.ua.isa95-jobcontrol.nodeset2.xml
-#      - ${OPEN62541_NODESET_DIR}PNRIO/Opc.Ua.PnRio.Nodeset2.xml
 #      - ${OPEN62541_NODESET_DIR}TMC/Opc.Ua.TMC.NodeSet2.xml
 #
 #   * NodesetLoader XML decoding not supported for certain types issues:
@@ -25,7 +24,6 @@
 #      - ${OPEN62541_NODESET_DIR}FDI/Opc.Ua.Fdi7.NodeSet2.xml
 #      - ${OPEN62541_NODESET_DIR}IEC61850/Opc.Ua.IEC61850-6.NodeSet2.xml
 #      - ${OPEN62541_NODESET_DIR}ISA-95/Opc.ISA95.NodeSet2.xml
-#      - ${OPEN62541_NODESET_DIR}MTConnect/Opc.Ua.MTConnect.NodeSet2.xml
 #      - ${OPEN62541_NODESET_DIR}POWERLINK/Opc.Ua.POWERLINK.NodeSet2.xml
 #
 #
@@ -294,6 +292,9 @@ add_node_integration_test "Mining.TransportDumping.RearDumpTruck" \
     $UA_NODESET_PATH/Mining/TransportDumping/General/1.0.0/Opc.Ua.Mining.TransportDumping.General.NodeSet2.xml \
     $UA_NODESET_PATH/Mining/TransportDumping/RearDumpTruck/1.0.0/Opc.Ua.Mining.TransportDumping.RearDumpTruck.NodeSet2.xml
 
+add_node_integration_test "MTConnect" \
+    $UA_NODESET_PATH/MTConnect/Opc.Ua.MTConnect.NodeSet2.xml
+
 add_node_integration_test "OpenSCS" \
     $UA_NODESET_PATH/OpenSCS/Opc.Ua.OPENSCS.NodeSet2.xml
 
@@ -503,6 +504,10 @@ add_node_integration_test "PLCopen" \
 add_node_integration_test "PNEM" \
     $UA_NODESET_PATH/DI/Opc.Ua.Di.NodeSet2.xml \
     $UA_NODESET_PATH/PNEM/Opc.Ua.PnEm.NodeSet2.xml
+
+add_node_integration_test "PNRIO" \
+    $UA_NODESET_PATH/DI/Opc.Ua.Di.NodeSet2.xml \
+    $UA_NODESET_PATH/PNRIO/Opc.Ua.PnRio.Nodeset2.xml
 
 add_node_integration_test "PROFINET" \
     $UA_NODESET_PATH/PROFINET/Opc.Ua.Pn.NodeSet2.xml
