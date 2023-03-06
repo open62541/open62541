@@ -116,6 +116,19 @@ UA_EventLoopPOSIX_deregisterFD(UA_EventLoopPOSIX *el, UA_RegisteredFD *rfd);
 UA_StatusCode
 UA_EventLoopPOSIX_pollFDs(UA_EventLoopPOSIX *el, UA_DateTime listenTimeout);
 
+/* Helper functions between EventSources */
+
+UA_StatusCode
+UA_EventLoopPOSIX_allocNetworkBuffer(UA_ConnectionManager *cm,
+                                     uintptr_t connectionId,
+                                     UA_ByteString *buf,
+                                     size_t bufSize);
+
+void
+UA_EventLoopPOSIX_freeNetworkBuffer(UA_ConnectionManager *cm,
+                                    uintptr_t connectionId,
+                                    UA_ByteString *buf);
+
 /*
  * Helper functions to be used across protocols
  */
