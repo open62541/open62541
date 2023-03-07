@@ -399,7 +399,7 @@ UA_PubSubKeyStorage_keyRolloverCallback(UA_Server *server, UA_PubSubKeyStorage *
                          (int)keyStorage->securityGroupID.length, keyStorage->securityGroupID.data,
                          UA_StatusCode_name(retval));
         }
-    } else if(keyStorage->sksConfig.endpointUrl) {
+    } else if(keyStorage->sksConfig.endpointUrl && keyStorage->sksConfig.reqId == 0) {
         UA_DateTime now = UA_DateTime_nowMonotonic();
         /*Publishers using a central SKS shall call GetSecurityKeys at a period of half the KeyLifetime */
         UA_Duration msTimeToNextGetSecurityKeys = keyStorage->keyLifeTime / 2;
@@ -509,6 +509,7 @@ sksClientCleanupCb(void *client, void *context) {
         sksClient->config.securityPoliciesSize = 0;
         sksClient->config.certificateVerification.context = NULL;
         sksClient->config.logger.context = NULL;
+        UA_free(sksClient->config.clientContext);
         UA_Client_delete(sksClient);
     } else {
         addDelayedSksClientCleanupCb(sksClient);
@@ -563,6 +564,18 @@ storeFetchedKeys(UA_Client *client, void *userdata, UA_UInt32 requestId,
             goto cleanup;
     }
 
+    /**
+     * After a new batch of keys is fetched from SKS server, the key storage is updated
+     * with new keys and new keylifetime. Also the remaining time for current
+     * keyRollover is also returned. When setting a new keyRollover callback, the
+     * previous callback must be removed so that the keyRollover does not happen twice
+     */
+    if(ks->callBackId != 0) {
+        server->config.eventLoop->removeCyclicCallback(server->config.eventLoop,
+                                                       ks->callBackId);
+        ks->callBackId = 0;
+    }
+
     UA_Duration msTimeToNextKey =
         *(UA_Duration *)response->results->outputArguments[3].data;
     if(!(msTimeToNextKey > 0))
@@ -581,6 +594,7 @@ cleanup:
     UA_UNLOCK(&server->serviceMutex);
     if(ks->sksConfig.userNotifyCallback)
         ks->sksConfig.userNotifyCallback(server, retval, ks->sksConfig.context);
+    ks->sksConfig.reqId = 0;
     UA_Client_disconnectAsync(client);
     addDelayedSksClientCleanupCb(client);
     return;
@@ -591,27 +605,30 @@ callGetSecurityKeysMethod(UA_Client *client) {
 
     sksClientContext *ctx = (sksClientContext *)client->config.clientContext;
 
-    UA_Variant *inputArguments = (UA_Variant *)UA_calloc(3, (sizeof(UA_Variant)));
-    UA_Variant_setScalarCopy(&inputArguments[0], &ctx->ks->securityGroupID,
-                             &UA_TYPES[UA_TYPES_STRING]);
-    UA_Variant_setScalarCopy(&inputArguments[1], &ctx->startingTokenId,
-                             &UA_TYPES[UA_TYPES_UINT32]);
-    UA_Variant_setScalarCopy(&inputArguments[2], &ctx->requestedKeyCount,
-                             &UA_TYPES[UA_TYPES_UINT32]);
+    UA_Variant inputArguments[3];
+    UA_Variant_setScalar(&inputArguments[0], &ctx->ks->securityGroupID,
+                         &UA_TYPES[UA_TYPES_STRING]);
+    UA_Variant_setScalar(&inputArguments[1], &ctx->startingTokenId,
+                         &UA_TYPES[UA_TYPES_UINT32]);
+    UA_Variant_setScalar(&inputArguments[2], &ctx->requestedKeyCount,
+                         &UA_TYPES[UA_TYPES_UINT32]);
 
     UA_NodeId objectId = UA_NODEID_NUMERIC(0, UA_NS0ID_PUBLISHSUBSCRIBE);
     UA_NodeId methodId = UA_NODEID_NUMERIC(0, UA_NS0ID_PUBLISHSUBSCRIBE_GETSECURITYKEYS);
     size_t inputArgumentsSize = 3;
 
-    return UA_Client_call_async(client, objectId, methodId, inputArgumentsSize,
-                                inputArguments, storeFetchedKeys, (void *)ctx, NULL);
+    UA_StatusCode retval = UA_Client_call_async(client, objectId, methodId, inputArgumentsSize,
+                                inputArguments, storeFetchedKeys, (void *)ctx, &ctx->ks->sksConfig.reqId);
+    return retval;
 }
 
 static void
 onConnect(UA_Client *client, UA_SecureChannelState channelState,
           UA_SessionState sessionState, UA_StatusCode connectStatus) {
     UA_Boolean triggerSKSCleanup = false;
-    if(connectStatus != UA_STATUSCODE_GOOD && channelState == UA_SECURECHANNELSTATE_CLOSED && sessionState == UA_SESSIONSTATE_CLOSED) {
+    if(connectStatus != UA_STATUSCODE_GOOD &&
+       connectStatus != UA_STATUSCODE_BADNOTCONNECTED &&
+       sessionState != UA_SESSIONSTATE_ACTIVATED) {
         UA_LOG_ERROR(&client->config.logger, UA_LOGCATEGORY_CLIENT,
                      "SKS Client: Failed to connect SKS server with error: %s ",
                      UA_StatusCode_name(connectStatus));
@@ -635,6 +652,8 @@ onConnect(UA_Client *client, UA_SecureChannelState channelState,
         if(ks->sksConfig.userNotifyCallback)
             ks->sksConfig.userNotifyCallback(ctx->server, connectStatus,
                                              ks->sksConfig.context);
+        UA_Client_disconnectAsync(client);
+        addDelayedSksClientCleanupCb(client);
     }
     return;
 }
@@ -651,6 +670,12 @@ getSecurityKeysAndStoreFetchedKeys(UA_Server *server, UA_PubSubKeyStorage *keySt
     UA_StatusCode retval = UA_STATUSCODE_BAD;
     UA_UInt32 startingTokenId = UA_REQ_CURRENT_TOKEN;
     UA_UInt32 requestKeyCount = UA_UINT32_MAX;
+
+    if(keyStorage->sksConfig.reqId != 0) {
+        UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                    "SKS Client: SKS Pull request in process ");
+        return UA_STATUSCODE_GOOD;
+    }
 
     UA_ClientConfig cc;
     memset(&cc, 0, sizeof(UA_ClientConfig));
@@ -711,7 +736,15 @@ UA_Server_setSksClient(UA_Server *server, UA_String securityGroupId,
     }
 
     UA_ClientConfig_copy(clientConfig, &ks->sksConfig.clientConfig);
-    memset(clientConfig, 0, sizeof(UA_ClientConfig));
+    /*Clear the content of original config, so that no body can access the original config */
+    clientConfig->authSecurityPolicies = NULL;
+    clientConfig->certificateVerification.context = NULL;
+    clientConfig->eventLoop = NULL;
+    clientConfig->logger.context = NULL;
+    clientConfig->logging = NULL;
+    clientConfig->securityPolicies = NULL;
+    UA_ClientConfig_clear(clientConfig);
+
     ks->sksConfig.endpointUrl = endpointUrl;
     ks->sksConfig.userNotifyCallback = callback;
     ks->sksConfig.context = context;

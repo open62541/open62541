@@ -34,8 +34,8 @@ cmpId(const UA_UInt64 *a, const UA_UInt64 *b) {
     return ZIP_CMP_MORE;
 }
 
-ZIP_FUNCTIONS(UA_TimerTree, UA_TimerEntry, treeEntry, UA_DateTime, nextTime, (zip_cmp_cb)cmpDateTime)
-ZIP_FUNCTIONS(UA_TimerIdTree, UA_TimerEntry, idTreeEntry, UA_UInt64, id, (zip_cmp_cb)cmpId)
+ZIP_FUNCTIONS(UA_TimerTree, UA_TimerEntry, treeEntry, UA_DateTime, nextTime, cmpDateTime)
+ZIP_FUNCTIONS(UA_TimerIdTree, UA_TimerEntry, idTreeEntry, UA_UInt64, id, cmpId)
 
 static UA_DateTime
 calculateNextTime(UA_DateTime currentTime, UA_DateTime baseTime,
