@@ -1635,6 +1635,12 @@ if(NOT UA_ENABLE_AMALGAMATION)
     target_compile_definitions(open62541-plugins PUBLIC UA_ARCHITECTURE_${UA_ARCHITECTURE_UPPER})
 endif()
 
+if("${UA_ARCHITECTURE}" STREQUAL "win32")
+    target_compile_options ( open62541 PUBLIC -m32 )
+    set_target_properties ( open62541 PROPERTIES LINK_FLAGS -m32 )
+    target_link_options(open62541 PRIVATE /machine:x86)
+endif()
+
 # DLL requires linking to dependencies
 target_link_libraries(open62541 ${open62541_LIBRARIES})
 

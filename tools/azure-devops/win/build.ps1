@@ -39,7 +39,7 @@ try {
         New-Item -Force -ItemType directory -Path "C:/vcpkg/installed/x86-windows-static"
     }
 
-    $cmake_cnf="$vcpkg_toolchain", "$vcpkg_triplet", "-G`"$env:GENERATOR`"", "-DUA_FORCE_CPP:BOOL=$env:FORCE_CXX"
+    $cmake_cnf="$vcpkg_toolchain", "$vcpkg_triplet", "-G`"$env:GENERATOR`"", "-A $env:ARCH", "-T `"$env:TOOLSET`"", "-DUA_FORCE_CPP:BOOL=$env:FORCE_CXX"
 
     # Collect files for .zip packing
     New-Item -ItemType directory -Path pack
@@ -47,9 +47,10 @@ try {
     Copy-Item AUTHORS pack
     Copy-Item README.md pack
 
-    # Only execute unit tests on vs2017 to save compilation time
-    if ($env:CC_SHORTNAME -eq "vs2017") {
+    # Only execute unit tests on vs2019 to save compilation time
+    if ($env:CC_SHORTNAME -eq "vs2019") {
         Write-Host -ForegroundColor Green "`n###################################################################"
+        Write-Host -ForegroundColor Green "`n##### On Generator $env:GENERATOR #####`n"
         Write-Host -ForegroundColor Green "`n##### Testing $env:CC_NAME with unit tests #####`n"
         New-Item -ItemType directory -Path "build"
         cd build

@@ -681,6 +681,8 @@ UDP_registerListenSocket(UA_ConnectionManager *cm, UA_UInt16 port, struct addrin
         UA_close(listenSocket);
         return UA_STATUSCODE_BADCONNECTIONREJECTED;
     }
+
+#ifndef _WIN32
     /* Some Linux distributions have net.ipv6.bindv6only not activated. So
      * sockets can double-bind to IPv4 and IPv6. This leads to problems. Use
      * AF_INET6 sockets only for IPv6. */
@@ -724,7 +726,7 @@ UDP_registerListenSocket(UA_ConnectionManager *cm, UA_UInt16 port, struct addrin
         UA_close(listenSocket);
         return UA_STATUSCODE_BADCONNECTIONREJECTED;
     }
-
+#endif
     /* Bind socket to address */
     int ret = UA_bind(listenSocket, info->ai_addr, (socklen_t)info->ai_addrlen);
     if(ret < 0) {
