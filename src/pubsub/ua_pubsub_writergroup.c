@@ -1062,8 +1062,8 @@ sendNetworkMessageBuffer(UA_Server *server, UA_WriterGroup *wg,
     /* Sending successful - increase the sequence number */
     wg->sequenceNumber++;
 
-    if(writerGroup->callbackTime)
-        *writerGroup->callbackTime = *writerGroup->callbackTime + (UA_DateTime)(writerGroup->config.publishingInterval * UA_DATETIME_MSEC);
+    if(wg->callbackTime)
+        *wg->callbackTime = *wg->callbackTime + (UA_DateTime)(wg->config.publishingInterval * UA_DATETIME_MSEC);
 
 }
 
@@ -1525,18 +1525,18 @@ UA_WriterGroup_publishCallback(UA_Server *server, UA_WriterGroup *writerGroup) {
         *writerGroup->callbackTime = *writerGroup->callbackTime + (UA_DateTime)(writerGroup->config.publishingInterval * UA_DATETIME_MSEC);
 
     /* Clean up DSM */
-    for(size_t i = 0; i < dsmCount; i++) {
+    for(size_t j = 0; j < dsmCount; j++) {
         if(writerGroup->config.rtLevel == UA_PUBSUB_RT_DIRECT_VALUE_ACCESS) {
-            for(size_t j = 0; j < dsmStore[i].data.keyFrameData.fieldCount; ++j) {
-                dsmStore[i].data.keyFrameData.dataSetFields[j].value.data = NULL;
+            for(size_t k = 0; k < dsmStore[j].data.keyFrameData.fieldCount; ++j) {
+                dsmStore[j].data.keyFrameData.dataSetFields[k].value.data = NULL;
             }
         }
-        UA_DataSetMessage_clear(&dsmStore[i]);
+        UA_DataSetMessage_clear(&dsmStore[j]);
     }
 
     UA_UNLOCK(&server->serviceMutex);
 }
-
+}
 /* Add new publishCallback. The first execution is triggered directly after
  * creation. */
 UA_StatusCode

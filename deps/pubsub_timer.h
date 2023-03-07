@@ -10,7 +10,7 @@
 
 #include <open62541/plugin/pubsub.h>
 #include "open62541_queue.h"
-#include "ua_timer.h"
+#include "common/ua_timer.h"
 
 _UA_BEGIN_DECLS
 

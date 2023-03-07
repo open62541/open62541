@@ -801,7 +801,6 @@ UA_Server_removeStandaloneSubscribedDataSet(UA_Server *server, const UA_NodeId s
 /* ReaderGroup configuration */
 typedef struct {
     UA_String name;
-    UA_PubSubSecurityParameters securityParameters;
     UA_DateTime *baseTime;
     UA_TimerPolicy timerPolicy;
     /* PubSub Manager Callback */

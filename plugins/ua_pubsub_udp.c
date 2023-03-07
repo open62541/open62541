@@ -281,33 +281,6 @@ startsWith(const char *pre, const char *str) {
     return strncmp(pre, str, strlen(pre)) == 0;
 }
 
-/**
- * Publish at the exact time interval using timed callbacks
- */
-static void
-timedUdpPublish(UA_PubSubChannel *channel, UA_PublishEntry *publishPacket) {
-    UA_PubSubChannelDataUDPMC *channelConfigUDPMC = (UA_PubSubChannelDataUDPMC *) channel->handle;
-    long nWritten = 0;
-    UA_PubSubTimedSend *pubsubTimedSend = (UA_PubSubTimedSend *) channel->pubsubTimedSend;
-    if((pubsubTimedSend)) {
-        while (nWritten < (long)publishPacket->buffer.length) {
-            long n = (long)UA_sendto(channel->sockfd, publishPacket->buffer.data,
-                                     publishPacket->buffer.length, 0,
-                                     (struct sockaddr *) channelConfigUDPMC->ai_addr,
-                                     sizeof(struct sockaddr_storage));
-            if(n == -1L) {
-                UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "PubSub Connection Timed send failed.");
-                return;
-            }
-
-            nWritten += n;
-        }
-
-        UA_ByteString_clear(&publishPacket->buffer);
-        LIST_REMOVE(publishPacket, listEntry);
-        UA_free(publishPacket);
-    }
-}
 
 /**
  * Open communication socket based on the connectionConfig. Protocol specific parameters are
@@ -369,11 +342,6 @@ UA_PubSubChannelUDP_open(UA_ConnectionManager *connectionManager, UA_TransportLa
                      "PubSub Connection creation failed. Bad out of memory");
         goto error;
     }
-
-    LIST_INIT(&pubsubTimedSend->sendBuffers);
-    pubsubTimedSend->timedSend = timedUdpPublish;
-
-    newChannel->pubsubTimedSend = pubsubTimedSend;
 
     return newChannel;
 error:
