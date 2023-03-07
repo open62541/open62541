@@ -95,6 +95,7 @@ UA_ClientConfig_copy(UA_ClientConfig const *src, UA_ClientConfig *dst){
     dst->timeout = src->timeout;
     dst->userTokenPolicy = src->userTokenPolicy;
     dst->securityPolicies = src->securityPolicies;
+    dst->externalPolicy = UA_TRUE;
     dst->securityPoliciesSize = src->securityPoliciesSize;
     dst->authSecurityPolicies = src->authSecurityPolicies;
     dst->authSecurityPoliciesSize = src->authSecurityPoliciesSize;
@@ -174,7 +175,7 @@ UA_ClientConfig_clear(UA_ClientConfig *config) {
         config->certificateVerification.clear(&config->certificateVerification);
 
     /* Delete the SecurityPolicies */
-    if(config->securityPolicies != 0) {
+    if(config->securityPolicies != 0 && !config->externalPolicy) {
         for(size_t i = 0; i < config->securityPoliciesSize; i++)
             config->securityPolicies[i].clear(&config->securityPolicies[i]);
         UA_free(config->securityPolicies);

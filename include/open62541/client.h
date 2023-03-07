@@ -149,6 +149,7 @@ typedef struct {
     /* Available SecurityPolicies */
     size_t securityPoliciesSize;
     UA_SecurityPolicy *securityPolicies;
+    UA_Boolean externalPolicy; /* The securityPolicies are not deleted with the config */
 
     /* Certificate Verification Plugin */
     UA_CertificateVerification certificateVerification;
