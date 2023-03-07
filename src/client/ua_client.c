@@ -67,7 +67,7 @@ UA_ClientConfig_copy(UA_ClientConfig const *src, UA_ClientConfig *dst){
     dst->clientContext = src->clientContext;
     dst->customDataTypes = src->customDataTypes;
     dst->eventLoop = src->eventLoop;
-    dst->externalEventLoop = src->externalEventLoop;
+    dst->externalEventLoop = UA_TRUE;
     dst->inactivityCallback = src->inactivityCallback;
     dst->localConnectionConfig = src->localConnectionConfig;
     dst->logger = src->logger;
