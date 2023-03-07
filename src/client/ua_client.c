@@ -71,10 +71,12 @@ UA_ClientConfig_copy(UA_ClientConfig const *src, UA_ClientConfig *dst){
     dst->inactivityCallback = src->inactivityCallback;
     dst->localConnectionConfig = src->localConnectionConfig;
     dst->logger = src->logger;
+    dst->logger.externalLogger = UA_TRUE;
     if(src->logging == &src->logger) {
         dst->logging = &dst->logger;
     } else {
         dst->logging = src->logging;
+        dst->logging->externalLogger = UA_TRUE;
     }
     if((src->certificateVerification.logging == NULL) ||
        (src->certificateVerification.logging == &src->logging)) {
@@ -194,18 +196,19 @@ UA_ClientConfig_clear(UA_ClientConfig *config) {
     }
 
     /* Logger */
-    if(config->logging != NULL) {
+    if(config->logging != NULL && !config->logging) {
         if((config->logging != &config->logger) &&
            (config->logging->clear != NULL)) {
             config->logging->clear(config->logging->context);
         }
         config->logging = NULL;
     }
-    if(config->logger.clear)
-        config->logger.clear(config->logger.context);
-    config->logger.log = NULL;
-    config->logger.clear = NULL;
 
+    if(config->logger.clear && !config->logger.externalLogger) {
+        config->logger.clear(config->logger.context);
+        config->logger.log = NULL;
+        config->logger.clear = NULL;
+    }
     if(config->sessionLocaleIdsSize > 0 && config->sessionLocaleIds) {
         UA_Array_delete(config->sessionLocaleIds,
                         config->sessionLocaleIdsSize, &UA_TYPES[UA_TYPES_LOCALEID]);

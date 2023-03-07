@@ -63,6 +63,8 @@ typedef struct {
     void *context; /* Logger state */
 
     void (*clear)(void *context); /* Clean up the logger plugin */
+
+    bool externalLogger; /* The logger is not deleted with the config */
 } UA_Logger;
 
 static UA_INLINE UA_FORMAT(3,4) void
