@@ -1,6 +1,6 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. 
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  *
  *    Copyright 2020 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
  *
@@ -33,6 +33,7 @@
 #define YYRESTORE() YYCURSOR = YYMARKER
 #define YYSTAGP(t) t = YYCURSOR
 #define YYSTAGN(t) t = NULL
+#define YYSHIFTSTAG(t, shift) t += shift
 
 typedef struct {
     const char *marker;
@@ -53,32 +54,32 @@ static UA_StatusCode
 parse_guid(UA_Guid *guid, const UA_Byte *s, const UA_Byte *e) {
     size_t len = (size_t)(e - s);
     if(len != 36 || s[8] != '-' || s[13] != '-' || s[23] != '-')
-        return UA_STATUSCODE_BADINTERNALERROR;
+        return UA_STATUSCODE_BADDECODINGERROR;
 
     UA_UInt32 tmp;
     if(UA_readNumberWithBase(s, 8, &tmp, 16) != 8)
-        return UA_STATUSCODE_BADINTERNALERROR;
+        return UA_STATUSCODE_BADDECODINGERROR;
     guid->data1 = tmp;
 
     if(UA_readNumberWithBase(&s[9], 4, &tmp, 16) != 4)
-        return UA_STATUSCODE_BADINTERNALERROR;
+        return UA_STATUSCODE_BADDECODINGERROR;
     guid->data2 = (UA_UInt16)tmp;
 
     if(UA_readNumberWithBase(&s[14], 4, &tmp, 16) != 4)
-        return UA_STATUSCODE_BADINTERNALERROR;
+        return UA_STATUSCODE_BADDECODINGERROR;
     guid->data3 = (UA_UInt16)tmp;
 
     if(UA_readNumberWithBase(&s[19], 2, &tmp, 16) != 2)
-        return UA_STATUSCODE_BADINTERNALERROR;
+        return UA_STATUSCODE_BADDECODINGERROR;
     guid->data4[0] = (UA_Byte)tmp;
 
     if(UA_readNumberWithBase(&s[21], 2, &tmp, 16) != 2)
-        return UA_STATUSCODE_BADINTERNALERROR;
+        return UA_STATUSCODE_BADDECODINGERROR;
     guid->data4[1] = (UA_Byte)tmp;
 
     for(size_t pos = 2, spos = 24; pos < 8; pos++, spos += 2) {
         if(UA_readNumberWithBase(&s[spos], 2, &tmp, 16) != 2)
-            return UA_STATUSCODE_BADINTERNALERROR;
+            return UA_STATUSCODE_BADDECODINGERROR;
         guid->data4[pos] = (UA_Byte)tmp;
     }
 
@@ -100,7 +101,7 @@ parse_nodeid_body(UA_NodeId *id, const char *body, const char *end) {
     switch(*body) {
     case 'i': {
         if(UA_readNumber((const UA_Byte*)body+2, len, &id->identifier.numeric) != len)
-            return UA_STATUSCODE_BADINTERNALERROR;
+            return UA_STATUSCODE_BADDECODINGERROR;
         id->identifierType = UA_NODEIDTYPE_NUMERIC;
         break;
     }
@@ -124,11 +125,11 @@ parse_nodeid_body(UA_NodeId *id, const char *body, const char *end) {
             UA_unbase64((const unsigned char*)body+2, len,
                         &id->identifier.byteString.length);
         if(!id->identifier.byteString.data && len > 0)
-            return UA_STATUSCODE_BADINTERNALERROR;
+            return UA_STATUSCODE_BADDECODINGERROR;
         id->identifierType = UA_NODEIDTYPE_BYTESTRING;
         break;
     default:
-        return UA_STATUSCODE_BADINTERNALERROR;
+        return UA_STATUSCODE_BADDECODINGERROR;
     }
     return res;
 }
@@ -147,7 +148,7 @@ parse_nodeid(UA_NodeId *id, const char *pos, const char *end) {
             UA_UInt32 tmp;
             size_t len = (size_t)(nse - ns);
             if(UA_readNumber((const UA_Byte*)ns, len, &tmp) != len)
-                return UA_STATUSCODE_BADINTERNALERROR;
+                return UA_STATUSCODE_BADDECODINGERROR;
             id->namespaceIndex = (UA_UInt16)tmp;
         }
 
@@ -155,7 +156,7 @@ parse_nodeid(UA_NodeId *id, const char *pos, const char *end) {
         return parse_nodeid_body(id, &pos[-2], end);
     }
 
-    * { (void)pos; return UA_STATUSCODE_BADINTERNALERROR; } */
+    * { (void)pos; return UA_STATUSCODE_BADDECODINGERROR; } */
 }
 
 UA_StatusCode
@@ -182,7 +183,7 @@ parse_expandednodeid(UA_ExpandedNodeId *id, const char *pos, const char *end) {
         if(svr) {
             size_t len = (size_t)((svre) - svr);
             if(UA_readNumber((const UA_Byte*)svr, len, &id->serverIndex) != len)
-                return UA_STATUSCODE_BADINTERNALERROR;
+                return UA_STATUSCODE_BADDECODINGERROR;
         }
 
         if(nsu) {
@@ -197,7 +198,7 @@ parse_expandednodeid(UA_ExpandedNodeId *id, const char *pos, const char *end) {
             UA_UInt32 tmp;
             size_t len = (size_t)((body-1) - ns);
             if(UA_readNumber((const UA_Byte*)ns, len, &tmp) != len)
-                return UA_STATUSCODE_BADINTERNALERROR;
+                return UA_STATUSCODE_BADDECODINGERROR;
             id->nodeId.namespaceIndex = (UA_UInt16)tmp;
         }
 
@@ -205,7 +206,7 @@ parse_expandednodeid(UA_ExpandedNodeId *id, const char *pos, const char *end) {
         return parse_nodeid_body(&id->nodeId, &pos[-2], end);
     }
 
-    * { (void)pos; return UA_STATUSCODE_BADINTERNALERROR; } */
+    * { (void)pos; return UA_STATUSCODE_BADDECODINGERROR; } */
 }
 
 UA_StatusCode
@@ -260,7 +261,7 @@ parse_refpath_qn_name(UA_QualifiedName *qn, const char **pos, const char *end) {
                (**pos != '/' && **pos != '.' && **pos != '<' && **pos != '>' &&
                 **pos != ':' && **pos != '#' && **pos != '!' && **pos != '&')) {
                 UA_free(name);
-                return UA_STATUSCODE_BADINTERNALERROR;
+                return UA_STATUSCODE_BADDECODINGERROR;
             }
             c = **pos;
         }
@@ -292,7 +293,7 @@ parse_refpath_qn(UA_QualifiedName *qn, const char *pos, const char *end) {
         UA_UInt32 tmp;
         size_t len = (size_t)(nse - ns);
         if(UA_readNumber((const UA_Byte*)ns, len, &tmp) != len)
-            return UA_STATUSCODE_BADINTERNALERROR;
+            return UA_STATUSCODE_BADDECODINGERROR;
         qn->namespaceIndex = (UA_UInt16)tmp;
         goto parse_qn_name;
     }
@@ -395,7 +396,7 @@ parse_relativepath(UA_RelativePath *rp, const char *pos, const char *end) {
     "\000" { (void)pos; return UA_STATUSCODE_GOOD; }
 
     // Unexpected input
-    * { (void)pos; return UA_STATUSCODE_BADINTERNALERROR; } */
+    * { (void)pos; return UA_STATUSCODE_BADDECODINGERROR; } */
 
     /* Get the TargetName component */
  reftype_target:

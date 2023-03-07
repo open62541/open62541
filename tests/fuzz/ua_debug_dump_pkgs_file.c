@@ -5,20 +5,15 @@
  *    Copyright 2019 (c) fortiss (Author: Stefan Profanter)
  */
 
-
-/**
- * This code is used to generate a binary file for every request type
- * which can be sent from a client to the server.
- * These files form the basic corpus for fuzzing the server.
- */
+/* This code is used to generate a binary file for every request type which can
+ * be sent from a client to the server. These files form the basic corpus for
+ * fuzzing the server. */
 
 #ifndef UA_DEBUG_DUMP_PKGS_FILE
 #error UA_DEBUG_DUMP_PKGS_FILE must be defined
 #endif
 
-#include <open62541/transport_generated_encoding_binary.h>
 #include <open62541/types.h>
-#include <open62541/types_generated_encoding_binary.h>
 
 #include "server/ua_server_internal.h"
 #include "testing_networklayers.h"
@@ -139,7 +134,7 @@ UA_debug_dumpCompleteChunk(UA_Server *const server, UA_Connection *const connect
     struct UA_dump_filename dump_filename;
     dump_filename.messageType = NULL;
     dump_filename.serviceName[0] = 0;
-    
+
     UA_Connection c = createDummyConnection(RECEIVE_BUFFER_SIZE, NULL);
     UA_SecureChannel dummy;
     UA_SecureChannel_init(&dummy, &connection->channel->config);
@@ -160,7 +155,7 @@ UA_debug_dumpCompleteChunk(UA_Server *const server, UA_Connection *const connect
     dummy.securityPolicy = NULL;
     UA_SecureChannel_deleteBuffered(&dummy);
     c.close(&c);
-    
+
     char fileName[250];
     snprintf(fileName, sizeof(fileName), "%s/%05u_%s%s", UA_CORPUS_OUTPUT_DIR, ++UA_dump_chunkCount,
              dump_filename.messageType ? dump_filename.messageType : "", dump_filename.serviceName);
@@ -178,9 +173,11 @@ UA_debug_dumpCompleteChunk(UA_Server *const server, UA_Connection *const connect
                 "Dumping package %s", dumpOutputFile);
 
     FILE *write_ptr = fopen(dumpOutputFile, "ab");
-    fwrite(messageBuffer->data, messageBuffer->length, 1, write_ptr); // write 10 bytes from our buffer
-    // add the available memory size. See the UA_DUMP_RAM_SIZE define for more info.
-    uint32_t ramSize = UA_DUMP_RAM_SIZE;
-    fwrite(&ramSize, sizeof(ramSize), 1, write_ptr);
-    fclose(write_ptr);
+    if (write_ptr) {
+        fwrite(messageBuffer->data, messageBuffer->length, 1, write_ptr); // write 10 bytes from our buffer
+        // add the available memory size. See the UA_DUMP_RAM_SIZE define for more info.
+        uint32_t ramSize = UA_DUMP_RAM_SIZE;
+        fwrite(&ramSize, sizeof(ramSize), 1, write_ptr);
+        fclose(write_ptr);
+    }
 }

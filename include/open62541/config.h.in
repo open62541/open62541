@@ -13,6 +13,7 @@
 #define UA_OPEN62541_VER_PATCH ${OPEN62541_VER_PATCH}
 #define UA_OPEN62541_VER_LABEL "${OPEN62541_VER_LABEL}" /* Release candidate label, etc. */
 #define UA_OPEN62541_VER_COMMIT "${OPEN62541_VER_COMMIT}"
+#define UA_OPEN62541_VERSION "${OPEN62541_VERSION}"
 
 /**
  * Feature Options
@@ -27,22 +28,33 @@
 #cmakedefine UA_ENABLE_NODEMANAGEMENT
 #cmakedefine UA_ENABLE_SUBSCRIPTIONS
 #cmakedefine UA_ENABLE_PUBSUB
+#cmakedefine UA_ENABLE_PUBSUB_ENCRYPTION
 #cmakedefine UA_ENABLE_PUBSUB_FILE_CONFIG
 #cmakedefine UA_ENABLE_PUBSUB_ETH_UADP
 #cmakedefine UA_ENABLE_PUBSUB_DELTAFRAMES
 #cmakedefine UA_ENABLE_PUBSUB_INFORMATIONMODEL
 #cmakedefine UA_ENABLE_PUBSUB_INFORMATIONMODEL_METHODS
 #cmakedefine UA_ENABLE_DA
-#cmakedefine UA_ENABLE_ENCRYPTION
+#cmakedefine UA_ENABLE_DIAGNOSTICS
 #cmakedefine UA_ENABLE_HISTORIZING
 #cmakedefine UA_ENABLE_PARSING
 #cmakedefine UA_ENABLE_EXPERIMENTAL_HISTORIZING
 #cmakedefine UA_ENABLE_SUBSCRIPTIONS_EVENTS
 #cmakedefine UA_ENABLE_JSON_ENCODING
+#cmakedefine UA_ENABLE_XML_ENCODING
 #cmakedefine UA_ENABLE_CLOCK_TAI
 #cmakedefine UA_ENABLE_PUBSUB_MQTT
+#cmakedefine UA_ENABLE_MQTT_TLS
+#cmakedefine UA_ENABLE_MQTT_TLS_OPENSSL
+#cmakedefine UA_ENABLE_MQTT_TLS_MBEDTLS
 #cmakedefine UA_ENABLE_ENCRYPTION_MBEDTLS
+#cmakedefine UA_ENABLE_CERT_REJECTED_DIR
+#cmakedefine UA_ENABLE_TPM2_SECURITY
 #cmakedefine UA_ENABLE_ENCRYPTION_OPENSSL
+#cmakedefine UA_ENABLE_ENCRYPTION_LIBRESSL
+#if defined(UA_ENABLE_ENCRYPTION_MBEDTLS) || defined(UA_ENABLE_ENCRYPTION_OPENSSL) || defined(UA_ENABLE_ENCRYPTION_LIBRESSL)
+#define UA_ENABLE_ENCRYPTION
+#endif
 #cmakedefine UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS
 
 /* Multithreading */
@@ -52,6 +64,7 @@
 /* Advanced Options */
 #cmakedefine UA_ENABLE_STATUSCODE_DESCRIPTIONS
 #cmakedefine UA_ENABLE_TYPEDESCRIPTION
+#cmakedefine UA_ENABLE_INLINABLE_EXPORT
 #cmakedefine UA_ENABLE_NODESET_COMPILER_DESCRIPTIONS
 #cmakedefine UA_ENABLE_DETERMINISTIC_RNG
 #cmakedefine UA_ENABLE_DISCOVERY
@@ -60,19 +73,21 @@
 #cmakedefine UA_ENABLE_QUERY
 #cmakedefine UA_ENABLE_MALLOC_SINGLETON
 #cmakedefine UA_ENABLE_DISCOVERY_SEMAPHORE
-#cmakedefine UA_ENABLE_UNIT_TEST_FAILURE_HOOKS
 #cmakedefine UA_ENABLE_VALGRIND_INTERACTIVE
 #define UA_VALGRIND_INTERACTIVE_INTERVAL ${UA_VALGRIND_INTERACTIVE_INTERVAL}
 #cmakedefine UA_GENERATED_NAMESPACE_ZERO
 #cmakedefine UA_GENERATED_NAMESPACE_ZERO_FULL
 #cmakedefine UA_ENABLE_PUBSUB_MONITORING
+#cmakedefine UA_ENABLE_PUBSUB_BUFMALLOC
+#cmakedefine UA_ENABLE_PUBSUB_SKS
+#cmakedefine UA_ENABLE_REDUCED_ITERATIONS_FOR_TESTING
 
 #cmakedefine UA_PACK_DEBIAN
 
 /* Options for Debugging */
 #cmakedefine UA_DEBUG
 #cmakedefine UA_DEBUG_DUMP_PKGS
-
+#cmakedefine UA_DEBUG_FILE_LINE_INFO
 /**
  * Function Export
  * ---------------
@@ -103,6 +118,32 @@
 #  define UA_ARCHITECTURE_WIN32
 # else
 #  define UA_ARCHITECTURE_POSIX
+# endif
+#endif
+
+/**
+ * POSIX Feature Flags
+ * -------------------
+ * These feature flags have to be set before including the first POSIX
+ * header. */
+#ifdef UA_ARCHITECTURE_POSIX
+# if !defined(_XOPEN_SOURCE)
+#  define _XOPEN_SOURCE 600
+# endif
+# ifndef _DEFAULT_SOURCE
+#  define _DEFAULT_SOURCE
+# endif
+
+/* On older systems we need to define _BSD_SOURCE.
+ * _DEFAULT_SOURCE is an alias for that. */
+# ifndef _BSD_SOURCE
+#  define _BSD_SOURCE
+# endif
+
+/* Define _GNU_SOURCE to get functions like ppoll. Comment this out to
+ * only use standard POSIX definitions. */
+# ifndef _GNU_SOURCE
+#  define _GNU_SOURCE
 # endif
 #endif
 

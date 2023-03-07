@@ -21,7 +21,7 @@ int main(void) {
     UA_ServerConfig_setDefault(UA_Server_getConfig(server));
 
     /* Create a rudimentary objectType
-     * 
+     *
      * BaseObjectType
      * |
      * +- (OT) MamalType
@@ -29,7 +29,7 @@ int main(void) {
      *    + (OT) DogType
      *      |
      *      + (V) Name
-     */ 
+     */
     UA_StatusCode retval;
     UA_ObjectTypeAttributes otAttr = UA_ObjectTypeAttributes_default;
     otAttr.description = UA_LOCALIZEDTEXT("en-US", "A mamal");
@@ -67,7 +67,7 @@ int main(void) {
     /* Instatiate a dog named bello:
      * (O) Objects
      *   + O Bello <DogType>
-     *     + Age 
+     *     + Age
      *     + Name
      */
 

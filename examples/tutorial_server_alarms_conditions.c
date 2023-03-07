@@ -3,10 +3,6 @@
 
 #include <open62541/plugin/log_stdout.h>
 #include <open62541/server.h>
-#include <open62541/server_config_default.h>
-
-#include <signal.h>
-#include <stdlib.h>
 
 /**
  * Using Alarms and Conditions Server
@@ -15,7 +11,7 @@
  * Besides the usage of monitored items and events to observe the changes in the
  * server, it is also important to make use of the Alarms and Conditions Server
  * Model. Alarms are events which are triggered automatically by the server
- * dependent on internal server logic or user specific logic when the state of
+ * dependent on internal server logic or user specific logic when the states of
  * server components change. The state of a component is represented through a
  * condition. So the values of all the condition children (Fields) are the
  * actual state of the component.
@@ -550,23 +546,12 @@ setUpEnvironment(UA_Server *server) {
 /**
  * It follows the main server code, making use of the above definitions. */
 
-static UA_Boolean running = true;
-static void stopHandler(int sig) {
-    running = false;
-}
-
 int main (void) {
-    /* default server values */
-    signal(SIGINT, stopHandler);
-    signal(SIGTERM, stopHandler);
-
     UA_Server *server = UA_Server_new();
-    UA_ServerConfig_setDefault(UA_Server_getConfig(server));
 
-    UA_StatusCode retval = setUpEnvironment(server);
+    setUpEnvironment(server);
 
-    if(retval == UA_STATUSCODE_GOOD)
-        retval = UA_Server_run(server, &running);
+    UA_StatusCode retval = UA_Server_runUntilInterrupt(server);
 
     UA_Server_delete(server);
     return retval == UA_STATUSCODE_GOOD ? EXIT_SUCCESS : EXIT_FAILURE;

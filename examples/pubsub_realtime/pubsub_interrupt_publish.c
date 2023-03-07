@@ -21,7 +21,6 @@
 #include <open62541/plugin/log_stdout.h>
 #include <open62541/server_pubsub.h>
 #include <open62541/plugin/pubsub_ethernet.h>
-#include "bufmalloc.h"
 
 #define ETH_PUBLISH_ADDRESS      "opc.eth://0a-00-27-00-00-08"
 #define ETH_INTERFACE            "enp0s8"
@@ -106,9 +105,7 @@ publishInterrupt(int sig, siginfo_t* si, void* uc) {
     /* Execute the publish callback in the interrupt */
     struct timespec begin, end;
     clock_gettime(CLOCKID, &begin);
-    useMembufAlloc();
     pubCallback(pubServer, pubData);
-    useNormalAlloc();
     clock_gettime(CLOCKID, &end);
 
     if(publisherMeasurementsCounter >= MAX_MEASUREMENTS)
@@ -279,7 +276,9 @@ addPubSubConfiguration(UA_Server* server) {
         {UA_STRING(ETH_INTERFACE), UA_STRING(ETH_PUBLISH_ADDRESS)};
     UA_Variant_setScalar(&connectionConfig.address, &networkAddressUrl,
                          &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
-    connectionConfig.publisherId.numeric = UA_UInt32_random();
+    connectionConfig.publisherIdType = UA_PUBLISHERIDTYPE_UINT32;
+    connectionConfig.publisherId.uint32 = UA_UInt32_random();
+
     UA_Server_addPubSubConnection(server, &connectionConfig, &connectionIdent);
 
     UA_PublishedDataSetConfig publishedDataSetConfig;
@@ -365,10 +364,7 @@ int main(void) {
     UA_ServerConfig *config = UA_Server_getConfig(server);
     UA_ServerConfig_setDefault(config);
 
-    config->pubsubTransportLayers = (UA_PubSubTransportLayer *)
-        UA_malloc(sizeof(UA_PubSubTransportLayer));
-    config->pubsubTransportLayers[0] = UA_PubSubTransportLayerEthernet();
-    config->pubsubTransportLayersSize++;
+    UA_ServerConfig_addPubSubTransportLayer(config, UA_PubSubTransportLayerEthernet());
 
     addServerNodes(server);
     addPubSubConfiguration(server);

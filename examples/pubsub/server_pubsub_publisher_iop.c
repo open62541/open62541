@@ -75,7 +75,8 @@ addPubSubConnection(UA_Server *server, UA_String *transportProfile,
     connectionConfig.enabled = UA_TRUE;
     UA_Variant_setScalar(&connectionConfig.address, networkAddressUrl,
         &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
-    connectionConfig.publisherId.numeric = Publisher_ID;
+    connectionConfig.publisherIdType = UA_PUBLISHERIDTYPE_UINT16;
+    connectionConfig.publisherId.uint16 = Publisher_ID;
     UA_Server_addPubSubConnection(server, &connectionConfig, &connectionIdent);
 }
 
@@ -672,7 +673,7 @@ timerCallback(UA_Server *server, void *data) {
     UA_Variant_setScalar(&tmpVari, &ds2DoubleVal, &UA_TYPES[UA_TYPES_DOUBLE]);
     UA_Server_writeValue(server, ds2DoubleId, tmpVari);
 
-    // String 
+    // String
     UA_Variant_init(&tmpVari);
     ds2StringIndex++;
     if(ds2StringIndex >= ds2StringArrayLen)
@@ -681,7 +682,7 @@ timerCallback(UA_Server *server, void *data) {
     UA_Variant_setScalar(&tmpVari, &ds2StringArray[ds2StringIndex], &UA_TYPES[UA_TYPES_STRING]);
     UA_Server_writeValue(server, ds2StringId, tmpVari);
 
-    // ByteString 
+    // ByteString
     UA_Variant_init(&tmpVari);
     UA_ByteString bs;
     UA_ByteString_init(&bs);
@@ -693,7 +694,7 @@ timerCallback(UA_Server *server, void *data) {
     UA_Server_writeValue(server, ds2ByteStringId, tmpVari);
     UA_ByteString_clear(&bs);
 
-    // Guid 
+    // Guid
     UA_Variant_init(&tmpVari);
     UA_Guid g = UA_Guid_random();
     UA_Variant_setScalar(&tmpVari, &g, &UA_TYPES[UA_TYPES_GUID]);
@@ -724,21 +725,13 @@ static int run(UA_String *transportProfile,
 
     /* Details about the connection configuration and handling are located in
     * the pubsub connection tutorial */
-    config->pubsubTransportLayers =
-        (UA_PubSubTransportLayer *)UA_calloc(2, sizeof(UA_PubSubTransportLayer));
-    if (!config->pubsubTransportLayers) {
-        UA_Server_delete(server);
-        return EXIT_FAILURE;
-    }
-    config->pubsubTransportLayers[0] = UA_PubSubTransportLayerUDPMP();
-    config->pubsubTransportLayersSize++;
+    UA_ServerConfig_addPubSubTransportLayer(config, UA_PubSubTransportLayerUDPMP());
 #ifdef UA_ENABLE_PUBSUB_ETH_UADP
-    config->pubsubTransportLayers[1] = UA_PubSubTransportLayerEthernet();
-    config->pubsubTransportLayersSize++;
+    UA_ServerConfig_addPubSubTransportLayer(config, UA_PubSubTransportLayerEthernet());
 #endif
 
     addPubSubConnection(server, transportProfile, networkAddressUrl);
-    
+
     /* Create a PublishedDataSet based on a PublishedDataSetConfig. */
     UA_PublishedDataSetConfig publishedDataSetConfig;
     publishedDataSetConfig.publishedDataSetType = UA_PUBSUB_DATASET_PUBLISHEDITEMS;
@@ -765,13 +758,13 @@ static int run(UA_String *transportProfile,
     UA_Server_setWriterGroupOperational(server, writerGroupIdent);
 
     /* Create a new Writer and connect it with an existing PublishedDataSet */
-    // DataSetWriter ID 1 with Variant Encoding 
+    // DataSetWriter ID 1 with Variant Encoding
     UA_DataSetWriterConfig dataSetWriterConfig;
     memset(&dataSetWriterConfig, 0, sizeof(UA_DataSetWriterConfig));
     dataSetWriterConfig.name = UA_STRING("DataSet 1 DataSetWriter");
     dataSetWriterConfig.dataSetWriterId = 1;
     //The creation of delta messages is configured in the following line. Value
-    // 0 -> no delta messages are created. 
+    // 0 -> no delta messages are created.
     dataSetWriterConfig.keyFrameCount = 10;
 
     UA_NodeId writerIdentifier;
@@ -796,7 +789,7 @@ static int run(UA_String *transportProfile,
     dataSetWriterConfig2.name = UA_STRING("DataSet 2 DataSetWriter");
     dataSetWriterConfig2.dataSetWriterId = 2;
     //The creation of delta messages is configured in the following line. Value
-    // 0 -> no delta messages are created. 
+    // 0 -> no delta messages are created.
     dataSetWriterConfig2.keyFrameCount = 10;
 
     UA_NodeId writerIdentifier2;

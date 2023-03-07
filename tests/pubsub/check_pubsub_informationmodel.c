@@ -24,18 +24,14 @@ UA_Server *server = NULL;
 
 UA_NodeId connection1, connection2, writerGroup1, writerGroup2, writerGroup3,
         publishedDataSet1, publishedDataSet2, dataSetWriter1, dataSetWriter2, dataSetWriter3,
-        readerGroup1, dataSetReader1;
+        dataSetWriter4, readerGroup1, dataSetReader1;
 
 static void setup(void) {
     server = UA_Server_new();
+    ck_assert(server != NULL);
     UA_ServerConfig *config = UA_Server_getConfig(server);
     UA_ServerConfig_setDefault(config);
-
-    config->pubsubTransportLayers = (UA_PubSubTransportLayer *)
-        UA_malloc(sizeof(UA_PubSubTransportLayer));
-    config->pubsubTransportLayers[0] = UA_PubSubTransportLayerUDPMP();
-    config->pubsubTransportLayersSize++;
-
+    UA_ServerConfig_addPubSubTransportLayer(config, UA_PubSubTransportLayerUDP());
     UA_Server_run_startup(server);
 }
 
@@ -50,6 +46,21 @@ static void addPublishedDataSet(UA_String pdsName, UA_NodeId *assignedId){
     pdsConfig.publishedDataSetType = UA_PUBSUB_DATASET_PUBLISHEDITEMS;
     pdsConfig.name = pdsName;
     UA_Server_addPublishedDataSet(server, &pdsConfig, assignedId);
+}
+
+static void addDataSetField(UA_NodeId publishedDataSetIdent) {
+    /* Add a field to the previous created PublishedDataSet */
+    UA_NodeId dataSetFieldIdent;
+    UA_DataSetFieldConfig dataSetFieldConfig;
+    memset(&dataSetFieldConfig, 0, sizeof(UA_DataSetFieldConfig));
+    dataSetFieldConfig.dataSetFieldType = UA_PUBSUB_DATASETFIELD_VARIABLE;
+    dataSetFieldConfig.field.variable.fieldNameAlias = UA_STRING("Server localtime");
+    dataSetFieldConfig.field.variable.promotedField = UA_FALSE;
+    dataSetFieldConfig.field.variable.publishParameters.publishedVariable =
+    UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_CURRENTTIME);
+    dataSetFieldConfig.field.variable.publishParameters.attributeId = UA_ATTRIBUTEID_VALUE;
+    UA_Server_addDataSetField(server, publishedDataSetIdent,
+                              &dataSetFieldConfig, &dataSetFieldIdent);
 }
 
 static void addPubSubConnection(UA_String connectionName, UA_String addressUrl, UA_NodeId *assignedId){
@@ -136,6 +147,12 @@ static void setupBasicPubSubConfiguration(void){
     addDataSetWriter(writerGroup1, publishedDataSet1, UA_STRING("DataSetWriter 1"), &dataSetWriter1);
     addDataSetWriter(writerGroup1, publishedDataSet2, UA_STRING("DataSetWriter 2"), &dataSetWriter2);
     addDataSetWriter(writerGroup2, publishedDataSet2, UA_STRING("DataSetWriter 3"), &dataSetWriter3);
+    UA_DataSetWriterConfig dataSetWriterConfig;
+    memset(&dataSetWriterConfig, 0, sizeof(UA_DataSetWriterConfig));
+    dataSetWriterConfig.name = UA_STRING("Demo DataSetWriter");
+    dataSetWriterConfig.dataSetWriterId = 62541;
+    UA_Server_addDataSetWriter(server, writerGroup1, publishedDataSet2,
+                               &dataSetWriterConfig, &dataSetWriter4);
     addReaderGroup(connection1, UA_STRING("ReaderGroup 1"), &readerGroup1);
     addDataSetReader(readerGroup1, UA_STRING("DataSetReader 1"), &dataSetReader1);
 }
@@ -169,7 +186,32 @@ START_TEST(AddRemoveAddSignlePubSubConnectionAndCheckInformationModelRepresentat
 START_TEST(AddSinglePublishedDataSetAndCheckInformationModelRepresentation){
     UA_String pdsName = UA_STRING("PDS 1");
     addPublishedDataSet(pdsName, &publishedDataSet1);
+    addDataSetField(publishedDataSet1);
     UA_QualifiedName browseName;
+    UA_NodeId publishedDataNodeId = findSingleChildNode(server, UA_QUALIFIEDNAME(0, "PublishedData"),
+                                                       UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY), publishedDataSet1);
+    UA_NodeId dataSetMetaDataNodeId = findSingleChildNode(server, UA_QUALIFIEDNAME(0, "DataSetMetaData"),
+                                                       UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY), publishedDataSet1);
+    UA_NodeId configurationVersionNodeId = findSingleChildNode(server, UA_QUALIFIEDNAME(0, "ConfigurationVersion"),
+                                                       UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY), publishedDataSet1);
+    UA_Variant value;
+    UA_Variant_init(&value);
+    ck_assert_int_eq(UA_Server_readValue(server, publishedDataNodeId, &value), UA_STATUSCODE_GOOD);
+    ck_assert(UA_Variant_hasArrayType(&value, &UA_TYPES[UA_TYPES_PUBLISHEDVARIABLEDATATYPE]));
+    UA_NodeId dsf1 = ((UA_PublishedVariableDataType *)value.data)[0].publishedVariable;
+    UA_NodeId serverCurrentTimeId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_CURRENTTIME);
+    ck_assert(UA_NodeId_equal(&dsf1, &serverCurrentTimeId));
+    ck_assert_uint_eq(value.arrayLength, 1);
+    UA_Variant_clear(&value);
+    UA_Variant_init(&value);
+    ck_assert_int_eq(UA_Server_readValue(server, dataSetMetaDataNodeId, &value), UA_STATUSCODE_GOOD);
+    ck_assert(UA_Variant_hasScalarType(&value, &UA_TYPES[UA_TYPES_DATASETMETADATATYPE]));
+    ck_assert_uint_eq(((UA_DataSetMetaDataType *)value.data)->fieldsSize, 1);
+    UA_Variant_clear(&value);
+    UA_Variant_init(&value);
+    ck_assert_int_eq(UA_Server_readValue(server, configurationVersionNodeId, &value), UA_STATUSCODE_GOOD);
+    ck_assert(UA_Variant_hasScalarType(&value, &UA_TYPES[UA_TYPES_CONFIGURATIONVERSIONDATATYPE]));
+    UA_Variant_clear(&value);
     ck_assert_int_eq(UA_Server_readBrowseName(server, publishedDataSet1, &browseName), UA_STATUSCODE_GOOD);
     ck_assert_int_eq(UA_String_equal(&browseName.name, &pdsName), UA_TRUE);
     UA_QualifiedName_clear(&browseName);
@@ -405,6 +447,18 @@ START_TEST(ReadDataSetWriterIdAndCompareWithInternalValue){
     UA_Variant_clear(&value);
     } END_TEST
 
+START_TEST(ReadDataSetWriterIdWGAndCompareWithInternalValue){
+    setupBasicPubSubConfiguration();
+    UA_NodeId dataSetWriterIdNode = findSingleChildNode(server, UA_QUALIFIEDNAME(0, "DataSetWriterId"),
+                                                        UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY), dataSetWriter4);
+    UA_Variant value;
+    UA_Variant_init(&value);
+    ck_assert_int_eq(UA_Server_readValue(server, dataSetWriterIdNode, &value), UA_STATUSCODE_GOOD);
+    ck_assert(UA_Variant_hasScalarType(&value, &UA_TYPES[UA_TYPES_UINT16]));
+    ck_assert_int_eq(*((UA_UInt16 *) value.data), 62541);
+    UA_Variant_clear(&value);
+    } END_TEST
+
 int main(void) {
     TCase *tc_add_pubsub_informationmodel = tcase_create("PubSub add single elements and check information model representation");
     tcase_add_checked_fixture(tc_add_pubsub_informationmodel, setup, teardown);
@@ -435,11 +489,16 @@ int main(void) {
     tcase_add_test(tc_add_pubsub_dataSetReaderElements, ReadWriterGroupIdAndCompareWithInternalValue);
     tcase_add_test(tc_add_pubsub_dataSetReaderElements, ReadDataSetWriterIdAndCompareWithInternalValue);
 
+    TCase *tc_add_pubsub_dataSetWriterElements = tcase_create("PubSub DataSetWriter check properties");
+    tcase_add_checked_fixture(tc_add_pubsub_dataSetWriterElements, setup, teardown);
+    tcase_add_test(tc_add_pubsub_dataSetWriterElements, ReadDataSetWriterIdWGAndCompareWithInternalValue);
+
     Suite *s = suite_create("PubSub WriterGroups/DataSetReader/Fields handling and publishing");
     suite_add_tcase(s, tc_add_pubsub_informationmodel);
     suite_add_tcase(s, tc_add_pubsub_writergroupelements);
     suite_add_tcase(s, tc_add_pubsub_pubsubconnectionelements);
     suite_add_tcase(s, tc_add_pubsub_dataSetReaderElements);
+    suite_add_tcase(s, tc_add_pubsub_dataSetWriterElements);
 
     SRunner *sr = srunner_create(s);
     srunner_set_fork_status(sr, CK_NOFORK);

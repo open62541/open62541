@@ -8,6 +8,7 @@
 
 #include <open62541/client_config_default.h>
 #include <open62541/plugin/securitypolicy_default.h>
+#include <open62541/plugin/pki_default.h>
 #include <open62541/server_config_default.h>
 
 #include "client/ua_client_internal.h"
@@ -24,7 +25,6 @@
 
 UA_Server *server;
 UA_Boolean running;
-UA_ServerNetworkLayer nl;
 THREAD_HANDLE server_thread;
 
 THREAD_CALLBACK(serverloop) {
@@ -66,11 +66,14 @@ static void setup(void) {
     size_t revocationListSize = 0;
 
     server = UA_Server_new();
+    ck_assert(server != NULL);
     UA_ServerConfig *config = UA_Server_getConfig(server);
     UA_ServerConfig_setDefaultWithSecurityPolicies(config, 4840, &certificate, &privateKey,
                                                    trustList, trustListSize,
                                                    issuerList, issuerListSize,
                                                    revocationList, revocationListSize);
+    config->certificateVerification.clear(&config->certificateVerification);
+    UA_CertificateVerification_AcceptAll(&config->certificateVerification);
 
     /* Set the ApplicationUri used in the certificate */
     UA_String_clear(&config->applicationDescription.applicationUri);
@@ -104,12 +107,12 @@ START_TEST(encryption_connect) {
     UA_ByteString certificate;
     certificate.length = CERT_DER_LENGTH;
     certificate.data = CERT_DER_DATA;
-    ck_assert_int_ne(certificate.length, 0);
+    ck_assert_uint_ne(certificate.length, 0);
 
     UA_ByteString privateKey;
     privateKey.length = KEY_DER_LENGTH;
     privateKey.data = KEY_DER_DATA;
-    ck_assert_int_ne(privateKey.length, 0);
+    ck_assert_uint_ne(privateKey.length, 0);
 
     /* The Get endpoint (discovery service) is done with
      * security mode as none to see the server's capability
@@ -148,6 +151,8 @@ START_TEST(encryption_connect) {
     UA_ClientConfig_setDefaultEncryption(cc, certificate, privateKey,
                                          trustList, trustListSize,
                                          revocationList, revocationListSize);
+    cc->certificateVerification.clear(&cc->certificateVerification);
+    UA_CertificateVerification_AcceptAll(&cc->certificateVerification);
     cc->securityPolicyUri =
         UA_STRING_ALLOC("http://opcfoundation.org/UA/SecurityPolicy#Basic128Rsa15");
     ck_assert(client != NULL);
@@ -185,12 +190,12 @@ START_TEST(encryption_connect_pem) {
     UA_ByteString certificate;
     certificate.length = CERT_PEM_LENGTH;
     certificate.data = CERT_PEM_DATA;
-    ck_assert_int_ne(certificate.length, 0);
+    ck_assert_uint_ne(certificate.length, 0);
 
     UA_ByteString privateKey;
     privateKey.length = KEY_PEM_LENGTH;
     privateKey.data = KEY_PEM_DATA;
-    ck_assert_int_ne(privateKey.length, 0);
+    ck_assert_uint_ne(privateKey.length, 0);
 
     /* The Get endpoint (discovery service) is done with
      * security mode as none to see the server's capability
@@ -229,12 +234,14 @@ START_TEST(encryption_connect_pem) {
     UA_ClientConfig_setDefaultEncryption(cc, certificate, privateKey,
                                          trustList, trustListSize,
                                          revocationList, revocationListSize);
+    cc->certificateVerification.clear(&cc->certificateVerification);
+    UA_CertificateVerification_AcceptAll(&cc->certificateVerification);
     cc->securityPolicyUri =
         UA_STRING_ALLOC("http://opcfoundation.org/UA/SecurityPolicy#Basic128Rsa15");
     ck_assert(client != NULL);
 
     for(size_t deleteCount = 0; deleteCount < trustListSize; deleteCount++) {
-        UA_ByteString_deleteMembers(&trustList[deleteCount]);
+        UA_ByteString_clear(&trustList[deleteCount]);
     }
 
     /* Secure client connect */
@@ -246,7 +253,7 @@ START_TEST(encryption_connect_pem) {
     UA_NodeId nodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_STATE);
     retval = UA_Client_readValueAttribute(client, nodeId, &val);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
-    UA_Variant_deleteMembers(&val);
+    UA_Variant_clear(&val);
 
     UA_Client_disconnect(client);
     UA_Client_delete(client);

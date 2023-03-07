@@ -47,6 +47,7 @@ static void setup(void) {
     clientCounter = 0;
     running = true;
     server = UA_Server_new();
+    ck_assert(server != NULL);
     UA_ServerConfig *config = UA_Server_getConfig(server);
     UA_ServerConfig_setDefault(config);
     config->asyncOperationTimeout = 2000.0; /* 2 seconds */
@@ -80,7 +81,7 @@ static void setup(void) {
     THREAD_CREATE(server_thread, serverloop);
 }
 
-static void teardown(void) {    
+static void teardown(void) {
     running = false;
     THREAD_JOIN(server_thread);
     UA_Server_run_shutdown(server);
@@ -124,8 +125,10 @@ START_TEST(Async_call) {
     /* Process the async method call for the server */
     UA_AsyncOperationType aot;
     const UA_AsyncOperationRequest *request;
-    void *context;
-    UA_Boolean haveAsync = UA_Server_getAsyncOperation(server, &aot, &request, &context);
+    void *context = NULL;
+    UA_DateTime timeout = 0;
+    UA_Boolean haveAsync =
+        UA_Server_getAsyncOperationNonBlocking(server, &aot, &request, &context, &timeout);
     ck_assert_uint_eq(haveAsync, true);
     UA_AsyncOperationResponse response;
     UA_CallMethodResult_init(&response.callMethodResult);
@@ -174,7 +177,7 @@ START_TEST(Async_timeout) {
     UA_Client_run_iterate(client, 0);
     ck_assert_uint_eq(clientCounter, 0);
 
-    UA_fakeSleep(1000 * 1.5);
+    UA_fakeSleep((UA_UInt32)(1000 * 1.5));
 
     /* We expect to receive the timeout not yet*/
     UA_Server_run_iterate(server, true);
@@ -220,8 +223,10 @@ START_TEST(Async_timeout_worker) {
     /* Process the async method call for the server */
     UA_AsyncOperationType aot;
     const UA_AsyncOperationRequest *request;
-    void *context;
-    UA_Boolean haveAsync = UA_Server_getAsyncOperation(server, &aot, &request, &context);
+    void *context = NULL;
+    UA_DateTime timeout = 0;
+    UA_Boolean haveAsync =
+        UA_Server_getAsyncOperationNonBlocking(server, &aot, &request, &context, &timeout);
     ck_assert_uint_eq(haveAsync, true);
     UA_AsyncOperationResponse response;
     UA_CallMethodResult_init(&response.callMethodResult);
@@ -252,7 +257,7 @@ static Suite* method_async_suite(void) {
     tcase_add_test(tc_manager, Async_timeout);
     tcase_add_test(tc_manager, Async_timeout_worker);
     suite_add_tcase(s, tc_manager);
-    
+
     return s;
 }
 

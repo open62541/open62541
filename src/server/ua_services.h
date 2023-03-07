@@ -1,6 +1,6 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. 
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  *
  *    Copyright 2014-2017 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
  *    Copyright 2014-2017 (c) Florian Palm
@@ -184,7 +184,11 @@ void Service_CloseSession(UA_Server *server, UA_SecureChannel *channel,
  *
  * AddNodes Service
  * ^^^^^^^^^^^^^^^^
- * Used to add one or more Nodes into the AddressSpace hierarchy. */
+ * Used to add one or more Nodes into the AddressSpace hierarchy.
+ * If the type or one of the supertypes has any HasInterface references
+ * (see OPC 10001-7 - Amendment 7, 4.9.2), the child nodes of the interfaces
+ * are added to the new object.
+*/
 void Service_AddNodes(UA_Server *server, UA_Session *session,
                       const UA_AddNodesRequest *request,
                       UA_AddNodesResponse *response);
@@ -192,7 +196,7 @@ void Service_AddNodes(UA_Server *server, UA_Session *session,
 /**
  * AddReferences Service
  * ^^^^^^^^^^^^^^^^^^^^^
- * Used to add one or more References to one or more Nodes. */
+ * Used to add one or more References to one or more Nodes.*/
 void Service_AddReferences(UA_Server *server, UA_Session *session,
                            const UA_AddReferencesRequest *request,
                            UA_AddReferencesResponse *response);
@@ -468,9 +472,13 @@ void Service_SetPublishingMode(UA_Server *server, UA_Session *session,
  *
  * Note that the service signature is an exception and does not contain a
  * pointer to a PublishResponse. That is because the service queues up publish
- * requests internally and sends responses asynchronously based on timeouts. */
-void Service_Publish(UA_Server *server, UA_Session *session,
-                     const UA_PublishRequest *request, UA_UInt32 requestId);
+ * requests internally and sends responses asynchronously based on timeouts.
+ *
+ * Also, this is the only service method that returns a StatusCode. This
+ * simplifies keeping track of the diagnostics statistics. */
+UA_StatusCode
+Service_Publish(UA_Server *server, UA_Session *session,
+                const UA_PublishRequest *request, UA_UInt32 requestId);
 
 /**
  * Republish Service

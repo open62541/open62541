@@ -16,27 +16,19 @@
 #include <open62541/server.h>
 #include <open62541/server_config_default.h>
 
-#include "client/ua_client_internal.h"
 #include "server/ua_server_internal.h"
 
 #include <check.h>
 
 #include "testing_clock.h"
-#include "testing_networklayers.h"
 #include "thread_wrapper.h"
-#ifdef UA_ENABLE_HISTORIZING
 #include "historical_read_test_data.h"
 #include "randomindextest_backend.h"
-#endif
-#include <stddef.h>
 
 static UA_Server *server;
-#ifdef UA_ENABLE_HISTORIZING
 static UA_HistoryDataGathering *gathering;
-#endif
 static UA_Boolean running;
 static THREAD_HANDLE server_thread;
-static MUTEX_HANDLE serverMutex;
 
 static UA_Client *client;
 static UA_NodeId parentNodeId;
@@ -45,49 +37,29 @@ static UA_NodeId outNodeId;
 
 static UA_DateTime *testDataSorted;
 
-static void serverMutexLock(void) {
-    if (!(MUTEX_LOCK(serverMutex))) {
-        fprintf(stderr, "Mutex cannot be locked.\n");
-        exit(1);
-    }
-}
-
-static void serverMutexUnlock(void) {
-    if (!(MUTEX_UNLOCK(serverMutex))) {
-        fprintf(stderr, "Mutex cannot be unlocked.\n");
-        exit(1);
-    }
-}
-
 THREAD_CALLBACK(serverloop) {
     while(running) {
-        serverMutexLock();
         UA_Server_run_iterate(server, false);
-        serverMutexUnlock();
     }
     return 0;
 }
 
 static void setup(void) {
-    if (!(MUTEX_INIT(serverMutex))) {
-        fprintf(stderr, "Server mutex was not created correctly.\n");
-        exit(1);
-    }
     running = true;
 
     server = UA_Server_new();
+    ck_assert(server != NULL);
     UA_ServerConfig *config = UA_Server_getConfig(server);
     UA_ServerConfig_setDefault(config);
 
-#ifdef UA_ENABLE_HISTORIZING
     gathering = (UA_HistoryDataGathering*)UA_calloc(1, sizeof(UA_HistoryDataGathering));
     *gathering = UA_HistoryDataGathering_Default(1);
     config->historyDatabase = UA_HistoryDatabase_default(*gathering);
-#endif
 
     UA_StatusCode retval = UA_Server_run_startup(server);
     if(retval != UA_STATUSCODE_GOOD) {
-        fprintf(stderr, "Error while calling Server_run_startup. %s\n", UA_StatusCode_name(retval));
+        fprintf(stderr, "Error while calling Server_run_startup. %s\n",
+                UA_StatusCode_name(retval));
         UA_Server_delete(server);
         exit(1);
     }
@@ -123,14 +95,12 @@ static void setup(void) {
     UA_ClientConfig_setDefault(UA_Client_getConfig(client));
     retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
     if (retval != UA_STATUSCODE_GOOD) {
-        fprintf(stderr, "Client can not connect to opc.tcp://localhost:4840. %s\n", UA_StatusCode_name(retval));
+        fprintf(stderr, "Client can not connect to opc.tcp://localhost:4840. %s\n",
+                UA_StatusCode_name(retval));
         UA_Client_delete(client);
         UA_Server_delete(server);
         exit(1);
     }
-
-    UA_Client_recv = client->connection.recv;
-    client->connection.recv = UA_Client_recvTesting;
 }
 
 static void teardown(void) {
@@ -144,23 +114,11 @@ static void teardown(void) {
     UA_NodeId_clear(&outNodeId);
     UA_Server_run_shutdown(server);
     UA_Server_delete(server);
-#ifdef UA_ENABLE_HISTORIZING
     UA_free(gathering);
-#endif
-    if (!MUTEX_DESTROY(serverMutex)) {
-        fprintf(stderr, "Server mutex was not destroyed correctly.\n");
-        exit(1);
-    }
 }
 
-#ifdef UA_ENABLE_HISTORIZING
-
-#include <stdio.h>
-#include "ua_session.h"
-
 static UA_StatusCode
-setUInt32(UA_Client *thisClient, UA_NodeId node, UA_UInt32 value)
-{
+setUInt32(UA_Client *thisClient, UA_NodeId node, UA_UInt32 value) {
     UA_Variant variant;
     UA_Variant_setScalar(&variant, &value, &UA_TYPES[UA_TYPES_UINT32]);
     return UA_Client_writeValueAttribute(thisClient, node, &variant);
@@ -312,9 +270,9 @@ requestHistory(UA_DateTime start,
 }
 
 static UA_UInt32
-testHistoricalDataBackend(size_t maxResponseSize)
-{
-    const UA_HistorizingNodeIdSettings* setting = gathering->getHistorizingSetting(server, gathering->context, &outNodeId);
+testHistoricalDataBackend(size_t maxResponseSize) {
+    const UA_HistorizingNodeIdSettings *setting =
+        gathering->getHistorizingSetting(server, gathering->context, &outNodeId);
     UA_HistorizingNodeIdSettings newSetting = *setting;
     newSetting.maxHistoryDataResponseSize = maxResponseSize;
     gathering->updateNodeIdSetting(server, gathering->context, &outNodeId, newSetting);
@@ -322,18 +280,21 @@ testHistoricalDataBackend(size_t maxResponseSize)
     UA_UInt32 retval = 0;
     size_t i = 0;
     testTuple *current = &testRequests[i];
-    fprintf(stderr, "Testing with maxResponseSize of %lu\n", maxResponseSize);
-    fprintf(stderr, "Start | End  | numValuesPerNode | returnBounds |ContPoint| {Expected}{Result} Result\n");
-    fprintf(stderr, "------+------+------------------+--------------+---------+----------------\n");
+    fprintf(stderr, "Testing with maxResponseSize of %llu\n",
+            (long long unsigned)maxResponseSize);
+    fprintf(stderr, "Start | End  | numValuesPerNode | returnBounds |ContPoint| "
+                    "{Expected}{Result} Result\n");
+    fprintf(stderr, "------+------+------------------+"
+                    "--------------+---------+----------------\n");
     size_t j;
-    while (current->start || current->end) {
+    while(current->start || current->end) {
         j = 0;
-        if (current->start == TIMESTAMP_UNSPECIFIED) {
+        if(current->start == TIMESTAMP_UNSPECIFIED) {
             fprintf(stderr, "UNSPEC|");
         } else {
             fprintf(stderr, "  %3lld |", current->start / UA_DATETIME_SEC);
         }
-        if (current->end == TIMESTAMP_UNSPECIFIED) {
+        if(current->end == TIMESTAMP_UNSPECIFIED) {
             fprintf(stderr, "UNSPEC|");
         } else {
             fprintf(stderr, "  %3lld |", current->end / UA_DATETIME_SEC);
@@ -369,7 +330,9 @@ testHistoricalDataBackend(size_t maxResponseSize)
             ++counter;
 
             if(response.resultsSize != 1) {
-                fprintf(stderr, "ResultError:Size %lu %s", response.resultsSize, UA_StatusCode_name(response.responseHeader.serviceResult));
+                fprintf(stderr, "ResultError:Size %llu %s",
+                        (long long unsigned)response.resultsSize,
+                        UA_StatusCode_name(response.responseHeader.serviceResult));
                 readOk = false;
                 UA_HistoryReadResponse_clear(&response);
                 break;
@@ -462,10 +425,10 @@ testHistoricalDataBackend(size_t maxResponseSize)
         }
         UA_ByteString_clear(&continuous);
         if (!readOk) {
-            fprintf(stderr, "} Fail (%lu requests)\n", counter);
+            fprintf(stderr, "} Fail (%llu requests)\n", (long long unsigned)counter);
             ++retval;
         } else {
-            fprintf(stderr, "} OK (%lu requests)\n", counter);
+            fprintf(stderr, "} OK (%llu requests)\n", (long long unsigned)counter);
         }
         current = &testRequests[++i];
     }
@@ -603,7 +566,7 @@ testResult(UA_DateTime *resultData, UA_HistoryData * historyData) {
     for (size_t j = 0; j < data->dataValuesSize; ++j) {
         ck_assert(resultData[j] != 0);
         ck_assert_uint_eq(data->dataValues[j].hasSourceTimestamp, true);
-        ck_assert_uint_eq(data->dataValues[j].sourceTimestamp, resultData[j]);
+        ck_assert_int_eq(data->dataValues[j].sourceTimestamp, resultData[j]);
     }
     UA_HistoryReadResponse_clear(&localResponse);
 }
@@ -615,9 +578,7 @@ START_TEST(Server_HistorizingUpdateDelete)
     setting.historizingBackend = backend;
     setting.maxHistoryDataResponseSize = 1000;
     setting.historizingUpdateStrategy = UA_HISTORIZINGUPDATESTRATEGY_USER;
-    serverMutexLock();
     UA_StatusCode ret = gathering->registerNodeId(server, gathering->context, &outNodeId, setting);
-    serverMutexUnlock();
     ck_assert_str_eq(UA_StatusCode_name(ret), UA_StatusCode_name(UA_STATUSCODE_GOOD));
 
     // fill backend
@@ -640,9 +601,7 @@ START_TEST(Server_HistorizingUpdateInsert)
     setting.historizingBackend = backend;
     setting.maxHistoryDataResponseSize = 1000;
     setting.historizingUpdateStrategy = UA_HISTORIZINGUPDATESTRATEGY_USER;
-    serverMutexLock();
     UA_StatusCode ret = gathering->registerNodeId(server, gathering->context, &outNodeId, setting);
-    serverMutexUnlock();
     ck_assert_str_eq(UA_StatusCode_name(ret), UA_StatusCode_name(UA_STATUSCODE_GOOD));
 
     // fill backend with insert
@@ -657,7 +616,7 @@ START_TEST(Server_HistorizingUpdateInsert)
     for (size_t i = 0; i < data.dataValuesSize; ++i) {
         ck_assert_uint_eq(data.dataValues[i].hasValue, true);
         ck_assert(data.dataValues[i].value.type == &UA_TYPES[UA_TYPES_INT64]);
-        ck_assert_uint_eq(*((UA_Int64*)data.dataValues[i].value.data), UA_PERFORMUPDATETYPE_INSERT);
+        ck_assert_int_eq(*((UA_Int64*)data.dataValues[i].value.data), UA_PERFORMUPDATETYPE_INSERT);
     }
 
     UA_HistoryData_clear(&data);
@@ -672,9 +631,7 @@ START_TEST(Server_HistorizingUpdateReplace)
     setting.historizingBackend = backend;
     setting.maxHistoryDataResponseSize = 1000;
     setting.historizingUpdateStrategy = UA_HISTORIZINGUPDATESTRATEGY_USER;
-    serverMutexLock();
     UA_StatusCode ret = gathering->registerNodeId(server, gathering->context, &outNodeId, setting);
-    serverMutexUnlock();
     ck_assert_str_eq(UA_StatusCode_name(ret), UA_StatusCode_name(UA_STATUSCODE_GOOD));
 
     // fill backend with insert
@@ -693,7 +650,7 @@ START_TEST(Server_HistorizingUpdateReplace)
     for (size_t i = 0; i < data.dataValuesSize; ++i) {
         ck_assert_uint_eq(data.dataValues[i].hasValue, true);
         ck_assert(data.dataValues[i].value.type == &UA_TYPES[UA_TYPES_INT64]);
-        ck_assert_uint_eq(*((UA_Int64*)data.dataValues[i].value.data), UA_PERFORMUPDATETYPE_REPLACE);
+        ck_assert_int_eq(*((UA_Int64*)data.dataValues[i].value.data), UA_PERFORMUPDATETYPE_REPLACE);
     }
 
     UA_HistoryData_clear(&data);
@@ -708,9 +665,7 @@ START_TEST(Server_HistorizingUpdateUpdate)
     setting.historizingBackend = backend;
     setting.maxHistoryDataResponseSize = 1000;
     setting.historizingUpdateStrategy = UA_HISTORIZINGUPDATESTRATEGY_USER;
-    serverMutexLock();
     UA_StatusCode ret = gathering->registerNodeId(server, gathering->context, &outNodeId, setting);
-    serverMutexUnlock();
     ck_assert_str_eq(UA_StatusCode_name(ret), UA_StatusCode_name(UA_STATUSCODE_GOOD));
 
     // fill backend with insert
@@ -726,10 +681,10 @@ START_TEST(Server_HistorizingUpdateUpdate)
     testResult(testDataAfterDelete, NULL);
 
     // update all and insert some
-    UA_StatusCode *result;
+    UA_StatusCode *result = NULL;
     size_t resultSize = 0;
-    ck_assert_str_eq(UA_StatusCode_name(updateHistory(UA_PERFORMUPDATETYPE_UPDATE, testDataSorted, &result, &resultSize))
-                                        , UA_StatusCode_name(UA_STATUSCODE_GOOD));
+    ck_assert_uint_eq(updateHistory(UA_PERFORMUPDATETYPE_UPDATE, testDataSorted, &result, &resultSize),
+                      UA_STATUSCODE_GOOD);
 
     for (size_t i = 0; i < resultSize; ++i) {
         ck_assert_str_eq(UA_StatusCode_name(result[i]), UA_StatusCode_name(testDataUpdateResult[i]));
@@ -744,7 +699,7 @@ START_TEST(Server_HistorizingUpdateUpdate)
     for (size_t i = 0; i < data.dataValuesSize; ++i) {
         ck_assert_uint_eq(data.dataValues[i].hasValue, true);
         ck_assert(data.dataValues[i].value.type == &UA_TYPES[UA_TYPES_INT64]);
-        ck_assert_uint_eq(*((UA_Int64*)data.dataValues[i].value.data), UA_PERFORMUPDATETYPE_UPDATE);
+        ck_assert_int_eq(*((UA_Int64*)data.dataValues[i].value.data), UA_PERFORMUPDATETYPE_UPDATE);
     }
 
     UA_HistoryData_clear(&data);
@@ -803,7 +758,8 @@ START_TEST(Server_HistorizingStrategyUser)
         ck_assert_uint_eq(data->dataValuesSize, 10);
         for (size_t j = 0; j < data->dataValuesSize; ++j) {
             ck_assert_uint_eq(data->dataValues[j].hasSourceTimestamp, true);
-            ck_assert_uint_eq(data->dataValues[j].sourceTimestamp, start + (j * UA_DATETIME_SEC));
+            ck_assert_int_eq(data->dataValues[j].sourceTimestamp,
+                             start + (UA_DateTime)(j * UA_DATETIME_SEC));
             ck_assert_uint_eq(data->dataValues[j].hasStatus, true);
             ck_assert_str_eq(UA_StatusCode_name(data->dataValues[j].status), UA_StatusCode_name(UA_STATUSCODE_GOOD));
             ck_assert_uint_eq(data->dataValues[j].hasValue, true);
@@ -829,16 +785,12 @@ START_TEST(Server_HistorizingStrategyPoll)
     setting.maxHistoryDataResponseSize = 100;
     setting.pollingInterval = 100;
     setting.historizingUpdateStrategy = UA_HISTORIZINGUPDATESTRATEGY_POLL;
-    serverMutexLock();
     retval = gathering->registerNodeId(server, gathering->context, &outNodeId, setting);
-    serverMutexUnlock();
     ck_assert_str_eq(UA_StatusCode_name(retval), UA_StatusCode_name(UA_STATUSCODE_GOOD));
 
     // fill the data
     UA_DateTime start = UA_DateTime_now();
-    serverMutexLock();
     retval = gathering->startPoll(server, gathering->context, &outNodeId);
-    serverMutexUnlock();
     ck_assert_str_eq(UA_StatusCode_name(retval), UA_StatusCode_name(UA_STATUSCODE_GOOD));
 
     ck_assert_str_eq(UA_StatusCode_name(retval), UA_StatusCode_name(UA_STATUSCODE_GOOD));
@@ -846,9 +798,7 @@ START_TEST(Server_HistorizingStrategyPoll)
         UA_fakeSleep(50);
         UA_realSleep(50);
         if (k == 5) {
-            serverMutexLock();
             gathering->stopPoll(server, gathering->context, &outNodeId);
-            serverMutexUnlock();
         }
         setUInt32(client, outNodeId, (unsigned int)k);
     }
@@ -901,9 +851,7 @@ START_TEST(Server_HistorizingStrategyValueSet)
     setting.historizingBackend = UA_HistoryDataBackend_Memory(3, 100);
     setting.maxHistoryDataResponseSize = 100;
     setting.historizingUpdateStrategy = UA_HISTORIZINGUPDATESTRATEGY_VALUESET;
-    serverMutexLock();
     retval = gathering->registerNodeId(server, gathering->context, &outNodeId, setting);
-    serverMutexUnlock();
     ck_assert_str_eq(UA_StatusCode_name(retval), UA_StatusCode_name(UA_STATUSCODE_GOOD));
 
     // fill the data
@@ -953,31 +901,29 @@ START_TEST(Server_HistorizingBackendMemory)
     setting.historizingBackend = backend;
     setting.maxHistoryDataResponseSize = 1000;
     setting.historizingUpdateStrategy = UA_HISTORIZINGUPDATESTRATEGY_USER;
-    serverMutexLock();
     UA_StatusCode ret = gathering->registerNodeId(server, gathering->context, &outNodeId, setting);
-    serverMutexUnlock();
     ck_assert_str_eq(UA_StatusCode_name(ret), UA_StatusCode_name(UA_STATUSCODE_GOOD));
 
     // empty backend should not crash
     UA_UInt32 retval = testHistoricalDataBackend(100);
-    fprintf(stderr, "%d tests expected failed.\n", retval);
+    fprintf(stderr, "%x tests expected failed.\n", retval);
 
     // fill backend
     ck_assert_uint_eq(fillHistoricalDataBackend(backend), true);
 
     // read all in one
     retval = testHistoricalDataBackend(100);
-    fprintf(stderr, "%d tests failed.\n", retval);
+    fprintf(stderr, "%x tests failed.\n", retval);
     ck_assert_uint_eq(retval, 0);
 
     // read continuous one at one request
     retval = testHistoricalDataBackend(1);
-    fprintf(stderr, "%d tests failed.\n", retval);
+    fprintf(stderr, "%x tests failed.\n", retval);
     ck_assert_uint_eq(retval, 0);
 
     // read continuous two at one request
     retval = testHistoricalDataBackend(2);
-    fprintf(stderr, "%d tests failed.\n", retval);
+    fprintf(stderr, "%x tests failed.\n", retval);
     ck_assert_uint_eq(retval, 0);
     UA_HistoryDataBackend_Memory_clear(&setting.historizingBackend);
 }
@@ -990,37 +936,32 @@ START_TEST(Server_HistorizingRandomIndexBackend)
     setting.historizingBackend = backend;
     setting.maxHistoryDataResponseSize = 1000;
     setting.historizingUpdateStrategy = UA_HISTORIZINGUPDATESTRATEGY_USER;
-    serverMutexLock();
     UA_StatusCode ret = gathering->registerNodeId(server, gathering->context, &outNodeId, setting);
-    serverMutexUnlock();
     ck_assert_str_eq(UA_StatusCode_name(ret), UA_StatusCode_name(UA_STATUSCODE_GOOD));
 
     // read all in one
     UA_UInt32 retval = testHistoricalDataBackend(100);
-    fprintf(stderr, "%d tests failed.\n", retval);
+    fprintf(stderr, "%x tests failed.\n", retval);
     ck_assert_uint_eq(retval, 0);
 
     // read continuous one at one request
     retval = testHistoricalDataBackend(1);
-    fprintf(stderr, "%d tests failed.\n", retval);
+    fprintf(stderr, "%x tests failed.\n", retval);
     ck_assert_uint_eq(retval, 0);
 
     // read continuous two at one request
     retval = testHistoricalDataBackend(2);
-    fprintf(stderr, "%d tests failed.\n", retval);
+    fprintf(stderr, "%x tests failed.\n", retval);
     ck_assert_uint_eq(retval, 0);
     UA_HistoryDataBackend_randomindextest_clear(&backend);
 }
 END_TEST
 
-#endif /*UA_ENABLE_HISTORIZING*/
-
-static Suite* testSuite_Client(void)
-{
+static Suite *
+testSuite_Client(void) {
     Suite *s = suite_create("Server Historical Data");
     TCase *tc_server = tcase_create("Server Historical Data Basic");
     tcase_add_checked_fixture(tc_server, setup, teardown);
-#ifdef UA_ENABLE_HISTORIZING
     tcase_add_test(tc_server, Server_HistorizingStrategyPoll);
     tcase_add_test(tc_server, Server_HistorizingStrategyUser);
     tcase_add_test(tc_server, Server_HistorizingStrategyValueSet);
@@ -1030,25 +971,19 @@ static Suite* testSuite_Client(void)
     tcase_add_test(tc_server, Server_HistorizingUpdateInsert);
     tcase_add_test(tc_server, Server_HistorizingUpdateReplace);
     tcase_add_test(tc_server, Server_HistorizingUpdateUpdate);
-#endif /* UA_ENABLE_HISTORIZING */
     suite_add_tcase(s, tc_server);
 
     return s;
 }
 
-int main(void)
-{
-#ifdef UA_ENABLE_HISTORIZING
+int main(void) {
     testDataSorted = sortDateTimes(testData);
-#endif /* UA_ENABLE_HISTORIZING */
     Suite *s = testSuite_Client();
     SRunner *sr = srunner_create(s);
     srunner_set_fork_status(sr, CK_NOFORK);
     srunner_run_all(sr,CK_NORMAL);
     int number_failed = srunner_ntests_failed(sr);
     srunner_free(sr);
-#ifdef UA_ENABLE_HISTORIZING
     UA_free(testDataSorted);
-#endif /* UA_ENABLE_HISTORIZING */
     return (number_failed == 0) ? EXIT_SUCCESS : EXIT_FAILURE;
 }

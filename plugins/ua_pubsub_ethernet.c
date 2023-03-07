@@ -18,7 +18,14 @@
 
 #include "open62541_queue.h"
 
-#if defined(__vxworks) || defined(__VXWORKS__)
+#define UA_RECEIVE_MSG_BUFFER_SIZE   4096
+static UA_THREAD_LOCAL UA_Byte ReceiveMsgBufferETH[UA_RECEIVE_MSG_BUFFER_SIZE];
+
+#if !defined(UA_ARCHITECTURE_POSIX) && !defined(UA_ARCHITECTURE_VXWORKS)
+/* For anything else than Linux or VxWorks which are specifically handled below,
+ * depend only on headers included by the architecture layer.
+ */
+#elif defined(__vxworks) || defined(__VXWORKS__)
 #include <netpacket/packet.h>
 #include <netinet/if_ether.h>
 #include <ipcom_sock.h>
@@ -35,35 +42,32 @@
 #include <sys/resource.h>
 
 /* XSK kernel headers */
+
 #include <linux/bpf.h>
 #include <linux/if_link.h>
 
-#if __has_include(<bpf/bpf.h>) && __has_include(<bpf/libbpf.h>) && __has_include(<bpf/xsk.h>)
-#define LIBBPF_EBPF
-/* Libbpf headers */
-#include <bpf/bpf.h>
-#include <bpf/libbpf.h>
-#ifndef asm
-#define asm __asm__
-#endif
-#include <bpf/xsk.h>
+#if defined __has_include
+#   if __has_include(<bpf/bpf.h>) && __has_include(<bpf/libbpf.h>) && __has_include(<bpf/xsk.h>)
+#       define LIBBPF_EBPF
+        /* Libbpf headers */
+#       include <bpf/bpf.h>
+#       include <bpf/libbpf.h>
+#       ifndef asm
+#           define asm __asm__
+#       endif
+#       include <bpf/xsk.h>
+#   endif
 #endif
 #endif
 
 #include <time.h>
 
-#ifndef ETHERTYPE_UADP
 #define ETHERTYPE_UADP                       0xb62c
-#endif
-
 #define MIN_ETHERNET_PACKET_SIZE_WITHOUT_FCS 60
 #define VLAN_HEADER_SIZE                     4
-
 #define VLAN_SHIFT                           13
-#define XDP_FRAME_SHIFT                      11 //match the frame size 2048
-
-// Receive buffer batch size
-#define BATCH_SIZE                           16
+#define XDP_FRAME_SHIFT                      11 // Match the frame size 2048
+#define BATCH_SIZE                           16 // Receive buffer batch size
 
 #ifndef XDP_COPY
 #define XDP_COPY                             (1 << 1)
@@ -476,11 +480,11 @@ UA_PubSubChannelEthernetXDP_send(UA_PubSubChannelDataEthernet *channelDataEthern
 
     rc = UA_sendto(xsk_socket__fd(xdp_socket->xskfd), NULL, 0, MSG_DONTWAIT, NULL, 0);
     if (rc >= 0 || errno == ENOBUFS || errno == EAGAIN || errno == EBUSY) {
-        UA_UInt64 rcvd = xsk_ring_cons__peek(&xdp_socket->umem->cq, 1, &idx);
+        UA_UInt32 rcvd = xsk_ring_cons__peek(&xdp_socket->umem->cq, 1, &idx);
         if (rcvd > 0) {
             xsk_ring_cons__release(&xdp_socket->umem->cq, rcvd);
-            xdp_socket->outstanding_tx -= (UA_UInt32) rcvd;
-            xdp_socket->tx_npkts += (UA_UInt32) rcvd;
+            xdp_socket->outstanding_tx -= rcvd;
+            xdp_socket->tx_npkts += rcvd;
         }
 
         return UA_STATUSCODE_GOOD;
@@ -500,7 +504,7 @@ UA_PubSubChannelEthernetXDP_receive(UA_PubSubChannelDataEthernet *channelDataEth
     xdpsock *xdp_socket;
     UA_UInt64 addr;
     UA_UInt64 ret;
-    size_t rcvd;
+    UA_UInt32 rcvd;
     UA_Byte *pkt, *buf;
     ssize_t len;
 
@@ -516,7 +520,7 @@ UA_PubSubChannelEthernetXDP_receive(UA_PubSubChannelDataEthernet *channelDataEth
         return UA_STATUSCODE_BADINTERNALERROR; //Got data but failed to reserve, something's wrong
 
     buf = message->data;
-    for(size_t i = 0; i < rcvd; i++) {
+    for(UA_UInt32 i = 0; i < rcvd; i++) {
         addr = xsk_ring_cons__rx_desc(&xdp_socket->rx_ring, xdp_socket->idx_rx)->addr;
         len  = (UA_UInt32) xsk_ring_cons__rx_desc(&xdp_socket->rx_ring, xdp_socket->idx_rx++)->len;
         pkt  = (UA_Byte *) xsk_umem__get_data(xdp_socket->umem->buffer, addr);
@@ -657,41 +661,42 @@ UA_PubSubChannelEthernet_open(const UA_PubSubConnectionConfig *connectionConfig)
     UA_String enableErrorReport = UA_STRING("enableerrorreport");
 
     /* iterate over the given KeyValuePair paramters */
-    for(size_t i = 0; i < connectionConfig->connectionPropertiesSize; i++){
-        if(UA_String_equal(&connectionConfig->connectionProperties[i].key.name, &socketPriority)){
-            if(UA_Variant_hasScalarType(&connectionConfig->connectionProperties[i].value, &UA_TYPES[UA_TYPES_UINT32])){
+    for(size_t i = 0; i < connectionConfig->connectionProperties.mapSize; i++){
+        UA_KeyValuePair *prop = &connectionConfig->connectionProperties.map[i];
+        if(UA_String_equal(&prop->key.name, &socketPriority)){
+            if(UA_Variant_hasScalarType(&prop->value, &UA_TYPES[UA_TYPES_UINT32])){
                 sockOptions.socketPriority = (UA_UInt32 *) UA_malloc(sizeof(UA_UInt32));
-                UA_UInt32_copy((UA_UInt32 *) connectionConfig->connectionProperties[i].value.data, sockOptions.socketPriority);
+                UA_UInt32_copy((UA_UInt32 *) prop->value.data, sockOptions.socketPriority);
             }
-        } else if(UA_String_equal(&connectionConfig->connectionProperties[i].key.name, &enableSocketTxtime)){
-            if(UA_Variant_hasScalarType(&connectionConfig->connectionProperties[i].value, &UA_TYPES[UA_TYPES_BOOLEAN])){
-                sockOptions.enableSocketTxTime = *(UA_Boolean *) connectionConfig->connectionProperties[i].value.data;
+        } else if(UA_String_equal(&prop->key.name, &enableSocketTxtime)){
+            if(UA_Variant_hasScalarType(&prop->value, &UA_TYPES[UA_TYPES_BOOLEAN])){
+                sockOptions.enableSocketTxTime = *(UA_Boolean *) prop->value.data;
             }
-        } else if(UA_String_equal(&connectionConfig->connectionProperties[i].key.name, &enableDeadlineMode)){
-            if(UA_Variant_hasScalarType(&connectionConfig->connectionProperties[i].value, &UA_TYPES[UA_TYPES_BOOLEAN])){
-                if(*(UA_Boolean *) connectionConfig->connectionProperties[i].value.data == UA_TRUE)
+        } else if(UA_String_equal(&prop->key.name, &enableDeadlineMode)){
+            if(UA_Variant_hasScalarType(&prop->value, &UA_TYPES[UA_TYPES_BOOLEAN])){
+                if(*(UA_Boolean *) prop->value.data == UA_TRUE)
                     sockOptions.sotxtimeDeadlinemode = SOF_TXTIME_DEADLINE_MODE;
             }
-        } else if(UA_String_equal(&connectionConfig->connectionProperties[i].key.name, &enableErrorReport)){
-            if(UA_Variant_hasScalarType(&connectionConfig->connectionProperties[i].value, &UA_TYPES[UA_TYPES_BOOLEAN])){
-                if(*(UA_Boolean *) connectionConfig->connectionProperties[i].value.data == UA_TRUE)
+        } else if(UA_String_equal(&prop->key.name, &enableErrorReport)){
+            if(UA_Variant_hasScalarType(&prop->value, &UA_TYPES[UA_TYPES_BOOLEAN])){
+                if(*(UA_Boolean *) prop->value.data == UA_TRUE)
                     sockOptions.sotxtimeDeadlinemode = SOF_TXTIME_REPORT_ERRORS;
             }
-        } else if(UA_String_equal(&connectionConfig->connectionProperties[i].key.name, &xdpSocketParam)){
-            if(UA_Variant_hasScalarType(&connectionConfig->connectionProperties[i].value, &UA_TYPES[UA_TYPES_BOOLEAN])){
-                sockOptions.enableXdpSocket = *(UA_Boolean *) connectionConfig->connectionProperties[i].value.data;
+        } else if(UA_String_equal(&prop->key.name, &xdpSocketParam)){
+            if(UA_Variant_hasScalarType(&prop->value, &UA_TYPES[UA_TYPES_BOOLEAN])){
+                sockOptions.enableXdpSocket = *(UA_Boolean *) prop->value.data;
             }
-        } else if(UA_String_equal(&connectionConfig->connectionProperties[i].key.name, &xdpFlagParam)){
-            if(UA_Variant_hasScalarType(&connectionConfig->connectionProperties[i].value, &UA_TYPES[UA_TYPES_UINT32])){
-                sockOptions.xdp_flags = *(UA_UInt32 *) connectionConfig->connectionProperties[i].value.data;
+        } else if(UA_String_equal(&prop->key.name, &xdpFlagParam)){
+            if(UA_Variant_hasScalarType(&prop->value, &UA_TYPES[UA_TYPES_UINT32])){
+                sockOptions.xdp_flags = *(UA_UInt32 *) prop->value.data;
             }
-        } else if(UA_String_equal(&connectionConfig->connectionProperties[i].key.name, &hwReceiveQueueParam)){
-            if(UA_Variant_hasScalarType(&connectionConfig->connectionProperties[i].value, &UA_TYPES[UA_TYPES_UINT32])){
-                sockOptions.hw_receive_queue = *(UA_UInt32 *) connectionConfig->connectionProperties[i].value.data;
+        } else if(UA_String_equal(&prop->key.name, &hwReceiveQueueParam)){
+            if(UA_Variant_hasScalarType(&prop->value, &UA_TYPES[UA_TYPES_UINT32])){
+                sockOptions.hw_receive_queue = *(UA_UInt32 *) prop->value.data;
             }
-        } else if(UA_String_equal(&connectionConfig->connectionProperties[i].key.name, &xdpBindFlagParam)){
-            if(UA_Variant_hasScalarType(&connectionConfig->connectionProperties[i].value, &UA_TYPES[UA_TYPES_UINT16])){
-                sockOptions.xdp_bind_flags = *(UA_UInt16 *) connectionConfig->connectionProperties[i].value.data;
+        } else if(UA_String_equal(&prop->key.name, &xdpBindFlagParam)){
+            if(UA_Variant_hasScalarType(&prop->value, &UA_TYPES[UA_TYPES_UINT16])){
+                sockOptions.xdp_bind_flags = *(UA_UInt16 *) prop->value.data;
             }
         } else {
             UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "PubSub Ethernet Connection creation. Unknown connection parameter.");
@@ -727,10 +732,13 @@ UA_PubSubChannelEthernet_open(const UA_PubSubConnectionConfig *connectionConfig)
     /* Open a packet socket */
     int sockFd = UA_socket(PF_PACKET, SOCK_RAW, 0);
     if(sockFd < 0) {
+        UA_LOG_SOCKET_ERRNO_WRAP(
         UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
-            "PubSub connection creation failed. Cannot create socket.");
+            "PubSub connection creation failed. Cannot create socket. (%s)", errno_str));
         UA_free(channelDataEthernet);
         UA_free(newChannel);
+        if(sockOptions.socketPriority)
+            UA_free(sockOptions.socketPriority);
         return NULL;
     }
     newChannel->sockfd = sockFd;
@@ -738,11 +746,14 @@ UA_PubSubChannelEthernet_open(const UA_PubSubConnectionConfig *connectionConfig)
     /* allow the socket to be reused */
     int opt = 1;
     if(UA_setsockopt(sockFd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)) < 0) {
+        UA_LOG_SOCKET_ERRNO_WRAP(
         UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
-            "PubSub connection creation failed. Cannot set socket reuse.");
+            "PubSub connection creation failed. Cannot set socket reuse. (%s)", errno_str));
         UA_close(sockFd);
         UA_free(channelDataEthernet);
         UA_free(newChannel);
+        if(sockOptions.socketPriority)
+            UA_free(sockOptions.socketPriority);
         return NULL;
     }
 
@@ -775,6 +786,8 @@ UA_PubSubChannelEthernet_open(const UA_PubSubConnectionConfig *connectionConfig)
             UA_close(sockFd);
             UA_free(channelDataEthernet);
             UA_free(newChannel);
+            if(sockOptions.socketPriority)
+                UA_free(sockOptions.socketPriority);
             return NULL;
         }
     }
@@ -786,27 +799,35 @@ UA_PubSubChannelEthernet_open(const UA_PubSubConnectionConfig *connectionConfig)
         UA_close(sockFd);
         UA_free(channelDataEthernet);
         UA_free(newChannel);
+        if(sockOptions.socketPriority)
+            UA_free(sockOptions.socketPriority);
         return NULL;
     }
 #endif
 
-    if(ioctl(sockFd, SIOCGIFINDEX, &ifreq) < 0) {
+    if(UA_ioctl(sockFd, SIOCGIFINDEX, &ifreq) < 0) {
+        UA_LOG_SOCKET_ERRNO_WRAP(
         UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
-           "PubSub connection creation failed. Cannot get interface index.");
+           "PubSub connection creation failed. Cannot get interface index for \'%s\'. (%s)", ifreq.ifr_name, errno_str));
         UA_close(sockFd);
         UA_free(channelDataEthernet);
         UA_free(newChannel);
+        if(sockOptions.socketPriority)
+            UA_free(sockOptions.socketPriority);
         return NULL;
     }
     channelDataEthernet->ifindex = ifreq.ifr_ifindex;
 
     /* determine own MAC address (source address for send) */
-    if(ioctl(sockFd, SIOCGIFHWADDR, &ifreq) < 0) {
+    if(UA_ioctl(sockFd, SIOCGIFHWADDR, &ifreq) < 0) {
+        UA_LOG_SOCKET_ERRNO_WRAP(
         UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
-            "PubSub connection creation failed. Cannot determine own MAC address.");
+            "PubSub connection creation failed. Cannot determine own MAC address. (%s)", errno_str));
         UA_close(sockFd);
         UA_free(channelDataEthernet);
         UA_free(newChannel);
+        if(sockOptions.socketPriority)
+            UA_free(sockOptions.socketPriority);
         return NULL;
     }
 #if defined(__vxworks) || defined(__VXWORKS__)
@@ -822,19 +843,24 @@ UA_PubSubChannelEthernet_open(const UA_PubSubConnectionConfig *connectionConfig)
     sll.sll_protocol = htons(ETHERTYPE_UADP);
 
     if(UA_bind(sockFd, (struct sockaddr*)&sll, sizeof(sll)) < 0) {
+        UA_LOG_SOCKET_ERRNO_WRAP(
         UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
-            "PubSub connection creation failed. Cannot bind socket.");
+            "PubSub connection creation failed. Cannot bind socket. (%s)", errno_str));
         UA_close(sockFd);
         UA_free(channelDataEthernet);
         UA_free(newChannel);
+        if(sockOptions.socketPriority)
+            UA_free(sockOptions.socketPriority);
         return NULL;
     }
 
     /* Setting the socket priority to the socket */
     if(sockOptions.socketPriority) {
-        if (setsockopt(sockFd, SOL_SOCKET, SO_PRIORITY, sockOptions.socketPriority, sizeof(int))) {
-            UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "setsockopt SO_PRIORITY failed");
+        if (UA_setsockopt(sockFd, SOL_SOCKET, SO_PRIORITY, sockOptions.socketPriority, sizeof(int))) {
+            UA_LOG_SOCKET_ERRNO_WRAP(
+            UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "setsockopt SO_PRIORITY failed (%s)", errno_str));
             UA_close(sockFd);
+
             UA_free(sockOptions.socketPriority);
             UA_free(channelDataEthernet);
             UA_free(newChannel);
@@ -842,7 +868,8 @@ UA_PubSubChannelEthernet_open(const UA_PubSubConnectionConfig *connectionConfig)
         }
     }
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(4,19,0)
+#if defined(KERNEL_VERSION)
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(4,19,0))
     if(sockOptions.enableSocketTxTime == UA_TRUE) {
         /* Setting socket txtime with required flags to the socket */
         sock_txtime sk_txtime;
@@ -850,7 +877,8 @@ UA_PubSubChannelEthernet_open(const UA_PubSubConnectionConfig *connectionConfig)
         sk_txtime.clockId = CLOCK_TAI;
         sk_txtime.flags   = (UA_UInt16)(sockOptions.sotxtimeDeadlinemode | sockOptions.sotxtimeReceiveerrors);
         if (setsockopt(sockFd, SOL_SOCKET, SO_TXTIME, &sk_txtime, sizeof(&sk_txtime))) {
-            UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "setsockopt SO_TXTIME failed");
+            UA_LOG_SOCKET_ERRNO_WRAP(
+                UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "setsockopt SO_TXTIME failed (%s)", errno_str));
             UA_close(sockFd);
             if(sockOptions.socketPriority)
                 UA_free(sockOptions.socketPriority);
@@ -862,6 +890,7 @@ UA_PubSubChannelEthernet_open(const UA_PubSubConnectionConfig *connectionConfig)
 
         channelDataEthernet->useSoTxTime = UA_TRUE;
     }
+#endif
 #endif
 
     /* Set the timedSend to pubsub connection channel for timed publish */
@@ -965,7 +994,7 @@ UA_PubSubChannelEthernet_unregist(UA_PubSubChannel *channel,
     mreq.mr_alen = ETH_ALEN;
     memcpy(mreq.mr_address, channelDataEthernet->targetAddress, ETH_ALEN);
 
-    if(UA_setsockopt(channel->sockfd, SOL_PACKET, PACKET_DROP_MEMBERSHIP, (char*) &mreq, sizeof(mreq)) < 0) { 
+    if(UA_setsockopt(channel->sockfd, SOL_PACKET, PACKET_DROP_MEMBERSHIP, (char*) &mreq, sizeof(mreq)) < 0) {
         UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "PubSub Connection regist failed.");
         return UA_STATUSCODE_BADINTERNALERROR;
     }
@@ -973,7 +1002,8 @@ UA_PubSubChannelEthernet_unregist(UA_PubSubChannel *channel,
     return UA_STATUSCODE_GOOD;
 }
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(4,19,0)
+#if defined(KERNEL_VERSION)
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(4,19,0))
 static UA_StatusCode
 sendWithTxTime(UA_PubSubChannel *channel, UA_DateTime publishingTime, void *bufSend, size_t lenBuf) {
     /* Send the data packet with the tx time */
@@ -1033,6 +1063,7 @@ sendWithTxTime(UA_PubSubChannel *channel, UA_DateTime publishingTime, void *bufS
     return UA_STATUSCODE_GOOD;
 }
 #endif
+#endif
 
 /**
  * Send messages to the connection defined address
@@ -1042,7 +1073,7 @@ sendWithTxTime(UA_PubSubChannel *channel, UA_DateTime publishingTime, void *bufS
 static UA_StatusCode
 UA_PubSubChannelEthernet_send(UA_PubSubChannel *channel,
                               UA_ExtensionObject *transportSettings,
-                              const UA_ByteString *buf) {
+                              UA_ByteString *buf) {
     UA_PubSubChannelDataEthernet *channelDataEthernet =
         (UA_PubSubChannelDataEthernet *) channel->handle;
 
@@ -1093,7 +1124,9 @@ UA_PubSubChannelEthernet_send(UA_PubSubChannel *channel,
     /* copy payload of ethernet message */
     memcpy(ptrCur, buf->data, buf->length);
     UA_PubSubTimedSend *pubsubTimedSend = (UA_PubSubTimedSend *)channel->pubsubTimedSend;
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(4,19,0)
+
+#if defined(KERNEL_VERSION)
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(4,19,0))
     if(channelDataEthernet->useSoTxTime) {
         /* Send the packets at the given Txtime */
         UA_StatusCode rc = sendWithTxTime(channel, pubsubTimedSend->publishingTime, bufSend, lenBuf);
@@ -1107,6 +1140,7 @@ UA_PubSubChannelEthernet_send(UA_PubSubChannel *channel,
         UA_free(bufSend);
     }
     else
+#endif
 #endif
     {
         UA_DateTime currentTime = UA_DateTime_nowMonotonic();
@@ -1129,9 +1163,11 @@ UA_PubSubChannelEthernet_send(UA_PubSubChannel *channel,
             publishPacket->buffer.data = (UA_Byte *)bufSend;
             publishPacket->buffer.length = lenBuf;
             LIST_INSERT_HEAD(&pubsubTimedSend->sendBuffers, publishPacket, listEntry);
-            UA_Timer_addTimedCallback(pubsubTimedSend->timer, (UA_ApplicationCallback)pubsubTimedSend->timedSend, channel,
+
+            pubsubTimedSend->eventLoop->addTimedCallback(pubsubTimedSend->eventLoop, (UA_ApplicationCallback)pubsubTimedSend->timedSend, channel,
                                       publishPacket, pubsubTimedSend->publishingTime,
                                       &callbackId);
+            
         }
     }
 
@@ -1145,8 +1181,11 @@ UA_PubSubChannelEthernet_send(UA_PubSubChannel *channel,
  * @return
  */
 static UA_StatusCode
-UA_PubSubChannelEthernet_receive(UA_PubSubChannel *channel, UA_ByteString *message,
-                                 UA_ExtensionObject *transportSettings, UA_UInt32 timeout) {
+UA_PubSubChannelEthernet_receive(UA_PubSubChannel *channel,
+                                 UA_ExtensionObject *transportSettings,
+                                 UA_PubSubReceiveCallback receiveCallback,
+                                 void *receiveCallbackContext,
+                                 UA_UInt32 timeout) {
     UA_PubSubChannelDataEthernet *channelDataEthernet =
         (UA_PubSubChannelDataEthernet *) channel->handle;
 
@@ -1170,23 +1209,14 @@ UA_PubSubChannelEthernet_receive(UA_PubSubChannel *channel, UA_ByteString *messa
         tmptv.tv_usec = (long int)(timeout % 1000000);
         int resultsize = UA_select(channel->sockfd+1, &fdset, NULL, NULL, &tmptv);
         if(resultsize == 0) {
-            message->length = 0;
             return UA_STATUSCODE_GOODNONCRITICALTIMEOUT;
         }
         if(resultsize == -1) {
-            message->length = 0;
             return UA_STATUSCODE_BADINTERNALERROR;
         }
     }
 
-#if defined LIBBPF_EBPF
-    if(channelDataEthernet->enableXdpSocket) {
-        retval = UA_PubSubChannelEthernetXDP_receive(channelDataEthernet, message);
-        return retval;
-    }
-#endif
-
-#ifdef UA_ARCHITECTURE_VXWORKS
+#if !defined(UA_ARCHITECTURE_POSIX)
     clock_gettime(CLOCK_REALTIME, &currentTime);
 #else
     clock_gettime(CLOCK_TAI, &currentTime);
@@ -1201,14 +1231,27 @@ UA_PubSubChannelEthernet_receive(UA_PubSubChannel *channel, UA_ByteString *messa
      * first packet received */
     receiveFlags     = 0;
     size_t messageLength = 0;
-    size_t remainingMessageLength = 0;
-    remainingMessageLength = message->length;
 
     do {
         if(maxTimeValue < currentTimeValue) {
              retval = UA_STATUSCODE_GOODNONCRITICALTIMEOUT;
              break;
         }
+
+        UA_ByteString buffer;
+        buffer.length = UA_RECEIVE_MSG_BUFFER_SIZE;
+        buffer.data = ReceiveMsgBufferETH;
+
+#if defined LIBBPF_EBPF
+        if(channelDataEthernet->enableXdpSocket) {
+            retval = UA_PubSubChannelEthernetXDP_receive(channelDataEthernet, &buffer);
+            if (retval != UA_STATUSCODE_GOOD) {
+                return retval;
+            }
+            retval = receiveCallback(channel, receiveCallbackContext, &buffer);
+            return retval;
+        }
+#endif
 
         struct ether_header eth_hdr;
         struct iovec        iov[2];
@@ -1219,19 +1262,18 @@ UA_PubSubChannelEthernet_receive(UA_PubSubChannel *channel, UA_ByteString *messa
 
         iov[0].iov_base = &eth_hdr;
         iov[0].iov_len  = sizeof(eth_hdr);
-        iov[1].iov_base = message->data + messageLength;
-        iov[1].iov_len  = remainingMessageLength;
+        iov[1].iov_base = buffer.data;
+        iov[1].iov_len  = UA_RECEIVE_MSG_BUFFER_SIZE;
         msg.msg_iov     = iov;
         msg.msg_iovlen  = 2;
 
-        dataLen = recvmsg(channel->sockfd, &msg, receiveFlags);
+        dataLen = UA_recvmsg(channel->sockfd, &msg, receiveFlags);
         if(dataLen < 0) {
             if(rcvCount == 0) {
                 UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
                              "PubSub connection receive failed. Receive message failed.");
                 retval = UA_STATUSCODE_BADINTERNALERROR;
-            }
-            else {
+            } else {
                 retval = UA_STATUSCODE_GOOD;
             }
             break;
@@ -1267,10 +1309,18 @@ UA_PubSubChannelEthernet_receive(UA_PubSubChannel *channel, UA_ByteString *messa
                                            * VLAN header size is stripped before it is recieved
                                            * so the packet length is less than 60bytes */
 
-        messageLength = messageLength + ((size_t)dataLen - sizeof(struct ether_header));
-        remainingMessageLength -= messageLength;
+        messageLength = ((size_t)dataLen - sizeof(struct ether_header));
+        buffer.length = messageLength;
+
+        retval = receiveCallback(channel, receiveCallbackContext, &buffer);
+        if (retval != UA_STATUSCODE_GOOD) {
+            UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_NETWORK,
+                           "PubSub Connection decode and process failed.");
+
+        }
+
         rcvCount++;
-#ifdef UA_ARCHITECTURE_VXWORKS
+#if !defined(UA_ARCHITECTURE_POSIX)
         clock_gettime(CLOCK_REALTIME, &currentTime);
 #else
         clock_gettime(CLOCK_TAI, &currentTime);
@@ -1280,10 +1330,9 @@ UA_PubSubChannelEthernet_receive(UA_PubSubChannel *channel, UA_ByteString *messa
         /* The recvmsg API with MSG_DONTWAIT flag will not wait for the next packet */
         receiveFlags = MSG_DONTWAIT;
 
-    } while(remainingMessageLength >= 1496); /* 1518 bytes is the maximum size of ethernet packet
+    } while(true); /* 1518 bytes is the maximum size of ethernet packet
                                               * where 18 bytes used for header size, 4 bytes of LLC
                                               * so remaining length is 1496 */
-    message->length = messageLength;
     return retval;
 }
 
@@ -1327,6 +1376,18 @@ UA_PubSubChannelEthernet_close(UA_PubSubChannel *channel) {
     UA_free(channel);
     return UA_STATUSCODE_GOOD;
 }
+static UA_StatusCode
+UA_PubSubChannelEthernet_allocNetworkBuffer(UA_PubSubChannel *channel, UA_ByteString *buf, size_t bufSize) {
+
+    UA_StatusCode rv = UA_ByteString_allocBuffer(buf, bufSize);
+    return rv;
+}
+
+static UA_StatusCode
+UA_PubSubChannelEthernet_freeNetworkBuffer(UA_PubSubChannel *channel, UA_ByteString *buf) {
+    UA_ByteString_clear(buf);
+    return UA_STATUSCODE_GOOD;
+}
 
 /**
  * Generate a new channel. based on the given configuration.
@@ -1335,8 +1396,11 @@ UA_PubSubChannelEthernet_close(UA_PubSubChannel *channel) {
  * @return  ref to created channel, NULL on error
  */
 static UA_PubSubChannel *
-TransportLayerEthernet_addChannel(UA_PubSubConnectionConfig *connectionConfig) {
+TransportLayerEthernet_addChannel(UA_PubSubTransportLayer *tl, void *ctx) {
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "PubSub channel requested");
+    UA_TransportLayerContext *tctx  = (UA_TransportLayerContext *) ctx;
+    UA_PubSubConnectionConfig *connectionConfig = tctx->connectionConfig;
+
     UA_PubSubChannel * pubSubChannel = UA_PubSubChannelEthernet_open(connectionConfig);
     if(pubSubChannel) {
         pubSubChannel->regist = UA_PubSubChannelEthernet_regist;
@@ -1344,16 +1408,33 @@ TransportLayerEthernet_addChannel(UA_PubSubConnectionConfig *connectionConfig) {
         pubSubChannel->send = UA_PubSubChannelEthernet_send;
         pubSubChannel->receive = UA_PubSubChannelEthernet_receive;
         pubSubChannel->close = UA_PubSubChannelEthernet_close;
+        pubSubChannel->openPublisher = NULL;
+        pubSubChannel->openSubscriber = NULL;
+        pubSubChannel->closePublisher = NULL;
+        pubSubChannel->closeSubscriber = NULL;
         pubSubChannel->connectionConfig = connectionConfig;
+        pubSubChannel->allocNetworkBuffer = UA_PubSubChannelEthernet_allocNetworkBuffer;
+        pubSubChannel->freeNetworkBuffer = UA_PubSubChannelEthernet_freeNetworkBuffer;
+
     }
     return pubSubChannel;
 }
 
+static UA_StatusCode
+TransportLayerEthernet_addWritergroupChannel(UA_PubSubChannel **out, UA_PubSubTransportLayer *tl, const UA_ExtensionObject *writerGroupTransportSettings, void* ctx)  {
+    *out = NULL;
+    return UA_STATUSCODE_GOOD;
+}
+
 UA_PubSubTransportLayer
-UA_PubSubTransportLayerEthernet() {
+UA_PubSubTransportLayerEthernet(void) {
     UA_PubSubTransportLayer pubSubTransportLayer;
+
     pubSubTransportLayer.transportProfileUri =
         UA_STRING("http://opcfoundation.org/UA-Profile/Transport/pubsub-eth-uadp");
     pubSubTransportLayer.createPubSubChannel = &TransportLayerEthernet_addChannel;
+    pubSubTransportLayer.createWriterGroupPubSubChannel= &TransportLayerEthernet_addWritergroupChannel;
+    pubSubTransportLayer.connectionManager = NULL;
+
     return pubSubTransportLayer;
 }

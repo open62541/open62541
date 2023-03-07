@@ -1,6 +1,6 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. 
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  *
  *    Copyright 2017 (c) Stefan Profanter, fortiss GmbH
  *    Copyright 2017 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
@@ -68,7 +68,7 @@ UA_DiscoveryManager_addEntryToServersOnNetwork(UA_Server *server, const char *fq
 
     struct serverOnNetwork_list_entry *entry =
             mdns_record_add_or_get(server, fqdnMdnsRecord, serverName,
-                                   serverNameLen, UA_FALSE);
+                                   serverNameLen, false);
     if (entry) {
         if (addedEntry != NULL)
             *addedEntry = entry;
@@ -96,7 +96,7 @@ UA_DiscoveryManager_addEntryToServersOnNetwork(UA_Server *server, const char *fq
     }
     listEntry->serverOnNetwork.serverName.length = serverNameLen;
     memcpy(listEntry->serverOnNetwork.serverName.data, serverName, serverNameLen);
-    UA_atomic_addUInt32(&server->discoveryManager.serverOnNetworkRecordIdCounter, 1);
+    server->discoveryManager.serverOnNetworkRecordIdCounter++;
     if(server->discoveryManager.serverOnNetworkRecordIdCounter == 0)
         server->discoveryManager.serverOnNetworkRecordIdLastReset = UA_DateTime_now();
     listEntry->lastSeen = UA_DateTime_nowMonotonic();
@@ -179,11 +179,13 @@ UA_DiscoveryManager_removeEntryFromServersOnNetwork(UA_Server *server, const cha
 
     struct serverOnNetwork_list_entry *entry =
             mdns_record_add_or_get(server, fqdnMdnsRecord, serverName,
-                                   serverNameLen, UA_FALSE);
+                                   serverNameLen, false);
     if (!entry)
         return UA_STATUSCODE_BADNOTFOUND;
 
     UA_String recordStr;
+    // Cast away const because otherwise the pointer cannot be assigned.
+    // Be careful what you do with recordStr!
     recordStr.data = (UA_Byte*)(uintptr_t)fqdnMdnsRecord;
     recordStr.length = strlen(fqdnMdnsRecord);
 
@@ -225,6 +227,7 @@ mdns_append_path_to_url(UA_String *url, const char *path) {
     char *newUrl = (char *)UA_malloc(url->length + pathLen);
     memcpy(newUrl, url->data, url->length);
     memcpy(newUrl + url->length, path, pathLen);
+    UA_String_clear(url);
     url->length = url->length + pathLen;
     url->data = (UA_Byte *) newUrl;
 }
@@ -338,7 +341,7 @@ mdns_record_received(const struct resource *r, void *data) {
         return;
 
     UA_String recordStr;
-    recordStr.data = (UA_Byte*)(uintptr_t)r->name;
+    recordStr.data = (UA_Byte*)r->name;
     recordStr.length = strlen(r->name);
     UA_Boolean isSelfAnnounce = UA_String_equal(&server->discoveryManager.selfFqdnMdnsRecord, &recordStr);
     if (isSelfAnnounce)
@@ -561,7 +564,8 @@ void mdns_set_address_record(UA_Server *server, const char *fullServiceDomain,
 void
 mdns_set_address_record(UA_Server *server, const char *fullServiceDomain,
                         const char *localDomain) {
-    struct ifaddrs *ifaddr, *ifa;
+    struct ifaddrs *ifaddr;
+    struct ifaddrs *ifa;
     if(getifaddrs(&ifaddr) == -1) {
         UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
                      "getifaddrs returned an unexpected error. Not setting mDNS A records.");

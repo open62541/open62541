@@ -9,8 +9,6 @@
 #include <open62541/server_config_default.h>
 #include <open62541/server_pubsub.h>
 
-#include "open62541/types_generated_encoding_binary.h"
-
 #include "ua_server_internal.h"
 
 #include <check.h>
@@ -19,14 +17,10 @@ UA_Server *server = NULL;
 
 static void setup(void) {
     server = UA_Server_new();
+    ck_assert(server != NULL);
     UA_ServerConfig *config = UA_Server_getConfig(server);
     UA_ServerConfig_setDefault(config);
-
-    config->pubsubTransportLayers = (UA_PubSubTransportLayer*)
-        UA_malloc(sizeof(UA_PubSubTransportLayer));
-    config->pubsubTransportLayers[0] = UA_PubSubTransportLayerUDPMP();
-    config->pubsubTransportLayersSize++;
-
+    UA_ServerConfig_addPubSubTransportLayer(config, UA_PubSubTransportLayerUDP());
     UA_Server_run_startup(server);
 }
 
@@ -42,11 +36,12 @@ START_TEST(AddPDSWithMinimalValidConfiguration){
     pdsConfig.publishedDataSetType = UA_PUBSUB_DATASET_PUBLISHEDITEMS;
     pdsConfig.name = UA_STRING("TEST PDS 1");
     retVal |= UA_Server_addPublishedDataSet(server, &pdsConfig, NULL).addResult;
-    ck_assert_int_eq(server->pubSubManager.publishedDataSetsSize, 1);
+    ck_assert_uint_eq(server->pubSubManager.publishedDataSetsSize, 1);
     ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
     UA_NodeId newPDSNodeID;
+    pdsConfig.name = UA_STRING("TEST PDS 2");
     retVal |= UA_Server_addPublishedDataSet(server, &pdsConfig, &newPDSNodeID).addResult;
-    ck_assert_int_eq(server->pubSubManager.publishedDataSetsSize, 2);
+    ck_assert_uint_eq(server->pubSubManager.publishedDataSetsSize, 2);
     ck_assert_int_eq(newPDSNodeID.identifierType, UA_NODEIDTYPE_NUMERIC);
     ck_assert_int_ne(newPDSNodeID.identifier.numeric, 0);
     ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
@@ -60,20 +55,20 @@ START_TEST(AddRemoveAddPDSWithMinimalValidConfiguration){
     pdsConfig.name = UA_STRING("TEST PDS 1");
     UA_NodeId newPDSNodeID;
     retVal |= UA_Server_addPublishedDataSet(server, &pdsConfig, &newPDSNodeID).addResult;
-    ck_assert_int_eq(server->pubSubManager.publishedDataSetsSize, 1);
+    ck_assert_uint_eq(server->pubSubManager.publishedDataSetsSize, 1);
     ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
     retVal |= UA_Server_removePublishedDataSet(server, newPDSNodeID);
-    ck_assert_int_eq(server->pubSubManager.publishedDataSetsSize, 0);
+    ck_assert_uint_eq(server->pubSubManager.publishedDataSetsSize, 0);
     ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
     retVal |= UA_Server_addPublishedDataSet(server, &pdsConfig, &newPDSNodeID).addResult;
-    ck_assert_int_eq(server->pubSubManager.publishedDataSetsSize, 1);
+    ck_assert_uint_eq(server->pubSubManager.publishedDataSetsSize, 1);
     ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
 } END_TEST
 
 START_TEST(AddPDSWithNullConfig){
     UA_StatusCode retVal = UA_STATUSCODE_GOOD;
     retVal |= UA_Server_addPublishedDataSet(server, NULL, NULL).addResult;
-    ck_assert_int_eq(server->pubSubManager.publishedDataSetsSize, 0);
+    ck_assert_uint_eq(server->pubSubManager.publishedDataSetsSize, 0);
     ck_assert_int_ne(retVal, UA_STATUSCODE_GOOD);
 } END_TEST
 
@@ -84,13 +79,13 @@ START_TEST(AddPDSWithUnsupportedType){
     pdsConfig.name = UA_STRING("TEST PDS 1");
     pdsConfig.publishedDataSetType = UA_PUBSUB_DATASET_PUBLISHEDITEMS_TEMPLATE;
     retVal |= UA_Server_addPublishedDataSet(server, &pdsConfig, NULL).addResult;
-    ck_assert_int_eq(server->pubSubManager.publishedDataSetsSize, 0);
+    ck_assert_uint_eq(server->pubSubManager.publishedDataSetsSize, 0);
     ck_assert_int_ne(retVal, UA_STATUSCODE_GOOD);
     pdsConfig.publishedDataSetType = UA_PUBSUB_DATASET_PUBLISHEDEVENTS;
-    ck_assert_int_eq(server->pubSubManager.publishedDataSetsSize, 0);
+    ck_assert_uint_eq(server->pubSubManager.publishedDataSetsSize, 0);
     ck_assert_int_ne(retVal, UA_STATUSCODE_GOOD);
     pdsConfig.publishedDataSetType = UA_PUBSUB_DATASET_PUBLISHEDEVENTS_TEMPLATE;
-    ck_assert_int_eq(server->pubSubManager.publishedDataSetsSize, 0);
+    ck_assert_uint_eq(server->pubSubManager.publishedDataSetsSize, 0);
     ck_assert_int_ne(retVal, UA_STATUSCODE_GOOD);
 } END_TEST
 
@@ -102,7 +97,7 @@ START_TEST(GetPDSConfigurationAndCompareValues){
     pdsConfig.name = UA_STRING("TEST PDS 1");
     UA_NodeId pdsIdentifier;
     retVal |= UA_Server_addPublishedDataSet(server, &pdsConfig, &pdsIdentifier).addResult;
-    ck_assert_int_eq(server->pubSubManager.publishedDataSetsSize, 1);
+    ck_assert_uint_eq(server->pubSubManager.publishedDataSetsSize, 1);
     ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
     UA_PublishedDataSetConfig pdsConfigCopy;
     memset(&pdsConfigCopy, 0, sizeof(UA_PublishedDataSetConfig));

@@ -13,6 +13,7 @@ UA_UInt32 valueToBeInherited = 42;
 
 static void setup(void) {
     server = UA_Server_new();
+    ck_assert(server != NULL);
     UA_ServerConfig_setDefault(UA_Server_getConfig(server));
     UA_Server_run_startup(server);
 }
@@ -289,20 +290,39 @@ START_TEST(Nodes_checkInheritedValue) {
                 UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
                 UA_QUALIFIEDNAME(1, "State"), &childState);
     ck_assert(!UA_NodeId_isNull(&childState));
+
     UA_NodeId childNumber;
     findChildId(childState, UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY),
                 UA_QUALIFIEDNAME(1, "CustomStateNumber"), &childNumber);
     ck_assert(!UA_NodeId_isNull(&childNumber));
 
-    UA_Variant inheritedValue;
-    UA_Variant_init(&inheritedValue);
-    UA_Server_readValue(server, childNumber, &inheritedValue);
-    ck_assert(inheritedValue.type == &UA_TYPES[UA_TYPES_UINT32]);
-
-    UA_UInt32 *value = (UA_UInt32 *) inheritedValue.data;
-
+    UA_ReadValueId rvi;
+    UA_ReadValueId_init(&rvi);
+    rvi.nodeId = childNumber;
+    rvi.attributeId = UA_ATTRIBUTEID_VALUE;
+    UA_DataValue inheritedValue = UA_Server_read(server, &rvi, UA_TIMESTAMPSTORETURN_BOTH);
+    ck_assert(inheritedValue.value.type == &UA_TYPES[UA_TYPES_UINT32]);
+    UA_UInt32 *value = (UA_UInt32 *) inheritedValue.value.data;
     ck_assert_int_eq(*value, valueToBeInherited);
-    UA_Variant_clear(&inheritedValue);
+
+    /* Write a specific timestamp */
+    UA_WriteValue wValue;
+    UA_WriteValue_init(&wValue);
+    wValue.value = inheritedValue;
+    wValue.value.hasSourceTimestamp = true;
+    wValue.value.sourceTimestamp = 1337;
+    wValue.nodeId = childNumber;
+    wValue.attributeId = UA_ATTRIBUTEID_VALUE;
+    UA_StatusCode retval = UA_Server_write(server, &wValue);
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+
+    /* Read the timestamp back out */
+    UA_DataValue resp = UA_Server_read(server, &rvi, UA_TIMESTAMPSTORETURN_BOTH);
+    ck_assert(resp.hasSourceTimestamp);
+    ck_assert_int_eq(resp.sourceTimestamp, 1337);
+
+    UA_DataValue_clear(&resp);
+    UA_DataValue_clear(&inheritedValue);
 #endif
 }
 END_TEST

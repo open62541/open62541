@@ -1,6 +1,6 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. 
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  *
  *    Copyright 2014-2018 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
  *    Copyright 2015-2016 (c) Sten Grüner
@@ -19,6 +19,7 @@
  *    Copyright 2020 (c) Christian von Arnim, ISW University of Stuttgart  (for VDW and umati)
  */
 
+#include "open62541/plugin/log.h"
 #include "ua_server_internal.h"
 #include "ua_types_encoding_binary.h"
 #include "ua_services.h"
@@ -26,6 +27,40 @@
 #ifdef UA_ENABLE_HISTORIZING
 #include <open62541/plugin/historydatabase.h>
 #endif
+
+static UA_UInt32
+attributeId2AttributeMask(UA_AttributeId id) {
+    switch(id) {
+    case UA_ATTRIBUTEID_NODEID: return UA_NODEATTRIBUTESMASK_NODEID;
+    case UA_ATTRIBUTEID_NODECLASS: return UA_NODEATTRIBUTESMASK_NODECLASS;
+    case UA_ATTRIBUTEID_BROWSENAME: return UA_NODEATTRIBUTESMASK_BROWSENAME;
+    case UA_ATTRIBUTEID_DISPLAYNAME: return UA_NODEATTRIBUTESMASK_DISPLAYNAME;
+    case UA_ATTRIBUTEID_DESCRIPTION: return UA_NODEATTRIBUTESMASK_DESCRIPTION;
+    case UA_ATTRIBUTEID_WRITEMASK: return UA_NODEATTRIBUTESMASK_WRITEMASK;
+    case UA_ATTRIBUTEID_USERWRITEMASK: return UA_NODEATTRIBUTESMASK_USERWRITEMASK;
+    case UA_ATTRIBUTEID_ISABSTRACT: return UA_NODEATTRIBUTESMASK_ISABSTRACT;
+    case UA_ATTRIBUTEID_SYMMETRIC: return UA_NODEATTRIBUTESMASK_SYMMETRIC;
+    case UA_ATTRIBUTEID_INVERSENAME: return UA_NODEATTRIBUTESMASK_INVERSENAME;
+    case UA_ATTRIBUTEID_CONTAINSNOLOOPS: return UA_NODEATTRIBUTESMASK_CONTAINSNOLOOPS;
+    case UA_ATTRIBUTEID_EVENTNOTIFIER: return UA_NODEATTRIBUTESMASK_EVENTNOTIFIER;
+    case UA_ATTRIBUTEID_VALUE: return UA_NODEATTRIBUTESMASK_VALUE;
+    case UA_ATTRIBUTEID_DATATYPE: return UA_NODEATTRIBUTESMASK_DATATYPE;
+    case UA_ATTRIBUTEID_VALUERANK: return UA_NODEATTRIBUTESMASK_VALUERANK;
+    case UA_ATTRIBUTEID_ARRAYDIMENSIONS: return UA_NODEATTRIBUTESMASK_ARRAYDIMENSIONS;
+    case UA_ATTRIBUTEID_ACCESSLEVEL: return UA_NODEATTRIBUTESMASK_ACCESSLEVEL;
+    case UA_ATTRIBUTEID_USERACCESSLEVEL: return UA_NODEATTRIBUTESMASK_USERACCESSLEVEL;
+    case UA_ATTRIBUTEID_MINIMUMSAMPLINGINTERVAL: return UA_NODEATTRIBUTESMASK_MINIMUMSAMPLINGINTERVAL;
+    case UA_ATTRIBUTEID_HISTORIZING: return UA_NODEATTRIBUTESMASK_HISTORIZING;
+    case UA_ATTRIBUTEID_EXECUTABLE: return UA_NODEATTRIBUTESMASK_EXECUTABLE;
+    case UA_ATTRIBUTEID_USEREXECUTABLE: return UA_NODEATTRIBUTESMASK_USEREXECUTABLE;
+    case UA_ATTRIBUTEID_DATATYPEDEFINITION: return UA_NODEATTRIBUTESMASK_DATATYPEDEFINITION;
+    case UA_ATTRIBUTEID_ROLEPERMISSIONS: return UA_NODEATTRIBUTESMASK_ROLEPERMISSIONS;
+    case UA_ATTRIBUTEID_USERROLEPERMISSIONS: return UA_NODEATTRIBUTESMASK_ROLEPERMISSIONS;
+    case UA_ATTRIBUTEID_ACCESSRESTRICTIONS: return UA_NODEATTRIBUTESMASK_ACCESSRESTRICTIONS;
+    case UA_ATTRIBUTEID_ACCESSLEVELEX: return UA_NODEATTRIBUTESMASK_ACCESSLEVEL;
+    default: return UA_NODEATTRIBUTESMASK_NONE;
+    }
+}
 
 /******************/
 /* Access Control */
@@ -131,7 +166,11 @@ readValueAttributeFromNode(UA_Server *server, UA_Session *session,
                                        &vn->head.nodeId, vn->head.context, rangeptr,
                                        &vn->value.data.value);
         UA_LOCK(&server->serviceMutex);
-        vn = (const UA_VariableNode*)UA_NODESTORE_GET(server, &vn->head.nodeId);
+        vn = (const UA_VariableNode*)
+            UA_NODESTORE_GET_SELECTIVE(server, &vn->head.nodeId,
+                                       UA_NODEATTRIBUTESMASK_VALUE,
+                                       UA_REFERENCETYPESET_NONE,
+                                       UA_BROWSEDIRECTION_INVALID);
         if(!vn)
             return UA_STATUSCODE_BADNODEIDUNKNOWN;
     }
@@ -211,15 +250,14 @@ readValueAttributeComplete(UA_Server *server, UA_Session *session,
                 retval = UA_STATUSCODE_BADNOTREADABLE;
             }
             if(retval != UA_STATUSCODE_GOOD){
-                retval = UA_STATUSCODE_BADNOTREADABLE;
                 break;
             }
             /* Set the result */
             if(rangeptr)
-                return UA_Variant_copyRange(
-                    (const UA_Variant *)&vn->valueBackend.backend.external.value,
-                    &v->value, *rangeptr);
-            UA_DataValue_copy(*vn->valueBackend.backend.external.value, v);
+                retval = UA_DataValue_copyVariantRange(
+                    *vn->valueBackend.backend.external.value, v, *rangeptr);
+            else
+                retval = UA_DataValue_copy(*vn->valueBackend.backend.external.value, v);
             break;
         case UA_VALUEBACKENDTYPE_NONE:
             /* Read the value */
@@ -317,16 +355,15 @@ getStructureDefinition(const UA_DataType *type, UA_StructureDefinition *def) {
         return UA_STATUSCODE_BADOUTOFMEMORY;
     }
 
-    const UA_DataType *typelists[2] = {UA_TYPES, &type[-type->typeIndex]};
     for(size_t cnt = 0; cnt < def->fieldsSize; cnt++) {
         const UA_DataTypeMember *m = &type->members[cnt];
-        def->fields[cnt].valueRank = UA_TRUE == m->isArray ? 1 : -1;
+        def->fields[cnt].valueRank = (m->isArray) ? 1 : -1;
         def->fields[cnt].arrayDimensions = NULL;
         def->fields[cnt].arrayDimensionsSize = 0;
         def->fields[cnt].name = UA_STRING((char *)(uintptr_t)m->memberName);
         def->fields[cnt].description.locale = UA_STRING_NULL;
         def->fields[cnt].description.text = UA_STRING_NULL;
-        def->fields[cnt].dataType = typelists[!m->namespaceZero][m->memberTypeIndex].typeId;
+        def->fields[cnt].dataType = m->memberType->typeId;
         def->fields[cnt].maxStringLength = 0;
         def->fields[cnt].isOptional = m->isOptional;
     }
@@ -341,8 +378,8 @@ void
 ReadWithNode(const UA_Node *node, UA_Server *server, UA_Session *session,
              UA_TimestampsToReturn timestampsToReturn,
              const UA_ReadValueId *id, UA_DataValue *v) {
-    UA_LOG_NODEID_DEBUG(&node->head.nodeId,
-                        UA_LOG_DEBUG_SESSION(&server->config.logger, session,
+    UA_LOG_NODEID_TRACE(&node->head.nodeId,
+                        UA_LOG_TRACE_SESSION(&server->config.logger, session,
                                              "Read attribute %"PRIi32 " of Node %.*s",
                                              id->attributeId, (int)nodeIdStr.length,
                                              nodeIdStr.data));
@@ -381,14 +418,18 @@ ReadWithNode(const UA_Node *node, UA_Server *server, UA_Session *session,
         retval = UA_Variant_setScalarCopy(&v->value, &node->head.browseName,
                                           &UA_TYPES[UA_TYPES_QUALIFIEDNAME]);
         break;
-    case UA_ATTRIBUTEID_DISPLAYNAME:
-        retval = UA_Variant_setScalarCopy(&v->value, &node->head.displayName,
+    case UA_ATTRIBUTEID_DISPLAYNAME: {
+        UA_LocalizedText lt = UA_Session_getNodeDisplayName(session, &node->head);
+        retval = UA_Variant_setScalarCopy(&v->value, &lt,
                                           &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]);
         break;
-    case UA_ATTRIBUTEID_DESCRIPTION:
-        retval = UA_Variant_setScalarCopy(&v->value, &node->head.description,
+    }
+    case UA_ATTRIBUTEID_DESCRIPTION: {
+        UA_LocalizedText lt = UA_Session_getNodeDescription(session, &node->head);
+        retval = UA_Variant_setScalarCopy(&v->value, &lt,
                                           &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]);
         break;
+    }
     case UA_ATTRIBUTEID_WRITEMASK:
         retval = UA_Variant_setScalarCopy(&v->value, &node->head.writeMask,
                                           &UA_TYPES[UA_TYPES_UINT32]);
@@ -515,7 +556,7 @@ ReadWithNode(const UA_Node *node, UA_Server *server, UA_Session *session,
             UA_StructureDefinition def;
             retval = getStructureDefinition(type, &def);
             if(UA_STATUSCODE_GOOD!=retval)
-                break;            
+                break;
             retval = UA_Variant_setScalarCopy(&v->value, &def,
                                               &UA_TYPES[UA_TYPES_STRUCTUREDEFINITION]);
             UA_free(def.fields);
@@ -564,8 +605,12 @@ ReadWithNode(const UA_Node *node, UA_Server *server, UA_Session *session,
 static void
 Operation_Read(UA_Server *server, UA_Session *session, UA_ReadRequest *request,
                UA_ReadValueId *rvi, UA_DataValue *result) {
-    /* Get the node */
-    const UA_Node *node = UA_NODESTORE_GET(server, &rvi->nodeId);
+    /* Get the node (with only the selected attribute if the NodeStore supports that) */
+    const UA_Node *node =
+        UA_NODESTORE_GET_SELECTIVE(server, &rvi->nodeId,
+                                   attributeId2AttributeMask((UA_AttributeId)rvi->attributeId),
+                                   UA_REFERENCETYPESET_NONE,
+                                   UA_BROWSEDIRECTION_INVALID);
 
     /* Perform the read operation */
     if(node) {
@@ -622,8 +667,12 @@ UA_Server_readWithSession(UA_Server *server, UA_Session *session,
     UA_DataValue dv;
     UA_DataValue_init(&dv);
 
-    /* Get the node */
-    const UA_Node *node = UA_NODESTORE_GET(server, &item->nodeId);
+    /* Get the node (with only the selected attribute if the NodeStore supports it) */
+    const UA_Node *node =
+        UA_NODESTORE_GET_SELECTIVE(server, &item->nodeId,
+                                   attributeId2AttributeMask((UA_AttributeId)item->attributeId),
+                                   UA_REFERENCETYPESET_NONE,
+                                   UA_BROWSEDIRECTION_INVALID);
     if(!node) {
         dv.hasStatus = true;
         dv.status = UA_STATUSCODE_BADNODEIDUNKNOWN;
@@ -768,9 +817,27 @@ compatibleValueDataType(UA_Server *server, const UA_DataType *dataType,
     if(compatibleDataTypes(server, &dataType->typeId, constraintDataType))
         return true;
 
+    /* The constraint is an enum -> allow writing Int32 */
+    if(UA_NodeId_equal(&dataType->typeId, &UA_TYPES[UA_TYPES_INT32].typeId) &&
+       isNodeInTree_singleRef(server, constraintDataType, &enumNodeId,
+                              UA_REFERENCETYPEINDEX_HASSUBTYPE))
+        return true;
+
     /* For actual values, the constraint DataType may be a subtype of the
-     * DataType of the value. E.g. UtcTime is subtype of DateTime. But it still
-     * is a DateTime value when transferred over the wire. */
+     * DataType of the value -- subtyping in the wrong direction. E.g. UtcTime
+     * is a subtype of DateTime. But we allow it to be encoded as a DateTime
+     * value when transferred over the wire.
+     *
+     * We do not allow "subtyping in the "wrong direction" if the received type
+     * is abstract. For example, ExtensionObjects (== "Structure" in the type
+     * hierarchy) is an abstract type. But ExtensionObject could still be
+     * transported over the network. */
+    UA_Boolean abstract = false;
+    UA_StatusCode res = readWithReadValue(server, &dataType->typeId,
+                                          UA_ATTRIBUTEID_ISABSTRACT, &abstract);
+    if(res != UA_STATUSCODE_GOOD || abstract)
+        return false;
+
     if(isNodeInTree_singleRef(server, constraintDataType, &dataType->typeId,
                               UA_REFERENCETYPEINDEX_HASSUBTYPE))
         return true;
@@ -796,12 +863,6 @@ compatibleDataTypes(UA_Server *server, const UA_NodeId *dataType,
 
     /* Is the DataType a subtype of the constraint type? */
     if(isNodeInTree_singleRef(server, dataType, constraintDataType,
-                              UA_REFERENCETYPEINDEX_HASSUBTYPE))
-        return true;
-
-    /* The constraint is an enum -> allow writing Int32 */
-    if(UA_NodeId_equal(dataType, &UA_TYPES[UA_TYPES_INT32].typeId) &&
-       isNodeInTree_singleRef(server, constraintDataType, &enumNodeId,
                               UA_REFERENCETYPEINDEX_HASSUBTYPE))
         return true;
 
@@ -838,7 +899,7 @@ compatibleValueRankArrayDimensions(UA_Server *server, UA_Session *session,
         }
         return true;
     }
-    
+
     /* case >= 1, UA_VALUERANK_ONE_DIMENSION: the value is an array with the
        specified number of dimensions */
     if(arrayDimensionsSize != (size_t)valueRank) {
@@ -947,9 +1008,15 @@ UA_Boolean
 compatibleValueArrayDimensions(const UA_Variant *value, size_t targetArrayDimensionsSize,
                                const UA_UInt32 *targetArrayDimensions) {
     size_t valueArrayDimensionsSize = value->arrayDimensionsSize;
-    UA_UInt32 *valueArrayDimensions = value->arrayDimensions;
+    UA_UInt32 const *valueArrayDimensions = value->arrayDimensions;
     UA_UInt32 tempArrayDimensions;
     if(!valueArrayDimensions && !UA_Variant_isScalar(value)) {
+        /* An empty array implicitly has array dimensions [0,0,...] with the
+         * correct number of dimensions. So it always matches. */
+        if(value->arrayLength == 0)
+            return true;
+
+        /* Arrays with content and without array dimensions have one implicit dimension */
         valueArrayDimensionsSize = 1;
         tempArrayDimensions = (UA_UInt32)value->arrayLength;
         valueArrayDimensions = &tempArrayDimensions;
@@ -959,13 +1026,18 @@ compatibleValueArrayDimensions(const UA_Variant *value, size_t targetArrayDimens
                                      valueArrayDimensionsSize, valueArrayDimensions);
 }
 
+const char *reason_EmptyType = "Empty value only allowed for BaseDataType";
+const char *reason_ValueDataType = "DataType of the value is incompatible";
+const char *reason_ValueArrayDimensions = "ArrayDimensions of the value are incompatible";
+const char *reason_ValueValueRank = "ValueRank of the value is incompatible";
+
 UA_Boolean
 compatibleValue(UA_Server *server, UA_Session *session, const UA_NodeId *targetDataTypeId,
                 UA_Int32 targetValueRank, size_t targetArrayDimensionsSize,
                 const UA_UInt32 *targetArrayDimensions, const UA_Variant *value,
-                const UA_NumericRange *range) {
+                const UA_NumericRange *range, const char **reason) {
     /* Empty value */
-    if(!value->type) {
+    if(UA_Variant_isEmpty(value)) {
         /* Empty value is allowed for BaseDataType */
         if(UA_NodeId_equal(targetDataTypeId, &UA_TYPES[UA_TYPES_VARIANT].typeId) ||
            UA_NodeId_equal(targetDataTypeId, &UA_NODEID_NULL))
@@ -985,12 +1057,23 @@ compatibleValue(UA_Server *server, UA_Session *session, const UA_NodeId *targetD
             return true;
 
         /* Default handling is to abort */
+        *reason = reason_EmptyType;
         return false;
     }
 
+    /* Empty array of ExtensionObjects */
+    if(UA_Variant_hasArrayType(value, &UA_TYPES[UA_TYPES_EXTENSIONOBJECT]) &&
+       value->arrayLength == 0) {
+        /* There is no way to check type compatibility here. Leave it for the upper layers to
+         * decide, if empty array is okay. */
+        return true;        
+    }
+
     /* Is the datatype compatible? */
-    if(!compatibleValueDataType(server, value->type, targetDataTypeId))
+    if(!compatibleValueDataType(server, value->type, targetDataTypeId)) {
+        *reason = reason_ValueDataType;
         return false;
+    }
 
     /* Array dimensions are checked later when writing the range */
     if(range)
@@ -998,11 +1081,18 @@ compatibleValue(UA_Server *server, UA_Session *session, const UA_NodeId *targetD
 
     /* See if the array dimensions match. */
     if(!compatibleValueArrayDimensions(value, targetArrayDimensionsSize,
-                                       targetArrayDimensions))
+                                       targetArrayDimensions)) {
+        *reason = reason_ValueArrayDimensions;
         return false;
+    }
 
     /* Check if the valuerank allows for the value dimension */
-    return compatibleValueRankValue(targetValueRank, value);
+    if(!compatibleValueRankValue(targetValueRank, value)) {
+        *reason = reason_ValueValueRank;
+        return false;
+    }
+
+    return true;
 }
 
 /*****************/
@@ -1010,11 +1100,72 @@ compatibleValue(UA_Server *server, UA_Session *session, const UA_NodeId *targetD
 /*****************/
 
 static void
-adjustValue(UA_Server *server, UA_Variant *value,
-            const UA_NodeId *targetDataTypeId) {
-    const UA_DataType *targetDataType = UA_findDataType(targetDataTypeId);
-    if(!targetDataType)
+freeWrapperArray(void *app, void *context) {
+    UA_free(context);
+}
+
+static void
+unwrapEOArray(UA_Server *server, UA_Variant *value) {
+    /* Only works on arrays of ExtensionObjects */
+    if(!UA_Variant_hasArrayType(value, &UA_TYPES[UA_TYPES_EXTENSIONOBJECT]) ||
+       value->arrayLength == 0)
         return;
+
+    /* All eo need to be already decoded and have the same wrapped type */
+    UA_ExtensionObject *eo = (UA_ExtensionObject*)value->data;
+    const UA_DataType *innerType = eo[0].content.decoded.type;
+    for(size_t i = 0; i < value->arrayLength; i++) {
+        if(eo[i].encoding != UA_EXTENSIONOBJECT_DECODED &&
+           eo[i].encoding != UA_EXTENSIONOBJECT_DECODED_NODELETE)
+            return;
+        if(eo[i].content.decoded.type != innerType)
+            return;
+    }
+
+    /* Allocate the array for the unwrapped data. Since the adjusted value is
+     * not cleaned up (only the original value), this memory is being cleaned up
+     * by a delayed callback in the server after the method call has
+     * finished. */
+    UA_DelayedCallback *dc = (UA_DelayedCallback*)
+        UA_malloc(sizeof(UA_DelayedCallback) + (value->arrayLength * innerType->memSize));
+    if(!dc)
+        return;
+
+    /* Move the content */
+    uintptr_t pos = ((uintptr_t)dc) + sizeof(UA_DelayedCallback);
+    void *unwrappedArray = (void*)pos;
+    for(size_t i = 0; i < value->arrayLength; i++) {
+        memcpy((void*)pos, eo[i].content.decoded.data, innerType->memSize);
+        pos += innerType->memSize;
+    }
+
+    /* Adjust the value */
+    value->type = innerType;
+    value->data = unwrappedArray;
+
+    /* Add the delayed callback to free the memory of the unwrapped array */
+    dc->callback = freeWrapperArray;
+    dc->application = NULL;
+    dc->context = dc;
+    UA_EventLoop *el = server->config.eventLoop;
+    el->addDelayedCallback(el, dc);
+}
+
+void
+adjustValueType(UA_Server *server, UA_Variant *value,
+                const UA_NodeId *targetDataTypeId) {
+    /* If the value is empty, there is nothing we can do here */
+    if(!value->type)
+        return;
+
+    /* Unwrap ExtensionObject arrays if they all contain the same DataType */
+    unwrapEOArray(server, value);
+
+    const UA_DataType *targetDataType = UA_findDataType(targetDataTypeId);
+    if(!targetDataType) {
+        /* Type might not have been found, if it's a non-NS0 type or an abstract type. */
+        return;
+    }
 
     /* A string is written to a byte array. the valuerank and array dimensions
      * are checked later */
@@ -1029,7 +1180,7 @@ adjustValue(UA_Server *server, UA_Variant *value,
     }
 
     /* An enum was sent as an int32, or an opaque type as a bytestring. This
-     * is detected with the typeIndex indicating the "true" datatype. */
+     * is detected with the typeKind indicating the "true" datatype. */
     UA_DataTypeKind te1 = typeEquivalence(targetDataType);
     UA_DataTypeKind te2 = typeEquivalence(value->type);
     if(te1 == te2 && te1 <= UA_DATATYPEKIND_ENUM) {
@@ -1107,9 +1258,9 @@ writeArrayDimensionsAttribute(UA_Server *server, UA_Session *session,
 
 /* Stack layout: ... | node | type */
 static UA_StatusCode
-writeValueRankAttribute(UA_Server *server, UA_Session *session,
-                        UA_VariableNode *node, const UA_VariableTypeNode *type,
-                        UA_Int32 valueRank) {
+writeValueRank(UA_Server *server, UA_Session *session,
+               UA_VariableNode *node, const UA_VariableTypeNode *type,
+               UA_Int32 valueRank) {
     UA_assert(node != NULL);
     UA_assert(type != NULL);
 
@@ -1177,9 +1328,10 @@ writeDataTypeAttribute(UA_Server *server, UA_Session *session,
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
     if(value.hasValue) {
+        const char *reason; /* temp value */
         if(!compatibleValue(server, session, dataType, node->valueRank,
                             node->arrayDimensionsSize, node->arrayDimensions,
-                            &value.value, NULL))
+                            &value.value, NULL, &reason))
             retval = UA_STATUSCODE_BADTYPEMISMATCH;
         UA_DataValue_clear(&value);
         if(retval != UA_STATUSCODE_GOOD) {
@@ -1261,6 +1413,7 @@ writeNodeValueAttribute(UA_Server *server, UA_Session *session,
 
     /* Parse the range */
     UA_NumericRange range;
+    range.dimensions = NULL;
     UA_NumericRange *rangeptr = NULL;
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     if(indexRange && indexRange->length > 0) {
@@ -1275,24 +1428,34 @@ writeNodeValueAttribute(UA_Server *server, UA_Session *session,
     UA_DataValue adjustedValue = *value;
 
     /* Type checking. May change the type of editableValue */
-    if(value->hasValue && value->value.type) {
-        adjustValue(server, &adjustedValue.value, &node->dataType);
+    const char *reason;
+    if(value->hasValue && value->value.type &&
+       !compatibleValue(server, session, &node->dataType, node->valueRank,
+                        node->arrayDimensionsSize, node->arrayDimensions,
+                        &adjustedValue.value, rangeptr, &reason)) {
+        /* Try to correct the type */
+        adjustValueType(server, &adjustedValue.value, &node->dataType);
 
-        /* The value may be an extension object, especially the nodeset compiler
-         * uses extension objects to write variable values. If value is an
-         * extension object we check if the current node value is also an
-         * extension object. */
-        const UA_NodeId nodeDataType = UA_NODEID_NUMERIC(0, UA_NS0ID_STRUCTURE);
-        const UA_NodeId *nodeDataTypePtr = &node->dataType;
-        if(value->value.type->typeId.identifierType == UA_NODEIDTYPE_NUMERIC &&
-           value->value.type->typeId.identifier.numeric == UA_NS0ID_STRUCTURE)
-            nodeDataTypePtr = &nodeDataType;
-
-        if(!compatibleValue(server, session, nodeDataTypePtr, node->valueRank,
+        /* Recheck the type */
+        if(!compatibleValue(server, session, &node->dataType, node->valueRank,
                             node->arrayDimensionsSize, node->arrayDimensions,
-                            &adjustedValue.value, rangeptr)) {
-            if(rangeptr)
-                UA_free(range.dimensions);
+                            &adjustedValue.value, rangeptr, &reason)) {
+            UA_LOG_NODEID_WARNING(&node->head.nodeId,
+            if(session == &server->adminSession) {
+                /* If the value is written via the local API, log a warning */
+                UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                               "Writing the value of Node %.*s failed with the "
+                               "following reason: %s",
+                               (int)nodeIdStr.length, nodeIdStr.data, reason);
+            } else {
+                /* Don't spam the logs if writing from remote failed */
+                UA_LOG_DEBUG_SESSION(&server->config.logger, session,
+                                     "Writing the value of Node %.*s failed with the "
+                                     "following reason: %s",
+                                     (int)nodeIdStr.length, nodeIdStr.data, reason);
+            });
+            if(rangeptr && rangeptr->dimensions != NULL)
+                UA_free(rangeptr->dimensions);
             return UA_STATUSCODE_BADTYPEMISMATCH;
         }
     }
@@ -1361,11 +1524,11 @@ writeNodeValueAttribute(UA_Server *server, UA_Session *session,
             break;
         case UA_VALUEBACKENDTYPE_EXTERNAL:
             if(node->valueBackend.backend.external.callback.userWrite == NULL){
-                if(rangeptr)
-                    UA_free(range.dimensions);
+                if(rangeptr && rangeptr->dimensions != NULL)
+                    UA_free(rangeptr->dimensions);
                 return UA_STATUSCODE_BADWRITENOTSUPPORTED;
             }
-            node->valueBackend.backend.external.callback.
+            retval = node->valueBackend.backend.external.callback.
                 userWrite(server, &session->sessionId, session->sessionHandle,
                           &node->head.nodeId, node->head.context,
                           rangeptr, &adjustedValue);
@@ -1373,13 +1536,13 @@ writeNodeValueAttribute(UA_Server *server, UA_Session *session,
     }
 
     /* Clean up */
-    if(rangeptr)
-        UA_free(range.dimensions);
+    if(rangeptr && rangeptr->dimensions != NULL)
+        UA_free(rangeptr->dimensions);
     return retval;
 }
 
 static UA_StatusCode
-writeIsAbstractAttribute(UA_Node *node, UA_Boolean value) {
+writeIsAbstract(UA_Node *node, UA_Boolean value) {
     switch(node->head.nodeClass) {
     case UA_NODECLASS_OBJECTTYPE:
         node->objectTypeNode.isAbstract = value;
@@ -1452,6 +1615,34 @@ updateLocalizedText(const UA_LocalizedText *source, UA_LocalizedText *target) {
     return UA_STATUSCODE_GOOD;
 }
 
+/* Trigger sampling if a MonitoredItem surveils the attribute with no sampling
+ * interval */
+#ifdef UA_ENABLE_SUBSCRIPTIONS
+static void
+triggerImmediateDataChange(UA_Server *server, UA_Session *session,
+                           UA_Node *node, const UA_WriteValue *wvalue) {
+    UA_MonitoredItem *mon = node->head.monitoredItems;
+    for(; mon != NULL; mon = mon->sampling.nodeListNext) {
+        if(mon->itemToMonitor.attributeId != wvalue->attributeId)
+            continue;
+        UA_DataValue value;
+        UA_DataValue_init(&value);
+        ReadWithNode(node, server, session, mon->timestampsToReturn,
+                     &mon->itemToMonitor, &value);
+        UA_Subscription *sub = mon->subscription;
+        UA_StatusCode res = sampleCallbackWithValue(server, sub, mon, &value);
+        if(res != UA_STATUSCODE_GOOD) {
+            UA_DataValue_clear(&value);
+            UA_LOG_WARNING_SUBSCRIPTION(&server->config.logger, sub,
+                                        "MonitoredItem %" PRIi32 " | "
+                                        "Sampling returned the statuscode %s",
+                                        mon->monitoredItemId,
+                                        UA_StatusCode_name(res));
+        }
+    }
+}
+#endif
+
 /* This function implements the main part of the write service and operates on a
    copy of the node (not in single-threaded mode). */
 static UA_StatusCode
@@ -1462,8 +1653,8 @@ copyAttributeIntoNode(UA_Server *server, UA_Session *session,
     UA_UInt32 userWriteMask = getUserWriteMask(server, session, &node->head);
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
 
-    UA_LOG_NODEID_DEBUG(&node->head.nodeId,
-                        UA_LOG_DEBUG_SESSION(&server->config.logger, session,
+    UA_LOG_NODEID_TRACE(&node->head.nodeId,
+                        UA_LOG_TRACE_SESSION(&server->config.logger, session,
                                              "Write attribute %"PRIi32 " of Node %.*s",
                                              wvalue->attributeId, (int)nodeIdStr.length,
                                              nodeIdStr.data));
@@ -1483,14 +1674,14 @@ copyAttributeIntoNode(UA_Server *server, UA_Session *session,
     case UA_ATTRIBUTEID_DISPLAYNAME:
         CHECK_USERWRITEMASK(UA_WRITEMASK_DISPLAYNAME);
         CHECK_DATATYPE_SCALAR(LOCALIZEDTEXT);
-        retval = updateLocalizedText((const UA_LocalizedText *)value,
-                                     &node->head.displayName);
+        retval = UA_Node_insertOrUpdateDisplayName(&node->head,
+                                                   (const UA_LocalizedText *)value);
         break;
     case UA_ATTRIBUTEID_DESCRIPTION:
         CHECK_USERWRITEMASK(UA_WRITEMASK_DESCRIPTION);
         CHECK_DATATYPE_SCALAR(LOCALIZEDTEXT);
-        retval = updateLocalizedText((const UA_LocalizedText *)value,
-                                     &node->head.description);
+        retval = UA_Node_insertOrUpdateDescription(&node->head,
+                                                   (const UA_LocalizedText *)value);
         break;
     case UA_ATTRIBUTEID_WRITEMASK:
         CHECK_USERWRITEMASK(UA_WRITEMASK_WRITEMASK);
@@ -1500,7 +1691,7 @@ copyAttributeIntoNode(UA_Server *server, UA_Session *session,
     case UA_ATTRIBUTEID_ISABSTRACT:
         CHECK_USERWRITEMASK(UA_WRITEMASK_ISABSTRACT);
         CHECK_DATATYPE_SCALAR(BOOLEAN);
-        retval = writeIsAbstractAttribute(node, *(const UA_Boolean*)value);
+        retval = writeIsAbstract(node, *(const UA_Boolean*)value);
         break;
     case UA_ATTRIBUTEID_SYMMETRIC:
         CHECK_NODECLASS_WRITE(UA_NODECLASS_REFERENCETYPE);
@@ -1566,8 +1757,8 @@ copyAttributeIntoNode(UA_Server *server, UA_Session *session,
         CHECK_USERWRITEMASK(UA_WRITEMASK_VALUERANK);
         CHECK_DATATYPE_SCALAR(INT32);
         GET_NODETYPE;
-        retval = writeValueRankAttribute(server, session, &node->variableNode,
-                                         type, *(const UA_Int32*)value);
+        retval = writeValueRank(server, session, &node->variableNode,
+                                type, *(const UA_Int32*)value);
         UA_NODESTORE_RELEASE(server, (const UA_Node*)type);
         break;
     case UA_ATTRIBUTEID_ARRAYDIMENSIONS:
@@ -1608,15 +1799,24 @@ copyAttributeIntoNode(UA_Server *server, UA_Session *session,
         retval = UA_STATUSCODE_BADATTRIBUTEIDINVALID;
         break;
     }
+
+    /* Check if writing succeeded */
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_INFO_SESSION(&server->config.logger, session,
                             "WriteRequest returned status code %s",
                             UA_StatusCode_name(retval));
+        return retval;
     }
-    return retval;
+
+    /* Trigger MonitoredItems with no SamplingInterval */
+#ifdef UA_ENABLE_SUBSCRIPTIONS
+    triggerImmediateDataChange(server, session, node, wvalue);
+#endif
+
+    return UA_STATUSCODE_GOOD;
 }
 
-static void
+void
 Operation_Write(UA_Server *server, UA_Session *session, void *context,
                 const UA_WriteValue *wv, UA_StatusCode *result) {
     UA_assert(session != NULL);
@@ -1718,6 +1918,10 @@ Service_HistoryRead(UA_Server *server, UA_Session *session,
                     UA_HistoryReadResponse *response) {
     UA_assert(session != NULL);
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
+    if(server->config.historyDatabase.context == NULL) {
+        response->responseHeader.serviceResult = UA_STATUSCODE_BADNOTSUPPORTED;
+        return;
+    }
 
     if(request->historyReadDetails.encoding != UA_EXTENSIONOBJECT_DECODED) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADNOTSUPPORTED;
@@ -1726,36 +1930,32 @@ Service_HistoryRead(UA_Server *server, UA_Session *session,
 
     const UA_DataType *historyDataType = &UA_TYPES[UA_TYPES_HISTORYDATA];
     UA_HistoryDatabase_readFunc readHistory = NULL;
-    switch(request->historyReadDetails.content.decoded.type->typeIndex) {
-        case UA_TYPES_READRAWMODIFIEDDETAILS: {
-            UA_ReadRawModifiedDetails *details = (UA_ReadRawModifiedDetails*)
-                request->historyReadDetails.content.decoded.data;
-            if(!details->isReadModified) {
-                readHistory = (UA_HistoryDatabase_readFunc)
-                    server->config.historyDatabase.readRaw;
-            } else {
-                historyDataType = &UA_TYPES[UA_TYPES_HISTORYMODIFIEDDATA];
-                readHistory = (UA_HistoryDatabase_readFunc)
-                    server->config.historyDatabase.readModified;
-            }
-            break;
+    if(request->historyReadDetails.content.decoded.type ==
+       &UA_TYPES[UA_TYPES_READRAWMODIFIEDDETAILS]) {
+        UA_ReadRawModifiedDetails *details = (UA_ReadRawModifiedDetails*)
+            request->historyReadDetails.content.decoded.data;
+        if(!details->isReadModified) {
+            readHistory = (UA_HistoryDatabase_readFunc)
+                server->config.historyDatabase.readRaw;
+        } else {
+            historyDataType = &UA_TYPES[UA_TYPES_HISTORYMODIFIEDDATA];
+            readHistory = (UA_HistoryDatabase_readFunc)
+                server->config.historyDatabase.readModified;
         }
-        case UA_TYPES_READEVENTDETAILS:
-            historyDataType = &UA_TYPES[UA_TYPES_HISTORYEVENT];
-            readHistory = (UA_HistoryDatabase_readFunc)
-                server->config.historyDatabase.readEvent;
-            break;
-        case UA_TYPES_READPROCESSEDDETAILS:
-            readHistory = (UA_HistoryDatabase_readFunc)
-                server->config.historyDatabase.readProcessed;
-            break;
-        case UA_TYPES_READATTIMEDETAILS:
-            readHistory = (UA_HistoryDatabase_readFunc)
-                server->config.historyDatabase.readAtTime;
-            break;
-    }
-
-    if(!readHistory) {
+    } else if(request->historyReadDetails.content.decoded.type ==
+              &UA_TYPES[UA_TYPES_READEVENTDETAILS]) {
+        historyDataType = &UA_TYPES[UA_TYPES_HISTORYEVENT];
+        readHistory = (UA_HistoryDatabase_readFunc)
+            server->config.historyDatabase.readEvent;
+    } else if(request->historyReadDetails.content.decoded.type ==
+              &UA_TYPES[UA_TYPES_READPROCESSEDDETAILS]) {
+        readHistory = (UA_HistoryDatabase_readFunc)
+            server->config.historyDatabase.readProcessed;
+    } else if(request->historyReadDetails.content.decoded.type ==
+              &UA_TYPES[UA_TYPES_READATTIMEDETAILS]) {
+        readHistory = (UA_HistoryDatabase_readFunc)
+            server->config.historyDatabase.readAtTime;
+    } else {
         /* TODO handle more request->historyReadDetails.content.decoded.type types */
         response->responseHeader.serviceResult = UA_STATUSCODE_BADHISTORYOPERATIONUNSUPPORTED;
         return;
@@ -1913,22 +2113,96 @@ writeObjectProperty(UA_Server *server, const UA_NodeId objectId,
         return retval;
     }
 
-    retval = writeValueAttribute(server, &server->adminSession,
-                                 &bpr.targets[0].targetId.nodeId, &value);
+    retval = writeValueAttribute(server, bpr.targets[0].targetId.nodeId, &value);
 
     UA_BrowsePathResult_clear(&bpr);
     return retval;
+}
+
+UA_StatusCode
+writeObjectProperty_scalar(UA_Server *server, const UA_NodeId objectId,
+                                     const UA_QualifiedName propertyName,
+                                     const void *value, const UA_DataType *type) {
+    UA_Variant var;
+    UA_Variant_init(&var);
+    UA_Variant_setScalar(&var, (void*)(uintptr_t)value, type);
+    return writeObjectProperty(server, objectId, propertyName, var);
 }
 
 UA_StatusCode UA_EXPORT
 UA_Server_writeObjectProperty_scalar(UA_Server *server, const UA_NodeId objectId,
                                      const UA_QualifiedName propertyName,
                                      const void *value, const UA_DataType *type) {
-    UA_Variant var;
-    UA_Variant_init(&var);
-    UA_Variant_setScalar(&var, (void*)(uintptr_t)value, type);
     UA_LOCK(&server->serviceMutex);
-    UA_StatusCode retval = writeObjectProperty(server, objectId, propertyName, var);
+    UA_StatusCode retval = 
+        writeObjectProperty_scalar(server, objectId, propertyName, value, type);
     UA_UNLOCK(&server->serviceMutex);
     return retval;
+}
+
+static UA_LocalizedText
+getLocalizedForSession(const UA_Session *session,
+                       const UA_LocalizedTextListEntry *root) {
+    const UA_LocalizedTextListEntry *lt;
+    UA_LocalizedText result;
+    UA_LocalizedText_init(&result);
+
+    /* No session. Return the first  */
+    if(!session)
+        goto not_found;
+
+    /* Exact match? */
+    for(size_t i = 0; i < session->localeIdsSize; ++i) {
+        for(lt = root; lt != NULL; lt = lt->next) {
+            if(UA_String_equal(&session->localeIds[i], &lt->localizedText.locale))
+                return lt->localizedText;
+        }
+    }
+
+    /* Partial match, e.g. de-DE instead of de-CH */
+    for(size_t i = 0; i < session->localeIdsSize; ++i) {
+        if(session->localeIds[i].length < 2 ||
+           (session->localeIdsSize > 2 &&
+            session->localeIds[i].data[2] != '-'))
+            continue;
+
+        UA_String requestedPrefix;
+        requestedPrefix.data = session->localeIds[i].data;
+        requestedPrefix.length = 2;
+
+        for(lt = root; lt != NULL; lt = lt->next) {
+            if(lt->localizedText.locale.length < 2 ||
+               (lt->localizedText.locale.length > 2 &&
+                lt->localizedText.locale.data[2] != '-'))
+                continue;
+
+            UA_String currentPrefix;
+            currentPrefix.data = lt->localizedText.locale.data;
+            currentPrefix.length = 2;
+
+            if(UA_String_equal(&requestedPrefix, &currentPrefix))
+                return lt->localizedText;
+        }
+    }
+
+    /* Not found. Return the first localized text that was added (last in the
+     * linked list). Return an empty result if the list is empty. */
+ not_found:
+    if(!root)
+        return result;
+    while(root->next)
+        root = root->next;
+    return root->localizedText;
+}
+
+UA_LocalizedText
+UA_Session_getNodeDisplayName(const UA_Session *session,
+                              const UA_NodeHead *head) {
+    return getLocalizedForSession(session, head->displayName);
+}
+
+UA_LocalizedText
+UA_Session_getNodeDescription(const UA_Session *session,
+                              const UA_NodeHead *head) {
+    return getLocalizedForSession(session, head->description);
 }

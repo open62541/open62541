@@ -18,6 +18,7 @@
 static void setup(void) {
     tc.running = true;
     tc.server = UA_Server_new();
+    ck_assert(tc.server != NULL);
     UA_ServerConfig_setDefault(UA_Server_getConfig(tc.server));
     UA_Server_run_startup(tc.server);
     THREAD_CREATE(server_thread, serverloop);
@@ -26,7 +27,7 @@ static void setup(void) {
 static void checkServer(void) {
     for (size_t i = 0; i <  NUMBER_OF_WORKERS * ITERATIONS_PER_WORKER; i++) {
         char string_buf[20];
-        snprintf(string_buf, sizeof(string_buf), "Server %zu", i);
+        snprintf(string_buf, sizeof(string_buf), "Server %u", (unsigned)i);
         UA_NodeId reqNodeId = UA_NODEID_STRING(1, string_buf);
         UA_NodeId resNodeId;
         UA_StatusCode ret = UA_Server_readNodeId(tc.server, reqNodeId, &resNodeId);
@@ -38,7 +39,7 @@ static void checkServer(void) {
 
     for (size_t i = 0; i < NUMBER_OF_CLIENTS * ITERATIONS_PER_CLIENT; i++) {
         char string_buf[20];
-        snprintf(string_buf, sizeof(string_buf), "Client %zu", i);
+        snprintf(string_buf, sizeof(string_buf), "Client %u", (unsigned)i);
         UA_NodeId reqNodeId = UA_NODEID_STRING(1, string_buf);
         UA_NodeId resNodeId;
         UA_StatusCode ret = UA_Server_readNodeId(tc.server, reqNodeId, &resNodeId);
@@ -55,7 +56,7 @@ void server_addVariableType(void* value) {
     size_t offset = tmp.index * tmp.upperBound;
     size_t number = offset + tmp.counter;
     char string_buf[20];
-    snprintf(string_buf, sizeof(string_buf), "Server %zu", number);
+    snprintf(string_buf, sizeof(string_buf), "Server %u", (unsigned)number);
     UA_NodeId myNodeId = UA_NODEID_STRING(1, string_buf);
     UA_VariableTypeAttributes vtAttr = UA_VariableTypeAttributes_default;
     vtAttr.dataType = UA_TYPES[UA_TYPES_DOUBLE].typeId;
@@ -85,7 +86,7 @@ void client_addVariableType(void* value){
     size_t offset = tmp.index * tmp.upperBound;
     size_t number = offset + tmp.counter;
     char string_buf[20];
-    snprintf(string_buf, sizeof(string_buf), "Client %zu", number);
+    snprintf(string_buf, sizeof(string_buf), "Client %u", (unsigned)number);
     UA_NodeId myNodeId = UA_NODEID_STRING(1, string_buf);
 
     UA_VariableTypeAttributes attr = UA_VariableTypeAttributes_default;
@@ -109,8 +110,6 @@ void client_addVariableType(void* value){
 
 static
 void initTest(void) {
-    initThreadContext(NUMBER_OF_WORKERS, NUMBER_OF_CLIENTS, checkServer);
-    
     for (size_t i = 0; i < tc.numberOfWorkers; i++) {
         setThreadContext(&tc.workerContext[i], i, ITERATIONS_PER_WORKER, server_addVariableType);
     }
@@ -128,7 +127,6 @@ END_TEST
 static Suite* testSuite_immutableNodes(void) {
     Suite *s = suite_create("Multithreading");
     TCase *valueCallback = tcase_create("Add variable type nodes");
-    initTest();
     tcase_add_checked_fixture(valueCallback, setup, teardown);
     tcase_add_test(valueCallback, addVariableTypeNodes);
     suite_add_tcase(s,valueCallback);
@@ -139,7 +137,12 @@ int main(void) {
     Suite *s = testSuite_immutableNodes();
     SRunner *sr = srunner_create(s);
     srunner_set_fork_status(sr, CK_NOFORK);
+
+    createThreadContext(NUMBER_OF_WORKERS, NUMBER_OF_CLIENTS, checkServer);
+    initTest();
     srunner_run_all(sr, CK_NORMAL);
+    deleteThreadContext();
+
     int number_failed = srunner_ntests_failed(sr);
     srunner_free(sr);
     return (number_failed == 0) ? EXIT_SUCCESS : EXIT_FAILURE;

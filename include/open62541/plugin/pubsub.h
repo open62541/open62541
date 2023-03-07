@@ -10,6 +10,9 @@
 
 #include <open62541/types.h>
 #include <open62541/types_generated.h>
+#include <open62541/util.h>
+#include <open62541/plugin/log.h>
+
 
 _UA_BEGIN_DECLS
 
@@ -45,6 +48,11 @@ typedef enum {
     UA_PUBSUB_CHANNEL_CLOSED
 } UA_PubSubChannelState;
 
+typedef UA_StatusCode
+(*UA_PubSubReceiveCallback)(UA_PubSubChannel *channel,
+                            void *callbackContext,
+                            const UA_ByteString *buffer);
+
 /* Interface structure between network plugin and internal implementation */
 struct UA_PubSubChannel {
     UA_UInt32 publisherId; /* unique identifier */
@@ -59,21 +67,32 @@ struct UA_PubSubChannel {
     void *pubsubTimedSend;  /* timed send - internal handling */
     /* Sending out the content of the buf parameter */
     UA_StatusCode (*send)(UA_PubSubChannel *channel, UA_ExtensionObject *transportSettings,
-                          const UA_ByteString *buf);
+                          UA_ByteString *buf);
 
     /* Register to an specified message source, e.g. multicast group or topic. Callback is used for mqtt. */
-    UA_StatusCode (*regist)(UA_PubSubChannel * channel, UA_ExtensionObject *transportSettings,
+    UA_StatusCode (*regist)(UA_PubSubChannel *channel, UA_ExtensionObject *transportSettings,
         void (*callback)(UA_ByteString *encodedBuffer, UA_ByteString *topic));
 
     /* Remove subscription to an specified message source, e.g. multicast group or topic */
-    UA_StatusCode (*unregist)(UA_PubSubChannel * channel, UA_ExtensionObject *transportSettings);
+    UA_StatusCode (*unregist)(UA_PubSubChannel *channel, UA_ExtensionObject *transportSettings);
 
     /* Receive messages. A regist to the message source is needed before. */
-    UA_StatusCode (*receive)(UA_PubSubChannel * channel, UA_ByteString *,
-                             UA_ExtensionObject *transportSettings, UA_UInt32 timeout);
+    UA_StatusCode (*receive)(UA_PubSubChannel *channel,
+                             UA_ExtensionObject *transportSettings,
+                             UA_PubSubReceiveCallback receiveCallback,
+                             void *receiveCallbackContext,
+                             UA_UInt32 timeout);
 
     /* Closing the connection and implicit free of the channel structures. */
     UA_StatusCode (*close)(UA_PubSubChannel *channel);
+
+    UA_StatusCode (*closeSubscriber)(UA_PubSubChannel *channel);
+    UA_StatusCode (*closePublisher)(UA_PubSubChannel *channel);
+    UA_StatusCode (*openSubscriber)(UA_PubSubChannel *channel);
+    UA_StatusCode (*openPublisher)(UA_PubSubChannel *channel);
+
+    UA_StatusCode (*allocNetworkBuffer)(UA_PubSubChannel *channel, UA_ByteString *buf, size_t bufSize);
+    UA_StatusCode (*freeNetworkBuffer)(UA_PubSubChannel *channel, UA_ByteString *buf);
 
     /* Giving the connection protocoll time to process inbound and outbound traffic. */
     UA_StatusCode (*yield)(UA_PubSubChannel *channel, UA_UInt16 timeout);
@@ -81,18 +100,34 @@ struct UA_PubSubChannel {
 
 /**
  * The UA_PubSubTransportLayer is used for the creation of new connections.
- * Whenever on runtime a new connection is request, the internal PubSub
- * implementation call * the 'createPubSubChannel' function. The
+ * Whenever in runtime a new connection is requested, the internal PubSub
+ * implementation calls the 'createPubSubChannel' function. The
  * 'transportProfileUri' contains the standard defined transport profile
  * information and is used to identify the type of connections which can be
  * created by the TransportLayer. The server config contains a list of
  * UA_PubSubTransportLayer. Take a look in the tutorial_pubsub_connection to get
- * informations about the TransportLayer handling. */
+ * information about the TransportLayer handling. */
+
+typedef struct UA_PubSubTransportLayer {
+    UA_String transportProfileUri;
+    void *connectionManager;
+    // UA_Server *server;
+    UA_PubSubChannel *(*createPubSubChannel)(struct UA_PubSubTransportLayer *tl, void *ctx);
+    UA_StatusCode (*createWriterGroupPubSubChannel)(UA_PubSubChannel** outChannel, struct UA_PubSubTransportLayer *tl, const UA_ExtensionObject *writerGroupTransportSettings, void *ctx);
+} UA_PubSubTransportLayer;
+
 
 typedef struct {
-    UA_String transportProfileUri;
-    UA_PubSubChannel *(*createPubSubChannel)(UA_PubSubConnectionConfig *connectionConfig);
-} UA_PubSubTransportLayer;
+    void *connection;
+    UA_NetworkAddressUrlDataType *connectionAddress;
+    UA_PubSubConnectionConfig *connectionConfig;
+    UA_NetworkAddressUrlDataType  *writerGroupAddress;
+    UA_Server *server;
+    UA_Logger *logger;
+    UA_StatusCode (*decodeAndProcessNetworkMessage)(UA_Server *server,
+                                                    void *connection,
+                                                    UA_ByteString *buffer);
+} UA_TransportLayerContext;
 
 #endif /* UA_ENABLE_PUBSUB */
 

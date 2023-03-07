@@ -11,28 +11,25 @@
  *    Copyright 2017 (c) Henrik Norrman
  *    Copyright 2018 (c) Fabian Arndt, Root-Core
  *    Copyright 2017-2020 (c) HMS Industrial Networks AB (Author: Jonas Green)
- *    Copyright 2020-2021 (c) Christian von Arnim, ISW University of Stuttgart  (for VDW and umati)
+ *    Copyright 2020-2022 (c) Christian von Arnim, ISW University of Stuttgart  (for VDW and umati)
  */
 
 #ifndef UA_SERVER_H_
 #define UA_SERVER_H_
 
-#include <open62541/util.h>
 #include <open62541/types.h>
 #include <open62541/common.h>
-#include <open62541/nodeids.h>
-#include <open62541/types_generated.h>
-#include <open62541/types_generated_handling.h>
 
-#include <open62541/plugin/securitypolicy.h>
-#include <open62541/plugin/accesscontrol.h>
-#include <open62541/plugin/nodestore.h>
-#include <open62541/plugin/network.h>
 #include <open62541/plugin/log.h>
 #include <open62541/plugin/pki.h>
+#include <open62541/plugin/network.h>
+#include <open62541/plugin/nodestore.h>
+#include <open62541/plugin/eventloop.h>
+#include <open62541/plugin/accesscontrol.h>
+#include <open62541/plugin/securitypolicy.h>
 
 #ifdef UA_ENABLE_PUBSUB
-#include <open62541/plugin/pubsub.h>
+#include <open62541/server_pubsub.h>
 #endif
 
 #ifdef UA_ENABLE_HISTORIZING
@@ -40,6 +37,22 @@
 #endif
 
 _UA_BEGIN_DECLS
+
+/* Forward declarations */
+struct UA_PubSubConfiguration;
+typedef struct UA_PubSubConfiguration UA_PubSubConfiguration;
+
+typedef void (*UA_Server_AsyncOperationNotifyCallback)(UA_Server *server);
+
+typedef struct {
+    UA_UInt32 min;
+    UA_UInt32 max;
+} UA_UInt32Range;
+
+typedef struct {
+    UA_Duration min;
+    UA_Duration max;
+} UA_DurationRange;
 
 /**
  * .. _server:
@@ -51,7 +64,6 @@ _UA_BEGIN_DECLS
  *
  * Server Configuration
  * --------------------
- *
  * The configuration structure is passed to the server during initialization.
  * The server expects that the configuration is not modified during runtime.
  * Currently, only one server can use a configuration at a time. During
@@ -68,49 +80,66 @@ _UA_BEGIN_DECLS
  *
  * The :ref:`tutorials` provide a good starting point for this. */
 
-struct UA_PubSubConfiguration;
-typedef struct UA_PubSubConfiguration UA_PubSubConfiguration;
-
-typedef struct {
-    UA_UInt32 min;
-    UA_UInt32 max;
-} UA_UInt32Range;
-
-typedef struct {
-    UA_Duration min;
-    UA_Duration max;
-} UA_DurationRange;
-
-typedef void (*UA_Server_AsyncOperationNotifyCallback)(UA_Server *server);
-
 struct UA_ServerConfig {
-    UA_Logger logger;
+    UA_Logger logger;   /* logger is deprecated but still supported at this time.
+                           Use logging pointer instead. */
+    UA_Logger *logging; /* If NULL and "logger" is set, make this point to "logger" */
+    void *context; /* Used to attach custom data to a server config. This can
+                    * then be retrieved e.g. in a callback that forwards a
+                    * pointer to the server. */
 
-    /* Server Description:
-     * The description must be internally consistent.
-     * - The ApplicationUri set in the ApplicationDescription must match the
-     *   URI set in the server certificate */
+    /**
+     * Server Description
+     * ^^^^^^^^^^^^^^^^^^
+     * The description must be internally consistent. The ApplicationUri set in
+     * the ApplicationDescription must match the URI set in the server
+     * certificate. */
     UA_BuildInfo buildInfo;
     UA_ApplicationDescription applicationDescription;
     UA_ByteString serverCertificate;
 
-    UA_Double shutdownDelay; /* Delay in ms from the shutdown signal (ctrl-c)
-                                until the actual shutdown. Clients need to be
-                                able to get a notification ahead of time. */
+    /**
+     * Timeouts and Delays
+     * ^^^^^^^^^^^^^^^^^^^ */
+    /* Delay in ms from the shutdown signal (ctrl-c) until the actual shutdown.
+     * Clients need to be able to get a notification ahead of time. */
+    UA_Double shutdownDelay;
 
-    /* Rule Handling */
-    UA_RuleHandling verifyRequestTimestamp; /* Verify that the server sends a
-                                             * timestamp in the request header */
-    UA_RuleHandling allowEmptyVariables; /* Variables (that don't have a
-                                          * DataType of BaseDataType) must not
-                                          * have an empty variant value. The
-                                          * default behaviour is to auto-create
-                                          * a matching zeroed-out value for
-                                          * empty VariableNodes when they are
-                                          * added. */
+    /**
+     * Rule Handling
+     * ^^^^^^^^^^^^^
+     * Override the handling of standard-defined behavior. These settings are
+     * used to balance the following contradicting requirements:
+     *
+     * - Strict conformance with the standard (for certification).
+     * - Ensure interoperability with old/non-conforming implementations
+     *   encountered in the wild.
+     *
+     * The defaults are set for compatibility with the largest number of OPC UA
+     * vendors (with log warnings activated). Cf. Postel's Law "be conservative
+     * in what you send, be liberal in what you accept".
+     *
+     * See the section :ref:`rule-handling` for the possible settings. */
 
-    /* Custom DataTypes. Attention! Custom datatypes are not cleaned up together
-     * with the configuration. So it is possible to allocate them on ROM. */
+    /* Verify that the server sends a timestamp in the request header */
+    UA_RuleHandling verifyRequestTimestamp;
+
+    /* Variables (that don't have a DataType of BaseDataType) must not have an
+     * empty variant value. The default behaviour is to auto-create a matching
+     * zeroed-out value for empty VariableNodes when they are added. */
+    UA_RuleHandling allowEmptyVariables;
+
+    /**
+     * Custom Data Types
+     * ^^^^^^^^^^^^^^^^^
+     * The following is a linked list of arrays with custom data types. All data
+     * types that are accessible from here are automatically considered for the
+     * decoding of received messages. Custom data types are not cleaned up
+     * together with the configuration. So it is possible to allocate them on
+     * ROM.
+     *
+     * See the section on :ref:`generic-types`. Examples for working with custom
+     * data types are provided in ``/examples/custom_datatype/``. */
     const UA_DataTypeArray *customDataTypes;
 
     /**
@@ -118,23 +147,44 @@ struct UA_ServerConfig {
      *    with custom data types are provided in
      *    ``/examples/custom_datatype/``. */
 
-    /* Networking */
-    size_t networkLayersSize;
-    UA_ServerNetworkLayer *networkLayers;
-    UA_String customHostname;
+    /**
+     * EventLoop
+     * ^^^^^^^^^
+     * The sever can be plugged into an external EventLoop. Otherwise the
+     * EventLoop is considered to be attached to the server's lifecycle and will
+     * be destroyed when the config is cleaned up. */
+    UA_EventLoop *eventLoop;
+    UA_Boolean externalEventLoop; /* The EventLoop is not deleted with the config */
 
-#ifdef UA_ENABLE_PUBSUB
-    /*PubSub network layer */
-    size_t pubsubTransportLayersSize;
-    UA_PubSubTransportLayer *pubsubTransportLayers;
-    UA_PubSubConfiguration *pubsubConfiguration;
-#endif /* UA_ENABLE_PUBSUB */
+    /**
+     * Networking
+     * ^^^^^^^^^^
+     * The `severUrls` array contains the server URLs like
+     * `opc.tcp://my-server:4840` or `opc.wss://localhost:443`. The URLs are
+     * used both for discovery and to set up the server sockets based on the
+     * defined hostnames (and ports).
+     *
+     * - If the list is empty: Listen on all network interfaces with TCP port 4840.
+     * - If the hostname of a URL is empty: Use the define protocol and port and
+     *   listen on all interfaces. */
+    UA_String *serverUrls;
+    size_t serverUrlsSize;
 
-    /* Available security policies */
+    /**
+     * The following settings are specific to OPC UA with TCP transport. */
+    UA_UInt32 tcpBufSize;    /* Max length of sent and received chunks (packets)
+                              * (default: 64kB) */
+    UA_UInt32 tcpMaxMsgSize; /* Max length of messages
+                              * (default: 0 -> unbounded) */
+    UA_UInt32 tcpMaxChunks;  /* Max number of chunks per message
+                              * (default: 0 -> unbounded) */
+
+    /**
+     * Security and Encryption
+     * ^^^^^^^^^^^^^^^^^^^^^^^ */
     size_t securityPoliciesSize;
     UA_SecurityPolicy* securityPolicies;
 
-    /* Available endpoints */
     size_t endpointsSize;
     UA_EndpointDescription *endpoints;
 
@@ -147,48 +197,33 @@ struct UA_ServerConfig {
      * securityPolicies list. */
     UA_Boolean securityPolicyNoneDiscoveryOnly;
 
-    /* Node Lifecycle callbacks */
-    UA_GlobalNodeLifecycle nodeLifecycle;
-
-    /** Copy the HasModellingRule reference in instances from the type
-     * definition in UA_Server_addObjectNode and UA_Server_addVariableNode.
-     * Part 3 - 6.4.4
-     * https://reference.opcfoundation.org/v104/Core/docs/Part3/6.4.4/#6.4.4.4
-     *   [...] it is not required that newly created or referenced instances
-     *   based on InstanceDeclarations have a ModellingRule, however, it is
-     *   allowed that they have any ModellingRule independent of the
-     *   ModellingRule of their InstanceDeclaration */
-    UA_Boolean modellingRulesOnInstances;
+    UA_CertificateVerification certificateVerification;
 
     /**
-     * .. note:: See the section for :ref:`node lifecycle
-     *    handling<node-lifecycle>`. */
-
-    /* Access Control */
+     * See the section for :ref:`access-control
+     * handling<access-control>`. */
     UA_AccessControl accessControl;
 
     /**
-     * .. note:: See the section for :ref:`access-control
-     *    handling<access-control>`. */
-
-    /* Async Operations */
-#if UA_MULTITHREADING >= 100
-    UA_Double asyncOperationTimeout; /* in ms, 0 => unlimited */
-    size_t maxAsyncOperationQueueSize; /* 0 => unlimited */
-    /* Notify workers when an async operation was enqueued */
-    UA_Server_AsyncOperationNotifyCallback asyncOperationNotifyCallback;
-#endif
+     * Nodes and Node Lifecycle
+     * ^^^^^^^^^^^^^^^^^^^^^^^^
+     * See the section for :ref:`node lifecycle handling<node-lifecycle>`. */
+    UA_Nodestore nodestore;
+    UA_GlobalNodeLifecycle nodeLifecycle;
 
     /**
-     * .. note:: See the section for :ref:`async
-     *    operations<async-operations>`. */
+     * Copy the HasModellingRule reference in instances from the type
+     * definition in UA_Server_addObjectNode and UA_Server_addVariableNode.
+     *
+     * Part 3 - 6.4.4: [...] it is not required that newly created or referenced
+     * instances based on InstanceDeclarations have a ModellingRule, however, it
+     * is allowed that they have any ModellingRule independent of the
+     * ModellingRule of their InstanceDeclaration */
+    UA_Boolean modellingRulesOnInstances;
 
-    /* Nodestore */
-    UA_Nodestore nodestore;
-
-    /* Certificate Verification */
-    UA_CertificateVerification certificateVerification;
-
+    /**
+     * Limits
+     * ^^^^^^ */
     /* Limits for SecureChannels */
     UA_UInt16 maxSecureChannels;
     UA_UInt32 maxSecurityTokenLifetime; /* in ms */
@@ -210,7 +245,20 @@ struct UA_ServerConfig {
     /* Limits for Requests */
     UA_UInt32 maxReferencesPerNode;
 
-    /* Discovery */
+    /**
+     * Async Operations
+     * ^^^^^^^^^^^^^^^^
+     * See the section for :ref:`async operations<async-operations>`. */
+#if UA_MULTITHREADING >= 100
+    UA_Double asyncOperationTimeout; /* in ms, 0 => unlimited */
+    size_t maxAsyncOperationQueueSize; /* 0 => unlimited */
+    /* Notify workers when an async operation was enqueued */
+    UA_Server_AsyncOperationNotifyCallback asyncOperationNotifyCallback;
+#endif
+
+    /**
+     * Discovery
+     * ^^^^^^^^^ */
 #ifdef UA_ENABLE_DISCOVERY
     /* Timeout in seconds when to automatically remove a registered server from
      * the list, if it doesn't re-register within the given time frame. A value
@@ -231,7 +279,9 @@ struct UA_ServerConfig {
 # endif
 #endif
 
-    /* Subscriptions */
+    /**
+     * Subscriptions
+     * ^^^^^^^^^^^^^ */
 #ifdef UA_ENABLE_SUBSCRIPTIONS
     /* Limits for Subscriptions */
     UA_UInt32 maxSubscriptions;
@@ -259,20 +309,34 @@ struct UA_ServerConfig {
      *
      * @param server Allows the access to the server object
      * @param sessionId The session id, represented as an node id
-     * @param sessionContext An optional pointer to user-defined data for the specific data source
+     * @param sessionContext An optional pointer to user-defined data for the
+     *        specific data source
      * @param nodeid Id of the node in question
      * @param nodeidContext An optional pointer to user-defined data, associated
-     *        with the node in the nodestore. Note that, if the node has already been removed,
-     *        this value contains a NULL pointer.
-     * @param attributeId Identifies which attribute (value, data type etc.) is monitored
+     *        with the node in the nodestore. Note that, if the node has already
+     *        been removed, this value contains a NULL pointer.
+     * @param attributeId Identifies which attribute (value, data type etc.) is
+     *        monitored
      * @param removed Determines if the MonitoredItem was removed or created. */
     void (*monitoredItemRegisterCallback)(UA_Server *server,
-                                          const UA_NodeId *sessionId, void *sessionContext,
-                                          const UA_NodeId *nodeId, void *nodeContext,
-                                          UA_UInt32 attibuteId, UA_Boolean removed);
+                                          const UA_NodeId *sessionId,
+                                          void *sessionContext,
+                                          const UA_NodeId *nodeId,
+                                          void *nodeContext,
+                                          UA_UInt32 attibuteId,
+                                          UA_Boolean removed);
 #endif
 
-    /* Historical Access */
+    /**
+     * PubSub
+     * ^^^^^^ */
+#ifdef UA_ENABLE_PUBSUB
+    UA_PubSubConfiguration pubSubConfig;
+#endif
+
+    /**
+     * Historical Access
+     * ^^^^^^^^^^^^^^^^^ */
 #ifdef UA_ENABLE_HISTORIZING
     UA_HistoryDatabase historyDatabase;
 
@@ -296,18 +360,15 @@ struct UA_ServerConfig {
     UA_Boolean deleteEventCapability;
     UA_Boolean deleteAtTimeDataCapability;
 #endif
+
+    /**
+     * Reverse Connect
+     * ^^^^^^^^^^^^^^^ */
+    UA_UInt32 reverseReconnectInterval; /* Default is 15000 ms */
 };
 
 void UA_EXPORT
 UA_ServerConfig_clean(UA_ServerConfig *config);
-
-/* Set a custom hostname in server configuration */
-UA_DEPRECATED static UA_INLINE void 
-UA_ServerConfig_setCustomHostname(UA_ServerConfig *config,
-                                  const UA_String customHostname) {
-    UA_String_clear(&config->customHostname);
-    UA_String_copy(&customHostname, &config->customHostname);
-}
 
 /**
  * .. _server-lifecycle:
@@ -315,36 +376,66 @@ UA_ServerConfig_setCustomHostname(UA_ServerConfig *config,
  * Server Lifecycle
  * ---------------- */
 
-/* The method UA_Server_new is defined in server_config_default.h. So default
- * plugins outside of the core library (for logging, etc) are already available
- * during the initialization.
+/* Create a new server with a default configuration that adds plugins for
+ * networking, security, logging and so on. See `server_config_default.h` for
+ * more detailed options.
  *
- * UA_Server UA_EXPORT * UA_Server_new(void);
- */
+ * The default configuration can be used as the starting point to adjust the
+ * server configuration to individual needs. UA_Server_new is implemented in the
+ * /plugins folder under the CC0 license. Furthermore the server confiugration
+ * only uses the public server API.
+ *
+ * @return Returns the configured server or NULL if an error occurs. */
+UA_EXPORT UA_Server * UA_Server_new(void);
 
 /* Creates a new server. Moves the config into the server with a shallow copy.
  * The config content is cleared together with the server. */
-UA_Server UA_EXPORT *
+UA_EXPORT UA_Server *
 UA_Server_newWithConfig(UA_ServerConfig *config);
 
-void UA_EXPORT UA_Server_delete(UA_Server *server);
+/* Delete the server. */
+UA_EXPORT void UA_Server_delete(UA_Server *server);
 
-UA_ServerConfig UA_EXPORT *
+/* Get the configuration. Always succeeds as this simplfy resolves a pointer.
+ * Attention! Do not adjust the configuration while the server is running! */
+UA_EXPORT UA_ServerConfig *
 UA_Server_getConfig(UA_Server *server);
 
-/* Runs the main loop of the server. In each iteration, this calls into the
- * networklayers to see if messages have arrived.
+/* Runs the server until interrupted. On Unix/Windows this registers an
+ * interrupt for SIGINT (ctrl-c). The method only returns after having received
+ * the interrupt. The logical sequence is as follows:
+ *
+ * - UA_Server_run_startup
+ * - Loop until interrupt: UA_Server_run_iterate
+ * - UA_Server_run_shutdown
  *
  * @param server The server object.
- * @param running The loop is run as long as *running is true.
- *        Otherwise, the server shuts down.
- * @return Returns the statuscode of the UA_Server_run_shutdown method */
-UA_StatusCode UA_EXPORT
+ * @return Returns a bad statuscode if an error occurred internally. */
+UA_EXPORT UA_StatusCode
 UA_Server_run(UA_Server *server, const volatile UA_Boolean *running);
 
+/* Runs the server until interrupted. On Unix/Windows this registers an
+ * interrupt for SIGINT (ctrl-c). The method only returns after having received
+ * the interrupt or upon an error condition. The logical sequence is as follows:
+ *
+ * - Register the interrupt
+ * - UA_Server_run_startup
+ * - Loop until interrupt: UA_Server_run_iterate
+ * - UA_Server_run_shutdown
+ * - Deregister the interrupt
+ *
+ * Attention! This method is implemented individually for the different
+ * platforms (POSIX/Win32/etc.). The default implementation is in
+ * /plugins/ua_config_default.c under the CC0 license. Adjust as needed.
+ *
+ * @param server The server object.
+ * @return Returns a bad statuscode if an error occurred internally. */
+UA_EXPORT UA_StatusCode
+UA_Server_runUntilInterrupt(UA_Server *server);
+
 /* The prologue part of UA_Server_run (no need to use if you call
- * UA_Server_run) */
-UA_StatusCode UA_EXPORT
+ * UA_Server_run or UA_Server_runUntilInterrupt) */
+UA_EXPORT UA_StatusCode
 UA_Server_run_startup(UA_Server *server);
 
 /* Executes a single iteration of the server's main loop.
@@ -352,21 +443,22 @@ UA_Server_run_startup(UA_Server *server);
  * @param server The server object.
  * @param waitInternal Should we wait for messages in the networklayer?
  *        Otherwise, the timouts for the networklayers are set to zero.
- *        The default max wait time is 50millisec.
+ *        The default max wait time is 200ms.
  * @return Returns how long we can wait until the next scheduled
  *         callback (in ms) */
-UA_UInt16 UA_EXPORT
+UA_EXPORT UA_UInt16
 UA_Server_run_iterate(UA_Server *server, UA_Boolean waitInternal);
 
 /* The epilogue part of UA_Server_run (no need to use if you call
- * UA_Server_run) */
-UA_StatusCode UA_EXPORT
+ * UA_Server_run or UA_Server_runUntilInterrupt) */
+UA_EXPORT UA_StatusCode
 UA_Server_run_shutdown(UA_Server *server);
 
 /**
  * Timed Callbacks
- * --------------- */
-typedef void (*UA_ServerCallback)(UA_Server *server, void *data);
+ * ---------------
+ * Add a callback to the server that is executed at a defined time.
+ * The callback can also be registered with a cyclic interval. */
 
 /* Add a callback for execution at a specified time. If the indicated time lies
  * in the past, then the callback is executed at the next iteration of the
@@ -379,7 +471,7 @@ typedef void (*UA_ServerCallback)(UA_Server *server, void *data);
  * @param callbackId Set to the identifier of the repeated callback . This can
  *        be used to cancel the callback later on. If the pointer is null, the
  *        identifier is not set.
- * @return Upon success, UA_STATUSCODE_GOOD is returned. An error code
+ * @return Upon success, ``UA_STATUSCODE_GOOD`` is returned. An error code
  *         otherwise. */
 UA_StatusCode UA_EXPORT UA_THREADSAFE
 UA_Server_addTimedCallback(UA_Server *server, UA_ServerCallback callback,
@@ -396,11 +488,12 @@ UA_Server_addTimedCallback(UA_Server *server, UA_ServerCallback callback,
  * @param callbackId Set to the identifier of the repeated callback . This can
  *        be used to cancel the callback later on. If the pointer is null, the
  *        identifier is not set.
- * @return Upon success, UA_STATUSCODE_GOOD is returned. An error code
+ * @return Upon success, ``UA_STATUSCODE_GOOD`` is returned. An error code
  *         otherwise. */
 UA_StatusCode UA_EXPORT UA_THREADSAFE
 UA_Server_addRepeatedCallback(UA_Server *server, UA_ServerCallback callback,
-                              void *data, UA_Double interval_ms, UA_UInt64 *callbackId);
+                              void *data, UA_Double interval_ms,
+                              UA_UInt64 *callbackId);
 
 UA_StatusCode UA_EXPORT UA_THREADSAFE
 UA_Server_changeRepeatedCallbackInterval(UA_Server *server, UA_UInt64 callbackId,
@@ -415,6 +508,64 @@ UA_Server_removeCallback(UA_Server *server, UA_UInt64 callbackId);
 
 #define UA_Server_removeRepeatedCallback(server, callbackId) \
     UA_Server_removeCallback(server, callbackId);
+
+/**
+ * Session Handling
+ * ----------------
+ * A new session is announced via the AccessControl plugin. The session
+ * identifier is forwarded to the relevant callbacks back into userland. The
+ * following methods enable an interaction with a particular session. */
+
+/* Manually close a session */
+UA_EXPORT UA_StatusCode UA_THREADSAFE
+UA_Server_closeSession(UA_Server *server, const UA_NodeId *sessionId);
+
+/**
+ * Session attributes: Besides the user-definable session context pointer (set
+ * by the AccessControl plugin when the Session is created), a session carries
+ * attributes in a key-value list. Some attributes are present in every session
+ * and shown in the list below. Additional attributes can be manually set as
+ * meta-data.
+ *
+ * Always present as session attributes are:
+ *
+ * - 0:localeIds [UA_String]: List of preferred languages (read-only)
+ * - 0:clientDescription [UA_ApplicationDescription]: Client description (read-only)
+ * - 0:sessionName [String] Client-defined name of the session (read-only)
+ */
+
+/* Returns a shallow copy of the attribute. Don't _clear or _delete the value
+ * variant. Don't use the value once the Session could be already closed in the
+ * background or the attribute of the session replaced. Hence don't use this in a
+ * multi-threaded application. */
+UA_EXPORT UA_StatusCode
+UA_Server_getSessionAttribute(UA_Server *server, const UA_NodeId *sessionId,
+                              const UA_QualifiedName key, UA_Variant *outValue);
+
+/* Return a deep copy of the attribute */
+UA_EXPORT UA_StatusCode UA_THREADSAFE
+UA_Server_getSessionAttributeCopy(UA_Server *server, const UA_NodeId *sessionId,
+                                  const UA_QualifiedName key, UA_Variant *outValue);
+
+/* Returns NULL if the parameter is not defined or not a scalar or not of the
+ * right datatype. Otherwise a shallow copy of the scalar value is created at
+ * the target location of the void pointer. Hence don't use this in a
+ * multi-threaded application. */
+UA_EXPORT UA_StatusCode
+UA_Server_getSessionAttribute_scalar(UA_Server *server,
+                                     const UA_NodeId *sessionId,
+                                     const UA_QualifiedName key,
+                                     const UA_DataType *type,
+                                     void *outValue);
+
+UA_EXPORT UA_StatusCode UA_THREADSAFE
+UA_Server_setSessionAttribute(UA_Server *server, const UA_NodeId *sessionId,
+                              const UA_QualifiedName key,
+                              const UA_Variant *value);
+
+UA_EXPORT UA_StatusCode UA_THREADSAFE
+UA_Server_deleteSessionAttribute(UA_Server *server, const UA_NodeId *sessionId,
+                                 const UA_QualifiedName key);
 
 /**
  * Reading and Writing Node Attributes
@@ -669,7 +820,7 @@ UA_Server_writeEventNotifier(UA_Server *server, const UA_NodeId nodeId,
 
 /**
  * Writes an UA_Variant to a variable/variableType node.
- * StatusCode is set to UA_STATUSCODE_GOOD, sourceTimestamp and
+ * StatusCode is set to ``UA_STATUSCODE_GOOD``, sourceTimestamp and
  * serverTimestamp are set to UA_DateTime_now()
  */
 static UA_INLINE UA_THREADSAFE UA_StatusCode
@@ -858,28 +1009,30 @@ UA_Server_unregister_discovery(UA_Server *server, struct UA_Client *client);
   * @param delayFirstRegisterMs
   * @param periodicCallbackId */
 UA_StatusCode UA_EXPORT UA_THREADSAFE
-UA_Server_addPeriodicServerRegisterCallback(UA_Server *server, struct UA_Client *client,
+UA_Server_addPeriodicServerRegisterCallback(UA_Server *server,
+                                            struct UA_Client *client,
                                             const char* discoveryServerUrl,
                                             UA_Double intervalMs,
                                             UA_Double delayFirstRegisterMs,
                                             UA_UInt64 *periodicCallbackId);
 
 /* Callback for RegisterServer. Data is passed from the register call */
-typedef void (*UA_Server_registerServerCallback)(const UA_RegisteredServer *registeredServer,
-                                                 void* data);
+typedef void
+(*UA_Server_registerServerCallback)(const UA_RegisteredServer *registeredServer,
+                                    void* data);
 
 /* Set the callback which is called if another server registeres or unregisters
- * with this instance. This callback is called every time the server gets a register
- * call. This especially means that for every periodic server register the callback will
- * be called.
+ * with this instance. This callback is called every time the server gets a
+ * register call. This especially means that for every periodic server register
+ * the callback will be called.
  *
  * @param server
  * @param cb the callback
  * @param data data passed to the callback
- * @return UA_STATUSCODE_SUCCESS on success */
+ * @return ``UA_STATUSCODE_SUCCESS`` on success */
 void UA_EXPORT UA_THREADSAFE
-UA_Server_setRegisterServerCallback(UA_Server *server, UA_Server_registerServerCallback cb,
-                                    void* data);
+UA_Server_setRegisterServerCallback(UA_Server *server,
+                                    UA_Server_registerServerCallback cb, void* data);
 
 #ifdef UA_ENABLE_DISCOVERY_MULTICAST
 
@@ -890,9 +1043,10 @@ UA_Server_setRegisterServerCallback(UA_Server *server, UA_Server_registerServerC
  *        set to false, this means the server is shutting down.
  * @param isTxtReceived indicates if we already received the corresponding TXT
  *        record with the path and caps data */
-typedef void (*UA_Server_serverOnNetworkCallback)(const UA_ServerOnNetwork *serverOnNetwork,
-                                                  UA_Boolean isServerAnnounce,
-                                                  UA_Boolean isTxtReceived, void* data);
+typedef void
+(*UA_Server_serverOnNetworkCallback)(const UA_ServerOnNetwork *serverOnNetwork,
+                                     UA_Boolean isServerAnnounce,
+                                     UA_Boolean isTxtReceived, void* data);
 
 /* Set the callback which is called if another server is found through mDNS or
  * deleted. It will be called for any mDNS message from the remote server, thus
@@ -904,7 +1058,7 @@ typedef void (*UA_Server_serverOnNetworkCallback)(const UA_ServerOnNetwork *serv
  * @param server
  * @param cb the callback
  * @param data data passed to the callback
- * @return UA_STATUSCODE_SUCCESS on success */
+ * @return ``UA_STATUSCODE_SUCCESS`` on success */
 void UA_EXPORT UA_THREADSAFE
 UA_Server_setServerOnNetworkCallback(UA_Server *server,
                                      UA_Server_serverOnNetworkCallback cb,
@@ -1038,9 +1192,21 @@ UA_Server_deleteMonitoredItem(UA_Server *server, UA_UInt32 monitoredItemId);
 
 #ifdef UA_ENABLE_METHODCALLS
 UA_StatusCode UA_EXPORT UA_THREADSAFE
-UA_Server_setMethodNode_callback(UA_Server *server,
-                                 const UA_NodeId methodNodeId,
-                                 UA_MethodCallback methodCallback);
+UA_Server_setMethodNodeCallback(UA_Server *server,
+                                const UA_NodeId methodNodeId,
+                                UA_MethodCallback methodCallback);
+
+/* Backwards compatibility definition */
+#define UA_Server_setMethodNode_callback(server, methodNodeId, methodCallback) \
+    UA_Server_setMethodNodeCallback(server, methodNodeId, methodCallback)
+
+UA_StatusCode UA_EXPORT UA_THREADSAFE
+UA_Server_getMethodNodeCallback(UA_Server *server,
+                                const UA_NodeId methodNodeId,
+                                UA_MethodCallback *outMethodCallback);
+
+UA_CallMethodResult UA_EXPORT UA_THREADSAFE
+UA_Server_call(UA_Server *server, const UA_CallMethodRequest *request);
 #endif
 
 /**
@@ -1084,11 +1250,6 @@ UA_StatusCode UA_EXPORT UA_THREADSAFE
 UA_Server_readObjectProperty(UA_Server *server, const UA_NodeId objectId,
                              const UA_QualifiedName propertyName,
                              UA_Variant *value);
-
-#ifdef UA_ENABLE_METHODCALLS
-UA_CallMethodResult UA_EXPORT UA_THREADSAFE
-UA_Server_call(UA_Server *server, const UA_CallMethodRequest *request);
-#endif
 
 /**
  * .. _addnodes:
@@ -1287,8 +1448,10 @@ UA_Server_addMethodNode(UA_Server *server, const UA_NodeId requestedNewNodeId,
                         void *nodeContext, UA_NodeId *outNewNodeId) {
     return UA_Server_addMethodNodeEx(server, requestedNewNodeId,  parentNodeId,
                                      referenceTypeId, browseName, attr, method,
-                                     inputArgumentsSize, inputArguments, UA_NODEID_NULL, NULL,
-                                     outputArgumentsSize, outputArguments, UA_NODEID_NULL, NULL,
+                                     inputArgumentsSize, inputArguments,
+                                     UA_NODEID_NULL, NULL,
+                                     outputArgumentsSize, outputArguments,
+                                     UA_NODEID_NULL, NULL,
                                      nodeContext, outNewNodeId);
 }
 
@@ -1345,8 +1508,8 @@ UA_Server_addNode_finish(UA_Server *server, const UA_NodeId nodeId);
 UA_StatusCode UA_EXPORT UA_THREADSAFE
 UA_Server_addMethodNode_finish(UA_Server *server, const UA_NodeId nodeId,
                          UA_MethodCallback method,
-                         size_t inputArgumentsSize, const UA_Argument* inputArguments,
-                         size_t outputArgumentsSize, const UA_Argument* outputArguments);
+                         size_t inputArgumentsSize, const UA_Argument *inputArguments,
+                         size_t outputArgumentsSize, const UA_Argument *outputArguments);
 
 #endif
 
@@ -1381,7 +1544,8 @@ UA_Server_deleteReference(UA_Server *server, const UA_NodeId sourceNodeId,
  * attributes of the event. The generated `NodeId` is always numeric.
  * ``outNodeId`` cannot be ``NULL``.
  *
- * Note: In order to see an event in UAExpert, the field `Time` must be given a value!
+ * Note: In order to see an event in UAExpert, the field `Time` must be given a
+ * value!
  *
  * The method ``UA_Server_triggerEvent`` "triggers" an event by adding it to all
  * monitored items of the specified origin node and those of all its parents.
@@ -1410,13 +1574,16 @@ UA_Server_createEvent(UA_Server *server, const UA_NodeId eventType,
  * adding the event to the appropriate queues.
  *
  * @param server The server object
- * @param eventNodeId The NodeId of the node representation of the event which should be triggered
+ * @param eventNodeId The NodeId of the node representation of the event which
+ *        should be triggered
  * @param outEvent the EventId of the new event
- * @param deleteEventNode Specifies whether the node representation of the event should be deleted
+ * @param deleteEventNode Specifies whether the node representation of the event
+ *        should be deleted
  * @return The StatusCode of the UA_Server_triggerEvent method */
 UA_StatusCode UA_EXPORT UA_THREADSAFE
-UA_Server_triggerEvent(UA_Server *server, const UA_NodeId eventNodeId, const UA_NodeId originId,
-                       UA_ByteString *outEventId, const UA_Boolean deleteEventNode);
+UA_Server_triggerEvent(UA_Server *server, const UA_NodeId eventNodeId,
+                       const UA_NodeId originId, UA_ByteString *outEventId,
+                       const UA_Boolean deleteEventNode);
 
 #endif /* UA_ENABLE_SUBSCRIPTIONS_EVENTS */
 
@@ -1442,9 +1609,8 @@ typedef UA_StatusCode
  *
  * @param server The server object
  * @param conditionId The NodeId of the requested Condition Object. When passing
- *                    UA_NODEID_NUMERIC(X,0) an unused nodeid in namespace X
- *                    will be used. E.g. passing UA_NODEID_NULL will result in a
- *                    NodeId in namespace 0.
+ *        UA_NODEID_NUMERIC(X,0) an unused nodeid in namespace X will be used.
+ *        E.g. passing UA_NODEID_NULL will result in a NodeId in namespace 0.
  * @param conditionType The NodeId of the node representation of the ConditionType
  * @param conditionName The name of the condition to be created
  * @param conditionSource The NodeId of the Condition Source (Parent of the Condition)
@@ -1454,9 +1620,63 @@ typedef UA_StatusCode
  * @return The StatusCode of the UA_Server_createCondition method */
 UA_StatusCode UA_EXPORT
 UA_Server_createCondition(UA_Server *server,
-                          const UA_NodeId conditionId, const UA_NodeId conditionType,
-                          UA_QualifiedName conditionName, const UA_NodeId conditionSource,
-                          const UA_NodeId hierarchialReferenceType, UA_NodeId *outConditionId);
+                          const UA_NodeId conditionId,
+                          const UA_NodeId conditionType,
+                          const UA_QualifiedName conditionName,
+                          const UA_NodeId conditionSource,
+                          const UA_NodeId hierarchialReferenceType,
+                          UA_NodeId *outConditionId);
+
+/**
+ * The method pair UA_Server_addCondition_begin and _finish splits the
+ * UA_Server_createCondtion in two parts similiar to the
+ * UA_Server_addNode_begin / _finish pair. This is useful if the node shall be
+ * modified before finish the instantiation. For example to add children with
+ * specific NodeIds.
+ * For details refer to the UA_Server_addNode_begin / _finish methods.
+ *
+ * Additionally to UA_Server_addNode_begin UA_Server_addCondition_begin checks
+ * if the passed condition type is a subtype of the OPC UA ConditionType.
+ *
+ * @param server The server object
+ * @param conditionId The NodeId of the requested Condition Object. When passing
+ *        UA_NODEID_NUMERIC(X,0) an unused nodeid in namespace X will be used.
+ *        E.g. passing UA_NODEID_NULL will result in a NodeId in namespace 0.
+ * @param conditionType The NodeId of the node representation of the ConditionType
+ * @param conditionName The name of the condition to be added
+ * @param outConditionId The NodeId of the added Condition
+ * @return The StatusCode of the UA_Server_addCondition_begin method */
+UA_StatusCode UA_EXPORT
+UA_Server_addCondition_begin(UA_Server *server,
+                             const UA_NodeId conditionId,
+                             const UA_NodeId conditionType,
+                             const UA_QualifiedName conditionName,
+                             UA_NodeId *outConditionId);
+
+/**
+ * Second call of the UA_Server_addCondition_begin and _finish pair.
+ *
+ * Additionally to UA_Server_addNode_finish UA_Server_addCondition_finish:
+ *  - checks whether the condition source has HasEventSource reference to its
+ *    parent. If not, a HasEventSource reference will be created between
+ *    condition source and server object
+ *  - exposes the condition in the address space if hierarchialReferenceType is
+ *    not UA_NODEID_NULL by adding a reference of this type from the condition
+ *    source to the condition instance
+ *  - initializes the standard condition fields and callbacks
+ *
+ * @param server The server object
+ * @param conditionId The NodeId of the unfinished Condition Object
+ * @param conditionSource The NodeId of the Condition Source (Parent of the Condition)
+ * @param hierarchialReferenceType The NodeId of Hierarchical ReferenceType
+ *                                 between Condition and its source
+ * @return The StatusCode of the UA_Server_addCondition_finish method */
+
+UA_StatusCode UA_EXPORT
+UA_Server_addCondition_finish(UA_Server *server,
+                              const UA_NodeId conditionId,
+                              const UA_NodeId conditionSource,
+                              const UA_NodeId hierarchialReferenceType);
 
 /* Set the value of condition field.
  *
@@ -1465,24 +1685,26 @@ UA_Server_createCondition(UA_Server *server,
  * @param value Variant Value to be written to the Field
  * @param fieldName Name of the Field in which the value should be written
  * @return The StatusCode of the UA_Server_setConditionField method*/
-UA_StatusCode UA_EXPORT
+UA_StatusCode UA_EXPORT UA_THREADSAFE
 UA_Server_setConditionField(UA_Server *server,
                             const UA_NodeId condition,
-                            const UA_Variant* value,
+                            const UA_Variant *value,
                             const UA_QualifiedName fieldName);
 
 /* Set the value of property of condition field.
  *
  * @param server The server object
- * @param condition The NodeId of the node representation of the Condition Instance
+ * @param condition The NodeId of the node representation of the Condition
+ *        Instance
  * @param value Variant Value to be written to the Field
  * @param variableFieldName Name of the Field which has a property
- * @param variablePropertyName Name of the Field Property in which the value should be written
+ * @param variablePropertyName Name of the Field Property in which the value
+ *        should be written
  * @return The StatusCode of the UA_Server_setConditionVariableFieldProperty*/
 UA_StatusCode UA_EXPORT
 UA_Server_setConditionVariableFieldProperty(UA_Server *server,
                                             const UA_NodeId condition,
-                                            const UA_Variant* value,
+                                            const UA_Variant *value,
                                             const UA_QualifiedName variableFieldName,
                                             const UA_QualifiedName variablePropertyName);
 
@@ -1493,9 +1715,10 @@ UA_Server_setConditionVariableFieldProperty(UA_Server *server,
  * @param condition The NodeId of the node representation of the Condition Instance
  * @param conditionSource The NodeId of the node representation of the Condition Source
  * @param outEventId last generated EventId
- * @return The StatusCode of the UA_Server_triggerConditionEvent method*/
+ * @return The StatusCode of the UA_Server_triggerConditionEvent method */
 UA_StatusCode UA_EXPORT
-UA_Server_triggerConditionEvent(UA_Server *server, const UA_NodeId condition,
+UA_Server_triggerConditionEvent(UA_Server *server,
+                                const UA_NodeId condition,
                                 const UA_NodeId conditionSource,
                                 UA_ByteString *outEventId);
 
@@ -1508,9 +1731,10 @@ UA_Server_triggerConditionEvent(UA_Server *server, const UA_NodeId condition,
  * from which the optional field comes
  * @param fieldName Name of the optional field
  * @param outOptionalVariable The NodeId of the created field (Variable Node)
- * @return The StatusCode of the UA_Server_addConditionOptionalField method*/
+ * @return The StatusCode of the UA_Server_addConditionOptionalField method */
 UA_StatusCode UA_EXPORT
-UA_Server_addConditionOptionalField(UA_Server *server, const UA_NodeId condition,
+UA_Server_addConditionOptionalField(UA_Server *server,
+                                    const UA_NodeId condition,
                                     const UA_NodeId conditionType,
                                     const UA_QualifiedName fieldName,
                                     UA_NodeId *outOptionalVariable);
@@ -1526,27 +1750,53 @@ UA_Server_addConditionOptionalField(UA_Server *server, const UA_NodeId condition
  * @param removeBranch (Not Implemented yet)
  * @param callback User specific callback function
  * @param callbackType Callback function type, indicates where it should be called
- * @return The StatusCode of the UA_Server_setConditionTwoStateVariableCallback method*/
+ * @return The StatusCode of the UA_Server_setConditionTwoStateVariableCallback method */
 UA_StatusCode UA_EXPORT
-UA_Server_setConditionTwoStateVariableCallback(UA_Server *server, const UA_NodeId condition,
+UA_Server_setConditionTwoStateVariableCallback(UA_Server *server,
+                                               const UA_NodeId condition,
                                                const UA_NodeId conditionSource,
                                                UA_Boolean removeBranch,
                                                UA_TwoStateVariableChangeCallback callback,
                                                UA_TwoStateVariableCallbackType callbackType);
 
 /* Delete a condition from the address space and the internal lists.
- * 
+ *
  * @param server The server object
  * @param condition The NodeId of the node representation of the Condition Instance
  * @param conditionSource The NodeId of the node representation of the Condition Source
- * @return UA_STATUSCODE_GOOD on success
+ * @return ``UA_STATUSCODE_GOOD`` on success */
+UA_StatusCode UA_EXPORT
+UA_Server_deleteCondition(UA_Server *server,
+                          const UA_NodeId condition,
+                          const UA_NodeId conditionSource);
+
+/*
+ * Set the LimitState of the LimitAlarmType
+ *
+ * @param server The server object
+ * @param conditionId The NodeId of the node representation of the Condition Instance
+ * @param limitValue The value from the trigger node
  */
 UA_StatusCode UA_EXPORT
-UA_Server_deleteCondition(UA_Server *server, const UA_NodeId condition,
-                          const UA_NodeId conditionSource);
+UA_Server_setLimitState(UA_Server *server, const UA_NodeId conditionId,
+                        UA_Double limitValue);
+
+/*
+ * Parse the certifcate and set Expiration date
+ *
+ * @param server The server object
+ * @param conditionId The NodeId of the node representation of the Condition Instance
+ * @param cert The certificate for parsing
+ */
+UA_StatusCode UA_EXPORT
+UA_Server_setExpirationDate(UA_Server *server, const UA_NodeId conditionId,
+                            UA_ByteString  cert);
 
 #endif /* UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS */
 
+/**
+ * Update the Server Certificate at Runtime
+ * ---------------------------------------- */
 UA_StatusCode UA_EXPORT
 UA_Server_updateCertificate(UA_Server *server,
                             const UA_ByteString *oldCertificate,
@@ -1558,7 +1808,6 @@ UA_Server_updateCertificate(UA_Server *server,
 /**
  * Utility Functions
  * ----------------- */
-
 /* Lookup a datatype by its NodeId. Takes the custom types in the server
  * configuration into account. Return NULL if none found. */
 UA_EXPORT const UA_DataType *
@@ -1572,6 +1821,11 @@ UA_Server_addNamespace(UA_Server *server, const char* name);
 UA_StatusCode UA_EXPORT UA_THREADSAFE
 UA_Server_getNamespaceByName(UA_Server *server, const UA_String namespaceUri,
                              size_t* foundIndex);
+
+/* Get namespace by id from the server. */
+UA_StatusCode UA_EXPORT UA_THREADSAFE
+UA_Server_getNamespaceByIndex(UA_Server *server, const size_t namespaceIndex,
+                              UA_String *foundUri);
 
 /**
 * .. _async-operations:
@@ -1647,30 +1901,72 @@ UA_Server_setAsyncOperationResult(UA_Server *server,
                                   const UA_AsyncOperationResponse *response,
                                   void *context);
 
-/* Get the next async operation. Attention! This method is deprecated and has
- * been replaced by UA_Server_getAsyncOperationNonBlocking! */
-UA_DEPRECATED UA_Boolean UA_EXPORT
-UA_Server_getAsyncOperation(UA_Server *server, UA_AsyncOperationType *type,
-                            const UA_AsyncOperationRequest **request,
-                            void **context);
-
 #endif /* !UA_MULTITHREADING >= 100 */
 
 /**
-* Statistics
-* ----------
-*
-* Statistic counters keeping track of the current state of the stack. Counters
-* are structured per OPC UA communication layer. */
+ * Statistics
+ * ----------
+ *
+ * Statistic counters keeping track of the current state of the stack. Counters
+ * are structured per OPC UA communication layer. */
 
 typedef struct {
-   UA_NetworkStatistics ns;
    UA_SecureChannelStatistics scs;
    UA_SessionStatistics ss;
 } UA_ServerStatistics;
 
 UA_ServerStatistics UA_EXPORT
 UA_Server_getStatistics(UA_Server *server);
+
+/**
+  * Reverse Connect
+  * ---------------
+  *
+  * The reverse connect feature of OPC UA permits the server instead of the client to
+  * establish the connection.
+  * The client must expose the listening port so the server is able to reach it.
+  */
+
+/**
+ * The reverse connect state change callback is called whenever the state of a reverse
+ * connect is changed by a connection attempt, a successful connection or a connection
+ * loss.
+ *
+ * The reverse connect states reflect the state of the secure channel currently associated
+ * with a reverse connect. The state will remain UA_SECURECHANNELSTATE_CONNECTING while
+ * the server attempts repeatedly to establish a connection.
+ */
+typedef void (*UA_Server_ReverseConnectStateCallback)(UA_Server *server, UA_UInt64 handle,
+                                                      UA_SecureChannelState state,
+                                                      void *context);
+
+/**
+ * Registers a reverse connect in the server.
+ * The server periodically attempts to establish a connection if the initial connect fails
+ * or if the connection breaks.
+ *
+ * @param server The server object
+ * @param url The URL of the remote client
+ * @param stateCallback The callback which will be called on state changes
+ * @param callbackContext The context for the state callback
+ * @param handle Is set to the handle of the reverse connect if not NULL
+ * @return Returns UA_STATUSCODE_GOOD if the reverse connect has been registered
+ */
+UA_StatusCode UA_EXPORT
+UA_Server_addReverseConnect(UA_Server *server, UA_String url,
+                                          UA_Server_ReverseConnectStateCallback stateCallback,
+                                          void *callbackContext, UA_UInt64 *handle);
+
+/**
+ * Removes a reverse connect from the server and closes the connection if it is currently
+ * open.
+ *
+ * @param server The server object
+ * @param handle The handle of the reverse connect to remove
+ * @return Returns UA_STATUSCODE_GOOD if the reverse connect has been successfully removed
+ */
+UA_StatusCode UA_EXPORT
+UA_Server_removeReverseConnect(UA_Server *server, UA_UInt64 handle);
 
 _UA_END_DECLS
 

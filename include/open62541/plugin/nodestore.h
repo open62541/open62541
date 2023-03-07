@@ -2,13 +2,13 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  *
- *    Copyright 2017 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
+ *    Copyright 2017, 2021 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
  *    Copyright 2017 (c) Julian Grothoff
  *    Copyright 2017 (c) Stefan Profanter, fortiss GmbH
  */
 
-#ifndef UA_SERVER_NODES_H_
-#define UA_SERVER_NODES_H_
+#ifndef UA_NODESTORE_H_
+#define UA_NODESTORE_H_
 
 /* !!! Warning !!!
  *
@@ -18,35 +18,19 @@
  * / OPC UA services to interact with the information model. */
 
 #include <open62541/util.h>
-#include "aa_tree.h"
+#include "ziptree.h"
 
 _UA_BEGIN_DECLS
 
 /* Forward declaration */
-#ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
+#ifdef UA_ENABLE_SUBSCRIPTIONS
 struct UA_MonitoredItem;
+typedef struct UA_MonitoredItem UA_MonitoredItem;
 #endif
 
 /**
- * .. _information-modelling:
- *
- * Information Modelling
+ * Node Store Plugin API
  * =====================
- *
- * Information modelling in OPC UA combines concepts from object-orientation and
- * semantic modelling. At the core, an OPC UA information model is a graph made
- * up of
- *
- * - Nodes: There are eight possible Node types (variable, object, method, ...)
- * - References: Typed and directed relations between two nodes
- *
- * Every node is identified by a unique (within the server) :ref:`nodeid`.
- * Reference are triples of the form ``(source-nodeid, referencetype-nodeid,
- * target-nodeid)``. An example reference between nodes is a
- * ``hasTypeDefinition`` reference between a Variable and its VariableType. Some
- * ReferenceTypes are *hierarchic* and must not form *directed loops*. See the
- * section on :ref:`ReferenceTypes <referencetypenode>` for more details on
- * possible references and their semantics.
  *
  * **Warning!!** The structures defined in this section are only relevant for
  * the developers of custom Nodestores. The interaction with the information
@@ -208,16 +192,16 @@ typedef struct {
 
 /* The maximum number of ReferrenceTypes. Must be a multiple of 32. */
 #define UA_REFERENCETYPESET_MAX 128
-typedef struct { UA_UInt32 bits[UA_REFERENCETYPESET_MAX / 32]; } UA_ReferenceTypeSet;
+typedef struct {
+    UA_UInt32 bits[UA_REFERENCETYPESET_MAX / 32];
+} UA_ReferenceTypeSet;
+
+UA_EXPORT extern const UA_ReferenceTypeSet UA_REFERENCETYPESET_NONE;
+UA_EXPORT extern const UA_ReferenceTypeSet UA_REFERENCETYPESET_ALL;
 
 static UA_INLINE void
 UA_ReferenceTypeSet_init(UA_ReferenceTypeSet *set) {
     memset(set, 0, sizeof(UA_ReferenceTypeSet));
-}
-
-static UA_INLINE void
-UA_ReferenceTypeSet_any(UA_ReferenceTypeSet *set) {
-    memset(set, -1, sizeof(UA_ReferenceTypeSet));
 }
 
 static UA_INLINE UA_ReferenceTypeSet
@@ -245,6 +229,81 @@ UA_ReferenceTypeSet_contains(const UA_ReferenceTypeSet *set, UA_Byte index) {
 }
 
 /**
+ * Node Pointer
+ * ------------
+ *
+ * The "native" format for reference between nodes is the ExpandedNodeId. That
+ * is, references can also point to external servers. In practice, most
+ * references point to local nodes using numerical NodeIds from the
+ * standard-defined namespace zero. In order to save space (and time),
+ * pointer-tagging is used for compressed "NodePointer" representations.
+ * Numerical NodeIds are immediately contained in the pointer. Full NodeIds and
+ * ExpandedNodeIds are behind a pointer indirection. If the Nodestore supports
+ * it, a NodePointer can also be an actual pointer to the target node.
+ *
+ * Depending on the processor architecture, some numerical NodeIds don't fit
+ * into an immediate encoding and are kept as pointers. ExpandedNodeIds may be
+ * internally translated to "normal" NodeIds. Use the provided functions to
+ * generate NodePointers that fit the assumptions for the local architecture. */
+
+/* Forward declaration. All node structures begin with the NodeHead. */
+struct UA_NodeHead;
+typedef struct UA_NodeHead UA_NodeHead;
+
+/* Tagged Pointer structure. */
+typedef union {
+    uintptr_t immediate;                 /* 00: Small numerical NodeId */
+    const UA_NodeId *id;                 /* 01: Pointer to NodeId */
+    const UA_ExpandedNodeId *expandedId; /* 10: Pointer to ExternalNodeId */
+    const UA_NodeHead *node;             /* 11: Pointer to a node */
+} UA_NodePointer;
+
+/* Sets the pointer to an immediate NodeId "ns=0;i=0" similar to a freshly
+ * initialized UA_NodeId */
+static UA_INLINE void
+UA_NodePointer_init(UA_NodePointer *np) { np->immediate = 0; }
+
+/* NodeId and ExpandedNodeId targets are freed */
+void UA_EXPORT
+UA_NodePointer_clear(UA_NodePointer *np);
+
+/* Makes a deep copy */
+UA_StatusCode UA_EXPORT
+UA_NodePointer_copy(UA_NodePointer in, UA_NodePointer *out);
+
+/* Test if an ExpandedNodeId or a local NodeId */
+UA_Boolean UA_EXPORT
+UA_NodePointer_isLocal(UA_NodePointer np);
+
+UA_Order UA_EXPORT
+UA_NodePointer_order(UA_NodePointer p1, UA_NodePointer p2);
+
+static UA_INLINE UA_Boolean
+UA_NodePointer_equal(UA_NodePointer p1, UA_NodePointer p2) {
+    return (UA_NodePointer_order(p1, p2) == UA_ORDER_EQ);
+}
+
+/* Cannot fail. The resulting NodePointer can point to the memory from the
+ * NodeId. Make a deep copy if required. */
+UA_NodePointer UA_EXPORT
+UA_NodePointer_fromNodeId(const UA_NodeId *id);
+
+/* Cannot fail. The resulting NodePointer can point to the memory from the
+ * ExpandedNodeId. Make a deep copy if required. */
+UA_NodePointer UA_EXPORT
+UA_NodePointer_fromExpandedNodeId(const UA_ExpandedNodeId *id);
+
+/* Can point to the memory from the NodePointer */
+UA_ExpandedNodeId UA_EXPORT
+UA_NodePointer_toExpandedNodeId(UA_NodePointer np);
+
+/* Can point to the memory from the NodePointer. Discards the ServerIndex and
+ * NamespaceUri of a potential ExpandedNodeId inside the NodePointer. Test
+ * before if the NodePointer is local. */
+UA_NodeId UA_EXPORT
+UA_NodePointer_toNodeId(UA_NodePointer np);
+
+/**
  * Base Node Attributes
  * --------------------
  *
@@ -257,30 +316,90 @@ UA_ReferenceTypeSet_contains(const UA_ReferenceTypeSet *set, UA_Byte index) {
  * not known or not important. The ``nodeClass`` attribute is used to ensure the
  * correctness of casting from ``UA_Node`` to a specific node type. */
 
-/* Ordered tree structure for fast member check */
 typedef struct {
-    struct aa_entry idTreeEntry; /* Binary-Tree for fast lookup */
-    struct aa_entry nameTreeEntry;
-    UA_UInt32 targetIdHash;      /* Hash of the target's NodeId */
-    UA_UInt32 targetNameHash;    /* Hash of the target's BrowseName */
-    UA_ExpandedNodeId targetId;
+    UA_NodePointer targetId;  /* Has to be the first entry */
+    UA_UInt32 targetNameHash; /* Hash of the target's BrowseName. Set to zero
+                               * if the target is remote. */
 } UA_ReferenceTarget;
 
-/* List of reference targets with the same reference type and direction */
+typedef struct UA_ReferenceTargetTreeElem {
+    UA_ReferenceTarget target;   /* Has to be the first entry */
+    UA_UInt32 targetIdHash;      /* Hash of the targetId */
+    ZIP_ENTRY(UA_ReferenceTargetTreeElem) idTreeEntry;
+    ZIP_ENTRY(UA_ReferenceTargetTreeElem) nameTreeEntry;
+} UA_ReferenceTargetTreeElem;
+
+typedef ZIP_HEAD(UA_ReferenceIdTree, UA_ReferenceTargetTreeElem) UA_ReferenceIdTree;
+typedef ZIP_HEAD(UA_ReferenceNameTree, UA_ReferenceTargetTreeElem) UA_ReferenceNameTree;
+
+/* List of reference targets with the same reference type and direction. Uses
+ * either an array or a tree structure. The SDK will not change the type of
+ * reference target structure internally. The nodestore implementations may
+ * switch internally when a node is updated.
+ *
+ * The recommendation is to switch to a tree once the number of refs > 8. */
 typedef struct {
-    struct aa_entry *idTreeRoot;   /* Fast lookup based on the target id */
-    struct aa_entry *nameTreeRoot; /* Fast lookup based on the target browseName*/
+    union {
+        /* Organize the references in an array. Uses less memory, but incurs
+         * lookups in linear time. Recommended if the number of references is
+         * known to be small. */
+        UA_ReferenceTarget *array;
+
+        /* Organize the references in a tree for fast lookup */
+        struct {
+            UA_ReferenceIdTree idTree;     /* Fast lookup based on the target id */
+            UA_ReferenceNameTree nameTree; /* Fast lookup based on the target browseName*/
+        } tree;
+    } targets;
+    size_t targetsSize;
+    UA_Boolean hasRefTree; /* RefTree or RefArray? */
     UA_Byte referenceTypeIndex;
     UA_Boolean isInverse;
 } UA_NodeReferenceKind;
 
+/* Iterate over the references. Aborts when the first callback return a non-NULL
+ * pointer and returns that pointer. Do not modify the reference targets during
+ * the iteration. */
+typedef void *
+(*UA_NodeReferenceKind_iterateCallback)(void *context, UA_ReferenceTarget *target);
+
+UA_EXPORT void *
+UA_NodeReferenceKind_iterate(UA_NodeReferenceKind *rk,
+                             UA_NodeReferenceKind_iterateCallback callback,
+                             void *context);
+
+/* Returns the entry for the targetId or NULL if not found */
+UA_EXPORT const UA_ReferenceTarget *
+UA_NodeReferenceKind_findTarget(const UA_NodeReferenceKind *rk,
+                                const UA_ExpandedNodeId *targetId);
+
+/* Switch between array and tree representation. Does nothing upon error (e.g.
+ * out-of-memory). */
+UA_EXPORT UA_StatusCode
+UA_NodeReferenceKind_switch(UA_NodeReferenceKind *rk);
+
+/* Singly-linked LocalizedText list */
+typedef struct UA_LocalizedTextListEntry {
+    struct UA_LocalizedTextListEntry *next;
+    UA_LocalizedText localizedText;
+} UA_LocalizedTextListEntry;
+
 /* Every Node starts with these attributes */
-typedef struct {
+struct UA_NodeHead {
     UA_NodeId nodeId;
     UA_NodeClass nodeClass;
     UA_QualifiedName browseName;
-    UA_LocalizedText displayName;
-    UA_LocalizedText description;
+
+    /* A node can have different localizations for displayName and description.
+     * The server selects a suitable localization depending on the locale ids
+     * that are set for the current session.
+     *
+     * Locales are added simply by writing a LocalizedText value with a new
+     * locale. A locale can be removed by writing a LocalizedText value of the
+     * corresponding locale with an empty text field. */
+    UA_LocalizedTextListEntry *displayName;
+    UA_LocalizedTextListEntry *description;
+
     UA_UInt32 writeMask;
     size_t referencesSize;
     UA_NodeReferenceKind *references;
@@ -288,73 +407,15 @@ typedef struct {
     /* Members specific to open62541 */
     void *context;
     UA_Boolean constructed; /* Constructors were called */
-} UA_NodeHead;
+#ifdef UA_ENABLE_SUBSCRIPTIONS
+    UA_MonitoredItem *monitoredItems; /* MonitoredItems for Events and immediate
+                                       * DataChanges (no sampling interval). */
+#endif
+};
 
 /**
  * VariableNode
- * ------------
- *
- * Variables store values in a :ref:`datavalue` together with
- * metadata for introspection. Most notably, the attributes data type, value
- * rank and array dimensions constrain the possible values the variable can take
- * on.
- *
- * Variables come in two flavours: properties and datavariables. Properties are
- * related to a parent with a ``hasProperty`` reference and may not have child
- * nodes themselves. Datavariables may contain properties (``hasProperty``) and
- * also datavariables (``hasComponents``).
- *
- * All variables are instances of some :ref:`variabletypenode` in return
- * constraining the possible data type, value rank and array dimensions
- * attributes.
- *
- * Data Type
- * ~~~~~~~~~
- *
- * The (scalar) data type of the variable is constrained to be of a specific
- * type or one of its children in the type hierarchy. The data type is given as
- * a NodeId pointing to a :ref:`datatypenode` in the type hierarchy. See the
- * Section :ref:`datatypenode` for more details.
- *
- * If the data type attribute points to ``UInt32``, then the value attribute
- * must be of that exact type since ``UInt32`` does not have children in the
- * type hierarchy. If the data type attribute points ``Number``, then the type
- * of the value attribute may still be ``UInt32``, but also ``Float`` or
- * ``Byte``.
- *
- * Consistency between the data type attribute in the variable and its
- * :ref:`VariableTypeNode` is ensured.
- *
- * Value Rank
- * ~~~~~~~~~~
- *
- * This attribute indicates whether the value attribute of the variable is an
- * array and how many dimensions the array has. It may have the following
- * values:
- *
- * - ``n >= 1``: the value is an array with the specified number of dimensions
- * - ``n =  0``: the value is an array with one or more dimensions
- * - ``n = -1``: the value is a scalar
- * - ``n = -2``: the value can be a scalar or an array with any number of dimensions
- * - ``n = -3``: the value can be a scalar or a one dimensional array
- *
- * Consistency between the value rank attribute in the variable and its
- * :ref:`variabletypenode` is ensured.
- *
- * Array Dimensions
- * ~~~~~~~~~~~~~~~~
- *
- * If the value rank permits the value to be a (multi-dimensional) array, the
- * exact length in each dimensions can be further constrained with this
- * attribute.
- *
- * - For positive lengths, the variable value is guaranteed to be of the same
- *   length in this dimension.
- * - The dimension length zero is a wildcard and the actual value may have any
- *   length in this dimension.
- *
- * Consistency between the array dimensions attribute in the variable and its
- * :ref:`variabletypenode` is ensured. */
+ * ------------ */
 
 /* Indicates whether a variable contains data inline or whether it points to an
  * external data source */
@@ -557,17 +618,8 @@ typedef struct {
 } UA_VariableNode;
 
 /**
- * .. _variabletypenode:
- *
  * VariableTypeNode
- * ----------------
- *
- * VariableTypes are used to provide type definitions for variables.
- * VariableTypes constrain the data type, value rank and array dimensions
- * attributes of variable instances. Furthermore, instantiating from a specific
- * variable type may provide semantic information. For example, an instance from
- * ``MotorTemperatureVariableType`` is more meaningful than a float variable
- * instantiated from ``BaseDataVariable``. */
+ * ---------------- */
 
 typedef struct {
     UA_NodeHead head;
@@ -579,22 +631,8 @@ typedef struct {
 } UA_VariableTypeNode;
 
 /**
- * .. _methodnode:
- *
  * MethodNode
- * ----------
- *
- * Methods define callable functions and are invoked using the :ref:`Call
- * <method-services>` service. MethodNodes may have special properties (variable
- * children with a ``hasProperty`` reference) with the :ref:`qualifiedname` ``(0,
- * "InputArguments")`` and ``(0, "OutputArguments")``. The input and output
- * arguments are both described via an array of ``UA_Argument``. While the Call
- * service uses a generic array of :ref:`variant` for input and output, the
- * actual argument values are checked to match the signature of the MethodNode.
- *
- * Note that the same MethodNode may be referenced from several objects (and
- * object types). For this, the NodeId of the method *and of the object
- * providing context* is part of a Call request message. */
+ * ---------- */
 
 typedef UA_StatusCode
 (*UA_MethodCallback)(UA_Server *server, const UA_NodeId *sessionId,
@@ -617,30 +655,16 @@ typedef struct {
 
 /**
  * ObjectNode
- * ----------
- *
- * Objects are used to represent systems, system components, real-world objects
- * and software objects. Objects are instances of an :ref:`object
- * type<objecttypenode>` and may contain variables, methods and further
- * objects. */
+ * ---------- */
 
 typedef struct {
     UA_NodeHead head;
-#ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
-    struct UA_MonitoredItem *monitoredItemQueue;
-#endif
     UA_Byte eventNotifier;
 } UA_ObjectNode;
 
 /**
- * .. _objecttypenode:
- *
  * ObjectTypeNode
- * --------------
- *
- * ObjectTypes provide definitions for Objects. Abstract objects cannot be
- * instantiated. See :ref:`node-lifecycle` for the use of constructor and
- * destructor callbacks. */
+ * -------------- */
 
 typedef struct {
     UA_NodeHead head;
@@ -651,107 +675,8 @@ typedef struct {
 } UA_ObjectTypeNode;
 
 /**
- * .. _referencetypenode:
- *
  * ReferenceTypeNode
- * -----------------
- *
- * Each reference between two nodes is typed with a ReferenceType that gives
- * meaning to the relation. The OPC UA standard defines a set of ReferenceTypes
- * as a mandatory part of OPC UA information models.
- *
- * - Abstract ReferenceTypes cannot be used in actual references and are only
- *   used to structure the ReferenceTypes hierarchy
- * - Symmetric references have the same meaning from the perspective of the
- *   source and target node
- *
- * The figure below shows the hierarchy of the standard ReferenceTypes (arrows
- * indicate a ``hasSubType`` relation). Refer to Part 3 of the OPC UA
- * specification for the full semantics of each ReferenceType.
- *
- * .. graphviz::
- *
- *    digraph tree {
- *
- *    node [height=0, shape=box, fillcolor="#E5E5E5", concentrate=true]
- *
- *    references [label="References\n(Abstract, Symmetric)"]
- *    hierarchical_references [label="HierarchicalReferences\n(Abstract)"]
- *    references -> hierarchical_references
- *
- *    nonhierarchical_references [label="NonHierarchicalReferences\n(Abstract, Symmetric)"]
- *    references -> nonhierarchical_references
- *
- *    haschild [label="HasChild\n(Abstract)"]
- *    hierarchical_references -> haschild
- *
- *    aggregates [label="Aggregates\n(Abstract)"]
- *    haschild -> aggregates
- *
- *    organizes [label="Organizes"]
- *    hierarchical_references -> organizes
- *
- *    hascomponent [label="HasComponent"]
- *    aggregates -> hascomponent
- *
- *    hasorderedcomponent [label="HasOrderedComponent"]
- *    hascomponent -> hasorderedcomponent
- *
- *    hasproperty [label="HasProperty"]
- *    aggregates -> hasproperty
- *
- *    hassubtype [label="HasSubtype"]
- *    haschild -> hassubtype
- *
- *    hasmodellingrule [label="HasModellingRule"]
- *    nonhierarchical_references -> hasmodellingrule
- *
- *    hastypedefinition [label="HasTypeDefinition"]
- *    nonhierarchical_references -> hastypedefinition
- *
- *    hasencoding [label="HasEncoding"]
- *    nonhierarchical_references -> hasencoding
- *
- *    hasdescription [label="HasDescription"]
- *    nonhierarchical_references -> hasdescription
- *
- *    haseventsource [label="HasEventSource"]
- *    hierarchical_references -> haseventsource
- *
- *    hasnotifier [label="HasNotifier"]
- *    hierarchical_references -> hasnotifier
- *
- *    generatesevent [label="GeneratesEvent"]
- *    nonhierarchical_references -> generatesevent
- *
- *    alwaysgeneratesevent [label="AlwaysGeneratesEvent"]
- *    generatesevent -> alwaysgeneratesevent
- *
- *    {rank=same hierarchical_references nonhierarchical_references}
- *    {rank=same generatesevent haseventsource hasmodellingrule
- *               hasencoding hassubtype}
- *    {rank=same alwaysgeneratesevent hasproperty}
- *
- *    }
- *
- * The ReferenceType hierarchy can be extended with user-defined ReferenceTypes.
- * Many Companion Specifications for OPC UA define new ReferenceTypes to be used
- * in their domain of interest.
- *
- * For the following example of custom ReferenceTypes, we attempt to model the
- * structure of a technical system. For this, we introduce two custom
- * ReferenceTypes. First, the hierarchical ``contains`` ReferenceType indicates
- * that a system (represented by an OPC UA object) contains a component (or
- * subsystem). This gives rise to a tree-structure of containment relations. For
- * example, the motor (object) is contained in the car and the crankshaft is
- * contained in the motor. Second, the symmetric ``connectedTo`` ReferenceType
- * indicates that two components are connected. For example, the motor's
- * crankshaft is connected to the gear box. Connections are independent of the
- * containment hierarchy and can induce a general graph-structure. Further
- * subtypes of ``connectedTo`` could be used to differentiate between physical,
- * electrical and information related connections. A client can then learn the
- * layout of a (physical) system represented in an OPC UA information model
- * based on a common understanding of just two custom reference types. */
+ * ----------------- */
 
 typedef struct {
     UA_NodeHead head;
@@ -765,19 +690,8 @@ typedef struct {
 } UA_ReferenceTypeNode;
 
 /**
- * .. _datatypenode:
- *
  * DataTypeNode
- * ------------
- *
- * DataTypes represent simple and structured data types. DataTypes may contain
- * arrays. But they always describe the structure of a single instance. In
- * open62541, DataTypeNodes in the information model hierarchy are matched to
- * ``UA_DataType`` type descriptions for :ref:`generic-types` via their NodeId.
- *
- * Abstract DataTypes (e.g. ``Number``) cannot be the type of actual values.
- * They are used to constrain values to possible child DataTypes (e.g.
- * ``UInt32``). */
+ * ------------ */
 
 typedef struct {
     UA_NodeHead head;
@@ -786,13 +700,7 @@ typedef struct {
 
 /**
  * ViewNode
- * --------
- *
- * Each View defines a subset of the Nodes in the AddressSpace. Views can be
- * used when browsing an information model to focus on a subset of nodes and
- * references only. ViewNodes can be created and be interacted with. But their
- * use in the :ref:`Browse<view-services>` service is currently unsupported in
- * open62541. */
+ * -------- */
 
 typedef struct {
     UA_NodeHead head;
@@ -821,8 +729,8 @@ typedef union {
 } UA_Node;
 
 /**
- * Nodestore Plugin API
- * --------------------
+ * Nodestore
+ * ---------
  *
  * The following definitions are used for implementing custom node storage
  * backends. **Most users will want to use the default nodestore and don't need
@@ -847,10 +755,35 @@ typedef struct {
 
     void (*deleteNode)(void *nsCtx, UA_Node *node);
 
-    /* ``Get`` returns a pointer to an immutable node. ``Release`` indicates
-     * that the pointer is no longer accessed afterwards. */
-    const UA_Node * (*getNode)(void *nsCtx, const UA_NodeId *nodeId);
+    /* ``Get`` returns a pointer to an immutable node. Call ``releaseNode`` to
+     * indicate when the pointer is no longer accessed.
+     *
+     * It can be indicated if only a subset of the attributes and referencs need
+     * to be accessed. That is relevant when the nodestore accesses a slow
+     * storage backend for the attributes. The attribute mask is a bitfield with
+     * ORed entries from UA_NodeAttributesMask.
+     *
+     * The returned node always contains the context-pointer and other fields
+     * specific to open626541 (not official attributes).
+     *
+     * The NodeStore does not complain if attributes and references that don't
+     * exist (for that node) are requested. Attributes and references in
+     * addition to those specified can be returned. For example, if the full
+     * node already is kept in memory by the Nodestore. */
+    const UA_Node * (*getNode)(void *nsCtx, const UA_NodeId *nodeId,
+                               UA_UInt32 attributeMask,
+                               UA_ReferenceTypeSet references,
+                               UA_BrowseDirection referenceDirections);
 
+    /* Similar to the normal ``getNode``. But it can take advantage of the
+     * NodePointer structure, e.g. if it contains a direct pointer. */
+    const UA_Node * (*getNodeFromPtr)(void *nsCtx, UA_NodePointer ptr,
+                                      UA_UInt32 attributeMask,
+                                      UA_ReferenceTypeSet references,
+                                      UA_BrowseDirection referenceDirections);
+
+    /* Release a node that has been retrieved with ``getNode`` or
+     * ``getNodeFromPtr``. */
     void (*releaseNode)(void *nsCtx, const UA_Node *node);
 
     /* Returns an editable copy of a node (needs to be deleted with the
@@ -928,4 +861,4 @@ UA_Node_clear(UA_Node *node);
 
 _UA_END_DECLS
 
-#endif /* UA_SERVER_NODES_H_ */
+#endif /* UA_NODESTORE_H_ */

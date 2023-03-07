@@ -5,10 +5,8 @@
  *    Copyright 2018 (c) Fraunhofer IOSB (Author: Lukas Meling)
  */
 
-
 #include <open62541/types.h>
 #include <open62541/types_generated_handling.h>
-#include "ua_types_encoding_json.h"
 
 /*
 ** Main entry point.  The fuzzer invokes this function with each
@@ -23,7 +21,7 @@ LLVMFuzzerTestOneInput(uint8_t *data, size_t size) {
     UA_Variant out;
     UA_Variant_init(&out);
 
-    UA_StatusCode retval = UA_decodeJson(&buf, &out, &UA_TYPES[UA_TYPES_VARIANT]);
+    UA_StatusCode retval = UA_decodeJson(&buf, &out, &UA_TYPES[UA_TYPES_VARIANT], NULL);
     if(retval == UA_STATUSCODE_GOOD)
         UA_Variant_clear(&out);
 

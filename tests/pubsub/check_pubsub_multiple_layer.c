@@ -9,8 +9,6 @@
 #include <open62541/server_config_default.h>
 #include <open62541/server_pubsub.h>
 
-#include "open62541/types_generated_encoding_binary.h"
-
 #include "ua_server_internal.h"
 
 #include <check.h>
@@ -26,24 +24,18 @@ static void teardown(void) {
 
 START_TEST(AddMultipleTransportLayers){
     server = UA_Server_new();
+    ck_assert(server != NULL);
     UA_ServerConfig *config = UA_Server_getConfig(server);
     UA_ServerConfig_setDefault(config);
 
-    UA_PubSubTransportLayer pubsubTransportLayer;
+    UA_ServerConfig_addPubSubTransportLayer(config, UA_PubSubTransportLayerUDP());
+    ck_assert_uint_eq(config->pubSubConfig.transportLayersSize, 1);
 
-    ck_assert_int_eq(config->pubsubTransportLayersSize, 0);
+    UA_ServerConfig_addPubSubTransportLayer(config, UA_PubSubTransportLayerUDP());
+    ck_assert_uint_eq(config->pubSubConfig.transportLayersSize, 2);
 
-    pubsubTransportLayer = UA_PubSubTransportLayerUDPMP();
-    UA_ServerConfig_addPubSubTransportLayer(config, &pubsubTransportLayer);
-    ck_assert_int_eq(config->pubsubTransportLayersSize, 1);
-
-    pubsubTransportLayer = UA_PubSubTransportLayerUDPMP();
-    UA_ServerConfig_addPubSubTransportLayer(config, &pubsubTransportLayer);
-    ck_assert_int_eq(config->pubsubTransportLayersSize, 2);
-
-    pubsubTransportLayer = UA_PubSubTransportLayerUDPMP();
-    UA_ServerConfig_addPubSubTransportLayer(config, &pubsubTransportLayer);
-    ck_assert_int_eq(config->pubsubTransportLayersSize, 3);
+    UA_ServerConfig_addPubSubTransportLayer(config, UA_PubSubTransportLayerUDP());
+    ck_assert_uint_eq(config->pubSubConfig.transportLayersSize, 3);
 
     UA_Server_delete(server);
 } END_TEST

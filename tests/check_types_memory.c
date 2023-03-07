@@ -15,62 +15,12 @@
 
 #include "check.h"
 
-/* Define types to a dummy value if they are not available (e.g. not built with
- * NS0 full) */
-#ifndef UA_TYPES_UNION
-#define UA_TYPES_UNION UA_TYPES_COUNT
-#endif
-#ifndef UA_TYPES_HISTORYREADDETAILS
-#define UA_TYPES_HISTORYREADDETAILS UA_TYPES_COUNT
-#endif
-#ifndef UA_TYPES_NOTIFICATIONDATA
-#define UA_TYPES_NOTIFICATIONDATA UA_TYPES_COUNT
-#endif
-#ifndef UA_TYPES_MONITORINGFILTER
-#define UA_TYPES_MONITORINGFILTER UA_TYPES_COUNT
-#endif
-#ifndef UA_TYPES_MONITORINGFILTERRESULT
-#define UA_TYPES_MONITORINGFILTERRESULT UA_TYPES_COUNT
-#endif
-#ifndef UA_TYPES_DATASETREADERMESSAGEDATATYPE
-#define UA_TYPES_DATASETREADERMESSAGEDATATYPE UA_TYPES_COUNT
-#endif
-#ifndef UA_TYPES_WRITERGROUPTRANSPORTDATATYPE
-#define UA_TYPES_WRITERGROUPTRANSPORTDATATYPE UA_TYPES_COUNT
-#endif
-#ifndef UA_TYPES_CONNECTIONTRANSPORTDATATYPE
-#define UA_TYPES_CONNECTIONTRANSPORTDATATYPE UA_TYPES_COUNT
-#endif
-#ifndef UA_TYPES_WRITERGROUPMESSAGEDATATYPE
-#define UA_TYPES_WRITERGROUPMESSAGEDATATYPE UA_TYPES_COUNT
-#endif
-#ifndef UA_TYPES_READERGROUPTRANSPORTDATATYPE
-#define UA_TYPES_READERGROUPTRANSPORTDATATYPE UA_TYPES_COUNT
-#endif
-#ifndef UA_TYPES_PUBLISHEDDATASETSOURCEDATATYPE
-#define UA_TYPES_PUBLISHEDDATASETSOURCEDATATYPE UA_TYPES_COUNT
-#endif
-#ifndef UA_TYPES_DATASETREADERTRANSPORTDATATYPE
-#define UA_TYPES_DATASETREADERTRANSPORTDATATYPE UA_TYPES_COUNT
-#endif
-#ifndef UA_TYPES_DATASETWRITERTRANSPORTDATATYPE
-#define UA_TYPES_DATASETWRITERTRANSPORTDATATYPE UA_TYPES_COUNT
-#endif
-#ifndef UA_TYPES_SUBSCRIBEDDATASETDATATYPE
-#define UA_TYPES_SUBSCRIBEDDATASETDATATYPE UA_TYPES_COUNT
-#endif
-#ifndef UA_TYPES_READERGROUPMESSAGEDATATYPE
-#define UA_TYPES_READERGROUPMESSAGEDATATYPE UA_TYPES_COUNT
-#endif
-#ifndef UA_TYPES_DATASETWRITERMESSAGEDATATYPE
-#define UA_TYPES_DATASETWRITERMESSAGEDATATYPE UA_TYPES_COUNT
-#endif
-
 START_TEST(newAndEmptyObjectShallBeDeleted) {
     // given
     void *obj = UA_new(&UA_TYPES[_i]);
     // then
     ck_assert_ptr_ne(obj, NULL);
+    ck_assert(UA_order(obj, obj, &UA_TYPES[_i]) == UA_ORDER_EQ);
     // finally
     UA_delete(obj, &UA_TYPES[_i]);
 }
@@ -105,18 +55,6 @@ START_TEST(arrayCopyShallMakeADeepCopy) {
 END_TEST
 
 START_TEST(encodeShallYieldDecode) {
-    /* floating point types may change the representaton due to several possible NaN values. */
-    if(_i != UA_TYPES_FLOAT || _i != UA_TYPES_DOUBLE ||
-       _i != UA_TYPES_CREATESESSIONREQUEST || _i != UA_TYPES_CREATESESSIONRESPONSE ||
-       _i != UA_TYPES_VARIABLEATTRIBUTES || _i != UA_TYPES_READREQUEST
-#ifdef UA_ENABLE_SUBSCRIPTIONS
-       ||
-       _i != UA_TYPES_MONITORINGPARAMETERS || _i != UA_TYPES_MONITOREDITEMCREATERESULT ||
-       _i != UA_TYPES_CREATESUBSCRIPTIONREQUEST || _i != UA_TYPES_CREATESUBSCRIPTIONRESPONSE
-#endif
-       )
-        return;
-
     // given
     UA_ByteString msg1, msg2;
     void *obj1 = UA_new(&UA_TYPES[_i]);
@@ -124,8 +62,7 @@ START_TEST(encodeShallYieldDecode) {
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
     UA_Byte *pos = msg1.data;
     const UA_Byte *end = &msg1.data[msg1.length];
-    retval = UA_encodeBinary(obj1, &UA_TYPES[_i],
-                             &pos, &end, NULL, NULL);
+    retval = UA_encodeBinaryInternal(obj1, &UA_TYPES[_i], &pos, &end, NULL, NULL);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_delete(obj1, &UA_TYPES[_i]);
         UA_ByteString_clear(&msg1);
@@ -135,7 +72,7 @@ START_TEST(encodeShallYieldDecode) {
     // when
     void *obj2 = UA_new(&UA_TYPES[_i]);
     size_t offset = 0;
-    retval = UA_decodeBinary(&msg1, &offset, obj2, &UA_TYPES[_i], NULL);
+    retval = UA_decodeBinaryInternal(&msg1, &offset, obj2, &UA_TYPES[_i], NULL);
     ck_assert_msg(retval == UA_STATUSCODE_GOOD, "could not decode idx=%d,nodeid=%i",
                   _i, UA_TYPES[_i].typeId.identifier.numeric);
     ck_assert(!memcmp(obj1, obj2, UA_TYPES[_i].memSize)); // bit identical decoding
@@ -143,7 +80,7 @@ START_TEST(encodeShallYieldDecode) {
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
     pos = msg2.data;
     end = &msg2.data[msg2.length];
-    retval = UA_encodeBinary(obj2, &UA_TYPES[_i], &pos, &end, NULL, NULL);
+    retval = UA_encodeBinaryInternal(obj2, &UA_TYPES[_i], &pos, &end, NULL, NULL);
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
 
     // then
@@ -152,6 +89,17 @@ START_TEST(encodeShallYieldDecode) {
     ck_assert_msg(UA_ByteString_equal(&msg1, &msg2) == true,
                   "messages differ idx=%d,nodeid=%i", _i,
                   UA_TYPES[_i].typeId.identifier.numeric);
+    ck_assert(UA_order(obj1, obj2, &UA_TYPES[_i]) == UA_ORDER_EQ);
+
+    // pretty-print the value
+#ifdef UA_ENABLE_JSON_ENCODING
+    UA_Byte staticBuf[4096];
+    UA_String buf;
+    buf.data = staticBuf;
+    buf.length = 4096;
+    retval = UA_print(obj2, &UA_TYPES[_i], &buf);
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+#endif
 
     // finally
     UA_delete(obj1, &UA_TYPES[_i]);
@@ -162,49 +110,15 @@ START_TEST(encodeShallYieldDecode) {
 END_TEST
 
 START_TEST(decodeShallFailWithTruncatedBufferButSurvive) {
-    //Skip test for void*
-    if (
-#ifdef UA_ENABLE_DISCOVERY
-        _i == UA_TYPES_DISCOVERYCONFIGURATION ||
-#endif
-#ifdef UA_ENABLE_SUBSCRIPTIONS
-        _i == UA_TYPES_FILTEROPERAND ||
-        _i == UA_TYPES_UNION ||
-#endif
-#ifdef UA_TYPES_FRAME
-        _i == UA_TYPES_FRAME ||
-        _i == UA_TYPES_ORIENTATION ||
-        _i == UA_TYPES_VECTOR ||
-        _i == UA_TYPES_CARTESIANCOORDINATES ||
-#endif
-        _i == UA_TYPES_HISTORYREADDETAILS ||
-        _i == UA_TYPES_NOTIFICATIONDATA ||
-        _i == UA_TYPES_MONITORINGFILTER ||
-        _i == UA_TYPES_MONITORINGFILTERRESULT ||
-        _i == UA_TYPES_DATASETREADERMESSAGEDATATYPE ||
-        _i == UA_TYPES_WRITERGROUPTRANSPORTDATATYPE ||
-        _i == UA_TYPES_CONNECTIONTRANSPORTDATATYPE ||
-        _i == UA_TYPES_WRITERGROUPMESSAGEDATATYPE ||
-        _i == UA_TYPES_READERGROUPTRANSPORTDATATYPE ||
-        _i == UA_TYPES_PUBLISHEDDATASETSOURCEDATATYPE ||
-        _i == UA_TYPES_DATASETREADERTRANSPORTDATATYPE ||
-        _i == UA_TYPES_DATASETWRITERTRANSPORTDATATYPE ||
-        _i == UA_TYPES_SUBSCRIBEDDATASETDATATYPE ||
-        _i == UA_TYPES_READERGROUPMESSAGEDATATYPE ||
-        _i == UA_TYPES_DATASETWRITERMESSAGEDATATYPE)
-        return;
     // given
     UA_ByteString msg1;
     void *obj1 = UA_new(&UA_TYPES[_i]);
     UA_StatusCode retval = UA_ByteString_allocBuffer(&msg1, 65000); // fixed buf size
     UA_Byte *pos = msg1.data;
     const UA_Byte *end = &msg1.data[msg1.length];
-    retval |= UA_encodeBinary(obj1, &UA_TYPES[_i], &pos, &end, NULL, NULL);
+    retval |= UA_encodeBinaryInternal(obj1, &UA_TYPES[_i], &pos, &end, NULL, NULL);
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
     UA_delete(obj1, &UA_TYPES[_i]);
-    if(retval != UA_STATUSCODE_GOOD) {
-        UA_ByteString_clear(&msg1);
-        return; // e.g. variants cannot be encoded after an init without failing (no datatype set)
-    }
 
     size_t half = (uintptr_t)(pos - msg1.data) / 2;
     msg1.length = half;
@@ -212,9 +126,10 @@ START_TEST(decodeShallFailWithTruncatedBufferButSurvive) {
     // when
     void *obj2 = UA_new(&UA_TYPES[_i]);
     size_t offset = 0;
-    retval = UA_decodeBinary(&msg1, &offset, obj2, &UA_TYPES[_i], NULL);
+    retval = UA_decodeBinaryInternal(&msg1, &offset, obj2, &UA_TYPES[_i], NULL);
     ck_assert_int_ne(retval, UA_STATUSCODE_GOOD);
     UA_delete(obj2, &UA_TYPES[_i]);
+    msg1.length = 65000;
     UA_ByteString_clear(&msg1);
 }
 END_TEST
@@ -225,9 +140,9 @@ START_TEST(decodeScalarBasicTypeFromRandomBufferShallSucceed) {
     // given
     void *obj1 = NULL;
     UA_ByteString msg1;
-    UA_UInt32 retval = UA_STATUSCODE_GOOD;
     UA_UInt32 buflen = 256;
-    retval = UA_ByteString_allocBuffer(&msg1, buflen); // fixed size
+    UA_StatusCode retval = UA_ByteString_allocBuffer(&msg1, buflen); // fixed size
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 #ifdef _WIN32
     srand(42);
 #else
@@ -245,7 +160,8 @@ START_TEST(decodeScalarBasicTypeFromRandomBufferShallSucceed) {
         }
         size_t pos = 0;
         obj1 = UA_new(&UA_TYPES[_i]);
-        retval |= UA_decodeBinary(&msg1, &pos, obj1, &UA_TYPES[_i], NULL);
+        retval = UA_decodeBinaryInternal(&msg1, &pos, obj1, &UA_TYPES[_i], NULL);
+        (void)retval;
         //then
         ck_assert_msg(retval == UA_STATUSCODE_GOOD,
                       "Decoding %d from random buffer",
@@ -260,17 +176,17 @@ END_TEST
 START_TEST(decodeComplexTypeFromRandomBufferShallSurvive) {
     // given
     UA_ByteString msg1;
-    UA_UInt32 retval = UA_STATUSCODE_GOOD;
     UA_UInt32 buflen = 256;
-    retval = UA_ByteString_allocBuffer(&msg1, buflen); // fixed size
+    UA_StatusCode retval = UA_ByteString_allocBuffer(&msg1, buflen); // fixed size
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 #ifdef _WIN32
     srand(42);
 #else
     srandom(42);
 #endif
     // when
-    for(int n = 0;n < RANDOM_TESTS;n++) {
-        for(UA_UInt32 i = 0;i < buflen;i++) {
+    for(int n = 0; n < RANDOM_TESTS; n++) {
+        for(UA_UInt32 i = 0; i < buflen; i++) {
 #ifdef _WIN32
             UA_UInt32 rnd;
             rnd = rand();
@@ -281,7 +197,8 @@ START_TEST(decodeComplexTypeFromRandomBufferShallSurvive) {
         }
         size_t pos = 0;
         void *obj1 = UA_new(&UA_TYPES[_i]);
-        retval |= UA_decodeBinary(&msg1, &pos, obj1, &UA_TYPES[_i], NULL);
+        retval = UA_decodeBinaryInternal(&msg1, &pos, obj1, &UA_TYPES[_i], NULL);
+        (void)retval;
         UA_delete(obj1, &UA_TYPES[_i]);
     }
 
@@ -291,40 +208,6 @@ START_TEST(decodeComplexTypeFromRandomBufferShallSurvive) {
 END_TEST
 
 START_TEST(calcSizeBinaryShallBeCorrect) {
-    /* Empty variants (with no type defined) cannot be encoded. This is
-     * intentional. Discovery configuration is just a base class and void * */
-    if(_i == UA_TYPES_VARIANT ||
-       _i == UA_TYPES_VARIABLEATTRIBUTES ||
-       _i == UA_TYPES_VARIABLETYPEATTRIBUTES ||
-#ifdef UA_ENABLE_SUBSCRIPTIONS
-       _i == UA_TYPES_FILTEROPERAND ||
-#endif
-#ifdef UA_ENABLE_DISCOVERY
-       _i == UA_TYPES_DISCOVERYCONFIGURATION ||
-#endif
-       _i == UA_TYPES_UNION ||
-#ifdef UA_TYPES_FRAME
-       _i == UA_TYPES_FRAME ||
-       _i == UA_TYPES_ORIENTATION ||
-       _i == UA_TYPES_VECTOR ||
-       _i == UA_TYPES_CARTESIANCOORDINATES ||
-#endif
-       _i == UA_TYPES_HISTORYREADDETAILS ||
-       _i == UA_TYPES_NOTIFICATIONDATA ||
-       _i == UA_TYPES_MONITORINGFILTER ||
-        _i == UA_TYPES_MONITORINGFILTERRESULT ||
-        _i == UA_TYPES_DATASETREADERMESSAGEDATATYPE ||
-        _i == UA_TYPES_WRITERGROUPTRANSPORTDATATYPE ||
-        _i == UA_TYPES_CONNECTIONTRANSPORTDATATYPE ||
-        _i == UA_TYPES_WRITERGROUPMESSAGEDATATYPE ||
-        _i == UA_TYPES_READERGROUPTRANSPORTDATATYPE ||
-        _i == UA_TYPES_PUBLISHEDDATASETSOURCEDATATYPE ||
-        _i == UA_TYPES_DATASETREADERTRANSPORTDATATYPE ||
-        _i == UA_TYPES_DATASETWRITERTRANSPORTDATATYPE ||
-        _i == UA_TYPES_SUBSCRIBEDDATASETDATATYPE ||
-        _i == UA_TYPES_READERGROUPMESSAGEDATATYPE ||
-        _i == UA_TYPES_DATASETWRITERMESSAGEDATATYPE)
-        return;
     void *obj = UA_new(&UA_TYPES[_i]);
     size_t predicted_size = UA_calcSizeBinary(obj, &UA_TYPES[_i]);
     ck_assert_uint_ne(predicted_size, 0);
@@ -333,7 +216,7 @@ START_TEST(calcSizeBinaryShallBeCorrect) {
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     UA_Byte *pos = msg.data;
     const UA_Byte *end = &msg.data[msg.length];
-    retval = UA_encodeBinary(obj, &UA_TYPES[_i], &pos, &end, NULL, NULL);
+    retval = UA_encodeBinaryInternal(obj, &UA_TYPES[_i], &pos, &end, NULL, NULL);
     if(retval)
         printf("%i\n",_i);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);

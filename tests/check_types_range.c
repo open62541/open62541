@@ -12,7 +12,7 @@
 START_TEST(parseRange) {
     UA_NumericRange range;
     UA_String str = UA_STRING("1:2,0:3,5");
-    UA_StatusCode retval = UA_NumericRange_parseFromString(&range, &str);
+    UA_StatusCode retval = UA_NumericRange_parse(&range, str);
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(range.dimensionsSize,3);
     ck_assert_uint_eq(range.dimensions[0].min,1);
@@ -27,7 +27,7 @@ START_TEST(parseRange) {
 START_TEST(parseRangeMinEqualMax) {
     UA_NumericRange range;
     UA_String str = UA_STRING("1:2,1");
-    UA_StatusCode retval = UA_NumericRange_parseFromString(&range, &str);
+    UA_StatusCode retval = UA_NumericRange_parse(&range, str);
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(range.dimensionsSize,2);
     ck_assert_uint_eq(range.dimensions[0].min,1);
@@ -38,24 +38,24 @@ START_TEST(parseRangeMinEqualMax) {
 } END_TEST
 
 START_TEST(copySimpleArrayRange) {
-    UA_Variant v, v2;
-    UA_Variant_init(&v);
-    UA_Variant_init(&v2);
-    UA_UInt32 arr[5] = {1,2,3,4,5};
-    UA_Variant_setArray(&v, arr, 5, &UA_TYPES[UA_TYPES_UINT32]);
+   UA_Variant v, v2;
+   UA_Variant_init(&v);
+   UA_Variant_init(&v2);
+   UA_UInt32 arr[5] = {1,2,3,4,5};
+   UA_Variant_setArray(&v, arr, 5, &UA_TYPES[UA_TYPES_UINT32]);
 
-    UA_NumericRange r;
-    UA_String sr = UA_STRING("1:3");
-    UA_StatusCode retval = UA_NumericRange_parseFromString(&r, &sr);
-    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+   UA_NumericRange r;
+   UA_String sr = UA_STRING("1:3");
+   UA_StatusCode retval = UA_NumericRange_parse(&r, sr);
+   ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
 
-    retval = UA_Variant_copyRange(&v, &v2, r);
-    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
-    ck_assert_uint_eq(3, v2.arrayLength);
-    ck_assert_uint_eq(2, *(UA_UInt32*)v2.data);
+   retval = UA_Variant_copyRange(&v, &v2, r);
+   ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+   ck_assert_uint_eq(3, v2.arrayLength);
+   ck_assert_uint_eq(2, *(UA_UInt32*)v2.data);
 
-    UA_Variant_clear(&v2);
-    UA_free(r.dimensions);
+   UA_Variant_clear(&v2);
+   UA_free(r.dimensions);
 }
 END_TEST
 
@@ -70,7 +70,7 @@ START_TEST(copyIntoStringArrayRange) {
 
     UA_NumericRange r;
     UA_String sr = UA_STRING("0:1,1:2");
-    UA_StatusCode retval = UA_NumericRange_parseFromString(&r, &sr);
+    UA_StatusCode retval = UA_NumericRange_parse(&r, sr);
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
 
     retval = UA_Variant_copyRange(&v, &v2, r);
@@ -88,6 +88,34 @@ START_TEST(copyIntoStringArrayRange) {
 }
 END_TEST
 
+START_TEST(copyArrayRangeUpperBoundOutOfRange) {
+    UA_Variant v, v2;
+    UA_Variant_init(&v);
+    UA_Variant_init(&v2);
+    UA_UInt32 arr[5] = {1,2,3,4,5};
+    UA_UInt32 arraySize = 5;
+    UA_Variant_setArray(&v, arr, 5, &UA_TYPES[UA_TYPES_UINT32]);
+    v.arrayDimensionsSize = 1;
+    v.arrayDimensions = &arraySize;
+
+    UA_NumericRange r;
+    UA_String sr = UA_STRING("3:5");
+    UA_StatusCode retval = UA_NumericRange_parse(&r, sr);
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+
+    retval = UA_Variant_copyRange(&v, &v2, r);
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(2, v2.arrayLength);
+    ck_assert_uint_eq(4, *(UA_UInt32*)v2.data);
+    ck_assert_uint_eq(5, *((UA_UInt32*)v2.data+1));
+    ck_assert_uint_eq(1, v2.arrayDimensionsSize);
+    ck_assert_uint_eq(2, v2.arrayDimensions[0]);
+
+    UA_Variant_clear(&v2);
+    UA_free(r.dimensions);
+}
+END_TEST
+
 int main(void) {
     Suite *s  = suite_create("Test Variant Range Access");
     TCase *tc = tcase_create("test cases");
@@ -95,6 +123,7 @@ int main(void) {
     tcase_add_test(tc, parseRangeMinEqualMax);
     tcase_add_test(tc, copySimpleArrayRange);
     tcase_add_test(tc, copyIntoStringArrayRange);
+    tcase_add_test(tc, copyArrayRangeUpperBoundOutOfRange);
     suite_add_tcase(s, tc);
 
     SRunner *sr = srunner_create(s);

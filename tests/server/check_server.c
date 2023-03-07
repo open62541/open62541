@@ -22,6 +22,7 @@ static UA_Server *server = NULL;
 
 static void setup(void) {
     server = UA_Server_new();
+    ck_assert(server != NULL);
     UA_ServerConfig_setDefault(UA_Server_getConfig(server));
 }
 
@@ -46,6 +47,25 @@ START_TEST(checkGetNamespaceByName) {
     ck_assert_uint_eq(found, UA_STATUSCODE_GOOD);
 } END_TEST
 
+START_TEST(checkGetNamespaceById) {
+    UA_String searchResultNamespace;
+    UA_StatusCode notFound = UA_Server_getNamespaceByIndex(server, 10, &searchResultNamespace);
+    ck_assert_uint_eq(notFound, UA_STATUSCODE_BADNOTFOUND);
+
+    UA_StatusCode found1 = UA_Server_getNamespaceByIndex(server, 1, &searchResultNamespace);
+    ck_assert_uint_eq(found1, UA_STATUSCODE_GOOD);
+    UA_String_clear(&searchResultNamespace);
+
+    UA_StatusCode notFound2 = UA_Server_getNamespaceByIndex(server, 2, &searchResultNamespace);
+    ck_assert_uint_eq(notFound2, UA_STATUSCODE_BADNOTFOUND);
+
+    UA_String compareNamespace = UA_STRING("http://opcfoundation.org/UA/");
+    UA_StatusCode found = UA_Server_getNamespaceByIndex(server, 0, &searchResultNamespace);
+    ck_assert(UA_String_equal(&compareNamespace, &searchResultNamespace));
+    ck_assert_uint_eq(found, UA_STATUSCODE_GOOD);
+    UA_String_clear(&searchResultNamespace);
+} END_TEST
+
 static void timedCallbackHandler(UA_Server *s, void *data) {
     *((UA_Boolean*)data) = false;  // stop the server via a timedCallback
 }
@@ -67,6 +87,7 @@ int main(void) {
     tcase_add_checked_fixture(tc_call, setup, teardown);
     tcase_add_test(tc_call, checkGetConfig);
     tcase_add_test(tc_call, checkGetNamespaceByName);
+    tcase_add_test(tc_call, checkGetNamespaceById);
     tcase_add_test(tc_call, checkServer_run);
     suite_add_tcase(s, tc_call);
 

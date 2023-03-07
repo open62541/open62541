@@ -6,26 +6,73 @@
  * to receive the raw-encoded messages. Ensure to enable the PubSub NS0 integration
  * to expose the necessary MetaData for the Subscriber.
  *
- * Currently only publish RAW is implemented. This example will be extended with
- * the ongoing feature completion.
  */
 
 #include <open62541/plugin/log_stdout.h>
 #include <open62541/plugin/pubsub_ethernet.h>
 #include <open62541/plugin/pubsub_udp.h>
 #include <open62541/server.h>
-#include <open62541/server_config_default.h>
-
-#include "ua_pubsub_networkmessage.h"
-
-#include <signal.h>
-
-#include <custom_datatype/custom_datatype.h>
 
 const UA_NodeId pointVariableTypeId = {
     1, UA_NODEIDTYPE_NUMERIC, {4243}};
 
 UA_NodeId connectionIdent, publishedDataSetIdent, writerGroupIdent, pointVariableNode;
+
+/* The binary encoding id's for the datatypes */
+#define Point_binary_encoding_id        1
+
+typedef struct {
+    UA_Float x;
+    UA_Float y;
+    UA_Float z;
+} Point;
+
+/* The datatype description for the Point datatype */
+#define Point_padding_y offsetof(Point,y) - offsetof(Point,x) - sizeof(UA_Float)
+#define Point_padding_z offsetof(Point,z) - offsetof(Point,y) - sizeof(UA_Float)
+
+static UA_DataTypeMember Point_members[3] = {
+    /* x */
+    {
+        UA_TYPENAME("x")           /* .memberName */
+        &UA_TYPES[UA_TYPES_FLOAT], /* .memberType */
+        0,                         /* .padding */
+        false,                     /* .isArray */
+        false                      /* .isOptional */
+    },
+
+    /* y */
+    {
+        UA_TYPENAME("y")           /* .memberName */
+        &UA_TYPES[UA_TYPES_FLOAT], /* .memberType */
+        Point_padding_y,           /* .padding */
+        false,                     /* .isArray */
+        false                      /* .isOptional */
+    },
+    /* z */
+    {
+        UA_TYPENAME("z")           /* .memberName */
+        &UA_TYPES[UA_TYPES_FLOAT], /* .memberType */
+        Point_padding_z,           /* .padding */
+        false,                     /* .isArray */
+        false                      /* .isOptional */
+    }
+};
+
+static UA_DataType PointType = {
+    UA_TYPENAME("Point")                /* .typeName */
+    {1, UA_NODEIDTYPE_NUMERIC, {4242}}, /* .typeId */
+    {1, UA_NODEIDTYPE_NUMERIC, {Point_binary_encoding_id}}, /* .binaryEncodingId, the numeric
+                                            identifier used on the wire (the
+                                            namespaceindex is from .typeId) */
+    sizeof(Point),                      /* .memSize */
+    UA_DATATYPEKIND_STRUCTURE,          /* .typeKind */
+    true,                               /* .pointerFree */
+    false,                              /* .overlayable (depends on endianness and
+                                            the absence of padding) */
+    3,                                  /* .membersSize */
+    Point_members
+};
 
 /* non raw encoding specific */
 static void
@@ -42,7 +89,8 @@ addPubSubConnection(UA_Server *server, UA_String *transportProfile,
                          &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
     /* Changed to static publisherId from random generation to identify
      * the publisher on Subscriber side */
-    connectionConfig.publisherId.numeric = 2234;
+    connectionConfig.publisherIdType = UA_PUBLISHERIDTYPE_UINT16;
+    connectionConfig.publisherId.uint16 = 2234;
     UA_Server_addPubSubConnection(server, &connectionConfig, &connectionIdent);
 }
 
@@ -50,7 +98,7 @@ addPubSubConnection(UA_Server *server, UA_String *transportProfile,
 static void
 addPublishedDataSet(UA_Server *server) {
     /* The PublishedDataSetConfig contains all necessary public
-    * informations for the creation of a new PublishedDataSet */
+    * information for the creation of a new PublishedDataSet */
     UA_PublishedDataSetConfig publishedDataSetConfig;
     memset(&publishedDataSetConfig, 0, sizeof(UA_PublishedDataSetConfig));
     publishedDataSetConfig.publishedDataSetType = UA_PUBSUB_DATASET_PUBLISHEDITEMS;
@@ -74,6 +122,16 @@ addDataSetField(UA_Server *server) {
     dataSetFieldConfig.field.variable.publishParameters.publishedVariable =
     UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_CURRENTTIME);
     dataSetFieldConfig.field.variable.publishParameters.attributeId = UA_ATTRIBUTEID_VALUE;
+    UA_Server_addDataSetField(server, publishedDataSetIdent,
+                              &dataSetFieldConfig, &dataSetFieldIdent);
+
+    memset(&dataSetFieldConfig, 0, sizeof(UA_DataSetFieldConfig));
+    dataSetFieldConfig.dataSetFieldType = UA_PUBSUB_DATASETFIELD_VARIABLE;
+    dataSetFieldConfig.field.variable.fieldNameAlias = UA_STRING("String field");
+    dataSetFieldConfig.field.variable.promotedField = UA_FALSE;
+    dataSetFieldConfig.field.variable.publishParameters.publishedVariable = UA_NODEID_NUMERIC(1, 1000);
+    dataSetFieldConfig.field.variable.publishParameters.attributeId = UA_ATTRIBUTEID_VALUE;
+    dataSetFieldConfig.field.variable.maxStringLength = 50;
     UA_Server_addDataSetField(server, publishedDataSetIdent,
                               &dataSetFieldConfig, &dataSetFieldIdent);
 
@@ -201,20 +259,10 @@ add3DPointVariable(UA_Server *server) {
                               pointVariableTypeId, vattr, NULL, &pointVariableNode);
 }
 
-UA_Boolean running = true;
-static void stopHandler(int sign) {
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "received ctrl-c");
-    running = false;
-}
-
 static int run(UA_String *transportProfile,
                UA_NetworkAddressUrlDataType *networkAddressUrl) {
-    signal(SIGINT, stopHandler);
-    signal(SIGTERM, stopHandler);
-
     UA_Server *server = UA_Server_new();
     UA_ServerConfig *config = UA_Server_getConfig(server);
-    UA_ServerConfig_setDefault(config);
 
     /* Add custom Datatypes */
     UA_DataType *types = (UA_DataType*)UA_malloc(sizeof(UA_DataType));
@@ -225,7 +273,7 @@ static int run(UA_String *transportProfile,
     types[0] = PointType;
     types[0].members = pointMembers;
 
-    UA_DataTypeArray customDataTypes = {config->customDataTypes, 1, types};
+    UA_DataTypeArray customDataTypes = {config->customDataTypes, 1, types, UA_FALSE};
     config->customDataTypes = &customDataTypes;
 
     add3DPointDataType(server);
@@ -234,18 +282,22 @@ static int run(UA_String *transportProfile,
 
     /* Details about the connection configuration and handling are located in
      * the pubsub connection tutorial */
-    config->pubsubTransportLayers =
-        (UA_PubSubTransportLayer *) UA_calloc(2, sizeof(UA_PubSubTransportLayer));
-    if(!config->pubsubTransportLayers) {
-        UA_Server_delete(server);
-        return EXIT_FAILURE;
-    }
-    config->pubsubTransportLayers[0] = UA_PubSubTransportLayerUDPMP();
-    config->pubsubTransportLayersSize++;
+    UA_ServerConfig_addPubSubTransportLayer(config, UA_PubSubTransportLayerUDPMP());
 #ifdef UA_ENABLE_PUBSUB_ETH_UADP
-    config->pubsubTransportLayers[1] = UA_PubSubTransportLayerEthernet();
-    config->pubsubTransportLayersSize++;
+    UA_ServerConfig_addPubSubTransportLayer(config, UA_PubSubTransportLayerEthernet());
 #endif
+
+    //add string variable to information model
+    UA_VariableAttributes variableAttributes = UA_VariableAttributes_default;
+    UA_String value = UA_STRING("hello world");
+    UA_Variant_setScalar(&variableAttributes.value, &value, &UA_TYPES[UA_TYPES_STRING]);
+    variableAttributes.dataType = UA_TYPES[UA_TYPES_STRING].typeId;
+    UA_Server_addVariableNode(server, UA_NODEID_NUMERIC(1, 1000),
+                              UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
+                              UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
+                              UA_QUALIFIEDNAME(1, "publishNode"),
+                              UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
+                              variableAttributes, NULL, NULL );
 
     //generic OPC UA configuration
     addPubSubConnection(server, transportProfile, networkAddressUrl);
@@ -255,7 +307,7 @@ static int run(UA_String *transportProfile,
     //contain RAW-encoding specific configuration fields
     addDataSetWriter(server);
 
-    UA_StatusCode retval = UA_Server_run(server, &running);
+    UA_StatusCode retval = UA_Server_runUntilInterrupt(server);
 
     UA_Server_delete(server);
     UA_Server_delete(server);
@@ -275,7 +327,7 @@ int main(int argc, char **argv) {
     UA_NetworkAddressUrlDataType networkAddressUrl =
         {UA_STRING_NULL , UA_STRING("opc.udp://224.0.0.22:4840/")};
 
-    if (argc > 1) {
+    if(argc > 1) {
         if (strcmp(argv[1], "-h") == 0) {
             usage(argv[0]);
             return EXIT_SUCCESS;

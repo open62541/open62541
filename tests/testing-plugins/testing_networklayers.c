@@ -4,93 +4,53 @@
 
 #include "testing_networklayers.h"
 
-#include <open62541/server_config_default.h>
-
-#include <assert.h>
-#include <stdlib.h>
-
-#include "testing_clock.h"
-
-static UA_ByteString *vBuffer;
-static UA_ByteString sendBuffer;
-
-UA_StatusCode UA_Client_recvTesting_result = UA_STATUSCODE_GOOD;
+UA_ByteString *testConnectionLastSentBuf;
 
 static UA_StatusCode
-dummyGetSendBuffer(UA_Connection *connection, size_t length, UA_ByteString *buf) {
-    if(length > sendBuffer.length)
-        return UA_STATUSCODE_BADCOMMUNICATIONERROR;
-    *buf = sendBuffer;
-    buf->length = length;
-    return UA_STATUSCODE_GOOD;
-}
-
-static void
-dummyReleaseSendBuffer(UA_Connection *connection, UA_ByteString *buf) {
+testOpenConnection(UA_ConnectionManager *cm,
+                    const UA_KeyValueMap *params,
+                    void *application, void *context,
+                    UA_ConnectionManager_connectionCallback connectionCallback) {
+    return UA_STATUSCODE_BADNOTCONNECTED;
 }
 
 static UA_StatusCode
-dummySend(UA_Connection *connection, UA_ByteString *buf) {
-    assert(connection != NULL);
-    assert(buf != NULL);
-
-    if(vBuffer) {
-        UA_ByteString_clear(vBuffer);
-        UA_ByteString_copy(buf, vBuffer);
+testSendWithConnection(UA_ConnectionManager *cm, uintptr_t connectionId,
+                       const UA_KeyValueMap *params,
+                       UA_ByteString *buf) {
+    if(testConnectionLastSentBuf) {
+        UA_ByteString_clear(testConnectionLastSentBuf);
+        *testConnectionLastSentBuf = *buf;
+        UA_ByteString_init(buf);
+    } else {
+        UA_ByteString_clear(buf);
     }
     return UA_STATUSCODE_GOOD;
 }
 
-static void
-dummyReleaseRecvBuffer(UA_Connection *connection, UA_ByteString *buf) {
+static UA_StatusCode
+testCloseConnection(UA_ConnectionManager *cm, uintptr_t connectionId) {
+    return UA_STATUSCODE_GOOD;
+}
+
+static UA_StatusCode
+testAllocNetworkBuffer(UA_ConnectionManager *cm, uintptr_t connectionId,
+                        UA_ByteString *buf, size_t bufSize) {
+    return UA_ByteString_allocBuffer(buf, bufSize);
 }
 
 static void
-dummyClose(UA_Connection *connection) {
-    if(vBuffer)
-        UA_ByteString_clear(vBuffer);
-    UA_ByteString_clear(&sendBuffer);
+testFreeNetworkBuffer(UA_ConnectionManager *cm, uintptr_t connectionId,
+                      UA_ByteString *buf) {
+    UA_ByteString_clear(buf);
 }
 
-UA_Connection createDummyConnection(size_t sendBufferSize,
-                                    UA_ByteString *verificationBuffer) {
-    vBuffer = verificationBuffer;
-    UA_ByteString_allocBuffer(&sendBuffer, sendBufferSize);
-
-    UA_Connection c;
-    c.state = UA_CONNECTIONSTATE_ESTABLISHED;
-    c.channel = NULL;
-    c.sockfd = UA_INVALID_SOCKET;
-    c.handle = NULL;
-    c.getSendBuffer = dummyGetSendBuffer;
-    c.releaseSendBuffer = dummyReleaseSendBuffer;
-    c.send = dummySend;
-    c.recv = NULL;
-    c.releaseRecvBuffer = dummyReleaseRecvBuffer;
-    c.close = dummyClose;
-    return c;
-}
-
-UA_UInt32 UA_Client_recvSleepDuration;
-UA_StatusCode (*UA_Client_recv)(UA_Connection *connection, UA_ByteString *response,
-                                UA_UInt32 timeout);
-
-UA_StatusCode
-UA_Client_recvTesting(UA_Connection *connection, UA_ByteString *response,
-                    UA_UInt32 timeout) {
-
-    if(UA_Client_recvTesting_result != UA_STATUSCODE_GOOD) {
-        UA_StatusCode temp = UA_Client_recvTesting_result;
-        UA_Client_recvTesting_result = UA_STATUSCODE_GOOD;
-        UA_fakeSleep(timeout);
-        return temp;
-    }
-
-    UA_StatusCode res = UA_Client_recv(connection, response, timeout);
-    if(res == UA_STATUSCODE_GOODNONCRITICALTIMEOUT)
-        UA_fakeSleep(timeout);
-    else
-        UA_fakeSleep(UA_Client_recvSleepDuration);
-    UA_Client_recvSleepDuration = 0;
-    return res;
-}
+UA_ConnectionManager testConnectionManagerTCP = {
+    {0}, /* eventSource */
+    UA_STRING_STATIC("tcp"),
+    testOpenConnection,
+    testSendWithConnection,
+    testCloseConnection,
+    testAllocNetworkBuffer,
+    testFreeNetworkBuffer
+};

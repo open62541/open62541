@@ -13,8 +13,9 @@
 
 const char *syslogLevelNames[6] = {"trace", "debug", "info",
                                    "warn", "error", "fatal"};
-const char *syslogCategoryNames[7] = {"network", "channel", "session", "server",
-                                      "client", "userland", "securitypolicy"};
+const char *syslogCategoryNames[UA_LOGCATEGORIES] =
+    {"network", "channel", "session", "server", "client",
+     "userland", "securitypolicy", "eventloop", "pubsub", "discovery"};
 
 #ifdef __clang__
 __attribute__((__format__(__printf__, 4 , 0)))
@@ -48,10 +49,15 @@ UA_Log_Syslog_log(void *context, UA_LogLevel level, UA_LogCategory category,
         return;
     }
 
+    int logLevelSlot = ((int)level / 100) - 1;
+    if(logLevelSlot < 0 || logLevelSlot > 5)
+        logLevelSlot = 5; /* Set to fatal if the level is outside the range */
+
 #define LOGBUFSIZE 512
     char logbuf[LOGBUFSIZE];
     int pos = snprintf(logbuf, LOGBUFSIZE, "[%s/%s] ",
-                       syslogLevelNames[level], syslogCategoryNames[category]);
+                       syslogLevelNames[logLevelSlot],
+                       syslogCategoryNames[category]);
     if(pos < 0) {
         syslog(LOG_WARNING, "Log message too long for syslog");
         return;
@@ -79,7 +85,7 @@ UA_Log_Syslog(void) {
 
 UA_Logger
 UA_Log_Syslog_withLevel(UA_LogLevel minlevel) {
-    UA_Logger logger = {UA_Log_Syslog_log, (void*)minlevel, UA_Log_Syslog_clear};
+    UA_Logger logger = {UA_Log_Syslog_log, (void*)(uintptr_t)minlevel, UA_Log_Syslog_clear};
     return logger;
 }
 

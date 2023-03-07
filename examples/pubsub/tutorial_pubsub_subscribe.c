@@ -5,7 +5,7 @@
  */
 
 /**
- * .. _pubsub-tutorial:
+ * .. _pubsub-subscribe-tutorial:
  *
  * **IMPORTANT ANNOUNCEMENT**
  *
@@ -15,9 +15,10 @@
  *
  * Subscribing Fields
  * ^^^^^^^^^^^^^^^^^^
- * The PubSub subscribe example demonstrates the simplest way to receive information over two transport layers such as
- * UDP and Ethernet, that are published by tutorial_pubsub_publish example and update values in the TargetVariables
- * of Subscriber Information Model.
+ * The PubSub subscribe example demonstrates the simplest way to receive
+ * information over two transport layers such as UDP and Ethernet, that are
+ * published by tutorial_pubsub_publish example and update values in the
+ * TargetVariables of Subscriber Information Model.
  *
  * Run step of the application is as mentioned below:
  *
@@ -26,24 +27,18 @@
  * **Connection handling**
  *
  * PubSubConnections can be created and deleted on runtime. More details about
- * the system preconfiguration and connection can be found in ``tutorial_pubsub_connection.c``.
- */
+ * the system preconfiguration and connection can be found in
+ * ``tutorial_pubsub_connection.c``. */
 
 #include <open62541/plugin/log_stdout.h>
 #include <open62541/plugin/pubsub_udp.h>
 #include <open62541/server.h>
-#include <open62541/server_config_default.h>
-#include <open62541/types_generated.h>
-
-#include "ua_pubsub.h"
 
 #if defined (UA_ENABLE_PUBSUB_ETH_UADP)
 #include <open62541/plugin/pubsub_ethernet.h>
 #endif
 
 #include <stdio.h>
-#include <signal.h>
-#include <stdlib.h>
 
 UA_NodeId connectionIdentifier;
 UA_NodeId readerGroupIdentifier;
@@ -71,7 +66,8 @@ addPubSubConnection(UA_Server *server, UA_String *transportProfile,
     connectionConfig.enabled = UA_TRUE;
     UA_Variant_setScalar(&connectionConfig.address, networkAddressUrl,
                          &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
-    connectionConfig.publisherId.numeric = UA_UInt32_random ();
+    connectionConfig.publisherIdType = UA_PUBLISHERIDTYPE_UINT32;
+    connectionConfig.publisherId.uint32 = UA_UInt32_random();
     retval |= UA_Server_addPubSubConnection (server, &connectionConfig, &connectionIdentifier);
     if (retval != UA_STATUSCODE_GOOD) {
         return retval;
@@ -272,38 +268,21 @@ static void fillTestDataSetMetaData(UA_DataSetMetaDataType *pMetaData) {
 
 /**
  * Followed by the main server code, making use of the above definitions */
-UA_Boolean running = true;
-static void stopHandler(int sign) {
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "received ctrl-c");
-    running = false;
-}
 
 static int
 run(UA_String *transportProfile, UA_NetworkAddressUrlDataType *networkAddressUrl) {
-    signal(SIGINT, stopHandler);
-    signal(SIGTERM, stopHandler);
     /* Return value initialized to Status Good */
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     UA_Server *server = UA_Server_new();
     UA_ServerConfig *config = UA_Server_getConfig(server);
-    UA_ServerConfig_setMinimal(config, 4801, NULL);
 
     /* Add the PubSub network layer implementation to the server config.
      * The TransportLayer is acting as factory to create new connections
      * on runtime. Details about the PubSubTransportLayer can be found inside the
      * tutorial_pubsub_connection */
-    config->pubsubTransportLayers = (UA_PubSubTransportLayer *)
-        UA_calloc(2, sizeof(UA_PubSubTransportLayer));
-    if(!config->pubsubTransportLayers) {
-        UA_Server_delete(server);
-        return EXIT_FAILURE;
-    }
-
-    config->pubsubTransportLayers[0] = UA_PubSubTransportLayerUDPMP();
-    config->pubsubTransportLayersSize++;
-#if defined (UA_ENABLE_PUBSUB_ETH_UADP)
-    config->pubsubTransportLayers[1] = UA_PubSubTransportLayerEthernet();
-    config->pubsubTransportLayersSize++;
+    UA_ServerConfig_addPubSubTransportLayer(config, UA_PubSubTransportLayerUDPMP());
+#ifdef UA_ENABLE_PUBSUB_ETH_UADP
+    UA_ServerConfig_addPubSubTransportLayer(config, UA_PubSubTransportLayerEthernet());
 #endif
 
     /* API calls */
@@ -327,7 +306,8 @@ run(UA_String *transportProfile, UA_NetworkAddressUrlDataType *networkAddressUrl
     if (retval != UA_STATUSCODE_GOOD)
         return EXIT_FAILURE;
 
-    retval = UA_Server_run(server, &running);
+    retval = UA_Server_runUntilInterrupt(server);
+
     UA_Server_delete(server);
     return retval == UA_STATUSCODE_GOOD ? EXIT_SUCCESS : EXIT_FAILURE;
 }
@@ -338,8 +318,10 @@ usage(char *progname) {
 }
 
 int main(int argc, char **argv) {
-    UA_String transportProfile = UA_STRING("http://opcfoundation.org/UA-Profile/Transport/pubsub-udp-uadp");
-    UA_NetworkAddressUrlDataType networkAddressUrl = {UA_STRING_NULL , UA_STRING("opc.udp://224.0.0.22:4840/")};
+    UA_String transportProfile =
+        UA_STRING("http://opcfoundation.org/UA-Profile/Transport/pubsub-udp-uadp");
+    UA_NetworkAddressUrlDataType networkAddressUrl =
+        {UA_STRING_NULL , UA_STRING("opc.udp://224.0.0.22:4840/")};
     if(argc > 1) {
         if(strcmp(argv[1], "-h") == 0) {
             usage(argv[0]);

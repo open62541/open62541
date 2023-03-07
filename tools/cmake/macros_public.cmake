@@ -71,7 +71,6 @@ endfunction()
 # The resulting files will be put into OUTPUT_DIR with the names:
 # - NAME_generated.c
 # - NAME_generated.h
-# - NAME_generated_encoding_binary.h
 # - NAME_generated_handling.h
 #
 # The cmake resulting cmake target will be named like this:
@@ -97,7 +96,7 @@ endfunction()
 #                   passed which will all combined to one resulting code.
 #   IMPORT_BSD      Combination of types array and path to the .bsd file containing additional type definitions referenced by
 #                   the FILES_BSD files. The value is separated with a hash sign, i.e.
-#                   'UA_TYPES#${PROJECT_SOURCE_DIR}/deps/ua-nodeset/Schema/Opc.Ua.Types.bsd'
+#                   'UA_TYPES#${UA_NODESET_DIR}/Schema/Opc.Ua.Types.bsd'
 #                   Multiple files can be passed which will all be imported.
 #   [FILES_SELECTED] Optional path to a simple text file which contains a list of types which should be included in the generation.
 #                   The file should contain one type per line. Multiple files can be passed to this argument.
@@ -183,12 +182,18 @@ function(ua_generate_datatypes)
     # Replace dash with underscore to make valid c literal
     string(REPLACE "-" "_" UA_GEN_DT_NAME ${UA_GEN_DT_NAME})
 
+    if((MINGW) AND (DEFINED ENV{SHELL}))
+        # fix issue 4156 that MINGW will do automatic Windows Path Conversion
+        # powershell handles Windows Path correctly
+        # MINGW SHELL only accept environment variable with "env"
+        set(ARG_CONV_EXCL_ENV env MSYS2_ARG_CONV_EXCL=--import)
+    endif()
+
     add_custom_command(OUTPUT ${UA_GEN_DT_OUTPUT_DIR}/${UA_GEN_DT_NAME}_generated.c
         ${UA_GEN_DT_OUTPUT_DIR}/${UA_GEN_DT_NAME}_generated.h
         ${UA_GEN_DT_OUTPUT_DIR}/${UA_GEN_DT_NAME}_generated_handling.h
-        ${UA_GEN_DT_OUTPUT_DIR}/${UA_GEN_DT_NAME}_generated_encoding_binary.h
         PRE_BUILD
-        COMMAND ${PYTHON_EXECUTABLE} ${open62541_TOOLS_DIR}/generate_datatypes.py
+        COMMAND ${ARG_CONV_EXCL_ENV} ${PYTHON_EXECUTABLE} ${open62541_TOOLS_DIR}/generate_datatypes.py
         ${NAMESPACE_MAP_TMP}
         ${SELECTED_TYPES_TMP}
         ${BSD_FILES_TMP}
@@ -205,12 +210,11 @@ function(ua_generate_datatypes)
         ${UA_GEN_DT_OUTPUT_DIR}/${UA_GEN_DT_NAME}_generated.c
         ${UA_GEN_DT_OUTPUT_DIR}/${UA_GEN_DT_NAME}_generated.h
         ${UA_GEN_DT_OUTPUT_DIR}/${UA_GEN_DT_NAME}_generated_handling.h
-        ${UA_GEN_DT_OUTPUT_DIR}/${UA_GEN_DT_NAME}_generated_encoding_binary.h
         )
 
     string(TOUPPER "${UA_GEN_DT_NAME}" GEN_NAME_UPPER)
     set(UA_${GEN_NAME_UPPER}_SOURCES "${UA_GEN_DT_OUTPUT_DIR}/${UA_GEN_DT_NAME}_generated.c" CACHE INTERNAL "${UA_GEN_DT_NAME} source files")
-    set(UA_${GEN_NAME_UPPER}_HEADERS "${UA_GEN_DT_OUTPUT_DIR}/${UA_GEN_DT_NAME}_generated.h;${UA_GEN_DT_OUTPUT_DIR}/${UA_GEN_DT_NAME}_generated_handling.h;${UA_GEN_DT_OUTPUT_DIR}/${UA_GEN_DT_NAME}_generated_encoding_binary.h"
+    set(UA_${GEN_NAME_UPPER}_HEADERS "${UA_GEN_DT_OUTPUT_DIR}/${UA_GEN_DT_NAME}_generated.h;${UA_GEN_DT_OUTPUT_DIR}/${UA_GEN_DT_NAME}_generated_handling.h"
         CACHE INTERNAL "${UA_GEN_DT_NAME} header files")
 
     if(UA_FORCE_CPP)
@@ -259,7 +263,7 @@ endfunction()
 function(ua_generate_nodeset)
 
     set(options INTERNAL )
-    set(oneValueArgs NAME TYPES_ARRAY OUTPUT_DIR IGNORE TARGET_PREFIX BLACKLIST)
+    set(oneValueArgs NAME TYPES_ARRAY OUTPUT_DIR IGNORE TARGET_PREFIX BLACKLIST FILES_BSD)
     set(multiValueArgs FILE DEPENDS_TYPES DEPENDS_NS DEPENDS_TARGET)
     cmake_parse_arguments(UA_GEN_NS "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN} )
 
@@ -287,12 +291,23 @@ function(ua_generate_nodeset)
         set(UA_GEN_NS_TARGET_PREFIX "open62541-generator")
     endif()
 
+
     # Set blacklist file
     set(GEN_BLACKLIST "")
     set(GEN_BLACKLIST_DEPENDS "")
     if(UA_GEN_NS_BLACKLIST)
         set(GEN_BLACKLIST "--blacklist=${UA_GEN_NS_BLACKLIST}")
         set(GEN_BLACKLIST_DEPENDS "${UA_GEN_NS_BLACKLIST}")
+    endif()
+
+    # Set bsd files
+    set(GEN_BSB "")
+    set(GEN_BSD_DEPENDS "")
+    if(UA_GEN_NS_FILES_BSD)
+        foreach(f ${UA_GEN_NS_FILES_BSD})
+            set(GEN_BSD ${GEN_BSD} "--bsd=${f}")
+        endforeach()
+        set(GEN_BSD_DEPENDS "${UA_GEN_NS_FILES_BSD}")
     endif()
 
     # ------ Add custom command and target -----
@@ -353,6 +368,7 @@ function(ua_generate_nodeset)
                        ${GEN_BIN_SIZE}
                        ${GEN_IGNORE}
                        ${GEN_BLACKLIST}
+                       ${GEN_BSD}
                        ${TYPES_ARRAY_LIST}
                        ${DEPENDS_FILE_LIST}
                        ${FILE_LIST}
@@ -368,6 +384,7 @@ function(ua_generate_nodeset)
                        ${UA_GEN_NS_FILE}
                        ${UA_GEN_NS_DEPENDS_NS}
                        ${GEN_BLACKLIST_DEPENDS}
+                       ${GEN_BSD_DEPENDS}
                        )
 
     add_custom_target(${UA_GEN_NS_TARGET_PREFIX}-${TARGET_SUFFIX}
@@ -456,8 +473,8 @@ function(ua_generate_nodeset_and_datatypes)
         message(FATAL_ERROR "open62541_TOOLS_DIR must point to the open62541 tools directory")
     endif()
 
-    if(NOT DEFINED open62541_NODESET_DIR)
-        message(FATAL_ERROR "open62541_NODESET_DIR must point to the open62541/deps/ua-nodeset directory")
+    if(NOT DEFINED UA_NODESET_DIR)
+        message(FATAL_ERROR "UA_NODESET_DIR must point to the open62541/deps/ua-nodeset directory")
     endif()
 
     # ------ Argument checking -----
@@ -567,7 +584,7 @@ function(ua_generate_nodeset_and_datatypes)
     # Create a list of nodesets on which this nodeset depends on
     if (NOT UA_GEN_DEPENDS OR "${UA_GEN_DEPENDS}" STREQUAL "" )
         if(NOT UA_FILE_NS0)
-            set(NODESET_DEPENDS "${open62541_NODESET_DIR}/Schema/Opc.Ua.NodeSet2.xml")
+            set(NODESET_DEPENDS "${UA_NODESET_DIR}/Schema/Opc.Ua.NodeSet2.xml")
         else()
             set(NODESET_DEPENDS "${UA_FILE_NS0}")
         endif()
@@ -602,6 +619,7 @@ function(ua_generate_nodeset_and_datatypes)
         FILE "${UA_GEN_FILE_NS}"
         TYPES_ARRAY "${NODESET_TYPES_ARRAY}"
         BLACKLIST "${UA_GEN_BLACKLIST}"
+        FILES_BSD "${UA_GEN_FILE_BSD}"
         ${NODESET_INTERNAL}
         DEPENDS_TYPES ${TYPES_DEPENDS}
         DEPENDS_NS ${NODESET_DEPENDS}

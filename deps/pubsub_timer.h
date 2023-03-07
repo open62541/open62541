@@ -10,7 +10,8 @@
 
 #include <open62541/plugin/pubsub.h>
 #include "open62541_queue.h"
-#include "ua_timer.h"
+#include "common/ua_timer.h"
+#include <open62541/plugin/eventloop.h>
 
 _UA_BEGIN_DECLS
 
@@ -22,6 +23,7 @@ typedef struct UA_PublishEntry {
 
 typedef struct {
     UA_Timer *timer;
+    UA_EventLoop *eventLoop;
     UA_DateTime publishingTime;
     LIST_HEAD(, UA_PublishEntry) sendBuffers;
     void (*timedSend)(UA_PubSubChannel *channel, UA_PublishEntry *publishPacket);

@@ -1,46 +1,24 @@
 /* This work is licensed under a Creative Commons CCZero 1.0 Universal License.
  * See http://creativecommons.org/publicdomain/zero/1.0/ for more information. */
 
-/* This example is just to see how fast we can add nodes. The server does not
- * open a TCP port. */
-
+#include <open62541/server.h>
 #include <open62541/server_config_default.h>
-
-#include "server/ua_services.h"
-#include "ua_server_internal.h"
-#include "ua_types_encoding_binary.h"
 
 #include <check.h>
 #include <time.h>
 
-#include "testing_networklayers.h"
-#include "testing_policy.h"
-
-static UA_SecureChannel testChannel;
-static UA_SecurityPolicy dummyPolicy;
-static UA_Connection testingConnection;
-static funcs_called funcsCalled;
-static key_sizes keySizes;
 static UA_Server *server;
 
 static void setup(void) {
     server = UA_Server_new();
+    ck_assert(server != NULL);
     UA_ServerConfig_setDefault(UA_Server_getConfig(server));
-    TestingPolicy(&dummyPolicy, UA_BYTESTRING_NULL, &funcsCalled, &keySizes);
-    UA_SecureChannel_init(&testChannel, &UA_ConnectionConfig_default);
-    UA_SecureChannel_setSecurityPolicy(&testChannel, &dummyPolicy, &UA_BYTESTRING_NULL);
-    testingConnection = createDummyConnection(65535, NULL);
-    UA_Connection_attachSecureChannel(&testingConnection, &testChannel);
-    testChannel.connection = &testingConnection;
-
+    /* Disable logging */
     UA_ServerConfig *config = UA_Server_getConfig(server);
     config->logger.log = NULL;
 }
 
 static void teardown(void) {
-    UA_SecureChannel_close(&testChannel);
-    dummyPolicy.clear(&dummyPolicy);
-    testingConnection.close(&testingConnection);
     UA_Server_delete(server);
 }
 
@@ -57,7 +35,7 @@ START_TEST(addVariable) {
 
     clock_t begin, finish;
     begin = clock();
-    for(int i = 0; i < 10000; i++) {
+    for(int i = 0; i < 3000; i++) {
         UA_Server_addVariableNode(server, UA_NODEID_NULL, parentNodeId,
                                   parentReferenceNodeId, myIntegerName,
                                   UA_NODEID_NULL, attr, NULL, NULL);

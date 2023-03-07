@@ -7,12 +7,16 @@
 #include <open62541/plugin/pubsub_ethernet.h>
 #include <open62541/server_config_default.h>
 #include <open62541/server_pubsub.h>
+
 #include <check.h>
 #include <time.h>
-#include "open62541/types_generated_encoding_binary.h"
+
 #include "ua_pubsub.h"
 #include "ua_server_internal.h"
 #include "ua_pubsub_networkmessage.h"
+
+/* Adjust your configuration globally for the ethernet tests here: */
+#include "ethernet_config.h"
 
 #define PUBLISHING_MULTICAST_MAC_ADDRESS1 "opc.eth://01-00-5E-7F-00-01"
 #define PUBLISHING_MULTICAST_MAC_ADDRESS2 "opc.eth://01-00-5E-7F-00-01:8.4"
@@ -21,12 +25,11 @@
 #define CONNECTION_NAME                   "ETF Ethernet Test Connection"
 #define UA_SUBSCRIBER_PORT                4801 /* Port for Subscriber*/
 #define PUBLISHER_ID                      2234
-#define ETHERNET_INTERFACE                "enp4s0"
 #define CYCLE_TIME                        0.25
 #define SECONDS                           1000 * 1000 * 1000
 #define MILLI_SECONDS                     1000 * 1000
 #define SECONDS_SLEEP                     5
-#define NANO_SECONDS_SLEEP_PUB            CYCLE_TIME * MILLI_SECONDS * 0.6
+#define NANO_SECONDS_SLEEP_PUB            (long) (CYCLE_TIME * MILLI_SECONDS * 0.6)
 #define QBV_OFFSET                        25 * 1000
 #define CLOCKID                           CLOCK_TAI
 #define SOCKET_PRIORITY                   3
@@ -40,15 +43,11 @@ UA_PubSubConnection *connection; /* setup() is to create an environment for test
 static void setup(void) {
     /*Add setup by creating new server with valid configuration */
     server = UA_Server_new();
+    ck_assert(server != NULL);
     config = UA_Server_getConfig(server);
     UA_ServerConfig_setMinimal(config, UA_SUBSCRIBER_PORT, NULL);
+    UA_ServerConfig_addPubSubTransportLayer(config, UA_PubSubTransportLayerEthernet());
     UA_Server_run_startup(server);
-    config->pubsubTransportLayers = (UA_PubSubTransportLayer *) UA_malloc(sizeof(UA_PubSubTransportLayer));
-    if(!config->pubsubTransportLayers) {
-        UA_ServerConfig_clean(config);
-    }
-    config->pubsubTransportLayers[0] = UA_PubSubTransportLayerEthernet();
-    config->pubsubTransportLayersSize++;
 }
 
 /* teardown() is to delete the environment set for test cases */
@@ -63,7 +62,7 @@ START_TEST(EthernetSendWithoutVLANTag) {
     UA_UInt64 transmission_time;
     nextnanosleeptime.tv_sec = SECONDS_SLEEP;
     nextnanosleeptime.tv_nsec = NANO_SECONDS_SLEEP_PUB;
-    UA_UInt64 roundOffCycleTime = (CYCLE_TIME * MILLI_SECONDS) - NANO_SECONDS_SLEEP_PUB;
+    UA_UInt64 roundOffCycleTime = (long) (CYCLE_TIME * MILLI_SECONDS) - NANO_SECONDS_SLEEP_PUB;
 
     /* Add connection to the server */
     UA_PubSubConnectionConfig connectionConfig;
@@ -73,7 +72,8 @@ START_TEST(EthernetSendWithoutVLANTag) {
     UA_Variant_setScalar(&connectionConfig.address, &networkAddressUrl,
                          &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
     connectionConfig.transportProfileUri = UA_STRING(TRANSPORT_PROFILE_URI);
-    connectionConfig.publisherId.numeric = PUBLISHER_ID;
+    connectionConfig.publisherIdType = UA_PUBLISHERIDTYPE_UINT16;
+    connectionConfig.publisherId.uint16 = PUBLISHER_ID;
     /* Connection options are given as Key/Value Pairs - Sockprio and Txtime */
     UA_KeyValuePair connectionOptions[2];
     connectionOptions[0].key = UA_QUALIFIEDNAME(0, "sockpriority");
@@ -82,8 +82,8 @@ START_TEST(EthernetSendWithoutVLANTag) {
     connectionOptions[1].key = UA_QUALIFIEDNAME(0, "enablesotxtime");
     UA_Boolean enableTxTime  = UA_TRUE;
     UA_Variant_setScalar(&connectionOptions[1].value, &enableTxTime, &UA_TYPES[UA_TYPES_BOOLEAN]);
-    connectionConfig.connectionProperties     = connectionOptions;
-    connectionConfig.connectionPropertiesSize = 2;
+    connectionConfig.connectionProperties.map = connectionOptions;
+    connectionConfig.connectionProperties.mapSize = 2;
     UA_Server_addPubSubConnection(server, &connectionConfig, &connection_test);
     connection = UA_PubSubConnection_findConnectionbyId(server, connection_test);
     if(!connection) {
@@ -116,7 +116,7 @@ START_TEST(EthernetSendWithVLANTag) {
     UA_UInt64 transmission_time;
     nextnanosleeptime.tv_sec = SECONDS_SLEEP;
     nextnanosleeptime.tv_nsec = NANO_SECONDS_SLEEP_PUB;
-    UA_UInt64 roundOffCycleTime = (CYCLE_TIME * MILLI_SECONDS) - NANO_SECONDS_SLEEP_PUB;
+    UA_UInt64 roundOffCycleTime = (long) (CYCLE_TIME * MILLI_SECONDS) - NANO_SECONDS_SLEEP_PUB;
     /* Add connection to the server */
     UA_PubSubConnectionConfig connectionConfig;
     memset(&connectionConfig, 0, sizeof(UA_PubSubConnectionConfig));
@@ -125,7 +125,8 @@ START_TEST(EthernetSendWithVLANTag) {
     UA_Variant_setScalar(&connectionConfig.address, &networkAddressUrl,
                          &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
     connectionConfig.transportProfileUri = UA_STRING(TRANSPORT_PROFILE_URI);
-    connectionConfig.publisherId.numeric = PUBLISHER_ID;
+    connectionConfig.publisherIdType = UA_PUBLISHERIDTYPE_UINT16;
+    connectionConfig.publisherId.uint16 = PUBLISHER_ID;
     /* Connection options are given as Key/Value Pairs - Sockprio and Txtime */
     UA_KeyValuePair connectionOptions[2];
     connectionOptions[0].key = UA_QUALIFIEDNAME(0, "sockpriority");
@@ -134,8 +135,8 @@ START_TEST(EthernetSendWithVLANTag) {
     connectionOptions[1].key = UA_QUALIFIEDNAME(0, "enablesotxtime");
     UA_Boolean enableTxTime  = UA_TRUE;
     UA_Variant_setScalar(&connectionOptions[1].value, &enableTxTime, &UA_TYPES[UA_TYPES_BOOLEAN]);
-    connectionConfig.connectionProperties     = connectionOptions;
-    connectionConfig.connectionPropertiesSize = 2;
+    connectionConfig.connectionProperties.map = connectionOptions;
+    connectionConfig.connectionProperties.mapSize = 2;
     UA_Server_addPubSubConnection(server, &connectionConfig, &connection_test);
     connection = UA_PubSubConnection_findConnectionbyId(server, connection_test);
     if(!connection) {

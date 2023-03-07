@@ -22,6 +22,7 @@
 #include <stdio.h>
 #include <signal.h>
 #include <stdlib.h>
+#include <assert.h>
 
 #define PUBSUB_CONFIG_FIELD_COUNT 10
 
@@ -46,6 +47,9 @@ UA_DataSetReaderConfig readerConfig;
 UA_UInt32    *repeatedFieldValues[PUBSUB_CONFIG_FIELD_COUNT];
 UA_DataValue *repeatedDataValueRT[PUBSUB_CONFIG_FIELD_COUNT];
 
+static UA_UInt32 sSubscribedDataSink[PUBSUB_CONFIG_FIELD_COUNT];    /* simulate a custom data sink (e.g. shared memory) */
+static UA_UInt32 sSubscribedTargetVarDataOffset[PUBSUB_CONFIG_FIELD_COUNT];
+
 /* If the external data source is written over the information model, the
  * externalDataWriteCallback will be triggered. The user has to take care and assure
  * that the write leads not to synchronization issues and race conditions. */
@@ -65,6 +69,73 @@ externalDataReadNotificationCallback(UA_Server *server, const UA_NodeId *session
                                      void *nodeContext, const UA_NumericRange *range){
     //allow read without any preparation
     return UA_STATUSCODE_GOOD;
+}
+
+static void
+subscribeAfterWriteCallback(
+   UA_Server *server,
+   const UA_NodeId *dataSetReaderId,
+   const UA_NodeId *readerGroupId,
+   const UA_NodeId *targetVariableId,
+   void *targetVariableContext,
+   UA_DataValue **externalDataValue) {    // received value has already been copied to param externalDataValue
+
+    (void) server;
+    (void) dataSetReaderId;
+    (void) readerGroupId;
+
+    assert(targetVariableId != 0);
+    assert(targetVariableContext != 0);
+    assert(externalDataValue != 0);
+    UA_String strId;
+    UA_String_init(&strId);
+    UA_NodeId_print(targetVariableId, &strId);
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "subscribeAfterWriteCallback(): "
+        "WriteUpdate() for node Id = '%.*s'. New Value = %u", (UA_Int32) strId.length, strId.data,
+        *((UA_UInt32*) (**externalDataValue).value.data));
+    UA_String_clear(&strId);
+}
+
+/* callback gets triggered before subscriber has received data
+    received data hasn't been copied/handled yet */
+static void
+subscribeBeforeWriteCallback(
+    UA_Server *server,
+    const UA_NodeId *dataSetReaderId,
+    const UA_NodeId *readerGroupId,
+    const UA_NodeId *targetVariableId,
+    void *targetVariableContext,  /* custom target variable context (e.g. shared mem handle, offset) */
+    UA_DataValue **externalDataValue) { /* received value */
+
+    (void) server;
+    (void) dataSetReaderId;
+    (void) readerGroupId;
+
+    assert(targetVariableId != 0);
+    assert(targetVariableContext != 0);
+    assert(externalDataValue != 0);
+    void *data = (**externalDataValue).value.data;
+    UA_UInt32 dataSize = (**externalDataValue).value.type->memSize;
+    assert(data != 0);
+    assert(dataSize == sizeof(UA_UInt32)); /* in this simple example all dataset fields are of type UInt32 */
+
+    UA_String strId;
+    UA_String_init(&strId);
+    UA_NodeId_print(targetVariableId, &strId);
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "subscribeBeforeWriteCallback(): "
+        "WriteUpdate() for node Id = '%.*s'. New Value Data = %u", (UA_Int32) strId.length, strId.data,
+        *(UA_UInt32*) data);
+    UA_String_clear(&strId);
+
+    /* We can prepare custom data sink before data is copied
+        meta information is available at targetVariableContext
+        data sink could be a shared memory or any other custom implementation which represents variables of the engineering system
+        in this example we simulate a custom data sink */
+    UA_UInt32 offset = *((UA_UInt32*) targetVariableContext);
+    assert(offset < PUBSUB_CONFIG_FIELD_COUNT);
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "subscribeBeforeWriteCallback(): "
+        "offset = %u", offset);
+    memcpy(sSubscribedDataSink + offset, data, dataSize);
 }
 
 /* Define MetaData for TargetVariables */
@@ -109,7 +180,8 @@ addPubSubConnection(UA_Server *server, UA_String *transportProfile,
     connectionConfig.enabled = UA_TRUE;
     UA_Variant_setScalar(&connectionConfig.address, networkAddressUrl,
                          &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
-    connectionConfig.publisherId.numeric = UA_UInt32_random ();
+    connectionConfig.publisherIdType = UA_PUBLISHERIDTYPE_UINT32;
+    connectionConfig.publisherId.uint32 = UA_UInt32_random();
     retval |= UA_Server_addPubSubConnection (server, &connectionConfig, &connectionIdentifier);
     if (retval != UA_STATUSCODE_GOOD)
         return retval;
@@ -206,6 +278,13 @@ addSubscribedVariables (UA_Server *server) {
         UA_FieldTargetDataType_init(&readerConfig.subscribedDataSet.subscribedDataSetTarget.targetVariables[i].targetVariable);
         readerConfig.subscribedDataSet.subscribedDataSetTarget.targetVariables[i].targetVariable.attributeId  = UA_ATTRIBUTEID_VALUE;
         readerConfig.subscribedDataSet.subscribedDataSetTarget.targetVariables[i].targetVariable.targetNodeId = newnodeId;
+        /* set both before and after write callback to show the usage */
+        /* configure before write callback */
+        readerConfig.subscribedDataSet.subscribedDataSetTarget.targetVariables[i].beforeWrite = subscribeBeforeWriteCallback;
+        sSubscribedTargetVarDataOffset[i] = (UA_UInt32) i;
+        readerConfig.subscribedDataSet.subscribedDataSetTarget.targetVariables[i].targetVariableContext = &sSubscribedTargetVarDataOffset[i];
+        /* configure after write callback */
+        readerConfig.subscribedDataSet.subscribedDataSetTarget.targetVariables[i].afterWrite = subscribeAfterWriteCallback;
     }
 
     return retval;
@@ -231,13 +310,18 @@ addDataSetReader(UA_Server *server) {
     readerConfig.writerGroupId    = 100;
     readerConfig.dataSetWriterId  = 62541;
     readerConfig.messageSettings.encoding = UA_EXTENSIONOBJECT_DECODED;
+    readerConfig.expectedEncoding = UA_PUBSUB_RT_RAW;
     readerConfig.messageSettings.content.decoded.type = &UA_TYPES[UA_TYPES_UADPDATASETREADERMESSAGEDATATYPE];
     UA_UadpDataSetReaderMessageDataType *dataSetReaderMessage = UA_UadpDataSetReaderMessageDataType_new();
     dataSetReaderMessage->networkMessageContentMask           = (UA_UadpNetworkMessageContentMask)(UA_UADPNETWORKMESSAGECONTENTMASK_PUBLISHERID |
                                                                  (UA_UadpNetworkMessageContentMask)UA_UADPNETWORKMESSAGECONTENTMASK_GROUPHEADER |
+                                                                 (UA_UadpNetworkMessageContentMask) UA_UADPNETWORKMESSAGECONTENTMASK_SEQUENCENUMBER |
                                                                  (UA_UadpNetworkMessageContentMask)UA_UADPNETWORKMESSAGECONTENTMASK_WRITERGROUPID |
                                                                  (UA_UadpNetworkMessageContentMask)UA_UADPNETWORKMESSAGECONTENTMASK_PAYLOADHEADER);
+    dataSetReaderMessage->dataSetMessageContentMask           = (UA_UadpDataSetMessageContentMask)(UA_UADPDATASETMESSAGECONTENTMASK_SEQUENCENUMBER);
     readerConfig.messageSettings.content.decoded.data = dataSetReaderMessage;
+
+    readerConfig.dataSetFieldContentMask = UA_DATASETFIELDCONTENTMASK_RAWDATA;
 
     /* Setting up Meta data configuration in DataSetReader */
     fillTestDataSetMetaData(&readerConfig.dataSetMetaData);
@@ -276,14 +360,7 @@ run(UA_String *transportProfile, UA_NetworkAddressUrlDataType *networkAddressUrl
      * The TransportLayer is acting as factory to create new connections
      * on runtime. Details about the PubSubTransportLayer can be found inside the
      * tutorial_pubsub_connection */
-    config->pubsubTransportLayers = (UA_PubSubTransportLayer *) UA_malloc(sizeof(UA_PubSubTransportLayer));
-    if(!config->pubsubTransportLayers) {
-        UA_Server_delete(server);
-        return EXIT_FAILURE;
-    }
-
-    config->pubsubTransportLayers[0] = UA_PubSubTransportLayerUDPMP();
-    config->pubsubTransportLayersSize++;
+    UA_ServerConfig_addPubSubTransportLayer(config, UA_PubSubTransportLayerUDPMP());
 
     /* API calls */
     /* Add PubSubConnection */

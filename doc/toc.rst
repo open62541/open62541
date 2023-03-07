@@ -4,15 +4,15 @@ open62541 Documentation
 .. toctree::
 
    index
+   core_concepts
    building
-   installing
    tutorials
-   protocol
    types
    services
-   nodestore
    server
    client
+   pubsub
    common
    nodeset_compiler
-   internal
+   plugin
+   generated

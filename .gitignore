@@ -77,10 +77,17 @@ Makefile
 /exampleClient
 /exampleClient_legacy
 /src_generated/
-/build
-/.idea
+**/build
 /cmake-build*
 /tools/certs/certs/*
 Pipfile
 Pipfile.lock
 .vscode
+**/libxml2
+debian/*
+
+# clangd cache
+.cache/
+
+# project local vim settings
+.vim/

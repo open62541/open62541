@@ -4,6 +4,7 @@
  *
  *    Copyright 2020 (c) Wind River Systems, Inc.
  *    Copyright 2020 (c) basysKom GmbH
+ *    Copyright 2022 (c) Wind River Systems, Inc.
  */
 
 /*
@@ -15,7 +16,7 @@ modification history
 #include <open62541/plugin/securitypolicy_default.h>
 #include <open62541/util.h>
 
-#ifdef UA_ENABLE_ENCRYPTION_OPENSSL
+#if defined(UA_ENABLE_ENCRYPTION_OPENSSL) || defined(UA_ENABLE_ENCRYPTION_LIBRESSL)
 
 #include <openssl/rsa.h>
 #include <openssl/evp.h>
@@ -27,14 +28,11 @@ modification history
 #include <openssl/pem.h>
 
 #include "securitypolicy_openssl_common.h"
-
-#if OPENSSL_VERSION_NUMBER >= 0x1010000fL
-#define get_pkey_rsa(evp) EVP_PKEY_get0_RSA(evp)
-#else
-#define get_pkey_rsa(evp) ((evp)->pkey.rsa)
-#endif
+#include "ua_openssl_version_abstraction.h"
 
 #define SHA1_DIGEST_LENGTH 20          /* 160 bits */
+#define RSA_DECRYPT_BUFFER_LENGTH 2048  /* bytes */    
+
 
 /** P_SHA256 Context */
 typedef struct UA_Openssl_P_SHA256_Ctx_ {
@@ -75,6 +73,14 @@ UA_Openssl_Init (void) {
     ERR_load_crypto_strings ();
 #endif
     bInit = 1;
+#endif
+}
+
+static int UA_OpenSSL_RSA_Key_Size (EVP_PKEY * key){
+#if (OPENSSL_VERSION_NUMBER >= 0x30000000L)
+    return EVP_PKEY_get_size (key);
+#else
+    return RSA_size (get_pkey_rsa(key));
 #endif
 }
 
@@ -197,8 +203,8 @@ UA_Openssl_X509_GetCertificateThumbprint (const UA_ByteString * certficate,
 }
 
 static UA_StatusCode
-UA_Openssl_RSA_Private_Decrypt (UA_ByteString *       data,
-                               EVP_PKEY * privateKey,
+UA_Openssl_RSA_Private_Decrypt (UA_ByteString *      data,
+                               EVP_PKEY *            privateKey,
                                UA_Int16              padding) {
     if (data == NULL || privateKey == NULL) {
         return UA_STATUSCODE_BADINVALIDARGUMENT;
@@ -208,27 +214,49 @@ UA_Openssl_RSA_Private_Decrypt (UA_ByteString *       data,
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     }
 
-    UA_Int32 keySize = RSA_size(get_pkey_rsa(privateKey));
+    size_t keySize = (size_t) UA_OpenSSL_RSA_Key_Size (privateKey);
     size_t cipherOffset = 0;
     size_t outOffset = 0;
-    unsigned char buf[2048];
-    UA_Int32 decryptedBytes;
+    unsigned char buf[RSA_DECRYPT_BUFFER_LENGTH];
+    size_t decryptedBytes;
+    EVP_PKEY_CTX * ctx;
+    int opensslRet;
+
+    ctx = EVP_PKEY_CTX_new (privateKey, NULL);
+    if (ctx == NULL) {
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    }
+    opensslRet = EVP_PKEY_decrypt_init (ctx);
+    if (opensslRet != 1)
+        {
+        EVP_PKEY_CTX_free (ctx);
+        return UA_STATUSCODE_BADINTERNALERROR;
+        }
+    opensslRet = EVP_PKEY_CTX_set_rsa_padding (ctx, padding);
+    if (opensslRet != 1) {
+        EVP_PKEY_CTX_free (ctx);
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
 
     while (cipherOffset < data->length) {
-        decryptedBytes = RSA_private_decrypt (keySize,
-                           data->data + cipherOffset, /* what to decrypt  */
+        decryptedBytes = RSA_DECRYPT_BUFFER_LENGTH;
+        opensslRet = EVP_PKEY_decrypt (ctx,
                            buf,                       /* where to decrypt */
-                           get_pkey_rsa(privateKey),      /* private key      */
-                           padding
+                           &decryptedBytes,
+                           data->data + cipherOffset, /* what to decrypt  */
+                           keySize
                            );
-        if (decryptedBytes < 0) {
+        if (opensslRet != 1) {
+            EVP_PKEY_CTX_free (ctx);
             return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
         }
-        memcpy(data->data + outOffset, buf, (size_t) decryptedBytes);
+        (void) memcpy(data->data + outOffset, buf, decryptedBytes);
         cipherOffset += (size_t) keySize;
-        outOffset += (size_t) decryptedBytes;
+        outOffset += decryptedBytes;
     }
     data->length = outOffset;
+    EVP_PKEY_CTX_free (ctx);
+
     return UA_STATUSCODE_GOOD;
 }
 
@@ -254,7 +282,6 @@ UA_Openssl_RSA_Public_Encrypt  (const UA_ByteString * message,
     size_t encryptedPos = 0;
     size_t bytesToEncrypt = 0;
     size_t encryptedBlockSize = 0;
-    RSA *  rsa = NULL;
     size_t keySize = 0;
 
     evpPublicKey = X509_get_pubkey (publicX509);
@@ -279,8 +306,8 @@ UA_Openssl_RSA_Public_Encrypt  (const UA_ByteString * message,
     }
 
     /* get the encrypted block size */
-    rsa = get_pkey_rsa (evpPublicKey);
-    keySize = (size_t) RSA_size (rsa);
+
+    keySize = (size_t) UA_OpenSSL_RSA_Key_Size (evpPublicKey);
     if (keySize == 0) {
         ret = UA_STATUSCODE_BADINTERNALERROR;
         goto errout;
@@ -440,8 +467,8 @@ UA_Openssl_RSA_Public_GetKeyLength (X509 *     publicKeyX509,
     if (evpKey == NULL) {
         return  UA_STATUSCODE_BADINTERNALERROR;
     }
-    RSA * rsa = get_pkey_rsa (evpKey);
-    *keyLen = RSA_size(rsa);
+    *keyLen = UA_OpenSSL_RSA_Key_Size (evpKey);
+    
     EVP_PKEY_free (evpKey);
 
     return UA_STATUSCODE_GOOD;
@@ -453,7 +480,7 @@ UA_Openssl_RSA_Private_GetKeyLength (EVP_PKEY * privateKey,
     if (privateKey == NULL) {
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     }
-    *keyLen = RSA_size(get_pkey_rsa(privateKey));
+    *keyLen = UA_OpenSSL_RSA_Key_Size (privateKey);
 
     return UA_STATUSCODE_GOOD;
 }
@@ -520,7 +547,7 @@ UA_OpenSSL_HMAC_SHA256_Verify (const UA_ByteString *     message,
     unsigned char buf[SHA256_DIGEST_LENGTH] = {0};
     UA_ByteString mac = {SHA256_DIGEST_LENGTH, buf};
 
-    if (HMAC (EVP_sha256(), key->data, (int) key->length, message->data, message->length, 
+    if (HMAC (EVP_sha256(), key->data, (int) key->length, message->data, message->length,
               mac.data, (unsigned int *) &mac.length) == NULL) {
         return UA_STATUSCODE_BADINTERNALERROR;
     }
@@ -651,16 +678,28 @@ UA_OpenSSL_Encrypt (const UA_ByteString * iv,
         ret = UA_STATUSCODE_BADINTERNALERROR;
         goto errout;
     }
+
+    /* Disable padding. Padding is done in the stack before calling encryption.
+     * Ensure that we have a multiple of the block size */
+    if(data->length % (size_t)EVP_CIPHER_CTX_block_size(ctx)) {
+        ret = UA_STATUSCODE_BADINTERNALERROR;
+        goto errout;
+    }
+    opensslRet = EVP_CIPHER_CTX_set_padding(ctx, 0);
+    if (opensslRet != 1) {
+        ret = UA_STATUSCODE_BADINTERNALERROR;
+        goto errout;
+    }
+
+    /* Encrypt the data */
     opensslRet = EVP_EncryptUpdate (ctx, data->data, &outLen,
                                     plainTxt.data, (int) plainTxt.length);
     if (opensslRet != 1) {
         ret = UA_STATUSCODE_BADINTERNALERROR;
         goto errout;
     }
-    /*
-     * Buffer passed to EVP_EncryptFinal() must be after data just
-     * encrypted to avoid overwriting it.
-     */
+
+    /* Encrypt-final does nothing as padding is disabled */
     opensslRet = EVP_EncryptFinal_ex(ctx, data->data + outLen, &tmpLen);
     if (opensslRet != 1) {
         ret = UA_STATUSCODE_BADINTERNALERROR;
@@ -884,6 +923,8 @@ EVP_PKEY *
 UA_OpenSSL_LoadPrivateKey(const UA_ByteString *privateKey) {
     const unsigned char * pkData = privateKey->data;
     long len = (long) privateKey->length;
+    if(len == 0)
+        return NULL;
 
     EVP_PKEY *result = NULL;
 
@@ -892,11 +933,7 @@ UA_OpenSSL_LoadPrivateKey(const UA_ByteString *privateKey) {
                                           &pkData, len);
     } else {
         BIO *bio = NULL;
-#if OPENSSL_VERSION_NUMBER < 0x1000207fL
         bio = BIO_new_mem_buf((void *) privateKey->data, (int) privateKey->length);
-#else
-        bio = BIO_new_mem_buf((const void *) privateKey->data, (int) privateKey->length);
-#endif
         result = PEM_read_bio_PrivateKey(bio, NULL, NULL, NULL);
         BIO_free(bio);
     }
@@ -929,11 +966,7 @@ UA_OpenSSL_LoadPemCertificate(const UA_ByteString *certificate) {
     X509 * result = NULL;
 
     BIO* bio = NULL;
-#if OPENSSL_VERSION_NUMBER < 0x1000207fL
     bio = BIO_new_mem_buf((void *) certificate->data, (int) certificate->length);
-#else
-    bio = BIO_new_mem_buf((const void *) certificate->data, (int) certificate->length);
-#endif
     result = PEM_read_bio_X509(bio, NULL, NULL, NULL);
     BIO_free(bio);
 

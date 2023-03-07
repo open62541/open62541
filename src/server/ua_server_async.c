@@ -22,9 +22,7 @@ UA_AsyncManager_sendAsyncResponse(UA_AsyncManager *am, UA_Server *server,
                                   UA_AsyncResponse *ar) {
     /* Get the session */
     UA_StatusCode res = UA_STATUSCODE_GOOD;
-    UA_LOCK(&server->serviceMutex);
-    UA_Session* session = UA_Server_getSessionById(server, &ar->sessionId);
-    UA_UNLOCK(&server->serviceMutex);
+    UA_Session* session = getSessionById(server, &ar->sessionId);
     UA_SecureChannel* channel = NULL;
     UA_ResponseHeader *responseHeader = NULL;
     if(!session) {
@@ -67,7 +65,9 @@ integrateOperationResult(UA_AsyncManager *am, UA_Server *server,
     UA_AsyncResponse *ar = ao->parent;
 
     /* Reduce the number of open results */
+    UA_LOCK(&am->queueLock);
     ar->opCountdown -= 1;
+    UA_UNLOCK(&am->queueLock);
 
     UA_LOG_DEBUG(&server->config.logger, UA_LOGCATEGORY_SERVER,
                  "Return result in the server thread with %" PRIu32 " remaining",
@@ -78,8 +78,11 @@ integrateOperationResult(UA_AsyncManager *am, UA_Server *server,
     UA_CallMethodResult_init(&ao->response);
 
     /* Are we done with all operations? */
-    if(ar->opCountdown == 0)
+    if(ar->opCountdown == 0) {
+        UA_LOCK(&server->serviceMutex);
         UA_AsyncManager_sendAsyncResponse(am, server, ar);
+        UA_UNLOCK(&server->serviceMutex);
+    }
 }
 
 /* Process all operations in the result queue -> move content over to the
@@ -161,27 +164,27 @@ UA_AsyncManager_init(UA_AsyncManager *am, UA_Server *server) {
 
     /* Add a regular callback for cleanup and sending finished responses at a
      * 100s interval. */
-    UA_Server_addRepeatedCallback(server, (UA_ServerCallback)checkTimeouts,
-                                  NULL, 100.0, &am->checkTimeoutCallbackId);
+    addRepeatedCallback(server, (UA_ServerCallback)checkTimeouts,
+                        NULL, 100.0, &am->checkTimeoutCallbackId);
 }
 
 void
 UA_AsyncManager_clear(UA_AsyncManager *am, UA_Server *server) {
     removeCallback(server, am->checkTimeoutCallbackId);
 
-    UA_AsyncOperation *ar;
+    UA_AsyncOperation *ar, *ar_tmp;
 
     /* Clean up queues */
     UA_LOCK(&am->queueLock);
-    while((ar = TAILQ_FIRST(&am->newQueue))) {
-        TAILQ_REMOVE(&am->resultQueue, ar, pointers);
+    TAILQ_FOREACH_SAFE(ar, &am->newQueue, pointers, ar_tmp) {
+        TAILQ_REMOVE(&am->newQueue, ar, pointers);
         UA_AsyncOperation_delete(ar);
     }
-    while((ar = TAILQ_FIRST(&am->dispatchedQueue))) {
-        TAILQ_REMOVE(&am->resultQueue, ar, pointers);
+    TAILQ_FOREACH_SAFE(ar, &am->dispatchedQueue, pointers, ar_tmp) {
+        TAILQ_REMOVE(&am->dispatchedQueue, ar, pointers);
         UA_AsyncOperation_delete(ar);
     }
-    while((ar = TAILQ_FIRST(&am->resultQueue))) {
+    TAILQ_FOREACH_SAFE(ar, &am->resultQueue, pointers, ar_tmp) {
         TAILQ_REMOVE(&am->resultQueue, ar, pointers);
         UA_AsyncOperation_delete(ar);
     }
@@ -259,7 +262,7 @@ UA_AsyncManager_createAsyncOp(UA_AsyncManager *am, UA_Server *server,
     UA_StatusCode result = UA_CallMethodRequest_copy(opRequest, &ao->request);
     if(result != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
-                     "UA_Server_SetAsyncMethodResult: UA_CallMethodRequest_copy failed.");                
+                     "UA_Server_SetAsyncMethodResult: UA_CallMethodRequest_copy failed.");
         UA_free(ao);
         return result;
     }
@@ -304,13 +307,6 @@ UA_Server_getAsyncOperationNonBlocking(UA_Server *server, UA_AsyncOperationType 
     UA_UNLOCK(&am->queueLock);
 
     return bRV;
-}
-
-UA_Boolean
-UA_Server_getAsyncOperation(UA_Server *server, UA_AsyncOperationType *type,
-                            const UA_AsyncOperationRequest **request,
-                            void **context) {
-    return UA_Server_getAsyncOperationNonBlocking(server, type, request, context, NULL);
 }
 
 /* Worker submits Method Call Response */
@@ -386,8 +382,12 @@ setMethodNodeAsync(UA_Server *server, UA_Session *session,
 UA_StatusCode
 UA_Server_setMethodNodeAsync(UA_Server *server, const UA_NodeId id,
                              UA_Boolean isAsync) {
-    return UA_Server_editNode(server, &server->adminSession, &id,
-                              (UA_EditNodeCallback)setMethodNodeAsync, &isAsync);
+    UA_LOCK(&server->serviceMutex);
+    UA_StatusCode res =
+        UA_Server_editNode(server, &server->adminSession, &id,
+                           (UA_EditNodeCallback)setMethodNodeAsync, &isAsync);
+    UA_UNLOCK(&server->serviceMutex);
+    return res;
 }
 
 UA_StatusCode

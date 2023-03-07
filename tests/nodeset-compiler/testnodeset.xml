@@ -2,11 +2,13 @@
 <UANodeSet xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd" xmlns="http://opcfoundation.org/UA/2011/03/UANodeSet.xsd" xmlns:s1="http://yourorganisation.org/test/Types.xsd" xmlns:ua="http://unifiedautomation.com/Configuration/NodeSet.xsd" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
     <NamespaceUris>
         <Uri>http://yourorganisation.org/test/</Uri>
+        <Uri>http://opcfoundation.org/UA/DI/</Uri>
     </NamespaceUris>
     <Aliases>
         <Alias Alias="Int32">i=6</Alias>
         <Alias Alias="UInt32">i=7</Alias>
         <Alias Alias="Double">i=11</Alias>
+        <Alias Alias="Guid">i=14</Alias>
         <Alias Alias="Organizes">i=35</Alias>
         <Alias Alias="HasModellingRule">i=37</Alias>
         <Alias Alias="HasEncoding">i=38</Alias>
@@ -18,6 +20,9 @@
         <Alias Alias="Point3D">ns=1;i=3002</Alias>
         <Alias Alias="Point">ns=1;i=10001</Alias>
         <Alias Alias="SelfContainingUnion">ns=1;i=4002</Alias>
+        <Alias Alias="TestDataType">ns=1;i=3006</Alias>
+        <Alias Alias="TestObjectType">ns=1;i=1003</Alias>
+        <Alias Alias="DataSetMetaDataType">i=14523</Alias>
     </Aliases>
     <Extensions>
         <Extension>
@@ -537,4 +542,147 @@
             </ExtensionObject>
         </Value>
     </UAVariable>
+    <UAObjectType NodeId="ns=1;i=1003" BrowseName="1:TestObjectType">
+        <DisplayName>TestObjectType</DisplayName>
+        <Description>Test object type</Description>
+        <References>
+            <Reference ReferenceType="HasComponent">ns=1;i=7004</Reference>
+            <Reference ReferenceType="HasSubtype" IsForward="false">i=58</Reference>
+        </References>
+    </UAObjectType>
+    <UAMethod ParentNodeId="ns=1;i=1003" NodeId="ns=1;i=7004" BrowseName="1:TestMethod">
+        <DisplayName>TestMethod</DisplayName>
+        <Description>Test method</Description>
+        <References>
+            <Reference ReferenceType="HasProperty">ns=1;i=6020</Reference>
+            <Reference ReferenceType="HasModellingRule">i=78</Reference>
+            <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=1003</Reference>
+        </References>
+    </UAMethod>
+    <UAVariable DataType="Argument" ParentNodeId="ns=1;i=7004" ValueRank="1" NodeId="ns=1;i=6020" ArrayDimensions="1" BrowseName="InputArguments">
+        <DisplayName>InputArguments</DisplayName>
+        <References>
+            <Reference ReferenceType="HasModellingRule">i=78</Reference>
+            <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+            <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=7004</Reference>
+        </References>
+        <Value>
+            <uax:ListOfExtensionObject>
+                <uax:ExtensionObject>
+                    <uax:TypeId>
+                        <uax:Identifier>i=297</uax:Identifier>
+                    </uax:TypeId>
+                    <uax:Body>
+                        <uax:Argument>
+                            <uax:Name>TestDataType</uax:Name>
+                            <uax:DataType>
+                                <uax:Identifier>ns=1;i=3006</uax:Identifier>
+                            </uax:DataType>
+                            <uax:ValueRank>1</uax:ValueRank>
+                            <uax:ArrayDimensions/>
+                            <uax:Description/>
+                        </uax:Argument>
+                    </uax:Body>
+                </uax:ExtensionObject>
+            </uax:ListOfExtensionObject>
+        </Value>
+    </UAVariable>
+    <UADataType NodeId="ns=1;i=3006" BrowseName="1:TestDataType">
+        <DisplayName>TestDataType</DisplayName>
+        <Description>Test argument data type</Description>
+        <References>
+            <Reference ReferenceType="HasSubtype" IsForward="false">i=22</Reference>
+        </References>
+        <Definition Name="1:TestDataType">
+            <Field DataType="String" Name="Name">
+                <Description>Name</Description>
+            </Field>
+            <Field DataType="String" Name="Description">
+                <Description>Description</Description>
+            </Field>
+        </Definition>
+    </UADataType>
+    <UAVariable DataType="Guid" ParentNodeId="ns=1;i=5100" NodeId="ns=1;i=7051" BrowseName="1:TestGuidScalar" AccessLevel="3">
+        <DisplayName>TestGuidScalar</DisplayName>
+        <References>
+            <Reference ReferenceType="HasTypeDefinition">i=63</Reference>
+            <Reference ReferenceType="Organizes" IsForward="false">ns=1;i=5100</Reference>
+        </References>
+        <Value>
+            <uax:Guid>
+                <uax:String>7822a391-de79-4a59-b08d-b70bc63fecec</uax:String>
+            </uax:Guid>
+        </Value>
+    </UAVariable>
+    <UAVariable DataType="Guid" ParentNodeId="ns=1;i=5100" ValueRank="1" NodeId="ns=1;i=7052" ArrayDimensions="0" BrowseName="1:TestGuidArray" AccessLevel="3">
+        <DisplayName>TestGuidArray</DisplayName>
+        <References>
+            <Reference ReferenceType="HasTypeDefinition">i=63</Reference>
+            <Reference ReferenceType="Organizes" IsForward="false">ns=1;i=5100</Reference>
+        </References>
+		<Value>
+            <uax:ListOfString>
+                <uax:Guid>
+					<uax:String>7822a391-1111-4a59-b08d-b70bc63fecec</uax:String>
+				</uax:Guid>
+					<uax:Guid>
+					<uax:String>7822a391-2222-4a59-b08d-b70bc63fecec</uax:String>
+				</uax:Guid>
+					<uax:Guid>
+					<uax:String>7822a391-3333-4a59-b08d-b70bc63fecec</uax:String>
+				</uax:Guid>
+            </uax:ListOfString>
+        </Value>
+    </UAVariable>
+    <UAVariable DataType="DataSetMetaDataType" ParentNodeId="ns=1;i=5001" NodeId="ns=1;i=6021" BrowseName="TestDataSetMetaData">
+        <DisplayName>TestDataSetMetaData</DisplayName>
+        <References>
+            <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=5001</Reference>
+            <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+        </References>
+        <Value>
+            <uax:ExtensionObject>
+                <uax:TypeId>
+                    <uax:Identifier>i=14794</uax:Identifier>
+                </uax:TypeId>
+                <uax:Body>
+                    <DataSetMetaDataType xmlns="http://opcfoundation.org/UA/2008/02/Types.xsd">
+                        <Namespaces>
+                            <String></String>
+                        </Namespaces>
+                        <StructureDataTypes/>
+                        <EnumDataTypes/>
+                        <SimpleDataTypes/>
+                        <Name>DataSetName</Name>
+                        <Description/>
+                        <Fields>
+                            <FieldMetaData>
+                                <Name>FieldName</Name>
+                                <Description/>
+                                <FieldFlags>0</FieldFlags>
+                                <BuiltInType>10</BuiltInType>
+                                <DataType>
+                                    <Identifier>i=10</Identifier>
+                                </DataType>
+                                <ValueRank>-1</ValueRank>
+                                <ArrayDimensions/>
+                                <MaxStringLength>0</MaxStringLength>
+                                <DataSetFieldId>
+                                    <String>10000000-2000-3000-4000-500000000000</String>
+                                </DataSetFieldId>
+                                <Properties/>
+                            </FieldMetaData>
+                        </Fields>
+                        <DataSetClassId>
+                            <String>10000000-2000-3000-4000-500000000000</String>
+                        </DataSetClassId>
+                        <ConfigurationVersion>
+                            <MajorVersion>1</MajorVersion>
+                            <MinorVersion>1</MinorVersion>
+                        </ConfigurationVersion>
+                    </DataSetMetaDataType>
+                </uax:Body>
+            </uax:ExtensionObject>
+        </Value>
+    </UAVariable>    
 </UANodeSet>

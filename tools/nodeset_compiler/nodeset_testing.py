@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 ### This Source Code Form is subject to the terms of the Mozilla Public
 ### License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -13,7 +13,7 @@ from nodeset import *
 
 class testing:
     def __init__(self):
-        self.ns = NodeSet("testing")
+        self.ns = NodeSet()
 
         logger.debug("Phase 1: Reading XML file nodessets")
         self.ns.parseXML("Opc.Ua.NodeSet2.xml")

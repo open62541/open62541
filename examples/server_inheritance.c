@@ -3,15 +3,6 @@
 
 #include <open62541/plugin/log_stdout.h>
 #include <open62541/server.h>
-#include <open62541/server_config_default.h>
-
-#include <signal.h>
-#include <stdlib.h>
-
-UA_Boolean running = true;
-static void stopHandler(int sig) {
-    running = false;
-}
 
 /**
  * This will create a type structure and some instances of the types:
@@ -32,7 +23,8 @@ static void stopHandler(int sig) {
  *          v- MakeSound = "Wuff"
  *           v- FetchNewPaper
  */
-static void createMammals(UA_Server *server) {
+static void
+createMammals(UA_Server *server) {
 
 
     UA_ObjectTypeAttributes otAttr = UA_ObjectTypeAttributes_default;
@@ -51,7 +43,8 @@ static void createMammals(UA_Server *server) {
     UA_Server_addVariableNode(server, UA_NODEID_NUMERIC(1, 10001),
                               UA_NODEID_NUMERIC(1, 10000),
                               UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY),
-                              UA_QUALIFIEDNAME(1, "Class"), UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
+                              UA_QUALIFIEDNAME(1, "Class"),
+                              UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
                               vAttr, NULL, NULL);
 
     vAttr = UA_VariableAttributes_default;
@@ -60,7 +53,8 @@ static void createMammals(UA_Server *server) {
     UA_Server_addVariableNode(server, UA_NODEID_NUMERIC(1, 10002),
                               UA_NODEID_NUMERIC(1, 10000),
                               UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY),
-                              UA_QUALIFIEDNAME(1, "Species"), UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
+                              UA_QUALIFIEDNAME(1, "Species"),
+                              UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
                               vAttr, NULL, NULL);
 
     otAttr = UA_ObjectTypeAttributes_default;
@@ -79,7 +73,8 @@ static void createMammals(UA_Server *server) {
     UA_Server_addVariableNode(server, UA_NODEID_NUMERIC(1, 20001),
                               UA_NODEID_NUMERIC(1, 20000),
                               UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY),
-                              UA_QUALIFIEDNAME(1, "Species"), UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
+                              UA_QUALIFIEDNAME(1, "Species"),
+                              UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
                               vAttr, NULL, NULL);
 
     vAttr = UA_VariableAttributes_default;
@@ -90,7 +85,8 @@ static void createMammals(UA_Server *server) {
     UA_Server_addVariableNode(server, UA_NODEID_NUMERIC(1, 20002),
                               UA_NODEID_NUMERIC(1, 20000),
                               UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY),
-                              UA_QUALIFIEDNAME(1, "Name"), UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
+                              UA_QUALIFIEDNAME(1, "Name"),
+                              UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
                               vAttr, NULL, NULL);
 
     /* Instatiate a dog named bello:
@@ -157,10 +153,9 @@ static void createMammals(UA_Server *server) {
  *          IsOn should have the node ID 30101, Brightness will be inherited with a generated node ID
  *
  */
-static void createCustomInheritance(UA_Server *server) {
-
+static void
+createCustomInheritance(UA_Server *server) {
     /* Add LampType object type node */
-
     UA_ObjectTypeAttributes otAttr = UA_ObjectTypeAttributes_default;
     otAttr.description = UA_LOCALIZEDTEXT("en-US", "A Lamp");
     otAttr.displayName = UA_LOCALIZEDTEXT("en-US", "LampType");
@@ -168,7 +163,6 @@ static void createCustomInheritance(UA_Server *server) {
                                 UA_NODEID_NUMERIC(0, UA_NS0ID_BASEOBJECTTYPE),
                                 UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE),
                                 UA_QUALIFIEDNAME(1, "LampType"), otAttr, NULL, NULL);
-
 
     /* Add the two mandatory children, IsOn and Brightness */
     UA_VariableAttributes vAttr = UA_VariableAttributes_default;
@@ -179,7 +173,8 @@ static void createCustomInheritance(UA_Server *server) {
     UA_Server_addVariableNode(server, UA_NODEID_NUMERIC(1, 30001),
                               UA_NODEID_NUMERIC(1, 30000),
                               UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY),
-                              UA_QUALIFIEDNAME(1, "IsOn"), UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
+                              UA_QUALIFIEDNAME(1, "IsOn"),
+                              UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
                               vAttr, NULL, NULL);
     UA_Server_addReference(server, UA_NODEID_NUMERIC(1, 30001),
                            UA_NODEID_NUMERIC(0, UA_NS0ID_HASMODELLINGRULE),
@@ -193,14 +188,16 @@ static void createCustomInheritance(UA_Server *server) {
     UA_Server_addVariableNode(server, UA_NODEID_NUMERIC(1, 30002),
                               UA_NODEID_NUMERIC(1, 30000),
                               UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY),
-                              UA_QUALIFIEDNAME(1, "Brightness"), UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
+                              UA_QUALIFIEDNAME(1, "Brightness"),
+                              UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
                               vAttr, NULL, NULL);
     UA_Server_addReference(server, UA_NODEID_NUMERIC(1, 30002),
                            UA_NODEID_NUMERIC(0, UA_NS0ID_HASMODELLINGRULE),
                            UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_MODELLINGRULE_MANDATORY), true);
-    
-    /* Now we want to inherit all the mandatory children for LampGreen and don't care about the node ids.
-     * These will be automatically generated. This will internally call the _begin and _finish methods */
+
+    /* Now we want to inherit all the mandatory children for LampGreen and don't
+     * care about the node ids. These will be automatically generated. This will
+     * internally call the _begin and _finish methods */
 
     UA_ObjectAttributes oAttr = UA_ObjectAttributes_default;
     oAttr.description = UA_LOCALIZEDTEXT("en-US", "A green lamp");
@@ -211,11 +208,11 @@ static void createCustomInheritance(UA_Server *server) {
                             UA_QUALIFIEDNAME(1, "LampGreen"), UA_NODEID_NUMERIC(1, 30000),
                             oAttr, NULL, NULL);
 
-    /* For the red lamp we want to set the node ID of the IsOn child manually, thus we need to use
-     * the _begin method, add the child and then _finish: */
+    /* For the red lamp we want to set the node ID of the IsOn child manually,
+     * thus we need to use the _begin method, add the child and then _finish: */
 
-    /* The call to UA_Server_addNode_begin will create the node and its parent references,
-     * but it will not instantiate the mandatory children */
+    /* The call to UA_Server_addNode_begin will create the node and its parent
+     * references, but it will not instantiate the mandatory children */
     oAttr = UA_ObjectAttributes_default;
     oAttr.description = UA_LOCALIZEDTEXT("en-US", "A red lamp");
     oAttr.displayName = UA_LOCALIZEDTEXT("en-US", "LampRed");
@@ -225,8 +222,8 @@ static void createCustomInheritance(UA_Server *server) {
                             UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
                             UA_QUALIFIEDNAME(1, "LampRed"),
                             UA_NODEID_NUMERIC(1, 30000),
-                            (const UA_NodeAttributes*)&oAttr, &UA_TYPES[UA_TYPES_OBJECTATTRIBUTES],
-                            NULL, NULL);
+                            (const UA_NodeAttributes*)&oAttr,
+                            &UA_TYPES[UA_TYPES_OBJECTATTRIBUTES], NULL, NULL);
 
     /* Now we can add the IsOn with our own node ID */
     vAttr = UA_VariableAttributes_default;
@@ -237,28 +234,24 @@ static void createCustomInheritance(UA_Server *server) {
     UA_Server_addVariableNode(server, UA_NODEID_NUMERIC(1, 30101),
                               UA_NODEID_NUMERIC(1, 30100),
                               UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY),
-                              UA_QUALIFIEDNAME(1, "IsOn"), UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
+                              UA_QUALIFIEDNAME(1, "IsOn"),
+                              UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
                               vAttr, NULL, NULL);
 
-    /* And then we need to call the UA_Server_addNode_finish which adds all the remaining
-     * children and does some further initialization. It will not add the IsNode child,
-     * since a child with the same browse name already exists */
+    /* And then we need to call the UA_Server_addNode_finish which adds all the
+     * remaining children and does some further initialization. It will not add
+     * the IsNode child, since a child with the same browse name already
+     * exists */
     UA_Server_addNode_finish(server, UA_NODEID_NUMERIC(1, 30100));
 }
 
 int main(void) {
-    signal(SIGINT,  stopHandler);
-    signal(SIGTERM, stopHandler);
-
     UA_Server *server = UA_Server_new();
-    UA_ServerConfig_setDefault(UA_Server_getConfig(server));
 
     createMammals(server);
-
     createCustomInheritance(server);
 
-    /* Run the server */
-    UA_StatusCode retval = UA_Server_run(server, &running);
+    UA_StatusCode retval = UA_Server_runUntilInterrupt(server);
 
     UA_Server_delete(server);
     return retval == UA_STATUSCODE_GOOD ? EXIT_SUCCESS : EXIT_FAILURE;

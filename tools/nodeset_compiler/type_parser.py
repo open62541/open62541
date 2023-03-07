@@ -8,7 +8,10 @@ from collections import OrderedDict
 import sys
 
 if sys.version_info[0] >= 3:
-    from nodeset_compiler.opaque_type_mapping import get_base_type_for_opaque as get_base_type_for_opaque_ns0
+    try:
+        from opaque_type_mapping import get_base_type_for_opaque as get_base_type_for_opaque_ns0
+    except ImportError:
+        from nodeset_compiler.opaque_type_mapping import get_base_type_for_opaque as get_base_type_for_opaque_ns0
 else:
     from opaque_type_mapping import get_base_type_for_opaque as get_base_type_for_opaque_ns0
 
@@ -18,17 +21,20 @@ builtin_types = ["Boolean", "SByte", "Byte", "Int16", "UInt16", "Int32", "UInt32
                  "QualifiedName", "LocalizedText", "ExtensionObject", "DataValue",
                  "Variant", "DiagnosticInfo"]
 
-excluded_types = ["NodeIdType", "InstanceNode", "TypeNode", "Node", "ObjectNode",
-                  "ObjectTypeNode", "VariableNode", "VariableTypeNode", "ReferenceTypeNode",
-                  "MethodNode", "ViewNode", "DataTypeNode", "NumericRangeDimensions",
-                  "UA_ServerDiagnosticsSummaryDataType", "UA_SamplingIntervalDiagnosticsDataType",
-                  "UA_SessionSecurityDiagnosticsDataType", "UA_SubscriptionDiagnosticsDataType",
-                  "UA_SessionDiagnosticsDataType"]
+builtin_pointerfree = ["Boolean", "SByte", "Byte", "Int16", "UInt16",
+                       "Int32", "UInt32", "Int64", "UInt64", "Float", "Double",
+                       "DateTime", "StatusCode", "Guid"]
+
+# DataTypes that are ignored/not generated
+excluded_types = [
+    # NodeId Types
+    "NodeIdType", "TwoByteNodeId", "FourByteNodeId", "NumericNodeId",
+    "StringNodeId", "GuidNodeId", "ByteStringNodeId",
+    # Node Types
+    "InstanceNode", "TypeNode", "Node", "ObjectNode", "ObjectTypeNode", "VariableNode",
+    "VariableTypeNode", "ReferenceTypeNode", "MethodNode", "ViewNode", "DataTypeNode"]
 
 rename_types = {"NumericRange": "OpaqueNumericRange"}
-
-builtin_overlayable = ["Boolean", "SByte", "Byte", "Int16", "UInt16", "Int32", "UInt32",
-                       "Int64", "UInt64", "Float", "Double", "DateTime", "StatusCode", "Guid"]
 
 # Type aliases
 type_aliases = {"CharArray": "String"}
@@ -85,8 +91,7 @@ class BuiltinType(Type):
     def __init__(self, name):
         Type.__init__(self, "types", None, "http://opcfoundation.org/UA/")
         self.name = name
-        if self.name in builtin_overlayable:
-            self.pointerfree = True
+        self.pointerfree = self.name in builtin_pointerfree
 
 
 class EnumerationType(Type):
@@ -262,14 +267,6 @@ class TypeParser():
                         unknowns.append(child.get("TypeName"))
             return unknowns
 
-        def skipType(name):
-            "Ignore the type? According to the blacklist and regex rules"
-            if name in excluded_types:
-                return True
-            if re.search("NodeId$", name) != None:
-                return True
-            return False
-
         def structWithOptionalFields(element):
             "Is this a structure with optional fields?"
             opt_fields = []
@@ -303,7 +300,7 @@ class TypeParser():
                     return True
             return False
 
-        snippets = {}
+        snippets = OrderedDict()
         xmlDoc = etree.iterparse(
             xmlDescription, events=['start-ns']
         )
@@ -313,8 +310,8 @@ class TypeParser():
         if xmlDoc.root.get("TargetNamespace"):
             targetNamespace = xmlDoc.root.get("TargetNamespace")
             if not targetNamespace in self.namespaceIndexMap:
-                raise RuntimeError("TargetNamespace '{targetNs}' is not listed in namespace index mapping. " 
-                                   "Use the following option to define the mapping (can be used multiple times). " 
+                raise RuntimeError("TargetNamespace '{targetNs}' is not listed in namespace index mapping. "
+                                   "Use the following option to define the mapping (can be used multiple times). "
                                    "--namespaceMap=X:{targetNs} where X is the resulting namespace index in the server.".format(targetNs=targetNamespace))
         else:
             raise RuntimeError("TargetNamespace Attribute not defined in BSD file.")
@@ -333,11 +330,11 @@ class TypeParser():
                                    ". If the unknown subtype is 'Bit', then maybe a struct with " +
                                    "optional fields is defined wrong in the .bsd-file. If not, maybe " +
                                    "you need to import additional types with the --import flag. " +
-                                   "E.g. '--import==UA_TYPES#/path/to/deps/ua-nodeset/Schema/" +
+                                   "E.g. '--import=UA_TYPES#/path/to/deps/ua-nodeset/Schema/" +
                                    "Opc.Ua.Types.bsd'")
             detectLoop = len(snippets)
             for name, typeXml in list(snippets.items()):
-                if (targetNamespace in self.types and name in self.types[targetNamespace]) or skipType(name):
+                if (targetNamespace in self.types and name in self.types[targetNamespace]) or name in excluded_types:
                     del snippets[name]
                     continue
                 if not typeReady(typeXml, self.types, xmlNamespaces):
@@ -398,6 +395,7 @@ class CSVBSDTypeParser(TypeParser):
                  existing_bsd, type_bsd, type_csv, namespaceIndexMap):
         TypeParser.__init__(self, opaque_map, selected_types, no_builtin, outname, namespaceIndexMap)
         self.existing_bsd = existing_bsd # bsd files with existing types that shall not be printed again
+        self.existing_types_array = set() # existing TYPE_ARRAY from existing_bsd
         self.type_bsd = type_bsd # bsd files with new types
         self.type_csv = type_csv # csv files with nodeids, etc.
         self.existing_types = [] # existing types that shall not be printed
@@ -406,6 +404,7 @@ class CSVBSDTypeParser(TypeParser):
         # parse existing types
         for i in self.existing_bsd:
             (outname_import, file_import) = i.split("#")
+            self.existing_types_array.add(outname_import)
             outname_import = outname_import.lower()
             if outname_import.startswith("ua_"):
                 outname_import = outname_import[3:]

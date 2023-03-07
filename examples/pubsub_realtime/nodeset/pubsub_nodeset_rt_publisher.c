@@ -2,25 +2,28 @@
  * See http://creativecommons.org/publicdomain/zero/1.0/ for more information. */
 
 /**
- * .. _pubsub-tutorial:
+ * .. _pubsub-nodeset-tutorial:
  *
  * Publisher Realtime example using custom nodes
  * ---------------------------------------------
  *
  * The purpose of this example file is to use the custom nodes of the XML
- * file(pubDataModel.xml) for publisher.
- * This Publisher example uses the two custom nodes (PublisherCounterVariable and Pressure)
- * created using the XML file(pubDataModel.xml) for publishing the packet.
- * The pubDataModel.csv will contain the nodeids of custom nodes(object and variables) and
- * the nodeids of the custom nodes are harcoded inside the addDataSetField API.
- * This example uses two threads namely the Publisher and UserApplication. The Publisher thread is used to publish data at every cycle.
- * The UserApplication thread serves the functionality of the Control loop, which increments the counterdata to be published
- * by the Publisher and also writes the published data in a csv along with transmission timestamp.
+ * file(pubDataModel.xml) for publisher. This Publisher example uses the two
+ * custom nodes (PublisherCounterVariable and Pressure) created using the XML
+ * file(pubDataModel.xml) for publishing the packet. The pubDataModel.csv will
+ * contain the nodeids of custom nodes(object and variables) and the nodeids of
+ * the custom nodes are harcoded inside the addDataSetField API. This example
+ * uses two threads namely the Publisher and UserApplication. The Publisher
+ * thread is used to publish data at every cycle. The UserApplication thread
+ * serves the functionality of the Control loop, which increments the
+ * counterdata to be published by the Publisher and also writes the published
+ * data in a csv along with transmission timestamp.
  *
  * Run steps of the Publisher application as mentioned below:
  *
- * ./bin/examples/pubsub_nodeset_rt_publisher -i <iface>
- * For more information run ./bin/examples/pubsub_nodeset_rt_publisher -h */
+ * ``./bin/examples/pubsub_nodeset_rt_publisher -i <iface>``
+ *
+ * For more information run ``./bin/examples/pubsub_nodeset_rt_publisher -h``. */
 
 #define _GNU_SOURCE
 
@@ -206,9 +209,9 @@ changePubSubApplicationCallback(UA_Server *server, UA_NodeId identifier,
 /* Remove the callback added for cyclic repetition */
 static void
 removePubSubApplicationCallback(UA_Server *server, UA_NodeId identifier, UA_UInt64 callbackId){
-    if(callbackId && (pthread_join(callbackId, NULL) != 0))
+    if(callbackId && (pthread_join((pthread_t)callbackId, NULL) != 0))
         UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
-                       "Pthread Join Failed thread: %ld\n", callbackId);
+                       "Pthread Join Failed thread: %lu\n", (long unsigned)callbackId);
 }
 
 /**
@@ -254,7 +257,8 @@ addPubSubConnection(UA_Server *server, UA_NetworkAddressUrlDataType *networkAddr
     connectionConfig.transportProfileUri                    = UA_STRING(ETH_TRANSPORT_PROFILE);
     UA_Variant_setScalar(&connectionConfig.address, &networkAddressUrl,
                          &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
-    connectionConfig.publisherId.numeric                    = PUBLISHER_ID;
+    connectionConfig.publisherIdType                        = UA_PUBLISHERIDTYPE_UINT16;
+    connectionConfig.publisherId.uint16                     = PUBLISHER_ID;
     /* Connection options are given as Key/Value Pairs - Sockprio and Txtime */
     UA_KeyValuePair connectionOptions[2];
     connectionOptions[0].key = UA_QUALIFIEDNAME(0, "sockpriority");
@@ -263,8 +267,8 @@ addPubSubConnection(UA_Server *server, UA_NetworkAddressUrlDataType *networkAddr
     connectionOptions[1].key = UA_QUALIFIEDNAME(0, "enablesotxtime");
     UA_Boolean enableTxTime  = UA_TRUE;
     UA_Variant_setScalar(&connectionOptions[1].value, &enableTxTime, &UA_TYPES[UA_TYPES_BOOLEAN]);
-    connectionConfig.connectionProperties     = connectionOptions;
-    connectionConfig.connectionPropertiesSize = 2;
+    connectionConfig.connectionProperties.map     = connectionOptions;
+    connectionConfig.connectionProperties.mapSize = 2;
     UA_Server_addPubSubConnection(server, &connectionConfig, &connectionIdent);
 }
 
@@ -292,7 +296,7 @@ addPublishedDataSet(UA_Server *server) {
 /* This example only uses two addDataSetField which uses the custom nodes of the XML file
  * (pubDataModel.xml) */
 static void
-addDataSetField(UA_Server *server) {
+_addDataSetField(UA_Server *server) {
     UA_NodeId dataSetFieldIdent;
     UA_DataSetFieldConfig dsfConfig;
     memset(&dsfConfig, 0, sizeof(UA_DataSetFieldConfig));
@@ -382,7 +386,7 @@ addWriterGroup(UA_Server *server) {
  * **DataSetWriter handling**
  *
  * A DataSetWriter (DSW) is the glue between the WG and the PDS. The DSW is
- * linked to exactly one PDS and contains additional informations for the
+ * linked to exactly one PDS and contains additional information for the
  * message generation.
  */
 static void
@@ -673,24 +677,14 @@ int main(int argc, char **argv) {
     networkAddressUrlPub.networkInterface = UA_STRING(interface);
     networkAddressUrlPub.url              = UA_STRING(PUBLISHING_MAC_ADDRESS);
 
-    /* Details about the connection configuration and handling are located in the pubsub connection tutorial */
-    config->pubsubTransportLayers = (UA_PubSubTransportLayer *)
-                                    UA_malloc(sizeof(UA_PubSubTransportLayer));
-    if (!config->pubsubTransportLayers) {
-        UA_Server_delete(server);
-        return EXIT_FAILURE;
-    }
-
     /* It is possible to use multiple PubSubTransportLayers on runtime.
      * The correct factory is selected on runtime by the standard defined
-     * PubSub TransportProfileUri's.
-    */
-    config->pubsubTransportLayers[0] = UA_PubSubTransportLayerEthernet();
-    config->pubsubTransportLayersSize++;
+     * PubSub TransportProfileUri's. */
+    UA_ServerConfig_addPubSubTransportLayer(config, UA_PubSubTransportLayerEthernet());
 
     addPubSubConnection(server, &networkAddressUrlPub);
     addPublishedDataSet(server);
-    addDataSetField(server);
+    _addDataSetField(server);
     addWriterGroup(server);
     addDataSetWriter(server);
     UA_Server_freezeWriterGroupConfiguration(server, writerGroupIdent);
@@ -715,8 +709,8 @@ int main(int argc, char **argv) {
         size_t pubLoopVariable               = 0;
         for (pubLoopVariable = 0; pubLoopVariable < measurementsPublisher;
              pubLoopVariable++) {
-            fprintf(fpPublisher, "%ld,%ld.%09ld,%lf\n",
-                    publishCounterValue[pubLoopVariable],
+            fprintf(fpPublisher, "%lu,%ld.%09ld,%lf\n",
+                    (long unsigned)publishCounterValue[pubLoopVariable],
                     publishTimestamp[pubLoopVariable].tv_sec,
                     publishTimestamp[pubLoopVariable].tv_nsec,
                     pressureValues[pubLoopVariable]);
@@ -727,8 +721,8 @@ int main(int argc, char **argv) {
         size_t pubLoopVariable               = 0;
         for (pubLoopVariable = 0; pubLoopVariable < measurementsPublisher;
              pubLoopVariable++) {
-             printf("%ld,%ld.%09ld,%lf\n",
-                    publishCounterValue[pubLoopVariable],
+             printf("%lu,%ld.%09ld,%lf\n",
+                    (long unsigned)publishCounterValue[pubLoopVariable],
                     publishTimestamp[pubLoopVariable].tv_sec,
                     publishTimestamp[pubLoopVariable].tv_nsec,
                     pressureValues[pubLoopVariable]);

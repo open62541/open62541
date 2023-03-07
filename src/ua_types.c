@@ -1,6 +1,6 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. 
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  *
  *    Copyright 2020 (c) Fraunhofer IOSB (Author: Andreas Ebner)
  *    Copyright 2014-2017 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
@@ -20,8 +20,9 @@
 #include <open62541/types_generated_handling.h>
 
 #include "ua_util_internal.h"
+#include "../deps/itoa.h"
+#include "../deps/base64.h"
 #include "libc_time.h"
-#include "pcg_basic.h"
 
 #define UA_MAX_ARRAY_DIMS 100 /* Max dimensions of an array */
 
@@ -40,12 +41,16 @@ const UA_Guid UA_GUID_NULL = {0, 0, 0, {0,0,0,0,0,0,0,0}};
 const UA_NodeId UA_NODEID_NULL = {0, UA_NODEIDTYPE_NUMERIC, {0}};
 const UA_ExpandedNodeId UA_EXPANDEDNODEID_NULL = {{0, UA_NODEIDTYPE_NUMERIC, {0}}, {0, NULL}, 0};
 
-typedef UA_StatusCode (*UA_copySignature)(const void *src, void *dst,
-                                          const UA_DataType *type);
-typedef void (*UA_clearSignature)(void *p, const UA_DataType *type);
-
+typedef UA_StatusCode
+(*UA_copySignature)(const void *src, void *dst, const UA_DataType *type);
 extern const UA_copySignature copyJumpTable[UA_DATATYPEKINDS];
+
+typedef void (*UA_clearSignature)(void *p, const UA_DataType *type);
 extern const UA_clearSignature clearJumpTable[UA_DATATYPEKINDS];
+
+typedef UA_Order
+(*UA_orderSignature)(const void *p1, const void *p2, const UA_DataType *type);
+extern const UA_orderSignature orderJumpTable[UA_DATATYPEKINDS];
 
 const UA_DataType *
 UA_findDataTypeWithCustom(const UA_NodeId *typeId,
@@ -77,21 +82,25 @@ UA_findDataType(const UA_NodeId *typeId) {
     return UA_findDataTypeWithCustom(typeId, NULL);
 }
 
-/***************************/
-/* Random Number Generator */
-/***************************/
-
-//TODO is this safe for multithreading?
-static pcg32_random_t UA_rng = PCG32_INITIALIZER;
-
 void
-UA_random_seed(u64 seed) {
-    pcg32_srandom_r(&UA_rng, seed, (u64)UA_DateTime_now());
-}
-
-u32
-UA_UInt32_random(void) {
-    return (u32)pcg32_random_r(&UA_rng);
+UA_cleanupDataTypeWithCustom(const UA_DataTypeArray *customTypes) {
+    while (customTypes) {
+        const UA_DataTypeArray *next = customTypes->next;
+        if (customTypes->cleanup) {
+            for(size_t i = 0; i < customTypes->typesSize; ++i) {
+                const UA_DataType *type = &customTypes->types[i];
+                UA_free((void*)(uintptr_t)type->typeName);
+                for(size_t j = 0; j < type->membersSize; ++j) {
+                    const UA_DataTypeMember *m = &type->members[j];
+                    UA_free((void*)(uintptr_t)m->memberName);
+                }
+                UA_free((void*)type->members);
+            }
+            UA_free((void*)(uintptr_t)customTypes->types);
+            UA_free((void*)(uintptr_t)customTypes);
+        }
+        customTypes = next;
+    }
 }
 
 /*****************/
@@ -117,19 +126,23 @@ UA_String_fromChars(const char *src) {
     return s;
 }
 
+static UA_Order
+stringOrder(const UA_String *p1, const UA_String *p2, const UA_DataType *type);
+static UA_Order
+guidOrder(const UA_Guid *p1, const UA_Guid *p2, const UA_DataType *type);
+static UA_Order
+qualifiedNameOrder(const UA_QualifiedName *p1, const UA_QualifiedName *p2,
+                   const UA_DataType *type);
+
 UA_Boolean
 UA_String_equal(const UA_String *s1, const UA_String *s2) {
-    if(s1->length != s2->length)
-        return false;
-    if(s1->length == 0)
-        return true;
-    if(s2->data == NULL)
-        return false;
-    i32 is = memcmp((char const*)s1->data,
-                    (char const*)s2->data, s1->length);
-    return (is == 0) ? true : false;
+    return (stringOrder(s1, s2, NULL) == UA_ORDER_EQ);
 }
 
+UA_Boolean
+UA_String_isEmpty(const UA_String *s) {
+    return (s->length == 0 || s->data == NULL);
+}
 
 /* Do not expose UA_String_equal_ignorecase to public API as it currently only handles
  * ASCII strings, and not UTF8! */
@@ -148,11 +161,12 @@ UA_String_equal_ignorecase(const UA_String *s1, const UA_String *s2) {
 
 static UA_StatusCode
 String_copy(UA_String const *src, UA_String *dst, const UA_DataType *_) {
-    UA_StatusCode retval = UA_Array_copy(src->data, src->length, (void**)&dst->data,
-                                         &UA_TYPES[UA_TYPES_BYTE]);
-    if(retval == UA_STATUSCODE_GOOD)
+    UA_StatusCode res =
+        UA_Array_copy(src->data, src->length, (void**)&dst->data,
+                      &UA_TYPES[UA_TYPES_BYTE]);
+    if(res == UA_STATUSCODE_GOOD)
         dst->length = src->length;
-    return retval;
+    return res;
 }
 
 static void
@@ -162,7 +176,8 @@ String_clear(UA_String *s, const UA_DataType *_) {
 
 /* QualifiedName */
 static UA_StatusCode
-QualifiedName_copy(const UA_QualifiedName *src, UA_QualifiedName *dst, const UA_DataType *_) {
+QualifiedName_copy(const UA_QualifiedName *src, UA_QualifiedName *dst,
+                   const UA_DataType *_) {
     dst->namespaceIndex = src->namespaceIndex;
     return String_copy(&src->name, &dst->name, NULL);
 }
@@ -181,43 +196,39 @@ UA_QualifiedName_hash(const UA_QualifiedName *q) {
 UA_Boolean
 UA_QualifiedName_equal(const UA_QualifiedName *qn1,
                        const UA_QualifiedName *qn2) {
-    if(qn1 == NULL || qn2 == NULL)
-        return false;
-    if(qn1->namespaceIndex != qn2->namespaceIndex)
-        return false;
-    if(qn1->name.length != qn2->name.length)
-        return false;
-    return (memcmp((char const*)qn1->name.data,
-                   (char const*)qn2->name.data, qn1->name.length) == 0);
+    return (qualifiedNameOrder(qn1, qn2, NULL) == UA_ORDER_EQ);
 }
 
 /* DateTime */
 UA_DateTimeStruct
 UA_DateTime_toStruct(UA_DateTime t) {
-    /* Calculating the the milli-, micro- and nanoseconds */
-    UA_DateTimeStruct dateTimeStruct;
-    if(t >= 0) {
-        dateTimeStruct.nanoSec  = (u16)((t % 10) * 100);
-        dateTimeStruct.microSec = (u16)((t % 10000) / 10);
-        dateTimeStruct.milliSec = (u16)((t % 10000000) / 10000);
-    } else {
-        dateTimeStruct.nanoSec  = (u16)(((t % 10 + t) % 10) * 100);
-        dateTimeStruct.microSec = (u16)(((t % 10000 + t) % 10000) / 10);
-        dateTimeStruct.milliSec = (u16)(((t % 10000000 + t) % 10000000) / 10000);
-    }
-
-    /* Calculating the unix time with #include <time.h> */
+    /* Divide, then subtract -> avoid underflow. Also, negative numbers are
+     * rounded up, not down. */
     long long secSinceUnixEpoch = (long long)(t / UA_DATETIME_SEC)
         - (long long)(UA_DATETIME_UNIX_EPOCH / UA_DATETIME_SEC);
+
+    /* Negative fractions of a second? Remove one full second from the epoch
+     * distance and allow only a positive fraction. */
+    UA_DateTime frac = t % UA_DATETIME_SEC;
+    if(frac < 0) {
+        secSinceUnixEpoch--;
+        frac += UA_DATETIME_SEC;
+    }
+
     struct mytm ts;
     memset(&ts, 0, sizeof(struct mytm));
     __secs_to_tm(secSinceUnixEpoch, &ts);
-    dateTimeStruct.sec    = (u16)ts.tm_sec;
-    dateTimeStruct.min    = (u16)ts.tm_min;
-    dateTimeStruct.hour   = (u16)ts.tm_hour;
-    dateTimeStruct.day    = (u16)ts.tm_mday;
+
+    UA_DateTimeStruct dateTimeStruct;
+    dateTimeStruct.year   = (i16)(ts.tm_year + 1900);
     dateTimeStruct.month  = (u16)(ts.tm_mon + 1);
-    dateTimeStruct.year   = (u16)(ts.tm_year + 1900);
+    dateTimeStruct.day    = (u16)ts.tm_mday;
+    dateTimeStruct.hour   = (u16)ts.tm_hour;
+    dateTimeStruct.min    = (u16)ts.tm_min;
+    dateTimeStruct.sec    = (u16)ts.tm_sec;
+    dateTimeStruct.milliSec = (u16)((frac % 10000000) / 10000);
+    dateTimeStruct.microSec = (u16)((frac % 10000) / 10);
+    dateTimeStruct.nanoSec  = (u16)((frac % 10) * 100);
     return dateTimeStruct;
 }
 
@@ -245,29 +256,52 @@ UA_DateTime_fromStruct(UA_DateTimeStruct ts) {
 /* Guid */
 UA_Boolean
 UA_Guid_equal(const UA_Guid *g1, const UA_Guid *g2) {
-    if(memcmp(g1, g2, sizeof(UA_Guid)) == 0)
-        return true;
-    return false;
+    return (guidOrder(g1, g2, NULL) == UA_ORDER_EQ);
 }
 
-UA_Guid
-UA_Guid_random(void) {
-    UA_Guid result;
-    result.data1 = (u32)pcg32_random_r(&UA_rng);
-    u32 r = (u32)pcg32_random_r(&UA_rng);
-    result.data2 = (u16) r;
-    result.data3 = (u16) (r >> 16);
-    r = (u32)pcg32_random_r(&UA_rng);
-    result.data4[0] = (u8)r;
-    result.data4[1] = (u8)(r >> 4);
-    result.data4[2] = (u8)(r >> 8);
-    result.data4[3] = (u8)(r >> 12);
-    r = (u32)pcg32_random_r(&UA_rng);
-    result.data4[4] = (u8)r;
-    result.data4[5] = (u8)(r >> 4);
-    result.data4[6] = (u8)(r >> 8);
-    result.data4[7] = (u8)(r >> 12);
-    return result;
+static const u8 hexmapLower[16] =
+    {'0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f'};
+static const u8 hexmapUpper[16] =
+    {'0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', 'C', 'D', 'E', 'F'};
+
+void
+UA_Guid_to_hex(const UA_Guid *guid, u8* out, UA_Boolean lower) {
+    const u8 *hexmap = (lower) ? hexmapLower : hexmapUpper;
+    size_t i = 0, j = 28;
+    for(; i<8;i++,j-=4)         /* pos 0-7, 4byte, (a) */
+        out[i] = hexmap[(guid->data1 >> j) & 0x0Fu];
+    out[i++] = '-';             /* pos 8 */
+    for(j=12; i<13;i++,j-=4)    /* pos 9-12, 2byte, (b) */
+        out[i] = hexmap[(uint16_t)(guid->data2 >> j) & 0x0Fu];
+    out[i++] = '-';             /* pos 13 */
+    for(j=12; i<18;i++,j-=4)    /* pos 14-17, 2byte (c) */
+        out[i] = hexmap[(uint16_t)(guid->data3 >> j) & 0x0Fu];
+    out[i++] = '-';              /* pos 18 */
+    for(j=0;i<23;i+=2,j++) {     /* pos 19-22, 2byte (d) */
+        out[i] = hexmap[(guid->data4[j] & 0xF0u) >> 4u];
+        out[i+1] = hexmap[guid->data4[j] & 0x0Fu];
+    }
+    out[i++] = '-';              /* pos 23 */
+    for(j=2; i<36;i+=2,j++) {    /* pos 24-35, 6byte (e) */
+        out[i] = hexmap[(guid->data4[j] & 0xF0u) >> 4u];
+        out[i+1] = hexmap[guid->data4[j] & 0x0Fu];
+    }
+}
+
+UA_StatusCode
+UA_Guid_print(const UA_Guid *guid, UA_String *output) {
+    if(output->length == 0) {
+        UA_StatusCode res =
+            UA_ByteString_allocBuffer((UA_ByteString*)output, 36);
+        if(res != UA_STATUSCODE_GOOD)
+            return res;
+    } else {
+        if(output->length < 36)
+            return UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED;
+        output->length = 36;
+    }
+    UA_Guid_to_hex(guid, output->data, true);
+    return UA_STATUSCODE_GOOD;
 }
 
 /* ByteString */
@@ -329,11 +363,10 @@ UA_NodeId_isNull(const UA_NodeId *p) {
     case UA_NODEIDTYPE_NUMERIC:
         return (p->identifier.numeric == 0);
     case UA_NODEIDTYPE_STRING:
-        return UA_String_equal(&p->identifier.string, &UA_STRING_NULL);
+    case UA_NODEIDTYPE_BYTESTRING:
+        return (p->identifier.string.length == 0); /* Null and empty string */
     case UA_NODEIDTYPE_GUID:
         return UA_Guid_equal(&p->identifier.guid, &UA_GUID_NULL);
-    case UA_NODEIDTYPE_BYTESTRING:
-        return UA_ByteString_equal(&p->identifier.byteString, &UA_BYTESTRING_NULL);
     }
     return false;
 }
@@ -342,81 +375,39 @@ UA_NodeId_isNull(const UA_NodeId *p) {
 UA_Order
 UA_NodeId_order(const UA_NodeId *n1, const UA_NodeId *n2) {
     /* Compare namespaceIndex */
-    if(n1->namespaceIndex < n2->namespaceIndex)
-        return UA_ORDER_LESS;
-    if(n1->namespaceIndex > n2->namespaceIndex)
-        return UA_ORDER_MORE;
+    if(n1->namespaceIndex != n2->namespaceIndex)
+        return (n1->namespaceIndex < n2->namespaceIndex) ? UA_ORDER_LESS : UA_ORDER_MORE;
 
     /* Compare identifierType */
-    if(n1->identifierType < n2->identifierType)
-        return UA_ORDER_LESS;
-    if(n1->identifierType > n2->identifierType)
-        return UA_ORDER_MORE;
+    if(n1->identifierType != n2->identifierType)
+        return (n1->identifierType < n2->identifierType) ? UA_ORDER_LESS : UA_ORDER_MORE;
 
     /* Compare the identifier */
     switch(n1->identifierType) {
     case UA_NODEIDTYPE_NUMERIC:
-        if(n1->identifier.numeric < n2->identifier.numeric)
-            return UA_ORDER_LESS;
-        if(n1->identifier.numeric > n2->identifier.numeric)
-            return UA_ORDER_MORE;
-        break;
-    case UA_NODEIDTYPE_GUID:
-        if(n1->identifier.guid.data1 < n2->identifier.guid.data1) {
-            return UA_ORDER_LESS;
-        } else if(n1->identifier.guid.data1 > n2->identifier.guid.data1) {
-            return UA_ORDER_MORE;
-        } else if(n1->identifier.guid.data2 < n2->identifier.guid.data2) {
-            return UA_ORDER_LESS;
-        } else if(n1->identifier.guid.data2 > n2->identifier.guid.data2) {
-            return UA_ORDER_MORE;
-        } else if(n1->identifier.guid.data3 < n2->identifier.guid.data3) {
-            return UA_ORDER_LESS;
-        } else if(n1->identifier.guid.data3 > n2->identifier.guid.data3) {
-            return UA_ORDER_MORE;
-        } else {
-            int cmp = memcmp(n1->identifier.guid.data4, n2->identifier.guid.data4, 8);
-
-            if(cmp < 0) return UA_ORDER_LESS;
-            if(cmp > 0) return UA_ORDER_MORE;
-
-        }
-
-        break;
-    case UA_NODEIDTYPE_STRING:
-    case UA_NODEIDTYPE_BYTESTRING: {
-        size_t minLength = UA_MIN(n1->identifier.string.length, n2->identifier.string.length);
-        int cmp = strncmp((const char*)n1->identifier.string.data,
-                          (const char*)n2->identifier.string.data,
-                          minLength);
-        if(cmp < 0)
-            return UA_ORDER_LESS;
-        if(cmp > 0)
-            return UA_ORDER_MORE;
-
-        if(n1->identifier.string.length < n2->identifier.string.length)
-            return UA_ORDER_LESS;
-        if(n1->identifier.string.length > n2->identifier.string.length)
-            return UA_ORDER_MORE;
-        break;
-    }
     default:
-        break;
-    }
+        if(n1->identifier.numeric != n2->identifier.numeric)
+            return (n1->identifier.numeric < n2->identifier.numeric) ?
+                UA_ORDER_LESS : UA_ORDER_MORE;
+        return UA_ORDER_EQ;
 
-    return UA_ORDER_EQ;
+    case UA_NODEIDTYPE_GUID:
+        return guidOrder(&n1->identifier.guid, &n2->identifier.guid, NULL);
+
+    case UA_NODEIDTYPE_STRING:
+    case UA_NODEIDTYPE_BYTESTRING:
+        return stringOrder(&n1->identifier.string, &n2->identifier.string, NULL);
+    }
 }
 
-/* FNV non-cryptographic hash function. See
- * https://en.wikipedia.org/wiki/Fowler%E2%80%93Noll%E2%80%93Vo_hash_function */
-#define FNV_PRIME_32 16777619
+/* sdbm-hash (http://www.cse.yorku.ca/~oz/hash.html) */
 u32
-UA_ByteString_hash(u32 fnv, const u8 *buf, size_t size) {
-    for(size_t i = 0; i < size; ++i) {
-        fnv = fnv ^ (buf[i]);
-        fnv = fnv * FNV_PRIME_32;
-    }
-    return fnv;
+UA_ByteString_hash(u32 initialHashValue,
+                   const u8 *data, size_t size) {
+    u32 h = initialHashValue;
+    for(size_t i = 0; i < size; i++)
+        h = data[i] + (h << 6) + (h << 16) - h;
+    return h;
 }
 
 u32
@@ -434,6 +425,111 @@ UA_NodeId_hash(const UA_NodeId *n) {
         return UA_ByteString_hash(n->namespaceIndex, (const u8*)&n->identifier.guid,
                                   sizeof(UA_Guid));
     }
+}
+
+/* Computes length for the encoding size and pre-encodes the numeric values */
+static size_t
+nodeIdSize(const UA_NodeId *id,
+           char *nsStr, size_t *nsStrSize,
+           char *numIdStr, size_t *numIdStrSize) {
+    /* Namespace length */
+    size_t len = 0;
+    if(id->namespaceIndex != 0) {
+        len += 4; /* ns=; */
+        *nsStrSize = itoaUnsigned(id->namespaceIndex, nsStr, 10);
+        len += *nsStrSize;
+    }
+
+    switch (id->identifierType) {
+    case UA_NODEIDTYPE_NUMERIC:
+        *numIdStrSize = itoaUnsigned(id->identifier.numeric, numIdStr, 10);
+        len += 2 + *numIdStrSize;
+        break;
+    case UA_NODEIDTYPE_STRING:
+        len += 2 + id->identifier.string.length;
+        break;
+    case UA_NODEIDTYPE_GUID:
+        len += 2 + 36;
+        break;
+    case UA_NODEIDTYPE_BYTESTRING:
+        len += 2 + (4*((id->identifier.byteString.length + 2) / 3));
+        break;
+    default:
+        len = 0;
+    }
+    return len;
+}
+
+#define PRINT_NODEID                                           \
+    /* Encode the namespace */                                 \
+    if(id->namespaceIndex != 0) {                              \
+        memcpy(pos, "ns=", 3);                                 \
+        pos += 3;                                              \
+        memcpy(pos, nsStr, nsStrSize);                         \
+        pos += nsStrSize;                                      \
+        *pos++ = ';';                                          \
+    }                                                          \
+                                                               \
+    /* Encode the identifier */                                \
+    switch(id->identifierType) {                               \
+    case UA_NODEIDTYPE_NUMERIC:                                \
+        memcpy(pos, "i=", 2);                                  \
+        pos += 2;                                              \
+        memcpy(pos, numIdStr, numIdStrSize);                   \
+        pos += numIdStrSize;                                   \
+        break;                                                 \
+    case UA_NODEIDTYPE_STRING:                                 \
+        memcpy(pos, "s=", 2);                                  \
+        pos += 2;                                              \
+        memcpy(pos, id->identifier.string.data,                \
+               id->identifier.string.length);                  \
+        pos += id->identifier.string.length;                   \
+        break;                                                 \
+    case UA_NODEIDTYPE_GUID:                                   \
+        memcpy(pos, "g=", 2);                                  \
+        pos += 2;                                              \
+        UA_Guid_to_hex(&id->identifier.guid,                   \
+                       (unsigned char*)pos, true);             \
+        pos += 36;                                             \
+        break;                                                 \
+    case UA_NODEIDTYPE_BYTESTRING:                             \
+        memcpy(pos, "b=", 2);                                  \
+        pos += 2;                                              \
+        pos += UA_base64_buf(id->identifier.byteString.data,   \
+                             id->identifier.byteString.length, \
+                             (unsigned char*)pos);             \
+        break;                                                 \
+    }                                                          \
+    do { } while(false)
+
+UA_StatusCode
+UA_NodeId_print(const UA_NodeId *id, UA_String *output) {
+    /* Compute the string length */
+    char nsStr[6];
+    size_t nsStrSize = 0;
+    char numIdStr[11];
+    size_t numIdStrSize = 0;
+    size_t idLen = nodeIdSize(id, nsStr, &nsStrSize, numIdStr, &numIdStrSize);
+    if(idLen == 0)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
+    /* Allocate memory if required */
+    if(output->length == 0) {
+        UA_StatusCode res = UA_ByteString_allocBuffer((UA_ByteString*)output, idLen);
+        if(res != UA_STATUSCODE_GOOD)
+            return res;
+    } else {
+        if(output->length < idLen)
+            return UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED;
+        output->length = idLen;
+    }
+
+    /* Print the NodeId */
+    char *pos = (char*)output->data;
+    PRINT_NODEID;
+
+    UA_assert(output->length == (size_t)((UA_Byte*)pos - output->data));
+    return UA_STATUSCODE_GOOD;
 }
 
 /* ExpandedNodeId */
@@ -460,23 +556,11 @@ UA_ExpandedNodeId_isLocal(const UA_ExpandedNodeId *n) {
 UA_Order
 UA_ExpandedNodeId_order(const UA_ExpandedNodeId *n1,
                         const UA_ExpandedNodeId *n2) {
-    if(n1->serverIndex > n2->serverIndex)
-        return UA_ORDER_MORE;
-    if(n1->serverIndex < n2->serverIndex)
-        return UA_ORDER_LESS;
-    if(n1->namespaceUri.length > 0) {
-        if(n1->namespaceUri.length > n2->namespaceUri.length)
-            return UA_ORDER_MORE;
-        if(n1->namespaceUri.length < n2->namespaceUri.length)
-            return UA_ORDER_LESS;
-        int cmp = strncmp((const char*)n1->namespaceUri.data,
-                          (const char*)n2->namespaceUri.data,
-                          n1->namespaceUri.length);
-        if(cmp < 0)
-            return UA_ORDER_LESS;
-        if(cmp > 0)
-            return UA_ORDER_MORE;
-    }
+    if(n1->serverIndex != n2->serverIndex)
+        return (n1->serverIndex < n2->serverIndex) ? UA_ORDER_LESS : UA_ORDER_MORE;
+    UA_Order o = stringOrder(&n1->namespaceUri, &n2->namespaceUri, NULL);
+    if(o != UA_ORDER_EQ)
+        return o;
     return UA_NodeId_order(&n1->nodeId, &n2->nodeId);
 }
 
@@ -488,6 +572,73 @@ UA_ExpandedNodeId_hash(const UA_ExpandedNodeId *n) {
     if(n->namespaceUri.length != 0)
         h = UA_ByteString_hash(h, n->namespaceUri.data, n->namespaceUri.length);
     return h;
+}
+
+UA_StatusCode
+UA_ExpandedNodeId_print(const UA_ExpandedNodeId *eid, UA_String *output) {
+    /* Don't print the namespace-index if a NamespaceUri is set */
+    UA_NodeId stackid = eid->nodeId;
+    UA_NodeId *id = &stackid; /* for the print-macro below */
+    if(eid->namespaceUri.data != NULL)
+        id->namespaceIndex = 0;
+
+    /* Compute the string length */
+    char nsStr[6];
+    size_t nsStrSize = 0;
+    char numIdStr[11];
+    size_t numIdStrSize = 0;
+    size_t idLen = nodeIdSize(id, nsStr, &nsStrSize, numIdStr, &numIdStrSize);
+    if(idLen == 0)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
+    char srvIdxStr[11];
+    size_t srvIdxSize = 0;
+    if(eid->serverIndex != 0) {
+        idLen += 5; /* svr=; */
+        srvIdxSize = itoaUnsigned(eid->serverIndex, srvIdxStr, 10);
+        idLen += srvIdxSize;
+    }
+
+    if(eid->namespaceUri.data != NULL) {
+        idLen += 5; /* nsu=; */
+        idLen += eid->namespaceUri.length;
+    }
+
+    /* Allocate memory if required */
+    if(output->length == 0) {
+        UA_StatusCode res = UA_ByteString_allocBuffer((UA_ByteString*)output, idLen);
+        if(res != UA_STATUSCODE_GOOD)
+            return res;
+    } else {
+        if(output->length < idLen)
+            return UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED;
+        output->length = idLen;
+    }
+
+    /* Encode the ServerIndex */
+    char *pos = (char*)output->data;
+    if(eid->serverIndex != 0) {
+        memcpy(pos, "svr=", 4);
+        pos += 4;
+        memcpy(pos, srvIdxStr, srvIdxSize);
+        pos += srvIdxSize;
+        *pos++ = ';';
+    }
+
+    /* Encode the NamespaceUri */
+    if(eid->namespaceUri.data != NULL) {
+        memcpy(pos, "nsu=", 4);
+        pos += 4;
+        memcpy(pos, eid->namespaceUri.data, eid->namespaceUri.length);
+        pos += eid->namespaceUri.length;
+        *pos++ = ';';
+    }
+
+    /* Print the NodeId */
+    PRINT_NODEID;
+
+    UA_assert(output->length == (size_t)((UA_Byte*)pos - output->data));
+    return UA_STATUSCODE_GOOD;
 }
 
 /* ExtensionObject */
@@ -584,14 +735,19 @@ UA_ExtensionObject_setValueCopy(UA_ExtensionObject *eo,
 /* Variant */
 static void
 Variant_clear(UA_Variant *p, const UA_DataType *_) {
-    if(p->storageType != UA_VARIANT_DATA)
+    /* The content is "borrowed" */
+    if(p->storageType == UA_VARIANT_DATA_NODELETE)
         return;
+
+    /* Delete the value */
     if(p->type && p->data > UA_EMPTY_ARRAY_SENTINEL) {
         if(p->arrayLength == 0)
             p->arrayLength = 1;
         UA_Array_delete(p->data, p->arrayLength, p->type);
         p->data = NULL;
     }
+
+    /* Delete the array dimensions */
     if((void*)p->arrayDimensions > UA_EMPTY_ARRAY_SENTINEL)
         UA_free(p->arrayDimensions);
 }
@@ -663,42 +819,36 @@ UA_Variant_setArrayCopy(UA_Variant *v, const void * UA_RESTRICT array,
     return UA_STATUSCODE_GOOD;
 }
 
-/* Test if a range is compatible with a variant. If yes, the following values
- * are set:
- * - total: how many elements are in the range
- * - block: how big is each contiguous block of elements in the variant that
- *   maps into the range
- * - stride: how many elements are between the blocks (beginning to beginning)
- * - first: where does the first block begin */
+/* Test if a range is compatible with a variant. This may adjust the upper bound
+ * (max) in order to fit the variant. */
 static UA_StatusCode
-computeStrides(const UA_Variant *v, const UA_NumericRange range,
-               size_t *total, size_t *block, size_t *stride, size_t *first) {
+checkAdjustRange(const UA_Variant *v, UA_NumericRange *range) {
     /* Test for max array size (64bit only) */
 #if (SIZE_MAX > 0xffffffff)
     if(v->arrayLength > UA_UINT32_MAX)
         return UA_STATUSCODE_BADINTERNALERROR;
 #endif
-
-    /* Test the integrity of the source variant dimensions, make dimensions
-     * vector of one dimension if none defined */
     u32 arrayLength = (u32)v->arrayLength;
-    const u32 *dims = &arrayLength;
-    size_t dims_count = 1;
-    if(v->arrayDimensionsSize > 0) {
-        size_t elements = 1;
-        dims_count = v->arrayDimensionsSize;
-        dims = (u32*)v->arrayDimensions;
-        for(size_t i = 0; i < dims_count; ++i)
-            elements *= dims[i];
-        if(elements != v->arrayLength)
-            return UA_STATUSCODE_BADINTERNALERROR;
-    }
-    UA_assert(dims_count > 0);
 
-    /* Upper bound of the dimensions for stack-allocation */
-    if(dims_count > UA_MAX_ARRAY_DIMS)
+    /* Assume one array dimension if none defined */
+    const u32 *dims = v->arrayDimensions;
+    size_t dims_count = v->arrayDimensionsSize;
+    if(v->arrayDimensionsSize == 0) {
+        dims_count = 1;
+        dims = &arrayLength;
+    }
+
+    /* Does the range match the dimension of the variant? */
+    if(range->dimensionsSize != dims_count)
+        return UA_STATUSCODE_BADINDEXRANGENODATA;
+
+    /* Check that the number of elements in the variant matches the array
+     * dimensions */
+    size_t elements = 1;
+    for(size_t i = 0; i < dims_count; ++i)
+        elements *= dims[i];
+    if(elements != v->arrayLength)
         return UA_STATUSCODE_BADINTERNALERROR;
-    UA_UInt32 realmax[UA_MAX_ARRAY_DIMS];
 
     /* Test the integrity of the range and compute the max index used for every
      * dimension. The standard says in Part 4, Section 7.22:
@@ -706,24 +856,43 @@ computeStrides(const UA_Variant *v, const UA_NumericRange range,
      * When reading a value, the indexes may not specify a range that is within
      * the bounds of the array. The Server shall return a partial result if some
      * elements exist within the range. */
-    size_t count = 1;
-    if(range.dimensionsSize != dims_count)
-        return UA_STATUSCODE_BADINDEXRANGENODATA;
     for(size_t i = 0; i < dims_count; ++i) {
-        if(range.dimensions[i].min > range.dimensions[i].max)
+        if(range->dimensions[i].min > range->dimensions[i].max)
             return UA_STATUSCODE_BADINDEXRANGEINVALID;
-        if(range.dimensions[i].min >= dims[i])
+        if(range->dimensions[i].min >= dims[i])
             return UA_STATUSCODE_BADINDEXRANGENODATA;
 
-        if(range.dimensions[i].max < dims[i])
-            realmax[i] = range.dimensions[i].max;
-        else
-            realmax[i] = dims[i] - 1;
-
-        count *= (realmax[i] - range.dimensions[i].min) + 1;
+        /* Reduce the max to fit the variant */
+        if(range->dimensions[i].max >= dims[i])
+            range->dimensions[i].max = dims[i] - 1;
     }
 
+    return UA_STATUSCODE_GOOD;
+}
+
+/* Computes the stride for copying the range elements.
+ * - total: how many elements are in the range
+ * - block: how big is each contiguous block of elements in the variant that
+ *   maps into the range
+ * - stride: how many elements are between the blocks (beginning to beginning)
+ * - first: where does the first block begin */
+static void
+computeStrides(const UA_Variant *v, const UA_NumericRange range,
+               size_t *total, size_t *block, size_t *stride, size_t *first) {
+    /* Number of total elements to be copied */
+    size_t count = 1;
+    for(size_t i = 0; i < range.dimensionsSize; ++i)
+        count *= (range.dimensions[i].max - range.dimensions[i].min) + 1;
     *total = count;
+
+    /* Assume one array dimension if none defined */
+    u32 arrayLength = (u32)v->arrayLength;
+    const u32 *dims = v->arrayDimensions;
+    size_t dims_count = v->arrayDimensionsSize;
+    if(v->arrayDimensionsSize == 0) {
+        dims_count = 1;
+        dims = &arrayLength;
+    }
 
     /* Compute the stride length and the position of the first element */
     *block = count;           /* Assume the range describes the entire array. */
@@ -733,7 +902,7 @@ computeStrides(const UA_Variant *v, const UA_NumericRange range,
     UA_Boolean found_contiguous = false;
     for(size_t k = dims_count; k > 0;) {
         --k;
-        size_t dimrange = 1 + realmax[k] - range.dimensions[k].min;
+        size_t dimrange = 1 + range.dimensions[k].max - range.dimensions[k].min;
         if(!found_contiguous && dimrange != dims[k]) {
             /* Found the maximum block that can be copied contiguously */
             found_contiguous = true;
@@ -743,7 +912,6 @@ computeStrides(const UA_Variant *v, const UA_NumericRange range,
         *first += running_dimssize * range.dimensions[k].min;
         running_dimssize *= dims[k];
     }
-    return UA_STATUSCODE_GOOD;
 }
 
 /* Is the type string-like? */
@@ -784,15 +952,26 @@ UA_Variant_copyRange(const UA_Variant *src, UA_Variant * UA_RESTRICT dst,
                      const UA_NumericRange range) {
     if(!src->type)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
+
     UA_Boolean isScalar = UA_Variant_isScalar(src);
     UA_Boolean stringLike = isStringLike(src->type);
-    UA_Variant arraySrc;
+
+    /* Upper bound of the dimensions for stack-allocation */
+    if(range.dimensionsSize > UA_MAX_ARRAY_DIMS)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
+    /* Copy the const range to a mutable stack location */
+    UA_NumericRangeDimension thisrangedims[UA_MAX_ARRAY_DIMS];
+    memcpy(thisrangedims, range.dimensions, sizeof(UA_NumericRangeDimension) * range.dimensionsSize);
+    UA_NumericRange thisrange = {range.dimensionsSize, thisrangedims};
+
+    UA_NumericRangeDimension scalarThisDimension = {0,0}; /* a single entry */
+    UA_NumericRange nextrange = {0, NULL};
 
     /* Extract the range for copying at this level. The remaining range is dealt
      * with in the "scalar" type that may define an array by itself (string,
      * variant, ...). */
-    UA_NumericRange thisrange, nextrange;
-    UA_NumericRangeDimension scalarThisDimension = {0,0}; /* a single entry */
+    UA_Variant arraySrc;
     if(isScalar) {
         /* Replace scalar src with array of length 1 */
         arraySrc = *src;
@@ -809,18 +988,18 @@ UA_Variant_copyRange(const UA_Variant *src, UA_Variant * UA_RESTRICT dst,
             dims = 1;
         if(dims > range.dimensionsSize)
             return UA_STATUSCODE_BADINDEXRANGEINVALID;
-       thisrange = range;
        thisrange.dimensionsSize = dims;
        nextrange.dimensions = &range.dimensions[dims];
        nextrange.dimensionsSize = range.dimensionsSize - dims;
     }
 
-    /* Compute the strides */
-    size_t count, block, stride, first;
-    UA_StatusCode retval = computeStrides(src, thisrange, &count,
-                                          &block, &stride, &first);
+    UA_StatusCode retval = checkAdjustRange(src, &thisrange);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
+
+    /* Compute the strides */
+    size_t count, block, stride, first;
+    computeStrides(src, thisrange, &count, &block, &stride, &first);
 
     /* Allocate the array */
     UA_Variant_init(dst);
@@ -914,12 +1093,25 @@ UA_Variant_copyRange(const UA_Variant *src, UA_Variant * UA_RESTRICT dst,
 static UA_StatusCode
 Variant_setRange(UA_Variant *v, void *array, size_t arraySize,
                  const UA_NumericRange range, UA_Boolean copy) {
-    /* Compute the strides */
-    size_t count, block, stride, first;
-    UA_StatusCode retval = computeStrides(v, range, &count,
-                                          &block, &stride, &first);
+    if(!v->type)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+
+    /* Upper bound of the dimensions for stack-allocation */
+    if(range.dimensionsSize > UA_MAX_ARRAY_DIMS)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
+    /* Copy the const range to a mutable stack location */
+    UA_NumericRangeDimension thisrangedims[UA_MAX_ARRAY_DIMS];
+    memcpy(thisrangedims, range.dimensions, sizeof(UA_NumericRangeDimension) * range.dimensionsSize);
+    UA_NumericRange thisrange = {range.dimensionsSize, thisrangedims};
+
+    UA_StatusCode retval = checkAdjustRange(v, &thisrange);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
+
+    /* Compute the strides */
+    size_t count, block, stride, first;
+    computeStrides(v, range, &count, &block, &stride, &first);
     if(count != arraySize)
         return UA_STATUSCODE_BADINDEXRANGEINVALID;
 
@@ -998,6 +1190,17 @@ DataValue_copy(UA_DataValue const *src, UA_DataValue *dst,
     return retval;
 }
 
+UA_StatusCode
+UA_DataValue_copyVariantRange(const UA_DataValue *src, UA_DataValue * UA_RESTRICT dst,
+                              const UA_NumericRange range) {
+    memcpy(dst, src, sizeof(UA_DataValue));
+    UA_Variant_init(&dst->value);
+    UA_StatusCode retval = UA_Variant_copyRange(&src->value, &dst->value, range);
+    if(retval != UA_STATUSCODE_GOOD)
+        DataValue_clear(dst, NULL);
+    return retval;
+}
+
 /* DiagnosticInfo */
 static void
 DiagnosticInfo_clear(UA_DiagnosticInfo *p, const UA_DataType *_) {
@@ -1031,15 +1234,6 @@ DiagnosticInfo_copy(UA_DiagnosticInfo const *src, UA_DiagnosticInfo *dst,
     }
     return retval;
 }
-
-/* StatusCode */
-UA_Boolean
-UA_StatusCode_isBad(const UA_StatusCode code) {
-    if ((code & 0x80000000) != 0) {
-        return UA_TRUE;
-    }
-    return UA_FALSE;
-} 
 
 /********************/
 /* Structured Types */
@@ -1086,10 +1280,9 @@ copyStructure(const void *src, void *dst, const UA_DataType *type) {
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     uintptr_t ptrs = (uintptr_t)src;
     uintptr_t ptrd = (uintptr_t)dst;
-    const UA_DataType *typelists[2] = { UA_TYPES, &type[-type->typeIndex] };
     for(size_t i = 0; i < type->membersSize; ++i) {
         const UA_DataTypeMember *m = &type->members[i];
-        const UA_DataType *mt = &typelists[!m->namespaceZero][m->memberTypeIndex];
+        const UA_DataType *mt = m->memberType;
         ptrs += m->padding;
         ptrd += m->padding;
         if(!m->isOptional) {
@@ -1145,9 +1338,8 @@ copyUnion(const void *src, void *dst, const UA_DataType *type) {
     UA_copy((const UA_UInt32 *) ptrs, (UA_UInt32 *) ptrd, &UA_TYPES[UA_TYPES_UINT32]);
     if(selection == 0)
         return UA_STATUSCODE_GOOD;
-    const UA_DataType *typelists[2] = { UA_TYPES, &type[-type->typeIndex] };
     const UA_DataTypeMember *m = &type->members[selection-1];
-    const UA_DataType *mt = &typelists[!m->namespaceZero][m->memberTypeIndex];
+    const UA_DataType *mt = m->memberType;
     ptrs += m->padding;
     ptrd += m->padding;
 
@@ -1221,10 +1413,9 @@ UA_copy(const void *src, void *dst, const UA_DataType *type) {
 static void
 clearStructure(void *p, const UA_DataType *type) {
     uintptr_t ptr = (uintptr_t)p;
-    const UA_DataType *typelists[2] = { UA_TYPES, &type[-type->typeIndex] };
     for(size_t i = 0; i < type->membersSize; ++i) {
         const UA_DataTypeMember *m = &type->members[i];
-        const UA_DataType *mt = &typelists[!m->namespaceZero][m->memberTypeIndex];
+        const UA_DataType *mt = m->memberType;
         ptr += m->padding;
         if(!m->isOptional) {
             if(!m->isArray) {
@@ -1264,9 +1455,8 @@ clearUnion(void *p, const UA_DataType *type) {
     UA_UInt32 selection = *(UA_UInt32 *)ptr;
     if(selection == 0)
         return;
-    const UA_DataType *typelists[2] = { UA_TYPES, &type[-type->typeIndex] };
     const UA_DataTypeMember *m = &type->members[selection-1];
-    const UA_DataType *mt = &typelists[!m->namespaceZero][m->memberTypeIndex];
+    const UA_DataType *mt = m->memberType;
     ptr += m->padding;
     if (m->isArray) {
         size_t length = *(size_t *)ptr;
@@ -1327,6 +1517,427 @@ UA_delete(void *p, const UA_DataType *type) {
 }
 
 /******************/
+/* Value Ordering */
+/******************/
+
+#define UA_NUMERICORDER(NAME, TYPE)                                 \
+    static UA_Order                                                 \
+    NAME(const TYPE *p1, const TYPE *p2, const UA_DataType *type) { \
+        if(*p1 != *p2)                                              \
+            return (*p1 < *p2) ? UA_ORDER_LESS : UA_ORDER_MORE;     \
+        return UA_ORDER_EQ;                                         \
+    }
+
+UA_NUMERICORDER(booleanOrder, UA_Boolean)
+UA_NUMERICORDER(sByteOrder, UA_SByte)
+UA_NUMERICORDER(byteOrder, UA_Byte)
+UA_NUMERICORDER(int16Order, UA_Int16)
+UA_NUMERICORDER(uInt16Order, UA_UInt16)
+UA_NUMERICORDER(int32Order, UA_Int32)
+UA_NUMERICORDER(uInt32Order, UA_UInt32)
+UA_NUMERICORDER(int64Order, UA_Int64)
+UA_NUMERICORDER(uInt64Order, UA_UInt64)
+
+#define UA_FLOATORDER(NAME, TYPE)                                   \
+    static UA_Order                                                 \
+    NAME(const TYPE *p1, const TYPE *p2, const UA_DataType *type) { \
+        if(*p1 != *p2) {                                            \
+            /* p1 is NaN */                                         \
+            if(*p1 != *p1) {                                        \
+                if(*p2 != *p2)                                      \
+                    return UA_ORDER_EQ;                             \
+                return UA_ORDER_LESS;                               \
+            }                                                       \
+            /* p2 is NaN */                                         \
+            if(*p2 != *p2)                                          \
+                return UA_ORDER_MORE;                               \
+            return (*p1 < *p2) ? UA_ORDER_LESS : UA_ORDER_MORE;     \
+        }                                                           \
+        return UA_ORDER_EQ;                                         \
+    }
+
+UA_FLOATORDER(floatOrder, UA_Float)
+UA_FLOATORDER(doubleOrder, UA_Double)
+
+static UA_Order
+guidOrder(const UA_Guid *p1, const UA_Guid *p2, const UA_DataType *type) {
+    if(p1->data1 != p2->data1)
+        return (p1->data1 < p2->data1) ? UA_ORDER_LESS : UA_ORDER_MORE;
+    if(p1->data2 != p2->data2)
+        return (p1->data2 < p2->data2) ? UA_ORDER_LESS : UA_ORDER_MORE;
+    if(p1->data3 != p2->data3)
+        return (p1->data3 < p2->data3) ? UA_ORDER_LESS : UA_ORDER_MORE;
+    int cmp = memcmp(p1->data4, p2->data4, 8);
+    if(cmp != 0)
+        return (cmp < 0) ? UA_ORDER_LESS : UA_ORDER_MORE;
+    return UA_ORDER_EQ;
+}
+
+static UA_Order
+stringOrder(const UA_String *p1, const UA_String *p2, const UA_DataType *type) {
+    if(p1->length != p2->length)
+        return (p1->length < p2->length) ? UA_ORDER_LESS : UA_ORDER_MORE;
+    /* For zero-length arrays, every pointer not NULL is considered a
+     * UA_EMPTY_ARRAY_SENTINEL. */
+    if(p1->data == p2->data) return UA_ORDER_EQ;
+    if(p1->data == NULL) return UA_ORDER_LESS;
+    if(p2->data == NULL) return UA_ORDER_MORE;
+    int cmp = memcmp((const char*)p1->data, (const char*)p2->data, p1->length);
+    if(cmp != 0)
+        return (cmp < 0) ? UA_ORDER_LESS : UA_ORDER_MORE;
+    return UA_ORDER_EQ;
+}
+
+static UA_Order
+nodeIdOrder(const UA_NodeId *p1, const UA_NodeId *p2, const UA_DataType *type) {
+    return UA_NodeId_order(p1, p2);
+}
+
+static UA_Order
+expandedNodeIdOrder(const UA_ExpandedNodeId *p1, const UA_ExpandedNodeId *p2,
+                    const UA_DataType *type) {
+    return UA_ExpandedNodeId_order(p1, p2);
+}
+
+static UA_Order
+qualifiedNameOrder(const UA_QualifiedName *p1, const UA_QualifiedName *p2,
+                   const UA_DataType *type) {
+    if(p1->namespaceIndex != p2->namespaceIndex)
+        return (p1->namespaceIndex < p2->namespaceIndex) ? UA_ORDER_LESS : UA_ORDER_MORE;
+    return stringOrder(&p1->name, &p2->name, NULL);
+}
+
+static UA_Order
+localizedTextOrder(const UA_LocalizedText *p1, const UA_LocalizedText *p2,
+                   const UA_DataType *type) {
+    UA_Order o = stringOrder(&p1->locale, &p2->locale, NULL);
+    if(o != UA_ORDER_EQ)
+        return o;
+    return stringOrder(&p1->text, &p2->text, NULL);
+}
+
+static UA_Order
+extensionObjectOrder(const UA_ExtensionObject *p1, const UA_ExtensionObject *p2,
+                     const UA_DataType *type) {
+    UA_ExtensionObjectEncoding enc1 = p1->encoding;
+    UA_ExtensionObjectEncoding enc2 = p2->encoding;
+    if(enc1 > UA_EXTENSIONOBJECT_DECODED)
+        enc1 = UA_EXTENSIONOBJECT_DECODED;
+    if(enc2 > UA_EXTENSIONOBJECT_DECODED)
+        enc2 = UA_EXTENSIONOBJECT_DECODED;
+    if(enc1 != enc2)
+        return (enc1 < enc2) ? UA_ORDER_LESS : UA_ORDER_MORE;
+
+    switch(enc1) {
+    case UA_EXTENSIONOBJECT_ENCODED_NOBODY:
+        return UA_ORDER_EQ;
+
+    case UA_EXTENSIONOBJECT_ENCODED_BYTESTRING:
+    case UA_EXTENSIONOBJECT_ENCODED_XML: {
+            UA_Order o = UA_NodeId_order(&p1->content.encoded.typeId,
+                                         &p2->content.encoded.typeId);
+            if(o == UA_ORDER_EQ)
+                o = stringOrder((const UA_String*)&p1->content.encoded.body,
+                                (const UA_String*)&p2->content.encoded.body, NULL);
+            return o;
+        }
+
+    case UA_EXTENSIONOBJECT_DECODED:
+    default: {
+            const UA_DataType *type1 = p1->content.decoded.type;
+            const UA_DataType *type2 = p1->content.decoded.type;
+            if(type1 != type2)
+                return ((uintptr_t)type1 < (uintptr_t)type2) ? UA_ORDER_LESS : UA_ORDER_MORE;
+            if(!type1)
+                return UA_ORDER_EQ;
+            return orderJumpTable[type1->typeKind]
+                (p1->content.decoded.data, p2->content.decoded.data, type1);
+        }
+    }
+}
+
+static UA_Order
+arrayOrder(const void *p1, size_t p1Length, const void *p2, size_t p2Length,
+           const UA_DataType *type) {
+    if(p1Length != p2Length)
+        return (p1Length < p2Length) ? UA_ORDER_LESS : UA_ORDER_MORE;
+    /* For zero-length arrays, every pointer not NULL is considered a
+     * UA_EMPTY_ARRAY_SENTINEL. */
+    if(p1 == p2) return UA_ORDER_EQ;
+    if(p1 == NULL) return UA_ORDER_LESS;
+    if(p2 == NULL) return UA_ORDER_MORE;
+    uintptr_t u1 = (uintptr_t)p1;
+    uintptr_t u2 = (uintptr_t)p2;
+    for(size_t i = 0; i < p1Length; i++) {
+        UA_Order o = orderJumpTable[type->typeKind]((const void*)u1, (const void*)u2, type);
+        if(o != UA_ORDER_EQ)
+            return o;
+        u1 += type->memSize;
+        u2 += type->memSize;
+    }
+    return UA_ORDER_EQ;
+}
+
+static UA_Order
+variantOrder(const UA_Variant *p1, const UA_Variant *p2,
+             const UA_DataType *type) {
+    if(p1->type != p2->type)
+        return ((uintptr_t)p1->type < (uintptr_t)p2->type) ? UA_ORDER_LESS : UA_ORDER_MORE;
+
+    UA_Order o;
+    if(p1->type != NULL) {
+        /* Check if both variants are scalars or arrays */
+        UA_Boolean s1 = UA_Variant_isScalar(p1);
+        UA_Boolean s2 = UA_Variant_isScalar(p2);
+        if(s1 != s2)
+            return s1 ? UA_ORDER_LESS : UA_ORDER_MORE;
+        if(s1) {
+            o = orderJumpTable[p1->type->typeKind](p1->data, p2->data, p1->type);
+        } else {
+            /* Mismatching array length? */
+            if(p1->arrayLength != p2->arrayLength)
+                return (p1->arrayLength < p2->arrayLength) ? UA_ORDER_LESS : UA_ORDER_MORE;
+            o = arrayOrder(p1->data, p1->arrayLength, p2->data, p2->arrayLength, p1->type);
+        }
+        if(o != UA_ORDER_EQ)
+            return o;
+    }
+
+    if(p1->arrayDimensionsSize != p2->arrayDimensionsSize)
+        return (p1->arrayDimensionsSize < p2->arrayDimensionsSize) ?
+            UA_ORDER_LESS : UA_ORDER_MORE;
+    o = UA_ORDER_EQ;
+    if(p1->arrayDimensionsSize > 0)
+        o = arrayOrder(p1->arrayDimensions, p1->arrayDimensionsSize,
+                       p2->arrayDimensions, p2->arrayDimensionsSize,
+                       &UA_TYPES[UA_TYPES_UINT32]);
+    return o;
+}
+
+static UA_Order
+dataValueOrder(const UA_DataValue *p1, const UA_DataValue *p2,
+               const UA_DataType *type) {
+    /* Value */
+    if(p1->hasValue != p2->hasValue)
+        return (!p1->hasValue) ? UA_ORDER_LESS : UA_ORDER_MORE;
+    if(p1->hasValue) {
+        UA_Order o = variantOrder(&p1->value, &p2->value, NULL);
+        if(o != UA_ORDER_EQ)
+            return o;
+    }
+
+    /* Status */
+    if(p1->hasStatus != p2->hasStatus)
+        return (!p1->hasStatus) ? UA_ORDER_LESS : UA_ORDER_MORE;
+    if(p1->hasStatus && p1->status != p2->status)
+        return (p1->status < p2->status) ? UA_ORDER_LESS : UA_ORDER_MORE;
+
+    /* SourceTimestamp */
+    if(p1->hasSourceTimestamp != p2->hasSourceTimestamp)
+        return (!p1->hasSourceTimestamp) ? UA_ORDER_LESS : UA_ORDER_MORE;
+    if(p1->hasSourceTimestamp && p1->sourceTimestamp != p2->sourceTimestamp)
+        return (p1->sourceTimestamp < p2->sourceTimestamp) ? UA_ORDER_LESS : UA_ORDER_MORE;
+
+    /* ServerTimestamp */
+    if(p1->hasServerTimestamp != p2->hasServerTimestamp)
+        return (!p1->hasServerTimestamp) ? UA_ORDER_LESS : UA_ORDER_MORE;
+    if(p1->hasServerTimestamp && p1->serverTimestamp != p2->serverTimestamp)
+        return (p1->serverTimestamp < p2->serverTimestamp) ? UA_ORDER_LESS : UA_ORDER_MORE;
+
+    /* SourcePicoseconds */
+    if(p1->hasSourcePicoseconds != p2->hasSourcePicoseconds)
+        return (!p1->hasSourcePicoseconds) ? UA_ORDER_LESS : UA_ORDER_MORE;
+    if(p1->hasSourcePicoseconds && p1->sourcePicoseconds != p2->sourcePicoseconds)
+        return (p1->sourcePicoseconds < p2->sourcePicoseconds) ?
+            UA_ORDER_LESS : UA_ORDER_MORE;
+
+    /* ServerPicoseconds */
+    if(p1->hasServerPicoseconds != p2->hasServerPicoseconds)
+        return (!p1->hasServerPicoseconds) ? UA_ORDER_LESS : UA_ORDER_MORE;
+    if(p1->hasServerPicoseconds && p1->serverPicoseconds != p2->serverPicoseconds)
+        return (p1->serverPicoseconds < p2->serverPicoseconds) ?
+            UA_ORDER_LESS : UA_ORDER_MORE;
+
+    return UA_ORDER_EQ;
+}
+
+static UA_Order
+diagnosticInfoOrder(const UA_DiagnosticInfo *p1, const UA_DiagnosticInfo *p2,
+                    const UA_DataType *type) {
+    /* SymbolicId */
+    if(p1->hasSymbolicId != p2->hasSymbolicId)
+        return (!p1->hasSymbolicId) ? UA_ORDER_LESS : UA_ORDER_MORE;
+    if(p1->hasSymbolicId && p1->symbolicId != p2->symbolicId)
+        return (p1->symbolicId < p2->symbolicId) ? UA_ORDER_LESS : UA_ORDER_MORE;
+
+    /* NamespaceUri */
+    if(p1->hasNamespaceUri != p2->hasNamespaceUri)
+        return (!p1->hasNamespaceUri) ? UA_ORDER_LESS : UA_ORDER_MORE;
+    if(p1->hasNamespaceUri && p1->namespaceUri != p2->namespaceUri)
+        return (p1->namespaceUri < p2->namespaceUri) ? UA_ORDER_LESS : UA_ORDER_MORE;
+
+    /* LocalizedText */
+    if(p1->hasLocalizedText != p2->hasLocalizedText)
+        return (!p1->hasLocalizedText) ? UA_ORDER_LESS : UA_ORDER_MORE;
+    if(p1->hasLocalizedText && p1->localizedText != p2->localizedText)
+        return (p1->localizedText < p2->localizedText) ? UA_ORDER_LESS : UA_ORDER_MORE;
+
+    /* Locale */
+    if(p1->hasLocale != p2->hasLocale)
+        return (!p1->hasLocale) ? UA_ORDER_LESS : UA_ORDER_MORE;
+    if(p1->hasLocale && p1->locale != p2->locale)
+        return (p1->locale < p2->locale) ? UA_ORDER_LESS : UA_ORDER_MORE;
+
+    /* AdditionalInfo */
+    if(p1->hasAdditionalInfo != p2->hasAdditionalInfo)
+        return (!p1->hasAdditionalInfo) ? UA_ORDER_LESS : UA_ORDER_MORE;
+    if(p1->hasAdditionalInfo) {
+        UA_Order o = stringOrder(&p1->additionalInfo, &p2->additionalInfo, NULL);
+        if(o != UA_ORDER_EQ)
+            return o;
+    }
+
+    /* InnerStatusCode */
+    if(p1->hasInnerStatusCode != p2->hasInnerStatusCode)
+        return (!p1->hasInnerStatusCode) ? UA_ORDER_LESS : UA_ORDER_MORE;
+    if(p1->hasInnerStatusCode && p1->innerStatusCode != p2->innerStatusCode)
+        return (p1->innerStatusCode < p2->innerStatusCode) ? UA_ORDER_LESS : UA_ORDER_MORE;
+
+    /* InnerDiagnosticInfo */
+    if(p1->hasInnerDiagnosticInfo != p2->hasInnerDiagnosticInfo)
+        return (!p1->hasInnerDiagnosticInfo) ? UA_ORDER_LESS : UA_ORDER_MORE;
+    if(p1->innerDiagnosticInfo == p2->innerDiagnosticInfo)
+        return UA_ORDER_EQ;
+    if(!p1->innerDiagnosticInfo || !p2->innerDiagnosticInfo)
+        return (!p1->innerDiagnosticInfo) ? UA_ORDER_LESS : UA_ORDER_MORE;
+    return diagnosticInfoOrder(p1->innerDiagnosticInfo, p2->innerDiagnosticInfo, NULL);
+}
+
+static UA_Order
+structureOrder(const void *p1, const void *p2, const UA_DataType *type) {
+    uintptr_t u1 = (uintptr_t)p1;
+    uintptr_t u2 = (uintptr_t)p2;
+    UA_Order o = UA_ORDER_EQ;
+    for(size_t i = 0; i < type->membersSize; ++i) {
+        const UA_DataTypeMember *m = &type->members[i];
+        const UA_DataType *mt = m->memberType;
+        u1 += m->padding;
+        u2 += m->padding;
+        if(!m->isOptional) {
+            if(!m->isArray) {
+                o = orderJumpTable[mt->typeKind]((const void *)u1, (const void *)u2, mt);
+                u1 += mt->memSize;
+                u2 += mt->memSize;
+            } else {
+                size_t size1 = *(size_t*)u1;
+                size_t size2 = *(size_t*)u2;
+                u1 += sizeof(size_t);
+                u2 += sizeof(size_t);
+                o = arrayOrder(*(void* const*)u1, size1, *(void* const*)u2, size2, mt);
+                u1 += sizeof(void*);
+                u2 += sizeof(void*);
+            }
+        } else {
+            if(!m->isArray) {
+                const void *pp1 = *(void* const*)u1;
+                const void *pp2 = *(void* const*)u2;
+                if(pp1 == pp2) {
+                    o = UA_ORDER_EQ;
+                } else if(pp1 == NULL) {
+                    o = UA_ORDER_LESS;
+                } else if(pp2 == NULL) {
+                    o = UA_ORDER_MORE;
+                } else {
+                    o = orderJumpTable[mt->typeKind](pp1, pp2, mt);
+                }
+            } else {
+                size_t sa1 = *(size_t*)u1;
+                size_t sa2 = *(size_t*)u2;
+                u1 += sizeof(size_t);
+                u2 += sizeof(size_t);
+                o = arrayOrder(*(void* const*)u1, sa1, *(void* const*)u2, sa2, mt);
+            }
+            u1 += sizeof(void*);
+            u2 += sizeof(void*);
+        }
+
+        if(o != UA_ORDER_EQ)
+            break;
+    }
+    return o;
+}
+
+static UA_Order
+unionOrder(const void *p1, const void *p2, const UA_DataType *type) {
+    UA_UInt32 sel1 = *(const UA_UInt32 *)p1;
+    UA_UInt32 sel2 = *(const UA_UInt32 *)p2;
+    if(sel1 != sel2)
+        return (sel1 < sel2) ? UA_ORDER_LESS : UA_ORDER_MORE;
+
+    if(sel1 == 0) {
+        return UA_ORDER_EQ;
+    }
+
+    const UA_DataTypeMember *m = &type->members[sel1-1];
+    const UA_DataType *mt = m->memberType;
+
+    uintptr_t u1 = ((uintptr_t)p1) + m->padding; /* includes switchfield length */
+    uintptr_t u2 = ((uintptr_t)p2) + m->padding;
+    if(m->isArray) {
+        size_t sa1 = *(size_t*)u1;
+        size_t sa2 = *(size_t*)u2;
+        u1 += sizeof(size_t);
+        u2 += sizeof(size_t);
+        return arrayOrder(*(void* const*)u1, sa1, *(void* const*)u2, sa2, mt);
+    }
+    return orderJumpTable[mt->typeKind]((const void*)u1, (const void*)u2, mt);
+}
+
+static UA_Order
+notImplementedOrder(const void *p1, const void *p2, const UA_DataType *type) {
+    return UA_ORDER_EQ;
+}
+
+const
+UA_orderSignature orderJumpTable[UA_DATATYPEKINDS] = {
+    (UA_orderSignature)booleanOrder,
+    (UA_orderSignature)sByteOrder,
+    (UA_orderSignature)byteOrder,
+    (UA_orderSignature)int16Order,
+    (UA_orderSignature)uInt16Order,
+    (UA_orderSignature)int32Order,
+    (UA_orderSignature)uInt32Order,
+    (UA_orderSignature)int64Order,
+    (UA_orderSignature)uInt64Order,
+    (UA_orderSignature)floatOrder,
+    (UA_orderSignature)doubleOrder,
+    (UA_orderSignature)stringOrder,
+    (UA_orderSignature)int64Order,  /* DateTime */
+    (UA_orderSignature)guidOrder,
+    (UA_orderSignature)stringOrder, /* ByteString */
+    (UA_orderSignature)stringOrder, /* XmlElement */
+    (UA_orderSignature)nodeIdOrder,
+    (UA_orderSignature)expandedNodeIdOrder,
+    (UA_orderSignature)uInt32Order, /* StatusCode */
+    (UA_orderSignature)qualifiedNameOrder,
+    (UA_orderSignature)localizedTextOrder,
+    (UA_orderSignature)extensionObjectOrder,
+    (UA_orderSignature)dataValueOrder,
+    (UA_orderSignature)variantOrder,
+    (UA_orderSignature)diagnosticInfoOrder,
+    notImplementedOrder, /* Decimal, not implemented */
+    (UA_orderSignature)uInt32Order, /* Enumeration */
+    (UA_orderSignature)structureOrder,
+    (UA_orderSignature)structureOrder, /* Struct with Optional Fields*/
+    (UA_orderSignature)unionOrder, /* Union*/
+    notImplementedOrder /* BitfieldCluster, not implemented */
+};
+
+UA_Order UA_order(const void *p1, const void *p2, const UA_DataType *type) {
+    return orderJumpTable[type->typeKind](p1, p2, type);
+}
+
+/******************/
 /* Array Handling */
 /******************/
 
@@ -1378,6 +1989,93 @@ UA_Array_copy(const void *src, size_t size,
     return retval;
 }
 
+UA_StatusCode
+UA_Array_resize(void **p, size_t *size, size_t newSize,
+                const UA_DataType *type) {
+    if(*size == newSize)
+        return UA_STATUSCODE_GOOD;
+
+    /* Empty array? */
+    if(newSize == 0) {
+        UA_Array_delete(*p, *size, type);
+        *p = UA_EMPTY_ARRAY_SENTINEL;
+        *size = 0;
+        return UA_STATUSCODE_GOOD;
+    }
+
+    /* Make a copy of the members that shall be removed. Realloc can fail during
+     * trimming. So we cannot clear the members already here. */
+    void *deleteMembers = NULL;
+    if(newSize < *size && !type->pointerFree) {
+        size_t deleteSize = *size - newSize;
+        deleteMembers = UA_malloc(deleteSize * type->memSize);
+        if(!deleteMembers)
+            return UA_STATUSCODE_BADOUTOFMEMORY;
+        memcpy(deleteMembers, (void*)((uintptr_t)*p + (newSize * type->memSize)),
+               deleteSize * type->memSize); /* shallow copy */
+    }
+
+    void *oldP = *p;
+    if(oldP == UA_EMPTY_ARRAY_SENTINEL)
+        oldP = NULL;
+
+    /* Realloc */
+    void *newP = UA_realloc(oldP, newSize * type->memSize);
+    if(!newP) {
+        if(deleteMembers)
+            UA_free(deleteMembers);
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    }
+
+    /* Clear removed members or initialize the new ones. Note that deleteMembers
+     * depends on type->pointerFree. */
+    if(newSize > *size)
+        memset((void*)((uintptr_t)newP + (*size * type->memSize)), 0,
+               (newSize - *size) * type->memSize);
+    else if(deleteMembers)
+        UA_Array_delete(deleteMembers, *size - newSize, type);
+
+    /* Set the new array */
+    *p = newP;
+    *size = newSize;
+    return UA_STATUSCODE_GOOD;
+}
+
+UA_StatusCode
+UA_Array_append(void **p, size_t *size, void *newElem,
+                const UA_DataType *type) {
+    /* Resize the array */
+    size_t oldSize = *size;
+    UA_StatusCode res = UA_Array_resize(p, size, oldSize+1, type);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
+
+    /* Move the value */
+    memcpy((void*)((uintptr_t)*p + (oldSize * type->memSize)),
+           newElem, type->memSize);
+    UA_init(newElem, type);
+    return UA_STATUSCODE_GOOD;
+}
+
+UA_StatusCode UA_EXPORT
+UA_Array_appendCopy(void **p, size_t *size, const void *newElem,
+                    const UA_DataType *type) {
+    char scratch[512];
+    if(type->memSize > 512)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
+    /* Copy the value */
+    UA_StatusCode res = UA_copy(newElem, (void*)scratch, type);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
+
+    /* Append */
+    res = UA_Array_append(p, size, (void*)scratch, type);
+    if(res != UA_STATUSCODE_GOOD)
+        UA_clear((void*)scratch, type);
+    return res;
+}
+
 void
 UA_Array_delete(void *p, size_t size, const UA_DataType *type) {
     if(!type->pointerFree) {
@@ -1390,13 +2088,67 @@ UA_Array_delete(void *p, size_t size, const UA_DataType *type) {
     UA_free((void*)((uintptr_t)p & ~(uintptr_t)UA_EMPTY_ARRAY_SENTINEL));
 }
 
+#ifdef UA_ENABLE_TYPEDESCRIPTION
+UA_Boolean
+UA_DataType_getStructMember(const UA_DataType *type, const char *memberName,
+                            size_t *outOffset, const UA_DataType **outMemberType,
+                            UA_Boolean *outIsArray) {
+    if(type->typeKind != UA_DATATYPEKIND_STRUCTURE &&
+       type->typeKind != UA_DATATYPEKIND_OPTSTRUCT)
+        return false;
+
+    size_t offset = 0;
+    for(size_t i = 0; i < type->membersSize; ++i) {
+        const UA_DataTypeMember *m = &type->members[i];
+        const UA_DataType *mt = m->memberType;
+        offset += m->padding;
+
+        if(strcmp(memberName, m->memberName) == 0) {
+            *outOffset = offset;
+            *outMemberType = mt;
+            *outIsArray = m->isArray;
+            return true;
+        }
+
+        if(!m->isOptional) {
+            if(!m->isArray) {
+                offset += mt->memSize;
+            } else {
+                offset += sizeof(size_t);
+                offset += sizeof(void*);
+            }
+        } else { /* field is optional */
+            if(!m->isArray) {
+                offset += sizeof(void *);
+            } else {
+                offset += sizeof(size_t);
+                offset += sizeof(void *);
+            }
+        }
+    }
+
+    return false;
+}
+#endif
+
 UA_Boolean
 UA_DataType_isNumeric(const UA_DataType *type) {
-    /* All data types between UA_TYPES_BOOLEAN and UA_TYPES_DOUBLE are numeric */
-    for(size_t i = UA_TYPES_BOOLEAN; i <= UA_TYPES_DOUBLE; ++i)
-        if(&UA_TYPES[i] == type)
-            return true;
-    return false;
+    switch(type->typeKind) {
+    case UA_DATATYPEKIND_SBYTE:
+    case UA_DATATYPEKIND_BYTE:
+    case UA_DATATYPEKIND_INT16:
+    case UA_DATATYPEKIND_UINT16:
+    case UA_DATATYPEKIND_INT32:
+    case UA_DATATYPEKIND_UINT32:
+    case UA_DATATYPEKIND_INT64:
+    case UA_DATATYPEKIND_UINT64:
+    case UA_DATATYPEKIND_FLOAT:
+    case UA_DATATYPEKIND_DOUBLE:
+    /* not implemented: UA_DATATYPEKIND_DECIMAL */
+        return true;
+    default:
+        return false;
+    }
 }
 
 /**********************/
@@ -1470,8 +2222,9 @@ UA_NumericRange_parse(UA_NumericRange *range, const UA_String str) {
     if(retval == UA_STATUSCODE_GOOD && idx > 0) {
         range->dimensions = dimensions;
         range->dimensionsSize = idx;
-    } else
+    } else {
         UA_free(dimensions);
+    }
 
     return retval;
 }

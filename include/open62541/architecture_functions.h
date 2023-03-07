@@ -6,7 +6,7 @@
 
 /*
  * This header has all the functions that are architecture dependent. The
- * declaration is behind a ifndef since they can be previously defined in the
+ * declaration is behind an ifndef since they can be previously defined in the
  * ua_architecture.h which include this files at the end
  */
 
@@ -40,7 +40,11 @@ ssize_t UA_recv(UA_SOCKET sockfd, void *buf, size_t len, int flags); //equivalen
 #endif
 
 #ifndef UA_recvfrom
-ssize_t UA_recvfrom(UA_SOCKET sockfd, void *buf, size_t len, int flags, struct sockaddr *src_addr, socklen_t *addrlen);
+ssize_t UA_recvfrom(UA_SOCKET sockfd, void *buf, size_t len, int flags, struct sockaddr *src_addr, socklen_t *addrlen);//equivalent to posix recvfrom implementation
+#endif
+
+#ifndef UA_recvmsg
+ssize_t UA_recvmsg(int sockfd, struct msghdr *msg, int flags);//equivalent to posix recvmsg implementation
 #endif
 
 #ifndef UA_shutdown
@@ -109,6 +113,10 @@ unsigned int UA_socket_set_blocking(UA_SOCKET sockfd);//set a socket as blocking
 unsigned int UA_socket_set_nonblocking(UA_SOCKET sockfd);//set a socket as non-blocking. Returns 0 if OK, other value otherwise
 #endif
 
+#ifndef UA_ioctl
+int UA_ioctl(int fildes, int request, ...);//equivalent to posix ioctl implementation
+#endif
+
 #ifndef UA_getsockopt
 int UA_getsockopt(int sockfd, int level, int optname, void *optval, socklen_t *optlen); //equivalent to posix getsockopt implementation. Only in non windows architectures
 #endif
@@ -118,7 +126,7 @@ int UA_setsockopt(int sockfd, int level, int optname, const void *optval, sockle
 #endif
 
 #ifndef UA_freeaddrinfo
-void UA_freeaddrinfo(struct addrinfo *res);//equivalent to posix freeaddrinfo implementatio
+void UA_freeaddrinfo(struct addrinfo *res);//equivalent to posix freeaddrinfo implementation
 #endif
 
 #ifndef UA_gethostname

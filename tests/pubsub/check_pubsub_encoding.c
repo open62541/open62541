@@ -43,8 +43,8 @@ START_TEST(UA_PubSub_EnDecode_ShallWorkOn1DS1ValueVariantKeyFrame) {
     UA_Byte *bufPos = buffer.data;
     memset(bufPos, 0, msgSize);
     const UA_Byte *bufEnd = &(buffer.data[buffer.length]);
-    rv = UA_NetworkMessage_encodeBinary(&m, &bufPos, bufEnd);
-    
+    rv = UA_NetworkMessage_encodeBinary(&m, &bufPos, bufEnd, NULL);
+
     ck_assert_int_eq(rv, UA_STATUSCODE_GOOD);
 
     UA_NetworkMessage m2;
@@ -67,7 +67,7 @@ START_TEST(UA_PubSub_EnDecode_ShallWorkOn1DS1ValueVariantKeyFrame) {
     ck_assert(m.payload.dataSetPayload.dataSetMessages[0].header.fieldEncoding == m2.payload.dataSetPayload.dataSetMessages[0].header.fieldEncoding);
     ck_assert_int_eq(m2.payload.dataSetPayload.dataSetMessages[0].data.keyFrameData.fieldCount, 1);
     ck_assert(m.payload.dataSetPayload.dataSetMessages[0].data.keyFrameData.dataSetFields[0].hasValue == m2.payload.dataSetPayload.dataSetMessages[0].data.keyFrameData.dataSetFields[0].hasValue);
-    ck_assert_int_eq((uintptr_t)m2.payload.dataSetPayload.dataSetMessages[0].data.keyFrameData.dataSetFields[0].value.type, (uintptr_t)&UA_TYPES[UA_TYPES_INT32]);
+    ck_assert_ptr_eq(m2.payload.dataSetPayload.dataSetMessages[0].data.keyFrameData.dataSetFields[0].value.type, &UA_TYPES[UA_TYPES_INT32]);
     ck_assert_int_eq(*(UA_Int32 *)m2.payload.dataSetPayload.dataSetMessages[0].data.keyFrameData.dataSetFields[0].value.data, iv);
     ck_assert(m.payload.dataSetPayload.dataSetMessages[0].data.keyFrameData.dataSetFields[0].hasSourceTimestamp == m2.payload.dataSetPayload.dataSetMessages[0].data.keyFrameData.dataSetFields[0].hasSourceTimestamp);
 
@@ -111,7 +111,7 @@ START_TEST(UA_PubSub_EnDecode_ShallWorkOn1DS1ValueDataValueKeyFrame) {
     UA_Byte *bufPos = buffer.data;
     memset(bufPos, 0, msgSize);
     const UA_Byte *bufEnd = &(buffer.data[buffer.length]);
-    rv = UA_NetworkMessage_encodeBinary(&m, &bufPos, bufEnd);
+    rv = UA_NetworkMessage_encodeBinary(&m, &bufPos, bufEnd, NULL);
 
     ck_assert_int_eq(rv, UA_STATUSCODE_GOOD);
 
@@ -128,7 +128,7 @@ START_TEST(UA_PubSub_EnDecode_ShallWorkOn1DS1ValueDataValueKeyFrame) {
     ck_assert(m.payload.dataSetPayload.dataSetMessages[0].header.fieldEncoding == m2.payload.dataSetPayload.dataSetMessages[0].header.fieldEncoding);
     ck_assert_int_eq(m2.payload.dataSetPayload.dataSetMessages[0].data.keyFrameData.fieldCount, 1);
     ck_assert(m.payload.dataSetPayload.dataSetMessages[0].data.keyFrameData.dataSetFields[0].hasValue == m2.payload.dataSetPayload.dataSetMessages[0].data.keyFrameData.dataSetFields[0].hasValue);
-    ck_assert_int_eq((uintptr_t)m2.payload.dataSetPayload.dataSetMessages[0].data.keyFrameData.dataSetFields[0].value.type, (uintptr_t)&UA_TYPES[UA_TYPES_INT32]);
+    ck_assert_ptr_eq(m2.payload.dataSetPayload.dataSetMessages[0].data.keyFrameData.dataSetFields[0].value.type, &UA_TYPES[UA_TYPES_INT32]);
     ck_assert_int_eq(*(UA_Int32 *)m2.payload.dataSetPayload.dataSetMessages[0].data.keyFrameData.dataSetFields[0].value.data, iv);
     ck_assert(m.payload.dataSetPayload.dataSetMessages[0].data.keyFrameData.dataSetFields[0].hasSourceTimestamp == m2.payload.dataSetPayload.dataSetMessages[0].data.keyFrameData.dataSetFields[0].hasSourceTimestamp);
     ck_assert(m.dataSetClassIdEnabled == m2.dataSetClassIdEnabled);
@@ -184,7 +184,7 @@ START_TEST(UA_PubSub_EnDecode_ShallWorkOn1DS2ValuesVariantKeyFrame) {
     UA_Byte *bufPos = buffer.data;
     memset(bufPos, 0, msgSize);
     const UA_Byte *bufEnd = &(buffer.data[buffer.length]);
-    rv = UA_NetworkMessage_encodeBinary(&m, &bufPos, bufEnd);
+    rv = UA_NetworkMessage_encodeBinary(&m, &bufPos, bufEnd, NULL);
 
     ck_assert_int_eq(rv, UA_STATUSCODE_GOOD);
 
@@ -201,10 +201,10 @@ START_TEST(UA_PubSub_EnDecode_ShallWorkOn1DS2ValuesVariantKeyFrame) {
     ck_assert(m.payload.dataSetPayload.dataSetMessages[0].header.fieldEncoding == m2.payload.dataSetPayload.dataSetMessages[0].header.fieldEncoding);
     ck_assert_int_eq(m2.payload.dataSetPayload.dataSetMessages[0].data.keyFrameData.fieldCount, anzFields);
     ck_assert(m.payload.dataSetPayload.dataSetMessages[0].data.keyFrameData.dataSetFields[0].hasValue == m2.payload.dataSetPayload.dataSetMessages[0].data.keyFrameData.dataSetFields[0].hasValue);
-    ck_assert_int_eq((uintptr_t)m2.payload.dataSetPayload.dataSetMessages[0].data.keyFrameData.dataSetFields[0].value.type, (uintptr_t)&UA_TYPES[UA_TYPES_DOUBLE]);
+    ck_assert_ptr_eq(m2.payload.dataSetPayload.dataSetMessages[0].data.keyFrameData.dataSetFields[0].value.type, &UA_TYPES[UA_TYPES_DOUBLE]);
     ck_assert(*(UA_Double*)m2.payload.dataSetPayload.dataSetMessages[0].data.keyFrameData.dataSetFields[0].value.data == dv);
     ck_assert(m.payload.dataSetPayload.dataSetMessages[0].data.keyFrameData.dataSetFields[1].hasValue == m2.payload.dataSetPayload.dataSetMessages[0].data.keyFrameData.dataSetFields[0].hasValue);
-    ck_assert_int_eq((uintptr_t)m2.payload.dataSetPayload.dataSetMessages[0].data.keyFrameData.dataSetFields[1].value.type, (uintptr_t)&UA_TYPES[UA_TYPES_UINT64]);
+    ck_assert_ptr_eq(m2.payload.dataSetPayload.dataSetMessages[0].data.keyFrameData.dataSetFields[1].value.type, &UA_TYPES[UA_TYPES_UINT64]);
     ck_assert_uint_eq(*(UA_UInt64 *)m2.payload.dataSetPayload.dataSetMessages[0].data.keyFrameData.dataSetFields[1].value.data, uiv);
     ck_assert(m.payload.dataSetPayload.dataSetMessages[0].data.keyFrameData.dataSetFields[0].hasSourceTimestamp == m2.payload.dataSetPayload.dataSetMessages[0].data.keyFrameData.dataSetFields[0].hasSourceTimestamp);
     ck_assert(m.payload.dataSetPayload.dataSetMessages[0].data.keyFrameData.dataSetFields[1].hasSourceTimestamp == m2.payload.dataSetPayload.dataSetMessages[0].data.keyFrameData.dataSetFields[0].hasSourceTimestamp);
@@ -260,7 +260,7 @@ START_TEST(UA_PubSub_EnDecode_ShallWorkOn1DS2ValuesDataValueKeyFrame) {
     UA_Byte *bufPos = buffer.data;
     memset(bufPos, 0, msgSize);
     const UA_Byte *bufEnd = &(buffer.data[buffer.length]);
-    rv = UA_NetworkMessage_encodeBinary(&m, &bufPos, bufEnd);
+    rv = UA_NetworkMessage_encodeBinary(&m, &bufPos, bufEnd, NULL);
 
     ck_assert_int_eq(rv, UA_STATUSCODE_GOOD);
 
@@ -277,10 +277,10 @@ START_TEST(UA_PubSub_EnDecode_ShallWorkOn1DS2ValuesDataValueKeyFrame) {
     ck_assert(m.payload.dataSetPayload.dataSetMessages[0].header.fieldEncoding == m2.payload.dataSetPayload.dataSetMessages[0].header.fieldEncoding);
     ck_assert_int_eq(m2.payload.dataSetPayload.dataSetMessages[0].data.keyFrameData.fieldCount, anzFields);
     ck_assert(m.payload.dataSetPayload.dataSetMessages[0].data.keyFrameData.dataSetFields[0].hasValue == m2.payload.dataSetPayload.dataSetMessages[0].data.keyFrameData.dataSetFields[0].hasValue);
-    ck_assert_int_eq((uintptr_t)m2.payload.dataSetPayload.dataSetMessages[0].data.keyFrameData.dataSetFields[0].value.type, (uintptr_t)&UA_TYPES[UA_TYPES_DOUBLE]);
+    ck_assert_ptr_eq(m2.payload.dataSetPayload.dataSetMessages[0].data.keyFrameData.dataSetFields[0].value.type, &UA_TYPES[UA_TYPES_DOUBLE]);
     ck_assert(*(UA_Double*)m2.payload.dataSetPayload.dataSetMessages[0].data.keyFrameData.dataSetFields[0].value.data == dv);
     ck_assert(m.payload.dataSetPayload.dataSetMessages[0].data.keyFrameData.dataSetFields[1].hasValue == m2.payload.dataSetPayload.dataSetMessages[0].data.keyFrameData.dataSetFields[0].hasValue);
-    ck_assert_int_eq((uintptr_t)m2.payload.dataSetPayload.dataSetMessages[0].data.keyFrameData.dataSetFields[1].value.type, (uintptr_t)&UA_TYPES[UA_TYPES_UINT64]);
+    ck_assert_ptr_eq(m2.payload.dataSetPayload.dataSetMessages[0].data.keyFrameData.dataSetFields[1].value.type, &UA_TYPES[UA_TYPES_UINT64]);
     ck_assert_uint_eq(*(UA_UInt64 *)m2.payload.dataSetPayload.dataSetMessages[0].data.keyFrameData.dataSetFields[1].value.data, uiv);
     ck_assert(m.payload.dataSetPayload.dataSetMessages[0].data.keyFrameData.dataSetFields[0].hasSourceTimestamp == m2.payload.dataSetPayload.dataSetMessages[0].data.keyFrameData.dataSetFields[0].hasSourceTimestamp);
     ck_assert(m.payload.dataSetPayload.dataSetMessages[0].data.keyFrameData.dataSetFields[1].hasSourceTimestamp == m2.payload.dataSetPayload.dataSetMessages[0].data.keyFrameData.dataSetFields[0].hasSourceTimestamp);
@@ -333,7 +333,7 @@ START_TEST(UA_PubSub_EnDecode_ShallWorkOn1DS1ValueVariantDeltaFrame) {
     UA_Byte *bufPos = buffer.data;
     memset(bufPos, 0, msgSize);
     const UA_Byte *bufEnd = &(buffer.data[buffer.length]);
-    rv = UA_NetworkMessage_encodeBinary(&m, &bufPos, bufEnd);
+    rv = UA_NetworkMessage_encodeBinary(&m, &bufPos, bufEnd, NULL);
 
     ck_assert_int_eq(rv, UA_STATUSCODE_GOOD);
 
@@ -351,7 +351,7 @@ START_TEST(UA_PubSub_EnDecode_ShallWorkOn1DS1ValueVariantDeltaFrame) {
     ck_assert_int_eq(m2.payload.dataSetPayload.dataSetMessages[0].data.deltaFrameData.fieldCount, 1);
     ck_assert_int_eq(m.payload.dataSetPayload.dataSetMessages[0].data.deltaFrameData.deltaFrameFields[0].fieldIndex, fieldIndex);
     ck_assert(m.payload.dataSetPayload.dataSetMessages[0].data.deltaFrameData.deltaFrameFields[0].fieldValue.hasValue == m2.payload.dataSetPayload.dataSetMessages[0].data.deltaFrameData.deltaFrameFields[0].fieldValue.hasValue);
-    ck_assert_int_eq((uintptr_t)m2.payload.dataSetPayload.dataSetMessages[0].data.deltaFrameData.deltaFrameFields[0].fieldValue.value.type, (uintptr_t)&UA_TYPES[UA_TYPES_INT32]);
+    ck_assert_ptr_eq(m2.payload.dataSetPayload.dataSetMessages[0].data.deltaFrameData.deltaFrameFields[0].fieldValue.value.type, &UA_TYPES[UA_TYPES_INT32]);
     ck_assert_int_eq(*(UA_Int32 *)m2.payload.dataSetPayload.dataSetMessages[0].data.deltaFrameData.deltaFrameFields[0].fieldValue.value.data, iv);
     ck_assert(m.payload.dataSetPayload.dataSetMessages[0].data.deltaFrameData.deltaFrameFields[0].fieldValue.hasSourceTimestamp == m2.payload.dataSetPayload.dataSetMessages[0].data.deltaFrameData.deltaFrameFields[0].fieldValue.hasSourceTimestamp);
     ck_assert(m.dataSetClassIdEnabled == m2.dataSetClassIdEnabled);
@@ -402,7 +402,7 @@ START_TEST(UA_PubSub_EnDecode_ShallWorkOn1DS1ValueDataValueDeltaFrame) {
     UA_Byte *bufPos = buffer.data;
     memset(bufPos, 0, msgSize);
     const UA_Byte *bufEnd = &(buffer.data[buffer.length]);
-    rv = UA_NetworkMessage_encodeBinary(&m, &bufPos, bufEnd);
+    rv = UA_NetworkMessage_encodeBinary(&m, &bufPos, bufEnd, NULL);
 
     ck_assert_int_eq(rv, UA_STATUSCODE_GOOD);
 
@@ -420,7 +420,7 @@ START_TEST(UA_PubSub_EnDecode_ShallWorkOn1DS1ValueDataValueDeltaFrame) {
     ck_assert_int_eq(m2.payload.dataSetPayload.dataSetMessages[0].data.deltaFrameData.fieldCount, 1);
     ck_assert_int_eq(m.payload.dataSetPayload.dataSetMessages[0].data.deltaFrameData.deltaFrameFields[0].fieldIndex, fieldIndex);
     ck_assert(m.payload.dataSetPayload.dataSetMessages[0].data.deltaFrameData.deltaFrameFields[0].fieldValue.hasValue == m2.payload.dataSetPayload.dataSetMessages[0].data.deltaFrameData.deltaFrameFields[0].fieldValue.hasValue);
-    ck_assert_int_eq((uintptr_t)m2.payload.dataSetPayload.dataSetMessages[0].data.deltaFrameData.deltaFrameFields[0].fieldValue.value.type, (uintptr_t)&UA_TYPES[UA_TYPES_INT32]);
+    ck_assert_ptr_eq(m2.payload.dataSetPayload.dataSetMessages[0].data.deltaFrameData.deltaFrameFields[0].fieldValue.value.type, &UA_TYPES[UA_TYPES_INT32]);
     ck_assert_int_eq(*(UA_Int32 *)m2.payload.dataSetPayload.dataSetMessages[0].data.deltaFrameData.deltaFrameFields[0].fieldValue.value.data, iv);
     ck_assert(m.payload.dataSetPayload.dataSetMessages[0].data.deltaFrameData.deltaFrameFields[0].fieldValue.hasSourceTimestamp == m2.payload.dataSetPayload.dataSetMessages[0].data.deltaFrameData.deltaFrameFields[0].fieldValue.hasSourceTimestamp);
     ck_assert(m.dataSetClassIdEnabled == m2.dataSetClassIdEnabled);
@@ -471,7 +471,7 @@ START_TEST(UA_PubSub_Encode_WithBufferTooSmallShallReturnError) {
     UA_Byte *bufPos = buffer.data;
     memset(bufPos, 0, msgSize);
     const UA_Byte *bufEnd = &(buffer.data[buffer.length]);
-    rv = UA_NetworkMessage_encodeBinary(&m, &bufPos, bufEnd);
+    rv = UA_NetworkMessage_encodeBinary(&m, &bufPos, bufEnd, NULL);
 
     ck_assert_int_ne(rv, UA_STATUSCODE_GOOD);
 
@@ -511,7 +511,7 @@ START_TEST(UA_PubSub_Decode_WithBufferTooSmallShallReturnError) {
     UA_Byte *bufPos = buffer.data;
     memset(bufPos, 0, msgSize);
     const UA_Byte *bufEnd = &(buffer.data[buffer.length]);
-    rv = UA_NetworkMessage_encodeBinary(&m, &bufPos, bufEnd);
+    rv = UA_NetworkMessage_encodeBinary(&m, &bufPos, bufEnd, NULL);
 
     ck_assert_int_eq(rv, UA_STATUSCODE_GOOD);
 
@@ -583,7 +583,7 @@ START_TEST(UA_PubSub_EnDecode_ShallWorkOn1DS2ValuesVariantDeltaFrame) {
     UA_Byte *bufPos = buffer.data;
     memset(bufPos, 0, msgSize);
     const UA_Byte *bufEnd = &(buffer.data[buffer.length]);
-    rv = UA_NetworkMessage_encodeBinary(&m, &bufPos, bufEnd);
+    rv = UA_NetworkMessage_encodeBinary(&m, &bufPos, bufEnd, NULL);
 
     ck_assert_int_eq(rv, UA_STATUSCODE_GOOD);
 
@@ -601,7 +601,7 @@ START_TEST(UA_PubSub_EnDecode_ShallWorkOn1DS2ValuesVariantDeltaFrame) {
     ck_assert_int_eq(m2.payload.dataSetPayload.dataSetMessages[0].data.deltaFrameData.fieldCount, 2);
     ck_assert_int_eq(m.payload.dataSetPayload.dataSetMessages[0].data.deltaFrameData.deltaFrameFields[0].fieldIndex, fieldIndex1);
     ck_assert(m.payload.dataSetPayload.dataSetMessages[0].data.deltaFrameData.deltaFrameFields[0].fieldValue.hasValue == m2.payload.dataSetPayload.dataSetMessages[0].data.deltaFrameData.deltaFrameFields[0].fieldValue.hasValue);
-    ck_assert_int_eq((uintptr_t)m2.payload.dataSetPayload.dataSetMessages[0].data.deltaFrameData.deltaFrameFields[0].fieldValue.value.type, (uintptr_t)&UA_TYPES[UA_TYPES_INT32]);
+    ck_assert_ptr_eq(m2.payload.dataSetPayload.dataSetMessages[0].data.deltaFrameData.deltaFrameFields[0].fieldValue.value.type, &UA_TYPES[UA_TYPES_INT32]);
     ck_assert_int_eq(*(UA_Int32 *)m2.payload.dataSetPayload.dataSetMessages[0].data.deltaFrameData.deltaFrameFields[0].fieldValue.value.data, iv);
     ck_assert(m.payload.dataSetPayload.dataSetMessages[0].data.deltaFrameData.deltaFrameFields[0].fieldValue.hasSourceTimestamp == m2.payload.dataSetPayload.dataSetMessages[0].data.deltaFrameData.deltaFrameFields[0].fieldValue.hasSourceTimestamp);
 
@@ -613,7 +613,7 @@ START_TEST(UA_PubSub_EnDecode_ShallWorkOn1DS2ValuesVariantDeltaFrame) {
     {
         ck_assert_int_eq(decodedString.data[i], testString.data[i]);
     }
-    ck_assert_int_eq(decodedString.length, testString.length);
+    ck_assert_uint_eq(decodedString.length, testString.length);
     ck_assert(m.payload.dataSetPayload.dataSetMessages[0].data.deltaFrameData.deltaFrameFields[1].fieldValue.hasSourceTimestamp == m2.payload.dataSetPayload.dataSetMessages[0].data.deltaFrameData.deltaFrameFields[1].fieldValue.hasSourceTimestamp);
 
     ck_assert(m.dataSetClassIdEnabled == m2.dataSetClassIdEnabled);
@@ -679,7 +679,7 @@ START_TEST(UA_PubSub_EnDecode_ShallWorkOn1DS2ValuesDataValueDeltaFrame) {
     UA_Byte *bufPos = buffer.data;
     memset(bufPos, 0, msgSize);
     const UA_Byte *bufEnd = &(buffer.data[buffer.length]);
-    rv = UA_NetworkMessage_encodeBinary(&m, &bufPos, bufEnd);
+    rv = UA_NetworkMessage_encodeBinary(&m, &bufPos, bufEnd, NULL);
 
     ck_assert_int_eq(rv, UA_STATUSCODE_GOOD);
 
@@ -697,7 +697,7 @@ START_TEST(UA_PubSub_EnDecode_ShallWorkOn1DS2ValuesDataValueDeltaFrame) {
     ck_assert_int_eq(m2.payload.dataSetPayload.dataSetMessages[0].data.deltaFrameData.fieldCount, 2);
     ck_assert_int_eq(m.payload.dataSetPayload.dataSetMessages[0].data.deltaFrameData.deltaFrameFields[0].fieldIndex, fieldIndex1);
     ck_assert(m.payload.dataSetPayload.dataSetMessages[0].data.deltaFrameData.deltaFrameFields[0].fieldValue.hasValue == m2.payload.dataSetPayload.dataSetMessages[0].data.deltaFrameData.deltaFrameFields[0].fieldValue.hasValue);
-    ck_assert_int_eq((uintptr_t)m2.payload.dataSetPayload.dataSetMessages[0].data.deltaFrameData.deltaFrameFields[0].fieldValue.value.type, (uintptr_t)&UA_TYPES[UA_TYPES_INT32]);
+    ck_assert_ptr_eq(m2.payload.dataSetPayload.dataSetMessages[0].data.deltaFrameData.deltaFrameFields[0].fieldValue.value.type, &UA_TYPES[UA_TYPES_INT32]);
     ck_assert_int_eq(*(UA_Int32 *)m2.payload.dataSetPayload.dataSetMessages[0].data.deltaFrameData.deltaFrameFields[0].fieldValue.value.data, iv);
     ck_assert(m.payload.dataSetPayload.dataSetMessages[0].data.deltaFrameData.deltaFrameFields[0].fieldValue.hasSourceTimestamp == m2.payload.dataSetPayload.dataSetMessages[0].data.deltaFrameData.deltaFrameFields[0].fieldValue.hasSourceTimestamp);
 
@@ -709,7 +709,7 @@ START_TEST(UA_PubSub_EnDecode_ShallWorkOn1DS2ValuesDataValueDeltaFrame) {
     {
         ck_assert_int_eq(decodedString.data[i], testString.data[i]);
     }
-    ck_assert_int_eq(decodedString.length, testString.length);
+    ck_assert_uint_eq(decodedString.length, testString.length);
     ck_assert(m.payload.dataSetPayload.dataSetMessages[0].data.deltaFrameData.deltaFrameFields[1].fieldValue.hasSourceTimestamp == m2.payload.dataSetPayload.dataSetMessages[0].data.deltaFrameData.deltaFrameFields[1].fieldValue.hasSourceTimestamp);
 
     ck_assert(m.dataSetClassIdEnabled == m2.dataSetClassIdEnabled);
@@ -774,7 +774,7 @@ START_TEST(UA_PubSub_EnDecode_ShallWorkOn1DS2ValuesVariantKeyFrameGroupHeader) {
     UA_Byte *bufPos = buffer.data;
     memset(bufPos, 0, msgSize);
     const UA_Byte *bufEnd = &(buffer.data[buffer.length]);
-    rv = UA_NetworkMessage_encodeBinary(&m, &bufPos, bufEnd);
+    rv = UA_NetworkMessage_encodeBinary(&m, &bufPos, bufEnd, NULL);
 
     ck_assert_int_eq(rv, UA_STATUSCODE_GOOD);
 
@@ -826,9 +826,9 @@ START_TEST(UA_PubSub_EnDecode_ShallWorkOn1DS2ValuesVariantDeltaFramePublDSCID) {
     m.version = 1;
     m.networkMessageType = UA_NETWORKMESSAGE_DATASET;
     m.publisherIdEnabled = true;
-    m.publisherIdType = UA_PUBLISHERDATATYPE_UINT32;
+    m.publisherIdType = UA_PUBLISHERIDTYPE_UINT32;
     UA_UInt32 publisherId = 1469;
-    m.publisherId.publisherIdUInt32 = publisherId;
+    m.publisherId.uint32 = publisherId;
     m.dataSetClassIdEnabled = true;
     UA_Guid dataSetClassId = UA_Guid_random();
     m.dataSetClassId = dataSetClassId;
@@ -873,7 +873,7 @@ START_TEST(UA_PubSub_EnDecode_ShallWorkOn1DS2ValuesVariantDeltaFramePublDSCID) {
     UA_Byte *bufPos = buffer.data;
     memset(bufPos, 0, msgSize);
     const UA_Byte *bufEnd = &(buffer.data[buffer.length]);
-    rv = UA_NetworkMessage_encodeBinary(&m, &bufPos, bufEnd);
+    rv = UA_NetworkMessage_encodeBinary(&m, &bufPos, bufEnd, NULL);
 
     ck_assert_int_eq(rv, UA_STATUSCODE_GOOD);
 
@@ -892,7 +892,7 @@ START_TEST(UA_PubSub_EnDecode_ShallWorkOn1DS2ValuesVariantDeltaFramePublDSCID) {
     ck_assert(m.promotedFieldsEnabled == m2.promotedFieldsEnabled);
     ck_assert(m.publisherIdEnabled == m2.publisherIdEnabled);
     ck_assert_int_eq(m2.publisherIdType, m.publisherIdType);
-    ck_assert_uint_eq(m2.publisherId.publisherIdUInt32, publisherId);
+    ck_assert_uint_eq(m2.publisherId.uint32, publisherId);
     ck_assert(m.securityEnabled == m2.securityEnabled);
     ck_assert(m.chunkMessage == m2.chunkMessage);
 
@@ -902,7 +902,7 @@ START_TEST(UA_PubSub_EnDecode_ShallWorkOn1DS2ValuesVariantDeltaFramePublDSCID) {
     ck_assert_int_eq(m2.payload.dataSetPayload.dataSetMessages[0].data.deltaFrameData.fieldCount, 2);
     ck_assert_int_eq(m.payload.dataSetPayload.dataSetMessages[0].data.deltaFrameData.deltaFrameFields[0].fieldIndex, fieldIndex1);
     ck_assert(m.payload.dataSetPayload.dataSetMessages[0].data.deltaFrameData.deltaFrameFields[0].fieldValue.hasValue == m2.payload.dataSetPayload.dataSetMessages[0].data.deltaFrameData.deltaFrameFields[0].fieldValue.hasValue);
-    ck_assert_int_eq((uintptr_t)m2.payload.dataSetPayload.dataSetMessages[0].data.deltaFrameData.deltaFrameFields[0].fieldValue.value.type, (uintptr_t)&UA_TYPES[UA_TYPES_INT32]);
+    ck_assert_ptr_eq(m2.payload.dataSetPayload.dataSetMessages[0].data.deltaFrameData.deltaFrameFields[0].fieldValue.value.type, &UA_TYPES[UA_TYPES_INT32]);
     ck_assert_int_eq(*(UA_Int32 *)m2.payload.dataSetPayload.dataSetMessages[0].data.deltaFrameData.deltaFrameFields[0].fieldValue.value.data, iv);
     ck_assert(m.payload.dataSetPayload.dataSetMessages[0].data.deltaFrameData.deltaFrameFields[0].fieldValue.hasSourceTimestamp == m2.payload.dataSetPayload.dataSetMessages[0].data.deltaFrameData.deltaFrameFields[0].fieldValue.hasSourceTimestamp);
 
@@ -914,7 +914,7 @@ START_TEST(UA_PubSub_EnDecode_ShallWorkOn1DS2ValuesVariantDeltaFramePublDSCID) {
     {
         ck_assert_int_eq(decodedString.data[i], testString.data[i]);
     }
-    ck_assert_int_eq(decodedString.length, testString.length);
+    ck_assert_uint_eq(decodedString.length, testString.length);
     ck_assert(m.payload.dataSetPayload.dataSetMessages[0].data.deltaFrameData.deltaFrameFields[1].fieldValue.hasSourceTimestamp == m2.payload.dataSetPayload.dataSetMessages[0].data.deltaFrameData.deltaFrameFields[1].fieldValue.hasSourceTimestamp);
 
     ((UA_String*)value.data)->data = NULL; // the string is statically allocated. do not free it.
@@ -968,7 +968,7 @@ START_TEST(UA_PubSub_EnDecode_ShallWorkOn1DS2ValuesDataValueKeyFramePH) {
     UA_Byte *bufPos = buffer.data;
     memset(bufPos, 0, msgSize);
     const UA_Byte *bufEnd = &(buffer.data[buffer.length]);
-    rv = UA_NetworkMessage_encodeBinary(&m, &bufPos, bufEnd);
+    rv = UA_NetworkMessage_encodeBinary(&m, &bufPos, bufEnd, NULL);
 
     ck_assert_int_eq(rv, UA_STATUSCODE_GOOD);
 
@@ -988,10 +988,10 @@ START_TEST(UA_PubSub_EnDecode_ShallWorkOn1DS2ValuesDataValueKeyFramePH) {
     ck_assert(m.payload.dataSetPayload.dataSetMessages[0].header.fieldEncoding == m2.payload.dataSetPayload.dataSetMessages[0].header.fieldEncoding);
     ck_assert_int_eq(m2.payload.dataSetPayload.dataSetMessages[0].data.keyFrameData.fieldCount, anzFields);
     ck_assert(m.payload.dataSetPayload.dataSetMessages[0].data.keyFrameData.dataSetFields[0].hasValue == m2.payload.dataSetPayload.dataSetMessages[0].data.keyFrameData.dataSetFields[0].hasValue);
-    ck_assert_int_eq((uintptr_t)m2.payload.dataSetPayload.dataSetMessages[0].data.keyFrameData.dataSetFields[0].value.type, (uintptr_t)&UA_TYPES[UA_TYPES_DOUBLE]);
+    ck_assert_ptr_eq(m2.payload.dataSetPayload.dataSetMessages[0].data.keyFrameData.dataSetFields[0].value.type, &UA_TYPES[UA_TYPES_DOUBLE]);
     ck_assert(*(UA_Double*)m2.payload.dataSetPayload.dataSetMessages[0].data.keyFrameData.dataSetFields[0].value.data == dv);
     ck_assert(m.payload.dataSetPayload.dataSetMessages[0].data.keyFrameData.dataSetFields[1].hasValue == m2.payload.dataSetPayload.dataSetMessages[0].data.keyFrameData.dataSetFields[0].hasValue);
-    ck_assert_int_eq((uintptr_t)m2.payload.dataSetPayload.dataSetMessages[0].data.keyFrameData.dataSetFields[1].value.type, (uintptr_t)&UA_TYPES[UA_TYPES_UINT64]);
+    ck_assert_ptr_eq(m2.payload.dataSetPayload.dataSetMessages[0].data.keyFrameData.dataSetFields[1].value.type, &UA_TYPES[UA_TYPES_UINT64]);
     ck_assert_uint_eq(*(UA_UInt64 *)m2.payload.dataSetPayload.dataSetMessages[0].data.keyFrameData.dataSetFields[1].value.data, uiv);
     ck_assert(m.payload.dataSetPayload.dataSetMessages[0].data.keyFrameData.dataSetFields[0].hasSourceTimestamp == m2.payload.dataSetPayload.dataSetMessages[0].data.keyFrameData.dataSetFields[0].hasSourceTimestamp);
     ck_assert(m.payload.dataSetPayload.dataSetMessages[0].data.keyFrameData.dataSetFields[1].hasSourceTimestamp == m2.payload.dataSetPayload.dataSetMessages[0].data.keyFrameData.dataSetFields[0].hasSourceTimestamp);
@@ -1023,7 +1023,7 @@ START_TEST(UA_PubSub_EnDecode_ShallWorkOn1DS2ValuesVariantKeyFrameTSProm) {
     m.promotedFieldsEnabled = true;
     m.promotedFieldsSize = 1;
     m.promotedFields = (UA_Variant*)UA_Array_new(m.promotedFieldsSize, &UA_TYPES[UA_TYPES_VARIANT]);
-    
+
     UA_DataSetMessage dmkf;
     memset(&dmkf, 0, sizeof(UA_DataSetMessage));
     dmkf.header.dataSetMessageValid = true;
@@ -1057,7 +1057,7 @@ START_TEST(UA_PubSub_EnDecode_ShallWorkOn1DS2ValuesVariantKeyFrameTSProm) {
     UA_Byte *bufPos = buffer.data;
     memset(bufPos, 0, msgSize);
     const UA_Byte *bufEnd = &(buffer.data[buffer.length]);
-    rv = UA_NetworkMessage_encodeBinary(&m, &bufPos, bufEnd);
+    rv = UA_NetworkMessage_encodeBinary(&m, &bufPos, bufEnd, NULL);
 
     ck_assert_int_eq(rv, UA_STATUSCODE_GOOD);
 
@@ -1083,10 +1083,10 @@ START_TEST(UA_PubSub_EnDecode_ShallWorkOn1DS2ValuesVariantKeyFrameTSProm) {
     ck_assert(m.payload.dataSetPayload.dataSetMessages[0].header.fieldEncoding == m2.payload.dataSetPayload.dataSetMessages[0].header.fieldEncoding);
     ck_assert_int_eq(m2.payload.dataSetPayload.dataSetMessages[0].data.keyFrameData.fieldCount, anzFields);
     ck_assert(m.payload.dataSetPayload.dataSetMessages[0].data.keyFrameData.dataSetFields[0].hasValue == m2.payload.dataSetPayload.dataSetMessages[0].data.keyFrameData.dataSetFields[0].hasValue);
-    ck_assert_int_eq((uintptr_t)m2.payload.dataSetPayload.dataSetMessages[0].data.keyFrameData.dataSetFields[0].value.type, (uintptr_t)&UA_TYPES[UA_TYPES_DOUBLE]);
+    ck_assert_ptr_eq(m2.payload.dataSetPayload.dataSetMessages[0].data.keyFrameData.dataSetFields[0].value.type, &UA_TYPES[UA_TYPES_DOUBLE]);
     ck_assert(*(UA_Double*)m2.payload.dataSetPayload.dataSetMessages[0].data.keyFrameData.dataSetFields[0].value.data == dv);
     ck_assert(m.payload.dataSetPayload.dataSetMessages[0].data.keyFrameData.dataSetFields[1].hasValue == m2.payload.dataSetPayload.dataSetMessages[0].data.keyFrameData.dataSetFields[0].hasValue);
-    ck_assert_int_eq((uintptr_t)m2.payload.dataSetPayload.dataSetMessages[0].data.keyFrameData.dataSetFields[1].value.type, (uintptr_t)&UA_TYPES[UA_TYPES_UINT64]);
+    ck_assert_ptr_eq(m2.payload.dataSetPayload.dataSetMessages[0].data.keyFrameData.dataSetFields[1].value.type, &UA_TYPES[UA_TYPES_UINT64]);
     ck_assert_uint_eq(*(UA_UInt64 *)m2.payload.dataSetPayload.dataSetMessages[0].data.keyFrameData.dataSetFields[1].value.data, uiv);
     ck_assert(m.payload.dataSetPayload.dataSetMessages[0].data.keyFrameData.dataSetFields[0].hasSourceTimestamp == m2.payload.dataSetPayload.dataSetMessages[0].data.keyFrameData.dataSetFields[0].hasSourceTimestamp);
     ck_assert(m.payload.dataSetPayload.dataSetMessages[0].data.keyFrameData.dataSetFields[1].hasSourceTimestamp == m2.payload.dataSetPayload.dataSetMessages[0].data.keyFrameData.dataSetFields[0].hasSourceTimestamp);
@@ -1162,7 +1162,7 @@ START_TEST(UA_PubSub_EnDecode_ShallWorkOn1DS2ValuesDataValueDeltaFrameGHProm2) {
     UA_Byte *bufPos = buffer.data;
     memset(bufPos, 0, msgSize);
     const UA_Byte *bufEnd = &(buffer.data[buffer.length]);
-    rv = UA_NetworkMessage_encodeBinary(&m, &bufPos, bufEnd);
+    rv = UA_NetworkMessage_encodeBinary(&m, &bufPos, bufEnd, NULL);
 
     ck_assert_int_eq(rv, UA_STATUSCODE_GOOD);
 
@@ -1196,7 +1196,7 @@ START_TEST(UA_PubSub_EnDecode_ShallWorkOn1DS2ValuesDataValueDeltaFrameGHProm2) {
     ck_assert_int_eq(m2.payload.dataSetPayload.dataSetMessages[0].data.deltaFrameData.fieldCount, 2);
     ck_assert_int_eq(m.payload.dataSetPayload.dataSetMessages[0].data.deltaFrameData.deltaFrameFields[0].fieldIndex, fieldIndex1);
     ck_assert(m.payload.dataSetPayload.dataSetMessages[0].data.deltaFrameData.deltaFrameFields[0].fieldValue.hasValue == m2.payload.dataSetPayload.dataSetMessages[0].data.deltaFrameData.deltaFrameFields[0].fieldValue.hasValue);
-    ck_assert_int_eq((uintptr_t)m2.payload.dataSetPayload.dataSetMessages[0].data.deltaFrameData.deltaFrameFields[0].fieldValue.value.type, (uintptr_t)&UA_TYPES[UA_TYPES_INT32]);
+    ck_assert_ptr_eq(m2.payload.dataSetPayload.dataSetMessages[0].data.deltaFrameData.deltaFrameFields[0].fieldValue.value.type, &UA_TYPES[UA_TYPES_INT32]);
     ck_assert_int_eq(*(UA_Int32 *)m2.payload.dataSetPayload.dataSetMessages[0].data.deltaFrameData.deltaFrameFields[0].fieldValue.value.data, iv);
     ck_assert(m.payload.dataSetPayload.dataSetMessages[0].data.deltaFrameData.deltaFrameFields[0].fieldValue.hasSourceTimestamp == m2.payload.dataSetPayload.dataSetMessages[0].data.deltaFrameData.deltaFrameFields[0].fieldValue.hasSourceTimestamp);
 
@@ -1208,7 +1208,7 @@ START_TEST(UA_PubSub_EnDecode_ShallWorkOn1DS2ValuesDataValueDeltaFrameGHProm2) {
     {
         ck_assert_int_eq(decodedString.data[i], testString.data[i]);
     }
-    ck_assert_int_eq(decodedString.length, testString.length);
+    ck_assert_uint_eq(decodedString.length, testString.length);
     ck_assert(m.payload.dataSetPayload.dataSetMessages[0].data.deltaFrameData.deltaFrameFields[1].fieldValue.hasSourceTimestamp == m2.payload.dataSetPayload.dataSetMessages[0].data.deltaFrameData.deltaFrameFields[1].fieldValue.hasSourceTimestamp);
 
     UA_Array_delete(m.promotedFields, m.promotedFieldsSize, &UA_TYPES[UA_TYPES_VARIANT]);
@@ -1284,7 +1284,7 @@ START_TEST(UA_PubSub_EnDecode_ShallWorkOn2DSVariant) {
     UA_Byte *bufPos = buffer.data;
     memset(bufPos, 0, msgSize);
     const UA_Byte *bufEnd = &(buffer.data[buffer.length]);
-    rv = UA_NetworkMessage_encodeBinary(&m, &bufPos, bufEnd);
+    rv = UA_NetworkMessage_encodeBinary(&m, &bufPos, bufEnd, NULL);
 
     ck_assert_int_eq(rv, UA_STATUSCODE_GOOD);
 
@@ -1364,13 +1364,13 @@ int main(void) {
 
     TCase *tc_ende2 = tcase_create("encode_decode2DS");
     tcase_add_test(tc_ende2, UA_PubSub_EnDecode_ShallWorkOn2DSVariant);
-    
-    Suite *s = suite_create("PubSub NetworkMessage");   
+
+    Suite *s = suite_create("PubSub NetworkMessage");
     suite_add_tcase(s, tc_encode);
     suite_add_tcase(s, tc_decode);
     suite_add_tcase(s, tc_ende1);
     suite_add_tcase(s, tc_ende2);
-    
+
     SRunner *sr = srunner_create(s);
     srunner_set_fork_status(sr, CK_NOFORK);
     srunner_run_all(sr,CK_NORMAL);

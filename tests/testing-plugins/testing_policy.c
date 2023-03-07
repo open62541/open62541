@@ -181,11 +181,10 @@ compareThumbprint_testing(const UA_SecurityPolicy *securityPolicy,
 }
 
 static UA_StatusCode
-generateKey_testing(const UA_SecurityPolicy *securityPolicy,
+generateKey_testing(void *policyContext,
                     const UA_ByteString *secret,
                     const UA_ByteString *seed,
                     UA_ByteString *out) {
-    ck_assert(securityPolicy != NULL);
     ck_assert(secret != NULL);
     ck_assert(seed != NULL);
     ck_assert(out != NULL);
@@ -194,13 +193,10 @@ generateKey_testing(const UA_SecurityPolicy *securityPolicy,
 }
 
 static UA_StatusCode
-generateNonce_testing(const UA_SecurityPolicy *securityPolicy,
+generateNonce_testing(void *policyContext,
                       UA_ByteString *out) {
-    ck_assert(securityPolicy != NULL);
     ck_assert(out != NULL);
-
     memset(out->data, 'N', out->length);
-
     SET_CALLED(generateNonce);
     return UA_STATUSCODE_GOOD;
 }
