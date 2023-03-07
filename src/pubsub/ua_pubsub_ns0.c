@@ -176,8 +176,8 @@ onReadLocked(UA_Server *server, const UA_NodeId *sessionId, void *sessionContext
                 pvd[counter].attributeId = UA_ATTRIBUTEID_VALUE;
                 pvd[counter].publishedVariable =
                     field->config.field.variable.publishParameters.publishedVariable;
-                //UA_NodeId_copy(&field->config.field.variable.publishParameters.publishedVariable,
-                //               &pvd[counter].publishedVariable);
+                UA_NodeId_copy(&field->config.field.variable.publishParameters.publishedVariable,
+                               &pvd[counter].publishedVariable);
                 counter++;
             }
             UA_Variant_setArray(&value, pvd, publishedDataSet->fieldSize,
