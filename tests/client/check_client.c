@@ -85,7 +85,7 @@ START_TEST(ClientConfig_Copy){
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     UA_Client_disconnect(dstConfigClient);
     UA_Client_delete(dstConfigClient);
-    UA_ApplicationDescription_clear(&srcConfig.clientDescription);
+    UA_ClientConfig_clear(&srcConfig);
 }
 END_TEST
 
