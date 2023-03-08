@@ -809,19 +809,11 @@ typeEquivalence(const UA_DataType *t) {
     return k;
 }
 
-//static const UA_NodeId enumNodeId = {0, UA_NODEIDTYPE_NUMERIC, {UA_NS0ID_ENUMERATION}};
-
 UA_Boolean
 compatibleValueDataType(UA_Server *server, const UA_DataType *dataType,
                         const UA_NodeId *constraintDataType) {
     if(compatibleDataTypes(server, &dataType->typeId, constraintDataType))
         return true;
-
-    /* The constraint is an enum -> allow writing Int32 */
-    //if(UA_NodeId_equal(&dataType->typeId, &UA_TYPES[UA_TYPES_INT32].typeId) &&
-    //   isNodeInTree_singleRef(server, constraintDataType, &enumNodeId,
-    //                          UA_REFERENCETYPEINDEX_HASSUBTYPE))
-    //    return true;
 
     /* For actual values, the constraint DataType may be a subtype of the
      * DataType of the value -- subtyping in the wrong direction. E.g. UtcTime
