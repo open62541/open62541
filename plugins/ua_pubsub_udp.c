@@ -9,12 +9,15 @@
  * Copyright (c) 2021 Linutronix GmbH (Author: Kurt Kanzenbach)
  * Copyright (c) 2022 Fraunhofer IOSB (Author: Jan Hermes)
  */
-
 #include <open62541/util.h>
 
 #include <open62541/plugin/log_stdout.h>
 #include <open62541/plugin/pubsub_udp.h>
 #include <open62541/server.h>
+
+#include "pubsub_timer.h"
+
+#include "open62541_queue.h"
 
 #define RECEIVE_MSG_BUFFER_SIZE   4096
 #define UA_MAX_DEFAULT_PARAM_SIZE 6
@@ -64,7 +67,6 @@ typedef struct UA_UDPConnectionContext {
                                                     void *connection,
                                                     UA_ByteString *buffer);
 } UA_UDPConnectionContext;
-
 
 /* Callback of a TCP socket (server socket or an active connection) */
 static void
@@ -120,6 +122,19 @@ UA_PubSubChannelUDP_close(UA_PubSubChannel *channel) {
         UA_free(ctx);
     }
     UA_free(channel);
+    
+    UA_PubSubTimedSend *pubsubTimedSend = (UA_PubSubTimedSend *) channel->pubsubTimedSend;
+    if(pubsubTimedSend) {
+        /* Clear if any holding packets */
+        UA_PublishEntry *timedPublishFrames, *tmpPublishFrames;
+        LIST_FOREACH_SAFE(timedPublishFrames, &pubsubTimedSend->sendBuffers, listEntry, tmpPublishFrames) {
+            UA_ByteString_clear(&timedPublishFrames->buffer);
+            LIST_REMOVE(timedPublishFrames, listEntry);
+            UA_free(timedPublishFrames);
+        }
+
+        UA_free(pubsubTimedSend);
+    }
     return UA_STATUSCODE_GOOD;
 }
 
@@ -317,6 +332,15 @@ UA_PubSubChannelUDP_open(UA_ConnectionManager *connectionManager, UA_TransportLa
     if(res != UA_STATUSCODE_GOOD) {
         goto error;
     }
+
+    /* Set the timedSend to pubsub connection channel for timed publish */
+    UA_PubSubTimedSend *pubsubTimedSend = (UA_PubSubTimedSend *) UA_calloc(1, sizeof(UA_PubSubTimedSend));
+    if(!pubsubTimedSend) {
+        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
+                     "PubSub Connection creation failed. Bad out of memory");
+        goto error;
+    }
+
     return newChannel;
 error:
     if(context != NULL) {

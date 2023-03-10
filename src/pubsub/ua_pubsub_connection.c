@@ -13,6 +13,8 @@
 #include "ua_pubsub.h"
 #include "server/ua_server_internal.h"
 
+#include "pubsub_timer.h"
+
 #ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL
 #include "ua_pubsub_ns0.h"
 #endif
@@ -180,6 +182,12 @@ UA_PubSubConnection_create(UA_Server *server,
     newConnectionsField->channel = tl->createPubSubChannel(tl, &ctx);
     UA_CHECK_MEM(newConnectionsField->channel,
                  return channelErrorHandling(server, newConnectionsField));
+
+    /* Set the server timer to pubsub timed send function */
+    if(newConnectionsField->channel->pubsubTimedSend) {
+        UA_PubSubTimedSend *pubsubTimedSend = (UA_PubSubTimedSend *)newConnectionsField->channel->pubsubTimedSend;
+        pubsubTimedSend->eventLoop = server->config.eventLoop;
+    }
 
 #ifdef UA_ENABLE_PUBSUB_MQTT
     /* If the transport layer is MQTT, attach the server pointer to the callback function

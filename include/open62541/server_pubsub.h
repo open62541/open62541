@@ -515,6 +515,8 @@ typedef struct {
     UA_ExtensionObject messageSettings;
     UA_KeyValueMap groupProperties;
     UA_PubSubEncodingType encodingMimeType;
+    UA_DateTime *baseTime;
+    UA_TimerPolicy timerPolicy;
     /* PubSub Manager Callback */
     UA_PubSub_CallbackLifecycle pubsubManagerCallback;
     /* non std. config parameter. maximum count of embedded DataSetMessage in
@@ -799,6 +801,8 @@ UA_Server_removeStandaloneSubscribedDataSet(UA_Server *server, const UA_NodeId s
 /* ReaderGroup configuration */
 typedef struct {
     UA_String name;
+    UA_DateTime *baseTime;
+    UA_TimerPolicy timerPolicy;
     /* PubSub Manager Callback */
     UA_PubSub_CallbackLifecycle pubsubManagerCallback;
     /* non std. field */

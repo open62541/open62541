@@ -13,6 +13,8 @@
 #include <open62541/server_pubsub.h>
 #include <open62541/util.h>
 
+#include "pubsub_timer.h"
+
 #include <open62541/plugin/log_stdout.h>
 #include <open62541/plugin/pubsub_udp.h>
 
@@ -124,6 +126,36 @@ chooseValidAddrInfoAndCreateSocket(UA_SOCKET *sockfd, struct addrinfo* addrInfoL
     return rp;
 }
 
+
+/**
+ * Publish at the exact time interval using timed callbacks
+ */
+static void
+timedUdpPublish(UA_PubSubChannel *channel, UA_PublishEntry *publishPacket) {
+    UA_PubSubChannelDataUDPMC *channelConfigUDPMC = (UA_PubSubChannelDataUDPMC *) channel->handle;
+    long nWritten = 0;
+    UA_PubSubTimedSend *pubsubTimedSend = (UA_PubSubTimedSend *) channel->pubsubTimedSend;
+    if((pubsubTimedSend)) {
+        while (nWritten < (long)publishPacket->buffer.length) {
+            long n = (long)UA_sendto(channel->sockfd, publishPacket->buffer.data,
+                                     publishPacket->buffer.length, 0,
+                                     (struct sockaddr *) &channelConfigUDPMC->ai_addr,
+                                     sizeof(struct sockaddr_storage));
+            if(n == -1L) {
+                UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "PubSub Connection Timed send failed.");
+                return;
+            }
+
+            nWritten += n;
+        }
+
+        UA_ByteString_clear(&publishPacket->buffer);
+        LIST_REMOVE(publishPacket, listEntry);
+        UA_free(publishPacket);
+    }
+}
+
+
 static void
 UA_setConnectionConfigurationProperties(UA_PubSubChannelDataUDPMC *channelDataUDPMC,
                                         const UA_KeyValueMap *connectionProperties) {
@@ -208,6 +240,7 @@ setupNetworkInterface(UA_PubSubChannelDataUDPMC *channelDataUDPMC,
                      "unknown address family");
         return UA_STATUSCODE_BADINTERNALERROR;
     }
+
     return UA_STATUSCODE_GOOD;
 }
 
@@ -555,6 +588,19 @@ UA_PubSubChannelUDPMC_open(const UA_PubSubConnectionConfig *connectionConfig) {
         goto cleanup_after_channel_data;
     }
     newChannel->state = UA_PUBSUB_CHANNEL_PUB;
+
+    /* Set the timedSend to pubsub connection channel for timed publish */
+    UA_PubSubTimedSend *pubsubTimedSend = (UA_PubSubTimedSend *) UA_calloc(1, sizeof(UA_PubSubTimedSend));
+    if(!pubsubTimedSend) {
+        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
+                     "PubSub Connection creation failed. Bad out of memory");
+        goto cleanup;
+    }
+
+    LIST_INIT(&pubsubTimedSend->sendBuffers);
+    pubsubTimedSend->timedSend = timedUdpPublish;
+
+    newChannel->pubsubTimedSend = pubsubTimedSend;
     return newChannel;
 
 cleanup_after_channel_data:
