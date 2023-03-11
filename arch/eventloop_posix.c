@@ -122,6 +122,7 @@ processDelayed(UA_EventLoopPOSIX *el) {
 static UA_StatusCode
 UA_EventLoopPOSIX_start(UA_EventLoopPOSIX *el) {
     UA_LOCK(&el->elMutex);
+
     if(el->eventLoop.state != UA_EVENTLOOPSTATE_FRESH &&
        el->eventLoop.state != UA_EVENTLOOPSTATE_STOPPED) {
         UA_UNLOCK(&el->elMutex);
@@ -138,6 +139,7 @@ UA_EventLoopPOSIX_start(UA_EventLoopPOSIX *el) {
            UA_LOG_WARNING(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
                           "Eventloop\t| Could not create the epoll socket (%s)",
                           errno_str));
+        UA_UNLOCK(&el->elMutex);
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 #endif
@@ -161,6 +163,8 @@ UA_EventLoopPOSIX_start(UA_EventLoopPOSIX *el) {
 
 static void
 checkClosed(UA_EventLoopPOSIX *el) {
+    UA_LOCK_ASSERT(&el->elMutex, 1);
+
     UA_EventSource *es = el->eventLoop.eventSources;
     while(es) {
         if(es->state != UA_EVENTSOURCESTATE_STOPPED)
@@ -195,20 +199,22 @@ UA_EventLoopPOSIX_stop(UA_EventLoopPOSIX *el) {
     UA_LOG_INFO(el->eventLoop.logger, UA_LOGCATEGORY_EVENTLOOP,
                 "Stopping the EventLoop");
 
-    /* Shutdown all event sources. This closes open connections. */
+    /* Set to STOPPING to prevent "normal use" */
+    *(UA_EventLoopState*)(uintptr_t)&el->eventLoop.state =
+        UA_EVENTLOOPSTATE_STOPPING;
+
+    /* Stop all event sources (asynchronous) */
     UA_EventSource *es = el->eventLoop.eventSources;
-    while(es) {
+    for(; es; es = es->next) {
         if(es->state == UA_EVENTSOURCESTATE_STARTING ||
            es->state == UA_EVENTSOURCESTATE_STARTED) {
             UA_UNLOCK(&el->elMutex);
             es->stop(es);
             UA_LOCK(&el->elMutex);
         }
-        es = es->next;
     }
 
-    *(UA_EventLoopState*)(uintptr_t)&el->eventLoop.state =
-        UA_EVENTLOOPSTATE_STOPPING;
+    /* Set to STOPPED if all EventSources are STOPPED */
     checkClosed(el);
 
     UA_UNLOCK(&el->elMutex);
@@ -291,6 +297,8 @@ UA_EventLoopPOSIX_run(UA_EventLoopPOSIX *el, UA_UInt32 timeout) {
 static UA_StatusCode
 UA_EventLoopPOSIX_registerEventSource(UA_EventLoopPOSIX *el,
                                       UA_EventSource *es) {
+    UA_LOCK(&el->elMutex);
+
     /* Already registered? */
     if(es->state != UA_EVENTSOURCESTATE_FRESH) {
         UA_LOG_ERROR(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
@@ -301,33 +309,36 @@ UA_EventLoopPOSIX_registerEventSource(UA_EventLoopPOSIX *el,
     }
 
     /* Add to linked list */
-    UA_LOCK(&el->elMutex);
     es->next = el->eventLoop.eventSources;
     el->eventLoop.eventSources = es;
-    UA_UNLOCK(&el->elMutex);
 
     es->eventLoop = &el->eventLoop;
     es->state = UA_EVENTSOURCESTATE_STOPPED;
 
     /* Start if the entire EventLoop is started */
+    UA_StatusCode res = UA_STATUSCODE_GOOD;
     if(el->eventLoop.state == UA_EVENTLOOPSTATE_STARTED)
-        return es->start(es);
-    return UA_STATUSCODE_GOOD;
+        res = es->start(es);
+
+    UA_UNLOCK(&el->elMutex);
+    return res;
 }
 
 static UA_StatusCode
 UA_EventLoopPOSIX_deregisterEventSource(UA_EventLoopPOSIX *el,
                                         UA_EventSource *es) {
+    UA_LOCK(&el->elMutex);
+
     if(es->state != UA_EVENTSOURCESTATE_STOPPED) {
         UA_LOG_WARNING(el->eventLoop.logger, UA_LOGCATEGORY_EVENTLOOP,
                        "Cannot deregister the EventSource %.*s: "
                        "Has to be stopped first",
                        (int)es->name.length, es->name.data);
+        UA_UNLOCK(&el->elMutex);
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
     /* Remove from the linked list */
-    UA_LOCK(&el->elMutex);
     UA_EventSource **s = &el->eventLoop.eventSources;
     while(*s) {
         if(*s == es) {
@@ -336,11 +347,11 @@ UA_EventLoopPOSIX_deregisterEventSource(UA_EventLoopPOSIX *el,
         }
         s = &(*s)->next;
     }
-    UA_UNLOCK(&el->elMutex);
 
     /* Set the state to non-registered */
     es->state = UA_EVENTSOURCESTATE_FRESH;
 
+    UA_UNLOCK(&el->elMutex);
     return UA_STATUSCODE_GOOD;
 }
 
@@ -456,6 +467,48 @@ UA_EventLoop_new_POSIX(const UA_Logger *logger) {
         UA_EventLoopPOSIX_deregisterEventSource;
 
     return &el->eventLoop;
+}
+
+/* Reusable EventSource functionality */
+
+UA_StatusCode
+UA_EventLoopPOSIX_allocNetworkBuffer(UA_ConnectionManager *cm,
+                                     uintptr_t connectionId,
+                                     UA_ByteString *buf,
+                                     size_t bufSize) {
+    return UA_ByteString_allocBuffer(buf, bufSize);
+}
+
+void
+UA_EventLoopPOSIX_freeNetworkBuffer(UA_ConnectionManager *cm,
+                                    uintptr_t connectionId,
+                                    UA_ByteString *buf) {
+    UA_ByteString_clear(buf);
+}
+
+UA_StatusCode
+UA_EventLoopPOSIX_allocateRXBuffer(UA_POSIXConnectionManager *pcm) {
+    UA_UInt32 rxBufSize = 2u << 16; /* The default is 64kb */
+    const UA_UInt32 *configRxBufSize = (const UA_UInt32 *)
+        UA_KeyValueMap_getScalar(&pcm->cm.eventSource.params,
+                                 UA_QUALIFIEDNAME(0, "recv-bufsize"),
+                                 &UA_TYPES[UA_TYPES_UINT32]);
+    if(configRxBufSize)
+        rxBufSize = *configRxBufSize;
+    if(pcm->rxBuffer.length != rxBufSize) {
+        UA_ByteString_clear(&pcm->rxBuffer);
+        return UA_ByteString_allocBuffer(&pcm->rxBuffer, rxBufSize);
+    }
+    return UA_STATUSCODE_GOOD;
+}
+
+/* Socket Handling */
+
+enum ZIP_CMP
+cmpFD(const UA_FD *a, const UA_FD *b) {
+    if(*a == *b)
+        return ZIP_CMP_EQ;
+    return (*a < *b) ? ZIP_CMP_LESS : ZIP_CMP_MORE;
 }
 
 UA_StatusCode
