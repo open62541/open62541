@@ -1153,7 +1153,7 @@ adjustValueType(UA_Server *server, UA_Variant *value,
     /* Unwrap ExtensionObject arrays if they all contain the same DataType */
     unwrapEOArray(server, value);
 
-    const UA_DataType *targetDataType = UA_findDataType(targetDataTypeId);
+    const UA_DataType *targetDataType = UA_findDataTypeWithCustom(targetDataTypeId, server->config.customDataTypes);
     if(!targetDataType) {
         /* Type might not have been found, if it's a non-NS0 type or an abstract type. */
         return;
