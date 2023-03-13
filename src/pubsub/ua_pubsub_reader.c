@@ -1505,7 +1505,7 @@ loops_exit:
     }
 #endif
 
-    rv = UA_NetworkMessage_decodePayload(buffer, pos, nm);
+    rv = UA_NetworkMessage_decodePayload(buffer, pos, nm, NULL);
     UA_CHECK_STATUS(rv, return rv);
 
     rv = UA_NetworkMessage_decodeFooters(buffer, pos, nm);
