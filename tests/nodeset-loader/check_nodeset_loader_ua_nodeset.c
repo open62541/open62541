@@ -60,579 +60,579 @@ static void teardown(void) {
 }
 
 START_TEST(Server_loadADINodeset) {
-    bool retVal = UA_Server_loadNodeset(server,
+    UA_StatusCode retVal = UA_Server_loadNodeset(server,
         OPEN62541_NODESET_DIR "ADI/Opc.Ua.Adi.NodeSet2.xml", NULL);
-    ck_assert_uint_eq(retVal, true);
+    ck_assert(UA_StatusCode_isGood(retVal));
 }
 END_TEST
 
 START_TEST(Server_loadAMBNodeset) {
-    bool retVal = UA_Server_loadNodeset(server,
+    UA_StatusCode retVal = UA_Server_loadNodeset(server,
         OPEN62541_NODESET_DIR "AMB/Opc.Ua.AMB.NodeSet2.xml", NULL);
-    ck_assert_uint_eq(retVal, true);
+    ck_assert(UA_StatusCode_isGood(retVal));
 }
 END_TEST
 
 START_TEST(Server_loadAMLBaseTypesNodeset) {
-    bool retVal = UA_Server_loadNodeset(server,
+    UA_StatusCode retVal = UA_Server_loadNodeset(server,
         OPEN62541_NODESET_DIR "AML/Opc.Ua.AMLBaseTypes.NodeSet2.xml", NULL);
-    ck_assert_uint_eq(retVal, true);
+    ck_assert(UA_StatusCode_isGood(retVal));
 }
 END_TEST
 
 START_TEST(Server_loadAutoIDNodeset) {
-    bool retVal = UA_Server_loadNodeset(server,
+    UA_StatusCode retVal = UA_Server_loadNodeset(server,
         OPEN62541_NODESET_DIR "AutoID/Opc.Ua.AutoID.NodeSet2.xml", NULL);
-    ck_assert_uint_eq(retVal, true);
+    ck_assert(UA_StatusCode_isGood(retVal));
 }
 END_TEST
 
 START_TEST(Server_loadBACnetNodeset) {
-    bool retVal = UA_Server_loadNodeset(server,
+    UA_StatusCode retVal = UA_Server_loadNodeset(server,
         OPEN62541_NODESET_DIR "BACnet/Opc.Ua.BACnet.NodeSet2.xml", NULL);
-    ck_assert_uint_eq(retVal, true);
+    ck_assert(UA_StatusCode_isGood(retVal));
 }
 END_TEST
 
 START_TEST(Server_loadCASNodeset) {
-    bool retVal = UA_Server_loadNodeset(server,
+    UA_StatusCode retVal = UA_Server_loadNodeset(server,
         OPEN62541_NODESET_DIR "CAS/Opc.Ua.CAS.NodeSet2.xml", NULL);
-    ck_assert_uint_eq(retVal, true);
+    ck_assert(UA_StatusCode_isGood(retVal));
 }
 END_TEST
 
 START_TEST(Server_loadCommercialKitchenEquipmentNodeset) {
-    bool retVal = UA_Server_loadNodeset(server,
+    UA_StatusCode retVal = UA_Server_loadNodeset(server,
         OPEN62541_NODESET_DIR
         "CommercialKitchenEquipment/Opc.Ua.CommercialKitchenEquipment.NodeSet2.xml", NULL);
-    ck_assert_uint_eq(retVal, true);
+    ck_assert(UA_StatusCode_isGood(retVal));
 }
 END_TEST
 
 START_TEST(Server_loadCSPPlusForMachineNodeset) {
-    bool retVal = UA_Server_loadNodeset(server,
+    UA_StatusCode retVal = UA_Server_loadNodeset(server,
         OPEN62541_NODESET_DIR
         "CSPPlusForMachine/Opc.Ua.CSPPlusForMachine.NodeSet2.xml", NULL);
-    ck_assert_uint_eq(retVal, true);
+    ck_assert(UA_StatusCode_isGood(retVal));
 }
 END_TEST
 
 START_TEST(Server_loadDEXPINodeset) {
-    bool retVal = UA_Server_loadNodeset(server,
+    UA_StatusCode retVal = UA_Server_loadNodeset(server,
         OPEN62541_NODESET_DIR "DEXPI/Opc.Ua.DEXPI.NodeSet2.xml", NULL);
-    ck_assert_uint_eq(retVal, true);
+    ck_assert(UA_StatusCode_isGood(retVal));
 }
 END_TEST
 
 START_TEST(Server_loadDINodeset) {
-    bool retVal = UA_Server_loadNodeset(server,
+    UA_StatusCode retVal = UA_Server_loadNodeset(server,
         OPEN62541_NODESET_DIR "DI/Opc.Ua.Di.NodeSet2.xml", NULL);
-    ck_assert_uint_eq(retVal, true);
+    ck_assert(UA_StatusCode_isGood(retVal));
 }
 END_TEST
 
 START_TEST(Server_loadDotNetNodeset) {
-    bool retVal = UA_Server_loadNodeset(server,
+    UA_StatusCode retVal = UA_Server_loadNodeset(server,
         OPEN62541_NODESET_DIR "DotNet/Opc.Ua.NodeSet.xml", NULL);
-    ck_assert_uint_eq(retVal, true);
+    ck_assert(UA_StatusCode_isGood(retVal));
 }
 END_TEST
 
 START_TEST(Server_loadFDI5Nodeset) {
-    bool retVal = UA_Server_loadNodeset(server,
+    UA_StatusCode retVal = UA_Server_loadNodeset(server,
         OPEN62541_NODESET_DIR "FDI/Opc.Ua.Fdi5.NodeSet2.xml", NULL);
-    ck_assert_uint_eq(retVal, true);
+    ck_assert(UA_StatusCode_isGood(retVal));
 }
 END_TEST
 
 START_TEST(Server_loadFDI7Nodeset) {
-    bool retVal = UA_Server_loadNodeset(server,
+    UA_StatusCode retVal = UA_Server_loadNodeset(server,
         OPEN62541_NODESET_DIR "FDI/Opc.Ua.Fdi7.NodeSet2.xml", NULL);
-    ck_assert_uint_eq(retVal, true);
+    ck_assert(UA_StatusCode_isGood(retVal));
 }
 END_TEST
 
 START_TEST(Server_loadFDTNodeset) {
-    bool retVal = UA_Server_loadNodeset(server,
+    UA_StatusCode retVal = UA_Server_loadNodeset(server,
         OPEN62541_NODESET_DIR "FDT/Opc.Ua.FDT.NodeSet.xml", NULL);
-    ck_assert_uint_eq(retVal, true);
+    ck_assert(UA_StatusCode_isGood(retVal));
 }
 END_TEST
 
 START_TEST(Server_loadGDSNodeset) {
-    bool retVal = UA_Server_loadNodeset(server,
+    UA_StatusCode retVal = UA_Server_loadNodeset(server,
         OPEN62541_NODESET_DIR "GDS/Opc.Ua.Gds.NodeSet2.xml", NULL);
-    ck_assert_uint_eq(retVal, true);
+    ck_assert(UA_StatusCode_isGood(retVal));
 }
 END_TEST
 
 
 START_TEST(Server_loadServer_loadGlassNodeset) {
-    bool retVal = UA_Server_loadNodeset(server,
+    UA_StatusCode retVal = UA_Server_loadNodeset(server,
         OPEN62541_NODESET_DIR "Glass/Flat/Opc.Ua.Glass.NodeSet2.xml", NULL);
-    ck_assert_uint_eq(retVal, true);
+    ck_assert(UA_StatusCode_isGood(retVal));
 }
 END_TEST
 
 START_TEST(Server_loadI4AASNodeset) {
-    bool retVal = UA_Server_loadNodeset(server,
+    UA_StatusCode retVal = UA_Server_loadNodeset(server,
         OPEN62541_NODESET_DIR "I4AAS/Opc.Ua.I4AAS.NodeSet2.xml", NULL);
-    ck_assert_uint_eq(retVal, true);
+    ck_assert(UA_StatusCode_isGood(retVal));
 }
 END_TEST
 
 START_TEST(Server_loadIANodeset) {
-    bool retVal = UA_Server_loadNodeset(server,
+    UA_StatusCode retVal = UA_Server_loadNodeset(server,
         OPEN62541_NODESET_DIR "IA/Opc.Ua.IA.NodeSet2.xml", NULL);
-    ck_assert_uint_eq(retVal, true);
+    ck_assert(UA_StatusCode_isGood(retVal));
 }
 END_TEST
 
 START_TEST(Server_loadIAExamplesNodeset) {
-    bool retVal = UA_Server_loadNodeset(server,
+    UA_StatusCode retVal = UA_Server_loadNodeset(server,
         OPEN62541_NODESET_DIR "IA/Opc.Ua.IA.NodeSet2.examples.xml", NULL);
-    ck_assert_uint_eq(retVal, true);
+    ck_assert(UA_StatusCode_isGood(retVal));
 }
 END_TEST
 
 START_TEST(Server_loadIEC61850_6_Nodeset) {
-    bool retVal = UA_Server_loadNodeset(server,
+    UA_StatusCode retVal = UA_Server_loadNodeset(server,
         OPEN62541_NODESET_DIR "IEC61850/Opc.Ua.IEC61850-6.NodeSet2.xml", NULL);
-    ck_assert_uint_eq(retVal, true);
+    ck_assert(UA_StatusCode_isGood(retVal));
 }
 END_TEST
 
 START_TEST(Server_loadIEC61850_7_3_Nodeset) {
-    bool retVal = UA_Server_loadNodeset(server,
+    UA_StatusCode retVal = UA_Server_loadNodeset(server,
         OPEN62541_NODESET_DIR "IEC61850/Opc.Ua.IEC61850-7-3.NodeSet2.xml", NULL);
-    ck_assert_uint_eq(retVal, true);
+    ck_assert(UA_StatusCode_isGood(retVal));
 }
 END_TEST
 
 START_TEST(Server_loadIEC61850_7_4_Nodeset) {
-    bool retVal = UA_Server_loadNodeset(server,
+    UA_StatusCode retVal = UA_Server_loadNodeset(server,
         OPEN62541_NODESET_DIR "IEC61850/Opc.Ua.IEC61850-7-4.NodeSet2.xml", NULL);
-    ck_assert_uint_eq(retVal, true);
+    ck_assert(UA_StatusCode_isGood(retVal));
 }
 END_TEST
 
 START_TEST(Server_loadIOLinkIODDNodeset) {
-    bool retVal = UA_Server_loadNodeset(server,
+    UA_StatusCode retVal = UA_Server_loadNodeset(server,
         OPEN62541_NODESET_DIR "IOLink/Opc.Ua.IOLinkIODD.NodeSet2.xml", NULL);
-    ck_assert_uint_eq(retVal, true);
+    ck_assert(UA_StatusCode_isGood(retVal));
 }
 END_TEST
 
 START_TEST(Server_loadIOLinkNodeset) {
-    bool retVal = UA_Server_loadNodeset(server,
+    UA_StatusCode retVal = UA_Server_loadNodeset(server,
         OPEN62541_NODESET_DIR "IOLink/Opc.Ua.IOLink.NodeSet2.xml", NULL);
-    ck_assert_uint_eq(retVal, true);
+    ck_assert(UA_StatusCode_isGood(retVal));
 }
 END_TEST
 
 START_TEST(Server_loadISA95Nodeset) {
-    bool retVal = UA_Server_loadNodeset(server,
+    UA_StatusCode retVal = UA_Server_loadNodeset(server,
         OPEN62541_NODESET_DIR "ISA-95/Opc.ISA95.NodeSet2.xml", NULL);
-    ck_assert_uint_eq(retVal, true);
+    ck_assert(UA_StatusCode_isGood(retVal));
 }
 END_TEST
 
 START_TEST(Server_loadMachineryNodeset) {
-    bool retVal = UA_Server_loadNodeset(server,
+    UA_StatusCode retVal = UA_Server_loadNodeset(server,
         OPEN62541_NODESET_DIR "Machinery/Opc.Ua.Machinery.NodeSet2.xml", NULL);
-    ck_assert_uint_eq(retVal, true);
+    ck_assert(UA_StatusCode_isGood(retVal));
 }
 END_TEST
 
 START_TEST(Server_loadMachineryExamplesNodeset) {
-    bool retVal = UA_Server_loadNodeset(server,
+    UA_StatusCode retVal = UA_Server_loadNodeset(server,
         OPEN62541_NODESET_DIR "Machinery/Opc.Ua.Machinery.Examples.NodeSet2.xml", NULL);
-    ck_assert_uint_eq(retVal, true);
+    ck_assert(UA_StatusCode_isGood(retVal));
 }
 END_TEST
 
 START_TEST(Server_loadMachineToolNodeset) {
-    bool retVal = UA_Server_loadNodeset(server,
+    UA_StatusCode retVal = UA_Server_loadNodeset(server,
         OPEN62541_NODESET_DIR "MachineTool/Opc.Ua.MachineTool.NodeSet2.xml", NULL);
-    ck_assert_uint_eq(retVal, true);
+    ck_assert(UA_StatusCode_isGood(retVal));
 }
 END_TEST
 
 START_TEST(Server_loadMDISNodeset) {
-    bool retVal = UA_Server_loadNodeset(server,
+    UA_StatusCode retVal = UA_Server_loadNodeset(server,
         OPEN62541_NODESET_DIR "MDIS/Opc.MDIS.NodeSet2.xml", NULL);
-    ck_assert_uint_eq(retVal, true);
+    ck_assert(UA_StatusCode_isGood(retVal));
 }
 END_TEST
 
 START_TEST(Server_loadMiningDevelopmentSupportGeneralNodeset) {
-    bool retVal = UA_Server_loadNodeset(server,
+    UA_StatusCode retVal = UA_Server_loadNodeset(server,
         OPEN62541_NODESET_DIR
         "Mining/DevelopmentSupport/General/1.0.0/Opc.Ua.Mining.DevelopmentSupport.General.NodeSet2.xml", NULL);
-    ck_assert_uint_eq(retVal, true);
+    ck_assert(UA_StatusCode_isGood(retVal));
 }
 END_TEST
 
 START_TEST(Server_loadMiningExtractionGeneralNodeset) {
-    bool retVal = UA_Server_loadNodeset(server,
+    UA_StatusCode retVal = UA_Server_loadNodeset(server,
         OPEN62541_NODESET_DIR
         "Mining/Extraction/General/1.0.0/Opc.Ua.Mining.Extraction.General.NodeSet2.xml", NULL);
-    ck_assert_uint_eq(retVal, true);
+    ck_assert(UA_StatusCode_isGood(retVal));
 }
 END_TEST
 
 START_TEST(Server_loadMiningMineralProcessingGeneralNodeset) {
-    bool retVal = UA_Server_loadNodeset(server,
+    UA_StatusCode retVal = UA_Server_loadNodeset(server,
         OPEN62541_NODESET_DIR
         "Mining/MineralProcessing/General/1.0.0/Opc.Ua.Mining.MineralProcessing.General.NodeSet2.xml", NULL);
-    ck_assert_uint_eq(retVal, true);
+    ck_assert(UA_StatusCode_isGood(retVal));
 }
 END_TEST
 
 START_TEST(Server_loadMiningMonitoringSupervisionServicesGeneralNodeset) {
-    bool retVal = UA_Server_loadNodeset(server,
+    UA_StatusCode retVal = UA_Server_loadNodeset(server,
         OPEN62541_NODESET_DIR
         "Mining/MonitoringSupervisionServices/General/1.0.0/Opc.Ua.Mining.MonitoringSupervisionServices.General.NodeSet2.xml", NULL);
-    ck_assert_uint_eq(retVal, true);
+    ck_assert(UA_StatusCode_isGood(retVal));
 }
 END_TEST
 
 START_TEST(Server_loadMTConnectNodeset) {
-    bool retVal = UA_Server_loadNodeset(server,
+    UA_StatusCode retVal = UA_Server_loadNodeset(server,
         OPEN62541_NODESET_DIR "MTConnect/Opc.Ua.MTConnect.NodeSet2.xml", NULL);
-    ck_assert_uint_eq(retVal, true);
+    ck_assert(UA_StatusCode_isGood(retVal));
 }
 END_TEST
 
 START_TEST(Server_loadOPENSCSNodeset) {
-    bool retVal = UA_Server_loadNodeset(server,
+    UA_StatusCode retVal = UA_Server_loadNodeset(server,
         OPEN62541_NODESET_DIR "OpenSCS/Opc.Ua.OPENSCS.NodeSet2.xml", NULL);
-    ck_assert_uint_eq(retVal, true);
+    ck_assert(UA_StatusCode_isGood(retVal));
 }
 END_TEST
 
 START_TEST(Server_loadPackMLNodeset) {
-    bool retVal = UA_Server_loadNodeset(server,
+    UA_StatusCode retVal = UA_Server_loadNodeset(server,
         OPEN62541_NODESET_DIR "PackML/Opc.Ua.PackML.NodeSet2.xml", NULL);
-    ck_assert_uint_eq(retVal, true);
+    ck_assert(UA_StatusCode_isGood(retVal));
 }
 END_TEST
 
 START_TEST(Server_loadPlasticsRubberExtrusionCalenderNodeset) {
-    bool retVal = UA_Server_loadNodeset(server,
+    UA_StatusCode retVal = UA_Server_loadNodeset(server,
         OPEN62541_NODESET_DIR
         "PlasticsRubber/Extrusion/Calender/1.00/Opc.Ua.PlasticsRubber.Extrusion.Calender.NodeSet2.xml", NULL);
-    ck_assert_uint_eq(retVal, true);
+    ck_assert(UA_StatusCode_isGood(retVal));
 }
 END_TEST
 
 START_TEST(Server_loadPlasticsRubberExtrusionCalibratorNodeset) {
-    bool retVal = UA_Server_loadNodeset(server,
+    UA_StatusCode retVal = UA_Server_loadNodeset(server,
         OPEN62541_NODESET_DIR
         "PlasticsRubber/Extrusion/Calibrator/1.00/Opc.Ua.PlasticsRubber.Extrusion.Calibrator.NodeSet2.xml", NULL);
-    ck_assert_uint_eq(retVal, true);
+    ck_assert(UA_StatusCode_isGood(retVal));
 }
 END_TEST
 
 START_TEST(Server_loadPlasticsRubberExtrusionCorrugatorNodeset) {
-    bool retVal = UA_Server_loadNodeset(server,
+    UA_StatusCode retVal = UA_Server_loadNodeset(server,
         OPEN62541_NODESET_DIR
         "PlasticsRubber/Extrusion/Corrugator/1.00/Opc.Ua.PlasticsRubber.Extrusion.Corrugator.NodeSet2.xml", NULL);
-    ck_assert_uint_eq(retVal, true);
+    ck_assert(UA_StatusCode_isGood(retVal));
 }
 END_TEST
 
 START_TEST(Server_loadPlasticsRubberExtrusionCutterNodeset) {
-    bool retVal = UA_Server_loadNodeset(server,
+    UA_StatusCode retVal = UA_Server_loadNodeset(server,
         OPEN62541_NODESET_DIR
         "PlasticsRubber/Extrusion/Cutter/1.00/Opc.Ua.PlasticsRubber.Extrusion.Cutter.NodeSet2.xml", NULL);
-    ck_assert_uint_eq(retVal, true);
+    ck_assert(UA_StatusCode_isGood(retVal));
 }
 END_TEST
 
 START_TEST(Server_loadPlasticsRubberExtrusionDieNodeset) {
-    bool retVal = UA_Server_loadNodeset(server,
+    UA_StatusCode retVal = UA_Server_loadNodeset(server,
         OPEN62541_NODESET_DIR
         "PlasticsRubber/Extrusion/Die/1.00/Opc.Ua.PlasticsRubber.Extrusion.Die.NodeSet2.xml", NULL);
-    ck_assert_uint_eq(retVal, true);
+    ck_assert(UA_StatusCode_isGood(retVal));
 }
 END_TEST
 
 START_TEST(Server_loadPlasticsRubberExtrusionExtruderNodeset) {
-    bool retVal = UA_Server_loadNodeset(server,
+    UA_StatusCode retVal = UA_Server_loadNodeset(server,
         OPEN62541_NODESET_DIR
         "PlasticsRubber/Extrusion/Extruder/1.00/Opc.Ua.PlasticsRubber.Extrusion.Extruder.NodeSet2.xml", NULL);
-    ck_assert_uint_eq(retVal, true);
+    ck_assert(UA_StatusCode_isGood(retVal));
 }
 END_TEST
 
 START_TEST(Server_loadPlasticsRubberExtrusionExtrusionLineNodeset) {
-    bool retVal = UA_Server_loadNodeset(server,
+    UA_StatusCode retVal = UA_Server_loadNodeset(server,
         OPEN62541_NODESET_DIR
         "PlasticsRubber/Extrusion/ExtrusionLine/1.00/Opc.Ua.PlasticsRubber.Extrusion.ExtrusionLine.NodeSet2.xml", NULL);
-    ck_assert_uint_eq(retVal, true);
+    ck_assert(UA_StatusCode_isGood(retVal));
 }
 END_TEST
 
 START_TEST(Server_loadPlasticsRubberExtrusionFilterNodeset) {
-    bool retVal = UA_Server_loadNodeset(server,
+    UA_StatusCode retVal = UA_Server_loadNodeset(server,
         OPEN62541_NODESET_DIR
         "PlasticsRubber/Extrusion/Filter/1.00/Opc.Ua.PlasticsRubber.Extrusion.Filter.NodeSet2.xml", NULL);
-    ck_assert_uint_eq(retVal, true);
+    ck_assert(UA_StatusCode_isGood(retVal));
 }
 END_TEST
 
 START_TEST(Server_loadPlasticsRubberExtrusionGeneralTypes_v1_0_0_Nodeset) {
-    bool retVal = UA_Server_loadNodeset(server,
+    UA_StatusCode retVal = UA_Server_loadNodeset(server,
         OPEN62541_NODESET_DIR
         "PlasticsRubber/Extrusion/GeneralTypes/1.00/Opc.Ua.PlasticsRubber.Extrusion.GeneralTypes.NodeSet2.xml", NULL);
-    ck_assert_uint_eq(retVal, true);
+    ck_assert(UA_StatusCode_isGood(retVal));
 }
 END_TEST
 
 START_TEST(Server_loadPlasticsRubberExtrusionGeneralTypes_v1_0_1_Nodeset) {
-    bool retVal = UA_Server_loadNodeset(server,
+    UA_StatusCode retVal = UA_Server_loadNodeset(server,
         OPEN62541_NODESET_DIR
         "PlasticsRubber/Extrusion/GeneralTypes/1.01/Opc.Ua.PlasticsRubber.Extrusion.GeneralTypes.NodeSet2.xml", NULL);
-    ck_assert_uint_eq(retVal, true);
+    ck_assert(UA_StatusCode_isGood(retVal));
 }
 END_TEST
 
 START_TEST(Server_loadPlasticsRubberExtrusionHaulOffNodeset) {
-    bool retVal = UA_Server_loadNodeset(server,
+    UA_StatusCode retVal = UA_Server_loadNodeset(server,
         OPEN62541_NODESET_DIR
         "PlasticsRubber/Extrusion/HaulOff/1.00/Opc.Ua.PlasticsRubber.Extrusion.HaulOff.NodeSet2.xml", NULL);
-    ck_assert_uint_eq(retVal, true);
+    ck_assert(UA_StatusCode_isGood(retVal));
 }
 END_TEST
 
 START_TEST(Server_loadPlasticsRubberExtrusionMeltPumpNodeset) {
-    bool retVal = UA_Server_loadNodeset(server,
+    UA_StatusCode retVal = UA_Server_loadNodeset(server,
         OPEN62541_NODESET_DIR
         "PlasticsRubber/Extrusion/MeltPump/1.00/Opc.Ua.PlasticsRubber.Extrusion.MeltPump.NodeSet2.xml", NULL);
-    ck_assert_uint_eq(retVal, true);
+    ck_assert(UA_StatusCode_isGood(retVal));
 }
 END_TEST
 
 START_TEST(Server_loadPlasticsRubberExtrusionPelletizerNodeset) {
-    bool retVal = UA_Server_loadNodeset(server,
+    UA_StatusCode retVal = UA_Server_loadNodeset(server,
         OPEN62541_NODESET_DIR
         "PlasticsRubber/Extrusion/Pelletizer/1.00/Opc.Ua.PlasticsRubber.Extrusion.Pelletizer.NodeSet2.xml", NULL);
-    ck_assert_uint_eq(retVal, true);
+    ck_assert(UA_StatusCode_isGood(retVal));
 }
 END_TEST
 
 START_TEST(Server_loadPlasticsRubberExtrusionv2CalenderNodeset) {
-    bool retVal = UA_Server_loadNodeset(server,
+    UA_StatusCode retVal = UA_Server_loadNodeset(server,
         OPEN62541_NODESET_DIR
         "PlasticsRubber/Extrusion_v2/Calender/2.00/Opc.Ua.PlasticsRubber.Extrusion_v2.Calender.NodeSet2.xml", NULL);
-    ck_assert_uint_eq(retVal, true);
+    ck_assert(UA_StatusCode_isGood(retVal));
 }
 END_TEST
 
 START_TEST(Server_loadPlasticsRubberExtrusionv2CalibratorNodeset) {
-    bool retVal = UA_Server_loadNodeset(server,
+    UA_StatusCode retVal = UA_Server_loadNodeset(server,
         OPEN62541_NODESET_DIR
         "PlasticsRubber/Extrusion_v2/Calibrator/2.00/Opc.Ua.PlasticsRubber.Extrusion_v2.Calibrator.NodeSet2.xml", NULL);
-    ck_assert_uint_eq(retVal, true);
+    ck_assert(UA_StatusCode_isGood(retVal));
 }
 END_TEST
 
 START_TEST(Server_loadPlasticsRubberExtrusionv2CorrugatorNodeset) {
-    bool retVal = UA_Server_loadNodeset(server,
+    UA_StatusCode retVal = UA_Server_loadNodeset(server,
         OPEN62541_NODESET_DIR
         "PlasticsRubber/Extrusion_v2/Corrugator/2.00/Opc.Ua.PlasticsRubber.Extrusion_v2.Corrugator.NodeSet2.xml", NULL);
-    ck_assert_uint_eq(retVal, true);
+    ck_assert(UA_StatusCode_isGood(retVal));
 }
 END_TEST
 
 START_TEST(Server_loadPlasticsRubberExtrusionv2CutterNodeset) {
-    bool retVal = UA_Server_loadNodeset(server,
+    UA_StatusCode retVal = UA_Server_loadNodeset(server,
         OPEN62541_NODESET_DIR
         "PlasticsRubber/Extrusion_v2/Cutter/2.00/Opc.Ua.PlasticsRubber.Extrusion_v2.Cutter.NodeSet2.xml", NULL);
-    ck_assert_uint_eq(retVal, true);
+    ck_assert(UA_StatusCode_isGood(retVal));
 }
 END_TEST
 
 START_TEST(Server_loadPlasticsRubberExtrusionv2DieNodeset) {
-    bool retVal = UA_Server_loadNodeset(server,
+    UA_StatusCode retVal = UA_Server_loadNodeset(server,
         OPEN62541_NODESET_DIR
         "PlasticsRubber/Extrusion_v2/Die/2.00/Opc.Ua.PlasticsRubber.Extrusion_v2.Die.NodeSet2.xml", NULL);
-    ck_assert_uint_eq(retVal, true);
+    ck_assert(UA_StatusCode_isGood(retVal));
 }
 END_TEST
 
 START_TEST(Server_loadPlasticsRubberExtrusionv2ExtruderNodeset) {
-    bool retVal = UA_Server_loadNodeset(server,
+    UA_StatusCode retVal = UA_Server_loadNodeset(server,
         OPEN62541_NODESET_DIR
         "PlasticsRubber/Extrusion_v2/Extruder/2.00/Opc.Ua.PlasticsRubber.Extrusion_v2.Extruder.NodeSet2.xml", NULL);
-    ck_assert_uint_eq(retVal, true);
+    ck_assert(UA_StatusCode_isGood(retVal));
 }
 END_TEST
 
 START_TEST(Server_loadPlasticsRubberExtrusionv2ExtrusionLineNodeset) {
-    bool retVal = UA_Server_loadNodeset(server,
+    UA_StatusCode retVal = UA_Server_loadNodeset(server,
         OPEN62541_NODESET_DIR
         "PlasticsRubber/Extrusion_v2/ExtrusionLine/2.00/Opc.Ua.PlasticsRubber.Extrusion_v2.ExtrusionLine.NodeSet2.xml", NULL);
-    ck_assert_uint_eq(retVal, true);
+    ck_assert(UA_StatusCode_isGood(retVal));
 }
 END_TEST
 
 START_TEST(Server_loadPlasticsRubberExtrusionv2FilterNodeset) {
-    bool retVal = UA_Server_loadNodeset(server,
+    UA_StatusCode retVal = UA_Server_loadNodeset(server,
         OPEN62541_NODESET_DIR
         "PlasticsRubber/Extrusion_v2/Filter/2.00/Opc.Ua.PlasticsRubber.Extrusion_v2.Filter.NodeSet2.xml", NULL);
-    ck_assert_uint_eq(retVal, true);
+    ck_assert(UA_StatusCode_isGood(retVal));
 }
 END_TEST
 
 START_TEST(Server_loadPlasticsRubberExtrusionv2GeneralTypesNodeset) {
-    bool retVal = UA_Server_loadNodeset(server,
+    UA_StatusCode retVal = UA_Server_loadNodeset(server,
         OPEN62541_NODESET_DIR
         "PlasticsRubber/Extrusion_v2/GeneralTypes/2.00/Opc.Ua.PlasticsRubber.Extrusion_v2.GeneralTypes.NodeSet2.xml", NULL);
-    ck_assert_uint_eq(retVal, true);
+    ck_assert(UA_StatusCode_isGood(retVal));
 }
 END_TEST
 
 START_TEST(Server_loadPlasticsRubberExtrusionv2HaulOffNodeset) {
-    bool retVal = UA_Server_loadNodeset(server,
+    UA_StatusCode retVal = UA_Server_loadNodeset(server,
         OPEN62541_NODESET_DIR
         "PlasticsRubber/Extrusion_v2/HaulOff/2.00/Opc.Ua.PlasticsRubber.Extrusion_v2.HaulOff.NodeSet2.xml", NULL);
-    ck_assert_uint_eq(retVal, true);
+    ck_assert(UA_StatusCode_isGood(retVal));
 }
 END_TEST
 
 START_TEST(Server_loadPlasticsRubberExtrusionv2MeltPumpNodeset) {
-    bool retVal = UA_Server_loadNodeset(server,
+    UA_StatusCode retVal = UA_Server_loadNodeset(server,
         OPEN62541_NODESET_DIR
         "PlasticsRubber/Extrusion_v2/MeltPump/2.00/Opc.Ua.PlasticsRubber.Extrusion_v2.MeltPump.NodeSet2.xml", NULL);
-    ck_assert_uint_eq(retVal, true);
+    ck_assert(UA_StatusCode_isGood(retVal));
 }
 END_TEST
 
 START_TEST(Server_loadPlasticsRubberExtrusionv2PelletizerNodeset) {
-    bool retVal = UA_Server_loadNodeset(server,
+    UA_StatusCode retVal = UA_Server_loadNodeset(server,
         OPEN62541_NODESET_DIR
         "PlasticsRubber/Extrusion_v2/Pelletizer/2.00/Opc.Ua.PlasticsRubber.Extrusion_v2.Pelletizer.NodeSet2.xml", NULL);
-    ck_assert_uint_eq(retVal, true);
+    ck_assert(UA_StatusCode_isGood(retVal));
 }
 END_TEST
 
 START_TEST(Server_loadPlasticsRubberGeneralTypes_v1_0_2_Nodeset) {
-    bool retVal = UA_Server_loadNodeset(server,
+    UA_StatusCode retVal = UA_Server_loadNodeset(server,
         OPEN62541_NODESET_DIR
         "PlasticsRubber/GeneralTypes/1.02/Opc.Ua.PlasticsRubber.GeneralTypes.NodeSet2.xml", NULL);
-    ck_assert_uint_eq(retVal, true);
+    ck_assert(UA_StatusCode_isGood(retVal));
 }
 END_TEST
 
 START_TEST(Server_loadPlasticsRubberGeneralTypes_v1_0_3_Nodeset) {
-    bool retVal = UA_Server_loadNodeset(server,
+    UA_StatusCode retVal = UA_Server_loadNodeset(server,
         OPEN62541_NODESET_DIR
         "PlasticsRubber/GeneralTypes/1.03/Opc.Ua.PlasticsRubber.GeneralTypes.NodeSet2.xml", NULL);
-    ck_assert_uint_eq(retVal, true);
+    ck_assert(UA_StatusCode_isGood(retVal));
 }
 END_TEST
 
 START_TEST(Server_loadPlasticsRubberHotRunnerNodeset) {
-    bool retVal = UA_Server_loadNodeset(server,
+    UA_StatusCode retVal = UA_Server_loadNodeset(server,
         OPEN62541_NODESET_DIR
         "PlasticsRubber/HotRunner/1.00/Opc.Ua.PlasticsRubber.HotRunner.NodeSet2.xml", NULL);
-    ck_assert_uint_eq(retVal, true);
+    ck_assert(UA_StatusCode_isGood(retVal));
 }
 END_TEST
 
 START_TEST(Server_loadPlasticsRubberIMM2MESNodeset) {
-    bool retVal = UA_Server_loadNodeset(server,
+    UA_StatusCode retVal = UA_Server_loadNodeset(server,
         OPEN62541_NODESET_DIR
         "PlasticsRubber/IMM2MES/1.01/Opc.Ua.PlasticsRubber.IMM2MES.NodeSet2.xml", NULL);
-    ck_assert_uint_eq(retVal, true);
+    ck_assert(UA_StatusCode_isGood(retVal));
 }
 END_TEST
 
 START_TEST(Server_loadPlasticsRubberLDSNodeset) {
-    bool retVal = UA_Server_loadNodeset(server,
-        OPEN62541_NODESET_DIR 
+    UA_StatusCode retVal = UA_Server_loadNodeset(server,
+        OPEN62541_NODESET_DIR
         "PlasticsRubber/LDS/1.00/Opc.Ua.PlasticsRubber.LDS.NodeSet2.xml", NULL);
-    ck_assert_uint_eq(retVal, true);
+    ck_assert(UA_StatusCode_isGood(retVal));
 }
 END_TEST
 
 START_TEST(Server_loadPlasticsRubberTCDNodeset) {
-    bool retVal = UA_Server_loadNodeset(server,
+    UA_StatusCode retVal = UA_Server_loadNodeset(server,
         OPEN62541_NODESET_DIR
         "PlasticsRubber/TCD/1.01/Opc.Ua.PlasticsRubber.TCD.NodeSet2.xml", NULL);
-    ck_assert_uint_eq(retVal, true);
+    ck_assert(UA_StatusCode_isGood(retVal));
 }
 END_TEST
 
 START_TEST(Server_loadPLCopenNodeset) {
-    bool retVal = UA_Server_loadNodeset(server,
+    UA_StatusCode retVal = UA_Server_loadNodeset(server,
         OPEN62541_NODESET_DIR "PLCopen/Opc.Ua.PLCopen.NodeSet2_V1.02.xml", NULL);
-    ck_assert_uint_eq(retVal, true);
+    ck_assert(UA_StatusCode_isGood(retVal));
 }
 END_TEST
 
 START_TEST(Server_loadPnEmNodeset) {
-    bool retVal = UA_Server_loadNodeset(server,
+    UA_StatusCode retVal = UA_Server_loadNodeset(server,
         OPEN62541_NODESET_DIR "PNEM/Opc.Ua.PnEm.NodeSet2.xml", NULL);
-    ck_assert_uint_eq(retVal, true);
+    ck_assert(UA_StatusCode_isGood(retVal));
 }
 END_TEST
 
 START_TEST(Server_loadPnRioNodeset) {
-    bool retVal = UA_Server_loadNodeset(server,
+    UA_StatusCode retVal = UA_Server_loadNodeset(server,
         OPEN62541_NODESET_DIR "PNRIO/Opc.Ua.PnRio.Nodeset2.xml", NULL);
-    ck_assert_uint_eq(retVal, true);
+    ck_assert(UA_StatusCode_isGood(retVal));
 }
 END_TEST
 
 START_TEST(Server_loadPROFINETNodeset) {
-    bool retVal = UA_Server_loadNodeset(server,
+    UA_StatusCode retVal = UA_Server_loadNodeset(server,
         OPEN62541_NODESET_DIR "PROFINET/Opc.Ua.Pn.NodeSet2.xml", NULL);
-    ck_assert_uint_eq(retVal, true);
+    ck_assert(UA_StatusCode_isGood(retVal));
 }
 END_TEST
 
 START_TEST(Server_loadRoboticsNodeset) {
-    bool retVal = UA_Server_loadNodeset(server,
+    UA_StatusCode retVal = UA_Server_loadNodeset(server,
         OPEN62541_NODESET_DIR "Robotics/Opc.Ua.Robotics.NodeSet2.xml", NULL);
-    ck_assert_uint_eq(retVal, true);
+    ck_assert(UA_StatusCode_isGood(retVal));
 }
 END_TEST
 
 START_TEST(Server_loadSafetyNodeset) {
-    bool retVal = UA_Server_loadNodeset(server,
+    UA_StatusCode retVal = UA_Server_loadNodeset(server,
         OPEN62541_NODESET_DIR "Safety/Opc.Ua.Safety.NodeSet2.xml", NULL);
-    ck_assert_uint_eq(retVal, true);
+    ck_assert(UA_StatusCode_isGood(retVal));
 }
 END_TEST
 
 START_TEST(Server_loadSercosNodeset) {
-    bool retVal = UA_Server_loadNodeset(server,
+    UA_StatusCode retVal = UA_Server_loadNodeset(server,
         OPEN62541_NODESET_DIR "Sercos/Sercos.NodeSet2.xml", NULL);
-    ck_assert_uint_eq(retVal, true);
+    ck_assert(UA_StatusCode_isGood(retVal));
 }
 END_TEST
 
 START_TEST(Server_loadWeihenstephanNodeset) {
-    bool retVal = UA_Server_loadNodeset(server,
+    UA_StatusCode retVal = UA_Server_loadNodeset(server,
         OPEN62541_NODESET_DIR "Weihenstephan/Opc.Ua.Weihenstephan.NodeSet2.xml", NULL);
-    ck_assert_uint_eq(retVal, true);
+    ck_assert(UA_StatusCode_isGood(retVal));
 }
 END_TEST
 
 START_TEST(Server_loadWoodworkingEumaboisNodeset) {
-    bool retVal = UA_Server_loadNodeset(server,
+    UA_StatusCode retVal = UA_Server_loadNodeset(server,
         OPEN62541_NODESET_DIR "Woodworking/Opc.Ua.Eumabois.Nodeset2.xml", NULL);
-    ck_assert_uint_eq(retVal, true);
+    ck_assert(UA_StatusCode_isGood(retVal));
 }
 END_TEST
 
 START_TEST(Server_loadWoodworkingNodeset) {
-    bool retVal = UA_Server_loadNodeset(server,
+    UA_StatusCode retVal = UA_Server_loadNodeset(server,
         OPEN62541_NODESET_DIR "Woodworking/Opc.Ua.Woodworking.NodeSet2.xml", NULL);
-    ck_assert_uint_eq(retVal, true);
+    ck_assert(UA_StatusCode_isGood(retVal));
 }
 END_TEST
 

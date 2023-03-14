@@ -24,16 +24,16 @@ static void teardown(void) {
 }
 
 START_TEST(Server_loadDiNodeset) {
-    bool retVal = UA_Server_loadNodeset(server,
+    UA_StatusCode retVal = UA_Server_loadNodeset(server,
         OPEN62541_NODESET_DIR "DI/Opc.Ua.Di.NodeSet2.xml", NULL);
-    ck_assert_uint_eq(retVal, true);
+    ck_assert(UA_StatusCode_isGood(retVal));
 }
 END_TEST
 
 START_TEST(Server_loadAutoIDNodeset) {
-    bool retVal = UA_Server_loadNodeset(server,
+    UA_StatusCode retVal = UA_Server_loadNodeset(server,
         OPEN62541_NODESET_DIR "AutoID/Opc.Ua.AutoID.NodeSet2.xml", NULL);
-    ck_assert_uint_eq(retVal, true);
+    ck_assert(UA_StatusCode_isGood(retVal));
 }
 END_TEST
 
