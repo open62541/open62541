@@ -61,15 +61,32 @@ struct UA_RegisteredFD {
                             * because the rfd is freed by the delayed callback
                             * mechanism. */
 
-    LIST_ENTRY(UA_RegisteredFD) es_pointers; /* Register FD in the EventSource */
+    ZIP_ENTRY(UA_RegisteredFD) zipPointers; /* Register FD in the EventSource */
     UA_FD fd;
     short listenEvents; /* UA_FDEVENT_IN | UA_FDEVENT_OUT*/
 
     UA_EventSource *es; /* Backpointer to the EventSource */
-    UA_FDCallback callback;
-    void *application;
-    void *context;
+    UA_FDCallback eventSourceCB;
 };
+
+enum ZIP_CMP cmpFD(const UA_FD *a, const UA_FD *b);
+typedef ZIP_HEAD(UA_FDTree, UA_RegisteredFD) UA_FDTree;
+ZIP_FUNCTIONS(UA_FDTree, UA_RegisteredFD, zipPointers, UA_FD, fd, cmpFD)
+
+/* All ConnectionManager in the POSIX EventLoop can be cast to
+ * UA_ConnectionManagerPOSIX. They carry a sorted tree of their open
+ * sockets/file-descriptors. */
+typedef struct {
+    UA_ConnectionManager cm;
+
+    /* Reused receive buffer. The size is configured via
+     * the recv-bufsize parameter.*/
+    UA_ByteString rxBuffer;
+
+    /* Sorted tree of the FDs */
+    size_t fdsSize;
+    UA_FDTree fds;
+} UA_POSIXConnectionManager;
 
 typedef struct {
     UA_EventLoop eventLoop;
@@ -87,9 +104,8 @@ typedef struct {
 #if defined(UA_HAVE_EPOLL)
     UA_FD epollfd;
 #else
-    /* Explicit list of file descriptors */
-    size_t fdsSize;
     UA_RegisteredFD **fds;
+    size_t fdsSize;
 #endif
 
 #if UA_MULTITHREADING >= 100
@@ -115,6 +131,22 @@ UA_EventLoopPOSIX_deregisterFD(UA_EventLoopPOSIX *el, UA_RegisteredFD *rfd);
 
 UA_StatusCode
 UA_EventLoopPOSIX_pollFDs(UA_EventLoopPOSIX *el, UA_DateTime listenTimeout);
+
+/* Helper functions between EventSources */
+
+UA_StatusCode
+UA_EventLoopPOSIX_allocateRXBuffer(UA_POSIXConnectionManager *pcm);
+
+UA_StatusCode
+UA_EventLoopPOSIX_allocNetworkBuffer(UA_ConnectionManager *cm,
+                                     uintptr_t connectionId,
+                                     UA_ByteString *buf,
+                                     size_t bufSize);
+
+void
+UA_EventLoopPOSIX_freeNetworkBuffer(UA_ConnectionManager *cm,
+                                    uintptr_t connectionId,
+                                    UA_ByteString *buf);
 
 /*
  * Helper functions to be used across protocols

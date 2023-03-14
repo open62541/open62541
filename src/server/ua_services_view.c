@@ -1084,17 +1084,12 @@ UA_Server_browseNext(UA_Server *server, UA_Boolean releaseContinuationPoint,
 /* TranslateBrowsePath */
 /***********************/
 
-/* Find all entries for that hash. There are duplicate for the possible hash
- * collisions. The exact browsename is checked afterwards. */
-static UA_StatusCode
-addBrowseHashTargetRecursive(UA_UInt32 browseNameHash, UA_ReferenceTargetTreeElem *elem,
-                             RefTree *next) {
-    if(!elem || elem->target.targetNameHash != browseNameHash)
-        return UA_STATUSCODE_GOOD;
-    UA_StatusCode res = RefTree_add(next, elem->target.targetId, NULL);
-    res |= addBrowseHashTargetRecursive(browseNameHash, elem->nameTreeEntry.left, next);
-    res |= addBrowseHashTargetRecursive(browseNameHash, elem->nameTreeEntry.right, next);
-    return res;
+/* Add all entries for the hash. There are possible duplicates due to hash
+ * collisions. The full browsename is checked afterwards. */
+static void *
+addBrowseHashTarget(void *context, UA_ReferenceTargetTreeElem *elem) {
+    RefTree *next = (RefTree*)context;
+    return (void*)(uintptr_t)RefTree_add(next, elem->target.targetId, NULL);
 }
 
 static UA_StatusCode
@@ -1183,10 +1178,10 @@ walkBrowsePathElement(UA_Server *server, UA_Session *session,
              * every node just once. */
 
             if(rk->hasRefTree) {
-                UA_ReferenceTargetTreeElem *elm =
-                    ZIP_FIND(UA_ReferenceNameTree, &rk->targets.tree.nameTree,
-                             &targetHashKey);
-                res = addBrowseHashTargetRecursive(browseNameHash, elm, next);
+                res = (UA_StatusCode)(uintptr_t)
+                    ZIP_ITER_KEY(UA_ReferenceNameTree,
+                                 &rk->targets.tree.nameTree,
+                                 &targetHashKey, addBrowseHashTarget, next);
                 if(res != UA_STATUSCODE_GOOD)
                     break;
             } else {

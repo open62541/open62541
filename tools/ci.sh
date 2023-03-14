@@ -317,10 +317,11 @@ function unit_tests_pubsub_sks {
           -DUA_ENABLE_PUBSUB_MONITORING=ON \
           -DUA_ENABLE_PUBSUB_ENCRYPTION=ON \
           -DUA_ENABLE_PUBSUB_SKS=ON \
+          -DUA_ENABLE_UNIT_TESTS_MEMCHECK=ON \
           ..
     make ${MAKEOPTS}
-    set_capabilities
-    make test ARGS="-V"
+    # set_capabilities not possible with valgrind
+    make test ARGS="-V -R sks"
 }
 
 ##########################################

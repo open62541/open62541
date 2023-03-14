@@ -22,6 +22,7 @@ UA_NodeId connection1, connection2, writerGroup1, writerGroup2, writerGroup3,
 
 static void setup(void) {
     server = UA_Server_new();
+    ck_assert(server != NULL);
     UA_ServerConfig *config = UA_Server_getConfig(server);
     UA_ServerConfig_setDefault(config);
     UA_ServerConfig_addPubSubTransportLayer(config, UA_PubSubTransportLayerUDP());
@@ -329,27 +330,50 @@ START_TEST(AddRemoveAddDataSetFieldWithValidConfiguration){
         UA_DataSetFieldConfig fieldConfig;
         memset(&fieldConfig, 0, sizeof(UA_DataSetFieldConfig));
         fieldConfig.dataSetFieldType = UA_PUBSUB_DATASETFIELD_VARIABLE;
-        fieldConfig.field.variable.fieldNameAlias = UA_STRING("field 1");
         fieldConfig.field.variable.publishParameters.publishedVariable = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_STATE);
         fieldConfig.field.variable.publishParameters.attributeId = UA_ATTRIBUTEID_VALUE;
         UA_NodeId localDataSetField;
         UA_PublishedDataSet *pds1 = UA_PublishedDataSet_findPDSbyId(server, publishedDataSet1);
         ck_assert_ptr_ne(pds1, NULL);
         ck_assert_uint_eq(pds1->fieldSize, 0);
+
+        // Add "field 1"
+        fieldConfig.field.variable.fieldNameAlias = UA_STRING("field 1");
         retVal = UA_Server_addDataSetField(server, publishedDataSet1, &fieldConfig, &localDataSetField).result;
         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
         ck_assert_uint_eq(pds1->fieldSize, 1);
-        retVal = UA_Server_removeDataSetField(server, localDataSetField).result;
-        ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
-        ck_assert_uint_eq(pds1->fieldSize, 0);
-        retVal = UA_Server_addDataSetField(server, publishedDataSet1, &fieldConfig, &localDataSetField).result;
-        ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
-        ck_assert_uint_eq(pds1->fieldSize, 1);
+
+        // Add "field 2"
+        fieldConfig.field.variable.fieldNameAlias = UA_STRING("field 2");
         retVal = UA_Server_addDataSetField(server, publishedDataSet1, &fieldConfig, &localDataSetField).result;
         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
         ck_assert_uint_eq(pds1->fieldSize, 2);
+
+        // Remove "field 2"
+        retVal = UA_Server_removeDataSetField(server, localDataSetField).result;
+        ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+        ck_assert_uint_eq(pds1->fieldSize, 1);
+        // Check that the correct field was removed - "field 1" should still be there
+        UA_String compareString = UA_STRING("field 1");
+        ck_assert(UA_String_equal(&pds1->fields.tqh_first->fieldMetaData.name, &compareString));
+
+        // Add "field 2" again
+        fieldConfig.field.variable.fieldNameAlias = UA_STRING("field 2");
+        retVal = UA_Server_addDataSetField(server, publishedDataSet1, &fieldConfig, &localDataSetField).result;
+        ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+        ck_assert_uint_eq(pds1->fieldSize, 2);
+
+        // Add "field 3"
+        fieldConfig.field.variable.fieldNameAlias = UA_STRING("field 3");
+        retVal = UA_Server_addDataSetField(server, publishedDataSet1, &fieldConfig, &localDataSetField).result;
+        ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+        ck_assert_uint_eq(pds1->fieldSize, 3);
+
         UA_PublishedDataSet *pds2 = UA_PublishedDataSet_findPDSbyId(server, publishedDataSet2);
         ck_assert_ptr_ne(pds2, NULL);
+
+        // Add "field 1"
+        fieldConfig.field.variable.fieldNameAlias = UA_STRING("field 1");
         retVal = UA_Server_addDataSetField(server, publishedDataSet2, &fieldConfig, &localDataSetField).result;
         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
         ck_assert_uint_eq(pds2->fieldSize, 1);

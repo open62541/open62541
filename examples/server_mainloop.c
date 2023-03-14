@@ -5,7 +5,6 @@
 
 #include <open62541/plugin/log_stdout.h>
 #include <open62541/server.h>
-#include <open62541/server_config_default.h>
 
 #include <signal.h>
 
@@ -16,14 +15,13 @@ static void stopHandler(int sign) {
 }
 
 /* In this example, we integrate the server into an external "mainloop". This
-   can be for example the event-loop used in GUI toolkits, such as Qt or GTK. */
+ * can be for example the event-loop used in GUI toolkits, such as Qt or GTK. */
 
 int main(int argc, char** argv) {
     signal(SIGINT, stopHandler);
     signal(SIGTERM, stopHandler);
 
     UA_Server *server = UA_Server_new();
-    UA_ServerConfig_setDefault(UA_Server_getConfig(server));
 
     /* Should the server networklayer block (with a timeout) until a message
        arrives or should it return immediately? */

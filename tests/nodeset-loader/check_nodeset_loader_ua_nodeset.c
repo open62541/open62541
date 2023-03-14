@@ -11,7 +11,6 @@
  *    * NodesetLoader related issues:
  *      - ${OPEN62541_NODESET_DIR}AML/Opc.Ua.AMLLibraries.NodeSet2.xml
  *      - ${OPEN62541_NODESET_DIR}ISA95-JOBCONTROL/opc.ua.isa95-jobcontrol.nodeset2.xml
- *      - ${OPEN62541_NODESET_DIR}PNRIO/Opc.Ua.PnRio.Nodeset2.xml
  *      - ${OPEN62541_NODESET_DIR}TMC/Opc.Ua.TMC.NodeSet2.xml
  *
  *    * Memory leak issues (libXML2 library related):
@@ -50,6 +49,7 @@ UA_Server *server = NULL;
 
 static void setup(void) {
     server = UA_Server_new();
+    ck_assert(server != NULL);
     UA_ServerConfig_setDefault(UA_Server_getConfig(server));
     UA_Server_run_startup(server);
 }
@@ -576,6 +576,13 @@ END_TEST
 START_TEST(Server_loadPnEmNodeset) {
     bool retVal = UA_Server_loadNodeset(server,
         OPEN62541_NODESET_DIR "PNEM/Opc.Ua.PnEm.NodeSet2.xml", NULL);
+    ck_assert_uint_eq(retVal, true);
+}
+END_TEST
+
+START_TEST(Server_loadPnRioNodeset) {
+    bool retVal = UA_Server_loadNodeset(server,
+        OPEN62541_NODESET_DIR "PNRIO/Opc.Ua.PnRio.Nodeset2.xml", NULL);
     ck_assert_uint_eq(retVal, true);
 }
 END_TEST
@@ -1157,6 +1164,13 @@ static Suite* testSuite_Client(void) {
         tcase_add_unchecked_fixture(tc_server, setup, teardown);
         tcase_add_test(tc_server, Server_loadDINodeset);
         tcase_add_test(tc_server, Server_loadPLCopenNodeset);
+        suite_add_tcase(s, tc_server);
+    }
+    {
+        TCase *tc_server = tcase_create("Server load PNRIO nodeset");
+        tcase_add_unchecked_fixture(tc_server, setup, teardown);
+        tcase_add_test(tc_server, Server_loadDINodeset);
+        tcase_add_test(tc_server, Server_loadPnRioNodeset);
         suite_add_tcase(s, tc_server);
     }
     {

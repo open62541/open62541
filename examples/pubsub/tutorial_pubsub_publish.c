@@ -28,9 +28,6 @@
 #include <open62541/plugin/pubsub_ethernet.h>
 #include <open62541/plugin/pubsub_udp.h>
 #include <open62541/server.h>
-#include <open62541/server_config_default.h>
-
-#include <signal.h>
 
 UA_NodeId connectionIdent, publishedDataSetIdent, writerGroupIdent;
 
@@ -164,20 +161,11 @@ addDataSetWriter(UA_Server *server) {
  * which already contains the decoding code for UADP messages.
  *
  * It follows the main server code, making use of the above definitions. */
-UA_Boolean running = true;
-static void stopHandler(int sign) {
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "received ctrl-c");
-    running = false;
-}
 
 static int run(UA_String *transportProfile,
                UA_NetworkAddressUrlDataType *networkAddressUrl) {
-    signal(SIGINT, stopHandler);
-    signal(SIGTERM, stopHandler);
-
     UA_Server *server = UA_Server_new();
     UA_ServerConfig *config = UA_Server_getConfig(server);
-    UA_ServerConfig_setDefault(config);
 
     /* Details about the connection configuration and handling are located in
      * the pubsub connection tutorial */
@@ -192,7 +180,7 @@ static int run(UA_String *transportProfile,
     addWriterGroup(server);
     addDataSetWriter(server);
 
-    UA_StatusCode retval = UA_Server_run(server, &running);
+    UA_StatusCode retval = UA_Server_runUntilInterrupt(server);
 
     UA_Server_delete(server);
     return retval == UA_STATUSCODE_GOOD ? EXIT_SUCCESS : EXIT_FAILURE;

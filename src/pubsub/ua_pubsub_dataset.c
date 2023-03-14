@@ -147,7 +147,22 @@ void
 UA_PublishedDataSet_clear(UA_Server *server, UA_PublishedDataSet *publishedDataSet) {
     UA_DataSetField *field, *tmpField;
     TAILQ_FOREACH_SAFE(field, &publishedDataSet->fields, listEntry, tmpField) {
-        removeDataSetField(server, field->identifier);
+        /* Code in this block is a duplication of similar code in removeDataSetField, but
+         * this is intentional. We don't want to call removeDataSetField here as that
+         * function regenerates DataSetMetaData, which is not necessary if we want to
+         * clear the whole PDS anyway. */
+        if(field->configurationFrozen) {
+            UA_LOG_WARNING_DATASET(&server->config.logger, publishedDataSet,
+                                   "Clearing a frozen field.");
+        }
+        field->fieldMetaData.arrayDimensions = NULL;
+        field->fieldMetaData.properties = NULL;
+        field->fieldMetaData.name = UA_STRING_NULL;
+        field->fieldMetaData.description.locale = UA_STRING_NULL;
+        field->fieldMetaData.description.text = UA_STRING_NULL;
+        UA_DataSetField_clear(field);
+        TAILQ_REMOVE(&publishedDataSet->fields, field, listEntry);
+        UA_free(field);
     }
     UA_PublishedDataSetConfig_clear(&publishedDataSet->config);
     UA_DataSetMetaDataType_clear(&publishedDataSet->dataSetMetaData);
@@ -240,7 +255,7 @@ generateFieldMetaData(UA_Server *server, UA_PublishedDataSet *pds,
 #endif
         /* Check if the datatype is a builtInType, if yes set the builtinType. */
         if(currentDataType->typeKind <= UA_DATATYPEKIND_ENUM)
-            fieldMetaData->builtInType = (UA_Byte)currentDataType->typeKind;
+            fieldMetaData->builtInType = (UA_Byte)currentDataType->typeId.identifier.numeric;
         /* set the maxStringLength attribute */
         if(field->config.field.variable.maxStringLength != 0){
             if(currentDataType->typeKind == UA_DATATYPEKIND_BYTESTRING ||
@@ -347,7 +362,7 @@ UA_DataSetField_create(UA_Server *server, const UA_NodeId publishedDataSet,
     }
 
     /* Append to the metadata fields array. Point of last return. */
-    result.result = UA_Array_append((void**)&currDS->dataSetMetaData.fields,
+    result.result = UA_Array_appendCopy((void**)&currDS->dataSetMetaData.fields,
                                     &currDS->dataSetMetaData.fieldsSize,
                                     &fmd, &UA_TYPES[UA_TYPES_FIELDMETADATA]);
     if(result.result != UA_STATUSCODE_GOOD) {
@@ -362,6 +377,7 @@ UA_DataSetField_create(UA_Server *server, const UA_NodeId publishedDataSet,
     newField->identifier = UA_NODEID_GUID(1, fmd.dataSetFieldId);
     if(fieldIdentifier)
         UA_NodeId_copy(&newField->identifier, fieldIdentifier);
+    UA_FieldMetaData_clear(&fmd);
 
     /* Register the field. The order of DataSetFields should be the same in both
      * creating and publishing. So adding DataSetFields at the the end of the
@@ -479,7 +495,8 @@ removeDataSetField(UA_Server *server, const UA_NodeId dsf) {
                                        "after removing a field!");
                 break;
             }
-            counter++;
+            // The contents of the metadata is shared between the PDS and its fields.
+            tmpDSF->fieldMetaData = fieldMetaData[counter++];
         }
         pds->dataSetMetaData.fields = fieldMetaData;
     } else {

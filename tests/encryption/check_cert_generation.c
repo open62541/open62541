@@ -15,6 +15,7 @@ UA_Server *server;
 
 static void setup(void) {
     server = UA_Server_new();
+    ck_assert(server != NULL);
 }
 
 static void teardown(void) {

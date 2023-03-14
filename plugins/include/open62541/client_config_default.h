@@ -13,8 +13,6 @@
 
 _UA_BEGIN_DECLS
 
-UA_Client UA_EXPORT * UA_Client_new(void);
-
 UA_StatusCode UA_EXPORT
 UA_ClientConfig_setDefault(UA_ClientConfig *config);
 

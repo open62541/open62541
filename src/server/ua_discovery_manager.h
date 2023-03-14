@@ -100,10 +100,7 @@ typedef struct {
     UA_Server_serverOnNetworkCallback serverOnNetworkCallback;
     void *serverOnNetworkCallbackData;
 
-#if UA_MULTITHREADING >= 100
-    pthread_t mdnsThread;
-    UA_Boolean mdnsRunning;
-#  endif
+    UA_UInt64 mdnsCallbackId;
 # endif /* UA_ENABLE_DISCOVERY_MULTICAST */
 } UA_DiscoveryManager;
 
@@ -146,10 +143,6 @@ mdns_find_record(mdns_daemon_t *mdnsDaemon, unsigned short type,
 
 void startMulticastDiscoveryServer(UA_Server *server);
 void stopMulticastDiscoveryServer(UA_Server *server);
-
-UA_StatusCode
-iterateMulticastDiscoveryServer(UA_Server *server, UA_DateTime *nextRepeat,
-                                UA_Boolean processIn);
 
 UA_StatusCode
 UA_DiscoveryManager_addEntryToServersOnNetwork(UA_Server *server, const char *fqdnMdnsRecord,

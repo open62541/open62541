@@ -40,20 +40,91 @@ UA_DURATIONRANGE(UA_Duration min, UA_Duration max) {
     return range;
 }
 
-static UA_StatusCode
-setDefaultConfig(UA_ServerConfig *conf, UA_UInt16 portNumber);
-
 UA_Server *
 UA_Server_new(void) {
     UA_ServerConfig config;
     memset(&config, 0, sizeof(UA_ServerConfig));
-
-    UA_StatusCode res = setDefaultConfig(&config, 4840);
+    UA_StatusCode res = UA_ServerConfig_setDefault(&config);
     if(res != UA_STATUSCODE_GOOD)
         return NULL;
-
     return UA_Server_newWithConfig(&config);
 }
+
+#if defined(UA_ARCHITECTURE_POSIX) || defined(UA_ARCHITECTURE_WIN32)
+
+/* Required for the definition of SIGINT */
+#include <signal.h>
+
+struct InterruptContext {
+    UA_Server *server;
+    UA_Boolean running;
+};
+
+static void
+interruptServer(UA_InterruptManager *im, uintptr_t interruptHandle,
+                void *context, const UA_KeyValueMap *parameters) {
+    struct InterruptContext *ic = (struct InterruptContext*)context;
+    UA_ServerConfig *config = UA_Server_getConfig(ic->server);
+    UA_LOG_INFO(&config->logger, UA_LOGCATEGORY_USERLAND,
+                "Received SIGINT interrupt. Stopping the server.");
+    ic->running = false;
+}
+
+UA_StatusCode
+UA_Server_runUntilInterrupt(UA_Server *server) {
+    if(!server)
+        return UA_STATUSCODE_BADINTERNALERROR;
+    UA_ServerConfig *config = UA_Server_getConfig(server);
+    UA_EventLoop *el = config->eventLoop;
+    if(!el)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
+    /* Get the interrupt manager */
+    UA_EventSource *es = el->eventSources;
+    while(es) {
+        if(es->eventSourceType == UA_EVENTSOURCETYPE_INTERRUPTMANAGER)
+            break;
+        es = es->next;
+    }
+    if(!es) {
+        UA_LOG_ERROR(&config->logger, UA_LOGCATEGORY_USERLAND,
+                       "No Interrupt EventSource configured");
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
+    UA_InterruptManager *im = (UA_InterruptManager*)es;
+
+    /* Register the interrupt */
+    struct InterruptContext ic;
+    ic.server = server;
+    ic.running = true;
+    UA_StatusCode retval =
+        im->registerInterrupt(im, SIGINT, &UA_KEYVALUEMAP_NULL,
+                              interruptServer, &ic);
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_LOG_ERROR(&config->logger, UA_LOGCATEGORY_USERLAND,
+                     "Could not register the interrupt with status code %s",
+                     UA_StatusCode_name(retval));
+        return retval;
+    }
+
+    /* Run the server */
+    retval = UA_Server_run_startup(server);
+    if(retval != UA_STATUSCODE_GOOD)
+        goto deregister_interrupt;
+    while(ic.running) {
+        UA_Server_run_iterate(server, true);
+    }
+
+    /* Shut down the server */
+    retval = UA_Server_run_shutdown(server);
+
+    /* Deregister the interrupt */
+ deregister_interrupt:
+    im->deregisterInterrupt(im, SIGINT);
+    return retval;
+}
+
+#endif /* defined(UA_ARCHITECTURE_POSIX) || defined(UA_ARCHITECTURE_WIN32) */
 
 /*******************************/
 /* Default Connection Settings */
@@ -85,35 +156,62 @@ const UA_ConnectionConfig UA_ConnectionConfig_default = {
     STRINGIFY(MAJOR) "." STRINGIFY(MINOR) "." STRINGIFY(PATCH) LABEL
 
 static UA_StatusCode
-createEndpoint(UA_ServerConfig *conf, UA_EndpointDescription *endpoint,
-               const UA_SecurityPolicy *securityPolicy,
-               UA_MessageSecurityMode securityMode) {
+addEndpoint(UA_ServerConfig *conf,
+            const UA_SecurityPolicy *securityPolicy,
+            UA_MessageSecurityMode securityMode) {
+    /* Test if the endpoint already exists */
+    for(size_t i = 0; i < conf->endpointsSize; i++) {
+        UA_EndpointDescription *ep = &conf->endpoints[i];
+        if(!UA_String_equal(&securityPolicy->policyUri, &ep->securityPolicyUri))
+            continue;
+        if(ep->securityMode != securityMode)
+            continue;
+        return UA_STATUSCODE_GOOD;
+    }
+
+    /* Reallocate the array size */
+    UA_EndpointDescription *tmp = (UA_EndpointDescription *)
+        UA_realloc(conf->endpoints,
+                   sizeof(UA_EndpointDescription) * (1 + conf->endpointsSize));
+    if(!tmp)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    conf->endpoints = tmp;
+
+    UA_EndpointDescription *endpoint = &conf->endpoints[conf->endpointsSize];
     UA_EndpointDescription_init(endpoint);
 
-    endpoint->securityMode = securityMode;
-    UA_String_copy(&securityPolicy->policyUri, &endpoint->securityPolicyUri);
-    endpoint->transportProfileUri =
-        UA_STRING_ALLOC("http://opcfoundation.org/UA-Profile/Transport/uatcp-uasc-uabinary");
-
     /* Add security level value for the corresponding message security mode */
-    endpoint->securityLevel = (UA_Byte) securityMode;
+    endpoint->securityMode = securityMode;
+    endpoint->securityLevel = (UA_Byte)securityMode;
 
     /* Enable all login mechanisms from the access control plugin  */
-    UA_StatusCode retval = UA_Array_copy(conf->accessControl.userTokenPolicies,
-                                         conf->accessControl.userTokenPoliciesSize,
-                                         (void **)&endpoint->userIdentityTokens,
-                                         &UA_TYPES[UA_TYPES_USERTOKENPOLICY]);
-    if(retval != UA_STATUSCODE_GOOD){
-        UA_String_clear(&endpoint->securityPolicyUri);
-        UA_String_clear(&endpoint->transportProfileUri);
-        return retval;
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+    retval |= UA_Array_copy(conf->accessControl.userTokenPolicies,
+                            conf->accessControl.userTokenPoliciesSize,
+                            (void **)&endpoint->userIdentityTokens,
+                            &UA_TYPES[UA_TYPES_USERTOKENPOLICY]);
+    if(retval == UA_STATUSCODE_GOOD)
+        endpoint->userIdentityTokensSize = conf->accessControl.userTokenPoliciesSize;
+
+    retval |= UA_String_copy(&securityPolicy->policyUri, &endpoint->securityPolicyUri);
+    endpoint->transportProfileUri =
+        UA_STRING_ALLOC("http://opcfoundation.org/UA-Profile/Transport/uatcp-uasc-uabinary");
+    retval |= UA_String_copy(&securityPolicy->localCertificate,
+                             &endpoint->serverCertificate);
+    retval |= UA_ApplicationDescription_copy(&conf->applicationDescription,
+                                             &endpoint->server);
+
+    if(retval == UA_STATUSCODE_GOOD) {
+        conf->endpointsSize++;
+    } else {
+        UA_EndpointDescription_clear(endpoint);
+        if(conf->endpointsSize == 0) {
+            UA_free(conf->endpoints);
+            conf->endpoints = NULL;
+        }
     }
-    endpoint->userIdentityTokensSize = conf->accessControl.userTokenPoliciesSize;
 
-    UA_String_copy(&securityPolicy->localCertificate, &endpoint->serverCertificate);
-    UA_ApplicationDescription_copy(&conf->applicationDescription, &endpoint->server);
-
-    return UA_STATUSCODE_GOOD;
+    return retval;
 }
 
 static const size_t usernamePasswordsSize = 2;
@@ -133,6 +231,8 @@ setDefaultConfig(UA_ServerConfig *conf, UA_UInt16 portNumber) {
     /* Logging */
     if(!conf->logger.log)
         conf->logger = UA_Log_Stdout_withLevel(UA_LOGLEVEL_TRACE);
+    if(conf->logging == NULL)
+        conf->logging = &conf->logger;
 
     /* EventLoop */
     if(conf->eventLoop == NULL) {
@@ -153,6 +253,15 @@ setDefaultConfig(UA_ServerConfig *conf, UA_UInt16 portNumber) {
             UA_ConnectionManager_new_POSIX_UDP(UA_STRING("udp connection manager"));
         if(udpCM)
             conf->eventLoop->registerEventSource(conf->eventLoop, (UA_EventSource *)udpCM);
+
+        /* Add the interrupt manager */
+        UA_InterruptManager *im = UA_InterruptManager_new_POSIX(UA_STRING("interrupt manager"));
+        if(im) {
+            conf->eventLoop->registerEventSource(conf->eventLoop, &im->eventSource);
+        } else {
+            UA_LOG_WARNING(&conf->logger, UA_LOGCATEGORY_USERLAND,
+                           "Cannot create the Interrupt Manager (only relevant if used)");
+        }
     }
     if(conf->eventLoop != NULL) {
         if(conf->eventLoop->state != UA_EVENTLOOPSTATE_STARTED) {
@@ -265,6 +374,11 @@ setDefaultConfig(UA_ServerConfig *conf, UA_UInt16 portNumber) {
     /* Endpoints */
     /* conf->endpoints = {0, NULL}; */
 
+    if(!conf->certificateVerification.logging) {
+        /* Set Logger for Certificate Verification */
+        conf->certificateVerification.logging = &conf->logging;
+   }
+
     /* Certificate Verification that accepts every certificate. Can be
      * overwritten when the policy is specialized. */
     UA_CertificateVerification_AcceptAll(&conf->certificateVerification);
@@ -339,7 +453,12 @@ setDefaultConfig(UA_ServerConfig *conf, UA_UInt16 portNumber) {
 
 UA_EXPORT UA_StatusCode
 UA_ServerConfig_setBasics(UA_ServerConfig* conf) {
-    UA_StatusCode res = setDefaultConfig(conf, 4840);
+    return UA_ServerConfig_setBasics_withPort(conf, 4840);
+}
+
+UA_EXPORT UA_StatusCode
+UA_ServerConfig_setBasics_withPort(UA_ServerConfig* conf, UA_UInt16 portNumber) {
+    UA_StatusCode res = setDefaultConfig(conf, portNumber);
     UA_LOG_WARNING(&conf->logger, UA_LOGCATEGORY_USERLAND,
                    "AcceptAll Certificate Verification. "
                    "Any remote certificate will be accepted.");
@@ -407,15 +526,6 @@ UA_ServerConfig_addSecurityPolicyNone(UA_ServerConfig *config,
 UA_EXPORT UA_StatusCode
 UA_ServerConfig_addEndpoint(UA_ServerConfig *config, const UA_String securityPolicyUri,
                             UA_MessageSecurityMode securityMode) {
-    /* Allocate the endpoint */
-    UA_EndpointDescription *tmp = (UA_EndpointDescription *)
-        UA_realloc(config->endpoints,
-                   sizeof(UA_EndpointDescription) * (1 + config->endpointsSize));
-    if(!tmp) {
-        return UA_STATUSCODE_BADOUTOFMEMORY;
-    }
-    config->endpoints = tmp;
-
     /* Lookup the security policy */
     const UA_SecurityPolicy *policy = NULL;
     for (size_t i = 0; i < config->securityPoliciesSize; ++i) {
@@ -424,55 +534,31 @@ UA_ServerConfig_addEndpoint(UA_ServerConfig *config, const UA_String securityPol
             break;
         }
     }
-    if (!policy)
+    if(!policy)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
 
     /* Populate the endpoint */
-    UA_StatusCode retval =
-        createEndpoint(config, &config->endpoints[config->endpointsSize],
-                       policy, securityMode);
-    if(retval != UA_STATUSCODE_GOOD)
-        return retval;
-    config->endpointsSize++;
-
-    return UA_STATUSCODE_GOOD;
+    return addEndpoint(config, policy, securityMode);
 }
 
 UA_EXPORT UA_StatusCode
 UA_ServerConfig_addAllEndpoints(UA_ServerConfig *config) {
-    /* Allocate the endpoints */
-    UA_EndpointDescription * tmp = (UA_EndpointDescription *)
-        UA_realloc(config->endpoints,
-                   sizeof(UA_EndpointDescription) *
-                   (2 * config->securityPoliciesSize + config->endpointsSize));
-    if(!tmp) {
-        return UA_STATUSCODE_BADOUTOFMEMORY;
-    }
-    config->endpoints = tmp;
-
     /* Populate the endpoints */
     for(size_t i = 0; i < config->securityPoliciesSize; ++i) {
         if(UA_String_equal(&UA_SECURITY_POLICY_NONE_URI, &config->securityPolicies[i].policyUri)) {
             UA_StatusCode retval =
-                createEndpoint(config, &config->endpoints[config->endpointsSize],
-                               &config->securityPolicies[i], UA_MESSAGESECURITYMODE_NONE);
+                addEndpoint(config, &config->securityPolicies[i], UA_MESSAGESECURITYMODE_NONE);
             if(retval != UA_STATUSCODE_GOOD)
                 return retval;
-            config->endpointsSize++;
         } else {
             UA_StatusCode retval =
-                createEndpoint(config, &config->endpoints[config->endpointsSize],
-                               &config->securityPolicies[i], UA_MESSAGESECURITYMODE_SIGN);
+                addEndpoint(config, &config->securityPolicies[i], UA_MESSAGESECURITYMODE_SIGN);
             if(retval != UA_STATUSCODE_GOOD)
                 return retval;
-            config->endpointsSize++;
-
-            retval = createEndpoint(config, &config->endpoints[config->endpointsSize],
-                                    &config->securityPolicies[i],
-                                    UA_MESSAGESECURITYMODE_SIGNANDENCRYPT);
+            retval = addEndpoint(config, &config->securityPolicies[i],
+                                 UA_MESSAGESECURITYMODE_SIGNANDENCRYPT);
             if(retval != UA_STATUSCODE_GOOD)
                 return retval;
-            config->endpointsSize++;
         }
     }
 
@@ -747,13 +833,17 @@ UA_ServerConfig_setDefaultWithSecurityPolicies(UA_ServerConfig *conf,
     }
 
     UA_CertificateVerification accessControlVerification;
+    memset(&accessControlVerification, 0, sizeof(accessControlVerification));
+    accessControlVerification.logging = &conf->logging;
     retval = UA_CertificateVerification_Trustlist(&accessControlVerification,
                                                   trustList, trustListSize,
                                                   issuerList, issuerListSize,
                                                   revocationList, revocationListSize);
-    retval |= UA_AccessControl_default(conf, true, &accessControlVerification,
-                &conf->securityPolicies[conf->securityPoliciesSize-1].policyUri,
-                usernamePasswordsSize, usernamePasswords);
+    if(retval == UA_STATUSCODE_GOOD) {
+        retval = UA_AccessControl_default(conf, true, &accessControlVerification,
+                    &conf->securityPolicies[conf->securityPoliciesSize-1].policyUri,
+                    usernamePasswordsSize, usernamePasswords);
+    }
     if(retval != UA_STATUSCODE_GOOD) {
         UA_ServerConfig_clean(conf);
         return retval;
@@ -803,13 +893,15 @@ UA_ClientConfig_setDefault(UA_ClientConfig *config) {
      *  sessionLocaleIdsSize */
 
     if(config->timeout == 0)
-        config->timeout = 5000;
+        config->timeout = 5 * 1000; /* 5 seconds */
     if(config->secureChannelLifeTime == 0)
         config->secureChannelLifeTime = 10 * 60 * 1000; /* 10 minutes */
 
     if(!config->logger.log) {
         config->logger = UA_Log_Stdout_withLevel(UA_LOGLEVEL_INFO);
     }
+    if(config->logging == NULL)
+        config->logging = &config->logger;
 
     /* EventLoop */
     if(config->eventLoop == NULL) {
@@ -829,6 +921,11 @@ UA_ClientConfig_setDefault(UA_ClientConfig *config) {
 
     if(config->localConnectionConfig.recvBufferSize == 0)
         config->localConnectionConfig = UA_ConnectionConfig_default;
+
+    if(!config->certificateVerification.logging) {
+        /* Set Logger for Certificate Verification */
+        config->certificateVerification.logging = &config->logging;
+    }
 
     if(!config->certificateVerification.verifyCertificate) {
         /* Certificate Verification that accepts every certificate. Can be

@@ -53,6 +53,7 @@ static void pauseServer(void) {
 static void setup(void) {
     UA_DataValue_init(&lastValue);
     server = UA_Server_new();
+    ck_assert(server != NULL);
     UA_ServerConfig_setDefault(UA_Server_getConfig(server));
     UA_Server_run_startup(server);
     runServer();

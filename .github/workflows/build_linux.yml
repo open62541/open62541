@@ -7,7 +7,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        include: 
+        include:
           - build_name: "Debug Build & Unit Tests (gcc)"
             cmd_deps: sudo apt-get install -y -qq mosquitto
             cmd_action: unit_tests
@@ -42,7 +42,7 @@ jobs:
             cmd_deps: sudo apt-get install -y -qq libmbedtls-dev
             cmd_action: unit_tests_encryption_mbedtls_pubsub
           - build_name: "PubSub SKS Build & Unit Tests (gcc)"
-            cmd_deps: sudo apt-get install -y -qq libmbedtls-dev
+            cmd_deps: sudo apt-get install -y -qq valgrind libmbedtls-dev
             cmd_action: unit_tests_pubsub_sks
           - build_name: "Encryption (OpenSSL) Build & Unit Tests (gcc)"
             cmd_deps: sudo apt-get install -y -qq openssl
@@ -50,9 +50,9 @@ jobs:
           - build_name: "Encryption (LibreSSL) Build & Unit Tests (gcc)"
             cmd_deps: |
                 sudo apt-get install -y -qq curl
-                curl https://ftp.openbsd.org/pub/OpenBSD/LibreSSL/libressl-3.4.3.tar.gz --output libressl.tar.gz
+                curl https://ftp.openbsd.org/pub/OpenBSD/LibreSSL/libressl-3.7.0.tar.gz --output libressl.tar.gz
                 tar -xvz -f libressl.tar.gz
-                cd libressl-3.4.3
+                cd libressl-3.7.0
                 ./configure
                 sudo make install
             cmd_action: unit_tests_encryption LIBRESSL
@@ -115,4 +115,3 @@ jobs:
       run: source tools/ci.sh && ${{matrix.cmd_action}}
       env:
         ETHERNET_INTERFACE: eth0
-

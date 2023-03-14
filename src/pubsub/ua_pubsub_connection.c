@@ -196,6 +196,10 @@ UA_PubSubConnection_create(UA_Server *server,
 
     assignConnectionIdentifier(server, newConnectionsField, connectionIdentifier);
 
+    /* Open the connection channel */
+    if(newConnectionsField->channel->openSubscriber) {
+        newConnectionsField->channel->openSubscriber(newConnectionsField->channel);
+    }
     return UA_STATUSCODE_GOOD;
 }
 
@@ -233,6 +237,10 @@ removePubSubConnection(UA_Server *server, const UA_NodeId connection) {
                                       UA_STATUSCODE_BADSHUTDOWN);
         UA_ReaderGroup_unfreezeConfiguration(server, readerGroup);
         removeReaderGroup(server, readerGroup->identifier);
+    }
+    /* Close the related channel */
+    if(c->channel->closeSubscriber) {
+        c->channel->closeSubscriber(c->channel);
     }
 
     /* Remove from the information model */

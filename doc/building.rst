@@ -479,10 +479,8 @@ Building the Examples
 ---------------------
 
 Make sure that you have installed the shared library as explained in the
-previous steps. Even easier way to build the examples is to install open62541 in
-your operating system (see :ref:`installing`).
-
-Then the compiler should automatically find the includes and the shared library.
+previous steps. Then the build system should automatically find the includes and
+the shared library.
 
 .. code-block:: bash
 

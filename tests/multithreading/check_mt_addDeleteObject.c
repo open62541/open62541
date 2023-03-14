@@ -20,6 +20,7 @@
 static void setup(void) {
     tc.running = true;
     tc.server = UA_Server_new();
+    ck_assert(tc.server != NULL);
     UA_ServerConfig_setDefault(UA_Server_getConfig(tc.server));
     defineObjectTypes();
     addPumpTypeConstructor(tc.server);

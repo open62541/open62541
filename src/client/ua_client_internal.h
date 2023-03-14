@@ -180,12 +180,11 @@ struct UA_Client {
 };
 
 UA_StatusCode
-__Client_AsyncServiceEx(UA_Client *client, const void *request,
-                        const UA_DataType *requestType,
-                        UA_ClientAsyncServiceCallback callback,
-                        const UA_DataType *responseType,
-                        void *userdata, UA_UInt32 *requestId,
-                        UA_UInt32 timeout);
+__Client_AsyncService(UA_Client *client, const void *request,
+                      const UA_DataType *requestType,
+                      UA_ClientAsyncServiceCallback callback,
+                      const UA_DataType *responseType,
+                      void *userdata, UA_UInt32 *requestId);
 
 void
 __Client_Service(UA_Client *client, const void *request,
@@ -205,6 +204,7 @@ processServiceResponse(void *application, UA_SecureChannel *channel,
 
 void connectSync(UA_Client *client);
 void notifyClientState(UA_Client *client);
+void processRHEMessage(UA_Client *client, const UA_ByteString *chunk);
 void processERRResponse(UA_Client *client, const UA_ByteString *chunk);
 void processACKResponse(UA_Client *client, const UA_ByteString *chunk);
 void processOPNResponse(UA_Client *client, const UA_ByteString *message);

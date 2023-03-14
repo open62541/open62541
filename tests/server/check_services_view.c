@@ -51,6 +51,7 @@ static void teardown_server(void) {
 
 START_TEST(Service_Browse_CheckSubTypes) {
     UA_Server *server = UA_Server_new();
+    ck_assert(server != NULL);
     UA_ServerConfig_setDefault(UA_Server_getConfig(server));
 
     UA_NodeId hierarchRefs = UA_NODEID_NUMERIC(0, UA_NS0ID_HIERARCHICALREFERENCES);
@@ -104,6 +105,7 @@ browseWithMaxResults(UA_Server *server, UA_NodeId nodeId, UA_UInt32 maxResults) 
 
 START_TEST(Service_Browse_WithMaxResults) {
     UA_Server *server = UA_Server_new();
+    ck_assert(server != NULL);
     UA_ServerConfig_setDefault(UA_Server_getConfig(server));
 
     UA_BrowseDescription bd;
@@ -131,6 +133,7 @@ END_TEST
 
 START_TEST(Service_Browse_WithBrowseName) {
     UA_Server *server = UA_Server_new();
+    ck_assert(server != NULL);
     UA_ServerConfig_setDefault(UA_Server_getConfig(server));
 
     UA_BrowseDescription bd;
@@ -153,6 +156,7 @@ END_TEST
 
 START_TEST(Service_Browse_ClassMask) {
     UA_Server *server = UA_Server_new();
+    ck_assert(server != NULL);
     UA_ServerConfig_setDefault(UA_Server_getConfig(server));
 
     /* add a variable node to the address space */
@@ -219,6 +223,7 @@ END_TEST
 
 START_TEST(Service_Browse_ReferenceTypes) {
     UA_Server *server = UA_Server_new();
+    ck_assert(server != NULL);
     UA_ServerConfig_setDefault(UA_Server_getConfig(server));
 
     /* add a variable node to the address space */
@@ -273,6 +278,7 @@ END_TEST
 
 START_TEST(Service_Browse_Recursive) {
     UA_Server *server = UA_Server_new();
+    ck_assert(server != NULL);
     UA_ServerConfig_setDefault(UA_Server_getConfig(server));
 
     size_t resultSize = 0;
@@ -305,6 +311,7 @@ END_TEST
 
 START_TEST(Service_Browse_Localization) {
     UA_Server *server = UA_Server_new();
+    ck_assert(server != NULL);
     UA_ServerConfig_setDefault(UA_Server_getConfig(server));
 
     UA_NodeId outerObjectId = UA_NODEID_STRING(1, "EntryPoint");

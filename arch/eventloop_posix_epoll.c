@@ -34,6 +34,7 @@ UA_EventLoopPOSIX_registerFD(UA_EventLoopPOSIX *el, UA_RegisteredFD *rfd) {
 UA_StatusCode
 UA_EventLoopPOSIX_modifyFD(UA_EventLoopPOSIX *el, UA_RegisteredFD *rfd) {
     struct epoll_event event;
+    memset(&event, 0, sizeof(struct epoll_event));
     event.data.ptr = rfd;
     event.events = 0;
     if(rfd->listenEvents & UA_FDEVENT_IN)
@@ -107,10 +108,7 @@ UA_EventLoopPOSIX_pollFDs(UA_EventLoopPOSIX *el, UA_DateTime listenTimeout) {
         } else {
             revent = UA_FDEVENT_ERR;
         }
-
-        UA_UNLOCK(&el->elMutex);
-        rfd->callback(rfd->es, rfd, revent);
-        UA_LOCK(&el->elMutex);
+        rfd->eventSourceCB(rfd->es, rfd, revent);
     }
     return UA_STATUSCODE_GOOD;
 }

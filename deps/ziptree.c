@@ -40,7 +40,7 @@ __ZIP_RANK_CMP(const void *p1, const void *p2) {
 }
 
 static ZIP_INLINE enum ZIP_CMP
-__ZIP_KEY_CMP(zip_cmp_cb cmp, const void *p1, const void *p2) {
+__ZIP_UNIQUE_CMP(zip_cmp_cb cmp, const void *p1, const void *p2) {
     if(p1 == p2)
         return ZIP_CMP_EQ;
     enum ZIP_CMP order = cmp(p1, p2);
@@ -57,10 +57,10 @@ __ZIP_VALIDATE(zip_cmp_cb cmp, unsigned short fieldoffset,
                void *min_elm, void *max_elm) {
     if(!elm)
         return;
-    enum ZIP_CMP c1 = __ZIP_KEY_CMP(cmp, ZIP_KEY_PTR(min_elm), ZIP_KEY_PTR(elm));
+    enum ZIP_CMP c1 = __ZIP_UNIQUE_CMP(cmp, ZIP_KEY_PTR(min_elm), ZIP_KEY_PTR(elm));
     assert((elm == min_elm && c1 == ZIP_CMP_EQ) || c1 == ZIP_CMP_LESS);
 
-    enum ZIP_CMP c2 = __ZIP_KEY_CMP(cmp, ZIP_KEY_PTR(max_elm), ZIP_KEY_PTR(elm));
+    enum ZIP_CMP c2 = __ZIP_UNIQUE_CMP(cmp, ZIP_KEY_PTR(max_elm), ZIP_KEY_PTR(elm));
     assert((elm == max_elm && c2 == ZIP_CMP_EQ) || c2 == ZIP_CMP_MORE);
 
     assert(!ZIP_ENTRY_PTR(elm)->right ||
@@ -72,6 +72,42 @@ __ZIP_VALIDATE(zip_cmp_cb cmp, unsigned short fieldoffset,
     __ZIP_VALIDATE(cmp, fieldoffset, keyoffset, ZIP_ENTRY_PTR(elm)->left, min_elm, elm);
 }
 #endif
+
+/* Walk down the right-side spine of cur. Elements that are larger than x_key
+ * are moved under x->right. */
+static void
+__ZIP_INSERT_MOVE_RIGHT(zip_cmp_cb cmp, unsigned short fieldoffset,
+                        unsigned short keyoffset, const void *x_key,
+                        zip_elem **fix_edge, zip_elem *cur) {
+    while(ZIP_ENTRY_PTR(cur)->right) {
+        zip_elem *move_candidate = ZIP_ENTRY_PTR(cur)->right;
+        if(__ZIP_UNIQUE_CMP(cmp, x_key, ZIP_KEY_PTR(move_candidate)) == ZIP_CMP_MORE) {
+            cur = ZIP_ENTRY_PTR(cur)->right;
+            continue;
+        }
+        ZIP_ENTRY_PTR(cur)->right = ZIP_ENTRY_PTR(move_candidate)->left;
+        ZIP_ENTRY_PTR(move_candidate)->left = NULL;
+        *fix_edge = move_candidate;
+        fix_edge = &ZIP_ENTRY_PTR(move_candidate)->left;
+    }
+}
+
+static void
+__ZIP_INSERT_MOVE_LEFT(zip_cmp_cb cmp, unsigned short fieldoffset,
+                       unsigned short keyoffset, const void *x_key,
+                       zip_elem **fix_edge, zip_elem *cur) {
+    while(ZIP_ENTRY_PTR(cur)->left) {
+        zip_elem *move_candidate = ZIP_ENTRY_PTR(cur)->left;
+        if(__ZIP_UNIQUE_CMP(cmp, x_key, ZIP_KEY_PTR(move_candidate)) == ZIP_CMP_LESS) {
+            cur = ZIP_ENTRY_PTR(cur)->left;
+            continue;
+        }
+        ZIP_ENTRY_PTR(cur)->left = ZIP_ENTRY_PTR(move_candidate)->right;
+        ZIP_ENTRY_PTR(move_candidate)->right = NULL;
+        *fix_edge = move_candidate;
+        fix_edge = &ZIP_ENTRY_PTR(move_candidate)->right;
+    }
+}
 
 void
 __ZIP_INSERT(void *h, zip_cmp_cb cmp, unsigned short fieldoffset,
@@ -87,14 +123,16 @@ __ZIP_INSERT(void *h, zip_cmp_cb cmp, unsigned short fieldoffset,
         return;
     }
 
+    /* Go down the tree to find the top element "cur" that has a rank smaller
+     * than "x" */
     zip_elem *prev = NULL;
     zip_elem *cur = head->root;
     enum ZIP_CMP cur_order, prev_order;
     do {
-        if(x == cur)
-            return;
-        cur_order = __ZIP_KEY_CMP(cmp, x_key, ZIP_KEY_PTR(cur));
-        if(__ZIP_RANK_CMP(x, cur) == ZIP_CMP_MORE)
+        cur_order = __ZIP_UNIQUE_CMP(cmp, x_key, ZIP_KEY_PTR(cur));
+        if(cur_order == ZIP_CMP_EQ)
+            return; /* x is already inserted */
+        if(__ZIP_RANK_CMP(cur, x) == ZIP_CMP_LESS)
             break;
         prev = cur;
         prev_order = cur_order;
@@ -102,6 +140,7 @@ __ZIP_INSERT(void *h, zip_cmp_cb cmp, unsigned short fieldoffset,
             ZIP_ENTRY_PTR(cur)->right : ZIP_ENTRY_PTR(cur)->left;
     } while(cur);
 
+    /* Insert "x" instead of "cur" under its parent "prev" */
     if(cur == head->root) {
         head->root = x;
     } else {
@@ -114,39 +153,17 @@ __ZIP_INSERT(void *h, zip_cmp_cb cmp, unsigned short fieldoffset,
     if(!cur)
         return;
 
-    if(cur_order != ZIP_CMP_LESS) {
+    /* Re-insert "cur" under "x". Repair by moving elements that ended up on the
+     * wrong side of "x". */
+    if(cur_order == ZIP_CMP_MORE) {
         ZIP_ENTRY_PTR(x)->left = cur;
+        __ZIP_INSERT_MOVE_RIGHT(cmp, fieldoffset, keyoffset,
+                                x_key, &ZIP_ENTRY_PTR(x)->right, cur);
     } else {
         ZIP_ENTRY_PTR(x)->right = cur;
+        __ZIP_INSERT_MOVE_LEFT(cmp, fieldoffset, keyoffset,
+                               x_key, &ZIP_ENTRY_PTR(x)->left, cur);
     }
-
-    prev = x;
-    do {
-        zip_elem *fix = prev;
-        if(cur_order == ZIP_CMP_MORE) {
-            do {
-                prev = cur;
-                cur = ZIP_ENTRY_PTR(cur)->right;
-                if(!cur)
-                    break;
-                cur_order = __ZIP_KEY_CMP(cmp, x_key, ZIP_KEY_PTR(cur));
-            } while(cur_order == ZIP_CMP_MORE);
-        } else {
-            do {
-                prev = cur;
-                cur = ZIP_ENTRY_PTR(cur)->left;
-                if(!cur)
-                    break;
-                cur_order = __ZIP_KEY_CMP(cmp, x_key, ZIP_KEY_PTR(cur));
-            } while(cur_order == ZIP_CMP_LESS);
-        }
-
-        if(__ZIP_KEY_CMP(cmp, x_key, ZIP_KEY_PTR(fix)) == ZIP_CMP_LESS ||
-           (fix == x && __ZIP_KEY_CMP(cmp, x_key, ZIP_KEY_PTR(prev)) == ZIP_CMP_LESS))
-            ZIP_ENTRY_PTR(fix)->left = cur;
-        else
-            ZIP_ENTRY_PTR(fix)->right = cur;
-    } while(cur);
 }
 
 void
@@ -160,53 +177,18 @@ __ZIP_REMOVE(void *h, zip_cmp_cb cmp, unsigned short fieldoffset,
 
     const void *x_key = ZIP_KEY_PTR(x);
     zip_elem **prev_edge = &head->root;
-    enum ZIP_CMP cur_order = __ZIP_KEY_CMP(cmp, x_key, ZIP_KEY_PTR(cur));
+    enum ZIP_CMP cur_order = __ZIP_UNIQUE_CMP(cmp, x_key, ZIP_KEY_PTR(cur));
     while(cur_order != ZIP_CMP_EQ) {
         prev_edge = (cur_order == ZIP_CMP_LESS) ?
             &ZIP_ENTRY_PTR(cur)->left : &ZIP_ENTRY_PTR(cur)->right;
         cur = *prev_edge;
         if(!cur)
             return;
-        cur_order = __ZIP_KEY_CMP(cmp, x_key, ZIP_KEY_PTR(cur));
+        cur_order = __ZIP_UNIQUE_CMP(cmp, x_key, ZIP_KEY_PTR(cur));
     }
     *prev_edge = (zip_elem*)__ZIP_ZIP(fieldoffset,
                                       ZIP_ENTRY_PTR(cur)->left,
                                       ZIP_ENTRY_PTR(cur)->right);
-}
-
-void *
-__ZIP_FIND(zip_cmp_cb cmp, unsigned short fieldoffset,
-           unsigned short keyoffset, void *cur, const void *key) {
-    while(cur) {
-        enum ZIP_CMP eq = cmp(key, ZIP_KEY_PTR(cur));
-        if(eq == ZIP_CMP_EQ)
-            return cur;
-        if(eq == ZIP_CMP_LESS)
-            cur = ZIP_ENTRY_PTR(cur)->left;
-        else
-            cur = ZIP_ENTRY_PTR(cur)->right;
-    }
-    return NULL;
-}
-
-void *
-__ZIP_MIN(unsigned short fieldoffset, void *elm) {
-    if(!elm)
-        return NULL;
-    while(ZIP_ENTRY_PTR(elm)->left) {
-        elm = ZIP_ENTRY_PTR(elm)->left;
-    }
-    return elm;
-}
-
-void *
-__ZIP_MAX(unsigned short fieldoffset, void *elm) {
-    if(!elm)
-        return NULL;
-    while(ZIP_ENTRY_PTR(elm)->right) {
-        elm = ZIP_ENTRY_PTR(elm)->right;
-    }
-    return elm;
 }
 
 void *
@@ -223,6 +205,38 @@ __ZIP_ITER(unsigned short fieldoffset, zip_iter_cb cb,
     if(res)
         return res;
     return __ZIP_ITER(fieldoffset, cb, context, right);
+}
+
+void *
+__ZIP_ITER_KEY(zip_cmp_cb cmp, unsigned short fieldoffset,
+               unsigned short keyoffset, const void *key,
+               zip_iter_cb cb, void *context, void *elm) {
+    if(!elm)
+        return NULL;
+
+    void *res;
+    enum ZIP_CMP eq = cmp(key, ZIP_KEY_PTR(elm));
+    if(eq != ZIP_CMP_MORE) {
+        res = __ZIP_ITER_KEY(cmp, fieldoffset, keyoffset, key,
+                             cb, context, ZIP_ENTRY_PTR(elm)->left);
+        if(res)
+            return res;
+    }
+
+    if(eq == ZIP_CMP_EQ) {
+        res = cb(context, elm);
+        if(res)
+            return res;
+    }
+
+    if(eq != ZIP_CMP_LESS) {
+        res = __ZIP_ITER_KEY(cmp, fieldoffset, keyoffset, key,
+                             cb, context, ZIP_ENTRY_PTR(elm)->right);
+        if(res)
+            return res;
+    }
+
+    return NULL;
 }
 
 void *
@@ -250,6 +264,45 @@ __ZIP_ZIP(unsigned short fieldoffset, void *left, void *right) {
     return root;
 }
 
+/* Walk down from cur and move all elements <= split-key to the left side. All
+ * elements that are moved over have to be below left_rightmost. Returns the
+ * hierarchy of elements that remain on the right side. */
+static void
+__ZIP_UNZIP_MOVE_LEFT(zip_cmp_cb cmp, unsigned short fieldoffset,
+                      unsigned short keyoffset, const void *key,
+                      zip_elem **fix_edge, zip_elem *cur) {
+    while(ZIP_ENTRY_PTR(cur)->left) {
+        zip_elem *next = ZIP_ENTRY_PTR(cur)->left;
+        if(cmp(key, ZIP_KEY_PTR(next)) == ZIP_CMP_LESS) {
+            cur = next;
+            continue;
+        }
+        *fix_edge = next;
+        ZIP_ENTRY_PTR(cur)->left = ZIP_ENTRY_PTR(next)->right;
+        ZIP_ENTRY_PTR(next)->right = NULL;
+        fix_edge = &ZIP_ENTRY_PTR(next)->right;
+    }
+}
+
+static void
+__ZIP_UNZIP_MOVE_RIGHT(zip_cmp_cb cmp, unsigned short fieldoffset,
+                       unsigned short keyoffset, const void *key,
+                       zip_elem **fix_edge, zip_elem *cur) {
+    while(ZIP_ENTRY_PTR(cur)->right) {
+        zip_elem *next = ZIP_ENTRY_PTR(cur)->right;
+        if(cmp(key, ZIP_KEY_PTR(next)) != ZIP_CMP_LESS) {
+            cur = next;
+            continue;
+        }
+        *fix_edge = next;
+        ZIP_ENTRY_PTR(cur)->right = ZIP_ENTRY_PTR(next)->left;
+        ZIP_ENTRY_PTR(next)->left = NULL;
+        fix_edge = &ZIP_ENTRY_PTR(next)->left;
+    }
+}
+
+/* Split the tree into a left side with keys <= split-key and a right side with
+ * key > split-key. */
 void
 __ZIP_UNZIP(zip_cmp_cb cmp, unsigned short fieldoffset,
             unsigned short keyoffset, const void *key,
@@ -263,10 +316,8 @@ __ZIP_UNZIP(zip_cmp_cb cmp, unsigned short fieldoffset,
         right->root = NULL;
         return;
     }
-
     zip_elem *cur = head->root;
-    enum ZIP_CMP head_order = cmp(key, ZIP_KEY_PTR(cur));
-    if(head_order != ZIP_CMP_LESS) {
+    if(cmp(key, ZIP_KEY_PTR(cur)) != ZIP_CMP_LESS) {
         left->root = cur;
         do {
             prev = cur;
@@ -276,20 +327,10 @@ __ZIP_UNZIP(zip_cmp_cb cmp, unsigned short fieldoffset,
                 return;
             }
         } while(cmp(key, ZIP_KEY_PTR(cur)) != ZIP_CMP_LESS);
-        right->root = cur;
         ZIP_ENTRY_PTR(prev)->right = NULL;
-        zip_elem *left_rightmost = prev;
-        while(ZIP_ENTRY_PTR(cur)->left) {
-            prev = cur;
-            cur = ZIP_ENTRY_PTR(cur)->left;
-            if(__ZIP_KEY_CMP(cmp, key, ZIP_KEY_PTR(cur)) != ZIP_CMP_LESS) {
-                ZIP_ENTRY_PTR(prev)->left = ZIP_ENTRY_PTR(cur)->right;
-                ZIP_ENTRY_PTR(cur)->right = NULL;
-                ZIP_ENTRY_PTR(left_rightmost)->right = cur;
-                left_rightmost = cur;
-                cur = prev;
-            }
-        }
+        right->root = cur;
+        __ZIP_UNZIP_MOVE_LEFT(cmp, fieldoffset, keyoffset, key,
+                              &ZIP_ENTRY_PTR(prev)->right, cur);
     } else {
         right->root = cur;
         do {
@@ -300,19 +341,9 @@ __ZIP_UNZIP(zip_cmp_cb cmp, unsigned short fieldoffset,
                 return;
             }
         } while(cmp(key, ZIP_KEY_PTR(cur)) == ZIP_CMP_LESS);
-        left->root = cur;
         ZIP_ENTRY_PTR(prev)->left = NULL;
-        zip_elem *right_leftmost = prev;
-        while(ZIP_ENTRY_PTR(cur)->right) {
-            prev = cur;
-            cur = ZIP_ENTRY_PTR(cur)->right;
-            if(__ZIP_KEY_CMP(cmp, key, ZIP_KEY_PTR(cur)) == ZIP_CMP_LESS) {
-                ZIP_ENTRY_PTR(prev)->right = ZIP_ENTRY_PTR(cur)->left;
-                ZIP_ENTRY_PTR(cur)->left = NULL;
-                ZIP_ENTRY_PTR(right_leftmost)->left = cur;
-                right_leftmost = cur;
-                cur = prev;
-            }
-        }
+        left->root = cur;
+        __ZIP_UNZIP_MOVE_RIGHT(cmp, fieldoffset, keyoffset, key,
+                               &ZIP_ENTRY_PTR(prev)->left, cur);
     }
 }

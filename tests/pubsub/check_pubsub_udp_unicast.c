@@ -58,11 +58,19 @@ static void setupFolder(UA_Server *server, UA_NodeId *folderId) {
 }
 
 
-static void setupPubSubServer(UA_Server **server, UA_ServerConfig **config, UA_UInt16 portNumber) {
-    *server = UA_Server_new();
+static void
+setupPubSubServer(UA_Server **server, UA_ServerConfig **config, UA_UInt16 portNumber,
+                  UA_EventLoop *el) {
+    UA_ServerConfig stack_config;
+    memset(&stack_config, 0, sizeof(UA_ServerConfig));
+    if(el) {
+        stack_config.eventLoop = el;
+        stack_config.externalEventLoop = true;
+    }
+    UA_ServerConfig_setMinimal(&stack_config, portNumber, NULL);
+    *server = UA_Server_newWithConfig(&stack_config);
     *config = UA_Server_getConfig(*server);
 
-    UA_ServerConfig_setMinimal(*config, portNumber, NULL);
     UA_Server_run_startup(*server);
     UA_ServerConfig_addPubSubTransportLayer(*config, UA_PubSubTransportLayerUDP());
 }
@@ -189,17 +197,17 @@ static void setupPublishingUnicast(UA_Server *server, UA_NodeId connectionId, co
     setupWrittenData(server, connectionId, outPublishedDataSetId, dstHost, dstPort);
 }
 
-static void setupSubscribing(UA_Server *server, UA_NodeId connectionId, UA_NodeId folderId, UA_UInt32 subscribeVariableNodeId) {
+static void setupSubscribing(UA_Server *server, UA_NodeId connectionId, UA_NodeId targetNodeId, UA_UInt32 subscribeVariableNodeId,
+                             UA_NodeId *outReaderGroupId) {
     /* Reader Group */
     UA_ReaderGroupConfig readerGroupConfig;
     memset (&readerGroupConfig, 0, sizeof (UA_ReaderGroupConfig));
     readerGroupConfig.name = UA_STRING ("ReaderGroup Test");
 
-    UA_NodeId outReaderGroupId;
-    UA_StatusCode retVal =  UA_Server_addReaderGroup(server, connectionId, &readerGroupConfig, &outReaderGroupId);
+    UA_StatusCode retVal =  UA_Server_addReaderGroup(server, connectionId, &readerGroupConfig, outReaderGroupId);
     ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
 
-    retVal = UA_Server_setReaderGroupOperational(server, outReaderGroupId);
+    retVal = UA_Server_setReaderGroupOperational(server, *outReaderGroupId);
     ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
 
     /* Data Set Reader */
@@ -232,28 +240,17 @@ static void setupSubscribing(UA_Server *server, UA_NodeId connectionId, UA_NodeI
     pMetaData->fields[0].valueRank   = -1; /* scalar */
 
     UA_NodeId readerIdentifier;
-    retVal = UA_Server_addDataSetReader(server, outReaderGroupId, &readerConfig,
+    retVal = UA_Server_addDataSetReader(server, *outReaderGroupId, &readerConfig,
                                          &readerIdentifier);
     ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
 
-    /* Add Subscribed Variables */
-    /* Variable to subscribe data */
-    UA_NodeId newnodeId;
-    UA_VariableAttributes vAttr = UA_VariableAttributes_default;
-    vAttr.description = UA_LOCALIZEDTEXT ("en-US", "Subscribed Int32");
-    vAttr.displayName = UA_LOCALIZEDTEXT ("en-US", "Subscribed Int32");
-    vAttr.dataType    = UA_TYPES[UA_TYPES_INT32].typeId;
-    retVal = UA_Server_addVariableNode(server, UA_NODEID_NUMERIC(1, subscribeVariableNodeId), folderId,
-                                       UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),  UA_QUALIFIEDNAME(1, "Subscribed Int32"),
-                                       UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE), vAttr, NULL, &newnodeId);
-    ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
 
     UA_FieldTargetVariable targetVar;
     memset(&targetVar, 0, sizeof(UA_FieldTargetVariable));
     /* For creating Targetvariable */
     UA_FieldTargetDataType_init(&targetVar.targetVariable);
     targetVar.targetVariable.attributeId  = UA_ATTRIBUTEID_VALUE;
-    targetVar.targetVariable.targetNodeId = newnodeId;
+    targetVar.targetVariable.targetNodeId = targetNodeId;
     retVal = UA_Server_DataSetReader_createTargetVariables(server, readerIdentifier,
                                                             1, &targetVar);
     ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
@@ -262,30 +259,55 @@ static void setupSubscribing(UA_Server *server, UA_NodeId connectionId, UA_NodeI
 }
 
 /* setup() is to create an environment for test cases */
-static void setup(void) {
+static void setupEnvironment(UA_Server **serverPub, UA_Server **serverSub, UA_ServerConfig **configPub, UA_ServerConfig **configSub,
+                             UA_NodeId *outPublisherConnectionId, UA_NodeId *outSubscriberConnectionId, UA_NodeId *outReaderGroupId,
+                             UA_NodeId *outVariableNodeId) {
     /*Add setup by creating new server with valid configuration */
-    setupPubSubServer(&serverPublisher, &configPublisher, UA_PUBLISHER_PORT);
-    UA_NodeId publisherConnectionId;
-    addUDPConnection(serverPublisher, "localhost", UA_PUBLISHER_PORT, &publisherConnectionId);
-    setupPublishingUnicast(serverPublisher, publisherConnectionId, "127.0.0.1", UA_SUBSCRIBER_PORT,
+    setupPubSubServer(serverPub, configPub, UA_PUBLISHER_PORT, NULL);
+    addUDPConnection(*serverPub, "localhost", UA_PUBLISHER_PORT, outPublisherConnectionId);
+    setupPublishingUnicast(*serverPub, *outPublisherConnectionId, "127.0.0.1", UA_SUBSCRIBER_PORT,
                            PUBLISHVARIABLE_NODEID);
 
-    setupPubSubServer(&serverSubscriber, &configSubscriber, UA_SUBSCRIBER_PORT);
+    setupPubSubServer(serverSub, configSub, UA_SUBSCRIBER_PORT,
+                      (*configPub)->eventLoop);
+
     UA_NodeId folderId;
-    setupFolder(serverSubscriber, &folderId);
-    UA_NodeId subscriberConnectionId;
-    addUDPConnection(serverSubscriber, "localhost", UA_SUBSCRIBER_PORT, &subscriberConnectionId);
-    setupSubscribing(serverSubscriber, subscriberConnectionId, folderId, SUBSCRIBEVARIABLE_NODEID);
+    setupFolder(*serverSub, &folderId);
+    addUDPConnection(*serverSub, "localhost", UA_SUBSCRIBER_PORT, outSubscriberConnectionId);
+
+    /* Add Subscribed Variables */
+    /* Variable to subscribe data */
+    UA_VariableAttributes vAttr = UA_VariableAttributes_default;
+    vAttr.description = UA_LOCALIZEDTEXT ("en-US", "Subscribed Int32");
+    vAttr.displayName = UA_LOCALIZEDTEXT ("en-US", "Subscribed Int32");
+    vAttr.dataType    = UA_TYPES[UA_TYPES_INT32].typeId;
+    UA_StatusCode retVal = UA_Server_addVariableNode(*serverSub, UA_NODEID_NUMERIC(1, SUBSCRIBEVARIABLE_NODEID), folderId,
+                                       UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),  UA_QUALIFIEDNAME(1, "Subscribed Int32"),
+                                       UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE), vAttr, NULL, outVariableNodeId);
+    ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+
+    setupSubscribing(*serverSub, *outSubscriberConnectionId, *outVariableNodeId, SUBSCRIBEVARIABLE_NODEID, outReaderGroupId);
+}
+
+/* setup() is to create an environment for test cases */
+static void setup(void) {
+
+    // UA_NodeId publisherConnectionId;
+    // UA_NodeId subscriberConnectionId;
+    // setupEnvironment(&serverPublisher, &serverSubscriber, &configPublisher, &configSubscriber,
+    //                  &publisherConnectionId, &subscriberConnectionId);
 }
 
 /* teardown() is to delete the environment set for test cases */
 static void teardown(void) {
     /*Call server delete functions */
-    UA_Server_run_shutdown(serverPublisher);
-    UA_Server_delete(serverPublisher);
-    /*Call server delete functions */
     UA_Server_run_shutdown(serverSubscriber);
     UA_Server_delete(serverSubscriber);
+
+    /* Call server delete functions (this deletes the eventloop also used in the
+     * other server) */
+    UA_Server_run_shutdown(serverPublisher);
+    UA_Server_delete(serverPublisher);
 }
 
 static void checkReceived(UA_Server *publisher, UA_UInt32 publishVariableNodeId, UA_Server *subscriber, UA_UInt32 subscribeVariableNodeId) {
@@ -314,7 +336,14 @@ static void checkReceived(UA_Server *publisher, UA_UInt32 publishVariableNodeId,
 }
 
 START_TEST(SinglePublishSubscribeInt32) {
+    UA_NodeId publisherConnectionId;
+    UA_NodeId subscriberConnectionId;
+    UA_NodeId readerGroupId;
+    UA_NodeId outVariableNodeId;
+    setupEnvironment(&serverPublisher, &serverSubscriber, &configPublisher, &configSubscriber,
+                     &publisherConnectionId, &subscriberConnectionId, &readerGroupId, &outVariableNodeId);
     /* run server - publisher and subscriber */
+
     UA_fakeSleep(PUBLISH_INTERVAL + 1);
     UA_Server_run_iterate(serverPublisher,true);
     UA_fakeSleep(PUBLISH_INTERVAL + 1);
@@ -324,12 +353,52 @@ START_TEST(SinglePublishSubscribeInt32) {
                   serverSubscriber, SUBSCRIBEVARIABLE_NODEID);
 }END_TEST
 
+START_TEST(RemoveAndAddReaderGroup) {
+        UA_NodeId publisherConnectionId;
+        UA_NodeId subscriberConnectionId;
+        UA_NodeId readerGroupId;
+        UA_NodeId outVariableNodeId;
+        setupEnvironment(&serverPublisher, &serverSubscriber, &configPublisher, &configSubscriber,
+                         &publisherConnectionId, &subscriberConnectionId, &readerGroupId, &outVariableNodeId);
+
+        UA_NodeId readerGroupId2;
+        setupSubscribing(serverSubscriber, subscriberConnectionId, outVariableNodeId, SUBSCRIBEVARIABLE_NODEID, &readerGroupId2);
+
+        /* run server - publisher and subscriber */
+        UA_fakeSleep(PUBLISH_INTERVAL + 1);
+        UA_Server_run_iterate(serverPublisher,true);
+        UA_fakeSleep(PUBLISH_INTERVAL + 1);
+        UA_Server_run_iterate(serverSubscriber,true);
+
+        UA_Server_removeReaderGroup(serverSubscriber, readerGroupId2);
+        UA_Server_removePubSubConnection(serverSubscriber, subscriberConnectionId);
+
+        /* run server - publisher and subscriber */
+        UA_fakeSleep(PUBLISH_INTERVAL + 1);
+        UA_Server_run_iterate(serverPublisher,true);
+        UA_fakeSleep(PUBLISH_INTERVAL + 1);
+        UA_Server_run_iterate(serverSubscriber,true);
+
+        addUDPConnection(serverSubscriber, "localhost", UA_SUBSCRIBER_PORT, &subscriberConnectionId);
+        setupSubscribing(serverSubscriber, subscriberConnectionId,
+                         outVariableNodeId, SUBSCRIBEVARIABLE_NODEID,
+                         &readerGroupId);
+
+        /* run server - publisher and subscriber */
+        UA_fakeSleep(PUBLISH_INTERVAL + 1);
+        UA_Server_run_iterate(serverPublisher,true);
+        UA_fakeSleep(PUBLISH_INTERVAL + 1);
+        UA_Server_run_iterate(serverSubscriber,true);
+
+    }END_TEST
+
 int main(void) {
 
     /*Test case to run both publisher and subscriber */
     TCase *tc_pubsub_publish_subscribe = tcase_create("Publisher publishing and Subscriber subscribing");
     tcase_add_checked_fixture(tc_pubsub_publish_subscribe, setup, teardown);
     tcase_add_test(tc_pubsub_publish_subscribe, SinglePublishSubscribeInt32);
+    tcase_add_test(tc_pubsub_publish_subscribe, RemoveAndAddReaderGroup);
 
     Suite *suite = suite_create("PubSub readerGroups/reader/Fields handling and publishing");
     suite_add_tcase(suite, tc_pubsub_publish_subscribe);

@@ -179,6 +179,9 @@ cleanup:
 
 /* The server needs to be stopped before it can be deleted */
 void UA_Server_delete(UA_Server *server) {
+    if(server == NULL) {
+        return;
+    }
     UA_LOCK(&server->serviceMutex);
 
     UA_Server_deleteSecureChannels(server);
@@ -262,6 +265,25 @@ serverHouseKeeping(UA_Server *server, void *_) {
     UA_Discovery_cleanupTimedOut(server, nowMonotonic);
 #endif
     UA_UNLOCK(&server->serviceMutex);
+}
+
+/* Some subsystems require regula polling of the network. This is a holdover
+ * from before the EventLoop model.
+ *
+ * TODO: Refactor to use the EventLoop instead of polling. Get rid of this
+ * entirely. */
+static void
+serverPolling(UA_Server *server, void *_) {
+    /* Listen on the pubsublayer, but only if the yield function is set. */
+#if defined(UA_ENABLE_PUBSUB_MQTT)
+    UA_PubSubConnection *connection;
+    TAILQ_FOREACH(connection, &server->pubSubManager.connections, listEntry){
+        UA_PubSubConnection *ps = connection;
+        if(ps && ps->channel && ps->channel->yield){
+            ps->channel->yield(ps->channel, 0);
+        }
+    }
+#endif
 }
 
 /********************/
@@ -372,6 +394,14 @@ UA_Server_newWithConfig(UA_ServerConfig *config) {
 
     if(server->config.eventLoop->logger == &config->logger)
         server->config.eventLoop->logger = &server->config.logger;
+
+    if((server->config.logging == NULL) ||
+       (server->config.logging == &config->logger)) {
+        /* re-set the logger pointer */
+        server->config.logging = &server->config.logger;
+    }
+    if(server->config.certificateVerification.logging == &config->logging)
+        server->config.certificateVerification.logging = &server->config.logging;
 
     /* Reset the old config */
     memset(config, 0, sizeof(UA_ServerConfig));
@@ -532,7 +562,7 @@ verifyServerApplicationURI(const UA_Server *server) {
         if(UA_String_equal(&sp->policyUri, &securityPolicyNoneUri) && (sp->localCertificate.length == 0))
             continue;
         UA_StatusCode retval = server->config.certificateVerification.
-            verifyApplicationURI(server->config.certificateVerification.context,
+            verifyApplicationURI(&server->config.certificateVerification,
                                  &sp->localCertificate,
                                  &server->config.applicationDescription.applicationUri);
 
@@ -754,7 +784,7 @@ UA_StatusCode UA_Server_removeReverseConnect(UA_Server *server, UA_UInt64 handle
 /* Main Server Loop */
 /********************/
 
-#define UA_MAXTIMEOUT 50 /* Max timeout in ms between main-loop iterations */
+#define UA_MAXTIMEOUT 200 /* Max timeout in ms between main-loop iterations */
 
 /* Start: Spin up the workers and the network layer and sample the server's
  *        start time.
@@ -784,6 +814,15 @@ UA_Server_run_startup(UA_Server *server) {
     if(server->houseKeepingCallbackId == 0) {
         UA_Server_addRepeatedCallback(server, (UA_ServerCallback)serverHouseKeeping,
                                       NULL, 1000.0, &server->houseKeepingCallbackId);
+    }
+
+    /* Add a regular callback for network polling tasks. With a 200ms interval.
+     *
+     * TODO: Move this to the EventLoop model without polling.
+     */
+    if(server->pollingCallbackId == 0) {
+        UA_Server_addRepeatedCallback(server, (UA_ServerCallback)serverPolling,
+                                      NULL, 200.0, &server->pollingCallbackId);
     }
 
     UA_StatusCode retVal = UA_STATUSCODE_GOOD;
@@ -905,44 +944,35 @@ UA_Server_run_startup(UA_Server *server) {
 
 UA_UInt16
 UA_Server_run_iterate(UA_Server *server, UA_Boolean waitInternal) {
-    /* Listen on the pubsublayer, but only if the yield function is set.
-     * TODO: Integrate into the EventLoop */
-#if defined(UA_ENABLE_PUBSUB_MQTT)
-    UA_PubSubConnection *connection;
-    TAILQ_FOREACH(connection, &server->pubSubManager.connections, listEntry){
-        UA_PubSubConnection *ps = connection;
-        if(ps && ps->channel && ps->channel->yield){
-            ps->channel->yield(ps->channel, 0);
-        }
-    }
-#endif
-
     /* Process timed and network events in the EventLoop */
-    server->config.eventLoop->run(server->config.eventLoop, UA_MAXTIMEOUT);
-
-#if defined(UA_ENABLE_DISCOVERY_MULTICAST) && (UA_MULTITHREADING < 200)
-    UA_LOCK(&server->serviceMutex);
-    if(server->config.mdnsEnabled) {
-        /* TODO multicastNextRepeat does not consider new input data (requests)
-         * on the socket. It will be handled on the next call. if needed, we
-         * need to use select with timeout on the multicast socket
-         * server->mdnsSocket (see example in mdnsd library) on higher level. */
-        UA_DateTime multicastNextRepeat = 0;
-        iterateMulticastDiscoveryServer(server, &multicastNextRepeat, true);
-    }
-    UA_UNLOCK(&server->serviceMutex);
-#endif
+    UA_UInt32 timeout = (waitInternal) ? UA_MAXTIMEOUT : 0;
+    server->config.eventLoop->run(server->config.eventLoop, timeout);
 
     /* Return the time until the next scheduled callback */
-    return (UA_UInt16)((server->config.eventLoop->nextCyclicTime(server->config.eventLoop)
-                        - UA_DateTime_nowMonotonic()) / UA_DATETIME_MSEC);
+    UA_DateTime nextTimeout =
+        ((server->config.eventLoop->nextCyclicTime(server->config.eventLoop)
+         - UA_DateTime_nowMonotonic()) / UA_DATETIME_MSEC);
+    if(nextTimeout > UA_UINT16_MAX)
+        return UA_UINT16_MAX;
+    return (UA_UInt16)nextTimeout;
 }
 
 UA_StatusCode
 UA_Server_run_shutdown(UA_Server *server) {
+    if(server == NULL) {
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    }
     /* Stop the regular housekeeping tasks */
-    UA_Server_removeCallback(server, server->houseKeepingCallbackId);
-    server->houseKeepingCallbackId = 0;
+    if(server->houseKeepingCallbackId != 0) {
+        UA_Server_removeCallback(server, server->houseKeepingCallbackId);
+        server->houseKeepingCallbackId = 0;
+    }
+
+    /* Stop the polling tasks */
+    if(server->pollingCallbackId != 0) {
+        UA_Server_removeCallback(server, server->pollingCallbackId);
+        server->pollingCallbackId = 0;
+    }
 
     /* Mark all reverse connects as destroying */
     reverse_connect_context *rev = NULL;
