@@ -24,9 +24,9 @@ static void teardown(void) {
 }
 
 START_TEST(Server_loadInvalidOrderingDiNodeset) {
-    bool retVal = UA_Server_loadNodeset(server,
+    UA_StatusCode retVal = UA_Server_loadNodeset(server,
         OPEN62541_ORDERING_DIR "Opc.Ua.Di.NodeSet2_invalid_ordering.xml", NULL);
-    ck_assert_uint_eq(retVal, true);
+    ck_assert(UA_StatusCode_isGood(retVal));
 }
 END_TEST
 
