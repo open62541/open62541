@@ -1334,6 +1334,13 @@ UA_DataSetMessage_encodeBinary(const UA_DataSetMessage* src, UA_Byte **bufPos,
 
             if(src->header.fieldEncoding == UA_FIELDENCODING_VARIANT) {
                 rv = UA_Variant_encodeBinary(&v->value, bufPos, bufEnd);
+                /* if the configuredSize is set -> padd the message with 0. */
+                if(src->configuredSize > 0 && src->header.dataSetMessageValid) {
+                    /* Set the bytes to 0*/
+                    memset(*bufPos, 0, src->configuredSize);
+                    /* move the bufpos accordingly*/
+                    *bufPos += src->configuredSize;
+                }
             } else if(src->header.fieldEncoding == UA_FIELDENCODING_RAWDATA) {
                 UA_FieldMetaData *fmd =
                     &src->data.keyFrameData.dataSetMetaDataType->fields[i];
@@ -1623,6 +1630,15 @@ UA_DataSetMessage_calcSizeBinary(UA_DataSetMessage* p,
         return 0;
     }
 
+    if(p->configuredSize > 0) {
+        /* If the message is larger than the configuredSize, it shall be set to not valid */
+        if(p->configuredSize < size) 
+            p->header.dataSetMessageValid = 0;
+        
+        size += (p->configuredSize - size);
+    }
+    
+    /* KeepAlive-Message contains no Payload Data */
     return size;
 }
 

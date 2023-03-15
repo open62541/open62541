@@ -787,6 +787,9 @@ UA_DataSetWriter_generateDataSetMessage(UA_Server *server,
             dsm->configuredSize = 0;
         }
 
+        /* setting configured size in the dataSetMessage to add padding later on */
+        dataSetMessage->configuredSize = dsm->configuredSize;
+
         /* Std: 'The DataSetMessageContentMask defines the flags for the content
          * of the DataSetMessage header.' */
         if((u64)dsm->dataSetMessageContentMask &
