@@ -1160,9 +1160,11 @@ DataSetReader_processFixedSize(UA_Server *server, UA_ReaderGroup *rg,
                       dsr->config.subscribedDataSet.subscribedDataSetTarget.targetVariables[i].targetVariableContext,
                       &tmp);
         }
-        memcpy((**tv->externalDataValue).value.data,
-                    msg->data.keyFrameData.dataSetFields[i].value.data,
-                    msg->data.keyFrameData.dataSetFields[i].value.type->memSize);
+        if(UA_LIKELY(tv->externalDataValue != NULL)) {
+            memcpy((**tv->externalDataValue).value.data,
+                   msg->data.keyFrameData.dataSetFields[i].value.data,
+                   msg->data.keyFrameData.dataSetFields[i].value.type->memSize);
+        }
         if(tv->afterWrite)
             tv->afterWrite(server, &dsr->identifier, &dsr->linkedReaderGroup,
                         &tv->targetVariable.targetNodeId,
