@@ -143,7 +143,7 @@ static void receiveSingleMessage(UA_PubSubConnection *connection) {
     do {
         UA_NetworkMessage currentNetworkMessage;
         memset(&currentNetworkMessage, 0, sizeof(UA_NetworkMessage));
-        UA_NetworkMessage_decodeBinary(&buffer, &currentPosition, &currentNetworkMessage);
+        UA_NetworkMessage_decodeBinary(&buffer, &currentPosition, &currentNetworkMessage, NULL);
         ck_assert((*((UA_UInt32 *)currentNetworkMessage.payload.dataSetPayload.dataSetMessages->data.keyFrameData.dataSetFields->value.data)) == 1000);
         UA_NetworkMessage_clear(&currentNetworkMessage);
         rcvCount++;

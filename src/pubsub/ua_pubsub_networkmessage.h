@@ -308,11 +308,8 @@ UA_NetworkMessage_decodeFooters(const UA_ByteString *src, size_t *offset,
 
 UA_StatusCode
 UA_NetworkMessage_decodeBinary(const UA_ByteString *src, size_t *offset,
-                               UA_NetworkMessage* dst);
-
-UA_StatusCode
-UA_NetworkMessage_decodeBinary_custom(const UA_ByteString *src, size_t *offset,
                                UA_NetworkMessage* dst, const UA_DataTypeArray *customTypes);
+                               
 UA_StatusCode
 UA_NetworkMessageHeader_decodeBinary(const UA_ByteString *src, size_t *offset,
                                      UA_NetworkMessage *dst);

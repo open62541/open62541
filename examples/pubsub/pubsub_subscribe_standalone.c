@@ -61,7 +61,7 @@ customDecodeAndProcessCallback(UA_PubSubChannel *psc, void *ctx, const UA_ByteSt
     UA_NetworkMessage networkMessage;
     memset(&networkMessage, 0, sizeof(UA_NetworkMessage));
     size_t currentPosition = 0;
-    UA_NetworkMessage_decodeBinary(buffer, &currentPosition, &networkMessage);
+    UA_NetworkMessage_decodeBinary(buffer, &currentPosition, &networkMessage, NULL);
 
     /* Is this the correct message type? */
     if(networkMessage.networkMessageType != UA_NETWORKMESSAGE_DATASET)

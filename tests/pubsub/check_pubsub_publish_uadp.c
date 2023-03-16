@@ -76,7 +76,7 @@ recvTestFun(UA_PubSubChannel *channel, void *context, const UA_ByteString *buffe
 
     memset(networkMessage, 0, sizeof(UA_NetworkMessage));
     size_t currentPosition = 0;
-    UA_NetworkMessage_decodeBinary(buffer, &currentPosition, networkMessage);
+    UA_NetworkMessage_decodeBinary(buffer, &currentPosition, networkMessage, NULL);
     for(int i = 0; i < networkMessage->payloadHeader.dataSetPayloadHeader.count; ++i) {
         UA_Byte * rawContent = (UA_Byte *) UA_malloc(networkMessage->payload.dataSetPayload.dataSetMessages[i].data.keyFrameData.rawFields.length);
         memcpy(rawContent,

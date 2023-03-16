@@ -891,14 +891,7 @@ UA_NetworkMessage_decodeFooters(const UA_ByteString *src, size_t *offset, UA_Net
 
 UA_StatusCode
 UA_NetworkMessage_decodeBinary(const UA_ByteString *src, size_t *offset,
-                               UA_NetworkMessage* dst) {
-    return UA_NetworkMessage_decodeBinary_custom(src, offset, dst, NULL);
-}
-
-UA_StatusCode
-UA_NetworkMessage_decodeBinary_custom(const UA_ByteString *src, size_t *offset,
                                UA_NetworkMessage* dst, const UA_DataTypeArray *customTypes) {
-
     UA_StatusCode rv = UA_STATUSCODE_GOOD;
 
     /* headers only need to be decoded when not in encryption mode
