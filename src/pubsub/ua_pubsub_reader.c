@@ -1588,6 +1588,9 @@ decodeAndProcessNetworkMessageRT(UA_Server *server, UA_ReaderGroup *readerGroup,
     UA_StatusCode rv = UA_STATUSCODE_GOOD;
     size_t currentPosition = 0;
     UA_DataSetReader *dataSetReader = LIST_FIRST(&readerGroup->readers);
+    if(!dataSetReader)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
     UA_NetworkMessage *nm = dataSetReader->bufferedMessage.nm;
 
 #ifdef UA_ENABLE_PUBSUB_ENCRYPTION
