@@ -224,17 +224,19 @@ void UA_Server_delete(UA_Server *server) {
     UA_AsyncManager_clear(&server->asyncManager, server);
 #endif
 
-    /* Stop the EventLoop and iterate until stopped or an error occurs */
-    if(server->config.eventLoop->state == UA_EVENTLOOPSTATE_STARTED)
-        server->config.eventLoop->stop(server->config.eventLoop);
-    UA_StatusCode res = UA_STATUSCODE_GOOD;
-    while(res == UA_STATUSCODE_GOOD &&
-          (server->config.eventLoop->state != UA_EVENTLOOPSTATE_FRESH &&
-           server->config.eventLoop->state != UA_EVENTLOOPSTATE_STOPPED)) {
+    if(server->config.eventLoop) {
+        /* Stop the EventLoop and iterate until stopped or an error occurs */
+        if(server->config.eventLoop->state == UA_EVENTLOOPSTATE_STARTED)
+            server->config.eventLoop->stop(server->config.eventLoop);
+        UA_StatusCode res = UA_STATUSCODE_GOOD;
+        while(res == UA_STATUSCODE_GOOD &&
+              (server->config.eventLoop->state != UA_EVENTLOOPSTATE_FRESH &&
+               server->config.eventLoop->state != UA_EVENTLOOPSTATE_STOPPED)) {
 
-        UA_UNLOCK(&server->serviceMutex);
-        res = server->config.eventLoop->run(server->config.eventLoop, 100);
-        UA_LOCK(&server->serviceMutex);
+            UA_UNLOCK(&server->serviceMutex);
+            res = server->config.eventLoop->run(server->config.eventLoop, 100);
+            UA_LOCK(&server->serviceMutex);
+        }
     }
 
     /* Clean up the Admin Session */
@@ -476,7 +478,9 @@ UA_Server_changeRepeatedCallbackInterval(UA_Server *server, UA_UInt64 callbackId
 void
 removeCallback(UA_Server *server, UA_UInt64 callbackId) {
     UA_EventLoop *el = server->config.eventLoop;
-    el->removeCyclicCallback(el, callbackId);
+    if(el) {
+        el->removeCyclicCallback(el, callbackId);
+    }
 }
 
 void
