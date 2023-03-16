@@ -98,6 +98,11 @@ UA_NetworkMessage_updateBufferedNwMessage(UA_NetworkMessageOffsetBuffer *buffer,
     UA_StatusCode rv = UA_STATUSCODE_GOOD;
     size_t payloadCounter = 0;
     size_t offset = 0;
+
+    /* The offset buffer was not prepared */
+    if(!buffer->nm)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
     UA_DataSetMessage* dsm = buffer->nm->payload.dataSetPayload.dataSetMessages; //Considering one DSM in RT TODO: Clarify multiple DSM
     UA_DataSetMessageHeader header;
     size_t smallestRawOffset = UA_UINT32_MAX;
