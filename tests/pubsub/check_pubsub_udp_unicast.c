@@ -178,6 +178,7 @@ static void setupWrittenData(UA_Server *server, UA_NodeId connectionId, UA_NodeI
     writerGroupConfig.transportSettings = transportSettings;
 
     UA_StatusCode retVal = UA_Server_addWriterGroup(server, connectionId, &writerGroupConfig, &writerGroup);
+    retVal |= UA_Server_enableWriterGroup(server, writerGroup);
     UA_Server_setWriterGroupOperational(server, writerGroup);
     /* DataSetWriter */
     UA_DataSetWriterConfig dataSetWriterConfig;
@@ -187,6 +188,8 @@ static void setupWrittenData(UA_Server *server, UA_NodeId connectionId, UA_NodeI
     dataSetWriterConfig.keyFrameCount = 10;
     retVal |= UA_Server_addDataSetWriter(server, writerGroup, publishedDataSetId,
                                          &dataSetWriterConfig, &dataSetWriter);
+
+    retVal |= UA_Server_setDataSetWriterOperational(server, dataSetWriter);
     UA_free(writerGroupMessage);
     ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
 }
@@ -206,7 +209,8 @@ static void setupSubscribing(UA_Server *server, UA_NodeId connectionId, UA_NodeI
 
     UA_StatusCode retVal =  UA_Server_addReaderGroup(server, connectionId, &readerGroupConfig, outReaderGroupId);
     ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
-
+    retVal = UA_Server_enableReaderGroup(server, *outReaderGroupId);
+    ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
     retVal = UA_Server_setReaderGroupOperational(server, *outReaderGroupId);
     ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
 

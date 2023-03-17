@@ -108,6 +108,7 @@ static void AddWriterGroup(
         writerGroupConfig.rtLevel = UA_PUBSUB_RT_FIXED_SIZE;
     }
     ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_addWriterGroup(server, *pConnectionId, &writerGroupConfig, opWriterGroupId));
+    ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_enableWriterGroup(server, *opWriterGroupId));
     UA_UadpWriterGroupMessageDataType_delete(writerGroupMessage);
 }
 
@@ -210,6 +211,7 @@ static void AddReaderGroup(
     }
     ck_assert_int_eq(UA_STATUSCODE_GOOD,
         UA_Server_addReaderGroup(server, *pConnectionId, &readerGroupConfig, opReaderGroupId));
+    ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_enableReaderGroup(server, *opReaderGroupId));
 }
 
 /***************************************************************************************************/
@@ -493,7 +495,7 @@ static void DoTest_1_Connection(
     /* set groups operational */
     ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_setWriterGroupOperational(server, WGId_Conn1_WG1));
     ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_setReaderGroupOperational(server, RGId_Conn1_RG1));
-
+    ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_setDataSetWriterOperational(server, DsWId_Conn1_WG1_DS1));
     /* check that publish/subscribe works -> set some test values */
     ValidatePublishSubscribe(DOTEST_1_CONNECTION_MAX_VARS, &publisherVarIds[0], &subscriberVarIds[0],
         &fastPathPublisherDataValues[0], &fastPathSubscriberDataValues[0], 10, (UA_UInt32) 100, 3);
@@ -675,6 +677,7 @@ static void DoTest_multiple_Connections(void) {
 
     UA_NodeId ConnectionIds[DOTEST_MULTIPLE_CONNECTIONS_MAX_COMPONENTS];
     UA_NodeId WriterGroupIds[DOTEST_MULTIPLE_CONNECTIONS_MAX_COMPONENTS];
+    UA_NodeId DataSetWritersIds[DOTEST_MULTIPLE_CONNECTIONS_MAX_COMPONENTS];
     UA_NodeId PublishedDataSetIds[DOTEST_MULTIPLE_CONNECTIONS_MAX_COMPONENTS];
     UA_NodeId ReaderGroupIds[DOTEST_MULTIPLE_CONNECTIONS_MAX_COMPONENTS];
 
@@ -716,6 +719,7 @@ static void DoTest_multiple_Connections(void) {
     AddPublishedDataSet(&WGId_Conn1_WG1, "Conn1_WG1_PDS1", "Conn1_WG1_DS1", DSW_Id, &PDSId_Conn1_WG1_PDS1,
         &publisherVarIds[0], &fastPathPublisherDataValues[0], &DsWId_Conn1_WG1_DS1);
     PublishedDataSetIds[0] = PDSId_Conn1_WG1_PDS1;
+    DataSetWritersIds[0] = DsWId_Conn1_WG1_DS1;
 
     /* setup Connection 2: */
     UA_NodeId ConnId_2;
@@ -738,6 +742,7 @@ static void DoTest_multiple_Connections(void) {
     AddPublishedDataSet(&WGId_Conn2_WG1, "Conn2_WG1_PDS1", "Conn2_WG1_DS1", DSW_Id, &PDSId_Conn2_WG1_PDS1,
         &publisherVarIds[1], &fastPathPublisherDataValues[1], &DsWId_Conn2_WG1_DS1);
     PublishedDataSetIds[1] = PDSId_Conn2_WG1_PDS1;
+    DataSetWritersIds[1] = DsWId_Conn2_WG1_DS1;
 
     /* setup Connection 3: */
     UA_NodeId ConnId_3;
@@ -760,6 +765,7 @@ static void DoTest_multiple_Connections(void) {
     AddPublishedDataSet(&WGId_Conn3_WG1, "Conn3_WG1_PDS1", "Conn3_WG1_DS1", DSW_Id, &PDSId_Conn3_WG1_PDS1,
         &publisherVarIds[2], &fastPathPublisherDataValues[2], &DsWId_Conn3_WG1_DS1);
     PublishedDataSetIds[2] = PDSId_Conn3_WG1_PDS1;
+    DataSetWritersIds[2] = DsWId_Conn3_WG1_DS1;
 
     /* setup Connection 4 */
     UA_NodeId ConnId_4;
@@ -782,6 +788,7 @@ static void DoTest_multiple_Connections(void) {
     AddPublishedDataSet(&WGId_Conn4_WG1, "Conn4_WG1_PDS1", "Conn4_WG1_DS1", DSW_Id, &PDSId_Conn4_WG1_PDS1,
         &publisherVarIds[3], &fastPathPublisherDataValues[3], &DsWId_Conn4_WG1_DS1);
     PublishedDataSetIds[3] = PDSId_Conn4_WG1_PDS1;
+    DataSetWritersIds[3] = DsWId_Conn4_WG1_DS1;
 
     /* setup Connection 5 */
     UA_NodeId ConnId_5;
@@ -804,6 +811,7 @@ static void DoTest_multiple_Connections(void) {
     AddPublishedDataSet(&WGId_Conn5_WG1, "Conn5_WG1_PDS1", "Conn5_WG1_DS1", DSW_Id, &PDSId_Conn5_WG1_PDS1,
         &publisherVarIds[4], &fastPathPublisherDataValues[4], &DsWId_Conn5_WG1_DS1);
     PublishedDataSetIds[4] = PDSId_Conn5_WG1_PDS1;
+    DataSetWritersIds[4] = DsWId_Conn5_WG1_DS1;
 
     /* setup Connection 6: */
     UA_NodeId ConnId_6;
@@ -826,6 +834,7 @@ static void DoTest_multiple_Connections(void) {
     AddPublishedDataSet(&WGId_Conn6_WG1, "Conn6_WG1_PDS1", "Conn6_WG1_DS1", DSW_Id, &PDSId_Conn6_WG1_PDS1,
         &publisherVarIds[5], &fastPathPublisherDataValues[5], &DsWId_Conn6_WG1_DS1);
     PublishedDataSetIds[5] = PDSId_Conn6_WG1_PDS1;
+    DataSetWritersIds[5] = DsWId_Conn6_WG1_DS1;
 
     /* setup all Subscribers */
 
@@ -903,6 +912,10 @@ static void DoTest_multiple_Connections(void) {
     }
     for (UA_UInt32 i = 0; i < DOTEST_MULTIPLE_CONNECTIONS_MAX_COMPONENTS; i++) {
         ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_setReaderGroupOperational(server, ReaderGroupIds[i]));
+    }
+    /* Set DataSetWriter operational*/
+    for (UA_UInt32 i = 0; i < DOTEST_MULTIPLE_CONNECTIONS_MAX_COMPONENTS; i++) {
+        ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_setDataSetWriterOperational(server, DataSetWritersIds[i]));
     }
 
     /* check that publish/subscribe works -> set some test values */
@@ -1044,6 +1057,7 @@ static void DoTest_string_PublisherId(void) {
 #define DOTEST_STRING_PUBLISHERID_MAX_COMPONENTS 5
     UA_NodeId ConnectionIds[DOTEST_STRING_PUBLISHERID_MAX_COMPONENTS];
     UA_NodeId WriterGroupIds[DOTEST_STRING_PUBLISHERID_MAX_COMPONENTS];
+    UA_NodeId DataSetWriterIds[DOTEST_STRING_PUBLISHERID_MAX_COMPONENTS];
     UA_NodeId PublishedDataSetIds[DOTEST_STRING_PUBLISHERID_MAX_COMPONENTS];
     UA_NodeId ReaderGroupIds[DOTEST_STRING_PUBLISHERID_MAX_COMPONENTS];
 
@@ -1088,6 +1102,7 @@ static void DoTest_string_PublisherId(void) {
         AddPublishedDataSet(&WGId_Conn1_WG1, "Conn1_WG1_PDS1", "Conn1_WG1_DS1", DSW_Id, &PDSId_Conn1_WG1_PDS1,
             &publisherVarIds[0], &fastPathPublisherDataValues[0], &DsWId_Conn1_WG1_DS1);
         PublishedDataSetIds[0] = PDSId_Conn1_WG1_PDS1;
+        DataSetWriterIds[0] = DsWId_Conn1_WG1_DS1;
 
         /* setup Connection 2: */
         UA_NodeId ConnId_2;
@@ -1110,6 +1125,7 @@ static void DoTest_string_PublisherId(void) {
         AddPublishedDataSet(&WGId_Conn2_WG1, "Conn2_WG1_PDS1", "Conn2_WG1_DS1", DSW_Id, &PDSId_Conn2_WG1_PDS1,
             &publisherVarIds[1], &fastPathPublisherDataValues[1], &DsWId_Conn2_WG1_DS1);
         PublishedDataSetIds[1] = PDSId_Conn2_WG1_PDS1;
+        DataSetWriterIds[1] = DsWId_Conn2_WG1_DS1;
 
         /* setup Connection 3: */
         UA_NodeId ConnId_3;
@@ -1132,6 +1148,7 @@ static void DoTest_string_PublisherId(void) {
         AddPublishedDataSet(&WGId_Conn3_WG1, "Conn3_WG1_PDS1", "Conn3_WG1_DS1", DSW_Id, &PDSId_Conn3_WG1_PDS1,
             &publisherVarIds[2], &fastPathPublisherDataValues[2], &DsWId_Conn3_WG1_DS1);
         PublishedDataSetIds[2] = PDSId_Conn3_WG1_PDS1;
+        DataSetWriterIds[2] = DsWId_Conn3_WG1_DS1;
 
         /* setup Connection 4 */
         UA_NodeId ConnId_4;
@@ -1154,6 +1171,7 @@ static void DoTest_string_PublisherId(void) {
         AddPublishedDataSet(&WGId_Conn4_WG1, "Conn4_WG1_PDS1", "Conn4_WG1_DS1", DSW_Id, &PDSId_Conn4_WG1_PDS1,
             &publisherVarIds[3], &fastPathPublisherDataValues[3], &DsWId_Conn4_WG1_DS1);
         PublishedDataSetIds[3] = PDSId_Conn4_WG1_PDS1;
+        DataSetWriterIds[3] = DsWId_Conn4_WG1_DS1;
 
         /* setup Connection 5 */
         UA_NodeId ConnId_5;
@@ -1176,6 +1194,7 @@ static void DoTest_string_PublisherId(void) {
         AddPublishedDataSet(&WGId_Conn5_WG1, "Conn5_WG1_PDS1", "Conn5_WG1_DS1", DSW_Id, &PDSId_Conn5_WG1_PDS1,
             &publisherVarIds[4], &fastPathPublisherDataValues[4], &DsWId_Conn5_WG1_DS1);
         PublishedDataSetIds[4] = PDSId_Conn5_WG1_PDS1;
+        DataSetWriterIds[4] = DsWId_Conn5_WG1_DS1;
 
         /* setup all Subscribers */
 
@@ -1245,6 +1264,10 @@ static void DoTest_string_PublisherId(void) {
     }
     for (UA_UInt32 i = 0; i < DOTEST_STRING_PUBLISHERID_MAX_COMPONENTS; i++) {
         ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_setReaderGroupOperational(server, ReaderGroupIds[i]));
+    }
+    /* set DSW operational*/
+    for (UA_UInt32 i = 0; i < DOTEST_STRING_PUBLISHERID_MAX_COMPONENTS; i++) {
+        ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_setDataSetWriterOperational(server, DataSetWriterIds[i]));
     }
 
     /* check that publish/subscribe works -> set some test values */
@@ -1613,6 +1636,7 @@ static void DoTest_multiple_Groups(void) {
 
 #define DOTEST_MULTIPLE_GROUPS_MAX_PDS 8
     UA_NodeId PublishedDataSetIds[DOTEST_MULTIPLE_GROUPS_MAX_PDS];
+    UA_NodeId DataSetWriterIds[DOTEST_MULTIPLE_GROUPS_MAX_PDS];
 
 #define DOTEST_MULTIPLE_GROUPS_MAX_READERGROUPS 8
     UA_NodeId ReaderGroupIds[DOTEST_MULTIPLE_GROUPS_MAX_READERGROUPS];
@@ -1658,6 +1682,7 @@ static void DoTest_multiple_Groups(void) {
     AddPublishedDataSet(&WGId_Conn1_WG1, "Conn1_WG1_PDS1", "Conn1_WG1_DS1", DSW_Id, &PDSId_Conn1_WG1_PDS1,
         &publisherVarIds[0], &fastPathPublisherDataValues[0], &DsWId_Conn1_WG1_DS1);
     PublishedDataSetIds[0] = PDSId_Conn1_WG1_PDS1;
+    DataSetWriterIds[0] = DsWId_Conn1_WG1_DS1;
 
     /* WriterGroup 2 */
     UA_NodeId WGId_Conn1_WG2;
@@ -1673,6 +1698,7 @@ static void DoTest_multiple_Groups(void) {
     AddPublishedDataSet(&WGId_Conn1_WG2, "Conn1_WG2_PDS1", "Conn1_WG2_DS1", DSW_Id, &PDSId_Conn1_WG2_PDS1,
         &publisherVarIds[1], &fastPathPublisherDataValues[1], &DsWId_Conn1_WG2_DS1);
     PublishedDataSetIds[1] = PDSId_Conn1_WG2_PDS1;
+    DataSetWriterIds[1] = DsWId_Conn1_WG2_DS1;
 
     /* WriterGroup 3 */
     UA_NodeId WGId_Conn1_WG3;
@@ -1688,6 +1714,7 @@ static void DoTest_multiple_Groups(void) {
     AddPublishedDataSet(&WGId_Conn1_WG3, "Conn1_WG3_PDS1", "Conn1_WG3_DS1", DSW_Id, &PDSId_Conn1_WG3_PDS1,
         &publisherVarIds[2], &fastPathPublisherDataValues[2], &DsWId_Conn1_WG3_DS1);
     PublishedDataSetIds[2] = PDSId_Conn1_WG3_PDS1;
+    DataSetWriterIds[2] = DsWId_Conn1_WG3_DS1;
 
     /* WriterGroup 4 */
     UA_NodeId WGId_Conn1_WG4;
@@ -1703,6 +1730,7 @@ static void DoTest_multiple_Groups(void) {
     AddPublishedDataSet(&WGId_Conn1_WG4, "Conn1_WG4_PDS1", "Conn1_WG4_DS1", DSW_Id, &PDSId_Conn1_WG4_PDS1,
         &publisherVarIds[3], &fastPathPublisherDataValues[3], &DsWId_Conn1_WG4_DS1);
     PublishedDataSetIds[3] = PDSId_Conn1_WG4_PDS1;
+    DataSetWriterIds[3] = DsWId_Conn1_WG4_DS1;
 
     /* setup Connection 2: */
     UA_NodeId ConnId_2;
@@ -1727,6 +1755,7 @@ static void DoTest_multiple_Groups(void) {
     AddPublishedDataSet(&WGId_Conn2_WG1, "Conn2_WG1_PDS1", "Conn2_WG1_DS1", DSW_Id, &PDSId_Conn2_WG1_PDS1,
         &publisherVarIds[4], &fastPathPublisherDataValues[4], &DsWId_Conn2_WG1_DS1);
     PublishedDataSetIds[4] = PDSId_Conn2_WG1_PDS1;
+    DataSetWriterIds[4] = DsWId_Conn2_WG1_DS1;
 
     /* WriterGroup 2 */
     UA_NodeId WGId_Conn2_WG2;
@@ -1742,6 +1771,7 @@ static void DoTest_multiple_Groups(void) {
     AddPublishedDataSet(&WGId_Conn2_WG2, "Conn2_WG2_PDS1", "Conn2_WG2_DS1", DSW_Id, &PDSId_Conn2_WG2_PDS1,
         &publisherVarIds[5], &fastPathPublisherDataValues[5], &DsWId_Conn2_WG2_DS1);
     PublishedDataSetIds[5] = PDSId_Conn2_WG2_PDS1;
+    DataSetWriterIds[5] = DsWId_Conn2_WG2_DS1;
 
     /* setup Connection 3: */
     UA_NodeId ConnId_3;
@@ -1766,6 +1796,7 @@ static void DoTest_multiple_Groups(void) {
     AddPublishedDataSet(&WGId_Conn3_WG1, "Conn3_WG1_PDS1", "Conn3_WG1_DS1", DSW_Id, &PDSId_Conn3_WG1_PDS1,
         &publisherVarIds[6], &fastPathPublisherDataValues[6], &DsWId_Conn3_WG1_DS1);
     PublishedDataSetIds[6] = PDSId_Conn3_WG1_PDS1;
+    DataSetWriterIds[6] = DsWId_Conn3_WG1_DS1;
 
     /* WriterGroup 2 */
     UA_NodeId WGId_Conn3_WG2;
@@ -1781,6 +1812,7 @@ static void DoTest_multiple_Groups(void) {
     AddPublishedDataSet(&WGId_Conn3_WG2, "Conn3_WG2_PDS1", "Conn3_WG2_DS1", DSW_Id, &PDSId_Conn3_WG2_PDS1,
         &publisherVarIds[7], &fastPathPublisherDataValues[7], &DsWId_Conn3_WG2_DS1);
     PublishedDataSetIds[7] = PDSId_Conn3_WG2_PDS1;
+    DataSetWriterIds[7] = DsWId_Conn3_WG2_DS1;
 
     /* setup all Subscribers */
 
@@ -1884,6 +1916,10 @@ static void DoTest_multiple_Groups(void) {
     for (UA_UInt32 i = 0; i < DOTEST_MULTIPLE_GROUPS_MAX_READERGROUPS; i++) {
         ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_setReaderGroupOperational(server, ReaderGroupIds[i]));
     }
+    /* set DSW operational*/
+    for (UA_UInt32 i = 0; i < DOTEST_MULTIPLE_GROUPS_MAX_PDS; i++) {
+        ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_setDataSetWriterOperational(server, DataSetWriterIds[i]));
+    }
 
     /* check that publish/subscribe works -> set some test values */
     ValidatePublishSubscribe(DOTEST_MULTIPLE_GROUPS_MAX_VARS, publisherVarIds, subscriberVarIds,
@@ -1977,6 +2013,7 @@ static void DoTest_multiple_DataSets(void) {
 
 #define DOTEST_MULTIPLE_DATASETS_MAX_PDS 6
     UA_NodeId PublishedDataSetIds[DOTEST_MULTIPLE_DATASETS_MAX_PDS];
+    UA_NodeId DataSetWriterIds[DOTEST_MULTIPLE_DATASETS_MAX_PDS];
 
 #define DOTEST_MULTIPLE_DATASETS_MAX_READERGROUPS 2
     UA_NodeId ReaderGroupIds[DOTEST_MULTIPLE_DATASETS_MAX_READERGROUPS];
@@ -2023,6 +2060,7 @@ static void DoTest_multiple_DataSets(void) {
     AddPublishedDataSet(&WGId_Conn1_WG1, "Conn1_WG1_PDS1", "Conn1_WG1_DS1", Conn1_WG1_DSW1_Id, &PDSId_Conn1_WG1_PDS1,
         &publisherVarIds[0], &fastPathPublisherDataValues[0], &DsWId_Conn1_WG1_DS1);
     PublishedDataSetIds[0] = PDSId_Conn1_WG1_PDS1;
+    DataSetWriterIds[0] = DsWId_Conn1_WG1_DS1;
 
     /* DataSetWriter 2 */
     UA_NodeId DsWId_Conn1_WG1_DS2;
@@ -2033,6 +2071,7 @@ static void DoTest_multiple_DataSets(void) {
     AddPublishedDataSet(&WGId_Conn1_WG1, "Conn1_WG2_PDS1", "Conn1_WG2_DS1", Conn1_WG1_DSW2_Id, &PDSId_Conn1_WG1_PDS2,
         &publisherVarIds[1], &fastPathPublisherDataValues[1], &DsWId_Conn1_WG1_DS2);
     PublishedDataSetIds[1] = PDSId_Conn1_WG1_PDS2;
+    DataSetWriterIds[1] = DsWId_Conn1_WG1_DS2;
 
     /* DataSetWriter 3 */
     UA_NodeId DsWId_Conn1_WG1_DS3;
@@ -2043,6 +2082,7 @@ static void DoTest_multiple_DataSets(void) {
     AddPublishedDataSet(&WGId_Conn1_WG1, "Conn1_WG2_PDS3", "Conn1_WG2_DS3", Conn1_WG1_DSW3_Id, &PDSId_Conn1_WG1_PDS3,
         &publisherVarIds[2], &fastPathPublisherDataValues[2], &DsWId_Conn1_WG1_DS3);
     PublishedDataSetIds[2] = PDSId_Conn1_WG1_PDS3;
+    DataSetWriterIds[2] = DsWId_Conn1_WG1_DS3;
 
     /* DataSetWriter 4 */
     UA_NodeId DsWId_Conn1_WG1_DS4;
@@ -2053,6 +2093,7 @@ static void DoTest_multiple_DataSets(void) {
     AddPublishedDataSet(&WGId_Conn1_WG1, "Conn1_WG2_PDS4", "Conn1_WG2_DS4", Conn1_WG1_DSW4_Id, &PDSId_Conn1_WG1_PDS4,
         &publisherVarIds[3], &fastPathPublisherDataValues[3], &DsWId_Conn1_WG1_DS4);
     PublishedDataSetIds[3] = PDSId_Conn1_WG1_PDS4;
+    DataSetWriterIds[3] = DsWId_Conn1_WG1_DS4;
 
     /* setup Connection 2: */
     UA_NodeId ConnId_2;
@@ -2078,6 +2119,7 @@ static void DoTest_multiple_DataSets(void) {
     AddPublishedDataSet(&WGId_Conn2_WG1, "Conn2_WG1_PDS1", "Conn2_WG1_DS1", Conn2_WG1_DSW1_Id, &PDSId_Conn2_WG1_PDS1,
         &publisherVarIds[4], &fastPathPublisherDataValues[4], &DsWId_Conn2_WG1_DS1);
     PublishedDataSetIds[4] = PDSId_Conn2_WG1_PDS1;
+    DataSetWriterIds[4] = DsWId_Conn2_WG1_DS1;
 
     /* DataSetWriter 2 */
     UA_NodeId DsWId_Conn2_WG1_DS2;
@@ -2088,6 +2130,7 @@ static void DoTest_multiple_DataSets(void) {
     AddPublishedDataSet(&WGId_Conn2_WG1, "Conn2_WG1_PDS2", "Conn2_WG1_DS2", Conn2_WG1_DSW2_Id, &PDSId_Conn2_WG1_PDS2,
         &publisherVarIds[5], &fastPathPublisherDataValues[5], &DsWId_Conn2_WG1_DS2);
     PublishedDataSetIds[5] = PDSId_Conn2_WG1_PDS2;
+    DataSetWriterIds[5] = DsWId_Conn2_WG1_DS2;
 
 
     /* setup all Subscribers */
@@ -2157,6 +2200,10 @@ static void DoTest_multiple_DataSets(void) {
     }
     for (UA_UInt32 i = 0; i < DOTEST_MULTIPLE_DATASETS_MAX_READERGROUPS; i++) {
         ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_setReaderGroupOperational(server, ReaderGroupIds[i]));
+    }
+    /* set DSW operational*/
+    for (UA_UInt32 i = 0; i < DOTEST_MULTIPLE_DATASETS_MAX_PDS; i++) {
+        ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_setDataSetWriterOperational(server, DataSetWriterIds[i]));
     }
 
     /* check that publish/subscribe works -> set some test values */
