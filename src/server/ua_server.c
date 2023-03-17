@@ -227,21 +227,6 @@ void UA_Server_delete(UA_Server *server) {
     /* Clean up the Admin Session */
     UA_Session_clear(&server->adminSession, server);
 
-    if(server->config.eventLoop && !server->config.externalEventLoop) {
-        /* Stop the EventLoop and iterate until stopped or an error occurs */
-        if(server->config.eventLoop->state == UA_EVENTLOOPSTATE_STARTED)
-            server->config.eventLoop->stop(server->config.eventLoop);
-        UA_StatusCode res = UA_STATUSCODE_GOOD;
-        while(res == UA_STATUSCODE_GOOD &&
-              (server->config.eventLoop->state != UA_EVENTLOOPSTATE_FRESH &&
-               server->config.eventLoop->state != UA_EVENTLOOPSTATE_STOPPED)) {
-
-            UA_UNLOCK(&server->serviceMutex);
-            res = server->config.eventLoop->run(server->config.eventLoop, 100);
-            UA_LOCK(&server->serviceMutex);
-        }
-    }
-
     UA_UNLOCK(&server->serviceMutex); /* The timer has its own mutex */
 
     /* Clean up the config */
