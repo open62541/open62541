@@ -74,7 +74,9 @@ static void setup(void) {
     connectionConfig.transportProfileUri = UA_STRING("http://opcfoundation.org/UA-Profile/Transport/pubsub-udp-uadp");
     connectionConfig.publisherIdType = UA_PUBLISHERIDTYPE_UINT16;
     connectionConfig.publisherId.uint16 = PUBLISHER_ID;
+    connectionConfig.enabled = UA_TRUE;
     UA_Server_addPubSubConnection(server, &connectionConfig, &connection_test);
+    UA_Server_setPubSubConnectionOperational(server, connection_test);
 }
 
 /* teardown() is to delete the environment set for test cases */
@@ -279,7 +281,6 @@ START_TEST(SinglePublishSubscribeInt32) {
 
         retVal |= UA_Server_addWriterGroup(server, connection_test, &writerGroupConfig, &writerGroup);
         retVal |= UA_Server_enableWriterGroup(server, writerGroup);
-
 
         UA_UadpWriterGroupMessageDataType_delete(writerGroupMessage);
         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);

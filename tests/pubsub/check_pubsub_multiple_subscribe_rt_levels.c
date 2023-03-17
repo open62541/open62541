@@ -39,6 +39,8 @@ addMinimalPubSubConfiguration(void){
     if(retVal != UA_STATUSCODE_GOOD)
         return retVal;
 
+    UA_Server_setPubSubConnectionOperational(server, connectionIdentifier);
+
     /* Add one PublishedDataSet */
     UA_PublishedDataSetConfig publishedDataSetConfig;
     memset(&publishedDataSetConfig, 0, sizeof(UA_PublishedDataSetConfig));

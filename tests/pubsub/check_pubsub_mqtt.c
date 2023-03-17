@@ -74,6 +74,7 @@ static void setup(void) {
     connectionConfig.connectionProperties.mapSize = connectionOptionIndex;
 
     UA_Server_addPubSubConnection(server, &connectionConfig, &connectionIdent);
+    UA_Server_setPubSubConnectionOperational(server, connectionIdent);
 }
 
 static void teardown(void) {

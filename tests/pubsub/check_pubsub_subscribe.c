@@ -113,6 +113,8 @@ static void setup(void) {
     connectionConfig.publisherIdType = UA_PUBLISHERIDTYPE_UINT16;
     connectionConfig.publisherId.uint16 = PUBLISHER_ID;
     UA_Server_addPubSubConnection(server, &connectionConfig, &connectionId);
+    UA_Server_enablePubSubConnection(server, connectionId);
+    UA_Server_setPubSubConnectionOperational(server, connectionId);
 }
 
 /* teardown() is to delete the environment set for test cases */

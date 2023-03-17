@@ -93,7 +93,9 @@ static void addUDPConnection(UA_Server *server, const char *host, UA_Int16 portN
     /* also set the same publisher Id for the subscriber connection as it does not matter */
     connectionConfig.publisherIdType = UA_PUBLISHERIDTYPE_UINT16;
     connectionConfig.publisherId.uint16 = PUBLISHER_ID;
+    connectionConfig.enabled = UA_TRUE;
     UA_Server_addPubSubConnection(server, &connectionConfig, outConnectionId);
+    UA_Server_setPubSubConnectionOperational(server, *outConnectionId);
 }
 
 static void setupPublishedDataInt32(UA_Server *server, UA_UInt32 publishVariableNodeId, UA_NodeId *outPublishedDataSetId) {
