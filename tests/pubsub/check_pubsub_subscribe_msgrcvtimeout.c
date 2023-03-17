@@ -56,9 +56,11 @@ static void setup(void) {
 static void teardown(void) {
 
     runtime = false;
-
+    UA_ServerConfig *config = UA_Server_getConfig(server);
+    config->pubSubConfig.stateChangeCallback = NULL;
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "\n\nteardown\n\n");
-
+    if (server->serviceMutex.mutexCounter != 0)
+        UA_UNLOCK(&server->serviceMutex);
     ck_assert(UA_STATUSCODE_GOOD == UA_Server_run_shutdown(server));
     UA_Server_delete(server);
 
@@ -502,28 +504,45 @@ START_TEST(Test_basic) {
     ck_assert(state == UA_PUBSUBSTATE_DISABLED);
 
     /* state change to operational of WriterGroup */
-    ExpectedCallbackCnt = 3;
-    pExpectedComponentCallbackIds = (UA_NodeId*) UA_calloc(ExpectedCallbackCnt, sizeof(UA_NodeId));
+    ExpectedCallbackCnt = 7;
+    // 4 for 2 connections 2 for WG and 1 for DSW
+    // Allocate the callback array for maximum size
+    pExpectedComponentCallbackIds = (UA_NodeId*) UA_calloc(3, sizeof(UA_NodeId));
     ck_assert(pExpectedComponentCallbackIds != 0);
+
+    ExpectedCallbackStateChange = UA_PUBSUBSTATE_OPERATIONAL;
     pExpectedComponentCallbackIds[0] = DsWId_Conn1_WG1_DS1;
     pExpectedComponentCallbackIds[1] = WGId_Conn1_WG1;
 
     ExpectedCallbackStatus = UA_STATUSCODE_GOOD;
-    ExpectedCallbackStateChange = UA_PUBSUBSTATE_OPERATIONAL;
 
     /* set WriterGroup operational */
-    ck_assert(UA_Server_setWriterGroupOperational(server, WGId_Conn1_WG1) == UA_STATUSCODE_GOOD);
+    ck_assert(UA_Server_enableWriterGroup(server, WGId_Conn1_WG1) == UA_STATUSCODE_GOOD);
 
     /* check that callback has been called for writer group and dataset */
-    ck_assert_int_eq(4, CallbackCnt);
+    ck_assert_int_eq(ExpectedCallbackCnt, CallbackCnt);
     CallbackCnt = 0;
 
     ck_assert(UA_Server_WriterGroup_getState(server, WGId_Conn1_WG1, &state) == UA_STATUSCODE_GOOD);
     ck_assert(state == UA_PUBSUBSTATE_OPERATIONAL);
     ck_assert(UA_Server_DataSetWriter_getState(server, DsWId_Conn1_WG1_DS1, &state) == UA_STATUSCODE_GOOD);
-    ck_assert(state == UA_PUBSUBSTATE_OPERATIONAL);
+    ck_assert(state == UA_PUBSUBSTATE_PREOPERATIONAL);
 
-    ServerDoProcess("0", (UA_UInt32) (PublishingInterval_Conn1WG1), 3);
+    /* state change to operational of Writer */
+    ExpectedCallbackCnt = 1;
+    pExpectedComponentCallbackIds[0] = DsWId_Conn1_WG1_DS1;
+    ExpectedCallbackStatus = UA_STATUSCODE_GOOD;
+    pExpectedComponentCallbackIds[0] = DsWId_Conn1_WG1_DS1;
+    ExpectedCallbackStateChange = UA_PUBSUBSTATE_OPERATIONAL;
+
+    ServerDoProcess("Wait Writer", 15, 1);
+
+    /* check that callback has been called for writer group and dataset */
+    ck_assert_int_eq(ExpectedCallbackCnt, CallbackCnt);
+    CallbackCnt = 0;
+
+    ck_assert(UA_Server_DataSetWriter_getState(server, DsWId_Conn1_WG1_DS1, &state) == UA_STATUSCODE_GOOD);
+    ck_assert(state == UA_PUBSUBSTATE_OPERATIONAL);
 
     /* there should not be a MessageReceiveTimeout, writers are running, readers are still disabled  */
     ck_assert(CallbackCnt == 0);
@@ -534,25 +553,31 @@ START_TEST(Test_basic) {
     ck_assert(UA_Server_DataSetReader_getState(server, DSRId_Conn2_RG1_DSR1, &state) == UA_STATUSCODE_GOOD);
     ck_assert(state == UA_PUBSUBSTATE_DISABLED);
 
-    /* state change to operational of WriterGroup */
-    ExpectedCallbackCnt = 2;
-    pExpectedComponentCallbackIds[0] = DSRId_Conn2_RG1_DSR1;
+    /* state change to operational of ReaderGroup */
+    ExpectedCallbackCnt = 1;
     pExpectedComponentCallbackIds[1] = RGId_Conn2_RG1;
-
-    ExpectedCallbackStatus = UA_STATUSCODE_GOOD;
     ExpectedCallbackStateChange = UA_PUBSUBSTATE_OPERATIONAL;
+    ExpectedCallbackStatus = UA_STATUSCODE_GOOD;
 
     /* set ReaderGroup operational */
-    ck_assert(UA_Server_setReaderGroupOperational(server, RGId_Conn2_RG1) == UA_STATUSCODE_GOOD);
+    ck_assert(UA_Server_enableReaderGroup(server, RGId_Conn2_RG1) == UA_STATUSCODE_GOOD);
 
     /* check that callback has been called for reader group and dataset */
-    ck_assert_int_eq(2, CallbackCnt);
+    ck_assert_int_eq(ExpectedCallbackCnt, CallbackCnt);
     CallbackCnt = 0;
 
     ck_assert(UA_Server_ReaderGroup_getState(server, RGId_Conn2_RG1, &state) == UA_STATUSCODE_GOOD);
     ck_assert(state == UA_PUBSUBSTATE_PREOPERATIONAL);
     ck_assert(UA_Server_DataSetReader_getState(server, DSRId_Conn2_RG1_DSR1, &state) == UA_STATUSCODE_GOOD);
-    ck_assert(state == UA_PUBSUBSTATE_OPERATIONAL);
+    ck_assert(state == UA_PUBSUBSTATE_DISABLED);
+
+    /* state change to operational of ReaderGroup */
+    ExpectedCallbackCnt = 2;
+
+    pExpectedComponentCallbackIds[0] = DSRId_Conn2_RG1_DSR1;
+    pExpectedComponentCallbackIds[1] = RGId_Conn2_RG1;
+    ExpectedCallbackStateChange = UA_PUBSUBSTATE_OPERATIONAL;
+    ExpectedCallbackStatus = UA_STATUSCODE_GOOD;
 
     /* check that publish/subscribe works -> set some test values */
     ValidatePublishSubscribe(VarId_Conn1_WG1, VarId_Conn2_RG1_DSR1, 10, (UA_UInt32) PublishingInterval_Conn1WG1, 3);
@@ -563,6 +588,10 @@ START_TEST(Test_basic) {
 
     ck_assert(UA_Server_DataSetReader_getState(server, DSRId_Conn2_RG1_DSR1, &state) == UA_STATUSCODE_GOOD);
     ck_assert(state == UA_PUBSUBSTATE_OPERATIONAL);
+
+    /* check that callback has been called for reader group and dataset */
+    ck_assert_int_eq(ExpectedCallbackCnt, CallbackCnt);
+    CallbackCnt = 0;
 
     /* there should not be a callback notification for MessageReceiveTimeout */
     ck_assert(CallbackCnt == 0);
@@ -583,7 +612,7 @@ START_TEST(Test_basic) {
     ck_assert(state == UA_PUBSUBSTATE_DISABLED);
 
     /* check that callback has been called for writer group and dataset */
-    ck_assert_int_eq(2, CallbackCnt);
+    ck_assert_int_eq(ExpectedCallbackCnt, CallbackCnt);
     CallbackCnt = 0;
 
     ExpectedCallbackCnt = 1;
@@ -598,27 +627,42 @@ START_TEST(Test_basic) {
 
     /* state of ReaderGroup should still be ok */
     ck_assert(UA_Server_ReaderGroup_getState(server, RGId_Conn2_RG1, &state) == UA_STATUSCODE_GOOD);
-    ck_assert(state == UA_PUBSUBSTATE_PREOPERATIONAL);
+    ck_assert(state == UA_PUBSUBSTATE_OPERATIONAL);
      /* but DataSetReader state shall be error */
     ck_assert(UA_Server_DataSetReader_getState(server, DSRId_Conn2_RG1_DSR1, &state) == UA_STATUSCODE_GOOD);
     ck_assert(state == UA_PUBSUBSTATE_ERROR);
 
     /* check that PubSubStateChange callback has been called for the specific DataSetReader */
-    ck_assert_int_eq(1, CallbackCnt);
+    ck_assert_int_eq(ExpectedCallbackCnt, CallbackCnt);
     CallbackCnt = 0;
 
     /* enable the publisher WriterGroup again */
     /* DataSetReader state shall be back to operational after receiving a new message */
-    ExpectedCallbackCnt = 2;
+    ExpectedCallbackCnt = 3;
     pExpectedComponentCallbackIds[0] = DsWId_Conn1_WG1_DS1;
     pExpectedComponentCallbackIds[1] = WGId_Conn1_WG1;
     ExpectedCallbackStatus = UA_STATUSCODE_GOOD;
     ExpectedCallbackStateChange = UA_PUBSUBSTATE_OPERATIONAL;
+
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "enable writergroup");
-    ck_assert(UA_Server_setWriterGroupOperational(server, WGId_Conn1_WG1) == UA_STATUSCODE_GOOD);
+    ck_assert(UA_Server_enableWriterGroup(server, WGId_Conn1_WG1) == UA_STATUSCODE_GOOD);
 
     /* check that callback has been called for writer group and dataset */
-    ck_assert_int_eq(2, CallbackCnt);
+    ck_assert_int_eq(ExpectedCallbackCnt, CallbackCnt);
+    CallbackCnt = 0;
+
+    /* state change to operational of Writer */
+    ExpectedCallbackCnt = 1;
+    pExpectedComponentCallbackIds[0] = DsWId_Conn1_WG1_DS1;
+
+    ExpectedCallbackStatus = UA_STATUSCODE_GOOD;
+    pExpectedComponentCallbackIds[0] = DsWId_Conn1_WG1_DS1;
+    ExpectedCallbackStateChange = UA_PUBSUBSTATE_OPERATIONAL;
+
+    ServerDoProcess("Wait Writer", 15, 1);
+
+    /* check that callback has been called for writer group and dataset */
+    ck_assert_int_eq(ExpectedCallbackCnt, CallbackCnt);
     CallbackCnt = 0;
 
     ExpectedCallbackCnt = 1;
@@ -637,7 +681,7 @@ START_TEST(Test_basic) {
     ck_assert(UA_Server_DataSetReader_getState(server, DSRId_Conn2_RG1_DSR1, &state) == UA_STATUSCODE_GOOD);
     ck_assert(state == UA_PUBSUBSTATE_OPERATIONAL);
     /* PubSubStateChange callback must not have been triggered again */
-    ck_assert_int_eq(1, CallbackCnt);
+    ck_assert_int_eq(ExpectedCallbackCnt, CallbackCnt);
     CallbackCnt = 0;
 
     /* now we disable the reader */
@@ -652,7 +696,7 @@ START_TEST(Test_basic) {
     ck_assert(UA_Server_setReaderGroupDisabled(server, RGId_Conn2_RG1) == UA_STATUSCODE_GOOD);
 
     /* check that callback has been called for reader group and dataset */
-    ck_assert_int_eq(2, CallbackCnt);
+    ck_assert_int_eq(ExpectedCallbackCnt, CallbackCnt);
     CallbackCnt = 0;
 
     ck_assert(UA_Server_ReaderGroup_getState(server, RGId_Conn2_RG1, &state) == UA_STATUSCODE_GOOD);
@@ -674,7 +718,7 @@ START_TEST(Test_basic) {
     ck_assert(UA_Server_setWriterGroupDisabled(server, WGId_Conn1_WG1) == UA_STATUSCODE_GOOD);
 
     /* check that callback has been called for writer group and dataset */
-    ck_assert_int_eq(2, CallbackCnt);
+    ck_assert_int_eq(ExpectedCallbackCnt, CallbackCnt);
     CallbackCnt = 0;
 
     ck_assert(UA_Server_WriterGroup_getState(server, WGId_Conn1_WG1, &state) == UA_STATUSCODE_GOOD);
@@ -736,6 +780,8 @@ PubSubStateChangeCallback_different_timeouts(UA_Server *hostServer, UA_NodeId *p
         return;
 
     UA_String strId;
+    UA_Boolean componentExists = UA_FALSE;
+
     UA_String_init(&strId);
     UA_NodeId_print(pubsubComponentId, &strId);
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "PubSubStateChangeCallback(): "
@@ -783,7 +829,6 @@ START_TEST(Test_different_timeouts) {
                                                         --> Connection 1: RG1 : DSR2 (msgrcvtimeout = 200)
                                                         --> Connection 2: RG1 : DSR1 (msgrcvtimeout = 300)
     */
-
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "prepare configuration");
 
     UA_ServerConfig *config = UA_Server_getConfig(server);
@@ -865,9 +910,9 @@ START_TEST(Test_different_timeouts) {
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "Conn2_RG1_DSR1 Id = %.*s", (UA_Int32) strId.length, strId.data);
     UA_String_clear(&strId);
 
-    /* prepare expected order of pubsub component timeouts: */
-    ExpectedCallbackCnt = 6;
-    pExpectedComponentCallbackIds = (UA_NodeId*) UA_calloc(ExpectedCallbackCnt, sizeof(UA_NodeId));
+
+    // Allocate the callback array for maximum size
+    pExpectedComponentCallbackIds = (UA_NodeId*) UA_calloc(6, sizeof(UA_NodeId));
     ck_assert(pExpectedComponentCallbackIds != 0);
 
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "check normal pubsub operation");
@@ -877,22 +922,52 @@ START_TEST(Test_different_timeouts) {
         message receive timeout.
         If we do some other checks before triggering the server_run_iterate function, this could
         cause a timeout. */
+
+    /* prepare expected order of pubsub component timeouts: */
+    ExpectedCallbackCnt = 6;
     ExpectedCallbackStateChange = UA_PUBSUBSTATE_OPERATIONAL;
     ExpectedCallbackStatus = UA_STATUSCODE_GOOD;
 
-    ExpectedCallbackCnt = 8;
+    pExpectedComponentCallbackIds[0] = RGId_Conn1_RG1;
+    pExpectedComponentCallbackIds[1] = RGId_Conn2_RG1;
+
+    ck_assert(UA_STATUSCODE_GOOD == UA_Server_enableReaderGroup(server, RGId_Conn1_RG1));
+    ck_assert(UA_STATUSCODE_GOOD == UA_Server_enableReaderGroup(server, RGId_Conn2_RG1));
+
+    ck_assert_int_eq(ExpectedCallbackCnt, CallbackCnt);
+    CallbackCnt = 0;
+
+    ExpectedCallbackCnt = 3;
+    ExpectedCallbackStatus = UA_STATUSCODE_GOOD;
+    pExpectedComponentCallbackIds[0] = DsWId_Conn1_WG1_DS1;
+    pExpectedComponentCallbackIds[1] = WGId_Conn1_WG1;
+    ExpectedCallbackStateChange = UA_PUBSUBSTATE_OPERATIONAL;
+
+    ck_assert(UA_STATUSCODE_GOOD == UA_Server_enableWriterGroup(server, WGId_Conn1_WG1));
+
+    ck_assert_int_eq(ExpectedCallbackCnt, CallbackCnt);
+    CallbackCnt = 0;
+
+    ExpectedCallbackCnt = 1;
+    ExpectedCallbackStatus = UA_STATUSCODE_GOOD;
+    pExpectedComponentCallbackIds[0] = DsWId_Conn1_WG1_DS1;
+    ExpectedCallbackStateChange = UA_PUBSUBSTATE_OPERATIONAL;
+    ServerDoProcess("Wait Writer", 15, 1);
+
+    ck_assert_int_eq(ExpectedCallbackCnt, CallbackCnt);
+    CallbackCnt = 0;
+
+    ExpectedCallbackCnt = 4;
+    ExpectedCallbackStateChange = UA_PUBSUBSTATE_OPERATIONAL;
+    ExpectedCallbackStatus = UA_STATUSCODE_GOOD;
+    /* TODO: 2nd datasetreader */
+
     pExpectedComponentCallbackIds[0] = DSRId_Conn1_RG1_DSR1;
     pExpectedComponentCallbackIds[1] = RGId_Conn1_RG1;
     pExpectedComponentCallbackIds[2] = DSRId_Conn2_RG1_DSR1;
     pExpectedComponentCallbackIds[3] = RGId_Conn2_RG1;
-    /* TODO: 2nd datasetreader */
-    pExpectedComponentCallbackIds[4] = DsWId_Conn1_WG1_DS1;
-    pExpectedComponentCallbackIds[5] = WGId_Conn1_WG1;
 
-    ck_assert(UA_STATUSCODE_GOOD == UA_Server_setReaderGroupOperational(server, RGId_Conn1_RG1));
-    ck_assert(UA_STATUSCODE_GOOD == UA_Server_setReaderGroupOperational(server, RGId_Conn2_RG1));
-    ck_assert(UA_STATUSCODE_GOOD == UA_Server_setWriterGroupOperational(server, WGId_Conn1_WG1));
-
+    ServerDoProcess("1", (UA_UInt32) (PublishingInterval_Conn1_WG1+1), 2);
     /* check that callback has been called for writer and reader groups and datasets */
     ck_assert_int_eq(ExpectedCallbackCnt, CallbackCnt);
     CallbackCnt = 0;
@@ -921,10 +996,10 @@ START_TEST(Test_different_timeouts) {
 
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "disable writergroup");
     ExpectedCallbackCnt = 2;
+    ExpectedCallbackStateChange = UA_PUBSUBSTATE_DISABLED;
     pExpectedComponentCallbackIds[0] = DsWId_Conn1_WG1_DS1;
     pExpectedComponentCallbackIds[1] = WGId_Conn1_WG1;
     ExpectedCallbackStatus = UA_STATUSCODE_BADRESOURCEUNAVAILABLE;
-    ExpectedCallbackStateChange = UA_PUBSUBSTATE_DISABLED;
 
     ck_assert(UA_STATUSCODE_GOOD == UA_Server_setWriterGroupDisabled(server, WGId_Conn1_WG1));
 
@@ -941,13 +1016,13 @@ START_TEST(Test_different_timeouts) {
     pExpectedComponentCallbackIds[1] = DSRId_Conn2_RG1_DSR1;
     /* TODO: 2nd datasetreader */
 
-    ServerDoProcess("1", (UA_UInt32) (PublishingInterval_Conn1_WG1), 20);
+    ServerDoProcess("2", (UA_UInt32) (PublishingInterval_Conn1_WG1), 20);
     /* check that callback has been called for reader group and dataset */
     ck_assert_int_eq(ExpectedCallbackCnt, CallbackCnt);
 
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "there should not be any additional timeouts");
 
-    ServerDoProcess("2", (UA_UInt32) (PublishingInterval_Conn1_WG1), 20);
+    ServerDoProcess("3", (UA_UInt32) (PublishingInterval_Conn1_WG1), 20);
     ck_assert_int_eq(ExpectedCallbackCnt, CallbackCnt);
 
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "END: Test_different_timeouts\n\n");
@@ -1039,12 +1114,18 @@ START_TEST(Test_wrong_timeout) {
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "set writer and reader to operational");
 
     /* set all writer- and readergroups to operational */
-    ck_assert(UA_STATUSCODE_GOOD == UA_Server_setWriterGroupOperational(server, WGId_Conn1_WG1));
-    ck_assert(UA_STATUSCODE_GOOD == UA_Server_setReaderGroupOperational(server, RGId_Conn1_RG1));
+    ck_assert(UA_STATUSCODE_GOOD == UA_Server_enableWriterGroup(server, WGId_Conn1_WG1));
+    // Run Server so that DSW timer is triggered to set DSW to operational
+    ServerDoProcess("Wait Writer", 15, 1);
+
+    ck_assert(UA_STATUSCODE_GOOD == UA_Server_enableReaderGroup(server, RGId_Conn1_RG1));
 
     UA_PubSubState state = UA_PUBSUBSTATE_DISABLED;
     ck_assert(UA_Server_DataSetWriter_getState(server, DsWId_Conn1_WG1_DS1, &state) == UA_STATUSCODE_GOOD);
     ck_assert(state == UA_PUBSUBSTATE_OPERATIONAL);
+
+    // Process to send out the first frame
+    ServerDoProcess("1", (UA_UInt32) (PublishingInterval_Conn1_WG1 + 1), 1);
 
     /* timeout should happen after receipt of first message  */
     ServerDoProcess("1", (UA_UInt32) (MessageReceiveTimeout_Conn1_RG1_DSR1 + 100), 1);
@@ -1739,12 +1820,12 @@ START_TEST(Test_update_config) {
 
     UA_PubSubState state;
     /* set WriterGroup operational */
-    ck_assert(UA_Server_setWriterGroupOperational(server, WGId_Conn1_WG1) == UA_STATUSCODE_GOOD);
-
-    ServerDoProcess("1", SleepTime, NoOfRunIterateCycles);
+    ck_assert(UA_Server_enableWriterGroup(server, WGId_Conn1_WG1) == UA_STATUSCODE_GOOD);
 
     /* set ReaderGroup operational */
-    ck_assert(UA_Server_setReaderGroupOperational(server, RGId_Conn1_RG1) == UA_STATUSCODE_GOOD);
+    ck_assert(UA_Server_enableReaderGroup(server, RGId_Conn1_RG1) == UA_STATUSCODE_GOOD);
+
+    ServerDoProcess("1", SleepTime, NoOfRunIterateCycles);
 
     /* check number of state changes */
     ck_assert(CallbackCnt == 1);
@@ -1774,7 +1855,7 @@ START_TEST(Test_update_config) {
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "enable writer group");
     ExpectedCallbackStateChange = UA_PUBSUBSTATE_OPERATIONAL;
     ExpectedCallbackStatus = UA_STATUSCODE_GOOD;
-    ck_assert(UA_Server_setWriterGroupOperational(server, WGId_Conn1_WG1) == UA_STATUSCODE_GOOD);
+    ck_assert(UA_Server_enableWriterGroup(server, WGId_Conn1_WG1) == UA_STATUSCODE_GOOD);
 
     ServerDoProcess("3", SleepTime, NoOfRunIterateCycles);
 
@@ -1928,12 +2009,12 @@ START_TEST(Test_fast_path) {
 
     /* freeze WriterGroup and set it operational */
     ck_assert(UA_Server_freezeWriterGroupConfiguration(server, WGId_Conn1_WG1) == UA_STATUSCODE_GOOD);
-    ck_assert(UA_Server_setWriterGroupOperational(server, WGId_Conn1_WG1) == UA_STATUSCODE_GOOD);
+    ck_assert(UA_Server_enableWriterGroup(server, WGId_Conn1_WG1) == UA_STATUSCODE_GOOD);
 
     ck_assert(UA_Server_WriterGroup_getState(server, WGId_Conn1_WG1, &state) == UA_STATUSCODE_GOOD);
     ck_assert(state == UA_PUBSUBSTATE_OPERATIONAL);
     ck_assert(UA_Server_DataSetWriter_getState(server, DsWId_Conn1_WG1_DS1, &state) == UA_STATUSCODE_GOOD);
-    ck_assert(state == UA_PUBSUBSTATE_OPERATIONAL);
+    ck_assert(state == UA_PUBSUBSTATE_PREOPERATIONAL);
 
     ServerDoProcess("0", (UA_UInt32) (PublishingInterval_Conn1WG1), 3);
 
@@ -1952,14 +2033,15 @@ START_TEST(Test_fast_path) {
     ExpectedCallbackStateChange = UA_PUBSUBSTATE_OPERATIONAL;
 
     ck_assert(UA_Server_freezeReaderGroupConfiguration(server, RGId_Conn2_RG1) == UA_STATUSCODE_GOOD);
-    ck_assert(UA_Server_setReaderGroupOperational(server, RGId_Conn2_RG1) == UA_STATUSCODE_GOOD);
+    ck_assert(UA_Server_enableReaderGroup(server, RGId_Conn2_RG1) == UA_STATUSCODE_GOOD);
 
+    ServerDoProcess("0", (UA_UInt32) (PublishingInterval_Conn1WG1), 1);
     /* check that PubSubStateChange callback has been called for the specific DataSetReader */
     ck_assert_int_eq(1, CallbackCnt);
     CallbackCnt = 0;
 
     ck_assert(UA_Server_ReaderGroup_getState(server, RGId_Conn2_RG1, &state) == UA_STATUSCODE_GOOD);
-    ck_assert(state == UA_PUBSUBSTATE_PREOPERATIONAL);
+    ck_assert(state == UA_PUBSUBSTATE_OPERATIONAL);
     ck_assert(UA_Server_DataSetReader_getState(server, DSRId_Conn2_RG1_DSR1, &state) == UA_STATUSCODE_GOOD);
     ck_assert(state == UA_PUBSUBSTATE_OPERATIONAL);
 
@@ -1994,7 +2076,7 @@ START_TEST(Test_fast_path) {
 
     /* state of ReaderGroup should still be ok */
     ck_assert(UA_Server_ReaderGroup_getState(server, RGId_Conn2_RG1, &state) == UA_STATUSCODE_GOOD);
-    ck_assert(state == UA_PUBSUBSTATE_PREOPERATIONAL);
+    ck_assert(state == UA_PUBSUBSTATE_OPERATIONAL);
      /* but DataSetReader state shall be error */
     ck_assert(UA_Server_DataSetReader_getState(server, DSRId_Conn2_RG1_DSR1, &state) == UA_STATUSCODE_GOOD);
     ck_assert(state == UA_PUBSUBSTATE_ERROR);
@@ -2007,7 +2089,7 @@ START_TEST(Test_fast_path) {
     ExpectedCallbackStatus = UA_STATUSCODE_GOOD;
     ExpectedCallbackStateChange = UA_PUBSUBSTATE_OPERATIONAL;
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "enable writergroup");
-    ck_assert(UA_Server_setWriterGroupOperational(server, WGId_Conn1_WG1) == UA_STATUSCODE_GOOD);
+    ck_assert(UA_Server_enableWriterGroup(server, WGId_Conn1_WG1) == UA_STATUSCODE_GOOD);
 
     ServerDoProcess("2", (UA_UInt32) (PublishingInterval_Conn1WG1), 4);
 

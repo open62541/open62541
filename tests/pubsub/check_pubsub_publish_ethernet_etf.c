@@ -92,7 +92,7 @@ START_TEST(EthernetSendWithoutVLANTag) {
                                  &writerGroupConfig, &localWriterGroup);
     ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
 
-    retVal = UA_Server_setWriterGroupOperational(server, localWriterGroup);
+    retVal = UA_Server_enableWriterGroup(server, localWriterGroup);
     ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
 
     /* TODO: Encapsulate ETF config in transportSettings */

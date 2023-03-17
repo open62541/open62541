@@ -486,7 +486,7 @@ START_TEST(AddValidSksClientwithWriterGroup) {
                   UA_StatusCode_name(retval));
     UA_WriterGroup *wg = UA_WriterGroup_findWGbyId(publisherApp, writerGroupId);
     ck_assert(wg != NULL);
-    retval = UA_Server_setWriterGroupOperational(publisherApp, writerGroupId);
+    retval = UA_Server_enableWriterGroup(publisherApp, writerGroupId);
     ck_assert_msg(retval == UA_STATUSCODE_GOOD,
                   "Expected Statuscode to be Good, but failed with: %s ",
                   UA_StatusCode_name(retval));
@@ -530,7 +530,7 @@ START_TEST(AddValidSksClientwithReaderGroup) {
     UA_ReaderGroup *rg = UA_ReaderGroup_findRGbyId(subscriberApp, readerGroupId);
     ck_assert(rg != NULL);
 
-    retval = UA_Server_setReaderGroupOperational(subscriberApp, writerGroupId);
+    retval = UA_Server_enableReaderGroup(subscriberApp, writerGroupId);
     ck_assert_msg(retval == UA_STATUSCODE_GOOD,
                   "Expected Statuscode to be Good, but failed with: %s ",
                   UA_StatusCode_name(retval));
@@ -625,9 +625,9 @@ START_TEST(CheckPublishedValuesInUserLand) {
         UA_Server_run_iterate(subscriberApp, false);
     }
 
-    retval = UA_Server_setWriterGroupOperational(publisherApp, writerGroupId);
+    retval = UA_Server_enableWriterGroup(publisherApp, writerGroupId);
     ck_assert(retval == UA_STATUSCODE_GOOD);
-    retval = UA_Server_setReaderGroupOperational(subscriberApp, readerGroupId);
+    retval = UA_Server_enableReaderGroup(subscriberApp, readerGroupId);
     ck_assert(retval == UA_STATUSCODE_GOOD);
 
     UA_Variant *publishedNodeData = UA_Variant_new();
@@ -673,9 +673,9 @@ START_TEST(PublisherSubscriberTogethor) {
     while(UA_StatusCode_isBad(sksPullStatus)) {
         UA_Server_run_iterate(publisherApp, false);
     }
-    retval = UA_Server_setWriterGroupOperational(publisherApp, writerGroupId);
+    retval = UA_Server_enableWriterGroup(publisherApp, writerGroupId);
     ck_assert(retval == UA_STATUSCODE_GOOD);
-    retval = UA_Server_setReaderGroupOperational(publisherApp, readerGroupId);
+    retval = UA_Server_enableReaderGroup(publisherApp, readerGroupId);
     ck_assert(retval == UA_STATUSCODE_GOOD);
 
     UA_Variant *publishedNodeData = UA_Variant_new();
@@ -725,10 +725,10 @@ START_TEST(PublisherDelayedSubscriberTogethor) {
         UA_Server_run_iterate(publisherApp, false);
     }
 
-    retval = UA_Server_setWriterGroupOperational(publisherApp, writerGroupId);
+    retval = UA_Server_enableWriterGroup(publisherApp, writerGroupId);
     ck_assert(retval == UA_STATUSCODE_GOOD);
 
-    retval = UA_Server_setReaderGroupOperational(publisherApp, readerGroupId);
+    retval = UA_Server_enableReaderGroup(publisherApp, readerGroupId);
     ck_assert(retval == UA_STATUSCODE_GOOD);
     UA_ReaderGroup *rg = UA_ReaderGroup_findRGbyId(publisherApp, readerGroupId);
     ck_assert(rg->securityPolicyContext != NULL);
@@ -795,10 +795,10 @@ START_TEST(FetchNextbatchOfKeys) {
     UA_PubSubKeyStorage *subKs = UA_PubSubKeyStorage_findKeyStorage(
         subscriberApp, securityGroupId);
     UA_UNLOCK(&subscriberApp->serviceMutex);
-    retval = UA_Server_setWriterGroupOperational(publisherApp, writerGroupId);
+    retval = UA_Server_enableWriterGroup(publisherApp, writerGroupId);
     ck_assert(retval == UA_STATUSCODE_GOOD);
 
-    retval = UA_Server_setReaderGroupOperational(subscriberApp, readerGroupId);
+    retval = UA_Server_enableReaderGroup(subscriberApp, readerGroupId);
     ck_assert(retval == UA_STATUSCODE_GOOD);
 
     sksPullStatus = UA_STATUSCODE_BAD;
