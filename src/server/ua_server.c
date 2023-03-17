@@ -224,6 +224,9 @@ void UA_Server_delete(UA_Server *server) {
     UA_AsyncManager_clear(&server->asyncManager, server);
 #endif
 
+    /* Clean up the Admin Session */
+    UA_Session_clear(&server->adminSession, server);
+
     if(server->config.eventLoop && !server->config.externalEventLoop) {
         /* Stop the EventLoop and iterate until stopped or an error occurs */
         if(server->config.eventLoop->state == UA_EVENTLOOPSTATE_STARTED)
@@ -238,9 +241,6 @@ void UA_Server_delete(UA_Server *server) {
             UA_LOCK(&server->serviceMutex);
         }
     }
-
-    /* Clean up the Admin Session */
-    UA_Session_clear(&server->adminSession, server);
 
     UA_UNLOCK(&server->serviceMutex); /* The timer has its own mutex */
 
