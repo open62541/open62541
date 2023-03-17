@@ -224,7 +224,7 @@ void UA_Server_delete(UA_Server *server) {
     UA_AsyncManager_clear(&server->asyncManager, server);
 #endif
 
-    if(server->config.eventLoop) {
+    if(server->config.eventLoop && !server->config.externalEventLoop) {
         /* Stop the EventLoop and iterate until stopped or an error occurs */
         if(server->config.eventLoop->state == UA_EVENTLOOPSTATE_STARTED)
             server->config.eventLoop->stop(server->config.eventLoop);
