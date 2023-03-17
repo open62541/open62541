@@ -39,6 +39,8 @@ addMinimalPubSubConfiguration(void){
     if(retVal != UA_STATUSCODE_GOOD)
         return retVal;
 
+    UA_Server_setPubSubConnectionOperational(server, connectionIdentifier);
+
     /* Add one PublishedDataSet */
     UA_PublishedDataSetConfig publishedDataSetConfig;
     memset(&publishedDataSetConfig, 0, sizeof(UA_PublishedDataSetConfig));
@@ -352,6 +354,10 @@ START_TEST(SubscribeMultipleMessagesRT) {
     ck_assert(UA_Server_freezeReaderGroupConfiguration(server, readerGroupIdentifier) == UA_STATUSCODE_GOOD);
     ck_assert(UA_Server_freezeWriterGroupConfiguration(server, writerGroupIdent) == UA_STATUSCODE_GOOD);
     ck_assert(UA_Server_freezeWriterGroupConfiguration(server, writerGroupIdent1) == UA_STATUSCODE_GOOD);
+    
+    ck_assert(UA_Server_enableWriterGroup(server, writerGroupIdent) == UA_STATUSCODE_GOOD);
+    ck_assert(UA_Server_enableWriterGroup(server, writerGroupIdent1) == UA_STATUSCODE_GOOD);
+
     ck_assert(UA_Server_setWriterGroupOperational(server, writerGroupIdent) == UA_STATUSCODE_GOOD);
     ck_assert(UA_Server_setWriterGroupOperational(server, writerGroupIdent1) == UA_STATUSCODE_GOOD);
 
@@ -539,6 +545,8 @@ START_TEST(SubscribeMultipleMessagesWithoutRT) {
 
     ck_assert(UA_Server_freezeWriterGroupConfiguration(server, writerGroupIdent) == UA_STATUSCODE_GOOD);
     ck_assert(UA_Server_freezeWriterGroupConfiguration(server, writerGroupIdent1) == UA_STATUSCODE_GOOD);
+    ck_assert(UA_Server_enableWriterGroup(server, writerGroupIdent) == UA_STATUSCODE_GOOD);
+    ck_assert(UA_Server_enableWriterGroup(server, writerGroupIdent1) == UA_STATUSCODE_GOOD);
     ck_assert(UA_Server_setWriterGroupOperational(server, writerGroupIdent) == UA_STATUSCODE_GOOD);
     ck_assert(UA_Server_setWriterGroupOperational(server, writerGroupIdent1) == UA_STATUSCODE_GOOD);
     receiveSingleMessage(connection);

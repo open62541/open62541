@@ -13,6 +13,7 @@
 
 #include "ua_pubsub.h"
 #include "ua_server_internal.h"
+#include "testing_clock.h"
 
 #include <check.h>
 #include <time.h>
@@ -73,7 +74,9 @@ static void setup(void) {
     connectionConfig.transportProfileUri = UA_STRING("http://opcfoundation.org/UA-Profile/Transport/pubsub-udp-uadp");
     connectionConfig.publisherIdType = UA_PUBLISHERIDTYPE_UINT16;
     connectionConfig.publisherId.uint16 = PUBLISHER_ID;
+    connectionConfig.enabled = UA_TRUE;
     UA_Server_addPubSubConnection(server, &connectionConfig, &connection_test);
+    UA_Server_setPubSubConnectionOperational(server, connection_test);
 }
 
 /* teardown() is to delete the environment set for test cases */
@@ -277,7 +280,7 @@ START_TEST(SinglePublishSubscribeInt32) {
         writerGroupConfig.securityPolicy = &config->pubSubConfig.securityPolicies[0];
 
         retVal |= UA_Server_addWriterGroup(server, connection_test, &writerGroupConfig, &writerGroup);
-
+        retVal |= UA_Server_enableWriterGroup(server, writerGroup);
 
         UA_UadpWriterGroupMessageDataType_delete(writerGroupMessage);
         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
@@ -304,7 +307,7 @@ START_TEST(SinglePublishSubscribeInt32) {
         readerGroupConfig.securityPolicy = &config->pubSubConfig.securityPolicies[0];
 
         retVal |=  UA_Server_addReaderGroup(server, connection_test, &readerGroupConfig, &readerGroupTest);
-
+        retVal |= UA_Server_enableReaderGroup(server, readerGroupTest);
         /* Add the encryption key informaton for readergroup */
         // TODO security token not necessary for readergroup (extracted from security-header)
         UA_Server_setReaderGroupEncryptionKeys(server, readerGroupTest, 1, sk, ek, kn);
@@ -387,6 +390,13 @@ START_TEST(SinglePublishSubscribeInt32) {
         /* run callbacks - publisher and subscriber */
         UA_Server_setWriterGroupOperational(server, writerGroup);
         UA_Server_setReaderGroupOperational(server, readerGroupTest);
+        UA_Server_setDataSetWriterOperational(server, dataSetWriter);
+
+        /* run server - publisher and subscriber */
+        UA_fakeSleep(PUBLISH_INTERVAL + 1);
+        UA_Server_run_iterate(server,true);
+        UA_fakeSleep(PUBLISH_INTERVAL + 1);
+        UA_Server_run_iterate(server,true);
 
         /* Read data sent by the Publisher */
         UA_Variant *publishedNodeData = UA_Variant_new();

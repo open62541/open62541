@@ -37,6 +37,8 @@ static void setup(void) {
     connectionConfig.transportProfileUri =
         UA_STRING("http://opcfoundation.org/UA-Profile/Transport/pubsub-udp-uadp");
     UA_Server_addPubSubConnection(server, &connectionConfig, &connection1);
+    UA_Server_enablePubSubConnection(server, connection1);
+    UA_Server_setPubSubConnectionOperational(server, connection1);
 }
 
 static void teardown(void) {
@@ -60,6 +62,8 @@ START_TEST(SinglePublishDataSetField){
     writerGroupConfig.encodingMimeType = UA_PUBSUB_ENCODING_JSON;
     UA_StatusCode retVal =
         UA_Server_addWriterGroup(server, connection1, &writerGroupConfig, &writerGroup1);
+    ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+    retVal = UA_Server_enableWriterGroup(server, writerGroup1);
     ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
     retVal = UA_Server_setWriterGroupOperational(server, writerGroup1);
     ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);

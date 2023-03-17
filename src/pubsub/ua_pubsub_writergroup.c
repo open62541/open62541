@@ -179,6 +179,14 @@ UA_WriterGroup_create(UA_Server *server, const UA_NodeId connection,
 
     if(writerGroupIdentifier)
         UA_NodeId_copy(&newWriterGroup->identifier, writerGroupIdentifier);
+
+
+    if (writerGroupConfig->enabled)
+    {
+        UA_UNLOCK(&server->serviceMutex);
+        res = UA_Server_enableWriterGroup(server, *writerGroupIdentifier);
+        UA_LOCK(&server->serviceMutex);
+    }
     return res;
 }
 

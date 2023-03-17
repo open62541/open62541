@@ -50,7 +50,9 @@ static void setup(void) {
                          &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
     connectionConfig.transportProfileUri = UA_STRING("http://opcfoundation.org/UA-Profile/Transport/pubsub-udp-uadp");
     UA_Server_addPubSubConnection(server, &connectionConfig, &connection1);
+    UA_Server_setPubSubConnectionOperational(server, connection1);
     UA_Server_addPubSubConnection(server, &connectionConfig, &connection2);
+    UA_Server_setPubSubConnectionOperational(server, connection2);
 }
 
 static void teardown(void) {

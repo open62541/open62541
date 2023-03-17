@@ -34,7 +34,9 @@ static void setup(void) {
     connectionConfig.transportProfileUri = UA_STRING("http://opcfoundation.org/UA-Profile/Transport/pubsub-udp-uadp");
     connectionConfig.publisherIdType = UA_PUBLISHERIDTYPE_UINT16;
     connectionConfig.publisherId.uint16 = 62541;
+    connectionConfig.enabled = UA_TRUE;
     UA_Server_addPubSubConnection(server, &connectionConfig, &connection1);
+    UA_Server_setPubSubConnectionOperational(server, connection1);
 
     UA_PublishedDataSetConfig publishedDataSetConfig;
     memset(&publishedDataSetConfig, 0, sizeof(UA_PublishedDataSetConfig));
@@ -140,7 +142,7 @@ START_TEST(CheckNMandDSMcalculation){
     UA_WriterGroupConfig writerGroupConfig;
     memset(&writerGroupConfig, 0, sizeof(UA_WriterGroupConfig));
     writerGroupConfig.name = UA_STRING("Demo WriterGroup");
-    writerGroupConfig.publishingInterval = 10;
+    writerGroupConfig.publishingInterval = 5;
     writerGroupConfig.enabled = UA_FALSE;
     writerGroupConfig.writerGroupId = 100;
     writerGroupConfig.encodingMimeType = UA_PUBSUB_ENCODING_UADP;
@@ -155,6 +157,7 @@ START_TEST(CheckNMandDSMcalculation){
     //maximum DSM in one NM = 10
     writerGroupConfig.maxEncapsulatedDataSetMessageCount = 10;
     UA_Server_addWriterGroup(server, connection1, &writerGroupConfig, &writerGroupIdent);
+    UA_Server_enableWriterGroup(server, writerGroupIdent);
     UA_Server_setWriterGroupOperational(server, writerGroupIdent);
     UA_UadpWriterGroupMessageDataType_delete(wgm);
 
@@ -168,6 +171,7 @@ START_TEST(CheckNMandDSMcalculation){
         dataSetWriterConfig.dataSetWriterId = (UA_UInt16) (dataSetWriterConfig.dataSetWriterId + 1);
         UA_Server_addDataSetWriter(server, writerGroupIdent, publishedDataSetIdent,
                                    &dataSetWriterConfig, &dataSetWriterIdent);
+        UA_Server_setDataSetWriterOperational(server, dataSetWriterIdent);
     }
 
     UA_PubSubConnection *connection = UA_PubSubConnection_findConnectionbyId(server, connection1);
@@ -278,6 +282,7 @@ START_TEST(CheckNMandDSMBufferCalculation){
         //maximum DSM in one NM = 10
         writerGroupConfig.maxEncapsulatedDataSetMessageCount = 10;
         UA_Server_addWriterGroup(server, connection1, &writerGroupConfig, &writerGroupIdent);
+        UA_Server_enableWriterGroup(server, writerGroupIdent);
         UA_Server_setWriterGroupOperational(server, writerGroupIdent);
         UA_UadpWriterGroupMessageDataType_delete(wgm);
 
@@ -291,6 +296,7 @@ START_TEST(CheckNMandDSMBufferCalculation){
             dataSetWriterConfig.dataSetWriterId = (UA_UInt16) (dataSetWriterConfig.dataSetWriterId + 1);
             UA_Server_addDataSetWriter(server, writerGroupIdent, publishedDataSetIdent,
                                        &dataSetWriterConfig, &dataSetWriterIdent);
+            UA_Server_setDataSetWriterOperational(server, dataSetWriterIdent);
         }
 
         UA_Server_freezeWriterGroupConfiguration(server, writerGroupIdent);
@@ -318,6 +324,7 @@ START_TEST(CheckSingleDSMRawEncodedMessage){
     //maximum DSM in one NM = 10
     writerGroupConfig.maxEncapsulatedDataSetMessageCount = 10;
     UA_Server_addWriterGroup(server, connection1, &writerGroupConfig, &writerGroupIdent);
+    UA_Server_enableWriterGroup(server, writerGroupIdent);
     UA_Server_setWriterGroupOperational(server, writerGroupIdent);
     UA_UadpWriterGroupMessageDataType_delete(wgm);
 
@@ -334,6 +341,7 @@ START_TEST(CheckSingleDSMRawEncodedMessage){
         dataSetWriterConfig.dataSetWriterId = (UA_UInt16) (dataSetWriterConfig.dataSetWriterId + 1);
         UA_Server_addDataSetWriter(server, writerGroupIdent, publishedDataSetIdent,
                                    &dataSetWriterConfig, &dataSetWriterIdent);
+        UA_Server_setDataSetWriterOperational(server, dataSetWriterIdent);
     }
 
     UA_PubSubConnection *connection = UA_PubSubConnection_findConnectionbyId(server, connection1);
