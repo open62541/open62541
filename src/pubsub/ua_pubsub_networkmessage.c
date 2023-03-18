@@ -1731,15 +1731,14 @@ UA_DataSetMessage_calcSizeBinary(UA_DataSetMessage* p, UA_NetworkMessageOffsetBu
                 }
             }
         } else if(p->header.fieldEncoding == UA_FIELDENCODING_DATAVALUE) {
-            for (UA_UInt16 i = 0; i < p->data.keyFrameData.fieldCount; i++) {
-                if (offsetBuffer) {
+            for(UA_UInt16 i = 0; i < p->data.keyFrameData.fieldCount; i++) {
+                if(offsetBuffer) {
                     size_t pos = offsetBuffer->offsetsSize;
                     if(!increaseOffsetArray(offsetBuffer))
                         return 0;
                     offsetBuffer->offsets[pos].offset = size;
                     offsetBuffer->offsets[pos].contentType = UA_PUBSUB_OFFSETTYPE_PAYLOAD_DATAVALUE;
-                    //TODO check value source, change implementation to 'variant'
-                    offsetBuffer->offsets[pos].offsetData.value.value = p->data.keyFrameData.dataSetFields;
+                    offsetBuffer->offsets[pos].offsetData.value.value = &p->data.keyFrameData.dataSetFields[i];
                 }
                 size += UA_calcSizeBinary(&p->data.keyFrameData.dataSetFields[i], &UA_TYPES[UA_TYPES_DATAVALUE]);
             }
