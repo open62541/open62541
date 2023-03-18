@@ -155,12 +155,14 @@ UA_NetworkMessage_updateBufferedNwMessage(UA_NetworkMessageOffsetBuffer *buffer,
             UA_CHECK_STATUS(rv, return rv);
             break;
         case UA_PUBSUB_OFFSETTYPE_PAYLOAD_DATAVALUE:
+            UA_DataValue_clear(&dsm->data.keyFrameData.dataSetFields[payloadCounter]);
             rv = UA_DataValue_decodeBinary(src, &offset,
                                            &(dsm->data.keyFrameData.dataSetFields[payloadCounter]));
             UA_CHECK_STATUS(rv, return rv);
             payloadCounter++;
             break;
         case UA_PUBSUB_OFFSETTYPE_PAYLOAD_VARIANT:
+            UA_Variant_clear(&dsm->data.keyFrameData.dataSetFields[payloadCounter].value);
             rv = UA_Variant_decodeBinary(src, &offset,
                                          &dsm->data.keyFrameData.dataSetFields[payloadCounter].value);
             UA_CHECK_STATUS(rv, return rv);
