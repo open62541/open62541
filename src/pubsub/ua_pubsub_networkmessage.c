@@ -56,9 +56,9 @@ static UA_Boolean UA_DataSetMessageHeader_DataSetFlags2Enabled(const UA_DataSetM
 UA_StatusCode
 UA_NetworkMessage_updateBufferedMessage(UA_NetworkMessageOffsetBuffer *buffer){
     UA_StatusCode rv = UA_STATUSCODE_GOOD;
+    const UA_Byte *bufEnd = &buffer->buffer.data[buffer->buffer.length];
     for(size_t i = 0; i < buffer->offsetsSize; ++i) {
         UA_NetworkMessageOffset *nmo = &buffer->offsets[i];
-        const UA_Byte *bufEnd = &buffer->buffer.data[buffer->buffer.length];
         UA_Byte *bufPos = &buffer->buffer.data[nmo->offset];
         switch(nmo->contentType) {
             case UA_PUBSUB_OFFSETTYPE_DATASETMESSAGE_SEQUENCENUMBER:
