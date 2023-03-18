@@ -1151,6 +1151,14 @@ DataSetReader_processFixedSize(UA_Server *server, UA_ReaderGroup *rg,
             &dsr->config.subscribedDataSet.subscribedDataSetTarget.targetVariables[i];
         if(tv->targetVariable.attributeId != UA_ATTRIBUTEID_VALUE)
             continue;
+
+        if(msg->data.keyFrameData.dataSetFields[i].value.type !=
+           (*tv->externalDataValue)->value.type) {
+            UA_LOG_WARNING_READER(&server->config.logger, dsr,
+                                  "Mismatching type");
+            continue;
+        }
+
         if (tv->beforeWrite) {
             UA_DataValue *tmp = &msg->data.keyFrameData.dataSetFields[i];
             tv->beforeWrite(server,
