@@ -84,6 +84,8 @@ static void teardown(void) {
     }
 
     UA_Server_delete(server);
+    rtEventLoop->logger = NULL; /* Don't access the logger that was removed with
+                                   the server */
     rtEventLoop->free(rtEventLoop);
 
     rtEventLoop = NULL;
