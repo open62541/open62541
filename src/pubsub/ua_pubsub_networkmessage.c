@@ -102,6 +102,10 @@ UA_NetworkMessage_updateBufferedNwMessage(UA_NetworkMessageOffsetBuffer *buffer,
     if(!buffer->nm)
         return UA_STATUSCODE_BADINTERNALERROR;
 
+    /* The source string is too short */
+    if(src->length < buffer->buffer.length + *bufferPosition)
+        return UA_STATUSCODE_BADDECODINGERROR;
+
     UA_DataSetMessage* dsm = buffer->nm->payload.dataSetPayload.dataSetMessages; //Considering one DSM in RT TODO: Clarify multiple DSM
     UA_DataSetMessageHeader header;
     size_t smallestRawOffset = UA_UINT32_MAX;
