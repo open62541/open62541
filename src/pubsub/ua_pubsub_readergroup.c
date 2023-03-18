@@ -332,7 +332,8 @@ UA_ReaderGroup_setPubSubState_disable(UA_Server *server,
         return UA_STATUSCODE_GOOD;
     case UA_PUBSUBSTATE_PAUSED:
         break;
-    case UA_PUBSUBSTATE_OPERATIONAL: {
+    case UA_PUBSUBSTATE_OPERATIONAL:
+    case UA_PUBSUBSTATE_PREOPERATIONAL:
         UA_ReaderGroup_removeSubscribeCallback(server, rg);
         LIST_FOREACH(dataSetReader, &rg->readers, listEntry) {
             UA_DataSetReader_setPubSubState(server, dataSetReader,
@@ -340,7 +341,6 @@ UA_ReaderGroup_setPubSubState_disable(UA_Server *server,
         }
         rg->state = UA_PUBSUBSTATE_DISABLED;
         break;
-    }
     case UA_PUBSUBSTATE_ERROR:
         break;
     default:
@@ -364,6 +364,7 @@ UA_ReaderGroup_setPubSubState_paused(UA_Server *server,
     case UA_PUBSUBSTATE_PAUSED:
         return UA_STATUSCODE_GOOD;
     case UA_PUBSUBSTATE_OPERATIONAL:
+    case UA_PUBSUBSTATE_PREOPERATIONAL:
         break;
     case UA_PUBSUBSTATE_ERROR:
         break;
@@ -378,25 +379,35 @@ static UA_StatusCode
 UA_ReaderGroup_setPubSubState_operational(UA_Server *server,
                                           UA_ReaderGroup *rg,
                                           UA_StatusCode cause) {
-    UA_DataSetReader *dataSetReader;
-    switch(rg->state) {
-    case UA_PUBSUBSTATE_DISABLED: {
-        LIST_FOREACH(dataSetReader, &rg->readers, listEntry) {
-            UA_DataSetReader_setPubSubState(server, dataSetReader, UA_PUBSUBSTATE_OPERATIONAL,
-                                            cause);
-        }
+    UA_PubSubState state = UA_PUBSUBSTATE_OPERATIONAL;
+    UA_DataSetReader *dataSetReader = LIST_FIRST(&rg->readers);
+    if(!dataSetReader ||
+       (rg->config.rtLevel == UA_PUBSUB_RT_FIXED_SIZE &&
+        rg->configurationFrozen && !dataSetReader->bufferedMessage.nm))
+        state = UA_PUBSUBSTATE_PREOPERATIONAL;
+                               
+    UA_PubSubState oldstate = rg->state;
+    rg->state = state; /* Set the new state now. So we can already switch from
+                        * pre-operational to operational when the first messages
+                        * are received during the enabled-calback step. */
+
+    switch(oldstate) {
+    case UA_PUBSUBSTATE_DISABLED:
         UA_ReaderGroup_addSubscribeCallback(server, rg);
-        rg->state = UA_PUBSUBSTATE_OPERATIONAL;
+        /* Fall-through */
+    case UA_PUBSUBSTATE_OPERATIONAL:
+    case UA_PUBSUBSTATE_PREOPERATIONAL:
+        LIST_FOREACH(dataSetReader, &rg->readers, listEntry) {
+            UA_DataSetReader_setPubSubState(server, dataSetReader, state, cause);
+        }
         return UA_STATUSCODE_GOOD;
-    }
     case UA_PUBSUBSTATE_PAUSED:
         break;
-    case UA_PUBSUBSTATE_OPERATIONAL:
-        return UA_STATUSCODE_GOOD;
     case UA_PUBSUBSTATE_ERROR:
         break;
     default:
         UA_LOG_WARNING_READERGROUP(&server->config.logger, rg, "Unknown PubSub state!");
+        rg->state = UA_PUBSUBSTATE_ERROR;
         return UA_STATUSCODE_BADINTERNALERROR;
     }
     return UA_STATUSCODE_BADNOTSUPPORTED;
@@ -413,6 +424,7 @@ UA_ReaderGroup_setPubSubState_error(UA_Server *server,
     case UA_PUBSUBSTATE_PAUSED:
         break;
     case UA_PUBSUBSTATE_OPERATIONAL:
+    case UA_PUBSUBSTATE_PREOPERATIONAL:
         UA_ReaderGroup_removeSubscribeCallback(server, rg);
         LIST_FOREACH(dataSetReader, &rg->readers, listEntry){
             UA_DataSetReader_setPubSubState(server, dataSetReader, UA_PUBSUBSTATE_ERROR,
@@ -607,13 +619,20 @@ UA_ReaderGroup_freezeConfiguration(UA_Server *server, UA_ReaderGroup *rg) {
         return UA_STATUSCODE_BADNOTSUPPORTED;
     }
 
+    /* Don't support string PublisherId for the fast-path (at this time) */
+    if(!dataSetReader->config.publisherId.type->pointerFree) {
+        UA_LOG_WARNING_READER(&server->config.logger, dataSetReader,
+                              "PubSub-RT configuration fail: String PublisherId");
+        return UA_STATUSCODE_BADNOTSUPPORTED;
+    }
+
     size_t fieldsSize = dataSetReader->config.dataSetMetaData.fieldsSize;
     for(size_t i = 0; i < fieldsSize; i++) {
         UA_FieldTargetVariable *tv =
             &dataSetReader->config.subscribedDataSet.subscribedDataSetTarget.targetVariables[i];
         const UA_VariableNode *rtNode = (const UA_VariableNode *)
             UA_NODESTORE_GET(server, &tv->targetVariable.targetNodeId);
-        if(rtNode != NULL &&
+        if(!rtNode ||
            rtNode->valueBackend.backendType != UA_VALUEBACKENDTYPE_EXTERNAL) {
             UA_LOG_WARNING_READER(&server->config.logger, dataSetReader,
                                   "PubSub-RT configuration fail: PDS contains field "
@@ -621,6 +640,9 @@ UA_ReaderGroup_freezeConfiguration(UA_Server *server, UA_ReaderGroup *rg) {
             UA_NODESTORE_RELEASE(server, (const UA_Node *) rtNode);
             return UA_STATUSCODE_BADNOTSUPPORTED;
         }
+
+        /* Set the external data source in the tv */
+        tv->externalDataValue = rtNode->valueBackend.backend.external.value;
 
         UA_NODESTORE_RELEASE(server, (const UA_Node *) rtNode);
 
@@ -641,64 +663,15 @@ UA_ReaderGroup_freezeConfiguration(UA_Server *server, UA_ReaderGroup *rg) {
         }
     }
 
-    UA_DataSetMessage *dsm = (UA_DataSetMessage*)
-        UA_calloc(1, sizeof(UA_DataSetMessage));
-    if(!dsm)
-        return UA_STATUSCODE_BADOUTOFMEMORY;
+    /* Reset the OffsetBuffer. The OffsetBuffer for a frozen configuration is
+     * generated when the first message is received. So we know the exact
+     * settings which headers are present, etc. Until then the ReaderGroup is
+     * "PreOperational". */
+    UA_NetworkMessageOffsetBuffer_clear(&dataSetReader->bufferedMessage);
 
-    /* Generate the DSM */
-    UA_StatusCode res = UA_DataSetReader_generateDataSetMessage(server, dsm, dataSetReader);
-    if(res != UA_STATUSCODE_GOOD) {
-        UA_LOG_ERROR_READER(&server->config.logger, dataSetReader,
-                            "PubSub RT Offset calculation: DataSetMessage generation failed");
-        UA_DataSetMessage_clear(dsm);
-        UA_free(dsm);
-        return UA_STATUSCODE_BADINTERNALERROR;
-    }
-
-    /* Generate data set messages - Considering 1 DSM as max */
-    UA_UInt16 *dsWriterIds = (UA_UInt16 *)UA_calloc(1, sizeof(UA_UInt16));
-    if(!dsWriterIds) {
-        UA_DataSetMessage_clear(dsm);
-        UA_free(dsm);
-        return UA_STATUSCODE_BADOUTOFMEMORY;
-    }
-    *dsWriterIds = dataSetReader->config.dataSetWriterId;
-
-    UA_NetworkMessage *networkMessage = (UA_NetworkMessage *)
-        UA_calloc(1, sizeof(UA_NetworkMessage));
-    if(!networkMessage) {
-        UA_free(dsWriterIds);
-        UA_DataSetMessage_clear(dsm);
-        UA_free(dsm);
-        return UA_STATUSCODE_BADOUTOFMEMORY;
-    }
-
-    /* Move the dsm into the NetworkMessage */
-    res = UA_DataSetReader_generateNetworkMessage(pubSubConnection, rg, dataSetReader, dsm,
-                                                  dsWriterIds, 1, networkMessage);
-    if(res != UA_STATUSCODE_GOOD) {
-        UA_free(networkMessage->payload.dataSetPayload.sizes);
-        UA_free(networkMessage);
-        UA_free(dsWriterIds);
-        UA_DataSetMessage_clear(dsm);
-        UA_free(dsm);
-        UA_LOG_WARNING_READER(&server->config.logger, dataSetReader,
-                              "PubSub RT Offset calculation: "
-                              "NetworkMessage generation failed");
-        return UA_STATUSCODE_BADINTERNALERROR;
-    }
-
-    /* The offset buffer is already clear if the ReaderGroup was unfrozen
-     * UA_NetworkMessageOffsetBuffer_clear(&dataSetReader->bufferedMessage); */
-    memset(&dataSetReader->bufferedMessage, 0, sizeof(UA_NetworkMessageOffsetBuffer));
-    dataSetReader->bufferedMessage.RTsubscriberEnabled = true;
-
-    /* Compute and store the offsets necessary to decode */
-    UA_NetworkMessage_calcSizeBinary(networkMessage, &dataSetReader->bufferedMessage);
-    dataSetReader->bufferedMessage.nm = networkMessage;
-
-    return UA_STATUSCODE_GOOD;
+    /* Set the current state again. This can move the state from Operational to
+     * PreOperational. */
+    return UA_ReaderGroup_setPubSubState(server, rg, rg->state, UA_STATUSCODE_GOOD);
 }
 
 UA_StatusCode
@@ -755,9 +728,9 @@ UA_Server_unfreezeReaderGroupConfiguration(UA_Server *server,
 
 /* This triggers the collection and reception of NetworkMessages and the
  * contained DataSetMessages. */
-void
-UA_ReaderGroup_subscribeCallback(UA_Server *server,
-                                 UA_ReaderGroup *readerGroup) {
+static void
+subscribeCallback(UA_Server *server,
+                  UA_ReaderGroup *readerGroup) {
     // TODO: feedback for debug-assert vs runtime-check
     UA_assert(server);
     UA_assert(readerGroup);
@@ -775,6 +748,14 @@ UA_ReaderGroup_subscribeCallback(UA_Server *server,
     }
 
     receiveBufferedNetworkMessage(server, readerGroup, connection);
+}
+
+void
+UA_ReaderGroup_subscribeCallback(UA_Server *server,
+                                 UA_ReaderGroup *readerGroup) {
+    UA_LOCK(&server->serviceMutex);
+    subscribeCallback(server, readerGroup);
+    UA_UNLOCK(&server->serviceMutex);
 }
 
 /* Add new subscribeCallback. The first execution is triggered directly after
@@ -808,7 +789,7 @@ UA_ReaderGroup_addSubscribeCallback(UA_Server *server, UA_ReaderGroup *readerGro
      * blocked. It is highly recommended to use custom callback when using
      * blockingsocket. */
     if(readerGroup->config.enableBlockingSocket != true)
-        UA_ReaderGroup_subscribeCallback(server, readerGroup);
+        subscribeCallback(server, readerGroup);
 
     return retval;
 }

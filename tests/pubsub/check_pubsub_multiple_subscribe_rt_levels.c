@@ -87,37 +87,21 @@ receiveMultipleMessageRT(UA_PubSubConnection *connection, UA_DataSetReader *data
     UA_ReceiveContext testCtx = {&buffer, 0};
     connection->channel->receive(connection->channel, NULL, recvTestFun, &testCtx, 1000000);
     if(buffer.length > 0) {
-        size_t currentPosition = 0;
         UA_UInt16  rcvCount    = 0;
-        do {
-            /* Decode only the necessary offset and update the networkMessage */
-            if(UA_NetworkMessage_updateBufferedNwMessage(&dataSetReader->bufferedMessage, &buffer, &currentPosition) != UA_STATUSCODE_GOOD) {
-                ck_abort_msg("PubSub receive. Unknown field type!");
-            }
-
-            /* Check the decoded message is the expected one */
-            if((dataSetReader->bufferedMessage.nm->groupHeader.writerGroupId != dataSetReader->config.writerGroupId) ||
-               (*dataSetReader->bufferedMessage.nm->payloadHeader.dataSetPayloadHeader.dataSetWriterIds != dataSetReader->config.dataSetWriterId)) {
-                ck_abort_msg("PubSub receive. Unknown message received. Will not be processed.");
-            }
-
-            UA_ReaderGroup *rg =
-                UA_ReaderGroup_findRGbyId(server, dataSetReader->linkedReaderGroup);
-
-            UA_DataSetReader_process(server, rg, dataSetReader,
-                                     dataSetReader->bufferedMessage.nm->payload.dataSetPayload.dataSetMessages);
-
-            /* Delete the payload value of every dsf's decoded */
-            UA_DataSetMessage *dsm = dataSetReader->bufferedMessage.nm->payload.dataSetPayload.dataSetMessages;
-            if(dsm->header.fieldEncoding == UA_FIELDENCODING_VARIANT) {
-                for(UA_UInt16 i = 0; i < dsm->data.keyFrameData.fieldCount; i++) {
-                    UA_Variant_clear(&dsm->data.keyFrameData.dataSetFields[i].value);
-                }
-            }
-            rcvCount++;
-        } while((buffer.length) > currentPosition);
-
-        ck_assert_int_eq(rcvCount, 2);
+        UA_ReaderGroup *rg =
+            UA_ReaderGroup_findRGbyId(server, dataSetReader->linkedReaderGroup);
+        
+        /* Decode only the necessary offset and update the networkMessage */
+        if(UA_DataSetReader_decodeAndProcessRT(server, rg, connection, &buffer) != UA_STATUSCODE_GOOD) {
+            ck_abort_msg("PubSub receive. Unknown field type!");
+        }
+        
+        /* Check the decoded message is the expected one */
+        if((dataSetReader->bufferedMessage.nm->groupHeader.writerGroupId != dataSetReader->config.writerGroupId) ||
+           (*dataSetReader->bufferedMessage.nm->payloadHeader.dataSetPayloadHeader.dataSetWriterIds != dataSetReader->config.dataSetWriterId)) {
+            ck_abort_msg("PubSub receive. Unknown message received. Will not be processed.");
+        }
+        
         UA_ByteString_clear(&buffer);
     }
 }

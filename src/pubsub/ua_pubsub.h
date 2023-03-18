@@ -485,22 +485,14 @@ DataSetReader_createTargetVariables(UA_Server *server, UA_DataSetReader *dsr,
                                     const UA_FieldTargetVariable *targetVariables);
 
 UA_StatusCode
+UA_DataSetReader_decodeAndProcessRT(UA_Server *server, UA_ReaderGroup *readerGroup,
+                                    UA_PubSubConnection *connection, UA_ByteString *buf);
+
+UA_StatusCode
 UA_DataSetReader_setPubSubState(UA_Server *server,
                                 UA_DataSetReader *dataSetReader,
                                 UA_PubSubState state,
                                 UA_StatusCode cause);
-
-UA_StatusCode
-UA_DataSetReader_generateNetworkMessage(UA_PubSubConnection *pubSubConnection,
-                                        UA_ReaderGroup *readerGroup,
-                                        UA_DataSetReader *dataSetReader,
-                                        UA_DataSetMessage *dsm, UA_UInt16 *writerId,
-                                        UA_Byte dsmCount, UA_NetworkMessage *nm);
-
-UA_StatusCode
-UA_DataSetReader_generateDataSetMessage(UA_Server *server,
-                                        UA_DataSetMessage *dataSetMessage,
-                                        UA_DataSetReader *dataSetReader);
 
 #define UA_LOG_READER_INTERNAL(LOGGER, LEVEL, READER, MSG, ...)         \
     if(UA_LOGLEVEL <= UA_LOGLEVEL_##LEVEL) {                            \
