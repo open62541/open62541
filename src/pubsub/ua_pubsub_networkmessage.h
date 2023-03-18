@@ -198,12 +198,10 @@ typedef enum {
 typedef struct {
     UA_NetworkMessageOffsetType contentType;
     union {
-        struct {
-            UA_DataValue *value;
-            size_t valueBinarySize;
-        } value;
-        UA_DateTime *timestamp;
-    } offsetData;
+        UA_UInt16 sequenceNumber;
+        UA_DataValue value;
+        UA_DateTime timestamp;
+    } content;
     size_t offset;
 } UA_NetworkMessageOffset;
 
