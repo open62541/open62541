@@ -472,7 +472,7 @@ static void DoTest_1_Connection(
             /* TODO: UA_Server_freezeWriterGroupConfiguration() accepts publisherId of type STRING, but
                 UA_Server_freezeReaderGroupConfiguration() returns an error -> what is correct? */
             ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_freezeWriterGroupConfiguration(server, WGId_Conn1_WG1));
-            ck_assert_int_eq(UA_STATUSCODE_BADINTERNALERROR, UA_Server_freezeReaderGroupConfiguration(server, RGId_Conn1_RG1));
+            ck_assert_int_eq(UA_STATUSCODE_BADNOTSUPPORTED, UA_Server_freezeReaderGroupConfiguration(server, RGId_Conn1_RG1));
 
             /* cleanup and continue with other tests */
             ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_unfreezeWriterGroupConfiguration(server, WGId_Conn1_WG1));
