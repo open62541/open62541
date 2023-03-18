@@ -83,10 +83,9 @@ UA_NetworkMessage_updateBufferedMessage(UA_NetworkMessageOffsetBuffer *buffer){
                                              nmo->offsetData.value.value->value.type,
                                              &bufPos, &bufEnd, NULL, NULL);
                 break;
-            case UA_PUBSUB_OFFSETTYPE_NETWORKMESSAGE_FIELDENCDODING:
-                break;
             default:
-                return UA_STATUSCODE_BADNOTSUPPORTED;
+                break; /* The other fields are assumed to not change between messages.
+                        * Only used for RT decoding (not encoding). */
         }
     }
     return rv;
@@ -949,7 +948,7 @@ UA_NetworkMessage_calcSizeBinary(UA_NetworkMessage *p,
     }
 
     if(p->publisherIdEnabled) {
-        if(offsetBuffer && offsetBuffer->RTsubscriberEnabled){
+        if(offsetBuffer) {
             size_t pos = offsetBuffer->offsetsSize;
             if(!increaseOffsetArray(offsetBuffer))
                 return 0;
@@ -988,7 +987,7 @@ UA_NetworkMessage_calcSizeBinary(UA_NetworkMessage *p,
         size += UA_Byte_calcSizeBinary(&byte);
 
         if(p->groupHeader.writerGroupIdEnabled) {
-            if(offsetBuffer && offsetBuffer->RTsubscriberEnabled){
+            if(offsetBuffer) {
                 size_t pos = offsetBuffer->offsetsSize;
                 if(!increaseOffsetArray(offsetBuffer))
                     return 0;
@@ -1027,7 +1026,7 @@ UA_NetworkMessage_calcSizeBinary(UA_NetworkMessage *p,
         if(p->networkMessageType == UA_NETWORKMESSAGE_DATASET) {
             size += UA_Byte_calcSizeBinary(&p->payloadHeader.dataSetPayloadHeader.count);
             if(p->payloadHeader.dataSetPayloadHeader.dataSetWriterIds != NULL) {
-                if(offsetBuffer && offsetBuffer->RTsubscriberEnabled){
+                if(offsetBuffer) {
                     size_t pos = offsetBuffer->offsetsSize;
                     if(!increaseOffsetArray(offsetBuffer))
                         return 0;
