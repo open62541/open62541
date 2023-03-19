@@ -200,7 +200,6 @@ typedef struct {
     union {
         UA_UInt16 sequenceNumber;
         UA_DataValue value;
-        UA_DateTime timestamp;
     } content;
     size_t offset;
 } UA_NetworkMessageOffset;
