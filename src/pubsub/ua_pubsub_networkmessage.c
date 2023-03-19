@@ -93,14 +93,15 @@ UA_NetworkMessage_updateBufferedNwMessage(UA_NetworkMessageOffsetBuffer *buffer,
     size_t offset = 0;
 
     /* The offset buffer was not prepared */
-    if(!buffer->nm)
+    UA_NetworkMessage *nm = buffer->nm;
+    if(!nm)
         return UA_STATUSCODE_BADINTERNALERROR;
 
     /* The source string is too short */
     if(src->length < buffer->buffer.length + *bufferPosition)
         return UA_STATUSCODE_BADDECODINGERROR;
 
-    UA_DataSetMessage* dsm = buffer->nm->payload.dataSetPayload.dataSetMessages; //Considering one DSM in RT TODO: Clarify multiple DSM
+    UA_DataSetMessage* dsm = nm->payload.dataSetPayload.dataSetMessages; //Considering one DSM in RT TODO: Clarify multiple DSM
     UA_DataSetMessageHeader header;
     size_t smallestRawOffset = UA_UINT32_MAX;
 
@@ -113,18 +114,18 @@ UA_NetworkMessage_updateBufferedNwMessage(UA_NetworkMessageOffsetBuffer *buffer,
                 return rv;
             break;
         case UA_PUBSUB_OFFSETTYPE_PUBLISHERID:
-            switch (buffer->nm->publisherIdType) {
+            switch (nm->publisherIdType) {
             case UA_PUBLISHERIDTYPE_BYTE:
-                rv = UA_Byte_decodeBinary(src, &offset, &buffer->nm->publisherId.byte);
+                rv = UA_Byte_decodeBinary(src, &offset, &nm->publisherId.byte);
                 break;
             case UA_PUBLISHERIDTYPE_UINT16:
-                rv = UA_UInt16_decodeBinary(src, &offset, &buffer->nm->publisherId.uint16);
+                rv = UA_UInt16_decodeBinary(src, &offset, &nm->publisherId.uint16);
                 break;
             case UA_PUBLISHERIDTYPE_UINT32:
-                rv = UA_UInt32_decodeBinary(src, &offset, &buffer->nm->publisherId.uint32);
+                rv = UA_UInt32_decodeBinary(src, &offset, &nm->publisherId.uint32);
                 break;
             case UA_PUBLISHERIDTYPE_UINT64:
-                rv = UA_UInt64_decodeBinary(src, &offset, &buffer->nm->publisherId.uint64);
+                rv = UA_UInt64_decodeBinary(src, &offset, &nm->publisherId.uint64);
                 break;
             default:
                 // UA_PUBLISHERIDTYPE_STRING is not supported because of UA_PUBSUB_RT_FIXED_SIZE
@@ -132,16 +133,16 @@ UA_NetworkMessage_updateBufferedNwMessage(UA_NetworkMessageOffsetBuffer *buffer,
             }
             break;
         case UA_PUBSUB_OFFSETTYPE_WRITERGROUPID:
-            rv = UA_UInt16_decodeBinary(src, &offset, &buffer->nm->groupHeader.writerGroupId);
+            rv = UA_UInt16_decodeBinary(src, &offset, &nm->groupHeader.writerGroupId);
             UA_CHECK_STATUS(rv, return rv);
             break;
         case UA_PUBSUB_OFFSETTYPE_DATASETWRITERID:
             rv = UA_UInt16_decodeBinary(src, &offset,
-                                        &buffer->nm->payloadHeader.dataSetPayloadHeader.dataSetWriterIds[0]); /* TODO */
+                                        &nm->payloadHeader.dataSetPayloadHeader.dataSetWriterIds[0]); /* TODO */
             UA_CHECK_STATUS(rv, return rv);
             break;
         case UA_PUBSUB_OFFSETTYPE_NETWORKMESSAGE_SEQUENCENUMBER:
-            rv = UA_UInt16_decodeBinary(src, &offset, &buffer->nm->groupHeader.sequenceNumber);
+            rv = UA_UInt16_decodeBinary(src, &offset, &nm->groupHeader.sequenceNumber);
             UA_CHECK_STATUS(rv, return rv);
             break;
         case UA_PUBSUB_OFFSETTYPE_DATASETMESSAGE_SEQUENCENUMBER:
