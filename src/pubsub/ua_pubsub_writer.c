@@ -237,7 +237,7 @@ UA_DataSetWriter_create(UA_Server *server,
         if(!currentDataSetContext)
             return UA_STATUSCODE_BADNOTFOUND;
 
-        if(currentDataSetContext->configurationFrozen) {
+        if(currentDataSetContext->configurationFreezeCounter > 0) {
             UA_LOG_WARNING_DATASET(&server->config.logger, currentDataSetContext,
                                    "Adding DataSetWriter failed: PublishedDataSet is frozen");
             return UA_STATUSCODE_BADCONFIGURATIONERROR;

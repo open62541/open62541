@@ -57,7 +57,7 @@ UA_WriterGroup_create(UA_Server *server, const UA_NodeId connection,
     if(!currentConnectionContext)
         return UA_STATUSCODE_BADNOTFOUND;
 
-    if(currentConnectionContext->configurationFrozen){
+    if(currentConnectionContext->configurationFreezeCounter > 0) {
         UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
                        "Adding WriterGroup failed. PubSubConnection is frozen.");
         return UA_STATUSCODE_BADCONFIGURATIONERROR;
@@ -210,7 +210,7 @@ removeWriterGroup(UA_Server *server, const UA_NodeId writerGroup) {
     if(!connection)
         return UA_STATUSCODE_BADNOTFOUND;
 
-    if(connection->configurationFrozen) {
+    if(connection->configurationFreezeCounter > 0) {
         UA_LOG_WARNING_WRITERGROUP(&server->config.logger, wg,
                                    "Deleting the WriterGroup failed. "
                                    "PubSubConnection is frozen.");
@@ -259,7 +259,6 @@ UA_WriterGroup_freezeConfiguration(UA_Server *server, UA_WriterGroup *wg) {
     /* PubSubConnection freezeCounter++ */
     UA_PubSubConnection *pubSubConnection =  wg->linkedConnection;
     pubSubConnection->configurationFreezeCounter++;
-    pubSubConnection->configurationFrozen = true;
 
     /* WriterGroup freeze */
     wg->configurationFrozen = true;
@@ -274,7 +273,6 @@ UA_WriterGroup_freezeConfiguration(UA_Server *server, UA_WriterGroup *wg) {
         /* Skip the below for heartbeat writers (without an associated PDS) */
         if(publishedDataSet) {
             publishedDataSet->configurationFreezeCounter++;
-            publishedDataSet->configurationFrozen = true;
             /* DataSetFields freeze */
             UA_DataSetField *dataSetField;
             TAILQ_FOREACH(dataSetField, &publishedDataSet->fields, listEntry) {
@@ -480,9 +478,6 @@ UA_WriterGroup_unfreezeConfiguration(UA_Server *server, UA_WriterGroup *wg) {
 
     UA_PubSubConnection *pubSubConnection =  wg->linkedConnection;
     pubSubConnection->configurationFreezeCounter--;
-    if(pubSubConnection->configurationFreezeCounter == 0){
-        pubSubConnection->configurationFrozen = false;
-    }
 
     //DataSetWriter unfreeze
     UA_DataSetWriter *dataSetWriter;
@@ -492,8 +487,7 @@ UA_WriterGroup_unfreezeConfiguration(UA_Server *server, UA_WriterGroup *wg) {
         //PublishedDataSet freezeCounter--
         if(publishedDataSet != NULL){ /* This means the DSW is a heartbeat configuration */
             publishedDataSet->configurationFreezeCounter--;
-            if(publishedDataSet->configurationFreezeCounter == 0){
-                publishedDataSet->configurationFrozen = false;
+            if(publishedDataSet->configurationFreezeCounter == 0) {
                 UA_DataSetField *dataSetField;
                 TAILQ_FOREACH(dataSetField, &publishedDataSet->fields, listEntry){
                     dataSetField->configurationFrozen = false;

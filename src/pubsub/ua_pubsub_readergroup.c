@@ -104,7 +104,7 @@ UA_ReaderGroup_create(UA_Server *server, UA_NodeId connectionIdentifier,
         return UA_STATUSCODE_BADNOTSUPPORTED;
     }
 
-    if(currentConnectionContext->configurationFrozen) {
+    if(currentConnectionContext->configurationFreezeCounter > 0) {
         UA_LOG_WARNING_CONNECTION(&server->config.logger, currentConnectionContext,
                                   "Adding ReaderGroup failed. "
                                   "Connection configuration is frozen.");
@@ -580,7 +580,6 @@ UA_ReaderGroup_freezeConfiguration(UA_Server *server, UA_ReaderGroup *rg) {
     /* PubSubConnection freezeCounter++ */
     UA_PubSubConnection *pubSubConnection = rg->linkedConnection;
     pubSubConnection->configurationFreezeCounter++;
-    pubSubConnection->configurationFrozen = true;
 
     /* ReaderGroup freeze */
     /* TODO: Clarify on the freeze functionality in multiple DSR, multiple
@@ -695,9 +694,6 @@ UA_ReaderGroup_unfreezeConfiguration(UA_Server *server, UA_ReaderGroup *rg) {
     /* PubSubConnection freezeCounter-- */
     UA_PubSubConnection *pubSubConnection = rg->linkedConnection;
     pubSubConnection->configurationFreezeCounter--;
-    if(pubSubConnection->configurationFreezeCounter == 0){
-        pubSubConnection->configurationFrozen = false;
-    }
 
     /* ReaderGroup unfreeze */
     rg->configurationFrozen = false;

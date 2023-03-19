@@ -55,7 +55,6 @@ typedef struct UA_PublishedDataSet {
     UA_UInt16 promotedFieldsCount;
     UA_UInt16 configurationFreezeCounter;
     TAILQ_ENTRY(UA_PublishedDataSet) listEntry;
-    UA_Boolean configurationFrozen;
 } UA_PublishedDataSet;
 
 UA_StatusCode
@@ -142,7 +141,6 @@ typedef struct UA_PubSubConnection {
     TAILQ_ENTRY(UA_PubSubConnection) listEntry;
     UA_UInt16 configurationFreezeCounter;
     UA_Boolean isRegistered; /* Subscriber requires connection channel regist */
-    UA_Boolean configurationFrozen;
 } UA_PubSubConnection;
 
 UA_StatusCode
