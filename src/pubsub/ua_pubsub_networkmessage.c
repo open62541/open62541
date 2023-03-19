@@ -585,37 +585,28 @@ UA_GroupHeader_decodeBinary(const UA_ByteString *src, size_t *offset,
                          UA_NetworkMessage* dst) {
     UA_Byte decoded = 0;
     UA_StatusCode rv = UA_Byte_decodeBinary(src, offset, &decoded);
-    UA_CHECK_STATUS(rv, return rv);
 
-    if((decoded & GROUP_HEADER_WRITER_GROUPID_ENABLED) != 0)
+    if((decoded & GROUP_HEADER_WRITER_GROUPID_ENABLED) != 0) {
         dst->groupHeader.writerGroupIdEnabled = true;
+        rv |= UA_UInt16_decodeBinary(src, offset, &dst->groupHeader.writerGroupId);
+    }
 
-    if((decoded & GROUP_HEADER_GROUP_VERSION_ENABLED) != 0)
+    if((decoded & GROUP_HEADER_GROUP_VERSION_ENABLED) != 0) {
         dst->groupHeader.groupVersionEnabled = true;
+        rv |= UA_UInt32_decodeBinary(src, offset, &dst->groupHeader.groupVersion);
+    }
 
-    if((decoded & GROUP_HEADER_NM_NUMBER_ENABLED) != 0)
+    if((decoded & GROUP_HEADER_NM_NUMBER_ENABLED) != 0) {
         dst->groupHeader.networkMessageNumberEnabled = true;
+        rv |= UA_UInt16_decodeBinary(src, offset, &dst->groupHeader.networkMessageNumber);
+    }
 
-    if((decoded & GROUP_HEADER_SEQUENCE_NUMBER_ENABLED) != 0)
+    if((decoded & GROUP_HEADER_SEQUENCE_NUMBER_ENABLED) != 0) {
         dst->groupHeader.sequenceNumberEnabled = true;
+        rv |= UA_UInt16_decodeBinary(src, offset, &dst->groupHeader.sequenceNumber);
+    }
 
-    if(dst->groupHeader.writerGroupIdEnabled) {
-        rv = UA_UInt16_decodeBinary(src, offset, &dst->groupHeader.writerGroupId);
-        UA_CHECK_STATUS(rv, return rv);
-    }
-    if(dst->groupHeader.groupVersionEnabled) {
-        rv = UA_UInt32_decodeBinary(src, offset, &dst->groupHeader.groupVersion);
-        UA_CHECK_STATUS(rv, return rv);
-    }
-    if(dst->groupHeader.networkMessageNumberEnabled) {
-        rv = UA_UInt16_decodeBinary(src, offset, &dst->groupHeader.networkMessageNumber);
-        UA_CHECK_STATUS(rv, return rv);
-    }
-    if(dst->groupHeader.sequenceNumberEnabled) {
-        rv = UA_UInt16_decodeBinary(src, offset, &dst->groupHeader.sequenceNumber);
-        UA_CHECK_STATUS(rv, return rv);
-    }
-    return UA_STATUSCODE_GOOD;
+    return rv;
 }
 
 static UA_StatusCode
