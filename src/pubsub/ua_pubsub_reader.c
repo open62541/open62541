@@ -1313,7 +1313,6 @@ prepareOffsetBuffer(UA_Server *server, UA_ReaderGroup *rg, UA_DataSetReader *rea
 
     /* Set the offset buffer in the reader */
     reader->bufferedMessage.nm = nm;
-    reader->bufferedMessage.RTsubscriberEnabled = true;
 
     /* If pre-operational, set to operational after the first message was
      * processed */
