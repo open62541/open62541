@@ -103,9 +103,9 @@ START_TEST(CreateAndLockConfiguration) {
         UA_Server_freezeWriterGroupConfiguration(server, writerGroup1);
     ck_assert(dataSetWriter->configurationFrozen == UA_TRUE);
     ck_assert(dataSetField->configurationFrozen == UA_TRUE);
-    ck_assert(pubSubConnection->configurationFrozen == UA_TRUE);
+    ck_assert(pubSubConnection->configurationFreezeCounter > 0);
     UA_PublishedDataSet *publishedDataSet = UA_PublishedDataSet_findPDSbyId(server, dataSetWriter->connectedDataSet);
-    ck_assert(publishedDataSet->configurationFrozen == UA_TRUE);
+    ck_assert(publishedDataSet->configurationFreezeCounter > 0);
     UA_DataSetField *dsf;
     TAILQ_FOREACH(dsf ,&publishedDataSet->fields , listEntry){
         ck_assert(dsf->configurationFrozen == UA_TRUE);
@@ -170,9 +170,9 @@ START_TEST(CreateAndLockConfigurationWithExternalAPI) {
         UA_Server_freezeWriterGroupConfiguration(server, writerGroup1);
         ck_assert(dataSetWriter->configurationFrozen == UA_TRUE);
         ck_assert(dataSetField->configurationFrozen == UA_TRUE);
-        ck_assert(pubSubConnection->configurationFrozen == UA_TRUE);
+        ck_assert(pubSubConnection->configurationFreezeCounter > 0);
         UA_PublishedDataSet *publishedDataSet = UA_PublishedDataSet_findPDSbyId(server, dataSetWriter->connectedDataSet);
-        ck_assert(publishedDataSet->configurationFrozen == UA_TRUE);
+        ck_assert(publishedDataSet->configurationFreezeCounter > 0);
         UA_DataSetField *dsf;
         TAILQ_FOREACH(dsf ,&publishedDataSet->fields , listEntry){
             ck_assert(dsf->configurationFrozen == UA_TRUE);
@@ -236,23 +236,23 @@ START_TEST(CreateAndReleaseMultiplePDSLocks) {
     //freeze configuratoin of both WG
     ck_assert(writerGroup_1->configurationFrozen == UA_FALSE);
     ck_assert(writerGroup_2->configurationFrozen == UA_FALSE);
-    ck_assert(publishedDataSet->configurationFrozen == UA_FALSE);
-    ck_assert(pubSubConnection->configurationFrozen == UA_FALSE);
+    ck_assert(publishedDataSet->configurationFreezeCounter == 0);
+    ck_assert(pubSubConnection->configurationFreezeCounter == 0);
         UA_Server_freezeWriterGroupConfiguration(server, writerGroup1);
         UA_Server_freezeWriterGroupConfiguration(server, writerGroup2);
     ck_assert(writerGroup_1->configurationFrozen == UA_TRUE);
     ck_assert(writerGroup_2->configurationFrozen == UA_TRUE);
-    ck_assert(publishedDataSet->configurationFrozen == UA_TRUE);
-    ck_assert(pubSubConnection->configurationFrozen == UA_TRUE);
+    ck_assert(publishedDataSet->configurationFreezeCounter > 0);
+    ck_assert(pubSubConnection->configurationFreezeCounter > 0);
     //unlock one tree, get sure pds still locked
         UA_Server_unfreezeWriterGroupConfiguration(server, writerGroup1);
     ck_assert(writerGroup_1->configurationFrozen == UA_FALSE);
-    ck_assert(publishedDataSet->configurationFrozen == UA_TRUE);
+    ck_assert(publishedDataSet->configurationFreezeCounter > 0);
     ck_assert(dataSetField->configurationFrozen == UA_TRUE);
-        UA_Server_unfreezeWriterGroupConfiguration(server, writerGroup2);
-    ck_assert(publishedDataSet->configurationFrozen == UA_FALSE);
+    UA_Server_unfreezeWriterGroupConfiguration(server, writerGroup2);
+    ck_assert(publishedDataSet->configurationFreezeCounter == 0);
     ck_assert(dataSetField->configurationFrozen == UA_FALSE);
-    ck_assert(pubSubConnection->configurationFrozen == UA_FALSE);
+    ck_assert(pubSubConnection->configurationFreezeCounter == 0);
 
     } END_TEST
 

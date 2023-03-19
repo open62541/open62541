@@ -64,21 +64,21 @@ START_TEST(CreateAndLockConfiguration) {
     //get internal PubSubConnection Pointer
     UA_PubSubConnection *pubSubConnection = UA_PubSubConnection_findConnectionbyId(server, connection1);
     ck_assert(pubSubConnection != NULL);
-    ck_assert(pubSubConnection->configurationFrozen == UA_FALSE);
+    ck_assert(pubSubConnection->configurationFreezeCounter == 0);
 
     //Lock the reader group and the child pubsub entities
     UA_Server_freezeReaderGroupConfiguration(server, readerGroup1);
 
     ck_assert(readerGroup->configurationFrozen == UA_TRUE);
     ck_assert(dataSetReader->configurationFrozen == UA_TRUE);
-    ck_assert(pubSubConnection->configurationFrozen == UA_TRUE);
+    ck_assert(pubSubConnection->configurationFreezeCounter > 0);
 
     //set state to disabled and implicit unlock the configuration
     UA_Server_unfreezeReaderGroupConfiguration(server, readerGroup1);
 
     ck_assert(readerGroup->configurationFrozen == UA_FALSE);
     ck_assert(dataSetReader->configurationFrozen == UA_FALSE);
-    ck_assert(pubSubConnection->configurationFrozen == UA_FALSE);
+    ck_assert(pubSubConnection->configurationFreezeCounter == 0);
 } END_TEST
 
 START_TEST(CreateAndReleaseMultipleLocks) {
@@ -120,26 +120,26 @@ START_TEST(CreateAndReleaseMultipleLocks) {
     //freeze configuration of both RG
     ck_assert(readerGroup_1->configurationFrozen == UA_FALSE);
     ck_assert(readerGroup_2->configurationFrozen == UA_FALSE);
-    ck_assert(pubSubConnection->configurationFrozen == UA_FALSE);
+    ck_assert(pubSubConnection->configurationFreezeCounter == 0);
 
     UA_Server_freezeReaderGroupConfiguration(server, readerGroup1);
     UA_Server_freezeReaderGroupConfiguration(server, readerGroup2);
 
     ck_assert(readerGroup_1->configurationFrozen == UA_TRUE);
     ck_assert(readerGroup_2->configurationFrozen == UA_TRUE);
-    ck_assert(pubSubConnection->configurationFrozen == UA_TRUE);
+    ck_assert(pubSubConnection->configurationFreezeCounter > 0);
 
     //unlock one tree, get sure connection still locked
     UA_Server_unfreezeReaderGroupConfiguration(server, readerGroup1);
     ck_assert(readerGroup_1->configurationFrozen == UA_FALSE);
-    ck_assert(pubSubConnection->configurationFrozen == UA_TRUE);
+    ck_assert(pubSubConnection->configurationFreezeCounter > 0);
     ck_assert(dataSetReader_1->configurationFrozen == UA_FALSE);
     ck_assert(dataSetReader_2->configurationFrozen == UA_FALSE);
     ck_assert(dataSetReader_3->configurationFrozen == UA_TRUE);
 
     UA_Server_unfreezeReaderGroupConfiguration(server, readerGroup2);
     ck_assert(readerGroup_2->configurationFrozen == UA_FALSE);
-    ck_assert(pubSubConnection->configurationFrozen == UA_FALSE);
+    ck_assert(pubSubConnection->configurationFreezeCounter == 0);
     ck_assert(dataSetReader_3->configurationFrozen == UA_FALSE);
     } END_TEST
 

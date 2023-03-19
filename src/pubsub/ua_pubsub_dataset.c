@@ -318,7 +318,7 @@ UA_DataSetField_create(UA_Server *server, const UA_NodeId publishedDataSet,
         return result;
     }
 
-    if(currDS->configurationFrozen) {
+    if(currDS->configurationFreezeCounter > 0) {
         UA_LOG_WARNING_DATASET(&server->config.logger, currDS,
                                "Adding DataSetField failed: PublishedDataSet is frozen");
         result.result = UA_STATUSCODE_BADCONFIGURATIONERROR;
@@ -443,7 +443,7 @@ removeDataSetField(UA_Server *server, const UA_NodeId dsf) {
         return result;
     }
 
-    if(pds->configurationFrozen) {
+    if(pds->configurationFreezeCounter > 0) {
         UA_LOG_WARNING_DATASET(&server->config.logger, pds,
                                "Remove DataSetField failed: PublishedDataSet is frozen");
         result.result = UA_STATUSCODE_BADCONFIGURATIONERROR;
