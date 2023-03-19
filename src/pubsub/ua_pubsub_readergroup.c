@@ -791,10 +791,12 @@ UA_ReaderGroup_addSubscribeCallback(UA_Server *server, UA_ReaderGroup *readerGro
 }
 
 void
-UA_ReaderGroup_removeSubscribeCallback(UA_Server *server, UA_ReaderGroup *readerGroup) {
-    UA_EventLoop *el = readerGroup->linkedConnection->config.eventLoop;
-    if(!el)
-        el = server->config.eventLoop;
+UA_ReaderGroup_removeSubscribeCallback(UA_Server *server,
+                                       UA_ReaderGroup *readerGroup) {
+    UA_PubSubConnection *connection = readerGroup->linkedConnection;
+    UA_EventLoop *el = server->config.eventLoop;
+    if(connection && connection->config.eventLoop)
+        el = connection->config.eventLoop;
     if(readerGroup->subscribeCallbackId != 0)
         el->removeCyclicCallback(el, readerGroup->subscribeCallbackId);
     readerGroup->subscribeCallbackId = 0;
