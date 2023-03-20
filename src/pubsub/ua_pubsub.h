@@ -561,9 +561,9 @@ struct UA_ReaderGroup {
 };
 
 UA_StatusCode
-UA_ReaderGroup_create(UA_Server *server, UA_NodeId connectionIdentifier,
-                      const UA_ReaderGroupConfig *readerGroupConfig,
-                      UA_NodeId *readerGroupIdentifier);
+UA_ReaderGroup_create(UA_Server *server, UA_NodeId connectionId,
+                      const UA_ReaderGroupConfig *rgc,
+                      UA_NodeId *readerGroupId);
 
 UA_StatusCode
 removeReaderGroup(UA_Server *server, UA_NodeId groupIdentifier);
