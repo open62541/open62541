@@ -6,19 +6,17 @@
  * Copyright (c) 2020 Thomas Fischer, Siemens AG
  */
 
-#include <open62541/plugin/log_stdout.h>
+#include <open62541/server_pubsub.h>
 
-#ifdef UA_ENABLE_PUBSUB
+#if defined(UA_ENABLE_PUBSUB) && defined(UA_ENABLE_PUBSUB_FILE_CONFIG)
+
+#include <open62541/plugin/pubsub_udp.h>
 #ifdef UA_ENABLE_PUBSUB_ETH_UADP
 #include <open62541/plugin/pubsub_ethernet.h>
-#endif
-#include <open62541/plugin/pubsub_udp.h>
 #endif
 
 #include "pubsub/ua_pubsub.h"
 #include "server/ua_server_internal.h"
-
-#ifdef UA_ENABLE_PUBSUB_FILE_CONFIG
 
 static UA_StatusCode
 createPubSubConnection(UA_Server *server,
@@ -696,7 +694,8 @@ createDataSetReader(UA_Server *server, const UA_DataSetReaderDataType *dsrParams
  * @param publishedDataSetParameters PublishedDataSet parameters
  * @param config PublishedDataSet configuration object */
 static UA_StatusCode
-setPublishedDataSetType(const UA_PublishedDataSetDataType *pdsParams,
+setPublishedDataSetType(UA_Server *server,
+                        const UA_PublishedDataSetDataType *pdsParams,
                         UA_PublishedDataSetConfig *config) {
     if(pdsParams->dataSetSource.encoding != UA_EXTENSIONOBJECT_DECODED)
         return UA_STATUSCODE_BADINTERNALERROR;
@@ -732,7 +731,7 @@ createPublishedDataSet(UA_Server *server,
     memset(&config, 0, sizeof(UA_PublishedDataSetConfig));
 
     config.name = pdsParams->name;
-    UA_StatusCode res = setPublishedDataSetType(pdsParams, &config);
+    UA_StatusCode res = setPublishedDataSetType(server, pdsParams, &config);
     if(res != UA_STATUSCODE_GOOD)
         return res;
 
@@ -836,7 +835,7 @@ UA_PubSubManager_loadPubSubConfigFromByteString(UA_Server *server,
     UA_StatusCode res;
 
     if(server == NULL) {
-        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
+        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
                      "[UA_PubSubManager_loadPubSubConfigFromByteString] Invalid argument");
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     }
@@ -1104,22 +1103,22 @@ generatePubSubConnectionDataType(UA_Server* server,
     const UA_DataType *publisherIdType;
     memset(dst, 0, sizeof(UA_PubSubConnectionDataType));
 
-    UA_String_copy(&src->config->name, &dst->name);
-    UA_String_copy(&src->config->transportProfileUri, &dst->transportProfileUri);
-    dst->enabled = src->config->enabled;
+    UA_String_copy(&src->config.name, &dst->name);
+    UA_String_copy(&src->config.transportProfileUri, &dst->transportProfileUri);
+    dst->enabled = src->config.enabled;
 
     UA_StatusCode res =
-        UA_Array_copy(src->config->connectionProperties.map,
-                      src->config->connectionProperties.mapSize,
+        UA_Array_copy(src->config.connectionProperties.map,
+                      src->config.connectionProperties.mapSize,
                       (void**)&dst->connectionProperties,
                       &UA_TYPES[UA_TYPES_KEYVALUEPAIR]);
     if(res != UA_STATUSCODE_GOOD) {
         UA_PubSubConnectionDataType_clear(dst);
         return res;
     }
-    dst->connectionPropertiesSize = src->config->connectionProperties.mapSize;
+    dst->connectionPropertiesSize = src->config.connectionProperties.mapSize;
 
-    switch (src->config->publisherIdType) {
+    switch (src->config.publisherIdType) {
         case UA_PUBLISHERIDTYPE_BYTE:
             publisherIdType = &UA_TYPES[UA_TYPES_BYTE];
             break;
@@ -1142,28 +1141,28 @@ generatePubSubConnectionDataType(UA_Server* server,
             break;
     }
     UA_Variant_setScalarCopy(&dst->publisherId,
-                             &src->config->publisherId,
+                             &src->config.publisherId,
                              publisherIdType);
 
     /* Possibly, array size and dimensions of src->config->address and
      * src->config->connectionTransportSettings should be checked beforehand. */
     dst->address.encoding = UA_EXTENSIONOBJECT_DECODED;
-    dst->address.content.decoded.type = src->config->address.type;
-    res = UA_Array_copy(src->config->address.data, 1,
+    dst->address.content.decoded.type = src->config.address.type;
+    res = UA_Array_copy(src->config.address.data, 1,
                         &dst->address.content.decoded.data,
-                        src->config->address.type);
+                        src->config.address.type);
     if(res != UA_STATUSCODE_GOOD) {
         UA_PubSubConnectionDataType_clear(dst);
         return res;
     }
 
-    if(src->config->connectionTransportSettings.data) {
+    if(src->config.connectionTransportSettings.data) {
         dst->transportSettings.encoding = UA_EXTENSIONOBJECT_DECODED;
         dst->transportSettings.content.decoded.type =
-            src->config->connectionTransportSettings.type;
-        res = UA_Array_copy(src->config->connectionTransportSettings.data, 1,
+            src->config.connectionTransportSettings.type;
+        res = UA_Array_copy(src->config.connectionTransportSettings.data, 1,
                             &dst->transportSettings.content.decoded.data,
-                            src->config->connectionTransportSettings.type);
+                            src->config.connectionTransportSettings.type);
 
         if(res != UA_STATUSCODE_GOOD) {
             UA_PubSubConnectionDataType_clear(dst);
@@ -1272,7 +1271,7 @@ UA_PubSubManager_getEncodedPubSubConfiguration(UA_Server *server,
     memset(&config, 0, sizeof(UA_PubSubConfigurationDataType));
 
     if(server == NULL) {
-        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
+        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
                      "[UA_PubSubManager_getEncodedPubSubConfiguration] Invalid argument");
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     }
@@ -1301,4 +1300,4 @@ UA_PubSubManager_getEncodedPubSubConfiguration(UA_Server *server,
     return res;
 }
 
-#endif /* UA_ENABLE_PUBSUB_FILE_CONFIG */
+#endif /* UA_ENABLE_PUBSUB && UA_ENABLE_PUBSUB_FILE_CONFIG */
