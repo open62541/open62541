@@ -15,7 +15,6 @@
 #include <open62541/plugin/pubsub_udp.h>
 #endif
 
-#include "pubsub/ua_pubsub_config.h"
 #include "pubsub/ua_pubsub.h"
 #include "server/ua_server_internal.h"
 

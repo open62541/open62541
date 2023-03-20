@@ -11,10 +11,6 @@
 
 #include "ua_pubsub_ns0.h"
 
-#ifdef UA_ENABLE_PUBSUB_FILE_CONFIG
-#include "ua_pubsub_config.h"
-#endif
-
 #ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL /* conditional compilation */
 
 typedef struct {
