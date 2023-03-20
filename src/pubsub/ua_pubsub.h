@@ -357,9 +357,6 @@ UA_WriterGroup_freezeConfiguration(UA_Server *server, UA_WriterGroup *wg);
 UA_StatusCode
 UA_WriterGroup_unfreezeConfiguration(UA_Server *server, UA_WriterGroup *wg);
 
-void
-UA_ReaderGroup_removePublishCallback(UA_Server *server, UA_WriterGroup *wg);
-
 UA_StatusCode
 UA_WriterGroup_setPubSubState(UA_Server *server,
                               UA_WriterGroup *writerGroup,
@@ -601,9 +598,6 @@ UA_ReaderGroup_setPubSubState(UA_Server *server,
 /*********************************************************/
 /*               PublishValues handling                  */
 /*********************************************************/
-
-UA_StatusCode
-UA_WriterGroup_addPublishCallback(UA_Server *server, UA_WriterGroup *writerGroup);
 
 void
 UA_WriterGroup_publishCallback(UA_Server *server, UA_WriterGroup *writerGroup);

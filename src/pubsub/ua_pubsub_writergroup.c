@@ -42,6 +42,52 @@ generateNetworkMessage(UA_PubSubConnection *connection, UA_WriterGroup *wg,
                        UA_ExtensionObject *transportSettings,
                        UA_NetworkMessage *networkMessage);
 
+/* Add new publishCallback. The first execution is triggered directly after
+ * creation. */
+static UA_StatusCode
+UA_WriterGroup_addPublishCallback(UA_Server *server, UA_WriterGroup *writerGroup) {
+    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+
+    /* Already registered */
+    if(writerGroup->publishCallbackId != 0)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
+    UA_EventLoop *el = server->config.eventLoop;
+    if(writerGroup->linkedConnection && writerGroup->linkedConnection->config.eventLoop)
+        el = writerGroup->linkedConnection->config.eventLoop;
+
+    UA_StatusCode retval =
+        el->addCyclicCallback(el, (UA_Callback)UA_WriterGroup_publishCallback,
+                              server, writerGroup,
+                              writerGroup->config.publishingInterval,
+                              NULL /* TODO: use basetime */,
+                              UA_TIMER_HANDLE_CYCLEMISS_WITH_CURRENTTIME /* TODO: Send
+                                                                          * timer policy
+                                                                          * from writer
+                                                                          * group
+                                                                          * config */,
+                              &writerGroup->publishCallbackId);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
+
+    /* Run once after creation. The Publish callback itself takes the server
+     * mutex. So we release it first. */
+    UA_UNLOCK(&server->serviceMutex);
+    UA_WriterGroup_publishCallback(server, writerGroup);
+    UA_LOCK(&server->serviceMutex);
+    return retval;
+}
+
+static void
+UA_WriterGroup_removePublishCallback(UA_Server *server, UA_WriterGroup *wg) {
+    UA_EventLoop *el = server->config.eventLoop;
+    if(wg->linkedConnection && wg->linkedConnection->config.eventLoop)
+        el = wg->linkedConnection->config.eventLoop;
+    if(wg->publishCallbackId != 0)
+        el->removeCyclicCallback(el, wg->publishCallbackId);
+    wg->publishCallbackId = 0;
+}
+
 UA_StatusCode
 UA_WriterGroup_create(UA_Server *server, const UA_NodeId connection,
                       const UA_WriterGroupConfig *writerGroupConfig,
@@ -217,9 +263,8 @@ removeWriterGroup(UA_Server *server, const UA_NodeId writerGroup) {
         return UA_STATUSCODE_BADCONFIGURATIONERROR;
     }
 
-    if(wg->state == UA_PUBSUBSTATE_OPERATIONAL) {
-        UA_ReaderGroup_removePublishCallback(server, wg);
-    }
+    if(wg->state == UA_PUBSUBSTATE_OPERATIONAL)
+        UA_WriterGroup_removePublishCallback(server, wg);
 
     UA_DataSetWriter *dsw, *dsw_tmp;
     LIST_FOREACH_SAFE(dsw, &wg->writers, listEntry, dsw_tmp) {
@@ -515,7 +560,7 @@ UA_WriterGroup_updateConfig(UA_Server *server, UA_WriterGroup *wg,
         wg->config.publishingInterval = config->publishingInterval;
         if(wg->config.rtLevel == UA_PUBSUB_RT_NONE &&
            wg->state == UA_PUBSUBSTATE_OPERATIONAL) {
-            UA_ReaderGroup_removePublishCallback(server, wg);
+            UA_WriterGroup_removePublishCallback(server, wg);
             UA_WriterGroup_addPublishCallback(server, wg);
         }
     }
@@ -716,10 +761,10 @@ UA_WriterGroup_setPubSubState(UA_Server *server, UA_WriterGroup *writerGroup,
                 case UA_PUBSUBSTATE_PAUSED:
                     break;
                 case UA_PUBSUBSTATE_OPERATIONAL: {
-                    UA_ReaderGroup_removePublishCallback(server, writerGroup);
-
-                    LIST_FOREACH(dataSetWriter, &writerGroup->writers, listEntry){
-                        UA_DataSetWriter_setPubSubState(server, dataSetWriter, UA_PUBSUBSTATE_DISABLED,
+                    UA_WriterGroup_removePublishCallback(server, writerGroup);
+                    LIST_FOREACH(dataSetWriter, &writerGroup->writers, listEntry) {
+                        UA_DataSetWriter_setPubSubState(server, dataSetWriter,
+                                                        UA_PUBSUBSTATE_DISABLED,
                                                         UA_STATUSCODE_BADRESOURCEUNAVAILABLE);
                     }
 
@@ -760,9 +805,8 @@ UA_WriterGroup_setPubSubState(UA_Server *server, UA_WriterGroup *writerGroup,
             switch (writerGroup->state) {
                 case UA_PUBSUBSTATE_DISABLED: {
                     writerGroup->state = UA_PUBSUBSTATE_OPERATIONAL;
-                    UA_ReaderGroup_removePublishCallback(server, writerGroup);
-
-                    LIST_FOREACH(dataSetWriter, &writerGroup->writers, listEntry){
+                    UA_WriterGroup_removePublishCallback(server, writerGroup);
+                    LIST_FOREACH(dataSetWriter, &writerGroup->writers, listEntry) {
                         UA_DataSetWriter_setPubSubState(server, dataSetWriter,
                                                         UA_PUBSUBSTATE_OPERATIONAL, cause);
                     }
@@ -795,10 +839,10 @@ UA_WriterGroup_setPubSubState(UA_Server *server, UA_WriterGroup *writerGroup,
                 case UA_PUBSUBSTATE_PAUSED:
                     break;
                 case UA_PUBSUBSTATE_OPERATIONAL: {
-                    UA_ReaderGroup_removePublishCallback(server, writerGroup);
-
+                    UA_WriterGroup_removePublishCallback(server, writerGroup);
                     LIST_FOREACH(dataSetWriter, &writerGroup->writers, listEntry){
-                        UA_DataSetWriter_setPubSubState(server, dataSetWriter, UA_PUBSUBSTATE_ERROR,
+                        UA_DataSetWriter_setPubSubState(server, dataSetWriter,
+                                                        UA_PUBSUBSTATE_ERROR,
                                                         UA_STATUSCODE_GOOD);
                     }
                     break;
@@ -1322,52 +1366,6 @@ UA_WriterGroup_publishCallback(UA_Server *server, UA_WriterGroup *writerGroup) {
     }
 
     UA_UNLOCK(&server->serviceMutex);
-}
-
-/* Add new publishCallback. The first execution is triggered directly after
- * creation. */
-UA_StatusCode
-UA_WriterGroup_addPublishCallback(UA_Server *server, UA_WriterGroup *writerGroup) {
-    UA_LOCK_ASSERT(&server->serviceMutex, 1);
-
-    /* Already registered */
-    if(writerGroup->publishCallbackId != 0)
-        return UA_STATUSCODE_BADINTERNALERROR;
-
-    UA_EventLoop *el = server->config.eventLoop;
-    if(writerGroup->linkedConnection && writerGroup->linkedConnection->config.eventLoop)
-        el = writerGroup->linkedConnection->config.eventLoop;
-
-    UA_StatusCode retval =
-        el->addCyclicCallback(el, (UA_Callback)UA_WriterGroup_publishCallback,
-                              server, writerGroup,
-                              writerGroup->config.publishingInterval,
-                              NULL /* TODO: use basetime */,
-                              UA_TIMER_HANDLE_CYCLEMISS_WITH_CURRENTTIME /* TODO: Send
-                                                                          * timer policy
-                                                                          * from writer
-                                                                          * group
-                                                                          * config */,
-                              &writerGroup->publishCallbackId);
-    if(retval != UA_STATUSCODE_GOOD)
-        return retval;
-
-    /* Run once after creation. The Publish callback itself takes the server
-     * mutex. So we release it first. */
-    UA_UNLOCK(&server->serviceMutex);
-    UA_WriterGroup_publishCallback(server, writerGroup);
-    UA_LOCK(&server->serviceMutex);
-    return retval;
-}
-
-void
-UA_ReaderGroup_removePublishCallback(UA_Server *server, UA_WriterGroup *wg) {
-    UA_EventLoop *el = server->config.eventLoop;
-    if(wg->linkedConnection && wg->linkedConnection->config.eventLoop)
-        el = wg->linkedConnection->config.eventLoop;
-    if(wg->publishCallbackId != 0)
-        el->removeCyclicCallback(el, wg->publishCallbackId);
-    wg->publishCallbackId = 0;
 }
 
 #endif /* UA_ENABLE_PUBSUB */
