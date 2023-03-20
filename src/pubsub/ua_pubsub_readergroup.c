@@ -161,39 +161,38 @@ UA_ReaderGroup_removeSubscribeCallback(UA_Server *server,
 }
 
 UA_StatusCode
-UA_ReaderGroup_create(UA_Server *server, UA_NodeId connectionIdentifier,
-                      const UA_ReaderGroupConfig *readerGroupConfig,
-                      UA_NodeId *readerGroupIdentifier) {
-    UA_StatusCode retval = UA_STATUSCODE_GOOD;
-
+UA_ReaderGroup_create(UA_Server *server, UA_NodeId connectionId,
+                      const UA_ReaderGroupConfig *rgc,
+                      UA_NodeId *readerGroupId) {
     /* Check for valid readergroup configuration */
-    if(!readerGroupConfig)
+    if(!rgc)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
 
     /* Search the connection by the given connectionIdentifier */
-    UA_PubSubConnection *currentConnectionContext =
-        UA_PubSubConnection_findConnectionbyId(server, connectionIdentifier);
-    if(!currentConnectionContext)
+    UA_PubSubConnection *connection =
+        UA_PubSubConnection_findConnectionbyId(server, connectionId);
+    if(!connection)
         return UA_STATUSCODE_BADNOTFOUND;
 
-    if(!readerGroupConfig->pubsubManagerCallback.addCustomCallback &&
-       readerGroupConfig->enableBlockingSocket) {
-        UA_LOG_WARNING_CONNECTION(&server->config.logger, currentConnectionContext,
-                                  "Adding ReaderGroup failed, blocking socket functionality "
-                                  "only supported in customcallback");
+    if(!rgc->pubsubManagerCallback.addCustomCallback &&
+       rgc->enableBlockingSocket) {
+        UA_LOG_WARNING_CONNECTION(&server->config.logger, connection,
+                                  "Adding ReaderGroup failed, blocking socket "
+                                  "functionality only supported in customcallback");
         return UA_STATUSCODE_BADNOTSUPPORTED;
     }
 
-    if(currentConnectionContext->configurationFreezeCounter > 0) {
-        UA_LOG_WARNING_CONNECTION(&server->config.logger, currentConnectionContext,
+    if(connection->configurationFreezeCounter > 0) {
+        UA_LOG_WARNING_CONNECTION(&server->config.logger, connection,
                                   "Adding ReaderGroup failed. "
                                   "Connection configuration is frozen.");
         return UA_STATUSCODE_BADCONFIGURATIONERROR;
     }
 
     /* Regist (bind) the connection channel if it is not already registered */
-    if(!currentConnectionContext->isRegistered) {
-        retval |= UA_PubSubConnection_regist(server, &connectionIdentifier, readerGroupConfig);
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+    if(!connection->isRegistered) {
+        retval |= UA_PubSubConnection_regist(server, &connectionId, rgc);
         if(retval != UA_STATUSCODE_GOOD)
             return retval;
     }
@@ -206,23 +205,28 @@ UA_ReaderGroup_create(UA_Server *server, UA_NodeId connectionIdentifier,
     newGroup->componentType = UA_PUBSUB_COMPONENT_READERGROUP;
 
     /* Deep copy of the config */
-    newGroup->linkedConnection = currentConnectionContext;
-    retval |= UA_ReaderGroupConfig_copy(readerGroupConfig, &newGroup->config);
+    retval = UA_ReaderGroupConfig_copy(rgc, &newGroup->config);
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_free(newGroup);
+        return retval;
+    }
 
     /* Check user configured params and define it accordingly */
     if(newGroup->config.subscribingInterval <= 0.0)
-        newGroup->config.subscribingInterval = 5; // Set default to 5 ms
+        newGroup->config.subscribingInterval = 5; /* Set default to 5 ms */
 
     if(newGroup->config.enableBlockingSocket)
-        newGroup->config.timeout = 0; // Set timeout to 0 for blocking socket
+        newGroup->config.timeout = 0; /* Set timeout to 0 for blocking socket */
 
     if((!newGroup->config.enableBlockingSocket) && (!newGroup->config.timeout))
         newGroup->config.timeout = 1000; /* Set default to 1ms socket timeout
                                             when non-blocking socket allows with
                                             zero timeout */
 
-    LIST_INSERT_HEAD(&currentConnectionContext->readerGroups, newGroup, listEntry);
-    currentConnectionContext->readerGroupsSize++;
+    newGroup->linkedConnection = connection;
+
+    LIST_INSERT_HEAD(&connection->readerGroups, newGroup, listEntry);
+    connection->readerGroupsSize++;
 
 #ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL
     retval |= addReaderGroupRepresentation(server, newGroup);
@@ -232,13 +236,12 @@ UA_ReaderGroup_create(UA_Server *server, UA_NodeId connectionIdentifier,
 #endif
 
 #ifdef UA_ENABLE_PUBSUB_SKS
-    if(readerGroupConfig->securityMode == UA_MESSAGESECURITYMODE_SIGN ||
-       readerGroupConfig->securityMode == UA_MESSAGESECURITYMODE_SIGNANDENCRYPT) {
-        if(!UA_String_isEmpty(&readerGroupConfig->securityGroupId) &&
-           readerGroupConfig->securityPolicy) {
+    if(rgc->securityMode == UA_MESSAGESECURITYMODE_SIGN ||
+       rgc->securityMode == UA_MESSAGESECURITYMODE_SIGNANDENCRYPT) {
+        if(!UA_String_isEmpty(&rgc->securityGroupId) && rgc->securityPolicy) {
             /* Does the key storage already exist? */
             newGroup->keyStorage =
-                UA_PubSubKeyStorage_findKeyStorage(server, readerGroupConfig->securityGroupId);
+                UA_PubSubKeyStorage_findKeyStorage(server, rgc->securityGroupId);
 
             if(!newGroup->keyStorage) {
                 /* Create a new key storage */
@@ -247,9 +250,10 @@ UA_ReaderGroup_create(UA_Server *server, UA_NodeId connectionIdentifier,
                 if(!newGroup->keyStorage)
                     return UA_STATUSCODE_BADOUTOFMEMORY;
                 retval = UA_PubSubKeyStorage_init(server, newGroup->keyStorage,
-                                                  &readerGroupConfig->securityGroupId,
-                                                  readerGroupConfig->securityPolicy, 0, 0);
+                                                  &rgc->securityGroupId,
+                                                  rgc->securityPolicy, 0, 0);
                 if(retval != UA_STATUSCODE_GOOD) {
+                    UA_ReaderGroupConfig_clear(&newGroup->config);
                     UA_free(newGroup);
                     return retval;
                 }
@@ -262,14 +266,15 @@ UA_ReaderGroup_create(UA_Server *server, UA_NodeId connectionIdentifier,
 
 #endif
 
-    if(readerGroupIdentifier)
-        UA_NodeId_copy(&newGroup->identifier, readerGroupIdentifier);
+    if(readerGroupId)
+        UA_NodeId_copy(&newGroup->identifier, readerGroupId);
 
     /* Set the assigment between ReaderGroup and Topic if the transport layer is MQTT. */
-    const UA_String transport_uri = UA_STRING("http://opcfoundation.org/UA-Profile/Transport/pubsub-mqtt");
-    if(UA_String_equal(&currentConnectionContext->config.transportProfileUri, &transport_uri)) {
+    const UA_String transport_uri =
+        UA_STRING("http://opcfoundation.org/UA-Profile/Transport/pubsub-mqtt");
+    if(UA_String_equal(&connection->config.transportProfileUri, &transport_uri)) {
         UA_String topic = ((UA_BrokerWriterGroupTransportDataType *)
-                           readerGroupConfig->transportSettings.content.decoded.data)->queueName;
+                           rgc->transportSettings.content.decoded.data)->queueName;
         retval |= UA_PubSubManager_addPubSubTopicAssign(server, newGroup, topic);
     }
     return retval;
