@@ -78,7 +78,87 @@ UA_ReaderGroupConfig_clear(UA_ReaderGroupConfig *readerGroupConfig) {
 #endif
 }
 
+/* This triggers the collection and reception of NetworkMessages and the
+ * contained DataSetMessages. */
+static void
+subscribeCallback(UA_Server *server,
+                  UA_ReaderGroup *readerGroup) {
+    // TODO: feedback for debug-assert vs runtime-check
+    UA_assert(server);
+    UA_assert(readerGroup);
+
+    UA_LOG_DEBUG_READERGROUP(&server->config.logger, readerGroup,
+                             "PubSub subscribe callback");
+
+    UA_PubSubConnection *connection = readerGroup->linkedConnection;
+    if(!connection) {
+        UA_LOG_ERROR_READERGROUP(&server->config.logger, readerGroup,
+                     "SubscribeCallback(): Find linked connection failed");
+        UA_ReaderGroup_setPubSubState(server, readerGroup, UA_PUBSUBSTATE_ERROR,
+                                      UA_STATUSCODE_BADCONNECTIONCLOSED);
+        return;
+    }
+
+    receiveBufferedNetworkMessage(server, readerGroup, connection);
+}
+
+void
+UA_ReaderGroup_subscribeCallback(UA_Server *server,
+                                 UA_ReaderGroup *readerGroup) {
+    UA_LOCK(&server->serviceMutex);
+    subscribeCallback(server, readerGroup);
+    UA_UNLOCK(&server->serviceMutex);
+}
+
 /* ReaderGroup Lifecycle */
+
+/* Add new subscribeCallback. The first execution is triggered directly after
+ * creation. */
+static UA_StatusCode
+UA_ReaderGroup_addSubscribeCallback(UA_Server *server, UA_ReaderGroup *readerGroup) {
+    /* Already registered */
+    if(readerGroup->subscribeCallbackId != 0)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
+    UA_EventLoop *el = readerGroup->linkedConnection->config.eventLoop;
+    if(!el)
+        el = server->config.eventLoop;
+
+    UA_StatusCode retval =
+        el->addCyclicCallback(el, (UA_Callback)UA_ReaderGroup_subscribeCallback,
+                              server, readerGroup,
+                              readerGroup->config.subscribingInterval,
+                              NULL /* TODO: use basetime */,
+                              UA_TIMER_HANDLE_CYCLEMISS_WITH_CURRENTTIME /* TODO: Send
+                                                                          * timer policy
+                                                                          * from writer
+                                                                          * group
+                                                                          * config */,
+                              &readerGroup->subscribeCallbackId);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
+
+    /* Run once after creation */
+    /* When using blocking socket functionality, the server mechanism might get
+     * blocked. It is highly recommended to use custom callback when using
+     * blockingsocket. */
+    if(readerGroup->config.enableBlockingSocket != true)
+        subscribeCallback(server, readerGroup);
+
+    return retval;
+}
+
+static void
+UA_ReaderGroup_removeSubscribeCallback(UA_Server *server,
+                                       UA_ReaderGroup *readerGroup) {
+    UA_PubSubConnection *connection = readerGroup->linkedConnection;
+    UA_EventLoop *el = server->config.eventLoop;
+    if(connection && connection->config.eventLoop)
+        el = connection->config.eventLoop;
+    if(readerGroup->subscribeCallbackId != 0)
+        el->removeCyclicCallback(el, readerGroup->subscribeCallbackId);
+    readerGroup->subscribeCallbackId = 0;
+}
 
 UA_StatusCode
 UA_ReaderGroup_create(UA_Server *server, UA_NodeId connectionIdentifier,
@@ -720,86 +800,6 @@ UA_Server_unfreezeReaderGroupConfiguration(UA_Server *server,
     UA_StatusCode res = UA_ReaderGroup_unfreezeConfiguration(server, rg);
     UA_UNLOCK(&server->serviceMutex);
     return res;
-}
-
-/* This triggers the collection and reception of NetworkMessages and the
- * contained DataSetMessages. */
-static void
-subscribeCallback(UA_Server *server,
-                  UA_ReaderGroup *readerGroup) {
-    // TODO: feedback for debug-assert vs runtime-check
-    UA_assert(server);
-    UA_assert(readerGroup);
-
-    UA_LOG_DEBUG_READERGROUP(&server->config.logger, readerGroup,
-                             "PubSub subscribe callback");
-
-    UA_PubSubConnection *connection = readerGroup->linkedConnection;
-    if(!connection) {
-        UA_LOG_ERROR_READERGROUP(&server->config.logger, readerGroup,
-                     "SubscribeCallback(): Find linked connection failed");
-        UA_ReaderGroup_setPubSubState(server, readerGroup, UA_PUBSUBSTATE_ERROR,
-                                      UA_STATUSCODE_BADCONNECTIONCLOSED);
-        return;
-    }
-
-    receiveBufferedNetworkMessage(server, readerGroup, connection);
-}
-
-void
-UA_ReaderGroup_subscribeCallback(UA_Server *server,
-                                 UA_ReaderGroup *readerGroup) {
-    UA_LOCK(&server->serviceMutex);
-    subscribeCallback(server, readerGroup);
-    UA_UNLOCK(&server->serviceMutex);
-}
-
-/* Add new subscribeCallback. The first execution is triggered directly after
- * creation. */
-UA_StatusCode
-UA_ReaderGroup_addSubscribeCallback(UA_Server *server, UA_ReaderGroup *readerGroup) {
-    /* Already registered */
-    if(readerGroup->subscribeCallbackId != 0)
-        return UA_STATUSCODE_BADINTERNALERROR;
-
-    UA_EventLoop *el = readerGroup->linkedConnection->config.eventLoop;
-    if(!el)
-        el = server->config.eventLoop;
-
-    UA_StatusCode retval =
-        el->addCyclicCallback(el, (UA_Callback)UA_ReaderGroup_subscribeCallback,
-                              server, readerGroup,
-                              readerGroup->config.subscribingInterval,
-                              NULL /* TODO: use basetime */,
-                              UA_TIMER_HANDLE_CYCLEMISS_WITH_CURRENTTIME /* TODO: Send
-                                                                          * timer policy
-                                                                          * from writer
-                                                                          * group
-                                                                          * config */,
-                              &readerGroup->subscribeCallbackId);
-    if(retval != UA_STATUSCODE_GOOD)
-        return retval;
-
-    /* Run once after creation */
-    /* When using blocking socket functionality, the server mechanism might get
-     * blocked. It is highly recommended to use custom callback when using
-     * blockingsocket. */
-    if(readerGroup->config.enableBlockingSocket != true)
-        subscribeCallback(server, readerGroup);
-
-    return retval;
-}
-
-void
-UA_ReaderGroup_removeSubscribeCallback(UA_Server *server,
-                                       UA_ReaderGroup *readerGroup) {
-    UA_PubSubConnection *connection = readerGroup->linkedConnection;
-    UA_EventLoop *el = server->config.eventLoop;
-    if(connection && connection->config.eventLoop)
-        el = connection->config.eventLoop;
-    if(readerGroup->subscribeCallbackId != 0)
-        el->removeCyclicCallback(el, readerGroup->subscribeCallbackId);
-    readerGroup->subscribeCallbackId = 0;
 }
 
 #endif /* UA_ENABLE_PUBSUB */
