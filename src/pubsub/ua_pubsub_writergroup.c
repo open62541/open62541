@@ -264,28 +264,16 @@ UA_WriterGroup_freezeConfiguration(UA_Server *server, UA_WriterGroup *wg) {
     wg->configurationFrozen = true;
 
     /* DataSetWriter freeze */
-    UA_DataSetWriter *dataSetWriter;
-    LIST_FOREACH(dataSetWriter, &wg->writers, listEntry) {
-        dataSetWriter->configurationFrozen = true;
-        /* PublishedDataSet freezeCounter++ */
-        UA_PublishedDataSet *publishedDataSet =
-            UA_PublishedDataSet_findPDSbyId(server, dataSetWriter->connectedDataSet);
-        /* Skip the below for heartbeat writers (without an associated PDS) */
-        if(publishedDataSet) {
-            publishedDataSet->configurationFreezeCounter++;
-            /* DataSetFields freeze */
-            UA_DataSetField *dataSetField;
-            TAILQ_FOREACH(dataSetField, &publishedDataSet->fields, listEntry) {
-                dataSetField->configurationFrozen = true;
-            }
-        }
+    UA_DataSetWriter *dsw;
+    LIST_FOREACH(dsw, &wg->writers, listEntry) {
+        UA_DataSetWriter_freezeConfiguration(server, dsw);
     }
 
+    /* Enabling RT? */
     if(wg->config.rtLevel != UA_PUBSUB_RT_FIXED_SIZE)
         return UA_STATUSCODE_GOOD;
 
-    /* Freeze the RT writer configuration */
-    size_t dsmCount = 0;
+    /* Check if RT is possible */
     if(wg->config.encodingMimeType != UA_PUBSUB_ENCODING_UADP) {
         UA_LOG_WARNING_WRITERGROUP(&server->config.logger, wg,
                                    "PubSub-RT configuration fail: Non-RT capable encoding.");
@@ -295,87 +283,20 @@ UA_WriterGroup_freezeConfiguration(UA_Server *server, UA_WriterGroup *wg) {
     //TODO Clarify: should we only allow = maxEncapsulatedDataSetMessageCount == 1 with RT?
     //TODO Clarify: Behaviour if the finale size is more than MTU
 
-    /* Generate data set messages  */
+    /* Prepare the DataSetMessages */
     UA_STACKARRAY(UA_UInt16, dsWriterIds, wg->writersCount);
     UA_STACKARRAY(UA_DataSetMessage, dsmStore, wg->writersCount);
     UA_StatusCode res = UA_STATUSCODE_GOOD;
-    UA_DataSetWriter *dsw;
+    size_t dsmCount = 0;
     LIST_FOREACH(dsw, &wg->writers, listEntry) {
-        /* Find the dataset */
-        UA_PublishedDataSet *pds =
-            UA_PublishedDataSet_findPDSbyId(server, dsw->connectedDataSet);
-        if(!pds) {
-            if(UA_NodeId_isNull(&dsw->connectedDataSet)) {
-                UA_StatusCode res1 =
-                        UA_DataSetWriter_generateDataSetMessage(server,
-                                &dsmStore[dsmCount], dsw);
-                if(res1 != UA_STATUSCODE_GOOD) {
-                    UA_LOG_WARNING_WRITER(&server->config.logger, dsw,
-                                          "PubSub-RT configuration fail: "
-                                          "Heartbeat DataSetMessage creation failed");
-                    continue;
-                }
-                dsWriterIds[dsmCount] = dsw->config.dataSetWriterId;
-                dsmCount++;
-                continue;
-            }
-
-            UA_LOG_WARNING_WRITER(&server->config.logger, dsw,
-                                  "PubSub-RT configuration fail: "
-                                  "PublishedDataSet not found");
-            continue;
-        }
-
-        if(pds) {
-            if(pds->promotedFieldsCount > 0) {
-                UA_LOG_WARNING_WRITER(&server->config.logger, dsw,
-                                      "PubSub-RT configuration fail: "
-                                      "PDS contains promoted fields");
-                return UA_STATUSCODE_BADNOTSUPPORTED;
-            }
-
-            /* Test the DataSetFields */
-            UA_DataSetField *dsf;
-            TAILQ_FOREACH(dsf, &pds->fields, listEntry) {
-                const UA_VariableNode *rtNode = (const UA_VariableNode *)
-                    UA_NODESTORE_GET(server, &dsf->config.field.variable.publishParameters.publishedVariable);
-                if(rtNode != NULL && rtNode->valueBackend.backendType != UA_VALUEBACKENDTYPE_EXTERNAL) {
-                    UA_LOG_WARNING_WRITER(&server->config.logger, dsw,
-                                          "PubSub-RT configuration fail: "
-                                          "PDS contains field without external data source");
-                    UA_NODESTORE_RELEASE(server, (const UA_Node *) rtNode);
-                    return UA_STATUSCODE_BADNOTSUPPORTED;
-                }
-                UA_NODESTORE_RELEASE(server, (const UA_Node *) rtNode);
-                if((UA_NodeId_equal(&dsf->fieldMetaData.dataType, &UA_TYPES[UA_TYPES_STRING].typeId) ||
-                    UA_NodeId_equal(&dsf->fieldMetaData.dataType,
-                                    &UA_TYPES[UA_TYPES_BYTESTRING].typeId)) &&
-                dsf->fieldMetaData.maxStringLength == 0) {
-                    UA_LOG_WARNING_WRITER(&server->config.logger, dsw,
-                                          "PubSub-RT configuration fail: "
-                                          "PDS contains String/ByteString with dynamic length");
-                    return UA_STATUSCODE_BADNOTSUPPORTED;
-                } else if(!UA_DataType_isNumeric(UA_findDataType(&dsf->fieldMetaData.dataType)) &&
-                          !UA_NodeId_equal(&dsf->fieldMetaData.dataType,
-                                           &UA_TYPES[UA_TYPES_BOOLEAN].typeId)) {
-                    UA_LOG_WARNING_WRITER(&server->config.logger, dsw,
-                                          "PubSub-RT configuration fail: "
-                                          "PDS contains variable with dynamic size");
-                    return UA_STATUSCODE_BADNOTSUPPORTED;
-                }
-            }
-        }
-
-        /* Generate the DSM */
-        res = UA_DataSetWriter_generateDataSetMessage(server, &dsmStore[dsmCount], dsw);
-        if(res != UA_STATUSCODE_GOOD) {
-            UA_LOG_WARNING_WRITER(&server->config.logger, dsw,
-                                  "PubSub-RT configuration fail: "
-                                  "DataSetMessage buffering failed");
-            continue;
-        }
-
         dsWriterIds[dsmCount] = dsw->config.dataSetWriterId;
+        res = UA_DataSetWriter_prepareDataSet(server, dsw, &dsmStore[dsmCount]);
+        if(res != UA_STATUSCODE_GOOD) {
+            for(size_t i = 0; i < dsmCount; i++) {
+                UA_DataSetMessage_clear(&dsmStore[i]);
+            }
+            return res;
+        }
         dsmCount++;
     }
 
@@ -469,36 +390,16 @@ UA_WriterGroup_unfreezeConfiguration(UA_Server *server, UA_WriterGroup *wg) {
     if(!wg->configurationFrozen)
         return UA_STATUSCODE_GOOD;
 
-    //if(wg->config.rtLevel == UA_PUBSUB_RT_NONE){
-    //    UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
-    //                   "PubSub configuration freeze without RT configuration has no effect.");
-    //    return UA_STATUSCODE_BADCONFIGURATIONERROR;
-    //}
-    //PubSubConnection freezeCounter--
-
     UA_PubSubConnection *pubSubConnection =  wg->linkedConnection;
     pubSubConnection->configurationFreezeCounter--;
 
-    //DataSetWriter unfreeze
-    UA_DataSetWriter *dataSetWriter;
-    LIST_FOREACH(dataSetWriter, &wg->writers, listEntry) {
-        UA_PublishedDataSet *publishedDataSet =
-            UA_PublishedDataSet_findPDSbyId(server, dataSetWriter->connectedDataSet);
-        //PublishedDataSet freezeCounter--
-        if(publishedDataSet != NULL){ /* This means the DSW is a heartbeat configuration */
-            publishedDataSet->configurationFreezeCounter--;
-            if(publishedDataSet->configurationFreezeCounter == 0) {
-                UA_DataSetField *dataSetField;
-                TAILQ_FOREACH(dataSetField, &publishedDataSet->fields, listEntry){
-                    dataSetField->configurationFrozen = false;
-                }
-            }
-            dataSetWriter->configurationFrozen = false;
-        }
+    /* DataSetWriter unfreeze */
+    UA_DataSetWriter *dsw;
+    LIST_FOREACH(dsw, &wg->writers, listEntry) {
+        UA_DataSetWriter_unfreezeConfiguration(server, dsw);
     }
 
     UA_NetworkMessageOffsetBuffer_clear(&wg->bufferedMessage);
-
     wg->configurationFrozen = false;
 
     return UA_STATUSCODE_GOOD;

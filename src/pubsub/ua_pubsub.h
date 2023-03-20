@@ -251,6 +251,16 @@ UA_DataSetWriter_remove(UA_Server *server, UA_WriterGroup *linkedWriterGroup,
                         UA_DataSetWriter *dataSetWriter);
 
 UA_StatusCode
+UA_DataSetWriter_prepareDataSet(UA_Server *server, UA_DataSetWriter *dsw,
+                                UA_DataSetMessage *dsm);
+
+void
+UA_DataSetWriter_freezeConfiguration(UA_Server *server, UA_DataSetWriter *dsw);
+
+void
+UA_DataSetWriter_unfreezeConfiguration(UA_Server *server, UA_DataSetWriter *dsw);
+
+UA_StatusCode
 UA_DataSetWriter_create(UA_Server *server,
                         const UA_NodeId writerGroup, const UA_NodeId dataSet,
                         const UA_DataSetWriterConfig *dataSetWriterConfig,

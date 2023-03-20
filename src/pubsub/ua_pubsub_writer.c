@@ -344,6 +344,117 @@ UA_Server_addDataSetWriter(UA_Server *server,
     return res;
 }
 
+void
+UA_DataSetWriter_freezeConfiguration(UA_Server *server,
+                                     UA_DataSetWriter *dsw) {
+    UA_PublishedDataSet *pds =
+        UA_PublishedDataSet_findPDSbyId(server, dsw->connectedDataSet);
+    if(pds) { /* Skip for heartbeat writers */
+        pds->configurationFreezeCounter++;
+        UA_DataSetField *dsf;
+        TAILQ_FOREACH(dsf, &pds->fields, listEntry) {
+            dsf->configurationFrozen = true;
+        }
+    }
+    dsw->configurationFrozen = true;
+}
+
+void
+UA_DataSetWriter_unfreezeConfiguration(UA_Server *server,
+                                       UA_DataSetWriter *dsw) {
+    UA_PublishedDataSet *pds =
+        UA_PublishedDataSet_findPDSbyId(server, dsw->connectedDataSet);
+    if(pds) { /* Skip for heartbeat writers */
+        pds->configurationFreezeCounter--;
+        if(pds->configurationFreezeCounter == 0) {
+            UA_DataSetField *dsf;
+            TAILQ_FOREACH(dsf, &pds->fields, listEntry){
+                dsf->configurationFrozen = false;
+            }
+        }
+        dsw->configurationFrozen = false;
+    }
+}
+
+UA_StatusCode
+UA_DataSetWriter_prepareDataSet(UA_Server *server, UA_DataSetWriter *dsw,
+                                UA_DataSetMessage *dsm) {
+    /* Find the dataset */
+    UA_StatusCode res = UA_STATUSCODE_GOOD;
+    UA_PublishedDataSet *pds =
+        UA_PublishedDataSet_findPDSbyId(server, dsw->connectedDataSet);
+    if(!pds) {
+        if(!UA_NodeId_isNull(&dsw->connectedDataSet)) {
+            UA_LOG_WARNING_WRITER(&server->config.logger, dsw,
+                                  "PubSub-RT configuration fail: "
+                                  "PublishedDataSet not found");
+            return UA_STATUSCODE_BADINTERNALERROR;
+        }
+
+        res = UA_DataSetWriter_generateDataSetMessage(server, dsm, dsw);
+        if(res != UA_STATUSCODE_GOOD) {
+            UA_LOG_WARNING_WRITER(&server->config.logger, dsw,
+                                  "PubSub-RT configuration fail: "
+                                  "Heartbeat DataSetMessage creation failed");
+        }
+        return res;
+    }
+
+    if(pds->promotedFieldsCount > 0) {
+        UA_LOG_WARNING_WRITER(&server->config.logger, dsw,
+                              "PubSub-RT configuration fail: "
+                              "PDS contains promoted fields");
+        return UA_STATUSCODE_BADNOTSUPPORTED;
+    }
+
+    /* Test the DataSetFields */
+    UA_DataSetField *dsf;
+    TAILQ_FOREACH(dsf, &pds->fields, listEntry) {
+        UA_NodeId *publishedVariable =
+            &dsf->config.field.variable.publishParameters.publishedVariable;
+        const UA_VariableNode *rtNode = (const UA_VariableNode*)
+            UA_NODESTORE_GET(server, publishedVariable);
+        if(rtNode != NULL &&
+           rtNode->valueBackend.backendType != UA_VALUEBACKENDTYPE_EXTERNAL) {
+            UA_LOG_WARNING_WRITER(&server->config.logger, dsw,
+                                  "PubSub-RT configuration fail: "
+                                  "PDS contains field without external data source");
+            UA_NODESTORE_RELEASE(server, (const UA_Node *)rtNode);
+            return UA_STATUSCODE_BADNOTSUPPORTED;
+        }
+
+        UA_NODESTORE_RELEASE(server, (const UA_Node *)rtNode);
+
+        if((UA_NodeId_equal(&dsf->fieldMetaData.dataType,
+                            &UA_TYPES[UA_TYPES_STRING].typeId) ||
+            UA_NodeId_equal(&dsf->fieldMetaData.dataType,
+                            &UA_TYPES[UA_TYPES_BYTESTRING].typeId)) &&
+           dsf->fieldMetaData.maxStringLength == 0) {
+            UA_LOG_WARNING_WRITER(&server->config.logger, dsw,
+                                  "PubSub-RT configuration fail: "
+                                  "PDS contains String/ByteString with dynamic length");
+            return UA_STATUSCODE_BADNOTSUPPORTED;
+        } else if(!UA_DataType_isNumeric(UA_findDataType(&dsf->fieldMetaData.dataType)) &&
+                  !UA_NodeId_equal(&dsf->fieldMetaData.dataType,
+                                   &UA_TYPES[UA_TYPES_BOOLEAN].typeId)) {
+            UA_LOG_WARNING_WRITER(&server->config.logger, dsw,
+                                  "PubSub-RT configuration fail: "
+                                  "PDS contains variable with dynamic size");
+            return UA_STATUSCODE_BADNOTSUPPORTED;
+        }
+    }
+
+    /* Generate the DSM */
+    res = UA_DataSetWriter_generateDataSetMessage(server, dsm, dsw);
+    if(res != UA_STATUSCODE_GOOD) {
+        UA_LOG_WARNING_WRITER(&server->config.logger, dsw,
+                              "PubSub-RT configuration fail: "
+                              "DataSetMessage buffering failed");
+    }
+
+    return res;
+}
+
 UA_StatusCode
 UA_DataSetWriter_remove(UA_Server *server, UA_WriterGroup *linkedWriterGroup,
                         UA_DataSetWriter *dataSetWriter) {
