@@ -33,7 +33,8 @@ UA_ReaderGroup_findRGbyId(UA_Server *server, UA_NodeId identifier) {
     return NULL;
 }
 
-UA_DataSetReader *UA_ReaderGroup_findDSRbyId(UA_Server *server, UA_NodeId identifier) {
+UA_DataSetReader *
+UA_ReaderGroup_findDSRbyId(UA_Server *server, UA_NodeId identifier) {
     UA_PubSubConnection *pubSubConnection;
     TAILQ_FOREACH(pubSubConnection, &server->pubSubManager.connections, listEntry){
         UA_ReaderGroup* readerGroup = NULL;
@@ -355,37 +356,36 @@ UA_Server_ReaderGroup_getConfig(UA_Server *server, UA_NodeId readerGroupIdentifi
 }
 
 static void
-ReaderGroup_clear(UA_Server* server, UA_ReaderGroup *readerGroup) {
+ReaderGroup_clear(UA_Server* server, UA_ReaderGroup *rg) {
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
 
-    UA_ReaderGroupConfig_clear(&readerGroup->config);
-    UA_DataSetReader *dataSetReader;
-    UA_DataSetReader *tmpDataSetReader;
-    LIST_FOREACH_SAFE(dataSetReader, &readerGroup->readers, listEntry, tmpDataSetReader) {
-        removeDataSetReader(server, dataSetReader->identifier);
+    UA_ReaderGroupConfig_clear(&rg->config);
+    UA_DataSetReader *dsr, *tmp_dsr;
+    LIST_FOREACH_SAFE(dsr, &rg->readers, listEntry, tmp_dsr) {
+        removeDataSetReader(server, dsr->identifier);
     }
-    UA_PubSubConnection* pConn = readerGroup->linkedConnection;
+    UA_PubSubConnection* pConn = rg->linkedConnection;
     if(pConn != NULL)
         pConn->readerGroupsSize--;
 
     /* Delete ReaderGroup and its members */
-    UA_NodeId_clear(&readerGroup->identifier);
+    UA_NodeId_clear(&rg->identifier);
 
 #ifdef UA_ENABLE_PUBSUB_ENCRYPTION
-    if(readerGroup->config.securityPolicy && readerGroup->securityPolicyContext) {
-        readerGroup->config.securityPolicy->deleteContext(readerGroup->securityPolicyContext);
-        readerGroup->securityPolicyContext = NULL;
+    if(rg->config.securityPolicy && rg->securityPolicyContext) {
+        rg->config.securityPolicy->deleteContext(rg->securityPolicyContext);
+        rg->securityPolicyContext = NULL;
     }
 #endif
 
 #ifdef UA_ENABLE_PUBSUB_SKS
-    if(readerGroup->keyStorage) {
-        UA_PubSubKeyStorage_detachKeyStorage(server, readerGroup->keyStorage);
-        readerGroup->keyStorage = NULL;
+    if(rg->keyStorage) {
+        UA_PubSubKeyStorage_detachKeyStorage(server, rg->keyStorage);
+        rg->keyStorage = NULL;
     }
 #endif
 
-    UA_ReaderGroupConfig_clear(&readerGroup->config);
+    UA_ReaderGroupConfig_clear(&rg->config);
 }
 
 UA_StatusCode
@@ -395,10 +395,10 @@ UA_Server_ReaderGroup_getState(UA_Server *server, UA_NodeId readerGroupIdentifie
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     UA_LOCK(&server->serviceMutex);
     UA_StatusCode ret = UA_STATUSCODE_BADNOTFOUND;
-    UA_ReaderGroup *currentReaderGroup =
+    UA_ReaderGroup *rg =
         UA_ReaderGroup_findRGbyId(server, readerGroupIdentifier);
-    if(currentReaderGroup) {
-        *state = currentReaderGroup->state;
+    if(rg) {
+        *state = rg->state;
         ret = UA_STATUSCODE_GOOD;
     }
     UA_UNLOCK(&server->serviceMutex);
@@ -565,7 +565,8 @@ UA_ReaderGroup_setPubSubState(UA_Server *server,
 }
 
 UA_StatusCode
-UA_Server_setReaderGroupOperational(UA_Server *server, const UA_NodeId readerGroupId){
+UA_Server_setReaderGroupOperational(UA_Server *server,
+                                    const UA_NodeId readerGroupId) {
     UA_LOCK(&server->serviceMutex);
     UA_StatusCode ret = UA_STATUSCODE_BADNOTFOUND;
     UA_ReaderGroup *rg = UA_ReaderGroup_findRGbyId(server, readerGroupId);
@@ -588,7 +589,8 @@ UA_Server_setReaderGroupOperational(UA_Server *server, const UA_NodeId readerGro
 }
 
 UA_StatusCode
-UA_Server_setReaderGroupDisabled(UA_Server *server, const UA_NodeId readerGroupId){
+UA_Server_setReaderGroupDisabled(UA_Server *server,
+                                 const UA_NodeId readerGroupId) {
     UA_LOCK(&server->serviceMutex);
     UA_StatusCode ret = UA_STATUSCODE_BADNOTFOUND;
     UA_ReaderGroup *rg = UA_ReaderGroup_findRGbyId(server, readerGroupId);
@@ -640,7 +642,8 @@ setReaderGroupEncryptionKeys(UA_Server *server, const UA_NodeId readerGroup,
 }
 
 UA_StatusCode
-UA_Server_setReaderGroupEncryptionKeys(UA_Server *server, const UA_NodeId readerGroup,
+UA_Server_setReaderGroupEncryptionKeys(UA_Server *server,
+                                       const UA_NodeId readerGroup,
                                        UA_UInt32 securityTokenId,
                                        const UA_ByteString signingKey,
                                        const UA_ByteString encryptingKey,
@@ -672,10 +675,10 @@ UA_ReaderGroup_freezeConfiguration(UA_Server *server, UA_ReaderGroup *rg) {
     rg->configurationFrozen = true;
 
     /* DataSetReader freeze */
-    UA_DataSetReader *dataSetReader;
+    UA_DataSetReader *dsr;
     UA_UInt16 dsrCount = 0;
-    LIST_FOREACH(dataSetReader, &rg->readers, listEntry){
-        dataSetReader->configurationFrozen = true;
+    LIST_FOREACH(dsr, &rg->readers, listEntry){
+        dsr->configurationFrozen = true;
         dsrCount++;
         /* TODO: Configuration frozen for subscribedDataSet once
          * UA_Server_DataSetReader_addTargetVariables API modified to support
@@ -693,32 +696,32 @@ UA_ReaderGroup_freezeConfiguration(UA_Server *server, UA_ReaderGroup *rg) {
         return UA_STATUSCODE_BADNOTIMPLEMENTED;
     }
 
-    dataSetReader = LIST_FIRST(&rg->readers);
+    dsr = LIST_FIRST(&rg->readers);
 
     /* Support only to UADP encoding */
-    if(dataSetReader->config.messageSettings.content.decoded.type !=
+    if(dsr->config.messageSettings.content.decoded.type !=
        &UA_TYPES[UA_TYPES_UADPDATASETREADERMESSAGEDATATYPE]) {
-        UA_LOG_WARNING_READER(&server->config.logger, dataSetReader,
+        UA_LOG_WARNING_READER(&server->config.logger, dsr,
                               "PubSub-RT configuration fail: Non-RT capable encoding.");
         return UA_STATUSCODE_BADNOTSUPPORTED;
     }
 
     /* Don't support string PublisherId for the fast-path (at this time) */
-    if(!dataSetReader->config.publisherId.type->pointerFree) {
-        UA_LOG_WARNING_READER(&server->config.logger, dataSetReader,
+    if(!dsr->config.publisherId.type->pointerFree) {
+        UA_LOG_WARNING_READER(&server->config.logger, dsr,
                               "PubSub-RT configuration fail: String PublisherId");
         return UA_STATUSCODE_BADNOTSUPPORTED;
     }
 
-    size_t fieldsSize = dataSetReader->config.dataSetMetaData.fieldsSize;
+    size_t fieldsSize = dsr->config.dataSetMetaData.fieldsSize;
     for(size_t i = 0; i < fieldsSize; i++) {
         UA_FieldTargetVariable *tv =
-            &dataSetReader->config.subscribedDataSet.subscribedDataSetTarget.targetVariables[i];
+            &dsr->config.subscribedDataSet.subscribedDataSetTarget.targetVariables[i];
         const UA_VariableNode *rtNode = (const UA_VariableNode *)
             UA_NODESTORE_GET(server, &tv->targetVariable.targetNodeId);
         if(!rtNode ||
            rtNode->valueBackend.backendType != UA_VALUEBACKENDTYPE_EXTERNAL) {
-            UA_LOG_WARNING_READER(&server->config.logger, dataSetReader,
+            UA_LOG_WARNING_READER(&server->config.logger, dsr,
                                   "PubSub-RT configuration fail: PDS contains field "
                                   "without external data source.");
             UA_NODESTORE_RELEASE(server, (const UA_Node *) rtNode);
@@ -730,17 +733,17 @@ UA_ReaderGroup_freezeConfiguration(UA_Server *server, UA_ReaderGroup *rg) {
 
         UA_NODESTORE_RELEASE(server, (const UA_Node *) rtNode);
 
-        UA_FieldMetaData *field = &dataSetReader->config.dataSetMetaData.fields[i];
+        UA_FieldMetaData *field = &dsr->config.dataSetMetaData.fields[i];
         if((UA_NodeId_equal(&field->dataType, &UA_TYPES[UA_TYPES_STRING].typeId) ||
             UA_NodeId_equal(&field->dataType, &UA_TYPES[UA_TYPES_BYTESTRING].typeId)) &&
            field->maxStringLength == 0) {
-            UA_LOG_WARNING_READER(&server->config.logger, dataSetReader,
+            UA_LOG_WARNING_READER(&server->config.logger, dsr,
                                   "PubSub-RT configuration fail: "
                                   "PDS contains String/ByteString with dynamic length.");
             return UA_STATUSCODE_BADNOTSUPPORTED;
         } else if(!UA_DataType_isNumeric(UA_findDataType(&field->dataType)) &&
                   !UA_NodeId_equal(&field->dataType, &UA_TYPES[UA_TYPES_BOOLEAN].typeId)) {
-            UA_LOG_WARNING_READER(&server->config.logger, dataSetReader,
+            UA_LOG_WARNING_READER(&server->config.logger, dsr,
                                   "PubSub-RT configuration fail: "
                                   "PDS contains variable with dynamic size.");
             return UA_STATUSCODE_BADNOTSUPPORTED;
@@ -751,7 +754,7 @@ UA_ReaderGroup_freezeConfiguration(UA_Server *server, UA_ReaderGroup *rg) {
      * generated when the first message is received. So we know the exact
      * settings which headers are present, etc. Until then the ReaderGroup is
      * "PreOperational". */
-    UA_NetworkMessageOffsetBuffer_clear(&dataSetReader->bufferedMessage);
+    UA_NetworkMessageOffsetBuffer_clear(&dsr->bufferedMessage);
 
     /* Set the current state again. This can move the state from Operational to
      * PreOperational. */
