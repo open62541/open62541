@@ -88,10 +88,6 @@ UA_NetworkMessage_updateBufferedMessage(UA_NetworkMessageOffsetBuffer *buffer) {
 UA_StatusCode
 UA_NetworkMessage_updateBufferedNwMessage(UA_NetworkMessageOffsetBuffer *buffer,
                                           const UA_ByteString *src, size_t *bufferPosition) {
-    UA_StatusCode rv = UA_STATUSCODE_GOOD;
-    size_t payloadCounter = 0;
-    size_t offset = 0;
-
     /* The offset buffer was not prepared */
     UA_NetworkMessage *nm = buffer->nm;
     if(!nm)
@@ -101,74 +97,74 @@ UA_NetworkMessage_updateBufferedNwMessage(UA_NetworkMessageOffsetBuffer *buffer,
     if(src->length < buffer->buffer.length + *bufferPosition)
         return UA_STATUSCODE_BADDECODINGERROR;
 
-    UA_DataSetMessage* dsm = nm->payload.dataSetPayload.dataSetMessages; //Considering one DSM in RT TODO: Clarify multiple DSM
-    UA_DataSetMessageHeader header;
+    /* If this remains at UA_UINT32_MAX, then no raw fields are contained */
     size_t smallestRawOffset = UA_UINT32_MAX;
 
+    /* Considering one DSM in RT TODO: Clarify multiple DSM */
+    UA_DataSetMessage* dsm = nm->payload.dataSetPayload.dataSetMessages;
+
+    size_t pos = 0;
+    size_t payloadCounter = 0;
+    UA_DataSetMessageHeader header;
+    UA_StatusCode rv = UA_STATUSCODE_GOOD;
     for(size_t i = 0; i < buffer->offsetsSize; ++i) {
-        offset = buffer->offsets[i].offset + *bufferPosition;
-        switch (buffer->offsets[i].contentType) {
+        pos = buffer->offsets[i].offset + *bufferPosition;
+        switch(buffer->offsets[i].contentType) {
         case UA_PUBSUB_OFFSETTYPE_NETWORKMESSAGE_FIELDENCDODING:
-            rv = UA_DataSetMessageHeader_decodeBinary(src, &offset, &header);
-            if(rv != UA_STATUSCODE_GOOD)
-                return rv;
+            rv = UA_DataSetMessageHeader_decodeBinary(src, &pos, &header);
             break;
         case UA_PUBSUB_OFFSETTYPE_PUBLISHERID:
-            switch (nm->publisherIdType) {
+            switch(nm->publisherIdType) {
             case UA_PUBLISHERIDTYPE_BYTE:
-                rv = UA_Byte_decodeBinary(src, &offset, &nm->publisherId.byte);
+                rv = UA_Byte_decodeBinary(src, &pos, &nm->publisherId.byte);
                 break;
             case UA_PUBLISHERIDTYPE_UINT16:
-                rv = UA_UInt16_decodeBinary(src, &offset, &nm->publisherId.uint16);
+                rv = UA_UInt16_decodeBinary(src, &pos, &nm->publisherId.uint16);
                 break;
             case UA_PUBLISHERIDTYPE_UINT32:
-                rv = UA_UInt32_decodeBinary(src, &offset, &nm->publisherId.uint32);
+                rv = UA_UInt32_decodeBinary(src, &pos, &nm->publisherId.uint32);
                 break;
             case UA_PUBLISHERIDTYPE_UINT64:
-                rv = UA_UInt64_decodeBinary(src, &offset, &nm->publisherId.uint64);
+                rv = UA_UInt64_decodeBinary(src, &pos, &nm->publisherId.uint64);
                 break;
             default:
-                // UA_PUBLISHERIDTYPE_STRING is not supported because of UA_PUBSUB_RT_FIXED_SIZE
+                /* UA_PUBLISHERIDTYPE_STRING is not supported because of
+                 * UA_PUBSUB_RT_FIXED_SIZE */
                 return UA_STATUSCODE_BADNOTSUPPORTED;
             }
             break;
         case UA_PUBSUB_OFFSETTYPE_WRITERGROUPID:
-            rv = UA_UInt16_decodeBinary(src, &offset, &nm->groupHeader.writerGroupId);
-            UA_CHECK_STATUS(rv, return rv);
+            rv = UA_UInt16_decodeBinary(src, &pos, &nm->groupHeader.writerGroupId);
             break;
         case UA_PUBSUB_OFFSETTYPE_DATASETWRITERID:
-            rv = UA_UInt16_decodeBinary(src, &offset,
+            rv = UA_UInt16_decodeBinary(src, &pos,
                                         &nm->payloadHeader.dataSetPayloadHeader.dataSetWriterIds[0]); /* TODO */
-            UA_CHECK_STATUS(rv, return rv);
             break;
         case UA_PUBSUB_OFFSETTYPE_NETWORKMESSAGE_SEQUENCENUMBER:
-            rv = UA_UInt16_decodeBinary(src, &offset, &nm->groupHeader.sequenceNumber);
-            UA_CHECK_STATUS(rv, return rv);
+            rv = UA_UInt16_decodeBinary(src, &pos, &nm->groupHeader.sequenceNumber);
             break;
         case UA_PUBSUB_OFFSETTYPE_DATASETMESSAGE_SEQUENCENUMBER:
-            rv = UA_UInt16_decodeBinary(src, &offset, &dsm->header.dataSetMessageSequenceNr);
-            UA_CHECK_STATUS(rv, return rv);
+            rv = UA_UInt16_decodeBinary(src, &pos, &dsm->header.dataSetMessageSequenceNr);
             break;
         case UA_PUBSUB_OFFSETTYPE_PAYLOAD_DATAVALUE:
             UA_DataValue_clear(&dsm->data.keyFrameData.dataSetFields[payloadCounter]);
-            rv = UA_DataValue_decodeBinary(src, &offset,
+            rv = UA_DataValue_decodeBinary(src, &pos,
                                            &dsm->data.keyFrameData.dataSetFields[payloadCounter]);
-            UA_CHECK_STATUS(rv, return rv);
             payloadCounter++;
             break;
         case UA_PUBSUB_OFFSETTYPE_PAYLOAD_VARIANT:
             UA_Variant_clear(&dsm->data.keyFrameData.dataSetFields[payloadCounter].value);
-            rv = UA_Variant_decodeBinary(src, &offset,
+            rv = UA_Variant_decodeBinary(src, &pos,
                                          &dsm->data.keyFrameData.dataSetFields[payloadCounter].value);
-            UA_CHECK_STATUS(rv, return rv);
-            dsm->data.keyFrameData.dataSetFields[payloadCounter].hasValue = true;
+            dsm->data.keyFrameData.dataSetFields[payloadCounter].hasValue =
+                (rv == UA_STATUSCODE_GOOD);
             payloadCounter++;
             break;
         case UA_PUBSUB_OFFSETTYPE_PAYLOAD_RAW:
             /* We need only the start address of the raw fields */
-            if(smallestRawOffset > offset){
-                smallestRawOffset = offset;
-                dsm->data.keyFrameData.rawFields.data = &src->data[offset];
+            if(smallestRawOffset > pos){
+                smallestRawOffset = pos;
+                dsm->data.keyFrameData.rawFields.data = &src->data[pos];
                 dsm->data.keyFrameData.rawFields.length = buffer->rawMessageLength;
             }
             payloadCounter++;
@@ -176,12 +172,16 @@ UA_NetworkMessage_updateBufferedNwMessage(UA_NetworkMessageOffsetBuffer *buffer,
         default:
             return UA_STATUSCODE_BADNOTSUPPORTED;
         }
+        UA_CHECK_STATUS(rv, return rv);
     }
-    //check if the frame is of type "raw" payload
-    if(smallestRawOffset != UA_UINT32_MAX){
+
+    /* Check if the frame is of type "raw" payload. If yes, set the new buffer
+     * position to the start position of the raw fields plus the length of the
+     * raw fields. */
+    if(smallestRawOffset != UA_UINT32_MAX) {
         *bufferPosition = smallestRawOffset + buffer->rawMessageLength;
     } else {
-        *bufferPosition = offset;
+        *bufferPosition = pos;
     }
 
     return rv;
