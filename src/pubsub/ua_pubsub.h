@@ -363,6 +363,10 @@ UA_WriterGroup_setPubSubState(UA_Server *server,
                               UA_PubSubState state,
                               UA_StatusCode cause);
 
+void
+UA_WriterGroup_publishCallback(UA_Server *server,
+                               UA_WriterGroup *writerGroup);
+
 UA_StatusCode
 UA_WriterGroup_updateConfig(UA_Server *server, UA_WriterGroup *wg,
                             const UA_WriterGroupConfig *config);
@@ -594,20 +598,6 @@ UA_ReaderGroup_setPubSubState(UA_Server *server,
                               UA_ReaderGroup *readerGroup,
                               UA_PubSubState state,
                               UA_StatusCode cause);
-
-/*********************************************************/
-/*               PublishValues handling                  */
-/*********************************************************/
-
-void
-UA_WriterGroup_publishCallback(UA_Server *server, UA_WriterGroup *writerGroup);
-
-/*********************************************************/
-/*               SubscribeValues handling                */
-/*********************************************************/
-
-void
-UA_ReaderGroup_subscribeCallback(UA_Server *server, UA_ReaderGroup *readerGroup);
 
 #define UA_LOG_READERGROUP_INTERNAL(LOGGER, LEVEL, RG, MSG, ...)        \
     if(UA_LOGLEVEL <= UA_LOGLEVEL_##LEVEL) {                            \

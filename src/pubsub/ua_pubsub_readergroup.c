@@ -102,7 +102,7 @@ subscribeCallback(UA_Server *server,
     receiveBufferedNetworkMessage(server, readerGroup, connection);
 }
 
-void
+static void
 UA_ReaderGroup_subscribeCallback(UA_Server *server,
                                  UA_ReaderGroup *readerGroup) {
     UA_LOCK(&server->serviceMutex);
