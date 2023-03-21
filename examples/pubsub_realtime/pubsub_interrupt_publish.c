@@ -38,14 +38,22 @@
 #define PUBSUB_CONFIG_FASTPATH_FIXED_OFFSETS
 
 UA_NodeId counterNodePublisher = {1, UA_NODEIDTYPE_NUMERIC, {1234}};
-UA_Int64 pubIntervalNs;
-UA_ServerCallback pubCallback = NULL; /* Sentinel if a timer is active */
-UA_Server *pubServer;
+
+typedef struct {
+    UA_Callback callback;
+    void *application;
+    void *context;
+    timer_t pubEventTimer;
+    struct sigevent pubEvent;
+    struct sigaction signalAction;
+    UA_Int64 intervalNs;
+} UA_PubSubTimer;
+
+#define UA_PUBSUBTIMER_MAX 16
+UA_PubSubTimer timer[16];
+UA_UInt16 timerCount; /* The timer identifier is the array index */
+
 UA_Boolean running = true;
-void *pubData;
-timer_t pubEventTimer;
-struct sigevent pubEvent;
-struct sigaction signalAction;
 
 #if defined(PUBSUB_CONFIG_FASTPATH_FIXED_OFFSETS) || (PUBSUB_CONFIG_FASTPATH_STATIC_VALUES)
 UA_DataValue *staticValueSource = NULL;
@@ -97,22 +105,25 @@ nanoSecondFieldConversion(struct timespec *timeSpecValue) {
 /* Signal handler */
 static void
 publishInterrupt(int sig, siginfo_t* si, void* uc) {
-    if(si->si_value.sival_ptr != &pubEventTimer) {
+    if((uintptr_t)si->si_value.sival_ptr < (uintptr_t)timer ||
+       (uintptr_t)si->si_value.sival_ptr > (uintptr_t)&timer[UA_PUBSUBTIMER_MAX]) {
         UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "stray signal");
         return;
     }
 
+    UA_PubSubTimer *t = (UA_PubSubTimer*)si->si_value.sival_ptr;
+
     /* Execute the publish callback in the interrupt */
     struct timespec begin, end;
     clock_gettime(CLOCKID, &begin);
-    pubCallback(pubServer, pubData);
+    t->callback(t->application, t->context);
     clock_gettime(CLOCKID, &end);
 
     if(publisherMeasurementsCounter >= MAX_MEASUREMENTS)
         return;
 
     /* Save current configured publish interval */
-    currentPublishCycleTime[publisherMeasurementsCounter] = (UA_Int32)pubIntervalNs;
+    currentPublishCycleTime[publisherMeasurementsCounter] = (UA_Int32)t->intervalNs;
 
     /* Save the difference to the calculated time */
     timespec_diff(&calculatedCycleStartTime[publisherMeasurementsCounter],
@@ -125,7 +136,7 @@ publishInterrupt(int sig, siginfo_t* si, void* uc) {
 
     /* Save the calculated starting time for the next cycle */
     calculatedCycleStartTime[publisherMeasurementsCounter].tv_nsec =
-        calculatedCycleStartTime[publisherMeasurementsCounter - 1].tv_nsec + pubIntervalNs;
+        calculatedCycleStartTime[publisherMeasurementsCounter - 1].tv_nsec + t->intervalNs;
     calculatedCycleStartTime[publisherMeasurementsCounter].tv_sec =
         calculatedCycleStartTime[publisherMeasurementsCounter - 1].tv_sec;
     nanoSecondFieldConversion(&calculatedCycleStartTime[publisherMeasurementsCounter]);
@@ -157,12 +168,10 @@ publishInterrupt(int sig, siginfo_t* si, void* uc) {
  * server control flow. */
 
 static UA_StatusCode
-addPubSubApplicationCallback(UA_Server *server, UA_NodeId identifier,
-                             UA_ServerCallback callback,
-                             void *data, UA_Double interval_ms,
-                             UA_DateTime *baseTime, UA_TimerPolicy timerPolicy,
-                             UA_UInt64 *callbackId) {
-    if(pubCallback) {
+addPubSubTimerCallback(UA_EventLoop *el, UA_Callback cb, void *application,
+                       void *data, UA_Double interval_ms, UA_DateTime *baseTime,
+                       UA_TimerPolicy timerPolicy, UA_UInt64 *callbackId) {
+    if(timerCount >= UA_PUBSUBTIMER_MAX) {
         UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
                        "At most one publisher can be registered for interrupt callbacks");
         return UA_STATUSCODE_BADINTERNALERROR;
@@ -171,23 +180,26 @@ addPubSubApplicationCallback(UA_Server *server, UA_NodeId identifier,
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
                 "Adding a publisher with a cycle time of %lf milliseconds", interval_ms);
 
+    UA_PubSubTimer *t = &timer[timerCount];
+    timerCount++;
+
     /* Set global values for the publish callback */
     int resultTimerCreate = 0;
-    pubIntervalNs = (UA_Int64) (interval_ms * MILLI_AS_NANO_SECONDS);
+    t->intervalNs = (UA_Int64) (interval_ms * MILLI_AS_NANO_SECONDS);
 
     /* Handle the signal */
-    memset(&signalAction, 0, sizeof(signalAction));
-    signalAction.sa_flags = SA_SIGINFO;
-    signalAction.sa_sigaction = publishInterrupt;
-    sigemptyset(&signalAction.sa_mask);
-    sigaction(SIG, &signalAction, NULL);
+    memset(&t->signalAction, 0, sizeof(t->signalAction));
+    t->signalAction.sa_flags = SA_SIGINFO;
+    t->signalAction.sa_sigaction = publishInterrupt;
+    sigemptyset(&t->signalAction.sa_mask);
+    sigaction(SIG, &t->signalAction, NULL);
 
     /* Create the timer */
-    memset(&pubEventTimer, 0, sizeof(pubEventTimer));
-    pubEvent.sigev_notify = SIGEV_SIGNAL;
-    pubEvent.sigev_signo = SIG;
-    pubEvent.sigev_value.sival_ptr = &pubEventTimer;
-    resultTimerCreate = timer_create(CLOCKID, &pubEvent, &pubEventTimer);
+    memset(&t->pubEventTimer, 0, sizeof(t->pubEventTimer));
+    t->pubEvent.sigev_notify = SIGEV_SIGNAL;
+    t->pubEvent.sigev_signo = SIG;
+    t->pubEvent.sigev_value.sival_ptr = &t->pubEventTimer;
+    resultTimerCreate = timer_create(CLOCKID, &t->pubEvent, &t->pubEventTimer);
     if(resultTimerCreate != 0) {
         UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
                        "Failed to create a system event with code %s",
@@ -197,67 +209,70 @@ addPubSubApplicationCallback(UA_Server *server, UA_NodeId identifier,
 
     /* Arm the timer */
     struct itimerspec timerspec;
-    timerspec.it_interval.tv_sec = (long int) (pubIntervalNs / (SECONDS_AS_NANO_SECONDS));
-    timerspec.it_interval.tv_nsec = (long int) (pubIntervalNs % SECONDS_AS_NANO_SECONDS);
-    timerspec.it_value.tv_sec = (long int) (pubIntervalNs / (SECONDS_AS_NANO_SECONDS));
-    timerspec.it_value.tv_nsec = (long int) (pubIntervalNs % SECONDS_AS_NANO_SECONDS);
-    resultTimerCreate = timer_settime(pubEventTimer, 0, &timerspec, NULL);
+    timerspec.it_interval.tv_sec = (long int) (t->intervalNs / (SECONDS_AS_NANO_SECONDS));
+    timerspec.it_interval.tv_nsec = (long int) (t->intervalNs % SECONDS_AS_NANO_SECONDS);
+    timerspec.it_value.tv_sec = (long int) (t->intervalNs / (SECONDS_AS_NANO_SECONDS));
+    timerspec.it_value.tv_nsec = (long int) (t->intervalNs % SECONDS_AS_NANO_SECONDS);
+    resultTimerCreate = timer_settime(t->pubEventTimer, 0, &timerspec, NULL);
     if(resultTimerCreate != 0) {
         UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
                        "Failed to arm the system timer with code %i", resultTimerCreate);
-        timer_delete(pubEventTimer);
+        timer_delete(t->pubEventTimer);
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
     /* Start taking measurements */
     publisherMeasurementsCounter = 0;
     clock_gettime(CLOCKID, &calculatedCycleStartTime[0]);
-    calculatedCycleStartTime[0].tv_nsec += pubIntervalNs;
+    calculatedCycleStartTime[0].tv_nsec += t->intervalNs;
     nanoSecondFieldConversion(&calculatedCycleStartTime[0]);
 
-    /* Set the callback -- used as a sentinel to detect an operational publisher */
-    pubServer = server;
-    pubCallback = callback;
-    pubData = data;
+    /* Set the callback */
+    t->callback = cb;
+    t->application = application;
+    t->context = data;
+
+    *callbackId = timerCount; /* return timerCount + 1, as zero means no callback */
 
     return UA_STATUSCODE_GOOD;
 }
 
 static UA_StatusCode
-changePubSubApplicationCallback(UA_Server *server, UA_NodeId identifier,
-                                UA_UInt64 callbackId, UA_Double interval_ms,
-                                UA_DateTime *baseTime, UA_TimerPolicy timerPolicy) {
+modifyPubSubTimerCallback(UA_EventLoop *el, UA_UInt64 callbackId,
+                          UA_Double interval_ms, UA_DateTime *baseTime,
+                          UA_TimerPolicy timerPolicy) {
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
                 "Switching the publisher cycle to %lf milliseconds", interval_ms);
 
+    UA_PubSubTimer *t = &timer[callbackId-1];
+
     struct itimerspec timerspec;
     int resultTimerCreate = 0;
-    pubIntervalNs = (UA_Int64) (interval_ms * MILLI_AS_NANO_SECONDS);
-    timerspec.it_interval.tv_sec = (long int) (pubIntervalNs / SECONDS_AS_NANO_SECONDS);
-    timerspec.it_interval.tv_nsec = (long int) (pubIntervalNs % SECONDS_AS_NANO_SECONDS);
-    timerspec.it_value.tv_sec = (long int) (pubIntervalNs / (SECONDS_AS_NANO_SECONDS));
-    timerspec.it_value.tv_nsec = (long int) (pubIntervalNs % SECONDS_AS_NANO_SECONDS);
-    resultTimerCreate = timer_settime(pubEventTimer, 0, &timerspec, NULL);
+    t->intervalNs = (UA_Int64) (interval_ms * MILLI_AS_NANO_SECONDS);
+    timerspec.it_interval.tv_sec = (long int) (t->intervalNs / SECONDS_AS_NANO_SECONDS);
+    timerspec.it_interval.tv_nsec = (long int) (t->intervalNs % SECONDS_AS_NANO_SECONDS);
+    timerspec.it_value.tv_sec = (long int) (t->intervalNs / (SECONDS_AS_NANO_SECONDS));
+    timerspec.it_value.tv_nsec = (long int) (t->intervalNs % SECONDS_AS_NANO_SECONDS);
+    resultTimerCreate = timer_settime(t->pubEventTimer, 0, &timerspec, NULL);
     if(resultTimerCreate != 0) {
         UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
                        "Failed to arm the system timer");
-        timer_delete(pubEventTimer);
+        timer_delete(t->pubEventTimer);
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
     clock_gettime(CLOCKID, &calculatedCycleStartTime[publisherMeasurementsCounter]);
-    calculatedCycleStartTime[publisherMeasurementsCounter].tv_nsec += pubIntervalNs;
+    calculatedCycleStartTime[publisherMeasurementsCounter].tv_nsec += t->intervalNs;
     nanoSecondFieldConversion(&calculatedCycleStartTime[publisherMeasurementsCounter]);
 
     return UA_STATUSCODE_GOOD;
 }
 
 static void
-removePubSubApplicationCallback(UA_Server *server, UA_NodeId identifier, UA_UInt64 callbackId) {
-    if(!pubCallback)
-        return;
-    timer_delete(pubEventTimer);
-    pubCallback = NULL; /* So that a new callback can be registered */
+removePubSubTimerCallback(UA_EventLoop *el, UA_UInt64 callbackId) {
+    UA_PubSubTimer *t = &timer[callbackId-1];
+    timer_delete(t->pubEventTimer);
+    /* TODO: Decrease the counter */
 }
 
 static void
@@ -278,6 +293,18 @@ addPubSubConfiguration(UA_Server* server) {
                          &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
     connectionConfig.publisherIdType = UA_PUBLISHERIDTYPE_UINT32;
     connectionConfig.publisherId.uint32 = UA_UInt32_random();
+
+    /* Set a custom EventLoop */
+    UA_ServerConfig *config = UA_Server_getConfig(server);
+    UA_EventLoop *el = UA_EventLoop_new_POSIX(&config->logger);
+    connectionConfig.eventLoop = el;
+    UA_ConnectionManager *udpCM =
+        UA_ConnectionManager_new_POSIX_UDP(UA_STRING("udp connection manager"));
+    if(udpCM)
+        el->registerEventSource(el, (UA_EventSource *)udpCM);
+    el->addCyclicCallback = addPubSubTimerCallback;
+    el->modifyCyclicCallback = modifyPubSubTimerCallback;
+    el->removeCyclicCallback = removePubSubTimerCallback;
 
     UA_Server_addPubSubConnection(server, &connectionConfig, &connectionIdent);
 
@@ -313,9 +340,6 @@ addPubSubConfiguration(UA_Server* server) {
     writerGroupConfig.enabled = UA_FALSE;
     writerGroupConfig.encodingMimeType = UA_PUBSUB_ENCODING_UADP;
     writerGroupConfig.rtLevel = UA_PUBSUB_RT_FIXED_SIZE;
-    writerGroupConfig.pubsubManagerCallback.addCustomCallback = addPubSubApplicationCallback;
-    writerGroupConfig.pubsubManagerCallback.changeCustomCallback = changePubSubApplicationCallback;
-    writerGroupConfig.pubsubManagerCallback.removeCustomCallback = removePubSubApplicationCallback;
     UA_Server_addWriterGroup(server, connectionIdent,
                              &writerGroupConfig, &writerGroupIdent);
 

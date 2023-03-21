@@ -96,14 +96,6 @@ UA_ReaderGroup_create(UA_Server *server, UA_NodeId connectionIdentifier,
     if(!currentConnectionContext)
         return UA_STATUSCODE_BADNOTFOUND;
 
-    if(!readerGroupConfig->pubsubManagerCallback.addCustomCallback &&
-       readerGroupConfig->enableBlockingSocket) {
-        UA_LOG_WARNING_CONNECTION(&server->config.logger, currentConnectionContext,
-                                  "Adding ReaderGroup failed, blocking socket functionality "
-                                  "only supported in customcallback");
-        return UA_STATUSCODE_BADNOTSUPPORTED;
-    }
-
     if(currentConnectionContext->configurationFrozen) {
         UA_LOG_WARNING_CONNECTION(&server->config.logger, currentConnectionContext,
                                   "Adding ReaderGroup failed. "

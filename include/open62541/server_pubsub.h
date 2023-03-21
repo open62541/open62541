@@ -429,31 +429,6 @@ UA_EXPORT UA_DataSetFieldResult UA_THREADSAFE
 UA_Server_removeDataSetField(UA_Server *server, const UA_NodeId dsf);
 
 /**
- * Custom Callback Implementation
- * ------------------------------
- * The user can use his own callback implementation for publishing
- * and subscribing. The user must take care of the callback to call for
- * every publishing or subscibing interval */
-
-typedef struct {
-    /* User's callback implementation. The user configured base time and timer policy
-     * will be provided as an argument to this callback so that the user can
-     * implement his callback (thread) considering base time and timer policies */
-    UA_StatusCode (*addCustomCallback)(UA_Server *server, UA_NodeId identifier,
-                                       UA_ServerCallback callback,
-                                       void *data, UA_Double interval_ms,
-                                       UA_DateTime *baseTime, UA_TimerPolicy timerPolicy,
-                                       UA_UInt64 *callbackId);
-
-    UA_StatusCode (*changeCustomCallback)(UA_Server *server, UA_NodeId identifier,
-                                          UA_UInt64 callbackId, UA_Double interval_ms,
-                                          UA_DateTime *baseTime, UA_TimerPolicy timerPolicy);
-
-    void (*removeCustomCallback)(UA_Server *server, UA_NodeId identifier, UA_UInt64 callbackId);
-
-} UA_PubSub_CallbackLifecycle;
-
-/**
  * WriterGroup
  * -----------
  * All WriterGroups are created within a PubSubConnection and automatically
@@ -515,8 +490,6 @@ typedef struct {
     UA_ExtensionObject messageSettings;
     UA_KeyValueMap groupProperties;
     UA_PubSubEncodingType encodingMimeType;
-    /* PubSub Manager Callback */
-    UA_PubSub_CallbackLifecycle pubsubManagerCallback;
     /* non std. config parameter. maximum count of embedded DataSetMessage in
      * one NetworkMessage */
     UA_UInt16 maxEncapsulatedDataSetMessageCount;
@@ -799,8 +772,6 @@ UA_Server_removeStandaloneSubscribedDataSet(UA_Server *server, const UA_NodeId s
 /* ReaderGroup configuration */
 typedef struct {
     UA_String name;
-    /* PubSub Manager Callback */
-    UA_PubSub_CallbackLifecycle pubsubManagerCallback;
     /* non std. field */
     UA_Duration subscribingInterval; // Callback interval for subscriber: set the least publishingInterval value of all DSRs in this RG
     UA_Boolean enableBlockingSocket; // To enable or disable blocking socket option
