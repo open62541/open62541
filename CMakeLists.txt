@@ -439,7 +439,7 @@ endif()
 
 if(UA_ENABLE_PUBSUB_FILE_CONFIG)
     if(NOT UA_ENABLE_PUBSUB)
-        message(FATAL_ERROR "PubSub needs to be enabled")
+        message(FATAL_ERROR "For UA_ENABLE_PUBSUB_FILE_CONFIG PubSub needs to be enabled")
     endif()
 endif()
 
