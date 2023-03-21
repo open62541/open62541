@@ -315,6 +315,7 @@ endif()
 
 if(UA_ENABLE_PUBSUB)
     ua_add_test(pubsub/check_pubsub_encoding.c)
+    ua_add_test(pubsub/check_pubsub_encoding_custom.c)
     ua_add_test(pubsub/check_pubsub_pds.c)
     ua_add_test(pubsub/check_pubsub_connection_udp.c)
     ua_add_test(pubsub/check_pubsub_publish.c)
