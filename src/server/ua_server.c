@@ -182,6 +182,12 @@ void UA_Server_delete(UA_Server *server) {
     if(server == NULL) {
         return;
     }
+    /* check if UA_Server_run_shutdown has already been called */
+    if(server->houseKeepingCallbackId != 0) {
+        UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                       "UA_Server_run_shutdown shall be called before UA_Server_delete");
+    }
+
     UA_LOCK(&server->serviceMutex);
 
     UA_Server_deleteSecureChannels(server);
