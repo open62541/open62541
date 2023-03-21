@@ -76,7 +76,7 @@ static UA_StatusCode
 encodeNetworkMessage(const UA_ByteString *buf, UA_ByteString *out) {
     size_t offset = 0;
     UA_NetworkMessage msg;
-    UA_StatusCode retval = UA_NetworkMessage_decodeBinary(buf, &offset, &msg);
+    UA_StatusCode retval = UA_NetworkMessage_decodeBinary(buf, &offset, &msg, NULL);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
