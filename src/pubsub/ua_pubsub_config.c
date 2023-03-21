@@ -694,10 +694,11 @@ createDataSetReader(UA_Server *server, const UA_DataSetReaderDataType *dsrParams
 /* Determines whether PublishedDataSet is of type PublishedItems or PublishedEvents.
  * (PublishedEvents are currently not supported!)
  *
+ * @param server UA_Server object that shall be configured
  * @param publishedDataSetParameters PublishedDataSet parameters
  * @param config PublishedDataSet configuration object */
 static UA_StatusCode
-setPublishedDataSetType(const UA_PublishedDataSetDataType *pdsParams,
+setPublishedDataSetType(UA_Server *server, const UA_PublishedDataSetDataType *pdsParams,
                         UA_PublishedDataSetConfig *config) {
     if(pdsParams->dataSetSource.encoding != UA_EXTENSIONOBJECT_DECODED)
         return UA_STATUSCODE_BADINTERNALERROR;
@@ -733,7 +734,7 @@ createPublishedDataSet(UA_Server *server,
     memset(&config, 0, sizeof(UA_PublishedDataSetConfig));
 
     config.name = pdsParams->name;
-    UA_StatusCode res = setPublishedDataSetType(pdsParams, &config);
+    UA_StatusCode res = setPublishedDataSetType(server, pdsParams, &config);
     if(res != UA_STATUSCODE_GOOD)
         return res;
 
@@ -1105,22 +1106,22 @@ generatePubSubConnectionDataType(UA_Server* server,
     const UA_DataType *publisherIdType;
     memset(dst, 0, sizeof(UA_PubSubConnectionDataType));
 
-    UA_String_copy(&src->config->name, &dst->name);
-    UA_String_copy(&src->config->transportProfileUri, &dst->transportProfileUri);
-    dst->enabled = src->config->enabled;
+    UA_String_copy(&src->config.name, &dst->name);
+    UA_String_copy(&src->config.transportProfileUri, &dst->transportProfileUri);
+    dst->enabled = src->config.enabled;
 
     UA_StatusCode res =
-        UA_Array_copy(src->config->connectionProperties.map,
-                      src->config->connectionProperties.mapSize,
+        UA_Array_copy(src->config.connectionProperties.map,
+                      src->config.connectionProperties.mapSize,
                       (void**)&dst->connectionProperties,
                       &UA_TYPES[UA_TYPES_KEYVALUEPAIR]);
     if(res != UA_STATUSCODE_GOOD) {
         UA_PubSubConnectionDataType_clear(dst);
         return res;
     }
-    dst->connectionPropertiesSize = src->config->connectionProperties.mapSize;
+    dst->connectionPropertiesSize = src->config.connectionProperties.mapSize;
 
-    switch (src->config->publisherIdType) {
+    switch (src->config.publisherIdType) {
         case UA_PUBLISHERIDTYPE_BYTE:
             publisherIdType = &UA_TYPES[UA_TYPES_BYTE];
             break;
@@ -1143,28 +1144,28 @@ generatePubSubConnectionDataType(UA_Server* server,
             break;
     }
     UA_Variant_setScalarCopy(&dst->publisherId,
-                             &src->config->publisherId,
+                             &src->config.publisherId,
                              publisherIdType);
 
-    /* Possibly, array size and dimensions of src->config->address and
-     * src->config->connectionTransportSettings should be checked beforehand. */
+    /* Possibly, array size and dimensions of src->config.address and
+     * src->config.connectionTransportSettings should be checked beforehand. */
     dst->address.encoding = UA_EXTENSIONOBJECT_DECODED;
-    dst->address.content.decoded.type = src->config->address.type;
-    res = UA_Array_copy(src->config->address.data, 1,
+    dst->address.content.decoded.type = src->config.address.type;
+    res = UA_Array_copy(src->config.address.data, 1,
                         &dst->address.content.decoded.data,
-                        src->config->address.type);
+                        src->config.address.type);
     if(res != UA_STATUSCODE_GOOD) {
         UA_PubSubConnectionDataType_clear(dst);
         return res;
     }
 
-    if(src->config->connectionTransportSettings.data) {
+    if(src->config.connectionTransportSettings.data) {
         dst->transportSettings.encoding = UA_EXTENSIONOBJECT_DECODED;
         dst->transportSettings.content.decoded.type =
-            src->config->connectionTransportSettings.type;
-        res = UA_Array_copy(src->config->connectionTransportSettings.data, 1,
+            src->config.connectionTransportSettings.type;
+        res = UA_Array_copy(src->config.connectionTransportSettings.data, 1,
                             &dst->transportSettings.content.decoded.data,
-                            src->config->connectionTransportSettings.type);
+                            src->config.connectionTransportSettings.type);
 
         if(res != UA_STATUSCODE_GOOD) {
             UA_PubSubConnectionDataType_clear(dst);
