@@ -97,24 +97,6 @@ UA_DataSetWriterConfig_clear(UA_DataSetWriterConfig *pdsConfig) {
     memset(pdsConfig, 0, sizeof(UA_DataSetWriterConfig));
 }
 
-static void
-UA_DataSetWriter_clear(UA_Server *server, UA_DataSetWriter *dataSetWriter) {
-    UA_DataSetWriterConfig_clear(&dataSetWriter->config);
-    UA_NodeId_clear(&dataSetWriter->identifier);
-    UA_NodeId_clear(&dataSetWriter->linkedWriterGroup);
-    UA_NodeId_clear(&dataSetWriter->connectedDataSet);
-
-    /* Delete lastSamples store */
-#ifdef UA_ENABLE_PUBSUB_DELTAFRAMES
-    for(size_t i = 0; i < dataSetWriter->lastSamplesCount; i++) {
-        UA_DataValue_clear(&dataSetWriter->lastSamples[i].value);
-    }
-    UA_free(dataSetWriter->lastSamples);
-    dataSetWriter->lastSamples = NULL;
-    dataSetWriter->lastSamplesCount = 0;
-#endif
-}
-
 //state machine methods not part of the open62541 state machine API
 UA_StatusCode
 UA_DataSetWriter_setPubSubState(UA_Server *server,
@@ -456,12 +438,11 @@ UA_DataSetWriter_prepareDataSet(UA_Server *server, UA_DataSetWriter *dsw,
 }
 
 UA_StatusCode
-UA_DataSetWriter_remove(UA_Server *server, UA_WriterGroup *linkedWriterGroup,
-                        UA_DataSetWriter *dataSetWriter) {
+UA_DataSetWriter_remove(UA_Server *server, UA_DataSetWriter *dataSetWriter) {
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
 
     /* Frozen? */
-    if(linkedWriterGroup->configurationFrozen) {
+    if(dataSetWriter->configurationFrozen) {
         UA_LOG_WARNING_WRITER(&server->config.logger, dataSetWriter,
                               "Remove DataSetWriter failed: WriterGroup is frozen");
         return UA_STATUSCODE_BADCONFIGURATIONERROR;
@@ -473,39 +454,41 @@ UA_DataSetWriter_remove(UA_Server *server, UA_WriterGroup *linkedWriterGroup,
 #endif
 
     /* Remove DataSetWriter from group */
-    UA_DataSetWriter_clear(server, dataSetWriter);
-    LIST_REMOVE(dataSetWriter, listEntry);
-    linkedWriterGroup->writersCount--;
+    UA_WriterGroup *linkedWriterGroup =
+        UA_WriterGroup_findWGbyId(server, dataSetWriter->linkedWriterGroup);
+    if(linkedWriterGroup) {
+        LIST_REMOVE(dataSetWriter, listEntry);
+        linkedWriterGroup->writersCount--;
+    }
+
+    UA_DataSetWriterConfig_clear(&dataSetWriter->config);
+    UA_NodeId_clear(&dataSetWriter->identifier);
+    UA_NodeId_clear(&dataSetWriter->linkedWriterGroup);
+    UA_NodeId_clear(&dataSetWriter->connectedDataSet);
+
+    /* Delete lastSamples store */
+#ifdef UA_ENABLE_PUBSUB_DELTAFRAMES
+    for(size_t i = 0; i < dataSetWriter->lastSamplesCount; i++) {
+        UA_DataValue_clear(&dataSetWriter->lastSamples[i].value);
+    }
+    UA_free(dataSetWriter->lastSamples);
+    dataSetWriter->lastSamples = NULL;
+    dataSetWriter->lastSamplesCount = 0;
+#endif
+
     UA_free(dataSetWriter);
     return UA_STATUSCODE_GOOD;
 }
 
 UA_StatusCode
-removeDataSetWriter(UA_Server *server, const UA_NodeId dsw) {
-    UA_LOCK_ASSERT(&server->serviceMutex, 1);
-
-    UA_DataSetWriter *dataSetWriter = UA_DataSetWriter_findDSWbyId(server, dsw);
-    if(!dataSetWriter)
-        return UA_STATUSCODE_BADNOTFOUND;
-
-    if(dataSetWriter->configurationFrozen) {
-        UA_LOG_WARNING_WRITER(&server->config.logger, dataSetWriter,
-                              "Remove DataSetWriter failed: DataSetWriter is frozen");
-        return UA_STATUSCODE_BADCONFIGURATIONERROR;
-    }
-
-    UA_WriterGroup *linkedWriterGroup =
-        UA_WriterGroup_findWGbyId(server, dataSetWriter->linkedWriterGroup);
-    if(!linkedWriterGroup)
-        return UA_STATUSCODE_BADNOTFOUND;
-
-    return UA_DataSetWriter_remove(server, linkedWriterGroup, dataSetWriter);
-}
-
-UA_StatusCode
 UA_Server_removeDataSetWriter(UA_Server *server, const UA_NodeId dsw) {
     UA_LOCK(&server->serviceMutex);
-    UA_StatusCode res = removeDataSetWriter(server, dsw);
+    UA_DataSetWriter *dataSetWriter = UA_DataSetWriter_findDSWbyId(server, dsw);
+    if(!dataSetWriter) {
+        UA_UNLOCK(&server->serviceMutex);
+        return UA_STATUSCODE_BADNOTFOUND;
+    }
+    UA_StatusCode res = UA_DataSetWriter_remove(server, dataSetWriter);
     UA_UNLOCK(&server->serviceMutex);
     return res;
 }
