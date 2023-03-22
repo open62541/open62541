@@ -244,10 +244,6 @@ UA_DataSetWriter_generateDataSetMessage(UA_Server *server,
                                         UA_DataSetWriter *dataSetWriter);
 
 UA_StatusCode
-UA_DataSetWriter_remove(UA_Server *server, UA_WriterGroup *linkedWriterGroup,
-                        UA_DataSetWriter *dataSetWriter);
-
-UA_StatusCode
 UA_DataSetWriter_prepareDataSet(UA_Server *server, UA_DataSetWriter *dsw,
                                 UA_DataSetMessage *dsm);
 
@@ -263,8 +259,9 @@ UA_DataSetWriter_create(UA_Server *server,
                         const UA_DataSetWriterConfig *dataSetWriterConfig,
                         UA_NodeId *writerIdentifier);
 
+
 UA_StatusCode
-removeDataSetWriter(UA_Server *server, const UA_NodeId dsw);
+UA_DataSetWriter_remove(UA_Server *server, UA_DataSetWriter *dataSetWriter);
 
 #define UA_LOG_WRITER_INTERNAL(LOGGER, LEVEL, WRITER, MSG, ...)         \
     if(UA_LOGLEVEL <= UA_LOGLEVEL_##LEVEL) {                            \
