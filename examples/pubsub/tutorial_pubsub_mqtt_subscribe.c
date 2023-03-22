@@ -177,6 +177,7 @@ addReaderGroup(UA_Server *server,  int interval) {
 
     retval |= UA_Server_addReaderGroup(server, connectionIdent, &readerGroupConfig,
                                        &readerGroupIdent);
+    UA_Server_enableReaderGroup(server, readerGroupIdent);
 #if defined(UA_ENABLE_PUBSUB_ENCRYPTION) && !defined(UA_ENABLE_JSON_ENCODING)
     /* Add the encryption key informaton */
     UA_ByteString sk = {UA_AES128CTR_SIGNING_KEY_LENGTH, signingKey};
@@ -186,7 +187,6 @@ addReaderGroup(UA_Server *server,  int interval) {
     // TODO security token not necessary for readergroup (extracted from security-header)
     retval |= UA_Server_setReaderGroupEncryptionKeys(server, readerGroupIdent, 1, sk, ek, kn);
 #endif
-    retval |= UA_Server_setReaderGroupOperational(server, readerGroupIdent);
 
     return retval;
 }

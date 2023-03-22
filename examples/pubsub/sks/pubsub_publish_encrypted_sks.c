@@ -112,6 +112,7 @@ addWriterGroup(UA_Server *server, UA_ClientConfig *sksClientConfig) {
     writerGroupConfig.messageSettings.content.decoded.data = writerGroupMessage;
     UA_Server_addWriterGroup(server, connectionIdent, &writerGroupConfig,
                              &writerGroupIdent);
+    UA_Server_enableWriterGroup(server, writerGroupIdent);
     UA_UadpWriterGroupMessageDataType_delete(writerGroupMessage);
 
     /* We need to set the sks client before setting Reader/Writer Group into operational

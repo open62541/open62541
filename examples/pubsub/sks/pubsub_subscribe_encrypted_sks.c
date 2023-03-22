@@ -69,8 +69,6 @@ addPubSubConnection(UA_Server *server, UA_String *transportProfile,
 
 static void
 sksPullRequestCallback(UA_Server *server, UA_StatusCode sksPullRequestStatus, void *data) {
-    if(sksPullRequestStatus == UA_STATUSCODE_GOOD)
-        UA_Server_setReaderGroupOperational(server, readerGroupIdentifier);
     if(sksPullRequestStatus != UA_STATUSCODE_GOOD)
         running = false;
 }

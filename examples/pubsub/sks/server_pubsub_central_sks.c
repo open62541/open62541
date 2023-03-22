@@ -268,6 +268,7 @@ main(int argc, char **argv) {
         if(strcmp(argv[pos], "--port") == 0) {
             pos++;
             int inNum = atoi(argv[pos]);
+            printf("test\n");
             if(inNum <= 0) {
                 usage(argv[0]);
                 return EXIT_FAILURE;
