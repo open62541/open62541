@@ -49,10 +49,6 @@ UA_ReaderGroup_findDSRbyId(UA_Server *server, UA_NodeId identifier) {
     return NULL;
 }
 
-/* Clear ReaderGroup */
-static void
-ReaderGroup_clear(UA_Server* server, UA_ReaderGroup *readerGroup);
-
 /* ReaderGroup Config Handling */
 
 UA_StatusCode

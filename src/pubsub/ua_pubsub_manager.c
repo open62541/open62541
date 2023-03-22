@@ -524,12 +524,14 @@ removeStandaloneSubscribedDataSet(UA_Server *server, const UA_NodeId sds) {
             UA_DataSetReader *currentReader, *tmpReader;
             LIST_FOREACH_SAFE(currentReader, &readerGroup->readers, listEntry, tmpReader){
                 if(UA_NodeId_equal(&currentReader->identifier, &subscribedDataSet->connectedReader)){
-                    removeDataSetReader(server, currentReader->identifier);
-                    // todo -> break out of loop
+                    UA_DataSetReader_remove(server, currentReader);
+                    goto done;
                 }
             }
         }
     }
+
+ done:
 
 #ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL
     deleteNode(server, subscribedDataSet->identifier, true);

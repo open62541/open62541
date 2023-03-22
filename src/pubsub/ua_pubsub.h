@@ -462,7 +462,7 @@ UA_DataSetReader_create(UA_Server *server, UA_NodeId readerGroupIdentifier,
                         UA_NodeId *readerIdentifier);
 
 UA_StatusCode
-removeDataSetReader(UA_Server *server, UA_NodeId readerIdentifier);
+UA_DataSetReader_remove(UA_Server *server, UA_DataSetReader *dsr);
 
 /* Copy the configuration of DataSetReader */
 UA_StatusCode UA_DataSetReaderConfig_copy(const UA_DataSetReaderConfig *src,

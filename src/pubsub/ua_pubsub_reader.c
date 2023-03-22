@@ -263,12 +263,7 @@ UA_Server_addDataSetReader(UA_Server *server, UA_NodeId readerGroupIdentifier,
 }
 
 UA_StatusCode
-removeDataSetReader(UA_Server *server, UA_NodeId readerIdentifier) {
-    /* Remove datasetreader given by the identifier */
-    UA_DataSetReader *dsr = UA_ReaderGroup_findDSRbyId(server, readerIdentifier);
-    if(!dsr)
-        return UA_STATUSCODE_BADNOTFOUND;
-
+UA_DataSetReader_remove(UA_Server *server, UA_DataSetReader *dsr) {
     if(dsr->configurationFrozen) {
         UA_LOG_WARNING_READER(&server->config.logger, dsr,
                               "Remove DataSetReader failed, "
@@ -339,7 +334,12 @@ removeDataSetReader(UA_Server *server, UA_NodeId readerIdentifier) {
 UA_StatusCode
 UA_Server_removeDataSetReader(UA_Server *server, UA_NodeId readerIdentifier) {
     UA_LOCK(&server->serviceMutex);
-    UA_StatusCode res = removeDataSetReader(server, readerIdentifier);
+    UA_DataSetReader *dsr = UA_ReaderGroup_findDSRbyId(server, readerIdentifier);
+    if(!dsr) {
+        UA_UNLOCK(&server->serviceMutex);
+        return UA_STATUSCODE_BADNOTFOUND;
+    }
+    UA_StatusCode res = UA_DataSetReader_remove(server, dsr);
     UA_UNLOCK(&server->serviceMutex);
     return res;
 }
