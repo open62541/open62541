@@ -204,7 +204,7 @@ UA_PubSubConnection_remove(UA_Server *server, UA_PubSubConnection *c) {
         UA_ReaderGroup_setPubSubState(server, readerGroup, UA_PUBSUBSTATE_DISABLED,
                                       UA_STATUSCODE_BADSHUTDOWN);
         UA_ReaderGroup_unfreezeConfiguration(server, readerGroup);
-        removeReaderGroup(server, readerGroup->identifier);
+        UA_ReaderGroup_remove(server, readerGroup);
     }
     /* Close the related channel */
     if(c->channel) {

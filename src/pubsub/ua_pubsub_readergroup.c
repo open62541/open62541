@@ -290,40 +290,62 @@ UA_Server_addReaderGroup(UA_Server *server, UA_NodeId connectionIdentifier,
 }
 
 UA_StatusCode
-removeReaderGroup(UA_Server *server, UA_NodeId groupIdentifier) {
-    UA_ReaderGroup* readerGroup =
-        UA_ReaderGroup_findRGbyId(server, groupIdentifier);
-    if(readerGroup == NULL)
-        return UA_STATUSCODE_BADNOTFOUND;
-
-    if(readerGroup->configurationFrozen) {
-        UA_LOG_WARNING_READERGROUP(&server->config.logger, readerGroup,
+UA_ReaderGroup_remove(UA_Server *server, UA_ReaderGroup *rg) {
+    if(rg->configurationFrozen) {
+        UA_LOG_WARNING_READERGROUP(&server->config.logger, rg,
                                    "Remove ReaderGroup failed. "
                                    "Subscriber configuration is frozen.");
         return UA_STATUSCODE_BADCONFIGURATIONERROR;
     }
 
     /* Unregister subscribe callback */
-    if(readerGroup->state == UA_PUBSUBSTATE_OPERATIONAL)
-        UA_ReaderGroup_removeSubscribeCallback(server, readerGroup);
+    if(rg->state == UA_PUBSUBSTATE_OPERATIONAL)
+        UA_ReaderGroup_removeSubscribeCallback(server, rg);
 
 #ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL
-    deleteNode(server, readerGroup->identifier, true);
+    deleteNode(server, rg->identifier, true);
 #endif
 
-    /* UA_Server_ReaderGroup_clear also removes itself from the list */
-    ReaderGroup_clear(server, readerGroup);
+    UA_DataSetReader *dsr, *tmp_dsr;
+    LIST_FOREACH_SAFE(dsr, &rg->readers, listEntry, tmp_dsr) {
+        UA_DataSetReader_remove(server, dsr);
+    }
 
-    /* Remove readerGroup from Connection */
-    LIST_REMOVE(readerGroup, listEntry);
-    UA_free(readerGroup);
+#ifdef UA_ENABLE_PUBSUB_ENCRYPTION
+    if(rg->config.securityPolicy && rg->securityPolicyContext) {
+        rg->config.securityPolicy->deleteContext(rg->securityPolicyContext);
+        rg->securityPolicyContext = NULL;
+    }
+#endif
+
+#ifdef UA_ENABLE_PUBSUB_SKS
+    if(rg->keyStorage) {
+        UA_PubSubKeyStorage_detachKeyStorage(server, rg->keyStorage);
+        rg->keyStorage = NULL;
+    }
+#endif
+
+    LIST_REMOVE(rg, listEntry);
+    UA_PubSubConnection* pConn = rg->linkedConnection;
+    if(pConn != NULL)
+        pConn->readerGroupsSize--;
+
+    UA_NodeId_clear(&rg->identifier);
+    UA_ReaderGroupConfig_clear(&rg->config);
+    UA_free(rg);
     return UA_STATUSCODE_GOOD;
 }
 
 UA_StatusCode
 UA_Server_removeReaderGroup(UA_Server *server, UA_NodeId groupIdentifier) {
     UA_LOCK(&server->serviceMutex);
-    UA_StatusCode res = removeReaderGroup(server, groupIdentifier);
+    UA_ReaderGroup* readerGroup =
+        UA_ReaderGroup_findRGbyId(server, groupIdentifier);
+    if(!readerGroup) {
+        UA_UNLOCK(&server->serviceMutex);
+        return UA_STATUSCODE_BADNOTFOUND;
+    }
+    UA_StatusCode res = UA_ReaderGroup_remove(server, readerGroup);
     UA_UNLOCK(&server->serviceMutex);
     return res;
 }
@@ -349,39 +371,6 @@ UA_Server_ReaderGroup_getConfig(UA_Server *server, UA_NodeId readerGroupIdentifi
 
     UA_UNLOCK(&server->serviceMutex);
     return ret;
-}
-
-static void
-ReaderGroup_clear(UA_Server* server, UA_ReaderGroup *rg) {
-    UA_LOCK_ASSERT(&server->serviceMutex, 1);
-
-    UA_ReaderGroupConfig_clear(&rg->config);
-    UA_DataSetReader *dsr, *tmp_dsr;
-    LIST_FOREACH_SAFE(dsr, &rg->readers, listEntry, tmp_dsr) {
-        removeDataSetReader(server, dsr->identifier);
-    }
-    UA_PubSubConnection* pConn = rg->linkedConnection;
-    if(pConn != NULL)
-        pConn->readerGroupsSize--;
-
-    /* Delete ReaderGroup and its members */
-    UA_NodeId_clear(&rg->identifier);
-
-#ifdef UA_ENABLE_PUBSUB_ENCRYPTION
-    if(rg->config.securityPolicy && rg->securityPolicyContext) {
-        rg->config.securityPolicy->deleteContext(rg->securityPolicyContext);
-        rg->securityPolicyContext = NULL;
-    }
-#endif
-
-#ifdef UA_ENABLE_PUBSUB_SKS
-    if(rg->keyStorage) {
-        UA_PubSubKeyStorage_detachKeyStorage(server, rg->keyStorage);
-        rg->keyStorage = NULL;
-    }
-#endif
-
-    UA_ReaderGroupConfig_clear(&rg->config);
 }
 
 UA_StatusCode

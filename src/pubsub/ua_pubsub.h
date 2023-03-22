@@ -560,7 +560,7 @@ UA_ReaderGroup_create(UA_Server *server, UA_NodeId connectionId,
                       UA_NodeId *readerGroupId);
 
 UA_StatusCode
-removeReaderGroup(UA_Server *server, UA_NodeId groupIdentifier);
+UA_ReaderGroup_remove(UA_Server *server, UA_ReaderGroup *rg);
 
 UA_StatusCode
 setReaderGroupEncryptionKeys(UA_Server *server, const UA_NodeId readerGroup,
