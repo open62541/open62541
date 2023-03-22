@@ -240,10 +240,8 @@ UA_Server_addWriterGroup(UA_Server *server, const UA_NodeId connection,
 }
 
 UA_StatusCode
-removeWriterGroup(UA_Server *server, const UA_NodeId writerGroup) {
-    UA_WriterGroup *wg = UA_WriterGroup_findWGbyId(server, writerGroup);
-    if(!wg)
-        return UA_STATUSCODE_BADNOTFOUND;
+UA_WriterGroup_remove(UA_Server *server, UA_WriterGroup *wg) {
+    UA_LOCK_ASSERT(&server->serviceMutex, 1);
 
     if(wg->configurationFrozen) {
         UA_LOG_WARNING_WRITERGROUP(&server->config.logger, wg,
@@ -271,16 +269,15 @@ removeWriterGroup(UA_Server *server, const UA_NodeId writerGroup) {
         UA_DataSetWriter_remove(server, wg, dsw);
     }
 
-    connection->writerGroupsSize--;
-
 #ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL
     deleteNode(server, wg->identifier, true);
 #endif
 
+    LIST_REMOVE(wg, listEntry);
+    connection->writerGroupsSize--;
+
     /* _clear also removes the refcount in the key storage */
     UA_WriterGroup_clear(server, wg);
-
-    LIST_REMOVE(wg, listEntry);
     UA_free(wg);
     return UA_STATUSCODE_GOOD;
 }
@@ -288,7 +285,12 @@ removeWriterGroup(UA_Server *server, const UA_NodeId writerGroup) {
 UA_StatusCode
 UA_Server_removeWriterGroup(UA_Server *server, const UA_NodeId writerGroup) {
     UA_LOCK(&server->serviceMutex);
-    UA_StatusCode res = removeWriterGroup(server, writerGroup);
+    UA_WriterGroup *wg = UA_WriterGroup_findWGbyId(server, writerGroup);
+    if(!wg) {
+        UA_UNLOCK(&server->serviceMutex);
+        return UA_STATUSCODE_BADNOTFOUND;
+    }
+    UA_StatusCode res = UA_WriterGroup_remove(server, wg);
     UA_UNLOCK(&server->serviceMutex);
     return res;
 }
