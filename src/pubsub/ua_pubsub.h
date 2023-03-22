@@ -77,6 +77,9 @@ UA_PublishedDataSet_clear(UA_Server *server,
                           UA_PublishedDataSet *publishedDataSet);
 
 UA_StatusCode
+UA_PublishedDataSet_remove(UA_Server *server, UA_PublishedDataSet *publishedDataSet);
+
+UA_StatusCode
 getPublishedDataSetConfig(UA_Server *server, const UA_NodeId pds,
                           UA_PublishedDataSetConfig *config);
 
