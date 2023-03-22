@@ -289,6 +289,7 @@ addWriterGroup(UA_Server *server, char *topic, int interval) {
 
     writerGroupConfig.transportSettings = transportSettings;
     retval = UA_Server_addWriterGroup(server, connectionIdent, &writerGroupConfig, &writerGroupIdent);
+    UA_Server_enableWriterGroup(server, writerGroupIdent);
 
     if (retval == UA_STATUSCODE_GOOD)
         UA_Server_setWriterGroupOperational(server, writerGroupIdent);
@@ -382,6 +383,7 @@ addDataSetWriter(UA_Server *server, char *topic) {
     dataSetWriterConfig.transportSettings = transportSettings;
     UA_Server_addDataSetWriter(server, writerGroupIdent, publishedDataSetIdent,
                                &dataSetWriterConfig, &dataSetWriterIdent);
+    UA_Server_setDataSetWriterOperational(server, dataSetWriterIdent);
 }
 
 /**

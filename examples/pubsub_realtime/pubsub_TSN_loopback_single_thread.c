@@ -146,6 +146,7 @@ static UA_Boolean signalTerm           = UA_FALSE;
 UA_NodeId           connectionIdent;
 UA_NodeId           publishedDataSetIdent;
 UA_NodeId           writerGroupIdent;
+UA_NodeId           dataSetWriterIdent;
 UA_NodeId           pubNodeID;
 UA_NodeId           pubRepeatedCountNodeID;
 UA_NodeId           runningPubStatusNodeID;
@@ -380,6 +381,7 @@ addReaderGroup(UA_Server *server) {
 
     UA_Server_addReaderGroup(server, connectionIdentSubscriber, &readerGroupConfig,
                              &readerGroupIdentifier);
+    UA_Server_enableReaderGroup(server, readerGroupIdentifier);
 }
 
 /* Set SubscribedDataSet type to TargetVariables data type
@@ -764,13 +766,13 @@ addWriterGroup(UA_Server *server) {
                                                               (UA_UadpNetworkMessageContentMask)UA_UADPNETWORKMESSAGECONTENTMASK_PAYLOADHEADER);
     writerGroupConfig.messageSettings.content.decoded.data = writerGroupMessage;
     UA_Server_addWriterGroup(server, connectionIdent, &writerGroupConfig, &writerGroupIdent);
+    UA_Server_enableWriterGroup(server, writerGroupIdent);
     UA_UadpWriterGroupMessageDataType_delete(writerGroupMessage);
 }
 
 /* DataSetWriter handling */
 static void
 addDataSetWriter(UA_Server *server) {
-    UA_NodeId dataSetWriterIdent;
     UA_DataSetWriterConfig dataSetWriterConfig;
     memset(&dataSetWriterConfig, 0, sizeof(UA_DataSetWriterConfig));
     dataSetWriterConfig.name            = UA_STRING("Demo DataSetWriter");
@@ -1333,6 +1335,8 @@ int main(int argc, char **argv) {
     addDataSetWriter(server);
     UA_Server_freezeWriterGroupConfiguration(server, writerGroupIdent);
     UA_Server_setWriterGroupOperational(server, writerGroupIdent);
+    UA_Server_setDataSetWriterOperational(server, dataSetWriterIdent);
+
 #endif
 
 #ifdef UA_ENABLE_PUBSUB_ETH_UADP

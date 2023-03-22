@@ -755,6 +755,7 @@ static int run(UA_String *transportProfile,
     /* Add the new WriterGroup to an existing Connection. */
     UA_NodeId writerGroupIdent;
     UA_Server_addWriterGroup(server, connectionIdent, &writerGroupConfig, &writerGroupIdent);
+    UA_Server_enableWriterGroup(server, writerGroupIdent);
     UA_Server_setWriterGroupOperational(server, writerGroupIdent);
 
     /* Create a new Writer and connect it with an existing PublishedDataSet */
@@ -770,6 +771,7 @@ static int run(UA_String *transportProfile,
     UA_NodeId writerIdentifier;
     UA_Server_addDataSetWriter(server, writerGroupIdent, publishedDataSetIdent,
         &dataSetWriterConfig, &writerIdentifier);
+    UA_Server_setDataSetWriterOperational(server, writerIdentifier);
 
     // Published DataSet 2
     UA_PublishedDataSetConfig publishedDataSetConfig2;
@@ -795,6 +797,7 @@ static int run(UA_String *transportProfile,
     UA_NodeId writerIdentifier2;
     UA_Server_addDataSetWriter(server, writerGroupIdent, publishedDataSetIdent2,
         &dataSetWriterConfig2, &writerIdentifier2);
+    UA_Server_setDataSetWriterOperational(server, writerIdentifier2);
 
     UA_UInt64 timerCallbackId = 0;
     UA_Server_addRepeatedCallback(server, (UA_ServerCallback)timerCallback, NULL, 1000, &timerCallbackId);

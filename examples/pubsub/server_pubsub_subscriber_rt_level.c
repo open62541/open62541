@@ -202,6 +202,7 @@ addReaderGroup(UA_Server *server) {
     readerGroupConfig.rtLevel = UA_PUBSUB_RT_FIXED_SIZE;
     retval |= UA_Server_addReaderGroup(server, connectionIdentifier, &readerGroupConfig,
                                        &readerGroupIdentifier);
+    UA_Server_enableReaderGroup(server, readerGroupIdentifier);
     return retval;
 }
 
