@@ -24,9 +24,6 @@
 
 #define UA_MAX_STACKBUF 128 /* Max size of network messages on the stack */
 
-static void
-UA_WriterGroup_clear(UA_Server *server, UA_WriterGroup *writerGroup);
-
 #ifdef UA_ENABLE_PUBSUB_ENCRYPTION
 static UA_StatusCode
 encryptAndSign(UA_WriterGroup *wg, const UA_NetworkMessage *nm,
@@ -244,6 +241,11 @@ UA_WriterGroup_remove(UA_Server *server, UA_WriterGroup *wg) {
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
 
     if(wg->configurationFrozen) {
+        UA_LOG_ERROR_WRITERGROUP(&server->config.logger, wg,
+                                 "Deleting %p", (void*)wg);
+    }
+
+    if(wg->configurationFrozen) {
         UA_LOG_WARNING_WRITERGROUP(&server->config.logger, wg,
                                    "Deleting the WriterGroup failed. "
                                    "WriterGroup is frozen.");
@@ -266,18 +268,37 @@ UA_WriterGroup_remove(UA_Server *server, UA_WriterGroup *wg) {
 
     UA_DataSetWriter *dsw, *dsw_tmp;
     LIST_FOREACH_SAFE(dsw, &wg->writers, listEntry, dsw_tmp) {
-        UA_DataSetWriter_remove(server, wg, dsw);
+        UA_DataSetWriter_remove(server, dsw);
     }
 
 #ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL
     deleteNode(server, wg->identifier, true);
 #endif
 
+
+#ifdef UA_ENABLE_PUBSUB_ENCRYPTION
+    if(wg->config.securityPolicy && wg->securityPolicyContext) {
+        wg->config.securityPolicy->deleteContext(wg->securityPolicyContext);
+        wg->securityPolicyContext = NULL;
+    }
+#endif
+
+#ifdef UA_ENABLE_PUBSUB_SKS
+    if(wg->keyStorage) {
+        UA_PubSubKeyStorage_detachKeyStorage(server, wg->keyStorage);
+        wg->keyStorage = NULL;
+    }
+#endif
+
+    UA_WriterGroupConfig_clear(&wg->config);
+    UA_NodeId_clear(&wg->identifier);
+    UA_NetworkMessageOffsetBuffer_clear(&wg->bufferedMessage);
+    if(wg->channel) {
+        wg->channel->close(wg->channel);
+    }
+
     LIST_REMOVE(wg, listEntry);
     connection->writerGroupsSize--;
-
-    /* _clear also removes the refcount in the key storage */
-    UA_WriterGroup_clear(server, wg);
     UA_free(wg);
     return UA_STATUSCODE_GOOD;
 }
@@ -716,36 +737,6 @@ UA_WriterGroupConfig_clear(UA_WriterGroupConfig *writerGroupConfig) {
     UA_String_clear(&writerGroupConfig->securityGroupId);
 #endif
     memset(writerGroupConfig, 0, sizeof(UA_WriterGroupConfig));
-}
-
-static void
-UA_WriterGroup_clear(UA_Server *server, UA_WriterGroup *writerGroup) {
-    /* Delete all writers */
-    UA_DataSetWriter *dataSetWriter, *tmpDataSetWriter;
-    LIST_FOREACH_SAFE(dataSetWriter, &writerGroup->writers, listEntry, tmpDataSetWriter){
-        removeDataSetWriter(server, dataSetWriter->identifier);
-    }
-
-#ifdef UA_ENABLE_PUBSUB_ENCRYPTION
-    if(writerGroup->config.securityPolicy && writerGroup->securityPolicyContext) {
-        writerGroup->config.securityPolicy->deleteContext(writerGroup->securityPolicyContext);
-        writerGroup->securityPolicyContext = NULL;
-    }
-#endif
-
-#ifdef UA_ENABLE_PUBSUB_SKS
-    if(writerGroup->keyStorage) {
-        UA_PubSubKeyStorage_detachKeyStorage(server, writerGroup->keyStorage);
-        writerGroup->keyStorage = NULL;
-    }
-#endif
-
-    UA_WriterGroupConfig_clear(&writerGroup->config);
-    UA_NodeId_clear(&writerGroup->identifier);
-    UA_NetworkMessageOffsetBuffer_clear(&writerGroup->bufferedMessage);
-    if(writerGroup->channel) {
-        writerGroup->channel->close(writerGroup->channel);
-    }
 }
 
 UA_StatusCode
