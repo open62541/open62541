@@ -156,6 +156,7 @@ addPubSubConnection(UA_Server *server, char *addressUrl) {
     connectionConfig.connectionProperties.mapSize = connectionOptionIndex;
 
     UA_Server_addPubSubConnection(server, &connectionConfig, &connectionIdent);
+    UA_Server_setPubSubConnectionOperational(server, connectionIdent);
 }
 
 /**

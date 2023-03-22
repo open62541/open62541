@@ -477,6 +477,8 @@ addPubSubConnectionSubscriber(UA_Server *server,
     if(retval == UA_STATUSCODE_GOOD)
          UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
                      "The PubSub Connection was created successfully!");
+
+    UA_Server_setPubSubConnectionOperational(server, connectionIdentSubscriber);
 }
 
 /* Add ReaderGroup to the created connection */
@@ -747,6 +749,7 @@ addPubSubConnection(UA_Server *server, UA_NetworkAddressUrlDataType *networkAddr
     connectionConfig.connectionProperties.mapSize = 2;
 
     UA_Server_addPubSubConnection(server, &connectionConfig, &connectionIdent);
+    UA_Server_setPubSubConnectionOperational(server, connectionIdent);
 }
 
 /* PublishedDataSet handling */

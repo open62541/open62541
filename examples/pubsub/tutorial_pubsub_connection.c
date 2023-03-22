@@ -65,6 +65,8 @@ int main(void) {
                     "The PubSub Connection was created successfully!");
     }
 
+    UA_Server_setPubSubConnectionOperational(server, connectionIdentifier);
+
     retval |= UA_Server_runUntilInterrupt(server);
 
     UA_Server_delete(server);

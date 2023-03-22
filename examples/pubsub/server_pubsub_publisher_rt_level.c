@@ -55,6 +55,7 @@ addMinimalPubSubConfiguration(UA_Server * server){
     connectionConfig.publisherIdType = UA_PUBLISHERIDTYPE_UINT16;
     connectionConfig.publisherId.uint16 = 2234;
     UA_Server_addPubSubConnection(server, &connectionConfig, &connectionIdentifier);
+    UA_Server_setPubSubConnectionOperational(server, connectionIdentifier);
     /* Add one PublishedDataSet */
     UA_PublishedDataSetConfig publishedDataSetConfig;
     memset(&publishedDataSetConfig, 0, sizeof(UA_PublishedDataSetConfig));

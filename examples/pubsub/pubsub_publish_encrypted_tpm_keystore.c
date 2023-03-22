@@ -44,6 +44,8 @@ addPubSubConnection(UA_Server *server, UA_String *transportProfile,
     connectionConfig.publisherIdType = UA_PUBLISHERIDTYPE_UINT16;
     connectionConfig.publisherId.uint16 = 2234;
     UA_Server_addPubSubConnection(server, &connectionConfig, &connectionIdent);
+
+    UA_Server_setPubSubConnectionOperational(server, connectionIdent);
 }
 
 static void
