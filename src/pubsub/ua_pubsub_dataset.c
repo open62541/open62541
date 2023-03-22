@@ -147,8 +147,8 @@ void
 UA_PublishedDataSet_clear(UA_Server *server, UA_PublishedDataSet *publishedDataSet) {
     UA_DataSetField *field, *tmpField;
     TAILQ_FOREACH_SAFE(field, &publishedDataSet->fields, listEntry, tmpField) {
-        /* Code in this block is a duplication of similar code in removeDataSetField, but
-         * this is intentional. We don't want to call removeDataSetField here as that
+        /* Code in this block is a duplication of similar code in UA_DataSetField_remove, but
+         * this is intentional. We don't want to call UA_DataSetField_remove here as that
          * function regenerates DataSetMetaData, which is not necessary if we want to
          * clear the whole PDS anyway. */
         if(field->configurationFrozen) {
@@ -419,15 +419,9 @@ UA_Server_addDataSetField(UA_Server *server, const UA_NodeId publishedDataSet,
 }
 
 UA_DataSetFieldResult
-removeDataSetField(UA_Server *server, const UA_NodeId dsf) {
+UA_DataSetField_remove(UA_Server *server, UA_DataSetField *currentField) {
     UA_DataSetFieldResult result;
     memset(&result, 0, sizeof(UA_DataSetFieldResult));
-
-    UA_DataSetField *currentField = UA_DataSetField_findDSFbyId(server, dsf);
-    if(!currentField) {
-        result.result = UA_STATUSCODE_BADNOTFOUND;
-        return result;
-    }
 
     UA_PublishedDataSet *pds =
         UA_PublishedDataSet_findPDSbyId(server, currentField->publishedDataSet);
@@ -514,7 +508,15 @@ removeDataSetField(UA_Server *server, const UA_NodeId dsf) {
 UA_DataSetFieldResult
 UA_Server_removeDataSetField(UA_Server *server, const UA_NodeId dsf) {
     UA_LOCK(&server->serviceMutex);
-    UA_DataSetFieldResult res = removeDataSetField(server, dsf);
+    UA_DataSetFieldResult res;
+    memset(&res, 0, sizeof(UA_DataSetFieldResult));
+    UA_DataSetField *field = UA_DataSetField_findDSFbyId(server, dsf);
+    if(!field) {
+        res.result = UA_STATUSCODE_BADNOTFOUND;
+        UA_UNLOCK(&server->serviceMutex);
+        return res;
+    }
+    res = UA_DataSetField_remove(server, field);
     UA_UNLOCK(&server->serviceMutex);
     return res;
 }

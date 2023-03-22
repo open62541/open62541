@@ -413,7 +413,7 @@ UA_DataSetField *
 UA_DataSetField_findDSFbyId(UA_Server *server, UA_NodeId identifier);
 
 UA_DataSetFieldResult
-removeDataSetField(UA_Server *server, const UA_NodeId dsf);
+UA_DataSetField_remove(UA_Server *server, UA_DataSetField *currentField);
 
 UA_DataSetFieldResult
 UA_DataSetField_create(UA_Server *server, const UA_NodeId publishedDataSet,
