@@ -610,7 +610,7 @@ UA_PubSubManager_delete(UA_Server *server, UA_PubSubManager *pubSubManager) {
     UA_PubSubConnection *tmpConnection1, *tmpConnection2;
     TAILQ_FOREACH_SAFE(tmpConnection1, &server->pubSubManager.connections,
                        listEntry, tmpConnection2) {
-        removePubSubConnection(server, tmpConnection1->identifier);
+        UA_PubSubConnection_remove(server, tmpConnection1);
     }
 
     /* Remove the DataSets */
