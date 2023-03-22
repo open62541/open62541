@@ -11,11 +11,11 @@
  */
 
 #include "ua_pubsub.h"
+#include "ua_pubsub_ns0.h"
 #include "server/ua_server_internal.h"
 
 #ifdef UA_ENABLE_PUBSUB /* conditional compilation */
 
-#include "ua_pubsub_ns0.h"
 #ifdef UA_ENABLE_PUBSUB_SKS
 #include "ua_pubsub_keystorage.h"
 #endif
@@ -269,178 +269,6 @@ UA_PubSubManager_reserveIds(UA_Server *server, UA_NodeId sessionId, UA_UInt16 nu
     return UA_STATUSCODE_GOOD;
 }
 
-UA_AddPublishedDataSetResult
-UA_PublishedDataSet_create(UA_Server *server,
-                           const UA_PublishedDataSetConfig *publishedDataSetConfig,
-                           UA_NodeId *pdsIdentifier) {
-    UA_LOCK_ASSERT(&server->serviceMutex, 1);
-
-    UA_AddPublishedDataSetResult result = {UA_STATUSCODE_BADINVALIDARGUMENT, 0, NULL, {0, 0}};
-    if(!publishedDataSetConfig){
-        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
-                     "PublishedDataSet creation failed. No config passed in.");
-        return result;
-    }
-
-    if(publishedDataSetConfig->publishedDataSetType != UA_PUBSUB_DATASET_PUBLISHEDITEMS){
-        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
-                     "PublishedDataSet creation failed. Unsupported PublishedDataSet type.");
-        return result;
-    }
-
-    if(UA_String_isEmpty(&publishedDataSetConfig->name)) {
-        // DataSet has to have a valid name
-        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
-                     "PublishedDataSet creation failed. Invalid name.");
-        return result;
-    }
-
-    if(UA_PublishedDataSet_findPDSbyName(server, publishedDataSetConfig->name)) {
-        // DataSet name has to be unique in the publisher
-        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
-                     "PublishedDataSet creation failed. DataSet with the same name already exists.");
-        result.addResult = UA_STATUSCODE_BADBROWSENAMEDUPLICATED;
-        return result;
-    }
-
-    /* Create new PDS and add to UA_PubSubManager */
-    UA_PublishedDataSet *newPDS = (UA_PublishedDataSet *)
-        UA_calloc(1, sizeof(UA_PublishedDataSet));
-    if(!newPDS) {
-        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
-                     "PublishedDataSet creation failed. Out of Memory.");
-        result.addResult = UA_STATUSCODE_BADOUTOFMEMORY;
-        return result;
-    }
-    TAILQ_INIT(&newPDS->fields);
-
-    UA_PublishedDataSetConfig *newConfig = &newPDS->config;
-
-    /* Deep copy the given connection config */
-    UA_StatusCode res = UA_PublishedDataSetConfig_copy(publishedDataSetConfig, newConfig);
-    if(res != UA_STATUSCODE_GOOD){
-        UA_free(newPDS);
-        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
-                     "PublishedDataSet creation failed. Configuration copy failed.");
-        result.addResult = UA_STATUSCODE_BADINTERNALERROR;
-        return result;
-    }
-
-    /* TODO: Parse template config and add fields (later PubSub batch) */
-    if(newConfig->publishedDataSetType == UA_PUBSUB_DATASET_PUBLISHEDITEMS_TEMPLATE) {
-    }
-
-    /* Fill the DataSetMetaData */
-    result.configurationVersion.majorVersion = UA_PubSubConfigurationVersionTimeDifference();
-    result.configurationVersion.minorVersion = UA_PubSubConfigurationVersionTimeDifference();
-    switch(newConfig->publishedDataSetType) {
-    case UA_PUBSUB_DATASET_PUBLISHEDEVENTS_TEMPLATE:
-        res = UA_STATUSCODE_BADNOTSUPPORTED;
-        break;
-    case UA_PUBSUB_DATASET_PUBLISHEDEVENTS:
-        res = UA_STATUSCODE_BADNOTSUPPORTED;
-        break;
-    case UA_PUBSUB_DATASET_PUBLISHEDITEMS:
-        newPDS->dataSetMetaData.configurationVersion.majorVersion =
-            UA_PubSubConfigurationVersionTimeDifference();
-        newPDS->dataSetMetaData.configurationVersion.minorVersion =
-            UA_PubSubConfigurationVersionTimeDifference();
-        newPDS->dataSetMetaData.description = UA_LOCALIZEDTEXT_ALLOC("", "");
-        newPDS->dataSetMetaData.dataSetClassId = UA_GUID_NULL;
-        res = UA_String_copy(&newConfig->name, &newPDS->dataSetMetaData.name);
-        break;
-    case UA_PUBSUB_DATASET_PUBLISHEDITEMS_TEMPLATE:
-        res = UA_DataSetMetaDataType_copy(&newConfig->config.itemsTemplate.metaData,
-                                          &newPDS->dataSetMetaData);
-        break;
-    default:
-        res = UA_STATUSCODE_BADINTERNALERROR;
-    }
-
-    /* Abort? */
-    result.addResult = res;
-    if(result.addResult != UA_STATUSCODE_GOOD) {
-        UA_PublishedDataSetConfig_clear(newConfig);
-        UA_free(newPDS);
-        return result;
-    }
-
-    /* Insert into the queue of the manager */
-    TAILQ_INSERT_TAIL(&server->pubSubManager.publishedDataSets, newPDS, listEntry);
-    server->pubSubManager.publishedDataSetsSize++;
-
-#ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL
-    /* Create representation and unique id */
-    addPublishedDataItemsRepresentation(server, newPDS);
-#else
-    /* Generate unique nodeId */
-    UA_PubSubManager_generateUniqueNodeId(&server->pubSubManager, &newPDS->identifier);
-#endif
-    if(pdsIdentifier)
-        UA_NodeId_copy(&newPDS->identifier, pdsIdentifier);
-
-    return result;
-}
-
-UA_AddPublishedDataSetResult
-UA_Server_addPublishedDataSet(UA_Server *server,
-                              const UA_PublishedDataSetConfig *publishedDataSetConfig,
-                              UA_NodeId *pdsIdentifier) {
-    UA_LOCK(&server->serviceMutex);
-    UA_AddPublishedDataSetResult res =
-        UA_PublishedDataSet_create(server, publishedDataSetConfig, pdsIdentifier);
-    UA_UNLOCK(&server->serviceMutex);
-    return res;
-}
-
-static UA_StatusCode
-removePublishedDataSet(UA_Server *server, const UA_NodeId pds) {
-    //search the identified PublishedDataSet and store the PDS index
-    UA_PublishedDataSet *publishedDataSet = UA_PublishedDataSet_findPDSbyId(server, pds);
-    if(!publishedDataSet)
-        return UA_STATUSCODE_BADNOTFOUND;
-
-    if(publishedDataSet->configurationFreezeCounter > 0) {
-        UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
-                       "Remove PublishedDataSet failed. PublishedDataSet is frozen.");
-        return UA_STATUSCODE_BADCONFIGURATIONERROR;
-    }
-
-    //search for referenced writers -> delete this writers. (Standard: writer must be connected with PDS)
-    UA_PubSubConnection *tmpConnectoin;
-    TAILQ_FOREACH(tmpConnectoin, &server->pubSubManager.connections, listEntry){
-        UA_WriterGroup *writerGroup;
-        LIST_FOREACH(writerGroup, &tmpConnectoin->writerGroups, listEntry){
-            UA_DataSetWriter *currentWriter, *tmpWriterGroup;
-            LIST_FOREACH_SAFE(currentWriter, &writerGroup->writers, listEntry, tmpWriterGroup){
-                if(UA_NodeId_equal(&currentWriter->connectedDataSet,
-                                   &publishedDataSet->identifier)) {
-                    UA_DataSetWriter_remove(server, currentWriter);
-                }
-            }
-        }
-    }
-
-#ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL
-    deleteNode(server, publishedDataSet->identifier, true);
-#endif
-
-    UA_PublishedDataSet_clear(server, publishedDataSet);
-    server->pubSubManager.publishedDataSetsSize--;
-
-    TAILQ_REMOVE(&server->pubSubManager.publishedDataSets, publishedDataSet, listEntry);
-    UA_free(publishedDataSet);
-    return UA_STATUSCODE_GOOD;
-}
-
-UA_StatusCode
-UA_Server_removePublishedDataSet(UA_Server *server, const UA_NodeId pds) {
-    UA_LOCK(&server->serviceMutex);
-    UA_StatusCode res = removePublishedDataSet(server, pds);
-    UA_UNLOCK(&server->serviceMutex);
-    return res;
-}
-
 /* Calculate the time difference between current time and UTC (00:00) on January
  * 1, 2000. */
 UA_UInt32
@@ -620,7 +448,7 @@ UA_PubSubManager_delete(UA_Server *server, UA_PubSubManager *pubSubManager) {
     UA_PublishedDataSet *tmpPDS1, *tmpPDS2;
     TAILQ_FOREACH_SAFE(tmpPDS1, &server->pubSubManager.publishedDataSets,
                        listEntry, tmpPDS2){
-        removePublishedDataSet(server, tmpPDS1->identifier);
+        UA_PublishedDataSet_remove(server, tmpPDS1);
     }
 
     /* Remove the TopicAssigns */
