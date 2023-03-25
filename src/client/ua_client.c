@@ -570,10 +570,7 @@ __Client_Service(UA_Client *client, const void *request,
 
     /* Check that the SecureChannel is open and also a Session active (if we
      * want a Session). Otherwise reopen. */
-    if((client->sessionState != UA_SESSIONSTATE_ACTIVATED && !client->noSession) ||
-       client->channel.state != UA_SECURECHANNELSTATE_OPEN ||
-       client->endpointsHandshake || client->findServersHandshake ||
-       client->discoveryUrl.length == 0) {
+    if(!isFullyConnected(client)) {
         UA_LOG_INFO(&client->config.logger, UA_LOGCATEGORY_CLIENT,
                     "Re-establish the connction for the synchronous service call");
         connectSync(client);

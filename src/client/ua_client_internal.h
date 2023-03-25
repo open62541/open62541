@@ -206,6 +206,7 @@ processServiceResponse(void *application, UA_SecureChannel *channel,
                        UA_MessageType messageType, UA_UInt32 requestId,
                        UA_ByteString *message);
 
+UA_Boolean isFullyConnected(UA_Client *client);
 void connectSync(UA_Client *client);
 void notifyClientState(UA_Client *client);
 void processRHEMessage(UA_Client *client, const UA_ByteString *chunk);

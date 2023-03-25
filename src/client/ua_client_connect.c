@@ -68,6 +68,24 @@ endpointUnconfigured(UA_Client *client) {
     return (test == 0);
 }
 
+UA_Boolean
+isFullyConnected(UA_Client *client) {
+    /* No Session, but require one */
+    if(client->sessionState != UA_SESSIONSTATE_ACTIVATED && !client->noSession)
+        return false;
+
+    /* No SecureChannel */
+    if(client->channel.state != UA_SECURECHANNELSTATE_OPEN)
+        return false;
+
+    /* Handshake ongoing or not yet done */
+    if(client->endpointsHandshake || endpointUnconfigured(client) ||
+       client->findServersHandshake || client->discoveryUrl.length == 0)
+        return false;
+
+    return true;
+}
+
 #ifdef UA_ENABLE_ENCRYPTION
 
 /* Function to create a signature using remote certificate and nonce */
@@ -1453,11 +1471,8 @@ __Client_networkCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
 
     /* Trigger the next action from our end to fully open up the connection */
  continue_connect:
-    if(client->connectStatus == UA_STATUSCODE_GOOD &&
-       ((client->noSession && client->channel.state != UA_SECURECHANNELSTATE_OPEN) ||
-        client->sessionState < UA_SESSIONSTATE_ACTIVATED)) {
+    if(!isFullyConnected(client))
         connectActivity(client);
-    }
 
     /* Notify the application if the client state has changed */
     notifyClientState(client);
@@ -1627,10 +1642,7 @@ connectSync(UA_Client *client) {
             break;
 
         /* Sufficiently connected? */
-        if(!client->endpointsHandshake && !client->findServersHandshake &&
-           client->discoveryUrl.length > 0 &&
-           (client->sessionState == UA_SESSIONSTATE_ACTIVATED ||
-            (client->noSession && client->channel.state == UA_SECURECHANNELSTATE_OPEN)))
+        if(isFullyConnected(client))
             break;
 
         /* Timeout -> abort */
