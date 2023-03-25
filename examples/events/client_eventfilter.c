@@ -376,7 +376,7 @@ int main(int argc, char *argv[]) {
 
     if(argc < 2) {
         printf("Usage: tutorial_client_event_filter <opc.tcp://server-url>\n");
-        return EXIT_FAILURE;
+        return EXIT_SUCCESS;
     }
 
     UA_Client *client = UA_Client_new();
@@ -384,8 +384,9 @@ int main(int argc, char *argv[]) {
 
     UA_StatusCode retval = UA_Client_connect(client, argv[1]);
     if(retval != UA_STATUSCODE_GOOD) {
+        UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "Could not connect");
         UA_Client_delete(client);
-        return EXIT_FAILURE;
+        return EXIT_SUCCESS;
     }
 
     /* Create a subscription */

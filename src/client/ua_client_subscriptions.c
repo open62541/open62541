@@ -1343,7 +1343,7 @@ void
 __Client_Subscriptions_backgroundPublish(UA_Client *client) {
     UA_LOCK_ASSERT(&client->clientMutex, 1);
 
-    if(client->sessionState < UA_SESSIONSTATE_ACTIVATED)
+    if(client->sessionState != UA_SESSIONSTATE_ACTIVATED)
         return;
 
     /* The session must have at least one subscription */

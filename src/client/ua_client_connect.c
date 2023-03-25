@@ -12,6 +12,21 @@
 #include "ua_client_internal.h"
 #include "ua_types_encoding_binary.h"
 
+/* Some OPC UA servers only return all Endpoints if the EndpointURL used during
+ * the HEL/ACK handshake exactly matches -- including the path following the
+ * address and port! Hence for the first connection we only call FindServers and
+ * reopen a new TCP connection using then EndpointURL found there.
+ *
+ * The overall process is this:
+ * - Connect with the EndpointURL provided by the user (HEL/ACK)
+ * - Call FindServers
+ *   - If one of the results has an exactly matching EndpointUrl, continue.
+ *   - Otherwise select a matching server, update the endpointURL member of
+ *     UA_Client and reconnect. -
+ * - Call GetEndpoints and select an Endpoint
+ * - Open a SecureChannel and Session for that Endpoint
+ */
+
 #define UA_MINMESSAGESIZE 8192
 #define UA_SESSION_LOCALNONCELENGTH 32
 #define MAX_DATA_SIZE 4096
@@ -375,7 +390,13 @@ sendHELMessage(UA_Client *client) {
     hello.sendBufferSize = client->config.localConnectionConfig.sendBufferSize;
     hello.maxMessageSize = client->config.localConnectionConfig.localMaxMessageSize;
     hello.maxChunkCount = client->config.localConnectionConfig.localMaxChunkCount;
-    hello.endpointUrl = client->endpointUrl;
+
+    /* Use the DiscoveryUrl -- if already known via FindServers */
+    if(client->discoveryUrl.length > 0) {
+        hello.endpointUrl = client->discoveryUrl;
+    } else {
+        hello.endpointUrl = client->endpointUrl;
+    }
 
     UA_Byte *bufPos = &message.data[8]; /* skip the header */
     const UA_Byte *bufEnd = &message.data[message.length];
@@ -708,6 +729,9 @@ responseGetEndpoints(UA_Client *client, void *userdata,
 
     client->endpointsHandshake = false;
 
+    UA_LOG_DEBUG(&client->config.logger, UA_LOGCATEGORY_CLIENT,
+                 "Received FindServersResponse");
+
     UA_GetEndpointsResponse *resp = (UA_GetEndpointsResponse*)response;
 
     /* GetEndpoints not possible. Fail the connection */
@@ -729,18 +753,23 @@ responseGetEndpoints(UA_Client *client, void *userdata,
     }
 
     /* Warn if the Endpoints look incomplete / don't match the EndpointUrl */
-    Client_warnEndpointsResult(client, resp, &client->endpointUrl);
+    Client_warnEndpointsResult(client, resp, &client->discoveryUrl);
 
     UA_Boolean endpointFound = false;
     UA_Boolean tokenFound = false;
     const UA_String binaryTransport = UA_STRING("http://opcfoundation.org/UA-Profile/"
                                                 "Transport/uatcp-uasc-uabinary");
 
-    // TODO: compare endpoint information with client->endpointUri
-    UA_EndpointDescription* endpointArray = resp->endpoints;
-    size_t endpointArraySize = resp->endpointsSize;
-    for(size_t i = 0; i < endpointArraySize; ++i) {
-        UA_EndpointDescription* endpoint = &endpointArray[i];
+    /* Find a matching combination of Endpoint and UserTokenPolicy */
+    for(size_t i = 0; i < resp->endpointsSize; ++i) {
+        UA_EndpointDescription* endpoint = &resp->endpoints[i];
+
+        /* Filter by the ApplicationURI if defined */
+        if(client->config.applicationUri.length > 0 &&
+           !UA_String_equal(&client->config.applicationUri,
+                            &endpoint->server.applicationUri))
+            continue;
+
         /* Look out for binary transport endpoints.
          * Note: Siemens returns empty ProfileUrl, we will accept it as binary. */
         if(endpoint->transportProfileUri.length != 0 &&
@@ -920,7 +949,10 @@ requestGetEndpoints(UA_Client *client) {
 
     UA_GetEndpointsRequest request;
     UA_GetEndpointsRequest_init(&request);
-    request.endpointUrl = client->endpointUrl;
+    if(client->discoveryUrl.length > 0)
+        request.endpointUrl = client->discoveryUrl;
+    else
+        request.endpointUrl = client->endpointUrl;
     UA_StatusCode retval =
         __Client_AsyncService(client, &request, &UA_TYPES[UA_TYPES_GETENDPOINTSREQUEST],
                               (UA_ClientAsyncServiceCallback) responseGetEndpoints,
@@ -932,6 +964,111 @@ requestGetEndpoints(UA_Client *client) {
                      "RequestGetEndpoints failed when sending the request with error code %s",
                      UA_StatusCode_name(retval));
     return retval;
+}
+
+static void
+responseFindServers(UA_Client *client, void *userdata,
+                    UA_UInt32 requestId, void *response) {
+    client->findServersHandshake = false;
+
+    UA_LOG_DEBUG(&client->config.logger, UA_LOGCATEGORY_CLIENT,
+                 "Received FindServersResponse");
+
+    /* Error handling. Log the error but continue to connect with the current
+     * EndpointURL. */
+    UA_FindServersResponse *fsr = (UA_FindServersResponse*)response;
+    if(fsr->responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
+        UA_LOG_WARNING(&client->config.logger, UA_LOGCATEGORY_CLIENT,
+                       "FindServers failed with error code %s. Continue with the "
+                       "EndpointURL %.*s.",
+                       UA_StatusCode_name(fsr->responseHeader.serviceResult),
+                       (int)client->endpointUrl.length, client->endpointUrl.data);
+        UA_String_copy(&client->endpointUrl, &client->discoveryUrl);
+        return;
+    }
+
+    /* Check if one of the returned servers matches the EndpointURL already used */
+    for(size_t i = 0; i < fsr->serversSize; i++) {
+        UA_ApplicationDescription *server = &fsr->servers[i];
+
+        /* Filter by the ApplicationURI if defined */
+        if(client->config.applicationUri.length > 0 &&
+           !UA_String_equal(&client->config.applicationUri,
+                            &server->applicationUri))
+            continue;
+
+        for(size_t j = 0; j < server->discoveryUrlsSize; j++) {
+            if(UA_String_equal(&client->endpointUrl, &server->discoveryUrls[j])) {
+                UA_LOG_INFO(&client->config.logger, UA_LOGCATEGORY_CLIENT,
+                            "The initially defined EndpointURL %.*s"
+                            "is valid for the server",
+                            (int)client->endpointUrl.length,
+                            client->endpointUrl.data);
+                UA_String_copy(&client->endpointUrl, &client->discoveryUrl);
+                return;
+            }
+        }
+    }
+
+    /* The current EndpointURL is not usable. Pick the first DiscoveryUrl of a
+     * returned server. */
+    for(size_t i = 0; i < fsr->serversSize; i++) {
+        UA_ApplicationDescription *server = &fsr->servers[i];
+        if(server->applicationType != UA_APPLICATIONTYPE_SERVER)
+            continue;
+        if(server->discoveryUrlsSize == 0)
+            continue;
+
+        /* Filter by the ApplicationURI if defined */
+        if(client->config.applicationUri.length > 0 &&
+           !UA_String_equal(&client->config.applicationUri,
+                            &server->applicationUri))
+            continue;
+
+        /* Use this DiscoveryUrl in the client */
+        UA_String_clear(&client->discoveryUrl);
+        client->discoveryUrl = server->discoveryUrls[0];
+        UA_String_init(&server->discoveryUrls[0]);
+
+        UA_LOG_INFO(&client->config.logger, UA_LOGCATEGORY_CLIENT,
+                    "Use the EndpointURL %.*s returned from FindServers",
+                    (int)client->discoveryUrl.length,
+                    client->discoveryUrl.data);
+
+        /* Close the SecureChannel to build it up new with the correct
+         * EndpointURL in the HEL/ACK handshake */
+        closeSecureChannel(client);
+        return;
+    }
+
+    /* Could not find a suitable server. Try to continue. */
+    UA_LOG_WARNING(&client->config.logger, UA_LOGCATEGORY_CLIENT,
+                   "FindServers did not returned a suitable DiscoveryURL. "
+                   "Continue with the EndpointURL %.*s.",
+                   (int)client->endpointUrl.length, client->endpointUrl.data);
+    UA_String_copy(&client->endpointUrl, &client->discoveryUrl);
+}
+
+static UA_StatusCode
+requestFindServers(UA_Client *client) {
+    UA_FindServersRequest request;
+    UA_FindServersRequest_init(&request);
+    request.requestHeader.timestamp = UA_DateTime_now();
+    request.requestHeader.timeoutHint = 10000;
+    request.endpointUrl = client->endpointUrl;
+    UA_StatusCode retval =
+        __Client_AsyncService(client, &request, &UA_TYPES[UA_TYPES_FINDSERVERSREQUEST],
+                              (UA_ClientAsyncServiceCallback) responseFindServers,
+                              &UA_TYPES[UA_TYPES_FINDSERVERSRESPONSE], NULL, NULL);
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_LOG_ERROR(&client->config.logger, UA_LOGCATEGORY_CLIENT,
+                     "FindServers failed when sending the request with error code %s",
+                     UA_StatusCode_name(retval));
+        return retval;
+    }
+
+    client->findServersHandshake = true;
+    return UA_STATUSCODE_GOOD;
 }
 
 static void
@@ -1108,17 +1245,27 @@ connectActivity(UA_Client *client) {
 
     /* <-- The SecureChannel is open --> */
 
-    /* Ongoing endpoints handshake? */
-    if(client->endpointsHandshake)
+    /* Ongoing handshake -> Waiting for a response */
+    if(client->endpointsHandshake || client->findServersHandshake)
         return;
 
-    /* Get the endpoints in order to reset the SecureChannel with encryption */
+    /* Call FindServers to see if we should reconnect with another EndpointUrl.
+     * This needs to be done before GetEndpoints, as the set of returned
+     * endpoints may depend on the EndpointUrl used during the initial HEL/ACK
+     * handshake. */
+    if(client->discoveryUrl.length == 0) {
+        client->connectStatus = requestFindServers(client);
+        return;
+    }
+
+    /* GetEndpoints to identify the remote side and/or reset the SecureChannel
+     * with encryption */
     if(endpointUnconfigured(client)) {
         client->connectStatus = requestGetEndpoints(client);
         return;
     }
 
-    /* Do we want to open a session? */
+    /* Have the final SecureChannel but no session */
     if(client->noSession)
         return;
 
@@ -1417,6 +1564,7 @@ UA_Client_connectAsync(UA_Client *client, const char *endpointUrl) {
 
     /* Set the endpoint URL the client connects to */
     UA_String_clear(&client->endpointUrl);
+    UA_String_clear(&client->discoveryUrl);
     client->endpointUrl = UA_STRING_ALLOC(endpointUrl);
 
     /* Open a Session when possible */
@@ -1437,6 +1585,7 @@ UA_Client_connectSecureChannelAsync(UA_Client *client, const char *endpointUrl) 
 
     /* Set the endpoint URL the client connects to */
     UA_String_clear(&client->endpointUrl);
+    UA_String_clear(&client->discoveryUrl);
     client->endpointUrl = UA_STRING_ALLOC(endpointUrl);
 
     /* Don't open a Session */
@@ -1478,9 +1627,10 @@ connectSync(UA_Client *client) {
             break;
 
         /* Sufficiently connected? */
-        if(client->sessionState == UA_SESSIONSTATE_ACTIVATED)
-            break;
-        if(client->noSession && client->channel.state == UA_SECURECHANNELSTATE_OPEN)
+        if(!client->endpointsHandshake && !client->findServersHandshake &&
+           client->discoveryUrl.length > 0 &&
+           (client->sessionState == UA_SESSIONSTATE_ACTIVATED ||
+            (client->noSession && client->channel.state == UA_SECURECHANNELSTATE_OPEN)))
             break;
 
         /* Timeout -> abort */
@@ -1513,6 +1663,7 @@ UA_Client_connect(UA_Client *client, const char *endpointUrl) {
 
     /* Set the endpoint URL the client connects to */
     UA_String_clear(&client->endpointUrl);
+    UA_String_clear(&client->discoveryUrl);
     client->endpointUrl = UA_STRING_ALLOC(endpointUrl);
 
     /* Open a Session when possible */
@@ -1533,6 +1684,7 @@ UA_Client_connectSecureChannel(UA_Client *client, const char *endpointUrl) {
 
     /* Set the endpoint URL the client connects to */
     UA_String_clear(&client->endpointUrl);
+    UA_String_clear(&client->discoveryUrl);
     client->endpointUrl = UA_STRING_ALLOC(endpointUrl);
 
     /* Don't open a Session */

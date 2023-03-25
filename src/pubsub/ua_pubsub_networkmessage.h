@@ -218,7 +218,8 @@ typedef struct {
 #endif
 } UA_NetworkMessageOffsetBuffer;
 
-void UA_NetworkMessageOffsetBuffer_clear(UA_NetworkMessageOffsetBuffer *nmob);
+void
+UA_NetworkMessageOffsetBuffer_clear(UA_NetworkMessageOffsetBuffer *nmob);
 
 /**
  * DataSetMessage

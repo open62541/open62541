@@ -46,7 +46,7 @@ set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 # overwritten with more detailed information if git is available.
 set(OPEN62541_VER_MAJOR 1)
 set(OPEN62541_VER_MINOR 3)
-set(OPEN62541_VER_PATCH 3)
+set(OPEN62541_VER_PATCH 5)
 set(OPEN62541_VER_LABEL "-undefined") # like "-rc1" or "-g4538abcd" or "-g4538abcd-dirty"
 set(OPEN62541_VER_COMMIT "unknown-commit")
 
@@ -435,6 +435,10 @@ if(UA_ENABLE_PUBSUB_INFORMATIONMODEL)
     if(UA_NAMESPACE_ZERO STREQUAL "MINIMAL")
         message(FATAL_ERROR "PubSub information model representation cannot be used with MINIMAL namespace zero.")
     endif()
+endif()
+
+if(UA_ENABLE_PUBSUB AND UA_MULTITHREADING GREATER_EQUAL 100)
+    MESSAGE(WARNING "PubSub is not thread-safe for the 1.3 releases. Switch to a more current release for this feature.")
 endif()
 
 if(UA_ENABLE_PUBSUB_FILE_CONFIG)

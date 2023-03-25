@@ -135,12 +135,16 @@ struct UA_Client {
     UA_SessionState oldSessionState;
     UA_StatusCode oldConnectStatus;
 
+    UA_Boolean findServersHandshake;   /* Ongoing FindServers */
     UA_Boolean endpointsHandshake;     /* Ongoing GetEndpoints */
     UA_Boolean noSession;              /* Don't open a session */
     UA_Boolean noReconnect;            /* Don't reconnect when the connection closes */
 
     /* Connection */
-    UA_String endpointUrl;
+    UA_String endpointUrl;  /* Used to extract address and port */
+    UA_String discoveryUrl; /* The discoveryUrl (also used to signal which
+                               application we want to connect to in the HEL/ACK
+                               handshake). */
 
     /* SecureChannel */
     UA_SecureChannel channel;
