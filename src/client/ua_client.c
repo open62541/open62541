@@ -387,6 +387,12 @@ sendRequest(UA_Client *client, const void *request,
 
     rr->authenticationToken = oldToken; /* Set back to the original token */
 
+    /* Sending failed. The SecureChannel cannot recover from that. Call
+     * closeSecureChannel to a) close from our end and b) set the session to
+     * non-activated. */
+    if(retval != UA_STATUSCODE_GOOD)
+        closeSecureChannel(client);
+
     /* Return the request id */
     *requestId = rqId;
     return retval;
