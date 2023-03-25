@@ -1707,17 +1707,19 @@ __Client_reverseConnectCallback(UA_ConnectionManager *cm, uintptr_t connectionId
 
     UA_LOCK(&client->clientMutex);
 
-    /* This is the first call for the listening socket, attach the REVERSE_CONNECT_INDICATOR marker
-     * and set the ID to the channel */
-    if (!client->channel.connectionId) {
+    /* This is the first call for the listening socket, attach the
+     * REVERSE_CONNECT_INDICATOR marker and set the ID to the channel */
+    if(!client->channel.connectionId) {
         client->channel.connectionId = connectionId;
         *connectionContext = REVERSE_CONNECT_INDICATOR;
     }
 
-    /* Last call for the listening connection while it is being closed.
-     * Only notify a state change if no reverse connection is being or has been established by now */
-    if (*connectionContext == REVERSE_CONNECT_INDICATOR && state == UA_CONNECTIONSTATE_CLOSING) {
-        if (client->channel.connectionId == connectionId) {
+    /* Last call for the listening connection while it is being closed. Only
+     * notify a state change if no reverse connection is being or has been
+     * established by now */
+    if(*connectionContext == REVERSE_CONNECT_INDICATOR &&
+       state == UA_CONNECTIONSTATE_CLOSING) {
+        if(client->channel.connectionId == connectionId) {
             client->channel.state = UA_SECURECHANNELSTATE_CLOSED;
             notifyClientState(client);
         }
@@ -1725,37 +1727,46 @@ __Client_reverseConnectCallback(UA_ConnectionManager *cm, uintptr_t connectionId
         return;
     }
 
-    /* Second callback for the listening socket, it is now listening for incoming connections */
-    if (client->channel.connectionId == connectionId &&  *connectionContext == REVERSE_CONNECT_INDICATOR) {
+    /* Second callback for the listening socket, it is now listening for
+     * incoming connections */
+    if(client->channel.connectionId == connectionId &&
+       *connectionContext == REVERSE_CONNECT_INDICATOR) {
         client->channel.state = UA_SECURECHANNELSTATE_REVERSE_LISTENING;
         notifyClientState(client);
     }
 
-    /* This is a connection initiated by a server, disconnect the listener and reset secure channel information */
-    if (client->channel.connectionId != connectionId) {
+    /* This is a connection initiated by a server, disconnect the listener and
+     * reset secure channel information */
+    if(client->channel.connectionId != connectionId) {
         cm->closeConnection(cm, client->channel.connectionId);
         client->channel.connectionId = 0;
         *connectionContext = NULL;
     }
 
-    /* Forward all calls belonging to the reverse connection estblished by the server to the regular network callback */
-    if (*connectionContext != REVERSE_CONNECT_INDICATOR) {
+    /* Forward all calls belonging to the reverse connection estblished by the
+     * server to the regular network callback */
+    if(*connectionContext != REVERSE_CONNECT_INDICATOR) {
         UA_UNLOCK(&client->clientMutex);
-        __Client_networkCallback(cm, connectionId, application, connectionContext, state, params, msg);
+        __Client_networkCallback(cm, connectionId, application,
+                                 connectionContext, state, params, msg);
         return;
     }
 
     UA_UNLOCK(&client->clientMutex);
 }
 
-UA_StatusCode UA_Client_startListeningForReverseConnect(UA_Client *client, const UA_String *listenHostnames,
-                                                        size_t listenHostnamesLength,
-                                                        UA_UInt16 port) {
+UA_StatusCode
+UA_Client_startListeningForReverseConnect(UA_Client *client,
+                                          const UA_String *listenHostnames,
+                                          size_t listenHostnamesLength,
+                                          UA_UInt16 port) {
     UA_LOCK(&client->clientMutex);
 
-    if (client->channel.state > UA_SECURECHANNELSTATE_FRESH && client->channel.state < UA_SECURECHANNELSTATE_CLOSED) {
+    if(client->channel.state > UA_SECURECHANNELSTATE_FRESH &&
+       client->channel.state < UA_SECURECHANNELSTATE_CLOSED) {
         UA_LOG_WARNING(&client->config.logger, UA_LOGCATEGORY_CLIENT,
-                       "Unable to listen for reverse connect while the client is connected or already listening");
+                       "Unable to listen for reverse connect while the client "
+                       "is connected or already listening");
         UA_UNLOCK(&client->clientMutex);
         return UA_STATUSCODE_BADINVALIDSTATE;
     }
@@ -1788,25 +1799,25 @@ UA_StatusCode UA_Client_startListeningForReverseConnect(UA_Client *client, const
         UA_CHECK_STATUS(res, UA_UNLOCK(&client->clientMutex); return res);
     }
 
-    for(UA_EventSource *es = client->config.eventLoop->eventSources; es != NULL; es = es->next) {
-
+    UA_ConnectionManager *cm = NULL;
+    for(UA_EventSource *es = el->eventSources; es != NULL; es = es->next) {
         if(es->eventSourceType != UA_EVENTSOURCETYPE_CONNECTIONMANAGER)
             continue;
-
-        UA_ConnectionManager *cm = (UA_ConnectionManager*)es;
-        if(!UA_String_equal(&tcpString, &cm->protocol))
-            continue;
-
-        client->channel.connectionManager = cm;
-        break;
+        cm = (UA_ConnectionManager*)es;
+        if(UA_String_equal(&tcpString, &cm->protocol))
+            break;
+        cm = NULL;
     }
 
-    if (!client->channel.connectionManager) {
+    if(!cm) {
         UA_LOG_WARNING(&client->config.logger, UA_LOGCATEGORY_CLIENT,
-                       "Could not find a TCP connection manager, unable to listen for reverse connect");
+                       "Could not find a TCP connection manager, unable to "
+                       "listen for reverse connect");
         UA_UNLOCK(&client->clientMutex);
         return UA_STATUSCODE_BADINTERNALERROR;
     }
+
+    client->channel.connectionManager = cm;
 
     UA_KeyValuePair params[3];
     bool booleanTrue = true;
@@ -1823,8 +1834,7 @@ UA_StatusCode UA_Client_startListeningForReverseConnect(UA_Client *client, const
     paramMap.mapSize = 3;
 
     UA_UNLOCK(&client->clientMutex);
-    res = client->channel.connectionManager->openConnection(client->channel.connectionManager, &paramMap,
-                                                            client, NULL, __Client_reverseConnectCallback);
+    res = cm->openConnection(cm, &paramMap, client, NULL, __Client_reverseConnectCallback);
     UA_LOCK(&client->clientMutex);
 
     /* Opening the TCP connection failed */
@@ -1835,7 +1845,6 @@ UA_StatusCode UA_Client_startListeningForReverseConnect(UA_Client *client, const
     }
 
     UA_UNLOCK(&client->clientMutex);
-
     return res;
 }
 

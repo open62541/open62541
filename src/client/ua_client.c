@@ -977,8 +977,7 @@ clientHouseKeeping(UA_Client *client, void *_) {
 }
 
 UA_StatusCode
-__UA_Client_startup(UA_Client *client)
-{
+__UA_Client_startup(UA_Client *client) {
     /* On entry, the client mutex is already locked */
     UA_EventLoop *el = client->config.eventLoop;
     UA_CHECK_ERROR(el != NULL,
