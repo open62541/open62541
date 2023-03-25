@@ -1845,6 +1845,12 @@ UA_StatusCode UA_Client_startListeningForReverseConnect(UA_Client *client, const
 
 void
 closeSecureChannel(UA_Client *client) {
+    /* If we close SecureChannel when the Session is still active, set to
+     * created. Otherwise the Session would remain active until the connection
+     * callback is called for the closing connection. */
+    if(client->sessionState == UA_SESSIONSTATE_ACTIVATED)
+        client->sessionState = UA_SESSIONSTATE_CREATED;
+
     /* Prevent recursion */
     if(client->channel.state == UA_SECURECHANNELSTATE_CLOSING ||
        client->channel.state == UA_SECURECHANNELSTATE_CLOSED)
