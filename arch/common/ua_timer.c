@@ -17,11 +17,9 @@ cmpDateTime(const UA_DateTime *a, const UA_DateTime *b) {
 
 static enum ZIP_CMP
 cmpId(const UA_UInt64 *a, const UA_UInt64 *b) {
-    if(*a < *b)
-        return ZIP_CMP_LESS;
     if(*a == *b)
         return ZIP_CMP_EQ;
-    return ZIP_CMP_MORE;
+    return (*a < *b) ? ZIP_CMP_LESS : ZIP_CMP_MORE;
 }
 
 ZIP_FUNCTIONS(UA_TimerTree, UA_TimerEntry, treeEntry, UA_DateTime, nextTime, cmpDateTime)
