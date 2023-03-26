@@ -81,4 +81,82 @@ UA_DiscoveryManager_clear(UA_DiscoveryManager *dm) {
 # endif /* UA_ENABLE_DISCOVERY_MULTICAST */
 }
 
+void
+UA_DiscoveryManager_start(UA_Server *server) {
+#ifdef UA_ENABLE_DISCOVERY_MULTICAST
+    if(server->config.mdnsEnabled)
+        startMulticastDiscoveryServer(server);
+#endif
+}
+
+void
+UA_DiscoveryManager_stop(UA_Server *server) {
+#ifdef UA_ENABLE_DISCOVERY_MULTICAST
+    if(server->config.mdnsEnabled)
+        stopMulticastDiscoveryServer(server);
+#endif
+}
+
+/* Cleanup server registration: If the semaphore file path is set, then it just
+ * checks the existence of the file. When it is deleted, the registration is
+ * removed. If there is no semaphore file, then the registration will be removed
+ * if it is older than 60 minutes. */
+void
+UA_DiscoveryManager_cleanupTimedOut(UA_Server *server,
+                                    UA_DateTime nowMonotonic) {
+    /* TimedOut gives the last DateTime at which we must have seen the
+     * registered server. Otherwise it is timed out. */
+    UA_DateTime timedOut = nowMonotonic;
+    if(server->config.discoveryCleanupTimeout)
+        timedOut -= server->config.discoveryCleanupTimeout * UA_DATETIME_SEC;
+
+    UA_DiscoveryManager *dm = &server->discoveryManager;
+    registeredServer_list_entry *current, *temp;
+    LIST_FOREACH_SAFE(current, &dm->registeredServers, pointers, temp) {
+        UA_Boolean semaphoreDeleted = false;
+
+#ifdef UA_ENABLE_DISCOVERY_SEMAPHORE
+        if(current->registeredServer.semaphoreFilePath.length) {
+            size_t fpSize = current->registeredServer.semaphoreFilePath.length+1;
+            char* filePath = (char *)UA_malloc(fpSize);
+            if(filePath) {
+                memcpy(filePath, current->registeredServer.semaphoreFilePath.data,
+                       current->registeredServer.semaphoreFilePath.length );
+                filePath[current->registeredServer.semaphoreFilePath.length] = '\0';
+                semaphoreDeleted = UA_fileExists(filePath) == false;
+                UA_free(filePath);
+            } else {
+                UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                             "Cannot check registration semaphore. Out of memory");
+            }
+        }
+#endif
+
+        if(semaphoreDeleted ||
+           (server->config.discoveryCleanupTimeout &&
+            current->lastSeen < timedOut)) {
+            if(semaphoreDeleted) {
+                UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                            "Registration of server with URI %.*s is removed because "
+                            "the semaphore file '%.*s' was deleted",
+                            (int)current->registeredServer.serverUri.length,
+                            current->registeredServer.serverUri.data,
+                            (int)current->registeredServer.semaphoreFilePath.length,
+                            current->registeredServer.semaphoreFilePath.data);
+            } else {
+                // cppcheck-suppress unreadVariable
+                UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                            "Registration of server with URI %.*s has timed out "
+                            "and is removed",
+                            (int)current->registeredServer.serverUri.length,
+                            current->registeredServer.serverUri.data);
+            }
+            LIST_REMOVE(current, pointers);
+            UA_RegisteredServer_clear(&current->registeredServer);
+            UA_free(current);
+            server->discoveryManager.registeredServersSize--;
+        }
+    }
+}
+
 #endif /* UA_ENABLE_DISCOVERY */

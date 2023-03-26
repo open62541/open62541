@@ -106,10 +106,13 @@ typedef struct {
 
 void UA_DiscoveryManager_init(UA_DiscoveryManager *dm);
 void UA_DiscoveryManager_clear(UA_DiscoveryManager *dm);
+void UA_DiscoveryManager_start(UA_Server *server);
+void UA_DiscoveryManager_stop(UA_Server *server);
 
 /* Checks if a registration timed out and removes that registration.
  * Should be called periodically in main loop */
-void UA_Discovery_cleanupTimedOut(UA_Server *server, UA_DateTime nowMonotonic);
+void UA_DiscoveryManager_cleanupTimedOut(UA_Server *server,
+                                         UA_DateTime nowMonotonic);
 
 #ifdef UA_ENABLE_DISCOVERY_MULTICAST
 

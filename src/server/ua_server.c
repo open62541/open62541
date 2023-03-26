@@ -255,7 +255,7 @@ serverHouseKeeping(UA_Server *server, void *_) {
     UA_Server_cleanupSessions(server, nowMonotonic);
     UA_Server_cleanupTimedOutSecureChannels(server, nowMonotonic);
 #ifdef UA_ENABLE_DISCOVERY
-    UA_Discovery_cleanupTimedOut(server, nowMonotonic);
+    UA_DiscoveryManager_cleanupTimedOut(server, nowMonotonic);
 #endif
     UA_UNLOCK(&server->serviceMutex);
 }
@@ -920,9 +920,8 @@ UA_Server_run_startup(UA_Server *server) {
     }
 
     /* Start the multicast discovery server */
-#ifdef UA_ENABLE_DISCOVERY_MULTICAST
-    if(server->config.mdnsEnabled)
-        startMulticastDiscoveryServer(server);
+#ifdef UA_ENABLE_DISCOVERY
+    UA_DiscoveryManager_start(server);
 #endif
 
     /* Update Endpoint description */
@@ -1005,10 +1004,8 @@ UA_Server_run_shutdown(UA_Server *server) {
             res = el->run(el, 100); /* Iterate until stopped */
     }
 
-#ifdef UA_ENABLE_DISCOVERY_MULTICAST
-    /* Stop multicast discovery */
-    if(server->config.mdnsEnabled)
-        stopMulticastDiscoveryServer(server);
+#ifdef UA_ENABLE_DISCOVERY
+    UA_DiscoveryManager_stop(server);
 #endif
 
     setReverseConnectRetryCallback(server, false);
