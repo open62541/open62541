@@ -1370,7 +1370,7 @@ UA_DataSetMessage_encodeBinary(const UA_DataSetMessage* src, UA_Byte **bufPos,
     } else if(src->header.dataSetMessageType == UA_DATASETMESSAGE_DATADELTAFRAME) {
         // Encode Delta Frame
         // Here the FieldCount is always present
-        rv = UA_UInt16_encodeBinary(&src->data.keyFrameData.fieldCount, bufPos, bufEnd);
+        rv = UA_UInt16_encodeBinary(&src->data.deltaFrameData.fieldCount, bufPos, bufEnd);
         UA_CHECK_STATUS(rv, return rv);
 
         if(src->header.fieldEncoding == UA_FIELDENCODING_VARIANT) {
