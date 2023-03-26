@@ -8,23 +8,13 @@
 
 #include "ua_timer.h"
 
-/* There may be several entries with the same nextTime in the tree. We give them
- * an absolute order by considering the memory address to break ties. Because of
- * this, the nextTime property cannot be used to lookup specific entries. */
 static enum ZIP_CMP
 cmpDateTime(const UA_DateTime *a, const UA_DateTime *b) {
-    if(*a < *b)
-        return ZIP_CMP_LESS;
-    if(*a > *b)
-        return ZIP_CMP_MORE;
-    if(a == b)
+    if(*a == *b)
         return ZIP_CMP_EQ;
-    if(a < b)
-        return ZIP_CMP_LESS;
-    return ZIP_CMP_MORE;
+    return (*a < *b) ? ZIP_CMP_LESS : ZIP_CMP_MORE;
 }
 
-/* The identifiers of entries are unique */
 static enum ZIP_CMP
 cmpId(const UA_UInt64 *a, const UA_UInt64 *b) {
     if(*a < *b)
