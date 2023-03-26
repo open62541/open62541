@@ -278,6 +278,7 @@ int main(int argc, char **argv) {
     while (running && discovery_url == NULL)
         UA_Server_run_iterate(server, true);
     if(!running) {
+        UA_Server_run_shutdown(server);
         UA_Server_delete(server);
         UA_free(discovery_url);
         return EXIT_SUCCESS;
@@ -292,6 +293,7 @@ int main(int argc, char **argv) {
     if(endpointRegister == NULL || endpointRegister->securityMode == UA_MESSAGESECURITYMODE_INVALID) {
         UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
                      "Could not find any suitable endpoints on discovery server");
+        UA_Server_run_shutdown(server);
         UA_Server_delete(server);
         return EXIT_FAILURE;
     }
@@ -300,6 +302,7 @@ int main(int argc, char **argv) {
     if(!clientRegister) {
         UA_LOG_FATAL(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
                      "Could not create the client for remote registering");
+        UA_Server_run_shutdown(server);
         UA_Server_delete(server);
         return EXIT_FAILURE;
     }
@@ -318,6 +321,7 @@ int main(int argc, char **argv) {
         UA_free(endpointUrl);
         UA_Client_disconnect(clientRegister);
         UA_Client_delete(clientRegister);
+        UA_Server_run_shutdown(server);
         UA_Server_delete(server);
         return EXIT_FAILURE;
     }
