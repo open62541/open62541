@@ -1316,12 +1316,14 @@ UA_DataSetMessage_encodeBinary(const UA_DataSetMessage* src, UA_Byte **bufPos,
     UA_StatusCode rv = UA_DataSetMessageHeader_encodeBinary(&src->header, bufPos, bufEnd);
     UA_CHECK_STATUS(rv, return rv);
 
-    if(src->data.keyFrameData.fieldCount == 0) {
-        /* Heartbeat: "DataSetMessage is a key frame that only contains header information" */
-        return rv;
-    }
 
     if(src->header.dataSetMessageType == UA_DATASETMESSAGE_DATAKEYFRAME) {
+
+        /* Heartbeat: "DataSetMessage is a key frame that only contains header
+         * information" */
+        if(src->data.keyFrameData.fieldCount == 0)
+            return rv;
+
         if(src->header.fieldEncoding != UA_FIELDENCODING_RAWDATA) {
             rv = UA_UInt16_encodeBinary(&src->data.keyFrameData.fieldCount, bufPos, bufEnd);
             UA_CHECK_STATUS(rv, return rv);
