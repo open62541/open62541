@@ -1069,19 +1069,12 @@ UA_NetworkMessage_clear(UA_NetworkMessage* p) {
 
 UA_Boolean
 UA_NetworkMessage_ExtendedFlags1Enabled(const UA_NetworkMessage* src) {
-    UA_Boolean retval = false;
-
-    if((src->publisherIdType != UA_PUBLISHERIDTYPE_BYTE)
-        || src->dataSetClassIdEnabled
-        || src->securityEnabled
-        || src->timestampEnabled
-        || src->picosecondsEnabled
-        || UA_NetworkMessage_ExtendedFlags2Enabled(src))
-    {
-        retval = true;
-    }
-
-    return retval;
+    if(src->publisherIdType != UA_PUBLISHERIDTYPE_BYTE ||
+       src->dataSetClassIdEnabled || src->securityEnabled ||
+       src->timestampEnabled || src->picosecondsEnabled ||
+       UA_NetworkMessage_ExtendedFlags2Enabled(src))
+        return true;
+    return false;
 }
 
 UA_Boolean
