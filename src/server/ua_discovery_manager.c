@@ -16,7 +16,7 @@
 #ifdef UA_ENABLE_DISCOVERY
 
 void
-UA_DiscoveryManager_init(UA_DiscoveryManager *dm, UA_Server *server) {
+UA_DiscoveryManager_init(UA_DiscoveryManager *dm) {
     LIST_INIT(&dm->registeredServers);
     dm->registeredServersSize = 0;
     LIST_INIT(&dm->periodicServerRegisterCallbacks);
@@ -41,7 +41,7 @@ UA_DiscoveryManager_init(UA_DiscoveryManager *dm, UA_Server *server) {
 }
 
 void
-UA_DiscoveryManager_clear(UA_DiscoveryManager *dm, UA_Server *server) {
+UA_DiscoveryManager_clear(UA_DiscoveryManager *dm) {
     registeredServer_list_entry *rs, *rs_tmp;
     LIST_FOREACH_SAFE(rs, &dm->registeredServers, pointers, rs_tmp) {
         LIST_REMOVE(rs, pointers);

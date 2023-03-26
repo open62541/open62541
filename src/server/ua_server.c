@@ -223,7 +223,7 @@ void UA_Server_delete(UA_Server *server) {
 #endif
 
 #ifdef UA_ENABLE_DISCOVERY
-    UA_DiscoveryManager_clear(&server->discoveryManager, server);
+    UA_DiscoveryManager_clear(&server->discoveryManager);
 #endif
 
 #if UA_MULTITHREADING >= 100
@@ -340,7 +340,7 @@ UA_Server_init(UA_Server *server) {
 
     /* Initialized discovery */
 #ifdef UA_ENABLE_DISCOVERY
-    UA_DiscoveryManager_init(&server->discoveryManager, server);
+    UA_DiscoveryManager_init(&server->discoveryManager);
 #endif
 
     /* Initialize namespace 0*/
