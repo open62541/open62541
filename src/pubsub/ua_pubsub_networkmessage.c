@@ -442,14 +442,14 @@ UA_NetworkMessage_encodePayload(const UA_NetworkMessage* src, UA_Byte **bufPos,
         count = src->payloadHeader.dataSetPayloadHeader.count;
         if(count > 1) {
             for(UA_Byte i = 0; i < count; i++) {
-                // initially calculate the size, if not specified
+                /* Calculate the size, if not specified */
                 UA_UInt16 sz = 0;
                 if((src->payload.dataSetPayload.sizes != NULL) &&
                    (src->payload.dataSetPayload.sizes[i] != 0)) {
                     sz = src->payload.dataSetPayload.sizes[i];
                 } else {
-                    sz = (UA_UInt16) UA_DataSetMessage_calcSizeBinary(&src->payload.dataSetPayload.dataSetMessages[i],
-                                                                      NULL, 0);
+                    UA_DataSetMessage *dsm = &src->payload.dataSetPayload.dataSetMessages[i];
+                    sz = (UA_UInt16)UA_DataSetMessage_calcSizeBinary(dsm, NULL, 0);
                 }
 
                 rv = UA_UInt16_encodeBinary(&sz, bufPos, bufEnd);
@@ -459,7 +459,8 @@ UA_NetworkMessage_encodePayload(const UA_NetworkMessage* src, UA_Byte **bufPos,
     }
 
     for(UA_Byte i = 0; i < count; i++) {
-        rv = UA_DataSetMessage_encodeBinary(&src->payload.dataSetPayload.dataSetMessages[i], bufPos, bufEnd);
+        UA_DataSetMessage *dsm = &src->payload.dataSetPayload.dataSetMessages[i];
+        rv = UA_DataSetMessage_encodeBinary(dsm, bufPos, bufEnd);
         UA_CHECK_STATUS(rv, return rv);
     }
 
@@ -1316,56 +1317,44 @@ UA_DataSetMessage_encodeBinary(const UA_DataSetMessage* src, UA_Byte **bufPos,
     UA_StatusCode rv = UA_DataSetMessageHeader_encodeBinary(&src->header, bufPos, bufEnd);
     UA_CHECK_STATUS(rv, return rv);
 
-
     if(src->header.dataSetMessageType == UA_DATASETMESSAGE_DATAKEYFRAME) {
-
         /* Heartbeat: "DataSetMessage is a key frame that only contains header
          * information" */
         if(src->data.keyFrameData.fieldCount == 0)
             return rv;
 
         if(src->header.fieldEncoding != UA_FIELDENCODING_RAWDATA) {
-            rv = UA_UInt16_encodeBinary(&src->data.keyFrameData.fieldCount, bufPos, bufEnd);
+            rv = UA_UInt16_encodeBinary(&src->data.keyFrameData.fieldCount,
+                                        bufPos, bufEnd);
             UA_CHECK_STATUS(rv, return rv);
         }
-        if(src->header.fieldEncoding == UA_FIELDENCODING_VARIANT) {
-            for(UA_UInt16 i = 0; i < src->data.keyFrameData.fieldCount; i++) {
-                rv = UA_Variant_encodeBinary(&src->data.keyFrameData.dataSetFields[i].value, bufPos, bufEnd);
-                UA_CHECK_STATUS(rv, return rv);
-            }
-        } else if(src->header.fieldEncoding == UA_FIELDENCODING_RAWDATA) {
-            for(UA_UInt16 i = 0; i < src->data.keyFrameData.fieldCount; i++) {
-                if(src->data.keyFrameData.dataSetMetaDataType->fields[i].maxStringLength != 0 &&
-                   (src->data.keyFrameData.dataSetFields[i].value.type->typeKind == UA_DATATYPEKIND_STRING ||
-                    src->data.keyFrameData.dataSetFields[i].value.type->typeKind == UA_DATATYPEKIND_BYTESTRING)){
-                    // copy string with original length
-                    rv = UA_encodeBinaryInternal(src->data.keyFrameData.dataSetFields[i].value.data,
-                                                 src->data.keyFrameData.dataSetFields[i].value.type,
+
+        for(UA_UInt16 i = 0; i < src->data.keyFrameData.fieldCount; i++) {
+            const UA_DataValue *v = &src->data.keyFrameData.dataSetFields[i];
+
+            if(src->header.fieldEncoding == UA_FIELDENCODING_VARIANT) {
+                rv = UA_Variant_encodeBinary(&v->value, bufPos, bufEnd);
+            } else if(src->header.fieldEncoding == UA_FIELDENCODING_RAWDATA) {
+                UA_FieldMetaData *fmd =
+                    &src->data.keyFrameData.dataSetMetaDataType->fields[i];
+                if(fmd->maxStringLength != 0 &&
+                   (v->value.type->typeKind == UA_DATATYPEKIND_STRING ||
+                    v->value.type->typeKind == UA_DATATYPEKIND_BYTESTRING)){
+                    rv = UA_encodeBinaryInternal(v->value.data, v->value.type,
                                                  bufPos, &bufEnd, NULL, NULL);
-                    // zero out overhanging
-                    size_t lengthDifference = src->data.keyFrameData.dataSetMetaDataType->fields[i].maxStringLength -
-                                              ((UA_String *) src->data.keyFrameData.dataSetFields[i].value.data)->length;
+                    size_t lengthDifference = fmd->maxStringLength -
+                        ((UA_String *)v->value.data)->length;
                     memset(*bufPos, 0, lengthDifference);
-                    //move bus pos
                     *bufPos += lengthDifference;
-                } else if(src->data.keyFrameData.dataSetMetaDataType->fields[i].maxStringLength != 0 &&
-                           src->data.keyFrameData.dataSetFields[i].value.type->typeKind == UA_DATATYPEKIND_LOCALIZEDTEXT){
-                    //currently not supported!
-                    rv = UA_encodeBinaryInternal(src->data.keyFrameData.dataSetFields[i].value.data,
-                                                 src->data.keyFrameData.dataSetFields[i].value.type,
-                                                 bufPos, &bufEnd, NULL, NULL);
                 } else {
-                    rv = UA_encodeBinaryInternal(src->data.keyFrameData.dataSetFields[i].value.data,
-                                                 src->data.keyFrameData.dataSetFields[i].value.type,
+                    /* padding not yet supported for strings as part of structures */
+                    rv = UA_encodeBinaryInternal(v->value.data, v->value.type,
                                                  bufPos, &bufEnd, NULL, NULL);
                 }
-                UA_CHECK_STATUS(rv, return rv);
+            } else if(src->header.fieldEncoding == UA_FIELDENCODING_DATAVALUE) {
+                rv = UA_DataValue_encodeBinary(v, bufPos, bufEnd);
             }
-        } else if(src->header.fieldEncoding == UA_FIELDENCODING_DATAVALUE) {
-            for(UA_UInt16 i = 0; i < src->data.keyFrameData.fieldCount; i++) {
-                rv = UA_DataValue_encodeBinary(&src->data.keyFrameData.dataSetFields[i], bufPos, bufEnd);
-                UA_CHECK_STATUS(rv, return rv);
-            }
+            UA_CHECK_STATUS(rv, return rv);
         }
     } else if(src->header.dataSetMessageType == UA_DATASETMESSAGE_DATADELTAFRAME) {
         // Encode Delta Frame
