@@ -37,7 +37,13 @@
 #ifndef WIN32
 #include <pthread.h>
 #define THREAD_HANDLE pthread_t
-#define THREAD_CREATE(handle, callback) pthread_create(&handle, NULL, callback, NULL)
+#define THREAD_CREATE(handle, callback) do {            \
+        sigset_t set;                                   \
+        sigemptyset(&set);                              \
+        sigaddset(&set, SIGINT);                        \
+        pthread_sigmask(SIG_BLOCK, &set, NULL);         \
+        pthread_create(&handle, NULL, callback, &set);  \
+    } while(0)
 #define THREAD_JOIN(handle) pthread_join(handle, NULL)
 #define THREAD_CALLBACK(name) static void * name(void *_)
 #else
@@ -181,7 +187,7 @@ THREAD_CALLBACK(ThreadWorker) {
             UA_CallMethodResult_clear(&response);
         } else {
             /* not a good style, but done for simplicity :-) */
-            UA_sleep_ms(5000);
+            UA_sleep_ms(100);
         }
     }
     return 0;
@@ -211,6 +217,7 @@ int main(void) {
     UA_StatusCode retval = UA_Server_runUntilInterrupt(globalServer);
 
     /* Shutdown the thread */
+    running = false;
     THREAD_JOIN(hThread);
 
     UA_Server_delete(globalServer);

@@ -236,6 +236,8 @@ generateFieldMetaData(UA_Server *server, UA_PublishedDataSet *pds,
     }
     fieldMetaData->arrayDimensionsSize = value.arrayDimensionsSize;
 
+    UA_Variant_clear(&value);
+
     /* Set the DataType */
     res = readWithReadValue(server, &pp->publishedVariable,
                             UA_ATTRIBUTEID_DATATYPE, &fieldMetaData->dataType);

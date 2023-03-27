@@ -109,7 +109,7 @@ int main(int argc, char *argv[]) {
 
     if(argc < 2) {
         printf("Usage: tutorial_client_events <opc.tcp://server-url>\n");
-        return EXIT_FAILURE;
+        return EXIT_SUCCESS;
     }
 
     UA_Client *client = UA_Client_new();
@@ -119,8 +119,9 @@ int main(int argc, char *argv[]) {
     /* opc.tcp://opcua.demo-this.com:51210/UA/SampleServer */
     UA_StatusCode retval = UA_Client_connect(client, argv[1]);
     if(retval != UA_STATUSCODE_GOOD) {
+        UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "Could not connect");
         UA_Client_delete(client);
-        return EXIT_FAILURE;
+        return EXIT_SUCCESS;
     }
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS

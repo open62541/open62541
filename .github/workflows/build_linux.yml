@@ -97,6 +97,12 @@ jobs:
           - build_name: "Valgrind Build & Unit Tests with OpenSSL (gcc)"
             cmd_deps: sudo apt-get install -y -qq valgrind openssl mosquitto
             cmd_action: unit_tests_valgrind OPENSSL
+          - build_name: "Valgrind Examples with MbedTLS (gcc)"
+            cmd_deps: sudo apt-get install -y -qq valgrind libmbedtls-dev
+            cmd_action: examples_valgrind MBEDTLS
+          - build_name: "Valgrind Examples  with OpenSSL (gcc)"
+            cmd_deps: sudo apt-get install -y -qq valgrind openssl
+            cmd_action: examples_valgrind OPENSSL
           - build_name: "Clang Static Analyzer"
             cmd_deps: sudo apt-get install -y -qq clang-11 clang-tools-11 libmbedtls-dev mosquitto
             cmd_action: build_clang_analyzer

@@ -113,5 +113,9 @@ int main(void) {
     */
 
     UA_Server_delete(server);
+
+    setting.historizingBackend.deleteMembers(&setting.historizingBackend);
+    UA_NodeId_clear(&outNodeId);
+
     return retval == UA_STATUSCODE_GOOD ? EXIT_SUCCESS : EXIT_FAILURE;
 }

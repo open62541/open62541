@@ -137,8 +137,10 @@ int main(int argc, char **argv) {
     UA_Variant_setScalar(&connectionConfig.address, &networkAddressUrl,
                          &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
 
+    UA_TransportLayerContext ctx;
+    ctx.connectionConfig = &connectionConfig;
     UA_PubSubChannel *psc =
-        udpLayer.createPubSubChannel(&udpLayer, &connectionConfig);
+        udpLayer.createPubSubChannel(&udpLayer, &ctx);
     psc->regist(psc, NULL, NULL);
 
     UA_StatusCode retval = UA_STATUSCODE_GOOD;

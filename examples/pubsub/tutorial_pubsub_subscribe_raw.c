@@ -60,7 +60,9 @@ addPubSubConnection(UA_Server *server, UA_String *transportProfile,
     if(retval != UA_STATUSCODE_GOOD) {
         return retval;
     }
+    UA_LOCK(&server->serviceMutex);
     retval |= UA_PubSubConnection_regist(server, &connectionIdentifier, NULL);
+    UA_UNLOCK(&server->serviceMutex);
     return retval;
 }
 
@@ -172,6 +174,7 @@ addSubscribedVariables (UA_Server *server, UA_NodeId dataSetReaderId) {
                                                            readerConfig.dataSetMetaData.fieldsSize,
                                                            targetVars);
     UA_free(readerConfig.dataSetMetaData.fields);
+    UA_free(targetVars);
     return retval;
 }
 

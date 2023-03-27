@@ -15,6 +15,7 @@
 #include <open62541/server_config_default.h>
 
 #include "ua_pubsub.h"
+#include "../server/ua_server_internal.h"
 
 #ifdef UA_ENABLE_PUBSUB_ETH_UADP
 #include <open62541/plugin/pubsub_ethernet.h>
@@ -106,7 +107,9 @@ addPubSubConnection(UA_Server *server, UA_String *transportProfile,
     if(retval != UA_STATUSCODE_GOOD) {
         return retval;
     }
+    UA_LOCK(&server->serviceMutex);
     retval |= UA_PubSubConnection_regist(server, &connectionIdentifier, NULL);
+    UA_UNLOCK(&server->serviceMutex);
     return retval;
 }
 

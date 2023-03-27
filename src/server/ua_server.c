@@ -223,7 +223,7 @@ void UA_Server_delete(UA_Server *server) {
 #endif
 
 #ifdef UA_ENABLE_DISCOVERY
-    UA_DiscoveryManager_clear(&server->discoveryManager, server);
+    UA_DiscoveryManager_clear(&server->discoveryManager);
 #endif
 
 #if UA_MULTITHREADING >= 100
@@ -255,7 +255,7 @@ serverHouseKeeping(UA_Server *server, void *_) {
     UA_Server_cleanupSessions(server, nowMonotonic);
     UA_Server_cleanupTimedOutSecureChannels(server, nowMonotonic);
 #ifdef UA_ENABLE_DISCOVERY
-    UA_Discovery_cleanupTimedOut(server, nowMonotonic);
+    UA_DiscoveryManager_cleanupTimedOut(server, nowMonotonic);
 #endif
     UA_UNLOCK(&server->serviceMutex);
 }
@@ -336,6 +336,11 @@ UA_Server_init(UA_Server *server) {
 
 #if UA_MULTITHREADING >= 100
     UA_AsyncManager_init(&server->asyncManager, server);
+#endif
+
+    /* Initialized discovery */
+#ifdef UA_ENABLE_DISCOVERY
+    UA_DiscoveryManager_init(&server->discoveryManager);
 #endif
 
     /* Initialize namespace 0*/
@@ -879,11 +884,6 @@ UA_Server_run_startup(UA_Server *server) {
                        "There has to be at least one endpoint.");
     }
 
-    /* Initialized discovery */
-#ifdef UA_ENABLE_DISCOVERY
-    UA_DiscoveryManager_init(&server->discoveryManager, server);
-#endif
-
     /* Does the ApplicationURI match the local certificates? */
 #ifdef UA_ENABLE_ENCRYPTION
     retVal = verifyServerApplicationURI(server);
@@ -920,9 +920,8 @@ UA_Server_run_startup(UA_Server *server) {
     }
 
     /* Start the multicast discovery server */
-#ifdef UA_ENABLE_DISCOVERY_MULTICAST
-    if(server->config.mdnsEnabled)
-        startMulticastDiscoveryServer(server);
+#ifdef UA_ENABLE_DISCOVERY
+    UA_DiscoveryManager_start(server);
 #endif
 
     /* Update Endpoint description */
@@ -1005,10 +1004,8 @@ UA_Server_run_shutdown(UA_Server *server) {
             res = el->run(el, 100); /* Iterate until stopped */
     }
 
-#ifdef UA_ENABLE_DISCOVERY_MULTICAST
-    /* Stop multicast discovery */
-    if(server->config.mdnsEnabled)
-        stopMulticastDiscoveryServer(server);
+#ifdef UA_ENABLE_DISCOVERY
+    UA_DiscoveryManager_stop(server);
 #endif
 
     setReverseConnectRetryCallback(server, false);
