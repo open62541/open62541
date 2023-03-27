@@ -405,7 +405,7 @@ function examples_valgrind {
     for f in $FILES
     do
 	    echo "Processing $f"
-	    valgrind --leak-check=yes --error-exitcode=1 $f &
+	    valgrind --errors-for-leak-kinds=all --leak-check=full --error-exitcode=1 $f &
 	    sleep 10
 	    kill -INT %1
 	    wait $!; EXIT_CODE=$?
