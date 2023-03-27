@@ -950,8 +950,7 @@ sendNetworkMessageBuffer(UA_Server *server, UA_WriterGroup *wg,
         channel = connection->channel;
     }
     UA_StatusCode res =
-        channel->send(channel,
-                                  &wg->config.transportSettings, buffer);
+        channel->send(channel, &wg->config.transportSettings, buffer);
     /* Failure, set the WriterGroup into an error mode */
     if(res != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR_WRITERGROUP(&server->config.logger, wg,
