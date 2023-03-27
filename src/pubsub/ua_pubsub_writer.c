@@ -644,7 +644,7 @@ UA_PubSubDataSetWriter_generateDeltaFrameMessage(UA_Server *server,
         return UA_STATUSCODE_GOOD;
 
     UA_DataSetField *dsf;
-    size_t counter = 0;
+    UA_UInt16 counter = 0;
     TAILQ_FOREACH(dsf, &currentDataSet->fields, listEntry) {
         /* Sample the value */
         UA_DataValue value;
@@ -671,12 +671,13 @@ UA_PubSubDataSetWriter_generateDeltaFrameMessage(UA_Server *server,
 
     /* Allocate DeltaFrameFields */
     UA_DataSetMessage_DeltaFrameField *deltaFields = (UA_DataSetMessage_DeltaFrameField *)
-        UA_calloc(dataSetMessage->data.deltaFrameData.fieldCount,
-                  sizeof(UA_DataSetMessage_DeltaFrameField));
+        UA_calloc(counter, sizeof(UA_DataSetMessage_DeltaFrameField));
     if(!deltaFields)
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
     dataSetMessage->data.deltaFrameData.deltaFrameFields = deltaFields;
+    dataSetMessage->data.deltaFrameData.fieldCount = counter;
+
     size_t currentDeltaField = 0;
     for(size_t i = 0; i < currentDataSet->fieldSize; i++) {
         if(!dataSetWriter->lastSamples[i].valueChanged)
@@ -686,6 +687,8 @@ UA_PubSubDataSetWriter_generateDeltaFrameMessage(UA_Server *server,
 
         dff->fieldIndex = (UA_UInt16) i;
         UA_DataValue_copy(&dataSetWriter->lastSamples[i].value, &dff->fieldValue);
+
+        /* Reset the changed flag */
         dataSetWriter->lastSamples[i].valueChanged = false;
 
         /* Deactivate statuscode? */
