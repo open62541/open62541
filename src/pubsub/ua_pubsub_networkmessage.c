@@ -1646,11 +1646,7 @@ UA_DataSetMessage_clear(UA_DataSetMessage* p) {
             for(UA_UInt16 i = 0; i < p->data.deltaFrameData.fieldCount; i++) {
                 UA_DataSetMessage_DeltaFrameField *f =
                     &p->data.deltaFrameData.deltaFrameFields[i];
-                if(p->header.fieldEncoding == UA_FIELDENCODING_DATAVALUE) {
-                    UA_DataValue_clear(&f->fieldValue);
-                } else if(p->header.fieldEncoding == UA_FIELDENCODING_VARIANT) {
-                    UA_Variant_clear(&f->fieldValue.value);
-                }
+                UA_DataValue_clear(&f->fieldValue);
             }
             UA_free(p->data.deltaFrameData.deltaFrameFields);
         }
