@@ -29,13 +29,14 @@ typedef enum {
  *                  e.g. ["C=DE", "O=SampleOrganization", "CN=Open62541Server@localhost"]
  * \param subjectAltName Elements for SubjectAltName,
  *                  e.g. ["DNS:localhost", "URI:urn:open62541.server.application"]
+ * \param expiresInDays after these the cert expires
  * \param keySizeBits Size of the generated key in bits. If set to 0, the maximum key
  *                  size is used. Possible values are: [0, 1024 (deprecated), 2048, 4096]
  */
 UA_StatusCode UA_EXPORT
-UA_CreateCertificate(const UA_Logger *logger,
-                     const UA_String *subject, size_t subjectSize,
-                     const UA_String *subjectAltName, size_t subjectAltNameSize,
+UA_CreateCertificate(const UA_Logger *logger, const UA_String *subject,
+                     size_t subjectSize, const UA_String *subjectAltName,
+                     size_t subjectAltNameSize, UA_UInt32 expiresInDays,
                      size_t keySizeBits, UA_CertificateFormat certFormat,
                      UA_ByteString *outPrivateKey, UA_ByteString *outCertificate);
 #endif

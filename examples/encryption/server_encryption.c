@@ -54,7 +54,7 @@ int main(int argc, char* argv[]) {
             UA_CreateCertificate(UA_Log_Stdout,
                                  subject, lenSubject,
                                  subjectAltName, lenSubjectAltName,
-                                 0, UA_CERTIFICATEFORMAT_DER,
+                                 365, 0, UA_CERTIFICATEFORMAT_DER,
                                  &privateKey, &certificate);
 
         if(statusCertGen != UA_STATUSCODE_GOOD) {

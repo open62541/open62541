@@ -38,7 +38,7 @@ START_TEST(certificate_generation) {
         UA_CreateCertificate(UA_Log_Stdout,
                              subject, lenSubject,
                              subjectAltName, lenSubjectAltName,
-                             0, UA_CERTIFICATEFORMAT_DER,
+                             365, 0, UA_CERTIFICATEFORMAT_DER,
                              &derPrivKey, &derCert);
     ck_assert(status == UA_STATUSCODE_GOOD);
     ck_assert(derPrivKey.length > 0);
