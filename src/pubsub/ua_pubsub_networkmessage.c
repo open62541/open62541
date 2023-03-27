@@ -1574,6 +1574,8 @@ UA_DataSetMessage_calcSizeBinary(UA_DataSetMessage* p,
                 size += UA_calcSizeBinary(&v->value, &UA_TYPES[UA_TYPES_VARIANT]);
             } else if(p->header.fieldEncoding == UA_FIELDENCODING_RAWDATA) {
                 if(offsetBuffer) {
+                    if(!v->value.type->pointerFree)
+                        return 0; /* only integer types for now */
                     /* Count the memory size of the specific field */
                     offsetBuffer->rawMessageLength += v->value.type->memSize;
                     nmo->contentType = UA_PUBSUB_OFFSETTYPE_PAYLOAD_RAW;
