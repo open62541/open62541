@@ -20,7 +20,7 @@ Vcs-Browser: https://github.com/open62541/open62541
 Package: libopen62541-<soname>
 Architecture: any
 Multi-Arch: same
-Depends: ${shlibs:Depends}, ${misc:Depends}, libmbedtls10 | libmbedtls12
+Depends: ${shlibs:Depends}, ${misc:Depends}, libmbedtls10 | libmbedtls12 | libmbedtls14
 Description: Open source implementation of OPC UA - shared library
  open62541 (http://open62541.org) is an open source and free implementation
  of OPC UA (OPC Unified Architecture) written in the common subset of the
