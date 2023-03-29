@@ -784,7 +784,7 @@ UA_DataSetWriter_generateDataSetMessage(UA_Server *server,
                                   "Static DSM configuration not supported, using defaults");
             dsm->networkMessageNumber = 0;
             dsm->dataSetOffset = 0;
-            dsm->configuredSize = 0;
+          //  dsm->configuredSize = 0;
         }
 
         /* setting configured size in the dataSetMessage to add padding later on */

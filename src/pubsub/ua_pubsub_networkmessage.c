@@ -1334,13 +1334,6 @@ UA_DataSetMessage_encodeBinary(const UA_DataSetMessage* src, UA_Byte **bufPos,
 
             if(src->header.fieldEncoding == UA_FIELDENCODING_VARIANT) {
                 rv = UA_Variant_encodeBinary(&v->value, bufPos, bufEnd);
-                /* if the configuredSize is set -> padd the message with 0. */
-                if(src->configuredSize > 0 && src->header.dataSetMessageValid) {
-                    /* Set the bytes to 0*/
-                    memset(*bufPos, 0, src->configuredSize);
-                    /* move the bufpos accordingly*/
-                    *bufPos += src->configuredSize;
-                }
             } else if(src->header.fieldEncoding == UA_FIELDENCODING_RAWDATA) {
                 UA_FieldMetaData *fmd =
                     &src->data.keyFrameData.dataSetMetaDataType->fields[i];
@@ -1361,6 +1354,7 @@ UA_DataSetMessage_encodeBinary(const UA_DataSetMessage* src, UA_Byte **bufPos,
             } else if(src->header.fieldEncoding == UA_FIELDENCODING_DATAVALUE) {
                 rv = UA_DataValue_encodeBinary(v, bufPos, bufEnd);
             }
+
             UA_CHECK_STATUS(rv, return rv);
         }
     } else if(src->header.dataSetMessageType == UA_DATASETMESSAGE_DATADELTAFRAME) {
@@ -1392,6 +1386,14 @@ UA_DataSetMessage_encodeBinary(const UA_DataSetMessage* src, UA_Byte **bufPos,
         return UA_STATUSCODE_BADNOTIMPLEMENTED;
     }
 
+    /* if the configuredSize is set -> padd the message with 0. */
+    if(src->configuredSize > 0 && src->header.dataSetMessageValid) {
+        size_t padding = (size_t)(bufEnd - *bufPos);
+        /* Set the bytes to 0*/
+        memset(*bufPos, 0, padding);
+        /* move the bufpos accordingly*/
+        *bufPos += padding;
+    }
     /* Keep-Alive Message contains no Payload Data */
     return UA_STATUSCODE_GOOD;
 }
