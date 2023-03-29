@@ -164,6 +164,9 @@ static void setupDataSetWriterTestEnvironment(void){
     writerGroupConfig.encodingMimeType = UA_PUBSUB_ENCODING_UADP;
     UA_Server_addWriterGroup(server, connection2, &writerGroupConfig, &writerGroup3);
     UA_Server_setWriterGroupOperational(server, writerGroup3);
+}
+
+static void setupPublishedDataSetTestEnvironment(void){
     UA_PublishedDataSetConfig pdsConfig;
     memset(&pdsConfig, 0, sizeof(UA_PublishedDataSetConfig));
     pdsConfig.publishedDataSetType = UA_PUBSUB_DATASET_PUBLISHEDITEMS;
@@ -175,6 +178,7 @@ static void setupDataSetWriterTestEnvironment(void){
 
 START_TEST(AddDataSetWriterWithValidConfiguration){
         setupDataSetWriterTestEnvironment();
+        setupPublishedDataSetTestEnvironment();
         UA_StatusCode retVal;
         UA_DataSetWriterConfig dataSetWriterConfig;
         memset(&dataSetWriterConfig, 0, sizeof(dataSetWriterConfig));
@@ -191,6 +195,7 @@ START_TEST(AddDataSetWriterWithValidConfiguration){
 
 START_TEST(AddRemoveAddDataSetWriterWithValidConfiguration){
         setupDataSetWriterTestEnvironment();
+        setupPublishedDataSetTestEnvironment();
         UA_StatusCode retVal;
         UA_WriterGroup *wg1 = UA_WriterGroup_findWGbyId(server, writerGroup1);
         ck_assert_ptr_ne(wg1, NULL);
@@ -244,6 +249,7 @@ START_TEST(AddDataSetWriterWithInvalidPDSId){
 
 START_TEST(GetDataSetWriterConfigurationAndCompareValues){
         setupDataSetWriterTestEnvironment();
+        setupPublishedDataSetTestEnvironment();
         UA_StatusCode retVal;
         UA_DataSetWriterConfig dataSetWriterConfig;
         memset(&dataSetWriterConfig, 0, sizeof(dataSetWriterConfig));
@@ -280,6 +286,7 @@ START_TEST(AddPDSDuplicatedName){
 
 START_TEST(FindPDS){
         setupDataSetWriterTestEnvironment();
+        setupPublishedDataSetTestEnvironment();
         UA_PublishedDataSet *pdsById = UA_PublishedDataSet_findPDSbyId(server, publishedDataSet1);
         ck_assert_ptr_ne(pdsById, NULL);
         UA_PublishedDataSet *pdsByName = UA_PublishedDataSet_findPDSbyName(server, UA_STRING(publishedDataSet1Name));
@@ -308,6 +315,7 @@ static void setupDataSetFieldTestEnvironment(void){
 
 START_TEST(AddDataSetFieldWithValidConfiguration){
         setupDataSetFieldTestEnvironment();
+        setupPublishedDataSetTestEnvironment();
         UA_StatusCode retVal;
         UA_DataSetFieldConfig fieldConfig;
         memset(&fieldConfig, 0, sizeof(UA_DataSetFieldConfig));
@@ -326,6 +334,7 @@ START_TEST(AddDataSetFieldWithValidConfiguration){
 
 START_TEST(AddRemoveAddDataSetFieldWithValidConfiguration){
         setupDataSetFieldTestEnvironment();
+        setupPublishedDataSetTestEnvironment();
         UA_StatusCode retVal;
         UA_DataSetFieldConfig fieldConfig;
         memset(&fieldConfig, 0, sizeof(UA_DataSetFieldConfig));
@@ -384,6 +393,7 @@ START_TEST(AddDataSetFieldWithNullConfig){
         UA_StatusCode retVal;
         retVal = UA_Server_addDataSetField(server, publishedDataSet1, NULL, NULL).result;
         ck_assert_int_ne(retVal, UA_STATUSCODE_GOOD);
+        setupPublishedDataSetTestEnvironment();
         UA_PublishedDataSet *pds1 = UA_PublishedDataSet_findPDSbyId(server, publishedDataSet1);
         ck_assert_ptr_ne(pds1, NULL);
         ck_assert_uint_eq(pds1->fieldSize, 0);
@@ -399,6 +409,7 @@ START_TEST(AddDataSetFieldWithInvalidPDSId){
         fieldConfig.field.variable.publishParameters.publishedVariable = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_STATE);
         fieldConfig.field.variable.publishParameters.attributeId = UA_ATTRIBUTEID_VALUE;
         retVal = UA_Server_addDataSetField(server, UA_NODEID_NUMERIC(0, UA_UINT32_MAX), &fieldConfig, NULL).result;
+        setupPublishedDataSetTestEnvironment();
         ck_assert_int_ne(retVal, UA_STATUSCODE_GOOD);
         UA_PublishedDataSet *pds1 = UA_PublishedDataSet_findPDSbyId(server, publishedDataSet1);
         ck_assert_ptr_ne(pds1, NULL);
@@ -407,6 +418,7 @@ START_TEST(AddDataSetFieldWithInvalidPDSId){
 
 START_TEST(GetDataSetFieldConfigurationAndCompareValues){
         setupDataSetFieldTestEnvironment();
+        setupPublishedDataSetTestEnvironment();
         UA_StatusCode retVal;
         UA_DataSetFieldConfig fieldConfig;
         memset(&fieldConfig, 0, sizeof(UA_DataSetFieldConfig));
@@ -427,6 +439,22 @@ START_TEST(GetDataSetFieldConfigurationAndCompareValues){
 
 
 START_TEST(SinglePublishDataSetFieldAndPublishTimestampTest){
+        UA_PublishedDataSetConfig pdsConfig;
+        memset(&pdsConfig, 0, sizeof(UA_PublishedDataSetConfig));
+        pdsConfig.publishedDataSetType = UA_PUBSUB_DATASET_PUBLISHEDITEMS;
+        pdsConfig.name = UA_STRING(publishedDataSet1Name);
+        UA_Server_addPublishedDataSet(server, &pdsConfig, &publishedDataSet1);
+        pdsConfig.name = UA_STRING(publishedDataSet2Name);
+        UA_Server_addPublishedDataSet(server, &pdsConfig, &publishedDataSet2);
+
+        UA_DataSetFieldConfig dataSetFieldConfig;
+        memset(&dataSetFieldConfig, 0, sizeof(UA_DataSetFieldConfig));
+        dataSetFieldConfig.dataSetFieldType = UA_PUBSUB_DATASETFIELD_VARIABLE;
+        dataSetFieldConfig.field.variable.fieldNameAlias = UA_STRING("Server localtime");
+        dataSetFieldConfig.field.variable.promotedField = UA_FALSE;
+        dataSetFieldConfig.field.variable.publishParameters.publishedVariable = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_CURRENTTIME);
+        dataSetFieldConfig.field.variable.publishParameters.attributeId = UA_ATTRIBUTEID_VALUE;
+        UA_Server_addDataSetField(server, publishedDataSet1, &dataSetFieldConfig, NULL);
         UA_WriterGroupConfig writerGroupConfig;
         memset(&writerGroupConfig, 0, sizeof(writerGroupConfig));
         writerGroupConfig.name = UA_STRING("WriterGroup 1");
@@ -444,25 +472,11 @@ START_TEST(SinglePublishDataSetFieldAndPublishTimestampTest){
         writerGroupConfig.encodingMimeType = UA_PUBSUB_ENCODING_UADP;
         UA_Server_addWriterGroup(server, connection2, &writerGroupConfig, &writerGroup3);
         UA_Server_setWriterGroupOperational(server, writerGroup3);
-        UA_PublishedDataSetConfig pdsConfig;
-        memset(&pdsConfig, 0, sizeof(UA_PublishedDataSetConfig));
-        pdsConfig.publishedDataSetType = UA_PUBSUB_DATASET_PUBLISHEDITEMS;
-        pdsConfig.name = UA_STRING(publishedDataSet1Name);
-        UA_Server_addPublishedDataSet(server, &pdsConfig, &publishedDataSet1);
-        pdsConfig.name = UA_STRING(publishedDataSet2Name);
-        UA_Server_addPublishedDataSet(server, &pdsConfig, &publishedDataSet2);
+
         UA_DataSetWriterConfig dataSetWriterConfig;
         memset(&dataSetWriterConfig, 0, sizeof(dataSetWriterConfig));
         dataSetWriterConfig.name = UA_STRING("DataSetWriter 1");
         UA_Server_addDataSetWriter(server, writerGroup1, publishedDataSet1, &dataSetWriterConfig, &dataSetWriter1);
-        UA_DataSetFieldConfig dataSetFieldConfig;
-        memset(&dataSetFieldConfig, 0, sizeof(UA_DataSetFieldConfig));
-        dataSetFieldConfig.dataSetFieldType = UA_PUBSUB_DATASETFIELD_VARIABLE;
-        dataSetFieldConfig.field.variable.fieldNameAlias = UA_STRING("Server localtime");
-        dataSetFieldConfig.field.variable.promotedField = UA_FALSE;
-        dataSetFieldConfig.field.variable.publishParameters.publishedVariable = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_LOCALTIME);
-        dataSetFieldConfig.field.variable.publishParameters.attributeId = UA_ATTRIBUTEID_VALUE;
-        UA_Server_addDataSetField(server, publishedDataSet1, &dataSetFieldConfig, NULL);
 
         UA_DateTime currentTime = UA_DateTime_now();
         UA_WriterGroup *wg = UA_WriterGroup_findWGbyId(server, writerGroup1);
@@ -473,27 +487,29 @@ START_TEST(SinglePublishDataSetFieldAndPublishTimestampTest){
     } END_TEST
 
 START_TEST(PublishDataSetFieldAsDeltaFrame){
-            setupDataSetFieldTestEnvironment();
-            UA_DataSetFieldConfig dataSetFieldConfig;
-            memset(&dataSetFieldConfig, 0, sizeof(UA_DataSetFieldConfig));
-            dataSetFieldConfig.dataSetFieldType = UA_PUBSUB_DATASETFIELD_VARIABLE;
-            dataSetFieldConfig.field.variable.fieldNameAlias = UA_STRING("Server localtime");
-            dataSetFieldConfig.field.variable.promotedField = UA_FALSE;
-            dataSetFieldConfig.field.variable.publishParameters.publishedVariable = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_LOCALTIME);
-            dataSetFieldConfig.field.variable.publishParameters.attributeId = UA_ATTRIBUTEID_VALUE;
-            UA_Server_addDataSetField(server, publishedDataSet1, &dataSetFieldConfig, NULL);
+        setupPublishedDataSetTestEnvironment();
+        UA_DataSetFieldConfig dataSetFieldConfig;
+        memset(&dataSetFieldConfig, 0, sizeof(UA_DataSetFieldConfig));
+        dataSetFieldConfig.dataSetFieldType = UA_PUBSUB_DATASETFIELD_VARIABLE;
+        dataSetFieldConfig.field.variable.fieldNameAlias = UA_STRING("Server localtime");
+        dataSetFieldConfig.field.variable.promotedField = UA_FALSE;
+        dataSetFieldConfig.field.variable.publishParameters.publishedVariable = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_CURRENTTIME);
+        dataSetFieldConfig.field.variable.publishParameters.attributeId = UA_ATTRIBUTEID_VALUE;
+        UA_Server_addDataSetField(server, publishedDataSet1, &dataSetFieldConfig, NULL);
+        dataSetFieldConfig.field.variable.fieldNameAlias = UA_STRING("Server localtime2");
+        UA_Server_addDataSetField(server, publishedDataSet1, &dataSetFieldConfig, NULL);
+        setupDataSetFieldTestEnvironment();
+        UA_WriterGroup *wg = UA_WriterGroup_findWGbyId(server, writerGroup1);
+        wg->config.maxEncapsulatedDataSetMessageCount = 3;
+        UA_DataSetWriter *dsw = UA_DataSetWriter_findDSWbyId(server, dataSetWriter1);
+        dsw->config.keyFrameCount = 3;
 
-            UA_WriterGroup *wg = UA_WriterGroup_findWGbyId(server, writerGroup1);
-            wg->config.maxEncapsulatedDataSetMessageCount = 3;
-            UA_DataSetWriter *dsw = UA_DataSetWriter_findDSWbyId(server, dataSetWriter1);
-            dsw->config.keyFrameCount = 3;
-
-            UA_WriterGroup_publishCallback(server, wg);
-            UA_WriterGroup_publishCallback(server, wg);
-            UA_WriterGroup_publishCallback(server, wg);
-            UA_WriterGroup_publishCallback(server, wg);
-            UA_WriterGroup_publishCallback(server, wg);
-        } END_TEST
+        UA_WriterGroup_publishCallback(server, wg);
+        UA_WriterGroup_publishCallback(server, wg);
+        UA_WriterGroup_publishCallback(server, wg);
+        UA_WriterGroup_publishCallback(server, wg);
+        UA_WriterGroup_publishCallback(server, wg);
+    } END_TEST
 
 int main(void) {
     TCase *tc_add_pubsub_writergroup = tcase_create("PubSub WriterGroup items handling");
@@ -533,7 +549,7 @@ int main(void) {
     suite_add_tcase(s, tc_add_pubsub_datasetwriter);
     suite_add_tcase(s, tc_add_pubsub_datasetfields);
     suite_add_tcase(s, tc_pubsub_publish);
-
+    
     SRunner *sr = srunner_create(s);
     srunner_set_fork_status(sr, CK_NOFORK);
     srunner_run_all(sr,CK_NORMAL);
