@@ -10,6 +10,7 @@
 
 #include <open62541/plugin/log.h>
 #include <open62541/types.h>
+#include <open62541/util.h>
 
 _UA_BEGIN_DECLS
 
@@ -18,6 +19,21 @@ typedef enum {
     UA_CERTIFICATEFORMAT_DER,
     UA_CERTIFICATEFORMAT_PEM
 } UA_CertificateFormat;
+
+typedef struct {
+    const UA_QualifiedName name;
+    const UA_DataType *type;
+} UA_CreateCertificateParams;
+
+/* Configuration parameters */
+#define CREATECERTIFICATEPARAMSSIZE 2
+#define CERT_EXPIRES_IN_DAYS 0
+#define CERT_KEY_SIZE_BITS 1
+
+static const UA_CreateCertificateParams
+    CreateCertificateParams[CREATECERTIFICATEPARAMSSIZE] = {
+        {{0, UA_STRING_STATIC("expiresInDays")}, &UA_TYPES[UA_TYPES_UINT16]},
+        {{0, UA_STRING_STATIC("keySizeBits")}, &UA_TYPES[UA_TYPES_UINT16]}};
 
 /**
  * Create a self-signed certificate
@@ -29,16 +45,17 @@ typedef enum {
  *                  e.g. ["C=DE", "O=SampleOrganization", "CN=Open62541Server@localhost"]
  * \param subjectAltName Elements for SubjectAltName,
  *                  e.g. ["DNS:localhost", "URI:urn:open62541.server.application"]
- * \param expiresInDays after these the cert expires
- * \param keySizeBits Size of the generated key in bits. If set to 0, the maximum key
- *                  size is used. Possible values are: [0, 1024 (deprecated), 2048, 4096]
+ * \param params key value map with optional parameters:
+ *                  - expiresInDays after these the cert expires default: 365
+ *                  - keySizeBits Size of the generated key in bits. Possible values are:
+ *                    [0, 1024 (deprecated), 2048, 4096] default: 4096
  */
 UA_StatusCode UA_EXPORT
 UA_CreateCertificate(const UA_Logger *logger, const UA_String *subject,
                      size_t subjectSize, const UA_String *subjectAltName,
-                     size_t subjectAltNameSize, UA_UInt32 expiresInDays,
-                     size_t keySizeBits, UA_CertificateFormat certFormat,
-                     UA_ByteString *outPrivateKey, UA_ByteString *outCertificate);
+                     size_t subjectAltNameSize, UA_CertificateFormat certFormat,
+                     UA_KeyValueMap *params, UA_ByteString *outPrivateKey,
+                     UA_ByteString *outCertificate);
 #endif
 
 _UA_END_DECLS
