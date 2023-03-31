@@ -22,7 +22,7 @@ int main(int argc, char* argv[]) {
                      "<opc.tcp://host:port> "
                      "<client-certificate.der> <client-private-key.der> "
                      "[<trustlist1.crl>, ...]");
-        return EXIT_FAILURE;
+        return EXIT_SUCCESS;
     }
 
     const char *endpointUrl = argv[1];

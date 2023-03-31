@@ -93,7 +93,8 @@ recvTestFun(UA_PubSubChannel *channel, void *context, const UA_ByteString *buffe
 }
 
 static void
-receiveSingleMessageRT(UA_PubSubConnection *connection, UA_DataSetReader *dataSetReader) {
+receiveSingleMessageRT(UA_PubSubConnection *connection,
+                       UA_ReaderGroup *rg, UA_DataSetReader *dataSetReader) {
     UA_ByteString buffer;
     if (UA_ByteString_allocBuffer(&buffer, 512) != UA_STATUSCODE_GOOD) {
         ck_abort_msg("Message buffer allocation failed!");
@@ -116,7 +117,7 @@ receiveSingleMessageRT(UA_PubSubConnection *connection, UA_DataSetReader *dataSe
 
     size_t currentPosition = 0;
     /* Decode only the necessary offset and update the networkMessage */
-    if(UA_NetworkMessage_updateBufferedNwMessage(&dataSetReader->bufferedMessage, &buffer, &currentPosition) != UA_STATUSCODE_GOOD) {
+    if(UA_DataSetReader_decodeAndProcessRT(server, rg, connection, &buffer) != UA_STATUSCODE_GOOD) {
         ck_abort_msg("PubSub receive. Unknown field type!");
     }
 
@@ -125,20 +126,6 @@ receiveSingleMessageRT(UA_PubSubConnection *connection, UA_DataSetReader *dataSe
        (*dataSetReader->bufferedMessage.nm->payloadHeader.dataSetPayloadHeader.dataSetWriterIds != dataSetReader->config.dataSetWriterId)) {
         ck_abort_msg("PubSub receive. Unknown message received. Will not be processed.");
     }
-
-    UA_ReaderGroup *rg =
-        UA_ReaderGroup_findRGbyId(server, dataSetReader->linkedReaderGroup);
-
-    UA_DataSetReader_process(server, rg, dataSetReader,
-                             dataSetReader->bufferedMessage.nm->payload.dataSetPayload.dataSetMessages);
-
-    /* Delete the payload value of every dsf's decoded */
-     UA_DataSetMessage *dsm = dataSetReader->bufferedMessage.nm->payload.dataSetPayload.dataSetMessages;
-     if(dsm->header.fieldEncoding == UA_FIELDENCODING_VARIANT) {
-         for(UA_UInt16 i = 0; i < dsm->data.keyFrameData.fieldCount; i++) {
-             UA_Variant_clear(&dsm->data.keyFrameData.dataSetFields[i].value);
-         }
-     }
 
     UA_ByteString_clear(&buffer);
 }
@@ -321,7 +308,8 @@ START_TEST(SubscribeSingleFieldWithFixedOffsets) {
     ck_assert(UA_Server_freezeReaderGroupConfiguration(server, readerGroupIdentifier) == UA_STATUSCODE_GOOD);
 
     UA_DataSetReader *dataSetReader = UA_ReaderGroup_findDSRbyId(server, readerIdentifier);
-    receiveSingleMessageRT(connection, dataSetReader);
+    UA_ReaderGroup *readerGroup = UA_ReaderGroup_findRGbyId(server, readerGroupIdentifier);
+    receiveSingleMessageRT(connection, readerGroup, dataSetReader);
    /* Read data received by the Subscriber */
     UA_Variant *subscribedNodeData = UA_Variant_new();
     retVal = UA_Server_readValue(server, UA_NODEID_NUMERIC(1, 50002), subscribedNodeData);

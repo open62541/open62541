@@ -16,8 +16,9 @@ int main(void) {
 
     UA_StatusCode retval = UA_Client_connectUsername(client, "opc.tcp://localhost:4840", "paula", "paula123");
     if(retval != UA_STATUSCODE_GOOD) {
+        printf("Could not connect\n");
         UA_Client_delete(client);
-        return EXIT_FAILURE;
+        return EXIT_SUCCESS;
     }
 
     UA_NodeId newVariableIdRequest = UA_NODEID_NUMERIC(1, 1001);

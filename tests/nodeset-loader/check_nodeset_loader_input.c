@@ -27,8 +27,8 @@ static void teardown(void) {
 
 START_TEST(Server_loadInputNodesets) {
     for (int cnt = 0; cnt < nodesetsNum; cnt++) {
-        bool retVal = UA_Server_loadNodeset(server, nodesetPaths[cnt], NULL);
-        ck_assert_uint_eq(retVal, true);
+        UA_StatusCode retVal = UA_Server_loadNodeset(server, nodesetPaths[cnt], NULL);
+        ck_assert(UA_StatusCode_isGood(retVal));
     }
 }
 END_TEST

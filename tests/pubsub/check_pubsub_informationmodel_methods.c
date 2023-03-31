@@ -23,9 +23,10 @@ UA_Boolean running;
 THREAD_HANDLE server_thread;
 
 THREAD_CALLBACK(serverloop) {
-        while (running)
+    while(running) {
         UA_Server_run_iterate(server, true);
-        return 0;
+    }
+    return 0;
 }
 
 static void setup(void) {

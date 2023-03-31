@@ -23,7 +23,7 @@
 #define SAMPLE_EVENT_TYPES_COUNT 5
 
 static volatile UA_Boolean running = true;
-static UA_NodeId* eventTypes;
+static UA_NodeId eventTypes[SAMPLE_EVENT_TYPES_COUNT];
 
 static UA_StatusCode
 addEventType(UA_Server *server, char* name, UA_NodeId parentNodeId, UA_NodeId requestedId, UA_NodeId* eventType) {
@@ -44,8 +44,6 @@ addEventType(UA_Server *server, char* name, UA_NodeId parentNodeId, UA_NodeId re
 
 static UA_StatusCode
 addSampleEventTypes(UA_Server *server) {
-    eventTypes = (UA_NodeId *)
-        UA_Array_new(SAMPLE_EVENT_TYPES_COUNT, &UA_TYPES[UA_TYPES_NODEID]);
     UA_StatusCode retval = addEventType(server, "SampleBaseEventType",
                                         UA_NODEID_NUMERIC(0, UA_NS0ID_BASEEVENTTYPE),
                                         UA_NODEID_NUMERIC(1, 5000),

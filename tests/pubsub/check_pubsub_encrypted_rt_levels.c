@@ -115,20 +115,8 @@ static void receiveSingleMessageRT(UA_PubSubConnection *connection, UA_ReaderGro
         ck_abort_msg("Expected message not received!");
     }
 
-    UA_NetworkMessage currentNetworkMessage;
-    memset(&currentNetworkMessage, 0, sizeof(UA_NetworkMessage));
-    size_t payLoadPosition = 0;
-    UA_NetworkMessage_decodeHeaders(&buffer, &payLoadPosition, &currentNetworkMessage);
-    UA_ServerConfig *config = UA_Server_getConfig(server);
-    verifyAndDecryptNetworkMessage(&config->logger,
-                                   &buffer,
-                                   &payLoadPosition,
-                                   &currentNetworkMessage,
-                                   readerGroup);
-    UA_NetworkMessage_clear(&currentNetworkMessage);
-    size_t currentPosition = 0;
     /* Decode only the necessary offset and update the networkMessage */
-    if(UA_NetworkMessage_updateBufferedNwMessage(&dataSetReader->bufferedMessage, &buffer, &currentPosition) != UA_STATUSCODE_GOOD) {
+    if(UA_DataSetReader_decodeAndProcessRT(server, readerGroup, connection, &buffer) != UA_STATUSCODE_GOOD) {
         ck_abort_msg("PubSub receive. Unknown field type!");
     }
 
@@ -137,12 +125,6 @@ static void receiveSingleMessageRT(UA_PubSubConnection *connection, UA_ReaderGro
        (*dataSetReader->bufferedMessage.nm->payloadHeader.dataSetPayloadHeader.dataSetWriterIds != dataSetReader->config.dataSetWriterId)) {
         ck_abort_msg("PubSub receive. Unknown message received. Will not be processed.");
     }
-
-    UA_ReaderGroup *rg =
-        UA_ReaderGroup_findRGbyId(server, dataSetReader->linkedReaderGroup);
-
-    UA_DataSetReader_process(server, rg, dataSetReader,
-                             dataSetReader->bufferedMessage.nm->payload.dataSetPayload.dataSetMessages);
 
     /* Delete the payload value of every dsf's decoded */
      UA_DataSetMessage *dsm = dataSetReader->bufferedMessage.nm->payload.dataSetPayload.dataSetMessages;

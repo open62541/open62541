@@ -112,6 +112,7 @@ UA_ServerConfig_clean(UA_ServerConfig *config) {
 
     /* Custom Data Types */
     UA_cleanupDataTypeWithCustom(config->customDataTypes);
+    config->customDataTypes = NULL;
 }
 
 #ifdef UA_ENABLE_PUBSUB

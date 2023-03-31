@@ -104,12 +104,15 @@ typedef struct {
 # endif /* UA_ENABLE_DISCOVERY_MULTICAST */
 } UA_DiscoveryManager;
 
-void UA_DiscoveryManager_init(UA_DiscoveryManager *dm, UA_Server *server);
-void UA_DiscoveryManager_clear(UA_DiscoveryManager *dm, UA_Server *server);
+void UA_DiscoveryManager_init(UA_DiscoveryManager *dm);
+void UA_DiscoveryManager_clear(UA_DiscoveryManager *dm);
+void UA_DiscoveryManager_start(UA_Server *server);
+void UA_DiscoveryManager_stop(UA_Server *server);
 
 /* Checks if a registration timed out and removes that registration.
  * Should be called periodically in main loop */
-void UA_Discovery_cleanupTimedOut(UA_Server *server, UA_DateTime nowMonotonic);
+void UA_DiscoveryManager_cleanupTimedOut(UA_Server *server,
+                                         UA_DateTime nowMonotonic);
 
 #ifdef UA_ENABLE_DISCOVERY_MULTICAST
 
@@ -140,6 +143,9 @@ void mdns_set_address_record(UA_Server *server, const char *fullServiceDomain,
 mdns_record_t *
 mdns_find_record(mdns_daemon_t *mdnsDaemon, unsigned short type,
                  const char *host, const char *rdname);
+
+UA_StatusCode
+initMulticastDiscoveryServer(UA_DiscoveryManager *dm, UA_Server* server);
 
 void startMulticastDiscoveryServer(UA_Server *server);
 void stopMulticastDiscoveryServer(UA_Server *server);

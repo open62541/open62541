@@ -86,9 +86,7 @@ START_TEST(EthernetSendWithoutVLANTag) {
     connectionConfig.connectionProperties.mapSize = 2;
     UA_Server_addPubSubConnection(server, &connectionConfig, &connection_test);
     connection = UA_PubSubConnection_findConnectionbyId(server, connection_test);
-    if(!connection) {
-        UA_Server_delete(server);
-    }
+    ck_assert(connection);
 
     /* Define Ethernet ETF transport settings */
     UA_EthernetWriterGroupTransportDataType ethernettransportSettings;
@@ -109,7 +107,7 @@ START_TEST(EthernetSendWithoutVLANTag) {
     UA_ByteString testBuffer = UA_STRING(BUFFER_STRING);
     retVal = connection->channel->send(connection->channel, &transportSettings, &testBuffer);
     ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
-    } END_TEST
+} END_TEST
 
 START_TEST(EthernetSendWithVLANTag) {
     struct timespec nextnanosleeptime;
@@ -139,9 +137,8 @@ START_TEST(EthernetSendWithVLANTag) {
     connectionConfig.connectionProperties.mapSize = 2;
     UA_Server_addPubSubConnection(server, &connectionConfig, &connection_test);
     connection = UA_PubSubConnection_findConnectionbyId(server, connection_test);
-    if(!connection) {
-        UA_Server_delete(server);
-    }
+    ck_assert(connection);
+
     /* Define Ethernet ETF transport settings */
     UA_EthernetWriterGroupTransportDataType ethernettransportSettings;
     memset(&ethernettransportSettings, 0, sizeof(UA_EthernetWriterGroupTransportDataType));
@@ -161,7 +158,7 @@ START_TEST(EthernetSendWithVLANTag) {
     UA_ByteString testBuffer = UA_STRING(BUFFER_STRING);
     retVal = connection->channel->send(connection->channel, &transportSettings, &testBuffer);
     ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
-    } END_TEST
+} END_TEST
 
 int main(void) {
     /*Test case to run both publisher*/

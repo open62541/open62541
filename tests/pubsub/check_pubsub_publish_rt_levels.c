@@ -84,6 +84,8 @@ static void teardown(void) {
     }
 
     UA_Server_delete(server);
+    rtEventLoop->logger = NULL; /* Don't access the logger that was removed with
+                                   the server */
     rtEventLoop->free(rtEventLoop);
 
     rtEventLoop = NULL;
@@ -139,7 +141,7 @@ receiveSingleMessage(UA_ByteString buffer, UA_PubSubConnection *connection,
     }
     memset(networkMessage, 0, sizeof(UA_NetworkMessage));
     size_t currentPosition = 0;
-    UA_NetworkMessage_decodeBinary(&buffer, &currentPosition, networkMessage);
+    UA_NetworkMessage_decodeBinary(&buffer, &currentPosition, networkMessage, NULL);
     UA_ByteString_clear(&buffer);
 }
 

@@ -449,64 +449,6 @@ void Service_RegisterServer2(UA_Server *server, UA_Session *session,
                            response->diagnosticInfos);
 }
 
-/* Cleanup server registration: If the semaphore file path is set, then it just
- * checks the existence of the file. When it is deleted, the registration is
- * removed. If there is no semaphore file, then the registration will be removed
- * if it is older than 60 minutes. */
-void UA_Discovery_cleanupTimedOut(UA_Server *server, UA_DateTime nowMonotonic) {
-    UA_DateTime timedOut = nowMonotonic;
-    // registration is timed out if lastSeen is older than 60 minutes (default
-    // value, can be modified by user).
-    if(server->config.discoveryCleanupTimeout)
-        timedOut -= server->config.discoveryCleanupTimeout * UA_DATETIME_SEC;
-
-    registeredServer_list_entry* current, *temp;
-    LIST_FOREACH_SAFE(current, &server->discoveryManager.registeredServers, pointers, temp) {
-        UA_Boolean semaphoreDeleted = false;
-
-#ifdef UA_ENABLE_DISCOVERY_SEMAPHORE
-        if(current->registeredServer.semaphoreFilePath.length) {
-            size_t fpSize = sizeof(char)*current->registeredServer.semaphoreFilePath.length+1;
-            // todo: malloc may fail: return a statuscode
-            char* filePath = (char *)UA_malloc(fpSize);
-            if(filePath) {
-                memcpy(filePath, current->registeredServer.semaphoreFilePath.data,
-                       current->registeredServer.semaphoreFilePath.length );
-                filePath[current->registeredServer.semaphoreFilePath.length] = '\0';
-                semaphoreDeleted = UA_fileExists(filePath) == false;
-                UA_free(filePath);
-            } else {
-                UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
-                             "Cannot check registration semaphore. Out of memory");
-            }
-        }
-#endif
-
-        if(semaphoreDeleted || (server->config.discoveryCleanupTimeout &&
-                                current->lastSeen < timedOut)) {
-            if(semaphoreDeleted) {
-                UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_SERVER,
-                            "Registration of server with URI %.*s is removed because "
-                            "the semaphore file '%.*s' was deleted.",
-                            (int)current->registeredServer.serverUri.length,
-                            current->registeredServer.serverUri.data,
-                            (int)current->registeredServer.semaphoreFilePath.length,
-                            current->registeredServer.semaphoreFilePath.data);
-            } else {
-                // cppcheck-suppress unreadVariable
-                UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_SERVER,
-                            "Registration of server with URI %.*s has timed out and is removed.",
-                            (int)current->registeredServer.serverUri.length,
-                            current->registeredServer.serverUri.data);
-            }
-            LIST_REMOVE(current, pointers);
-            UA_RegisteredServer_clear(&current->registeredServer);
-            UA_free(current);
-            server->discoveryManager.registeredServersSize--;
-        }
-    }
-}
-
 /* Called by the UA_Server callback. The OPC UA specification says:
  *
  * > If an error occurs during registration (e.g. the Discovery Server is not running) then the Server
