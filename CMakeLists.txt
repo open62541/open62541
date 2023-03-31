@@ -741,7 +741,9 @@ if(NOT UA_FORCE_CPP AND (CMAKE_COMPILER_IS_GNUCC OR CMAKE_C_COMPILER_ID STREQUAL
     endif()
 
     check_add_cc_flag("-Wno-maybe-uninitialized" "Debug;Release;RelWithDebInfo;MinSizeRel") # too many false positives
-    check_add_cc_flag("-Wno-static-in-inline" "Debug;Release;RelWithDebInfo;MinSizeRel") # Clang doesn't like the use of static inline methods inside static inline methods
+    if(NOT UA_PACK_DEBIAN)
+        check_add_cc_flag("-Wno-static-in-inline" "Debug;Release;RelWithDebInfo;MinSizeRel") # Clang doesn't like the use of static inline methods inside static inline methods
+    endif()
     check_add_cc_flag("-Wno-overlength-strings" "Debug;Release;RelWithDebInfo;MinSizeRel") # May happen in the nodeset compiler when complex values are directly encoded
     check_add_cc_flag("-Wno-unused-parameter" "Debug;Release;RelWithDebInfo;MinSizeRel") # some methods may require unused arguments to cast to a method pointer
 
@@ -812,11 +814,7 @@ if(NOT UA_FORCE_CPP AND (CMAKE_COMPILER_IS_GNUCC OR CMAKE_C_COMPILER_ID STREQUAL
     endif()
 
     if(UA_ENABLE_AMALGAMATION)
-        add_definitions(-Wno-unused-function)
-    endif()
-
-    if(UA_PACK_DEBIAN)
-        remove_definitions(-Wno-static-in-inline)
+        check_add_cc_flag("-Wno-unused-function" "Debug;Release;RelWithDebInfo;MinSizeRel")
     endif()
 
     # Linker
