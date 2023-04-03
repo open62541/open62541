@@ -4,6 +4,7 @@
     <mapping directory="$PROJECT_DIR$" vcs="Git" />
     <mapping directory="$PROJECT_DIR$/deps/mdnsd" vcs="Git" />
     <mapping directory="$PROJECT_DIR$/deps/mqtt-c" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/deps/nodesetLoader" vcs="Git" />
     <mapping directory="$PROJECT_DIR$/deps/ua-nodeset" vcs="Git" />
   </component>
 </project>

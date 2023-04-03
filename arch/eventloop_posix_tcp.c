@@ -812,6 +812,7 @@ TCP_openActiveConnection(UA_POSIXConnectionManager *pcm, const UA_KeyValueMap *p
             UA_LOG_WARNING(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
                            "TCP\t| Connecting the socket to %s failed (%s)",
                            hostname, errno_str));
+        UA_close(newSock);
         return UA_STATUSCODE_BADDISCONNECT;
     }
 
