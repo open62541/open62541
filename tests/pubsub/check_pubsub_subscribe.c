@@ -2371,6 +2371,7 @@ START_TEST(ValidConfiguredSizPublishSubscribe) {
         dataSetWriterConfig.messageSettings.content.decoded.data = messageSettings;
         retVal |= UA_Server_addDataSetWriter(server, writerGroup, publishedDataSetId,
                                              &dataSetWriterConfig, &dataSetWriter);
+        UA_UadpDataSetWriterMessageDataType_delete(messageSettings);
         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
 
         /* Reader Group */
@@ -2388,10 +2389,6 @@ START_TEST(ValidConfiguredSizPublishSubscribe) {
         readerConfig.writerGroupId    = WRITER_GROUP_ID;
         readerConfig.dataSetWriterId  = DATASET_WRITER_ID;
         
-        /* messageSettings but using the writer type to get configuredSize*/
-        readerConfig.messageSettings.encoding = UA_EXTENSIONOBJECT_DECODED;
-        readerConfig.messageSettings.content.decoded.type = &UA_TYPES[UA_TYPES_UADPDATASETWRITERMESSAGEDATATYPE];
-        readerConfig.messageSettings.content.decoded.data = messageSettings;
         /* Setting up Meta data configuration in DataSetReader */
         UA_DataSetMetaDataType *pMetaData = &readerConfig.dataSetMetaData;
         /* FilltestMetadata function in subscriber implementation */
@@ -2443,6 +2440,7 @@ START_TEST(ValidConfiguredSizPublishSubscribe) {
         UA_ByteString_init(&buffer);
         UA_NetworkMessage networkMessage;
         receiveSingleMessage(buffer, connection, &networkMessage);
+        UA_NetworkMessage_clear(&networkMessage);
 } END_TEST
 
 START_TEST(InvalidConfiguredSizPublishSubscribe) {
@@ -2525,6 +2523,8 @@ START_TEST(InvalidConfiguredSizPublishSubscribe) {
         dataSetWriterConfig.messageSettings.content.decoded.data = messageSettings;
         retVal |= UA_Server_addDataSetWriter(server, writerGroup, publishedDataSetId,
                                              &dataSetWriterConfig, &dataSetWriter);
+        UA_UadpDataSetWriterMessageDataType_delete(messageSettings);
+
         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
 
         /* Reader Group */
@@ -2542,10 +2542,6 @@ START_TEST(InvalidConfiguredSizPublishSubscribe) {
         readerConfig.writerGroupId    = WRITER_GROUP_ID;
         readerConfig.dataSetWriterId  = DATASET_WRITER_ID;
         
-        /* messageSettings but using the writer type to get configuredSize*/
-        readerConfig.messageSettings.encoding = UA_EXTENSIONOBJECT_DECODED;
-        readerConfig.messageSettings.content.decoded.type = &UA_TYPES[UA_TYPES_UADPDATASETWRITERMESSAGEDATATYPE];
-        readerConfig.messageSettings.content.decoded.data = messageSettings;
         /* Setting up Meta data configuration in DataSetReader */
         UA_DataSetMetaDataType *pMetaData = &readerConfig.dataSetMetaData;
         /* FilltestMetadata function in subscriber implementation */
