@@ -20,10 +20,12 @@ UA_Server *server = NULL;
 static void setup(void) {
     server = UA_Server_new();
     ck_assert(server != NULL);
+    UA_StatusCode retVal = UA_Server_run_startup(server);
     UA_ServerConfig *config = UA_Server_getConfig(server);
-    UA_ServerConfig_setDefault(config);
-    UA_ServerConfig_addPubSubTransportLayer(config, UA_PubSubTransportLayerUDP());
-    UA_Server_run_startup(server);
+    retVal |= UA_ServerConfig_setDefault(config);
+    retVal |= UA_ServerConfig_addPubSubTransportLayer(config, UA_PubSubTransportLayerUDP());
+    retVal |= UA_Server_run_startup(server);
+    ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
 }
 
 static void teardown(void) {
@@ -35,18 +37,19 @@ START_TEST(CreateAndLockConfiguration) {
     //create config
     UA_NodeId connection1, readerGroup1, dataSetReader1;
     UA_PubSubConnectionConfig connectionConfig;
+    UA_StatusCode retVal = UA_STATUSCODE_GOOD;
     memset(&connectionConfig, 0, sizeof(UA_PubSubConnectionConfig));
     connectionConfig.name = UA_STRING("UADP Connection");
     UA_NetworkAddressUrlDataType networkAddressUrl = {UA_STRING_NULL, UA_STRING("opc.udp://224.0.0.22:4840/")};
     UA_Variant_setScalar(&connectionConfig.address, &networkAddressUrl, &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
     connectionConfig.transportProfileUri = UA_STRING("http://opcfoundation.org/UA-Profile/Transport/pubsub-udp-uadp");
-    UA_Server_addPubSubConnection(server, &connectionConfig, &connection1);
+    retVal |= UA_Server_addPubSubConnection(server, &connectionConfig, &connection1);
 
     UA_ReaderGroupConfig readerGroupConfig;
     memset(&readerGroupConfig, 0, sizeof(readerGroupConfig));
     readerGroupConfig.name = UA_STRING("ReaderGroup 1");
     readerGroupConfig.rtLevel = UA_PUBSUB_RT_NONE;
-    UA_Server_addReaderGroup(server, connection1, &readerGroupConfig, &readerGroup1);
+    retVal |= UA_Server_addReaderGroup(server, connection1, &readerGroupConfig, &readerGroup1);
 
     //get internal RG Pointer
     UA_ReaderGroup *readerGroup = UA_ReaderGroup_findRGbyId(server, readerGroup1);
@@ -56,7 +59,7 @@ START_TEST(CreateAndLockConfiguration) {
     UA_DataSetReaderConfig dataSetReaderConfig;
     memset(&dataSetReaderConfig, 0, sizeof(dataSetReaderConfig));
     dataSetReaderConfig.name = UA_STRING("DataSetReader 1");
-    UA_Server_addDataSetReader(server, readerGroup1, &dataSetReaderConfig, &dataSetReader1);
+    retVal |= UA_Server_addDataSetReader(server, readerGroup1, &dataSetReaderConfig, &dataSetReader1);
     UA_DataSetReader *dataSetReader = UA_ReaderGroup_findDSRbyId(server, dataSetReader1);
     ck_assert(dataSetReader != NULL);
     ck_assert(dataSetReader->configurationFrozen == UA_FALSE);
@@ -67,49 +70,51 @@ START_TEST(CreateAndLockConfiguration) {
     ck_assert(pubSubConnection->configurationFreezeCounter == 0);
 
     //Lock the reader group and the child pubsub entities
-    UA_Server_freezeReaderGroupConfiguration(server, readerGroup1);
+    retVal |= UA_Server_freezeReaderGroupConfiguration(server, readerGroup1);
 
     ck_assert(readerGroup->configurationFrozen == UA_TRUE);
     ck_assert(dataSetReader->configurationFrozen == UA_TRUE);
     ck_assert(pubSubConnection->configurationFreezeCounter > 0);
 
     //set state to disabled and implicit unlock the configuration
-    UA_Server_unfreezeReaderGroupConfiguration(server, readerGroup1);
+    retVal |= UA_Server_unfreezeReaderGroupConfiguration(server, readerGroup1);
 
     ck_assert(readerGroup->configurationFrozen == UA_FALSE);
     ck_assert(dataSetReader->configurationFrozen == UA_FALSE);
     ck_assert(pubSubConnection->configurationFreezeCounter == 0);
+    ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
 } END_TEST
 
 START_TEST(CreateAndReleaseMultipleLocks) {
     //create config
     UA_NodeId connection1, readerGroup1, readerGroup2, dataSetReader1, dataSetReader2, dataSetReader3;
     UA_PubSubConnectionConfig connectionConfig;
+    UA_StatusCode retVal = UA_STATUSCODE_GOOD;
     memset(&connectionConfig, 0, sizeof(UA_PubSubConnectionConfig));
     connectionConfig.name = UA_STRING("UADP Connection");
     UA_NetworkAddressUrlDataType networkAddressUrl = {UA_STRING_NULL, UA_STRING("opc.udp://224.0.0.22:4840/")};
     UA_Variant_setScalar(&connectionConfig.address, &networkAddressUrl,
                          &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
     connectionConfig.transportProfileUri = UA_STRING("http://opcfoundation.org/UA-Profile/Transport/pubsub-udp-uadp");
-    UA_Server_addPubSubConnection(server, &connectionConfig, &connection1);
+    retVal |= UA_Server_addPubSubConnection(server, &connectionConfig, &connection1);
 
     //Add two reader groups
     UA_ReaderGroupConfig readerGroupConfig;
     memset(&readerGroupConfig, 0, sizeof(readerGroupConfig));
     readerGroupConfig.name = UA_STRING("ReaderGroup 1");
     readerGroupConfig.rtLevel = UA_PUBSUB_RT_NONE;
-    UA_Server_addReaderGroup(server, connection1, &readerGroupConfig, &readerGroup1);
+    retVal |= UA_Server_addReaderGroup(server, connection1, &readerGroupConfig, &readerGroup1);
     readerGroupConfig.name = UA_STRING("ReaderGroup 2");
-    UA_Server_addReaderGroup(server, connection1, &readerGroupConfig, &readerGroup2);
+    retVal |= UA_Server_addReaderGroup(server, connection1, &readerGroupConfig, &readerGroup2);
 
     UA_DataSetReaderConfig dataSetReaderConfig;
     memset(&dataSetReaderConfig, 0, sizeof(dataSetReaderConfig));
     dataSetReaderConfig.name = UA_STRING("DataSetReader 1");
-    UA_Server_addDataSetReader(server, readerGroup1, &dataSetReaderConfig, &dataSetReader1);
+    retVal |= UA_Server_addDataSetReader(server, readerGroup1, &dataSetReaderConfig, &dataSetReader1);
     dataSetReaderConfig.name = UA_STRING("DataSetReader 2");
-    UA_Server_addDataSetReader(server, readerGroup1, &dataSetReaderConfig, &dataSetReader2);
+    retVal |= UA_Server_addDataSetReader(server, readerGroup1, &dataSetReaderConfig, &dataSetReader2);
     dataSetReaderConfig.name = UA_STRING("DataSetReader 3");
-    UA_Server_addDataSetReader(server, readerGroup2, &dataSetReaderConfig, &dataSetReader3);
+    retVal |= UA_Server_addDataSetReader(server, readerGroup2, &dataSetReaderConfig, &dataSetReader3);
 
     UA_ReaderGroup *readerGroup_1 = UA_ReaderGroup_findRGbyId(server, readerGroup1);
     UA_ReaderGroup *readerGroup_2 = UA_ReaderGroup_findRGbyId(server, readerGroup2);
@@ -122,30 +127,31 @@ START_TEST(CreateAndReleaseMultipleLocks) {
     ck_assert(readerGroup_2->configurationFrozen == UA_FALSE);
     ck_assert(pubSubConnection->configurationFreezeCounter == 0);
 
-    UA_Server_freezeReaderGroupConfiguration(server, readerGroup1);
-    UA_Server_freezeReaderGroupConfiguration(server, readerGroup2);
+    retVal |= UA_Server_freezeReaderGroupConfiguration(server, readerGroup1);
+    retVal |= UA_Server_freezeReaderGroupConfiguration(server, readerGroup2);
 
     ck_assert(readerGroup_1->configurationFrozen == UA_TRUE);
     ck_assert(readerGroup_2->configurationFrozen == UA_TRUE);
     ck_assert(pubSubConnection->configurationFreezeCounter > 0);
 
     //unlock one tree, get sure connection still locked
-    UA_Server_unfreezeReaderGroupConfiguration(server, readerGroup1);
+    retVal |= UA_Server_unfreezeReaderGroupConfiguration(server, readerGroup1);
     ck_assert(readerGroup_1->configurationFrozen == UA_FALSE);
     ck_assert(pubSubConnection->configurationFreezeCounter > 0);
     ck_assert(dataSetReader_1->configurationFrozen == UA_FALSE);
     ck_assert(dataSetReader_2->configurationFrozen == UA_FALSE);
     ck_assert(dataSetReader_3->configurationFrozen == UA_TRUE);
 
-    UA_Server_unfreezeReaderGroupConfiguration(server, readerGroup2);
+    retVal |= UA_Server_unfreezeReaderGroupConfiguration(server, readerGroup2);
     ck_assert(readerGroup_2->configurationFrozen == UA_FALSE);
     ck_assert(pubSubConnection->configurationFreezeCounter == 0);
     ck_assert(dataSetReader_3->configurationFrozen == UA_FALSE);
+    ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
     } END_TEST
 
 START_TEST(CreateLockAndEditConfiguration) {
     UA_NodeId connection1, readerGroup1, dataSetReader1, dataSetReader2;
-    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+    UA_StatusCode retVal = UA_STATUSCODE_GOOD;
     UA_PubSubConnectionConfig connectionConfig;
     memset(&connectionConfig, 0, sizeof(UA_PubSubConnectionConfig));
     connectionConfig.name = UA_STRING("UADP Connection");
@@ -153,13 +159,13 @@ START_TEST(CreateLockAndEditConfiguration) {
     UA_Variant_setScalar(&connectionConfig.address, &networkAddressUrl,
                          &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
     connectionConfig.transportProfileUri = UA_STRING("http://opcfoundation.org/UA-Profile/Transport/pubsub-udp-uadp");
-    UA_Server_addPubSubConnection(server, &connectionConfig, &connection1);
+    retVal |= UA_Server_addPubSubConnection(server, &connectionConfig, &connection1);
 
     UA_ReaderGroupConfig readerGroupConfig;
     memset(&readerGroupConfig, 0, sizeof(readerGroupConfig));
     readerGroupConfig.name = UA_STRING("ReaderGroup 1");
     readerGroupConfig.rtLevel = UA_PUBSUB_RT_NONE;
-    UA_Server_addReaderGroup(server, connection1, &readerGroupConfig, &readerGroup1);
+    retVal |= UA_Server_addReaderGroup(server, connection1, &readerGroupConfig, &readerGroup1);
 
     //get internal RG Pointer
     UA_ReaderGroup *readerGroup = UA_ReaderGroup_findRGbyId(server, readerGroup1);
@@ -186,7 +192,7 @@ START_TEST(CreateLockAndEditConfiguration) {
     pMetaData->fields[0].builtInType = UA_NS0ID_DATETIME;
     pMetaData->fields[0].name =  UA_STRING ("DateTime");
     pMetaData->fields[0].valueRank = -1; /* scalar */
-    UA_Server_addDataSetReader(server, readerGroup1, &dataSetReaderConfig, &dataSetReader1);
+    retVal |= UA_Server_addDataSetReader(server, readerGroup1, &dataSetReaderConfig, &dataSetReader1);
 
     UA_NodeId folderId;
     UA_String folderName = dataSetReaderConfig.dataSetMetaData.name;
@@ -203,7 +209,7 @@ START_TEST(CreateLockAndEditConfiguration) {
         folderBrowseName = UA_QUALIFIEDNAME (1, "Subscribed Variables");
     }
 
-    UA_Server_addObjectNode (server, UA_NODEID_NULL,
+    retVal |= UA_Server_addObjectNode (server, UA_NODEID_NULL,
                              UA_NODEID_NUMERIC (0, UA_NS0ID_OBJECTSFOLDER),
                              UA_NODEID_NUMERIC (0, UA_NS0ID_ORGANIZES),
                              folderBrowseName, UA_NODEID_NUMERIC (0,
@@ -221,7 +227,7 @@ START_TEST(CreateLockAndEditConfiguration) {
         vAttr.dataType = dataSetReaderConfig.dataSetMetaData.fields[i].dataType;
 
         UA_NodeId newNode;
-        retval |= UA_Server_addVariableNode(server, UA_NODEID_NUMERIC(1, (UA_UInt32)i + 50000),
+        retVal |= UA_Server_addVariableNode(server, UA_NODEID_NUMERIC(1, (UA_UInt32)i + 50000),
                                             folderId,
                                             UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
                                             UA_QUALIFIEDNAME(1, (char *)dataSetReaderConfig.dataSetMetaData.fields[i].name.data),
@@ -239,30 +245,30 @@ START_TEST(CreateLockAndEditConfiguration) {
     //Lock the reader group and the child pubsub entities
     UA_Server_freezeReaderGroupConfiguration(server, readerGroup1);
     //call not allowed configuration methods
-    retval = UA_Server_addDataSetReader(server, readerGroup1, &dataSetReaderConfig, &dataSetReader2);
-    ck_assert(retval == UA_STATUSCODE_BADCONFIGURATIONERROR);
-    retval = UA_Server_removeDataSetReader(server, dataSetReader1);
-    ck_assert(retval == UA_STATUSCODE_BADCONFIGURATIONERROR);
-    retval = UA_Server_DataSetReader_createTargetVariables(server, dataSetReader1,
+    retVal = UA_Server_addDataSetReader(server, readerGroup1, &dataSetReaderConfig, &dataSetReader2);
+    ck_assert(retVal == UA_STATUSCODE_BADCONFIGURATIONERROR);
+    retVal = UA_Server_removeDataSetReader(server, dataSetReader1);
+    ck_assert(retVal == UA_STATUSCODE_BADCONFIGURATIONERROR);
+    retVal = UA_Server_DataSetReader_createTargetVariables(server, dataSetReader1,
                                                            dataSetReaderConfig.dataSetMetaData.fieldsSize,
                                                            targetVars);
-    ck_assert(retval == UA_STATUSCODE_BADCONFIGURATIONERROR);
+    ck_assert(retVal == UA_STATUSCODE_BADCONFIGURATIONERROR);
 
     //unlock the reader group
     UA_Server_unfreezeReaderGroupConfiguration(server, readerGroup1);
-    retval = UA_Server_DataSetReader_createTargetVariables(server, dataSetReader1,
+    retVal = UA_Server_DataSetReader_createTargetVariables(server, dataSetReader1,
                                                            dataSetReaderConfig.dataSetMetaData.fieldsSize,
                                                            targetVars);
-    ck_assert(retval == UA_STATUSCODE_GOOD);
-    retval = UA_Server_addDataSetReader(server, readerGroup1, &dataSetReaderConfig, &dataSetReader2);
+    ck_assert(retVal == UA_STATUSCODE_GOOD);
+    retVal = UA_Server_addDataSetReader(server, readerGroup1, &dataSetReaderConfig, &dataSetReader2);
     for(size_t i = 0; i < dataSetReaderConfig.dataSetMetaData.fieldsSize; i++)
         UA_FieldTargetDataType_clear(&targetVars[i].targetVariable);
 
     UA_free(targetVars);
     UA_free(dataSetReaderConfig.dataSetMetaData.fields);
-    ck_assert(retval == UA_STATUSCODE_GOOD);
-    retval = UA_Server_removeDataSetReader(server, dataSetReader1);
-    ck_assert(retval == UA_STATUSCODE_GOOD);
+    ck_assert(retVal == UA_STATUSCODE_GOOD);
+    retVal = UA_Server_removeDataSetReader(server, dataSetReader1);
+    ck_assert(retVal == UA_STATUSCODE_GOOD);
     } END_TEST
 
 int main(void) {

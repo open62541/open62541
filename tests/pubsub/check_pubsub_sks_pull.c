@@ -42,6 +42,7 @@ THREAD_CALLBACK(serverloop) {
 
 static void
 addSecurityGroup(void) {
+    UA_StatusCode retVal = UA_STATUSCODE_GOOD;
     UA_NodeId securityGroupParent =
         UA_NODEID_NUMERIC(0, UA_NS0ID_PUBLISHSUBSCRIBE_SECURITYGROUPS);
     UA_NodeId outNodeId;
@@ -55,12 +56,13 @@ addSecurityGroup(void) {
 
     maxKeyCount = config.maxPastKeyCount + 1 + config.maxFutureKeyCount;
 
-    UA_Server_addSecurityGroup(sksServer, securityGroupParent, &config, &outNodeId);
+    retVal |= UA_Server_addSecurityGroup(sksServer, securityGroupParent, &config, &outNodeId);
     UA_String_copy(&config.securityGroupName, &securityGroupId);
 
     allowedUsername = UA_STRING("user1");
-    UA_Server_setNodeContext(sksServer, outNodeId, &allowedUsername);
-    UA_NodeId_copy(&outNodeId, &sgNodeId);
+    retVal |= UA_Server_setNodeContext(sksServer, outNodeId, &allowedUsername);
+    retVal |= UA_NodeId_copy(&outNodeId, &sgNodeId);
+    ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
 }
 
 static UA_Boolean
@@ -97,7 +99,7 @@ setup(void) {
     UA_ByteString *issuerList = NULL;
     UA_ByteString *revocationList = NULL;
     size_t revocationListSize = 0;
-
+    UA_StatusCode retVal = UA_STATUSCODE_GOOD;
     sksServer = UA_Server_new();
     UA_ServerConfig *config = UA_Server_getConfig(sksServer);
     UA_ServerConfig_setDefaultWithSecurityPolicies(
@@ -109,7 +111,7 @@ setup(void) {
     config->applicationDescription.applicationUri =
         UA_STRING_ALLOC("urn:unconfigured:application");
 
-    UA_ServerConfig_addPubSubTransportLayer(config, UA_PubSubTransportLayerUDPMP());
+    retVal |= UA_ServerConfig_addPubSubTransportLayer(config, UA_PubSubTransportLayerUDPMP());
 
     config->pubSubConfig.securityPolicies =
         (UA_PubSubSecurityPolicy *)UA_malloc(sizeof(UA_PubSubSecurityPolicy));
@@ -126,14 +128,15 @@ setup(void) {
                          &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
     connectionConfig.transportProfileUri =
         UA_STRING("http://opcfoundation.org/UA-Profile/Transport/pubsub-udp-uadp");
-    UA_Server_addPubSubConnection(sksServer, &connectionConfig, &connection);
+    retVal |= UA_Server_addPubSubConnection(sksServer, &connectionConfig, &connection);
 
     /*User Access Control*/
     config->accessControl.getUserExecutableOnObject = getUserExecutableOnObject_sks;
 
     addSecurityGroup();
 
-    UA_Server_run_startup(sksServer);
+    retVal |= UA_Server_run_startup(sksServer);
+    ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
     THREAD_CREATE(server_thread, serverloop);
 }
 
