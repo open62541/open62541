@@ -254,11 +254,12 @@ START_TEST(SubscribeSingleFieldWithFixedOffsets) {
         folderBrowseName = UA_QUALIFIEDNAME (1, "Subscribed Variables");
     }
 
-    retVal |= UA_Server_addObjectNode (server, UA_NODEID_NULL,
+    retVal = UA_Server_addObjectNode (server, UA_NODEID_NULL,
                              UA_NODEID_NUMERIC (0, UA_NS0ID_OBJECTSFOLDER),
                              UA_NODEID_NUMERIC (0, UA_NS0ID_ORGANIZES),
                              folderBrowseName, UA_NODEID_NUMERIC (0,
                              UA_NS0ID_BASEOBJECTTYPE), oAttr, NULL, &folderId);
+    ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
     /* Variable to subscribe data */
     UA_VariableAttributes vAttr = UA_VariableAttributes_default;
     vAttr.description = UA_LOCALIZEDTEXT ("en-US", "Subscribed UInt32");

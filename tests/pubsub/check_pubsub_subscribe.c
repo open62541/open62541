@@ -2118,7 +2118,7 @@ START_TEST(SinglePublishOnDemand) {
         dataSetFieldConfig.field.variable.promotedField  = UA_FALSE;
         dataSetFieldConfig.field.variable.publishParameters.publishedVariable = publisherNode;
         dataSetFieldConfig.field.variable.publishParameters.attributeId       = UA_ATTRIBUTEID_VALUE;
-        UA_DataSetFieldResult retval = UA_Server_addDataSetField (server, publishedDataSetId, &dataSetFieldConfig, &dataSetFieldIdent);
+        retVal = UA_Server_addDataSetField (server, publishedDataSetId, &dataSetFieldConfig, &dataSetFieldIdent).result;
         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
         /* Writer group */
         UA_WriterGroupConfig writerGroupConfig;
