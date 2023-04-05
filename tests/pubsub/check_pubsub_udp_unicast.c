@@ -62,17 +62,19 @@ static void
 setupPubSubServer(UA_Server **server, UA_ServerConfig **config, UA_UInt16 portNumber,
                   UA_EventLoop *el) {
     UA_ServerConfig stack_config;
+    UA_StatusCode retVal = UA_STATUSCODE_GOOD;
     memset(&stack_config, 0, sizeof(UA_ServerConfig));
     if(el) {
         stack_config.eventLoop = el;
         stack_config.externalEventLoop = true;
     }
-    UA_ServerConfig_setMinimal(&stack_config, portNumber, NULL);
+    retVal |= UA_ServerConfig_setMinimal(&stack_config, portNumber, NULL);
     *server = UA_Server_newWithConfig(&stack_config);
     *config = UA_Server_getConfig(*server);
 
-    UA_Server_run_startup(*server);
-    UA_ServerConfig_addPubSubTransportLayer(*config, UA_PubSubTransportLayerUDP());
+    retVal |= UA_Server_run_startup(*server);
+    retVal |= UA_ServerConfig_addPubSubTransportLayer(*config, UA_PubSubTransportLayerUDP());
+    ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
 }
 
 static void addUDPConnection(UA_Server *server, const char *host, UA_Int16 portNumber, UA_NodeId *outConnectionId) {
@@ -93,7 +95,7 @@ static void addUDPConnection(UA_Server *server, const char *host, UA_Int16 portN
     /* also set the same publisher Id for the subscriber connection as it does not matter */
     connectionConfig.publisherIdType = UA_PUBLISHERIDTYPE_UINT16;
     connectionConfig.publisherId.uint16 = PUBLISHER_ID;
-    UA_Server_addPubSubConnection(server, &connectionConfig, outConnectionId);
+    ck_assert_int_eq(UA_Server_addPubSubConnection(server, &connectionConfig, outConnectionId), UA_STATUSCODE_GOOD);
 }
 
 static void setupPublishedDataInt32(UA_Server *server, UA_UInt32 publishVariableNodeId, UA_NodeId *outPublishedDataSetId) {
@@ -129,7 +131,7 @@ static void setupPublishedDataInt32(UA_Server *server, UA_UInt32 publishVariable
     dataSetFieldConfig.field.variable.promotedField = UA_FALSE;
     dataSetFieldConfig.field.variable.publishParameters.publishedVariable = publisherNode;
     dataSetFieldConfig.field.variable.publishParameters.attributeId = UA_ATTRIBUTEID_VALUE;
-    UA_Server_addDataSetField(server, *outPublishedDataSetId, &dataSetFieldConfig, &dataSetFieldId);
+    ck_assert_int_eq(UA_Server_addDataSetField(server, *outPublishedDataSetId, &dataSetFieldConfig, &dataSetFieldId).result, UA_STATUSCODE_GOOD);
 }
 
 static void setupWrittenData(UA_Server *server, UA_NodeId connectionId, UA_NodeId publishedDataSetId, const char *dstHost, UA_UInt16 dstPort) {

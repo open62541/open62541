@@ -95,7 +95,8 @@ addSecurityGroup(void) {
     securityGroupId = config.securityGroupName;
 
     allowedUsername = UA_STRING("user1");
-    UA_Server_setNodeContext(sksServer, outNodeId, &allowedUsername);
+    ck_assert_int_eq(UA_Server_setNodeContext(sksServer, outNodeId, &allowedUsername),
+                     UA_STATUSCODE_GOOD);
 }
 
 static UA_Boolean
@@ -163,9 +164,10 @@ static void
 publishersetup(void) {
     running = true;
     publisherApp = UA_Server_new();
+    UA_StatusCode retVal = UA_STATUSCODE_GOOD;
     UA_ServerConfig *config = UA_Server_getConfig(publisherApp);
-    UA_ServerConfig_setMinimal(config, 4841, NULL);
-    UA_ServerConfig_addPubSubTransportLayer(config, UA_PubSubTransportLayerUDPMP());
+    retVal |= UA_ServerConfig_setMinimal(config, 4841, NULL);
+    retVal |= UA_ServerConfig_addPubSubTransportLayer(config, UA_PubSubTransportLayerUDPMP());
 
     config->pubSubConfig.securityPolicies =
         (UA_PubSubSecurityPolicy *)UA_malloc(sizeof(UA_PubSubSecurityPolicy));
@@ -184,18 +186,19 @@ publishersetup(void) {
         UA_STRING("http://opcfoundation.org/UA-Profile/Transport/pubsub-udp-uadp");
     connectionConfig.publisherIdType = UA_PUBLISHERIDTYPE_UINT16;
     connectionConfig.publisherId.uint16 = PUBLISHER_ID;
-    UA_Server_addPubSubConnection(publisherApp, &connectionConfig, &publisherConnection);
-
-    UA_Server_run_startup(publisherApp);
+    retVal |= UA_Server_addPubSubConnection(publisherApp, &connectionConfig, &publisherConnection);
+    retVal |= UA_Server_run_startup(publisherApp);
+    ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
 }
 
 static void
 subscribersetup(void) {
     running = true;
     subscriberApp = UA_Server_new();
+    UA_StatusCode retVal = UA_STATUSCODE_GOOD;
     UA_ServerConfig *config = UA_Server_getConfig(subscriberApp);
-    UA_ServerConfig_setMinimal(config, 4842, NULL);
-    UA_ServerConfig_addPubSubTransportLayer(config, UA_PubSubTransportLayerUDPMP());
+    retVal |= UA_ServerConfig_setMinimal(config, 4842, NULL);
+    retVal |= UA_ServerConfig_addPubSubTransportLayer(config, UA_PubSubTransportLayerUDPMP());
 
     config->pubSubConfig.securityPolicies =
         (UA_PubSubSecurityPolicy *)UA_malloc(sizeof(UA_PubSubSecurityPolicy));
@@ -212,10 +215,10 @@ subscribersetup(void) {
                          &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
     connectionConfig.transportProfileUri =
         UA_STRING("http://opcfoundation.org/UA-Profile/Transport/pubsub-udp-uadp");
-    UA_Server_addPubSubConnection(subscriberApp, &connectionConfig,
+    retVal |= UA_Server_addPubSubConnection(subscriberApp, &connectionConfig,
                                   &subscriberConnection);
-
-    UA_Server_run_startup(subscriberApp);
+    retVal |= UA_Server_run_startup(subscriberApp);
+    ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
 }
 
 static void
@@ -278,14 +281,15 @@ addPublisher(UA_Server *server) {
 
     retval = UA_Server_addWriterGroup(server, publisherConnection, &writerGroupConfig,
                                       &writerGroupId);
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
     UA_UadpWriterGroupMessageDataType_delete(writerGroupMessage);
     UA_PublishedDataSetConfig publishedDataSetConfig;
     memset(&publishedDataSetConfig, 0, sizeof(UA_PublishedDataSetConfig));
     publishedDataSetConfig.publishedDataSetType = UA_PUBSUB_DATASET_PUBLISHEDITEMS;
     publishedDataSetConfig.name = UA_STRING("test PDS");
-    UA_Server_addPublishedDataSet(server, &publishedDataSetConfig,
-                                  &publishedDataSetIdent);
-
+    retval = UA_Server_addPublishedDataSet(server, &publishedDataSetConfig,
+                                  &publishedDataSetIdent).addResult;
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
     /* Create variable to publish integer data */
     UA_NodeId publisherNode;
     UA_VariableAttributes attr = UA_VariableAttributes_default;
@@ -310,17 +314,17 @@ addPublisher(UA_Server *server) {
     dataSetFieldConfig.field.variable.publishParameters.publishedVariable = publisherNode;
     dataSetFieldConfig.field.variable.publishParameters.attributeId =
         UA_ATTRIBUTEID_VALUE;
-    UA_Server_addDataSetField(server, publishedDataSetIdent, &dataSetFieldConfig,
-                              &dataSetFieldIdent);
-
+    retval = UA_Server_addDataSetField(server, publishedDataSetIdent, &dataSetFieldConfig,
+                              &dataSetFieldIdent).result;
+    ck_assert_int_eq(retval , UA_STATUSCODE_GOOD);
     UA_DataSetWriterConfig dataSetWriterConfig;
     memset(&dataSetWriterConfig, 0, sizeof(UA_DataSetWriterConfig));
     dataSetWriterConfig.name = UA_STRING("Demo DataSetWriter");
     dataSetWriterConfig.dataSetWriterId = DATASET_WRITER_ID;
     dataSetWriterConfig.keyFrameCount = 10;
-    UA_Server_addDataSetWriter(server, writerGroupId, publishedDataSetIdent,
+    retval = UA_Server_addDataSetWriter(server, writerGroupId, publishedDataSetIdent,
                                &dataSetWriterConfig, &dataSetWriterIdent);
-
+    ck_assert_int_eq(retval , UA_STATUSCODE_GOOD);
     return retval;
 }
 
@@ -384,11 +388,12 @@ addSubscriber(UA_Server *server) {
         folderBrowseName = UA_QUALIFIEDNAME(1, "Subscribed Variables");
     }
 
-    UA_Server_addObjectNode(
+    retval = UA_Server_addObjectNode(
         server, UA_NODEID_NULL, UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
         UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES), folderBrowseName,
         UA_NODEID_NUMERIC(0, UA_NS0ID_BASEOBJECTTYPE), oAttr, NULL, &folderId);
 
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);    
     UA_FieldTargetVariable *targetVars = (UA_FieldTargetVariable *)UA_calloc(
         readerConfig.dataSetMetaData.fieldsSize, sizeof(UA_FieldTargetVariable));
     /* Variable to subscribe data */
