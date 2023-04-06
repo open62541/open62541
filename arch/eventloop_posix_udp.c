@@ -783,10 +783,6 @@ UDP_registerListenSockets(UA_POSIXConnectionManager *pcm, const char *hostname,
     hints.ai_socktype = SOCK_DGRAM;
     hints.ai_protocol = IPPROTO_UDP;
     hints.ai_flags = AI_PASSIVE;
-#ifdef AI_ADDRCONFIG
-    hints.ai_flags |= AI_ADDRCONFIG; /* Only return IPv4/IPv6 if at least one
-                                      * such address is configured */
-#endif
 
     /* Set up the port string */
     char portstr[6];
