@@ -117,7 +117,7 @@ START_TEST(SinglePublishSubscribeDateTime) {
         writerGroupConfig.writerGroupId = WRITER_GROUP_ID;
         writerGroupConfig.encodingMimeType = UA_PUBSUB_ENCODING_UADP;
         retVal |= UA_Server_addWriterGroup(server, connection_test, &writerGroupConfig, &writerGroup);
-        UA_Server_setWriterGroupOperational(server, writerGroup);
+        UA_Server_enableWriterGroup(server, writerGroup);
         /* DataSetWriter */
         UA_DataSetWriterConfig dataSetWriterConfig;
         memset(&dataSetWriterConfig, 0, sizeof(dataSetWriterConfig));
@@ -132,7 +132,6 @@ START_TEST(SinglePublishSubscribeDateTime) {
         readerGroupConfig.name = UA_STRING ("ReaderGroup Test");
         retVal |=  UA_Server_addReaderGroup (server, connection_test, &readerGroupConfig, &readerGroupTest);
         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
-        UA_Server_setReaderGroupOperational(server, readerGroupTest);
         /* Data Set Reader */
         memset (&readerConfig, 0, sizeof (UA_DataSetReaderConfig));
         readerConfig.name = UA_STRING ("DataSetReader Test");

@@ -74,8 +74,8 @@ static void
 sksPullRequestCallback(UA_Server *server, UA_StatusCode sksPullRequestStatus, void *data) {
     UA_PubSubState state = UA_PUBSUBSTATE_OPERATIONAL;
     UA_Server_WriterGroup_getState(server, writerGroupIdent, &state);
-    if(sksPullRequestStatus == UA_STATUSCODE_GOOD && state == UA_PUBSUBSTATE_DISABLED)
-        UA_Server_setWriterGroupOperational(server, writerGroupIdent);
+    if(sksPullRequestStatus == UA_STATUSCODE_GOOD && state == UA_PUBSUBSTATE_PREOPERATIONAL)
+        UA_Server_setWriterGroupActivateKey(server, writerGroupIdent);
 }
 
 static void

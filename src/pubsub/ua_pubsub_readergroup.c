@@ -503,14 +503,15 @@ UA_ReaderGroup_setPubSubState(UA_Server *server,
     return ret;
 }
 
+#ifdef UA_ENABLE_PUBSUB_SKS
 UA_StatusCode
-UA_Server_setReaderGroupOperational(UA_Server *server,
+UA_Server_setReaderGroupActivateKey(UA_Server *server,
                                     const UA_NodeId readerGroupId) {
     UA_LOCK(&server->serviceMutex);
     UA_StatusCode ret = UA_STATUSCODE_BADNOTFOUND;
     UA_ReaderGroup *rg = UA_ReaderGroup_findRGbyId(server, readerGroupId);
     if(rg) {
-#ifdef UA_ENABLE_PUBSUB_SKS
+
         if(rg->keyStorage && rg->keyStorage->currentItem) {
             UA_StatusCode retval = UA_PubSubKeyStorage_activateKeyToChannelContext(
                 server, rg->identifier, rg->config.securityGroupId);
@@ -519,13 +520,12 @@ UA_Server_setReaderGroupOperational(UA_Server *server,
                 return retval;
             }
         }
-#endif
-        ret = UA_ReaderGroup_setPubSubState(server, rg, UA_PUBSUBSTATE_OPERATIONAL,
-                                            UA_STATUSCODE_GOOD);
+
     }
     UA_UNLOCK(&server->serviceMutex);
     return ret;
 }
+#endif
 
 UA_StatusCode
 UA_Server_enableReaderGroup(UA_Server *server, const UA_NodeId readerGroupId){

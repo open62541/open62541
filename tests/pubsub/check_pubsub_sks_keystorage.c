@@ -110,7 +110,7 @@ addTestReaderGroup(UA_String securitygroupId){
     readerGroupConfig.securityPolicy = &config->pubSubConfig.securityPolicies[0];
 
     retVal |=  UA_Server_addReaderGroup(server, connection, &readerGroupConfig, &readerGroup);
-    UA_Server_setReaderGroupOperational(server, readerGroup);
+    UA_Server_enableReaderGroup(server, readerGroup);
 }
 
 static UA_PubSubKeyStorage*

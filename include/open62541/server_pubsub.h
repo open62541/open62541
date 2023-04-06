@@ -858,9 +858,6 @@ UA_EXPORT UA_StatusCode UA_THREADSAFE
 UA_Server_unfreezeReaderGroupConfiguration(UA_Server *server, const UA_NodeId readerGroupId);
 
 UA_EXPORT UA_StatusCode UA_THREADSAFE
-UA_Server_setReaderGroupOperational(UA_Server *server, const UA_NodeId readerGroupId);
-
-UA_EXPORT UA_StatusCode UA_THREADSAFE
 UA_Server_enableReaderGroup(UA_Server *server, const UA_NodeId readerGroupId);
 
 UA_DEPRECATED UA_EXPORT UA_StatusCode UA_THREADSAFE
@@ -982,6 +979,12 @@ UA_StatusCode UA_EXPORT
 UA_Server_setSksClient(UA_Server *server, UA_String securityGroupId,
                        UA_ClientConfig *clientConfig, const char *endpointUrl,
                        UA_Server_sksPullRequestCallback callback, void *context);
+
+UA_EXPORT UA_StatusCode UA_THREADSAFE
+UA_Server_setReaderGroupActivateKey(UA_Server *server, const UA_NodeId readerGroupId);
+
+UA_EXPORT UA_StatusCode  UA_THREADSAFE
+UA_Server_setWriterGroupActivateKey(UA_Server *server, const UA_NodeId writerGroup);
 
 #endif /* UA_ENABLE_PUBSUB_SKS */
 

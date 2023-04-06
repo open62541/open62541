@@ -481,14 +481,15 @@ UA_Server_unfreezeWriterGroupConfiguration(UA_Server *server,
     return res;
 }
 
+#ifdef UA_ENABLE_PUBSUB_SKS
 UA_StatusCode
-UA_Server_setWriterGroupOperational(UA_Server *server,
+UA_Server_setWriterGroupActivateKey(UA_Server *server,
                                     const UA_NodeId writerGroup) {
     UA_LOCK(&server->serviceMutex);
     UA_StatusCode res = UA_STATUSCODE_BADNOTFOUND;
     UA_WriterGroup *wg = UA_WriterGroup_findWGbyId(server, writerGroup);
     if(wg) {
-#ifdef UA_ENABLE_PUBSUB_SKS
+
         if(wg->keyStorage && wg->keyStorage->currentItem) {
             res = UA_PubSubKeyStorage_activateKeyToChannelContext(
                 server, wg->identifier, wg->config.securityGroupId);
@@ -497,14 +498,11 @@ UA_Server_setWriterGroupOperational(UA_Server *server,
                 return res;
             }
         }
-#endif
-
-        res = UA_WriterGroup_setPubSubState(server, wg, UA_PUBSUBSTATE_OPERATIONAL,
-                                            UA_STATUSCODE_GOOD);
     }
     UA_UNLOCK(&server->serviceMutex);
     return res;
 }
+#endif
 
 UA_StatusCode
 UA_Server_setWriterGroupDisabled(UA_Server *server,

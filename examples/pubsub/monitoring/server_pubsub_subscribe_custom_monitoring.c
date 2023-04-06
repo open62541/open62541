@@ -96,6 +96,8 @@ addReaderGroup(UA_Server *server) {
     readerGroupConfig.name = UA_STRING("ReaderGroup1");
     retval |= UA_Server_addReaderGroup(server, connectionIdentifier, &readerGroupConfig,
                                        &readerGroupIdentifier);
+
+    retval |= UA_Server_enableReaderGroup(server, readerGroupIdentifier);
     return retval;
 }
 
