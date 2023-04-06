@@ -524,10 +524,6 @@ TCP_registerListenSockets(UA_POSIXConnectionManager *pcm, const char *hostname,
     hints.ai_socktype = SOCK_STREAM;
     hints.ai_protocol = IPPROTO_TCP;
     hints.ai_flags = AI_PASSIVE;
-#ifdef AI_ADDRCONFIG
-    hints.ai_flags |= AI_ADDRCONFIG; /* Only return IPv4/IPv6 if at least one
-                                      * such address is configured */
-#endif
 
     int retcode = UA_getaddrinfo(hostname, portstr, &hints, &res);
     if(retcode != 0) {
