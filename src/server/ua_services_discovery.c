@@ -283,22 +283,19 @@ process_RegisterServer(UA_Server *server, UA_Session *session,
         return;
 
     /* Find the server from the request in the registered list */
-    registeredServer_list_entry* current;
-    registeredServer_list_entry *registeredServer_entry = NULL;
-    LIST_FOREACH(current, &dm->registeredServers, pointers) {
-        if(UA_String_equal(&current->registeredServer.serverUri, &requestServer->serverUri)) {
-            registeredServer_entry = current;
+    registeredServer_list_entry *registeredServer = NULL;
+    LIST_FOREACH(registeredServer, &dm->registeredServers, pointers) {
+        if(UA_String_equal(&registeredServer->registeredServer.serverUri,
+                           &requestServer->serverUri))
             break;
-        }
     }
 
     UA_MdnsDiscoveryConfiguration *mdnsConfig = NULL;
 
     const UA_String* mdnsServerName = NULL;
     if(requestDiscoveryConfigurationSize) {
-        *responseConfigurationResults =
-            (UA_StatusCode *)UA_Array_new(requestDiscoveryConfigurationSize,
-                                          &UA_TYPES[UA_TYPES_STATUSCODE]);
+        *responseConfigurationResults = (UA_StatusCode *)
+            UA_Array_new(requestDiscoveryConfigurationSize, &UA_TYPES[UA_TYPES_STATUSCODE]);
         if(!(*responseConfigurationResults)) {
             responseHeader->serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
             return;
@@ -360,7 +357,7 @@ process_RegisterServer(UA_Server *server, UA_Session *session,
 #ifdef UA_ENABLE_DISCOVERY_MULTICAST
     if(server->config.mdnsEnabled) {
         for(size_t i = 0; i < requestServer->discoveryUrlsSize; i++) {
-            /* create TXT if is online and first index, delete TXT if is offline and last index */
+            /* Create TXT if is online and first index, delete TXT if is offline and last index */
             UA_Boolean updateTxt = (requestServer->isOnline && i==0) ||
                 (!requestServer->isOnline && i==requestServer->discoveryUrlsSize);
             UA_Discovery_updateMdnsForDiscoveryUrl(dm, mdnsServerName, mdnsConfig,
@@ -371,9 +368,9 @@ process_RegisterServer(UA_Server *server, UA_Session *session,
 #endif
 
     if(!requestServer->isOnline) {
-        // server is shutting down. Remove it from the registered servers list
-        if(!registeredServer_entry) {
-            // server not found, show warning
+        /* Server is shutting down. Remove it from the registered servers list */
+        if(!registeredServer) {
+            /* Server not found, show warning */
             UA_LOG_WARNING_SESSION(&server->config.logger, session,
                                    "Could not unregister server %.*s. Not registered.",
                                    (int)requestServer->serverUri.length, requestServer->serverUri.data);
@@ -388,49 +385,49 @@ process_RegisterServer(UA_Server *server, UA_Session *session,
             UA_LOCK(&server->serviceMutex);
         }
 
-        // server found, remove from list
-        LIST_REMOVE(registeredServer_entry, pointers);
-        UA_RegisteredServer_clear(&registeredServer_entry->registeredServer);
-        UA_free(registeredServer_entry);
+        /* Server found, remove from list */
+        LIST_REMOVE(registeredServer, pointers);
+        UA_RegisteredServer_clear(&registeredServer->registeredServer);
+        UA_free(registeredServer);
         dm->registeredServersSize--;
         responseHeader->serviceResult = UA_STATUSCODE_GOOD;
         return;
     }
 
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
-    if(!registeredServer_entry) {
-        // server not yet registered, register it by adding it to the list
-        UA_LOG_DEBUG_SESSION(&server->config.logger, session, "Registering new server: %.*s",
-                             (int)requestServer->serverUri.length, requestServer->serverUri.data);
+    if(!registeredServer) {
+        /* Server not yet registered, register it by adding it to the list */
+        UA_LOG_DEBUG_SESSION(&server->config.logger, session,
+                             "Registering new server: %.*s",
+                             (int)requestServer->serverUri.length,
+                             requestServer->serverUri.data);
 
-        registeredServer_entry =
-            (registeredServer_list_entry *)UA_malloc(sizeof(registeredServer_list_entry));
-        if(!registeredServer_entry) {
+        registeredServer = (registeredServer_list_entry *)
+            UA_malloc(sizeof(registeredServer));
+        if(!registeredServer) {
             responseHeader->serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
             return;
         }
 
-        LIST_INSERT_HEAD(&dm->registeredServers,
-                         registeredServer_entry, pointers);
+        LIST_INSERT_HEAD(&dm->registeredServers, registeredServer, pointers);
         dm->registeredServersSize++;
     } else {
-        UA_RegisteredServer_clear(&registeredServer_entry->registeredServer);
+        UA_RegisteredServer_clear(&registeredServer->registeredServer);
     }
 
-    // Always call the callback, if it is set.
-    // Previously we only called it if it was a new register call. It may be the case that this endpoint
-    // registered before, then crashed, restarts and registeres again. In that case the entry is not deleted
-    // and the callback would not be called.
+    /* Always call the callback, if it is set. Previously we only called it if
+     * it was a new register call. It may be the case that this endpoint
+     * registered before, then crashed, restarts and registeres again. In that
+     * case the entry is not deleted and the callback would not be called. */
     if(dm->registerServerCallback) {
         UA_UNLOCK(&server->serviceMutex);
-        dm->registerServerCallback(requestServer,
-                                   dm->registerServerCallbackData);
+        dm->registerServerCallback(requestServer, dm->registerServerCallbackData);
         UA_LOCK(&server->serviceMutex);
     }
 
-    // copy the data from the request into the list
-    UA_RegisteredServer_copy(requestServer, &registeredServer_entry->registeredServer);
-    registeredServer_entry->lastSeen = UA_DateTime_nowMonotonic();
+    /* Copy the data from the request into the list */
+    UA_RegisteredServer_copy(requestServer, &registeredServer->registeredServer);
+    registeredServer->lastSeen = UA_DateTime_nowMonotonic();
     responseHeader->serviceResult = retval;
 }
 
