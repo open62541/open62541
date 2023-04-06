@@ -11,6 +11,7 @@
  *    Copyright 2015-2016 (c) Oleksiy Vasylyev
  *    Copyright 2017 (c) Stefan Profanter, fortiss GmbH
  *    Copyright 2017 (c) Thomas Stalder, Blue Time Concept SA
+ *    Copyright 2023 (c) Fraunhofer IOSB (Author: Andreas Ebner)
  */
 
 #ifndef UA_TYPES_H_
@@ -1138,6 +1139,13 @@ UA_DataType_isNumeric(const UA_DataType *type);
  * matching data type was found. */
 const UA_DataType UA_EXPORT *
 UA_findDataType(const UA_NodeId *typeId);
+
+/*
+ * Add custom data types to the search scope of UA_findDataType. */
+
+const UA_DataType UA_EXPORT *
+UA_findDataTypeWithCustom(const UA_NodeId *typeId,
+                          const UA_DataTypeArray *customTypes);
 
 /** The following functions are used for generic handling of data types. */
 
