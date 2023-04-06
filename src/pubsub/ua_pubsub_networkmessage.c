@@ -1635,9 +1635,9 @@ UA_DataSetMessage_calcSizeBinary(UA_DataSetMessage* p,
     if(p->configuredSize > 0) {
         /* If the message is larger than the configuredSize, it shall be set to not valid */
         if(p->configuredSize < size) 
-            p->header.dataSetMessageValid = 0;
+            p->header.dataSetMessageValid = UA_FALSE;
         
-        size += (p->configuredSize - size);
+        size = p->configuredSize;
     }
     
     /* KeepAlive-Message contains no Payload Data */
